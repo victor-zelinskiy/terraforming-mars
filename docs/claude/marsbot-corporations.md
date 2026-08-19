@@ -1,6 +1,6 @@
 # MarsBot corporations — the production framework (RB-B «Adding Corporations»)
 
-**Status: production (2026-08-19).** Первые три корпорации: **C01 Credicor · C02 Ecoline (+B23 Rapid Sprouting) · C45 Spire**. Официальные данные и трактовки: `docs/AUTOMA_DATA_AUDIT.md` §10 (RB-B транскрибирован полностью). Дизайн-референс upstream-типов: `docs/AUTOMA_CORP_FRAMEWORK_REFERENCE.md` (историческая записка — реализация НЕ по его фасаду).
+**Status: production (2026-08-19).** Реализованные корпорации: **C01 Credicor · C02 Ecoline (+B23 Rapid Sprouting) · C03 Helion (track cubes) · C45 Spire**. Официальные данные и трактовки: `docs/AUTOMA_DATA_AUDIT.md` §10 (RB-B транскрибирован полностью). Дизайн-референс upstream-типов: `docs/AUTOMA_CORP_FRAMEWORK_REFERENCE.md` (историческая записка — реализация НЕ по его фасаду).
 
 ## Модель
 
@@ -9,11 +9,11 @@
 | Слой | Файл | Что |
 | --- | --- | --- |
 | id | `src/common/automa/AutomaTypes.ts` | `MarsBotCorpId` ('C01'…, официальные номера карт, конвенция BonusCardId), `MARS_BOT_CORP_IDS`, `AutomaOptions.corporation?` (dev/test-override — близнец `customBonusCards`) |
-| данные | `src/common/automa/MarsBotCorpData.ts` | `MarsBotCorpInfo` (original, startingTags, draftPriority, resource 'plant'\|'science', corpBonusCards, печатные секции-боксы), `buildMarsBotCorpView`, `MarsBotCorpModel` (публичная модель), `MarsBotCorpStats` (словарь счётчиков) |
+| данные | `src/common/automa/MarsBotCorpData.ts` | `MarsBotCorpInfo` (original, startingTags, draftPriority, resource 'plant'\|'science', corpBonusCards, **trackCubes** + `cubeLegend`, печатные секции-боксы), `buildMarsBotCorpView`, `MarsBotCorpModel` (+`cubes`), `MarsBotCorpStats` |
 | поведение | `src/server/automa/corps/MarsBot<Name>.ts` | co-located: setup / beforeActionPhase / onProjectCardResolving / resolveBonusCard (своих B-карт) |
 | диспетчер | `src/server/automa/corps/AutomaCorporations.ts` | REGISTRY, eligibility (чистый `isMarsBotCorporationEligible`), выбор, гейт BAP, драфт pick/discard, диспатчи |
 | драфт | `src/server/automa/corps/MarsBotDraftResolver.ts` | pick по приоритету + пост-драфт protect/discard (RB-B p.2; порт upstream-логики) |
-| state | `AutomaState.corporation / corpResources / corpStats / corpBapGeneration` | сериализуется опционально; старые сейвы = corpless навсегда (§legacy ниже) |
+| state | `AutomaState.corporation / corpResources / corpStats / corpBapGeneration / corpCubesTriggered` | сериализуется опционально; старые сейвы = corpless навсегда (§legacy ниже) |
 
 **Добавление корпорации N+1**: строка в enum → запись данных в `MarsBotCorpData` → файл поведения → строка в `REGISTRY` → RU-ключи → спек. Ни один switch за пределами registry не растёт; UI/сериализация/статистика подхватывают автоматически.
 
@@ -34,6 +34,17 @@ Pick: приоритет корпорации; равные → случайно
 - Эффект корпорации в ходе: `events.beginEffect(bot, {kind:'corporation', card: original, owner}, 'automa-corporation')` → journal + `corporationFacts` (passive-метрики) бесплатно; турн-скрипт получает cause `{kind:'corporation'}` → «Разбор хода» строит цепочку «Эффект корпорации» (`botTurnReviewModel`, id из архива).
 - Вне хода (выбор, Spire-город): `beginAction(..., {category:'corporation-action'})` → нотификация «Corporation action» + журнальная группа.
 - B23 — recurring-механизм B16-семейства (`recurringBonusCards`); gen-1 вставка seeded-random позицией в готовую колоду (идемпотентно, ровно одна копия навсегда).
+
+
+## Кубы на треках (RB-B «Special Cubes on the MarsBot Player Mat»)
+
+Primitive, введённый вместе с **C03 Helion** (первая корпорация с кубами):
+
+- **Данные**: `MarsBotCorpInfo.trackCubes` — `{tag, position, cubeType}`. Трек назван ТЕГОМ (печатные карты говорят «the building track», «the Earth track»), сервер резолвит его через `board.getTrackIndexForTag` — куб переносим на любой планшет, где такой трек есть, и молча отпадает там, где его нет.
+- **Состояние**: `AutomaState.corpCubesTriggered` (ключи `trackIndex:position`, сериализуются). Куб срабатывает РОВНО ОДИН раз за партию; регресс трека НЕ перевзводит сработавший куб (дословное правило RB-B).
+- **Диспатч**: `AutomaCorporations.onTrackAdvanced(game, trackIndex, position, printedAction)` вызывается из `AutomaResolver.advanceTrack` после шага и ДО печатного действия; помечает куб сработавшим ДО эффекта (эффект может каскадом вернуться на тот же трек) и возвращает `true`, если корпорация ЗАМЕСТИЛА печатное действие. Хук корпорации: `MarsBotCorp.onTrackCubeTrigger(...) → 'replaces-action' | void`.
+- **Порядок RB-B**: эффект куба — ДО и В ДОПОЛНЕНИЕ к печатной иконке, если карта явно не сказала «вместо». Helion: белый куб = `'replaces-action'` (все шесть стоят на печатной temperature — закреплено тестом), чёрный = +1 температура плюс печатная иконка.
+- **Модель + UI**: `MarsBotCorpModel.cubes` (`{trackIndex, position, cubeType, spent}`) → `MarsBotTracks` рисует куб в углу клетки (белый — светлое тело/тёмный обод, чёрный — тёмное тело/холодный обод, spent — гравированный контур) плюс **легенду** из `cubeLegend` (печатный смысл каждого цвета) и `data-hint` на клетке. Кубы — открытая информация: их видно и в console-детали «Планшет бота», и в desktop-оверлее.
 
 ## FAQ Ecoline (RB-B)
 
@@ -61,4 +72,4 @@ Pick: приоритет корпорации; равные → случайно
 
 ## Тесты
 
-`tests/automa/AutomaCorporations.spec.ts` (framework/selection/collision/serialization), `MarsBotCredicor.spec.ts`, `MarsBotEcoline.spec.ts` (B23 lifecycle + FAQ), `MarsBotSpire.spec.ts`, `tests/common/automa/MarsBotCorpData.spec.ts` (данные + no-human-leak), клиентские `MarsBotCorpFace.spec.ts` / review-спеки. В automa-тестах хелпер форсит **C01 Credicor по умолчанию** (самая инертная корпорация) — corp-тесты передают свою или `'random'`.
+`tests/automa/AutomaCorporations.spec.ts` (framework/selection/collision/serialization), `MarsBotCredicor.spec.ts`, `MarsBotEcoline.spec.ts` (B23 lifecycle + FAQ), `MarsBotHelion.spec.ts` (кубы: сетап/замещение/spent-once/Failed/сериализация), `MarsBotSpire.spec.ts`, `tests/common/automa/MarsBotCorpData.spec.ts` (данные + no-human-leak), клиентские `MarsBotCorpFace.spec.ts`, `MarsBotTracksCubes.spec.ts` / review-спеки; e2e `console-bot-corporation.spec.ts` + `console-bot-corp-cubes.spec.ts`. В automa-тестах хелпер форсит **C01 Credicor по умолчанию** (самая инертная корпорация) — corp-тесты передают свою или `'random'`.

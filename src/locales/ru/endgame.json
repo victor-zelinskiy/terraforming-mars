@@ -865,6 +865,7 @@
     "Bot corporation": "Корпорация бота",
     "${0}'s corporation ${1} monetized big projects: ${2} cards of 20+ M€ paid it ${3} M€ over the game.": "Корпорация ${1} у ${0} монетизировала крупные проекты: ${2} карт от 20 M€ принесли ей ${3} M€ за партию.",
     "${0}'s corporation ${1} grew the planet itself: Rapid Sprouting planted ${2} greeneries and raised oxygen ${3} steps.": "Корпорация ${1} у ${0} озеленяла планету сама: «Быстрое прорастание» высадило ${2} озеленений и подняло кислород на ${3} шагов.",
+    "${0}'s corporation ${1} turned its track cubes into tempo: ${2} extra cards and ${3} temperature steps.": "Корпорация ${1} у ${0} превратила кубы на треках в темп: ${2} лишних карт и ${3} шагов температуры.",
     "${0}'s corporation ${1} banked science from multi-tag cards: ${2} science became ${3} city tile(s) and TR.": "Корпорация ${1} у ${0} копила науку с многометочных карт: ${2} науки стали ${3} городом(ами) и РТ.",
     "${0}'s corporation ${1} protected all four drafted cards ${2} times — extra action cards every one of those generations.": "Корпорация ${1} у ${0} защитила все четыре задрафченные карты ${2} раз(а) — лишняя карта действия в каждом из тех поколений."
 }

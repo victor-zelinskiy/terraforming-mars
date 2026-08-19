@@ -6,7 +6,7 @@
       </div>
       <div class="mb-track__cells">
         <div
-          v-for="cell in cellsFor(track)"
+          v-for="cell in cellsFor(track, ti)"
           :key="cell.index"
           class="mb-cell"
           :class="{
@@ -14,6 +14,7 @@
             'mb-cell--passed': cell.index < track.position,
             'mb-cell--regressed': cell.regressed,
             'mb-cell--start': cell.index === 0,
+            'mb-cell--cube': cell.cube !== undefined && !cell.cube.spent,
           }"
           :data-hint="hintFor(cell)"
         >
@@ -41,9 +42,25 @@
             <span v-else-if="glyphFor(cell).kind === 'ma'" class="mb-glyph mb-glyph--ma">{{ maGlyph(cell) }}</span>
           </template>
           <span v-if="cell.regressed" class="mb-cell__regress" aria-hidden="true">✕</span>
+          <!-- A corporation CUBE seeded on this space (RB-B special cubes).
+               Corner-pinned so the cell's own bonus glyph stays readable; a
+               SPENT cube keeps its place as a hollow outline (the physical
+               cube is still on the mat, it just cannot fire again). -->
+          <span v-if="cell.cube !== undefined"
+                class="mb-cell__cube"
+                :class="['mb-cell__cube--' + cell.cube.cubeType, {'mb-cell__cube--spent': cell.cube.spent}]"
+                aria-hidden="true"></span>
         </div>
       </div>
       <div class="mb-track__pos">{{ track.position }}<span class="mb-track__pos-max">/{{ track.maxPosition }}</span></div>
+    </div>
+    <!-- The corporation's cube legend — what each colour does, in the printed
+         card's own words, so a cube on the mat explains itself. -->
+    <div v-if="legendRows.length > 0" class="mb-cubelegend">
+      <div v-for="row in legendRows" :key="row.cubeType" class="mb-cubelegend__row">
+        <span class="mb-cell__cube" :class="'mb-cell__cube--' + row.cubeType" aria-hidden="true"></span>
+        <span class="mb-cubelegend__text">{{ row.text }}</span>
+      </div>
     </div>
   </div>
 </template>
@@ -60,6 +77,7 @@
 import {defineComponent, PropType} from 'vue';
 import {Color} from '@/common/Color';
 import {Tag as CardTag} from '@/common/cards/Tag';
+import {MarsBotCorpCubeModel, MarsBotCorpModel, MarsBotCubeType, marsBotCorpInfo} from '@/common/automa/MarsBotCorpData';
 import {MarsBotTrackModel} from '@/common/models/MarsBotModel';
 import {TrackCell, TrackActionGlyph, trackActionGlyph, trackActionLabel, trackCells} from './marsBotView';
 import {translateText, translateTextWithParams} from '@/client/directives/i18n';
@@ -73,10 +91,13 @@ export default defineComponent({
     botColor: {type: String as PropType<Color>, required: true},
     /** TV-readable sizing for the console info mode. */
     large: {type: Boolean, default: false},
+    /** The bot's corporation — its seeded cubes are drawn on the tracks
+     *  (RB-B special cubes) and its legend explains them. */
+    corporation: {type: Object as PropType<MarsBotCorpModel | undefined>, default: undefined},
   },
   methods: {
-    cellsFor(track: MarsBotTrackModel): Array<TrackCell> {
-      return trackCells(track);
+    cellsFor(track: MarsBotTrackModel, trackIndex: number): Array<TrackCell> {
+      return trackCells(track, this.cubesByTrack.get(trackIndex) ?? []);
     },
     glyphFor(cell: TrackCell): TrackActionGlyph {
       return cell.action !== undefined ? trackActionGlyph(cell.action) : {kind: 'advance'};
@@ -112,18 +133,69 @@ export default defineComponent({
       const g = this.glyphFor(cell);
       return g.kind === 'ma' && g.which === 'award' ? '🏅' : '🏆';
     },
+    /** The printed meaning of a cube colour (the corporation's own words). */
+    legendText(cubeType: MarsBotCubeType): string | undefined {
+      const id = this.corporation?.id;
+      const key = id === undefined ? undefined : marsBotCorpInfo(id).cubeLegend?.[cubeType];
+      return key === undefined ? undefined : translateText(key);
+    },
+    cubeLabel(cubeType: MarsBotCubeType): string {
+      switch (cubeType) {
+      case 'white': return translateText('White cube');
+      case 'black': return translateText('Black cube');
+      default: return translateText('Credit token');
+      }
+    },
     hintFor(cell: TrackCell): string {
       if (cell.regressed) {
         return translateText('Regressed — this action will not trigger again');
       }
+      const parts: Array<string> = [];
       if (cell.action !== undefined && !cell.current) {
         const label = trackActionLabel(cell.action);
-        return translateTextWithParams(label.message, label.params);
+        parts.push(translateTextWithParams(label.message, label.params));
       }
-      return '';
+      if (cell.cube !== undefined) {
+        const legend = this.legendText(cell.cube.cubeType);
+        parts.push(legend !== undefined ?
+          `${this.cubeLabel(cell.cube.cubeType)} — ${legend}` :
+          this.cubeLabel(cell.cube.cubeType));
+        if (cell.cube.spent) {
+          parts.push(translateText('This cube has already been used'));
+        }
+      }
+      return parts.join(' · ');
     },
   },
   computed: {
+    /** The corporation's cubes, grouped by the track they sit on. */
+    cubesByTrack(): Map<number, Array<MarsBotCorpCubeModel>> {
+      const map = new Map<number, Array<MarsBotCorpCubeModel>>();
+      for (const cube of this.corporation?.cubes ?? []) {
+        const list = map.get(cube.trackIndex);
+        if (list === undefined) {
+          map.set(cube.trackIndex, [cube]);
+        } else {
+          list.push(cube);
+        }
+      }
+      return map;
+    },
+    /** One legend row per cube colour this corporation actually seeded. */
+    legendRows(): Array<{cubeType: MarsBotCubeType, text: string}> {
+      const seeded = new Set((this.corporation?.cubes ?? []).map((c) => c.cubeType));
+      const rows: Array<{cubeType: MarsBotCubeType, text: string}> = [];
+      for (const cubeType of ['white', 'black', 'credit'] as const) {
+        if (!seeded.has(cubeType)) {
+          continue;
+        }
+        const text = this.legendText(cubeType);
+        if (text !== undefined) {
+          rows.push({cubeType, text});
+        }
+      }
+      return rows;
+    },
     /**
      * The widest track's cell count — every row renders on the SAME grid
      * template (`--mb-cols` columns), so cell k sits in the same column in

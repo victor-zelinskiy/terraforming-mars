@@ -17,8 +17,8 @@ import {SelectCard} from '../inputs/SelectCard';
 import {SimpleDeferredAction} from '../deferredActions/DeferredAction';
 import {AwardScorer} from '../awards/AwardScorer';
 import {AutomaAres} from './AutomaAres';
+import {drawAndResolveProjectCard} from './AutomaCardDraw';
 import {AutomaCorporations} from './corps/AutomaCorporations';
-import {AutomaHumanTagReactions} from './AutomaHumanTagReactions';
 import {cardResourceAttackPrompt} from './AutomaAttackPrompt';
 import {AutomaColonies} from './AutomaColonies';
 import {AutomaMilestonesAwards} from './AutomaMilestonesAwards';
@@ -83,30 +83,6 @@ function advanceFurthestMartianParameter(game: IGame): boolean {
     game.increaseTemperature(bot, 1);
     game.log('${0} raised ${1} ${2} step(s)', (b) => b.player(bot).globalParameter(GlobalParameter.TEMPERATURE).number(1));
   }
-  return true;
-}
-
-/** B03 / B07-fallback: "MarsBot draws 1 card from the project deck and resolves it immediately." */
-function drawAndResolveProjectCard(game: IGame): boolean {
-  const automa = game.automa;
-  if (automa === undefined) {
-    throw new Error('Not an automa game');
-  }
-  const card = game.projectDeck.draw(game);
-  if (card === undefined) {
-    return false; // Draw + discard piles fully exhausted — nothing to resolve.
-  }
-  // The bot PLAYS the card (its tags), it does not "show/reveal" it — reuse the
-  // standard "played" log so the journal reads «Бот сыграл …», never «показал».
-  game.log('${0} played ${1}', (b) => b.player(marsBotOf(game)).card(card, {tags: true}));
-  // The corporation's "When resolving a card …" effect covers THIS path too
-  // (R&D / the Neural Instance fallback resolve a card just like a turn flip).
-  AutomaCorporations.onProjectCardResolving(game, card);
-  // …and so do the RB-B-sanctioned human reactors (Saturn Systems / Pharmacy
-  // Union / Splice) — the bot PLAYS this card, whichever door dealt it.
-  AutomaHumanTagReactions.onBotCardResolved(game, card);
-  AutomaResolver.resolveProjectCard(game, card);
-  automa.playedPile.push(card.name);
   return true;
 }
 

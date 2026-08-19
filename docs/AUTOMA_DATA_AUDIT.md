@@ -185,6 +185,7 @@ Event-карты: `Tag.EVENT` не хранится в `tags[]` (тип карт
 |---|---|---|
 | **C01 Credicor** | DRAFT PRIORITY: Most expensive. EFFECT: When resolving a card with a cost of 20 MC or more, MarsBot gains 4 MC. | ✅ `MarsBotCredicor.ts`; драфт-протекция по RB-B p.2 Special Cases (сохраняет ВСЕ самые дорогие; все 4 равны → без сброса) |
 | **C02 Ecoline** | BEFORE ACTION PHASE: Add Rapid Sprouting to MarsBot's action deck. | ✅ `MarsBotEcoline.ts`; B23 = recurring-механизм (B16-семейство) |
+| **C03 Helion** | SETUP: white cube — building #6, space #9, science #10, power #5 и #9, plant #11; black cube — Earth #3, #6, #9, #12, #13, #14. EFFECT: advancing onto a white cube — instead of raising the temperature, MarsBot draws and resolves a card from the project deck; advancing onto a black cube — MarsBot raises the temperature 1 step. | ✅ `MarsBotHelion.ts` + primitive кубов (`MarsBotCorpInfo.trackCubes` по ТЕГУ трека → `AutomaCorporations.onTrackAdvanced`; `AutomaState.corpCubesTriggered` — spent-once, регресс НЕ перевзводит). Белый куб = `'replaces-action'` (все 6 стоят на печатной temperature — проверено тестом); чёрный = +1 температура ДО и В ДОПОЛНЕНИЕ к печатной иконке (RB-B), maxed → штатный Failed Action. Кубы ВИДНЫ на планшете бота (`MarsBotTracks` + легенда) |
 | **B23 Rapid Sprouting** | If the Ecoline corporation card has a plant resource on it, remove it, MarsBot places a greenery tile, and it raises oxygen 1 step. Otherwise, add a plant resource to the Ecoline corporation card. At the beginning of every generation, shuffle this into MarsBot's action deck. | ✅ там же; озеленение через штатный `AutomaTilePlacer.placeGreenery` (его подъём O₂ = печатный «raises oxygen 1 step»); нет места → Failed Action, растение остаётся |
 | **C45 Spire** | Starting tag: Earth. DRAFT PRIORITY: Most tags. EFFECT: When resolving a card with 2 or more tags, place a science resource on this card. BEFORE ACTION PHASE: If there are 10 or more science resources on this card, remove 10 science resources from here, and MarsBot places a city tile and gains 1 TR. | ✅ `MarsBotSpire.ts`; город невозможен → Failed Action, −10 науки и +1 РТ всё равно резолвятся (две отдельные печатные части) |
 
@@ -206,7 +207,7 @@ Event-карты: `Tag.EVENT` не хранится в `tags[]` (тип карт
 | Санкция — ЯВНЫЙ allowlist (прецедент AutomaBans): ровно {Saturn Systems, Pharmacy Union, Splice} по перечислению RB-B. Solar Logistics и прочие anyPlayer-реакторы молчат ПО ПРАВИЛУ (негативный тест) | ✅ |
 
 **RB-B, вне поддерживаемой матрицы (задокументировано, не реализовано):**
-- Special Cubes (white/black/credit на треках) — понадобятся будущим корпорациям (C-номера с кубами).
+- Credit-жетоны на треках: тип (`'credit'`) и рендер уже есть в primitive кубов, но ни одна реализованная корпорация их не сеет — первая такая корпорация просто объявит их в своих `trackCubes`.
 - Aphrodite/Lakefront Resorts/Pristar/Utopia Investments — Turmoil-часть FAQ; Turmoil вне матрицы. (Human Aphrodite от подъёмов Венеры ботом уже работает штатным engine-путём.)
 
 ### Grep-аудит promo-модуля (frame §7, выполнен 2026-07-19)

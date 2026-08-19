@@ -1,5 +1,5 @@
-import {BonusCardId} from '../../../common/automa/AutomaTypes';
-import {MarsBotCorpInfo} from '../../../common/automa/MarsBotCorpData';
+import {BonusCardId, TrackAction} from '../../../common/automa/AutomaTypes';
+import {MarsBotCorpInfo, MarsBotTrackCube} from '../../../common/automa/MarsBotCorpData';
 import {IGame} from '../../IGame';
 import {IProjectCard} from '../../cards/IProjectCard';
 import type {BonusCardOutcome} from '../AutomaBonusCards';
@@ -41,6 +41,18 @@ export type MarsBotCorp = {
    * the corporation effect.
    */
   onProjectCardResolving?(game: IGame, card: IProjectCard): void;
+
+  /**
+   * MarsBot's marker ADVANCED onto one of this corporation's cubes (RB-B
+   * «Special Cubes on the MarsBot Player Mat»). Fires BEFORE the space's
+   * printed icon and IN ADDITION to it — unless the hook returns
+   * `'replaces-action'`, the card's explicit «instead of …» case (Helion's
+   * white cube takes over the printed temperature raise).
+   *
+   * A cube fires at most ONCE per game: the framework marks it spent, and a
+   * regressed track never re-arms it.
+   */
+  onTrackCubeTrigger?(game: IGame, cube: MarsBotTrackCube, printedAction: TrackAction | undefined): 'replaces-action' | void;
 
   /**
    * Resolves one of this corporation's OWN bonus cards (`info.corpBonusCards`,

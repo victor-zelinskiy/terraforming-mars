@@ -69,6 +69,7 @@ export type AutomaOptions = {
 export enum MarsBotCorpId {
   C01_CREDICOR = 'C01',
   C02_ECOLINE = 'C02',
+  C03_HELION = 'C03',
   C45_SPIRE = 'C45',
 }
 
@@ -76,8 +77,18 @@ export enum MarsBotCorpId {
 export const MARS_BOT_CORP_IDS: ReadonlyArray<MarsBotCorpId> = [
   MarsBotCorpId.C01_CREDICOR,
   MarsBotCorpId.C02_ECOLINE,
+  MarsBotCorpId.C03_HELION,
   MarsBotCorpId.C45_SPIRE,
 ];
+
+/**
+ * A cube a corporation seeds onto MarsBot's tracks during setup (Rule Book B
+ * «Special Cubes on the MarsBot Player Mat»). Reaching that space fires the
+ * corporation's own cube effect — BEFORE and IN ADDITION to the printed icon,
+ * unless the card explicitly replaces it. Regressing a track never re-arms a
+ * cube that already triggered.
+ */
+export type MarsBotCubeType = 'white' | 'black' | 'credit';
 
 export enum BonusCardId {
   // Base game (B01-B08)

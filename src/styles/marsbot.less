@@ -165,6 +165,75 @@
     border-radius: 50%; font-size: 8px; color: #1a0e08;
     background: rgb(235, 130, 90); box-shadow: 0 0 6px rgba(235, 130, 90, 0.5);
 }
+/* ── Corporation TRACK CUBES (RB-B special cubes) ─────────────────────────
+   A physical cube resting on a track space: corner-pinned so the cell's own
+   bonus glyph stays fully readable, small and calm (the track is a reference
+   sheet, not a light show). SPENT keeps the cube in place as a hollow shell —
+   it is still on the mat, it just cannot fire again. Functional state rides
+   box-shadow/opacity only (perf-mode safe). */
+.mb-cell { position: relative; }
+/* The cube carries its own presence — the cell keeps its ordinary rim so the
+   strip stays calm and the current-position outline stays the only ring. */
+.mb-cell__cube {
+    position: absolute;
+    top: -3px; left: -3px;
+    width: 11px; height: 11px;
+    border-radius: 2.5px;
+    pointer-events: none;
+}
+/* A real cube resting on the mat: a lit top face, a shaded lower edge, a dark
+   seating ring so it never dissolves into the grid, and a contact shadow. */
+.mb-cell__cube--white {
+    background: linear-gradient(155deg, #ffffff 0%, #eef3f1 42%, #b9c6c2 100%);
+    box-shadow:
+        inset 0 1px 0 rgba(255, 255, 255, 0.95),
+        inset 0 -1.5px 1px rgba(30, 50, 45, 0.4),
+        0 0 0 1px rgba(6, 12, 10, 0.9),
+        0 1px 3px rgba(0, 0, 0, 0.55);
+}
+/* BLACK: the body must stay unmistakably dark on a dark mat — a thin cool
+   rim separates it from the cell, the top light is a hint, not a face. */
+.mb-cell__cube--black {
+    background: linear-gradient(155deg, #26302e 0%, #131a19 45%, #05090a 100%);
+    box-shadow:
+        inset 0 1px 0 rgba(226, 240, 236, 0.18),
+        inset 0 -1.5px 1px rgba(0, 0, 0, 0.8),
+        0 0 0 1px rgba(210, 228, 223, 0.5),
+        0 1px 3px rgba(0, 0, 0, 0.65);
+}
+.mb-cell__cube--credit {
+    background: linear-gradient(155deg, #ffe6a8 0%, #e0b45c 45%, #a8752a 100%);
+    box-shadow:
+        inset 0 1px 0 rgba(255, 245, 220, 0.75),
+        0 0 0 1px rgba(6, 12, 10, 0.9),
+        0 1px 3px rgba(0, 0, 0, 0.55);
+}
+/* SPENT: the cube was taken off the mat — its footprint stays as an engraved
+   outline so the player still reads WHERE it stood. */
+.mb-cell__cube--spent {
+    background: transparent;
+    box-shadow: inset 0 0 0 1px fade(@mb-text-dim, 45%);
+    opacity: 0.5;
+}
+
+/* The legend under the tracks: one quiet row per seeded colour. */
+.mb-cubelegend {
+    display: flex; flex-direction: column; gap: 4px;
+    margin-top: 4px; padding-top: 7px;
+    border-top: 1px dashed fade(@mb-accent, 16%);
+}
+.mb-cubelegend__row { display: flex; align-items: center; gap: 8px; }
+.mb-cubelegend__row .mb-cell__cube { position: static; width: 12px; height: 12px; flex: 0 0 auto; }
+.mb-cubelegend__text {
+    font-size: 10.5px; line-height: 1.4; color: @mb-text-dim;
+}
+.mb-tracks--large {
+    .mb-cell__cube { top: -4px; left: -4px; width: 15px; height: 15px; border-radius: 3.5px; }
+    .mb-cubelegend { gap: 6px; padding-top: 10px; }
+    .mb-cubelegend__row .mb-cell__cube { width: 17px; height: 17px; }
+    .mb-cubelegend__text { font-size: 14px; }
+}
+
 .mb-glyph {
     display: inline-flex; align-items: center; gap: 1px;
     font-family: Prototype, Orbitron, sans-serif; font-size: 9px; color: @mb-text;

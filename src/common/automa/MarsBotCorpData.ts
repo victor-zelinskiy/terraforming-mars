@@ -1,9 +1,10 @@
 import {CardName} from '../cards/CardName';
 import {Tag} from '../cards/Tag';
-import {BonusCardId, MARS_BOT_CORP_IDS, MarsBotCorpId} from './AutomaTypes';
+import {BonusCardId, MARS_BOT_CORP_IDS, MarsBotCorpId, MarsBotCubeType} from './AutomaTypes';
 import {BonusCardEffectLine} from './BonusCardData';
 
 export {MARS_BOT_CORP_IDS, MarsBotCorpId} from './AutomaTypes';
+export type {MarsBotCubeType} from './AutomaTypes';
 
 /**
  * MarsBot corporations (Automa expansion, Rule Book B "Adding Corporations").
@@ -40,6 +41,19 @@ export type MarsBotDraftPriority =
   | {type: 'mostTags'}
   | {type: 'leastAdvancedTrack'};
 
+/**
+ * A cube this corporation seeds during setup (RB-B «Special Cubes on the
+ * MarsBot Player Mat»). The track is named by its identity TAG — the printed
+ * cards say «the building track», «the Earth track», and a tag survives a
+ * board whose track ORDER differs; the server resolves it through
+ * `board.getTrackIndexForTag`.
+ */
+export type MarsBotTrackCube = {
+  readonly tag: Tag;
+  readonly position: number;
+  readonly cubeType: MarsBotCubeType;
+};
+
 /** One kicker box of the printed MarsBot corporation card (RB-B anatomy). */
 export type MarsBotCorpSection = {
   kind: 'draftPriority' | 'setup' | 'effect' | 'beforeActionPhase' | 'roundStart';
@@ -71,6 +85,14 @@ export type MarsBotCorpInfo = {
   /** Corporation-specific bonus cards this corp brings into play (RB-B Setup 5
    *  returns all others to the box). */
   corpBonusCards: ReadonlyArray<BonusCardId>;
+  /** Cubes seeded onto MarsBot's tracks during setup (RB-B special cubes). */
+  trackCubes?: ReadonlyArray<MarsBotTrackCube>;
+  /**
+   * What each cube colour DOES, as the printed effect box states it (EN i18n
+   * keys). The track view reads it so a cube on the board explains itself
+   * without opening the corporation card.
+   */
+  cubeLegend?: Partial<Record<MarsBotCubeType, string>>;
   /** The printed rule boxes, in printed order (display data; EN i18n keys). */
   sections: ReadonlyArray<MarsBotCorpSection>;
 };
@@ -108,6 +130,46 @@ const CORP_INFO: Readonly<Record<MarsBotCorpId, MarsBotCorpInfo>> = {
       {kind: 'beforeActionPhase', lines: [
         {icon: 'deck', text: 'Add Rapid Sprouting to MarsBot\'s action deck'},
         {icon: 'plants', text: 'Rapid Sprouting grows a plant on this card, then turns it into a greenery and an oxygen step', muted: true},
+      ]},
+    ],
+  },
+  [MarsBotCorpId.C03_HELION]: {
+    id: MarsBotCorpId.C03_HELION,
+    cardNumber: 'C03',
+    original: CardName.HELION,
+    startingTags: [],
+    corpBonusCards: [],
+    // SETUP box, verbatim: a WHITE cube on the building track space #6, the
+    // space track #9, the science track #10, the power track #5 and #9, the
+    // plant track #11; a BLACK cube on the Earth track #3, #6, #9, #12, #13,
+    // #14. Every white cube sits on a printed TEMPERATURE space (verified
+    // against the Tharsis layout) — which is what the effect replaces.
+    trackCubes: [
+      {tag: Tag.BUILDING, position: 6, cubeType: 'white'},
+      {tag: Tag.SPACE, position: 9, cubeType: 'white'},
+      {tag: Tag.SCIENCE, position: 10, cubeType: 'white'},
+      {tag: Tag.POWER, position: 5, cubeType: 'white'},
+      {tag: Tag.POWER, position: 9, cubeType: 'white'},
+      {tag: Tag.PLANT, position: 11, cubeType: 'white'},
+      {tag: Tag.EARTH, position: 3, cubeType: 'black'},
+      {tag: Tag.EARTH, position: 6, cubeType: 'black'},
+      {tag: Tag.EARTH, position: 9, cubeType: 'black'},
+      {tag: Tag.EARTH, position: 12, cubeType: 'black'},
+      {tag: Tag.EARTH, position: 13, cubeType: 'black'},
+      {tag: Tag.EARTH, position: 14, cubeType: 'black'},
+    ],
+    cubeLegend: {
+      white: 'Instead of raising the temperature, MarsBot draws and resolves a card',
+      black: 'MarsBot raises the temperature 1 step',
+    },
+    sections: [
+      {kind: 'setup', lines: [
+        {icon: 'cube-white', text: 'A white cube on the building ${0}, space ${1}, science ${2}, power ${3} and ${4}, plant ${5} track spaces', params: ['6', '9', '10', '5', '9', '11']},
+        {icon: 'cube-black', text: 'A black cube on the Earth track spaces ${0}', params: ['3, 6, 9, 12, 13, 14']},
+      ]},
+      {kind: 'effect', lines: [
+        {icon: 'cards', text: 'Advancing onto a white cube: instead of raising the temperature, MarsBot draws and resolves a card from the project deck'},
+        {icon: 'temperature', text: 'Advancing onto a black cube: MarsBot raises the temperature 1 step'},
       ]},
     ],
   },
@@ -160,10 +222,22 @@ export function corpOwningBonusCard(id: BonusCardId): MarsBotCorpInfo | undefine
  *           oxygenSteps / plantsLostToOpponents.
  * Spire:    scienceAdded / scienceSpent / citiesPlaced / trGained /
  *           multiTagCards (cards with 2+ tags resolved).
+ * Helion:   whiteCubesHit / blackCubesHit (cubes reached), helionCardsDrawn
+ *           (white-cube draws), helionTemperatureSteps (black-cube raises),
+ *           helionTemperatureReplaced (printed raises the white cube took over).
  */
 export type MarsBotCorpStats = Partial<Record<string, number>>;
 
 /** The public per-corp model the client receives (open table information). */
+/** A seeded cube as the client sees it (open table information). */
+export type MarsBotCorpCubeModel = {
+  trackIndex: number;
+  position: number;
+  cubeType: MarsBotCubeType;
+  /** Already triggered — the physical cube is spent and never re-arms. */
+  spent: boolean;
+};
+
 export type MarsBotCorpModel = {
   id: MarsBotCorpId;
   /** Original human corporation — identity/art/lore resolve through it. */
@@ -172,6 +246,8 @@ export type MarsBotCorpModel = {
   resource?: MarsBotCorpResource;
   /** Resources currently ON the corporation card (Ecoline plant, Spire science). */
   resources: number;
+  /** Cubes this corporation seeded on the bot's tracks (empty for most corps). */
+  cubes: ReadonlyArray<MarsBotCorpCubeModel>;
   stats: MarsBotCorpStats;
 };
 

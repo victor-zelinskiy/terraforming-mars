@@ -54,7 +54,7 @@
 
   <!-- ── Detail: the printed board (tracks, TV-sized) + the teaching layer ── -->
   <div v-else-if="mode === 'botBoard'" class="con-info__scroll con-info__detail-scroll">
-    <MarsBotTracks :tracks="automa.tracks" :botColor="bot.color" large />
+    <MarsBotTracks :tracks="automa.tracks" :botColor="bot.color" :corporation="automa.corporation" large />
     <div class="con-info__note con-bot__legend">{{ $t('The cube marks the current position; ✕ marks regressed spaces whose action will not trigger again') }}</div>
     <div class="mb-guide mb-guide--console">
       <div v-for="section in guide" :key="section.id" class="mb-guide__block">

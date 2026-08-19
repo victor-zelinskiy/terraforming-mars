@@ -17,6 +17,7 @@ import {Resource} from '../../common/Resource';
 import {ClaimedMilestoneModel, MilestoneScore} from '../../common/models/ClaimedMilestoneModel';
 import {AutomaDeltaProject} from '../automa/AutomaDeltaProject';
 import {AutomaState} from '../automa/AutomaState';
+import {AutomaCorporations} from '../automa/corps/AutomaCorporations';
 import {MarsBotCorpModel, marsBotCorpInfo} from '../../common/automa/MarsBotCorpData';
 import {AutomaMAEvaluation} from '../automa/AutomaMAEvaluation';
 import {FundedAwardModel, AwardScore} from '../../common/models/FundedAwardModel';
@@ -294,7 +295,7 @@ export class Server {
 
   /** The bot's corporation as open information: identity reference, card
    *  resources and the public statistic counters. */
-  private static getAutomaCorpModel(automa: AutomaState): MarsBotCorpModel {
+  private static getAutomaCorpModel(game: IGame, automa: AutomaState): MarsBotCorpModel {
     if (automa.corporation === undefined) {
       throw new Error('MarsBot has no corporation');
     }
@@ -305,6 +306,7 @@ export class Server {
       startingTags: info.startingTags,
       ...(info.resource !== undefined ? {resource: info.resource} : {}),
       resources: automa.corpResources,
+      cubes: AutomaCorporations.cubeModels(game),
       stats: {...automa.corpStats},
     };
   }
@@ -322,7 +324,7 @@ export class Server {
     }
     const model: MarsBotModel = {
       difficulty: automa.difficulty,
-      ...(automa.corporation !== undefined ? {corporation: Server.getAutomaCorpModel(automa)} : {}),
+      ...(automa.corporation !== undefined ? {corporation: Server.getAutomaCorpModel(game, automa)} : {}),
       tracks: automa.board.tracks.map((t) => ({
         tags: t.definition.tags,
         position: t.position,

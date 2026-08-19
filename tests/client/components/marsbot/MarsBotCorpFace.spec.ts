@@ -37,7 +37,7 @@ describe('MarsBotCorpFace (.pcard template)', () => {
   });
 
   it('the medallion carries the automa stamp — never the original\'s module icon', () => {
-    for (const id of [MarsBotCorpId.C01_CREDICOR, MarsBotCorpId.C02_ECOLINE, MarsBotCorpId.C45_SPIRE]) {
+    for (const id of [MarsBotCorpId.C01_CREDICOR, MarsBotCorpId.C02_ECOLINE, MarsBotCorpId.C03_HELION, MarsBotCorpId.C45_SPIRE]) {
       const wrapper = mountFace(id);
       const style = wrapper.find('.pcard__exp-medallion').attributes('style') ?? '';
       expect(style, `${id} medallion`).contains('expansion_icon_automa.svg');
@@ -61,14 +61,16 @@ describe('MarsBotCorpFace (.pcard template)', () => {
     expect(ecoline.find('.pcard__res-icon').attributes('style') ?? '').contains('plant');
 
     expect(mountFace(MarsBotCorpId.C01_CREDICOR).find('.pcard__res').exists()).is.false;
+    expect(mountFace(MarsBotCorpId.C03_HELION).find('.pcard__res').exists(), 'Helion stores nothing on its card').is.false;
   });
 
   it('no human corporation rule leaks onto the face', () => {
-    for (const id of [MarsBotCorpId.C01_CREDICOR, MarsBotCorpId.C02_ECOLINE, MarsBotCorpId.C45_SPIRE]) {
+    for (const id of [MarsBotCorpId.C01_CREDICOR, MarsBotCorpId.C02_ECOLINE, MarsBotCorpId.C03_HELION, MarsBotCorpId.C45_SPIRE]) {
       const text = mountFace(id).text();
       expect(text).not.contains('57');
       expect(text).not.match(/Start with/i);
       expect(text).not.match(/draw 4/i);
+      expect(text, 'no human Helion heat-for-M€ rule').not.match(/heat as/i);
     }
   });
 });
@@ -101,8 +103,16 @@ describe('marsBotCorpRules — the «§ ПРАВИЛА» groups', () => {
     expect(groups.every((g) => g.rows.length > 0)).is.true;
   });
 
+  it('Helion prints a SETUP box and an EFFECT box (its cubes + what they do)', () => {
+    const groups = marsBotCorpAnnotations(MarsBotCorpId.C03_HELION);
+    expect(groups.map((g) => g.labelKey)).deep.eq(['Corporation setup', 'Corporation effect']);
+    const text = groups.flatMap((g) => g.rows.map((r) => r.text)).join(' ');
+    expect(text).contains('white cube');
+    expect(text).contains('black cube');
+  });
+
   it('resolves row params into the text (no raw ${0} reaches the panel)', () => {
-    for (const id of [MarsBotCorpId.C01_CREDICOR, MarsBotCorpId.C02_ECOLINE, MarsBotCorpId.C45_SPIRE]) {
+    for (const id of [MarsBotCorpId.C01_CREDICOR, MarsBotCorpId.C02_ECOLINE, MarsBotCorpId.C03_HELION, MarsBotCorpId.C45_SPIRE]) {
       for (const group of marsBotCorpAnnotations(id)) {
         for (const row of group.rows) {
           expect(row.text).not.contains('${');

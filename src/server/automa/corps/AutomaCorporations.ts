@@ -1,6 +1,6 @@
 import {CardName} from '../../../common/cards/CardName';
-import {BonusCardId} from '../../../common/automa/AutomaTypes';
-import {MARS_BOT_CORP_IDS, MarsBotCorpId, MarsBotCorpInfo, marsBotCorpInfo} from '../../../common/automa/MarsBotCorpData';
+import {BonusCardId, TrackAction} from '../../../common/automa/AutomaTypes';
+import {MARS_BOT_CORP_IDS, MarsBotCorpCubeModel, MarsBotCorpId, MarsBotCorpInfo, MarsBotTrackCube, marsBotCorpInfo} from '../../../common/automa/MarsBotCorpData';
 import {inplaceShuffle} from '../../utils/shuffle';
 import {IGame} from '../../IGame';
 import {IProjectCard} from '../../cards/IProjectCard';
@@ -11,6 +11,7 @@ import {bumpCorpStat, humansOf, marsBotOf} from '../AutomaUtil';
 import type {BonusCardOutcome} from '../AutomaBonusCards';
 import {MarsBotCorp} from './MarsBotCorp';
 import {MarsBotCredicor} from './MarsBotCredicor';
+import {MarsBotHelion} from './MarsBotHelion';
 import {MarsBotDraftResolver} from './MarsBotDraftResolver';
 import {MarsBotEcoline} from './MarsBotEcoline';
 import {MarsBotSpire} from './MarsBotSpire';
@@ -41,6 +42,7 @@ export class AutomaCorporations {
   private static readonly REGISTRY: Readonly<Record<MarsBotCorpId, MarsBotCorp>> = {
     [MarsBotCorpId.C01_CREDICOR]: MarsBotCredicor,
     [MarsBotCorpId.C02_ECOLINE]: MarsBotEcoline,
+    [MarsBotCorpId.C03_HELION]: MarsBotHelion,
     [MarsBotCorpId.C45_SPIRE]: MarsBotSpire,
   };
 
@@ -206,6 +208,76 @@ export class AutomaCorporations {
       bumpCorpStat(game, 'draftProtectionSaves');
     }
     return result;
+  }
+
+
+  // ── Track cubes (RB-B «Special Cubes on the MarsBot Player Mat») ──────
+  //
+  // Cube POSITIONS are static card data addressed by the track's identity TAG
+  // («the building track», «the Earth track»); this layer resolves them to the
+  // live board's indexes, owns the spent-once bookkeeping and the regression
+  // rule, and lets the corporation state only the CONSEQUENCE.
+
+  /** `trackIndex:position` — the key a spent cube is remembered by. */
+  private static cubeKey(trackIndex: number, position: number): string {
+    return `${trackIndex}:${position}`;
+  }
+
+  /** The active corporation's cubes, resolved onto THIS board's track indexes.
+   *  A cube whose tag has no track here (a board without that track) is
+   *  dropped — the same «unused-expansion icon» reading the resolver uses. */
+  public static cubesOf(game: IGame): ReadonlyArray<MarsBotTrackCube & {trackIndex: number}> {
+    const automa = game.automa;
+    const cubes = AutomaCorporations.activeCorp(game)?.info.trackCubes;
+    if (automa === undefined || cubes === undefined) {
+      return [];
+    }
+    const resolved: Array<MarsBotTrackCube & {trackIndex: number}> = [];
+    for (const cube of cubes) {
+      const trackIndex = automa.board.getTrackIndexForTag(cube.tag);
+      if (trackIndex !== undefined && cube.position <= automa.board.tracks[trackIndex].maxPosition) {
+        resolved.push({...cube, trackIndex});
+      }
+    }
+    return resolved;
+  }
+
+  /** The public cube model (open table information — the client draws them). */
+  public static cubeModels(game: IGame): ReadonlyArray<MarsBotCorpCubeModel> {
+    const triggered = game.automa?.corpCubesTriggered ?? new Set<string>();
+    return AutomaCorporations.cubesOf(game).map((cube) => ({
+      trackIndex: cube.trackIndex,
+      position: cube.position,
+      cubeType: cube.cubeType,
+      spent: triggered.has(AutomaCorporations.cubeKey(cube.trackIndex, cube.position)),
+    }));
+  }
+
+  /**
+   * The bot's marker just ADVANCED onto `position` of `trackIndex`. Fires the
+   * corporation's cube effect when an unspent cube sits there (RB-B: before
+   * and in addition to the printed icon). Returns true when the corporation
+   * REPLACED the printed action — the caller then skips it.
+   */
+  public static onTrackAdvanced(game: IGame, trackIndex: number, position: number, printedAction: TrackAction | undefined): boolean {
+    const automa = game.automa;
+    const corp = AutomaCorporations.activeCorp(game);
+    if (automa === undefined || corp?.onTrackCubeTrigger === undefined) {
+      return false;
+    }
+    const key = AutomaCorporations.cubeKey(trackIndex, position);
+    if (automa.corpCubesTriggered.has(key)) {
+      return false; // Spent: a regressed track never re-arms it (RB-B).
+    }
+    const cube = AutomaCorporations.cubesOf(game)
+      .find((c) => c.trackIndex === trackIndex && c.position === position);
+    if (cube === undefined) {
+      return false;
+    }
+    // Marked BEFORE the effect runs: the effect can cascade back onto this very
+    // track (Helion's draw resolves a card), and a cube must never fire twice.
+    automa.corpCubesTriggered.add(key);
+    return corp.onTrackCubeTrigger(game, cube, printedAction) === 'replaces-action';
   }
 
   /** Corporation Effect dispatch — EVERY path that resolves a bot project card calls this first. */

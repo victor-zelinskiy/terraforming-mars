@@ -35,7 +35,7 @@ See docs/DESKTOP_DEPRECATION_AUDIT.md + the deprecation banner in CLAUDE.md.
       <!-- The printed board: tracks with the bot cube + regression markers. -->
       <section class="mb-board__section">
         <h3 class="mb-board__label" v-i18n>Tracks</h3>
-        <MarsBotTracks :tracks="automa.tracks" :botColor="botColor" />
+        <MarsBotTracks :tracks="automa.tracks" :botColor="botColor" :corporation="automa.corporation" />
       </section>
 
       <!-- Decks + supply readout. -->

@@ -10,6 +10,7 @@
 import {CardModel} from '@/common/models/CardModel';
 import {MarsBotModel, MarsBotTrackModel} from '@/common/models/MarsBotModel';
 import {DifficultyLevel, TrackAction} from '@/common/automa/AutomaTypes';
+import {MarsBotCorpCubeModel, MarsBotCubeType} from '@/common/automa/MarsBotCorpData';
 import {Tag} from '@/common/cards/Tag';
 
 export const DIFFICULTY_LABEL: Readonly<Record<DifficultyLevel, string>> = {
@@ -86,12 +87,19 @@ export type TrackCell = {
   current: boolean;
   /** Regressed-from marker — this space's action won't fire again on re-advance. */
   regressed: boolean;
+  /** A corporation cube seeded on this space (RB-B special cubes), if any. */
+  cube?: {cubeType: MarsBotCubeType, spent: boolean};
 };
 
-/** The renderable cell list of one track (position 0 is the start slot). */
-export function trackCells(track: MarsBotTrackModel): Array<TrackCell> {
+/**
+ * The renderable cell list of one track (position 0 is the start slot).
+ * `cubes` are THIS track's corporation cubes (already filtered by the host) —
+ * an empty list for every corporation that seeds none.
+ */
+export function trackCells(track: MarsBotTrackModel, cubes: ReadonlyArray<MarsBotCorpCubeModel> = []): Array<TrackCell> {
   const cells: Array<TrackCell> = [];
   for (let i = 0; i <= track.maxPosition; i++) {
+    const cube = cubes.find((c) => c.position === i);
     cells.push({
       index: i,
       // The layout's empty slots are authored as `undefined`, but JSON
@@ -100,6 +108,7 @@ export function trackCells(track: MarsBotTrackModel): Array<TrackCell> {
       action: track.layout[i] ?? undefined,
       current: track.position === i,
       regressed: track.regressed.includes(i),
+      ...(cube !== undefined ? {cube: {cubeType: cube.cubeType, spent: cube.spent}} : {}),
     });
   }
   return cells;

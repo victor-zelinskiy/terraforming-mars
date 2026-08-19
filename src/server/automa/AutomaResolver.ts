@@ -7,6 +7,7 @@ import {TrackAction} from '../../common/automa/AutomaTypes';
 import {IGame} from '../IGame';
 import {IProjectCard} from '../cards/IProjectCard';
 import {failedAction} from './AutomaFailedAction';
+import {AutomaCorporations} from './corps/AutomaCorporations';
 import {AutomaHumanTagReactions} from './AutomaHumanTagReactions';
 import {AutomaMilestonesAwards} from './AutomaMilestonesAwards';
 import {AutomaTurnLog} from './AutomaTurnLog';
@@ -117,7 +118,13 @@ export class AutomaResolver {
     if (track.definition.microbeTagCells?.includes(track.position)) {
       AutomaHumanTagReactions.onBotMicrobeAdvancement(game);
     }
-    if (result.type === 'action') {
+    // A corporation CUBE seeded on this space (RB-B «Special Cubes»): it fires
+    // BEFORE the printed icon and IN ADDITION to it — unless the card
+    // explicitly replaces that icon (Helion's white cube takes over the
+    // temperature raise). Spent once, never re-armed by a regression.
+    const printed = result.type === 'action' ? result.action : undefined;
+    const cubeReplacedAction = AutomaCorporations.onTrackAdvanced(game, trackIndex, track.position, printed);
+    if (result.type === 'action' && !cubeReplacedAction) {
       AutomaResolver.performTrackAction(game, result.action, trackIndex, depth);
     }
   }

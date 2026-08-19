@@ -2,6 +2,7 @@ import {CardResource} from '@/common/CardResource';
 import {CardType} from '@/common/cards/CardType';
 import {ClientCard} from '@/common/cards/ClientCard';
 import {ICardRenderRoot} from '@/common/cards/render/Types';
+import {Size} from '@/common/cards/render/Size';
 import {Resource} from '@/common/Resource';
 import {MarsBotCorpId} from '@/common/automa/AutomaTypes';
 import {marsBotCorpInfo} from '@/common/automa/MarsBotCorpData';
@@ -27,14 +28,14 @@ import {standardResourceIconUrl} from '@/client/components/premiumCard/premiumCa
  *
  * Identity (title wordmark/art/lore) rides the ORIGINAL corporation's
  * CardName exactly as everywhere else. No human rule can leak: the render
- * data below is authored from the official bot cards (C01/C02/C45), never
+ * data below is authored from the official bot cards (C01/C02/C03/C45), never
  * read from the human manifest card.
  *
  * PURE (no Vue/DOM/i18n) — unit-tested under the server runner. The
  * `CardRenderer` import is the shared data-DSL (common types only).
  */
 
-/** The symbolic rule rows of each official bot card (C01 / C02 / C45). */
+/** The symbolic rule rows of each official bot card (C01 / C02 / C03 / C45). */
 function renderDataOf(id: MarsBotCorpId): ICardRenderRoot {
   switch (id) {
   case MarsBotCorpId.C01_CREDICOR:
@@ -51,6 +52,18 @@ function renderDataOf(id: MarsBotCorpId): ICardRenderRoot {
     return CardRenderer.builder((b) => {
       b.action(undefined, (eb) => {
         eb.plate('Rapid Sprouting').startAction.cards(1);
+      });
+    });
+  case MarsBotCorpId.C03_HELION:
+    // SETUP: cubes on the tracks (the mat is where they live — the face
+    // states the count); EFFECT: white cube → a card instead of the
+    // temperature; black cube → +1 temperature.
+    return CardRenderer.builder((b) => {
+      b.effect(undefined, (eb) => {
+        eb.text('◻', Size.SMALL, true).startEffect.cards(1);
+      });
+      b.effect(undefined, (eb) => {
+        eb.text('◼', Size.SMALL, true).startEffect.temperature(1);
       });
     });
   case MarsBotCorpId.C45_SPIRE:

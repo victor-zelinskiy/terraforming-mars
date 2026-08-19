@@ -61,6 +61,9 @@ export type SerializedAutomaState = {
   corpStats?: MarsBotCorpStats;
   /** The last generation the corporation's Before-Action-Phase box ran (absent = 0). */
   corpBapGeneration?: number;
+  /** Corporation track cubes already triggered, keyed `trackIndex:position`
+   *  (absent = none). A regressed track never re-arms a spent cube (RB-B). */
+  corpCubesTriggered?: Array<string>;
 };
 
 /**
@@ -126,6 +129,13 @@ export class AutomaState {
   public corpStats: MarsBotCorpStats = {};
   /** Once-per-generation guard for the corporation's Before-Action-Phase box. */
   public corpBapGeneration: number = 0;
+  /**
+   * Corporation track cubes that already fired, keyed `trackIndex:position`
+   * (RB-B: «moving back up the track will not retrigger a corporation trigger
+   * that was previously triggered»). The cubes THEMSELVES are static card data
+   * — only their spent state is game state.
+   */
+  public corpCubesTriggered: Set<string> = new Set();
   /** The typed script of the last resolved turn (feeds the client turn theater). */
   public lastTurn: MarsBotTurn | undefined = undefined;
   /**
@@ -187,6 +197,9 @@ export class AutomaState {
       result.corpResources = this.corpResources;
       result.corpStats = {...this.corpStats};
       result.corpBapGeneration = this.corpBapGeneration;
+      if (this.corpCubesTriggered.size > 0) {
+        result.corpCubesTriggered = Array.from(this.corpCubesTriggered);
+      }
     }
     if (this.neuralInstanceSpaceId !== undefined) {
       result.neuralInstanceSpaceId = this.neuralInstanceSpaceId;
@@ -239,6 +252,7 @@ export class AutomaState {
     state.corpResources = d.corpResources ?? 0;
     state.corpStats = {...(d.corpStats ?? {})};
     state.corpBapGeneration = d.corpBapGeneration ?? 0;
+    state.corpCubesTriggered = new Set(d.corpCubesTriggered ?? []);
     return state;
   }
 }

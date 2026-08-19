@@ -2540,6 +2540,19 @@ const analyzeBotCorporation: Analyzer = (ctx) => {
           scale: 4,
         };
       }
+    } else if (corp.id === 'C03') {
+      // Helion: the cubes seeded on its tracks — cards drawn on white, extra
+      // temperature steps on black. A few hits together are a real engine.
+      const cards = stat('helionCardsDrawn');
+      const steps = stat('helionTemperatureSteps');
+      if (cards + steps >= 3) {
+        story = {
+          textKey: '${0}\'s corporation ${1} turned its track cubes into tempo: ${2} extra cards and ${3} temperature steps.',
+          params: [raw(p.name), raw(corp.name), raw(cards), raw(steps)],
+          measure: cards * 2 + steps,
+          scale: 10,
+        };
+      }
     } else if (corp.id === 'C45') {
       // Spire: the science engine — multi-tag cards banked into cities + TR.
       const cities = stat('citiesPlaced');
