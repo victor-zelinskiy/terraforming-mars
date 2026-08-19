@@ -1369,7 +1369,10 @@ export async function openConsole(page: Page, playerId: string, query = ''): Pro
  * action into a full payment prompt.
  */
 export const CORP_WITH_FIRST_ACTION: ReadonlyArray<string> = [
-  'Inventrix', 'Tharsis Republic', 'CrediCor', 'United Nations Mars Initiative', 'Helion'];
+  'Inventrix', 'Tharsis Republic', 'CrediCor', 'United Nations Mars Initiative', 'Helion',
+  // Colonies: the first action asks «Select colony tile to add» — a prompt
+  // the generic API driver has no answer for.
+  'Aridor'];
 
 /**
  * Pick a corporation that lets the game start CLEAN (see

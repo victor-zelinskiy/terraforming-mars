@@ -27,12 +27,14 @@
     A full-bleed scene (start-scene family): it covers the frame while the
     command bar below stays live. B = «Свернуть» — the scene hides (state
     intact, a running ceremony PAUSES) and the final board is open for
-    inspection; B/A returns and resumes. «Обзор партии» opens the existing
-    desktop results overlay OVER this workspace (shell hides us via v-show
-    for that round trip; minimize returns here with every value settled).
+    inspection; B/A returns and resumes. «Обзор партии» is an INTERNAL SCENE
+    of this same workspace (ConsoleEndgameOverview): the scoring stage PARKS
+    under it (opacity/visibility — never display, so no keyframe restarts and
+    no replayed ceremony) and returns on B. The desktop results overlay never
+    rises in console mode.
   -->
   <div class="con-endgame" role="region" :aria-label="$t('Final scoring')"
-       :class="{'con-endgame--noanim': noanim, ['con-endgame--' + ui.phase]: true}">
+       :class="{'con-endgame--noanim': noanim, 'con-endgame--ovopen': overviewParked, ['con-endgame--' + ui.phase]: true}">
     <div class="con-eg" :class="'con-eg--n' + densityN">
       <header class="con-eg__head">
         <!-- A fixed-height slot + layered crossfade: the title swap
@@ -175,6 +177,7 @@
                    :class="{
                      'con-eg__action--focused': i === ui.actionsFocus,
                      'con-eg__action--disabled': a.enabled === false,
+                     'con-eg__action--committed': a.id === 'overview' && overviewCommitFx,
                    }">
                 <span class="con-eg__action-label">{{ $t(a.label) }}</span>
                 <span v-if="a.note !== undefined" class="con-eg__action-note">{{ a.note }}</span>
@@ -184,6 +187,16 @@
         </div>
       </div>
     </div>
+
+    <!-- «ОБЗОР ПАРТИИ» — the analytics scene, one level deeper INSIDE this
+         workspace. Mounted only while its scene lives; the shared backdrop,
+         frame and command bar never move — the scoring stage above parks via
+         opacity/visibility and resumes untouched on the way back. -->
+    <ConsoleEndgameOverview v-if="ov.phase !== 'closed'"
+                            ref="overview"
+                            :player-view="playerView"
+                            :model="model"
+                            :eg-vm="vm" />
   </div>
 </template>
 
@@ -207,8 +220,9 @@ import {clearPanelCommands, setPanelCommands} from '@/client/console/consolePane
 import {consoleMotionMs, useConsoleReducedMotion} from '@/client/console/composables/useConsoleReducedMotion';
 import {useConsoleViewport} from '@/client/console/composables/useConsoleViewport';
 import {playCeremonyBurst, CeremonyBurstHandle} from '@/client/console/ceremony/ceremonyFx';
+import {EndgameModel} from '@/client/components/endgame/endgameModel';
 import {endgameModelFromView, botColorsFromView} from '@/client/components/endgame/endgameViewAdapter';
-import {restoreEndgameResults, setEndgameTab} from '@/client/components/endgame/endgameState';
+import {requestEndgameFacts, cachedEndgameFacts} from '@/client/components/endgame/endgameFactsCache';
 import {rematchState, submitRematch, rematchJoinHref} from '@/client/components/rematch/rematchState';
 import {navigateWithCurtain} from '@/client/console/loadingScreenState';
 import {
@@ -223,6 +237,10 @@ import {runEndgameCeremony, CeremonyHandle} from '@/client/console/endgame/conso
 import {
   consoleEndgameUi, ceremonyShouldPlay, resetCeremonyProgress, finalizeCeremony,
 } from '@/client/console/endgame/consoleEndgameState';
+import {
+  consoleOverviewUi, openEndgameOverview, OVERVIEW_MS,
+} from '@/client/console/endgame/consoleOverviewState';
+import ConsoleEndgameOverview from '@/client/components/console/ConsoleEndgameOverview.vue';
 
 type PostGameAction = {
   id: string,
@@ -234,6 +252,7 @@ type PostGameAction = {
 
 export default defineComponent({
   name: 'ConsoleEndgameWorkspace',
+  components: {ConsoleEndgameOverview},
   props: {
     playerView: {type: Object as PropType<ViewModel>, required: true},
   },
@@ -246,6 +265,9 @@ export default defineComponent({
     return {
       handle: undefined as CeremonyHandle | undefined,
       bursts: [] as Array<CeremonyBurstHandle>,
+      /** The «Обзор партии» pill's short commit response (pressed → scene). */
+      overviewCommitFx: false,
+      commitCall: undefined as gsap.core.Tween | undefined,
       /** Suppresses every CSS TRANSITION for the skip's atomic jump frame
        *  (never animations — a re-enabled keyframe animation restarts). */
       noanim: false,
@@ -261,10 +283,23 @@ export default defineComponent({
     ui() {
       return consoleEndgameUi;
     },
+    ov() {
+      return consoleOverviewUi;
+    },
+    /** The scoring stage is PARKED under the overview scene (a leave keeps
+     *  it live so the two layers crossfade — never a blank frame). */
+    overviewParked(): boolean {
+      return this.ov.phase === 'entering' || this.ov.phase === 'open';
+    },
+    /** ONE endgame model for the ceremony AND the overview. The facts feed
+     *  only the insight/episode engines — every scoring number is identical
+     *  with or without them, so a late fetch never moves a settled bar. */
+    model(): EndgameModel {
+      return endgameModelFromView(this.playerView, cachedEndgameFacts(this.playerView.id));
+    },
     vm(): ConsoleEndgameVm {
-      const model = endgameModelFromView(this.playerView);
       const order = this.playerView.players.map((p) => p.color);
-      return buildConsoleEndgameVm(model, order, {botColors: botColorsFromView(this.playerView)});
+      return buildConsoleEndgameVm(this.model, order, {botColors: botColorsFromView(this.playerView)});
     },
     densityN(): number {
       return Math.min(Math.max(this.vm.rows.length, 2), 5);
@@ -337,27 +372,22 @@ export default defineComponent({
       }
       return undefined;
     },
-    /** The post-game verbs. Only REAL flows: the desktop results overlay, the
-     *  rematch machinery (rematchState — polled by RematchLayer), the local
-     *  replay, the main menu (GameExitButton is gone at Phase.END, so this
-     *  list is the one road out). The ORDER is the priority: the natural
-     *  next step first, the replay a secondary local verb, the exit last. */
+    /** The post-game verbs. Only REAL flows: the console-native overview
+     *  scene, the rematch machinery (rematchState — polled by RematchLayer),
+     *  the local replay, the main menu (GameExitButton is gone at Phase.END,
+     *  so this list is the one road out). The ORDER is the priority: the
+     *  natural next step first, the replay a secondary local verb, the exit
+     *  last. */
     actions(): Array<PostGameAction> {
       const out: Array<PostGameAction> = [];
       out.push({
         id: 'overview',
         label: 'Game overview',
-        // TODO(console-endgame-overview): «Обзор партии» deliberately opens the
-        // EXISTING desktop EndgameResultsOverlay for now (restoreEndgameResults
-        // → .eg-results over this workspace; B/minimize returns here). The
-        // console-native rewrite is a separate iteration: a full workspace with
-        // InsightEngine facts, per-category breakdowns, tabs (score / timeline /
-        // cards / parameters / players) and charts — driven by the same
-        // endgameModel/insight layers, presented in the console language.
-        run: () => {
-          setEndgameTab('overview');
-          restoreEndgameResults();
-        },
+        // «Обзор партии» descends INTO this workspace's own analytics scene
+        // (ConsoleEndgameOverview) — a short commit pulse on the pill, then
+        // the scoring stage parks and the overview unfolds in its place. The
+        // desktop EndgameResultsOverlay stays desktop-only.
+        run: () => this.beginOverviewCommit(),
       });
       const rematch = rematchState.model;
       const busy = rematchState.submitting;
@@ -424,6 +454,24 @@ export default defineComponent({
         // The board is on show; the one verb is the road back to the results.
         return [{control: 'back', label: 'Game results', priority: 5}];
       }
+      if (this.overviewParked) {
+        // The overview scene: its own level's verbs, nothing inherited.
+        if (this.ov.detail !== undefined) {
+          return [
+            {control: 'dpad', label: 'Select'},
+            {control: 'back', label: 'Close', priority: 5},
+          ];
+        }
+        const run: Array<ConsoleCommand> = [
+          {control: 'bumperL', control2: 'bumperR', spread: true, label: 'Tab'},
+          {control: 'dpad', label: 'Select'},
+        ];
+        if (this.ov.primaryAvailable) {
+          run.push({control: 'confirm', label: 'Details'});
+        }
+        run.push({control: 'back', label: 'Game results', priority: 5});
+        return run;
+      }
       if (this.ui.phase !== 'actions') {
         // The count runs: B parks it (pause + board), X skips it — quietly
         // labelled, never the loudest thing on screen (the ceremony is the
@@ -485,6 +533,9 @@ export default defineComponent({
     },
   },
   mounted() {
+    // One fetch per load, shared with the desktop host — the facts enrich the
+    // overview's insight layer; every scoring number is complete without them.
+    requestEndgameFacts(this.playerView.id);
     if (ceremonyShouldPlay()) {
       this.startCeremony();
     } else {
@@ -701,9 +752,27 @@ export default defineComponent({
     teardown(): void {
       this.handle?.kill();
       this.handle = undefined;
+      this.commitCall?.kill();
+      this.commitCall = undefined;
       for (const b of this.bursts.splice(0)) {
         b.stop();
       }
+    },
+    /**
+     * «Обзор партии»: a short tactile commit on the pill, then the scene
+     * descends — the pill fixes, the action list yields, the overview
+     * unfolds where the scoring stood. Repeat presses retarget harmlessly.
+     */
+    beginOverviewCommit(): void {
+      if (this.overviewCommitFx || this.overviewParked) {
+        return;
+      }
+      this.overviewCommitFx = true;
+      this.commitCall?.kill();
+      this.commitCall = gsap.delayedCall(consoleMotionMs(OVERVIEW_MS.commit) / 1000, () => {
+        this.overviewCommitFx = false;
+        openEndgameOverview();
+      });
     },
     /**
      * THE RANKING FLIP — capture, reorder, invert, play. Transform-only; the
@@ -765,9 +834,13 @@ export default defineComponent({
     },
     // ── input (delegated by the shell) ────────────────────────────────────
     handleIntent(intent: GamepadIntent): void {
-      // While the desktop results overlay is open the shell's fallback branch
-      // owns the pad — this handler is only reached when the workspace (or
-      // its collapsed board view) is the visible surface.
+      // The OVERVIEW SCENE owns the pad while it stands (entering included —
+      // a transition must never absorb input). Its `leaving` beat belongs to
+      // the scoring scene the player is returning to.
+      if (this.overviewParked) {
+        (this.$refs.overview as InstanceType<typeof ConsoleEndgameOverview> | undefined)?.handleIntent(intent);
+        return;
+      }
       if (intent.kind === 'nav') {
         if (!this.ui.collapsed && this.ui.phase === 'actions') {
           const delta = intent.dir === 'down' || intent.dir === 'right' ? 1 : -1;

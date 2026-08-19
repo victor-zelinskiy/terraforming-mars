@@ -19,7 +19,10 @@
  *  · the winner is the ROW ITSELF (ribbon + gold), no duplicate plate;
  *  · the default action focus is «Обзор партии» (never the replay);
  *  · a RELOAD into the ended game lands SETTLED — no uninvited replay;
- *  · «Обзор партии» opens the desktop results overlay and B returns;
+ *  · «Обзор партии» descends into the CONSOLE-NATIVE overview scene of the
+ *    SAME workspace (the desktop `.eg-results` never rises) and B returns
+ *    without replaying the ceremony — the deep overview journey lives in
+ *    console-endgame-overview.spec.ts;
  *  · «Повторить подсчёт» replays, X skips atomically.
  *
  * ⚠ Headless Chromium starves rAF on a quiet screen — every wait pumps a
@@ -210,14 +213,22 @@ test.describe('console endgame workspace — 2p, full journey', () => {
     await forceFrame(page);
     expect(await focused()).toMatch(/Обзор партии/i);
 
-    // 7 · A opens the desktop overview; B (fallback minimize) returns.
+    // 7 · A descends into the CONSOLE-NATIVE overview — an internal scene of
+    //     the SAME workspace. The desktop overlay must never rise, the
+    //     workspace root never unmounts, and B returns to the settled
+    //     results without replaying the ceremony.
     await page.keyboard.press('Enter');
-    await waitWithFrames(page, async () => (await page.locator('.eg-results').count()) > 0, 15_000, 'the desktop overview');
-    await expect(page.locator('.con-endgame')).toBeHidden(); // the workspace yields
+    await waitWithFrames(page, async () => (await page.locator('.con-egov').count()) > 0, 15_000, 'the console overview');
+    expect(await page.locator('.eg-results').count()).toBe(0); // desktop stays desktop-only
+    await expect(page.locator('.con-endgame')).toBeVisible(); // the same root carries both scenes
+    await expect(page.locator('.con-egov__kicker')).toContainText(/Обзор партии/i);
+    await expect(page.locator('.con-status')).toBeHidden(); // the board never shows through
     await page.keyboard.press('Escape');
-    await waitWithFrames(page, async () => (await page.locator('.eg-results').count()) === 0, 10_000, 'the overview to close');
+    await waitWithFrames(page, async () => (await page.locator('.con-egov').count()) === 0, 10_000, 'the overview to close');
     await expect(page.locator('.con-endgame')).toBeVisible();
     await expect(page.locator('.con-eg__ribbon').first()).toBeVisible(); // state survived
+    // …and coming back is a RETURN, never a second ceremony.
+    expect(await page.locator('.con-endgame--scoring, .con-endgame--entering').count()).toBe(0);
 
     // 8 · B at the settled root: «Свернуть», never the main menu — and the
     //     road back restores the same settled state.

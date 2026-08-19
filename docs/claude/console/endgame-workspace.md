@@ -175,13 +175,13 @@ nothing about the ceremony changed.
 The shell delegates the whole pad to the workspace while it stands
 (`endgameWorkspaceMounted` branch in `handleIntent`) — Info Mode / journal /
 wheels are deliberately consumed (an Info peek would leak pre-reveal totals).
-Two exceptions: ⚠ **a LIVE drawn-cards reveal keeps the pad** (a reload can
+One exception: ⚠ **a LIVE drawn-cards reveal keeps the pad** (a reload can
 owe undelivered draws; the overlay stands over the settled result and its
-normal branch sits BELOW this one), and the «Обзор партии» round trip runs on
-the fallback engine (`.eg-results` scope; B clicks `.eg-results__ctl--min`,
-which is deliberately UN-hidden in console CSS now — it is the road back).
-While the overlay is up the workspace hides via v-show
-(`endgameOverviewOpen`) — ceremony state survives the trip.
+normal branch sits BELOW this one). «Обзор партии» is the workspace's OWN
+internal scene — the workspace routes the whole pad to it while it stands
+(`overviewParked` branch at the top of `handleIntent`); the desktop
+`.eg-results` overlay never rises in console mode. Full contract:
+`docs/claude/console/endgame-overview.md`.
 
 Bar: PanelOwner `'endgame'`; during the count `B Свернуть · X Пропустить
 подсчёт`; settled `dpad Выбрать · A Подтвердить · B Свернуть`; collapsed
@@ -217,7 +217,11 @@ needs `promo+community` or two seats are never dealt and the start deadlocks
 on `every(pickedCorporationCard)`. Probes are `setInterval`, never rAF
 (headless starves rAF; a dead probe passes).
 
-## TODO
+## «Обзор партии» — the internal analytics scene
 
-`ConsoleEndgameWorkspace.actions` carries the console-native OVERVIEW rewrite
-TODO (tabs / InsightEngine / charts — out of scope of the scoring iteration).
+The console-native OVERVIEW rewrite shipped 2026-08-19: «Обзор партии» is an
+internal SCENE of this workspace (`ConsoleEndgameOverview` — six tabs on the
+LB/RB ring, InsightEngine headline facts, console-native charts), never the
+desktop `.eg-results`. The scoring stage PARKS under it (opacity/visibility,
+never display) and returns on B with the settled state intact. Full contract:
+`docs/claude/console/endgame-overview.md`.

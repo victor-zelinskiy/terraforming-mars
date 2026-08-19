@@ -22997,7 +22997,9 @@ html.console-mode {
  * itself stays FUNCTIONAL for the genuinely long pre-game pages (create
  * game), where the pad focus engine moves content via scrollIntoView;
  * surfaces that must fit (the main menu on handheld) are compacted in
- * their profile blocks below so nothing overflows in the first place. */
+ * their profile blocks below so nothing overflows in the first place.
+ * (The desktop `.eg-results` overlay never rises in console mode any more —
+ * «Обзор партии» is the endgame workspace's own internal scene.) */
 html.console-mode {
     scrollbar-width: none;
     &::-webkit-scrollbar {
@@ -23019,11 +23021,7 @@ html.console-mode {
  * A MINIMIZED fallback surface would be unreachable from the pad (its
  * pill lives outside every console context), so minimize affordances are
  * hidden — a fallback prompt stays front-and-center until resolved. The
- * desktop placement pill duplicates the console banner + inspector.
- * ⚠ `.eg-results__ctl--min` is deliberately NOT in this list any more:
- * the console-native scoring workspace stands UNDER the desktop results
- * overlay («Обзор партии»), so minimize is now the pad's B-door BACK to
- * it (focusScopes `endgame.back` clicks this very control). */
+ * desktop placement pill duplicates the console banner + inspector. */
 html.console-mode {
     .mandatory-input-modal__minimize-btn,
     .start-game-flow__minimize-btn,
@@ -27201,9 +27199,9 @@ html.con-profile-handheld {
         }
     }
 
-    /* ── 22/23 · endgame / final reveal / rematch (fallback premium
-       surfaces — per-surface density; their own layouts stay) ────── */
-    &.console-mode .eg-results { zoom: 0.88; }
+    /* ── 22/23 · final reveal / rematch (fallback premium surfaces —
+       per-surface density; their own layouts stay). The desktop
+       `.eg-results` is gone from console mode entirely. ──────────── */
     &.console-mode .fsr { zoom: 0.9; }
     &.console-mode .rematch-modal { zoom: 0.92; }
 

@@ -719,15 +719,15 @@
     <!-- THE FINAL SCORING WORKSPACE — the post-game phase root (Phase.END):
          the console-native scoring ceremony, the ranking, the winner beat and
          the post-game action list. A full-bleed scene over the frame; the
-         command bar below stays live (skip → the action-list verbs). While
-         «Обзор партии» has the DESKTOP results overlay up, the workspace
-         HIDES via v-show — the ceremony state survives the round trip — and
-         the fallback engine drives the overlay (B/minimize returns here).
-         B = «Свернуть» hides it the same way (state intact, a running
-         ceremony paused) and opens the final board for inspection. -->
+         command bar below stays live (skip → the action-list verbs).
+         «Обзор партии» is the workspace's OWN internal analytics scene
+         (ConsoleEndgameOverview) — the desktop results overlay never rises
+         in console mode. B = «Свернуть» hides the workspace via v-show
+         (state intact, a running ceremony paused) and opens the final board
+         for inspection. -->
     <transition name="con-layer">
       <ConsoleEndgameWorkspace v-if="endgameWorkspaceMounted"
-                               v-show="!endgameOverviewOpen && !endgameCollapsed"
+                               v-show="!endgameCollapsed"
                                ref="endgameWs"
                                :playerView="playerView" />
     </transition>
@@ -1348,7 +1348,6 @@ import {deckPickHolding, resetDeckPick} from '@/client/console/deckPick/consoleD
 import ConsoleStartScene from '@/client/components/console/ConsoleStartScene.vue';
 import ConsoleEndgameWorkspace from '@/client/components/console/ConsoleEndgameWorkspace.vue';
 import {consoleEndgameUi, noteConsoleEndgameLivePhase, resetConsoleEndgame} from '@/client/console/endgame/consoleEndgameState';
-import {endgameState} from '@/client/components/endgame/endgameState';
 import ConsoleRevealOverlay, {ConsoleRevealMode} from '@/client/components/console/ConsoleRevealOverlay.vue';
 import ConsolePlayCardConfirm from '@/client/components/console/ConsolePlayCardConfirm.vue';
 import type {ConsoleHandStage} from '@/client/components/console/ConsoleHandSection.vue';
@@ -3228,11 +3227,6 @@ export default defineComponent({
     endgameWorkspaceMounted(): boolean {
       return workspaceFrameRenders('endgame');
     },
-    /** «Обзор партии» round trip: the DESKTOP results overlay is up — the
-     *  workspace hides under it (v-show) and the fallback engine drives. */
-    endgameOverviewOpen(): boolean {
-      return endgameState.resultsOpen && !endgameState.minimized;
-    },
     /** B = «Свернуть»: the scene is hidden, the final board is on show —
      *  the HUD comes back (`con-root--endgame` drops) and the workspace's
      *  own intent handler owns the road back. */
@@ -3240,9 +3234,9 @@ export default defineComponent({
       return consoleEndgameUi.collapsed;
     },
     /**
-     * IS THE FINAL-SCORING STAGE ON SCREEN? The scene itself, or the «Обзор
-     * партии» overlay standing in its place for its own round trip — both are
-     * the post-game stage owning the frame.
+     * IS THE FINAL-SCORING STAGE ON SCREEN? The workspace scene — the
+     * scoring ceremony and its internal «Обзор партии» analytics scene are
+     * both faces of the SAME mounted stage owning the frame.
      *
      * FALSE while «Свернуть» has it hidden: the frame stays in the stack on
      * purpose (the ceremony resumes from the same beat, the state is intact),
@@ -8899,9 +8893,9 @@ export default defineComponent({
         this.scrollActiveConsole(intent.dy, intent.dx);
         return true;
       }
-      // THE FINAL SCORING WORKSPACE owns the pad for the whole post-game.
-      // (The «Обзор партии» round trip runs on the fallback engine and
-      // returned above.) It consumes EVERYTHING below deliberately: Info
+      // THE FINAL SCORING WORKSPACE owns the pad for the whole post-game
+      // («Обзор партии» included — the workspace routes to its own scene).
+      // It consumes EVERYTHING below deliberately: Info
       // Mode, the journal and the wheels are live-game instruments — and
       // during the ceremony an Info Mode peek would leak the very totals
       // the count is about to reveal.
