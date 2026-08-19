@@ -1,0 +1,776 @@
+/*
+ * CONSOLE ENDGAME OVERVIEW — the pure view-model of «Обзор партии»
+ * (the console-native post-game analytics scene inside the endgame workspace).
+ *
+ * A RE-PROJECTION of the layers every endgame surface already shares —
+ * `EndgameModel` (ranked standings, key episodes, story, insights, finish
+ * verdict) and `ConsoleEndgameVm` (the ceremony's category numbers) — never a
+ * second source of truth. What this layer adds is the CONSOLE information
+ * architecture:
+ *
+ *  · a PRIORITISED, DEDUPED headline layer («что решило партию») — the digest
+ *    shows 3–4 strong facts, one per story angle, never five restatements of
+ *    «победитель набрал больше всех»;
+ *  · per-tab presentation models (score / timeline / cards / parameters /
+ *    players), each pre-shaped for a TV viewport: shared scales, capped and
+ *    ordered sets, expansion-gated sections, explicit empty states;
+ *  · the factual/estimated split is preserved — every sentence and number
+ *    comes from the engines, nothing is re-derived or invented here.
+ *
+ * NO Vue / DOM / i18n — labels are English i18n KEYS; sentence templates ride
+ * with their typed `InsightParam`s and are rendered by the console rich-text
+ * renderer. Spec: tests/client/components/console/consoleOverviewModel.spec.ts
+ */
+import {Color} from '@/common/Color';
+import {GlobalParameter} from '@/common/GlobalParameter';
+import {Tag} from '@/common/cards/Tag';
+import type {MADetail, CardVictoryPointsKind} from '@/common/game/VictoryPointsBreakdown';
+import type {ViewModel} from '@/common/models/PlayerModel';
+import type {EndgameModel, EndgamePlayerScore} from '@/client/components/endgame/endgameModel';
+import type {InsightParam, EvidenceChip} from '@/client/components/endgame/insightEngine';
+import type {KeyEpisode, EpisodeRole, EpisodePhase} from '@/client/components/endgame/keyEpisodeEngine';
+import type {ConsoleEndgameVm, ConsoleEndgameCategoryKey} from '@/client/console/endgame/consoleEndgameModel';
+import type {RevealTieBreak} from '@/client/components/endgame/finalScoringRevealModel';
+
+// ── Tabs ────────────────────────────────────────────────────────────────────
+
+/** Console tab ring, in post-game exploration order. LB/RB walk it. */
+export type OverviewTabKey = 'digest' | 'score' | 'timeline' | 'cards' | 'parameters' | 'players';
+
+export const OVERVIEW_TAB_ORDER: ReadonlyArray<OverviewTabKey> =
+  ['digest', 'score', 'timeline', 'cards', 'parameters', 'players'];
+
+/** Tab labels — one short word each (console rail voice). i18n KEYS.
+ *  ⚠ 'Chronology' is deliberately NOT the desktop 'Timeline' key — that one
+ *  is already translated «Графики» for the desktop tab, and this fork never
+ *  rewrites a translation it didn't introduce. */
+export const OVERVIEW_TAB_LABEL: Readonly<Record<OverviewTabKey, string>> = {
+  digest: 'Overview',
+  score: 'Score',
+  timeline: 'Chronology',
+  cards: 'Cards',
+  parameters: 'Parameters',
+  players: 'Players',
+};
+
+// ── Shared shapes ───────────────────────────────────────────────────────────
+
+/** A renderable sentence: an English template KEY + its typed params. */
+export type OvSentence = {key: string; params: ReadonlyArray<InsightParam>};
+
+/** One drawable chart series (pure — the chart .vue must not export types:
+ *  a type import from a .vue file breaks the mochapack test bundle). */
+export type OvChartSeries = {
+  key: string;
+  hex: string;
+  data: ReadonlyArray<number>;
+  /** The focused series — full ink + endpoint marker. */
+  emphasis?: boolean;
+  /** Context series — same hue, quiet opacity (identity keeps its colour). */
+  dim?: boolean;
+};
+
+/** The Players-tab metric groups — shared by the pane (rendering/nav) and
+ *  the overview root (the «Подробнее» availability of the focused group). */
+export type PlayerMetricGroup = {key: string; label: string; comparable: boolean};
+export const PLAYER_METRIC_GROUPS: ReadonlyArray<PlayerMetricGroup> = [
+  {key: 'production', label: 'Production', comparable: true},
+  {key: 'stock', label: 'Resources at the end', comparable: true},
+  {key: 'stats', label: 'Match statistics', comparable: true},
+  {key: 'tags', label: 'Tags', comparable: false},
+  {key: 'ma', label: 'Milestones & awards', comparable: false},
+  {key: 'categories', label: 'Score sources', comparable: false},
+];
+
+export type OvRankRow = {
+  color: Color;
+  name: string;
+  corporation: string; // '' when unknown
+  place: number;
+  total: number;
+  /** VP behind the winner (0 for the winner). */
+  gapToWinner: number;
+  megacredits: number;
+  isBot: boolean;
+  isWinner: boolean;
+};
+
+// ── Digest (the landing tab) ────────────────────────────────────────────────
+
+export type OvVerdict = {
+  titleKey: string;
+  glyph: string;
+  line: OvSentence | undefined;
+  chips: ReadonlyArray<EvidenceChip>;
+};
+
+export type OvFactCard = {
+  id: string;
+  role: EpisodeRole;
+  badge: string; // i18n KEY
+  sentence: OvSentence;
+  color: Color | undefined;
+  chips: ReadonlyArray<EvidenceChip>;
+  generation: number | undefined;
+  phase: EpisodePhase;
+};
+
+export type OvObservation = {
+  id: string;
+  badge: string; // i18n KEY
+  sentence: OvSentence;
+  color: Color | undefined;
+};
+
+export type OvDigest = {
+  verdict: OvVerdict | undefined;
+  /** Story paragraph 1 — the composed editorial conclusion (≤ 3 sentences). */
+  lead: ReadonlyArray<OvSentence>;
+  /** 2–4 strong, deduped fact cards — one per story angle. */
+  headline: ReadonlyArray<OvFactCard>;
+  /** Up to 4 quiet secondary observations (the deduped residual layer). */
+  observations: ReadonlyArray<OvObservation>;
+  ranking: ReadonlyArray<OvRankRow>;
+};
+
+// ── Score tab ───────────────────────────────────────────────────────────────
+
+export type OvScoreSub = {key: string; label: string; values: Record<string, number>};
+
+export type OvScoreCategory = {
+  key: ConsoleEndgameCategoryKey;
+  label: string; // i18n KEY
+  accent: ConsoleEndgameCategoryKey;
+  penalty: boolean;
+  values: Record<string, number>;
+  /** Who holds the (positive) category max — empty when all zero. */
+  leaders: ReadonlyArray<Color>;
+  /** The two-level breakdown (TR sources / card families) — [] for one-beat. */
+  subs: ReadonlyArray<OvScoreSub>;
+};
+
+export type OvDecisiveCategory = {
+  key: ConsoleEndgameCategoryKey;
+  label: string;
+  accent: ConsoleEndgameCategoryKey;
+  /** Winner's edge over the runner-up in this category (VP, > 0). */
+  delta: number;
+};
+
+export type OvScore = {
+  ranking: ReadonlyArray<OvRankRow>;
+  categories: ReadonlyArray<OvScoreCategory>;
+  /** Shared bar denominator across every category × player (≥ 1). */
+  maxCategoryValue: number;
+  /** The category where the winner out-scored the runner-up the most. */
+  decisive: OvDecisiveCategory | undefined;
+  tieBreak: RevealTieBreak | undefined;
+};
+
+// ── Timeline tab ────────────────────────────────────────────────────────────
+
+export type OvSeries = {
+  color: Color;
+  name: string;
+  isBot: boolean;
+  data: ReadonlyArray<number>;
+  final: number;
+};
+
+export type OvEpisode = {
+  id: string;
+  role: EpisodeRole;
+  badge: string;
+  sentence: OvSentence;
+  color: Color | undefined;
+  generation: number | undefined;
+  phase: EpisodePhase;
+  /** Visually loud on the strip (a decisive/turning beat). */
+  major: boolean;
+  chips: ReadonlyArray<EvidenceChip>;
+};
+
+export type OvTimeline = {
+  /** Comparable generation columns (≥ 2 for a drawable chart). */
+  gens: number;
+  series: ReadonlyArray<OvSeries>;
+  episodes: ReadonlyArray<OvEpisode>;
+  maxVp: number;
+  stats: {
+    generations: number;
+    leadChanges: number | undefined;
+    tookLeadGen: number | undefined;
+    wireToWire: boolean;
+    finalSurge: {color: Color; name: string; gain: number} | undefined;
+  };
+};
+
+// ── Cards tab ───────────────────────────────────────────────────────────────
+
+export type OvCardRow = {
+  id: string;
+  owner: Color;
+  ownerName: string;
+  cardName: string;
+  vp: number;
+  kind: CardVictoryPointsKind;
+};
+
+export type OvCardsPlayerSummary = {
+  color: Color;
+  name: string;
+  isBot: boolean;
+  cardsVp: number;
+  count: number;
+  kinds: Record<CardVictoryPointsKind, number>;
+};
+
+export type OvCards = {
+  /** Positives by impact desc, then penalties (most negative first). */
+  rows: ReadonlyArray<OvCardRow>;
+  byPlayer: ReadonlyArray<OvCardsPlayerSummary>;
+};
+
+// ── Parameters tab ──────────────────────────────────────────────────────────
+
+export type OvParameter = {
+  key: GlobalParameter;
+  label: string; // i18n KEY
+  accent: string; // console parameter colour family
+  unit: '' | '%' | '°C';
+  min: number;
+  max: number;
+  /** Raw value per generation column (empty when the game predates the feed). */
+  series: ReadonlyArray<number>;
+  /** 0..100 completion per generation column (same columns as `series`). */
+  pct: ReadonlyArray<number>;
+  finalValue: number;
+  finalPct: number;
+  completed: boolean;
+  contributions: {values: Record<string, number>; leaders: ReadonlyArray<Color>; max: number} | undefined;
+};
+
+export type OvParams = {
+  parameters: ReadonlyArray<OvParameter>;
+  /** Generation columns in the series (0 → no progression data, empty state). */
+  gens: number;
+};
+
+// ── Players tab ─────────────────────────────────────────────────────────────
+
+export type OvMetric = {key: string; label: string; value: number};
+
+export type OvPlayerCard = {
+  color: Color;
+  name: string;
+  corporation: string;
+  place: number;
+  total: number;
+  isBot: boolean;
+  isWinner: boolean;
+  production: ReadonlyArray<OvMetric>;
+  stock: ReadonlyArray<OvMetric>;
+  stats: ReadonlyArray<OvMetric>;
+  /** Top played tags (count > 0), capped. */
+  tags: ReadonlyArray<{tag: Tag; count: number}>;
+  /** Raw milestone/award rows — the component translates the messages. */
+  milestones: ReadonlyArray<MADetail>;
+  awards: ReadonlyArray<MADetail>;
+  /** Per-category VP (the ceremony's own numbers). */
+  categories: ReadonlyArray<{key: ConsoleEndgameCategoryKey; label: string; accent: ConsoleEndgameCategoryKey; value: number}>;
+};
+
+export type OvPlayers = {
+  players: ReadonlyArray<OvPlayerCard>;
+  /** Cross-player maxima per metric key — the comparison scales. */
+  maxima: Record<string, number>;
+};
+
+// ── The VM ──────────────────────────────────────────────────────────────────
+
+export type ConsoleOverviewVm = {
+  generation: number;
+  winner: {color: Color; name: string; total: number} | undefined;
+  sharedWin: boolean;
+  digest: OvDigest;
+  score: OvScore;
+  timeline: OvTimeline;
+  cards: OvCards;
+  parameters: OvParams;
+  players: OvPlayers;
+};
+
+/** What the builder needs from the live view — a thin pure projection
+ *  (the component maps it via `consoleOverviewExtrasFromView`). */
+export type ConsoleOverviewExtras = {
+  expansions: {venus: boolean; moon: boolean; colonies: boolean};
+  globalsPerGeneration: ReadonlyArray<Partial<Record<GlobalParameter, number>>>;
+  playersRaw: ReadonlyArray<{
+    color: Color;
+    tags: Partial<Record<Tag, number>>;
+    actionsTakenThisGame: number;
+    citiesCount: number;
+    coloniesCount: number;
+    terraformRating: number;
+  }>;
+};
+
+/** The client-side adapter (kept beside the builder; reads only pure fields). */
+export function consoleOverviewExtrasFromView(view: ViewModel): ConsoleOverviewExtras {
+  return {
+    expansions: {
+      venus: view.game.gameOptions.expansions.venus === true,
+      moon: view.game.gameOptions.expansions.moon === true,
+      colonies: view.game.gameOptions.expansions.colonies === true,
+    },
+    globalsPerGeneration: view.game.globalsPerGeneration ?? [],
+    playersRaw: view.players.map((p) => ({
+      color: p.color,
+      tags: p.tags ?? {},
+      actionsTakenThisGame: p.actionsTakenThisGame,
+      citiesCount: p.citiesCount,
+      coloniesCount: p.coloniesCount,
+      terraformRating: p.terraformRating,
+    })),
+  };
+}
+
+// ── Headline selection (the dedup heart) ────────────────────────────────────
+
+/** Story-angle priority: cause → swing → the unusual → the near thing → colour. */
+const ROLE_PRIORITY: Readonly<Record<EpisodeRole, number>> = {
+  decisive_driver: 0,
+  turning_point: 1,
+  ironic_twist: 2,
+  near_miss: 3,
+  signature_moment: 4,
+  tempo_shift: 5,
+  engine_online: 6,
+  late_scoring: 7,
+  missed_conversion: 8,
+  structural_contrast: 9,
+  flavor_only: 10,
+  // The finish itself is the VERDICT banner's story — a headline card
+  // restating it is exactly the duplication this layer exists to remove.
+  final_scoring: 99,
+};
+
+export const HEADLINE_MAX = 4;
+const OBSERVATIONS_MAX = 4;
+const LEAD_SENTENCES_MAX = 3;
+const TAGS_MAX = 6;
+
+function episodeCard(ep: KeyEpisode): OvFactCard {
+  return {
+    id: ep.id,
+    role: ep.role,
+    badge: ep.badge,
+    sentence: {key: ep.textKey, params: ep.params},
+    color: ep.color,
+    chips: ep.evidenceChips,
+    generation: ep.generation,
+    phase: ep.phase,
+  };
+}
+
+/**
+ * Pick ≤ HEADLINE_MAX strong cards, one thought each:
+ *  · roles ranked by how much they explain (decisive → turning → unusual…);
+ *  · `dedupeKey ?? id` collapses same-thought episodes;
+ *  · at most TWO cards of one role (two decisive drivers can both be true);
+ *  · `final_scoring` never appears (the verdict banner owns the finish).
+ */
+export function selectHeadline(episodes: ReadonlyArray<KeyEpisode>): Array<OvFactCard> {
+  const ranked = [...episodes].sort((a, b) =>
+    (ROLE_PRIORITY[a.role] - ROLE_PRIORITY[b.role]) || (b.impact - a.impact));
+  const seen = new Set<string>();
+  const perRole: Partial<Record<EpisodeRole, number>> = {};
+  const out: Array<OvFactCard> = [];
+  for (const ep of ranked) {
+    if (ep.role === 'final_scoring' || ep.role === 'flavor_only') {
+      continue;
+    }
+    const key = ep.dedupeKey ?? ep.id;
+    if (seen.has(key)) {
+      continue;
+    }
+    if ((perRole[ep.role] ?? 0) >= 2) {
+      continue;
+    }
+    seen.add(key);
+    perRole[ep.role] = (perRole[ep.role] ?? 0) + 1;
+    out.push(episodeCard(ep));
+    if (out.length >= HEADLINE_MAX) {
+      break;
+    }
+  }
+  return out;
+}
+
+function buildDigest(model: EndgameModel, ranking: ReadonlyArray<OvRankRow>): OvDigest {
+  const verdict: OvVerdict | undefined = model.finishVerdict !== undefined ? {
+    titleKey: model.finishVerdict.titleKey,
+    glyph: model.finishVerdict.glyph,
+    line: model.finishVerdict.line !== undefined ?
+      {key: model.finishVerdict.line.key, params: model.finishVerdict.line.params} : undefined,
+    chips: model.finishVerdict.chips,
+  } : undefined;
+
+  const headline = selectHeadline(model.keyEpisodes);
+  const usedIds = new Set(headline.map((h) => h.id));
+
+  // The composed conclusion paragraph (para 1) — already deduped upstream.
+  const lead: Array<OvSentence> = model.story
+    .filter((s) => s.para === 1)
+    .slice(0, LEAD_SENTENCES_MAX)
+    .map((s) => ({key: s.key, params: s.params}));
+
+  // Secondary observations: the residual insight layer (already one per
+  // cluster and episode-free upstream) — quiet, capped, never a repeat of a
+  // headline card's episode.
+  const observations: Array<OvObservation> = model.additionalInsights
+    .filter((i) => !usedIds.has(i.id))
+    .slice(0, OBSERVATIONS_MAX)
+    .map((i) => ({
+      id: i.id,
+      badge: i.badge,
+      sentence: {key: i.textKey, params: i.params},
+      color: i.color,
+    }));
+
+  return {verdict, lead, headline, observations, ranking};
+}
+
+// ── Score ───────────────────────────────────────────────────────────────────
+
+function leadersOf(values: Record<string, number>): Array<Color> {
+  let max = 0;
+  for (const v of Object.values(values)) {
+    if (v > max) {
+      max = v;
+    }
+  }
+  if (max <= 0) {
+    return [];
+  }
+  return Object.entries(values).filter(([, v]) => v === max).map(([c]) => c as Color);
+}
+
+function buildScore(model: EndgameModel, egVm: ConsoleEndgameVm, ranking: ReadonlyArray<OvRankRow>): OvScore {
+  const categories: Array<OvScoreCategory> = egVm.categories.map((cat) => ({
+    key: cat.key,
+    label: cat.label,
+    accent: cat.accent,
+    penalty: cat.penalty,
+    values: cat.values,
+    leaders: cat.penalty ? [] : leadersOf(cat.values),
+    subs: cat.subs.map((s) => ({key: s.key, label: s.label, values: s.values})),
+  }));
+
+  let maxCategoryValue = 1;
+  for (const cat of categories) {
+    for (const v of Object.values(cat.values)) {
+      maxCategoryValue = Math.max(maxCategoryValue, Math.abs(v));
+    }
+  }
+
+  // The winner's biggest category edge over the runner-up — «где решилось».
+  let decisive: OvDecisiveCategory | undefined;
+  if (model.winner !== undefined && model.runnerUp !== undefined) {
+    const w = model.winner.color;
+    const r = model.runnerUp.color;
+    for (const cat of categories) {
+      const delta = (cat.values[w] ?? 0) - (cat.values[r] ?? 0);
+      if (delta > 0 && (decisive === undefined || delta > decisive.delta)) {
+        decisive = {key: cat.key, label: cat.label, accent: cat.accent, delta};
+      }
+    }
+  }
+
+  return {ranking, categories, maxCategoryValue, decisive, tieBreak: egVm.tieBreak};
+}
+
+// ── Timeline ────────────────────────────────────────────────────────────────
+
+function buildTimeline(model: EndgameModel, egVm: ConsoleEndgameVm): OvTimeline {
+  const bots = new Set(egVm.rows.filter((r) => r.isBot).map((r) => r.color));
+  // The comparable window: generations EVERY player has data for.
+  let gens = model.players.reduce(
+    (m, p) => Math.min(m, p.vpByGeneration.length), Number.MAX_SAFE_INTEGER);
+  if (!Number.isFinite(gens) || gens === Number.MAX_SAFE_INTEGER) {
+    gens = 0;
+  }
+  gens = Math.min(gens, model.generation);
+
+  const series: Array<OvSeries> = model.players.map((p) => {
+    const data = p.vpByGeneration.slice(0, gens);
+    return {
+      color: p.color,
+      name: p.name,
+      isBot: bots.has(p.color),
+      data,
+      final: data.length > 0 ? data[data.length - 1] : p.total,
+    };
+  });
+
+  let maxVp = 1;
+  for (const s of series) {
+    for (const v of s.data) {
+      maxVp = Math.max(maxVp, v);
+    }
+  }
+
+  const episodes: Array<OvEpisode> = model.keyEpisodes
+    .filter((ep) => ep.role !== 'flavor_only')
+    .map((ep) => ({
+      id: ep.id,
+      role: ep.role,
+      badge: ep.badge,
+      sentence: {key: ep.textKey, params: ep.params},
+      color: ep.color,
+      generation: ep.generation,
+      phase: ep.phase,
+      major: ep.role === 'decisive_driver' || ep.role === 'turning_point' || ep.impact >= 0.5,
+      chips: ep.evidenceChips,
+    }));
+
+  const surge = model.timeline?.finalSurge;
+  const surgePlayer = surge !== undefined ? model.players.find((p) => p.color === surge.color) : undefined;
+  return {
+    gens,
+    series,
+    episodes,
+    maxVp,
+    stats: {
+      generations: model.generation,
+      leadChanges: model.timeline?.leadChanges,
+      tookLeadGen: model.winnerTookLeadGen,
+      wireToWire: model.timeline?.wireToWire === true,
+      finalSurge: surge !== undefined && surgePlayer !== undefined && surge.gain >= 8 ?
+        {color: surge.color, name: surgePlayer.name, gain: surge.gain} : undefined,
+    },
+  };
+}
+
+// ── Cards ───────────────────────────────────────────────────────────────────
+
+function buildCards(model: EndgameModel, egVm: ConsoleEndgameVm): OvCards {
+  const bots = new Set(egVm.rows.filter((r) => r.isBot).map((r) => r.color));
+  const positives: Array<OvCardRow> = [];
+  const penalties: Array<OvCardRow> = [];
+  const byPlayer: Array<OvCardsPlayerSummary> = [];
+
+  for (const p of model.players) {
+    const kinds: Record<CardVictoryPointsKind, number> = {resource: 0, conditional: 0, fixed: 0, penalty: 0};
+    const push = (c: {cardName: string; victoryPoint: number; kind: CardVictoryPointsKind}, i: number, neg: boolean) => {
+      const row: OvCardRow = {
+        id: `${p.color}:${c.cardName}:${i}`,
+        owner: p.color,
+        ownerName: p.name,
+        cardName: c.cardName,
+        vp: c.victoryPoint,
+        kind: c.kind,
+      };
+      (neg ? penalties : positives).push(row);
+      kinds[c.kind] += c.victoryPoint;
+    };
+    p.topCards.forEach((c, i) => push(c, i, false));
+    p.penaltyCards.forEach((c, i) => push(c, i, true));
+    byPlayer.push({
+      color: p.color,
+      name: p.name,
+      isBot: bots.has(p.color),
+      cardsVp: p.breakdown.victoryPoints,
+      count: p.topCards.length + p.penaltyCards.length,
+      kinds,
+    });
+  }
+
+  positives.sort((a, b) => b.vp - a.vp);
+  penalties.sort((a, b) => a.vp - b.vp);
+  return {rows: [...positives, ...penalties], byPlayer};
+}
+
+// ── Parameters ──────────────────────────────────────────────────────────────
+
+type ParamMeta = {
+  key: GlobalParameter;
+  label: string;
+  accent: string;
+  unit: '' | '%' | '°C';
+  min: number;
+  max: number;
+};
+
+/** Display metadata per parameter — completion ranges match the game rules
+ *  (and the legacy chart), colours are the console parameter families. */
+const PARAM_META: ReadonlyArray<ParamMeta> = [
+  {key: GlobalParameter.TEMPERATURE, label: 'Temperature', accent: 'temperature', unit: '°C', min: -30, max: 8},
+  {key: GlobalParameter.OXYGEN, label: 'Oxygen', accent: 'oxygen', unit: '%', min: 0, max: 14},
+  {key: GlobalParameter.OCEANS, label: 'Oceans', accent: 'oceans', unit: '', min: 0, max: 9},
+  {key: GlobalParameter.VENUS, label: 'Venus', accent: 'venus', unit: '%', min: 0, max: 30},
+  {key: GlobalParameter.MOON_HABITAT_RATE, label: 'L. Habitat', accent: 'moon', unit: '', min: 0, max: 8},
+  {key: GlobalParameter.MOON_MINING_RATE, label: 'L. Mining', accent: 'moon', unit: '', min: 0, max: 8},
+  {key: GlobalParameter.MOON_LOGISTIC_RATE, label: 'L. Logistic', accent: 'moon', unit: '', min: 0, max: 8},
+];
+
+function paramEnabled(key: GlobalParameter, extras: ConsoleOverviewExtras): boolean {
+  switch (key) {
+  case GlobalParameter.VENUS:
+    return extras.expansions.venus;
+  case GlobalParameter.MOON_HABITAT_RATE:
+  case GlobalParameter.MOON_MINING_RATE:
+  case GlobalParameter.MOON_LOGISTIC_RATE:
+    return extras.expansions.moon;
+  default:
+    return true;
+  }
+}
+
+function buildParameters(model: EndgameModel, extras: ConsoleOverviewExtras): OvParams {
+  const gpg = extras.globalsPerGeneration;
+  const gens = gpg.length;
+  const parameters: Array<OvParameter> = [];
+  for (const meta of PARAM_META) {
+    if (!paramEnabled(meta.key, extras)) {
+      continue;
+    }
+    const series = gpg.map((entry) => entry[meta.key] ?? meta.min);
+    const pct = series.map((v) =>
+      Math.round((100 * (Math.min(Math.max(v, meta.min), meta.max) - meta.min)) / (meta.max - meta.min)));
+    const finalValue = series.length > 0 ? series[series.length - 1] : meta.min;
+    const finalPct = pct.length > 0 ? pct[pct.length - 1] : 0;
+    const contribution = model.parameters.find((p) => p.key === meta.key);
+    const contributions = contribution !== undefined ?
+      {values: contribution.values, leaders: contribution.leaders, max: contribution.max} : undefined;
+    // A parameter that never moved AND has no per-player steps is noise —
+    // except the core three, which always exist as tracks of the game.
+    const core = meta.key === GlobalParameter.TEMPERATURE ||
+      meta.key === GlobalParameter.OXYGEN || meta.key === GlobalParameter.OCEANS;
+    const moved = series.some((v) => v !== meta.min) || contributions !== undefined;
+    if (!core && !moved) {
+      continue;
+    }
+    parameters.push({
+      key: meta.key,
+      label: meta.label,
+      accent: meta.accent,
+      unit: meta.unit,
+      min: meta.min,
+      max: meta.max,
+      series,
+      pct,
+      finalValue,
+      finalPct,
+      completed: finalValue >= meta.max,
+      contributions,
+    });
+  }
+  return {parameters, gens};
+}
+
+// ── Players ─────────────────────────────────────────────────────────────────
+
+const PRODUCTION_META: ReadonlyArray<{key: string; label: string}> = [
+  {key: 'megacredits', label: 'Megacredits'},
+  {key: 'steel', label: 'Steel'},
+  {key: 'titanium', label: 'Titanium'},
+  {key: 'plants', label: 'Plants'},
+  {key: 'energy', label: 'Energy'},
+  {key: 'heat', label: 'Heat'},
+];
+
+function buildPlayers(model: EndgameModel, egVm: ConsoleEndgameVm, extras: ConsoleOverviewExtras): OvPlayers {
+  const bots = new Set(egVm.rows.filter((r) => r.isBot).map((r) => r.color));
+  const rawBy = new Map(extras.playersRaw.map((p) => [p.color, p]));
+  const maxima: Record<string, number> = {};
+  const bump = (key: string, v: number) => {
+    maxima[key] = Math.max(maxima[key] ?? 1, v);
+  };
+
+  const players: Array<OvPlayerCard> = model.players.map((p: EndgamePlayerScore) => {
+    const raw = rawBy.get(p.color);
+    const production: Array<OvMetric> = PRODUCTION_META.map((m) => ({
+      key: 'prod:' + m.key,
+      label: m.label,
+      value: (p.production as Record<string, number> | undefined)?.[m.key] ?? 0,
+    }));
+    const stock: Array<OvMetric> = PRODUCTION_META.map((m) => ({
+      key: 'stock:' + m.key,
+      label: m.label,
+      value: m.key === 'megacredits' ? p.megacredits :
+        ((p.leftover as Record<string, number> | undefined)?.[m.key] ?? 0),
+    }));
+    const stats: Array<OvMetric> = [
+      {key: 'stat:tr', label: 'TR', value: raw?.terraformRating ?? p.breakdown.terraformRating},
+      {key: 'stat:cities', label: 'Cities', value: raw?.citiesCount ?? 0},
+      ...(extras.expansions.colonies ? [{key: 'stat:colonies', label: 'Colonies', value: raw?.coloniesCount ?? 0}] : []),
+      {key: 'stat:actions', label: 'Actions', value: raw?.actionsTakenThisGame ?? 0},
+      {key: 'stat:steps', label: 'Parameter steps', value: p.parametersTotal},
+    ];
+    for (const m of [...production, ...stock, ...stats]) {
+      bump(m.key, m.value);
+    }
+    const tags = Object.entries(raw?.tags ?? {})
+      .map(([tag, count]) => ({tag: tag as Tag, count: count ?? 0}))
+      .filter((t) => t.count > 0 && t.tag !== Tag.EVENT)
+      .sort((a, b) => b.count - a.count)
+      .slice(0, TAGS_MAX);
+    const categories = egVm.categories
+      .map((cat) => ({key: cat.key, label: cat.label, accent: cat.accent, value: cat.values[p.color] ?? 0}))
+      .filter((c) => c.value !== 0);
+    return {
+      color: p.color,
+      name: p.name,
+      corporation: p.corporations.join(' / '),
+      place: p.place,
+      total: p.total,
+      isBot: bots.has(p.color),
+      isWinner: p.isWinner,
+      production,
+      stock,
+      stats,
+      tags,
+      milestones: p.breakdown.detailsMilestones,
+      awards: p.breakdown.detailsAwards,
+      categories,
+    };
+  });
+
+  return {players, maxima};
+}
+
+// ── The builder ─────────────────────────────────────────────────────────────
+
+export function buildConsoleOverviewVm(
+  model: EndgameModel,
+  egVm: ConsoleEndgameVm,
+  extras: ConsoleOverviewExtras,
+): ConsoleOverviewVm {
+  const winnerTotal = model.winner?.total ?? 0;
+  const rowBy = new Map(egVm.rows.map((r) => [r.color, r]));
+  const ranking: Array<OvRankRow> = model.players.map((p) => ({
+    color: p.color,
+    name: p.name,
+    corporation: rowBy.get(p.color)?.corporation ?? p.corporations.join(' / '),
+    place: p.place,
+    total: p.total,
+    gapToWinner: Math.max(0, winnerTotal - p.total),
+    megacredits: p.megacredits,
+    isBot: rowBy.get(p.color)?.isBot ?? false,
+    isWinner: p.isWinner,
+  }));
+
+  return {
+    generation: model.generation,
+    winner: model.winner !== undefined ?
+      {color: model.winner.color, name: model.winner.name, total: model.winner.total} : undefined,
+    sharedWin: egVm.winners.length > 1,
+    digest: buildDigest(model, ranking),
+    score: buildScore(model, egVm, ranking),
+    timeline: buildTimeline(model, egVm),
+    cards: buildCards(model, egVm),
+    parameters: buildParameters(model, extras),
+    players: buildPlayers(model, egVm, extras),
+  };
+}

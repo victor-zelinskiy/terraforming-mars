@@ -26,6 +26,7 @@
 import {reactive} from 'vue';
 import {registerAnimationHoldSupplier} from '@/client/components/presentation/animationHold';
 import type {ConsoleEndgameVm} from '@/client/console/endgame/consoleEndgameModel';
+import {resetConsoleOverview} from '@/client/console/endgame/consoleOverviewState';
 
 /**
  * The ceremony state machine. `executing`-style transient beats are timeline
@@ -138,6 +139,9 @@ export function resetConsoleEndgame(): void {
   consoleEndgameUi.ceremonyPlayed = false;
   consoleEndgameUi.sawLivePhase = false;
   consoleEndgameUi.collapsed = false;
+  // The overview scene belongs to this workspace — its tab/focus/reveal
+  // memory dies with the party (the next game is a fresh story).
+  resetConsoleOverview();
 }
 
 /**

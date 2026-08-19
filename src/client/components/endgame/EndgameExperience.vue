@@ -7,11 +7,11 @@
     from the view and drives the reveal → results → pill flow via endgameState.
 
     CONSOLE MODE (`consoleNative`): the console shell runs its OWN scoring
-    ceremony (ConsoleEndgameWorkspace), so this component becomes a headless
-    OVERLAY HOST — it never auto-plays a reveal, never renders the pill, and
-    only mounts the detailed results overlay when the console's «Обзор партии»
-    action opened it (restoreEndgameResults). Closing/minimizing the overlay
-    simply returns to the console workspace underneath.
+    ceremony AND its own «Обзор партии» analytics scene (both inside
+    ConsoleEndgameWorkspace), so this component goes fully HEADLESS there —
+    no auto reveal, no pill, and nothing in console mode opens the desktop
+    results overlay any more. Its one console job is kicking off the shared
+    endgame-facts fetch (endgameFactsCache).
   -->
   <div class="eg-root">
     <!-- Hidden-VP games earn the suspenseful category-by-category reveal;
@@ -20,7 +20,9 @@
 
     <EndgameWinnerReveal v-else-if="!consoleNative && state.revealActive" :model="model" />
 
-    <EndgameResultsOverlay v-else-if="state.resultsOpen && !state.minimized"
+    <!-- Desktop-only by construction: the console workspace owns its own
+         «Обзор партии» scene, so the desktop overlay may never rise there. -->
+    <EndgameResultsOverlay v-else-if="!consoleNative && state.resultsOpen && !state.minimized"
                            :model="model" :view="view" :viewer-color="viewerColor" />
 
     <button v-else-if="!consoleNative" type="button" class="eg-pill" :style="pillVars" @click="restore">
@@ -40,11 +42,9 @@ import {defineComponent} from 'vue';
 import {ViewModel} from '@/common/models/PlayerModel';
 import {Color} from '@/common/Color';
 import {CardName} from '@/common/cards/CardName';
-import {paths} from '@/common/app/paths';
-import {apiUrl} from '@/client/utils/runtimeConfig';
-import type {EndgameFact} from '@/common/events/endgameFacts';
 import {EndgameModel} from '@/client/components/endgame/endgameModel';
 import {cardResourcesFromView, endgameModelFromView} from '@/client/components/endgame/endgameViewAdapter';
+import {requestEndgameFacts, cachedEndgameFacts} from '@/client/components/endgame/endgameFactsCache';
 import {endgameState, beginEndgameReveal, restoreEndgameResults} from '@/client/components/endgame/endgameState';
 import {endgamePlayerHex} from '@/client/components/endgame/endgameColors';
 import EndgameWinnerReveal from '@/client/components/endgame/EndgameWinnerReveal.vue';
@@ -61,13 +61,6 @@ export default defineComponent({
      *  the detailed-overlay host there (no reveal, no pill). */
     consoleNative: {type: Boolean, required: false, default: false},
   },
-  data() {
-    return {
-      // The analysis-ready facts, fetched once after mount (graceful: the model uses
-      // the base template analyzers until they arrive / if the fetch is unavailable).
-      facts: undefined as ReadonlyArray<EndgameFact> | undefined,
-    };
-  },
   computed: {
     state() {
       return endgameState;
@@ -77,7 +70,10 @@ export default defineComponent({
       return cardResourcesFromView(this.view);
     },
     model(): EndgameModel {
-      return endgameModelFromView(this.view, this.facts);
+      // The analysis-ready facts arrive through the SHARED once-per-load
+      // cache (the console endgame workspace reads the same fetch) —
+      // graceful: base template analyzers until they land.
+      return endgameModelFromView(this.view, cachedEndgameFacts(this.view.id));
     },
     pillVars(): Record<string, string> {
       const hex = this.model.winner !== undefined ? endgamePlayerHex(this.model.winner.color) : '#6ab0e6';
@@ -100,22 +96,6 @@ export default defineComponent({
     restore(): void {
       restoreEndgameResults();
     },
-    // Fetch the analysis-ready facts ONCE (the server builds them from the event
-    // stream). Best-effort: any failure / missing fetch leaves the base insights.
-    fetchFacts(): void {
-      const id = this.view.id;
-      if (id === undefined || typeof fetch !== 'function') {
-        return;
-      }
-      fetch(apiUrl(paths.API_GAME_ENDGAME_FACTS) + '?id=' + encodeURIComponent(id))
-        .then((r) => (r.ok ? r.json() : undefined))
-        .then((f) => {
-          if (Array.isArray(f)) {
-            this.facts = f as ReadonlyArray<EndgameFact>;
-          }
-        })
-        .catch(() => { /* the base template insights remain */ });
-    },
   },
   mounted(): void {
     // Trigger the cinematic once, the first time an ended game is seen this
@@ -124,7 +104,7 @@ export default defineComponent({
     if (!this.consoleNative) {
       beginEndgameReveal();
     }
-    this.fetchFacts();
+    requestEndgameFacts(this.view.id);
   },
 });
 </script>
