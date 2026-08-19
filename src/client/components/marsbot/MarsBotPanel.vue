@@ -15,6 +15,11 @@ See docs/DESKTOP_DEPRECATION_AUDIT.md + the deprecation banner in CLAUDE.md.
       <span class="mb-panel__difficulty" :class="'mb-panel__difficulty--' + automa.difficulty" v-i18n>{{ difficultyLabel }}</span>
     </div>
 
+    <!-- Corporation identity (RB-B) — textual, no card: the corp NAME is the
+         bot's primary identity; the difficulty badge above stays the
+         secondary voice. Absent on legacy corpless saves. -->
+    <div v-if="corpName !== ''" class="mb-panel__corp" v-i18n>{{ corpName }}</div>
+
     <!-- Economy: the bot's ONLY resource is its M€ supply (+ floaters). -->
     <div class="mb-panel__rows">
       <div class="mb-panel__row">
@@ -74,6 +79,7 @@ import {PublicPlayerModel} from '@/common/models/PlayerModel';
 import {MarsBotModel, MarsBotTrackModel} from '@/common/models/MarsBotModel';
 import {Tag as CardTag} from '@/common/cards/Tag';
 import {DIFFICULTY_LABEL, trackTag} from './marsBotView';
+import {marsBotCorpDisplayName} from './marsBotDisplay';
 import AnimatedMetricValue from '@/client/components/feedback/AnimatedMetricValue.vue';
 import Tag from '@/client/components/Tag.vue';
 
@@ -90,6 +96,11 @@ export default defineComponent({
   computed: {
     difficultyLabel(): string {
       return DIFFICULTY_LABEL[this.automa.difficulty];
+    },
+    /** The bot's corporation DISPLAY name ('' on legacy corpless saves). */
+    corpName(): string {
+      const corp = this.automa.corporation;
+      return corp !== undefined ? marsBotCorpDisplayName(corp.id) : '';
     },
     /** Floaters exist as a concept once Venus/Colonies tracks can grant them. */
     showFloaters(): boolean {

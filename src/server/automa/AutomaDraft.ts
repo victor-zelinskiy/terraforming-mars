@@ -3,6 +3,7 @@ import {Draft} from '../Draft';
 import {IGame} from '../IGame';
 import {IPlayer} from '../IPlayer';
 import {IProjectCard} from '../cards/IProjectCard';
+import {AutomaCorporations} from './corps/AutomaCorporations';
 import {AutomaResearch} from './AutomaResearch';
 import {marsBotOf} from './AutomaUtil';
 
@@ -50,7 +51,9 @@ export class AutomaDraft extends Draft {
         return;
       }
       const hand = player.draftHand;
-      const card = hand[this.game.rng.nextInt(hand.length)];
+      // Corporation Draft Priority (RB-B) decides the pick; corpless (a
+      // legacy save) stays the official seeded-random pick.
+      const card = AutomaCorporations.draftPick(this.game, hand);
       player.draftedCards.push(card);
       inplaceRemove(hand, card);
       this.onCardDrafted(player);

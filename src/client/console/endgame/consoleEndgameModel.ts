@@ -75,10 +75,13 @@ export type ConsoleEndgameRow = {
   color: Color;
   /** DISPLAY name (the MarsBot seat is already localized by the adapter). */
   name: string;
-  corporation: string; // '' when unknown
+  /** Corporation name; the bot's own corporation when the save carries one
+   *  (`botCorporation` via the reveal model). '' when unknown. */
+  corporation: string;
   isBot: boolean;
   /** The bot seat's difficulty LABEL (i18n key, e.g. 'Hard') — its identity
-   *  line where a human shows a corporation. Absent for humans. */
+   *  line where a corpless bot shows nothing else; SECONDARY next to the
+   *  corporation once the bot has one. Absent for humans. */
   difficulty?: string;
   finalTotal: number;
   megacredits: number;

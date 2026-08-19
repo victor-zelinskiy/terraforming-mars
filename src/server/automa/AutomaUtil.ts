@@ -25,6 +25,20 @@ export function humansOf(game: IGame): ReadonlyArray<IPlayer> {
 }
 
 /**
+ * Bump one MarsBot-corporation statistic counter (see `MarsBotCorpStats` in
+ * common/automa/MarsBotCorpData.ts). Counters are serialized with the bot and
+ * shipped to the client as open information; missing keys read as 0. No-op
+ * outside an automa game — callers never have to guard.
+ */
+export function bumpCorpStat(game: IGame, key: string, amount: number = 1): void {
+  const automa = game.automa;
+  if (automa === undefined) {
+    return;
+  }
+  automa.corpStats[key] = (automa.corpStats[key] ?? 0) + amount;
+}
+
+/**
  * The §12 Q9 victim canon: the candidate with the highest score; ties resolve
  * RANDOMLY among the tied candidates via the game's SEEDED rng (the same
  * source the bot's flips and draft picks use) — fair between players, yet

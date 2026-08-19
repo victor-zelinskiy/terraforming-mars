@@ -4,6 +4,7 @@ import {IGame} from '../IGame';
 import {IPlayer} from '../IPlayer';
 import {newProjectCard} from '../createCard';
 import {resolveBonusCard, routeBonusCard} from './AutomaBonusCards';
+import {AutomaCorporations} from './corps/AutomaCorporations';
 import {AutomaDeltaProject} from './AutomaDeltaProject';
 import {AutomaMAEvaluation} from './AutomaMAEvaluation';
 import {AutomaMilestonesAwards} from './AutomaMilestonesAwards';
@@ -99,6 +100,9 @@ export class AutomaController {
       // «показал / раскрыл».
       game.log('${0} played ${1}', (b) => b.player(bot).card(card, {tags: true}));
       AutomaTurnLog.note(game, {kind: 'reveal', card: entry}, {consumeLog: true});
+      // The corporation's "When resolving a card …" effect fires for EVERY
+      // resolution, before tag processing — a Failed Action can't swallow it.
+      AutomaCorporations.onProjectCardResolving(game, card);
       AutomaResolver.resolveProjectCard(game, card);
       automa.playedPile.push(entry.name);
     } else {

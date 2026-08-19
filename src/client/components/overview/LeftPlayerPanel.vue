@@ -23,6 +23,7 @@ See docs/DESKTOP_DEPRECATION_AUDIT.md + the deprecation banner in CLAUDE.md.
         :passAvailable="isViewerFor(p) && passAvailable"
         :endTurnAvailable="isViewerFor(p) && endTurnAvailable"
         :turnIndex="turnIndexFor(p)"
+        :botCorporationName="p.isMarsBot === true ? botCorporationName : ''"
         :epoch="playerView.runId"
         @select="$emit('selectPlayer', $event)"
         @pass="$emit('pass')"
@@ -136,6 +137,7 @@ import LeftPlayerCard from '@/client/components/overview/LeftPlayerCard.vue';
 import MarsBotPanel from '@/client/components/marsbot/MarsBotPanel.vue';
 import AdditionalResourcesPanel from '@/client/components/additionalResources/AdditionalResourcesPanel.vue';
 import {actionLabelForPlayer, isBotActiveTurn} from '@/client/components/overview/playerLabels';
+import {marsBotCorpDisplayName} from '@/client/components/marsbot/marsBotDisplay';
 import {ActionLabel} from './ActionLabel';
 import {Color} from '@/common/Color';
 import {Phase} from '@/common/Phase';
@@ -216,6 +218,12 @@ export default defineComponent({
     },
     botAutoma(): MarsBotModel | undefined {
       return this.playerView.game.automa;
+    },
+    /** The bot's corporation DISPLAY name ('' on legacy corpless saves) —
+     *  shown on the bot's player card beside the «Automa opponent» chip. */
+    botCorporationName(): string {
+      const corp = this.botAutoma?.corporation;
+      return corp !== undefined ? marsBotCorpDisplayName(corp.id) : '';
     },
     // The viewer's own player (if any) is pulled to the top of the list so it
     // always appears first in the panel — players intuitively expect "their"

@@ -41,13 +41,30 @@
       <div v-if="viewedIsBot" class="con-played__provenance" v-i18n>Everything MarsBot flipped from its action deck this game</div>
 
       <ConsoleScrollArea ref="scroll" class="con-played__scroll" content-class="con-played__content">
-        <!-- Truly empty tableau — a calm compact state, never a bare panel. -->
-        <div v-if="categories.length === 0" class="con-played__void">
+        <!-- Truly empty tableau — a calm compact state, never a bare panel.
+             The bot's corporation slot counts as table content. -->
+        <div v-if="categories.length === 0 && botCorp === undefined" class="con-played__void">
           <span class="con-played__void-glyph" aria-hidden="true">◈</span>
           <span v-i18n>No cards played yet</span>
         </div>
 
         <div v-else class="con-played__table">
+          <!-- The BOT's corporation — its own entity (bot rules, original identity).
+               Lives in the same corporation slot a human's corporation takes; A/X
+               opens the fullscreen inspect (physical lift via data-zoom-slot). -->
+          <div v-if="botCorp !== undefined"
+               class="con-played__family con-played__family--identity con-played__family--corporation"
+               :class="familyClasses('botcorp')"
+               data-played-cat="botcorp"
+               @click="onBotCorpPress()">
+            <span class="con-played__caption">
+              <span v-i18n>Corporation</span>
+              <span class="con-played__caption-open" v-i18n>Open</span>
+            </span>
+            <div class="con-played__botcorp" :data-zoom-slot="botCorp.id">
+              <MarsBotCorpFace :id="botCorp.id" :resources="botCorp.resources" />
+            </div>
+          </div>
           <!-- Identity zone: corporation(s) / preludes / CEO — who the player IS. -->
           <div v-if="zones.corporations.length > 0"
                class="con-played__family con-played__family--identity con-played__family--corporation"
@@ -178,9 +195,11 @@
 import {defineComponent, PropType} from 'vue';
 import {Color} from '@/common/Color';
 import {CardModel} from '@/common/models/CardModel';
+import {MarsBotCorpModel} from '@/common/automa/MarsBotCorpData';
 import {MarsBotModel} from '@/common/models/MarsBotModel';
 import {PublicPlayerModel} from '@/common/models/PlayerModel';
 import {botTableauCards} from '@/client/components/marsbot/marsBotView';
+import {marsBotCorpZoomEntry} from '@/client/components/card/cardZoomTypes';
 import {participantDisplayName} from '@/client/components/marsbot/marsBotDisplay';
 import {GamepadIntent, NavDirection} from '@/client/gamepad/gamepadPollModel';
 import {consoleActionOf} from '@/client/console/composables/consoleActionModel';
@@ -207,6 +226,10 @@ import ConsoleScrollArea from '@/client/components/console/foundation/ConsoleScr
 import ConsolePlayedPile from '@/client/components/console/played/ConsolePlayedPile.vue';
 import ConsolePlayedEventsPile from '@/client/components/console/played/ConsolePlayedEventsPile.vue';
 import ConsolePlayedCategoryView from '@/client/components/console/played/ConsolePlayedCategoryView.vue';
+import MarsBotCorpFace from '@/client/components/marsbot/MarsBotCorpFace.vue';
+
+/** The table's focusable keys: the card categories + the bot's corporation slot. */
+type TableFocusKey = PlayedCategoryKey | 'botcorp' | '';
 
 /** Right-stick free-scroll px per intent frame (multiplied by conUiScale). */
 const STICK_SCROLL_STEP = 44;
@@ -227,7 +250,7 @@ const FAMILY_ORDER: ReadonlyArray<PlayedFamily> = ['corporation', 'prelude', 'ce
 
 export default defineComponent({
   name: 'ConsolePlayedOverlay',
-  components: {ConsoleScrollArea, ConsolePlayedPile, ConsolePlayedEventsPile, ConsolePlayedCategoryView},
+  components: {ConsoleScrollArea, ConsolePlayedPile, ConsolePlayedEventsPile, ConsolePlayedCategoryView, MarsBotCorpFace},
   props: {
     players: {type: Array as PropType<ReadonlyArray<PublicPlayerModel>>, required: true},
     thisPlayerColor: {type: String as PropType<Color>, required: true},
@@ -272,7 +295,7 @@ export default defineComponent({
       /** WHOSE tableau is on the table (LB/RB cycles; defaults to the viewer). */
       viewColor: this.thisPlayerColor as Color,
       /** The focused CATEGORY (the only focusable objects of the table). */
-      focusCategory: '' as PlayedCategoryKey | '',
+      focusCategory: '' as TableFocusKey,
       /** Hero-scene target-measurer deregistration (play-animation mode). */
       unregisterHeroTarget: undefined as (() => void) | undefined,
       catState: playedCategoryState,
@@ -296,6 +319,10 @@ export default defineComponent({
     },
     viewedIsBot(): boolean {
       return this.viewedPlayer?.isMarsBot === true;
+    },
+    /** The bot's corporation (its own entity — bot rules, original identity). */
+    botCorp(): MarsBotCorpModel | undefined {
+      return this.viewedIsBot ? this.automa?.corporation : undefined;
     },
     /** The localized seat label — never a raw `MarsBot` for the bot seat. */
     viewedDisplayName(): string {
@@ -450,8 +477,12 @@ export default defineComponent({
     'categories': {
       immediate: true,
       handler(categories: ReadonlyArray<PlayedCategory>) {
-        if (!categories.some((c) => c.key === this.focusCategory)) {
-          this.focusCategory = categories[0]?.key ?? '';
+        const focusStillExists = this.focusCategory === 'botcorp' ?
+          this.botCorp !== undefined :
+          categories.some((c) => c.key === this.focusCategory);
+        if (!focusStillExists) {
+          // The bot's corporation slot is the table's first focusable object.
+          this.focusCategory = this.botCorp !== undefined ? 'botcorp' : (categories[0]?.key ?? '');
         }
         // The open category emptied out entirely (an undo) — nothing left to
         // show; the view folds instantly (no cards to fly home).
@@ -463,8 +494,10 @@ export default defineComponent({
     },
     'focusCategory': {
       immediate: true,
-      handler(key: PlayedCategoryKey | '') {
-        consolePlayedUi.focusCategory = key;
+      handler(key: TableFocusKey) {
+        // The mirror carries card categories only — the corp slot reads as
+        // «nothing to open as a grid» for the command bar.
+        consolePlayedUi.focusCategory = key === 'botcorp' ? '' : key;
         void this.$nextTick(() => this.ensureFocusVisible());
       },
     },
@@ -633,7 +666,7 @@ export default defineComponent({
       }
       this.scheduleHydrationTick();
     },
-    familyClasses(key: PlayedCategoryKey): Record<string, boolean> {
+    familyClasses(key: TableFocusKey): Record<string, boolean> {
       return {
         'con-played__family--focused': this.focusCategory === key && !this.heroActive,
         'con-played__family--out': this.categoryUp && this.catState.category === key,
@@ -673,7 +706,9 @@ export default defineComponent({
       if (z.automated.some((c) => c.name === name)) {
         return 'automated';
       }
-      return this.focusCategory;
+      // A landing card never belongs to the bot's corporation slot — fall
+      // back to a CARD category (or none) for the hero focus seed.
+      return this.focusCategory === 'botcorp' ? '' : this.focusCategory;
     },
     // ── the pad grammar (delegated by the shell) ────────────────────────
     handleIntent(intent: GamepadIntent): void {
@@ -698,6 +733,10 @@ export default defineComponent({
       case 'primary':
       case 'inspect':
         // A VIEW surface: A (and X) opens the focused category.
+        if (this.focusCategory === 'botcorp') {
+          this.openBotCorpZoom();
+          break;
+        }
         this.openCategory(this.focusCategory);
         break;
       case 'prevSection':
@@ -735,7 +774,7 @@ export default defineComponent({
     moveFocus(dir: NavDirection): void {
       const next = pickSpatialTarget(this.focusCategory, this.collectCategoryRects(), dir);
       if (next !== undefined) {
-        this.focusCategory = next as PlayedCategoryKey;
+        this.focusCategory = next as TableFocusKey;
       }
     },
     ensureFocusVisible(): void {
@@ -771,7 +810,34 @@ export default defineComponent({
         this.focusCategory = key;
       }
     },
-    openCategory(key: PlayedCategoryKey | ''): void {
+    /** Mouse: the bot-corporation slot mirrors the two-step family feel. */
+    onBotCorpPress(): void {
+      if (this.heroActive || this.categoryUp) {
+        return;
+      }
+      if (this.focusCategory === 'botcorp') {
+        this.openBotCorpZoom();
+      } else {
+        this.focusCategory = 'botcorp';
+      }
+    },
+    /** Fullscreen inspect of the bot's corporation — the physical lift out of
+     *  its table slot, same as the smart open of a one-card zone. */
+    openBotCorpZoom(): void {
+      const corp = this.botCorp;
+      if (corp === undefined || this.heroActive || this.categoryUp) {
+        return;
+      }
+      const list = [marsBotCorpZoomEntry(corp.id, corp.resources)];
+      openConsoleCardZoom(list, 0, undefined, undefined, {
+        origin: slotZoomOrigin(() => this.$el as HTMLElement, (i) => list[i]?.name ?? ''),
+      });
+    },
+    openCategory(key: TableFocusKey): void {
+      if (key === 'botcorp') {
+        this.openBotCorpZoom();
+        return;
+      }
       if (key === '' || this.heroActive || this.categoryUp) {
         return;
       }

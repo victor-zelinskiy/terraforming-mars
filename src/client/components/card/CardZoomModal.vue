@@ -210,7 +210,8 @@ import {motionMs} from '@/client/components/motion/motionTokens';
 import {conUiScale} from '@/client/console/consoleLayoutProfile';
 import {cssLengthPx} from '@/client/console/cssUnits';
 import {CardName} from '@/common/cards/CardName';
-import {ZoomCard, isBonusZoom} from './cardZoomTypes';
+import {ZoomCard, isBonusZoom, isMarsBotCorpZoom} from './cardZoomTypes';
+import {marsBotCorpInfo} from '@/common/automa/MarsBotCorpData';
 import CardZoomCard from './CardZoomCard.vue';
 import CardLoreAside from './CardLoreAside.vue';
 import CardAnnotationsLayer from '@/client/components/cardAnnotations/CardAnnotationsLayer.vue';
@@ -439,19 +440,25 @@ export default defineComponent({
       }
       return out;
     },
-    /** The rule-overlay card: project cards only (a bonus entry has no rules model). */
+    /** The rule-overlay card: project cards only (a bonus/corp entry has no rules model). */
     annotationCardName(): CardName | undefined {
-      return isBonusZoom(this.activeCard) ? undefined : this.activeCard.name as CardName;
+      return isBonusZoom(this.activeCard) || isMarsBotCorpZoom(this.activeCard) ?
+        undefined :
+        this.activeCard.name as CardName;
     },
-    /** The archive entry shows for real game cards only — an Automa bonus
-     *  entry is not a card and has no lore. */
+    /** The archive entry shows for real game cards — an Automa bonus entry is
+     *  not a card and has no lore; a MarsBot CORPORATION entry borrows the
+     *  ORIGINAL human corporation's archive entry (the official identity/art/
+     *  lore link of RB-B). */
     loreVisible(): boolean {
       return this.lore && !isBonusZoom(this.activeCard);
     },
-    /** The archive-entry card. Only ever READ behind `loreVisible`, which is
-     *  true solely for a non-bonus entry (a `CardModel`), so the cast is sound
-     *  — same idiom as the shell's `zoomRulesCardName`. */
+    /** The archive-entry card: the entry's own name, or the bot corporation's
+     *  ORIGINAL card (behind `loreVisible`, never a bonus id). */
     loreCardName(): CardName {
+      if (isMarsBotCorpZoom(this.activeCard)) {
+        return marsBotCorpInfo(this.activeCard.marsBotCorp).original;
+      }
       return this.activeCard.name as CardName;
     },
     /*

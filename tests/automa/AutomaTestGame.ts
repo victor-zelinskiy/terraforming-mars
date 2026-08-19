@@ -2,13 +2,23 @@ import {Game} from '../../src/server/Game';
 import {IGame} from '../../src/server/IGame';
 import {IPlayer} from '../../src/server/IPlayer';
 import {GameOptions} from '../../src/server/game/GameOptions';
-import {DifficultyLevel} from '../../src/common/automa/AutomaTypes';
+import {DifficultyLevel, MarsBotCorpId} from '../../src/common/automa/AutomaTypes';
 import {TestPlayer} from '../TestPlayer';
 import {SelectInitialCards} from '../../src/server/inputs/SelectInitialCards';
 import {marsBotOf} from '../../src/server/automa/AutomaUtil';
 
 export type AutomaTestOptions = Partial<GameOptions> & {
   difficulty?: DifficultyLevel;
+  /**
+   * The bot's corporation. DEFAULT: C01 Credicor — the most inert corp for a
+   * spec (no Setup box, no Before-Action-Phase box, no deck or track
+   * footprint; only +4 M€ when the bot resolves a ≥20 M€ card), so the
+   * hundreds of pre-corporation specs keep their exact expectations.
+   * 'random' exercises the real seeded selection (Spire's starting Earth tag
+   * then advances the Earth track onto its 'city' cell at setup — real
+   * official behavior most old specs never budgeted for).
+   */
+  corporation?: MarsBotCorpId | 'random';
   /** Keep the human's SelectInitialCards prompt (default: popped, like testGame). */
   keepInitialCardSelection?: boolean;
 };
@@ -18,10 +28,11 @@ export type AutomaTestOptions = Partial<GameOptions> & {
  * the bot the engine seats itself. Returns [game, human, bot].
  */
 export function testAutomaGame(customOptions?: AutomaTestOptions, idSuffix = ''): [IGame, TestPlayer, IPlayer] {
-  const {difficulty, keepInitialCardSelection, ...gameOptions} = customOptions ?? {};
+  const {difficulty, corporation, keepInitialCardSelection, ...gameOptions} = customOptions ?? {};
+  const forced = corporation ?? MarsBotCorpId.C01_CREDICOR;
   const human = TestPlayer.BLUE.newPlayer({name: 'player1', idSuffix});
   const game = Game.newInstance(`game-id${idSuffix}`, [human], human, `spectator-id${idSuffix}`, {
-    automa: {difficulty: difficulty ?? 'normal'},
+    automa: {difficulty: difficulty ?? 'normal', ...(forced !== 'random' ? {corporation: forced} : {})},
     ...gameOptions,
   });
   if (keepInitialCardSelection !== true) {
@@ -41,11 +52,12 @@ const MULTI_COLORS = [TestPlayer.BLUE, TestPlayer.RED, TestPlayer.GREEN, TestPla
  */
 export function testAutomaMultiplayerGame(
   humanCount: number, customOptions?: AutomaTestOptions, idSuffix = ''): [IGame, ReadonlyArray<TestPlayer>, IPlayer] {
-  const {difficulty, keepInitialCardSelection, ...gameOptions} = customOptions ?? {};
+  const {difficulty, corporation, keepInitialCardSelection, ...gameOptions} = customOptions ?? {};
+  const forced = corporation ?? MarsBotCorpId.C01_CREDICOR;
   const humans = MULTI_COLORS.slice(0, humanCount)
     .map((factory, i) => factory.newPlayer({name: `player${i + 1}`, idSuffix}));
   const game = Game.newInstance(`game-id${idSuffix}`, humans, humans[0], `spectator-id${idSuffix}`, {
-    automa: {difficulty: difficulty ?? 'normal'},
+    automa: {difficulty: difficulty ?? 'normal', ...(forced !== 'random' ? {corporation: forced} : {})},
     ...gameOptions,
   });
   if (keepInitialCardSelection !== true) {

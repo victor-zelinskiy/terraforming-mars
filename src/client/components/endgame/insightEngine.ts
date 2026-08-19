@@ -2495,6 +2495,102 @@ const DIFFICULTY_LABELS: Readonly<Record<string, string>> = {
   easy: 'Easy', normal: 'Normal', hard: 'Hard', brutal: 'Brutal',
 };
 
+/**
+ * The MarsBot's CORPORATION (Rule Book B) — one candidate per bot seat, only
+ * when the corporation was a MEASURABLE factor of the game. Facts are the
+ * server's own per-corporation counters (`MarsBotCorpStats`, structured data
+ * shipped with the bot model) — never display text, never invented causality:
+ * every sentence states exactly what the counters measured.
+ */
+const analyzeBotCorporation: Analyzer = (ctx) => {
+  const out: Array<InsightCandidate> = [];
+  for (const p of ctx.players) {
+    const corp = p.botCorporation;
+    if (corp === undefined) {
+      continue;
+    }
+    const stats = corp.stats ?? {};
+    const stat = (key: string) => stats[key] ?? 0;
+    const isWinner = p.color === ctx.winner.color;
+    let story: {textKey: string, params: Array<InsightParam>, measure: number, scale: number} | undefined;
+
+    if (corp.id === 'C01') {
+      // Credicor: the ≥20 M€ effect. A handful of triggers is routine; a
+      // steady stream of expensive projects is the story.
+      const triggers = stat('credicorTriggers');
+      const mc = stat('credicorMc');
+      if (triggers >= 4) {
+        story = {
+          textKey: '${0}\'s corporation ${1} monetized big projects: ${2} cards of 20+ M€ paid it ${3} M€ over the game.',
+          params: [raw(p.name), raw(corp.name), raw(triggers), raw(mc)],
+          measure: mc,
+          scale: 28,
+        };
+      }
+    } else if (corp.id === 'C02') {
+      // Ecoline: Rapid Sprouting's greeneries — board VP + oxygen the bot
+      // grew itself. One greenery is noise; two or more shaped the board.
+      const greeneries = stat('greeneries');
+      const oxygen = stat('oxygenSteps');
+      if (greeneries >= 2) {
+        story = {
+          textKey: '${0}\'s corporation ${1} grew the planet itself: Rapid Sprouting planted ${2} greeneries and raised oxygen ${3} steps.',
+          params: [raw(p.name), raw(corp.name), raw(greeneries), raw(oxygen)],
+          measure: greeneries,
+          scale: 4,
+        };
+      }
+    } else if (corp.id === 'C45') {
+      // Spire: the science engine — multi-tag cards banked into cities + TR.
+      const cities = stat('citiesPlaced');
+      const science = stat('scienceAdded');
+      if (cities >= 1) {
+        story = {
+          textKey: '${0}\'s corporation ${1} banked science from multi-tag cards: ${2} science became ${3} city tile(s) and TR.',
+          params: [raw(p.name), raw(corp.name), raw(stat('scienceSpent')), raw(cities)],
+          measure: cities * 10 + science,
+          scale: 20,
+        };
+      }
+    }
+
+    // The draft-protection rare case is a story of its own scale: the corp
+    // kept all four drafted cards (a 5-card action deck) more than once.
+    const fiveCardDecks = stat('fiveCardDecks');
+    if (story === undefined && fiveCardDecks >= 2) {
+      story = {
+        textKey: '${0}\'s corporation ${1} protected all four drafted cards ${2} times — extra action cards every one of those generations.',
+        params: [raw(p.name), raw(corp.name), raw(fiveCardDecks)],
+        measure: fiveCardDecks,
+        scale: 4,
+      };
+    }
+    if (story === undefined) {
+      continue; // The corporation was not a measurable factor — say nothing.
+    }
+    out.push({
+      id: `reason.bot-corporation.${p.color}`,
+      group: 'reason',
+      priority: isWinner ? 74 : 62,
+      severity: story.measure >= story.scale ? 'major' : 'normal',
+      icon: 'cards',
+      badge: 'Bot corporation',
+      color: p.color,
+      textKey: story.textKey,
+      params: story.params,
+      family: 'cardStory',
+      storyCluster: 'bot-corporation',
+      evidenceChips: [
+        {t: 'raw', v: corp.name, tone: 'neutral'},
+        ...(p.botDifficulty !== undefined ?
+          [{t: 'i18n', v: DIFFICULTY_LABELS[p.botDifficulty], tone: 'neutral'} as EvidenceChip] : []),
+      ],
+      scores: {impact: Math.min(1, story.measure / story.scale), confidence: 1, relevance: 0.75},
+    });
+  }
+  return out;
+};
+
 const ANALYZERS: ReadonlyArray<Analyzer> = [
   analyzeVerdict,
   analyzeTimeline,
@@ -2504,6 +2600,7 @@ const ANALYZERS: ReadonlyArray<Analyzer> = [
   analyzeParameters,
   analyzeCards,
   analyzeAutomaCards,
+  analyzeBotCorporation,
   analyzeRace,
 ];
 

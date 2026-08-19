@@ -17,7 +17,7 @@ import {TileType} from '@/common/TileType';
 import {SpaceId} from '@/common/Types';
 import {LogMessage} from '@/common/logs/LogMessage';
 import {LogMessageDataType} from '@/common/logs/LogMessageDataType';
-import {BonusCardId, DifficultyLevel, TrackAction} from '@/common/automa/AutomaTypes';
+import {BonusCardId, DifficultyLevel, MarsBotCorpId, TrackAction} from '@/common/automa/AutomaTypes';
 import {BonusCardContext} from '@/common/automa/BonusCardData';
 import {
   MarsBotAttack,
@@ -70,6 +70,8 @@ export type BotReviewChainCause =
   | {kind: 'trade', id: BonusCardId}
   | {kind: 'failed', reason: string}
   | {kind: 'delta'}
+  /** The bot's own corporation effect (RB-B) — `id` names it when the archive captured one. */
+  | {kind: 'corporation', id?: MarsBotCorpId}
   | {kind: 'effect'};
 
 export type BotReviewChain = {
@@ -125,6 +127,9 @@ export type BotTurnReviewSource = {
   trackTags: ReadonlyArray<Tag | undefined>;
   /** Full track models — feed the mini-scales + composite capsules. */
   tracks: ReadonlyArray<MarsBotTrackModel>;
+  /** The bot's corporation (RB-B), captured at archive time — names the
+   *  corporation-effect chains. Absent on corpless games / older archives. */
+  corporation?: MarsBotCorpId;
 };
 
 /** The Colonies "trade with a colony" bonus cards (their M€ deduct = trade cost). */
@@ -329,6 +334,8 @@ function buildChainsByCause(steps: ReadonlyArray<MarsBotTurnStep>, source: BotTu
       return card?.kind === 'bonus' ? (isTradeCard ? {kind: 'trade', id: card.id} : {kind: 'bonus', id: card.id}) : {kind: 'effect'};
     case 'delta':
       return {kind: 'delta'};
+    case 'corporation':
+      return {kind: 'corporation', ...(source.corporation !== undefined ? {id: source.corporation} : {})};
     case 'failed':
       return {kind: 'failed', reason: 'no-tags'};
     }

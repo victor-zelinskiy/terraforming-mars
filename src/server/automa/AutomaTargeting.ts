@@ -3,9 +3,10 @@ import {CardResource} from '../../common/CardResource';
 import {ColonyName} from '../../common/colonies/ColonyName';
 import {Resource} from '../../common/Resource';
 import {Tag} from '../../common/cards/Tag';
+import {marsBotCorpInfo} from '../../common/automa/MarsBotCorpData';
 import {IGame} from '../IGame';
 import {IPlayer} from '../IPlayer';
-import {marsBotOf} from './AutomaUtil';
+import {bumpCorpStat, marsBotOf} from './AutomaUtil';
 import {THARSIS_TRACK} from './boards/TharsisMarsBot';
 
 /**
@@ -139,6 +140,62 @@ export class AutomaTargeting {
     if (options?.stealing && removed > 0) {
       perpetrator.stock.add(resource, removed, {log: options?.log ?? true});
     }
+  }
+
+  /**
+   * Plants stored ON the bot's corporation card (Ecoline, via Rapid
+   * Sprouting). RB-B FAQ: "If your cards allow you to destroy or steal
+   * plants from your opponent, you may target the resource(s) on the
+   * corporation card." Deliberately its OWN pool, never part of
+   * `attackableStock` — the FAQ's second sentence forbids the composite
+   * top-up: "If there are fewer plants there than what you are allowed to
+   * destroy or steal, the excess is lost. You are not allowed to
+   * additionally destroy/steal from MarsBot's MC supply."
+   */
+  public static corpPlantPool(game: IGame): number {
+    const automa = game.automa;
+    if (automa === undefined || automa.corporation === undefined) {
+      return 0;
+    }
+    return marsBotCorpInfo(automa.corporation).resource === 'plant' ? automa.corpResources : 0;
+  }
+
+  /**
+   * Apply a plant remove/steal AIMED AT the corporation card: up to `count`
+   * plants leave the card, the excess is LOST (named in the log — never a
+   * silent shortfall, and never an M€ top-up). A thief receives exactly what
+   * left the card. Returns the amount removed.
+   */
+  public static removeCorpPlants(bot: IPlayer, perpetrator: IPlayer, count: number,
+    options?: {log?: boolean, stealing?: boolean}): number {
+    const game = bot.game;
+    const automa = game.automa;
+    if (automa === undefined) {
+      throw new Error('Not an automa game');
+    }
+    const available = AutomaTargeting.corpPlantPool(game);
+    const removed = Math.min(available, count);
+    if (removed > 0) {
+      automa.corpResources -= removed;
+      if (options?.log ?? true) {
+        game.log('${0} lost ${1} plant(s) from its corporation card', (b) => b.player(bot).number(removed));
+      }
+      bumpCorpStat(game, 'plantsLostToOpponents', removed);
+      // Mode B: the bot is a full Mons Insurance beneficiary — a corporation
+      // card loss claims it exactly like a storage-only loss (dormant in
+      // official solo where the corp is banned).
+      if (perpetrator.id !== bot.id) {
+        bot.resolveInsurance();
+      }
+    }
+    if (count > removed && (options?.log ?? true)) {
+      // The official excess-is-lost rule, named honestly.
+      game.log('The remaining ${0} plant(s) are lost — the corporation card held fewer', (b) => b.number(count - removed));
+    }
+    if (options?.stealing && removed > 0) {
+      perpetrator.stock.add(Resource.PLANTS, removed, {log: options?.log ?? true});
+    }
+    return removed;
   }
 
   /**

@@ -7,6 +7,15 @@
          (marsBotRailModel). This dashboard keeps only the detail the rail
          cannot carry: decks, piles, storage — plus the printed-board guide
          behind X (the botBoard detail). -->
+    <!-- The bot's CORPORATION (Rule Book B) — its own card: bot rules only,
+         identity/art from the original. The face carries the live resource
+         count; the fullscreen inspect lives in the «Разыграно» corporation
+         slot (X → the unified table). -->
+    <section v-if="automa.corporation !== undefined" class="con-info__block con-info__block--botcorp">
+      <h3 class="con-info__block-title">{{ $t('Corporation') }}</h3>
+      <MarsBotCorpFace :id="automa.corporation.id" :resources="automa.corporation.resources" compact />
+    </section>
+
     <section class="con-info__block">
       <h3 class="con-info__block-title">{{ $t('Decks') }}</h3>
       <div class="con-info__stat-lines">
@@ -105,11 +114,12 @@ import {MarsBotModel} from '@/common/models/MarsBotModel';
 import {GuideSection, MarsBotGuideContext, marsBotGuide} from '@/client/components/marsbot/marsBotGuide';
 import MarsBotTracks from '@/client/components/marsbot/MarsBotTracks.vue';
 import BonusCardFace from '@/client/components/marsbot/BonusCardFace.vue';
+import MarsBotCorpFace from '@/client/components/marsbot/MarsBotCorpFace.vue';
 import GamepadGlyph from '@/client/components/gamepad/GamepadGlyph.vue';
 
 export default defineComponent({
   name: 'ConsoleMarsBotSections',
-  components: {MarsBotTracks, BonusCardFace, GamepadGlyph},
+  components: {MarsBotTracks, BonusCardFace, MarsBotCorpFace, GamepadGlyph},
   props: {
     mode: {type: String as PropType<'dashboard' | 'botBoard' | 'botBonus'>, required: true},
     bot: {type: Object as PropType<PublicPlayerModel>, required: true},

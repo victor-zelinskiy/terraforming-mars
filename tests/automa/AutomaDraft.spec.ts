@@ -3,6 +3,7 @@ import {Game} from '../../src/server/Game';
 import {IGame} from '../../src/server/IGame';
 import {IProjectCard} from '../../src/server/cards/IProjectCard';
 import {SelectCard} from '../../src/server/inputs/SelectCard';
+import {BonusCardId, MarsBotCorpId} from '../../src/common/automa/AutomaTypes';
 import {cast} from '../../src/common/utils/utils';
 import {TestPlayer} from '../TestPlayer';
 import {testAutomaGame} from './AutomaTestGame';
@@ -24,8 +25,11 @@ function humanDraftPick(human: TestPlayer): void {
 }
 
 describe('AutomaDraft', () => {
-  it('runs the official two-pile draft: the human prompts, MarsBot picks instantly at random', () => {
-    const [game, human, bot] = testAutomaGame({draftVariant: true});
+  it('runs the official two-pile draft: the human prompts, a priority-less corporation picks instantly at random', () => {
+    // Ecoline prints NO Draft Priority — its picks stay the official seeded
+    // random and its discard the official shuffle-discard-first, exactly the
+    // corpless mechanics; its only footprint is B23 recurring into the deck.
+    const [game, human, bot] = testAutomaGame({draftVariant: true, corporation: MarsBotCorpId.C02_ECOLINE});
     reachDraft(game, human);
 
     // Round 1 dealt 4+4; the bot already picked its first card silently.
@@ -40,10 +44,12 @@ describe('AutomaDraft', () => {
     humanDraftPick(human); // → last card auto-drafted, draft ends
 
     const automa = game.automa!;
-    // Bot drafted 4, shuffled, discarded 1 → 3 projects + 1 bonus card.
-    expect(automa.actionDeck).has.length(4);
+    // Bot drafted 4, shuffled, discarded 1 → 3 projects + the top bonus card
+    // + Ecoline's recurring Rapid Sprouting.
+    expect(automa.actionDeck).has.length(5);
     expect(automa.actionDeck.filter((c) => c.kind === 'project')).has.length(3);
-    expect(automa.actionDeck.filter((c) => c.kind === 'bonus')).has.length(1);
+    expect(automa.actionDeck.filter((c) => c.kind === 'bonus')).has.length(2);
+    expect(automa.actionDeck.some((c) => c.kind === 'bonus' && c.id === BonusCardId.B23_RAPID_SPROUTING)).is.true;
     expect(game.projectDeck.discardPile).has.length(1);
     expect(bot.draftedCards).is.empty;
 

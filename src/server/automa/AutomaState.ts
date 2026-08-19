@@ -2,6 +2,7 @@ import {CardName} from '../../common/cards/CardName';
 import {ColonyName} from '../../common/colonies/ColonyName';
 import {SpaceId} from '../../common/Types';
 import {BonusCardId, DifficultyLevel} from '../../common/automa/AutomaTypes';
+import {MarsBotCorpId, MarsBotCorpStats} from '../../common/automa/MarsBotCorpData';
 import {MarsBotTurn} from '../../common/automa/MarsBotTurn';
 import type {MarsBotTurnRecording} from './AutomaTurnLog';
 import {GameOptions} from '../game/GameOptions';
@@ -52,6 +53,14 @@ export type SerializedAutomaState = {
    * active-but-unresolved bot turn. Absent/false ⇒ no pending turn (old saves).
    */
   pendingTurn?: boolean;
+  /** MarsBot's corporation (Rule Book B). Absent = a legacy corpless save. */
+  corporation?: MarsBotCorpId;
+  /** Resources ON the corporation card (Ecoline plant / Spire science). Absent = 0. */
+  corpResources?: number;
+  /** Per-corporation statistic counters (see MarsBotCorpStats). Absent = {}. */
+  corpStats?: MarsBotCorpStats;
+  /** The last generation the corporation's Before-Action-Phase box ran (absent = 0). */
+  corpBapGeneration?: number;
 };
 
 /**
@@ -104,6 +113,19 @@ export class AutomaState {
    * SerializedAutomaState.pendingTurn.
    */
   public pendingTurn: boolean = false;
+  /**
+   * MarsBot's corporation (Rule Book B "Adding Corporations"), selected at the
+   * generation-1 research → action gate, after every human corporation is
+   * fixed. Undefined only on legacy saves created before corporations existed
+   * — such a game keeps playing corpless; every NEW game always gets one.
+   */
+  public corporation: MarsBotCorpId | undefined = undefined;
+  /** Resources physically ON the corporation card (Ecoline plant / Spire science). */
+  public corpResources: number = 0;
+  /** Per-corporation statistic counters — open information, missing keys read 0. */
+  public corpStats: MarsBotCorpStats = {};
+  /** Once-per-generation guard for the corporation's Before-Action-Phase box. */
+  public corpBapGeneration: number = 0;
   /** The typed script of the last resolved turn (feeds the client turn theater). */
   public lastTurn: MarsBotTurn | undefined = undefined;
   /**
@@ -160,6 +182,12 @@ export class AutomaState {
     if (this.pendingTurn) {
       result.pendingTurn = true;
     }
+    if (this.corporation !== undefined) {
+      result.corporation = this.corporation;
+      result.corpResources = this.corpResources;
+      result.corpStats = {...this.corpStats};
+      result.corpBapGeneration = this.corpBapGeneration;
+    }
     if (this.neuralInstanceSpaceId !== undefined) {
       result.neuralInstanceSpaceId = this.neuralInstanceSpaceId;
     }
@@ -207,6 +235,10 @@ export class AutomaState {
     state.deltaPowerConsumed = d.deltaPowerConsumed ?? 0;
     state.deltaResolvedGeneration = d.deltaResolvedGeneration ?? 0;
     state.pendingTurn = d.pendingTurn ?? false;
+    state.corporation = d.corporation;
+    state.corpResources = d.corpResources ?? 0;
+    state.corpStats = {...(d.corpStats ?? {})};
+    state.corpBapGeneration = d.corpBapGeneration ?? 0;
     return state;
   }
 }

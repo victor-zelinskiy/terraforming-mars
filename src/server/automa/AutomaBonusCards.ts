@@ -17,6 +17,7 @@ import {SelectCard} from '../inputs/SelectCard';
 import {SimpleDeferredAction} from '../deferredActions/DeferredAction';
 import {AwardScorer} from '../awards/AwardScorer';
 import {AutomaAres} from './AutomaAres';
+import {AutomaCorporations} from './corps/AutomaCorporations';
 import {cardResourceAttackPrompt} from './AutomaAttackPrompt';
 import {AutomaColonies} from './AutomaColonies';
 import {AutomaMilestonesAwards} from './AutomaMilestonesAwards';
@@ -97,6 +98,9 @@ function drawAndResolveProjectCard(game: IGame): boolean {
   // The bot PLAYS the card (its tags), it does not "show/reveal" it — reuse the
   // standard "played" log so the journal reads «Бот сыграл …», never «показал».
   game.log('${0} played ${1}', (b) => b.player(marsBotOf(game)).card(card, {tags: true}));
+  // The corporation's "When resolving a card …" effect covers THIS path too
+  // (R&D / the Neural Instance fallback resolve a card just like a turn flip).
+  AutomaCorporations.onProjectCardResolving(game, card);
   AutomaResolver.resolveProjectCard(game, card);
   automa.playedPile.push(card.name);
   return true;
@@ -138,8 +142,15 @@ export function resolveBonusCard(game: IGame, id: BonusCardId): BonusCardOutcome
   case BonusCardId.B19_SHIPPING_LINES:
   case BonusCardId.B20_EXTENDED_SHIPPING_LINES:
     return shippingLines(game);
-  default:
+  default: {
+    // Corporation-specific bonus cards (B22–B32) resolve co-located in their
+    // corporation's own module — the registry dispatches by ownership.
+    const corpOutcome = AutomaCorporations.resolveCorpBonusCard(game, id);
+    if (corpOutcome !== undefined) {
+      return corpOutcome;
+    }
     throw new Error(`MarsBot bonus card ${id} is out of the POC scope`);
+  }
   }
 }
 

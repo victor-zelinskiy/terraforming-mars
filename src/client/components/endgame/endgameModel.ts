@@ -21,7 +21,8 @@
 import {Color} from '@/common/Color';
 import {GlobalParameter} from '@/common/GlobalParameter';
 import type {CardName} from '@/common/cards/CardName';
-import type {DifficultyLevel} from '@/common/automa/AutomaTypes';
+import type {DifficultyLevel, MarsBotCorpId} from '@/common/automa/AutomaTypes';
+import type {MarsBotCorpStats} from '@/common/automa/MarsBotCorpData';
 import type {EndgameFact} from '@/common/events/endgameFacts';
 import {CardVictoryPointsDetail, CardVictoryPointsKind, VictoryPointsBreakdown} from '@/common/game/VictoryPointsBreakdown';
 import {
@@ -75,6 +76,13 @@ export type EndgamePlayerInput = {
   strategyInput?: StrategyInput;
   /** The MarsBot seat's difficulty (present only on the bot's input). */
   botDifficulty?: DifficultyLevel;
+  /**
+   * The MarsBot seat's corporation (present only on a bot input whose save
+   * carries one). `name` is the resolved DISPLAY name (the original human
+   * corporation's — `marsBotCorpDisplayName`), kept OUT of `corporations` on
+   * purpose: that array feeds the human corporation-impact profile.
+   */
+  botCorporation?: {id: MarsBotCorpId, name: string, stats?: MarsBotCorpStats};
 };
 
 export type EndgameModelOptions = {
@@ -157,6 +165,8 @@ export type EndgamePlayerScore = {
   strategyProfile?: PlayerStrategyProfile;
   /** The MarsBot seat's difficulty (present only on the bot's score row). */
   botDifficulty?: DifficultyLevel;
+  /** The MarsBot seat's corporation (see {@link EndgamePlayerInput.botCorporation}). */
+  botCorporation?: {id: MarsBotCorpId, name: string, stats?: MarsBotCorpStats};
 };
 
 export type EndgameMode = 'solo' | 'duel' | 'standings';
@@ -439,6 +449,7 @@ export function buildEndgameModel(inputs: ReadonlyArray<EndgamePlayerInput>, opt
       production: p.production,
       strategyInput: p.strategyInput,
       ...(p.botDifficulty !== undefined ? {botDifficulty: p.botDifficulty} : {}),
+      ...(p.botCorporation !== undefined ? {botCorporation: p.botCorporation} : {}),
     };
   });
 

@@ -100,7 +100,7 @@ export const BONUS_CARD_INFO: Readonly<Record<BonusCardId, BonusCardInfo>> = {
     text: 'The Turmoil bonus card (outside the POC scope).',
   },
   [BonusCardId.B22_SETTLERS]: {name: 'Settlers', text: 'A corporation-specific bonus card (outside the POC scope).'},
-  [BonusCardId.B23_RAPID_SPROUTING]: {name: 'Rapid Sprouting', text: 'A corporation-specific bonus card (outside the POC scope).'},
+  [BonusCardId.B23_RAPID_SPROUTING]: {name: 'Rapid Sprouting', text: 'Ecoline: a plant grows on the corporation card, or the grown plant becomes a greenery raising oxygen 1 step. Recurs into the action deck every generation.'},
   [BonusCardId.B24_SUPPLY_AND_DEMAND]: {name: 'Supply and Demand', text: 'A corporation-specific bonus card (outside the POC scope).'},
   [BonusCardId.B25_DO_IT_RIGHT]: {name: 'Do It Right', text: 'A corporation-specific bonus card (outside the POC scope).'},
   [BonusCardId.B26_VENUSIAN_LOBBY]: {name: 'Venusian Lobby', text: 'A corporation-specific bonus card (outside the POC scope).'},
@@ -287,6 +287,16 @@ export function buildBonusCardView(id: BonusCardId, ctx: BonusCardContext): Bonu
           {text: 'Joins the deck from generation 2', muted: true},
       ],
       fate: {kind: 'recurring', text: 'Returns to the action deck every generation'},
+    };
+  case BonusCardId.B23_RAPID_SPROUTING:
+    // Ecoline's corporation-specific card (official B23).
+    return {
+      name,
+      lines: [
+        {icon: 'plants', text: 'No plant on the Ecoline corporation card: a plant grows there'},
+        {icon: 'greenery', text: 'A plant is there: remove it — MarsBot places a greenery, raising oxygen 1 step'},
+      ],
+      fate: {kind: 'recurring', text: 'At the beginning of every generation it is shuffled back into MarsBot\'s action deck'},
     };
   default:
     return {

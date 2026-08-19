@@ -49,7 +49,8 @@ export type MarsBotRevealedCard =
  *  - `bonus` the bonus card's own effect;
  *  - `colony` a colony trade (Shipping Lines);
  *  - `failed` the failed-action compensation;
- *  - `delta` the Hydronetwork (Delta Project) advance.
+ *  - `delta` the Hydronetwork (Delta Project) advance;
+ *  - `corporation` the bot's own corporation effect (Rule Book B).
  */
 export type MarsBotStepCause =
   | {kind: 'tag', index: number}
@@ -59,7 +60,8 @@ export type MarsBotStepCause =
   | {kind: 'secondary-bonus'}
   | {kind: 'colony'}
   | {kind: 'failed'}
-  | {kind: 'delta'};
+  | {kind: 'delta'}
+  | {kind: 'corporation'};
 
 /**
  * The SEMANTIC role of a public log line captured during the turn — stamped by

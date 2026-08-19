@@ -20,11 +20,14 @@
     </div>
 
     <div v-if="player !== undefined" class="con-ovpl__sheet" :style="{'--ov-pc': hex(player.color)}">
-      <!-- Identity line: a human wears its corporation, the bot its difficulty. -->
+      <!-- Identity line: every participant wears its corporation; the bot adds
+           its difficulty (alone on legacy corpless saves). -->
       <div class="con-ovpl__id">
         <span class="con-ovpl__place">{{ player.place }}</span>
         <span class="con-ovpl__name">{{ player.name }}</span>
-        <span v-if="player.corporation !== ''" class="con-ovpl__corp">{{ $t(player.corporation) }}</span>
+        <!-- The bot's corporation is its primary identity; the difficulty
+             stays as the secondary voice. Corpless bot: difficulty alone. -->
+        <span v-if="player.corporation !== ''" class="con-ovpl__corp">{{ $t(player.corporation) }}<template v-if="player.difficulty !== undefined"> · <span class="con-ovpl__diff">{{ $t(player.difficulty) }}</span></template></span>
         <span v-else-if="player.difficulty !== undefined" class="con-ovpl__corp con-ovpl__diff">{{ $t(player.difficulty) }}</span>
         <span v-if="player.isWinner" class="con-ovpl__crown">{{ $t('Winner') }}</span>
       </div>

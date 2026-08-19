@@ -175,6 +175,33 @@ Event-карты: `Tag.EVENT` не хранится в `tags[]` (тип карт
 - **Decrease production** бота → регресс соответствующего трека на 1 за ступень. `Production.add` (amount<0) → `AutomaTargeting.regressForProduction`.
 - **Положительное production боту** (официального правила НЕТ) → громкий throw-guard в `Production.add` (frame §5) — никакой молчаливой записи в мёртвые поля.
 
+## 10. Корпорации MarsBot (Rule Book B «Adding Corporations», 08-15-2023)
+
+Источники: RB-B полностью (PDF с fryxgames.se, транскрибирован 2026-08-19), SG v1.3 шаги 17–19,
+сканы официальных карт C01 / C02 / C45 / B23 (подтверждены владельцем). Реализация:
+`src/common/automa/MarsBotCorpData.ts` (данные) + `src/server/automa/corps/` (поведение).
+
+| Карта | Официальный текст | Статус |
+|---|---|---|
+| **C01 Credicor** | DRAFT PRIORITY: Most expensive. EFFECT: When resolving a card with a cost of 20 MC or more, MarsBot gains 4 MC. | ✅ `MarsBotCredicor.ts`; драфт-протекция по RB-B p.2 Special Cases (сохраняет ВСЕ самые дорогие; все 4 равны → без сброса) |
+| **C02 Ecoline** | BEFORE ACTION PHASE: Add Rapid Sprouting to MarsBot's action deck. | ✅ `MarsBotEcoline.ts`; B23 = recurring-механизм (B16-семейство) |
+| **B23 Rapid Sprouting** | If the Ecoline corporation card has a plant resource on it, remove it, MarsBot places a greenery tile, and it raises oxygen 1 step. Otherwise, add a plant resource to the Ecoline corporation card. At the beginning of every generation, shuffle this into MarsBot's action deck. | ✅ там же; озеленение через штатный `AutomaTilePlacer.placeGreenery` (его подъём O₂ = печатный «raises oxygen 1 step»); нет места → Failed Action, растение остаётся |
+| **C45 Spire** | Starting tag: Earth. DRAFT PRIORITY: Most tags. EFFECT: When resolving a card with 2 or more tags, place a science resource on this card. BEFORE ACTION PHASE: If there are 10 or more science resources on this card, remove 10 science resources from here, and MarsBot places a city tile and gains 1 TR. | ✅ `MarsBotSpire.ts`; город невозможен → Failed Action, −10 науки и +1 РТ всё равно резолвятся (две отдельные печатные части) |
+
+**Ключевые правила RB-B, закреплённые в коде/тестах:**
+- Setup 1: random select после розыгрыша корпорации человека, ДО прелюдий; коллизия → select another (мультиплеер-хоумрул: против ВСЕХ людей; canonical key = CardName оригинала).
+- Setup 3–4: Setup box немедленно; starting tags «as if they are shown on a card revealed during play» → продвигают трек (действия клеток срабатывают: Earth[1]='city' у Spire реально ставит город при сетапе); «ongoing effect уже активен при сетапе».
+- Setup 5: corp-specific bonus cards невыбранных корпораций не в игре — структурно (в пул попадают только карты активной корпорации).
+- Драфт: pick по priority (несколько равных → random, seeded; ноль совпадений → random); дискард «reveal top → unprotected → discard, protected → set aside» = максимум 1 сброс; колода действий может быть из 5 карт.
+- «Before Action Phase» боксы резолвятся и после сетапа, до первой фазы действий (гейт research → action, `corpBapGeneration`-гард).
+- FAQ Ecoline: атака растений МОЖЕТ целить растение на карте корпорации; excess is lost; «not allowed to additionally destroy/steal from MarsBot's MC supply» (`AutomaTargeting.corpPlantPool/removeCorpPlants`, опции в `RemoveAnyPlants`/`StealResources`).
+- «Most tags» = печатный ряд меток карты (`AutomaResolver.printedTags`: event-метка событий считается; wild считается — RB-B исключает wild только для СОВПАДЕНИЯ с tag-chain приоритетами). Зафиксировано тестом `MarsBotSpire.spec.ts`.
+
+**RB-B FAQ, НЕ покрытые этой итерацией (pre-existing, независимы от framework):**
+- Saturn Systems: «The Jovian tag effect is triggered when you or MarsBot play a card with a Jovian tag» — флипы бота сегодня не триггерят human `onCardPlayed`-реакторы (общее правило форка); + Jovian starting tag корпорации бота триггерит человеческую Saturn Systems. Ни одна из трёх корпораций не имеет Jovian-метки; правило станет актуальным при добавлении C08.
+- Pharmacy Union / Splice: microbe advancement бота (включая starting tag) триггерит человеческую корпорацию.
+- Special Cubes (white/black/credit на треках), Aphrodite/Lakefront/Pristar/Utopia Investments (Turmoil) — вне поддерживаемой матрицы.
+
 ### Grep-аудит promo-модуля (frame §7, выполнен 2026-07-19)
 
 Ростер: 72 project + 9 prelude + 11 corporation (`PromoCardManifest.ts`). Кросс-игровые взаимодействия:

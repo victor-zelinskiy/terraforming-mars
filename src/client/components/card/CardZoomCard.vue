@@ -13,6 +13,11 @@
     <BonusCardFace :id="bonusEntry.bonus" :ctx="bonusEntry.ctx" large />
   </div>
 
+  <!-- MarsBot CORPORATION entry — bot rules only; identity/art from the original. -->
+  <div v-else-if="corpEntry !== undefined" class="card-zoom-card card-zoom-card--bonus">
+    <MarsBotCorpFace :id="corpEntry.marsBotCorp" :resources="corpEntry.resources" large />
+  </div>
+
   <!-- PREMIUM face (project cards + preludes) — the same stage/halo wrapper,
        the fork's from-scratch renderer inside (tier `full`, inert: the modal
        owns interaction). Out-of-scope types keep the legacy silhouette below.
@@ -56,8 +61,9 @@
 import {defineComponent} from 'vue';
 import {CardModel} from '@/common/models/CardModel';
 import {ClientCard} from '@/common/cards/ClientCard';
-import {ZoomCard, BonusZoomEntry, isBonusZoom} from './cardZoomTypes';
+import {ZoomCard, BonusZoomEntry, MarsBotCorpZoomEntry, isBonusZoom, isMarsBotCorpZoom} from './cardZoomTypes';
 import BonusCardFace from '@/client/components/marsbot/BonusCardFace.vue';
+import MarsBotCorpFace from '@/client/components/marsbot/MarsBotCorpFace.vue';
 import {isPremiumFaceType} from '@/client/components/premiumCard/premiumCardTheme';
 import {getCard, getCardOrThrow} from '@/client/cards/ClientCardManifest';
 import {liveCardResources} from '@/client/components/card/liveCardResources';
@@ -88,6 +94,7 @@ export default defineComponent({
     CardResourceCounter,
     CardVictoryPoints,
     BonusCardFace,
+    MarsBotCorpFace,
   },
   props: {
     card: {
@@ -108,6 +115,10 @@ export default defineComponent({
     /** An Automa bonus entry, or undefined for a normal project card. */
     bonusEntry(): BonusZoomEntry | undefined {
       return isBonusZoom(this.card) ? this.card : undefined;
+    },
+    /** A MarsBot corporation entry, or undefined otherwise. */
+    corpEntry(): MarsBotCorpZoomEntry | undefined {
+      return isMarsBotCorpZoom(this.card) ? this.card : undefined;
     },
     /** The project card (only the project branch of the template reads this). */
     cardModel(): CardModel {

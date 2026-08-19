@@ -31,12 +31,17 @@
     <div class="left-panel-card-turn-badge"
          v-i18n="[turnOrderLabel]">Turn ${0}</div>
     <div v-if="corporationName" class="left-panel-card-corp" :title="corporationName" v-i18n>{{ corporationName }}</div>
-    <!-- The MarsBot seat has no corporation — its identity chip takes the
-         corp row's slot so the card reads as a full participant. -->
+    <!-- The MarsBot seat: its identity chip takes the corp row's slot so the
+         card reads as a full participant. With a corporation (RB-B) the corp
+         name leads the line; legacy corpless saves keep the bare chip. -->
     <div v-else-if="player.isMarsBot" class="left-panel-card-corp left-panel-card-corp--bot">
       <span class="left-panel-card-bot-glyph" aria-hidden="true">
         <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"><rect x="5" y="7.5" width="14" height="10" rx="2.4" stroke="currentColor" stroke-width="1.6"/><path d="M12 7.5 V4.4" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/><circle cx="9.2" cy="12" r="1.5" fill="currentColor"/><circle cx="14.8" cy="12" r="1.5" fill="currentColor"/><path d="M9 15.4 H15" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
       </span>
+      <template v-if="botCorporationName !== ''">
+        <span class="left-panel-card-bot-corp" v-i18n>{{ botCorporationName }}</span>
+        <span aria-hidden="true">·</span>
+      </template>
       <span v-i18n>Automa opponent</span>
     </div>
     <div class="left-panel-card-row left-panel-card-row--stats">
@@ -266,6 +271,13 @@ export default defineComponent({
     turnIndex: {
       type: Number,
       default: 0,
+    },
+    // The MarsBot seat's corporation DISPLAY name ('' for humans and on
+    // legacy corpless saves) — resolved by the parent from `game.automa`
+    // (this card only receives the public player model).
+    botCorporationName: {
+      type: String,
+      default: '',
     },
     /*
      * Game-session identifier (`playerView.runId`) forwarded into the

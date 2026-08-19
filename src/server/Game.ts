@@ -1,6 +1,7 @@
 import * as constants from '../common/constants';
 import {getAutomaMaxGeneration} from '../common/automa/AutomaTypes';
 import {AutomaController} from './automa/AutomaController';
+import {AutomaCorporations} from './automa/corps/AutomaCorporations';
 import {BotTurnScheduler} from './automa/BotTurnScheduler';
 import {failedAction as automaFailedAction} from './automa/AutomaFailedAction';
 import {AutomaGameEnd} from './automa/AutomaGameEnd';
@@ -1297,7 +1298,13 @@ export class Game implements IGame, Logger {
         this.phase = Phase.ACTION;
         this.passedPlayers.clear();
         this.potentiallyChangeFirstPlayer();
-
+        // The ONE research → action gate: MarsBot's corporation is selected
+        // here in generation 1 (after every human corporation is played —
+        // RB-B Setup 1), and its Before-Action-Phase box runs here every
+        // generation including the first (RB-B "Each Generation Effects").
+        if (this.automa !== undefined) {
+          AutomaCorporations.onActionPhaseStart(this);
+        }
         this.startActionsForPlayer(this.first);
       }
     });

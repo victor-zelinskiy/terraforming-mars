@@ -31,7 +31,9 @@
           <GamepadGlyph control="bumperR" class="con-info__bumper" />
         </div>
         <div class="con-info__head-meta" data-insp-slide>
-          <span v-if="corpName !== ''" class="con-info__corp">{{ $t(corpName) }}</span>
+          <!-- The bot with a corporation wears it as its primary identity,
+               difficulty second: «CrediCor · Обычный». Corpless bot: as before. -->
+          <span v-if="corpName !== ''" class="con-info__corp" :class="{'con-info__corp--bot': viewedIsBot}">{{ $t(corpName) }}<template v-if="viewedIsBot"> · {{ $t(botDifficultyLabel) }}</template></span>
           <span v-else-if="viewedIsBot" class="con-info__corp con-info__corp--bot">{{ $t('Automa opponent') }} · {{ $t(botDifficultyLabel) }}</span>
         </div>
       </header>
@@ -345,7 +347,7 @@ import {translateTextWithParams} from '@/client/directives/i18n';
 import {MarsBotModel} from '@/common/models/MarsBotModel';
 import {DIFFICULTY_LABEL} from '@/client/components/marsbot/marsBotView';
 import {MarsBotGuideContext} from '@/client/components/marsbot/marsBotGuide';
-import {participantDisplayName} from '@/client/components/marsbot/marsBotDisplay';
+import {marsBotCorpDisplayName, participantDisplayName} from '@/client/components/marsbot/marsBotDisplay';
 import ConsoleMarsBotSections from '@/client/components/console/ConsoleMarsBotSections.vue';
 import EffectBlock from '@/client/components/effects/EffectBlock.vue';
 import GamepadGlyph from '@/client/components/gamepad/GamepadGlyph.vue';
@@ -426,6 +428,12 @@ export default defineComponent({
       return this.playerView.game.passedPlayers.includes(this.viewed.color);
     },
     corpName(): string {
+      // The bot's tableau is empty — its corporation rides `automa.corporation`
+      // (absent on legacy corpless saves) and resolves through the ONE resolver.
+      if (this.viewedIsBot) {
+        const corp = this.botAutoma?.corporation;
+        return corp !== undefined ? marsBotCorpDisplayName(corp.id) : '';
+      }
       for (const c of this.viewed.tableau) {
         try {
           if (getCard(c.name)?.type === CardType.CORPORATION) {

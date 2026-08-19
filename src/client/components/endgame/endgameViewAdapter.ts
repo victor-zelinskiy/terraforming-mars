@@ -14,7 +14,7 @@ import {CardType} from '@/common/cards/CardType';
 import {CardResource} from '@/common/CardResource';
 import type {EndgameFact} from '@/common/events/endgameFacts';
 import {getCard} from '@/client/cards/ClientCardManifest';
-import {participantDisplayName} from '@/client/components/marsbot/marsBotDisplay';
+import {marsBotCorpDisplayName, participantDisplayName} from '@/client/components/marsbot/marsBotDisplay';
 import {buildEndgameModel, EndgameModel, EndgamePlayerInput} from '@/client/components/endgame/endgameModel';
 import {decomposePlayerCardVp, type CardDecl} from '@/client/components/endgame/cardScoreContribution';
 import type {StrategyInput, ResourceTotals} from '@/client/components/endgame/strategyArchetypes';
@@ -120,6 +120,17 @@ export function endgameModelFromView(view: ViewModel, facts?: ReadonlyArray<Endg
       // The bot seat carries its difficulty — the endgame identity chip and
       // the icon-VP formula note both read this one canonical value.
       ...(p.isMarsBot === true && game.automa !== undefined ? {botDifficulty: game.automa.difficulty} : {}),
+      // …and its corporation (absent on legacy corpless saves). The DISPLAY
+      // name resolves through the ONE resolver; deliberately NOT added to
+      // `corporations` (that array drives the human corporation-impact engine).
+      ...(p.isMarsBot === true && game.automa?.corporation !== undefined ?
+        {botCorporation: {
+          id: game.automa.corporation.id,
+          name: marsBotCorpDisplayName(game.automa.corporation.id),
+          // The bot's public per-corporation counters — the insight layer's
+          // STRUCTURED facts (never display text).
+          stats: {...game.automa.corporation.stats},
+        }} : {}),
     }));
   // MarsBot clock win: entering the final generation means the human lost
   // regardless of totals (Automa rules) — the bot is the forced winner.

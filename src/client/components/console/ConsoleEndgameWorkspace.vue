@@ -91,8 +91,10 @@
               <span class="con-eg__swatch" :class="'player_bg_color_' + color" aria-hidden="true"></span>
               <div class="con-eg__who">
                 <span class="con-eg__name">{{ rowBy(color).name }}</span>
-                <span v-if="rowBy(color).corporation !== ''" class="con-eg__corp">{{ $t(rowBy(color).corporation) }}</span>
-                <!-- The bot's identity line: WHICH bot was beaten (or won) —
+                <!-- The bot's corporation is its PRIMARY identity (like a human's);
+                     the difficulty stays as the secondary voice on the same line. -->
+                <span v-if="rowBy(color).corporation !== ''" class="con-eg__corp">{{ $t(rowBy(color).corporation) }}<template v-if="rowBy(color).difficulty !== undefined"> · <span class="con-eg__diff">{{ $t(rowBy(color).difficulty!) }}</span></template></span>
+                <!-- Corpless bot (legacy save): WHICH bot was beaten (or won) —
                      its difficulty, where a human shows the corporation. -->
                 <span v-else-if="rowBy(color).difficulty !== undefined" class="con-eg__corp con-eg__diff">{{ $t(rowBy(color).difficulty!) }}</span>
               </div>

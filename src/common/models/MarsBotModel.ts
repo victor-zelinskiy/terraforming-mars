@@ -1,4 +1,5 @@
 import {BonusCardId, DifficultyLevel, TrackAction} from '../automa/AutomaTypes';
+import {MarsBotCorpModel} from '../automa/MarsBotCorpData';
 import {MarsBotTurn} from '../automa/MarsBotTurn';
 import {Tag} from '../cards/Tag';
 import {CardName} from '../cards/CardName';
@@ -20,6 +21,12 @@ export type MarsBotTrackModel = {
  */
 export type MarsBotModel = {
   difficulty: DifficultyLevel;
+  /**
+   * MarsBot's corporation (Rule Book B) — open table information: the corp
+   * card lies face up, its resources and statistic counters are public.
+   * Absent only on legacy corpless saves.
+   */
+  corporation?: MarsBotCorpModel;
   tracks: ReadonlyArray<MarsBotTrackModel>;
   /** Face-down action deck — count only. */
   actionDeckSize: number;

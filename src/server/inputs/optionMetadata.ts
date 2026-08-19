@@ -126,6 +126,23 @@ export function removeCardResourceFromPlayer(target: IPlayer, cardResource: Card
   };
 }
 
+/**
+ * "Remove/steal up to N plants from the plant(s) ON MarsBot's corporation
+ * card" (Ecoline, RB-B FAQ). The preview shows the CARD's own pool moving —
+ * the excess above it is LOST by rule, so `resulting` floors at what the card
+ * holds and there is deliberately NO M€-supply row.
+ */
+export function removeCorpPlantsFromBot(target: IPlayer, amount: number, pool: number, stealing: boolean): OptionMetadata {
+  const taken = Math.min(pool, amount);
+  return {
+    kind: stealing ? 'steal' : 'resourceRemoval',
+    icon: RESOURCE_ICON[Resource.PLANTS],
+    amount: taken,
+    player: {color: target.color, current: pool, resulting: pool - taken,
+      changes: [{icon: Resource.PLANTS, from: pool, to: pool - taken, scope: 'stock'}]},
+  };
+}
+
 /** A "do nothing / skip" option. */
 export function skip(): OptionMetadata {
   return {kind: 'skip'};

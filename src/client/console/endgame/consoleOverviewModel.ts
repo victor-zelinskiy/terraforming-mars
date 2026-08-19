@@ -79,8 +79,10 @@ export type PlayerMetricGroup = {key: string; label: string; comparable: boolean
 export type OvRankRow = {
   color: Color;
   name: string;
-  corporation: string; // '' when unknown
-  /** The bot's difficulty LABEL (i18n key) — its identity line. */
+  /** Corporation name (the bot's own corp when the save carries one). '' when unknown. */
+  corporation: string;
+  /** The bot's difficulty LABEL (i18n key) — SECONDARY beside the corporation
+   *  when the bot has one; the whole identity line on corpless saves. */
   difficulty?: string;
   place: number;
   total: number;
@@ -277,8 +279,10 @@ export type OvMetric = {key: string; label: string; value: number};
 export type OvPlayerCard = {
   color: Color;
   name: string;
+  /** Corporation name (the bot's own corp when the save carries one). */
   corporation: string;
-  /** The bot's difficulty LABEL (i18n key) — part of its identity line. */
+  /** The bot's difficulty LABEL (i18n key) — part of its identity line
+   *  (secondary beside the corporation when the bot has one). */
   difficulty?: string;
   place: number;
   total: number;
@@ -841,7 +845,9 @@ function buildPlayers(model: EndgameModel, egVm: ConsoleEndgameVm, extras: Conso
     return {
       color: p.color,
       name: p.name,
-      corporation: p.corporations.join(' / '),
+      // The bot's corp identity rides `botCorporation` (its `corporations`
+      // array stays empty — that one feeds the human impact engine).
+      corporation: p.corporations.length > 0 ? p.corporations.join(' / ') : (p.botCorporation?.name ?? ''),
       ...(p.botDifficulty !== undefined ? {difficulty: DIFFICULTY_LABEL[p.botDifficulty]} : {}),
       place: p.place,
       total: p.total,
@@ -882,7 +888,7 @@ export function buildConsoleOverviewVm(
   const ranking: Array<OvRankRow> = model.players.map((p) => ({
     color: p.color,
     name: p.name,
-    corporation: rowBy.get(p.color)?.corporation ?? p.corporations.join(' / '),
+    corporation: rowBy.get(p.color)?.corporation ?? (p.corporations.length > 0 ? p.corporations.join(' / ') : (p.botCorporation?.name ?? '')),
     ...(p.botDifficulty !== undefined ? {difficulty: DIFFICULTY_LABEL[p.botDifficulty]} : {}),
     place: p.place,
     total: p.total,

@@ -11,18 +11,34 @@
  * only ever attached to project-card lists — a bonus entry is always read-only.
  */
 import {CardModel} from '@/common/models/CardModel';
-import {BonusCardId} from '@/common/automa/AutomaTypes';
+import {BonusCardId, MarsBotCorpId} from '@/common/automa/AutomaTypes';
 import {BonusCardContext} from '@/common/automa/BonusCardData';
 
 export type BonusZoomEntry = {bonus: BonusCardId, ctx: BonusCardContext, name: string};
 
-export type ZoomCard = CardModel | BonusZoomEntry;
+/**
+ * The MarsBot CORPORATION as a browser entry: renders `<MarsBotCorpFace>`
+ * (bot rules only), while the LORE aside resolves through the ORIGINAL human
+ * corporation's card number — the official identity/art/lore link.
+ */
+export type MarsBotCorpZoomEntry = {marsBotCorp: MarsBotCorpId, resources: number, name: string};
+
+export type ZoomCard = CardModel | BonusZoomEntry | MarsBotCorpZoomEntry;
 
 export function isBonusZoom(card: ZoomCard): card is BonusZoomEntry {
   return (card as Partial<BonusZoomEntry>).bonus !== undefined;
 }
 
+export function isMarsBotCorpZoom(card: ZoomCard): card is MarsBotCorpZoomEntry {
+  return (card as Partial<MarsBotCorpZoomEntry>).marsBotCorp !== undefined;
+}
+
 /** Build a bonus entry (name = the id, for the modal's key/cache). */
 export function bonusZoomEntry(bonus: BonusCardId, ctx: BonusCardContext): BonusZoomEntry {
   return {bonus, ctx, name: bonus};
+}
+
+/** Build a bot-corporation entry (name = the corp id, for the modal's key/cache). */
+export function marsBotCorpZoomEntry(marsBotCorp: MarsBotCorpId, resources: number): MarsBotCorpZoomEntry {
+  return {marsBotCorp, resources, name: marsBotCorp};
 }

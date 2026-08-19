@@ -10,7 +10,8 @@
  * helpers — never a scattered `name === 'MarsBot'` check, never a raw
  * `player.name` for a visible bot label.
  */
-import {DifficultyLevel} from '@/common/automa/AutomaTypes';
+import {DifficultyLevel, MarsBotCorpId} from '@/common/automa/AutomaTypes';
+import {marsBotCorpInfo} from '@/common/automa/MarsBotCorpData';
 import {Color} from '@/common/Color';
 import {translateText} from '@/client/directives/i18n';
 import {DIFFICULTY_LABEL} from './marsBotView';
@@ -23,6 +24,16 @@ export function automaDisplayName(): string {
 /** Compact «ИИ • Обычный»-style label for player cards / summaries. */
 export function automaDisplayNameWithDifficulty(difficulty: DifficultyLevel): string {
   return `${automaDisplayName()} • ${translateText(DIFFICULTY_LABEL[difficulty])}`;
+}
+
+/**
+ * The visible corporation name of a MarsBot corporation — the ORIGINAL human
+ * corporation's name (RB-B: name/logo come from the original card).
+ * Corporation names render untranslated across the UI, so the CardName value
+ * IS the display string.
+ */
+export function marsBotCorpDisplayName(id: MarsBotCorpId): string {
+  return marsBotCorpInfo(id).original;
 }
 
 /**

@@ -1,8 +1,11 @@
-# MarsBot corporations — design reference (upstream framework, not yet implemented here)
+# MarsBot corporations — design reference (upstream framework; HISTORICAL)
 
-**Status:** we have NOT implemented MarsBot corporations. This document captures the
-*shape* of the problem, derived from the upstream framework commits, so the eventual
-fork implementation starts from the official hook surface instead of rediscovering it.
+**Status: IMPLEMENTED (2026-08-19)** — the production framework lives in
+`src/server/automa/corps/` + `src/common/automa/MarsBotCorpData.ts`; contract:
+`docs/claude/marsbot-corporations.md`; official data: `docs/AUTOMA_DATA_AUDIT.md` §10.
+This document remains as the historical record of upstream's framework SHAPE (the fork
+deliberately did not adopt its `IMarsBot` facade; the rules knowledge moved into the
+audit + Rule Book B, which has since been transcribed in full).
 
 **Upstream sources** (retrieve the full text with `git show <sha>` — `upstream` remote):
 

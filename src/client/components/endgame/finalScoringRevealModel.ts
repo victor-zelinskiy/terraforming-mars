@@ -220,7 +220,9 @@ export function buildFinalScoringRevealModel(model: EndgameModel, playerOrder: R
     players.push({
       color: p.color,
       name: p.name,
-      corporation: p.corporations.length > 0 ? p.corporations[0] : '',
+      // The MarsBot seat keeps `corporations` empty (that array is the human
+      // corporation-impact input) — its corp identity rides `botCorporation`.
+      corporation: p.corporations.length > 0 ? p.corporations[0] : (p.botCorporation?.name ?? ''),
       finalTotal: p.breakdown.total,
     });
   }

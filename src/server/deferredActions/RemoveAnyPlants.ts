@@ -8,8 +8,13 @@ import {CardName} from '../../common/cards/CardName';
 import {MessageBuilder, message} from '../logs/MessageBuilder';
 import {Message} from '../../common/logs/Message';
 import {ChoiceContextSource, DisabledOptionModel} from '../../common/models/PlayerInputModel';
-import {disabledPlayerTarget, removeResourceFromPlayer, skip} from '../inputs/optionMetadata';
+import {disabledPlayerTarget, removeCorpPlantsFromBot, removeResourceFromPlayer, skip} from '../inputs/optionMetadata';
 import {AutomaTargeting} from '../automa/AutomaTargeting';
+
+/** Plants ON the bot's corporation card (Ecoline) — 0 for humans and corpless bots. */
+function corpPlantPoolOf(target: IPlayer): number {
+  return target.isMarsBot ? AutomaTargeting.corpPlantPool(target.game) : 0;
+}
 export class RemoveAnyPlants extends DeferredAction {
   private title: string | Message;
   private count: number;
@@ -61,6 +66,28 @@ export class RemoveAnyPlants extends DeferredAction {
       });
   }
 
+  /**
+   * The Ecoline corporation-card target (RB-B FAQ): the attacker MAY aim the
+   * removal at the plant(s) ON the bot's corporation card instead of the
+   * generic pool. Up to `count` plants leave the card; the excess above what
+   * the card holds is LOST — never topped up from the bot's M€ supply.
+   */
+  private corpPlantOption(target: IPlayer) {
+    const pool = corpPlantPoolOf(target);
+    const qtyToRemove = Math.min(pool, this.count);
+    const optionMessage = qtyToRemove >= this.count ?
+      new MessageBuilder('Remove ${0} plants from the corporation card of ${1}')
+        .number(qtyToRemove).player(target).getMessage() :
+      new MessageBuilder('Remove ${0} of ${1} plants from the corporation card of ${2} — the excess is lost')
+        .number(qtyToRemove).number(this.count).player(target).getMessage();
+    return new SelectOption(optionMessage, 'Remove plants')
+      .withMetadata(removeCorpPlantsFromBot(target, this.count, pool, /* stealing= */ false))
+      .andThen(() => {
+        AutomaTargeting.removeCorpPlants(target, this.player, this.count, {log: true});
+        return undefined;
+      });
+  }
+
   public execute() {
     const player = this.player;
     const game = player.game;
@@ -108,9 +135,22 @@ export class RemoveAnyPlants extends DeferredAction {
    * full prompt — which silently broke when the prompt's tail wasn't `skip`.
    */
   public opponentOptions(): Array<SelectOption> {
-    return this.player.opponents
-      .filter((p) => !p.plantsAreProtected() && AutomaTargeting.attackableStock(p, Resource.PLANTS) > 0)
-      .map((target) => this.createOption(target));
+    const options: Array<SelectOption> = [];
+    for (const target of this.player.opponents) {
+      if (target.plantsAreProtected()) {
+        continue;
+      }
+      if (AutomaTargeting.attackableStock(target, Resource.PLANTS) > 0) {
+        options.push(this.createOption(target));
+      }
+      // The Ecoline corporation-card plant is a SEPARATE, additional target
+      // (RB-B FAQ "you may target the resource(s) on the corporation card") —
+      // offered even when the bot's generic pool is empty.
+      if (corpPlantPoolOf(target) > 0) {
+        options.push(this.corpPlantOption(target));
+      }
+    }
+    return options;
   }
 
   /**
@@ -122,7 +162,8 @@ export class RemoveAnyPlants extends DeferredAction {
    */
   public disabledOpponents(): Array<DisabledOptionModel> {
     return this.player.opponents
-      .filter((p) => p.plantsAreProtected() || AutomaTargeting.attackableStock(p, Resource.PLANTS) === 0)
+      .filter((p) => p.plantsAreProtected() ||
+        (AutomaTargeting.attackableStock(p, Resource.PLANTS) === 0 && corpPlantPoolOf(p) === 0))
       .map((p) => disabledPlayerTarget(p, 'plants', p.plantsAreProtected() ? 'Plants are protected' : 'No plants to remove'));
   }
 

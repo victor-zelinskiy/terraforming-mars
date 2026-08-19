@@ -3,6 +3,7 @@ import {buildEndgameModel, EndgamePlayerInput} from '@/client/components/endgame
 import {buildFinalScoringRevealModel} from '@/client/components/endgame/finalScoringRevealModel';
 import {VictoryPointsBreakdown} from '@/common/game/VictoryPointsBreakdown';
 import {Color} from '@/common/Color';
+import {MarsBotCorpId} from '@/common/automa/AutomaTypes';
 
 function breakdown(partial: Partial<VictoryPointsBreakdown>): VictoryPointsBreakdown {
   const base: VictoryPointsBreakdown = {
@@ -66,6 +67,20 @@ describe('finalScoringRevealModel', () => {
     const b = player('blue', 'B', {terraformRating: 30});
     const reveal = buildFinalScoringRevealModel(model([a, b]), ['red']); // forgot blue
     expect(reveal.players.map((p) => p.color).sort()).to.deep.eq(['blue', 'red']);
+  });
+
+  it('the MarsBot lane wears its OWN corporation (its `corporations` array stays empty)', () => {
+    const a = player('red', 'A', {terraformRating: 25}, {corporations: ['Thorgate']});
+    const b = player('green', 'Бот', {terraformRating: 30}, {
+      botDifficulty: 'normal',
+      botCorporation: {id: MarsBotCorpId.C01_CREDICOR, name: 'CrediCor'},
+    });
+    const reveal = buildFinalScoringRevealModel(model([a, b]), ['red', 'green']);
+    expect(reveal.players.find((p) => p.color === 'red')?.corporation).to.eq('Thorgate');
+    expect(reveal.players.find((p) => p.color === 'green')?.corporation).to.eq('CrediCor');
+    // Legacy corpless save: the lane stays blank as before.
+    const legacy = buildFinalScoringRevealModel(model([a, player('green', 'Бот', {terraformRating: 30}, {botDifficulty: 'normal'})]), ['red', 'green']);
+    expect(legacy.players.find((p) => p.color === 'green')?.corporation).to.eq('');
   });
 
   it('per-player segment sum equals the final total (no divergence)', () => {

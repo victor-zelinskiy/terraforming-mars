@@ -5,7 +5,7 @@ import {
   buildConsoleOverviewVm, ConsoleOverviewExtras,
 } from '@/client/console/endgame/consoleOverviewModel';
 import {VictoryPointsBreakdown, AutomaVictoryPoints} from '@/common/game/VictoryPointsBreakdown';
-import {DifficultyLevel} from '@/common/automa/AutomaTypes';
+import {DifficultyLevel, MarsBotCorpId} from '@/common/automa/AutomaTypes';
 import {Color} from '@/common/Color';
 import {Tag} from '@/common/cards/Tag';
 
@@ -57,6 +57,7 @@ function bot(
   b: Partial<VictoryPointsBreakdown> = {},
   difficulty: DifficultyLevel = 'hard',
   megacredits = automa.mcToVp * automa.mcPerVp,
+  extra: Partial<EndgamePlayerInput> = {},
 ): EndgamePlayerInput {
   return {
     color: 'green', name: 'Бот', rawName: 'MarsBot', corporations: [],
@@ -64,6 +65,7 @@ function bot(
     breakdown: breakdown({...b, automa}),
     vpByGeneration: [], globalSteps: {},
     botDifficulty: difficulty,
+    ...extra,
   };
 }
 
@@ -186,6 +188,32 @@ describe('consoleOverview — MarsBot endgame profile', () => {
   it('the raw award-funder name maps to the canonical display name («MarsBot» → «Бот»)', () => {
     const {vm} = build([human('red', 'A', {}), bot(AUTOMA)]);
     expect(vm.players.displayNames['MarsBot']).to.eq('Бот');
+  });
+
+  it('a bot with a corporation (RB-B) wears it on ceremony rows, ranking and the player profile — difficulty stays', () => {
+    const withCorp = bot(AUTOMA, {}, 'normal', undefined, {
+      botCorporation: {id: MarsBotCorpId.C01_CREDICOR, name: 'CrediCor'},
+    });
+    const {egVm, vm} = build([human('red', 'A', {}, {corporations: ['Thorgate']}), withCorp]);
+    const row = egVm.rows.find((r) => r.isBot);
+    expect(row?.corporation).to.eq('CrediCor');
+    expect(row?.difficulty, 'difficulty stays the secondary identity').to.eq('Normal');
+    const rank = vm.digest.ranking.find((r) => r.isBot);
+    expect(rank?.corporation).to.eq('CrediCor');
+    expect(rank?.difficulty).to.eq('Normal');
+    const card = vm.players.players.find((p) => p.isBot);
+    expect(card?.corporation).to.eq('CrediCor');
+    expect(card?.difficulty).to.eq('Normal');
+    // The human's corp is untouched by the bot field.
+    expect(egVm.rows.find((r) => !r.isBot)?.corporation).to.eq('Thorgate');
+  });
+
+  it('a corpless bot (legacy save) keeps the difficulty-only identity', () => {
+    const {egVm, vm} = build([human('red', 'A', {}), bot(AUTOMA, {}, 'normal')]);
+    expect(egVm.rows.find((r) => r.isBot)?.corporation).to.eq('');
+    expect(vm.digest.ranking.find((r) => r.isBot)?.corporation).to.eq('');
+    expect(vm.players.players.find((p) => p.isBot)?.corporation).to.eq('');
+    expect(egVm.rows.find((r) => r.isBot)?.difficulty).to.eq('Normal');
   });
 
   // ── the players tab: honest groups + honest bars ─────────────────────────

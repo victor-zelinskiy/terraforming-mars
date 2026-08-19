@@ -15,7 +15,7 @@ import {Tag} from '@/common/cards/Tag';
 import {ViewModel} from '@/common/models/PlayerModel';
 import {MarsBotTurn} from '@/common/automa/MarsBotTurn';
 import {MarsBotTrackModel} from '@/common/models/MarsBotModel';
-import {DifficultyLevel} from '@/common/automa/AutomaTypes';
+import {DifficultyLevel, MarsBotCorpId} from '@/common/automa/AutomaTypes';
 import {BonusCardContext} from '@/common/automa/BonusCardData';
 import {marsBotOfView, tracksOfView, trackTagsOfView, turnDedupeKey} from './marsBotTurnView';
 
@@ -33,6 +33,9 @@ export type ArchivedBotTurn = {
   trackTags: ReadonlyArray<Tag | undefined>;
   /** Full track models (layout + tags + maxPosition) — feeds mini-scales + composite capsules. */
   tracks: ReadonlyArray<MarsBotTrackModel>;
+  /** The bot's corporation (RB-B), captured at archive time — names the
+   *  review's corporation-effect chains. Absent on corpless games. */
+  corporation?: MarsBotCorpId;
   /** The journal group id of the turn (server-stamped), when available. */
   correlationId?: number;
   generation: number;
@@ -76,6 +79,7 @@ export function recordBotTurnsFromView(prev: ViewModel | undefined, next: ViewMo
   const expansions = next.game.gameOptions?.expansions;
   const ctx: BonusCardContext = {venus: expansions?.venus === true, colonies: expansions?.colonies === true};
   const difficulty: DifficultyLevel = next.game.automa?.difficulty ?? 'normal';
+  const corporation = next.game.automa?.corporation?.id;
   const trackTags = trackTagsOfView(next);
   const tracks = tracksOfView(next);
   const silentSeed = prev === undefined;
@@ -94,6 +98,7 @@ export function recordBotTurnsFromView(prev: ViewModel | undefined, next: ViewMo
       ctx,
       trackTags,
       tracks,
+      ...(corporation !== undefined ? {corporation} : {}),
       generation: turn.generation,
       viewed: silentSeed,
       ...(turn.correlationId !== undefined ? {correlationId: turn.correlationId} : {}),

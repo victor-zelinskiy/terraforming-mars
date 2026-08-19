@@ -228,6 +228,13 @@ export class AutomaTurnLog {
     recording.steps.push(step);
   }
 
+  /** The cause currently attributed (undefined outside a recording) — lets a
+   *  nested attribution (a corporation effect inside a tag/bonus flow) save
+   *  and RESTORE the surrounding cause instead of clobbering it. */
+  public static getCause(game: IGame): MarsBotStepCause | undefined {
+    return game.automa?.turnRecording?.currentCause;
+  }
+
   /**
    * Phase B: switch the cause the resolver attributes subsequent steps to.
    * Flushes the pending public log lines FIRST — under the OUTGOING cause — so

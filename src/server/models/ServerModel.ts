@@ -16,6 +16,8 @@ import {Phase} from '../../common/Phase';
 import {Resource} from '../../common/Resource';
 import {ClaimedMilestoneModel, MilestoneScore} from '../../common/models/ClaimedMilestoneModel';
 import {AutomaDeltaProject} from '../automa/AutomaDeltaProject';
+import {AutomaState} from '../automa/AutomaState';
+import {MarsBotCorpModel, marsBotCorpInfo} from '../../common/automa/MarsBotCorpData';
 import {AutomaMAEvaluation} from '../automa/AutomaMAEvaluation';
 import {FundedAwardModel, AwardScore} from '../../common/models/FundedAwardModel';
 import {getTurmoilModel} from '../models/TurmoilModel';
@@ -290,6 +292,23 @@ export class Server {
   /** How many recent turn scripts ride the model (the client archives them). */
   private static readonly MODEL_TURN_HISTORY = 8;
 
+  /** The bot's corporation as open information: identity reference, card
+   *  resources and the public statistic counters. */
+  private static getAutomaCorpModel(automa: AutomaState): MarsBotCorpModel {
+    if (automa.corporation === undefined) {
+      throw new Error('MarsBot has no corporation');
+    }
+    const info = marsBotCorpInfo(automa.corporation);
+    return {
+      id: info.id,
+      original: info.original,
+      startingTags: info.startingTags,
+      ...(info.resource !== undefined ? {resource: info.resource} : {}),
+      resources: automa.corpResources,
+      stats: {...automa.corpStats},
+    };
+  }
+
   /**
    * The public MarsBot state: tracks with regression markers, deck COUNTS
    * (contents/order stay hidden — face-down decks), the open discards, the
@@ -303,6 +322,7 @@ export class Server {
     }
     const model: MarsBotModel = {
       difficulty: automa.difficulty,
+      ...(automa.corporation !== undefined ? {corporation: Server.getAutomaCorpModel(automa)} : {}),
       tracks: automa.board.tracks.map((t) => ({
         tags: t.definition.tags,
         position: t.position,

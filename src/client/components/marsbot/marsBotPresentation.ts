@@ -438,6 +438,7 @@ export function openBotTurnReviewByKey(key: string | undefined): boolean {
     turn: entry.turn,
     trackTags: entry.trackTags,
     tracks: entry.tracks,
+    ...(entry.corporation !== undefined ? {corporation: entry.corporation} : {}),
   });
   markBotTurnViewed(entry.key);
   // CONSUMING a turn via the review advances the staged-commit sequence: apply

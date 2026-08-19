@@ -102,7 +102,12 @@ export default defineComponent({
       return this.model.winner;
     },
     winnerCorp(): string {
-      return this.winner !== undefined && this.winner.corporations.length > 0 ? this.winner.corporations[0] : '';
+      if (this.winner === undefined) {
+        return '';
+      }
+      // The MarsBot seat keeps `corporations` empty — its corp identity rides
+      // `botCorporation` (absent on legacy corpless saves).
+      return this.winner.corporations.length > 0 ? this.winner.corporations[0] : (this.winner.botCorporation?.name ?? '');
     },
     glowVars(): Record<string, string> {
       const hex = this.winner !== undefined ? endgamePlayerHex(this.winner.color) : '#6ab0e6';

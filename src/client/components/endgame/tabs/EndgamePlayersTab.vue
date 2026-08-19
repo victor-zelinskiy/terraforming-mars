@@ -88,7 +88,8 @@ export default defineComponent({
       return this.viewerColor === color;
     },
     corp(p: EndgamePlayerScore): string {
-      return p.corporations.join(' / ');
+      // The MarsBot seat keeps `corporations` empty — its corp rides `botCorporation`.
+      return p.corporations.length > 0 ? p.corporations.join(' / ') : (p.botCorporation?.name ?? '');
     },
     raw(color: Color): PublicPlayerModel | undefined {
       return this.view.players.find((pl) => pl.color === color);

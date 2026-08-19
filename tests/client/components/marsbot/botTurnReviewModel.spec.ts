@@ -4,7 +4,7 @@ import {CardName} from '@/common/cards/CardName';
 import {Color} from '@/common/Color';
 import {Resource} from '@/common/Resource';
 import {TileType} from '@/common/TileType';
-import {BonusCardId} from '@/common/automa/AutomaTypes';
+import {BonusCardId, MarsBotCorpId} from '@/common/automa/AutomaTypes';
 import {LogMessage} from '@/common/logs/LogMessage';
 import {LogMessageDataType} from '@/common/logs/LogMessageDataType';
 import {MarsBotTurn, MarsBotTurnStep} from '@/common/automa/MarsBotTurn';
@@ -23,7 +23,7 @@ function log(message: string, data: LogMessage['data'] = []): LogMessage {
   return {message, data} as unknown as LogMessage;
 }
 
-function src(steps: ReadonlyArray<MarsBotTurnStep>, visual?: MarsBotTurn['visual']): BotTurnReviewSource {
+function src(steps: ReadonlyArray<MarsBotTurnStep>, visual?: MarsBotTurn['visual'], corporation?: MarsBotCorpId): BotTurnReviewSource {
   return {
     botColor: 'red' as Color,
     botName: 'MarsBot',
@@ -32,6 +32,7 @@ function src(steps: ReadonlyArray<MarsBotTurnStep>, visual?: MarsBotTurn['visual
     turn: {id: 1, generation: 3, steps, ...(visual !== undefined ? {visual} : {})},
     trackTags: TRACK_TAGS,
     tracks: TRACKS,
+    ...(corporation !== undefined ? {corporation} : {}),
   };
 }
 
@@ -221,6 +222,46 @@ describe('botTurnReviewModel', () => {
     expect(r.chains[0].cause).deep.eq({kind: 'trade', id: BonusCardId.B19_SHIPPING_LINES});
     const costLine = r.chains[0].lines.find((l) => l.kind === 'log' && l.tone === 'cost');
     expect(costLine).is.not.undefined;
+  });
+
+  it('B5. corporation cause → its OWN chain (Credicor logs between the reveal and the tags), named by the archived corp id', () => {
+    const r = buildBotTurnReview(src([
+      {kind: 'reveal', card: {kind: 'project', name: CardName.GENE_REPAIR}},
+      {kind: 'log', message: log('${0} gained ${1} M€ from its corporation ${2} for resolving a card costing 20 M€ or more'), cause: {kind: 'corporation'}},
+      {kind: 'tag', tag: Tag.SCIENCE, trackIndex: 1, cause: {kind: 'tag', index: 0}},
+      {kind: 'advance', trackIndex: 1, from: 2, to: 3, cause: {kind: 'tag', index: 0}},
+    ], undefined, MarsBotCorpId.C01_CREDICOR));
+    expect(r.chains).lengthOf(2);
+    // The corporation payout is its own chain, in script order (before the tag work).
+    expect(r.chains[0].cause).deep.eq({kind: 'corporation', id: MarsBotCorpId.C01_CREDICOR});
+    expect(r.chains[0].lines).lengthOf(1);
+    expect(r.chains[0].lines[0].kind).eq('log');
+    expect(r.chains[0].lines[0].depth).eq(1);
+    // The tag chain is untouched by the corporation chain.
+    expect(r.chains[1].cause).deep.eq({kind: 'tag', tag: Tag.SCIENCE, trackTag: Tag.SCIENCE});
+    expect(r.chains[1].lines.some((l) => l.kind === 'track')).is.true;
+  });
+
+  it('B6. corporation cause with NO archived corp id → a bare corporation chain (older archives)', () => {
+    const r = buildBotTurnReview(src([
+      {kind: 'reveal', card: {kind: 'project', name: CardName.GENE_REPAIR}},
+      {kind: 'log', message: log('${0} gained ${1} M€ from its corporation ${2} for resolving a card costing 20 M€ or more'), cause: {kind: 'corporation'}},
+    ]));
+    expect(r.chains).lengthOf(1);
+    expect(r.chains[0].cause).deep.eq({kind: 'corporation'});
+  });
+
+  it('B7. order fallback (no cause markers) ignores the archived corporation — the log stays a loose consequence', () => {
+    const r = buildBotTurnReview(src([
+      {kind: 'reveal', card: {kind: 'project', name: CardName.GENE_REPAIR}},
+      {kind: 'log', message: log('${0} gained ${1} M€ from its corporation ${2} for resolving a card costing 20 M€ or more')},
+      {kind: 'tag', tag: Tag.BUILDING, trackIndex: 0},
+      {kind: 'advance', trackIndex: 0, from: 3, to: 4},
+    ], undefined, MarsBotCorpId.C01_CREDICOR));
+    expect(r.chains.some((c) => c.cause.kind === 'corporation')).is.false;
+    expect(r.chains[0].cause).deep.eq({kind: 'effect'});
+    expect(r.chains[0].lines[0].kind).eq('log');
+    expect(r.chains[1].cause.kind).eq('tag');
   });
 
   it('11. bot + opponent impacts split into result vs affected, cardNames collected', () => {

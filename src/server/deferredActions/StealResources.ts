@@ -8,7 +8,7 @@ import {CardName} from '../../common/cards/CardName';
 import {Message} from '../../common/logs/Message';
 import {message} from '../logs/MessageBuilder';
 import {ChoiceContextSource} from '../../common/models/PlayerInputModel';
-import {disabledPlayerTarget, stealResourceFromPlayer, skip} from '../inputs/optionMetadata';
+import {disabledPlayerTarget, removeCorpPlantsFromBot, stealResourceFromPlayer, skip} from '../inputs/optionMetadata';
 import {AutomaTargeting} from '../automa/AutomaTargeting';
 
 export class StealResources extends DeferredAction {
@@ -73,8 +73,9 @@ export class StealResources extends DeferredAction {
    */
   public buildOptions(): OrOptions | undefined {
     const candidates = StealResources.getCandidates(this.player, this.resource, this.count, this.mandatory);
+    const corpPlantOptions = this.corpPlantStealOptions();
 
-    if (candidates.length === 0) {
+    if (candidates.length === 0 && corpPlantOptions.length === 0) {
       return undefined;
     }
 
@@ -96,6 +97,8 @@ export class StealResources extends DeferredAction {
           return undefined;
         });
     });
+
+    stealOptions.push(...corpPlantOptions);
 
     if (!this.mandatory) {
       stealOptions.push(new SelectOption('Do not steal').withMetadata(skip()));
@@ -126,6 +129,38 @@ export class StealResources extends DeferredAction {
     return this.cause === undefined ?
       orOptions :
       orOptions.markChoiceContext({source: this.cause, mode: 'attack'});
+  }
+
+  /**
+   * The Ecoline corporation-card plant as a SEPARATE, additional steal target
+   * (RB-B FAQ "you may target the resource(s) on the corporation card"): the
+   * thief receives exactly what the card holds (up to the demand); the excess
+   * is LOST — never topped up from the bot's M€ supply. Offered even when the
+   * bot's generic pool is empty or below a mandatory demand (the FAQ's
+   * excess-is-lost rule IS the shortfall rule).
+   */
+  private corpPlantStealOptions(): Array<SelectOption> {
+    if (this.resource !== Resource.PLANTS) {
+      return [];
+    }
+    const options: Array<SelectOption> = [];
+    for (const target of this.player.opponents) {
+      const pool = target.isMarsBot ? AutomaTargeting.corpPlantPool(target.game) : 0;
+      if (pool === 0 || target.plantsAreProtected()) {
+        continue;
+      }
+      const taken = Math.min(pool, this.count);
+      const optionMessage = taken >= this.count ?
+        message('Steal ${0} plants from the corporation card of ${1}', (b) => b.number(taken).player(target)) :
+        message('Steal ${0} of ${1} plants from the corporation card of ${2} — the excess is lost', (b) => b.number(taken).number(this.count).player(target));
+      options.push(new SelectOption(optionMessage, 'Steal')
+        .withMetadata(removeCorpPlantsFromBot(target, this.count, pool, /* stealing= */ true))
+        .andThen(() => {
+          AutomaTargeting.removeCorpPlants(target, this.player, this.count, {log: true, stealing: true});
+          return undefined;
+        }));
+    }
+    return options;
   }
 
   /** READ-ONLY preview of the steal OrOptions (no solo-mode mutation) — for the

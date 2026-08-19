@@ -15,7 +15,9 @@
         <span class="con-ovd__rdot" :class="'player_bg_color_' + row.color" aria-hidden="true"></span>
         <span class="con-ovd__rwho">
           <span class="con-ovd__rname">{{ row.name }}</span>
-          <span v-if="row.corporation !== ''" class="con-ovd__rcorp">{{ $t(row.corporation) }}</span>
+          <!-- The bot's corporation is its primary identity; the difficulty
+               stays as the secondary voice. Corpless bot: difficulty alone. -->
+          <span v-if="row.corporation !== ''" class="con-ovd__rcorp">{{ $t(row.corporation) }}<template v-if="row.difficulty !== undefined"> · <span class="con-ovd__rdiff">{{ $t(row.difficulty) }}</span></template></span>
           <span v-else-if="row.difficulty !== undefined" class="con-ovd__rcorp con-ovd__rdiff">{{ $t(row.difficulty) }}</span>
         </span>
         <span class="con-ovd__rgap">{{ row.isWinner ? '' : '−' + row.gapToWinner }}</span>

@@ -3,6 +3,7 @@ import {CardResource} from '../../common/CardResource';
 import {inplaceShuffle} from '../utils/shuffle';
 import {IGame} from '../IGame';
 import {IProjectCard} from '../cards/IProjectCard';
+import {AutomaCorporations} from './corps/AutomaCorporations';
 import {AutomaActionCard, AutomaState} from './AutomaState';
 import {marsBotOf} from './AutomaUtil';
 
@@ -133,20 +134,27 @@ export class AutomaResearch {
     if (automa === undefined) {
       throw new Error('Not an automa game');
     }
-    const drafted = [...draftedCards];
-    inplaceShuffle(drafted, game.rng);
+    let drafted = [...draftedCards];
 
     const spentFloaters = AutomaResearch.trySpendFloaters(game);
     if (automa.difficulty === 'brutal') {
+      inplaceShuffle(drafted, game.rng);
       if (spentFloaters) {
         const extra = game.projectDeck.draw(game);
         if (extra !== undefined) {
           drafted.push(extra);
         }
       }
-    } else if (!spentFloaters) {
-      const discarded = drafted.shift();
-      if (discarded !== undefined) {
+    } else if (spentFloaters) {
+      // The floater spend keeps the 4th card — nothing is discarded.
+      inplaceShuffle(drafted, game.rng);
+    } else {
+      // Corporation-aware discard (RB-B): the corp's Draft Priority protects
+      // its matching cards; corpless keeps the official shuffle-discard-first
+      // rule byte-identically. Shuffling happens inside.
+      const result = AutomaCorporations.draftDiscard(game, drafted);
+      drafted = result.kept;
+      for (const discarded of result.discarded) {
         game.projectDeck.discard(discarded);
       }
     }

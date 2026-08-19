@@ -43,7 +43,34 @@ export type AutomaMode = 'official-solo' | 'multiplayer';
 export type AutomaOptions = {
   difficulty: DifficultyLevel;
   mode?: AutomaMode;
+  /**
+   * DEV/TEST override: force this MarsBot corporation instead of the seeded
+   * random selection (the automa twin of `customProjectCards` /
+   * `customBonusCards` — the only way to reach one specific corporation
+   * deterministically). Honored only while eligible (no human holds its
+   * original); otherwise the normal random selection runs.
+   */
+  corporation?: MarsBotCorpId;
 };
+
+/**
+ * MarsBot corporations (Rule Book B "Adding Corporations") — ids are the
+ * official printed card numbers C01–C46, the same canonical-id convention as
+ * `BonusCardId`. Data + display live in `MarsBotCorpData.ts`; server behavior
+ * in `src/server/automa/corps/`.
+ */
+export enum MarsBotCorpId {
+  C01_CREDICOR = 'C01',
+  C02_ECOLINE = 'C02',
+  C45_SPIRE = 'C45',
+}
+
+/** The implemented set, in official card-number order. */
+export const MARS_BOT_CORP_IDS: ReadonlyArray<MarsBotCorpId> = [
+  MarsBotCorpId.C01_CREDICOR,
+  MarsBotCorpId.C02_ECOLINE,
+  MarsBotCorpId.C45_SPIRE,
+];
 
 export enum BonusCardId {
   // Base game (B01-B08)

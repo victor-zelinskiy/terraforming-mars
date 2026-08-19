@@ -88,6 +88,10 @@
           <template v-else-if="chain.cause.kind === 'delta'">
             <span class="mbr__chain-kicker" v-i18n>Hydronetwork</span>
           </template>
+          <template v-else-if="chain.cause.kind === 'corporation'">
+            <span class="mbr__chain-kicker" v-i18n>Corporation effect</span>
+            <span v-if="chain.cause.id !== undefined" class="mbr__chain-title">{{ corpName(chain.cause.id) }}</span>
+          </template>
           <template v-else>
             <span class="mbr__chain-kicker" v-i18n>Consequences</span>
           </template>
@@ -141,12 +145,12 @@
  */
 import {defineComponent, PropType} from 'vue';
 import {PublicPlayerModel} from '@/common/models/PlayerModel';
-import {BonusCardId} from '@/common/automa/AutomaTypes';
+import {BonusCardId, MarsBotCorpId} from '@/common/automa/AutomaTypes';
 import {buildBonusCardView} from '@/common/automa/BonusCardData';
 import {MarsBotBonusFate} from '@/common/automa/MarsBotTurn';
 import {BotReviewTechnicalReveal, BotTurnReview} from './botTurnReviewModel';
 import {translateText, translateTextWithParams} from '@/client/directives/i18n';
-import {participantDisplayName} from './marsBotDisplay';
+import {marsBotCorpDisplayName, participantDisplayName} from './marsBotDisplay';
 import {DIFFICULTY_LABEL} from './marsBotView';
 import BotReviewLineContent from './BotReviewLineContent.vue';
 import JournalCardChip from '@/client/components/journal/JournalCardChip.vue';
@@ -196,6 +200,10 @@ export default defineComponent({
   methods: {
     bonusName(id: BonusCardId): string {
       return buildBonusCardView(id, this.review.ctx).name;
+    },
+    /** The corporation-effect chain's title — the ORIGINAL corp's name (untranslated, RB-B). */
+    corpName(id: MarsBotCorpId): string {
+      return marsBotCorpDisplayName(id);
     },
     /** A SHORT essence of a bonus card's effect (its primary line) — never the full rules. */
     bonusEssence(id: BonusCardId): string {
