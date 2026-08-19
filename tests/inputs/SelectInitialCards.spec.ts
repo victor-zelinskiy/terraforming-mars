@@ -6,6 +6,7 @@ import {CardName} from '../../src/common/cards/CardName';
 import {ICorporationCard} from '../../src/server/cards/corporation/ICorporationCard';
 import {cardsFromJSON, ceosFromJSON, corporationCardsFromJSON, preludesFromJSON} from '../../src/server/createCard';
 import {toName} from '../../src/common/utils/utils';
+import {SelectCardModel} from '../../src/common/models/PlayerInputModel';
 
 describe('SelectInitialCards', () => {
   let player: TestPlayer;
@@ -66,6 +67,53 @@ describe('SelectInitialCards', () => {
 
     expect(player.game.projectDeck.discardPile.map(toName)).to.have.members([CardName.BACTOVIRAL_RESEARCH, CardName.COMET_AIMING, CardName.DIRIGIBLES]);
     expect(player.game.corporationDeck.discardPile.map(toName)).to.have.members([CardName.HELION]);
+  });
+
+  // ── The starting hand's REQUIREMENT HEADS-UP ────────────────────────────
+  // The initial buy is a pick FOR LATER, exactly like a draft pick, so the
+  // project step opts into the same structured reasons the draft carries
+  // (`showUnplayableReasons`). The console renders them in the DRAFT voice:
+  // only PRINTED REQUIREMENTS speak, read against the global parameters the
+  // game will actually start at.
+  describe('project requirement reasons', () => {
+    function projectModel(name: CardName) {
+      const model = selectInitialCards.toModel(player);
+      const projects = model.options[model.options.length - 1] as SelectCardModel;
+      return projects.cards.find((c) => c.name === name);
+    }
+
+    beforeEach(() => {
+      player.dealtProjectCards = cardsFromJSON([CardName.ANTS, CardName.SEARCH_FOR_LIFE]);
+      selectInitialCards = new SelectInitialCards(player, cb);
+    });
+
+    it('an unmet printed requirement is reported, read at the START-OF-GAME level', () => {
+      // Ants requires 4% oxygen; the game starts at 0%.
+      const reasons = projectModel(CardName.ANTS)?.unplayableReasons ?? [];
+      const oxygen = reasons.find((r) => r.type === 'globalParameter');
+      expect(oxygen).is.not.undefined;
+      expect(oxygen?.globalParameter).eq('oxygen');
+      expect(oxygen?.params).deep.eq(['4']);
+      expect(oxygen?.current).eq(0);
+      // A printed requirement (the draft voice shows ONLY these)…
+      expect(oxygen?.requirement).is.true;
+      // …that the game can still get to: amber «пока не выполнено», never red.
+      expect(oxygen?.unattainable).is.not.true;
+    });
+
+    it('a SATISFIED requirement says nothing', () => {
+      // Search For Life needs oxygen 6% or LESS — true at the start, so the
+      // card carries no requirement reason (only the M€ line the player has
+      // no corporation for yet, which the draft voice filters out).
+      const reasons = projectModel(CardName.SEARCH_FOR_LIFE)?.unplayableReasons ?? [];
+      expect(reasons.filter((r) => r.requirement === true)).is.empty;
+    });
+
+    it('the corporation step carries no reasons', () => {
+      const model = selectInitialCards.toModel(player);
+      const corps = model.options[0] as SelectCardModel;
+      expect(corps.cards.every((c) => c.unplayableReasons === undefined)).is.true;
+    });
   });
 
   it('Full', () => {

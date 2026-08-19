@@ -631,7 +631,8 @@
         </div>
 
         <div v-if="mode === 'wizard' && currentStep !== undefined"
-             class="con-start__statusrail" :class="statusRailClass">
+             class="con-start__statusrail"
+             :class="[statusRailClass, {'con-start__statusrail--avail': railShowsAvailability}]">
           <!-- The rail's HEIGHT is reserved for the whole card step; only its
                CONTENT is hidden while the deal cinematic runs (--held: opacity,
                never an unmount) — so the card area never resizes / jumps when
@@ -641,7 +642,25 @@
                wholesale keyed out-in faded the whole rail on every move). -->
           <div class="con-start__status-inner"
                :class="{'con-start__status-inner--held': deal.state.active}">
-            <span class="con-start__status-name"
+            <!-- THE FOCUSED CARD'S AVAILABILITY — the SAME block the draft
+                 workspace pins under its spread (ConsoleCardAvailabilityPanel,
+                 compact) built by the SAME shared model in the SAME DRAFT
+                 voice: the starting hand is bought FOR LATER, so only the
+                 PRINTED REQUIREMENTS speak — amber «пока не выполнено» while
+                 the game can still get there, red «уже не выполнить» only
+                 where the server could prove it. Money says nothing here (the
+                 funds chip on the right is the economy's one voice).
+                 It carries the card's NAME itself, so the rail never states it
+                 twice; the zone is reserved for the WHOLE step (see
+                 `stepShowsAvailability` in consoleStartState) — the cards must not resize
+                 when the focus moves onto a card that has something to say. -->
+            <ConsoleCardAvailabilityPanel v-if="railShowsAvailability"
+                                          class="con-start__status-avail"
+                                          :key="focusedCard ? focusedCard.name : 'none'"
+                                          variant="compact"
+                                          :view="focusedAvailability"
+                                          :cardTitle="focusedCard ? $t(focusedCard.name) : undefined"/>
+            <span v-else class="con-start__status-name"
                   :key="focusedCard ? focusedCard.name : 'none'">{{ focusedCard ? $t(focusedCard.name) : '' }}</span>
             <span v-if="statusRailText !== ''" class="con-start__status-state"
                   :key="'st' + blockedNudge">{{ statusRailText }}</span>
@@ -738,6 +757,7 @@ import Card from '@/client/components/card/CardFace.vue';
 import GamepadGlyph from '@/client/components/gamepad/GamepadGlyph.vue';
 import {PlayerViewModel} from '@/common/models/PlayerModel';
 import {CardModel} from '@/common/models/CardModel';
+import {UnplayableReason} from '@/common/cards/UnplayableReason';
 import {CardName} from '@/common/cards/CardName';
 import {Color} from '@/common/Color';
 import {Message} from '@/common/logs/Message';
@@ -753,7 +773,8 @@ import {
   markStartDeploymentBegun, startAwaitingOthers, startDeploymentBegun,
   picksForStep, releaseStartScene, StartCrewMate, StartCrumb, StartDockPileModel, startFlowBusy,
   StartLaunchState, StartParticipant, startDockPiles, startJourneyItems, startLaunchState,
-  sponsorCrumb, startParticipants, StartWizardStep, stepComplete, wizardCrumb, wizardSteps,
+  sponsorCrumb, startCardAvailability, startParticipants, StartWizardStep, stepComplete,
+  stepShowsAvailability, wizardCrumb, wizardSteps,
 } from '@/client/console/consoleStartState';
 import {buildStartStatusPreview, StartStatusPreview} from '@/client/console/startStatusPreview';
 import {participantDisplayName} from '@/client/components/marsbot/marsBotDisplay';
@@ -829,6 +850,8 @@ import {nearestInDirection, rowFitZoom, gridFitPlan} from '@/client/console/cons
 import {motionMs} from '@/client/components/motion/motionTokens';
 import {holdForGsapAnimation} from '@/client/components/presentation/animationHold';
 import ConsoleCardDealLayer from '@/client/components/console/cardDeal/ConsoleCardDealLayer.vue';
+import ConsoleCardAvailabilityPanel from '@/client/components/console/ConsoleCardAvailabilityPanel.vue';
+import {CardAvailabilityView} from '@/client/console/cardAvailability';
 
 
 function textOf(v: string | Message | undefined): string {
@@ -926,7 +949,7 @@ function gsapSettled(animation: gsap.core.Animation): Promise<void> {
 
 export default defineComponent({
   name: 'ConsoleStartScene',
-  components: {Card, GamepadGlyph, ConsoleCardDealLayer, ConsoleWsHead, ConsoleJourneyRail, ConsoleStartSelectionDock, ConsoleStartPlayedDock, ConsolePlayedCardLite, ActionEffectChip},
+  components: {Card, GamepadGlyph, ConsoleCardDealLayer, ConsoleCardAvailabilityPanel, ConsoleWsHead, ConsoleJourneyRail, ConsoleStartSelectionDock, ConsoleStartPlayedDock, ConsolePlayedCardLite, ActionEffectChip},
   props: {
     playerView: {type: Object as PropType<PlayerViewModel>, required: true},
     /** The LIVE `/api/waitingFor` poll (App → shell → here) — see `launch`. */
@@ -2051,6 +2074,14 @@ export default defineComponent({
     focusedCard(): CardModel | undefined {
       return this.stepEntries[this.focusIdx];
     },
+    /** The focused card's availability, DRAFT voice (see the module). */
+    focusedAvailability(): CardAvailabilityView | undefined {
+      return startCardAvailability(this.focusedCard);
+    },
+    /** Does THIS step reserve the rail's two-row availability zone? */
+    railShowsAvailability(): boolean {
+      return stepShowsAvailability(this.stepEntries);
+    },
     picksHere(): ReadonlyArray<CardName> {
       const step = this.currentStep;
       return step !== undefined ? picksForStep(this.picks, step.id) : [];
@@ -2093,7 +2124,28 @@ export default defineComponent({
         names.push(this.state.ceo);
       }
       names.push(...this.state.projects);
-      return names.map((name) => ({name}) as CardModel);
+      // The summary browses SYNTHETIC models (the tiles only need a name) —
+      // but the requirement verdict must survive the trip: a card that was
+      // «требование пока не выполнено» on the buy step is still that on the
+      // review screen. Only the reasons are carried over; everything else
+      // stays synthetic, so the face renders exactly as it did before.
+      const reasons = this.stepReasons;
+      return names.map((name) => {
+        const r = reasons.get(name);
+        return (r === undefined ? {name} : {name, unplayableReasons: r}) as CardModel;
+      });
+    },
+    /** The server's per-card reasons, addressed by name across every step. */
+    stepReasons(): Map<CardName, ReadonlyArray<UnplayableReason>> {
+      const out = new Map<CardName, ReadonlyArray<UnplayableReason>>();
+      for (const st of this.steps) {
+        for (const card of st.input.cards) {
+          if (card.unplayableReasons !== undefined) {
+            out.set(card.name, card.unplayableReasons);
+          }
+        }
+      }
+      return out;
     },
     /** True on the wizard's final summary (no live step). */
     onSummary(): boolean {
@@ -2713,6 +2765,14 @@ export default defineComponent({
     },
     /** Grid↔row transition re-fits the single row (never per focus). */
     wizardGrid() {
+      void this.$nextTick(() => this.fitCardStrip());
+    },
+    /** The availability rail is a TALLER rail — the body shrinks by the
+     *  difference. Watched (not merely folded into the step change) because
+     *  the reasons ride the SERVER model: a step already on screen when the
+     *  first poll lands would otherwise keep a fit measured against the
+     *  one-row rail and overflow into the body's internal scroll. */
+    railShowsAvailability() {
       void this.$nextTick(() => this.fitCardStrip());
     },
     /** The pinned status rail is v-if'd off DURING the deal cinematic, so the
@@ -3935,10 +3995,13 @@ export default defineComponent({
           // advances (parity with the strip's A-commit + the between-generation
           // draft's fullscreen Select). Multi-pick steps keep the toggle context.
 
+          // The viewer speaks the SAME DRAFT voice as the rail below the
+          // spread: «ДОСТУПНОСТЬ» over «ПРАВИЛА», the requirement stated once,
+          // in the richer wording that also carries the current value.
           openConsoleCardZoom(this.stepEntries, this.focusIdx, {
             isSelected: (name) => this.isPickedHere(name),
             toggle: (name) => this.togglePickByName(name),
-          }, undefined, {origin});
+          }, undefined, {origin, availability: 'draft'});
           return;
         }
         // The summary: X reviews the WHOLE chosen setup fullscreen, OPENING on
@@ -3947,6 +4010,7 @@ export default defineComponent({
         if (this.currentStep === undefined && this.summaryCards.length > 0) {
           openConsoleCardZoom(this.summaryCards, this.focusIdx, undefined, undefined, {
             origin: this.zoomOriginFor(this.summaryCards.map((c) => c.name), true),
+            availability: 'draft',
           });
         }
         return;

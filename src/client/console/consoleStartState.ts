@@ -27,6 +27,8 @@ import {CardName} from '@/common/cards/CardName';
 import {Color} from '@/common/Color';
 import {Message} from '@/common/logs/Message';
 import {PlayerInputModel, SelectCardModel, SelectInitialCardsModel} from '@/common/models/PlayerInputModel';
+import {CardModel} from '@/common/models/CardModel';
+import {buildCardAvailability, CardAvailabilityView} from '@/client/console/cardAvailability';
 import {PlayerViewModel} from '@/common/models/PlayerModel';
 import {InputResponse, SelectInitialCardsResponse} from '@/common/inputs/InputResponse';
 import * as titles from '@/common/inputs/SelectInitialCards';
@@ -346,6 +348,39 @@ export function wizardSteps(input: SelectInitialCardsModel): Array<StartWizardSt
     }
   }
   return steps;
+}
+
+/**
+ * The DRAFT-voice availability of ONE start-wizard card — built by the SHARED
+ * `cardAvailability` model, the very one the between-generation draft
+ * workspace, the research buy and the fullscreen viewer already use. Nothing
+ * is re-derived here: the input is the server's own `unplayableReasons`
+ * (`SelectInitialCards` opts the project step in), and the initial hand is
+ * bought FOR LATER, so only PRINTED REQUIREMENTS speak — amber «требование
+ * пока не выполнено» while the game can still get there, red «уже не
+ * выполнить» only where the server could PROVE it. Read against the global
+ * parameters the game will actually start at (the server computes them at
+ * that very moment, before a single track has moved).
+ * `undefined` = nothing to say.
+ */
+export function startCardAvailability(card: CardModel | undefined): CardAvailabilityView | undefined {
+  return buildCardAvailability({reasons: card?.unplayableReasons}, 'draft');
+}
+
+/**
+ * Does this step reserve the status rail's TWO-ROW availability zone?
+ *
+ * Asked of the WHOLE step, never of the focused card: the reserve must not
+ * change as the focus moves, or the card grid above would resize under the
+ * player's hands (the draft's status rail reserves for exactly that reason).
+ * And it is asked THROUGH the shared model rather than through a hand-rolled
+ * reason filter, so the reserve and the block can never disagree about what
+ * «has something to say» means. A step whose cards are all within reach — or
+ * that has no project cards at all (corporations, preludes, CEOs) — keeps the
+ * compact one-row rail and gives the pixels back to the cards.
+ */
+export function stepShowsAvailability(cards: ReadonlyArray<CardModel>): boolean {
+  return cards.some((card) => startCardAvailability(card) !== undefined);
 }
 
 export type InitialCardsPicks = {

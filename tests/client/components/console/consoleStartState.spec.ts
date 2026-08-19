@@ -5,7 +5,7 @@ import {
   startFlowBusy, startLaunchState, startParticipants, startSceneHeld, stepComplete, wizardCrumb,
   wizardSteps, startJourneyItems, deploymentJourneyItems, startDockPiles,
   startAwaitingOthers, startCorporationPlayed, startDeferredSummary, startDeploymentBegun,
-  markStartDeploymentBegun,
+  markStartDeploymentBegun, startCardAvailability, stepShowsAvailability,
 } from '@/client/console/consoleStartState';
 import {SelectInitialCardsModel} from '@/common/models/PlayerInputModel';
 import {PlayerViewModel} from '@/common/models/PlayerModel';
@@ -13,6 +13,8 @@ import {CardName} from '@/common/cards/CardName';
 import {Color} from '@/common/Color';
 import {Phase} from '@/common/Phase';
 import * as titles from '@/common/inputs/SelectInitialCards';
+import {CardModel} from '@/common/models/CardModel';
+import {UnplayableReason} from '@/common/cards/UnplayableReason';
 
 /**
  * CTS T5: the start-scene wizard logic. The step identification and the
@@ -507,5 +509,63 @@ describe('consoleStartState (T5 summary launch readout)', () => {
       // viewer actually chose counts as «my setup is played».
       expect(startCorporationPlayed(view([CardName.THARSIS_REPUBLIC], [CardName.ANTS]))).to.be.false;
     });
+  });
+});
+
+/**
+ * THE STARTING HAND'S REQUIREMENT HEAD-UP. The initial buy is a pick FOR
+ * LATER, so it speaks the very same DRAFT voice the between-generation draft
+ * workspace does — through the SAME shared `cardAvailability` model, never a
+ * second filter of its own. These two helpers are what the start scene's
+ * status rail and its fullscreen viewer read.
+ */
+describe('consoleStartState (start-hand availability)', () => {
+  function card(name: CardName, reasons?: ReadonlyArray<UnplayableReason>): CardModel {
+    return (reasons === undefined ? {name} : {name, unplayableReasons: reasons}) as CardModel;
+  }
+  const oxygen: UnplayableReason = {
+    type: 'globalParameter', globalParameter: 'oxygen',
+    message: 'Requires ${0}% oxygen', params: ['4'], current: 0, requirement: true,
+  };
+  const lostOcean: UnplayableReason = {
+    type: 'globalParameter', globalParameter: 'oceans',
+    message: 'Requires ${0} ocean(s) or fewer', params: ['3'], current: 9,
+    requirement: true, unattainable: true,
+  };
+  // The M€ line the engine also produces at the start (no corporation, no
+  // money YET) — NOT a printed requirement, so the draft voice drops it.
+  const money: UnplayableReason = {type: 'megacredits', message: 'Requires ${0} M€', params: ['9']};
+
+  it('an unmet printed requirement is PENDING (amber) — the game can still get there', () => {
+    const view = startCardAvailability(card(CardName.ANTS, [oxygen, money]));
+    expect(view?.severity).eq('pending');
+    expect(view?.tone).eq('warning');
+    // Only the requirement speaks — the money line is this moment's problem.
+    expect(view?.reasons.map((r) => r.type)).to.deep.eq(['globalParameter']);
+  });
+
+  it('a provably lost requirement is MISSED (red)', () => {
+    const view = startCardAvailability(card(CardName.ANTS, [lostOcean]));
+    expect(view?.severity).eq('missed');
+    expect(view?.tone).eq('danger');
+  });
+
+  it('affordability ALONE says nothing — the player has no corporation yet', () => {
+    expect(startCardAvailability(card(CardName.ANTS, [money]))).is.undefined;
+  });
+
+  it('a card with no reasons at all says nothing', () => {
+    expect(startCardAvailability(card(CardName.ANTS))).is.undefined;
+    expect(startCardAvailability(undefined)).is.undefined;
+  });
+
+  it('the two-row zone is reserved for the WHOLE step, so a focus move never resizes the grid', () => {
+    const projects = [card(CardName.BIRDS), card(CardName.ANTS, [oxygen, money]), card(CardName.FISH)];
+    expect(stepShowsAvailability(projects), 'one card with something to say reserves it').is.true;
+    // …and a step nothing speaks for keeps the compact rail: the corporation
+    // step (no project cards, no reasons) and a fully-reachable project set.
+    expect(stepShowsAvailability([card(CardName.BIRDS), card(CardName.FISH)])).is.false;
+    expect(stepShowsAvailability([card(CardName.ANTS, [money])]), 'money is not a requirement').is.false;
+    expect(stepShowsAvailability([])).is.false;
   });
 });

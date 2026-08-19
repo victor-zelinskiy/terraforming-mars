@@ -73,11 +73,22 @@ export async function stepSubject(page: Page): Promise<string> {
   });
 }
 
-/** The focused card's RENDERED name (the pinned status rail). Localised —
- *  use `focusedCard` when you mean a specific card. */
+/**
+ * The focused card's RENDERED name (the pinned status rail). Localised —
+ * use `focusedCard` when you mean a specific card.
+ *
+ * TWO elements can carry it, and which one does is a property of the STEP:
+ * a step whose cards have a requirement to report hands the whole rail to
+ * the shared availability block (`.con-cardavail`, name included), the rest
+ * keep the plain one-row name. Reading only the first is how this primitive
+ * would silently start returning '' on the project buy.
+ */
 export async function focusedName(page: Page): Promise<string> {
-  return page.evaluate(() =>
-    (document.querySelector('.con-start__status-name')?.textContent ?? '').trim());
+  return page.evaluate(() => {
+    const el = document.querySelector('.con-start__statusrail .con-start__status-name') ??
+      document.querySelector('.con-start__statusrail .con-cardavail__name');
+    return (el?.textContent ?? '').trim();
+  });
 }
 
 /**

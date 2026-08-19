@@ -56,6 +56,34 @@ shows (`ConsoleHandSection.playAvailability` / `ConsoleShell.zoomAvailabilityVie
 Guards: `tests/client/components/console/cardAvailability.spec.ts`,
 `consoleCardAvailabilityPanel.spec.ts`.
 
+### …and the GAME'S FIRST card decision — the start wizard's buy step (2026-08-19)
+
+The setup wizard's project buy is a pick FOR LATER exactly like a draft pick, so it is the same
+system, not a second one:
+
+- **Server.** `SelectInitialCards` passes `showUnplayableReasons: true` on the PROJECT step only —
+  the same flag `Draft.ts` and the research buy (`ChooseCards`, `paying`) already set. Nothing
+  special is computed: the model is built while the board still stands at its start-of-game values
+  and no track has moved, so «требуется 0 °C · сейчас −30 °C» IS the reading the game will open on.
+  The M€ line the engine also produces (no corporation, no money yet) is filtered out by the draft
+  voice, and the corporation / prelude / CEO steps stay clean — those are not project cards and
+  their own risk grammar (the burn gate) already speaks for them.
+- **Client.** `consoleStartState.startCardAvailability(card)` / `stepShowsAvailability(cards)` are
+  thin calls into `buildCardAvailability(…, 'draft')` — never a second filter. The status rail
+  hosts the SAME `ConsoleCardAvailabilityPanel` (`variant="compact"`) the draft pins under its
+  spread, carrying the card NAME itself so the rail never states it twice, and X opens the
+  fullscreen viewer with `availability: 'draft'` (the summary review carries the reasons across on
+  its synthetic models, so a bought card keeps its verdict).
+- **The reserve is per STEP, never per card** (`.con-start__statusrail--avail` →
+  `--con-start-rail-avail-h`, the draft's 4.3 / 5.6rem couch pair): the rail clips, and a height
+  that changed with the focus would resize the card grid under the player's hands. A step nothing
+  speaks for keeps the compact one-row rail and gives the pixels back to the cards.
+
+Guards: the `project requirement reasons` block in `tests/inputs/SelectInitialCards.spec.ts`,
+the `start-hand availability` block in `tests/client/components/console/consoleStartState.spec.ts`,
+and `tests/e2e/console-start-availability.spec.ts` (a production-sized deal — never test-mode —
+measuring that the reserved rail actually fits its block and that the grid stays out of scroll).
+
 ### A requirement is printed ONCE (the fullscreen de-duplication)
 
 The same oxygen requirement used to appear three times: as the card's own printed bar, as the

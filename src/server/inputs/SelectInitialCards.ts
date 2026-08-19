@@ -80,7 +80,25 @@ export class SelectInitialCards extends OptionsInput<undefined> {
 
     const maxProjectCards = game.gameOptions.testMode ? constants.TEST_MODE_PROJECT_CARDS_DEALT_PER_PLAYER : 10;
     this.push('project',
-      new SelectCard(titles.SELECT_PROJECTS_TITLE, undefined, player.dealtProjectCards, {min: 0, max: maxProjectCards})
+      new SelectCard(titles.SELECT_PROJECTS_TITLE, undefined, player.dealtProjectCards, {
+        min: 0,
+        max: maxProjectCards,
+        // The starting hand is bought FOR LATER, exactly like a draft pick —
+        // so it gets the SAME structured reasons the draft and the research
+        // buy already carry (`Draft.ts` / `ChooseCards`), and the client shows
+        // them in the same DRAFT voice: only PRINTED REQUIREMENTS speak
+        // («требование пока не выполнено» amber / «уже не выполнить» red).
+        // The M€ line the engine also produces is filtered out client-side —
+        // the player has no corporation and no money YET, and that is not
+        // what this decision is about.
+        //
+        // Computed here, the global parameters ARE the ones the game will
+        // start at: the board is built and every card is dealt before this
+        // input exists, and nothing moves a track until the deployment plays
+        // the first prelude. So «требуется 0 °C · сейчас −30 °C» is the honest
+        // start-of-game reading, not a leftover from anywhere else.
+        showUnplayableReasons: true,
+      })
         .andThen((cards) => {
           player.cardsInHand.push(...cards);
           return undefined;

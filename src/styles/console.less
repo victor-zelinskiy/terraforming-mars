@@ -17689,6 +17689,7 @@ html.con-scale-focus-oceans .global-numbers-oceans {
     .con-cards__verdict--limit,
     .con-start__count--nudge,
     .con-start__status-name,
+    .con-start__statusrail .con-cardavail__name,
     .con-start__beginline,
     .con-start__wait-scan,
     .con-start__beginline-flash,
@@ -18439,6 +18440,12 @@ body.con-start-ceremony {
        card's LOCAL state only (name + one state chip); the global «N из M»
        counter lives in the header. */
     --con-start-rail-h: 2.6rem;
+    /* …and the TWO-ROW height when the rail carries the shared availability
+       block (the same reserved zone the draft workspace pins under its spread
+       — see --con-draftws-status-h). Reserved for the WHOLE step, so moving
+       the focus onto a card with an unmet requirement never resizes the grid
+       above it. */
+    --con-start-rail-avail-h: 4.3rem;
     &__statusrail {
         box-sizing: border-box;
         flex-shrink: 0;
@@ -18466,6 +18473,23 @@ body.con-start-ceremony {
             opacity: 0;
             pointer-events: none;
         }
+    }
+    &__statusrail--avail {
+        height: var(--con-start-rail-avail-h);
+    }
+    /* The availability block takes the rail's free width (the state chip and
+       the funds chip keep their right-edge seats); its own two-row grammar,
+       tone palette and typography come from .con-cardavail — this host only
+       gives it a box. The card's name lives INSIDE it, so `__status-name`
+       above is the one-row rail's element and this one is never both. */
+    &__status-avail {
+        flex: 1 1 auto;
+        min-width: 0;
+    }
+    /* The focused card re-announces itself on every d-pad move — the same
+       one-shot settle the one-row rail's name has always had. */
+    &__statusrail .con-cardavail__name {
+        animation: con-verdict-name-in calc(120ms * var(--motion-scale, 1)) ease-out;
     }
     &__status-name {
         font-weight: 700;
@@ -27178,9 +27202,15 @@ html.con-profile-handheld {
            goes straight into the fit engine's card zoom. */
         --con-start-verdict-h: 2.1rem;
         --con-start-rail-h: 2rem;
+        /* The two-row availability rail trims with the rest of the chrome —
+           the block's own reading line already rides the reading tokens. */
+        --con-start-rail-avail-h: 3.4rem;
         &__statusrail { margin-top: .3rem; padding: 0 .6rem; border-radius: .45rem; }
         &__status-name { font-size: .75rem; }
         &__status-state { font-size: .65rem; padding: .12rem .5rem; }
+        .con-cardavail__name { font-size: .78rem; }
+        .con-cardavail__status { font-size: .7rem; }
+        .con-cardavail__more { font-size: .62rem; }
 
         &__frame { width: 97vw; padding: .5rem 1rem 2.4rem; } /* 48 = cmdbar (38) + air */
         &__head { margin-bottom: .3rem; }
