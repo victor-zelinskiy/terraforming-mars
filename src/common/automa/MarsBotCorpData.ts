@@ -21,10 +21,11 @@ export type {MarsBotCubeType} from './AutomaTypes';
 
 /**
  * A resource physically stored ON the MarsBot corporation card (Ecoline's
- * plant, Spire's science). Its own union — plants are not a `CardResource`
- * in this engine, and the bot's corp storage is not a card-resource pool.
+ * plant, Spire's science, Mining Guild's M€ bank). Its own union — plants and
+ * M€ are not `CardResource`s in this engine, and the bot's corp storage is not
+ * a card-resource pool.
  */
-export type MarsBotCorpResource = 'plant' | 'science';
+export type MarsBotCorpResource = 'plant' | 'science' | 'megacredits';
 
 /**
  * How the bot picks (and protects) cards in the research draft — RB-B "Draft
@@ -85,6 +86,13 @@ export type MarsBotCorpInfo = {
   /** Corporation-specific bonus cards this corp brings into play (RB-B Setup 5
    *  returns all others to the box). */
   corpBonusCards: ReadonlyArray<BonusCardId>;
+  /**
+   * A M€ BANK on the corporation card (C06): setup stocks it with `size`, and
+   * every M€ the bot gains is taken FROM it instead of the supply; emptying it
+   * refills it and advances the track named by `trackTag` — which is also the
+   * card's own off-switch (a track at its end stops the whole effect).
+   */
+  mcBank?: {size: number, trackTag: Tag};
   /** Cubes seeded onto MarsBot's tracks during setup (RB-B special cubes). */
   trackCubes?: ReadonlyArray<MarsBotTrackCube>;
   /**
@@ -226,6 +234,24 @@ const CORP_INFO: Readonly<Record<MarsBotCorpId, MarsBotCorpInfo>> = {
       ]},
     ],
   },
+  [MarsBotCorpId.C06_MINING_GUILD]: {
+    id: MarsBotCorpId.C06_MINING_GUILD,
+    cardNumber: 'C06',
+    original: CardName.MINING_GUILD,
+    startingTags: [Tag.BUILDING, Tag.BUILDING],
+    resource: 'megacredits',
+    mcBank: {size: 10, trackTag: Tag.BUILDING},
+    corpBonusCards: [],
+    sections: [
+      {kind: 'setup', lines: [
+        {icon: 'megacredits', text: 'Place ${0} M€ on this card', params: ['10']},
+      ]},
+      {kind: 'effect', lines: [
+        {icon: 'megacredits', text: 'While the building track is not at its end, every M€ MarsBot gains is taken from this card instead'},
+        {icon: 'deck', text: 'When the card empties: put ${0} M€ back on it and advance the building track', params: ['10']},
+      ]},
+    ],
+  },
   [MarsBotCorpId.C45_SPIRE]: {
     id: MarsBotCorpId.C45_SPIRE,
     cardNumber: 'C45',
@@ -280,6 +306,8 @@ export function corpOwningBonusCard(id: BonusCardId): MarsBotCorpInfo | undefine
  * Inventrix: inventrixTriggers / inventrixMc (the requirement effect),
  *           doItRightPlayed and its branch tally doItRightTemperature /
  *           doItRightGreeneries / doItRightOceans / doItRightNoEffect.
+ * Mining Guild: miningGuildBanked (M€ that flowed THROUGH the card) /
+ *           miningGuildRefills (times it emptied = building-track advances).
  * Helion:   whiteCubesHit / blackCubesHit (cubes reached), helionCardsDrawn
  *           (white-cube draws), helionTemperatureSteps (black-cube raises),
  *           helionTemperatureReplaced (printed raises the white cube took over).

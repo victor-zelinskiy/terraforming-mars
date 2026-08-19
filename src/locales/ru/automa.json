@@ -376,5 +376,10 @@
   "Add Do It Right to MarsBot's action deck": "Добавить «Сделай как надо» в колоду действий Бота",
   "Do It Right pushes the first global parameter that is 1-2 steps from a bonus, or does nothing": "«Сделай как надо» подталкивает первый параметр, до бонуса которого 1-2 шага, либо не делает ничего",
   "Otherwise: no effect": "Иначе: эффекта нет",
-  "Inventrix: MarsBot pushes the first global parameter that is 1-2 steps from a bonus, or places an ocean next to 2 oceans — otherwise nothing. Recurs into the action deck every generation.": "Inventrix: Бот подталкивает первый параметр, до бонуса которого 1-2 шага, либо ставит океан рядом с 2 океанами — иначе ничего. Возвращается в колоду действий каждое поколение."
+  "Inventrix: MarsBot pushes the first global parameter that is 1-2 steps from a bonus, or places an ocean next to 2 oceans — otherwise nothing. Recurs into the action deck every generation.": "Inventrix: Бот подталкивает первый параметр, до бонуса которого 1-2 шага, либо ставит океан рядом с 2 океанами — иначе ничего. Возвращается в колоду действий каждое поколение.",
+  "${0} placed ${1} M€ on its corporation ${2}": "${0} кладёт ${1} М€ на свою корпорацию ${2}",
+  "${0} emptied its corporation ${1} — ${2} M€ go back on the card and the building track advances": "${0} опустошает карту корпорации ${1} — на неё возвращаются ${2} М€, а трек строительства продвигается",
+  "Place ${0} M€ on this card": "Положить ${0} М€ на эту карту",
+  "While the building track is not at its end, every M€ MarsBot gains is taken from this card instead": "Пока трек строительства не на конце, каждый М€, получаемый Ботом, берётся с этой карты",
+  "When the card empties: put ${0} M€ back on it and advance the building track": "Когда карта пустеет: вернуть на неё ${0} М€ и продвинуть трек строительства"
 }

@@ -1,6 +1,6 @@
 # Добавление новой корпорации MarsBot — чеклист
 
-Пошаговая процедура. Контракт подсистемы: `docs/claude/marsbot-corporations.md`. Официальные данные и трактовки: `docs/AUTOMA_DATA_AUDIT.md` §10. Реализованные образцы: **C01 Credicor** (эффект + драфт-приоритет), **C02 Ecoline** (своя бонус-карта B23 + ресурс на карте), **C03 Helion** (кубы на треках), **C04 Interplanetary Cinematics** (эффект на каждое продвижение трека + белые маркеры-напоминания), **C05 Inventrix** (уничтожение карты бонусной колоды на сетапе + своя recurring-карта B25, чья лестница общая с B06), **C45 Spire** (стартовая метка + ресурс + Before-Action-Phase).
+Пошаговая процедура. Контракт подсистемы: `docs/claude/marsbot-corporations.md`. Официальные данные и трактовки: `docs/AUTOMA_DATA_AUDIT.md` §10. Реализованные образцы: **C01 Credicor** (эффект + драфт-приоритет), **C02 Ecoline** (своя бонус-карта B23 + ресурс на карте), **C03 Helion** (кубы на треках), **C04 Interplanetary Cinematics** (эффект на каждое продвижение трека + белые маркеры-напоминания), **C05 Inventrix** (уничтожение карты бонусной колоды на сетапе + своя recurring-карта B25, чья лестница общая с B06), **C06 Mining Guild** (банк M€ на карте, перехват дохода бота в `Stock.add`), **C45 Spire** (стартовая метка + ресурс + Before-Action-Phase).
 
 Правило `.claude/rules/marsbot-corps.md` загружается само, когда трогаешь `src/server/automa/corps/**` — этот файл его полная версия.
 
@@ -33,6 +33,7 @@ Co-located файл, реализующий ТОЛЬКО те хуки, что �
 - [ ] `onProjectCardResolving?` — «When resolving a card …»: срабатывает ДО обработки меток, Failed Action его не гасит.
 - [ ] `onTrackCubeTrigger?` — эффект куба; вернуть `'replaces-action'` ТОЛЬКО если карта явно говорит «instead of».
 - [ ] `onTrackAdvance?` — «когда бот продвигает такой-то трек»: срабатывает на КАЖДЫЙ успешный шаг (каскад платит по шагам, maxed = Failed Action и не платит).
+- [ ] `onMegacreditsGained?` — «когда бот получает M€»: диспатчится из `Stock.add`, срабатывает на ЛЮБОЙ доход (клетка, покрытые иконки, Failed Action, чужой корп-эффект); хук реентерабелен — то, что он делает, может дать боту ещё M€.
 - [ ] `resolveBonusCard?` — своя B-карта (см. §3).
 - [ ] Подача: эффект внутри хода — `game.events.beginEffect(bot, {kind:'corporation', card: this.info.original, owner: bot.color}, 'automa-corporation')` + `AutomaTurnLog.setCause(game, {kind:'corporation'})` с восстановлением прежней причины (`getCause`); действие ВНЕ хода — `beginAction(..., {category: 'corporation-action'})`.
 - [ ] Каждый значимый шаг — `bumpCorpStat(game, '<key>', n)`.
@@ -57,6 +58,7 @@ Co-located файл, реализующий ТОЛЬКО те хуки, что �
 | Карта бонус-колоды уничтожается на сетапе | `destroyedBonusCards` + `bonusDeck`/`bonusDiscard`/`actionDeck` (образец C05) | вычистить из ВСЕХ трёх мест; если карта уже заняла бонусный слот колоды 1-го поколения — отдать слот следующей из `bonusDeck` (размер колоды не меняется) |
 | Печатная ветка, повторяющая другую карту | общий модуль (образец `AutomaNearBonusPush` для B06/B15/B25) | физику вынести в ОДИН модуль, карте оставить её судьбу и её fallback — иначе две копии правила разойдутся |
 | Ресурс на карте корпорации | `resource` + `corpResources` + капсула `.pcard__res` | объявить `resource`; для НЕ-card-resource дать `iconUrl`-override в `marsBotCorpPremiumVm` |
+| Перехват ДОХОДА бота (M€) | `mcBank` + `onMegacreditsGained` (образец C06) | точка одна — `Stock.add`; слив писать циклом (доход может опустошить карту несколько раз) и помнить о реентерабельности: продвижение само может заплатить боту |
 | Стартовые метки | `AutomaResolver.resolveTag` при выборе корпорации | ничего: трек двигается, действия клеток срабатывают, RB-B human-реакторы уведомляются |
 | Атака человека по ресурсу корпорации | `AutomaTargeting.corpPlantPool/removeCorpPlants` | новый вид ресурса = свой pool + опции в соответствующем deferred action |
 

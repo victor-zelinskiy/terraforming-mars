@@ -4,6 +4,7 @@ import {Resource, StandardResource} from '../../common/Resource';
 import {CrashSiteCleanup} from '../cards/promo/CrashSiteCleanup';
 import {From, isFromPlayer} from '../logs/From';
 import {BaseStock} from './StockBase';
+import {AutomaCorporations} from '../automa/corps/AutomaCorporations';
 
 export class Stock extends BaseStock {
   public add(
@@ -48,6 +49,16 @@ export class Stock extends BaseStock {
     }
 
     this.player.game?.events?.recordResourceDelta(this.player, resource, delta, /* production*/ false, options?.from, options?.stealing, this[resource]);
+
+    // MarsBot CORPORATION hook: a corporation may redirect where the bot's M€
+    // come from (Mining Guild's bank pays them and turns each full stack into
+    // a building-track advance). The gain itself already happened — this is
+    // the one choke point every bot income passes through, so no caller needs
+    // to know. Silent for every other corporation. (Production has the same
+    // shape of automa hook — see Production.add.)
+    if (delta > 0 && resource === Resource.MEGACREDITS && this.player.isMarsBot) {
+      AutomaCorporations.onBotGainedMegacredits(this.player.game, delta);
+    }
 
     const from = options?.from;
     if (isFromPlayer(from)) {

@@ -71,6 +71,12 @@ describe('MarsBotCorpFace (.pcard template)', () => {
     expect(mountFace(MarsBotCorpId.C01_CREDICOR).find('.pcard__res').exists()).is.false;
     expect(mountFace(MarsBotCorpId.C03_HELION).find('.pcard__res').exists(), 'Helion stores nothing on its card').is.false;
     expect(mountFace(MarsBotCorpId.C05_INVENTRIX).find('.pcard__res').exists(), 'Inventrix stores nothing either').is.false;
+
+    // Mining Guild banks M€ ON the card — the same socket, the standard M€ icon.
+    const guild = mountFace(MarsBotCorpId.C06_MINING_GUILD, 10);
+    expect(guild.find('.pcard__res').exists()).is.true;
+    expect(guild.find('.pcard__res-count').text()).eq('10');
+    expect(guild.find('.pcard__res-icon').attributes('style') ?? '').contains('megacredit');
   });
 
   it('no human corporation rule leaks onto the face', () => {
@@ -110,6 +116,16 @@ describe('marsBotCorpRules — the «§ ПРАВИЛА» groups', () => {
     const groups = marsBotCorpAnnotations(MarsBotCorpId.C45_SPIRE);
     expect(groups.map((g) => g.labelKey)).deep.eq(['Draft priority', 'Corporation effect', 'Before action phase']);
     expect(groups.every((g) => g.rows.length > 0)).is.true;
+  });
+
+  it('Mining Guild prints its bank and its off-switch, never the human steel bonus', () => {
+    const groups = marsBotCorpAnnotations(MarsBotCorpId.C06_MINING_GUILD);
+    expect(groups.map((g) => g.labelKey)).deep.eq(['Corporation setup', 'Corporation effect']);
+    const text = groups.flatMap((g) => g.rows.map((r) => r.text)).join(' ');
+    expect(text).contains('10');
+    expect(text).contains('building track');
+    // The human Mining Guild gains steel for building/steel tiles — not a bot rule.
+    expect(text).not.match(/steel/i);
   });
 
   it('Inventrix prints all three boxes, and never the human draw-3 rule', () => {

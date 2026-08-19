@@ -14,6 +14,7 @@ import {MarsBotCredicor} from './MarsBotCredicor';
 import {MarsBotHelion} from './MarsBotHelion';
 import {MarsBotInterplanetaryCinematics} from './MarsBotInterplanetaryCinematics';
 import {MarsBotInventrix} from './MarsBotInventrix';
+import {MarsBotMiningGuild} from './MarsBotMiningGuild';
 import {MarsBotDraftResolver} from './MarsBotDraftResolver';
 import {MarsBotEcoline} from './MarsBotEcoline';
 import {MarsBotSpire} from './MarsBotSpire';
@@ -47,6 +48,7 @@ export class AutomaCorporations {
     [MarsBotCorpId.C03_HELION]: MarsBotHelion,
     [MarsBotCorpId.C04_INTERPLANETARY_CINEMATICS]: MarsBotInterplanetaryCinematics,
     [MarsBotCorpId.C05_INVENTRIX]: MarsBotInventrix,
+    [MarsBotCorpId.C06_MINING_GUILD]: MarsBotMiningGuild,
     [MarsBotCorpId.C45_SPIRE]: MarsBotSpire,
   };
 
@@ -306,6 +308,16 @@ export class AutomaCorporations {
     // track (Helion's draw resolves a card), and a cube must never fire twice.
     automa.corpCubesTriggered.add(key);
     return corp.onTrackCubeTrigger(game, cube, printedAction) === 'replaces-action';
+  }
+
+  /**
+   * The bot GAINED M€ — dispatched from the one choke point every gain goes
+   * through (`Stock.add`), so a corporation that redirects its income (C06's
+   * bank) sees all of it and no caller has to know. Silent for every other
+   * corporation and for non-automa games.
+   */
+  public static onBotGainedMegacredits(game: IGame, amount: number): void {
+    AutomaCorporations.activeCorp(game)?.onMegacreditsGained?.(game, amount);
   }
 
   /** Corporation Effect dispatch — EVERY path that resolves a bot project card calls this first. */

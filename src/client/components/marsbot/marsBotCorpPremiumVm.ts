@@ -29,14 +29,14 @@ import {standardResourceIconUrl} from '@/client/components/premiumCard/premiumCa
  *
  * Identity (title wordmark/art/lore) rides the ORIGINAL corporation's
  * CardName exactly as everywhere else. No human rule can leak: the render
- * data below is authored from the official bot cards (C01–C05/C45), never
+ * data below is authored from the official bot cards (C01–C06/C45), never
  * read from the human manifest card.
  *
  * PURE (no Vue/DOM/i18n) — unit-tested under the server runner. The
  * `CardRenderer` import is the shared data-DSL (common types only).
  */
 
-/** The symbolic rule rows of each official bot card (C01 / C02 / C03 / C04 / C05 / C45). */
+/** The symbolic rule rows of each official bot card (C01–C06 / C45). */
 function renderDataOf(id: MarsBotCorpId): ICardRenderRoot {
   switch (id) {
   case MarsBotCorpId.C01_CREDICOR:
@@ -87,6 +87,15 @@ function renderDataOf(id: MarsBotCorpId): ICardRenderRoot {
       // BEFORE ACTION PHASE: Do It Right joins the action deck, forever.
       b.action(undefined, (eb) => {
         eb.plate('Do It Right').startAction.cards(1);
+      });
+    });
+  case MarsBotCorpId.C06_MINING_GUILD:
+    return CardRenderer.builder((b) => {
+      // EFFECT, in one line: every full stack of M€ the bot earns through
+      // this card advances the BUILDING track. The bank itself is the
+      // resource capsule below; the asterisk sends the reader to the rules.
+      b.effect(undefined, (eb) => {
+        eb.megacredits(10).asterix().startEffect.tag(Tag.BUILDING);
       });
     });
   case MarsBotCorpId.C45_SPIRE:
@@ -156,6 +165,7 @@ export function buildMarsBotCorpPremiumVm(id: MarsBotCorpId, resources: number):
     resource: vm.resource === undefined ? undefined : {
       ...vm.resource,
       ...(info.resource === 'plant' ? {iconUrl: standardResourceIconUrl(Resource.PLANTS)} : {}),
+      ...(info.resource === 'megacredits' ? {iconUrl: standardResourceIconUrl(Resource.MEGACREDITS)} : {}),
     },
   };
   vmCache.set(key, result);

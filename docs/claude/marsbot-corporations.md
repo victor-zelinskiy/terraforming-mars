@@ -1,6 +1,6 @@
 # MarsBot corporations — the production framework (RB-B «Adding Corporations»)
 
-**Status: production (2026-08-19; C04 и C05 добавлены 2026-08-20).** Реализованные корпорации: **C01 Credicor · C02 Ecoline (+B23 Rapid Sprouting) · C03 Helion (track cubes) · C04 Interplanetary Cinematics (per-advance эффект + белые маркеры) · C05 Inventrix (+B25 Do It Right, destroy-at-setup) · C45 Spire**. Официальные данные и трактовки: `docs/AUTOMA_DATA_AUDIT.md` §10 (RB-B транскрибирован полностью). Дизайн-референс upstream-типов: `docs/AUTOMA_CORP_FRAMEWORK_REFERENCE.md` (историческая записка — реализация НЕ по его фасаду).
+**Status: production (2026-08-19; C04, C05 и C06 добавлены 2026-08-20).** Реализованные корпорации: **C01 Credicor · C02 Ecoline (+B23 Rapid Sprouting) · C03 Helion (track cubes) · C04 Interplanetary Cinematics (per-advance эффект + белые маркеры) · C05 Inventrix (+B25 Do It Right, destroy-at-setup) · C06 Mining Guild (банк M€ на карте) · C45 Spire**. Официальные данные и трактовки: `docs/AUTOMA_DATA_AUDIT.md` §10 (RB-B транскрибирован полностью). Дизайн-референс upstream-типов: `docs/AUTOMA_CORP_FRAMEWORK_REFERENCE.md` (историческая записка — реализация НЕ по его фасаду).
 
 ## Модель
 
@@ -63,6 +63,18 @@ Primitive, введённый вместе с **C05 Inventrix**:
 - **Общая лестница** `AutomaNearBonusPush.pushNearestBonus(game, 'ocean' | 'venus')` — печатные варианты a/b/c карт **B06/B15 Lobbyists** и **B25 Do It Right** совпадают дословно, поэтому физика (и ключ ветки для обзора хода) живёт в ОДНОМ модуле; каждая карта владеет только своей судьбой и своим (d). Одна реализация = один ответ на правило «1–2 шага до бонуса» для обеих карт.
 - **«No effect» — печатный исход, а не Failed Action.** Компенсацию 5 M€ бот получает, когда попытался и не смог; карта, которая печатает «d. No effect», просто ничего не делает (закреплено тестом).
 
+## Банк M€ на карте корпорации (перехват дохода бота)
+
+Primitive, введённый вместе с **C06 Mining Guild**:
+
+- **Данные**: `MarsBotCorpInfo.mcBank = {size, trackTag}` — сколько кладётся на карту и какой трек двигается при опустошении (трек назван ТЕГОМ, как и кубы).
+- **Точка перехвата ОДНА**: `Stock.add` (`delta > 0 && resource === MEGACREDITS && player.isMarsBot`) → `AutomaCorporations.onBotGainedMegacredits` → хук корпорации `onMegacreditsGained`. Доходы бота приходят отовсюду (клетки треков, покрытые иконки, компенсация Failed Action, эффекты других корпораций) — перехватывать их по местам было бы решетом. Прецедент слоя: `Production.add` уже держит automa-ветку.
+- **Семантика «take it from this card instead»**: карта — РЕЗЕРВУАР, а не пошлина. Бот получает M€ как обычно (его баланс растёт), просто кубики берутся с карты; то, что карта реально конвертирует — доход в ТЕМП: каждые полные `size` M€ = одно бесплатное продвижение трека.
+- **Слив — цикл, а не вычитание**: доход больше остатка опустошает карту, перезаправляет её, двигает трек и продолжает брать из свежей стопки (25 M€ при полной карте = 2 продвижения и 5 M€ на карте).
+- **«#18» = КОНЕЦ трека** (`track.maxPosition`), а не литерал: продвижение никогда не становится Failed Action, а на конце эффект честно выключается — остаток дохода идёт из общего запаса.
+- **Реентерабельность**: продвижение само может заплатить боту (покрытые иконки океана, компенсация Failed Action) и снова войти в слив. Перезаправка выполняется ДО продвижения, поэтому вложенный доход уже видит полную карту; есть счётчик глубины (`MAX_DRAIN_DEPTH`) как runaway-гард. Инвариант, закреплённый тестом: `banked === refills * size + (size − остаток)`.
+- **Подача**: `resource: 'megacredits'` → штатная капсула `.pcard__res` с `iconUrl`-override на стандартную иконку M€ (M€ не `CardResource`, как и растения Ecoline).
+
 ## FAQ Ecoline (RB-B)
 
 Растение НА карте корпорации — отдельная цель атак растений: `AutomaTargeting.corpPlantPool/removeCorpPlants` (excess is LOST, никогда не из M€-supply; вор получает ровно снятое). Опции в `RemoveAnyPlants` + `StealResources` (любой человек в мультиплеере); generic-прокси не тронут.
@@ -89,4 +101,4 @@ Primitive, введённый вместе с **C05 Inventrix**:
 
 ## Тесты
 
-`tests/automa/AutomaCorporations.spec.ts` (framework/selection/collision/serialization), `MarsBotCredicor.spec.ts`, `MarsBotEcoline.spec.ts` (B23 lifecycle + FAQ), `MarsBotHelion.spec.ts` (кубы: сетап/замещение/spent-once/Failed/сериализация), `MarsBotInterplanetaryCinematics.spec.ts` (per-advance: стартовые метки/каскад/чужой трек/maxed/регресс/белые маркеры), `MarsBotInventrix.spec.ts` (destroy Lobbyists во всех трёх позициях + Венера, эффект требования, lifecycle B25, все четыре ветки лестницы), `MarsBotSpire.spec.ts`, `tests/common/automa/MarsBotCorpData.spec.ts` (данные + no-human-leak), клиентские `MarsBotCorpFace.spec.ts`, `MarsBotTracksCubes.spec.ts` / review-спеки; e2e `console-bot-corporation.spec.ts` + `console-bot-corp-cubes.spec.ts`. В automa-тестах хелпер форсит **C01 Credicor по умолчанию** (самая инертная корпорация) — corp-тесты передают свою или `'random'`.
+`tests/automa/AutomaCorporations.spec.ts` (framework/selection/collision/serialization), `MarsBotCredicor.spec.ts`, `MarsBotEcoline.spec.ts` (B23 lifecycle + FAQ), `MarsBotHelion.spec.ts` (кубы: сетап/замещение/spent-once/Failed/сериализация), `MarsBotInterplanetaryCinematics.spec.ts` (per-advance: стартовые метки/каскад/чужой трек/maxed/регресс/белые маркеры), `MarsBotInventrix.spec.ts` (destroy Lobbyists во всех трёх позициях + Венера, эффект требования, lifecycle B25, все четыре ветки лестницы), `MarsBotMiningGuild.spec.ts` (частичный слив/перезаправка/перенос/несколько кругов, off-switch на конце трека, реентерабельность, чужой игрок и чужой ресурс), `MarsBotSpire.spec.ts`, `tests/common/automa/MarsBotCorpData.spec.ts` (данные + no-human-leak), клиентские `MarsBotCorpFace.spec.ts`, `MarsBotTracksCubes.spec.ts` / review-спеки; e2e `console-bot-corporation.spec.ts` + `console-bot-corp-cubes.spec.ts`. В automa-тестах хелпер форсит **C01 Credicor по умолчанию** (самая инертная корпорация) — corp-тесты передают свою или `'random'`.

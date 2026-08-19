@@ -43,6 +43,15 @@ export type MarsBotCorp = {
   onProjectCardResolving?(game: IGame, card: IProjectCard): void;
 
   /**
+   * MarsBot just GAINED `amount` M€ (a positive `stock.add`, from anywhere:
+   * a track cell, a covered bonus icon, a Failed Action, another corporation
+   * effect). Runs INSIDE that gain, after the bot's balance changed — a
+   * corporation may redirect where those M€ came from (C06's bank), never
+   * whether the bot got them. Re-entrant: whatever it does may gain more.
+   */
+  onMegacreditsGained?(game: IGame, amount: number): void;
+
+  /**
    * MarsBot's marker ADVANCED one space on `trackIndex` (the space it landed
    * on is `position`). Fires for EVERY successful advance — a card's printed
    * tag, a cascade, a corporation's own starting tag — and never for a

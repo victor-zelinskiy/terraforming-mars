@@ -2612,6 +2612,20 @@ const analyzeBotCorporation: Analyzer = (ctx) => {
           scale: 6,
         });
       }
+    } else if (corp.id === 'C06') {
+      // Mining Guild: every full bank of income became a free building-track
+      // advance. One refill is a footnote; three are a second engine.
+      const refills = stat('miningGuildRefills');
+      const banked = stat('miningGuildBanked');
+      if (refills >= 3) {
+        stories.push({
+          key: 'effect',
+          textKey: '${0}\'s corporation ${1} turned income into construction: ${2} M€ ran through the card and pushed the building track ${3} extra times.',
+          params: [raw(p.name), raw(corp.name), raw(banked), raw(refills)],
+          measure: refills,
+          scale: 6,
+        });
+      }
     } else if (corp.id === 'C45') {
       // Spire: the science engine — multi-tag cards banked into cities + TR.
       const cities = stat('citiesPlaced');
