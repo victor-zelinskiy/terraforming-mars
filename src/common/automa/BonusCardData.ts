@@ -104,7 +104,7 @@ export const BONUS_CARD_INFO: Readonly<Record<BonusCardId, BonusCardInfo>> = {
   [BonusCardId.B24_SUPPLY_AND_DEMAND]: {name: 'Supply and Demand', text: 'Factorum: MarsBot takes 3 M€ off the Factorum card, or everything left on it; an empty card advances the power track instead. Recurs into the action deck every generation.'},
   [BonusCardId.B25_DO_IT_RIGHT]: {name: 'Do It Right', text: 'Inventrix: MarsBot pushes the first global parameter that is 1-2 steps from a bonus, or places an ocean next to 2 oceans — otherwise nothing. Recurs into the action deck every generation.'},
   [BonusCardId.B26_VENUSIAN_LOBBY]: {name: 'Venusian Lobby', text: 'A corporation-specific bonus card (outside the POC scope).'},
-  [BonusCardId.B27_BUILD_BUILD_BUILD]: {name: 'Build Build Build', text: 'A corporation-specific bonus card (outside the POC scope).'},
+  [BonusCardId.B27_BUILD_BUILD_BUILD]: {name: 'Build Build Build', text: 'Philares: MarsBot builds a city beside one of the opponent\'s greeneries, or a special tile from its played pile beside one of their cities — paying M€ either way; otherwise it takes 3 M€ and goes back into the bonus deck.'},
   [BonusCardId.B28_DIVERSIFICATION]: {name: 'Diversification', text: 'Robinson Industries: MarsBot advances its least-advanced track, then loses 4 M€ if it can afford it. Recurs into the action deck every generation.'},
   [BonusCardId.B29_GRAY_EMINENCE]: {name: 'Gray Eminence', text: 'A corporation-specific bonus card (outside the POC scope).'},
   [BonusCardId.B30_INTERFACE_HYPERLINK]: {name: 'Interface Hyperlink', text: 'A corporation-specific bonus card (outside the POC scope).'},
@@ -345,6 +345,20 @@ export function buildBonusCardView(id: BonusCardId, ctx: BonusCardContext): Bonu
         {icon: 'energy', text: 'Only if the card was completely empty: the power track advances instead'},
       ],
       fate: {kind: 'recurring', text: 'At the beginning of every generation it is shuffled back into MarsBot\'s action deck'},
+    };
+  case BonusCardId.B27_BUILD_BUILD_BUILD:
+    // Philares' corporation-specific card (official B27): an a/b/c ladder that
+    // deliberately builds AGAINST the opponent's tiles — every branch that
+    // lands creates a new border, which is what the corporation feeds on.
+    return {
+      name,
+      lines: [
+        {text: 'MarsBot performs the FIRST possible option:'},
+        {icon: 'city', text: 'Place a city next to one of the opponent\'s greeneries, then pay ${0} M€', params: ['5']},
+        {icon: 'tile', text: 'Place a special tile from its played pile next to one of their cities — that card is destroyed and it pays ${0} M€', params: ['3']},
+        {icon: 'megacredits', text: 'Otherwise: MarsBot gains ${0} M€', params: ['3'], muted: true},
+      ],
+      fate: {kind: 'conditional', text: 'Options 1–2 discard it; the fallback shuffles it back into the bonus deck'},
     };
   case BonusCardId.B23_RAPID_SPROUTING:
     // Ecoline's corporation-specific card (official B23).

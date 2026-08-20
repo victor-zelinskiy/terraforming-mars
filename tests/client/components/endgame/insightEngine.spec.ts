@@ -341,6 +341,32 @@ describe('insightEngine', () => {
         MarsBotCorpId.C21_PHARMACY_UNION, 'Pharmacy Union')).is.empty;
     });
 
+    it('C22 tells the border, the road it bought and the card as SEPARATE stories', () => {
+      const insights = botInsights({philaresBorders: 12, philaresScience: 13, philaresSpends: 3,
+        philaresSteps: 3, buildPlayed: 4, buildCities: 2, buildSpecialTiles: 1},
+      MarsBotCorpId.C22_PHILARES, 'Philares');
+      expect(insights).has.length(3);
+      expect(insights.map((i) => i.id).sort()).deep.eq([
+        'reason.bot-corporation.red',
+        'reason.bot-corporation.red.build-card',
+        'reason.bot-corporation.red.science-spent',
+      ]);
+      const border = insights.find((i) => i.textKey.includes('shared frontier'));
+      const road = insights.find((i) => i.textKey.includes('frontier was a road'));
+      const built = insights.find((i) => i.textKey.includes('did not wait to be neighboured'));
+      expect(border, 'the borders have their own card').is.not.undefined;
+      expect(road, 'the conversions have their own card').is.not.undefined;
+      expect(built, 'the bonus card has its own card').is.not.undefined;
+      expect(border!.textKey, 'neither sentence carries another\'s fact').not.contains('science');
+      expect(border!.params.map((p) => p.v)).contains('12');
+      expect(built!.params.map((p) => p.v)).contains('3');
+    });
+
+    it('C22 keeps quiet when the two builds barely touched', () => {
+      expect(botInsights({philaresBorders: 3, philaresScience: 4, philaresSpends: 1, philaresSteps: 1},
+        MarsBotCorpId.C22_PHILARES, 'Philares')).is.empty;
+    });
+
     it('the draft fallback speaks only when no printed effect did', () => {
       const withEffect = botInsights({credicorTriggers: 6, credicorMc: 24, fiveCardDecks: 3},
         MarsBotCorpId.C01_CREDICOR, 'CrediCor');

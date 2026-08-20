@@ -121,7 +121,8 @@ export class AutomaController {
       routeBonusCard(game, entry.id, outcome);
       AutomaTurnLog.setCause(game, undefined);
       const fate: MarsBotBonusFate = outcome === 'destroy' ? 'destroyed' :
-        (automa.recurringBonusCards.includes(entry.id) ? 'recurring' : 'discarded');
+        outcome === 'return-to-deck' ? 'reshuffled' :
+          (automa.recurringBonusCards.includes(entry.id) ? 'recurring' : 'discarded');
       AutomaTurnLog.setBonusFate(game, fate);
     }
 

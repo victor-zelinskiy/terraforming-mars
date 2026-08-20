@@ -160,6 +160,7 @@ const FATE_LABEL: Record<MarsBotBonusFate, string> = {
   destroyed: 'Destroyed this turn',
   discarded: 'Discarded',
   recurring: 'Returns to the deck',
+  reshuffled: 'Shuffled back into the bonus deck',
 };
 
 export default defineComponent({

@@ -655,6 +655,28 @@ const CORP_INFO: Readonly<Record<MarsBotCorpId, MarsBotCorpInfo>> = {
       ]},
     ],
   },
+  [MarsBotCorpId.C22_PHILARES]: {
+    id: MarsBotCorpId.C22_PHILARES,
+    cardNumber: 'C22',
+    original: CardName.PHILARES,
+    // No starting tag and no draft-priority plate are printed.
+    startingTags: [],
+    // The science it collects from every new border with the opponent.
+    resource: 'science',
+    corpBonusCards: [BonusCardId.B27_BUILD_BUILD_BUILD],
+    sections: [
+      {kind: 'setup', lines: [
+        {icon: 'greenery', text: 'MarsBot places a greenery tile and raises oxygen ${0} step', params: ['1']},
+        {icon: 'science', text: 'Place ${0} science resource on this card', params: ['1']},
+        {icon: 'deck', text: 'Local Neural Instance resolves now and is then destroyed'},
+        {icon: 'deck', text: 'Build Build Build is shuffled into the bonus deck'},
+      ]},
+      {kind: 'effect', lines: [
+        {icon: 'science', text: 'Every NEW border between the opponent\'s tiles and MarsBot\'s — whoever placed the tile — puts ${0} science resource here', params: ['1']},
+        {icon: 'cards', text: 'Then, if it can, MarsBot spends ${0} science from here to advance its most-advanced unfinished track', params: ['4']},
+      ]},
+    ],
+  },
   [MarsBotCorpId.C45_SPIRE]: {
     id: MarsBotCorpId.C45_SPIRE,
     cardNumber: 'C45',
@@ -741,6 +763,11 @@ export function corpOwningBonusCard(id: BonusCardId): MarsBotCorpInfo | undefine
  *           tharsisBotCities (event-track advances its own cities produced).
  * Teractor: teractorAdvances (Earth-track advances that paid) / teractorMc
  *           (M€ paid by them; the 25 M€ setup gain is not counted here).
+ * Philares:  philaresBorders (new borders with the opponent) /
+ *           philaresScience (science they placed on the card),
+ *           philaresSpends / philaresSteps (the 4-science conversions and
+ *           the track advances they bought), buildPlayed and its branch
+ *           tally buildCities / buildSpecialTiles / buildMc (its own B27).
  * Pharmacy Union: pharmacySeeded (the science card its setup seeded),
  *           pharmacyMicrobeTags / pharmacyMcLost (the opponent's microbe
  *           tags and what they cost it), pharmacyScienceCards /

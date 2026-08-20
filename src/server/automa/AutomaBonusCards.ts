@@ -25,14 +25,21 @@ import {AutomaColonies} from './AutomaColonies';
 import {AutomaMilestonesAwards} from './AutomaMilestonesAwards';
 import {pushNearestBonus} from './AutomaNearBonusPush';
 import {AutomaResearch} from './AutomaResearch';
+import {inplaceShuffle} from '../utils/shuffle';
 import {AutomaResolver} from './AutomaResolver';
 import {AutomaTilePlacer} from './AutomaTilePlacer';
 import {AutomaTurnLog} from './AutomaTurnLog';
 import {humansOf, marsBotOf, pickVictim} from './AutomaUtil';
 import {THARSIS_TRACK} from './boards/TharsisMarsBot';
 
-/** Where a resolved bonus card goes. Recurring cards (B16, later B19/B20) stay in their holding pool. */
-export type BonusCardOutcome = 'discard' | 'destroy';
+/**
+ * Where a resolved bonus card goes. Recurring cards (B16, later B19/B20) stay
+ * in their holding pool; `'return-to-deck'` is the one printed fate that puts a
+ * card straight back into the BONUS DECK instead of the discard — C22/B27's
+ * fallback branch («shuffle this card back into the bonus deck»), which keeps
+ * it in the rotation right now rather than after the next reshuffle.
+ */
+export type BonusCardOutcome = 'discard' | 'destroy' | 'return-to-deck';
 
 /**
  * "MarsBot advances the (Martian) global parameter furthest from completion.
@@ -592,6 +599,14 @@ export function routeBonusCard(game: IGame, id: BonusCardId, outcome: BonusCardO
       automa.recurringBonusCards.splice(recurring, 1);
     }
     game.log('MarsBot bonus card was destroyed and removed from the game');
+    return;
+  }
+  if (outcome === 'return-to-deck') {
+    // Printed on the card itself, so it outranks the discard: back into the
+    // live deck, shuffled, available again this game.
+    automa.bonusDeck.push({kind: 'bonus', id});
+    inplaceShuffle(automa.bonusDeck, game.rng);
+    game.log('MarsBot bonus card was shuffled back into its bonus deck');
     return;
   }
   if (automa.recurringBonusCards.includes(id)) {

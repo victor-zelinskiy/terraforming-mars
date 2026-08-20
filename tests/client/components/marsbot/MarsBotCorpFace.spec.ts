@@ -60,6 +60,8 @@ describe('MarsBotCorpFace (.pcard template)', () => {
       'C20 prints ONE power starting tag').has.length(1);
     expect(mountFace(MarsBotCorpId.C21_PHARMACY_UNION).findAll('.pcard__tags .pcard-tag'),
       'C21 prints ONE science starting tag — never the human microbe pair').has.length(1);
+    expect(mountFace(MarsBotCorpId.C22_PHILARES).findAll('.pcard__tags .pcard-tag'),
+      'C22 prints NO starting tag — never the human building one').is.empty;
     expect(mountFace(MarsBotCorpId.C18_ARCADIAN_COMMUNITIES).findAll('.pcard__tags .pcard-tag'),
       'C18 prints ONE building starting tag').has.length(1);
     // C04 prints TWO event tags — both sit on the rail (the bot card's tags,
@@ -272,6 +274,21 @@ describe('marsBotCorpRules — the «§ ПРАВИЛА» groups', () => {
     // it may remove for TR — none of that is on the bot card.
     expect(text).not.contains('54');
     expect(text).not.match(/disease|face down/i);
+  });
+
+  it('Philares prints the border rule and its own card, never the human resource choice', () => {
+    const groups = marsBotCorpAnnotations(MarsBotCorpId.C22_PHILARES);
+    expect(groups.map((g) => g.labelKey)).deep.eq(['Corporation setup', 'Corporation effect']);
+    const text = groups.flatMap((g) => g.rows.map((r) => r.text)).join(' ');
+    expect(text).contains('Local Neural Instance');
+    expect(text).contains('Build Build Build');
+    expect(text, 'the symmetry is the rule, and the panel keeps it').contains('whoever placed the tile');
+    expect(text).contains('science');
+    // The human Philares starts with 47 M€ and takes a STANDARD RESOURCE OF
+    // ITS CHOICE per adjacency — the bot takes science and spends it on a
+    // track, and neither of the human's lines may appear here.
+    expect(text).not.contains('47');
+    expect(text).not.match(/of your choice|standard resource/i);
   });
 
   it('ThorGate prints its cubes and the first-tag clause, never the human discount', () => {

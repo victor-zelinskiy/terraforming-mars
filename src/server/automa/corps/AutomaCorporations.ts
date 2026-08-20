@@ -28,6 +28,7 @@ import {MarsBotArcadianCommunities} from './MarsBotArcadianCommunities';
 import {MarsBotAstroDrill} from './MarsBotAstroDrill';
 import {MarsBotFactorum} from './MarsBotFactorum';
 import {MarsBotPharmacyUnion} from './MarsBotPharmacyUnion';
+import {MarsBotPhilares} from './MarsBotPhilares';
 import {MarsBotVitor} from './MarsBotVitor';
 import {MarsBotSaturnSystems} from './MarsBotSaturnSystems';
 import {MarsBotTeractor} from './MarsBotTeractor';
@@ -84,6 +85,7 @@ export class AutomaCorporations {
     [MarsBotCorpId.C19_ASTRO_DRILL]: MarsBotAstroDrill,
     [MarsBotCorpId.C20_FACTORUM]: MarsBotFactorum,
     [MarsBotCorpId.C21_PHARMACY_UNION]: MarsBotPharmacyUnion,
+    [MarsBotCorpId.C22_PHILARES]: MarsBotPhilares,
     [MarsBotCorpId.C45_SPIRE]: MarsBotSpire,
   };
 

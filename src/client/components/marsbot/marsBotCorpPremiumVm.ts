@@ -258,6 +258,28 @@ function renderDataOf(id: MarsBotCorpId): ICardRenderRoot {
         eb.tag(Tag.SCIENCE).startEffect.tr(1);
       });
     });
+  case MarsBotCorpId.C22_PHILARES:
+    return CardRenderer.builder((b) => {
+      // EFFECT, first half — the HUMAN Philares' own printed shape for the
+      // identical sentence (two small tiles, one theirs, one not), with the
+      // bot's science on the card where the human takes a wild resource.
+      b.effect(undefined, (eb) => {
+        eb.emptyTile('normal', {size: Size.SMALL, all}).nbsp;
+        eb.emptyTile('normal', {size: Size.SMALL}).startEffect.resource(CardResource.SCIENCE);
+      });
+      // EFFECT, second half: 4 of that science buys ONE track advance — the
+      // wild tag is this face's established «a track» symbol (C14/C15/C19),
+      // and the asterisk says «not just any one»: the exact target (the
+      // most-advanced unfinished track) is one panel away in «§ ПРАВИЛА».
+      b.effect(undefined, (eb) => {
+        eb.resource(CardResource.SCIENCE, 4).startEffect.wild(1).asterix();
+      });
+      // What its OWN bonus card does when it comes up: a city planted against
+      // the opponent's greenery, paid for — a border, bought.
+      b.effect(undefined, (eb) => {
+        eb.plate('Build Build Build').startEffect.city().megacredits(-5);
+      });
+    });
   case MarsBotCorpId.C45_SPIRE:
     return CardRenderer.builder((b) => {
       // EFFECT: a card with 2+ tags adds a science resource here — the

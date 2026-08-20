@@ -2900,6 +2900,40 @@ const analyzeBotCorporation: Analyzer = (ctx) => {
           scale: 20,
         });
       }
+    } else if (corp.id === 'C22') {
+      // Philares reads the SHAPE of the map, so its stories are about borders
+      // — never welded to each other: how much frontier the two sides shared,
+      // what that frontier bought, and the card that went out to force one.
+      const borders = stat('philaresBorders');
+      const steps = stat('philaresSteps');
+      if (borders >= 5) {
+        stories.push({
+          key: 'effect',
+          textKey: 'Every metre of shared frontier paid ${0}\'s ${1}: ${2} new borders formed between the two builds, and the bot filed every one of them.',
+          params: [raw(p.name), raw(corp.name), raw(borders)],
+          measure: borders,
+          scale: 20,
+        });
+      }
+      if (steps >= 2) {
+        stories.push({
+          key: 'science-spent',
+          textKey: 'And the frontier was a road: ${2} times ${1} cashed 4 stored science into a step on the track it was already leading.',
+          params: [raw(p.name), raw(corp.name), raw(steps)],
+          measure: steps,
+          scale: 6,
+        });
+      }
+      const builds = stat('buildCities') + stat('buildSpecialTiles');
+      if (builds >= 1) {
+        stories.push({
+          key: 'build-card',
+          textKey: '${1} did not wait to be neighboured either — ${2} time(s) it paid its way onto a cell right against ${0}\'s own tiles.',
+          params: [raw(p.name), raw(corp.name), raw(builds)],
+          measure: builds,
+          scale: 4,
+        });
+      }
     } else if (corp.id === 'C45') {
       // Spire: the science engine — multi-tag cards banked into cities + TR.
       const cities = stat('citiesPlaced');

@@ -120,6 +120,20 @@ describe('buildBonusCardView — the card face resolved for THIS game', () => {
     expect(buildBonusCardView(BonusCardId.B24_SUPPLY_AND_DEMAND, VENUS)).deep.eq(view);
   });
 
+  it('Build Build Build (B27) states the ladder, both prices and its own way back', () => {
+    const view = buildBonusCardView(BonusCardId.B27_BUILD_BUILD_BUILD, BASE);
+    expect(view.name).eq('Build Build Build');
+    expect(view.lines).has.length(4);
+    expect(view.lines[0].text, 'a FIRST-possible ladder, and the header says so').to.include('FIRST possible');
+    expect(view.lines[1]).to.deep.include({icon: 'city', params: ['5']});
+    expect(view.lines[2]).to.deep.include({icon: 'tile', params: ['3']});
+    expect(view.lines[2].text, '«destroy that card» is part of the rule').to.include('destroyed');
+    expect(view.lines[3]).to.deep.include({icon: 'megacredits', params: ['3']});
+    expect(view.fate.kind, 'where it goes depends on the branch it took').eq('conditional');
+    expect(view.fate.text, 'and the fallback\'s own destination is named').to.include('bonus deck');
+    expect(buildBonusCardView(BonusCardId.B27_BUILD_BUILD_BUILD, VENUS)).deep.eq(view);
+  });
+
   it('an out-of-scope card degrades to its printed summary', () => {
     const view = buildBonusCardView(BonusCardId.B21_PARTY_POLITICS, BASE);
     expect(view.lines).has.length(1);

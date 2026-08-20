@@ -77,7 +77,7 @@ export type MarsBotStepCause =
 export type MarsBotLogRole = 'tie-flip' | 'colony-pick-flip' | 'resource-loss';
 
 /** What became of a bonus card THIS turn (Phase B — resolved, not the printed rule). */
-export type MarsBotBonusFate = 'discarded' | 'destroyed' | 'recurring';
+export type MarsBotBonusFate = 'discarded' | 'destroyed' | 'recurring' | 'reshuffled';
 
 /**
  * The RESOLVED outcome of the played bonus card this turn:
