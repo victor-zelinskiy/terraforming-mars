@@ -2837,6 +2837,20 @@ const analyzeBotCorporation: Analyzer = (ctx) => {
           scale: 15,
         });
       }
+    } else if (corp.id === 'C19') {
+      // Astro Drill: its cubes line the SPACE track and its black ones push
+      // that same track, so the space programme feeds itself — what the player
+      // saw is a bot that kept getting extra moves out of one lane.
+      const pushes = stat('astroSteps');
+      if (pushes >= 3) {
+        stories.push({
+          key: 'effect',
+          textKey: '${1} turned ${0}\'s space programme into a flywheel: ${2} extra pushes came off it \u2014 some driving space further, the rest shoring up whatever was weakest.',
+          params: [raw(p.name), raw(corp.name), raw(pushes)],
+          measure: pushes,
+          scale: 6,
+        });
+      }
     } else if (corp.id === 'C45') {
       // Spire: the science engine — multi-tag cards banked into cities + TR.
       const cities = stat('citiesPlaced');

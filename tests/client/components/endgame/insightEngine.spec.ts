@@ -291,6 +291,19 @@ describe('insightEngine', () => {
         MarsBotCorpId.C18_ARCADIAN_COMMUNITIES, 'Arcadian Communities')).is.empty;
     });
 
+    it('C19 counts the extra pushes, and speaks in its own voice — not C14\'s', () => {
+      const drill = botInsights({astroWhiteCubes: 3, astroBlackCubes: 2, astroSteps: 5},
+        MarsBotCorpId.C19_ASTRO_DRILL, 'Astro Drill');
+      expect(drill).has.length(1);
+      expect(drill[0].textKey).contains('flywheel');
+      expect(drill[0].params.map((p) => p.v)).contains('5');
+
+      // The two corporations share an EFFECT, never a sentence.
+      const luna = botInsights({lunaSteps: 5}, MarsBotCorpId.C14_POINT_LUNA, 'Point Luna');
+      expect(luna).has.length(1);
+      expect(luna[0].textKey).is.not.eq(drill[0].textKey);
+    });
+
     it('the draft fallback speaks only when no printed effect did', () => {
       const withEffect = botInsights({credicorTriggers: 6, credicorMc: 24, fiveCardDecks: 3},
         MarsBotCorpId.C01_CREDICOR, 'CrediCor');

@@ -54,6 +54,8 @@ describe('MarsBotCorpFace (.pcard template)', () => {
       'C16\'s science symbol is its draft priority, not a starting tag').is.false;
     expect(mountFace(MarsBotCorpId.C17_VITOR).find('.pcard__tags').exists(),
       'C17 prints no starting tag — the human Vitor\'s Earth tag never leaks').is.false;
+    expect(mountFace(MarsBotCorpId.C19_ASTRO_DRILL).find('.pcard__tags').exists(),
+      'C19\'s space symbol is its draft priority, not a starting tag').is.false;
     expect(mountFace(MarsBotCorpId.C18_ARCADIAN_COMMUNITIES).findAll('.pcard__tags .pcard-tag'),
       'C18 prints ONE building starting tag').has.length(1);
     // C04 prints TWO event tags — both sit on the rail (the bot card's tags,
@@ -219,6 +221,20 @@ describe('marsBotCorpRules — the «§ ПРАВИЛА» groups', () => {
     // on the bot card (the 3 M€ reserved-area rule is, and is printed there).
     expect(text).not.contains('40');
     expect(text).not.match(/steel|adjacent to one of your/i);
+  });
+
+  it('Astro Drill prints its space-track cubes, never the human asteroid action', () => {
+    const groups = marsBotCorpAnnotations(MarsBotCorpId.C19_ASTRO_DRILL);
+    expect(groups.map((g) => g.labelKey)).deep.eq(['Draft priority', 'Corporation setup', 'Corporation effect']);
+    const text = groups.flatMap((g) => g.rows.map((r) => r.text)).join(' ');
+    expect(text).contains('2, 4, 7, 10, 13');
+    expect(text).contains('5, 11, 16');
+    expect(text).contains('least-advanced');
+    expect(text).contains('space track');
+    // The human AstroDrill starts with 42 M€ and spends/gains asteroid
+    // resources with a repeatable action — none of that is on the bot card.
+    expect(text).not.contains('42');
+    expect(text).not.match(/asteroid resource|remove 1 asteroid/i);
   });
 
   it('ThorGate prints its cubes and the first-tag clause, never the human discount', () => {

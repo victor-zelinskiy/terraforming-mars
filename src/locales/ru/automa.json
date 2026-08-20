@@ -382,6 +382,7 @@
   "While the building track is not at its end, every M€ MarsBot gains is taken from this card instead": "Пока трек строительства не на конце, каждый М€, получаемый Ботом, берётся с этой карты",
   "When the card empties: put ${0} M€ back on it and advance the building track": "Когда карта пустеет: вернуть на неё ${0} М€ и продвинуть трек строительства",
   "Reveal project cards until ${0} of them carry a space tag — all of them are shuffled into the bonus deck": "Вскрывать карты проектов, пока среди них не окажется ${0} с меткой космоса — все они замешиваются в бонусную колоду",
+  "A black cube on the space track spaces ${0}": "Чёрный куб на клетки трека космоса: ${0}",
   "A white cube on the space track spaces ${0}": "Белый куб на клетки трека космоса: ${0}",
   "Advancing onto a white cube: MarsBot draws and resolves a card from the bonus deck": "Дойдя до белого куба: Бот берёт и разыгрывает карту из бонусной колоды",
   "Advancing onto it: MarsBot draws and resolves a card from the bonus deck": "Дойдя до него: Бот берёт и разыгрывает карту из бонусной колоды",

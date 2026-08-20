@@ -561,6 +561,46 @@ const CORP_INFO: Readonly<Record<MarsBotCorpId, MarsBotCorpInfo>> = {
       ]},
     ],
   },
+  [MarsBotCorpId.C19_ASTRO_DRILL]: {
+    id: MarsBotCorpId.C19_ASTRO_DRILL,
+    cardNumber: 'C19',
+    original: CardName.ASTRODRILL,
+    // No starting tag is printed — the space symbol on this card is its
+    // DRAFT PRIORITY plate.
+    startingTags: [],
+    draftPriority: {type: 'tags', tags: [Tag.SPACE]},
+    corpBonusCards: [],
+    // SETUP box, verbatim: WHITE on the space track #2, #4, #7, #10, #13;
+    // BLACK on the space track #5, #11, #16 — the black cubes sit on the very
+    // track they push, which is what makes this corporation accelerate.
+    trackCubes: [
+      {tag: Tag.SPACE, position: 2, cubeType: 'white'},
+      {tag: Tag.SPACE, position: 4, cubeType: 'white'},
+      {tag: Tag.SPACE, position: 5, cubeType: 'black'},
+      {tag: Tag.SPACE, position: 7, cubeType: 'white'},
+      {tag: Tag.SPACE, position: 10, cubeType: 'white'},
+      {tag: Tag.SPACE, position: 11, cubeType: 'black'},
+      {tag: Tag.SPACE, position: 13, cubeType: 'white'},
+      {tag: Tag.SPACE, position: 16, cubeType: 'black'},
+    ],
+    // Word for word C14's legend — the same two keys, deliberately not a
+    // second phrasing of the same rule.
+    cubeLegend: {
+      white: 'Advancing onto it: MarsBot advances its least-advanced track',
+      black: 'Advancing onto it: MarsBot advances the space track',
+    },
+    sections: [
+      {kind: 'draftPriority', lines: [{text: 'Space'}]},
+      {kind: 'setup', lines: [
+        {icon: 'cube-white', text: 'A white cube on the space track spaces ${0}', params: ['2, 4, 7, 10, 13']},
+        {icon: 'cube-black', text: 'A black cube on the space track spaces ${0}', params: ['5, 11, 16']},
+      ]},
+      {kind: 'effect', lines: [
+        {icon: 'cards', text: 'Advancing onto a white cube: MarsBot advances its least-advanced track (the topmost if tied)'},
+        {icon: 'cards', text: 'Advancing onto a black cube: MarsBot advances the space track'},
+      ]},
+    ],
+  },
   [MarsBotCorpId.C45_SPIRE]: {
     id: MarsBotCorpId.C45_SPIRE,
     cardNumber: 'C45',
@@ -619,6 +659,8 @@ export function corpOwningBonusCard(id: BonusCardId): MarsBotCorpInfo | undefine
  *           trigger produced) split into saturnFromHuman / saturnFromBot.
  * Point Luna: lunaWhiteCubes / lunaBlackCubes (cubes reached) and lunaSteps
  *           (track advances they produced).
+ * Astro Drill: astroWhiteCubes / astroBlackCubes / astroSteps — the same
+ *           three counters, for the same printed effect on its own track.
  * Cheung Shing Mars: cheungCubesHit / cheungMc (the silver cubes it collected).
  * Arcadian Communities: arcadianMarkers (areas it claimed), arcadianBuilds /
  *           arcadianMc (tiles it later built on its own claims, and what
