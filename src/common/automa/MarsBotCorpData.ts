@@ -103,12 +103,16 @@ export type MarsBotCorpInfo = {
    */
   mcBank?: {size: number, trackTag: Tag};
   /**
-   * A setup box that SEEDS the bonus deck with project cards (C07): reveal
-   * project cards until `count` of them carry `tag`, then shuffle everything
-   * revealed into the bonus deck. From then on a bonus-deck draw can yield a
-   * project card, which is resolved as one.
+   * A setup box that SEEDS the bonus deck with project cards: reveal project
+   * cards until `count` of them carry `tag`, then shuffle them in. From then
+   * on a bonus-deck draw can yield a project card, which is resolved as one.
+   *
+   * `shuffle` is the DISPOSAL, and the two cards that print this differ only
+   * there: C07 PhoboLog says «shuffle THESE cards» (everything revealed),
+   * C21 Pharmacy Union says «shuffle IT» (only the matching card; the rest are
+   * discarded). Absent ⇒ 'all-revealed', C07's behaviour.
    */
-  bonusDeckSeed?: {tag: Tag, count: number};
+  bonusDeckSeed?: {tag: Tag, count: number, shuffle?: 'all-revealed' | 'matching-only'};
   /** Cubes seeded onto MarsBot's tracks during setup (RB-B special cubes). */
   trackCubes?: ReadonlyArray<MarsBotTrackCube>;
   /**
@@ -628,6 +632,29 @@ const CORP_INFO: Readonly<Record<MarsBotCorpId, MarsBotCorpInfo>> = {
       ]},
     ],
   },
+  [MarsBotCorpId.C21_PHARMACY_UNION]: {
+    id: MarsBotCorpId.C21_PHARMACY_UNION,
+    cardNumber: 'C21',
+    original: CardName.PHARMACY_UNION,
+    startingTags: [Tag.SCIENCE],
+    draftPriority: {type: 'tags', tags: [Tag.SCIENCE]},
+    corpBonusCards: [],
+    // «Reveal cards … until you've revealed a card with a science tag, and
+    // shuffle IT into the bonus deck» — singular, so only the science card is
+    // seeded and the rest of the reveal is discarded.
+    bonusDeckSeed: {tag: Tag.SCIENCE, count: 1, shuffle: 'matching-only'},
+    sections: [
+      {kind: 'draftPriority', lines: [{text: 'Science'}]},
+      {kind: 'setup', lines: [
+        {icon: 'deck', text: 'Meteor Shower is destroyed — removed from the game'},
+        {icon: 'cards', text: 'Project cards are revealed until one carries a science tag; that card joins the bonus deck'},
+      ]},
+      {kind: 'effect', lines: [
+        {icon: 'megacredits', text: 'A microbe tag its opponent plays costs MarsBot ${0} M€ — or everything it has', params: ['4']},
+        {icon: 'tr', text: 'Resolving a card with a science tag — its own starting tag included — raises MarsBot\'s TR ${0} step', params: ['1']},
+      ]},
+    ],
+  },
   [MarsBotCorpId.C45_SPIRE]: {
     id: MarsBotCorpId.C45_SPIRE,
     cardNumber: 'C45',
@@ -714,6 +741,10 @@ export function corpOwningBonusCard(id: BonusCardId): MarsBotCorpInfo | undefine
  *           tharsisBotCities (event-track advances its own cities produced).
  * Teractor: teractorAdvances (Earth-track advances that paid) / teractorMc
  *           (M€ paid by them; the 25 M€ setup gain is not counted here).
+ * Pharmacy Union: pharmacySeeded (the science card its setup seeded),
+ *           pharmacyMicrobeTags / pharmacyMcLost (the opponent's microbe
+ *           tags and what they cost it), pharmacyScienceCards /
+ *           pharmacyOwnTag / pharmacyTr (the TR its own science bought).
  * Phobolog: phobologSeeded (project cards shuffled into the bonus deck),
  *           phobologCubesHit, phobologBonusCards / phobologProjectCards (what
  *           those cubes actually drew).

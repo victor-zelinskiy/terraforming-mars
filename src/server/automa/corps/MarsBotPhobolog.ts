@@ -1,12 +1,10 @@
 import {TrackAction} from '../../../common/automa/AutomaTypes';
 import {MarsBotCorpId, MarsBotTrackCube, marsBotCorpInfo} from '../../../common/automa/MarsBotCorpData';
 import {IGame} from '../../IGame';
-import {IProjectCard} from '../../cards/IProjectCard';
-import {inplaceShuffle} from '../../utils/shuffle';
 import {drawAndResolveBonusDeckCard} from '../AutomaCardDraw';
-import {AutomaResolver} from '../AutomaResolver';
 import {AutomaTurnLog} from '../AutomaTurnLog';
 import {bumpCorpStat, marsBotOf} from '../AutomaUtil';
+import {seedBonusDeckFromProjectDeck} from './MarsBotBonusDeckOps';
 import {MarsBotCorp} from './MarsBotCorp';
 
 const INFO = marsBotCorpInfo(MarsBotCorpId.C07_PHOBOLOG);
@@ -43,35 +41,18 @@ export const MarsBotPhobolog: MarsBotCorp = {
   info: INFO,
 
   setup(game: IGame): void {
-    const automa = game.automa;
-    if (automa === undefined) {
-      return;
-    }
-    const bot = marsBotOf(game);
-    const revealed: Array<IProjectCard> = [];
-    let withTag = 0;
-    while (withTag < SEED.count) {
-      const card = game.projectDeck.draw(game);
-      if (card === undefined) {
-        break; // Draw + discard piles exhausted — impossible in a real game.
-      }
-      revealed.push(card);
-      if (AutomaResolver.printedTags(card).includes(SEED.tag)) {
-        withTag++;
-      }
-    }
+    // The reveal is the SHARED setup primitive; this card's own half is the
+    // disposal — «shuffle THESE cards» seeds everything that was turned over
+    // (C21 Pharmacy Union seeds only the matching one).
+    const {revealed} = seedBonusDeckFromProjectDeck(game, SEED, SEED.shuffle ?? 'all-revealed');
     if (revealed.length === 0) {
       return;
     }
-    for (const card of revealed) {
-      automa.bonusDeck.push({kind: 'project', name: card.name});
-    }
-    inplaceShuffle(automa.bonusDeck, game.rng);
     bumpCorpStat(game, 'phobologSeeded', revealed.length);
     // Named out loud: these cards left the project deck, and the human is
     // entitled to know which ones now sit in the bot's bonus deck.
     game.log('${0} shuffled ${1} revealed project cards into its bonus deck: ${2}',
-      (b) => b.player(bot).number(revealed.length).cards(revealed));
+      (b) => b.player(marsBotOf(game)).number(revealed.length).cards(revealed));
   },
 
   onTrackCubeTrigger(game: IGame, cube: MarsBotTrackCube, _printedAction: TrackAction | undefined): 'replaces-action' | void {

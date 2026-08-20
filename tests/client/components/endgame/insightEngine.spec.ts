@@ -322,6 +322,25 @@ describe('insightEngine', () => {
         MarsBotCorpId.C20_FACTORUM, 'Factorum')).is.empty;
     });
 
+    it('C21 tells its two OPPOSITE halves as separate stories', () => {
+      const insights = botInsights({pharmacyTr: 6, pharmacyScienceCards: 5, pharmacyOwnTag: 1,
+        pharmacyMicrobeTags: 4, pharmacyMcLost: 14},
+      MarsBotCorpId.C21_PHARMACY_UNION, 'Pharmacy Union');
+      expect(insights).has.length(2);
+      expect(insights.map((i) => i.id).sort()).deep.eq(
+        ['reason.bot-corporation.red', 'reason.bot-corporation.red.microbe-toll']);
+      const paid = insights.find((i) => i.textKey.includes('shortest road to standing'));
+      const taxed = insights.find((i) => i.textKey.includes('could not stomach'));
+      expect(paid, 'the TR it earned has its own card').is.not.undefined;
+      expect(taxed, 'the toll it paid has its own card').is.not.undefined;
+      expect(paid!.textKey, 'neither sentence carries the other half').not.contains('microbe');
+    });
+
+    it('C21 keeps quiet when neither half moved much', () => {
+      expect(botInsights({pharmacyTr: 2, pharmacyMicrobeTags: 1, pharmacyMcLost: 4},
+        MarsBotCorpId.C21_PHARMACY_UNION, 'Pharmacy Union')).is.empty;
+    });
+
     it('the draft fallback speaks only when no printed effect did', () => {
       const withEffect = botInsights({credicorTriggers: 6, credicorMc: 24, fiveCardDecks: 3},
         MarsBotCorpId.C01_CREDICOR, 'CrediCor');

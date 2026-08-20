@@ -2876,6 +2876,30 @@ const analyzeBotCorporation: Analyzer = (ctx) => {
           scale: 5,
         });
       }
+    } else if (corp.id === 'C21') {
+      // Pharmacy Union points BOTH ways, so it may tell two stories: the TR
+      // its own research bought, and the toll the opponent's biology charged
+      // it. They are opposite halves of one card and never one sentence.
+      const tr = stat('pharmacyTr');
+      if (tr >= 4) {
+        stories.push({
+          key: 'effect',
+          textKey: 'Research was ${0}\'s ${1} shortest road to standing: ${2} of its projects carried a laboratory, and each one lifted the bot a rating step.',
+          params: [raw(p.name), raw(corp.name), raw(tr)],
+          measure: tr,
+          scale: 8,
+        });
+      }
+      const lost = stat('pharmacyMcLost');
+      if (lost >= 8) {
+        stories.push({
+          key: 'microbe-toll',
+          textKey: 'Biology was the one thing ${1} could not stomach: every microbe its opponent brought to Mars billed ${0}\'s bot — ${2} M€ over the game.',
+          params: [raw(p.name), raw(corp.name), raw(lost)],
+          measure: lost,
+          scale: 20,
+        });
+      }
     } else if (corp.id === 'C45') {
       // Spire: the science engine — multi-tag cards banked into cities + TR.
       const cities = stat('citiesPlaced');

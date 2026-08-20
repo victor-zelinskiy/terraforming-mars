@@ -58,6 +58,8 @@ describe('MarsBotCorpFace (.pcard template)', () => {
       'C19\'s space symbol is its draft priority, not a starting tag').is.false;
     expect(mountFace(MarsBotCorpId.C20_FACTORUM).findAll('.pcard__tags .pcard-tag'),
       'C20 prints ONE power starting tag').has.length(1);
+    expect(mountFace(MarsBotCorpId.C21_PHARMACY_UNION).findAll('.pcard__tags .pcard-tag'),
+      'C21 prints ONE science starting tag — never the human microbe pair').has.length(1);
     expect(mountFace(MarsBotCorpId.C18_ARCADIAN_COMMUNITIES).findAll('.pcard__tags .pcard-tag'),
       'C18 prints ONE building starting tag').has.length(1);
     // C04 prints TWO event tags — both sit on the rail (the bot card's tags,
@@ -256,6 +258,20 @@ describe('marsBotCorpRules — the «§ ПРАВИЛА» groups', () => {
     // standard-project action — none of that is on the bot card.
     expect(text).not.contains('37');
     expect(text).not.match(/standard project|steel/i);
+  });
+
+  it('Pharmacy Union prints both directions of its effect, never the human disease action', () => {
+    const groups = marsBotCorpAnnotations(MarsBotCorpId.C21_PHARMACY_UNION);
+    expect(groups.map((g) => g.labelKey)).deep.eq(['Draft priority', 'Corporation setup', 'Corporation effect']);
+    const text = groups.flatMap((g) => g.rows.map((r) => r.text)).join(' ');
+    expect(text).contains('Meteor Shower');
+    expect(text).contains('microbe tag');
+    expect(text).contains('science tag');
+    expect(text, 'the partial payment is stated, never dropped').contains('everything it has');
+    // The human Pharmacy Union starts with 54 M€ and stores DISEASE resources
+    // it may remove for TR — none of that is on the bot card.
+    expect(text).not.contains('54');
+    expect(text).not.match(/disease|face down/i);
   });
 
   it('ThorGate prints its cubes and the first-tag clause, never the human discount', () => {

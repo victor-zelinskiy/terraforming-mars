@@ -4,6 +4,7 @@ import {MarsBotCorpId, marsBotCorpInfo} from '../../../common/automa/MarsBotCorp
 import {IGame} from '../../IGame';
 import {IProjectCard} from '../../cards/IProjectCard';
 import {NearBonusBranch, pushNearestBonus} from '../AutomaNearBonusPush';
+import {destroyBonusCard} from './MarsBotBonusDeckOps';
 import {AutomaTurnLog} from '../AutomaTurnLog';
 import {bumpCorpStat, marsBotOf} from '../AutomaUtil';
 import type {BonusCardOutcome} from '../AutomaBonusCards';
@@ -49,39 +50,14 @@ export const MarsBotInventrix: MarsBotCorp = {
   info: marsBotCorpInfo(MarsBotCorpId.C05_INVENTRIX),
 
   setup(game: IGame): void {
-    const automa = game.automa;
-    if (automa === undefined) {
-      return;
-    }
     for (const id of LOBBYISTS) {
-      const inDeck = automa.bonusDeck.findIndex((entry) => entry.kind === 'bonus' && entry.id === id);
-      if (inDeck !== -1) {
-        automa.bonusDeck.splice(inDeck, 1);
+      // The three-place cleanup (bonus deck / discard / the generation-1
+      // action-deck slot, handed to the next bonus card) is the SHARED setup
+      // primitive — C21 Pharmacy Union destroys Meteor Shower the same way.
+      if (destroyBonusCard(game, id)) {
+        game.log('${0} destroyed Lobbyists from its bonus deck — Do It Right replaces it',
+          (b) => b.player(marsBotOf(game)));
       }
-      const inDiscard = automa.bonusDiscard.indexOf(id);
-      if (inDiscard !== -1) {
-        automa.bonusDiscard.splice(inDiscard, 1);
-      }
-      // This engine builds generation 1's action deck at game creation —
-      // BEFORE the corporation exists — so Lobbyists may already hold that
-      // deck's one bonus slot. At the table the setup box runs first and the
-      // slot would have gone to the next bonus card: hand it over, so the
-      // deck keeps its printed size instead of losing a card.
-      const inAction = automa.actionDeck.findIndex((entry) => entry.kind === 'bonus' && entry.id === id);
-      if (inAction !== -1) {
-        const replacement = automa.bonusDeck.shift();
-        if (replacement === undefined) {
-          automa.actionDeck.splice(inAction, 1);
-        } else {
-          automa.actionDeck[inAction] = replacement;
-        }
-      }
-      if (inDeck === -1 && inDiscard === -1 && inAction === -1) {
-        continue; // This printing is not part of this game (only one ever is).
-      }
-      automa.destroyedBonusCards.push(id);
-      game.log('${0} destroyed Lobbyists from its bonus deck — Do It Right replaces it',
-        (b) => b.player(marsBotOf(game)));
     }
   },
 

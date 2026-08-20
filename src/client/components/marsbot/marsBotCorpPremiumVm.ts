@@ -30,14 +30,14 @@ import {standardResourceIconUrl} from '@/client/components/premiumCard/premiumCa
  *
  * Identity (title wordmark/art/lore) rides the ORIGINAL corporation's
  * CardName exactly as everywhere else. No human rule can leak: the render
- * data below is authored from the official bot cards (C01–C20/C45), never
+ * data below is authored from the official bot cards (C01–C21/C45), never
  * read from the human manifest card.
  *
  * PURE (no Vue/DOM/i18n) — unit-tested under the server runner. The
  * `CardRenderer` import is the shared data-DSL (common types only).
  */
 
-/** The symbolic rule rows of each official bot card (C01–C20 / C45). */
+/** The symbolic rule rows of each official bot card (C01–C21 / C45). */
 function renderDataOf(id: MarsBotCorpId): ICardRenderRoot {
   switch (id) {
   case MarsBotCorpId.C01_CREDICOR:
@@ -245,6 +245,17 @@ function renderDataOf(id: MarsBotCorpId): ICardRenderRoot {
       // BEFORE ACTION PHASE: Supply and Demand cashes the card out.
       b.action(undefined, (eb) => {
         eb.plate('Supply and Demand').startAction.megacredits(3);
+      });
+    });
+  case MarsBotCorpId.C21_PHARMACY_UNION:
+    return CardRenderer.builder((b) => {
+      // EFFECT, both halves — the card points both ways: any microbe tag the
+      // OPPONENT plays taxes the bot, its own science pays it in TR.
+      b.effect(undefined, (eb) => {
+        eb.tag(Tag.MICROBE, {all}).startEffect.megacredits(-4);
+      });
+      b.effect(undefined, (eb) => {
+        eb.tag(Tag.SCIENCE).startEffect.tr(1);
       });
     });
   case MarsBotCorpId.C45_SPIRE:
