@@ -117,6 +117,20 @@ describe('MarsBotTracks — white trackers', () => {
     expect(wrapper.find('.mb-track--whitemarker').exists()).is.false;
   });
 
+  it('the SILVER cube (C13) draws in its own colour with its own legend', () => {
+    const silver: MarsBotCorpModel = {
+      id: MarsBotCorpId.C13_CHEUNG_SHING_MARS,
+      original: 'Cheung Shing MARS' as MarsBotCorpModel['original'],
+      startingTags: [],
+      resources: 0,
+      cubes: [{trackIndex: 0, position: 4, cubeType: 'credit', spent: false}],
+      stats: {},
+    };
+    const wrapper = mountTracks(silver);
+    expect(wrapper.findAll('.mb-track .mb-cell__cube--credit')).has.length(1);
+    expect(wrapper.find('.mb-cubelegend').text()).contains('5');
+  });
+
   it('a corporation that paints no trackers draws none', () => {
     const wrapper = mountTracks(HELION);
     expect(wrapper.find('.mb-cell__marker').exists()).is.false;

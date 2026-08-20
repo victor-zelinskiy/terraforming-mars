@@ -115,8 +115,13 @@ describe('AutomaCorporations — the MarsBot corporation framework', () => {
       playCorporation(game, humans[0], CardName.CREDICOR);
       expect(game.automa!.corporation, 'selection waits until every corporation is PLAYED').is.undefined;
       playCorporation(game, humans[1], CardName.ECOLINE);
-      // Credicor and Ecoline are taken by humans — only Spire is left.
-      expect(game.automa!.corporation).eq(MarsBotCorpId.C45_SPIRE);
+      // Credicor and Ecoline are taken by humans, so the bot got SOMETHING
+      // else — which one is the seeded random pick's business, and the pool
+      // grows with every implemented corporation.
+      const picked = game.automa!.corporation;
+      expect(picked, 'the bot is never left corpless').is.not.undefined;
+      expect(picked).not.eq(MarsBotCorpId.C01_CREDICOR);
+      expect(picked).not.eq(MarsBotCorpId.C02_ECOLINE);
     });
 
     it('an empty eligible pool is an invariant error, never a corpless bot', () => {

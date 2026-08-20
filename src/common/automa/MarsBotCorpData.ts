@@ -1,6 +1,6 @@
 import {CardName} from '../cards/CardName';
 import {Tag} from '../cards/Tag';
-import {BonusCardId, MARS_BOT_CORP_IDS, MarsBotCorpId, MarsBotCubeType} from './AutomaTypes';
+import {BonusCardId, MARSBOT_MAX_TRACK_POSITION, MARS_BOT_CORP_IDS, MarsBotCorpId, MarsBotCubeType} from './AutomaTypes';
 import {BonusCardEffectLine} from './BonusCardData';
 
 export {MARS_BOT_CORP_IDS, MarsBotCorpId} from './AutomaTypes';
@@ -128,6 +128,17 @@ export type MarsBotCorpInfo = {
  *  - C45 Spire — MarsBot corporation card C45 (starting tag: Earth);
  *  - RB-B p.2 "Special Cases" gives Credicor/Spire their draft rules verbatim.
  */
+/**
+ * C13's setup box: «Place silver resource cube on every space of the building
+ * track starting with space #4» — every space to the end of the track.
+ */
+const CHEUNG_SILVER_CUBES: ReadonlyArray<MarsBotTrackCube> =
+  Array.from({length: MARSBOT_MAX_TRACK_POSITION - 3}, (_, i) => ({
+    tag: Tag.BUILDING,
+    position: i + 4,
+    cubeType: 'credit' as const,
+  }));
+
 const CORP_INFO: Readonly<Record<MarsBotCorpId, MarsBotCorpInfo>> = {
   [MarsBotCorpId.C01_CREDICOR]: {
     id: MarsBotCorpId.C01_CREDICOR,
@@ -389,6 +400,27 @@ const CORP_INFO: Readonly<Record<MarsBotCorpId, MarsBotCorpInfo>> = {
       ]},
     ],
   },
+  [MarsBotCorpId.C13_CHEUNG_SHING_MARS]: {
+    id: MarsBotCorpId.C13_CHEUNG_SHING_MARS,
+    cardNumber: 'C13',
+    original: CardName.CHEUNG_SHING_MARS,
+    startingTags: [Tag.BUILDING],
+    draftPriority: {type: 'tags', tags: [Tag.BUILDING]},
+    corpBonusCards: [],
+    trackCubes: CHEUNG_SILVER_CUBES,
+    cubeLegend: {
+      credit: 'Advancing onto it: MarsBot takes it as 5 M€',
+    },
+    sections: [
+      {kind: 'draftPriority', lines: [{text: 'Building'}]},
+      {kind: 'setup', lines: [
+        {icon: 'cube-credit', text: 'A silver resource cube on every building track space from ${0} on', params: ['#4']},
+      ]},
+      {kind: 'effect', lines: [
+        {icon: 'megacredits', text: 'Advancing onto a silver cube: MarsBot takes it as ${0} M€', params: ['5']},
+      ]},
+    ],
+  },
   [MarsBotCorpId.C45_SPIRE]: {
     id: MarsBotCorpId.C45_SPIRE,
     cardNumber: 'C45',
@@ -445,6 +477,7 @@ export function corpOwningBonusCard(id: BonusCardId): MarsBotCorpInfo | undefine
  *           doItRightGreeneries / doItRightOceans / doItRightNoEffect.
  * Saturn Systems: saturnEventAdvances (event-track advances the Jovian
  *           trigger produced) split into saturnFromHuman / saturnFromBot.
+ * Cheung Shing Mars: cheungCubesHit / cheungMc (the silver cubes it collected).
  * UNMI:     unmiExtraCards (extra bonus cards its Before-Action-Phase box put
  *           into the action deck), subsidyPlayed / subsidyTr (its own B31).
  * Thorgate: thorgateCubesHit / thorgateCardsDrawn (cards the cubes flipped) /

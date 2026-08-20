@@ -79,6 +79,7 @@ export enum MarsBotCorpId {
   C10_THARSIS_REPUBLIC = 'C10',
   C11_THORGATE = 'C11',
   C12_UNMI = 'C12',
+  C13_CHEUNG_SHING_MARS = 'C13',
   C45_SPIRE = 'C45',
 }
 
@@ -96,6 +97,7 @@ export const MARS_BOT_CORP_IDS: ReadonlyArray<MarsBotCorpId> = [
   MarsBotCorpId.C10_THARSIS_REPUBLIC,
   MarsBotCorpId.C11_THORGATE,
   MarsBotCorpId.C12_UNMI,
+  MarsBotCorpId.C13_CHEUNG_SHING_MARS,
   MarsBotCorpId.C45_SPIRE,
 ];
 
@@ -107,6 +109,14 @@ export const MARS_BOT_CORP_IDS: ReadonlyArray<MarsBotCorpId> = [
  * cube that already triggered.
  */
 export type MarsBotCubeType = 'white' | 'black' | 'credit';
+
+/**
+ * What a `'credit'` cube is worth when MarsBot takes it as M€ (C13 Cheung
+ * Shing Mars: «gains it as MC»). The physical token is a SILVER resource
+ * cube, and Terraforming Mars' cubes are 1 (bronze) / 5 (silver) / 10 (gold)
+ * — so a silver one is five.
+ */
+export const MARSBOT_SILVER_CUBE_MC = 5;
 
 export enum BonusCardId {
   // Base game (B01-B08)

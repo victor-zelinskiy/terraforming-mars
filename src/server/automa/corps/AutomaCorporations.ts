@@ -24,6 +24,7 @@ import {MarsBotSaturnSystems} from './MarsBotSaturnSystems';
 import {MarsBotTeractor} from './MarsBotTeractor';
 import {MarsBotTharsisRepublic} from './MarsBotTharsisRepublic';
 import {MarsBotThorgate} from './MarsBotThorgate';
+import {MarsBotCheungShingMars} from './MarsBotCheungShingMars';
 import {MarsBotUnmi} from './MarsBotUnmi';
 import {MarsBotDraftResolver} from './MarsBotDraftResolver';
 import {MarsBotEcoline} from './MarsBotEcoline';
@@ -65,6 +66,7 @@ export class AutomaCorporations {
     [MarsBotCorpId.C10_THARSIS_REPUBLIC]: MarsBotTharsisRepublic,
     [MarsBotCorpId.C11_THORGATE]: MarsBotThorgate,
     [MarsBotCorpId.C12_UNMI]: MarsBotUnmi,
+    [MarsBotCorpId.C13_CHEUNG_SHING_MARS]: MarsBotCheungShingMars,
     [MarsBotCorpId.C45_SPIRE]: MarsBotSpire,
   };
 

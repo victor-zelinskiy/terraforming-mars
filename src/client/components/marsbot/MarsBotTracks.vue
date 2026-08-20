@@ -150,7 +150,9 @@ export default defineComponent({
       switch (cubeType) {
       case 'white': return translateText('White cube');
       case 'black': return translateText('Black cube');
-      default: return translateText('Credit token');
+      // 'credit' is the printed SILVER resource cube (C13) — the bot takes it
+      // as M€ at its component value.
+      default: return translateText('Silver resource cube');
       }
     },
     hintFor(cell: TrackCell, trackIndex: number): string {

@@ -30,14 +30,14 @@ import {standardResourceIconUrl} from '@/client/components/premiumCard/premiumCa
  *
  * Identity (title wordmark/art/lore) rides the ORIGINAL corporation's
  * CardName exactly as everywhere else. No human rule can leak: the render
- * data below is authored from the official bot cards (C01–C12/C45), never
+ * data below is authored from the official bot cards (C01–C13/C45), never
  * read from the human manifest card.
  *
  * PURE (no Vue/DOM/i18n) — unit-tested under the server runner. The
  * `CardRenderer` import is the shared data-DSL (common types only).
  */
 
-/** The symbolic rule rows of each official bot card (C01–C12 / C45). */
+/** The symbolic rule rows of each official bot card (C01–C13 / C45). */
 function renderDataOf(id: MarsBotCorpId): ICardRenderRoot {
   switch (id) {
   case MarsBotCorpId.C01_CREDICOR:
@@ -152,6 +152,13 @@ function renderDataOf(id: MarsBotCorpId): ICardRenderRoot {
       // Its own bonus card is a TR step.
       b.effect(undefined, (eb) => {
         eb.plate('Government Subsidy').startEffect.tr(1);
+      });
+    });
+  case MarsBotCorpId.C13_CHEUNG_SHING_MARS:
+    return CardRenderer.builder((b) => {
+      // EFFECT: the silver cube the bot steps on becomes M€ at its own value.
+      b.effect(undefined, (eb) => {
+        eb.text('◼', Size.SMALL, true).startEffect.megacredits(5);
       });
     });
   case MarsBotCorpId.C45_SPIRE:

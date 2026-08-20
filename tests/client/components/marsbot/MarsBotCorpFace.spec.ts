@@ -122,6 +122,18 @@ describe('marsBotCorpRules — the «§ ПРАВИЛА» groups', () => {
     expect(groups.every((g) => g.rows.length > 0)).is.true;
   });
 
+  it('Cheung Shing Mars prints its silver cubes, never the human building discount', () => {
+    const groups = marsBotCorpAnnotations(MarsBotCorpId.C13_CHEUNG_SHING_MARS);
+    expect(groups.map((g) => g.labelKey)).deep.eq(['Draft priority', 'Corporation setup', 'Corporation effect']);
+    const text = groups.flatMap((g) => g.rows.map((r) => r.text)).join(' ');
+    expect(text).contains('silver');
+    expect(text).contains('#4');
+    expect(text).contains('5');
+    // The human Cheung Shing Mars starts with 3 M€ production and pays 2 less
+    // for building cards.
+    expect(text).not.match(/production|discount|2 less/i);
+  });
+
   it('UNMI prints the trade it makes, never the human 40 M€ / TR action', () => {
     const groups = marsBotCorpAnnotations(MarsBotCorpId.C12_UNMI);
     expect(groups.map((g) => g.labelKey)).deep.eq(['Corporation setup', 'Before action phase']);

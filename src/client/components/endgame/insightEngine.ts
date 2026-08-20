@@ -2728,6 +2728,19 @@ const analyzeBotCorporation: Analyzer = (ctx) => {
           scale: 8,
         });
       }
+    } else if (corp.id === 'C13') {
+      // Cheung Shing Mars: the money was lying on the building track and the
+      // bot walked over it — the cubes are how the counter was measured.
+      const mc = stat('cheungMc');
+      if (mc >= 15) {
+        stories.push({
+          key: 'effect',
+          textKey: 'Construction paid ${0}\'s ${1} by the metre: ${2} M€ waited along the building track and it collected every one.',
+          params: [raw(p.name), raw(corp.name), raw(mc)],
+          measure: mc,
+          scale: 40,
+        });
+      }
     } else if (corp.id === 'C45') {
       // Spire: the science engine — multi-tag cards banked into cities + TR.
       const cities = stat('citiesPlaced');
