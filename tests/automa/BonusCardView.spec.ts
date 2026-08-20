@@ -77,6 +77,14 @@ describe('buildBonusCardView — the card face resolved for THIS game', () => {
     expect(buildBonusCardView(BonusCardId.B25_DO_IT_RIGHT, VENUS)).deep.eq(view);
   });
 
+  it('Government Subsidy (B31) is one printed line and an ordinary discard', () => {
+    const view = buildBonusCardView(BonusCardId.B31_GOVERNMENT_SUBSIDY, BASE);
+    expect(view.name).eq('Government Subsidy');
+    expect(view.lines).has.length(1);
+    expect(view.lines[0]).to.deep.include({icon: 'tr', params: ['1']});
+    expect(view.fate.kind, 'not recurring, not destroyed').eq('discard');
+  });
+
   it('an out-of-scope card degrades to its printed summary', () => {
     const view = buildBonusCardView(BonusCardId.B21_PARTY_POLITICS, BASE);
     expect(view.lines).has.length(1);

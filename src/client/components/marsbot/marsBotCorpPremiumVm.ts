@@ -30,14 +30,14 @@ import {standardResourceIconUrl} from '@/client/components/premiumCard/premiumCa
  *
  * Identity (title wordmark/art/lore) rides the ORIGINAL corporation's
  * CardName exactly as everywhere else. No human rule can leak: the render
- * data below is authored from the official bot cards (C01–C11/C45), never
+ * data below is authored from the official bot cards (C01–C12/C45), never
  * read from the human manifest card.
  *
  * PURE (no Vue/DOM/i18n) — unit-tested under the server runner. The
  * `CardRenderer` import is the shared data-DSL (common types only).
  */
 
-/** The symbolic rule rows of each official bot card (C01–C11 / C45). */
+/** The symbolic rule rows of each official bot card (C01–C12 / C45). */
 function renderDataOf(id: MarsBotCorpId): ICardRenderRoot {
   switch (id) {
   case MarsBotCorpId.C01_CREDICOR:
@@ -140,6 +140,18 @@ function renderDataOf(id: MarsBotCorpId): ICardRenderRoot {
       // sends the reader to the rules) and then warms Mars a step.
       b.effect(undefined, (eb) => {
         eb.text('◻', Size.SMALL, true).startEffect.cards(1).asterix().temperature(1);
+      });
+    });
+  case MarsBotCorpId.C12_UNMI:
+    return CardRenderer.builder((b) => {
+      // BEFORE ACTION PHASE: one EXTRA bonus card joins the action deck every
+      // generation from the second on — a card flowing into a card.
+      b.action(undefined, (eb) => {
+        eb.cards(1).startAction.cards(2);
+      });
+      // Its own bonus card is a TR step.
+      b.effect(undefined, (eb) => {
+        eb.plate('Government Subsidy').startEffect.tr(1);
       });
     });
   case MarsBotCorpId.C45_SPIRE:

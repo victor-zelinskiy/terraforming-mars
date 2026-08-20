@@ -2715,6 +2715,19 @@ const analyzeBotCorporation: Analyzer = (ctx) => {
           scale: 10,
         });
       }
+    } else if (corp.id === 'C12') {
+      // UNMI: the trade is invisible in the rules text but very visible at the
+      // table — the bot simply acted more often than a bot should.
+      const extra = stat('unmiExtraCards');
+      if (extra >= 3) {
+        stories.push({
+          key: 'effect',
+          textKey: '${1} ran ${0} on Earth money: the extra funding bought it ${2} unscheduled moves over the game.',
+          params: [raw(p.name), raw(corp.name), raw(extra)],
+          measure: extra,
+          scale: 8,
+        });
+      }
     } else if (corp.id === 'C45') {
       // Spire: the science engine — multi-tag cards banked into cities + TR.
       const cities = stat('citiesPlaced');

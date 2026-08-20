@@ -122,6 +122,18 @@ describe('marsBotCorpRules — the «§ ПРАВИЛА» groups', () => {
     expect(groups.every((g) => g.rows.length > 0)).is.true;
   });
 
+  it('UNMI prints the trade it makes, never the human 40 M€ / TR action', () => {
+    const groups = marsBotCorpAnnotations(MarsBotCorpId.C12_UNMI);
+    expect(groups.map((g) => g.labelKey)).deep.eq(['Corporation setup', 'Before action phase']);
+    const text = groups.flatMap((g) => g.rows.map((r) => r.text)).join(' ');
+    expect(text).contains('Government Subsidy');
+    expect(text).contains('bonus card');
+    expect(text).contains('generation 2');
+    // The human UNMI starts with 40 M€ and buys TR steps for 3 M€.
+    expect(text).not.contains('40');
+    expect(text).not.match(/action:/i);
+  });
+
   it('ThorGate prints its cubes and the first-tag clause, never the human discount', () => {
     const groups = marsBotCorpAnnotations(MarsBotCorpId.C11_THORGATE);
     expect(groups.map((g) => g.labelKey)).deep.eq(['Draft priority', 'Corporation setup', 'Corporation effect']);

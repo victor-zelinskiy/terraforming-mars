@@ -373,6 +373,22 @@ const CORP_INFO: Readonly<Record<MarsBotCorpId, MarsBotCorpInfo>> = {
       ]},
     ],
   },
+  [MarsBotCorpId.C12_UNMI]: {
+    id: MarsBotCorpId.C12_UNMI,
+    cardNumber: 'C12',
+    original: CardName.UNITED_NATIONS_MARS_INITIATIVE,
+    startingTags: [],
+    corpBonusCards: [BonusCardId.B31_GOVERNMENT_SUBSIDY],
+    sections: [
+      {kind: 'setup', lines: [
+        {icon: 'deck', text: 'Shuffle Government Subsidy into the bonus deck'},
+        {icon: 'deck', text: 'Generation 1 gets NO bonus card in the action deck', muted: true},
+      ]},
+      {kind: 'beforeActionPhase', lines: [
+        {icon: 'deck', text: 'From generation 2 on, one EXTRA bonus card joins the action deck every generation'},
+      ]},
+    ],
+  },
   [MarsBotCorpId.C45_SPIRE]: {
     id: MarsBotCorpId.C45_SPIRE,
     cardNumber: 'C45',
@@ -429,6 +445,8 @@ export function corpOwningBonusCard(id: BonusCardId): MarsBotCorpInfo | undefine
  *           doItRightGreeneries / doItRightOceans / doItRightNoEffect.
  * Saturn Systems: saturnEventAdvances (event-track advances the Jovian
  *           trigger produced) split into saturnFromHuman / saturnFromBot.
+ * UNMI:     unmiExtraCards (extra bonus cards its Before-Action-Phase box put
+ *           into the action deck), subsidyPlayed / subsidyTr (its own B31).
  * Thorgate: thorgateCubesHit / thorgateCardsDrawn (cards the cubes flipped) /
  *           thorgateTemperatureSteps (the raise that follows each one).
  * Tharsis Republic: tharsisHumanCities / tharsisMc (what human cities paid),

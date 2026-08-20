@@ -863,6 +863,7 @@
     "The Neural Instance of ${0} kept ${1} free neighbours — ${1} VP at scoring.": "Нейроинстанция ${0} сохранила ${1} свободных соседних клеток — ${1} ПО при подсчёте.",
     "The VP icons of ${0}'s played pile paid ${1} VP — the difficulty's own card bonus.": "Значки ПО в стопке ${0} принесли ${1} ПО — карточный бонус этой сложности.",
     "Bot corporation": "Корпорация бота",
+    "${1} ran ${0} on Earth money: the extra funding bought it ${2} unscheduled moves over the game.": "${1} вела дела ${0} на земные деньги: дополнительное финансирование купило ей ${2} внеплановых ходов за партию.",
     "The reactors of ${0}'s ${1} never idled: ${2} unplanned projects came off the line and Mars warmed ${3} extra steps.": "Реакторы корпорации ${1} у ${0} не простаивали: с конвейера сошло ${2} внеплановых проектов, а Марс потеплел ещё на ${3}.",
     "${1} taxed the urban boom for ${0}: every city the colonists founded sent ${2} M€ its way (${3} cities).": "${1} собирала дань с городского бума для ${0}: каждый город, основанный колонистами, приносил ей ${2} М€ (городов: ${3}).",
     "Every skyline ${1} raised for ${0} also moved its own agenda: ${2} of its cities pushed the bot forward for free.": "Каждый новый силуэт города, поднятый корпорацией ${1} (у ${0}), двигал и её собственные планы: ${2} её городов бесплатно продвинули бота вперёд.",

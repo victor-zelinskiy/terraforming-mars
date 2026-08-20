@@ -406,5 +406,14 @@
   "A white cube on the power track spaces ${0}": "Белый куб на клетки трека энергии: ${0}",
   "Advancing onto a white cube: MarsBot draws a card and resolves ONLY its first tag": "Дойдя до белого куба: Бот берёт карту и разыгрывает ТОЛЬКО её первую метку",
   "Advancing onto it: MarsBot resolves a card by its FIRST tag only, then raises the temperature 1 step": "Дойдя до него: Бот разыгрывает карту только по ПЕРВОЙ метке, затем повышает температуру на 1 шаг",
-  "Then MarsBot raises the temperature 1 step": "Затем Бот повышает температуру на 1 шаг"
+  "Then MarsBot raises the temperature 1 step": "Затем Бот повышает температуру на 1 шаг",
+  "${0} starts without a bonus card: its corporation ${1} keeps that card in the bonus deck": "${0} начинает без бонусной карты: его корпорация ${1} оставляет ту карту в бонусной колоде",
+  "${0} shuffled Government Subsidy into its bonus deck": "${0} замешивает «Государственную субсидию» в свою бонусную колоду",
+  "${0} added an extra bonus card to its action deck (corporation ${1})": "${0} добавляет дополнительную бонусную карту в колоду действий (корпорация ${1})",
+  "A subsidy from Earth": "Субсидия с Земли",
+  "Shuffle Government Subsidy into the bonus deck": "Замешать «Государственную субсидию» в бонусную колоду",
+  "Generation 1 gets NO bonus card in the action deck": "В 1-м поколении бонусной карты в колоде действий НЕТ",
+  "From generation 2 on, one EXTRA bonus card joins the action deck every generation": "Со 2-го поколения каждое поколение в колоду действий добавляется ЕЩЁ одна бонусная карта",
+  "MarsBot raises its TR ${0} step": "Бот повышает свой РТ на ${0} шаг",
+  "UNMI: MarsBot raises its TR 1 step.": "UNMI: Бот повышает свой РТ на 1 шаг."
 }
