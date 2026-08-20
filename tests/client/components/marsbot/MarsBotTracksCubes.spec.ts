@@ -136,3 +136,75 @@ describe('MarsBotTracks — white trackers', () => {
     expect(wrapper.find('.mb-cell__marker').exists()).is.false;
   });
 });
+
+/**
+ * C29's setup marks two COLUMNS of the mat instead of a track. Every row
+ * shares one grid template, so the reminder is a vertical band crossing every
+ * track — and the physical cube, which stands ABOVE the column, is drawn once,
+ * over the top row.
+ */
+describe('MarsBotTracks — marked columns', () => {
+  const SECOND_TRACK: MarsBotTrackModel = {
+    tags: [Tag.SPACE],
+    position: 0,
+    maxPosition: 18,
+    layout: [undefined, 'advance'],
+    regressed: [],
+  };
+
+  const MANUTECH: MarsBotCorpModel = {
+    id: MarsBotCorpId.C29_MANUTECH,
+    original: 'Manutech' as MarsBotCorpModel['original'],
+    startingTags: [Tag.BUILDING],
+    resources: 0,
+    cubes: [],
+    stats: {},
+  };
+
+  function mountTwoTracks(corporation?: MarsBotCorpModel) {
+    return mount(MarsBotTracks, {
+      props: {tracks: [TRACK, SECOND_TRACK], botColor: 'red' as never, corporation},
+      global: {mocks: {$t: (s: string) => s}},
+    });
+  }
+
+  it('bands BOTH marked columns across EVERY track', () => {
+    const wrapper = mountTwoTracks(MANUTECH);
+    expect(wrapper.findAll('.mb-cell--reminder'), '2 columns × 2 tracks').has.length(4);
+    for (const row of wrapper.findAll('.mb-track')) {
+      const cells = row.findAll('.mb-cell');
+      expect(cells[5].classes(), 'the #5 column').contains('mb-cell--reminder');
+      expect(cells[12].classes(), 'the #12 column').contains('mb-cell--reminder');
+      expect(cells[6].classes(), 'and nothing between them').does.not.contain('mb-cell--reminder');
+    }
+  });
+
+  it('draws the physical cube ONCE per column, above the top row', () => {
+    const wrapper = mountTwoTracks(MANUTECH);
+    expect(wrapper.findAll('.mb-cell__colcube'), 'one cube per marked column').has.length(2);
+    const topRow = wrapper.findAll('.mb-track')[0];
+    expect(topRow.findAll('.mb-cell__colcube'), 'all of them on the top row').has.length(2);
+    // …and the mat OWNS the headroom that cube needs. Without it the hosting
+    // surface clips at the strip's edge and the cube is simply cut away —
+    // which is exactly how it first shipped, DOM present and nothing painted.
+    expect(wrapper.find('.mb-tracks').classes(), 'the reminder headroom')
+      .contains('mb-tracks--reminders');
+  });
+
+  it('the legend names what the marked columns remind of', () => {
+    const wrapper = mountTwoTracks(MANUTECH);
+    const legend = wrapper.find('.mb-cubelegend');
+    expect(legend.exists()).is.true;
+    expect(legend.findAll('.mb-cubelegend__row')).has.length(1);
+    expect(legend.text()).contains('the track takes one more space');
+  });
+
+  it('a corporation that marks no column bands nothing', () => {
+    const wrapper = mountTwoTracks({...MANUTECH, id: MarsBotCorpId.C01_CREDICOR});
+    expect(wrapper.find('.mb-cell--reminder').exists()).is.false;
+    expect(wrapper.find('.mb-cell__colcube').exists()).is.false;
+    expect(wrapper.find('.mb-cubelegend').exists()).is.false;
+    expect(wrapper.find('.mb-tracks').classes(), 'and pays no headroom for it')
+      .does.not.contain('mb-tracks--reminders');
+  });
+});

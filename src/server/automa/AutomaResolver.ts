@@ -106,11 +106,15 @@ export class AutomaResolver {
       failedAction(game, 'track-maxed');
       return;
     }
+    // The space the marker came to REST on. Captured here because the printed
+    // icon below may carry the marker further ('advance'), and every «which
+    // space did it reach?» question is about the landing, not the chain's end.
+    const landed = track.position;
     AutomaTurnLog.note(game, {
       kind: 'advance',
       trackIndex,
       from,
-      to: track.position,
+      to: landed,
       ...(result.type === 'action' ? {action: result.action} : {}),
       // Phase B: the cascade depth (0 = the tag's direct advance) — the review
       // nests the chain reaction from data instead of guessing by order.
@@ -139,10 +143,15 @@ export class AutomaResolver {
     // explicitly replaces that icon (Helion's white cube takes over the
     // temperature raise). Spent once, never re-armed by a regression.
     const printed = result.type === 'action' ? result.action : undefined;
-    const cubeReplacedAction = AutomaCorporations.onTrackAdvanced(game, trackIndex, track.position, printed);
+    const cubeReplacedAction = AutomaCorporations.onTrackAdvanced(game, trackIndex, landed, printed);
     if (result.type === 'action' && !cubeReplacedAction) {
       AutomaResolver.performTrackAction(game, result.action, trackIndex, depth);
     }
+    // The landed-on space is now fully resolved, cascade and all — the moment a
+    // corporation worded «when a track reaches #N, AFTER resolving the effect»
+    // acts on (C29). The AFTER twin of the cube/advance dispatch above; it may
+    // advance this very track again, which is why it gets `depth`.
+    AutomaCorporations.onTrackSpaceResolved(game, trackIndex, landed, depth);
   }
 
   public static performTrackAction(game: IGame, action: TrackAction, trackIndex: number, depth: number = 0): void {

@@ -125,6 +125,11 @@
    108) + the 7px inner padding — anything narrower re-introduces the
    min-content push this grid exists to kill. */
 .mb-tracks { display: flex; flex-direction: column; gap: 7px; --mb-id-w: 118px; --mb-pos-w: 40px; }
+/* A corporation that marks COLUMNS draws its reminder cube ABOVE the top row
+   (C29) — the mat has to own that headroom, because the surfaces that host
+   this strip clip at its edge and the cube would simply be cut away. Costs
+   nothing when no corporation marks any. */
+.mb-tracks--reminders { padding-top: 12px; }
 .mb-track {
     display: grid;
     grid-template-columns: var(--mb-id-w) repeat(var(--mb-cols, 19), minmax(0, 1fr)) var(--mb-pos-w);
@@ -238,6 +243,45 @@
         0 0 0 1px rgba(6, 12, 10, 0.9),
         0 1px 3px rgba(0, 0, 0, 0.55);
 }
+/* ── MARKED COLUMN (C29 setup: «a black cube above the #5 and #12 columns») ─
+   The vertical twin of the white tracker above: the reminder is not on a
+   track, it is on a COLUMN that crosses every track. Every row shares one
+   grid template, so tinting cell k in each row IS the band the physical cube
+   marks — a cool seam bright enough to find at a glance and quiet enough not
+   to compete with the current-position ring. */
+.mb-cell--reminder {
+    background: rgba(226, 240, 236, 0.08);
+    box-shadow:
+        inset 1px 0 0 rgba(226, 240, 236, 0.3),
+        inset -1px 0 0 rgba(226, 240, 236, 0.3),
+        inset 0 0 0 1px fade(@mb-accent, 12%);
+}
+/* A passed / current cell keeps its own state read — the seam rides along. */
+.mb-cell--reminder.mb-cell--passed {
+    background: fade(@mb-accent-dim, 24%);
+    box-shadow:
+        inset 1px 0 0 rgba(226, 240, 236, 0.38),
+        inset -1px 0 0 rgba(226, 240, 236, 0.38),
+        inset 0 0 0 1px fade(@mb-accent, 22%);
+}
+/* The physical cube itself: drawn ONCE, over the top row, which is where
+   «above the column» is on a mat whose tracks are the rows. Same body as the
+   seeded black cube (dark face, cool rim), but standing entirely ABOVE the
+   cell rather than corner-pinned to it — a cube resting ON the strip and one
+   that was PLACED ABOVE the column are different objects, and half-overlapping
+   the cell edge read as a notch cut out of it. */
+.mb-cell__colcube {
+    position: absolute;
+    bottom: 100%; margin-bottom: 2px; left: 50%; transform: translateX(-50%);
+    width: 12px; height: 8px;
+    border-radius: 2px;
+    pointer-events: none;
+    background: linear-gradient(155deg, #2b3735 0%, #131a19 45%, #05090a 100%);
+    box-shadow:
+        inset 0 1px 0 rgba(226, 240, 236, 0.28),
+        0 0 0 1px rgba(210, 228, 223, 0.62),
+        0 1px 4px rgba(0, 0, 0, 0.7);
+}
 .mb-track--whitemarker .mb-cell--current {
     background: rgba(226, 240, 236, 0.1);
     box-shadow:
@@ -261,6 +305,8 @@
 .mb-tracks--large {
     .mb-cell__cube,
     .mb-cell__marker { top: -4px; left: -4px; width: 15px; height: 15px; border-radius: 3.5px; }
+    .mb-cell__colcube { margin-bottom: 3px; width: 17px; height: 11px; border-radius: 2.5px; }
+    &.mb-tracks--reminders { padding-top: 17px; }
     .mb-cubelegend { gap: 6px; padding-top: 10px; }
     .mb-cubelegend__row .mb-cell__cube,
     .mb-cubelegend__row .mb-cell__marker { width: 17px; height: 17px; }

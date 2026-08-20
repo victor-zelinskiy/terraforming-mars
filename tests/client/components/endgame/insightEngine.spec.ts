@@ -463,6 +463,20 @@ describe('insightEngine', () => {
         MarsBotCorpId.C28_APHRODITE, 'Aphrodite')).is.empty;
     });
 
+    it('C29 tells its extra spaces as ONE story', () => {
+      const insights = botInsights({manutechTriggers: 7, manutechSteps: 6},
+        MarsBotCorpId.C29_MANUTECH, 'Manutech');
+      expect(insights).has.length(1);
+      expect(insights[0].textKey).contains('never stopped at a checkpoint');
+      expect(insights[0].params.map((p) => p.v), 'the number is the spaces the player watched it take')
+        .contains('6');
+    });
+
+    it('C29 keeps quiet when the line barely rolled', () => {
+      expect(botInsights({manutechTriggers: 3, manutechSteps: 3},
+        MarsBotCorpId.C29_MANUTECH, 'Manutech')).is.empty;
+    });
+
     it('the draft fallback speaks only when no printed effect did', () => {
       const withEffect = botInsights({credicorTriggers: 6, credicorMc: 24, fiveCardDecks: 3},
         MarsBotCorpId.C01_CREDICOR, 'CrediCor');

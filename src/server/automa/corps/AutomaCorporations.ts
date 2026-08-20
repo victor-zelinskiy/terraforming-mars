@@ -34,6 +34,7 @@ import {MarsBotRecyclon} from './MarsBotRecyclon';
 import {MarsBotSplice} from './MarsBotSplice';
 import {MarsBotCelestic} from './MarsBotCelestic';
 import {MarsBotAphrodite} from './MarsBotAphrodite';
+import {MarsBotManutech} from './MarsBotManutech';
 import {MarsBotMorningStar} from './MarsBotMorningStar';
 import {MarsBotViron} from './MarsBotViron';
 import {MarsBotVitor} from './MarsBotVitor';
@@ -99,6 +100,7 @@ export class AutomaCorporations {
     [MarsBotCorpId.C26_CELESTIC]: MarsBotCelestic,
     [MarsBotCorpId.C27_MORNING_STAR]: MarsBotMorningStar,
     [MarsBotCorpId.C28_APHRODITE]: MarsBotAphrodite,
+    [MarsBotCorpId.C29_MANUTECH]: MarsBotManutech,
     [MarsBotCorpId.C45_SPIRE]: MarsBotSpire,
   };
 
@@ -395,6 +397,17 @@ export class AutomaCorporations {
     // track (Helion's draw resolves a card), and a cube must never fire twice.
     automa.corpCubesTriggered.add(key);
     return corp.onTrackCubeTrigger(game, cube, printedAction) === 'replaces-action';
+  }
+
+  /**
+   * The space the bot landed on has been fully resolved (C29 Manutech). The
+   * AFTER twin of `onTrackAdvanced`: that one runs BEFORE the printed icon,
+   * this one after it and after whatever cascade it opened. `depth` is the
+   * resolver's own, so a corporation that advances the track again keeps the
+   * shared runaway guard intact.
+   */
+  public static onTrackSpaceResolved(game: IGame, trackIndex: number, position: number, depth: number): void {
+    AutomaCorporations.activeCorp(game)?.onTrackSpaceResolved?.(game, trackIndex, position, depth);
   }
 
   /**

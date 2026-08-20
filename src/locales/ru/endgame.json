@@ -849,9 +849,10 @@
   "Scored by the bot's own corporation": "Набрано собственной корпорацией бота",
   "The bot corporation of ${0} scored ${1} VP of its own at the end.": "Корпорация бота игрока ${0} набрала в конце собственных ПО — ${1}.",
   "Every blue card with an arrow worked twice for ${0}'s ${1}: ${2} of them, a floater each when played and a point each at the end.": "Каждая синяя карта со стрелкой работала на корпорацию ${1} (у ${0}) дважды: таких карт было ${2} — аэростат при розыгрыше и очко в конце.",
-  "Floaters gathered around ${0}'s ${1} whatever the turn brought — ${2} of them by the end.": "Плаватели собирались вокруг корпорации ${1} (у ${0}) при любом ходе — к концу их было ${2}.",
+  "Floaters gathered around ${0}'s ${1} whatever the turn brought — ${2} of them by the end.": "Аэростаты собирались вокруг корпорации ${1} (у ${0}) при любом ходе — к концу их было ${2}.",
   "Being stuck paid ${1} too: ${2} Failed Action(s) that would have been dead turns each handed the bot a floater.": "Застрять тоже было выгодно для ${1}: проваленных действий — ${2}, и каждое из них, вместо того чтобы стать пустым ходом, приносило боту аэростат.",
   "Venus paid ${0}'s ${1} by the metre: ${2} silver cubes came off its own track, ${3} M€ in all.": "Венера платила корпорации ${1} (у ${0}) шаг за шагом: с её собственного трека было снято серебряных кубов — ${2}, всего на ${3} М€.",
   "And the lobby kept the wheel turning — ${2} time(s) it pushed Venus along and then leaned on whatever Mars still lacked.": "А лобби крутило колесо: ${2} раз(а) оно подталкивало Венеру, а потом бралось за то, чего Марсу ещё не хватало.",
-  "Nobody could touch Venus without paying ${0}'s ${1}: ${2} step(s) of it, ${3} M€ collected.": "Никто не мог тронуть Венеру, не заплатив корпорации ${1} (у ${0}): шагов Венеры — ${2}, собрано ${3} М€."
+  "Nobody could touch Venus without paying ${0}'s ${1}: ${2} step(s) of it, ${3} M€ collected.": "Никто не мог тронуть Венеру, не заплатив корпорации ${1} (у ${0}): шагов Венеры — ${2}, собрано ${3} М€.",
+  "The assembly line of ${0}'s ${1} never stopped at a checkpoint: ${2} time(s) a track rolled straight past a marked column onto the next space — and that space paid out too.": "Конвейер корпорации ${1} (у ${0}) не останавливался на контрольной отметке: ${2} раз(а) трек проходил отмеченную колонку насквозь и вставал на следующую клетку — которая тоже срабатывала."
 }

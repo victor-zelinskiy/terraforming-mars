@@ -360,6 +360,7 @@
   "Black cube": "Чёрный куб",
   "This cube has already been used": "Этот куб уже использован",
   "White tracker": "Белый маркер",
+  "Marked column": "Отмеченная колонка",
   "${0} gained ${1} M€ from its corporation ${2} for advancing the building track": "${0} получает ${1} М€ от корпорации ${2} за продвижение трека строительства",
   "${0} gained ${1} M€ from its corporation ${2} for advancing the event track": "${0} получает ${1} М€ от корпорации ${2} за продвижение трека событий",
   "The building and event track markers become white cubes — a reminder of the effect below": "Маркеры треков строительства и событий заменяются белыми кубами — напоминание об эффекте ниже",
@@ -541,5 +542,9 @@
   "Venus moved; Mars was already complete": "Венера сдвинулась; Марс был уже завершён",
   "Plant, then animal, then Venus": "Растение, затем животное, затем Венера",
   "Every step Venus rises pays MarsBot ${0} M€ — whoever raised it, the World Government included": "Каждый шаг роста Венеры приносит Боту ${0} М€ — кто бы её ни поднял, включая Мировое правительство",
-  "${0} gained ${1} M€ from its corporation ${2}: Venus rose": "${0} получает ${1} М€ от своей корпорации ${2}: Венера поднялась"
+  "${0} gained ${1} M€ from its corporation ${2}: Venus rose": "${0} получает ${1} М€ от своей корпорации ${2}: Венера поднялась",
+  "A black cube marks the ${0} columns of the mat — a reminder of the effect below": "Чёрный куб отмечает колонки ${0} на планшете — напоминание об эффекте ниже",
+  "Any track — the Venus track included — that reaches space ${0} advances one further space once that space has resolved, and the new space resolves as well": "Любой трек — включая трек Венеры — дойдя до клетки ${0}, после разрешения этой клетки продвигается ещё на одну, и новая клетка тоже разрешается",
+  "Reaching this column: once the space has resolved, the track takes one more space": "Дойдя до этой колонки: после разрешения клетки трек делает ещё один шаг",
+  "${0} reached space ${1} — its corporation ${2} pushes that track one space further": "${0} дошёл до клетки ${1} — корпорация ${2} продвигает этот трек ещё на одну клетку"
 }

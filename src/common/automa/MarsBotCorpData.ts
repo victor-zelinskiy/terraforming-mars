@@ -139,6 +139,18 @@ export type MarsBotCorpInfo = {
   whiteMarkerTracks?: ReadonlyArray<Tag>;
   /** EN i18n key explaining what the white markers remind of. */
   markerLegend?: string;
+  /**
+   * COLUMNS of the mat the setup box marks with a reminder cube «above the #5
+   * and #12 columns» (C29). A column is one position number across EVERY
+   * track — the physical mat lays the tracks out as rows of one grid — so this
+   * is the vertical twin of `whiteMarkerTracks`' per-track marker, and it
+   * needs no board resolution: a column number means the same thing on every
+   * track that is long enough to have it. Pure presentation, declared as a
+   * PAIR with `columnLegend`; the rule itself lives in the corporation's hook.
+   */
+  reminderColumns?: ReadonlyArray<number>;
+  /** EN i18n key explaining what the marked columns remind of. */
+  columnLegend?: string;
   /** The printed rule boxes, in printed order (display data; EN i18n keys). */
   sections: ReadonlyArray<MarsBotCorpSection>;
 };
@@ -837,6 +849,28 @@ const CORP_INFO: Readonly<Record<MarsBotCorpId, MarsBotCorpInfo>> = {
       ]},
     ],
   },
+  [MarsBotCorpId.C29_MANUTECH]: {
+    id: MarsBotCorpId.C29_MANUTECH,
+    cardNumber: 'C29',
+    original: CardName.MANUTECH,
+    startingTags: [Tag.BUILDING],
+    // No draft-priority plate is printed.
+    corpBonusCards: [],
+    // SETUP box, verbatim: «Place a black cube as a reminder above the #5 and
+    // #12 columns» — a REMINDER with no game effect of its own (the C04/C20
+    // primitive, turned through 90°: those mark a TRACK, this marks a COLUMN
+    // that crosses every track).
+    reminderColumns: [5, 12],
+    columnLegend: 'Reaching this column: once the space has resolved, the track takes one more space',
+    sections: [
+      {kind: 'setup', lines: [
+        {icon: 'cube-black', text: 'A black cube marks the ${0} columns of the mat — a reminder of the effect below', params: ['#5 and #12'], muted: true},
+      ]},
+      {kind: 'effect', lines: [
+        {icon: 'cards', text: 'Any track — the Venus track included — that reaches space ${0} advances one further space once that space has resolved, and the new space resolves as well', params: ['#5 or #12']},
+      ]},
+    ],
+  },
   [MarsBotCorpId.C45_SPIRE]: {
     id: MarsBotCorpId.C45_SPIRE,
     cardNumber: 'C45',
@@ -899,6 +933,9 @@ export function corpOwningBonusCard(id: BonusCardId): MarsBotCorpInfo | undefine
  *           three counters, for the same printed effect on its own track.
  * Aphrodite: aphroditeSteps (Venus steps it was paid for) and aphroditeMc
  *           (what they came to).
+ * Manutech: manutechTriggers (marked columns its tracks reached) and
+ *           manutechSteps (the extra spaces those pushes actually landed — a
+ *           track already at its end is a Failed Action, not a step).
  * Morning Star Inc.: morningCubesHit / morningMc — the same two counters
  *           C13 keeps for the same printed effect, on its own track;
  *           plus lobbyPlayed / lobbyVenus / lobbyParameter (its B26).

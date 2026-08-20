@@ -347,6 +347,17 @@ function renderDataOf(id: MarsBotCorpId): ICardRenderRoot {
         eb.venus(1, {all}).startEffect.megacredits(2);
       });
     });
+  case MarsBotCorpId.C29_MANUTECH:
+    return CardRenderer.builder((b) => {
+      // EFFECT: a track reaching a cube-marked column takes ONE MORE space.
+      // The black cube is this face's established «the reminder on the mat»
+      // symbol (C03/C13/C14/C19) and the wild tag its established «a track»
+      // symbol (C14/C15/C19/C22); the asterisk says «not just anywhere» —
+      // WHICH columns is one panel away in «§ ПРАВИЛА».
+      b.effect(undefined, (eb) => {
+        eb.text('◼', Size.SMALL, true).startEffect.wild(1).asterix();
+      });
+    });
   case MarsBotCorpId.C45_SPIRE:
     return CardRenderer.builder((b) => {
       // EFFECT: a card with 2+ tags adds a science resource here — the

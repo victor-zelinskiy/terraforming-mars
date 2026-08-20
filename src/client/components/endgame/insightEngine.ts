@@ -3048,6 +3048,20 @@ const analyzeBotCorporation: Analyzer = (ctx) => {
           scale: 30,
         });
       }
+    } else if (corp.id === 'C29') {
+      // Manutech is the only corporation in the set that pays in TEMPO — not
+      // money, not tiles, but moves. So its one fact counts moves: the extra
+      // spaces its tracks took, each of which paid out whatever it printed.
+      const steps = stat('manutechSteps');
+      if (steps >= 4) {
+        stories.push({
+          key: 'effect',
+          textKey: 'The assembly line of ${0}\'s ${1} never stopped at a checkpoint: ${2} time(s) a track rolled straight past a marked column onto the next space — and that space paid out too.',
+          params: [raw(p.name), raw(corp.name), raw(steps)],
+          measure: steps,
+          scale: 12,
+        });
+      }
     } else if (corp.id === 'C45') {
       // Spire: the science engine — multi-tag cards banked into cities + TR.
       const cities = stat('citiesPlaced');

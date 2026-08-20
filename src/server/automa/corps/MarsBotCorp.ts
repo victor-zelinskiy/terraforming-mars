@@ -136,6 +136,22 @@ export type MarsBotCorp = {
   onTrackAdvance?(game: IGame, trackIndex: number, position: number): void;
 
   /**
+   * The space MarsBot landed on is now FULLY RESOLVED — its printed icon has
+   * run (and any cascade it opened has finished). The AFTER twin of
+   * `onTrackAdvance` above, for a clause worded «when a track reaches #N,
+   * AFTER resolving the effect …» (C29 Manutech).
+   *
+   * `position` is the space the marker came to REST on, captured before the
+   * icon ran — a printed «advance» may since have carried the marker further,
+   * and the trigger is the landing, not where the chain ended up.
+   *
+   * `depth` is the resolver's own cascade depth. A hook that advances a track
+   * again MUST pass `depth + 1` to `AutomaResolver.advanceTrack`, or the
+   * shared runaway guard restarts from zero and stops guarding.
+   */
+  onTrackSpaceResolved?(game: IGame, trackIndex: number, position: number, depth: number): void;
+
+  /**
    * MarsBot's marker ADVANCED onto one of this corporation's cubes (RB-B
    * «Special Cubes on the MarsBot Player Mat»). Fires BEFORE the space's
    * printed icon and IN ADDITION to it — unless the hook returns

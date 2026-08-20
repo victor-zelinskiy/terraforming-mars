@@ -3,7 +3,7 @@ import * as fs from 'fs';
 import {CardName} from '../../../src/common/cards/CardName';
 import {Expansion} from '../../../src/common/cards/GameModule';
 import {Tag} from '../../../src/common/cards/Tag';
-import {BonusCardId, MARS_BOT_CORP_IDS, MarsBotCorpId} from '../../../src/common/automa/AutomaTypes';
+import {BonusCardId, MARSBOT_MAX_TRACK_POSITION, MARS_BOT_CORP_IDS, MarsBotCorpId} from '../../../src/common/automa/AutomaTypes';
 import {CORP_SECTION_LABEL, buildMarsBotCorpView, corpOwningBonusCard, marsBotCorpInfo} from '../../../src/common/automa/MarsBotCorpData';
 
 /**
@@ -110,6 +110,21 @@ describe('MarsBotCorpData', () => {
       .deep.eq([Tag.BUILDING, Tag.EVENT]);
   });
 
+  it('a marked-column corporation always names what its columns remind of', () => {
+    // The same pair contract, for the VERTICAL reminder (C29 is the first to
+    // mark any): a band across the mat with no legend explains nothing.
+    for (const id of MARS_BOT_CORP_IDS) {
+      const info = marsBotCorpInfo(id);
+      expect(info.reminderColumns === undefined, `${id}`).eq(info.columnLegend === undefined);
+      expect((info.reminderColumns ?? []).length === 0, `${id}`).eq(info.columnLegend === undefined);
+      for (const column of info.reminderColumns ?? []) {
+        expect(column, `${id}: column ${column} is off the mat`)
+          .is.greaterThan(0).and.at.most(MARSBOT_MAX_TRACK_POSITION);
+      }
+    }
+    expect(marsBotCorpInfo(MarsBotCorpId.C29_MANUTECH).reminderColumns).deep.eq([5, 12]);
+  });
+
   it('a printed module condition is never a module MarsBot games cannot have', () => {
     // C16 is the first corporation to print one («use this corporation only
     // when playing with Prelude»). A condition naming a module the automa
@@ -167,6 +182,7 @@ describe('MarsBotCorpData', () => {
       info.sections.forEach((section) => section.lines.forEach((line) => check(line.text, section.kind)));
       Object.entries(info.cubeLegend ?? {}).forEach(([cube, text]) => check(text, `cubeLegend.${cube}`));
       check(info.markerLegend, 'markerLegend');
+      check(info.columnLegend, 'columnLegend');
     }
     expect(missing, `untranslated MarsBot corporation strings:\n${missing.join('\n')}`).is.empty;
   });

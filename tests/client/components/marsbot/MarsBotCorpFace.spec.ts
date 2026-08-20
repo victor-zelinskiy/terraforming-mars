@@ -76,6 +76,8 @@ describe('MarsBotCorpFace (.pcard template)', () => {
       'C28 prints ONE plant starting tag — never the human plant+Venus pair').has.length(1);
     expect(mountFace(MarsBotCorpId.C18_ARCADIAN_COMMUNITIES).findAll('.pcard__tags .pcard-tag'),
       'C18 prints ONE building starting tag').has.length(1);
+    expect(mountFace(MarsBotCorpId.C29_MANUTECH).findAll('.pcard__tags .pcard-tag'),
+      'C29 prints ONE building starting tag').has.length(1);
     // C04 prints TWO event tags — both sit on the rail (the bot card's tags,
     // never the human card's single building tag).
     // Saturn Systems prints FOUR starting tags — the rail carries them all.
@@ -384,6 +386,19 @@ describe('marsBotCorpRules — the «§ ПРАВИЛА» groups', () => {
     // The human Aphrodite starts with 47 M€ and 1 plant production.
     expect(text).not.contains('47');
     expect(text).not.match(/plant production/i);
+  });
+
+  it('Manutech prints its two marked columns, never the human production rule', () => {
+    const groups = marsBotCorpAnnotations(MarsBotCorpId.C29_MANUTECH);
+    expect(groups.map((g) => g.labelKey)).deep.eq(['Corporation setup', 'Corporation effect']);
+    const text = groups.flatMap((g) => g.rows.map((r) => r.text)).join(' ');
+    expect(text, 'both reminder columns are named').contains('#5 and #12');
+    expect(text, 'and the effect names them as the trigger').contains('#5 or #12');
+    expect(text, 'the printed parenthetical about the Venus track is kept').contains('Venus');
+    // The human Manutech starts with 35 M€ + 1 steel production and gains the
+    // resource whenever it raises a production — none of that is here.
+    expect(text).not.contains('35');
+    expect(text).not.match(/production/i);
   });
 
   it('ThorGate prints its cubes and the first-tag clause, never the human discount', () => {

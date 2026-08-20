@@ -1,5 +1,7 @@
 <template>
-  <div class="mb-tracks" :class="{'mb-tracks--large': large}" :style="{'--mb-cols': maxCells}">
+  <div class="mb-tracks"
+       :class="{'mb-tracks--large': large, 'mb-tracks--reminders': reminderColumns.size > 0}"
+       :style="{'--mb-cols': maxCells}">
     <div v-for="(track, ti) in tracks" :key="ti" class="mb-track" :class="{'mb-track--whitemarker': whiteMarkerTracks.has(ti)}">
       <div class="mb-track__id">
         <Tag v-for="tag in track.tags" :key="tag" :tag="tag" :size="large ? 'big' : 'med'" type="secondary" />
@@ -15,6 +17,7 @@
             'mb-cell--regressed': cell.regressed,
             'mb-cell--start': cell.index === 0,
             'mb-cell--cube': cell.cube !== undefined && !cell.cube.spent,
+            'mb-cell--reminder': reminderColumns.has(cell.index),
           }"
           :data-hint="hintFor(cell, ti)"
         >
@@ -56,6 +59,12 @@
                on the same space (they would occupy the same corner). -->
           <span v-if="cell.current && cell.cube === undefined && whiteMarkerTracks.has(ti)"
                 class="mb-cell__marker" aria-hidden="true"></span>
+          <!-- The corporation's SETUP put a reminder cube ABOVE a COLUMN
+               (C29). The column itself is tinted on every row; the physical
+               cube is drawn once, over the TOP row, which is where «above the
+               column» actually is on a mat whose tracks are the rows. -->
+          <span v-if="ti === 0 && reminderColumns.has(cell.index)"
+                class="mb-cell__colcube" aria-hidden="true"></span>
         </div>
       </div>
       <div class="mb-track__pos">{{ track.position }}<span class="mb-track__pos-max">/{{ track.maxPosition }}</span></div>
@@ -177,6 +186,10 @@ export default defineComponent({
       if (cell.current && marker !== undefined && this.whiteMarkerTracks.has(trackIndex)) {
         parts.push(`${translateText('White tracker')} — ${marker}`);
       }
+      const column = this.columnLegendText;
+      if (column !== undefined && this.reminderColumns.has(cell.index)) {
+        parts.push(`${translateText('Marked column')} — ${column}`);
+      }
       return parts.join(' · ');
     },
   },
@@ -189,6 +202,22 @@ export default defineComponent({
     markerLegendText(): string | undefined {
       const id = this.corporation?.id;
       const key = id === undefined ? undefined : marsBotCorpInfo(id).markerLegend;
+      return key === undefined ? undefined : translateText(key);
+    },
+    /**
+     * COLUMNS the corporation's setup marked with a reminder cube (C29). A
+     * column crosses every track, and the rows all share one grid template,
+     * so a cell index IS the column — no board resolution needed, unlike the
+     * per-track white markers above.
+     */
+    reminderColumns(): Set<number> {
+      const id = this.corporation?.id;
+      return new Set(id === undefined ? [] : marsBotCorpInfo(id).reminderColumns ?? []);
+    },
+    /** What those marked columns remind of, in the card's own words. */
+    columnLegendText(): string | undefined {
+      const id = this.corporation?.id;
+      const key = id === undefined ? undefined : marsBotCorpInfo(id).columnLegend;
       return key === undefined ? undefined : translateText(key);
     },
     /** The corporation's cubes, grouped by the track they sit on. */
@@ -221,6 +250,12 @@ export default defineComponent({
       const marker = this.markerLegendText;
       if (marker !== undefined && this.whiteMarkerTracks.size > 0) {
         rows.push({key: 'marker', marker: true, text: marker});
+      }
+      // …and one for the marked COLUMNS, which seed no cubes of their own and
+      // so are never reached by the loop above (C29).
+      const column = this.columnLegendText;
+      if (column !== undefined && this.reminderColumns.size > 0) {
+        rows.push({key: 'columns', cubeType: 'black', text: column});
       }
       return rows;
     },
