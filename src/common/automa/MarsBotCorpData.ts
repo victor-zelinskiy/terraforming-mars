@@ -601,6 +601,33 @@ const CORP_INFO: Readonly<Record<MarsBotCorpId, MarsBotCorpInfo>> = {
       ]},
     ],
   },
+  [MarsBotCorpId.C20_FACTORUM]: {
+    id: MarsBotCorpId.C20_FACTORUM,
+    cardNumber: 'C20',
+    original: CardName.FACTORUM,
+    startingTags: [Tag.POWER],
+    // The M€ this card COLLECTS — the same `.pcard__res` capsule C06 uses,
+    // filling instead of draining.
+    resource: 'megacredits',
+    corpBonusCards: [BonusCardId.B24_SUPPLY_AND_DEMAND],
+    // SETUP: «Replace the tracker for the building track with a white cube as
+    // a reminder for this corporation's effect» — a REMINDER, no game effect
+    // of its own (the C04 primitive).
+    whiteMarkerTracks: [Tag.BUILDING],
+    markerLegend: 'Advancing this track puts 1 M€ on the Factorum card',
+    sections: [
+      {kind: 'setup', lines: [
+        {icon: 'cube-white', text: 'The building track marker becomes a white cube — a reminder of the effect below', muted: true},
+      ]},
+      {kind: 'effect', lines: [
+        {icon: 'megacredits', text: 'Each time MarsBot advances the building track, ${0} M€ is placed on this card', params: ['1']},
+      ]},
+      {kind: 'beforeActionPhase', lines: [
+        {icon: 'deck', text: 'Add Supply and Demand to MarsBot\'s action deck'},
+        {icon: 'megacredits', text: 'Supply and Demand takes ${0} M€ off this card — or everything left; with an empty card it advances the power track instead', params: ['3'], muted: true},
+      ]},
+    ],
+  },
   [MarsBotCorpId.C45_SPIRE]: {
     id: MarsBotCorpId.C45_SPIRE,
     cardNumber: 'C45',
@@ -692,6 +719,10 @@ export function corpOwningBonusCard(id: BonusCardId): MarsBotCorpInfo | undefine
  *           those cubes actually drew).
  * Mining Guild: miningGuildBanked (M€ that flowed THROUGH the card) /
  *           miningGuildRefills (times it emptied = building-track advances).
+ * Factorum: factorumStored (M€ the building track put ON the card),
+ *           supplyDemandPlayed / factorumWithdrawn (its own B24 and what it
+ *           took off), supplyDemandEmpty (plays that found the card bare and
+ *           advanced the power track instead).
  * Helion:   whiteCubesHit / blackCubesHit (cubes reached), helionCardsDrawn
  *           (white-cube draws), helionTemperatureSteps (black-cube raises),
  *           helionTemperatureReplaced (printed raises the white cube took over).

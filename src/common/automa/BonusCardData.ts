@@ -101,7 +101,7 @@ export const BONUS_CARD_INFO: Readonly<Record<BonusCardId, BonusCardInfo>> = {
   },
   [BonusCardId.B22_SETTLERS]: {name: 'Settlers', text: 'Arcadian Communities: MarsBot claims a non-reserved area with one of its player markers, preferring the space beside the most ocean-reserved ones. Recurs into the action deck every generation.'},
   [BonusCardId.B23_RAPID_SPROUTING]: {name: 'Rapid Sprouting', text: 'Ecoline: a plant grows on the corporation card, or the grown plant becomes a greenery raising oxygen 1 step. Recurs into the action deck every generation.'},
-  [BonusCardId.B24_SUPPLY_AND_DEMAND]: {name: 'Supply and Demand', text: 'A corporation-specific bonus card (outside the POC scope).'},
+  [BonusCardId.B24_SUPPLY_AND_DEMAND]: {name: 'Supply and Demand', text: 'Factorum: MarsBot takes 3 M€ off the Factorum card, or everything left on it; an empty card advances the power track instead. Recurs into the action deck every generation.'},
   [BonusCardId.B25_DO_IT_RIGHT]: {name: 'Do It Right', text: 'Inventrix: MarsBot pushes the first global parameter that is 1-2 steps from a bonus, or places an ocean next to 2 oceans — otherwise nothing. Recurs into the action deck every generation.'},
   [BonusCardId.B26_VENUSIAN_LOBBY]: {name: 'Venusian Lobby', text: 'A corporation-specific bonus card (outside the POC scope).'},
   [BonusCardId.B27_BUILD_BUILD_BUILD]: {name: 'Build Build Build', text: 'A corporation-specific bonus card (outside the POC scope).'},
@@ -331,6 +331,18 @@ export function buildBonusCardView(id: BonusCardId, ctx: BonusCardContext): Bonu
         {icon: 'tile', text: 'MarsBot claims a non-reserved area with one of its player markers'},
         {icon: 'ocean', text: 'Tied areas: the one beside the most ocean-reserved spaces wins, before the card flip'},
         {icon: 'megacredits', text: 'Only MarsBot may build there — and doing so pays it ${0} M€', params: ['3'], muted: true},
+      ],
+      fate: {kind: 'recurring', text: 'At the beginning of every generation it is shuffled back into MarsBot\'s action deck'},
+    };
+  case BonusCardId.B24_SUPPLY_AND_DEMAND:
+    // Factorum's corporation-specific card (official B24). The take is
+    // PARTIAL («or as much as possible»), and the fallback needs a take of
+    // exactly zero — which is why both lines are stated, not just the first.
+    return {
+      name,
+      lines: [
+        {icon: 'megacredits', text: 'MarsBot takes ${0} M€ off the Factorum card — or everything left on it', params: ['3']},
+        {icon: 'energy', text: 'Only if the card was completely empty: the power track advances instead'},
       ],
       fate: {kind: 'recurring', text: 'At the beginning of every generation it is shuffled back into MarsBot\'s action deck'},
     };

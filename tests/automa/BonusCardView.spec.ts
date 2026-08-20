@@ -109,6 +109,17 @@ describe('buildBonusCardView — the card face resolved for THIS game', () => {
     expect(buildBonusCardView(BonusCardId.B22_SETTLERS, VENUS)).deep.eq(view);
   });
 
+  it('Supply and Demand (B24) states the PARTIAL take and the empty-card fallback', () => {
+    const view = buildBonusCardView(BonusCardId.B24_SUPPLY_AND_DEMAND, BASE);
+    expect(view.name).eq('Supply and Demand');
+    expect(view.lines).has.length(2);
+    expect(view.lines[0]).to.deep.include({icon: 'megacredits', params: ['3']});
+    expect(view.lines[0].text, '\u00abor as much as possible\u00bb is stated, never dropped').to.include('everything left');
+    expect(view.lines[1].text, 'the fallback names its own condition').to.include('completely empty');
+    expect(view.fate.kind, 'it recurs forever, it is never destroyed').eq('recurring');
+    expect(buildBonusCardView(BonusCardId.B24_SUPPLY_AND_DEMAND, VENUS)).deep.eq(view);
+  });
+
   it('an out-of-scope card degrades to its printed summary', () => {
     const view = buildBonusCardView(BonusCardId.B21_PARTY_POLITICS, BASE);
     expect(view.lines).has.length(1);

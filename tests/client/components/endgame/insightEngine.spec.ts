@@ -304,6 +304,24 @@ describe('insightEngine', () => {
       expect(luna[0].textKey).is.not.eq(drill[0].textKey);
     });
 
+    it('C20 tells the till and the dry spell as SEPARATE stories', () => {
+      const insights = botInsights({factorumStored: 14, factorumWithdrawn: 12, supplyDemandPlayed: 6, supplyDemandEmpty: 4},
+        MarsBotCorpId.C20_FACTORUM, 'Factorum');
+      expect(insights).has.length(2);
+      expect(insights.map((i) => i.id).sort()).deep.eq(
+        ['reason.bot-corporation.red', 'reason.bot-corporation.red.dry-till']);
+      const cash = insights.find((i) => i.textKey.includes('like a factory floor'));
+      const dry = insights.find((i) => i.textKey.includes('came up empty'));
+      expect(cash, 'the cash-out has its own card').is.not.undefined;
+      expect(dry, 'the dry spell has its own card').is.not.undefined;
+      expect(cash!.params.map((p) => p.v)).contains('12');
+    });
+
+    it('C20 keeps quiet when the till barely moved', () => {
+      expect(botInsights({factorumStored: 3, factorumWithdrawn: 3, supplyDemandPlayed: 1, supplyDemandEmpty: 1},
+        MarsBotCorpId.C20_FACTORUM, 'Factorum')).is.empty;
+    });
+
     it('the draft fallback speaks only when no printed effect did', () => {
       const withEffect = botInsights({credicorTriggers: 6, credicorMc: 24, fiveCardDecks: 3},
         MarsBotCorpId.C01_CREDICOR, 'CrediCor');

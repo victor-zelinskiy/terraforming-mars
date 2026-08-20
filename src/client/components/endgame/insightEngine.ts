@@ -2851,6 +2851,31 @@ const analyzeBotCorporation: Analyzer = (ctx) => {
           scale: 6,
         });
       }
+    } else if (corp.id === 'C20') {
+      // Factorum: a TILL. Construction fills it, its own recurring card cashes
+      // it out — what the player saw is money arriving in lumps, a delay
+      // behind the building. The dry spell is the other half of the same
+      // machine and is its own story: no building, no cash, grid instead.
+      const cashed = stat('factorumWithdrawn');
+      if (cashed >= 9) {
+        stories.push({
+          key: 'effect',
+          textKey: '${1} ran ${0} like a factory floor: every stretch of construction filled the till, and ${2} M€ came back out of it in lumps.',
+          params: [raw(p.name), raw(corp.name), raw(cashed)],
+          measure: cashed,
+          scale: 24,
+        });
+      }
+      const dry = stat('supplyDemandEmpty');
+      if (dry >= 3) {
+        stories.push({
+          key: 'dry-till',
+          textKey: 'The till of ${0}\'s ${1} came up empty ${2} times — with nothing built there was nothing to cash, and the power grid grew instead.',
+          params: [raw(p.name), raw(corp.name), raw(dry)],
+          measure: dry,
+          scale: 5,
+        });
+      }
     } else if (corp.id === 'C45') {
       // Spire: the science engine — multi-tag cards banked into cities + TR.
       const cities = stat('citiesPlaced');

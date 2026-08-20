@@ -56,6 +56,8 @@ describe('MarsBotCorpFace (.pcard template)', () => {
       'C17 prints no starting tag — the human Vitor\'s Earth tag never leaks').is.false;
     expect(mountFace(MarsBotCorpId.C19_ASTRO_DRILL).find('.pcard__tags').exists(),
       'C19\'s space symbol is its draft priority, not a starting tag').is.false;
+    expect(mountFace(MarsBotCorpId.C20_FACTORUM).findAll('.pcard__tags .pcard-tag'),
+      'C20 prints ONE power starting tag').has.length(1);
     expect(mountFace(MarsBotCorpId.C18_ARCADIAN_COMMUNITIES).findAll('.pcard__tags .pcard-tag'),
       'C18 prints ONE building starting tag').has.length(1);
     // C04 prints TWO event tags — both sit on the rail (the bot card's tags,
@@ -89,6 +91,11 @@ describe('MarsBotCorpFace (.pcard template)', () => {
     // Mining Guild banks M€ ON the card — the same socket, the standard M€ icon.
     const guild = mountFace(MarsBotCorpId.C06_MINING_GUILD, 10);
     expect(guild.find('.pcard__res').exists()).is.true;
+
+    // Factorum's card COLLECTS M€ — the same socket, filling instead of draining.
+    const factorum = mountFace(MarsBotCorpId.C20_FACTORUM, 4);
+    expect(factorum.find('.pcard__res-count').text()).eq('4');
+    expect(factorum.find('.pcard__res-icon').attributes('style') ?? '').contains('megacredit');
     expect(guild.find('.pcard__res-count').text()).eq('10');
     expect(guild.find('.pcard__res-icon').attributes('style') ?? '').contains('megacredit');
   });
@@ -235,6 +242,20 @@ describe('marsBotCorpRules — the «§ ПРАВИЛА» groups', () => {
     // resources with a repeatable action — none of that is on the bot card.
     expect(text).not.contains('42');
     expect(text).not.match(/asteroid resource|remove 1 asteroid/i);
+  });
+
+  it('Factorum prints its till and its cash-out, never the human standard-project rule', () => {
+    const groups = marsBotCorpAnnotations(MarsBotCorpId.C20_FACTORUM);
+    expect(groups.map((g) => g.labelKey)).deep.eq(['Corporation setup', 'Corporation effect', 'Before action phase']);
+    const text = groups.flatMap((g) => g.rows.map((r) => r.text)).join(' ');
+    expect(text).contains('Supply and Demand');
+    expect(text).contains('building track');
+    expect(text, 'the store is ON the card, and the panel says so').contains('on this card');
+    expect(text).contains('power track');
+    // The human Factorum starts with 37 M€ + 4 steel and has a steel/energy
+    // standard-project action — none of that is on the bot card.
+    expect(text).not.contains('37');
+    expect(text).not.match(/standard project|steel/i);
   });
 
   it('ThorGate prints its cubes and the first-tag clause, never the human discount', () => {

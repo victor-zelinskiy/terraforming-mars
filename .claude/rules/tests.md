@@ -34,6 +34,8 @@ cross-env NODE_ENV=development npx mochapack \
 
 **Both `npm run test:*` scripts go through `scripts/run-tests.mjs`**, which fails the run when fewer tests are COLLECTED than the declared floor (`--min`). Raise a floor when a batch of specs lands; never lower one to make a run pass.
 
+**…and on a FAILING run it re-prints mocha's failure block at the very END**, after the `[test-count]` line. A full suite prints thousands of ✓ after that block, so a reader of the TAIL (CI's summary, `| tail`, a captured background job) otherwise sees the count and not one spec name — which is exactly what made two intermittent `test:client` failures undiagnosable. It re-prints, never rescues: the run's own exit code and output are untouched.
+
 ## Traps that have bitten before
 - **`npm run build:test` is mandatory when you touch `tests/`** — it is the only thing that typechecks the test tree (mocha + tsx do not), and it is what catches case-sensitive import paths that break CI on Linux.
 - ⚠️ **The client suite ran ZERO tests, green, from 2026-07-02 to 2026-08-14.** A fixed-name `vendors` split chunk that also collects lazily-imported deps makes `chunk.isOnlyInitial()` false for it, mochapack then never loads it, and `main.js` waits forever on a deferred startup — so the entry module (which runs the specs) never executes: «0 passing», exit 0, and every spec in the batch silenced. Fixed by `webpack.test.config.js` (no split chunks, no async chunks). **Never point the unit runner at `webpack.config.js`.** Full write-up in that file's header.

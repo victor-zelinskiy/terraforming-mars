@@ -18,6 +18,15 @@
  * This wrapper never rescues a failing run and never retries: it only adds
  * «and something actually ran».
  *
+ * …AND «RED» MUST NAME WHAT FAILED. A full suite prints thousands of ✓ lines
+ * after the failure block, so anyone reading the TAIL of the log — CI's own
+ * summary, a `| tail`, a captured background job — sees the count and not one
+ * spec name. That cost two intermittent client-suite failures in a row: both
+ * were real output, both unreadable, so neither could be diagnosed. On a
+ * failing run the mocha failure section is therefore ECHOED at the end, after
+ * the count. It is a re-print of output the run already produced — nothing is
+ * suppressed, re-ordered or rescued.
+ *
  * Usage:
  *   node scripts/run-tests.mjs --label client --min 400 -- <command> [args...]
  */
@@ -74,6 +83,24 @@ function tally(kind) {
   return total;
 }
 
+/**
+ * Re-print mocha's own failure section (from the `N failing` epilogue line to
+ * the end of the run) so the TAIL of the log names the specs. Best-effort by
+ * design: a runner that formats differently simply gets no echo, never a
+ * swallowed error — the original output is already on stdout above.
+ */
+function echoFailures() {
+  const marker = /^\s*\d+\s+failing\b/gm;
+  let start = -1;
+  let m;
+  while ((m = marker.exec(captured)) !== null) start = m.index;
+  if (start === -1) {
+    return;
+  }
+  console.error('\n[test-count] ── FAILURES (re-printed so the tail names them) ──');
+  console.error(captured.slice(start).trimEnd());
+}
+
 child.on('close', (code, signal) => {
   const passing = tally('passing');
   const failing = tally('failing');
@@ -84,6 +111,9 @@ child.on('close', (code, signal) => {
     `\n[test-count] ${label}: ${collected} collected ` +
     `(${passing} passing, ${failing} failing, ${pending} pending) — floor ${min}`);
 
+  if (failing > 0) {
+    echoFailures();
+  }
   if (signal !== null) {
     console.error(`[test-count] ${label}: killed by ${signal}`);
     process.exit(1);
