@@ -122,6 +122,18 @@ describe('marsBotCorpRules — the «§ ПРАВИЛА» groups', () => {
     expect(groups.every((g) => g.rows.length > 0)).is.true;
   });
 
+  it('Tharsis Republic prints both halves of its city trigger', () => {
+    const groups = marsBotCorpAnnotations(MarsBotCorpId.C10_THARSIS_REPUBLIC);
+    expect(groups.map((g) => g.labelKey)).deep.eq(['Draft priority', 'Corporation setup', 'Corporation effect']);
+    const text = groups.flatMap((g) => g.rows.map((r) => r.text)).join(' ');
+    expect(text).contains('city');
+    expect(text).contains('event track');
+    expect(text).contains('setup');
+    // The human Tharsis Republic gains M€ production per city and 3 M€ per
+    // city placed on Mars — neither is a bot rule.
+    expect(text).not.match(/production/i);
+  });
+
   it('Teractor prints its Earth salary, never the human Earth-card discount', () => {
     const groups = marsBotCorpAnnotations(MarsBotCorpId.C09_TERACTOR);
     expect(groups.map((g) => g.labelKey)).deep.eq(['Draft priority', 'Corporation setup', 'Corporation effect']);

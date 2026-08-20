@@ -325,6 +325,25 @@ const CORP_INFO: Readonly<Record<MarsBotCorpId, MarsBotCorpInfo>> = {
       ]},
     ],
   },
+  [MarsBotCorpId.C10_THARSIS_REPUBLIC]: {
+    id: MarsBotCorpId.C10_THARSIS_REPUBLIC,
+    cardNumber: 'C10',
+    original: CardName.THARSIS_REPUBLIC,
+    startingTags: [],
+    draftPriority: {type: 'tags', tags: [Tag.CITY]},
+    corpBonusCards: [],
+    sections: [
+      {kind: 'draftPriority', lines: [{text: 'City'}]},
+      {kind: 'setup', lines: [
+        {icon: 'city', text: 'MarsBot places a city tile'},
+      ]},
+      {kind: 'effect', lines: [
+        {icon: 'megacredits', text: 'A city tile a human places pays MarsBot ${0} M€', params: ['2']},
+        {icon: 'city', text: 'A city tile MarsBot places advances the event track'},
+        {text: 'Both already apply during setup', muted: true},
+      ]},
+    ],
+  },
   [MarsBotCorpId.C45_SPIRE]: {
     id: MarsBotCorpId.C45_SPIRE,
     cardNumber: 'C45',
@@ -381,6 +400,8 @@ export function corpOwningBonusCard(id: BonusCardId): MarsBotCorpInfo | undefine
  *           doItRightGreeneries / doItRightOceans / doItRightNoEffect.
  * Saturn Systems: saturnEventAdvances (event-track advances the Jovian
  *           trigger produced) split into saturnFromHuman / saturnFromBot.
+ * Tharsis Republic: tharsisHumanCities / tharsisMc (what human cities paid),
+ *           tharsisBotCities (event-track advances its own cities produced).
  * Teractor: teractorAdvances (Earth-track advances that paid) / teractorMc
  *           (M€ paid by them; the 25 M€ setup gain is not counted here).
  * Phobolog: phobologSeeded (project cards shuffled into the bonus deck),

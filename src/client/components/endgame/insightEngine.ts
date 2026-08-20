@@ -2675,6 +2675,31 @@ const analyzeBotCorporation: Analyzer = (ctx) => {
           scale: 40,
         });
       }
+    } else if (corp.id === 'C10') {
+      // Tharsis Republic prints two independent halves — a tax on the human's
+      // cities and a bonus on its own — so it may tell two stories.
+      const humanCities = stat('tharsisHumanCities');
+      const mc = stat('tharsisMc');
+      if (humanCities >= 3) {
+        stories.push({
+          key: 'effect',
+          textKey: '${1} taxed the urban boom for ${0}: every city the colonists founded sent ${2} M€ its way (${3} cities).',
+          params: [raw(p.name), raw(corp.name), raw(mc), raw(humanCities)],
+          measure: mc,
+          scale: 16,
+        });
+      }
+      // The setup city is free and says nothing — the story starts above it.
+      const ownCities = stat('tharsisBotCities');
+      if (ownCities >= 3) {
+        stories.push({
+          key: 'own-cities',
+          textKey: 'Every skyline ${1} raised for ${0} also moved its own agenda: ${2} of its cities pushed the bot forward for free.',
+          params: [raw(p.name), raw(corp.name), raw(ownCities)],
+          measure: ownCities,
+          scale: 5,
+        });
+      }
     } else if (corp.id === 'C45') {
       // Spire: the science engine — multi-tag cards banked into cities + TR.
       const cities = stat('citiesPlaced');

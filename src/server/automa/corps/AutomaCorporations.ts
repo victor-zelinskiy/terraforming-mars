@@ -6,6 +6,7 @@ import {inplaceShuffle} from '../../utils/shuffle';
 import {IGame} from '../../IGame';
 import {IPlayer} from '../../IPlayer';
 import {ICard} from '../../cards/ICard';
+import {Space} from '../../boards/Space';
 import {IProjectCard} from '../../cards/IProjectCard';
 import {isICorporationCard} from '../../cards/corporation/ICorporationCard';
 import {AutomaHumanTagReactions} from '../AutomaHumanTagReactions';
@@ -21,6 +22,7 @@ import {MarsBotMiningGuild} from './MarsBotMiningGuild';
 import {MarsBotPhobolog} from './MarsBotPhobolog';
 import {MarsBotSaturnSystems} from './MarsBotSaturnSystems';
 import {MarsBotTeractor} from './MarsBotTeractor';
+import {MarsBotTharsisRepublic} from './MarsBotTharsisRepublic';
 import {MarsBotDraftResolver} from './MarsBotDraftResolver';
 import {MarsBotEcoline} from './MarsBotEcoline';
 import {MarsBotSpire} from './MarsBotSpire';
@@ -58,6 +60,7 @@ export class AutomaCorporations {
     [MarsBotCorpId.C07_PHOBOLOG]: MarsBotPhobolog,
     [MarsBotCorpId.C08_SATURN_SYSTEMS]: MarsBotSaturnSystems,
     [MarsBotCorpId.C09_TERACTOR]: MarsBotTeractor,
+    [MarsBotCorpId.C10_THARSIS_REPUBLIC]: MarsBotTharsisRepublic,
     [MarsBotCorpId.C45_SPIRE]: MarsBotSpire,
   };
 
@@ -317,6 +320,14 @@ export class AutomaCorporations {
     // track (Helion's draw resolves a card), and a cube must never fire twice.
     automa.corpCubesTriggered.add(key);
     return corp.onTrackCubeTrigger(game, cube, printedAction) === 'replaces-action';
+  }
+
+  /**
+   * A tile landed on Mars — dispatched from `Game.addTile`, the one place
+   * every placement (either seat, any source) goes through.
+   */
+  public static onTilePlaced(game: IGame, player: IPlayer, space: Space): void {
+    AutomaCorporations.activeCorp(game)?.onTilePlaced?.(game, player, space);
   }
 
   /**

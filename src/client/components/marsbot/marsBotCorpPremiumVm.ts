@@ -30,14 +30,14 @@ import {standardResourceIconUrl} from '@/client/components/premiumCard/premiumCa
  *
  * Identity (title wordmark/art/lore) rides the ORIGINAL corporation's
  * CardName exactly as everywhere else. No human rule can leak: the render
- * data below is authored from the official bot cards (C01–C09/C45), never
+ * data below is authored from the official bot cards (C01–C10/C45), never
  * read from the human manifest card.
  *
  * PURE (no Vue/DOM/i18n) — unit-tested under the server runner. The
  * `CardRenderer` import is the shared data-DSL (common types only).
  */
 
-/** The symbolic rule rows of each official bot card (C01–C09 / C45). */
+/** The symbolic rule rows of each official bot card (C01–C10 / C45). */
 function renderDataOf(id: MarsBotCorpId): ICardRenderRoot {
   switch (id) {
   case MarsBotCorpId.C01_CREDICOR:
@@ -121,6 +121,17 @@ function renderDataOf(id: MarsBotCorpId): ICardRenderRoot {
       // C04 uses for its two tracks, with the tag that names this one.
       b.effect(undefined, (eb) => {
         eb.tag(Tag.EARTH).startEffect.megacredits(2);
+      });
+    });
+  case MarsBotCorpId.C10_THARSIS_REPUBLIC:
+    return CardRenderer.builder((b) => {
+      // EFFECT, both halves: a city ANY player founds pays 2 M€ (the human's
+      // half), and the bot's own city pushes the event track.
+      b.effect(undefined, (eb) => {
+        eb.city({size: Size.SMALL, all}).startEffect.megacredits(2);
+      });
+      b.effect(undefined, (eb) => {
+        eb.city({size: Size.SMALL}).startEffect.tag(Tag.EVENT);
       });
     });
   case MarsBotCorpId.C45_SPIRE:

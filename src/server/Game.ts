@@ -1817,6 +1817,11 @@ export class Game implements IGame, Logger {
       this.events.withEffect(p, c, 'tile-placed', () => c.onTilePlaced?.(p, player, space, BoardType.MARS));
     });
 
+    // The MarsBot CORPORATION reacting to a placement (C10 Tharsis Republic
+    // reads both seats: a human city pays it, its own city pushes a track).
+    // After the cards, so the corporation sees a finished placement.
+    AutomaCorporations.onTilePlaced(this, player, space);
+
     if (initialTileType !== undefined) {
       AresHandler.ifAres(this, () => {
         AresHandler.grantBonusForRemovingHazard(player, initialTileType);

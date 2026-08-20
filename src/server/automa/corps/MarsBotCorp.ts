@@ -4,6 +4,7 @@ import {Tag} from '../../../common/cards/Tag';
 import {IGame} from '../../IGame';
 import {IPlayer} from '../../IPlayer';
 import {ICard} from '../../cards/ICard';
+import {Space} from '../../boards/Space';
 import {IProjectCard} from '../../cards/IProjectCard';
 import type {BonusCardOutcome} from '../AutomaBonusCards';
 
@@ -44,6 +45,14 @@ export type MarsBotCorp = {
    * the corporation effect.
    */
   onProjectCardResolving?(game: IGame, card: IProjectCard): void;
+
+  /**
+   * A TILE was just placed on Mars by `player` (either seat — the bot's own
+   * placements go through the same `Game.addTile`). Runs after the tile is on
+   * the board and every card has reacted, so a corporation reacting to it
+   * sees a finished placement. C10 reads both seats through this one hook.
+   */
+  onTilePlaced?(game: IGame, player: IPlayer, space: Space): void;
 
   /**
    * MarsBot RESOLVED one printed tag (`AutomaResolver.resolveTag`) — a tag of
