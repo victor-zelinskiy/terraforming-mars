@@ -17,7 +17,8 @@ import {SelectCard} from '../inputs/SelectCard';
 import {SimpleDeferredAction} from '../deferredActions/DeferredAction';
 import {AwardScorer} from '../awards/AwardScorer';
 import {AutomaAres} from './AutomaAres';
-import {drawAndResolveProjectCard} from './AutomaCardDraw';
+import {drawAndResolveProjectCard, resolveProjectCardForBot} from './AutomaCardDraw';
+import {newProjectCard} from '../createCard';
 import {AutomaCorporations} from './corps/AutomaCorporations';
 import {cardResourceAttackPrompt} from './AutomaAttackPrompt';
 import {AutomaColonies} from './AutomaColonies';
@@ -339,7 +340,16 @@ function outerSystemFoothold(game: IGame): BonusCardOutcome {
   AutomaResearch.reshuffleBonusDeckIfEmpty(game, automa);
   const thinned = automa.bonusDeck.shift();
   if (thinned !== undefined) {
-    automa.bonusDiscard.push(thinned);
+    // A project card seeded into the bonus deck (C07) goes to the PROJECT
+    // discard — it is a project card, whatever pile it was sitting in.
+    if (thinned.kind === 'bonus') {
+      automa.bonusDiscard.push(thinned.id);
+    } else {
+      const card = newProjectCard(thinned.name);
+      if (card !== undefined) {
+        game.projectDeck.discard(card);
+      }
+    }
     game.log('${0} discarded a bonus card without resolving it', (b) => b.player(marsBotOf(game)));
   }
   return 'discard';
@@ -463,13 +473,21 @@ function corporateCompetition(game: IGame): BonusCardOutcome {
   AutomaResearch.reshuffleBonusDeckIfEmpty(game, automa);
   const next = automa.bonusDeck.shift();
   if (next !== undefined) {
-    AutomaTurnLog.setBonusSecondary(game, next);
     game.log('${0} drew another bonus card', (b) => b.player(bot));
     // Attribute the SECONDARY card's own steps to their own cause so the review
     // nests them under this card as ONE flow (not a second event).
     AutomaTurnLog.setCause(game, {kind: 'secondary-bonus'});
-    const outcome = resolveBonusCard(game, next);
-    routeBonusCard(game, next, outcome);
+    if (next.kind === 'bonus') {
+      AutomaTurnLog.setBonusSecondary(game, next.id);
+      const outcome = resolveBonusCard(game, next.id);
+      routeBonusCard(game, next.id, outcome);
+    } else {
+      // The deck can hold PROJECT cards (C07 seeds them) — resolve as one.
+      const card = newProjectCard(next.name);
+      if (card !== undefined) {
+        resolveProjectCardForBot(game, card);
+      }
+    }
     AutomaTurnLog.setCause(game, {kind: 'bonus'});
   }
   return 'discard';

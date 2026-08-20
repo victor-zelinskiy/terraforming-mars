@@ -204,7 +204,7 @@ describe('Automa Colonies', () => {
       const [game, human] = testAutomaGame({coloniesExtension: true});
       setColonies(game, new Ceres());
       human.plants = 5;
-      game.automa!.bonusDeck = [BonusCardId.B01_METEOR_SHOWER];
+      game.automa!.bonusDeck = [{kind: 'bonus', id: BonusCardId.B01_METEOR_SHOWER}];
 
       expect(resolveBonusCard(game, BonusCardId.B18_OUTER_SYSTEM_FOOTHOLD)).eq('discard');
       expect(game.colonies[0].colonies).has.length(1);

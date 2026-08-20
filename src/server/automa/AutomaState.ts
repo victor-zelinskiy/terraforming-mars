@@ -19,13 +19,22 @@ export type AutomaActionCard =
   | {kind: 'project', name: CardName}
   | {kind: 'bonus', id: BonusCardId};
 
+/**
+ * The BONUS deck is the same kind of deck as the action deck: normally all
+ * bonus cards, but a corporation may shuffle PROJECT cards into it (C07
+ * Phobolog's setup), and whatever comes off the top is then resolved
+ * according to its own kind. Old saves stored bare bonus ids — the
+ * deserializer lifts those to `{kind:'bonus'}`.
+ */
+export type SerializedBonusDeckCard = BonusCardId | AutomaActionCard;
+
 export type SerializedAutomaState = {
   difficulty: DifficultyLevel;
   /** One entry per MarsBot track, in board order. */
   tracks: Array<{position: number, regressed: Array<number>}>;
   actionDeck: Array<AutomaActionCard>;
   playedPile: Array<CardName>;
-  bonusDeck: Array<BonusCardId>;
+  bonusDeck: Array<SerializedBonusDeckCard>;
   bonusDiscard: Array<BonusCardId>;
   destroyedBonusCards: Array<BonusCardId>;
   recurringBonusCards: Array<BonusCardId>;
@@ -78,7 +87,7 @@ export type SerializedAutomaState = {
 export class AutomaState {
   public actionDeck: Array<AutomaActionCard> = [];
   public playedPile: Array<CardName> = [];
-  public bonusDeck: Array<BonusCardId> = [];
+  public bonusDeck: Array<AutomaActionCard> = [];
   public bonusDiscard: Array<BonusCardId> = [];
   /** Destroyed bonus cards are removed from the game permanently — never reshuffled. */
   public destroyedBonusCards: Array<BonusCardId> = [];
@@ -230,7 +239,9 @@ export class AutomaState {
     });
     state.actionDeck = [...d.actionDeck];
     state.playedPile = [...d.playedPile];
-    state.bonusDeck = [...d.bonusDeck];
+    // Old saves hold bare bonus ids; new ones hold the typed union.
+    state.bonusDeck = d.bonusDeck.map((entry) =>
+      typeof entry === 'string' ? {kind: 'bonus' as const, id: entry} : entry);
     state.bonusDiscard = [...d.bonusDiscard];
     state.destroyedBonusCards = [...d.destroyedBonusCards];
     state.recurringBonusCards = [...d.recurringBonusCards];

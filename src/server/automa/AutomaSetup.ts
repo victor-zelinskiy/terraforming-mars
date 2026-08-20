@@ -118,7 +118,7 @@ export class AutomaSetup {
       AutomaColonies.setupColonies(game);
     }
 
-    state.bonusDeck = AutomaSetup.bonusDeckContents(options);
+    state.bonusDeck = AutomaSetup.bonusDeckContents(options).map((id) => ({kind: 'bonus' as const, id}));
     inplaceShuffle(state.bonusDeck, game.rng);
     // DEV "custom bonus cards": lift them to the TOP of the bonus deck, AFTER
     // the shuffle — the automa twin of `customProjectCards`, and the only way
@@ -129,8 +129,11 @@ export class AutomaSetup {
     // (`?? []` — an old save deserialized before this option existed.)
     const custom = options.customBonusCards ?? [];
     if (custom.length > 0) {
-      const usable = custom.filter((id) => state.bonusDeck.includes(id));
-      state.bonusDeck = [...usable, ...state.bonusDeck.filter((id) => !usable.includes(id))];
+      const usable = custom.filter((id) => state.bonusDeck.some((e) => e.kind === 'bonus' && e.id === id));
+      state.bonusDeck = [
+        ...usable.map((id) => ({kind: 'bonus' as const, id})),
+        ...state.bonusDeck.filter((e) => !(e.kind === 'bonus' && usable.includes(e.id))),
+      ];
     }
 
     if (options.venusNextExtension) {
@@ -153,7 +156,7 @@ export class AutomaSetup {
     if (topBonus === undefined) {
       throw new Error('Empty MarsBot bonus deck during setup');
     }
-    actionDeck.push({kind: 'bonus', id: topBonus});
+    actionDeck.push(topBonus);
     for (const recurring of state.recurringBonusCards) {
       actionDeck.push({kind: 'bonus', id: recurring});
     }

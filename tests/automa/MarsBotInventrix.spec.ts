@@ -37,6 +37,11 @@ function bonusEntries(game: IGame): Array<BonusCardId> {
   return game.automa!.actionDeck.flatMap((entry) => entry.kind === 'bonus' ? [entry.id] : []);
 }
 
+/** The bonus cards still IN the deck (it may also hold project cards — C07). */
+function bonusDeckIds(game: IGame): Array<BonusCardId> {
+  return game.automa!.bonusDeck.flatMap((entry) => entry.kind === 'bonus' ? [entry.id] : []);
+}
+
 describe('MarsBot Inventrix (C05) + B25 Do It Right', () => {
   describe('the printed card', () => {
     it('prints no starting tags, no priority, no resource — only its three boxes', () => {
@@ -61,13 +66,13 @@ describe('MarsBot Inventrix (C05) + B25 Do It Right', () => {
       const dealt = automa.actionDeck.findIndex((e) => e.kind === 'bonus' && e.id === B06);
       if (dealt !== -1) {
         automa.actionDeck[dealt] = {kind: 'bonus', id: BonusCardId.B04_OVERACHIEVEMENT};
-        automa.bonusDeck.push(B06);
+        automa.bonusDeck.push({kind: 'bonus', id: B06});
       }
-      expect(automa.bonusDeck).contains(B06);
+      expect(bonusDeckIds(game)).contains(B06);
 
       game.playerIsFinishedWithResearchPhase(human);
 
-      expect(automa.bonusDeck, 'gone from the deck').not.contains(B06);
+      expect(bonusDeckIds(game), 'gone from the deck').not.contains(B06);
       expect(automa.destroyedBonusCards, 'out of the game').contains(B06);
       expect(bonusEntries(game), 'and never dealt into a hand').not.contains(B06);
     });
@@ -81,7 +86,7 @@ describe('MarsBot Inventrix (C05) + B25 Do It Right', () => {
       const automa = game.automa!;
       expect(bonusEntries(game), 'generation 1 was dealt Lobbyists').deep.eq([B06]);
       const deckSize = automa.actionDeck.length;
-      const successor = automa.bonusDeck[0];
+      const successor = bonusDeckIds(game)[0];
 
       game.playerIsFinishedWithResearchPhase(human);
 
@@ -89,7 +94,7 @@ describe('MarsBot Inventrix (C05) + B25 Do It Right', () => {
       // The successor took the slot (and B25 joined) — the deck did not shrink.
       expect(bonusEntries(game).sort()).deep.eq([successor, B25].sort());
       expect(automa.actionDeck.length, 'one card in, one card out, plus B25').eq(deckSize + 1);
-      expect(automa.bonusDeck).not.contains(successor);
+      expect(bonusDeckIds(game)).not.contains(successor);
     });
 
     it('with Venus Next it is the VENUS printing that is destroyed', () => {
@@ -97,7 +102,7 @@ describe('MarsBot Inventrix (C05) + B25 Do It Right', () => {
       const automa = game.automa!;
       expect(automa.destroyedBonusCards).contains(B15);
       expect(automa.destroyedBonusCards).not.contains(B06);
-      expect(automa.bonusDeck).not.contains(B15);
+      expect(bonusDeckIds(game)).not.contains(B15);
     });
 
     it('another corporation leaves Lobbyists alone', () => {

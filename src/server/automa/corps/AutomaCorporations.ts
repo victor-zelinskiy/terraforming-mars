@@ -15,6 +15,7 @@ import {MarsBotHelion} from './MarsBotHelion';
 import {MarsBotInterplanetaryCinematics} from './MarsBotInterplanetaryCinematics';
 import {MarsBotInventrix} from './MarsBotInventrix';
 import {MarsBotMiningGuild} from './MarsBotMiningGuild';
+import {MarsBotPhobolog} from './MarsBotPhobolog';
 import {MarsBotDraftResolver} from './MarsBotDraftResolver';
 import {MarsBotEcoline} from './MarsBotEcoline';
 import {MarsBotSpire} from './MarsBotSpire';
@@ -49,6 +50,7 @@ export class AutomaCorporations {
     [MarsBotCorpId.C04_INTERPLANETARY_CINEMATICS]: MarsBotInterplanetaryCinematics,
     [MarsBotCorpId.C05_INVENTRIX]: MarsBotInventrix,
     [MarsBotCorpId.C06_MINING_GUILD]: MarsBotMiningGuild,
+    [MarsBotCorpId.C07_PHOBOLOG]: MarsBotPhobolog,
     [MarsBotCorpId.C45_SPIRE]: MarsBotSpire,
   };
 

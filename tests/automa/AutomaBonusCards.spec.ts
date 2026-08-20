@@ -298,7 +298,7 @@ describe('Automa bonus cards', () => {
       game.automa!.board.tracks[THARSIS_TRACK.SCIENCE].position = 18; // Helper impossible.
       bot.megaCredits = 6;
       bot.setTerraformRating(35); // The drawn Overachievement will claim a milestone.
-      game.automa!.bonusDeck = [BonusCardId.B04_OVERACHIEVEMENT];
+      game.automa!.bonusDeck = [{kind: 'bonus', id: BonusCardId.B04_OVERACHIEVEMENT}];
 
       resolve(game, BonusCardId.B08_CORPORATE_COMPETITION);
       expect(bot.megaCredits).eq(6); // No help resolved → the 5 M€ was never paid.
@@ -312,7 +312,7 @@ describe('Automa bonus cards', () => {
       expect(game.fundedAwards).is.empty;
       bot.megaCredits = 6;
       bot.setTerraformRating(35); // The drawn Overachievement will claim a milestone.
-      game.automa!.bonusDeck = [BonusCardId.B04_OVERACHIEVEMENT];
+      game.automa!.bonusDeck = [{kind: 'bonus', id: BonusCardId.B04_OVERACHIEVEMENT}];
 
       resolve(game, BonusCardId.B08_CORPORATE_COMPETITION);
       expect(bot.megaCredits).eq(6); // No award to help → the 5 M€ was never paid.

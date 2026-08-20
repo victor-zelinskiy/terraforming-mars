@@ -54,7 +54,7 @@ export const MarsBotInventrix: MarsBotCorp = {
       return;
     }
     for (const id of LOBBYISTS) {
-      const inDeck = automa.bonusDeck.indexOf(id);
+      const inDeck = automa.bonusDeck.findIndex((entry) => entry.kind === 'bonus' && entry.id === id);
       if (inDeck !== -1) {
         automa.bonusDeck.splice(inDeck, 1);
       }
@@ -73,7 +73,7 @@ export const MarsBotInventrix: MarsBotCorp = {
         if (replacement === undefined) {
           automa.actionDeck.splice(inAction, 1);
         } else {
-          automa.actionDeck[inAction] = {kind: 'bonus', id: replacement};
+          automa.actionDeck[inAction] = replacement;
         }
       }
       if (inDeck === -1 && inDiscard === -1 && inAction === -1) {

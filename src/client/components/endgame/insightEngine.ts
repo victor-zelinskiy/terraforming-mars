@@ -2626,6 +2626,21 @@ const analyzeBotCorporation: Analyzer = (ctx) => {
           scale: 6,
         });
       }
+    } else if (corp.id === 'C07') {
+      // PhoboLog: the white cubes on the space track, pulling from the bonus
+      // deck it seeded with project cards. Two hits are already a pattern.
+      const hits = stat('phobologCubesHit');
+      const projects = stat('phobologProjectCards');
+      const bonuses = stat('phobologBonusCards');
+      if (hits >= 2) {
+        stories.push({
+          key: 'effect',
+          textKey: '${0}\'s corporation ${1} mined its own deck: ${2} white cubes on the space track drew ${3} project cards and ${4} bonus cards.',
+          params: [raw(p.name), raw(corp.name), raw(hits), raw(projects), raw(bonuses)],
+          measure: hits,
+          scale: 4,
+        });
+      }
     } else if (corp.id === 'C45') {
       // Spire: the science engine — multi-tag cards banked into cities + TR.
       const cities = stat('citiesPlaced');

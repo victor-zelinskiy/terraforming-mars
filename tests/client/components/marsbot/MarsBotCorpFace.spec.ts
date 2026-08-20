@@ -118,6 +118,17 @@ describe('marsBotCorpRules — the «§ ПРАВИЛА» groups', () => {
     expect(groups.every((g) => g.rows.length > 0)).is.true;
   });
 
+  it('PhoboLog prints its seeding and its cubes, never the human titanium bonus', () => {
+    const groups = marsBotCorpAnnotations(MarsBotCorpId.C07_PHOBOLOG);
+    expect(groups.map((g) => g.labelKey)).deep.eq(['Corporation setup', 'Corporation effect']);
+    const text = groups.flatMap((g) => g.rows.map((r) => r.text)).join(' ');
+    expect(text).contains('space tag');
+    expect(text).contains('bonus deck');
+    expect(text).contains('7, 10, 13, 15');
+    // The human PhoboLog starts with 10 titanium and a +1 titanium value.
+    expect(text).not.match(/titanium/i);
+  });
+
   it('Mining Guild prints its bank and its off-switch, never the human steel bonus', () => {
     const groups = marsBotCorpAnnotations(MarsBotCorpId.C06_MINING_GUILD);
     expect(groups.map((g) => g.labelKey)).deep.eq(['Corporation setup', 'Corporation effect']);

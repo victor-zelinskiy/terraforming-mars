@@ -23,7 +23,8 @@ function allBonusCards(automa: AutomaState): Array<BonusCardId> {
   const inActionDeck = automa.actionDeck
     .filter((c): c is {kind: 'bonus', id: BonusCardId} => c.kind === 'bonus')
     .map((c) => c.id);
-  return [...automa.bonusDeck, ...inActionDeck];
+  const inDeck = automa.bonusDeck.flatMap((c) => c.kind === 'bonus' ? [c.id] : []);
+  return [...inDeck, ...inActionDeck];
 }
 
 describe('AutomaSetup', () => {

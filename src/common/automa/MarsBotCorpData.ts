@@ -93,6 +93,13 @@ export type MarsBotCorpInfo = {
    * card's own off-switch (a track at its end stops the whole effect).
    */
   mcBank?: {size: number, trackTag: Tag};
+  /**
+   * A setup box that SEEDS the bonus deck with project cards (C07): reveal
+   * project cards until `count` of them carry `tag`, then shuffle everything
+   * revealed into the bonus deck. From then on a bonus-deck draw can yield a
+   * project card, which is resolved as one.
+   */
+  bonusDeckSeed?: {tag: Tag, count: number};
   /** Cubes seeded onto MarsBot's tracks during setup (RB-B special cubes). */
   trackCubes?: ReadonlyArray<MarsBotTrackCube>;
   /**
@@ -252,6 +259,35 @@ const CORP_INFO: Readonly<Record<MarsBotCorpId, MarsBotCorpInfo>> = {
       ]},
     ],
   },
+  [MarsBotCorpId.C07_PHOBOLOG]: {
+    id: MarsBotCorpId.C07_PHOBOLOG,
+    cardNumber: 'C07',
+    original: CardName.PHOBOLOG,
+    startingTags: [Tag.SPACE],
+    corpBonusCards: [],
+    // SETUP: «Reveal cards from the project deck until you've revealed 2 cards
+    // with a space tag. Shuffle these cards into the bonus deck.»
+    bonusDeckSeed: {tag: Tag.SPACE, count: 2},
+    // SETUP: «Place a white cube on the space track on spaces #7, #10, #13, #15.»
+    trackCubes: [
+      {tag: Tag.SPACE, position: 7, cubeType: 'white'},
+      {tag: Tag.SPACE, position: 10, cubeType: 'white'},
+      {tag: Tag.SPACE, position: 13, cubeType: 'white'},
+      {tag: Tag.SPACE, position: 15, cubeType: 'white'},
+    ],
+    cubeLegend: {
+      white: 'Advancing onto it: MarsBot draws and resolves a card from the bonus deck',
+    },
+    sections: [
+      {kind: 'setup', lines: [
+        {icon: 'deck', text: 'Reveal project cards until ${0} of them carry a space tag — all of them are shuffled into the bonus deck', params: ['2']},
+        {icon: 'cube-white', text: 'A white cube on the space track spaces ${0}', params: ['7, 10, 13, 15']},
+      ]},
+      {kind: 'effect', lines: [
+        {icon: 'cards', text: 'Advancing onto a white cube: MarsBot draws and resolves a card from the bonus deck'},
+      ]},
+    ],
+  },
   [MarsBotCorpId.C45_SPIRE]: {
     id: MarsBotCorpId.C45_SPIRE,
     cardNumber: 'C45',
@@ -306,6 +342,9 @@ export function corpOwningBonusCard(id: BonusCardId): MarsBotCorpInfo | undefine
  * Inventrix: inventrixTriggers / inventrixMc (the requirement effect),
  *           doItRightPlayed and its branch tally doItRightTemperature /
  *           doItRightGreeneries / doItRightOceans / doItRightNoEffect.
+ * Phobolog: phobologSeeded (project cards shuffled into the bonus deck),
+ *           phobologCubesHit, phobologBonusCards / phobologProjectCards (what
+ *           those cubes actually drew).
  * Mining Guild: miningGuildBanked (M€ that flowed THROUGH the card) /
  *           miningGuildRefills (times it emptied = building-track advances).
  * Helion:   whiteCubesHit / blackCubesHit (cubes reached), helionCardsDrawn

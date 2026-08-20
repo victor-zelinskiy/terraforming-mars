@@ -28,7 +28,9 @@ export class AutomaResearch {
   /** Bonus deck empty → reshuffle the discard pile face down. Destroyed cards live elsewhere. */
   public static reshuffleBonusDeckIfEmpty(game: IGame, automa: AutomaState): void {
     if (automa.bonusDeck.length === 0 && automa.bonusDiscard.length > 0) {
-      automa.bonusDeck = automa.bonusDiscard;
+      // Only BONUS cards ever reach the discard: a project card shuffled into
+      // the deck (C07) is resolved like any other and ends in the played pile.
+      automa.bonusDeck = automa.bonusDiscard.map((id) => ({kind: 'bonus' as const, id}));
       automa.bonusDiscard = [];
       inplaceShuffle(automa.bonusDeck, game.rng);
     }
@@ -91,7 +93,7 @@ export class AutomaResearch {
     AutomaResearch.reshuffleBonusDeckIfEmpty(game, automa);
     const topBonus = automa.bonusDeck.shift();
     if (topBonus !== undefined) {
-      actionDeck.push({kind: 'bonus', id: topBonus});
+      actionDeck.push(topBonus);
     }
     for (const recurring of automa.recurringBonusCards) {
       actionDeck.push({kind: 'bonus', id: recurring});

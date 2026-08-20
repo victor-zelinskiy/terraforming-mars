@@ -244,7 +244,8 @@ describe('MarsBot attack prompt context', () => {
     const bonuses = automa.actionDeck.filter((c) => c.kind === 'bonus');
     expect(bonuses.map((c) => c.kind === 'bonus' ? c.id : undefined))
       .contains(BonusCardId.B02_INVASIVE_SPECIES);
-    expect(automa.bonusDeck, 'and it is no longer waiting in the deck')
+    expect(automa.bonusDeck.flatMap((c) => c.kind === 'bonus' ? [c.id] : []),
+      'and it is no longer waiting in the deck')
       .not.contains(BonusCardId.B02_INVASIVE_SPECIES);
   });
 

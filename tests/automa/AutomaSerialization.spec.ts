@@ -50,7 +50,10 @@ describe('Automa serialization', () => {
     automa.floaters = 3;
     automa.shippingStorage['Ceres'] = 2 as never;
     automa.playedPile.push(CardName.BIRDS);
-    automa.destroyedBonusCards.push(automa.bonusDeck.pop()!);
+    const popped = automa.bonusDeck.pop()!;
+    if (popped.kind === 'bonus') {
+      automa.destroyedBonusCards.push(popped.id);
+    }
     automa.hardClaimCheckedGeneration = 4;
     automa.revealedCard = automa.actionDeck[0];
 
