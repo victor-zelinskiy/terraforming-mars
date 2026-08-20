@@ -1,5 +1,7 @@
 import {expect} from 'chai';
+import * as fs from 'fs';
 import {CardName} from '../../../src/common/cards/CardName';
+import {Expansion} from '../../../src/common/cards/GameModule';
 import {Tag} from '../../../src/common/cards/Tag';
 import {BonusCardId, MARS_BOT_CORP_IDS, MarsBotCorpId} from '../../../src/common/automa/AutomaTypes';
 import {CORP_SECTION_LABEL, buildMarsBotCorpView, corpOwningBonusCard, marsBotCorpInfo} from '../../../src/common/automa/MarsBotCorpData';
@@ -9,6 +11,26 @@ import {CORP_SECTION_LABEL, buildMarsBotCorpView, corpOwningBonusCard, marsBotCo
  * (C01–C04 / C45, RB-B "Adding Corporations"). These specs pin the DATA so
  * a future edit that drifts from the physical cards fails loudly.
  */
+/** Every i18n key the RU locale defines, across all of its files (nested included). */
+function ruLocaleKeys(): Set<string> {
+  const keys = new Set<string>();
+  const walk = (node: unknown) => {
+    if (node === null || typeof node !== 'object') {
+      return;
+    }
+    for (const [key, value] of Object.entries(node)) {
+      keys.add(key);
+      walk(value);
+    }
+  };
+  for (const file of fs.readdirSync('src/locales/ru')) {
+    if (file.endsWith('.json')) {
+      walk(JSON.parse(fs.readFileSync(`src/locales/ru/${file}`, 'utf8')));
+    }
+  }
+  return keys;
+}
+
 describe('MarsBotCorpData', () => {
   it('every implemented corporation has a definition whose id round-trips', () => {
     for (const id of MARS_BOT_CORP_IDS) {
@@ -88,10 +110,54 @@ describe('MarsBotCorpData', () => {
       .deep.eq([Tag.BUILDING, Tag.EVENT]);
   });
 
+  it('a printed module condition is never a module MarsBot games cannot have', () => {
+    // C16 is the first corporation to print one («use this corporation only
+    // when playing with Prelude»). A condition naming a module the automa
+    // validator REJECTS would make that corporation permanently unreachable —
+    // a silent dead entry in the pool, which is exactly what this guard is
+    // here to fail on. The POC's playable set is Corporate Era + Prelude +
+    // Venus Next + Colonies.
+    const playable: ReadonlyArray<Expansion> = ['corpera', 'prelude', 'venus', 'colonies'];
+    for (const id of MARS_BOT_CORP_IDS) {
+      const required = marsBotCorpInfo(id).requiresModules;
+      if (required === undefined) {
+        continue;
+      }
+      expect(required, `${id}: an empty condition should simply be absent`).is.not.empty;
+      for (const module of required) {
+        expect(playable, `${id} requires ${module}, which no MarsBot game can enable`).contains(module);
+      }
+    }
+    expect(marsBotCorpInfo(MarsBotCorpId.C16_VALLEY_TRUST).requiresModules).deep.eq(['prelude']);
+    expect(marsBotCorpInfo(MarsBotCorpId.C01_CREDICOR).requiresModules).is.undefined;
+  });
+
   it('corpOwningBonusCard maps B23 to Ecoline and nothing else', () => {
     expect(corpOwningBonusCard(BonusCardId.B23_RAPID_SPROUTING)?.id).eq(MarsBotCorpId.C02_ECOLINE);
     expect(corpOwningBonusCard(BonusCardId.B22_SETTLERS)).is.undefined;
     expect(corpOwningBonusCard(BonusCardId.B01_METEOR_SHOWER)).is.undefined;
+  });
+
+  it('every printed line, cube legend and marker legend has a RU translation', () => {
+    // THE WORKLIST: a corporation ships one string the RU locale never got and
+    // the mat renders it in English, in the middle of a Russian screen — the
+    // C16 cube legend did exactly that, and only a screenshot caught it (the
+    // i18n audit checks duplicates and structure, not source-string coverage).
+    // Every text this data feeds the UI is listed here BY NAME when missing.
+    const keys = ruLocaleKeys();
+    const missing: Array<string> = [];
+    for (const id of MARS_BOT_CORP_IDS) {
+      const info = marsBotCorpInfo(id);
+      const check = (text: string | undefined, where: string) => {
+        if (text !== undefined && text.length > 0 && !keys.has(text)) {
+          missing.push(`${id} (${where}): "${text}"`);
+        }
+      };
+      info.sections.forEach((section) => section.lines.forEach((line) => check(line.text, section.kind)));
+      Object.entries(info.cubeLegend ?? {}).forEach(([cube, text]) => check(text, `cubeLegend.${cube}`));
+      check(info.markerLegend, 'markerLegend');
+    }
+    expect(missing, `untranslated MarsBot corporation strings:\n${missing.join('\n')}`).is.empty;
   });
 
   it('every section kind has a kicker label', () => {

@@ -241,6 +241,20 @@ describe('insightEngine', () => {
       expect(insights[0].textKey).contains('came free once the war chest ran dry');
     });
 
+    it('C16 counts the free projects, not the cubes that produced them', () => {
+      const insights = botInsights({valleyCubesHit: 2, valleyCardsDrawn: 2, valleyExtraStartCards: 1},
+        MarsBotCorpId.C16_VALLEY_TRUST, 'Valley Trust');
+      expect(insights).has.length(1);
+      expect(insights[0].textKey).contains('free projects on the table');
+      expect(insights[0].textKey, 'the internal cube vocabulary stays in the code').not.contains('cube');
+      expect(insights[0].params.map((p) => p.v)).contains('2');
+    });
+
+    it('C16 says nothing when only one cube ever paid', () => {
+      expect(botInsights({valleyCubesHit: 1, valleyCardsDrawn: 1, valleyExtraStartCards: 1},
+        MarsBotCorpId.C16_VALLEY_TRUST, 'Valley Trust')).is.empty;
+    });
+
     it('the draft fallback speaks only when no printed effect did', () => {
       const withEffect = botInsights({credicorTriggers: 6, credicorMc: 24, fiveCardDecks: 3},
         MarsBotCorpId.C01_CREDICOR, 'CrediCor');

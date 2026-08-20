@@ -436,5 +436,11 @@
   "${0} could not cover the ${1} M€ of Diversification — the step was free": "${0} не смог покрыть ${1} М€ «Диверсификации» — шаг достался бесплатно",
   "Bought a step on its weakest track for ${0} M€": "Купил шаг на своём слабейшем треке за ${0} М€",
   "A free step on its weakest track — the treasury was empty": "Бесплатный шаг на слабейшем треке — казна пуста",
-  "Every track is already finished": "Все треки уже пройдены до конца"
+  "Every track is already finished": "Все треки уже пройдены до конца",
+  "A white cube on the science track spaces ${0}": "Белый куб на клетки трека науки: ${0}",
+  "MarsBot is dealt ${0} extra project card in its starting deck": "Бот получает на ${0} проектную карту больше в стартовой колоде",
+  "This corporation is only used in a game with Prelude": "Эта корпорация используется только в игре с дополнением «Прелюдия»",
+  "Advancing onto a white cube: MarsBot draws and resolves a card from the project deck": "Дойдя до белого куба: Бот берёт и разыгрывает карту из колоды проектов",
+  "Advancing onto it: MarsBot draws and resolves a card from the project deck": "Дойдя до него: Бот берёт и разыгрывает карту из колоды проектов",
+  "${0} received ${1} extra project card in its starting deck from its corporation ${2}": "${0} получает на ${1} проектную карту больше в стартовой колоде от своей корпорации ${2}"
 }

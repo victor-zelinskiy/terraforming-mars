@@ -1,4 +1,5 @@
 import {CardName} from '../cards/CardName';
+import {Expansion} from '../cards/GameModule';
 import {Tag} from '../cards/Tag';
 import {BonusCardId, MARSBOT_MAX_TRACK_POSITION, MARS_BOT_CORP_IDS, MarsBotCorpId, MarsBotCubeType} from './AutomaTypes';
 import {BonusCardEffectLine} from './BonusCardData';
@@ -81,6 +82,14 @@ export type MarsBotCorpInfo = {
    */
   startingTags: ReadonlyArray<Tag>;
   draftPriority?: MarsBotDraftPriority;
+  /**
+   * Modules the printed card REQUIRES to be in play — C16: «Use this
+   * corporation only when playing with Prelude». Absent ⇒ always eligible.
+   * The corporation is simply not in the selection pool without them (RB-B
+   * Setup 1 draws only from the corporations this game can use), which is
+   * also why it can never be dev-forced into a game that lacks them.
+   */
+  requiresModules?: ReadonlyArray<Expansion>;
   /** The resource this corporation stores on its own card, if any. */
   resource?: MarsBotCorpResource;
   /** Corporation-specific bonus cards this corp brings into play (RB-B Setup 5
@@ -478,6 +487,36 @@ const CORP_INFO: Readonly<Record<MarsBotCorpId, MarsBotCorpInfo>> = {
       ]},
     ],
   },
+  [MarsBotCorpId.C16_VALLEY_TRUST]: {
+    id: MarsBotCorpId.C16_VALLEY_TRUST,
+    cardNumber: 'C16',
+    original: CardName.VALLEY_TRUST,
+    // No starting tag is printed (the top-right tag socket is empty); the
+    // science symbol on this card sits in the DRAFT PRIORITY plate.
+    startingTags: [],
+    draftPriority: {type: 'tags', tags: [Tag.SCIENCE]},
+    requiresModules: ['prelude'],
+    corpBonusCards: [],
+    // SETUP: «Place a white cube on the science track on spaces #8 and #16.»
+    trackCubes: [
+      {tag: Tag.SCIENCE, position: 8, cubeType: 'white'},
+      {tag: Tag.SCIENCE, position: 16, cubeType: 'white'},
+    ],
+    cubeLegend: {
+      white: 'Advancing onto it: MarsBot draws and resolves a card from the project deck',
+    },
+    sections: [
+      {kind: 'draftPriority', lines: [{text: 'Science'}]},
+      {kind: 'setup', lines: [
+        {icon: 'cards', text: 'MarsBot is dealt ${0} extra project card in its starting deck', params: ['1']},
+        {icon: 'cube-white', text: 'A white cube on the science track spaces ${0}', params: ['8, 16']},
+        {text: 'This corporation is only used in a game with Prelude', muted: true},
+      ]},
+      {kind: 'effect', lines: [
+        {icon: 'cards', text: 'Advancing onto a white cube: MarsBot draws and resolves a card from the project deck'},
+      ]},
+    ],
+  },
   [MarsBotCorpId.C45_SPIRE]: {
     id: MarsBotCorpId.C45_SPIRE,
     cardNumber: 'C45',
@@ -537,6 +576,9 @@ export function corpOwningBonusCard(id: BonusCardId): MarsBotCorpInfo | undefine
  * Point Luna: lunaWhiteCubes / lunaBlackCubes (cubes reached) and lunaSteps
  *           (track advances they produced).
  * Cheung Shing Mars: cheungCubesHit / cheungMc (the silver cubes it collected).
+ * Valley Trust: valleyExtraStartCards (the printed extra card of its starting
+ *           deck), valleyCubesHit / valleyCardsDrawn (the science cubes and
+ *           what they flipped).
  * Robinson Industries: diversificationPlayed (times its own B28 came up),
  *           diversificationPushes (advances of the least-advanced track it
  *           actually landed — a maxed track is a Failed Action, not a push),

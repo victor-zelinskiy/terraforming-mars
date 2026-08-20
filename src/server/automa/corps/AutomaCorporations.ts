@@ -1,4 +1,5 @@
 import {CardName} from '../../../common/cards/CardName';
+import {Expansion} from '../../../common/cards/GameModule';
 import {Tag} from '../../../common/cards/Tag';
 import {BonusCardId, TrackAction} from '../../../common/automa/AutomaTypes';
 import {MARS_BOT_CORP_IDS, MarsBotCorpCubeModel, MarsBotCorpId, MarsBotCorpInfo, MarsBotTrackCube, marsBotCorpInfo} from '../../../common/automa/MarsBotCorpData';
@@ -22,6 +23,7 @@ import {MarsBotMiningGuild} from './MarsBotMiningGuild';
 import {MarsBotPhobolog} from './MarsBotPhobolog';
 import {MarsBotPointLuna} from './MarsBotPointLuna';
 import {MarsBotRobinsonIndustries} from './MarsBotRobinsonIndustries';
+import {MarsBotValleyTrust} from './MarsBotValleyTrust';
 import {MarsBotSaturnSystems} from './MarsBotSaturnSystems';
 import {MarsBotTeractor} from './MarsBotTeractor';
 import {MarsBotTharsisRepublic} from './MarsBotTharsisRepublic';
@@ -71,6 +73,7 @@ export class AutomaCorporations {
     [MarsBotCorpId.C13_CHEUNG_SHING_MARS]: MarsBotCheungShingMars,
     [MarsBotCorpId.C14_POINT_LUNA]: MarsBotPointLuna,
     [MarsBotCorpId.C15_ROBINSON_INDUSTRIES]: MarsBotRobinsonIndustries,
+    [MarsBotCorpId.C16_VALLEY_TRUST]: MarsBotValleyTrust,
     [MarsBotCorpId.C45_SPIRE]: MarsBotSpire,
   };
 
@@ -94,6 +97,17 @@ export class AutomaCorporations {
     return !humanCorporations.has(info.original);
   }
 
+  /**
+   * The printed MODULE condition, as a PURE predicate (C16 Valley Trust: «Use
+   * this corporation only when playing with Prelude»). A corporation printing
+   * no condition is always eligible. Deliberately SEPARATE from the collision
+   * predicate: each answers one question, and neither has a permissive
+   * default a caller could forget to pass.
+   */
+  public static hasRequiredModules(info: MarsBotCorpInfo, expansions: Partial<Record<Expansion, boolean>>): boolean {
+    return (info.requiresModules ?? []).every((module) => expansions[module] === true);
+  }
+
   /** Every corporation any human PICKED or already PLAYED (union — robust across the start flow). */
   public static humanCorporationNames(game: IGame): Set<CardName> {
     const names = new Set<CardName>();
@@ -108,11 +122,19 @@ export class AutomaCorporations {
     return names;
   }
 
-  /** The implemented corporations still eligible for this game, in card-number order. */
+  /**
+   * The implemented corporations still eligible for this game, in card-number
+   * order: neither colliding with a human corporation nor missing a module its
+   * printed card requires.
+   */
   public static eligibleCorpIds(game: IGame): Array<MarsBotCorpId> {
     const humanCorporations = AutomaCorporations.humanCorporationNames(game);
-    return MARS_BOT_CORP_IDS.filter((id) =>
-      AutomaCorporations.isMarsBotCorporationEligible(marsBotCorpInfo(id), humanCorporations));
+    const expansions = game.gameOptions.expansions ?? {};
+    return MARS_BOT_CORP_IDS.filter((id) => {
+      const info = marsBotCorpInfo(id);
+      return AutomaCorporations.isMarsBotCorporationEligible(info, humanCorporations) &&
+        AutomaCorporations.hasRequiredModules(info, expansions);
+    });
   }
 
   /**

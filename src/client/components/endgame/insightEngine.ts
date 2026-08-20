@@ -2773,6 +2773,20 @@ const analyzeBotCorporation: Analyzer = (ctx) => {
           scale: 6,
         });
       }
+    } else if (corp.id === 'C16') {
+      // Valley Trust: what the player saw is a bot playing MORE projects than
+      // a bot should — the science track kept handing it free turns. The
+      // opening extra card is flat and frames the run rather than being it.
+      const cards = stat('valleyCardsDrawn');
+      if (cards >= 2) {
+        stories.push({
+          key: 'effect',
+          textKey: 'Research never stopped paying at ${0}\'s ${1}: its science programme put free projects on the table (${2}) on top of the extra card it opened with.',
+          params: [raw(p.name), raw(corp.name), raw(cards)],
+          measure: cards,
+          scale: 2,
+        });
+      }
     } else if (corp.id === 'C45') {
       // Spire: the science engine — multi-tag cards banked into cities + TR.
       const cities = stat('citiesPlaced');

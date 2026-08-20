@@ -50,6 +50,8 @@ describe('MarsBotCorpFace (.pcard template)', () => {
     expect(mountFace(MarsBotCorpId.C02_ECOLINE).find('.pcard__tags').exists()).is.false;
     expect(mountFace(MarsBotCorpId.C15_ROBINSON_INDUSTRIES).find('.pcard__tags').exists(),
       'C15 prints no starting tag at all').is.false;
+    expect(mountFace(MarsBotCorpId.C16_VALLEY_TRUST).find('.pcard__tags').exists(),
+      'C16\'s science symbol is its draft priority, not a starting tag').is.false;
     // C04 prints TWO event tags — both sit on the rail (the bot card's tags,
     // never the human card's single building tag).
     // Saturn Systems prints FOUR starting tags — the rail carries them all.
@@ -172,6 +174,19 @@ describe('marsBotCorpRules — the «§ ПРАВИЛА» groups', () => {
     // weakest thing it owns) but pays for a TRACK, and the 47 never appears.
     expect(text).not.contains('47');
     expect(text).not.match(/production/i);
+  });
+
+  it('Valley Trust prints its extra card, its cubes and the Prelude condition', () => {
+    const groups = marsBotCorpAnnotations(MarsBotCorpId.C16_VALLEY_TRUST);
+    expect(groups.map((g) => g.labelKey)).deep.eq(['Draft priority', 'Corporation setup', 'Corporation effect']);
+    const text = groups.flatMap((g) => g.rows.map((r) => r.text)).join(' ');
+    expect(text).contains('8, 16');
+    expect(text).contains('extra project card');
+    expect(text, 'the printed module condition is stated, not silently enforced').contains('Prelude');
+    expect(text).contains('project deck');
+    // The human Valley Trust starts with 37 M€ and draws preludes to choose from.
+    expect(text).not.contains('37');
+    expect(text).not.match(/prelude cards|choose one/i);
   });
 
   it('ThorGate prints its cubes and the first-tag clause, never the human discount', () => {
