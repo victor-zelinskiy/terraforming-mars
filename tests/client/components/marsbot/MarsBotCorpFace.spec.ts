@@ -78,6 +78,8 @@ describe('MarsBotCorpFace (.pcard template)', () => {
       'C18 prints ONE building starting tag').has.length(1);
     expect(mountFace(MarsBotCorpId.C29_MANUTECH).findAll('.pcard__tags .pcard-tag'),
       'C29 prints ONE building starting tag').has.length(1);
+    expect(mountFace(MarsBotCorpId.C30_ARIDOR).find('.pcard__tags').exists(),
+      'C30 prints NO starting tag — its corner carries the priority plate').is.false;
     // C04 prints TWO event tags — both sit on the rail (the bot card's tags,
     // never the human card's single building tag).
     // Saturn Systems prints FOUR starting tags — the rail carries them all.
@@ -399,6 +401,22 @@ describe('marsBotCorpRules — the «§ ПРАВИЛА» groups', () => {
     // resource whenever it raises a production — none of that is here.
     expect(text).not.contains('35');
     expect(text).not.match(/production/i);
+  });
+
+  it('Aridor prints its nine cubes and the extra colony, never the human tag bonus', () => {
+    const groups = marsBotCorpAnnotations(MarsBotCorpId.C30_ARIDOR);
+    expect(groups.map((g) => g.labelKey)).deep.eq(['Draft priority', 'Corporation setup', 'Corporation effect']);
+    const text = groups.flatMap((g) => g.rows.map((r) => r.text)).join(' ');
+    expect(text).contains('Colonies');
+    expect(text, 'the white run').contains('#3');
+    expect(text, 'and the two spaces further up').contains('#6');
+    expect(text, 'the extra tile is a printed setup line, not folklore').contains('colony tile');
+    expect(text, 'and the effect names the track every cube pays').contains('event track');
+    expect(text, 'both colours, one outcome').contains('either colour');
+    // The human Aridor starts with 40 M€ and gains 1 M€ production for each
+    // NEW tag type it puts in play — none of that is here.
+    expect(text).not.contains('40');
+    expect(text).not.match(/new type of tag|production/i);
   });
 
   it('ThorGate prints its cubes and the first-tag clause, never the human discount', () => {

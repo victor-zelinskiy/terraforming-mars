@@ -358,6 +358,20 @@ function renderDataOf(id: MarsBotCorpId): ICardRenderRoot {
         eb.text('◼', Size.SMALL, true).startEffect.wild(1).asterix();
       });
     });
+  case MarsBotCorpId.C30_ARIDOR:
+    return CardRenderer.builder((b) => {
+      // SETUP: one more colony tile joins the game — the human Aridor's own
+      // printed symbol for the very same sentence, in the same bare row it
+      // draws it in. Not an effect row: nothing triggers it.
+      b.colonyTile();
+      // EFFECT: EITHER cube pays the same track — ONE row with both swatches,
+      // in the cube → named track shape C14/C19/C23 draw. Two rows here would
+      // state a difference the card does not print.
+      b.effect(undefined, (eb) => {
+        eb.text('◻', Size.SMALL, true).slash().text('◼', Size.SMALL, true)
+          .startEffect.tag(Tag.EVENT);
+      });
+    });
   case MarsBotCorpId.C45_SPIRE:
     return CardRenderer.builder((b) => {
       // EFFECT: a card with 2+ tags adds a science resource here — the

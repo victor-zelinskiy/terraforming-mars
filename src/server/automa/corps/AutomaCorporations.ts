@@ -35,6 +35,7 @@ import {MarsBotSplice} from './MarsBotSplice';
 import {MarsBotCelestic} from './MarsBotCelestic';
 import {MarsBotAphrodite} from './MarsBotAphrodite';
 import {MarsBotManutech} from './MarsBotManutech';
+import {MarsBotAridor} from './MarsBotAridor';
 import {MarsBotMorningStar} from './MarsBotMorningStar';
 import {MarsBotViron} from './MarsBotViron';
 import {MarsBotVitor} from './MarsBotVitor';
@@ -101,6 +102,7 @@ export class AutomaCorporations {
     [MarsBotCorpId.C27_MORNING_STAR]: MarsBotMorningStar,
     [MarsBotCorpId.C28_APHRODITE]: MarsBotAphrodite,
     [MarsBotCorpId.C29_MANUTECH]: MarsBotManutech,
+    [MarsBotCorpId.C30_ARIDOR]: MarsBotAridor,
     [MarsBotCorpId.C45_SPIRE]: MarsBotSpire,
   };
 

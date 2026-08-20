@@ -1000,6 +1000,31 @@ export function soloGameConfig(overrides: Record<string, unknown> = {}): Record<
 }
 
 /**
+ * Base/corpera corporations to hand `customCorporationsList` when a probe
+ * must keep ONE corporation out of the human's deal — a MarsBot probe that
+ * forces the bot's corporation, since RB-B Setup 1 legitimately hands the bot
+ * a DIFFERENT one when the human holds its original.
+ *
+ * ⚠️ `customCorporationsList` is CARDS-ON-TOP, not a restriction: it only
+ * puts those names at the top of the corporation deck, and the rest of the
+ * deal is still random. `testMode` deals EIGHT corporations, so a two-name
+ * list leaves six random slots — which is exactly how a probe forcing C30
+ * Aridor watched the wizard pick Aridor and the bot legitimately get
+ * something else. Filling all eight slots from a list that excludes the one
+ * name makes the collision unexpressible.
+ */
+const PROBE_CORPORATIONS: ReadonlyArray<string> = [
+  'CrediCor', 'Ecoline', 'Helion', 'Interplanetary Cinematics', 'Inventrix',
+  'Mining Guild', 'PhoboLog', 'Saturn Systems', 'Teractor', 'Tharsis Republic',
+  'ThorGate', 'United Nations Mars Initiative',
+];
+
+/** Those corporations minus `excluded` — see {@link PROBE_CORPORATIONS}. */
+export function corporationsExcluding(...excluded: ReadonlyArray<string>): Array<string> {
+  return PROBE_CORPORATIONS.filter((name) => !excluded.includes(name));
+}
+
+/**
  * Create games (varying the seed) until the initial deal offers EVERY card in
  * `cards`, and return that player's id. API-only, so the loop is cheap — far
  * cheaper than driving a UI that turns out not to hold the subject card.

@@ -1,5 +1,5 @@
 import {expect, test} from '@playwright/test';
-import {bootToBoard, soloGameConfig, visibleSurfaces} from './consoleStart';
+import {bootToBoard, corporationsExcluding, soloGameConfig, visibleSurfaces} from './consoleStart';
 
 /**
  * MANUTECH (C29) — its SETUP box puts a black cube «above the #5 and #12
@@ -18,10 +18,9 @@ const MANUTECH_CONFIG = soloGameConfig({
   automa: {difficulty: 'normal', corporation: 'C29'},
   expansions: {venus: true},
   // The human's own deal must NOT contain Manutech: the collision rule (RB-B
-  // Setup 1) would legitimately hand the bot a different corporation.
-  // `customCorporationsList` is one of the few create-game fields the server
-  // genuinely forces (`seed` is ignored).
-  customCorporationsList: ['Tharsis Republic', 'Inventrix'],
+  // Setup 1) would legitimately hand the bot a different corporation. The list
+  // has to fill ALL EIGHT dealt slots — it is cards-on-top, not a restriction.
+  customCorporationsList: corporationsExcluding('Manutech'),
 });
 
 async function key(page: import('@playwright/test').Page, code: string, settle = 700): Promise<void> {

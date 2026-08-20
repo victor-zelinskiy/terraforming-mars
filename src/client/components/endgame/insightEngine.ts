@@ -3062,6 +3062,21 @@ const analyzeBotCorporation: Analyzer = (ctx) => {
           scale: 12,
         });
       }
+    } else if (corp.id === 'C30') {
+      // Aridor's whole shape is «spread, and let the spreading pay ONE
+      // account», so its story is that account. The extra colony tile it put
+      // on the table is real but has no magnitude — its counter feeds the
+      // journal and the turn review, not a finale headline.
+      const steps = stat('aridorSteps');
+      if (steps >= 3) {
+        stories.push({
+          key: 'effect',
+          textKey: 'Every direction paid the same account for ${0}\'s ${1}: ${2} cube(s) reached across the mat, and each one pushed the event track — ${3} step(s) there.',
+          params: [raw(p.name), raw(corp.name), raw(stat('aridorCubesHit')), raw(steps)],
+          measure: steps,
+          scale: 10,
+        });
+      }
     } else if (corp.id === 'C45') {
       // Spire: the science engine — multi-tag cards banked into cities + TR.
       const cities = stat('citiesPlaced');

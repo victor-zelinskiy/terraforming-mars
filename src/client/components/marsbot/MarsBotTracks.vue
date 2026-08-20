@@ -74,7 +74,8 @@
     <div v-if="legendRows.length > 0" class="mb-cubelegend">
       <div v-for="row in legendRows" :key="row.key" class="mb-cubelegend__row">
         <span v-if="row.marker" class="mb-cell__marker mb-cell__marker--legend" aria-hidden="true"></span>
-        <span v-else class="mb-cell__cube" :class="'mb-cell__cube--' + row.cubeType" aria-hidden="true"></span>
+        <span v-for="cubeType in row.cubeTypes" v-else :key="cubeType"
+              class="mb-cell__cube" :class="'mb-cell__cube--' + cubeType" aria-hidden="true"></span>
         <span class="mb-cubelegend__text">{{ row.text }}</span>
       </div>
     </div>
@@ -233,18 +234,30 @@ export default defineComponent({
       }
       return map;
     },
-    /** One legend row per cube colour this corporation actually seeded, plus
-     *  one for its white TRACKERS when it paints any. */
-    legendRows(): Array<{key: string, cubeType?: MarsBotCubeType, marker?: boolean, text: string}> {
+    /**
+     * One legend row per printed MEANING — not per colour. Colours that share
+     * a legend text share a row and show ALL their swatches (C30 seeds white
+     * and black cubes for one sentence: there the colour is a component, not
+     * a rule, and two identical rows would state a difference the card does
+     * not print). Plus one row for the white TRACKERS when it paints any, and
+     * one for the marked COLUMNS.
+     */
+    legendRows(): Array<{key: string, cubeTypes?: Array<MarsBotCubeType>, marker?: boolean, text: string}> {
       const seeded = new Set((this.corporation?.cubes ?? []).map((c) => c.cubeType));
-      const rows: Array<{key: string, cubeType?: MarsBotCubeType, marker?: boolean, text: string}> = [];
+      const rows: Array<{key: string, cubeTypes?: Array<MarsBotCubeType>, marker?: boolean, text: string}> = [];
       for (const cubeType of ['white', 'black', 'credit'] as const) {
         if (!seeded.has(cubeType)) {
           continue;
         }
         const text = this.legendText(cubeType);
-        if (text !== undefined) {
-          rows.push({key: cubeType, cubeType, text});
+        if (text === undefined) {
+          continue;
+        }
+        const sameMeaning = rows.find((row) => row.cubeTypes !== undefined && row.text === text);
+        if (sameMeaning?.cubeTypes !== undefined) {
+          sameMeaning.cubeTypes.push(cubeType);
+        } else {
+          rows.push({key: cubeType, cubeTypes: [cubeType], text});
         }
       }
       const marker = this.markerLegendText;
@@ -255,7 +268,7 @@ export default defineComponent({
       // so are never reached by the loop above (C29).
       const column = this.columnLegendText;
       if (column !== undefined && this.reminderColumns.size > 0) {
-        rows.push({key: 'columns', cubeType: 'black', text: column});
+        rows.push({key: 'columns', cubeTypes: ['black'], text: column});
       }
       return rows;
     },

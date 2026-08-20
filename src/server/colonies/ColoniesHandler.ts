@@ -62,6 +62,42 @@ export class ColoniesHandler {
     return false;
   }
 
+  /** Would this tile be ACTIVE the moment it entered play? */
+  public static colonyTileWillEnterActive(colony: IColony, game: IGame): boolean {
+    if (colony.isActive) {
+      return true;
+    }
+    for (const player of game.players) {
+      for (const card of player.tableau) {
+        if (ColoniesHandler.cardActivatesColony(colony, card)) {
+          return true;
+        }
+      }
+    }
+    return false;
+  }
+
+  /**
+   * SEAT a chosen tile into the game — the second half of «put an additional
+   * Colony Tile into play», with the choice already made.
+   *
+   * Split out because two entities print that sentence and differ ONLY in how
+   * the tile is chosen: the human Aridor asks its owner (`addColonyTile`
+   * below), MarsBot's C30 never receives a prompt and takes one at seeded
+   * random. Everything after the choice — the sort, the activation check, the
+   * removal from the discarded pool, the journal line — is one rule and lives
+   * here, so the two cannot drift.
+   */
+  public static seatColonyTile(game: IGame, player: IPlayer, colonyTile: IColony): void {
+    game.colonies.push(colonyTile);
+    game.colonies.sort((a, b) => (a.name > b.name) ? 1 : -1);
+    game.log('${0} added a new Colony tile: ${1}', (b) => b.player(player).colony(colonyTile));
+    if (!colonyTile.isActive && ColoniesHandler.colonyTileWillEnterActive(colonyTile, game)) {
+      colonyTile.isActive = true;
+    }
+    inplaceRemove(game.discardedColonies, colonyTile);
+  }
+
   /**
    * Add a discarded colony tile back into the game, e.g. with Aridor.
    */
@@ -74,7 +110,7 @@ export class ColoniesHandler {
     const game = player.game;
     let colonyTiles = options?.colonies ?? game.discardedColonies;
     if (options?.activateableOnly === true) {
-      colonyTiles = colonyTiles.filter((colonyTile) => colonyTileWillEnterActive(colonyTile, game));
+      colonyTiles = colonyTiles.filter((colonyTile) => ColoniesHandler.colonyTileWillEnterActive(colonyTile, game));
     }
     if (colonyTiles.length === 0) {
       game.log('No available colony tiles for ${0} to choose from', (b) => b.player(player));
@@ -83,29 +119,9 @@ export class ColoniesHandler {
 
     const title = options?.title ?? 'Select colony tile to add';
 
-    function colonyTileWillEnterActive(colony: IColony, game: IGame): boolean {
-      if (colony.isActive) {
-        return true;
-      }
-      for (const player of game.players) {
-        for (const card of player.tableau) {
-          if (ColoniesHandler.cardActivatesColony(colony, card)) {
-            return true;
-          }
-        }
-      }
-      return false;
-    }
-
     const selectColonyTile = new SelectColony(title, 'Add colony tile', [...colonyTiles])
       .andThen((colonyTile) => {
-        game.colonies.push(colonyTile);
-        game.colonies.sort((a, b) => (a.name > b.name) ? 1 : -1);
-        game.log('${0} added a new Colony tile: ${1}', (b) => b.player(player).colony(colonyTile));
-        if (!colonyTile.isActive && colonyTileWillEnterActive(colonyTile, game)) {
-          colonyTile.isActive = true;
-        }
-        inplaceRemove(game.discardedColonies, colonyTile);
+        ColoniesHandler.seatColonyTile(game, player, colonyTile);
         options?.cb?.(colonyTile);
         return undefined;
       });

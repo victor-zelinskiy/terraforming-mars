@@ -871,6 +871,57 @@ const CORP_INFO: Readonly<Record<MarsBotCorpId, MarsBotCorpInfo>> = {
       ]},
     ],
   },
+  [MarsBotCorpId.C30_ARIDOR]: {
+    id: MarsBotCorpId.C30_ARIDOR,
+    cardNumber: 'C30',
+    original: CardName.ARIDOR,
+    // No starting tag is printed — the corner carries the priority plate.
+    startingTags: [],
+    draftPriority: {type: 'leastAdvancedTrack'},
+    requiresModules: ['colonies'],
+    corpBonusCards: [],
+    // SETUP box, verbatim: «Place 5 white cubes: building track #3, space
+    // track #3, science #3, power track #3, Jovian track #6. Place 4 black
+    // cubes: Earth track #3, city track #6, plant track #3 and #6.»
+    //
+    // The card addresses cubes by TAG, and on the mat POWER/JOVIAN are ONE
+    // track and EARTH/CITY are another — so those four lines seed two tracks,
+    // not four, and the data says exactly what the card says. What comes out
+    // is a ring at #3 around EVERY track but the event one, doubled at #6 on
+    // the three that carry two tags. The event track is deliberately bare:
+    // it is what the cubes PAY, so the card never feeds itself directly.
+    trackCubes: [
+      {tag: Tag.BUILDING, position: 3, cubeType: 'white'},
+      {tag: Tag.SPACE, position: 3, cubeType: 'white'},
+      {tag: Tag.SCIENCE, position: 3, cubeType: 'white'},
+      {tag: Tag.POWER, position: 3, cubeType: 'white'},
+      {tag: Tag.JOVIAN, position: 6, cubeType: 'white'},
+      {tag: Tag.EARTH, position: 3, cubeType: 'black'},
+      {tag: Tag.CITY, position: 6, cubeType: 'black'},
+      {tag: Tag.PLANT, position: 3, cubeType: 'black'},
+      {tag: Tag.PLANT, position: 6, cubeType: 'black'},
+    ],
+    // ONE sentence covers both colours, so both legends are the same string —
+    // the mat then draws ONE row with both swatches, which is the honest
+    // reading: here the colour is a COMPONENT, not a rule (nine cubes of one
+    // colour do not exist in the box).
+    cubeLegend: {
+      white: 'Advancing onto it: MarsBot advances its event track',
+      black: 'Advancing onto it: MarsBot advances its event track',
+    },
+    sections: [
+      {kind: 'draftPriority', lines: [{text: 'Least-advanced track'}]},
+      {kind: 'setup', lines: [
+        {icon: 'cards', text: 'Use this corporation only when playing with Colonies', muted: true},
+        {icon: 'cube-white', text: 'A white cube on the building, space, science and power tracks space ${0}, and on the Jovian track space ${1}', params: ['#3', '#6']},
+        {icon: 'cube-black', text: 'A black cube on the Earth track space ${0}, the city track space ${1}, and the plant track spaces ${2}', params: ['#3', '#6', '#3 and #6']},
+        {icon: 'colony', text: 'One more colony tile joins the game'},
+      ]},
+      {kind: 'effect', lines: [
+        {icon: 'cards', text: 'Advancing onto a cube of either colour: MarsBot advances its event track'},
+      ]},
+    ],
+  },
   [MarsBotCorpId.C45_SPIRE]: {
     id: MarsBotCorpId.C45_SPIRE,
     cardNumber: 'C45',
@@ -933,6 +984,11 @@ export function corpOwningBonusCard(id: BonusCardId): MarsBotCorpInfo | undefine
  *           three counters, for the same printed effect on its own track.
  * Aphrodite: aphroditeSteps (Venus steps it was paid for) and aphroditeMc
  *           (what they came to).
+ * Aridor:   aridorCubesHit (cubes reached — ONE counter, because the card
+ *           draws no distinction between its two colours) and aridorSteps
+ *           (event-track advances they bought), plus aridorColonyAdded (its
+ *           setup put one more colony tile into the game; 0 when the box was
+ *           already empty).
  * Manutech: manutechTriggers (marked columns its tracks reached) and
  *           manutechSteps (the extra spaces those pushes actually landed — a
  *           track already at its end is a Failed Action, not a step).

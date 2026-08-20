@@ -477,6 +477,19 @@ describe('insightEngine', () => {
         MarsBotCorpId.C29_MANUTECH, 'Manutech')).is.empty;
     });
 
+    it('C30 tells its cube engine as ONE story', () => {
+      const insights = botInsights({aridorCubesHit: 6, aridorSteps: 6, aridorColonyAdded: 1},
+        MarsBotCorpId.C30_ARIDOR, 'Aridor');
+      expect(insights).has.length(1);
+      expect(insights[0].textKey).contains('Every direction paid the same account');
+      expect(insights[0].params.map((p) => p.v)).contains('6');
+    });
+
+    it('C30 keeps quiet when barely any cube was reached', () => {
+      expect(botInsights({aridorCubesHit: 2, aridorSteps: 2, aridorColonyAdded: 1},
+        MarsBotCorpId.C30_ARIDOR, 'Aridor')).is.empty;
+    });
+
     it('the draft fallback speaks only when no printed effect did', () => {
       const withEffect = botInsights({credicorTriggers: 6, credicorMc: 24, fiveCardDecks: 3},
         MarsBotCorpId.C01_CREDICOR, 'CrediCor');

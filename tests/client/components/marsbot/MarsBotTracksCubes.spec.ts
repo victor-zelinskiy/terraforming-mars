@@ -208,3 +208,36 @@ describe('MarsBotTracks — marked columns', () => {
       .does.not.contain('mb-tracks--reminders');
   });
 });
+
+/**
+ * C30 seeds white AND black cubes for ONE printed sentence — there the colour
+ * is a component (nine cubes of one colour are not in the box), not a rule.
+ * The legend must say so: one row, both swatches.
+ */
+describe('MarsBotTracks — colours that share a meaning', () => {
+  const ARIDOR: MarsBotCorpModel = {
+    id: MarsBotCorpId.C30_ARIDOR,
+    original: 'Aridor' as MarsBotCorpModel['original'],
+    startingTags: [],
+    resources: 0,
+    cubes: [
+      {trackIndex: 0, position: 3, cubeType: 'white', spent: false},
+      {trackIndex: 0, position: 6, cubeType: 'black', spent: false},
+    ],
+    stats: {},
+  };
+
+  it('draws ONE legend row carrying BOTH swatches', () => {
+    const wrapper = mountTracks(ARIDOR);
+    const rows = wrapper.findAll('.mb-cubelegend__row');
+    expect(rows, 'one meaning, one row').has.length(1);
+    expect(rows[0].findAll('.mb-cell__cube--white'), 'the white swatch').has.length(1);
+    expect(rows[0].findAll('.mb-cell__cube--black'), 'and the black one beside it').has.length(1);
+    expect(rows[0].text()).contains('advances its event track');
+  });
+
+  it('colours that mean DIFFERENT things still get a row each', () => {
+    const wrapper = mountTracks(HELION);
+    expect(wrapper.findAll('.mb-cubelegend__row')).has.length(2);
+  });
+});

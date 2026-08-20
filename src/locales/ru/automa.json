@@ -546,5 +546,13 @@
   "A black cube marks the ${0} columns of the mat — a reminder of the effect below": "Чёрный куб отмечает колонки ${0} на планшете — напоминание об эффекте ниже",
   "Any track — the Venus track included — that reaches space ${0} advances one further space once that space has resolved, and the new space resolves as well": "Любой трек — включая трек Венеры — дойдя до клетки ${0}, после разрешения этой клетки продвигается ещё на одну, и новая клетка тоже разрешается",
   "Reaching this column: once the space has resolved, the track takes one more space": "Дойдя до этой колонки: после разрешения клетки трек делает ещё один шаг",
-  "${0} reached space ${1} — its corporation ${2} pushes that track one space further": "${0} дошёл до клетки ${1} — корпорация ${2} продвигает этот трек ещё на одну клетку"
+  "${0} reached space ${1} — its corporation ${2} pushes that track one space further": "${0} дошёл до клетки ${1} — корпорация ${2} продвигает этот трек ещё на одну клетку",
+  "Least-advanced track": "Самый отстающий трек",
+  "Use this corporation only when playing with Colonies": "Используйте эту корпорацию только с дополнением «Колонии»",
+  "A white cube on the building, space, science and power tracks space ${0}, and on the Jovian track space ${1}": "Белый куб на клетку ${0} треков строительства, космоса, науки и энергии и на клетку ${1} юпитерианского трека",
+  "A black cube on the Earth track space ${0}, the city track space ${1}, and the plant track spaces ${2}": "Чёрный куб на клетку ${0} трека Земли, клетку ${1} трека городов и клетки ${2} трека растений",
+  "One more colony tile joins the game": "В игру добавляется ещё один тайл колонии",
+  "Advancing onto a cube of either colour: MarsBot advances its event track": "Дойдя до куба любого цвета: Бот продвигает свой трек событий",
+  "Advancing onto it: MarsBot advances its event track": "Дойдя до него: Бот продвигает свой трек событий",
+  "${0} reached a cube of its corporation ${1} — its event track moves": "${0} доходит до куба своей корпорации ${1} — двигается трек событий"
 }
