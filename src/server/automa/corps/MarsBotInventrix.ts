@@ -4,7 +4,7 @@ import {MarsBotCorpId, marsBotCorpInfo} from '../../../common/automa/MarsBotCorp
 import {IGame} from '../../IGame';
 import {IProjectCard} from '../../cards/IProjectCard';
 import {NearBonusBranch, pushNearestBonus} from '../AutomaNearBonusPush';
-import {destroyBonusCard} from './MarsBotBonusDeckOps';
+import {LOBBYISTS_VARIANTS, destroyBonusCard} from './MarsBotBonusDeckOps';
 import {AutomaTurnLog} from '../AutomaTurnLog';
 import {bumpCorpStat, marsBotOf} from '../AutomaUtil';
 import type {BonusCardOutcome} from '../AutomaBonusCards';
@@ -14,7 +14,7 @@ import {MarsBotCorp} from './MarsBotCorp';
 const REWARD_MC = 2;
 
 /** «Lobbyists» is one card with two printings — the base one and the Venus one. */
-const LOBBYISTS = [BonusCardId.B06_LOBBYISTS, BonusCardId.B15_LOBBYISTS_VENUS] as const;
+const LOBBYISTS = LOBBYISTS_VARIANTS;
 
 /** Which counter a resolved Do It Right branch bumps. */
 const BRANCH_STAT: Partial<Record<NearBonusBranch, string>> = {

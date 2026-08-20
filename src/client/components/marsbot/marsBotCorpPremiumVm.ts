@@ -327,6 +327,18 @@ function renderDataOf(id: MarsBotCorpId): ICardRenderRoot {
         eb.text('↻', Size.SMALL, true).startAction.resource(CardResource.FLOATER);
       });
     });
+  case MarsBotCorpId.C27_MORNING_STAR:
+    return CardRenderer.builder((b) => {
+      // EFFECT: C13's row for C13's sentence — the silver cube the bot steps
+      // on becomes M€ at its own value.
+      b.effect(undefined, (eb) => {
+        eb.text('◼', Size.SMALL, true).startEffect.megacredits(5);
+      });
+      // What its OWN bonus card does when it comes up: Venus, then Mars.
+      b.effect(undefined, (eb) => {
+        eb.plate('Venusian Lobby').startEffect.venus(1).asterix();
+      });
+    });
   case MarsBotCorpId.C45_SPIRE:
     return CardRenderer.builder((b) => {
       // EFFECT: a card with 2+ tags adds a science resource here — the

@@ -848,7 +848,9 @@
   "And ${1} banked its own biology too — ${2} microbe(s) of the bot's own were worth ${3} M€.": "А ещё ${1} зарабатывала на собственной биологии: бот сам разыграл ${2} меток микроба и получил за них ${3} М€.",
   "Scored by the bot's own corporation": "Набрано собственной корпорацией бота",
   "The bot corporation of ${0} scored ${1} VP of its own at the end.": "Корпорация бота игрока ${0} набрала в конце собственных ПО — ${1}.",
-  "Every blue card with an arrow worked twice for ${0}'s ${1}: ${2} of them, a floater each when played and a point each at the end.": "Каждая синяя карта со стрелкой работала на корпорацию ${1} (у ${0}) дважды: таких карт было ${2} — плаватель при розыгрыше и очко в конце.",
+  "Every blue card with an arrow worked twice for ${0}'s ${1}: ${2} of them, a floater each when played and a point each at the end.": "Каждая синяя карта со стрелкой работала на корпорацию ${1} (у ${0}) дважды: таких карт было ${2} — аэростат при розыгрыше и очко в конце.",
   "Floaters gathered around ${0}'s ${1} whatever the turn brought — ${2} of them by the end.": "Плаватели собирались вокруг корпорации ${1} (у ${0}) при любом ходе — к концу их было ${2}.",
-  "Being stuck paid ${1} too: ${2} Failed Action(s) that would have been dead turns each handed the bot a floater.": "Застрять тоже было выгодно для ${1}: проваленных действий — ${2}, и каждое из них, вместо того чтобы стать пустым ходом, приносило боту плавателя."
+  "Being stuck paid ${1} too: ${2} Failed Action(s) that would have been dead turns each handed the bot a floater.": "Застрять тоже было выгодно для ${1}: проваленных действий — ${2}, и каждое из них, вместо того чтобы стать пустым ходом, приносило боту аэростат.",
+  "Venus paid ${0}'s ${1} by the metre: ${2} silver cubes came off its own track, ${3} M€ in all.": "Венера платила корпорации ${1} (у ${0}) шаг за шагом: с её собственного трека было снято серебряных кубов — ${2}, всего на ${3} М€.",
+  "And the lobby kept the wheel turning — ${2} time(s) it pushed Venus along and then leaned on whatever Mars still lacked.": "А лобби крутило колесо: ${2} раз(а) оно подталкивало Венеру, а потом бралось за то, чего Марсу ещё не хватало."
 }

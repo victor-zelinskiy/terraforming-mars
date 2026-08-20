@@ -103,7 +103,7 @@ export const BONUS_CARD_INFO: Readonly<Record<BonusCardId, BonusCardInfo>> = {
   [BonusCardId.B23_RAPID_SPROUTING]: {name: 'Rapid Sprouting', text: 'Ecoline: a plant grows on the corporation card, or the grown plant becomes a greenery raising oxygen 1 step. Recurs into the action deck every generation.'},
   [BonusCardId.B24_SUPPLY_AND_DEMAND]: {name: 'Supply and Demand', text: 'Factorum: MarsBot takes 3 M€ off the Factorum card, or everything left on it; an empty card advances the power track instead. Recurs into the action deck every generation.'},
   [BonusCardId.B25_DO_IT_RIGHT]: {name: 'Do It Right', text: 'Inventrix: MarsBot pushes the first global parameter that is 1-2 steps from a bonus, or places an ocean next to 2 oceans — otherwise nothing. Recurs into the action deck every generation.'},
-  [BonusCardId.B26_VENUSIAN_LOBBY]: {name: 'Venusian Lobby', text: 'A corporation-specific bonus card (outside the POC scope).'},
+  [BonusCardId.B26_VENUSIAN_LOBBY]: {name: 'Venusian Lobby', text: 'Morning Star Inc.: MarsBot raises Venus and advances its Venus track, then pushes whichever Martian parameter is furthest from done.'},
   [BonusCardId.B27_BUILD_BUILD_BUILD]: {name: 'Build Build Build', text: 'Philares: MarsBot builds a city beside one of the opponent\'s greeneries, or a special tile from its played pile beside one of their cities — paying M€ either way; otherwise it takes 3 M€ and goes back into the bonus deck.'},
   [BonusCardId.B28_DIVERSIFICATION]: {name: 'Diversification', text: 'Robinson Industries: MarsBot advances its least-advanced track, then loses 4 M€ if it can afford it. Recurs into the action deck every generation.'},
   [BonusCardId.B29_GRAY_EMINENCE]: {name: 'Gray Eminence', text: 'A corporation-specific bonus card (outside the POC scope).'},
@@ -359,6 +359,18 @@ export function buildBonusCardView(id: BonusCardId, ctx: BonusCardContext): Bonu
         {icon: 'megacredits', text: 'Otherwise: MarsBot gains ${0} M€', params: ['3'], muted: true},
       ],
       fate: {kind: 'conditional', text: 'Options 1–2 discard it; the fallback shuffles it back into the bonus deck'},
+    };
+  case BonusCardId.B26_VENUSIAN_LOBBY:
+    // Morning Star Inc.'s corporation-specific card (official B26). Two
+    // sentences, both unconditional: Venus first (the corporation's own
+    // planet, and its track is where its cubes wait), then Mars.
+    return {
+      name,
+      lines: [
+        {icon: 'venus', text: 'MarsBot raises Venus ${0} step and advances its Venus track', params: ['1']},
+        {icon: 'temperature', text: 'Then it pushes whichever Martian parameter is furthest from done — oxygen, an ocean, or the temperature'},
+      ],
+      fate: {kind: 'discard', text: 'It goes to the discard afterwards'},
     };
   case BonusCardId.B23_RAPID_SPROUTING:
     // Ecoline's corporation-specific card (official B23).

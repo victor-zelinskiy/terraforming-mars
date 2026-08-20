@@ -3012,6 +3012,29 @@ const analyzeBotCorporation: Analyzer = (ctx) => {
           scale: 10,
         });
       }
+    } else if (corp.id === 'C27') {
+      // Morning Star runs one closed loop, so its story is that loop: the
+      // cubes its own track paid out, and the card that kept the track moving.
+      const mc = stat('morningMc');
+      const lobbies = stat('lobbyPlayed');
+      if (mc >= 10) {
+        stories.push({
+          key: 'effect',
+          textKey: 'Venus paid ${0}\'s ${1} by the metre: ${2} silver cubes came off its own track, ${3} M\u20ac in all.',
+          params: [raw(p.name), raw(corp.name), raw(stat('morningCubesHit')), raw(mc)],
+          measure: mc,
+          scale: 30,
+        });
+      }
+      if (lobbies >= 2) {
+        stories.push({
+          key: 'lobby',
+          textKey: 'And the lobby kept the wheel turning \u2014 ${2} time(s) it pushed Venus along and then leaned on whatever Mars still lacked.',
+          params: [raw(p.name), raw(corp.name), raw(lobbies)],
+          measure: lobbies,
+          scale: 6,
+        });
+      }
     } else if (corp.id === 'C45') {
       // Spire: the science engine — multi-tag cards banked into cities + TR.
       const cities = stat('citiesPlaced');

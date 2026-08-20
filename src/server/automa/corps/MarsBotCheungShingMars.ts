@@ -1,9 +1,7 @@
-import {Resource} from '../../../common/Resource';
-import {MARSBOT_SILVER_CUBE_MC, TrackAction} from '../../../common/automa/AutomaTypes';
+import {TrackAction} from '../../../common/automa/AutomaTypes';
 import {MarsBotCorpId, MarsBotTrackCube, marsBotCorpInfo} from '../../../common/automa/MarsBotCorpData';
 import {IGame} from '../../IGame';
-import {AutomaTurnLog} from '../AutomaTurnLog';
-import {bumpCorpStat, marsBotOf} from '../AutomaUtil';
+import {takeSilverCube} from './MarsBotSilverCubePayout';
 import {MarsBotCorp} from './MarsBotCorp';
 
 const INFO = marsBotCorpInfo(MarsBotCorpId.C13_CHEUNG_SHING_MARS);
@@ -20,9 +18,9 @@ const INFO = marsBotCorpInfo(MarsBotCorpId.C13_CHEUNG_SHING_MARS);
  *
  * The cubes are data (`info.trackCubes`, the whole building track from #4 on);
  * seeding, the spent-once bookkeeping and the regression rule are the
- * framework's. This module is only the payout — and the payout is the cube's
- * own value: Terraforming Mars' resource cubes are 1 (bronze) / 5 (silver) /
- * 10 (gold), so «gains IT as MC» is five (`MARSBOT_SILVER_CUBE_MC`).
+ * framework's. The PAYOUT is printed word for word on C27 Morning Star Inc.
+ * too, so it lives in ONE place (`MarsBotSilverCubePayout`) — this file
+ * contributes only its identity and its counters.
  *
  * Nothing says «instead of», so RB-B's general rule stands: the space's own
  * printed icon still resolves, after the cube (the caller's job).
@@ -31,23 +29,11 @@ export const MarsBotCheungShingMars: MarsBotCorp = {
   info: INFO,
 
   onTrackCubeTrigger(game: IGame, cube: MarsBotTrackCube, _printedAction: TrackAction | undefined): 'replaces-action' | void {
-    if (cube.cubeType !== 'credit') {
-      return;
-    }
-    const bot = marsBotOf(game);
-    const prior = AutomaTurnLog.getCause(game);
-    AutomaTurnLog.setCause(game, {kind: 'corporation'});
-    game.events.beginEffect(bot, {kind: 'corporation', card: INFO.original, owner: bot.color}, 'automa-corporation');
-    try {
-      bot.stock.add(Resource.MEGACREDITS, MARSBOT_SILVER_CUBE_MC, {log: false});
-      game.log('${0} picked up a silver cube of its corporation ${1} — ${2} M€',
-        (b) => b.player(bot).string('Cheung Shing Mars').number(MARSBOT_SILVER_CUBE_MC));
-    } finally {
-      game.events.endScope();
-      AutomaTurnLog.setCause(game, prior);
-    }
-    bumpCorpStat(game, 'cheungCubesHit');
-    bumpCorpStat(game, 'cheungMc', MARSBOT_SILVER_CUBE_MC);
+    takeSilverCube(game, cube, {
+      original: INFO.original,
+      displayName: 'Cheung Shing Mars',
+      stats: {hits: 'cheungCubesHit', mc: 'cheungMc'},
+    });
     // No «instead of» on this card: the space's printed icon still resolves.
   },
 };

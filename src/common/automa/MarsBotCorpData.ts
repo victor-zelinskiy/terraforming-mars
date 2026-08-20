@@ -780,6 +780,45 @@ const CORP_INFO: Readonly<Record<MarsBotCorpId, MarsBotCorpInfo>> = {
       ]},
     ],
   },
+  [MarsBotCorpId.C27_MORNING_STAR]: {
+    id: MarsBotCorpId.C27_MORNING_STAR,
+    cardNumber: 'C27',
+    original: CardName.MORNING_STAR_INC,
+    // TWO Venus tags are printed in the corner — the corporation opens the
+    // game two steps up its own track.
+    startingTags: [Tag.VENUS, Tag.VENUS],
+    // No DRAFT PRIORITY plate is printed.
+    requiresModules: ['venus'],
+    corpBonusCards: [BonusCardId.B26_VENUSIAN_LOBBY],
+    // SETUP box, verbatim: a silver cube on the Venus track spaces #5, #6, #7,
+    // #8, #9, #11 and #12 — #10 is deliberately SKIPPED (checked against the
+    // scan; the run is not «from #5 on», which is why every position is listed).
+    trackCubes: [
+      {tag: Tag.VENUS, position: 5, cubeType: 'credit'},
+      {tag: Tag.VENUS, position: 6, cubeType: 'credit'},
+      {tag: Tag.VENUS, position: 7, cubeType: 'credit'},
+      {tag: Tag.VENUS, position: 8, cubeType: 'credit'},
+      {tag: Tag.VENUS, position: 9, cubeType: 'credit'},
+      {tag: Tag.VENUS, position: 11, cubeType: 'credit'},
+      {tag: Tag.VENUS, position: 12, cubeType: 'credit'},
+    ],
+    // Word for word C13's legend — the same key, deliberately not a second
+    // phrasing of one rule.
+    cubeLegend: {
+      credit: 'Advancing onto it: MarsBot takes it as 5 M€',
+    },
+    sections: [
+      {kind: 'setup', lines: [
+        {icon: 'cards', text: 'Use this corporation only when playing with Venus Next', muted: true},
+        {icon: 'deck', text: 'Lobbyists is destroyed — removed from the game'},
+        {icon: 'deck', text: 'Venusian Lobby is shuffled into the bonus deck'},
+        {icon: 'cube-credit', text: 'A silver resource cube on the Venus track spaces ${0}', params: ['5, 6, 7, 8, 9, 11, 12']},
+      ]},
+      {kind: 'effect', lines: [
+        {icon: 'megacredits', text: 'Advancing onto a silver cube: MarsBot takes it as ${0} M€', params: ['5']},
+      ]},
+    ],
+  },
   [MarsBotCorpId.C45_SPIRE]: {
     id: MarsBotCorpId.C45_SPIRE,
     cardNumber: 'C45',
@@ -840,6 +879,9 @@ export function corpOwningBonusCard(id: BonusCardId): MarsBotCorpInfo | undefine
  *           (track advances they produced).
  * Astro Drill: astroWhiteCubes / astroBlackCubes / astroSteps — the same
  *           three counters, for the same printed effect on its own track.
+ * Morning Star Inc.: morningCubesHit / morningMc — the same two counters
+ *           C13 keeps for the same printed effect, on its own track;
+ *           plus lobbyPlayed / lobbyVenus / lobbyParameter (its B26).
  * Celestic: celesticFailedActions (Failed Actions it turned into floaters),
  *           celesticRounds (round-start floaters) and celesticFloaters
  *           (every floater the corporation handed it, setup included).

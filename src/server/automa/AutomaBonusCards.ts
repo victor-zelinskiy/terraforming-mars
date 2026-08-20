@@ -45,8 +45,13 @@ export type BonusCardOutcome = 'discard' | 'destroy' | 'return-to-deck';
  * "MarsBot advances the (Martian) global parameter furthest from completion.
  * If tied, prioritize raising oxygen, then placing an ocean tile, and finally
  * raising temperature." Returns false when everything is complete.
+ *
+ * EXPORTED because a CORP-OWNED card prints the same sentence (B26 Venusian
+ * Lobby: «raises oxygen 1 step, places an ocean, or raises temperature 1 step,
+ * whichever is furthest from being complete») and those live in their
+ * corporation's file — one rule, one implementation, whichever file asks.
  */
-function advanceFurthestMartianParameter(game: IGame): boolean {
+export function advanceFurthestMartianParameter(game: IGame): boolean {
   const bot = marsBotOf(game);
   const oxygenLeft = constants.MAX_OXYGEN_LEVEL - game.getOxygenLevel();
   const oceansLeft = constants.MAX_OCEAN_TILES - game.board.getOceanSpaces().length;

@@ -70,6 +70,8 @@ describe('MarsBotCorpFace (.pcard template)', () => {
       'C25 prints ONE microbe starting tag').has.length(1);
     expect(mountFace(MarsBotCorpId.C26_CELESTIC).findAll('.pcard__tags .pcard-tag'),
       'C26 prints ONE Venus starting tag').has.length(1);
+    expect(mountFace(MarsBotCorpId.C27_MORNING_STAR).findAll('.pcard__tags .pcard-tag'),
+      'C27 prints TWO Venus starting tags').has.length(2);
     expect(mountFace(MarsBotCorpId.C18_ARCADIAN_COMMUNITIES).findAll('.pcard__tags .pcard-tag'),
       'C18 prints ONE building starting tag').has.length(1);
     // C04 prints TWO event tags — both sit on the rail (the bot card's tags,
@@ -352,6 +354,21 @@ describe('marsBotCorpRules — the «§ ПРАВИЛА» groups', () => {
     // floater to ANOTHER card, plus 1 VP per 3 floaters — none of that is here.
     expect(text).not.contains('42');
     expect(text).not.match(/another card|per 3 floaters/i);
+  });
+
+  it('Morning Star Inc. prints its cube run and its lobby, never the human Venus discount', () => {
+    const groups = marsBotCorpAnnotations(MarsBotCorpId.C27_MORNING_STAR);
+    expect(groups.map((g) => g.labelKey)).deep.eq(['Corporation setup', 'Corporation effect']);
+    const text = groups.flatMap((g) => g.rows.map((r) => r.text)).join(' ');
+    expect(text).contains('5, 6, 7, 8, 9, 11, 12');
+    expect(text, 'the printed gap is visible to the reader too').not.contains('10');
+    expect(text).contains('Lobbyists');
+    expect(text).contains('Venusian Lobby');
+    expect(text).contains('Venus Next');
+    // The human Morning Star starts with 50 M€, draws a Venus card each
+    // generation and pays 2 less for Venus cards — none of that is here.
+    expect(text).not.contains('50');
+    expect(text).not.match(/2 less|draw a card/i);
   });
 
   it('ThorGate prints its cubes and the first-tag clause, never the human discount', () => {

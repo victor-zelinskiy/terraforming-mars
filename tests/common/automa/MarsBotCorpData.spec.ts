@@ -145,7 +145,7 @@ describe('MarsBotCorpData', () => {
       .eq(MarsBotCorpId.C18_ARCADIAN_COMMUNITIES);
     expect(corpOwningBonusCard(BonusCardId.B24_SUPPLY_AND_DEMAND)?.id, 'B24 now belongs to C20')
       .eq(MarsBotCorpId.C20_FACTORUM);
-    expect(corpOwningBonusCard(BonusCardId.B26_VENUSIAN_LOBBY), 'still unowned').is.undefined;
+    expect(corpOwningBonusCard(BonusCardId.B29_GRAY_EMINENCE), 'still unowned').is.undefined;
     expect(corpOwningBonusCard(BonusCardId.B01_METEOR_SHOWER)).is.undefined;
   });
 

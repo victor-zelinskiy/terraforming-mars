@@ -431,6 +431,25 @@ describe('insightEngine', () => {
         MarsBotCorpId.C26_CELESTIC, 'Celestic')).is.empty;
     });
 
+    it('C27 tells the cubes and the lobby as SEPARATE stories', () => {
+      const insights = botInsights({morningCubesHit: 4, morningMc: 20, lobbyPlayed: 3, lobbyVenus: 3, lobbyParameter: 3},
+        MarsBotCorpId.C27_MORNING_STAR, 'Morning Star Inc.');
+      expect(insights).has.length(2);
+      expect(insights.map((i) => i.id).sort()).deep.eq(
+        ['reason.bot-corporation.red', 'reason.bot-corporation.red.lobby']);
+      const cubes = insights.find((i) => i.textKey.includes('by the metre'));
+      const lobby = insights.find((i) => i.textKey.includes('kept the wheel turning'));
+      expect(cubes, 'the cubes have their own card').is.not.undefined;
+      expect(lobby, 'the lobby has its own card').is.not.undefined;
+      expect(cubes!.params.map((p) => p.v)).contains('20');
+      expect(lobby!.params.map((p) => p.v)).contains('3');
+    });
+
+    it('C27 keeps quiet when the track barely moved', () => {
+      expect(botInsights({morningCubesHit: 1, morningMc: 5, lobbyPlayed: 1},
+        MarsBotCorpId.C27_MORNING_STAR, 'Morning Star Inc.')).is.empty;
+    });
+
     it('the draft fallback speaks only when no printed effect did', () => {
       const withEffect = botInsights({credicorTriggers: 6, credicorMc: 24, fiveCardDecks: 3},
         MarsBotCorpId.C01_CREDICOR, 'CrediCor');

@@ -26,6 +26,14 @@ import {AutomaResolver} from '../AutomaResolver';
  * Returns true when the card was actually somewhere in this game (only one
  * printing of a card is ever in play), so the caller can log honestly.
  */
+/**
+ * «Lobbyists» is ONE printed card with a Venus variant, and the deck carries
+ * whichever the game's modules chose (`AutomaSetup`). Two setup boxes print
+ * «destroy Lobbyists» (C05 Inventrix, C27 Morning Star Inc.), so the pair is
+ * shared DATA — destroying both ids is exact, because only one is ever in play.
+ */
+export const LOBBYISTS_VARIANTS = [BonusCardId.B06_LOBBYISTS, BonusCardId.B15_LOBBYISTS_VENUS] as const;
+
 export function destroyBonusCard(game: IGame, id: BonusCardId): boolean {
   const automa = game.automa;
   if (automa === undefined) {
