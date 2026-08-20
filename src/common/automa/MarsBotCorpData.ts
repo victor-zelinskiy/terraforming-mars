@@ -288,6 +288,20 @@ const CORP_INFO: Readonly<Record<MarsBotCorpId, MarsBotCorpInfo>> = {
       ]},
     ],
   },
+  [MarsBotCorpId.C08_SATURN_SYSTEMS]: {
+    id: MarsBotCorpId.C08_SATURN_SYSTEMS,
+    cardNumber: 'C08',
+    original: CardName.SATURN_SYSTEMS,
+    startingTags: [Tag.JOVIAN, Tag.SPACE, Tag.SPACE, Tag.SPACE],
+    draftPriority: {type: 'tags', tags: [Tag.JOVIAN, Tag.SPACE]},
+    corpBonusCards: [],
+    sections: [
+      {kind: 'draftPriority', lines: [{text: 'Jovian, then space'}]},
+      {kind: 'effect', lines: [
+        {icon: 'cards', text: 'Every Jovian tag at the table advances the event track — a human playing a Jovian card, MarsBot resolving a Jovian tag, the starting tag on this card included'},
+      ]},
+    ],
+  },
   [MarsBotCorpId.C45_SPIRE]: {
     id: MarsBotCorpId.C45_SPIRE,
     cardNumber: 'C45',
@@ -342,6 +356,8 @@ export function corpOwningBonusCard(id: BonusCardId): MarsBotCorpInfo | undefine
  * Inventrix: inventrixTriggers / inventrixMc (the requirement effect),
  *           doItRightPlayed and its branch tally doItRightTemperature /
  *           doItRightGreeneries / doItRightOceans / doItRightNoEffect.
+ * Saturn Systems: saturnEventAdvances (event-track advances the Jovian
+ *           trigger produced) split into saturnFromHuman / saturnFromBot.
  * Phobolog: phobologSeeded (project cards shuffled into the bonus deck),
  *           phobologCubesHit, phobologBonusCards / phobologProjectCards (what
  *           those cubes actually drew).

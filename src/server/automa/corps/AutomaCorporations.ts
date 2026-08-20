@@ -1,8 +1,11 @@
 import {CardName} from '../../../common/cards/CardName';
+import {Tag} from '../../../common/cards/Tag';
 import {BonusCardId, TrackAction} from '../../../common/automa/AutomaTypes';
 import {MARS_BOT_CORP_IDS, MarsBotCorpCubeModel, MarsBotCorpId, MarsBotCorpInfo, MarsBotTrackCube, marsBotCorpInfo} from '../../../common/automa/MarsBotCorpData';
 import {inplaceShuffle} from '../../utils/shuffle';
 import {IGame} from '../../IGame';
+import {IPlayer} from '../../IPlayer';
+import {ICard} from '../../cards/ICard';
 import {IProjectCard} from '../../cards/IProjectCard';
 import {isICorporationCard} from '../../cards/corporation/ICorporationCard';
 import {AutomaHumanTagReactions} from '../AutomaHumanTagReactions';
@@ -16,6 +19,7 @@ import {MarsBotInterplanetaryCinematics} from './MarsBotInterplanetaryCinematics
 import {MarsBotInventrix} from './MarsBotInventrix';
 import {MarsBotMiningGuild} from './MarsBotMiningGuild';
 import {MarsBotPhobolog} from './MarsBotPhobolog';
+import {MarsBotSaturnSystems} from './MarsBotSaturnSystems';
 import {MarsBotDraftResolver} from './MarsBotDraftResolver';
 import {MarsBotEcoline} from './MarsBotEcoline';
 import {MarsBotSpire} from './MarsBotSpire';
@@ -51,6 +55,7 @@ export class AutomaCorporations {
     [MarsBotCorpId.C05_INVENTRIX]: MarsBotInventrix,
     [MarsBotCorpId.C06_MINING_GUILD]: MarsBotMiningGuild,
     [MarsBotCorpId.C07_PHOBOLOG]: MarsBotPhobolog,
+    [MarsBotCorpId.C08_SATURN_SYSTEMS]: MarsBotSaturnSystems,
     [MarsBotCorpId.C45_SPIRE]: MarsBotSpire,
   };
 
@@ -310,6 +315,26 @@ export class AutomaCorporations {
     // track (Helion's draw resolves a card), and a cube must never fire twice.
     automa.corpCubesTriggered.add(key);
     return corp.onTrackCubeTrigger(game, cube, printedAction) === 'replaces-action';
+  }
+
+  /**
+   * MarsBot resolved one printed TAG — dispatched from `AutomaResolver`, the
+   * one place a bot tag is ever resolved (card tags and starting tags alike).
+   */
+  public static onTagResolved(game: IGame, tag: Tag): void {
+    AutomaCorporations.activeCorp(game)?.onTagResolved?.(game, tag);
+  }
+
+  /**
+   * A HUMAN played a card — the bot corporation's window onto the other side
+   * of the table (C08). Dispatched from `Player.onCardPlayed`; the bot's own
+   * flips never go through it, and the guard keeps it that way.
+   */
+  public static onHumanCardPlayed(game: IGame, player: IPlayer, card: ICard): void {
+    if (player.isMarsBot) {
+      return;
+    }
+    AutomaCorporations.activeCorp(game)?.onHumanCardPlayed?.(game, player, card);
   }
 
   /**

@@ -863,6 +863,7 @@
     "The Neural Instance of ${0} kept ${1} free neighbours — ${1} VP at scoring.": "Нейроинстанция ${0} сохранила ${1} свободных соседних клеток — ${1} ПО при подсчёте.",
     "The VP icons of ${0}'s played pile paid ${1} VP — the difficulty's own card bonus.": "Значки ПО в стопке ${0} принесли ${1} ПО — карточный бонус этой сложности.",
     "Bot corporation": "Корпорация бота",
+    "Jupiter worked both sides of the table for ${0}'s ${1}: every Jovian project played — its own or yours — moved the bot one step further (free steps: ${2}).": "Юпитер работал на обе стороны стола для корпорации ${1} у ${0}: каждый разыгранный юпитерианский проект — свой или чужой — продвигал бота ещё на шаг (бесплатных шагов: ${2}).",
     "Megaprojects were ${1}'s bread and butter: every deal worth 20 M€ or more paid ${0} a commission — ${3} M€ across ${2} deals.": "Мегапроекты кормили корпорацию ${1} у ${0}: каждая сделка от 20 М€ платила ей комиссию — итого ${3} М€ с ${2} сделок.",
     "Mars turned greener wherever ${0}'s ${1} worked: ${2} of its greeneries took root, lifting oxygen ${3} steps.": "Марс зеленел там, где работала корпорация ${1} у ${0}: её озеленения прижились на карте (${2}) и подняли кислород на ${3}.",
     "Heat was currency for ${0}'s ${1}: it traded warming for ${2} surprise cards and still heated Mars ${3} extra steps.": "Для корпорации ${1} у ${0} жар был валютой: разогрев она разменивала на внезапные карты (${2}) — и всё равно прогрела Марс сверх плана (+${3} к температуре).",

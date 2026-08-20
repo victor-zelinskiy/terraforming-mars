@@ -2647,6 +2647,20 @@ const analyzeBotCorporation: Analyzer = (ctx) => {
           scale: 4,
         });
       }
+    } else if (corp.id === 'C08') {
+      // Saturn Systems: the only corporation that also charges the HUMAN's
+      // Jupiter projects, so the story is that Jupiter served both seats. The
+      // event track is the mechanism; the free progress is what was seen.
+      const advances = stat('saturnEventAdvances');
+      if (advances >= 4) {
+        stories.push({
+          key: 'effect',
+          textKey: 'Jupiter worked both sides of the table for ${0}\'s ${1}: every Jovian project played — its own or yours — moved the bot one step further (free steps: ${2}).',
+          params: [raw(p.name), raw(corp.name), raw(advances)],
+          measure: advances,
+          scale: 8,
+        });
+      }
     } else if (corp.id === 'C45') {
       // Spire: the science engine — multi-tag cards banked into cities + TR.
       const cities = stat('citiesPlaced');

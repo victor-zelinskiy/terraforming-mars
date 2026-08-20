@@ -387,5 +387,9 @@
   "Advancing onto a white cube: MarsBot draws and resolves a card from the bonus deck": "Дойдя до белого куба: Бот берёт и разыгрывает карту из бонусной колоды",
   "Advancing onto it: MarsBot draws and resolves a card from the bonus deck": "Дойдя до него: Бот берёт и разыгрывает карту из бонусной колоды",
   "${0} shuffled ${1} revealed project cards into its bonus deck: ${2}": "${0} замешивает ${1} вскрытых карт проектов в свою бонусную колоду: ${2}",
-  "${0} reached a white cube of its corporation ${1} — it draws a card from its bonus deck": "${0} доходит до белого куба своей корпорации ${1} — берёт карту из бонусной колоды"
+  "${0} reached a white cube of its corporation ${1} — it draws a card from its bonus deck": "${0} доходит до белого куба своей корпорации ${1} — берёт карту из бонусной колоды",
+  "${0} resolved a Jovian tag — its corporation ${1} advances the event track": "${0} разыгрывает юпитерианскую метку — его корпорация ${1} продвигает трек событий",
+  "${1} advances the event track of ${0}: a Jovian card was played": "${1} продвигает трек событий игрока ${0}: за столом разыграна юпитерианская карта",
+  "Jovian, then space": "Юпитер, затем космос",
+  "Every Jovian tag at the table advances the event track — a human playing a Jovian card, MarsBot resolving a Jovian tag, the starting tag on this card included": "Любая юпитерианская метка за столом продвигает трек событий — человек разыграл юпитерианскую карту, Бот разыграл юпитерианскую метку, включая стартовую метку этой карты"
 }

@@ -50,6 +50,7 @@ import {LogHelper} from './LogHelper';
 import {UndoActionOption} from './inputs/UndoActionOption';
 import {Turmoil} from './turmoil/Turmoil';
 import {PathfindersExpansion} from './pathfinders/PathfindersExpansion';
+import {AutomaCorporations} from './automa/corps/AutomaCorporations';
 import {ColoniesHandler} from './colonies/ColoniesHandler';
 import {MonsInsurance} from './cards/promo/MonsInsurance';
 import {InputResponse} from '../common/inputs/InputResponse';
@@ -1248,6 +1249,11 @@ export class Player implements IPlayer {
     }
 
     PathfindersExpansion.onCardPlayed(this, card);
+
+    // The MarsBot CORPORATION watching the human side of the table (C08 Saturn
+    // Systems reacts to a Jovian card either seat plays). The bot's own flips
+    // never reach this method — they never go through `playCard`.
+    AutomaCorporations.onHumanCardPlayed(this.game, this, card);
   }
 
   public playActionCard(): PlayerInput {

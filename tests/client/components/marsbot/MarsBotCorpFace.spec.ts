@@ -50,6 +50,10 @@ describe('MarsBotCorpFace (.pcard template)', () => {
     expect(mountFace(MarsBotCorpId.C02_ECOLINE).find('.pcard__tags').exists()).is.false;
     // C04 prints TWO event tags — both sit on the rail (the bot card's tags,
     // never the human card's single building tag).
+    // Saturn Systems prints FOUR starting tags — the rail carries them all.
+    const saturn = mountFace(MarsBotCorpId.C08_SATURN_SYSTEMS);
+    expect(saturn.findAll('.pcard__tags .pcard-tag')).has.length(4);
+
     const ic = mountFace(MarsBotCorpId.C04_INTERPLANETARY_CINEMATICS);
     expect(ic.find('.pcard__tags').exists()).is.true;
     const medallions = ic.findAll('.pcard__tags .pcard-tag');
@@ -116,6 +120,17 @@ describe('marsBotCorpRules — the «§ ПРАВИЛА» groups', () => {
     const groups = marsBotCorpAnnotations(MarsBotCorpId.C45_SPIRE);
     expect(groups.map((g) => g.labelKey)).deep.eq(['Draft priority', 'Corporation effect', 'Before action phase']);
     expect(groups.every((g) => g.rows.length > 0)).is.true;
+  });
+
+  it('Saturn Systems prints its Jovian trigger, never the human 42 M€ start', () => {
+    const groups = marsBotCorpAnnotations(MarsBotCorpId.C08_SATURN_SYSTEMS);
+    expect(groups.map((g) => g.labelKey)).deep.eq(['Draft priority', 'Corporation effect']);
+    const text = groups.flatMap((g) => g.rows.map((r) => r.text)).join(' ');
+    expect(text).contains('Jovian');
+    expect(text).contains('event track');
+    // The human Saturn Systems starts with 42 M€ and titanium production.
+    expect(text).not.contains('42');
+    expect(text).not.match(/titanium/i);
   });
 
   it('PhoboLog prints its seeding and its cubes, never the human titanium bonus', () => {

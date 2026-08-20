@@ -1,6 +1,9 @@
 import {BonusCardId, TrackAction} from '../../../common/automa/AutomaTypes';
 import {MarsBotCorpInfo, MarsBotTrackCube} from '../../../common/automa/MarsBotCorpData';
+import {Tag} from '../../../common/cards/Tag';
 import {IGame} from '../../IGame';
+import {IPlayer} from '../../IPlayer';
+import {ICard} from '../../cards/ICard';
 import {IProjectCard} from '../../cards/IProjectCard';
 import type {BonusCardOutcome} from '../AutomaBonusCards';
 
@@ -41,6 +44,21 @@ export type MarsBotCorp = {
    * the corporation effect.
    */
   onProjectCardResolving?(game: IGame, card: IProjectCard): void;
+
+  /**
+   * MarsBot RESOLVED one printed tag (`AutomaResolver.resolveTag`) — a tag of
+   * a card it flipped, or one of its corporation's own starting tags. Runs
+   * AFTER the tag did its own work (its track advanced, the space's icon
+   * fired), so a corporation that reacts to a tag reacts to a finished event.
+   */
+  onTagResolved?(game: IGame, tag: Tag): void;
+
+  /**
+   * A HUMAN played `card` (the bot's own flips never pass through `playCard`).
+   * The one hook that lets a bot corporation watch the other side of the
+   * table — C08's Jovian clause is written for both seats.
+   */
+  onHumanCardPlayed?(game: IGame, player: IPlayer, card: ICard): void;
 
   /**
    * MarsBot just GAINED `amount` M€ (a positive `stock.add`, from anywhere:

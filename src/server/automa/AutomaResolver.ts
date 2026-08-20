@@ -68,13 +68,18 @@ export class AutomaResolver {
       trackIndex = automa.board.getTrackIndexForTag(tag);
       if (trackIndex === undefined) {
         // A tag with no track on this board (e.g. a Venus tag without Venus
-        // Next) is an unused-expansion icon: ignored, no Failed Action.
+        // Next) is an unused-expansion icon: ignored, no Failed Action — but
+        // the tag WAS resolved, so a corporation watching for it still reacts.
         AutomaTurnLog.note(game, {kind: 'tag', tag});
+        AutomaCorporations.onTagResolved(game, tag);
         return;
       }
     }
     AutomaTurnLog.note(game, {kind: 'tag', tag, trackIndex});
     AutomaResolver.advanceTrack(game, trackIndex);
+    // The corporation's own «when MarsBot resolves a <tag>» clause (C08),
+    // AFTER the tag did its work — the trigger reacts to a finished event.
+    AutomaCorporations.onTagResolved(game, tag);
   }
 
   public static advanceTrack(game: IGame, trackIndex: number, depth: number = 0): void {
