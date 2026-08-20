@@ -2700,6 +2700,21 @@ const analyzeBotCorporation: Analyzer = (ctx) => {
           scale: 5,
         });
       }
+    } else if (corp.id === 'C11') {
+      // ThorGate: what the player saw is the bot flipping extra projects off
+      // its power line and the planet warming right after — the cubes and the
+      // first-tag-only clause are how those two were measured.
+      const cards = stat('thorgateCardsDrawn');
+      const steps = stat('thorgateTemperatureSteps');
+      if (cards + steps >= 3) {
+        stories.push({
+          key: 'effect',
+          textKey: 'The reactors of ${0}\'s ${1} never idled: ${2} unplanned projects came off the line and Mars warmed ${3} extra steps.',
+          params: [raw(p.name), raw(corp.name), raw(cards), raw(steps)],
+          measure: cards * 2 + steps,
+          scale: 10,
+        });
+      }
     } else if (corp.id === 'C45') {
       // Spire: the science engine — multi-tag cards banked into cities + TR.
       const cities = stat('citiesPlaced');

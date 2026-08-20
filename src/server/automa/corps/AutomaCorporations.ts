@@ -23,6 +23,7 @@ import {MarsBotPhobolog} from './MarsBotPhobolog';
 import {MarsBotSaturnSystems} from './MarsBotSaturnSystems';
 import {MarsBotTeractor} from './MarsBotTeractor';
 import {MarsBotTharsisRepublic} from './MarsBotTharsisRepublic';
+import {MarsBotThorgate} from './MarsBotThorgate';
 import {MarsBotDraftResolver} from './MarsBotDraftResolver';
 import {MarsBotEcoline} from './MarsBotEcoline';
 import {MarsBotSpire} from './MarsBotSpire';
@@ -61,6 +62,7 @@ export class AutomaCorporations {
     [MarsBotCorpId.C08_SATURN_SYSTEMS]: MarsBotSaturnSystems,
     [MarsBotCorpId.C09_TERACTOR]: MarsBotTeractor,
     [MarsBotCorpId.C10_THARSIS_REPUBLIC]: MarsBotTharsisRepublic,
+    [MarsBotCorpId.C11_THORGATE]: MarsBotThorgate,
     [MarsBotCorpId.C45_SPIRE]: MarsBotSpire,
   };
 

@@ -401,5 +401,10 @@
   "MarsBot places a city tile": "Бот ставит город",
   "A city tile a human places pays MarsBot ${0} M€": "Город, поставленный человеком, приносит Боту ${0} М€",
   "A city tile MarsBot places advances the event track": "Город, поставленный Ботом, продвигает трек событий",
-  "Both already apply during setup": "Оба эффекта работают уже во время подготовки"
+  "Both already apply during setup": "Оба эффекта работают уже во время подготовки",
+  "${0} reached a white cube of its corporation ${1} — it draws a card and resolves only its first tag": "${0} доходит до белого куба своей корпорации ${1} — берёт карту и разыгрывает только её первую метку",
+  "A white cube on the power track spaces ${0}": "Белый куб на клетки трека энергии: ${0}",
+  "Advancing onto a white cube: MarsBot draws a card and resolves ONLY its first tag": "Дойдя до белого куба: Бот берёт карту и разыгрывает ТОЛЬКО её первую метку",
+  "Advancing onto it: MarsBot resolves a card by its FIRST tag only, then raises the temperature 1 step": "Дойдя до него: Бот разыгрывает карту только по ПЕРВОЙ метке, затем повышает температуру на 1 шаг",
+  "Then MarsBot raises the temperature 1 step": "Затем Бот повышает температуру на 1 шаг"
 }

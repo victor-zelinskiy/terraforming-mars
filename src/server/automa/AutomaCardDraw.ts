@@ -19,12 +19,12 @@ import {marsBotOf} from './AutomaUtil';
  *
  * Returns false only when the project deck AND its discard are exhausted.
  */
-export function drawAndResolveProjectCard(game: IGame): boolean {
+export function drawAndResolveProjectCard(game: IGame, options?: {tagLimit?: number}): boolean {
   const card = game.projectDeck.draw(game);
   if (card === undefined) {
     return false; // Draw + discard piles fully exhausted — nothing to resolve.
   }
-  resolveProjectCardForBot(game, card);
+  resolveProjectCardForBot(game, card, options);
   return true;
 }
 
@@ -32,8 +32,14 @@ export function drawAndResolveProjectCard(game: IGame): boolean {
  * Resolve a project card the bot ALREADY holds (it came off the project deck,
  * or out of the bonus deck a corporation seeded — C07). Carries the same two
  * dispatches and the same journal voice as a fresh draw.
+ *
+ * `tagLimit` restricts how many printed tags actually resolve (C11 Thorgate:
+ * only the first). The card is still PLAYED — the corporation effect and the
+ * RB-B human reactors read the whole card, because «ignoring all except its
+ * first tag» is about which tracks MarsBot advances, not about which card was
+ * put into play.
  */
-export function resolveProjectCardForBot(game: IGame, card: IProjectCard): void {
+export function resolveProjectCardForBot(game: IGame, card: IProjectCard, options?: {tagLimit?: number}): void {
   const automa = game.automa;
   if (automa === undefined) {
     throw new Error('Not an automa game');
@@ -43,7 +49,7 @@ export function resolveProjectCardForBot(game: IGame, card: IProjectCard): void 
   game.log('${0} played ${1}', (b) => b.player(marsBotOf(game)).card(card, {tags: true}));
   AutomaCorporations.onProjectCardResolving(game, card);
   AutomaHumanTagReactions.onBotCardResolved(game, card);
-  AutomaResolver.resolveProjectCard(game, card);
+  AutomaResolver.resolveProjectCard(game, card, options);
   automa.playedPile.push(card.name);
 }
 

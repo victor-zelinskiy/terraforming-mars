@@ -122,6 +122,17 @@ describe('marsBotCorpRules — the «§ ПРАВИЛА» groups', () => {
     expect(groups.every((g) => g.rows.length > 0)).is.true;
   });
 
+  it('ThorGate prints its cubes and the first-tag clause, never the human discount', () => {
+    const groups = marsBotCorpAnnotations(MarsBotCorpId.C11_THORGATE);
+    expect(groups.map((g) => g.labelKey)).deep.eq(['Draft priority', 'Corporation setup', 'Corporation effect']);
+    const text = groups.flatMap((g) => g.rows.map((r) => r.text)).join(' ');
+    expect(text).contains('4, 6, 8, 10');
+    expect(text).contains('first tag');
+    expect(text).contains('temperature');
+    // The human ThorGate pays 3 less for power cards and standard projects.
+    expect(text).not.match(/discount|3 less|cheaper/i);
+  });
+
   it('Tharsis Republic prints both halves of its city trigger', () => {
     const groups = marsBotCorpAnnotations(MarsBotCorpId.C10_THARSIS_REPUBLIC);
     expect(groups.map((g) => g.labelKey)).deep.eq(['Draft priority', 'Corporation setup', 'Corporation effect']);

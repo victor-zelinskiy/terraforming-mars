@@ -344,6 +344,35 @@ const CORP_INFO: Readonly<Record<MarsBotCorpId, MarsBotCorpInfo>> = {
       ]},
     ],
   },
+  [MarsBotCorpId.C11_THORGATE]: {
+    id: MarsBotCorpId.C11_THORGATE,
+    cardNumber: 'C11',
+    original: CardName.THORGATE,
+    startingTags: [Tag.POWER],
+    draftPriority: {type: 'tags', tags: [Tag.POWER]},
+    corpBonusCards: [],
+    // SETUP: «Place a white cube on the power track on spaces #4, #6, #8, #10.»
+    trackCubes: [
+      {tag: Tag.POWER, position: 4, cubeType: 'white'},
+      {tag: Tag.POWER, position: 6, cubeType: 'white'},
+      {tag: Tag.POWER, position: 8, cubeType: 'white'},
+      {tag: Tag.POWER, position: 10, cubeType: 'white'},
+    ],
+    cubeLegend: {
+      white: 'Advancing onto it: MarsBot resolves a card by its FIRST tag only, then raises the temperature 1 step',
+    },
+    sections: [
+      {kind: 'draftPriority', lines: [{text: 'Power'}]},
+      {kind: 'setup', lines: [
+        {icon: 'megacredits', text: 'MarsBot gains ${0} M€', params: ['10']},
+        {icon: 'cube-white', text: 'A white cube on the power track spaces ${0}', params: ['4, 6, 8, 10']},
+      ]},
+      {kind: 'effect', lines: [
+        {icon: 'cards', text: 'Advancing onto a white cube: MarsBot draws a card and resolves ONLY its first tag'},
+        {icon: 'temperature', text: 'Then MarsBot raises the temperature 1 step'},
+      ]},
+    ],
+  },
   [MarsBotCorpId.C45_SPIRE]: {
     id: MarsBotCorpId.C45_SPIRE,
     cardNumber: 'C45',
@@ -400,6 +429,8 @@ export function corpOwningBonusCard(id: BonusCardId): MarsBotCorpInfo | undefine
  *           doItRightGreeneries / doItRightOceans / doItRightNoEffect.
  * Saturn Systems: saturnEventAdvances (event-track advances the Jovian
  *           trigger produced) split into saturnFromHuman / saturnFromBot.
+ * Thorgate: thorgateCubesHit / thorgateCardsDrawn (cards the cubes flipped) /
+ *           thorgateTemperatureSteps (the raise that follows each one).
  * Tharsis Republic: tharsisHumanCities / tharsisMc (what human cities paid),
  *           tharsisBotCities (event-track advances its own cities produced).
  * Teractor: teractorAdvances (Earth-track advances that paid) / teractorMc

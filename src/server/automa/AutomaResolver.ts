@@ -40,12 +40,19 @@ export class AutomaResolver {
     return tags;
   }
 
-  public static resolveProjectCard(game: IGame, card: IProjectCard): void {
-    const tags = AutomaResolver.printedTags(card);
-    if (tags.length === 0) {
+  /**
+   * Resolve a flipped project card: its printed tags, left to right.
+   * `tagLimit` cuts that row short — C11 Thorgate's white cube resolves a card
+   * «ignoring all except its first tag». A card with NO tags is still the
+   * official Failed Action, limit or not.
+   */
+  public static resolveProjectCard(game: IGame, card: IProjectCard, options?: {tagLimit?: number}): void {
+    const printed = AutomaResolver.printedTags(card);
+    if (printed.length === 0) {
       failedAction(game, 'no-tags');
       return;
     }
+    const tags = options?.tagLimit === undefined ? printed : printed.slice(0, options.tagLimit);
     // Phase B: attribute each tag's steps to its printed position so the review
     // builds one cause → effect chain per tag (left to right), from data.
     for (let i = 0; i < tags.length; i++) {
