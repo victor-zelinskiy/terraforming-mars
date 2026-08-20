@@ -541,6 +541,26 @@ const CORP_INFO: Readonly<Record<MarsBotCorpId, MarsBotCorpInfo>> = {
       ]},
     ],
   },
+  [MarsBotCorpId.C18_ARCADIAN_COMMUNITIES]: {
+    id: MarsBotCorpId.C18_ARCADIAN_COMMUNITIES,
+    cardNumber: 'C18',
+    original: CardName.ARCADIAN_COMMUNITIES,
+    startingTags: [Tag.BUILDING],
+    corpBonusCards: [BonusCardId.B22_SETTLERS],
+    sections: [
+      {kind: 'setup', lines: [
+        {icon: 'tile', text: 'Settlers resolves immediately — MarsBot claims its first area'},
+      ]},
+      {kind: 'effect', lines: [
+        {icon: 'tile', text: 'Areas MarsBot marked are reserved: only MarsBot may build there'},
+        {icon: 'megacredits', text: 'Building on one of its own marked areas pays MarsBot ${0} M€', params: ['3']},
+      ]},
+      {kind: 'beforeActionPhase', lines: [
+        {icon: 'deck', text: 'Add Settlers to MarsBot\'s action deck'},
+        {icon: 'tile', text: 'Settlers claims another non-reserved area, preferring the one beside the most ocean-reserved spaces', muted: true},
+      ]},
+    ],
+  },
   [MarsBotCorpId.C45_SPIRE]: {
     id: MarsBotCorpId.C45_SPIRE,
     cardNumber: 'C45',
@@ -600,6 +620,10 @@ export function corpOwningBonusCard(id: BonusCardId): MarsBotCorpInfo | undefine
  * Point Luna: lunaWhiteCubes / lunaBlackCubes (cubes reached) and lunaSteps
  *           (track advances they produced).
  * Cheung Shing Mars: cheungCubesHit / cheungMc (the silver cubes it collected).
+ * Arcadian Communities: arcadianMarkers (areas it claimed), arcadianBuilds /
+ *           arcadianMc (tiles it later built on its own claims, and what
+ *           they paid), settlersPlayed / settlersBlocked (its recurring card
+ *           and the generations the map had nothing left to claim).
  * Vitor:    vitorTriggers / vitorMc (the toll every scoring project paid),
  *           vitorOverachievementGenerations (generations its recurring
  *           milestone hunter was still in the deck — it stops the

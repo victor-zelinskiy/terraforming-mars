@@ -98,6 +98,17 @@ describe('buildBonusCardView — the card face resolved for THIS game', () => {
     expect(buildBonusCardView(BonusCardId.B28_DIVERSIFICATION, VENUS)).deep.eq(view);
   });
 
+  it('Settlers (B22) states the claim, its tiebreak and what the claim is worth', () => {
+    const view = buildBonusCardView(BonusCardId.B22_SETTLERS, BASE);
+    expect(view.name).eq('Settlers');
+    expect(view.lines).has.length(3);
+    expect(view.lines[0].text).to.include('non-reserved area');
+    expect(view.lines[1].text, 'the printed tiebreak is part of the rule').to.include('ocean-reserved');
+    expect(view.lines[2]).to.deep.include({icon: 'megacredits', params: ['3']});
+    expect(view.fate.kind, 'it recurs forever, it is never destroyed').eq('recurring');
+    expect(buildBonusCardView(BonusCardId.B22_SETTLERS, VENUS)).deep.eq(view);
+  });
+
   it('an out-of-scope card degrades to its printed summary', () => {
     const view = buildBonusCardView(BonusCardId.B21_PARTY_POLITICS, BASE);
     expect(view.lines).has.length(1);

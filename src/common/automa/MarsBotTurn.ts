@@ -201,6 +201,18 @@ export type MarsBotTurnTile = {
   color?: Color;
 };
 
+/**
+ * A PLAYER MARKER this ONE turn put on the map — a claimed, tile-less cell
+ * (C18 Arcadian Communities / B22 Settlers). Carried separately from `tiles`
+ * because it is a COLOUR-ONLY diff: the client must drive the shared owner-cube
+ * drop (`cubeDropState`), never the tile-entrance framework, which keys on a
+ * tile appearing.
+ */
+export type MarsBotTurnMarker = {
+  spaceId: SpaceId;
+  color: Color;
+};
+
 export type MarsBotParamChange = {before: number, after: number};
 
 /**
@@ -212,6 +224,8 @@ export type MarsBotParamChange = {before: number, after: number};
  */
 export type MarsBotTurnVisual = {
   tiles?: ReadonlyArray<MarsBotTurnTile>;
+  /** Player markers it claimed (cube-only cells) — absent when it claimed none. */
+  markers?: ReadonlyArray<MarsBotTurnMarker>;
   temperature?: MarsBotParamChange;
   oxygenLevel?: MarsBotParamChange;
   oceans?: MarsBotParamChange;

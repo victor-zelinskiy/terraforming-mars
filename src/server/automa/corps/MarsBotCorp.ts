@@ -100,6 +100,19 @@ export type MarsBotCorp = {
   onTrackCubeTrigger?(game: IGame, cube: MarsBotTrackCube, printedAction: TrackAction | undefined): 'replaces-action' | void;
 
   /**
+   * MarsBot is about to build on a cell ITS OWN player marker reserved (C18
+   * Arcadian Communities). Asked by `Game.addTile` BEFORE the tile seats —
+   * the only moment at which «was this area reserved?» is still answerable,
+   * since seating the tile writes the same `space.player`.
+   *
+   * Returning `'pays'` opts the bot into the engine's EXISTING reserved-area
+   * bonus (the human Arcadian's own 3 M€ line in `grantPlacementBonuses`), so
+   * the payout, its scope, its ordering and its covering/Solar-phase
+   * exclusions can never drift from the human card's.
+   */
+  onBuildOnOwnMarker?(game: IGame, space: Space): 'pays' | void;
+
+  /**
    * Resolves one of this corporation's OWN bonus cards (`info.corpBonusCards`,
    * the B22–B32 family) when the bot flips it from its action deck. Routing
    * (discard / destroy / recurring holding) stays with the caller.

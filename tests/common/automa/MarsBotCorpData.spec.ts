@@ -134,7 +134,9 @@ describe('MarsBotCorpData', () => {
 
   it('corpOwningBonusCard maps B23 to Ecoline and nothing else', () => {
     expect(corpOwningBonusCard(BonusCardId.B23_RAPID_SPROUTING)?.id).eq(MarsBotCorpId.C02_ECOLINE);
-    expect(corpOwningBonusCard(BonusCardId.B22_SETTLERS)).is.undefined;
+    expect(corpOwningBonusCard(BonusCardId.B22_SETTLERS)?.id, 'B22 now belongs to C18')
+      .eq(MarsBotCorpId.C18_ARCADIAN_COMMUNITIES);
+    expect(corpOwningBonusCard(BonusCardId.B24_SUPPLY_AND_DEMAND), 'still unowned').is.undefined;
     expect(corpOwningBonusCard(BonusCardId.B01_METEOR_SHOWER)).is.undefined;
   });
 

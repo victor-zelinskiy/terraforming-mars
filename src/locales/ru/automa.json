@@ -449,5 +449,18 @@
   "Overachievement claims a milestone for free (an award from generation 6) and is destroyed; otherwise it pays ${0} M€": "«Сверхдостижение» бесплатно заявляет достижение (с 6-го поколения — награду) и уничтожается; иначе платит ${0} М€",
   "${0} set Overachievement aside — its corporation ${1} hands it back every generation": "${0} убирает «Сверхдостижение» в сторону — корпорация ${1} возвращает его каждое поколение",
   "${0} shuffled Overachievement into its action deck": "${0} замешивает «Сверхдостижение» в свою колоду действий",
-  "${0} gained ${1} M€ from its corporation ${2} for resolving a card that scores": "${0} получает ${1} М€ от корпорации ${2} за розыгрыш карты, приносящей очки"
+  "${0} gained ${1} M€ from its corporation ${2} for resolving a card that scores": "${0} получает ${1} М€ от корпорации ${2} за розыгрыш карты, приносящей очки",
+  "Arcadian Communities: MarsBot claims a non-reserved area with one of its player markers, preferring the space beside the most ocean-reserved ones. Recurs into the action deck every generation.": "Arcadian Communities: Бот занимает свободную площадку своим маркером, предпочитая клетку рядом с наибольшим числом океанических резервов. Возвращается в колоду действий каждое поколение.",
+  "MarsBot claims a non-reserved area with one of its player markers": "Бот занимает свободную площадку одним из своих маркеров",
+  "Tied areas: the one beside the most ocean-reserved spaces wins, before the card flip": "При равенстве выигрывает клетка рядом с наибольшим числом океанических резервов — ещё до вскрытия карты",
+  "Only MarsBot may build there — and doing so pays it ${0} M€": "Строить там может только Бот — и получает за это ${0} М€",
+  "Settlers resolves immediately — MarsBot claims its first area": "«Поселенцы» разыгрываются сразу — Бот занимает первую площадку",
+  "Areas MarsBot marked are reserved: only MarsBot may build there": "Отмеченные Ботом площадки забронированы: строить там может только он",
+  "Building on one of its own marked areas pays MarsBot ${0} M€": "Строительство на своей отмеченной площадке приносит Боту ${0} М€",
+  "Add Settlers to MarsBot's action deck": "Добавьте «Поселенцев» в колоду действий Бота",
+  "Settlers claims another non-reserved area, preferring the one beside the most ocean-reserved spaces": "«Поселенцы» занимают ещё одну свободную площадку, предпочитая ту, что рядом с наибольшим числом океанических резервов",
+  "${0} shuffled Settlers into its action deck": "${0} замешивает «Поселенцев» в свою колоду действий",
+  "${0} built on an area reserved by its corporation ${1}": "${0} строит на площадке, забронированной его корпорацией ${1}",
+  "No area left to claim": "Свободных площадок больше нет",
+  "Claimed another area": "Занял ещё одну площадку"
 }

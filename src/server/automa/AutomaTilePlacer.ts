@@ -53,8 +53,18 @@ export class AutomaTilePlacer {
    * 3. Determine randomly: flip a project card and count through the tied
    *    spaces top-left → right → next row (exactly the board.spaces order),
    *    looping as needed; place on the final space; discard the flipped card.
+   *
+   * `beforeFlip` is an EXTRA tiebreaker a card may print between step 2 and
+   * the card flip — «before using the final tiebreak, MarsBot first looks for
+   * …» (B22 Settlers: the most adjacent ocean-RESERVED spaces). Highest score
+   * wins; absent for every ordinary placement, which keeps their behaviour and
+   * their rng consumption byte-identical.
    */
-  public static breakTie(game: IGame, candidates: ReadonlyArray<Space>): Space {
+  public static breakTie(
+    game: IGame,
+    candidates: ReadonlyArray<Space>,
+    beforeFlip?: (space: Space) => number,
+  ): Space {
     if (candidates.length === 0) {
       throw new Error('breakTie requires at least one candidate');
     }
@@ -64,6 +74,9 @@ export class AutomaTilePlacer {
       // exactly 1 M€ — the same as a covered printed icon — so both count
       // here. `adjacencyBonusUnits` is 0 without Ares (identical behavior).
       tied = keepMax(tied, (space) => space.bonus.length + AutomaAres.adjacencyBonusUnits(game, space));
+    }
+    if (tied.length > 1 && beforeFlip !== undefined) {
+      tied = keepMax(tied, beforeFlip);
     }
     if (tied.length === 1) {
       return tied[0];

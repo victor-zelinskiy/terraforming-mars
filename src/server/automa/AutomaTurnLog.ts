@@ -4,7 +4,7 @@ import {Resource} from '../../common/Resource';
 import {TileType} from '../../common/TileType';
 import {SpaceId} from '../../common/Types';
 import {BonusCardId} from '../../common/automa/AutomaTypes';
-import {MarsBotBonusFate, MarsBotBonusResolution, MarsBotImpactChange, MarsBotLogRole, MarsBotParamChange, MarsBotStepCause, MarsBotTurn, MarsBotTurnStep, MarsBotTurnTile, MarsBotTurnVisual} from '../../common/automa/MarsBotTurn';
+import {MarsBotBonusFate, MarsBotBonusResolution, MarsBotImpactChange, MarsBotLogRole, MarsBotParamChange, MarsBotStepCause, MarsBotTurn, MarsBotTurnMarker, MarsBotTurnStep, MarsBotTurnTile, MarsBotTurnVisual} from '../../common/automa/MarsBotTurn';
 import {IGame} from '../IGame';
 import {IPlayer} from '../IPlayer';
 
@@ -42,6 +42,8 @@ type BoardSnapshot = {
   venusScaleLevel: number;
   /** Occupied spaces at turn start (id → tile type). */
   tiles: Map<SpaceId, TileType>;
+  /** CLAIMED, tile-less spaces at turn start (id → owner colour). */
+  markers: Map<SpaceId, Color>;
 };
 
 /** The values snapshotted around the whole turn to derive the impact steps. */
@@ -70,12 +72,16 @@ function snapshotOf(player: IPlayer): PlayerSnapshot {
 
 function boardSnapshotOf(game: IGame): BoardSnapshot {
   const tiles = new Map<SpaceId, TileType>();
+  const markers = new Map<SpaceId, Color>();
   for (const space of game.board.spaces) {
     if (space.tile !== undefined) {
       tiles.set(space.id, space.tile.tileType);
+    } else if (space.player !== undefined) {
+      markers.set(space.id, space.player.color);
     }
   }
   return {
+    markers,
     temperature: game.getTemperature(),
     oxygenLevel: game.getOxygenLevel(),
     oceans: game.board.getOceanSpaces().length,
@@ -105,6 +111,20 @@ function boardVisualOf(before: BoardSnapshot, game: IGame): MarsBotTurnVisual | 
   }
   if (tiles.length > 0) {
     visual.tiles = tiles;
+  }
+  // A CLAIM is a colour-only diff on a TILE-LESS cell (C18/B22). It is carried
+  // apart from `tiles` because the client must drive the shared owner-cube
+  // drop for it — every tile-shaped entrance keys on a tile appearing, so a
+  // marker folded into `tiles` would either be ignored or fake a tile.
+  const markers: Array<MarsBotTurnMarker> = [];
+  for (const space of game.board.spaces) {
+    if (space.tile === undefined && space.player !== undefined &&
+        before.markers.get(space.id) !== space.player.color) {
+      markers.push({spaceId: space.id, color: space.player.color});
+    }
+  }
+  if (markers.length > 0) {
+    visual.markers = markers;
   }
   const param = (b: number, a: number): MarsBotParamChange | undefined =>
     (a !== b ? {before: b, after: a} : undefined);

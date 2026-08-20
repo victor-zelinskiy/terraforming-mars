@@ -273,6 +273,24 @@ describe('insightEngine', () => {
         MarsBotCorpId.C17_VITOR, 'Vitor')).is.empty;
     });
 
+    it('C18 tells the land grab and the rent as SEPARATE stories', () => {
+      const insights = botInsights({arcadianMarkers: 6, arcadianBuilds: 4, arcadianMc: 12},
+        MarsBotCorpId.C18_ARCADIAN_COMMUNITIES, 'Arcadian Communities');
+      expect(insights).has.length(2);
+      expect(insights.map((i) => i.id).sort()).deep.eq(
+        ['reason.bot-corporation.red', 'reason.bot-corporation.red.own-land']);
+      const grab = insights.find((i) => i.textKey.includes('staking out Mars'));
+      const rent = insights.find((i) => i.textKey.includes('Building on its own land'));
+      expect(grab, 'the claims have their own card').is.not.undefined;
+      expect(rent, 'the rent has its own card').is.not.undefined;
+      expect(grab!.textKey, 'the internal marker vocabulary stays in the code').not.contains('marker');
+    });
+
+    it('C18 keeps quiet when it barely claimed anything', () => {
+      expect(botInsights({arcadianMarkers: 2, arcadianBuilds: 1, arcadianMc: 3},
+        MarsBotCorpId.C18_ARCADIAN_COMMUNITIES, 'Arcadian Communities')).is.empty;
+    });
+
     it('the draft fallback speaks only when no printed effect did', () => {
       const withEffect = botInsights({credicorTriggers: 6, credicorMc: 24, fiveCardDecks: 3},
         MarsBotCorpId.C01_CREDICOR, 'CrediCor');

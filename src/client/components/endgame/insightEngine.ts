@@ -2812,6 +2812,31 @@ const analyzeBotCorporation: Analyzer = (ctx) => {
           scale: 7,
         });
       }
+    } else if (corp.id === 'C18') {
+      // Arcadian Communities prints two independent things: the land it fenced
+      // off (which the opponent could see being taken away, claim by claim),
+      // and the rent it collected for building on its own plots.
+      const markers = stat('arcadianMarkers');
+      if (markers >= 4) {
+        stories.push({
+          key: 'effect',
+          textKey: '${1} was staking out Mars for ${0} long before it built: ${2} plots were fenced off, and nobody else could touch them.',
+          params: [raw(p.name), raw(corp.name), raw(markers)],
+          measure: markers,
+          scale: 8,
+        });
+      }
+      const builds = stat('arcadianBuilds');
+      const mc = stat('arcadianMc');
+      if (builds >= 3) {
+        stories.push({
+          key: 'own-land',
+          textKey: 'Building on its own land paid ${0}\'s ${1} twice over: ${2} of its tiles went up on ground it had already claimed, worth ${3} M€.',
+          params: [raw(p.name), raw(corp.name), raw(builds), raw(mc)],
+          measure: mc,
+          scale: 15,
+        });
+      }
     } else if (corp.id === 'C45') {
       // Spire: the science engine — multi-tag cards banked into cities + TR.
       const cities = stat('citiesPlaced');

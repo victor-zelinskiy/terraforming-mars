@@ -54,6 +54,8 @@ describe('MarsBotCorpFace (.pcard template)', () => {
       'C16\'s science symbol is its draft priority, not a starting tag').is.false;
     expect(mountFace(MarsBotCorpId.C17_VITOR).find('.pcard__tags').exists(),
       'C17 prints no starting tag — the human Vitor\'s Earth tag never leaks').is.false;
+    expect(mountFace(MarsBotCorpId.C18_ARCADIAN_COMMUNITIES).findAll('.pcard__tags .pcard-tag'),
+      'C18 prints ONE building starting tag').has.length(1);
     // C04 prints TWO event tags — both sit on the rail (the bot card's tags,
     // never the human card's single building tag).
     // Saturn Systems prints FOUR starting tags — the rail carries them all.
@@ -203,6 +205,20 @@ describe('marsBotCorpRules — the «§ ПРАВИЛА» groups', () => {
     // not leaked — but the start and the free award never are.
     expect(text).not.contains('45');
     expect(text).not.match(/first action|fund an award/i);
+  });
+
+  it('Arcadian Communities prints the reservation and its rent, never the human 40 M€ start', () => {
+    const groups = marsBotCorpAnnotations(MarsBotCorpId.C18_ARCADIAN_COMMUNITIES);
+    expect(groups.map((g) => g.labelKey)).deep.eq(['Corporation setup', 'Corporation effect', 'Before action phase']);
+    const text = groups.flatMap((g) => g.rows.map((r) => r.text)).join(' ');
+    expect(text).contains('Settlers');
+    expect(text).contains('reserved');
+    expect(text).contains('ocean-reserved');
+    // The human Arcadian Communities starts with 40 M€ and 10 steel, and its
+    // repeatable action needs a marker ADJACENT to its own — none of that is
+    // on the bot card (the 3 M€ reserved-area rule is, and is printed there).
+    expect(text).not.contains('40');
+    expect(text).not.match(/steel|adjacent to one of your/i);
   });
 
   it('ThorGate prints its cubes and the first-tag clause, never the human discount', () => {

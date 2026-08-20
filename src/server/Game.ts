@@ -1785,7 +1785,13 @@ export class Game implements IGame, Logger {
     // Part 3. Setup for bonuses
     const initialTileType = space.tile?.tileType;
     const coveringExistingTile = space.tile !== undefined;
-    const arcadianCommunityBonus = space.player === player && player.tableau.has(CardName.ARCADIAN_COMMUNITIES);
+    // Building on an area YOUR OWN marker reserved pays 3 M€. Two entities
+    // print that rule — the human Arcadian Communities and MarsBot's own C18
+    // — and both take the SAME payout below, asked here because seating the
+    // tile overwrites the very `space.player` that answers the question.
+    const arcadianCommunityBonus = space.player === player &&
+      (player.tableau.has(CardName.ARCADIAN_COMMUNITIES) ||
+       AutomaCorporations.buildOnOwnMarkerPays(this, player, space));
 
     // Part 4. Place the tile
     this.simpleAddTile(player, space, tile);

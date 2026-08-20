@@ -24,6 +24,7 @@ import {MarsBotPhobolog} from './MarsBotPhobolog';
 import {MarsBotPointLuna} from './MarsBotPointLuna';
 import {MarsBotRobinsonIndustries} from './MarsBotRobinsonIndustries';
 import {MarsBotValleyTrust} from './MarsBotValleyTrust';
+import {MarsBotArcadianCommunities} from './MarsBotArcadianCommunities';
 import {MarsBotVitor} from './MarsBotVitor';
 import {MarsBotSaturnSystems} from './MarsBotSaturnSystems';
 import {MarsBotTeractor} from './MarsBotTeractor';
@@ -76,6 +77,7 @@ export class AutomaCorporations {
     [MarsBotCorpId.C15_ROBINSON_INDUSTRIES]: MarsBotRobinsonIndustries,
     [MarsBotCorpId.C16_VALLEY_TRUST]: MarsBotValleyTrust,
     [MarsBotCorpId.C17_VITOR]: MarsBotVitor,
+    [MarsBotCorpId.C18_ARCADIAN_COMMUNITIES]: MarsBotArcadianCommunities,
     [MarsBotCorpId.C45_SPIRE]: MarsBotSpire,
   };
 
@@ -211,6 +213,19 @@ export class AutomaCorporations {
     } finally {
       game.events.endScope();
     }
+  }
+
+  /**
+   * «Is this build happening on an area MY OWN marker reserved?» — asked by
+   * `Game.addTile` for the BOT seat only, before the tile seats. A corporation
+   * that answers `'pays'` collects the engine's existing reserved-area bonus,
+   * exactly as the human Arcadian Communities does.
+   */
+  public static buildOnOwnMarkerPays(game: IGame, player: IPlayer, space: Space): boolean {
+    if (player.isMarsBot !== true) {
+      return false;
+    }
+    return AutomaCorporations.activeCorp(game)?.onBuildOnOwnMarker?.(game, space) === 'pays';
   }
 
   /**

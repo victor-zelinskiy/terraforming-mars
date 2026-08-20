@@ -30,14 +30,14 @@ import {standardResourceIconUrl} from '@/client/components/premiumCard/premiumCa
  *
  * Identity (title wordmark/art/lore) rides the ORIGINAL corporation's
  * CardName exactly as everywhere else. No human rule can leak: the render
- * data below is authored from the official bot cards (C01–C17/C45), never
+ * data below is authored from the official bot cards (C01–C18/C45), never
  * read from the human manifest card.
  *
  * PURE (no Vue/DOM/i18n) — unit-tested under the server runner. The
  * `CardRenderer` import is the shared data-DSL (common types only).
  */
 
-/** The symbolic rule rows of each official bot card (C01–C17 / C45). */
+/** The symbolic rule rows of each official bot card (C01–C18 / C45). */
 function renderDataOf(id: MarsBotCorpId): ICardRenderRoot {
   switch (id) {
   case MarsBotCorpId.C01_CREDICOR:
@@ -208,6 +208,19 @@ function renderDataOf(id: MarsBotCorpId): ICardRenderRoot {
       // after generation, until it finally claims something.
       b.action(undefined, (eb) => {
         eb.plate('Overachievement').startAction.cards(1);
+      });
+    });
+  case MarsBotCorpId.C18_ARCADIAN_COMMUNITIES:
+    return CardRenderer.builder((b) => {
+      // EFFECT: building on an area its OWN marker reserved pays 3 M€ — the
+      // very shape the human card prints, because it is the very same rule.
+      b.effect(undefined, (eb) => {
+        eb.emptyTile().startEffect.megacredits(3);
+      });
+      // BEFORE ACTION PHASE: Settlers joins the deck and claims another area —
+      // the community cube the board itself paints for a claim.
+      b.action(undefined, (eb) => {
+        eb.plate('Settlers').startAction.community();
       });
     });
   case MarsBotCorpId.C45_SPIRE:

@@ -11,10 +11,12 @@ import {
 } from '@/client/components/marsbot/marsBotPresentation';
 import {
   botStagingState,
+  applyTurnVisual,
   deliverBotTurnVisual,
   isBotStagingActive,
   resetBotStaging,
 } from '@/client/components/marsbot/marsBotStagedCommits';
+import {shouldHoldForOwnerCubePlacement} from '@/client/components/board/cubeDropState';
 import {resetMarsBotArchive} from '@/client/components/marsbot/marsBotTurnArchive';
 import {closeBotTurnReview, resetBotTurnReview} from '@/client/components/marsbot/botTurnReviewState';
 import {notificationState, resetNotifications, setNotificationViewer, dismiss} from '@/client/components/notifications/notificationState';
@@ -31,12 +33,13 @@ import {drawnCardsState} from '@/client/components/drawnCards/drawnCardsState';
  * the latest authoritative state.
  */
 
-function turnWithVisual(id: number, opts: {spaceId?: string, temperature?: [number, number], mc?: [number, number], attackBlue?: boolean} = {}): MarsBotTurn {
+function turnWithVisual(id: number, opts: {spaceId?: string, markerSpaceId?: string, temperature?: [number, number], mc?: [number, number], attackBlue?: boolean} = {}): MarsBotTurn {
   return {
     id,
     generation: 1,
     visual: {
       ...(opts.spaceId !== undefined ? {tiles: [{spaceId: opts.spaceId as never, tileType: TileType.CITY, color: 'red' as Color}]} : {}),
+      ...(opts.markerSpaceId !== undefined ? {markers: [{spaceId: opts.markerSpaceId as never, color: 'red' as Color}]} : {}),
       ...(opts.temperature !== undefined ? {temperature: {before: opts.temperature[0], after: opts.temperature[1]}} : {}),
     },
     steps: [
@@ -290,6 +293,47 @@ describe('marsBotStagedCommits (the staged FIFO visual timeline)', () => {
     ensureBotPresentationLiveness(); // NotificationLayer's poll self-heal
     expect(committed).eq(1);
     expect(isBotStagingActive()).eq(false);
+  });
+
+  describe('a CLAIM (C18 Arcadian Communities / B22 Settlers)', () => {
+    /*
+     * OWNER REQUIREMENT: the marker the bot claims must land with the SAME
+     * premium cube drop a human Arcadian's community lands with. That drop is
+     * `cubeDropState` — driven by a COLOUR-ONLY diff on a TILE-LESS cell — so
+     * the staged per-turn commit has to produce exactly that diff and nothing
+     * tile-shaped. These two assertions are the contract.
+     */
+    it('paints the owner colour WITHOUT a tile, which is what the cube framework reads', () => {
+      const presented = makeView();
+      const before = presented.game.spaces.map((sp) => ({...sp})) as never;
+
+      applyTurnVisual(presented, turnWithVisual(1, {markerSpaceId: '05'}));
+
+      const claimed = spaceOf(presented, '05');
+      expect(claimed.color, 'the claim painted the bot colour').eq('red');
+      expect((claimed as {tileType?: TileType}).tileType, 'a claim is not a tile').is.undefined;
+      // The SHARED framework recognises it — the same predicate App.vue uses to
+      // arm the drop for a human Arcadian's community.
+      expect(shouldHoldForOwnerCubePlacement(before, presented.game.spaces as never),
+        'the owner-cube framework sees a fresh claim').is.true;
+    });
+
+    it('a BUILD is not mistaken for a claim — it rides the tile entrance', () => {
+      const presented = makeView();
+      const before = presented.game.spaces.map((sp) => ({...sp})) as never;
+
+      applyTurnVisual(presented, turnWithVisual(1, {spaceId: '03'}));
+
+      expect(spaceOf(presented, '03').color).eq('red');
+      expect(shouldHoldForOwnerCubePlacement(before, presented.game.spaces as never),
+        'a build rides the TILE entrance, which drops the cube itself').is.false;
+    });
+
+    it('a claim on a cell that already has a tile is ignored (defensive)', () => {
+      const presented = makeView({tiles: {'05': TileType.CITY}});
+      applyTurnVisual(presented, turnWithVisual(1, {markerSpaceId: '05'}));
+      expect(spaceOf(presented, '05').color, 'the tile already owns the cell').eq('red');
+    });
   });
 
   describe('personal feed mode («Только связанные со мной»)', () => {

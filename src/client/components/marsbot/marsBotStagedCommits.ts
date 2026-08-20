@@ -218,6 +218,23 @@ export function applyTurnVisual(view: ViewModel, turn: MarsBotTurn): void {
         }
       }
     }
+    if (visual.markers !== undefined && visual.markers.length > 0) {
+      // A CLAIM (C18 Arcadian Communities / B22 Settlers) is a cube on a
+      // TILE-LESS cell: no tile entrance to wait behind, so it takes the
+      // SHARED owner-cube drop — the very `pc-place` beat a human Arcadian's
+      // community lands with (`cubeDropState.observeCube`, which starts the
+      // drop immediately for a colour-only diff). Armed BEFORE the mutation,
+      // like the tile branch above, because BoardSpace's watcher fires
+      // synchronously from Vue reactivity; without the arming the cube would
+      // render at rest and simply pop in.
+      armPlacementAnimations();
+      for (const marker of visual.markers) {
+        const space = view.game.spaces.find((s) => s.id === marker.spaceId);
+        if (space !== undefined && space.tileType === undefined) {
+          space.color = marker.color;
+        }
+      }
+    }
     if (visual.temperature !== undefined) {
       view.game.temperature = visual.temperature.after;
     }
