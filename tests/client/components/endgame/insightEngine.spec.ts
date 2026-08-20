@@ -255,6 +255,24 @@ describe('insightEngine', () => {
         MarsBotCorpId.C16_VALLEY_TRUST, 'Valley Trust')).is.empty;
     });
 
+    it('C17 tells its two printed halves as SEPARATE stories', () => {
+      const insights = botInsights({vitorTriggers: 8, vitorMc: 24, vitorOverachievementGenerations: 6},
+        MarsBotCorpId.C17_VITOR, 'Vitor');
+      expect(insights).has.length(2);
+      expect(insights.map((i) => i.id).sort()).deep.eq(
+        ['reason.bot-corporation.red', 'reason.bot-corporation.red.overachievement']);
+      const toll = insights.find((i) => i.textKey.includes('prestige, not progress'));
+      const claim = insights.find((i) => i.textKey.includes('milestone board was never safe'));
+      expect(toll, 'the VP toll has its own card').is.not.undefined;
+      expect(claim, 'the standing claim has its own card').is.not.undefined;
+      expect(toll!.textKey).not.contains('milestone');
+    });
+
+    it('C17 says nothing when its card was destroyed early and the toll was thin', () => {
+      expect(botInsights({vitorTriggers: 2, vitorMc: 6, vitorOverachievementGenerations: 2},
+        MarsBotCorpId.C17_VITOR, 'Vitor')).is.empty;
+    });
+
     it('the draft fallback speaks only when no printed effect did', () => {
       const withEffect = botInsights({credicorTriggers: 6, credicorMc: 24, fiveCardDecks: 3},
         MarsBotCorpId.C01_CREDICOR, 'CrediCor');

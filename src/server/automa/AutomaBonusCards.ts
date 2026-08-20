@@ -581,6 +581,16 @@ export function routeBonusCard(game: IGame, id: BonusCardId, outcome: BonusCardO
   }
   if (outcome === 'destroy') {
     automa.destroyedBonusCards.push(id);
+    // A destroyed card is out of the GAME, so it can never come back — not
+    // even from the recurring holding pool. Until C17 Vitor no recurring card
+    // could reach this branch (B16/B19/B20/B23/B25/B28 always discard), but
+    // Vitor hands back B04 Overachievement, which destroys itself the moment
+    // it lands a milestone: leaving it in the pool would resurrect it in the
+    // next generation's deck rebuild.
+    const recurring = automa.recurringBonusCards.indexOf(id);
+    if (recurring !== -1) {
+      automa.recurringBonusCards.splice(recurring, 1);
+    }
     game.log('MarsBot bonus card was destroyed and removed from the game');
     return;
   }

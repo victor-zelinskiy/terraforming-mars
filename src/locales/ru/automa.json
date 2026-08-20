@@ -442,5 +442,12 @@
   "This corporation is only used in a game with Prelude": "Эта корпорация используется только в игре с дополнением «Прелюдия»",
   "Advancing onto a white cube: MarsBot draws and resolves a card from the project deck": "Дойдя до белого куба: Бот берёт и разыгрывает карту из колоды проектов",
   "Advancing onto it: MarsBot draws and resolves a card from the project deck": "Дойдя до него: Бот берёт и разыгрывает карту из колоды проектов",
-  "${0} received ${1} extra project card in its starting deck from its corporation ${2}": "${0} получает на ${1} проектную карту больше в стартовой колоде от своей корпорации ${2}"
+  "${0} received ${1} extra project card in its starting deck from its corporation ${2}": "${0} получает на ${1} проектную карту больше в стартовой колоде от своей корпорации ${2}",
+  "Overachievement is set aside from the bonus deck": "«Сверхдостижение» убирается из бонусной колоды в сторону",
+  "When resolving a card with a non-negative VP icon, MarsBot gains ${0} M€": "Разыграв карту с неотрицательным значком ПО, Бот получает ${0} М€",
+  "Add Overachievement to MarsBot's action deck, unless it has been destroyed": "Добавьте «Сверхдостижение» в колоду действий Бота, если оно ещё не уничтожено",
+  "Overachievement claims a milestone for free (an award from generation 6) and is destroyed; otherwise it pays ${0} M€": "«Сверхдостижение» бесплатно заявляет достижение (с 6-го поколения — награду) и уничтожается; иначе платит ${0} М€",
+  "${0} set Overachievement aside — its corporation ${1} hands it back every generation": "${0} убирает «Сверхдостижение» в сторону — корпорация ${1} возвращает его каждое поколение",
+  "${0} shuffled Overachievement into its action deck": "${0} замешивает «Сверхдостижение» в свою колоду действий",
+  "${0} gained ${1} M€ from its corporation ${2} for resolving a card that scores": "${0} получает ${1} М€ от корпорации ${2} за розыгрыш карты, приносящей очки"
 }

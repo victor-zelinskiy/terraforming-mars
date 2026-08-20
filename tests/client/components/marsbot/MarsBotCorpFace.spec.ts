@@ -52,6 +52,8 @@ describe('MarsBotCorpFace (.pcard template)', () => {
       'C15 prints no starting tag at all').is.false;
     expect(mountFace(MarsBotCorpId.C16_VALLEY_TRUST).find('.pcard__tags').exists(),
       'C16\'s science symbol is its draft priority, not a starting tag').is.false;
+    expect(mountFace(MarsBotCorpId.C17_VITOR).find('.pcard__tags').exists(),
+      'C17 prints no starting tag — the human Vitor\'s Earth tag never leaks').is.false;
     // C04 prints TWO event tags — both sit on the rail (the bot card's tags,
     // never the human card's single building tag).
     // Saturn Systems prints FOUR starting tags — the rail carries them all.
@@ -187,6 +189,20 @@ describe('marsBotCorpRules — the «§ ПРАВИЛА» groups', () => {
     // The human Valley Trust starts with 37 M€ and draws preludes to choose from.
     expect(text).not.contains('37');
     expect(text).not.match(/prelude cards|choose one/i);
+  });
+
+  it('Vitor prints its toll and its standing claim, never the human 45 M€ start', () => {
+    const groups = marsBotCorpAnnotations(MarsBotCorpId.C17_VITOR);
+    expect(groups.map((g) => g.labelKey)).deep.eq(['Corporation setup', 'Corporation effect', 'Before action phase']);
+    const text = groups.flatMap((g) => g.rows.map((r) => r.text)).join(' ');
+    expect(text).contains('Overachievement');
+    expect(text).contains('non-negative VP icon');
+    expect(text, 'the printed exception is stated, never silently applied').contains('destroyed');
+    // The human Vitor starts with 45 M€ and funds an award for free as its
+    // first action. Its 3 M€ VP effect is on the BOT card too — printed there,
+    // not leaked — but the start and the free award never are.
+    expect(text).not.contains('45');
+    expect(text).not.match(/first action|fund an award/i);
   });
 
   it('ThorGate prints its cubes and the first-tag clause, never the human discount', () => {

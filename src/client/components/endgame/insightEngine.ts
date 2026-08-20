@@ -2787,6 +2787,31 @@ const analyzeBotCorporation: Analyzer = (ctx) => {
           scale: 2,
         });
       }
+    } else if (corp.id === 'C17') {
+      // Vitor prints TWO independent things, so it may tell two stories: the
+      // bonus every scoring project paid, and the standing free claim its
+      // recurring card kept putting on the table.
+      const triggers = stat('vitorTriggers');
+      const mc = stat('vitorMc');
+      if (triggers >= 4) {
+        stories.push({
+          key: 'effect',
+          textKey: '${1} paid ${0} for prestige, not progress: every project that scored points also paid a bonus — ${3} M€ across ${2} of them.',
+          params: [raw(p.name), raw(corp.name), raw(triggers), raw(mc)],
+          measure: mc,
+          scale: 24,
+        });
+      }
+      const generations = stat('vitorOverachievementGenerations');
+      if (generations >= 4) {
+        stories.push({
+          key: 'overachievement',
+          textKey: 'The milestone board was never safe from ${0}\'s ${1}: for ${2} generations straight it came to the table with a free claim already in hand.',
+          params: [raw(p.name), raw(corp.name), raw(generations)],
+          measure: generations,
+          scale: 7,
+        });
+      }
     } else if (corp.id === 'C45') {
       // Spire: the science engine — multi-tag cards banked into cities + TR.
       const cities = stat('citiesPlaced');

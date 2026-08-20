@@ -517,6 +517,30 @@ const CORP_INFO: Readonly<Record<MarsBotCorpId, MarsBotCorpInfo>> = {
       ]},
     ],
   },
+  [MarsBotCorpId.C17_VITOR]: {
+    id: MarsBotCorpId.C17_VITOR,
+    cardNumber: 'C17',
+    original: CardName.VITOR,
+    // No starting tag and no draft-priority plate are printed.
+    startingTags: [],
+    // B04 is a BASE bonus card, not a corporation-specific one: Vitor does not
+    // own it (`corpBonusCards` stays empty and nothing dispatches its
+    // resolution) — it only takes it out of the ordinary rotation and hands it
+    // back every generation.
+    corpBonusCards: [],
+    sections: [
+      {kind: 'setup', lines: [
+        {icon: 'deck', text: 'Overachievement is set aside from the bonus deck'},
+      ]},
+      {kind: 'effect', lines: [
+        {icon: 'megacredits', text: 'When resolving a card with a non-negative VP icon, MarsBot gains ${0} M€', params: ['3']},
+      ]},
+      {kind: 'beforeActionPhase', lines: [
+        {icon: 'deck', text: 'Add Overachievement to MarsBot\'s action deck, unless it has been destroyed'},
+        {icon: 'milestone', text: 'Overachievement claims a milestone for free (an award from generation 6) and is destroyed; otherwise it pays ${0} M€', params: ['5'], muted: true},
+      ]},
+    ],
+  },
   [MarsBotCorpId.C45_SPIRE]: {
     id: MarsBotCorpId.C45_SPIRE,
     cardNumber: 'C45',
@@ -576,6 +600,10 @@ export function corpOwningBonusCard(id: BonusCardId): MarsBotCorpInfo | undefine
  * Point Luna: lunaWhiteCubes / lunaBlackCubes (cubes reached) and lunaSteps
  *           (track advances they produced).
  * Cheung Shing Mars: cheungCubesHit / cheungMc (the silver cubes it collected).
+ * Vitor:    vitorTriggers / vitorMc (the toll every scoring project paid),
+ *           vitorOverachievementGenerations (generations its recurring
+ *           milestone hunter was still in the deck — it stops the
+ *           generation the card is destroyed).
  * Valley Trust: valleyExtraStartCards (the printed extra card of its starting
  *           deck), valleyCubesHit / valleyCardsDrawn (the science cubes and
  *           what they flipped).
