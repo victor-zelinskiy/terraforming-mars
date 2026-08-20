@@ -9,7 +9,7 @@ import {AutomaResolver} from '../AutomaResolver';
  * SETUP-TIME operations on MarsBot's own decks, shared by the corporation
  * setup boxes that print them. Two corporations print each of these word for
  * word, so each has ONE implementation — the same law that gave B06/B15/B25
- * `AutomaNearBonusPush` and C14/C19 `MarsBotWildCubePush`.
+ * `AutomaNearBonusPush` and C14/C19/C23 `MarsBotCubeTrackPush`.
  */
 
 /**

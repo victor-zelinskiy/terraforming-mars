@@ -280,6 +280,15 @@ function renderDataOf(id: MarsBotCorpId): ICardRenderRoot {
         eb.plate('Build Build Build').startEffect.city().megacredits(-5);
       });
     });
+  case MarsBotCorpId.C23_RECYCLON:
+    return CardRenderer.builder((b) => {
+      // EFFECT: one row, because the card is one rule — the white cube its
+      // building track reaches pushes the PLANT track. The same cube → named
+      // track shape C14/C19 draw for their black cubes.
+      b.effect(undefined, (eb) => {
+        eb.text('◻', Size.SMALL, true).startEffect.tag(Tag.PLANT);
+      });
+    });
   case MarsBotCorpId.C45_SPIRE:
     return CardRenderer.builder((b) => {
       // EFFECT: a card with 2+ tags adds a science resource here — the

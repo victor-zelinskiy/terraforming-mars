@@ -62,6 +62,8 @@ describe('MarsBotCorpFace (.pcard template)', () => {
       'C21 prints ONE science starting tag — never the human microbe pair').has.length(1);
     expect(mountFace(MarsBotCorpId.C22_PHILARES).findAll('.pcard__tags .pcard-tag'),
       'C22 prints NO starting tag — never the human building one').is.empty;
+    expect(mountFace(MarsBotCorpId.C23_RECYCLON).findAll('.pcard__tags .pcard-tag'),
+      'C23 prints ONE microbe starting tag — never the human microbe+building pair').has.length(1);
     expect(mountFace(MarsBotCorpId.C18_ARCADIAN_COMMUNITIES).findAll('.pcard__tags .pcard-tag'),
       'C18 prints ONE building starting tag').has.length(1);
     // C04 prints TWO event tags — both sit on the rail (the bot card's tags,
@@ -289,6 +291,19 @@ describe('marsBotCorpRules — the «§ ПРАВИЛА» groups', () => {
     // track, and neither of the human's lines may appear here.
     expect(text).not.contains('47');
     expect(text).not.match(/of your choice|standard resource/i);
+  });
+
+  it('Recyclon prints its cube ladder and the track it feeds, never the human microbe trade', () => {
+    const groups = marsBotCorpAnnotations(MarsBotCorpId.C23_RECYCLON);
+    expect(groups.map((g) => g.labelKey)).deep.eq(['Draft priority', 'Corporation setup', 'Corporation effect']);
+    const text = groups.flatMap((g) => g.rows.map((r) => r.text)).join(' ');
+    expect(text).contains('3, 6, 9, 12, 15, 18');
+    expect(text).contains('building track');
+    expect(text, 'the track it feeds is named').contains('plant track');
+    // The human Recyclon starts with 38 M€ + 1 steel production and trades
+    // MICROBES on its own card for plant production — none of that is here.
+    expect(text).not.contains('38');
+    expect(text).not.match(/steel|microbe|production/i);
   });
 
   it('ThorGate prints its cubes and the first-tag clause, never the human discount', () => {

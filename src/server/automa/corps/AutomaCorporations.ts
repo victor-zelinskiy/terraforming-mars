@@ -29,6 +29,7 @@ import {MarsBotAstroDrill} from './MarsBotAstroDrill';
 import {MarsBotFactorum} from './MarsBotFactorum';
 import {MarsBotPharmacyUnion} from './MarsBotPharmacyUnion';
 import {MarsBotPhilares} from './MarsBotPhilares';
+import {MarsBotRecyclon} from './MarsBotRecyclon';
 import {MarsBotVitor} from './MarsBotVitor';
 import {MarsBotSaturnSystems} from './MarsBotSaturnSystems';
 import {MarsBotTeractor} from './MarsBotTeractor';
@@ -86,6 +87,7 @@ export class AutomaCorporations {
     [MarsBotCorpId.C20_FACTORUM]: MarsBotFactorum,
     [MarsBotCorpId.C21_PHARMACY_UNION]: MarsBotPharmacyUnion,
     [MarsBotCorpId.C22_PHILARES]: MarsBotPhilares,
+    [MarsBotCorpId.C23_RECYCLON]: MarsBotRecyclon,
     [MarsBotCorpId.C45_SPIRE]: MarsBotSpire,
   };
 

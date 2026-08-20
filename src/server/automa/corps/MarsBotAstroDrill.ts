@@ -2,7 +2,7 @@ import {Tag} from '../../../common/cards/Tag';
 import {TrackAction} from '../../../common/automa/AutomaTypes';
 import {MarsBotCorpId, MarsBotTrackCube, marsBotCorpInfo} from '../../../common/automa/MarsBotCorpData';
 import {IGame} from '../../IGame';
-import {pushWildOrNamedTrack} from './MarsBotWildCubePush';
+import {SPACE_CUBE_LOG, WILD_CUBE_LOG, pushCubeTrack} from './MarsBotCubeTrackPush';
 import {MarsBotCorp} from './MarsBotCorp';
 
 const INFO = marsBotCorpInfo(MarsBotCorpId.C19_ASTRO_DRILL);
@@ -24,7 +24,7 @@ const INFO = marsBotCorpInfo(MarsBotCorpId.C19_ASTRO_DRILL);
  * shores up whatever is furthest behind or drives space itself further.
  *
  * THE EFFECT IS C14 POINT LUNA'S, WORD FOR WORD, so both cards run the ONE
- * implementation in `MarsBotWildCubePush` — this file contributes only the
+ * implementation in `MarsBotCubeTrackPush` — this file contributes only the
  * identity and the counters. What genuinely differs is DATA: Point Luna's
  * cubes sit on the Earth track, these sit on the very track the black cubes
  * push. That self-advance is not a special case — a cube fires at most once
@@ -36,11 +36,14 @@ export const MarsBotAstroDrill: MarsBotCorp = {
   info: INFO,
 
   onTrackCubeTrigger(game: IGame, cube: MarsBotTrackCube, _printedAction: TrackAction | undefined): 'replaces-action' | void {
-    pushWildOrNamedTrack(game, cube, {
+    pushCubeTrack(game, cube, {
       original: INFO.original,
       displayName: 'Astro Drill',
-      blackCubeTrack: Tag.SPACE,
-      stats: {white: 'astroWhiteCubes', black: 'astroBlackCubes', steps: 'astroSteps'},
+      pushes: {
+        white: {target: 'least-advanced', logKey: WILD_CUBE_LOG, stat: 'astroWhiteCubes'},
+        black: {target: Tag.SPACE, logKey: SPACE_CUBE_LOG, stat: 'astroBlackCubes'},
+      },
+      stepsStat: 'astroSteps',
     });
     // No «instead of» on this card: the space's printed icon still runs.
   },

@@ -2934,6 +2934,19 @@ const analyzeBotCorporation: Analyzer = (ctx) => {
           scale: 4,
         });
       }
+    } else if (corp.id === 'C23') {
+      // Recyclon is a converter, so its story is a RATE: what the building
+      // track bought for biology. One fact, one sentence.
+      const steps = stat('recyclonSteps');
+      if (steps >= 2) {
+        stories.push({
+          key: 'effect',
+          textKey: 'Construction and biology ran on one belt for ${0}\'s ${1}: ${2} time(s) a building milestone fed the plant track directly.',
+          params: [raw(p.name), raw(corp.name), raw(steps)],
+          measure: steps,
+          scale: 6,
+        });
+      }
     } else if (corp.id === 'C45') {
       // Spire: the science engine — multi-tag cards banked into cities + TR.
       const cities = stat('citiesPlaced');

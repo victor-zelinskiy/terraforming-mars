@@ -677,6 +677,37 @@ const CORP_INFO: Readonly<Record<MarsBotCorpId, MarsBotCorpInfo>> = {
       ]},
     ],
   },
+  [MarsBotCorpId.C23_RECYCLON]: {
+    id: MarsBotCorpId.C23_RECYCLON,
+    cardNumber: 'C23',
+    original: CardName.RECYCLON,
+    startingTags: [Tag.MICROBE],
+    draftPriority: {type: 'tags', tags: [Tag.BUILDING]},
+    corpBonusCards: [],
+    // SETUP box, verbatim: a WHITE cube on the building track on spaces #3,
+    // #6, #9, #12, #15 and #18 — an even ladder the whole length of the track
+    // (#18 is its last space), so construction pays biology at a steady rate.
+    trackCubes: [
+      {tag: Tag.BUILDING, position: 3, cubeType: 'white'},
+      {tag: Tag.BUILDING, position: 6, cubeType: 'white'},
+      {tag: Tag.BUILDING, position: 9, cubeType: 'white'},
+      {tag: Tag.BUILDING, position: 12, cubeType: 'white'},
+      {tag: Tag.BUILDING, position: 15, cubeType: 'white'},
+      {tag: Tag.BUILDING, position: 18, cubeType: 'white'},
+    ],
+    cubeLegend: {
+      white: 'Advancing onto it: MarsBot advances the plant track',
+    },
+    sections: [
+      {kind: 'draftPriority', lines: [{text: 'Building'}]},
+      {kind: 'setup', lines: [
+        {icon: 'cube-white', text: 'A white cube on the building track spaces ${0}', params: ['3, 6, 9, 12, 15, 18']},
+      ]},
+      {kind: 'effect', lines: [
+        {icon: 'plants', text: 'Advancing onto a white cube: MarsBot advances the plant track'},
+      ]},
+    ],
+  },
   [MarsBotCorpId.C45_SPIRE]: {
     id: MarsBotCorpId.C45_SPIRE,
     cardNumber: 'C45',
@@ -737,6 +768,8 @@ export function corpOwningBonusCard(id: BonusCardId): MarsBotCorpInfo | undefine
  *           (track advances they produced).
  * Astro Drill: astroWhiteCubes / astroBlackCubes / astroSteps — the same
  *           three counters, for the same printed effect on its own track.
+ * Recyclon: recyclonCubesHit (white cubes its building track reached) and
+ *           recyclonSteps (plant-track advances they bought).
  * Cheung Shing Mars: cheungCubesHit / cheungMc (the silver cubes it collected).
  * Arcadian Communities: arcadianMarkers (areas it claimed), arcadianBuilds /
  *           arcadianMc (tiles it later built on its own claims, and what

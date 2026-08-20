@@ -367,6 +367,19 @@ describe('insightEngine', () => {
         MarsBotCorpId.C22_PHILARES, 'Philares')).is.empty;
     });
 
+    it('C23 tells the conversion rate as ONE story', () => {
+      const insights = botInsights({recyclonCubesHit: 4, recyclonSteps: 4},
+        MarsBotCorpId.C23_RECYCLON, 'Recyclon');
+      expect(insights).has.length(1);
+      expect(insights[0].textKey).contains('one belt');
+      expect(insights[0].params.map((p) => p.v)).contains('4');
+    });
+
+    it('C23 keeps quiet when the belt barely turned', () => {
+      expect(botInsights({recyclonCubesHit: 1, recyclonSteps: 1},
+        MarsBotCorpId.C23_RECYCLON, 'Recyclon')).is.empty;
+    });
+
     it('the draft fallback speaks only when no printed effect did', () => {
       const withEffect = botInsights({credicorTriggers: 6, credicorMc: 24, fiveCardDecks: 3},
         MarsBotCorpId.C01_CREDICOR, 'CrediCor');
