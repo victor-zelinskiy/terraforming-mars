@@ -4,6 +4,7 @@ import {Resource} from '../../common/Resource';
 import {IGame} from '../IGame';
 import {AutomaTurnLog} from './AutomaTurnLog';
 import {marsBotOf} from './AutomaUtil';
+import {AutomaCorporations} from './corps/AutomaCorporations';
 
 // The reason union lives in common (`MarsBotTurn.ts`) — the turn script carries
 // it to the client theater. Re-exported for the existing server-side importers.
@@ -33,4 +34,7 @@ export function failedAction(game: IGame, reason: FailedActionReason): void {
   bot.stock.add(Resource.MEGACREDITS, mc);
   game.log(FAILED_ACTION_TEMPLATES[reason], (b) => b.player(bot).number(mc));
   AutomaTurnLog.note(game, {kind: 'failed', reason, mc}, {consumeLog: true});
+  // … and the corporation's own clause on top of it (C26 Celestic: «in
+  // ADDITION to the usual MC»), so it reads a finished Failed Action.
+  AutomaCorporations.onFailedAction(game, reason);
 }

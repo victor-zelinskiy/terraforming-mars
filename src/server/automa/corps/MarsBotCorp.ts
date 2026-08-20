@@ -1,6 +1,7 @@
 import {BonusCardId, TrackAction} from '../../../common/automa/AutomaTypes';
 import {MarsBotCorpInfo, MarsBotTrackCube} from '../../../common/automa/MarsBotCorpData';
 import {Tag} from '../../../common/cards/Tag';
+import {FailedActionReason} from '../../../common/automa/MarsBotTurn';
 import {IGame} from '../../IGame';
 import {IPlayer} from '../../IPlayer';
 import {ICard} from '../../cards/ICard';
@@ -83,6 +84,21 @@ export type MarsBotCorp = {
    * mutate state — re-derive from the pile, never keep a parallel tally.
    */
   endgameVictoryPoints?(game: IGame): number;
+
+  /**
+   * MarsBot just took a FAILED ACTION — dispatched from `failedAction`, the one
+   * place every one of them goes through, AFTER the usual M€ so a corporation
+   * that adds to it («in addition to the usual MC») reads a finished event.
+   */
+  onFailedAction?(game: IGame, reason: FailedActionReason): void;
+
+  /**
+   * The ROUND START box, run once per generation immediately before the
+   * Research Phase (`Game.gotoResearchPhase`). Generation 1 never reaches it:
+   * the corporation is selected at that generation's research → action gate,
+   * so its Setup box is what covers the opening round.
+   */
+  roundStart?(game: IGame): void;
 
   /**
    * A HUMAN played `card` (the bot's own flips never pass through `playCard`).

@@ -315,6 +315,18 @@ function renderDataOf(id: MarsBotCorpId): ICardRenderRoot {
         eb.cards(1).asterix().startEffect.text('VP', Size.SMALL, true);
       });
     });
+  case MarsBotCorpId.C26_CELESTIC:
+    return CardRenderer.builder((b) => {
+      // EFFECT: a Failed Action — the bot's own stuck turn, drawn as the
+      // consolation M€ it always pays — now also hands it a floater.
+      b.effect(undefined, (eb) => {
+        eb.megacredits(5).asterix().startEffect.resource(CardResource.FLOATER);
+      });
+      // ROUND START: one more, every generation, whatever happened.
+      b.action(undefined, (eb) => {
+        eb.text('↻', Size.SMALL, true).startAction.resource(CardResource.FLOATER);
+      });
+    });
   case MarsBotCorpId.C45_SPIRE:
     return CardRenderer.builder((b) => {
       // EFFECT: a card with 2+ tags adds a science resource here — the

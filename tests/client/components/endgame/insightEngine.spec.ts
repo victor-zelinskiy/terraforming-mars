@@ -412,6 +412,25 @@ describe('insightEngine', () => {
         MarsBotCorpId.C25_VIRON, 'Viron')).is.empty;
     });
 
+    it('C26 tells the steady income and the paid failures as SEPARATE stories', () => {
+      const insights = botInsights({celesticFloaters: 12, celesticRounds: 8, celesticFailedActions: 4, celesticSetup: 1},
+        MarsBotCorpId.C26_CELESTIC, 'Celestic');
+      expect(insights).has.length(2);
+      expect(insights.map((i) => i.id).sort()).deep.eq(
+        ['reason.bot-corporation.red', 'reason.bot-corporation.red.failed-actions']);
+      const income = insights.find((i) => i.textKey.includes('whatever the turn brought'));
+      const failures = insights.find((i) => i.textKey.includes('Being stuck paid'));
+      expect(income, 'the pool has its own card').is.not.undefined;
+      expect(failures, 'the failures have their own card').is.not.undefined;
+      expect(income!.params.map((p) => p.v)).contains('12');
+      expect(failures!.params.map((p) => p.v)).contains('4');
+    });
+
+    it('C26 keeps quiet when barely anything gathered', () => {
+      expect(botInsights({celesticFloaters: 3, celesticRounds: 2, celesticFailedActions: 1},
+        MarsBotCorpId.C26_CELESTIC, 'Celestic')).is.empty;
+    });
+
     it('the draft fallback speaks only when no printed effect did', () => {
       const withEffect = botInsights({credicorTriggers: 6, credicorMc: 24, fiveCardDecks: 3},
         MarsBotCorpId.C01_CREDICOR, 'CrediCor');

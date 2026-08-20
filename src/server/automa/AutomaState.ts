@@ -70,6 +70,7 @@ export type SerializedAutomaState = {
   corpStats?: MarsBotCorpStats;
   /** The last generation the corporation's Before-Action-Phase box ran (absent = 0). */
   corpBapGeneration?: number;
+  corpRoundStartGeneration?: number;
   /** Corporation track cubes already triggered, keyed `trackIndex:position`
    *  (absent = none). A regressed track never re-arms a spent cube (RB-B). */
   corpCubesTriggered?: Array<string>;
@@ -138,6 +139,8 @@ export class AutomaState {
   public corpStats: MarsBotCorpStats = {};
   /** Once-per-generation guard for the corporation's Before-Action-Phase box. */
   public corpBapGeneration: number = 0;
+  /** Last generation whose ROUND START box already ran (C26). */
+  public corpRoundStartGeneration: number = 0;
   /**
    * Corporation track cubes that already fired, keyed `trackIndex:position`
    * (RB-B: «moving back up the track will not retrigger a corporation trigger
@@ -206,6 +209,7 @@ export class AutomaState {
       result.corpResources = this.corpResources;
       result.corpStats = {...this.corpStats};
       result.corpBapGeneration = this.corpBapGeneration;
+      result.corpRoundStartGeneration = this.corpRoundStartGeneration;
       if (this.corpCubesTriggered.size > 0) {
         result.corpCubesTriggered = Array.from(this.corpCubesTriggered);
       }
@@ -263,6 +267,9 @@ export class AutomaState {
     state.corpResources = d.corpResources ?? 0;
     state.corpStats = {...(d.corpStats ?? {})};
     state.corpBapGeneration = d.corpBapGeneration ?? 0;
+    // Absent on every save written before C26 — 0 means «never ran», which is
+    // the honest reading for a game that had no round-start box.
+    state.corpRoundStartGeneration = d.corpRoundStartGeneration ?? 0;
     state.corpCubesTriggered = new Set(d.corpCubesTriggered ?? []);
     return state;
   }

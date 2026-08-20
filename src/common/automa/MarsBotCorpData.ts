@@ -758,6 +758,28 @@ const CORP_INFO: Readonly<Record<MarsBotCorpId, MarsBotCorpInfo>> = {
       ]},
     ],
   },
+  [MarsBotCorpId.C26_CELESTIC]: {
+    id: MarsBotCorpId.C26_CELESTIC,
+    cardNumber: 'C26',
+    original: CardName.CELESTIC,
+    startingTags: [Tag.VENUS],
+    draftPriority: {type: 'tags', tags: [Tag.VENUS, Tag.JOVIAN]},
+    requiresAnyModule: ['venus', 'colonies'],
+    corpBonusCards: [],
+    sections: [
+      {kind: 'draftPriority', lines: [{text: 'Venus, then Jovian'}]},
+      {kind: 'setup', lines: [
+        {icon: 'cards', text: 'Use this corporation only when playing with Venus Next or Colonies', muted: true},
+        {icon: 'floater', text: 'MarsBot gains ${0} floater', params: ['1']},
+      ]},
+      {kind: 'effect', lines: [
+        {icon: 'floater', text: 'Every Failed Action gives MarsBot ${0} floater on top of the usual M€', params: ['1']},
+      ]},
+      {kind: 'roundStart', lines: [
+        {icon: 'floater', text: 'Before every Research Phase MarsBot gains ${0} floater', params: ['1']},
+      ]},
+    ],
+  },
   [MarsBotCorpId.C45_SPIRE]: {
     id: MarsBotCorpId.C45_SPIRE,
     cardNumber: 'C45',
@@ -818,6 +840,9 @@ export function corpOwningBonusCard(id: BonusCardId): MarsBotCorpInfo | undefine
  *           (track advances they produced).
  * Astro Drill: astroWhiteCubes / astroBlackCubes / astroSteps — the same
  *           three counters, for the same printed effect on its own track.
+ * Celestic: celesticFailedActions (Failed Actions it turned into floaters),
+ *           celesticRounds (round-start floaters) and celesticFloaters
+ *           (every floater the corporation handed it, setup included).
  * Viron: vironActionCards (blue cards with a red arrow it played) and
  *           vironFloaters (the floaters they handed it).
  * Splice: spliceHumanTags / spliceHumanMc (the opponent's microbe tags and

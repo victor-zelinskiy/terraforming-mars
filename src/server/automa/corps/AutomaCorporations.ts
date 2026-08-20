@@ -2,6 +2,7 @@ import {CardName} from '../../../common/cards/CardName';
 import {Expansion} from '../../../common/cards/GameModule';
 import {Tag} from '../../../common/cards/Tag';
 import {BonusCardId, TrackAction} from '../../../common/automa/AutomaTypes';
+import {FailedActionReason} from '../../../common/automa/MarsBotTurn';
 import {MARS_BOT_CORP_IDS, MarsBotCorpCubeModel, MarsBotCorpId, MarsBotCorpInfo, MarsBotTrackCube, marsBotCorpInfo} from '../../../common/automa/MarsBotCorpData';
 import {inplaceShuffle} from '../../utils/shuffle';
 import {IGame} from '../../IGame';
@@ -31,6 +32,7 @@ import {MarsBotPharmacyUnion} from './MarsBotPharmacyUnion';
 import {MarsBotPhilares} from './MarsBotPhilares';
 import {MarsBotRecyclon} from './MarsBotRecyclon';
 import {MarsBotSplice} from './MarsBotSplice';
+import {MarsBotCelestic} from './MarsBotCelestic';
 import {MarsBotViron} from './MarsBotViron';
 import {MarsBotVitor} from './MarsBotVitor';
 import {MarsBotSaturnSystems} from './MarsBotSaturnSystems';
@@ -92,6 +94,7 @@ export class AutomaCorporations {
     [MarsBotCorpId.C23_RECYCLON]: MarsBotRecyclon,
     [MarsBotCorpId.C24_SPLICE]: MarsBotSplice,
     [MarsBotCorpId.C25_VIRON]: MarsBotViron,
+    [MarsBotCorpId.C26_CELESTIC]: MarsBotCelestic,
     [MarsBotCorpId.C45_SPIRE]: MarsBotSpire,
   };
 
@@ -421,6 +424,29 @@ export class AutomaCorporations {
    */
   public static endgameVictoryPoints(game: IGame): number {
     return AutomaCorporations.activeCorp(game)?.endgameVictoryPoints?.(game) ?? 0;
+  }
+
+  /** MarsBot took a Failed Action — dispatched from the ONE `failedAction`. */
+  public static onFailedAction(game: IGame, reason: FailedActionReason): void {
+    AutomaCorporations.activeCorp(game)?.onFailedAction?.(game, reason);
+  }
+
+  /**
+   * The ROUND START box, immediately before the Research Phase. Guarded once
+   * per generation by its own marker — the same shape as the Before-Action-
+   * Phase box, so a reload or an undo can never run it twice.
+   */
+  public static onRoundStart(game: IGame): void {
+    const automa = game.automa;
+    const corp = AutomaCorporations.activeCorp(game);
+    if (automa === undefined || corp?.roundStart === undefined) {
+      return;
+    }
+    if (automa.corpRoundStartGeneration >= game.generation) {
+      return;
+    }
+    automa.corpRoundStartGeneration = game.generation;
+    corp.roundStart(game);
   }
 
   /**

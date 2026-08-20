@@ -2988,6 +2988,30 @@ const analyzeBotCorporation: Analyzer = (ctx) => {
           scale: 8,
         });
       }
+    } else if (corp.id === 'C26') {
+      // Celestic banks floaters from two very different places, so it may tell
+      // two stories: the steady round-start income, and the failures it turned
+      // into resources. Never welded — one is routine, the other is luck.
+      const total = stat('celesticFloaters');
+      const failed = stat('celesticFailedActions');
+      if (total >= 6) {
+        stories.push({
+          key: 'effect',
+          textKey: 'Floaters gathered around ${0}\'s ${1} whatever the turn brought — ${2} of them by the end.',
+          params: [raw(p.name), raw(corp.name), raw(total)],
+          measure: total,
+          scale: 20,
+        });
+      }
+      if (failed >= 3) {
+        stories.push({
+          key: 'failed-actions',
+          textKey: 'Being stuck paid ${1} too: ${2} Failed Action(s) that would have been dead turns each handed the bot a floater.',
+          params: [raw(p.name), raw(corp.name), raw(failed)],
+          measure: failed,
+          scale: 10,
+        });
+      }
     } else if (corp.id === 'C45') {
       // Spire: the science engine — multi-tag cards banked into cities + TR.
       const cities = stat('citiesPlaced');

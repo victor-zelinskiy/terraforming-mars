@@ -937,6 +937,11 @@ export class Game implements IGame, Logger {
   }
 
   public gotoResearchPhase(): void {
+    // A MarsBot corporation's ROUND START box runs BEFORE the phase (C26),
+    // once per generation — the guard lives in the dispatcher.
+    if (this.automa !== undefined) {
+      AutomaCorporations.onRoundStart(this);
+    }
     this.phase = Phase.RESEARCH;
     this.researchedPlayers.clear();
     this.save();

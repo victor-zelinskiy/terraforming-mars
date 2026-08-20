@@ -68,6 +68,8 @@ describe('MarsBotCorpFace (.pcard template)', () => {
       'C24 prints ONE plant starting tag — never the human microbe one').has.length(1);
     expect(mountFace(MarsBotCorpId.C25_VIRON).findAll('.pcard__tags .pcard-tag'),
       'C25 prints ONE microbe starting tag').has.length(1);
+    expect(mountFace(MarsBotCorpId.C26_CELESTIC).findAll('.pcard__tags .pcard-tag'),
+      'C26 prints ONE Venus starting tag').has.length(1);
     expect(mountFace(MarsBotCorpId.C18_ARCADIAN_COMMUNITIES).findAll('.pcard__tags .pcard-tag'),
       'C18 prints ONE building starting tag').has.length(1);
     // C04 prints TWO event tags — both sit on the rail (the bot card's tags,
@@ -335,6 +337,21 @@ describe('marsBotCorpRules — the «§ ПРАВИЛА» groups', () => {
     // already played — the bot card does neither.
     expect(text).not.contains('48');
     expect(text).not.match(/re-use|again this generation/i);
+  });
+
+  it('Celestic prints its failure clause and its round tick, never the human floater action', () => {
+    const groups = marsBotCorpAnnotations(MarsBotCorpId.C26_CELESTIC);
+    expect(groups.map((g) => g.labelKey))
+      .deep.eq(['Draft priority', 'Corporation setup', 'Corporation effect', 'Round start']);
+    const text = groups.flatMap((g) => g.rows.map((r) => r.text)).join(' ');
+    expect(text).contains('Failed Action');
+    expect(text, 'the printed «in addition» is kept').contains('on top of the usual');
+    expect(text).contains('Research Phase');
+    expect(text, 'and the printed module condition').contains('Venus Next or Colonies');
+    // The human Celestic starts with 42 M€ and has an ACTION that adds a
+    // floater to ANOTHER card, plus 1 VP per 3 floaters — none of that is here.
+    expect(text).not.contains('42');
+    expect(text).not.match(/another card|per 3 floaters/i);
   });
 
   it('ThorGate prints its cubes and the first-tag clause, never the human discount', () => {
