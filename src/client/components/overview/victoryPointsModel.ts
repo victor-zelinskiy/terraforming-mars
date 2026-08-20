@@ -143,6 +143,7 @@ function automaScale(b: VictoryPointsBreakdown): VPScale | undefined {
     {key: 'automa.mc', accent: 'automa-mc', label: 'M€ converted to VP', value: a.mcToVp},
     {key: 'automa.neural', accent: 'automa-neural', label: 'Neural Instance', value: a.neuralInstance},
     {key: 'automa.cards', accent: 'automa-cards', label: 'Played card icons', value: a.cardVp},
+    {key: 'automa.corp', accent: 'automa-cards', label: 'Bot corporation', value: a.corpVp},
   ]));
   return scale.segments.length > 0 ? scale : undefined;
 }

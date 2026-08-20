@@ -22,6 +22,7 @@
  *                                        exchanged for VP at the end)
  *      neuralInstance → Conditional cards (board-state dependent VP)
  *      cardVp         → Fixed VP cards  (printed icons of the played pile)
+ *      corpVp         → Fixed VP cards  (the bot corporation's own endgame clause)
  *    This is presentation only — the summands are the server's own, so the
  *    per-player category sum still equals `breakdown.total` exactly.
  *

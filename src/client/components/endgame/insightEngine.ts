@@ -2443,7 +2443,7 @@ const analyzeAutomaCards: Analyzer = (ctx) => {
     if (a === undefined) {
       continue;
     }
-    const total = a.mcToVp + a.neuralInstance + a.cardVp;
+    const total = a.mcToVp + a.neuralInstance + a.cardVp + a.corpVp;
     if (total < 8) {
       continue; // too small to be a story
     }
@@ -2452,6 +2452,7 @@ const analyzeAutomaCards: Analyzer = (ctx) => {
       {kind: 'mc', vp: a.mcToVp},
       {kind: 'neural', vp: a.neuralInstance},
       {kind: 'icons', vp: a.cardVp},
+      {kind: 'corp', vp: a.corpVp},
     ].sort((x, y) => y.vp - x.vp);
     const top = parts[0];
     let textKey: string;
@@ -2462,6 +2463,9 @@ const analyzeAutomaCards: Analyzer = (ctx) => {
     } else if (top.kind === 'neural') {
       textKey = 'The Neural Instance of ${0} kept ${1} free neighbours — ${1} VP at scoring.';
       params = [raw(p.name), raw(a.neuralInstance)];
+    } else if (top.kind === 'corp') {
+      textKey = 'The bot corporation of ${0} scored ${1} VP of its own at the end.';
+      params = [raw(p.name), raw(a.corpVp)];
     } else {
       textKey = 'The VP icons of ${0}\'s played pile paid ${1} VP — the difficulty\'s own card bonus.';
       params = [raw(p.name), raw(a.cardVp)];
@@ -2969,6 +2973,19 @@ const analyzeBotCorporation: Analyzer = (ctx) => {
           params: [raw(p.name), raw(corp.name), raw(stat('spliceOwnTags')), raw(fromOwn)],
           measure: fromOwn,
           scale: 24,
+        });
+      }
+    } else if (corp.id === 'C25') {
+      // Viron's cards pay twice — a floater when played, a point at the end —
+      // so the same fact is told once, with both halves in it.
+      const cards = stat('vironActionCards');
+      if (cards >= 2) {
+        stories.push({
+          key: 'effect',
+          textKey: 'Every blue card with an arrow worked twice for ${0}\'s ${1}: ${2} of them, a floater each when played and a point each at the end.',
+          params: [raw(p.name), raw(corp.name), raw(cards)],
+          measure: cards,
+          scale: 8,
         });
       }
     } else if (corp.id === 'C45') {

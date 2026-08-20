@@ -80,6 +80,12 @@ export type AutomaVictoryPoints = {
   mcPerVp: number;
   neuralInstance: number;
   cardVp: number;
+  /**
+   * VP the bot's own CORPORATION scores at the end (C25 Viron: 1 per blue card
+   * with a red arrow in its played pile). 0 for every corporation that prints
+   * no endgame clause — which is all of them but one so far.
+   */
+  corpVp: number;
 };
 
 export type VictoryPointsBreakdown = {

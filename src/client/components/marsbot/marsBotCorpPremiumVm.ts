@@ -303,6 +303,18 @@ function renderDataOf(id: MarsBotCorpId): ICardRenderRoot {
         eb.tag(Tag.MICROBE).startEffect.megacredits(4);
       });
     });
+  case MarsBotCorpId.C25_VIRON:
+    return CardRenderer.builder((b) => {
+      // EFFECT: a blue card with a red arrow — drawn the way the game draws
+      // that very thing (the ACTIVE card's own arrow) — pays a floater, and
+      // the same card is worth a point at the end.
+      b.effect(undefined, (eb) => {
+        eb.cards(1).asterix().startEffect.resource(CardResource.FLOATER);
+      });
+      b.effect(undefined, (eb) => {
+        eb.cards(1).asterix().startEffect.text('VP', Size.SMALL, true);
+      });
+    });
   case MarsBotCorpId.C45_SPIRE:
     return CardRenderer.builder((b) => {
       // EFFECT: a card with 2+ tags adds a science resource here — the

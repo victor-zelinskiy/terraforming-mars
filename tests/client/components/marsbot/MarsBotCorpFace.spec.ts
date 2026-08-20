@@ -66,6 +66,8 @@ describe('MarsBotCorpFace (.pcard template)', () => {
       'C23 prints ONE microbe starting tag — never the human microbe+building pair').has.length(1);
     expect(mountFace(MarsBotCorpId.C24_SPLICE).findAll('.pcard__tags .pcard-tag'),
       'C24 prints ONE plant starting tag — never the human microbe one').has.length(1);
+    expect(mountFace(MarsBotCorpId.C25_VIRON).findAll('.pcard__tags .pcard-tag'),
+      'C25 prints ONE microbe starting tag').has.length(1);
     expect(mountFace(MarsBotCorpId.C18_ARCADIAN_COMMUNITIES).findAll('.pcard__tags .pcard-tag'),
       'C18 prints ONE building starting tag').has.length(1);
     // C04 prints TWO event tags — both sit on the rail (the bot card's tags,
@@ -319,6 +321,20 @@ describe('marsBotCorpRules — the «§ ПРАВИЛА» groups', () => {
     // microbe card INTO HAND — the bot card has neither.
     expect(text).not.contains('44');
     expect(text).not.match(/into hand|first action/i);
+  });
+
+  it('Viron prints its floaters and its endgame points, never the human re-use action', () => {
+    const groups = marsBotCorpAnnotations(MarsBotCorpId.C25_VIRON);
+    expect(groups.map((g) => g.labelKey)).deep.eq(['Corporation setup', 'Corporation effect']);
+    const text = groups.flatMap((g) => g.rows.map((r) => r.text)).join(' ');
+    expect(text).contains('blue card with a red arrow');
+    expect(text).contains('floater');
+    expect(text, 'the endgame half is stated too').contains('end of the game');
+    expect(text, 'and the printed module condition').contains('Venus Next or Colonies');
+    // The human Viron starts with 48 M€ and RE-USES the action of a card it
+    // already played — the bot card does neither.
+    expect(text).not.contains('48');
+    expect(text).not.match(/re-use|again this generation/i);
   });
 
   it('ThorGate prints its cubes and the first-tag clause, never the human discount', () => {

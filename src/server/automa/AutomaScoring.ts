@@ -1,5 +1,6 @@
 import {getAutomaMaxGeneration} from '../../common/automa/AutomaTypes';
 import {AutomaVictoryPoints} from '../../common/game/VictoryPointsBreakdown';
+import {AutomaCorporations} from './corps/AutomaCorporations';
 import {IGame} from '../IGame';
 import {newProjectCard} from '../createCard';
 import {IProjectCard} from '../cards/IProjectCard';
@@ -79,7 +80,10 @@ export class AutomaScoring {
       }
     }
 
-    return {mcToVp, mcPerVp, neuralInstance, cardVp};
+    // The corporation's OWN endgame clause, if it prints one (C25 Viron).
+    const corpVp = AutomaCorporations.endgameVictoryPoints(game);
+
+    return {mcToVp, mcPerVp, neuralInstance, cardVp, corpVp};
   }
 
   /** True when entering `generation` instantly ends the game with a MarsBot win. */

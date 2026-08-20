@@ -518,5 +518,9 @@
   "A microbe tag its opponent plays pays MarsBot ${0} M€ — and the opponent takes ${1} M€ or a microbe on that card": "Метка микроба, разыгранная соперником, приносит Боту ${0} М€ — а соперник берёт ${1} М€ либо микроба на эту карту",
   "Every microbe tag MarsBot resolves pays it ${0} M€": "Каждая метка микроба, разыгранная Ботом, приносит ему ${0} М€",
   "${0} destroyed Research and Development from its bonus deck": "${0} уничтожает карту «Исследования и разработки» из своей бонусной колоды",
-  "${0} gained ${1} M€ from its corporation ${2} for a microbe": "${0} получает ${1} М€ от своей корпорации ${2} за микроба"
+  "${0} gained ${1} M€ from its corporation ${2} for a microbe": "${0} получает ${1} М€ от своей корпорации ${2} за микроба",
+  "Use this corporation only when playing with Venus Next or Colonies": "Используйте эту корпорацию только с дополнением «Венера» или «Колонии»",
+  "Every blue card with a red arrow MarsBot plays gives it ${0} floater": "Каждая синяя карта с красной стрелкой, разыгранная Ботом, даёт ему плавателей — ${0}",
+  "At the end of the game each of them is worth ${0} VP": "В конце игры каждая из них стоит ${0} ПО",
+  "${0} gained ${1} ${2} from its corporation ${3}": "${0} получает ${1} ${2} от своей корпорации ${3}"
 }

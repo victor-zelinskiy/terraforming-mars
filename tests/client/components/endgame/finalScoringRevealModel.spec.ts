@@ -219,7 +219,7 @@ describe('finalScoringRevealModel', () => {
     const bot = player('red', 'MarsBot', {
       terraformRating: 24,
       total: 33,
-      automa: {mcToVp: 3, mcPerVp: 8, neuralInstance: 4, cardVp: 2},
+      automa: {mcToVp: 3, mcPerVp: 8, neuralInstance: 4, cardVp: 2, corpVp: 0},
     });
     const reveal = buildFinalScoringRevealModel(model([human, bot]), ['blue', 'red']);
     const automaGroup = reveal.groups.find((g) => g.key === 'automa');

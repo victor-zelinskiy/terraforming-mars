@@ -77,6 +77,14 @@ export type MarsBotCorp = {
   onMicrobeAdvancement?(game: IGame): void;
 
   /**
+   * VP this corporation scores AT THE END OF THE GAME, on top of everything
+   * the bot already scores (C25 Viron: 1 per blue card with a red arrow in its
+   * played pile). Read-only: it is called from the scoring pass and must never
+   * mutate state — re-derive from the pile, never keep a parallel tally.
+   */
+  endgameVictoryPoints?(game: IGame): number;
+
+  /**
    * A HUMAN played `card` (the bot's own flips never pass through `playCard`).
    * The one hook that lets a bot corporation watch the other side of the
    * table — C08's Jovian clause is written for both seats.

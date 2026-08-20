@@ -53,10 +53,11 @@ export class VictoryPointsBreakdownBuilder {
       this.points.total += this.points.automa.mcToVp;
       this.points.total += this.points.automa.neuralInstance;
       this.points.total += this.points.automa.cardVp;
+      this.points.total += this.points.automa.corpVp;
     }
   }
 
-  /** MarsBot-only scoring parts (M€ → VP, Neural Instance, Hard card VP) — all feed the total. */
+  /** MarsBot-only scoring parts (M€ → VP, Neural Instance, Hard card VP, its corporation's own) — all feed the total. */
   public setAutomaVictoryPoints(automa: AutomaVictoryPoints): void {
     this.points.automa = automa;
   }

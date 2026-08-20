@@ -399,6 +399,19 @@ describe('insightEngine', () => {
         MarsBotCorpId.C24_SPLICE, 'Splice')).is.empty;
     });
 
+    it('C25 tells its double-paying cards as ONE story', () => {
+      const insights = botInsights({vironActionCards: 5, vironFloaters: 5},
+        MarsBotCorpId.C25_VIRON, 'Viron');
+      expect(insights).has.length(1);
+      expect(insights[0].textKey).contains('worked twice');
+      expect(insights[0].params.map((p) => p.v)).contains('5');
+    });
+
+    it('C25 keeps quiet when it barely saw an arrow', () => {
+      expect(botInsights({vironActionCards: 1, vironFloaters: 1},
+        MarsBotCorpId.C25_VIRON, 'Viron')).is.empty;
+    });
+
     it('the draft fallback speaks only when no printed effect did', () => {
       const withEffect = botInsights({credicorTriggers: 6, credicorMc: 24, fiveCardDecks: 3},
         MarsBotCorpId.C01_CREDICOR, 'CrediCor');

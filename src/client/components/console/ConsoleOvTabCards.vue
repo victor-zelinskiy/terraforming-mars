@@ -230,6 +230,11 @@ export default defineComponent({
           {label: 'Qualifying cards in the pile', value: String(src.count)},
           {label: 'Difficulty', value: $t(src.difficulty)},
         ];
+      case 'corp':
+        return [
+          {label: 'Scored by the bot\'s own corporation', value: src.corporation},
+          {label: 'Result', value: `${src.count} ${$t('VP')}`},
+        ];
       }
     },
     /** The LIVE tableau model when the card is on the owner's board (stored

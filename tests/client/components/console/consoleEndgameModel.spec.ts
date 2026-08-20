@@ -151,7 +151,7 @@ describe('consoleEndgameModel', () => {
 
   it('dissolves the legacy «MarsBot scoring» into the card families — no automa category survives', () => {
     const bot = player('neutral', 'MarsBot', {
-      automa: {mcToVp: 5, mcPerVp: 8, neuralInstance: 2, cardVp: 3},
+      automa: {mcToVp: 5, mcPerVp: 8, neuralInstance: 2, cardVp: 3, corpVp: 0},
     });
     const vm = vmOf([player('red', 'A', {victoryPoints: 4}), bot], {}, ['neutral']);
     expect(vm.categories.some((c) => (c.key as string) === 'automa')).to.eq(false);
@@ -168,7 +168,7 @@ describe('consoleEndgameModel', () => {
       // The bot can also carry ordinary victoryPoints entries (Turmoil/Colony VP).
       victoryPoints: 3,
       detailsCards: [{cardName: 'Colony VP', victoryPoint: 3, kind: 'conditional'}],
-      automa: {mcToVp: 7, mcPerVp: 6, neuralInstance: 1, cardVp: 2},
+      automa: {mcToVp: 7, mcPerVp: 6, neuralInstance: 1, cardVp: 2, corpVp: 0},
     });
     const vm = vmOf([player('red', 'A', {}), bot], {}, ['neutral']);
     const cards = vm.categories.find((c) => c.key === 'cards')!;
@@ -183,7 +183,7 @@ describe('consoleEndgameModel', () => {
       terraformRating: 72,
       terraformRatingBreakdown: {base: 20, temperature: 8, oxygen: 7, oceans: 6, venus: 8, hazards: 1, cards: 22},
       city: 19, greenery: 7, milestones: 15, awards: 15,
-      automa: {mcToVp: 23, mcPerVp: 5, neuralInstance: 0, cardVp: 0},
+      automa: {mcToVp: 23, mcPerVp: 5, neuralInstance: 0, cardVp: 0, corpVp: 0},
     });
     const vm = vmOf([player('red', 'A', {terraformRating: 40}), bot], {hasVenus: true}, ['neutral']);
     const byKey = new Map(vm.categories.map((c) => [c.key, c.values['neutral'] ?? 0]));

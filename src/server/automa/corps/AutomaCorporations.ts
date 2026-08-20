@@ -31,6 +31,7 @@ import {MarsBotPharmacyUnion} from './MarsBotPharmacyUnion';
 import {MarsBotPhilares} from './MarsBotPhilares';
 import {MarsBotRecyclon} from './MarsBotRecyclon';
 import {MarsBotSplice} from './MarsBotSplice';
+import {MarsBotViron} from './MarsBotViron';
 import {MarsBotVitor} from './MarsBotVitor';
 import {MarsBotSaturnSystems} from './MarsBotSaturnSystems';
 import {MarsBotTeractor} from './MarsBotTeractor';
@@ -90,6 +91,7 @@ export class AutomaCorporations {
     [MarsBotCorpId.C22_PHILARES]: MarsBotPhilares,
     [MarsBotCorpId.C23_RECYCLON]: MarsBotRecyclon,
     [MarsBotCorpId.C24_SPLICE]: MarsBotSplice,
+    [MarsBotCorpId.C25_VIRON]: MarsBotViron,
     [MarsBotCorpId.C45_SPIRE]: MarsBotSpire,
   };
 
@@ -121,7 +123,12 @@ export class AutomaCorporations {
    * default a caller could forget to pass.
    */
   public static hasRequiredModules(info: MarsBotCorpInfo, expansions: Partial<Record<Expansion, boolean>>): boolean {
-    return (info.requiresModules ?? []).every((module) => expansions[module] === true);
+    const all = (info.requiresModules ?? []).every((module) => expansions[module] === true);
+    // «… only when playing with X OR Y» (C25). An absent list is no condition,
+    // so an empty `requiresAnyModule` must not refuse every game.
+    const any = info.requiresAnyModule === undefined ||
+      info.requiresAnyModule.some((module) => expansions[module] === true);
+    return all && any;
   }
 
   /** Every corporation any human PICKED or already PLAYED (union — robust across the start flow). */
@@ -406,6 +413,14 @@ export class AutomaCorporations {
    */
   public static onMicrobeAdvancement(game: IGame): void {
     AutomaCorporations.activeCorp(game)?.onMicrobeAdvancement?.(game);
+  }
+
+  /**
+   * The corporation's OWN endgame VP, if it prints an endgame clause (C25).
+   * Called from the scoring pass, so it must stay read-only.
+   */
+  public static endgameVictoryPoints(game: IGame): number {
+    return AutomaCorporations.activeCorp(game)?.endgameVictoryPoints?.(game) ?? 0;
   }
 
   /**

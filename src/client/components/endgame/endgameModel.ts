@@ -253,7 +253,7 @@ const PARAMETER_META: ReadonlyArray<{key: GlobalParameter; label: string; accent
  */
 export function automaCardsTotal(b: VictoryPointsBreakdown): number {
   const a = b.automa;
-  return a === undefined ? 0 : a.mcToVp + a.neuralInstance + a.cardVp;
+  return a === undefined ? 0 : a.mcToVp + a.neuralInstance + a.cardVp + a.corpVp;
 }
 
 function categoryValue(b: VictoryPointsBreakdown, key: EndgameCategoryKey): number {

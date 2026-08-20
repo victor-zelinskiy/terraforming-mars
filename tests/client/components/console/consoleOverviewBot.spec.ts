@@ -89,7 +89,7 @@ function build(
   return {model, egVm, vm};
 }
 
-const AUTOMA: AutomaVictoryPoints = {mcToVp: 7, mcPerVp: 3, neuralInstance: 4, cardVp: 24};
+const AUTOMA: AutomaVictoryPoints = {mcToVp: 7, mcPerVp: 3, neuralInstance: 4, cardVp: 24, corpVp: 0};
 
 describe('consoleOverview — MarsBot endgame profile', () => {
   // ── source classification (one test per scoring source) ─────────────────
@@ -120,7 +120,7 @@ describe('consoleOverview — MarsBot endgame profile', () => {
   });
 
   it('a zero source produces NO row (a bot without card VP shows an empty list)', () => {
-    const {vm} = build([human('red', 'A', {}), bot({mcToVp: 0, mcPerVp: 8, neuralInstance: 0, cardVp: 0})]);
+    const {vm} = build([human('red', 'A', {}), bot({mcToVp: 0, mcPerVp: 8, neuralInstance: 0, cardVp: 0, corpVp: 0})]);
     expect(vm.cards.rows.filter((r) => r.owner === 'green')).to.deep.eq([]);
     expect(vm.cards.byPlayer.find((p) => p.color === 'green')?.cardsVp).to.eq(0);
   });
@@ -268,7 +268,7 @@ describe('consoleOverview — MarsBot endgame profile', () => {
   });
 
   it('a small bot card engine (< 8 VP) tells no story', () => {
-    const {model} = build([human('red', 'A', {victoryPoints: 20}), bot({mcToVp: 3, mcPerVp: 8, neuralInstance: 2, cardVp: 0})]);
+    const {model} = build([human('red', 'A', {victoryPoints: 20}), bot({mcToVp: 3, mcPerVp: 8, neuralInstance: 2, cardVp: 0, corpVp: 0})]);
     expect(model.insights.find((i) => i.id?.startsWith('cards.bot-engine'))).to.eq(undefined);
   });
 
@@ -284,7 +284,7 @@ describe('consoleOverview — MarsBot endgame profile', () => {
           {cardName: 'Bad', victoryPoint: -2, kind: 'penalty'},
         ],
       }),
-      bot({mcToVp: 7, mcPerVp: 3, neuralInstance: 4, cardVp: 24},
+      bot({mcToVp: 7, mcPerVp: 3, neuralInstance: 4, cardVp: 24, corpVp: 0},
         {terraformRating: 62, milestones: 10, awards: 15, greenery: 10, city: 16}),
     ];
     const {egVm, vm} = build(inputs);

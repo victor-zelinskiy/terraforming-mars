@@ -845,5 +845,8 @@
   "${1} did not wait to be neighboured either — ${2} time(s) it paid its way onto a cell right against ${0}'s own tiles.": "${1} и сама не ждала соседей: ${2} раз(а) она выкупила клетку вплотную к тайлам ${0}.",
   "Construction and biology ran on one belt for ${0}'s ${1}: ${2} time(s) a building milestone fed the plant track directly.": "Корпорация ${1} (у ${0}) пустила стройку и биологию по одному конвейеру: ${2} раз(а) очередная веха строительства напрямую кормила трек растений.",
   "Every culture ${0} grew was licensed: ${2} microbe tag(s) at their table paid ${1} ${3} M€ in royalties.": "Каждая культура, выращенная игроком ${0}, росла по лицензии: ${2} меток микроба за столом принесли корпорации ${1} ${3} М€ отчислений.",
-  "And ${1} banked its own biology too — ${2} microbe(s) of the bot's own were worth ${3} M€.": "А ещё ${1} зарабатывала на собственной биологии: бот сам разыграл ${2} меток микроба и получил за них ${3} М€."
+  "And ${1} banked its own biology too — ${2} microbe(s) of the bot's own were worth ${3} M€.": "А ещё ${1} зарабатывала на собственной биологии: бот сам разыграл ${2} меток микроба и получил за них ${3} М€.",
+  "Scored by the bot's own corporation": "Набрано собственной корпорацией бота",
+  "The bot corporation of ${0} scored ${1} VP of its own at the end.": "Корпорация бота игрока ${0} набрала в конце собственных ПО — ${1}.",
+  "Every blue card with an arrow worked twice for ${0}'s ${1}: ${2} of them, a floater each when played and a point each at the end.": "Каждая синяя карта со стрелкой работала на корпорацию ${1} (у ${0}) дважды: таких карт было ${2} — плаватель при розыгрыше и очко в конце."
 }

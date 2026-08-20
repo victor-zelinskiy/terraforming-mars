@@ -165,6 +165,7 @@ const SEGMENTS: ReadonlyArray<SegMeta> = [
   {key: 'automa-mc', group: 'automa', label: 'M€ converted to VP', penalty: false, value: (b) => b.automa?.mcToVp ?? 0},
   {key: 'automa-neural', group: 'automa', label: 'Neural Instance', penalty: false, value: (b) => b.automa?.neuralInstance ?? 0},
   {key: 'automa-cards', group: 'automa', label: 'Played card icons', penalty: false, value: (b) => b.automa?.cardVp ?? 0},
+  {key: 'automa-corp', group: 'automa', label: 'Bot corporation', penalty: false, value: (b) => b.automa?.corpVp ?? 0},
   {key: 'moon', group: 'moon', label: 'Moon', penalty: false, value: (b) => b.moonHabitats + b.moonMines + b.moonRoads},
   {key: 'tracks', group: 'tracks', label: 'Planetary tracks', penalty: false, value: (b) => b.planetaryTracks},
   {key: 'delta', group: 'delta', label: 'Hydronetwork', penalty: false, value: (b) => b.deltaProject},

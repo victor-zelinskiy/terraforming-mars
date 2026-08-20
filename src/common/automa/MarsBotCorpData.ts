@@ -90,6 +90,15 @@ export type MarsBotCorpInfo = {
    * also why it can never be dev-forced into a game that lacks them.
    */
   requiresModules?: ReadonlyArray<Expansion>;
+  /**
+   * «Use this corporation only when playing with X OR Y» (C25 Viron: Venus
+   * Next or Colonies) — satisfied by ANY ONE of these, where `requiresModules`
+   * demands them ALL. Two fields rather than one flag, because the printed
+   * cards say two different things and a reader of the data must not have to
+   * guess which. Both are checked, so a future card printing «X and (Y or Z)»
+   * is expressible without touching the predicate.
+   */
+  requiresAnyModule?: ReadonlyArray<Expansion>;
   /** The resource this corporation stores on its own card, if any. */
   resource?: MarsBotCorpResource;
   /** Corporation-specific bonus cards this corp brings into play (RB-B Setup 5
@@ -731,6 +740,24 @@ const CORP_INFO: Readonly<Record<MarsBotCorpId, MarsBotCorpInfo>> = {
       ]},
     ],
   },
+  [MarsBotCorpId.C25_VIRON]: {
+    id: MarsBotCorpId.C25_VIRON,
+    cardNumber: 'C25',
+    original: CardName.VIRON,
+    startingTags: [Tag.MICROBE],
+    // No DRAFT PRIORITY plate is printed.
+    requiresAnyModule: ['venus', 'colonies'],
+    corpBonusCards: [],
+    sections: [
+      {kind: 'setup', lines: [
+        {icon: 'cards', text: 'Use this corporation only when playing with Venus Next or Colonies', muted: true},
+      ]},
+      {kind: 'effect', lines: [
+        {icon: 'floater', text: 'Every blue card with a red arrow MarsBot plays gives it ${0} floater', params: ['1']},
+        {icon: 'vp', text: 'At the end of the game each of them is worth ${0} VP', params: ['1']},
+      ]},
+    ],
+  },
   [MarsBotCorpId.C45_SPIRE]: {
     id: MarsBotCorpId.C45_SPIRE,
     cardNumber: 'C45',
@@ -791,6 +818,8 @@ export function corpOwningBonusCard(id: BonusCardId): MarsBotCorpInfo | undefine
  *           (track advances they produced).
  * Astro Drill: astroWhiteCubes / astroBlackCubes / astroSteps — the same
  *           three counters, for the same printed effect on its own track.
+ * Viron: vironActionCards (blue cards with a red arrow it played) and
+ *           vironFloaters (the floaters they handed it).
  * Splice: spliceHumanTags / spliceHumanMc (the opponent's microbe tags and
  *           what they paid the bot), spliceOwnTags / spliceOwnMc (its own),
  *           spliceSeeded (the microbe card its setup seeded).

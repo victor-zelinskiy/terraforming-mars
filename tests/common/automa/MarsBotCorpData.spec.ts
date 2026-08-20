@@ -119,17 +119,24 @@ describe('MarsBotCorpData', () => {
     // Venus Next + Colonies.
     const playable: ReadonlyArray<Expansion> = ['corpera', 'prelude', 'venus', 'colonies'];
     for (const id of MARS_BOT_CORP_IDS) {
-      const required = marsBotCorpInfo(id).requiresModules;
-      if (required === undefined) {
-        continue;
-      }
-      expect(required, `${id}: an empty condition should simply be absent`).is.not.empty;
-      for (const module of required) {
-        expect(playable, `${id} requires ${module}, which no MarsBot game can enable`).contains(module);
+      const info = marsBotCorpInfo(id);
+      // BOTH forms of the printed condition — «only with X» (all) and «only
+      // with X or Y» (any, C25). A form the guard forgets is a corporation
+      // whose condition nobody checks.
+      for (const required of [info.requiresModules, info.requiresAnyModule]) {
+        if (required === undefined) {
+          continue;
+        }
+        expect(required, `${id}: an empty condition should simply be absent`).is.not.empty;
+        for (const module of required) {
+          expect(playable, `${id} requires ${module}, which no MarsBot game can enable`).contains(module);
+        }
       }
     }
     expect(marsBotCorpInfo(MarsBotCorpId.C16_VALLEY_TRUST).requiresModules).deep.eq(['prelude']);
+    expect(marsBotCorpInfo(MarsBotCorpId.C25_VIRON).requiresAnyModule).deep.eq(['venus', 'colonies']);
     expect(marsBotCorpInfo(MarsBotCorpId.C01_CREDICOR).requiresModules).is.undefined;
+    expect(marsBotCorpInfo(MarsBotCorpId.C01_CREDICOR).requiresAnyModule).is.undefined;
   });
 
   it('corpOwningBonusCard maps B23 to Ecoline and nothing else', () => {

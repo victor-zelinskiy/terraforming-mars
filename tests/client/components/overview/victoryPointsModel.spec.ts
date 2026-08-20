@@ -146,7 +146,7 @@ describe('victoryPointsModel', () => {
     const bot = buildVictoryPointsModel(breakdown({
       milestones: 0, awards: 0, greenery: 0, city: 0,
       total: 37,
-      automa: {mcToVp: 3, mcPerVp: 8, neuralInstance: 4, cardVp: 2},
+      automa: {mcToVp: 3, mcPerVp: 8, neuralInstance: 4, cardVp: 2, corpVp: 0},
     }), NO_EXPANSIONS);
     const automa = bot.scales.find((s) => s.key === 'automa')!;
     expect(automa.segments.map((s) => s.key)).to.eql(['automa.mc', 'automa.neural', 'automa.cards']);
@@ -160,7 +160,7 @@ describe('victoryPointsModel', () => {
 
   it('drops the automa bar when every automa part is zero', () => {
     const bot = buildVictoryPointsModel(breakdown({
-      automa: {mcToVp: 0, mcPerVp: 8, neuralInstance: 0, cardVp: 0},
+      automa: {mcToVp: 0, mcPerVp: 8, neuralInstance: 0, cardVp: 0, corpVp: 0},
     }), NO_EXPANSIONS);
     expect(bot.scales.map((s) => s.key)).to.not.include('automa');
   });

@@ -216,7 +216,9 @@ export type OvBotCardSource =
   /** Neural Instance: +1 VP per adjacent space free of the human. */
   | {kind: 'neural'; count: number}
   /** Hard/Brutal: +1 VP per played card with a non-negative VP icon. */
-  | {kind: 'icons'; count: number; difficulty: string /* label key */};
+  | {kind: 'icons'; count: number; difficulty: string /* label key */}
+  /** The bot's own CORPORATION scored at the end (C25 Viron). */
+  | {kind: 'corp'; count: number; corporation: string};
 
 export type OvCardRow = {
   id: string;
@@ -636,6 +638,16 @@ function botCardRows(p: EndgamePlayerScore): Array<OvCardRow> {
       id: `${p.color}:bot:icons`, owner: p.color, ownerName: p.name,
       cardName: 'Played card icons', vp: a.cardVp, kind: 'fixed',
       bot: {kind: 'icons', count: a.cardVp, difficulty: DIFFICULTY_LABEL[p.botDifficulty ?? 'hard']},
+    });
+  }
+  if (a.corpVp > 0) {
+    // The row names the CORPORATION and its points, and stops there: which
+    // rule earned them is that card's own text, and this model must not
+    // restate a rule it cannot see.
+    out.push({
+      id: `${p.color}:bot:corp`, owner: p.color, ownerName: p.name,
+      cardName: p.botCorporation?.name ?? 'Bot corporation', vp: a.corpVp, kind: 'fixed',
+      bot: {kind: 'corp', count: a.corpVp, corporation: p.botCorporation?.name ?? 'Bot corporation'},
     });
   }
   return out;
