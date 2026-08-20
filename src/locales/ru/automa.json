@@ -554,5 +554,11 @@
   "One more colony tile joins the game": "В игру добавляется ещё один тайл колонии",
   "Advancing onto a cube of either colour: MarsBot advances its event track": "Дойдя до куба любого цвета: Бот продвигает свой трек событий",
   "Advancing onto it: MarsBot advances its event track": "Дойдя до него: Бот продвигает свой трек событий",
-  "${0} reached a cube of its corporation ${1} — its event track moves": "${0} доходит до куба своей корпорации ${1} — двигается трек событий"
+  "${0} reached a cube of its corporation ${1} — its event track moves": "${0} доходит до куба своей корпорации ${1} — двигается трек событий",
+  "Animal, then plant": "Животное, затем растение",
+  "The plant track marker becomes a white cube — a reminder of the effect below": "Маркер трека растений заменяется белым кубом — напоминание об эффекте ниже",
+  "A plant or animal tag on this track pays MarsBot 2 M€ — a microbe pays nothing": "Метка растения или животного на этом треке приносит Боту 2 М€ — метка микроба не приносит ничего",
+  "Every plant or animal tag MarsBot resolves — its own starting tag included — pays it ${0} M€": "Каждая метка растения или животного, которую разыгрывает Бот — включая его собственную стартовую, — приносит ему ${0} М€",
+  "A microbe tag rides the same track and pays nothing": "Метка микроба идёт по тому же треку и не приносит ничего",
+  "${0} gained ${1} M€ from its corporation ${2} for resolving a ${3} tag": "${0} получает ${1} М€ от корпорации ${2} за разыгранную метку (${3})"
 }

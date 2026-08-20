@@ -922,6 +922,31 @@ const CORP_INFO: Readonly<Record<MarsBotCorpId, MarsBotCorpInfo>> = {
       ]},
     ],
   },
+  [MarsBotCorpId.C31_ARKLIGHT]: {
+    id: MarsBotCorpId.C31_ARKLIGHT,
+    cardNumber: 'C31',
+    original: CardName.ARKLIGHT,
+    startingTags: [Tag.ANIMAL],
+    draftPriority: {type: 'tags', tags: [Tag.ANIMAL, Tag.PLANT]},
+    corpBonusCards: [],
+    // SETUP box, verbatim: «Replace the tracker for the plant track with a
+    // white cube as a reminder for this corporation's effect» — the C04/C09
+    // primitive. The reminder sits on the track those tags ride, but the
+    // effect below is TAG-triggered, and that track also carries MICROBE —
+    // which is exactly what the legend has to say out loud.
+    whiteMarkerTracks: [Tag.PLANT],
+    markerLegend: 'A plant or animal tag on this track pays MarsBot 2 M€ — a microbe pays nothing',
+    sections: [
+      {kind: 'draftPriority', lines: [{text: 'Animal, then plant'}]},
+      {kind: 'setup', lines: [
+        {icon: 'cube-white', text: 'The plant track marker becomes a white cube — a reminder of the effect below', muted: true},
+      ]},
+      {kind: 'effect', lines: [
+        {icon: 'megacredits', text: 'Every plant or animal tag MarsBot resolves — its own starting tag included — pays it ${0} M€', params: ['2']},
+        {icon: 'cards', text: 'A microbe tag rides the same track and pays nothing', muted: true},
+      ]},
+    ],
+  },
   [MarsBotCorpId.C45_SPIRE]: {
     id: MarsBotCorpId.C45_SPIRE,
     cardNumber: 'C45',
@@ -984,6 +1009,8 @@ export function corpOwningBonusCard(id: BonusCardId): MarsBotCorpInfo | undefine
  *           three counters, for the same printed effect on its own track.
  * Aphrodite: aphroditeSteps (Venus steps it was paid for) and aphroditeMc
  *           (what they came to).
+ * Arklight: arklightTags (plant/animal tags it resolved and was paid for —
+ *           microbes are NOT among them) and arklightMc (what they came to).
  * Aridor:   aridorCubesHit (cubes reached — ONE counter, because the card
  *           draws no distinction between its two colours) and aridorSteps
  *           (event-track advances they bought), plus aridorColonyAdded (its

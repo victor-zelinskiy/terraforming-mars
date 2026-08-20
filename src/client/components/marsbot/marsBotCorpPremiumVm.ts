@@ -372,6 +372,16 @@ function renderDataOf(id: MarsBotCorpId): ICardRenderRoot {
           .startEffect.tag(Tag.EVENT);
       });
     });
+  case MarsBotCorpId.C31_ARKLIGHT:
+    return CardRenderer.builder((b) => {
+      // EFFECT: the two tags that pay, in C04's own tag/tag → M€ shape. The
+      // third tag of that same mat row is the one the card excludes, and the
+      // exclusion lives in «§ ПРАВИЛА» — a crossed-out microbe here would read
+      // as «lose something» in this icon language.
+      b.effect(undefined, (eb) => {
+        eb.tag(Tag.ANIMAL).slash().tag(Tag.PLANT).startEffect.megacredits(2);
+      });
+    });
   case MarsBotCorpId.C45_SPIRE:
     return CardRenderer.builder((b) => {
       // EFFECT: a card with 2+ tags adds a science resource here — the

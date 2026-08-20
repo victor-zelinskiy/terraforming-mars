@@ -3077,6 +3077,20 @@ const analyzeBotCorporation: Analyzer = (ctx) => {
           scale: 10,
         });
       }
+    } else if (corp.id === 'C31') {
+      // Arklight is a payroll for living things, and its whole character is
+      // WHICH living things — the card shouts the exclusion, so the story keeps
+      // it. One printed effect, one fact.
+      const mc = stat('arklightMc');
+      if (mc >= 8) {
+        stories.push({
+          key: 'effect',
+          textKey: 'Life was on ${0}\'s ${1} payroll: ${2} plant and animal tag(s) drew ${3} M€ between them — and not one microbe among them.',
+          params: [raw(p.name), raw(corp.name), raw(stat('arklightTags')), raw(mc)],
+          measure: mc,
+          scale: 30,
+        });
+      }
     } else if (corp.id === 'C45') {
       // Spire: the science engine — multi-tag cards banked into cities + TR.
       const cities = stat('citiesPlaced');

@@ -80,6 +80,8 @@ describe('MarsBotCorpFace (.pcard template)', () => {
       'C29 prints ONE building starting tag').has.length(1);
     expect(mountFace(MarsBotCorpId.C30_ARIDOR).find('.pcard__tags').exists(),
       'C30 prints NO starting tag — its corner carries the priority plate').is.false;
+    expect(mountFace(MarsBotCorpId.C31_ARKLIGHT).findAll('.pcard__tags .pcard-tag'),
+      'C31 prints ONE animal starting tag').has.length(1);
     // C04 prints TWO event tags — both sit on the rail (the bot card's tags,
     // never the human card's single building tag).
     // Saturn Systems prints FOUR starting tags — the rail carries them all.
@@ -417,6 +419,20 @@ describe('marsBotCorpRules — the «§ ПРАВИЛА» groups', () => {
     // NEW tag type it puts in play — none of that is here.
     expect(text).not.contains('40');
     expect(text).not.match(/new type of tag|production/i);
+  });
+
+  it('Arklight prints both paying tags AND the microbe exclusion, never the human resource rule', () => {
+    const groups = marsBotCorpAnnotations(MarsBotCorpId.C31_ARKLIGHT);
+    expect(groups.map((g) => g.labelKey)).deep.eq(['Draft priority', 'Corporation setup', 'Corporation effect']);
+    const text = groups.flatMap((g) => g.rows.map((r) => r.text)).join(' ');
+    expect(text, 'the reminder on the mat').contains('white cube');
+    expect(text, 'the two tags that pay').contains('plant or animal');
+    expect(text, 'the printed «including the starting tag»').contains('starting tag');
+    expect(text, 'and the exclamation the card exists for').contains('microbe');
+    // The human Arklight starts with 45 M€ and adds an animal resource to a
+    // card whenever it plays an animal/plant tag — none of that is here.
+    expect(text).not.contains('45');
+    expect(text).not.match(/animal resource|add a resource/i);
   });
 
   it('ThorGate prints its cubes and the first-tag clause, never the human discount', () => {

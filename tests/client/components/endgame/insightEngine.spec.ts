@@ -490,6 +490,19 @@ describe('insightEngine', () => {
         MarsBotCorpId.C30_ARIDOR, 'Aridor')).is.empty;
     });
 
+    it('C31 tells its living payroll as ONE story', () => {
+      const insights = botInsights({arklightTags: 7, arklightMc: 14},
+        MarsBotCorpId.C31_ARKLIGHT, 'Arklight');
+      expect(insights).has.length(1);
+      expect(insights[0].textKey).contains('not one microbe among them');
+      expect(insights[0].params.map((p) => p.v)).contains('14');
+    });
+
+    it('C31 keeps quiet when barely anything grew', () => {
+      expect(botInsights({arklightTags: 2, arklightMc: 4},
+        MarsBotCorpId.C31_ARKLIGHT, 'Arklight')).is.empty;
+    });
+
     it('the draft fallback speaks only when no printed effect did', () => {
       const withEffect = botInsights({credicorTriggers: 6, credicorMc: 24, fiveCardDecks: 3},
         MarsBotCorpId.C01_CREDICOR, 'CrediCor');
