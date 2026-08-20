@@ -122,6 +122,18 @@ describe('marsBotCorpRules — the «§ ПРАВИЛА» groups', () => {
     expect(groups.every((g) => g.rows.length > 0)).is.true;
   });
 
+  it('Point Luna prints both cube colours and what each pushes', () => {
+    const groups = marsBotCorpAnnotations(MarsBotCorpId.C14_POINT_LUNA);
+    expect(groups.map((g) => g.labelKey)).deep.eq(['Draft priority', 'Corporation setup', 'Corporation effect']);
+    const text = groups.flatMap((g) => g.rows.map((r) => r.text)).join(' ');
+    expect(text).contains('1, 5, 9, 13, 17');
+    expect(text).contains('3, 7, 11, 15');
+    expect(text).contains('least-advanced');
+    expect(text).contains('space track');
+    // The human Point Luna draws a card per Earth tag — not a bot rule.
+    expect(text).not.match(/draws a card/i);
+  });
+
   it('Cheung Shing Mars prints its silver cubes, never the human building discount', () => {
     const groups = marsBotCorpAnnotations(MarsBotCorpId.C13_CHEUNG_SHING_MARS);
     expect(groups.map((g) => g.labelKey)).deep.eq(['Draft priority', 'Corporation setup', 'Corporation effect']);

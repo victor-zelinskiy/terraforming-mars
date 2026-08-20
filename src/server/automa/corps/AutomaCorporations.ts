@@ -20,6 +20,7 @@ import {MarsBotInterplanetaryCinematics} from './MarsBotInterplanetaryCinematics
 import {MarsBotInventrix} from './MarsBotInventrix';
 import {MarsBotMiningGuild} from './MarsBotMiningGuild';
 import {MarsBotPhobolog} from './MarsBotPhobolog';
+import {MarsBotPointLuna} from './MarsBotPointLuna';
 import {MarsBotSaturnSystems} from './MarsBotSaturnSystems';
 import {MarsBotTeractor} from './MarsBotTeractor';
 import {MarsBotTharsisRepublic} from './MarsBotTharsisRepublic';
@@ -67,6 +68,7 @@ export class AutomaCorporations {
     [MarsBotCorpId.C11_THORGATE]: MarsBotThorgate,
     [MarsBotCorpId.C12_UNMI]: MarsBotUnmi,
     [MarsBotCorpId.C13_CHEUNG_SHING_MARS]: MarsBotCheungShingMars,
+    [MarsBotCorpId.C14_POINT_LUNA]: MarsBotPointLuna,
     [MarsBotCorpId.C45_SPIRE]: MarsBotSpire,
   };
 

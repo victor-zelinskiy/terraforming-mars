@@ -421,6 +421,43 @@ const CORP_INFO: Readonly<Record<MarsBotCorpId, MarsBotCorpInfo>> = {
       ]},
     ],
   },
+  [MarsBotCorpId.C14_POINT_LUNA]: {
+    id: MarsBotCorpId.C14_POINT_LUNA,
+    cardNumber: 'C14',
+    original: CardName.POINT_LUNA,
+    startingTags: [Tag.SPACE],
+    draftPriority: {type: 'tags', tags: [Tag.EARTH]},
+    corpBonusCards: [],
+    // SETUP box, verbatim: a WHITE cube on the Earth track spaces #1, #5, #9,
+    // #13, #17; a BLACK cube on the Earth track spaces #3, #7, #11, #15 — the
+    // two colours alternate up the whole track.
+    trackCubes: [
+      {tag: Tag.EARTH, position: 1, cubeType: 'white'},
+      {tag: Tag.EARTH, position: 3, cubeType: 'black'},
+      {tag: Tag.EARTH, position: 5, cubeType: 'white'},
+      {tag: Tag.EARTH, position: 7, cubeType: 'black'},
+      {tag: Tag.EARTH, position: 9, cubeType: 'white'},
+      {tag: Tag.EARTH, position: 11, cubeType: 'black'},
+      {tag: Tag.EARTH, position: 13, cubeType: 'white'},
+      {tag: Tag.EARTH, position: 15, cubeType: 'black'},
+      {tag: Tag.EARTH, position: 17, cubeType: 'white'},
+    ],
+    cubeLegend: {
+      white: 'Advancing onto it: MarsBot advances its least-advanced track',
+      black: 'Advancing onto it: MarsBot advances the space track',
+    },
+    sections: [
+      {kind: 'draftPriority', lines: [{text: 'Earth'}]},
+      {kind: 'setup', lines: [
+        {icon: 'cube-white', text: 'A white cube on the Earth track spaces ${0}', params: ['1, 5, 9, 13, 17']},
+        {icon: 'cube-black', text: 'A black cube on the Earth track spaces ${0}', params: ['3, 7, 11, 15']},
+      ]},
+      {kind: 'effect', lines: [
+        {icon: 'cards', text: 'Advancing onto a white cube: MarsBot advances its least-advanced track (the topmost if tied)'},
+        {icon: 'cards', text: 'Advancing onto a black cube: MarsBot advances the space track'},
+      ]},
+    ],
+  },
   [MarsBotCorpId.C45_SPIRE]: {
     id: MarsBotCorpId.C45_SPIRE,
     cardNumber: 'C45',
@@ -477,6 +514,8 @@ export function corpOwningBonusCard(id: BonusCardId): MarsBotCorpInfo | undefine
  *           doItRightGreeneries / doItRightOceans / doItRightNoEffect.
  * Saturn Systems: saturnEventAdvances (event-track advances the Jovian
  *           trigger produced) split into saturnFromHuman / saturnFromBot.
+ * Point Luna: lunaWhiteCubes / lunaBlackCubes (cubes reached) and lunaSteps
+ *           (track advances they produced).
  * Cheung Shing Mars: cheungCubesHit / cheungMc (the silver cubes it collected).
  * UNMI:     unmiExtraCards (extra bonus cards its Before-Action-Phase box put
  *           into the action deck), subsidyPlayed / subsidyTr (its own B31).

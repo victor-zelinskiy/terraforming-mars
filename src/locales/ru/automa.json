@@ -419,5 +419,12 @@
   "Silver resource cube": "Серебряный куб ресурса",
   "A silver resource cube on every building track space from ${0} on": "Серебряный куб ресурса на каждой клетке трека строительства начиная с ${0}",
   "Advancing onto a silver cube: MarsBot takes it as ${0} M€": "Дойдя до серебряного куба: Бот забирает его как ${0} М€",
-  "Advancing onto it: MarsBot takes it as 5 M€": "Дойдя до него: Бот забирает его как 5 М€"
+  "Advancing onto it: MarsBot takes it as 5 M€": "Дойдя до него: Бот забирает его как 5 М€",
+  "${0} reached a white cube of its corporation ${1} — its least-advanced track moves": "${0} доходит до белого куба своей корпорации ${1} — двигается его самый отстающий трек",
+  "${0} reached a black cube of its corporation ${1} — the space track moves": "${0} доходит до чёрного куба своей корпорации ${1} — двигается трек космоса",
+  "A white cube on the Earth track spaces ${0}": "Белый куб на клетки трека Земли: ${0}",
+  "Advancing onto a white cube: MarsBot advances its least-advanced track (the topmost if tied)": "Дойдя до белого куба: Бот продвигает свой самый отстающий трек (при равенстве — верхний)",
+  "Advancing onto a black cube: MarsBot advances the space track": "Дойдя до чёрного куба: Бот продвигает трек космоса",
+  "Advancing onto it: MarsBot advances its least-advanced track": "Дойдя до него: Бот продвигает свой самый отстающий трек",
+  "Advancing onto it: MarsBot advances the space track": "Дойдя до него: Бот продвигает трек космоса"
 }

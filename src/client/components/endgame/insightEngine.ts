@@ -2741,6 +2741,19 @@ const analyzeBotCorporation: Analyzer = (ctx) => {
           scale: 40,
         });
       }
+    } else if (corp.id === 'C14') {
+      // Point Luna: what the player saw is a bot with no weak flank — its
+      // Earth office kept shoving whichever track was behind.
+      const pushes = stat('lunaSteps');
+      if (pushes >= 3) {
+        stories.push({
+          key: 'effect',
+          textKey: '${1} kept ${0} moving on every front: its Earth office pushed whatever lagged behind ${2} times.',
+          params: [raw(p.name), raw(corp.name), raw(pushes)],
+          measure: pushes,
+          scale: 6,
+        });
+      }
     } else if (corp.id === 'C45') {
       // Spire: the science engine — multi-tag cards banked into cities + TR.
       const cities = stat('citiesPlaced');
