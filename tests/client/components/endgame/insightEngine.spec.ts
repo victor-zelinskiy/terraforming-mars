@@ -195,8 +195,8 @@ describe('insightEngine', () => {
       expect(insights).has.length(2);
       expect(insights.map((i) => i.id).sort()).deep.eq(
         ['reason.bot-corporation.red', 'reason.bot-corporation.red.do-it-right']);
-      const toll = insights.find((i) => i.textKey.includes('taxed demanding projects'));
-      const pushes = insights.find((i) => i.textKey.includes('kept finishing what was nearly done'));
+      const toll = insights.find((i) => i.textKey.includes('Hard problems were good business'));
+      const pushes = insights.find((i) => i.textKey.includes('finished the job'));
       expect(toll, 'the requirement toll has its own card').is.not.undefined;
       expect(pushes, 'Do It Right has its own card').is.not.undefined;
       // Neither sentence carries the other half's numbers.
@@ -211,7 +211,7 @@ describe('insightEngine', () => {
       });
       expect(insights).has.length(1);
       expect(insights[0].id).eq('reason.bot-corporation.red');
-      expect(insights[0].textKey).contains('kept finishing what was nearly done');
+      expect(insights[0].textKey).contains('finished the job');
     });
 
     it('below both thresholds the corporation says nothing', () => {
@@ -229,11 +229,11 @@ describe('insightEngine', () => {
       const withEffect = botInsights({credicorTriggers: 6, credicorMc: 24, fiveCardDecks: 3},
         MarsBotCorpId.C01_CREDICOR, 'CrediCor');
       expect(withEffect).has.length(1);
-      expect(withEffect[0].textKey).contains('monetized big projects');
+      expect(withEffect[0].textKey).contains('bread and butter');
 
       const fallbackOnly = botInsights({fiveCardDecks: 3}, MarsBotCorpId.C01_CREDICOR, 'CrediCor');
       expect(fallbackOnly).has.length(1);
-      expect(fallbackOnly[0].textKey).contains('protected all four drafted cards');
+      expect(fallbackOnly[0].textKey).contains('refused to give anything back after the draft');
     });
   });
 

@@ -2515,6 +2515,13 @@ type BotCorpStory = {key: string, textKey: string, params: Array<InsightParam>, 
  * leads with the half that did nothing. They share the `bot-corporation`
  * cluster, so the selector keeps the strongest in the primary band and files
  * the rest under secondary / «show more» rather than crowding the story.
+ *
+ * THE TEXT SPEAKS THE TABLE'S LANGUAGE, never the implementation's. A fact
+ * card retells a moment of the game — money earned, tiles on the map,
+ * parameters pushed, extra turns — so its sentence must survive a reader who
+ * never opened the corporation card. Internal vocabulary (white cubes, deck
+ * seeding, «the card emptied», track bookkeeping) is HOW the counter was
+ * measured, not WHAT happened on Mars: it stays in the code comment.
  */
 const analyzeBotCorporation: Analyzer = (ctx) => {
   const out: Array<InsightCandidate> = [];
@@ -2536,7 +2543,7 @@ const analyzeBotCorporation: Analyzer = (ctx) => {
       if (triggers >= 4) {
         stories.push({
           key: 'effect',
-          textKey: '${0}\'s corporation ${1} monetized big projects: ${2} cards of 20+ M€ paid it ${3} M€ over the game.',
+          textKey: 'Megaprojects were ${1}\'s bread and butter: every deal worth 20 M€ or more paid ${0} a commission — ${3} M€ across ${2} deals.',
           params: [raw(p.name), raw(corp.name), raw(triggers), raw(mc)],
           measure: mc,
           scale: 28,
@@ -2550,7 +2557,7 @@ const analyzeBotCorporation: Analyzer = (ctx) => {
       if (greeneries >= 2) {
         stories.push({
           key: 'effect',
-          textKey: '${0}\'s corporation ${1} grew the planet itself: Rapid Sprouting planted ${2} greeneries and raised oxygen ${3} steps.',
+          textKey: 'Mars turned greener wherever ${0}\'s ${1} worked: ${2} of its greeneries took root, lifting oxygen ${3} steps.',
           params: [raw(p.name), raw(corp.name), raw(greeneries), raw(oxygen)],
           measure: greeneries,
           scale: 4,
@@ -2564,7 +2571,7 @@ const analyzeBotCorporation: Analyzer = (ctx) => {
       if (cards + steps >= 3) {
         stories.push({
           key: 'effect',
-          textKey: '${0}\'s corporation ${1} turned its track cubes into tempo: ${2} extra cards and ${3} temperature steps.',
+          textKey: 'Heat was currency for ${0}\'s ${1}: it traded warming for ${2} surprise cards and still heated Mars ${3} extra steps.',
           params: [raw(p.name), raw(corp.name), raw(cards), raw(steps)],
           measure: cards * 2 + steps,
           scale: 10,
@@ -2578,7 +2585,7 @@ const analyzeBotCorporation: Analyzer = (ctx) => {
       if (advances >= 10) {
         stories.push({
           key: 'effect',
-          textKey: '${0}\'s corporation ${1} was paid for its own momentum: ${2} building and event advances earned ${3} M€.',
+          textKey: 'The cameras of ${0}\'s ${1} never stopped rolling: every build and event went on air — ${3} M€ of box office across ${2} episodes.',
           params: [raw(p.name), raw(corp.name), raw(advances), raw(mc)],
           measure: mc,
           scale: 60,
@@ -2593,7 +2600,7 @@ const analyzeBotCorporation: Analyzer = (ctx) => {
       if (triggers >= 5) {
         stories.push({
           key: 'effect',
-          textKey: '${0}\'s corporation ${1} taxed demanding projects: ${2} cards with requirements paid it ${3} M€.',
+          textKey: 'Hard problems were good business for ${0}\'s ${1}: projects with strict requirements paid ${3} M€ in consulting fees (${2} contracts).',
           params: [raw(p.name), raw(corp.name), raw(triggers), raw(mc)],
           measure: mc,
           scale: 30,
@@ -2606,7 +2613,7 @@ const analyzeBotCorporation: Analyzer = (ctx) => {
       if (pushes >= 3) {
         stories.push({
           key: 'do-it-right',
-          textKey: '${0}\'s corporation ${1} kept finishing what was nearly done: Do It Right pushed a global parameter ${2} time(s) — ${3} temperature, ${4} greenery, ${5} ocean.',
+          textKey: 'True to its motto, ${0}\'s ${1} finished the job: it kept carrying parameters over the line — temperature ${3}, greeneries ${4}, oceans ${5} (${2} pushes).',
           params: [raw(p.name), raw(corp.name), raw(pushes), raw(temperature), raw(greeneries), raw(oceans)],
           measure: pushes,
           scale: 6,
@@ -2620,24 +2627,23 @@ const analyzeBotCorporation: Analyzer = (ctx) => {
       if (refills >= 3) {
         stories.push({
           key: 'effect',
-          textKey: '${0}\'s corporation ${1} turned income into construction: ${2} M€ ran through the card and pushed the building track ${3} extra times.',
+          textKey: 'Profit never sat idle at ${0}\'s ${1}: ${2} M€ of income went straight back into the diggers, and construction surged ${3} extra times.',
           params: [raw(p.name), raw(corp.name), raw(banked), raw(refills)],
           measure: refills,
           scale: 6,
         });
       }
     } else if (corp.id === 'C07') {
-      // PhoboLog: the white cubes on the space track, pulling from the bonus
-      // deck it seeded with project cards. Two hits are already a pattern.
-      const hits = stat('phobologCubesHit');
-      const projects = stat('phobologProjectCards');
-      const bonuses = stat('phobologBonusCards');
-      if (hits >= 2) {
+      // PhoboLog: what the player SAW is the bot playing extra cards out of
+      // nowhere as its space program climbed — the white cubes and the seeded
+      // bonus deck are merely how those free plays were measured.
+      const extraPlays = stat('phobologProjectCards') + stat('phobologBonusCards');
+      if (extraPlays >= 2) {
         stories.push({
           key: 'effect',
-          textKey: '${0}\'s corporation ${1} mined its own deck: ${2} white cubes on the space track drew ${3} project cards and ${4} bonus cards.',
-          params: [raw(p.name), raw(corp.name), raw(hits), raw(projects), raw(bonuses)],
-          measure: hits,
+          textKey: 'Space paid for itself at ${0}\'s ${1}: each leap of its space program brought a bonus play — ${2} over the game.',
+          params: [raw(p.name), raw(corp.name), raw(extraPlays)],
+          measure: extraPlays,
           scale: 4,
         });
       }
@@ -2648,7 +2654,7 @@ const analyzeBotCorporation: Analyzer = (ctx) => {
       if (cities >= 1) {
         stories.push({
           key: 'effect',
-          textKey: '${0}\'s corporation ${1} banked science from multi-tag cards: ${2} science became ${3} city tile(s) and TR.',
+          textKey: '${0}\'s ${1} built cities out of pure research: new cities rose from ${2} banked science (${3} on the map).',
           params: [raw(p.name), raw(corp.name), raw(stat('scienceSpent')), raw(cities)],
           measure: cities * 10 + science,
           scale: 20,
@@ -2663,7 +2669,7 @@ const analyzeBotCorporation: Analyzer = (ctx) => {
     if (stories.length === 0 && fiveCardDecks >= 2) {
       stories.push({
         key: 'draft-protection',
-        textKey: '${0}\'s corporation ${1} protected all four drafted cards ${2} times — extra action cards every one of those generations.',
+        textKey: '${0}\'s ${1} refused to give anything back after the draft: it kept all four picks in ${2} different generations — an extra turn each time.',
         params: [raw(p.name), raw(corp.name), raw(fiveCardDecks)],
         measure: fiveCardDecks,
         scale: 4,
