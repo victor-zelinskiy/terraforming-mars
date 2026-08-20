@@ -819,6 +819,24 @@ const CORP_INFO: Readonly<Record<MarsBotCorpId, MarsBotCorpInfo>> = {
       ]},
     ],
   },
+  [MarsBotCorpId.C28_APHRODITE]: {
+    id: MarsBotCorpId.C28_APHRODITE,
+    cardNumber: 'C28',
+    original: CardName.APHRODITE,
+    startingTags: [Tag.PLANT],
+    draftPriority: {type: 'tags', tags: [Tag.PLANT, Tag.ANIMAL, Tag.VENUS]},
+    requiresModules: ['venus'],
+    corpBonusCards: [],
+    sections: [
+      {kind: 'draftPriority', lines: [{text: 'Plant, then animal, then Venus'}]},
+      {kind: 'setup', lines: [
+        {icon: 'cards', text: 'Use this corporation only when playing with Venus Next', muted: true},
+      ]},
+      {kind: 'effect', lines: [
+        {icon: 'megacredits', text: 'Every step Venus rises pays MarsBot ${0} M€ — whoever raised it, the World Government included', params: ['2']},
+      ]},
+    ],
+  },
   [MarsBotCorpId.C45_SPIRE]: {
     id: MarsBotCorpId.C45_SPIRE,
     cardNumber: 'C45',
@@ -879,6 +897,8 @@ export function corpOwningBonusCard(id: BonusCardId): MarsBotCorpInfo | undefine
  *           (track advances they produced).
  * Astro Drill: astroWhiteCubes / astroBlackCubes / astroSteps — the same
  *           three counters, for the same printed effect on its own track.
+ * Aphrodite: aphroditeSteps (Venus steps it was paid for) and aphroditeMc
+ *           (what they came to).
  * Morning Star Inc.: morningCubesHit / morningMc — the same two counters
  *           C13 keeps for the same printed effect, on its own track;
  *           plus lobbyPlayed / lobbyVenus / lobbyParameter (its B26).

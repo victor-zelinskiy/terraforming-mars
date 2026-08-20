@@ -1649,6 +1649,13 @@ export class Game implements IGame, Logger {
     if (aphrodite !== undefined) {
       aphrodite.stock.add(Resource.MEGACREDITS, 2 * steps, {log: true, from: {card: CardName.APHRODITE}});
     }
+    // … and the BOT's own Aphrodite (C28), which is not a card in a tableau.
+    // Deliberately HERE, beside its human twin and OUTSIDE the SOLAR guard
+    // above: both entities print one rule, and the printed «or the card
+    // Government Intervention» is exactly what this position buys.
+    if (this.automa !== undefined) {
+      AutomaCorporations.onVenusIncreased(this, steps);
+    }
 
     const venusBonusSteps = this.gameOptions.altVenusBoard ?
       [constants.VENUS_LEVEL_FOR_CARD_BONUS, constants.VENUS_LEVEL_FOR_TR_BONUS, 18, 20, 22, 24, 26, 28, 30] :

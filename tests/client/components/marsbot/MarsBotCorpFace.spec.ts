@@ -72,6 +72,8 @@ describe('MarsBotCorpFace (.pcard template)', () => {
       'C26 prints ONE Venus starting tag').has.length(1);
     expect(mountFace(MarsBotCorpId.C27_MORNING_STAR).findAll('.pcard__tags .pcard-tag'),
       'C27 prints TWO Venus starting tags').has.length(2);
+    expect(mountFace(MarsBotCorpId.C28_APHRODITE).findAll('.pcard__tags .pcard-tag'),
+      'C28 prints ONE plant starting tag — never the human plant+Venus pair').has.length(1);
     expect(mountFace(MarsBotCorpId.C18_ARCADIAN_COMMUNITIES).findAll('.pcard__tags .pcard-tag'),
       'C18 prints ONE building starting tag').has.length(1);
     // C04 prints TWO event tags — both sit on the rail (the bot card's tags,
@@ -369,6 +371,19 @@ describe('marsBotCorpRules — the «§ ПРАВИЛА» groups', () => {
     // generation and pays 2 less for Venus cards — none of that is here.
     expect(text).not.contains('50');
     expect(text).not.match(/2 less|draw a card/i);
+  });
+
+  it('Aphrodite prints its Venus toll, never the human 47 M€ start', () => {
+    const groups = marsBotCorpAnnotations(MarsBotCorpId.C28_APHRODITE);
+    expect(groups.map((g) => g.labelKey)).deep.eq(['Draft priority', 'Corporation setup', 'Corporation effect']);
+    const text = groups.flatMap((g) => g.rows.map((r) => r.text)).join(' ');
+    expect(text).contains('Venus');
+    expect(text, 'the printed «whoever raised it» is kept').contains('whoever raised it');
+    expect(text, 'including the World Government half of the parenthetical').contains('World Government');
+    expect(text).contains('Venus Next');
+    // The human Aphrodite starts with 47 M€ and 1 plant production.
+    expect(text).not.contains('47');
+    expect(text).not.match(/plant production/i);
   });
 
   it('ThorGate prints its cubes and the first-tag clause, never the human discount', () => {

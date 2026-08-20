@@ -339,6 +339,14 @@ function renderDataOf(id: MarsBotCorpId): ICardRenderRoot {
         eb.plate('Venusian Lobby').startEffect.venus(1).asterix();
       });
     });
+  case MarsBotCorpId.C28_APHRODITE:
+    return CardRenderer.builder((b) => {
+      // EFFECT: the HUMAN Aphrodite's own printed row for the identical rule
+      // — a Venus step raised by ANYONE pays 2 M€.
+      b.effect(undefined, (eb) => {
+        eb.venus(1, {all}).startEffect.megacredits(2);
+      });
+    });
   case MarsBotCorpId.C45_SPIRE:
     return CardRenderer.builder((b) => {
       // EFFECT: a card with 2+ tags adds a science resource here — the

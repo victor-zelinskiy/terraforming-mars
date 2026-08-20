@@ -538,5 +538,8 @@
   "Then it pushes whichever Martian parameter is furthest from done — oxygen, an ocean, or the temperature": "Затем двигает тот марсианский параметр, которому дальше всего до завершения, — кислород, океан или температуру",
   "It goes to the discard afterwards": "После этого карта уходит в сброс",
   "Venus, then the furthest Martian parameter": "Венера, затем самый отстающий марсианский параметр",
-  "Venus moved; Mars was already complete": "Венера сдвинулась; Марс был уже завершён"
+  "Venus moved; Mars was already complete": "Венера сдвинулась; Марс был уже завершён",
+  "Plant, then animal, then Venus": "Растение, затем животное, затем Венера",
+  "Every step Venus rises pays MarsBot ${0} M€ — whoever raised it, the World Government included": "Каждый шаг роста Венеры приносит Боту ${0} М€ — кто бы её ни поднял, включая Мировое правительство",
+  "${0} gained ${1} M€ from its corporation ${2}: Venus rose": "${0} получает ${1} М€ от своей корпорации ${2}: Венера поднялась"
 }

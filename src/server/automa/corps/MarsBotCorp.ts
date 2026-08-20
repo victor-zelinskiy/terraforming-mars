@@ -93,6 +93,16 @@ export type MarsBotCorp = {
   onFailedAction?(game: IGame, reason: FailedActionReason): void;
 
   /**
+   * VENUS just rose by `steps` — dispatched from `Game.increaseVenusScaleLevel`,
+   * the engine's ONE choke point, from beside the HUMAN Aphrodite's own payout
+   * so the two entities cannot drift. That call site sits OUTSIDE the
+   * `phase !== SOLAR` guard, which is exactly why the printed parenthetical
+   * «or the card Government Intervention» needs no special case: B16 raises
+   * Venus with the phase forced to SOLAR to skip TR, and this still fires.
+   */
+  onVenusIncreased?(game: IGame, steps: number): void;
+
+  /**
    * The ROUND START box, run once per generation immediately before the
    * Research Phase (`Game.gotoResearchPhase`). Generation 1 never reaches it:
    * the corporation is selected at that generation's research → action gate,

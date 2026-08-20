@@ -3020,7 +3020,7 @@ const analyzeBotCorporation: Analyzer = (ctx) => {
       if (mc >= 10) {
         stories.push({
           key: 'effect',
-          textKey: 'Venus paid ${0}\'s ${1} by the metre: ${2} silver cubes came off its own track, ${3} M\u20ac in all.',
+          textKey: 'Venus paid ${0}\'s ${1} by the metre: ${2} silver cubes came off its own track, ${3} M€ in all.',
           params: [raw(p.name), raw(corp.name), raw(stat('morningCubesHit')), raw(mc)],
           measure: mc,
           scale: 30,
@@ -3033,6 +3033,19 @@ const analyzeBotCorporation: Analyzer = (ctx) => {
           params: [raw(p.name), raw(corp.name), raw(lobbies)],
           measure: lobbies,
           scale: 6,
+        });
+      }
+    } else if (corp.id === 'C28') {
+      // Aphrodite is one toll and one story: what the whole table's work on
+      // Venus paid a corporation that never lifted a finger for it.
+      const mc = stat('aphroditeMc');
+      if (mc >= 8) {
+        stories.push({
+          key: 'effect',
+          textKey: 'Nobody could touch Venus without paying ${0}\'s ${1}: ${2} step(s) of it, ${3} M€ collected.',
+          params: [raw(p.name), raw(corp.name), raw(stat('aphroditeSteps')), raw(mc)],
+          measure: mc,
+          scale: 30,
         });
       }
     } else if (corp.id === 'C45') {

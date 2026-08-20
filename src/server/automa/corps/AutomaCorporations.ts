@@ -33,6 +33,7 @@ import {MarsBotPhilares} from './MarsBotPhilares';
 import {MarsBotRecyclon} from './MarsBotRecyclon';
 import {MarsBotSplice} from './MarsBotSplice';
 import {MarsBotCelestic} from './MarsBotCelestic';
+import {MarsBotAphrodite} from './MarsBotAphrodite';
 import {MarsBotMorningStar} from './MarsBotMorningStar';
 import {MarsBotViron} from './MarsBotViron';
 import {MarsBotVitor} from './MarsBotVitor';
@@ -97,6 +98,7 @@ export class AutomaCorporations {
     [MarsBotCorpId.C25_VIRON]: MarsBotViron,
     [MarsBotCorpId.C26_CELESTIC]: MarsBotCelestic,
     [MarsBotCorpId.C27_MORNING_STAR]: MarsBotMorningStar,
+    [MarsBotCorpId.C28_APHRODITE]: MarsBotAphrodite,
     [MarsBotCorpId.C45_SPIRE]: MarsBotSpire,
   };
 
@@ -431,6 +433,14 @@ export class AutomaCorporations {
   /** MarsBot took a Failed Action — dispatched from the ONE `failedAction`. */
   public static onFailedAction(game: IGame, reason: FailedActionReason): void {
     AutomaCorporations.activeCorp(game)?.onFailedAction?.(game, reason);
+  }
+
+  /**
+   * Venus rose by `steps`, from ANY source — dispatched from
+   * `Game.increaseVenusScaleLevel` beside the human Aphrodite's own payout.
+   */
+  public static onVenusIncreased(game: IGame, steps: number): void {
+    AutomaCorporations.activeCorp(game)?.onVenusIncreased?.(game, steps);
   }
 
   /**

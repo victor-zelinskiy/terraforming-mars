@@ -450,6 +450,19 @@ describe('insightEngine', () => {
         MarsBotCorpId.C27_MORNING_STAR, 'Morning Star Inc.')).is.empty;
     });
 
+    it('C28 tells its toll as ONE story', () => {
+      const insights = botInsights({aphroditeSteps: 9, aphroditeMc: 18},
+        MarsBotCorpId.C28_APHRODITE, 'Aphrodite');
+      expect(insights).has.length(1);
+      expect(insights[0].textKey).contains('Nobody could touch Venus');
+      expect(insights[0].params.map((p) => p.v)).contains('18');
+    });
+
+    it('C28 keeps quiet when Venus barely moved', () => {
+      expect(botInsights({aphroditeSteps: 2, aphroditeMc: 4},
+        MarsBotCorpId.C28_APHRODITE, 'Aphrodite')).is.empty;
+    });
+
     it('the draft fallback speaks only when no printed effect did', () => {
       const withEffect = botInsights({credicorTriggers: 6, credicorMc: 24, fiveCardDecks: 3},
         MarsBotCorpId.C01_CREDICOR, 'CrediCor');
