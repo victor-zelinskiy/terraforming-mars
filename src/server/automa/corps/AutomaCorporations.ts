@@ -20,6 +20,7 @@ import {MarsBotInventrix} from './MarsBotInventrix';
 import {MarsBotMiningGuild} from './MarsBotMiningGuild';
 import {MarsBotPhobolog} from './MarsBotPhobolog';
 import {MarsBotSaturnSystems} from './MarsBotSaturnSystems';
+import {MarsBotTeractor} from './MarsBotTeractor';
 import {MarsBotDraftResolver} from './MarsBotDraftResolver';
 import {MarsBotEcoline} from './MarsBotEcoline';
 import {MarsBotSpire} from './MarsBotSpire';
@@ -56,6 +57,7 @@ export class AutomaCorporations {
     [MarsBotCorpId.C06_MINING_GUILD]: MarsBotMiningGuild,
     [MarsBotCorpId.C07_PHOBOLOG]: MarsBotPhobolog,
     [MarsBotCorpId.C08_SATURN_SYSTEMS]: MarsBotSaturnSystems,
+    [MarsBotCorpId.C09_TERACTOR]: MarsBotTeractor,
     [MarsBotCorpId.C45_SPIRE]: MarsBotSpire,
   };
 

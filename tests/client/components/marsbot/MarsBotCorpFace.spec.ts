@@ -122,6 +122,17 @@ describe('marsBotCorpRules — the «§ ПРАВИЛА» groups', () => {
     expect(groups.every((g) => g.rows.length > 0)).is.true;
   });
 
+  it('Teractor prints its Earth salary, never the human Earth-card discount', () => {
+    const groups = marsBotCorpAnnotations(MarsBotCorpId.C09_TERACTOR);
+    expect(groups.map((g) => g.labelKey)).deep.eq(['Draft priority', 'Corporation setup', 'Corporation effect']);
+    const text = groups.flatMap((g) => g.rows.map((r) => r.text)).join(' ');
+    expect(text).contains('25');
+    expect(text).contains('Earth track');
+    // The human Teractor starts with 60 M€ and pays 3 less for Earth cards.
+    expect(text).not.contains('60');
+    expect(text).not.match(/discount|cheaper/i);
+  });
+
   it('Saturn Systems prints its Jovian trigger, never the human 42 M€ start', () => {
     const groups = marsBotCorpAnnotations(MarsBotCorpId.C08_SATURN_SYSTEMS);
     expect(groups.map((g) => g.labelKey)).deep.eq(['Draft priority', 'Corporation effect']);

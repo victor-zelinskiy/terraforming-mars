@@ -1,16 +1,23 @@
 import {Tag} from '../../../common/cards/Tag';
-import {Resource} from '../../../common/Resource';
 import {MarsBotCorpId, marsBotCorpInfo} from '../../../common/automa/MarsBotCorpData';
 import {IGame} from '../../IGame';
-import {AutomaTurnLog} from '../AutomaTurnLog';
-import {bumpCorpStat, marsBotOf} from '../AutomaUtil';
 import {MarsBotCorp} from './MarsBotCorp';
+import {TrackPayout, payForTrackAdvance} from './MarsBotTrackPayout';
 
-/** The reward of the printed effect (card C04). */
-const REWARD_MC = 2;
+const INFO = marsBotCorpInfo(MarsBotCorpId.C04_INTERPLANETARY_CINEMATICS);
 
-/** The two tracks the effect names, by their identity TAG (never an index). */
-const PAYING_TAGS: ReadonlyArray<Tag> = [Tag.BUILDING, Tag.EVENT];
+/** The printed payout: 2 M€ per advance of the building or event track. */
+const PAYOUT: TrackPayout = {
+  tracks: [Tag.BUILDING, Tag.EVENT],
+  mc: 2,
+  original: INFO.original,
+  corpName: 'Interplanetary Cinematics',
+  countStat: 'icTrackAdvances',
+  mcStat: 'icMc',
+  logTemplate: (tag) => tag === Tag.BUILDING ?
+    '${0} gained ${1} M€ from its corporation ${2} for advancing the building track' :
+    '${0} gained ${1} M€ from its corporation ${2} for advancing the event track',
+};
 
 /**
  * MarsBot Interplanetary Cinematics — official card C04:
@@ -34,37 +41,13 @@ const PAYING_TAGS: ReadonlyArray<Tag> = [Tag.BUILDING, Tag.EVENT];
  * Failed Action) pays nothing, because the framework only dispatches after a
  * successful step. «Including the starting tags» needs no special case: the
  * corporation is seated before its starting tags resolve, so the two printed
- * event tags run through the very same hook.
+ * event tags run through the very same hook. The payout itself is shared with
+ * C09 Teractor (`MarsBotTrackPayout`) — same sentence, different tracks.
  */
 export const MarsBotInterplanetaryCinematics: MarsBotCorp = {
-  info: marsBotCorpInfo(MarsBotCorpId.C04_INTERPLANETARY_CINEMATICS),
+  info: INFO,
 
   onTrackAdvance(game: IGame, trackIndex: number): void {
-    const automa = game.automa;
-    if (automa === undefined) {
-      return;
-    }
-    // Tag → index every time: the board can be Tharsis/Elysium/Hellas/Venus,
-    // and a board that merged the two tags into one track must still pay once.
-    const tag = PAYING_TAGS.find((t) => automa.board.getTrackIndexForTag(t) === trackIndex);
-    if (tag === undefined) {
-      return;
-    }
-    const bot = marsBotOf(game);
-    const prior = AutomaTurnLog.getCause(game);
-    AutomaTurnLog.setCause(game, {kind: 'corporation'});
-    game.events.beginEffect(bot, {kind: 'corporation', card: this.info.original, owner: bot.color}, 'automa-corporation');
-    try {
-      bot.stock.add(Resource.MEGACREDITS, REWARD_MC, {log: false});
-      game.log(tag === Tag.BUILDING ?
-        '${0} gained ${1} M€ from its corporation ${2} for advancing the building track' :
-        '${0} gained ${1} M€ from its corporation ${2} for advancing the event track',
-      (b) => b.player(bot).number(REWARD_MC).string('Interplanetary Cinematics'));
-    } finally {
-      game.events.endScope();
-      AutomaTurnLog.setCause(game, prior);
-    }
-    bumpCorpStat(game, 'icTrackAdvances');
-    bumpCorpStat(game, 'icMc', REWARD_MC);
+    payForTrackAdvance(game, trackIndex, PAYOUT);
   },
 };

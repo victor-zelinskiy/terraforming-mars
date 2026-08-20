@@ -391,5 +391,9 @@
   "${0} resolved a Jovian tag — its corporation ${1} advances the event track": "${0} разыгрывает юпитерианскую метку — его корпорация ${1} продвигает трек событий",
   "${1} advances the event track of ${0}: a Jovian card was played": "${1} продвигает трек событий игрока ${0}: за столом разыграна юпитерианская карта",
   "Jovian, then space": "Юпитер, затем космос",
-  "Every Jovian tag at the table advances the event track — a human playing a Jovian card, MarsBot resolving a Jovian tag, the starting tag on this card included": "Любая юпитерианская метка за столом продвигает трек событий — человек разыграл юпитерианскую карту, Бот разыграл юпитерианскую метку, включая стартовую метку этой карты"
+  "Every Jovian tag at the table advances the event track — a human playing a Jovian card, MarsBot resolving a Jovian tag, the starting tag on this card included": "Любая юпитерианская метка за столом продвигает трек событий — человек разыграл юпитерианскую карту, Бот разыграл юпитерианскую метку, включая стартовую метку этой карты",
+  "${0} received ${1} M€ from its corporation ${2}": "${0} получает ${1} М€ от корпорации ${2}",
+  "${0} gained ${1} M€ from its corporation ${2} for advancing the Earth track": "${0} получает ${1} М€ от корпорации ${2} за продвижение трека Земли",
+  "The Earth track marker becomes a white cube — a reminder of the effect below": "Маркер трека Земли заменяется белым кубом — напоминание об эффекте ниже",
+  "Each time MarsBot advances the Earth track it gains ${0} M€": "Каждый раз, когда Бот продвигает трек Земли, он получает ${0} М€"
 }

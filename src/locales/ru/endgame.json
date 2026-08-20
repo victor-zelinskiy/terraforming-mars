@@ -863,6 +863,7 @@
     "The Neural Instance of ${0} kept ${1} free neighbours — ${1} VP at scoring.": "Нейроинстанция ${0} сохранила ${1} свободных соседних клеток — ${1} ПО при подсчёте.",
     "The VP icons of ${0}'s played pile paid ${1} VP — the difficulty's own card bonus.": "Значки ПО в стопке ${0} принесли ${1} ПО — карточный бонус этой сложности.",
     "Bot corporation": "Корпорация бота",
+    "Earth kept ${0}'s ${1} on the payroll: every step its Earth office took came with a cheque — ${2} M€ on top of the ${3} it opened with.": "Земля держала корпорацию ${1} у ${0} на жалованье: каждый шаг её земного офиса сопровождался чеком — ${2} М€ сверх тех ${3}, с которыми она начинала.",
     "Jupiter worked both sides of the table for ${0}'s ${1}: every Jovian project played — its own or yours — moved the bot one step further (free steps: ${2}).": "Юпитер работал на обе стороны стола для корпорации ${1} у ${0}: каждый разыгранный юпитерианский проект — свой или чужой — продвигал бота ещё на шаг (бесплатных шагов: ${2}).",
     "Megaprojects were ${1}'s bread and butter: every deal worth 20 M€ or more paid ${0} a commission — ${3} M€ across ${2} deals.": "Мегапроекты кормили корпорацию ${1} у ${0}: каждая сделка от 20 М€ платила ей комиссию — итого ${3} М€ с ${2} сделок.",
     "Mars turned greener wherever ${0}'s ${1} worked: ${2} of its greeneries took root, lifting oxygen ${3} steps.": "Марс зеленел там, где работала корпорация ${1} у ${0}: её озеленения прижились на карте (${2}) и подняли кислород на ${3}.",

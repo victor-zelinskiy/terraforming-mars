@@ -2661,6 +2661,20 @@ const analyzeBotCorporation: Analyzer = (ctx) => {
           scale: 8,
         });
       }
+    } else if (corp.id === 'C09') {
+      // Teractor: an Earth-office salary. The 25 M€ opening gift is flat and
+      // says nothing about the game — the RUNNING income is the story, so the
+      // gift only frames it.
+      const mc = stat('teractorMc');
+      if (mc >= 16) {
+        stories.push({
+          key: 'effect',
+          textKey: 'Earth kept ${0}\'s ${1} on the payroll: every step its Earth office took came with a cheque — ${2} M€ on top of the ${3} it opened with.',
+          params: [raw(p.name), raw(corp.name), raw(mc), raw(25)],
+          measure: mc,
+          scale: 40,
+        });
+      }
     } else if (corp.id === 'C45') {
       // Spire: the science engine — multi-tag cards banked into cities + TR.
       const cities = stat('citiesPlaced');

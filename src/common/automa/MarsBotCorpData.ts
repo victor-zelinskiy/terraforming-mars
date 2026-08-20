@@ -302,6 +302,29 @@ const CORP_INFO: Readonly<Record<MarsBotCorpId, MarsBotCorpInfo>> = {
       ]},
     ],
   },
+  [MarsBotCorpId.C09_TERACTOR]: {
+    id: MarsBotCorpId.C09_TERACTOR,
+    cardNumber: 'C09',
+    original: CardName.TERACTOR,
+    startingTags: [],
+    draftPriority: {type: 'tags', tags: [Tag.EARTH]},
+    corpBonusCards: [],
+    // SETUP: «Replace the tracker for the Earth track with a white cube as a
+    // reminder for this corporation's effect» — the C04 reminder primitive,
+    // and the same legend sentence, because it is the same promise.
+    whiteMarkerTracks: [Tag.EARTH],
+    markerLegend: 'Advancing this track pays MarsBot 2 M€',
+    sections: [
+      {kind: 'draftPriority', lines: [{text: 'Earth'}]},
+      {kind: 'setup', lines: [
+        {icon: 'megacredits', text: 'MarsBot gains ${0} M€', params: ['25']},
+        {icon: 'cube-white', text: 'The Earth track marker becomes a white cube — a reminder of the effect below', muted: true},
+      ]},
+      {kind: 'effect', lines: [
+        {icon: 'megacredits', text: 'Each time MarsBot advances the Earth track it gains ${0} M€', params: ['2']},
+      ]},
+    ],
+  },
   [MarsBotCorpId.C45_SPIRE]: {
     id: MarsBotCorpId.C45_SPIRE,
     cardNumber: 'C45',
@@ -358,6 +381,8 @@ export function corpOwningBonusCard(id: BonusCardId): MarsBotCorpInfo | undefine
  *           doItRightGreeneries / doItRightOceans / doItRightNoEffect.
  * Saturn Systems: saturnEventAdvances (event-track advances the Jovian
  *           trigger produced) split into saturnFromHuman / saturnFromBot.
+ * Teractor: teractorAdvances (Earth-track advances that paid) / teractorMc
+ *           (M€ paid by them; the 25 M€ setup gain is not counted here).
  * Phobolog: phobologSeeded (project cards shuffled into the bonus deck),
  *           phobologCubesHit, phobologBonusCards / phobologProjectCards (what
  *           those cubes actually drew).
