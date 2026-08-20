@@ -114,7 +114,8 @@ export type MarsBotCubeType = 'white' | 'black' | 'credit';
  * What a `'credit'` cube is worth when MarsBot takes it as M€ (C13 Cheung
  * Shing Mars: «gains it as MC»). The physical token is a SILVER resource
  * cube, and Terraforming Mars' cubes are 1 (bronze) / 5 (silver) / 10 (gold)
- * — so a silver one is five.
+ * — so a silver one is five. OWNER-CONFIRMED (2026-08-20); settled, not a
+ * guess to revisit.
  */
 export const MARSBOT_SILVER_CUBE_MC = 5;
 
