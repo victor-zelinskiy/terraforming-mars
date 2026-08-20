@@ -64,6 +64,8 @@ describe('MarsBotCorpFace (.pcard template)', () => {
       'C22 prints NO starting tag — never the human building one').is.empty;
     expect(mountFace(MarsBotCorpId.C23_RECYCLON).findAll('.pcard__tags .pcard-tag'),
       'C23 prints ONE microbe starting tag — never the human microbe+building pair').has.length(1);
+    expect(mountFace(MarsBotCorpId.C24_SPLICE).findAll('.pcard__tags .pcard-tag'),
+      'C24 prints ONE plant starting tag — never the human microbe one').has.length(1);
     expect(mountFace(MarsBotCorpId.C18_ARCADIAN_COMMUNITIES).findAll('.pcard__tags .pcard-tag'),
       'C18 prints ONE building starting tag').has.length(1);
     // C04 prints TWO event tags — both sit on the rail (the bot card's tags,
@@ -304,6 +306,19 @@ describe('marsBotCorpRules — the «§ ПРАВИЛА» groups', () => {
     // MICROBES on its own card for plant production — none of that is here.
     expect(text).not.contains('38');
     expect(text).not.match(/steel|microbe|production/i);
+  });
+
+  it('Splice prints both directions of its toll, never the human 44 M€ start', () => {
+    const groups = marsBotCorpAnnotations(MarsBotCorpId.C24_SPLICE);
+    expect(groups.map((g) => g.labelKey)).deep.eq(['Draft priority', 'Corporation setup', 'Corporation effect']);
+    const text = groups.flatMap((g) => g.rows.map((r) => r.text)).join(' ');
+    expect(text).contains('Research and Development');
+    expect(text).contains('microbe tag');
+    expect(text, 'the opponent\'s own half of the effect is stated too').contains('or a microbe on that card');
+    // The human Splice starts with 44 M€ and its first action reveals a
+    // microbe card INTO HAND — the bot card has neither.
+    expect(text).not.contains('44');
+    expect(text).not.match(/into hand|first action/i);
   });
 
   it('ThorGate prints its cubes and the first-tag clause, never the human discount', () => {

@@ -63,6 +63,20 @@ export type MarsBotCorp = {
   onTagResolved?(game: IGame, tag: Tag): void;
 
   /**
+   * MarsBot received a MICROBE ADVANCEMENT that was not a resolved tag — the
+   * Venus board's printed microbe cell (position 9 advances the Bio track BY a
+   * microbe). RB-B's FAQ resolves it «as if a card with a microbe was played»,
+   * which is why the sanctioned HUMAN reactors already fire there; a bot
+   * corporation whose own clause watches microbes must not be deafer to that
+   * event than its human twin is (C24 Splice).
+   *
+   * Dispatched ONLY from that cell. A microbe STARTING tag is a real
+   * `resolveTag`, so it arrives through `onTagResolved` and must never also
+   * come through here — that would pay twice for one microbe.
+   */
+  onMicrobeAdvancement?(game: IGame): void;
+
+  /**
    * A HUMAN played `card` (the bot's own flips never pass through `playCard`).
    * The one hook that lets a bot corporation watch the other side of the
    * table — C08's Jovian clause is written for both seats.

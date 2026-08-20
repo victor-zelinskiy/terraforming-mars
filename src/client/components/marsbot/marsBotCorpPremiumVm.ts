@@ -289,6 +289,20 @@ function renderDataOf(id: MarsBotCorpId): ICardRenderRoot {
         eb.text('◻', Size.SMALL, true).startEffect.tag(Tag.PLANT);
       });
     });
+  case MarsBotCorpId.C24_SPLICE:
+    return CardRenderer.builder((b) => {
+      // EFFECT, first half — the HUMAN Splice's own printed shape for the
+      // identical sentence: an opponent's microbe tag pays the bot, and the
+      // opponent takes M€ or a microbe on the card they just played.
+      b.effect(undefined, (eb) => {
+        eb.tag(Tag.MICROBE, {all}).startEffect.megacredits(2);
+        eb.nbsp.megacredits(2, {all}).or().resource(CardResource.MICROBE, {all}).asterix();
+      });
+      // EFFECT, second half: the bot's OWN microbe tag pays it double.
+      b.effect(undefined, (eb) => {
+        eb.tag(Tag.MICROBE).startEffect.megacredits(4);
+      });
+    });
   case MarsBotCorpId.C45_SPIRE:
     return CardRenderer.builder((b) => {
       // EFFECT: a card with 2+ tags adds a science resource here — the

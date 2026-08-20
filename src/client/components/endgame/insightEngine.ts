@@ -2845,7 +2845,7 @@ const analyzeBotCorporation: Analyzer = (ctx) => {
       if (pushes >= 3) {
         stories.push({
           key: 'effect',
-          textKey: '${1} turned ${0}\'s space programme into a flywheel: ${2} extra pushes came off it \u2014 some driving space further, the rest shoring up whatever was weakest.',
+          textKey: '${1} turned ${0}\'s space programme into a flywheel: ${2} extra pushes came off it — some driving space further, the rest shoring up whatever was weakest.',
           params: [raw(p.name), raw(corp.name), raw(pushes)],
           measure: pushes,
           scale: 6,
@@ -2945,6 +2945,30 @@ const analyzeBotCorporation: Analyzer = (ctx) => {
           params: [raw(p.name), raw(corp.name), raw(steps)],
           measure: steps,
           scale: 6,
+        });
+      }
+    } else if (corp.id === 'C24') {
+      // Splice bills BOTH seats for the same tag, so it may tell two stories:
+      // what the opponent's biology paid it, and what its own did. Opposite
+      // halves of one card, never welded into one sentence.
+      const fromHuman = stat('spliceHumanMc');
+      const fromOwn = stat('spliceOwnMc');
+      if (fromHuman >= 6) {
+        stories.push({
+          key: 'effect',
+          textKey: 'Every culture ${0} grew was licensed: ${2} microbe tag(s) at their table paid ${1} ${3} M€ in royalties.',
+          params: [raw(p.name), raw(corp.name), raw(stat('spliceHumanTags')), raw(fromHuman)],
+          measure: fromHuman,
+          scale: 20,
+        });
+      }
+      if (fromOwn >= 8) {
+        stories.push({
+          key: 'own-microbes',
+          textKey: 'And ${1} banked its own biology too — ${2} microbe(s) of the bot\'s own were worth ${3} M€.',
+          params: [raw(p.name), raw(corp.name), raw(stat('spliceOwnTags')), raw(fromOwn)],
+          measure: fromOwn,
+          scale: 24,
         });
       }
     } else if (corp.id === 'C45') {

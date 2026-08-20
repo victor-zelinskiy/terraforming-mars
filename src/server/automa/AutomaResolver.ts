@@ -129,6 +129,10 @@ export class AutomaResolver {
     // Splice) resolve as if a card with a microbe was played (RB-B FAQ).
     if (track.definition.microbeTagCells?.includes(track.position)) {
       AutomaHumanTagReactions.onBotMicrobeAdvancement(game);
+      // … and the BOT's own corporation, if its clause watches microbes: the
+      // same FAQ, read symmetrically (C24 Splice). No tag was resolved here,
+      // so `onTagResolved` deliberately does not fire and nothing double-pays.
+      AutomaCorporations.onMicrobeAdvancement(game);
     }
     // A corporation CUBE seeded on this space (RB-B «Special Cubes»): it fires
     // BEFORE the printed icon and IN ADDITION to it — unless the card

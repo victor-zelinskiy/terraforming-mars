@@ -380,6 +380,25 @@ describe('insightEngine', () => {
         MarsBotCorpId.C23_RECYCLON, 'Recyclon')).is.empty;
     });
 
+    it('C24 tells the two seats it bills as SEPARATE stories', () => {
+      const insights = botInsights({spliceHumanTags: 6, spliceHumanMc: 12, spliceOwnTags: 4, spliceOwnMc: 16},
+        MarsBotCorpId.C24_SPLICE, 'Splice');
+      expect(insights).has.length(2);
+      expect(insights.map((i) => i.id).sort()).deep.eq(
+        ['reason.bot-corporation.red', 'reason.bot-corporation.red.own-microbes']);
+      const royalties = insights.find((i) => i.textKey.includes('licensed'));
+      const own = insights.find((i) => i.textKey.includes('its own biology'));
+      expect(royalties, 'what the opponent paid has its own card').is.not.undefined;
+      expect(own, 'what its own microbes paid has its own card').is.not.undefined;
+      expect(royalties!.params.map((p) => p.v)).contains('12');
+      expect(own!.params.map((p) => p.v)).contains('16');
+    });
+
+    it('C24 keeps quiet when neither seat grew much', () => {
+      expect(botInsights({spliceHumanTags: 2, spliceHumanMc: 4, spliceOwnTags: 1, spliceOwnMc: 4},
+        MarsBotCorpId.C24_SPLICE, 'Splice')).is.empty;
+    });
+
     it('the draft fallback speaks only when no printed effect did', () => {
       const withEffect = botInsights({credicorTriggers: 6, credicorMc: 24, fiveCardDecks: 3},
         MarsBotCorpId.C01_CREDICOR, 'CrediCor');

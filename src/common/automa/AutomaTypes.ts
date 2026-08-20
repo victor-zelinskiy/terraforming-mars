@@ -90,6 +90,7 @@ export enum MarsBotCorpId {
   C21_PHARMACY_UNION = 'C21',
   C22_PHILARES = 'C22',
   C23_RECYCLON = 'C23',
+  C24_SPLICE = 'C24',
   C45_SPIRE = 'C45',
 }
 
@@ -118,6 +119,7 @@ export const MARS_BOT_CORP_IDS: ReadonlyArray<MarsBotCorpId> = [
   MarsBotCorpId.C21_PHARMACY_UNION,
   MarsBotCorpId.C22_PHILARES,
   MarsBotCorpId.C23_RECYCLON,
+  MarsBotCorpId.C24_SPLICE,
   MarsBotCorpId.C45_SPIRE,
 ];
 

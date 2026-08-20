@@ -30,6 +30,7 @@ import {MarsBotFactorum} from './MarsBotFactorum';
 import {MarsBotPharmacyUnion} from './MarsBotPharmacyUnion';
 import {MarsBotPhilares} from './MarsBotPhilares';
 import {MarsBotRecyclon} from './MarsBotRecyclon';
+import {MarsBotSplice} from './MarsBotSplice';
 import {MarsBotVitor} from './MarsBotVitor';
 import {MarsBotSaturnSystems} from './MarsBotSaturnSystems';
 import {MarsBotTeractor} from './MarsBotTeractor';
@@ -88,6 +89,7 @@ export class AutomaCorporations {
     [MarsBotCorpId.C21_PHARMACY_UNION]: MarsBotPharmacyUnion,
     [MarsBotCorpId.C22_PHILARES]: MarsBotPhilares,
     [MarsBotCorpId.C23_RECYCLON]: MarsBotRecyclon,
+    [MarsBotCorpId.C24_SPLICE]: MarsBotSplice,
     [MarsBotCorpId.C45_SPIRE]: MarsBotSpire,
   };
 
@@ -395,6 +397,15 @@ export class AutomaCorporations {
    */
   public static onTagResolved(game: IGame, tag: Tag): void {
     AutomaCorporations.activeCorp(game)?.onTagResolved?.(game, tag);
+  }
+
+  /**
+   * MarsBot got a MICROBE ADVANCEMENT with no tag behind it (the Venus board's
+   * printed microbe cell). Dispatched from that ONE site, beside the
+   * sanctioned human reactors the same FAQ already fires there.
+   */
+  public static onMicrobeAdvancement(game: IGame): void {
+    AutomaCorporations.activeCorp(game)?.onMicrobeAdvancement?.(game);
   }
 
   /**

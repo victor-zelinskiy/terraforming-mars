@@ -708,6 +708,29 @@ const CORP_INFO: Readonly<Record<MarsBotCorpId, MarsBotCorpInfo>> = {
       ]},
     ],
   },
+  [MarsBotCorpId.C24_SPLICE]: {
+    id: MarsBotCorpId.C24_SPLICE,
+    cardNumber: 'C24',
+    original: CardName.SPLICE,
+    startingTags: [Tag.PLANT],
+    draftPriority: {type: 'tags', tags: [Tag.MICROBE]},
+    corpBonusCards: [],
+    // «Reveal cards … until you reveal a card with a microbe tag, and shuffle
+    // IT into the bonus deck» — singular, so the C21 disposal.
+    bonusDeckSeed: {tag: Tag.MICROBE, count: 1, shuffle: 'matching-only'},
+    sections: [
+      {kind: 'draftPriority', lines: [{text: 'Microbe'}]},
+      {kind: 'setup', lines: [
+        {icon: 'megacredits', text: 'MarsBot gains ${0} M€', params: ['8']},
+        {icon: 'deck', text: 'Research and Development is destroyed — removed from the game'},
+        {icon: 'cards', text: 'Project cards are revealed until one carries a microbe tag; that card joins the bonus deck'},
+      ]},
+      {kind: 'effect', lines: [
+        {icon: 'megacredits', text: 'A microbe tag its opponent plays pays MarsBot ${0} M€ — and the opponent takes ${1} M€ or a microbe on that card', params: ['2', '2']},
+        {icon: 'megacredits', text: 'Every microbe tag MarsBot resolves pays it ${0} M€', params: ['4']},
+      ]},
+    ],
+  },
   [MarsBotCorpId.C45_SPIRE]: {
     id: MarsBotCorpId.C45_SPIRE,
     cardNumber: 'C45',
@@ -768,6 +791,9 @@ export function corpOwningBonusCard(id: BonusCardId): MarsBotCorpInfo | undefine
  *           (track advances they produced).
  * Astro Drill: astroWhiteCubes / astroBlackCubes / astroSteps — the same
  *           three counters, for the same printed effect on its own track.
+ * Splice: spliceHumanTags / spliceHumanMc (the opponent's microbe tags and
+ *           what they paid the bot), spliceOwnTags / spliceOwnMc (its own),
+ *           spliceSeeded (the microbe card its setup seeded).
  * Recyclon: recyclonCubesHit (white cubes its building track reached) and
  *           recyclonSteps (plant-track advances they bought).
  * Cheung Shing Mars: cheungCubesHit / cheungMc (the silver cubes it collected).

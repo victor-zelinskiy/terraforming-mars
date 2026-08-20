@@ -516,5 +516,13 @@
   "Advancing onto it: MarsBot advances the plant track": "Дойдя до него: Бот продвигает трек растений",
   "Advancing onto a white cube: MarsBot advances the plant track": "Дойдя до белого куба: Бот продвигает трек растений",
   "${0} reached a white cube of its corporation ${1} — the plant track moves": "${0} доходит до белого куба своей корпорации ${1} — движется трек растений",
-  "Construction and biology ran on one belt for ${0}'s ${1}: ${2} time(s) a building milestone fed the plant track directly.": "У ${1} игрока ${0} стройка и биология шли по одному конвейеру: ${2} раз(а) очередная веха строительства напрямую кормила трек растений."
+  "Construction and biology ran on one belt for ${0}'s ${1}: ${2} time(s) a building milestone fed the plant track directly.": "У ${1} игрока ${0} стройка и биология шли по одному конвейеру: ${2} раз(а) очередная веха строительства напрямую кормила трек растений.",
+  "Research and Development is destroyed — removed from the game": "«НИОКР» уничтожается — убирается из игры",
+  "Project cards are revealed until one carries a microbe tag; that card joins the bonus deck": "Карты проектов вскрываются, пока не попадётся карта с меткой микроба; именно она уходит в бонусную колоду",
+  "A microbe tag its opponent plays pays MarsBot ${0} M€ — and the opponent takes ${1} M€ or a microbe on that card": "Метка микроба, разыгранная соперником, приносит Боту ${0} М€ — а соперник берёт ${1} М€ либо микроба на эту карту",
+  "Every microbe tag MarsBot resolves pays it ${0} M€": "Каждая метка микроба, разыгранная Ботом, приносит ему ${0} М€",
+  "${0} destroyed Research and Development from its bonus deck": "${0} уничтожает «НИОКР» из своей бонусной колоды",
+  "${0} gained ${1} M€ from its corporation ${2} for a microbe": "${0} получает ${1} М€ от своей корпорации ${2} за микроба",
+  "Every culture ${0} grew was licensed: ${2} microbe tag(s) at their table paid ${1} ${3} M€ in royalties.": "Каждая культура, выращенная игроком ${0}, была лицензирована: меток микроба за столом — ${2}, и они принесли ${1} роялти на ${3} М€.",
+  "And ${1} banked its own biology too — ${2} microbe(s) of the bot's own were worth ${3} M€.": "А ещё ${1} зарабатывала на собственной биологии: собственных микробов — ${2}, и они стоили ${3} М€."
 }
