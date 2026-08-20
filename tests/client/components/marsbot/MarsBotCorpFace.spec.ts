@@ -48,6 +48,8 @@ describe('MarsBotCorpFace (.pcard template)', () => {
     expect(mountFace(MarsBotCorpId.C45_SPIRE).find('.pcard__tags').exists()).is.true;
     expect(mountFace(MarsBotCorpId.C01_CREDICOR).find('.pcard__tags').exists()).is.false;
     expect(mountFace(MarsBotCorpId.C02_ECOLINE).find('.pcard__tags').exists()).is.false;
+    expect(mountFace(MarsBotCorpId.C15_ROBINSON_INDUSTRIES).find('.pcard__tags').exists(),
+      'C15 prints no starting tag at all').is.false;
     // C04 prints TWO event tags — both sit on the rail (the bot card's tags,
     // never the human card's single building tag).
     // Saturn Systems prints FOUR starting tags — the rail carries them all.
@@ -156,6 +158,20 @@ describe('marsBotCorpRules — the «§ ПРАВИЛА» groups', () => {
     // The human UNMI starts with 40 M€ and buys TR steps for 3 M€.
     expect(text).not.contains('40');
     expect(text).not.match(/action:/i);
+  });
+
+  it('Robinson Industries prints its war chest and its recurring card, never the human production action', () => {
+    const groups = marsBotCorpAnnotations(MarsBotCorpId.C15_ROBINSON_INDUSTRIES);
+    expect(groups.map((g) => g.labelKey)).deep.eq(['Corporation setup', 'Before action phase']);
+    const text = groups.flatMap((g) => g.rows.map((r) => r.text)).join(' ');
+    expect(text).contains('Diversification');
+    expect(text).contains('10');
+    expect(text).contains('least-advanced');
+    // The human Robinson Industries starts with 47 M€ and spends 4 M€ to raise
+    // its LOWEST PRODUCTION. The bot card echoes the shape (4 M€ for the
+    // weakest thing it owns) but pays for a TRACK, and the 47 never appears.
+    expect(text).not.contains('47');
+    expect(text).not.match(/production/i);
   });
 
   it('ThorGate prints its cubes and the first-tag clause, never the human discount', () => {

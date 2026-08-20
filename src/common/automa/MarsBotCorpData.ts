@@ -458,6 +458,26 @@ const CORP_INFO: Readonly<Record<MarsBotCorpId, MarsBotCorpInfo>> = {
       ]},
     ],
   },
+  [MarsBotCorpId.C15_ROBINSON_INDUSTRIES]: {
+    id: MarsBotCorpId.C15_ROBINSON_INDUSTRIES,
+    cardNumber: 'C15',
+    original: CardName.ROBINSON_INDUSTRIES,
+    // The printed card carries NO starting tag and NO draft-priority box —
+    // the top-right tag socket and the priority plate are simply absent
+    // (compare C11, which prints both). Only Setup and Before Action Phase
+    // exist here (RB-B anatomy: "Not all corporations use all fields").
+    startingTags: [],
+    corpBonusCards: [BonusCardId.B28_DIVERSIFICATION],
+    sections: [
+      {kind: 'setup', lines: [
+        {icon: 'megacredits', text: 'MarsBot gains ${0} M€', params: ['10']},
+      ]},
+      {kind: 'beforeActionPhase', lines: [
+        {icon: 'deck', text: 'Add Diversification to MarsBot\'s action deck'},
+        {icon: 'cards', text: 'Diversification advances MarsBot\'s least-advanced track, then costs it ${0} M€ if it can pay', params: ['4'], muted: true},
+      ]},
+    ],
+  },
   [MarsBotCorpId.C45_SPIRE]: {
     id: MarsBotCorpId.C45_SPIRE,
     cardNumber: 'C45',
@@ -517,6 +537,12 @@ export function corpOwningBonusCard(id: BonusCardId): MarsBotCorpInfo | undefine
  * Point Luna: lunaWhiteCubes / lunaBlackCubes (cubes reached) and lunaSteps
  *           (track advances they produced).
  * Cheung Shing Mars: cheungCubesHit / cheungMc (the silver cubes it collected).
+ * Robinson Industries: diversificationPlayed (times its own B28 came up),
+ *           diversificationPushes (advances of the least-advanced track it
+ *           actually landed — a maxed track is a Failed Action, not a push),
+ *           diversificationMc (M€ the card charged for them) and
+ *           diversificationFree (plays too poor to pay; the flat 10 M€ setup
+ *           gift is not counted here).
  * UNMI:     unmiExtraCards (extra bonus cards its Before-Action-Phase box put
  *           into the action deck), subsidyPlayed / subsidyTr (its own B31).
  * Thorgate: thorgateCubesHit / thorgateCardsDrawn (cards the cubes flipped) /

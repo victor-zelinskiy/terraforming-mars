@@ -225,6 +225,22 @@ describe('insightEngine', () => {
       expect(insights[0].id).eq('reason.bot-corporation.red');
     });
 
+    it('C15 names the price of every push it bought', () => {
+      const insights = botInsights({diversificationPlayed: 5, diversificationPushes: 5, diversificationMc: 20},
+        MarsBotCorpId.C15_ROBINSON_INDUSTRIES, 'Robinson Industries');
+      expect(insights).has.length(1);
+      expect(insights[0].textKey).contains('bought ${2} steps');
+      expect(insights[0].textKey, 'the cost is stated in table language').contains('victory points');
+      expect(insights[0].params.map((p) => p.v), 'the M€ it paid is in the sentence').contains('20');
+    });
+
+    it('C15 says so when the war chest ran dry instead of hiding it', () => {
+      const insights = botInsights({diversificationPlayed: 6, diversificationPushes: 6, diversificationMc: 8, diversificationFree: 4},
+        MarsBotCorpId.C15_ROBINSON_INDUSTRIES, 'Robinson Industries');
+      expect(insights).has.length(1);
+      expect(insights[0].textKey).contains('came free once the war chest ran dry');
+    });
+
     it('the draft fallback speaks only when no printed effect did', () => {
       const withEffect = botInsights({credicorTriggers: 6, credicorMc: 24, fiveCardDecks: 3},
         MarsBotCorpId.C01_CREDICOR, 'CrediCor');

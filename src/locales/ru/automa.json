@@ -426,5 +426,15 @@
   "Advancing onto a white cube: MarsBot advances its least-advanced track (the topmost if tied)": "Дойдя до белого куба: Бот продвигает свой самый отстающий трек (при равенстве — верхний)",
   "Advancing onto a black cube: MarsBot advances the space track": "Дойдя до чёрного куба: Бот продвигает трек космоса",
   "Advancing onto it: MarsBot advances its least-advanced track": "Дойдя до него: Бот продвигает свой самый отстающий трек",
-  "Advancing onto it: MarsBot advances the space track": "Дойдя до него: Бот продвигает трек космоса"
+  "Advancing onto it: MarsBot advances the space track": "Дойдя до него: Бот продвигает трек космоса",
+  "Robinson Industries: MarsBot advances its least-advanced track, then loses 4 M€ if it can afford it. Recurs into the action deck every generation.": "Robinson Industries: Бот продвигает свой самый отстающий трек, затем теряет 4 М€, если ему хватает. Возвращается в колоду действий каждое поколение.",
+  "Add Diversification to MarsBot's action deck": "Добавьте «Диверсификацию» в колоду действий Бота",
+  "Diversification advances MarsBot's least-advanced track, then costs it ${0} M€ if it can pay": "«Диверсификация» продвигает самый отстающий трек Бота, а затем стоит ему ${0} М€, если есть чем платить",
+  "MarsBot advances its least-advanced track (the topmost if tied)": "Бот продвигает свой самый отстающий трек (при равенстве — верхний)",
+  "Then it loses ${0} M€ — only when it has that much": "Затем теряет ${0} М€ — только если столько есть",
+  "${0} shuffled Diversification into its action deck": "${0} замешивает «Диверсификацию» в свою колоду действий",
+  "${0} could not cover the ${1} M€ of Diversification — the step was free": "${0} не смог покрыть ${1} М€ «Диверсификации» — шаг достался бесплатно",
+  "Bought a step on its weakest track for ${0} M€": "Купил шаг на своём слабейшем треке за ${0} М€",
+  "A free step on its weakest track — the treasury was empty": "Бесплатный шаг на слабейшем треке — казна пуста",
+  "Every track is already finished": "Все треки уже пройдены до конца"
 }

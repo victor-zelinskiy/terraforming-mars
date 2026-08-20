@@ -2754,6 +2754,25 @@ const analyzeBotCorporation: Analyzer = (ctx) => {
           scale: 6,
         });
       }
+    } else if (corp.id === 'C15') {
+      // Robinson Industries: what the player saw is a bot with no soft spot —
+      // whenever a programme fell behind, it simply bought the step. And the
+      // price is real score: MarsBot's leftover M€ become VP at final
+      // scoring, so the war chest and the board are the same resource.
+      const pushes = stat('diversificationPushes');
+      const mc = stat('diversificationMc');
+      const free = stat('diversificationFree');
+      if (pushes >= 3) {
+        stories.push({
+          key: 'effect',
+          textKey: free > 0 ?
+            'No programme stayed behind for long at ${0}\'s ${1}: it bought ${2} steps on whatever lagged, ${3} M€ out of pocket — and ${4} of them came free once the war chest ran dry.' :
+            'No programme stayed behind for long at ${0}\'s ${1}: it bought ${2} steps on whatever lagged, paying ${3} M€ that would otherwise have been victory points.',
+          params: [raw(p.name), raw(corp.name), raw(pushes), raw(mc), raw(free)],
+          measure: pushes,
+          scale: 6,
+        });
+      }
     } else if (corp.id === 'C45') {
       // Spire: the science engine — multi-tag cards banked into cities + TR.
       const cities = stat('citiesPlaced');

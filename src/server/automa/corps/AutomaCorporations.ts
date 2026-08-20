@@ -21,6 +21,7 @@ import {MarsBotInventrix} from './MarsBotInventrix';
 import {MarsBotMiningGuild} from './MarsBotMiningGuild';
 import {MarsBotPhobolog} from './MarsBotPhobolog';
 import {MarsBotPointLuna} from './MarsBotPointLuna';
+import {MarsBotRobinsonIndustries} from './MarsBotRobinsonIndustries';
 import {MarsBotSaturnSystems} from './MarsBotSaturnSystems';
 import {MarsBotTeractor} from './MarsBotTeractor';
 import {MarsBotTharsisRepublic} from './MarsBotTharsisRepublic';
@@ -69,6 +70,7 @@ export class AutomaCorporations {
     [MarsBotCorpId.C12_UNMI]: MarsBotUnmi,
     [MarsBotCorpId.C13_CHEUNG_SHING_MARS]: MarsBotCheungShingMars,
     [MarsBotCorpId.C14_POINT_LUNA]: MarsBotPointLuna,
+    [MarsBotCorpId.C15_ROBINSON_INDUSTRIES]: MarsBotRobinsonIndustries,
     [MarsBotCorpId.C45_SPIRE]: MarsBotSpire,
   };
 

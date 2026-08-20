@@ -105,7 +105,7 @@ export const BONUS_CARD_INFO: Readonly<Record<BonusCardId, BonusCardInfo>> = {
   [BonusCardId.B25_DO_IT_RIGHT]: {name: 'Do It Right', text: 'Inventrix: MarsBot pushes the first global parameter that is 1-2 steps from a bonus, or places an ocean next to 2 oceans — otherwise nothing. Recurs into the action deck every generation.'},
   [BonusCardId.B26_VENUSIAN_LOBBY]: {name: 'Venusian Lobby', text: 'A corporation-specific bonus card (outside the POC scope).'},
   [BonusCardId.B27_BUILD_BUILD_BUILD]: {name: 'Build Build Build', text: 'A corporation-specific bonus card (outside the POC scope).'},
-  [BonusCardId.B28_DIVERSIFICATION]: {name: 'Diversification', text: 'A corporation-specific bonus card (outside the POC scope).'},
+  [BonusCardId.B28_DIVERSIFICATION]: {name: 'Diversification', text: 'Robinson Industries: MarsBot advances its least-advanced track, then loses 4 M€ if it can afford it. Recurs into the action deck every generation.'},
   [BonusCardId.B29_GRAY_EMINENCE]: {name: 'Gray Eminence', text: 'A corporation-specific bonus card (outside the POC scope).'},
   [BonusCardId.B30_INTERFACE_HYPERLINK]: {name: 'Interface Hyperlink', text: 'A corporation-specific bonus card (outside the POC scope).'},
   [BonusCardId.B31_GOVERNMENT_SUBSIDY]: {name: 'Government Subsidy', text: 'UNMI: MarsBot raises its TR 1 step.'},
@@ -310,6 +310,18 @@ export function buildBonusCardView(id: BonusCardId, ctx: BonusCardContext): Bonu
         {icon: 'tr', text: 'MarsBot raises its TR ${0} step', params: ['1']},
       ],
       fate: FATE_DISCARD,
+    };
+  case BonusCardId.B28_DIVERSIFICATION:
+    // Robinson Industries' corporation-specific card (official B28). The two
+    // printed sentences are INDEPENDENT: the advance always happens, the
+    // payment only when the bot can cover it in full.
+    return {
+      name,
+      lines: [
+        {icon: 'cards', text: 'MarsBot advances its least-advanced track (the topmost if tied)'},
+        {icon: 'megacredits', text: 'Then it loses ${0} M€ — only when it has that much', params: ['4']},
+      ],
+      fate: {kind: 'recurring', text: 'At the beginning of every generation it is shuffled back into MarsBot\'s action deck'},
     };
   case BonusCardId.B23_RAPID_SPROUTING:
     // Ecoline's corporation-specific card (official B23).

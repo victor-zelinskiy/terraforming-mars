@@ -85,6 +85,19 @@ describe('buildBonusCardView — the card face resolved for THIS game', () => {
     expect(view.fate.kind, 'not recurring, not destroyed').eq('discard');
   });
 
+  it('Diversification (B28) states the push and the price it charges for it', () => {
+    const view = buildBonusCardView(BonusCardId.B28_DIVERSIFICATION, BASE);
+    expect(view.name).eq('Diversification');
+    expect(view.lines).has.length(2);
+    expect(view.lines[0].text).to.include('least-advanced');
+    expect(view.lines[0].text, 'the printed tie-break is part of the rule').to.include('topmost');
+    expect(view.lines[1]).to.deep.include({icon: 'megacredits', params: ['4']});
+    expect(view.lines[1].text, '«if able» is stated, never silently dropped').to.include('only when it has that much');
+    expect(view.fate.kind, 'it recurs forever, it is never destroyed').eq('recurring');
+    // No expansion forks this card.
+    expect(buildBonusCardView(BonusCardId.B28_DIVERSIFICATION, VENUS)).deep.eq(view);
+  });
+
   it('an out-of-scope card degrades to its printed summary', () => {
     const view = buildBonusCardView(BonusCardId.B21_PARTY_POLITICS, BASE);
     expect(view.lines).has.length(1);
