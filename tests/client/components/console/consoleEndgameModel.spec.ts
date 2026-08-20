@@ -39,7 +39,8 @@ function breakdown(partial: Partial<VictoryPointsBreakdown>): VictoryPointsBreak
     merged.total = merged.terraformRating + merged.milestones + merged.awards + merged.greenery +
       merged.city + merged.victoryPoints + merged.moonHabitats + merged.moonMines + merged.moonRoads +
       merged.planetaryTracks + merged.escapeVelocity + merged.deltaProject +
-      (merged.automa !== undefined ? merged.automa.mcToVp + merged.automa.neuralInstance + merged.automa.cardVp : 0);
+      (merged.automa !== undefined ?
+        merged.automa.mcToVp + merged.automa.neuralInstance + merged.automa.cardVp + merged.automa.corpVp : 0);
   }
   return merged;
 }
@@ -151,16 +152,17 @@ describe('consoleEndgameModel', () => {
 
   it('dissolves the legacy «MarsBot scoring» into the card families — no automa category survives', () => {
     const bot = player('neutral', 'MarsBot', {
-      automa: {mcToVp: 5, mcPerVp: 8, neuralInstance: 2, cardVp: 3, corpVp: 0},
+      automa: {mcToVp: 5, mcPerVp: 8, neuralInstance: 2, cardVp: 3, corpVp: 2},
     });
     const vm = vmOf([player('red', 'A', {victoryPoints: 4}), bot], {}, ['neutral']);
     expect(vm.categories.some((c) => (c.key as string) === 'automa')).to.eq(false);
     const cards = vm.categories.find((c) => c.key === 'cards')!;
-    // mcToVp → resource, neuralInstance → conditional, cardVp → fixed.
+    // mcToVp → resource, neuralInstance → conditional, cardVp + corpVp → fixed.
     expect(cards.subs.find((s) => s.key === 'cards-resource')?.values['neutral']).to.eq(5);
     expect(cards.subs.find((s) => s.key === 'cards-conditional')?.values['neutral']).to.eq(2);
-    expect(cards.subs.find((s) => s.key === 'cards-fixed')?.values['neutral']).to.eq(3);
-    expect(cards.values['neutral']).to.eq(10);
+    expect(cards.subs.find((s) => s.key === 'cards-fixed')?.values['neutral'],
+      'the corporation\'s own endgame VP is a FIXED card point, beside the printed icons').to.eq(3 + 2);
+    expect(cards.values['neutral']).to.eq(12);
   });
 
   it('maps EVERY legacy bot point exactly once: mapped families ≡ cards bucket + automa summands', () => {
@@ -168,12 +170,12 @@ describe('consoleEndgameModel', () => {
       // The bot can also carry ordinary victoryPoints entries (Turmoil/Colony VP).
       victoryPoints: 3,
       detailsCards: [{cardName: 'Colony VP', victoryPoint: 3, kind: 'conditional'}],
-      automa: {mcToVp: 7, mcPerVp: 6, neuralInstance: 1, cardVp: 2, corpVp: 0},
+      automa: {mcToVp: 7, mcPerVp: 6, neuralInstance: 1, cardVp: 2, corpVp: 4},
     });
     const vm = vmOf([player('red', 'A', {}), bot], {}, ['neutral']);
     const cards = vm.categories.find((c) => c.key === 'cards')!;
     const mapped = cards.subs.reduce((acc, s) => acc + (s.values['neutral'] ?? 0), 0);
-    expect(mapped).to.eq(3 + 7 + 1 + 2); // nothing lost, nothing doubled
+    expect(mapped).to.eq(3 + 7 + 1 + 2 + 4); // nothing lost, nothing doubled
     expect(cards.values['neutral']).to.eq(mapped);
     expect(categorySum(vm, 'neutral')).to.eq(vm.rows.find((r) => r.isBot)?.finalTotal);
   });

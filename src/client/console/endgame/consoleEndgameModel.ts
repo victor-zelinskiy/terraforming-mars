@@ -154,6 +154,7 @@ const AUTOMA_SEGMENT_FAMILY: Readonly<Record<string, string>> = {
   'automa-mc': 'cards-resource', // M€ → VP conversion: the bot's engine income
   'automa-neural': 'cards-conditional', // Neural Instance: board-state dependent
   'automa-cards': 'cards-fixed', // printed icons of the played pile
+  'automa-corp': 'cards-fixed', // the bot corporation's own endgame clause
 };
 
 /** The card families in the console reveal order (user-facing dramaturgy:
