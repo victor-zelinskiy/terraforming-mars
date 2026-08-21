@@ -523,6 +523,18 @@ function renderDataOf(id: MarsBotCorpId): ICardRenderRoot {
         eb.plants(5).startAction.tag(Tag.PLANT);
       });
     });
+  case MarsBotCorpId.C41_KUIPER_COOPERATIVE:
+    return CardRenderer.builder((b) => {
+      // EFFECT: the two cube colours, in the same «◻ / ◼ : outcome» shape
+      // C03 and C07 use for their own cubes — heat from one, water from the
+      // other, which is what the human card hurls in from the Kuiper belt.
+      b.effect(undefined, (eb) => {
+        eb.text('◻', Size.SMALL, true).startEffect.temperature(1);
+      });
+      b.effect(undefined, (eb) => {
+        eb.text('◼', Size.SMALL, true).startEffect.oceans(1, {size: Size.SMALL});
+      });
+    });
   case MarsBotCorpId.C45_SPIRE:
     return CardRenderer.builder((b) => {
       // EFFECT: a card with 2+ tags adds a science resource here — the

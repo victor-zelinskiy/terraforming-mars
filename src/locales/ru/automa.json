@@ -615,5 +615,12 @@
   "Every plant, microbe or animal tag on this track also puts a plant on the corporation card": "Любая метка растения, микроба или животного на этом треке также кладёт растение на карту корпорации",
   "${0} put ${1} plants on its corporation ${2}": "${0} кладёт растений на свою корпорацию ${2}: ${1}",
   "${0} grew a plant on its corporation ${1}": "${0} выращивает растение на своей корпорации ${1}",
-  "${0} spent ${1} plants off its corporation ${2} to advance the plant track": "${0} тратит ${1} растений со своей корпорации ${2}, чтобы продвинуть трек растений"
+  "${0} spent ${1} plants off its corporation ${2} to advance the plant track": "${0} тратит ${1} растений со своей корпорации ${2}, чтобы продвинуть трек растений",
+  "Advancing onto it: MarsBot raises the temperature 1 step": "Дойдя до него: Бот повышает температуру на 1 шаг",
+  "Advancing onto it: MarsBot places an ocean tile": "Дойдя до него: Бот выкладывает океан",
+  "Advancing onto a white cube raises the temperature ${0} step": "Дойдя до белого куба, Бот повышает температуру на ${0} шаг",
+  "Advancing onto a black cube places an ocean tile": "Дойдя до чёрного куба, Бот выкладывает океан",
+  "The space it lands on still resolves its own printed icon": "Клетка, на которую он встаёт, всё равно отрабатывает свой печатный значок",
+  "${0} reached a white cube of its corporation ${1} — the temperature rises": "${0} дошёл до белого куба своей корпорации ${1} — температура растёт",
+  "${0} reached a black cube of its corporation ${1} — an ocean is placed": "${0} дошёл до чёрного куба своей корпорации ${1} — выкладывается океан"
 }

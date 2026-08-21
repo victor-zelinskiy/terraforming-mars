@@ -3299,6 +3299,30 @@ const analyzeBotCorporation: Analyzer = (ctx) => {
           scale: 25,
         });
       }
+    } else if (corp.id === 'C41') {
+      // Kuiper mines ONE track with two kinds of milestone, so the story is
+      // what those milestones did to Mars — heat and water counted apart,
+      // because the player felt them as two different things.
+      const heat = stat('kuiperTemperatureSteps');
+      const oceans = stat('kuiperOceans');
+      if (heat + oceans >= 3) {
+        stories.push({
+          key: 'effect',
+          textKey: 'One track did all of it at ${0}: ${1} mined the space track for ${2} degree(s) of heat and ${3} ocean(s), none of them paid for.',
+          params: [raw(p.name), raw(corp.name), raw(heat), raw(oceans)],
+          measure: heat + oceans,
+          scale: 6,
+        });
+      }
+      if (oceans >= 3) {
+        stories.push({
+          key: 'water',
+          textKey: 'The water came from beyond Neptune — ${2} ocean(s) were laid by the cubes of ${1} alone.',
+          params: [raw(p.name), raw(corp.name), raw(oceans)],
+          measure: oceans,
+          scale: 4,
+        });
+      }
     } else if (corp.id === 'C45') {
       // Spire: the science engine — multi-tag cards banked into cities + TR.
       const cities = stat('citiesPlaced');

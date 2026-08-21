@@ -1117,6 +1117,43 @@ const CORP_INFO: Readonly<Record<MarsBotCorpId, MarsBotCorpInfo>> = {
       ]},
     ],
   },
+  [MarsBotCorpId.C41_KUIPER_COOPERATIVE]: {
+    id: MarsBotCorpId.C41_KUIPER_COOPERATIVE,
+    cardNumber: 'C41',
+    original: CardName.KUIPER_COOPERATIVE,
+    // BOTH are printed here (verified by crop): the corner box carries a space
+    // TAG and the plate below it a space PRIORITY — the C11 ThorGate shape,
+    // unlike C19, whose corner is empty.
+    startingTags: [Tag.SPACE],
+    draftPriority: {type: 'tags', tags: [Tag.SPACE]},
+    corpBonusCards: [],
+    // SETUP box, verbatim: WHITE on the space track #4, #8, #12; BLACK on the
+    // space track #7, #10, #14 — all six on the one track its priority feeds.
+    trackCubes: [
+      {tag: Tag.SPACE, position: 4, cubeType: 'white'},
+      {tag: Tag.SPACE, position: 7, cubeType: 'black'},
+      {tag: Tag.SPACE, position: 8, cubeType: 'white'},
+      {tag: Tag.SPACE, position: 10, cubeType: 'black'},
+      {tag: Tag.SPACE, position: 12, cubeType: 'white'},
+      {tag: Tag.SPACE, position: 14, cubeType: 'black'},
+    ],
+    cubeLegend: {
+      white: 'Advancing onto it: MarsBot raises the temperature 1 step',
+      black: 'Advancing onto it: MarsBot places an ocean tile',
+    },
+    sections: [
+      {kind: 'draftPriority', lines: [{text: 'Space'}]},
+      {kind: 'setup', lines: [
+        {icon: 'cube-white', text: 'A white cube on the space track spaces ${0}', params: ['#4, #8, #12']},
+        {icon: 'cube-black', text: 'A black cube on the space track spaces ${0}', params: ['#7, #10, #14']},
+      ]},
+      {kind: 'effect', lines: [
+        {icon: 'temperature', text: 'Advancing onto a white cube raises the temperature ${0} step', params: ['1']},
+        {icon: 'ocean', text: 'Advancing onto a black cube places an ocean tile'},
+        {icon: 'cards', text: 'The space it lands on still resolves its own printed icon', muted: true},
+      ]},
+    ],
+  },
   [MarsBotCorpId.C45_SPIRE]: {
     id: MarsBotCorpId.C45_SPIRE,
     cardNumber: 'C45',
@@ -1199,6 +1236,10 @@ export function corpOwningBonusCard(id: BonusCardId): MarsBotCorpInfo | undefine
  *           the card destroys itself), hyperlinkDrawn (project cards that draw
  *           put in front of it) and hyperlinkResolved (the two it kept and
  *           played; fewer only when the deck could not supply them).
+ * Kuiper Cooperative: kuiperWhiteCubes / kuiperTemperatureSteps (the white
+ *           cubes it reached and the raises that landed — a completed
+ *           temperature is a Failed Action, not a step) and kuiperBlackCubes
+ *           / kuiperOceans (the black ones and the oceans they laid).
  * Ecotec:  ecotecPlantsAdded (plants its effect put on the card, the setup
  *           gift and the starting tag included), ecotecMicrobeCells (Venus
  *           microbe advancements it also counted as a tag) and

@@ -647,6 +647,22 @@ describe('insightEngine', () => {
         MarsBotCorpId.C40_ECOTEC, 'EcoTec')).is.empty;
     });
 
+    it('C41 tells the mined track and the water as SEPARATE stories', () => {
+      const insights = botInsights({kuiperWhiteCubes: 3, kuiperTemperatureSteps: 3, kuiperBlackCubes: 3, kuiperOceans: 3},
+        MarsBotCorpId.C41_KUIPER_COOPERATIVE, 'Kuiper Cooperative');
+      expect(insights).has.length(2);
+      const keys = insights.map((i) => i.textKey).join(' | ');
+      expect(keys).contains('One track did all of it');
+      expect(keys).contains('beyond Neptune');
+    });
+
+    it('C41 keeps the water line quiet when the black cubes never came up', () => {
+      const insights = botInsights({kuiperWhiteCubes: 3, kuiperTemperatureSteps: 3, kuiperBlackCubes: 0, kuiperOceans: 0},
+        MarsBotCorpId.C41_KUIPER_COOPERATIVE, 'Kuiper Cooperative');
+      expect(insights).has.length(1);
+      expect(insights[0].textKey).contains('One track did all of it');
+    });
+
     it('C46 tells its one moment as ONE story', () => {
       const insights = botInsights({hyperlinkPlayed: 1, hyperlinkDrawn: 9, hyperlinkResolved: 2},
         MarsBotCorpId.C46_TYCHO_MAGNETICS, 'Tycho Magnetics');

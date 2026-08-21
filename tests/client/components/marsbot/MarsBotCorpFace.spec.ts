@@ -101,6 +101,8 @@ describe('MarsBotCorpFace (.pcard template)', () => {
       'C39 prints TWO — building and space').has.length(2);
     expect(mountFace(MarsBotCorpId.C40_ECOTEC).findAll('.pcard__tags .pcard-tag'),
       'C40 prints ONE plant starting tag').has.length(1);
+    expect(mountFace(MarsBotCorpId.C41_KUIPER_COOPERATIVE).findAll('.pcard__tags .pcard-tag'),
+      'C41 prints ONE space starting tag BESIDE its priority plate').has.length(1);
     // C04 prints TWO event tags — both sit on the rail (the bot card's tags,
     // never the human card's single building tag).
     // Saturn Systems prints FOUR starting tags — the rail carries them all.
@@ -538,6 +540,21 @@ describe('marsBotCorpRules — the «§ ПРАВИЛА» groups', () => {
     // shoreline rate, which the bot card prints for itself).
     expect(text).not.contains('54');
     expect(text).not.match(/production/i);
+  });
+
+  it('Kuiper Cooperative prints both cube colours, never the human asteroid action', () => {
+    const groups = marsBotCorpAnnotations(MarsBotCorpId.C41_KUIPER_COOPERATIVE);
+    expect(groups.map((g) => g.labelKey))
+      .deep.eq(['Draft priority', 'Corporation setup', 'Corporation effect']);
+    const text = groups.flatMap((g) => g.rows.map((r) => r.text)).join(' ');
+    expect(text, 'where the cubes sit').contains('#4, #8, #12');
+    expect(text, 'and the black ones').contains('#7, #10, #14');
+    expect(text, 'what white does').contains('temperature');
+    expect(text, 'what black does').contains('ocean');
+    // The human Kuiper Cooperative starts with 33 M€ and has an action that
+    // throws asteroids for heat — none of that is here.
+    expect(text).not.contains('33');
+    expect(text).not.match(/asteroid|action/i);
   });
 
   it('Ecotec prints its bio-tag greenhouse, never the human choice of plant or microbe', () => {

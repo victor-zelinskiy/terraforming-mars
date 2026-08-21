@@ -873,5 +873,7 @@
   "Nothing at ${0} was allowed to run away: ${1} lifted the bot weakest track ${2} time(s) and dragged its strongest one back ${3}.": "Ничему у ${0} не давали оторваться: ${1} поднимала самый слабый трек бота ${2} раз(а) и оттягивала назад самый сильный — ${3}.",
   "The off years paid dividends — ${2} M€ came in simply for how far the bot laggard had already come.": "Нечётные годы приносили дивиденды: ${2} M€ пришли просто за то, как далеко уже успел уйти отстающий трек бота.",
   "Every living thing counted twice for ${0}: ${1} banked ${2} plant(s) and cashed them into ${3} extra step(s) up the plant track.": "Всё живое засчитывалось дважды (у ${0}): ${1} накопила растений — ${2} — и обменяла их на лишние шаги по треку растений: ${3}.",
-  "The greenhouse never stood empty — ${2} plant(s) passed through ${1} over the game.": "Оранжерея не пустовала: за партию через ${1} прошло растений — ${2}."
+  "The greenhouse never stood empty — ${2} plant(s) passed through ${1} over the game.": "Оранжерея не пустовала: за партию через ${1} прошло растений — ${2}.",
+  "One track did all of it at ${0}: ${1} mined the space track for ${2} degree(s) of heat and ${3} ocean(s), none of them paid for.": "Один трек сделал всё (у ${0}): ${1} выминала из трека космоса шаги тепла (${2}) и океаны (${3}) — и ни за что из этого не платила.",
+  "The water came from beyond Neptune — ${2} ocean(s) were laid by the cubes of ${1} alone.": "Вода пришла из-за Нептуна: океанов, выложенных одними только кубами ${1} — ${2}."
 }

@@ -46,6 +46,7 @@ import {MarsBotPristar} from './MarsBotPristar';
 import {MarsBotTerraLabs} from './MarsBotTerraLabs';
 import {MarsBotUtopiaInvest} from './MarsBotUtopiaInvest';
 import {MarsBotEcotec} from './MarsBotEcotec';
+import {MarsBotKuiperCooperative} from './MarsBotKuiperCooperative';
 import {MarsBotMorningStar} from './MarsBotMorningStar';
 import {MarsBotViron} from './MarsBotViron';
 import {MarsBotVitor} from './MarsBotVitor';
@@ -123,6 +124,7 @@ export class AutomaCorporations {
     [MarsBotCorpId.C38_TERRALABS]: MarsBotTerraLabs,
     [MarsBotCorpId.C39_UTOPIA_INVEST]: MarsBotUtopiaInvest,
     [MarsBotCorpId.C40_ECOTEC]: MarsBotEcotec,
+    [MarsBotCorpId.C41_KUIPER_COOPERATIVE]: MarsBotKuiperCooperative,
     [MarsBotCorpId.C45_SPIRE]: MarsBotSpire,
     [MarsBotCorpId.C46_TYCHO_MAGNETICS]: MarsBotTychoMagnetics,
   };
