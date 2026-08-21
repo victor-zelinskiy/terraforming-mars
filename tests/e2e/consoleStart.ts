@@ -1233,7 +1233,11 @@ function pickInitialCards(step: WirePrompt, plan: SeedPlan): Array<string> {
     return [calm ?? offered[0]];
   }
   if (title === SELECT_PRELUDE_TITLE) {
-    const wanted = [...(plan.first === undefined ? [] : [plan.first]), ...(plan.preludes ?? [])];
+    // DEDUPED: `first` (which prelude to PLAY first) and `preludes` (which to
+    // TAKE) legitimately name the same card, and picking it twice is a
+    // response the server accepts — the player then holds two copies of one
+    // prelude and the probe blames the product for it.
+    const wanted = [...new Set([...(plan.first === undefined ? [] : [plan.first]), ...(plan.preludes ?? [])])];
     return take(wanted, step.min ?? 2);
   }
   if (title === SELECT_CEO_TITLE) {

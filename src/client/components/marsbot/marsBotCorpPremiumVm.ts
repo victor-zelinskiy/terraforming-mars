@@ -48,6 +48,11 @@ const TERRALABS_TR_LOSS = 8;
 /** C43's printed setup gain. */
 const PALLADIN_SETUP_MC = 5;
 
+/** C44's printed numbers. */
+const SAGITTA_SETUP_MC = 8;
+const SAGITTA_DEAD_CARD_MC = 10;
+const SAGITTA_THIN_CARD_MC = 1;
+
 /** The symbolic rule rows of each official bot card (C01–C21 / C45). */
 function renderDataOf(id: MarsBotCorpId): ICardRenderRoot {
   switch (id) {
@@ -567,6 +572,21 @@ function renderDataOf(id: MarsBotCorpId): ICardRenderRoot {
       // C41's, so a cube reads the same on every bot face.
       b.effect(undefined, (eb) => {
         eb.text('◻', Size.SMALL, true).text('◼', Size.SMALL, true).startEffect.temperature(1);
+      });
+    });
+  case MarsBotCorpId.C44_SAGITTA_FRONTIER_SERVICES:
+    return CardRenderer.builder((b) => {
+      // SETUP: the printed 8 M€, the bare row C38/C43 use for a setup line.
+      b.megacredits(SAGITTA_SETUP_MC);
+      // EFFECT, both clauses in the human twin's own printed shapes: a card
+      // with NO tags pays 10 (its «no tags» symbol), and a card with exactly
+      // one pays 1 (an empty tag slot plus the asterisk that sends the reader
+      // to the rules, where «exactly» is stated in words).
+      b.effect(undefined, (eb) => {
+        eb.noTags().startEffect.megacredits(SAGITTA_DEAD_CARD_MC);
+      });
+      b.effect(undefined, (eb) => {
+        eb.emptyTag().asterix().startEffect.megacredits(SAGITTA_THIN_CARD_MC);
       });
     });
   case MarsBotCorpId.C45_SPIRE:

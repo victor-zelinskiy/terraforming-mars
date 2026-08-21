@@ -1,4 +1,4 @@
-import {test, expect, Page, APIRequestContext} from '@playwright/test';
+import {test, expect, Page} from '@playwright/test';
 import {
   corporationsExcluding, createGameWithCards, fetchPlayerModel, openConsole,
   seedGameOverApi, sendPlayerInput, soloGameConfig,
@@ -58,30 +58,32 @@ async function workspaceVisible(page: Page): Promise<boolean> {
 }
 
 /**
- * Spend ONE bonus action over the API — deliberately with «Sell patents», the
- * one branch of the action menu that needs no payment, no board space and no
- * follow-up, so the probe's subject stays the SCREEN rather than whatever
- * action it happened to pick.
+ * Spend ONE bonus action FROM THE BROWSER — LT wheel → «Конвертация тепла»
+ * (the one basic action that needs no payment, no board space and no
+ * follow-up, and `testMode` guarantees the heat).
  *
- * It also asserts, on the wire, the two verbs the menu must NOT carry.
+ * Deliberately NOT over the API: the client refuses a poll-driven refresh
+ * while the VIEWER holds a prompt (partial input must survive), so answering
+ * this player's own prompt from another HTTP client would leave the browser
+ * looking at a state the server left minutes ago — a probe artifact that says
+ * nothing about the product.
  */
-async function spendOneBonus(request: APIRequestContext, playerId: string): Promise<void> {
-  const model = await fetchPlayerModel(request, playerId);
-  const wf = model.waitingFor as {
-    options?: Array<{title?: unknown, cards?: Array<{name: string}>}>,
-  } | undefined;
-  expect(wf, 'a bonus action menu is live').toBeDefined();
-  const options = wf?.options ?? [];
-  const titleOf = (o: {title?: unknown}) => String((o.title as {message?: string})?.message ?? o.title ?? '');
-  expect(options.map(titleOf), 'the bonus menu never offers Pass').not.toContain('Pass for this generation');
-  expect(options.map(titleOf), 'the bonus menu never offers End Turn').not.toContain('End Turn');
+async function spendOneBonus(page: Page): Promise<void> {
+  await page.keyboard.press('Comma');
+  await expect(page.locator('.con-quick'), 'the basic-actions wheel').toBeVisible({timeout: 10_000});
+  await page.keyboard.press('ArrowRight'); // the heat-conversion slot
+  await page.waitForTimeout(1500);
+}
 
-  const index = options.findIndex((o) => titleOf(o) === 'Sell patents');
-  expect(index, `«Sell patents» is offered (${options.map(titleOf).join(' | ')})`).toBeGreaterThan(-1);
-  const card = options[index]?.cards?.[0]?.name;
-  expect(card, 'the hand has a card to sell').toBeDefined();
-  await sendPlayerInput(request, playerId,
-    {type: 'or', index, response: {type: 'card', cards: [card as string]}});
+/** The two turn-control slots' reasons, read out of the open LT wheel. */
+async function turnControlReasons(page: Page): Promise<Array<string>> {
+  await page.keyboard.press('Comma');
+  await expect(page.locator('.con-quick'), 'the LT wheel opens on the live bonus menu')
+    .toBeVisible({timeout: 10_000});
+  const reasons = await page.locator('.con-quick__slot-reason').allTextContents();
+  await page.keyboard.press('Escape');
+  await expect(page.locator('.con-quick'), 'the wheel closes again').toHaveCount(0, {timeout: 10_000});
+  return reasons;
 }
 
 test.describe('console — Head Start bonus actions', () => {
@@ -89,7 +91,14 @@ test.describe('console — Head Start bonus actions', () => {
     const playerId = await createGameWithCards(request, [], {config: preludeConfig()});
     // The API seeder answers the pregame and stops on the first ACTION MENU —
     // which, with Head Start played, is the first BONUS action.
-    await seedGameOverApi(request, playerId, {preludes: [HEAD_START, OTHER_PRELUDE], first: HEAD_START});
+    await seedGameOverApi(request, playerId, {
+      preludes: [HEAD_START, OTHER_PRELUDE],
+      first: HEAD_START,
+      // A non-empty hand: «Фора» pays 2 M€ per project card held, and it gives
+      // the bonus menu a follow-up-free branch («Sell patents») the probe can
+      // spend a bonus on without turning into a test of standard projects.
+      buy: 3,
+    });
 
     const seeded = await fetchPlayerModel(request, playerId);
     const marker = (seeded.waitingFor as {bonusActionPrompt?: {granted?: number}} | undefined)?.bonusActionPrompt;
@@ -119,26 +128,28 @@ test.describe('console — Head Start bonus actions', () => {
     expect(await page.locator('.con-start').count(), 'the frame survives the trip').toBeGreaterThan(0);
 
     // ── 3. THE WHEEL REFUSES THE TURN-CONTROL VERBS, AND SAYS WHY ───────────
-    // LT is HELD (the quick wheel is a press-and-release selector).
-    await page.keyboard.down('Comma');
-    const wheel = page.locator('.con-quick');
-    await expect(wheel, 'the LT wheel opens on the live bonus menu').toBeVisible({timeout: 10_000});
-    const reasons = await page.locator('.con-quick__slot-reason').allTextContents();
-    await page.keyboard.up('Comma');
+    const reasons = await turnControlReasons(page);
     // The two turn-control slots must NAME the rule. Falling back to «сейчас
     // недоступно» over a plainly live menu is exactly what this replaces, so
     // the assertion is on the WORD, not on «some reason exists».
     expect(reasons.join(' | '), 'the wheel explains the withheld turn control')
       .toMatch(/бонусн/i);
-    // …and the rest of the wheel is untouched: at least one basic action is
-    // still startable during a bonus.
-    expect(reasons.length, 'only some slots are blocked').toBeLessThan(5);
+    // …and the rest of the wheel is untouched: most basic actions stay live.
+    expect(reasons.length, 'only the two turn-control slots are blocked').toBeLessThan(4);
 
     // ── 4. THE LAST BONUS BRINGS THE WORKSPACE BACK ─────────────────────────
-    await spendOneBonus(request, playerId);
-    await spendOneBonus(request, playerId);
+    // The chip is the readout every seat shares, so it doubles as the honest
+    // probe that the spend actually registered.
+    const counter = page.locator('.con-status__pstatus-counter').first();
+    await expect(counter, 'the first bonus is standing').toHaveText('1/2');
+
+    await spendOneBonus(page);
+    await expect(counter, 'the chip walks 1/2 → 2/2').toHaveText('2/2', {timeout: 25_000});
+    expect(await workspaceVisible(page), 'the board keeps the screen between bonuses').toBe(false);
+
+    await spendOneBonus(page);
     await expect
-      .poll(() => workspaceVisible(page), {timeout: 30_000, message: 'the workspace returns to finish the preparation'})
+      .poll(() => workspaceVisible(page), {timeout: 40_000, message: 'the workspace returns to finish the preparation'})
       .toBe(true);
     // …and it returns to the DEPLOYMENT, not to the bonus stage it just left.
     await expect(page.locator('.con-start__bonusact')).toHaveCount(0);

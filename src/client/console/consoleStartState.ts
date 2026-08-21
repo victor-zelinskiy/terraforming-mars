@@ -599,7 +599,16 @@ export function deploymentJourneyItems(signals: {
     items.push({
       id: 'preludes',
       label: 'Preludes',
-      state: beforePreludes ? 'locked' : (signals.preludesLeft > 0 ? 'current' : 'completed'),
+      // `available` = STARTED BUT NOT WHERE YOU ARE. Exactly the prelude
+      // chapter's state while the bonus actions it just handed out are being
+      // spent: not finished (a prelude is still in hand), not current (the
+      // player is out on the board), and never a ✓ that would have to be taken
+      // back. Only ONE chapter is `current` at a time, which is what makes the
+      // rail readable at couch distance.
+      state: beforePreludes ? 'locked' :
+        (signals.preludesLeft > 0 ?
+          (signals.bonusActionsPending === true ? 'available' : 'current') :
+          'completed'),
     });
   }
   // The BONUS chapter sits between the preludes and the first action — which is

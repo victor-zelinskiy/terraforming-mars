@@ -21476,6 +21476,26 @@ body.con-start-barshold .con-status {
         }
     }
 
+    /* THE STAGE OWNS THE ROOM — the same law the first-action briefing
+       follows: while the hand-off briefing stands it is what the player is
+       looking at, so the deployment's queue recedes behind it (the briefing is
+       centred and would otherwise cross the remaining prelude's card).
+
+       Deliberately an OPACITY recede and NOT the first-action stage's GSAP
+       pose: nothing moves, every rect stays measurable for the flights that
+       resume the moment the workspace comes back, and the beat is ONE PRESS
+       long — a full room-recede would be a bigger motion than the thing it
+       makes room for. Opacity survives perf mode (only `filter` and
+       `text-shadow` are cut there).
+
+       «РАЗЫГРАНО» deliberately KEEPS its light: the plate does not reach it,
+       and it is the record of what the player has already done — the one piece
+       of the deployment that stays true while they are away on the board. */
+    &--bonusroom &__queuecol {
+        opacity: .16;
+        transition: opacity calc(220ms * var(--motion-scale, 1)) ease;
+    }
+
     /* ── THE BONUS-ACTION BRIEFING — the hand-off announcement ────────────
        Unlike the first-action briefing this stage seats NO card: the prelude
        that granted the bonuses is already lying in «РАЗЫГРАНО», one row down,

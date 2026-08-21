@@ -639,5 +639,9 @@
   "${0} gained ${1} M€ from its corporation ${2} at setup": "${0} получает ${1} М€ от своей корпорации ${2} при подготовке",
   "${0} moved a white cube onto its corporation ${1} — it waits there for a black one": "${0} переносит белый куб на свою корпорацию ${1} — тот ждёт там чёрного",
   "${0} moved a black cube onto its corporation ${1} — it waits there for a white one": "${0} переносит чёрный куб на свою корпорацию ${1} — тот ждёт там белого",
-  "${0} paired a white and a black cube on its corporation ${1} — the temperature rises": "${0} собирает пару из белого и чёрного куба на своей корпорации ${1} — температура растёт"
+  "${0} paired a white and a black cube on its corporation ${1} — the temperature rises": "${0} собирает пару из белого и чёрного куба на своей корпорации ${1} — температура растёт",
+  "A card with NO tags pays ${0} M€ instead of the usual Failed Action compensation": "Карта БЕЗ меток приносит ${0} М€ вместо обычной компенсации за неудачное действие",
+  "A card with exactly ${0} tag pays MarsBot ${1} M€ on top of what the tag does": "Карта ровно с ${0} меткой даёт Боту ещё ${1} М€ сверх того, что делает сама метка",
+  "${0} was paid the whole ${1} M€ by its corporation ${2} — a card with no tags is what it lives on": "${0} получает все ${1} М€ от своей корпорации ${2} — карта без меток для неё и есть заработок",
+  "${0} gained ${1} M€ from its corporation ${2} for resolving a card with a single tag": "${0} получает ${1} М€ от корпорации ${2} за розыгрыш карты с единственной меткой"
 }

@@ -1240,6 +1240,24 @@ const CORP_INFO: Readonly<Record<MarsBotCorpId, MarsBotCorpInfo>> = {
       ]},
     ],
   },
+  [MarsBotCorpId.C44_SAGITTA_FRONTIER_SERVICES]: {
+    id: MarsBotCorpId.C44_SAGITTA_FRONTIER_SERVICES,
+    cardNumber: 'C44',
+    original: CardName.SAGITTA_FRONTIER_SERVICES,
+    // Two tags in the corner box, and NO priority plate under it (verified by
+    // crop against C43, which prints both).
+    startingTags: [Tag.POWER, Tag.EVENT],
+    corpBonusCards: [],
+    sections: [
+      {kind: 'setup', lines: [
+        {icon: 'megacredits', text: 'MarsBot gains ${0} M€', params: ['8']},
+      ]},
+      {kind: 'effect', lines: [
+        {icon: 'megacredits', text: 'A card with NO tags pays ${0} M€ instead of the usual Failed Action compensation', params: ['10']},
+        {icon: 'megacredits', text: 'A card with exactly ${0} tag pays MarsBot ${1} M€ on top of what the tag does', params: ['1', '1']},
+      ]},
+    ],
+  },
   [MarsBotCorpId.C45_SPIRE]: {
     id: MarsBotCorpId.C45_SPIRE,
     cardNumber: 'C45',
@@ -1326,6 +1344,10 @@ export function corpOwningBonusCard(id: BonusCardId): MarsBotCorpInfo | undefine
  *           Before-Action-Phase box actually took) and nirgalSkipped (the
  *           generations it could take neither — the printed box says that
  *           is no Failed Action).
+ * Sagitta Frontier Services: sagittaDeadCards (cards with no tags whose
+ *           Failed Action it turned into the printed 10 M€), sagittaBonusMc
+ *           (how much MORE than the standard compensation that was) and
+ *           sagittaThinCards / sagittaThinMc (the exactly-one-tag clause).
  * Palladin Shipping: palladinCubesMoved (every cube that left the mat for
  *           the card), palladinPairs (how many of them met their opposite
  *           colour) and palladinTemperatureSteps (the pairs whose step

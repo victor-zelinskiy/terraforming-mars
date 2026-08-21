@@ -30,7 +30,11 @@ export function failedAction(game: IGame, reason: FailedActionReason): void {
     throw new Error('Not an automa game');
   }
   const bot = marsBotOf(game);
-  const mc = automa.difficulty === 'easy' ? FAILED_ACTION_MC_EASY : FAILED_ACTION_MC;
+  const standard = automa.difficulty === 'easy' ? FAILED_ACTION_MC_EASY : FAILED_ACTION_MC;
+  // …and the corporation may name a different number for THIS failure (C44's
+  // «10 MC instead of 5» for a card with no tags). Asked before the payment, so
+  // the line below states the amount the bot actually gets.
+  const mc = AutomaCorporations.failedActionCompensation(game, reason, standard);
   bot.stock.add(Resource.MEGACREDITS, mc);
   game.log(FAILED_ACTION_TEMPLATES[reason], (b) => b.player(bot).number(mc));
   AutomaTurnLog.note(game, {kind: 'failed', reason, mc}, {consumeLog: true});

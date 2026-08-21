@@ -25,6 +25,7 @@
          // «РАЗЫГРАНО» paint for the frames before the pose lands — the
          // reported flash of a shelf that immediately disappears again.
          'con-start--roomheld': firstActionOwnsRoom && !roomPosed,
+         'con-start--bonusroom': bonusActionPanelShown,
        }"
        role="dialog" :aria-label="$t('Start of the game')">
     <div class="con-start__bg" aria-hidden="true"></div>
@@ -1455,7 +1456,14 @@ export default defineComponent({
         corpPending: this.deploymentFlowStage === 'corp',
         payPending: this.deploymentFlowStage === 'pay',
         boughtCards: this.ceremonyBoughtNames.length > 0,
-        preludesLeft: this.deploymentFlowStage === 'preludes' ? Math.max(1, this.preludeRail.length) : 0,
+        // HONEST WHATEVER OWNS THE FLOW STAGE. A bonus action does not finish
+        // the prelude chapter — the player's remaining prelude is still there,
+        // waiting behind the bonuses — and a rail that ticks «ПРОЛОГИ ✓» and
+        // then re-opens it two presses later moves BACKWARDS in front of the
+        // player, which is the one thing a linear progress readout may not do.
+        preludesLeft: this.deploymentFlowStage === 'preludes' ?
+          Math.max(1, this.preludeRail.length) :
+          this.preludeRail.length,
         hasPreludes: this.state.preludes.length > 0 || this.preludeRail.length > 0 ||
           this.playedPreludes.length > 0 || this.deploymentFlowStage === 'preludes',
         // The stage EXISTS from the FIRST FRAME of the deployment when the

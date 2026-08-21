@@ -3374,6 +3374,30 @@ const analyzeBotCorporation: Analyzer = (ctx) => {
           scale: 6,
         });
       }
+    } else if (corp.id === 'C44') {
+      // Sagitta earns from the thin end of the deck, so its story is the cards
+      // nobody else could use — and the single-tag small change is its own
+      // quieter line, because the two clauses are separate businesses.
+      const dead = stat('sagittaDeadCards');
+      const thin = stat('sagittaThinCards');
+      if (dead >= 2) {
+        stories.push({
+          key: 'effect',
+          textKey: 'The dead ends of the deck paid at ${0}: ${1} turned ${2} card(s) with no tags into ${3} M€.',
+          params: [raw(p.name), raw(corp.name), raw(dead), raw(dead * 10)],
+          measure: dead,
+          scale: 6,
+        });
+      }
+      if (thin >= 6) {
+        stories.push({
+          key: 'thin',
+          textKey: 'The thin freight added up too — ${2} single-tag card(s) paid ${1} another ${3} M€.',
+          params: [raw(p.name), raw(corp.name), raw(thin), raw(stat('sagittaThinMc'))],
+          measure: thin,
+          scale: 20,
+        });
+      }
     } else if (corp.id === 'C45') {
       // Spire: the science engine — multi-tag cards banked into cities + TR.
       const cities = stat('citiesPlaced');

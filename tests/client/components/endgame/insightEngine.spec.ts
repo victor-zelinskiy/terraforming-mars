@@ -707,6 +707,28 @@ describe('insightEngine', () => {
         MarsBotCorpId.C43_PALLADIN_SHIPPING, 'Palladin Shipping')).is.empty;
     });
 
+    it('C44 tells the dead cards and the thin freight as SEPARATE stories', () => {
+      const insights = botInsights({sagittaDeadCards: 4, sagittaBonusMc: 20, sagittaThinCards: 8, sagittaThinMc: 8},
+        MarsBotCorpId.C44_SAGITTA_FRONTIER_SERVICES, 'Sagitta Frontier Services');
+      expect(insights).has.length(2);
+      const keys = insights.map((i) => i.textKey).join(' | ');
+      expect(keys).contains('dead ends of the deck');
+      expect(keys).contains('thin freight');
+    });
+
+    it('C44 keeps the thin line quiet when few single-tag cards came up', () => {
+      const insights = botInsights({sagittaDeadCards: 3, sagittaBonusMc: 15, sagittaThinCards: 2, sagittaThinMc: 2},
+        MarsBotCorpId.C44_SAGITTA_FRONTIER_SERVICES, 'Sagitta Frontier Services');
+      expect(insights).has.length(1);
+      expect(insights[0].textKey).contains('dead ends of the deck');
+      expect(insights[0].params.map((p) => p.v)).contains('30');
+    });
+
+    it('C44 keeps quiet when the deck was never that thin', () => {
+      expect(botInsights({sagittaDeadCards: 1, sagittaThinCards: 3, sagittaThinMc: 3},
+        MarsBotCorpId.C44_SAGITTA_FRONTIER_SERVICES, 'Sagitta Frontier Services')).is.empty;
+    });
+
     it('C46 tells its one moment as ONE story', () => {
       const insights = botInsights({hyperlinkPlayed: 1, hyperlinkDrawn: 9, hyperlinkResolved: 2},
         MarsBotCorpId.C46_TYCHO_MAGNETICS, 'Tycho Magnetics');

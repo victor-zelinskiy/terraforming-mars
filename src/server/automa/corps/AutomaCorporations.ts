@@ -49,6 +49,7 @@ import {MarsBotEcotec} from './MarsBotEcotec';
 import {MarsBotKuiperCooperative} from './MarsBotKuiperCooperative';
 import {MarsBotNirgalEnterprises} from './MarsBotNirgalEnterprises';
 import {MarsBotPalladinShipping} from './MarsBotPalladinShipping';
+import {MarsBotSagittaFrontierServices} from './MarsBotSagittaFrontierServices';
 import {MarsBotMorningStar} from './MarsBotMorningStar';
 import {MarsBotViron} from './MarsBotViron';
 import {MarsBotVitor} from './MarsBotVitor';
@@ -129,6 +130,7 @@ export class AutomaCorporations {
     [MarsBotCorpId.C41_KUIPER_COOPERATIVE]: MarsBotKuiperCooperative,
     [MarsBotCorpId.C42_NIRGAL_ENTERPRISES]: MarsBotNirgalEnterprises,
     [MarsBotCorpId.C43_PALLADIN_SHIPPING]: MarsBotPalladinShipping,
+    [MarsBotCorpId.C44_SAGITTA_FRONTIER_SERVICES]: MarsBotSagittaFrontierServices,
     [MarsBotCorpId.C45_SPIRE]: MarsBotSpire,
     [MarsBotCorpId.C46_TYCHO_MAGNETICS]: MarsBotTychoMagnetics,
   };
@@ -509,6 +511,15 @@ export class AutomaCorporations {
   /** MarsBot took a Failed Action — dispatched from the ONE `failedAction`. */
   public static onFailedAction(game: IGame, reason: FailedActionReason): void {
     AutomaCorporations.activeCorp(game)?.onFailedAction?.(game, reason);
+  }
+
+  /**
+   * What the seated corporation pays for THIS failed action, given the
+   * difficulty's standard amount (C44). Asked BEFORE the money moves, so one
+   * journal line states one number.
+   */
+  public static failedActionCompensation(game: IGame, reason: FailedActionReason, standard: number): number {
+    return AutomaCorporations.activeCorp(game)?.failedActionCompensation?.(game, reason) ?? standard;
   }
 
   /**

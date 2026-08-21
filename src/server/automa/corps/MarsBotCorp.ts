@@ -94,6 +94,23 @@ export type MarsBotCorp = {
   onFailedAction?(game: IGame, reason: FailedActionReason): void;
 
   /**
+   * What a FAILED ACTION pays instead of the usual compensation — C44 Sagitta
+   * Frontier Services' «MarsBot gains 10 MC (instead of 5MC)» for a card with
+   * no tags. Returning a number REPLACES the amount whole; returning nothing
+   * leaves it alone.
+   *
+   * The other half of this pair is `onFailedAction`, and the two are
+   * deliberately different: that one runs AFTER the money and reads a FINISHED
+   * event (C26: «in ADDITION to the usual MC»), this one runs BEFORE it — so
+   * the journal line and the turn recording state ONE number, the one the card
+   * prints, instead of a standard payment plus a correction.
+   *
+   * PURE: it is a question, not a move. Counters and journal lines belong in
+   * `onFailedAction`, which is asked once per failed action by construction.
+   */
+  failedActionCompensation?(game: IGame, reason: FailedActionReason): number | void;
+
+  /**
    * VENUS just rose by `steps` — dispatched from `Game.increaseVenusScaleLevel`,
    * the engine's ONE choke point, from beside the HUMAN Aphrodite's own payout
    * so the two entities cannot drift. That call site sits OUTSIDE the

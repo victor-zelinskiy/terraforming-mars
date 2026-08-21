@@ -107,6 +107,8 @@ describe('MarsBotCorpFace (.pcard template)', () => {
       'C42 prints THREE — building, power and plant — and no priority plate').has.length(3);
     expect(mountFace(MarsBotCorpId.C43_PALLADIN_SHIPPING).findAll('.pcard__tags .pcard-tag'),
       'C43 prints TWO — space and event — BESIDE its priority plate').has.length(2);
+    expect(mountFace(MarsBotCorpId.C44_SAGITTA_FRONTIER_SERVICES).findAll('.pcard__tags .pcard-tag'),
+      'C44 prints TWO — power and event — and no priority plate').has.length(2);
     // C04 prints TWO event tags — both sit on the rail (the bot card's tags,
     // never the human card's single building tag).
     // Saturn Systems prints FOUR starting tags — the rail carries them all.
@@ -610,6 +612,20 @@ describe('marsBotCorpRules — the «§ ПРАВИЛА» groups', () => {
     expect(black.find('.pcard__res-count').text()).eq('3');
     expect(black.find('.pcard__res-icon').attributes('style') ?? '', 'its dark twin')
       .contains('cube-black.png');
+  });
+
+  it('Sagitta prints both halves of its thin-card trade, never the human production', () => {
+    const groups = marsBotCorpAnnotations(MarsBotCorpId.C44_SAGITTA_FRONTIER_SERVICES);
+    expect(groups.map((g) => g.labelKey)).deep.eq(['Corporation setup', 'Corporation effect']);
+    const text = groups.flatMap((g) => g.rows.map((r) => r.text)).join(' ');
+    expect(text, 'the setup payment').contains('8 M€');
+    expect(text, 'what a dead card pays').contains('10 M€');
+    expect(text, 'and that it replaces the failure compensation').match(/Failed Action/i);
+    expect(text, 'the single-tag clause').contains('1 M€');
+    // The human Sagitta starts with 31 M€, raises two productions and draws a
+    // card with no tag — none of that is here.
+    expect(text).not.contains('31');
+    expect(text).not.match(/production|draw/i);
   });
 
   it('Ecotec prints its bio-tag greenhouse, never the human choice of plant or microbe', () => {

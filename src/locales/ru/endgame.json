@@ -879,5 +879,7 @@
   "The schedule was the whole corporation at ${0}: ${1} claimed ${2} milestone(s) and funded ${3} award(s), every one of them free and none of them costing a turn.": "Вся корпорация была расписанием (у ${0}): ${1} заявила достижений — ${2} — и учредила наград — ${3}, и всё это даром и не тратя хода.",
   "Some generations the office signed nothing — ${2} of them passed with no milestone met and no award led by ${1}.": "Иногда контора не подписывала ничего: поколений, где ${1} не выполнила ни одного достижения и не лидировала ни в одной награде — ${2}.",
   "Every degree arrived in two halves at ${0}: ${1} matched ${2} pair(s) of cubes and warmed Mars ${3} time(s).": "Каждый градус приходил двумя половинами (у ${0}): ${1} собрала пар кубов — ${2} — и столько же раз грела Марс: ${3}.",
-  "Some freight never found its match — ${2} cube(s) were still waiting on ${1} when the game ended.": "Часть груза так и не дождалась пары: к концу игры на ${1} оставалось кубов — ${2}."
+  "Some freight never found its match — ${2} cube(s) were still waiting on ${1} when the game ended.": "Часть груза так и не дождалась пары: к концу игры на ${1} оставалось кубов — ${2}.",
+  "The dead ends of the deck paid at ${0}: ${1} turned ${2} card(s) with no tags into ${3} M€.": "Тупики колоды приносили доход (у ${0}): ${1} превратила карты без меток (${2}) в ${3} М€.",
+  "The thin freight added up too — ${2} single-tag card(s) paid ${1} another ${3} M€.": "Мелкий груз тоже накопился: карты с единственной меткой (${2}) принесли ${1} ещё ${3} М€."
 }
