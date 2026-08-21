@@ -3,7 +3,7 @@ import {Message} from '../common/logs/Message';
 import {PlayerInputType} from '../common/input/PlayerInputType';
 import {InputResponse} from '../common/inputs/InputResponse';
 import {IPlayer} from './IPlayer';
-import {PlayerInputModel, StartGamePromptMeta, AwardFundingPromptMeta, ChoiceContext, ColonyBonusCollectMeta, DeckPickPromptMeta, DiscardPromptMeta, DraftPromptMeta, FinalGreeneryPromptMeta, PlacementContext, VenusBonusPromptMeta, SpendHeatPromptMeta} from '../common/models/PlayerInputModel';
+import {PlayerInputModel, StartGamePromptMeta, BonusActionPromptMeta, AwardFundingPromptMeta, ChoiceContext, ColonyBonusCollectMeta, DeckPickPromptMeta, DiscardPromptMeta, DraftPromptMeta, FinalGreeneryPromptMeta, PlacementContext, VenusBonusPromptMeta, SpendHeatPromptMeta} from '../common/models/PlayerInputModel';
 import {BotAttackPromptMeta} from '../common/models/BotAttackPromptModel';
 
 export interface PlayerInput {
@@ -14,6 +14,9 @@ export interface PlayerInput {
     // Explicit start-of-game-flow marker (see StartGamePromptMeta). Serialized
     // centrally in ServerModel.getWaitingFor.
     startGamePrompt?: StartGamePromptMeta;
+    // Explicit "this action menu is a card-granted BONUS action" marker (see
+    // BonusActionPromptMeta). Serialized centrally in ServerModel.getWaitingFor.
+    bonusActionPrompt?: BonusActionPromptMeta;
     // Explicit award-funding marker (see AwardFundingPromptMeta). Routes the
     // prompt to the modern AwardsOverlay. Serialized in ServerModel.getWaitingFor.
     awardFundingPrompt?: AwardFundingPromptMeta;
@@ -102,6 +105,7 @@ export abstract class BasePlayerInput<T> implements PlayerInput {
   public optional?: boolean;
   public annotation: string | undefined;
   public startGamePrompt: StartGamePromptMeta | undefined;
+  public bonusActionPrompt: BonusActionPromptMeta | undefined;
   public awardFundingPrompt: AwardFundingPromptMeta | undefined;
   public choiceContext: ChoiceContext | undefined;
   public placementContext: PlacementContext | undefined;
@@ -159,6 +163,12 @@ export abstract class BasePlayerInput<T> implements PlayerInput {
   /** Mark this prompt as belonging to the start-of-game flow (chainable). */
   public markStartGamePrompt(meta: StartGamePromptMeta): this {
     this.startGamePrompt = meta;
+    return this;
+  }
+
+  /** Mark this action menu as a card-granted BONUS action (chainable). */
+  public markBonusActionPrompt(meta: BonusActionPromptMeta): this {
+    this.bonusActionPrompt = meta;
     return this;
   }
 

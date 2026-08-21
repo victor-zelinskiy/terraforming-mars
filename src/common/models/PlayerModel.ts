@@ -75,7 +75,18 @@ export type PublicPlayerModel = {
   // label show e.g. "ПОДДЕРЖКА" (World Government Terraforming) vs.
   // "ДЕЛЕГАТ" (Turmoil delegate placement) instead of a generic catch-all.
   // Undefined for plain phase-derived prompts (action / drafting / research).
-  waitingForKind?: 'globalsupport' | 'delegate';
+  // ('bonusaction' — a card-granted action taken OUTSIDE the turn's own two,
+  //  e.g. Head Start's «immediately take 2 actions». Detected STRUCTURALLY from
+  //  the prompt's `bonusActionPrompt` marker: the menu deliberately carries the
+  //  ordinary action-menu title so every other client surface keeps treating it
+  //  as one.)
+  waitingForKind?: 'globalsupport' | 'delegate' | 'bonusaction';
+  /** Card-granted bonus actions still owed, INCLUDING the one being taken now
+   *  (undefined when none). Public so an opponent's chip can read «БОНУСНОЕ
+   *  ДЕЙСТВИЕ 1/2» instead of a generic phase label. */
+  bonusActions?: number;
+  /** How many the granting card handed out — the `M` of the `N/M` readout. */
+  bonusActionsGranted?: number;
   lastCardPlayed?: CardName;
   megacredits: number;
   megacreditProduction: number;

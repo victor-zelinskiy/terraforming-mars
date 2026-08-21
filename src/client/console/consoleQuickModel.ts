@@ -149,6 +149,18 @@ export type LtQuickContext = {
   endTurnAvailable: boolean,
   /** «Pass for this generation» is offered right now. */
   passAvailable: boolean,
+  /**
+   * The TURN-CONTROL verbs («Пропустить ход» / «Пас») are withheld for a
+   * reason of their OWN, which outranks their generic ones but — unlike
+   * `blockedReason` — leaves every other verb alone.
+   *
+   * The case is a card-granted BONUS action (Head Start): the menu is live and
+   * the player can play cards, build standard projects and convert resources,
+   * but they cannot concede a generation that has not started. Saying
+   * «сейчас недоступно» there is arithmetic about a state the player is not in;
+   * this names the real rule. '' = no such reason (the ordinary gate applies).
+   */
+  turnControlReason?: string,
   convertPlantsAvailable: boolean,
   convertHeatAvailable: boolean,
   plantsNeeded: number,
@@ -157,6 +169,15 @@ export type LtQuickContext = {
 
 /** LT — the basic-actions selector: standard projects / turn control / conversions. */
 export function buildLtQuickEntries(ctx: LtQuickContext): Array<QuickEntry> {
+  // The turn-control verbs answer to their own reason when one is set — before
+  // the generic gate, so «недоступно после первого действия» can never overrule
+  // «бонусные действия нельзя пропустить».
+  const turnControlGate = (available: boolean, reason: string): {available: boolean, reason: string, soft?: boolean} => {
+    if (ctx.turnControlReason !== undefined && ctx.turnControlReason !== '') {
+      return {available: false, reason: ctx.turnControlReason, soft: true};
+    }
+    return turnGate(available, reason);
+  };
   const turnGate = (available: boolean, reason: string): {available: boolean, reason: string, soft?: boolean} => {
     // A set-aside decision blocks EVERY basic action, whatever its own
     // arithmetic says — and it blocks even the ones the server still offers.
@@ -185,11 +206,11 @@ export function buildLtQuickEntries(ctx: LtQuickContext): Array<QuickEntry> {
       // wheel icons instead of a colour emoji. Skip a turn = fast-forward;
       // Pass = concede the generation (a flag).
       id: 'skipTurn', slot: 'up', label: 'Skip turn', barIcon: 'skip-turn',
-      ...turnGate(ctx.endTurnAvailable, 'Available after your first action this round'),
+      ...turnControlGate(ctx.endTurnAvailable, 'Available after your first action this round'),
     },
     {
       id: 'pass', slot: 'down', label: 'Pass', barIcon: 'pass',
-      ...turnGate(ctx.passAvailable, 'Unavailable right now'),
+      ...turnControlGate(ctx.passAvailable, 'Unavailable right now'),
     },
     {
       id: 'convertPlants', slot: 'left', label: 'Plant conversion',

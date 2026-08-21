@@ -47,6 +47,7 @@ import {MarsBotTerraLabs} from './MarsBotTerraLabs';
 import {MarsBotUtopiaInvest} from './MarsBotUtopiaInvest';
 import {MarsBotEcotec} from './MarsBotEcotec';
 import {MarsBotKuiperCooperative} from './MarsBotKuiperCooperative';
+import {MarsBotNirgalEnterprises} from './MarsBotNirgalEnterprises';
 import {MarsBotMorningStar} from './MarsBotMorningStar';
 import {MarsBotViron} from './MarsBotViron';
 import {MarsBotVitor} from './MarsBotVitor';
@@ -125,6 +126,7 @@ export class AutomaCorporations {
     [MarsBotCorpId.C39_UTOPIA_INVEST]: MarsBotUtopiaInvest,
     [MarsBotCorpId.C40_ECOTEC]: MarsBotEcotec,
     [MarsBotCorpId.C41_KUIPER_COOPERATIVE]: MarsBotKuiperCooperative,
+    [MarsBotCorpId.C42_NIRGAL_ENTERPRISES]: MarsBotNirgalEnterprises,
     [MarsBotCorpId.C45_SPIRE]: MarsBotSpire,
     [MarsBotCorpId.C46_TYCHO_MAGNETICS]: MarsBotTychoMagnetics,
   };
@@ -465,6 +467,16 @@ export class AutomaCorporations {
    */
   public static replacesParameterRaise(game: IGame, parameter: GlobalParameter): boolean {
     return AutomaCorporations.activeCorp(game)?.onWouldRaiseParameter?.(game, parameter) === 'replaces-action';
+  }
+
+  /**
+   * What the seated corporation adds to MarsBot's strength on EVERY award
+   * (C42). Asked from the ONE place that derives it
+   * (`AutomaMAEvaluation.botAwardScore`), so the funding decision, the award
+   * overlay and the endgame scoring can never disagree.
+   */
+  public static awardScoreBonus(game: IGame): number {
+    return AutomaCorporations.activeCorp(game)?.awardScoreBonus?.(game) ?? 0;
   }
 
   /**

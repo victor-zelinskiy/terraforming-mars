@@ -198,6 +198,7 @@ import {getPreferences} from '@/client/utils/PreferencesManager';
 import {ActionLabel} from './ActionLabel';
 import {
   presentPlayerStatus,
+  statusCounterText,
   StatusPresentation,
 } from './playerStatusPresenter';
 import PlayerStatusGlyph from './PlayerStatusGlyph.vue';
@@ -207,13 +208,6 @@ import PrivateScoreMask from '@/client/components/overview/PrivateScoreMask.vue'
 import {shouldMaskOwnPassiveVp} from '@/client/components/overview/privateScoreState';
 import {participantDisplayName} from '@/client/components/marsbot/marsBotDisplay';
 import {turnHandoffState} from '@/client/components/overview/turnHandoffState';
-
-// Vanilla TM gives each player exactly 2 actions per turn. The server side
-// has an `availableActionsThisRound` field on Player.ts that anticipates
-// variability (Mars Maths etc.) but it's hard-coded to 2 today. Mirror
-// here; promote to a server-exposed field on PublicPlayerModel if a card
-// ever starts varying it.
-const MAX_ACTIONS_PER_ROUND = 2;
 
 export default defineComponent({
   name: 'LeftPlayerCard',
@@ -446,21 +440,9 @@ export default defineComponent({
      * рядом с лейблом «ДЕЙСТВИЕ».
      */
     actionCounterText(): string {
-      return `${this.actionIndex}/${MAX_ACTIONS_PER_ROUND}`;
-    },
-    // 1-indexed position of the action the player is currently about to
-    // take. In normal play `actionsTakenThisRound` is 0 → display 1/2,
-    // 1 → display 2/2, and the server resets it to 0 after every turn.
-    //
-    // BUT when all OTHER players have passed, the server intentionally
-    // STOPS resetting the counter (see `Player.takeAction()`'s reset
-    // condition `allOtherPlayersHavePassed() === false`). The remaining
-    // player just keeps acting and the counter grows past 2 — 3, 4, 5, ...
-    // Modding by MAX_ACTIONS_PER_ROUND restores the visual "1/2 ↔ 2/2"
-    // alternation in that solo-play scenario without any server changes.
-    actionIndex(): number {
-      const taken = this.player.actionsTakenThisRound;
-      return (taken % MAX_ACTIONS_PER_ROUND) + 1;
+      // ONE derivation, shared with the console chip row (a BONUS action counts
+      // the bonuses its card granted, not the turn's own actions).
+      return statusCounterText(this.player, this.actionLabel);
     },
   },
 });

@@ -1,4 +1,5 @@
 import {Tag} from '../../common/cards/Tag';
+import {AutomaCorporations} from './corps/AutomaCorporations';
 import {IAward} from '../awards/IAward';
 import {IMilestone} from '../milestones/IMilestone';
 import {IGame} from '../IGame';
@@ -96,6 +97,10 @@ export class AutomaMAEvaluation {
     if (game.automa?.difficulty === 'easy') {
       score -= 5;
     }
-    return score;
+    // The seated corporation's own printed modifier (C42's «+2 on all
+    // awards»). Applied HERE because this is the one derivation every
+    // consumer reads through `AwardScorer` — the bot's funding decision, the
+    // award overlay and the endgame scoring alike.
+    return score + AutomaCorporations.awardScoreBonus(game);
   }
 }

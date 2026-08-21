@@ -53,6 +53,33 @@ export type StartGamePromptMeta = {
 }
 
 /**
+ * EXPLICIT, translation-proof marker that this ACTION MENU is a BONUS ACTION —
+ * an action a card granted OUTSIDE the normal turn structure («Фора» /
+ * Head Start: «immediately take 2 actions», taken during the PRELUDES phase).
+ *
+ * The prompt is a byte-identical `OrOptions` action menu (same titles, same
+ * option shapes) so every existing action surface keeps working unchanged; the
+ * ONE thing that differs is that `Pass` and `End Turn` are not offered — a
+ * bonus action cannot concede a generation that has not started. This marker is
+ * what lets the client say WHY instead of «сейчас недоступно», and what lets
+ * the console's start workspace hand the screen to the board and take it back
+ * again. Detecting any of that from the menu's TITLE is impossible by design:
+ * the title is the normal action-menu title precisely so the wheel, the task
+ * router and the status label keep classifying it as an action menu.
+ *
+ * `remaining` counts the bonus actions still owed INCLUDING this one, so the
+ * readout is `granted - remaining + 1` of `granted`.
+ */
+export type BonusActionPromptMeta = {
+  /** The card that granted the bonus actions (its name IS its i18n key). */
+  source: CardName;
+  /** Bonus actions still owed, including the one this prompt is asking for. */
+  remaining: number;
+  /** How many the card granted in this batch. */
+  granted: number;
+}
+
+/**
  * EXPLICIT, translation-proof marker that a top-level prompt is an AWARD-FUNDING
  * selection — an OrOptions with one SelectOption per fundable award, each titled
  * with the bare AwardName. The premium client routes it to the modern
@@ -356,6 +383,10 @@ export type BaseInputModel = {
   // block on it (draft re-pick). See PlayerInput.optional.
   optional?: boolean;
   startGamePrompt?: StartGamePromptMeta;
+  /** Explicit "this action menu is a card-granted BONUS action" marker (see
+   *  BonusActionPromptMeta). Serialized centrally in ServerModel.getWaitingFor
+   *  — a bonus action menu is always the TOP-LEVEL prompt. */
+  bonusActionPrompt?: BonusActionPromptMeta;
   awardFundingPrompt?: AwardFundingPromptMeta;
   choiceContext?: ChoiceContext;
   placementContext?: PlacementContext;

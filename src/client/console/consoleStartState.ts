@@ -147,6 +147,28 @@ export const consoleStartState = reactive({
   /** The stage has stood at least once this game — keeps its journey chapter
    *  visible (completed) after the action resolves. */
   firstActionSeen: false,
+  /**
+   * THE BONUS-ACTION STAGE (Head Start's «immediately take 2 actions»).
+   *
+   * MODULE state for the same reason `firstAct` is: the workspace UNMOUNTS on
+   * a collapse, and a latch living in the component would reset — the stage
+   * would re-announce the hand-off the player already confirmed, over a board
+   * they are already acting on.
+   *  · 'idle'      — no bonuses owed;
+   *  · 'standing'  — the briefing stands, waiting for the player to confirm;
+   *  · 'onboard'   — confirmed: the board has the screen (the excursion latch
+   *                  is what actually holds it; this records the CONSENT, so a
+   *                  restore does not ask twice).
+   */
+  bonusAct: {
+    stage: 'idle' as 'idle' | 'standing' | 'onboard',
+    /** The card that granted them — the stage's subject. */
+    source: undefined as CardName | undefined,
+  },
+  /** The stage has stood at least once this game — keeps its journey chapter
+   *  visible (completed) after the bonuses are spent, so the rail never
+   *  shortens a chapter the player actually walked. */
+  bonusActionSeen: false,
 });
 
 /** Reset picks when the prompt identity (player / deal) changes. */
@@ -178,6 +200,8 @@ export function ensureStartWizard(
   consoleStartState.deploymentBegun = false;
   consoleStartState.firstAct = {stage: 'idle', corp: undefined, submitting: false};
   consoleStartState.firstActionSeen = false;
+  consoleStartState.bonusAct = {stage: 'idle', source: undefined};
+  consoleStartState.bonusActionSeen = false;
   resetStartTransition();
 }
 
@@ -546,6 +570,13 @@ export function deploymentJourneyItems(signals: {
   boughtCards: boolean,
   preludesLeft: number,
   hasPreludes: boolean,
+  /** A prelude granted BONUS ACTIONS (Head Start) — the deployment gains one
+   *  more chapter, between the preludes and the first action. Conditional like
+   *  every other middle stage: it exists only when its work exists. */
+  hasBonusActions?: boolean,
+  /** Those bonuses are not spent yet (the stage stands, or the player is out
+   *  on the board spending them). */
+  bonusActionsPending?: boolean,
   /** The corporation owes a mandatory first action (domain ledger / live
    *  prompt) OR its stage is still physically on screen. Absent → no stage. */
   hasFirstAction?: boolean,
@@ -571,7 +602,23 @@ export function deploymentJourneyItems(signals: {
       state: beforePreludes ? 'locked' : (signals.preludesLeft > 0 ? 'current' : 'completed'),
     });
   }
-  const beforeFirstAction = beforePreludes || signals.preludesLeft > 0;
+  // The BONUS chapter sits between the preludes and the first action — which is
+  // exactly where it happens: Head Start's actions are taken immediately, ahead
+  // of the player's remaining preludes… but the rail reads as a linear
+  // PROGRESS, and the honest reading order for a player watching it is «прологи
+  // → бонусные действия → первое действие». It is `current` while the bonuses
+  // stand AND while the player is out on the board spending them, so the rail
+  // never says «this chapter is over» while the board is still theirs.
+  const beforeBonus = beforePreludes;
+  if (signals.hasBonusActions === true) {
+    items.push({
+      id: 'bonusActions',
+      label: 'Bonus actions',
+      state: beforeBonus ? 'locked' : (signals.bonusActionsPending === true ? 'current' : 'completed'),
+    });
+  }
+  const beforeFirstAction = beforePreludes || signals.preludesLeft > 0 ||
+    signals.bonusActionsPending === true;
   if (signals.hasFirstAction === true) {
     items.push({
       id: 'firstAction',
@@ -636,6 +683,10 @@ export function deploymentCrumb(signals: {
   corpPick: boolean,
   /** The mandatory first-action stage owns the tail (preludes resolved). */
   firstAction?: boolean,
+  /** The bonus-action stage owns the tail (a prelude granted extra actions). */
+  bonusAction?: boolean,
+  /** The card that granted them — the bonus stage's subject. */
+  bonusSource?: string,
 }): StartCrumb {
   if (signals.embedActive) {
     return {
@@ -655,6 +706,17 @@ export function deploymentCrumb(signals: {
   // subject already says whose it is (never echo the subject's noun).
   if (signals.firstAction === true) {
     return {subject: 'Corporation', stage: 'First action'};
+  }
+  // THE BONUS-ACTION STAGE — the subject is the CARD that granted them (it is
+  // what the whole stage is about, and it is what the player is looking at),
+  // the one-word tail names the stage. «СТАРТ ПАРТИИ › ФОРА › ДЕЙСТВИЕ».
+  if (signals.bonusAction === true) {
+    return {
+      subject: signals.bonusSource !== undefined && signals.bonusSource !== '' ?
+        signals.bonusSource :
+        'Preludes',
+      stage: 'Action',
+    };
   }
   return {subject: 'Preludes', stage: 'Playing'};
 }

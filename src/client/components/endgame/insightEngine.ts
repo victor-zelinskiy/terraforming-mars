@@ -3323,6 +3323,32 @@ const analyzeBotCorporation: Analyzer = (ctx) => {
           scale: 4,
         });
       }
+    } else if (corp.id === 'C42') {
+      // Nirgal is a SCHEDULE: milestones early, awards through the middle,
+      // milestones again at the end — every one of them free and none of them
+      // costing a turn. The idle generations are their own quieter line: the
+      // box takes no Failed Action, so an empty one really is nothing.
+      const claims = stat('nirgalMilestones');
+      const fundings = stat('nirgalAwards');
+      const idle = stat('nirgalSkipped');
+      if (claims + fundings >= 2) {
+        stories.push({
+          key: 'effect',
+          textKey: 'The schedule was the whole corporation at ${0}: ${1} claimed ${2} milestone(s) and funded ${3} award(s), every one of them free and none of them costing a turn.',
+          params: [raw(p.name), raw(corp.name), raw(claims), raw(fundings)],
+          measure: claims + fundings,
+          scale: 6,
+        });
+      }
+      if (idle >= 3) {
+        stories.push({
+          key: 'idle',
+          textKey: 'Some generations the office signed nothing — ${2} of them passed with no milestone met and no award led by ${1}.',
+          params: [raw(p.name), raw(corp.name), raw(idle)],
+          measure: idle,
+          scale: 8,
+        });
+      }
     } else if (corp.id === 'C45') {
       // Spire: the science engine — multi-tag cards banked into cities + TR.
       const cities = stat('citiesPlaced');

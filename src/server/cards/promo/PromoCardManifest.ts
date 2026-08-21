@@ -34,7 +34,7 @@ import {FloydContinuum} from './FloydContinuum';
 import {GiantSolarCollector} from './GiantSolarCollector';
 import {GreatDamPromo} from './GreatDamPromo';
 import {Harvest} from './Harvest';
-// import {HeadStart} from './HeadStart';
+import {HeadStart} from './HeadStart';
 import {HermeticOrderOfMars} from './HermeticOrderofMars';
 import {HiTechLab} from './HiTechLab';
 import {HomeostasisBureau} from './HomeostasisBureau';
@@ -182,8 +182,11 @@ export const PROMO_CARD_MANIFEST = new ModuleManifest({
     [CardName.CORPORATE_ARCHIVES]: {Factory: CorporateArchives},
     [CardName.DOUBLE_DOWN]: {Factory: DoubleDown, compatibility: 'prelude'},
 
-    // https://github.com/terraforming-mars/terraforming-mars/issues/5852
-    // [CardName.HEAD_START]: {Factory: HeadStart}, // Head Start is disabled because it's not working well.
+    // Was disabled upstream (issue #5852 — the bonus actions mis-counted and
+    // the menu they opened still offered «Pass» mid-prelude-phase). Re-enabled
+    // in this fork on a dedicated, serialized `IPlayer.bonusActions` counter;
+    // see HeadStart.ts and `Player.takeAction`.
+    [CardName.HEAD_START]: {Factory: HeadStart, compatibility: 'prelude'},
 
     [CardName.ANTI_DESERTIFICATION_TECHNIQUES]: {Factory: AntidesertificationTechniques},
     [CardName.ESTABLISHED_METHODS]: {Factory: EstablishedMethods},

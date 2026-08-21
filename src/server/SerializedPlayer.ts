@@ -17,6 +17,11 @@ export interface SerializedPlayer extends DeprecatedFields{
   actionsTakenThisGame: number;
   actionsTakenThisRound: number;
   availableActionsThisRound?: number;
+  /** Card-granted bonus actions still owed (Head Start). Absent on saves made
+   *  before bonus actions existed → 0. */
+  bonusActions?: number;
+  bonusActionsGranted?: number;
+  bonusActionSource?: CardName;
   actionsThisGeneration: Array<CardName>;
   alliedParty: AlliedParty | undefined;
   autoPass: boolean;

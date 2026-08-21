@@ -535,6 +535,24 @@ function renderDataOf(id: MarsBotCorpId): ICardRenderRoot {
         eb.text('◼', Size.SMALL, true).startEffect.oceans(1, {size: Size.SMALL});
       });
     });
+  case MarsBotCorpId.C42_NIRGAL_ENTERPRISES:
+    return CardRenderer.builder((b) => {
+      // EFFECT: the modifier the bot carries onto every award — the award
+      // symbol paying a flat number, which is the shape a bonus on a scoring
+      // category takes on this face.
+      b.effect(undefined, (eb) => {
+        eb.award().startEffect.text('+2', Size.MEDIUM, true);
+      });
+      // BEFORE ACTION PHASE: a free claim or a free funding EVERY generation
+      // — the recurring plate C34/C38 use, with the asterisk sending the
+      // reader to the printed generation ranges that pick which one.
+      b.action(undefined, (eb) => {
+        eb.text('↻', Size.SMALL, true).startAction.milestone().asterix();
+      });
+      b.action(undefined, (eb) => {
+        eb.text('↻', Size.SMALL, true).startAction.award().asterix();
+      });
+    });
   case MarsBotCorpId.C45_SPIRE:
     return CardRenderer.builder((b) => {
       // EFFECT: a card with 2+ tags adds a science resource here — the

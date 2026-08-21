@@ -1,4 +1,8 @@
 import {ActionLabel} from './ActionLabel';
+import {PublicPlayerModel} from '@/common/models/PlayerModel';
+
+/** Actions in a normal turn. The counter chip's denominator. */
+export const MAX_ACTIONS_PER_ROUND = 2;
 
 /**
  * Player-status presentation: ONE place that maps every {@link ActionLabel}
@@ -112,6 +116,17 @@ const PRESENTATIONS: Record<ActionLabel, StatusPresentation> = {
     textKey: 'Prelude phase',
     showCounter: false,
   },
+  // A card-granted action outside the turn's own two (Head Start). Same
+  // premium active pose as a real turn — because it IS the player acting on
+  // the board — but its own label and its own counter: `1/2` here counts the
+  // BONUSES the card granted, never `actionsTakenThisRound` (which, during
+  // the prelude phase, is counting preludes played).
+  'bonusaction': {
+    category: 'active',
+    glyph: 'dot',
+    textKey: 'Bonus action',
+    showCounter: true,
+  },
   'ceos': {
     category: 'active',
     glyph: 'dot',
@@ -183,4 +198,31 @@ export function presentPlayerStatus(label: ActionLabel, isMarsBot: boolean = fal
     return {...base, showCounter: false};
   }
   return base;
+}
+
+/**
+ * The `N/M` counter chip's text — ONE derivation, shared by the console chip
+ * row and the desktop player card so the two can never print different numbers
+ * for the same state.
+ *
+ * Two counters live behind one chip, and conflating them is exactly the bug
+ * this function exists to prevent:
+ *  - a normal TURN counts the turn's own actions (`actionsTakenThisRound`).
+ *    When every other player has passed the server deliberately stops resetting
+ *    it, so it grows past 2 — the modulo restores the visual `1/2 ↔ 2/2`
+ *    alternation without a server change.
+ *  - a BONUS action counts the bonuses the granting card handed out. During the
+ *    prelude phase `actionsTakenThisRound` is counting PRELUDES PLAYED, so
+ *    reading it here would print «2/2» on the player's first bonus action.
+ */
+export function statusCounterText(player: PublicPlayerModel, label: ActionLabel): string {
+  if (label === 'bonusaction') {
+    const granted = player.bonusActionsGranted ?? 0;
+    const remaining = player.bonusActions ?? 0;
+    if (granted > 0 && remaining > 0) {
+      return `${Math.min(granted, granted - remaining + 1)}/${granted}`;
+    }
+  }
+  const index = (player.actionsTakenThisRound % MAX_ACTIONS_PER_ROUND) + 1;
+  return `${index}/${MAX_ACTIONS_PER_ROUND}`;
 }

@@ -209,6 +209,20 @@ export type MarsBotCorp = {
   onWouldRaiseParameter?(game: IGame, parameter: GlobalParameter): 'replaces-action' | void;
 
   /**
+   * How much this corporation ADDS to MarsBot's strength on every award —
+   * C42 Nirgal Enterprises' printed «+2 on all awards (when considering
+   * funding, and during scoring)».
+   *
+   * Returned as a NUMBER rather than applied by the corporation, because the
+   * bot's award strength has exactly ONE derivation
+   * (`AutomaMAEvaluation.botAwardScore`) and all three consumers read it
+   * through `AwardScorer`: the bot's own funding decision, the award overlay
+   * the player reads, and the endgame scoring. A corporation that computed
+   * its own bonus at one of those sites would leave the other two lying.
+   */
+  awardScoreBonus?(game: IGame): number;
+
+  /**
    * MarsBot is about to build on a cell ITS OWN player marker reserved (C18
    * Arcadian Communities). Asked by `Game.addTile` BEFORE the tile seats —
    * the only moment at which «was this area reserved?» is still answerable,

@@ -163,6 +163,11 @@ export interface IPlayer {
 
   // This generation / this round
   actionsTakenThisRound: number;
+  /** Card-granted bonus actions still owed — actions taken IMMEDIATELY,
+   *  outside the turn's own two (Head Start). See Player.bonusActions. */
+  bonusActions: number;
+  bonusActionsGranted: number;
+  bonusActionSource: CardName | undefined;
   // Transient flag: a pay-on-commit placement (standard project) was cancelled,
   // so the action loop re-presents the menu without counting the action.
   pendingPlacementCancelled: boolean;
@@ -489,8 +494,14 @@ export interface IPlayer {
   affordabilityDeficitFor(options: CanAffordOptions): number;
   getStandardProjectOption(): SelectStandardProjectToPlay;
   takeAction(saveBeforeTakingAction?: boolean): void;
-  /** Return possible mid-game actions like play a card and fund an award, but not play prelude card. */
-  getActions(): OrOptions;
+  /** Return possible mid-game actions like play a card and fund an award, but not play prelude card.
+   *  `bonusAction` builds the same menu WITHOUT the two turn-control verbs (End Turn / Pass) —
+   *  neither is a legal answer to a card-granted bonus action. */
+  getActions(options?: {bonusAction?: boolean}): OrOptions;
+  /** Grant `count` bonus actions, attributed to `source` (Head Start). */
+  grantBonusActions(count: number, source: CardName): void;
+  /** A card-granted bonus action is owed right now. */
+  hasBonusAction(): boolean;
   process(input: InputResponse): void;
   getWaitingFor(): PlayerInput | undefined;
   setWaitingFor(input: PlayerInput, cb?: () => void): void;

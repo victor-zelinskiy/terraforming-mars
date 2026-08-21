@@ -30,6 +30,16 @@ export type ActionLabel =
                        // "СТАРТОВЫЙ ВЫБОР" because that's the player-facing
                        // concept — the technical phase distinction is irrelevant.
   | 'preludes'         // PRELUDES phase — playing prelude cards.
+  | 'bonusaction'      // A card granted actions OUTSIDE the turn's own two and
+                       // the player is taking them right now (Head Start's
+                       // «immediately take 2 actions», during the PRELUDES
+                       // phase). Server-authoritative: the prompt carries a
+                       // `bonusActionPrompt` marker, which is the ONLY thing
+                       // that distinguishes it — the menu keeps the ordinary
+                       // action-menu title on purpose. Carries its own counter
+                       // («1/2» of the GRANTED bonuses, not of the turn's
+                       // actions), so an opponent watching the board knows
+                       // exactly what is happening and how much of it is left.
   | 'ceos'             // CEOS phase — playing CEO opportunity cards.
   | 'globalsupport'    // World Government Terraforming — picking which global
                        // parameter to bump as the "world government" (SOLAR phase).

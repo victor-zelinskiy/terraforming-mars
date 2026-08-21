@@ -663,6 +663,28 @@ describe('insightEngine', () => {
       expect(insights[0].textKey).contains('One track did all of it');
     });
 
+    it('C42 tells the schedule and the idle generations as SEPARATE stories', () => {
+      const insights = botInsights({nirgalMilestones: 3, nirgalAwards: 2, nirgalSkipped: 4},
+        MarsBotCorpId.C42_NIRGAL_ENTERPRISES, 'Nirgal Enterprises');
+      expect(insights).has.length(2);
+      const keys = insights.map((i) => i.textKey).join(' | ');
+      expect(keys).contains('The schedule was the whole corporation');
+      expect(keys).contains('the office signed nothing');
+    });
+
+    it('C42 keeps the idle line quiet when the box almost always found something', () => {
+      const insights = botInsights({nirgalMilestones: 3, nirgalAwards: 2, nirgalSkipped: 1},
+        MarsBotCorpId.C42_NIRGAL_ENTERPRISES, 'Nirgal Enterprises');
+      expect(insights).has.length(1);
+      expect(insights[0].textKey).contains('The schedule was the whole corporation');
+      expect(insights[0].params.map((p) => p.v)).contains('3');
+    });
+
+    it('C42 keeps quiet when the schedule barely fired', () => {
+      expect(botInsights({nirgalMilestones: 1, nirgalSkipped: 2},
+        MarsBotCorpId.C42_NIRGAL_ENTERPRISES, 'Nirgal Enterprises')).is.empty;
+    });
+
     it('C46 tells its one moment as ONE story', () => {
       const insights = botInsights({hyperlinkPlayed: 1, hyperlinkDrawn: 9, hyperlinkResolved: 2},
         MarsBotCorpId.C46_TYCHO_MAGNETICS, 'Tycho Magnetics');

@@ -2,6 +2,7 @@ import * as constants from '../common/constants';
 import {PlayerId} from '../common/Types';
 import {MILESTONE_COST, REDS_RULING_POLICY_COST} from '../common/constants';
 import {ACTION_MENU_FIRST_TITLE, ACTION_MENU_NEXT_TITLE} from '../common/inputs/actionMenuTitles';
+import {BonusActionPromptMeta} from '../common/models/PlayerInputModel';
 import {cardsFromJSON, ceosFromJSON, corporationCardsFromJSON, newCorporationCard, preludesFromJSON} from './createCard';
 import {CardName} from '../common/cards/CardName';
 import {CardType} from '../common/cards/CardType';
@@ -180,6 +181,28 @@ export class Player implements IPlayer {
 
   // This generation / this round
   public actionsTakenThisRound: number = 0;
+  /**
+   * BONUS ACTIONS still owed — actions a card granted OUTSIDE the normal turn
+   * structure («Фора» / Head Start: «immediately take 2 actions», taken during
+   * the PRELUDES phase, before the rest of the player's preludes).
+   *
+   * A DEDICATED counter, deliberately not `actionsTakenThisRound`. That counter
+   * is already overloaded in this engine — playing a prelude increments it
+   * (`incrementActionsTaken` inside the prelude callback in `takeAction`) — so
+   * the original implementation, which asked `actionsTakenThisRound < 2`, gave
+   * the player ONE bonus action when Head Start was their first prelude and
+   * ZERO when it was their second. This counter is decremented by exactly one
+   * thing (a bonus action finishing) and read by exactly one thing (whether the
+   * next prompt is a bonus action menu), so neither meaning can pollute the
+   * other.
+   */
+  public bonusActions: number = 0;
+  /** How many bonus actions the current batch granted — the `N of M` readout
+   *  the client shows. Cleared with the batch. */
+  public bonusActionsGranted: number = 0;
+  /** The card that granted the current bonus-action batch (prompt marker +
+   *  status readout). Cleared with the batch. */
+  public bonusActionSource: CardName | undefined;
   // Transient: set when the player CANCELS a pending, not-yet-committed placement
   // (a pay-on-commit standard project). The action loop reads it once to re-present
   // the action menu WITHOUT counting the action, then clears it. Never persists
@@ -2006,13 +2029,50 @@ export class Player implements IPlayer {
       });
   }
 
-  private headStartIsInEffect() {
-    if (this.game.phase === Phase.PRELUDES && this.playedCards.has(CardName.HEAD_START)) {
-      if (this.actionsTakenThisRound < 2) {
-        return true;
-      }
+  /**
+   * Grant bonus actions — actions taken IMMEDIATELY, outside the normal turn
+   * structure (Head Start). Additive, so a second grant inside one window
+   * extends the batch instead of replacing it.
+   */
+  public grantBonusActions(count: number, source: CardName): void {
+    if (count <= 0) {
+      return;
     }
-    return false;
+    this.bonusActions += count;
+    this.bonusActionsGranted += count;
+    this.bonusActionSource = source;
+  }
+
+  /** A card-granted bonus action is owed right now. */
+  public hasBonusAction(): boolean {
+    return this.bonusActions > 0;
+  }
+
+  /**
+   * One bonus action FINISHED. Deliberately NOT `incrementActionsTaken()`: a
+   * bonus action is not one of the turn's two, and letting it touch
+   * `actionsTakenThisRound` is what made the original implementation
+   * mis-count preludes as bonus actions and vice versa.
+   */
+  private spendBonusAction(): void {
+    this.actionsTakenThisGame++;
+    this.bonusActions = Math.max(0, this.bonusActions - 1);
+    if (this.bonusActions === 0) {
+      this.bonusActionsGranted = 0;
+      this.bonusActionSource = undefined;
+    }
+  }
+
+  /** The marker the client reads to know this action menu is a bonus action. */
+  private bonusActionMeta(): BonusActionPromptMeta | undefined {
+    if (this.bonusActions <= 0 || this.bonusActionSource === undefined) {
+      return undefined;
+    }
+    return {
+      source: this.bonusActionSource,
+      remaining: this.bonusActions,
+      granted: Math.max(this.bonusActionsGranted, this.bonusActions),
+    };
   }
 
   /**
@@ -2067,10 +2127,17 @@ export class Player implements IPlayer {
     // if (this.autopass) {
     //   this.passOption().cb();
     // }
-    const headStartIsInEffect = this.headStartIsInEffect();
+    // A card-granted BONUS action (Head Start) is owed: it happens IMMEDIATELY
+    // — before the player's remaining preludes, before the CEO phase, and
+    // WITHOUT touching the turn's own accounting. The whole phase/turn block
+    // below is therefore skipped while one stands: `game.phase` must stay
+    // PRELUDES (flipping it mid-prelude-phase is what let other players' turns
+    // interleave), and the end-of-turn check must not fire on a turn that has
+    // not finished handing out its bonuses.
+    const bonusActionOwed = this.hasBonusAction();
     this.game.inDoubleDown = false;
 
-    if (!headStartIsInEffect) {
+    if (!bonusActionOwed) {
       // Prelude cards have to be played first
       if (this.preludeCardsInHand.length > 0) {
         game.phase = Phase.PRELUDES;
@@ -2079,7 +2146,9 @@ export class Player implements IPlayer {
 
         this.setWaitingFor(selectPrelude, this.runWhenEmpty(() => {
           this.incrementActionsTaken();
-          if (this.preludeCardsInHand.length === 0 && !this.headStartIsInEffect()) {
+          // The prelude just played may have granted bonus actions (Head
+          // Start): the turn is NOT over — it owes them before it ends.
+          if (this.preludeCardsInHand.length === 0 && !this.hasBonusAction()) {
             game.playerIsFinishedTakingActions();
             return;
           }
@@ -2158,15 +2227,54 @@ export class Player implements IPlayer {
         orOptions.options.push(option);
       });
 
-      if (!headStartIsInEffect) {
+      // A BONUS action cannot pass: there is no generation to concede yet (the
+      // prelude phase is still running), and passing here used to put the
+      // player into `passedPlayers` BEFORE the action phase cleared it — they
+      // then sat out the whole of generation 1 with an unplayed prelude in
+      // hand. The corporation's mandatory first action IS one of the bonuses
+      // (it is, by the card's own wording, the player's first action), so it
+      // spends one.
+      if (!bonusActionOwed) {
         orOptions.options.push(this.passOption());
+      } else {
+        const meta = this.bonusActionMeta();
+        if (meta !== undefined) {
+          orOptions.markBonusActionPrompt(meta);
+        }
       }
 
       this.setWaitingFor(orOptions, this.runWhenEmpty(() => {
         if (this.pendingInitialActions.length === 0) {
-          this.incrementActionsTaken();
+          if (bonusActionOwed) {
+            this.spendBonusAction();
+          } else {
+            this.incrementActionsTaken();
+          }
         }
         this.timer.rebate(constants.BONUS_SECONDS_PER_ACTION * 1000);
+        this.takeAction();
+      }));
+      return;
+    }
+
+    if (bonusActionOwed) {
+      // The bonus action menu is BYTE-IDENTICAL to the normal one minus the two
+      // turn-control verbs, and it keeps the normal action-menu TITLE on
+      // purpose: every client surface that classifies an action menu (the task
+      // router, the quick wheel, the status label) must keep classifying it as
+      // one. What is a bonus action rides the structured marker instead.
+      const menu = this.getActions({bonusAction: true});
+      const meta = this.bonusActionMeta();
+      if (meta !== undefined) {
+        menu.markBonusActionPrompt(meta);
+      }
+      this.setWaitingFor(menu, this.runWhenEmpty(() => {
+        if (this.pendingPlacementCancelled) {
+          this.pendingPlacementCancelled = false;
+          this.takeAction();
+          return;
+        }
+        this.spendBonusAction();
         this.takeAction();
       }));
       return;
@@ -2190,9 +2298,21 @@ export class Player implements IPlayer {
     this.actionsTakenThisGame++;
   }
 
-  public /* for testing */ getActions() {
+  /**
+   * The free ACTION MENU.
+   *
+   * `bonusAction` builds the same menu for a card-granted BONUS action (Head
+   * Start): identical verbs, identical payloads — minus the two TURN-CONTROL
+   * verbs, `End Turn` and `Pass`. Neither is a legal answer to «take an action
+   * right now»: there is no turn to end (the bonus is not one of the turn's
+   * two actions) and no generation to concede (the action phase has not
+   * started). Availability stays server-authoritative: the client shows them
+   * disabled and NAMES this reason rather than re-deriving it.
+   */
+  public /* for testing */ getActions(options: {bonusAction?: boolean} = {}) {
+    const bonusAction = options.bonusAction === true;
     const action = new OrOptions()
-      .setTitle(this.actionsTakenThisRound === 0 ? ACTION_MENU_FIRST_TITLE : ACTION_MENU_NEXT_TITLE)
+      .setTitle(bonusAction || this.actionsTakenThisRound === 0 ? ACTION_MENU_FIRST_TITLE : ACTION_MENU_NEXT_TITLE)
       .setButtonLabel('Take action');
 
     const claimableMilestones = this.claimableMilestones();
@@ -2290,8 +2410,9 @@ export class Player implements IPlayer {
       }
     });
 
-    // End turn
-    if (this.game.players.length > 1 &&
+    // End turn — never on a bonus action (there is no turn slot to give up).
+    if (!bonusAction &&
+      this.game.players.length > 1 &&
       this.actionsTakenThisRound > 0 &&
       !this.game.gameOptions.fastModeOption &&
       this.allOtherPlayersHavePassed() === false) {
@@ -2313,8 +2434,12 @@ export class Player implements IPlayer {
     // Standard Projects
     action.options.push(this.getStandardProjectOption());
 
-    // Pass
-    action.options.push(this.passOption());
+    // Pass — never on a bonus action. Passing during the PRELUDES phase put the
+    // player into `passedPlayers` after the action phase had already cleared
+    // it, so they sat out the whole of generation 1 (issue #5852).
+    if (!bonusAction) {
+      action.options.push(this.passOption());
+    }
 
     // Sell patents
     const sellPatents = new SellPatentsStandardProject();
@@ -2322,8 +2447,10 @@ export class Player implements IPlayer {
       action.options.push(sellPatents.action(this));
     }
 
-    // Propose undo action only if you have done one action this turn
-    if (this.actionsTakenThisRound > 0 && this.game.gameOptions.undoOption) {
+    // Propose undo action only if you have done one action this turn. A bonus
+    // action has no committed turn state behind it to roll back to — the undo
+    // point is the prelude that granted it.
+    if (!bonusAction && this.actionsTakenThisRound > 0 && this.game.gameOptions.undoOption) {
       action.options.push(new UndoActionOption());
     }
 
@@ -2482,6 +2609,9 @@ export class Player implements IPlayer {
       // This generation / this round
       actionsTakenThisRound: this.actionsTakenThisRound,
       availableActionsThisRound: this.availableActionsThisRound,
+      bonusActions: this.bonusActions,
+      bonusActionsGranted: this.bonusActionsGranted,
+      bonusActionSource: this.bonusActionSource,
       actionsThisGeneration: Array.from(this.actionsThisGeneration),
       pendingInitialActions: this.pendingInitialActions.map(toName),
       // Cards
@@ -2557,6 +2687,10 @@ export class Player implements IPlayer {
     player.actionsThisGeneration = new Set(d.actionsThisGeneration);
     player.actionsTakenThisRound = d.actionsTakenThisRound;
     player.availableActionsThisRound = d.availableActionsThisRound ?? 2;
+    // Old saves predate bonus actions — 0 is the honest default (nothing owed).
+    player.bonusActions = d.bonusActions ?? 0;
+    player.bonusActionsGranted = d.bonusActionsGranted ?? 0;
+    player.bonusActionSource = d.bonusActionSource;
     player.canUseHeatAsMegaCredits = d.canUseHeatAsMegaCredits;
     player.canUsePlantsAsMegacredits = d.canUsePlantsAsMegaCredits;
     player.canUseTitaniumAsMegacredits = d.canUseTitaniumAsMegacredits;

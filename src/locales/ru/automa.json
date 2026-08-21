@@ -622,5 +622,13 @@
   "Advancing onto a black cube places an ocean tile": "Дойдя до чёрного куба, Бот выкладывает океан",
   "The space it lands on still resolves its own printed icon": "Клетка, на которую он встаёт, всё равно отрабатывает свой печатный значок",
   "${0} reached a white cube of its corporation ${1} — the temperature rises": "${0} дошёл до белого куба своей корпорации ${1} — температура растёт",
-  "${0} reached a black cube of its corporation ${1} — an ocean is placed": "${0} дошёл до чёрного куба своей корпорации ${1} — выкладывается океан"
+  "${0} reached a black cube of its corporation ${1} — an ocean is placed": "${0} дошёл до чёрного куба своей корпорации ${1} — выкладывается океан",
+  "Overachievement is destroyed — removed from the game": "«Сверхдостижение» уничтожается — убирается из игры",
+  "MarsBot counts ${0} higher on every award — both when it decides to fund one and when the awards are scored": "Бот считается на ${0} сильнее в каждой награде — и когда решает её учредить, и при финальном подсчёте",
+  "Generations ${0} and ${1}: MarsBot claims a milestone for free": "Поколения ${0} и ${1}: Бот бесплатно заявляет достижение",
+  "Generations ${0}: MarsBot funds an award for free instead": "Поколения ${0}: вместо этого Бот бесплатно учреждает награду",
+  "Nothing to claim or fund? The box simply does nothing — no Failed Action": "Нечего заявить и не в чем лидировать? Блок просто не срабатывает — неудачное действие не берётся",
+  "${0} destroyed Overachievement — its corporation ${1} claims and funds on its own": "${0} уничтожает «Сверхдостижение» — его корпорация ${1} заявляет и учреждает сама",
+  "${0} had no milestone to claim this generation (corporation ${1})": "${0} в этом поколении нечего было заявить (корпорация ${1})",
+  "${0} led no award this generation (corporation ${1})": "${0} в этом поколении не лидировал ни в одной награде (корпорация ${1})"
 }

@@ -1154,6 +1154,30 @@ const CORP_INFO: Readonly<Record<MarsBotCorpId, MarsBotCorpInfo>> = {
       ]},
     ],
   },
+  [MarsBotCorpId.C42_NIRGAL_ENTERPRISES]: {
+    id: MarsBotCorpId.C42_NIRGAL_ENTERPRISES,
+    cardNumber: 'C42',
+    original: CardName.NIRGAL_ENTERPRISES,
+    // Three tags in the corner box — the same three the HUMAN card prints,
+    // which is a coincidence of identity, not a leak: they are read off the
+    // bot card.
+    startingTags: [Tag.BUILDING, Tag.POWER, Tag.PLANT],
+    // No priority plate is printed.
+    corpBonusCards: [],
+    sections: [
+      {kind: 'setup', lines: [
+        {icon: 'deck', text: 'Overachievement is destroyed — removed from the game'},
+      ]},
+      {kind: 'effect', lines: [
+        {icon: 'award', text: 'MarsBot counts ${0} higher on every award — both when it decides to fund one and when the awards are scored', params: ['2']},
+      ]},
+      {kind: 'beforeActionPhase', lines: [
+        {icon: 'milestone', text: 'Generations ${0} and ${1}: MarsBot claims a milestone for free', params: ['2-5', '10+']},
+        {icon: 'award', text: 'Generations ${0}: MarsBot funds an award for free instead', params: ['6-9']},
+        {icon: 'cards', text: 'Nothing to claim or fund? The box simply does nothing — no Failed Action', muted: true},
+      ]},
+    ],
+  },
   [MarsBotCorpId.C45_SPIRE]: {
     id: MarsBotCorpId.C45_SPIRE,
     cardNumber: 'C45',
@@ -1236,6 +1260,10 @@ export function corpOwningBonusCard(id: BonusCardId): MarsBotCorpInfo | undefine
  *           the card destroys itself), hyperlinkDrawn (project cards that draw
  *           put in front of it) and hyperlinkResolved (the two it kept and
  *           played; fewer only when the deck could not supply them).
+ * Nirgal Enterprises: nirgalMilestones / nirgalAwards (the ones its
+ *           Before-Action-Phase box actually took) and nirgalSkipped (the
+ *           generations it could take neither — the printed box says that
+ *           is no Failed Action).
  * Kuiper Cooperative: kuiperWhiteCubes / kuiperTemperatureSteps (the white
  *           cubes it reached and the raises that landed — a completed
  *           temperature is a Failed Action, not a step) and kuiperBlackCubes

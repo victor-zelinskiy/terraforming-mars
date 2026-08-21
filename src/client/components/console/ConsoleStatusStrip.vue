@@ -152,8 +152,9 @@ import {GameModel} from '@/common/models/GameModel';
 import {PlayerViewModel, PublicPlayerModel} from '@/common/models/PlayerModel';
 import {Color} from '@/common/Color';
 import {actionLabelForPlayer, liveWaitingSignal} from '@/client/components/overview/playerLabels';
+import {ActionLabel} from '@/client/components/overview/ActionLabel';
 import {participantDisplayName} from '@/client/components/marsbot/marsBotDisplay';
-import {presentPlayerStatus, StatusPresentation, StatusGlyph} from '@/client/components/overview/playerStatusPresenter';
+import {presentPlayerStatus, statusCounterText, StatusPresentation, StatusGlyph} from '@/client/components/overview/playerStatusPresenter';
 import {terraformingProgress, TerraformingProgress} from '@/client/components/gameProgress/terraformingProgress';
 import {finalGenerationActive, terraformingCelebrationState} from '@/client/components/gameProgress/terraformingCelebration';
 import {motionMs} from '@/client/components/motion/motionTokens';
@@ -162,9 +163,6 @@ import AnimatedMetricValue from '@/client/components/feedback/AnimatedMetricValu
 import ConsoleFlipValue from '@/client/components/console/ConsoleFlipValue.vue';
 import ConsoleProjectDeck from '@/client/components/console/ConsoleProjectDeck.vue';
 import {planetFocusState, displayGlobalParams} from '@/client/console/planetFocus';
-
-/** Mirrors LeftPlayerCard: 1-indexed position of the upcoming action. */
-const MAX_ACTIONS_PER_ROUND = 2;
 
 /** Glyph → the chip's compact text mark (mirrors the desktop PlayerStatusGlyph;
  *  CSS animates the active dot via the --active class). MarsBot's active turn
@@ -364,18 +362,19 @@ export default defineComponent({
     displayName(p: PublicPlayerModel): string {
       return participantDisplayName(p);
     },
+    actionLabel(p: PublicPlayerModel): ActionLabel {
+      return actionLabelForPlayer(this.playerView, p, liveWaitingSignal(this.waitingOnPlayers));
+    },
     presentation(p: PublicPlayerModel): StatusPresentation {
-      return presentPlayerStatus(
-        actionLabelForPlayer(this.playerView, p, liveWaitingSignal(this.waitingOnPlayers)),
-        p.isMarsBot === true);
+      return presentPlayerStatus(this.actionLabel(p), p.isMarsBot === true);
     },
     statusGlyph(p: PublicPlayerModel): string {
       return GLYPH_CHARS[this.presentation(p).glyph];
     },
-    /** Mirrors LeftPlayerCard.actionIndex (incl. the solo-run modulo). */
     actionCounter(p: PublicPlayerModel): string {
-      const idx = (p.actionsTakenThisRound % MAX_ACTIONS_PER_ROUND) + 1;
-      return `${idx}/${MAX_ACTIONS_PER_ROUND}`;
+      // ONE derivation, shared with the desktop card: a BONUS action counts the
+      // bonuses its card granted, a normal turn counts the turn's own actions.
+      return statusCounterText(p, this.actionLabel(p));
     },
     chipClasses(p: PublicPlayerModel): Record<string, boolean> {
       const category = this.presentation(p).category;

@@ -101,6 +101,22 @@ export type StartSceneCommandState = {
    *    the bar goes honestly quiet for the beat.
    */
   firstAction: 'off' | 'waiting' | 'ready' | 'busy',
+  /**
+   * The BONUS-ACTION stage («Фора» — «immediately take 2 actions»):
+   *  · 'off'      — no stage;
+   *  · 'waiting'  — the bonuses are owed but the prompt has not arrived /
+   *    something of the deployment is still in flight: no CTA is advertised,
+   *    because the press could not be honoured;
+   *  · 'ready'    — A hands the screen to the BOARD, where the actions are
+   *    actually taken. The verb says where the press GOES, not what it does
+   *    to the card: it is a hand-off, and the player must know that the
+   *    workspace is not being dismissed.
+   *
+   * B is deliberately absent from this stage's own additions: the stage is a
+   * hand-off announcement, and the ordinary minimize is what B already means
+   * everywhere in this workspace.
+   */
+  bonusAction?: 'off' | 'waiting' | 'ready',
 };
 
 /**
@@ -167,6 +183,20 @@ export function startSceneCommands(s: StartSceneCommandState): Array<StartComman
       {control: 'confirm', label: 'Pay'},
       {control: 'back', label: 'Minimize'},
     ];
+  }
+  // THE BONUS-ACTION STAGE — checked BEFORE the first action, because the
+  // bonuses are taken first (the card grants them «immediately») and, when a
+  // corporation also owes its opening move, that move is served on the BOARD as
+  // one of them. One clear CTA that names the destination; the waiting beat
+  // advertises no A at all, exactly like the first-action stage.
+  if (s.bonusAction !== undefined && s.bonusAction !== 'off') {
+    const hints: Array<StartCommand> = [];
+    if (s.bonusAction === 'ready') {
+      hints.push({control: 'confirm', label: 'Go to the board', highlight: true});
+    }
+    hints.push({control: 'secondary', label: 'Inspect'});
+    hints.push({control: 'back', label: 'Minimize'});
+    return hints;
   }
   // THE FIRST-ACTION STAGE. One clear CTA when the turn has genuinely
   // arrived; the waiting state deliberately advertises NO A at all.

@@ -91,9 +91,16 @@ function isInActionSelectionPhase(input: PlayerInput | undefined): boolean {
  * containers (sub-prompts like SelectSpace, SelectCard never carry a
  * cross-phase title we'd match on).
  */
-function detectWaitingForKind(input: PlayerInput | undefined): 'globalsupport' | 'delegate' | undefined {
+function detectWaitingForKind(input: PlayerInput | undefined): 'globalsupport' | 'delegate' | 'bonusaction' | undefined {
   if (input === undefined) {
     return undefined;
+  }
+  // STRUCTURAL first, and deliberately not part of the title walk below: a
+  // card-granted bonus action (Head Start) is an action menu with the ordinary
+  // action-menu title, so only its marker can identify it. It is a top-level
+  // marker by construction, so there is nothing to descend into.
+  if (input.bonusActionPrompt !== undefined) {
+    return 'bonusaction';
   }
   let result: 'globalsupport' | 'delegate' | undefined;
   const visit = (node: PlayerInput, depth: number): boolean => {
@@ -460,6 +467,12 @@ export class Server {
     if (waitingFor.startGamePrompt !== undefined) {
       model.startGamePrompt = waitingFor.startGamePrompt;
     }
+    // Bonus-action marker — a card-granted action outside the normal turn
+    // structure (Head Start). Always the TOP-LEVEL prompt (it IS the action
+    // menu), so central decoration is the right home.
+    if (waitingFor.bonusActionPrompt !== undefined) {
+      model.bonusActionPrompt = waitingFor.bonusActionPrompt;
+    }
     // Award-funding marker — routes the prompt to the modern AwardsOverlay.
     if (waitingFor.awardFundingPrompt !== undefined) {
       model.awardFundingPrompt = waitingFor.awardFundingPrompt;
@@ -554,6 +567,11 @@ export class Server {
       isMarsBot: player.isMarsBot === true ? true : undefined,
       isWaitingForInput: player.getWaitingFor() !== undefined,
       waitingForKind: detectWaitingForKind(player.getWaitingFor()),
+      // PUBLIC on purpose: an opponent taking Head Start's two immediate
+      // actions must read as exactly that on every seat's chip, not as a
+      // generic «prelude phase» while they act on the board.
+      bonusActions: player.bonusActions > 0 ? player.bonusActions : undefined,
+      bonusActionsGranted: player.bonusActions > 0 ? player.bonusActionsGranted : undefined,
       lastCardPlayed: player.lastCardPlayed,
       megacredits: player.megaCredits,
       megacreditProduction: player.production.megacredits,

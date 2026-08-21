@@ -103,6 +103,8 @@ describe('MarsBotCorpFace (.pcard template)', () => {
       'C40 prints ONE plant starting tag').has.length(1);
     expect(mountFace(MarsBotCorpId.C41_KUIPER_COOPERATIVE).findAll('.pcard__tags .pcard-tag'),
       'C41 prints ONE space starting tag BESIDE its priority plate').has.length(1);
+    expect(mountFace(MarsBotCorpId.C42_NIRGAL_ENTERPRISES).findAll('.pcard__tags .pcard-tag'),
+      'C42 prints THREE — building, power and plant — and no priority plate').has.length(3);
     // C04 prints TWO event tags — both sit on the rail (the bot card's tags,
     // never the human card's single building tag).
     // Saturn Systems prints FOUR starting tags — the rail carries them all.
@@ -555,6 +557,24 @@ describe('marsBotCorpRules — the «§ ПРАВИЛА» groups', () => {
     // throws asteroids for heat — none of that is here.
     expect(text).not.contains('33');
     expect(text).not.match(/asteroid|action/i);
+  });
+
+  it('Nirgal Enterprises prints its schedule and its award bonus, never the human 0 M€ price', () => {
+    const groups = marsBotCorpAnnotations(MarsBotCorpId.C42_NIRGAL_ENTERPRISES);
+    expect(groups.map((g) => g.labelKey))
+      .deep.eq(['Corporation setup', 'Corporation effect', 'Before action phase']);
+    const text = groups.flatMap((g) => g.rows.map((r) => r.text)).join(' ');
+    expect(text, 'the card its setup removes').contains('Overachievement');
+    expect(text, 'the printed modifier').contains('2');
+    expect(text, 'and where it applies').contains('award');
+    expect(text, 'the early generations').contains('2-5');
+    expect(text, 'the middle ones').contains('6-9');
+    expect(text, 'and that an empty box is not a Failed Action').contains('Failed Action');
+    // The human Nirgal Enterprises starts with 30 M€, raises three
+    // productions and makes awards and milestones cost 0 M€ FOR ITS OWNER —
+    // the bot pays for neither anyway, and none of that is printed here.
+    expect(text).not.contains('30');
+    expect(text).not.match(/production|0 M€/i);
   });
 
   it('Ecotec prints its bio-tag greenhouse, never the human choice of plant or microbe', () => {

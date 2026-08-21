@@ -502,7 +502,7 @@
                  draw, and SETTLES back into the stack on release. -->
             <div class="con-start__embed" data-embed-slot="start"
                  :class="{
-                   'con-start__embed--live': embedPresenting || sponsorStep || firstActionPanelShown,
+                   'con-start__embed--live': embedPresenting || sponsorStep || firstActionPanelShown || bonusActionPanelShown,
                    'con-start__embed--sourced': embedSourceShown !== undefined,
                    // THE HERO SIZE BELONGS TO THE BRIEFING, NOT TO THE STAGE.
                    // While the briefing is what the player is looking at, the
@@ -512,6 +512,7 @@
                    // a hero-sized context covers the receiving zone and the
                    // «РАЗЫГРАНО» shelf, which is exactly what it did.
                    'con-start__embed--firstact': firstActionPanelShown,
+                   'con-start__embed--bonusact': bonusActionPanelShown,
                  }">
               <div v-if="embedSourceShown !== undefined" class="con-start__embedsource" ref="embedSourceCol"
                    :class="{'con-start__embedsource--departing': embedSourceDeparting}">
@@ -583,6 +584,47 @@
                     <div v-else-if="state.firstAct.stage === 'standing'" class="con-start__firstact-wait">
                       <span class="con-start__firstact-pulse" aria-hidden="true"><i></i><i></i><i></i></span>
                       <span class="con-start__firstact-wait-text">{{ firstActionWaitLine }}</span>
+                    </div>
+                  </div>
+                </div>
+              </transition>
+
+              <!-- ── THE BONUS-ACTION BRIEFING — the hand-off announcement ──
+                   A prelude granted actions the workspace cannot host: they
+                   are taken on the FULL board (the wheel, the hand, standard
+                   projects, a tile). So the stage does exactly two things —
+                   it NAMES what was granted and how much of it is left, and
+                   it says where the next press goes. It does NOT title itself
+                   (the crumb already reads «СТАРТ ПАРТИИ › ФОРА › ДЕЙСТВИЕ»),
+                   and it promises the return, because a workspace that
+                   disappears without saying it will be back reads as closed. -->
+              <transition name="con-start-firstact">
+                <div v-if="bonusActionPanelShown" class="con-start__bonusact"
+                     :class="{'con-start__bonusact--ready': bonusActionOwedNow}">
+                  <div class="con-start__bonusact-head">
+                    <span class="con-start__bonusact-flag" aria-hidden="true">››</span>
+                    <span class="con-start__bonusact-kicker">{{ $t('Bonus action') }}</span>
+                    <b v-if="bonusActionGrantedNow > 0" class="con-start__bonusact-count"
+                      >{{ bonusActionIndexNow }}/{{ bonusActionGrantedNow }}</b>
+                  </div>
+                  <div class="con-start__bonusact-ask">{{ bonusActionAskText }}</div>
+                  <div class="con-start__bonusact-note">{{ $t('These actions are extra — they do not use up your normal turn.') }}</div>
+                  <div class="con-start__bonusact-note con-start__bonusact-note--warn">
+                    <span class="con-start__bonusact-note-glyph" aria-hidden="true">⚠</span>
+                    <span>{{ $t('You cannot pass or end your turn until they are spent.') }}</span>
+                  </div>
+
+                  <!-- The STATE ZONE — one reserved row, so waiting → ready is
+                       a paint change on a standing panel, never a re-layout. -->
+                  <div class="con-start__bonusact-state">
+                    <div v-if="bonusActionOwedNow" class="con-start__bonusact-cta">
+                      <GamepadGlyph control="confirm" class="con-start__bonusact-cta-glyph" />
+                      <span class="con-start__bonusact-cta-label">{{ $t('Go to the board') }}</span>
+                      <span class="con-start__bonusact-cta-tail">{{ $t('you will come back here') }}</span>
+                    </div>
+                    <div v-else class="con-start__bonusact-wait">
+                      <span class="con-start__firstact-pulse" aria-hidden="true"><i></i><i></i><i></i></span>
+                      <span class="con-start__bonusact-wait-text">{{ $t('Preparing') }}…</span>
                     </div>
                   </div>
                 </div>
@@ -779,6 +821,9 @@ import {
 import {buildStartStatusPreview, StartStatusPreview} from '@/client/console/startStatusPreview';
 import {participantDisplayName} from '@/client/components/marsbot/marsBotDisplay';
 import {afterPreludes, cardCostForCorp, startingMegacredits} from '@/client/components/initialDraft/initialDraftMoney';
+import {
+  bonusActionGranted, bonusActionIndex, bonusActionOwed, bonusActionRemaining, bonusActionSource,
+} from '@/client/console/bonusAction';
 import {beginHoldConfirm, cancelHoldConfirm} from '@/client/console/consoleHoldConfirm';
 import {
   isPreludeEnabler, preludeBadge, preludeEnablerBadge, PreludeRisk, preludeRisk,
@@ -1266,6 +1311,12 @@ export default defineComponent({
         // the claim's own stage name) — the root never restarts.
         firstAction: this.firstActionPanelShown ||
           (this.deploymentFlowStage === 'firstAction' && this.candidatePrompt === undefined && !this.embedPresenting),
+        // The bonus tail — while the briefing stands AND through the whole
+        // board trip, so a player who minimizes the board and restores the
+        // workspace mid-bonus reads the same line they left.
+        bonusAction: this.deploymentFlowStage === 'bonusAction' &&
+          this.candidatePrompt === undefined && !this.embedPresenting,
+        bonusSource: this.bonusActionSourceCard,
       });
     },
     wsSubject(): string {
@@ -1318,7 +1369,16 @@ export default defineComponent({
     /** The deployment stage stays on its source until every effect/child/card
      *  motion has returned. This is presentation over existing live signals,
      *  not a second progress latch. */
-    deploymentFlowStage(): 'corp' | 'pay' | 'preludes' | 'firstAction' | 'ready' {
+    deploymentFlowStage(): 'corp' | 'pay' | 'preludes' | 'bonusAction' | 'firstAction' | 'ready' {
+      // THE BONUS-ACTION STAGE outranks every other: its actions are taken
+      // «immediately», ahead of the player's remaining preludes, and while the
+      // player is out on the BOARD spending them the deployment must not tell
+      // the journey rail it is back on «Прологи» (the chapter the player is in
+      // is the one they were handed off from). It also covers the standing
+      // briefing, before the hand-off is confirmed.
+      if (this.bonusActionStageLive) {
+        return 'bonusAction';
+      }
       // While the FIRST-ACTION stage is up, everything its action spawns —
       // the corp-sourced claim, the drawn-prelude pick, the placement yield —
       // belongs to THAT stage, not back to «Корпорация» / «Прологи» (the
@@ -1366,6 +1426,8 @@ export default defineComponent({
           boughtCards: this.state.projects.length > 0,
           preludesLeft: 0,
           hasPreludes: this.state.preludes.length > 0 || this.playedPreludes.length > 0,
+          hasBonusActions: this.state.bonusActionSeen,
+          bonusActionsPending: false,
           hasFirstAction: this.state.firstActionSeen || this.firstActionDeclared,
           firstActionPending: false,
         }).map((item) => ({...item, state: 'completed' as const}));
@@ -1403,6 +1465,13 @@ export default defineComponent({
         // while it is owed, and it STAYS, completed, once the action resolves
         // (`firstActionSeen` — the rail must not shrink a chapter the player
         // just finished).
+        // The BONUS chapter cannot be declared in advance the way the corp's
+        // first action can — which prelude the player draws is not known until
+        // it is played — so it joins the rail when the grant happens and
+        // STAYS, completed, once the bonuses are spent (`bonusActionSeen`).
+        hasBonusActions: this.bonusActionOwedNow || this.bonusActionStageLive ||
+          this.state.bonusActionSeen,
+        bonusActionsPending: this.deploymentFlowStage === 'bonusAction',
         hasFirstAction: this.firstActionDeclared || this.firstActionOwedNow ||
           this.firstActionStageLive || this.state.firstActionSeen,
         firstActionPending: this.deploymentFlowStage === 'firstAction',
@@ -1722,6 +1791,13 @@ export default defineComponent({
         // not before the stage's own return beat has physically completed
         // (the corp card settled home, the room breathed back).
         !this.firstActionOwedNow &&
+        // …and NEVER while a card-granted bonus action is still owed. The
+        // workspace does not end the preparation in the middle of the two
+        // actions it just handed the player: it collapses to the board (the
+        // excursion latch) and comes back to finish, which is the whole
+        // point of announcing the trip in the first place.
+        !this.bonusActionOwedNow &&
+        this.state.bonusAct.stage === 'idle' &&
         this.state.firstAct.stage === 'idle' &&
         this.corpPlayPrompt === undefined &&
         this.corpPayCost === undefined &&
@@ -1741,6 +1817,94 @@ export default defineComponent({
         this.queueCards.length === 0 &&
         this.payProjects.length === 0 &&
         this.queueArriving.size === 0;
+    },
+    // ── THE BONUS-ACTION STAGE (a prelude granted actions «immediately») ──
+    /**
+     * A card-granted bonus action is owed RIGHT NOW — the server is standing
+     * on an action menu carrying the `bonusActionPrompt` marker.
+     *
+     * Server-authoritative and structural. Never a phase check (`game.phase`
+     * is PRELUDES for the whole prelude phase) and never a title check (the
+     * menu carries the ORDINARY action-menu title on purpose, so that the task
+     * router, the quick wheels and the status label keep classifying it as an
+     * action menu).
+     */
+    bonusActionOwedNow(): boolean {
+      return bonusActionOwed(this.playerView);
+    },
+    /** The card that granted them — the stage's subject and the crumb's. */
+    bonusActionSourceCard(): CardName | undefined {
+      return bonusActionSource(this.playerView) ?? this.state.bonusAct.source;
+    },
+    /** `N` of the `N / M` readout — which bonus action is being taken now. */
+    bonusActionIndexNow(): number {
+      return bonusActionIndex(this.playerView);
+    },
+    /** `M` — how many the card granted. */
+    bonusActionGrantedNow(): number {
+      return bonusActionGranted(this.playerView);
+    },
+    bonusActionRemainingNow(): number {
+      return bonusActionRemaining(this.playerView);
+    },
+    /** The stage is live in ANY of its beats (briefing standing, or the
+     *  player out on the board spending the bonuses). */
+    bonusActionStageLive(): boolean {
+      return this.state.bonusAct.stage !== 'idle';
+    },
+    /**
+     * The BRIEFING PANEL renders — the announcement before the hand-off.
+     *
+     * Only in the `standing` beat: once the player has confirmed, the board
+     * owns the screen and the workspace is collapsed behind it, so painting
+     * the panel would be painting into a hidden surface. It also yields to an
+     * embedded follow-up exactly like the first-action briefing does (the
+     * prelude's own reveal may still be presenting when the grant lands).
+     */
+    bonusActionPanelShown(): boolean {
+      return this.state.bonusAct.stage === 'standing' &&
+        !this.embedPresenting && this.candidatePrompt === undefined;
+    },
+    /**
+     * ENTRY IS DUE — a bonus action is owed, the prelude that granted it has
+     * finished everything it was doing, and nothing of the deployment is still
+     * in flight. Pure entry predicate; the watcher acts on its rising edge.
+     */
+    bonusActionEntryDue(): boolean {
+      if (this.state.bonusAct.stage !== 'idle' || this.mode !== 'ceremony' || !this.ceremonyRevealed) {
+        return false;
+      }
+      if (!this.bonusActionOwedNow) {
+        return false;
+      }
+      // Never INTO a cinematic the granting prelude started: its own card is
+      // still travelling, its reveal is still presenting, or a step it opened
+      // is standing inside this very workspace.
+      return !this.yielded && !workspaceFrameHasNested('start') &&
+        !this.embedPresenting && !this.effectReturnPending &&
+        !this.heroState.active && this.candidatePrompt === undefined;
+    },
+    /**
+     * The stage's ASK — what the press is FOR, naming the card that granted
+     * the bonuses. The card name is its own i18n key (`ru/promo.json`), so
+     * this is one interpolation, not a per-card table.
+     */
+    bonusActionAskText(): string {
+      const source = this.bonusActionSourceCard;
+      const granted = this.bonusActionGrantedNow;
+      if (source === undefined || granted <= 0) {
+        return translateText('Take an extra action on the board');
+      }
+      return translateTextWithParams(
+        '${0} grants you ${1} immediate actions — take them on the board',
+        [translateText(source), String(granted)]);
+    },
+    /** The stage as the command contract sees it (see StartSceneCommandState). */
+    bonusActionBarState(): 'off' | 'waiting' | 'ready' {
+      if (!this.bonusActionPanelShown) {
+        return 'off';
+      }
+      return this.bonusActionOwedNow ? 'ready' : 'waiting';
     },
     // ── THE FIRST-ACTION STAGE (the deployment's conditional last stage) ──
     /** The corporation still owes its mandatory first action (see
@@ -2680,6 +2844,7 @@ export default defineComponent({
         ceremonyVerb: this.candidatePrompt !== undefined ? this.candidateVerb : 'Play now',
         hasFocusables: this.focusables.length > 0,
         firstAction: this.firstActionBarState,
+        bonusAction: this.bonusActionBarState,
         riskCommitLabel: this.riskStage?.commitLabel,
         riskHold: this.riskStage !== undefined,
       });
@@ -2987,6 +3152,46 @@ export default defineComponent({
       }
       if (now === 'failed') {
         void this.abortStartEffectFlow();
+      }
+    },
+    // ── THE BONUS-ACTION STAGE lifecycle ─────────────────────────────────
+    /**
+     * ENTRY — a prelude granted bonus actions and everything it was doing has
+     * finished: the briefing stands and announces the hand-off.
+     *
+     * `immediate`, like the first-action entry, so a reload that lands mid-
+     * bonus restores through the same one path. It restores to `standing`
+     * rather than to `onboard` on purpose: the consent latch lives in module
+     * state, which survives a COLLAPSE but not a page load, and re-announcing
+     * the trip after a reload is honest — silently dropping the player onto a
+     * board with no explanation is not.
+     */
+    'bonusActionEntryDue': {
+      immediate: true,
+      handler(due: boolean) {
+        if (due) {
+          this.enterBonusActionStage();
+        }
+      },
+    },
+    /**
+     * EXIT — the last bonus action was spent. The stage closes, the chapter is
+     * marked as walked (so the rail keeps it, completed), and the excursion
+     * latch — which the shell owns — releases on the same signal, handing the
+     * screen back to this workspace so the preparation visibly FINISHES here.
+     *
+     * Keyed on the OWED signal rather than on the stage, so a bonus action
+     * that resolves while the player is on the board (the normal case — the
+     * workspace is collapsed then) closes the stage just the same.
+     */
+    'bonusActionOwedNow'(owed: boolean): void {
+      if (owed) {
+        this.state.bonusAct.source = this.bonusActionSourceCard;
+        this.state.bonusActionSeen = true;
+        return;
+      }
+      if (this.state.bonusAct.stage !== 'idle') {
+        this.state.bonusAct = {stage: 'idle', source: undefined};
       }
     },
     // ── THE FIRST-ACTION STAGE lifecycle ─────────────────────────────────
@@ -4904,6 +5109,13 @@ export default defineComponent({
         this.togglePick();
         return;
       }
+      // The BONUS-ACTION stage's one clear CTA — the hand-off to the board.
+      // It commits nothing to the server: the action menu is already live, and
+      // what the press changes is WHO HAS THE SCREEN.
+      if (this.bonusActionBarState === 'ready') {
+        this.confirmBonusHandoff();
+        return;
+      }
       // The FIRST-ACTION stage's one clear CTA — actionable only when the
       // player's turn has genuinely arrived (never a dead press: the waiting
       // state offers no A at all, and the submit latch swallows repeats).
@@ -5521,6 +5733,32 @@ export default defineComponent({
       gsap.set(queue, {autoAlpha: 0});
       gsap.set(dock, {autoAlpha: 0});
       this.roomPosed = true;
+    },
+    /**
+     * ENTER the bonus-action stage — the briefing stands. Nothing is submitted
+     * and nothing moves on the board: this beat exists so the player is TOLD
+     * that their prelude bought them two immediate actions and that the next
+     * press hands them the board, instead of the workspace simply vanishing.
+     */
+    enterBonusActionStage(): void {
+      this.state.bonusAct = {stage: 'standing', source: this.bonusActionSourceCard};
+      this.state.bonusActionSeen = true;
+    },
+    /**
+     * A on the standing briefing — THE HAND-OFF.
+     *
+     * It commits nothing: the server's action menu is already live, the board
+     * is an always-mounted host, and what this press changes is who has the
+     * screen. The shell watches this consent (`startExcursionEngage`) and
+     * engages the completion barrier, so the workspace COLLAPSES — state
+     * intact, lifetime hold untouched — and comes back exactly once, when the
+     * last bonus is spent.
+     */
+    confirmBonusHandoff(): void {
+      if (this.state.bonusAct.stage !== 'standing') {
+        return;
+      }
+      this.state.bonusAct = {stage: 'onboard', source: this.bonusActionSourceCard};
     },
     /** The briefing's preview fetch — non-gating (the CTA never waits on it);
      *  a failed fetch degrades to the ask + the confirm, exactly like the

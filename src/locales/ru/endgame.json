@@ -875,5 +875,7 @@
   "Every living thing counted twice for ${0}: ${1} banked ${2} plant(s) and cashed them into ${3} extra step(s) up the plant track.": "Всё живое засчитывалось дважды (у ${0}): ${1} накопила растений — ${2} — и обменяла их на лишние шаги по треку растений: ${3}.",
   "The greenhouse never stood empty — ${2} plant(s) passed through ${1} over the game.": "Оранжерея не пустовала: за партию через ${1} прошло растений — ${2}.",
   "One track did all of it at ${0}: ${1} mined the space track for ${2} degree(s) of heat and ${3} ocean(s), none of them paid for.": "Один трек сделал всё (у ${0}): ${1} выминала из трека космоса шаги тепла (${2}) и океаны (${3}) — и ни за что из этого не платила.",
-  "The water came from beyond Neptune — ${2} ocean(s) were laid by the cubes of ${1} alone.": "Вода пришла из-за Нептуна: океанов, выложенных одними только кубами ${1} — ${2}."
+  "The water came from beyond Neptune — ${2} ocean(s) were laid by the cubes of ${1} alone.": "Вода пришла из-за Нептуна: океанов, выложенных одними только кубами ${1} — ${2}.",
+  "The schedule was the whole corporation at ${0}: ${1} claimed ${2} milestone(s) and funded ${3} award(s), every one of them free and none of them costing a turn.": "Вся корпорация была расписанием (у ${0}): ${1} заявила достижений — ${2} — и учредила наград — ${3}, и всё это даром и не тратя хода.",
+  "Some generations the office signed nothing — ${2} of them passed with no milestone met and no award led by ${1}.": "Иногда контора не подписывала ничего: поколений, где ${1} не выполнила ни одного достижения и не лидировала ни в одной награде — ${2}."
 }

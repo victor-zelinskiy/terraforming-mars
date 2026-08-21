@@ -1496,6 +1496,7 @@ import {consolePlayCardUi} from '@/client/console/consolePlayCardUi';
 import {consoleStartUi} from '@/client/console/consoleStartUi';
 import {consoleStartState, startAwaitingOthers, startCorporationPlayed, startDeferredSummary, startSceneHeld} from '@/client/console/consoleStartState';
 import {engageStartExcursion, releaseStartExcursion, startExcursionActive, startExcursionQuiet, startExcursionState} from '@/client/console/startBoardExcursion';
+import {bonusActionGranted, bonusActionIndex, bonusActionOwed, bonusActionSource, bonusActionTurnControlReason} from '@/client/console/bonusAction';
 import {firstActionOwed} from '@/client/console/startFirstAction';
 import {isResourceTransferActive} from '@/client/console/resourceTransfer/consoleResourceTransfer';
 import {panelCommands} from '@/client/console/consolePanelUi';
@@ -5347,6 +5348,10 @@ export default defineComponent({
           stdAvailable: this.standardProjectsAction !== undefined,
           endTurnAvailable: findEndTurnPath(wf) !== undefined,
           passAvailable: findPassPath(wf) !== undefined,
+          // A card-granted bonus action withholds BOTH turn-control verbs, and
+          // says why — the server does not offer them, so without this the
+          // wheel would fall back to «сейчас недоступно» over a live menu.
+          turnControlReason: bonusActionTurnControlReason(this.playerView),
           convertPlantsAvailable: this.convertPlantsReady,
           convertHeatAvailable: this.convertHeatReady,
           plantsNeeded: this.thisPlayer.plantsNeededForGreenery,

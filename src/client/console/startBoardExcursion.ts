@@ -12,6 +12,17 @@
  * reward transfers and the bonus-card reveal, between the reveal and the Ares
  * hazard prompt. One placement, four returns.
  *
+ * THE SECOND CAUSE is a card-granted BONUS ACTION («Фора» / Head Start:
+ * «immediately take 2 actions»). It is the same shape one level larger: the
+ * player must act on the FULL board — the wheel, the hand, the standard
+ * projects, a tile — which the workspace cannot host, and they must be handed
+ * back to the workspace when the bonuses are spent, exactly ONCE, so the
+ * preparation visibly finishes where it started. The difference from a
+ * placement is only WHO opens the barrier: a placement yields the moment the
+ * server asks for a space, a bonus action yields when the PLAYER confirms the
+ * hand-off (`A` on the stage) — the workspace announces the trip before taking
+ * it, instead of the board simply appearing.
+ *
  * THE MODEL — a LATCH, engaged when the workspace yields to a placement and
  * released exactly once, when the WHOLE causal chain of that placement has
  * completed:
@@ -74,7 +85,12 @@ export function startExcursionActive(): boolean {
  *  - `space` — counted separately (`placementAsked`), raw and unfiltered, so
  *    a chained second placement (Great Aquifer's two oceans) held behind the
  *    first tile's cinematic still counts as chain work;
- *  - `actionMenu` — the deployment is over by definition.
+ *  - `actionMenu` — the deployment is over by definition… UNLESS it is a
+ *    card-granted BONUS action, which is an action menu served WHILE the
+ *    deployment is still running. That one is counted separately
+ *    (`bonusActionOwed`), for the same reason `space` is: the raw, ungated
+ *    signal is what keeps the barrier closed across the gap between two
+ *    consecutive bonus actions, where the task kind briefly says nothing.
  */
 export const EXCURSION_BLOCKING_KINDS: ReadonlySet<TaskKind> = new Set<TaskKind>([
   'choice', 'distribute', 'player', 'amount', 'resource', 'payment',
@@ -101,6 +117,14 @@ export type StartExcursionSignals = {
   /** The current top-level task kind (`taskFor(view)?.kind`), undefined when
    *  the server asks nothing. */
   followUpKind: TaskKind | undefined;
+  /**
+   * The viewer still OWES a card-granted bonus action (`bonusActionOwed`) — the
+   * whole reason this excursion was taken. Raw and unfiltered, like
+   * `placementAsked`: it must hold the barrier through the response gap between
+   * two consecutive bonus actions, when `followUpKind` is momentarily
+   * undefined and every visual signal is quiet.
+   */
+  bonusActionOwed?: boolean;
 };
 
 /**
@@ -110,6 +134,9 @@ export type StartExcursionSignals = {
  * settle → reveal claim — can never slip a false release through).
  */
 export function startExcursionQuiet(s: StartExcursionSignals): boolean {
+  if (s.bonusActionOwed === true) {
+    return false;
+  }
   if (s.placementAsked || s.tileHero || s.transfers || s.boardBonus || s.revealBusy || s.handIntake) {
     return false;
   }

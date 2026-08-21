@@ -130,6 +130,14 @@ export function actionLabelForPlayer(
     if (player.waitingForKind === 'delegate') {
       return 'delegate';
     }
+    // A card-granted BONUS action (Head Start) outranks the phase: the player
+    // is acting on the BOARD while `game.phase` still says PRELUDES, so the
+    // phase-derived «ФАЗА ПРОЛОГОВ» would describe the wrong thing on every
+    // seat — including the opponents', who see the board change and need to
+    // know why. Server-authoritative (`bonusActionPrompt` marker).
+    if (player.waitingForKind === 'bonusaction') {
+      return 'bonusaction';
+    }
 
     switch (game.phase) {
     case Phase.INITIALDRAFTING:
