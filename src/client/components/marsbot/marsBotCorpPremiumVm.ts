@@ -419,6 +419,24 @@ function renderDataOf(id: MarsBotCorpId): ICardRenderRoot {
         eb.text('↻', Size.SMALL, true).startAction.resource(CardResource.FLOATER);
       });
     });
+  case MarsBotCorpId.C35_LAKEFRONT_RESORTS:
+    return CardRenderer.builder((b) => {
+      // EFFECT, the flip — two rows, because the card really is two outcomes
+      // and which one happens is the state of the cube. An ocean by ANYONE
+      // (`all`) either arms the card…
+      b.effect(undefined, (eb) => {
+        eb.oceans(1, {size: Size.SMALL, all}).startEffect.resource(CardResource.RESOURCE_CUBE);
+      });
+      // …or spends that cube for a building-track step.
+      b.effect(undefined, (eb) => {
+        eb.resource(CardResource.RESOURCE_CUBE).startEffect.tag(Tag.BUILDING);
+      });
+      // The standing rate, in the HUMAN Lakefront Resorts' own printed shape
+      // for the identical sentence: a tile beside an ocean pays 3 M€.
+      b.effect(undefined, (eb) => {
+        eb.emptyTile('normal', {size: Size.SMALL}).oceans(1, {size: Size.SMALL}).startEffect.megacredits(3);
+      });
+    });
   case MarsBotCorpId.C46_TYCHO_MAGNETICS:
     return CardRenderer.builder((b) => {
       // The whole corporation is ONE card waiting at the bottom of the bonus

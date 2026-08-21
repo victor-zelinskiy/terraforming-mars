@@ -24,9 +24,11 @@ export type {MarsBotCubeType} from './AutomaTypes';
  * A resource physically stored ON the MarsBot corporation card (Ecoline's
  * plant, Spire's science, Mining Guild's M€ bank). Its own union — plants and
  * M€ are not `CardResource`s in this engine, and the bot's corp storage is not
- * a card-resource pool.
+ * a card-resource pool. `cube-white` is the same socket used as a STATE FLAG:
+ * C35's card either carries its white cube or it does not, and the count IS
+ * the state (the printed effect only ever puts one there or takes it away).
  */
-export type MarsBotCorpResource = 'plant' | 'science' | 'megacredits';
+export type MarsBotCorpResource = 'plant' | 'science' | 'megacredits' | 'cube-white';
 
 /**
  * How the bot picks (and protects) cards in the research draft — RB-B "Draft
@@ -1009,6 +1011,27 @@ const CORP_INFO: Readonly<Record<MarsBotCorpId, MarsBotCorpInfo>> = {
       ]},
     ],
   },
+  [MarsBotCorpId.C35_LAKEFRONT_RESORTS]: {
+    id: MarsBotCorpId.C35_LAKEFRONT_RESORTS,
+    cardNumber: 'C35',
+    original: CardName.LAKEFRONT_RESORTS,
+    // Neither a starting tag nor a priority plate is printed.
+    startingTags: [],
+    // The white cube of the SETUP box. It is a two-state FLAG, not a store:
+    // every ocean either spends the cube for a building-track step or puts it
+    // back, so the card never carries more than one.
+    resource: 'cube-white',
+    corpBonusCards: [],
+    sections: [
+      {kind: 'setup', lines: [
+        {icon: 'cube-white', text: 'Place ${0} white cube on this card', params: ['1']},
+      ]},
+      {kind: 'effect', lines: [
+        {icon: 'ocean', text: 'Every ocean placed at the table flips this card: a cube here is spent to advance the building track, an empty card takes one'},
+        {icon: 'megacredits', text: 'MarsBot\'s bonus for placing next to an ocean is ${0} M€ instead of ${1}', params: ['3', '2']},
+      ]},
+    ],
+  },
   [MarsBotCorpId.C45_SPIRE]: {
     id: MarsBotCorpId.C45_SPIRE,
     cardNumber: 'C45',
@@ -1091,6 +1114,12 @@ export function corpOwningBonusCard(id: BonusCardId): MarsBotCorpInfo | undefine
  *           the card destroys itself), hyperlinkDrawn (project cards that draw
  *           put in front of it) and hyperlinkResolved (the two it kept and
  *           played; fewer only when the deck could not supply them).
+ * Lakefront Resorts: lakefrontOceans (oceans placed at the table while it was
+ *           in play, both seats), lakefrontSteps (the building-track advances
+ *           every SECOND one of them bought — a completed track is a Failed
+ *           Action, not a step) and lakefrontWaterfront / lakefrontExtraMc
+ *           (its own tiles placed beside water, and the extra M€ the printed
+ *           3-instead-of-2 rate added to them).
  * Stormcraft Incorporated: stormcraftSetup / stormcraftRounds / stormcraftFloaters
  *           — the same three counters C26 keeps for the same shared payout —
  *           plus stormcraftSpends (research-phase floater spends it turned into

@@ -566,6 +566,27 @@ describe('insightEngine', () => {
         MarsBotCorpId.C34_STORMCRAFT, 'Stormcraft Incorporated')).is.empty;
     });
 
+    it('C35 tells the flipping cube and the shoreline as SEPARATE stories', () => {
+      const insights = botInsights({lakefrontOceans: 9, lakefrontSteps: 5, lakefrontWaterfront: 4, lakefrontExtraMc: 6},
+        MarsBotCorpId.C35_LAKEFRONT_RESORTS, 'Lakefront Resorts');
+      expect(insights).has.length(2);
+      const keys = insights.map((i) => i.textKey).join(' | ');
+      expect(keys).contains('Every second wave');
+      expect(keys).contains('built where the water was');
+    });
+
+    it('C35 keeps the shoreline quiet when it never built by the water', () => {
+      const insights = botInsights({lakefrontOceans: 9, lakefrontSteps: 5, lakefrontWaterfront: 0, lakefrontExtraMc: 0},
+        MarsBotCorpId.C35_LAKEFRONT_RESORTS, 'Lakefront Resorts');
+      expect(insights).has.length(1);
+      expect(insights[0].textKey).contains('Every second wave');
+    });
+
+    it('C35 keeps quiet on a dry map', () => {
+      expect(botInsights({lakefrontOceans: 2, lakefrontSteps: 1, lakefrontWaterfront: 1, lakefrontExtraMc: 1},
+        MarsBotCorpId.C35_LAKEFRONT_RESORTS, 'Lakefront Resorts')).is.empty;
+    });
+
     it('C46 tells its one moment as ONE story', () => {
       const insights = botInsights({hyperlinkPlayed: 1, hyperlinkDrawn: 9, hyperlinkResolved: 2},
         MarsBotCorpId.C46_TYCHO_MAGNETICS, 'Tycho Magnetics');

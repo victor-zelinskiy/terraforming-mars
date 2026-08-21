@@ -3163,6 +3163,32 @@ const analyzeBotCorporation: Analyzer = (ctx) => {
           scale: 20,
         });
       }
+    } else if (corp.id === 'C35') {
+      // Lakefront Resorts has two independent halves — the flipping cube and
+      // the standing waterfront rate — so they are two stories, never one
+      // welded sentence: one is about the table's oceans, the other about
+      // where the bot chose to build.
+      const steps = stat('lakefrontSteps');
+      const oceans = stat('lakefrontOceans');
+      const extra = stat('lakefrontExtraMc');
+      if (steps >= 2) {
+        stories.push({
+          key: 'effect',
+          textKey: 'Every second wave carried ${0}\'s ${1} forward: ${2} of the ${3} ocean(s) laid at the table turned into a step up its building track.',
+          params: [raw(p.name), raw(corp.name), raw(steps), raw(oceans)],
+          measure: steps,
+          scale: 5,
+        });
+      }
+      if (extra >= 4) {
+        stories.push({
+          key: 'waterfront',
+          textKey: 'And it built where the water was — ${2} tile(s) went up beside an ocean, each shoreline paying ${1} an extra M€, ${3} in all.',
+          params: [raw(p.name), raw(corp.name), raw(stat('lakefrontWaterfront')), raw(extra)],
+          measure: extra,
+          scale: 12,
+        });
+      }
     } else if (corp.id === 'C46') {
       // Tycho Magnetics is ONE moment, and the whole game before it is the
       // wind-up — so the story is that moment, sized by what the wait bought.

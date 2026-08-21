@@ -577,5 +577,11 @@
   "The kept cards are played as usual; the rest go to the project discard": "Оставленные карты разыгрываются как обычно, остальные уходят в сброс проектов",
   "${0} placed Interface Hyperlink at the bottom of its bonus deck (corporation ${1})": "${0} кладёт «Интерфейсную гиперссылку» на дно своей бонусной колоды (корпорация ${1})",
   "${0} drew ${1} card(s) with Interface Hyperlink — its power track stands at ${2}": "${0} берёт карт по «Интерфейсной гиперссылке»: ${1} — трек энергии стоит на ${2}",
-  "Tycho Magnetics: MarsBot draws as many project cards as its space on the power track (at least 2), plays the best 2 of them and discards the rest. Destroyed afterwards.": "Tycho Magnetics: Бот берёт столько карт проектов, на какой клетке трека энергии он стоит (не меньше 2), разыгрывает лучшие 2 из них и сбрасывает остальные. После этого карта уничтожается."
+  "Tycho Magnetics: MarsBot draws as many project cards as its space on the power track (at least 2), plays the best 2 of them and discards the rest. Destroyed afterwards.": "Tycho Magnetics: Бот берёт столько карт проектов, на какой клетке трека энергии он стоит (не меньше 2), разыгрывает лучшие 2 из них и сбрасывает остальные. После этого карта уничтожается.",
+  "Place ${0} white cube on this card": "Положите на эту карту белый куб — ${0}",
+  "Every ocean placed at the table flips this card: a cube here is spent to advance the building track, an empty card takes one": "Каждый океан, выложенный за столом, переключает эту карту: куб отсюда тратится на продвижение трека строительства, а на пустую карту кладётся новый",
+  "MarsBot's bonus for placing next to an ocean is ${0} M€ instead of ${1}": "Бонус Бота за размещение рядом с океаном — ${0} M€ вместо ${1}",
+  "${0} placed a white cube on its corporation ${1} — its tiles beside water now pay ${2} M€": "${0} кладёт белый куб на свою корпорацию ${1} — её тайлы у воды теперь дают ${2} M€",
+  "${0} spent the white cube on its corporation ${1}: a new ocean advances the building track": "${0} тратит белый куб со своей корпорации ${1}: новый океан продвигает трек строительства",
+  "${0} put a white cube back on its corporation ${1}: a new ocean re-armed it": "${0} возвращает белый куб на свою корпорацию ${1}: новый океан снова её зарядил"
 }

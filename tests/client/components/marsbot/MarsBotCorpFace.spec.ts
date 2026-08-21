@@ -90,6 +90,8 @@ describe('MarsBotCorpFace (.pcard template)', () => {
       'C34 prints ONE Jovian starting tag').has.length(1);
     expect(mountFace(MarsBotCorpId.C46_TYCHO_MAGNETICS).find('.pcard__tags').exists(),
       'C46 prints NO starting tag — its corner carries the priority plate').is.false;
+    expect(mountFace(MarsBotCorpId.C35_LAKEFRONT_RESORTS).find('.pcard__tags').exists(),
+      'C35 prints NO starting tag at all').is.false;
     // C04 prints TWO event tags — both sit on the rail (the bot card's tags,
     // never the human card's single building tag).
     // Saturn Systems prints FOUR starting tags — the rail carries them all.
@@ -483,6 +485,20 @@ describe('marsBotCorpRules — the «§ ПРАВИЛА» groups', () => {
     // heat with an action — none of that is here.
     expect(text).not.contains('48');
     expect(text).not.match(/2 heat|spend a floater/i);
+  });
+
+  it('Lakefront Resorts prints the flipping cube and the waterfront rate, never the human production', () => {
+    const groups = marsBotCorpAnnotations(MarsBotCorpId.C35_LAKEFRONT_RESORTS);
+    expect(groups.map((g) => g.labelKey)).deep.eq(['Corporation setup', 'Corporation effect']);
+    const text = groups.flatMap((g) => g.rows.map((r) => r.text)).join(' ');
+    expect(text, 'the cube the setup places').contains('white cube');
+    expect(text, 'what an ocean does to it').contains('building track');
+    expect(text, 'and the standing rate').contains('3 M€');
+    // The human Lakefront Resorts starts with 54 M€ and raises its own M€
+    // PRODUCTION on every ocean — neither is here (only the shared 3 M€
+    // shoreline rate, which the bot card prints for itself).
+    expect(text).not.contains('54');
+    expect(text).not.match(/production/i);
   });
 
   it('Tycho Magnetics prints its one waiting card, never the human energy engine', () => {
