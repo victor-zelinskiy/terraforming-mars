@@ -14,6 +14,7 @@ import {PlayerId} from '../../common/Types';
 import {PlayerInput} from '../PlayerInput';
 import {Resource} from '../../common/Resource';
 import {ScienceTagCard} from '../cards/community/ScienceTagCard';
+import {AutomaCorporations} from '../automa/corps/AutomaCorporations';
 import {SelectColony} from '../inputs/SelectColony';
 import {SelectOption} from '../inputs/SelectOption';
 import {SelectPlayer} from '../inputs/SelectPlayer';
@@ -121,6 +122,10 @@ export abstract class Colony implements IColony {
         player.game.events.withEffect(cardOwner, card, 'colony-added', () => card.onColonyAddedByAnyPlayer?.(cardOwner, player));
       }
     }
+    // … and the BOT's own corporation, which is not a card in a tableau (C33
+    // Poseidon prints the same «when you or MarsBot build a colony» sentence
+    // the loop above serves for the human Poseidon).
+    AutomaCorporations.onColonyBuilt(player.game, player);
 
     if (this.name === ColonyName.LEAVITT) {
       player.triggerOnNonCardTagAdded(Tag.SCIENCE);

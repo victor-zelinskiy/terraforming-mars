@@ -118,6 +118,22 @@ export type MarsBotCorp = {
   onHumanCardPlayed?(game: IGame, player: IPlayer, card: ICard): void;
 
   /**
+   * A COLONY was just built by `builder` — either seat. Dispatched from BOTH
+   * places a colony can be founded, each time beside the engine's own
+   * «any player built a colony» loop (`Colony.addColony` for a human,
+   * `AutomaColonies.botBuildColony` for the bot, which deliberately does not
+   * go through the former: it ignores the printed reward). Inheriting those
+   * two positions is what makes «when you or MarsBot build a colony» need no
+   * branches of its own — C33 Poseidon, whose human twin's
+   * `onColonyAddedByAnyPlayer` is the very hook those loops are calling.
+   *
+   * The corporation is seated BEFORE its own Setup box runs, so a colony the
+   * setup builds arrives here too — the printed «including during setup of
+   * this card» is free.
+   */
+  onColonyBuilt?(game: IGame, builder: IPlayer): void;
+
+  /**
    * MarsBot just GAINED `amount` M€ (a positive `stock.add`, from anywhere:
    * a track cell, a covered bonus icon, a Failed Action, another corporation
    * effect). Runs INSIDE that gain, after the bot's balance changed — a

@@ -563,5 +563,8 @@
   "${0} gained ${1} M€ from its corporation ${2} for resolving a ${3} tag": "${0} получает ${1} М€ от корпорации ${2} за разыгранную метку (${3})",
   "MarsBot discards one of the cards with the fewest tags from its action deck": "Бот сбрасывает из своей колоды действий одну из карт с наименьшим числом меток",
   "Bonus cards are not part of that choice — they carry no tags at all": "Бонусные карты в этом выборе не участвуют — у них меток нет вовсе",
-  "${0} discarded ${1} from its action deck — the fewest tags (corporation ${2})": "${0} сбрасывает карту ${1} из колоды действий — меньше всего меток (корпорация ${2})"
+  "${0} discarded ${1} from its action deck — the fewest tags (corporation ${2})": "${0} сбрасывает карту ${1} из колоды действий — меньше всего меток (корпорация ${2})",
+  "MarsBot builds a colony and takes ${0} of that colony's resource onto its shipping board": "Бот строит колонию и получает ${0} ресурса этой колонии на свою транспортную доску",
+  "Every colony built at the table — by MarsBot or by its opponent, the one from its own setup included — advances MarsBot's least-advanced track (the topmost if tied)": "Любая построенная за столом колония — Бота или его соперника, включая ту, что он строит на подготовке, — продвигает самый отстающий трек Бота (при равенстве — верхний)",
+  "${0} advances its least-advanced track from its corporation ${1}: a colony was built": "${0} продвигает свой самый отстающий трек от корпорации ${1}: построена колония"
 }

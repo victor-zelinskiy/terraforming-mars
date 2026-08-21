@@ -3115,6 +3115,30 @@ const analyzeBotCorporation: Analyzer = (ctx) => {
           scale: 6,
         });
       }
+    } else if (corp.id === 'C33') {
+      // Poseidon taxes expansion itself, and the sharpest half of that is the
+      // half the OPPONENT paid — so the two seats are two stories, never one
+      // welded sentence: the card treats them alike, the finale does not.
+      const steps = stat('poseidonSteps');
+      const fromHuman = stat('poseidonHumanColonies');
+      if (steps >= 3) {
+        stories.push({
+          key: 'effect',
+          textKey: 'Every flag planted anywhere fed ${0}\'s ${1}: ${2} colony(ies) went up at the table, and each one pushed whatever the bot was worst at.',
+          params: [raw(p.name), raw(corp.name), raw(steps)],
+          measure: steps,
+          scale: 10,
+        });
+      }
+      if (fromHuman >= 2) {
+        stories.push({
+          key: 'from-human',
+          textKey: 'And ${2} of those flags were ${0}\'s own — settling out there levelled the bot\'s weakest track every time.',
+          params: [raw(p.name), raw(corp.name), raw(fromHuman)],
+          measure: fromHuman,
+          scale: 5,
+        });
+      }
     } else if (corp.id === 'C45') {
       // Spire: the science engine — multi-tag cards banked into cities + TR.
       const cities = stat('citiesPlaced');

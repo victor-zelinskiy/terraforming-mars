@@ -84,6 +84,8 @@ describe('MarsBotCorpFace (.pcard template)', () => {
       'C31 prints ONE animal starting tag').has.length(1);
     expect(mountFace(MarsBotCorpId.C32_POLYPHEMOS).findAll('.pcard__tags .pcard-tag'),
       'C32 prints SIX starting tags — three space and three event').has.length(6);
+    expect(mountFace(MarsBotCorpId.C33_POSEIDON).find('.pcard__tags').exists(),
+      'C33 prints NO starting tag at all').is.false;
     // C04 prints TWO event tags — both sit on the rail (the bot card's tags,
     // never the human card's single building tag).
     // Saturn Systems prints FOUR starting tags — the rail carries them all.
@@ -448,6 +450,21 @@ describe('marsBotCorpRules — the «§ ПРАВИЛА» groups', () => {
     // draws 2 whenever it would draw 1 — none of that is here.
     expect(text).not.contains('50');
     expect(text).not.match(/buy a card|draw 2|instead of 3/i);
+  });
+
+  it('Poseidon prints both seats of its colony trigger, never the human trade bonus', () => {
+    const groups = marsBotCorpAnnotations(MarsBotCorpId.C33_POSEIDON);
+    expect(groups.map((g) => g.labelKey)).deep.eq(['Corporation setup', 'Corporation effect']);
+    const text = groups.flatMap((g) => g.rows.map((r) => r.text)).join(' ');
+    expect(text).contains('Colonies');
+    expect(text, 'the setup founds one').contains('builds a colony');
+    expect(text, 'and BOTH seats trigger it').contains('opponent');
+    expect(text, 'including the printed «during setup» clause').contains('setup');
+    expect(text, 'and the target').contains('least-advanced');
+    // The human Poseidon starts with 45 M€, gains a colony for free and takes
+    // 1 M€ whenever ANY colony is built — none of that is here.
+    expect(text).not.contains('45');
+    expect(text).not.match(/gain 1 M€|trade bonus/i);
   });
 
   it('ThorGate prints its cubes and the first-tag clause, never the human discount', () => {

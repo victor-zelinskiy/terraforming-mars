@@ -967,6 +967,24 @@ const CORP_INFO: Readonly<Record<MarsBotCorpId, MarsBotCorpInfo>> = {
       ]},
     ],
   },
+  [MarsBotCorpId.C33_POSEIDON]: {
+    id: MarsBotCorpId.C33_POSEIDON,
+    cardNumber: 'C33',
+    original: CardName.POSEIDON,
+    // Neither a starting tag nor a priority plate is printed.
+    startingTags: [],
+    requiresModules: ['colonies'],
+    corpBonusCards: [],
+    sections: [
+      {kind: 'setup', lines: [
+        {icon: 'cards', text: 'Use this corporation only when playing with Colonies', muted: true},
+        {icon: 'colony', text: 'MarsBot builds a colony and takes ${0} of that colony\'s resource onto its shipping board', params: ['2']},
+      ]},
+      {kind: 'effect', lines: [
+        {icon: 'cards', text: 'Every colony built at the table — by MarsBot or by its opponent, the one from its own setup included — advances MarsBot\'s least-advanced track (the topmost if tied)'},
+      ]},
+    ],
+  },
   [MarsBotCorpId.C45_SPIRE]: {
     id: MarsBotCorpId.C45_SPIRE,
     cardNumber: 'C45',
@@ -1029,6 +1047,11 @@ export function corpOwningBonusCard(id: BonusCardId): MarsBotCorpInfo | undefine
  *           three counters, for the same printed effect on its own track.
  * Aphrodite: aphroditeSteps (Venus steps it was paid for) and aphroditeMc
  *           (what they came to).
+ * Poseidon: poseidonBotColonies / poseidonHumanColonies (colony builds it was
+ *           paid for, by seat — the card treats them alike, the finale does
+ *           not) and poseidonSteps (advances of the least-advanced track those
+ *           builds actually landed; a fully maxed mat is a Failed Action, not
+ *           a step).
  * Polyphemos: polyphemosDiscards (cards its Before-Action-Phase box shed) and
  *           polyphemosTaglessShed (how many of them carried NO tag at all —
  *           each one a guaranteed Failed Action the bot never had to take).

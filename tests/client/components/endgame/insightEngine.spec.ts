@@ -523,6 +523,28 @@ describe('insightEngine', () => {
         MarsBotCorpId.C32_POLYPHEMOS, 'Polyphemos')).is.empty;
     });
 
+    it('C33 tells the table colonies and the opponent OWN ones as SEPARATE stories', () => {
+      const insights = botInsights({poseidonSteps: 6, poseidonBotColonies: 2, poseidonHumanColonies: 4},
+        MarsBotCorpId.C33_POSEIDON, 'Poseidon');
+      // Order is the SELECTOR's business (it ranks by measure/scale), so the
+      // claim here is the SET: two independent facts, never one welded line.
+      expect(insights).has.length(2);
+      const keys = insights.map((i) => i.textKey).join(' | ');
+      expect(keys).contains('Every flag planted anywhere');
+      expect(keys).contains('of those flags were');
+    });
+
+    it('C33 keeps the second story quiet when the opponent never settled', () => {
+      const insights = botInsights({poseidonSteps: 6, poseidonBotColonies: 6, poseidonHumanColonies: 0},
+        MarsBotCorpId.C33_POSEIDON, 'Poseidon');
+      expect(insights).has.length(1);
+    });
+
+    it('C33 keeps quiet when barely anything was founded', () => {
+      expect(botInsights({poseidonSteps: 2, poseidonBotColonies: 1, poseidonHumanColonies: 1},
+        MarsBotCorpId.C33_POSEIDON, 'Poseidon')).is.empty;
+    });
+
     it('the draft fallback speaks only when no printed effect did', () => {
       const withEffect = botInsights({credicorTriggers: 6, credicorMc: 24, fiveCardDecks: 3},
         MarsBotCorpId.C01_CREDICOR, 'CrediCor');

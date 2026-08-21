@@ -393,6 +393,19 @@ function renderDataOf(id: MarsBotCorpId): ICardRenderRoot {
         eb.text('↻', Size.SMALL, true).startAction.minus().cards(1).asterix();
       });
     });
+  case MarsBotCorpId.C33_POSEIDON:
+    return CardRenderer.builder((b) => {
+      // SETUP: it opens by founding one, in the bare row the human Aridor
+      // uses for its own colony tile — nothing triggers it.
+      b.colonies(1);
+      // EFFECT: a colony built by ANYONE (the red «all» border) moves a track.
+      // The wild tag is this face's established «a track» symbol (C14/C15/
+      // C19/C22); the asterisk says «not just any one» — WHICH track is one
+      // panel away in «§ ПРАВИЛА».
+      b.effect(undefined, (eb) => {
+        eb.colonies(1, {all}).startEffect.wild(1).asterix();
+      });
+    });
   case MarsBotCorpId.C45_SPIRE:
     return CardRenderer.builder((b) => {
       // EFFECT: a card with 2+ tags adds a science resource here — the

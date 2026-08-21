@@ -38,6 +38,7 @@ import {MarsBotManutech} from './MarsBotManutech';
 import {MarsBotAridor} from './MarsBotAridor';
 import {MarsBotArklight} from './MarsBotArklight';
 import {MarsBotPolyphemos} from './MarsBotPolyphemos';
+import {MarsBotPoseidon} from './MarsBotPoseidon';
 import {MarsBotMorningStar} from './MarsBotMorningStar';
 import {MarsBotViron} from './MarsBotViron';
 import {MarsBotVitor} from './MarsBotVitor';
@@ -107,6 +108,7 @@ export class AutomaCorporations {
     [MarsBotCorpId.C30_ARIDOR]: MarsBotAridor,
     [MarsBotCorpId.C31_ARKLIGHT]: MarsBotArklight,
     [MarsBotCorpId.C32_POLYPHEMOS]: MarsBotPolyphemos,
+    [MarsBotCorpId.C33_POSEIDON]: MarsBotPoseidon,
     [MarsBotCorpId.C45_SPIRE]: MarsBotSpire,
   };
 
@@ -422,6 +424,14 @@ export class AutomaCorporations {
    */
   public static onTilePlaced(game: IGame, player: IPlayer, space: Space): void {
     AutomaCorporations.activeCorp(game)?.onTilePlaced?.(game, player, space);
+  }
+
+  /**
+   * A COLONY was founded by `builder` — dispatched from BOTH build sites,
+   * each beside the engine's own «any player built a colony» loop (C33).
+   */
+  public static onColonyBuilt(game: IGame, builder: IPlayer): void {
+    AutomaCorporations.activeCorp(game)?.onColonyBuilt?.(game, builder);
   }
 
   /**

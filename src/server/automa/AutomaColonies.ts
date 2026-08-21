@@ -9,6 +9,7 @@ import {AutomaResolver} from './AutomaResolver';
 import {AutomaTilePlacer} from './AutomaTilePlacer';
 import {AutomaTurnLog} from './AutomaTurnLog';
 import {marsBotOf} from './AutomaUtil';
+import {AutomaCorporations} from './corps/AutomaCorporations';
 
 /**
  * The MarsBot Colonies machinery (Adding Expansions pp.4–6): the shipping
@@ -154,6 +155,11 @@ export class AutomaColonies {
         game.events.withEffect(cardOwner, card, 'colony-added', () => card.onColonyAddedByAnyPlayer?.(cardOwner, bot));
       }
     }
+    // … and the BOT's own corporation, beside them — the same sentence, the
+    // other seat (C33 Poseidon). This build deliberately never goes through
+    // `Colony.addColony` (it ignores the printed reward), which is exactly why
+    // the dispatch has to exist at BOTH sites.
+    AutomaCorporations.onColonyBuilt(game, bot);
     // "It ignores the printed reward of the tile, and instead it gains 2
     // resources into the storage area" — Europa: an ocean (+TR) instead.
     if (colony.name === ColonyName.EUROPA) {
