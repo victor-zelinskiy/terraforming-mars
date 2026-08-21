@@ -1028,6 +1028,22 @@ const CORP_INFO: Readonly<Record<MarsBotCorpId, MarsBotCorpInfo>> = {
       ]},
     ],
   },
+  [MarsBotCorpId.C46_TYCHO_MAGNETICS]: {
+    id: MarsBotCorpId.C46_TYCHO_MAGNETICS,
+    cardNumber: 'C46',
+    original: CardName.TYCHO_MAGNETICS,
+    // Neither a starting tag is printed — the corner carries only the plate.
+    startingTags: [],
+    draftPriority: {type: 'tags', tags: [Tag.POWER, Tag.SCIENCE]},
+    corpBonusCards: [BonusCardId.B30_INTERFACE_HYPERLINK],
+    sections: [
+      {kind: 'draftPriority', lines: [{text: 'Power, then science'}]},
+      {kind: 'setup', lines: [
+        {icon: 'deck', text: 'Interface Hyperlink goes to the BOTTOM of the bonus deck — it comes up last'},
+        {icon: 'cards', text: 'Interface Hyperlink draws as many project cards as MarsBot\'s space on the power track (at least ${0}), plays the best ${1} and discards the rest', params: ['2', '2'], muted: true},
+      ]},
+    ],
+  },
 };
 
 export function marsBotCorpInfo(id: MarsBotCorpId): MarsBotCorpInfo {
@@ -1071,6 +1087,10 @@ export function corpOwningBonusCard(id: BonusCardId): MarsBotCorpInfo | undefine
  *           three counters, for the same printed effect on its own track.
  * Aphrodite: aphroditeSteps (Venus steps it was paid for) and aphroditeMc
  *           (what they came to).
+ * Tycho Magnetics: hyperlinkPlayed (times its own B30 came up — at most once,
+ *           the card destroys itself), hyperlinkDrawn (project cards that draw
+ *           put in front of it) and hyperlinkResolved (the two it kept and
+ *           played; fewer only when the deck could not supply them).
  * Stormcraft Incorporated: stormcraftSetup / stormcraftRounds / stormcraftFloaters
  *           — the same three counters C26 keeps for the same shared payout —
  *           plus stormcraftSpends (research-phase floater spends it turned into

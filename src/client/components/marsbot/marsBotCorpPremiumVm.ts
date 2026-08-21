@@ -419,6 +419,20 @@ function renderDataOf(id: MarsBotCorpId): ICardRenderRoot {
         eb.text('↻', Size.SMALL, true).startAction.resource(CardResource.FLOATER);
       });
     });
+  case MarsBotCorpId.C46_TYCHO_MAGNETICS:
+    return CardRenderer.builder((b) => {
+      // The whole corporation is ONE card waiting at the bottom of the bonus
+      // deck — the named plate flowing into cards, the deck-join symbol this
+      // face uses for every corp-owned card (C02/C15/C17).
+      b.action(undefined, (eb) => {
+        eb.plate('Interface Hyperlink').startAction.cards(2).asterix();
+      });
+      // What it does when it finally comes up: the power track's own space
+      // number is the draw, and two of them are played.
+      b.effect(undefined, (eb) => {
+        eb.tag(Tag.POWER).startEffect.cards(1).asterix();
+      });
+    });
   case MarsBotCorpId.C45_SPIRE:
     return CardRenderer.builder((b) => {
       // EFFECT: a card with 2+ tags adds a science resource here — the

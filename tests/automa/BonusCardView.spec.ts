@@ -85,6 +85,17 @@ describe('buildBonusCardView — the card face resolved for THIS game', () => {
     expect(view.fate.kind, 'not recurring, not destroyed').eq('discard');
   });
 
+  it('Interface Hyperlink (B30) states the variable draw, the chain and its own end', () => {
+    const view = buildBonusCardView(BonusCardId.B30_INTERFACE_HYPERLINK, BASE);
+    expect(view.name).eq('Interface Hyperlink');
+    expect(view.lines).has.length(3);
+    expect(view.lines[0].text, 'the DRAW is a fact about the mat, not a printed number')
+      .to.include('power track');
+    expect(view.lines[1].text, 'the whole priority chain, in printed order')
+      .to.include('science tag').and.to.include('most expensive').and.to.include('at random');
+    expect(view.fate.kind, 'it destroys itself').eq('alwaysDestroy');
+  });
+
   it('Diversification (B28) states the push and the price it charges for it', () => {
     const view = buildBonusCardView(BonusCardId.B28_DIVERSIFICATION, BASE);
     expect(view.name).eq('Diversification');

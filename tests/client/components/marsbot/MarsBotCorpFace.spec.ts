@@ -88,6 +88,8 @@ describe('MarsBotCorpFace (.pcard template)', () => {
       'C33 prints NO starting tag at all').is.false;
     expect(mountFace(MarsBotCorpId.C34_STORMCRAFT).findAll('.pcard__tags .pcard-tag'),
       'C34 prints ONE Jovian starting tag').has.length(1);
+    expect(mountFace(MarsBotCorpId.C46_TYCHO_MAGNETICS).find('.pcard__tags').exists(),
+      'C46 prints NO starting tag — its corner carries the priority plate').is.false;
     // C04 prints TWO event tags — both sit on the rail (the bot card's tags,
     // never the human card's single building tag).
     // Saturn Systems prints FOUR starting tags — the rail carries them all.
@@ -481,6 +483,19 @@ describe('marsBotCorpRules — the «§ ПРАВИЛА» groups', () => {
     // heat with an action — none of that is here.
     expect(text).not.contains('48');
     expect(text).not.match(/2 heat|spend a floater/i);
+  });
+
+  it('Tycho Magnetics prints its one waiting card, never the human energy engine', () => {
+    const groups = marsBotCorpAnnotations(MarsBotCorpId.C46_TYCHO_MAGNETICS);
+    expect(groups.map((g) => g.labelKey)).deep.eq(['Draft priority', 'Corporation setup']);
+    const text = groups.flatMap((g) => g.rows.map((r) => r.text)).join(' ');
+    expect(text).contains('Interface Hyperlink');
+    expect(text, 'the disposition is the whole point').contains('BOTTOM');
+    expect(text, 'and the draw is the power track').contains('power track');
+    // The human Tycho Magnetics starts with 48 M€ and its action buys cards
+    // with heat — none of that is here.
+    expect(text).not.contains('48');
+    expect(text).not.match(/heat|spend energy/i);
   });
 
   it('ThorGate prints its cubes and the first-tag clause, never the human discount', () => {

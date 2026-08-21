@@ -566,6 +566,18 @@ describe('insightEngine', () => {
         MarsBotCorpId.C34_STORMCRAFT, 'Stormcraft Incorporated')).is.empty;
     });
 
+    it('C46 tells its one moment as ONE story', () => {
+      const insights = botInsights({hyperlinkPlayed: 1, hyperlinkDrawn: 9, hyperlinkResolved: 2},
+        MarsBotCorpId.C46_TYCHO_MAGNETICS, 'Tycho Magnetics');
+      expect(insights).has.length(1);
+      expect(insights[0].textKey).contains('The wait was the plan');
+      expect(insights[0].params.map((p) => p.v)).contains('9');
+    });
+
+    it('C46 keeps quiet when the hyperlink never came up', () => {
+      expect(botInsights({}, MarsBotCorpId.C46_TYCHO_MAGNETICS, 'Tycho Magnetics')).is.empty;
+    });
+
     it('the draft fallback speaks only when no printed effect did', () => {
       const withEffect = botInsights({credicorTriggers: 6, credicorMc: 24, fiveCardDecks: 3},
         MarsBotCorpId.C01_CREDICOR, 'CrediCor');

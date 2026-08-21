@@ -107,7 +107,7 @@ export const BONUS_CARD_INFO: Readonly<Record<BonusCardId, BonusCardInfo>> = {
   [BonusCardId.B27_BUILD_BUILD_BUILD]: {name: 'Build Build Build', text: 'Philares: MarsBot builds a city beside one of the opponent\'s greeneries, or a special tile from its played pile beside one of their cities — paying M€ either way; otherwise it takes 3 M€ and goes back into the bonus deck.'},
   [BonusCardId.B28_DIVERSIFICATION]: {name: 'Diversification', text: 'Robinson Industries: MarsBot advances its least-advanced track, then loses 4 M€ if it can afford it. Recurs into the action deck every generation.'},
   [BonusCardId.B29_GRAY_EMINENCE]: {name: 'Gray Eminence', text: 'A corporation-specific bonus card (outside the POC scope).'},
-  [BonusCardId.B30_INTERFACE_HYPERLINK]: {name: 'Interface Hyperlink', text: 'A corporation-specific bonus card (outside the POC scope).'},
+  [BonusCardId.B30_INTERFACE_HYPERLINK]: {name: 'Interface Hyperlink', text: 'Tycho Magnetics: MarsBot draws as many project cards as its space on the power track (at least 2), plays the best 2 of them and discards the rest. Destroyed afterwards.'},
   [BonusCardId.B31_GOVERNMENT_SUBSIDY]: {name: 'Government Subsidy', text: 'UNMI: MarsBot raises its TR 1 step.'},
   [BonusCardId.B32_INVESTORS]: {name: 'Investors', text: 'A corporation-specific bonus card (outside the POC scope).'},
 };
@@ -301,6 +301,21 @@ export function buildBonusCardView(id: BonusCardId, ctx: BonusCardContext): Bonu
         {text: 'Otherwise: no effect', muted: true},
       ],
       fate: {kind: 'recurring', text: 'At the beginning of every generation it is shuffled back into MarsBot\'s action deck'},
+    };
+  case BonusCardId.B30_INTERFACE_HYPERLINK:
+    // Tycho Magnetics' corporation-specific card (official B30). The DRAW is
+    // the bot's own space on the power track, which is exactly what that
+    // corporation's draft priority spends the whole game raising — so the
+    // card's size is a fact about the mat, not a number the player can read
+    // off the face.
+    return {
+      name,
+      lines: [
+        {icon: 'cards', text: 'MarsBot draws as many project cards as its space on the power track (at least ${0})', params: ['2']},
+        {icon: 'cards', text: 'It keeps ${0}: a science tag first, then the most expensive, then the most tags, then at random', params: ['2']},
+        {icon: 'deck', text: 'The kept cards are played as usual; the rest go to the project discard', muted: true},
+      ],
+      fate: {kind: 'alwaysDestroy', text: 'Destroyed after resolving — it never returns'},
     };
   case BonusCardId.B31_GOVERNMENT_SUBSIDY:
     // UNMI's corporation-specific card (official B31): one printed line.

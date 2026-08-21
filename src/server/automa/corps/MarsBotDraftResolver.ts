@@ -64,7 +64,27 @@ export class MarsBotDraftResolver {
     if (hand.length === 0) {
       throw new Error('MarsBot cannot draft from an empty hand');
     }
-    return this.pickBest(hand, this.scorerOf(priority));
+    return this.pickByScore(hand, this.scorerOf(priority));
+  }
+
+  /**
+   * «Highest score wins, ties resolve at random» over an ARBITRARY printed
+   * priority chain — the machinery a Draft Priority uses, exposed because a
+   * bonus card prints the very same shape without being a draft rule at all
+   * (B30 Interface Hyperlink: «select … using the following priorities:
+   * 1. Science tag. 2. Most expensive. 3. Most tags. 4. Random»). Scores are
+   * compared entry by entry, so entry 0 decides unless tied, and «Random» is
+   * the injected seeded shuffle rather than a score of its own.
+   *
+   * Deliberately NOT a new `MarsBotDraftPriority`: that union is the set of
+   * priorities printed in a corporation's DRAFT PRIORITY plate, and a bonus
+   * card's own selection rule does not belong in it.
+   */
+  public pickByScore(items: ReadonlyArray<IProjectCard>, scorer: (card: IProjectCard) => ReadonlyArray<number>): DraftPickResult {
+    if (items.length === 0) {
+      throw new Error('MarsBot cannot pick from an empty set');
+    }
+    return this.pickBest(items, scorer);
   }
 
   /**

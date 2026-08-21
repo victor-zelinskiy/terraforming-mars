@@ -102,6 +102,7 @@ export enum MarsBotCorpId {
   C33_POSEIDON = 'C33',
   C34_STORMCRAFT = 'C34',
   C45_SPIRE = 'C45',
+  C46_TYCHO_MAGNETICS = 'C46',
 }
 
 /** The implemented set, in official card-number order. */
@@ -141,6 +142,7 @@ export const MARS_BOT_CORP_IDS: ReadonlyArray<MarsBotCorpId> = [
   MarsBotCorpId.C33_POSEIDON,
   MarsBotCorpId.C34_STORMCRAFT,
   MarsBotCorpId.C45_SPIRE,
+  MarsBotCorpId.C46_TYCHO_MAGNETICS,
 ];
 
 /**

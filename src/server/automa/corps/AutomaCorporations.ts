@@ -52,6 +52,7 @@ import {MarsBotUnmi} from './MarsBotUnmi';
 import {MarsBotDraftResolver} from './MarsBotDraftResolver';
 import {MarsBotEcoline} from './MarsBotEcoline';
 import {MarsBotSpire} from './MarsBotSpire';
+import {MarsBotTychoMagnetics} from './MarsBotTychoMagnetics';
 
 /**
  * THE MarsBot corporation registry + dispatch layer (Rule Book B "Adding
@@ -112,6 +113,7 @@ export class AutomaCorporations {
     [MarsBotCorpId.C33_POSEIDON]: MarsBotPoseidon,
     [MarsBotCorpId.C34_STORMCRAFT]: MarsBotStormcraft,
     [MarsBotCorpId.C45_SPIRE]: MarsBotSpire,
+    [MarsBotCorpId.C46_TYCHO_MAGNETICS]: MarsBotTychoMagnetics,
   };
 
   public static corpFor(id: MarsBotCorpId): MarsBotCorp {

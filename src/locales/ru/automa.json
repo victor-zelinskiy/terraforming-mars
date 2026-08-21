@@ -568,5 +568,14 @@
   "Every colony built at the table — by MarsBot or by its opponent, the one from its own setup included — advances MarsBot's least-advanced track (the topmost if tied)": "Любая построенная за столом колония — Бота или его соперника, включая ту, что он строит на подготовке, — продвигает самый отстающий трек Бота (при равенстве — верхний)",
   "${0} advances its least-advanced track from its corporation ${1}: a colony was built": "${0} продвигает свой самый отстающий трек от корпорации ${1}: построена колония",
   "Whenever MarsBot spends floaters to keep an extra card, it raises the temperature ${0} step": "Каждый раз, когда Бот тратит аэростаты, чтобы оставить лишнюю карту, он повышает температуру на ${0} шаг",
-  "${0} raises the temperature from its corporation ${1}: floaters were spent": "${0} повышает температуру от корпорации ${1}: потрачены аэростаты"
+  "${0} raises the temperature from its corporation ${1}: floaters were spent": "${0} повышает температуру от корпорации ${1}: потрачены аэростаты",
+  "Power, then science": "Энергия, затем наука",
+  "Interface Hyperlink goes to the BOTTOM of the bonus deck — it comes up last": "«Интерфейсная гиперссылка» кладётся НА ДНО бонусной колоды — она выйдет последней",
+  "Interface Hyperlink draws as many project cards as MarsBot's space on the power track (at least ${0}), plays the best ${1} and discards the rest": "«Интерфейсная гиперссылка» берёт столько карт проектов, на какой клетке трека энергии стоит Бот (не меньше ${0}), разыгрывает лучшие ${1} и сбрасывает остальные",
+  "MarsBot draws as many project cards as its space on the power track (at least ${0})": "Бот берёт столько карт проектов, на какой клетке трека энергии он стоит (не меньше ${0})",
+  "It keeps ${0}: a science tag first, then the most expensive, then the most tags, then at random": "Оставляет ${0}: сначала метка науки, затем самая дорогая, затем с наибольшим числом меток, затем случайно",
+  "The kept cards are played as usual; the rest go to the project discard": "Оставленные карты разыгрываются как обычно, остальные уходят в сброс проектов",
+  "${0} placed Interface Hyperlink at the bottom of its bonus deck (corporation ${1})": "${0} кладёт «Интерфейсную гиперссылку» на дно своей бонусной колоды (корпорация ${1})",
+  "${0} drew ${1} card(s) with Interface Hyperlink — its power track stands at ${2}": "${0} берёт карт по «Интерфейсной гиперссылке»: ${1} — трек энергии стоит на ${2}",
+  "Tycho Magnetics: MarsBot draws as many project cards as its space on the power track (at least 2), plays the best 2 of them and discards the rest. Destroyed afterwards.": "Tycho Magnetics: Бот берёт столько карт проектов, на какой клетке трека энергии он стоит (не меньше 2), разыгрывает лучшие 2 из них и сбрасывает остальные. После этого карта уничтожается."
 }

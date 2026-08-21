@@ -3163,6 +3163,19 @@ const analyzeBotCorporation: Analyzer = (ctx) => {
           scale: 20,
         });
       }
+    } else if (corp.id === 'C46') {
+      // Tycho Magnetics is ONE moment, and the whole game before it is the
+      // wind-up — so the story is that moment, sized by what the wait bought.
+      const drawn = stat('hyperlinkDrawn');
+      if (drawn >= 4) {
+        stories.push({
+          key: 'effect',
+          textKey: 'The wait was the plan for ${0}\'s ${1}: when the hyperlink finally came up it pulled ${2} project(s) at once and played the ${3} best.',
+          params: [raw(p.name), raw(corp.name), raw(drawn), raw(stat('hyperlinkResolved'))],
+          measure: drawn,
+          scale: 12,
+        });
+      }
     } else if (corp.id === 'C45') {
       // Spire: the science engine — multi-tag cards banked into cities + TR.
       const cities = stat('citiesPlaced');
