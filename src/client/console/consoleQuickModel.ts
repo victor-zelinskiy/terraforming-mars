@@ -169,15 +169,6 @@ export type LtQuickContext = {
 
 /** LT — the basic-actions selector: standard projects / turn control / conversions. */
 export function buildLtQuickEntries(ctx: LtQuickContext): Array<QuickEntry> {
-  // The turn-control verbs answer to their own reason when one is set — before
-  // the generic gate, so «недоступно после первого действия» can never overrule
-  // «бонусные действия нельзя пропустить».
-  const turnControlGate = (available: boolean, reason: string): {available: boolean, reason: string, soft?: boolean} => {
-    if (ctx.turnControlReason !== undefined && ctx.turnControlReason !== '') {
-      return {available: false, reason: ctx.turnControlReason, soft: true};
-    }
-    return turnGate(available, reason);
-  };
   const turnGate = (available: boolean, reason: string): {available: boolean, reason: string, soft?: boolean} => {
     // A set-aside decision blocks EVERY basic action, whatever its own
     // arithmetic says — and it blocks even the ones the server still offers.
@@ -194,6 +185,24 @@ export function buildLtQuickEntries(ctx: LtQuickContext): Array<QuickEntry> {
     // («завершите действие» while a mandatory decision is pending, «не ваш ход»
     // only on a genuine opponent turn).
     return {available: false, reason: ctx.myTurn ? reason : offTurnReason(ctx.awaitingInput), soft: true};
+  };
+  /**
+   * The TURN-CONTROL verbs («Пропустить ход» / «Пас») answer to their own
+   * reason when one is set — before their generic gate, so «доступно после
+   * первого действия» can never overrule «бонусные действия нельзя
+   * пропустить».
+   *
+   * A SET-ASIDE decision still outranks it. Both can be true at once, and the
+   * ordering is the same rule `turnGate` already follows: the one honest
+   * answer to «why will the game not move» is the decision the player parked,
+   * not a rule about a verb they were not going to press.
+   */
+  const turnControlGate = (available: boolean, reason: string): {available: boolean, reason: string, soft?: boolean} => {
+    const parked = ctx.blockedReason !== undefined && ctx.blockedReason !== '';
+    if (!parked && ctx.turnControlReason !== undefined && ctx.turnControlReason !== '') {
+      return {available: false, reason: ctx.turnControlReason, soft: true};
+    }
+    return turnGate(available, reason);
   };
   return [
     {

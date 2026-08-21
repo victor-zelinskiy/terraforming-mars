@@ -44,6 +44,43 @@ export function bonusActionOwed(view: PlayerViewModel): boolean {
   return bonusActionMeta(view) !== undefined;
 }
 
+/**
+ * The bonus action is served as the FREE ACTION MENU — the one that needs the
+ * WHOLE BOARD, and therefore the one the start workspace hands the screen over
+ * for.
+ *
+ * A bonus can also be spent on a prompt the START WORKSPACE serves ITSELF: a
+ * corporation's mandatory first action IS, by its own wording, the player's
+ * first action, so `Player.takeAction` offers it in place of a bonus menu and
+ * spends a bonus on it. That prompt carries its own `startGamePrompt` marker
+ * and has a stage of its own inside the workspace — announcing a board trip
+ * for it would hand the screen away from the very surface that is serving it.
+ *
+ * So the two questions are deliberately separate: `bonusActionOwed` answers
+ * «is a bonus outstanding» (the status chip, the withheld turn-control verbs),
+ * this one answers «does the player have to go to the board for it» (the
+ * stage, the excursion barrier).
+ */
+export function bonusActionOnBoard(view: PlayerViewModel): boolean {
+  return bonusActionOwed(view) && view.waitingFor?.startGamePrompt === undefined;
+}
+
+/**
+ * The bonus belongs to the GAME START, so the Game Start Workspace is its home
+ * — it must SERVE the bonus (own the pad, own the frame, be the thing the
+ * player is handed back to) even after a reload has wiped every client latch.
+ *
+ * Generation 1 IS the start of the game: the same honest domain discriminator
+ * `corpFirstActionInStartFlow` uses, and for the same reason — no client latch
+ * and it survives a reload. A future card granting bonus actions in a LATER
+ * generation is served by the board alone, with no workspace to return to,
+ * which is correct: resurrecting the start workspace mid-game would be a lie
+ * about where the player is.
+ */
+export function bonusActionInStartFlow(view: PlayerViewModel): boolean {
+  return view.game.generation === 1 && bonusActionOnBoard(view);
+}
+
 /** The card that granted the bonuses (its name IS its i18n key). */
 export function bonusActionSource(view: PlayerViewModel): CardName | undefined {
   return bonusActionMeta(view)?.source;

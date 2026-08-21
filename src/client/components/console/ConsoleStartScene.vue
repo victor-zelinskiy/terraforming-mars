@@ -512,7 +512,6 @@
                    // a hero-sized context covers the receiving zone and the
                    // «РАЗЫГРАНО» shelf, which is exactly what it did.
                    'con-start__embed--firstact': firstActionPanelShown,
-                   'con-start__embed--bonusact': bonusActionPanelShown,
                  }">
               <div v-if="embedSourceShown !== undefined" class="con-start__embedsource" ref="embedSourceCol"
                    :class="{'con-start__embedsource--departing': embedSourceDeparting}">
@@ -822,7 +821,7 @@ import {buildStartStatusPreview, StartStatusPreview} from '@/client/console/star
 import {participantDisplayName} from '@/client/components/marsbot/marsBotDisplay';
 import {afterPreludes, cardCostForCorp, startingMegacredits} from '@/client/components/initialDraft/initialDraftMoney';
 import {
-  bonusActionGranted, bonusActionIndex, bonusActionOwed, bonusActionRemaining, bonusActionSource,
+  bonusActionGranted, bonusActionIndex, bonusActionOnBoard, bonusActionRemaining, bonusActionSource,
 } from '@/client/console/bonusAction';
 import {beginHoldConfirm, cancelHoldConfirm} from '@/client/console/consoleHoldConfirm';
 import {
@@ -1830,7 +1829,11 @@ export default defineComponent({
      * action menu).
      */
     bonusActionOwedNow(): boolean {
-      return bonusActionOwed(this.playerView);
+      // …and it is one the BOARD has to serve. A bonus spent on the
+      // corporation's mandatory first action is served by this very workspace
+      // (its own stage), so it must not trigger a hand-off — see
+      // `bonusActionOnBoard`.
+      return bonusActionOnBoard(this.playerView);
     },
     /** The card that granted them — the stage's subject and the crumb's. */
     bonusActionSourceCard(): CardName | undefined {

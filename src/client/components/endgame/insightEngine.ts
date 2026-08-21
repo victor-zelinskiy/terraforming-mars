@@ -3349,6 +3349,31 @@ const analyzeBotCorporation: Analyzer = (ctx) => {
           scale: 8,
         });
       }
+    } else if (corp.id === 'C43') {
+      // Palladin needs BOTH halves of a shipment, so its story is the pairing —
+      // and the cubes still lying on the card when the game ended are their own
+      // quieter line: they are the run of one colour that never got answered.
+      const moved = stat('palladinCubesMoved');
+      const pairs = stat('palladinPairs');
+      const stranded = Math.max(0, moved - pairs * 2);
+      if (pairs >= 2) {
+        stories.push({
+          key: 'effect',
+          textKey: 'Every degree arrived in two halves at ${0}: ${1} matched ${2} pair(s) of cubes and warmed Mars ${3} time(s).',
+          params: [raw(p.name), raw(corp.name), raw(pairs), raw(stat('palladinTemperatureSteps'))],
+          measure: pairs,
+          scale: 6,
+        });
+      }
+      if (stranded >= 3) {
+        stories.push({
+          key: 'stranded',
+          textKey: 'Some freight never found its match — ${2} cube(s) were still waiting on ${1} when the game ended.',
+          params: [raw(p.name), raw(corp.name), raw(stranded)],
+          measure: stranded,
+          scale: 6,
+        });
+      }
     } else if (corp.id === 'C45') {
       // Spire: the science engine — multi-tag cards banked into cities + TR.
       const cities = stat('citiesPlaced');

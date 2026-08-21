@@ -269,6 +269,41 @@ describe('consoleStartState (T5 summary launch readout)', () => {
       expect(done[3].state).to.eq('current');
     });
 
+    /*
+     * THE BONUS CHAPTER (Head Start's «immediately take 2 actions») cannot be
+     * declared in advance the way a corporation's first action can — which
+     * prelude the player draws is not known until it is played — so it JOINS
+     * the rail when the grant happens and stays, completed, afterwards. It
+     * also LOCKS the first action and READY behind it: the flow cannot report
+     * itself finished while the player is out on the board spending bonuses.
+     */
+    it('BONUS ACTIONS are a conditional chapter that locks everything after it', () => {
+      const during = deploymentJourneyItems({
+        corpPending: false, payPending: false, boughtCards: false, preludesLeft: 1, hasPreludes: true,
+        hasBonusActions: true, bonusActionsPending: true,
+        hasFirstAction: true, firstActionPending: true,
+      });
+      expect(during.map((i) => i.id)).to.deep.eq(['corp', 'preludes', 'bonusActions', 'firstAction', 'ready']);
+      expect(during[2].state, 'the bonuses are what the player is doing').to.eq('current');
+      expect(during[3].state, 'the first action waits behind them').to.eq('locked');
+      expect(during[4].state).to.eq('locked');
+
+      const spent = deploymentJourneyItems({
+        corpPending: false, payPending: false, boughtCards: false, preludesLeft: 0, hasPreludes: true,
+        hasBonusActions: true, bonusActionsPending: false,
+      });
+      expect(spent.map((i) => i.id)).to.deep.eq(['corp', 'preludes', 'bonusActions', 'ready']);
+      expect(spent[2].state, 'the chapter STAYS, completed').to.eq('completed');
+      expect(spent[3].state, 'nothing else owed → READY').to.eq('current');
+    });
+
+    it('no bonus grant → no chapter at all (every middle stage is conditional)', () => {
+      const items = deploymentJourneyItems({
+        corpPending: false, payPending: false, boughtCards: false, preludesLeft: 0, hasPreludes: true,
+      });
+      expect(items.map((i) => i.id)).to.not.include('bonusActions');
+    });
+
     it('committed selection preserves the exact dealt category map', () => {
       const items = committedStartJourneyItems(['corp', 'prelude', 'ceo', 'projects']);
       expect(items.map((item) => item.id)).to.deep.eq(['corp', 'prelude', 'ceo', 'projects', 'summary']);
@@ -404,6 +439,19 @@ describe('consoleStartState (T5 summary launch readout)', () => {
       // An embedded follow-up of the action still outranks it (deeper step).
       expect(deploymentCrumb({...base, firstAction: true, embedActive: true, embedSubject: 'Valley Trust'}))
         .to.deep.eq({subject: 'Valley Trust', stage: 'Card draw'});
+    });
+
+    it('the BONUS-ACTION stage: the subject is the card that granted them', () => {
+      const base = {embedActive: false, corpPending: false, payPending: false, corpPick: false};
+      expect(deploymentCrumb({...base, bonusAction: true, bonusSource: 'Head Start'}))
+        .to.deep.eq({subject: 'Head Start', stage: 'Action'});
+      // No source known yet → the honest generic group, never a blank subject.
+      expect(deploymentCrumb({...base, bonusAction: true}))
+        .to.deep.eq({subject: 'Preludes', stage: 'Action'});
+      // The mandatory first action still outranks it: it is the deeper, live
+      // prompt when both are somehow true.
+      expect(deploymentCrumb({...base, bonusAction: true, firstAction: true}))
+        .to.deep.eq({subject: 'Corporation', stage: 'First action'});
     });
 
     it('an embedded reveal advances ONLY the tail: the source group keeps the subject', () => {

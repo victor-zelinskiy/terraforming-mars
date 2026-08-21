@@ -13,7 +13,8 @@
          slot (X → the unified table). -->
     <section v-if="automa.corporation !== undefined" class="con-info__block con-info__block--botcorp">
       <h3 class="con-info__block-title">{{ $t('Corporation') }}</h3>
-      <MarsBotCorpFace :id="automa.corporation.id" :resources="automa.corporation.resources" compact />
+      <MarsBotCorpFace :id="automa.corporation.id" :resources="automa.corporation.resources"
+                       :resource="automa.corporation.resource" compact />
     </section>
 
     <section class="con-info__block">

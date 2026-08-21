@@ -164,6 +164,39 @@ describe('consoleStartUi (initial-setup command contract)', () => {
   });
 
   /**
+   * THE BONUS-ACTION STAGE — a prelude granted actions the workspace cannot
+   * host, so the one press HANDS THE SCREEN to the board. The verb therefore
+   * names the DESTINATION: «Выполнить» would read as «this press performs the
+   * action», and the press performs nothing — it moves the player.
+   */
+  it('the bonus-action READY carries a CTA that names where the press GOES', () => {
+    const cmds = startSceneCommands(state({mode: 'ceremony', bonusAction: 'ready'}));
+    const a = cmds.find((c) => c.control === 'confirm');
+    expect(a?.label).to.eq('Go to the board');
+    expect(a?.highlight).to.eq(true);
+    expect(labelOf(cmds, 'back'), 'B stays the ordinary minimize').to.eq('Minimize');
+  });
+
+  it('the bonus-action WAIT advertises no A at all', () => {
+    const cmds = startSceneCommands(state({mode: 'ceremony', bonusAction: 'waiting'}));
+    expect(cmds.map((c) => c.control)).to.deep.eq(['secondary', 'back']);
+  });
+
+  it('the bonus stage outranks the first-action stage (the bonuses are taken first)', () => {
+    // Head Start grants the actions «immediately»; when a corporation also owes
+    // its opening move, that move is served ON THE BOARD as one of them.
+    const cmds = startSceneCommands(state({
+      mode: 'ceremony', bonusAction: 'ready', firstAction: 'ready',
+    }));
+    expect(labelOf(cmds, 'confirm')).to.eq('Go to the board');
+  });
+
+  it('no bonus stage → the first-action stage is untouched', () => {
+    const cmds = startSceneCommands(state({mode: 'ceremony', bonusAction: 'off', firstAction: 'ready'}));
+    expect(labelOf(cmds, 'confirm')).to.eq('Take first action');
+  });
+
+  /**
    * THE RISK STAGE — A was pressed on a prelude whose effect cannot resolve.
    * The press did NOT commit; it opened the stage that explains why. The bar
    * must now say exactly what the next input does, in the SAME words the

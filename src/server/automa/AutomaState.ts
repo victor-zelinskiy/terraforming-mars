@@ -2,7 +2,7 @@ import {CardName} from '../../common/cards/CardName';
 import {ColonyName} from '../../common/colonies/ColonyName';
 import {SpaceId} from '../../common/Types';
 import {BonusCardId, DifficultyLevel} from '../../common/automa/AutomaTypes';
-import {MarsBotCorpId, MarsBotCorpStats} from '../../common/automa/MarsBotCorpData';
+import {MarsBotCorpId, MarsBotCorpResource, MarsBotCorpStats} from '../../common/automa/MarsBotCorpData';
 import {MarsBotTurn} from '../../common/automa/MarsBotTurn';
 import type {MarsBotTurnRecording} from './AutomaTurnLog';
 import {GameOptions} from '../game/GameOptions';
@@ -66,6 +66,9 @@ export type SerializedAutomaState = {
   corporation?: MarsBotCorpId;
   /** Resources ON the corporation card (Ecoline plant / Spire science). Absent = 0. */
   corpResources?: number;
+  /** Which KIND that pile is, when the card's slot takes more than one
+   *  (C43's two cube colours). Absent = the corporation's declared one. */
+  corpResourceKind?: MarsBotCorpResource;
   /** Per-corporation statistic counters (see MarsBotCorpStats). Absent = {}. */
   corpStats?: MarsBotCorpStats;
   /** The last generation the corporation's Before-Action-Phase box ran (absent = 0). */
@@ -135,6 +138,16 @@ export class AutomaState {
   public corporation: MarsBotCorpId | undefined = undefined;
   /** Resources physically ON the corporation card (Ecoline plant / Spire science). */
   public corpResources: number = 0;
+  /**
+   * Which KIND the pile in `corpResources` is, for a card whose slot takes
+   * more than one (C43 Palladin Shipping holds white OR black cubes). Its
+   * printed rule removes a matching pair the instant both colours are there,
+   * so ONE kind at a time is not a simplification — it is the rule, and this
+   * field makes «both at once» unrepresentable. Undefined ⇒ the card holds
+   * only its declared `resource` (every other corporation, and every save
+   * written before C43).
+   */
+  public corpResourceKind: MarsBotCorpResource | undefined = undefined;
   /** Per-corporation statistic counters — open information, missing keys read 0. */
   public corpStats: MarsBotCorpStats = {};
   /** Once-per-generation guard for the corporation's Before-Action-Phase box. */
@@ -207,6 +220,9 @@ export class AutomaState {
     if (this.corporation !== undefined) {
       result.corporation = this.corporation;
       result.corpResources = this.corpResources;
+      if (this.corpResourceKind !== undefined) {
+        result.corpResourceKind = this.corpResourceKind;
+      }
       result.corpStats = {...this.corpStats};
       result.corpBapGeneration = this.corpBapGeneration;
       result.corpRoundStartGeneration = this.corpRoundStartGeneration;
@@ -265,6 +281,7 @@ export class AutomaState {
     state.pendingTurn = d.pendingTurn ?? false;
     state.corporation = d.corporation;
     state.corpResources = d.corpResources ?? 0;
+    state.corpResourceKind = d.corpResourceKind;
     state.corpStats = {...(d.corpStats ?? {})};
     state.corpBapGeneration = d.corpBapGeneration ?? 0;
     // Absent on every save written before C26 — 0 means «never ran», which is

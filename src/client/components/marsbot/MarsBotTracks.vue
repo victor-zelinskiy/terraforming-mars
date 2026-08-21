@@ -47,8 +47,9 @@
           <span v-if="cell.regressed" class="mb-cell__regress" aria-hidden="true">✕</span>
           <!-- A corporation CUBE seeded on this space (RB-B special cubes).
                Corner-pinned so the cell's own bonus glyph stays readable; a
-               SPENT cube keeps its place as a hollow outline (the physical
-               cube is still on the mat, it just cannot fire again). -->
+               SPENT cube keeps its place as a hollow outline — the mark of a
+               cube that has FIRED, whether it stayed on the mat or (C43)
+               moved onto the corporation card. -->
           <span v-if="cell.cube !== undefined"
                 class="mb-cell__cube"
                 :class="['mb-cell__cube--' + cell.cube.cubeType, {'mb-cell__cube--spent': cell.cube.spent}]"

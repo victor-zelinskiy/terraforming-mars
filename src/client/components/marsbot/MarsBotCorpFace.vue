@@ -25,6 +25,7 @@
  */
 import {defineComponent, PropType} from 'vue';
 import {MarsBotCorpId} from '@/common/automa/AutomaTypes';
+import {MarsBotCorpResource} from '@/common/automa/MarsBotCorpData';
 import {CardModel} from '@/common/models/CardModel';
 import {PremiumCardVM} from '@/client/components/premiumCard/premiumCardViewModel';
 import {buildMarsBotCorpPremiumVm, marsBotCorpCardModel} from './marsBotCorpPremiumVm';
@@ -35,6 +36,12 @@ export default defineComponent({
     id: {type: String as PropType<MarsBotCorpId>, required: true},
     /** Live resources ON the corporation card (Ecoline plant / Spire science). */
     resources: {type: Number, default: 0},
+    /**
+     * The KIND of that pile, when the card's slot takes more than one (C43
+     * holds white OR black cubes). Absent ⇒ the card's own declared resource,
+     * which is every other corporation.
+     */
+    resource: {type: String as PropType<MarsBotCorpResource>, default: undefined},
     /** Fullscreen tier (full-resolution art). */
     large: {type: Boolean, default: false},
     /** Dense hosts (tableau slot / dashboard) — the thumb quality tier. */
@@ -42,7 +49,7 @@ export default defineComponent({
   },
   computed: {
     vm(): PremiumCardVM {
-      return buildMarsBotCorpPremiumVm(this.id, this.resources ?? 0);
+      return buildMarsBotCorpPremiumVm(this.id, this.resources ?? 0, this.resource);
     },
     model(): CardModel {
       return marsBotCorpCardModel(this.id, this.resources ?? 0);

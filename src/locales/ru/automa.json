@@ -630,5 +630,14 @@
   "Nothing to claim or fund? The box simply does nothing — no Failed Action": "Нечего заявить и не в чем лидировать? Блок просто не срабатывает — неудачное действие не берётся",
   "${0} destroyed Overachievement — its corporation ${1} claims and funds on its own": "${0} уничтожает «Сверхдостижение» — его корпорация ${1} заявляет и учреждает сама",
   "${0} had no milestone to claim this generation (corporation ${1})": "${0} в этом поколении нечего было заявить (корпорация ${1})",
-  "${0} led no award this generation (corporation ${1})": "${0} в этом поколении не лидировал ни в одной награде (корпорация ${1})"
+  "${0} led no award this generation (corporation ${1})": "${0} в этом поколении не лидировал ни в одной награде (корпорация ${1})",
+  "Space, then event": "Космос, затем событие",
+  "A black cube on the event track spaces ${0}": "Чёрный куб на клетки трека событий: ${0}",
+  "Advancing onto it: the cube moves onto the corporation card — one of each colour there raises the temperature 1 step": "Дойдя до него: куб переезжает на карту корпорации — пара разных цветов там повышает температуру на 1 шаг",
+  "Advancing onto a white or a black cube moves that cube onto this card": "Дойдя до белого или чёрного куба, Бот переносит этот куб на карту",
+  "One cube of each colour on this card: both are removed and MarsBot raises the temperature ${0} step": "Как только на карте есть куб каждого цвета: оба убираются, а Бот повышает температуру на ${0} шаг",
+  "${0} gained ${1} M€ from its corporation ${2} at setup": "${0} получает ${1} М€ от своей корпорации ${2} при подготовке",
+  "${0} moved a white cube onto its corporation ${1} — it waits there for a black one": "${0} переносит белый куб на свою корпорацию ${1} — тот ждёт там чёрного",
+  "${0} moved a black cube onto its corporation ${1} — it waits there for a white one": "${0} переносит чёрный куб на свою корпорацию ${1} — тот ждёт там белого",
+  "${0} paired a white and a black cube on its corporation ${1} — the temperature rises": "${0} собирает пару из белого и чёрного куба на своей корпорации ${1} — температура растёт"
 }

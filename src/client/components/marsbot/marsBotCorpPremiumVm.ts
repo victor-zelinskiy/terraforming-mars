@@ -27,7 +27,8 @@ import {standardResourceIconUrl} from '@/client/components/premiumCard/premiumCa
  *    cards use) counts the corp-card resource — Spire's science through the
  *    ordinary card-resource icon, Ecoline's PLANT and Mining Guild's M€
  *    through an `iconUrl` override (neither is a card resource here), C35's
- *    white cube through the cube the socket already draws. `corpResourceSocket`
+ *    white cube through the cube the socket already draws and C43's black one
+ *    through its dark twin. `corpResourceSocket`
  *    resolves all of that and is EXHAUSTIVE over `MarsBotCorpResource`, so a
  *    corporation storing a new kind of thing fails to compile rather than
  *    silently painting a generic cube.
@@ -43,6 +44,9 @@ import {standardResourceIconUrl} from '@/client/components/premiumCard/premiumCa
 
 /** C38's printed setup cost — the card's whole price, drawn on its face. */
 const TERRALABS_TR_LOSS = 8;
+
+/** C43's printed setup gain. */
+const PALLADIN_SETUP_MC = 5;
 
 /** The symbolic rule rows of each official bot card (C01–C21 / C45). */
 function renderDataOf(id: MarsBotCorpId): ICardRenderRoot {
@@ -553,6 +557,18 @@ function renderDataOf(id: MarsBotCorpId): ICardRenderRoot {
         eb.text('↻', Size.SMALL, true).startAction.award().asterix();
       });
     });
+  case MarsBotCorpId.C43_PALLADIN_SHIPPING:
+    return CardRenderer.builder((b) => {
+      // SETUP: the printed 5 M€ — the bare row C38 uses for its own setup
+      // price, here in the other direction.
+      b.megacredits(PALLADIN_SETUP_MC);
+      // EFFECT: the whole card in one line — a white cube AND a black cube on
+      // the card buy one step of temperature. The cube glyphs are C03's and
+      // C41's, so a cube reads the same on every bot face.
+      b.effect(undefined, (eb) => {
+        eb.text('◻', Size.SMALL, true).text('◼', Size.SMALL, true).startEffect.temperature(1);
+      });
+    });
   case MarsBotCorpId.C45_SPIRE:
     return CardRenderer.builder((b) => {
       // EFFECT: a card with 2+ tags adds a science resource here — the
@@ -594,6 +610,11 @@ function corpResourceSocket(resource: MarsBotCorpResource): {type: CardResource,
   // …and a white cube IS the cube the socket already draws.
   case 'cube-white':
     return {type: CardResource.RESOURCE_CUBE};
+  // Its black twin (C43) is the SAME sprite in the other colour — same
+  // isometric geometry, dark faces, light rim — so a pile of cubes on a card
+  // reads as cubes whichever colour is waiting there.
+  case 'cube-black':
+    return {type: CardResource.RESOURCE_CUBE, iconUrl: 'assets/cube-black.png'};
   default: {
     const never: never = resource;
     void never;
@@ -633,10 +654,12 @@ const vmCache = new Map<string, PremiumCardVM>();
 
 /**
  * Build (and cache) the bot corporation's premium view-model. `resources` is
- * the live count ON the corporation card (Ecoline plant / Spire science).
+ * the live count ON the corporation card (Ecoline plant / Spire science), and
+ * `kind` the live KIND of that pile — which for every card but C43 is the one
+ * the card declares, and for C43 is whichever cube colour is waiting there.
  */
-export function buildMarsBotCorpPremiumVm(id: MarsBotCorpId, resources: number): PremiumCardVM {
-  const key = `${id}:${resources}`;
+export function buildMarsBotCorpPremiumVm(id: MarsBotCorpId, resources: number, kind?: MarsBotCorpResource): PremiumCardVM {
+  const key = `${id}:${resources}:${kind ?? ''}`;
   const cached = vmCache.get(key);
   if (cached !== undefined) {
     return cached;
@@ -644,14 +667,15 @@ export function buildMarsBotCorpPremiumVm(id: MarsBotCorpId, resources: number):
   const info = marsBotCorpInfo(id);
   const model: CardModel = {name: info.original, resources} as CardModel;
   const vm = buildPremiumCardViewModel(botClientCard(id), model);
-  const socket = info.resource === undefined ? undefined : corpResourceSocket(info.resource);
+  const held = kind ?? info.resource;
+  const socket = held === undefined ? undefined : corpResourceSocket(held);
   const result: PremiumCardVM = {
     ...vm,
     expansion: 'automa',
     resource: vm.resource === undefined ? undefined : {
       ...vm.resource,
       // Only where the stored thing is not a card resource — the socket keeps
-      // its own icon otherwise (science, and the cube that IS a cube).
+      // its own icon otherwise (science, and the white cube that IS a cube).
       ...(socket?.iconUrl === undefined ? {} : {iconUrl: socket.iconUrl}),
     },
   };

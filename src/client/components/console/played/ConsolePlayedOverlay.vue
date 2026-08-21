@@ -62,7 +62,7 @@
               <span class="con-played__caption-open" v-i18n>Open</span>
             </span>
             <div class="con-played__botcorp" :data-zoom-slot="botCorp.id">
-              <MarsBotCorpFace :id="botCorp.id" :resources="botCorp.resources" />
+              <MarsBotCorpFace :id="botCorp.id" :resources="botCorp.resources" :resource="botCorp.resource" />
             </div>
           </div>
           <!-- Identity zone: corporation(s) / preludes / CEO — who the player IS. -->
@@ -828,7 +828,7 @@ export default defineComponent({
       if (corp === undefined || this.heroActive || this.categoryUp) {
         return;
       }
-      const list = [marsBotCorpZoomEntry(corp.id, corp.resources)];
+      const list = [marsBotCorpZoomEntry(corp.id, corp.resources, corp.resource)];
       openConsoleCardZoom(list, 0, undefined, undefined, {
         origin: slotZoomOrigin(() => this.$el as HTMLElement, (i) => list[i]?.name ?? ''),
       });

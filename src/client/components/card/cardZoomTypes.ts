@@ -13,6 +13,7 @@
 import {CardModel} from '@/common/models/CardModel';
 import {BonusCardId, MarsBotCorpId} from '@/common/automa/AutomaTypes';
 import {BonusCardContext} from '@/common/automa/BonusCardData';
+import {MarsBotCorpResource} from '@/common/automa/MarsBotCorpData';
 
 export type BonusZoomEntry = {bonus: BonusCardId, ctx: BonusCardContext, name: string};
 
@@ -21,7 +22,7 @@ export type BonusZoomEntry = {bonus: BonusCardId, ctx: BonusCardContext, name: s
  * (bot rules only), while the LORE aside resolves through the ORIGINAL human
  * corporation's card number — the official identity/art/lore link.
  */
-export type MarsBotCorpZoomEntry = {marsBotCorp: MarsBotCorpId, resources: number, name: string};
+export type MarsBotCorpZoomEntry = {marsBotCorp: MarsBotCorpId, resources: number, resource?: MarsBotCorpResource, name: string};
 
 export type ZoomCard = CardModel | BonusZoomEntry | MarsBotCorpZoomEntry;
 
@@ -39,6 +40,6 @@ export function bonusZoomEntry(bonus: BonusCardId, ctx: BonusCardContext): Bonus
 }
 
 /** Build a bot-corporation entry (name = the corp id, for the modal's key/cache). */
-export function marsBotCorpZoomEntry(marsBotCorp: MarsBotCorpId, resources: number): MarsBotCorpZoomEntry {
-  return {marsBotCorp, resources, name: marsBotCorp};
+export function marsBotCorpZoomEntry(marsBotCorp: MarsBotCorpId, resources: number, resource?: MarsBotCorpResource): MarsBotCorpZoomEntry {
+  return {marsBotCorp, resources, resource, name: marsBotCorp};
 }

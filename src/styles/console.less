@@ -21475,6 +21475,146 @@ body.con-start-barshold .con-status {
             &:nth-child(3) { animation-delay: calc(360ms * var(--motion-scale, 1)); }
         }
     }
+
+    /* ── THE BONUS-ACTION BRIEFING — the hand-off announcement ────────────
+       Unlike the first-action briefing this stage seats NO card: the prelude
+       that granted the bonuses is already lying in «РАЗЫГРАНО», one row down,
+       and lifting a second copy of it into the zone would be the redundancy
+       the workspace grammar exists to avoid. So the plate CENTRES in the zone
+       instead of hugging a seat, and the crumb (which already names the card)
+       carries the identity.
+
+       It reuses the first-action briefing's transition (`con-start-firstact`)
+       on purpose: two stages of ONE workspace must surface with the same
+       phrase, or the second one reads as a modal that arrived. */
+    &__bonusact {
+        position: absolute;
+        left: 50%;
+        top: 50%;
+        transform: translate(-50%, -50%);
+        width: fit-content;
+        min-width: 26rem;
+        max-width: min(52rem, calc(100% - 6rem));
+        display: flex;
+        flex-direction: column;
+        gap: .55rem;
+        padding: 1.6rem 1.8rem 1.4rem;
+        border-radius: .7rem;
+        text-align: left;
+        background:
+            linear-gradient(180deg, rgba(16, 26, 39, 0.96), rgba(10, 16, 25, 0.92)),
+            radial-gradient(120% 90% at 0% 0%, fade(@con-mint, 8%), transparent 62%);
+        box-shadow:
+            inset 0 0 0 .06rem rgba(96, 176, 232, 0.18),
+            inset 0 .05rem 0 rgba(190, 226, 250, 0.07),
+            0 1.1rem 2.8rem rgba(0, 0, 0, 0.45);
+    }
+    &__bonusact--ready {
+        box-shadow:
+            inset 0 0 0 .07rem fade(@con-mint, 42%),
+            0 .9rem 2.2rem rgba(0, 0, 0, 0.4);
+    }
+    /* The kicker chip carries the COUNT: «БОНУСНОЕ ДЕЙСТВИЕ · 1/2». One
+       object, so the player reads what this is and how much is left in a
+       single glance from the couch. */
+    &__bonusact-head {
+        align-self: flex-start;
+        display: inline-flex;
+        align-items: center;
+        gap: .42rem;
+        padding: .22rem .6rem .24rem .48rem;
+        border-radius: .35rem;
+        background: linear-gradient(180deg, fade(@con-mint, 16%), fade(@con-mint, 7%));
+        box-shadow: inset 0 0 0 .055rem fade(@con-mint, 34%);
+    }
+    &__bonusact-flag { color: @con-mint; font-size: .8rem; line-height: 1; letter-spacing: -.08em; }
+    &__bonusact-kicker {
+        font-size: .63rem;
+        font-weight: 800;
+        letter-spacing: .16em;
+        text-transform: uppercase;
+        color: fade(@con-text, 94%);
+    }
+    &__bonusact-count {
+        font-size: .74rem;
+        font-weight: 800;
+        letter-spacing: .04em;
+        color: fade(@con-mint, 92%);
+        padding-left: .42rem;
+        margin-left: .1rem;
+        border-left: .055rem solid fade(@con-mint, 30%);
+    }
+    /* THE ASK LEADS — same voice as the first-action briefing's, because it
+       is the same rank of statement one stage later. */
+    &__bonusact-ask {
+        font-size: 1.34rem;
+        font-weight: 800;
+        line-height: 1.26;
+        color: @con-text;
+        text-wrap: balance;
+    }
+    &__bonusact-ask::after {
+        content: '';
+        display: block;
+        margin-top: .7rem;
+        width: 3.4rem;
+        height: .08rem;
+        border-radius: .04rem;
+        background: linear-gradient(90deg, fade(@con-mint, 55%), fade(@con-mint, 0%));
+    }
+    &__bonusact-note {
+        display: flex;
+        align-items: baseline;
+        gap: .45rem;
+        font-size: .95rem;
+        line-height: 1.32;
+        color: @con-text-dim;
+    }
+    /* The CONSTRAINT is the one line the player must not read past — it is
+       why the wheel will refuse «Пас», and reading it here means never
+       meeting that refusal as a surprise. */
+    &__bonusact-note--warn { color: fade(#ffcf8a, 82%); }
+    &__bonusact-note-glyph { flex: 0 0 auto; color: #ffb74d; }
+    /* The STATE ZONE — one reserved row (waiting → ready never re-layouts). */
+    &__bonusact-state {
+        min-height: 3.1rem;
+        display: flex;
+        align-items: center;
+        margin-top: .4rem;
+    }
+    &__bonusact-cta {
+        display: inline-flex;
+        align-items: baseline;
+        gap: .7rem;
+        padding: .68rem 1.25rem .7rem .8rem;
+        border-radius: .55rem;
+        background: linear-gradient(180deg, fade(@con-mint, 20%), fade(@con-mint, 9%));
+        box-shadow:
+            inset 0 0 0 .075rem fade(@con-mint, 60%),
+            0 .5rem 1.4rem fade(@con-mint, 12%);
+        color: @con-text;
+    }
+    &__bonusact-cta-glyph { flex: 0 0 auto; align-self: center; transform: scale(1.06); }
+    &__bonusact-cta-label { font-size: 1.06rem; font-weight: 800; letter-spacing: .01em; }
+    /* THE RETURN PROMISE. A workspace that hands the screen away without
+       saying it will be back reads as CLOSED, and the player then treats the
+       preparation as over — which it is not. */
+    &__bonusact-cta-tail {
+        font-size: .82rem;
+        font-weight: 600;
+        color: fade(@con-text, 62%);
+    }
+    &__bonusact-wait {
+        display: inline-flex;
+        align-items: center;
+        gap: .6rem;
+        padding: .5rem .85rem;
+        border-radius: .5rem;
+        font-size: .95rem;
+        color: @con-text-dim;
+        background: linear-gradient(90deg, rgba(22, 36, 52, 0.5), rgba(16, 26, 39, 0.2));
+        box-shadow: inset 0 0 0 .05rem rgba(96, 176, 232, 0.12);
+    }
 }
 /* The briefing SURFACES from inside the workspace (the descend phrase's
    REVEAL) and lets go in place — never a v-if blink. */
@@ -21491,6 +21631,13 @@ body.con-start-barshold .con-status {
     transform: translateY(calc(-50% + .5rem)) scale(.994);
 }
 .con-start-firstact-leave-to { opacity: 0; }
+/* …and the SAME phrase for the bonus plate, which is centred on both axes:
+   without its own start pose the shared `translateY(-50%)` would drop the
+   horizontal centring for the length of the enter and the plate would appear
+   to slide in from the left. Two classes → wins on specificity. */
+.con-start__bonusact.con-start-firstact-enter-from {
+    transform: translate(-50%, calc(-50% + .5rem)) scale(.994);
+}
 /* THE RISK STAGE surfaces from just under the queue it is about, and lets go
    in place. Transform + opacity only (perf mode keeps both), and the X shift
    is deliberately absent: the panel is centred on the cards, so it must not

@@ -307,11 +307,14 @@ export class Server {
       throw new Error('MarsBot has no corporation');
     }
     const info = marsBotCorpInfo(automa.corporation);
+    const resource = automa.corpResourceKind ?? info.resource;
     return {
       id: info.id,
       original: info.original,
       startingTags: info.startingTags,
-      ...(info.resource !== undefined ? {resource: info.resource} : {}),
+      // The kind currently on the card: C43's slot takes either cube colour,
+      // and the face has to draw the one that is actually waiting there.
+      ...(resource !== undefined ? {resource} : {}),
       resources: automa.corpResources,
       cubes: AutomaCorporations.cubeModels(game),
       whiteMarkerTracks: AutomaCorporations.whiteMarkerTrackIndexes(game),

@@ -56,7 +56,11 @@ export class HeadStart extends PreludeCard {
 
           {text: 'Gain 2 M€ for each project card in your hand.', tokens: ['megacredits']},
 
-          {text: 'Take 2 extra actions immediately, before your remaining preludes. They are additional to the two actions of your normal turn, so you cannot pass or end your turn during them.', tokens: ['arrow']},
+          // Deliberately UNLINKED: the double-arrow row this rule belongs to
+          // produces no graphic id, and the only other handle («text») would
+          // tether it to the FIRST printed line — a backwards jump the render
+          // reading-order guard would rightly reject.
+          {text: 'Take 2 extra actions immediately, before your remaining preludes. They are additional to the two actions of your normal turn, so you cannot pass or end your turn during them.'},
 
         ],
       },

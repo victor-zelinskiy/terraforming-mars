@@ -153,6 +153,50 @@ describe('consoleQuickModel (P27)', () => {
       expect(plants?.reason, 'and a real arithmetic blocker still speaks').to.eq('Not enough plants');
     });
 
+    /*
+     * A CARD-GRANTED BONUS ACTION withholds the two TURN-CONTROL verbs — and
+     * ONLY those. Head Start's «immediately take 2 actions» is a live menu:
+     * the player can build, buy and convert. What they cannot do is concede a
+     * generation that has not started or end a turn slot the bonus does not
+     * occupy, and the server therefore does not offer either verb.
+     *
+     * Without a reason of their own the two would fall back to «Сейчас
+     * недоступно» / «Доступно после первого действия в этом ходу» over a menu
+     * that is plainly live — arithmetic about a state the player is not in.
+     */
+    it('a bonus action blocks ONLY pass + skip turn, and names the rule', () => {
+      const reason = 'Bonus actions must be spent — you cannot pass or end your turn during them';
+      const entries = buildLtQuickEntries(ctx({
+        turnControlReason: reason,
+        // The server withholds both verbs on a bonus action.
+        passAvailable: false,
+        endTurnAvailable: false,
+        stdAvailable: true,
+        convertHeatAvailable: true,
+      }));
+      const byId = new Map(entries.map((e) => [e.id, e]));
+      for (const id of ['pass', 'skipTurn']) {
+        expect(byId.get(id)?.available, `'${id}' must be withheld`).to.eq(false);
+        expect(byId.get(id)?.reason, `'${id}' must name the rule`).to.eq(reason);
+        // TEMPORARY, not «never in this game» — the tile keeps its presence.
+        expect(byId.get(id)?.soft, `'${id}' is a soft block`).to.eq(true);
+      }
+      expect(byId.get('standardProjects')?.available, 'the rest of the wheel is untouched').to.eq(true);
+      expect(byId.get('convertHeat')?.available).to.eq(true);
+    });
+
+    it('a set-aside decision still outranks the bonus-action reason', () => {
+      // Both are true; only one is the reason the game will not move.
+      const entries = buildLtQuickEntries(ctx({
+        blockedReason: 'Finish your current action first',
+        turnControlReason: 'Bonus actions must be spent — you cannot pass or end your turn during them',
+        passAvailable: false,
+      }));
+      for (const e of entries) {
+        expect(e.reason, `'${e.id}'`).to.eq('Finish your current action first');
+      }
+    });
+
     it('every basic action carries a VISUAL (barIcon | iconClass | glyph) — no blank slot', () => {
       // Skip / Pass had none — blank squares in the wheel (visible on a TV).
       for (const e of buildLtQuickEntries(ctx())) {

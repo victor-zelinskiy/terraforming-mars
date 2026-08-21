@@ -1496,7 +1496,7 @@ import {consolePlayCardUi} from '@/client/console/consolePlayCardUi';
 import {consoleStartUi} from '@/client/console/consoleStartUi';
 import {consoleStartState, startAwaitingOthers, startCorporationPlayed, startDeferredSummary, startSceneHeld} from '@/client/console/consoleStartState';
 import {engageStartExcursion, releaseStartExcursion, startExcursionActive, startExcursionQuiet, startExcursionState} from '@/client/console/startBoardExcursion';
-import {bonusActionGranted, bonusActionIndex, bonusActionOwed, bonusActionSource, bonusActionTurnControlReason} from '@/client/console/bonusAction';
+import {bonusActionInStartFlow, bonusActionOnBoard, bonusActionTurnControlReason} from '@/client/console/bonusAction';
 import {firstActionOwed} from '@/client/console/startFirstAction';
 import {isResourceTransferActive} from '@/client/console/resourceTransfer/consoleResourceTransfer';
 import {panelCommands} from '@/client/console/consolePanelUi';
@@ -3081,6 +3081,14 @@ export default defineComponent({
       // has wiped the lifetime hold).
       return this.startTask !== undefined || startSceneHeld() ||
         (corpFirstActionInStartFlow(this.playerView) && firstActionOwed(this.playerView)) ||
+        // …and the same for an owed BONUS ACTION (Head Start). The server is
+        // standing on a plain action menu there, so there is no start TASK to
+        // read, and after a reload there is no lifetime hold either — but the
+        // workspace is still the surface the player was handed off FROM and
+        // must be handed back TO. Domain-derived, so the restore is honest:
+        // the stage re-announces the trip rather than dropping the player onto
+        // a board with no explanation.
+        bonusActionInStartFlow(this.playerView) ||
         // …AND WHILE ITS OWN STAGE MACHINE IS STILL RUNNING. This is the
         // durable form of «the workspace owns something»: the CLAIM is
         // transient by design (it is reconciled away the moment nothing looks
@@ -3090,6 +3098,7 @@ export default defineComponent({
         // first action ended up in a modal. The stage goes `idle` only
         // through `firstActionLeaveDue`, which already waits out that gap.
         consoleStartState.firstAct.stage !== 'idle' ||
+        consoleStartState.bonusAct.stage !== 'idle' ||
         (workspaceOutcomeState.host === 'start' && workspaceOutcomeState.sourceCard !== '');
     },
     /**
@@ -3134,10 +3143,22 @@ export default defineComponent({
     startExcursionHolds(): boolean {
       return startExcursionState.active;
     },
-    /** The barrier ENGAGES the moment the serving workspace yields to a board
-     *  placement (the placement is the CAUSE; everything after it is chain). */
+    /**
+     * The barrier ENGAGES on either of its two causes:
+     *
+     *  · a board PLACEMENT the workspace cannot host (the placement is the
+     *    cause; everything after it is chain), or
+     *  · the player CONFIRMING the bonus-action hand-off (`A` on the stage —
+     *    `bonusAct.stage === 'onboard'`). Deliberately the player's consent
+     *    and not the mere presence of the marked menu: the workspace announces
+     *    the trip before taking it, so the board never simply appears.
+     */
     startExcursionEngage(): boolean {
-      return this.startSceneServes && this.placementActive;
+      return this.startSceneServes && (this.placementActive || this.bonusActionOnBoard);
+    },
+    /** The player confirmed the bonus hand-off AND bonuses are still owed. */
+    bonusActionOnBoard(): boolean {
+      return consoleStartState.bonusAct.stage === 'onboard' && bonusActionOnBoard(this.playerView);
     },
     /**
      * The placement chain is QUIET — every beat of `startExcursionQuiet`'s
@@ -3159,6 +3180,15 @@ export default defineComponent({
         // the scene back), not part of any placement chain.
         handIntake: isHandDeliveryActive() || this.handDeliveryState.flights.length > 0,
         followUpKind: taskFor(this.playerView)?.kind,
+        // The bonus trip's own chain work. Raw and ungated, like
+        // `placementAsked`: it holds the barrier across the response gap
+        // BETWEEN two consecutive bonus actions, where the task kind is
+        // momentarily undefined and every visual signal is quiet — without it
+        // the workspace would flash back in for one frame between them.
+        // …and it RELEASES the moment a bonus lands on a prompt the workspace
+        // serves itself (the corporation's mandatory first action): the
+        // workspace has to be back to show it.
+        bonusActionOwed: bonusActionOnBoard(this.playerView),
       });
     },
     /**

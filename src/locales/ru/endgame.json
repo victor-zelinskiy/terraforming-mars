@@ -877,5 +877,7 @@
   "One track did all of it at ${0}: ${1} mined the space track for ${2} degree(s) of heat and ${3} ocean(s), none of them paid for.": "Один трек сделал всё (у ${0}): ${1} выминала из трека космоса шаги тепла (${2}) и океаны (${3}) — и ни за что из этого не платила.",
   "The water came from beyond Neptune — ${2} ocean(s) were laid by the cubes of ${1} alone.": "Вода пришла из-за Нептуна: океанов, выложенных одними только кубами ${1} — ${2}.",
   "The schedule was the whole corporation at ${0}: ${1} claimed ${2} milestone(s) and funded ${3} award(s), every one of them free and none of them costing a turn.": "Вся корпорация была расписанием (у ${0}): ${1} заявила достижений — ${2} — и учредила наград — ${3}, и всё это даром и не тратя хода.",
-  "Some generations the office signed nothing — ${2} of them passed with no milestone met and no award led by ${1}.": "Иногда контора не подписывала ничего: поколений, где ${1} не выполнила ни одного достижения и не лидировала ни в одной награде — ${2}."
+  "Some generations the office signed nothing — ${2} of them passed with no milestone met and no award led by ${1}.": "Иногда контора не подписывала ничего: поколений, где ${1} не выполнила ни одного достижения и не лидировала ни в одной награде — ${2}.",
+  "Every degree arrived in two halves at ${0}: ${1} matched ${2} pair(s) of cubes and warmed Mars ${3} time(s).": "Каждый градус приходил двумя половинами (у ${0}): ${1} собрала пар кубов — ${2} — и столько же раз грела Марс: ${3}.",
+  "Some freight never found its match — ${2} cube(s) were still waiting on ${1} when the game ended.": "Часть груза так и не дождалась пары: к концу игры на ${1} оставалось кубов — ${2}."
 }

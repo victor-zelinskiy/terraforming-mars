@@ -5,11 +5,11 @@ import MarsBotCorpFace from '@/client/components/marsbot/MarsBotCorpFace.vue';
 import PremiumCard from '@/client/components/premiumCard/PremiumCard.vue';
 import {buildMarsBotCorpPremiumVm} from '@/client/components/marsbot/marsBotCorpPremiumVm';
 import {marsBotCorpAnnotations} from '@/client/components/marsbot/marsBotCorpRules';
-import {marsBotCorpInfo} from '@/common/automa/MarsBotCorpData';
+import {marsBotCorpInfo, MarsBotCorpResource} from '@/common/automa/MarsBotCorpData';
 
-function mountFace(id: MarsBotCorpId, resources = 0, large = false) {
+function mountFace(id: MarsBotCorpId, resources = 0, large = false, resource?: MarsBotCorpResource) {
   return mount(MarsBotCorpFace, {
-    props: {id, resources, large},
+    props: {id, resources, large, resource},
     global: {
       mocks: {$t: (s: string) => s},
       // In the app `premium-card-face` is registered globally (main.ts);
@@ -105,6 +105,8 @@ describe('MarsBotCorpFace (.pcard template)', () => {
       'C41 prints ONE space starting tag BESIDE its priority plate').has.length(1);
     expect(mountFace(MarsBotCorpId.C42_NIRGAL_ENTERPRISES).findAll('.pcard__tags .pcard-tag'),
       'C42 prints THREE — building, power and plant — and no priority plate').has.length(3);
+    expect(mountFace(MarsBotCorpId.C43_PALLADIN_SHIPPING).findAll('.pcard__tags .pcard-tag'),
+      'C43 prints TWO — space and event — BESIDE its priority plate').has.length(2);
     // C04 prints TWO event tags — both sit on the rail (the bot card's tags,
     // never the human card's single building tag).
     // Saturn Systems prints FOUR starting tags — the rail carries them all.
@@ -151,20 +153,24 @@ describe('MarsBotCorpFace (.pcard template)', () => {
     // claim: whatever a corporation stores, the capsule shows the right thing.
     const painted = new Map<string, string>();
     for (const id of MARS_BOT_CORP_IDS) {
-      const kind = marsBotCorpInfo(id).resource;
-      if (kind === undefined) {
-        continue;
+      const info = marsBotCorpInfo(id);
+      // BOTH declared kinds — C43's slot takes either cube colour, and the
+      // capsule has to paint whichever is actually waiting there.
+      for (const kind of [info.resource, info.resourceAlt]) {
+        if (kind === undefined) {
+          continue;
+        }
+        const face = mountFace(id, 2, false, kind);
+        expect(face.find('.pcard__res').exists(), `${id} stores ${kind} — the capsule must exist`).is.true;
+        expect(face.find('.pcard__res-count').text(), `${id} shows the live count`).eq('2');
+        const icon = face.find('.pcard__res-icon').attributes('style') ?? '';
+        expect(icon, `${id} (${kind}) paints an icon`).matches(/url\(|background-image/);
+        const previous = painted.get(kind);
+        if (previous !== undefined) {
+          expect(icon, `every ${kind} card paints the SAME icon`).eq(previous);
+        }
+        painted.set(kind, icon);
       }
-      const face = mountFace(id, 2);
-      expect(face.find('.pcard__res').exists(), `${id} stores ${kind} — the capsule must exist`).is.true;
-      expect(face.find('.pcard__res-count').text(), `${id} shows the live count`).eq('2');
-      const icon = face.find('.pcard__res-icon').attributes('style') ?? '';
-      expect(icon, `${id} (${kind}) paints an icon`).matches(/url\(|background-image/);
-      const previous = painted.get(kind);
-      if (previous !== undefined) {
-        expect(icon, `every ${kind} card paints the SAME icon`).eq(previous);
-      }
-      painted.set(kind, icon);
     }
     // Each kind is distinguishable from the others — a fall-through to the
     // generic cube would collapse two of these onto one picture.
@@ -172,7 +178,8 @@ describe('MarsBotCorpFace (.pcard template)', () => {
     expect(painted.get('megacredits'), 'M€').contains('megacredit');
     expect(painted.get('science'), 'a real card resource').contains('science');
     expect(painted.get('cube-white'), 'a white cube IS the cube').contains('cube');
-    expect(new Set(painted.values()).size, 'four kinds, four pictures').eq(painted.size);
+    expect(painted.get('cube-black'), 'and the black one its dark twin').contains('cube-black');
+    expect(new Set(painted.values()).size, 'every kind, its own picture').eq(painted.size);
   });
 
   it('no human corporation rule leaks onto the face', () => {
@@ -575,6 +582,34 @@ describe('marsBotCorpRules — the «§ ПРАВИЛА» groups', () => {
     // the bot pays for neither anyway, and none of that is printed here.
     expect(text).not.contains('30');
     expect(text).not.match(/production|0 M€/i);
+  });
+
+  it('Palladin Shipping prints both cube tracks and the pairing, never the human titanium', () => {
+    const groups = marsBotCorpAnnotations(MarsBotCorpId.C43_PALLADIN_SHIPPING);
+    expect(groups.map((g) => g.labelKey))
+      .deep.eq(['Draft priority', 'Corporation setup', 'Corporation effect']);
+    const text = groups.flatMap((g) => g.rows.map((r) => r.text)).join(' ');
+    expect(text, 'the setup payment').contains('5 M€');
+    expect(text, 'where the white cubes sit').contains('space track');
+    expect(text, 'and the black ones').contains('event track');
+    expect(text, 'on the same six spaces').contains('#3, #4, #6, #8, #10, #11');
+    expect(text, 'what a cube does on arrival').contains('onto this card');
+    expect(text, 'and what a pair buys').contains('temperature');
+    // The human Palladin Shipping starts with 36 M€ and 5 titanium, gains
+    // titanium on space events and spends 2 of it for a step — none of that.
+    expect(text).not.contains('36');
+    expect(text).not.match(/titanium/i);
+  });
+
+  it('the Palladin capsule draws the colour actually waiting on the card', () => {
+    const white = mountFace(MarsBotCorpId.C43_PALLADIN_SHIPPING, 2, false, 'cube-white');
+    expect(white.find('.pcard__res-count').text()).eq('2');
+    expect(white.find('.pcard__res-icon').attributes('style') ?? '', 'the white cube the socket draws')
+      .contains('cube.png');
+    const black = mountFace(MarsBotCorpId.C43_PALLADIN_SHIPPING, 3, false, 'cube-black');
+    expect(black.find('.pcard__res-count').text()).eq('3');
+    expect(black.find('.pcard__res-icon').attributes('style') ?? '', 'its dark twin')
+      .contains('cube-black.png');
   });
 
   it('Ecotec prints its bio-tag greenhouse, never the human choice of plant or microbe', () => {

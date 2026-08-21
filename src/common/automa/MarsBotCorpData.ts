@@ -28,7 +28,7 @@ export type {MarsBotCubeType} from './AutomaTypes';
  * C35's card either carries its white cube or it does not, and the count IS
  * the state (the printed effect only ever puts one there or takes it away).
  */
-export type MarsBotCorpResource = 'plant' | 'science' | 'megacredits' | 'cube-white';
+export type MarsBotCorpResource = 'plant' | 'science' | 'megacredits' | 'cube-white' | 'cube-black';
 
 /**
  * How the bot picks (and protects) cards in the research draft — RB-B "Draft
@@ -103,6 +103,15 @@ export type MarsBotCorpInfo = {
   requiresAnyModule?: ReadonlyArray<Expansion>;
   /** The resource this corporation stores on its own card, if any. */
   resource?: MarsBotCorpResource;
+  /**
+   * A SECOND kind the SAME slot can hold — C43's two cube colours. It is not a
+   * second store: the card's printed rule removes a matching pair the instant
+   * both colours are on it, so only ONE colour is ever physically there and the
+   * face keeps ONE capsule. Which colour it currently is, is STATE
+   * (`AutomaState.corpResourceKind`), so the illegal «both at once» is not even
+   * expressible. Absent ⇒ the card holds `resource` and nothing else.
+   */
+  resourceAlt?: MarsBotCorpResource;
   /** Corporation-specific bonus cards this corp brings into play (RB-B Setup 5
    *  returns all others to the box). */
   corpBonusCards: ReadonlyArray<BonusCardId>;
@@ -1178,6 +1187,59 @@ const CORP_INFO: Readonly<Record<MarsBotCorpId, MarsBotCorpInfo>> = {
       ]},
     ],
   },
+  [MarsBotCorpId.C43_PALLADIN_SHIPPING]: {
+    id: MarsBotCorpId.C43_PALLADIN_SHIPPING,
+    cardNumber: 'C43',
+    original: CardName.PALLADIN_SHIPPING,
+    // BOTH are printed (verified by crop): the corner box carries TWO tags and
+    // the plate below it the priority — the C11/C41 shape.
+    startingTags: [Tag.SPACE, Tag.EVENT],
+    draftPriority: {type: 'tags', tags: [Tag.SPACE, Tag.EVENT]},
+    // The card is a PAIRING SLOT rather than a store: a cube reaching it waits
+    // there for one of the other colour. See `resourceAlt` — one capsule, and
+    // which colour is in it is state.
+    resource: 'cube-white',
+    resourceAlt: 'cube-black',
+    corpBonusCards: [],
+    // SETUP box, verbatim: WHITE on the SPACE track and BLACK on the EVENT
+    // track, on the same six spaces — the two tracks its own tags and its
+    // priority feed, so both colours keep arriving.
+    trackCubes: [
+      {tag: Tag.SPACE, position: 3, cubeType: 'white'},
+      {tag: Tag.SPACE, position: 4, cubeType: 'white'},
+      {tag: Tag.SPACE, position: 6, cubeType: 'white'},
+      {tag: Tag.SPACE, position: 8, cubeType: 'white'},
+      {tag: Tag.SPACE, position: 10, cubeType: 'white'},
+      {tag: Tag.SPACE, position: 11, cubeType: 'white'},
+      {tag: Tag.EVENT, position: 3, cubeType: 'black'},
+      {tag: Tag.EVENT, position: 4, cubeType: 'black'},
+      {tag: Tag.EVENT, position: 6, cubeType: 'black'},
+      {tag: Tag.EVENT, position: 8, cubeType: 'black'},
+      {tag: Tag.EVENT, position: 10, cubeType: 'black'},
+      {tag: Tag.EVENT, position: 11, cubeType: 'black'},
+    ],
+    // ONE sentence for both colours (the C30 law): what a cube does on arrival
+    // does not depend on its colour, so the mat draws ONE legend row with BOTH
+    // swatches. What the colours differ in — which track they sit on — the mat
+    // shows by where they are.
+    cubeLegend: {
+      white: 'Advancing onto it: the cube moves onto the corporation card — one of each colour there raises the temperature 1 step',
+      black: 'Advancing onto it: the cube moves onto the corporation card — one of each colour there raises the temperature 1 step',
+    },
+    sections: [
+      {kind: 'draftPriority', lines: [{text: 'Space, then event'}]},
+      {kind: 'setup', lines: [
+        {icon: 'megacredits', text: 'MarsBot gains ${0} M€', params: ['5']},
+        {icon: 'cube-white', text: 'A white cube on the space track spaces ${0}', params: ['#3, #4, #6, #8, #10, #11']},
+        {icon: 'cube-black', text: 'A black cube on the event track spaces ${0}', params: ['#3, #4, #6, #8, #10, #11']},
+      ]},
+      {kind: 'effect', lines: [
+        {icon: 'cube-white', text: 'Advancing onto a white or a black cube moves that cube onto this card'},
+        {icon: 'temperature', text: 'One cube of each colour on this card: both are removed and MarsBot raises the temperature ${0} step', params: ['1']},
+        {icon: 'cards', text: 'The space it lands on still resolves its own printed icon', muted: true},
+      ]},
+    ],
+  },
   [MarsBotCorpId.C45_SPIRE]: {
     id: MarsBotCorpId.C45_SPIRE,
     cardNumber: 'C45',
@@ -1264,6 +1326,10 @@ export function corpOwningBonusCard(id: BonusCardId): MarsBotCorpInfo | undefine
  *           Before-Action-Phase box actually took) and nirgalSkipped (the
  *           generations it could take neither — the printed box says that
  *           is no Failed Action).
+ * Palladin Shipping: palladinCubesMoved (every cube that left the mat for
+ *           the card), palladinPairs (how many of them met their opposite
+ *           colour) and palladinTemperatureSteps (the pairs whose step
+ *           actually moved the parameter).
  * Kuiper Cooperative: kuiperWhiteCubes / kuiperTemperatureSteps (the white
  *           cubes it reached and the raises that landed — a completed
  *           temperature is a Failed Action, not a step) and kuiperBlackCubes
@@ -1393,8 +1459,13 @@ export type MarsBotCorpModel = {
   /** Original human corporation — identity/art/lore resolve through it. */
   original: CardName;
   startingTags: ReadonlyArray<Tag>;
+  /**
+   * The kind of thing currently ON the card — the corporation's declared
+   * `resource` for every card that can hold only one, and the colour actually
+   * sitting there for C43, whose slot takes either cube.
+   */
   resource?: MarsBotCorpResource;
-  /** Resources currently ON the corporation card (Ecoline plant, Spire science). */
+  /** How many of them are on the corporation card (Ecoline plant, Spire science). */
   resources: number;
   /** Cubes this corporation seeded on the bot's tracks (empty for most corps). */
   cubes: ReadonlyArray<MarsBotCorpCubeModel>;

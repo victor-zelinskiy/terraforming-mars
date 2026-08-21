@@ -685,6 +685,28 @@ describe('insightEngine', () => {
         MarsBotCorpId.C42_NIRGAL_ENTERPRISES, 'Nirgal Enterprises')).is.empty;
     });
 
+    it('C43 tells the pairing and the stranded freight as SEPARATE stories', () => {
+      const insights = botInsights({palladinCubesMoved: 9, palladinPairs: 3, palladinTemperatureSteps: 3},
+        MarsBotCorpId.C43_PALLADIN_SHIPPING, 'Palladin Shipping');
+      expect(insights).has.length(2);
+      const keys = insights.map((i) => i.textKey).join(' | ');
+      expect(keys).contains('Every degree arrived in two halves');
+      expect(keys).contains('never found its match');
+    });
+
+    it('C43 keeps quiet about stranded cubes when nearly everything paired up', () => {
+      const insights = botInsights({palladinCubesMoved: 8, palladinPairs: 4, palladinTemperatureSteps: 4},
+        MarsBotCorpId.C43_PALLADIN_SHIPPING, 'Palladin Shipping');
+      expect(insights).has.length(1);
+      expect(insights[0].textKey).contains('Every degree arrived in two halves');
+      expect(insights[0].params.map((p) => p.v)).contains('4');
+    });
+
+    it('C43 keeps quiet when the two tracks never met', () => {
+      expect(botInsights({palladinCubesMoved: 2, palladinPairs: 1, palladinTemperatureSteps: 1},
+        MarsBotCorpId.C43_PALLADIN_SHIPPING, 'Palladin Shipping')).is.empty;
+    });
+
     it('C46 tells its one moment as ONE story', () => {
       const insights = botInsights({hyperlinkPlayed: 1, hyperlinkDrawn: 9, hyperlinkResolved: 2},
         MarsBotCorpId.C46_TYCHO_MAGNETICS, 'Tycho Magnetics');
