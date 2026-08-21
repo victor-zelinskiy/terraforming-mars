@@ -236,6 +236,12 @@ export class AutomaResolver {
     if (!game.gameOptions.venusNextExtension) {
       return;
     }
+    // Without the module there is nothing to raise and nothing to replace —
+    // the corporation is consulted only where a real raise was going to be
+    // attempted (C36).
+    if (AutomaCorporations.replacesParameterRaise(game, GlobalParameter.VENUS)) {
+      return;
+    }
     if (game.getVenusScaleLevel() >= constants.MAX_VENUS_SCALE) {
       failedAction(game, 'venus-maxed');
       return;

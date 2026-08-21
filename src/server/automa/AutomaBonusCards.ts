@@ -1,4 +1,5 @@
 import * as constants from '../../common/constants';
+import {AutomaTerraformer} from './AutomaTerraformer';
 import {BonusCardId} from '../../common/automa/AutomaTypes';
 import {CardName} from '../../common/cards/CardName';
 import {CardResource} from '../../common/CardResource';
@@ -62,13 +63,18 @@ export function advanceFurthestMartianParameter(game: IGame): boolean {
   }
   // The tie order IS the priority order among the leaders.
   if (oxygenLeft === most) {
-    game.increaseOxygenLevel(bot, 1);
-    game.log('${0} raised ${1} ${2} step(s)', (b) => b.player(bot).globalParameter(GlobalParameter.OXYGEN).number(1));
+    // Each branch is one of the four printed actions, so each may be taken
+    // over by the corporation (C36) — the ladder still counts as resolved,
+    // because the action WAS taken, just converted.
+    if (!AutomaCorporations.replacesParameterRaise(game, GlobalParameter.OXYGEN)) {
+      game.increaseOxygenLevel(bot, 1);
+      game.log('${0} raised ${1} ${2} step(s)', (b) => b.player(bot).globalParameter(GlobalParameter.OXYGEN).number(1));
+    }
   } else if (oceansLeft === most) {
-    AutomaTilePlacer.placeOcean(game);
+    AutomaTilePlacer.placeOcean(game); // …consulted inside the shared placer.
   } else {
-    game.increaseTemperature(bot, 1);
-    game.log('${0} raised ${1} ${2} step(s)', (b) => b.player(bot).globalParameter(GlobalParameter.TEMPERATURE).number(1));
+    // The shared raise, for its own gate, its log and its Failed Action.
+    AutomaTerraformer.raiseTemperature(game);
   }
   return true;
 }
@@ -575,7 +581,8 @@ function governmentIntervention(game: IGame): BonusCardOutcome {
     if (raiseMartian && advanceFurthestMartianParameter(game)) {
       return 'discard';
     }
-    if (game.getVenusScaleLevel() < constants.MAX_VENUS_SCALE) {
+    if (game.getVenusScaleLevel() < constants.MAX_VENUS_SCALE &&
+        !AutomaCorporations.replacesParameterRaise(game, GlobalParameter.VENUS)) {
       game.increaseVenusScaleLevel(bot, 1);
       game.log('${0} raised ${1} ${2} step(s)', (b) => b.player(bot).globalParameter(GlobalParameter.VENUS).number(1));
     }

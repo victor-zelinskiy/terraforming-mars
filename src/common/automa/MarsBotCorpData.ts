@@ -1032,6 +1032,27 @@ const CORP_INFO: Readonly<Record<MarsBotCorpId, MarsBotCorpInfo>> = {
       ]},
     ],
   },
+  [MarsBotCorpId.C36_PRISTAR]: {
+    id: MarsBotCorpId.C36_PRISTAR,
+    cardNumber: 'C36',
+    original: CardName.PRISTAR,
+    // Neither a starting tag nor a priority plate is printed, and there is no
+    // SETUP box either — the Before-Action-Phase box is what arms the card,
+    // and RB-B resolves that box once after setup, so the cube is there from
+    // the first action phase without a setup line.
+    startingTags: [],
+    resource: 'cube-white',
+    corpBonusCards: [],
+    sections: [
+      {kind: 'effect', lines: [
+        {icon: 'cube-white', text: 'The first time each generation MarsBot would raise the temperature, raise oxygen, place an ocean or raise Venus, the cube here is spent instead'},
+        {icon: 'tr', text: 'It gains ${0} TR and ${1} M€, and the global parameter does not move', params: ['1', '6']},
+      ]},
+      {kind: 'beforeActionPhase', lines: [
+        {icon: 'cube-white', text: 'Put a white cube on this card if there is none'},
+      ]},
+    ],
+  },
   [MarsBotCorpId.C45_SPIRE]: {
     id: MarsBotCorpId.C45_SPIRE,
     cardNumber: 'C45',
@@ -1114,6 +1135,11 @@ export function corpOwningBonusCard(id: BonusCardId): MarsBotCorpInfo | undefine
  *           the card destroys itself), hyperlinkDrawn (project cards that draw
  *           put in front of it) and hyperlinkResolved (the two it kept and
  *           played; fewer only when the deck could not supply them).
+ * Pristar:  pristarCubes (generations its Before-Action-Phase box armed the
+ *           card), pristarConversions (terraforming actions the cube took
+ *           over — TR is one per conversion) and pristarMc (the M€ they
+ *           paid), plus pristarSkipped<Parameter> per parameter, so the
+ *           finale can name WHICH of the four stood still.
  * Lakefront Resorts: lakefrontOceans (oceans placed at the table while it was
  *           in play, both seats), lakefrontSteps (the building-track advances
  *           every SECOND one of them bought — a completed track is a Failed

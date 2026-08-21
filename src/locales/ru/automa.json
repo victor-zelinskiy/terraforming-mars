@@ -583,5 +583,10 @@
   "MarsBot's bonus for placing next to an ocean is ${0} M€ instead of ${1}": "Бонус Бота за размещение рядом с океаном — ${0} M€ вместо ${1}",
   "${0} placed a white cube on its corporation ${1} — its tiles beside water now pay ${2} M€": "${0} кладёт белый куб на свою корпорацию ${1} — её тайлы у воды теперь дают ${2} M€",
   "${0} spent the white cube on its corporation ${1}: a new ocean advances the building track": "${0} тратит белый куб со своей корпорации ${1}: новый океан продвигает трек строительства",
-  "${0} put a white cube back on its corporation ${1}: a new ocean re-armed it": "${0} возвращает белый куб на свою корпорацию ${1}: новый океан снова её зарядил"
+  "${0} put a white cube back on its corporation ${1}: a new ocean re-armed it": "${0} возвращает белый куб на свою корпорацию ${1}: новый океан снова её зарядил",
+  "The first time each generation MarsBot would raise the temperature, raise oxygen, place an ocean or raise Venus, the cube here is spent instead": "Первый раз за поколение, когда Бот собирается поднять температуру, поднять кислород, выложить океан или поднять Венеру, вместо этого тратится куб отсюда",
+  "It gains ${0} TR and ${1} M€, and the global parameter does not move": "Он получает ${0} РТ и ${1} M€, а глобальный параметр остаётся на месте",
+  "Put a white cube on this card if there is none": "Положить на эту карту белый куб, если его там нет",
+  "${0} armed its corporation ${1} with a white cube for this generation": "${0} заряжает свою корпорацию ${1} белым кубом на это поколение",
+  "${0} spent the white cube on its corporation ${1}: ${2} is left alone for ${3} M€": "${0} тратит белый куб со своей корпорации ${1}: ${2} остаётся нетронутым за ${3} M€"
 }

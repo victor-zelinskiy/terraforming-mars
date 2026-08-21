@@ -1,4 +1,5 @@
 import * as constants from '../../common/constants';
+import {AutomaCorporations} from './corps/AutomaCorporations';
 import {GlobalParameter} from '../../common/GlobalParameter';
 import {Board} from '../boards/Board';
 import {IGame} from '../IGame';
@@ -75,8 +76,13 @@ export function pushNearestBonus(game: IGame, thirdOption: 'ocean' | 'venus'): N
   const temperatureSteps = temperatureStepsToTarget(game);
   if (temperatureSteps !== undefined && temperatureSteps <= 2) {
     AutomaTurnLog.setBonusBranch(game, {key: 'Temperature near a bonus step'});
-    game.increaseTemperature(bot, 2); // Clamped internally at completion.
-    game.log('${0} raised ${1} ${2} step(s)', (b) => b.player(bot).globalParameter(GlobalParameter.TEMPERATURE).number(2));
+    // One ACTION, however many steps it prints: a corporation that takes it
+    // over skips the whole raise (C36), and the branch still counts as the
+    // one the ladder chose.
+    if (!AutomaCorporations.replacesParameterRaise(game, GlobalParameter.TEMPERATURE)) {
+      game.increaseTemperature(bot, 2); // Clamped internally at completion.
+      game.log('${0} raised ${1} ${2} step(s)', (b) => b.player(bot).globalParameter(GlobalParameter.TEMPERATURE).number(2));
+    }
     return 'temperature';
   }
 
@@ -85,8 +91,13 @@ export function pushNearestBonus(game: IGame, thirdOption: 'ocean' | 'venus'): N
       game.board.getAvailableSpacesForGreenery(bot).length > 0) {
     AutomaTurnLog.setBonusBranch(game, {key: 'Oxygen near a bonus step'});
     AutomaTilePlacer.placeGreenery(game); // Raises oxygen 1 step for the greenery.
-    game.increaseOxygenLevel(bot, 1);
-    game.log('${0} raised ${1} ${2} step(s)', (b) => b.player(bot).globalParameter(GlobalParameter.OXYGEN).number(1));
+    // …and the printed «raises oxygen» line on top of the tile is the action
+    // a corporation may take over (C36). The GREENERY itself stands: no
+    // printed sentence of that card lists «place a greenery tile».
+    if (!AutomaCorporations.replacesParameterRaise(game, GlobalParameter.OXYGEN)) {
+      game.increaseOxygenLevel(bot, 1);
+      game.log('${0} raised ${1} ${2} step(s)', (b) => b.player(bot).globalParameter(GlobalParameter.OXYGEN).number(1));
+    }
     return 'oxygen';
   }
 
@@ -94,8 +105,10 @@ export function pushNearestBonus(game: IGame, thirdOption: 'ocean' | 'venus'): N
     const venusSteps = venusStepsToTarget(game);
     if (game.gameOptions.venusNextExtension && venusSteps !== undefined && venusSteps <= 2) {
       AutomaTurnLog.setBonusBranch(game, {key: 'Venus near a bonus step'});
-      game.increaseVenusScaleLevel(bot, 2); // Clamped internally.
-      game.log('${0} raised ${1} ${2} step(s)', (b) => b.player(bot).globalParameter(GlobalParameter.VENUS).number(2));
+      if (!AutomaCorporations.replacesParameterRaise(game, GlobalParameter.VENUS)) {
+        game.increaseVenusScaleLevel(bot, 2); // Clamped internally.
+        game.log('${0} raised ${1} ${2} step(s)', (b) => b.player(bot).globalParameter(GlobalParameter.VENUS).number(2));
+      }
       return 'venus';
     }
     return undefined;
@@ -105,6 +118,11 @@ export function pushNearestBonus(game: IGame, thirdOption: 'ocean' | 'venus'): N
     game.board.getAdjacentSpaces(space).filter(Board.isOceanSpace).length >= 2);
   if (oceanTarget.length > 0) {
     AutomaTurnLog.setBonusBranch(game, {key: 'Ocean next to two oceans'});
+    // This branch picks the space itself instead of going through the shared
+    // placer, so it asks the same question the placer would (C36).
+    if (AutomaCorporations.replacesParameterRaise(game, GlobalParameter.OCEANS)) {
+      return 'ocean';
+    }
     const space = AutomaTilePlacer.breakTie(game, oceanTarget);
     game.addOcean(bot, space);
     return 'ocean';

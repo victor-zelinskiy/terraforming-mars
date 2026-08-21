@@ -9,6 +9,7 @@ import {IGame} from '../../IGame';
 import {IPlayer} from '../../IPlayer';
 import {ICard} from '../../cards/ICard';
 import {Space} from '../../boards/Space';
+import {GlobalParameter} from '../../../common/GlobalParameter';
 import {IProjectCard} from '../../cards/IProjectCard';
 import {isICorporationCard} from '../../cards/corporation/ICorporationCard';
 import {AutomaHumanTagReactions} from '../AutomaHumanTagReactions';
@@ -41,6 +42,7 @@ import {MarsBotPolyphemos} from './MarsBotPolyphemos';
 import {MarsBotPoseidon} from './MarsBotPoseidon';
 import {MarsBotStormcraft} from './MarsBotStormcraft';
 import {MarsBotLakefrontResorts} from './MarsBotLakefrontResorts';
+import {MarsBotPristar} from './MarsBotPristar';
 import {MarsBotMorningStar} from './MarsBotMorningStar';
 import {MarsBotViron} from './MarsBotViron';
 import {MarsBotVitor} from './MarsBotVitor';
@@ -114,6 +116,7 @@ export class AutomaCorporations {
     [MarsBotCorpId.C33_POSEIDON]: MarsBotPoseidon,
     [MarsBotCorpId.C34_STORMCRAFT]: MarsBotStormcraft,
     [MarsBotCorpId.C35_LAKEFRONT_RESORTS]: MarsBotLakefrontResorts,
+    [MarsBotCorpId.C36_PRISTAR]: MarsBotPristar,
     [MarsBotCorpId.C45_SPIRE]: MarsBotSpire,
     [MarsBotCorpId.C46_TYCHO_MAGNETICS]: MarsBotTychoMagnetics,
   };
@@ -438,6 +441,22 @@ export class AutomaCorporations {
    */
   public static onColonyBuilt(game: IGame, builder: IPlayer): void {
     AutomaCorporations.activeCorp(game)?.onColonyBuilt?.(game, builder);
+  }
+
+  /**
+   * MarsBot is ABOUT to take one of its four printed global-parameter actions
+   * (raise the temperature / raise oxygen / place an ocean / raise Venus).
+   * `true` means the seated corporation REPLACED it and the caller must do
+   * NOTHING — the first hook in this framework whose answer cancels an action
+   * instead of adding to one (C36 Pristar).
+   *
+   * Consulted at MarsBot's own action sites rather than inside the engine's
+   * parameter methods, because the trigger is the printed ACTION: a greenery
+   * raises oxygen as a consequence of placing a TILE, and «place a greenery»
+   * is not one of the four sentences.
+   */
+  public static replacesParameterRaise(game: IGame, parameter: GlobalParameter): boolean {
+    return AutomaCorporations.activeCorp(game)?.onWouldRaiseParameter?.(game, parameter) === 'replaces-action';
   }
 
   /**

@@ -587,6 +587,20 @@ describe('insightEngine', () => {
         MarsBotCorpId.C35_LAKEFRONT_RESORTS, 'Lakefront Resorts')).is.empty;
     });
 
+    it('C36 tells the called-off steps and the money as SEPARATE stories', () => {
+      const insights = botInsights({pristarConversions: 5, pristarMc: 30, pristarCubes: 6},
+        MarsBotCorpId.C36_PRISTAR, 'Pristar');
+      expect(insights).has.length(2);
+      const keys = insights.map((i) => i.textKey).join(' | ');
+      expect(keys).contains('left alone for money');
+      expect(keys).contains('Preservation paid');
+    });
+
+    it('C36 keeps quiet when the cube was hardly ever spent', () => {
+      expect(botInsights({pristarConversions: 1, pristarMc: 6, pristarCubes: 5},
+        MarsBotCorpId.C36_PRISTAR, 'Pristar')).is.empty;
+    });
+
     it('C46 tells its one moment as ONE story', () => {
       const insights = botInsights({hyperlinkPlayed: 1, hyperlinkDrawn: 9, hyperlinkResolved: 2},
         MarsBotCorpId.C46_TYCHO_MAGNETICS, 'Tycho Magnetics');

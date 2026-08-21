@@ -1,4 +1,5 @@
 import {BonusCardId, TrackAction} from '../../../common/automa/AutomaTypes';
+import {GlobalParameter} from '../../../common/GlobalParameter';
 import {MarsBotCorpInfo, MarsBotTrackCube} from '../../../common/automa/MarsBotCorpData';
 import {Tag} from '../../../common/cards/Tag';
 import {FailedActionReason} from '../../../common/automa/MarsBotTurn';
@@ -187,6 +188,25 @@ export type MarsBotCorp = {
    * regressed track never re-arms it.
    */
   onTrackCubeTrigger?(game: IGame, cube: MarsBotTrackCube, printedAction: TrackAction | undefined): 'replaces-action' | void;
+
+  /**
+   * MarsBot is ABOUT to take one of its four printed global-parameter actions
+   * — «raise the temperature, raise oxygen, place an ocean, or raise Venus»
+   * (C36 Pristar). Returning `'replaces-action'` means the corporation TOOK
+   * THE ACTION OVER: the caller performs none of it («skip increasing the
+   * global parameter»).
+   *
+   * THE FIRST HOOK THAT CAN SAY NO. Every other one reacts to something that
+   * already happened and can only ADD; this one is consulted BEFORE, and its
+   * answer cancels. That is why it is asked at the bot's own action sites
+   * rather than inside `Game.increaseTemperature` & co: the trigger is the
+   * printed ACTION, not the parameter moving — a greenery raises oxygen as a
+   * consequence of a TILE, and no printed sentence lists «place a greenery».
+   *
+   * `parameter` is which of the four is being replaced; the ocean action
+   * arrives as `GlobalParameter.OCEANS`.
+   */
+  onWouldRaiseParameter?(game: IGame, parameter: GlobalParameter): 'replaces-action' | void;
 
   /**
    * MarsBot is about to build on a cell ITS OWN player marker reserved (C18

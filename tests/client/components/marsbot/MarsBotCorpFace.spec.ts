@@ -93,6 +93,8 @@ describe('MarsBotCorpFace (.pcard template)', () => {
       'C46 prints NO starting tag — its corner carries the priority plate').is.false;
     expect(mountFace(MarsBotCorpId.C35_LAKEFRONT_RESORTS).find('.pcard__tags').exists(),
       'C35 prints NO starting tag at all').is.false;
+    expect(mountFace(MarsBotCorpId.C36_PRISTAR).find('.pcard__tags').exists(),
+      'C36 prints NO starting tag either').is.false;
     // C04 prints TWO event tags — both sit on the rail (the bot card's tags,
     // never the human card's single building tag).
     // Saturn Systems prints FOUR starting tags — the rail carries them all.
@@ -530,6 +532,24 @@ describe('marsBotCorpRules — the «§ ПРАВИЛА» groups', () => {
     // shoreline rate, which the bot card prints for itself).
     expect(text).not.contains('54');
     expect(text).not.match(/production/i);
+  });
+
+  it('Pristar prints the four cancelled parameters, never the human preservation VP', () => {
+    const groups = marsBotCorpAnnotations(MarsBotCorpId.C36_PRISTAR);
+    expect(groups.map((g) => g.labelKey)).deep.eq(['Corporation effect', 'Before action phase']);
+    const text = groups.flatMap((g) => g.rows.map((r) => r.text)).join(' ');
+    expect(text, 'the four printed actions').contains('temperature');
+    expect(text, 'what it pays instead').contains('6 M€');
+    expect(text, 'and what does NOT happen').contains('global parameter');
+    expect(text, 'the box that re-arms it').contains('white cube');
+    // The human Pristar starts with 53 M€, LOSES 2 TR and scores 1 VP per
+    // preservation resource — none of that is here.
+    expect(text).not.contains('53');
+    expect(text).not.match(/VP|preservation/i);
+    // The mechanics zone draws the four parameters STRUCK THROUGH — the
+    // human card's own idiom for «this does not happen».
+    const face = mountFace(MarsBotCorpId.C36_PRISTAR);
+    expect(face.findAll('.pcard-mi--cancelled'), 'temperature, oxygen, ocean, Venus').has.length(4);
   });
 
   it('Tycho Magnetics prints its one waiting card, never the human energy engine', () => {

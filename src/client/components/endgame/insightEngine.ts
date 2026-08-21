@@ -3189,6 +3189,30 @@ const analyzeBotCorporation: Analyzer = (ctx) => {
           scale: 12,
         });
       }
+    } else if (corp.id === 'C36') {
+      // Pristar is the only corporation that makes the bot NOT do something,
+      // so the story is the thing that did not happen — and the money it was
+      // paid for standing still is a second, independent fact.
+      const conversions = stat('pristarConversions');
+      const mc = stat('pristarMc');
+      if (conversions >= 2) {
+        stories.push({
+          key: 'effect',
+          textKey: 'Mars was left alone for money at ${0}: ${2} time(s) ${1} called off a terraforming step for a TR and the cash instead.',
+          params: [raw(p.name), raw(corp.name), raw(conversions)],
+          measure: conversions,
+          scale: 8,
+        });
+      }
+      if (mc >= 18) {
+        stories.push({
+          key: 'preservation',
+          textKey: 'Preservation paid ${2} M€ over the game — a whole engine ${1} ran without moving a single global parameter.',
+          params: [raw(p.name), raw(corp.name), raw(mc)],
+          measure: mc,
+          scale: 40,
+        });
+      }
     } else if (corp.id === 'C46') {
       // Tycho Magnetics is ONE moment, and the whole game before it is the
       // wind-up — so the story is that moment, sized by what the wait bought.

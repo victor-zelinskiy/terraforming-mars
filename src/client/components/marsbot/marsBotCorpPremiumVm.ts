@@ -441,6 +441,25 @@ function renderDataOf(id: MarsBotCorpId): ICardRenderRoot {
         eb.emptyTile('normal', {size: Size.SMALL}).oceans(1, {size: Size.SMALL}).startEffect.megacredits(3);
       });
     });
+  case MarsBotCorpId.C36_PRISTAR:
+    return CardRenderer.builder((b) => {
+      // EFFECT: the four parameter actions, each struck through — the human
+      // Pristar's own printed idiom for «this does not happen» (its face
+      // cancels a TR icon the same way) — paying a TR and 6 M€ instead. The
+      // 6 M€ is literally the human card's number.
+      b.effect(undefined, (eb) => {
+        eb.temperature(1, {size: Size.SMALL, cancelled: true});
+        eb.oxygen(1, {size: Size.SMALL, cancelled: true});
+        eb.oceans(1, {size: Size.SMALL, cancelled: true});
+        eb.venus(1, {size: Size.SMALL, cancelled: true});
+        eb.startEffect.tr(1, {size: Size.SMALL}).megacredits(6);
+      });
+      // BEFORE ACTION PHASE: the cube comes back every generation — the
+      // recurring plate C26/C34 draw for the same «every generation» shape.
+      b.action(undefined, (eb) => {
+        eb.text('↻', Size.SMALL, true).startAction.resource(CardResource.RESOURCE_CUBE);
+      });
+    });
   case MarsBotCorpId.C46_TYCHO_MAGNETICS:
     return CardRenderer.builder((b) => {
       // The whole corporation is ONE card waiting at the bottom of the bonus

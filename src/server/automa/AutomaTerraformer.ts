@@ -1,4 +1,5 @@
 import * as constants from '../../common/constants';
+import {AutomaCorporations} from './corps/AutomaCorporations';
 import {GlobalParameter} from '../../common/GlobalParameter';
 import {IGame} from '../IGame';
 import {failedAction} from './AutomaFailedAction';
@@ -15,6 +16,14 @@ import {marsBotOf} from './AutomaUtil';
 export class AutomaTerraformer {
   /** "MarsBot raises the temperature by 1 step" — a completed track is a Failed Action. */
   public static raiseTemperature(game: IGame): void {
+    // A corporation may TAKE THE ACTION OVER before anything is asked of the
+    // parameter — «when MarsBot WOULD raise the temperature» (C36). Asked
+    // FIRST, so a completed temperature is not a Failed Action either: the
+    // action the mat gave was replaced, and a replaced action never reaches
+    // the question «can this still be raised?».
+    if (AutomaCorporations.replacesParameterRaise(game, GlobalParameter.TEMPERATURE)) {
+      return;
+    }
     if (game.getTemperature() >= constants.MAX_TEMPERATURE) {
       failedAction(game, 'temperature-maxed');
       return;

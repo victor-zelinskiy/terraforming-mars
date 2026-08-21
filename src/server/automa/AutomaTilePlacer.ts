@@ -1,4 +1,6 @@
 import {Board} from '../boards/Board';
+import {GlobalParameter} from '../../common/GlobalParameter';
+import {AutomaCorporations} from './corps/AutomaCorporations';
 import {Space} from '../boards/Space';
 import {IGame} from '../IGame';
 import {IPlayer} from '../IPlayer';
@@ -153,6 +155,11 @@ export class AutomaTilePlacer {
    * consequence to apply.
    */
   public static placeOcean(game: IGame): void {
+    // «…or place an ocean» — the ocean action is one of the four a
+    // corporation may take over (C36).
+    if (AutomaCorporations.replacesParameterRaise(game, GlobalParameter.OCEANS)) {
+      return;
+    }
     if (!game.canAddOcean()) {
       failedAction(game, 'oceans-complete');
       return;
