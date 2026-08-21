@@ -382,6 +382,17 @@ function renderDataOf(id: MarsBotCorpId): ICardRenderRoot {
         eb.tag(Tag.ANIMAL).slash().tag(Tag.PLANT).startEffect.megacredits(2);
       });
     });
+  case MarsBotCorpId.C32_POLYPHEMOS:
+    return CardRenderer.builder((b) => {
+      // SETUP: the opening gift, in the bare row C09 Teractor's own 25 M€
+      // would draw — nothing triggers it.
+      b.megacredits(25);
+      // BEFORE ACTION PHASE: one card leaves the deck every generation. The
+      // asterisk is the condition — WHICH card is one panel away in «§ ПРАВИЛА».
+      b.action(undefined, (eb) => {
+        eb.text('↻', Size.SMALL, true).startAction.minus().cards(1).asterix();
+      });
+    });
   case MarsBotCorpId.C45_SPIRE:
     return CardRenderer.builder((b) => {
       // EFFECT: a card with 2+ tags adds a science resource here — the

@@ -3091,6 +3091,30 @@ const analyzeBotCorporation: Analyzer = (ctx) => {
           scale: 30,
         });
       }
+    } else if (corp.id === 'C32') {
+      // Polyphemos never gains anything after its opening — it REMOVES. The
+      // fact the player can see is the pile of shed cards, and the sharpest
+      // part of it is how many of those were turns that could not have worked.
+      const discards = stat('polyphemosDiscards');
+      const tagless = stat('polyphemosTaglessShed');
+      if (discards >= 4) {
+        stories.push({
+          key: 'effect',
+          textKey: 'Nothing weak survived a generation at ${0}\'s ${1}: ${2} card(s) left its deck before they could be flipped.',
+          params: [raw(p.name), raw(corp.name), raw(discards)],
+          measure: discards,
+          scale: 14,
+        });
+      }
+      if (tagless >= 2) {
+        stories.push({
+          key: 'tagless',
+          textKey: 'And ${2} of them carried no tag at all — dead turns ${1} threw away instead of taking.',
+          params: [raw(p.name), raw(corp.name), raw(tagless)],
+          measure: tagless,
+          scale: 6,
+        });
+      }
     } else if (corp.id === 'C45') {
       // Spire: the science engine — multi-tag cards banked into cities + TR.
       const cities = stat('citiesPlaced');

@@ -82,6 +82,8 @@ describe('MarsBotCorpFace (.pcard template)', () => {
       'C30 prints NO starting tag — its corner carries the priority plate').is.false;
     expect(mountFace(MarsBotCorpId.C31_ARKLIGHT).findAll('.pcard__tags .pcard-tag'),
       'C31 prints ONE animal starting tag').has.length(1);
+    expect(mountFace(MarsBotCorpId.C32_POLYPHEMOS).findAll('.pcard__tags .pcard-tag'),
+      'C32 prints SIX starting tags — three space and three event').has.length(6);
     // C04 prints TWO event tags — both sit on the rail (the bot card's tags,
     // never the human card's single building tag).
     // Saturn Systems prints FOUR starting tags — the rail carries them all.
@@ -433,6 +435,19 @@ describe('marsBotCorpRules — the «§ ПРАВИЛА» groups', () => {
     // card whenever it plays an animal/plant tag — none of that is here.
     expect(text).not.contains('45');
     expect(text).not.match(/animal resource|add a resource/i);
+  });
+
+  it('Polyphemos prints its gift and its deck thinning, never the human card prices', () => {
+    const groups = marsBotCorpAnnotations(MarsBotCorpId.C32_POLYPHEMOS);
+    expect(groups.map((g) => g.labelKey)).deep.eq(['Corporation setup', 'Before action phase']);
+    const text = groups.flatMap((g) => g.rows.map((r) => r.text)).join(' ');
+    expect(text, 'the opening gift').contains('25');
+    expect(text, 'and what it does every generation').contains('fewest tags');
+    expect(text, 'including which cards are NOT in that choice').contains('Bonus cards');
+    // The human Polyphemos starts with 50 M€, pays 5 M€ per bought card and
+    // draws 2 whenever it would draw 1 — none of that is here.
+    expect(text).not.contains('50');
+    expect(text).not.match(/buy a card|draw 2|instead of 3/i);
   });
 
   it('ThorGate prints its cubes and the first-tag clause, never the human discount', () => {

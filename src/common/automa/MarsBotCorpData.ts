@@ -947,6 +947,26 @@ const CORP_INFO: Readonly<Record<MarsBotCorpId, MarsBotCorpInfo>> = {
       ]},
     ],
   },
+  [MarsBotCorpId.C32_POLYPHEMOS]: {
+    id: MarsBotCorpId.C32_POLYPHEMOS,
+    cardNumber: 'C32',
+    original: CardName.POLYPHEMOS,
+    // SIX printed starting tags — the corner reads ✳✳✳ ↓↓↓. The biggest
+    // opening in the set: three space and three event tags resolve at
+    // selection, each advancing its track and firing whatever it lands on.
+    startingTags: [Tag.SPACE, Tag.SPACE, Tag.SPACE, Tag.EVENT, Tag.EVENT, Tag.EVENT],
+    // No draft-priority plate is printed.
+    corpBonusCards: [],
+    sections: [
+      {kind: 'setup', lines: [
+        {icon: 'megacredits', text: 'MarsBot gains ${0} M€', params: ['25']},
+      ]},
+      {kind: 'beforeActionPhase', lines: [
+        {icon: 'deck', text: 'MarsBot discards one of the cards with the fewest tags from its action deck'},
+        {icon: 'cards', text: 'Bonus cards are not part of that choice — they carry no tags at all', muted: true},
+      ]},
+    ],
+  },
   [MarsBotCorpId.C45_SPIRE]: {
     id: MarsBotCorpId.C45_SPIRE,
     cardNumber: 'C45',
@@ -1009,6 +1029,9 @@ export function corpOwningBonusCard(id: BonusCardId): MarsBotCorpInfo | undefine
  *           three counters, for the same printed effect on its own track.
  * Aphrodite: aphroditeSteps (Venus steps it was paid for) and aphroditeMc
  *           (what they came to).
+ * Polyphemos: polyphemosDiscards (cards its Before-Action-Phase box shed) and
+ *           polyphemosTaglessShed (how many of them carried NO tag at all —
+ *           each one a guaranteed Failed Action the bot never had to take).
  * Arklight: arklightTags (plant/animal tags it resolved and was paid for —
  *           microbes are NOT among them) and arklightMc (what they came to).
  * Aridor:   aridorCubesHit (cubes reached — ONE counter, because the card

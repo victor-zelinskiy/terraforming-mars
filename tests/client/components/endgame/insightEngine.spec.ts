@@ -503,6 +503,26 @@ describe('insightEngine', () => {
         MarsBotCorpId.C31_ARKLIGHT, 'Arklight')).is.empty;
     });
 
+    it('C32 tells the thinning and the dead turns as SEPARATE stories', () => {
+      const insights = botInsights({polyphemosDiscards: 9, polyphemosTaglessShed: 3},
+        MarsBotCorpId.C32_POLYPHEMOS, 'Polyphemos');
+      expect(insights).has.length(2);
+      expect(insights[0].textKey).contains('Nothing weak survived');
+      expect(insights[1].textKey).contains('no tag at all');
+    });
+
+    it('C32 keeps the second story quiet when nothing tagless was shed', () => {
+      const insights = botInsights({polyphemosDiscards: 9, polyphemosTaglessShed: 0},
+        MarsBotCorpId.C32_POLYPHEMOS, 'Polyphemos');
+      expect(insights).has.length(1);
+      expect(insights[0].textKey).contains('Nothing weak survived');
+    });
+
+    it('C32 keeps quiet when barely anything was shed', () => {
+      expect(botInsights({polyphemosDiscards: 2, polyphemosTaglessShed: 1},
+        MarsBotCorpId.C32_POLYPHEMOS, 'Polyphemos')).is.empty;
+    });
+
     it('the draft fallback speaks only when no printed effect did', () => {
       const withEffect = botInsights({credicorTriggers: 6, credicorMc: 24, fiveCardDecks: 3},
         MarsBotCorpId.C01_CREDICOR, 'CrediCor');

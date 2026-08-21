@@ -560,5 +560,8 @@
   "A plant or animal tag on this track pays MarsBot 2 M€ — a microbe pays nothing": "Метка растения или животного на этом треке приносит Боту 2 М€ — метка микроба не приносит ничего",
   "Every plant or animal tag MarsBot resolves — its own starting tag included — pays it ${0} M€": "Каждая метка растения или животного, которую разыгрывает Бот — включая его собственную стартовую, — приносит ему ${0} М€",
   "A microbe tag rides the same track and pays nothing": "Метка микроба идёт по тому же треку и не приносит ничего",
-  "${0} gained ${1} M€ from its corporation ${2} for resolving a ${3} tag": "${0} получает ${1} М€ от корпорации ${2} за разыгранную метку (${3})"
+  "${0} gained ${1} M€ from its corporation ${2} for resolving a ${3} tag": "${0} получает ${1} М€ от корпорации ${2} за разыгранную метку (${3})",
+  "MarsBot discards one of the cards with the fewest tags from its action deck": "Бот сбрасывает из своей колоды действий одну из карт с наименьшим числом меток",
+  "Bonus cards are not part of that choice — they carry no tags at all": "Бонусные карты в этом выборе не участвуют — у них меток нет вовсе",
+  "${0} discarded ${1} from its action deck — the fewest tags (corporation ${2})": "${0} сбрасывает карту ${1} из колоды действий — меньше всего меток (корпорация ${2})"
 }
