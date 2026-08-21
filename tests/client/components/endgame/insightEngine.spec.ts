@@ -633,6 +633,20 @@ describe('insightEngine', () => {
       expect(insights[0].textKey).contains('allowed to run away');
     });
 
+    it('C40 tells the conversions and the harvest as SEPARATE stories', () => {
+      const insights = botInsights({ecotecPlantsAdded: 18, ecotecSpends: 3, ecotecSteps: 3, ecotecMicrobeCells: 1},
+        MarsBotCorpId.C40_ECOTEC, 'EcoTec');
+      expect(insights).has.length(2);
+      const keys = insights.map((i) => i.textKey).join(' | ');
+      expect(keys).contains('counted twice');
+      expect(keys).contains('greenhouse never stood empty');
+    });
+
+    it('C40 keeps quiet when the greenhouse barely ran', () => {
+      expect(botInsights({ecotecPlantsAdded: 6, ecotecSpends: 1, ecotecSteps: 1},
+        MarsBotCorpId.C40_ECOTEC, 'EcoTec')).is.empty;
+    });
+
     it('C46 tells its one moment as ONE story', () => {
       const insights = botInsights({hyperlinkPlayed: 1, hyperlinkDrawn: 9, hyperlinkResolved: 2},
         MarsBotCorpId.C46_TYCHO_MAGNETICS, 'Tycho Magnetics');

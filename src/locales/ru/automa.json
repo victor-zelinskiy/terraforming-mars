@@ -606,5 +606,14 @@
   "${0} cashed out nothing — its weakest track is still at the start (corporation ${1})": "${0} ничего не обналичил — его самый слабый трек ещё на старте (корпорация ${1})",
   "${0} gained ${1} M€ from Investors — the space number of its weakest track": "${0} получает ${1} M€ от «Инвесторов» — по номеру клетки своего самого слабого трека",
   "An even generation: the portfolio is rebalanced": "Чётное поколение: портфель перебалансирован",
-  "An odd generation: the weakest track is cashed out": "Нечётное поколение: самый слабый трек обналичен"
+  "An odd generation: the weakest track is cashed out": "Нечётное поколение: самый слабый трек обналичен",
+  "Plant, then microbe, then animal": "Растение, затем микроб, затем животное",
+  "Place ${0} plants on this card": "Положите на эту карту растения — ${0}",
+  "Every plant, microbe or animal tag MarsBot resolves — its own starting tag included — puts ${0} plant on this card": "Каждая метка растения, микроба или животного, которую разрешает Бот — включая его собственную стартовую — кладёт на эту карту растений: ${0}",
+  "With ${0} or more plants here, remove ${1} of them": "При ${0} и более растениях здесь — снять ${1}",
+  "MarsBot advances the plant track": "Бот продвигает трек растений",
+  "Every plant, microbe or animal tag on this track also puts a plant on the corporation card": "Любая метка растения, микроба или животного на этом треке также кладёт растение на карту корпорации",
+  "${0} put ${1} plants on its corporation ${2}": "${0} кладёт растений на свою корпорацию ${2}: ${1}",
+  "${0} grew a plant on its corporation ${1}": "${0} выращивает растение на своей корпорации ${1}",
+  "${0} spent ${1} plants off its corporation ${2} to advance the plant track": "${0} тратит ${1} растений со своей корпорации ${2}, чтобы продвинуть трек растений"
 }

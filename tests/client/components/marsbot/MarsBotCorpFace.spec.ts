@@ -99,6 +99,8 @@ describe('MarsBotCorpFace (.pcard template)', () => {
       'C38 prints ONE science starting tag (the corner box, not a priority plate)').has.length(1);
     expect(mountFace(MarsBotCorpId.C39_UTOPIA_INVEST).findAll('.pcard__tags .pcard-tag'),
       'C39 prints TWO — building and space').has.length(2);
+    expect(mountFace(MarsBotCorpId.C40_ECOTEC).findAll('.pcard__tags .pcard-tag'),
+      'C40 prints ONE plant starting tag').has.length(1);
     // C04 prints TWO event tags — both sit on the rail (the bot card's tags,
     // never the human card's single building tag).
     // Saturn Systems prints FOUR starting tags — the rail carries them all.
@@ -536,6 +538,24 @@ describe('marsBotCorpRules — the «§ ПРАВИЛА» groups', () => {
     // shoreline rate, which the bot card prints for itself).
     expect(text).not.contains('54');
     expect(text).not.match(/production/i);
+  });
+
+  it('Ecotec prints its bio-tag greenhouse, never the human choice of plant or microbe', () => {
+    const groups = marsBotCorpAnnotations(MarsBotCorpId.C40_ECOTEC);
+    expect(groups.map((g) => g.labelKey))
+      .deep.eq(['Draft priority', 'Corporation setup', 'Corporation effect', 'Before action phase']);
+    const text = groups.flatMap((g) => g.rows.map((r) => r.text)).join(' ');
+    expect(text, 'the three feeding tags').contains('animal');
+    expect(text, 'the store on the card').contains('plants on this card');
+    expect(text, 'and what five of them buy').contains('plant track');
+    // The human EcoTec starts with 42 M€, raises plant production and lets
+    // its OWNER choose a plant or a microbe on any card — none of that here.
+    expect(text).not.contains('42');
+    expect(text).not.match(/production|any card/i);
+    // The plant capsule counts the store, and the mat marker is declared.
+    const face = mountFace(MarsBotCorpId.C40_ECOTEC, 3);
+    expect(face.find('.pcard__res-count').text()).eq('3');
+    expect(face.find('.pcard__res-icon').attributes('style') ?? '').contains('plant');
   });
 
   it('Utopia Invest prints its recurring card and both of its halves, never the human production trade', () => {

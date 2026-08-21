@@ -3275,6 +3275,30 @@ const analyzeBotCorporation: Analyzer = (ctx) => {
           scale: 12,
         });
       }
+    } else if (corp.id === 'C40') {
+      // Ecotec is a greenhouse: the store fills from bio tags and empties into
+      // track steps. The steps are the fact worth telling; the harvest itself
+      // is the quieter second line.
+      const steps = stat('ecotecSteps');
+      const grown = stat('ecotecPlantsAdded');
+      if (steps >= 2) {
+        stories.push({
+          key: 'effect',
+          textKey: 'Every living thing counted twice for ${0}: ${1} banked ${2} plant(s) and cashed them into ${3} extra step(s) up the plant track.',
+          params: [raw(p.name), raw(corp.name), raw(grown), raw(steps)],
+          measure: steps,
+          scale: 6,
+        });
+      }
+      if (grown >= 12) {
+        stories.push({
+          key: 'harvest',
+          textKey: 'The greenhouse never stood empty — ${2} plant(s) passed through ${1} over the game.',
+          params: [raw(p.name), raw(corp.name), raw(grown)],
+          measure: grown,
+          scale: 25,
+        });
+      }
     } else if (corp.id === 'C45') {
       // Spire: the science engine — multi-tag cards banked into cities + TR.
       const cities = stat('citiesPlaced');

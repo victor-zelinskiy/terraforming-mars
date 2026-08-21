@@ -509,6 +509,20 @@ function renderDataOf(id: MarsBotCorpId): ICardRenderRoot {
         eb.tag(Tag.POWER).startEffect.cards(1).asterix();
       });
     });
+  case MarsBotCorpId.C40_ECOTEC:
+    return CardRenderer.builder((b) => {
+      // EFFECT: the human EcoTec's own printed shape for the identical «bio
+      // tag» family — the three tags in a row, paying a plant. The human pays
+      // its owner; this one stores it on the card.
+      b.effect(undefined, (eb) => {
+        eb.tag(Tag.PLANT).tag(Tag.MICROBE).tag(Tag.ANIMAL).startEffect.plants(1);
+      });
+      // BEFORE ACTION PHASE: five of them buy one step of the very track
+      // those tags ride — named by its tag, as every track is on this face.
+      b.action(undefined, (eb) => {
+        eb.plants(5).startAction.tag(Tag.PLANT);
+      });
+    });
   case MarsBotCorpId.C45_SPIRE:
     return CardRenderer.builder((b) => {
       // EFFECT: a card with 2+ tags adds a science resource here — the

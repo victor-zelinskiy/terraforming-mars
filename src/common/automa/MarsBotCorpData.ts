@@ -1089,6 +1089,34 @@ const CORP_INFO: Readonly<Record<MarsBotCorpId, MarsBotCorpInfo>> = {
       ]},
     ],
   },
+  [MarsBotCorpId.C40_ECOTEC]: {
+    id: MarsBotCorpId.C40_ECOTEC,
+    cardNumber: 'C40',
+    original: CardName.ECOTEC,
+    startingTags: [Tag.PLANT],
+    draftPriority: {type: 'tags', tags: [Tag.PLANT, Tag.MICROBE, Tag.ANIMAL]},
+    resource: 'plant',
+    corpBonusCards: [],
+    // The SETUP box's second sentence is C31 Arklight's WORD FOR WORD — the
+    // same tracker on the same track — so it is literally the same i18n key.
+    // What the cube REMINDS of is this card's own effect, hence its own legend.
+    whiteMarkerTracks: [Tag.PLANT],
+    markerLegend: 'Every plant, microbe or animal tag on this track also puts a plant on the corporation card',
+    sections: [
+      {kind: 'draftPriority', lines: [{text: 'Plant, then microbe, then animal'}]},
+      {kind: 'setup', lines: [
+        {icon: 'plants', text: 'Place ${0} plants on this card', params: ['2']},
+        {icon: 'cube-white', text: 'The plant track marker becomes a white cube — a reminder of the effect below', muted: true},
+      ]},
+      {kind: 'effect', lines: [
+        {icon: 'plants', text: 'Every plant, microbe or animal tag MarsBot resolves — its own starting tag included — puts ${0} plant on this card', params: ['1']},
+      ]},
+      {kind: 'beforeActionPhase', lines: [
+        {icon: 'plants', text: 'With ${0} or more plants here, remove ${1} of them', params: ['5', '5']},
+        {icon: 'cards', text: 'MarsBot advances the plant track'},
+      ]},
+    ],
+  },
   [MarsBotCorpId.C45_SPIRE]: {
     id: MarsBotCorpId.C45_SPIRE,
     cardNumber: 'C45',
@@ -1171,6 +1199,11 @@ export function corpOwningBonusCard(id: BonusCardId): MarsBotCorpInfo | undefine
  *           the card destroys itself), hyperlinkDrawn (project cards that draw
  *           put in front of it) and hyperlinkResolved (the two it kept and
  *           played; fewer only when the deck could not supply them).
+ * Ecotec:  ecotecPlantsAdded (plants its effect put on the card, the setup
+ *           gift and the starting tag included), ecotecMicrobeCells (Venus
+ *           microbe advancements it also counted as a tag) and
+ *           ecotecSpends / ecotecSteps (the 5-plant conversions and the
+ *           plant-track advances they actually landed).
  * Utopia Invest: investorsPlayed (times its own B32 came up), investorsPushes
  *           / investorsRegressions (the even-generation rebalance that
  *           actually landed on each side) and investorsMc (what the odd
