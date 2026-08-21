@@ -1450,6 +1450,16 @@
   padding-right: var(--pcard-vp-safe, 0px);
   justify-content: flex-start;
 }
+/* …but that is a rule about ONE wide box, and `justify-content` governs EVERY
+   wrapped line. A row holding SEVERAL boxes (a plate-bearing action beside its
+   effect — Tycho Magnetics, Robinson, UNMI, Factorum…) is not a plate-label
+   row: the wide first box fills line 1, and the short second one then hangs off
+   the LEFT edge under it, reading as a misplaced fragment. Such a row stays
+   centred; the asymmetric corner reserve above still holds, so the guarantee
+   the plate rule buys is not given back. */
+.pcard__lower .pcard-mech-group:last-child:has(.pcard-plate):has(> * + *) {
+  justify-content: center;
+}
 /* content rows paint above the engraved corner stamp (see .pcard__exp) */
 .pcard__lower .pcard-mech-group { position: relative; z-index: 1; }
 

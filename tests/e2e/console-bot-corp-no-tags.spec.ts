@@ -70,6 +70,39 @@ test.describe('console: the MarsBot corporation whose whole rule is a bonus card
     expect(mechRect!.y + mechRect!.height,
       `it must stay inside the card: zone bottom ${mechRect!.y + mechRect!.height}, card bottom ${cardRect!.y + cardRect!.height}`)
       .toBeLessThanOrEqual(cardRect!.y + cardRect!.height + 1);
+
+    // ── Both boxes are CENTRED, whatever they cost ─────────────────────
+    // The named plate «ИНТЕРФЕЙСНАЯ ГИПЕРССЫЛКА» makes the action box wide
+    // enough to fill the line on its own, so the small effect box wraps under
+    // it — and a `justify-content` meant for a one-box plate-label row would
+    // left-align BOTH lines, hanging the short box off the left edge.
+    // Measured on the group's CONTENT box (the corner reserve is real padding),
+    // per rendered LINE — so the claim holds whether the row wraps or not.
+    const lines = await slot.locator('.pcard-mech-group').last().evaluate((group) => {
+      const style = getComputedStyle(group);
+      const box = group.getBoundingClientRect();
+      const left = box.left + Number.parseFloat(style.paddingLeft);
+      const right = box.right - Number.parseFloat(style.paddingRight);
+      const rows = new Map<number, {min: number, max: number}>();
+      for (const node of Array.from(group.querySelectorAll(':scope > .pcard-effect'))) {
+        const r = node.getBoundingClientRect();
+        const key = Math.round(r.top);
+        const seen = [...rows.keys()].find((k) => Math.abs(k - key) < r.height / 2) ?? key;
+        const line = rows.get(seen) ?? {min: r.left, max: r.right};
+        rows.set(seen, {min: Math.min(line.min, r.left), max: Math.max(line.max, r.right)});
+      }
+      return [...rows.values()].map((line) => ({
+        // How far the line's ink centre sits from the row's own centre line.
+        drift: Math.abs((line.min + line.max) / 2 - (left + right) / 2),
+        width: line.max - line.min,
+      }));
+    });
+    expect(lines.length, `the plate makes the action box fill a line of its own, so the row wraps: ${JSON.stringify(lines)}`).toBe(2);
+    for (const [i, line] of lines.entries()) {
+      expect(line.drift, `line ${i} (${line.width.toFixed(1)}px of ink) must sit on the row's centre, drifted ${line.drift.toFixed(1)}px`)
+        .toBeLessThanOrEqual(2);
+    }
+
     await page.screenshot({path: 'screenshots/bot-corp-no-tags.png', fullPage: false});
 
     // A on the slot → the fullscreen inspect, where the printed boxes live.
