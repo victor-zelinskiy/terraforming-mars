@@ -1,9 +1,7 @@
-import {CardResource} from '../../../common/CardResource';
 import {FailedActionReason} from '../../../common/automa/MarsBotTurn';
 import {MarsBotCorpId, marsBotCorpInfo} from '../../../common/automa/MarsBotCorpData';
 import {IGame} from '../../IGame';
-import {AutomaTurnLog} from '../AutomaTurnLog';
-import {bumpCorpStat, marsBotOf} from '../AutomaUtil';
+import {FloaterPayoutConfig, gainFloaters} from './MarsBotFloaterPayout';
 import {MarsBotCorp} from './MarsBotCorp';
 
 const INFO = marsBotCorpInfo(MarsBotCorpId.C26_CELESTIC);
@@ -49,41 +47,29 @@ const ROUND_START_FLOATERS = 1;
  * FLOATERS GO TO THE ONE POOL (`automa.floaters`), like C25's: the Venus
  * board's «Gain Floater» cell, the Titan colony and the research-phase floater
  * spend all read the same counter, so this corporation genuinely funds them.
+ *
+ * THE PAYOUT ITSELF IS SHARED with C34 Stormcraft Incorporated, which prints
+ * this card's setup and round-start sentences word for word — so both run the
+ * ONE implementation in `MarsBotFloaterPayout` and share those i18n keys. This
+ * file keeps only what is genuinely its own: which boxes ask, and its counters.
  */
+/** Everything this card's boxes share when they pay: identity and totals. */
+function payout(countStat: string): FloaterPayoutConfig {
+  return {original: INFO.original, displayName: 'Celestic', countStat, totalStat: 'celesticFloaters'};
+}
+
 export const MarsBotCelestic: MarsBotCorp = {
   info: INFO,
 
   setup(game: IGame): void {
-    gainFloaters(game, SETUP_FLOATERS, 'celesticSetup');
+    gainFloaters(game, SETUP_FLOATERS, payout('celesticSetup'));
   },
 
   onFailedAction(game: IGame, _reason: FailedActionReason): void {
-    gainFloaters(game, FAILED_ACTION_FLOATERS, 'celesticFailedActions');
+    gainFloaters(game, FAILED_ACTION_FLOATERS, payout('celesticFailedActions'));
   },
 
   roundStart(game: IGame): void {
-    gainFloaters(game, ROUND_START_FLOATERS, 'celesticRounds');
+    gainFloaters(game, ROUND_START_FLOATERS, payout('celesticRounds'));
   },
 };
-
-/** The one payout every box of this card makes, counted by which box asked. */
-function gainFloaters(game: IGame, count: number, countStat: string): void {
-  const automa = game.automa;
-  if (automa === undefined) {
-    return;
-  }
-  const bot = marsBotOf(game);
-  const prior = AutomaTurnLog.getCause(game);
-  AutomaTurnLog.setCause(game, {kind: 'corporation'});
-  game.events.beginEffect(bot, {kind: 'corporation', card: INFO.original, owner: bot.color}, 'automa-corporation');
-  try {
-    automa.floaters += count;
-    game.log('${0} gained ${1} ${2} from its corporation ${3}',
-      (b) => b.player(bot).number(count).cardResource(CardResource.FLOATER).string('Celestic'));
-  } finally {
-    game.events.endScope();
-    AutomaTurnLog.setCause(game, prior);
-  }
-  bumpCorpStat(game, countStat);
-  bumpCorpStat(game, 'celesticFloaters', count);
-}

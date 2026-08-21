@@ -67,6 +67,9 @@ export class AutomaResearch {
     }
     automa.floaters -= 5;
     game.log('${0} spent ${1} ${2} for an extra action card', (b) => b.player(marsBotOf(game)).number(5).cardResource(CardResource.FLOATER));
+    // … and the corporation's own clause on top of a FINISHED spend (C34
+    // Stormcraft Incorporated turns it into a temperature step).
+    AutomaCorporations.onFloatersSpent(game, 5);
     return true;
   }
 

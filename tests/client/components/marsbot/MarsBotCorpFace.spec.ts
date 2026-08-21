@@ -86,6 +86,8 @@ describe('MarsBotCorpFace (.pcard template)', () => {
       'C32 prints SIX starting tags — three space and three event').has.length(6);
     expect(mountFace(MarsBotCorpId.C33_POSEIDON).find('.pcard__tags').exists(),
       'C33 prints NO starting tag at all').is.false;
+    expect(mountFace(MarsBotCorpId.C34_STORMCRAFT).findAll('.pcard__tags .pcard-tag'),
+      'C34 prints ONE Jovian starting tag').has.length(1);
     // C04 prints TWO event tags — both sit on the rail (the bot card's tags,
     // never the human card's single building tag).
     // Saturn Systems prints FOUR starting tags — the rail carries them all.
@@ -465,6 +467,20 @@ describe('marsBotCorpRules — the «§ ПРАВИЛА» groups', () => {
     // 1 M€ whenever ANY colony is built — none of that is here.
     expect(text).not.contains('45');
     expect(text).not.match(/gain 1 M€|trade bonus/i);
+  });
+
+  it('Stormcraft prints its floater loop, never the human heat conversion', () => {
+    const groups = marsBotCorpAnnotations(MarsBotCorpId.C34_STORMCRAFT);
+    expect(groups.map((g) => g.labelKey))
+      .deep.eq(['Corporation setup', 'Corporation effect', 'Round start']);
+    const text = groups.flatMap((g) => g.rows.map((r) => r.text)).join(' ');
+    expect(text, 'the printed module condition').contains('Venus Next or Colonies');
+    expect(text, 'and what the spend buys').contains('temperature');
+    expect(text, 'and the steady drip').contains('Research Phase');
+    // The human Stormcraft starts with 48 M€ and turns each floater into 2
+    // heat with an action — none of that is here.
+    expect(text).not.contains('48');
+    expect(text).not.match(/2 heat|spend a floater/i);
   });
 
   it('ThorGate prints its cubes and the first-tag clause, never the human discount', () => {

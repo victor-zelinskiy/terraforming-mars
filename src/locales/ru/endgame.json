@@ -860,5 +860,7 @@
   "Nothing weak survived a generation at ${0}'s ${1}: ${2} card(s) left its deck before they could be flipped.": "У корпорации ${1} (у ${0}) слабое не доживало до хода: ${2} карт(ы) покинули колоду, так и не будучи вскрытыми.",
   "And ${2} of them carried no tag at all — dead turns ${1} threw away instead of taking.": "И ${2} из них были вовсе без меток — пустые ходы, которые ${1} выбросила вместо того, чтобы их отыграть.",
   "Every flag planted anywhere fed ${0}'s ${1}: ${2} colony(ies) went up at the table, and each one pushed whatever the bot was worst at.": "Каждый флаг, воткнутый где угодно, кормил корпорацию ${1} (у ${0}): за столом появилось колоний — ${2}, и каждая подталкивала то, где бот отставал сильнее всего.",
-  "And ${2} of those flags were ${0}'s own — settling out there levelled the bot's weakest track every time.": "И ${2} из этих флагов были собственными флагами игрока ${0}: каждое его поселение выравнивало самый слабый трек бота."
+  "And ${2} of those flags were ${0}'s own — settling out there levelled the bot's weakest track every time.": "И ${2} из этих флагов были собственными флагами игрока ${0}: каждое его поселение выравнивало самый слабый трек бота.",
+  "What ${0}'s ${1} stored, it burned: ${2} time(s) a stack of floaters went into an extra card and came back out as heat.": "Что корпорация ${1} (у ${0}) накапливала, то и сжигала: ${2} раз(а) стопка аэростатов уходила на лишнюю карту и возвращалась теплом.",
+  "The tanks were never empty for long — ${2} floater(s) came off ${1} over the game, a steady drip nothing had to earn.": "Баки не пустовали подолгу: за партию ${1} выдала ${2} аэростат(ов) — ровный приток, который не нужно было зарабатывать."
 }

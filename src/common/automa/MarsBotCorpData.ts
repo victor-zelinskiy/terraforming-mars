@@ -985,6 +985,30 @@ const CORP_INFO: Readonly<Record<MarsBotCorpId, MarsBotCorpInfo>> = {
       ]},
     ],
   },
+  [MarsBotCorpId.C34_STORMCRAFT]: {
+    id: MarsBotCorpId.C34_STORMCRAFT,
+    cardNumber: 'C34',
+    original: CardName.STORMCRAFT_INCORPORATED,
+    startingTags: [Tag.JOVIAN],
+    // No draft-priority plate is printed.
+    requiresAnyModule: ['venus', 'colonies'],
+    corpBonusCards: [],
+    // The setup, the module condition and the round-start line are C26
+    // Celestic's OWN sentences, word for word — so they are literally the same
+    // i18n keys, exactly as C13/C27 share theirs.
+    sections: [
+      {kind: 'setup', lines: [
+        {icon: 'cards', text: 'Use this corporation only when playing with Venus Next or Colonies', muted: true},
+        {icon: 'floater', text: 'MarsBot gains ${0} floater', params: ['1']},
+      ]},
+      {kind: 'effect', lines: [
+        {icon: 'temperature', text: 'Whenever MarsBot spends floaters to keep an extra card, it raises the temperature ${0} step', params: ['1']},
+      ]},
+      {kind: 'roundStart', lines: [
+        {icon: 'floater', text: 'Before every Research Phase MarsBot gains ${0} floater', params: ['1']},
+      ]},
+    ],
+  },
   [MarsBotCorpId.C45_SPIRE]: {
     id: MarsBotCorpId.C45_SPIRE,
     cardNumber: 'C45',
@@ -1047,6 +1071,11 @@ export function corpOwningBonusCard(id: BonusCardId): MarsBotCorpInfo | undefine
  *           three counters, for the same printed effect on its own track.
  * Aphrodite: aphroditeSteps (Venus steps it was paid for) and aphroditeMc
  *           (what they came to).
+ * Stormcraft Incorporated: stormcraftSetup / stormcraftRounds / stormcraftFloaters
+ *           — the same three counters C26 keeps for the same shared payout —
+ *           plus stormcraftSpends (research-phase floater spends it turned into
+ *           heat) and stormcraftTemperature (the steps those raises landed; a
+ *           completed temperature is a Failed Action, not a step).
  * Poseidon: poseidonBotColonies / poseidonHumanColonies (colony builds it was
  *           paid for, by seat — the card treats them alike, the finale does
  *           not) and poseidonSteps (advances of the least-advanced track those

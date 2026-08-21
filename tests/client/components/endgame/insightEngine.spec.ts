@@ -545,6 +545,27 @@ describe('insightEngine', () => {
         MarsBotCorpId.C33_POSEIDON, 'Poseidon')).is.empty;
     });
 
+    it('C34 tells the burn and the stockpile as SEPARATE stories', () => {
+      const insights = botInsights({stormcraftTemperature: 3, stormcraftSpends: 3, stormcraftFloaters: 12},
+        MarsBotCorpId.C34_STORMCRAFT, 'Stormcraft Incorporated');
+      expect(insights).has.length(2);
+      const keys = insights.map((i) => i.textKey).join(' | ');
+      expect(keys).contains('stored, it burned');
+      expect(keys).contains('tanks were never empty');
+    });
+
+    it('C34 keeps the burn quiet when the exchange never fired', () => {
+      const insights = botInsights({stormcraftTemperature: 0, stormcraftSpends: 0, stormcraftFloaters: 12},
+        MarsBotCorpId.C34_STORMCRAFT, 'Stormcraft Incorporated');
+      expect(insights).has.length(1);
+      expect(insights[0].textKey).contains('tanks were never empty');
+    });
+
+    it('C34 keeps quiet when barely anything gathered', () => {
+      expect(botInsights({stormcraftTemperature: 1, stormcraftSpends: 1, stormcraftFloaters: 4},
+        MarsBotCorpId.C34_STORMCRAFT, 'Stormcraft Incorporated')).is.empty;
+    });
+
     it('the draft fallback speaks only when no printed effect did', () => {
       const withEffect = botInsights({credicorTriggers: 6, credicorMc: 24, fiveCardDecks: 3},
         MarsBotCorpId.C01_CREDICOR, 'CrediCor');

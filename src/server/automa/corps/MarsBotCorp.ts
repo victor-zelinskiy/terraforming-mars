@@ -103,6 +103,15 @@ export type MarsBotCorp = {
   onVenusIncreased?(game: IGame, steps: number): void;
 
   /**
+   * MarsBot just SPENT `count` floaters to keep an extra action card — the
+   * research-phase exchange (`AutomaResearch.trySpendFloaters`, the ONE place
+   * floaters are ever spent). Dispatched AFTER the pool is charged and the
+   * spend is logged, so a corporation that adds to it (C34 Stormcraft
+   * Incorporated) reads a finished event, exactly as `onFailedAction` does.
+   */
+  onFloatersSpent?(game: IGame, count: number): void;
+
+  /**
    * The ROUND START box, run once per generation immediately before the
    * Research Phase (`Game.gotoResearchPhase`). Generation 1 never reaches it:
    * the corporation is selected at that generation's research → action gate,

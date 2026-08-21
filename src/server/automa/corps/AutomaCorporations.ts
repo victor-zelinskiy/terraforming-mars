@@ -39,6 +39,7 @@ import {MarsBotAridor} from './MarsBotAridor';
 import {MarsBotArklight} from './MarsBotArklight';
 import {MarsBotPolyphemos} from './MarsBotPolyphemos';
 import {MarsBotPoseidon} from './MarsBotPoseidon';
+import {MarsBotStormcraft} from './MarsBotStormcraft';
 import {MarsBotMorningStar} from './MarsBotMorningStar';
 import {MarsBotViron} from './MarsBotViron';
 import {MarsBotVitor} from './MarsBotVitor';
@@ -109,6 +110,7 @@ export class AutomaCorporations {
     [MarsBotCorpId.C31_ARKLIGHT]: MarsBotArklight,
     [MarsBotCorpId.C32_POLYPHEMOS]: MarsBotPolyphemos,
     [MarsBotCorpId.C33_POSEIDON]: MarsBotPoseidon,
+    [MarsBotCorpId.C34_STORMCRAFT]: MarsBotStormcraft,
     [MarsBotCorpId.C45_SPIRE]: MarsBotSpire,
   };
 
@@ -462,6 +464,14 @@ export class AutomaCorporations {
   /** MarsBot took a Failed Action — dispatched from the ONE `failedAction`. */
   public static onFailedAction(game: IGame, reason: FailedActionReason): void {
     AutomaCorporations.activeCorp(game)?.onFailedAction?.(game, reason);
+  }
+
+  /**
+   * MarsBot SPENT floaters for an extra action card — dispatched from the ONE
+   * place that ever spends them, after the pool is charged and logged (C34).
+   */
+  public static onFloatersSpent(game: IGame, count: number): void {
+    AutomaCorporations.activeCorp(game)?.onFloatersSpent?.(game, count);
   }
 
   /**

@@ -406,6 +406,19 @@ function renderDataOf(id: MarsBotCorpId): ICardRenderRoot {
         eb.colonies(1, {all}).startEffect.wild(1).asterix();
       });
     });
+  case MarsBotCorpId.C34_STORMCRAFT:
+    return CardRenderer.builder((b) => {
+      // EFFECT: the floaters it spends come back as heat — the card's whole
+      // loop in one row, in the resource → parameter shape a human card uses.
+      b.effect(undefined, (eb) => {
+        eb.resource(CardResource.FLOATER, 5).startEffect.temperature(1);
+      });
+      // ROUND START: one more floater, every generation, whatever happened —
+      // the same recurring plate C26 draws for the same printed sentence.
+      b.action(undefined, (eb) => {
+        eb.text('↻', Size.SMALL, true).startAction.resource(CardResource.FLOATER);
+      });
+    });
   case MarsBotCorpId.C45_SPIRE:
     return CardRenderer.builder((b) => {
       // EFFECT: a card with 2+ tags adds a science resource here — the

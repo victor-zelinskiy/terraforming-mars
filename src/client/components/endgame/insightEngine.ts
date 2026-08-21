@@ -3139,6 +3139,30 @@ const analyzeBotCorporation: Analyzer = (ctx) => {
           scale: 5,
         });
       }
+    } else if (corp.id === 'C34') {
+      // Stormcraft is a pump: two boxes fill, one discharges. The fact worth
+      // telling is the DISCHARGE — what the stored floaters actually turned
+      // into — with the stockpile as its own quieter second line.
+      const raises = stat('stormcraftTemperature');
+      const floaters = stat('stormcraftFloaters');
+      if (raises >= 2) {
+        stories.push({
+          key: 'effect',
+          textKey: 'What ${0}\'s ${1} stored, it burned: ${2} time(s) a stack of floaters went into an extra card and came back out as heat.',
+          params: [raw(p.name), raw(corp.name), raw(raises)],
+          measure: raises,
+          scale: 5,
+        });
+      }
+      if (floaters >= 8) {
+        stories.push({
+          key: 'stockpile',
+          textKey: 'The tanks were never empty for long — ${2} floater(s) came off ${1} over the game, a steady drip nothing had to earn.',
+          params: [raw(p.name), raw(corp.name), raw(floaters)],
+          measure: floaters,
+          scale: 20,
+        });
+      }
     } else if (corp.id === 'C45') {
       // Spire: the science engine — multi-tag cards banked into cities + TR.
       const cities = stat('citiesPlaced');
