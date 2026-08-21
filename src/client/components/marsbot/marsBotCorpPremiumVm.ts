@@ -6,7 +6,7 @@ import {ICardRenderRoot} from '@/common/cards/render/Types';
 import {Size} from '@/common/cards/render/Size';
 import {Resource} from '@/common/Resource';
 import {MarsBotCorpId} from '@/common/automa/AutomaTypes';
-import {marsBotCorpInfo} from '@/common/automa/MarsBotCorpData';
+import {marsBotCorpInfo, MarsBotCorpResource} from '@/common/automa/MarsBotCorpData';
 import {CardModel} from '@/common/models/CardModel';
 import {CardRenderer} from '@/server/cards/render/CardRenderer';
 import {all} from '@/server/cards/Options';
@@ -25,8 +25,12 @@ import {standardResourceIconUrl} from '@/client/components/premiumCard/premiumCa
  *    «A», deliberately distinct from Ares);
  *  · the resource capsule (`.pcard__res`, the same bottom socket player
  *    cards use) counts the corp-card resource — Spire's science through the
- *    ordinary card-resource icon, Ecoline's PLANT through the standard
- *    plants icon (an `iconUrl` override — plants are not a card resource).
+ *    ordinary card-resource icon, Ecoline's PLANT and Mining Guild's M€
+ *    through an `iconUrl` override (neither is a card resource here), C35's
+ *    white cube through the cube the socket already draws. `corpResourceSocket`
+ *    resolves all of that and is EXHAUSTIVE over `MarsBotCorpResource`, so a
+ *    corporation storing a new kind of thing fails to compile rather than
+ *    silently painting a generic cube.
  *
  * Identity (title wordmark/art/lore) rides the ORIGINAL corporation's
  * CardName exactly as everywhere else. No human rule can leak: the render
@@ -466,14 +470,44 @@ function renderDataOf(id: MarsBotCorpId): ICardRenderRoot {
   }
 }
 
-/** The corp-card resource socket type ('plant' is not a CardResource — the
- *  capsule shows the standard plants icon through the iconUrl override). */
+/**
+ * What the `.pcard__res` capsule shows for each printed on-card storage kind:
+ * which card-resource SOCKET carries it, and — where the thing is not a card
+ * resource in this engine at all — which standard icon replaces the socket's
+ * own picture.
+ *
+ * EXHAUSTIVE BY CONSTRUCTION (the `never` guard), and that is the point: the
+ * old shape was «science, else a cube» plus two ad-hoc icon patches, so a
+ * corporation storing a fifth kind of thing would have compiled happily and
+ * painted a generic cube. Same law as `renderDataOf`'s switch — the compiler
+ * asks for the new case instead of a spec catching it later.
+ */
+function corpResourceSocket(resource: MarsBotCorpResource): {type: CardResource, iconUrl?: string} {
+  switch (resource) {
+  // A real card resource: its own icon, no override.
+  case 'science':
+    return {type: CardResource.SCIENCE};
+  // Plants and M€ are NOT card resources here, so they take the neutral cube
+  // socket and show the standard resource icon instead of a cube.
+  case 'plant':
+    return {type: CardResource.RESOURCE_CUBE, iconUrl: standardResourceIconUrl(Resource.PLANTS)};
+  case 'megacredits':
+    return {type: CardResource.RESOURCE_CUBE, iconUrl: standardResourceIconUrl(Resource.MEGACREDITS)};
+  // …and a white cube IS the cube the socket already draws.
+  case 'cube-white':
+    return {type: CardResource.RESOURCE_CUBE};
+  default: {
+    const never: never = resource;
+    void never;
+    return {type: CardResource.RESOURCE_CUBE};
+  }
+  }
+}
+
+/** The corp-card resource socket type, or none when the card stores nothing. */
 function resourceTypeOf(id: MarsBotCorpId): CardResource | undefined {
   const resource = marsBotCorpInfo(id).resource;
-  if (resource === undefined) {
-    return undefined;
-  }
-  return resource === 'science' ? CardResource.SCIENCE : CardResource.RESOURCE_CUBE;
+  return resource === undefined ? undefined : corpResourceSocket(resource).type;
 }
 
 /** The ClientCard-shaped printed face of the BOT corporation (never the
@@ -512,13 +546,15 @@ export function buildMarsBotCorpPremiumVm(id: MarsBotCorpId, resources: number):
   const info = marsBotCorpInfo(id);
   const model: CardModel = {name: info.original, resources} as CardModel;
   const vm = buildPremiumCardViewModel(botClientCard(id), model);
+  const socket = info.resource === undefined ? undefined : corpResourceSocket(info.resource);
   const result: PremiumCardVM = {
     ...vm,
     expansion: 'automa',
     resource: vm.resource === undefined ? undefined : {
       ...vm.resource,
-      ...(info.resource === 'plant' ? {iconUrl: standardResourceIconUrl(Resource.PLANTS)} : {}),
-      ...(info.resource === 'megacredits' ? {iconUrl: standardResourceIconUrl(Resource.MEGACREDITS)} : {}),
+      // Only where the stored thing is not a card resource — the socket keeps
+      // its own icon otherwise (science, and the cube that IS a cube).
+      ...(socket?.iconUrl === undefined ? {} : {iconUrl: socket.iconUrl}),
     },
   };
   vmCache.set(key, result);

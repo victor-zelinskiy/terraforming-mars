@@ -5,6 +5,7 @@ import MarsBotCorpFace from '@/client/components/marsbot/MarsBotCorpFace.vue';
 import PremiumCard from '@/client/components/premiumCard/PremiumCard.vue';
 import {buildMarsBotCorpPremiumVm} from '@/client/components/marsbot/marsBotCorpPremiumVm';
 import {marsBotCorpAnnotations} from '@/client/components/marsbot/marsBotCorpRules';
+import {marsBotCorpInfo} from '@/common/automa/MarsBotCorpData';
 
 function mountFace(id: MarsBotCorpId, resources = 0, large = false) {
   return mount(MarsBotCorpFace, {
@@ -130,6 +131,36 @@ describe('MarsBotCorpFace (.pcard template)', () => {
     expect(factorum.find('.pcard__res-icon').attributes('style') ?? '').contains('megacredit');
     expect(guild.find('.pcard__res-count').text()).eq('10');
     expect(guild.find('.pcard__res-icon').attributes('style') ?? '').contains('megacredit');
+  });
+
+  it('EVERY printed storage kind paints a real icon — none falls through to a bare cube', () => {
+    // The socket resolver is exhaustive over `MarsBotCorpResource`, so a new
+    // kind cannot compile without a case. This is the RENDERED half of that
+    // claim: whatever a corporation stores, the capsule shows the right thing.
+    const painted = new Map<string, string>();
+    for (const id of MARS_BOT_CORP_IDS) {
+      const kind = marsBotCorpInfo(id).resource;
+      if (kind === undefined) {
+        continue;
+      }
+      const face = mountFace(id, 2);
+      expect(face.find('.pcard__res').exists(), `${id} stores ${kind} — the capsule must exist`).is.true;
+      expect(face.find('.pcard__res-count').text(), `${id} shows the live count`).eq('2');
+      const icon = face.find('.pcard__res-icon').attributes('style') ?? '';
+      expect(icon, `${id} (${kind}) paints an icon`).matches(/url\(|background-image/);
+      const previous = painted.get(kind);
+      if (previous !== undefined) {
+        expect(icon, `every ${kind} card paints the SAME icon`).eq(previous);
+      }
+      painted.set(kind, icon);
+    }
+    // Each kind is distinguishable from the others — a fall-through to the
+    // generic cube would collapse two of these onto one picture.
+    expect(painted.get('plant'), 'plants').contains('plant');
+    expect(painted.get('megacredits'), 'M€').contains('megacredit');
+    expect(painted.get('science'), 'a real card resource').contains('science');
+    expect(painted.get('cube-white'), 'a white cube IS the cube').contains('cube');
+    expect(new Set(painted.values()).size, 'four kinds, four pictures').eq(painted.size);
   });
 
   it('no human corporation rule leaks onto the face', () => {
