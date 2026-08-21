@@ -475,6 +475,26 @@ function renderDataOf(id: MarsBotCorpId): ICardRenderRoot {
         eb.text('↻', Size.SMALL, true).startAction.cards(1).asterix();
       });
     });
+  case MarsBotCorpId.C39_UTOPIA_INVEST:
+    return CardRenderer.builder((b) => {
+      // BEFORE ACTION PHASE: the named plate flowing into a card — the
+      // deck-join shape every corp-owned recurring card uses (C02/C05/C15).
+      b.action(undefined, (eb) => {
+        eb.plate('Investors').startAction.cards(1);
+      });
+      // Both halves READ THE SAME THING — the bot's weakest track — so both
+      // rows are triggered by it. The wild tag is this face's «a track» symbol
+      // (C14/C15/C19) and the asterisk sends the reader to the printed rules,
+      // where the generation's parity (the half that actually resolves) is
+      // stated in words. Even generations: one track up, one track back…
+      b.effect(undefined, (eb) => {
+        eb.wild(1).asterix().startEffect.wild(1).minus().wild(1);
+      });
+      // …odd ones: money by that same track's space number.
+      b.effect(undefined, (eb) => {
+        eb.wild(1).asterix().startEffect.megacredits(1).asterix();
+      });
+    });
   case MarsBotCorpId.C46_TYCHO_MAGNETICS:
     return CardRenderer.builder((b) => {
       // The whole corporation is ONE card waiting at the bottom of the bonus

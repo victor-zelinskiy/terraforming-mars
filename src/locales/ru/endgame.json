@@ -869,5 +869,7 @@
   "Mars was left alone for money at ${0}: ${2} time(s) ${1} called off a terraforming step for a TR and the cash instead.": "Марс оставляли в покое за деньги (у ${0}): ${2} раз(а) корпорация ${1} отменяла шаг терраформирования ради РТ и наличных.",
   "Preservation paid ${2} M€ over the game — a whole engine ${1} ran without moving a single global parameter.": "Бережливость принесла ${2} M€ за партию — целый двигатель, который ${1} крутила, не сдвинув ни одного глобального параметра.",
   "Research outran the rating for ${0}: ${1} shuffled ${2} extra project(s) into the bot deck, bought with the ${3} TR it gave up at the start.": "Исследования обогнали рейтинг (у ${0}): ${1} замешала в колоду бота лишних проектов — ${2}, купленных ценой ${3} РТ, отданных на старте.",
-  "And the late game came in twos — ${2} of those cards were dealt at the doubled rate, when there was no time left to waste a turn.": "А концовка шла парами: ${2} из этих карт пришли по удвоенной норме — когда терять ход было уже некогда."
+  "And the late game came in twos — ${2} of those cards were dealt at the doubled rate, when there was no time left to waste a turn.": "А концовка шла парами: ${2} из этих карт пришли по удвоенной норме — когда терять ход было уже некогда.",
+  "Nothing at ${0} was allowed to run away: ${1} lifted the bot weakest track ${2} time(s) and dragged its strongest one back ${3}.": "Ничему у ${0} не давали оторваться: ${1} поднимала самый слабый трек бота ${2} раз(а) и оттягивала назад самый сильный — ${3}.",
+  "The off years paid dividends — ${2} M€ came in simply for how far the bot laggard had already come.": "Нечётные годы приносили дивиденды: ${2} M€ пришли просто за то, как далеко уже успел уйти отстающий трек бота."
 }

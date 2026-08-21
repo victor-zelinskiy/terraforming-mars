@@ -592,5 +592,19 @@
   "MarsBot loses ${0} TR": "Бот теряет ${0} РТ",
   "Every generation ${0} project card is drawn and shuffled into the action deck": "Каждое поколение из колоды проектов берётся ${0} карта и замешивается в колоду действий",
   "From generation ${0} on it is ${1} cards instead": "С ${0}-го поколения — уже ${1} карты",
-  "${0} shuffled ${1} project card(s) into its action deck (corporation ${2})": "${0} замешивает карт проектов в свою колоду действий: ${1} (корпорация ${2})"
+  "${0} shuffled ${1} project card(s) into its action deck (corporation ${2})": "${0} замешивает карт проектов в свою колоду действий: ${1} (корпорация ${2})",
+  "Investors joins MarsBot action deck, and returns to it every generation": "«Инвесторы» попадают в колоду действий Бота и возвращаются в неё каждое поколение",
+  "Even generation: it pushes the weakest track and pulls the strongest one back": "Чётное поколение: карта продвигает самый слабый трек и оттягивает назад самый сильный",
+  "Odd generation: it pays MarsBot the space number its weakest track stands on": "Нечётное поколение: карта платит Боту номер клетки, на которой стоит его самый слабый трек",
+  "Even generation: MarsBot advances its least-advanced track (the topmost if tied)": "Чётное поколение: Бот продвигает самый отстающий трек (при равенстве — верхний)",
+  "and pulls its most-advanced track (the topmost if tied) back one space": "и оттягивает свой самый передовой трек (при равенстве — верхний) на клетку назад",
+  "Odd generation instead: it gains M€ equal to the space number its least-advanced track stands on": "Иначе, в нечётное поколение: Бот получает M€ по номеру клетки, на которой стоит его самый отстающий трек",
+  "Utopia Invest: on an even generation MarsBot advances its weakest track and pulls its strongest one back; otherwise it gains M€ equal to the space number of its weakest track. Recurs into the action deck every generation.": "Utopia Invest: в чётное поколение Бот продвигает свой самый слабый трек и оттягивает назад самый сильный; иначе получает M€ по номеру клетки самого слабого трека. Каждое поколение возвращается в колоду действий.",
+  "${0} shuffled Investors into its action deck": "${0} замешивает «Инвесторов» в свою колоду действий",
+  "${0} pulled its ${1} track back from ${2} to ${3} (corporation ${4})": "${0} оттягивает свой трек ${1} с ${2} на ${3} (корпорация ${4})",
+  "${0} had nothing to pull back — its tracks are all at the start (corporation ${1})": "${0} нечего оттягивать — все его треки ещё на старте (корпорация ${1})",
+  "${0} cashed out nothing — its weakest track is still at the start (corporation ${1})": "${0} ничего не обналичил — его самый слабый трек ещё на старте (корпорация ${1})",
+  "${0} gained ${1} M€ from Investors — the space number of its weakest track": "${0} получает ${1} M€ от «Инвесторов» — по номеру клетки своего самого слабого трека",
+  "An even generation: the portfolio is rebalanced": "Чётное поколение: портфель перебалансирован",
+  "An odd generation: the weakest track is cashed out": "Нечётное поколение: самый слабый трек обналичен"
 }

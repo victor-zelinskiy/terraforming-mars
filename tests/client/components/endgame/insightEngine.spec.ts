@@ -617,6 +617,22 @@ describe('insightEngine', () => {
       expect(insights[0].textKey).contains('Research outran the rating');
     });
 
+    it('C39 tells the rebalancing and the dividends as SEPARATE stories', () => {
+      const insights = botInsights({investorsPlayed: 9, investorsPushes: 4, investorsRegressions: 4, investorsMc: 20},
+        MarsBotCorpId.C39_UTOPIA_INVEST, 'Utopia Invest');
+      expect(insights).has.length(2);
+      const keys = insights.map((i) => i.textKey).join(' | ');
+      expect(keys).contains('allowed to run away');
+      expect(keys).contains('off years paid dividends');
+    });
+
+    it('C39 keeps the dividends quiet when the odd generations paid little', () => {
+      const insights = botInsights({investorsPlayed: 5, investorsPushes: 3, investorsRegressions: 3, investorsMc: 4},
+        MarsBotCorpId.C39_UTOPIA_INVEST, 'Utopia Invest');
+      expect(insights).has.length(1);
+      expect(insights[0].textKey).contains('allowed to run away');
+    });
+
     it('C46 tells its one moment as ONE story', () => {
       const insights = botInsights({hyperlinkPlayed: 1, hyperlinkDrawn: 9, hyperlinkResolved: 2},
         MarsBotCorpId.C46_TYCHO_MAGNETICS, 'Tycho Magnetics');

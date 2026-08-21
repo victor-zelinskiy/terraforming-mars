@@ -109,7 +109,7 @@ export const BONUS_CARD_INFO: Readonly<Record<BonusCardId, BonusCardInfo>> = {
   [BonusCardId.B29_GRAY_EMINENCE]: {name: 'Gray Eminence', text: 'A corporation-specific bonus card (outside the POC scope).'},
   [BonusCardId.B30_INTERFACE_HYPERLINK]: {name: 'Interface Hyperlink', text: 'Tycho Magnetics: MarsBot draws as many project cards as its space on the power track (at least 2), plays the best 2 of them and discards the rest. Destroyed afterwards.'},
   [BonusCardId.B31_GOVERNMENT_SUBSIDY]: {name: 'Government Subsidy', text: 'UNMI: MarsBot raises its TR 1 step.'},
-  [BonusCardId.B32_INVESTORS]: {name: 'Investors', text: 'A corporation-specific bonus card (outside the POC scope).'},
+  [BonusCardId.B32_INVESTORS]: {name: 'Investors', text: 'Utopia Invest: on an even generation MarsBot advances its weakest track and pulls its strongest one back; otherwise it gains M€ equal to the space number of its weakest track. Recurs into the action deck every generation.'},
 };
 
 export function bonusCardInfo(id: BonusCardId): BonusCardInfo {
@@ -325,6 +325,19 @@ export function buildBonusCardView(id: BonusCardId, ctx: BonusCardContext): Bonu
         {icon: 'tr', text: 'MarsBot raises its TR ${0} step', params: ['1']},
       ],
       fate: FATE_DISCARD,
+    };
+  case BonusCardId.B32_INVESTORS:
+    // Utopia Invest's corporation-specific card (official B32). Which half
+    // resolves is decided by the GENERATION, so both are stated — the player
+    // must be able to read next generation's move off this card too.
+    return {
+      name,
+      lines: [
+        {icon: 'cards', text: 'Even generation: MarsBot advances its least-advanced track (the topmost if tied)'},
+        {icon: 'cards', text: 'and pulls its most-advanced track (the topmost if tied) back one space'},
+        {icon: 'megacredits', text: 'Odd generation instead: it gains M€ equal to the space number its least-advanced track stands on'},
+      ],
+      fate: {kind: 'recurring', text: 'At the beginning of every generation it is shuffled back into MarsBot\'s action deck'},
     };
   case BonusCardId.B28_DIVERSIFICATION:
     // Robinson Industries' corporation-specific card (official B28). The two

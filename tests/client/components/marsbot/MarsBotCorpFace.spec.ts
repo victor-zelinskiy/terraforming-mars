@@ -97,6 +97,8 @@ describe('MarsBotCorpFace (.pcard template)', () => {
       'C36 prints NO starting tag either').is.false;
     expect(mountFace(MarsBotCorpId.C38_TERRALABS).findAll('.pcard__tags .pcard-tag'),
       'C38 prints ONE science starting tag (the corner box, not a priority plate)').has.length(1);
+    expect(mountFace(MarsBotCorpId.C39_UTOPIA_INVEST).findAll('.pcard__tags .pcard-tag'),
+      'C39 prints TWO — building and space').has.length(2);
     // C04 prints TWO event tags — both sit on the rail (the bot card's tags,
     // never the human card's single building tag).
     // Saturn Systems prints FOUR starting tags — the rail carries them all.
@@ -533,6 +535,19 @@ describe('marsBotCorpRules — the «§ ПРАВИЛА» groups', () => {
     // PRODUCTION on every ocean — neither is here (only the shared 3 M€
     // shoreline rate, which the bot card prints for itself).
     expect(text).not.contains('54');
+    expect(text).not.match(/production/i);
+  });
+
+  it('Utopia Invest prints its recurring card and both of its halves, never the human production trade', () => {
+    const groups = marsBotCorpAnnotations(MarsBotCorpId.C39_UTOPIA_INVEST);
+    expect(groups.map((g) => g.labelKey)).deep.eq(['Before action phase']);
+    const text = groups.flatMap((g) => g.rows.map((r) => r.text)).join(' ');
+    expect(text, 'the card it owns').contains('Investors');
+    expect(text, 'the even-generation half').contains('Even generation');
+    expect(text, 'and the odd-generation half').contains('Odd generation');
+    // The human Utopia Invest starts with 40 M€, gains steel + titanium
+    // production and trades a production step for 4 resources — none of that.
+    expect(text).not.contains('40');
     expect(text).not.match(/production/i);
   });
 

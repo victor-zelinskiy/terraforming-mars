@@ -3237,6 +3237,31 @@ const analyzeBotCorporation: Analyzer = (ctx) => {
           scale: 8,
         });
       }
+    } else if (corp.id === 'C39') {
+      // Utopia Invest alternates between two completely different moves, so
+      // the finale tells them apart: the rebalancing is one fact, the money
+      // the odd generations cashed out is another.
+      const pushes = stat('investorsPushes');
+      const pulls = stat('investorsRegressions');
+      const mc = stat('investorsMc');
+      if (pushes + pulls >= 4) {
+        stories.push({
+          key: 'effect',
+          textKey: 'Nothing at ${0} was allowed to run away: ${1} lifted the bot weakest track ${2} time(s) and dragged its strongest one back ${3}.',
+          params: [raw(p.name), raw(corp.name), raw(pushes), raw(pulls)],
+          measure: pushes + pulls,
+          scale: 12,
+        });
+      }
+      if (mc >= 12) {
+        stories.push({
+          key: 'dividends',
+          textKey: 'The off years paid dividends — ${2} M€ came in simply for how far the bot laggard had already come.',
+          params: [raw(p.name), raw(corp.name), raw(mc)],
+          measure: mc,
+          scale: 30,
+        });
+      }
     } else if (corp.id === 'C46') {
       // Tycho Magnetics is ONE moment, and the whole game before it is the
       // wind-up — so the story is that moment, sized by what the wait bought.

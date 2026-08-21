@@ -1072,6 +1072,23 @@ const CORP_INFO: Readonly<Record<MarsBotCorpId, MarsBotCorpInfo>> = {
       ]},
     ],
   },
+  [MarsBotCorpId.C39_UTOPIA_INVEST]: {
+    id: MarsBotCorpId.C39_UTOPIA_INVEST,
+    cardNumber: 'C39',
+    original: CardName.UTOPIA_INVEST,
+    // TWO tags in the corner box (verified by crop): the building dome and the
+    // space starburst. The HUMAN card prints one building tag — a bot card's
+    // tags are its own (the C04 law).
+    startingTags: [Tag.BUILDING, Tag.SPACE],
+    corpBonusCards: [BonusCardId.B32_INVESTORS],
+    sections: [
+      {kind: 'beforeActionPhase', lines: [
+        {icon: 'deck', text: 'Investors joins MarsBot action deck, and returns to it every generation'},
+        {icon: 'cards', text: 'Even generation: it pushes the weakest track and pulls the strongest one back', muted: true},
+        {icon: 'megacredits', text: 'Odd generation: it pays MarsBot the space number its weakest track stands on', muted: true},
+      ]},
+    ],
+  },
   [MarsBotCorpId.C45_SPIRE]: {
     id: MarsBotCorpId.C45_SPIRE,
     cardNumber: 'C45',
@@ -1154,6 +1171,10 @@ export function corpOwningBonusCard(id: BonusCardId): MarsBotCorpInfo | undefine
  *           the card destroys itself), hyperlinkDrawn (project cards that draw
  *           put in front of it) and hyperlinkResolved (the two it kept and
  *           played; fewer only when the deck could not supply them).
+ * Utopia Invest: investorsPlayed (times its own B32 came up), investorsPushes
+ *           / investorsRegressions (the even-generation rebalance that
+ *           actually landed on each side) and investorsMc (what the odd
+ *           generations paid).
  * TerraLabs: terralabsTrLost (the printed 8 TR its setup cost), terralabsCards
  *           (project cards its Before-Action-Phase box shuffled into the
  *           action deck) and terralabsLateCards (those of them dealt at the
