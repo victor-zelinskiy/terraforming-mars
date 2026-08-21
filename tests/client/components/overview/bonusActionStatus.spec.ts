@@ -33,14 +33,25 @@ function view(players: ReadonlyArray<PublicPlayerModel>, phase: Phase = Phase.PR
 }
 
 describe('bonus-action player status', () => {
-  it('the server marker outranks the phase — «ФАЗА ПРОЛОГОВ» would be the wrong story', () => {
+  it('the server LEDGER outranks the phase — «ФАЗА ПРОЛОГОВ» would be the wrong story', () => {
     const acting = player({
-      isActive: true, isWaitingForInput: true, waitingForKind: 'bonusaction',
+      isActive: true, isWaitingForInput: true,
       // …and it has already played a prelude, which is why the phase label
       // would otherwise win.
       actionsTakenThisRound: 1, bonusActions: 2, bonusActionsGranted: 2,
     });
     expect(actionLabelForPlayer(view([acting]), acting)).to.eq('bonusaction');
+  });
+
+  it('…and it holds through the sub-prompts of the action being taken', () => {
+    // A bonus action is a whole TURN: the player played a card and is now on
+    // its payment / placement / triggered effect. No prompt there carries the
+    // action menu's marker, and the label must not flicker back to the phase.
+    const midAction = player({
+      isActive: true, isWaitingForInput: true,
+      actionsTakenThisRound: 1, bonusActions: 1, bonusActionsGranted: 2,
+    });
+    expect(actionLabelForPlayer(view([midAction]), midAction)).to.eq('bonusaction');
   });
 
   it('without the marker the prelude phase still reads as the prelude phase', () => {
@@ -55,7 +66,7 @@ describe('bonus-action player status', () => {
     const me = player({color: 'red'});
     const them = player({
       color: 'green', isActive: true, isWaitingForInput: true,
-      waitingForKind: 'bonusaction', bonusActions: 1, bonusActionsGranted: 2,
+      bonusActions: 1, bonusActionsGranted: 2,
     });
     expect(actionLabelForPlayer(view([me, them]), them)).to.eq('bonusaction');
   });

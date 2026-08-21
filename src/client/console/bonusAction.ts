@@ -40,8 +40,26 @@ export function bonusActionMeta(view: PlayerViewModel): BonusActionPromptMeta | 
  * not release. All three read this one function so they cannot disagree about
  * whether the player is still spending bonuses.
  */
+export function bonusActionsOwed(view: PlayerViewModel): number {
+  return view.thisPlayer.bonusActions ?? 0;
+}
+
+/**
+ * THE WINDOW IS OPEN — a card-granted action is still owed.
+ *
+ * Read from the LEDGER (`Player.bonusActions`, public on every seat's model),
+ * NOT from the prompt marker. The marker identifies ONE prompt — the free
+ * action menu — and a bonus action is a whole TURN: the player plays a card and
+ * the next three prompts are a payment, a placement and whatever the card
+ * triggered, none of them marked. Keying the window on the marker made the
+ * start workspace try to come back in the MIDDLE of the player's own card play;
+ * the ledger cannot do that, because it only drops when the action is fully
+ * resolved.
+ *
+ * Same shape as `firstActionOwed` reading `pendingInitialActions`.
+ */
 export function bonusActionOwed(view: PlayerViewModel): boolean {
-  return bonusActionMeta(view) !== undefined;
+  return bonusActionsOwed(view) > 0;
 }
 
 /**
@@ -83,17 +101,17 @@ export function bonusActionInStartFlow(view: PlayerViewModel): boolean {
 
 /** The card that granted the bonuses (its name IS its i18n key). */
 export function bonusActionSource(view: PlayerViewModel): CardName | undefined {
-  return bonusActionMeta(view)?.source;
+  return bonusActionMeta(view)?.source ?? view.thisPlayer.bonusActionSource;
 }
 
 /** Bonus actions still owed, INCLUDING the one being asked for now. */
 export function bonusActionRemaining(view: PlayerViewModel): number {
-  return bonusActionMeta(view)?.remaining ?? 0;
+  return bonusActionMeta(view)?.remaining ?? bonusActionsOwed(view);
 }
 
 /** How many the card granted in this batch (the `M` of `N / M`). */
 export function bonusActionGranted(view: PlayerViewModel): number {
-  return bonusActionMeta(view)?.granted ?? 0;
+  return bonusActionMeta(view)?.granted ?? view.thisPlayer.bonusActionsGranted ?? 0;
 }
 
 /**
@@ -102,11 +120,12 @@ export function bonusActionGranted(view: PlayerViewModel): number {
  * `remaining`) and a readout must never print «3 / 2».
  */
 export function bonusActionIndex(view: PlayerViewModel): number {
-  const meta = bonusActionMeta(view);
-  if (meta === undefined) {
+  const granted = bonusActionGranted(view);
+  const remaining = bonusActionRemaining(view);
+  if (granted <= 0 || remaining <= 0) {
     return 0;
   }
-  return Math.min(meta.granted, Math.max(1, meta.granted - meta.remaining + 1));
+  return Math.min(granted, Math.max(1, granted - remaining + 1));
 }
 
 /**

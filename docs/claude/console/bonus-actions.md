@@ -112,13 +112,21 @@ Two things it is deliberately NOT identified by:
 - **not `game.phase`.** It is `PRELUDES` for the whole prelude phase, bonus or
   not.
 
+**…and the marker is NOT what says the WINDOW is open.** A bonus action is a
+whole TURN: the player plays a card, and the next three prompts are a payment, a
+placement and whatever it triggered — none of them marked. So the window is the
+server's own LEDGER, `PublicPlayerModel.bonusActions` (public on every seat),
+and the marker is only the MENU's identity. Keying the window on the marker made
+the start workspace try to come back in the middle of the player's own card play
+and made the status chip flicker through every sub-prompt.
+
 The client model is `src/client/console/bonusAction.ts`, and it answers **two
 different questions** that must never be conflated:
 
-| Function | Question | Consumers |
-| --- | --- | --- |
-| `bonusActionOwed(view)` | is a bonus outstanding at all? | the status chip, the withheld turn-control verbs |
-| `bonusActionOnBoard(view)` | does the player have to GO TO THE BOARD for it? | the workspace stage, the excursion barrier |
+| Function | Question | Reads | Consumers |
+| --- | --- | --- | --- |
+| `bonusActionOwed(view)` | is the window open? | the LEDGER | the chip, the withheld turn-control verbs, the workspace's yield/return |
+| `bonusActionOnBoard(view)` | must the player go to the BOARD for it? | ledger + «no `startGamePrompt`» | the stage, the hand-off |
 
 `bonusActionOnBoard` = owed **and** the prompt carries no `startGamePrompt`.
 That second term is what keeps the corporation's mandatory first action — which
@@ -133,7 +141,7 @@ reason.
 
 ---
 
-## 3. The console flow — announce → hand off → return
+## 3. THE BONUS TURN IS A TURN — the workspace lets go
 
 ```
   ПРОЛОГИ            «Фора» is played, the grant lands
@@ -144,43 +152,61 @@ reason.
      │                                  A «Перейти к полю · вы вернётесь сюда»)
      │  A
      ▼
-  the board                            the workspace COLLAPSES (mounted, hidden)
-     │                                 the wheel/hand/std projects are all live
-     │  ×2
+  the BOARD HOME                       the workspace is GONE. Hand, colonies,
+     │                                 card actions, standard projects,
+     │  ×2                             milestones, tiles — an ordinary turn.
      ▼
-  СТАРТ ПАРТИИ › ПРОЛОГИ › РОЗЫГРЫШ   the workspace RETURNS, exactly once
+  СТАРТ ПАРТИИ › ПРОЛОГИ › РОЗЫГРЫШ   the workspace RE-ENTERS, exactly once
 ```
 
 **The announcement is not decoration.** The alternative — the board simply
-appearing — was rejected for the same reason `startBoardExcursion` exists at
-all: a workspace that hands the screen away without saying so reads as CLOSED,
-and the player then treats the preparation as over. So the stage does exactly
-two things: it names what was granted and how much is left, and it says where
-the next press goes (`Go to the board`, never «Выполнить» — the press performs
-nothing, it MOVES the player) **plus the promise that they will come back**.
+appearing — reads as «the preparation is over», and it is not. So the stage does
+exactly two things: it names what was granted and how much is left, and it says
+where the next press goes (`Go to the board`, never «Выполнить» — the press
+performs nothing, it MOVES the player) **plus the promise of the return**.
 
-**The hand-off is the excursion barrier's second cause.**
-`startBoardExcursion.ts` already existed for board PLACEMENTS; a bonus action is
-the same shape one level larger. The difference is only WHO opens it: a
-placement yields the moment the server asks for a space, a bonus yields on the
-PLAYER'S CONSENT (`consoleStartState.bonusAct.stage === 'onboard'`, set by A).
+**…and the hand-off must be TOTAL.** The first implementation kept the workspace
+mounted-but-hidden behind the placement excursion barrier, and that barrier is
+built for a *placement*: one demand the board answers and hands straight back.
+A bonus action is a whole turn, and a workspace that merely hides still owns
+everything a turn needs:
 
-**The barrier's release** reads `bonusActionOnBoard`, raw and ungated, exactly
-like `placementAsked`: it must hold across the response gap BETWEEN two
-consecutive bonus actions, where the task kind is momentarily undefined and
-every visual signal is quiet — without it the workspace flashes back in for a
-frame between them. `actionMenu` stays out of `EXCURSION_BLOCKING_KINDS` (a
-plain action menu still means the deployment is over); the bonus is counted by
-its own signal.
+| It still was | So the player got |
+| --- | --- |
+| the top of the workspace STACK → `workspaceHostForStep()` = `'start'` | the hand opened as a STEP teleported into the workspace's HIDDEN zone — **no cards at all** |
+| a live surface with a lifetime hold → `startSceneServes` | walking to «Колонии» DEFERRED it, `mandatoryDeferredActive` went true and `actionBlockedReason` refused **every** board action with «сначала завершите текущее действие» — about a decision the player had been sent away to make, with a blinking attention chip to match |
 
-**Module state, not component state.** `consoleStartState.bonusAct` (`idle` /
-`standing` / `onboard`) lives beside `firstAct` for the same reason: the
-workspace UNMOUNTS on a collapse, so a latch in the component would re-announce
-a trip the player already confirmed, over a board they are already acting on.
-A page RELOAD does clear it, and that is deliberate — re-announcing after a
-reload is honest; dropping the player onto a board with no explanation is not.
+Both are one cause, so both have one fix: `ConsoleShell.bonusTurnLive`
+short-circuits `startSceneServes` to `false` for the window. `startFrameLive`
+falls with it, its own watcher runs `closeWorkspaceRoot('start')`, and the stack
+is EMPTY — there is no host to teleport into, no deferred task, nothing to
+block anything. Every board surface then behaves correctly **by construction**
+rather than by a per-surface exception.
 
----
+The workspace comes back through the ordinary `startFrameLive` door
+(`enterWorkspace('start')`) with every bit of its module state intact
+(`consoleStartState` — the picks, the lifetime hold, the journey, the stage
+latches). That path is the same one a collapse/restore already uses, so the
+re-entrance is not a new lifecycle.
+
+**The latch and its two edges.** `consoleStartState.bonusAct.stage`
+(`idle` / `standing` / `onboard`) is MODULE state for the same reason `firstAct`
+is — but note the asymmetry: the SCENE sets it (`A` → `onboard`) and the
+always-mounted **SHELL** clears it (`bonusActionLedgerOwed` watcher), because
+the scene is unmounted for the whole window and could never observe the end of
+it. No debounce is needed on that edge and none would be honest: the ledger is
+server state that drops only when the action is FULLY resolved.
+
+A page RELOAD does clear the latch, and that is deliberate — re-announcing the
+trip after a reload is honest; dropping the player onto a board with no
+explanation is not. `bonusActionInStartFlow` (generation 1 + on-board) is what
+keeps the workspace alive to do the re-announcing when no lifetime hold survives.
+
+**The corporation's first action pulls the player back**, and should: that
+prompt carries a `startGamePrompt` marker, so `bonusActionOnBoard` is false, the
+workspace serves it on its own «ПЕРВОЕ ДЕЙСТВИЕ» stage, and the next bonus menu
+sends the player out again with no second announcement (they already consented
+to the window).
 
 ## 4. The journey rail, and the one thing a progress readout may never do
 
@@ -265,12 +291,12 @@ would print «2/2» on the player's FIRST bonus action.
 | --- | --- |
 | `tests/cards/promo/HeadStart.spec.ts` | 2 bonuses in BOTH prelude orders; the turn's own slots untouched; no Pass / End Turn + the marker; no one can pass out of the prelude phase (#5852); serialization incl. the pre-feature save |
 | `tests/client/components/console/bonusAction.spec.ts` | the marker is the only discriminator; the 1/2 → 2/2 readout; owed ≠ on-board; the start-flow term |
-| `tests/client/components/console/startBoardExcursion.spec.ts` | an owed bonus holds the barrier through the quiet gap between two bonuses; the last one releases it |
+| `tests/client/components/console/startBoardExcursion.spec.ts` | a bonus action is explicitly NOT one of the barrier's causes (an action menu still means the deployment is over) |
 | `tests/client/components/console/consoleStartState.spec.ts` | the conditional chapter, its `available` prelude state, the crumb |
 | `tests/client/components/console/consoleStartUi.spec.ts` | the CTA names the destination; the stage outranks the first-action stage |
 | `tests/client/components/console/consoleQuickModel.spec.ts` | only the two turn-control slots are blocked, they name the rule, a parked decision still outranks it |
 | `tests/client/components/overview/bonusActionStatus.spec.ts` | the label on every seat + the counter that counts bonuses |
-| `tests/e2e/console-bonus-action-handoff.spec.ts` | the whole flow on a real board: announce → A → collapse → the wheel's refusal → both bonuses → the workspace returns |
+| `tests/e2e/console-bonus-action-handoff.spec.ts` | the whole flow on a real board: announce → A → the workspace is GONE → the hand opens as its own screen WITH the cards in it → the wheel refuses only the two turn-control verbs → both bonuses → the workspace returns |
 
 ⚠️ **An e2e may not spend the viewer's own bonus over the API.** The client
 deliberately refuses a poll-driven refresh while the VIEWER holds a prompt

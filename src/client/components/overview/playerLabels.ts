@@ -134,8 +134,14 @@ export function actionLabelForPlayer(
     // is acting on the BOARD while `game.phase` still says PRELUDES, so the
     // phase-derived «ФАЗА ПРОЛОГОВ» would describe the wrong thing on every
     // seat — including the opponents', who see the board change and need to
-    // know why. Server-authoritative (`bonusActionPrompt` marker).
-    if (player.waitingForKind === 'bonusaction') {
+    // know why.
+    //
+    // Read from the SERVER LEDGER (`bonusActions`), never from a prompt kind:
+    // a bonus action is a whole TURN, so most of its life is spent on prompts
+    // that carry no marker at all (the payment for the card being played, its
+    // placement, whatever it triggered). A per-prompt signal would flicker
+    // through every one of them.
+    if ((player.bonusActions ?? 0) > 0) {
       return 'bonusaction';
     }
 

@@ -822,7 +822,8 @@ import {buildStartStatusPreview, StartStatusPreview} from '@/client/console/star
 import {participantDisplayName} from '@/client/components/marsbot/marsBotDisplay';
 import {afterPreludes, cardCostForCorp, startingMegacredits} from '@/client/components/initialDraft/initialDraftMoney';
 import {
-  bonusActionGranted, bonusActionIndex, bonusActionOnBoard, bonusActionRemaining, bonusActionSource,
+  bonusActionGranted, bonusActionIndex, bonusActionOnBoard, bonusActionOwed,
+  bonusActionRemaining, bonusActionSource,
 } from '@/client/console/bonusAction';
 import {beginHoldConfirm, cancelHoldConfirm} from '@/client/console/consoleHoldConfirm';
 import {
@@ -1476,9 +1477,13 @@ export default defineComponent({
         // first action can — which prelude the player draws is not known until
         // it is played — so it joins the rail when the grant happens and
         // STAYS, completed, once the bonuses are spent (`bonusActionSeen`).
-        hasBonusActions: this.bonusActionOwedNow || this.bonusActionStageLive ||
+        hasBonusActions: this.bonusActionsOwedNow || this.bonusActionStageLive ||
           this.state.bonusActionSeen,
-        bonusActionsPending: this.deploymentFlowStage === 'bonusAction',
+        // OWED, not «the briefing is up»: the chapter is still the player's
+        // current one while they are out on the board spending it, and while a
+        // bonus is being spent on the corporation's own stage.
+        bonusActionsPending: this.bonusActionsOwedNow ||
+          this.deploymentFlowStage === 'bonusAction',
         hasFirstAction: this.firstActionDeclared || this.firstActionOwedNow ||
           this.firstActionStageLive || this.state.firstActionSeen,
         firstActionPending: this.deploymentFlowStage === 'firstAction',
@@ -1803,7 +1808,7 @@ export default defineComponent({
         // actions it just handed the player: it collapses to the board (the
         // excursion latch) and comes back to finish, which is the whole
         // point of announcing the trip in the first place.
-        !this.bonusActionOwedNow &&
+        !this.bonusActionsOwedNow &&
         this.state.bonusAct.stage === 'idle' &&
         this.state.firstAct.stage === 'idle' &&
         this.corpPlayPrompt === undefined &&
@@ -1843,6 +1848,19 @@ export default defineComponent({
       // `bonusActionOnBoard`.
       return bonusActionOnBoard(this.playerView);
     },
+    /**
+     * THE LEDGER — bonuses are owed AT ALL, whichever prompt stands.
+     *
+     * Different question from `bonusActionOwedNow`, and both are needed: the
+     * hand-off asks «does the BOARD have to serve this one», the deployment
+     * asks «is this chapter over». They disagree exactly while the corporation's
+     * mandatory first action spends a bonus inside this workspace — and if the
+     * rail read the hand-off question there it would tick «БОНУСНЫЕ ДЕЙСТВИЯ ✓»
+     * with one still owed, then take the ✓ back.
+     */
+    bonusActionsOwedNow(): boolean {
+      return bonusActionOwed(this.playerView);
+    },
     /** The card that granted them — the stage's subject and the crumb's. */
     bonusActionSourceCard(): CardName | undefined {
       return bonusActionSource(this.playerView) ?? this.state.bonusAct.source;
@@ -1861,7 +1879,10 @@ export default defineComponent({
     /** The stage is live in ANY of its beats (briefing standing, or the
      *  player out on the board spending the bonuses). */
     bonusActionStageLive(): boolean {
-      return this.state.bonusAct.stage !== 'idle';
+      // 'onboard' is NOT a stage of this workspace — it is the window in which
+      // the workspace has let go of the screen entirely. Only the standing
+      // briefing owns the flow stage.
+      return this.state.bonusAct.stage === 'standing';
     },
     /**
      * The BRIEFING PANEL renders — the announcement before the hand-off.
@@ -3195,15 +3216,14 @@ export default defineComponent({
      * that resolves while the player is on the board (the normal case — the
      * workspace is collapsed then) closes the stage just the same.
      */
-    'bonusActionOwedNow'(owed: boolean): void {
+    'bonusActionsOwedNow'(owed: boolean): void {
       if (owed) {
         this.state.bonusAct.source = this.bonusActionSourceCard;
         this.state.bonusActionSeen = true;
-        return;
       }
-      if (this.state.bonusAct.stage !== 'idle') {
-        this.state.bonusAct = {stage: 'idle', source: undefined};
-      }
+      // The CLOSING edge is deliberately NOT handled here: the scene is
+      // unmounted for the whole board window, so it could never see it. The
+      // always-mounted shell owns that (`bonusActionLedgerOwed`).
     },
     // ── THE FIRST-ACTION STAGE lifecycle ─────────────────────────────────
     /**

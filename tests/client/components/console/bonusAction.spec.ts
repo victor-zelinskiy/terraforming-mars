@@ -3,7 +3,7 @@ import {
   BONUS_ACTION_TURN_CONTROL_REASON,
   bonusActionGranted, bonusActionInStartFlow, bonusActionIndex, bonusActionMeta,
   bonusActionOnBoard, bonusActionOwed, bonusActionRemaining, bonusActionSource,
-  bonusActionTurnControlReason,
+  bonusActionsOwed, bonusActionTurnControlReason,
 } from '@/client/console/bonusAction';
 import {PlayerViewModel} from '@/common/models/PlayerModel';
 import {CardName} from '@/common/cards/CardName';
@@ -11,24 +11,42 @@ import {Phase} from '@/common/Phase';
 import {ACTION_MENU_FIRST_TITLE} from '@/common/inputs/actionMenuTitles';
 
 /**
- * THE BONUS-ACTION MODEL — pure derivations over the ONE server artifact that
- * identifies a card-granted action outside the turn's own two: the
- * `bonusActionPrompt` marker on the action menu.
+ * THE BONUS-ACTION MODEL — the two questions a card-granted action outside the
+ * turn's own two raises, and the two DIFFERENT server artifacts that answer
+ * them.
  *
- * The specs deliberately build a menu that is INDISTINGUISHABLE from a normal
- * one except for the marker — same type, same title — because that is exactly
- * what the server sends, and it is why no title or phase check could ever
- * answer this question.
+ *  · the LEDGER (`PublicPlayerModel.bonusActions`) says the WINDOW is open. It
+ *    survives every sub-prompt of the action being taken, which is why the
+ *    workspace's yield/return and the status chip read it;
+ *  · the MARKER (`bonusActionPrompt`) identifies the free ACTION MENU. It is
+ *    the only thing that can, because the menu deliberately keeps the ordinary
+ *    action-menu title so the task router, the quick wheels and the status
+ *    label all keep classifying it as one.
+ *
+ * The fixtures set the two independently ON PURPOSE — «the ledger owes, no
+ * marker» is not a corner case, it is most of a bonus action's life (the
+ * payment, the placement and the triggered effect of the card being played).
  */
 function view(opts: {
+  /** The LEDGER. */
+  owed?: number,
+  granted?: number,
+  source?: CardName,
+  /** The MARKER on the current prompt. */
   marker?: {source: CardName, remaining: number, granted: number},
+  /** The current prompt is one the start workspace serves itself. */
   startGamePrompt?: {kind: string},
   generation?: number,
 } = {}): PlayerViewModel {
   return {
     id: 'p1',
     game: {generation: opts.generation ?? 1, phase: Phase.PRELUDES, passedPlayers: []},
-    thisPlayer: {color: 'red'},
+    thisPlayer: {
+      color: 'red',
+      bonusActions: opts.owed,
+      bonusActionsGranted: opts.granted,
+      bonusActionSource: opts.source,
+    },
     players: [],
     waitingFor: {
       type: 'or',
@@ -42,41 +60,52 @@ function view(opts: {
 }
 
 const HEAD_START = {source: CardName.HEAD_START, remaining: 2, granted: 2};
+/** The whole state on the FIRST bonus action: ledger + marker agree. */
+const FIRST_BONUS = {owed: 2, granted: 2, source: CardName.HEAD_START, marker: HEAD_START};
 
 describe('bonusAction (the card-granted action model)', () => {
-  it('an ordinary action menu owes nothing — the title alone never implies a bonus', () => {
+  it('an ordinary turn owes nothing — the action-menu title alone never implies a bonus', () => {
     const v = view();
     expect(bonusActionMeta(v)).to.eq(undefined);
+    expect(bonusActionsOwed(v)).to.eq(0);
     expect(bonusActionOwed(v)).to.be.false;
-    expect(bonusActionSource(v)).to.eq(undefined);
-    expect(bonusActionRemaining(v)).to.eq(0);
-    expect(bonusActionGranted(v)).to.eq(0);
+    expect(bonusActionOnBoard(v)).to.be.false;
     expect(bonusActionIndex(v)).to.eq(0);
   });
 
-  it('no prompt at all owes nothing', () => {
-    const v = {waitingFor: undefined} as unknown as PlayerViewModel;
-    expect(bonusActionOwed(v)).to.be.false;
-    expect(bonusActionIndex(v)).to.eq(0);
+  it('THE LEDGER is what opens the window — not the marker', () => {
+    // Mid card-play: the player answered the bonus menu and is now on a
+    // payment / placement / triggered effect. No marker stands anywhere, and
+    // the window is very much still open.
+    const midAction = view({owed: 1, granted: 2, source: CardName.HEAD_START});
+    expect(bonusActionMeta(midAction), 'no marker on a sub-prompt').to.eq(undefined);
+    expect(bonusActionOwed(midAction), 'the window is open').to.be.true;
+    expect(bonusActionOnBoard(midAction), 'the board is still serving it').to.be.true;
+    // …and the readout keeps counting from the ledger.
+    expect(bonusActionGranted(midAction)).to.eq(2);
+    expect(bonusActionIndex(midAction)).to.eq(2);
+    expect(bonusActionSource(midAction)).to.eq(CardName.HEAD_START);
   });
 
-  it('the marker — and only the marker — makes it a bonus action', () => {
-    const v = view({marker: HEAD_START});
-    expect(bonusActionOwed(v)).to.be.true;
-    expect(bonusActionSource(v)).to.eq(CardName.HEAD_START);
+  it('a spent ledger closes the window even if a stale marker were still around', () => {
+    expect(bonusActionOwed(view({marker: HEAD_START}))).to.be.false;
+  });
+
+  it('the marker identifies the MENU, and carries its own readout', () => {
+    const v = view(FIRST_BONUS);
+    expect(bonusActionMeta(v)).to.deep.eq(HEAD_START);
     expect(bonusActionRemaining(v)).to.eq(2);
     expect(bonusActionGranted(v)).to.eq(2);
+    expect(bonusActionSource(v)).to.eq(CardName.HEAD_START);
   });
 
-  it('the readout counts the BONUSES, walking 1/2 → 2/2', () => {
-    expect(bonusActionIndex(view({marker: {...HEAD_START, remaining: 2}}))).to.eq(1);
-    expect(bonusActionIndex(view({marker: {...HEAD_START, remaining: 1}}))).to.eq(2);
+  it('the readout walks 1/2 → 2/2', () => {
+    expect(bonusActionIndex(view(FIRST_BONUS))).to.eq(1);
+    expect(bonusActionIndex(view({...FIRST_BONUS, owed: 1, marker: {...HEAD_START, remaining: 1}}))).to.eq(2);
   });
 
   it('a batch extended mid-window never prints past its own total', () => {
-    // A second grant inside one window adds to both numbers; the index must
-    // stay inside the batch rather than reading «3 / 2» for a frame.
-    const v = view({marker: {source: CardName.HEAD_START, remaining: 3, granted: 2}});
+    const v = view({owed: 3, granted: 2, source: CardName.HEAD_START});
     expect(bonusActionIndex(v)).to.be.at.least(1);
     expect(bonusActionIndex(v)).to.be.at.most(bonusActionGranted(v));
   });
@@ -85,48 +114,26 @@ describe('bonusAction (the card-granted action model)', () => {
    * OWED ≠ ON THE BOARD. A corporation's mandatory first action IS the
    * player's first action, so the server offers it in place of a bonus menu
    * and spends a bonus on it — but the START WORKSPACE serves that prompt
-   * itself, with its own stage. Announcing a board trip for it would hand the
-   * screen away from the very surface showing it, and (once the excursion had
-   * latched on the previous bonus) would keep the workspace hidden behind a
-   * board with nothing to do on it.
+   * itself, with its own stage. Sending the player to the board for it would
+   * hand the screen away from the very surface showing it.
    */
   it('a bonus spent on a workspace-served prompt owes, but needs no board trip', () => {
-    const v = view({marker: HEAD_START, startGamePrompt: {kind: 'corporationInitialAction'}});
+    const v = view({...FIRST_BONUS, startGamePrompt: {kind: 'corporationInitialAction'}});
     expect(bonusActionOwed(v), 'the bonus is outstanding').to.be.true;
     expect(bonusActionOnBoard(v), '…but the workspace is serving it').to.be.false;
   });
 
-  it('a bare marked action menu DOES need the board', () => {
-    expect(bonusActionOnBoard(view({marker: HEAD_START}))).to.be.true;
-  });
-
-  it('no bonus at all needs no board trip', () => {
-    expect(bonusActionOnBoard(view())).to.be.false;
-  });
-
-  /*
-   * THE WORKSPACE IS THE BONUS'S HOME, and it must know that from the DOMAIN —
-   * after a reload there is no lifetime hold and no client latch left, only
-   * the server's marker. Generation 1 IS the start of the game (the same
-   * discriminator the corporation's first action uses).
-   */
   it('a generation-1 bonus belongs to the start workspace', () => {
-    expect(bonusActionInStartFlow(view({marker: HEAD_START}))).to.be.true;
+    expect(bonusActionInStartFlow(view(FIRST_BONUS))).to.be.true;
   });
 
   it('…a later-generation one belongs to the board alone — no workspace to return to', () => {
-    expect(bonusActionInStartFlow(view({marker: HEAD_START, generation: 4}))).to.be.false;
+    expect(bonusActionInStartFlow(view({...FIRST_BONUS, generation: 4}))).to.be.false;
   });
 
-  it('…and a bonus the workspace is already serving needs no hand-off term either', () => {
-    expect(bonusActionInStartFlow(
-      view({marker: HEAD_START, startGamePrompt: {kind: 'corporationInitialAction'}}))).to.be.false;
-  });
-
-  it('the turn-control verbs get ONE concrete reason, and only while a bonus stands', () => {
+  it('the turn-control verbs get ONE concrete reason, and only while the window is open', () => {
     expect(bonusActionTurnControlReason(view())).to.eq('');
-    expect(bonusActionTurnControlReason(view({marker: HEAD_START})))
-      .to.eq(BONUS_ACTION_TURN_CONTROL_REASON);
+    expect(bonusActionTurnControlReason(view(FIRST_BONUS))).to.eq(BONUS_ACTION_TURN_CONTROL_REASON);
     // …and it names the rule, not the arithmetic («сейчас недоступно» over a
     // live menu is what this replaces).
     expect(BONUS_ACTION_TURN_CONTROL_REASON).to.match(/pass or end your turn/i);

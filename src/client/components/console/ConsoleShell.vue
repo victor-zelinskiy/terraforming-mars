@@ -1496,7 +1496,7 @@ import {consolePlayCardUi} from '@/client/console/consolePlayCardUi';
 import {consoleStartUi} from '@/client/console/consoleStartUi';
 import {consoleStartState, startAwaitingOthers, startCorporationPlayed, startDeferredSummary, startSceneHeld} from '@/client/console/consoleStartState';
 import {engageStartExcursion, releaseStartExcursion, startExcursionActive, startExcursionQuiet, startExcursionState} from '@/client/console/startBoardExcursion';
-import {bonusActionInStartFlow, bonusActionOnBoard, bonusActionTurnControlReason} from '@/client/console/bonusAction';
+import {bonusActionInStartFlow, bonusActionOnBoard, bonusActionOwed, bonusActionTurnControlReason} from '@/client/console/bonusAction';
 import {firstActionOwed} from '@/client/console/startFirstAction';
 import {isResourceTransferActive} from '@/client/console/resourceTransfer/consoleResourceTransfer';
 import {panelCommands} from '@/client/console/consolePanelUi';
@@ -3064,7 +3064,39 @@ export default defineComponent({
      * (mount, input routing, prompt suppression, foreground lease) reads THIS,
      * never raw `startTask`.
      */
+    /**
+     * THE BONUS-ACTION TURN IS A TURN, and a turn belongs to the BOARD HOME.
+     *
+     * «Фора» grants two ORDINARY actions: the player may play a card, activate
+     * one, build a standard project, claim a milestone, fund an award, convert
+     * resources — and, with the Colonies expansion, TRADE. Every one of those
+     * is a full board interaction the start workspace cannot host, and while it
+     * kept claiming the screen the console fought the player for it: the hand
+     * opened as a STEP teleported into the workspace's hidden zone (so the
+     * cards were simply not there), and walking to «Колонии» DEFERRED the
+     * workspace, after which `actionBlockedReason` refused every action with
+     * «сначала завершите текущее действие» — about a decision the player had
+     * been sent away to make.
+     *
+     * So for the window the workspace LETS GO completely: no frame, no host,
+     * no deferred task, nothing to block anything. It comes back through the
+     * ordinary `startFrameLive` door — with every bit of its module state
+     * intact — when the LEDGER says the bonuses are spent.
+     */
+    bonusTurnLive(): boolean {
+      return consoleStartState.bonusAct.stage === 'onboard' &&
+        bonusActionOnBoard(this.playerView);
+    },
+    /** The server LEDGER's own answer, unmediated by any client latch — the
+     *  edge the `bonusActionLedgerOwed` watcher closes the window on. */
+    bonusActionLedgerOwed(): boolean {
+      return bonusActionOwed(this.playerView);
+    },
     startSceneServes(): boolean {
+      // …and the ONE state in which it owns nothing at all (`bonusTurnLive`).
+      if (this.bonusTurnLive) {
+        return false;
+      }
       // The FIRST-ACTION term covers the stage's WAIT — the corporation still
       // owes its opening move but the server currently asks nothing (another
       // player is moving), so there is neither a task nor (after a reload,
@@ -3081,13 +3113,12 @@ export default defineComponent({
       // has wiped the lifetime hold).
       return this.startTask !== undefined || startSceneHeld() ||
         (corpFirstActionInStartFlow(this.playerView) && firstActionOwed(this.playerView)) ||
-        // …and the same for an owed BONUS ACTION (Head Start). The server is
-        // standing on a plain action menu there, so there is no start TASK to
-        // read, and after a reload there is no lifetime hold either — but the
-        // workspace is still the surface the player was handed off FROM and
-        // must be handed back TO. Domain-derived, so the restore is honest:
-        // the stage re-announces the trip rather than dropping the player onto
-        // a board with no explanation.
+        // …and the same for an owed BONUS ACTION the player has NOT yet been
+        // handed off for. The server stands on a plain action menu there, so
+        // there is no start TASK to read, and after a reload there is no
+        // lifetime hold either — but the workspace is still the surface that
+        // has to ANNOUNCE the trip. Once the player confirms, `bonusTurnLive`
+        // above short-circuits this whole computed to false.
         bonusActionInStartFlow(this.playerView) ||
         // …AND WHILE ITS OWN STAGE MACHINE IS STILL RUNNING. This is the
         // durable form of «the workspace owns something»: the CLAIM is
@@ -3143,22 +3174,10 @@ export default defineComponent({
     startExcursionHolds(): boolean {
       return startExcursionState.active;
     },
-    /**
-     * The barrier ENGAGES on either of its two causes:
-     *
-     *  · a board PLACEMENT the workspace cannot host (the placement is the
-     *    cause; everything after it is chain), or
-     *  · the player CONFIRMING the bonus-action hand-off (`A` on the stage —
-     *    `bonusAct.stage === 'onboard'`). Deliberately the player's consent
-     *    and not the mere presence of the marked menu: the workspace announces
-     *    the trip before taking it, so the board never simply appears.
-     */
+    /** The barrier ENGAGES the moment the serving workspace yields to a board
+     *  placement (the placement is the CAUSE; everything after it is chain). */
     startExcursionEngage(): boolean {
-      return this.startSceneServes && (this.placementActive || this.bonusActionOnBoard);
-    },
-    /** The player confirmed the bonus hand-off AND bonuses are still owed. */
-    bonusActionOnBoard(): boolean {
-      return consoleStartState.bonusAct.stage === 'onboard' && bonusActionOnBoard(this.playerView);
+      return this.startSceneServes && this.placementActive;
     },
     /**
      * The placement chain is QUIET — every beat of `startExcursionQuiet`'s
@@ -3180,15 +3199,6 @@ export default defineComponent({
         // the scene back), not part of any placement chain.
         handIntake: isHandDeliveryActive() || this.handDeliveryState.flights.length > 0,
         followUpKind: taskFor(this.playerView)?.kind,
-        // The bonus trip's own chain work. Raw and ungated, like
-        // `placementAsked`: it holds the barrier across the response gap
-        // BETWEEN two consecutive bonus actions, where the task kind is
-        // momentarily undefined and every visual signal is quiet — without it
-        // the workspace would flash back in for one frame between them.
-        // …and it RELEASES the moment a bonus lands on a prompt the workspace
-        // serves itself (the corporation's mandatory first action): the
-        // workspace has to be back to show it.
-        bonusActionOwed: bonusActionOnBoard(this.playerView),
       });
     },
     /**
@@ -7665,6 +7675,24 @@ export default defineComponent({
     startExcursionQuietNow(now: boolean): void {
       if (now && startExcursionActive()) {
         this.scheduleStartExcursionRelease();
+      }
+    },
+    /**
+     * THE BONUS WINDOW CLOSED — the LEDGER says the last bonus action is spent.
+     *
+     * Cleared HERE, in the always-mounted shell, and deliberately not in the
+     * scene: the scene is UNMOUNTED for the whole window (that is what the
+     * latch does), so a watcher of its own could never observe the end of it.
+     * Clearing it is what lets `startFrameLive` rise again and bring the
+     * workspace back to finish the preparation.
+     *
+     * No debounce, and none would be honest: the ledger is server state that
+     * drops only when the action is FULLY resolved, so — unlike the prompt
+     * marker — it cannot blink between two legs of one card play.
+     */
+    'bonusActionLedgerOwed'(owed: boolean): void {
+      if (!owed && consoleStartState.bonusAct.stage !== 'idle') {
+        consoleStartState.bonusAct = {stage: 'idle', source: undefined};
       }
     },
     /** The workspace itself let go (the deployment settled / the game moved

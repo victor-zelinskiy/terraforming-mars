@@ -3,7 +3,6 @@ import {IPlayer} from '../../IPlayer';
 import {CardName} from '../../../common/cards/CardName';
 import {Resource} from '../../../common/Resource';
 import {CardRenderer} from '../render/CardRenderer';
-import {Size} from '../../../common/cards/render/Size';
 import {CardType} from '../../../common/cards/CardType';
 import {ActionPreview} from '../../../common/models/ActionPreviewModel';
 import {noteStep, playPreview, stockGain} from '../actionPreviews';
@@ -39,14 +38,16 @@ export class HeadStart extends PreludeCard {
 
       metadata: {
         cardNumber: 'X43',
+        // SYMBOLS ONLY. The premium face is an iconography card — the printed
+        // sentences belong to the rules blocks below (`infoText` → the card's
+        // `information`), never to the face, where three lines of tiny caps
+        // read as a wall of text beside every other card in the game.
         renderData: CardRenderer.builder((b) => {
           b.steel(2).br;
-          b.text('GAIN 2 STEEL.', Size.TINY).br;
-          b.megacredits(1, {text: '?'}).br;
-          b.text('GAIN 2 M€ PER PROJECT CARD YOU HAVE IN HAND.', Size.TINY, true, false).br;
-          b.arrow().arrow().br;
-          b.text('IMMEDIATELY TAKE 2 ACTIONS.', Size.TINY, true, false).br;
+          b.megacredits(2).slash().cards(1).br;
+          b.arrow().arrow();
         }),
+        description: 'Gain 2 steel. Gain 2 M€ per project card you have in hand. Immediately take 2 actions.',
         // Authored by hand: no `behavior` field describes «take two actions
         // now», so the generator cannot see the card's main mechanic. One
         // block per bonus, in render (= execution) reading order.

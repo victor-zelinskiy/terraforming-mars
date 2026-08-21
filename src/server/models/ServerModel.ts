@@ -91,17 +91,16 @@ function isInActionSelectionPhase(input: PlayerInput | undefined): boolean {
  * containers (sub-prompts like SelectSpace, SelectCard never carry a
  * cross-phase title we'd match on).
  */
-function detectWaitingForKind(input: PlayerInput | undefined): 'globalsupport' | 'delegate' | 'bonusaction' | undefined {
+function detectWaitingForKind(input: PlayerInput | undefined): 'globalsupport' | 'delegate' | undefined {
   if (input === undefined) {
     return undefined;
   }
-  // STRUCTURAL first, and deliberately not part of the title walk below: a
-  // card-granted bonus action (Head Start) is an action menu with the ordinary
-  // action-menu title, so only its marker can identify it. It is a top-level
-  // marker by construction, so there is nothing to descend into.
-  if (input.bonusActionPrompt !== undefined) {
-    return 'bonusaction';
-  }
+  // NB: a card-granted BONUS action is deliberately NOT a kind here. It is a
+  // whole TURN, not one prompt — the player plays a card and the next three
+  // prompts are a payment, a placement and a triggered effect, none of which
+  // carry the menu's marker. The status label reads the LEDGER
+  // (`PublicPlayerModel.bonusActions`) instead, so it holds for the whole
+  // window and for every seat.
   let result: 'globalsupport' | 'delegate' | undefined;
   const visit = (node: PlayerInput, depth: number): boolean => {
     if (depth > 3) {
@@ -575,6 +574,7 @@ export class Server {
       // generic «prelude phase» while they act on the board.
       bonusActions: player.bonusActions > 0 ? player.bonusActions : undefined,
       bonusActionsGranted: player.bonusActions > 0 ? player.bonusActionsGranted : undefined,
+      bonusActionSource: player.bonusActions > 0 ? player.bonusActionSource : undefined,
       lastCardPlayed: player.lastCardPlayed,
       megacredits: player.megaCredits,
       megacreditProduction: player.production.megacredits,

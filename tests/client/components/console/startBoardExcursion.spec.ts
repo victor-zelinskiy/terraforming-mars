@@ -23,7 +23,6 @@ function quietSignals(overrides: Partial<StartExcursionSignals> = {}): StartExcu
     revealBusy: false,
     handIntake: false,
     followUpKind: undefined,
-    bonusActionOwed: false,
     ...overrides,
   };
 }
@@ -96,40 +95,14 @@ describe('startBoardExcursion (the placement completion barrier)', () => {
   });
 
   /*
-   * THE SECOND CAUSE — a card-granted BONUS ACTION (Head Start's «immediately
-   * take 2 actions»). The player is handed the FULL board, which the start
-   * workspace cannot host, and must be handed BACK exactly once, when the last
-   * bonus is spent — so the preparation visibly finishes where it started.
-   *
-   * `actionMenu` is deliberately NOT a blocking task kind (an ordinary action
-   * menu means the deployment is over), so the bonus is counted by its own raw
-   * signal instead. That is what holds the barrier across the response gap
-   * BETWEEN two consecutive bonus actions, where the task kind is momentarily
-   * undefined and every visual signal is quiet — without it the workspace
-   * would flash back in for a frame between them.
+   * ⚠️ A CARD-GRANTED BONUS ACTION IS NOT ONE OF THESE. A placement is one
+   * demand the board answers and hands straight back, so the workspace stays
+   * alive behind it; «Фора» grants an ORDINARY TURN, and a workspace alive
+   * behind that fights the player for every surface it still owns. That
+   * window is handled by the workspace LETTING GO entirely
+   * (`ConsoleShell.bonusTurnLive`), never by this barrier — which is why an
+   * action menu still, plainly, means the deployment is over.
    */
-  it('an owed bonus action holds the barrier even when everything else is quiet', () => {
-    expect(startExcursionQuiet(quietSignals()), 'the control: quiet').to.be.true;
-    expect(startExcursionQuiet(quietSignals({bonusActionOwed: true}))).to.be.false;
-  });
-
-  it('…including the gap between two bonus actions (no prompt, nothing in flight)', () => {
-    expect(startExcursionQuiet(quietSignals({
-      bonusActionOwed: true,
-      followUpKind: undefined,
-    }))).to.be.false;
-  });
-
-  it('the last bonus spent releases the barrier — the workspace returns', () => {
-    expect(startExcursionQuiet(quietSignals({bonusActionOwed: false}))).to.be.true;
-    // …and it releases straight onto the NEXT start prompt (the player's other
-    // prelude), which is the workspace's own business, not chain work.
-    expect(startExcursionQuiet(quietSignals({
-      bonusActionOwed: false,
-      followUpKind: 'startSequence',
-    }))).to.be.true;
-  });
-
   it('a plain action menu still means the deployment is over', () => {
     expect(EXCURSION_BLOCKING_KINDS.has('actionMenu')).to.be.false;
     expect(startExcursionQuiet(quietSignals({followUpKind: 'actionMenu'}))).to.be.true;
