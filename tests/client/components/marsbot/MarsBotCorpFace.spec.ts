@@ -95,6 +95,8 @@ describe('MarsBotCorpFace (.pcard template)', () => {
       'C35 prints NO starting tag at all').is.false;
     expect(mountFace(MarsBotCorpId.C36_PRISTAR).find('.pcard__tags').exists(),
       'C36 prints NO starting tag either').is.false;
+    expect(mountFace(MarsBotCorpId.C38_TERRALABS).findAll('.pcard__tags .pcard-tag'),
+      'C38 prints ONE science starting tag (the corner box, not a priority plate)').has.length(1);
     // C04 prints TWO event tags — both sit on the rail (the bot card's tags,
     // never the human card's single building tag).
     // Saturn Systems prints FOUR starting tags — the rail carries them all.
@@ -532,6 +534,19 @@ describe('marsBotCorpRules — the «§ ПРАВИЛА» groups', () => {
     // shoreline rate, which the bot card prints for itself).
     expect(text).not.contains('54');
     expect(text).not.match(/production/i);
+  });
+
+  it('TerraLabs prints its TR price and its recurring card, never the human card discount', () => {
+    const groups = marsBotCorpAnnotations(MarsBotCorpId.C38_TERRALABS);
+    expect(groups.map((g) => g.labelKey)).deep.eq(['Corporation setup', 'Before action phase']);
+    const text = groups.flatMap((g) => g.rows.map((r) => r.text)).join(' ');
+    expect(text, 'the printed price').contains('8');
+    expect(text, 'what it buys').contains('action deck');
+    expect(text, 'and the late doubling').contains('9');
+    // The human TerraLabs Research starts with 14 M€, loses ONE TR and buys
+    // cards to HAND for 1 M€ — the bot has no hand and none of that is here.
+    expect(text).not.contains('14');
+    expect(text).not.match(/to hand|buying cards/i);
   });
 
   it('Pristar prints the four cancelled parameters, never the human preservation VP', () => {

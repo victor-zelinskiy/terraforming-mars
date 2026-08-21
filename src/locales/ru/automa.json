@@ -588,5 +588,9 @@
   "It gains ${0} TR and ${1} M€, and the global parameter does not move": "Он получает ${0} РТ и ${1} M€, а глобальный параметр остаётся на месте",
   "Put a white cube on this card if there is none": "Положить на эту карту белый куб, если его там нет",
   "${0} armed its corporation ${1} with a white cube for this generation": "${0} заряжает свою корпорацию ${1} белым кубом на это поколение",
-  "${0} spent the white cube on its corporation ${1}: ${2} is left alone for ${3} M€": "${0} тратит белый куб со своей корпорации ${1}: ${2} остаётся нетронутым за ${3} M€"
+  "${0} spent the white cube on its corporation ${1}: ${2} is left alone for ${3} M€": "${0} тратит белый куб со своей корпорации ${1}: ${2} остаётся нетронутым за ${3} M€",
+  "MarsBot loses ${0} TR": "Бот теряет ${0} РТ",
+  "Every generation ${0} project card is drawn and shuffled into the action deck": "Каждое поколение из колоды проектов берётся ${0} карта и замешивается в колоду действий",
+  "From generation ${0} on it is ${1} cards instead": "С ${0}-го поколения — уже ${1} карты",
+  "${0} shuffled ${1} project card(s) into its action deck (corporation ${2})": "${0} замешивает карт проектов в свою колоду действий: ${1} (корпорация ${2})"
 }

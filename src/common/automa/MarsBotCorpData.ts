@@ -1053,6 +1053,25 @@ const CORP_INFO: Readonly<Record<MarsBotCorpId, MarsBotCorpInfo>> = {
       ]},
     ],
   },
+  [MarsBotCorpId.C38_TERRALABS]: {
+    id: MarsBotCorpId.C38_TERRALABS,
+    cardNumber: 'C38',
+    original: CardName.TERRALABS_RESEARCH,
+    // The corner box carries a SCIENCE tag (the notched frame with the orange
+    // stripe — C11's shape, verified by crop against C16, whose corner is
+    // empty because its science icon sits inside a DRAFT PRIORITY plate).
+    startingTags: [Tag.SCIENCE],
+    corpBonusCards: [],
+    sections: [
+      {kind: 'setup', lines: [
+        {icon: 'tr', text: 'MarsBot loses ${0} TR', params: ['8']},
+      ]},
+      {kind: 'beforeActionPhase', lines: [
+        {icon: 'cards', text: 'Every generation ${0} project card is drawn and shuffled into the action deck', params: ['1']},
+        {icon: 'cards', text: 'From generation ${0} on it is ${1} cards instead', params: ['9', '2'], muted: true},
+      ]},
+    ],
+  },
   [MarsBotCorpId.C45_SPIRE]: {
     id: MarsBotCorpId.C45_SPIRE,
     cardNumber: 'C45',
@@ -1135,6 +1154,10 @@ export function corpOwningBonusCard(id: BonusCardId): MarsBotCorpInfo | undefine
  *           the card destroys itself), hyperlinkDrawn (project cards that draw
  *           put in front of it) and hyperlinkResolved (the two it kept and
  *           played; fewer only when the deck could not supply them).
+ * TerraLabs: terralabsTrLost (the printed 8 TR its setup cost), terralabsCards
+ *           (project cards its Before-Action-Phase box shuffled into the
+ *           action deck) and terralabsLateCards (those of them dealt at the
+ *           doubled generation-9 rate).
  * Pristar:  pristarCubes (generations its Before-Action-Phase box armed the
  *           card), pristarConversions (terraforming actions the cube took
  *           over — TR is one per conversion) and pristarMc (the M€ they

@@ -3213,6 +3213,30 @@ const analyzeBotCorporation: Analyzer = (ctx) => {
           scale: 40,
         });
       }
+    } else if (corp.id === 'C38') {
+      // TerraLabs is a trade, and the two halves of it are two facts: the
+      // thicker deck it bought, and the 8 TR it paid for it. The late doubling
+      // is its own line — that is when the trade starts paying off.
+      const cards = stat('terralabsCards');
+      const late = stat('terralabsLateCards');
+      if (cards >= 5) {
+        stories.push({
+          key: 'effect',
+          textKey: 'Research outran the rating for ${0}: ${1} shuffled ${2} extra project(s) into the bot deck, bought with the ${3} TR it gave up at the start.',
+          params: [raw(p.name), raw(corp.name), raw(cards), raw(stat('terralabsTrLost'))],
+          measure: cards,
+          scale: 14,
+        });
+      }
+      if (late >= 4) {
+        stories.push({
+          key: 'late-surge',
+          textKey: 'And the late game came in twos — ${2} of those cards were dealt at the doubled rate, when there was no time left to waste a turn.',
+          params: [raw(p.name), raw(corp.name), raw(late)],
+          measure: late,
+          scale: 8,
+        });
+      }
     } else if (corp.id === 'C46') {
       // Tycho Magnetics is ONE moment, and the whole game before it is the
       // wind-up — so the story is that moment, sized by what the wait bought.

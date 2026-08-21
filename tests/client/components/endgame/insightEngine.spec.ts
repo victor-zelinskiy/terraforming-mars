@@ -601,6 +601,22 @@ describe('insightEngine', () => {
         MarsBotCorpId.C36_PRISTAR, 'Pristar')).is.empty;
     });
 
+    it('C38 tells the thicker deck and the late doubling as SEPARATE stories', () => {
+      const insights = botInsights({terralabsCards: 12, terralabsLateCards: 6, terralabsTrLost: 8},
+        MarsBotCorpId.C38_TERRALABS, 'TerraLabs');
+      expect(insights).has.length(2);
+      const keys = insights.map((i) => i.textKey).join(' | ');
+      expect(keys).contains('Research outran the rating');
+      expect(keys).contains('late game came in twos');
+    });
+
+    it('C38 keeps the late line quiet in a short game', () => {
+      const insights = botInsights({terralabsCards: 8, terralabsLateCards: 0, terralabsTrLost: 8},
+        MarsBotCorpId.C38_TERRALABS, 'TerraLabs');
+      expect(insights).has.length(1);
+      expect(insights[0].textKey).contains('Research outran the rating');
+    });
+
     it('C46 tells its one moment as ONE story', () => {
       const insights = botInsights({hyperlinkPlayed: 1, hyperlinkDrawn: 9, hyperlinkResolved: 2},
         MarsBotCorpId.C46_TYCHO_MAGNETICS, 'Tycho Magnetics');

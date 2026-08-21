@@ -43,6 +43,7 @@ import {MarsBotPoseidon} from './MarsBotPoseidon';
 import {MarsBotStormcraft} from './MarsBotStormcraft';
 import {MarsBotLakefrontResorts} from './MarsBotLakefrontResorts';
 import {MarsBotPristar} from './MarsBotPristar';
+import {MarsBotTerraLabs} from './MarsBotTerraLabs';
 import {MarsBotMorningStar} from './MarsBotMorningStar';
 import {MarsBotViron} from './MarsBotViron';
 import {MarsBotVitor} from './MarsBotVitor';
@@ -117,6 +118,7 @@ export class AutomaCorporations {
     [MarsBotCorpId.C34_STORMCRAFT]: MarsBotStormcraft,
     [MarsBotCorpId.C35_LAKEFRONT_RESORTS]: MarsBotLakefrontResorts,
     [MarsBotCorpId.C36_PRISTAR]: MarsBotPristar,
+    [MarsBotCorpId.C38_TERRALABS]: MarsBotTerraLabs,
     [MarsBotCorpId.C45_SPIRE]: MarsBotSpire,
     [MarsBotCorpId.C46_TYCHO_MAGNETICS]: MarsBotTychoMagnetics,
   };

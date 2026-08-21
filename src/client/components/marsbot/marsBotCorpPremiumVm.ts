@@ -41,6 +41,9 @@ import {standardResourceIconUrl} from '@/client/components/premiumCard/premiumCa
  * `CardRenderer` import is the shared data-DSL (common types only).
  */
 
+/** C38's printed setup cost — the card's whole price, drawn on its face. */
+const TERRALABS_TR_LOSS = 8;
+
 /** The symbolic rule rows of each official bot card (C01–C21 / C45). */
 function renderDataOf(id: MarsBotCorpId): ICardRenderRoot {
   switch (id) {
@@ -458,6 +461,18 @@ function renderDataOf(id: MarsBotCorpId): ICardRenderRoot {
       // recurring plate C26/C34 draw for the same «every generation» shape.
       b.action(undefined, (eb) => {
         eb.text('↻', Size.SMALL, true).startAction.resource(CardResource.RESOURCE_CUBE);
+      });
+    });
+  case MarsBotCorpId.C38_TERRALABS:
+    return CardRenderer.builder((b) => {
+      // SETUP: the price, in the human card's own shape for a starting TR cut
+      // (`minus` + the TR badge) — 8 steps instead of its 1.
+      b.minus().tr(TERRALABS_TR_LOSS, {size: Size.SMALL});
+      // BEFORE ACTION PHASE: a project card into the deck every generation,
+      // twice as many late — the recurring plate C26/C34 use, and the asterisk
+      // that sends the reader to the printed generation clause.
+      b.action(undefined, (eb) => {
+        eb.text('↻', Size.SMALL, true).startAction.cards(1).asterix();
       });
     });
   case MarsBotCorpId.C46_TYCHO_MAGNETICS:
