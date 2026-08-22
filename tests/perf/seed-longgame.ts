@@ -179,7 +179,7 @@ for (let gen = 2; gen <= 11; gen++) {
 // ── a playable late-game state, viewer to act ──────────────────────────────
 game.generation = 11;
 game.phase = Phase.ACTION;
-game.activePlayer = viewer.id;
+game.activePlayer = viewer; // the IPlayer object — serialize() writes .id
 viewer.actionsTakenThisRound = 0;
 viewer.megaCredits = 120;
 viewer.steel = 12;

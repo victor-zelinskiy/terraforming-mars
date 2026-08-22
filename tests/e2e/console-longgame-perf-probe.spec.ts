@@ -40,10 +40,13 @@ type SeededGame = {gameId: string, playerId: string, rivalId: string, log: numbe
 const MANIFEST_PATH = path.join(__dirname, '..', 'perf', 'longgame-perf-game.json');
 const GAME: SeededGame | undefined = RUN ? JSON.parse(fs.readFileSync(MANIFEST_PATH, 'utf8')) : undefined;
 
-const PROFILES = [
+const ALL_PROFILES = [
   {id: 'deck-handheld', viewport: {width: 1280, height: 800}, query: '&consoleProfile=handheld', cpuThrottle: 4},
   {id: 'tv-4k', viewport: {width: 3840, height: 2160}, query: '&consoleProfile=tv', cpuThrottle: 1},
 ] as const;
+/** LONGGAME_PERF_PROFILE=deck-handheld narrows the matrix (Deck is priority). */
+const PROFILES = ALL_PROFILES.filter((p) =>
+  process.env.LONGGAME_PERF_PROFILE === undefined || p.id === process.env.LONGGAME_PERF_PROFILE);
 
 // ── in-page samplers (recv/played-perf idiom) ──────────────────────────────
 
@@ -205,14 +208,19 @@ async function boardCensus(page: Page): Promise<BoardCensus> {
   });
 }
 
+/** Pairwise by DOCUMENT ORDER — several hazards share one class+size, so a
+ *  keyed match collides (it once compared two different erosion tiles and
+ *  reported a 235 px "drift" on a perfectly still board). querySelectorAll
+ *  order is stable for an unchanged tree; a changed count reports -1. */
 function maxHazardDrift(a: BoardCensus, b: BoardCensus): number {
+  if (a.hazards.length !== b.hazards.length) {
+    return -1;
+  }
   let drift = 0;
-  const byCls = new Map(a.hazards.map((h) => [h.cls + h.w, h]));
-  for (const h of b.hazards) {
-    const prev = byCls.get(h.cls + h.w);
-    if (prev !== undefined) {
-      drift = Math.max(drift, Math.abs(prev.x - h.x), Math.abs(prev.y - h.y));
-    }
+  for (let i = 0; i < a.hazards.length; i++) {
+    const p = a.hazards[i];
+    const n = b.hazards[i];
+    drift = Math.max(drift, Math.abs(p.x - n.x), Math.abs(p.y - n.y));
   }
   return drift;
 }
@@ -225,11 +233,13 @@ function pct(sorted: Array<number>, p: number): number {
   return Math.round(sorted[i] * 10) / 10;
 }
 
-/** Open the hand workspace (bumperR cycles sections) — act → verify → retry. */
+/** Open the hand workspace — the DOCK is the mouse door to «Карты в руке»
+ *  (onHandDockOpen → the same RT path). Act → verify → retry: the press can be
+ *  legitimately swallowed by a settling episode. */
 async function openHand(page: Page): Promise<boolean> {
-  for (let attempt = 0; attempt < 6; attempt++) {
-    await page.keyboard.press('KeyE');
-    await pumpFrames(page, 2, 120);
+  for (let attempt = 0; attempt < 8; attempt++) {
+    await page.locator('.con-handdock').click({timeout: 3000}).catch(() => {});
+    await pumpFrames(page, 3, 150);
     if (await page.locator('.con-hand').count() > 0) {
       return true;
     }
@@ -247,7 +257,7 @@ async function closeToBoard(page: Page): Promise<void> {
   }
 }
 
-const SCENARIO_TIMEOUT = Number(process.env.LONGGAME_PERF_TIMEOUT ?? 420_000);
+const SCENARIO_TIMEOUT = Number(process.env.LONGGAME_PERF_TIMEOUT ?? 600_000);
 
 test.describe('console long-game performance probe', () => {
   test.skip(!RUN, 'LONGGAME_PERF=1 required');
@@ -364,18 +374,21 @@ test.describe('console long-game performance probe', () => {
       report.idleAfterSnapshot = snapshotOf(await cdpMetrics(cdp));
       await shoot(page, `${profile.id}-3-final`);
 
-      // sanity: the probe drove the real flow (board present, hazards seeded,
-      // the wheel opened, the hand opened at least once)
+      // The report is written BEFORE the sanity asserts — a failed sanity must
+      // still leave the collected evidence on disk.
       const finalCensus = await boardCensus(page);
-      expect(finalCensus.cont).not.toBeNull();
-      expect(finalCensus.hazards.length).toBeGreaterThan(0);
-      expect(openedEver).toBeTruthy();
-      expect(firstWheelMs).toBeGreaterThanOrEqual(0);
-
+      report.finalCensus = finalCensus;
       fs.mkdirSync(OUT, {recursive: true});
       fs.writeFileSync(
         path.join(OUT, `report-${profile.id}.json`),
         JSON.stringify(report, null, 2));
+
+      // sanity: the probe drove the real flow (board present, hazards seeded,
+      // the wheel opened, the hand opened at least once)
+      expect(finalCensus.cont).not.toBeNull();
+      expect(finalCensus.hazards.length).toBeGreaterThan(0);
+      expect(openedEver).toBeTruthy();
+      expect(firstWheelMs).toBeGreaterThanOrEqual(0);
     });
   }
 });

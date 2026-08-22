@@ -33,6 +33,7 @@ files here are the deeper dives it points at.
 - [REMOUNT_ANIMATION_REWORK_DESIGN.md](REMOUNT_ANIMATION_REWORK_DESIGN.md) / [REMOUNT_ANIMATION_REWORK_BRIEF.md](REMOUNT_ANIMATION_REWORK_BRIEF.md) — the no-remount update model + motion system.
 - [PERFORMANCE_AUDIT.md](PERFORMANCE_AUDIT.md) / [PERF_INVESTIGATION.md](PERF_INVESTIGATION.md) — rendering/perf findings and fixes.
 - [PLAYED_TABLEAU_PERFORMANCE.md](PLAYED_TABLEAU_PERFORMANCE.md) — the full-tableau («Разыграно») performance iteration: the GSAP `<html>`-reparent + root-`:has()` whole-document-recalc root causes, bounded flights / staged mount / thumb art tier, probe + seeds.
+- [STEAM_DECK_PERF_ITERATION_1.md](STEAM_DECK_PERF_ITERATION_1.md) — the first Steam-Deck long-game iteration: the paint baseline made permanent (con-perf-lite removed), the hazard-tile `v-show`-restart root cause, the wheel pre-warm off the critical path, the per-second ambient-cost cuts (leak detector / animation-hold tick / notification poller / server log-window scans), the seeded gen-11 scenario + probe, before/after numbers.
 - [ZOOM_BUG_HANDOFF.md](ZOOM_BUG_HANDOFF.md) — zoom-rendering bug investigation notes.
 - [DIAGNOSTIC_CLEANUP.md](DIAGNOSTIC_CLEANUP.md) — diagnostics/cleanup notes.
 
