@@ -53,13 +53,14 @@ pervasive tax. This was `PERF_INVESTIGATION.md` **B1**.
 > re-rendering on a board-only update). `playerkey` survives as the transient-UI RESET
 > EPOCH (`PlayerHome.resetTransientUi()` via the `:reset-epoch` prop), NOT a `:key`.
 > **A3** is closed: `AnimatedMetricValue` now fires chips ONLY from honest watch
-> transitions; a genuine mount is a SILENT baseline (mount-diff only under the legacy
-> `?remount=1` flag). The unified **motion system** (`motion/motionTokens.ts` — presets
+> transitions; a genuine mount is a SILENT baseline. The unified **motion system**
+> (`motion/motionTokens.ts` — presets
 > `calm|standard|swift`, `--motion-scale`, `createFrameGate` FPS cap, `MOTION_EASE`) is
-> the brief's Цель B, shipped. Rollback ladder: `?patch=0` (wholesale swap) / `?remount=1`
-> (legacy keyed remount). Verified: `build:desktop` green, 20 rework specs passing.
-> The module-level singletons were deliberately KEPT (they still carry the legacy-flag
-> remount + survive the reload-game boundary). **B1 is no longer the lever — the backlog
+> the brief's Цель B, shipped. Rollback: `?patch=0` (wholesale swap); the `?remount=1`
+> legacy keyed remount rung was RETIRED 2026-08-23 (desktop-removal — nothing keys on
+> `playerkey`). Verified: `build:desktop` green, 20 rework specs passing.
+> The module-level singletons were deliberately KEPT (they survive the reload-game
+> boundary). **B1 is no longer the lever — the backlog
 > below is now the whole remaining surface**, re-triaged for the post-remount world.
 
 ---

@@ -73,14 +73,12 @@
       ></game-home>
       <!--
         No-remount update model (docs/REMOUNT_ANIMATION_REWORK_DESIGN.md, Phase 1):
-        the game subtree is NOT keyed on `playerkey` anymore — a fresh
-        playerView snapshot applies reactively and the tree lives across
-        server responses. `playerkey` is passed as `reset-epoch` instead:
-        PlayerHome watches it and performs the explicit transient-UI reset
-        (close overlays / pending modals) exactly where the old remount used
-        to fire — same bump sites, same preserve guards, same semantics.
-        `playerHomeKey` is a constant unless the `tm_remount` rollback flag
-        restores the legacy full-remount behavior.
+        the game subtree is NOT keyed on `playerkey` — a fresh playerView
+        snapshot applies reactively and the tree lives across server
+        responses. `playerkey` is the transient-UI RESET EPOCH: bumping it
+        triggers the explicit transient-UI reset (close overlays / pending
+        prompts) exactly where the historical keyed remount used to fire —
+        same bump sites, same preserve guards, same semantics.
       -->
       <!--
         Console Mode (docs/CONSOLE_MODE_CONCEPT.md): the ONE in-game shell.
@@ -100,9 +98,9 @@
            every one of these flows natively (ConsoleTaskHost / start scene /
            ConsoleRevealOverlay / the MA ceremony in ConsoleShell). -->
       <!--
-        End-of-generation Energy → Heat conversion transition. App-level (like
-        DraftFlowOverlay) so the `:key="playerkey"` remount can't tear down the
-        arrow / paired chips mid-animation. Self-gates via
+        End-of-generation Energy → Heat conversion transition. App-level so
+        no server-response update can tear down the arrow / paired chips
+        mid-animation. Self-gates via
         energyConversionState.active; positions itself from the live energy /
         heat resource-cell rects.
       -->
@@ -111,15 +109,15 @@
       <!-- Desktop-removal wave 1: BotTurnReviewOverlay cut — the console
            renders the same botTurnReviewState through ConsoleBotTurnReview. -->
       <!--
-        Hazard-cleanup sequence overlay. App-level so it survives the playerkey
-        remount; self-gates via hazardCleanupState.active; positions itself over
+        Hazard-cleanup sequence overlay. App-level so it survives every
+        server response; self-gates via hazardCleanupState.active; positions itself over
         the cleared board hex. Visible for own AND opponent cleanups (poll path).
       -->
       <HazardCleanupOverlay
         v-if="screen === 'player-home'" />
       <!--
         Detailed "additional resource" summary overlay. App-level (like the
-        journal) so the `:key="playerkey"` remount can't tear it down while
+        journal) so no server-response update can tear it down while
         open. Driven entirely by module-level additionalResourcesState, which
         the ДОП. РЕСУРСЫ side panel writes when a row is clicked; the overlay
         re-resolves the live player by colour so it tracks resource changes.
@@ -129,7 +127,7 @@
         :player-view="playerView" />
       <!--
         Persistent "exit to main menu" corner button. App-level so it survives
-        the playerkey remount AND is available during the initial draft (where
+        every server response AND is available during the initial draft (where
         the right sidebar isn't present). Hidden once the game is over — the
         endgame screen provides its own "to main menu" control then.
       -->
@@ -137,7 +135,7 @@
         v-if="screen === 'player-home' && endgameView === undefined" />
       <!--
         Rematch coordination layer. App-level (like the endgame experience) so it
-        survives the `:key="playerkey"` remount and keeps polling `/api/game/rematch`
+        survives every server response and keeps polling `/api/game/rematch`
         while the game is over. Hosts the "accept rematch?" prompt + the "rematch
         ready" / "declined" notices. Its own `v-if` (independent of the endgame
         v-if/v-else-if screen chain below).
@@ -147,8 +145,8 @@
         :view="endgameView"
         :headless="endgameConsoleNative" />
       <!--
-        Premium end-of-game experience. App-level (like DraftFlowOverlay) so the
-        `:key="playerkey"` remount can't tear down the reveal / results overlay.
+        Premium end-of-game experience. App-level so no server-response
+        update can tear down the reveal / results overlay.
         Gated by `endgameView` (the active player view ONLY when the
         game has reached Phase.END), so it never shows mid-game.
 
@@ -178,8 +176,8 @@
            the same shared journal data source. -->
 
       <!--
-        Premium NOTIFICATION layer. App-level (like the journal) so the
-        `:key="playerkey"` remount on every server response can't tear it
+        Premium NOTIFICATION layer. App-level (like the journal) so no
+        server-response update can tear it
         down — the queue / seen-set / live cards must survive it. Surfaces
         important game events (opponents' plays, your turn, mandatory
         decisions, milestones, …) as floating sci-fi cards even when the
@@ -192,7 +190,7 @@
 
       <!--
         TurnHandoff presentation layer. App-level (like NotificationLayer) so it
-        survives the `:key="playerkey"` remount. Drives the start-of-turn
+        survives every server response. Drives the start-of-turn
         "command activation" on the active player's card (cube ignition +
         command brackets + a transient status burst), the inactivity-only idle
         reminder, and the optional handoff beam — the start of a turn becomes a
@@ -218,7 +216,7 @@
       <!--
         Phase 1 realtime transport layer (WebSocket diagnostics only — NO
         gameplay behaviour change). App-level so the singleton service survives
-        the playerkey remount. Owns the realtime service lifecycle (start/stop
+        every server response. Owns the realtime service lifecycle (start/stop
         tied to being on a game screen) + a dev-only connection-status chip.
         Gated by the client realtime flag (default OFF): inert when disabled.
       -->
@@ -228,8 +226,8 @@
 
       <!--
         Premium GAMEPAD layer (docs/GAMEPAD_SUPPORT_DESIGN.md). App-level (like
-        NotificationLayer) so the controller mode / focus survives the
-        legacy-flag remount and every server response. Mounted on EVERY
+        NotificationLayer) so the controller mode / focus survives
+        every server response. Mounted on EVERY
         screen (full console lifecycle: menu → create → lobby → game →
         endgame — docs/CONSOLE_MODE_CONCEPT.md). Fully inert until a pad button
         is pressed; `?gp=0` / the gamepad_enabled preference kill it
@@ -308,7 +306,6 @@ import RealtimeLayer from '@/client/components/realtime/RealtimeLayer.vue';
 import DesktopUpdateOverlay from '@/client/components/desktop/DesktopUpdateOverlay.vue';
 import {initDesktopUpdates} from '@/client/components/desktop/desktopUpdateState';
 import {perfMark} from '@/client/utils/perfMarks';
-import {legacyRemountEnabled} from '@/client/utils/legacyRemount';
 import {nextViewSnapshot} from '@/client/utils/viewSnapshotShare';
 import {reconcileDrawnCards} from '@/client/components/drawnCards/drawnCardsState';
 import AdditionalResourceDetailOverlay from '@/client/components/additionalResources/AdditionalResourceDetailOverlay.vue';
@@ -359,15 +356,15 @@ export type MainAppData = {
      * a refactor.
      */
     playerView?: PlayerViewModel;
-    // The transient-UI RESET EPOCH. Historically this was the `:key` of
-    // <player-home> — bumping it forced a full remount per server response.
-    // Since the no-remount rework (docs/REMOUNT_ANIMATION_REWORK_DESIGN.md) the
-    // subtree is no longer keyed on it: a bump now only triggers PlayerHome's
-    // explicit `resetTransientUi()` (close overlays / pending modals — the
-    // same reset the remount used to perform implicitly). The bump SITES and
-    // the preserve guards around them are unchanged, so "when the UI resets"
-    // is byte-identical to the legacy behavior. The `tm_remount` flag
-    // (legacyRemount.ts) restores the old keyed-remount path.
+    // The transient-UI RESET EPOCH. Historically this was the `:key` of the
+    // desktop <player-home> — bumping it forced a full remount per server
+    // response. Since the no-remount rework
+    // (docs/REMOUNT_ANIMATION_REWORK_DESIGN.md) nothing is keyed on it:
+    // a bump only triggers the explicit transient-UI reset (close overlays /
+    // pending prompts — the same reset the remount used to perform
+    // implicitly). The bump SITES and the preserve guards around them are
+    // unchanged, so "when the UI resets" is byte-identical to the legacy
+    // behavior.
     playerkey: number;
     isServerSideRequestInProgress: boolean;
     componentsVisibility: {[x: string]: boolean};
@@ -502,14 +499,6 @@ export default defineComponent({
     realtimeParticipantId(): string {
       return this.playerView?.id ?? '';
     },
-    // The legacy `:key` of <player-home>. A CONSTANT by default —
-    // the game subtree persists across server responses and updates reactively
-    // (`playerkey` rides in as the `reset-epoch` prop instead). The legacy
-    // rollback flag (`?remount=1` / localStorage tm_remount=1) rebinds the key
-    // to `playerkey`, restoring the historical full-remount-per-update model.
-    playerHomeKey(): number | string {
-      return legacyRemountEnabled() ? this.playerkey : 'stable';
-    },
     // Dev-only: render the player-cube playground when the URL carries
     // `?cubePlayground`. Never shown in normal play.
     showCubePlayground(): boolean {
@@ -637,11 +626,10 @@ export default defineComponent({
           // A refresh is committing — any parked retry is superseded by it.
           disarmDeferredViewRefresh();
           /*
-           * Same skip-remount logic as WaitingFor.updatePlayerView:
+           * Same preserve logic as WaitingFor.updatePlayerView:
            * if we're continuing within a card-pick flow, swap
-           * playerView reactively without bumping playerkey so the
-           * MandatoryInputModal hosting the draft / buy UI stays
-           * mounted.
+           * playerView reactively without bumping the reset epoch so
+           * the flow's transient UI survives the update.
            */
           const preserveCardPickModal =
             shouldPreserveCardPickModal(model as PlayerViewModel) ||
@@ -654,8 +642,8 @@ export default defineComponent({
            * used to bump playerkey and destroy that subtree, resetting
            * PlayerHome.data().activeOverlay / coloniesOverlayOpen to closed.
            *
-           * Skip only THIS App.update remount path while an overlay is already
-           * open. The fresh playerView is still swapped reactively, so board,
+           * Skip only THIS App.update reset-epoch path while an overlay is
+           * already open. The fresh playerView is still swapped reactively, so board,
            * side panels and the overlay contents update in place. Own action
            * POST responses still go through WaitingFor.updatePlayerView(), so
            * the existing "submit from overlay closes the overlay" behavior is
@@ -670,11 +658,10 @@ export default defineComponent({
            * spaces — this is the path that fires when ANOTHER player
            * places a tile (your client just polled and got back a
            * playerView with their new tile). Without arming, the
-           * playerkey++ remount below would re-mount BoardSpaceTile
-           * with the new tileType but the animation gate would still
-           * be closed (it only opens for the local player's own
-           * submits via WaitingFor.fetchPlayerInput), and observers
-           * would see the tile pop in instantly.
+           * fresh tile would commit reactively with the animation
+           * gate still closed (it only opens for the local player's
+           * own submits via WaitingFor.fetchPlayerInput), and
+           * observers would see the tile pop in instantly.
            *
            * Skipped on initial load (`app.playerView === undefined`)
            * — that's the F5 case

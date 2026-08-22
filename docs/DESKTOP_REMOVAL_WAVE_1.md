@@ -112,7 +112,8 @@ attribution of that retained tree is queued for wave 2.
   overlay-preserve path is gone — a poll refresh always bumps the reset
   epoch), `AppNoRemount.spec.ts` (the no-remount contract re-pinned on the
   CONSOLE shell element; the legacy `tm_remount` flag can no longer recreate
-  the game subtree — it only ever keyed `<player-home>`),
+  the game subtree — it only ever keyed `<player-home>`; the flag itself and
+  this spec's flag tests were then deleted in the 2026-08-23 cleanup),
   `consoleSettingsModel.spec.ts` (no `shell` row in any context).
 - Specs that mount desktop components DIRECTLY (PlayerHome.spec,
   StartGameFlowOverlay.spec, …) still pass — the files exist until their

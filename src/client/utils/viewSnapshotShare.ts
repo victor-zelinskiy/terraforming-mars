@@ -27,12 +27,9 @@
  * is "shared too little" (a wasted re-render), never wrong data.
  *
  * Rollback: `?patch=0` / localStorage `tm_patch=0` → plain wholesale
- * assignment (the Phase-1 behavior). Under the legacy `tm_remount` flag
- * sharing is also skipped so that mode stays byte-identical to the
- * historical client.
+ * assignment (the Phase-1 behavior).
  */
 import {toRaw} from 'vue';
-import {legacyRemountEnabled} from './legacyRemount';
 
 let cachedFlag: boolean | undefined;
 
@@ -152,7 +149,7 @@ function shareObject(prev: Record<string, unknown>, next: Record<string, unknown
  * contract it always was.
  */
 export function nextViewSnapshot<T extends {id?: unknown}>(prev: T | undefined, incoming: T): T {
-  if (!viewPatchEnabled() || legacyRemountEnabled()) {
+  if (!viewPatchEnabled()) {
     return incoming;
   }
   if (prev === undefined || prev.id !== incoming.id) {

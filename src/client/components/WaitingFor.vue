@@ -1456,8 +1456,8 @@ export default defineComponent({
     this.realtimeWakeOff = onRealtimeWake(() => this.waitForUpdate(true));
   },
   unmounted() {
-    // Detach the exact listeners added in mounted() (a genuine unmount — game
-    // boundary or the legacy tm_remount flag's per-response remount).
+    // Detach the exact listeners added in mounted() (a genuine unmount —
+    // the game boundary).
     if (this.onVisibilityChange !== undefined) {
       document.removeEventListener('visibilitychange', this.onVisibilityChange);
       window.removeEventListener('focus', this.onVisibilityChange);
@@ -1467,8 +1467,7 @@ export default defineComponent({
       this.realtimeWakeOff();
       this.realtimeWakeOff = undefined;
     }
-    // Stop the title spinner on a genuine unmount. (Under the legacy remount
-    // flag the successor instance's immediate `waitingfor` watcher re-arms it.)
+    // Stop the title spinner on a genuine unmount.
     window.clearInterval(documentTitleTimer);
     // Stop the self-re-arming poll chain. `ui_update_timeout_id` is module-level
     // and `askForUpdate` re-arms itself, so without clearing it here (and

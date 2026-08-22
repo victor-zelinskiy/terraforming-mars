@@ -9,8 +9,8 @@ import {reducedMotionActive} from '@/client/utils/reducedMotion';
  * starts a ~1.4s pulse.
  *
  * Module-level on purpose: the severity MEMORY must survive any board
- * remount/re-render (the legacy `?remount=1` rollback still remounts per
- * response), so a component-local trigger would re-fire (or be lost). The
+ * remount/re-render (F5 rehydration, `v-show` display round trips), so a
+ * component-local trigger would re-fire (or be lost). The
  * caller feeds the returned ELAPSED ms into a NEGATIVE animation-delay, so the
  * keyframe stays continuous, and — since the no-remount rework — must ALSO
  * expire its own animation class when the window ends (BoardSpaceTile's
