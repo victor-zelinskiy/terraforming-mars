@@ -1,0 +1,73 @@
+/*
+ * GLOBAL-PARAMETER ICON FAMILY (`.wgt-icon--*`) — @console-shared LIVE.
+ *
+ * Historically these lived in mandatory_input_modal.less (the WGT modal that
+ * coined the name); desktop-removal wave 2 deleted that file and silently took
+ * the ONLY background-image definitions of the family with it — the console
+ * status strip's temperature / oxygen / ocean / venus readouts became empty
+ * boxes (the console files deliberately only SIZE the box; see the notes in
+ * console.less / console_composite.less).
+ *
+ * Consumers today are all console-native: ConsoleStatusStrip (the top HUD
+ * scale readouts + wheel anchor), the journal / log token renderers
+ * (optionIcons.iconClassFor — note its 'oceans' → 'ocean' alias), the
+ * composite prompts and consoleGovernmentSupport (WGT rows: the four planet
+ * scales + the Moon rates + the Ares hazard pseudo-icon).
+ *
+ * The classes carry ONLY the picture (background-image + intrinsic
+ * background-size); every host sizes the element itself.
+ */
+
+.wgt-icon--temperature {
+    background-image: url('./assets/global-parameters/temperature.png');
+    background-size: auto 32px;
+}
+.wgt-icon--oxygen {
+    background-image: url('./assets/global-parameters/oxygen.png');
+    background-size: 30px 30px;
+}
+.wgt-icon--ocean {
+    background-image: url('./assets/tiles/ocean.png');
+    background-size: 30px 30px;
+    /* Inert in console (the paint baseline strips `filter` globally) — kept
+     * for fidelity anywhere the baseline does not apply. */
+    filter: drop-shadow(0 0 4px rgba(80, 160, 220, 0.5));
+}
+/* The Venus SCALE icon (the "V" + rainbow-gauge global-parameter logo). It is
+ * WIDE, so it's sized by height with an auto width in a wider (40px) slot — do
+ * NOT swap it for the square Venus TAG (tags/venus.png): this class is the
+ * global-PARAMETER icon (top HUD scale readout, WGT "Increase Venus scale",
+ * param-change chips), never a card tag. */
+.wgt-icon--venus {
+    background-image: url('./assets/global-parameters/venus.png');
+    background-size: auto 28px;
+    width: 40px;
+}
+.wgt-icon--moon-habitat {
+    background-image: url('./assets/moon/card-habitat-rate.png');
+    background-size: 30px 30px;
+}
+.wgt-icon--moon-mining {
+    background-image: url('./assets/moon/card-mining-rate.png');
+    background-size: 30px 30px;
+}
+.wgt-icon--moon-logistics {
+    background-image: url('./assets/moon/card-logistics-rate.png');
+    background-size: 30px 30px;
+}
+/* Hazard removal is an Ares Extreme Variant option — rare enough that
+ * we don't ship a dedicated icon for it. Render a generic warning
+ * triangle via CSS glyph so the row still has a visual anchor. */
+.wgt-icon--hazard {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    color: #ffd87a;
+    font-size: 22px;
+    background: none;
+
+    &::before {
+        content: '⚠';
+        text-shadow: 0 0 6px rgba(255, 200, 80, 0.6);
+    }
+}

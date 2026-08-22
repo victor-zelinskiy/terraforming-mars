@@ -268,3 +268,41 @@
     .hand-reason-fade-enter-active,
     .hand-reason-fade-leave-active { transition: none; }
 }
+
+/* ── Per-cell placement-reason popover ─────────────────────────────────
+ * Floating host (teleported to body, positioned by SelectSpace at the
+ * hovered illegal cell's screen rect). Renders the SHARED reason popover
+ * (`HandCardReasonPopover` / `.hand-reason`, above) so a blocked board
+ * cell explains itself exactly like a blocked hand card.
+ * pointer-events:none so it never interferes with board hover/click.
+ * Restored from the deleted placement_banner.less (desktop-removal wave 2
+ * took the file, but THIS block is console-shared — PlacementReasonPopover
+ * is live via the SelectSpace board binder). */
+.placement-reason-host {
+    position: fixed;
+    z-index: 320; /* above board chrome */
+    pointer-events: none;
+
+    /* Re-anchor the shared popover: it's normally absolute-positioned above
+       its host; here the host already sits at the cell, so render it inline
+       and drop the caret. */
+    .hand-reason {
+        position: static;
+        transform: none;
+        top: auto;
+        bottom: auto;
+        left: auto;
+        margin: 0;
+        &::after { display: none; }
+    }
+}
+
+.placement-reason-fade-enter-active,
+.placement-reason-fade-leave-active { transition: opacity 130ms ease; }
+.placement-reason-fade-enter-from,
+.placement-reason-fade-leave-to { opacity: 0; }
+
+@media (prefers-reduced-motion: reduce) {
+    .placement-reason-fade-enter-active,
+    .placement-reason-fade-leave-active { transition: none; }
+}
