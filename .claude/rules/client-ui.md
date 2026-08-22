@@ -12,7 +12,7 @@ The fallback guarantee is DROPPED: the future desktop UI will be built FROM the 
 
 ⚠️ **LOAD-BEARING legacy — the console stands on these; replace BEFORE deleting:**
 1. `WaitingFor.vue` — the transport (poll chain + every submission via `onsave()`), mounted headless inside ConsoleShell. Extract a headless module first.
-2. Legacy `Card.vue` renderer — the LIVE face for CEOs / standard projects (routed by `CardFace.vue`; `ConsoleCardFaceLite`'s legacy branch + its icon CSS). Premium pass first.
+2. Legacy `Card.vue` renderer — the LIVE face for CEOs only (routed by `CardFace.vue`; `ConsoleCardFaceLite`'s legacy branch + its icon CSS); standard projects/actions moved to the premium face in wave 2. Premium pass first.
 3. `MandatoryInputModal` — the honest fallback for the degenerate `projectCard` prompt (console-ui rules § shell sections). Console equivalent first.
 4. Everything `@console-shared` (below) — not desktop at all.
 

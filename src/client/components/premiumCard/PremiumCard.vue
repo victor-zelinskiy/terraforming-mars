@@ -143,7 +143,8 @@ function printedFaceVm(name: CardName): PremiumCardVM {
 
 /**
  * PREMIUM CARD FACE — the fork's from-scratch card renderer (project cards +
- * preludes + corporations; scope gate = premiumCardTheme.isPremiumFaceType). Mirrors the
+ * preludes + corporations + standard projects/actions; scope gate =
+ * premiumCardTheme.isPremiumFaceType). Mirrors the
  * legacy <Card> host contract: `card` (CardModel), `actionUsed`, `robotCard`,
  * `cubeColor`, `lightweight`; click opens the shared fullscreen viewer behind
  * the same preference. `name`-only mode renders the pristine printed face for

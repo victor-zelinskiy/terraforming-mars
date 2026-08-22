@@ -8,7 +8,7 @@
   <div class="pcpg">
     <header class="pcpg__head">
       <h1>PREMIUM CARDS — SHOWCASE</h1>
-      <span class="pcpg__hint">?premiumCardsPlayground · {{ scopeCards.length }} карт в скоупе (project + prelude + corporation)</span>
+      <span class="pcpg__hint">?premiumCardsPlayground · {{ scopeCards.length }} карт в скоупе (project + prelude + corporation + standard project/action)</span>
     </header>
 
     <!-- reference strip -->
