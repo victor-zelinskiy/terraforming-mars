@@ -42,11 +42,24 @@ const GAME: SeededGame | undefined = RUN ? JSON.parse(fs.readFileSync(MANIFEST_P
 
 const ALL_PROFILES = [
   {id: 'deck-handheld', viewport: {width: 1280, height: 800}, query: '&consoleProfile=handheld', cpuThrottle: 4},
+  // THE reported real-world case: Steam Deck DOCKED to a TV, physical output
+  // 1080p, the player runs the TV 4K profile for its couch layout. The TV
+  // logical space is 1920×1080, so --con-ui-scale honestly lands on 1.0 here
+  // (measured by the paint census below) — the axis that matters is the TV
+  // RECOMPOSITION (bigger chrome) on a Deck-class main thread.
+  {id: 'deck-docked-tv', viewport: {width: 1920, height: 1080}, query: '&consoleProfile=tv', cpuThrottle: 4},
   {id: 'tv-4k', viewport: {width: 3840, height: 2160}, query: '&consoleProfile=tv', cpuThrottle: 1},
 ] as const;
-/** LONGGAME_PERF_PROFILE=deck-handheld narrows the matrix (Deck is priority). */
+/** LONGGAME_PERF_PROFILE=deck-docked-tv narrows the matrix (docked Deck is
+ *  the second-iteration priority). */
 const PROFILES = ALL_PROFILES.filter((p) =>
   process.env.LONGGAME_PERF_PROFILE === undefined || p.id === process.env.LONGGAME_PERF_PROFILE);
+
+/** Settings under test (iteration 2): persisted keys seeded BEFORE app boot.
+ *  LONGGAME_SET_FX=1 → «Упрощённые графические эффекты», LONGGAME_SET_RM=1 →
+ *  the in-game reduce-motion override. */
+const SET_FX = process.env.LONGGAME_SET_FX === '1';
+const SET_RM = process.env.LONGGAME_SET_RM === '1';
 
 // ── in-page samplers (recv/played-perf idiom) ──────────────────────────────
 
@@ -225,6 +238,70 @@ function maxHazardDrift(a: BoardCensus, b: BoardCensus): number {
   return drift;
 }
 
+/** One-shot paint/display census: what the profile ACTUALLY rasterizes —
+ *  real uiScale/DPR, running animations by name, will-change population,
+ *  viewport-scale shadow/gradient surfaces, images decoded far above their
+ *  displayed size. Heavy (computed style per element) — probe-only. */
+async function paintCensus(page: Page): Promise<Record<string, unknown>> {
+  return await page.evaluate(() => {
+    const vw = window.innerWidth;
+    const vh = window.innerHeight;
+    const varea = vw * vh;
+    const anims: Record<string, number> = {};
+    try {
+      for (const a of document.getAnimations()) {
+        const name = (a as CSSAnimation).animationName ?? a.constructor.name;
+        anims[name] = (anims[name] ?? 0) + 1;
+      }
+    } catch { /* census still stands */ }
+    let willChange = 0;
+    let bigShadow = 0;
+    let bigGradient = 0;
+    let hugeEl = 0;
+    const shadowSamples: Array<{cls: string, w: number, h: number}> = [];
+    for (const el of document.querySelectorAll('body *')) {
+      const cs = getComputedStyle(el);
+      if (cs.willChange !== 'auto') {
+        willChange++;
+      }
+      const r = el.getBoundingClientRect();
+      const area = r.width * r.height;
+      if (area > varea * 0.5) {
+        hugeEl++;
+      }
+      if (area > varea * 0.15) {
+        if (cs.boxShadow !== 'none') {
+          bigShadow++;
+          if (shadowSamples.length < 8) {
+            shadowSamples.push({cls: String((el as HTMLElement).className).slice(0, 70), w: Math.round(r.width), h: Math.round(r.height)});
+          }
+        }
+        if (cs.backgroundImage.includes('gradient')) {
+          bigGradient++;
+        }
+      }
+    }
+    const oversizedImgs: Array<{src: string, natural: number, shown: number}> = [];
+    document.querySelectorAll('img').forEach((im) => {
+      const shown = im.clientWidth * (window.devicePixelRatio || 1);
+      if (im.naturalWidth > 0 && im.clientWidth > 0 && im.naturalWidth > shown * 2.5 && oversizedImgs.length < 10) {
+        oversizedImgs.push({src: (im.currentSrc || im.src).split('/').pop() ?? '', natural: im.naturalWidth, shown: Math.round(shown)});
+      }
+    });
+    const rootCss = getComputedStyle(document.documentElement);
+    return {
+      viewport: `${vw}x${vh}`,
+      dpr: window.devicePixelRatio,
+      uiScale: rootCss.getPropertyValue('--con-ui-scale').trim(),
+      motionScale: rootCss.getPropertyValue('--motion-scale').trim(),
+      profileClass: document.documentElement.className.match(/con-profile-\w+/)?.[0] ?? '',
+      htmlClasses: document.documentElement.className,
+      anims, willChange, bigShadow, bigGradient, hugeEl, shadowSamples, oversizedImgs,
+      docNodes: document.querySelectorAll('*').length,
+    };
+  });
+}
+
 function pct(sorted: Array<number>, p: number): number {
   if (sorted.length === 0) {
     return 0;
@@ -279,9 +356,24 @@ test.describe('console long-game performance probe', () => {
       const report: Record<string, unknown> = {
         label: LABEL, profile: profile.id,
         viewport: profile.viewport, cpuThrottle: profile.cpuThrottle,
+        settings: {fxLite: SET_FX, reduceMotion: SET_RM},
         seeded: {log: GAME.log, tiles: GAME.tiles},
         startedAt: new Date().toISOString(),
       };
+
+      // Seed the persisted settings BEFORE the app boots (the real settings
+      // architecture reads them at bootstrap; toggling live is covered by the
+      // unit/component specs — the probe measures the steady state).
+      await page.addInitScript(({fx, rm}) => {
+        try {
+          if (fx) {
+            window.localStorage.setItem('tm_console_fx_lite', '1');
+          }
+          if (rm) {
+            window.localStorage.setItem('tm_reduce_motion', '1');
+          }
+        } catch { /* private mode — the probe still runs at defaults */ }
+      }, {fx: SET_FX, rm: SET_RM});
 
       await page.goto(`/player?id=${GAME.playerId}&console=1${profile.query}`);
       await page.locator('.con-root').waitFor({state: 'visible', timeout: 60_000});
@@ -289,6 +381,9 @@ test.describe('console long-game performance probe', () => {
       await page.waitForTimeout(1500);
       await pumpFrames(page, 2, 120);
       await shoot(page, `${profile.id}-0-board`);
+
+      // ── 0. What does this profile ACTUALLY rasterize? ────────────────────
+      report.paintCensus = await paintCensus(page);
 
       // ── 1. IDLE on the settled board home ────────────────────────────────
       await cdp.send('HeapProfiler.collectGarbage').catch(() => {});

@@ -1,0 +1,44 @@
+/* ─────────────────────────────────────────────────────────────────────────
+   REDUCED MOTION — the class bridge (`html.con-reduced-motion`).
+
+   Set by src/client/utils/reducedMotion.ts whenever reduced motion is
+   EFFECTIVE — the OS `prefers-reduced-motion: reduce` preference OR the
+   in-game «Меньше движения» override. The 164 existing
+   `@media (prefers-reduced-motion: reduce)` sites keep serving the OS path
+   byte-identically; this sheet ADDS the policy both sources share, so a
+   SteamOS/TV player without an OS-level preference gets the same calm.
+
+   THE POLICY: LOOPS DON'T LOOP. `animation-iteration-count: 1` (never
+   `animation: none`) — every infinite decorative loop plays once and rests
+   at its final keyframe (all ambient loops here are 0%/100%-symmetric, so
+   the resting frame IS the static cue), `animationend` still fires, and
+   one-shot entrance/feedback animations are untouched (they are already
+   count 1). JS-driven cinematics are reduced separately through the shared
+   source (`consoleMotionMs` caps at 160 ms when reduced) — this sheet only
+   covers CSS-only motion.
+
+   ⚠ The ALLOWLIST below re-enables «working» indicators: a frozen spinner
+   reads as a hang, a frozen caret as a dead input, frozen typing dots as a
+   lost opponent. A new spinner-class loop must either match the substring
+   families here or be added explicitly.
+   ───────────────────────────────────────────────────────────────────────── */
+html.con-reduced-motion * {
+    animation-iteration-count: 1 !important;
+}
+/* «Working» indicators keep looping — they are information, not motion
+   decoration: menu/composer/hydro spinners ([class*="spin"]), the boot
+   loader's whole scene, the virtual keyboard caret, the remote player's
+   typing dots, the MA-focus wait throb, the armed discard slot's receive
+   pulse. Substring families are deliberate: over-matching merely re-allows
+   a loop that does not exist. */
+html.con-reduced-motion :is(
+    [class*="spin"],
+    [class*="caret"],
+    [class*="typing"],
+    [class*="typing"] b,
+    .boot-loader *,
+    .con-loading *,
+    [class*="--wait"],
+    .con-discard__pile--armed .con-discard__slot) {
+    animation-iteration-count: infinite !important;
+}

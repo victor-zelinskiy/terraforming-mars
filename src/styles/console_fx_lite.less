@@ -1,0 +1,69 @@
+/* ─────────────────────────────────────────────────────────────────────────
+   «УПРОЩЁННЫЕ ГРАФИЧЕСКИЕ ЭФФЕКТЫ» (fx-lite) — the OPT-IN reduced-graphics
+   axis of Steam-Deck perf iteration 2. See src/client/console/consoleFxLite.ts.
+
+   The permanent paint baseline (console_paint_baseline.less) already cut
+   filter/text-shadow. This axis cuts the NEXT measured tier — a VISIBLE
+   reduction, so it is a user choice, default OFF, never auto-enabled.
+
+   Measured census on an idle late-game board (deck-docked-tv probe):
+   7 infinite decorative animations keep the compositor producing frames
+   forever; the wheel halo re-rasters two viewport-scale gradients under its
+   entry scale tween; each premium card face rasters 30px+80px blurred inset
+   shadows and a repeating-gradient weave.
+
+   RULES OF THE AXIS:
+   · functional information NEVER leaves — focus/selection rings,
+     availability colours, whose-turn state keep their STATIC paint (the
+     loops stop at their resting frame, they are not removed);
+   · «working» indicators (spinners, carets, typing dots) are NOT touched —
+     they live on the reduced-motion axis' allowlist and keep looping there
+     too; fx-lite only stops loops that are pure decoration ON TOP of an
+     already-painted static cue;
+   · motion CHOREOGRAPHY (flights, transitions) is not this axis — that is
+     «Меньше движения».
+   ───────────────────────────────────────────────────────────────────────── */
+html.console-native.con-fx-lite {
+    /* ── Ambient decorative loops stop at their resting frame ─────────────
+       Each of these animates box-shadow/opacity every frame, forever, over
+       an element whose STATIC paint already carries the information (the
+       cyan active ring, the convertible row's rim, the medal's availability
+       rim, the attention chip's colour). `animation: none` is safe here:
+       none of them gate a JS flow (no animationend listeners on ambient
+       loops — the census names them; a NEW ambient loop must be added
+       here to stay honest with the setting). */
+    .con-status__player--active .con-status__dot,
+    .con-status__pstatus-glyph,
+    .con-res__row--convertible-plants,
+    .con-res__row--convertible-heat,
+    .con-strat__actring,
+    .con-board--live .board-space.con-cell-sel::after,
+    .con-board--inspecting .board-space.con-cell-sel::after {
+        animation: none !important;
+    }
+
+    /* ── The wheel's ambient halo — two viewport-scale radial gradients
+       re-rastered under the entry scale tween. Pure bloom; the wheel's
+       plates, counts and focus language are untouched. */
+    .con-quick__halo {
+        display: none;
+    }
+
+    /* ── The shade's focus vignette — a second full-opening gradient layer
+       whose opacity animates while aiming on the wheel. The flat shade
+       (the dim itself) stays: modality must stay readable. */
+    .con-shade::after {
+        display: none;
+    }
+
+    /* ── Premium card faces: one tight inset instead of the 30px+80px
+       blurred pair, and no brushed-metal weave/sheen. Visibly flatter
+       cards — exactly the trade the setting names. Text, icons, cost,
+       tags, focus rings and state colours are untouched. */
+    .pcard__body {
+        box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.45) !important;
+    }
+    .pcard__body::before {
+        background: none !important;
+    }
+}

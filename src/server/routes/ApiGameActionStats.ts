@@ -6,6 +6,7 @@ import {Request} from '../Request';
 import {Response} from '../Response';
 import {Color, PLAYER_COLORS} from '../../common/Color';
 import {EffectOverlayStat, actionOverlayStats} from '../../common/events/aggregate';
+import {cachedOverlayStats} from './overlayStatsCache';
 
 /**
  * Bounded data bridge for the premium "ДЕЙСТВИЯ" overlay's per-action usage summary
@@ -44,7 +45,9 @@ export class ApiGameActionStats extends Handler {
       responses.notFound(req, res, 'game not found');
       return;
     }
-    const stats: ReadonlyArray<EffectOverlayStat> = actionOverlayStats(game.events.events, color as Color);
+    // Memoized per (game, gameAge, undoCount, color) — see overlayStatsCache.
+    const stats: ReadonlyArray<EffectOverlayStat> = cachedOverlayStats(
+      game, 'action', color as Color, () => actionOverlayStats(game.events.events, color as Color));
     responses.writeJson(res, ctx, stats);
   }
 }

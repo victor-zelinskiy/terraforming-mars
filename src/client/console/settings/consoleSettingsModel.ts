@@ -59,6 +59,8 @@ import {
   setMotionFpsCap,
   setMotionSpeedPreset,
 } from '@/client/components/motion/motionTokens';
+import {consoleFxLiteState, setConsoleFxLite} from '@/client/console/consoleFxLite';
+import {reduceMotionOverrideState, setReduceMotionOverride} from '@/client/utils/reducedMotion';
 import {READING_SCALE_CHOICES, readingScaleState, setConsoleReadingScale} from '@/client/console/consoleReadingScale';
 import {ALBUM_LAYOUT_CHOICES, ALBUM_LAYOUT_LABELS, albumLayoutState, setConsoleAlbumLayout} from '@/client/console/consoleAlbumLayout';
 import {
@@ -81,7 +83,7 @@ export type ConsoleSettingsCategoryId =
 
 export type ConsoleSettingId =
   'shell' | 'display' | 'textScale' | 'albumLayout' | 'notifications' | 'controller' | 'buttons' | 'wheelControl' |
-  'motionSpeed' | 'motionRate' | 'perfMode' | 'privateScore' | 'gameServer' | 'lanVisible';
+  'motionSpeed' | 'motionRate' | 'fxLite' | 'reduceMotion' | 'privateScore' | 'gameServer' | 'lanVisible';
 
 /** One dialable preference: a ring of options plus where we are in it. */
 export type ConsoleSettingRow = {
@@ -338,9 +340,26 @@ function graphicsCategory(): ConsoleSettingsCategory {
       (v) => translateText(MOTION_FPS_LABELS[v === 'auto' ? 'auto' : (String(v) as '30' | '60')]),
       (v) => setMotionFpsCap(v),
     ),
-    // NB: the old «Производительность» toggle (decorative-paint cut) is gone —
-    // its enabled behaviour became the permanent console paint baseline
-    // (src/styles/console_paint_baseline.less).
+    // Reduced GRAPHICS — the opt-in second tier over the permanent paint
+    // baseline: ambient loops stop, the wheel halo / shade vignette go, card
+    // faces flatten. A VISIBLE reduction, so it is a choice — never
+    // auto-enabled by device detection. (The old «Производительность» toggle
+    // is gone — its cut became the unconditional baseline.)
+    toggleRow(
+      'fxLite', 'Reduced graphics effects', 'Cut decorative glow, halos and card texture for speed',
+      consoleFxLiteState.enabled, ['Off', 'On'],
+      (v) => setConsoleFxLite(v),
+    ),
+    // Reduced MOTION — the in-game override of prefers-reduced-motion: the
+    // same reduced experience the OS preference gives (short functional
+    // transitions, no ambient loops), reachable on devices whose OS never
+    // exposes the preference (SteamOS/TV). OS preference stays respected
+    // regardless of this row.
+    toggleRow(
+      'reduceMotion', 'Reduce motion', 'Shorten animations and stop ambient movement',
+      reduceMotionOverrideState.enabled, ['Off', 'On'],
+      (v) => setReduceMotionOverride(v),
+    ),
   ];
   return {id: 'graphics', label: 'Graphics', glyph: '◈', minor: false, rows, readout: []};
 }

@@ -6,6 +6,7 @@ import {Request} from '../Request';
 import {Response} from '../Response';
 import {Color, PLAYER_COLORS} from '../../common/Color';
 import {EffectOverlayStat, effectOverlayStats} from '../../common/events/aggregate';
+import {cachedOverlayStats} from './overlayStatsCache';
 
 /**
  * Bounded data bridge for the premium "Эффекты" overlay's per-effect summary.
@@ -45,7 +46,10 @@ export class ApiGameEffectStats extends Handler {
       responses.notFound(req, res, 'game not found');
       return;
     }
-    const stats: ReadonlyArray<EffectOverlayStat> = effectOverlayStats(game.events.events, color as Color);
+    // Memoized per (game, gameAge, undoCount, color) — the aggregate scans
+    // the whole event stream and the console refetches it per workspace open.
+    const stats: ReadonlyArray<EffectOverlayStat> = cachedOverlayStats(
+      game, 'effect', color as Color, () => effectOverlayStats(game.events.events, color as Color));
     responses.writeJson(res, ctx, stats);
   }
 }
