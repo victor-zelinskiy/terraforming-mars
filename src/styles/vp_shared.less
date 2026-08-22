@@ -1,0 +1,231 @@
+/*
+ * SHARED VP VISUAL LANGUAGE — extracted from victory_points.less in
+ * desktop-removal wave 3.
+ *
+ * The desktop VP overlay (VictoryPointsOverlay.vue, `.vp-board-overlay`) is
+ * deleted, but these families stay LIVE:
+ *  · `.vp-scale__*` + the `.vp-accent(...)` per-category colours — the
+ *    endgame tabs' breakdown bars (EndgameScoreTab stacks
+ *    `vp-scale__seg vp-accent--<key>`; endgame.less documents that it
+ *    reuses these globals);
+ *  · `.vp-source-chip*` — milestone/award/system chips in
+ *    EndgameCardsTab / EndgamePlayersTab;
+ *  · `.vp-private*` — the masked-VP stand-in (PrivateScoreMask.vue,
+ *    mounted on the console player rail; console.less sizes it in rem).
+ */
+
+// ── Shared tokens ────────────────────────────────────────────────────
+@vp-cyan:        #6ab0e6;
+@vp-text:        #e8f1fb;
+@vp-text-dim:    #cdddf0;
+@vp-chip-bg:     rgba(16, 25, 38, 0.78);
+@vp-chip-rim:    rgba(120, 160, 200, 0.28);
+
+// ── Segment / category accent palette (each legend colour distinct) ──
+@acc-tr-base:            #8aa0b8;
+@acc-temperature:        #e8743b;
+@acc-oxygen:             #6fc46f;
+@acc-oceans:             #4f9be0;
+@acc-venus:              #d98ad0;
+@acc-tr-cards:           #6ab0e6;
+@acc-cards-resource:     #43c4a0;
+@acc-cards-conditional:  #c5a8e0;
+@acc-cards-fixed:        #6172d6;
+@acc-penalty:            #d96a6a;
+@acc-city:               #d8b074;
+@acc-greenery:           #7fc46f;
+@acc-milestones:         #ffcc64;
+@acc-awards:             #f0a850;
+@acc-moon:               #b9c4d0;
+@acc-moon-mine:          #cbb68f;
+@acc-moon-road:          #9fb3c8;
+@acc-tracks:             #a98ad0;
+@acc-delta:              #4fc9d8; // Гидросеть (Delta Project) end-game VP — aqua
+@acc-tr-hazards:         #cda24e; // Очистка опасных зон (Ares) — dusty ochre
+
+/* ── Scales: the breakdown bars (shared scale) ────────────────────── */
+
+.vp-scale {
+    animation: vp-row-in 280ms cubic-bezier(0.22, 1, 0.36, 1) both;
+
+    &--zero {
+        opacity: 0.5;
+    }
+}
+
+.vp-scale__head {
+    display: flex;
+    align-items: baseline;
+    gap: 10px;
+    margin-bottom: 5px;
+}
+.vp-scale__name {
+    font-family: Prototype, Ubuntu, sans-serif;
+    font-size: 12px;
+    letter-spacing: 0.8px;
+    text-transform: uppercase;
+    color: @vp-text-dim;
+}
+.vp-scale__value {
+    margin-left: auto;
+    font-family: Prototype, Orbitron, sans-serif;
+    font-weight: 700;
+    font-size: 16px;
+    font-variant-numeric: tabular-nums;
+    color: #d7e8f5;
+}
+
+.vp-scale__bar {
+    display: flex;
+    align-items: stretch;
+    width: 100%;
+    height: 15px;
+    border-radius: 5px;
+    overflow: hidden;
+    background: rgba(0, 0, 0, 0.4);
+    box-shadow: inset 0 0 0 1px rgba(106, 176, 230, 0.1);
+}
+
+.vp-scale__seg {
+    flex: 0 0 auto;
+    min-width: 2px;
+    box-shadow: inset -1px 0 0 rgba(0, 0, 0, 0.28);
+    transition: filter 130ms ease, opacity 130ms ease, transform 130ms ease;
+    cursor: default;
+
+    &--active {
+        filter: brightness(1.22);
+        transform: scaleY(1.12);
+        z-index: 1;
+    }
+    &--dim {
+        opacity: 0.38;
+    }
+    /* Penalty: a red striped deduction sitting after the positive fill. */
+    &--penalty {
+        margin-left: 4px;
+        border-radius: 0 4px 4px 0;
+        background:
+            repeating-linear-gradient(135deg,
+                fade(@acc-penalty, 88%) 0, fade(@acc-penalty, 88%) 5px,
+                fade(@acc-penalty, 55%) 5px, fade(@acc-penalty, 55%) 10px) !important;
+        box-shadow: inset 0 0 0 1px fade(@acc-penalty, 60%);
+    }
+}
+
+/* ── Source chips (milestone / award / track / system) ────────────── */
+
+.vp-source-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    min-width: 0;
+    padding: 2px 9px;
+    border-radius: 4px;
+    background: @vp-chip-bg;
+    border: 1px solid @vp-chip-rim;
+    color: @vp-text;
+    font-size: 12px;
+    font-weight: 600;
+    line-height: 1.35;
+}
+.vp-source-chip__dot {
+    width: 6px;
+    height: 6px;
+    flex-shrink: 0;
+    border-radius: 50%;
+    background: @vp-cyan;
+    box-shadow: 0 0 5px rgba(106, 176, 230, 0.5);
+}
+.vp-source-chip__label {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+.vp-source-chip--milestone .vp-source-chip__dot { background: @acc-milestones; box-shadow: 0 0 5px fade(@acc-milestones, 55%); }
+.vp-source-chip--award     .vp-source-chip__dot { background: @acc-awards;     box-shadow: 0 0 5px fade(@acc-awards, 55%); }
+.vp-source-chip--track     .vp-source-chip__dot { background: @acc-tracks;     box-shadow: 0 0 5px fade(@acc-tracks, 55%); }
+.vp-source-chip--delta     .vp-source-chip__dot { background: @acc-delta;      box-shadow: 0 0 5px fade(@acc-delta, 55%); }
+.vp-source-chip--system    .vp-source-chip__dot { background: @acc-cards-fixed; box-shadow: 0 0 5px fade(@acc-cards-fixed, 55%); }
+
+/* ── Per-accent colour application (bar segment fill + legend dot) ── */
+
+.vp-accent(@key, @color) {
+    .vp-scale__seg.vp-accent--@{key} {
+        background: linear-gradient(180deg, lighten(@color, 7%), @color);
+    }
+    .vp-legend__dot.vp-accent--@{key},
+    .vp-card-group__head .vp-accent--@{key} {
+        background: @color;
+        box-shadow: 0 0 6px fade(@color, 50%);
+    }
+}
+.vp-accent(tr-base, @acc-tr-base);
+.vp-accent(temperature, @acc-temperature);
+.vp-accent(oxygen, @acc-oxygen);
+.vp-accent(oceans, @acc-oceans);
+.vp-accent(venus, @acc-venus);
+.vp-accent(tr-cards, @acc-tr-cards);
+.vp-accent(tr-hazards, @acc-tr-hazards);
+.vp-accent(cards-resource, @acc-cards-resource);
+.vp-accent(cards-conditional, @acc-cards-conditional);
+.vp-accent(cards-fixed, @acc-cards-fixed);
+.vp-accent(penalty, @acc-penalty);
+.vp-accent(city, @acc-city);
+.vp-accent(greenery, @acc-greenery);
+.vp-accent(milestones, @acc-milestones);
+.vp-accent(awards, @acc-awards);
+.vp-accent(moon, @acc-moon);
+.vp-accent(moon-mine, @acc-moon-mine);
+.vp-accent(moon-road, @acc-moon-road);
+.vp-accent(tracks, @acc-tracks);
+.vp-accent(delta, @acc-delta);
+// MarsBot (Automa) scoring bar — mint-teal family, matching the bot identity.
+@acc-automa:        rgb(122, 210, 182);
+@acc-automa-neural: rgb(168, 148, 230);
+@acc-automa-cards:  rgb(226, 178, 120);
+.vp-accent(automa, @acc-automa);
+.vp-accent(automa-mc, @acc-automa);
+.vp-accent(automa-neural, @acc-automa-neural);
+.vp-accent(automa-cards, @acc-automa-cards);
+
+/* ── Motion ───────────────────────────────────────────────────────── */
+
+@keyframes vp-row-in {
+    from { opacity: 0; transform: translateY(6px); }
+    to   { opacity: 1; transform: translateY(0); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .vp-scale { animation: none; }
+    .vp-scale__seg { transition: none; }
+}
+
+/* ── Masked VP stand-in (passive surfaces) ────────────────────────── */
+
+.vp-private {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    color: rgba(150, 185, 220, 0.92);
+    animation: vp-private-in 220ms cubic-bezier(0.22, 0.8, 0.32, 1) both;
+    vertical-align: middle;
+}
+.vp-private--compact { gap: 3px; }
+.vp-private__eye {
+    width: 18px; height: 12px;
+    flex: 0 0 auto;
+    filter: drop-shadow(0 0 5px rgba(106, 176, 230, 0.45));
+    .vp-private__eye-shape { stroke: currentColor; stroke-width: 1.7; }
+    .vp-private__eye-pupil { fill: currentColor; }
+    .vp-private__eye-slash { stroke: currentColor; stroke-width: 1.9; stroke-linecap: round; }
+}
+.vp-private--compact .vp-private__eye { width: 15px; height: 10px; }
+@keyframes vp-private-in {
+    from { opacity: 0; transform: scale(0.82); }
+    to   { opacity: 1; transform: scale(1); }
+}
+@media (prefers-reduced-motion: reduce) {
+    .vp-private { animation: none; }
+}

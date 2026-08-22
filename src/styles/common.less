@@ -393,18 +393,11 @@ each(@players, {
 @import "./game_end.less";
 @import "./resources.less";
 @import "./start_screen.less";
-@import "./main_menu.less";
-@import "./create_game_form.less";
-@import "./corporations_filter.less";
-@import "./colonies_filter.less";
-@import "./cards_filter.less";
-@import "./player_status_chip.less";
 @import "./player_home.less";
-@import "./players_overview.less";
 @import "./card_action_buttons.less";
-// After card_action_buttons.less so the `.premium-tooltip()` mixin resolves.
-@import "./main_menu_identity.less";
-@import "./create_game_premium.less";
+// The map fingerprint (console create screens' board preview) — extracted
+// from the deleted create_game_premium.less in desktop-removal wave 3.
+@import "./map_fingerprint.less";
 @import "./marsbot.less";
 @import "./bot_review.less";
 @import "./preferences.less";
@@ -412,32 +405,26 @@ each(@players, {
 @import "./right_sidebar.less";
 @import "./popup.less";
 @import "./payments_v2.less";
-@import "./start_game_flow.less";
 @import "./boot_loader.less";
 @import "./resource_change_feedback.less";
 @import "./energy_conversion.less";
 @import "./hazard_cleanup.less";
 @import "./special_cell_info.less";
 @import "./game_atmosphere.less";
-@import "./card_selection.less";
-@import "./initial_draft.less";
-@import "./other_player.less";
 @import "./colony_fleet.less";
 @import "./colonies.less";
 @import "./colonies_overlay.less";
 @import "./log.less";
 @import "./journal.less";
 @import "./notifications.less";
-@import "./reveal_viewer.less";
-@import "./played_cards.less";
 @import "./hand_cards.less";
 @import "./effects_overlay.less";
-@import "./actions_overlay.less";
 @import "./player_cube.less";
 @import "./vp_progress.less";
 @import "./additional_resources.less";
-@import "./drawn_cards.less";
-@import "./victory_points.less";
+// The shared VP visual language (endgame tabs + the private-score mask) —
+// extracted from the deleted victory_points.less in desktop-removal wave 3.
+@import "./vp_shared.less";
 @import "./ma_confirm.less";
 @import "./hydronetwork.less";
 @import "./endgame.less";

@@ -69,7 +69,6 @@
       <div>mode: {{ inputModeState.mode }} · pads: {{ inputModeState.padsConnected }} · pad: {{ gamepadCoreState.activeId || '—' }}</div>
       <div>scope: {{ focusState.scopeId || '—' }} · focus: {{ focusState.focusKind }}</div>
       <div v-if="leakDetectorState.stranded !== undefined" class="gp-debug__leak">⚠ STRANDED: {{ leakDetectorState.stranded.inputType }} → {{ leakDetectorState.stranded.taskKind }}</div>
-      <div v-if="leakDetectorState.desktopSurfaces.length > 0" class="gp-debug__leak">desktop surfaces: {{ leakDetectorState.desktopSurfaces.join(', ') }}</div>
       <div>ring: {{ Math.round(focusState.ring.left) }},{{ Math.round(focusState.ring.top) }} {{ Math.round(focusState.ring.width) }}×{{ Math.round(focusState.ring.height) }} {{ focusState.ring.variant }}</div>
       <div v-for="(line, i) in intentLog" :key="i" class="gp-debug__intent">{{ line }}</div>
     </div>

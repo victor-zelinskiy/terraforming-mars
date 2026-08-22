@@ -1,30 +1,28 @@
 /*
  * CONSOLE LEAK DETECTOR — CTS phase T0 (docs/CONSOLE_MODE_CONCEPT.md §CTS-7).
  *
- * Makes mixed/broken input states VISIBLE instead of silent. Three checks,
+ * Makes mixed/broken input states VISIBLE instead of silent. Two checks,
  * run on a light 1 s interval while console mode is active:
  *
  * 1. STRANDED PROMPT (the production bug class behind "only the pill is
  *    visible"): the server is waiting for input, the console does NOT
- *    serve it natively, and NO surface (fallback modal / desktop overlay /
- *    console task) is actually rendered. → `state.stranded` drives the
+ *    serve it natively, and NO surface (a console task / scene) is
+ *    actually rendered. → `state.stranded` drives the
  *    honest guard panel in ConsoleShell + a one-shot console.warn.
  *
- * 2. DESKTOP SURFACE REPORT: any desktop-era surface currently mounted in
- *    console mode is recorded (fallback modals are EXPECTED during the CTS
- *    rollout — this is telemetry that shrinks phase by phase, surfaced in
- *    the ?gpDebug readout, warn-once in dev).
- *
- * 3. STALLED FOREGROUND (`consoleForegroundWatchdog`): the console claims the
+ * 2. STALLED FOREGROUND (`consoleForegroundWatchdog`): the console claims the
  *    foreground is occupied, but nothing is RENDERED to justify it and the
  *    player is demonstrably blocked (queued events that cannot be delivered
- *    and/or a live prompt). Unlike the other two this one ACTS — it expires the
+ *    and/or a live prompt). Unlike check 1 this one ACTS — it expires the
  *    stale claims so the queue drains and the held prompt mounts. It runs
  *    BEFORE check 1's early-returns on purpose: the freeze it exists for lives
  *    exactly where the stranded guard is disarmed by contract (a held announce
  *    gate counts as "served", so that case produced no guard at all).
  *
- * Checks 1-2 are read-only; check 3 shares their single querySelector pass and
+ * (The desktop-surface telemetry pass retired with the desktop DOM in the
+ * desktop-removal waves — there is no desktop surface left to report.)
+ *
+ * Check 1 is read-only; check 2 shares its single querySelector pass and
  * writes only presentation state, never game state. Stops with the shell.
  */
 
@@ -43,13 +41,10 @@ import {stackServes, workspaceStackCollapsed, workspaceSurfacesFor} from '@/clie
 /** Any of these rendered = SOME surface is serving the prompt. */
 const SERVING_SURFACES: ReadonlyArray<string> = [
   'dialog[open]',
-  '.start-game-flow',
-  '.draw-reveal',
   // The CONSOLE-native reveal overlay (drawn cards / deck-check result / another
   // player's reveal). While it is up it OWNS the foreground — any pending prompt
   // is legitimately held BEHIND it (e.g. the Pluto draw+discard: the reveal
-  // shows the drawn card, then the hand section serves the discard). The console
-  // reveal is `.con-reveal` (the desktop `.draw-reveal` above is a separate DOM).
+  // shows the drawn card, then the hand section serves the discard).
   '.con-reveal',
   // The full-screen START SCENE owns the foreground for the whole opening. It
   // can stay up while the underlying prompt is already the NEXT step held behind
@@ -57,8 +52,6 @@ const SERVING_SURFACES: ReadonlyArray<string> = [
   // preludes) or over Merger's 42 M€ payment. Any such prompt is legitimately
   // served behind the scene (mirrors `.con-reveal`).
   '.con-start',
-  '.colonies-overlay',
-  '.initial-draft-pills', // the initial-draft pipeline's own chrome
   '.con-task-host', // CTS task host (T1 primitives / T2 cards / T3 payment)
   '.con-govsupport', // the dedicated Government Support (WGT) briefing panel
   // The Action Center (ДЕЙСТВИЯ КАРТ) — also the "select an action to repeat"
@@ -153,19 +146,6 @@ const EXTRA_KIND_SURFACES: Partial<Record<string, ReadonlyArray<string>>> = {
   draftWait: ['.con-draftwait'],
 };
 
-/** Desktop-era surfaces tracked while the CTS rollout retires them. */
-const DESKTOP_SURFACES: ReadonlyArray<{id: string, selector: string}> = [
-  {id: 'bar-overlay', selector: '.bar-overlay'},
-  {id: 'top-bar-dropdown', selector: '.top-bar-dropdown'},
-  {id: 'hand-overlay', selector: '.hand-board-overlay'},
-  {id: 'colonies-overlay', selector: '.colonies-overlay'},
-  {id: 'legacy-ui', selector: '.legacy-ui-overlay'},
-  {id: 'desktop-pill', selector: '.hand-select-pill'},
-];
-
-/** All desktop selectors joined — one traversal for the telemetry pass. */
-const DESKTOP_SURFACES_JOINED = DESKTOP_SURFACES.map((s) => s.selector).join(',');
-
 export type StrandedPrompt = {
   inputType: string,
   taskKind: string,
@@ -176,8 +156,6 @@ export type StrandedPrompt = {
 export const leakDetectorState = reactive({
   /** A prompt with NO serving surface — drives the guard panel. */
   stranded: undefined as StrandedPrompt | undefined,
-  /** Desktop surfaces currently mounted (rollout telemetry, ?gpDebug). */
-  desktopSurfaces: [] as Array<string>,
 });
 
 /**
@@ -293,29 +271,10 @@ export function runLeakDetection(view: PlayerViewModel | undefined): void {
   if (typeof document === 'undefined') {
     return;
   }
-  // 2. Desktop surface telemetry — one combined traversal (see
-  // anyServingSurfaceRendered's PERF note), and the reactive field is only
-  // written when the answer CHANGED, so a quiet tick invalidates nothing.
-  const present: Array<string> = [];
-  for (const el of document.querySelectorAll(DESKTOP_SURFACES_JOINED)) {
-    if ((el as HTMLElement).getClientRects().length === 0) {
-      continue;
-    }
-    const hit = DESKTOP_SURFACES.find((s) => el.matches(s.selector));
-    if (hit !== undefined && !present.includes(hit.id)) {
-      present.push(hit.id);
-      warnOnce(`surface:${hit.id}`, `desktop surface "${hit.id}" is mounted in console mode (CTS rollout telemetry)`);
-    }
-  }
-  const prevPresent = leakDetectorState.desktopSurfaces;
-  if (prevPresent.length !== present.length || present.some((id, i) => prevPresent[i] !== id)) {
-    leakDetectorState.desktopSurfaces = present;
-  }
-
   const wf = view?.waitingFor;
   const task: ConsoleTask | undefined = view === undefined ? undefined : taskFor(view);
 
-  // 3. STALLED FOREGROUND — the self-heal, run FIRST and unconditionally.
+  // 2. STALLED FOREGROUND — the self-heal, run FIRST and unconditionally.
   //
   // It must be evaluated BEFORE the stranded check's early-returns, because the
   // freeze this exists for lives exactly where those returns disarm the guard:
@@ -451,6 +410,5 @@ export function stopConsoleLeakDetector(): void {
   clearStranded();
   consoleTaskDeferred = false;
   consoleTaskSpacePlacement = false;
-  leakDetectorState.desktopSurfaces = [];
   resetForegroundWatchdog();
 }

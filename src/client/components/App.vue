@@ -49,29 +49,23 @@
     </section>
     <div class="main-container">
       <!--
-        CONSOLE MODE (pre-game): the main menu + create-game screens have
-        console-native shells — state-based pad navigation, own command bar,
-        no DOM-focus dependence. Same routing/screen ids, same shared create
-        state, so toggling the mode (hold Menu) swaps the shell in place.
+        Pre-game screens are console-native shells — state-based pad
+        navigation, own command bar, no DOM-focus dependence. The desktop
+        counterparts (premium menu / premium create / the upstream create
+        form) were cut in desktop-removal wave 3; paths.NEW_GAME now lands
+        in the same console creator as paths.NEW_GAME_PREMIUM.
       -->
       <!-- A deep-linked dev stand IS the screen: the menu must not mount under
            it — registerConsoleIntentHandler is a single slot, and whichever of
            the two mounted last would own the pad (mount order is template
            order, so the MENU would win and drive itself invisibly). -->
       <console-main-menu
-        v-if="screen === 'main-menu' && consoleModeState.enabled && !playgroundDeepLinkActive"
+        v-if="screen === 'main-menu' && !playgroundDeepLinkActive"
       ></console-main-menu>
-      <premium-main-menu v-else-if="screen === 'main-menu'"></premium-main-menu>
       <console-create-game
-        v-else-if="screen === 'premium-create-game' && consoleModeState.enabled"
-      ></console-create-game>
-      <premium-create-game
         v-else-if="screen === 'premium-create-game'"
-      ></premium-create-game>
+      ></console-create-game>
       <start-screen v-else-if="screen === 'start-screen'"></start-screen>
-      <create-game-form
-        v-else-if="screen === 'create-game-form'"
-      ></create-game-form>
       <load-game-form v-else-if="screen === 'load'"></load-game-form>
       <game-home
         v-else-if="screen === 'game-home' && game !== undefined"
@@ -254,27 +248,17 @@ import * as constants from '@/common/constants';
 
 const AdminHome = defineAsyncComponent(() => import(/* webpackChunkName: "admin" */ '@/client/components/admin/AdminHome.vue'));
 const CardList = defineAsyncComponent(() => import(/* webpackChunkName: "card-list" */ '@/client/components/cardlist/CardList.vue'));
-const CreateGameForm = defineAsyncComponent(() => import(/* webpackChunkName: "create-game" */ '@/client/components/create/CreateGameForm.vue'));
 const GameEnd = defineAsyncComponent(() => import(/* webpackChunkName: "game-end" */ '@/client/components/GameEnd.vue'));
 const GameHome = defineAsyncComponent(() => import(/* webpackChunkName: "game-home" */ '@/client/components/GameHome.vue'));
 const GamesOverview = defineAsyncComponent(() => import(/* webpackChunkName: "games-overview" */ '@/client/components/GamesOverview.vue'));
 const Help = defineAsyncComponent(() => import(/* webpackChunkName: "help" */ '@/client/components/help/Help.vue'));
 const LoginHome = defineAsyncComponent(() => import(/* webpackChunkName: "login" */ '@/client/components/auth/LoginHome.vue'));
 const LoadGameForm = defineAsyncComponent(() => import(/* webpackChunkName: "load-game" */ '@/client/components/LoadGameForm.vue'));
-// Desktop-removal wave 1: the PlayerHome async chunk is no longer referenced —
-// the console shell is the one in-game UI. The file (and its subtree) stays on
-// disk until the deletion waves; nothing imports it, so nothing bundles it.
 const StartScreen = defineAsyncComponent(() => import(/* webpackChunkName: "start-screen" */ '@/client/components/StartScreen.vue'));
-// Premium sci-fi launcher — the new default landing screen ('/'). The legacy
-// StartScreen lives on at '/legacy'. Async so its background/assets only load
-// when the menu is actually shown.
-const PremiumMainMenu = defineAsyncComponent(() => import(/* webpackChunkName: "main-menu" */ '@/client/components/mainMenu/PremiumMainMenu.vue'));
 // Console-native pre-game shells (state-based pad navigation, no DOM focus) —
-// mounted INSTEAD of the premium desktop screens while console mode is on.
+// the ONLY menu / create screens since desktop-removal wave 3.
 const ConsoleMainMenu = defineAsyncComponent(() => import(/* webpackChunkName: "console-menu" */ '@/client/components/console/menu/ConsoleMainMenu.vue'));
 const ConsoleCreateGame = defineAsyncComponent(() => import(/* webpackChunkName: "console-menu" */ '@/client/components/console/menu/ConsoleCreateGame.vue'));
-// Premium "Mission Control" create-game screen — opened from the premium menu.
-const PremiumCreateGame = defineAsyncComponent(() => import(/* webpackChunkName: "premium-create-game" */ '@/client/components/create/premium/PremiumCreateGame.vue'));
 import AppBootLoader from '@/client/components/boot/AppBootLoader.vue';
 import {bootWarmupState, shouldRunBootWarmup, beginBootWarmup} from '@/client/components/boot/bootWarmupState';
 import RematchLayer from '@/client/components/rematch/RematchLayer.vue';
@@ -354,7 +338,6 @@ import dialogPolyfill from 'dialog-polyfill';
 import {setDocumentTitle} from '../utils/documentTitle';
 
 type Screen = 'admin' |
-            'create-game-form' |
             'cards' |
             'empty' |
             'game-home' |
@@ -433,12 +416,9 @@ export default defineComponent({
     };
   },
   components: {
-    'premium-main-menu': PremiumMainMenu,
-    'premium-create-game': PremiumCreateGame,
     'console-main-menu': ConsoleMainMenu,
     'console-create-game': ConsoleCreateGame,
     'start-screen': StartScreen,
-    'create-game-form': CreateGameForm,
     'load-game-form': LoadGameForm,
     'game-home': GameHome,
     'game-end': GameEnd,
@@ -870,7 +850,9 @@ export default defineComponent({
       } else if (currentPathname === paths.GAMES_OVERVIEW) {
         app.screen = 'games-overview';
       } else if (currentPathname === paths.NEW_GAME) {
-        app.screen = 'create-game-form';
+        // Desktop-removal wave 3: the upstream desktop create form is gone.
+        // The URL keeps working — it lands in the same console creator.
+        app.screen = 'premium-create-game';
       } else if (currentPathname === paths.NEW_GAME_PREMIUM) {
         app.screen = 'premium-create-game';
       } else if (currentPathname === paths.LOAD) {
