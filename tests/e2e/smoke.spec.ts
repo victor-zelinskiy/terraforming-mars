@@ -10,7 +10,7 @@ import {test, expect} from '@playwright/test';
  *
  * It used to assert `.start-screen` / `.start-screen-title-top` — the FROZEN
  * desktop entry screen (see docs/DESKTOP_DEPRECATION_AUDIT.md). Console native
- * is the default shell now and boots `PremiumMainMenu`, so the old selectors
+ * is the default shell now and boots `ConsoleMainMenu`, so the old selectors
  * matched nothing and the smoke test reported the whole app as broken while it
  * was working perfectly. Assert what the product actually renders.
  */

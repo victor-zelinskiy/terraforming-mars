@@ -66,46 +66,19 @@ const ACTIONABLE_SELECTOR = [
   '[data-gp-focusable]',
   'input:not([type="hidden"])',
   'select',
-  '.bottom-bar-btn',
   '.notification-card--expandable',
-  '.bar-rail__viewing',
-  '.compact-action',
-  '.left-panel-card',
   '.colony-tile',
 ].join(', ');
 
 /** Card hosts — lets Y (inspect) find the zoomable card for the focused control. */
 const CARD_HOST_SELECTOR = [
-  '.hand-card-item',
-  '.played-card-item',
-  '.card-selection__card',
-  '.initial-draft-pick__card',
-  '.draw-reveal__slot',
-  '.start-game-flow__prelude-item',
-  '.start-game-flow__corp-item',
   '.action-target-card',
 ].join(', ');
 
 /** Known premium scroll containers (fallback when the focused chain has none). */
 const SCROLL_CONTAINER_SELECTOR = [
-  '.journal-feed',
-  '.actions-board__master',
-  '.effects-board__master',
-  '.hand-board__body',
-  '.played-board__body',
-  '.vp-board__body',
   '.eg-results__body',
-  '.contextual-choice__scroll',
-  '.action-detail__scroll',
-  '.card-selection',
-  '.modal-input',
 ].join(', ');
-
-/** The overlay ring for LB/RB cycling — PlayerHome bar buttons carry data-gp-overlay. */
-const OVERLAY_RING: ReadonlyArray<string> = [
-  'cards', 'actions', 'effects', 'played', 'victoryPoints',
-  'milestones', 'standardProjects', 'awards', 'colonies', 'hydronetwork',
-];
 
 /** Pixels per full-deflection frame for right-stick scrolling. */
 const SCROLL_STEP_PX = 24;
@@ -331,27 +304,12 @@ export function clearGamepadFocus(): void {
 
 // --- seeding / recovery -------------------------------------------------------------
 
-function seedFor(scope: ResolvedScope, all: ReadonlyArray<HTMLElement>): HTMLElement | undefined {
+function seedFor(all: ReadonlyArray<HTMLElement>): HTMLElement | undefined {
   if (all.length === 0) {
     return undefined;
   }
-  if (scope.def.id === 'placement' || scope.def.id === 'base') {
-    // Board-centric scopes: land on the cell nearest the board center —
-    // available cells first during placement (predictable landing, §5.7).
-    const cells = all.filter((el) => el.classList.contains(scope.def.id === 'placement' ? 'board-space--available' : 'board-space'));
-    const pool = cells.length > 0 ? cells : all;
-    const board = document.querySelector('.board-cont, #shortkey-board');
-    if (board !== null && cells.length > 0) {
-      const c = rectCenter(rectOf(board));
-      const idx = pickNearest(c, pool.map(rectOf));
-      if (idx !== undefined) {
-        return pool[idx];
-      }
-    }
-    if (scope.def.id === 'placement' && cells.length > 0) {
-      return cells[0];
-    }
-  }
+  // (The board-centric 'placement' / 'base' seed logic went with the PlayerHome
+  // scopes in the desktop-removal waves — the console shell owns the board.)
   // Prefer a non-close control as the first landing.
   return all.find((el) => !/close/.test(el.className)) ?? all[0];
 }
@@ -376,7 +334,7 @@ function ensureFocusValid(scope: ResolvedScope, all: ReadonlyArray<HTMLElement>)
     }
   }
   // 3. Scope seed.
-  const seed = seedFor(scope, all);
+  const seed = seedFor(all);
   if (seed !== undefined) {
     applyFocus(seed, all);
   } else {
@@ -577,37 +535,10 @@ function scrollBy(dx: number, dy: number, scope: ResolvedScope): void {
   syncRing();
 }
 
-// --- overlay ring (LB/RB) + View/L3 ------------------------------------------------------
-
-function overlayButtons(): Array<{id: string, el: HTMLElement}> {
-  const out: Array<{id: string, el: HTMLElement}> = [];
-  for (const id of OVERLAY_RING) {
-    const el = document.querySelector<HTMLElement>(`[data-gp-overlay="${id}"]`);
-    if (el !== null && isElementVisible(el)) {
-      out.push({id, el});
-    }
-  }
-  return out;
-}
-
-function cycleOverlay(step: 1 | -1): void {
-  const ring = overlayButtons();
-  if (ring.length === 0) {
-    // Generic TABLIST fallback (P11 — endgame formalization): a
-    // fallback-scope surface exposing a `role="tablist"` (the endgame
-    // results tabs) cycles its tabs on LB/RB — the standard pad
-    // convention for tabbed screens. Purely additive: the in-game
-    // overlay ring above always takes precedence.
-    cycleScopeTablist(step);
-    return;
-  }
-  const activeIdx = ring.findIndex((e) => e.el.classList.contains('bottom-bar-btn--active'));
-  const next = activeIdx === -1 ?
-    (step === 1 ? ring[0] : ring[ring.length - 1]) :
-    ring[(activeIdx + step + ring.length) % ring.length];
-  next.el.click();
-  scheduleSync();
-}
+// --- LB/RB tab cycling ---------------------------------------------------------------------
+// (The PlayerHome overlay ring — `[data-gp-overlay]` bar buttons — went with
+// the desktop shell in the desktop-removal waves; the generic tablist
+// convention below is what remains, serving the endgame results tabs.)
 
 /** LB/RB cycles the current scope's `role="tab"` buttons (aria-selected aware). */
 function cycleScopeTablist(step: 1 | -1): void {
@@ -629,60 +560,9 @@ function cycleScopeTablist(step: 1 | -1): void {
   scheduleSync();
 }
 
-function toggleJournal(): void {
-  const el = document.querySelector<HTMLElement>('[data-gp-overlay="log"]');
-  if (el !== null && isElementVisible(el)) {
-    el.click();
-    scheduleSync();
-  }
-}
-
-/** L3: snap focus board ↔ chrome (base scopes only). */
-function snapZone(scope: ResolvedScope): void {
-  if (scope.def.id !== 'base' && scope.def.id !== 'placement') {
-    return;
-  }
-  const all = collectFocusables(scope);
-  const onBoard = focusedEl?.classList.contains('board-space') === true;
-  const pool = all.filter((el) => el.classList.contains('board-space') !== onBoard);
-  if (pool.length === 0) {
-    return;
-  }
-  if (onBoard) {
-    applyFocus(pool[0], all);
-  } else {
-    const board = document.querySelector('.board-cont, #shortkey-board');
-    const center = board !== null ? rectCenter(rectOf(board)) : {x: window.innerWidth / 2, y: window.innerHeight / 2};
-    const idx = pickNearest(center, pool.map(rectOf));
-    applyFocus(pool[idx ?? 0], all);
-  }
-}
-
-// --- fast-adjust (LT/RT on steppers, §5.5) -------------------------------------------------
-
-const STEPPER_CLUSTER_SELECTOR = '.modal-input__stepper, .modal-input__dist-row, .payment-v2-row';
-
-function fastAdjust(direction: -1 | 1): void {
-  const cluster = focusedEl?.closest<HTMLElement>(STEPPER_CLUSTER_SELECTOR);
-  if (cluster === undefined || cluster === null) {
-    deny();
-    return;
-  }
-  const btn = cluster.querySelector<HTMLElement>(direction === 1 ?
-    '.payment-v2-step--plus, [data-test^="modern-amount-inc"], [data-test^="modern-resources-inc"], [data-test^="modern-ptl-inc"]' :
-    '.payment-v2-step--minus, [data-test^="modern-amount-dec"], [data-test^="modern-resources-dec"], [data-test^="modern-ptl-dec"]');
-  if (btn === null || isDisabledLike(btn)) {
-    deny();
-    return;
-  }
-  for (let i = 0; i < 5; i++) {
-    if (isDisabledLike(btn)) {
-      break;
-    }
-    btn.click();
-  }
-  scheduleSync();
-}
+// (toggleJournal / snapZone / fastAdjust are gone with their DOM: the desktop
+// journal bar button, the PlayerHome board↔chrome zones and the modal-input /
+// payment-v2 stepper clusters were deleted in the desktop-removal waves.)
 
 // --- validity tick + intent router ----------------------------------------------------------
 
@@ -803,25 +683,20 @@ function onPress(button: SemanticButton, scope: ResolvedScope): void {
     inspectCard();
     break;
   case 'bumperL':
-    cycleOverlay(-1);
+    cycleScopeTablist(-1);
     break;
   case 'bumperR':
-    cycleOverlay(1);
-    break;
-  case 'view':
-    toggleJournal();
-    break;
-  case 'stickL':
-    snapZone(scope);
-    break;
-  case 'triggerL':
-    fastAdjust(-1);
-    break;
-  case 'triggerR':
-    fastAdjust(1);
+    cycleScopeTablist(1);
     break;
   case 'menu':
     // Handled by GamepadLayer (legend overlay) via the same intent stream.
+    break;
+  case 'view':
+  case 'stickL':
+  case 'triggerL':
+  case 'triggerR':
+    // No DOM-scope binding left for these since the desktop shell's deletion
+    // (journal toggle / zone snap / stepper fast-adjust went with their DOM).
     break;
   case 'stickR':
     break;

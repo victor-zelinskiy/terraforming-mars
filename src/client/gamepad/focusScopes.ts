@@ -5,8 +5,10 @@
  * An ordered, highest-priority-first list of scope definitions resolved
  * against the RENDERED DOM (never the Vue tree — teleports and structural
  * sharing make the DOM the only truth). The order encodes the audited
- * z-stack once: native <dialog> top layer → mandatory modal → app-level
- * modals → board placement → the activeOverlay surface → the base chrome.
+ * z-stack once: native <dialog> top layer → app-level modals → the lobby.
+ * (The desktop in-game scopes — mandatory modal, board placement, the
+ * activeOverlay surfaces, the PlayerHome base chrome — went with their DOM
+ * in the desktop-removal waves; the console shell owns those layers.)
  *
  * B-button ("back") semantics are declared per scope and MIRROR each
  * surface's own affordances — Esc where the surface has an Esc handler,
@@ -48,20 +50,6 @@ export type ScopeDef = {
   consoleOwned?: boolean,
 };
 
-/**
- * Floating chrome that stays reachable alongside the LOW scopes (never
- * alongside dialogs/modals, which trap focus by design): awaiting-prompt
- * pills + notification cards.
- */
-const COEXIST: ReadonlyArray<string> = [
-  '.hand-select-pill',
-  '.colonies-overlay-pill',
-  '.eg-pill',
-  '.rematch-pill',
-  '.initial-draft-pills',
-  '.notification-layer',
-];
-
 /** Highest priority first. */
 export const SCOPE_DEFS: ReadonlyArray<ScopeDef> = [
   // -1. The BLOCKING desktop-update cover (P15) — an update-required wall
@@ -89,73 +77,20 @@ export const SCOPE_DEFS: ReadonlyArray<ScopeDef> = [
   // 1. Native top layer (CardZoomModal, ConfirmDialog, the quit confirm).
   {id: 'dialog', root: 'dialog[open]', back: {kind: 'dialog-close'}},
 
-  // 2. The mandatory-input modal (payment, option pickers, card selection,
-  //    play/action confirm, draft steps…). B = minimize where allowed —
-  //    mirroring its own affordance; a non-minimizable modal keeps its own
-  //    Cancel button as an ordinary focusable.
-  // 3. App-level modals (audited roots), in their own z order.
-  {id: 'drawReveal', root: '.draw-reveal', back: {kind: 'none'}},
-  {id: 'revealViewer', root: '.reveal-viewer__card', back: {kind: 'escape'}},
-  {id: 'revealResult', root: '.reveal-overlay__card', back: {kind: 'click', selectors: ['[data-test="reveal-ok"]']}},
+  // 2. App-level modals (audited roots), in their own z order. (The desktop
+  //    overlay/mandatory-modal scopes were removed with their DOM in the
+  //    desktop-removal waves — the console shell owns those layers natively.)
   {id: 'effectDetail', root: '.effect-detail-modal', back: {kind: 'escape'}},
   {id: 'resourceDetail', root: '.additional-resource-detail', back: {kind: 'escape'}},
   {id: 'rematchCreated', root: '.rematch-modal--created', back: {kind: 'click', selectors: ['.rematch-modal__min']}},
   {id: 'rematchPrompt', root: '.rematch-modal', back: {kind: 'click', selectors: ['.rematch-modal__min']}},
   // Lifecycle modals/screens (console full-lifecycle iteration).
   {id: 'finalReveal', root: '.fsr', back: {kind: 'escape'}},
-  // P19: the teleported cube-colour picker popup — a body-level layer the
-  // createGame root can't see; B (click the open trigger) closes it and the
-  // descriptor memory re-seats focus on that trigger.
-  {id: 'slotColorPop', root: '.slot-cp__pop', back: {kind: 'click', selectors: ['.slot-cp__trigger--open']}},
-
-  {id: 'joinPanel', root: '.join-panel__card', back: {kind: 'escape'}},
-  {id: 'placementDetails', root: '.placement-details', back: {kind: 'click', selectors: ['.placement-details__btn--close']}},
-  {id: 'startGameFlow', root: '.start-game-flow', back: {kind: 'click', selectors: ['.start-game-flow__minimize-btn']}},
-  {id: 'colonies', root: '.colonies-overlay', back: {kind: 'click', selectors: ['.colonies-overlay__close', '.colonies-overlay__cancel', '.colonies-overlay__minimize']}},
   {id: 'endgame', root: '.eg-results', back: {kind: 'click', selectors: ['.eg-results__ctl--min']}},
 
-  // 4. Board placement picker (SelectSpace active). The whole board is
-  //    navigable (illegal cells stay inspectable — one unavailability
-  //    system); A commits only on --available cells (their own onclick).
-  {
-    id: 'placement',
-    root: 'body.placement-pending #player-home',
-    back: {kind: 'escape'},
-    extraFocusables: ['.board-space'],
-    coexistingRoots: COEXIST,
-  },
-
-  // 5. The activeOverlay surfaces + the journal side panel.
-  {id: 'overlay-hand', root: '.hand-board-overlay', back: {kind: 'escape'}, coexistingRoots: COEXIST},
-  {id: 'overlay-played', root: '.played-board-overlay', back: {kind: 'escape'}, coexistingRoots: COEXIST},
-  {id: 'overlay-actions', root: '.actions-board-overlay', back: {kind: 'escape'}, coexistingRoots: COEXIST},
-  {id: 'overlay-effects', root: '.effects-board-overlay', back: {kind: 'escape'}, coexistingRoots: COEXIST},
-  {id: 'overlay-vp', root: '.vp-board-overlay', back: {kind: 'escape'}, coexistingRoots: COEXIST},
-  {id: 'overlay-hydro', root: '.hydronetwork-overlay', back: {kind: 'escape'}, coexistingRoots: COEXIST},
-  // Milestones / Awards / Standard-Projects dropdowns have NO Esc handler —
-  // B clicks their close button (audit §2.1).
-  {
-    id: 'overlay-dropdown',
-    root: '.top-bar-dropdown',
-    back: {kind: 'click', selectors: ['.milestones-overlay-close', '.awards-overlay-close', '.std-projects-overlay-close']},
-    coexistingRoots: COEXIST,
-  },
-
-  // 6. Base chrome: bars, left panel, pills, board (hover inspection), journal.
-  {
-    id: 'base',
-    root: '#player-home',
-    back: {kind: 'escape'},
-    extraFocusables: ['.board-space'],
-    coexistingRoots: [...COEXIST, '.journal-panel'],
-  },
-
-  // 7. Lifecycle SCREENS (outside the game shell) — the console full-lifecycle
-  //    iteration: main menu / create game / lobby become pad-drivable via the
-  //    same engine; hints come from hintModel per scope id.
-  {id: 'createGame', root: '.premium-create', back: {kind: 'click', selectors: ['.pc-header__back']}},
+  // 3. Lifecycle SCREENS (outside the game shell): the lobby stays
+  //    pad-drivable via this engine; hints come from hintModel per scope id.
   {id: 'lobby', root: '#game-home', back: {kind: 'none'}},
-  {id: 'mainMenu', root: '.premium-main-menu', back: {kind: 'none'}},
 ];
 
 /** Is this element actually rendered (cheap check, no layout thrash beyond rects)? */
