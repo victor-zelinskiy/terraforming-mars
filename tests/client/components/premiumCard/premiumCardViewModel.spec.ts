@@ -90,11 +90,12 @@ describe('cardArt', () => {
 
 describe('buildPremiumCardViewModel', () => {
   it('throws for out-of-scope card types', () => {
-    // CEOs joined the premium face in desktop-removal wave 4; standard
-    // projects are the remaining legacy type in this tree.
-    const standardProject = getCards((c) => c.type === CardType.STANDARD_PROJECT)[0];
-    expect(standardProject, 'a standard project card in the manifest').to.not.eq(undefined);
-    expect(() => buildPremiumCardViewModel(standardProject)).to.throw(/outside the premium face scope/);
+    // Every REAL card type is premium since wave 4 (standard in wave 2,
+    // CEO in wave 4). The one honestly out-of-scope type left is PROXY —
+    // a server-side card-like operation, never a rendered face; the VM
+    // must keep refusing an unknown type rather than guess a theme.
+    const proxyish = {...getCards((c) => c.type === CardType.AUTOMATED)[0], type: CardType.PROXY};
+    expect(() => buildPremiumCardViewModel(proxyish)).to.throw(/outside the premium face scope/);
   });
 
   it('builds the cost cluster with a discount delta', () => {
