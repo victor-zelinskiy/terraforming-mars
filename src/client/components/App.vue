@@ -54,8 +54,12 @@
         no DOM-focus dependence. Same routing/screen ids, same shared create
         state, so toggling the mode (hold Menu) swaps the shell in place.
       -->
+      <!-- A deep-linked dev stand IS the screen: the menu must not mount under
+           it — registerConsoleIntentHandler is a single slot, and whichever of
+           the two mounted last would own the pad (mount order is template
+           order, so the MENU would win and drive itself invisibly). -->
       <console-main-menu
-        v-if="screen === 'main-menu' && consoleModeState.enabled"
+        v-if="screen === 'main-menu' && consoleModeState.enabled && !playgroundDeepLinkActive"
       ></console-main-menu>
       <premium-main-menu v-else-if="screen === 'main-menu'"></premium-main-menu>
       <console-create-game
@@ -540,6 +544,11 @@ export default defineComponent({
     // carries `?lorePlayground`. Never shown in normal play.
     showLorePlayground(): boolean {
       return window.location.search.includes('lorePlayground');
+    },
+    /** Any deep-linked dev stand is up — the main menu must not mount under it
+     *  (single console-intent slot; see the template note). */
+    playgroundDeepLinkActive(): boolean {
+      return this.showCubePlayground || this.showPremiumCardsPlayground || this.showLorePlayground;
     },
     // The active player view ONLY when its game has ended —
     // drives the App-level EndgameExperience mount. Undefined mid-game.

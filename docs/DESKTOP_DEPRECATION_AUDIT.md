@@ -1,6 +1,8 @@
 # Desktop UI deprecation — inventory (2026-07-15)
 
-**Decision:** the desktop UI is FROZEN. All UI work goes into console native (`?console=1`); the future desktop UI will be rebuilt FROM the finished console UI. See the banner in `CLAUDE.md`. **Nothing is deleted** — desktop stays a working fallback.
+> **⚠️ SUPERSEDED IN PART (2026-08-22): the freeze became DELETION.** Waves 1–3 removed the desktop entry points, the whole radio/modal input stack + `PlayerHome` + the spectator (wave 2), and the unreachable desktop overlay subgraph + the desktop main menu / create screens (wave 3). The per-file inventory below predates the deletions — a listed desktop-only file may simply NO LONGER EXIST. Current authority: `docs/DESKTOP_REMOVAL_WAVE_1.md` / `_WAVE_2.md` / `_WAVE_3.md` + the import graph itself (`npm run build:client` fails on a dead import). The **shared-layer verdicts below stay valid** — that boundary is what the waves preserve.
+
+**Decision (historical):** the desktop UI is FROZEN. All UI work goes into console native (`?console=1`); the future desktop UI will be rebuilt FROM the finished console UI. See the banner in `CLAUDE.md`.
 
 This file answers ONE question: **is the file I'm about to touch frozen, or does console stand on it?**
 
