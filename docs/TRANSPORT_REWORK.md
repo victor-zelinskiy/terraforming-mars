@@ -34,5 +34,5 @@ The fork **already ships a complete WS realtime system** (the phased migration, 
 ## 4. Notes for future work
 
 - The transport module guards a rootless/viewless start (a unit-test mount, a boot race) by idling — the binder re-starts it when a real view exists.
-- `SelectSpace.vue` + `GoToMap.vue` are now the ONLY legacy files the console stands on (the cell-binder). Replacing them = a native board-input module owning `.board-space--available` + per-cell onclick; a separate wave.
+- ~~`SelectSpace.vue` + `GoToMap.vue` are now the ONLY legacy files the console stands on~~ **Done in the follow-up board-input rework**: `ConsoleBoardInput.vue` is the console-native cell-binder; the upstream files are deleted (placement e2e 6/6).
 - `transportState.playersWaitingFor` mirrors the root field; new consumers should read the module, not the root.

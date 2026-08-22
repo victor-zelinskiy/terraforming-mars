@@ -14,9 +14,7 @@ The fallback guarantee is DROPPED: the future desktop UI will be built FROM the 
 
 **The transport rework (post-wave-4)**: `WaitingFor.vue` is DELETED. The game transport is the `console/transport/gameTransport.ts` MODULE (poll chain + `submitInput`/`submitBatch`/`cancelPlacement` + the cinematic holds + view apply); `ConsoleBoardBinder.vue` owns its lifecycle and renders only the legacy `SelectSpace` board cell-binder. The WS channel (realtimeService, default-ON end to end) is the primary update signal; the poll is the bounded fallback.
 
-⚠️ **LOAD-BEARING legacy — the console stands on it:**
-1. `SelectSpace.vue` (+`GoToMap.vue`) — the board cell-binder mounted by `ConsoleBoardBinder`; its `mounted()`/`saveData()` are the console's one tile-submit path.
-2. Everything `@console-shared` (below) — not desktop at all.
+**The board-input rework**: `SelectSpace.vue`/`GoToMap.vue` are DELETED — `ConsoleBoardInput.vue` (components/console) is the console-native cell-binder (same live machinery: availability/illegal classes + BRD-3 mirrors, premium hover popovers, the confirm dialog, the one `armTilePlacement` point, surgical teardown). **No load-bearing legacy file is left** — everything the console stands on is console-native or `@console-shared` (below).
 
 Markers: `@deprecated Desktop-only UI (frozen 2026-07-15)` vs `@console-shared`; full inventory `docs/DESKTOP_DEPRECATION_AUDIT.md`.
 
