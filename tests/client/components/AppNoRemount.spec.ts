@@ -1,50 +1,31 @@
 /*
- * Phase-1 guards for the no-remount update model
+ * Guards for the no-remount update model
  * (docs/REMOUNT_ANIMATION_REWORK_DESIGN.md).
  *
  * The game subtree is no longer keyed on `playerkey`: an update applies the
  * fresh playerView reactively and `playerkey` acts as the transient-UI reset
- * epoch. These specs pin the three contracts:
- *   1. <player-home> is NOT recreated by an update (same DOM element),
- *      while `playerkey` still bumps where it used to (the reset signal).
- *   2. The `tm_remount` rollback flag restores the legacy keyed remount.
- *   3. PlayerHome's resetEpoch watcher reproduces the remount's implicit
- *      transient-UI reset (close overlays / pending modals) and the
- *      mounted()-parity re-arm (actions overlay survives via module state).
+ * epoch. Desktop-removal wave 2 deleted `PlayerHome`, so the game subtree is
+ * <ConsoleShell> and the contracts left to pin are App-level:
+ *   1. `playerHomeKey` is constant unless the `tm_remount` rollback flag
+ *      restores the legacy keyed value (nothing keys the shell on it anymore).
+ *   2. An update keeps the SAME shell DOM element while `playerkey` still
+ *      bumps where it used to (the reset-epoch signal).
+ *   3. Even under the rollback flag the shell is never recreated — the ladder
+ *      only ever keyed the deleted <player-home>.
  */
 import {shallowMount} from '@vue/test-utils';
 import {expect} from 'chai';
 import {globalConfig} from './getLocalVue';
 import App from '@/client/components/App.vue';
-import PlayerHome from '@/client/components/PlayerHome.vue';
 import {fakeGameModel, fakePlayerViewModel} from './testHelpers';
 import {FakeLocalStorage} from './FakeLocalStorage';
-import raw_settings from '@/genfiles/settings.json';
 import {paths} from '@/common/app/paths';
 import {legacyRemountEnabled, __resetLegacyRemountForTesting} from '@/client/utils/legacyRemount';
-import {actionsOverlayState, resetActionsOverlay} from '@/client/components/actions/actionsOverlayState';
 
 async function flushPromises(): Promise<void> {
   await Promise.resolve();
   await Promise.resolve();
   await new Promise((resolve) => setTimeout(resolve, 0));
-}
-
-function mountPlayerHome(view = fakePlayerViewModel(), resetEpoch = 0) {
-  return shallowMount(PlayerHome, {
-    ...globalConfig,
-    parentComponent: {
-      methods: {
-        getVisibilityState: () => true,
-        setVisibilityState: () => {},
-      },
-    } as any,
-    props: {
-      playerView: view,
-      resetEpoch,
-      settings: raw_settings,
-    },
-  });
 }
 
 describe('AppNoRemount', () => {
@@ -62,8 +43,6 @@ describe('AppNoRemount', () => {
     (global as any).fetch = originalFetch;
     __resetLegacyRemountForTesting();
     FakeLocalStorage.deregister(localStorage);
-    resetActionsOverlay();
-    actionsOverlayState.open = false;
   });
 
   it('playerHomeKey is constant by default and follows playerkey under the rollback flag', async () => {
@@ -129,49 +108,7 @@ describe('AppNoRemount', () => {
 
     expect((wrapper.vm as any).playerkey).to.eq(8);
     // ConsoleShell carries no :key — the desktop-era rollback ladder only
-    // ever keyed <player-home> (playerHomeKey still feeds the spectator key).
+    // ever keyed the deleted <player-home>.
     expect(wrapper.find('console-shell-stub').element).to.eq(beforeEl);
-  });
-
-  it('resetEpoch resets the transient UI exactly like the old remount', async () => {
-    const wrapper = mountPlayerHome();
-    await wrapper.setData({
-      activeOverlay: 'victoryPoints',
-      passConfirmOpen: true,
-      convertHeatConfirmOpen: true,
-      convertPlantsPickerActive: true,
-      coloniesOverlayOpen: true,
-      coloniesOverlayManualOpen: true,
-    });
-
-    await wrapper.setProps({resetEpoch: 1});
-    await wrapper.vm.$nextTick();
-
-    const vm = wrapper.vm as any;
-    expect(vm.activeOverlay).to.eq(null);
-    expect(vm.passConfirmOpen).to.be.false;
-    expect(vm.convertHeatConfirmOpen).to.be.false;
-    expect(vm.convertPlantsPickerActive).to.be.false;
-    expect(vm.coloniesOverlayOpen).to.be.false;
-    expect(vm.coloniesOverlayManualOpen).to.be.false;
-    expect(vm.pendingPlayCard).to.eq(undefined);
-    expect(vm.pendingCardAction).to.eq(undefined);
-    expect(vm.pendingStdProjectPayment).to.eq(undefined);
-    wrapper.unmount();
-  });
-
-  it('resetEpoch re-arms the actions overlay from module state (remount parity)', async () => {
-    const wrapper = mountPlayerHome();
-    await wrapper.setData({activeOverlay: 'actions'});
-    expect(actionsOverlayState.open).to.be.true;
-
-    await wrapper.setProps({resetEpoch: 1});
-    await wrapper.vm.$nextTick();
-
-    // The actions overlay deliberately SURVIVES the reset — the legacy
-    // remount used to re-open it from actionsOverlayState in mounted().
-    expect((wrapper.vm as any).activeOverlay).to.eq('actions');
-    expect(actionsOverlayState.open).to.be.true;
-    wrapper.unmount();
   });
 });
