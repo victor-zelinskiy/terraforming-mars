@@ -49,7 +49,6 @@ import {WaitingForModel} from '@/common/models/WaitingForModel';
 import {Phase} from '@/common/Phase';
 import {paths} from '@/common/app/paths';
 import {statusCode} from '@/common/http/statusCode';
-import {isPlayerId} from '@/common/Types';
 import {InputResponse} from '@/common/inputs/InputResponse';
 import {INVALID_RUN_ID, AppErrorResponse} from '@/common/app/AppErrorId';
 import {Color} from '@/common/Color';
@@ -1347,11 +1346,9 @@ export default defineComponent({
             } else if (result.result === 'REFRESH') {
               if (!viewerHasPrompt) {
                 // Game advanced and viewer isn't mid-input — safe to refresh.
-                if (isPlayerId(this.playerView.id)) {
-                  root.updatePlayer();
-                } else {
-                  root.updateSpectator();
-                }
+                // (The spectator arm died with the spectator feature — every
+                // participant this transport serves is a player.)
+                root.updatePlayer();
               }
             }
             /*
