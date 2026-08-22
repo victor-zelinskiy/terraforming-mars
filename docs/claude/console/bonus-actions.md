@@ -165,6 +165,23 @@ exactly two things: it names what was granted and how much is left, and it says
 where the next press goes (`Go to the board`, never «Выполнить» — the press
 performs nothing, it MOVES the player) **plus the promise of the return**.
 
+**…and it is a STAGE, not a modal — which means it has a SUBJECT.** The first
+version drew the plate centred in the deployment row with the room dimmed behind
+it, and that is a modal by every reading a player has: a floating panel attached
+to nothing, over a greyed screen. It renders inside the workspace's own embed
+zone, and that made no difference at all — *being* embedded is not the same as
+*reading* embedded.
+
+The fix is the first-action stage's own grammar, reused verbatim: the granting
+card EMERGES from «РАЗЫГРАНО» into the source seat (`runEmbedSourceEmerge`),
+takes the hero size (`--con-fa-seat-w`), and the plate stands BESIDE it with the
+short hairline that says «these two are one object». The room recede is then the
+shared stage phrase rather than a local dim — **one derived bit, `stageOwnsRoom`,
+feeding one pair of phrases**, because two writers on the release/return of the
+same surfaces is how a recede and a return cancel each other mid-flight.
+`bonusAct.stage` therefore has a `staging` beat, and the CTA is withheld while
+the seat is still rising (a verb the press cannot honour yet is a lie).
+
 **…and the hand-off must be TOTAL.** The first implementation kept the workspace
 mounted-but-hidden behind the placement excursion barrier, and that barrier is
 built for a *placement*: one demand the board answers and hands straight back.

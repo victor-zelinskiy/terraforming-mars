@@ -21242,7 +21242,8 @@ body.con-start-barshold .con-status {
        half-animated pair reads far worse than one clean change, and this one
        happens inside the room's own return (queue back + deal), where it is
        simply part of the surface changing. */
-    &__embed--firstact &__embedsource-card {
+    &__embed--firstact &__embedsource-card,
+    &__embed--bonusact &__embedsource-card {
         width: var(--con-fa-seat-w);
         border-radius: .6rem;
         box-shadow:
@@ -21252,8 +21253,10 @@ body.con-start-barshold .con-status {
 
         > * { zoom: calc(0.92 * var(--con-ui-scale, 1)); }
     }
-    &__embed--firstact &__embedsource { gap: .5rem; }
-    &__embed--firstact &__embedsource-cap {
+    &__embed--firstact &__embedsource,
+    &__embed--bonusact &__embedsource { gap: .5rem; }
+    &__embed--firstact &__embedsource-cap,
+    &__embed--bonusact &__embedsource-cap {
         font-size: .66rem;
         letter-spacing: .16em;
     }
@@ -21476,26 +21479,6 @@ body.con-start-barshold .con-status {
         }
     }
 
-    /* THE STAGE OWNS THE ROOM — the same law the first-action briefing
-       follows: while the hand-off briefing stands it is what the player is
-       looking at, so the deployment's queue recedes behind it (the briefing is
-       centred and would otherwise cross the remaining prelude's card).
-
-       Deliberately an OPACITY recede and NOT the first-action stage's GSAP
-       pose: nothing moves, every rect stays measurable for the flights that
-       resume the moment the workspace comes back, and the beat is ONE PRESS
-       long — a full room-recede would be a bigger motion than the thing it
-       makes room for. Opacity survives perf mode (only `filter` and
-       `text-shadow` are cut there).
-
-       «РАЗЫГРАНО» deliberately KEEPS its light: the plate does not reach it,
-       and it is the record of what the player has already done — the one piece
-       of the deployment that stays true while they are away on the board. */
-    &--bonusroom &__queuecol {
-        opacity: .16;
-        transition: opacity calc(220ms * var(--motion-scale, 1)) ease;
-    }
-
     /* ── THE BONUS-ACTION BRIEFING — the hand-off announcement ────────────
        Unlike the first-action briefing this stage seats NO card: the prelude
        that granted the bonuses is already lying in «РАЗЫГРАНО», one row down,
@@ -21509,12 +21492,15 @@ body.con-start-barshold .con-status {
        phrase, or the second one reads as a modal that arrived. */
     &__bonusact {
         position: absolute;
-        left: 50%;
+        /* Past the seat, derived from the SAME token that sizes it — the plate
+           and the card it is about are ONE object, and a plate floating in the
+           middle of the row is exactly what reads as a modal. */
+        left: calc(var(--con-fa-seat-w) + 3.4rem);
         top: 50%;
-        transform: translate(-50%, -50%);
+        transform: translateY(-50%);
         width: fit-content;
-        min-width: 26rem;
-        max-width: min(52rem, calc(100% - 6rem));
+        min-width: 24rem;
+        max-width: min(46rem, calc(100% - var(--con-fa-seat-w) - 5rem));
         display: flex;
         flex-direction: column;
         gap: .55rem;
@@ -21528,7 +21514,23 @@ body.con-start-barshold .con-status {
             inset 0 0 0 .06rem rgba(96, 176, 232, 0.18),
             inset 0 .05rem 0 rgba(190, 226, 250, 0.07),
             0 1.1rem 2.8rem rgba(0, 0, 0, 0.45);
+
+        /* THE PAIR IS ONE OBJECT: a short hairline reaches from the plate
+           toward the seated card, so the briefing reads as belonging to it
+           rather than floating beside it. Paint only — no layout, no hit
+           area. (Same device as the first-action briefing's.) */
+        &::before {
+            content: '';
+            position: absolute;
+            top: 50%;
+            right: 100%;
+            width: 2.1rem;
+            height: .07rem;
+            background: linear-gradient(90deg, fade(@con-mint, 5%), fade(@con-mint, 42%));
+        }
     }
+    /* The seat is still rising — the plate is present but not yet an offer. */
+    &__bonusact--busy &__bonusact-cta { opacity: .55; }
     &__bonusact--ready {
         box-shadow:
             inset 0 0 0 .07rem fade(@con-mint, 42%),
@@ -21651,13 +21653,7 @@ body.con-start-barshold .con-status {
     transform: translateY(calc(-50% + .5rem)) scale(.994);
 }
 .con-start-firstact-leave-to { opacity: 0; }
-/* …and the SAME phrase for the bonus plate, which is centred on both axes:
-   without its own start pose the shared `translateY(-50%)` would drop the
-   horizontal centring for the length of the enter and the plate would appear
-   to slide in from the left. Two classes → wins on specificity. */
-.con-start__bonusact.con-start-firstact-enter-from {
-    transform: translate(-50%, calc(-50% + .5rem)) scale(.994);
-}
+
 /* THE RISK STAGE surfaces from just under the queue it is about, and lets go
    in place. Transform + opacity only (perf mode keeps both), and the X shift
    is deliberately absent: the panel is centred on the cards, so it must not

@@ -24,8 +24,7 @@
          // collapse unmounts this workspace, so without this the queue and
          // «РАЗЫГРАНО» paint for the frames before the pose lands — the
          // reported flash of a shelf that immediately disappears again.
-         'con-start--roomheld': firstActionOwnsRoom && !roomPosed,
-         'con-start--bonusroom': bonusActionPanelShown,
+         'con-start--roomheld': stageOwnsRoom && !roomPosed,
        }"
        role="dialog" :aria-label="$t('Start of the game')">
     <div class="con-start__bg" aria-hidden="true"></div>
@@ -513,6 +512,7 @@
                    // a hero-sized context covers the receiving zone and the
                    // «РАЗЫГРАНО» shelf, which is exactly what it did.
                    'con-start__embed--firstact': firstActionPanelShown,
+                   'con-start__embed--bonusact': bonusActionPanelShown,
                  }">
               <div v-if="embedSourceShown !== undefined" class="con-start__embedsource" ref="embedSourceCol"
                    :class="{'con-start__embedsource--departing': embedSourceDeparting}">
@@ -600,7 +600,10 @@
                    disappears without saying it will be back reads as closed. -->
               <transition name="con-start-firstact">
                 <div v-if="bonusActionPanelShown" class="con-start__bonusact"
-                     :class="{'con-start__bonusact--ready': bonusActionOwedNow}">
+                     :class="{
+                       'con-start__bonusact--ready': bonusActionOwedNow && state.bonusAct.stage === 'standing',
+                       'con-start__bonusact--busy': state.bonusAct.stage === 'staging',
+                     }">
                   <div class="con-start__bonusact-head">
                     <span class="con-start__bonusact-flag" aria-hidden="true">››</span>
                     <span class="con-start__bonusact-kicker">{{ $t('Bonus action') }}</span>
@@ -1880,9 +1883,10 @@ export default defineComponent({
      *  player out on the board spending the bonuses). */
     bonusActionStageLive(): boolean {
       // 'onboard' is NOT a stage of this workspace — it is the window in which
-      // the workspace has let go of the screen entirely. Only the standing
-      // briefing owns the flow stage.
-      return this.state.bonusAct.stage === 'standing';
+      // the workspace has let go of the screen entirely. Only the briefing
+      // beats own the flow stage.
+      const stage = this.state.bonusAct.stage;
+      return stage === 'staging' || stage === 'standing';
     },
     /**
      * The BRIEFING PANEL renders — the announcement before the hand-off.
@@ -1894,7 +1898,8 @@ export default defineComponent({
      * prelude's own reveal may still be presenting when the grant lands).
      */
     bonusActionPanelShown(): boolean {
-      return this.state.bonusAct.stage === 'standing' &&
+      const stage = this.state.bonusAct.stage;
+      return (stage === 'staging' || stage === 'standing') &&
         !this.embedPresenting && this.candidatePrompt === undefined;
     },
     /**
@@ -1935,6 +1940,10 @@ export default defineComponent({
     bonusActionBarState(): 'off' | 'waiting' | 'ready' {
       if (!this.bonusActionPanelShown) {
         return 'off';
+      }
+      // The seat is still rising — a CTA the press cannot honour yet is a lie.
+      if (this.state.bonusAct.stage === 'staging') {
+        return 'waiting';
       }
       return this.bonusActionOwedNow ? 'ready' : 'waiting';
     },
@@ -1997,6 +2006,27 @@ export default defineComponent({
      * symmetric: there is no order in which the release can happen without
      * its return.
      */
+    /**
+     * THE ROOM HAS ONE OWNER, whichever briefing stage is standing.
+     *
+     * Both the corporation's first action and a card's bonus actions put a
+     * SEATED CARD plus a plate on the deployment row, and both need the queue
+     * and «РАЗЫГРАНО» to let go behind them. Deliberately ONE derived bit
+     * feeding ONE pair of phrases (release / return): the two directions stay
+     * symmetric no matter which stage took the room, and two writers cannot
+     * cancel each other mid-flight — the defect the comment below warns about.
+     */
+    stageOwnsRoom(): boolean {
+      return this.firstActionOwnsRoom || this.bonusActionOwnsRoom;
+    },
+    /** The bonus briefing's half of it (the seated granting card + its plate). */
+    bonusActionOwnsRoom(): boolean {
+      const stage = this.state.bonusAct.stage;
+      if (stage !== 'staging' && stage !== 'standing') {
+        return false;
+      }
+      return !this.embedPresenting && this.candidatePrompt === undefined;
+    },
     firstActionOwnsRoom(): boolean {
       const stage = this.state.firstAct.stage;
       // ONLY the BRIEFING beats. Once the action is `performing`, its own
@@ -3202,7 +3232,7 @@ export default defineComponent({
       immediate: true,
       handler(due: boolean) {
         if (due) {
-          this.enterBonusActionStage();
+          void this.enterBonusActionStage();
         }
       },
     },
@@ -3298,12 +3328,12 @@ export default defineComponent({
     /**
      * THE ROOM FOLLOWS THE STAGE. Immediate, because a RESTORE (the workspace
      * remounts after a collapse) must find the room already in its pose
-     * rather than animate into it — see `syncFirstActionRoom`.
+     * rather than animate into it — see `syncStageRoom`.
      */
-    'firstActionOwnsRoom': {
+    'stageOwnsRoom': {
       immediate: true,
       handler(owns: boolean, was: boolean | undefined) {
-        this.syncFirstActionRoom(owns, was === undefined);
+        this.syncStageRoom(owns, was === undefined);
       },
     },
     /**
@@ -3384,7 +3414,7 @@ export default defineComponent({
         this.embedSourceArriving = false;
         this.embedSourceLanded = true;
       }
-      if (this.firstActionOwnsRoom && !this.roomPosed) {
+      if (this.stageOwnsRoom && !this.roomPosed) {
         this.poseRoomReceded();
       }
     }
@@ -5685,7 +5715,7 @@ export default defineComponent({
       this.state.firstActionSeen = true;
       this.fetchFirstActionPreview(corp);
       // The card leaves FIRST; the ROOM lets go behind it — but the recede is
-      // owned by `firstActionOwnsRoom`'s watcher, not spelled out here. One
+      // owned by `stageOwnsRoom`'s watcher, not spelled out here. One
       // derived bit, one pair of phrases: the release and the return are then
       // guaranteed to be symmetric no matter WHICH exit the stage takes (a
       // follow-up pick, a board placement, the leave). Spelling the release
@@ -5707,7 +5737,7 @@ export default defineComponent({
      * room ALREADY receded — animating it there would play the recede a
      * second time, which is «РАЗЫГРАНО показывается и сразу исчезает».
      */
-    syncFirstActionRoom(owns: boolean, instant: boolean): void {
+    syncStageRoom(owns: boolean, instant: boolean): void {
       if (owns) {
         if (instant) {
           this.poseRoomReceded();
@@ -5717,7 +5747,7 @@ export default defineComponent({
         window.setTimeout(() => {
           // A beat later, so the corp visibly LEAVES the shelf before the
           // shelf dissolves (reduced motion collapses both to instant sets).
-          if (this.firstActionOwnsRoom) {
+          if (this.stageOwnsRoom) {
             this.runPlayedDockRelease();
           }
         }, motionMs(140));
@@ -5755,7 +5785,7 @@ export default defineComponent({
       const dock = this.playedDockRoot();
       if (queue === undefined || queue === null || !queue.isConnected || dock === null) {
         void this.$nextTick(() => {
-          if (this.firstActionOwnsRoom && !this.roomPosed) {
+          if (this.stageOwnsRoom && !this.roomPosed) {
             this.poseRoomReceded();
           }
         });
@@ -5771,9 +5801,29 @@ export default defineComponent({
      * that their prelude bought them two immediate actions and that the next
      * press hands them the board, instead of the workspace simply vanishing.
      */
-    enterBonusActionStage(): void {
-      this.state.bonusAct = {stage: 'standing', source: this.bonusActionSourceCard};
+    async enterBonusActionStage(): Promise<void> {
+      const source = this.bonusActionSourceCard;
+      if (this.state.bonusAct.stage !== 'idle') {
+        return;
+      }
+      this.state.bonusAct = {stage: 'staging', source};
       this.state.bonusActionSeen = true;
+      // THE STAGE HAS A SUBJECT, exactly like the first-action stage's: the
+      // granting card physically EMERGES from «РАЗЫГРАНО» into the source seat
+      // and presides over the briefing.
+      //
+      // Not decoration — it is the difference between an embedded stage and a
+      // modal. A plate alone in the middle of the deployment row is attached to
+      // nothing the player can see, so it reads as a window that ARRIVED over
+      // the workspace; seated beside the card that caused it, the same plate is
+      // plainly a stage OF the workspace. (The room lets go behind it through
+      // `stageOwnsRoom` — one owner for both briefing stages.)
+      if (source !== undefined) {
+        await this.runEmbedSourceEmerge(source);
+      }
+      if (this.state.bonusAct.stage === 'staging') {
+        this.state.bonusAct = {stage: 'standing', source};
+      }
     },
     /**
      * A on the standing briefing — THE HAND-OFF.

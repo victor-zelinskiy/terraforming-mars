@@ -155,13 +155,16 @@ export const consoleStartState = reactive({
    * would re-announce the hand-off the player already confirmed, over a board
    * they are already acting on.
    *  · 'idle'      — no bonuses owed;
+   *  · 'staging'   — the granting card is rising out of «РАЗЫГРАНО» into the
+   *                  stage's source seat (the briefing has a SUBJECT — that is
+   *                  what makes it an embedded stage rather than a modal);
    *  · 'standing'  — the briefing stands, waiting for the player to confirm;
-   *  · 'onboard'   — confirmed: the board has the screen (the excursion latch
-   *                  is what actually holds it; this records the CONSENT, so a
-   *                  restore does not ask twice).
+   *  · 'onboard'   — confirmed: the board has the screen, and the workspace
+   *                  has let go of it entirely. This records the CONSENT, so a
+   *                  restore does not ask twice.
    */
   bonusAct: {
-    stage: 'idle' as 'idle' | 'standing' | 'onboard',
+    stage: 'idle' as 'idle' | 'staging' | 'standing' | 'onboard',
     /** The card that granted them — the stage's subject. */
     source: undefined as CardName | undefined,
   },
