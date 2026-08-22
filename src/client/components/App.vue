@@ -773,14 +773,20 @@ export default defineComponent({
 
       const url = apiUrl('api/' + path) + identitySearch().replace('&noredirect', '');
 
+      // Ingest-phase marks (perfMarks — no-ops unless ?perf=1): the probe reads
+      // fetch → json → commit → flush deltas off these to attribute a model
+      // update's cost between network/server, parse, reactive apply and render.
+      perfMark('ingest:fetch:start');
       fetch(url)
         .then((resp) => {
           if (!resp.ok) {
             throw new Error(`Error getting game data: ${resp.statusText}`);
           }
+          perfMark('ingest:fetch:resp');
           return resp.json();
         })
         .then((model: ViewModel) => {
+          perfMark('ingest:json:done');
           /*
            * Re-entrancy guard for live scene transitions: while one is
            * animating we must NOT swap playerView (that would pop panels to
@@ -916,6 +922,8 @@ export default defineComponent({
                 `${path}?id=${model.id}`,
               );
             }
+            perfMark('ingest:commit:done');
+            void nextTick(() => perfMark('ingest:flush:done'));
           };
 
           /*

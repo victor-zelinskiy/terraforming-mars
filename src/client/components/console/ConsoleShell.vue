@@ -1323,6 +1323,19 @@ import ConsoleQuickSelector from '@/client/components/console/ConsoleQuickSelect
 import ConsoleStdProjectsScreen from '@/client/components/console/ConsoleStdProjectsScreen.vue';
 import {buildRtQuickEntries, buildLtQuickEntries, buildStdProjectItems, QuickEntry, QuickSlot, StdProjectItem} from '@/client/console/consoleQuickModel';
 import {buildMaHudZone, MaHudZone} from '@/client/console/consoleMaHudModel';
+import {shareViewSnapshot} from '@/client/utils/viewSnapshotShare';
+
+/**
+ * Identity-stable MA HUD zones (perf iteration 3). `buildMaHudZone` returns a
+ * fresh object per evaluation, and the zones re-evaluate on every playerView
+ * commit (their deps ride `game`); a fresh identity re-rendered the v-show'n
+ * strategy rail AND fired its `observeZone` ledger watchers on every response
+ * — hidden included. Sharing against the previous value returns the SAME
+ * object whenever the content is unchanged (Vue 3.4 computeds then notify no
+ * dependents at all). Module-level on purpose: plain memory, content-compared,
+ * safe across a shell remount.
+ */
+const maHudZoneShare: {milestones?: MaHudZone, awards?: MaHudZone} = {};
 import {wheelPotentialCounts, WheelCounts} from '@/client/console/potentialAvailability';
 import {blockersForReasons, potentiallyAvailable} from '@/common/availability/AvailabilityBlocker';
 import ConsoleContextPanel from '@/client/components/console/ConsoleContextPanel.vue';
@@ -4218,21 +4231,25 @@ export default defineComponent({
      *  same authoritative sources as the workspaces (models + the live
      *  waitingFor option set + the server's own `maCosts` prices). */
     hudMilestoneZone(): MaHudZone {
-      return buildMaHudZone('milestones', this.game.milestones, {
+      const next = buildMaHudZone('milestones', this.game.milestones, {
         myColor: this.thisPlayer.color,
         availableNow: this.claimableTitles(findMilestoneOptionPath(this.playerView.waitingFor)?.options),
         maxSlots: 3,
         cost: this.milestoneCostValue,
       });
+      maHudZoneShare.milestones = shareViewSnapshot(maHudZoneShare.milestones, next) as MaHudZone;
+      return maHudZoneShare.milestones;
     },
     hudAwardZone(): MaHudZone {
-      return buildMaHudZone('awards', this.game.awards, {
+      const next = buildMaHudZone('awards', this.game.awards, {
         myColor: this.thisPlayer.color,
         availableNow: this.claimableTitles(findAwardOptionPath(this.playerView.waitingFor, this.awardNames)?.options),
         maxSlots: 3,
         // Free sponsorship (Vitor's start action) — the honest live price is 0.
         cost: this.awardFundingActive ? 0 : this.awardCostValue,
       });
+      maHudZoneShare.awards = shareViewSnapshot(maHudZoneShare.awards, next) as MaHudZone;
+      return maHudZoneShare.awards;
     },
     /**
      * The strategy rail is NOT watchable: the player left the board home, or a
@@ -4310,6 +4327,24 @@ export default defineComponent({
      *  One physical card never sits in two places at once. */
     stagedHandCard(): CardName | undefined {
       return this.pendingPlayCard?.cardName ?? this.returningPlayCard ?? this.departingPlayCard;
+    },
+    /**
+     * TRUE exactly when the held departing-play slot can be released: the
+     * played card is genuinely gone from the hand (and the SRR host). A TINY
+     * computed on purpose (perf iteration 3): the release used to ride a
+     * watcher on `handEntriesAll`, which force-built the whole
+     * playable/potential entry list on EVERY server response — hand closed
+     * included — to answer a question that is almost always «no card is
+     * departing». While `departingPlayCard` is undefined this tracks nothing
+     * but that one string.
+     */
+    departingPlayCardGone(): boolean {
+      const name = this.departingPlayCard;
+      if (name === undefined) {
+        return false;
+      }
+      return !this.playerView.cardsInHand.some((c) => c.name === name) &&
+        !(this.thisPlayer.selfReplicatingRobotsCards ?? []).some((c) => c.name === name);
     },
     /**
      * THE HAND WORKSPACE'S OPEN DESCENT — what the section needs to know to
@@ -7592,10 +7627,10 @@ export default defineComponent({
     },
     // A successfully played card leaves the hand with the server response —
     // release its held slot the moment it is genuinely gone (never a fake
-    // return; the safety timer below covers a rejected play).
-    handEntriesAll(entries: ReadonlyArray<ConsoleHandEntry>) {
-      const name = this.departingPlayCard;
-      if (name !== undefined && !entries.some((e) => e.card.name === name)) {
+    // return; the safety timer below covers a rejected play). Keyed on the
+    // cheap membership computed, NOT on `handEntriesAll` — see its doc.
+    departingPlayCardGone(gone: boolean) {
+      if (gone) {
         this.clearDepartingPlayCard();
       }
     },

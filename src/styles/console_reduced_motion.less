@@ -22,7 +22,12 @@
    lost opponent. A new spinner-class loop must either match the substring
    families here or be added explicitly.
    ───────────────────────────────────────────────────────────────────────── */
-html.con-reduced-motion * {
+/* `*` matches ELEMENTS only — the ::before/::after forms are required for the
+   compositor-only ambient loops that live on pseudo overlays (the active-dot
+   ping, the convertible-row breath — perf iteration 3). */
+html.con-reduced-motion *,
+html.con-reduced-motion *::before,
+html.con-reduced-motion *::after {
     animation-iteration-count: 1 !important;
 }
 /* «Working» indicators keep looping — they are information, not motion
@@ -39,6 +44,22 @@ html.con-reduced-motion :is(
     .boot-loader *,
     .con-loading *,
     [class*="--wait"],
-    .con-discard__pile--armed .con-discard__slot) {
+    .con-discard__pile--armed .con-discard__slot),
+html.con-reduced-motion :is(
+    [class*="spin"],
+    [class*="caret"],
+    [class*="typing"],
+    .boot-loader *,
+    .con-loading *,
+    [class*="--wait"],
+    .con-discard__pile--armed .con-discard__slot)::before,
+html.con-reduced-motion :is(
+    [class*="spin"],
+    [class*="caret"],
+    [class*="typing"],
+    .boot-loader *,
+    .con-loading *,
+    [class*="--wait"],
+    .con-discard__pile--armed .con-discard__slot)::after {
     animation-iteration-count: infinite !important;
 }

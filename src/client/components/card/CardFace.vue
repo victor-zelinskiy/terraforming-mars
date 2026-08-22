@@ -22,6 +22,7 @@ Before changing it, check the console consumers in docs/DESKTOP_DEPRECATION_AUDI
                :cubeColor="cubeColor"
                :autoTall="autoTall"
                :lightweight="lightweight"
+               :artTier="artTier"
                :inert="inert">
     <slot/>
   </PremiumCard>
@@ -40,6 +41,7 @@ Before changing it, check the console consumers in docs/DESKTOP_DEPRECATION_AUDI
 <script lang="ts">
 import {defineComponent} from 'vue';
 import {CardModel} from '@/common/models/CardModel';
+import {CardArtTier} from '@/client/cards/cardArt';
 import {Color} from '@/common/Color';
 import {getCard} from '@/client/cards/ClientCardManifest';
 import {isPremiumFaceType} from '@/client/components/premiumCard/premiumCardTheme';
@@ -86,6 +88,13 @@ export default defineComponent({
       type: Boolean,
       required: false,
       default: false,
+    },
+    /** Art resolution tier (cardArt.ts) — dense grids pass 'thumb'. Premium
+     *  branch only; the legacy renderer has no tiered art. */
+    artTier: {
+      type: String as () => CardArtTier,
+      required: false,
+      default: 'full',
     },
   },
   computed: {

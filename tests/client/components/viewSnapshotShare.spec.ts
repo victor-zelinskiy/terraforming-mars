@@ -8,6 +8,7 @@
  * components skip re-rendering). It never mutates either argument.
  */
 import {expect} from 'chai';
+import {reactive, toRaw} from 'vue';
 import {FakeLocalStorage} from './FakeLocalStorage';
 import {
   __resetViewPatchForTesting,
@@ -135,6 +136,38 @@ describe('viewSnapshotShare', () => {
     const other = {...fakeView(), id: 'p999'};
     expect(nextViewSnapshot(prev as any, other as any)).to.eq(other);
     expect(nextViewSnapshot(undefined, same as any)).to.eq(same);
+  });
+
+  it('nextViewSnapshot walks a REACTIVE prev RAW (perf iteration 3)', () => {
+    // The app hands in its live deep-reactive proxy; the walk must compare
+    // raw-vs-raw — no per-property proxy traps, no eager child-proxy
+    // materialization — and the shared identities must be the RAW targets
+    // (Vue's per-target proxy cache then resolves them to the same child
+    // proxies the previous render used).
+    const raw = fakeView();
+    const prevProxy = reactive(raw);
+    const same = fakeView();
+    expect(nextViewSnapshot(prevProxy as any, same as any)).to.eq(raw);
+
+    const next = fakeView();
+    next.game.temperature = -22;
+    const out = nextViewSnapshot(prevProxy as any, next as any) as ReturnType<typeof fakeView>;
+    expect(out).to.not.eq(raw);
+    expect(out.game.temperature).to.eq(-22);
+    // Untouched branches are the RAW previous objects, not proxies.
+    expect(out.players).to.eq(raw.players);
+    expect(toRaw(out.players)).to.eq(out.players);
+    expect(out.game.spaces).to.eq(raw.game.spaces);
+  });
+
+  it('shares arrays containing undefined entries (MA HUD slot trays)', () => {
+    const prev = {slots: ['blue', undefined, undefined], cost: 8};
+    const next = {slots: ['blue', undefined, undefined], cost: 8};
+    expect(shareViewSnapshot(prev as any, next as any)).to.eq(prev);
+    const moved = {slots: ['blue', 'red', undefined], cost: 8};
+    const out = shareViewSnapshot(prev as any, moved as any) as typeof moved;
+    expect(out).to.not.eq(prev);
+    expect(out.slots[1]).to.eq('red');
   });
 
   it('nextViewSnapshot honours the tm_patch kill-switch', () => {

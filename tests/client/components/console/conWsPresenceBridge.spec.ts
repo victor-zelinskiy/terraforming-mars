@@ -56,6 +56,62 @@ describe('conWsPresenceBridge', () => {
     document.body.removeChild(root);
   });
 
+  it('sees a marker carried DEEP inside an added/removed wrapper (record filter, perf iteration 3)', async () => {
+    const root = document.createElement('div');
+    document.body.appendChild(root);
+    const dispose = installConWsPresenceBridge(root);
+
+    // The workspace mounts as a wrapper whose DESCENDANT carries .con-ws —
+    // the added record's top node does not match, its subtree does.
+    const wrapper = document.createElement('div');
+    wrapper.className = 'con-anything';
+    const inner = document.createElement('div');
+    inner.className = 'con-hand con-ws';
+    wrapper.appendChild(inner);
+    root.appendChild(wrapper);
+    await settle();
+    expect(conWsPresence.wsOpen).to.be.true;
+
+    // Removing the WRAPPER (an ancestor) must be seen through the detached
+    // subtree — the removal record is the only witness.
+    root.removeChild(wrapper);
+    await settle();
+    expect(conWsPresence.wsOpen).to.be.false;
+
+    dispose();
+    document.body.removeChild(root);
+  });
+
+  it('stays correct through unrelated churn (flight-proxy adds, foreign class flips)', async () => {
+    const root = document.createElement('div');
+    document.body.appendChild(root);
+    const dispose = installConWsPresenceBridge(root);
+
+    const surface = document.createElement('div');
+    surface.className = 'con-hand con-ws';
+    root.appendChild(surface);
+    await settle();
+    expect(conWsPresence.wsOpen).to.be.true;
+
+    // Unrelated mutations (the filtered-out family) change nothing…
+    const proxy = document.createElement('div');
+    proxy.className = 'con-deal-proxy';
+    root.appendChild(proxy);
+    proxy.className = 'con-deal-proxy con-deal-proxy--landed';
+    await settle();
+    expect(conWsPresence.wsOpen).to.be.true;
+    expect(conWsPresence.wsDockcover).to.be.false;
+
+    // …and a relevant one AFTER the churn still lands (the filter must never
+    // wedge the pipeline).
+    surface.classList.remove('con-ws');
+    await settle();
+    expect(conWsPresence.wsOpen).to.be.false;
+
+    dispose();
+    document.body.removeChild(root);
+  });
+
   it('tracks the planet-focus board state (both phases of it)', async () => {
     const root = document.createElement('div');
     document.body.appendChild(root);

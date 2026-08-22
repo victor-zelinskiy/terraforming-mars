@@ -31,6 +31,7 @@
  * sharing is also skipped so that mode stays byte-identical to the
  * historical client.
  */
+import {toRaw} from 'vue';
 import {legacyRemountEnabled} from './legacyRemount';
 
 let cachedFlag: boolean | undefined;
@@ -139,6 +140,16 @@ function shareObject(prev: Record<string, unknown>, next: Record<string, unknown
  * Applies structural sharing when enabled and the snapshot continues the same
  * participant's view; otherwise returns the incoming snapshot untouched
  * (initial load, participant change, flag off, legacy remount mode).
+ *
+ * The walk runs over the RAW previous tree (`toRaw`, perf iteration 3):
+ * `prev` arrives as the app's live deep-reactive proxy, and reading a whole
+ * model through proxy get-traps both pays per-property trap overhead and
+ * eagerly materializes a child proxy for EVERY nested object — a full-tree
+ * proxy warm-up on every commit, for branches no component may ever read.
+ * Raw-vs-raw sharing is semantically identical: Vue caches proxies per raw
+ * target, so a shared RAW branch resolves to the SAME child proxy the
+ * previous render used — downstream identity stability is byte-for-byte the
+ * contract it always was.
  */
 export function nextViewSnapshot<T extends {id?: unknown}>(prev: T | undefined, incoming: T): T {
   if (!viewPatchEnabled() || legacyRemountEnabled()) {
@@ -147,5 +158,5 @@ export function nextViewSnapshot<T extends {id?: unknown}>(prev: T | undefined, 
   if (prev === undefined || prev.id !== incoming.id) {
     return incoming;
   }
-  return shareViewSnapshot(prev, incoming);
+  return shareViewSnapshot(toRaw(prev), incoming);
 }

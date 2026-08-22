@@ -72,6 +72,11 @@ export const handRevealState = reactive({
   /** A tag-FILTER episode is airborne — the status rail holds its text
    *  until the cards settle (the section's `--hold` class). */
   filterActive: false,
+  /** THE DESTINATION'S ART TIER (perf iteration 3) — stamped by the hand
+   *  section from its solved album plan, read by the reveal layer's proxies
+   *  so a flight decodes the same file its landing slot paints («the copies
+   *  are identical» is a contract about the SOURCE too). */
+  artTier: 'full' as 'full' | 'thumb',
 });
 
 const els = new Map<number, HTMLElement>();

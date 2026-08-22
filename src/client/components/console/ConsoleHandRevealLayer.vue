@@ -35,7 +35,7 @@
                'con-deal-proxy__face--dim': f.visual?.dim === 'soft',
                'con-deal-proxy__face--dim-strong': f.visual?.dim === 'strong',
              }">
-          <ConsoleCardFaceLite :name="f.name" :card="f.visual?.card" lightweight />
+          <ConsoleCardFaceLite :name="f.name" :card="f.visual?.card" :artTier="handRevealState.artTier" lightweight />
           <span v-if="f.visual?.chip !== undefined" class="con-deal-proxy__chip">{{ $t(f.visual.chip) }}</span>
         </div>
         <div class="con-deal-proxy__back">

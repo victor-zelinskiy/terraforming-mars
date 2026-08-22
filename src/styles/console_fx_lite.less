@@ -32,10 +32,17 @@ html.console-native.con-fx-lite {
        none of them gate a JS flow (no animationend listeners on ambient
        loops — the census names them; a NEW ambient loop must be added
        here to stay honest with the setting). */
+    /* The active-dot ping and the convertible-row breath live on ::after
+       overlays since perf iteration 3 (compositor-only opacity loops) — the
+       element selectors stay for safety, the pseudo selectors do the work.
+       Their base opacity is 0, so `none` rests on the static cue. */
     .con-status__player--active .con-status__dot,
+    .con-status__player--active .con-status__dot::after,
     .con-status__pstatus-glyph,
     .con-res__row--convertible-plants,
     .con-res__row--convertible-heat,
+    .con-res__row--convertible-plants::after,
+    .con-res__row--convertible-heat::after,
     .con-strat__actring,
     .con-board--live .board-space.con-cell-sel::after,
     .con-board--inspecting .board-space.con-cell-sel::after {

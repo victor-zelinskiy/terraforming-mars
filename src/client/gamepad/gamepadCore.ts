@@ -22,6 +22,20 @@
  * hold-repeat cadence is time-based (`now`), not per-frame, so the higher
  * sample rate does not change its feel. NEVER reduce this back to rAF-only.
  *
+ * ── …AND THE DRIVERS ARE IDLE-ADAPTIVE (perf iteration 3) ─────────────
+ * At REST (no pad engaged for HOT_WINDOW_MS) the rAF driver STOPS and the
+ * timer relaxes to POLL_INTERVAL_REST_MS. Why: a permanently re-arming rAF
+ * forces the renderer to produce frames at display rate forever — the
+ * compositor can never go idle on a static screen — and every
+ * `getGamepads()` call allocates a fresh pad/button object graph in
+ * Chromium (~185 polls/s ⇒ constant minor-GC pressure at rest). The tap
+ * guarantee is untouched: the TIMER keeps running (the module-header
+ * argument above is about the timer backing rAF, never the reverse) and a
+ * human tap (~60 ms+) spans several 16 ms samples; the first active sample
+ * flips the drivers back HOT in the same tick, so everything after the
+ * first press of a burst is sampled at the full 8 ms + rAF cadence.
+ * Worst-case added latency on the FIRST press after 1.5 s of quiet: 8 ms.
+ *
  * Perf contract (invariant 8): the loop is DOM-free — it reads
  * `navigator.getGamepads()`, runs the pure model, and early-outs on idle
  * frames. All DOM work happens in intent SUBSCRIBERS, which fire only on
@@ -78,12 +92,22 @@ let pollTimer = 0;
 let connectedCount = 0;
 
 /**
- * The timer poll's period. ~8ms (≈125Hz) — fast enough that no realistic tap
+ * The HOT timer period. ~8ms (≈125Hz) — fast enough that no realistic tap
  * (~60ms+) can fall between two samples even while rAF is stretched, and
  * cheap because `pollOnce` early-outs at rest (the overwhelmingly common
  * case). See the module header for why a timer must back the rAF loop.
  */
-const POLL_INTERVAL_MS = 8;
+const POLL_INTERVAL_HOT_MS = 8;
+/** The REST timer period — the only driver while no pad is engaged. A tap
+ *  (~60ms+) still spans several samples; the first active sample re-arms the
+ *  hot drivers within the same tick. */
+const POLL_INTERVAL_REST_MS = 16;
+/** How long after the last engaged sample the drivers stay hot. */
+const HOT_WINDOW_MS = 1500;
+/** Are the hot drivers (rAF + 8ms timer) currently armed? */
+let driversHot = false;
+/** Monotonic deadline until which the drivers must stay hot. */
+let hotUntil = 0;
 const prevSnapshots = new Map<number, GamepadSnapshot>();
 const pollStates = new Map<number, PollState>();
 let election: ElectionState = initialElectionState();
@@ -179,18 +203,44 @@ function loopRunning(): boolean {
   return rafId !== 0 || pollTimer !== 0;
 }
 
+/** (Re-)arm the drivers for the given mode. HOT = rAF + 8ms timer; REST =
+ *  16ms timer only. The timer is always present while the loop runs — it is
+ *  the correctness driver (see the module header); only the rAF half and the
+ *  cadence adapt. */
+function applyDriverMode(hot: boolean): void {
+  if (typeof window === 'undefined') {
+    return;
+  }
+  driversHot = hot;
+  if (pollTimer !== 0) {
+    window.clearInterval(pollTimer);
+  }
+  // The non-vsync driver: keeps sampling while a frame is stretched, so a
+  // tap can never fall between two reads (see the module header).
+  pollTimer = window.setInterval(
+    () => pollOnce(performance.now()),
+    hot ? POLL_INTERVAL_HOT_MS : POLL_INTERVAL_REST_MS);
+  if (hot) {
+    if (rafId === 0) {
+      const tick = (now: number) => {
+        rafId = window.requestAnimationFrame(tick);
+        pollOnce(now);
+      };
+      rafId = window.requestAnimationFrame(tick);
+    }
+  } else if (rafId !== 0) {
+    window.cancelAnimationFrame(rafId);
+    rafId = 0;
+  }
+}
+
 function startLoop(): void {
   if (loopRunning() || typeof window === 'undefined') {
     return;
   }
-  const tick = (now: number) => {
-    rafId = window.requestAnimationFrame(tick);
-    pollOnce(now);
-  };
-  rafId = window.requestAnimationFrame(tick);
-  // The non-vsync driver: keeps sampling while a frame is stretched, so a
-  // tap can never fall between two reads (see the module header).
-  pollTimer = window.setInterval(() => pollOnce(performance.now()), POLL_INTERVAL_MS);
+  // Start at REST — the first engaged sample (≤16ms away) arms the hot
+  // drivers in the same tick, before its intents dispatch.
+  applyDriverMode(false);
 }
 
 function stopLoop(): void {
@@ -205,6 +255,8 @@ function stopLoop(): void {
     window.clearInterval(pollTimer);
     pollTimer = 0;
   }
+  driversHot = false;
+  hotUntil = 0;
 }
 
 /** One connected pad's contribution to a poll frame. */
@@ -321,6 +373,21 @@ function pollOnce(now: number): void {
     prevSnapshots.set(pad.index, next);
     pollStates.set(pad.index, nextState);
     engaged.push({index: pad.index, id: pad.id, active, edge: decisiveEdge(intents), intents});
+  }
+
+  // ── DRIVER MODE: any engaged pad keeps the drivers hot; a quiet stretch
+  // drops to REST (rAF off, relaxed timer) so an idle screen truly idles.
+  // Evaluated BEFORE the pass-2 early returns, so the rest transition can
+  // never be starved by «no driver elected». The rest→hot flip happens in
+  // the SAME tick as the first engaged sample — before its intents dispatch.
+  if (engaged.length > 0) {
+    hotUntil = now + HOT_WINDOW_MS;
+  }
+  if (loopRunning()) {
+    const wantHot = now < hotUntil;
+    if (wantHot !== driversHot) {
+      applyDriverMode(wantHot);
+    }
   }
 
   // ── PASS 2: elect exactly ONE driving pad, then dispatch ONLY its intents.

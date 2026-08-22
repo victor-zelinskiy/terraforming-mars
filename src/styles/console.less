@@ -20161,30 +20161,57 @@ body.con-start-ceremony {
    cell still lights up with a subtle accent rim + breathing glow so the
    player sees the option is live. Purely informational; the row is not a
    button. Later than `&__row` in source, same single-class specificity, so it
-   wins the box-shadow. */
+   wins the box-shadow.
+
+   COMPOSITOR-ONLY BREATH (perf iteration 3). Animating `box-shadow` itself
+   repaints the row on the MAIN THREAD every frame, forever — the measured
+   basis of the idle jank the fx-lite census found. The row now keeps a
+   STATIC shadow (the old loop's resting 0% frame) and the breath is an
+   `::after` overlay carrying the delta to the bright frame, animated on
+   OPACITY alone — Blink runs it on the compositor and the main thread stays
+   quiet. Overlay alphas are composite-compensated (rest + d·(1−rest) = peak)
+   so the bright frame matches the old keyframe. The pseudo's base opacity is
+   0, so `animation: none` (fx-lite / reduced-motion) lands on the resting
+   rim exactly as before. */
 .con-res__row--convertible-plants {
-    box-shadow: inset 0 0 0 .05rem fade(@con-plants, 60%), 0 0 .6rem fade(@con-plants, 20%);
-    animation: con-convert-glow-plants calc(2600ms * var(--motion-scale, 1)) ease-in-out infinite;
+    box-shadow: inset 0 0 0 .05rem fade(@con-plants, 55%), 0 0 .5rem fade(@con-plants, 16%);
 
     .con-res__icon {
         filter: drop-shadow(0 .1rem .25rem rgba(0, 0, 0, 0.5)) drop-shadow(0 0 .25rem fade(@con-plants, 55%));
     }
+
+    &::after {
+        content: '';
+        position: absolute;
+        inset: 0;
+        border-radius: inherit;
+        pointer-events: none;
+        box-shadow: inset 0 0 0 .05rem fade(@con-plants, 78%), 0 0 .8rem fade(@con-plants, 19%);
+        opacity: 0;
+        animation: con-convert-breathe calc(2600ms * var(--motion-scale, 1)) ease-in-out infinite;
+    }
 }
 .con-res__row--convertible-heat {
-    box-shadow: inset 0 0 0 .05rem fade(@con-heat-warm, 62%), 0 0 .6rem fade(@con-heat-warm, 22%);
-    animation: con-convert-glow-heat calc(2600ms * var(--motion-scale, 1)) ease-in-out infinite;
+    box-shadow: inset 0 0 0 .05rem fade(@con-heat-warm, 55%), 0 0 .5rem fade(@con-heat-warm, 18%);
 
     .con-res__icon {
         filter: drop-shadow(0 .1rem .25rem rgba(0, 0, 0, 0.5)) drop-shadow(0 0 .25rem fade(@con-heat-warm, 60%));
     }
+
+    &::after {
+        content: '';
+        position: absolute;
+        inset: 0;
+        border-radius: inherit;
+        pointer-events: none;
+        box-shadow: inset 0 0 0 .05rem fade(@con-heat-warm, 82%), 0 0 .8rem fade(@con-heat-warm, 20%);
+        opacity: 0;
+        animation: con-convert-breathe calc(2600ms * var(--motion-scale, 1)) ease-in-out infinite;
+    }
 }
-@keyframes con-convert-glow-plants {
-    0%, 100% { box-shadow: inset 0 0 0 .05rem fade(@con-plants, 55%), 0 0 .5rem fade(@con-plants, 16%); }
-    50%      { box-shadow: inset 0 0 0 .05rem fade(@con-plants, 90%), 0 0 .8rem fade(@con-plants, 32%); }
-}
-@keyframes con-convert-glow-heat {
-    0%, 100% { box-shadow: inset 0 0 0 .05rem fade(@con-heat-warm, 55%), 0 0 .5rem fade(@con-heat-warm, 18%); }
-    50%      { box-shadow: inset 0 0 0 .05rem fade(@con-heat-warm, 92%), 0 0 .8rem fade(@con-heat-warm, 34%); }
+@keyframes con-convert-breathe {
+    0%, 100% { opacity: 0; }
+    50%      { opacity: 1; }
 }
 
 /* ── T2: ДОП. РЕСУРСЫ cells slide in as new card-resource types unlock. ── */
@@ -20210,7 +20237,9 @@ body.con-start-ceremony {
 
 @media (prefers-reduced-motion: reduce) {
     .con-res__row--convertible-plants,
-    .con-res__row--convertible-heat { animation: none; }
+    .con-res__row--convertible-heat,
+    .con-res__row--convertible-plants::after,
+    .con-res__row--convertible-heat::after { animation: none; }
     .con-convert--committing .con-convert__preview,
     .con-convert--committing .con-convert__dial,
     .con-convert--committing .con-convert__choices { animation: none; }
@@ -20221,20 +20250,38 @@ body.con-start-ceremony {
 
 /* ── T7: the ACTING player's chip carries the turn accent — the console-
    native equivalent of the desktop handoff beam / status chips (that layer
-   anchors to desktop panel geometry and no-ops gracefully in console). ── */
+   anchors to desktop panel geometry and no-ops gracefully in console).
+   COMPOSITOR-ONLY ping (perf iteration 3): the old loop animated the dot's
+   box-shadow spread — a main-thread repaint every frame, forever. The ring
+   is now a fixed-shadow `::after` breathing on transform+opacity only, so
+   Blink runs it on the compositor. Base opacity 0 ⇒ `animation: none`
+   (fx-lite / reduced-motion) rests on the plain dot exactly as before. */
 .con-status__player--active {
     box-shadow: inset 0 0 0 .05rem fade(@con-cyan, 70%), 0 0 .8rem fade(@con-cyan, 18%);
 
     .con-status__dot {
-        animation: con-active-dot calc(2000ms * var(--motion-scale, 1)) ease-in-out infinite;
+        position: relative;
+
+        &::after {
+            content: '';
+            position: absolute;
+            inset: 0;
+            border-radius: 50%;
+            pointer-events: none;
+            box-shadow: 0 0 0 .25rem fade(@con-cyan, 45%);
+            opacity: 0;
+            animation: con-active-ping calc(2000ms * var(--motion-scale, 1)) ease-in-out infinite;
+        }
     }
 }
-@keyframes con-active-dot {
-    0%, 100% { box-shadow: 0 0 0 0 fade(@con-cyan, 45%); }
-    50% { box-shadow: 0 0 0 .25rem fade(@con-cyan, 0%); }
+@keyframes con-active-ping {
+    0%, 100% { transform: scale(.2); opacity: 0; }
+    25%      { opacity: .5; }
+    50%      { transform: scale(1); opacity: 0; }
+    75%      { opacity: .5; }
 }
 @media (prefers-reduced-motion: reduce) {
-    .con-status__player--active .con-status__dot { animation: none; }
+    .con-status__player--active .con-status__dot::after { animation: none; }
 }
 
 /* ── T7: delta-chip anchors (the AnimatedMetricValue hosts are absolute —

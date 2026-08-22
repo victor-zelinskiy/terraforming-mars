@@ -41,6 +41,59 @@ let observer: MutationObserver | undefined;
 let observedRoot: HTMLElement | undefined;
 let scanQueued = false;
 
+/** Every selector the scan answers — a mutation that cannot contain one of
+ *  these cannot change any flag. */
+const MARKER_SELECTOR = '.con-ws, .con-board--pfocus, .con-board--pfocus-exit';
+
+/** Class-string test for the same markers. SUBSTRING on purpose — an
+ *  over-match (`con-wshead` contains `con-ws`) merely runs one redundant
+ *  scan, while an under-match would silently freeze a flag. The scan itself
+ *  stays the single source of truth. */
+function classCouldMatter(cls: string | null): boolean {
+  return cls !== null && (cls.includes('con-ws') || cls.includes('con-board--pfocus'));
+}
+
+function nodeCouldMatter(node: Node): boolean {
+  if (!(node instanceof Element)) {
+    return false;
+  }
+  // Detached (removed) subtrees still answer matches/querySelector — that is
+  // exactly what lets a removal that carried `.con-ws` away wake the scan.
+  return node.matches(MARKER_SELECTOR) || node.querySelector(MARKER_SELECTOR) !== null;
+}
+
+/**
+ * Could this mutation batch change any presence answer? (perf iteration 3)
+ * The observer fires for every childList/class mutation under the shell —
+ * flight-layer card churn included — and each batch used to buy a full
+ * 2-3-querySelector subtree scan. Filtering by the batch's own records keeps
+ * the scan for exactly the mutations that could carry a marker in or out;
+ * the conservative direction is over-matching (an extra scan), never a
+ * missed transition.
+ */
+function recordsCouldMatter(records: ReadonlyArray<MutationRecord>): boolean {
+  for (const record of records) {
+    if (record.type === 'attributes') {
+      if (classCouldMatter(record.oldValue) ||
+          classCouldMatter((record.target as Element).getAttribute?.('class') ?? null)) {
+        return true;
+      }
+      continue;
+    }
+    for (const node of record.addedNodes) {
+      if (nodeCouldMatter(node)) {
+        return true;
+      }
+    }
+    for (const node of record.removedNodes) {
+      if (nodeCouldMatter(node)) {
+        return true;
+      }
+    }
+  }
+  return false;
+}
+
 function scan(): void {
   scanQueued = false;
   const root = observedRoot;
@@ -78,12 +131,19 @@ export function installConWsPresenceBridge(root: HTMLElement): () => void {
   observedRoot = root;
   scan();
   if (typeof MutationObserver !== 'undefined') {
-    observer = new MutationObserver(queueScan);
+    observer = new MutationObserver((records) => {
+      if (!scanQueued && recordsCouldMatter(records)) {
+        queueScan();
+      }
+    });
     observer.observe(root, {
       childList: true,
       subtree: true,
       attributes: true,
       attributeFilter: ['class'],
+      // Needed by the record filter: a class flip that REMOVED a marker is
+      // only visible through the old value.
+      attributeOldValue: true,
     });
   }
   return () => {

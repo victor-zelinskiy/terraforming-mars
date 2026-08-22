@@ -44,7 +44,7 @@
        printed 0. Without it every console surface drew a permanent «0» on every
        resource card and the real count had to be told a second time somewhere
        else — two counters on one card, in two different places. -->
-  <PremiumCard v-if="premiumFace" :name="name" :card="card" :lightweight="lightweight" :inert="true" aria-hidden="true" />
+  <PremiumCard v-if="premiumFace" :name="name" :card="card" :lightweight="lightweight" :artTier="artTier" :inert="true" aria-hidden="true" />
 
   <div v-else class="card-container filterDiv con-card-lite" :class="rootClass" :style="artStyle" aria-hidden="true">
     <span class="card-corner card-corner--tl"></span>
@@ -78,7 +78,7 @@ import {CardRequirementDescriptor} from '@/common/cards/CardRequirementDescripto
 import {Tag} from '@/common/cards/Tag';
 import {ClientCard} from '@/common/cards/ClientCard';
 import {getCard} from '@/client/cards/ClientCardManifest';
-import {cardArtUrl} from '@/client/cards/cardArt';
+import {CardArtTier, cardArtUrl} from '@/client/cards/cardArt';
 import PremiumCard from '@/client/components/premiumCard/PremiumCard.vue';
 import {isPremiumFaceType} from '@/client/components/premiumCard/premiumCardTheme';
 import CardCost from '@/client/components/card/CardCost.vue';
@@ -129,6 +129,19 @@ export default defineComponent({
       type: Boolean,
       required: false,
       default: false,
+    },
+    /**
+     * THE DESTINATION'S ART TIER — same «copies are identical» contract as
+     * `lightweight`, for the picture's SOURCE FILE. A proxy flying onto a
+     * thumb-tier grid (the hand album) passes 'thumb' so the flight decodes
+     * the same 512-px build the destination paints — flying 'full' there
+     * spends the very decode the tier exists to avoid. Purely a source swap
+     * (cardArt.ts): layout, fades and the failure chain are identical.
+     */
+    artTier: {
+      type: String as () => CardArtTier,
+      required: false,
+      default: 'full',
     },
   },
   computed: {

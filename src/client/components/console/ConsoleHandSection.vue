@@ -205,7 +205,7 @@
                    'con-hand__slot--select-disabled': selectActive && !isSelectable(cell.e.card.name),
                    'con-deal-hold': cell.e.card.name === stagedCard,
                  }">
-              <Card :card="cell.e.card" :key="cell.e.card.name" lightweight />
+              <Card :card="cell.e.card" :key="cell.e.card.name" :art-tier="handArtTier" lightweight />
               <span v-if="cell.e.robot" class="con-hand__robot" v-i18n>Robots</span>
               <!-- State band: sale pick / select pick (✓), a "can't select"
                    marker on a non-candidate, else a COMPACT play blocker chip
@@ -406,6 +406,8 @@
  */
 import {defineComponent, PropType, markRaw} from 'vue';
 import Card from '@/client/components/card/CardFace.vue';
+import {artTierForWidth, CardArtTier, preloadPremiumCardArt} from '@/client/cards/cardArt';
+import {handRevealState} from '@/client/console/handDock/handRevealState';
 import ConsoleWsHead from '@/client/components/console/foundation/ConsoleWsHead.vue';
 import {setWorkspaceFrameSlot, workspaceFrameParked} from '@/client/console/consoleWorkspaceStack';
 import {
@@ -663,6 +665,8 @@ export default defineComponent({
       wheelAt: 0,
       ro: undefined as ResizeObserver | undefined,
       rafMeasure: undefined as number | undefined,
+      /** Debounce handle for the focused card's full-art prewarm. */
+      prewarmTimer: undefined as number | undefined,
     };
   },
   computed: {
@@ -894,6 +898,19 @@ export default defineComponent({
     rootStyle(): Record<string, string> {
       return {'--con-hand-zoom': String(this.plan.cardZoom)};
     },
+    /**
+     * ART TIER for the album grid (perf iteration 3). The plan's slot width
+     * is real CSS px (the solver multiplies uiScale in), so the shared
+     * `artTierForWidth` rule lands exactly like the played grid's: ~272 px
+     * slots at 1080p paint the 512-px thumb build (an open hand held 8
+     * full-res decodes ≈ 48 MB — all oversized, measured by the long-game
+     * probe), while 4K's ~544 px slots keep the full file for couch
+     * sharpness. The fullscreen inspector is covered by the focused-card
+     * prewarm below.
+     */
+    handArtTier(): CardArtTier {
+      return artTierForWidth(this.plan.slotW);
+    },
     /** The strip slides one stride per page — transform only (interruptible,
      *  retargetable, zero layout, zero scroll geometry). */
     stripStyle(): Record<string, string> {
@@ -907,6 +924,36 @@ export default defineComponent({
     },
   },
   watch: {
+    /**
+     * The reveal flights must decode the DESTINATION'S file — stamp the
+     * album's tier for the layer's proxies (perf iteration 3).
+     */
+    handArtTier: {
+      immediate: true,
+      handler(tier: CardArtTier) {
+        handRevealState.artTier = tier;
+      },
+    },
+    /** Thumb-tier albums prewarm the FOCUSED card's full art (debounced) so
+     *  the fullscreen inspector opens onto an already-decoded picture — the
+     *  played grid's exact pattern. */
+    focusName: {
+      immediate: true,
+      handler() {
+        if (this.prewarmTimer !== undefined) {
+          window.clearTimeout(this.prewarmTimer);
+          this.prewarmTimer = undefined;
+        }
+        const name = this.focusName;
+        if (this.handArtTier !== 'thumb' || name === undefined) {
+          return;
+        }
+        this.prewarmTimer = window.setTimeout(() => {
+          this.prewarmTimer = undefined;
+          preloadPremiumCardArt([name as CardName]);
+        }, 160);
+      },
+    },
     /**
      * Publish / retract the TELEPORT TARGET as the stage zone comes and goes.
      * The consumer depends on this VALUE, not on a `document.querySelector` in
@@ -1309,6 +1356,10 @@ export default defineComponent({
     });
   },
   beforeUnmount() {
+    if (this.prewarmTimer !== undefined) {
+      window.clearTimeout(this.prewarmTimer);
+      this.prewarmTimer = undefined;
+    }
     // Retract the target HERE, never from the flow side: a stale selector
     // teleports the next surface into a detached node, and the unmount watcher
     // does not fire (Vue tears the component down before its watchers run).
