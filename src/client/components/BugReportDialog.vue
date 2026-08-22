@@ -23,8 +23,6 @@ import {useClipboard} from '@vueuse/core';
 import {showModal, windowHasHTMLDialogElement} from '@/client/components/HTMLDialogElementCompatibility';
 import raw_settings from '@/genfiles/settings.json';
 import {vueRoot} from '@/client/components/vueRoot';
-import {PlayerViewModel} from '@/common/models/PlayerModel';
-import {SpectatorId} from '@/common/Types';
 import {getPreferences} from '../utils/PreferencesManager';
 
 import dialogPolyfill from 'dialog-polyfill';
@@ -85,19 +83,13 @@ export default defineComponent({
       void this.clipboardCopy(this.typedRefs.textarea.value);
       this.showCopied = true;
     },
-    url(playerView: PlayerViewModel | undefined) {
-      const url = new URL(window.location.href);
-      const spectatorId: SpectatorId | undefined = playerView?.game?.spectatorId;
-      if (spectatorId && url.pathname === '/player' && url.searchParams.has('id')) {
-        url.searchParams.set('id', spectatorId);
-        url.pathname = '/spectator';
-      }
-      return url;
+    url() {
+      return new URL(window.location.href);
     },
     setMessage() {
       const playerView = vueRoot(this).playerView;
       const content: Record<string, any> = {
-        url: this.url(playerView),
+        url: this.url(),
       };
       if (playerView !== undefined) {
         Object.assign(

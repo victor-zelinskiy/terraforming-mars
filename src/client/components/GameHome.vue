@@ -10,13 +10,6 @@
         <AppButton title="copy" size="tiny" @click="copyUrl(player.id)"/>
         <span v-if="isPlayerUrlCopied(player.id)" class="copied-notice"><span v-i18n>Copied!</span></span>
       </li>
-      <li v-if="game !== undefined && game.spectatorId">
-        <p/>
-        <span class="turn-order"></span>
-        <span class="color-square"></span>
-        <span class="player-name"><a :href="getHref(game.spectatorId)" v-i18n>Spectator</a></span>
-        <AppButton title="copy" size="tiny" @click="copyUrl(game.spectatorId)"/>
-      </li>
     </ul>
 
     <div class="spacing-setup"></div>
@@ -90,9 +83,6 @@ export default defineComponent({
       return playerColorClass(color, 'bg');
     },
     getHref(playerId: ParticipantId): string {
-      if (playerId === this.game.spectatorId) {
-        return `spectator?id=${playerId}`;
-      }
       return `player?id=${playerId}`;
     },
     copyUrl(playerId: ParticipantId | undefined): void {

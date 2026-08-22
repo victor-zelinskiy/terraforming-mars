@@ -211,11 +211,9 @@ describe('Automa serialization', () => {
     expect(secretNames.length).is.greaterThan(0);
 
     const playerModel = JSON.stringify(Server.getPlayerModel(human));
-    const spectatorModel = JSON.stringify(Server.getSpectatorModel(game));
     const gameModel = JSON.stringify(Server.getGameModel(game));
     for (const name of secretNames) {
       expect(playerModel, `player model leaks ${name}`).to.not.contain(`"${name}"`);
-      expect(spectatorModel, `spectator model leaks ${name}`).to.not.contain(`"${name}"`);
       expect(gameModel, `game model leaks ${name}`).to.not.contain(`"${name}"`);
     }
   });

@@ -239,7 +239,6 @@ import AppButton from '@/client/components/common/AppButton.vue';
 import VictoryPointChart, {DataSet} from '@/client/components/gameend/VictoryPointChart.vue';
 import {playerColorClass} from '@/common/utils/utils';
 import {Timer} from '@/common/Timer';
-import {SpectatorModel} from '@/common/models/SpectatorModel';
 import {Color} from '@/common/Color';
 import {CardType} from '@/common/cards/CardType';
 import {getCard} from '@/client/cards/ClientCardManifest';
@@ -250,14 +249,11 @@ import {LogMessageDataType} from '@/common/logs/LogMessageDataType';
 import {MADetail} from '@/common/game/VictoryPointsBreakdown';
 import {AwardName} from '@/common/ma/AwardName';
 
-function getViewModel(playerView: ViewModel | undefined, spectator: ViewModel | undefined): ViewModel {
+function getViewModel(playerView: ViewModel | undefined): ViewModel {
   if (playerView !== undefined) {
     return playerView;
   }
-  if (spectator !== undefined) {
-    return spectator;
-  }
-  throw new Error('Neither playerView nor spectator are defined');
+  throw new Error('playerView is not defined');
 }
 
 export default defineComponent({
@@ -267,20 +263,16 @@ export default defineComponent({
       type: Object as () => PlayerViewModel | undefined,
       required: true,
     },
-    spectator: {
-      type: Object as () => SpectatorModel | undefined,
-      required: true,
-    },
   },
   computed: {
     viewModel(): ViewModel {
-      return getViewModel(this.playerView, this.spectator);
+      return getViewModel(this.playerView);
     },
     game(): GameModel {
-      return getViewModel(this.playerView, this.spectator).game;
+      return getViewModel(this.playerView).game;
     },
     players(): Array<PublicPlayerModel> {
-      return getViewModel(this.playerView, this.spectator).players;
+      return getViewModel(this.playerView).players;
     },
     // Read-only premium Гидросеть track for the end screen (final positions, no
     // action-zone). Built from the public positions; no server preview needed.
@@ -307,13 +299,10 @@ export default defineComponent({
       if (this.playerView !== undefined) {
         return this.playerView.thisPlayer.color;
       }
-      if (this.spectator !== undefined) {
-        return this.spectator.color;
-      }
-      throw new Error('Neither playerView nor spectator are defined');
+      throw new Error('playerView is not defined');
     },
     downloadLogUrl() {
-      const id = this.playerView?.id || this.spectator?.id;
+      const id = this.playerView?.id;
       if (id === undefined) {
         return undefined;
       }

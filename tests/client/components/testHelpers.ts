@@ -12,7 +12,6 @@ import {Tag} from '@/common/cards/Tag';
 import {Protection} from '@/common/models/PlayerModel';
 import {DEFAULT_EXPANSIONS} from '@/common/cards/GameModule';
 import {PoliticalAgendasModel} from '@/common/models/TurmoilModel';
-import {SpectatorModel} from '@/common/models/SpectatorModel';
 
 function emptyProtection(): Record<Resource, Protection> {
   return {
@@ -203,14 +202,6 @@ export function fakePlayerViewModel(overrides?: RecursivePartial<PlayerViewModel
     runId: 'run-id',
     ...overrides,
   } as PlayerViewModel;
-}
-
-export function fakeSpectatorModel(): SpectatorModel {
-  return {
-    ...fakeViewModel(),
-    id: 'spectator-id',
-    color: 'neutral',
-  };
 }
 
 export function fakeViewModel(overrides?: RecursivePartial<ViewModel>): ViewModel {

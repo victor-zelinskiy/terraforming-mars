@@ -2,7 +2,7 @@ import {shallowMount} from '@vue/test-utils';
 import {expect} from 'chai';
 import {globalConfig} from './getLocalVue';
 import GameEnd from '@/client/components/GameEnd.vue';
-import {fakePlayerViewModel, fakeSpectatorModel} from './testHelpers';
+import {fakePlayerViewModel} from './testHelpers';
 
 describe('GameEnd', () => {
   it('mounts without errors', () => {
@@ -10,7 +10,6 @@ describe('GameEnd', () => {
       ...globalConfig,
       props: {
         playerView: fakePlayerViewModel(),
-        spectator: fakeSpectatorModel(),
       },
     });
     expect(wrapper.exists()).to.be.true;

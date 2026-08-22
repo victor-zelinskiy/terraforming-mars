@@ -22,7 +22,6 @@ import {MarsBotCorpModel, marsBotCorpInfo} from '../../common/automa/MarsBotCorp
 import {AutomaMAEvaluation} from '../automa/AutomaMAEvaluation';
 import {FundedAwardModel, AwardScore} from '../../common/models/FundedAwardModel';
 import {getTurmoilModel} from '../models/TurmoilModel';
-import {SpectatorModel} from '../../common/models/SpectatorModel';
 import {GameModel} from '../../common/models/GameModel';
 import {MarsBotModel} from '../../common/models/MarsBotModel';
 import {Turmoil} from '../turmoil/Turmoil';
@@ -267,17 +266,6 @@ export class Server {
       },
     };
     return rv;
-  }
-
-  public static getSpectatorModel(game: IGame): SpectatorModel {
-    return {
-      color: 'neutral',
-      id: game.spectatorId,
-      game: this.getGameModel(game),
-      players: game.playersInGenerationOrder.map((p) => this.getPlayer(p, false)),
-      thisPlayer: undefined,
-      runId: runId,
-    };
   }
 
   // The cards currently hosted on Self-replicating Robots. Built through the

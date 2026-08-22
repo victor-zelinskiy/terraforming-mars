@@ -19,7 +19,6 @@
         <a calassc target="blank" :href="'player?id=' + player.id">{{player.name}}</a>
       </span>
     </td>
-    <td><a target="blank" :href="'spectator?id=' + game.spectatorId" v-i18n class="player-name spectator">Spectator</a></td>
   </template>
   <td>
     <button
