@@ -39,8 +39,81 @@ export const actionPreviewStore = reactive({
   previews: {} as Record<string, ActionPreview | undefined>,
 });
 
-/** Requests currently on the wire (per card) — ensure() never double-fetches. */
+/** Requests queued OR on the wire (per card) — ensure() never double-fetches. */
 const inflight = new Set<string>();
+
+/**
+ * Bounded fan-out. The wheel-open pre-warm used to fire one fetch per action
+ * source in a single synchronous burst (10-20 late game). On the Deck the
+ * embedded server shares the APU with the renderer, so N simultaneous preview
+ * computations landed exactly under the wheel's entry animation. A small
+ * concurrency window drains the same set well inside the human
+ * «press → descend» pause without the thundering herd — and the N reactive
+ * writes arrive in a few flushes instead of N.
+ */
+const MAX_CONCURRENT_PREVIEW_FETCHES = 4;
+type PreviewFetchJob = {cardName: CardName, key: string, url: string};
+const fetchQueue: Array<PreviewFetchJob> = [];
+let activeFetches = 0;
+/** In-flight aborts — a key change cancels stale requests at the socket, so
+ *  fresh previews never queue behind answers nobody will read. */
+const activeAborts = new Set<AbortController>();
+
+function abortActiveFetches(): void {
+  for (const controller of [...activeAborts]) {
+    controller.abort();
+  }
+}
+
+function runPreviewFetch(job: PreviewFetchJob): void {
+  activeFetches++;
+  const controller = typeof AbortController === 'function' ? new AbortController() : undefined;
+  if (controller !== undefined) {
+    activeAborts.add(controller);
+  }
+  const done = () => {
+    activeFetches--;
+    if (controller !== undefined) {
+      activeAborts.delete(controller);
+    }
+    inflight.delete(job.cardName);
+  };
+  fetch(job.url, controller !== undefined ? {signal: controller.signal} : undefined)
+    .then((r) => (r.ok ? r.json() : undefined))
+    .then((p) => {
+      done();
+      if (actionPreviewStore.key === job.key) {
+        if (p !== undefined) {
+          actionPreviewStore.previews[job.cardName] = p as ActionPreview;
+        } else {
+          seedFallback(job.cardName);
+        }
+      }
+      pumpPreviewFetches();
+    })
+    .catch(() => {
+      done();
+      if (actionPreviewStore.key === job.key) {
+        seedFallback(job.cardName);
+      }
+      pumpPreviewFetches();
+    });
+}
+
+function pumpPreviewFetches(): void {
+  while (activeFetches < MAX_CONCURRENT_PREVIEW_FETCHES && fetchQueue.length > 0) {
+    const job = fetchQueue.shift();
+    if (job === undefined) {
+      return;
+    }
+    if (actionPreviewStore.key !== job.key) {
+      // The state moved on while this sat in the queue — a stale ask.
+      inflight.delete(job.cardName);
+      continue;
+    }
+    runPreviewFetch(job);
+  }
+}
 
 /** The same availability fingerprint recipe the Action Center watches. */
 export function actionPreviewFingerprint(playerView: PlayerViewModel): string {
@@ -78,6 +151,8 @@ export function ensureActionPreviews(playerView: PlayerViewModel): void {
     actionPreviewStore.key = key;
     actionPreviewStore.previews = {};
     inflight.clear();
+    fetchQueue.length = 0;
+    abortActiveFetches();
   }
   const entries = buildActionEntries(playerView.thisPlayer, {
     availableNames: new Set((findPerformActionCard(playerView.waitingFor)?.model.cards ?? []).map((c) => c.name)),
@@ -94,26 +169,9 @@ export function ensureActionPreviews(playerView: PlayerViewModel): void {
     const url = apiUrl(paths.API_ACTION_PREVIEW) +
       '?id=' + encodeURIComponent(playerView.id) +
       '&card=' + encodeURIComponent(cardName);
-    fetch(url)
-      .then((r) => (r.ok ? r.json() : undefined))
-      .then((p) => {
-        inflight.delete(cardName);
-        if (actionPreviewStore.key !== key) {
-          return; // the state moved on while this flew — a stale answer
-        }
-        if (p !== undefined) {
-          actionPreviewStore.previews[cardName] = p as ActionPreview;
-        } else {
-          seedFallback(cardName);
-        }
-      })
-      .catch(() => {
-        inflight.delete(cardName);
-        if (actionPreviewStore.key === key) {
-          seedFallback(cardName);
-        }
-      });
+    fetchQueue.push({cardName, key, url});
   }
+  pumpPreviewFetches();
 }
 
 /** The cached previews as the Map the pure model consumes. */
@@ -132,4 +190,6 @@ export function resetActionPreviews(): void {
   actionPreviewStore.key = '';
   actionPreviewStore.previews = {};
   inflight.clear();
+  fetchQueue.length = 0;
+  abortActiveFetches();
 }

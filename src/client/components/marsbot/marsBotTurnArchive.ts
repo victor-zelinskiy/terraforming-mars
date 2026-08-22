@@ -46,6 +46,16 @@ export type ArchivedBotTurn = {
 // Reactive so journal computeds ("is a replay available?") re-track it.
 const archive = reactive(new Map<string, ArchivedBotTurn>());
 
+/**
+ * Keyed index: journal group id → archive key. The journal asks «is a replay
+ * available?» once per rendered group; a `values()` scan was O(archived turns)
+ * per row AND — being an ITERATE read — re-ran every such computed whenever ANY
+ * turn landed. A per-key reactive `get` is O(1) and invalidates only the rows
+ * whose own correlation changed. Populated at archive time only (an entry's
+ * correlationId never changes after archiving — same rule as the entry itself).
+ */
+const byCorrelation = reactive(new Map<number, string>());
+
 function turnsOfView(view: ViewModel): ReadonlyArray<MarsBotTurn> {
   const automa = view.game.automa;
   if (automa === undefined) {
@@ -104,6 +114,9 @@ export function recordBotTurnsFromView(prev: ViewModel | undefined, next: ViewMo
       ...(turn.correlationId !== undefined ? {correlationId: turn.correlationId} : {}),
     };
     archive.set(key, entry);
+    if (entry.correlationId !== undefined) {
+      byCorrelation.set(entry.correlationId, key);
+    }
     if (!silentSeed) {
       fresh.push(entry);
     }
@@ -148,12 +161,8 @@ export function adjacentArchivedTurn(key: string, dir: -1 | 1): ArchivedBotTurn 
 
 /** The archived turn whose journal group is `correlationId`, if any. */
 export function archivedTurnByCorrelation(correlationId: number): ArchivedBotTurn | undefined {
-  for (const entry of archive.values()) {
-    if (entry.correlationId === correlationId) {
-      return entry;
-    }
-  }
-  return undefined;
+  const key = byCorrelation.get(correlationId);
+  return key === undefined ? undefined : archive.get(key);
 }
 
 /** Reactive-safe: is a theater replay available for this journal group? */
@@ -171,4 +180,5 @@ export function markBotTurnViewed(key: string): void {
 /** Full reset (a different game opened in-session / tests). */
 export function resetMarsBotArchive(): void {
   archive.clear();
+  byCorrelation.clear();
 }

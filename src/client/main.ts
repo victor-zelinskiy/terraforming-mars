@@ -9,7 +9,6 @@ import {startOauth} from '@/client/oauth';
 import {perfMark, perfMeasure, startLongTaskObserver} from '@/client/utils/perfMarks';
 import {applyMotionCssScale, onMotionFpsCapChange} from '@/client/components/motion/motionTokens';
 import {applyGsapTickerFps} from '@/client/components/motion/gsapMotionBridge';
-import {applyConsolePerfClass} from '@/client/console/consolePerfMode';
 import {applyConsoleReadingScale} from '@/client/console/consoleReadingScale';
 const PlayerInputFactory = defineAsyncComponent(() => import(/* webpackChunkName: "player-input" */ '@/client/components/PlayerInputFactory.vue'));
 // Registered globally so ModernOptionPicker can host a nested input recursively
@@ -53,9 +52,6 @@ async function bootstrap() {
   // Registering (rather than calling) also applies every LATER change — the
   // settings surface just persists the cap and never touches gsap itself.
   onMotionFpsCapChange((cap) => applyGsapTickerFps(cap));
-  // Apply the console performance-mode class (cuts decorative paint; motion
-  // untouched) from the persisted preference before first paint.
-  applyConsolePerfClass();
   // Publish the reading-text scale (`--con-read-scale`) before first paint,
   // so the rules/lore surfaces never re-wrap after mount.
   applyConsoleReadingScale();

@@ -10,9 +10,9 @@
  *
  * Authored in rem (1rem = 20px logical) per the TV profile contract; tokens
  * (@con-*, mixins) come from console.less's root scope. Every FUNCTIONAL cue
- * (focus, active, ready, blocked) is box-shadow / colour — `con-perf-lite`
- * strips `filter` and `text-shadow`, and a focus ring that vanishes there costs
- * the player their cursor.
+ * (focus, active, ready, blocked) is box-shadow / colour — the console paint
+ * baseline strips `filter` and `text-shadow`, and a focus ring authored there
+ * would cost the player their cursor.
  */
 
 @lanes-gain: #7fd6a4;  // the calm "you receive" green
@@ -279,7 +279,7 @@
     }
     /* SINGLE-STEP mode: the chosen lane keeps its mark once the cursor moves on
        (the focused row shows the A glyph in the same cell instead). Colour, not
-       filter — `con-perf-lite` strips filters and this is a functional cue. */
+       filter — the paint baseline strips filters and this is a functional cue. */
     &__tick {
         font-size: 1.15rem;
         font-weight: 800;

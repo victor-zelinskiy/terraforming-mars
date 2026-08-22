@@ -16,7 +16,7 @@
  *   F · land    — contact settle; the proxy fades exactly as the real pile back
  *                 materialises under it, which is when the count ticks.
  *
- * Transform/opacity only (con-perf-lite safe — the condemned rim is a
+ * Transform/opacity only (paint-baseline safe — the condemned rim is a
  * box-shadow class, never a filter). Every duration goes through motionMs;
  * every px constant is multiplied by conUiScale() or the TV profile would stop
  * growing it.
@@ -51,7 +51,7 @@ const HOLD_CLASS = 'con-deal-hold';
 /** The rim that marks a card as chosen — a box-shadow class, perf-safe. */
 const SEIZED_CLASS = 'con-discard-proxy--seized';
 /** Mid-turn: the drop shadow widens as the card comes off the table. Purely
- *  decorative (a `filter`), so perf-lite dropping it costs no information. */
+ *  decorative (a `filter`), so the paint baseline dropping it costs no information. */
 const TURNING_CLASS = 'con-discard-proxy--turning';
 
 const s = (ms: number) => motionMs(ms) / 1000;

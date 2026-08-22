@@ -1,5 +1,5 @@
 import {expect} from 'chai';
-import {nextTick, reactive} from 'vue';
+import {nextTick, reactive, watchEffect} from 'vue';
 import {
   DEFAULT_MAX_HOLD_MS,
   GsapLikeAnimation,
@@ -10,6 +10,7 @@ import {
   holdForGsapAnimation,
   isAnimationHoldActive,
   activeAnimationHoldLabels,
+  refreshAnimationHolds,
   registerAnimationHoldSupplier,
   resetAnimationHoldsForTest,
   unregisterAnimationHoldSupplier,
@@ -97,6 +98,31 @@ describe('animationHold (the critical-animation registry)', () => {
     });
     expect(animationHoldCount()).eq(0);
     expect(currentBlockReason()).eq(undefined);
+  });
+
+  // REGRESSION (Steam Deck perf iteration 1): the console watchdog bumps
+  // `refreshAnimationHolds()` every second (the phantom-hold net). The counts
+  // computed must be IDENTITY-STABLE when nothing changed, so that quiet tick
+  // ends at the counts boundary instead of re-deriving every dependent
+  // (admission signals, idle flags, presentationFlow) once a second.
+  it('refreshAnimationHolds with nothing changed does not re-fire dependents', async () => {
+    let evals = 0;
+    const stop = watchEffect(() => {
+      void animationHoldCount();
+      evals++;
+    });
+    await nextTick();
+    const before = evals;
+    refreshAnimationHolds();
+    refreshAnimationHolds();
+    await nextTick();
+    expect(evals).eq(before);
+    // …and a REAL change still propagates through the same boundary.
+    const hold = beginAnimationHold('spec-tick');
+    await nextTick();
+    expect(evals).greaterThan(before);
+    hold.release();
+    stop();
   });
 
   it('the safety ceiling force-releases a leaked manual hold', async () => {

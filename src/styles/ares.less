@@ -287,9 +287,11 @@
 
 /* ── Hazard intensified (mild → severe) — a one-shot premium pulse ─────────── */
 /* The negative `--hazard-intensify-delay` (set by BoardSpaceTile from the module
-   tracker) keeps the keyframe continuous across the board remount, so it plays
-   exactly once. The keyframe starts AND ends at the resting state, so a lingering
-   class (until the next remount clears it) shows nothing. */
+   tracker) keeps the keyframe continuous across a re-render, so it plays exactly
+   once. ⚠️ The class MUST leave the DOM when the pulse ends (BoardSpaceTile's
+   refreshIntensify timer): the console board is `v-show`n, and display:none → ''
+   RESTARTS every CSS animation still standing in the subtree — a lingering
+   intensify class made stationary hazards pulse on every workspace close. */
 .board-space-tile--intensifying {
   animation: hazard-intensify 1.4s ease-out var(--hazard-intensify-delay, 0ms) 1;
   transform-origin: center center;

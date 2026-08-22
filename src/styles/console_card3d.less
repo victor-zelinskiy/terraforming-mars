@@ -86,11 +86,7 @@
         rgba(176, 197, 219, 0.92) 38%,
         rgba(96, 116, 138, 0.94) 78%,
         rgba(52, 66, 82, 0.96) 100%);
-    box-shadow: 0 0 .22rem rgba(196, 226, 255, 0.35);
-}
-
-/* Performance mode keeps the edge (it is geometry + a box-shadow, both of
-   which `con-perf-lite` deliberately keeps) — only the glow softens. */
-.con-perf-lite .con-card3d__edge {
-    box-shadow: none;
+    /* No glow around the edge: the lit-paper gradient alone carries the
+       crossing (the old decorative box-shadow bloom was cut with the
+       performance profile that is now the permanent paint baseline). */
 }

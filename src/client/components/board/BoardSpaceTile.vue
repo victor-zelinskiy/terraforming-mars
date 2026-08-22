@@ -12,7 +12,7 @@
 import {defineComponent} from 'vue';
 import {SpaceType} from '@/common/boards/SpaceType';
 import {TileType, tileTypeToString, HAZARD_TILES} from '@/common/TileType';
-import {hazardIntensifyElapsed} from '@/client/components/board/hazardIntensifyState';
+import {HAZARD_INTENSIFY_MS, hazardIntensifyElapsed} from '@/client/components/board/hazardIntensifyState';
 import {hazardCleanupState} from '@/client/components/feedback/hazardCleanupTransition';
 import {hazardFxAt} from '@/client/components/feedback/hazardCleanupModel';
 import {SpaceHighlight, SpaceModel} from '@/common/models/SpaceModel';
@@ -134,6 +134,8 @@ type Data = {
   placementDurationMs: number;
   placementDelayMs: number;
   placementTimer: number | null;
+  intensifyDelayMs: number | null;
+  intensifyTimer: number | null;
 };
 
 export default defineComponent({
@@ -164,6 +166,8 @@ export default defineComponent({
       placementDurationMs: 0,
       placementDelayMs: 0,
       placementTimer: null,
+      intensifyDelayMs: null,
+      intensifyTimer: null,
     };
   },
   computed: {
@@ -204,7 +208,7 @@ export default defineComponent({
           css += ' board-space-tile--placement-cleared';
         }
         // A hazard that just intensified (mild → severe) plays a one-shot pulse.
-        if (this.intensifyElapsed >= 0) {
+        if (this.intensifyDelayMs !== null) {
           css += ' board-space-tile--intensifying';
         }
       } else {
@@ -256,14 +260,6 @@ export default defineComponent({
      * animation starts already partway through, matching the visual
      * the player was seeing pre-remount.
      */
-    // Elapsed ms of an active hazard-intensify pulse for THIS cell (mild → severe),
-    // or -1. Module-tracked so the one-shot survives the board remount.
-    intensifyElapsed(): number {
-      if (this.tileType === undefined || !HAZARD_TILES.has(this.tileType)) {
-        return -1;
-      }
-      return hazardIntensifyElapsed(this.space.id, this.tileType);
-    },
     // The tile-to-tile TRANSITION for a hazard-cleanup on THIS cell, applied to
     // the real board tile: BEFORE the swap the hazard fades + recedes (dissolve);
     // AFTER the swap the new tile grows + fades IN (materialise). `undefined`
@@ -288,8 +284,8 @@ export default defineComponent({
         style['--placement-delay'] = `${this.placementDelayMs}ms`;
       }
       // Negative delay keeps the intensify keyframe continuous across remounts.
-      if (this.intensifyElapsed >= 0) {
-        style['--hazard-intensify-delay'] = `-${Math.round(this.intensifyElapsed)}ms`;
+      if (this.intensifyDelayMs !== null) {
+        style['--hazard-intensify-delay'] = `-${Math.round(this.intensifyDelayMs)}ms`;
       }
       // Tile-to-tile transition for a hazard cleanup: fade/recede the doomed
       // hazard out, then grow/fade the new tile in.
@@ -307,6 +303,7 @@ export default defineComponent({
       immediate: true,
       handler() {
         this.refreshPlacement();
+        this.refreshIntensify();
       },
     },
   },
@@ -314,6 +311,10 @@ export default defineComponent({
     if (this.placementTimer !== null) {
       clearTimeout(this.placementTimer);
       this.placementTimer = null;
+    }
+    if (this.intensifyTimer !== null) {
+      clearTimeout(this.intensifyTimer);
+      this.intensifyTimer = null;
     }
   },
   methods: {
@@ -361,6 +362,34 @@ export default defineComponent({
         this.placementKind = null;
         this.placementTimer = null;
         clearActivePlacement(spaceId);
+      }, remaining);
+    },
+    /*
+     * One-shot hazard-intensify pulse (mild → severe), DATA + timer like the
+     * placement classes above — never a cached computed. The old computed froze
+     * its first non-negative elapsed forever (its reactive deps never change
+     * again), so `--intensifying` + its pinned negative delay stayed on the
+     * tile for the rest of the game — and because the console board section is
+     * `v-show`n, EVERY workspace round trip (display:none → '') restarted the
+     * CSS animation: stationary hazard tiles visibly pulsed/scaled each time a
+     * workspace closed. The class must leave the DOM when the pulse ends.
+     */
+    refreshIntensify() {
+      if (this.intensifyTimer !== null) {
+        clearTimeout(this.intensifyTimer);
+        this.intensifyTimer = null;
+      }
+      const elapsed = (this.tileType !== undefined && HAZARD_TILES.has(this.tileType)) ?
+        hazardIntensifyElapsed(this.space.id, this.tileType) : -1;
+      if (elapsed < 0) {
+        this.intensifyDelayMs = null;
+        return;
+      }
+      this.intensifyDelayMs = elapsed;
+      const remaining = Math.max(0, HAZARD_INTENSIFY_MS - elapsed) + 40;
+      this.intensifyTimer = window.setTimeout(() => {
+        this.intensifyDelayMs = null;
+        this.intensifyTimer = null;
       }, remaining);
     },
   },

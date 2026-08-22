@@ -1,0 +1,40 @@
+/* ─────────────────────────────────────────────────────────────────────────
+   Console PAINT BASELINE — permanent, NOT a mode.
+
+   Console-native strips the expensive DECORATIVE paint unconditionally.
+   (Until 2026-08 this was the opt-in «Производительность» profile,
+   `con-perf-lite`; its enabled behaviour is now the only production
+   behaviour — Steam Deck defines the performance floor.)
+
+     - `filter` (blur / drop-shadow) — THE big win: each forces its own
+       compositing LAYER + a costly per-frame raster, directly feeding the
+       Layerize bottleneck. Purely decorative in console (planet/icon glows,
+       ambient blooms) — never a carrier of state.
+     - `text-shadow` — small per-frame paint across the glass typography.
+
+   ⚠ `box-shadow` is DELIBERATELY KEPT. Every FOCUS / SELECTION / CURSOR /
+   ACTIVE ring (the gamepad navigation frame, the selected colony/card, the
+   menu cursor, …) is drawn with `box-shadow`, and its colour is
+   STATE-DEPENDENT (con-mint = active, con-amber = attention, con-cyan =
+   selected, …). Cutting box-shadow erased those functional indicators once —
+   a shipped bug. box-shadow is a modest paint cost (mostly at mount, NOT
+   per-frame under a transform animation); the Layerize win comes from
+   `filter`.
+
+   MOTION IS UNTOUCHED: transforms, opacity and every GSAP/CSS animation run
+   identically — only the per-frame paint/layer cost drops.
+
+   Gated on `html.console-native` so it never touches the (frozen) desktop
+   UI. A universal `*` selector is the CHEAPEST broad match (no attribute
+   substring matching, which would ADD style-recalc cost) and is static —
+   matched once per element, never re-evaluated per frame.
+
+   Contract for new console UI (.claude/rules/console-ui.md § Paint
+   baseline): motion in transform/opacity only; functional cues ride
+   box-shadow / outline / colour — a `filter`/`text-shadow` cue is dead on
+   arrival here, so don't author one.
+   ───────────────────────────────────────────────────────────────────────── */
+html.console-native * {
+    filter: none !important;
+    text-shadow: none !important;
+}

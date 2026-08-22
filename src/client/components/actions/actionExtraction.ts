@@ -166,13 +166,23 @@ function isActionNode(node: ICardRenderEffect): boolean {
   return false;
 }
 
+/** Memo of collectActionNodes — a card's printed renderData is STATIC, but the
+ *  walk ran per tableau action card on EVERY wheel open / Action Center render
+ *  (late game: dozens of tree walks per open, all recomputing the same answer). */
+const actionNodesMemo = new Map<CardName, Array<ICardRenderEffect>>();
+
 /** Pull every action node out of a card's renderData, incl. nested in a
- *  corporation action / effect-action box. */
+ *  corporation action / effect-action box. Memoized: static per card name. */
 function collectActionNodes(cardName: CardName): Array<ICardRenderEffect> {
+  const memo = actionNodesMemo.get(cardName);
+  if (memo !== undefined) {
+    return memo;
+  }
   const card = getCard(cardName);
   const renderData = card?.metadata.renderData;
   const out: Array<ICardRenderEffect> = [];
   if (renderData === undefined || !isICardRenderRoot(renderData)) {
+    actionNodesMemo.set(cardName, out);
     return out;
   }
   for (const row of renderData.rows) {
@@ -196,6 +206,7 @@ function collectActionNodes(cardName: CardName): Array<ICardRenderEffect> {
       // corp-box-effect and everything else carries no action.
     }
   }
+  actionNodesMemo.set(cardName, out);
   return out;
 }
 

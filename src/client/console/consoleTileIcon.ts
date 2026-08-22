@@ -8,7 +8,7 @@
  *
  * Sizing is deliberately NOT set here: the caller's class owns width/height so
  * the row keeps its fixed height whatever tile is shown. This only supplies the
- * layered background, which `con-perf-lite` leaves untouched (no filter).
+ * layered background, which the console paint baseline leaves untouched (no filter).
  */
 
 import {TileType} from '@/common/TileType';

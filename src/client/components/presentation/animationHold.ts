@@ -149,7 +149,7 @@ function safeRead(label: string, supplier: () => boolean): boolean {
   }
 }
 
-const counts = computed(() => {
+const counts = computed((prev: {all: number, blocking: number} | undefined) => {
   void store.version;
   let all = 0;
   let blocking = 0;
@@ -170,6 +170,16 @@ const counts = computed(() => {
     if (hold.scope === 'blocking') {
       blocking++;
     }
+  }
+  // IDENTITY-STABLE when nothing changed. The console watchdog bumps
+  // `store.version` every second (the phantom-hold net — see
+  // refreshAnimationHolds), and a fresh {all, blocking} object every bump made
+  // every dependent — the admission signals, the idle flags, presentationFlow —
+  // re-derive once a second on a perfectly quiet board. Returning the previous
+  // object keeps Vue's value-change check false, so the re-poll of the supplier
+  // predicates (the net itself, cheap) is where the tick now ENDS.
+  if (prev !== undefined && prev.all === all && prev.blocking === blocking) {
+    return prev;
   }
   return {all, blocking};
 });

@@ -146,6 +146,13 @@ type DataModel = {
   // (structural-sharing re-swap, same-state repoll, a PoV read) must not
   // re-run the 2 network fetches + full diff.
   lastFetchVersion: string | undefined;
+  /** Signature of the last APPLIED diff payload. Within one generation and one
+   *  undoCount the log/event streams are append-only, so equal lengths ⟹
+   *  identical content — the unconditional 2.2 s poller (the simultaneous-phase
+   *  fallback) then re-fetches but must NOT re-run the full-generation
+   *  rebuild (buildJournalView + three diff walks + impact recompute), whose
+   *  cost grows with the generation all match long. */
+  lastDiffSignature: string | undefined;
 };
 
 /**
@@ -177,6 +184,7 @@ export default defineComponent({
       stopPoller: undefined,
       fetching: false,
       lastFetchVersion: undefined,
+      lastDiffSignature: undefined,
     };
   },
   computed: {
@@ -371,6 +379,7 @@ export default defineComponent({
         closeBotTurnReview();
         resetBotStaging(); // a stale staging window must not swallow the new game's commits
         this.lastFetchVersion = undefined; // A1: force a re-seed fetch for the new game
+        this.lastDiffSignature = undefined; // …and a full re-diff for it too
       }
       const canToast = notificationState.seeded && !this.journalOpen && notificationState.settings.showImportant;
       if (notificationState.lastGeneration === undefined) {
@@ -425,6 +434,17 @@ export default defineComponent({
     },
 
     applyDiff(messages: ReadonlyArray<LogMessage>, events: ReadonlyArray<GameEvent>, generation: number): void {
+      // Unchanged payload → the diffs would find every id already seen and push
+      // nothing; skip the whole O(generation) rebuild. undoCount is part of the
+      // signature because an undo can remove K entries and later plays re-add K
+      // (same lengths, different content) — within one undoCount the streams
+      // are append-only and equal lengths ⟹ identical content. Never skip the
+      // initial seed (`seeded === false`): the seen-sets aren't fed yet.
+      const signature = `${this.playerView.game.undoCount}:${generation}:${messages.length}:${events.length}`;
+      if (notificationState.seeded && signature === this.lastDiffSignature) {
+        return;
+      }
+      this.lastDiffSignature = signature;
       const now = Date.now();
       const {models, encounteredIds} = diffRootNotifications({
         messages,

@@ -1,17 +1,21 @@
-<!-- Reference material moved out of the root CLAUDE.md (2026-07-27 context-budget reorg).
-     NOT auto-loaded. Read on demand when working on this subsystem. Verbatim, unedited. -->
+<!-- Reference material, NOT auto-loaded. Read on demand when working on this subsystem. -->
 
-## Console PERFORMANCE MODE (`con-perf-lite`) — the paint-cut profile EVERY new overlay/animation must support
+## Console PAINT BASELINE — permanent, not a mode (2026-08)
 
-**There is an opt-in console performance profile** (main-menu Options → «Производительность», `src/client/console/consolePerfMode.ts` → `html.console-native.con-perf-lite`, persisted `tm_console_perf_lite` / URL `?perfLite=1`, applied at bootstrap in `main.ts`). It exists because the renderer is **paint/Layerize-bound** on weak / Windows-hybrid setups (a DevTools trace showed ~62% of frame time in Blink Style-recalc + `Layerize` + Layout during CSS-`zoom`-scaled GSAP-FLIP overlay animations). The profile trades **gloss for smoothness** while keeping the game fully playable.
+**History.** Until 2026-08 this was the opt-in performance profile «Производительность» (`con-perf-lite`, `consolePerfMode.ts`, persisted `tm_console_perf_lite`, URL `?perfLite=1`). The first Steam-Deck performance iteration made its enabled behaviour the ONLY production behaviour: the toggle, the runtime flag, the persistence and the localization are gone. The old persisted localStorage key is simply never read again — old installs start fine. Do not reintroduce the expensive effects through another flag or a renamed setting.
 
-**What it cuts (`src/styles/console_perf.less`, one universal `*` rule under the gate):** `filter` (blur / drop-shadow — each forces its OWN compositing LAYER + costly raster, the big Layerize win, ≈43 sites) + `text-shadow`. **`box-shadow` is DELIBERATELY KEPT** (a shipped bug: cutting it erased every focus/selection/cursor ring — see below). **Motion is UNTOUCHED** — transforms/opacity/every GSAP+CSS animation run byte-identically; only per-frame paint/layer cost drops.
+**What the baseline is** (`src/styles/console_paint_baseline.less`, one universal rule under `html.console-native`): `filter: none !important; text-shadow: none !important;` for the whole console-native subtree.
 
-**⚠️ THE CONTRACT — when you build a NEW console overlay / animation, it MUST stay correct with perf mode ON. Rules:**
-1. **MOTION lives in `transform` / `opacity` ONLY** (already the `motionTokens` rule; it's also the compositor-friendly path AND perf-mode-safe — perf mode never touches it). Never animate `filter` or a layout-affecting property for MOVEMENT.
-2. **FUNCTIONAL / state indicators — focus, selection, cursor, availability, "your turn" rings — use `box-shadow` (KEPT) or `outline`, NEVER `filter`/`drop-shadow`/`text-shadow`.** Those carry STATE-DEPENDENT colour (con-mint = active, con-amber = attention, con-cyan = selected, …); a `filter`-based glow would VANISH in perf mode and the player would lose navigation cues. The console focus/selection language is already all `box-shadow` (gamepad focus frame, selected colony/card, menu cursor) — follow it.
-3. **Decorative-only glow / blur via `filter`** is fine (perf mode cuts it — that IS the point). Just never put load-bearing info there.
-4. **Verify:** toggle «Производительность» ON and confirm the new surface stays fully usable — every focus/selection/availability cue still visible + correctly COLOURED — and its motion is identical (only ambient glows/blurs disappear). `make:css` compiles `console_perf.less`; the toggle applies live.
+- `filter` (blur / drop-shadow) is the big win: each forces its OWN compositing layer + a costly per-frame raster (the Layerize bottleneck measured in the original traces). In console it was purely decorative (planet/icon glows, ambient blooms).
+- `text-shadow` is a small per-frame paint across the glass typography.
+- **`box-shadow` is DELIBERATELY KEPT** — it is the sole carrier of the state-coloured focus/selection/cursor rings (con-mint = active, con-amber = attention, con-cyan = selected). Cutting it once shipped as a bug (the player lost every navigation cue). Its cost is modest and mostly at mount.
+- **Motion is untouched** — transforms, opacity and every GSAP/CSS animation run identically.
 
-**Why `box-shadow` is the ONE exception to the cut:** it is a modest paint cost (≈9% of frame in the trace, mostly at MOUNT, not per-frame under a transform animation), while it is the SOLE carrier of the state-coloured focus/selection rings. Keeping it costs little and preserves the whole navigation language; the Layerize win comes entirely from `filter`. Do NOT re-add `box-shadow: none` to the perf rule. State (2026-07): perf mode + `LimitLayerMergeDistance` (Chromium's own fix for the CSS-scale→Layerize bug, ENABLED_BY_DEFAULT at `limit/16` — already active in the shipped Electron ThinLTO build) are the shipped levers; the deeper remaining Layerize cost is a `zoom`/FLIP-choreography rework that WOULD change visuals (deliberately not done).
+The desktop UI (frozen) is out of scope: the gate is `html.console-native`, which only exists while a console-native surface is mounted.
 
+**The contract for new console UI** (same three rules as before, now unconditional):
+1. Motion lives in `transform` / `opacity` only.
+2. Functional state — focus, selection, cursor, availability, "your turn" — rides `box-shadow` / `outline` / colour. A `filter`/`drop-shadow`/`text-shadow` cue never renders in console.
+3. Don't author new decorative `filter`/`text-shadow` in console styles — it is dead weight (the baseline strips it). Existing inert declarations in shared files are tolerated where the same rule serves the desktop fallback.
+
+**Verification:** there is nothing to toggle any more — the baseline is always on. `make:css` compiles `console_paint_baseline.less`; visual checks happen in the normal console shell.

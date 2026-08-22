@@ -8,12 +8,16 @@ import {reducedMotionActive} from '@/client/utils/reducedMotion';
  * in one frame. This remembers each cell's last severity and, on an INCREASE,
  * starts a ~1.4s pulse.
  *
- * Module-level on purpose: the board (inside PlayerHome) REMOUNTS on the very
- * server response that delivers the new severity, so a component-local trigger
- * would re-fire (or be lost) on every poll. The caller feeds the returned ELAPSED
- * ms into a NEGATIVE animation-delay, so the keyframe stays continuous across
- * remounts and plays exactly once. First sighting (appearance), a weakening, or
- * reduced-motion → -1 (no animation): only a real strengthening animates.
+ * Module-level on purpose: the severity MEMORY must survive any board
+ * remount/re-render (the legacy `?remount=1` rollback still remounts per
+ * response), so a component-local trigger would re-fire (or be lost). The
+ * caller feeds the returned ELAPSED ms into a NEGATIVE animation-delay, so the
+ * keyframe stays continuous, and — since the no-remount rework — must ALSO
+ * expire its own animation class when the window ends (BoardSpaceTile's
+ * refreshIntensify timer): a class left on a `v-show`n board replays its
+ * keyframe on every display:none → '' round trip. First sighting (appearance),
+ * a weakening, or reduced-motion → -1 (no animation): only a real
+ * strengthening animates.
  */
 
 export const HAZARD_INTENSIFY_MS = 1400;

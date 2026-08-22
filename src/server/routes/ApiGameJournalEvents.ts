@@ -49,11 +49,25 @@ export class ApiGameJournalEvents extends Handler {
     // are likewise overlay-analytics only and excluded for the same reason.
     const ANALYTICS_ONLY_TAGS = ['resource-payment', 'payment-bonus', 'colony-track', 'trade-discount', 'global-parameter', 'reveal'] as const;
     const generationNumber = generation === null ? NaN : Number(generation);
-    const events: ReadonlyArray<GameEvent> = generation === null ?
-      [] :
-      game.events.events.filter((e) =>
-        e.generation === generationNumber &&
+    let events: ReadonlyArray<GameEvent> = [];
+    if (generation !== null) {
+      // Events append chronologically, so `generation` is non-decreasing —
+      // find the requested generation's window from the END instead of
+      // filtering the whole stream. The hot request is the CURRENT generation
+      // (the notification layer polls it), which sits at the tail; the old
+      // full-stream filter cost O(total events) per poll, growing all game.
+      const all = game.events.events;
+      let end = all.length;
+      while (end > 0 && all[end - 1].generation > generationNumber) {
+        end--;
+      }
+      let start = end;
+      while (start > 0 && all[start - 1].generation === generationNumber) {
+        start--;
+      }
+      events = all.slice(start, end).filter((e) =>
         !ANALYTICS_ONLY_TAGS.some((t) => e.tags?.includes(t) === true));
+    }
     responses.writeJson(res, ctx, events);
   }
 }

@@ -8,8 +8,8 @@
 
    Transform/opacity only; the stage is clipped; nothing animates layout.
    Authored in rem (the console logical space). The condemned rim is a
-   BOX-SHADOW, never a filter — con-perf-lite strips filters, and "this is
-   the card that is going" is functional state, not decoration.
+   BOX-SHADOW, never a filter — the console paint baseline strips filters,
+   and "this is the card that is going" is functional state, not decoration.
    ═══════════════════════════════════════════════════════════════════ */
 
 /* ── The app-level flight stage (ConsoleCardDiscardLayer) ────────────── */
@@ -226,7 +226,7 @@
    lock-step with their cyan originals.
 
    Every functional cue here is box-shadow / colour, never a filter:
-   con-perf-lite strips filters and "this card is going" must survive.
+   the paint baseline strips filters and "this card is going" must survive.
    ══════════════════════════════════════════════════════════════════ */
 
 /* The header block: the ask, the source, the colony-bonus position and the

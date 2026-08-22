@@ -9,22 +9,34 @@ import {LogMessageDataType} from '../../common/logs/LogMessageDataType';
 
 export class GameLogs {
   private getLogsForGeneration(messages: Array<LogMessage>, generation: number): Array<LogMessage> {
-    let foundStart = generation === 1;
-    const newMessages = [];
-    for (const message of messages) {
-      if (message.type === LogMessageType.NEW_GENERATION) {
-        const value = Number(message.data[0]?.value);
-        if (value === generation) {
-          foundStart = true;
-        } else if (value === generation + 1) {
-          break;
-        }
+    // Walk BACKWARD to the generation's boundaries. The hot request is the
+    // CURRENT generation (the notification layer polls it every few seconds),
+    // and the old forward walk re-scanned the whole log from index 0 on every
+    // request — O(total game length), growing for the entire match. Backward,
+    // the current generation costs its own length. Generation 1 starts at
+    // index 0 with no NEW_GENERATION marker of its own (the original's
+    // implicit start).
+    let start = generation === 1 ? 0 : -1;
+    let end = messages.length;
+    for (let i = messages.length - 1; i >= 0; i--) {
+      const message = messages[i];
+      if (message.type !== LogMessageType.NEW_GENERATION) {
+        continue;
       }
-      if (foundStart === true) {
-        newMessages.push(message);
+      const value = Number(message.data[0]?.value);
+      if (value === generation + 1) {
+        end = i;
+        if (generation === 1) {
+          break; // generation 1 starts at index 0 (setup logs precede its marker)
+        }
+      } else if (generation > 1 && value === generation) {
+        start = i;
+        break;
+      } else if (value < generation) {
+        break; // passed the window — the requested generation never started
       }
     }
-    return newMessages;
+    return start === -1 ? [] : messages.slice(start, end);
   }
 
   public getLogsForGameView(playerId: ParticipantId, game: IGame, generation: string | null): Array<LogMessage> {

@@ -59,7 +59,6 @@ import {
   setMotionFpsCap,
   setMotionSpeedPreset,
 } from '@/client/components/motion/motionTokens';
-import {consolePerfState, setConsolePerfLite} from '@/client/console/consolePerfMode';
 import {READING_SCALE_CHOICES, readingScaleState, setConsoleReadingScale} from '@/client/console/consoleReadingScale';
 import {ALBUM_LAYOUT_CHOICES, ALBUM_LAYOUT_LABELS, albumLayoutState, setConsoleAlbumLayout} from '@/client/console/consoleAlbumLayout';
 import {
@@ -339,13 +338,9 @@ function graphicsCategory(): ConsoleSettingsCategory {
       (v) => translateText(MOTION_FPS_LABELS[v === 'auto' ? 'auto' : (String(v) as '30' | '60')]),
       (v) => setMotionFpsCap(v),
     ),
-    // Performance mode — cuts the expensive DECORATIVE paint (blur + shadows).
-    // Motion is untouched; only per-frame paint/layer cost drops.
-    toggleRow(
-      'perfMode', 'Performance mode', 'Cut shadows and blur for smoothness',
-      consolePerfState.enabled, ['Off', 'On'],
-      (v) => setConsolePerfLite(v),
-    ),
+    // NB: the old «Производительность» toggle (decorative-paint cut) is gone —
+    // its enabled behaviour became the permanent console paint baseline
+    // (src/styles/console_paint_baseline.less).
   ];
   return {id: 'graphics', label: 'Graphics', glyph: '◈', minor: false, rows, readout: []};
 }

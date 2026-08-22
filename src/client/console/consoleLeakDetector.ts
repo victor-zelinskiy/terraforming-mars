@@ -165,6 +165,9 @@ const DESKTOP_SURFACES: ReadonlyArray<{id: string, selector: string}> = [
   {id: 'desktop-pill', selector: '.mandatory-input-modal-pill--visible, .hand-select-pill'},
 ];
 
+/** All desktop selectors joined — one traversal for the telemetry pass. */
+const DESKTOP_SURFACES_JOINED = DESKTOP_SURFACES.map((s) => s.selector).join(',');
+
 export type StrandedPrompt = {
   inputType: string,
   taskKind: string,
@@ -247,22 +250,35 @@ export function setConsoleTaskSpacePlacement(active: boolean): void {
   consoleTaskSpacePlacement = active;
 }
 
+/** The base list joined once — a selector LIST is ONE document traversal. */
+const SERVING_SURFACES_JOINED = SERVING_SURFACES.join(',');
+
 /**
  * Is ANY surface that could justify a foreground claim actually rendered? One
  * querySelector pass, shared by the stranded check and the foreground watchdog
  * (they ask the same DOM question for different reasons, so they must never be
  * able to disagree about the answer).
+ *
+ * PERF: this runs at 1 Hz for the whole session, and the per-selector form was
+ * ~30 separate full-document traversals per tick (cost grows with the DOM,
+ * which only grows over a long game). One `querySelectorAll` over the joined
+ * list is a single traversal; layout presence is then read off the (usually
+ * 0-2) matches. Checking EVERY match of the list — not just the document-first
+ * per selector — is deliberate and strictly more correct: a hidden twin
+ * earlier in the DOM must not mask a rendered serving surface.
  */
 function anyServingSurfaceRendered(task: ConsoleTask | undefined): boolean {
-  const selectors = task === undefined ? SERVING_SURFACES : [
-    ...SERVING_SURFACES,
+  const joined = task === undefined ? SERVING_SURFACES_JOINED : [
+    SERVING_SURFACES_JOINED,
     ...workspaceSurfacesFor(task.kind),
     ...(EXTRA_KIND_SURFACES[task.kind] ?? []),
-  ];
-  return selectors.some((sel) => {
-    const el = document.querySelector(sel);
-    return el !== null && (el as HTMLElement).getClientRects().length > 0;
-  });
+  ].join(',');
+  for (const el of document.querySelectorAll(joined)) {
+    if ((el as HTMLElement).getClientRects().length > 0) {
+      return true;
+    }
+  }
+  return false;
 }
 
 const warned = new Set<string>();
@@ -279,16 +295,24 @@ export function runLeakDetection(view: PlayerViewModel | undefined): void {
   if (typeof document === 'undefined') {
     return;
   }
-  // 2. Desktop surface telemetry.
+  // 2. Desktop surface telemetry — one combined traversal (see
+  // anyServingSurfaceRendered's PERF note), and the reactive field is only
+  // written when the answer CHANGED, so a quiet tick invalidates nothing.
   const present: Array<string> = [];
-  for (const s of DESKTOP_SURFACES) {
-    const el = document.querySelector(s.selector);
-    if (el !== null && (el as HTMLElement).getClientRects().length > 0) {
-      present.push(s.id);
-      warnOnce(`surface:${s.id}`, `desktop surface "${s.id}" is mounted in console mode (CTS rollout telemetry)`);
+  for (const el of document.querySelectorAll(DESKTOP_SURFACES_JOINED)) {
+    if ((el as HTMLElement).getClientRects().length === 0) {
+      continue;
+    }
+    const hit = DESKTOP_SURFACES.find((s) => el.matches(s.selector));
+    if (hit !== undefined && !present.includes(hit.id)) {
+      present.push(hit.id);
+      warnOnce(`surface:${hit.id}`, `desktop surface "${hit.id}" is mounted in console mode (CTS rollout telemetry)`);
     }
   }
-  leakDetectorState.desktopSurfaces = present;
+  const prevPresent = leakDetectorState.desktopSurfaces;
+  if (prevPresent.length !== present.length || present.some((id, i) => prevPresent[i] !== id)) {
+    leakDetectorState.desktopSurfaces = present;
+  }
 
   const wf = view?.waitingFor;
   const task: ConsoleTask | undefined = view === undefined ? undefined : taskFor(view);

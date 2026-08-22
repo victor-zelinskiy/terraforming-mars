@@ -10425,11 +10425,19 @@ export default defineComponent({
       this.consoleState.quick = id;
       closeWorkspaceSheet();
       if (id === 'actions') {
-        // PRE-WARM the Action Center's preview cache the moment the RT wheel
-        // opens: by the time the player commits «Действия карт» the per-card
-        // previews are complete, so the grid renders its final geometry and
-        // sort on the FIRST frame (no trickle-in reflow). Idempotent + SWR.
-        ensureActionPreviews(this.playerView);
+        // PRE-WARM the Action Center's preview cache when the RT wheel opens:
+        // by the time the player commits «Действия карт» (~300 ms of human
+        // time) the per-card previews are complete, so the grid renders its
+        // final geometry and sort on the FIRST frame. Idempotent + SWR.
+        // ⚠️ AFTER the flush, never inline: the synchronous form ran the
+        // whole-tableau fingerprint + per-card graphic walks + the fetch
+        // fan-out BEFORE the wheel's first paint — on a late-game Deck that
+        // is exactly the frame the wheel's entry animation needs.
+        void this.$nextTick(() => {
+          if (this.consoleState.quick === 'actions') {
+            ensureActionPreviews(this.playerView);
+          }
+        });
       }
     },
     openSheet(sheet: WorkspaceFrameKind): void {

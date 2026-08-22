@@ -6399,7 +6399,7 @@ html.console-mode {
        Both sides always render — an unavailable direction is `--off` (a
        ghost of the shape) so the composition can never shift when the last
        page drops its next-edge. Every functional cue is transform/opacity +
-       box-shadow/colour, so `con-perf-lite` keeps all of them; the
+       box-shadow/colour, so the paint baseline keeps all of them; the
        text-shadow blooms are decoration only. */
     &__pgedge {
         position: absolute;
@@ -6638,8 +6638,8 @@ html.console-mode {
         /* «НЕ СЕЙЧАС»: legal by the rules, merely outside the player's window.
            NO dim at all — the card is exactly as good as it will be a moment
            from now — and the focus ring turns amber so the state is readable
-           without colour alone (it is a box-shadow, so `con-perf-lite` keeps
-           it; see the performance-mode contract). */
+           without colour alone (it is a box-shadow, so the paint baseline
+           keeps it; see the paint-baseline contract). */
         &--selected&--notnow > :is(.card-container, .pcard) {
             box-shadow: 0 0 0 calc(.15rem * var(--con-hand-fx, 1)) fade(@con-amber, 78%), 0 0 calc(.9rem * var(--con-hand-fx, 1)) fade(@con-amber, 30%), 0 .6rem 1.2rem -.6rem rgba(0, 0, 0, 0.7);
         }
@@ -7179,7 +7179,7 @@ html.console-mode {
    physical plate that sinks under the player's finger). The key cap never
    moves: the button label is the fixed part of the machine, the plate is
    the moving part. All state cues ride box-shadow / transform / opacity —
-   perf-lite (con-perf-lite cuts filter/text-shadow) keeps every one. */
+   the paint baseline (which cuts filter/text-shadow) keeps every one. */
 .con-quick {
     /* THE WORKSPACE BAND: the command cross centres in the CENTRAL OPENING —
        between the bars and between BOTH side rails. The wheel is where a turn
@@ -12151,7 +12151,7 @@ html.con-profile-large.console-mode .notifications-layer.notifications-layer--jo
            партию» of the finale). Declared AFTER --hot so it wins when a
            command is both — mint reads "claimable / go ahead", which is the
            one thing a destructive confirm must never say. box-shadow + colour
-           only, so con-perf-lite keeps the warning. */
+           only, so the paint baseline keeps the warning. */
         &--danger {
             .gp-glyph {
                 box-shadow: inset 0 0 0 .05rem fade(@sem-danger, 85%), 0 0 .6rem fade(@sem-danger, 40%);
@@ -25793,8 +25793,8 @@ body.con-zoom-open .con-ptlink { opacity: 0; }
                           the cursor walks to another option.
            · BOTH       — the mint plate keeps the answer and the cursor speaks
                           in a separate OUTER cyan ring: two rings, two facts.
-           Everything is `box-shadow` + colour, so `con-perf-lite` (which strips
-           filters) keeps every cue. */
+           Everything is `box-shadow` + colour, so the paint baseline (which
+           strips filters) keeps every cue. */
         &--focused {
             box-shadow: inset 0 0 0 .1rem @con-cyan, 0 0 .9rem fade(@con-cyan, 28%);
             background: rgba(20, 34, 50, 0.7);
@@ -25900,8 +25900,8 @@ body.con-zoom-open .con-ptlink { opacity: 0; }
 
     /* RESULT HERO while the payment editor is open: it steps BACK rather than
        unmounting — same box, same height, lower contrast — so expanding the
-       payment cannot move the CTA. Colour-only (no `filter`): con-perf-lite
-       must not change what the player can read. */
+       payment cannot move the CTA. Colour-only (no `filter`): the paint
+       baseline must not change what the player can read. */
     &__resulthero--muted {
         background: linear-gradient(160deg, rgba(18, 32, 28, 0.26) 0%, rgba(11, 20, 28, 0.3) 100%);
         box-shadow: inset 0 0 0 .05rem fade(@con-mint, 12%);

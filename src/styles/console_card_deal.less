@@ -81,8 +81,8 @@
        ⚠️ On the FACES, never on `.con-deal-proxy`: that element owns the
        `perspective`, and a `filter` there creates a containing block that
        flattens the whole 3D subtree (the same trap `console_card_discard.less`
-       records). Decorative only — `con-perf-lite` strips it and loses nothing
-       functional. */
+       records). Decorative only — the console paint baseline strips it (inert
+       here) and loses nothing functional. */
     filter: drop-shadow(0 .5rem 1.1rem rgba(0, 0, 0, 0.5));
 }
 .con-deal-proxy__back {

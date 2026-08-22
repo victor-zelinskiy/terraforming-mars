@@ -147,12 +147,11 @@ All `console*.less` is authored in **rem (1rem = 20px logical, a 1920×1080 logi
 - A new px constant in console JS (fit engines, director offsets, scroll steps) must multiply by `conUiScale()` or content stops growing on 4K.
 - Embedded px content integrates via `zoom:` multiplied by `var(--con-ui-scale, 1)`.
 
-## Performance mode (`con-perf-lite`) — every new overlay/animation must support it
-The profile cuts `filter` and `text-shadow` globally; `box-shadow` is deliberately KEPT. Therefore:
+## Paint baseline — console strips `filter`/`text-shadow` PERMANENTLY
+`console_paint_baseline.less` (`html.console-native *`) kills `filter` and `text-shadow` unconditionally — the old opt-in performance mode became the only behaviour (2026-08); there is no toggle and none may return. `box-shadow` is deliberately KEPT. Therefore:
 1. Motion lives in `transform` / `opacity` only.
-2. **Functional state indicators — focus, selection, cursor, availability — use `box-shadow`/`outline`, NEVER `filter`/`drop-shadow`/`text-shadow`** (they vanish in perf mode and the player loses navigation cues; the colour carries state).
-3. Decorative-only glow via `filter` is fine.
-4. Verify by toggling «Производительность» ON: every cue still visible and correctly coloured, motion identical.
+2. **Functional state indicators — focus, selection, cursor, availability — use `box-shadow`/`outline`/colour, NEVER `filter`/`drop-shadow`/`text-shadow`** (those never render in console; the colour carries state).
+3. Don't author new decorative `filter`/`text-shadow` in console styles — it is dead weight; existing inert declarations in shared files are tolerated where desktop still uses them.
 
 ## Surface motion (band surfaces)
 Orchestrated by `src/client/console/surfaceMotion/` behind `<transition :css="false">`. Markup contract: `data-motion-surface="<id>"` on the root (absent → hooks pass through, the gradual-migration path), `data-motion-panel` on the animated panel, `data-motion-anchor="card:<name>"` for phase FLIPs. ONE shared `.con-shade` dims behind every migrated surface — a migrated surface renders no own backdrop div. **Before deleting a now-dead backdrop CSS rule, grep the `.vue`s — chassis classes are SHARED** (two dim-less regressions came from this). FLIP transforms inside a CSS `zoom:` context need `effZoom` compensation. **Never re-close a composer at submit time** — use the awaiting handoff (`beginAwaitingHandoff`), else the "confirm → bare board → reveal" gap returns.
