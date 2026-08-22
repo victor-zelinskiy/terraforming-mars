@@ -46,5 +46,5 @@ Boot effect: the biggest cut is module-graph weight in the lazy chunks (the desk
 ## 6. What remains
 
 - **The ONE load-bearing legacy piece:** the headless `WaitingFor.vue` transport. Extraction into a module is deliberately deferred to its own wave — the file is small and honest post-wave-2, and the change touches every submission.
-- Frozen-on-disk stragglers reachable by nothing new: `HydroNetworkOverlay.vue` (only its children are imported), `player_home.less` (needs a per-selector audit), assorted `hand_cards.less`/`journal.less` dead blocks kept beside live ones.
+- Frozen-on-disk stragglers reachable by nothing new: `HydroNetworkOverlay.vue` (only its children are imported — DELETED in the 2026-08-23 cleanup, along with its overlay-frame LESS; `HydroActionZone.vue` is thereby orphaned and queued for a later pass), `player_home.less` (needs a per-selector audit), assorted `hand_cards.less`/`journal.less` dead blocks kept beside live ones.
 - Upstream-sync policy for all deleted files stays **keep deleted**.

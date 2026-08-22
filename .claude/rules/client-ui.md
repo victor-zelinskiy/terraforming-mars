@@ -27,7 +27,7 @@ The game subtree (`<ConsoleShell>`) lives for the whole session; a response appl
 - **`playerkey` is the transient-UI RESET EPOCH, not a `:key`.** New transient UI state that a submit must clear MUST be reset via the epoch (module states register reset callbacks) — never assume a remount clears it.
 - **Structural sharing** (`viewSnapshotShare.ts`): the root identity always changes, unchanged children keep their refs. **Never add an identity-watcher expecting per-response firing on a SUB-object of `playerView`** — watch VALUES (`gameAge`, `undoCount`, the concrete field).
 - Anything that used `mounted()` to re-derive per-response state uses a value-based watcher instead.
-- Rollback ladder: `?patch=0` (no sharing), `?remount=1` (legacy keyed remount). The baseline modules (`accentBaseline`, `tileBaseline`, cube baseline) exist to carry that mode — not dead code.
+- Rollback: `?patch=0` (no structural sharing). The `?remount=1` / `tm_remount` legacy keyed remount was RETIRED (2026-08-23) — `legacyRemount.ts` is deleted and nothing keys on `playerkey`. The baseline modules (`accentBaseline`, `tileBaseline`, cube baseline) stay — the live board diffing / hydration paths read them, not dead code.
 
 ## Prompt detection + submission (load-bearing)
 - **Availability is SERVER-authoritative.** Walk the `waitingFor` `OrOptions` tree; the option's PRESENCE is the source of truth. Submit via `gameTransport.submitInput()` with the nested `OrOptionsResponse` payload — byte-identical to the historical radio UI, no server change. Never re-derive availability from raw player state.

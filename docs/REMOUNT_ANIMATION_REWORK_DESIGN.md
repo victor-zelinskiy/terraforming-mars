@@ -1,6 +1,11 @@
 # Дизайн: реворк модели обновления UI + единая premium-анимационная система
 
 > Ответ на `REMOUNT_ANIMATION_REWORK_BRIEF.md`. Статус: **РЕАЛИЗОВАНО (фазы 1–3 + чистка/доки), см. §9.**
+>
+> ⚠️ **2026-08-23 (desktop-removal cleanup): аварийный флаг `?remount=1` / `tm_remount` УДАЛЁН**
+> (`legacyRemount.ts` стёрт; `<player-home>`, который он ключевал, снесён волной 2). No-remount —
+> единственная модель; `?patch=0` (structural sharing off) — единственный оставшийся откат.
+> Упоминания флага ниже — история дизайна, не текущее состояние.
 > Исследованная цепочка: `App.vue → WaitingFor.vue → realtime/* → PlayerHome.vue → Board/* →
 > AnimatedMetricValue/changeFeedbackManager` + все 5 точек `playerkey++` + ~46 модульных синглтонов.
 >
@@ -23,6 +28,8 @@
 >    удалены: при выключенном remount они и так не участвуют (анимации идут через watch-переходы),
 >    но остаются НЕСУЩИМИ для аварийного флага `tm_remount=1` (под ним дерево вновь ремаунтится на
 >    каждый ответ, и mount-diff — единственный сигнал). Удалять их = ломать откат.
+>    *(2026-08-23: флаг удалён; baseline-модули остаются — их читают живые пути диффинга доски /
+>    гидрации: first-sight базлайны, F5, display-круги `v-show`.)*
 
 ---
 
@@ -229,6 +236,6 @@ GUI-запись за пользователем (headless-среда).
 | 4. Тесты/замеры/доки | ✅ | Спеки: `AppNoRemount` (5), `viewSnapshotShare` (9), `feedback/animatedMetricValue` (4), `motion/motionTokens` (9) — все зелёные; список падений client-suite байт-в-байт равен базлайну (suite исторически красный в headless-среде: 204 pre-existing). perf-счётчики: `playerHome:mount`, `playerHome:resetTransientUi`, `metricValue:mount` (+существующий `playerView:commit`). CLAUDE.md обновлён |
 
 **Лестница откатов (клиентская, мгновенная):** `?patch=0` → только structural sharing off
-(wholesale swap Фазы 1) · `?remount=1` → полный legacy-remount (Фаза 1 off; sharing и «тихий
-mount» AnimatedMetricValue автоматически отключаются, mount-diff поведение восстановлено).
+(wholesale swap Фазы 1). Вторая ступень — `?remount=1` (полный legacy-remount) — УДАЛЕНА
+2026-08-23 (desktop-removal cleanup): она ключевала только снесённый `<player-home>`.
 Пресеты скорости: `standard` = байт-идентичные сегодняшним тайминги.

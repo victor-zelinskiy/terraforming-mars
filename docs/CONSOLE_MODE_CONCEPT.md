@@ -1899,7 +1899,9 @@ honest reasons incl. «уже посещена»); A opens the reused
 byte-for-byte. (d) **Console Hydro**: the premium `HydroNetworkOverlay`
 mounts as a console screen (wheel → Y), driven by the demoted focus engine
 (its scope def), confirm → the mirrored `submitHydroAdvance` batch;
-close/B → board. Hints updated everywhere (board: Y базовые · RT действия ·
+close/B → board. *(Historical: hydro later became the native
+`ConsoleHydroSection` workspace, and the desktop `HydroNetworkOverlay` host
+was deleted in the desktop-removal cleanup, 2026-08-23.)* Hints updated everywhere (board: Y базовые · RT действия ·
 LT инфо · LB/RB вехи/награды+badges · View журнал).
 
 **Feedback iteration 4 — SHIPPED (full console lifecycle, first pass).**

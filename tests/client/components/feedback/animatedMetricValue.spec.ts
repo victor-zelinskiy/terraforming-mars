@@ -6,10 +6,7 @@
  * across server responses, so:
  *   - a genuine MOUNT is a silent baseline (never a chip);
  *   - a WATCH-driven value change fires the chip;
- *   - a seat switch (scopeKey change) re-baselines silently;
- *   - the legacy `tm_remount` rollback flag restores the historical
- *     mount-diff behavior (chips fired from mounted() against the module
- *     baseline, because under that flag the tree remounts per response).
+ *   - a seat switch (scopeKey change) re-baselines silently.
  */
 import {mount} from '@vue/test-utils';
 import {expect} from 'chai';
@@ -17,7 +14,6 @@ import {globalConfig} from '../getLocalVue';
 import AnimatedMetricValue from '@/client/components/feedback/AnimatedMetricValue.vue';
 import {changeFeedbackManager} from '@/client/components/feedback/changeFeedbackManager';
 import {FakeLocalStorage} from '../FakeLocalStorage';
-import {__resetLegacyRemountForTesting} from '@/client/utils/legacyRemount';
 import {__resetMotionTokensForTesting} from '@/client/components/motion/motionTokens';
 
 function mountHost(value: number, scopeKey = 'blue') {
@@ -38,13 +34,11 @@ describe('AnimatedMetricValue (reactive transitions)', () => {
   beforeEach(() => {
     localStorage = new FakeLocalStorage();
     FakeLocalStorage.register(localStorage);
-    __resetLegacyRemountForTesting();
     __resetMotionTokensForTesting();
     changeFeedbackManager.reset();
   });
 
   afterEach(() => {
-    __resetLegacyRemountForTesting();
     __resetMotionTokensForTesting();
     changeFeedbackManager.reset();
     FakeLocalStorage.deregister(localStorage);
@@ -115,19 +109,6 @@ describe('AnimatedMetricValue (reactive transitions)', () => {
     expect((wrapper.vm as any).displayedDelta).to.eq(-1);
     expect((wrapper.vm as any).polarity).to.eq('negative');
     expect((wrapper.vm as any).chipNonce).to.eq(afterGain + 1);
-    wrapper.unmount();
-  });
-
-  it('the legacy tm_remount flag restores the mount-diff behavior', () => {
-    localStorage.setItem('tm_remount', '1');
-    __resetLegacyRemountForTesting();
-
-    changeFeedbackManager.recordScopeObservation('blue', 'megacredits.stock');
-    changeFeedbackManager.report('blue', 'megacredits.stock', 10);
-    const wrapper = mountHost(15);
-    // Under the rollback flag the tree remounts per response, so the mount
-    // MUST act on the diff vs the module baseline (the historical behavior).
-    expect((wrapper.vm as any).displayedDelta).to.eq(5);
     wrapper.unmount();
   });
 });

@@ -16,7 +16,6 @@ import {
   shareViewSnapshot,
   viewPatchEnabled,
 } from '@/client/utils/viewSnapshotShare';
-import {__resetLegacyRemountForTesting} from '@/client/utils/legacyRemount';
 
 function fakeView() {
   return {
@@ -48,12 +47,10 @@ describe('viewSnapshotShare', () => {
     localStorage = new FakeLocalStorage();
     FakeLocalStorage.register(localStorage);
     __resetViewPatchForTesting();
-    __resetLegacyRemountForTesting();
   });
 
   afterEach(() => {
     __resetViewPatchForTesting();
-    __resetLegacyRemountForTesting();
     FakeLocalStorage.deregister(localStorage);
   });
 
@@ -174,14 +171,6 @@ describe('viewSnapshotShare', () => {
     localStorage.setItem('tm_patch', '0');
     __resetViewPatchForTesting();
     expect(viewPatchEnabled()).to.be.false;
-    const prev = fakeView();
-    const same = fakeView();
-    expect(nextViewSnapshot(prev as any, same as any)).to.eq(same);
-  });
-
-  it('nextViewSnapshot is inert under the legacy tm_remount flag', () => {
-    localStorage.setItem('tm_remount', '1');
-    __resetLegacyRemountForTesting();
     const prev = fakeView();
     const same = fakeView();
     expect(nextViewSnapshot(prev as any, same as any)).to.eq(same);

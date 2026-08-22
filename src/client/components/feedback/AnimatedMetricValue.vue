@@ -47,7 +47,6 @@ import DeltaChip, {DeltaChipVariant} from '@/client/components/feedback/DeltaChi
 import {changeFeedbackManager, prefersReducedMotion} from '@/client/components/feedback/changeFeedbackManager';
 import {perfMark} from '@/client/utils/perfMarks';
 import {motionMs} from '@/client/components/motion/motionTokens';
-import {legacyRemountEnabled} from '@/client/utils/legacyRemount';
 
 /*
  * Per-variant chip lifecycle timings (ms) at the `standard` motion preset.
@@ -189,19 +188,10 @@ export default defineComponent({
      * SILENT baseline: record the scope + report the value so the manager
      * knows the starting point, and never chip-fire — a mount is a fresh
      * look at the state, not a change of it.
-     *
-     * Under the legacy `tm_remount` rollback flag the tree IS recreated per
-     * server response, so `watch(value)` rarely fires — the historical
-     * mount-diff behavior (act on the reported delta, suppressing PoV
-     * switches via recordScopeObservation) is preserved for that mode only.
      */
-    const sameScope = changeFeedbackManager.recordScopeObservation(this.fullScopeKey, this.metricKey);
-    const event = changeFeedbackManager.report(
+    changeFeedbackManager.recordScopeObservation(this.fullScopeKey, this.metricKey);
+    changeFeedbackManager.report(
       this.fullScopeKey, this.metricKey, this.value, CHIP_VISIBLE_MS[this.variant]);
-    if (legacyRemountEnabled() && event !== null && sameScope) {
-      // A fresh mount has no chip to continue, so this always opens a new one.
-      this.applyEvent(event.netDelta, false);
-    }
   },
   beforeUnmount() {
     this.clearTimers();
