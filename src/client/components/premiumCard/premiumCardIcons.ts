@@ -33,6 +33,11 @@ export type MechIconSpec =
   /** A premium player cube (community / nomads) — the SAME 3D board marker,
    *  rendered on the card in a representative colour (player-agnostic face). */
   | {kind: 'cube', color: Color}
+  /** The CEO once-per-game action marker (`opgArrow`) — an engraved «1×»
+   *  capsule + the shared action-gold arrow (`.pcard-opg`). Replaces the
+   *  legacy red «OPG» PNG with a premium-native, language-neutral glyph;
+   *  the prose zone states the «once per game» rule in words. */
+  | {kind: 'opg'}
   | {kind: 'glyph', glyph: string};
 
 const RES = 'assets/resources';
@@ -127,6 +132,17 @@ const ITEM_ICON_URL: Partial<Record<CardRenderItemType, string>> = {
   [CardRenderItemType.CHAIRMAN]: `${MISC}/chairman.png`,
   [CardRenderItemType.INFLUENCE]: `${MISC}/influence.png`,
   [CardRenderItemType.FIRST_PLAYER]: `${MISC}/first-player.png`,
+
+  // CEO vocabulary (the L-deck renders premium since desktop-removal wave 4).
+  // The Reds party emblem (Zan) + the Ares adjacency-bonus tile (Gaia) reuse
+  // the shipped board assets; the Moon tiles (Apollo) and the Pathfinders
+  // planetary track (Shara) reuse their expansions' card art.
+  [CardRenderItemType.REDS]: 'assets/parties/reds.png',
+  [CardRenderItemType.ADJACENCY_BONUS]: `${TILES}/adjacency_bonus.png`,
+  [CardRenderItemType.MOON_HABITAT]: 'assets/moon/habitattile.png',
+  [CardRenderItemType.MOON_MINE]: 'assets/moon/minetile.png',
+  [CardRenderItemType.MOON_ROAD]: 'assets/moon/roadtile.png',
+  [CardRenderItemType.PLANETARY_TRACK]: 'assets/pathfinders/planetary-track.png',
 
   // Fork premium primitives (SVG) — graphic replacements for bespoke prose.
   [CardRenderItemType.PROTECTION]: `${MISC}/shield-protect.svg`,
@@ -327,6 +343,15 @@ export function mechItemIcon(item: ICardRenderItem): MechIconSpec | undefined {
     return {kind: 'glyph', glyph: 'X'};
   case CardRenderItemType.VP:
     return {kind: 'glyph', glyph: '?'};
+  case CardRenderItemType.ARROW_OPG:
+    // The CEO once-per-game action marker — a premium-native «1×» + arrow
+    // (.pcard-opg), never the legacy red «OPG» PNG.
+    return {kind: 'opg'};
+  case CardRenderItemType.REDS_DEACTIVATED:
+    // Zan's «immune to Reds' policy»: legacy dimmed via `filter: grayscale`,
+    // which console-native strips — state reads by dim + strike instead
+    // (.pcard-ic--off), colour never being the only carrier.
+    return {kind: 'img', url: 'assets/parties/reds.png', mod: 'off'};
   case CardRenderItemType.TRADE_FLEET:
     // Same trade canvas as TRADE, inverted — the fork's fleet marker (mirrors
     // the legacy `filter: invert(1)` on card-resource-trade-fleet).

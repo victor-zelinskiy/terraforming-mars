@@ -139,7 +139,8 @@ export default defineComponent({
     cardOrThrow(): ClientCard {
       return getCardOrThrow(this.cardModel.name);
     },
-    /** True when this card renders via the premium face (project + prelude). */
+    /** True when this card renders via the premium face (scope gate:
+     *  isPremiumFaceType — project / prelude / corporation / CEO). */
     premiumFace(): boolean {
       const instance = this.cardInstance;
       return instance !== undefined && isPremiumFaceType(instance.type);

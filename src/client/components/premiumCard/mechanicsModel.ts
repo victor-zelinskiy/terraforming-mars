@@ -71,6 +71,16 @@ export type MechanicsVM = {
   score: number;
   /** True when the card's mechanics could not be extracted as graphics (prose-only render). */
   textOnly: boolean;
+  /**
+   * Index of the first group of the on-play zone («при розыгрыше») —
+   * `groups.length` when the card has NO play zone, so the mint play-rail
+   * never draws. Computed HERE (not at the render site) because it is a
+   * LAYOUT-POLICY fact: canonical faces derive it from the trailing
+   * plain/production run (`playZoneStart`), while a `printedLayout` face
+   * (CEO) has no on-play zone by rule — a CEO is never «played» for an
+   * effect, so a rail before its trailing OPG rows would be a lie.
+   */
+  playStart: number;
 };
 
 /** The cause / delimiter / result triple of an effect node (the DSL's 3-row invariant). */
@@ -458,11 +468,47 @@ export type BuildMechanicsOptions = {
    * notes on other cards are untouched.
    */
   dropVpText?: boolean;
+  /**
+   * PRINTED-NARRATIVE LAYOUT (the CEO face). A CEO card is never «played»
+   * for an on-play effect — its face is the leader's rule sheet: the
+   * once-per-game action row (`opgArrow`), its continuation rows and the
+   * «ACTIVATE THE BELOW ABILITY» references read TOP→BOTTOM as authored
+   * (Xavier's post-action effect explicitly says «AFTER this action»). So
+   * the canonical actions→effects→on-play reorder is SKIPPED — authored
+   * order IS this type's canon, set once here, never at a render site —
+   * and the face has NO on-play zone (`playStart` = groups.length).
+   */
+  printedLayout?: boolean;
 };
+
+/**
+ * The PROSE a card's render data carries and the icons-only face drops —
+ * root-row `plainText` runs, joined in reading order. The CEO prose zone
+ * falls back to this when the card has no `metadata.description` (Xavier
+ * authors its once-per-game rule as `plainText` under the OPG row), so the
+ * premium face can never say less than the legacy face it replaces.
+ */
+export function collectDroppedProse(renderData: CardComponent | undefined): string | undefined {
+  if (renderData === undefined || !isICardRenderRoot(renderData)) {
+    return undefined;
+  }
+  const runs: Array<string> = [];
+  for (const row of renderData.rows) {
+    for (const node of row) {
+      if (isProseTextItem(node)) {
+        const text = (node as {text?: string}).text;
+        if (text !== undefined && text.trim() !== '') {
+          runs.push(text.trim());
+        }
+      }
+    }
+  }
+  return runs.length === 0 ? undefined : runs.join(' ');
+}
 
 export function buildMechanics(renderData: CardComponent | undefined, options: BuildMechanicsOptions = {}): MechanicsVM {
   if (renderData === undefined || !isICardRenderRoot(renderData)) {
-    return {groups: [], density: 'sparse', score: 0, textOnly: true};
+    return {groups: [], density: 'sparse', score: 0, textOnly: true, playStart: 0};
   }
   const graphicIds = deriveGraphicIds(renderData);
 
@@ -535,7 +581,8 @@ export function buildMechanics(renderData: CardComponent | undefined, options: B
 
   // Reorder into the canonical layout (actions → effects → on-play at the
   // bottom) so «при розыгрыше» always reads last, unified across card types.
-  const ordered = orderMechGroups(groups);
+  // A `printedLayout` face (CEO) keeps AUTHORED order — see the option's doc.
+  const ordered = options.printedLayout === true ? groups : orderMechGroups(groups);
 
   // orJoin only ever links SAME-rank neighbours (a choice is between
   // alternatives of the same nature); the stable sort keeps those adjacent, but
@@ -561,5 +608,8 @@ export function buildMechanics(renderData: CardComponent | undefined, options: B
     density: densityOf(ordered.length, score),
     score,
     textOnly: ordered.length === 0,
+    // No on-play zone on a printed-narrative face — its trailing plain rows
+    // are the once-per-game block, not «при розыгрыше».
+    playStart: options.printedLayout === true ? ordered.length : playZoneStart(ordered),
   };
 }

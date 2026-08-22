@@ -82,6 +82,71 @@ describe('PremiumCard', () => {
     expect(wrapper.findAll('.pcard-mech-group').length).to.be.greaterThan(1);
   });
 
+  /* ── CEO face (desktop-removal wave 4) ─────────────────────────────── */
+  it('CEO face: ceo theme, no cost badge, the procedural identity band (no art ships for the type)', () => {
+    const wrapper = mount(PremiumCard, {props: {card: model(CardName.ASIMOV)}});
+    expect(wrapper.classes()).to.include('pcard--theme-ceo');
+    expect(wrapper.find('.pcard__cost-badge').exists()).to.eq(false);
+    expect(wrapper.findComponent(PremiumCardArt).exists()).to.eq(false);
+    expect(wrapper.find('.pcard-corp').exists()).to.eq(false);
+    expect(wrapper.find('.pcard-ceo-ident').exists()).to.eq(true);
+  });
+
+  it('CEO face: the prose zone prints the rule with its length tier — never clipped away', () => {
+    const wrapper = mount(PremiumCard, {props: {card: model(CardName.ASIMOV)}});
+    const prose = wrapper.find('.pcard__prose');
+    expect(prose.exists()).to.eq(true);
+    expect(prose.text()).to.contain('Once per game');
+    expect(prose.classes().some((c) => /^pcard__prose--t[1-4]$/.test(c)), 'a length tier class').to.eq(true);
+  });
+
+  it('CEO face: the once-per-game marker renders premium-native («1×» + arrow), and NO play rail ever draws', () => {
+    const wrapper = mount(PremiumCard, {props: {card: model(CardName.ASIMOV)}});
+    expect(wrapper.find('.pcard-opg').exists()).to.eq(true);
+    expect(wrapper.find('.pcard-opg__badge').text()).to.eq('1×');
+    // no «при розыгрыше» rail on a CEO — its trailing rows are the OPG block…
+    expect(wrapper.find('.pcard-play-rail').exists()).to.eq(false);
+    // …while a project card with on-play mechanics keeps the rail.
+    const comet = mount(PremiumCard, {props: {card: model(CardName.COMET)}});
+    expect(comet.find('.pcard-play-rail').exists()).to.eq(true);
+  });
+
+  it('CEO face: the spent OPG (isDisabled) reads through the shared unavailable treatment', () => {
+    const wrapper = mount(PremiumCard, {props: {card: model(CardName.ASIMOV, {isDisabled: true})}});
+    expect(wrapper.classes()).to.include('pcard--unavailable');
+  });
+
+  it('CEO face: Duncan (the one VP CEO) prints the «?» badge over a prose zone that yields to it', () => {
+    const wrapper = mount(PremiumCard, {props: {card: model(CardName.DUNCAN)}});
+    expect(wrapper.find('.pcard__vp').text()).to.eq('?');
+    expect(wrapper.classes()).to.include('pcard--vp-compact');
+    expect(wrapper.find('.pcard__prose').exists()).to.eq(true);
+  });
+
+  it('CEO peek face: corpus + header only — no identity band, no prose', () => {
+    const wrapper = mount(PremiumCard, {props: {name: CardName.ASIMOV, inert: true, peek: true}});
+    expect(wrapper.classes()).to.include('pcard--theme-ceo');
+    expect(wrapper.find('.pcard-ceo-ident').exists()).to.eq(false);
+    expect(wrapper.find('.pcard__prose').exists()).to.eq(false);
+  });
+
+  it('CEO corpus mount sweep: every L-card renders the premium face without a fallback chip', () => {
+    // The VM sweep (premiumCardViewModel.spec) proves every CEO BUILDS; this
+    // one proves every CEO RENDERS — a template-level exception or an
+    // unmapped icon degrading to the dashed chip fails here by name.
+    const ceos = getCards(byType(CardType.CEO));
+    expect(ceos.length).to.be.greaterThan(35);
+    const offenders: Array<string> = [];
+    for (const ceo of ceos) {
+      const wrapper = mount(PremiumCard, {props: {name: ceo.name, inert: true}});
+      if (!wrapper.classes().includes('pcard--theme-ceo') || wrapper.find('.pcard-mi__chip').exists()) {
+        offenders.push(ceo.name);
+      }
+      wrapper.unmount();
+    }
+    expect(offenders, `CEOs that failed to render premium cleanly:\n${offenders.join('\n')}`).to.deep.eq([]);
+  });
+
   it('static name-only mode renders the pristine printed face', () => {
     const wrapper = mount(PremiumCard, {props: {name: CardName.COMET, inert: true}});
     expect(wrapper.classes()).to.include('pcard--theme-crimson');

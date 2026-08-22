@@ -2,12 +2,13 @@
   <!--
     THE tableau card face of the «Разыграно» overlay — the cheapest honest
     printed face available:
-     - premium-face types (project / prelude / corporation / standard
-       project+action) render the REAL PremiumCard in name-only static mode
-       at the THUMB quality tier (`lightweight` — no texture/glow/hover
-       work), inert by construction;
-     - out-of-scope types (CEOs) keep the legacy lite face via
-       ConsoleCardFaceLite's own fallback branch.
+     - EVERY card type is a premium-face type since desktop-removal wave 4
+       (project / prelude / corporation / standard project+action / CEO):
+       the REAL PremiumCard renders in name-only static mode at the THUMB
+       quality tier (`lightweight` — no texture/glow/hover work), inert by
+       construction;
+     - ConsoleCardFaceLite's legacy fallback branch is DEAD (no type routes
+       there) and goes with the wave-4 part-2 deletion.
     Zero live state, zero interactivity — one flat manifest lookup, rendered
     once. Nothing live is pinned over it either: stored card resources are
     read in «Информация» → «Доп. ресурсы» and on the card's own face in the
@@ -48,7 +49,7 @@ export default defineComponent({
     },
     /** COVERED in a pile: only the header band can show — the premium face
      *  renders its peek crop (no art <img>, no mechanics subtree). The legacy
-     *  fallback face (CEOs) has no peek mode and stays full. */
+     *  fallback face (dead since wave 4) has no peek mode and stays full. */
     peek: {
       type: Boolean,
       required: false,

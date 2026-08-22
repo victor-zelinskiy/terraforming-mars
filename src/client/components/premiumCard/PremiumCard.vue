@@ -36,12 +36,23 @@ Before changing it, check the console consumers in docs/DESKTOP_DEPRECATION_AUDI
       <PremiumRequirementsBar v-if="vm.requirements.length > 0" :requirements="vm.requirements" />
       <span v-else class="pcard__divider" aria-hidden="true"></span>
 
-      <!-- art viewport; a corporation shows real art if it has any, else the
-           brand wordmark identity zone (vm.art is undefined only for an
-           art-less corporation). A PEEK face skips this zone entirely — the
-           art row starts below the peek band, so nothing of it can show. -->
+      <!-- art viewport; a corporation / CEO shows real art if it has any,
+           else its own identity zone (vm.art is undefined then): the corp
+           brand wordmark, or the CEO's procedural executive band — no CEO
+           ships art, so the band is that type's INTENDED face. A PEEK face
+           skips this zone entirely — the art row starts below the peek
+           band, so nothing of it can show. -->
       <PremiumCardArt v-if="!peek && vm.art !== undefined" :art="vm.art" :tier="artTier" />
       <PremiumCorpIdentity v-else-if="!peek && isCorporation" :name="vm.name" />
+      <div v-else-if="!peek && isCeo" class="pcard-ceo-ident" aria-hidden="true">
+        <span class="pcard-ceo-ident__line pcard-ceo-ident__line--l"></span>
+        <span class="pcard-ceo-ident__crest">
+          <span class="pcard-ceo-ident__chev"></span>
+          <span class="pcard-ceo-ident__word">{{ ceoWord }}</span>
+          <span class="pcard-ceo-ident__chev"></span>
+        </span>
+        <span class="pcard-ceo-ident__line pcard-ceo-ident__line--r"></span>
+      </div>
 
       <!-- ── LOWER SECTION ────────────────────────────────────────────
            Mechanics content + ANCHORED service elements (no footer row).
@@ -51,6 +62,12 @@ Before changing it, check the console consumers in docs/DESKTOP_DEPRECATION_AUDI
            overlapping the panel's border zone only. -->
       <div v-if="!peek" class="pcard__lower">
         <PremiumMechanicsPanel v-if="!vm.mechanics.textOnly" :mechanics="vm.mechanics" />
+        <!-- CEO PROSE — the rule zone (the one deliberate exception to the
+             icons-only face: on this type the description IS the rule).
+             Length-tier ladder, never a scroll, never a clamp. -->
+        <div v-if="proseText !== ''"
+             class="pcard__prose"
+             :class="'pcard__prose--t' + proseTier">{{ proseText }}</div>
         <div class="pcard__exp" aria-hidden="true">
           <span class="pcard__exp-medallion"
                 :class="{'pcard__exp-medallion--base': expansionIcon === undefined}"
@@ -99,7 +116,7 @@ import {translateText, translateCardName} from '@/client/directives/i18n';
 import PlayerCube from '@/client/components/PlayerCube.vue';
 import CardZoomModal from '@/client/components/card/CardZoomModal.vue';
 import {buildPremiumCardViewModel, PremiumCardVM, vpVariantOf} from './premiumCardViewModel';
-import {titleTierFor, longestWordLength, TitleTier} from './titleFit';
+import {titleTierFor, longestWordLength, proseTierFor, TitleTier} from './titleFit';
 import {cardResourceIconUrl, expansionIconUrl} from './premiumCardIcons';
 import PremiumCostBadge from './PremiumCostBadge.vue';
 import PremiumTagRail from './PremiumTagRail.vue';
@@ -143,7 +160,7 @@ function printedFaceVm(name: CardName): PremiumCardVM {
 
 /**
  * PREMIUM CARD FACE — the fork's from-scratch card renderer (project cards +
- * preludes + corporations + standard projects/actions; scope gate =
+ * preludes + corporations + standard projects/actions + CEOs; scope gate =
  * premiumCardTheme.isPremiumFaceType). Mirrors the
  * legacy <Card> host contract: `card` (CardModel), `actionUsed`, `robotCard`,
  * `cubeColor`, `lightweight`; click opens the shared fullscreen viewer behind
@@ -315,6 +332,21 @@ export default defineComponent({
     },
     isCorporation(): boolean {
       return this.vm.type === CardType.CORPORATION;
+    },
+    isCeo(): boolean {
+      return this.vm.type === CardType.CEO;
+    },
+    /** The identity-band role word («CEO» → «ДИРЕКТОР») — an existing key. */
+    ceoWord(): string {
+      return translateText('CEO');
+    },
+    /** The CEO rule text, translated — '' hides the zone (Gordon/Van Allen:
+     *  their whole rule lives in the effect frames, like the legacy face). */
+    proseText(): string {
+      return this.vm.prose === undefined ? '' : translateText(this.vm.prose);
+    },
+    proseTier(): TitleTier {
+      return proseTierFor(this.proseText);
     },
     rootClasses(): Record<string, boolean> {
       const classes: Record<string, boolean> = {

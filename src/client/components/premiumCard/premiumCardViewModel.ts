@@ -22,7 +22,7 @@ import {CardRenderDynamicVictoryPoints} from '@/common/cards/render/CardRenderDy
 import {ICardRenderItem} from '@/common/cards/render/Types';
 import {premiumCardArt, PremiumCardArt} from '@/client/cards/cardArt';
 import {PremiumTheme, premiumThemeFor} from './premiumCardTheme';
-import {buildMechanics, MechanicsVM} from './mechanicsModel';
+import {buildMechanics, collectDroppedProse, MechanicsVM} from './mechanicsModel';
 import {tagClusterPlan, TagClusterPlan} from './tagLayout';
 import {standardResourceIconUrl, tagIconUrl} from './premiumCardIcons';
 
@@ -133,6 +133,16 @@ export type PremiumCardVM = {
    *  for a token outside the card-resource families (the Ecoline bot
    *  corporation stores PLANTS — a standard resource — on its card). */
   resource?: {type: CardResource, amount: number, isSrr: boolean, iconUrl?: string};
+  /**
+   * The PROSE RULE zone (CEO faces only) — the one deliberate exception to
+   * the icons-only face. A CEO's `metadata.description` IS the rule (the
+   * render row only sketches it: `opgArrow()` + an asterisk), so the face
+   * prints it under the mechanics. English text (an i18n key) — the render
+   * layer translates and picks the length tier. Falls back to the render
+   * data's dropped `plainText` prose (Xavier authors its rule that way), so
+   * this face can never say less than the legacy one it replaces.
+   */
+  prose?: string;
 };
 
 /**
@@ -152,14 +162,15 @@ function slugOf(name: CardName): string {
 /**
  * Art for the face. Projects/preludes ALWAYS resolve (the shared fallback is
  * baked in, so the reserved art viewport is never an empty frame). A
- * CORPORATION resolves ONLY to REAL per-card art — when it has none, art is
- * undefined so PremiumCard renders the brand wordmark (PremiumCorpIdentity)
- * as the fallback. So a corp WITH its own illustration now shows it like any
- * card, and one without keeps the current identity-zone render.
+ * CORPORATION or a CEO resolves ONLY to REAL per-card art — when it has
+ * none, art is undefined so PremiumCard renders that type's own identity
+ * zone instead: the corp brand wordmark (PremiumCorpIdentity), or the CEO's
+ * procedural executive band (`.pcard-ceo-ident` — no CEO ships art today,
+ * so the band is the INTENDED face of the whole type, not a degradation).
  */
-function resolveArt(name: CardName, isCorporation: boolean): PremiumCardArt | undefined {
+function resolveArt(name: CardName, identityZoneType: boolean): PremiumCardArt | undefined {
   const art = premiumCardArt(name);
-  return isCorporation && art.fallback ? undefined : art;
+  return identityZoneType && art.fallback ? undefined : art;
 }
 
 function buildCost(clientCard: ClientCard, model: CardModel | undefined): PremiumCostVM | undefined {
@@ -304,6 +315,23 @@ function buildResource(clientCard: ClientCard, model: CardModel | undefined): Pr
 }
 
 /**
+ * The CEO prose rule (see `PremiumCardVM.prose`): the printed description,
+ * else the render data's own dropped `plainText` (Xavier). Other types keep
+ * the icons-only face — their descriptions live in overlays / the info panel.
+ */
+function buildProse(clientCard: ClientCard): string | undefined {
+  if (clientCard.type !== CardType.CEO) {
+    return undefined;
+  }
+  const description = clientCard.metadata.description;
+  const text = typeof description === 'string' ? description : description?.text;
+  if (text !== undefined && text.trim() !== '') {
+    return text;
+  }
+  return collectDroppedProse(clientCard.metadata.renderData);
+}
+
+/**
  * Build the premium face view-model.
  * `model` is optional — static proxies (console deal flyers) pass only the
  * manifest card and get the pristine printed face.
@@ -316,6 +344,7 @@ export function buildPremiumCardViewModel(clientCard: ClientCard, model?: CardMo
   const tags = buildTags(clientCard, model);
   const vp = buildVp(clientCard.metadata);
   const isCorporation = clientCard.type === CardType.CORPORATION;
+  const isCeo = clientCard.type === CardType.CEO;
   return {
     name: clientCard.name,
     slug: slugOf(clientCard.name),
@@ -327,16 +356,22 @@ export function buildPremiumCardViewModel(clientCard: ClientCard, model?: CardMo
     tagCluster: tagClusterPlan(tags.length),
     requirements: (clientCard.requirements ?? []).map(normalizeRequirement),
     // Projects/preludes always get an art viewport (fallback baked in);
-    // corporations show real art if they have it, else the wordmark identity
-    // zone (resolveArt returns undefined for a corp with no art).
-    art: resolveArt(clientCard.name, isCorporation),
+    // corporations and CEOs show real art if they have it, else their own
+    // identity zone (resolveArt returns undefined then — corp wordmark /
+    // CEO executive band).
+    art: resolveArt(clientCard.name, isCorporation || isCeo),
     // The printed VP fine print (vpText) leaves the FACE for dynamic-VP
     // cards — the rule is a card-information VP block now (the icons-only
-    // face keeps the compact VP badge formula).
-    mechanics: buildMechanics(clientCard.metadata.renderData, {dropVpText: vp !== undefined && vp.kind !== 'fixed'}),
+    // face keeps the compact VP badge formula). CEO faces keep their
+    // AUTHORED row order + no on-play zone (printedLayout).
+    mechanics: buildMechanics(clientCard.metadata.renderData, {
+      dropVpText: vp !== undefined && vp.kind !== 'fixed',
+      printedLayout: isCeo,
+    }),
     vp,
     expansion: clientCard.module,
     compatibility: clientCard.compatibility,
     resource: buildResource(clientCard, model),
+    prose: buildProse(clientCard),
   };
 }

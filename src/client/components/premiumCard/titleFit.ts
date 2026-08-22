@@ -39,6 +39,31 @@ export function titleTierFor(translatedTitle: string): TitleTier {
   return 4;
 }
 
+/*
+ * PROSE FIT — size tier for the CEO rule text (`.pcard__prose`). Same
+ * philosophy as the title: FOUR presets keyed to fixed sizes in
+ * premium_card.less (`pcard__prose--t<n>`), measured on the TRANSLATED
+ * string (RU rules run ~15% longer than EN). Calibrated against the
+ * longest shipped CEO rule (Caesar — ~185 EN / ~210 RU chars): at t4 the
+ * zone holds ~10 lines while the worst rule needs ~5, so the whole corpus
+ * fits the fixed 460px face with its mechanics rows above. NO scroll, NO
+ * clamp/ellipsis — a cut rule is the forbidden outcome; a longer future
+ * rule lands in t4 and wraps, never truncates.
+ */
+export function proseTierFor(translatedProse: string): TitleTier {
+  const len = translatedProse.length;
+  if (len <= 90) {
+    return 1;
+  }
+  if (len <= 140) {
+    return 2;
+  }
+  if (len <= 200) {
+    return 3;
+  }
+  return 4;
+}
+
 /* A run the renderer can NEVER break apart — the widest one drives the CSS
  * shrink-to-fit. Only BREAKABLE whitespace ends a run, plus hyphens / dashes /
  * slashes (the browser wraps AFTER those). Deliberately NOT `\s`: that also
