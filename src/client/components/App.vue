@@ -13,14 +13,14 @@
     <!-- Dev-only archive-entry (card lore) showcase (URL: ?lorePlayground). -->
     <CardLorePlayground v-if="showLorePlayground" />
     <!--
-      Game-screen atmosphere backdrop. Mounted ONLY on in-game screens
-      (player-home / spectator-home) — start / create / load / the-end
+      Game-screen atmosphere backdrop. Mounted ONLY on the in-game screen
+      (player-home) — start / create / load / the-end
       each have their own backdrop styling and don't want the layered
       space scene. `v-if` keeps DOM cost zero outside game screens.
       The component itself uses `position: fixed; z-index: -50..-44`
       so it sits behind all UI without affecting layout / hitbox.
     -->
-    <GameAtmosphere v-if="screen === 'player-home' || screen === 'spectator-home'" />
+    <GameAtmosphere v-if="screen === 'player-home'" />
     <!-- PREMIUM LOADING SCREEN (P10): covers the deliberate game-boundary
          reload + the player-view boot fetch, hosts the fullscreen-restore
          prompt and the error/retry state. Above everything (its own z). -->
@@ -114,7 +114,7 @@
         the cleared board hex. Visible for own AND opponent cleanups (poll path).
       -->
       <HazardCleanupOverlay
-        v-if="screen === 'player-home' || screen === 'spectator-home'" />
+        v-if="screen === 'player-home'" />
       <!--
         Detailed "additional resource" summary overlay. App-level (like the
         journal) so the `:key="playerkey"` remount can't tear it down while
@@ -132,7 +132,7 @@
         endgame screen provides its own "to main menu" control then.
       -->
       <GameExitButton
-        v-if="(screen === 'player-home' || screen === 'spectator-home') && endgameView === undefined" />
+        v-if="screen === 'player-home' && endgameView === undefined" />
       <!--
         Rematch coordination layer. App-level (like the endgame experience) so it
         survives the `:key="playerkey"` remount and keeps polling `/api/game/rematch`
@@ -147,7 +147,7 @@
       <!--
         Premium end-of-game experience. App-level (like DraftFlowOverlay) so the
         `:key="playerkey"` remount can't tear down the reveal / results overlay.
-        Gated by `endgameView` (the active player/spectator view ONLY when the
+        Gated by `endgameView` (the active player view ONLY when the
         game has reached Phase.END), so it never shows mid-game.
 
         CONSOLE NATIVE: the console shell runs its own scoring workspace, so
@@ -159,15 +159,9 @@
         :view="endgameView"
         :viewer-color="endgameViewerColor"
         :console-native="endgameConsoleNative" />
-      <spectator-home
-        v-else-if="screen === 'spectator-home' && spectator !== undefined"
-        :spectator="spectator"
-        :key="'spectator-' + playerHomeKey"
-      ></spectator-home>
       <game-end
         v-else-if="screen === 'the-end'"
         :player-view="playerView"
-        :spectator="spectator"
       ></game-end>
       <games-overview
         v-else-if="screen === 'games-overview'"
@@ -227,7 +221,7 @@
         Gated by the client realtime flag (default OFF): inert when disabled.
       -->
       <RealtimeLayer
-        v-if="(screen === 'player-home' || screen === 'spectator-home') && realtimeParticipantId !== ''"
+        v-if="screen === 'player-home' && realtimeParticipantId !== ''"
         :participant-id="realtimeParticipantId" />
 
       <!--
@@ -262,7 +256,6 @@ const LoadGameForm = defineAsyncComponent(() => import(/* webpackChunkName: "loa
 // Desktop-removal wave 1: the PlayerHome async chunk is no longer referenced —
 // the console shell is the one in-game UI. The file (and its subtree) stays on
 // disk until the deletion waves; nothing imports it, so nothing bundles it.
-const SpectatorHome = defineAsyncComponent(() => import(/* webpackChunkName: "spectator-home" */ '@/client/components/SpectatorHome.vue'));
 const StartScreen = defineAsyncComponent(() => import(/* webpackChunkName: "start-screen" */ '@/client/components/StartScreen.vue'));
 // Premium sci-fi launcher — the new default landing screen ('/'). The legacy
 // StartScreen lives on at '/legacy'. Async so its background/assets only load
@@ -346,9 +339,7 @@ import {stageRemotePlacements} from '@/client/console/tilePlacement/consoleRemot
 import {endgameAvailable} from '@/client/components/endgame/endgameState';
 import {PlayerViewModel, ViewModel} from '@/common/models/PlayerModel';
 import {SimpleGameModel} from '@/common/models/SimpleGameModel';
-import {SpectatorModel} from '@/common/models/SpectatorModel';
 import {Color} from '@/common/Color';
-import {isPlayerId, isSpectatorId} from '@/common/Types';
 import {hasShowModal, showModal, windowHasHTMLDialogElement} from './HTMLDialogElementCompatibility';
 
 import dialogPolyfill from 'dialog-polyfill';
@@ -366,18 +357,16 @@ type Screen = 'admin' |
             'main-menu' |
             'premium-create-game' |
             'player-home' |
-            'spectator-home' |
             'start-screen' |
             'the-end';
 export type MainAppData = {
     screen: Screen;
     /**
-     * player or spectator are set once the app component has loaded.
+     * playerView is set once the app component has loaded.
      * Vue only watches properties that exist initially. When we
      * use this property we can't trigger vue state without
      * a refactor.
      */
-    spectator?: SpectatorModel;
     playerView?: PlayerViewModel;
     // The transient-UI RESET EPOCH. Historically this was the `:key` of
     // <player-home> — bumping it forced a full remount per server response.
@@ -431,7 +420,6 @@ export default defineComponent({
       } as {[x: string]: boolean},
       game: undefined as SimpleGameModel | undefined,
       playerView: undefined,
-      spectator: undefined,
       login: undefined,
       playersWaitingFor: [] as ReadonlyArray<Color>,
     };
@@ -445,7 +433,6 @@ export default defineComponent({
     'create-game-form': CreateGameForm,
     'load-game-form': LoadGameForm,
     'game-home': GameHome,
-    'spectator-home': SpectatorHome,
     'game-end': GameEnd,
     'games-overview': GamesOverview,
     'card-list': CardList,
@@ -524,12 +511,12 @@ export default defineComponent({
     bootWarmupState() {
       return bootWarmupState;
     },
-    // Participant id (playerId or spectatorId) for the realtime transport layer.
+    // Participant id (playerId) for the realtime transport layer.
     // Empty string when not on a game screen, which keeps the layer inert.
     realtimeParticipantId(): string {
-      return this.playerView?.id ?? this.spectator?.id ?? '';
+      return this.playerView?.id ?? '';
     },
-    // The `:key` of <player-home> / <spectator-home>. A CONSTANT by default —
+    // The legacy `:key` of <player-home>. A CONSTANT by default —
     // the game subtree persists across server responses and updates reactively
     // (`playerkey` rides in as the `reset-epoch` prop instead). The legacy
     // rollback flag (`?remount=1` / localStorage tm_remount=1) rebinds the key
@@ -567,14 +554,11 @@ export default defineComponent({
     showLorePlayground(): boolean {
       return window.location.search.includes('lorePlayground');
     },
-    // The active view (player or spectator) ONLY when its game has ended —
+    // The active player view ONLY when its game has ended —
     // drives the App-level EndgameExperience mount. Undefined mid-game.
     endgameView(): ViewModel | undefined {
       if (this.screen === 'player-home' && endgameAvailable(this.playerView)) {
         return this.playerView;
-      }
-      if (this.screen === 'spectator-home' && endgameAvailable(this.spectator)) {
-        return this.spectator;
       }
       return undefined;
     },
@@ -582,14 +566,10 @@ export default defineComponent({
       if (this.screen === 'player-home') {
         return this.playerView?.thisPlayer?.color;
       }
-      if (this.screen === 'spectator-home') {
-        return this.spectator?.color;
-      }
       return undefined;
     },
     // The CONSOLE SHELL owns the post-game (its own scoring workspace): the
-    // desktop endgame surfaces go headless there. Spectators have no console
-    // shell — they keep the full desktop experience even with console mode on.
+    // desktop endgame surfaces go headless there.
     endgameConsoleNative(): boolean {
       return this.screen === 'player-home' && consoleModeState.enabled;
     },
@@ -630,7 +610,7 @@ export default defineComponent({
     getVisibilityState(targetVar: string): boolean {
       return (this as unknown as MainAppData).componentsVisibility[targetVar] ? true : false;
     },
-    update(path: typeof paths.PLAYER | typeof paths.SPECTATOR): void {
+    update(path: typeof paths.PLAYER): void {
       const currentPathname = getLastPathSegment();
       const app = this as unknown as MainAppData;
 
@@ -681,14 +661,12 @@ export default defineComponent({
            * if we're continuing within a card-pick flow, swap
            * playerView reactively without bumping playerkey so the
            * MandatoryInputModal hosting the draft / buy UI stays
-           * mounted. Spectator updates always remount (no
-           * draft-modal lifecycle to preserve for them).
+           * mounted.
            */
           const preserveCardPickModal =
-            path === paths.PLAYER &&
-            (shouldPreserveCardPickModal(model as PlayerViewModel) ||
-             shouldPreserveInitialDraftOverlay(model as PlayerViewModel) ||
-             shouldPreserveSaleOverlay());
+            shouldPreserveCardPickModal(model as PlayerViewModel) ||
+            shouldPreserveInitialDraftOverlay(model as PlayerViewModel) ||
+            shouldPreserveSaleOverlay();
           /*
            * Informational overlays (cards, played cards, achievements,
            * awards, effects, actions, colonies, VP) live inside
@@ -718,13 +696,13 @@ export default defineComponent({
            * submits via WaitingFor.fetchPlayerInput), and observers
            * would see the tile pop in instantly.
            *
-           * Skipped on initial load (`app.playerView === undefined` /
-           * `app.spectator === undefined`) — that's the F5 case
+           * Skipped on initial load (`app.playerView === undefined`)
+           * — that's the F5 case
            * where the whole board hydrates at once; armed should
            * stay false so existing tiles silently establish their
            * baseline rather than triggering N parallel impact rings.
            */
-          const prevView = (path === paths.PLAYER ? app.playerView : app.spectator) as ViewModel | undefined;
+          const prevView: ViewModel | undefined = app.playerView;
 
           const commit = () => {
             perfMark('playerView:commit');
@@ -759,23 +737,16 @@ export default defineComponent({
             // keep their previous references so child components skip
             // re-rendering. The ROOT identity still changes, so this watcher-
             // visible commit behaves exactly like a wholesale swap.
-            if (path === paths.PLAYER) {
-              app.playerView = nextViewSnapshot(app.playerView, model as PlayerViewModel);
-              setTranslationContext(app.playerView);
-            } else if (path === paths.SPECTATOR) {
-              app.spectator = nextViewSnapshot(app.spectator, model as SpectatorModel);
-              setLiveCardResources(app.spectator);
-            }
+            app.playerView = nextViewSnapshot(app.playerView, model as PlayerViewModel);
+            setTranslationContext(app.playerView);
             if (!preserveCardPickModal && !preserveOpenOverlay) {
               app.playerkey++;
             }
             // When the user navigated directly to /the-end, keep that screen.
             if (currentPathname === paths.THE_END) {
               app.screen = 'the-end';
-            } else if (path === paths.PLAYER) {
+            } else {
               app.screen = 'player-home';
-            } else if (path === paths.SPECTATOR) {
-              app.screen = 'spectator-home';
             }
             if (currentPathname !== path && currentPathname !== paths.THE_END) {
               window.history.replaceState(
@@ -805,8 +776,7 @@ export default defineComponent({
            * only made the player wait out the card's own delivery for their own
            * next prompt. So does a response with no fresh turns and no window.
            */
-          if (path === paths.PLAYER &&
-              presentFreshBotTurns(prevView, model as PlayerViewModel, {commitLatest: commit})) {
+          if (presentFreshBotTurns(prevView, model as PlayerViewModel, {commitLatest: commit})) {
             return;
           }
           /*
@@ -821,9 +791,7 @@ export default defineComponent({
           // Desktop-removal wave 1: the desktop staged setup reveal
           // (primeStartSetupReveal) is gone — the console carries the beat
           // through the deferred corporationPlay + hero landing.
-          const conversionEvent = path === paths.PLAYER ?
-            detectEnergyConversion(prevView, model as PlayerViewModel) :
-            undefined;
+          const conversionEvent = detectEnergyConversion(prevView, model as PlayerViewModel);
           if (conversionEvent !== undefined) {
             runEnergyConversion(conversionEvent).then(() => {
               commit();
@@ -833,7 +801,7 @@ export default defineComponent({
           }
           /*
            * Hazard-cleanup gate (poll path). When ANOTHER player builds over a
-           * hazard, the viewer (or a spectator) sees it via this poll — play the
+           * hazard, the viewer sees it via this poll — play the
            * cleanup sequence and hold the commit until it finishes, so the
            * opponent's cleanup is just as legible as the viewer's own. The
            * re-entrancy guard above stops a concurrent poll committing mid-run;
@@ -866,28 +834,17 @@ export default defineComponent({
     updatePlayer() {
       this.update(paths.PLAYER);
     },
-    updateSpectator() {
-      this.update(paths.SPECTATOR);
-    },
     // In-app SPA routing: resolve the `screen` (and trigger the right data load)
     // from the CURRENT url. Called on initial mount, on in-app navigation
     // (`navigateInApp`), and on browser back/forward (`popstate`). Faithfully
     // reproduces the historical mount-time resolution.
     applyRoute(): void {
       const currentPathname = getLastPathSegment();
-      const app = this as unknown as MainAppData & {updatePlayer(): void; updateSpectator(): void};
+      const app = this as unknown as MainAppData & {updatePlayer(): void};
       if (currentPathname === paths.PLAYER) {
         app.updatePlayer();
       } else if (currentPathname === paths.THE_END) {
-        const urlParams = new URLSearchParams(window.location.search);
-        const id = urlParams.get('id') || '';
-        if (isPlayerId(id)) {
-          app.updatePlayer();
-        } else if (isSpectatorId(id)) {
-          app.updateSpectator();
-        } else {
-          alert('Bad id URL parameter.');
-        }
+        app.updatePlayer();
       } else if (currentPathname === paths.GAME) {
         const url = apiUrl(paths.API_GAME) + identitySearch();
         fetch(url)
@@ -924,8 +881,6 @@ export default defineComponent({
         app.screen = 'help';
       } else if (currentPathname === paths.LEGACY) {
         app.screen = 'start-screen';
-      } else if (currentPathname === paths.SPECTATOR) {
-        app.updateSpectator();
       } else if (currentPathname === paths.ADMIN) {
         app.screen = 'admin';
       } else if (currentPathname === paths.LOGIN) {
@@ -968,7 +923,7 @@ export default defineComponent({
     const pathNow = getLastPathSegment();
     if (bootStage !== undefined) {
       beginLoading(bootStage);
-    } else if (pathNow === paths.PLAYER || pathNow === paths.SPECTATOR || pathNow === paths.THE_END) {
+    } else if (pathNow === paths.PLAYER || pathNow === paths.THE_END) {
       beginLoading('sync');
     }
     this.applyRoute();

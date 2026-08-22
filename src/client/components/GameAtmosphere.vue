@@ -1,7 +1,7 @@
 <template>
   <!--
-    Layered atmosphere backdrop for in-game screens (PlayerHome /
-    SpectatorHome). Mounted from App.vue ONLY when the player is on a
+    Layered atmosphere backdrop for the in-game screen.
+    Mounted from App.vue ONLY when the player is on the
     game screen — not on start / create / load / the-end / etc., which
     have their own backdrops.
 

@@ -35,7 +35,6 @@ import {ApiLogout} from '../routes/ApiLogout';
 import {ApiMetrics} from '../routes/ApiMetrics';
 import {ApiPlayer} from '../routes/ApiPlayer';
 import {ApiProfile} from '../routes/ApiProfile';
-import {ApiSpectator} from '../routes/ApiSpectator';
 import {ApiStats} from '../routes/ApiStats';
 import {ApiWaitingFor} from '../routes/ApiWaitingFor';
 import {ActionPreview} from '../routes/ActionPreview';
@@ -118,7 +117,6 @@ const handlers: Map<string, IHandler> = new Map(
     [paths.API_METRICS, ApiMetrics.INSTANCE],
     [paths.API_PLAYER, ApiPlayer.INSTANCE],
     [paths.API_STATS, ApiStats.INSTANCE],
-    [paths.API_SPECTATOR, ApiSpectator.INSTANCE],
     [paths.API_WAITING_FOR, ApiWaitingFor.INSTANCE],
     [paths.API_ACTION_PREVIEW, ActionPreview.INSTANCE],
     [paths.API_CARD_PLAY_PREVIEW, CardPlayPreview.INSTANCE],
@@ -152,7 +150,6 @@ const handlers: Map<string, IHandler> = new Map(
     [paths.ACKNOWLEDGE_DRAW, AcknowledgeDraw.INSTANCE],
     [paths.API_PROFILE, ApiProfile.INSTANCE],
     [paths.RESET, Reset.INSTANCE],
-    [paths.SPECTATOR, ServeApp.INSTANCE],
     ['styles.css', ServeAsset.INSTANCE],
     [paths.THE_END, ServeApp.INSTANCE],
   ],

@@ -48,22 +48,9 @@ describe('ApiWaitingFor', () => {
     expect(res.content).eq('{"result":"GO","waitingFor":["black"]}');
   });
 
-  it('fails when spectator not found', async () => {
-    const player = TestPlayer.BLACK.newPlayer();
-    const player2 = TestPlayer.RED.newPlayer();
-    const game = Game.newInstance('game-id', [player, player2], player, 'spectatorid');
-    await scaffolding.ctx.gameLoader.add(game);
-    (game as any).getBySpectatorId = () => {
-      throw new Error('spectator does not exist');
-    };
-
-    scaffolding.url = '/api/waitingfor?id=' + game.spectatorId + '-invalid' + '&gameAge=50&undoCount=0';
-    await scaffolding.get(ApiWaitingFor.INSTANCE, res);
-    expect(res.statusCode).eq(statusCode.notFound);
-    expect(res.content).eq('Not found: cannot find game for that player');
-  });
-
-  it('sends model for spectator', async () => {
+  // The spectator feature was removed: a spectator id is no longer a valid
+  // participant on this route, even when it belongs to a real loaded game.
+  it('rejects a spectator id with not-found', async () => {
     const player = TestPlayer.BLACK.newPlayer();
     const player2 = TestPlayer.RED.newPlayer();
     const game = Game.newInstance('game-id', [player, player2], player, 's-spectatorid');
@@ -71,7 +58,7 @@ describe('ApiWaitingFor', () => {
 
     scaffolding.url = '/api/waitingfor?id=' + game.spectatorId + '&gameAge=50&undoCount=0';
     await scaffolding.get(ApiWaitingFor.INSTANCE, res);
-    expect(res.statusCode).eq(statusCode.ok);
-    expect(res.content).eq('{"result":"WAIT","waitingFor":["black","red"]}');
+    expect(res.statusCode).eq(statusCode.notFound);
+    expect(res.content).eq('Not found: cannot find game for that player');
   });
 });

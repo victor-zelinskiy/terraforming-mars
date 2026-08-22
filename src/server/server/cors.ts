@@ -42,7 +42,6 @@ function allowedOrigins(): ReadonlyArray<string> {
 const CORS_PATHS: ReadonlySet<string> = new Set<string>([
   // Core game runtime.
   paths.API_PLAYER,
-  paths.API_SPECTATOR,
   paths.API_GAME,
   paths.API_WAITING_FOR,
   paths.PLAYER_INPUT,

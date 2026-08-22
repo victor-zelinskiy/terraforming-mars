@@ -40,7 +40,6 @@ export const paths = {
   API_LOGOUT: 'api/logout',
   API_PLAYER: 'api/player',
   API_PROFILE: 'api/profile',
-  API_SPECTATOR: 'api/spectator',
   API_STATS: 'api/stats',
   API_WAITING_FOR: 'api/waitingfor',
   API_ACTION_PREVIEW: 'api/action-preview',
@@ -70,7 +69,6 @@ export const paths = {
   PLAYER_INPUT_BATCH: 'player/input-batch',
   ACKNOWLEDGE_DRAW: 'player/acknowledge-draw',
   RESET: 'reset',
-  SPECTATOR: 'spectator',
   THE_END: 'the-end',
   // Realtime WebSocket upgrade path. Not an HTTP handler in requestProcessor —
   // it is matched on the server's `upgrade` event (see RealtimeServer) and used

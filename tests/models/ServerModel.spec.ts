@@ -71,13 +71,6 @@ describe('ServerModel', () => {
     expect(response.players[1].victoryPointsBreakdown.awards).eq(5);
   });
 
-  it('Should hide all players\' VP when spectator', () => {
-    createTestGame(false);
-    const response = Server.getSpectatorModel(game);
-    expect(response.players[0].victoryPointsBreakdown.total).eq(0);
-    expect(response.players[1].victoryPointsBreakdown.total).eq(0);
-  });
-
   it('Should include globalParameterSteps at game end', () => {
     createTestGame(false);
     // Simulate players contributing to global parameters
@@ -147,12 +140,6 @@ describe('ServerModel', () => {
     const corp = new TharsisRepublic();
     player.pendingInitialActions.push(corp);
     expect(Server.getPlayerModel(player).pendingInitialActions).deep.eq([corp.name]);
-  });
-
-  it('does not expose pendingInitialActions on the spectator model', () => {
-    createTestGame(false);
-    const spectator = Server.getSpectatorModel(game);
-    expect((spectator as any).pendingInitialActions).eq(undefined);
   });
 
   it('serializes Self-replicating Robots hosted cards: flag + discounted cost + reasons', () => {
