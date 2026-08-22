@@ -367,7 +367,7 @@ export default defineComponent({
       if (related !== null && cell.contains(related)) {
         return;
       }
-      // During a tile placement the per-cell reason popover (SelectSpace.vue)
+      // During a tile placement the per-cell reason popover (ConsoleBoardInput.vue)
       // owns whole-cell hover, so the hex-wide info path is suppressed
       // ENTIRELY — showing the special-cell info on every cell the cursor
       // crosses would double up with the reason popover and overload the
@@ -390,7 +390,7 @@ export default defineComponent({
       // re-query the DOM + force layout in its position computed.
       hoverBoardCell(spaceId, cell.getBoundingClientRect());
     },
-    // True while a tile-placement prompt is on the board. SelectSpace marks its
+    // True while a tile-placement prompt is on the board. ConsoleBoardInput marks its
     // legal cells with `.board-space--available` (added in `animateSpaces`,
     // removed in `disableAnimation`) and mirrors that into `placementRenderState`
     // — read the reactive flag instead of a full-DOM `querySelector` on every

@@ -1,10 +1,32 @@
 <!--
-@console-shared LIVE — console native stands on this file, so it is NOT covered
-by the desktop-UI deprecation. Full quality bar applies (tests, guards, i18n).
-Before changing it, check the console consumers in docs/DESKTOP_DEPRECATION_AUDIT.md.
+@console-shared LIVE — the console's ONE board-input binder.
+
+THE BOARD CELL-BINDER (the successor of the upstream SelectSpace.vue — the
+last legacy file the console stood on). Headless by construction: it renders
+NO title, NO warning strip, NO save button — only the placement-confirm
+dialog and the two premium hover popovers. Its real work is DOM wiring on
+the always-mounted board:
+ - paints `.board-space--available` on the prompt's legal cells and
+   `.board-space--illegal` (+ the DATA_ILLEGAL_MARKER attribute) on the
+   server-reported off-limits cells, mirroring presence into
+   `placementRenderState` (BRD-3 — hover handlers must not DOM-query);
+ - attaches per-cell `onclick` handlers — the console's one tile-submit
+   path (a pad A-press on a focused cell drives the same click);
+ - hover: an ILLEGAL cell shows the premium reason popover, a LEGAL cell
+   the placement PREVIEW (cost / gains / endgame VP) — the same component
+   family the hand overlay uses, never a native `title`;
+ - click → the placement-confirm dialog (with the SAME preview facts) or,
+   behind the hide_tile_confirmation preference, straight through;
+ - `saveData()` ARMS the console tile-placement hero BEFORE the submit —
+   every console placement source funnels through this one binder (card
+   follow-up / standard project / card action / WGT ocean / convert-plants),
+   so this is the single arming point; the transport gate then verifies the
+   server's word before anything visual happens;
+ - teardown is surgical and idempotent (the binder can unmount mid-pick —
+   e.g. convert-plants toggled off — and no highlight/onclick may linger).
 -->
 <template>
-  <div class="select_space_cont">
+  <div class="con-board-input">
     <confirm-dialog
         message="Place your tile here?"
         :enableDontShowAgainCheckbox="true"
@@ -18,14 +40,6 @@ Before changing it, check the console consumers in docs/DESKTOP_DEPRECATION_AUDI
         :viewerColor="playerView.thisPlayer?.color"
         :players="playerView.players ?? []" />
     </confirm-dialog>
-    <div v-if="showtitle" class="wf-select-space">
-      {{ $t(playerinput.title) }}
-      <go-to-map :playerinput="playerinput"></go-to-map>
-    </div>
-    <div v-if="warning" class="nes-container is-rounded">
-      <span class="nes-text is-warning" v-i18n>{{ warning }}</span>
-      <go-to-map :playerinput="playerinput"></go-to-map>
-    </div>
     <placement-reason-popover :reasons="hoverReasons" :anchor="hoverAnchor" />
     <board-placement-preview-popover
       :preview="previewData"
@@ -42,7 +56,6 @@ import {PlayerViewModel} from '@/common/models/PlayerModel';
 import {getPreferences, PreferencesManager} from '@/client/utils/PreferencesManager';
 import {SelectSpaceResponse} from '@/common/inputs/InputResponse';
 import ConfirmDialog from '@/client/components/common/ConfirmDialog.vue';
-import GoToMap from '@/client/components/waitingFor/GoToMap.vue';
 import {SpaceId} from '@/common/Types';
 import {PlacementIllegalSpace} from '@/common/inputs/PlacementIllegalReason';
 import {UnplayableReason} from '@/common/cards/UnplayableReason';
@@ -53,7 +66,6 @@ import BoardPlacementPreviewPopover from '@/client/components/board/BoardPlaceme
 import BoardPlacementPreviewContent from '@/client/components/board/BoardPlacementPreviewContent.vue';
 import {fetchBoardCellPreview} from '@/client/components/board/boardInfoState';
 import {BoardPlacementPreview} from '@/common/boards/BoardInformationFacts';
-import {consoleModeState} from '@/client/console/consoleModeState';
 import {armTilePlacement} from '@/client/console/tilePlacement/consoleTilePlacement';
 
 /**
@@ -63,7 +75,6 @@ import {armTilePlacement} from '@/client/console/tilePlacement/consoleTilePlacem
  */
 const DATA_ILLEGAL_MARKER = 'data-placement-illegal';
 
-
 type Refs = {
   confirmation: InstanceType<typeof ConfirmDialog>;
 };
@@ -72,7 +83,6 @@ type DataModel = {
   spaces: Set<SpaceId>;
   selectedTile: HTMLElement | undefined,
   spaceId: SpaceId | undefined;
-  warning: string | undefined;
   // Premium placement-reason popover state (replaces the native `title`).
   hoverReasons: ReadonlyArray<UnplayableReason>;
   hoverAnchor: DOMRect | undefined;
@@ -88,7 +98,7 @@ type DataModel = {
 };
 
 export default defineComponent({
-  name: 'SelectSpace',
+  name: 'ConsoleBoardInput',
   props: {
     playerView: {
       type: Object as () => PlayerViewModel,
@@ -102,21 +112,12 @@ export default defineComponent({
       type: Function as unknown as () => (out: SelectSpaceResponse) => void,
       required: true,
     },
-    showsave: {
-      type: Boolean,
-      required: true,
-    },
-    showtitle: {
-      type: Boolean,
-      required: true,
-    },
   },
   data(): DataModel {
     return {
       spaces: new Set(this.playerinput.spaces),
       selectedTile: undefined,
       spaceId: undefined,
-      warning: undefined,
       hoverReasons: [],
       hoverAnchor: undefined,
       hoverSpaceId: undefined,
@@ -130,7 +131,6 @@ export default defineComponent({
   },
   components: {
     'confirm-dialog': ConfirmDialog,
-    GoToMap,
     'placement-reason-popover': PlacementReasonPopover,
     'board-placement-preview-popover': BoardPlacementPreviewPopover,
     'board-placement-preview-content': BoardPlacementPreviewContent,
@@ -365,19 +365,18 @@ export default defineComponent({
     },
     saveData() {
       if (this.spaceId === undefined) {
-        this.warning = 'Must select a space';
+        // Headless: there is no warning strip to show — an id-less save is a
+        // programming error upstream (onTileSelected always sets it).
+        console.warn('[board-input] save without a selected space — ignored');
         return;
       }
-      // CONSOLE PLACEMENT HERO (console-native only — desktop is untouched):
-      // ARM the premium tile-flight transaction BEFORE the submit. Every
-      // console placement source funnels through this ONE headless
-      // SelectSpace (card follow-up / standard project / card action / WGT
-      // ocean / convert-plants), so this is the single arming point. The
-      // WaitingFor gate then verifies the server's word before anything
-      // visual happens — a refused pick unwinds with zero trace.
-      if (consoleModeState.enabled) {
-        armTilePlacement({spaceId: this.spaceId});
-      }
+      // CONSOLE PLACEMENT HERO: ARM the premium tile-flight transaction BEFORE
+      // the submit. Every console placement source funnels through this ONE
+      // binder (card follow-up / standard project / card action / WGT ocean /
+      // convert-plants), so this is the single arming point. The transport
+      // gate then verifies the server's word before anything visual happens —
+      // a refused pick unwinds with zero trace.
+      armTilePlacement({spaceId: this.spaceId});
       this.onsave({type: 'space', spaceId: this.spaceId});
     },
   },
@@ -404,7 +403,7 @@ export default defineComponent({
     document.addEventListener('mouseover', this.onBoardMouseOver);
     window.addEventListener('scroll', this.clearHover, true);
   },
-  // Cleanup is critical when SelectSpace can be UNMOUNTED without a tile
+  // Cleanup is critical when the binder can be UNMOUNTED without a tile
   // being picked first — e.g. when the dedicated Convert-Plants button is
   // toggled off mid-pick. Without this, `board-space--available` lingers
   // (tiles keep blinking) and the `onclick` handlers stay attached

@@ -13,7 +13,7 @@ import {__resetGameTransportForTesting} from '@/client/console/transport/gameTra
  * WaitingFor's render contract). The transport itself is a module
  * (console/transport/gameTransport.ts) whose poll / submit / view-apply
  * behaviour is covered by the e2e probe's ingest cycles; this component
- * renders exactly ONE thing — the SelectSpace board binder for a top-level
+ * renders exactly ONE thing — the board-input binder for a top-level
  * `space` prompt — and these specs pin that contract: binder for `space`,
  * nothing for anything else, and the console placement-admission hold blanks
  * the binder.
@@ -40,7 +40,7 @@ describe('ConsoleBoardBinder', () => {
       global: {
         ...globalConfig.global,
         stubs: {
-          SelectSpace: {template: '<div class="stub-select-space"></div>'},
+          ConsoleBoardInput: {template: '<div class="stub-select-space"></div>'},
         },
       },
       props: {
@@ -57,7 +57,7 @@ describe('ConsoleBoardBinder', () => {
     __resetGameTransportForTesting();
   });
 
-  it('mounts the SelectSpace board binder for a top-level space prompt', () => {
+  it('mounts the board-input binder for a top-level space prompt', () => {
     const wrapper = mountFor({type: 'space', title: 'test', buttonLabel: 'save', spaces: []});
     expect(wrapper.find('.stub-select-space').exists()).to.be.true;
   });

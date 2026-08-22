@@ -1,11 +1,11 @@
 /*
  * placementRenderState — module-level reactive bridge between the active
- * SelectSpace placement prompt and the board cell renderers.
+ * board-input placement prompt and the board cell renderers.
  *
- * Why a module store: SelectSpace.vue (mounted as the player input) and
+ * Why a module store: ConsoleBoardInput.vue (mounted as the player input) and
  * BoardSpace.vue / MoonSpace.vue (mounted as part of the board) are siblings
  * with no shared props, yet they have to agree on how an occupied placement
- * TARGET is drawn. SelectSpace.vue already bridges them by raw DOM class
+ * TARGET is drawn. ConsoleBoardInput.vue already bridges them by raw DOM class
  * manipulation (it adds `.board-space--available`); for the tile-graphic
  * decision we use a reactive store instead, the same pattern the fork uses
  * for `placementLockState` / `boardCellHighlight`.
@@ -17,7 +17,7 @@
  * target keeps its tile visible (St. Joseph's cathedral overlay, picking an
  * ocean to remove, placing over a hazard, …) — the base tile is information.
  *
- * SelectSpace.vue populates this from `SelectSpaceModel.hiddenTiles` on mount
+ * ConsoleBoardInput.vue populates this from `SelectSpaceModel.hiddenTiles` on mount
  * and clears it on unmount, so the store reflects exactly the current prompt.
  */
 
@@ -27,7 +27,7 @@ import {SpaceId} from '@/common/Types';
 type PlacementRenderState = {
   hiddenTiles: ReadonlySet<SpaceId>;
   // BRD-3 (docs/PERFORMANCE_AUDIT.md): a reactive mirror of "`.board-space--available`
-  // currently exists on the board". SelectSpace is the ONLY source of that class
+  // currently exists on the board". ConsoleBoardInput is the ONLY source of that class
   // (bulk-added in `animateSpaces`, bulk-removed in `disableAnimation`), so it
   // sets this flag at those exact points. Board.vue's `placementActive()` and
   // BoardCellInfoPopover read it INSTEAD of a `document.querySelector` on every
@@ -40,7 +40,7 @@ export const placementRenderState: PlacementRenderState = reactive({
   highlightActive: false,
 });
 
-/** Set by SelectSpace when it adds/removes the `.board-space--available`
+/** Set by ConsoleBoardInput when it adds/removes the `.board-space--available`
  *  highlight set, so hover handlers can read placement-mode reactively. */
 export function setPlacementHighlightActive(active: boolean): void {
   if (placementRenderState.highlightActive !== active) {

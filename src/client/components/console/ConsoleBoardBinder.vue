@@ -18,12 +18,10 @@
     admission hold — exactly the windows that must not accept a board press.
   -->
   <div>
-    <SelectSpace v-if="spaceBinderActive && topLevelSpaceInput !== undefined"
-                 :playerView="binderView"
-                 :playerinput="topLevelSpaceInput"
-                 :onsave="submit"
-                 :showsave="false"
-                 :showtitle="false" />
+    <ConsoleBoardInput v-if="spaceBinderActive && topLevelSpaceInput !== undefined"
+                       :playerView="binderView"
+                       :playerinput="topLevelSpaceInput"
+                       :onsave="submit" />
   </div>
 </template>
 
@@ -34,7 +32,7 @@ import {PlayerInputModel, SelectSpaceModel} from '@/common/models/PlayerInputMod
 import {PlayerViewModel, ViewModel} from '@/common/models/PlayerModel';
 import {InputResponse} from '@/common/inputs/InputResponse';
 import {Phase} from '@/common/Phase';
-import SelectSpace from '@/client/components/SelectSpace.vue';
+import ConsoleBoardInput from '@/client/components/console/ConsoleBoardInput.vue';
 import {clearIfPhaseLeftCardPick, clearDraftWaitPending} from '@/client/components/draftWaitState';
 import {isConsolePlacementHeld} from '@/client/console/consolePromptAdmission';
 import {
@@ -49,7 +47,7 @@ import {
 export default defineComponent({
   name: 'console-board-binder',
   components: {
-    SelectSpace,
+    ConsoleBoardInput,
   },
   props: {
     playerView: {

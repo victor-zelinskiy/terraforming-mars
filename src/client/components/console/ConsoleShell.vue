@@ -1146,20 +1146,16 @@
       <console-board-binder v-if="game.phase !== 'end'"
                             :playerView="playerView"
                             :waitingfor="playerView.waitingFor"></console-board-binder>
-      <select-space v-if="convertPlantsPrompt !== undefined"
-                    :playerView="playerView"
-                    :playerinput="convertPlantsPrompt"
-                    :onsave="onConvertPlantsSpacePicked"
-                    :showsave="false"
-                    :showtitle="false" />
+      <console-board-input v-if="convertPlantsPrompt !== undefined"
+                           :playerView="playerView"
+                           :playerinput="convertPlantsPrompt"
+                           :onsave="onConvertPlantsSpacePicked" />
       <!-- Nested board pick from a task's space-type option (WGT ocean):
-           the same headless SelectSpace machinery as convert-plants. -->
-      <select-space v-if="taskSpacePrompt !== undefined"
-                    :playerView="playerView"
-                    :playerinput="taskSpacePrompt"
-                    :onsave="onTaskSpacePicked"
-                    :showsave="false"
-                    :showtitle="false" />
+           the same board-input binder as convert-plants. -->
+      <console-board-input v-if="taskSpacePrompt !== undefined"
+                           :playerView="playerView"
+                           :playerinput="taskSpacePrompt"
+                           :onsave="onTaskSpacePicked" />
     </div>
 
     <!-- Play-a-card flow — the console-native confirm (CTS T8: the
@@ -1273,7 +1269,7 @@ import {SpaceId} from '@/common/Types';
 import ConsoleBoardBinder from '@/client/components/console/ConsoleBoardBinder.vue';
 import {submitInput, submitBatch as transportSubmitBatch, cancelPlacement} from '@/client/console/transport/gameTransport';
 import {InputResponse} from '@/common/inputs/InputResponse';
-import SelectSpace from '@/client/components/SelectSpace.vue';
+import ConsoleBoardInput from '@/client/components/console/ConsoleBoardInput.vue';
 import {buildStandardProjectPaymentModel, hasUsableStandardProjectAlternativeResources, standardProjectPaymentTitle} from '@/client/components/payment/paymentModelUtils';
 
 import ConsoleStatusStrip from '@/client/components/console/ConsoleStatusStrip.vue';
@@ -1801,7 +1797,7 @@ export default defineComponent({
     ConsoleJournalPanel,
     GamepadGlyph,
     'console-board-binder': ConsoleBoardBinder,
-    'select-space': SelectSpace,
+    'console-board-input': ConsoleBoardInput,
   },
   props: {
     playerView: {type: Object as PropType<PlayerViewModel>, required: true},
