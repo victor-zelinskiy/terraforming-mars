@@ -81,90 +81,22 @@
         restores the legacy full-remount behavior.
       -->
       <!--
-        Console Mode (docs/CONSOLE_MODE_CONCEPT.md): a runtime SHELL SPLIT — the
-        console-first TV shell mounts INSTEAD of PlayerHome, same game brain
-        (playerView + its own headless WaitingFor transport). Toggled by the
-        consented entry prompt / hold-Menu / `?console=1|0`.
+        Console Mode (docs/CONSOLE_MODE_CONCEPT.md): the ONE in-game shell.
+        The frozen desktop <player-home> branch and its App-level overlay
+        stack were CUT in desktop-removal wave 1 (2026-08-22) — console is
+        unconditional now; the future desktop UI will be built FROM this
+        shell. Files remain on disk until the later deletion waves.
       -->
       <ConsoleShell
-        v-else-if="screen === 'player-home' && playerView !== undefined && consoleModeState.enabled"
+        v-else-if="screen === 'player-home' && playerView !== undefined"
         :player-view="playerView"
         :waiting-on-players="playersWaitingFor"
       ></ConsoleShell>
-      <player-home
-        v-else-if="screen === 'player-home' && playerView !== undefined"
-        ref="playerHome"
-        :player-view="playerView"
-        :reset-epoch="playerkey"
-        :key="playerHomeKey"
-      ></player-home>
-      <!--
-        Draft / buy-cards modal lives HERE at App level (not inside
-        player-home) so the `:key="playerkey"` remount that fires on
-        every server response can't destroy it. As long as App is
-        alive, this overlay stays mounted; its internal modal swaps
-        between CardSelectionContent and DraftWaitingContent based
-        on reactive playerView + module-level draftWaitState. The
-        previous architecture (modal inside WaitingFor) was the
-        root cause of the "modal closes when I press ВЫБРАТЬ" bug —
-        every submit destroyed the modal, no flag could survive it.
-      -->
-      <!--
-        CONSOLE MODE (CTS T2): every non-hand SelectCard prompt this overlay
-        serves (draft / research buy / nested target picks) is handled by the
-        console-native card browser inside ConsoleTaskHost — mounting both
-        would double-render; the wait-between-picks state is the console
-        banner. Desktop (consoleModeState.enabled === false) is untouched.
-      -->
-      <DraftFlowOverlay
-        v-if="screen === 'player-home' && playerView !== undefined && !consoleModeState.enabled"
-        :player-view="playerView"
-        :waiting-on-players="playersWaitingFor" />
-      <!--
-        Unified start-of-game orchestration modal. App-level (like
-        DraftFlowOverlay) so the playerkey remount can't destroy the flow
-        mid-sequence. Self-gates via startGameFlowActive(playerView): only
-        mounts in generation 1 while preludes / the corp first action are owed.
-      -->
-      <!--
-        CONSOLE MODE (CTS T5): the start sequence (preludes / corp first
-        action / Merger pick) is served by the console-native ConsoleStartScene
-        — mounting this desktop orchestration modal too would double-render.
-        Desktop (consoleModeState.enabled === false) is untouched.
-      -->
-      <StartGameFlowOverlay
-        v-if="screen === 'player-home' && playerView !== undefined && !consoleModeState.enabled"
-        :player-view="playerView"
-        :waiting-on-players="playersWaitingFor" />
-      <!--
-        Premium "you drew cards" reveal modal. App-level (like DraftFlowOverlay)
-        so the playerkey remount can't destroy the deal/collect animation or the
-        per-card take progress mid-reveal. Driven entirely by the module-level
-        drawnCardsState (reconciled from playerView.cardDrawReveals by the
-        watcher above); mounts only while cards await a take.
-      -->
-      <!-- CONSOLE MODE (CTS T6): the reveal flows are served by the
-           console-native ConsoleRevealOverlay — desktop untouched. -->
-      <DrawCardRevealFlow
-        v-if="screen === 'player-home' && playerView !== undefined && hasDrawReveal && !consoleModeState.enabled"
-        :player-view="playerView" />
-      <!--
-        Premium REVEAL-RESULT overlay for deck-check actions (SearchForLife /
-        AsteroidDeflectionSystem). App-level (like DraftFlowOverlay) so it survives
-        the playerkey remount that the reveal-action response triggers — the result
-        can't live inside <player-home>. Self-gates via revealResultState.active.
-      -->
-      <RevealResultOverlay
-        v-if="screen === 'player-home' && playerView !== undefined && !consoleModeState.enabled"
-        :player-view="playerView" />
-      <!--
-        Milestone/award post-confirm ceremony (desktop presentation). App-level
-        so the playerkey remount can't tear it down mid-beat; self-gates via
-        maCeremonyState (fires only when the fresh view proves the viewer's own
-        claim/fund resolved). Console mode has its own cinematic in ConsoleShell.
-      -->
-      <MaCeremonyOverlay
-        v-if="screen === 'player-home' && playerView !== undefined && !consoleModeState.enabled" />
+      <!-- Desktop-removal wave 1: DraftFlowOverlay / StartGameFlowOverlay /
+           DrawCardRevealFlow / RevealResultOverlay / MaCeremonyOverlay (all
+           gated `!consoleModeState.enabled`) were cut — the console serves
+           every one of these flows natively (ConsoleTaskHost / start scene /
+           ConsoleRevealOverlay / the MA ceremony in ConsoleShell). -->
       <!--
         End-of-generation Energy → Heat conversion transition. App-level (like
         DraftFlowOverlay) so the `:key="playerkey"` remount can't tear down the
@@ -174,16 +106,8 @@
       -->
       <EnergyConversionOverlay
         v-if="screen === 'player-home' && playerView !== undefined" />
-      <!--
-        MarsBot «Разбор хода» review (desktop presentation). App-level so the
-        playerkey remount can't tear it down; read-only over the archived turn
-        script (no playback, no commit gate). Self-gates via
-        botTurnReviewState.open. Console mode renders the SAME state through its
-        own fullscreen ConsoleBotTurnReview.
-      -->
-      <BotTurnReviewOverlay
-        v-if="screen === 'player-home' && playerView !== undefined && !consoleModeState.enabled"
-        :players="playerView.players" />
+      <!-- Desktop-removal wave 1: BotTurnReviewOverlay cut — the console
+           renders the same botTurnReviewState through ConsoleBotTurnReview. -->
       <!--
         Hazard-cleanup sequence overlay. App-level so it survives the playerkey
         remount; self-gates via hazardCleanupState.active; positions itself over
@@ -253,28 +177,9 @@
       <login-home v-else-if="screen === 'login-home'"></login-home>
       <help v-else-if="screen === 'help'"></help>
 
-      <!--
-        Premium journal side-panel. Mounted HERE (App level) — NOT inside
-        <player-home> — so the `:key="playerkey"` remount that fires on
-        every server response can't destroy it. As long as App is alive
-        and the journal is open, the panel stays mounted, keeping its
-        selected generation / scroll position / live-follow across board
-        updates. Its own `v-if` (independent of the screen v-else-if chain
-        above) gates it to the player-home screen + the module-level open
-        flag. The board slide is driven separately by PlayerHome's
-        `#player-home.journal-open` class (also reads journalState).
-      -->
-      <!-- Console mode has its OWN journal shell (ConsoleJournalPanel,
-           mounted by ConsoleShell — same shared data source) — the desktop
-           panel must not double-render behind it. -->
-      <Transition name="journal-panel">
-        <JournalPanel
-          v-if="screen === 'player-home' && playerView !== undefined && journalState.open && !consoleModeState.enabled"
-          :viewModel="playerView"
-          :color="playerView.thisPlayer.color"
-          :step="playerView.game.step"
-          @close="journalState.open = false" />
-      </Transition>
+      <!-- Desktop-removal wave 1: the desktop JournalPanel cut — the console
+           journal shell (ConsoleJournalPanel, mounted by ConsoleShell) reads
+           the same shared journal data source. -->
 
       <!--
         Premium NOTIFICATION layer. App-level (like the journal) so the
@@ -301,15 +206,8 @@
         v-if="screen === 'player-home' && playerView !== undefined"
         :player-view="playerView" />
 
-      <!--
-        Read-only viewer for PUBLICLY revealed / shown cards (opened from a
-        reveal notification's «Посмотреть» CTA or a journal reveal row). App-level
-        so it survives the playerkey remount; driven by module-level
-        revealViewerState.
-      -->
-      <RevealedCardsModal
-        v-if="screen === 'player-home' && playerView !== undefined && !consoleModeState.enabled"
-        :players="playerView.players" />
+      <!-- Desktop-removal wave 1: the desktop RevealedCardsModal cut — the
+           console serves reveal viewing through its own overlay family. -->
 
       <!--
         Per-effect detail modal opened from a «сработал эффект» notification —
@@ -361,7 +259,9 @@ const GamesOverview = defineAsyncComponent(() => import(/* webpackChunkName: "ga
 const Help = defineAsyncComponent(() => import(/* webpackChunkName: "help" */ '@/client/components/help/Help.vue'));
 const LoginHome = defineAsyncComponent(() => import(/* webpackChunkName: "login" */ '@/client/components/auth/LoginHome.vue'));
 const LoadGameForm = defineAsyncComponent(() => import(/* webpackChunkName: "load-game" */ '@/client/components/LoadGameForm.vue'));
-const PlayerHome = defineAsyncComponent(() => import(/* webpackChunkName: "player-home" */ '@/client/components/PlayerHome.vue'));
+// Desktop-removal wave 1: the PlayerHome async chunk is no longer referenced —
+// the console shell is the one in-game UI. The file (and its subtree) stays on
+// disk until the deletion waves; nothing imports it, so nothing bundles it.
 const SpectatorHome = defineAsyncComponent(() => import(/* webpackChunkName: "spectator-home" */ '@/client/components/SpectatorHome.vue'));
 const StartScreen = defineAsyncComponent(() => import(/* webpackChunkName: "start-screen" */ '@/client/components/StartScreen.vue'));
 // Premium sci-fi launcher — the new default landing screen ('/'). The legacy
@@ -374,14 +274,10 @@ const ConsoleMainMenu = defineAsyncComponent(() => import(/* webpackChunkName: "
 const ConsoleCreateGame = defineAsyncComponent(() => import(/* webpackChunkName: "console-menu" */ '@/client/components/console/menu/ConsoleCreateGame.vue'));
 // Premium "Mission Control" create-game screen — opened from the premium menu.
 const PremiumCreateGame = defineAsyncComponent(() => import(/* webpackChunkName: "premium-create-game" */ '@/client/components/create/premium/PremiumCreateGame.vue'));
-import DraftFlowOverlay from '@/client/components/DraftFlowOverlay.vue';
-import StartGameFlowOverlay from '@/client/components/startGameFlow/StartGameFlowOverlay.vue';
 import AppBootLoader from '@/client/components/boot/AppBootLoader.vue';
 import {bootWarmupState, shouldRunBootWarmup, beginBootWarmup} from '@/client/components/boot/bootWarmupState';
 import RematchLayer from '@/client/components/rematch/RematchLayer.vue';
 import GameExitButton from '@/client/components/GameExitButton.vue';
-import RevealResultOverlay from '@/client/components/actions/RevealResultOverlay.vue';
-import MaCeremonyOverlay from '@/client/components/ma/MaCeremonyOverlay.vue';
 import EnergyConversionOverlay from '@/client/components/feedback/EnergyConversionOverlay.vue';
 import HazardCleanupOverlay from '@/client/components/feedback/HazardCleanupOverlay.vue';
 import {
@@ -390,7 +286,6 @@ import {
   isEnergyConversionActive,
   runEnergyConversion,
 } from '@/client/components/feedback/energyConversionTransition';
-import {primeStartSetupReveal} from '@/client/components/startGameFlow/startSetupRevealState';
 import {isTradeFleetActive} from '@/client/console/colonyFleet/consoleTradeFleet';
 import {isHydroMarkerActive} from '@/client/console/hydroMarker/consoleHydroMarker';
 import {isPlayedHeroActive} from '@/client/console/played/consolePlayedHero';
@@ -399,7 +294,6 @@ import {isCardDiscardActive} from '@/client/console/cardDiscard/consoleCardDisca
 import {isTilePlacementActive} from '@/client/console/tilePlacement/consoleTilePlacement';
 import {presentFreshBotTurns} from '@/client/components/marsbot/marsBotPresentation';
 import {armDeferredViewRefresh, disarmDeferredViewRefresh} from '@/client/components/deferredViewRefresh';
-import BotTurnReviewOverlay from '@/client/components/marsbot/BotTurnReviewOverlay.vue';
 import {
   applyHazardTileSwap,
   detectHazardCleanup,
@@ -416,8 +310,6 @@ const ActionsPlayground = defineAsyncComponent(() => import(/* webpackChunkName:
 const PlayerCubePlayground = defineAsyncComponent(() => import(/* webpackChunkName: "player-cube-playground" */ '@/client/components/PlayerCubePlayground.vue'));
 const PremiumCardsPlayground = defineAsyncComponent(() => import(/* webpackChunkName: "premium-cards-playground" */ '@/client/components/premiumCard/PremiumCardsPlayground.vue'));
 const CardLorePlayground = defineAsyncComponent(() => import(/* webpackChunkName: "card-lore-playground" */ '@/client/components/card/CardLorePlayground.vue'));
-import JournalPanel from '@/client/components/journal/JournalPanel.vue';
-import {journalState} from '@/client/components/journal/journalState';
 import NotificationLayer from '@/client/components/notifications/NotificationLayer.vue';
 import GamepadLayer from '@/client/components/gamepad/GamepadLayer.vue';
 import {consoleModeState, requestConsoleFullscreen} from '@/client/console/consoleModeState';
@@ -426,16 +318,14 @@ import ConsoleLoadingScreen from '@/client/components/console/ConsoleLoadingScre
 import {beginLoading, consumeBootFlags, endLoading, failLoading, loadingScreenState} from '@/client/console/loadingScreenState';
 const ConsoleShell = defineAsyncComponent(() => import(/* webpackChunkName: "console-shell" */ '@/client/components/console/ConsoleShell.vue'));
 import TurnHandoffLayer from '@/client/components/overview/TurnHandoffLayer.vue';
-import RevealedCardsModal from '@/client/components/notifications/RevealedCardsModal.vue';
 import EffectDetailOverlay from '@/client/components/notifications/EffectDetailOverlay.vue';
-import DrawCardRevealFlow from '@/client/components/drawnCards/DrawCardRevealFlow.vue';
 import RealtimeLayer from '@/client/components/realtime/RealtimeLayer.vue';
 import DesktopUpdateOverlay from '@/client/components/desktop/DesktopUpdateOverlay.vue';
 import {initDesktopUpdates} from '@/client/components/desktop/desktopUpdateState';
 import {perfMark} from '@/client/utils/perfMarks';
 import {legacyRemountEnabled} from '@/client/utils/legacyRemount';
 import {nextViewSnapshot} from '@/client/utils/viewSnapshotShare';
-import {reconcileDrawnCards, hasVisibleReveal} from '@/client/components/drawnCards/drawnCardsState';
+import {reconcileDrawnCards} from '@/client/components/drawnCards/drawnCardsState';
 import AdditionalResourceDetailOverlay from '@/client/components/additionalResources/AdditionalResourceDetailOverlay.vue';
 import {setLiveCardResources} from '@/client/components/card/liveCardResources';
 import {bindPrivateScoreGame} from '@/client/components/overview/privateScoreState';
@@ -479,10 +369,6 @@ type Screen = 'admin' |
             'spectator-home' |
             'start-screen' |
             'the-end';
-type PlayerHomeOverlayRef = {
-    activeOverlay?: unknown;
-    coloniesOverlayOpen?: boolean;
-}
 export type MainAppData = {
     screen: Screen;
     /**
@@ -559,7 +445,6 @@ export default defineComponent({
     'create-game-form': CreateGameForm,
     'load-game-form': LoadGameForm,
     'game-home': GameHome,
-    'player-home': PlayerHome,
     'spectator-home': SpectatorHome,
     'game-end': GameEnd,
     'games-overview': GamesOverview,
@@ -567,14 +452,9 @@ export default defineComponent({
     'help': Help,
     'admin-home': AdminHome,
     'login-home': LoginHome,
-    DraftFlowOverlay,
-    StartGameFlowOverlay,
     AppBootLoader,
-    RevealResultOverlay,
-    MaCeremonyOverlay,
     EnergyConversionOverlay,
     HazardCleanupOverlay,
-    BotTurnReviewOverlay,
     RematchLayer,
     GameExitButton,
     EndgameExperience,
@@ -584,17 +464,14 @@ export default defineComponent({
     PlayerCubePlayground,
     PremiumCardsPlayground,
     CardLorePlayground,
-    JournalPanel,
     NotificationLayer,
     GamepadLayer,
     ConsoleShell,
     ConsoleLoadingScreen,
     TurnHandoffLayer,
-    RevealedCardsModal,
     EffectDetailOverlay,
     RealtimeLayer,
     DesktopUpdateOverlay,
-    DrawCardRevealFlow,
     AdditionalResourceDetailOverlay,
     GameAtmosphere,
   },
@@ -646,20 +523,6 @@ export default defineComponent({
     },
     bootWarmupState() {
       return bootWarmupState;
-    },
-    // True while a non-dismissed reveal batch exists — drives the App-level
-    // reveal modal mount. Goes false the instant the last batch is taken
-    // (dismissed client-side), so the modal closes without flashing empty.
-    hasDrawReveal(): boolean {
-      return hasVisibleReveal();
-    },
-    // Expose the module-level journal open flag to the template. Mounting
-    // the panel HERE (not inside <player-home>) keeps it alive across the
-    // `:key="playerkey"` remount that fires on every server response, so
-    // the journal never closes itself and keeps its generation / scroll /
-    // live-follow state. See journalState.ts + journal.less.
-    journalState() {
-      return journalState;
     },
     // Participant id (playerId or spectatorId) for the realtime transport layer.
     // Empty string when not on a game screen, which keeps the layer inert.
@@ -840,10 +703,9 @@ export default defineComponent({
            * the existing "submit from overlay closes the overlay" behavior is
            * preserved.
            */
-          const preserveOpenOverlay =
-            path === paths.PLAYER &&
-            app.playerView !== undefined &&
-            this.playerHomeHasOpenOverlay();
+          // Desktop-removal wave 1: PlayerHome (and its overlay stack) no
+          // longer mounts, so there is no desktop overlay left to preserve.
+          const preserveOpenOverlay = false;
           /*
            * Arm the Board Placement Animation gate if this polling
            * update introduces a new tile vs. the currently displayed
@@ -956,20 +818,9 @@ export default defineComponent({
            * re-entrancy guard above keeps a concurrent poll from committing
            * mid-animation.
            */
-          /*
-           * Start-of-game setup reveal (poll path). In multiplayer the viewer's
-           * corp setup is applied when the LAST player submits their initial
-           * cards, so it lands via this poll — prime the panel override at its
-           * baseline before committing. Non-gating; idempotent (dedup) with the
-           * submit path.
-           */
-          if (path === paths.PLAYER) {
-            // Console mode retired the staged setup reveal (the deferred
-            // corporationPlay + hero landing carry the beat); desktop keeps it.
-            if (!consoleModeState.enabled) {
-              primeStartSetupReveal(prevView, model as PlayerViewModel);
-            }
-          }
+          // Desktop-removal wave 1: the desktop staged setup reveal
+          // (primeStartSetupReveal) is gone — the console carries the beat
+          // through the deferred corporationPlay + hero landing.
           const conversionEvent = path === paths.PLAYER ?
             detectEnergyConversion(prevView, model as PlayerViewModel) :
             undefined;
@@ -1017,14 +868,6 @@ export default defineComponent({
     },
     updateSpectator() {
       this.update(paths.SPECTATOR);
-    },
-    playerHomeHasOpenOverlay(): boolean {
-      const playerHome = this.$refs.playerHome as PlayerHomeOverlayRef | undefined;
-      if (playerHome === undefined) {
-        return false;
-      }
-      return (playerHome.activeOverlay !== null && playerHome.activeOverlay !== undefined) ||
-        playerHome.coloniesOverlayOpen === true;
     },
     // In-app SPA routing: resolve the `screen` (and trigger the right data load)
     // from the CURRENT url. Called on initial mount, on in-app navigation

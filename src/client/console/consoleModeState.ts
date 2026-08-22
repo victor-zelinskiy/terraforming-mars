@@ -1,22 +1,16 @@
 /*
- * Console Mode state (docs/CONSOLE_MODE_CONCEPT.md §13) — the runtime SHELL SPLIT
- * flag. When enabled, App.vue mounts <ConsoleShell> INSTEAD of <PlayerHome>:
- * same game brain (playerView, WaitingFor transport, module states), a
- * console-first TV shell.
+ * Console Mode state (docs/CONSOLE_MODE_CONCEPT.md §13).
  *
- * Flag ladder (mirrors the motion/gamepad systems): URL `?console=1|0` wins,
- * then localStorage `tm_console_mode`, then the DEFAULT — console ON.
- *
- * Console is the default with NO controller attached and no stored pick:
- * the desktop UI is deprecated (CLAUDE.md — frozen 2026-07-15; the new
- * desktop will be built FROM the console shell), so the console is simply
- * "the UI" now, not a posture you opt into when a pad shows up. Desktop is
- * reachable only through an EXPLICIT choice — the main menu's Options →
- * Interface, or `?console=0` — which persists as '0' and is honoured by
- * `consoleModeExplicitlyDisabled()`, so the pad/Electron auto-enable
- * heuristics can never drag such a player back. The consented entry prompt
- * (`maybeOfferConsoleMode`) therefore only ever fires for that opted-out
- * player: it offers the way back in, it no longer guards the way in.
+ * DESKTOP-REMOVAL WAVE 1 (2026-08-22): the console is the ONE shell —
+ * `enabled` is unconditionally true. The frozen desktop <player-home> branch
+ * was cut from App.vue (the future desktop UI will be built FROM the console
+ * shell), so the old flag ladder (`?console=0`, stored `tm_console_mode='0'`,
+ * the Options → Interface switch, hold-Menu toggle) lost its OFF direction:
+ * stored opt-outs are never read again (the `tm_console_perf_lite`
+ * precedent), `setConsoleMode(false)` is a no-op, and the consented entry
+ * prompt can never fire (it only ever offered the way back in). The module
+ * keeps its API shape because the Electron auto-enable heuristics and the
+ * fullscreen plumbing still ride it.
  */
 
 import {reactive} from 'vue';
@@ -32,32 +26,22 @@ function storage(): Storage | undefined {
 }
 
 function initialEnabled(): boolean {
-  const search = typeof window !== 'undefined' ? window.location.search : '';
-  const fromUrl = /[?&]console=([01])/.exec(search)?.[1];
-  if (fromUrl !== undefined) {
-    return fromUrl === '1';
-  }
-  // Default ON — only an explicit stored opt-out ('0', written by Options →
-  // Interface → Desktop) turns the console shell off.
-  return storage()?.getItem(STORAGE_KEY) !== '0';
+  // Desktop-removal wave 1 (2026-08-22): the console is UNCONDITIONAL — the
+  // frozen desktop shell was cut from App.vue, so there is nothing to fall
+  // back to. A stored '0' (the old Options → Interface → Desktop opt-out)
+  // and `?console=0` are simply never honoured again — the
+  // `tm_console_perf_lite` precedent: old installs boot normally, the key
+  // just stops being read.
+  return true;
 }
 
 /**
- * The player explicitly turned console mode OFF — the Electron auto-enable
- * heuristics must never force it back. Two explicit signals: the session
- * kill switch `?console=0` (wins for this page load) and a stored '0'
- * (hold-Menu → off / a declined entry prompt persisted the choice).
+ * Desktop-removal wave 1: the OFF direction died with the desktop shell —
+ * nothing can explicitly disable the console any more. Kept (always false)
+ * because the Electron auto-enable heuristics still consult it.
  */
 export function consoleModeExplicitlyDisabled(): boolean {
-  const search = typeof window !== 'undefined' ? window.location.search : '';
-  if (/[?&]console=0(?:&|$)/.test(search)) {
-    return true;
-  }
-  try {
-    return storage()?.getItem(STORAGE_KEY) === '0';
-  } catch {
-    return false;
-  }
+  return false;
 }
 
 export const consoleModeState = reactive({
@@ -69,16 +53,19 @@ export const consoleModeState = reactive({
 });
 
 export function setConsoleMode(on: boolean): void {
-  consoleModeState.enabled = on;
-  consoleModeState.entryPromptVisible = false;
-  if (on) {
-    consoleModeState.entryPromptDismissed = false;
-    requestConsoleFullscreen();
-  } else {
-    exitConsoleFullscreen();
+  // Desktop-removal wave 1: the OFF direction is gone — the console is the
+  // only shell, so «switch to desktop» has no destination. The ON direction
+  // keeps its side effects (fullscreen + persistence) for the auto-enable
+  // heuristics that still call it.
+  if (!on) {
+    return;
   }
+  consoleModeState.enabled = true;
+  consoleModeState.entryPromptVisible = false;
+  consoleModeState.entryPromptDismissed = false;
+  requestConsoleFullscreen();
   try {
-    storage()?.setItem(STORAGE_KEY, on ? '1' : '0');
+    storage()?.setItem(STORAGE_KEY, '1');
   } catch (err) {
     // Private mode — the in-session value still applies.
   }
@@ -125,16 +112,9 @@ export function requestConsoleFullscreen(): void {
   root.requestFullscreen({navigationUI: 'hide'}).catch(() => retryOnTrustedGesture());
 }
 
-function exitConsoleFullscreen(): void {
-  if (typeof document === 'undefined' || document.fullscreenElement === null) {
-    return;
-  }
-  document.exitFullscreen().catch(() => {
-    // Nothing to do — the player can leave with Esc/F11.
-  });
-}
-
-/** First gamepad activity in desktop mode → offer the switch (once per session). */
+/** First gamepad activity in desktop mode → offer the switch (once per
+ *  session). Unreachable since wave 1 (`enabled` is always true) — kept for
+ *  the GamepadLayer call sites until their own removal wave. */
 export function maybeOfferConsoleMode(): void {
   if (consoleModeState.enabled || consoleModeState.entryPromptDismissed || consoleModeState.entryPromptVisible) {
     return;

@@ -23,7 +23,6 @@ import raw_settings from '@/genfiles/settings.json';
 import {paths} from '@/common/app/paths';
 import {legacyRemountEnabled, __resetLegacyRemountForTesting} from '@/client/utils/legacyRemount';
 import {actionsOverlayState, resetActionsOverlay} from '@/client/components/actions/actionsOverlayState';
-import {consoleModeState} from '@/client/console/consoleModeState';
 
 async function flushPromises(): Promise<void> {
   await Promise.resolve();
@@ -51,27 +50,16 @@ function mountPlayerHome(view = fakePlayerViewModel(), resetEpoch = 0) {
 describe('AppNoRemount', () => {
   let localStorage: FakeLocalStorage;
   let originalFetch: unknown;
-  let originalConsoleMode: boolean;
 
   beforeEach(() => {
     localStorage = new FakeLocalStorage();
     FakeLocalStorage.register(localStorage);
     __resetLegacyRemountForTesting();
     originalFetch = (global as any).fetch;
-    /*
-     * The subject here is the DESKTOP update model, and App's shell split puts
-     * `<ConsoleShell>` on the same `v-else-if` chain one branch ABOVE
-     * `<player-home>`. Console mode defaults ON (it is the product), so without
-     * this the desktop subtree never renders at all and every lookup below finds
-     * an empty wrapper — a boot condition, not a contract failure.
-     */
-    originalConsoleMode = consoleModeState.enabled;
-    consoleModeState.enabled = false;
   });
 
   afterEach(() => {
     (global as any).fetch = originalFetch;
-    consoleModeState.enabled = originalConsoleMode;
     __resetLegacyRemountForTesting();
     FakeLocalStorage.deregister(localStorage);
     resetActionsOverlay();
@@ -92,18 +80,21 @@ describe('AppNoRemount', () => {
     expect((legacyWrapper.vm as any).playerHomeKey).to.eq(5);
   });
 
-  it('an update keeps the SAME player-home element while bumping the reset epoch', async () => {
+  // Desktop-removal wave 1: the game subtree is <ConsoleShell> — the desktop
+  // <player-home> branch was cut from App. The no-remount contract carries
+  // over unchanged: an update applies the view reactively, the shell element
+  // is never recreated, and `playerkey` keeps signalling the reset epoch.
+  it('an update keeps the SAME console-shell element while bumping the reset epoch', async () => {
     const oldView = fakePlayerViewModel({game: fakeGameModel({gameAge: 1})});
     const newView = fakePlayerViewModel({game: fakeGameModel({gameAge: 2})});
     const wrapper = shallowMount(App, globalConfig);
     await wrapper.setData({screen: 'player-home', playerView: oldView, playerkey: 7});
-    (wrapper.vm as any).playerHomeHasOpenOverlay = () => false;
     (global as any).fetch = () => Promise.resolve({
       ok: true,
       json: () => Promise.resolve(newView),
     });
 
-    const before = wrapper.findComponent({name: 'player-home'});
+    const before = wrapper.find('console-shell-stub');
     expect(before.exists()).to.be.true;
     const beforeEl = before.element;
 
@@ -113,12 +104,11 @@ describe('AppNoRemount', () => {
 
     // The reset epoch advanced (the old remount trigger still signals)…
     expect((wrapper.vm as any).playerkey).to.eq(8);
-    // …but the subtree was NOT recreated: same component instance / element.
-    const after = wrapper.findComponent({name: 'player-home'});
-    expect(after.element).to.eq(beforeEl);
+    // …but the subtree was NOT recreated: same element.
+    expect(wrapper.find('console-shell-stub').element).to.eq(beforeEl);
   });
 
-  it('the rollback flag restores the legacy keyed remount', async () => {
+  it('the legacy remount flag can no longer recreate the game subtree (no keyed shell)', async () => {
     localStorage.setItem('tm_remount', '1');
     __resetLegacyRemountForTesting();
 
@@ -126,21 +116,21 @@ describe('AppNoRemount', () => {
     const newView = fakePlayerViewModel({game: fakeGameModel({gameAge: 2})});
     const wrapper = shallowMount(App, globalConfig);
     await wrapper.setData({screen: 'player-home', playerView: oldView, playerkey: 7});
-    (wrapper.vm as any).playerHomeHasOpenOverlay = () => false;
     (global as any).fetch = () => Promise.resolve({
       ok: true,
       json: () => Promise.resolve(newView),
     });
 
-    const beforeEl = wrapper.findComponent({name: 'player-home'}).element;
+    const beforeEl = wrapper.find('console-shell-stub').element;
 
     (wrapper.vm as any).update(paths.PLAYER);
     await flushPromises();
     await wrapper.vm.$nextTick();
 
     expect((wrapper.vm as any).playerkey).to.eq(8);
-    const after = wrapper.findComponent({name: 'player-home'});
-    expect(after.element).to.not.eq(beforeEl);
+    // ConsoleShell carries no :key — the desktop-era rollback ladder only
+    // ever keyed <player-home> (playerHomeKey still feeds the spectator key).
+    expect(wrapper.find('console-shell-stub').element).to.eq(beforeEl);
   });
 
   it('resetEpoch resets the transient UI exactly like the old remount', async () => {

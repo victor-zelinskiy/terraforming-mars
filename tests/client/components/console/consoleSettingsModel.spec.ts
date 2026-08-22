@@ -37,10 +37,12 @@ describe('consoleSettingsModel', () => {
     expect(ids('game')).to.deep.eq(['interface', 'controls', 'graphics', 'game', 'diagnostics']);
   });
 
-  it('the shell switch is main-menu only; the private-score mask is in-game only', () => {
-    expect(rowIds('menu')).to.include('shell');
+  it('the shell switch is GONE (desktop-removal wave 1); the private-score mask is in-game only', () => {
+    // The console is the one shell — no context offers a way "back" to the
+    // cut desktop branch.
+    expect(rowIds('menu')).to.not.include('shell');
+    expect(rowIds('game')).to.not.include('shell');
     expect(rowIds('menu')).to.not.include('privateScore');
-    expect(rowIds('game')).to.not.include('shell'); // swapping shells mid-game is jarring
     expect(rowIds('game')).to.include('privateScore');
   });
 

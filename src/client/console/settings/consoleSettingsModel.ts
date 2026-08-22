@@ -39,7 +39,6 @@ import {
   currentProfileOverride,
   setConsoleProfileOverride,
 } from '@/client/console/consoleLayoutProfile';
-import {consoleModeState, setConsoleMode} from '@/client/console/consoleModeState';
 import {
   GLYPHSET_CHOICES,
   GLYPHSET_LABELS,
@@ -226,18 +225,11 @@ function buttonLayoutValue(layout: typeof buttonLayoutState.layout): string {
 }
 
 /** ── ИНТЕРФЕЙС ─────────────────────────────────────────────────────── */
-function interfaceCategory(input: ConsoleSettingsInput): ConsoleSettingsCategory {
+// Desktop-removal wave 1: the shell switch row (console ↔ desktop) is gone —
+// the console is the one shell; the frozen desktop branch was cut from
+// App.vue. Stored opt-outs are never read again.
+function interfaceCategory(): ConsoleSettingsCategory {
   const rows: Array<ConsoleSettingRow> = [];
-  // The shell switch (console ↔ desktop) is MAIN-MENU ONLY: the desktop UI is
-  // frozen and reachable only from the menu, and swapping shells mid-game is
-  // jarring. Picking Desktop stores the opt-out the auto-enable honours.
-  if (input.context !== 'game') {
-    rows.push(toggleRow(
-      'shell', 'Shell', 'Controller shell or mouse and keyboard',
-      consoleModeState.enabled, ['Desktop', 'Console'],
-      (v) => setConsoleMode(v),
-    ));
-  }
   // The layout profile. 'Auto' names what it currently resolves to, so the
   // pick is informed; the WHY lives in the diagnostics readout.
   const override = currentProfileOverride();
@@ -514,7 +506,7 @@ function versionMismatch(input: ConsoleSettingsInput): boolean {
  */
 export function buildConsoleSettings(input: ConsoleSettingsInput): ReadonlyArray<ConsoleSettingsCategory> {
   const all: Array<ConsoleSettingsCategory> = [
-    interfaceCategory(input),
+    interfaceCategory(),
     controlsCategory(),
     graphicsCategory(),
   ];

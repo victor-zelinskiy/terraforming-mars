@@ -7,8 +7,16 @@ paths:
 
 # Client UI rules
 
-## Desktop UI is FROZEN (2026-07-15)
-`PlayerHome.vue` + its overlay stack are frozen. All UI work goes into console native; the future desktop UI will be BUILT FROM the console one. A desktop-only cosmetic/polish bug: skip it, say so, move on. Fix a desktop-only bug only if it breaks the shared layer or makes the game unplayable. Nothing is deleted — desktop keeps working as a fallback. Markers: `@deprecated Desktop-only UI (frozen 2026-07-15)` vs `@console-shared`; full inventory `docs/DESKTOP_DEPRECATION_AUDIT.md`.
+## Desktop UI is BEING DELETED in waves (policy 2026-08-22; frozen since 2026-07-15)
+The fallback guarantee is DROPPED: the future desktop UI will be built FROM the console shell, so the frozen `PlayerHome.vue` + overlay stack are dead weight scheduled for deletion, never a surface to fix. **Wave 1 (done)**: console unconditional (`consoleModeState.enabled` always true; `?console=0` / stored `tm_console_mode='0'` never read again; the settings shell switch and hold-Menu toggle removed), App.vue no longer references `PlayerHome` / DraftFlowOverlay / StartGameFlowOverlay / DrawCardRevealFlow / RevealResultOverlay / MaCeremonyOverlay / BotTurnReviewOverlay / desktop JournalPanel / RevealedCardsModal. Files remain on disk until later waves remove them by import graph (floors, locales and the upstream-sync «keep deleted» policy ride those waves).
+
+⚠️ **LOAD-BEARING legacy — the console stands on these; replace BEFORE deleting:**
+1. `WaitingFor.vue` — the transport (poll chain + every submission via `onsave()`), mounted headless inside ConsoleShell. Extract a headless module first.
+2. Legacy `Card.vue` renderer — the LIVE face for CEOs / standard projects (routed by `CardFace.vue`; `ConsoleCardFaceLite`'s legacy branch + its icon CSS). Premium pass first.
+3. `MandatoryInputModal` — the honest fallback for the degenerate `projectCard` prompt (console-ui rules § shell sections). Console equivalent first.
+4. Everything `@console-shared` (below) — not desktop at all.
+
+Markers: `@deprecated Desktop-only UI (frozen 2026-07-15)` vs `@console-shared`; full inventory `docs/DESKTOP_DEPRECATION_AUDIT.md`.
 
 **The SHARED layer is not deprecated** and keeps full quality bars: `src/common/` models, pure view-models (`victoryPointsModel`, `effectSummary`, `insightEngine`, `endgameFacts`, `journalView`, …), module reactive state (`journalState`, `notificationState`, `presentationFlow`, …), the premium card face (`.pcard`), `motionTokens`.
 

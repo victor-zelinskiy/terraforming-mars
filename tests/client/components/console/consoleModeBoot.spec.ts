@@ -4,14 +4,15 @@ import {consoleModeExplicitlyDisabled} from '@/client/console/consoleModeState';
 import {isLinuxPlatform} from '@/client/console/runtimeMode';
 
 /**
- * P14 (the Steam Deck critical): the Electron shell boots console-first on
- * a robust signal (pad OR Linux+handheld) — these are the guard predicates.
- * Chromium hides an idle pad pre-input and Steam Input may emulate a mouse,
- * so `consoleModeExplicitlyDisabled()` is the ONLY thing allowed to veto
- * the auto-enable: the `?console=0` session kill switch or a stored '0'
- * (hold-Menu → off). `isLinuxPlatform()` anchors the handheld-viewport
- * heuristic to the Deck's platform so a small-screen Windows laptop
- * running the desktop shell is never mistaken for a handheld.
+ * P14 (the Steam Deck critical): the Electron shell boots console-first —
+ * these are the guard predicates.
+ *
+ * DESKTOP-REMOVAL WAVE 1 (2026-08-22): the console is the ONE shell, so
+ * `consoleModeExplicitlyDisabled()` is a constant FALSE — the old vetoes
+ * (`?console=0`, stored `tm_console_mode='0'`, hold-Menu → off) lost their
+ * destination and are never honoured again. The predicate is kept only for
+ * the auto-enable call sites. `isLinuxPlatform()` still anchors the
+ * handheld-viewport heuristic to the Deck's platform.
  */
 
 type FakeWindow = {location: {search: string}, localStorage?: {getItem(key: string): string | null}};
@@ -61,18 +62,10 @@ describe('console-first boot predicates (P14)', () => {
     expect(consoleModeExplicitlyDisabled()).to.eq(false);
   });
 
-  it('?console=0 is a session kill switch — vetoes the auto-enable', () => {
-    expect(withWindow({location: {search: '?console=0'}}, () => consoleModeExplicitlyDisabled())).to.eq(true);
-    expect(withWindow({location: {search: '?foo=1&console=0'}}, () => consoleModeExplicitlyDisabled())).to.eq(true);
-  });
-
-  it('?console=1 / unrelated params do NOT veto', () => {
-    expect(withWindow({location: {search: '?console=1'}}, () => consoleModeExplicitlyDisabled())).to.eq(false);
-    expect(withWindow({location: {search: '?foo=0'}}, () => consoleModeExplicitlyDisabled())).to.eq(false);
-  });
-
-  it('stored "0" (hold-Menu → off) vetoes; stored "1" / never-set do not', () => {
-    expect(withWindow({location: {search: ''}, localStorage: fakeStorage('0')}, () => consoleModeExplicitlyDisabled())).to.eq(true);
+  it('wave 1: NOTHING vetoes the console any more — ?console=0 and stored "0" are ignored', () => {
+    expect(withWindow({location: {search: '?console=0'}}, () => consoleModeExplicitlyDisabled())).to.eq(false);
+    expect(withWindow({location: {search: '?foo=1&console=0'}}, () => consoleModeExplicitlyDisabled())).to.eq(false);
+    expect(withWindow({location: {search: ''}, localStorage: fakeStorage('0')}, () => consoleModeExplicitlyDisabled())).to.eq(false);
     expect(withWindow({location: {search: ''}, localStorage: fakeStorage('1')}, () => consoleModeExplicitlyDisabled())).to.eq(false);
     expect(withWindow({location: {search: ''}, localStorage: fakeStorage(null)}, () => consoleModeExplicitlyDisabled())).to.eq(false);
   });

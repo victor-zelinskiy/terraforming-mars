@@ -120,7 +120,6 @@ import {installConsoleOverflowGuard, uninstallConsoleOverflowGuard} from '@/clie
 
 const FOCUS_TICK_MS = 400;
 /** Holding Menu this long toggles console ↔ desktop mode. */
-const MENU_HOLD_MS = 650;
 
 type LegendRow = {control: GlyphControl, label: string};
 
@@ -320,21 +319,16 @@ export default defineComponent({
         handleGamepadIntent(intent);
         return;
       }
-      // Menu = short press → the SYSTEM overlay (console) / legend (desktop);
-      // HOLD (≥650ms) → toggle console ↔ desktop shell.
+      // Menu = the SYSTEM overlay. The old HOLD (≥650ms) shell toggle died
+      // with the desktop shell (desktop-removal wave 1) — a long hold now
+      // behaves exactly like a short press.
       if (intent.kind === 'press' && intent.button === 'menu') {
         this.menuPressedAt = Date.now();
         return;
       }
       if (intent.kind === 'release' && intent.button === 'menu') {
-        const held = this.menuPressedAt !== undefined ? Date.now() - this.menuPressedAt : 0;
         this.menuPressedAt = undefined;
-        if (held >= MENU_HOLD_MS) {
-          this.legendOpen = false;
-          this.closeSystemMenu();
-          clearGamepadFocus();
-          setConsoleMode(!this.consoleModeState.enabled);
-        } else if (this.legendOpen) {
+        if (this.legendOpen) {
           this.legendOpen = false;
         } else if (this.consoleModeState.enabled) {
           // The SYSTEM overlay (view controls / return to menu) is an IN-GAME
