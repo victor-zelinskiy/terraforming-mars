@@ -10,10 +10,11 @@ paths:
 ## Desktop UI is BEING DELETED in waves (policy 2026-08-22; frozen since 2026-07-15)
 The fallback guarantee is DROPPED: the future desktop UI will be built FROM the console shell, so frozen desktop code is dead weight scheduled for deletion, never a surface to fix. **Wave 1 (done)**: console unconditional (`consoleModeState.enabled` always true; `?console=0` / stored `tm_console_mode='0'` never read again; the settings shell switch and hold-Menu toggle removed), App.vue no longer references `PlayerHome` or the desktop-only overlays. **Wave 2 (done)**: `WaitingFor.vue` is HEADLESS (poll chain + submit funnel + cinematic holds + the `SelectSpace` board binder — zero prompt rendering); the radio/modal input stack is DELETED (`PlayerInputFactory`, the leaf renderers, `MandatoryInputModal`, `ModalInputHost`, `PlayerHome`, `Sidebar`, the playgrounds, the spectator feature); the degenerate `projectCard` prompt renders natively in `ConsoleTaskHost` (pick → pay); standard projects/actions moved to the premium face. Remaining frozen files go by import graph in later waves (floors, locales and the upstream-sync «keep deleted» policy ride those waves).
 
+**Wave 3 (done)**: the unreachable desktop subgraph deleted by import graph (desktop journal/overlays/TopBar chain/initialDraft, desktop main menu + create screens; `/new-game` lands in the console creator). **Wave 4 (done)**: CEOs joined the premium face and the legacy `Card.vue` renderer family is DELETED — `CardFace.vue` (the facade every host imports) is premium-only; the render-DSL `CardRenderData` tree STAYS (shared by journal popovers, MarsBot faces, effect chips).
+
 ⚠️ **LOAD-BEARING legacy — the console stands on these; replace BEFORE deleting:**
 1. `WaitingFor.vue` — the headless transport (poll chain + every submission via `onsave()` + the `SelectSpace` board binder), mounted inside ConsoleShell. Don't put rendering back into it.
-2. Legacy `Card.vue` renderer — the LIVE face for CEOs only (routed by `CardFace.vue`; `ConsoleCardFaceLite`'s legacy branch + its icon CSS). Premium pass first.
-3. Everything `@console-shared` (below) — not desktop at all.
+2. Everything `@console-shared` (below) — not desktop at all.
 
 Markers: `@deprecated Desktop-only UI (frozen 2026-07-15)` vs `@console-shared`; full inventory `docs/DESKTOP_DEPRECATION_AUDIT.md`.
 
