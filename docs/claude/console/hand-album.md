@@ -40,6 +40,23 @@ how many cards actually stand on that page:
   SHARED budget for every showcase count, which is what keeps the size
   MONOTONE: fewer cards never render smaller), capped by the art ceiling
   and floored at the standard (a showcase never shrinks below it).
+- ⚠️ **…but the DENSITY LADDER belongs to the ADAPTIVE composition alone.**
+  A SINGLE-ROW CAPACITY («Крупные карты», and the handheld baseline that
+  coincides with it) has ONE standard card — the one a FULL page of
+  `spec.cols` renders — and every page keeps it: `showcaseSizingCols` feeds
+  the solve the mode's CAPACITY rather than the page's own count, so `n`
+  decides how many cards are drawn and nothing else. A partial last page is
+  then the same card, the same gap and the same row seat, centred over
+  honest air (`pageW`/`padX` are the only readers of the real `n`). Sizing
+  it by its count made a 1-card tail nearly twice the standard card: every
+  turn re-scaled the whole stage and read as an accidental inspect view —
+  and because the height cap binds at n ≤ 2, 1 and 2 rendered identically,
+  so the «ladder» was not even a rule the player could learn. Empty space on
+  a thin page is deliberate air; nothing is ever added to fill it. Guards:
+  the capacity-4 block in `consoleHandAlbum.spec.ts` (geometry identical for
+  1..4, centred, no overflow, every profile scale) + the three
+  `«Крупные карты» · tail N` e2e runs (`hand-album-probe.spec.ts`), which
+  also sample every frame of the turn for a single card shape.
 - the solved size is REAL layout (own `--con-hand-zoom` on the page, slots
   at final dims) — never a `transform: scale` over a small card: hitbox,
   focus ring, art sharpness and FLIP bounds are all the final geometry.

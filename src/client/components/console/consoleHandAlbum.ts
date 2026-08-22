@@ -242,6 +242,36 @@ export function pageRowsFor(n: number, spec: AlbumSpec): ReadonlyArray<number> {
 }
 
 /**
+ * THE SIZING WIDTH of a single-row page: how many slots the CARD SIZE is
+ * solved for — which is NOT always how many cards stand there. The two
+ * compositions of the Album Framework answer it differently, and that is
+ * the whole difference between them:
+ *
+ *  - A SINGLE-ROW CAPACITY («Крупные карты», and the handheld baseline that
+ *    coincides with it) has ONE standard card — the one a FULL page of
+ *    `spec.cols` renders — and every page keeps it. A page is a PAGE: the
+ *    player turns the album, they do not walk into a different viewer. The
+ *    last page of 1..3 therefore centres fewer cards of the SAME size over
+ *    honest air; `n` decides how many cards are drawn and nothing else.
+ *    (A thin page that grew its cards changed the scale of the whole stage
+ *    on every turn and read as an accidental inspect view — and, because
+ *    the height cap binds at n ≤ 2, 1 and 2 rendered IDENTICALLY anyway, so
+ *    the «ladder» was not even a rule the player could learn.)
+ *
+ *  - A TWO-ROW CAPACITY (5×2 — the ADAPTIVE composition) is where the
+ *    density ladder belongs: a page of 1..5 IS the showcase, and growing it
+ *    is the point of the preference the player did not choose. Its sizing
+ *    width stays the page's own count.
+ *
+ * One rule, keyed on the CAPACITY the mode declares — never on the layout
+ * name, so no second geometry architecture exists to keep in sync.
+ */
+export function showcaseSizingCols(n: number, spec: AlbumSpec): number {
+  const capacity = Math.max(1, Math.floor(spec.cols));
+  return spec.rows <= 1 ? capacity : clamp(1, capacity, Math.floor(n));
+}
+
+/**
  * The SHOWCASE height budget: one-row pages centre vertically and may grow
  * far past the two-row card, but a hero must not stand wall-to-wall — a
  * fixed share of the stage stays air on each side (fraction of the box, so
@@ -284,11 +314,18 @@ export interface AlbumPagePlan {
  *  - a TWO-ROW page (6..capacity) keeps the STANDARD size (the base plan's
  *    5×2 solve — stable between pages, never «bigger because this page has
  *    six»), only its rows re-balance;
- *  - a SHOWCASE page (1..5, or any page of a single-row capacity) solves
- *    its OWN zoom: the width fit for exactly `n` slots vs the one-row
- *    height budget (with the showcase air), capped by the art ceiling.
- *    Fewer cards ⇒ a wider per-card share ⇒ a genuinely larger CardFace,
- *    until the height (or art) cap — the first REAL constraint — binds.
+ *  - a SHOWCASE page (1..5 of a two-row capacity) solves its OWN zoom: the
+ *    width fit for exactly `n` slots vs the one-row height budget (with the
+ *    showcase air), capped by the art ceiling. Fewer cards ⇒ a wider
+ *    per-card share ⇒ a genuinely larger CardFace, until the height (or
+ *    art) cap — the first REAL constraint — binds;
+ *  - a page of a SINGLE-ROW capacity («Крупные карты») solves that same
+ *    geometry for the mode's FULL capacity whatever stands on it
+ *    (`showcaseSizingCols`) — one standard card, one gap, one row height on
+ *    every page; the page block then simply carries `n` of them and centres.
+ *
+ * The composition (`n`) and the size (the capacity) are deliberately two
+ * different inputs: that is what makes a page turn a page turn.
  */
 export function planAlbumPage(input: HandAlbumInput, n: number, base: HandAlbumPlan): AlbumPagePlan {
   const s = input.uiScale !== undefined && input.uiScale > 0 ? input.uiScale : 1;
@@ -304,7 +341,11 @@ export function planAlbumPage(input: HandAlbumInput, n: number, base: HandAlbumP
   let gapX = ALBUM_GAP_X * s;
   const showcase = rows.length === 1 && rows[0] > 0;
   if (showcase) {
-    const cols = rows[0];
+    // The SIZING width — the mode's capacity where the capacity IS one row,
+    // the page's own count where a thin page is the showcase itself. Only
+    // `pageW`/`padX` below read the real `n`, so a partial page renders the
+    // standard card and centres it.
+    const cols = showcaseSizingCols(rows[0], input.spec);
     // The gap is DENSITY-AWARE and solved TOGETHER with the zoom: the gap
     // is a bounded share of the card width, and the card width is what is
     // left after the gaps — so solve the fraction form directly instead of

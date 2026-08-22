@@ -4,6 +4,7 @@ import {
   planHandAlbum,
   planAlbumPage,
   pageRowsFor,
+  showcaseSizingCols,
   pageOfIndex,
   pageSlotOfIndex,
   stepHandAlbum,
@@ -144,10 +145,10 @@ describe('consoleHandAlbum', () => {
       }
     });
 
-    it('the deck full single row IS the standard size (width-bound either way)', () => {
+    it('the deck full single row IS the standard size — and its thin page keeps it', () => {
       const base = plan(9, DECK, 1000, 520);
       expect(pagePlan(4, DECK, 1000, 520).zoom).to.eq(base.cardZoom);
-      expect(pagePlan(3, DECK, 1000, 520).zoom).to.be.greaterThan(base.cardZoom);
+      expect(pagePlan(3, DECK, 1000, 520).zoom).to.eq(base.cardZoom);
     });
     it('«Крупные карты» full page of four is far larger than the adaptive standard', () => {
       const adaptive = plan(15, TV, 1600, 780);
@@ -304,13 +305,13 @@ describe('consoleHandAlbum', () => {
 
   describe('«Крупные карты» pagination facts (capacity 4)', () => {
     const per = 4;
+    const LARGE = {cols: 4, rows: 1};
     it('page counts: 5→2, 9→3, 15→4', () => {
       for (const [n, pages] of [[5, 2], [9, 3], [15, 4]] as Array<[number, number]>) {
         expect(Math.ceil(n / per), `n=${n}`).to.eq(pages);
       }
     });
     it('the last page composes by its actual remainder (15→3, 9→1, 5→1)', () => {
-      const LARGE = {cols: 4, rows: 1};
       expect(pageRowsFor(15 - 12, LARGE)).to.deep.eq([3]);
       expect(pageRowsFor(9 - 8, LARGE)).to.deep.eq([1]);
       expect(pageRowsFor(5 - 4, LARGE)).to.deep.eq([1]);
@@ -322,13 +323,63 @@ describe('consoleHandAlbum', () => {
       });
       expect(ranges).to.deep.eq(['1–4', '5–8', '9–12', '13–15']);
     });
-    it('a smaller remainder renders LARGER (the density ladder of the last page)', () => {
-      const LARGE = {cols: 4, rows: 1};
-      const z4 = pagePlan(4, LARGE).zoom;
-      const z3 = pagePlan(3, LARGE).zoom;
-      const z1 = pagePlan(1, LARGE).zoom;
-      expect(z3).to.be.greaterThan(z4);
-      expect(z1).to.be.at.least(z3 - 1e-9);
+    /* THE STANDARD CARD. A single-row capacity has ONE card size — the one a
+       FULL page renders — and the last page of 1..3 keeps it. The player
+       turns an album; they do not walk into a different viewer. */
+    it('the SIZING width is the capacity, never the page\'s own count', () => {
+      for (let n = 0; n <= 4; n++) {
+        expect(showcaseSizingCols(n, LARGE), `n=${n}`).to.eq(4);
+      }
+      // …while the ADAPTIVE composition keeps its density ladder: there a
+      // thin page IS the showcase, and it solves for what stands on it.
+      for (let n = 1; n <= 5; n++) {
+        expect(showcaseSizingCols(n, TV), `adaptive n=${n}`).to.eq(n);
+      }
+    });
+
+    it('every page renders the SAME card: 1, 2, 3 and 4 share the geometry', () => {
+      const full = pagePlan(4, LARGE);
+      for (const n of [3, 2, 1]) {
+        const pp = pagePlan(n, LARGE);
+        expect(pp.zoom, `n=${n} zoom`).to.eq(full.zoom);
+        expect(pp.slotW, `n=${n} slotW`).to.eq(full.slotW);
+        expect(pp.slotH, `n=${n} slotH`).to.eq(full.slotH);
+        expect(pp.gapX, `n=${n} gap`).to.eq(full.gapX);
+        // The row's vertical seat is the same on every page — a turn must
+        // not lift or drop the band.
+        expect(pp.padTop, `n=${n} padTop`).to.eq(full.padTop);
+        expect(pp.pageH, `n=${n} pageH`).to.eq(full.pageH);
+      }
+    });
+
+    it('a partial page is a CENTRED group of standard cards, never a stretch', () => {
+      const full = pagePlan(4, LARGE);
+      for (const n of [3, 2, 1]) {
+        const pp = pagePlan(n, LARGE);
+        expect(pp.rows, `n=${n} rows`).to.deep.eq([n]);
+        // Exactly n standard slots at the standard gap — no filler, no growth.
+        expect(pp.pageW, `n=${n} pageW`).to.be.closeTo(n * full.slotW + (n - 1) * full.gapX, 1e-9);
+        // …and it stands in the middle of the stage.
+        expect(pp.padX + pp.pageW / 2, `n=${n} centred`).to.be.closeTo(1600 / 2, 1e-9);
+      }
+    });
+
+    it('the standard size holds on every profile scale (TV uiScale included)', () => {
+      for (const [w, h, s] of [[1600, 780, 1], [3200, 1560, 2], [1150, 470, 1]] as Array<[number, number, number]>) {
+        const full = pagePlan(4, LARGE, w, h, s);
+        for (const n of [3, 2, 1]) {
+          expect(pagePlan(n, LARGE, w, h, s).zoom, `${w}×${h}@${s} n=${n}`).to.eq(full.zoom);
+        }
+      }
+    });
+
+    it('a partial page never overflows the stage it centres in', () => {
+      for (const n of [3, 2, 1]) {
+        const pp = pagePlan(n, LARGE);
+        expect(pp.padX, `n=${n} left`).to.be.at.least(ALBUM_EDGE_GUTTER);
+        expect(pp.padX + pp.pageW, `n=${n} right`).to.be.at.most(1600 + 0.5);
+        expect(pp.padTop + pp.pageH, `n=${n} bottom`).to.be.at.most(780 + 0.5);
+      }
     });
   });
 

@@ -4,9 +4,12 @@
  * Two compositions of the same Album Framework (consoleHandAlbum.ts):
  *
  *  - `adaptive` (default) — the profile's full page (5×2 on tv/desktop, up
- *    to 10 cards) with SHOWCASE single-row pages for 1–5-card pages;
- *  - `large`   — «Крупные карты»: always ONE row of at most 4, every page
- *    a showcase (the player trades capacity for couch readability).
+ *    to 10 cards) with SHOWCASE single-row pages for 1–5-card pages, which
+ *    grow with how few cards stand there;
+ *  - `large`   — «Крупные карты»: always ONE row of at most 4, at ONE
+ *    standard size (the player trades capacity for couch readability, and
+ *    then the album is TURNED rather than recomposed — a partial last page
+ *    centres the same cards over air; see `showcaseSizingCols`).
  *
  * READ SYNCHRONOUSLY AT IMPORT: the album's first layout measure (and the
  * HandDock → Album flight that aims at it) must already be in the chosen
