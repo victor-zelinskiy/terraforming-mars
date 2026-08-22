@@ -135,7 +135,15 @@ export type PremiumCardVM = {
   resource?: {type: CardResource, amount: number, isSrr: boolean, iconUrl?: string};
 };
 
-const PROJECT_TYPES: ReadonlyArray<CardType> = [CardType.AUTOMATED, CardType.ACTIVE, CardType.EVENT];
+/**
+ * Types whose face prints the M€ cost badge. STANDARD_PROJECT declares a REAL
+ * printed cost (`StandardProjectCard` requires one — Sell Patents' honest «0»
+ * included). STANDARD_ACTION does NOT: its constructor takes no cost at all,
+ * and the `cost: 0` the client manifest carries is only the server `Card.cost`
+ * getter's default — a badge there would print a phantom «0» on Convert
+ * Plants / Convert Heat, whose real price is plants/heat in the graphic.
+ */
+const COSTED_TYPES: ReadonlyArray<CardType> = [CardType.AUTOMATED, CardType.ACTIVE, CardType.EVENT, CardType.STANDARD_PROJECT];
 
 function slugOf(name: CardName): string {
   return name.toLowerCase().replaceAll(' ', '-');
@@ -155,7 +163,7 @@ function resolveArt(name: CardName, isCorporation: boolean): PremiumCardArt | un
 }
 
 function buildCost(clientCard: ClientCard, model: CardModel | undefined): PremiumCostVM | undefined {
-  if (!PROJECT_TYPES.includes(clientCard.type) || clientCard.cost === undefined) {
+  if (!COSTED_TYPES.includes(clientCard.type) || clientCard.cost === undefined) {
     return undefined;
   }
   const printed = clientCard.cost;

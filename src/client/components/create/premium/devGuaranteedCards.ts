@@ -25,7 +25,7 @@ import {CardType} from '@/common/cards/CardType';
 import {GameModule} from '@/common/cards/GameModule';
 import {ClientCard} from '@/common/cards/ClientCard';
 import {getCard, getCards} from '@/client/cards/ClientCardManifest';
-import {PremiumTheme, isPremiumFaceType, premiumThemeFor} from '@/client/components/premiumCard/premiumCardTheme';
+import {PremiumTheme, premiumThemeFor} from '@/client/components/premiumCard/premiumCardTheme';
 import {translateCardName} from '@/client/directives/i18n';
 import {PREMIUM_EXPANSIONS} from './createGameMeta';
 import type {GuaranteedCardPicks, GuaranteedPickList} from './createGameState';
@@ -44,8 +44,10 @@ export const GUARANTEED_MODULES: ReadonlyArray<GuaranteedModuleMeta> = [
 
 /**
  * Card TYPES a pick can route to, in list order. Anything else (standard
- * projects, CEOs) has no guarantee list on the server and is left out —
- * `isPremiumFaceType` is the fork's one type-scope gate and agrees exactly.
+ * projects/actions, CEOs) has no guarantee list on the server and is left
+ * out — `guaranteedListOf` is the authority here. (It used to coincide with
+ * `isPremiumFaceType`, but the premium FACE scope widened past the
+ * guaranteeable set when standard projects joined it in wave 2.)
  */
 const TYPE_ORDER: ReadonlyArray<CardType> = [
   CardType.CORPORATION,
@@ -105,7 +107,7 @@ const NOT_GUARANTEEABLE: ReadonlySet<CardName> = new Set([
 ]);
 
 function guaranteeable(card: ClientCard): boolean {
-  return isPremiumFaceType(card.type) && !NOT_GUARANTEEABLE.has(card.name);
+  return guaranteedListOf(card.type) !== undefined && !NOT_GUARANTEEABLE.has(card.name);
 }
 
 function pickable(card: ClientCard, module: GameModule): boolean {

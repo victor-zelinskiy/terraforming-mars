@@ -11,7 +11,7 @@ paths:
 
 # Premium card face rules
 
-Project / prelude / corporation cards render through `PremiumCard.vue` (`.pcard`, design space **320×460 @ zoom 1**). CEOs and standard projects stay on the legacy renderer until their own pass.
+Project / prelude / corporation / standard-project+standard-action cards render through `PremiumCard.vue` (`.pcard`, design space **320×460 @ zoom 1**). Only CEOs stay on the legacy renderer until their own pass. Standard projects/actions are ONE class (both or neither), share the neutral `standard` theme, ship procedural faces by design (no SP/SA art exists), and only STANDARD_PROJECT prints a cost badge (a real printed cost, Sell Patents' «0» included) — STANDARD_ACTION's manifest `cost: 0` is a server base-class artifact, never a badge.
 
 - **The ONE scope gate is `premiumCardTheme.isPremiumFaceType`** — every routing point consults it; widening scope is a one-line change there.
 - **Routing:** hosts import `card/CardFace.vue` (a zero-visual-logic facade registered locally as `Card`) — never legacy `Card.vue` directly. The zoom modal routes inside `CardZoomCard.vue` via the GLOBALLY registered `premium-card-face` (a static import would close a type cycle and collapse `vue-tsc` to `{}`).

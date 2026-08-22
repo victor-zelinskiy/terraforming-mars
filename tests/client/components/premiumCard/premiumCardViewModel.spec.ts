@@ -28,16 +28,22 @@ function vmOf(name: CardName, overrides: Partial<CardModel> = {}) {
 }
 
 describe('premiumCardTheme', () => {
-  it('maps project + prelude + corporation types, rejects the rest', () => {
+  it('maps project + prelude + corporation + standard types, rejects the rest', () => {
     expect(premiumThemeFor(CardType.AUTOMATED)).to.eq('emerald');
     expect(premiumThemeFor(CardType.ACTIVE)).to.eq('azure');
     expect(premiumThemeFor(CardType.EVENT)).to.eq('crimson');
     expect(premiumThemeFor(CardType.PRELUDE)).to.eq('prelude');
     expect(premiumThemeFor(CardType.CORPORATION)).to.eq('corporation');
+    // Standard projects + standard actions are ONE class (both or neither)
+    // and share the neutral engineered theme since desktop-removal wave 2.
+    expect(premiumThemeFor(CardType.STANDARD_PROJECT)).to.eq('standard');
+    expect(premiumThemeFor(CardType.STANDARD_ACTION)).to.eq('standard');
+    // CEOs stay on the legacy renderer until their own premium pass.
     expect(premiumThemeFor(CardType.CEO)).to.eq(undefined);
-    expect(premiumThemeFor(CardType.STANDARD_PROJECT)).to.eq(undefined);
     expect(isPremiumFaceType(CardType.EVENT)).to.eq(true);
     expect(isPremiumFaceType(CardType.CORPORATION)).to.eq(true);
+    expect(isPremiumFaceType(CardType.STANDARD_PROJECT)).to.eq(true);
+    expect(isPremiumFaceType(CardType.STANDARD_ACTION)).to.eq(true);
     expect(isPremiumFaceType(CardType.CEO)).to.eq(false);
   });
 });
@@ -103,6 +109,32 @@ describe('buildPremiumCardViewModel', () => {
     const vm = vmOf(CardName.DONATION);
     expect(vm.cost).to.eq(undefined);
     expect(vm.theme).to.eq('prelude');
+  });
+
+  it('standard projects print their REAL cost (Sell Patents an honest «0»); standard actions print none', () => {
+    const aquifer = vmOf(CardName.AQUIFER_STANDARD_PROJECT);
+    expect(aquifer.theme).to.eq('standard');
+    expect(aquifer.cost).to.deep.eq({printed: 18, effective: 18, delta: 0});
+
+    // A declared cost of 0 is a real printed price and must render «0».
+    const sellPatents = vmOf(CardName.SELL_PATENTS_STANDARD_PROJECT);
+    expect(sellPatents.cost).to.deep.eq({printed: 0, effective: 0, delta: 0});
+
+    // Convert Plants / Convert Heat carry NO printed M€ cost — the manifest's
+    // `cost: 0` is only the server Card-base-class default (their constructors
+    // take no cost). A badge here would print a phantom «0» over a price that
+    // is really 8 plants / 8 heat in the action graphic.
+    const convertHeat = vmOf(CardName.CONVERT_HEAT);
+    expect(convertHeat.theme).to.eq('standard');
+    expect(convertHeat.cost).to.eq(undefined);
+    expect(vmOf(CardName.CONVERT_PLANTS).cost).to.eq(undefined);
+  });
+
+  it('every standard project/action reads as ONE action group (arrow)', () => {
+    for (const name of [CardName.CITY_STANDARD_PROJECT, CardName.GREENERY_STANDARD_PROJECT, CardName.CONVERT_HEAT, CardName.BUILD_COLONY_STANDARD_PROJECT]) {
+      const groups = vmOf(name).mechanics.groups;
+      expect(groups.filter((g) => g.kind === 'action').length, `${name}: the printed graphic is its action`).to.be.greaterThan(0);
+    }
   });
 
   it('appends the event tag and substitutes clone tags', () => {
@@ -496,9 +528,10 @@ describe('corporation premium face', () => {
   });
 });
 
-describe('card art coverage — full premium-face scope (project + prelude + corporation)', () => {
-  // Every in-scope premium card — project, prelude, AND corporation — should
-  // resolve to REAL per-card art (never the generic -1.webp fallback). This
+describe('card art coverage — full premium-face scope (project + prelude + corporation + standard)', () => {
+  // Every in-scope premium card — project, prelude, corporation AND standard
+  // project/action — should resolve to REAL per-card art (never the generic
+  // -1.webp fallback), except the pinned procedural-by-design set below. This
   // mirrors the "premium face coverage guard" above but for artwork instead
   // of mechanics, and it deliberately DOES cover corporations (unlike the
   // project+prelude-only `audit_card_art.ts` tool), since a corp within this
@@ -511,6 +544,21 @@ describe('card art coverage — full premium-face scope (project + prelude + cor
   // just never delivered?) — never silently accepted without a reason.
   const NO_ART_ACCEPTED = new Set<string>([
     CardName.BEGINNER_CORPORATION, // the rules/training corp — no printed illustration exists to scan
+    // Standard projects / standard actions ship PROCEDURAL faces by design —
+    // no SP/SA card was ever illustrated (the printed originals are board
+    // panels, not cards), so the neutral engineered theme fallback IS the art.
+    CardName.CONVERT_PLANTS,
+    CardName.CONVERT_HEAT,
+    CardName.AQUIFER_STANDARD_PROJECT,
+    CardName.CITY_STANDARD_PROJECT,
+    CardName.POWER_PLANT_STANDARD_PROJECT,
+    CardName.GREENERY_STANDARD_PROJECT,
+    CardName.ASTEROID_STANDARD_PROJECT,
+    CardName.SELL_PATENTS_STANDARD_PROJECT,
+    CardName.BUFFER_GAS_STANDARD_PROJECT,
+    CardName.AIR_SCRAPPING_STANDARD_PROJECT,
+    CardName.AIR_SCRAPPING_STANDARD_PROJECT_VARIANT,
+    CardName.BUILD_COLONY_STANDARD_PROJECT,
   ]);
 
   it('every in-scope premium card resolves real art', () => {
@@ -526,9 +574,11 @@ describe('card art coverage — full premium-face scope (project + prelude + cor
   });
 });
 
-describe('card lore coverage — full premium-face scope (project + prelude + corporation)', () => {
+describe('card lore coverage — project + prelude + corporation', () => {
   // Lore is keyed by the printed card number. A reimplementation may reuse the
-  // source card's lore when it has no entry of its own.
+  // source card's lore when it has no entry of its own. Standard projects /
+  // standard actions joined the premium face WITHOUT lore by design (board
+  // machinery, not flavoured cards) — LORE_CARD_TYPES pins them out.
   const SCOPE = new Set<GameModule>(['base', 'corpera', 'promo', 'venus', 'colonies', 'prelude', 'ares']);
   const LORE_CARD_TYPES = new Set<CardType>([
     CardType.AUTOMATED,
