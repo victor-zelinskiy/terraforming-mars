@@ -36,7 +36,8 @@
       <div class="cm-launch__block">
         <div class="cm-launch__label">{{ $t('Expansions') }}</div>
         <div v-if="enabledExpansions.length > 0" class="cm-launch__icons">
-          <img v-for="e in enabledExpansions" :key="e.id" :src="icon(e.id)" :alt="$t(e.labelKey)" :title="$t(e.labelKey)" draggable="false" />
+          <!-- No native title tooltip (banned): the pad has no hover, alt carries a11y. -->
+          <img v-for="e in enabledExpansions" :key="e.id" :src="icon(e.id)" :alt="$t(e.labelKey)" draggable="false" />
         </div>
         <div v-else class="cm-launch__none">{{ $t('Base game only') }}</div>
       </div>

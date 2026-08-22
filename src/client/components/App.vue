@@ -1,13 +1,21 @@
 <template>
   <div :class="'topmost-'+screen">
-    <!-- Dev-only effects-overlay visual playground (URL: ?effectsPlayground). -->
-    <!-- Dev-only actions-overlay visual playground (URL: ?actionsPlayground). -->
-    <!-- Dev-only player-cube visual playground (URL: ?cubePlayground). -->
-    <PlayerCubePlayground v-if="showCubePlayground" />
-    <!-- Dev-only premium-card-face showcase (URL: ?premiumCardsPlayground). -->
-    <PremiumCardsPlayground v-if="showPremiumCardsPlayground" />
-    <!-- Dev-only archive-entry (card lore) showcase (URL: ?lorePlayground). -->
-    <CardLorePlayground v-if="showLorePlayground" />
+    <!--
+      Dev-only visual stands, deep-linked by URL for e2e / visual verification
+      (?cubePlayground / ?premiumCardsPlayground / ?lorePlayground). The menu
+      door is the admin-only «Playground» hub (ConsolePlaygroundHub); both
+      doors mount the SAME console-native stand chassis (pad scroll, section
+      jumps, no native scrollbar). B here exits to the main menu.
+    -->
+    <ConsolePlaygroundStand v-if="showCubePlayground" standalone titleKey="Player cubes showcase" sectionSelector=".cube-playground__section-head" @close="closePlaygroundDeepLink">
+      <PlayerCubePlayground embedded />
+    </ConsolePlaygroundStand>
+    <ConsolePlaygroundStand v-if="showPremiumCardsPlayground" standalone titleKey="Premium cards showcase" @close="closePlaygroundDeepLink">
+      <PremiumCardsPlayground embedded />
+    </ConsolePlaygroundStand>
+    <ConsolePlaygroundStand v-if="showLorePlayground" standalone titleKey="Card lore showcase" sectionSelector=".lore-playground__caption" @close="closePlaygroundDeepLink">
+      <CardLorePlayground embedded />
+    </ConsolePlaygroundStand>
     <!--
       Game-screen atmosphere backdrop. Mounted ONLY on the in-game screen
       (player-home) — start / create / load / the-end
@@ -296,6 +304,9 @@ const EndgameExperience = defineAsyncComponent(() => import(/* webpackChunkName:
 const PlayerCubePlayground = defineAsyncComponent(() => import(/* webpackChunkName: "player-cube-playground" */ '@/client/components/PlayerCubePlayground.vue'));
 const PremiumCardsPlayground = defineAsyncComponent(() => import(/* webpackChunkName: "premium-cards-playground" */ '@/client/components/premiumCard/PremiumCardsPlayground.vue'));
 const CardLorePlayground = defineAsyncComponent(() => import(/* webpackChunkName: "card-lore-playground" */ '@/client/components/card/CardLorePlayground.vue'));
+// The console-native stand chassis the deep-linked showcases render inside.
+// Async with the console-menu chunk weight class: only dev URLs ever mount it.
+const ConsolePlaygroundStand = defineAsyncComponent(() => import(/* webpackChunkName: "playground-stand" */ '@/client/components/console/menu/ConsolePlaygroundStand.vue'));
 import NotificationLayer from '@/client/components/notifications/NotificationLayer.vue';
 import GamepadLayer from '@/client/components/gamepad/GamepadLayer.vue';
 import {consoleModeState, requestConsoleFullscreen} from '@/client/console/consoleModeState';
@@ -441,6 +452,7 @@ export default defineComponent({
     PlayerCubePlayground,
     PremiumCardsPlayground,
     CardLorePlayground,
+    ConsolePlaygroundStand,
     NotificationLayer,
     GamepadLayer,
     ConsoleShell,
@@ -550,6 +562,10 @@ export default defineComponent({
     },
   },
   methods: {
+    /** B on a deep-linked dev stand: drop the ?…Playground query → main menu. */
+    closePlaygroundDeepLink(): void {
+      window.location.assign('/');
+    },
     showAlert(title: string, message: string, cb: () => void = () => {}): void {
       // Console mode: the native <dialog> OK button is unreachable by the pad,
       // so a server error froze the shell. Route to the pad-navigable

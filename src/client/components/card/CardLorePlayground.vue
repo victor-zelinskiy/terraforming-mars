@@ -1,5 +1,5 @@
 <template>
-  <div class="lore-playground">
+  <div class="lore-playground" :class="{'lore-playground--embedded': embedded}">
     <div class="lore-playground__bar">
       <span class="lore-playground__title">ARCHIVE ENTRY — visual states</span>
       <button v-for="l in LOCALES" :key="l.code"
@@ -76,6 +76,14 @@ const LOCALES = [{code: 'ru', label: 'RU'}, {code: 'en', label: 'EN'}] as const;
 export default defineComponent({
   name: 'CardLorePlayground',
   components: {CardLoreAside},
+  props: {
+    /** Hosted in the console playground stand — the host owns fullscreen + scroll. */
+    embedded: {
+      type: Boolean,
+      required: false,
+      default: false,
+    },
+  },
   data() {
     return {
       lang: PreferencesManager.INSTANCE.values().lang,

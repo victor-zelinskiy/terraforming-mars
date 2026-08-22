@@ -2099,3 +2099,115 @@
     box-shadow: inset 0 0 0 .05rem fade(@cm-gold, 55%);
     color: @cm-gold;
 }
+
+/* ── Playground hub (admin dev stands) ─────────────────────────────────── */
+.cm-pg__list {
+    display: flex;
+    flex-direction: column;
+    gap: .5rem;
+}
+.cm-pg__row {
+    display: flex;
+    align-items: center;
+    gap: .8rem;
+    padding: .7rem .9rem;
+    border: 0;
+    border-radius: .55rem;
+    background: rgba(16, 24, 34, 0.72);
+    box-shadow: inset 0 0 0 .05rem rgba(125, 142, 163, 0.28);
+    color: #dfe8f2;
+    text-align: left;
+    cursor: pointer;
+}
+.cm-pg__row--cursor {
+    background: rgba(24, 38, 54, 0.92);
+    box-shadow: inset 0 0 0 .1rem fade(@con-cyan, 75%);
+}
+.cm-pg__glyph {
+    font-size: 1.2rem;
+    color: fade(@con-cyan, 85%);
+}
+.cm-pg__text {
+    display: flex;
+    flex-direction: column;
+    gap: .15rem;
+    min-width: 0;
+}
+.cm-pg__label {
+    font-size: .85rem;
+    font-weight: 700;
+    letter-spacing: .04em;
+    text-transform: uppercase;
+}
+.cm-pg__sub {
+    font-size: .68rem;
+    color: #9fb3c8;
+}
+
+/* ── Playground stand — the fullscreen console chassis of every dev showcase.
+   Deliberately ABOVE the menu overlay ladder (the hub opens it from z11500). */
+.cm-stand {
+    position: fixed;
+    inset: 0;
+    z-index: 20000;
+    display: flex;
+    flex-direction: column;
+    background: radial-gradient(120% 80% at 50% -10%, #17212e, #0a0f16 60%);
+    color: #dfe8f2;
+}
+.cm-stand__head {
+    display: flex;
+    align-items: baseline;
+    gap: .8rem;
+    padding: .8rem 1.6rem .5rem;
+    flex: 0 0 auto;
+}
+.cm-stand__kicker {
+    font-size: .7rem;
+    font-weight: 700;
+    letter-spacing: .14em;
+    text-transform: uppercase;
+    color: fade(@con-cyan, 85%);
+}
+.cm-stand__title {
+    font-size: .95rem;
+    font-weight: 700;
+    letter-spacing: .05em;
+    text-transform: uppercase;
+    color: #d9b878;
+}
+.cm-stand__scroll {
+    flex: 1 1 auto;
+    min-height: 0;
+}
+.cm-stand__body {
+    padding: .4rem 1.6rem 2.4rem;
+}
+.cm-stand__foot {
+    display: flex;
+    align-items: center;
+    gap: 1.1rem;
+    padding: .45rem 1.6rem;
+    flex: 0 0 auto;
+    background: rgba(10, 15, 22, 0.92);
+    box-shadow: inset 0 .05rem 0 rgba(125, 142, 163, 0.25);
+    font-size: .7rem;
+    color: #9fb3c8;
+}
+.cm-stand__hint {
+    display: inline-flex;
+    align-items: center;
+    gap: .35rem;
+}
+.cm-stand__hint--right {
+    margin-left: auto;
+}
+.cm-stand__section {
+    font-size: .68rem;
+    letter-spacing: .05em;
+    color: #d9b878;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    min-width: 0;
+}

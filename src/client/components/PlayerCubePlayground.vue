@@ -7,7 +7,7 @@
     `board_icons.png` sprite cube — BEFORE rolling PlayerCube out across the
     ~10 consumer sites.
   -->
-  <div class="cube-playground">
+  <div class="cube-playground" :class="{'cube-playground--embedded': embedded}">
     <div class="cube-playground__bar">
       <span class="cube-playground__title">Player cube — playground</span>
       <button class="cube-playground__btn" :class="{'cube-playground__btn--active': overlaySymbol}" @click="overlaySymbol = !overlaySymbol">Symbols: {{ overlaySymbol ? 'on' : 'off' }}</button>
@@ -87,6 +87,14 @@ export default defineComponent({
   name: 'PlayerCubePlayground',
   components: {
     'player-cube': PlayerCube,
+  },
+  props: {
+    /** Hosted in the console playground stand — the host owns fullscreen + scroll. */
+    embedded: {
+      type: Boolean,
+      required: false,
+      default: false,
+    },
   },
   data() {
     return {

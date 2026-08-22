@@ -5,7 +5,7 @@
     curated edge cases, density buckets, worst titles, tag extremes,
     tiers/states, and the full in-scope catalog — all on one screen.
   -->
-  <div class="pcpg">
+  <div class="pcpg" :class="{'pcpg--embedded': embedded}">
     <header class="pcpg__head">
       <h1>PREMIUM CARDS — SHOWCASE</h1>
       <span class="pcpg__hint">?premiumCardsPlayground · {{ scopeCards.length }} карт в скоупе (project + prelude + corporation + standard project/action)</span>
@@ -144,6 +144,19 @@ const req = (d: CardRequirementDescriptor): NormalizedRequirement => normalizeRe
 export default defineComponent({
   name: 'PremiumCardsPlayground',
   components: {PremiumCard, PremiumRequirementsBar},
+  props: {
+    /**
+     * Hosted inside the console playground stand (ConsolePlaygroundStand):
+     * the HOST owns fullscreen + scrolling (ConsoleScrollArea — a native
+     * scrollbar is a console bug), so the root drops its own fixed/scroll
+     * chrome and becomes a plain document.
+     */
+    embedded: {
+      type: Boolean,
+      required: false,
+      default: false,
+    },
+  },
   data() {
     return {
       moduleFilter: 'base' as GameModule,
@@ -259,6 +272,15 @@ export default defineComponent({
   padding: 24px 32px 80px;
   font-family: Prototype, sans-serif;
   color: #dfe8f2;
+}
+/* Hosted in the console stand: the host owns fullscreen + scroll. */
+.pcpg--embedded {
+  position: static;
+  inset: auto;
+  z-index: auto;
+  overflow: visible;
+  background: none;
+  padding: 0;
 }
 .pcpg__head { display: flex; align-items: baseline; gap: 18px; margin-bottom: 18px; }
 .pcpg__head h1 { font-size: 22px; letter-spacing: 0.08em; color: #7db9ff; margin: 0; }
