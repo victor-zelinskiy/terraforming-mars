@@ -1137,19 +1137,15 @@
       <ConsoleCommandBar :context="commandContext" :commands="commands" :bay="game.phase !== 'end'" />
     </div>
 
-    <!-- HEADLESS transport: the WaitingFor brain (polling / holds / modal
-         routing / SelectSpace placement handlers) runs unchanged; its INLINE
-         rendering is hidden. Its teleported surfaces (MandatoryInputModal,
-         PlacementBanner) render at body level = the iteration-1 FALLBACK. -->
+    <!-- THE GAME TRANSPORT (transport rework): the poll chain / submit
+         funnel / cinematic gates / view apply live in the
+         console/transport/gameTransport module; the binder below OWNS the
+         transport lifecycle and renders the one legacy piece left — the
+         top-level SelectSpace board binder (cell handlers + highlight). -->
     <div class="con-wf-host" aria-hidden="true">
-      <!-- Wave 2: the transport is fully headless — the desktop fallback
-           modal (and its `modal-suppressed` gate) is gone; every prompt is
-           console-served (SECTION_SERVED_KINDS is exhaustive, the generic
-           projectCard rides the task host). The only render left inside is
-           the top-level SelectSpace board binder. -->
-      <waiting-for v-if="game.phase !== 'end'" ref="waitingFor"
-                   :playerView="playerView"
-                   :waitingfor="playerView.waitingFor"></waiting-for>
+      <console-board-binder v-if="game.phase !== 'end'"
+                            :playerView="playerView"
+                            :waitingfor="playerView.waitingFor"></console-board-binder>
       <select-space v-if="convertPlantsPrompt !== undefined"
                     :playerView="playerView"
                     :playerinput="convertPlantsPrompt"
@@ -1252,7 +1248,7 @@
  *  else an honest «Требуется выбор».
  *
  * Input claiming/fallback and the submission contracts are unchanged from
- * P0: everything ends in WaitingFor.onsave()/onsaveBatch() with payloads
+ * P0: everything ends in gameTransport.submitInput()/submitBatch() with payloads
  * byte-identical to the desktop dedicated buttons (turnIntents walkers).
  */
 import {defineComponent, PropType, ref} from 'vue';
@@ -1274,7 +1270,9 @@ import {placementReasonToUnplayable} from '@/client/components/board/placementRe
 import {getSpecialCellInfo} from '@/client/components/board/specialCellInfo';
 import {SpaceId} from '@/common/Types';
 
-import WaitingFor from '@/client/components/WaitingFor.vue';
+import ConsoleBoardBinder from '@/client/components/console/ConsoleBoardBinder.vue';
+import {submitInput, submitBatch as transportSubmitBatch, cancelPlacement} from '@/client/console/transport/gameTransport';
+import {InputResponse} from '@/common/inputs/InputResponse';
 import SelectSpace from '@/client/components/SelectSpace.vue';
 import {buildStandardProjectPaymentModel, hasUsableStandardProjectAlternativeResources, standardProjectPaymentTitle} from '@/client/components/payment/paymentModelUtils';
 
@@ -1802,14 +1800,14 @@ export default defineComponent({
     ConsoleHydroSection,
     ConsoleJournalPanel,
     GamepadGlyph,
-    'waiting-for': WaitingFor,
+    'console-board-binder': ConsoleBoardBinder,
     'select-space': SelectSpace,
   },
   props: {
     playerView: {type: Object as PropType<PlayerViewModel>, required: true},
     /**
      * The LIVE list of players the server is waiting on (App-level, refreshed
-     * by the headless WaitingFor's `/api/waitingFor` poll — mirrors what the
+     * by the game transport's `/api/waitingFor` poll — mirrors what the
      * desktop DraftFlowOverlay / StartGameFlowOverlay receive). Load-bearing
      * while the viewer holds a prompt: the playerView is NOT refreshed then
      * (it would drop their partial input), so this is the only signal that
@@ -4006,7 +4004,7 @@ export default defineComponent({
      * The draw is a cinematic with a defined END (its last card landing in the
      * dock); nothing may be asked of the player before it.
      *
-     * Mirrored out for the legacy `WaitingFor` (see setConsolePlacementHeld):
+     * Mirrored out for the board binder (see setConsolePlacementHeld):
      * it paints the hex highlight, which would otherwise stay lit under the modal.
      */
     placementHeld(): boolean {
@@ -7064,7 +7062,7 @@ export default defineComponent({
     // falling edge with a genuine LOCK (settled on the committed destination)
     // the flow advances to `resolving` — the landed stage may now pay out
     // (the reward wave / the embedded deck pick / the ceremony). An abort
-    // (server refusal — WaitingFor's error paths roll the flow back beside
+    // (server refusal — the transport's error paths roll the flow back beside
     // abortHydroMarker) never advances: settledPosition stays foreign.
     'hydroMarkerState.active'(active: boolean) {
       if (active) {
@@ -7247,7 +7245,7 @@ export default defineComponent({
      * return to the board, where the payout chip lands on the resource
      * rail. An error BEFORE this point ('failed' while the sale UI is
      * still open) leaves the player's picks intact — the scene unwinds
-     * with zero trace and the WaitingFor alert explains.
+     * with zero trace and the transport's alert explains.
      */
     'patentSaleState.phase'(phase: string) {
       if (phase === 'inserting') {
@@ -7527,7 +7525,7 @@ export default defineComponent({
         setConsoleBoardHomeIdle(idle);
       },
     },
-    // Mirror the PLACEMENT verdict into the module so the legacy WaitingFor —
+    // Mirror the PLACEMENT verdict into the module so the board binder —
     // which mounts the legacy SelectSpace (its `mounted()` paints the
     // `.board-space--available` hex highlight) and teleports the PlacementBanner
     // to <body>, both keyed off `waitingFor` alone — holds them for exactly the
@@ -8143,7 +8141,7 @@ export default defineComponent({
         observeDraftWorkspace(oldView, newView);
         // Colony-trade transaction: observe EVERY commit path. The staged
         // bot pipeline (a trade that ends the turn carries the bot's turns)
-        // and a poll after a lost response bypass WaitingFor's gated detect;
+        // and a poll after a lost response bypass the transport's gated detect;
         // this fallback claims the manifest there and kicks the reward waves
         // exactly once after whichever commit carried it (idempotent).
         noticeColonyTradeCommit(newView);
@@ -10954,7 +10952,7 @@ export default defineComponent({
       }
       // The HERO transaction (spec: no visual success before the server's
       // word). The composer STAYS OPEN through the submit; nothing lifts,
-      // nothing closes. On the confirmed response the WaitingFor gate runs
+      // nothing closes. On the confirmed response the transport gate runs
       // the scene — the composer closes UNDER the lifted card at the
       // 'lifting' phase (watcher below); a refused play keeps the composer
       // intact and re-arms its CTA on 'failed'. Double-confirm is blocked
@@ -11878,8 +11876,7 @@ export default defineComponent({
       if (stdProjectsFlowLive()) {
         requestStdProjectCancel();
       }
-      const wfRef = this.$refs.waitingFor as {onPlacementCancel?: () => void} | undefined;
-      wfRef?.onPlacementCancel?.();
+      cancelPlacement();
     },
     // ── CTS task host (T1–T3) ────────────────────────────────────────────
     onTaskSubmit(response: unknown): void {
@@ -13745,12 +13742,10 @@ export default defineComponent({
     },
     // ── transport ────────────────────────────────────────────────────────
     submit(response: unknown): void {
-      const wfRef = this.$refs.waitingFor as {onsave?: (out: unknown) => void} | undefined;
-      wfRef?.onsave?.(response);
+      submitInput(response as InputResponse);
     },
     submitBatch(responses: ReadonlyArray<unknown>): void {
-      const wfRef = this.$refs.waitingFor as {onsaveBatch?: (out: ReadonlyArray<unknown>) => void} | undefined;
-      wfRef?.onsaveBatch?.(responses);
+      transportSubmitBatch(responses as ReadonlyArray<InputResponse>);
     },
     showNotice(key: string): void {
       this.notice = key;

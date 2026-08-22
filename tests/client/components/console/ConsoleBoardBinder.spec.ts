@@ -1,22 +1,24 @@
 import {shallowMount} from '@vue/test-utils';
-import {globalConfig} from './getLocalVue';
+import {globalConfig} from '../getLocalVue';
 import {expect} from 'chai';
-import WaitingFor from '@/client/components/WaitingFor.vue';
+import ConsoleBoardBinder from '@/client/components/console/ConsoleBoardBinder.vue';
 import {RecursivePartial} from '@/common/utils/utils';
 import {PlayerViewModel, PublicPlayerModel} from '@/common/models/PlayerModel';
 import {Phase} from '@/common/Phase';
 import {setConsolePlacementHeld} from '@/client/console/consolePromptAdmission';
+import {__resetGameTransportForTesting} from '@/client/console/transport/gameTransport';
 
 /*
- * HEADLESS TRANSPORT guards (desktop-removal wave 2). The radio UI is gone —
- * WaitingFor renders exactly ONE thing: the SelectSpace board binder for a
- * top-level `space` prompt (its mounted() attaches the console board's cell
- * handlers). Everything else it does is script (poll / submit / view apply),
- * covered by the e2e probe's ingest cycles. These specs pin the render
- * contract: binder for `space`, nothing for anything else, and the console
- * placement-admission hold blanks the binder.
+ * THE BOARD-INPUT BINDER (transport rework — the successor of the headless
+ * WaitingFor's render contract). The transport itself is a module
+ * (console/transport/gameTransport.ts) whose poll / submit / view-apply
+ * behaviour is covered by the e2e probe's ingest cycles; this component
+ * renders exactly ONE thing — the SelectSpace board binder for a top-level
+ * `space` prompt — and these specs pin that contract: binder for `space`,
+ * nothing for anything else, and the console placement-admission hold blanks
+ * the binder.
  */
-describe('WaitingFor', () => {
+describe('ConsoleBoardBinder', () => {
   const thisPlayer: Partial<PublicPlayerModel> = {
     color: 'red',
   } as any;
@@ -33,7 +35,7 @@ describe('WaitingFor', () => {
   };
 
   function mountFor(waitingfor: unknown) {
-    return shallowMount(WaitingFor, {
+    return shallowMount(ConsoleBoardBinder, {
       ...globalConfig,
       global: {
         ...globalConfig.global,
@@ -49,8 +51,10 @@ describe('WaitingFor', () => {
   }
 
   afterEach(() => {
-    // Module state is BUNDLE-SHARED — leave the admission mirror clean.
+    // Module state is BUNDLE-SHARED — leave the admission mirror and the
+    // transport singleton clean for later specs.
     setConsolePlacementHeld(false);
+    __resetGameTransportForTesting();
   });
 
   it('mounts the SelectSpace board binder for a top-level space prompt', () => {

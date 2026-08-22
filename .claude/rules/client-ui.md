@@ -12,8 +12,10 @@ The fallback guarantee is DROPPED: the future desktop UI will be built FROM the 
 
 **Wave 3 (done)**: the unreachable desktop subgraph deleted by import graph (desktop journal/overlays/TopBar chain/initialDraft, desktop main menu + create screens; `/new-game` lands in the console creator). **Wave 4 (done)**: CEOs joined the premium face and the legacy `Card.vue` renderer family is DELETED — `CardFace.vue` (the facade every host imports) is premium-only; the render-DSL `CardRenderData` tree STAYS (shared by journal popovers, MarsBot faces, effect chips).
 
-⚠️ **LOAD-BEARING legacy — the console stands on these; replace BEFORE deleting:**
-1. `WaitingFor.vue` — the headless transport (poll chain + every submission via `onsave()` + the `SelectSpace` board binder), mounted inside ConsoleShell. Don't put rendering back into it.
+**The transport rework (post-wave-4)**: `WaitingFor.vue` is DELETED. The game transport is the `console/transport/gameTransport.ts` MODULE (poll chain + `submitInput`/`submitBatch`/`cancelPlacement` + the cinematic holds + view apply); `ConsoleBoardBinder.vue` owns its lifecycle and renders only the legacy `SelectSpace` board cell-binder. The WS channel (realtimeService, default-ON end to end) is the primary update signal; the poll is the bounded fallback.
+
+⚠️ **LOAD-BEARING legacy — the console stands on it:**
+1. `SelectSpace.vue` (+`GoToMap.vue`) — the board cell-binder mounted by `ConsoleBoardBinder`; its `mounted()`/`saveData()` are the console's one tile-submit path.
 2. Everything `@console-shared` (below) — not desktop at all.
 
 Markers: `@deprecated Desktop-only UI (frozen 2026-07-15)` vs `@console-shared`; full inventory `docs/DESKTOP_DEPRECATION_AUDIT.md`.
@@ -28,10 +30,10 @@ The game subtree (`<ConsoleShell>`) lives for the whole session; a response appl
 - Rollback ladder: `?patch=0` (no sharing), `?remount=1` (legacy keyed remount). The baseline modules (`accentBaseline`, `tileBaseline`, cube baseline) exist to carry that mode — not dead code.
 
 ## Prompt detection + submission (load-bearing)
-- **Availability is SERVER-authoritative.** Walk the `waitingFor` `OrOptions` tree; the option's PRESENCE is the source of truth. Submit via `WaitingFor.onsave()` with the nested `OrOptionsResponse` payload — byte-identical to the radio UI, no server change. Never re-derive availability from raw player state.
+- **Availability is SERVER-authoritative.** Walk the `waitingFor` `OrOptions` tree; the option's PRESENCE is the source of truth. Submit via `gameTransport.submitInput()` with the nested `OrOptionsResponse` payload — byte-identical to the historical radio UI, no server change. Never re-derive availability from raw player state.
 - **⚠️ NEVER detect a prompt by its title text.** i18n mutates `Message.message` IN PLACE on render, so an English-text match silently stops matching after the first render (this leaked a legacy modal back in). Use a server marker (`startGamePrompt`, `choiceContext`, `placementContext`, `awardFundingPrompt`, `reveal`) or another structural signal. The one surviving title check (the action menu) is safe only because that title isn't mutated.
 - Show a blocked action DISABLED with a reason, not hidden.
-- **Don't put rendering back into `WaitingFor.vue`** — since wave 2 it is the headless transport (poll chain, submit funnel, cinematic holds, the `SelectSpace` board binder); the radio/modal renderers are deleted and every prompt renders through the console surfaces.
+- **The transport renders nothing.** `gameTransport.ts` owns poll/submit/holds/view-apply; `ConsoleBoardBinder` mounts only the `SelectSpace` cell-binder. Never add UI to the transport, never submit around it.
 
 ## Tooltips — the native `title` attribute is BANNED
 Use the shared `.premium-tooltip(@max-width)` LESS mixin + `:data-hint`. **Host `data-hint` on a NON-disabled wrapper** — a disabled `<button>` never fires `:hover`, and that is exactly where a "why disabled" hint is needed. Every disabled control must carry a reason. The mixin forces `position: relative`.
