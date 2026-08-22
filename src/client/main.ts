@@ -12,12 +12,6 @@ import {applyGsapTickerFps} from '@/client/components/motion/gsapMotionBridge';
 import {applyConsoleFxLiteClass} from '@/client/console/consoleFxLite';
 import {applyReducedMotionClass} from '@/client/utils/reducedMotion';
 import {applyConsoleReadingScale} from '@/client/console/consoleReadingScale';
-const PlayerInputFactory = defineAsyncComponent(() => import(/* webpackChunkName: "player-input" */ '@/client/components/PlayerInputFactory.vue'));
-// Registered globally so ModernOptionPicker can host a nested input recursively
-// via `<modal-input-host>` WITHOUT a static import — breaks the
-// ModalInputHost <-> ModernOptionPicker type cycle the same way
-// `player-input-factory` does for OrOptions. See WaitingFor modal routing.
-const ModalInputHost = defineAsyncComponent(() => import(/* webpackChunkName: "player-input" */ '@/client/components/modalInputs/ModalInputHost.vue'));
 // Registered globally so ColonyTradePaymentModal can host the card-target
 // picker WITHOUT a static import — Card.vue's import chain breaks the
 // mochapack client-test bundle (the known baseline class), and the picker
@@ -89,8 +83,6 @@ async function bootstrap() {
 
   app.use(i18nPlugin);
 
-  app.component('player-input-factory', PlayerInputFactory);
-  app.component('modal-input-host', ModalInputHost);
   app.component('action-target-card', ActionTargetCard);
   app.component('premium-card-face', PremiumCardFace);
   app.component('console-source-dock', ConsoleSourceDock);

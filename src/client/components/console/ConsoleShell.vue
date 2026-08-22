@@ -1142,10 +1142,14 @@
          rendering is hidden. Its teleported surfaces (MandatoryInputModal,
          PlacementBanner) render at body level = the iteration-1 FALLBACK. -->
     <div class="con-wf-host" aria-hidden="true">
+      <!-- Wave 2: the transport is fully headless — the desktop fallback
+           modal (and its `modal-suppressed` gate) is gone; every prompt is
+           console-served (SECTION_SERVED_KINDS is exhaustive, the generic
+           projectCard rides the task host). The only render left inside is
+           the top-level SelectSpace board binder. -->
       <waiting-for v-if="game.phase !== 'end'" ref="waitingFor"
                    :playerView="playerView"
-                   :waitingfor="playerView.waitingFor"
-                   :modal-suppressed="promptServedNatively || tilePlacementHolds || presentationHeld || consoleRevealMode !== undefined || startSceneServes || draftWaitActive || govScaleFocusState.holding || govScaleFocusState.closing || playedHeroHolds"></waiting-for>
+                   :waitingfor="playerView.waitingFor"></waiting-for>
       <select-space v-if="convertPlantsPrompt !== undefined"
                     :playerView="playerView"
                     :playerinput="convertPlantsPrompt"
@@ -12046,6 +12050,12 @@ export default defineComponent({
         return;
       }
       if (task.kind === 'projectCard') {
+        // GENERIC (wave 2): candidates that are neither the hand nor the
+        // standard-project sheet — ConsoleTaskHost auto-mounts once the gate
+        // releases (the same «nothing else to open» rule as choice/payment).
+        if (task.mode === 'generic') {
+          return;
+        }
         if (task.mode === 'playFromHand') {
           const firstPlayable = this.handEntries.findIndex((e) => e.playable);
           this.consoleState.handIndex = firstPlayable !== -1 ? firstPlayable : 0;

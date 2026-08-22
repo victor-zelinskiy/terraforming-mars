@@ -4,107 +4,30 @@ by the desktop-UI deprecation. Full quality bar applies (tests, guards, i18n).
 Before changing it, check the console consumers in docs/DESKTOP_DEPRECATION_AUDIT.md.
 -->
 <template>
-  <div>
   <!--
-    During the WGT 2-stage hold OR the Board Placement Animation hold
-    (see fetchPlayerInput), we want the viewport to show JUST the
-    board with the animating marker / freshly-placed tile — neither
-    the dismissed WGT modal nor the upcoming next-phase modal. Bail
-    with an empty render until both holds clear (after at most
-    max(WGT_MARKER_HOLD_MS, placement hold)). The
-    `isServerSideRequestInProgress` flag stays raised through the
-    hold, so nothing else can trigger a submit during this window.
+    HEADLESS TRANSPORT (desktop-removal wave 2). The radio UI is gone — the
+    render is now ONLY the BOARD-INPUT BINDER: for a top-level SelectSpace
+    prompt the legacy SelectSpace mounts so its `mounted()` can attach the
+    board cell handlers (`.board-space--available` highlight + per-cell
+    onclick — the console's one tile-submit path, and the single arming
+    point of the console placement hero inside its `saveData()`).
+
+    Everything else this component does is SCRIPT: the /api/waitingfor poll
+    chain, the submit funnel (`onsave`/`onsaveBatch` → POST /player/input),
+    the view apply (`updatePlayerView` → structural sharing + reset epoch),
+    the turn notify/title presentation, and the console cinematic gates
+    (`fetchPlayerInput`). The hold disjunction below keeps the binder down
+    during those gates and during the console's own placement admission hold
+    (`holdingForConsolePlacement`) — exactly the windows that used to blank
+    the whole radio tree.
   -->
-  <template v-if="holdingForMarker || holdingForTilePlacement || holdingForConversion || holdingForHazardCleanup || holdingForTradeFleet || holdingForHydroMarker || holdingForPlayedHero || holdingForPatentSale || holdingForStdProject || holdingForCardDiscard || holdingForTilePlacementHero || holdingForColonyBuild || holdingForConsolePlacement">
-  </template>
-  <template v-else-if="waitingfor === undefined">
-    {{ $t('Not your turn to take any actions') }}
-    <template v-if="playersWaitingFor.length > 0">
-      (⌛ <span v-for="color in playersWaitingFor" class="log-player" :class="playerColorClass(color, 'bg')" :key="color">{{ getPlayerName(color) }}</span>)
-    </template>
-  </template>
-  <div v-else class="wf-root">
-    <template v-if="preferences().experimental_ui && playerView.game.phase === Phase.ACTION">
-      <input type="checkbox" name="suspend" id="suspend-checkbox" v-model="suspend" v-on:change="updateSuspend">
-      <label for="suspend-checkbox">
-        <span v-i18n>Suspend</span>
-      </label>
-      <div v-if="showRefresh()">Refresh<span class="reset"></span></div>
-    </template>
-
-    <!--
-      Mandatory-input modal route. When the top-level prompt is one of the
-      types in MODAL_INPUT_TYPES (currently just `'payment'` while we pilot
-      the pattern), host the input inside a centered modal instead of
-      inline. The Actions section in the player home is hidden via the
-      `is-modal-host` class so the inline factory below doesn't fight the
-      modal for the same input. See CLAUDE.md "Mandatory-input modal pattern".
-    -->
-    <MandatoryInputModal v-if="useModalForCurrentInput && !modalSuppressed && !presentationHeld"
-                         :title="modalPillTitle"
-                         :suppressed="clientHandPickActive || playedPickActive">
-      <!--
-        World Government Terraforming is hosted via a dedicated button-grid
-        component instead of generic OrOptions radios — see CLAUDE.md
-        "Mandatory-input modal pattern". Click on a SelectOption button
-        commits the choice instantly; click on the SelectSpace ("Add an
-        ocean") button activates board pickup mode via the picker-mode
-        mechanism (modal hides, planet becomes interactive).
-      -->
-      <WorldGovernmentModalContent v-if="wgtInput !== undefined"
-                                   :playerView="playerViewForPrompt"
-                                   :playerinput="wgtInput"
-                                   :onsave="onsave" />
-      <!--
-        Premium-first host for every other modal-routed sub-prompt. Renders a
-        modern component where one exists (OrOptions, SelectOption, …) and
-        falls back to the legacy PlayerInputFactory otherwise, so a not-yet-
-        migrated input type is still visible inside the modal instead of being
-        buried in the hidden .legacy-ui-overlay.
-      -->
-      <ModalInputHost v-else
-                      :playerView="playerViewForPrompt"
-                      :playerinput="waitingfor"
-                      :onsave="onsave" />
-    </MandatoryInputModal>
-
-    <!--
-      PRESENTATION FLOW: while the player is being shown what just happened
-      (the compact AI-turn card / the opened theater), a modal-routed prompt
-      renders NOTHING — neither the modal nor the inline factory. The hold is
-      bounded (the card's TTL / the theater close), after which the modal
-      mounts normally. Console (modalSuppressed) keeps its byte-identical
-      fallback rendering below.
-    -->
-    <template v-else-if="useModalForCurrentInput && presentationHeld && !modalSuppressed">
-    </template>
-
-    <player-input-factory v-else
-                          :players="playerView.players"
-                          :playerView="playerView"
-                          :playerinput="waitingfor"
-                          :onsave="onsave"
-                          :showsave="true"
-                          :showtitle="true" />
-
-    <!--
-      Mandatory placement banner. Renders the top-of-viewport
-      "AWAITING PLACEMENT" pill (+ details modal on click) whenever the
-      server's TOP-LEVEL pending input is a SelectSpace. The
-      `PlayerInputFactory` above still mounts the legacy SelectSpace
-      component so its `mounted()` hook can attach board click handlers
-      and add `.board-space--available` to the highlighted tiles — but
-      the legacy `.wf-select-space` prompt header is hidden by
-      placement_banner.less so the player sees only the new banner.
-      Cancellable=false here: the server is already in SelectSpace
-      state, no take-back possible from the client side.
-    -->
-    <PlacementBanner v-if="topLevelSpaceInput !== undefined"
-                     :title="topLevelSpaceInput.title"
-                     :cancellable="topLevelSpaceInput.placementContext?.cancellable === true"
-                     :reason="topLevelSpaceInput.placementContext?.reason"
-                     @cancel="onPlacementCancel" />
-    </div>
+  <div>
+    <SelectSpace v-if="spaceBinderActive && topLevelSpaceInput !== undefined"
+                 :playerView="binderView"
+                 :playerinput="topLevelSpaceInput"
+                 :onsave="onsave"
+                 :showsave="false"
+                 :showtitle="false" />
   </div>
 </template>
 
@@ -113,15 +36,12 @@ Before changing it, check the console consumers in docs/DESKTOP_DEPRECATION_AUDI
 
 import {defineComponent, nextTick} from 'vue';
 import * as constants from '@/common/constants';
-import {participantDisplayName} from '@/client/components/marsbot/marsBotDisplay';
 import raw_settings from '@/genfiles/settings.json';
 import {onRealtimeWake} from '@/client/components/realtime/realtimeSync';
 import {realtimePollIntervalMs} from '@/client/components/realtime/realtimeService';
 import {apiUrl, identitySearch} from '@/client/utils/runtimeConfig';
 import {vueRoot} from '@/client/components/vueRoot';
-import {OrOptionsModel, PlayerInputModel} from '@/common/models/PlayerInputModel';
-import {ACTION_MENU_TITLES} from '@/common/inputs/actionMenuTitles';
-import {playerColorClass} from '@/common/utils/utils';
+import {PlayerInputModel} from '@/common/models/PlayerInputModel';
 import {PlayerViewModel, ViewModel} from '@/common/models/PlayerModel';
 import {getPreferences} from '@/client/utils/PreferencesManager';
 import {SoundManager} from '@/client/utils/SoundManager';
@@ -135,20 +55,11 @@ import {INVALID_RUN_ID, AppErrorResponse} from '@/common/app/AppErrorId';
 import {Color} from '@/common/Color';
 import {gameDocumentTitle} from '../utils/documentTitle';
 import {setFaviconStatus, setFaviconTurnFrame} from '@/client/utils/favicon';
-import MandatoryInputModal from '@/client/components/MandatoryInputModal.vue';
-import WorldGovernmentModalContent from '@/client/components/WorldGovernmentModalContent.vue';
-import ModalInputHost from '@/client/components/modalInputs/ModalInputHost.vue';
-import PlacementBanner from '@/client/components/PlacementBanner.vue';
+import SelectSpace from '@/client/components/SelectSpace.vue';
 import {SelectSpaceModel} from '@/common/models/PlayerInputModel';
 import {clearIfPhaseLeftCardPick, clearDraftWaitPending, shouldPreserveCardPickModal} from '@/client/components/draftWaitState';
 import {shouldPreserveInitialDraftOverlay} from '@/client/components/initialDraft/initialDraftSharedState';
 import {shouldPreserveSaleOverlay} from '@/client/components/handCards/sellPatentsState';
-import {handPlayPrompt} from '@/client/components/handCards/handPlayState';
-import {isClientHandPickActive} from '@/client/components/handCards/handSelectState';
-import {playedCardsPickState} from '@/client/components/playedCards/playedCardsPickState';
-import {standardProjectPlayPrompt} from '@/client/components/handCards/standardProjectPlayState';
-import {startFlowCorpPrompt, startGameFlowActive} from '@/client/components/startGameFlow/startGameFlowState';
-import {freeAwardFundingPrompt} from '@/client/components/awards/awardFundingState';
 import {Message} from '@/common/logs/Message';
 import {
   applyTilePlacementPreview,
@@ -173,7 +84,6 @@ import {
   endEnergyConversion,
   runEnergyConversion,
 } from '@/client/components/feedback/energyConversionTransition';
-import {primeStartSetupReveal} from '@/client/components/startGameFlow/startSetupRevealState';
 import {
   abortTradeFleet,
   detectTradeFleet,
@@ -247,7 +157,6 @@ import {presentFreshBotTurns} from '@/client/components/marsbot/marsBotPresentat
 // hero (the corporation / prelude landing) times out into a TELEPORT. The
 // bot's setup turns present normally with the first post-start response.
 import {startSceneHeld} from '@/client/console/consoleStartState';
-import {isMandatoryPromptsHeld} from '@/client/components/presentation/presentationFlow';
 import {acknowledgeFlowHoldingCards} from '@/client/components/notifications/notificationState';
 import {
   applyHazardTileSwap,
@@ -294,55 +203,11 @@ const WGT_MARKER_HOLD_MS = 1100;
 //   'space'   → PlacementBanner (board picker)
 //   'colony'  → ColoniesOverlay (auto-mounts on a SelectColony, even nested)
 //   'initialCards' → InitialDraftFlowOverlay
-const MODAL_INPUT_TYPES: ReadonlySet<PlayerInputModel['type']> = new Set([
-  'payment',
-  'option',
-  'player',
-  'amount',
-  'resource',
-  'resources',
-  'productionToLose',
-  'and',
-  // A TOP-LEVEL `projectCard` is NOT the action menu (that's an `or` whose
-  // `projectCard` is a nested option) — it's a card-driven "play a card / play
-  // a standard project" sub-prompt (EccentricSponsor, EcologyExperts via
-  // PlayProjectCard; EstablishedMethods via SelectStandardProjectToPlay). Route
-  // it to the modal so it's visible (hosted via the legacy SelectProjectCardToPlay
-  // form inside ModalInputHost's factory fallback) instead of buried in the
-  // hidden legacy overlay.
-  'projectCard',
-  // Butterfly Effect (Ares) — shift the hazard-constraint thresholds. A bespoke
-  // top-level input; route it to the modal so it's VISIBLE (hosted via the
-  // ShiftAresGlobalParameters factory fallback inside ModalInputHost) instead of
-  // buried in the hidden legacy overlay. A bespoke premium widget is a frontier.
-  'aresGlobalParameters',
-]);
-
 function titleText(title: string | Message | undefined): string | undefined {
   if (title === undefined) {
     return undefined;
   }
   return typeof title === 'string' ? title : title.message;
-}
-
-// Returns true when the given top-level PlayerInput should be hosted inside
-// MandatoryInputModal.
-//
-//  - by `type`: any input in MODAL_INPUT_TYPES (always a mandatory sub-prompt).
-//  - `'or'`: every top-level OrOptions EXCEPT the per-turn action menu. This
-//    covers World Government Terraforming (rendered by a dedicated component
-//    inside the modal) and every card-driven OrOptions (raise temp / raise
-//    Venus, pick an attack target, choose an effect, …) which previously fell
-//    into the hidden legacy radio stack.
-function shouldRouteToModal(input: PlayerInputModel): boolean {
-  if (MODAL_INPUT_TYPES.has(input.type)) {
-    return true;
-  }
-  if (input.type === 'or') {
-    const t = titleText(input.title);
-    return t === undefined || !ACTION_MENU_TITLES.has(t);
-  }
-  return false;
 }
 
 let ui_update_timeout_id: number | undefined;
@@ -361,8 +226,6 @@ function isDesktopBrowser(): boolean {
 
 type DataModel = {
   playersWaitingFor: Array<Color>
-  suspend: boolean,
-  savedPlayerView: PlayerViewModel | undefined;
   /*
    * True while we're mid-WGT 2-stage transition (see
    * `fetchPlayerInput`): the global-parameter values on the
@@ -510,20 +373,10 @@ const CANNOT_CONTACT_SERVER = 'Unable to reach the server. It may be restarting 
 export default defineComponent({
   name: 'waiting-for',
   components: {
-    MandatoryInputModal,
-    WorldGovernmentModalContent,
-    ModalInputHost,
-    PlacementBanner,
+    SelectSpace,
   },
   props: {
     // Console Task System (CTS): when the console shell serves the current
-    // prompt with its own native task surface it suppresses the desktop
-    // modal RENDERING here (the transport / routing / holds are untouched).
-    // Desktop never passes this — byte-identical behavior there.
-    modalSuppressed: {
-      type: Boolean,
-      default: false,
-    },
     playerView: {
       // ViewModel covers both PlayerViewModel (actual players) and the
       // narrower SpectatorModel — SpectatorHome.vue mounts WaitingFor
@@ -540,8 +393,6 @@ export default defineComponent({
   data(): DataModel {
     return {
       playersWaitingFor: [],
-      suspend: false,
-      savedPlayerView: undefined,
       holdingForMarker: false,
       holdingForTilePlacement: false,
       holdingForConversion: false,
@@ -600,10 +451,6 @@ export default defineComponent({
     },
   },
   methods: {
-    getPlayerName(color: Color): string {
-      const player = this.playerView.players.find((p) => p.color === color);
-      return player ? player.name : color;
-    },
     /*
      * Apply the turn presentation for the CURRENT prompt state: static
      * document title, favicon turn/idle status, and the multiplayer title
@@ -681,12 +528,6 @@ export default defineComponent({
     // without charging and returns the player to the action menu.
     onPlacementCancel() {
       this.onsave({type: 'cancel'});
-    },
-    reset() {
-      this.fetchPlayerInput(
-        apiUrl(paths.RESET) + '?id=' + this.playerView.id,
-        {method: 'GET'},
-        false);
     },
     currentPromptIsWGT(): boolean {
       const wf = this.waitingfor;
@@ -1048,12 +889,9 @@ export default defineComponent({
              * bonus + payment as explicit staged A-presses. Non-gating (the
              * ceremony is interactive); idempotent (dedup) with the poll path.
              */
-            // The console retired the client-STAGED setup reveal: the deferred
-            // corporationPlay + the hero landing carry the beat — chips fire
-            // on the (held) commit. Desktop keeps the staged ceremony.
-            if (playedHeroEvent === undefined && !consoleModeState.enabled) {
-              primeStartSetupReveal(this.playerView, newView);
-            }
+            // Desktop-removal wave 2: the desktop staged setup reveal is gone —
+            // the console carries the beat through the deferred corporationPlay
+            // + the hero landing (chips fire on the held commit).
             /*
              * Console REMOTE placements riding the viewer's OWN submit
              * response (a concurrent human's build that resolved while the
@@ -1428,44 +1266,21 @@ export default defineComponent({
         });
     },
     updatePlayerView(playerView: PlayerViewModel | undefined) {
-      if (this.suspend === false) {
-        const root = vueRoot(this);
-        // Structural sharing (viewSnapshotShare.ts): keep unchanged branches'
-        // references so child components skip re-rendering; the root identity
-        // still changes (watcher-identical to a wholesale swap).
-        if (playerView !== undefined) {
-          playerView = nextViewSnapshot(root.playerView, playerView);
-        }
-        /*
-         * SKIP the playerkey++ remount when we're continuing within
-         * a card-pick flow (`draftWaitState.pending && new state is
-         * still card-pick`). Without skip, every server response
-         * destroys the entire #player-home subtree (including the
-         * MandatoryInputModal hosting our draft/buy UI), then
-         * recreates a fresh one — which the player perceives as the
-         * modal closing on submit. With skip, we just swap
-         * playerView reactively and let the existing modal swap its
-         * content between CardSelectionContent and DraftWaitingContent
-         * via v-else-if in this template. One continuous modal
-         * across the whole session.
-         *
-         * For every OTHER transition (action -> production, turn
-         * end, action menu prompts, etc.) the playerkey++ remount
-         * still fires, preserving the original "force re-render"
-         * behaviour that the codebase relies on for those paths.
-         */
-        if (shouldPreserveCardPickModal(playerView) || shouldPreserveInitialDraftOverlay(playerView) || shouldPreserveSaleOverlay()) {
-          root.playerView = playerView;
-        } else {
-          root.playerView = playerView;
-          // Bump the transient-UI reset epoch (the former remount trigger) —
-          // PlayerHome's resetEpoch watcher closes overlays / pending modals,
-          // preserving the "submit resets the transient UI" contract.
-          root.playerkey++;
-        }
-        this.savedPlayerView = undefined;
+      const root = vueRoot(this);
+      // Structural sharing (viewSnapshotShare.ts): keep unchanged branches'
+      // references so child components skip re-rendering; the root identity
+      // still changes (watcher-identical to a wholesale swap).
+      if (playerView !== undefined) {
+        playerView = nextViewSnapshot(root.playerView, playerView);
+      }
+      // The card-pick preserve guards survive the desktop cut: they gate the
+      // playerkey RESET EPOCH (transient console/App state), not a remount.
+      if (shouldPreserveCardPickModal(playerView) || shouldPreserveInitialDraftOverlay(playerView) || shouldPreserveSaleOverlay()) {
+        root.playerView = playerView;
       } else {
-        this.savedPlayerView = playerView;
+        root.playerView = playerView;
+        // Bump the transient-UI reset epoch (the former remount trigger).
+        root.playerkey++;
       }
     },
     waitForUpdate(immediate = false) {
@@ -1611,18 +1426,6 @@ export default defineComponent({
         }
       }
     },
-    updateSuspend() {
-      if (this.suspend === false && this.savedPlayerView !== undefined) {
-        this.updatePlayerView(this.savedPlayerView);
-      }
-    },
-    showRefresh(): boolean {
-      return this.suspend === true && this.savedPlayerView !== undefined;
-    },
-    playerName(color: Color) {
-      const player = this.playerView.players.find((p) => p.color === color);
-      return player !== undefined ? participantDisplayName(player) : '';
-    },
   },
   mounted() {
     // Turn presentation (title / favicon / spinner) is handled by the
@@ -1679,105 +1482,30 @@ export default defineComponent({
     ui_update_timeout_id = undefined;
   },
   computed: {
-    Phase(): typeof Phase {
-      return Phase;
+    /** Every transport cinematic gate + the console placement admission hold
+     *  — the windows in which the board binder must NOT stand. */
+    transportHolding(): boolean {
+      return this.holdingForMarker || this.holdingForTilePlacement || this.holdingForConversion ||
+        this.holdingForHazardCleanup || this.holdingForTradeFleet || this.holdingForHydroMarker ||
+        this.holdingForPlayedHero || this.holdingForPatentSale || this.holdingForStdProject ||
+        this.holdingForCardDiscard || this.holdingForTilePlacementHero || this.holdingForColonyBuild ||
+        this.holdingForConsolePlacement;
     },
-    preferences(): typeof getPreferences {
-      return getPreferences;
+    /** The ONE thing this component still renders (see the template note). */
+    spaceBinderActive(): boolean {
+      return !this.transportHolding && this.topLevelSpaceInput !== undefined;
     },
-    playerColorClass(): typeof playerColorClass {
-      return playerColorClass;
-    },
-    // A nested "pick a card from hand" SelectCard (Mars University discard) handed
-    // off to the КАРТЫ В РУКЕ overlay — suppress this modal (keep it mounted,
-    // hidden) so the overlay below its z-index is interactable, then re-show.
-    clientHandPickActive(): boolean {
-      return isClientHandPickActive();
-    },
-    // A РАЗЫГРАНО board pick (a >3-candidate card-target, e.g. the Venus bonus
-    // wild on-card pick) handed off to the played-cards overlay — suppress this
-    // modal (keep it mounted, hidden) so the board below is interactable.
-    playedPickActive(): boolean {
-      return playedCardsPickState.active;
-    },
-    // PRESENTATION FLOW: the "player is reading what just happened" hold —
-    // true while the compact AI-turn card is visible or the theater is open.
-    // Reactive: reads the orchestrator's flags, so the modal mounts the
-    // moment the hold clears (dismiss / TTL / theater close).
-    presentationHeld(): boolean {
-      return isMandatoryPromptsHeld();
-    },
-    useModalForCurrentInput(): boolean {
-      /*
-       * Modal hosted by WaitingFor handles non-card prompts
-       * (payment, WGT). The card / waiting-state flow has moved to
-       * `DraftFlowOverlay` mounted at App level.
-       */
-      const wf = this.waitingfor;
-      if (wf === undefined) {
-        return false;
-      }
-      // A top-level `projectCard` is hosted by a dedicated overlay, not the
-      // modal: "play a card from hand" (EccentricSponsor / EcologyExperts,
-      // candidates ⊆ hand) → КАРТЫ В РУКЕ overlay; "play a standard project"
-      // (EstablishedMethods, candidates are standard projects) → Standard
-      // Projects overlay. Suppress the modal route for both. (A degenerate
-      // projectCard matching neither still falls back to the modal.)
-      if (wf.type === 'projectCard' &&
-          (handPlayPrompt(this.playerViewForPrompt) !== undefined ||
-           standardProjectPlayPrompt(this.playerViewForPrompt) !== undefined)) {
-        return false;
-      }
-      // The corporation first-action OrOptions ('Take first action of X
-      // corporation') is hosted by StartGameFlowOverlay (App level) while the
-      // start flow is active — suppress the modal route so ModernOptionPicker
-      // doesn't also render it, and so the Pass option is never shown.
-      if (startFlowCorpPrompt(this.playerViewForPrompt) !== undefined &&
-          startGameFlowActive(this.playerViewForPrompt)) {
-        return false;
-      }
-      // A FREE award-funding OrOptions (Vitor start action) is hosted by the
-      // modern AwardsOverlay in free-sponsorship mode — suppress the generic
-      // option modal so the player picks the award in its full visual context.
-      if (freeAwardFundingPrompt(this.playerViewForPrompt) !== undefined) {
-        return false;
-      }
-      return shouldRouteToModal(wf);
-    },
-    isWgtInput(): boolean {
-      return this.wgtInput !== undefined;
-    },
-    // Narrowed reference to the current waitingfor when it's the WGT
-    // prompt — typed as OrOptionsModel so the dedicated component receives
-    // the right shape (the raw `waitingfor` prop is a union).
-    wgtInput(): OrOptionsModel | undefined {
-      const wf = this.waitingfor;
-      if (wf === undefined || wf.type !== 'or') {
-        return undefined;
-      }
-      return titleText(wf.title) === WGT_TITLE ? wf : undefined;
-    },
-    // PlayerViewModel narrow cast for child components that need
-    // player-specific fields. By the time we hit this computed there's
-    // always a waitingfor, which only exists for actual players (never
-    // spectators) — so the cast is safe.
-    playerViewForPrompt(): PlayerViewModel {
+    /** A top-level space prompt only ever exists for a PLAYER view — the
+     *  narrowing the binder's props need (the prop itself stays ViewModel
+     *  for the poll-only lifecycle mounts). */
+    binderView(): PlayerViewModel {
       return this.playerView as PlayerViewModel;
     },
-    // Title fed into the modal so the minimized pill can show what
-    // prompt is awaiting decision. Reads off the current waitingfor.
-    // Draft / waiting-state titles are now driven by DraftFlowOverlay,
-    // not this modal.
-    modalPillTitle(): string | Message {
-      return this.waitingfor?.title ?? '';
-    },
-    // Narrowed reference to the current waitingfor when it's a
-    // top-level SelectSpace (server-driven mandatory tile placement —
-    // standard projects, action card placements, etc.). Used to drive
-    // the always-visible PlacementBanner. Nested SelectSpace prompts
-    // (inside OrOptions like convert-plants or WGT) are NOT detected
-    // here — those flows render their own banner (convert-plants from
-    // PlayerHome) or use the modal picker-mode mechanism (WGT).
+    // The current waitingfor when it's a top-level SelectSpace (server-driven
+    // mandatory tile placement — standard projects, action card placements,
+    // …): mounts the headless board binder. Nested SelectSpace prompts
+    // (inside OrOptions like convert-plants or WGT) are NOT detected here —
+    // the console shell hosts its own headless instances for those.
     topLevelSpaceInput(): SelectSpaceModel | undefined {
       const wf = this.waitingfor;
       if (wf === undefined || wf.type !== 'space') {

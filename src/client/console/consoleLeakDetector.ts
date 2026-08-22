@@ -42,7 +42,6 @@ import {stackServes, workspaceStackCollapsed, workspaceSurfacesFor} from '@/clie
 
 /** Any of these rendered = SOME surface is serving the prompt. */
 const SERVING_SURFACES: ReadonlyArray<string> = [
-  '.mandatory-input-modal:not(.mandatory-input-modal--minimized):not(.mandatory-input-modal--suppressed)',
   'dialog[open]',
   '.start-game-flow',
   '.draw-reveal',
@@ -148,21 +147,20 @@ const SERVING_SURFACES: ReadonlyArray<string> = [
  *  · `.con-draftwait` — the optional draft re-pick's calm banner.
  */
 const EXTRA_KIND_SURFACES: Partial<Record<string, ReadonlyArray<string>>> = {
-  projectCard: ['.con-sheet', '.con-composer--play', '.con-played'],
+  // `.con-task` — the GENERIC shape (wave 2) is served by ConsoleTaskHost.
+  projectCard: ['.con-sheet', '.con-composer--play', '.con-played', '.con-task'],
   corpFirstAction: ['.con-composer--corpfirst'],
   draftWait: ['.con-draftwait'],
 };
 
 /** Desktop-era surfaces tracked while the CTS rollout retires them. */
 const DESKTOP_SURFACES: ReadonlyArray<{id: string, selector: string}> = [
-  {id: 'mandatory-modal', selector: '.mandatory-input-modal'},
-  {id: 'placement-banner', selector: '.placement-banner'},
   {id: 'bar-overlay', selector: '.bar-overlay'},
   {id: 'top-bar-dropdown', selector: '.top-bar-dropdown'},
   {id: 'hand-overlay', selector: '.hand-board-overlay'},
   {id: 'colonies-overlay', selector: '.colonies-overlay'},
   {id: 'legacy-ui', selector: '.legacy-ui-overlay'},
-  {id: 'desktop-pill', selector: '.mandatory-input-modal-pill--visible, .hand-select-pill'},
+  {id: 'desktop-pill', selector: '.hand-select-pill'},
 ];
 
 /** All desktop selectors joined — one traversal for the telemetry pass. */

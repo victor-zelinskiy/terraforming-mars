@@ -432,6 +432,43 @@
                                    :flash-nonce="payFlashNonce" />
             </template>
 
+            <!-- ── PROJECT CARD (generic — desktop-removal wave 2): the
+                 fallback the legacy MandatoryInputModal used to serve. PICK
+                 rides the shared card-browser chassis; PAY is the shared
+                 payment panel beside the chosen card; ONE submit
+                 {type:'projectCard', card, payment}. ─────────────────── -->
+            <template v-else-if="activeTask.kind === 'projectCard'">
+              <div v-if="pcStage === 'pick'" class="con-cards">
+                <div class="con-cards__strip"
+                     :class="{'con-cards__strip--grid': pcGrid, 'con-cards__strip--has-focus': pcEntries.length > 0}"
+                     ref="cardStrip">
+                  <div v-for="(entry, i) in pcEntries" :key="entry.card.name + '#' + i"
+                       class="con-cards__slot"
+                       :data-zoom-slot="entry.card.name"
+                       :class="{
+                         'con-cards__slot--focused': focusIdx === i,
+                         'con-cards__slot--disabled': entry.disabled,
+                       }"
+                       :ref="focusIdx === i ? 'focusedCardSlot' : undefined">
+                    <Card :card="entry.card" :key="entry.card.name" lightweight />
+                  </div>
+                </div>
+              </div>
+              <div v-else class="con-task__pcpay">
+                <div class="con-task__pcpay-card">
+                  <Card v-if="pcPicked !== undefined" :card="pcPicked" :key="pcPicked.name" lightweight />
+                </div>
+                <div class="con-task__pcpay-panel">
+                  <ConsolePaymentPanel v-if="pcPaymentView !== undefined"
+                                       :view="pcPaymentView"
+                                       mode="expanded"
+                                       hint-mode="none"
+                                       :focus-unit="pcFocusUnit"
+                                       :flash-nonce="payFlashNonce" />
+                </div>
+              </div>
+            </template>
+
             <!-- ── DISTRIBUTE ─────────────────────────────────────── -->
             <template v-else-if="activeTask.kind === 'distribute'">
               <div class="con-task__dist-target" :class="{'con-task__dist-target--ready': distributeReady}">
@@ -497,7 +534,7 @@ import Card from '@/client/components/card/CardFace.vue';
 import GamepadGlyph from '@/client/components/gamepad/GamepadGlyph.vue';
 import ActionEffectChip from '@/client/components/actions/ActionEffectChip.vue';
 import {PlayerViewModel} from '@/common/models/PlayerModel';
-import {PlayerInputModel, OrOptionsModel, SelectAmountModel, SelectOptionModel, OptionMetadata, SelectCardModel, SelectPaymentModel} from '@/common/models/PlayerInputModel';
+import {PlayerInputModel, OrOptionsModel, SelectAmountModel, SelectOptionModel, OptionMetadata, SelectCardModel, SelectPaymentModel, SelectProjectCardToPlayModel} from '@/common/models/PlayerInputModel';
 import {CardName} from '@/common/cards/CardName';
 import {CardType} from '@/common/cards/CardType';
 import {Phase} from '@/common/Phase';
@@ -538,14 +575,15 @@ import type {ConsoleCommand} from '@/client/console/consoleCommandModel';
 import {setPanelCommands, clearPanelCommands} from '@/client/console/consolePanelUi';
 import {
   amountResponse, cardsResponse, deltaProjectResponse, optionConfirmResponse, orOptionResponse,
-  orWrappedResponse, paymentResponse, playerResponse, productionToLoseResponse, resourceResponse,
-  resourcesResponse, STANDARD_UNITS,
+  orWrappedResponse, paymentResponse, playerResponse, productionToLoseResponse, projectCardResponse,
+  resourceResponse, resourcesResponse, STANDARD_UNITS,
 } from '@/client/console/taskResponses';
 import {CardModel} from '@/common/models/CardModel';
 import {SpendableResource} from '@/common/inputs/Spendable';
 import {
   buildPaymentView, editableRows, initialCounts, dialLaneCount, megacreditsAvailable, paymentCovers,
   paymentFromCounts, PaymentLane, paymentLanes, paymentTotal, PaymentView,
+  projectCardPaymentPrompt,
 } from '@/client/console/paymentPlan';
 import {openConsoleCardZoom, slotZoomOrigin} from '@/client/console/consoleCardZoom';
 import {applyDiscardExit, ExitSource, runHeroPick} from '@/client/console/cardDeal/cardExitDirector';
@@ -659,6 +697,9 @@ export default defineComponent({
       units: {} as Partial<Record<keyof Units, number>>,
       /** T2 card browser: picked card names, in pick order. */
       picks: [] as Array<CardName>,
+      /** projectCard (generic, wave 2): pick → pay two-stage state. */
+      pcStage: 'pick' as 'pick' | 'pay',
+      pcPick: undefined as CardName | undefined,
       /** T3 payment: the dialed-in non-M€ lane counts (M€ auto-derives). */
       payCounts: {} as Partial<Record<SpendableResource, number>>,
       /** Re-keyed on each adjust so the dialed row's one-shot pulse replays. */
@@ -1405,6 +1446,73 @@ export default defineComponent({
       return this.activeTask.kind !== 'payment' ||
         paymentCovers(this.paymentCost, this.payLanes, this.payCounts, this.megacreditsOnHand);
     },
+    // ── projectCard (generic — desktop-removal wave 2) ─────────────────
+    // The fallback the legacy MandatoryInputModal used to serve: candidates
+    // that are neither the hand nor the standard-project sheet (Odyssey's
+    // played events; a future producer's foreign list). Two stages inside
+    // this ONE host surface: PICK (the shared card-browser chassis) → PAY
+    // (the shared payment panel over `projectCardPaymentPrompt`), one submit
+    // `{type:'projectCard', card, payment}` — byte-parity with the desktop
+    // SelectProjectCardToPlay it replaces.
+    pcModel(): SelectProjectCardToPlayModel | undefined {
+      return this.activeTask.kind === 'projectCard' && this.wf?.type === 'projectCard' ?
+        this.wf as SelectProjectCardToPlayModel : undefined;
+    },
+    pcEntries(): Array<{card: CardModel, disabled: boolean, reason: string}> {
+      const model = this.pcModel;
+      if (model === undefined) {
+        return [];
+      }
+      return model.cards.map((card) => ({
+        card,
+        disabled: card.isDisabled === true,
+        reason: textOf(card.disabledReason),
+      }));
+    },
+    pcPicked(): CardModel | undefined {
+      return this.pcEntries.find((e) => e.card.name === this.pcPick)?.card;
+    },
+    pcCost(): number {
+      const card = this.pcPicked;
+      if (card === undefined) {
+        return 0;
+      }
+      return card.calculatedCost ?? getCard(card.name)?.cost ?? 0;
+    },
+    pcLanes(): Array<PaymentLane> {
+      const card = this.pcPicked;
+      const model = this.pcModel;
+      if (card === undefined || model === undefined) {
+        return [];
+      }
+      const tags = getCard(card.name)?.tags ?? [];
+      const prompt = projectCardPaymentPrompt(
+        this.pcCost, tags, model.paymentOptions ?? {},
+        this.playerView.thisPlayer.lastCardPlayed, card.reserveUnits);
+      return paymentLanes(prompt, this.playerView.thisPlayer);
+    },
+    pcPaymentView(): PaymentView | undefined {
+      if (this.pcPicked === undefined) {
+        return undefined;
+      }
+      return buildPaymentView({
+        cost: this.pcCost,
+        lanes: this.pcLanes,
+        counts: this.payCounts,
+        mcAvailable: this.megacreditsOnHand,
+      });
+    },
+    pcFocusUnit(): string | undefined {
+      const v = this.pcPaymentView;
+      return v === undefined ? undefined : editableRows(v)[this.focusIdx]?.unit;
+    },
+    pcReady(): boolean {
+      return this.pcPicked !== undefined &&
+        paymentCovers(this.pcCost, this.pcLanes, this.payCounts, this.megacreditsOnHand);
+    },
+    pcGrid(): boolean {
+      return this.pcEntries.length > 6;
+    },
     /** Can X submit right now? */
     confirmReady(): boolean {
       switch (this.activeTask.kind) {
@@ -1420,6 +1528,10 @@ export default defineComponent({
         return this.cardPicksValid;
       case 'payment':
         return this.paymentReady;
+      case 'projectCard':
+        return this.pcStage === 'pay' ?
+          this.pcReady :
+          !(this.pcEntries[this.focusIdx]?.disabled ?? true);
       default:
         return true;
       }
@@ -1498,6 +1610,26 @@ export default defineComponent({
           {control: 'bumperL', label: '−1'}, {control: 'bumperR', label: '+1'},
           {control: 'triggerR', label: 'MAX'}, confirm, ...this.sourceHint, defer,
         ];
+      case 'projectCard': {
+        if (this.pcStage === 'pay') {
+          // The PAY stage: the shared payment contract + B = one level back.
+          return [
+            {control: 'dpad', label: 'Navigate'},
+            {control: 'bumperL', label: '−1'}, {control: 'bumperR', label: '+1'},
+            {control: 'triggerR', label: 'MAX'},
+            {control: 'secondary', label: this.confirmLabel, enabled: this.confirmReady},
+            {control: 'back', label: 'Back'},
+          ];
+        }
+        // The PICK stage mirrors the single-pick card browser: A carries the
+        // candidate forward, X inspects fullscreen.
+        return [
+          {control: this.pcGrid ? 'dpad' : 'dpadH', label: 'Navigate'},
+          {control: 'confirm', label: 'Select', enabled: this.confirmReady},
+          {control: 'secondary', label: 'Inspect'},
+          defer,
+        ];
+      }
       case 'cardSelect': {
         // X ALWAYS opens the fullscreen INSPECT viewer (never labelled "Card").
         const nav: {control: GlyphControl, label: string} = {control: this.gridMode ? 'dpad' : 'dpadH', label: 'Navigate'};
@@ -1558,6 +1690,8 @@ export default defineComponent({
       case 'distribute': return this.lanes.length;
       case 'cardSelect': return this.cardEntries.length;
       case 'payment': return this.payLanes.length;
+      case 'projectCard':
+        return this.pcStage === 'pay' ? this.pcLanes.length : this.pcEntries.length;
       default: return 0;
       }
     },
@@ -1749,6 +1883,10 @@ export default defineComponent({
       // card set, e.g. a re-expanded modal), otherwise start empty (a
       // genuinely new ask / fresh card set / non-card task).
       this.picks = this.activeTask.kind === 'cardSelect' ? recallCardBrowserPicks(this.resetKey) as Array<CardName> : [];
+      // projectCard (generic): a fresh prompt always re-opens on the PICK
+      // stage — a stale pay stage would price a card the new ask never offered.
+      this.pcStage = 'pick';
+      this.pcPick = undefined;
       this.submitting = false;
       // Payment opens on the SAME optimal default mix the desktop form uses.
       this.payCounts = this.activeTask.kind === 'payment' ?
@@ -2072,7 +2210,8 @@ export default defineComponent({
         }
         return;
       }
-      if (this.activeTask.kind === 'distribute' || this.activeTask.kind === 'payment') {
+      if (this.activeTask.kind === 'distribute' || this.activeTask.kind === 'payment' ||
+          (this.activeTask.kind === 'projectCard' && this.pcStage === 'pay')) {
         if (vertical) {
           this.moveFocus(dir === 'down' ? 1 : -1);
         } else {
@@ -2080,11 +2219,13 @@ export default defineComponent({
         }
         return;
       }
-      if (this.activeTask.kind === 'resource' || this.activeTask.kind === 'cardSelect') {
+      if (this.activeTask.kind === 'resource' || this.activeTask.kind === 'cardSelect' ||
+          this.activeTask.kind === 'projectCard') {
         // Horizontal tile row / filmstrip; the P13 GRID adds row jumps.
         if (!vertical) {
           this.moveFocus(dir === 'right' ? 1 : -1);
-        } else if (this.activeTask.kind === 'cardSelect' && this.gridMode) {
+        } else if ((this.activeTask.kind === 'cardSelect' && this.gridMode) ||
+                   (this.activeTask.kind === 'projectCard' && this.pcGrid)) {
           this.moveFocusRow(dir === 'down' ? 1 : -1);
         }
         return;
@@ -2532,6 +2673,20 @@ export default defineComponent({
         }
         this.payCounts = {...this.payCounts, [lane.unit]: next};
         this.payFlashNonce += 1;
+        return;
+      }
+      if (this.activeTask.kind === 'projectCard' && this.pcStage === 'pay') {
+        const lane = this.pcLanes[this.focusIdx];
+        if (lane === undefined) {
+          return;
+        }
+        const current = this.payCounts[lane.unit] ?? 0;
+        const next = dialLaneCount(this.pcCost, lane, this.pcLanes, this.payCounts, step);
+        if (next === current) {
+          return;
+        }
+        this.payCounts = {...this.payCounts, [lane.unit]: next};
+        this.payFlashNonce += 1;
       }
     },
     maxOut(): void {
@@ -2560,6 +2715,15 @@ export default defineComponent({
         // MAX = as much of THIS source as is still useful once the others are
         // counted — never «enough to cover the whole price alone».
         this.payCounts = {...this.payCounts, [lane.unit]: dialLaneCount(this.paymentCost, lane, this.payLanes, this.payCounts, 'max')};
+        this.payFlashNonce += 1;
+        return;
+      }
+      if (this.activeTask.kind === 'projectCard' && this.pcStage === 'pay') {
+        const lane = this.pcLanes[this.focusIdx];
+        if (lane === undefined) {
+          return;
+        }
+        this.payCounts = {...this.payCounts, [lane.unit]: dialLaneCount(this.pcCost, lane, this.pcLanes, this.payCounts, 'max')};
         this.payFlashNonce += 1;
       }
     },
@@ -2598,6 +2762,12 @@ export default defineComponent({
           this.zoomFocusedCard();
           return;
         }
+        if (this.activeTask.kind === 'projectCard') {
+          // Pick stage: inspect the focused candidate; pay stage: the picked
+          // card (the one thing the payment is about).
+          this.pcZoom();
+          return;
+        }
         // CONTEXTUAL CHOICE: A already commits, so X is free for the console-wide
         // INSPECT verb — the docked SOURCE card fullscreen (the card that caused
         // this choice). Without a source card X stays a harmless confirm alias,
@@ -2614,6 +2784,12 @@ export default defineComponent({
           this.exitNested();
           return;
         }
+        // projectCard pay stage: B is ONE logical level — back to the pick
+        // (nothing has been committed), never straight to a defer.
+        if (this.activeTask.kind === 'projectCard' && this.pcStage === 'pay') {
+          this.pcBackToPick();
+          return;
+        }
         this.$emit('defer');
         return;
       default:
@@ -2624,6 +2800,14 @@ export default defineComponent({
     onPrimary(): void {
       if (this.activeTask.kind === 'amount' || this.activeTask.kind === 'distribute' || this.activeTask.kind === 'payment') {
         this.onConfirm();
+        return;
+      }
+      if (this.activeTask.kind === 'projectCard') {
+        if (this.pcStage === 'pick') {
+          this.pcSelectFocused();
+        } else {
+          this.onConfirm();
+        }
         return;
       }
       if (this.activeTask.kind === 'cardSelect') {
@@ -2732,9 +2916,85 @@ export default defineComponent({
         this.submitResponse( paymentResponse(
           paymentFromCounts(this.paymentCost, this.payLanes, this.payCounts, this.megacreditsOnHand)));
         return;
+      case 'projectCard': {
+        if (this.pcStage === 'pick') {
+          this.pcSelectFocused();
+          return;
+        }
+        const card = this.pcPick;
+        if (card === undefined) {
+          return;
+        }
+        // Byte-parity with the desktop SelectProjectCardToPlay submit.
+        this.submitResponse(projectCardResponse(
+          card, paymentFromCounts(this.pcCost, this.pcLanes, this.payCounts, this.megacreditsOnHand)));
+        return;
+      }
       default:
         return;
       }
+    },
+    // ── projectCard (generic) stage moves ────────────────────────────
+    /** A on a candidate: carry it into the PAY stage (nothing submitted). */
+    pcSelectFocused(): void {
+      const entry = this.pcEntries[this.focusIdx];
+      if (entry === undefined || entry.disabled) {
+        return;
+      }
+      this.pcPick = entry.card.name;
+      this.pcStage = 'pay';
+      // The payment opens on the same optimal default mix every payment
+      // surface seeds (initialCounts) — M€ auto-derives.
+      this.payCounts = initialCounts(this.pcCost, this.pcLanes, this.megacreditsOnHand);
+      this.focusIdx = 0;
+      this.armed = false;
+    },
+    /** B from PAY: one logical level back — the pick survives as the cursor. */
+    pcBackToPick(): void {
+      const backTo = this.pcEntries.findIndex((e) => e.card.name === this.pcPick);
+      this.pcStage = 'pick';
+      this.pcPick = undefined;
+      this.payCounts = {};
+      this.focusIdx = backTo !== -1 ? backTo : 0;
+      this.armed = false;
+    },
+    /** X: fullscreen-inspect the stage's card (candidate / the picked one). */
+    pcZoom(): void {
+      if (this.pcStage === 'pay') {
+        const card = this.pcPicked;
+        if (card !== undefined) {
+          openConsoleCardZoom([card], 0);
+        }
+        return;
+      }
+      const cards = this.pcEntries.map((e) => e.card);
+      if (cards.length === 0) {
+        return;
+      }
+      const origin = slotZoomOrigin(
+        () => this.$refs.cardStrip as HTMLElement | undefined,
+        (i) => cards[i]?.name ?? '',
+        (i) => {
+          this.focusIdx = i;
+          void this.$nextTick(() => this.scrollFocusedIntoView());
+        },
+      );
+      // A in the viewer carries the candidate into the PAY stage — the same
+      // ACTION bridge the card browser's pick phase uses.
+      openConsoleCardZoom(cards, this.focusIdx, undefined, {
+        labelFor: (name) => (this.pcEntries.find((e) => e.card.name === name)?.disabled ? undefined : 'Select'),
+        reasonsFor: (name) => {
+          const e = this.pcEntries.find((x) => x.card.name === name);
+          return e !== undefined && e.disabled && e.reason !== '' ? [e.reason] : [];
+        },
+        execute: (name) => {
+          const i = this.pcEntries.findIndex((e) => e.card.name === name);
+          if (i !== -1) {
+            this.focusIdx = i;
+            this.pcSelectFocused();
+          }
+        },
+      }, {origin});
     },
     /** T9: back from a nested step to the branch list (nothing submitted). */
     exitNested(): void {

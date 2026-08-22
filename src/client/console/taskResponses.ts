@@ -82,6 +82,12 @@ export function cardsResponse(cards: ReadonlyArray<CardName>): {type: 'card', ca
 }
 
 /** A SelectPayment answer (T3) — the dialed-in resource mix. */
+/** The bare top-level {type:'projectCard'} the desktop SelectProjectCardToPlay
+ *  used to POST — the generic task-host fallback submits byte-identically. */
+export function projectCardResponse(card: CardName, payment: Payment): {type: 'projectCard', card: CardName, payment: Payment} {
+  return {type: 'projectCard', card, payment};
+}
+
 export function paymentResponse(payment: Payment): {type: 'payment', payment: Payment} {
   return {type: 'payment', payment};
 }

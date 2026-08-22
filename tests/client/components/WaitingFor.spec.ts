@@ -5,7 +5,17 @@ import WaitingFor from '@/client/components/WaitingFor.vue';
 import {RecursivePartial} from '@/common/utils/utils';
 import {PlayerViewModel, PublicPlayerModel} from '@/common/models/PlayerModel';
 import {Phase} from '@/common/Phase';
+import {setConsolePlacementHeld} from '@/client/console/consolePromptAdmission';
 
+/*
+ * HEADLESS TRANSPORT guards (desktop-removal wave 2). The radio UI is gone —
+ * WaitingFor renders exactly ONE thing: the SelectSpace board binder for a
+ * top-level `space` prompt (its mounted() attaches the console board's cell
+ * handlers). Everything else it does is script (poll / submit / view apply),
+ * covered by the e2e probe's ingest cycles. These specs pin the render
+ * contract: binder for `space`, nothing for anything else, and the console
+ * placement-admission hold blanks the binder.
+ */
 describe('WaitingFor', () => {
   const thisPlayer: Partial<PublicPlayerModel> = {
     color: 'red',
@@ -22,73 +32,51 @@ describe('WaitingFor', () => {
     },
   };
 
-  it('renders the inline input factory for a non-modal prompt', () => {
-    const wrapper = shallowMount(WaitingFor, {
+  function mountFor(waitingfor: unknown) {
+    return shallowMount(WaitingFor, {
       ...globalConfig,
       global: {
         ...globalConfig.global,
         stubs: {
-          'player-input-factory': {template: '<div class="stub-pif"></div>'},
+          SelectSpace: {template: '<div class="stub-select-space"></div>'},
         },
       },
       props: {
         playerView: playerView as PlayerViewModel,
-        players: [thisPlayer as PublicPlayerModel],
-        // 'space' is NOT routed to the mandatory modal (it drives the
-        // PlacementBanner instead), so it still renders the inline factory.
-        waitingfor: {
-          type: 'space',
-          title: 'test',
-          buttonLabel: 'save',
-          spaces: [],
-        },
+        waitingfor,
       },
     });
-    expect(wrapper.find('.stub-pif').exists()).to.be.true;
-    expect(wrapper.text()).to.not.include('Not your turn');
+  }
+
+  afterEach(() => {
+    // Module state is BUNDLE-SHARED — leave the admission mirror clean.
+    setConsolePlacementHeld(false);
   });
 
-  it('routes a mandatory sub-prompt (option) to the mandatory modal', () => {
-    const wrapper = shallowMount(WaitingFor, {
-      ...globalConfig,
-      global: {
-        ...globalConfig.global,
-        stubs: {
-          'player-input-factory': {template: '<div class="stub-pif"></div>'},
-        },
-      },
-      props: {
-        playerView: playerView as PlayerViewModel,
-        players: [thisPlayer as PublicPlayerModel],
-        waitingfor: {
-          type: 'option',
-          title: 'test',
-          buttonLabel: 'save',
-        },
-      },
-    });
-    // The 'option' sub-prompt is hosted by MandatoryInputModal now, not the
-    // inline factory.
-    expect(wrapper.findComponent({name: 'MandatoryInputModal'}).exists()).to.be.true;
-    expect(wrapper.find('.stub-pif').exists()).to.be.false;
-    expect(wrapper.text()).to.not.include('Not your turn');
+  it('mounts the SelectSpace board binder for a top-level space prompt', () => {
+    const wrapper = mountFor({type: 'space', title: 'test', buttonLabel: 'save', spaces: []});
+    expect(wrapper.find('.stub-select-space').exists()).to.be.true;
   });
 
-  it('shows "not your turn" when waitingfor is undefined', () => {
-    const wrapper = shallowMount(WaitingFor, {
-      ...globalConfig,
-      global: {
-        ...globalConfig.global,
-        stubs: {
-          'player-input-factory': true,
-        },
-      },
-      props: {
-        playerView: playerView as PlayerViewModel,
-        players: [thisPlayer as PublicPlayerModel],
-        waitingfor: undefined,
-      },
-    });
-    expect(wrapper.text()).to.include('Not your turn');
+  it('renders NOTHING for any non-space prompt (the console serves it natively)', () => {
+    for (const waitingfor of [
+      {type: 'option', title: 'test', buttonLabel: 'save'},
+      {type: 'or', title: 'test', buttonLabel: 'save', options: []},
+      {type: 'projectCard', title: 'test', buttonLabel: 'save', cards: []},
+      undefined,
+    ]) {
+      const wrapper = mountFor(waitingfor);
+      expect(wrapper.find('.stub-select-space').exists(), JSON.stringify(waitingfor)).to.be.false;
+      expect(wrapper.text().trim(), JSON.stringify(waitingfor)).to.eq('');
+    }
+  });
+
+  it('the console placement-admission hold blanks the binder (same window as the holds)', async () => {
+    setConsolePlacementHeld(true);
+    const wrapper = mountFor({type: 'space', title: 'test', buttonLabel: 'save', spaces: []});
+    expect(wrapper.find('.stub-select-space').exists()).to.be.false;
+    setConsolePlacementHeld(false);
+    await wrapper.vm.$nextTick();
+    expect(wrapper.find('.stub-select-space').exists()).to.be.true;
   });
 });

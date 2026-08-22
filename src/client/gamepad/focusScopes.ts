@@ -54,8 +54,6 @@ export type ScopeDef = {
  * pills + notification cards.
  */
 const COEXIST: ReadonlyArray<string> = [
-  '.mandatory-input-modal-pill--visible',
-  '.placement-banner',
   '.hand-select-pill',
   '.colonies-overlay-pill',
   '.eg-pill',
@@ -95,12 +93,6 @@ export const SCOPE_DEFS: ReadonlyArray<ScopeDef> = [
   //    play/action confirm, draft steps…). B = minimize where allowed —
   //    mirroring its own affordance; a non-minimizable modal keeps its own
   //    Cancel button as an ordinary focusable.
-  {
-    id: 'mandatoryModal',
-    root: '.mandatory-input-modal:not(.mandatory-input-modal--minimized):not(.mandatory-input-modal--picker-mode):not(.mandatory-input-modal--suppressed)',
-    back: {kind: 'click', selectors: ['.mandatory-input-modal__minimize-btn', '.play-confirm__cancel', '.action-confirm__cancel', '.colony-trade-pay__cancel']},
-  },
-
   // 3. App-level modals (audited roots), in their own z order.
   {id: 'drawReveal', root: '.draw-reveal', back: {kind: 'none'}},
   {id: 'revealViewer', root: '.reveal-viewer__card', back: {kind: 'escape'}},

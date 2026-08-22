@@ -16766,6 +16766,25 @@ html.console-mode {
         margin: 0;
     }
 
+    /* projectCard (generic, desktop-removal wave 2): the PAY stage — the
+       chosen card beside the shared payment panel. The card column is a
+       fixed context seat; the panel takes the room. */
+    &__pcpay {
+        display: flex;
+        align-items: flex-start;
+        justify-content: center;
+        gap: 1.4rem;
+    }
+    &__pcpay-card {
+        flex: 0 0 auto;
+        zoom: calc(0.72 * var(--con-ui-scale, 1));
+    }
+    &__pcpay-panel {
+        flex: 0 1 auto;
+        min-width: 0;
+        max-width: min(34rem, 100%);
+    }
+
     /* Distribute lanes */
     &__dist-target {
         align-self: center;

@@ -17,6 +17,8 @@
 
 import {PlayerInputModel} from '@/common/models/PlayerInputModel';
 import {PlayerViewModel} from '@/common/models/PlayerModel';
+import {CardType} from '@/common/cards/CardType';
+import {getCard} from '@/client/cards/ClientCardManifest';
 import {inputTitleText} from '@/client/console/turnIntents';
 import {isActionMenuTitle} from '@/common/inputs/actionMenuTitles';
 
@@ -68,7 +70,7 @@ export type ConsoleTask =
    * pick submits on one A press (no toggle-then-confirm). A shell-section kind.
    */
   | {kind: 'handSelect'}
-  | {kind: 'projectCard', mode: 'playFromHand' | 'standardProject'}
+  | {kind: 'projectCard', mode: 'playFromHand' | 'standardProject' | 'generic'}
   | {kind: 'colony'}
   /**
    * COLLECT THE COLONY BONUS ANOTHER PLAYER'S TRADE PAID YOU (Miranda's «take
@@ -168,13 +170,14 @@ export const SHELL_SECTION_KINDS: ReadonlySet<TaskKind> = new Set<TaskKind>(['pr
  * it THERE bypassed the console's own door: no entry armed, no claim, so the
  * card flew to a full-bleed reveal instead of into the colony that paid it.
  *
- * `projectCard` is deliberately ABSENT. Its two real shapes (play from hand /
- * a standard project) suppress the modal through `useModalForCurrentInput`
- * already; the DEGENERATE third (candidates that are neither) has no console
- * screen at all, and the legacy modal is its honest fallback — suppressing it
- * would leave the player with a prompt and nowhere to answer it.
+ * `projectCard` joined the set in desktop-removal wave 2: its two real
+ * shapes (play from hand / a standard project) are section-served as before,
+ * and the DEGENERATE third — candidates that are neither, or an empty list —
+ * now has a native console surface (`mode: 'generic'`, served by
+ * ConsoleTaskHost's card browser + payment stage), so the legacy modal has
+ * no remaining role and was deleted with the radio stack.
  */
-export const SECTION_SERVED_KINDS: ReadonlySet<TaskKind> = new Set<TaskKind>(['handSelect', 'colony', 'colonyBonus', 'awardFunding', 'corpFirstAction']);
+export const SECTION_SERVED_KINDS: ReadonlySet<TaskKind> = new Set<TaskKind>(['projectCard', 'handSelect', 'colony', 'colonyBonus', 'awardFunding', 'corpFirstAction']);
 
 /** Where the player is standing right now, as the surface map sees it. */
 export type ShellSurfaceContext = {
@@ -215,6 +218,11 @@ export function shellTaskOnSurface(task: ConsoleTask | undefined, ctx: ShellSurf
   }
   switch (task.kind) {
   case 'projectCard':
+    // GENERIC is HOST-served (taskServedByHost) — it has no section surface,
+    // so standing on the std sheet must not read as «answered here».
+    if (task.mode === 'generic') {
+      return false;
+    }
     return task.mode === 'playFromHand' ?
       ctx.section === 'hand' :
       ctx.sheet === 'standardProjects';
@@ -499,10 +507,24 @@ export function taskFor(view: PlayerViewModel): ConsoleTask | undefined {
     return {kind: 'payment'};
 
   case 'projectCard': {
-    // Play-from-hand (EccentricSponsor/EcologyExperts) vs the standalone
-    // standard-project prompt (EstablishedMethods) — the PlayerHome
-    // dedicated-overlay split, reproduced structurally.
-    return {kind: 'projectCard', mode: isHandSubset(view, wf.cards) ? 'playFromHand' : 'standardProject'};
+    // THREE structural shapes (never a title):
+    //  · playFromHand — every candidate is in the hand ∪ SRR host
+    //    (EccentricSponsor / EcologyExperts) → the hand workspace;
+    //  · standardProject — every candidate IS a standard project by the
+    //    client manifest's own card type (EstablishedMethods) → the
+    //    standard-projects sheet;
+    //  · generic — anything else: foreign candidates (Odyssey's played
+    //    events) or an empty list → the task host's native browser+payment
+    //    surface (desktop-removal wave 2; the legacy modal fallback is gone).
+    // The old two-way split silently mis-served foreign candidates as
+    // standard-project rows with generic icons.
+    if (isHandSubset(view, wf.cards)) {
+      return {kind: 'projectCard', mode: 'playFromHand'};
+    }
+    const cards = wf.cards ?? [];
+    const allStandard = cards.length > 0 &&
+      cards.every((c) => getCard(c.name)?.type === CardType.STANDARD_PROJECT);
+    return {kind: 'projectCard', mode: allStandard ? 'standardProject' : 'generic'};
   }
 
   case 'card': {
@@ -611,6 +633,11 @@ export function taskServedByHost(view: PlayerViewModel): ConsoleTask | undefined
   case 'cardSelect': // T2: the card browser (draft / buy / select / target)
   case 'payment': // T3: the native payment lanes (SelectPayment prompts)
     return task;
+  case 'projectCard':
+    // Only the GENERIC shape is host-served (wave 2): pick a foreign
+    // candidate in the browser, pay, one {type:'projectCard'} submit. The
+    // two real shapes stay section-served (hand / standard-projects sheet).
+    return task.mode === 'generic' ? task : undefined;
   case 'choice': {
     const wf = view.waitingFor;
     if (wf?.type === 'option') {

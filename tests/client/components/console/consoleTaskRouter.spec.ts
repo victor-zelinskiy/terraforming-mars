@@ -49,6 +49,12 @@ const FIXTURES: Array<{row: string, wf: any, hand?: Array<string>, srr?: Array<s
   {row: '13b discard-pile keep-some', wf: {type: 'card', title: 'Select 1 card(s) to keep', buttonLabel: 'Select', cards: [{name: 'Birds'}], deckPickPrompt: {revealed: 1, min: 1, max: 1, origin: 'discard', mode: 'keep'}}, expect: {kind: 'deckSelect'}},
   {row: '16 play-from-hand prompt', wf: {type: 'projectCard', title: 'Play a card from hand', cards: [{name: 'Birds'}]}, hand: ['Birds'], expect: {kind: 'projectCard', mode: 'playFromHand'}},
   {row: '17 std-project prompt', wf: {type: 'projectCard', title: 'Play a standard project', cards: [{name: 'Power Plant:SP'}]}, expect: {kind: 'projectCard', mode: 'standardProject'}},
+  // Wave 2: the DEGENERATE third shape is structural — candidates that are
+  // neither the hand (row 16) nor standard projects by the client manifest's
+  // own card type (row 17). Odyssey's played events are the live producer;
+  // an empty list classifies generic too (nothing the sections could serve).
+  {row: '17a generic projectCard (foreign candidate)', wf: {type: 'projectCard', title: 'Play an event again', cards: [{name: 'Birds'}]}, expect: {kind: 'projectCard', mode: 'generic'}},
+  {row: '17b generic projectCard (empty list)', wf: {type: 'projectCard', title: 'Play a card', cards: []}, expect: {kind: 'projectCard', mode: 'generic'}},
   {row: '18 colony build/select', wf: {type: 'colony', title: 'Select colony', coloniesModel: []}, expect: {kind: 'colony'}},
   // The MARKER outranks the type again: on the wire this is the same bare
   // `option` as row 3, and everything that makes it a colony delivery (which
@@ -174,9 +180,15 @@ describe('consoleTaskRouter (CTS-2 coverage)', () => {
     // The OPTIONAL draft re-pick is NOT host-served — the shell shows a waiting
     // banner instead of the card browser (no re-pick UI, desktop parity).
     expect(taskServedByHost(view({type: 'card', title: 'change your selection', optional: true, cards: []}))).to.eq(undefined);
-    // T3/T4: projectCard + colony are SHELL-SECTION tasks, NOT host tasks.
-    expect(taskServedByHost(view({type: 'projectCard', title: 'p', cards: []}))).to.eq(undefined);
+    // T3/T4: the REAL projectCard shapes + colony are SHELL-SECTION tasks,
+    // NOT host tasks…
+    expect(taskServedByHost(view({type: 'projectCard', title: 'p', cards: [{name: 'Power Plant:SP'}]}))).to.eq(undefined);
     expect(taskServedByHost(view({type: 'colony', title: 'c', coloniesModel: []}))).to.eq(undefined);
+    // …but the GENERIC projectCard shape (foreign/empty candidates — wave 2)
+    // IS host-served: the browser+payment surface that replaced the legacy
+    // modal fallback.
+    expect(taskServedByHost(view({type: 'projectCard', title: 'p', cards: []}))?.kind).to.eq('projectCard');
+    expect(taskServedByHost(view({type: 'projectCard', title: 'p', cards: [{name: 'Birds'}]}))?.kind).to.eq('projectCard');
     // FREE award funding is served by the premium awards MA screen, NOT the host.
     expect(taskServedByHost(view({type: 'or', title: 'Fund an award', options: [], awardFundingPrompt: {free: true}}))).to.eq(undefined);
   });
@@ -190,19 +202,17 @@ describe('consoleTaskRouter (CTS-2 coverage)', () => {
     }
   });
 
-  it('SECTION_SERVED_KINDS suppress the DESKTOP fallback modal (and projectCard deliberately does not)', () => {
+  it('SECTION_SERVED_KINDS cover every shell-section kind (wave 2: projectCard included)', () => {
     // The window between «announced» and «the screen opened» is a REAL state
-    // for every section kind: nothing of theirs is mounted, and the legacy
-    // MandatoryInputModal must still stay down — answering there bypasses the
-    // console's own door (the Miranda collect flew its card to a full-bleed
-    // reveal instead of into the colony that paid it).
+    // for every section kind: nothing of theirs is mounted yet. Since wave 2
+    // the set is exhaustive — the degenerate projectCard shape got its native
+    // host surface (mode 'generic'), so no kind needs a desktop fallback and
+    // the legacy MandatoryInputModal is gone.
     for (const kind of SECTION_SERVED_KINDS) {
       expect(SHELL_SECTION_KINDS.has(kind), `"${kind}" must be a section kind`).to.eq(true);
     }
-    // …except the one whose degenerate shape has NO console screen, where the
-    // legacy modal is the honest fallback.
     expect(SECTION_SERVED_KINDS.has('projectCard'),
-      'projectCard keeps the legacy modal for its degenerate shape').to.eq(false);
+      'every projectCard shape is console-served since wave 2').to.eq(true);
     expect(SECTION_SERVED_KINDS.has('colonyBonus'),
       'a remote colony-bonus collect is served by the colony workspace').to.eq(true);
   });

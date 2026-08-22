@@ -1,11 +1,7 @@
 <template>
   <div :class="'topmost-'+screen">
-    <!-- Dev-only modal-input visual playground (URL: ?modalPlayground). -->
-    <ModalInputPlayground v-if="showModalPlayground" />
     <!-- Dev-only effects-overlay visual playground (URL: ?effectsPlayground). -->
-    <EffectsPlayground v-if="showEffectsPlayground" />
     <!-- Dev-only actions-overlay visual playground (URL: ?actionsPlayground). -->
-    <ActionsPlayground v-if="showActionsPlayground" />
     <!-- Dev-only player-cube visual playground (URL: ?cubePlayground). -->
     <PlayerCubePlayground v-if="showCubePlayground" />
     <!-- Dev-only premium-card-face showcase (URL: ?premiumCardsPlayground). -->
@@ -304,9 +300,6 @@ import {
 // Premium end-of-game experience (winner reveal + full-screen results). Async
 // so its charts / tabs only download once a game actually ends.
 const EndgameExperience = defineAsyncComponent(() => import(/* webpackChunkName: "endgame" */ '@/client/components/endgame/EndgameExperience.vue'));
-const ModalInputPlayground = defineAsyncComponent(() => import(/* webpackChunkName: "modal-input-playground" */ '@/client/components/modalInputs/ModalInputPlayground.vue'));
-const EffectsPlayground = defineAsyncComponent(() => import(/* webpackChunkName: "effects-playground" */ '@/client/components/effects/EffectsPlayground.vue'));
-const ActionsPlayground = defineAsyncComponent(() => import(/* webpackChunkName: "actions-playground" */ '@/client/components/actions/ActionsPlayground.vue'));
 const PlayerCubePlayground = defineAsyncComponent(() => import(/* webpackChunkName: "player-cube-playground" */ '@/client/components/PlayerCubePlayground.vue'));
 const PremiumCardsPlayground = defineAsyncComponent(() => import(/* webpackChunkName: "premium-cards-playground" */ '@/client/components/premiumCard/PremiumCardsPlayground.vue'));
 const CardLorePlayground = defineAsyncComponent(() => import(/* webpackChunkName: "card-lore-playground" */ '@/client/components/card/CardLorePlayground.vue'));
@@ -458,9 +451,6 @@ export default defineComponent({
     RematchLayer,
     GameExitButton,
     EndgameExperience,
-    ModalInputPlayground,
-    EffectsPlayground,
-    ActionsPlayground,
     PlayerCubePlayground,
     PremiumCardsPlayground,
     CardLorePlayground,
@@ -536,21 +526,6 @@ export default defineComponent({
     // to `playerkey`, restoring the historical full-remount-per-update model.
     playerHomeKey(): number | string {
       return legacyRemountEnabled() ? this.playerkey : 'stable';
-    },
-    // Dev-only: render the modal-input visual playground when the URL carries
-    // `?modalPlayground` (or `&modalPlayground`). Never shown in normal play.
-    showModalPlayground(): boolean {
-      return window.location.search.includes('modalPlayground');
-    },
-    // Dev-only: render the effects-overlay playground when the URL carries
-    // `?effectsPlayground`. Never shown in normal play.
-    showEffectsPlayground(): boolean {
-      return window.location.search.includes('effectsPlayground');
-    },
-    // Dev-only: render the actions-overlay playground when the URL carries
-    // `?actionsPlayground`. Never shown in normal play.
-    showActionsPlayground(): boolean {
-      return window.location.search.includes('actionsPlayground');
     },
     // Dev-only: render the player-cube playground when the URL carries
     // `?cubePlayground`. Never shown in normal play.
