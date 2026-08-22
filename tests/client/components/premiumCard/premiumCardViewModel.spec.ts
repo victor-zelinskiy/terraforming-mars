@@ -28,17 +28,17 @@ function vmOf(name: CardName, overrides: Partial<CardModel> = {}) {
 }
 
 describe('premiumCardTheme', () => {
-  it('maps project + prelude + corporation types, rejects the rest', () => {
+  it('maps project + prelude + corporation + CEO types, rejects the rest', () => {
     expect(premiumThemeFor(CardType.AUTOMATED)).to.eq('emerald');
     expect(premiumThemeFor(CardType.ACTIVE)).to.eq('azure');
     expect(premiumThemeFor(CardType.EVENT)).to.eq('crimson');
     expect(premiumThemeFor(CardType.PRELUDE)).to.eq('prelude');
     expect(premiumThemeFor(CardType.CORPORATION)).to.eq('corporation');
-    expect(premiumThemeFor(CardType.CEO)).to.eq(undefined);
+    expect(premiumThemeFor(CardType.CEO)).to.eq('ceo');
     expect(premiumThemeFor(CardType.STANDARD_PROJECT)).to.eq(undefined);
     expect(isPremiumFaceType(CardType.EVENT)).to.eq(true);
     expect(isPremiumFaceType(CardType.CORPORATION)).to.eq(true);
-    expect(isPremiumFaceType(CardType.CEO)).to.eq(false);
+    expect(isPremiumFaceType(CardType.CEO)).to.eq(true);
   });
 });
 
@@ -84,8 +84,11 @@ describe('cardArt', () => {
 
 describe('buildPremiumCardViewModel', () => {
   it('throws for out-of-scope card types', () => {
-    const ceo = getCards((c) => c.type === CardType.CEO)[0];
-    expect(() => buildPremiumCardViewModel(ceo)).to.throw(/outside the premium face scope/);
+    // CEOs joined the premium face in desktop-removal wave 4; standard
+    // projects are the remaining legacy type in this tree.
+    const standardProject = getCards((c) => c.type === CardType.STANDARD_PROJECT)[0];
+    expect(standardProject, 'a standard project card in the manifest').to.not.eq(undefined);
+    expect(() => buildPremiumCardViewModel(standardProject)).to.throw(/outside the premium face scope/);
   });
 
   it('builds the cost cluster with a discount delta', () => {
@@ -285,7 +288,7 @@ describe('the OR choice marker is never lost on the face', () => {
   });
 
   it('every in-scope multi-action card carries a choice marker at each action junction', () => {
-    const SCOPE_ALL = new Set<GameModule>(['base', 'corpera', 'promo', 'venus', 'colonies', 'prelude', 'ares']);
+    const SCOPE_ALL = new Set<GameModule>(['base', 'corpera', 'promo', 'venus', 'colonies', 'prelude', 'ares', 'ceo']);
     const offenders: Array<string> = [];
     for (const card of getCards((c) => SCOPE_ALL.has(c.module) && isPremiumFaceType(c.type))) {
       const groups = buildPremiumCardViewModel(card).mechanics.groups;
@@ -299,7 +302,7 @@ describe('the OR choice marker is never lost on the face', () => {
   });
 
   it('no group renders a stray leading/trailing bare OR glyph, incl. inside effect frames (population sweep)', () => {
-    const SCOPE_ALL = new Set<GameModule>(['base', 'corpera', 'promo', 'venus', 'colonies', 'prelude', 'ares']);
+    const SCOPE_ALL = new Set<GameModule>(['base', 'corpera', 'promo', 'venus', 'colonies', 'prelude', 'ares', 'ceo']);
     const offenders = new Set<string>();
     for (const card of getCards((c) => SCOPE_ALL.has(c.module) && isPremiumFaceType(c.type))) {
       for (const group of buildPremiumCardViewModel(card).mechanics.groups) {
@@ -411,7 +414,8 @@ describe('premium face coverage guard', () => {
   // rule with no iconifiable shape), so an absent mechanics panel is correct
   // (the art takes the space). A NEW card landing in this list should be
   // triaged (does it truly have no graphics?), never silently accepted.
-  const SCOPE = new Set<GameModule>(['base', 'corpera', 'promo', 'venus', 'colonies', 'prelude', 'ares']);
+  // 'ceo' joined in desktop-removal wave 4 (all L-cards render mechanics).
+  const SCOPE = new Set<GameModule>(['base', 'corpera', 'promo', 'venus', 'colonies', 'prelude', 'ares', 'ceo']);
   const NO_MECHANICS_ACCEPTED = new Set<string>([
     CardName.ADVANCED_ECOSYSTEMS,
     CardName.BREATHING_FILTERS,
@@ -503,6 +507,10 @@ describe('card art coverage — full premium-face scope (project + prelude + cor
   // of mechanics, and it deliberately DOES cover corporations (unlike the
   // project+prelude-only `audit_card_art.ts` tool), since a corp within this
   // fork's SCOPE_MODULES is expected to be fully illustrated.
+  // The 'ceo' module is deliberately NOT here: no L-card ships art, and the
+  // CEO face's procedural identity band (.pcard-ceo-ident) is the INTENDED
+  // look of the whole type — resolveArt answers undefined by design, so an
+  // art sweep over CEOs would assert a fallback that is not a gap.
   const SCOPE = new Set<GameModule>(['base', 'corpera', 'promo', 'venus', 'colonies', 'prelude', 'ares']);
   // Corporations with NO real illustration to scan — the corp premium face
   // falls back to the wordmark identity zone by design in this case (see
@@ -596,6 +604,85 @@ describe('card lore coverage — full premium-face scope (project + prelude + co
   });
 });
 
+describe('CEO premium face (desktop-removal wave 4)', () => {
+  const ceoCards = () => getCards((c) => c.type === CardType.CEO);
+
+  it('builds the CEO VM: ceo theme, no cost badge, no resource capsule', () => {
+    const vm = vmOf(CardName.ASIMOV);
+    expect(vm.theme).to.eq('ceo');
+    expect(vm.cost, 'a CEO has no play cost — never print a cost badge').to.eq(undefined);
+    expect(vm.resource).to.eq(undefined);
+  });
+
+  it('the prose zone carries the printed rule (description IS the rule on this type)', () => {
+    const vm = vmOf(CardName.ASIMOV);
+    expect(vm.prose).to.contain('Once per game, draw 10-X awards');
+    // non-CEO types stay icons-only — no prose zone
+    expect(vmOf(CardName.COMET).prose).to.eq(undefined);
+    expect(vmOf(CardName.HELION).prose).to.eq(undefined);
+  });
+
+  it('a CEO without a description falls back to its dropped plainText (Xavier)', () => {
+    const vm = vmOf(CardName.XAVIER);
+    expect(vm.prose).to.eq('Once per game, gain 2 wild tags for THIS GENERATION.');
+  });
+
+  it('printedLayout: authored order survives (Xavier: the OPG row stays ABOVE its post-action effect)', () => {
+    const groups = vmOf(CardName.XAVIER).mechanics.groups;
+    expect(groups.length).to.eq(2);
+    const hasOpg = (g: (typeof groups)[number]) => g.nodes.some((n) =>
+      n !== undefined && typeof n !== 'string' && isICardRenderItem(n) && n.type === CardRenderItemType.ARROW_OPG);
+    expect(hasOpg(groups[0]), 'the once-per-game row reads first, as printed').to.eq(true);
+    expect(groups[1].kind, 'the «AFTER this action» effect reads below it').to.eq('effect');
+  });
+
+  it('a CEO face has NO on-play zone — the play rail must never brand an OPG row «при розыгрыше»', () => {
+    for (const card of ceoCards()) {
+      const mech = buildPremiumCardViewModel(card).mechanics;
+      expect(mech.playStart, `${card.name}: playStart must equal groups.length`).to.eq(mech.groups.length);
+    }
+    // …while a canonical face keeps its play zone (Comet's row IS on-play).
+    const comet = vmOf(CardName.COMET).mechanics;
+    expect(comet.playStart).to.be.lessThan(comet.groups.length);
+  });
+
+  it('every CEO builds a premium VM with extractable mechanics', () => {
+    const cards = ceoCards();
+    expect(cards.length).to.be.greaterThan(35); // the L-deck (38 CEOs)
+    const textOnly: Array<string> = [];
+    for (const card of cards) {
+      if (buildPremiumCardViewModel(card).mechanics.textOnly) {
+        textOnly.push(card.name);
+      }
+    }
+    expect(textOnly, `CEOs without extractable mechanics:\n${textOnly.join('\n')}`).to.deep.eq([]);
+  });
+
+  // WORKLIST GUARD — a CEO face may only skip the prose zone when its whole
+  // rule lives in effect frames (Gordon, Van Allen — the legacy face printed
+  // no description for them either). A NEW CEO arriving without a
+  // description and with non-effect rows would say LESS than the legacy
+  // face — it fails here by name.
+  it('every CEO with non-effect mechanics carries prose', () => {
+    const offenders: Array<string> = [];
+    for (const card of ceoCards()) {
+      const vm = buildPremiumCardViewModel(card);
+      if (vm.prose === undefined && vm.mechanics.groups.some((g) => g.kind !== 'effect' && g.kind !== 'corp-effect')) {
+        offenders.push(card.name);
+      }
+    }
+    expect(offenders, `CEOs missing their rule prose:\n${offenders.join('\n')}`).to.deep.eq([]);
+  });
+
+  it('Duncan (the one VP CEO) resolves the «?» badge', () => {
+    const vp = vmOf(CardName.DUNCAN).vp;
+    expect(vp?.kind).to.eq('dynamic');
+    if (vp?.kind === 'dynamic') {
+      expect(vp.relation).to.eq('variable');
+    }
+  });
+});
+
 describe('empty-cause effect trigger splice (Viral Enhancers idiom)', () => {
   it('Viral Enhancers reads as ONE effect group with the tag trigger spliced into its cause', () => {
     // The trigger (plant/microbe/animal tags) is drawn as a standalone ROOT row
@@ -641,8 +728,10 @@ describe('premium face is ICONS-ONLY: prose plainText never renders', () => {
     // Martian Lumber Corp / AI Central / … draw under the icons) must be DROPPED
     // — it belongs in the fullscreen info panel. A MEANINGFUL text label
     // (isBold:true — «X», «+/- 2», whole text-only cards) and the TINY-uppercase
-    // vpText fine print are KEPT.
-    const SCOPE = new Set<GameModule>(['base', 'corpera', 'promo', 'venus', 'colonies', 'prelude', 'ares']);
+    // vpText fine print are KEPT. CEO faces drop plainText the same way
+    // (Xavier) — their rule prose renders in the DEDICATED `vm.prose` zone,
+    // never baked into the mechanics rows.
+    const SCOPE = new Set<GameModule>(['base', 'corpera', 'promo', 'venus', 'colonies', 'prelude', 'ares', 'ceo']);
     const cards = getCards((c) => SCOPE.has(c.module) && isPremiumFaceType(c.type));
     const offenders: Array<string> = [];
     for (const card of cards) {

@@ -6,9 +6,10 @@ Before changing it, check the console consumers in docs/DESKTOP_DEPRECATION_AUDI
 <template>
   <!--
     CARD FACE FACADE — the ONE routing point between the premium card
-    renderer (project cards + preludes + corporations; scope gate =
-    isPremiumFaceType) and the legacy renderer (CEOs / standard projects
-    until their own premium pass).
+    renderer (project cards + preludes + corporations + CEOs since
+    desktop-removal wave 4; scope gate = isPremiumFaceType) and the legacy
+    renderer (standard projects until their own premium pass — the last
+    type on legacy Card.vue in this tree).
 
     ZERO visual logic lives here: both branches are architecturally
     independent renderers receiving the SAME host contract (the legacy

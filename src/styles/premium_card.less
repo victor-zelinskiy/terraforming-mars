@@ -166,6 +166,22 @@
   --pcard-glow: rgba(217, 184, 120, 0.38);
   --pcard-band: rgba(166, 128, 62, 0.26);
 }
+/* CEO — the executive look: a COOL charcoal-graphite corpus with a pale
+   champagne-bronze accent. Deliberately distinct from the corporation's
+   warm brown-gold parchment (leadership, not company letterhead) while
+   staying inside the shared gold frame / VP language. CEOs ship NO art
+   (no L-numbers in the art pack), so the procedural identity band
+   (.pcard-ceo-ident) + this corpus ARE the intended face, never a
+   degraded fallback. */
+.pcard--theme-ceo {
+  --pcard-body-a: #121218;
+  --pcard-body-b: #26262f;
+  --pcard-rim: #e3cfa0;
+  --pcard-rim-soft: rgba(227, 207, 160, 0.42);
+  --pcard-accent: #f5e6c4;
+  --pcard-glow: rgba(227, 207, 160, 0.36);
+  --pcard-band: rgba(148, 132, 96, 0.24);
+}
 /* A corporation's starting resources ARE its «при розыгрыше» effect (the card
    grants them when played). buildMechanics now reorders every card so that
    on-play run trails at the BOTTOM (mechanicsModel.orderMechGroups), so the
@@ -948,6 +964,65 @@
   z-index: 1;
 }
 
+/* ── CEO identity band — the procedural «executive» zone ──────────────
+   CEOs have no illustrations (none ship in the art pack), so the art
+   viewport hosts an engraved insignia instead: hairlines meeting a
+   champagne crest with the tracked-caps role word («ДИРЕКТОР»). This is
+   the INTENDED look of the type (like the corp wordmark zone), never a
+   missing-art placeholder. Console-safe: gradients + box-shadow only —
+   the band must read with `filter`/`text-shadow` stripped. */
+.pcard-ceo-ident {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  min-height: var(--pcard-art-min);
+  padding: 0 8px;
+  border-radius: 8px;
+  overflow: hidden;
+  background:
+    radial-gradient(95% 130% at 50% 0%, rgba(227, 207, 160, 0.07), transparent 60%),
+    repeating-linear-gradient(104deg, rgba(255, 255, 255, 0.012) 0 1px, transparent 1px 4px),
+    linear-gradient(180deg, rgba(12, 12, 17, 0.55), rgba(6, 6, 10, 0.68));
+  border: 1px solid rgba(227, 207, 160, 0.16);
+  box-shadow:
+    inset 0 0 14px rgba(0, 0, 0, 0.55),
+    inset 0 1px 0 rgba(255, 255, 255, 0.05);
+}
+.pcard-ceo-ident__line {
+  flex: 1;
+  height: 1px;
+}
+.pcard-ceo-ident__line--l {
+  background: linear-gradient(90deg, transparent, rgba(227, 207, 160, 0.5));
+}
+.pcard-ceo-ident__line--r {
+  background: linear-gradient(90deg, rgba(227, 207, 160, 0.5), transparent);
+}
+.pcard-ceo-ident__crest {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+.pcard-ceo-ident__chev {
+  width: 9px;
+  height: 9px;
+  flex-shrink: 0;
+  background: linear-gradient(135deg, #f5e6c4 0%, #8a744a 100%);
+  clip-path: polygon(50% 0, 100% 50%, 50% 100%, 0 50%);
+  border-radius: 1px;
+  box-shadow: 0 0 4px rgba(227, 207, 160, 0.3);
+}
+.pcard-ceo-ident__word {
+  font-size: 15px;
+  letter-spacing: 0.34em;
+  padding-left: 0.34em; /* optically re-centre the tracked caps */
+  text-transform: uppercase;
+  color: #e8dcbd;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.85); /* desktop polish; weight+colour carry it in console */
+}
+
 /* ── mechanics panel ────────────────────────────────────────────────── */
 .pcard__mech {
   display: flex;
@@ -1140,6 +1215,25 @@
   box-shadow: 0 0 2px rgba(0, 0, 0, 0.7);
   pointer-events: none;
 }
+/* deactivated emblem (REDS_DEACTIVATED — Zan's Reds immunity): legacy used
+   `filter: grayscale`, which console-native strips, so the OFF state reads
+   by dim + strike — never colour (or a filter) alone. */
+.pcard-ic--off {
+  position: relative;
+  opacity: 0.55;
+}
+.pcard-ic--off::after {
+  content: '';
+  position: absolute;
+  left: -6%;
+  right: -6%;
+  top: 50%;
+  height: 2px;
+  background: #e03d3d;
+  transform: rotate(-32deg);
+  box-shadow: 0 0 2px rgba(0, 0, 0, 0.7);
+  pointer-events: none;
+}
 /* secondary tag bubble (top-right) */
 .pcard-mi__bubble {
   position: absolute;
@@ -1151,6 +1245,14 @@
   background-size: cover;
   background-position: center;
   box-shadow: 0 0 0 1px var(--pcard-gold-deep), 0 1px 2px rgba(0, 0, 0, 0.7);
+}
+/* «card WITH a requirement» (AltSecondaryTag.REQ — Xavier): the premium
+   requirements plate in miniature — a copper bar, drawn, no asset. */
+.pcard-mi__bubble--req {
+  border-radius: 3px;
+  height: calc(var(--pcard-mech-icon) * 0.3);
+  background: linear-gradient(180deg, var(--pcard-req-copper-hi), var(--pcard-req-copper-deep));
+  box-shadow: 0 0 0 1px var(--pcard-req-rim-deep), 0 1px 2px rgba(0, 0, 0, 0.7);
 }
 .pcard-mi--bubbled { margin-right: 6px; }
 .pcard-mi--superscript {
@@ -1167,6 +1269,11 @@
 }
 .pcard-mi__text--uc { text-transform: uppercase; letter-spacing: 0.03em; }
 .pcard-mi__text--b { font-weight: bold; }
+/* sized text runs — the DSL's Size.LARGE counters («5», «+2», «X»), SMALL
+   clarifiers and TINY fine print keep their printed proportions */
+.pcard-mi__text--lg { font-size: calc(var(--pcard-mech-font) * 1.3); }
+.pcard-mi__text--sm { font-size: calc(var(--pcard-mech-font) * 0.72); }
+.pcard-mi__text--xs { font-size: calc(var(--pcard-mech-font) * 0.62); }
 .pcard-plate {
   padding: 2px 8px;
   border-radius: 4px;
@@ -1194,6 +1301,37 @@
   background: linear-gradient(180deg, #f3c07a, #d88a34);
   border-color: #8a561c;
   color: #3a2408;
+}
+/* ── the ONCE-PER-GAME action marker (CEO `opgArrow`) ─────────────────
+   Replaces the legacy red «OPG» PNG with a premium-native, language-
+   neutral marker: an engraved champagne «1×» capsule + the shared
+   action-gold arrow silhouette (same clip-path language as
+   .pcard-sym--arrow). The prose zone states the rule in words. */
+.pcard-opg {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  margin-right: 3px;
+}
+.pcard-opg__badge {
+  display: inline-flex;
+  align-items: center;
+  height: calc(var(--pcard-mech-icon) * 0.66);
+  padding: 0 5px;
+  border-radius: 4px;
+  background: linear-gradient(180deg, #efe0ba, #c3a566);
+  border: 1px solid #6d5124;
+  box-shadow: inset 0 1px 0 rgba(255, 244, 205, 0.6), 0 1px 1px rgba(0, 0, 0, 0.5);
+  color: #2c1e08;
+  font-weight: bold;
+  font-size: calc(var(--pcard-mech-font) * 0.78);
+  letter-spacing: 0.02em;
+}
+.pcard-opg__arrow {
+  width: calc(var(--pcard-mech-icon) * 1.05);
+  height: calc(var(--pcard-mech-icon) * 0.55);
+  background: linear-gradient(180deg, var(--pcard-gold-hi), var(--pcard-gold-deep));
+  clip-path: polygon(0 36%, 52% 36%, 52% 6%, 100% 50%, 52% 94%, 52% 64%, 0 64%);
 }
 /* community / nomads — host for the premium 3D player cube (the SAME
    PlayerCube.vue the board uses). The cube's `--pc-size` is a public knob set
@@ -1389,6 +1527,33 @@
   justify-content: flex-end;
   min-height: 18px;
 }
+
+/* ── CEO PROSE — the rule zone under the mechanics ────────────────────
+   The one deliberate exception to the icons-only face: a CEO's
+   description IS the rule (the render row only sketches it — `opgArrow`
+   + an asterisk), so the face prints it. Length TIERS (`proseTierFor`,
+   measured on the TRANSLATED string) step the type down so the longest
+   shipped rule (Caesar, ~210 RU chars) fits the fixed 460px face with
+   its mechanics rows above: NO scroll, NO clamp/ellipsis — a cut rule is
+   the forbidden outcome. The lateral insets go SYMMETRIC up to the VP
+   reserve (Duncan's «?» badge), so the centred text stays centred and
+   the badge can never overlap the last lines. */
+.pcard__prose {
+  margin-top: 5px;
+  padding: 5px 8px 2px;
+  padding-left: ~"max(8px, var(--pcard-vp-safe, 0px))";
+  padding-right: ~"max(8px, var(--pcard-vp-safe, 0px))";
+  border-top: 1px solid rgba(227, 207, 160, 0.16);
+  font-size: 13px;
+  line-height: 1.3;
+  text-align: center;
+  color: #d6dce4;
+  text-shadow: 0 1px 1px rgba(0, 0, 0, 0.7); /* desktop polish; reads without it */
+}
+.pcard__prose--t1 { font-size: 14px; }
+.pcard__prose--t2 { font-size: 13px; }
+.pcard__prose--t3 { font-size: 12px; }
+.pcard__prose--t4 { font-size: 11px; line-height: 1.26; }
 
 /* ── NO LOWER RULES BLOCK → the art runs to the bottom inner border ────
  * A card whose whole rule is the requirement bar + the VP badge prints

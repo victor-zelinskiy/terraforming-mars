@@ -1,8 +1,21 @@
 import {expect} from 'chai';
 import {mechItemIcon, tileIcon} from '@/client/components/premiumCard/premiumCardIcons';
-import {ICardRenderItem, ICardRenderTile} from '@/common/cards/render/Types';
+import {
+  ICardRenderItem,
+  ICardRenderTile,
+  ItemType,
+  isICardRenderCorpBoxAction,
+  isICardRenderCorpBoxEffect,
+  isICardRenderCorpBoxEffectAction,
+  isICardRenderEffect,
+  isICardRenderItem,
+  isICardRenderProductionBox,
+  isICardRenderRoot,
+} from '@/common/cards/render/Types';
 import {CardRenderItemType} from '@/common/cards/render/CardRenderItemType';
+import {CardType} from '@/common/cards/CardType';
 import {TileType} from '@/common/TileType';
+import {getCards} from '@/client/cards/ClientCardManifest';
 
 // A pure helper (no Vue deps) — runs under the server runner, like
 // victoryPointsModel.spec.ts.
@@ -57,6 +70,77 @@ describe('premiumCardIcons.mechItemIcon', () => {
     expect(mechItemIcon(itemNode(CardRenderItemType.DECK_LOOK))).to.deep.equal({kind: 'img', url: 'assets/misc/deck-look.svg'});
     expect(mechItemIcon(itemNode(CardRenderItemType.DISCARD))).to.deep.equal({kind: 'img', url: 'assets/misc/card-discard.svg'});
     expect(mechItemIcon(itemNode(CardRenderItemType.ACTION_REPLAY))).to.deep.equal({kind: 'img', url: 'assets/misc/action-replay.svg'});
+  });
+
+  it('CEO vocabulary resolves (wave 4): OPG marker, Reds, adjacency bonus, Moon tiles, planetary track', () => {
+    // The once-per-game arrow is a premium-native marker, never the legacy PNG.
+    expect(mechItemIcon(itemNode(CardRenderItemType.ARROW_OPG))).to.deep.equal({kind: 'opg'});
+    expect(mechItemIcon(itemNode(CardRenderItemType.REDS))).to.deep.equal({kind: 'img', url: 'assets/parties/reds.png'});
+    // Deactivated Reds (Zan's immunity): dim + strike via the 'off' mod —
+    // legacy grayscale was a `filter`, which console-native strips.
+    expect(mechItemIcon(itemNode(CardRenderItemType.REDS_DEACTIVATED))).to.deep.equal({kind: 'img', url: 'assets/parties/reds.png', mod: 'off'});
+    expect(mechItemIcon(itemNode(CardRenderItemType.ADJACENCY_BONUS))).to.deep.equal({kind: 'img', url: 'assets/tiles/adjacency_bonus.png'});
+    expect(mechItemIcon(itemNode(CardRenderItemType.MOON_HABITAT))).to.deep.equal({kind: 'img', url: 'assets/moon/habitattile.png'});
+    expect(mechItemIcon(itemNode(CardRenderItemType.MOON_MINE))).to.deep.equal({kind: 'img', url: 'assets/moon/minetile.png'});
+    expect(mechItemIcon(itemNode(CardRenderItemType.MOON_ROAD))).to.deep.equal({kind: 'img', url: 'assets/moon/roadtile.png'});
+    expect(mechItemIcon(itemNode(CardRenderItemType.PLANETARY_TRACK))).to.deep.equal({kind: 'img', url: 'assets/pathfinders/planetary-track.png'});
+  });
+});
+
+/*
+ * WORKLIST GUARD — the whole CEO corpus resolves every render item to a REAL
+ * icon spec. The labelled fallback chip is an honest degradation for the
+ * frontier, but for an IN-SCOPE type it is a defect: a face that ships a
+ * dashed chip says less than the legacy face it replaced. A new CEO (or an
+ * upstream render change) that introduces unmapped vocabulary fails here
+ * with the card + item type, never silently.
+ */
+describe('premiumCardIcons — CEO corpus sweep (no fallback chips)', () => {
+  /** Structural kinds the component renders itself — never sent to mechItemIcon. */
+  const STRUCTURAL = new Set<CardRenderItemType>([
+    CardRenderItemType.TEXT, CardRenderItemType.PLATE, CardRenderItemType.NBSP,
+  ]);
+
+  function collectItems(nodes: ReadonlyArray<ItemType>, out: Array<ICardRenderItem>): void {
+    for (const node of nodes) {
+      if (node === undefined || typeof node === 'string') {
+        continue;
+      }
+      if (isICardRenderItem(node)) {
+        out.push(node);
+      } else if (isICardRenderEffect(node) || isICardRenderProductionBox(node) ||
+                 isICardRenderCorpBoxEffect(node) || isICardRenderCorpBoxAction(node) ||
+                 isICardRenderCorpBoxEffectAction(node)) {
+        for (const row of node.rows) {
+          collectItems(row, out);
+        }
+      }
+    }
+  }
+
+  it('every render item of every CEO resolves to an icon spec', () => {
+    const ceos = getCards((c) => c.type === CardType.CEO);
+    expect(ceos.length).to.be.greaterThan(35);
+    const offenders: Array<string> = [];
+    for (const card of ceos) {
+      const root = card.metadata.renderData;
+      if (root === undefined || !isICardRenderRoot(root)) {
+        continue;
+      }
+      const items: Array<ICardRenderItem> = [];
+      for (const row of root.rows) {
+        collectItems(row, items);
+      }
+      for (const item of items) {
+        if (STRUCTURAL.has(item.type) || item.isPlate === true) {
+          continue;
+        }
+        if (mechItemIcon(item) === undefined) {
+          offenders.push(`${card.name}: ${item.type}`);
+        }
+      }
+    }
+    expect(offenders, `unmapped CEO icons (fallback chips would ship):\n${offenders.join('\n')}`).to.deep.eq([]);
   });
 });
 

@@ -35,7 +35,7 @@
 import {defineComponent} from 'vue';
 import {ItemType} from '@/common/cards/render/Types';
 import {nodeGraphicToken} from '@/common/cards/render/cardGraphicIds';
-import {MechanicsVM, playZoneStart} from './mechanicsModel';
+import {MechanicsVM} from './mechanicsModel';
 import {translateText} from '@/client/directives/i18n';
 import PremiumMechNode from './PremiumMechNode.vue';
 
@@ -58,10 +58,11 @@ export default defineComponent({
       return translateText('OR');
     },
     /** First group of the play zone; groups.length = no zone → no rail.
-     *  `buildMechanics` reorders every card (corporations included) so the
-     *  on-play run is always trailing — one code path for the rail. */
+     *  A LAYOUT-POLICY fact computed by `buildMechanics` (canonical faces
+     *  derive it from the trailing plain run; a printedLayout/CEO face has
+     *  no on-play zone by rule) — never re-derived at the render site. */
     playStart(): number {
-      return playZoneStart(this.mechanics.groups);
+      return this.mechanics.playStart;
     },
   },
   methods: {

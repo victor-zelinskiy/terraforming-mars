@@ -11,7 +11,7 @@ paths:
 
 # Premium card face rules
 
-Project / prelude / corporation cards render through `PremiumCard.vue` (`.pcard`, design space **320×460 @ zoom 1**). CEOs and standard projects stay on the legacy renderer until their own pass.
+Project / prelude / corporation / CEO cards render through `PremiumCard.vue` (`.pcard`, design space **320×460 @ zoom 1**). CEOs joined in desktop-removal wave 4: theme `ceo` (cool graphite + champagne), the procedural identity band (`.pcard-ceo-ident` — no L-card ships art, the band IS the intended face), the once-per-game marker (`{kind:'opg'}` → `.pcard-opg`), `printedLayout` mechanics (authored order, NO on-play rail) and the PROSE RULE zone (`vm.prose` → `.pcard__prose`, length tiers via `proseTierFor` — never clamped, never scrolled; falls back to the render data's dropped `plainText`). Standard projects stay on the legacy renderer until their own pass.
 
 - **The ONE scope gate is `premiumCardTheme.isPremiumFaceType`** — every routing point consults it; widening scope is a one-line change there.
 - **Routing:** hosts import `card/CardFace.vue` (a zero-visual-logic facade registered locally as `Card`) — never legacy `Card.vue` directly. The zoom modal routes inside `CardZoomCard.vue` via the GLOBALLY registered `premium-card-face` (a static import would close a type cycle and collapse `vue-tsc` to `{}`).

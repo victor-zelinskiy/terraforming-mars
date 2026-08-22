@@ -35,10 +35,12 @@
     exactly this DOM shape). When card ART lands, `cardArtUrl` stays the
     ONE shared source for proxy and full face alike.
   -->
-  <!-- PREMIUM face proxy (project + prelude) — the SAME renderer the landed
+  <!-- PREMIUM face proxy (project / prelude / corporation / CEO — CEOs
+       joined in desktop-removal wave 4) — the SAME renderer the landed
        card uses (name-only static mode, inert by construction), so the flying
-       proxy and the real card can never disagree. Out-of-scope types keep the
-       legacy lite face below. -->
+       proxy and the real card can never disagree. The remaining out-of-scope
+       types keep the legacy lite face below; wave-4 part 2 deletes that
+       branch once nothing routes there. -->
   <!-- `card` is OPTIONAL and, when a host has the live model, it is what makes
        the face's own bottom-left resource capsule state the TRUTH instead of a
        printed 0. Without it every console surface drew a permanent «0» on every

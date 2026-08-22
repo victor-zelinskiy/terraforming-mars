@@ -8,7 +8,7 @@
   <div class="pcpg">
     <header class="pcpg__head">
       <h1>PREMIUM CARDS — SHOWCASE</h1>
-      <span class="pcpg__hint">?premiumCardsPlayground · {{ scopeCards.length }} карт в скоупе (project + prelude + corporation)</span>
+      <span class="pcpg__hint">?premiumCardsPlayground · {{ scopeCards.length }} карт в скоупе (project + prelude + corporation + CEO)</span>
     </header>
 
     <!-- reference strip -->
@@ -56,6 +56,17 @@
       <h2>Корпорации (identity-зона = вордмарк, без арта)</h2>
       <div class="pcpg__row">
         <div v-for="c in corpCases" :key="c.label" class="pcpg__case">
+          <PremiumCard :card="c.model" />
+          <span class="pcpg__label">{{ c.label }}</span>
+        </div>
+      </div>
+    </section>
+
+    <!-- CEO (wave 4): executive theme + identity band + the prose rule zone -->
+    <section class="pcpg__section">
+      <h2>CEO (директора — прозовая зона правила, OPG-маркер)</h2>
+      <div class="pcpg__row">
+        <div v-for="c in ceoCases" :key="c.label" class="pcpg__case">
           <PremiumCard :card="c.model" />
           <span class="pcpg__label">{{ c.label }}</span>
         </div>
@@ -134,7 +145,7 @@ import {MechDensity} from './mechanicsModel';
 import PremiumCard from './PremiumCard.vue';
 import PremiumRequirementsBar from './PremiumRequirementsBar.vue';
 
-const SCOPE_MODULES: ReadonlyArray<GameModule> = ['base', 'corpera', 'promo', 'venus', 'colonies', 'prelude', 'ares'];
+const SCOPE_MODULES: ReadonlyArray<GameModule> = ['base', 'corpera', 'promo', 'venus', 'colonies', 'prelude', 'ares', 'ceo'];
 
 type CuratedCase = {label: string, model: CardModel};
 type ReqCase = {label: string, reqs: Array<NormalizedRequirement>};
@@ -191,6 +202,19 @@ export default defineComponent({
         {label: 'Столица (Ares-тайл)', model: this.modelOf(CardName.CAPITAL_ARES)},
         {label: 'Торг. район (Ares-тайл)', model: this.modelOf(CardName.COMMERCIAL_DISTRICT_ARES)},
         {label: 'Deimos Down (Ares-тайл)', model: this.modelOf(CardName.DEIMOS_DOWN_ARES)},
+      ];
+    },
+    /** CEO showcase (wave 4): the reference face, the longest rule prose
+     *  (tier ladder), a tagged CEO, the one VP CEO, the plainText-fallback
+     *  prose (Xavier), and the spent-OPG disabled state. */
+    ceoCases(): Array<CuratedCase> {
+      return [
+        {label: 'референс (Asimov)', model: this.modelOf(CardName.ASIMOV)},
+        {label: 'самое длинное правило (Caesar)', model: this.modelOf(CardName.CAESAR)},
+        {label: 'метка Венеры (Xu)', model: this.modelOf(CardName.XU)},
+        {label: 'VP «?» + проза (Duncan)', model: this.modelOf(CardName.DUNCAN)},
+        {label: 'проза из plainText (Xavier)', model: this.modelOf(CardName.XAVIER)},
+        {label: 'OPG потрачен (disabled)', model: this.modelOf(CardName.ASIMOV, {isDisabled: true})},
       ];
     },
     /** Corporation showcase: css / bespoke / image / text-fallback wordmarks,

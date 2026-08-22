@@ -7,10 +7,15 @@
     <span v-if="isPlateItem" class="pcard-plate">{{ itemText }}</span>
     <span v-else-if="isTextItem"
           class="pcard-mi__text"
-          :class="{'pcard-mi__text--uc': itemNode.isUppercase, 'pcard-mi__text--b': itemNode.isBold}">{{ itemText }}</span>
+          :class="[textSizeClass, {'pcard-mi__text--uc': itemNode.isUppercase, 'pcard-mi__text--b': itemNode.isBold}]">{{ itemText }}</span>
     <span v-else-if="isNbsp" class="pcard-mi__nbsp">&nbsp;</span>
     <!-- glyph icons (X multiplier, ? vp) -->
     <span v-else-if="glyph !== undefined" class="pcard-mi__digit">{{ glyph }}</span>
+    <!-- the CEO once-per-game action marker: «1×» capsule + action arrow -->
+    <span v-else-if="isOpgMarker" class="pcard-opg">
+      <span class="pcard-opg__badge">1×</span>
+      <span class="pcard-opg__arrow"></span>
+    </span>
     <!-- localized text plate (prelude / award / milestone / ignore global req) -->
     <span v-else-if="labelText !== undefined" class="pcard-plate" :class="labelAccentClass">{{ labelText }}</span>
     <!-- trade-discount light value token -->
@@ -26,6 +31,9 @@
         <span v-if="insideText !== undefined && i === 1" class="pcard-mi__inside">{{ insideText }}</span>
       </span>
       <span v-if="bubbleUrl !== undefined" class="pcard-mi__bubble" :style="{backgroundImage: `url(${bubbleUrl})`}"></span>
+      <!-- «card WITH a requirement» (AltSecondaryTag.REQ — Xavier): the
+           requirements plate in miniature, drawn, not an image -->
+      <span v-else-if="isReqBubble" class="pcard-mi__bubble pcard-mi__bubble--req"></span>
     </template>
     <!-- honest fallback chip for unmapped vocabulary -->
     <span v-else class="pcard-mi__chip">{{ fallbackLabel }}</span>
@@ -75,6 +83,7 @@ import {defineComponent} from 'vue';
 import {CardRenderItemType} from '@/common/cards/render/CardRenderItemType';
 import {CardRenderSymbolType} from '@/common/cards/render/CardRenderSymbolType';
 import {AltSecondaryTag} from '@/common/cards/render/AltSecondaryTag';
+import {Size} from '@/common/cards/render/Size';
 import {Tag} from '@/common/cards/Tag';
 import {
   ItemType,
@@ -191,6 +200,23 @@ export default defineComponent({
     isDiscountToken(): boolean {
       return this.mechIcon?.kind === 'token';
     },
+    /** The CEO once-per-game action marker (ARROW_OPG). */
+    isOpgMarker(): boolean {
+      return this.mechIcon?.kind === 'opg';
+    },
+    /**
+     * Sized text runs — the DSL's `.text('5', Size.LARGE)` (Tate / Faraday
+     * counters), `Size.SMALL` clarifiers and `Size.TINY` fine print keep
+     * their printed proportions instead of collapsing to one size.
+     */
+    textSizeClass(): string | undefined {
+      switch (this.itemNode?.size) {
+      case Size.LARGE: return 'pcard-mi__text--lg';
+      case Size.SMALL: return 'pcard-mi__text--sm';
+      case Size.TINY: return 'pcard-mi__text--xs';
+      default: return undefined;
+      }
+    },
     /** Premium player-cube colour for community / nomads markers. */
     cubeColor(): Color | undefined {
       return this.mechIcon?.kind === 'cube' ? this.mechIcon.color : undefined;
@@ -273,7 +299,15 @@ export default defineComponent({
       if (secondary === AltSecondaryTag.FLOATER) {
         return 'assets/resources/floater.png';
       }
+      if (secondary === AltSecondaryTag.DIVERSE) {
+        // «a card with a NEW tag» (Faraday) — the diverse-tag marker.
+        return 'assets/tags/diverse.png';
+      }
       return undefined;
+    },
+    /** «Card with a requirement» (Xavier) — a drawn copper bar, no asset. */
+    isReqBubble(): boolean {
+      return this.itemNode?.secondaryTag === AltSecondaryTag.REQ;
     },
     itemClasses(): Record<string, boolean> {
       const item = this.itemNode;
@@ -281,7 +315,7 @@ export default defineComponent({
         'pcard-mi--mc': this.insideText !== undefined,
         'pcard-mi--any': item?.anyPlayer === true,
         'pcard-mi--cancelled': item?.cancelled === true,
-        'pcard-mi--bubbled': this.bubbleUrl !== undefined,
+        'pcard-mi--bubbled': this.bubbleUrl !== undefined || this.isReqBubble,
         'pcard-mi--superscript': item?.isSuperscript === true,
       };
     },
