@@ -21,8 +21,39 @@ const fakeStorage = {
 } as unknown as Storage;
 
 describe('resolveUserKeyboardLayouts', () => {
+  // The environment is BUNDLE-SHARED (tests.md): every property this spec
+  // stubs on `window` / `navigator` must be restored EXACTLY, or later specs
+  // inherit a poisoned world. This bit for real: the un-restored fake left
+  // `window.localStorage` NON-THROWING (jsdom's real one throws on the opaque
+  // origin) while the settings modules kept writing to `globalThis` — and
+  // consoleGraphicsSettings' persistence asserts started running against the
+  // wrong storage, failing ONLY when the CI bundle order put this spec first.
+  // jsdom hosts `localStorage` as an OWN accessor on the window (capture →
+  // redefine), while `navigator.languages/.language` live on the prototype
+  // (the stubbed own property is simply deleted).
+  const originalStorageDesc = Object.getOwnPropertyDescriptor(window, 'localStorage');
+  const originalLanguagesDesc = Object.getOwnPropertyDescriptor(navigator, 'languages');
+  const originalLanguageDesc = Object.getOwnPropertyDescriptor(navigator, 'language');
+
   before(() => {
     Object.defineProperty(window, 'localStorage', {value: fakeStorage, configurable: true});
+  });
+  after(() => {
+    if (originalStorageDesc === undefined) {
+      delete (window as {localStorage?: unknown}).localStorage;
+    } else {
+      Object.defineProperty(window, 'localStorage', originalStorageDesc);
+    }
+    if (originalLanguagesDesc === undefined) {
+      delete (navigator as unknown as {languages?: unknown}).languages;
+    } else {
+      Object.defineProperty(navigator, 'languages', originalLanguagesDesc);
+    }
+    if (originalLanguageDesc === undefined) {
+      delete (navigator as unknown as {language?: unknown}).language;
+    } else {
+      Object.defineProperty(navigator, 'language', originalLanguageDesc);
+    }
   });
   beforeEach(() => {
     store.clear();
