@@ -5,7 +5,7 @@ import {CardName} from '@/common/cards/CardName';
  *
  * Maps a standard-project `CardName` to (a) a CSS class that paints the
  * project's "effect" pictogram (the `std-icon std-icon--*` family defined
- * in player_home.less) and (b) an i18n key for a one-line description.
+ * in app_chrome.less) and (b) an i18n key for a one-line description.
  *
  * Extracted out of `StandardProjectsOverlay.vue` so the journal's compact
  * standard-project preview (`StandardProjectPreviewPopover.vue`) can reuse

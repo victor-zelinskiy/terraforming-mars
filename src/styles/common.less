@@ -374,9 +374,10 @@ each(@players, {
     color: #bb0000;
 }
 
-@import "./cards.less";
+// The live remainder of the legacy card model (cards.less) — the shared
+// render-DSL tree + icon language; see the header of card_render_dsl.less.
+@import "./card_render_dsl.less";
 @import "./cards_v2.less";
-@import "./cards_scifi.less";
 @import "./premium_card.less";
 @import "./premium_tags.less";
 @import "./language_hacks.less";
@@ -394,7 +395,9 @@ each(@players, {
 @import "./resources.less";
 @import "./wgt_icons.less";
 @import "./start_screen.less";
-@import "./player_home.less";
+// The surviving live styles of the deleted desktop game screen (player_home.less
+// was cut by selectors in the LESS-debt pass; see the header of app_chrome.less).
+@import "./app_chrome.less";
 @import "./card_action_buttons.less";
 // The map fingerprint (console create screens' board preview) — extracted
 // from the deleted create_game_premium.less in desktop-removal wave 3.

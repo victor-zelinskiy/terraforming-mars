@@ -1175,11 +1175,6 @@
     50% { opacity: 1; }
 }
 
-/* Yield to the journal when it is open (mirrors the other view overlays). */
-#player-home.journal-open .hydronetwork-overlay {
-    right: calc(var(--right-sidebar-width) + var(--journal-overlay-clearance));
-}
-
 @media (prefers-reduced-motion: reduce) {
     .hydronetwork-overlay { animation: none; }
     .hydro-stage, .hydro-action__step, .hydro-action__choice, .hydro-action__cta { transition: none; }
