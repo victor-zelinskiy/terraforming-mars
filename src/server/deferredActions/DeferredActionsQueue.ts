@@ -111,7 +111,20 @@ export class DeferredActionsQueue {
       }
       return false;
     });
-    if (!waiting) {
+    if (waiting) {
+      // The queue just PAUSED on this action's own player without reaching
+      // `Player.takeAction` — the only other input-path site that emits the
+      // realtime invalidation. When that player is NOT the one whose HTTP
+      // request is being processed (an opponent's colony-bonus discard, a
+      // forced reaction), nothing else tells their client to look: they sat
+      // out the healthy-socket long poll (~20 s) while the server already
+      // held a prompt for them. Announce the pause so every subscriber
+      // re-checks `/api/waitingfor` now — the prompted player answers 'GO',
+      // observers see the fresh gameAge as 'REFRESH'. An extra invalidation
+      // for the submitter's own follow-up prompt is harmless (the client
+      // coalesces and its own response already carries the prompt).
+      action.player.game?.notifyStateChange();
+    } else {
       cb();
     }
   }

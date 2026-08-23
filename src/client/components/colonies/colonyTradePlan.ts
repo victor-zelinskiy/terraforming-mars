@@ -332,6 +332,31 @@ export function colonyOwnerBonusDrawsCards(metadata: ColonyMetadata): boolean {
   return CARD_BENEFITS.has(metadata.colony.type);
 }
 
+/** The benefits whose reward lands ON a card the player points at. */
+const CARD_TARGET_BENEFITS: ReadonlySet<ColonyBenefit> = new Set([
+  ColonyBenefit.ADD_RESOURCES_TO_CARD,
+  ColonyBenefit.ADD_RESOURCES_TO_VENUS_CARD,
+]);
+
+/**
+ * TRUE when trading here can raise a CARD-TARGET pick for the viewer — the
+ * trade income lands on a card (Titan's floaters, Enceladus' microbes), or
+ * the viewer's own settlement's bonus does. The composer pre-collects those
+ * picks into the batch, so normally no prompt ever surfaces; what this feeds
+ * is the workspace's `pick` CLAIM — the defense for the one that still does
+ * (a capture pruned mid-flight, an older server): it must land inside the
+ * colony workspace, never rise as a standalone band over it.
+ */
+export function colonyTradeAsksCardTargets(metadata: ColonyMetadata, viewerOwnsSettlement: boolean): boolean {
+  return CARD_TARGET_BENEFITS.has(metadata.trade.type) ||
+    (viewerOwnsSettlement && CARD_TARGET_BENEFITS.has(metadata.colony.type));
+}
+
+/** TRUE when BUILDING into this slot lands its bonus on a card the player points at. */
+export function colonyBuildAsksCardTarget(metadata: ColonyMetadata, slotIndex: number): boolean {
+  return CARD_TARGET_BENEFITS.has(metadata.build.type) && (metadata.build.quantity[slotIndex] ?? 0) > 0;
+}
+
 /** Free trade fleets = the player's fleet size minus the fleets already out. */
 export function freeTradeFleets(player: {fleetSize: number, tradesThisGeneration: number}): number {
   return Math.max(0, player.fleetSize - player.tradesThisGeneration);

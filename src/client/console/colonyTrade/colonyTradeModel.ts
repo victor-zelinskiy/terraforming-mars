@@ -139,8 +139,16 @@ export type TradeCoverPlanEntry = {
 /** Per-cover stagger within one wave (income / bonus) — «по одной»: each
  *  card visibly separates from the SAME track cell before the next leaves. */
 export const TRADE_COVER_STAGGER_MS = 170;
-/** The readable pause between the income wave and the bonus wave. */
-export const TRADE_WAVE_GAP_MS = 420;
+/**
+ * The wave boundary's extra breath ON TOP of the deal cadence. The whole
+ * payout is ONE CONTINUOUS DEAL — the bonus cover is its LAST card, departing
+ * one stagger-plus-breath after the final income cover, its fan peeling out
+ * beside the «БОНУС» cell while the income covers are still in the air. The
+ * old shape (a full gap + the next wave's whole fan lead of dead air — ~940 ms
+ * of nothing between the waves) read as two unrelated animations, and the
+ * second one launched out of a stage that had already dissolved.
+ */
+export const TRADE_WAVE_GAP_MS = 170;
 /**
  * THE FAN PRESENTATION — the launch's own first beat. The covers of one wave
  * are born STACKED on the printed card back (the cell shows ONE back — that
@@ -211,7 +219,12 @@ export function tradeCoverPlan(cardCount: number, segments: ReadonlyArray<Colony
       });
     }
     if (flown > 0) {
-      waveStartMs += TRADE_FAN_LEAD_MS + (flown - 1) * TRADE_COVER_STAGGER_MS + TRADE_WAVE_GAP_MS;
+      // ONE deal cadence across the waves: the next wave's first DEPARTURE
+      // lands exactly one stagger + the wave breath after this wave's last —
+      // its fan therefore starts while this wave's covers are still flying
+      // (departure = waveStart + FAN_LEAD, so the lead cancels out of the
+      // increment). The bonus card is the deal's last card, not a second act.
+      waveStartMs += flown * TRADE_COVER_STAGGER_MS + TRADE_WAVE_GAP_MS;
     }
   }
   return out;

@@ -1277,6 +1277,24 @@ export default defineComponent({
       if (!this.embedded || this.mode !== 'drawn') {
         return;
       }
+      // A LANDING TARGET MUST NOT MOVE UNDER A FLYING COVER. The trade-cover
+      // scene measured this strip's slots at launch; re-solving the fit while
+      // its covers are airborne (the probe write forces zoom 1 for a frame,
+      // then a fresh solve) slides the row under the flight and a cover comes
+      // down beside its slot. Defer to a short retry — bounded by the scene's
+      // own lifecycle nets — and run the real fit when the cards are handed
+      // over. The mount-time fit is untouched (the scene only launches after
+      // it, off the very slots it solved).
+      if (colonyTradeState.cardScene === 'fly' || colonyTradeState.cardScene === 'ascend' ||
+          colonyTradeState.cardScene === 'frame') {
+        if (this.settleFitTimer === undefined) {
+          this.settleFitTimer = window.setTimeout(() => {
+            this.settleFitTimer = undefined;
+            this.fitEmbeddedStrip();
+          }, motionMs(180));
+        }
+        return;
+      }
       const root = this.$refs.rootEl as HTMLElement | undefined;
       const strip = root?.querySelector<HTMLElement>('.con-reveal__strip');
       const probe = strip?.querySelector<HTMLElement>('.con-cards__slot');

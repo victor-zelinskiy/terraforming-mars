@@ -191,6 +191,58 @@ describe('consoleColonyTrade', () => {
     expect(colonyTradeState.phase).eq('glide');
   });
 
+  it('a view proving the queue is PARKED on another player concludes on the bounded net', async () => {
+    armColonyTrade(ColonyName.TRITON, 'red');
+    detectColonyTrade(view(manifest()));
+    await runColonyTradeRewards();
+    await nextTick();
+    expect(colonyTradeState.phase).eq('awaiting');
+    // The fetched view proves it: the viewer owes nothing, an opponent holds
+    // the game's pending input, and the reset is still uncommitted.
+    const parked = {
+      colonyTradeManifest: manifest(),
+      thisPlayer: {color: 'red'},
+      waitingFor: undefined,
+      players: [
+        {color: 'red', isWaitingForInput: false},
+        {color: 'blue', isWaitingForInput: true},
+      ],
+    } as unknown as PlayerViewModel;
+    noticeColonyTradeCommit(parked);
+    expect(isColonyTradeActive()).is.true; // bounded, never instant
+    await new Promise((resolve) => setTimeout(resolve, 2_800));
+    // Released to the board — the waiting player's chip tells the story.
+    expect(isColonyTradeActive()).is.false;
+  }).timeout(6_000);
+
+  it('the parked net DISARMS when a later view stops proving it', async () => {
+    armColonyTrade(ColonyName.TRITON, 'red');
+    detectColonyTrade(view(manifest()));
+    await runColonyTradeRewards();
+    await nextTick();
+    const parked = {
+      colonyTradeManifest: manifest(),
+      thisPlayer: {color: 'red'},
+      waitingFor: undefined,
+      players: [{color: 'blue', isWaitingForInput: true}],
+    } as unknown as PlayerViewModel;
+    noticeColonyTradeCommit(parked);
+    // The next view no longer proves the park (nobody else is waited on) —
+    // the transaction goes back to its ordinary reset wait.
+    const idle = {
+      colonyTradeManifest: manifest(),
+      thisPlayer: {color: 'red'},
+      waitingFor: undefined,
+      players: [{color: 'blue', isWaitingForInput: false}],
+    } as unknown as PlayerViewModel;
+    noticeColonyTradeCommit(idle);
+    await new Promise((resolve) => setTimeout(resolve, 2_800));
+    expect(isColonyTradeActive()).is.true;
+    // …and the reset commit still concludes it the honest way.
+    notifyColonyTradeTrackCommitted(ColonyName.TRITON, 1);
+    expect(colonyTradeState.phase).eq('glide');
+  }).timeout(6_000);
+
   it('a non-moving reset concludes with the confirm pulse, never an invented glide', async () => {
     armColonyTrade(ColonyName.TRITON, 'red');
     detectColonyTrade(view(manifest({preTradeTrackPosition: 1, postTradeTrackPosition: 1})));

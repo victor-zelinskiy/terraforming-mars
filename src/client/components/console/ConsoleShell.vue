@@ -1513,7 +1513,7 @@ import {isResourceTransferActive} from '@/client/console/resourceTransfer/consol
 import {panelCommands} from '@/client/console/consolePanelUi';
 import {consoleActionComposerUi, resetConsoleActionComposerUi, resetConsoleActionRevealClaim} from '@/client/console/consoleActionComposerUi';
 import {focusKicker} from '@/client/console/consoleActionFlow';
-import {buildTradeBatch, colonyBuildDrawsCards, colonyOwnerBonusDrawsCards, colonyTradeMayDrawCards, freeTradeFleets, stepResponse, TradeStep} from '@/client/components/colonies/colonyTradePlan';
+import {buildTradeBatch, colonyBuildAsksCardTarget, colonyBuildDrawsCards, colonyOwnerBonusDrawsCards, colonyTradeAsksCardTargets, colonyTradeMayDrawCards, freeTradeFleets, stepResponse, TradeStep} from '@/client/components/colonies/colonyTradePlan';
 import {getColony} from '@/client/colonies/ClientColonyManifest';
 import {colonyTradeReason} from '@/client/console/colonyTradeReason';
 import {buildPlayCardBatch} from '@/client/console/consolePlayCardComposer';
@@ -6845,7 +6845,11 @@ export default defineComponent({
         return;
       }
       if (workspaceOutcomeState.host !== 'colonies' && colonyTradeState.colonyName !== '') {
-        claimWorkspaceOutcome('colonies', colonyTradeState.colonyName, ['draw']);
+        // A payout is incoming, so `draw` is claimed even when the structural
+        // lookup cannot see the colony any more; `pick` rides along when the
+        // colony's rewards can land on a card (the late-prompt defense).
+        const kinds = this.colonyTradeClaimKinds(colonyTradeState.colonyName);
+        claimWorkspaceOutcome('colonies', colonyTradeState.colonyName, kinds.length > 0 ? kinds : ['draw']);
         markWorkspaceOutcomeArrivalDone();
       }
       this.bringColoniesHome();
@@ -11356,6 +11360,31 @@ export default defineComponent({
         this.thisPlayer !== undefined && model.colonies.includes(this.thisPlayer.color);
       return ownerDraw || colonyTradeMayDrawCards(metadata, Math.min(model.trackPosition, top));
     },
+    /**
+     * The STRUCTURAL claim kinds of a trade on this colony: `draw` when its
+     * payout deals cards the workspace will present, `pick` when a reward can
+     * land ON a card the viewer points at (Titan's floaters, Enceladus'
+     * microbes — income or the viewer's own settlement bonus). The composer
+     * pre-collects every pick into the batch, so `pick` normally never
+     * surfaces — the claim is the DEFENSE for the prompt that still does (a
+     * capture pruned mid-flight): it teleports into the colony stage's own
+     * zone instead of rising as a standalone band over the workspace that
+     * asked the question.
+     */
+    colonyTradeClaimKinds(colonyName: string): Array<'draw' | 'pick'> {
+      const kinds: Array<'draw' | 'pick'> = [];
+      if (this.colonyTradeDealsCards(colonyName)) {
+        kinds.push('draw');
+      }
+      const model = this.coloniesForRail.find((c) => c.name === colonyName);
+      if (model !== undefined) {
+        const ownsSettlement = this.thisPlayer !== undefined && model.colonies.includes(this.thisPlayer.color);
+        if (colonyTradeAsksCardTargets(getColony(colonyName as ColonyName), ownsSettlement)) {
+          kinds.push('pick');
+        }
+      }
+      return kinds;
+    },
     enterColonyFocus(intent: ColonyFocusIntent): void {
       if (this.coloniesForRail.length === 0 || this.colonyFocus.open) {
         return;
@@ -11443,19 +11472,32 @@ export default defineComponent({
       // STRUCTURAL — derived from the colony's own build benefit, so a colony
       // that grants no cards claims nothing and `reconcileWorkspaceOutcome`
       // has nothing to drop.
-      if (colonyBuildDrawsCards(getColony(selected.name as ColonyName), slotIndex)) {
-        claimWorkspaceOutcome('colonies', selected.name, ['draw']);
-        markWorkspaceOutcomeArrivalDone();
-        // …and the BEAT is not owed either — exactly as on the trade paths.
-        // THE COVER-LIFT SCENE OWNS THIS PAYOUT'S PACING: the build bonus
-        // separates from the slot's own printed card glyph and flies into the
-        // reveal's real slots, which it can only measure once that reveal is
-        // MOUNTED. Leaving the beat pending held the surface for the whole
-        // 2.6 s backstop, so the scene found no slots, degraded, and the cards
-        // then appeared out of nothing when the backstop fired — the reported
-        // «при строительстве карты просто появляются». The hold exists to
-        // protect a beat nobody else is playing; here somebody is.
-        markWorkspaceOutcomeBeatDone();
+      {
+        const buildKinds: Array<'draw' | 'pick'> = [];
+        if (colonyBuildDrawsCards(getColony(selected.name as ColonyName), slotIndex)) {
+          buildKinds.push('draw');
+        }
+        // `pick` — the same late-prompt defense the trade paths carry: a
+        // build whose slot bonus lands ON a card (Titan's floaters) keeps
+        // any unbatched target prompt inside this workspace.
+        if (colonyBuildAsksCardTarget(getColony(selected.name as ColonyName), slotIndex)) {
+          buildKinds.push('pick');
+        }
+        if (buildKinds.length > 0) {
+          claimWorkspaceOutcome('colonies', selected.name, buildKinds);
+          markWorkspaceOutcomeArrivalDone();
+          // …and the BEAT is not owed either — exactly as on the trade paths.
+          // THE COVER-LIFT SCENE OWNS THIS PAYOUT'S PACING: the build bonus
+          // separates from the slot's own printed card glyph and flies into
+          // the reveal's real slots, which it can only measure once that
+          // reveal is MOUNTED. Leaving the beat pending held the surface for
+          // the whole 2.6 s backstop, so the scene found no slots, degraded,
+          // and the cards then appeared out of nothing when the backstop
+          // fired — the reported «при строительстве карты просто появляются».
+          // The hold exists to protect a beat nobody else is playing; here
+          // somebody is.
+          markWorkspaceOutcomeBeatDone();
+        }
       }
       // The BUILD's own pre-collected tail — byte-identical to answering the
       // live prompts one at a time (`stepResponse`, the trade's own builder),
@@ -11507,14 +11549,19 @@ export default defineComponent({
         armColonyTrade(selected.name as ColonyName, this.thisPlayer.color, {}, selected.trackPosition);
         armTradeFleet(selected.name as ColonyName, this.thisPlayer.color);
         // STRUCTURAL, like the build path beside it: a colony that pays in
-        // production or plants has no follow-up stage to stand.
-        if (this.colonyTradeDealsCards(selected.name)) {
-          claimWorkspaceOutcome('colonies', selected.name, ['draw']);
-          markWorkspaceOutcomeArrivalDone();
-          // The TRADE owns this batch's whole pacing (veil + cover flight):
-          // the generic execution-beat gate must not hold the veiled reveal
-          // off screen while the covers need its slots measured.
-          markWorkspaceOutcomeBeatDone();
+        // production or plants has no follow-up stage to stand. `pick` rides
+        // along when a reward can land ON a card — the defense that keeps a
+        // late card-target prompt inside this workspace.
+        {
+          const kinds = this.colonyTradeClaimKinds(selected.name);
+          if (kinds.length > 0) {
+            claimWorkspaceOutcome('colonies', selected.name, kinds);
+            markWorkspaceOutcomeArrivalDone();
+            // The TRADE owns this batch's whole pacing (veil + cover flight):
+            // the generic execution-beat gate must not hold the veiled reveal
+            // off screen while the covers need its slots measured.
+            markWorkspaceOutcomeBeatDone();
+          }
         }
         this.submit(colonyResponse(selected.name));
         return;
@@ -11669,20 +11716,23 @@ export default defineComponent({
       // (nothing may slip to a standalone band for a frame); `sourceCard`
       // carries the COLONY name (the claim key `workspaceClaimsColonyReveal`
       // matches the server's own `{type:'colony', colonyName}` batch source).
-      // The claim is STRUCTURAL (`colonyTradeDealsCards`) — a colony with no
-      // card payout claims nothing, so it stands no follow-up stage; a trade
-      // that could have dealt cards but didn't is released by
-      // `reconcileWorkspaceOutcome` a tick after the answer. The arrival gate
-      // is opened up front: the trade transaction OWNS the pacing (veil +
-      // cover flight + input lock), so the generic batch-arrival gate must
+      // The claim is STRUCTURAL (`colonyTradeClaimKinds`) — a colony with no
+      // card payout and no card-target reward claims nothing, so it stands no
+      // follow-up stage; a trade that could have dealt but didn't is released
+      // by `reconcileWorkspaceOutcome` a tick after the answer. The arrival
+      // gate is opened up front: the trade transaction OWNS the pacing (veil
+      // + cover flight + input lock), so the generic batch-arrival gate must
       // not double-hold the pad.
-      if (this.colonyTradeDealsCards(colonyName)) {
-        claimWorkspaceOutcome('colonies', colonyName, ['draw']);
-        markWorkspaceOutcomeArrivalDone();
-        // Same as the overview-confirm path: the trade transaction owns the
-        // pacing — the veiled reveal must mount promptly so the covers can
-        // measure its landing slots.
-        markWorkspaceOutcomeBeatDone();
+      {
+        const kinds = this.colonyTradeClaimKinds(colonyName);
+        if (kinds.length > 0) {
+          claimWorkspaceOutcome('colonies', colonyName, kinds);
+          markWorkspaceOutcomeArrivalDone();
+          // Same as the overview-confirm path: the trade transaction owns the
+          // pacing — the veiled reveal must mount promptly so the covers can
+          // measure its landing slots.
+          markWorkspaceOutcomeBeatDone();
+        }
       }
       this.submitBatch(batch);
     },

@@ -548,6 +548,7 @@ One helper — `GameLoader.notifyGameStateChanged(game)` (reads `gameAge`/`undoC
 2. **`restoreGameAt()`** after `undoCount++` — **undo**.
 3. **`Player.takeAction()` else-branch** via `game.notifyStateChange()` — a fully-resolved action that advanced `gameAge` but is **not** persisted (an intermediate action with undo disabled). Mutually exclusive with (1): the save branch broadcasts through `saveGame`, the no-save branch through `notifyStateChange` → exactly one broadcast per action.
 4. **`completeGame()`** after the direct end-save — game-end belt-and-braces (see L.3).
+5. **The deferred-queue PAUSE** (2026-08-23) — `DeferredActionsQueue.run` after `setWaitingFor`, and `GiveColonyBonus`'s inline-prompt branch. A prompt raised MID-DRAIN never reaches `takeAction` (the drain is parked until it is answered), so hooks (1)/(3) do not fire — and when the prompted player is NOT the submitter (an opponent's colony-bonus discard / card-target pick, a forced reaction), **nothing** used to tell their client: they waited out the healthy-socket ~20 s fallback poll while the server already held a prompt for them. The pause hook makes every drain-park observable: the prompted player's wake answers `GO` (`playerHasRequiredInput` — gameAge-independent), observers answer `REFRESH` off the gameAge the action's own logging already advanced. An extra invalidation for the submitter's own follow-up prompt is harmless (client-side coalescing; their POST response carries the prompt anyway). Guard: `tests/realtime/QueuePauseBroadcast.spec.ts`.
 
 ### L.2 Client refresh wiring (the Phase-6 path, in detail)
 
@@ -582,6 +583,7 @@ Every way authoritative game state changes, and how each is synced without polli
 | Production / generation roll-over (income, energy→heat conversion) | phase-transition saves | L.1(1) | wake → refresh (conversion animation via `holdingForConversion`) | **No** |
 | World Government Terraforming / global-parameter change | action / save | L.1(1)/(3) | wake → refresh | **No** |
 | Colony trade / build | it IS an action | L.1(1)/(3) | wake → refresh | **No** |
+| **Deferred prompt for ANOTHER player** (opponent's colony-bonus discard / card target, off-turn forced reaction) | gameAge already advanced by the action's logs; **queue parked before `takeAction`** | **L.1(5)** | prompted player wakes → `GO` → prompt; observers → `REFRESH` → chips | **No** (was the ~20 s gap; now covered) |
 | **Game end** (Mars terraformed / last solo generation) | final action + END phase transitions save + `completeGame` | L.1(1)/(3)/(4) | wake → refresh into END → endgame overlay + rematch mount | **No** |
 | Rematch offer/accept/decline/cancel (post-END) | NOT game state | `ApiGameRematch` room invalidation | RematchLayer wakes → refetch | **No** |
 | **Reconnect / resume** (network loss, dyno restart, tab sleep) | possibly advanced while away | `RESUME_GAME` → server compares cursor → `GAME_STATE_INVALIDATED` if changed | wake → single full refresh; `/api/waitingfor` de-dups if already current | **No** (WS recovers; polling is the ultimate fallback) |

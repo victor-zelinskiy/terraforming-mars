@@ -83,6 +83,10 @@ export class GiveColonyBonus extends DeferredAction {
       const input = this.colony.giveColonyBonus(player, true, ordinal, this.player);
       if (input !== undefined) {
         player.setWaitingFor(input, () => this.giveColonyBonus(player));
+        // The drain is pausing on this recipient's prompt — the same realtime
+        // blind spot as DeferredActionsQueue.run: without an invalidation an
+        // off-turn recipient learns about the prompt only on the long poll.
+        player.game.notifyStateChange();
       } else {
         this.giveColonyBonus(player);
       }

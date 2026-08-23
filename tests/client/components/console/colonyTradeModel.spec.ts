@@ -90,9 +90,13 @@ describe('colonyTradeModel', () => {
     // …and the departures fire only past the fan lead.
     expect(plan[0].delayMs).eq(TRADE_FAN_LEAD_MS);
     expect(plan[1].delayMs).eq(TRADE_FAN_LEAD_MS + TRADE_COVER_STAGGER_MS);
-    const bonusStart = TRADE_FAN_LEAD_MS + TRADE_COVER_STAGGER_MS + TRADE_WAVE_GAP_MS;
+    // ONE CONTINUOUS DEAL: the bonus wave's first departure continues the
+    // cadence — one stagger + the wave breath after the last income departure
+    // (its fan overlaps the income flight; the lead cancels out).
+    const bonusStart = 2 * TRADE_COVER_STAGGER_MS + TRADE_WAVE_GAP_MS;
     expect(plan[2].fanDelayMs).eq(bonusStart);
     expect(plan[2].delayMs).eq(bonusStart + TRADE_FAN_LEAD_MS);
+    expect(plan[2].delayMs - plan[1].delayMs).eq(TRADE_COVER_STAGGER_MS + TRADE_WAVE_GAP_MS);
     expect(plan[3].delayMs).eq(bonusStart + TRADE_FAN_LEAD_MS + TRADE_COVER_STAGGER_MS);
     // Every departure happens after its own fan settled.
     for (const p of plan) {

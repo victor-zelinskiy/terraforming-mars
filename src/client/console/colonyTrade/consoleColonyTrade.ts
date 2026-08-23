@@ -211,6 +211,7 @@ let armSafetyId = 0;
 let ceilingId = 0;
 let settleTimerId = 0;
 let revealWaitId = 0;
+let parkedNetId = 0;
 let glideResolver: (() => void) | undefined;
 
 /**
@@ -221,6 +222,22 @@ let glideResolver: (() => void) | undefined;
  * marker never sits frozen on a track whose payout is over.
  */
 const REVEAL_WAIT_MS = 4_000;
+
+/**
+ * THE QUEUE IS PARKED ON SOMEBODY ELSE — the degrade net of a reset that
+ * cannot arrive by anything the viewer does. The server sequences every
+ * foreign colony bonus BEHIND the trade's own finalizer (detached delivery),
+ * so the committed reset normally rides the trader's own response chain; but
+ * a view can still prove the opposite shape (an off-turn forced reaction
+ * wedged mid-trade, an older server). The proof is entirely in the fetched
+ * view: the viewer owes nothing, another player holds the game's pending
+ * input, every other conclusion gate is open, and the reset is still
+ * uncommitted. Standing on that state is a frozen screen — the old blind
+ * 60 s ceiling was exactly this hang — so the transaction concludes to
+ * committed truth on a short, NAMED net instead, and the workspace releases
+ * the player to the board where the waiting player's chip tells the story.
+ */
+const TRADE_PARKED_NET_MS = 2_500;
 
 const DEV = typeof process !== 'undefined' && process.env?.NODE_ENV !== 'production';
 
@@ -834,6 +851,49 @@ export function noticeColonyTradeCommit(view: PlayerViewModel): void {
       manifest?.tradeId === ctx.manifest.tradeId) {
     void runColonyTradeRewards();
   }
+  syncParkedEvidence(view);
+}
+
+/**
+ * Track the «parked on somebody else» proof across committed views (see
+ * `TRADE_PARKED_NET_MS`). One writer: evidence arms the bounded net once,
+ * losing it disarms — and the FIRE re-verifies everything live, so a reset
+ * that commits (or a prompt that arrives) between views wins the race.
+ */
+function syncParkedEvidence(view: PlayerViewModel): void {
+  const viewerColor = view.thisPlayer?.color;
+  const parked = viewerColor !== undefined && view.waitingFor === undefined &&
+    (view.players ?? []).some((p) => p.color !== viewerColor && p.isWaitingForInput);
+  if (parked && resetStillOwed() && parkedNetId === 0) {
+    tradeLog('view proves the queue is parked on another player — arming the bounded conclusion net');
+    parkedNetId = setTimeout(() => {
+      parkedNetId = 0;
+      if (!colonyTradeState.active || ctx.glideStarted || !resetStillOwed()) {
+        return;
+      }
+      if (colonyTradeState.phase !== 'awaiting' || colonyTradeState.cardScene !== 'idle' ||
+          !ctx.chipsDone || tradeCardsOutstanding() || ctx.stageYielded) {
+        return; // some beat of the viewer's own is still playing — the ceiling still guards
+      }
+      tradeLog('queue parked on another player — concluding to committed truth');
+      concludeToCommitted();
+    }, TRADE_PARKED_NET_MS) as unknown as number;
+  } else if (!parked && parkedNetId !== 0) {
+    clearParkedNet();
+  }
+}
+
+/** The one gate the parked net exists for: the reset is owed and uncommitted. */
+function resetStillOwed(): boolean {
+  const moves = colonyTradeState.postTrackPosition < colonyTradeState.preTrackPosition;
+  return moves && !(ctx.committedTrack !== undefined && ctx.committedTrack <= colonyTradeState.postTrackPosition);
+}
+
+function clearParkedNet(): void {
+  if (parkedNetId !== 0) {
+    clearTimeout(parkedNetId);
+    parkedNetId = 0;
+  }
 }
 
 /**
@@ -972,6 +1032,7 @@ function finishTrade(): void {
   clearCeiling();
   clearArmSafety();
   clearRevealWait();
+  clearParkedNet();
   colonyTradeState.active = false;
   colonyTradeState.phase = 'idle';
   colonyTradeState.cardScene = 'idle';
@@ -1001,6 +1062,7 @@ export function abortColonyTrade(): void {
   clearArmSafety();
   clearCeiling();
   clearRevealWait();
+  clearParkedNet();
   if (settleTimerId !== 0) {
     clearTimeout(settleTimerId);
     settleTimerId = 0;

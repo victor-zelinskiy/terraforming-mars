@@ -272,9 +272,13 @@ export abstract class Colony implements IColony {
     // The trade FINALIZER: reset the track (Colonies rules — the marker
     // returns to the number of built colonies) and close the trade-stamping
     // window. Runs at DECREASE_COLONY_TRACK_AFTER_TRADE, i.e. AFTER the trade
-    // income and every colony bonus (including their interactive follow-ups)
-    // resolved — the server itself guarantees rewards are granted at the
-    // pre-reset position and the reset lands last.
+    // income and the TRADER's own colony bonuses (including their interactive
+    // follow-ups) — the server itself guarantees rewards are granted at the
+    // pre-reset position and the reset ends the trader's own chain. Bonuses
+    // owed to OTHER players are DETACHED DELIVERIES at BACK_OF_THE_LINE
+    // (`isDetachedBonusDelivery`) and resolve after this finalizer: the
+    // trader's client observes the committed reset — its transaction's end —
+    // without waiting on anybody else's click.
     if (willDecrease || givesBonuses) {
       player.defer(() => {
         if (willDecrease) {
@@ -326,6 +330,25 @@ export abstract class Colony implements IColony {
    */
   public giveColonyBonus(player: IPlayer, isGiveColonyBonus: boolean = false, ordinal?: ColonyBonusOrdinal, trader?: IPlayer): undefined | PlayerInput {
     return this.giveBonus(player, this.metadata.colony.type, this.metadata.colony.quantity, this.metadata.colony.resource, isGiveColonyBonus, 'colonyBonus', ordinal, trader);
+  }
+
+  /**
+   * THE TRADER NEVER WAITS FOR SOMEBODY ELSE'S CLICK. A colony bonus paid to
+   * a player OTHER than the trader is a DETACHED DELIVERY: resolved inside
+   * `GiveColonyBonus`'s drain it would hold the whole deferred queue — the
+   * trader's own remaining prompts, their trade income and the track reset
+   * (`Priority.DECREASE_COLONY_TRACK_AFTER_TRADE`) would all freeze behind an
+   * opponent's answer, and the trader's client would stand in a finished
+   * interface waiting for someone else. The two are independent by the rules
+   * (tabletop resolves these simultaneously, active player first), so the
+   * recipient's bonus is queued at `Priority.BACK_OF_THE_LINE` — after the
+   * trade's own finalizer. The trader's own cube resolves inline in the
+   * trade's chain (they are already watching the payout), a bot never prompts
+   * (handled before this is asked), and the self-directed grants
+   * (ProductiveOutpost / selfish trades) have no foreign trader.
+   */
+  private isDetachedBonusDelivery(player: IPlayer, isGiveColonyBonus: boolean, trader: IPlayer | undefined): trader is IPlayer {
+    return isGiveColonyBonus && trader !== undefined && trader.id !== player.id && !player.isMarsBot;
   }
 
   /**
@@ -412,17 +435,11 @@ export abstract class Colony implements IColony {
        * (ProductiveOutpost / Yvonne — no trader, `isGiveColonyBonus` false).
        */
       const seat = ordinal ?? {index: 1, total: 1};
-      if (isGiveColonyBonus && trader !== undefined && trader.id !== player.id && !player.isMarsBot) {
+      if (this.isDetachedBonusDelivery(player, isGiveColonyBonus, trader)) {
         /*
-         * ⚠️ THE TRADER NEVER WAITS FOR SOMEBODY ELSE'S CLICK. Returning the
-         * prompt from here would hand it straight to `GiveColonyBonus`, which
-         * holds the whole deferred queue until every recipient has answered —
-         * so the trader's OWN trade income (Miranda's animals resolve at
-         * GAIN_RESOURCE_OR_PRODUCTION, i.e. after this) and their track reset
-         * would sit frozen behind an opponent. The two are independent by the
-         * rules, so the delivery is queued at the BACK OF THE LINE for its
-         * OWN recipient: the trade finishes, and the card is waiting to be
-         * collected. (`drawSource` is captured NOW — by the time it is
+         * A DETACHED DELIVERY (see `isDetachedBonusDelivery`): the recipient
+         * COLLECTS the card behind the trade's finalizer instead of freezing
+         * the queue. (`drawSource` is captured NOW — by the time it is
          * answered the colony's trade window has closed.)
          */
         player.defer(
@@ -461,9 +478,17 @@ export abstract class Colony implements IColony {
       const drawAndDiscardSource = this.colonyRevealSource(benefit);
       // ONE CUBE, ONE PAYOUT: draw 1, then discard 1, and only then does the
       // recipient's NEXT cube start (Priority.SUPERPOWER puts this discard
-      // ahead of every other queued bonus AND of the trade's own track reset).
-      // The ordinal rides onto the prompt so the console reveal modal can lay
-      // out one zone per colony and show which one is resolving.
+      // ahead of every other pending pair of this payout — for the trader
+      // that also means ahead of the trade's own track reset). The ordinal
+      // rides onto the prompt so the console reveal modal can lay out one
+      // zone per colony and show which one is resolving.
+      //
+      // A recipient OTHER than the trader is a DETACHED DELIVERY
+      // (`isDetachedBonusDelivery`): their pair queues at BACK_OF_THE_LINE so
+      // the trader's own chain — bonus draw, mandatory discard, track reset —
+      // never waits on an opponent's answer. The SUPERPOWER discard inside
+      // the pair still runs before the next detached pair, so per-cube
+      // sequencing (draw → discard → next cube) holds for every recipient.
       const seat = ordinal ?? {index: 1, total: 1};
       player.defer(() => {
         player.drawCard(1, {source: drawAndDiscardSource});
@@ -473,7 +498,7 @@ export abstract class Colony implements IColony {
             colonyBonus: {colonyName: this.name, index: seat.index, total: seat.total},
           }),
           Priority.SUPERPOWER);
-      });
+      }, this.isDetachedBonusDelivery(player, isGiveColonyBonus, trader) ? Priority.BACK_OF_THE_LINE : Priority.DEFAULT);
       break;
     }
 
@@ -653,13 +678,26 @@ export abstract class Colony implements IColony {
 
     if (action !== undefined) {
       if (isGiveColonyBonus) {
+        if (this.isDetachedBonusDelivery(player, isGiveColonyBonus, trader)) {
+          /*
+           * A DETACHED DELIVERY: an opponent's interactive bonus (Titan's
+           * floater target, Enceladus' microbes, a keep-one pick, …) queues at
+           * the BACK OF THE LINE for its OWN recipient instead of being
+           * executed inline. Inline, its prompt froze the whole deferred
+           * queue — the trader's own trade-income prompt (prio
+           * GAIN_RESOURCE_OR_PRODUCTION) and the track reset both sat behind
+           * an opponent's click, the trader's pre-collected batch answers
+           * were silently dropped, and the dropped prompts came back minutes
+           * later as detached modals.
+           */
+          game.defer(action, Priority.BACK_OF_THE_LINE);
+          return undefined;
+        }
         /*
-         * When this method is called from within the GiveColonyBonus deferred action
-         * we return the player input directly instead of deferring it.
-         *
-         * This is related to how certain colony bonuses require player interaction.
-         * The deferred action queue doesn't work well when asking for inputs for
-         * multple players.
+         * The TRADER's own interactive bonus is returned directly instead of
+         * deferred: `GiveColonyBonus` hands it to `setWaitingFor` with the
+         * drain as its continuation, so it resolves inside the trader's own
+         * request chain (the pre-collected batch answers it synchronously).
          */
         return action.execute();
       } else {

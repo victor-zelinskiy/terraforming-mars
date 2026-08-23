@@ -31,9 +31,35 @@ confirmTrade (composer X)
 → the white marker GLIDES LEFT to the reset cell     (only after the server's own reset committed —
    cell-by-cell impulse, settle                       Colony.handleTrade's finalizer runs at
 → «4/7» flips + «ТОРГОВАТЬ» value morphs             DECREASE_COLONY_TRACK_AFTER_TRADE, i.e. after
-   in the SAME beat (presented position releases)     every reward including interactive bonuses)
-→ finalColonyPulse → unlockInput → done
+   in the SAME beat (presented position releases)     the TRADER'S OWN rewards including their
+→ finalColonyPulse → unlockInput → done               interactive prompts — see DETACHED DELIVERY)
 ```
+
+**THE TRADER NEVER WAITS FOR SOMEBODY ELSE'S CLICK (2026-08-23).** A colony
+bonus owed to a player OTHER than the trader is a **DETACHED DELIVERY**
+(`Colony.isDetachedBonusDelivery`): it queues at `Priority.BACK_OF_THE_LINE`
+on its own recipient — **after** the trade's finalizer — instead of resolving
+inside `GiveColonyBonus`'s drain. Before this, an opponent's Pluto discard or
+Titan floater pick froze the whole deferred queue: the trader's own bonus draw
+had not even happened, their trade-income prompt (prio 20) and the track reset
+(prio 22) sat behind an opponent's click, the pre-collected batch answers were
+silently dropped (`PlayerInputBatch` breaks at a foreign `waitingFor`), and
+the trader stood in a finished interface for up to the 60 s ceiling. Now the
+trader's whole chain — income, their own cubes' bonuses (per-cube pairing
+intact), their mandatory prompts, the reset — runs contiguously inside their
+own request/response chain; opponents' bonuses resolve after it, each
+recipient sequentially (per-cube `draw → discard` pairing preserved by the
+SUPERPOWER discard inside each detached pair). Tabletop-faithful: simultaneous
+effects resolve active-player-first. Guards:
+`tests/colonies/colonyTradeDetachedDelivery.spec.ts`.
+
+**…and the pause is BROADCAST.** When the deferred queue pauses on any
+player's prompt (`DeferredActionsQueue.run`, `GiveColonyBonus`'s inline
+prompt), the server emits the realtime invalidation (`game.notifyStateChange`)
+— previously nothing did (the only broadcast sites lived in
+`Player.takeAction`, which a paused queue never reaches), so an off-turn
+recipient learned about their prompt only on the healthy-socket ~20 s fallback
+poll. Guard: `tests/realtime/QueuePauseBroadcast.spec.ts`.
 
 **THE PRE-TRADE ADVANCE IS ITS OWN LEG (2026-08-12).** A trade-offset card
 («Торговая колония») moves the track FORWARD before the reward is read
@@ -69,10 +95,13 @@ unmeasurable track never holds the payout.
   the player already confirmed the earlier cards (Pluto's rules-accurate
   draw→discard→draw pairing — each colony in its own batch) honestly starts a
   new batch.
-- **The track reset needs no new sequencing** — upstream already defers it at
-  `Priority.DECREASE_COLONY_TRACK_AFTER_TRADE`, AFTER the income and every
-  colony bonus (including their prompts). The manifest just exposes the pre /
-  post positions so the client can present that same order.
+- **The track reset ends the TRADER's own chain** — deferred at
+  `Priority.DECREASE_COLONY_TRACK_AFTER_TRADE`, AFTER the income and the
+  trader's own colony bonuses (including their prompts), and BEFORE every
+  detached foreign delivery (`BACK_OF_THE_LINE`). The committed reset — the
+  client transaction's own end — therefore always arrives inside the trader's
+  own response chain, never behind an opponent's answer. The manifest exposes
+  the pre / post positions so the client can present that same order.
 - Card COUNTS in the manifest are the plan; the reveal batches are the actual
   (a short deck yields fewer covers, an empty deck yields none). Resource
   grants never fail, so for them plan == actual.
@@ -240,11 +269,15 @@ player cannot connect to the trade.
 - **SERVER — unchanged rules, plus an ORDINAL.** `GiveColonyBonus` fans the
   bonus out per CUBE as upstream does (`MultiSet`, one entry per cube, drained
   one at a time), and Pluto's branch draws 1 and defers one
-  `DiscardCards(p, 1, 1)` at `Priority.SUPERPOWER` — so the discard is ahead of
-  every other queued bonus AND of the trade's own track reset, and cube 2 only
-  draws once cube 1 is finished. The one addition is
-  `ColonyBonusOrdinal {index, total}` (which of the recipient's cubes is
-  resolving), passed as `IColony.giveColonyBonus(player, true, ordinal)`.
+  `DiscardCards(p, 1, 1)` at `Priority.SUPERPOWER` — for the TRADER that puts
+  the discard ahead of every other pending pair and of the trade's own track
+  reset, and cube 2 only draws once cube 1 is finished. A recipient OTHER
+  than the trader is a DETACHED DELIVERY: their whole pair queues at
+  `BACK_OF_THE_LINE` (after the reset), the SUPERPOWER discard inside it
+  still pairing draw → discard before the next detached pair. The one
+  addition is `ColonyBonusOrdinal {index, total}` (which of the recipient's
+  cubes is resolving), passed as `IColony.giveColonyBonus(player, true,
+  ordinal)`.
 - **The prompt is MARKED, never sniffed.** `ColonyBonusDiscardMeta`
   `{colonyName, index, total}` rides `BaseInputModel.colonyBonusDiscard` via
   `BasePlayerInput.markColonyBonusDiscard` (serialized centrally in
@@ -263,23 +296,22 @@ player cannot connect to the trade.
     the trade's first payout that includes the trade income.
   - **always single-select** (`min = max = 1`); the generic hand overlay keeps
     its multi-select support for other mechanics, this flow just never uses it.
-- **THE CARD IS OPENED ON THE TABLE.** Its cover is delivered **face down**
-  (`runTradeCoverFlight({faceDown: true})` for `role === 'bonus'` — the turn is
-  NOT spent in the air), so the handoff lands a face-down cover on a face-down
-  card: one object, no contradiction. The zone then plays the turn
-  (`con-bonus-turn`: lift → rotateY 180→0 with backface culling → settle),
-  and the card becomes takeable only on `animationend`.
-- **⚠️ THE TURN'S TRIGGER IS EXPLICIT STATE, NEVER A TIMER.** `bonusFlipAllowed`
-  = the card exists AND no scene is veiling/holding the modal; the watcher
-  re-arms per `activeBonusKey` and confirms with a double-rAF **layout-settled
-  probe**. That is what makes colony 2..N open only after the player is back:
-  their card arrives in a NEW batch, so the modal remounts, and it cannot be
-  veiled/held or unmounted while the hand overlay is up. Never start the turn
-  from a delay — behind the hand overlay it would be spent unseen.
-- **Input is swallowed while a card is turning** (`bonusFlipPhase === 'flipping'`
-  returns early from `onPress`), so no take, take-all or hand-over can be
-  double-pressed through the beat; the step additionally requires the phase to
-  be `up`.
+- **EVERY CARD OF THE PAYOUT TURNS IN THE AIR** (iteration 8 — the earlier
+  face-down delivery + in-place `con-bonus-turn` flip is REMOVED). A
+  destination that opened its card on the table drew that card's back while
+  the cover was still carrying it — two objects for one card — and then
+  played a second, differently-shaped turn. The zone renders its card exactly
+  as the strip does; the flip chassis belongs to the take-in-place turn
+  alone; and `--bonus-held` holds every BACK **and the zone's own furniture**
+  (frame ring, floating caption, name bar) until the handoff — the zone
+  MATERIALIZES as its card lands, never stands pressable-looking over an
+  empty table while the covers are still flying.
+- **Input during the flight is phase-locked** (`isColonyTradeInputLocked` —
+  `cardScene` `fly | ascend | frame` swallow the pad), so no take can re-flow
+  the strip under an airborne cover; the landing targets additionally stay
+  still because the embedded fit DEFERS its re-solve while the cover scene
+  owns the batch (`fitEmbeddedStrip`'s scene guard) and the outcome zone's
+  entrance is opacity-only (`con-colfocus-outcome-in`).
 - A fully taken batch is HELD on screen for its step (`holdRevealForFollowUp` /
   `releaseRevealFollowUp`); `singleCardMode` returns false whenever a discard is
   owed, so the 1-card FOREIGN-trade payout keeps the real modal (the headless
@@ -311,13 +343,25 @@ player cannot connect to the trade.
    gate holds the commit; the reward metrics additionally ride the panel
    hold until each touchdown).
 2. The reward is read at the PRE-reset position (server truth — the manifest).
-3. The reset is presented only after every reward is granted AND confirmed
-   (server truth + the three-gate conclusion; the glide additionally waits
-   for the COMMITTED drop, which for interactive bonuses arrives responses
-   later — the transaction waits with input FREE).
+3. The reset is presented only after the TRADER's every reward is granted AND
+   confirmed (server truth + the three-gate conclusion; the glide additionally
+   waits for the COMMITTED drop). The trader's own interactive bonuses
+   (Pluto's discard between two bonus draws) arrive responses later inside the
+   trader's OWN dialogue — the transaction waits for those with input FREE —
+   but it NEVER waits on another player: foreign bonuses are detached behind
+   the reset, and if a view still proves the queue parked on somebody else
+   (an off-turn reaction wedged mid-trade), the transaction concludes to
+   committed truth on a short named net (`TRADE_PARKED_NET_MS`) instead of
+   freezing the screen (the old blind 60 s ceiling remains the backstop).
 4. Pluto covers are REAL card-backs leaving the exact interface areas; one
-   cover per real card, staggered; income and bonus waves are visually
-   distinct; all of one trade's cards land in ONE reveal (server merge).
+   cover per real card, staggered; the whole payout is ONE CONTINUOUS DEAL —
+   the bonus cover is its LAST card (one stagger + a short wave breath after
+   the final income cover, `TRADE_WAVE_GAP_MS`), its fan peeling out beside
+   the «БОНУС» cell while the income covers are still in the air, the waves
+   still readable by their distinct source cells; all of one trade's cards
+   land in ONE reveal (server merge). The stage's dissolve is keyed to the
+   LAST wave's separation (`liftAnchor` in `ConsoleColonyTradeLayer`), so
+   every wave leaves a still-lit source.
    4a. **The strip is ONE line while the covers fly.** The bonus zone's frame is
    decorative (`::before`, inflated outside the content box) — it used to be a
    PADDED box that sank its cards 1.1rem below the income cards (~44 px on a 4K

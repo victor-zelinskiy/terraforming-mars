@@ -418,20 +418,37 @@ export default defineComponent({
       // The scene under the flight lets go IN STEP WITH THE CARDS, and the
       // destination materializes later, under the landing flight.
       const first = plan[0];
-      if (first !== undefined && !colonyTradeState.reducedMotion) {
-        // 1 · LIFT-OFF — the first cover separates and STARTS TO TURN. That is
-        //     the moment the colony stage begins to evaporate: the interface
-        //     dissolves WITH the rising, turning cards over the whole lift
-        //     (the pose's own long transition carries it), instead of blinking
-        //     out at some point of their travel. Releasing only deep into the
-        //     travel is what read as «интерфейс исчезает слишком резко»: by
-        //     then the eye has already followed the cards away, so the change
-        //     arrives as a cut rather than as part of their departure.
+      // The stage dissolves with the LAST wave's separation — every wave's
+      // covers (the bonus included) must leave a still-lit source. Keyed to
+      // the first cover, the bonus wave once launched out of a cell that had
+      // been at opacity 0 for half a second: a card appearing out of empty
+      // space, visibly not part of the deal that had just played.
+      const liftAnchor = (() => {
+        if (plan.length === 0) {
+          return undefined;
+        }
+        const lastRole = plan[plan.length - 1].role;
+        let i = plan.length - 1;
+        while (i > 0 && plan[i - 1].role === lastRole) {
+          i--;
+        }
+        return plan[i];
+      })();
+      if (first !== undefined && liftAnchor !== undefined && !colonyTradeState.reducedMotion) {
+        // 1 · LIFT-OFF — the last wave's first cover separates and STARTS TO
+        //     TURN. That is the moment the colony stage begins to evaporate:
+        //     the interface dissolves WITH the rising, turning cards over the
+        //     whole lift (the pose's own long transition carries it), instead
+        //     of blinking out at some point of their travel. Releasing only
+        //     deep into the travel is what read as «интерфейс исчезает слишком
+        //     резко»: by then the eye has already followed the cards away, so
+        //     the change arrives as a cut rather than as part of their
+        //     departure.
         ctx.timers.push(setTimeout(() => {
           if (colonyTradeState.active) {
             markColonyPayoutLiftOff();
           }
-        }, motionMs(first.delayMs + Math.round(TRADE_COVER_LIFT_MS * TRADE_LIFTOFF_AT_F))));
+        }, motionMs(liftAnchor.delayMs + Math.round(TRADE_COVER_LIFT_MS * TRADE_LIFTOFF_AT_F))));
         // 2 · ASCEND — the first cover deep into its travel and almost grown:
         //     «Получены карты» materializes under it. One-shot, guarded — a
         //     fast scene that already reached 'frame' must not be pulled back.

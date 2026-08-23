@@ -123,9 +123,23 @@
     .con-reveal__strip :is(.con-reveal__flip-back, .con-reveal__bonus-cover, .con-reveal__bonus-socket, .con-reveal__bonus-done) {
         opacity: 0 !important;
     }
-    /* No focus chrome over cards that "aren't there yet". */
+    /*
+     * …and the ZONE'S OWN FURNITURE (the frame ring, the floating «БОНУС
+     * КОЛОНИИ» caption) belongs to the TABLE too: painted from the first
+     * frame it read as a live, pressable region a second and a half before
+     * its card had even fanned — and the bonus cover then came down BESIDE
+     * an already-standing frame instead of MAKING the place as it lands.
+     */
+    .con-reveal__bonus-zone::before,
+    .con-reveal__bonus-zone-label {
+        opacity: 0 !important;
+    }
+    /* No focus chrome over cards that "aren't there yet" — and no take verb
+       either: the name bar advertising «Взять карту» over cards that are
+       still airborne is an instruction the player cannot follow yet. */
     .con-focus-frame,
-    .con-start__slot-a {
+    .con-start__slot-a,
+    .con-reveal__namebar {
         opacity: 0 !important;
     }
     /*
@@ -150,8 +164,15 @@
      * neighbours. Held flat, every cover lands pixel-exact on one row; the lift
      * then eases in with the handoff (the slot's own transform transition), so
      * the focus reads as arriving rather than as the row jumping.
+     *
+     * ⚠️ The BONUS-ZONE slot needs its own, MORE SPECIFIC row: its focus
+     * transform is restated in `console_colony_trade.less` at the same
+     * (0,3,0) specificity, and that file imports LATER — an equal-weight
+     * flatten here silently loses the tie, and the zone's cover came down on
+     * a lifted, scaled slot while its income neighbours were held flat.
      */
-    .con-reveal__strip .con-cards__slot--focused {
+    .con-reveal__strip .con-cards__slot--focused,
+    .con-reveal__strip .con-reveal__bonus-zone > .con-cards__slot--focused {
         transform: none;
     }
 }

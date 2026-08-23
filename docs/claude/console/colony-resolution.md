@@ -364,6 +364,60 @@ signature).
    a predicate that knew only `advance`/`chips` sampled the phase before it was
    set and let the covers fly into the glide anyway.
 
+## Iteration 11 — THE TRADER NEVER WAITS FOR SOMEBODY ELSE'S CLICK (2026-08-23)
+
+The reported hang: trade on Pluto with an opponent's settlement → the screen
+froze on «КОЛОНИИ › ПЛУТОН › ДОБОР КАРТ» over an empty stage for up to the 60 s
+ceiling, the opponent got their prompt ~20 s late, and on Titan the trader's
+pre-collected floater targets were re-asked in a standalone band afterwards.
+One server-side root: `GiveColonyBonus` resolved EVERY recipient inside the
+trader's deferred chain, in cube-placement order — an opponent placed first
+froze the queue before the trader's own bonus had even drawn, ahead of the
+trader's income prompt (prio 20) and the reset (22); the batch route drops its
+remaining steps at a foreign `waitingFor` (`PlayerInputBatch.ts` breaks on
+`getWaitingFor() === undefined`); and a paused queue emitted NO realtime
+invalidation (the only broadcast sites live in `Player.takeAction`, which a
+pause never reaches). Five fixes, one architecture:
+
+1. **DETACHED DELIVERY (server)** — `Colony.isDetachedBonusDelivery`: every
+   interactive colony bonus owed to a non-trader queues at `BACK_OF_THE_LINE`
+   on its own recipient, AFTER the trade finalizer (generalizes Miranda's
+   collect pattern to Pluto's draw+discard pair and the whole `action`-tail —
+   Titan/Enceladus `AddResourcesToCard`, keep-one picks, COPY_TRADE, ocean,
+   steal, opponent-discard). The trader's own chain — income, own cubes
+   (per-cube pairing intact via the SUPERPOWER discard), reset — runs
+   contiguously in their own request chain, so the batch consumes every
+   pre-collected step and the committed reset rides the trader's own
+   response. Tabletop-faithful (active player first). Guard:
+   `tests/colonies/colonyTradeDetachedDelivery.spec.ts`.
+2. **THE QUEUE PAUSE BROADCASTS (server)** — `DeferredActionsQueue.run` and
+   `GiveColonyBonus`'s inline prompt emit `game.notifyStateChange()` when they
+   pause the drain on a prompt: the recipient's client wakes over WS instantly
+   ('GO'), observers refresh ('REFRESH' off the already-bumped gameAge), chips
+   light immediately. Guard: `tests/realtime/QueuePauseBroadcast.spec.ts`.
+3. **THE PARKED NET (client)** — `syncParkedEvidence` in
+   `consoleColonyTrade.ts`: a committed view proving «viewer owes nothing ∧
+   another player holds the pending input ∧ only the reset gate is closed»
+   concludes the transaction to committed truth after `TRADE_PARKED_NET_MS`
+   (2.5 s) — the workspace releases and the waiting player's chip tells the
+   story. Post-rework this should never fire for colony flows; it exists for
+   an off-turn reaction wedged mid-trade and for older servers. The blind
+   60 s ceiling stays as the last backstop.
+4. **ONE CONTINUOUS DEAL (visual)** — the bonus cover is the deal's LAST
+   card: `TRADE_WAVE_GAP_MS` is now the small breath ON TOP of the cadence
+   (fan overlapping the income flight), the stage dissolve keys to the LAST
+   wave's separation (`liftAnchor`), `--bonus-held` holds the zone's frame,
+   caption and name bar until the handoff, the outcome entrance is
+   opacity-only, the embedded fit defers its re-solve under airborne covers,
+   and the zone slot speaks the stage row's own focus grammar (the flatten
+   tie against `console_colony_trade.less` is broken by a more specific
+   held row).
+5. **THE `pick` CLAIM (client)** — `colonyTradeClaimKinds` /
+   `colonyBuildAsksCardTarget`: a colony whose reward can land ON a card
+   claims `['draw'?, 'pick'?]` structurally at every confirm site, so a late
+   card-target prompt (a pruned capture) teleports into the colony stage's
+   own zone instead of rising as a standalone `ConsoleTaskHost` band.
+
 ## The invariant
 
 From the trade confirm to the last owed follow-up, the COLONY WORKSPACE is the
@@ -377,7 +431,7 @@ The close gate is `colonyResolutionLive` (a ConsoleShell computed over
 
 | Signal | Meaning | Source of truth |
 | --- | --- | --- |
-| `tradeActive` | the viewer's own trade transaction is running | `colonyTradeState.active` — concludes only on the COMMITTED track reset, which the server itself sequences AFTER every colony bonus (`Priority.DECREASE_COLONY_TRACK_AFTER_TRADE` vs the discards' `SUPERPOWER`) |
+| `tradeActive` | the viewer's own trade transaction is running | `colonyTradeState.active` — concludes on the COMMITTED track reset, which the server sequences AFTER the trader's OWN colony bonuses and BEFORE every foreign one (detached deliveries at `BACK_OF_THE_LINE` — see Iteration 11), so it always arrives inside the trader's own response chain; a view that still proves the queue parked on ANOTHER player concludes it on the bounded `TRADE_PARKED_NET_MS` net |
 | `discardMeta` | a mandatory colony-bonus discard is the pending input | `waitingFor.discardPrompt.colonyBonus` (`{colonyName, index, total}`) |
 | `discardFlightMeta` | the chosen card is physically leaving the hand | the running `cardDiscard` scene's own armed marker (`cardDiscardColonyBonus()`) |
 | `collectMeta` | a colony-bonus DELIVERY is owed (Miranda) | `waitingFor.colonyBonusPrompt` |
