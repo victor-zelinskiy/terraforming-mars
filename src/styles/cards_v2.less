@@ -1,15 +1,7 @@
 @import "./variables.less";
-.card-corporation-expansion {
-    position: absolute;
-    top: 38px;
-    right: -11px;
-}
 
-.card-standard-expansion {
-  position: absolute;
-  top: 90px;
-  right: 33px;
-}
+
+
 
 .card-container {
     /* Isolate style + layout recalc so mounting many cards at once (deal / hand)
@@ -17,26 +9,9 @@
        `paint` (would clip the cost badge poking above the card). Legacy face is a
        fixed-size box with position:relative already, so this changes no geometry. */
     contain: layout style;
-    .project-icon-expansion-container {
-        flex-direction: row;
-        display: flex;
-        bottom: 5px;
-        left: 5px;
-        position: absolute;
-    }
-    .resource-card-icon-expansion-container {
-        flex-direction: row;
-        display: flex;
-        bottom: 38px;
-        left: 5px;
-        position: absolute;
-    }
-    .project-icon:after,
-    .preludeCard-icon:after {
-        position: relative;
-        margin: 3px;
-        display: block;
-    }
+    
+    
+    
     .card-superscript {
       vertical-align: super;
     }
@@ -65,12 +40,7 @@
         flex-flow: row;
         align-items: center;
     }
-    .card-requirements-max {
-        background-image: url(./assets/requisites/max_big.png);
-        background-size: 174px 34px;
-        background-position: -12px -4px;
-        filter: grayscale(0.2);
-    }
+    
 }
 
 /* The corporation wordmark system is shared by the LEGACY face
@@ -1321,10 +1291,7 @@
 }
 
 .card-container {
-    .card-content-corporation {
-        top: -30px;
-        height: 310px !important;
-    }
+    
     .card-content {
         color: black;
         position: relative;
@@ -1367,13 +1334,7 @@
         }
     }
 
-    &.card-hover-tall:hover .card-content:not(.global-event-card-content),
-    &.card-auto-tall .card-content:not(.global-event-card-content) {
-        height: auto;
-        min-height: 280px;
-        overflow: visible;
-        padding-bottom: 8px;
-    }
+    
 
     .card-corporation-box {
         position: relative;
@@ -1439,12 +1400,8 @@
         margin: 0 4px;
     }
 
-    .nextto-leftside {
-        margin: 0 -2px 0 4px;
-    }
-    .nextto-rightside {
-        margin: 0 4px 0 -2px;
-    }
+    
+    
 
     /*requirements*/
     .card-global-requirement {
@@ -1466,32 +1423,17 @@
         width: 14px;
         background-size: 14px 46px;
     }
-    .card-temperature--req {
-        background-image: url(./assets/global-parameters/temperature.png);
-        width: 10px;
-        height: 34px;
-        background-size: 10px 34px;
-    }
+    
     .card-ocean-global-requirement {
         background-image: url(./assets/tiles/ocean.png);
     }
-    .card-ocean--req {
-        background-image: url(./assets/tiles/ocean.png);
-        width: 30px;
-        height: 34px;
-        background-size: 30px 34px;
-    }
+    
     .card-oxygen-global-requirement {
         background-image: url(./assets/global-parameters/oxygen.png);
         width: 46px;
         background-size: 46px;
     }
-    .card-oxygen--req {
-        background-image: url(./assets/global-parameters/oxygen.png);
-        width: 34px;
-        background-size: 34px;
-        height: 34px;
-    }
+    
     .card-venus-global-requirement {
         background-image: url(./assets/global-parameters/venus.png);
         width: 60px;
@@ -1499,13 +1441,7 @@
         background-size: 60px 40px;
         color: #0000;
     }
-    .card-venus--req {
-        background-image: url(./assets/global-parameters/venus.png);
-        width: 50px;
-        height: 34px;
-        background-size: 50px 34px;
-        color: #0000;
-    }
+    
     /*resources*/
     .card-resource-base() {
         font-family: Prototype;
@@ -1764,12 +1700,7 @@
         position: relative;
         top: -2px;
     }
-    .card-minus--S {
-        .card-minus();
-        background-size: 9px;
-        width: 9px;
-        height: 6px;
-    }
+    
     .card-plus {
         background-image: url(./assets/misc/plus.png);
         background-size: 12px;
@@ -1941,13 +1872,7 @@
         width: 36px !important;
         background-size: 36px !important;
     }
-    .card-resource-colony--req {
-        height: 34px;
-        width: 40px;
-        background-size: 40px 34px;
-        margin-left: 3px;
-        margin-right: 3px;
-    }
+    
     /*turmoil special*/
     .card-influence {
         display: inline-block;
@@ -2166,22 +2091,7 @@
             border-radius: 2px;
         }
     }
-    .card-ceo-container {
-        background-color: #2c2c2c;
-        background: linear-gradient(to right bottom, black, #3c3c3c, #969696, #3c3c3c, #3c3c3c, black);
-        color: black;
-        font-size: 12px;
-        padding: 4px 7px 1px;
-        border-radius: 3px;
-        box-shadow: 0 2px 2px 1px rgba(0, 0, 0, 0.8);
-        .card-ceo-icon {
-            text-transform: uppercase;
-            background: linear-gradient(to right, rgb(235,118,171), #e64d91);
-            padding-left: 4px;
-            padding-right: 4px;
-            border-radius: 2px;
-        }
-    }
+    
 
     .card-corporation-icon {
         display: inline-block;
@@ -2261,10 +2171,7 @@
             }
         }
     }
-    .card-production-box--req {
-        transform: scale(0.8);
-        padding: 0px;
-    }
+    
     .card-rows {
         display: flex;
         flex-flow: column;
@@ -2323,23 +2230,9 @@
             display: flex;
         }
     }
-    .card-points-big {
-        font-size: 36px;
-        text-shadow: 0 0 5px darkorange;
-    }
-    .card-points-normal {
-        display: flex;
-        justify-content: center;
-        font-size: 28px;
-        text-shadow: 0 0 2px darkorange;
-        >div{
-            margin-left: 4px;
-        }
-    }
-    .card-points-vermin {
-      width: 128px;
-      font-size: 18px;
-    }
+    
+    
+    
     .card-plate {
         width: 130px;
         text-shadow: none;
@@ -2549,13 +2442,7 @@
         width: 32px;
         height: 32px;
     }
-    .tile--req {
-        width: 30px;
-        height: 34px;
-        background-size: 30px 34px;
-        margin-left: 4px;
-        margin-right: 4px;
-    }
+    
     .card-ocean--S {
         width: 30px !important;
         height: 32px !important;
@@ -2596,9 +2483,8 @@
         }
     }
     .card-tr--XS {
-        .card-tr--req();
-    }
-    .card-tr--req {
+        /* Inlined from the deleted .card-tr--req (the legacy requirements-bar
+         * modifier) — XS was reusing it as a mixin. */
         background-image: url(./assets/resources/tr.png);
         width: 45px !important;
         height: 34px !important;
@@ -2607,6 +2493,7 @@
         box-shadow: none !important;
         background-repeat: no-repeat;
     }
+    
     .card-delegate {
         display: inline-block;
         background-image: url(./assets/misc/delegate.png);
@@ -2635,20 +2522,7 @@
         background-position: 3px;
         border-radius: 15px 15px 2px 2px;
     }
-    .card-party-leader--req {
-        display: inline-block;
-        background-image: url(./assets/misc/delegate.png);
-        width: 24px;
-        height: 30px;
-        background-size: 24px 30px;
-        vertical-align: middle;
-        filter: drop-shadow(0px 0px 1px black);
-        background-color: @grey_900;
-        padding: 3px;
-        background-repeat: no-repeat;
-        background-position: 3px;
-        border-radius: 15px 15px 2px 2px;
-    }
+    
     .card-chairman {
         display: inline-block;
         background-image: url(./assets/misc/chairman.png);
@@ -2663,305 +2537,20 @@
         background-position: 3px;
         border-radius: 15px 15px 2px 2px;
     }
-    .card-chairman--req {
-        display: inline-block;
-        background-image: url(./assets/misc/chairman.png);
-        width: 24px;
-        height: 30px;
-        background-size: 24px 30px;
-        vertical-align: middle;
-        filter: drop-shadow(0px 0px 1px black);
-        background-color: @grey_900;
-        padding: 3px;
-        background-repeat: no-repeat;
-        background-position: 3px;
-        border-radius: 15px 15px 2px 2px;
-    }
+    
     .card-chairman-red {
         filter: drop-shadow(1px 0px 1px #c33) drop-shadow(-1px 0px 1px #c33) drop-shadow(0px 1px 1px #c33) drop-shadow(0px -1px 1px #c33) !important;
     }
 
-    .temporary-content-wrapper {
-        position: relative;
-        top: -25px;
-        /* .corporation-icon {
-            position: absolute;
-            top: 9px;
-            right: 26px;
-        } */
-    }
+    
 
-    .card-cost-and-tags {
-        display: flex;
-        align-items: center;
-        margin-left: -10px;
-        margin-top: -10px;
-        justify-content: space-between;
-        // Find a way to move this out.
-        .board-cube {
-          transform: scale(1.5);
-        }
-        /* ──────────────────────────────────────────────────────────
-         *  COST CLUSTER (v40-y — final compact polish)
-         * ──────────────────────────────────────────────────────────
-         *
-         *  Goal: make the hierarchy unambiguous —
-         *    [ 8 ] = printed cost (primary, big)
-         *    → 6  = effective cost (secondary, clearly smaller)
-         *
-         *  Tuning from the previous pass:
-         *    - Effective token shrunk 38 → 34 px (68 % of base —
-         *      bottom of the user-requested 65-75 % range), font
-         *      20 → 17 px, border-radius 8 → 6 px proportionally.
-         *      Now reads visibly subordinate at a glance.
-         *    - Cluster gap pulled in 6 → 4 px so the group reads as
-         *      a connected unit, not three loose elements.
-         *    - Arrow scaled down 22 × 14 → 18 × 12 px so it doesn't
-         *      tower over the smaller effective token. Same shape,
-         *      same gradient, same cyan glow — just proportionally
-         *      tighter to the new geometry.
-         *    - Effective filter pulled further into "computed value"
-         *      territory: saturate 0.85 → 0.62 (still warm, not
-         *      gray), contrast 0.95 added (softens the edge between
-         *      coin and text), brightness lifted slightly so the
-         *      lower saturation doesn't read as "dim".
-         *
-         *  Composition stays inline-flex horizontal; total cluster
-         *  width ≈ 50 + 4 + 18 + 4 + 34 = 110 px (down from 122 px),
-         *  leaving more breathing room for the tag cluster on
-         *  tag-heavy cards.
-         */
-        /*
-         * v40-z compaction: dropped the uniform `gap: 4px` in favor
-         * of per-child margins on the arrow. The chevron now sits 4
-         * px from the base cost (small breath, base stays in its
-         * fixed position untouched) and 2 px from the effective
-         * token (near-flush — the chevron tip visually points INTO
-         * the effective coin). Cluster reads as a single connected
-         * formula "8 → 6" instead of three loose elements floating
-         * with equal spacing.
-         */
-        .card-cost-group {
-            display: flex;
-            align-items: center;
-            flex-shrink: 0;
-        }
-
-        .card-cost {
-            font-family: Prototype;
-            font-size: 26px;
-            width: 50px;
-            height: 50px;
-            line-height: 48px;
-            border-radius: 10px;
-            text-align: center;
-            background-image: url(./assets/resources/megacredit.png);
-            background-size: 50px;
-            filter: drop-shadow(0px 0px 1px black);
-            color: #000;
-            flex-shrink: 0;
-        }
-
-        /*
-         * Cyan directional arrow drawn via clip-path. Stem + chevron
-         * head in a single element. linear-gradient flows light →
-         * bright from left to right so the eye reads "this becomes
-         * that". Compact (18 × 12 px) so it never competes with the
-         * two numeric tokens for attention now that the effective
-         * token is smaller.
-         */
-        .card-cost-arrow {
-            width: 10px;
-            height: 8px;
-            flex-shrink: 0;
-            /* v40-β: cluster halved AGAIN per user feedback —
-             * spacing was still reading as "8 ... 6" rather than
-             * "8 → 6". Arrow trimmed 18×12 → 10×8, margins
-             * 4+2 → 2+1. Net gap between base and effective
-             * coins drops 24 → 13 px (~46 %), which finally lands
-             * inside the "compact connected formula" range. Same
-             * clip-path polygon shape; same gradient + glow stack,
-             * just at smaller pixel dimensions. */
-            margin-left: 2px;
-            margin-right: 1px;
-            background: linear-gradient(90deg,
-                rgba(106, 176, 230, 0.5) 0%,
-                rgba(160, 210, 245, 1) 100%);
-            clip-path: polygon(
-                0% 40%, 58% 40%, 58% 14%,
-                100% 50%,
-                58% 86%, 58% 60%, 0% 60%
-            );
-            /* Glow trimmed further (3 → 2 px) to match the smaller
-             * arrow size and the 1-px gap to the effective coin. */
-            filter:
-                drop-shadow(0 0 2px rgba(106, 176, 230, 0.65))
-                drop-shadow(0 1px 1px rgba(0, 0, 0, 0.4));
-        }
-
-        /*
-         * Effective cost token. Same M€ coin asset as `.card-cost`,
-         * scaled to 68 % of base. Lives in the card's original
-         * visual language.
-         *
-         * Filter stack telegraphs "computed / secondary":
-         *   - saturate(0.62) — pulls the warm yellow back to a
-         *     calmer mustard-amber. Still readable as the same
-         *     token family, but clearly subordinate to the base
-         *     coin's full saturation.
-         *   - brightness(1.04) — small lift so the desaturation
-         *     doesn't read as "dim / disabled".
-         *   - contrast(0.95) — softens the text-vs-coin edge so the
-         *     secondary nature reads in the texture, not just the
-         *     palette.
-         *
-         * NOTE: cards_scifi.less restates this filter chain (with
-         * the type-glow drop-shadows appended) for cards matching
-         * the type-glow selector. The two filters can't be merged
-         * across rules — the cascade picks one whole declaration —
-         * so the chain is duplicated there for the common case.
-         */
-        .card-effective-cost {
-            font-family: Prototype;
-            font-size: 17px;
-            width: 34px;
-            height: 34px;
-            line-height: 34px;
-            border-radius: 6px;
-            text-align: center;
-            background-image: url(./assets/resources/megacredit.png);
-            background-size: 34px;
-            background-repeat: no-repeat;
-            background-position: center;
-            color: #000;
-            flex-shrink: 0;
-            filter:
-                drop-shadow(0 0 1px black)
-                saturate(0.55)
-                brightness(1.04)
-                contrast(0.92);
-        }
-        .card-tags {
-            display: flex;
-            flex-flow: row;
-            justify-content: flex-end;
-            margin-right: -6px;
-            .card-tag {
-                box-shadow: @outline-shadow;
-                margin-left: 4px;
-                width: 40px;
-                height: 40px;
-                background-size: 50px;
-                background-position: -5px;
-                text-align: center;
-                border-radius: @radius_circle;
-                .raised-bevel();
-                background-color: white;
-                /* margin-top: -6px; */
-                filter: brightness(0.9);
-            }
-        }
-    }
-    .card-title {
-        font-family: "Ubuntu";
-        color: @text_dark;
-        text-transform: uppercase;
-        width: 100%;
-        border-radius: 0 0 30% 30%;
-        line-height: 27px;
-        font-size: 16px;
-        text-align: center;
-        font-weight: bold;
-        overflow: hidden;
-        white-space: nowrap;
-        height: 27px;
-
-        /* Conditional height adjustment for corporation cards makes a cleaner scrolling experience. */
-        &.is-corporation {
-            height: 40px;
-        }
-
-        .corporation-label {
-            text-transform: uppercase;
-            float: left;
-            top: 8px;
-            position: absolute;
-            color: @text_dark;
-            width: 115px;
-            height: 14px;
-            line-height: 15px;
-            text-align: center;
-            font-size: 13px;
-            box-shadow: @outline-shadow;
-            background: #cccccc;
-            background-color: rgb(255, 204, 100);
-            background: linear-gradient(
-                to right,
-                #e28c22,
-                rgb(255, 204, 100),
-                rgb(255, 204, 100),
-                #e28c22
-            );
-            border-radius: 7px 7px 2px 2px;
-            text-transform: uppercase;
-        }
-        .prelude-label {
-            position: absolute;
-            text-transform: uppercase;
-            top: 15px;
-            left: 4px;
-            margin: 0px;
-            width: 80px;
-            height: 20px;
-            line-height: 22px;
-            text-align: center;
-            font-size: 12px;
-            box-shadow: @outline-shadow;
-            background-color: rgb(235, 118, 171);
-            border-radius: 14px 2px 2px 2px;
-            .raised-bevel();
-        }
-        .ceo-label {
-            position: absolute;
-            text-transform: uppercase;
-            top: 15px;
-            left: 4px;
-            margin: 0px;
-            width: 80px;
-            height: 20px;
-            line-height: 22px;
-            text-align: center;
-            font-size: 12px;
-            box-shadow: @outline-shadow;
-            background-color: #edbd18;
-            border-radius: 14px 2px 2px 2px;
-            .raised-bevel();
-        }
-    }
-    .card-expansion {
-        position: absolute;
-        width: 20px;
-        height: 20px;
-        line-height: 20px;
-        border-radius: 10px;
-        background-size: 24px 24px;
-        background-position: center;
-        box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.6);
-    }
-    .contentCorporation {
-        color: @text_dark;
-        position: relative;
-        display: inline-block;
-        font-weight: bold;
-        padding: 8px;
-        top: -40px;
-        color: @text_dark;
-    }
+    
+    
+    
+    
 }
 /* fixes */
-.card-nirgal-enterprises .card-title {
-    height: 60px !important;
-}
+
 
 .card-party {
   display: flex;
@@ -2989,31 +2578,11 @@ each(@parties, {
   }
 })
 
-@parties: greens, kelvinists, mars-first, reds, scientists, unity;
-each(@parties, {
-  .card-party--@{value}-req {
-    background-image: url("./assets/parties/@{value}.png");
-    background-size: 48px 34px;
-    width: 48px;
-    height: 34px;
-  }
-})
-
 .card-over {
    margin: 0px 0 -59px -59px;
 }
 
-.card-resources-counter {
-  .card-resource {
-      position: relative;
-      display: inline-block;
-      margin-bottom: 4px;
-      width: 22px;
-      height: 22px;
-      background-size: 22px;
-      vertical-align: middle;
-  }
-}
+
 
 // resources.less also has a variable called resource_types.
 @card_resource_types: microbe, animal, science, floater, fighter, camp,

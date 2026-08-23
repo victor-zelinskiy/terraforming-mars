@@ -1,0 +1,435 @@
+/*
+ * APP CHROME — the surviving live styles of the deleted desktop game screen
+ * (extracted VERBATIM from player_home.less when the desktop UI was cut by
+ * selectors; the dead #player-home chassis, top/bottom bars, left panel and
+ * desktop overlays died with it).
+ *
+ * What lives here and WHO consumes it:
+ *  - :root fixed UI dimensions (--board-scale, --bottom-bar-button-height,
+ *    --left-panel-width, --right-sidebar-width) — read by board.less,
+ *    console.less, journal.less, hydronetwork.less, notifications.less,
+ *    colonies_overlay.less, endgame.less and useBoardAutoScale.
+ *  - .player_shadow_color_* loop — playerColorClass(color, 'shadow')
+ *    (DynamicTitle.vue, LogPanel.vue).
+ *  - .tag-count / .tag-type-main / .tag-size-big / .tag-tr / .tag-city-count —
+ *    ConsoleOvTabPlayers tag icons + PlanetaryTrackReward (pathfinders).
+ *  - .player_home_anchor / .hotkey-target — GameBoardView (mounted by
+ *    ConsoleBoardSection) + HomeMixin hotkeys.
+ *  - .milestones/.awards MA blocks (.ma-*) — Milestone.vue / Award.vue rendered
+ *    by the cardlist page.
+ *  - .player_home_colony_cont — the cardlist page's colony strip.
+ *  - .label-additional / .last-generation / .blink-animation — DynamicTitle +
+ *    the log panel's generation counter.
+ *  - .std-icon--* — standard-project pictograms (ConsoleSheet,
+ *    standardProjectVisuals, journal previews).
+ */
+
+:root {
+    /* Fixed UI dimensions. Tweak --left-panel-width to give more room to the board. */
+    --bottom-bar-button-height: 36px;
+    --left-panel-width: 160px;
+    --right-sidebar-width: 62px;
+    /*
+     * Visual scale of the Mars board (and everything that lives inside .board-cont:
+     * hex tiles, outer-spaces, SVG legend, captioned-tile labels with their lines).
+     * Applied via `transform: scale(...)` on .board-cont — because every visual is
+     * a DOM descendant of .board-cont, a single transform scales the whole thing
+     * including the new caption labels and their lines we just refactored.
+     *
+     * This `1.4` is a FALLBACK. At runtime the `useBoardAutoScale`
+     * composable writes a computed scale to this variable on
+     * `document.documentElement` based on the actual available viewport
+     * area, refreshing on window resize, F11, monitor changes, etc. The
+     * fallback applies only if JS hasn't run yet (initial paint before
+     * mounted, or if the composable fails to install).
+     */
+    --board-scale: 1.4;
+}
+
+// text shadows
+each(@players, {
+    @c: ~"player_@{value}";
+    .player_shadow_color_@{value} {
+        text-shadow: -1px -1px 6px @@c, 1px 1px 1px #333a;
+    }
+})
+
+.tag-count {
+    box-shadow: @outline-shadow;
+    position: relative;
+    width: 40px;
+    height: 40px;
+    background-size: 42px 42px;
+    background-position: -1px -1px;
+    text-align: center;
+    border-radius: @radius_circle;
+    background-color: white;
+    margin-top: -6px;
+    margin-left: 3px;
+    box-sizing: content-box;
+    z-index: 2;
+    &::after {
+        text-transform: capitalize;
+    }
+    &.tag-tr::after {
+        text-transform: uppercase;
+    }
+    &.tag-vp::after {
+        text-transform: uppercase;
+    }
+}
+
+.tag-type-main {
+    border-radius: 4px;
+    border: none;
+    width: 40px;
+    height: 34px;
+    background-size: 40px 34px;
+}
+
+.tag-size-big {
+    margin-top: 0px;
+    margin-left: 0px;
+    background-position: -2px;
+}
+
+.tag-tr {
+    background-image: url(./assets/resources/tr.png);
+    background-size: 49px 38px !important;
+    background-position: -4px -2px !important;
+}
+
+.tag-city-count {
+    background-image: url(./assets/tiles/city.png);
+    background-image: url(./assets/tiles/city.png);
+    border-radius: 0px !important;
+    background-color: transparent !important;
+    box-shadow: none !important;
+    border: none !important;
+    filter: brightness(0.8);
+    background-size: 30px 34px !important;
+    width: 30px !important;
+    height: 34px !important;
+    background-position: 0px;
+}
+
+.player_home_anchor {
+    position: relative;
+    top: -100px;
+    visibility: hidden;
+}
+
+.hotkey-target {
+  visibility: hidden;
+  scroll-margin-top: 70px;
+}
+
+.milestones,
+.awards,
+.tag-overview {
+    .ma-clickable {
+        font-family: Ubuntu, Sans;
+        letter-spacing: 1px;
+        font-size: 16px;
+        font-weight: bold;
+        color: #ffcc64;
+        text-transform: uppercase;
+        background: @grey_850;
+        padding: 1px 5px 1px 10px;
+        border-radius: 2px;
+        text-decoration: none;
+        width: 140px;
+        margin-left: 5px;
+        cursor: pointer;
+        display: inline-block;
+        text-align: center;
+    }
+    .ma-clickable:focus {
+        box-shadow: none;
+    }
+
+    .ma-block {
+        display: inline-block;
+        width: 140px;
+        border-radius: 0 0 5px 5px;
+        border-radius: 10px;
+        margin: 5px;
+        vertical-align: top;
+        cursor: pointer;
+
+        .award-block {
+            border-radius: 10px !important;
+        }
+
+        .ma-score {
+            width: 24px;
+            height: 18px;
+            line-height: 18px;
+            border-radius: 2px;
+            margin: 5px 2px 0px 2px;
+            display: inline-block;
+            font-size: 15px;
+            font-family: Prototype;
+            color: black;
+            font-weight: normal;
+            box-shadow: 0 0 1px 1px black;
+        }
+
+        .ma-scores {
+            display: inline-block;
+            width: 144px;
+            margin-left: -2px;
+        }
+
+        .ma-player {
+            margin: 25px 0 0 70px;
+            position: absolute;
+        }
+
+        .ma-name {
+            display: inline-block;
+            width: 140px;
+            height: 83px;
+            color: black;
+            padding-top: 60px;
+            font-size: 15px;
+            text-transform: uppercase;
+            text-align: center;
+            font-weight: bold;
+            border-radius: 10px 10px 0 0;
+        }
+
+        .claimable {
+          border: 1px solid #b0b040;
+        }
+        .not-claimable {
+          border: 0px solid;
+        }
+
+        @ma-name:
+          terraformer, mayor, gardener, builder, planner,
+          landlord, banker, scientist, thermalist, miner,
+
+          generalist, specialist, ecologist, tycoon, legend,
+          celebrity, industrialist, desert-settler, estate-dealer, benefactor,
+
+          diversifier, tactician, polar-explorer, energizer, rim-settler,
+          cultivator, magnate, space-baron, excentric, contractor,
+
+          hoverlord, venuphile,
+
+          networker, entrepreneur,
+
+          lunar-magnate, lunarchitect, full-moon, one-giant-step,
+
+          economizer, pioneer, land-specialist, martian,
+          cosmic-settler, botanist, promoter, zoologist, a-manufacturer,
+
+          v-electrician, v-spacefarer, smith, tradesman, irrigator, capitalist,
+          forecaster, edgedancer, visionary, naturalist, voyager,
+
+          rugged, purifier,
+
+          agronomist, engineer, farmer,
+
+          colonizer, minimalist, terran, tropicalist,
+          curator, tourist, a-engineer, a-zoologist,
+
+          t-collector, firestarter, terra-pioneer, spacefarer, gambler,
+          biologist, t-politician, urbanist, warmonger,
+          incorporator, manufacturer, politician,
+
+          administrator, constructor, founder, highlander, hydrologist, investor,
+          landscaper, metropolist, mogul, thawer, traveller, blacksmith,
+
+          collector, electrician, fundraiser, geologist, landshaper, lobbyist, philantropist,
+          planetologist, producer, researcher, sponsor, forester, breeder, thermoengineer,
+
+          kingpin, excavator, tunneler, risktaker,
+
+          architect, c-forester, coastguard,
+
+          builder7, legend4, pioneer4, metallurgist, spacefarer4, tactician4,
+          terraformer29, terran5, trader, tycoon10, suburbian, briber, merchant,
+        ;
+        each(@ma-name, {
+          .ma-name--@{value} {
+            background-image: url("assets/ma/@{value}.png");
+            // Images are expected to be 140px x 83px
+            // background-size: 200px;
+            // background-position: -30px -5px;
+          }
+        })
+
+        .ma-description {
+            display: inline-block;
+            width: 140px;
+            height: 70px;
+            color: #ddd;
+            padding: 0px 2px 0px 2px;
+            font-size: 14px;
+            line-height: 15px;
+            text-align: center;
+        }
+    }
+}
+
+.ma-player .player-cube {
+    position: absolute;
+    margin: 25px 0 0 15px;
+}
+
+.player_home_colony_cont {
+    margin: 0 auto;
+
+    .player_home_colony {
+        display: inline-block;
+        vertical-align: top;
+        margin: 0px 0px 10px 0px;
+    }
+    .inactiveColony {
+      transform: scale(.9);
+      opacity: .7;
+    }
+}
+
+.label-additional {
+    font-family: "Ubuntu";
+    background: @grey_900;
+    padding: 2px 8px;
+    border-radius: 8px;
+    text-transform: uppercase;
+    text-shadow: none;
+    margin-left: 12px;
+}
+
+.last-generation {
+    color: red;
+}
+
+@keyframes smoth-fade-animation {
+    from { opacity: 1.0; }
+    50% { opacity: 0.2; }
+    to { opacity: 1.0; }
+}
+
+.blink-animation {
+  animation:smoth-fade-animation 2000ms infinite;
+}
+
+/*
+ * Effect-pictogram icon. 44×44 box pulling one of the existing global-
+ * parameter / tile / resource assets shipped with the fork. Same icon
+ * vocabulary the WGT modal and resource cluster use, so the overlay
+ * feels native to the rest of the sci-fi HUD.
+ */
+.std-icon {
+    width: 44px;
+    height: 44px;
+    flex-shrink: 0;
+    background-repeat: no-repeat;
+    background-position: center;
+    background-size: contain;
+}
+
+.std-icon--energy {
+    background-image: url('./assets/resources/power.png');
+    background-size: 36px 36px;
+}
+.std-icon--temperature {
+    background-image: url('./assets/global-parameters/temperature.png');
+    background-size: auto 40px;
+}
+.std-icon--ocean {
+    background-image: url('./assets/tiles/ocean.png');
+    background-size: 40px 40px;
+    filter: drop-shadow(0 0 4px rgba(80, 160, 220, 0.45));
+}
+.std-icon--greenery {
+    background-image: url('./assets/tiles/greenery.png');
+    background-size: 40px 40px;
+}
+.std-icon--city {
+    background-image: url('./assets/tiles/city.png');
+    background-size: 40px 40px;
+    filter: brightness(0.95) drop-shadow(0px 1px 1px rgba(0, 0, 0, 0.5));
+}
+.std-icon--venus {
+    background-image: url('./assets/global-parameters/venus.png');
+    background-size: 40px auto;
+}
+.std-icon--colony {
+    background-image: url('./assets/tiles/colony.png');
+    background-size: 38px 38px;
+}
+.std-icon--moon-habitat {
+    background-image: url('./assets/moon/card-habitat-rate.png');
+    background-size: 36px 36px;
+}
+.std-icon--moon-mining {
+    background-image: url('./assets/moon/card-mining-rate.png');
+    background-size: 36px 36px;
+}
+.std-icon--moon-logistics {
+    background-image: url('./assets/moon/card-logistics-rate.png');
+    background-size: 36px 36px;
+}
+.std-icon--tr {
+    background-image: url('./assets/resources/tr.png');
+    background-size: 38px 38px;
+}
+/* Excavate / Collusion / generic fallback — no dedicated asset, so we
+ * render a CSS-only glyph. Centered in the 44×44 box; cyan with glow
+ * matches the other sci-fi accents. */
+.std-icon--excavate,
+.std-icon--delegate,
+.std-icon--generic {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    color: #6ab0e6;
+    font-size: 22px;
+    background: none;
+
+    &::before {
+        text-shadow: 0 0 6px rgba(106, 176, 230, 0.55);
+    }
+}
+.std-icon--excavate::before  { content: '⛏'; }
+.std-icon--delegate::before  { content: '★'; }
+.std-icon--generic::before   { content: '◆'; }
+
+/* Sell patents — the existing card-cover art (card.png), tilted, with a
+ * megacredit coin in front of it: reads clearly as "trade a card for M€" (not
+ * income / production). CSS-only so it scales with the 44×44 .std-icon box and
+ * looks identical in the Standard Projects overlay row and the journal hover
+ * preview. */
+.std-icon--sell-patents {
+    position: relative;
+    background: none;
+
+    /* The project card — reuses the shared card cover image. */
+    &::before {
+        content: '';
+        position: absolute;
+        left: 6px;
+        top: 5px;
+        width: 24px;
+        height: 32px;
+        background: url(./assets/resources/card.webp) center / contain no-repeat;
+        filter: drop-shadow(0 1px 3px rgba(0, 0, 0, 0.6));
+        transform: rotate(-8deg);
+    }
+
+    /* The megacredit coin overlapping the card's lower-right corner. */
+    &::after {
+        content: '';
+        position: absolute;
+        right: 3px;
+        bottom: 4px;
+        width: 21px;
+        height: 21px;
+        background: url(./assets/resources/megacredit.png) center / contain no-repeat;
+        filter: drop-shadow(0 1px 2px rgba(0, 0, 0, 0.7));
+    }
+}

@@ -17,7 +17,7 @@ export const MAX_ACTIONS_PER_ROUND = 2;
 /**
  * Visual category. Drives styling (chip palette, glow, animation) via CSS
  * modifier classes — see `.player-status-chip--<category>` in
- * `player_home.less`.
+ * `turn_handoff.less` (the desktop player_home.less home was deleted).
  *
  *  - `active`  — server is currently waiting on this player (or, for MarsBot,
  *                the server holds it as the active player during its bounded
