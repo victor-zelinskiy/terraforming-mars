@@ -26,7 +26,11 @@ import {
  *  3. the hand therefore opens as its OWN screen, with the player's cards in it;
  *  4. the LT wheel refuses «Пас» / «Пропустить ход» and says WHY — and refuses
  *     nothing else;
- *  5. spending the last bonus brings the workspace BACK, exactly once.
+ *  5. the ORDERING CHOICE is real: the briefing offers the card's gains as
+ *     claimable rows (a claim costs no action), and whatever the player does
+ *     not claim arrives BY ITSELF when the window closes — computed against
+ *     the hand as it stands then, which is what «after» means;
+ *  6. spending the last bonus brings the workspace BACK, exactly once.
  */
 
 const HEAD_START = 'Head Start';
@@ -120,6 +124,16 @@ test.describe('console — Head Start bonus actions', () => {
     await expect(page.locator('.con-start__bonusact-cta')).toBeVisible();
     await expect(page.locator('.con-start__bonusact-cta-tail')).toBeVisible();
 
+    // ── 1b. THE ORDERING CHOICE — claim the steel BEFORE the actions ────────
+    await expect(page.locator('.con-start__gainrow'), 'both gains offered').toHaveCount(2);
+    await page.keyboard.press('ArrowDown'); // → the steel row
+    await page.keyboard.press('Enter');
+    await expect(page.locator('.con-start__gainrow'), 'the claimed row is gone')
+      .toHaveCount(1, {timeout: 20_000});
+    const claimed = await fetchPlayerModel(request, playerId);
+    expect((claimed.thisPlayer as {steel?: number}).steel, 'the steel arrived early (base 500)').toBe(502);
+    expect((claimed.thisPlayer as {bonusActions?: number}).bonusActions, 'claiming cost no action').toBe(2);
+
     // ── 2. A HANDS THE SCREEN OVER — COMPLETELY ─────────────────────────────
     await page.keyboard.press('Enter');
     await expect(page.locator('.con-start'), 'the workspace lets go of the screen')
@@ -165,5 +179,13 @@ test.describe('console — Head Start bonus actions', () => {
       .toBe(true);
     // …and it returns to the DEPLOYMENT, not to the bonus stage it just left.
     await expect(page.locator('.con-start__bonusact')).toHaveCount(0);
+
+    // ── 6. THE UNCLAIMED GAIN ARRIVED BY ITSELF at the window's end ─────────
+    // The M€ were never claimed → resolved against the hand as it stood after
+    // the actions (3 bought cards, untouched by two heat conversions) → +6.
+    const final = await fetchPlayerModel(request, playerId);
+    expect((final.thisPlayer as {megacredits?: number}).megacredits,
+      'the M€ auto-resolved at the window\'s close (500 + 2×3)').toBe(506);
+    expect((final.thisPlayer as {bonusActions?: number}).bonusActions ?? 0).toBe(0);
   });
 });

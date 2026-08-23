@@ -3,6 +3,7 @@ import {PlayerId} from '../common/Types';
 import {MILESTONE_COST, REDS_RULING_POLICY_COST} from '../common/constants';
 import {ACTION_MENU_FIRST_TITLE, ACTION_MENU_NEXT_TITLE} from '../common/inputs/actionMenuTitles';
 import {BonusActionPromptMeta} from '../common/models/PlayerInputModel';
+import {PendingBonusGain} from '../common/BonusGain';
 import {cardsFromJSON, ceosFromJSON, corporationCardsFromJSON, newCorporationCard, preludesFromJSON} from './createCard';
 import {CardName} from '../common/cards/CardName';
 import {CardType} from '../common/cards/CardType';
@@ -203,6 +204,23 @@ export class Player implements IPlayer {
   /** The card that granted the current bonus-action batch (prompt marker +
    *  status readout). Cleared with the batch. */
   public bonusActionSource: CardName | undefined;
+  /**
+   * GAINS granted alongside the bonus actions whose TIMING the player chooses
+   * (Head Start's official text: the steel and the M€ may be received before
+   * or after the two actions — and the M€ amount depends on the hand size AT
+   * CLAIM TIME, which is the strategic point of choosing). Claimable on any
+   * bonus-window prompt without spending an action; whatever is left when the
+   * last bonus action resolves is granted automatically — the gains are
+   * mandatory, only their order is a choice. Serialized.
+   */
+  public pendingBonusGains: Array<PendingBonusGain> = [];
+  /**
+   * Transient: the answered bonus-window option was a GAIN CLAIM, not an
+   * action — the loop re-presents the menu without spending anything. Set and
+   * consumed within one input cycle, never serialized (the
+   * `pendingPlacementCancelled` pattern).
+   */
+  public bonusGainTaken: boolean = false;
   // Transient: set when the player CANCELS a pending, not-yet-committed placement
   // (a pay-on-commit standard project). The action loop reads it once to re-present
   // the action menu WITHOUT counting the action, then clears it. Never persists
@@ -2034,13 +2052,73 @@ export class Player implements IPlayer {
    * structure (Head Start). Additive, so a second grant inside one window
    * extends the batch instead of replacing it.
    */
-  public grantBonusActions(count: number, source: CardName): void {
+  public grantBonusActions(count: number, source: CardName, gains: ReadonlyArray<PendingBonusGain> = []): void {
     if (count <= 0) {
       return;
     }
     this.bonusActions += count;
     this.bonusActionsGranted += count;
     this.bonusActionSource = source;
+    this.pendingBonusGains.push(...gains);
+  }
+
+  /** A pending gain's value RIGHT NOW (the M€ gain reads the live hand). */
+  private bonusGainAmount(gain: PendingBonusGain): number {
+    if (gain.steel !== undefined) {
+      return gain.steel;
+    }
+    return (gain.megacreditsPerCardInHand ?? 0) * this.cardsInHand.length;
+  }
+
+  /** Resolve ONE pending gain — computed at THIS moment, logged. */
+  private claimPendingBonusGain(gain: PendingBonusGain): void {
+    const index = this.pendingBonusGains.indexOf(gain);
+    if (index === -1) {
+      return;
+    }
+    this.pendingBonusGains.splice(index, 1);
+    const amount = this.bonusGainAmount(gain);
+    const resource = gain.steel !== undefined ? Resource.STEEL : Resource.MEGACREDITS;
+    if (amount > 0) {
+      this.stock.add(resource, amount, {log: true});
+    }
+  }
+
+  /** The window is closing — whatever the player did not claim arrives now
+   *  (the gains are mandatory; only their ORDER was the choice). */
+  private resolvePendingBonusGains(): void {
+    while (this.pendingBonusGains.length > 0) {
+      this.claimPendingBonusGain(this.pendingBonusGains[0]);
+    }
+  }
+
+  /**
+   * Append the pending gains to a bonus-window prompt as REAL options —
+   * claiming one resolves it and re-presents the same prompt WITHOUT spending
+   * an action (`bonusGainTaken`). Returns the marker rows (option index +
+   * live amount) so the client renders them structurally, never by title.
+   */
+  private appendBonusGainOptions(orOptions: OrOptions): BonusActionPromptMeta['gains'] {
+    if (!this.hasBonusAction() || this.pendingBonusGains.length === 0) {
+      return undefined;
+    }
+    const refs: Array<{resource: 'steel' | 'megacredits', amount: number, index: number}> = [];
+    for (const gain of this.pendingBonusGains) {
+      const amount = this.bonusGainAmount(gain);
+      const resource = gain.steel !== undefined ? 'steel' as const : 'megacredits' as const;
+      const title = resource === 'steel' ?
+        message('Gain ${0} steel now', (b) => b.number(amount)) :
+        message('Gain ${0} M€ now', (b) => b.number(amount));
+      const option = new SelectOption(title, 'Gain')
+        .andThen(() => {
+          this.claimPendingBonusGain(gain);
+          this.bonusGainTaken = true;
+          return undefined;
+        });
+      orOptions.options.push(option);
+      refs.push({resource, amount, index: orOptions.options.length - 1});
+    }
+    return refs;
   }
 
   /** A card-granted bonus action is owed right now. */
@@ -2058,6 +2136,10 @@ export class Player implements IPlayer {
     this.actionsTakenThisGame++;
     this.bonusActions = Math.max(0, this.bonusActions - 1);
     if (this.bonusActions === 0) {
+      // The window is over: whatever the player chose not to claim early
+      // arrives now — computed against the hand AS IT STANDS after the
+      // actions, which is exactly what «claiming after» means.
+      this.resolvePendingBonusGains();
       this.bonusActionsGranted = 0;
       this.bonusActionSource = undefined;
     }
@@ -2237,13 +2319,23 @@ export class Player implements IPlayer {
       if (!bonusActionOwed) {
         orOptions.options.push(this.passOption());
       } else {
+        // The window's claimable gains ride the SAME prompt (the official
+        // Head Start text lets the player receive them before the mandatory
+        // first action too), and the marker carries their option indices.
+        const gains = this.appendBonusGainOptions(orOptions);
         const meta = this.bonusActionMeta();
         if (meta !== undefined) {
-          orOptions.markBonusActionPrompt(meta);
+          orOptions.markBonusActionPrompt(gains !== undefined ? {...meta, gains} : meta);
         }
       }
 
       this.setWaitingFor(orOptions, this.runWhenEmpty(() => {
+        // A GAIN CLAIM is not an action: re-present the same prompt.
+        if (this.bonusGainTaken) {
+          this.bonusGainTaken = false;
+          this.takeAction();
+          return;
+        }
         if (this.pendingInitialActions.length === 0) {
           if (bonusActionOwed) {
             this.spendBonusAction();
@@ -2264,13 +2356,20 @@ export class Player implements IPlayer {
       // router, the quick wheel, the status label) must keep classifying it as
       // one. What is a bonus action rides the structured marker instead.
       const menu = this.getActions({bonusAction: true});
+      const gains = this.appendBonusGainOptions(menu);
       const meta = this.bonusActionMeta();
       if (meta !== undefined) {
-        menu.markBonusActionPrompt(meta);
+        menu.markBonusActionPrompt(gains !== undefined ? {...meta, gains} : meta);
       }
       this.setWaitingFor(menu, this.runWhenEmpty(() => {
         if (this.pendingPlacementCancelled) {
           this.pendingPlacementCancelled = false;
+          this.takeAction();
+          return;
+        }
+        // A GAIN CLAIM is not an action: re-present the menu, nothing spent.
+        if (this.bonusGainTaken) {
+          this.bonusGainTaken = false;
           this.takeAction();
           return;
         }
@@ -2612,6 +2711,7 @@ export class Player implements IPlayer {
       bonusActions: this.bonusActions,
       bonusActionsGranted: this.bonusActionsGranted,
       bonusActionSource: this.bonusActionSource,
+      pendingBonusGains: this.pendingBonusGains,
       actionsThisGeneration: Array.from(this.actionsThisGeneration),
       pendingInitialActions: this.pendingInitialActions.map(toName),
       // Cards
@@ -2691,6 +2791,7 @@ export class Player implements IPlayer {
     player.bonusActions = d.bonusActions ?? 0;
     player.bonusActionsGranted = d.bonusActionsGranted ?? 0;
     player.bonusActionSource = d.bonusActionSource;
+    player.pendingBonusGains = [...(d.pendingBonusGains ?? [])];
     player.canUseHeatAsMegaCredits = d.canUseHeatAsMegaCredits;
     player.canUsePlantsAsMegacredits = d.canUsePlantsAsMegaCredits;
     player.canUseTitaniumAsMegacredits = d.canUseTitaniumAsMegacredits;

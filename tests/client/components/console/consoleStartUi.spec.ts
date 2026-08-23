@@ -196,6 +196,21 @@ describe('consoleStartUi (initial-setup command contract)', () => {
     expect(labelOf(cmds, 'confirm')).to.eq('Take first action');
   });
 
+  it('a focused GAIN row relabels A to «Получить» on BOTH stages', () => {
+    // The cursor stands on a claimable gain (Head Start's «до или после») —
+    // the A the bar advertises must be the A the press performs.
+    expect(labelOf(startSceneCommands(state({
+      mode: 'ceremony', bonusAction: 'ready', stageGainFocused: true,
+    })), 'confirm')).to.eq('Claim now');
+    expect(labelOf(startSceneCommands(state({
+      mode: 'ceremony', firstAction: 'ready', stageGainFocused: true,
+    })), 'confirm')).to.eq('Claim now');
+    // …and never off the rows: the stage CTA keeps its own verb.
+    expect(labelOf(startSceneCommands(state({
+      mode: 'ceremony', bonusAction: 'ready', stageGainFocused: false,
+    })), 'confirm')).to.eq('Go to the board');
+  });
+
   /**
    * THE RISK STAGE — A was pressed on a prelude whose effect cannot resolve.
    * The press did NOT commit; it opened the stage that explains why. The bar

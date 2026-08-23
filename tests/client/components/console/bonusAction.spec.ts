@@ -1,9 +1,10 @@
 import {expect} from 'chai';
 import {
   BONUS_ACTION_TURN_CONTROL_REASON,
-  bonusActionGranted, bonusActionInStartFlow, bonusActionIndex, bonusActionMeta,
-  bonusActionOnBoard, bonusActionOwed, bonusActionRemaining, bonusActionSource,
-  bonusActionsOwed, bonusActionTurnControlReason,
+  bonusActionGains, bonusActionGranted, bonusActionInStartFlow, bonusActionIndex,
+  bonusActionMeta, bonusActionNestedFirstAction, bonusActionOnBoard, bonusActionOwed,
+  bonusActionRemaining, bonusActionsDeclaredBy, bonusActionSource, bonusActionsOwed,
+  bonusActionTurnControlReason,
 } from '@/client/console/bonusAction';
 import {PlayerViewModel} from '@/common/models/PlayerModel';
 import {CardName} from '@/common/cards/CardName';
@@ -33,7 +34,10 @@ function view(opts: {
   granted?: number,
   source?: CardName,
   /** The MARKER on the current prompt. */
-  marker?: {source: CardName, remaining: number, granted: number},
+  marker?: {
+    source: CardName, remaining: number, granted: number,
+    gains?: Array<{resource: 'steel' | 'megacredits', amount: number, index: number}>,
+  },
   /** The current prompt is one the start workspace serves itself. */
   startGamePrompt?: {kind: string},
   generation?: number,
@@ -129,6 +133,50 @@ describe('bonusAction (the card-granted action model)', () => {
 
   it('…a later-generation one belongs to the board alone — no workspace to return to', () => {
     expect(bonusActionInStartFlow(view({...FIRST_BONUS, generation: 4}))).to.be.false;
+  });
+
+  /*
+   * THE ORDERING CHOICE — the official text's «you may take one or both
+   * actions before gaining the M€ and/or steel». The server exposes the
+   * unclaimed gains as real options of the window's prompts; the client only
+   * ever reads the marker rows.
+   */
+  it('the claimable gains are the marker rows, empty everywhere else', () => {
+    const gains = [
+      {resource: 'steel' as const, amount: 2, index: 7},
+      {resource: 'megacredits' as const, amount: 4, index: 8},
+    ];
+    expect(bonusActionGains(view({...FIRST_BONUS, marker: {...HEAD_START, gains}}))).to.deep.eq(gains);
+    // Mid-sub-prompt (no marker) there is nothing claimable to render.
+    expect(bonusActionGains(view({owed: 1, granted: 2}))).to.deep.eq([]);
+    expect(bonusActionGains(view())).to.deep.eq([]);
+  });
+
+  /*
+   * THE NESTED FIRST ACTION — both markers on one prompt is the structural
+   * signature: the corp's mandatory move is being spent AS bonus action #1,
+   * so the stage frames itself as the window's item instead of a chapter.
+   */
+  it('both markers on one prompt = the nested first action', () => {
+    expect(bonusActionNestedFirstAction(view({
+      ...FIRST_BONUS, startGamePrompt: {kind: 'corporationInitialAction'},
+    }))).to.be.true;
+    // A bare bonus menu is not nested…
+    expect(bonusActionNestedFirstAction(view(FIRST_BONUS))).to.be.false;
+    // …and a standalone corp prompt (no window) is not either.
+    expect(bonusActionNestedFirstAction(view({
+      startGamePrompt: {kind: 'corporationInitialAction'},
+    }))).to.be.false;
+  });
+
+  /*
+   * THE DECLARED CHAPTER — «Фора» among the picked preludes WILL be played,
+   * so the journey rail shows the bonus chapter from the first frame.
+   */
+  it('a picked granting prelude declares the chapter; ordinary cards do not', () => {
+    expect(bonusActionsDeclaredBy([CardName.HEAD_START, CardName.LOAN])).to.eq(CardName.HEAD_START);
+    expect(bonusActionsDeclaredBy([CardName.LOAN, CardName.DONATION])).to.eq(undefined);
+    expect(bonusActionsDeclaredBy([])).to.eq(undefined);
   });
 
   it('the turn-control verbs get ONE concrete reason, and only while the window is open', () => {

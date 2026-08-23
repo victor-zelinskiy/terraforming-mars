@@ -41,4 +41,8 @@ export type ClientCard = Readonly<{
    * unknown until it is chosen, and stays a dynamic addition.)
    */
   hasFirstAction?: boolean;
+  /** The card grants N bonus actions when played (Head Start) — exported so
+   *  the start flow can DECLARE its bonus chapter before the card is played,
+   *  exactly like `hasFirstAction` declares the corp's. */
+  grantsBonusActions?: number;
 }>

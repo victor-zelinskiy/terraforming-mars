@@ -100,6 +100,12 @@ export interface ICard {
    */
   cardPlayPreview?(player: IPlayer): ActionPreview;
   /**
+   * The card GRANTS N bonus actions when played (Head Start's «immediately
+   * take 2 actions»). Co-located on the card class; exported to `ClientCard`
+   * so the console start flow declares its bonus chapter before the play.
+   */
+  readonly grantsBonusActions?: number;
+  /**
    * Optional READ-ONLY preview of what THIS card does about the cell the player
    * is currently pointing at, while its own `SelectSpace` is open. The board
    * explainer knows the cell (printed bonus, ocean adjacency, cost, scoring); it

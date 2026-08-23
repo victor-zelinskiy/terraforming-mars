@@ -4,7 +4,6 @@ import {TestPlayer} from '../../TestPlayer';
 import {fakeCard, runAllActions} from '../../TestingUtils';
 import {cast} from '../../../src/common/utils/utils';
 import {testGame} from '../../TestGame';
-import {Units} from '../../../src/common/Units';
 import {IGame} from '../../../src/server/IGame';
 import {OrOptions} from '../../../src/server/inputs/OrOptions';
 import {Phase} from '../../../src/common/Phase';
@@ -13,6 +12,7 @@ import {BactoviralResearch} from '../../../src/server/cards/promo/BactoviralRese
 import {Loan} from '../../../src/server/cards/prelude/Loan';
 import {SelectCard} from '../../../src/server/inputs/SelectCard';
 import {Donation} from '../../../src/server/cards/prelude/Donation';
+import {Inventrix} from '../../../src/server/cards/corporation/Inventrix';
 import {Player} from '../../../src/server/Player';
 import {CardName} from '../../../src/common/cards/CardName';
 
@@ -76,18 +76,152 @@ describe('HeadStart', () => {
     player2.preludeCardsInHand = [new Donation()];
   }
 
-  it('Gain resources', () => {
+  it('The play grants everything and executes NOTHING (the order is the player\'s)', () => {
     player.cardsInHand.push(fakeCard(), fakeCard(), fakeCard());
     headStart.play(player);
-    expect(player.stock.asUnits()).deep.eq(Units.of({megacredits: 6, steel: 2}));
-  });
-
-  it('Grants exactly 2 bonus actions, attributed to the card', () => {
-    headStart.play(player);
+    // No resources moved: the official text lets the player take the actions
+    // BEFORE the gains, so the gains wait as claims.
+    expect(player.steel).eq(0);
+    expect(player.megaCredits).eq(0);
     expect(player.bonusActions).eq(HEAD_START_BONUS_ACTIONS);
     expect(player.bonusActionsGranted).eq(HEAD_START_BONUS_ACTIONS);
     expect(player.bonusActionSource).eq(CardName.HEAD_START);
-    expect(player.hasBonusAction()).is.true;
+    expect(player.pendingBonusGains).deep.eq([{steel: 2}, {megacreditsPerCardInHand: 2}]);
+  });
+
+  it('The bonus menu carries CLAIM options, and the marker maps them structurally', () => {
+    seat([headStart, new Loan()]);
+    player.takeAction();
+
+    const [prelude, preludeCb] = player.popWaitingFor2();
+    cast(prelude, SelectCard).cb([headStart]);
+    preludeCb?.();
+    runAllActions(game);
+
+    const menu = cast(player.getWaitingFor(), OrOptions);
+    const titles = optionTitles(menu);
+    expect(titles).to.include('Gain ${0} steel now');
+    expect(titles).to.include('Gain ${0} M€ now');
+    const gains = menu.bonusActionPrompt?.gains ?? [];
+    expect(gains.map((g) => g.resource)).deep.eq(['steel', 'megacredits']);
+    // 2 project cards in hand → 4 M€ at THIS moment.
+    expect(gains.find((g) => g.resource === 'megacredits')?.amount).eq(4);
+    // Every marker row points at the REAL option.
+    for (const g of gains) {
+      expect(titles[g.index]).to.match(/^Gain /);
+    }
+  });
+
+  it('Claiming a gain costs NO action and re-presents the menu', () => {
+    seat([headStart, new Loan()]);
+    player.takeAction();
+
+    const [prelude, preludeCb] = player.popWaitingFor2();
+    cast(prelude, SelectCard).cb([headStart]);
+    preludeCb?.();
+    runAllActions(game);
+
+    const [menu, menuCb] = player.popWaitingFor2();
+    const or = cast(menu, OrOptions);
+    const steelIndex = (or.bonusActionPrompt?.gains ?? []).find((g) => g.resource === 'steel')!.index;
+    or.options[steelIndex].cb(undefined);
+    menuCb?.();
+    runAllActions(game);
+
+    expect(player.steel, 'the steel arrived').eq(2);
+    expect(player.bonusActions, 'no action was spent').eq(2);
+    const next = cast(player.getWaitingFor(), OrOptions);
+    // The claimed gain is gone; the other still stands.
+    const gains = next.bonusActionPrompt?.gains ?? [];
+    expect(gains.map((g) => g.resource)).deep.eq(['megacredits']);
+  });
+
+  it('The M€ gain is computed at CLAIM time, not at play time', () => {
+    seat([headStart, new Loan()]);
+    player.takeAction();
+
+    const [prelude, preludeCb] = player.popWaitingFor2();
+    cast(prelude, SelectCard).cb([headStart]);
+    preludeCb?.();
+    runAllActions(game);
+
+    // Spend a bonus action on Sell patents — the hand shrinks by one.
+    const [menu, menuCb] = player.popWaitingFor2();
+    const sell = findOption(cast(menu, OrOptions), 'Sell patents');
+    cast(sell, SelectCard).cb([player.cardsInHand[0]]);
+    menuCb?.();
+    runAllActions(game);
+
+    // Claim the M€ NOW — one card left in hand → 2 M€, not the 4 of play time.
+    const [menu2, menu2Cb] = player.popWaitingFor2();
+    const or = cast(menu2, OrOptions);
+    const mc = (or.bonusActionPrompt?.gains ?? []).find((g) => g.resource === 'megacredits')!;
+    expect(mc.amount, 'the marker already shows the live value').eq(2);
+    const before = player.megaCredits;
+    or.options[mc.index].cb(undefined);
+    menu2Cb?.();
+    runAllActions(game);
+    expect(player.megaCredits - before).eq(2);
+  });
+
+  it('Unclaimed gains AUTO-RESOLVE when the last bonus action is spent', () => {
+    seat([headStart, new Loan()]);
+    player.takeAction();
+    const trace = driveTurn([CardName.HEAD_START, CardName.LOAN]);
+
+    expect(trace).deep.eq(['prelude:Head Start', 'action:2', 'action:1', 'prelude:Loan']);
+    // Both sells shrank the hand to 0 by the window's end → the M€ gain
+    // resolves against THAT hand («claiming after» means after).
+    expect(player.steel).eq(2);
+    expect(player.pendingBonusGains).deep.eq([]);
+    expect(player.bonusActions).eq(0);
+  });
+
+  it('THE CORP\'S MANDATORY FIRST ACTION NESTS AS BONUS ACTION 1 — and the gains ride its prompt too', () => {
+    const corp = new Inventrix();
+    seat([headStart, new Loan()]);
+    player.pendingInitialActions.push(corp);
+
+    player.takeAction();
+    const [prelude, preludeCb] = player.popWaitingFor2();
+    cast(prelude, SelectCard).cb([headStart]);
+    preludeCb?.();
+    runAllActions(game);
+
+    // The FIRST prompt of the window is the corp's mandatory action…
+    const corpPrompt = cast(player.getWaitingFor(), OrOptions);
+    const titles = optionTitles(corpPrompt);
+    expect(titles[0]).to.include('Take first action of');
+    // …with no Pass, WITH the window's marker, WITH the claimable gains.
+    expect(titles).to.not.include('Pass for this generation');
+    expect(corpPrompt.bonusActionPrompt?.remaining).eq(2);
+    expect((corpPrompt.bonusActionPrompt?.gains ?? []).length).eq(2);
+
+    // Claiming a gain on the corp prompt costs nothing — the same prompt
+    // returns, the mandatory action still owed.
+    const [p1, cb1] = player.popWaitingFor2();
+    const or1 = cast(p1, OrOptions);
+    const steel = (or1.bonusActionPrompt?.gains ?? []).find((g) => g.resource === 'steel')!;
+    or1.options[steel.index].cb(undefined);
+    cb1?.();
+    runAllActions(game);
+    expect(player.steel).eq(2);
+    expect(player.bonusActions).eq(2);
+    expect(player.pendingInitialActions.length).eq(1);
+
+    // Taking the corp action spends bonus 1 of 2.
+    const [p2, cb2] = player.popWaitingFor2();
+    const or2 = cast(p2, OrOptions);
+    or2.options[0].cb(undefined);
+    cb2?.();
+    runAllActions(game);
+    expect(player.bonusActions).eq(1);
+    expect(player.pendingInitialActions.length).eq(0);
+
+    // What stands now is the FREE bonus menu (2/2), still carrying the M€ claim.
+    const menu = cast(player.getWaitingFor(), OrOptions);
+    expect(menu.bonusActionPrompt?.remaining).eq(1);
+    expect((menu.bonusActionPrompt?.gains ?? []).map((g) => g.resource)).deep.eq(['megacredits']);
   });
 
   it('Take 2 actions, as FIRST prelude', () => {
@@ -97,7 +231,6 @@ describe('HeadStart', () => {
     player.takeAction();
     const trace = driveTurn([CardName.HEAD_START, CardName.LOAN]);
 
-    // Head Start, both bonus actions (2 owed, then 1 owed), the other prelude.
     expect(trace).deep.eq(['prelude:Head Start', 'action:2', 'action:1', 'prelude:Loan']);
     expect(player.bonusActions).eq(0);
     expect(game.activePlayer.id).eq(player2.id);
@@ -118,8 +251,6 @@ describe('HeadStart', () => {
     seat([headStart, new Loan()]);
     player.takeAction();
 
-    // The prelude itself counted (this engine counts prelude plays), the two
-    // bonus actions must not.
     const [prelude, preludeCb] = player.popWaitingFor2();
     cast(prelude, SelectCard).cb([headStart]);
     preludeCb?.();
@@ -149,12 +280,9 @@ describe('HeadStart', () => {
     const titles = optionTitles(menu);
     expect(titles, titles.join(' | ')).to.not.include('Pass for this generation');
     expect(titles, titles.join(' | ')).to.not.include('End Turn');
-    // …and the client is told WHY, structurally — never by reading the title.
-    expect(menu.bonusActionPrompt).deep.eq({
-      source: CardName.HEAD_START,
-      remaining: 2,
-      granted: 2,
-    });
+    expect(menu.bonusActionPrompt?.source).eq(CardName.HEAD_START);
+    expect(menu.bonusActionPrompt?.remaining).eq(2);
+    expect(menu.bonusActionPrompt?.granted).eq(2);
     // The menu keeps the normal action-menu title so every client surface that
     // classifies an action menu keeps classifying it as one.
     expect(String(menu.title)).eq('Take your first action');
@@ -170,7 +298,7 @@ describe('HeadStart', () => {
     expect(game.phase).eq(Phase.PRELUDES);
   });
 
-  it('Bonus actions survive a save / load', () => {
+  it('Bonus actions AND pending gains survive a save / load', () => {
     headStart.play(player);
     player.bonusActions = 1;
 
@@ -179,6 +307,7 @@ describe('HeadStart', () => {
     expect(revived.bonusActions).eq(1);
     expect(revived.bonusActionsGranted).eq(HEAD_START_BONUS_ACTIONS);
     expect(revived.bonusActionSource).eq(CardName.HEAD_START);
+    expect(revived.pendingBonusGains).deep.eq([{steel: 2}, {megacreditsPerCardInHand: 2}]);
   });
 
   it('A save made before bonus actions existed loads with none owed', () => {
@@ -186,16 +315,23 @@ describe('HeadStart', () => {
     delete (serialized as Partial<typeof serialized>).bonusActions;
     delete (serialized as Partial<typeof serialized>).bonusActionsGranted;
     delete (serialized as Partial<typeof serialized>).bonusActionSource;
+    delete (serialized as Partial<typeof serialized>).pendingBonusGains;
 
     const revived = Player.deserialize(serialized);
 
     expect(revived.bonusActions).eq(0);
     expect(revived.hasBonusAction()).is.false;
+    expect(revived.pendingBonusGains).deep.eq([]);
   });
 
-  it('A normal action menu is untouched — Pass is still offered', () => {
+  it('A normal action menu is untouched — Pass is still offered, no gain options', () => {
     game.phase = Phase.ACTION;
     const menu = player.getActions();
     expect(optionTitles(menu)).to.include('Pass for this generation');
+    expect(optionTitles(menu).some((t) => t.startsWith('Gain '))).is.false;
+  });
+
+  it('Declares its bonus grant for the client (the start flow\'s chapter)', () => {
+    expect(headStart.grantsBonusActions).eq(HEAD_START_BONUS_ACTIONS);
   });
 });

@@ -541,6 +541,19 @@
                   <div class="con-start__firstact-head">
                     <span class="con-start__firstact-flag" aria-hidden="true">⚑</span>
                     <span class="con-start__firstact-kicker">{{ $t('Mandatory') }}</span>
+                    <!-- NESTED IN THE BONUS WINDOW: the mandatory move IS
+                         bonus action №1 («as your first action» and
+                         «immediately take 2 actions» resolve to this one
+                         press), so the stage wears the window's counter
+                         instead of being a chapter of its own. -->
+                    <span v-if="firstActionNested" class="con-start__firstact-bonusctx">
+                      <span class="con-start__firstact-bonusctx-flag" aria-hidden="true">»</span>
+                      <span>{{ $t('Bonus action') }}</span>
+                      <b>{{ bonusActionIndexNow }}/{{ bonusActionGrantedNow }}</b>
+                    </span>
+                  </div>
+                  <div v-if="firstActionNested" class="con-start__firstact-nestednote">
+                    {{ $t('Mandatory first action of your corporation — it is taken as bonus action 1') }}
                   </div>
                   <div class="con-start__firstact-ask">{{ firstActionAskText }}</div>
 
@@ -566,6 +579,27 @@
                     <span class="con-start__firstact-next-label">{{ $t('Next') }}</span>
                     <span class="con-start__firstact-next-text">{{ n.text }}</span>
                     <span v-if="n.constraint !== ''" class="con-start__firstact-next-tail">{{ n.constraint }}</span>
+                  </div>
+
+
+                  <!-- THE CLAIMABLE GAINS — the steel / M€ whose TIMING the
+                       official card text leaves to the player («before or
+                       after the actions»). Real server options: A on a row
+                       claims at TODAY's value, no action spent; whatever is
+                       left arrives by itself when the window closes. -->
+                  <div v-if="stageGainRows.length > 0" class="con-start__gains">
+                    <div class="con-start__gains-cap">{{ $t('Also from the card — claim now or let it arrive after the actions') }}</div>
+                    <button v-for="(g, i) in stageGainRows" :key="g.index"
+                            type="button"
+                            class="con-start__gainrow"
+                            :class="{'con-start__gainrow--focused': stageRowIdx === i + 1}"
+                            @click="claimStageGain(g)">
+                      <span class="con-start__gainrow-verb">{{ $t('Claim now') }}</span>
+                      <b class="con-start__gainrow-amount">{{ g.amount }}</b>
+                      <i class="resource_icon con-start__gainrow-icon"
+                         :class="g.resource === 'steel' ? 'resource_icon--steel' : 'resource_icon--megacredits'"
+                         aria-hidden="true"></i>
+                    </button>
                   </div>
 
                   <!-- The STATE ZONE — one reserved row, so waiting → ready is
@@ -615,6 +649,27 @@
                   <div class="con-start__bonusact-note con-start__bonusact-note--warn">
                     <span class="con-start__bonusact-note-glyph" aria-hidden="true">⚠</span>
                     <span>{{ $t('You cannot pass or end your turn until they are spent.') }}</span>
+                  </div>
+
+
+                  <!-- THE CLAIMABLE GAINS — the steel / M€ whose TIMING the
+                       official card text leaves to the player («before or
+                       after the actions»). Real server options: A on a row
+                       claims at TODAY's value, no action spent; whatever is
+                       left arrives by itself when the window closes. -->
+                  <div v-if="stageGainRows.length > 0" class="con-start__gains">
+                    <div class="con-start__gains-cap">{{ $t('Also from the card — claim now or let it arrive after the actions') }}</div>
+                    <button v-for="(g, i) in stageGainRows" :key="g.index"
+                            type="button"
+                            class="con-start__gainrow"
+                            :class="{'con-start__gainrow--focused': stageRowIdx === i + 1}"
+                            @click="claimStageGain(g)">
+                      <span class="con-start__gainrow-verb">{{ $t('Claim now') }}</span>
+                      <b class="con-start__gainrow-amount">{{ g.amount }}</b>
+                      <i class="resource_icon con-start__gainrow-icon"
+                         :class="g.resource === 'steel' ? 'resource_icon--steel' : 'resource_icon--megacredits'"
+                         aria-hidden="true"></i>
+                    </button>
                   </div>
 
                   <!-- The STATE ZONE — one reserved row, so waiting → ready is
@@ -825,8 +880,9 @@ import {buildStartStatusPreview, StartStatusPreview} from '@/client/console/star
 import {participantDisplayName} from '@/client/components/marsbot/marsBotDisplay';
 import {afterPreludes, cardCostForCorp, startingMegacredits} from '@/client/components/initialDraft/initialDraftMoney';
 import {
-  bonusActionGranted, bonusActionIndex, bonusActionOnBoard, bonusActionOwed,
-  bonusActionRemaining, bonusActionSource,
+  bonusActionGains, bonusActionGranted, bonusActionIndex, bonusActionNestedFirstAction,
+  bonusActionOnBoard, bonusActionOwed, bonusActionRemaining, bonusActionsDeclaredBy,
+  bonusActionSource, BonusGainRow,
 } from '@/client/console/bonusAction';
 import {beginHoldConfirm, cancelHoldConfirm} from '@/client/console/consoleHoldConfirm';
 import {
@@ -1183,6 +1239,11 @@ export default defineComponent({
       roomSettling: false,
       /** Stale-guard for the stage's confirmed leave (see the watcher). */
       firstActionLeaveToken: 0,
+      /** Focus INSIDE a standing stage panel: 0 = the stage's own CTA, 1.. =
+       *  the claimable gain rows (Head Start's «получить до или после»). */
+      stageRowIdx: 0,
+      /** One claim on the wire at a time (reset when the prompt answers). */
+      gainClaimPending: false,
       /** GAME FRAME MATERIALIZATION: the summary layer has been SWAPPED OUT
        *  under the flying cards (the deployment stands in its place). */
       matSwap: false,
@@ -1321,6 +1382,7 @@ export default defineComponent({
         bonusAction: this.deploymentFlowStage === 'bonusAction' &&
           this.candidatePrompt === undefined && !this.embedPresenting,
         bonusSource: this.bonusActionSourceCard,
+        bonusNested: this.firstActionNested,
       });
     },
     wsSubject(): string {
@@ -1389,7 +1451,10 @@ export default defineComponent({
       // journey must never re-open a completed chapter for a chain the last
       // stage started).
       if (this.firstActionStageLive) {
-        return 'firstAction';
+        // NESTED: the corp's mandatory move spent as bonus action #1 — the
+        // chapter the player is in is «Бонусные действия», and the rail must
+        // not leave it for a stage that is the window's own first item.
+        return this.bonusActionsOwedNow ? 'bonusAction' : 'firstAction';
       }
       const effectOpen = this.heroState.active || this.embedActive || this.sponsorPending ||
         this.effectReturnPending || workspaceFrameHasNested('start') || this.yielded ||
@@ -1432,7 +1497,8 @@ export default defineComponent({
           hasPreludes: this.state.preludes.length > 0 || this.playedPreludes.length > 0,
           hasBonusActions: this.state.bonusActionSeen,
           bonusActionsPending: false,
-          hasFirstAction: this.state.firstActionSeen || this.firstActionDeclared,
+          hasFirstAction: (this.state.firstActionSeen || this.firstActionDeclared) &&
+            !this.firstActionAbsorbed,
           firstActionPending: false,
         }).map((item) => ({...item, state: 'completed' as const}));
       }
@@ -1447,10 +1513,16 @@ export default defineComponent({
         if (this.state.preludes.length > 0) {
           future.push({id: 'preludes', label: 'Preludes', state: 'locked'});
         }
-        // The chosen corporation's declaration is known here too (the pick is
-        // made in the wizard), so the upcoming chapter is already named — the
-        // deployment then STARTS with the shape it will keep.
-        if (this.firstActionDeclared) {
+        // The picked cards DECLARE the coming chapters (the pick is made in
+        // the wizard), so the deployment STARTS with the shape it will keep:
+        // a granted bonus window is a chapter from the first frame, and the
+        // corp's mandatory first action is ABSORBED into it (the server
+        // spends it as bonus action #1 whenever both exist).
+        const bonusDeclared = bonusActionsDeclaredBy(this.state.preludes) !== undefined;
+        if (bonusDeclared) {
+          future.push({id: 'bonusActions', label: 'Bonus actions', state: 'locked'});
+        }
+        if (this.firstActionDeclared && !bonusDeclared) {
           future.push({id: 'firstAction', label: 'First action', state: 'locked'});
         }
         future.push({id: 'ready', label: 'Ready', state: 'locked'});
@@ -1480,15 +1552,20 @@ export default defineComponent({
         // first action can — which prelude the player draws is not known until
         // it is played — so it joins the rail when the grant happens and
         // STAYS, completed, once the bonuses are spent (`bonusActionSeen`).
-        hasBonusActions: this.bonusActionsOwedNow || this.bonusActionStageLive ||
-          this.state.bonusActionSeen,
+        // DECLARED from the picked cards too — «Фора» chosen in the wizard
+        // WILL be played, so the chapter stands from the deployment's first
+        // frame instead of popping in and re-numbering its neighbours.
+        hasBonusActions: this.bonusChapterExists,
         // OWED, not «the briefing is up»: the chapter is still the player's
         // current one while they are out on the board spending it, and while a
         // bonus is being spent on the corporation's own stage.
         bonusActionsPending: this.bonusActionsOwedNow ||
           this.deploymentFlowStage === 'bonusAction',
-        hasFirstAction: this.firstActionDeclared || this.firstActionOwedNow ||
-          this.firstActionStageLive || this.state.firstActionSeen,
+        // ABSORBED whenever the mandatory first action is the bonus window's
+        // own item #1 — a chapter the player never visits must not exist.
+        hasFirstAction: (this.firstActionDeclared || this.firstActionOwedNow ||
+          this.firstActionStageLive || this.state.firstActionSeen) &&
+          !this.firstActionAbsorbed,
         firstActionPending: this.deploymentFlowStage === 'firstAction',
       });
     },
@@ -1936,6 +2013,82 @@ export default defineComponent({
         '${0} grants you ${1} immediate actions — take them on the board',
         [translateText(source), String(granted)]);
     },
+    /**
+     * THE CLAIMABLE GAINS of the live bonus-window prompt — the steel / M€
+     * whose TIMING the official card text leaves to the player. Server rows
+     * (option index + live amount); empty off the window's own prompts.
+     */
+    stageGainRows(): ReadonlyArray<BonusGainRow> {
+      if (!this.bonusActionPanelShown && !this.firstActionPanelShown) {
+        return [];
+      }
+      return bonusActionGains(this.playerView);
+    },
+    /** Identity of the rows — the reset key for focus + the claim latch. */
+    stageGainKey(): string {
+      return this.stageGainRows.map((g) => `${g.resource}:${g.index}:${g.amount}`).join('|');
+    },
+    /** A stage panel with an internal focus model is up. */
+    stagePanelUp(): boolean {
+      return this.bonusActionPanelShown || this.firstActionPanelShown;
+    },
+    /** The cursor stands on a gain row (the bar's A relabels to «Получить»). */
+    stageGainFocused(): boolean {
+      return this.stageRowIdx > 0 && this.stageGainRows.length >= this.stageRowIdx;
+    },
+    /**
+     * THE NESTED FIRST ACTION — the corp's mandatory move being spent AS bonus
+     * action #1 (both markers on one prompt). The stage then frames itself as
+     * an ITEM of the bonus window («БОНУСНОЕ ДЕЙСТВИЕ 1/2») instead of a
+     * chapter of its own: the player got the actions, spends the first on the
+     * corporation, and the rail never leaves «Бонусные действия».
+     */
+    firstActionNested(): boolean {
+      return bonusActionNestedFirstAction(this.playerView);
+    },
+    /**
+     * The bonus chapter is DECLARED before the play — a picked/held prelude
+     * grants bonus actions (`ClientCard.grantsBonusActions`). «Фора» chosen in
+     * the wizard WILL be played, so the chapter is a certainty and must stand
+     * in the rail from the deployment's first frame instead of popping in.
+     */
+    bonusActionsDeclared(): boolean {
+      const held = [
+        ...this.state.preludes,
+        ...this.preludeRail.map((e) => e.name),
+        ...this.playedPreludes,
+      ];
+      return bonusActionsDeclaredBy(held) !== undefined;
+    },
+    /** …and specifically by a card NOT YET PLAYED (the window is still ahead). */
+    bonusDeclaredUnplayed(): boolean {
+      return bonusActionsDeclaredBy(this.preludeRail.map((e) => e.name)) !== undefined;
+    },
+    /** The bonus chapter exists at all (declared, owed, standing or walked). */
+    bonusChapterExists(): boolean {
+      return this.bonusActionsDeclared || this.bonusActionsOwedNow ||
+        this.bonusActionStageLive || this.state.bonusActionSeen;
+    },
+    /**
+     * The first-action chapter is ABSORBED into the bonus one. The server
+     * spends the mandatory first action AS bonus action #1 whenever both
+     * exist, so a separate «Первое действие» chapter would narrate a stage
+     * the player never visits. A first action that arises AFTER the window
+     * (Merger acquiring a corporation later) is standalone again — it joins
+     * the rail dynamically, like the Merger corp itself always has.
+     */
+    firstActionAbsorbed(): boolean {
+      if (this.state.firstActionSeen) {
+        return false;
+      }
+      if (!this.bonusChapterExists) {
+        return false;
+      }
+      if (this.firstActionOwedNow && !this.bonusActionsOwedNow && !this.bonusDeclaredUnplayed) {
+        return false;
+      }
+      return true;
+    },
     /** The stage as the command contract sees it (see StartSceneCommandState). */
     bonusActionBarState(): 'off' | 'waiting' | 'ready' {
       if (!this.bonusActionPanelShown) {
@@ -2073,9 +2226,17 @@ export default defineComponent({
           this.wizardInput !== undefined) {
         return false;
       }
+      // «The deployment's cards are through» — with ONE exception the server's
+      // own order creates: a NESTED first action (spent as bonus action #1)
+      // comes BEFORE the player's remaining preludes, so those legitimately
+      // WAIT in the queue while the stage stands. Only non-prelude queue work
+      // (a corp play, candidates) still blocks entry then.
+      const queueBlocks = this.firstActionNested ?
+        this.queueCards.some((entry) => entry.kind !== 'prelude') :
+        this.queueCards.length > 0;
       return !this.heroState.active && !this.embedActive &&
         currentRevealEvent() === undefined && !isHandDeliveryActive() &&
-        this.queueCards.length === 0 && this.payProjects.length === 0 &&
+        !queueBlocks && this.payProjects.length === 0 &&
         this.queueArriving.size === 0;
     },
     /**
@@ -2907,6 +3068,7 @@ export default defineComponent({
         hasFocusables: this.focusables.length > 0,
         firstAction: this.firstActionBarState,
         bonusAction: this.bonusActionBarState,
+        stageGainFocused: this.stageGainFocused,
         riskCommitLabel: this.riskStage?.commitLabel,
         riskHold: this.riskStage !== undefined,
       });
@@ -3246,6 +3408,23 @@ export default defineComponent({
      * that resolves while the player is on the board (the normal case — the
      * workspace is collapsed then) closes the stage just the same.
      */
+    /**
+     * The rows changed (a claim answered / a new prompt): the latch opens and
+     * the cursor comes home to the CTA — ALWAYS, not only when it fell off the
+     * end. After a claim the remaining row slides into the slot the cursor is
+     * standing on, so «press A again» would claim a gain the player never
+     * pointed at; a deliberate second claim is one ArrowDown away.
+     */
+    'stageGainKey'(): void {
+      this.gainClaimPending = false;
+      this.stageRowIdx = 0;
+    },
+    'stagePanelUp'(up: boolean): void {
+      if (!up) {
+        this.stageRowIdx = 0;
+        this.gainClaimPending = false;
+      }
+    },
     'bonusActionsOwedNow'(owed: boolean): void {
       if (owed) {
         this.state.bonusAct.source = this.bonusActionSourceCard;
@@ -4206,6 +4385,17 @@ export default defineComponent({
       return idx > 0 ? idx : 0;
     },
     onNav(dir: NavDirection): void {
+      // A STANDING STAGE PANEL owns the pad: up/down walk its rows (the CTA
+      // and the claimable gains). The room behind it is receded, so handing
+      // the press to the invisible queue moved a focus nobody could see.
+      if (this.stagePanelUp) {
+        if (dir === 'up' || dir === 'down') {
+          const count = 1 + this.stageGainRows.length;
+          const next = Math.min(count - 1, Math.max(0, this.stageRowIdx + (dir === 'down' ? 1 : -1)));
+          this.stageRowIdx = next;
+        }
+        return;
+      }
       // The summary browses the whole chosen setup with FULL 2D spatial
       // navigation: ←/→ move along the row, ↑/↓ jump between the corp/prelude
       // and project SECTIONS by real geometry (nearest tile, no wrap-around).
@@ -5170,6 +5360,16 @@ export default defineComponent({
         this.togglePick();
         return;
       }
+      // A FOCUSED GAIN ROW claims that gain — one round trip, no action
+      // spent (the server's own no-spend loop). Checked before both stage
+      // CTAs: the row is where the cursor stands.
+      if (this.stagePanelUp && this.stageGainFocused) {
+        const gain = this.stageGainRows[this.stageRowIdx - 1];
+        if (gain !== undefined) {
+          this.claimStageGain(gain);
+        }
+        return;
+      }
       // The BONUS-ACTION stage's one clear CTA — the hand-off to the board.
       // It commits nothing to the server: the action menu is already live, and
       // what the press changes is WHO HAS THE SCREEN.
@@ -5712,7 +5912,12 @@ export default defineComponent({
       this.state.firstAct.stage = 'staging';
       this.state.firstAct.corp = corp;
       this.state.firstAct.submitting = false;
-      this.state.firstActionSeen = true;
+      // A NESTED stand (the corp action as bonus item #1) belongs to the
+      // bonus chapter — recording it as «the first-action chapter stood»
+      // would resurrect a chapter the rail deliberately absorbed.
+      if (!this.firstActionNested) {
+        this.state.firstActionSeen = true;
+      }
       this.fetchFirstActionPreview(corp);
       // The card leaves FIRST; the ROOM lets go behind it — but the recede is
       // owned by `stageOwnsRoom`'s watcher, not spelled out here. One
@@ -5824,6 +6029,19 @@ export default defineComponent({
       if (this.state.bonusAct.stage === 'staging') {
         this.state.bonusAct = {stage: 'standing', source};
       }
+    },
+    /**
+     * CLAIM one of the window's pending gains («Фора»: the steel / M€ whose
+     * timing the player chooses). Submits the gain's own option — the server
+     * resolves it at TODAY's value and re-presents the same prompt without
+     * spending an action.
+     */
+    claimStageGain(gain: BonusGainRow): void {
+      if (this.gainClaimPending) {
+        return;
+      }
+      this.gainClaimPending = true;
+      this.$emit('submit', {type: 'or', index: gain.index, response: {type: 'option'}});
     },
     /**
      * A on the standing briefing — THE HAND-OFF.

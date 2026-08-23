@@ -117,6 +117,12 @@ export type StartSceneCommandState = {
    * everywhere in this workspace.
    */
   bonusAction?: 'off' | 'waiting' | 'ready',
+  /**
+   * The stage-panel cursor stands on a CLAIMABLE GAIN row (Head Start's
+   * «получить до или после»): A claims that gain instead of the stage's own
+   * CTA, and the bar must say so — a label the press will not honour is a lie.
+   */
+  stageGainFocused?: boolean,
 };
 
 /**
@@ -192,7 +198,9 @@ export function startSceneCommands(s: StartSceneCommandState): Array<StartComman
   if (s.bonusAction !== undefined && s.bonusAction !== 'off') {
     const hints: Array<StartCommand> = [];
     if (s.bonusAction === 'ready') {
-      hints.push({control: 'confirm', label: 'Go to the board', highlight: true});
+      hints.push(s.stageGainFocused === true ?
+        {control: 'confirm', label: 'Claim now', highlight: true} :
+        {control: 'confirm', label: 'Go to the board', highlight: true});
     }
     hints.push({control: 'secondary', label: 'Inspect'});
     hints.push({control: 'back', label: 'Minimize'});
@@ -206,7 +214,9 @@ export function startSceneCommands(s: StartSceneCommandState): Array<StartComman
     }
     const hints: Array<StartCommand> = [];
     if (s.firstAction === 'ready') {
-      hints.push({control: 'confirm', label: 'Take first action', highlight: true});
+      hints.push(s.stageGainFocused === true ?
+        {control: 'confirm', label: 'Claim now', highlight: true} :
+        {control: 'confirm', label: 'Take first action', highlight: true});
     }
     hints.push({control: 'secondary', label: 'Inspect'});
     hints.push({control: 'back', label: 'Minimize'});

@@ -124,6 +124,13 @@ class CardProcessor {
       clientCard.hasFirstAction = true;
     }
 
+    // The card grants bonus actions when played (Head Start) — co-located on
+    // the card class, exported so the start flow can DECLARE its bonus
+    // chapter before the card is played (the `hasFirstAction` pattern).
+    if (card.grantsBonusActions !== undefined) {
+      clientCard.grantsBonusActions = card.grantsBonusActions;
+    }
+
     if (card.requirements) {
       clientCard.requirements = card.requirements;
     }

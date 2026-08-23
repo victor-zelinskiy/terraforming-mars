@@ -471,19 +471,60 @@
 
             <!-- ── DISTRIBUTE ─────────────────────────────────────── -->
             <template v-else-if="activeTask.kind === 'distribute'">
-              <div class="con-task__dist-target" :class="{'con-task__dist-target--ready': distributeReady}">
+              <!-- The budget meter. The SINGLE-STEP gain drops it («Всего 0/1»
+                   over a radio restates the title's own count — the Venus-bonus
+                   rule); the blocked line below then carries the honest «why
+                   not yet». The production loss keeps it always: there the
+                   meter IS the readout of the server's cost. -->
+              <div v-if="activeTask.mode === 'production' || !distSingleStep"
+                   class="con-task__dist-target" :class="{'con-task__dist-target--ready': distributeReady}">
                 {{ $t('Total') }}: <b>{{ distributedSum }}</b> / {{ distributeTarget }}
               </div>
-              <div v-for="(lane, i) in lanes" :key="lane.unit"
+              <div v-if="distBlockedText !== ''" class="con-task__dist-blocked">⚠ {{ distBlockedText }}</div>
+              <div v-for="(lane, i) in lanes" :key="lane.key"
                    class="con-task__lane"
-                   :class="{'con-task__lane--focused': focusIdx === i, 'con-task__lane--active': laneValue(lane.unit) > 0}">
+                   :class="{
+                     'con-task__lane--focused': focusIdx === i,
+                     'con-task__lane--active': laneValue(lane.key) > 0,
+                     'con-task__lane--gain': activeTask.mode === 'resources',
+                   }">
                 <span class="con-task__lane-id" :class="{'con-task__lane-id--prod': activeTask.mode === 'production'}">
-                  <i class="con-task__opt-icon" :class="'resource_icon resource_icon--' + lane.unit" aria-hidden="true"></i>
+                  <i class="con-task__opt-icon" :class="lane.iconClass" aria-hidden="true"></i>
                 </span>
-                <span class="con-task__lane-value">{{ laneValue(lane.unit) }}</span>
-                <span class="con-task__lane-max">/ {{ lane.max }}</span>
-                <span v-if="focusIdx === i" class="con-task__lane-keys" aria-hidden="true">
-                  <GamepadGlyph control="bumperL" /><GamepadGlyph control="bumperR" />
+                <span class="con-task__lane-name">{{ $t(lane.label) }}</span>
+
+                <!-- The production LOSS: picked / the server's own cap. -->
+                <template v-if="activeTask.mode === 'production'">
+                  <span class="con-task__lane-value">{{ laneValue(lane.key) }}</span>
+                  <span class="con-task__lane-max">/ {{ lane.max }}</span>
+                </template>
+                <!-- The GAIN: what you have → what it becomes. The stock CAPS
+                     nothing (the budget is the only limit) — it is the reading
+                     that makes «where does the bonus land» a real decision. -->
+                <template v-else>
+                  <span class="con-task__lane-stock">
+                    <span class="con-task__lane-cur" :class="{'con-task__lane-cur--faded': laneValue(lane.key) > 0}">{{ lane.available }}</span>
+                    <template v-if="laneValue(lane.key) > 0">
+                      <span class="con-task__lane-arrow" aria-hidden="true">→</span>
+                      <span class="con-task__lane-next">{{ (lane.available ?? 0) + laneValue(lane.key) }}</span>
+                    </template>
+                  </span>
+                  <span v-if="!distSingleStep" class="con-task__lane-delta" :class="{'con-task__lane-delta--empty': laneValue(lane.key) === 0}">
+                    <template v-if="laneValue(lane.key) > 0">+{{ laneValue(lane.key) }}</template>
+                  </span>
+                </template>
+
+                <span class="con-task__lane-keys" aria-hidden="true">
+                  <!-- SINGLE-STEP: the chosen lane keeps its mark once the
+                       cursor moves on; the focused row shows the A gesture —
+                       BOTH when they coincide (the cursor is not the answer). -->
+                  <template v-if="distSingleStep">
+                    <span v-if="laneValue(lane.key) > 0" class="con-task__lane-tick">✓</span>
+                    <GamepadGlyph v-if="focusIdx === i" control="confirm" />
+                  </template>
+                  <template v-else-if="focusIdx === i">
+                    <GamepadGlyph control="bumperL" /><GamepadGlyph control="bumperR" />
+                  </template>
                 </span>
               </div>
             </template>
@@ -570,13 +611,18 @@ import {displayNameForColor, participantDisplayName} from '@/client/components/m
 type TargetRowVM = {isTrack: boolean, tag?: Tag, iconClass: string, from: number, to: number, steps?: number, prod: boolean};
 import {GamepadIntent, NavDirection} from '@/client/gamepad/gamepadPollModel';
 import {consoleActionOf, ConsoleAction} from '@/client/console/composables/consoleActionModel';
+import {productionLossLanes, standardGainLanes} from '@/client/console/compositePrompts';
+import {
+  BudgetLane, BudgetRule, BudgetState, budgetBlockedKey, budgetSingleStep, budgetTotal, budgetValid,
+  maxOntoLane, stepLane, toggleSoleStep,
+} from '@/client/console/budgetLanes';
 import {GlyphControl} from '@/client/gamepad/glyphSets';
 import type {ConsoleCommand} from '@/client/console/consoleCommandModel';
 import {setPanelCommands, clearPanelCommands} from '@/client/console/consolePanelUi';
 import {
   amountResponse, cardsResponse, deltaProjectResponse, optionConfirmResponse, orOptionResponse,
   orWrappedResponse, paymentResponse, playerResponse, productionToLoseResponse, projectCardResponse,
-  resourceResponse, resourcesResponse, STANDARD_UNITS,
+  resourceResponse, resourcesResponse,
 } from '@/client/console/taskResponses';
 import {CardModel} from '@/common/models/CardModel';
 import {SpendableResource} from '@/common/inputs/Spendable';
@@ -1246,19 +1292,26 @@ export default defineComponent({
       return (this.wf as PlayerInputModel & {type: 'resource'}).include;
     },
     // ── distribute ───────────────────────────────────────────────────
-    lanes(): Array<{unit: keyof Units, max: number}> {
+    /**
+     * The lane set, as the shared `budgetLanes` engine speaks it. PRODUCTION
+     * (a nested loss) keeps the server's own per-lane caps — how far each
+     * production can fall IS a rule. RESOURCES is a GAIN (`SelectResources`:
+     * Philares, the behavior DSL's `standardResource`) whose only limit is the
+     * budget itself — the server validates nothing but the sum. It used to cap
+     * every lane by the player's CURRENT STOCK: a limit that isn't one (an
+     * empty pool read «0 / 0» and refused its share of the reward). The stock
+     * now rides along as `available`, the «518 → 519» readout.
+     */
+    lanes(): Array<BudgetLane> {
       if (this.activeTask.kind !== 'distribute') {
         return [];
       }
       if (this.activeTask.mode === 'production') {
         const model = this.wf as PlayerInputModel & {type: 'productionToLose'};
-        return STANDARD_UNITS
-          .filter((u) => model.payProduction.units[u] > 0)
-          .map((u) => ({unit: u, max: model.payProduction.units[u]}));
+        return productionLossLanes(model.payProduction.units);
       }
-      // resources: distribute over the standard stock, capped by ownership.
-      const me = this.playerView.thisPlayer as unknown as Record<string, number>;
-      return STANDARD_UNITS.map((u) => ({unit: u, max: me[RESOURCE_FIELD[u].stock] ?? 0}));
+      const stock = this.playerView.thisPlayer as unknown as Partial<Record<keyof Units, number>>;
+      return standardGainLanes(this.distributeTarget, stock);
     },
     distributeTarget(): number {
       if (this.activeTask.kind !== 'distribute') {
@@ -1269,11 +1322,41 @@ export default defineComponent({
       }
       return (this.wf as PlayerInputModel & {type: 'resources'}).count;
     },
+    distRule(): BudgetRule {
+      return {kind: 'exact', target: this.distributeTarget};
+    },
+    /**
+     * ONE unit to place → the lanes are a RADIO, not six dials: A puts it on
+     * the focused lane / takes it back, X commits, and −1/+1/MAX are not
+     * advertised (they still land on the same gesture — muscle memory must
+     * never meet a dead button). The same question the Venus-bonus and
+     * spend-heat surfaces ask of the same engine, so the three cannot drift.
+     */
+    distSingleStep(): boolean {
+      return this.activeTask.kind === 'distribute' && budgetSingleStep(this.lanes, this.distRule);
+    },
+    /** The lane under the cursor already holds the unit — A takes it back. */
+    distFocusedPicked(): boolean {
+      const lane = this.lanes[this.focusIdx];
+      return lane !== undefined && this.laneValue(lane.key) > 0;
+    },
+    /**
+     * Why the confirm is withheld — the honest reason under the ask, never a
+     * dead button (gain mode only: the production loss keeps its meter, whose
+     * amber «Всего n / m» already says the same thing in loss language).
+     */
+    distBlockedText(): string {
+      if (this.activeTask.kind !== 'distribute' || this.activeTask.mode !== 'resources' || this.distributeReady) {
+        return '';
+      }
+      const key = budgetBlockedKey(this.lanes, this.units as BudgetState, this.distRule);
+      return key === undefined ? '' : translateText(key);
+    },
     distributedSum(): number {
-      return this.lanes.reduce((sum, l) => sum + (this.units[l.unit] ?? 0), 0);
+      return budgetTotal(this.lanes, this.units as BudgetState);
     },
     distributeReady(): boolean {
-      return this.distributedSum === this.distributeTarget;
+      return budgetValid(this.lanes, this.units as BudgetState, this.distRule);
     },
     /** Every card the viewer holds (incl. Self-Replicating-Robots hosts) — the
      *  ownership test behind routing a nested pick to the hand overlay. */
@@ -1598,12 +1681,23 @@ export default defineComponent({
           {control: 'triggerR', label: 'MAX'}, amountCommit, ...this.sourceHint, defer,
         ];
       }
-      case 'distribute':
+      case 'distribute': {
+        // ONE unit → one gesture: A places / takes back, X commits. Offering
+        // −1 / +1 / MAX for a dial that can only read 0 or 1 is four ways to
+        // say the same thing (the budgetLanes rule; the Venus surface's bar).
+        if (this.distSingleStep) {
+          return [
+            {control: 'dpad', label: 'Navigate'},
+            {control: 'confirm', label: this.distFocusedPicked ? 'Remove here' : 'Add here'},
+            confirm, ...this.sourceHint, defer,
+          ];
+        }
         return [
           {control: 'dpad', label: 'Navigate'},
           {control: 'bumperL', label: '−1'}, {control: 'bumperR', label: '+1'},
           {control: 'triggerR', label: 'MAX'}, confirm, ...this.sourceHint, defer,
         ];
+      }
       case 'payment':
         return [
           {control: 'dpad', label: 'Navigate'},
@@ -2630,8 +2724,18 @@ export default defineComponent({
         onStaged: this.embedded ? () => this.$emit('result-detached') : undefined,
       });
     },
-    laneValue(unit: keyof Units): number {
-      return this.units[unit] ?? 0;
+    laneValue(unit: string): number {
+      return (this.units as Record<string, number>)[unit] ?? 0;
+    },
+    /** The single-step gesture: put the one unit on this lane, or take it back. */
+    distToggleFocused(): void {
+      if (this.submitting) {
+        return; // commit lock — see adjust()
+      }
+      const lane = this.lanes[this.focusIdx];
+      if (lane !== undefined) {
+        this.units = {...toggleSoleStep(this.lanes, this.units as BudgetState, this.distRule, lane.key)};
+      }
     },
     payCount(unit: SpendableResource): number {
       return this.payCounts[unit] ?? 0;
@@ -2652,11 +2756,15 @@ export default defineComponent({
         if (lane === undefined) {
           return;
         }
-        const current = this.units[lane.unit] ?? 0;
-        // Cap by the lane max AND by the remaining target.
-        const headroom = this.distributeTarget - this.distributedSum;
-        const next = Math.min(lane.max, Math.max(0, current + Math.min(step, headroom)));
-        this.units = {...this.units, [lane.unit]: next};
+        // SINGLE-STEP: LB takes the unit back, RB moves it here — the silent
+        // aliases of the A gesture (a plain `+1` under a full budget is
+        // refused, so RB rebuilds from empty exactly as the toggle does).
+        const next = this.distSingleStep ?
+          (step < 0 ?
+            (this.distFocusedPicked ? {} : this.units as BudgetState) :
+            stepLane(this.lanes, {}, this.distRule, lane.key, 1)) :
+          stepLane(this.lanes, this.units as BudgetState, this.distRule, lane.key, step);
+        this.units = {...next};
         return;
       }
       if (this.activeTask.kind === 'payment') {
@@ -2702,9 +2810,10 @@ export default defineComponent({
         if (lane === undefined) {
           return;
         }
-        const current = this.units[lane.unit] ?? 0;
-        const headroom = this.distributeTarget - this.distributedSum + current;
-        this.units = {...this.units, [lane.unit]: Math.min(lane.max, headroom)};
+        const next = this.distSingleStep ?
+          stepLane(this.lanes, {}, this.distRule, lane.key, 1) :
+          maxOntoLane(this.lanes, this.units as BudgetState, this.distRule, lane.key);
+        this.units = {...next};
         return;
       }
       if (this.activeTask.kind === 'payment') {
@@ -2798,6 +2907,13 @@ export default defineComponent({
     },
     /** A: select/arm the focused element; A on the armed one = confirm. */
     onPrimary(): void {
+      // SINGLE-STEP distribute: A is the radio gesture (place the unit here /
+      // take it back) — the commit lives on X alone, so one press can never
+      // both choose a lane and submit the choice.
+      if (this.activeTask.kind === 'distribute' && this.distSingleStep) {
+        this.distToggleFocused();
+        return;
+      }
       if (this.activeTask.kind === 'amount' || this.activeTask.kind === 'distribute' || this.activeTask.kind === 'payment') {
         this.onConfirm();
         return;

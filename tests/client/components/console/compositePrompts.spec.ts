@@ -6,9 +6,10 @@ import {
   stepLane, stepsUp, toggleSoleStep, BudgetLane, BudgetRule,
 } from '@/client/console/budgetLanes';
 import {
-  aresResponse, aresResulting, aresThresholdRows, spendHeatLanes, spendHeatResponse,
-  venusBaseCount, venusBonusLanes, venusBonusResponse,
+  aresResponse, aresResulting, aresThresholdRows, productionLossLanes, spendHeatLanes,
+  spendHeatResponse, standardGainLanes, venusBaseCount, venusBonusLanes, venusBonusResponse,
 } from '@/client/console/compositePrompts';
+import {Units} from '@/common/Units';
 
 /*
  * THE THREE PROMPTS THAT USED TO FALL THROUGH TO THE DESKTOP MODAL.
@@ -167,6 +168,39 @@ describe('budgetLanes (the shared distribution engine)', () => {
       expect(budgetBlockedKey(venusBonusLanes(3, {}), {}, {kind: 'exact', target: 3}))
         .to.eq('Distribute the whole bonus');
     });
+  });
+});
+
+describe('the SelectResources distribute (Philares / the behavior DSL)', () => {
+  // The server validates NOTHING but the sum (`SelectResources.process`): a
+  // gain may land anywhere, including on a pool the player has none of.
+  const stock: Partial<Record<keyof Units, number>> = {megacredits: 518, heat: 500};
+
+  it('a lane is capped by the BUDGET alone — an empty pool still takes its share', () => {
+    const lanes = standardGainLanes(2, stock);
+    expect(lanes.every((l) => l.max === 2), 'never the stock').to.be.true;
+    // plants: 0 owned — the shipped bug read «0 / 0» here and refused the step.
+    const state = stepLane(lanes, {}, {kind: 'exact', target: 2}, 'plants', 2);
+    expect(state).to.deep.eq({plants: 2});
+  });
+
+  it('the stock rides along as the «518 → 519» readout, never as a limit', () => {
+    const lanes = standardGainLanes(1, stock);
+    expect(lanes.find((l) => l.key === 'megacredits')?.available).to.eq(518);
+    expect(lanes.find((l) => l.key === 'plants')?.available).to.eq(0);
+  });
+
+  it('a one-resource gain is a RADIO — the same question the Venus surface asks', () => {
+    expect(budgetSingleStep(standardGainLanes(1, stock), {kind: 'exact', target: 1})).to.be.true;
+    expect(budgetSingleStep(standardGainLanes(2, stock), {kind: 'exact', target: 2})).to.be.false;
+  });
+
+  it('a production loss keeps the SERVER’s own per-lane caps — there the cap IS a rule', () => {
+    const units: Units = {megacredits: 4, steel: 2, titanium: 0, plants: 3, energy: 2, heat: 2};
+    const lanes = productionLossLanes(units);
+    expect(lanes.map((l) => [l.key, l.max])).to.deep.eq([
+      ['megacredits', 4], ['steel', 2], ['plants', 3], ['energy', 2], ['heat', 2],
+    ]);
   });
 });
 

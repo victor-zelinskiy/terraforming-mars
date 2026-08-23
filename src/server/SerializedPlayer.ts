@@ -1,4 +1,5 @@
 import {PlayerId} from '../common/Types';
+import {PendingBonusGain} from '../common/BonusGain';
 import {CardName} from '../common/cards/CardName';
 import {Color} from '../common/Color';
 import {SerializedCard} from './SerializedCard';
@@ -22,6 +23,8 @@ export interface SerializedPlayer extends DeprecatedFields{
   bonusActions?: number;
   bonusActionsGranted?: number;
   bonusActionSource?: CardName;
+  /** Gains whose timing the player chooses (Head Start). Absent → none. */
+  pendingBonusGains?: Array<PendingBonusGain>;
   actionsThisGeneration: Array<CardName>;
   alliedParty: AlliedParty | undefined;
   autoPass: boolean;

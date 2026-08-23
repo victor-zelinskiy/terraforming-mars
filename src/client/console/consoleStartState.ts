@@ -699,6 +699,10 @@ export function deploymentCrumb(signals: {
   bonusAction?: boolean,
   /** The card that granted them — the bonus stage's subject. */
   bonusSource?: string,
+  /** The corp's mandatory first action is being spent AS bonus action #1 —
+   *  the crumb keeps the WINDOW as its subject and only the tail names the
+   *  nested item («СТАРТ ПАРТИИ › ФОРА › ПЕРВОЕ ДЕЙСТВИЕ»). */
+  bonusNested?: boolean,
 }): StartCrumb {
   if (signals.embedActive) {
     return {
@@ -711,6 +715,18 @@ export function deploymentCrumb(signals: {
   }
   if (signals.corpPending || signals.corpPick) {
     return {subject: 'Corporation', stage: 'Playing'};
+  }
+  // NESTED: the mandatory first action spent as bonus action #1. The WINDOW
+  // keeps the subject (it is the flow the player is in) and only the tail
+  // names the item — the workspace never appears to leave «Фора» for a
+  // chapter of its own.
+  if (signals.firstAction === true && signals.bonusAction === true) {
+    return {
+      subject: signals.bonusSource !== undefined && signals.bonusSource !== '' ?
+        signals.bonusSource :
+        'Preludes',
+      stage: 'First action',
+    };
   }
   // THE FIRST-ACTION STAGE — the same grammar one stage further: the subject
   // returns to the corporation (the card back on stage IS the corp), the

@@ -1,4 +1,5 @@
 import {PlayerId, isPlayerId} from '../common/Types';
+import {PendingBonusGain} from '../common/BonusGain';
 import {CardName} from '../common/cards/CardName';
 import {ICorporationCard} from './cards/corporation/ICorporationCard';
 import {IGame, isIGame} from './IGame';
@@ -168,6 +169,9 @@ export interface IPlayer {
   bonusActions: number;
   bonusActionsGranted: number;
   bonusActionSource: CardName | undefined;
+  /** Gains whose timing the player chooses (Head Start) — claimable during
+   *  the bonus window, auto-resolved when it closes. */
+  pendingBonusGains: Array<PendingBonusGain>;
   // Transient flag: a pay-on-commit placement (standard project) was cancelled,
   // so the action loop re-presents the menu without counting the action.
   pendingPlacementCancelled: boolean;
@@ -498,8 +502,9 @@ export interface IPlayer {
    *  `bonusAction` builds the same menu WITHOUT the two turn-control verbs (End Turn / Pass) —
    *  neither is a legal answer to a card-granted bonus action. */
   getActions(options?: {bonusAction?: boolean}): OrOptions;
-  /** Grant `count` bonus actions, attributed to `source` (Head Start). */
-  grantBonusActions(count: number, source: CardName): void;
+  /** Grant `count` bonus actions, attributed to `source` (Head Start),
+   *  optionally with gains whose claim timing the player chooses. */
+  grantBonusActions(count: number, source: CardName, gains?: ReadonlyArray<PendingBonusGain>): void;
   /** A card-granted bonus action is owed right now. */
   hasBonusAction(): boolean;
   process(input: InputResponse): void;

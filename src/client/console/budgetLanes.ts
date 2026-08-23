@@ -2,14 +2,15 @@
  * BUDGET LANES — the ONE stepper engine behind every console prompt that reads
  * "spread a fixed budget across N lanes".
  *
- * Two prompts in scope look different and are the same machine:
+ * Three prompt families look different and are the same machine:
  *   • the Venus alt-track bonus — spend EXACTLY N across the six standard
  *     resources (every lane is worth 1);
  *   • Stormcraft's spend-heat — COVER N heat with heat (1 each) and floaters
- *     (2 each), and never overpay.
- * Both are `AndOptions` of `SelectAmount` on the wire, which is why the console
- * used to drop both onto the desktop modal: the task host's `distribute` lanes
- * only speak `SelectResources`.
+ *     (2 each), and never overpay;
+ *   • the task host's `distribute` lanes — `SelectResources` (a GAIN capped by
+ *     the budget alone; Philares) and the nested `SelectProductionToLose`.
+ * The first two are `AndOptions` of `SelectAmount` on the wire, which is why
+ * the console used to drop both onto the desktop modal.
  *
  * PURITY: no Vue, no DOM, no i18n — English i18n KEYS out, numbers in. That is
  * what lets the whole rule set be unit-tested under the fast server runner

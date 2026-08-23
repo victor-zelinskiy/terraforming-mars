@@ -1,6 +1,9 @@
 {
     "OK": "ОК",
     "After this prelude you take 2 extra actions immediately.": "После этого пролога вы немедленно выполните 2 дополнительных действия.",
+    "After this prelude you take 2 extra actions immediately; you choose whether the steel and M€ arrive before or after them.": "После этого пролога вы немедленно выполните 2 дополнительных действия; сталь и М€ вы получите до или после них — по вашему выбору.",
+    "Gain ${0} steel now": "Получить ${0} стали сейчас",
+    "Gain ${0} M€ now": "Получить ${0} М€ сейчас",
     "After confirming, draw 3 Prelude cards and choose one to play; the other two are discarded.": "После подтверждения возьмите 3 карты прологов и выберите одну для розыгрыша; две другие будут сброшены.",
     "After confirming, choose an award to sponsor for free.": "После подтверждения выберите награду для бесплатного спонсирования.",
     "Reveal cards from the deck until you find 2 cards with a floater icon — they go to your hand.": "Открывайте карты из колоды, пока не найдёте 2 карты со значком аэростата — они перейдут к вам в руку.",

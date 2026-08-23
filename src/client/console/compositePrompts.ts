@@ -33,28 +33,61 @@ import {iconClassFor} from '@/client/components/modalInputs/optionIcons';
 import {BudgetLane, BudgetState, laneValue} from '@/client/console/budgetLanes';
 import {amountResponse, andResponse, cardsResponse, orWrappedResponse, STANDARD_UNITS} from '@/client/console/taskResponses';
 
-/* ── VENUS ALT-TRACK BONUS ──────────────────────────────────────────────── */
+/* ── STANDARD-RESOURCE LANES (shared builders) ──────────────────────────── */
+
+const LANE_LABELS: Record<string, string> = {
+  megacredits: 'M€', steel: 'Steel', titanium: 'Titanium',
+  plants: 'Plants', energy: 'Energy', heat: 'Heat',
+};
 
 /**
- * The six standard-resource lanes. Every lane is worth 1 of the budget and is
- * capped by the budget itself, NOT by the player's stock: this is a gain, and a
- * cap borrowed from what you already own would read as a limit that isn't one.
- * The stock still rides along as `available`, because "M€ 44 → 46" is the whole
- * point of choosing where the bonus goes.
+ * The six standard-resource lanes of a GAIN. Every lane is worth 1 of the
+ * budget and is capped by the budget itself, NOT by the player's stock: this is
+ * a gain, and a cap borrowed from what you already own would read as a limit
+ * that isn't one — the `SelectResources` distribute surface shipped exactly
+ * that bug (six lanes capped by the very stock they were about to increase, so
+ * an empty pool read «0 / 0» and refused its share of the reward). The stock
+ * still rides along as `available`, because "M€ 44 → 46" is the whole point of
+ * choosing where the bonus goes.
+ *
+ * Two prompts speak these lanes: the Venus alt-track bonus (`AndOptions` of
+ * `SelectAmount` on the wire) and the `SelectResources` distribute prompt
+ * (Philares, the behavior DSL's `standardResource` — served by the task host).
  */
-export function venusBonusLanes(count: number, stock: Partial<Record<keyof Units, number>>): Array<BudgetLane> {
-  const LABELS: Record<string, string> = {
-    megacredits: 'M€', steel: 'Steel', titanium: 'Titanium',
-    plants: 'Plants', energy: 'Energy', heat: 'Heat',
-  };
+export function standardGainLanes(count: number, stock: Partial<Record<keyof Units, number>>): Array<BudgetLane> {
   return STANDARD_UNITS.map((unit) => ({
     key: unit,
     iconClass: iconClassFor(unit),
-    label: LABELS[unit],
+    label: LANE_LABELS[unit],
     weight: 1,
     max: count,
     available: stock[unit] ?? 0,
   }));
+}
+
+/**
+ * The reducible lanes of a production LOSS (`SelectProductionToLose`, reaching
+ * the task host only NESTED inside a choice wizard — the top-level prompt has
+ * its own surface). Here the per-lane cap IS a rule: the server's own
+ * `payProduction.units` say how far each production can fall.
+ */
+export function productionLossLanes(units: Units): Array<BudgetLane> {
+  return STANDARD_UNITS
+    .filter((u) => units[u] > 0)
+    .map((u) => ({
+      key: u,
+      iconClass: iconClassFor(u),
+      label: LANE_LABELS[u],
+      weight: 1,
+      max: units[u],
+    }));
+}
+
+/* ── VENUS ALT-TRACK BONUS ──────────────────────────────────────────────── */
+
+/** The Venus bonus places its budget over the same six gain lanes. */
+export function venusBonusLanes(count: number, stock: Partial<Record<keyof Units, number>>): Array<BudgetLane> {
+  return standardGainLanes(count, stock);
 }
 
 /**

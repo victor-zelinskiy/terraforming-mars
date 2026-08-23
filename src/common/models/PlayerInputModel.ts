@@ -77,6 +77,15 @@ export type BonusActionPromptMeta = {
   remaining: number;
   /** How many the card granted in this batch. */
   granted: number;
+  /**
+   * PENDING GAINS the player may claim on THIS prompt without spending an
+   * action («Фора»: the steel / M€ whose timing the card leaves to the
+   * player). Each entry is a real option of the OrOptions — `index` is its
+   * position, so the client submits `{type:'or', index, response:{type:
+   * 'option'}}` and never has to find it by title. `amount` is the value AT
+   * THIS MOMENT (the M€ gain depends on the hand size at claim time).
+   */
+  gains?: ReadonlyArray<{resource: 'steel' | 'megacredits', amount: number, index: number}>;
 }
 
 /**

@@ -448,9 +448,17 @@ describe('consoleStartState (T5 summary launch readout)', () => {
       // No source known yet → the honest generic group, never a blank subject.
       expect(deploymentCrumb({...base, bonusAction: true}))
         .to.deep.eq({subject: 'Preludes', stage: 'Action'});
-      // The mandatory first action still outranks it: it is the deeper, live
-      // prompt when both are somehow true.
-      expect(deploymentCrumb({...base, bonusAction: true, firstAction: true}))
+    });
+
+    it('the NESTED first action keeps the WINDOW as the subject', () => {
+      // The corp's mandatory move spent as bonus action #1: the crumb stays in
+      // «Фора» and only the tail names the item — the workspace never appears
+      // to leave the window for a chapter of its own.
+      const base = {embedActive: false, corpPending: false, payPending: false, corpPick: false};
+      expect(deploymentCrumb({...base, bonusAction: true, firstAction: true, bonusSource: 'Head Start'}))
+        .to.deep.eq({subject: 'Head Start', stage: 'First action'});
+      // A standalone first action (no window) keeps its own grammar.
+      expect(deploymentCrumb({...base, firstAction: true}))
         .to.deep.eq({subject: 'Corporation', stage: 'First action'});
     });
 

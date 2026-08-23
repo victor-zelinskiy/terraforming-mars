@@ -23,8 +23,12 @@
  * tests/client/components/console/bonusAction.spec.ts
  */
 import {CardName} from '@/common/cards/CardName';
+import {getCard} from '@/client/cards/ClientCardManifest';
 import {BonusActionPromptMeta} from '@/common/models/PlayerInputModel';
 import {PlayerViewModel} from '@/common/models/PlayerModel';
+
+/** One claimable gain of the live prompt (see BonusActionPromptMeta.gains). */
+export type BonusGainRow = {resource: 'steel' | 'megacredits', amount: number, index: number};
 
 /** The live bonus-action marker, or undefined when this is a normal prompt. */
 export function bonusActionMeta(view: PlayerViewModel): BonusActionPromptMeta | undefined {
@@ -81,6 +85,42 @@ export function bonusActionOwed(view: PlayerViewModel): boolean {
  */
 export function bonusActionOnBoard(view: PlayerViewModel): boolean {
   return bonusActionOwed(view) && view.waitingFor?.startGamePrompt === undefined;
+}
+
+/**
+ * THE NESTED FIRST ACTION — the corporation's mandatory first action being
+ * spent AS bonus action #1 («as your first action» + «immediately take 2
+ * actions» resolve to the same press). Both markers on one prompt is the
+ * structural signature: the `startGamePrompt` says the workspace's own
+ * first-action stage serves it, the `bonusActionPrompt` says it happens INSIDE
+ * the bonus window — so the stage frames itself as the window's item 1/2
+ * instead of a chapter of its own.
+ */
+export function bonusActionNestedFirstAction(view: PlayerViewModel): boolean {
+  return bonusActionMeta(view) !== undefined &&
+    view.waitingFor?.startGamePrompt?.kind === 'corporationInitialAction';
+}
+
+/**
+ * The GAINS claimable on the live prompt — the steel / M€ whose TIMING the
+ * official card text leaves to the player. Real options of the OrOptions
+ * (`index`), amounts computed by the server AT THIS MOMENT. Empty when the
+ * prompt carries none (mid-sub-prompt, or everything already claimed).
+ */
+export function bonusActionGains(view: PlayerViewModel): ReadonlyArray<BonusGainRow> {
+  return bonusActionMeta(view)?.gains ?? [];
+}
+
+/**
+ * The bonus chapter is DECLARED — a card among the picked/held preludes grants
+ * bonus actions when played (`ClientCard.grantsBonusActions`, the
+ * `hasFirstAction` pattern). This is what lets the journey rail show the
+ * chapter from the deployment's first frame instead of popping it in when the
+ * card is played — «Фора» picked in the wizard WILL be played (both preludes
+ * must be), so the chapter is a certainty, not a guess.
+ */
+export function bonusActionsDeclaredBy(cards: ReadonlyArray<CardName>): CardName | undefined {
+  return cards.find((name) => (getCard(name)?.grantsBonusActions ?? 0) > 0);
 }
 
 /**

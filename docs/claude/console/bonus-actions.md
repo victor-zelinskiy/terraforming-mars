@@ -63,7 +63,24 @@ saves). `grantBonusActions(count, source)` is ADDITIVE, so a second grant inside
 one window extends the batch rather than replacing it.
 
 `HeadStart.bespokePlay` **grants**, it does not execute: `takeAction` hands the
-player a real action menu once per bonus.
+player a real action menu once per bonus — and the two GAINS wait as claims:
+
+```ts
+player.pendingBonusGains: Array<PendingBonusGain>   // {steel: 2} | {megacreditsPerCardInHand: 2}
+```
+
+**THE ORDERING CHOICE (official card text).** «You may take one or both actions
+before gaining the M€ and/or steel, but both actions must be taken.» So nothing
+is executed at play time: the gains ride the window as claims, each one a REAL
+option appended to every bonus-window prompt (`appendBonusGainOptions` — the
+free menu AND the nested corp prompt). Claiming resolves at TODAY's value (the
+M€ read the hand AT CLAIM TIME — the strategic point) and costs no action
+(`bonusGainTaken`, the `pendingPlacementCancelled` pattern: the loop re-presents
+the same prompt without spending). Whatever is left when the last bonus action
+is spent AUTO-RESOLVES against the hand as it stands then — the gains are
+mandatory, only their order is a choice. The marker carries the rows
+(`BonusActionPromptMeta.gains`: resource + live amount + option index), so the
+client renders and submits structurally, never by title.
 
 `takeAction` gains one term at the top:
 
@@ -84,11 +101,12 @@ prelude just played may be what granted them.
 without `Pass` and without the undo option, and keeps the ORDINARY action-menu
 title — see §2.
 
-**The corporation's mandatory first action spends a bonus too.** It is, by its
-own wording, the player's first action of the game, so `takeAction` offers the
-`corporationInitialAction` prompt in place of a bonus menu (pass suppressed) and
-`spendBonusAction()` runs in its callback. That prompt keeps its own marker and
-its own workspace stage — see §4.
+**The corporation's mandatory first action IS bonus action #1.** «As your
+first action» and «immediately take 2 actions» resolve to the same press, so
+`takeAction` offers the `corporationInitialAction` prompt in place of the first
+bonus menu (pass suppressed, gains appended, BOTH markers on one prompt) and
+`spendBonusAction()` runs in its callback. The client reads the double marker
+as the NESTED signature — see §4.
 
 ---
 
@@ -225,7 +243,51 @@ workspace serves it on its own «ПЕРВОЕ ДЕЙСТВИЕ» stage, and the 
 sends the player out again with no second announcement (they already consented
 to the window).
 
-## 4. The journey rail, and the one thing a progress readout may never do
+## 4. THE NESTED FIRST ACTION — an item of the window, never a chapter
+
+Both markers on one prompt (`bonusActionNestedFirstAction`) re-frame the
+first-action stage as the bonus window's ITEM #1:
+
+- the crumb keeps the WINDOW as its subject — «СТАРТ ПАРТИИ › ФОРА › ПЕРВОЕ
+  ДЕЙСТВИЕ» (`deploymentCrumb`'s nested branch), never a jump to «Корпорация»;
+- the briefing wears the window's counter beside the MANDATORY chip
+  («» БОНУСНОЕ ДЕЙСТВИЕ 1/2», `.con-start__firstact-bonusctx`) plus one quiet
+  explaining line, and hosts the same claimable GAIN rows;
+- the rail stays on «Бонусные действия» (`deploymentFlowStage` returns
+  `bonusAction` while the nested stage is live) and the standalone
+  «Первое действие» chapter is ABSORBED (`firstActionAbsorbed` — a chapter the
+  player never visits must not exist). A first action that arises AFTER the
+  window (Merger acquiring a corporation later) is standalone again and joins
+  the rail dynamically, like the Merger corp itself always has;
+- `firstActionEntryDue`'s «the deployment's cards are through» gains the one
+  exception the server's own order creates: the nested stage enters WITH the
+  remaining preludes still waiting in the queue (they come after the window).
+
+The player's read of the whole window: получил бонусы → item 1 = обязательное
+действие корпорации (внутри workspace) → item 2 = briefing «2/2» → доска →
+возврат → второй пролог / ГОТОВО.
+
+## 4b. THE DECLARED CHAPTER — the rail knows before the play
+
+`ClientCard.grantsBonusActions` (exported from the co-located card field, the
+`hasFirstAction` pattern) lets the rail declare the bonus chapter the moment
+«Фора» is among the PICKED preludes (`bonusActionsDeclaredBy`): picked preludes
+WILL be played, so the chapter stands from the deployment's first frame — in
+the wizard's future list and in the live rail — instead of popping in mid-flow
+and re-numbering its neighbours.
+
+## 4c. The gain rows — the stage panels' focus model
+
+Both stage panels host `.con-start__gains` (caption + one row per unclaimed
+gain). `stageRowIdx` is the panel's internal cursor: 0 = the stage's own CTA,
+1.. = the rows; up/down walk it (`onNav` owns the pad while a panel stands), A
+on a row submits that gain's option (`claimStageGain`, latched by
+`gainClaimPending`), and the bar relabels A to «Получить сейчас»
+(`stageGainFocused` → `startSceneCommands`). ⚠️ After a claim the cursor comes
+home to the CTA — the remaining row slides into the claimed one's slot, so a
+repeated A would otherwise claim a gain the player never pointed at.
+
+## 4d. The journey rail, and the one thing a progress readout may never do
 
 The rail gains a CONDITIONAL chapter, `Bonus actions`, between the preludes and
 the first action. It cannot be declared in advance the way a corporation's
@@ -306,14 +368,15 @@ would print «2/2» on the player's FIRST bonus action.
 
 | Spec | What it holds |
 | --- | --- |
-| `tests/cards/promo/HeadStart.spec.ts` | 2 bonuses in BOTH prelude orders; the turn's own slots untouched; no Pass / End Turn + the marker; no one can pass out of the prelude phase (#5852); serialization incl. the pre-feature save |
+| `tests/cards/promo/HeadStart.spec.ts` | grants-everything-executes-nothing; claim options + marker rows; M€ at CLAIM time; auto-resolve at the window's end; the NESTED corp prompt (both markers, gains riding it, spend order); both prelude orders; no Pass / End Turn (#5852); serialization incl. pending gains |
 | `tests/client/components/console/bonusAction.spec.ts` | the marker is the only discriminator; the 1/2 → 2/2 readout; owed ≠ on-board; the start-flow term |
 | `tests/client/components/console/startBoardExcursion.spec.ts` | a bonus action is explicitly NOT one of the barrier's causes (an action menu still means the deployment is over) |
 | `tests/client/components/console/consoleStartState.spec.ts` | the conditional chapter, its `available` prelude state, the crumb |
 | `tests/client/components/console/consoleStartUi.spec.ts` | the CTA names the destination; the stage outranks the first-action stage |
 | `tests/client/components/console/consoleQuickModel.spec.ts` | only the two turn-control slots are blocked, they name the rule, a parked decision still outranks it |
 | `tests/client/components/overview/bonusActionStatus.spec.ts` | the label on every seat + the counter that counts bonuses |
-| `tests/e2e/console-bonus-action-handoff.spec.ts` | the whole flow on a real board: announce → A → the workspace is GONE → the hand opens as its own screen WITH the cards in it → the wheel refuses only the two turn-control verbs → both bonuses → the workspace returns |
+| `tests/e2e/console-bonus-action-handoff.spec.ts` | the whole flow on a real board: announce (+ the steel claimed EARLY, no action spent) → A → the workspace is GONE → the hand as its own screen → the wheel refuses only the turn-control verbs → both bonuses → the return → the unclaimed M€ auto-resolved |
+| `tests/e2e/console-bonus-nested-first-action.spec.ts` | the nested case: both markers on the wire, the briefing inside «Фора» with the 1/2 chip, the rail without a standalone first-action chapter, a gain claimed ON the corp prompt costing no action |
 
 ⚠️ **An e2e may not spend the viewer's own bonus over the API.** The client
 deliberately refuses a poll-driven refresh while the VIEWER holds a prompt
