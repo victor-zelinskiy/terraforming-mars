@@ -144,6 +144,33 @@ describe('colonyTradeDetachedDelivery', () => {
     });
   });
 
+  describe('the OUT-OF-TRADE owner bonus (ProductiveOutpost / Yvonne shape)', () => {
+    it('a Pluto bonus granted outside a trade window: untagged batch + the discard marker — the wire the client\'s segmentlessZoneBatch fallback exists for', () => {
+      const pluto = new Pluto();
+      const [game, player] = testGame(2, {coloniesExtension: true});
+      game.colonies.push(pluto);
+      pluto.addColony(player);
+      runAllActions(game);
+      player.acknowledgeCardDrawReveals('all');
+
+      // The direct grant (no trade, no activeTradeId window).
+      pluto.giveColonyBonus(player);
+      runAllActions(game);
+
+      const batch = player.cardDrawReveals[0];
+      expect(batch).is.not.undefined;
+      // The source names the colony but carries NO trade tag…
+      expect(batch.source).deep.eq({type: 'colony', colonyName: pluto.name});
+      // …so the batch has no segments to drive the reveal's wave split.
+      expect(batch.tradeSegments).is.undefined;
+      // The mandatory discard still rides its structural marker — the pair
+      // (marker without segments) is exactly what the client's zone fallback
+      // recognises.
+      const discard = cast(player.popWaitingFor(), SelectCard<IProjectCard>);
+      expect(discard.discardPrompt?.colonyBonus).deep.eq({colonyName: pluto.name, index: 1, total: 1});
+    });
+  });
+
   describe('Titan (add floaters to a card)', () => {
     let titan: Titan;
     let game: IGame;

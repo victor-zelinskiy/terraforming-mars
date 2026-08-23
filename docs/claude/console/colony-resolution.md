@@ -417,6 +417,21 @@ pause never reaches). Five fixes, one architecture:
    claims `['draw'?, 'pick'?]` structurally at every confirm site, so a late
    card-target prompt (a pruned capture) teleports into the colony stage's
    own zone instead of rising as a standalone `ConsoleTaskHost` band.
+5b. **THE OUT-OF-TRADE OWNER BONUS RENDERS IN ITS ZONE TOO** (the field
+   report: the card standing BESIDE the «БОНУС КОЛОНИИ» zone while the zone
+   showed a taken-✓ socket over a card nobody had taken). ProductiveOutpost /
+   Yvonne pay Pluto's «draw 1, then discard 1» outside any trade window, so
+   the draw carries no trade tag and the batch arrives with
+   `tradeSegments: undefined` — the wave split then classified the card as
+   ordinary income, the active zone had no entry, and the template's `v-else`
+   fell through to the taken-socket branch. Two fixes, both general:
+   `segmentlessZoneBatch` (pure, `colonyBonusDiscardStep.ts` — the discard
+   MARKER + the batch's own colony source + exactly one card is the
+   structural proof the batch belongs to the zone; a merged trade batch keeps
+   its segment-driven split), and an explicit ACTIVE-without-entry template
+   branch that renders the empty socket WITHOUT the ✓ — an active zone may
+   never claim «this colony has paid». Wire guard:
+   `colonyTradeDetachedDelivery.spec.ts` § the OUT-OF-TRADE owner bonus.
 6. **THE MARKER IS THE FINAL BEAT** (official rules: «после полного
    разрешения наград белый маркер торговли опускается на самую нижнюю
    свободную позицию трека») — enforced twice over:

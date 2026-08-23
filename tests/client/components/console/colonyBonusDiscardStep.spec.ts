@@ -1,7 +1,7 @@
 import {expect} from 'chai';
 import {ColonyName} from '@/common/colonies/ColonyName';
 import {
-  bonusDiscardStep, bonusZones, BONUS_DISCARD_LABEL, BONUS_DISCARD_LOCKED_REASON,
+  bonusDiscardStep, bonusZones, segmentlessZoneBatch, BONUS_DISCARD_LABEL, BONUS_DISCARD_LOCKED_REASON,
 } from '@/client/console/colonyTrade/colonyBonusDiscardStep';
 import {
   drawnCardsState, currentRevealEvent, holdRevealForFollowUp, isRevealHeldForFollowUp,
@@ -132,6 +132,42 @@ describe('the colony bonus sequence', () => {
       holdRevealForFollowUp(999);
       expect(currentRevealEvent()).to.eq(undefined);
       expect(isRevealHeldForFollowUp(undefined)).to.eq(false);
+    });
+  });
+
+  /*
+   * THE OUT-OF-TRADE OWNER BONUS (ProductiveOutpost / Yvonne pay Pluto's
+   * «draw 1, then discard 1» outside any trade window): the batch has NO
+   * trade segments, but the discard marker + the batch's own colony source
+   * prove its one card belongs to the zone. Without this the card rendered
+   * as a bare strip slot BESIDE its own zone and the cardless active zone
+   * showed the taken-✓ socket — «уже забрано» over an untaken card.
+   */
+  describe('segmentlessZoneBatch — the out-of-trade owner bonus', () => {
+    const meta = {colonyName: ColonyName.PLUTO, index: 1, total: 1};
+    const plutoSource = {type: 'colony' as const, colonyName: ColonyName.PLUTO};
+
+    it('claims the one-card colony batch whose source names the marker\'s colony', () => {
+      expect(segmentlessZoneBatch(plutoSource, undefined, meta, 1)).to.eq(true);
+    });
+
+    it('never claims without the discard marker (an ordinary colony draw — Miranda)', () => {
+      expect(segmentlessZoneBatch(plutoSource, undefined, undefined, 1)).to.eq(false);
+    });
+
+    it('never overrides a segment-driven split (a merged trade batch)', () => {
+      expect(segmentlessZoneBatch(plutoSource, [{role: 'bonus', count: 1}], meta, 1)).to.eq(false);
+    });
+
+    it('never claims a foreign colony\'s draw or a non-colony source', () => {
+      expect(segmentlessZoneBatch({type: 'colony', colonyName: ColonyName.TRITON}, undefined, meta, 1)).to.eq(false);
+      expect(segmentlessZoneBatch({type: 'deck'} as never, undefined, meta, 1)).to.eq(false);
+      expect(segmentlessZoneBatch(undefined, undefined, meta, 1)).to.eq(false);
+    });
+
+    it('never claims a multi-card batch (the rules draw exactly one per cube)', () => {
+      expect(segmentlessZoneBatch(plutoSource, undefined, meta, 2)).to.eq(false);
+      expect(segmentlessZoneBatch(plutoSource, undefined, meta, 0)).to.eq(false);
     });
   });
 });

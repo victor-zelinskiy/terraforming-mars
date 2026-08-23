@@ -17,6 +17,7 @@
  */
 
 import {ColonyBonusDiscardMeta} from '@/common/models/PlayerInputModel';
+import {CardDrawRevealSource, ColonyTradeRevealSegment} from '@/common/models/CardDrawRevealModel';
 
 /**
  * done   — this colony's card was taken and its discard answered (earlier in
@@ -80,6 +81,35 @@ export type BonusDiscardStep = {
 
 export const BONUS_DISCARD_LOCKED_REASON = 'Take every card first';
 export const BONUS_DISCARD_LABEL = 'Pick a card to discard';
+
+/**
+ * THE OUT-OF-TRADE OWNER BONUS — the batch that belongs to the zone although
+ * it carries no trade segments.
+ *
+ * ProductiveOutpost and Yvonne pay Pluto's «draw 1, then discard 1» OUTSIDE
+ * any trade window, so the draw carries no trade tag and the batch arrives
+ * with `tradeSegments: undefined` — while the mandatory-discard MARKER (what
+ * the zones are derived from) rides the prompt exactly as in a trade. The
+ * wave split alone then classified the card as ordinary income: it rendered
+ * as a bare strip slot BESIDE its own zone, and the cardless ACTIVE zone fell
+ * through to the taken-socket branch — a ✓ «this colony has paid» over a card
+ * the player had not taken.
+ *
+ * The structural proof that the batch IS the zone's: the discard marker is
+ * pending, the batch's own source names the SAME colony, no segments claim
+ * otherwise, and the batch holds exactly the ONE card the rules draw per
+ * cube. Anything else (a merged trade batch, a foreign colony's draw, a
+ * multi-card payout) keeps the segment-driven split.
+ */
+export function segmentlessZoneBatch(
+  source: CardDrawRevealSource | undefined,
+  segments: ReadonlyArray<ColonyTradeRevealSegment> | undefined,
+  meta: ColonyBonusDiscardMeta | undefined,
+  cardCount: number,
+): boolean {
+  return meta !== undefined && segments === undefined && cardCount === 1 &&
+    source?.type === 'colony' && source.colonyName === meta.colonyName;
+}
 
 /**
  * @param meta the server's structural marker on the pending discard prompt

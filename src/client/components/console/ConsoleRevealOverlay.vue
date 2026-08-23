@@ -216,6 +216,15 @@
                     <span class="con-reveal__bonus-cover con-card-back"></span>
                   </div>
 
+                  <!-- ACTIVE with NO card entry — a transitional frame (the
+                       batch not reconciled yet, or a shape the wave split
+                       missed): the EMPTY socket alone. Never the ✓ — an
+                       active zone claiming «this colony has paid» over a card
+                       the player has not taken is a lie the player acts on. -->
+                  <div v-else-if="zone.state === 'active'" class="con-cards__slot con-reveal__bonus-slot con-reveal__bonus-slot--empty" aria-hidden="true">
+                    <span class="con-reveal__bonus-socket"></span>
+                  </div>
+
                   <!-- TAKEN / DONE: the EMPTY SOCKET the card came out of —
                        the same footprint, so nothing resizes or shifts, with
                        the ✓ that says this colony has paid. Showing its BACK
@@ -470,7 +479,7 @@ import {
 } from '@/client/components/drawnCards/drawnCardsState';
 import {ColonyBonusDiscardMeta} from '@/common/models/PlayerInputModel';
 import {
-  bonusDiscardStep, bonusZones, BonusDiscardStep, BonusZone,
+  bonusDiscardStep, bonusZones, segmentlessZoneBatch, BonusDiscardStep, BonusZone,
 } from '@/client/console/colonyTrade/colonyBonusDiscardStep';
 import {CardName} from '@/common/cards/CardName';
 import {handDockReachable, runHandIntake} from '@/client/console/handDock/handDeliveryDirector';
@@ -671,11 +680,18 @@ export default defineComponent({
       // discard sequence; without it a bonus card is an ordinary card of the
       // payout and belongs in the strip (see `revealWaveForIndex`).
       const zoned = this.bonusZones.length > 0;
+      // The OUT-OF-TRADE owner bonus (ProductiveOutpost / Yvonne): no trade
+      // window, so no segments — but the discard marker and the batch's own
+      // colony source prove the one card IS the zone's (pure + spec'd in
+      // `segmentlessZoneBatch`). Without it the card stood BESIDE its zone
+      // and the cardless active zone showed the taken-✓ socket.
+      const zoneBatch = zoned && segmentlessZoneBatch(
+        this.drawnEvent?.source, segments, this.bonusDiscard, this.drawnEvent?.cards.length ?? 0);
       const income: Array<StripEntry> = [];
       const bonus: Array<StripEntry> = [];
       this.drawnUntaken.forEach((u, pos) => {
         const entry = {card: u.card, index: u.index, pos};
-        if (revealWaveForIndex(segments, u.index, zoned) === 'bonus') {
+        if (zoneBatch || revealWaveForIndex(segments, u.index, zoned) === 'bonus') {
           bonus.push(entry);
         } else {
           income.push(entry);

@@ -282,6 +282,14 @@ player cannot connect to the trade.
   `{colonyName, index, total}` rides `BaseInputModel.colonyBonusDiscard` via
   `BasePlayerInput.markColonyBonusDiscard` (serialized centrally in
   `ServerModel.getWaitingFor`, carried by `DiscardCards`' `options`).
+- **The OUT-OF-TRADE grant is the same family with NO segments.**
+  ProductiveOutpost / Yvonne pay this bonus outside any trade window, so the
+  draw is untagged and the batch carries `tradeSegments: undefined` while the
+  discard marker rides as usual. The client's zone membership therefore has a
+  structural fallback (`segmentlessZoneBatch` — marker + the batch's own
+  colony source + exactly one card), or the card rendered BESIDE its own zone
+  and the cardless active zone showed a false taken-✓ socket. An active zone
+  with no entry now renders the empty socket WITHOUT the ✓, always.
 - **CLIENT — one ZONE per colony, exactly one live.** `bonusZones(meta)`
   (`colonyBonusDiscardStep.ts`, pure) derives the whole strip from the marker
   alone — zones before `index` are `done`, `index` is `active`, the rest
