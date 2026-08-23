@@ -123,6 +123,12 @@ export type StartSceneCommandState = {
    * CTA, and the bar must say so — a label the press will not honour is a lie.
    */
   stageGainFocused?: boolean,
+  /** The window overview's CTA leads into the corp SUB-STAGE («Перейти к
+   *  первому действию») instead of the board hand-off. */
+  bonusFirstPending?: boolean,
+  /** The corp briefing is the window's SUB-STAGE — B is one logical level
+   *  («Назад» to the overview), never the workspace minimize. */
+  bonusSub?: boolean,
 };
 
 /**
@@ -198,9 +204,10 @@ export function startSceneCommands(s: StartSceneCommandState): Array<StartComman
   if (s.bonusAction !== undefined && s.bonusAction !== 'off') {
     const hints: Array<StartCommand> = [];
     if (s.bonusAction === 'ready') {
+      const cta = s.bonusFirstPending === true ? 'Go to the first action' : 'Go to the board';
       hints.push(s.stageGainFocused === true ?
         {control: 'confirm', label: 'Claim now', highlight: true} :
-        {control: 'confirm', label: 'Go to the board', highlight: true});
+        {control: 'confirm', label: cta, highlight: true});
     }
     hints.push({control: 'secondary', label: 'Inspect'});
     hints.push({control: 'back', label: 'Minimize'});
@@ -219,7 +226,9 @@ export function startSceneCommands(s: StartSceneCommandState): Array<StartComman
         {control: 'confirm', label: 'Take first action', highlight: true});
     }
     hints.push({control: 'secondary', label: 'Inspect'});
-    hints.push({control: 'back', label: 'Minimize'});
+    hints.push(s.bonusSub === true ?
+      {control: 'back', label: 'Back'} :
+      {control: 'back', label: 'Minimize'});
     return hints;
   }
   // THE RISK STAGE — the one ceremony beat where B is not «свернуть» and A is

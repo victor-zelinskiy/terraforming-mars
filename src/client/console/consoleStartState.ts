@@ -167,6 +167,9 @@ export const consoleStartState = reactive({
     stage: 'idle' as 'idle' | 'staging' | 'standing' | 'onboard',
     /** The card that granted them — the stage's subject. */
     source: undefined as CardName | undefined,
+    /** The window's item #1 (the corp's mandatory first action) is DONE —
+     *  the overview's plan renders it as a walked step. */
+    corpDone: false,
   },
   /** The stage has stood at least once this game — keeps its journey chapter
    *  visible (completed) after the bonuses are spent, so the rail never
@@ -203,7 +206,7 @@ export function ensureStartWizard(
   consoleStartState.deploymentBegun = false;
   consoleStartState.firstAct = {stage: 'idle', corp: undefined, submitting: false};
   consoleStartState.firstActionSeen = false;
-  consoleStartState.bonusAct = {stage: 'idle', source: undefined};
+  consoleStartState.bonusAct = {stage: 'idle', source: undefined, corpDone: false};
   consoleStartState.bonusActionSeen = false;
   resetStartTransition();
 }

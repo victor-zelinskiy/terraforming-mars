@@ -21596,14 +21596,23 @@ body.con-start-barshold .con-status {
         gap: .7rem;
         padding: .68rem 1.25rem .7rem .8rem;
         border-radius: .55rem;
-        background: linear-gradient(180deg, fade(@con-mint, 20%), fade(@con-mint, 9%));
-        box-shadow:
-            inset 0 0 0 .075rem fade(@con-mint, 60%),
-            0 .5rem 1.4rem fade(@con-mint, 12%);
+        background: linear-gradient(180deg, fade(@con-mint, 13%), fade(@con-mint, 6%));
+        box-shadow: inset 0 0 0 .06rem fade(@con-mint, 34%);
         font-size: 1.06rem;
         font-weight: 800;
         letter-spacing: .01em;
         color: @con-text;
+        opacity: .78;
+    }
+    /* Same focus grammar as the window's CTA — with the cursor on a gain row
+       this plate visibly is NOT what A does. */
+    &__firstact-cta--focused {
+        opacity: 1;
+        background: linear-gradient(180deg, fade(@con-mint, 20%), fade(@con-mint, 9%));
+        box-shadow:
+            inset 0 0 0 .075rem fade(@con-mint, 60%),
+            0 0 0 .14rem fade(@con-cyan, 38%),
+            0 .5rem 1.4rem fade(@con-mint, 12%);
     }
     /* The glyph sits in its own ring — the CTA reads as ONE pressable object
        at couch distance, where a bare letter beside text does not. */
@@ -21766,45 +21775,86 @@ body.con-start-barshold .con-status {
        box-shadow (perf mode keeps it), A claims, and the row disappears with
        the server's answer. The caption says the whole rule in one line, so
        skipping the rows is an informed choice, not a missed feature. */
+    /* ── «С КАРТЫ „ФОРА"» — the gains zone is its OWN inset panel ─────────
+       Visually a different MATERIAL from the action CTA (recessed well vs
+       raised plate), so «получить ресурс» and «выполнить действие» can never
+       read as one control family. The gold hairline ties it to the card
+       economy language; the tail line closes the loop («не получено — придёт
+       само»), so skipping the rows is an informed choice. */
     &__gains {
         display: flex;
         flex-direction: column;
-        gap: .4rem;
+        gap: .45rem;
         margin-top: .2rem;
+        padding: .75rem .9rem .7rem;
+        border-radius: .55rem;
+        background: linear-gradient(180deg, rgba(10, 16, 25, 0.72), rgba(13, 21, 32, 0.5));
+        box-shadow:
+            inset 0 0 0 .055rem fade(#d9a94e, 20%),
+            inset 0 .35rem .9rem rgba(0, 0, 0, 0.28);
     }
     &__gains-cap {
-        font-size: .78rem;
-        line-height: 1.3;
-        color: @con-text-dim;
+        display: flex;
+        align-items: center;
+        gap: .45rem;
+        font-size: .72rem;
+        font-weight: 800;
+        letter-spacing: .12em;
+        text-transform: uppercase;
+        color: fade(#e8c27a, 88%);
+    }
+    &__gains-cap-glyph {
+        flex: 0 0 auto;
+        width: .5rem;
+        height: .5rem;
+        border-radius: .12rem;
+        transform: rotate(45deg);
+        background: linear-gradient(135deg, fade(#e8c27a, 85%), fade(#d9a94e, 55%));
     }
     &__gainrow {
         display: inline-flex;
         align-items: center;
-        gap: .55rem;
+        gap: .6rem;
         align-self: flex-start;
-        padding: .42rem .8rem .44rem .7rem;
+        min-height: 2.2rem;
+        padding: .34rem .85rem .36rem .5rem;
         border: none;
         border-radius: .45rem;
         cursor: pointer;
         font: inherit;
         color: @con-text;
-        background: linear-gradient(180deg, rgba(22, 36, 52, 0.62), rgba(16, 26, 39, 0.4));
-        box-shadow: inset 0 0 0 .055rem rgba(96, 176, 232, 0.16);
+        background: linear-gradient(180deg, rgba(24, 38, 54, 0.7), rgba(17, 27, 40, 0.5));
+        box-shadow: inset 0 0 0 .055rem rgba(96, 176, 232, 0.14);
     }
+    /* The cursor ring is the SAME cyan language every console cursor speaks —
+       and the verb chip lights only under it, so an unfocused row reads as
+       information first and a control second. */
     &__gainrow--focused {
         box-shadow:
-            inset 0 0 0 .07rem fade(@con-cyan, 62%),
-            0 .35rem 1rem fade(@con-cyan, 10%);
+            inset 0 0 0 .07rem fade(@con-cyan, 66%),
+            0 .35rem 1rem fade(@con-cyan, 12%);
     }
+    &__gainrow-take {
+        display: inline-flex;
+        align-items: center;
+        gap: .4rem;
+        padding: .18rem .55rem .2rem .4rem;
+        border-radius: .35rem;
+        background: linear-gradient(180deg, fade(@con-mint, 13%), fade(@con-mint, 5%));
+        box-shadow: inset 0 0 0 .05rem fade(@con-mint, 26%);
+        opacity: .62;
+    }
+    &__gainrow--focused &__gainrow-take { opacity: 1; }
+    &__gainrow-glyph { transform: scale(.85); }
     &__gainrow-verb {
-        font-size: .82rem;
-        font-weight: 700;
-        letter-spacing: .06em;
+        font-size: .74rem;
+        font-weight: 800;
+        letter-spacing: .1em;
         text-transform: uppercase;
-        color: fade(@con-text, 88%);
+        color: fade(@con-text, 92%);
     }
     &__gainrow-amount {
-        font-size: 1.02rem;
+        font-size: 1.08rem;
         font-weight: 800;
     }
     &__gainrow-icon {
@@ -21814,6 +21864,79 @@ body.con-start-barshold .con-status {
         background-repeat: no-repeat;
         background-position: center;
     }
+    /* The FORMULA — the strategic context the amount alone hides: «по 2 M€ за
+       карту в руке · сейчас 7». Quiet, but always printed for a per-card gain. */
+    &__gainrow-formula {
+        font-size: .78rem;
+        color: @con-text-dim;
+        padding-left: .5rem;
+        border-left: .055rem solid rgba(96, 176, 232, 0.18);
+        white-space: nowrap;
+    }
+    &__gains-tail {
+        font-size: .72rem;
+        color: fade(@con-text, 52%);
+    }
+
+    /* ── THE PLAN — the window's actions as a readable list ──────────────── */
+    &__plan {
+        display: flex;
+        flex-direction: column;
+        gap: .35rem;
+    }
+    &__planrow {
+        display: flex;
+        align-items: center;
+        gap: .55rem;
+        padding: .4rem .7rem;
+        border-radius: .45rem;
+        background: linear-gradient(180deg, rgba(22, 36, 52, 0.5), rgba(16, 26, 39, 0.32));
+        box-shadow: inset 0 0 0 .05rem rgba(96, 176, 232, 0.12);
+        font-size: .92rem;
+    }
+    &__planrow-num {
+        flex: 0 0 auto;
+        width: 1.35rem;
+        height: 1.35rem;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        border-radius: 50%;
+        font-size: .74rem;
+        font-weight: 800;
+        color: fade(@con-text, 88%);
+        box-shadow: inset 0 0 0 .055rem rgba(96, 176, 232, 0.3);
+    }
+    &__planrow-mark { flex: 0 0 auto; width: .9rem; color: @con-mint; font-weight: 800; }
+    &__planrow-label { color: @con-text; }
+    &__planrow-corp {
+        margin-left: .2rem;
+        padding: .12rem .5rem .14rem;
+        border-radius: .3rem;
+        font-size: .68rem;
+        font-weight: 800;
+        letter-spacing: .1em;
+        text-transform: uppercase;
+        color: fade(@con-cyan, 92%);
+        box-shadow: inset 0 0 0 .05rem fade(@con-cyan, 30%);
+    }
+    /* CURRENT leads (mint ring + lit number), DONE recedes with its ✓, NEXT
+       waits dim — the same three-state language every console list speaks. */
+    &__planrow--current {
+        box-shadow: inset 0 0 0 .06rem fade(@con-mint, 45%);
+
+        .con-start__planrow-num {
+            color: #0c1520;
+            background: linear-gradient(180deg, fade(@con-mint, 92%), fade(@con-mint, 70%));
+            box-shadow: none;
+        }
+    }
+    &__planrow--done {
+        opacity: .68;
+
+        .con-start__planrow-label { text-decoration: line-through; text-decoration-color: fade(@con-text, 45%); }
+    }
+    &__planrow--next { opacity: .55; }
 
     /* The STATE ZONE — one reserved row (waiting → ready never re-layouts). */
     &__bonusact-state {
@@ -21828,11 +21951,21 @@ body.con-start-barshold .con-status {
         gap: .7rem;
         padding: .68rem 1.25rem .7rem .8rem;
         border-radius: .55rem;
+        background: linear-gradient(180deg, fade(@con-mint, 13%), fade(@con-mint, 6%));
+        box-shadow: inset 0 0 0 .06rem fade(@con-mint, 34%);
+        color: @con-text;
+        opacity: .78;
+    }
+    /* FOCUSED = the press lands here. The mint fill + the outer cyan cursor
+       ring light together, and the unfocused pose above stays calm — so with
+       the cursor on a gain row this plate visibly is NOT what A does. */
+    &__bonusact-cta--focused {
+        opacity: 1;
         background: linear-gradient(180deg, fade(@con-mint, 20%), fade(@con-mint, 9%));
         box-shadow:
             inset 0 0 0 .075rem fade(@con-mint, 60%),
+            0 0 0 .14rem fade(@con-cyan, 38%),
             0 .5rem 1.4rem fade(@con-mint, 12%);
-        color: @con-text;
     }
     &__bonusact-cta-glyph { flex: 0 0 auto; align-self: center; transform: scale(1.06); }
     &__bonusact-cta-label { font-size: 1.06rem; font-weight: 800; letter-spacing: .01em; }

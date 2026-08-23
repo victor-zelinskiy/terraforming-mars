@@ -165,10 +165,11 @@ reason.
   ПРОЛОГИ            «Фора» is played, the grant lands
      │
      ▼
-  СТАРТ ПАРТИИ › ФОРА › ДЕЙСТВИЕ      the BRIEFING stands inside the workspace
-     │                                 (kicker + 1/2, the ask, the two notes,
-     │                                  A «Перейти к полю · вы вернётесь сюда»)
-     │  A
+  СТАРТ ПАРТИИ › ФОРА › ДЕЙСТВИЕ      the window's OVERVIEW stands inside the
+     │                                 workspace: seat = «Фора», the PLAN names
+     │                                 every item, the GAINS zone offers the
+     │                                 ordering choice, one focused CTA
+     │  A  (× the nested sub-stage first, when the corp has a mandatory move)
      ▼
   the BOARD HOME                       the workspace is GONE. Hand, colonies,
      │                                 card actions, standard projects,
@@ -243,29 +244,63 @@ workspace serves it on its own «ПЕРВОЕ ДЕЙСТВИЕ» stage, and the 
 sends the player out again with no second announcement (they already consented
 to the window).
 
-## 4. THE NESTED FIRST ACTION — an item of the window, never a chapter
+## 4. THE NESTED FIRST ACTION — an explicit SUB-STAGE of the window
 
-Both markers on one prompt (`bonusActionNestedFirstAction`) re-frame the
-first-action stage as the bonus window's ITEM #1:
+Both markers on one prompt (`bonusActionNestedFirstAction`) make the corp's
+mandatory move the bonus window's ITEM #1 — but the window does NOT open on it.
+It opens on the OVERVIEW (seat = «Фора», the plan, the gains), and the mandatory
+move is a sub-stage the player DESCENDS INTO by an explicit press, because a
+stage that swaps its own subject uninvited reads as «where am I, and who is
+asking» — exactly the confusion the first version shipped.
 
+- **The OVERVIEW comes first.** `firstActionEntryDue` returns FALSE while
+  nested — the first-action machine can only be entered through the overview's
+  CTA («Перейти к первому действию · внутри этого экрана»,
+  `enterBonusSubStage`). The PLAN names the descent before it happens: item 1
+  «Обязательное первое действие» wearing the CORP's chip, item 2 the free board
+  action — so the press is informed, never a surprise.
+- **The descent is a SEAT SWAP** — the workspace's one subject slot changes
+  hands on screen: «Фора» settles back into «РАЗЫГРАНО»
+  (`runEmbedSourceSettle`) and the corporation emerges into the same seat
+  (`runEmbedSourceEmerge`) — the Merger acquisition's swap phrases, reused
+  verbatim. `bonusAct.stage` walks `standing → staging → standing`; the CTA is
+  withheld during `staging` (a verb the press cannot honour yet is a lie).
 - the crumb keeps the WINDOW as its subject — «СТАРТ ПАРТИИ › ФОРА › ПЕРВОЕ
   ДЕЙСТВИЕ» (`deploymentCrumb`'s nested branch), never a jump to «Корпорация»;
-- the briefing wears the window's counter beside the MANDATORY chip
+- the sub-stage panel wears the MANDATORY chip beside the window's counter
   («» БОНУСНОЕ ДЕЙСТВИЕ 1/2», `.con-start__firstact-bonusctx`) plus one quiet
-  explaining line, and hosts the same claimable GAIN rows;
+  explaining line, and hosts the same claimable GAIN rows — the ordering choice
+  rides the corp prompt too;
+- **B walks back up** (`exitBonusSubStage`): seat swaps back, nothing is
+  replayed, every claim already made survives — collapse ≠ close, one level;
+- **the ceremony rail is SILENT while nested** (`ceremonyFocusText` /
+  `ceremonyStatusText`): the seat and the chips already name the corporation
+  and the obligation — the rail repeating them under the panel read as a
+  second, stray announcement;
+- **the leave re-asserts the room.** `runFirstActionLeave`'s nested branch sets
+  `corpDone`, re-seats «Фора» (`ensureBonusSeat`) — and re-runs the room recede:
+  the leave's own return brought the queue/dock back while `stageOwnsRoom`
+  never blinked, so its watcher had no edge to act on;
 - the rail stays on «Бонусные действия» (`deploymentFlowStage` returns
   `bonusAction` while the nested stage is live) and the standalone
   «Первое действие» chapter is ABSORBED (`firstActionAbsorbed` — a chapter the
   player never visits must not exist). A first action that arises AFTER the
   window (Merger acquiring a corporation later) is standalone again and joins
   the rail dynamically, like the Merger corp itself always has;
-- `firstActionEntryDue`'s «the deployment's cards are through» gains the one
-  exception the server's own order creates: the nested stage enters WITH the
-  remaining preludes still waiting in the queue (they come after the window).
+- `firstActionEntryDue`'s and `firstActionChainQuiet`'s «the deployment's cards
+  are through» terms gain the one exception the server's own order creates:
+  the nested stage runs WITH the remaining preludes still waiting in the queue
+  (they come after the window) — without it the machine either never enters or
+  never leaves.
 
-The player's read of the whole window: получил бонусы → item 1 = обязательное
-действие корпорации (внутри workspace) → item 2 = briefing «2/2» → доска →
-возврат → второй пролог / ГОТОВО.
+The player's read of the whole window: получил бонусы (обзор: план + получения)
+→ A → под-этап = обязательное действие корпорации (источник премиально сменился
+на корпорацию) → возврат на обзор «2/2» → A → доска → возврат → второй пролог /
+ГОТОВО.
+
+The `.con-start` root carries `data-bonus-stage` / `data-first-stage` (the two
+machines' live stages) — testability hooks that made «which machine is stuck,
+and in what beat» a one-line probe instead of an afternoon.
 
 ## 4b. THE DECLARED CHAPTER — the rail knows before the play
 
@@ -276,16 +311,34 @@ WILL be played, so the chapter stands from the deployment's first frame — in
 the wizard's future list and in the live rail — instead of popping in mid-flow
 and re-numbering its neighbours.
 
-## 4c. The gain rows — the stage panels' focus model
+## 4c. The plan, the gains zone, and the focus grammar
 
-Both stage panels host `.con-start__gains` (caption + one row per unclaimed
-gain). `stageRowIdx` is the panel's internal cursor: 0 = the stage's own CTA,
-1.. = the rows; up/down walk it (`onNav` owns the pad while a panel stands), A
-on a row submits that gain's option (`claimStageGain`, latched by
-`gainClaimPending`), and the bar relabels A to «Получить сейчас»
-(`stageGainFocused` → `startSceneCommands`). ⚠️ After a claim the cursor comes
-home to the CTA — the remaining row slides into the claimed one's slot, so a
-repeated A would otherwise claim a gain the player never pointed at.
+**The PLAN (`bonusPlan` → `.con-start__planrow--current/done/next`)** is the
+window's own map: numbered rows, the mandatory item wearing the corporation's
+chip, ✓ + line-through once done, a mint ring on the current one. It is derived
+(the nested marker + `corpDone`), never a parallel state machine.
+
+**The GAINS zone (`.con-start__gains`)** is a visually DISTINCT inset panel
+(gold hairline — the card's own reward colour, not the stage's cyan/mint):
+caption «С КАРТЫ «ФОРА» — ПОЛУЧИТЕ СЕЙЧАС ИЛИ ПОСЛЕ ДЕЙСТВИЙ» names the source
+and the rule in one line; each row = a take-chip («Получить сейчас») + the LIVE
+amount + the resource icon; the M€ row adds the FORMULA —
+«по 2 M€ за карту в руке · сейчас N» (`BonusActionPromptMeta.gains[].perCardInHand`) —
+because the rate is what the player reasons with: play cards during the window
+and the claim shrinks, draw and it grows. The tail line says what happens to
+whatever is never claimed. Both stage panels (the overview and the nested
+sub-stage) host the same zone.
+
+**The focus grammar separates PERFORM from CLAIM.** `stageRowIdx` is the
+panel's cursor: 0 = the stage's own CTA, 1.. = the gain rows; up/down walk it
+(`onNav` owns the pad while a panel stands). The CTA wears an explicit focus
+ring (`--focused`, dim otherwise) and the bar relabels A per focus —
+«Перейти …» / «Выполнить …» on the CTA, «Получить сейчас» on a row
+(`stageGainFocused` → `startSceneCommands`) — so a claim can never be an
+accident of invisible focus. A on a row submits that gain's option
+(`claimStageGain`, latched by `gainClaimPending`). ⚠️ After a claim the cursor
+comes home to the CTA — the remaining row slides into the claimed one's slot,
+so a repeated A would otherwise claim a gain the player never pointed at.
 
 ## 4d. The journey rail, and the one thing a progress readout may never do
 
@@ -376,7 +429,7 @@ would print «2/2» on the player's FIRST bonus action.
 | `tests/client/components/console/consoleQuickModel.spec.ts` | only the two turn-control slots are blocked, they name the rule, a parked decision still outranks it |
 | `tests/client/components/overview/bonusActionStatus.spec.ts` | the label on every seat + the counter that counts bonuses |
 | `tests/e2e/console-bonus-action-handoff.spec.ts` | the whole flow on a real board: announce (+ the steel claimed EARLY, no action spent) → A → the workspace is GONE → the hand as its own screen → the wheel refuses only the turn-control verbs → both bonuses → the return → the unclaimed M€ auto-resolved |
-| `tests/e2e/console-bonus-nested-first-action.spec.ts` | the nested case: both markers on the wire, the briefing inside «Фора» with the 1/2 chip, the rail without a standalone first-action chapter, a gain claimed ON the corp prompt costing no action |
+| `tests/e2e/console-bonus-nested-first-action.spec.ts` | the nested case: both markers (+ the M€ rate) on the wire, the OVERVIEW first (plan with the corp chip, current item), a gain claimed ON the corp prompt costing no action, A descends (seat swaps to the corp, 1/2 chip, crumb keeps «Фора»), B walks back up with the claim intact, the rail without a standalone first-action chapter |
 
 ⚠️ **An e2e may not spend the viewer's own bonus over the API.** The client
 deliberately refuses a poll-driven refresh while the VIEWER holds a prompt

@@ -2102,7 +2102,7 @@ export class Player implements IPlayer {
     if (!this.hasBonusAction() || this.pendingBonusGains.length === 0) {
       return undefined;
     }
-    const refs: Array<{resource: 'steel' | 'megacredits', amount: number, index: number}> = [];
+    const refs: Array<{resource: 'steel' | 'megacredits', amount: number, index: number, perCardInHand?: number}> = [];
     for (const gain of this.pendingBonusGains) {
       const amount = this.bonusGainAmount(gain);
       const resource = gain.steel !== undefined ? 'steel' as const : 'megacredits' as const;
@@ -2116,7 +2116,10 @@ export class Player implements IPlayer {
           return undefined;
         });
       orOptions.options.push(option);
-      refs.push({resource, amount, index: orOptions.options.length - 1});
+      refs.push({
+        resource, amount, index: orOptions.options.length - 1,
+        perCardInHand: gain.megacreditsPerCardInHand,
+      });
     }
     return refs;
   }

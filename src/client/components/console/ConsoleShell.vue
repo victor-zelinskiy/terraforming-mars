@@ -7729,7 +7729,7 @@ export default defineComponent({
      */
     'bonusActionLedgerOwed'(owed: boolean): void {
       if (!owed && consoleStartState.bonusAct.stage !== 'idle') {
-        consoleStartState.bonusAct = {stage: 'idle', source: undefined};
+        consoleStartState.bonusAct = {stage: 'idle', source: undefined, corpDone: false};
       }
     },
     /** The workspace itself let go (the deployment settled / the game moved

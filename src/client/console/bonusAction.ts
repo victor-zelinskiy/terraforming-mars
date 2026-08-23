@@ -28,7 +28,14 @@ import {BonusActionPromptMeta} from '@/common/models/PlayerInputModel';
 import {PlayerViewModel} from '@/common/models/PlayerModel';
 
 /** One claimable gain of the live prompt (see BonusActionPromptMeta.gains). */
-export type BonusGainRow = {resource: 'steel' | 'megacredits', amount: number, index: number};
+export type BonusGainRow = {
+  resource: 'steel' | 'megacredits',
+  amount: number,
+  index: number,
+  /** The per-card rate behind `amount` — the formula the player needs for the
+   *  ordering decision (play a card → claim less; draw → claim more). */
+  perCardInHand?: number,
+};
 
 /** The live bonus-action marker, or undefined when this is a normal prompt. */
 export function bonusActionMeta(view: PlayerViewModel): BonusActionPromptMeta | undefined {

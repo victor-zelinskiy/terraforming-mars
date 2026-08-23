@@ -85,7 +85,16 @@ export type BonusActionPromptMeta = {
    * 'option'}}` and never has to find it by title. `amount` is the value AT
    * THIS MOMENT (the M€ gain depends on the hand size at claim time).
    */
-  gains?: ReadonlyArray<{resource: 'steel' | 'megacredits', amount: number, index: number}>;
+  gains?: ReadonlyArray<{
+    resource: 'steel' | 'megacredits',
+    amount: number,
+    index: number,
+    /** The per-card rate behind `amount` (Head Start's M€): the client renders
+     *  the FORMULA («по 2 M€ за карту в руке»), because the player's ordering
+     *  decision depends on understanding that playing cards from hand shrinks
+     *  the claim and drawing grows it. */
+    perCardInHand?: number,
+  }>;
 }
 
 /**
