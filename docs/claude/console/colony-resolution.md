@@ -417,6 +417,27 @@ pause never reaches). Five fixes, one architecture:
    claims `['draw'?, 'pick'?]` structurally at every confirm site, so a late
    card-target prompt (a pruned capture) teleports into the colony stage's
    own zone instead of rising as a standalone `ConsoleTaskHost` band.
+6. **THE MARKER IS THE FINAL BEAT** (official rules: «после полного
+   разрешения наград белый маркер торговли опускается на самую нижнюю
+   свободную позицию трека») — enforced twice over:
+   · **`maybeAdvance` waits out the DISPOSAL** — a colony-bonus discard whose
+     card is still physically leaving the hand (`cardDiscardColonyBonus()`)
+     is part of the rewards' resolution, so the committed reset alone may
+     not start the marker; the falling-edge module watcher re-asks when the
+     disposal lands. Before this the glide launched into the tray-seating
+     and the restored stage's own entrance at once.
+   · **the glide waits for a STANDING track** — `runTrackGlide` no longer
+     measures once and hopes: `waitForStandingTrack` polls the WHOLE path
+     (origin included) until every cell exists, is honestly VISIBLE
+     (`checkVisibility` with opacity — a rect inside the `--handing`
+     working area at opacity 0, or a yielded browse tile, is exactly the
+     «маркер бежит по пустоте» bug) and holds a stable rect two consecutive
+     frames — bounded by `TRACK_STANDING_WAIT_MS` (2 s), after which the
+     values release with the instant commit and nothing flies. Reduced
+     motion takes one honest look. The wait also absorbs the restored
+     focus stage's entrance: the marker starts only over a track that has
+     finished materializing, as the workspace's last animated word before
+     `finishTrade` → the resolution's falling edge → the conclusion.
 
 ## The invariant
 

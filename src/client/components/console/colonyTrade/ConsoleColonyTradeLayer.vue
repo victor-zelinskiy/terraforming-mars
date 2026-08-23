@@ -99,6 +99,72 @@ function cssEscape(value: string): string {
 }
 
 /**
+ * A cell the marker may honestly glide over: rendered AND visible — not
+ * sitting inside an `opacity: 0` / `visibility: hidden` ancestor. A box alone
+ * is not enough: the `--handing` pose keeps the whole working area (where the
+ * track is drawn) at opacity 0, a yielded browse hides the tile, and a
+ * measured-but-invisible rect is exactly the «маркер бежит по пустоте» bug.
+ */
+function honestlyVisible(el: HTMLElement): boolean {
+  if (typeof el.checkVisibility === 'function') {
+    return el.checkVisibility({checkOpacity: true, checkVisibilityCSS: true});
+  }
+  return true;
+}
+
+/**
+ * THE CLOSING GLIDE WAITS FOR A STANDING TRACK. The marker's return is the
+ * trade's FINAL beat (official rules: the marker drops only after the rewards
+ * fully resolve), and by the time it fires the track may still be COMING
+ * BACK — the working area un-yielding from the payout, the focus stage
+ * re-unfolding after the discard's hand trip. So the run does not measure
+ * once and hope: it polls the WHOLE path until every cell exists, is
+ * honestly visible and holds a stable rect for two consecutive frames —
+ * bounded by its own net, so a track that never stands (a parked workspace,
+ * a composition with no track at all) degrades to the instant commit instead
+ * of flying a marker across emptiness.
+ */
+const TRACK_STANDING_WAIT_MS = 2_000;
+
+function waitForStandingTrack(
+  resolveCells: () => Array<HTMLElement | null>,
+  deadlineMs: number,
+): Promise<Array<DOMRect> | undefined> {
+  return new Promise((done) => {
+    const start = performance.now();
+    let last = '';
+    const poll = () => {
+      if (!colonyTradeState.active) {
+        done(undefined);
+        return;
+      }
+      const els = resolveCells();
+      const standing = els.every((el) => el !== null && honestlyVisible(el));
+      if (standing) {
+        const rects = els.map((el) => (el as HTMLElement).getBoundingClientRect());
+        const ok = rects.every((r) => r.width > 2 && r.height > 2);
+        const sig = ok ? rects.map((r) => `${Math.round(r.left)},${Math.round(r.top)},${Math.round(r.width)}`).join('|') : '';
+        // A zero deadline is the single-look mode (reduced motion): the first
+        // honest measurement is accepted — there is no flight to protect.
+        if (ok && (sig === last || deadlineMs <= 0)) {
+          done(rects);
+          return;
+        }
+        last = sig;
+      } else {
+        last = '';
+      }
+      if (performance.now() - start > deadlineMs) {
+        done(undefined);
+        return;
+      }
+      requestAnimationFrame(poll);
+    };
+    poll();
+  });
+}
+
+/**
  * The FIRST candidate that genuinely has a box.
  *
  * ⚠️ A MEASURED LADDER, NOT `a ?? b`. `??` falls through only on a MISSING
@@ -565,18 +631,26 @@ export default defineComponent({
         `.con-colfocus [data-colony-track-cell="${cssEscape(`${name}#${pos}`)}"]`,
         `[data-test="con-colony-${name}"] [data-colony-track-cell="${cssEscape(`${name}#${pos}`)}"]`,
       ]);
-      const fromRect = await stableRect(() => cellEl(plan.from));
-      const cellRects = await Promise.all(plan.path.map((pos) => stableRect(() => cellEl(pos))));
+      // The FINAL beat waits for a STANDING track — every cell of the path
+      // (origin included) rendered, honestly visible and geometrically at
+      // rest — instead of measuring once into a working area that is still
+      // un-yielding or a stage that is still unfolding. Reduced motion takes
+      // one honest look (there is no flight to protect, only a snap).
+      const standing = await waitForStandingTrack(
+        () => [cellEl(plan.from), ...plan.path.map((pos) => cellEl(pos))],
+        colonyTradeState.reducedMotion ? 0 : motionMs(TRACK_STANDING_WAIT_MS),
+      );
       if (!colonyTradeState.active) {
         return;
       }
-      const resolved = cellRects.filter((r): r is DOMRect => r !== undefined);
-      if (fromRect === undefined || resolved.length !== plan.path.length) {
-        // The colonies screen isn't on stage — release the values honestly.
-        tradeLog('track glide skipped — track not measurable');
+      if (standing === undefined) {
+        // No visible track within the net (a parked workspace, a trackless
+        // composition) — release the values honestly, fly nothing.
+        tradeLog('track glide skipped — no standing visible track');
         finish();
         return;
       }
+      const [fromRect, ...resolved] = standing;
       this.markerVisible = true;
       await this.$nextTick();
       const marker = this.$refs.marker as HTMLElement | undefined;

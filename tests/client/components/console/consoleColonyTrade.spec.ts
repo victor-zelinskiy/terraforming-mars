@@ -1,7 +1,9 @@
 import {expect} from 'chai';
 import {nextTick} from 'vue';
+import {CardName} from '@/common/cards/CardName';
 import {ColonyBenefit} from '@/common/colonies/ColonyBenefit';
 import {ColonyName} from '@/common/colonies/ColonyName';
+import {armCardDiscard, resetCardDiscard} from '@/client/console/cardDiscard/consoleCardDiscard';
 import {ColonyModel} from '@/common/models/ColonyModel';
 import {Resource} from '@/common/Resource';
 import {ColonyTradeManifestModel} from '@/common/models/ColonyTradeManifestModel';
@@ -44,10 +46,12 @@ function colony(name: ColonyName, trackPosition: number): ColonyModel {
 describe('consoleColonyTrade', () => {
   beforeEach(() => {
     resetColonyTrade();
+    resetCardDiscard();
     drawnCardsState.events = [];
   });
   afterEach(() => {
     resetColonyTrade();
+    resetCardDiscard();
     drawnCardsState.events = [];
   });
 
@@ -242,6 +246,29 @@ describe('consoleColonyTrade', () => {
     notifyColonyTradeTrackCommitted(ColonyName.TRITON, 1);
     expect(colonyTradeState.phase).eq('glide');
   }).timeout(6_000);
+
+  it('the closing glide WAITS for the colony-bonus discard flight — the marker is the FINAL beat', async () => {
+    armColonyTrade(ColonyName.TRITON, 'red');
+    detectColonyTrade(view(manifest()));
+    await runColonyTradeRewards();
+    await nextTick();
+    expect(colonyTradeState.phase).eq('awaiting');
+    // The chosen card is still physically leaving the hand (the disposal
+    // scene is armed with this payout's own colony-bonus marker)…
+    armCardDiscard({
+      names: ['Algae' as CardName],
+      sources: [],
+      meta: {colonyBonus: {colonyName: ColonyName.TRITON, index: 1, total: 1}} as never,
+    });
+    await nextTick(); // the falling-edge watcher must see the armed state
+    // …so the committed reset alone may not start the marker.
+    notifyColonyTradeTrackCommitted(ColonyName.TRITON, 1);
+    expect(colonyTradeState.phase).eq('awaiting');
+    // The disposal landing (the scene unwinding) releases the final beat.
+    resetCardDiscard();
+    await nextTick();
+    expect(colonyTradeState.phase).eq('glide');
+  });
 
   it('a non-moving reset concludes with the confirm pulse, never an invented glide', async () => {
     armColonyTrade(ColonyName.TRITON, 'red');

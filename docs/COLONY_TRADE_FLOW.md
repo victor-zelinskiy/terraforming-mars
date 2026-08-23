@@ -387,6 +387,16 @@ player cannot connect to the trade.
    ran two opposing ramps over the same pixels and the reveal visibly BLINKED as
    the cards arrived. `runTradeCoversHandoff` therefore holds the proxy opaque for
    `CARD_RELEASE_MS` first — keep it in step with the CSS transition.
+4d. **The marker's return is the trade's FINAL animated beat** (official
+   rules: the marker drops only after the rewards fully resolve). Two
+   enforcements: `maybeAdvance` waits out the colony-bonus DISCARD flight
+   (`cardDiscardColonyBonus` gate + falling-edge watcher), and the glide run
+   itself waits for a STANDING track — every path cell rendered, honestly
+   visible (`checkVisibility` incl. ancestor opacity) and geometrically at
+   rest (`waitForStandingTrack`, bounded by `TRACK_STANDING_WAIT_MS`) — so
+   the marker can never fly across a yielded working area, a hidden tile or
+   a still-unfolding stage; past the net the values release with the instant
+   commit and nothing flies.
 5. Counters / hand / track change only at their visual commit (touchdown /
    intake landing / glide landing).
 6. Reduced motion: no covers (the modal mounts with its stock entrance), the

@@ -39,6 +39,7 @@
  */
 
 import {reactive, watch} from 'vue';
+import {cardDiscardColonyBonus} from '@/client/console/cardDiscard/consoleCardDiscard';
 import {Color} from '@/common/Color';
 import {ColonyName} from '@/common/colonies/ColonyName';
 import {ColonyModel} from '@/common/models/ColonyModel';
@@ -515,6 +516,18 @@ watch(
   },
 );
 
+// The disposal-landed watcher: a colony-bonus discard flight ending is the
+// fourth signal — the marker's closing glide waits out the whole disposal
+// (`maybeAdvance`'s discard gate) and this falling edge re-asks it.
+watch(
+  () => cardDiscardColonyBonus() !== undefined,
+  (live) => {
+    if (!live) {
+      maybeAdvance();
+    }
+  },
+);
+
 // ── lifecycle ───────────────────────────────────────────────────────────────
 
 function clearArmSafety(): void {
@@ -917,6 +930,16 @@ function maybeAdvance(): void {
   // handed over to the payout, or coming back from it) — see
   // `setColonyStageYielded`. Its release calls back here.
   if (ctx.stageYielded) {
+    return;
+  }
+  // THE MARKER IS THE FINAL BEAT — official rules: «после полного разрешения
+  // наград белый маркер торговли опускается на самую нижнюю свободную
+  // позицию трека». A colony-bonus DISCARD whose card is still physically
+  // leaving the hand IS part of the rewards' resolution, so the reset may
+  // not start under it — it used to launch into the tray-seating and the
+  // restored stage's own entrance at once. The falling-edge watcher below
+  // re-asks the moment the disposal lands.
+  if (cardDiscardColonyBonus() !== undefined) {
     return;
   }
   const moves = colonyTradeState.postTrackPosition < colonyTradeState.preTrackPosition;
