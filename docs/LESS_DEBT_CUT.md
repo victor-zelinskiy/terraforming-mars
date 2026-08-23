@@ -20,5 +20,11 @@ A live-class corpus was built first (import-graph BFS from `main.ts` → 884 rea
 ## Verification
 `make:css` clean · webpack 0 errors · vue-tsc clean · client 4 330/4 330 in the branch (4 325/4 325 on merged main — the delta is the board-input spec swap, not this cut) · server 9 572/9 572 · e2e workspace-band 6/6 in-branch + wheel-commit/placement-dossier 7/7 on merged main · **visual A/B against the pre-cut CSS**: playground 0 diff px, loaded game + journal 2 px, the menu delta proven boot-loader animation by a same-css control run · an injected DSL computed-style probe (18 checks) byte-identical.
 
+## Post-cut regressions caught (both the same blind spot — DYNAMIC class emission)
+1. **`.plants` / `.fighter`** — `BenefitGlyph` (colony track / trade / bonus slots) builds its icon class from the server's enums at runtime (`resource.toLowerCase()`), so NO string literal exists in any template and the live-class corpus could not see it; `.plants` was additionally an `:extend(.plant)` alias. Ganymede (the plants colony) rendered empty icon boxes on the track and both bonus rows. Restored in `card_render_dsl.less`; **guard added**: `tests/styles/resourceIconDefinitions.spec.ts` pins every `Resource` enum value + the shipped card-resource set BY ENUM, not by grep.
+2. (Earlier, same session, same shape at the FILE level: the `wgt-icon--*` family and `.placement-reason-host` died with their deleted files while their consumers lived — `tests/styles/wgtIconDefinitions.spec.ts` guards that family.)
+
+**The lesson for any future corpus-based cut**: a class emitted by lowercasing a server enum, an `:extend` alias, a `<Transition name>`, or innerHTML is invisible to a source-literal grep — guard those families by ENUM/contract, and treat «zero grep hits» as «needs a consumer-side proof», not as «dead».
+
 ## Remaining style debt (known, minor)
 `preferences.less` keeps historical `cards_scifi` attributions in comments and a couple of `.player_home_block--*` rules for DOM that no longer renders (the PreferencesDialog page itself is an upstream-era screen pending a product decision); `language_hacks.less` inert selectors; `hand-soft-reason*` kept-as-uncertain.

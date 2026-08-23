@@ -638,8 +638,19 @@
 .plant {
     background-image: url(./assets/resources/plant.png);
 }
-// TODO(kberg): move plant, above to plants since that's how it's listed as a resource.
-
+// ⚠️ Kept although no string literal 'plants' exists in any template: the class
+// is emitted DYNAMICALLY (BenefitGlyph's `resource.toLowerCase()` from the
+// server's Resource enum — Ganymede's plant track/bonus icons). A live-class
+// corpus built from source literals cannot see this shape; the styles guard
+// (tests/styles/resourceIconDefinitions.spec.ts) pins every enum value instead.
+.plants {
+    &:extend(.plant);
+}
+// Same dynamic-emission shape (BenefitGlyph's cardResource.toLowerCase()):
+// no template literal exists, the guard spec pins it.
+.fighter {
+    background-image: url(./assets/resources/fighter.png);
+}
 
 .energy {
     background-image: url(./assets/resources/power.png);
