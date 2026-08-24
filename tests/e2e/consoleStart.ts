@@ -522,6 +522,11 @@ export async function waitQueueIdle(page: Page, maxMs = 25_000): Promise<void> {
       // `con-deal-hold` elsewhere (a dock face away for an unrelated beat)
       // would keep this spinning until the budget dies.
       document.querySelectorAll('.con-played-hero__proxy, .con-startdock-proxy, .con-start__queue .con-deal-hold').length > 0 ||
+      // A DECK-DRAW SCENE IS THE QUEUE STILL WORKING. It is armed a beat after
+      // the play it belongs to, so without this term «idle» can be true in the
+      // window between the response and the scene's first proxy — and the
+      // reveal it hands off to then lands ON TOP of the next press.
+      document.querySelector('.con-deckdraw') !== null ||
       document.querySelector('.con-start__status-inner--held') !== null);
     // The queue's items are the CARDS *and* the purchase block — a
     // deployment whose only remaining item is «ОПЛАТИТЬ» is idle, not empty.
@@ -607,6 +612,17 @@ export async function playQueueUntil(page: Page, target: string, maxPlays = 6): 
       }
       await waitQueueIdle(page);
     }
+    // …AND THE DRAIN HAS TO BE REPEATED OUTSIDE THAT LOOP, because the loop
+    // exits on the SHRINK: a card that both left the queue AND raised a scene
+    // of its own leaves its reveal standing for the next press to walk into.
+    // That is the ordinary case, not an edge one — a corporation with a
+    // triggered draw (Point Luna, on its own Earth tag) fires one every time
+    // it is dealt, and which corporation is dealt is NOT reproducible
+    // (`seed` is ignored by ApiCreateGame — see .claude/rules/tests.md).
+    if (await page.locator('.con-reveal').count() > 0) {
+      await takeRevealCards(page);
+      await waitQueueIdle(page);
+    }
   }
   await waitQueueIdle(page);
   return await focusCard(page, target);
@@ -617,9 +633,23 @@ export async function playQueueUntil(page: Page, target: string, maxPlays = 6): 
  * fires a scene must be OWNED by the spec, and a swallowed press (the
  * commit guard) must not read as "the scene never happened". Polls fast
  * (~100 ms) so a spec can still observe the scene from its first frames.
+ *
+ * ⚠️ A SCENE STANDING BEFORE THE PRESS IS NOT EVIDENCE OF THE PRESS. A reveal
+ * left by an EARLIER card owns A — so it swallows the press — and it also
+ * satisfies the `sceneUp` test below, which means this function would report
+ * a play that never happened and the caller would then measure the previous
+ * card's scene as if it were its own. That is exactly how `console-deck-draw`
+ * failed on CI and passed on the retry: whenever the (unseeded) deal handed
+ * the player Point Luna, playing the corporation fired its triggered draw,
+ * and the spec's «the modal is WITHHELD while the scene plays» assertion was
+ * reading Point Luna's assembled reveal. Clear it first — follow the surface.
  */
 export async function playQueueCard(page: Page, card: string, maxPresses = 4): Promise<boolean> {
   await waitQueueIdle(page);
+  if (await page.locator('.con-reveal').count() > 0) {
+    await takeRevealCards(page);
+    await waitQueueIdle(page);
+  }
   if (!await focusCard(page, card)) {
     // FOLLOW THE SURFACE, never fight it: the focus ring may be sitting on
     // the purchase item (A means «оплатить» there, and the ring does not

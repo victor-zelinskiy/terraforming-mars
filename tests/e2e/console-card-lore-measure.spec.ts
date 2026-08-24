@@ -77,18 +77,44 @@ function corpus(): Array<{key: string, text: string, tier: Tier}> {
  * panel — the viewer is already cramped there). The frame is a BASELINE, not a
  * budget: past it a long entry simply flows on down the empty band, and the
  * heading — the thing the frame exists for — still does not move.
+ *
+ * ⚠️ `lineBudget` IS PER PROFILE BECAUSE THE MEASURE IS. What decides how many
+ * lines a string takes is the measure expressed in the tier's OWN em, and the
+ * four profiles do not share it — the TV sets a fixed 30rem column against the
+ * couch type ladder, the base profiles let a `vw` clamp size both:
+ *
+ *   measure ÷ font-size (em)      short   regular   extended   max lines s/r/e
+ *   tv4k / tv-fhd                 20.00     21.13      22.73        4 / 7 / 10
+ *   fhd  (standard, 1920×1080)    19.05     20.17      21.62        4 / 8 / 11
+ *   handheld (1280×800)           16.36     17.31      18.37        5 / 9 / 15
+ *
+ * The first version of this file gave `fhd` the TV's ladder, which held only
+ * by luck: a measure ~5 % narrower runs the whole corpus one line taller, so
+ * `short` (4 = 4) and `extended` (11 = 11) were sitting on the bar from day
+ * one and `regular` went over the moment a long entry was WRITTEN (R38
+ * «Lakefront», 159 chars, added four days after this probe was calibrated —
+ * 8 lines at fhd, 7 at TV, composed correctly at both: 387 px inside a 668 px
+ * frame, every fill bar clear).
+ *
+ * So each budget below is that profile's own measured maximum + ONE LINE of
+ * headroom, and the headroom is affordable because of what this guard is FOR:
+ * the composition it exists to catch runs +2/+3 lines per tier (6/9/13 against
+ * 4/7/10 at 4K — see THE BARS), not +1. A corpus entry one line longer than
+ * today's longest is normal editorial variation and must not fail the suite;
+ * a ladder regression still fails every tier at once.
  */
-const LINES_TV = {short: 4, regular: 7, extended: 11} as const;
+const LINES_TV = {short: 5, regular: 8, extended: 11} as const;
 const PROFILES = [
   {tag: 'tv4k', width: 3840, height: 2160, tv: true, scale: 2, fit: 3.275, frameContainsCorpus: true, lineBudget: LINES_TV, minLineFill: 0.3},
   {tag: 'tv-fhd', width: 1920, height: 1080, tv: true, scale: 1, fit: 1.6375, frameContainsCorpus: true, lineBudget: LINES_TV, minLineFill: 0.3},
-  {tag: 'fhd', width: 1920, height: 1080, tv: false, scale: 1, fit: 1.835, frameContainsCorpus: true, lineBudget: LINES_TV, minLineFill: 0.3},
+  {tag: 'fhd', width: 1920, height: 1080, tv: false, scale: 1, fit: 1.835, frameContainsCorpus: true,
+    lineBudget: {short: 5, regular: 9, extended: 12}, minLineFill: 0.3},
   // A 360 px column at 1280×800 measures ~19 characters, so one long compound
   // («здравоохранение», «Генно-модифицированные») can legitimately end a line
   // early. The per-line floor is relaxed accordingly — the TIER FILL and the
   // LINE BUDGET are what guard this profile.
   {tag: 'handheld', width: 1280, height: 800, tv: false, scale: 1, fit: 1, frameContainsCorpus: false,
-    lineBudget: {short: 6, regular: 9, extended: 15}, minLineFill: 0.15},
+    lineBudget: {short: 6, regular: 10, extended: 16}, minLineFill: 0.15},
 ] as const;
 
 /**
@@ -107,9 +133,9 @@ const PROFILES = [
  *
  * THE LINE BUDGET IS THE LOAD-BEARING GUARD — it is what «a note, not a poem»
  * measures, and the shipped composition fails it on all three tiers (6/9/13
- * against 4/7/11). The fill bars are a SANITY FLOOR under it, set just below
- * the worst value the narrowest profile measures: they would not on their own
- * have caught the shipped look, and they are not asked to.
+ * against the TV budget 5/8/11). The fill bars are a SANITY FLOOR under it, set
+ * just below the worst value the narrowest profile measures: they would not on
+ * their own have caught the shipped look, and they are not asked to.
  */
 
 /** Mean fill of the lines BEFORE the last one (a paragraph's last line is
@@ -311,14 +337,19 @@ test.describe('archive entry · the measure fits the corpus', () => {
       // 3 · IT READS AS A NOTE, NOT A POEM. Two independent halves: the block
       //     stays SHORT (a line ceiling per tier) and its lines stay FULL (the
       //     tier's aggregate fill). The shipped composition fails both.
-      for (const tier of ['short', 'regular', 'extended'] as const) {
-        const group = byTier(tier);
-        const budget = profile.lineBudget[tier];
-        const tooTall = group.filter((r) => r.lines > budget);
-        expect(tooTall.map((r) => `${r.key} ${r.lines}L > ${budget} — ${r.text.slice(0, 48)}`),
-          `${tier} entries broken into more than ${budget} lines`).toEqual([]);
+      //     ⚠️ The budget is checked over ALL THREE TIERS AT ONCE. Asserting
+      //     inside the loop makes the FIRST offending tier hide the other two,
+      //     which is not a worklist — a CI run that stopped at `regular` never
+      //     reported whether `extended` was over its own bar on the same
+      //     profile, so the ladder had to be re-measured by hand to find out.
+      const tooTall = (['short', 'regular', 'extended'] as const).flatMap((tier) =>
+        byTier(tier)
+          .filter((r) => r.lines > profile.lineBudget[tier])
+          .map((r) => `${r.key} ${tier} ${r.lines}L > ${profile.lineBudget[tier]} — ${r.text.slice(0, 48)}`));
+      expect(tooTall, 'entries broken into more lines than their tier\'s budget').toEqual([]);
 
-        const fills = group.map((r) => r.meanFill).filter((v): v is number => v !== undefined);
+      for (const tier of ['short', 'regular', 'extended'] as const) {
+        const fills = byTier(tier).map((r) => r.meanFill).filter((v): v is number => v !== undefined);
         const mean = fills.reduce((a, b) => a + b, 0) / Math.max(1, fills.length);
         expect(mean, `${tier} tier: mean fill of the lines before the last`)
           .toBeGreaterThanOrEqual(MIN_MEAN_FILL[tier]);

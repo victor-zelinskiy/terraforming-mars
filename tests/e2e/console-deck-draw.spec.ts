@@ -3,7 +3,7 @@ import * as fs from 'node:fs';
 import * as path from 'node:path';
 import {
   fillPicks, offeredCards, pickCards, playQueueCard, playQueueUntil, press, queueCards,
-  submitSummary, walkToSummary,
+  submitSummary, takeRevealCards, waitQueueIdle, walkToSummary,
 } from './consoleStart';
 
 /**
@@ -124,6 +124,55 @@ async function setUpSearchPrelude(page: Page): Promise<void> {
 }
 
 /**
+ * What the ORDER PROBE below records. `staleReveal` is the state at ARM time —
+ * anything already painted then belongs to an earlier card, and inheriting it
+ * would make every later reading a lie.
+ */
+type RevealOrder = {samples: number, proxyAt: number, revealWithFirstProxy: boolean, staleReveal: boolean};
+
+/**
+ * «The modal does NOT exist while the cards come off the deck» is a claim
+ * about ORDER, and an order can only be judged by something that was watching
+ * from BEFORE the first event. Read once — three round-trips after the scene
+ * started — it asks a different question, «is the scene still early?», whose
+ * answer is the runner's speed: the reveal is legitimately staged (veiled)
+ * from the `assemble` phase on, so the held cards can fly into its real slots.
+ *
+ * MutationObserver + setInterval, never requestAnimationFrame: headless
+ * Chromium drives rAF off the compositor, so a rAF sampler stops sampling
+ * exactly when the screen goes quiet (.claude/rules/console-ui.md).
+ */
+async function armRevealOrderProbe(page: Page): Promise<void> {
+  await page.evaluate(() => {
+    const state = {
+      samples: 0,
+      proxyAt: -1,
+      revealWithFirstProxy: false,
+      staleReveal: document.querySelector('.con-reveal__card') !== null,
+    };
+    (window as unknown as Record<string, unknown>).__deckDrawOrder = state;
+    const t0 = performance.now();
+    const sample = () => {
+      state.samples++;
+      if (state.proxyAt < 0 && document.querySelector('.con-deckdraw-proxy') !== null) {
+        state.proxyAt = performance.now() - t0;
+        // ATOMIC, and the whole point: the modal's state read in the SAME
+        // sample as the deal's FIRST card, not in a later round-trip. (The
+        // observer fires on the insertion itself, so this is that frame.)
+        state.revealWithFirstProxy = document.querySelector('.con-reveal__card') !== null;
+      }
+    };
+    new MutationObserver(sample).observe(document.body, {childList: true, subtree: true});
+    window.setInterval(sample, 30);
+    sample();
+  });
+}
+
+async function readRevealOrder(page: Page): Promise<RevealOrder> {
+  return page.evaluate(() => (window as unknown as {__deckDrawOrder: RevealOrder}).__deckDrawOrder);
+}
+
+/**
  * The PRELUDE PHASE: focus «Космическое агентство» in the deployment queue
  * and play it — that press is what fires the deck-draw scene. (The corp is
  * played first if the queue offers it, exactly as a player would.)
@@ -136,6 +185,13 @@ async function playSearchPrelude(page: Page): Promise<void> {
   // during a commit is absorbed by design).
   const ready = await playQueueUntil(page, SEARCH_PRELUDE);
   expect(ready, `the search prelude must reach the queue (queue: ${(await queueCards(page)).join(', ')})`).toBeTruthy();
+  // …and everything THOSE cards fired is finished and taken before the probe
+  // arms. A corporation with a triggered draw (Point Luna, on its own Earth
+  // tag) leaves a scene + reveal standing, and which corporation is dealt is
+  // not reproducible — `seed` is ignored by ApiCreateGame.
+  await waitQueueIdle(page);
+  await takeRevealCards(page);
+  await armRevealOrderProbe(page);
   const played = await playQueueCard(page, SEARCH_PRELUDE);
   expect(played, 'the search prelude must actually play').toBeTruthy();
 }
@@ -160,7 +216,16 @@ test.describe('console · deck-draw hero scene', () => {
     await expect(stage).toHaveCount(1, {timeout: 30_000});
     // At least one card is airborne off the deck.
     await expect(page.locator('.con-deckdraw-proxy')).not.toHaveCount(0);
-    expect(await page.locator('.con-reveal__card').count()).toBe(0);
+    // …and the modal never PRECEDED them — judged by the probe armed before
+    // the press, never by a single late sample (see `armRevealOrderProbe`).
+    const order = await readRevealOrder(page);
+    expect(order.samples, 'the order probe never sampled — a dead probe passes everything')
+      .toBeGreaterThan(0);
+    expect(order.staleReveal, 'a reveal from an EARLIER card was still standing when the prelude was played')
+      .toBe(false);
+    expect(order.proxyAt, 'no card was ever seen coming off the deck').toBeGreaterThanOrEqual(0);
+    expect(order.revealWithFirstProxy,
+      'the modal was already painted when the first card came off the deck').toBe(false);
     await shoot(page, '01-search-in-flight');
 
     // The tray appears for a search that really discarded something. (If the
