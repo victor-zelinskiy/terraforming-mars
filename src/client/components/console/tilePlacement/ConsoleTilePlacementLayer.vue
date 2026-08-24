@@ -29,7 +29,33 @@
     arrival sinks under the shade while its target stays lit. Omitting it is
     the safe default.
   -->
-  <div v-if="tilePlacementState.active || remotePlacementState.active" class="con-tileplace con-flight-to-board" aria-hidden="true">
+  <div v-if="tilePlacementState.active || remotePlacementState.active || oceanBeatState.coins.length > 0"
+       class="con-tileplace con-flight-to-board" aria-hidden="true">
+    <!-- OCEAN ADJACENCY — the SHARED payout beat (oceanAdjacencyBeat.ts).
+         Deliberately OUTSIDE the tile-scene block: the very same water pays a
+         Mars Nomads camp that merely MOVES onto the cell, and that hop has no
+         tile proxy at all. One paying ocean → one local swell at the shared
+         shore → one M€ coin condensed out of that light (sparks → metal
+         contour → gold mass → numeral + sheen), ending as a pixel-twin of the
+         framework's own M€ chip so the handoff into the flight is invisible. -->
+    <template v-for="c in oceanBeatState.coins" :key="'ocean-' + c.id">
+      <div class="con-tileplace__oceanpulse"
+           :style="oceanPulseStyle(c)"
+           :ref="(el) => setOceanPulseRef(c.id, el as HTMLElement | null)">
+        <div class="con-tileplace__oceanpulse-wash"></div>
+        <div class="con-tileplace__oceanpulse-ring"></div>
+      </div>
+      <div class="con-tileplace__oceancoin"
+           :style="oceanCoinStyle(c)"
+           :ref="(el) => setOceanCoinRef(c.id, el as HTMLElement | null)">
+        <div v-for="s in oceanSparks" :key="s" class="con-tileplace__coin-spark" :class="sparkClass(s)"></div>
+        <div class="con-tileplace__coin-ring"></div>
+        <div class="con-tileplace__coin-body">
+          <span class="con-tileplace__coin-value">+{{ c.amount }}</span>
+          <div class="con-tileplace__coin-sheen"></div>
+        </div>
+      </div>
+    </template>
     <template v-if="tilePlacementState.active">
       <div ref="shadow" class="con-tileplace__shadow"></div>
       <div v-if="artClass !== ''" ref="tile" class="con-tileplace__tile">
@@ -43,29 +69,6 @@
            :class="'board-space-bonus--' + b.icon"
            :style="bonusStyle(b)"
            :ref="(el) => setBonusRef(b.id, el as HTMLElement | null)"></div>
-      <!-- OCEAN ADJACENCY — one paying ocean, one wake + one coin. The pulse
-           is a local swell at the shore the ocean shares with the new tile;
-           the coin CONDENSES out of that light (sparks → metal contour → gold
-           mass → numeral + sheen) and ends as a pixel-twin of the framework's
-           own M€ chip, so the handoff into the flight is invisible. -->
-      <template v-for="c in tilePlacementState.oceanCoins" :key="'ocean-' + c.id">
-        <div class="con-tileplace__oceanpulse"
-             :style="oceanPulseStyle(c)"
-             :ref="(el) => setOceanPulseRef(c.id, el as HTMLElement | null)">
-          <div class="con-tileplace__oceanpulse-wash"></div>
-          <div class="con-tileplace__oceanpulse-ring"></div>
-        </div>
-        <div class="con-tileplace__oceancoin"
-             :style="oceanCoinStyle(c)"
-             :ref="(el) => setOceanCoinRef(c.id, el as HTMLElement | null)">
-          <div v-for="s in oceanSparks" :key="s" class="con-tileplace__coin-spark" :class="sparkClass(s)"></div>
-          <div class="con-tileplace__coin-ring"></div>
-          <div class="con-tileplace__coin-body">
-            <span class="con-tileplace__coin-value">+{{ c.amount }}</span>
-            <div class="con-tileplace__coin-sheen"></div>
-          </div>
-        </div>
-      </template>
       <!-- ARES ADJACENCY — one paying neighbour, one wake. The same shoreline
            pulse anatomy as the ocean's swell, in the tile's warm register
            (`--ares`); the chip itself is the framework's, born at the lit
@@ -114,7 +117,10 @@
 
 <script lang="ts">
 import {defineComponent} from 'vue';
-import {tilePlacementState, registerTilePlacementStage, BonusProxy, OceanCoinProxy, AresSourceWake} from '@/client/console/tilePlacement/consoleTilePlacement';
+import {tilePlacementState, registerTilePlacementStage, BonusProxy, AresSourceWake} from '@/client/console/tilePlacement/consoleTilePlacement';
+import {
+  oceanBeatState, registerOceanBeatStage, OceanCoinProxy, OceanStageEls,
+} from '@/client/console/tilePlacement/oceanAdjacencyBeat';
 import {remotePlacementState, abortRemotePlacements} from '@/client/console/tilePlacement/consoleRemotePlacement';
 import {TileStageEls} from '@/client/console/tilePlacement/tilePlacementDirector';
 import {OCEAN_COIN_SPARKS} from '@/client/console/tilePlacement/tilePlacementModel';
@@ -126,7 +132,9 @@ export default defineComponent({
     return {
       tilePlacementState,
       remotePlacementState,
+      oceanBeatState,
       unregister: undefined as (() => void) | undefined,
+      unregisterOcean: undefined as (() => void) | undefined,
       bonusEls: new Map<number, HTMLElement>(),
       oceanPulseEls: new Map<number, HTMLElement>(),
       oceanCoinEls: new Map<number, HTMLElement>(),
@@ -243,19 +251,6 @@ export default defineComponent({
             bonusIcons.push(el);
           }
         }
-        // Ocean pieces are index-aligned with `oceanCoins` — the controller
-        // bails out of the beat unless BOTH arrays match its own length, so a
-        // half-mounted stage can never desync a pulse from its coin.
-        const oceanPulses: Array<HTMLElement> = [];
-        const oceanCoins: Array<HTMLElement> = [];
-        for (const c of tilePlacementState.oceanCoins) {
-          const pulse = this.oceanPulseEls.get(c.id);
-          const coin = this.oceanCoinEls.get(c.id);
-          if (pulse !== undefined && pulse.isConnected && coin !== undefined && coin.isConnected) {
-            oceanPulses.push(pulse);
-            oceanCoins.push(coin);
-          }
-        }
         const aresPulses: Array<HTMLElement> = [];
         for (const w of tilePlacementState.aresSources) {
           const pulse = this.aresPulseEls.get(w.id);
@@ -269,8 +264,6 @@ export default defineComponent({
           touch: this.$refs.touch as HTMLElement | undefined,
           shadow: this.$refs.shadow as HTMLElement | undefined,
           bonusIcons,
-          oceanPulses,
-          oceanCoins,
           aresPulses,
           splash: this.$refs.splash as HTMLElement | undefined,
         };
@@ -293,16 +286,35 @@ export default defineComponent({
           touch: this.$refs.remoteTouch as HTMLElement | undefined,
           shadow: this.$refs.remoteShadow as HTMLElement | undefined,
           bonusIcons: [],
-          oceanPulses: [],
-          oceanCoins: [],
           aresPulses,
           splash: this.$refs.remoteSplash as HTMLElement | undefined,
         };
       },
     });
+    // The SHARED ocean payout stage — its own registration, because its
+    // caller may be the tile hero OR the nomad hop (which has no tile proxy).
+    // Pieces are index-aligned with the beat's own `coins`: the beat bails
+    // unless BOTH arrays match its length, so a half-mounted stage can never
+    // desync a pulse from its coin.
+    this.unregisterOcean = registerOceanBeatStage({
+      els: (): OceanStageEls | undefined => {
+        const pulses: Array<HTMLElement> = [];
+        const coins: Array<HTMLElement> = [];
+        for (const c of oceanBeatState.coins) {
+          const pulse = this.oceanPulseEls.get(c.id);
+          const coin = this.oceanCoinEls.get(c.id);
+          if (pulse !== undefined && pulse.isConnected && coin !== undefined && coin.isConnected) {
+            pulses.push(pulse);
+            coins.push(coin);
+          }
+        }
+        return {pulses, coins};
+      },
+    });
   },
   beforeUnmount() {
     this.unregister?.();
+    this.unregisterOcean?.();
     // Shell teardown / game switch mid-flight: every held tile must become
     // visible NOW (the hold set is module-level and would otherwise leak
     // into the next mounted board).

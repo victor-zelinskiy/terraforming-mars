@@ -36,10 +36,10 @@ export type TileStageEls = {
   shadow: HTMLElement | undefined,
   /** The printed-bonus icon proxies (reward beat), in bonusProxies order. */
   bonusIcons: ReadonlyArray<HTMLElement>,
-  /** The ocean-activation pulses (ocean beat), in oceanCoins order. */
-  oceanPulses: ReadonlyArray<HTMLElement>,
-  /** The materializing M€ coin roots (ocean beat), in oceanCoins order. */
-  oceanCoins: ReadonlyArray<HTMLElement>,
+  /* NOTE: the OCEAN pieces are deliberately NOT here. The ocean payout is a
+   * SHARED beat (`oceanAdjacencyBeat.ts`) with its own stage registration,
+   * because the same water pays a Mars Nomads camp that merely MOVES onto the
+   * cell — a hop that has no tile proxy for this handle to describe. */
   /** The Ares source-tile wake pulses (adjacency beat), in aresSources order. */
   aresPulses: ReadonlyArray<HTMLElement>,
   /** The ocean-cover landing splash (one per stage; absent → no splash). */
@@ -271,8 +271,8 @@ export type OceanActivationOpts = {
  * the shore while a thin ring opens over it, then settles. Cold turquoise,
  * confined to the shoreline — economic infrastructure waking up, not magic.
  */
-export function playOceanActivation(els: TileStageEls, opts: OceanActivationOpts): void {
-  playShorePulses(els.oceanPulses, opts);
+export function playOceanActivation(pulses: ReadonlyArray<HTMLElement>, opts: OceanActivationOpts): void {
+  playShorePulses(pulses, opts);
 }
 
 /**
@@ -282,8 +282,8 @@ export function playOceanActivation(els: TileStageEls, opts: OceanActivationOpts
  * opening ring — with the palette carried by CSS (`--ares`): warm printed
  * infrastructure waking up, not water.
  */
-export function playAresSourcePulses(els: TileStageEls, opts: OceanActivationOpts): void {
-  playShorePulses(els.aresPulses, opts);
+export function playAresSourcePulses(pulses: ReadonlyArray<HTMLElement>, opts: OceanActivationOpts): void {
+  playShorePulses(pulses, opts);
 }
 
 /** The shared shoreline-pulse mechanics (ocean swell / Ares tile wake) —
@@ -368,9 +368,9 @@ export type OceanCoinOpts = {
  * coin that is pixel-identical to the framework's own M€ chip — which is what
  * makes the handoff into the flight invisible.
  */
-export function playOceanCoinMaterialize(els: TileStageEls, opts: OceanCoinOpts): void {
+export function playOceanCoinMaterialize(coins: ReadonlyArray<HTMLElement>, opts: OceanCoinOpts): void {
   const f = opts.formMs / 1000;
-  els.oceanCoins.forEach((root, i) => {
+  coins.forEach((root, i) => {
     const delay = ((opts.delays[i] ?? 0) + opts.leadMs) / 1000;
     const ring = root.querySelector<HTMLElement>('.con-tileplace__coin-ring');
     const body = root.querySelector<HTMLElement>('.con-tileplace__coin-body');
@@ -424,11 +424,24 @@ export function playOceanCoinMaterialize(els: TileStageEls, opts: OceanCoinOpts)
  * is born at the same point, on the SAME per-index stagger. One continuous
  * object: condensed here, carried from here.
  */
-export function playOceanCoinHandoff(els: TileStageEls, opts: {delays: ReadonlyArray<number>, uiScale: number}): void {
+export function playOceanCoinHandoff(coins: ReadonlyArray<HTMLElement>, opts: {delays: ReadonlyArray<number>, uiScale: number}): void {
   const lift = Math.max(3, Math.round(5 * opts.uiScale));
-  els.oceanCoins.forEach((root, i) => {
+  coins.forEach((root, i) => {
     gsap.timeline({delay: ((opts.delays[i] ?? 0) + 70) / 1000})
       .to(root, {y: -lift, scale: 1.04, autoAlpha: 0, duration: 0.16, ease: 'power1.in'}, 0);
+  });
+}
+
+/**
+ * Kill the tweens of the OCEAN pieces (pulses / coins). They animate their
+ * CHILDREN (wash / ring / body / sparks), so killing the roots alone would
+ * leave sub-tweens running on a detached tree. Exported because the ocean
+ * beat is shared and aborts with its own caller, not with the tile scene.
+ */
+export function killOceanTweens(roots: ReadonlyArray<HTMLElement>): void {
+  roots.forEach((el) => {
+    gsap.killTweensOf(el);
+    el.querySelectorAll<HTMLElement>('*').forEach((child) => gsap.killTweensOf(child));
   });
 }
 
@@ -448,7 +461,7 @@ export function killTileTweens(els: TileStageEls): void {
   // The pulse/coin/splash pieces animate their CHILDREN (wash / ring / body /
   // sparks), so killing the roots alone would leave sub-tweens running on a
   // detached tree.
-  const withChildren = [...els.oceanPulses, ...els.oceanCoins, ...els.aresPulses];
+  const withChildren = [...els.aresPulses];
   if (els.splash !== undefined) {
     withChildren.push(els.splash);
   }

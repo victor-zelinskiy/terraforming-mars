@@ -142,6 +142,35 @@ describe('MarsNomads', () => {
     expect(player.megaCredits).to.eq(2);
   });
 
+  it('Action PUBLISHES the ocean payout breakdown (the client plays the same coin beat as a tile placement)', () => {
+    // `lastOceanBonus` is the presentation manifest every premium ocean-coin
+    // beat is staged from. A camp MOVE earns ocean adjacency exactly like a
+    // build (`grantPlacementBonuses` computes it with no tile involved), so
+    // the manifest must name the DESTINATION and the paying water — without
+    // it the money lands in silence while a tile placement gets its coins.
+    const destinationSpace = game.board.getSpaceOrThrow('04');
+    const adjacentSpaces = game.board.getAdjacentSpaces(destinationSpace);
+    adjacentSpaces[0].tile = {tileType: TileType.OCEAN};
+    game.nomadSpace = adjacentSpaces[1].id;
+
+    expect(player.lastOceanBonus, 'a fresh player has published nothing yet').is.undefined;
+    cast(card.action(player), SelectSpace).cb(destinationSpace);
+
+    expect(player.lastOceanBonus?.spaceId).to.eq(destinationSpace.id);
+    expect(player.lastOceanBonus?.oceanSpaceIds).to.include(adjacentSpaces[0].id);
+    expect(player.lastOceanBonus?.megacredits).to.eq(2);
+  });
+
+  it('…and no ocean nearby publishes NO manifest (nothing to animate)', () => {
+    const nomadSpace = board.getAvailableSpacesOnLand(player)[12];
+    game.nomadSpace = nomadSpace.id;
+
+    const selectSpace = cast(card.action(player), SelectSpace);
+    selectSpace.cb(selectSpace.spaces[0]);
+
+    expect(player.lastOceanBonus).is.undefined;
+  });
+
   for (const run of [
     {bonus: SpaceBonus.OCEAN, megaCredits: 5, expected: false},
     {bonus: SpaceBonus.OCEAN, megaCredits: 6, expected: true},

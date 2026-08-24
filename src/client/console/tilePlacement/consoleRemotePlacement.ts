@@ -447,7 +447,7 @@ async function runRemoteAresIncomeBeat(ev: RemoteEvent, tileRect: TileRect, ui: 
   await nextTick(); // the layer mounts the wake pulses
   const els = tileStageRemoteEls();
   if (els !== undefined && els.aresPulses.length === wakes.length && wakes.length > 0) {
-    playAresSourcePulses(els, {
+    playAresSourcePulses(els.aresPulses, {
       delays: pulseDelays,
       shores: wakes.map((w) => w.shore),
       drifts: wakes.map((w) => w.drift),

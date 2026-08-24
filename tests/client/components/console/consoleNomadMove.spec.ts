@@ -20,6 +20,7 @@ import {
 } from '@/client/console/nomads/consoleNomadMove';
 import {panelRewardHold, heldStock} from '@/client/console/resourceTransfer/consoleResourceTransfer';
 import {observeMarkerPlacement} from '@/client/components/board/markerPlacementAnimation';
+import {OceanAdjacencyBonusModel} from '@/common/models/OceanAdjacencyBonusModel';
 
 function space(id: string, over: Partial<SpaceModel> = {}): SpaceModel {
   return {id, x: 0, y: 0, spaceType: 'land', bonus: [], ...over} as unknown as SpaceModel;
@@ -151,6 +152,61 @@ describe('consoleNomadMove (the animation transaction)', () => {
     expect(panelRewardHold.active).to.be.false; // the bonus is honestly absent
     await endNomadMove();
     expect(isNomadMoveActive()).to.be.false;
+  });
+
+  describe('the OCEAN ADJACENCY payout (the same water pays a camp as pays a build)', () => {
+    const prev = [space('05', {nomads: true}), space('06')];
+    const next = [space('05'), space('06', {nomads: true})];
+    const oceanBonus: OceanAdjacencyBonusModel = {
+      spaceId: '06', oceanSpaceIds: ['07', '08'], perOcean: 2, megacredits: 4,
+    };
+
+    it('holds the M€ the server granted for moving next to water, then releases it', async () => {
+      armNomadMove({toSpaceId: '06'});
+      expect(detectNomadMove(prev, next, {oceanBonus})).to.not.be.undefined;
+      await runNomadMove(prev, next);
+      seedNomadMoveRewardHold();
+      // The whole payout is ONE aggregated hold entry — the counter announces
+      // «+4 M€» once, when the last coin has physically landed.
+      expect(panelRewardHold.active).to.be.true;
+      expect(heldStock('megacredits')).to.eq(4);
+      await endNomadMove();
+      expect(heldStock('megacredits')).to.eq(0);
+      expect(panelRewardHold.active).to.be.false;
+      expect(isNomadMoveActive()).to.be.false;
+    });
+
+    it('composes with the destination\'s own printed M€ (the hold map is additive)', async () => {
+      const cellPrev = [space('05', {nomads: true}), space('06', {bonus: [SpaceBonus.MEGACREDITS]})];
+      const cellNext = [space('05'), space('06', {bonus: [SpaceBonus.MEGACREDITS], nomads: true})];
+      armNomadMove({toSpaceId: '06'});
+      detectNomadMove(cellPrev, cellNext, {oceanBonus});
+      await runNomadMove(cellPrev, cellNext);
+      seedNomadMoveRewardHold();
+      expect(heldStock('megacredits')).to.eq(5); // 1 printed + 4 from the water
+      await endNomadMove();
+      expect(heldStock('megacredits')).to.eq(0);
+    });
+
+    it('IGNORES a manifest that names a different space (never mis-attributes a payout)', async () => {
+      armNomadMove({toSpaceId: '06'});
+      detectNomadMove(prev, next, {oceanBonus: {...oceanBonus, spaceId: '19'}});
+      await runNomadMove(prev, next);
+      seedNomadMoveRewardHold();
+      expect(panelRewardHold.active).to.be.false;
+      await endNomadMove();
+    });
+
+    it('a hop that pays nothing at all still ends immediately', async () => {
+      armNomadMove({toSpaceId: '06'});
+      detectNomadMove(prev, next); // no printed bonus, no ocean manifest
+      await runNomadMove(prev, next);
+      seedNomadMoveRewardHold();
+      expect(panelRewardHold.active).to.be.false;
+      const before = Date.now();
+      await endNomadMove();
+      expect(Date.now() - before).to.be.lessThan(120);
+    });
   });
 
   it('abort mid-transaction frees the gate and releases every held metric', async () => {

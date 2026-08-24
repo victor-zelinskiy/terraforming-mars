@@ -361,6 +361,57 @@ A on a row submits that gain's option (`claimStageGain`, latched by
 remaining row slides into the claimed one's slot, so a repeated A would
 otherwise claim a gain the player never pointed at.
 
+## 4c-bis. THE GAINS ARE PHYSICAL — the reward beat (`startBonusGain.ts`)
+
+Every other gain in this console arrives as an OBJECT: a chip emerges from the
+thing that produced it, flies to its row in the left panel, and the panel's
+delta chip fires **at the touchdown** (`resourceTransfer/*` + the panel reward
+hold). «Фора»'s two gains were the exception — the counter simply jumped.
+The AUTO-resolve was the worse half: the server grants it inside
+`spendBonusAction` while the player is on the BOARD, so on their return the only
+evidence the card had ever done anything was a number that had changed while
+they were not looking.
+
+**The beat is split ARM/DETECT → SEED → OWE → FLY, because its two halves live
+in different frames** (the same seed/run split `consoleHydroMarker` uses):
+
+| step | where | why there |
+| --- | --- | --- |
+| `noteBonusGainRows(view)` | the shell's `playerView` watcher | the only observer that sees EVERY view, including the first after a reload mid-window. Records the pending set **only from a view that STATES it** — the payment / placement / draw prompts inside a bonus action carry no marker, and reading them as «nothing is pending» forgets the set halfway through the very action whose end resolves it. An EMPTY list on a MARKED prompt is real information. |
+| `armBonusGainClaim(row, source, point)` | `claimStageGain`, at the press | the pressed ROW is the honest origin of a claim, and the response that grants the gain also ANSWERS the prompt — so the row is gone by the time the chip could fly. Its centre is measured while it is still there. |
+| `seedBonusGainRewardHold(before, after)` | the transport's `seedRewardHolds` | the panel renders `committed − held`, so a hold seeded even one micro-task early flushes a phantom −N chip the commit undoes. This is the ONE seeder that needs BOTH views. |
+| `bonusGainWaveDue` → `runBonusGainWave()` | `ConsoleStartScene` | the flight needs a workspace ON SCREEN with the card standing where chips can come out of it. |
+
+**THE AMOUNT IS NEVER GUESSED.** A claim carries the server's own row amount.
+The auto-resolve recomputes exactly as `Player.bonusGainAmount` does — steel is
+the printed constant, M€ is `perCardInHand × the hand as it stands` — and «as it
+stands» is the COMMITTED view's hand, because resolving a gain does not touch
+the hand. Taking the amount off the older prompt would print a different number
+from the one the player received, which is the whole strategic point of the
+choice the card offers (draw and the M€ grow, play and they shrink).
+
+**Two traps this beat paid for, both general:**
+
+1. ⚠️ **A watcher that must fire on a MOUNT may not be `immediate`.** The
+   auto-resolve is seeded while the scene does not exist, so its edge IS the
+   scene's mount — and an `immediate` handler runs at SETUP, before there is any
+   DOM to fly out of. The wave measured nothing, degraded to «no flight» and
+   CONSUMED the very reward it existed to show. The mount edge is asked from
+   `mounted()` (`runBonusGainWaveIfDue`), where the shelf is already rendered;
+   the watcher covers only the later rise.
+2. **A claim answered by the CLOSING response never pays twice.** Pressing
+   «Получить сейчас» on the same response that spends the last action means the
+   auto-resolve is what actually pays; holding the claim's amount as well would
+   leave the panel short by it for the hold's whole life.
+
+Readiness differs by half, and that is why the beat waits for a surface at all:
+a CLAIM carries its captured point and only needs the deployment on screen; the
+AUTO-resolve emerges from the granting card in «РАЗЫГРАНО», so it waits for
+the shelf to have come BACK (`!playedDockReleased`) — flying out of a receded,
+transparent shelf would put the origin somewhere the player cannot see. The hold
+carries a bounded backstop (`BONUS_GAIN_HOLD_SAFETY_MS`): a surface that never
+comes must not leave the rail reading a stale number for the rest of the game.
+
 ## 4d. The journey rail, and the one thing a progress readout may never do
 
 The rail gains a CONDITIONAL chapter, `Bonus actions`, between the preludes and
@@ -478,7 +529,8 @@ would print «2/2» on the player's FIRST bonus action.
 | `tests/client/components/console/consoleQuickModel.spec.ts` | only the two turn-control slots are blocked, they name the rule, a parked decision still outranks it |
 | `tests/client/components/overview/bonusActionStatus.spec.ts` | the label on every seat + the counter that counts bonuses |
 | `tests/e2e/console-first-action-draw.spec.ts` | the shelf's half of the same contract on the ORDINARY first-action stage: it stays painted under the briefing with the corp's place empty, the briefing clears its band, and the room still comes back for the drawn candidates |
-| `tests/e2e/console-bonus-action-handoff.spec.ts` | the whole flow on a real board: announce (+ the steel claimed EARLY, no action spent) → A → the workspace is GONE → the hand as its own screen → the wheel refuses only the turn-control verbs → both bonuses → the return → the unclaimed M€ auto-resolved |
+| `tests/client/components/console/startBonusGain.spec.ts` | the reward beat: what a marked prompt does (and an unmarked one does not) to the pending set, the falling-edge detection, the M€ recomputed off the COMMITTED hand, the claim + close collision, the source-selector order |
+| `tests/e2e/console-bonus-action-handoff.spec.ts` | the whole flow on a real board: announce (+ the steel claimed EARLY, no action spent, **flying to the panel with the row held at its pre-gain reading**) → A → the workspace is GONE → the hand as its own screen → the wheel refuses only the turn-control verbs → both bonuses → the return → the unclaimed M€ auto-resolved **and seen to arrive, out of «Фора»** |
 | `tests/e2e/console-bonus-nested-first-action.spec.ts` | the nested case: both markers (+ the M€ rate) on the wire, the OVERVIEW first (plan with the corp chip, current item), the cursor's VISUAL order (↑ lands on the row nearest the CTA) with exactly one lit «A» and a panel box that does not move, the SHELF standing under the stage with the seat's place empty in it, a gain claimed ON the corp prompt costing no action, the cursor home after it, A descends (seat swaps to the corp, 1/2 chip, crumb keeps «Фора»), B walks back up with the claim intact, the rail without a standalone first-action chapter |
 
 ⚠️ **An e2e may not spend the viewer's own bonus over the API.** The client

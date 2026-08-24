@@ -65,11 +65,13 @@ import {
   placementBonuses, verifyPlacement, findSpace, applySpacePreview,
   TILE_FLIGHT_MS, TILE_SETTLE_MS, TILE_REDUCED_MS, TILE_ARM_SAFETY_MS,
   BONUS_PRELIFT_START_T, BONUS_RISE_MS, BONUS_HOVER_PX, BONUS_HANDOFF_BREATH_MS,
-  OCEAN_PULSE_MS, OCEAN_COIN_LEAD_MS, OCEAN_COIN_FORM_MS, OCEAN_BEAT_BREATH_MS,
-  OCEAN_COIN_LIFT_PX, OCEAN_COIN_SPARKS, OCEAN_COIN_T, OCEAN_PULSE_T, OCEAN_PULSE_DRIFT,
-  OCEAN_SPLASH_MS,
-  oceanEdgePoint, oceanShoreDirection, oceanTransferSpecs, oceanWaveLeadMs,
+  OCEAN_BEAT_BREATH_MS, OCEAN_COIN_LIFT_PX, OCEAN_COIN_T, OCEAN_PULSE_T, OCEAN_PULSE_DRIFT,
+  OCEAN_PULSE_MS, OCEAN_SPLASH_MS,
+  oceanEdgePoint, oceanShoreDirection,
 } from '@/client/console/tilePlacement/tilePlacementModel';
+import {
+  abortOceanBeat, oceanBonusFor, runOceanAdjacencyBeat,
+} from '@/client/console/tilePlacement/oceanAdjacencyBeat';
 import {
   AresAdjacencyFlight, ARES_WAVE_LEAD_MS,
   claimAresGrant, latestAresGrantFor, viewerAresAdjacencyFlights,
@@ -78,7 +80,6 @@ import {AresAdjacencyGrantModel} from '@/common/models/AresAdjacencyGrantModel';
 import {
   TileStageEls, placeTileProxy, playTileFlight, disposeTileProxy,
   placeBonusProxies, playBonusPreLift, playBonusHandoff, killTileTweens,
-  playOceanActivation, playOceanCoinMaterialize, playOceanCoinHandoff,
   playAresSourcePulses, playCoverSplash,
 } from '@/client/console/tilePlacement/tilePlacementDirector';
 import {
@@ -115,27 +116,6 @@ export type AresSourceWake = {
   drift: number,
 };
 
-/**
- * ONE paying ocean, ready to be staged: where its water wakes, where its coin
- * condenses, and which way the shore faces. All viewport-space (measured live
- * from the real hexes), so board zoom / TV scale need no compensation.
- */
-export type OceanCoinProxy = {
-  id: number,
-  /** The M€ this single ocean pays (the numeral struck on its coin). */
-  amount: number,
-  /** The coin's birth point — just inside the water, lifted off the surface. */
-  at: TransferPoint,
-  /** The activation pulse's centre — nearer the shared shore. */
-  pulseAt: TransferPoint,
-  /** The pulse's box size (proportional to the ocean hex, never fixed px). */
-  pulseSize: number,
-  /** Unit vector ocean → placed tile (the light drifts along it). */
-  shore: TransferPoint,
-  /** How far back into the water the pulse's light starts, in px. */
-  drift: number,
-};
-
 export const tilePlacementState = reactive({
   /** TRUE from arm until finish/abort — the transaction lock. */
   active: false,
@@ -151,8 +131,6 @@ export const tilePlacementState = reactive({
   aresExtension: false,
   /** The printed stock-bonus icons that rise + pay out after the commit. */
   bonusProxies: [] as Array<BonusProxy>,
-  /** The paying adjacent oceans, staged for the ocean beat (empty otherwise). */
-  oceanCoins: [] as Array<OceanCoinProxy>,
   /** The paying Ares neighbours, staged for the adjacency beat. */
   aresSources: [] as Array<AresSourceWake>,
   reducedMotion: false,
@@ -262,7 +240,6 @@ export function armTilePlacement(opts: {spaceId: string}): void {
   tilePlacementState.tileType = undefined;
   tilePlacementState.coveredTile = undefined;
   tilePlacementState.bonusProxies = [];
-  tilePlacementState.oceanCoins = [];
   tilePlacementState.aresSources = [];
   tilePlacementState.reducedMotion = consoleReducedMotionActive();
   armSafety = window.setTimeout(() => abortTilePlacement(), TILE_ARM_SAFETY_MS);
@@ -321,8 +298,7 @@ export function detectTilePlacement(
   pendingBonuses = landed.covers === undefined && space !== undefined ? placementBonuses(space.bonus) : [];
   tilePlacementState.bonusProxies = captureBonusIcons(spaceId, pendingBonuses);
   const ocean = opts?.oceanBonus;
-  pendingOceanBonus = ocean !== undefined && ocean.spaceId === spaceId &&
-    ocean.megacredits > 0 && ocean.oceanSpaceIds.length > 0 ? ocean : undefined;
+  pendingOceanBonus = oceanBonusFor(ocean, spaceId);
   // The Ares adjacency manifest: the newest grant CAUSED BY this placement,
   // consumed exactly once per client (the remote scene shares the ledger).
   const grant = latestAresGrantFor(opts?.aresGrants, spaceId);
@@ -565,102 +541,28 @@ async function runPrintedBonusBeat(bonuses: ReadonlyArray<PlacementBonus>): Prom
 /**
  * The OCEAN ADJACENCY beat — "I built next to water, so THAT water paid me".
  *
- * The server already granted the M€ and already told us WHICH neighbours paid
- * (`OceanAdjacencyBonusModel`); this only stages it. Per paying ocean: the
- * shoreline it shares with the new tile wakes, an M€ coin CONDENSES out of
- * that light just inside the water, and the coin is handed to the shared
- * Resource Transfer Framework — same arc, same halo, same touchdown as every
- * other reward in the game. One ocean → one coin, always.
- *
- * The DELTA CHIP is deliberately AGGREGATED: the panel hold covers the whole
- * payout and is released ONCE, at the last coin's touchdown, so the counter
- * moves after the money has physically arrived and announces «+2/+4/+6 M€»
- * once — the individual sources are told by the coins themselves.
- *
- * Degrades honestly at every step (no stage, unmeasurable hexes, rAF stall):
- * the hold is released and the reward is announced by its delta chip alone.
+ * The choreography itself is SHARED (`oceanAdjacencyBeat.ts`): the very same
+ * water pays a Mars Nomads camp that merely MOVES onto the cell, so the two
+ * scenes must play one animation, not two dialects of it. This is the tile
+ * scene's half of the contract — its rect, its liveness, its hold release.
  */
 async function runOceanBonusBeat(bonus: OceanAdjacencyBonusModel): Promise<void> {
-  let released = false;
-  const releaseTotal = () => {
-    if (released) {
-      return;
-    }
-    released = true;
-    releasePanelRewardHold({channel: 'stock', resource: 'megacredits', amount: bonus.megacredits});
-  };
-
-  const ui = conUiScale();
   const tileRect = hexRect ?? measureBoardHexRect(tilePlacementState.spaceId);
-  if (tileRect === undefined || typeof document === 'undefined') {
-    releaseTotal();
+  if (tileRect === undefined) {
+    releasePanelRewardHold({channel: 'stock', resource: 'megacredits', amount: bonus.megacredits});
     return;
   }
-  const coins = buildOceanCoins(bonus, tileRect, ui);
-  if (coins.length === 0) {
-    releaseTotal();
-    return;
-  }
-
-  // One calm breath after the cause (the tile — or the printed icons — has
-  // settled), then the water responds.
-  await wait(motionMs(OCEAN_BEAT_BREATH_MS));
-  if (!tilePlacementState.active) {
-    releaseTotal();
-    return;
-  }
-  tilePlacementState.oceanCoins = coins;
-  await nextTick(); // the layer mounts the pulses + coins
-  const els = stage?.els();
-  if (!tilePlacementState.active || els === undefined ||
-      els.oceanCoins.length !== coins.length || els.oceanPulses.length !== coins.length) {
-    tilePlacementState.oceanCoins = [];
-    releaseTotal();
-    return;
-  }
-
-  // The cascade uses the framework's OWN per-index wave stagger, so each coin
-  // finishes forming exactly as its chip is born on it — for any ocean count,
-  // and compressing automatically when several oceans pay at once.
-  const delays = coins.map((_, i) => motionMs(transferWaveDelayMs(i, coins.length)));
-  playOceanActivation(els, {
-    delays,
-    shores: coins.map((c) => c.shore),
-    drifts: coins.map((c) => c.drift),
-    pulseMs: motionMs(OCEAN_PULSE_MS),
+  await runOceanAdjacencyBeat({
+    bonus,
+    tileRect,
+    uiScale: conUiScale(),
+    alive: () => tilePlacementState.active,
+    // ONE aggregated release: the counter moves after the money has physically
+    // arrived and announces «+2/+4/+6 M€» once — the individual sources are
+    // told by the coins themselves.
+    release: () => releasePanelRewardHold(
+      {channel: 'stock', resource: 'megacredits', amount: bonus.megacredits}),
   });
-  playOceanCoinMaterialize(els, {
-    delays,
-    leadMs: motionMs(OCEAN_COIN_LEAD_MS),
-    formMs: motionMs(OCEAN_COIN_FORM_MS),
-    sparks: OCEAN_COIN_SPARKS,
-  });
-  await wait(motionMs(oceanWaveLeadMs()));
-  if (!tilePlacementState.active) {
-    tilePlacementState.oceanCoins = [];
-    releaseTotal();
-    return;
-  }
-  playOceanCoinHandoff(els, {delays, uiScale: ui});
-
-  let arrived = 0;
-  await runResourceTransfers({
-    specs: oceanTransferSpecs(coins.length, bonus.perOcean),
-    origins: coins.map((c) => c.at),
-    source: {point: {x: tileRect.x + tileRect.w / 2, y: tileRect.y + tileRect.h / 2}},
-    arrival: 'auto',
-    // ONE aggregated release, only once EVERY coin of this bonus has landed.
-    // (`onArrive` can legitimately fire more than once per spec — the wave's
-    // safety net re-releases everything — hence the guard inside releaseTotal.)
-    onArrive: () => {
-      arrived++;
-      if (arrived >= coins.length) {
-        releaseTotal();
-      }
-    },
-  });
-  releaseTotal(); // no-op when the arrivals already did it
-  tilePlacementState.oceanCoins = [];
 }
 
 /**
@@ -720,7 +622,7 @@ async function runAresAdjacencyBeat(flights: ReadonlyArray<AresAdjacencyFlight>)
   await nextTick(); // the layer mounts the wake pulses
   const els = stage?.els();
   if (els !== undefined && els.aresPulses.length === wakes.length && wakes.length > 0) {
-    playAresSourcePulses(els, {
+    playAresSourcePulses(els.aresPulses, {
       delays: pulseDelays,
       shores: wakes.map((w) => w.shore),
       drifts: wakes.map((w) => w.drift),
@@ -744,33 +646,6 @@ async function runAresAdjacencyBeat(flights: ReadonlyArray<AresAdjacencyFlight>)
 }
 
 /**
- * Measure the paying oceans and derive each coin's staging geometry. Oceans
- * whose hex isn't on screen (an off-grid slot, a mid-scroll measurement) are
- * skipped — their share still rides the aggregated delta chip, so the money is
- * never misreported, only its source is not illustrated.
- */
-function buildOceanCoins(bonus: OceanAdjacencyBonusModel, tileRect: TileRect, uiScale: number): Array<OceanCoinProxy> {
-  const lift = Math.round(OCEAN_COIN_LIFT_PX * uiScale);
-  const out: Array<OceanCoinProxy> = [];
-  bonus.oceanSpaceIds.forEach((id, i) => {
-    const rect = measureBoardHexRect(id);
-    if (rect === undefined) {
-      return;
-    }
-    out.push({
-      id: i,
-      amount: bonus.perOcean,
-      at: oceanEdgePoint(rect, tileRect, OCEAN_COIN_T, lift),
-      pulseAt: oceanEdgePoint(rect, tileRect, OCEAN_PULSE_T),
-      pulseSize: Math.round(rect.w * 0.66),
-      shore: oceanShoreDirection(rect, tileRect),
-      drift: Math.round(rect.w * OCEAN_PULSE_DRIFT),
-    });
-  });
-  return out;
-}
-
-/**
  * ABORT — refused placement, network failure, safety timer, unmount. Drops
  * the stage, the pending bonuses and any seeded hold; frees the commit
  * gate; flags `failed` for one flush. The board itself was never touched
@@ -786,6 +661,7 @@ export function abortTilePlacement(): void {
     killTileTweens(els);
   }
   abortResourceTransfers();
+  abortOceanBeat(); // …and the shared water beat this placement may have staged
   clearPanelRewardHold();
   restoreHeldBonuses(); // the printed icons un-blank — the field is intact
   if (cubeHeld) {
@@ -803,7 +679,6 @@ export function abortTilePlacement(): void {
   tilePlacementState.active = false;
   tilePlacementState.phase = 'failed';
   tilePlacementState.bonusProxies = [];
-  tilePlacementState.oceanCoins = [];
   tilePlacementState.aresSources = [];
   freeRunGate();
   void nextTick(() => {
@@ -836,7 +711,6 @@ function finish(): void {
   tilePlacementState.active = false;
   tilePlacementState.phase = 'done';
   tilePlacementState.bonusProxies = [];
-  tilePlacementState.oceanCoins = [];
   tilePlacementState.aresSources = [];
   void nextTick(() => {
     if (tilePlacementState.phase === 'done') {

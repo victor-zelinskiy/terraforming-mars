@@ -277,13 +277,57 @@ that was not moving. A line that names a wait must be able to name WHO:
 `startWaitMate(view, live)` returns the first genuinely ACTIVE opponent, and
 the rail says «Ожидаем ход игрока X» only then — otherwise it stays silent.
 
+## A DEPLOYMENT IS A SEQUENCE — the next stage may not start over the last one
+
+The stage's entry used to be a LIST of the shapes the previous work can be in:
+the prelude prompt, the candidate pick, the sponsor's hosted hand, a hero in
+flight, a live reveal, a non-empty queue, `payProjects`, an arriving card. Every
+one of those is true, and together they can only ever cover the chains somebody
+thought of.
+
+**«Эпатажный спонсор» → «Деловые контакты» was the one nobody had.** The
+prelude plays a project from the hand; the project's look-4-keep-2 raises a deck
+PICK — a prompt none of those terms names. With the preludes otherwise finished
+the stage stood up ON TOP of the four cards the player was choosing between, in
+its «wait for your turn» pose, with no way back to them.
+
+So the gate is stated in its GENERAL form, beside the enumerated ones rather
+than instead of them (`startFlowOtherPromptStands`): the server asks a player
+exactly ONE thing at a time, so **«a prompt is standing and it is not this
+stage's own move» IS «the work before this stage is still owed»**, whatever
+produced it.
+
+The two edges differ by exactly one prompt — the ordinary ACTION MENU:
+
+* **ENTRY** — the menu is NOT quiet. The start flow is still running, and a
+  menu inside it is a bonus window the workspace serves through a stage of its
+  own.
+* **LEAVE** (`firstActionChainQuiet`) — the menu is the honest END: the game
+  proper has begun. Holding the stage for it would leave the workspace standing
+  for the rest of the game.
+
+Matching the menu is the ONE sanctioned title check (`actionMenuTitles.ts`: the
+server SETS the title from those plain-string constants and the client DETECTS
+it from the same module, so i18n never rewrites it — see cross-cutting
+invariant 1).
+
+The other half of the same report is in `docs/claude/console/workspace-band.md`
+§ ШАГ КОНЧИЛСЯ, ПОТОК — НЕТ: the pick belongs INSIDE the workspace, and once
+it does, the stage has an embedded step to see and would have waited anyway.
+Both were shipped together, and both are needed — the claim answers «whose is
+this artifact», the gate answers «may the next stage start», and a prompt this
+workspace cannot host would still hit only the second one.
+
 ## Guards
 
-`tests/client/components/console/startFirstAction.spec.ts` (stage model),
+`tests/client/components/console/startFirstAction.spec.ts` (stage model + the
+sequence law at both edges),
 `startBoardExcursion.spec.ts` (barrier policy), `consoleCorpFirstAction.spec.ts`
 (routing fork + serving surfaces), `consoleStartState.spec.ts` (conditional
 journey stages + crumb + deferred copy), `consoleStartUi.spec.ts` (the bar's
 first-action states), and e2e `console-corp-first-action.spec.ts` (the stage
 end-to-end + a mid-chain-flash witness), `console-reveal-priority.spec.ts`
 (the stage never paints under a reveal), `console-community-marker.spec.ts`
-(a marker-placement first action through the stage).
+(a marker-placement first action through the stage),
+`console-sponsor-play-outcome.spec.ts` (the sequence law + the re-homed claim on
+a real board: the pick embedded, no stage over it, the first action LAST).

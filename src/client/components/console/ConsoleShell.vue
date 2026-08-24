@@ -1572,6 +1572,7 @@ import {workspaceClaimsDrawReveal, workspaceClaimsColonyReveal, workspaceClaimsD
 import type {WorkspaceOutcomeKind} from '@/client/console/consoleWorkspaceOutcome';
 import {ResultRevealPresentation, resultRevealPresentation} from '@/client/console/consoleRevealPresentation';
 import {claimPlayOutcome, isPlayOutcomeHost, playLandingShowing} from '@/client/console/played/consolePlayOutcomeClaim';
+import {noteBonusGainRows, resetBonusGainReward} from '@/client/console/startBonusGain';
 import ConsoleBoardCardBonusLayer from '@/client/components/console/boardCardBonus/ConsoleBoardCardBonusLayer.vue';
 import {armBoardCardBonus, abortBoardCardBonus, boardCardBonusState, isBoardCardBonusActive, isBoardCardBonusFieldPhase} from '@/client/console/boardCardBonus/consoleBoardCardBonus';
 import {
@@ -8165,6 +8166,13 @@ export default defineComponent({
             }
           }
         }
+        // WHAT THE «ФОРА» WINDOW STILL OWES — remembered from every view that
+        // STATES it, which is only the bonus-window prompt itself. The
+        // auto-resolve at the window's end is detected at the COMMIT (the
+        // transport's seeder) and needs the pending set as it stood before it;
+        // the always-mounted shell is the one observer that sees every view,
+        // including the first one after a reload mid-window.
+        noteBonusGainRows(newView);
         // Draft tray: mark a live pick beat answered, reconcile optimistic
         // state, and ARM the research-rise scene on the draft→buy
         // transition (pre-flush — the buy frame mounts already knowing).
@@ -14056,6 +14064,9 @@ export default defineComponent({
     // be routed to a workspace that no longer exists and never be shown.
     resetWorkspaceOutcome();
     resetDeckPick(); // never carry a live draw-and-select commit across games
+    // …and never carry a PANEL HOLD across games: the «Фора» beat holds the
+    // rail to a flight that a dead shell can no longer fly.
+    resetBonusGainReward();
     resetNotifHold(); // never leak a hold timer across games/sessions
     resetSurfaceMotion(); // never leak a held handoff / shade owner across sessions
     resetActionPreviews(); // per-game preview cache dies with the shell

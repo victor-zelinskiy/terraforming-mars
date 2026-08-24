@@ -68,6 +68,10 @@ import {
 import {
   BonusProxy, measureBoardHexRect,
 } from '@/client/console/tilePlacement/consoleTilePlacement';
+import {
+  abortOceanBeat, oceanBonusFor, runOceanAdjacencyBeat,
+} from '@/client/console/tilePlacement/oceanAdjacencyBeat';
+import {OceanAdjacencyBonusModel} from '@/common/models/OceanAdjacencyBonusModel';
 import {boardCovered} from '@/client/console/tilePlacement/consoleRemotePlacement';
 import {PlacementBonus, TileRect, findSpace} from '@/client/console/tilePlacement/tilePlacementModel';
 import {
@@ -131,6 +135,15 @@ let restoreTimer: number | undefined;
 let runResolve: (() => void) | undefined;
 /** The printed bonuses the reward beat carries (captured at detect). */
 let pendingBonuses: ReadonlyArray<PlacementBonus> = [];
+/**
+ * The SERVER's ocean-adjacency breakdown for THIS hop (captured at detect,
+ * matched on the destination). The camp collects the destination's placement
+ * bonus «as if placing a special tile there», and `grantPlacementBonuses`
+ * computes ocean adjacency for EVERY such grant — no tile required. So the
+ * water pays a moving camp exactly as it pays a build, and it must be the
+ * SAME beat (`oceanAdjacencyBeat`), never a silent counter tick.
+ */
+let pendingOceanBonus: OceanAdjacencyBonusModel | undefined;
 /** The destination hex's live rect (captured at detect). */
 let destHexRect: TileRect | undefined;
 /** The source hex's live rect (captured at detect). */
@@ -210,6 +223,7 @@ export function armNomadMove(opts: {toSpaceId: string}): void {
   stripRestoreClass(); // a previous move's one-shot class must not survive
   claimed = false;
   pendingBonuses = [];
+  pendingOceanBonus = undefined;
   destHexRect = undefined;
   srcHexRect = undefined;
   cardBonusPending = false;
@@ -237,6 +251,12 @@ export function armNomadMove(opts: {toSpaceId: string}): void {
 export function detectNomadMove(
   prevSpaces: ReadonlyArray<SpaceModel> | undefined,
   newSpaces: ReadonlyArray<SpaceModel> | undefined,
+  opts?: {
+    /** The SERVER's own ocean-adjacency breakdown for this response
+     *  (`thisPlayer.lastOceanBonus`) — accepted only when it names the
+     *  destination WE armed, so a stale snapshot can never mis-attribute. */
+    oceanBonus?: OceanAdjacencyBonusModel,
+  },
 ): NomadMoveDiff | undefined {
   if (!nomadMoveState.active || claimed) {
     return undefined;
@@ -258,6 +278,10 @@ export function detectNomadMove(
   const destination = findSpace(prevSpaces ?? [], diff.toId);
   pendingBonuses = nomadMoveBonuses(destination);
   nomadMoveState.bonusProxies = captureBonusIcons(diff.toId, pendingBonuses);
+  // …and what the NEIGHBOURING WATER paid for the same move. Ocean adjacency
+  // is granted whether or not a tile lands (`Game.grantPlacementBonuses`),
+  // so the camp earns it — and it gets the same coins the tile hero flies.
+  pendingOceanBonus = oceanBonusFor(opts?.oceanBonus, diff.toId);
   // The card-draw bonus keeps ITS OWN premium scene (the cover lift): flag
   // it now, arm it at the pre-lift moment so the cover separates exactly
   // when the arriving module displaces the cell's bonuses.
@@ -396,36 +420,86 @@ async function executeHop(
  * destination / reduced motion (those chips honestly ride the commit).
  */
 export function seedNomadMoveRewardHold(): void {
-  if (!nomadMoveState.active || bonusHoldSeeded || pendingBonuses.length === 0) {
+  if (!nomadMoveState.active || bonusHoldSeeded ||
+      (pendingBonuses.length === 0 && pendingOceanBonus === undefined)) {
     return;
   }
   if (nomadMoveState.reducedMotion) {
     pendingBonuses = [];
+    pendingOceanBonus = undefined;
     return;
   }
   bonusHoldSeeded = true;
-  beginPanelRewardHold(pendingBonuses.map((b) => b.spec));
+  const specs = pendingBonuses.map((b) => b.spec);
+  if (pendingOceanBonus !== undefined) {
+    // ONE hold entry for the whole ocean payout (the map is keyed by resource
+    // and additive, so this composes with a printed M€ bonus). Released in ONE
+    // go at the LAST coin's touchdown — which is what makes the delta chip
+    // read «+6 M€» rather than three separate «+2 M€».
+    specs.push({channel: 'stock', resource: 'megacredits', amount: pendingOceanBonus.megacredits});
+  }
+  beginPanelRewardHold(specs);
 }
 
 /**
- * END (next tick, after the view committed) — the REWARD + RESTORE beats:
- * the displaced icons hand off into physical resource chips (the shared
- * framework, per-icon hover origins; each touchdown releases its metric),
- * and then — the nomad-specific epilogue — the cell's printed bonuses
- * MATERIALIZE BACK in place: the camp collected the bonus, the field was
- * not exhausted. A bonus-less hop finishes IMMEDIATELY.
+ * END (next tick, after the view committed) — the REWARD + RESTORE beats, in
+ * the order the STORY is told:
+ *   1. THE CELL pays: its displaced printed icons hand off into physical
+ *      resource chips (the shared framework, per-icon hover origins; each
+ *      touchdown releases its own metric);
+ *   2. THE CELL RECOVERS — the nomad-specific epilogue: the printed bonuses
+ *      MATERIALIZE BACK in place, because the camp collected the bonus and
+ *      the field was not exhausted;
+ *   3. THE WATER pays: every neighbouring ocean the SERVER says paid wakes at
+ *      the shore it shares with the destination and condenses ONE M€ coin —
+ *      the SAME shared beat a tile placement plays (`oceanAdjacencyBeat`),
+ *      because the rule that granted it is the same rule.
+ * A hop that collected nothing finishes IMMEDIATELY — not one extra frame.
  */
 export async function endNomadMove(): Promise<void> {
   if (!nomadMoveState.active) {
     return;
   }
   const bonuses = pendingBonuses;
+  const ocean = pendingOceanBonus;
   pendingBonuses = [];
-  if (nomadMoveState.reducedMotion || bonuses.length === 0) {
+  pendingOceanBonus = undefined;
+  if (nomadMoveState.reducedMotion || (bonuses.length === 0 && ocean === undefined)) {
     finish();
     return;
   }
   nomadMoveState.phase = 'rewarding';
+  if (bonuses.length > 0) {
+    await runPrintedBonusBeat(bonuses);
+    if (!nomadMoveState.active) {
+      return;
+    }
+    // THE RESTORE: the field answers the emptiness — the printed icons
+    // re-form from a small scale with one warm glint each, staggered. The
+    // un-blank and the one-shot class land in the same synchronous turn.
+    nomadMoveState.phase = 'restoring';
+    await wait(motionMs(NOMAD_RESTORE_BREATH_MS));
+    if (!nomadMoveState.active) {
+      return;
+    }
+    await wait(playBonusRestore());
+    if (!nomadMoveState.active) {
+      return;
+    }
+  }
+  if (ocean !== undefined) {
+    nomadMoveState.phase = 'rewarding';
+    await runOceanBonusBeat(ocean);
+  }
+  finish();
+}
+
+/**
+ * THE CELL'S OWN PAYOUT — the printed icons hovering over the seated camp
+ * become physical chips and fly to the rail (each touchdown ticks its own
+ * metric). Byte-for-byte the tile hero's printed beat, on the hop's geometry.
+ */
+async function runPrintedBonusBeat(bonuses: ReadonlyArray<PlacementBonus>): Promise<void> {
   const els = stage?.els();
   const ui = conUiScale();
   const hoverPx = Math.round(NOMAD_BONUS_HOVER_PX * ui);
@@ -454,23 +528,34 @@ export async function endNomadMove(): Promise<void> {
     arrival: 'auto',
     onArrive: (spec) => releasePanelRewardHold(spec),
   });
-  // Belt-and-braces: any hold a degraded transfer left behind snaps to the
-  // committed truth now (its chip fires marginally late, never lost).
-  clearPanelRewardHold();
-  if (!nomadMoveState.active) {
+  // ⚠ NO belt-and-braces `clearPanelRewardHold()` here: the OCEAN payout's
+  // own hold may still be standing, and clearing it would tick the M€ counter
+  // before a single coin has left the water. `finish()` clears everything
+  // once, at the very end of the whole sequence.
+}
+
+/**
+ * THE NEIGHBOURING WATER'S PAYOUT — the SHARED beat, on the hop's geometry.
+ * The camp collects the destination's placement bonus «as if placing a
+ * special tile there», and the server computes ocean adjacency for every such
+ * grant, so this is the same event the tile hero shows and it gets the same
+ * coins. Ares adjacency deliberately has NO counterpart here: the server
+ * gates it on a tile actually being placed, so the camp earns none.
+ */
+async function runOceanBonusBeat(bonus: OceanAdjacencyBonusModel): Promise<void> {
+  const tileRect = destHexRect ?? measureBoardHexRect(nomadMoveState.toId);
+  if (tileRect === undefined) {
+    releasePanelRewardHold({channel: 'stock', resource: 'megacredits', amount: bonus.megacredits});
     return;
   }
-  // THE RESTORE: the field answers the emptiness — the printed icons
-  // re-form from a small scale with one warm glint each, staggered. The
-  // un-blank and the one-shot class land in the same synchronous turn.
-  nomadMoveState.phase = 'restoring';
-  await wait(motionMs(NOMAD_RESTORE_BREATH_MS));
-  if (!nomadMoveState.active) {
-    return;
-  }
-  const restoreTotal = playBonusRestore();
-  await wait(restoreTotal);
-  finish();
+  await runOceanAdjacencyBeat({
+    bonus,
+    tileRect,
+    uiScale: conUiScale(),
+    alive: () => nomadMoveState.active,
+    release: () => releasePanelRewardHold(
+      {channel: 'stock', resource: 'megacredits', amount: bonus.megacredits}),
+  });
 }
 
 /**
@@ -490,6 +575,7 @@ export function abortNomadMove(): void {
     killNomadTweens(els);
   }
   abortResourceTransfers();
+  abortOceanBeat(); // …and the shared water beat this hop may have staged
   clearPanelRewardHold();
   restoreHeldToken();
   restoreHeldBonuses();
@@ -498,6 +584,7 @@ export function abortNomadMove(): void {
   bonusHoldSeeded = false;
   cardBonusPending = false;
   pendingBonuses = [];
+  pendingOceanBonus = undefined;
   destHexRect = undefined;
   srcHexRect = undefined;
   nomadMoveState.active = false;
@@ -522,6 +609,7 @@ function finish(): void {
   bonusHoldSeeded = false;
   cardBonusPending = false;
   pendingBonuses = [];
+  pendingOceanBonus = undefined;
   destHexRect = undefined;
   srcHexRect = undefined;
   nomadMoveState.active = false;

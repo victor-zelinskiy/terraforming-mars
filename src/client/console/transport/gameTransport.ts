@@ -95,6 +95,7 @@ import {
   seedPlayedHeroRewardHold,
 } from '@/client/console/played/consolePlayedHero';
 import {stagePlayedCardReturns} from '@/client/console/played/playedCardReturn';
+import {seedBonusGainRewardHold} from '@/client/console/startBonusGain';
 import {consoleModeState} from '@/client/console/consoleModeState';
 import {rollbackHydroCommit} from '@/client/console/hydroFlow/consoleHydroFlow';
 import {
@@ -472,13 +473,20 @@ function applyGlobalParamPreview(newView: PlayerViewModel): void {
  *
  * All calls are no-ops unless their transaction armed rewards.
  */
-function seedRewardHolds(): void {
+function seedRewardHolds(newView?: PlayerViewModel): void {
   seedPlayedHeroRewardHold();
   seedTilePlacementRewardHold();
   seedNomadMoveRewardHold();
   seedColonyBuildRewardHold();
   seedColonyTradeRewardHold();
   seedHydroMarkerRewardHold();
+  // The «Фора» window's gains — the ONE seeder that needs BOTH views: a claim
+  // is armed at the press, but the window's AUTO-resolve is only knowable by
+  // comparing the bonus ledger before and after, and its M€ amount is read off
+  // the COMMITTED hand (the server's own arithmetic). The flight itself waits
+  // for the workspace to be back on screen, so this only holds the panel and
+  // leaves the beat owed.
+  seedBonusGainRewardHold(currentView(), newView);
 }
 
 function fetchPlayerInput(url: string, options: RequestInit, wgtSubmit: boolean): void {
@@ -615,7 +623,12 @@ function fetchPlayerInput(url: string, options: RequestInit, wgtSubmit: boolean)
          * so the marker hold below sees no remaining nomad diff.
          */
         const nomadMoveEvent = detectNomadMove(
-          currentView().game?.spaces, newView.game?.spaces);
+          currentView().game?.spaces, newView.game?.spaces,
+          // …and the server's own ocean-adjacency breakdown for this response:
+          // a camp that moves next to water is paid by that water exactly as a
+          // build is, so it plays the SAME coin beat (accepted only when the
+          // manifest names the destination we armed).
+          {oceanBonus: newView.lastOceanBonus});
         if (nomadMoveEvent !== undefined) {
           transportHolds.nomadMove = true;
           try {
@@ -677,7 +690,7 @@ function fetchPlayerInput(url: string, options: RequestInit, wgtSubmit: boolean)
             if (shouldHoldForTilePlacement(currentView().game.spaces, newView.game.spaces)) {
               armPlacementAnimations();
             }
-            seedRewardHolds();
+            seedRewardHolds(newView);
             applyPlayerView(newView);
           },
         })) {
@@ -891,7 +904,7 @@ function fetchPlayerInput(url: string, options: RequestInit, wgtSubmit: boolean)
             transportHolds.colonyBuild = false;
           }
         }
-        seedRewardHolds();
+        seedRewardHolds(newView);
         applyPlayerView(newView);
         if (hazardCleanups.length > 0) {
           transportHolds.hazardCleanup = false;

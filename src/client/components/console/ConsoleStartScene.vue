@@ -612,6 +612,7 @@
                     <button v-for="(g, i) in stageGainRows" :key="g.index"
                             type="button"
                             class="con-start__gainrow"
+                            :data-gain-row="g.resource"
                             :class="{'con-start__gainrow--focused': stageFocusIdx === i}"
                             @click="claimStageGain(g)">
                       <span class="con-start__gainrow-take">
@@ -718,6 +719,7 @@
                     <button v-for="(g, i) in stageGainRows" :key="g.index"
                             type="button"
                             class="con-start__gainrow"
+                            :data-gain-row="g.resource"
                             :class="{'con-start__gainrow--focused': stageFocusIdx === i}"
                             @click="claimStageGain(g)">
                       <span class="con-start__gainrow-take">
@@ -1022,6 +1024,10 @@ import ConsoleJourneyRail, {
 import ConsoleStartSelectionDock from '@/client/components/console/ConsoleStartSelectionDock.vue';
 import {armDeliveryHold, runHandDelivery} from '@/client/console/handDock/handDeliveryDirector';
 import {extractPlayRewards, ResourceTransferSpec} from '@/client/console/resourceTransfer/resourceTransferModel';
+import {clearPanelRewardHold, releasePanelRewardHold, runResourceTransfers} from '@/client/console/resourceTransfer/consoleResourceTransfer';
+import {
+  armBonusGainClaim, bonusGainRewardState, bonusGainSourceSelectors, consumeBonusGainReward,
+} from '@/client/console/startBonusGain';
 import {ActionEffect, ActionPreview} from '@/common/models/ActionPreviewModel';
 import {paths} from '@/common/app/paths';
 import {apiUrl} from '@/client/utils/runtimeConfig';
@@ -2169,6 +2175,28 @@ export default defineComponent({
     /** A stage panel with an internal focus model is up. */
     stagePanelUp(): boolean {
       return this.bonusActionPanelShown || this.firstActionPanelShown;
+    },
+    /**
+     * THE «ФОРА» GAINS ARE OWED A FLIGHT, AND THIS FRAME CAN GIVE THEM ONE.
+     *
+     * Two arrivals, one beat (`startBonusGain.ts`), and they are ready at
+     * different moments — which is the whole reason the beat waits for a
+     * surface instead of firing at the commit:
+     *
+     *  · a CLAIM was pressed in a standing panel and carries its own captured
+     *    origin (the row), so the deployment being on screen is enough;
+     *  · the AUTO-RESOLVE happened while the player was away on the board, and
+     *    its chips come out of the granting card in «РАЗЫГРАНО» — so it waits
+     *    for the shelf to have come BACK. Flying out of a receded (transformed,
+     *    transparent) shelf would put the origin somewhere the player cannot
+     *    see, which is exactly the thing this beat exists to prevent.
+     */
+    bonusGainWaveDue(): boolean {
+      const reward = bonusGainRewardState.owed;
+      if (reward === undefined || this.mode !== 'ceremony' || !this.ceremonyRevealed || this.yielded) {
+        return false;
+      }
+      return reward.point !== undefined || !this.playedDockReleased;
     },
     /**
      * THE PANEL'S FOCUS TARGETS, in the order the EYE reads them: every
@@ -3641,6 +3669,25 @@ export default defineComponent({
       this.gainClaimPending = false;
       this.stageCursor = undefined;
     },
+    /**
+     * FLY WHAT THE WINDOW OWES, the moment this frame can carry it.
+     *
+     * POST-flush, because the readiness terms include DOM the same flush is
+     * bringing back («РАЗЫГРАНО» returning from its recede).
+     *
+     * ⚠️ Deliberately NOT `immediate`. The auto-resolve is seeded while this
+     * scene is not mounted at all (the bonus window hands the whole screen to
+     * the board), so its edge is the scene's own MOUNT — and an `immediate`
+     * handler runs at SETUP, before there is any DOM to fly out of: the wave
+     * measured nothing, degraded to «no flight», and consumed the very reward
+     * it was there to show. `mounted()` asks the same question at the one
+     * moment the answer can be true.
+     */
+    'bonusGainWaveDue'(due: boolean): void {
+      if (due) {
+        this.runBonusGainWave();
+      }
+    },
     'stagePanelUp'(up: boolean): void {
       // A panel opens on its CTA — the verb the stage exists for; the gains
       // are an OPTION the player steps onto. Both edges just go HOME.
@@ -3807,6 +3854,12 @@ export default defineComponent({
     },
   },
   mounted() {
+    // THE «ФОРА» GAINS THIS WORKSPACE CAME BACK TO PAY. The window's
+    // auto-resolve is seeded by the transport while this scene does not exist
+    // (the bonus turn owns the whole screen), so its edge is THIS mount and no
+    // change-watcher can carry it. Asked here, the shelf the chips come out of
+    // is already rendered.
+    this.runBonusGainWaveIfDue();
     // Announce our zone for THIS mount: a minimize→restore re-creates the
     // component while `stepSlot` never changes value, so the watcher has
     // nothing to fire on — and the zone would stand unannounced, leaving the
@@ -6347,7 +6400,58 @@ export default defineComponent({
         return;
       }
       this.gainClaimPending = true;
+      // THE GAIN IS A REWARD, so it arrives like every other one: a chip out of
+      // the thing that produced it, onto its row in the panel, its delta chip
+      // firing at the touchdown. The ORIGIN is measured NOW, while the pressed
+      // row is still on screen — the same response that grants the gain answers
+      // the prompt, so by the time the chip may fly the row is gone.
+      armBonusGainClaim(gain, this.bonusActionSourceCard ?? this.state.bonusAct.source, this.gainRowPoint(gain));
       this.$emit('submit', {type: 'or', index: gain.index, response: {type: 'option'}});
+    },
+    /** The pressed row's centre — the chip's birth point (see `claimStageGain`). */
+    gainRowPoint(gain: BonusGainRow): {x: number, y: number} | undefined {
+      const el = (this.$el as HTMLElement | undefined)
+        ?.querySelector<HTMLElement>(`.con-start__gainrow[data-gain-row="${gain.resource}"]`);
+      const r = el?.getBoundingClientRect();
+      if (r === undefined || r.width <= 0) {
+        return undefined;
+      }
+      return {x: r.left + r.width / 2, y: r.top + r.height / 2};
+    },
+    /**
+     * FLY WHAT THE WINDOW OWES. Both halves of the beat land here — the claim
+     * the player pressed a moment ago, and the auto-resolve that happened while
+     * they were on the board — because both need the same thing: a workspace
+     * that is actually on screen, with the granting card standing where the
+     * chips can come out of it.
+     *
+     * Fire-and-forget and honestly degradable: a source that cannot be measured
+     * flies nothing and releases its hold at once, so the gain is announced by
+     * its delta chip alone — marginally late, never lost.
+     */
+    /** The mount edge of the same question the watcher answers (see both). */
+    runBonusGainWaveIfDue(): void {
+      if (this.bonusGainWaveDue) {
+        this.runBonusGainWave();
+      }
+    },
+    runBonusGainWave(): void {
+      const reward = consumeBonusGainReward();
+      if (reward === undefined) {
+        return;
+      }
+      void runResourceTransfers({
+        specs: reward.specs,
+        source: reward.point !== undefined ?
+          {point: reward.point} :
+          {selectors: bonusGainSourceSelectors(reward.source)},
+        arrival: 'auto',
+        onArrive: (spec) => releasePanelRewardHold(spec),
+      }).then(() => {
+        // Belt-and-braces: a degraded transfer's hold snaps to the committed
+        // truth now (its chip fires marginally late, never lost).
+        clearPanelRewardHold();
+      });
     },
     /**
      * A on the standing briefing — THE HAND-OFF.
