@@ -172,16 +172,61 @@ export async function waitPressable(page: Page, maxMs = 20_000): Promise<void> {
 
 /**
  * Move the focus onto `card` (an English `CardName`) and report whether it
- * got there. Walks right — the row wraps — and never presses A.
+ * got there. Never presses A.
+ *
+ * Two things this has to survive, both of which shipped as flakes:
+ *
+ * ⚠️ **«ОПЛАТИТЬ» CAN OWN THE RING.** The purchase item is a queue element
+ * too, and while it holds the cursor `focusedCard()` reads '' for every hop —
+ * the walk can then only run out of hops and report «the card is not there»
+ * about a card plainly standing in the queue. Resolve it first.
+ *
+ * ⚠️ **THE DEPLOYMENT QUEUE CLAMPS AT BOTH ENDS** — it deliberately does not
+ * wrap (the wizard's card row does). A one-way walk therefore parks against
+ * the wall and never reaches a card on the other side, so a hop that moves
+ * NOTHING turns the walk around. (`console-prelude-burn-gate` carried its own
+ * copy of this walker for exactly that reason; the copy then missed the
+ * purchase case and failed on CI. One primitive, both lessons.)
  */
 export async function focusCard(page: Page, card: string, maxMoves = 14): Promise<boolean> {
+  await yieldToPurchase(page);
+  return walkFocusUntil(page, async () => await focusedCard(page) === card,
+    () => focusedCard(page), maxMoves);
+}
+
+/**
+ * WALK THE CURSOR UNTIL `hit()` HOLDS, TURNING AROUND AT A WALL.
+ *
+ * ⚠️ EVERY RING THESE DRIVERS WALK CLAMPS SOMEWHERE — the deployment queue by
+ * design, and the hand album at the edges of a single page — so «press
+ * ArrowRight N times and hope» parks against the wall and never reaches
+ * anything on the other side. It fails SILENTLY (the walk simply runs out of
+ * hops), and the caller then presses A on whatever it was already sitting on:
+ * the queue reported «the prelude is not there» about a visible prelude, and
+ * `waitForBoardHome` hammered A into «✕ Нельзя разыграть» for 420 s while two
+ * playable cards sat one hop to the left.
+ *
+ * `where()` is the CURRENT position as a string — a hop that does not change
+ * it is a wall, and the walk reverses. Three call sites, one rule.
+ */
+export async function walkFocusUntil(
+  page: Page,
+  hit: () => Promise<boolean>,
+  where: () => Promise<string>,
+  maxMoves = 14,
+  settleMs = 260): Promise<boolean> {
+  let dir: 'ArrowRight' | 'ArrowLeft' = 'ArrowRight';
   for (let i = 0; i < maxMoves; i++) {
-    if (await focusedCard(page) === card) {
+    if (await hit()) {
       return true;
     }
-    await press(page, 'ArrowRight', 260);
+    const at = await where();
+    await press(page, dir, settleMs);
+    if (await where() === at) {
+      dir = dir === 'ArrowRight' ? 'ArrowLeft' : 'ArrowRight';
+    }
   }
-  return await focusedCard(page) === card;
+  return await hit();
 }
 
 /**
@@ -788,11 +833,23 @@ export async function waitForBoardHome(page: Page, maxRounds = 70, opts: {keepCo
       // the same rule as everything else here: read the signal the UI is
       // built on, never the copy.
       if (await start.count() > 0) {
+        // ⚠️ …AND THE WALK MUST TURN AROUND (see `walkFocusUntil`). This
+        // branch already knew to look for a playable card, but it only ever
+        // walked RIGHT — so a cursor parked on the album's last card (the
+        // ring clamps at a page edge) never moved, and the blind Enter below
+        // hammered a refusal for the whole 420 s budget while «Можно
+        // разыграть: 2» sat one hop to the LEFT. Press only once a playable
+        // card is actually under the cursor; if none is, say nothing and let
+        // the loop's own budget report the real state rather than burning it
+        // on presses the rules will always refuse.
         const playable = page.locator('.con-hand__slot--selected.con-hand__slot--playable');
-        for (let j = 0; j < 12 && await playable.count() === 0; j++) {
-          await press(page, 'ArrowRight', 260);
+        const found = await walkFocusUntil(page, async () => await playable.count() > 0,
+          () => focusedCard(page), 12);
+        if (found) {
+          await press(page, 'Enter', 1400);
+        } else {
+          await page.waitForTimeout(700);
         }
-        await press(page, 'Enter', 1400);
       } else {
         await press(page, 'Escape', 1400);
       }

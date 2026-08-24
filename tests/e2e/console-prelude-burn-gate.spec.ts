@@ -3,7 +3,7 @@ import * as path from 'path';
 import {test, expect, Page} from '@playwright/test';
 import {
   press, stepKind, stepSubject, waitPressable, summaryVisible, pickCards,
-  submitSummary, queueCards, waitQueueIdle,
+  submitSummary, queueCards, waitQueueIdle, focusCard, yieldToPurchase,
 } from './consoleStart';
 
 /**
@@ -203,22 +203,13 @@ async function reachPreludeRail(page: Page): Promise<void> {
  * wrap), so walking one way only reaches the cards on that side — this turns
  * round at the wall instead, which is what a player does too.
  */
-async function focusQueue(page: Page, card: string, maxMoves = 10): Promise<boolean> {
-  const focused = async () => page.evaluate(() =>
-    document.querySelector('.con-start__qcard--focused')?.getAttribute('data-queue-slot') ?? '');
-  let dir: 'ArrowRight' | 'ArrowLeft' = 'ArrowRight';
-  for (let i = 0; i < maxMoves; i++) {
-    const at = await focused();
-    if (at === card) {
-      return true;
-    }
-    await press(page, dir, 260);
-    if (await focused() === at) {
-      dir = dir === 'ArrowRight' ? 'ArrowLeft' : 'ArrowRight'; // hit the wall
-    }
-  }
-  return await focused() === card;
-}
+// ⚠️ THIS PROBE USED TO CARRY ITS OWN QUEUE WALKER, and that is precisely how
+// it flaked: the local copy knew the queue CLAMPS (it turned around at the
+// wall) but not that «ОПЛАТИТЬ» can own the ring, so on a run where the
+// purchase item held the cursor every hop read '' and the walk reported «the
+// prelude is not there» about a prelude standing in plain sight. The shared
+// `focusCard` now carries BOTH lessons — a copy can only re-learn one of them.
+const focusQueue = focusCard;
 
 /**
  * Move the focus OFF the current card, in whichever direction is available.
@@ -229,12 +220,29 @@ async function focusQueue(page: Page, card: string, maxMoves = 10): Promise<bool
 async function moveFocusAway(page: Page): Promise<void> {
   const focused = async () => page.evaluate(() =>
     document.querySelector('.con-start__qcard--focused')?.getAttribute('data-queue-slot') ?? '');
+  await yieldToPurchase(page);
   const from = await focused();
   await press(page, 'ArrowRight', 450);
   if (await focused() === from) {
     await press(page, 'ArrowLeft', 450);
   }
   expect(await focused(), 'the focus actually left the card').not.toBe(from);
+}
+
+/**
+ * The risk stage AFTER a press, polled — never a single read behind a fixed
+ * `press(..., 1200)` settle.
+ *
+ * ⚠️ A DURATION IS NOT A STATE (the lesson this suite keeps re-learning): the
+ * press has to round-trip the arming through the workspace, and on a loaded
+ * runner that lands after the settle a fast box always beat. The stage's own
+ * marker is `[data-start-risk]`, so wait for THAT and read the gate once it
+ * is really up — the assertions after it then describe the stage instead of
+ * describing the machine's speed.
+ */
+async function gateWithStage(page: Page, timeoutMs = 15_000): Promise<Awaited<ReturnType<typeof gate>>> {
+  await page.waitForSelector('[data-start-risk]', {timeout: timeoutMs}).catch(() => {});
+  return gate(page);
 }
 
 /** Hold A for `ms` — the shared hold gate's real input. */
@@ -281,7 +289,7 @@ test.describe('console — the prelude ORDER GATE', () => {
     await waitPressable(page);
     await shoot(page, 'before');
     await press(page, 'Enter', 1200);
-    const armed = await gate(page);
+    const armed = await gateWithStage(page);
     expect(armed.queue, 'the first press did not play the card').toContain(WAITING);
     expect(armed.armed, 'the pressed card entered the risk stage').toBe(WAITING);
     expect(armed.stageUp, 'and the stage is an INLINE state of this workspace').toBeTruthy();
@@ -377,7 +385,7 @@ test.describe('console — the prelude ORDER GATE', () => {
     await waitQueueIdle(page);
     await waitPressable(page);
     await press(page, 'Enter', 1000);
-    expect((await gate(page)).stageUp, 'the risk stage is up').toBeTruthy();
+    expect((await gateWithStage(page)).stageUp, 'the risk stage is up').toBeTruthy();
 
     // A SHORT hold is not a hold: releasing early is a complete, safe cancel.
     await holdConfirm(page, 200);

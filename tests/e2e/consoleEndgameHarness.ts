@@ -31,6 +31,8 @@ export type WirePrompt = {
   spaces?: Array<string>,
   coloniesModel?: Array<{name: string}>,
   disabledColonies?: Array<{name: string, reason?: unknown}>,
+  count?: number,
+  include?: Array<string>,
   finalGreeneryPrompt?: unknown,
 };
 export type WireModel = {
@@ -105,10 +107,27 @@ export function genericAnswer(prompt: WirePrompt, pickCards?: ReadonlyArray<stri
   }
   case 'and':
     return {type: 'and', responses: (prompt.options ?? []).map((o) => genericAnswer(o))};
+  case 'resources': {
+    // «Выберите N стандартных ресурсов» — the server validates only «non-negative and
+    // the sum is exactly `count`», so putting the whole allowance on one
+    // unit is the honest structural answer.
+    const units = {megacredits: 0, steel: 0, titanium: 0, plants: 0, energy: 0, heat: 0};
+    return {type: 'resources', units: {...units, megacredits: prompt.count ?? 0}};
+  }
+  case 'resource':
+    return {type: 'resource', resource: (prompt.include ?? ['megacredits'])[0]};
   case 'or':
     return {type: 'or', index: 0, response: genericAnswer((prompt.options ?? [])[0])};
   default:
-    expect(false, `no generic answer for a nested «${prompt.type}» (${titleOf(prompt)})`).toBeTruthy();
+    // ⚠️ THIS IS A WORKLIST, and it fires for a reason that is not the
+    // harness's fault: WHICH prompt kinds the journey meets depends on the
+    // random deal, so a kind nobody has seen yet surfaces months later as
+    // «the endgame walk died before it began». `colony` cost one round of
+    // this, `resources` the next. Name what IS answerable so the next gap
+    // is a one-line addition rather than an investigation.
+    expect(false, `no generic answer for a nested «${prompt.type}» (${titleOf(prompt)}) — ` +
+      'answerable kinds: option, space, card, payment, projectCard, amount, colony, ' +
+      'resources, resource, and, or').toBeTruthy();
     return {type: 'option'};
   }
 }
