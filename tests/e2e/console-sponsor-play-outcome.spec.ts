@@ -1,7 +1,7 @@
 import {test, expect, Page} from '@playwright/test';
 import {
-  createGameWithCards, fillPicks, openConsole, pickCards, playQueueUntil, press,
-  stepKind, stepSubject, summaryVisible, waitPressable,
+  createGameWithCards, fillPicks, openConsole, pickCards, playQueueCard, press,
+  queueCards, stepKind, stepSubject, summaryVisible, waitPressable, waitQueueIdle,
 } from './consoleStart';
 
 /**
@@ -145,12 +145,17 @@ test.describe('console start — a project played through «Эпатажный �
     await page.waitForFunction(
       () => document.querySelectorAll('.con-start__queue [data-queue-slot]').length > 1,
       undefined, {timeout: 60_000});
-    await playQueueUntil(page, 'Eccentric Sponsor');
-    await expect
-      .poll(async () => page.evaluate(() =>
-        Array.from(document.querySelectorAll('.con-start__queue [data-queue-slot]'))
-          .map((el) => el.getAttribute('data-queue-slot'))),
-      {timeout: 60_000, message: 'the sponsor is the only prelude left'})
+    for (let round = 0; round < 4; round++) {
+      await waitQueueIdle(page);
+      const other = (await queueCards(page)).find((c) => c !== 'Eccentric Sponsor');
+      if (other === undefined) {
+        break;
+      }
+      await playQueueCard(page, other);
+      await page.waitForTimeout(2500); // its own beat settles before the next read
+    }
+    await waitQueueIdle(page);
+    expect(await queueCards(page), 'the sponsor is the only prelude left')
       .toEqual(['Eccentric Sponsor']);
     for (let i = 0; i < 14 && await page.locator('.con-hand').count() === 0; i++) {
       await press(page, 'Enter', 1800);
