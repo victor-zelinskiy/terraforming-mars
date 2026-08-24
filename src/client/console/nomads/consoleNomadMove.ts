@@ -201,12 +201,6 @@ export function isRemoteNomadMoveActive(): boolean {
     (!nomadMoveState.remoteWaiting && remoteQueue.length > 0);
 }
 
-// The own hop + reward + restore hold the presentation; remote hops hold
-// exactly like remote tile landings. Release = the phase falling on
-// end/abort (the scene's own completion signal), never a timer.
-registerAnimationHoldSupplier('nomad-move', nomadMoveHolding);
-registerAnimationHoldSupplier('nomad-move-remote', isRemoteNomadMoveActive);
-
 // ── the OWN lifecycle ───────────────────────────────────────────────────────
 
 /**
@@ -964,3 +958,20 @@ function clearRestoreTimer(): void {
 function wait(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
+
+// ── the animation-hold suppliers ────────────────────────────────────────────
+//
+// The own hop + reward + restore hold the presentation; remote hops hold
+// exactly like remote tile landings. Release = the phase falling on end/abort
+// (the scene's own completion signal), never a timer.
+//
+// ⚠️ REGISTERED AT THE BOTTOM ON PURPOSE: a supplier is READ the moment it is
+// registered (the registry re-derives its counts synchronously), so registering
+// one above the state it reads runs that read while this module is still
+// initialising — `isRemoteNomadMoveActive` touches `remoteQueue`, a `const`
+// declared far below, and threw `Cannot access 'remoteQueue' before
+// initialization` on every single load, printing a stack trace and counting as
+// «not holding» for that first read. Keep every registration after ALL module
+// state.
+registerAnimationHoldSupplier('nomad-move', nomadMoveHolding);
+registerAnimationHoldSupplier('nomad-move-remote', isRemoteNomadMoveActive);

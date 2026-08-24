@@ -131,9 +131,16 @@ export const PLACEMENT_REASON_LABEL: Readonly<Record<PlacementIllegalReason, str
  * reasons (`cannot-afford` / `cannot-afford-bonus`) when it's positive — the
  * analog of a hand card's `Need ${0} more M€` reason, so the placement
  * popover can show the exact gap rather than a generic "can't afford".
+ *
+ * `committed` is the M€ the PENDING action has already earmarked (a pay-on-commit
+ * standard project's own price, charged the moment a space is picked). Without it
+ * the refusal is arithmetic the player cannot check: the panel says «cleanup: 16
+ * M€» and «need 1 more M€» while the bank plainly shows 40 M€. Sent only
+ * alongside a positive `deficit`, and only when something really is earmarked.
  */
 export type PlacementIllegalSpace = {
   spaceId: import('../Types').SpaceId;
   reason: PlacementIllegalReason;
   deficit?: number;
+  committed?: number;
 };

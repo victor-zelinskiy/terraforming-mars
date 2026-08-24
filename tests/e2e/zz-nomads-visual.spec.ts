@@ -239,12 +239,100 @@ async function planShoreHop(page: Page, oceanCell: string): Promise<{seat: strin
   }, oceanCell);
 }
 
-/** Walk the board cursor onto ONE named cell (act → verify → retry). */
+/** What the game and the screen actually are — the only honest thing to put
+ *  in a give-up message (a bare timeout blames the product for a driver miss). */
+async function diagnose(page: Page, request: APIRequestContext, playerId: string): Promise<string> {
+  const model = await (await request.get(`/api/player?id=${playerId}`)).json() as {
+    game: {phase: string},
+    waitingFor?: {type?: string, title?: unknown},
+  };
+  const screen = await page.evaluate(() => {
+    const roots: Array<string> = [];
+    document.querySelectorAll<HTMLElement>('[class*="con-"]').forEach((el) => {
+      if (el.checkVisibility === undefined || !el.checkVisibility()) {
+        return;
+      }
+      // `className` is an SVGAnimatedString on SVG nodes — read the attribute.
+      const root = (el.getAttribute('class') ?? '').split(/\s+/).find((c) => /^con-[a-z]+$/.test(c));
+      if (root !== undefined && !roots.includes(root)) {
+        roots.push(root);
+      }
+    });
+    return {
+      surfaces: roots.slice(0, 16),
+      actionTile: (document.querySelector('.con-cardactions__tile')?.textContent ?? '').trim().slice(0, 90),
+      composer: document.querySelectorAll('.con-composer').length,
+      available: document.querySelectorAll('.board-space--available').length,
+    };
+  });
+  return `phase=${model.game.phase} waitingFor=${model.waitingFor?.type ?? 'none'} ` +
+    `composer=${screen.composer} available=${screen.available} tile="${screen.actionTile}" ` +
+    `surfaces=[${screen.surfaces.join(',')}]`;
+}
+
+/**
+ * Walk the board cursor onto ONE named cell. A fixed arrow ROTATION does not
+ * converge on a hex grid (it orbits), so each step presses the arrow that
+ * actually REDUCES the on-screen distance to the target, and gives up loudly.
+ */
 async function walkToCell(page: Page, cellId: string): Promise<void> {
-  for (let i = 0; i < 60 && await focusedSpaceId(page) !== cellId; i++) {
-    await press(page, ['ArrowRight', 'ArrowDown', 'ArrowLeft', 'ArrowUp'][i % 4], 260);
+  for (let i = 0; i < 40; i++) {
+    const at = await focusedSpaceId(page);
+    if (at === cellId) {
+      return;
+    }
+    const key = await page.evaluate((target: string) => {
+      const centre = (id: string) => {
+        const el = document.querySelector(`.board-space[data_space_id="${id}"]`);
+        if (el === null) {
+          return undefined;
+        }
+        const r = el.getBoundingClientRect();
+        return {x: r.left + r.width / 2, y: r.top + r.height / 2};
+      };
+      const from = document.querySelector('.con-cell-sel')?.getAttribute('data_space_id') ?? '';
+      const a = centre(from);
+      const b = centre(target);
+      if (a === undefined || b === undefined) {
+        return 'ArrowRight';
+      }
+      const dx = b.x - a.x;
+      const dy = b.y - a.y;
+      // The grid steps sideways within a row and diagonally between rows, so
+      // close the LARGER gap first — that is what actually converges.
+      if (Math.abs(dx) > Math.abs(dy) * 1.2) {
+        return dx > 0 ? 'ArrowRight' : 'ArrowLeft';
+      }
+      return dy > 0 ? 'ArrowDown' : 'ArrowUp';
+    }, cellId);
+    await press(page, key, 220);
   }
   expect(await focusedSpaceId(page), `the cursor never reached ${cellId}`).toBe(cellId);
+}
+
+/**
+ * Open «ДЕЙСТВИЯ КАРТ» and put the cursor on THIS card's action.
+ *
+ * ⚠ The list is not «the card the probe played»: a corporation with a blue
+ * action is in it too (a run where the deal handed one made the probe descend
+ * into «Добавьте астероид…» and wait forever for a board). The focused tile
+ * publishes its card name (`[data-zoom-slot]` on the detail column), so the
+ * cursor is walked until that name is the one we want.
+ */
+async function focusCardAction(page: Page, card: string): Promise<void> {
+  const actions = page.locator('.con-cardactions');
+  for (let tries = 0; tries < 5 && await actions.count() === 0; tries++) {
+    await press(page, 'Period', 700);
+    await press(page, 'ArrowUp', 1200);
+  }
+  await expect(actions).toHaveCount(1, {timeout: 20_000});
+  await page.waitForTimeout(1200);
+  const focusedCard = () => page.evaluate(() =>
+    document.querySelector('[data-action-flow-thumb]')?.getAttribute('data-zoom-slot') ?? '');
+  for (let i = 0; i < 12 && await focusedCard() !== card; i++) {
+    await press(page, i % 2 === 0 ? 'ArrowDown' : 'ArrowRight', 320);
+  }
+  expect(await focusedCard(), `the action list never focused ${card}`).toBe(card);
 }
 
 async function playerStocks(request: APIRequestContext, playerId: string):
@@ -351,19 +439,19 @@ test.describe('Mars Nomads — the two flows, visually', () => {
     expect(seatBonuses.length, 'the probe really seated on a bonus cell (the honest case)').toBeGreaterThan(0);
 
     // ── FLOW B · the ACTION: move the camp to an adjacent cell ───────────
-    const actions = page.locator('.con-cardactions');
-    for (let tries = 0; tries < 5 && await actions.count() === 0; tries++) {
-      await press(page, 'Period', 700);
-      await press(page, 'ArrowUp', 1200);
-    }
-    await expect(actions).toHaveCount(1, {timeout: 20_000});
-    await page.waitForTimeout(1200);
+    await focusCardAction(page, CARD);
     await shoot(page, '20-B-actions-open');
 
-    // The only activatable action in this game is the nomads' — descend + commit.
-    await press(page, 'Enter', 1400); // descend into НАСТРОЙКА
+    for (let i = 0; i < 6 && await page.locator('.con-composer').count() === 0; i++) {
+      await press(page, 'Enter', 1200); // descend into НАСТРОЙКА
+    }
+    expect(await page.locator('.con-composer').count(),
+      `the action never descended · ${await diagnose(page, request, playerId)}`).toBeGreaterThan(0);
     await shoot(page, '21-B-composer');
-    await press(page, 'Enter', 1000); // commit the activation
+    for (let i = 0; i < 6 && await page.evaluate(() =>
+      document.querySelectorAll('.board-space--available').length) === 0; i++) {
+      await press(page, 'Enter', 1500); // commit the activation
+    }
 
     // The follow-up SelectSpace ('bonus-only') hands the board over.
     await expect.poll(async () =>
@@ -480,18 +568,20 @@ test.describe('Mars Nomads — the two flows, visually', () => {
     await shoot(page, '31-camp-seated-near-water');
 
     // ── The MOVE onto the shore cell.
-    const actions = page.locator('.con-cardactions');
-    for (let tries = 0; tries < 5 && await actions.count() === 0; tries++) {
-      await press(page, 'Period', 700);
-      await press(page, 'ArrowUp', 1200);
+    await focusCardAction(page, CARD);
+    // ⚠ A press can be SWALLOWED by design (a busy frame, a commit gate), so
+    // every step is act → verify → retry, and a give-up says what it saw.
+    for (let i = 0; i < 6 && await page.locator('.con-composer').count() === 0; i++) {
+      await press(page, 'Enter', 1200);
     }
-    await expect(actions).toHaveCount(1, {timeout: 20_000});
-    await page.waitForTimeout(1200);
-    await press(page, 'Enter', 1400); // descend
-    await press(page, 'Enter', 1000); // commit the activation
-    await expect.poll(async () =>
-      page.evaluate(() => document.querySelectorAll('.board-space--available').length),
-    {timeout: 45_000}).toBeGreaterThan(0);
+    expect(await page.locator('.con-composer').count(),
+      `the action never descended into its composer · ${await diagnose(page, request, playerId)}`).toBeGreaterThan(0);
+    for (let i = 0; i < 6 && await page.evaluate(() =>
+      document.querySelectorAll('.board-space--available').length) === 0; i++) {
+      await press(page, 'Enter', 1500);
+    }
+    expect(await page.evaluate(() => document.querySelectorAll('.board-space--available').length),
+      `the move never handed the board over · ${await diagnose(page, request, playerId)}`).toBeGreaterThan(0);
     await page.waitForTimeout(700);
 
     await installProbe(page);

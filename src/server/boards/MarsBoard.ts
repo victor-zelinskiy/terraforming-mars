@@ -13,6 +13,20 @@ import {SpaceBonus} from '../../common/boards/SpaceBonus';
 import {PlacementIllegalReason, PlacementIllegalSpace} from '../../common/inputs/PlacementIllegalReason';
 import * as constants from '../../common/constants';
 
+/**
+ * The M€ an in-flight action has already earmarked, as the PLAYER would count it:
+ * cash, plus heat when heat IS money for them (Helion). Steel or titanium reserved
+ * for a project's own price are deliberately not counted — they could never have
+ * paid a placement cost, so naming them would misexplain the shortfall.
+ */
+function committedMegacredits(player: IPlayer, canAffordOptions?: CanAffordOptions): number {
+  const reserved = canAffordOptions?.reserveUnits;
+  if (reserved === undefined) {
+    return 0;
+  }
+  return reserved.megacredits + (player.canUseHeatAsMegaCredits ? reserved.heat : 0);
+}
+
 export class MarsBoard extends Board {
   private readonly edges: ReadonlyArray<Space>;
 
@@ -390,6 +404,12 @@ export class MarsBoard extends Board {
         const deficit = this.placementMegacreditDeficit(player, space, reason, options?.canAffordOptions);
         if (deficit > 0) {
           entry.deficit = deficit;
+          // …and NAME the M€ that is already spoken for, or the gap is arithmetic
+          // the player cannot check against their own bank (see PlacementIllegalSpace).
+          const committed = committedMegacredits(player, options?.canAffordOptions);
+          if (committed > 0) {
+            entry.committed = committed;
+          }
         }
       }
       out.push(entry);

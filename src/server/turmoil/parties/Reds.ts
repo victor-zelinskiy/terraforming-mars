@@ -6,7 +6,6 @@ import {Bonus, IBonus} from '../Bonus';
 import {IPolicy} from '../Policy';
 import {SelectPaymentDeferred} from '../../deferredActions/SelectPaymentDeferred';
 import {IPlayer} from '../../IPlayer';
-import {CardName} from '../../../common/cards/CardName';
 import {MAXIMUM_HABITAT_RATE, MAXIMUM_LOGISTIC_RATE, MAXIMUM_MINING_RATE, MAX_OXYGEN_LEVEL, MAX_TEMPERATURE, MAX_VENUS_SCALE, MIN_OXYGEN_LEVEL, MIN_TEMPERATURE, MIN_VENUS_SCALE, POLITICAL_AGENDAS_MAX_ACTION_USES} from '../../../common/constants';
 import {RemoveOceanTile} from '../../deferredActions/RemoveOceanTile';
 import {OrOptions} from '../../inputs/OrOptions';
@@ -103,15 +102,12 @@ class RedsPolicy02 implements IPolicy {
   readonly description = 'When you place a tile, pay 3 M€ or as much as possible';
 
   onTilePlaced(player: IPlayer) {
-    let amountPlayerHas = player.megaCredits;
-    if (player.tableau.has(CardName.HELION)) {
-      amountPlayerHas += player.heat;
-    }
-
-    const amountToPay = Math.min(amountPlayerHas, 3);
-    if (amountToPay > 0) {
-      player.game.defer(new SelectPaymentDeferred(player, amountToPay, {title: 'Select how to pay for tile placement'}));
-    }
+    // «…or as much as possible» is sized by `atMost`, i.e. WHEN THE PAYMENT RUNS.
+    // Sizing it here read a balance that still held money the same placement is
+    // about to spend — an Ares hazard removal is queued ahead of this tax — so the
+    // tax demanded 3 M€ from a player who by then had none, and threw with the tile
+    // already placed. `atMost` also covers Helion's heat (`spendableMegacredits`).
+    player.game.defer(new SelectPaymentDeferred(player, 3, {title: 'Select how to pay for tile placement', atMost: true}));
   }
 }
 

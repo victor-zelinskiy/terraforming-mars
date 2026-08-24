@@ -26,6 +26,21 @@ export type Options = {
    * human and stay anonymous to the UI. See `inputs/choiceContext.ts`.
    */
   cause?: ChoiceContextSource;
+  /**
+   * «Pay N M€, or as much as possible» — the amount is CLAMPED to what the player
+   * can actually pay AT EXECUTION TIME.
+   *
+   * A rule with that wording must never fail, but sizing it when the action is
+   * QUEUED does exactly that: other costs of the same event sit AHEAD of it in the
+   * deferred queue and take their share first (Reds policy 2's tile tax is queued
+   * behind an Ares hazard-removal payment), so the amount it was born with is
+   * already unpayable by the time it runs — and it threw
+   * «Player does not have N M€» with the tile already on the board.
+   *
+   * Only for a rule that genuinely says «or as much as possible»: a MANDATORY cost
+   * must keep throwing, because silently charging less breaks the rule instead.
+   */
+  atMost?: boolean;
 }
 
 export class SelectPaymentDeferred extends DeferredAction<Payment> {
@@ -69,10 +84,22 @@ export class SelectPaymentDeferred extends DeferredAction<Payment> {
   // The SelectPayment this deferred would prompt with — extracted so the live
   // `execute` and the read-only `previewPaymentModel` (action-preview rework)
   // build the IDENTICAL input, with no chance of the two drifting apart.
-  private buildSelectPayment(): SelectPayment {
+  /**
+   * What this payment will really ask for: `amount`, or — for an «as much as
+   * possible» rule (see {@link Options.atMost}) — what the player can still pay
+   * RIGHT NOW, which is only knowable here, at execution time.
+   */
+  private payableAmount(): number {
+    if (this.options.atMost !== true) {
+      return this.amount;
+    }
+    return Math.max(0, Math.min(this.amount, this.player.spendableMegacredits()));
+  }
+
+  private buildSelectPayment(amount: number = this.amount): SelectPayment {
     const select = new SelectPayment(
-      this.options.title || message('Select how to spend ${0} M€', (b) => b.number(this.amount)),
-      this.amount,
+      this.options.title || message('Select how to spend ${0} M€', (b) => b.number(amount)),
+      amount,
       {
         steel: this.options.canUseSteel || false,
         titanium: this.options.canUseTitanium || false,
@@ -107,7 +134,8 @@ export class SelectPaymentDeferred extends DeferredAction<Payment> {
   }
 
   public execute() {
-    if (this.amount === 0) {
+    const amount = this.payableAmount();
+    if (amount === 0) {
       this.cb(Payment.of({}));
       return undefined;
     }
@@ -117,16 +145,16 @@ export class SelectPaymentDeferred extends DeferredAction<Payment> {
     // surrounding action's source (e.g. a colony trade fee read "Luna → −3").
     const events = this.player.game.events;
     if (this.mustPayWithMegacredits()) {
-      if (this.player.megaCredits < this.amount) {
-        throw new Error(`Player does not have ${this.amount} M€`);
+      if (this.player.megaCredits < amount) {
+        throw new Error(`Player does not have ${amount} M€`);
       }
-      const payment = Payment.of({megacredits: this.amount});
+      const payment = Payment.of({megacredits: amount});
       events.withSource({kind: 'payment'}, () => this.player.pay(payment));
       this.cb(payment);
       return undefined;
     }
 
-    return this.buildSelectPayment()
+    return this.buildSelectPayment(amount)
       .andThen((payment) => {
         events.withSource({kind: 'payment'}, () => this.player.pay(payment));
         this.cb(payment);

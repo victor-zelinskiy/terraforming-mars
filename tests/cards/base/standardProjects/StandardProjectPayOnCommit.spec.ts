@@ -137,6 +137,10 @@ describe('StandardProject pay-on-commit: placement costs', () => {
     const illegal = selectSpace.illegalSpaces?.find((s) => s.spaceId === hazard.id);
     expect(illegal?.reason).eq('cannot-afford');
     expect(illegal?.deficit).eq(1);
+    // The refusal has to be arithmetic the player can CHECK: the cell's own row
+    // says «расчистка 16 M€» and the bank plainly shows 40 M€, so «не хватает 1 M€»
+    // only adds up once the 25 M€ the project itself takes is named.
+    expect(illegal?.committed).eq(25);
   });
 
   it('City: the same cell IS offered, and fully paid for, at the real price', () => {

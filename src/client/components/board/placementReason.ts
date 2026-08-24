@@ -15,9 +15,22 @@ import {PLACEMENT_REASON_LABEL, PlacementIllegalReason} from '@/common/inputs/Pl
 export function placementReasonToUnplayable(
   reason: PlacementIllegalReason,
   deficit?: number,
+  committed?: number,
 ): UnplayableReason {
   if (reason === 'cannot-afford' || reason === 'cannot-afford-bonus') {
     if (deficit !== undefined && deficit > 0) {
+      // NAME the money that is already spoken for. A pay-on-commit standard
+      // project charges its own price the moment a space is picked, so the gap
+      // is otherwise unreadable: the cell's cost row says 16 M€, the bank says
+      // 40 M€, and the refusal says «need 1 more» with nothing tying the three
+      // numbers together.
+      if (committed !== undefined && committed > 0) {
+        return {
+          type: 'megacredits',
+          message: 'Need ${0} more M€ — ${1} M€ goes to the project itself',
+          params: [String(deficit), String(committed)],
+        };
+      }
       return {type: 'megacredits', message: 'Need ${0} more M€', params: [String(deficit)]};
     }
     return {type: 'megacredits', message: PLACEMENT_REASON_LABEL[reason]};

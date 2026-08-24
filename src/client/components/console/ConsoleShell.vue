@@ -4199,7 +4199,7 @@ export default defineComponent({
       if (entry === undefined) {
         return '';
       }
-      const reason = placementReasonToUnplayable(entry.reason, entry.deficit);
+      const reason = placementReasonToUnplayable(entry.reason, entry.deficit, entry.committed);
       return translateTextWithParams(reason.message, (reason.params ?? []).map(String));
     },
     // ── context panel ──────────────────────────────────────────────────

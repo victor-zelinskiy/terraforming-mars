@@ -8,6 +8,9 @@ import {OrOptions} from '../../../src/server/inputs/OrOptions';
 import {testGame} from '../../TestGame';
 import {PartyName} from '../../../src/common/turmoil/PartyName';
 import {cast} from '@/common/utils/utils';
+import {EmptyBoard} from '../../testing/EmptyBoard';
+import {AresHazards} from '../../../src/server/ares/AresHazards';
+import {TileType} from '../../../src/common/TileType';
 
 describe('Reds', () => {
   let player: TestPlayer;
@@ -69,6 +72,42 @@ describe('Reds', () => {
     player.megaCredits = 3;
     addGreenery(player, '10');
     runAllActions(game);
+    expect(player.megaCredits).to.eq(0);
+  });
+
+  // «or as much as possible» has to be sized when the tax is PAID, not when it is
+  // queued: another cost of the same placement (here the Ares hazard removal) is
+  // queued ahead of it and takes its share first. Sizing it up front made the tax
+  // demand 3 M€ from a player who by then had none — and the deferred payment threw
+  // «Player does not have 3 M€» with the tile already on the board.
+  it('Ruling policy 2: the tile tax is sized when it is paid, behind other placement costs', () => {
+    [game, player] = testGame(2, {turmoilExtension: true, aresExtension: true});
+    game.board = EmptyBoard.newInstance();
+    setRulingParty(game, PartyName.REDS, 'rp02');
+
+    const space = game.board.getAvailableSpacesOnLand(player)[0];
+    AresHazards.putHazardAt(game, space, TileType.EROSION_SEVERE);
+    player.megaCredits = 16; // exactly the hazard removal cost, nothing over
+
+    game.addGreenery(player, space);
+    runAllActions(game);
+
+    expect(player.megaCredits).to.eq(0); // 16 to the hazard, 0 left for the tax
+    expect(space.tile?.tileType).to.eq(TileType.GREENERY);
+  });
+
+  it('Ruling policy 2: the tax still collects what IS there', () => {
+    [game, player] = testGame(2, {turmoilExtension: true, aresExtension: true});
+    game.board = EmptyBoard.newInstance();
+    setRulingParty(game, PartyName.REDS, 'rp02');
+
+    const space = game.board.getAvailableSpacesOnLand(player)[0];
+    AresHazards.putHazardAt(game, space, TileType.EROSION_SEVERE);
+    player.megaCredits = 18; // 16 hazard + 2 of the 3 M€ tax
+
+    game.addGreenery(player, space);
+    runAllActions(game);
+
     expect(player.megaCredits).to.eq(0);
   });
 

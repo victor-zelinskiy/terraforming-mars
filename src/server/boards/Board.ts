@@ -253,9 +253,13 @@ export abstract class Board {
       if (player.isMarsBot) {
         return true;
       }
-      // +5 because megacredits goes to -5
+      // +5 because megacredits goes to -5.
+      // `>=`, matching `AresHandler.assertCanPay` — the check that actually
+      // CHARGES this. Demanding one unit more hid a cell the rule allows (shed
+      // EXACTLY everything you have), and an option removed with no way to ask
+      // why is worse than one shown and refused with a reason.
       const availableProduction = sum(Units.values(player.production)) + 5;
-      return availableProduction > additionalCosts.production;
+      return availableProduction >= additionalCosts.production;
     }
     return true;
   }

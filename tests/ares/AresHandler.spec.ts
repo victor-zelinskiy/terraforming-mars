@@ -153,6 +153,30 @@ describe('AresHandler', () => {
     expect(player.production.plants).eq(5);
   });
 
+  // The list of legal cells and the check that CHARGES must answer the same
+  // question: `assertCanPay` allows a placement whose production penalty exactly
+  // equals what the player can shed (M€ production bottoms out at −5), so a
+  // filter that demanded one unit MORE hid a legal cell with no way to say why.
+  it('exactly enough production to shed is enough — the cell is offered AND placeable', () => {
+    const firstSpace = game.board.getAvailableSpacesOnLand(player)[0];
+    AresHazards.putHazardAt(game, firstSpace, TileType.DUST_STORM_MILD);
+    const adjacentSpace = game.board.getAdjacentSpaces(firstSpace)[0];
+
+    // Available production units = (megacredits + 5) + everything else = exactly 1,
+    // which is exactly what one mild hazard next door charges.
+    player.production.add(Resource.MEGACREDITS, -5);
+    player.production.add(Resource.PLANTS, 1);
+
+    expect(game.board.getAvailableSpacesOnLand(player)).to.include(adjacentSpace);
+
+    game.addTile(player, adjacentSpace, {tileType: TileType.GREENERY});
+    runAllActions(game);
+    const input = cast(player.getWaitingFor(), SelectProductionToLose);
+    expect(input.unitsToLose).eq(1);
+    input.cb(Units.of({plants: 1}));
+    expect(player.production.plants).eq(0);
+  });
+
   it('Adjacenct hazard costs do not apply to oceans', () => {
     const firstSpace = game.board.getAvailableSpacesOnLand(player)[0];
     AresHazards.putHazardAt(game, firstSpace, TileType.DUST_STORM_MILD);

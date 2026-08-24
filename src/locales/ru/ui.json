@@ -96,6 +96,7 @@
   "By acquisition time": "По времени получения",
   "Play ${0}": "Разыграть ${0}",
   "Need ${0} more M€": "Не хватает ${0} M€",
+  "Need ${0} more M€ — ${1} M€ goes to the project itself": "Не хватает ${0} M€ — ещё ${1} M€ уйдёт на сам проект",
   "Can't play this card right now": "Сейчас нельзя разыграть",
   "Requires tag": "Требуется метка",
   "Requires production": "Требуется производство",

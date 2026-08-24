@@ -223,7 +223,7 @@ export default defineComponent({
         this.clearPreview();
         if (spaceId !== this.hoverSpaceId) {
           this.hoverSpaceId = spaceId;
-          this.hoverReasons = [placementReasonToUnplayable(illegal.reason, illegal.deficit)];
+          this.hoverReasons = [placementReasonToUnplayable(illegal.reason, illegal.deficit, illegal.committed)];
           this.hoverAnchor = cell.getBoundingClientRect();
         }
         return;
