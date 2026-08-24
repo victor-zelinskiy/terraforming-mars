@@ -220,8 +220,14 @@ test('Miranda OWNER BONUS: the drawn card is on the stage and can be taken', asy
       return {
         cls: st === null ? null : st.className,
         bar: bar === null ? null : (bar as HTMLElement).innerText.replace(/\s+/g, ' ').trim().slice(0, 120),
-        active: document.activeElement === null ? null : document.activeElement.tagName +
-          '.' + String((document.activeElement as HTMLElement).className).slice(0, 40),
+        // WHICH STEP IS STILL UNANSWERED — the stage marks it itself
+        // (`rowMissing` → `--missing`), and an unanswered step is exactly what
+        // holds `canConfirm` down and makes X inert.
+        rows: Array.from(document.querySelectorAll('.con-colfocus__steprow')).map((r) => ({
+          missing: r.className.includes('--missing'),
+          focused: r.className.includes('--focused'),
+          text: (r as HTMLElement).innerText.replace(/\s+/g, ' ').trim().slice(0, 70),
+        })),
         focus: document.hasFocus(),
       };
     });
@@ -233,6 +239,42 @@ test('Miranda OWNER BONUS: the drawn card is on the stage and can be taken', asy
   // none, so `canConfirm` is false and X is inert until A has chosen one —
   // the bar says both verbs at once («A ВЫБРАТЬ · X ПОДТВЕРДИТЬ ТОРГОВЛЮ»),
   // and the run that failed pressed X three times into that exact state.
+  // ── ANSWER THE TRADE'S OWN STEPS FIRST ──────────────────────────────────
+  // Whether this trade HAS a step is not under the probe's control. Miranda's
+  // income is «add 1 animal to a card»: with a single animal holder in play
+  // the target is unambiguous and the stage shows NO rows at all (measured:
+  // `rows: []` on every passing run), while a SECOND holder — a random
+  // corporation, and the deal is not reproducible — turns it into a CHOICE,
+  // and «a choice is a press, never a seeded default». `canConfirm` then
+  // stays false, X is inert, and the cursor does NOT start on that row: the
+  // failing runs pressed X six times into «ЦЕЛЬ ТОРГОВОЙ НАГРАДЫ · Выберите
+  // себе карту…», `missing: true, focused: false`, and never moved.
+  //
+  // The stage marks its own unanswered rows, so drive THAT rather than a
+  // guessed key sequence: walk down onto the row (step rows sort last in the
+  // focus ring, so «down» always approaches them), A to descend into the
+  // target step, A to take the focused candidate.
+  const stepRows = async (): Promise<Array<{missing: boolean, focused: boolean}>> =>
+    page.evaluate(() => Array.from(document.querySelectorAll('.con-colfocus__steprow'))
+      .map((el) => ({
+        missing: el.className.includes('--missing'),
+        focused: el.className.includes('--focused'),
+      })));
+  for (let guard = 0; guard < 16; guard++) {
+    const missing = (await stepRows()).find((r) => r.missing);
+    if (missing === undefined) {
+      break;
+    }
+    if (!missing.focused) {
+      await press(page, 'ArrowDown', 240);
+      continue;
+    }
+    await press(page, 'Enter', 900); // A = descend into the target step
+    await press(page, 'Enter', 1200); // A = take the focused candidate
+  }
+  expect((await stepRows()).some((r) => r.missing),
+    `a trade step stayed unanswered, so the confirm can never arm — ${await stageState()}`).toBe(false);
+
   const pressLog: Array<string> = [];
   let committed = false;
   for (let tries = 0; tries < 6 && !committed; tries++) {
