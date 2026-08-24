@@ -138,6 +138,11 @@ function readAlbum(page: Page) {
       selName: sel?.getAttribute('data-zoom-slot') ?? '',
       selW: selRect === undefined ? 0 : Math.round(selRect.width),
       selH: selRect === undefined ? 0 : Math.round(selRect.height),
+      // POSITION too — a page slide finishes its size long before it finishes
+      // its transform, so «the box stopped changing» is only true of a card
+      // that has stopped MOVING as well (see `readSettledAlbum`).
+      selX: selRect === undefined ? 0 : Math.round(selRect.left),
+      selY: selRect === undefined ? 0 : Math.round(selRect.top),
       selOnScreen: selRect !== undefined && selRect.left >= -2 &&
         selRect.right <= window.innerWidth + 2,
       indicator: ind?.innerText.replace(/\s+/g, ' ').trim() ?? '',
@@ -158,6 +163,38 @@ function readAlbum(page: Page) {
       })(),
     };
   });
+}
+
+/**
+ * `readAlbum`, with the FOCUSED CARD'S BOX SETTLED.
+ *
+ * ⚠️ A SIZE REFERENCE HAS TO SETTLE TOO — a comparison is only as settled as
+ * its LEAST settled side. The page-2 read below already polls for this; the
+ * REFERENCE it is compared against did not, and was taken straight after
+ * `openHand`'s fixed 1200 ms, which is a DURATION standing in for a state.
+ * On a loaded 4K runner the open episode is still growing the focused card
+ * at that moment, so «card width identical across pages» failed by 25 px
+ * against a properly settled tail page — the reference was the wrong number,
+ * and the product was right both times.
+ */
+async function readSettledAlbum(page: Page): Promise<Awaited<ReturnType<typeof readAlbum>>> {
+  const same = (a: Awaited<ReturnType<typeof readAlbum>>, b: Awaited<ReturnType<typeof readAlbum>>) =>
+    a.selName === b.selName && a.selW === b.selW && a.selH === b.selH &&
+    a.selX === b.selX && a.selY === b.selY;
+  let prev = await readAlbum(page);
+  for (let i = 0; i < 40; i++) {
+    await page.waitForTimeout(120);
+    const now = await readAlbum(page);
+    // «Settled» is the WHOLE box at rest AND on screen: a page slide reaches
+    // its final size several frames before its final transform, so settling
+    // on the size alone hands back a card that is still travelling (it read
+    // as «the focused card is not on the active page»).
+    if (now.selW > 0 && now.selOnScreen && same(now, prev)) {
+      return now;
+    }
+    prev = now;
+  }
+  return prev;
 }
 
 const PROFILES = [
@@ -186,7 +223,7 @@ for (const profile of PROFILES) {
       expect(total, 'a multi-page hand to probe').toBeGreaterThan(profile.perPage);
 
       // ── strict page shape + no scroll ────────────────────────────────
-      const a1 = await readAlbum(page);
+      const a1 = await readSettledAlbum(page);
       expect(a1.hasAlbum, 'the album viewport exists').toBe(true);
       expect(a1.maxPageSlots, 'no page exceeds the profile capacity').toBeLessThanOrEqual(profile.perPage);
       expect(a1.scrollExcessY, 'no vertical scroll geometry (the card area cannot scroll down)').toBeLessThanOrEqual(1);
@@ -218,11 +255,7 @@ for (const profile of PROFILES) {
       // page's cards, and a single post-timeout read can land inside that
       // window (the measured card is then not yet in its final box). The
       // CONTRACT is «it settles», not «it settles within one timeout».
-      let a2 = await readAlbum(page);
-      for (let i = 0; i < 20 && !(a2.selOnScreen && a2.selW > 0); i++) {
-        await page.waitForTimeout(120);
-        a2 = await readAlbum(page);
-      }
+      const a2 = await readSettledAlbum(page);
       expect(a2.selOnScreen, 'the focused card sits on the ACTIVE (visible) page').toBe(true);
       expect(a2.edges.left, 'page 2 hints the way back').toBe(true);
       if (profile.page2 === 'showcase') {
@@ -446,7 +479,7 @@ for (const tail of [1, 2, 3] as const) {
       await bootBigHand(page, request, '&consoleProfile=tv', 12 + tail);
       await openHand(page);
 
-      const a1 = await readAlbum(page);
+      const a1 = await readSettledAlbum(page);
       expect(a1.indicator.replace(/\s/g, ''), 'the pager paginates by FOUR').toContain('1/4');
       expect(a1.maxPageSlots, 'no page exceeds the large capacity').toBeLessThanOrEqual(4);
       expect(a1.scrollExcessY, 'no vertical scroll in large mode').toBeLessThanOrEqual(1);
@@ -465,7 +498,7 @@ for (const tail of [1, 2, 3] as const) {
       expect(turn.shapes, 'ONE card shape across every frame of the turn').toHaveLength(1);
 
       const last = await readSettledPage(page);
-      const a4 = await readAlbum(page);
+      const a4 = await readSettledAlbum(page);
       expect(a4.indicator.replace(/\s/g, ''), 'the partial tail page').toContain('4/4');
       expect(last.slots, `the last page holds ${tail}`).toBe(tail);
       // THE STANDARD CARD: same zoom, same row height, same gap, same seat.

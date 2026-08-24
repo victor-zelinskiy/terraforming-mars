@@ -569,6 +569,29 @@ export async function buyFocused(page: Page): Promise<boolean> {
 }
 
 /**
+ * FOLLOW THE SURFACE BEFORE WALKING THE RING (driver law 6, as a primitive).
+ *
+ * The purchase item is a queue element too, and while it owns the ring A
+ * means «оплатить» and the ring does NOT walk back onto the cards. Every
+ * card-walk therefore reads `focusedCard() === ''` for each of its hops and
+ * can only run out of hops — `focusCard` then reports «the card is not
+ * there» about a card that is plainly standing in the queue.
+ *
+ * `playQueueCard` has always resolved this; `playQueueUntil` did not, and the
+ * whole difference was which element the queue happened to hand the ring to
+ * as it drained — i.e. a coin flip per run. It is one step, so it lives in
+ * one place and both callers take it.
+ */
+export async function yieldToPurchase(page: Page): Promise<boolean> {
+  if (!await buyFocused(page)) {
+    return false;
+  }
+  await payStartPurchase(page);
+  await waitQueueIdle(page);
+  return true;
+}
+
+/**
  * Play the deployment queue down to `target` (an English `CardName`) so the
  * spec can play THAT card itself and own the scene it fires. Everything else
  * in the queue is played first, one card per idle window — the corporation
@@ -581,6 +604,9 @@ export async function buyFocused(page: Page): Promise<boolean> {
 export async function playQueueUntil(page: Page, target: string, maxPlays = 6): Promise<boolean> {
   for (let i = 0; i < maxPlays; i++) {
     await waitQueueIdle(page);
+    // The ring lands on «ОПЛАТИТЬ» as the queue drains — resolve it before
+    // trying to walk onto a card, or every hop below reads ''.
+    await yieldToPurchase(page);
     const queue = await queueCards(page);
     if (!queue.includes(target)) {
       return false;
@@ -651,16 +677,9 @@ export async function playQueueCard(page: Page, card: string, maxPresses = 4): P
     await waitQueueIdle(page);
   }
   if (!await focusCard(page, card)) {
-    // FOLLOW THE SURFACE, never fight it: the focus ring may be sitting on
-    // the purchase item (A means «оплатить» there, and the ring does not
-    // walk back onto the cards until it resolves). Pay, then try again —
-    // insisting on a card here is what deadlocked the whole boot.
-    if (await buyFocused(page)) {
-      await payStartPurchase(page);
-      if (!await focusCard(page, card)) {
-        return false;
-      }
-    } else {
+    // FOLLOW THE SURFACE, never fight it (see `yieldToPurchase`): insisting
+    // on a card while the purchase owns the ring is what deadlocked the boot.
+    if (!await yieldToPurchase(page) || !await focusCard(page, card)) {
       return false;
     }
   }

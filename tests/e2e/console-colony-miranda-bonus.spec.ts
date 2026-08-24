@@ -73,7 +73,8 @@ test.describe.configure({mode: 'serial'});
 
 test('Miranda OWNER BONUS: the drawn card is on the stage and can be taken', async ({page, request}) => {
   test.setTimeout(480_000);
-  await bootSeededGame(page, request, await createGame(request), {cards: [PETS], buy: 2, keepColony: 'Miranda'});
+  const playerId = await createGame(request);
+  await bootSeededGame(page, request, playerId, {cards: [PETS], buy: 2, keepColony: 'Miranda'});
 
   // ── 1 · Activate Miranda (an animal card must be in play). ───────────────
   expect(await playCardFromHand(page, PETS), 'Pets was never played (Miranda stays inactive)').toBeTruthy();
@@ -94,7 +95,40 @@ test('Miranda OWNER BONUS: the drawn card is on the stage and can be taken', asy
   await page.waitForSelector('.con-colonies', {timeout: 15_000});
   await openColoniesAndFocus(page, 'Miranda');
   await press(page, 'Enter', 2000);
-  await press(page, 'Enter', 2600); // A = build confirm
+
+  // ⚠️ ACT → VERIFY → RETRY, WITH THE SERVER AS THE WITNESS. The build confirm
+  // was a blind press, and a swallowed one costs nothing HERE and everything
+  // sixty seconds later: with no settlement on Miranda the trade still pays
+  // income but NO owner bonus, so the subject of this whole probe silently
+  // stops existing and the failure surfaces two screens away as «the reveal
+  // never came» — on a settled board home, with no batch on the server.
+  // «The colony is standing» is a fact only the server can state.
+  const ownsMiranda = async (): Promise<boolean> => {
+    const view = await (await request.get(`/api/player?id=${playerId}`)).json() as
+      {thisPlayer: {color: string}, game: {colonies: Array<{name: string, colonies: Array<string>}>}};
+    return (view.game.colonies.find((c) => c.name === 'Miranda')?.colonies ?? [])
+      .includes(view.thisPlayer.color);
+  };
+  //
+  // …AND THE CONFIRM IS NOT ALWAYS «A». The focus stage's own grammar: a build
+  // that ASKS something — and Miranda's build bonus is «add 1 animal to a
+  // card», so it does — speaks the trade's phrasing instead, A answering the
+  // focused decision and **X** committing (`ConsoleColonyFocusStage`: A is the
+  // one-press confirm only for `intent === 'build' && !hasDecisions`). The
+  // spec pressed A alone and called it «build confirm», which is why the
+  // colony was sometimes never built at all. Alternate the two verbs rather
+  // than hardcode one — that follows the surface for both shapes.
+  let built = false;
+  for (let tries = 0; tries < 6 && !built; tries++) {
+    await press(page, tries % 2 === 0 ? 'Enter' : 'KeyX', 1600);
+    for (let w = 0; w < 8 && !built; w++) {
+      await page.waitForTimeout(400);
+      built = await ownsMiranda();
+    }
+  }
+  expect(built, 'the colony was never built on Miranda — without a settlement there is no owner ' +
+    `bonus to probe (stage ${await page.locator('.con-colfocus').count()}, ` +
+    `colonies ${await page.locator('.con-colonies').count()})`).toBe(true);
   // The build bonus is an ANIMAL onto Pets — no reveal, no cards. Let it settle.
   await page.waitForTimeout(3500);
   await shoot(page, '01-built');
@@ -150,23 +184,73 @@ test('Miranda OWNER BONUS: the drawn card is on the stage and can be taken', asy
   // frame is indistinguishable from «the product did nothing», and the wait
   // below would then spend 30 s on a board that was never asked to do anything
   // (observed once in five repeats: the run ended on a settled board home).
-  // The reveal ATTACHING is the commit's own first observable, so it is what
-  // stops the retries — bounded, and it never presses into a live payout.
-  // ⚠️ «Acted» is EITHER observable, not the payout alone: the commit takes the
-  // focus stage away first and the payout mounts after its own cover flight, so
-  // requiring the reveal within one short window fails a trade that is merely
-  // still in the air. A press is DROPPED only when neither happened — stage
-  // still up, nothing revealed — and that is the only case worth re-pressing.
-  for (let tries = 0; tries < 3; tries++) {
-    await page.keyboard.press('KeyX');
-    const acted = await page.waitForFunction(
-      () => document.querySelector('.con-reveal') !== null ||
-        document.querySelector('.con-colfocus') === null,
-      undefined, {timeout: 8_000}).then(() => true).catch(() => false);
-    if (acted) {
-      break;
+  //
+  // ⚠️⚠️ THE EVIDENCE IS THE TRADE, NOT «SOMETHING CHANGED». This loop used to
+  // accept `.con-colfocus === null` — the stage going away — as proof the
+  // press had landed. That is equally true of a press that merely LEFT the
+  // stage, so a misrouted press read as a commit, the loop stopped retrying,
+  // and the 30 s wait below then watched a board nobody had asked to trade
+  // (CI: the run ended on a settled board home, one card in hand — the two
+  // the probe bought minus the one it played, i.e. no bonus card anywhere).
+  // Miranda's owner bonus IS a draw, so the authoritative evidence is the
+  // SERVER's own queued batch — it cannot be faked by navigation, and it
+  // stays true across the payout's whole flight.
+  const serverBatches = async (): Promise<Array<Array<string>>> => {
+    const view = await (await request.get(`/api/player?id=${playerId}`)).json() as
+      {cardDrawReveals?: Array<{cards: Array<{name: string}>}>};
+    return (view.cardDrawReveals ?? []).map((b) => b.cards.map((c) => c.name));
+  };
+  const traded = async (): Promise<boolean> =>
+    await page.locator('.con-reveal').count() > 0 || (await serverBatches()).length > 0;
+
+  // The console's OWN view of the resolution (`ConsoleShell` publishes it).
+  const diag = async () => page.evaluate(() => {
+    const fn = (window as unknown as {__conColonyDiag?: () => Record<string, unknown>}).__conColonyDiag;
+    return fn === undefined ? {} : fn();
+  });
+
+  // What the stage looked like at each press — the state a failing run needs
+  // and the one a screenshot cannot give (the class list carries the phase,
+  // the command bar carries the verb the press was supposed to be, and the
+  // shell's own diagnostic says who it thinks owns the pad).
+  const stageState = async (): Promise<string> => {
+    const dom = await page.evaluate(() => {
+      const st = document.querySelector('.con-colfocus');
+      const bar = document.querySelector('.con-cmdbar');
+      return {
+        cls: st === null ? null : st.className,
+        bar: bar === null ? null : (bar as HTMLElement).innerText.replace(/\s+/g, ' ').trim().slice(0, 120),
+        active: document.activeElement === null ? null : document.activeElement.tagName +
+          '.' + String((document.activeElement as HTMLElement).className).slice(0, 40),
+        focus: document.hasFocus(),
+      };
+    });
+    return JSON.stringify({...dom, shell: await diag()});
+  };
+  // …and X ALONE IS NOT THE TRADE EITHER, for the same reason the build was
+  // not A alone: «a choice is a press, never a seeded default». With every
+  // resource affordable the trade offers several payment lanes and seeds
+  // none, so `canConfirm` is false and X is inert until A has chosen one —
+  // the bar says both verbs at once («A ВЫБРАТЬ · X ПОДТВЕРДИТЬ ТОРГОВЛЮ»),
+  // and the run that failed pressed X three times into that exact state.
+  const pressLog: Array<string> = [];
+  let committed = false;
+  for (let tries = 0; tries < 6 && !committed; tries++) {
+    const verb = tries % 2 === 0 ? 'KeyX' : 'Enter';
+    pressLog.push(`before ${verb}#${tries}: ${await stageState()}`);
+    await page.keyboard.press(verb);
+    pressLog.push(`after ${verb}#${tries}: ${await stageState()}`);
+    // The budget is spent WATCHING THE TRADE rather than watching the screen
+    // change — and it never presses into a live payout, because the first
+    // sample that sees one stops the loop.
+    for (let w = 0; w < 10 && !committed; w++) {
+      await page.waitForTimeout(400);
+      committed = await traded();
     }
   }
+  expect(committed, 'the trade never committed: no reveal on screen and no owner-bonus batch ' +
+    `on the server (stage ${await page.locator('.con-colfocus').count()}, ` +
+    `colonies ${await page.locator('.con-colonies').count()}) · ${pressLog.join(' · ')}`).toBe(true);
 
   // THE CARD MUST BE ON THE STAGE. The bug rendered a reveal with a title, a
   // status line naming the card — and nothing in the strip.
@@ -175,7 +259,16 @@ test('Miranda OWNER BONUS: the drawn card is on the stage and can be taken', asy
   // covers are still flying, the reveal is veiled) has a box and passes
   // `toBeVisible` while the pad is still locked — pressing A there is
   // swallowed and reads as «the take is dead».
-  await page.waitForSelector('.con-reveal .con-cards__slot--focused', {timeout: 30_000});
+  //
+  // …and when it does not, SAY WHICH BUG IT IS. A queued batch the client never
+  // presented and a trade that never queued one are different defects with the
+  // same symptom, and only the server's own view separates them on a runner
+  // nobody can attach a debugger to.
+  const focusedInReveal = await page.waitForSelector('.con-reveal .con-cards__slot--focused', {timeout: 30_000})
+    .then(() => true).catch(() => false);
+  expect(focusedInReveal, 'the owner-bonus card never took focus in the reveal — server batches ' +
+    `${JSON.stringify(await serverBatches())}, reveal roots ${await page.locator('.con-reveal').count()}, ` +
+    `colony stage ${await page.locator('.con-colfocus').count()}`).toBe(true);
   const revealCard = page.locator('.con-reveal [data-zoom-slot] :is(.card-container, .pcard)');
   await expect(revealCard.first(), 'the owner-bonus card never rendered in the reveal')
     .toBeVisible({timeout: 30_000});
@@ -203,10 +296,6 @@ test('Miranda OWNER BONUS: the drawn card is on the stage and can be taken', asy
     return m === null ? -1 : Number(m[2]);
   };
   const before = await handCount();
-  const diag = async () => page.evaluate(() => {
-    const fn = (window as unknown as {__conColonyDiag?: () => Record<string, unknown>}).__conColonyDiag;
-    return fn === undefined ? {} : fn();
-  });
   console.log('── before the take ──', JSON.stringify(await diag()));
   await press(page, 'Enter', 3200); // A = take
   console.log('── after the take ──', JSON.stringify(await diag()));
