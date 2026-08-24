@@ -206,6 +206,8 @@ export function armNomadMove(opts: {toSpaceId: string}): void {
   // measures both hexes right after the response (same rule as the tile arm).
   snapPlanetFocusSettled();
   clearTimers();
+  clearRestoreTimer();
+  stripRestoreClass(); // a previous move's one-shot class must not survive
   claimed = false;
   pendingBonuses = [];
   destHexRect = undefined;
@@ -482,6 +484,7 @@ export function abortNomadMove(): void {
     return;
   }
   clearTimers();
+  clearRestoreTimer();
   const els = stage?.els();
   if (els !== undefined) {
     killNomadTweens(els);
@@ -844,6 +847,10 @@ function freeRunGate(): void {
   r?.();
 }
 
+/** ⚠ Deliberately does NOT clear the restore timer: `finish()` runs at the
+ *  restore beat's END and the one-shot class must still be stripped by its
+ *  own (+60 ms) timer — a lingering animation class replays on any display
+ *  flip of the board (the project lesson). Abort/arm clear it explicitly. */
 function clearTimers(): void {
   if (armSafety !== undefined) {
     window.clearTimeout(armSafety);
@@ -857,6 +864,9 @@ function clearTimers(): void {
     window.clearTimeout(preLiftTimer);
     preLiftTimer = undefined;
   }
+}
+
+function clearRestoreTimer(): void {
   if (restoreTimer !== undefined) {
     window.clearTimeout(restoreTimer);
     restoreTimer = undefined;

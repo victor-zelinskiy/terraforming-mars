@@ -126,9 +126,13 @@ test.describe('console start — a project played through «Эпатажный �
         await page.waitForTimeout(250);
       }
     }
-    if (await summaryVisible(page)) {
-      await press(page, 'Enter', 2500); // НАЧАТЬ ПАРТИЮ
+    // НАЧАТЬ ПАРТИЮ — act → VERIFY → retry: the summary's own commit beat
+    // absorbs a press by design, and one blind Enter left the run staring at a
+    // wizard it had already finished.
+    for (let i = 0; i < 8 && await summaryVisible(page); i++) {
+      await press(page, 'Enter', 2500);
     }
+    expect(await summaryVisible(page), 'the summary committed').toBeFalsy();
     await page.waitForTimeout(4000);
 
     // ── the deployment: the sponsor goes LAST, so that when its project's pick
