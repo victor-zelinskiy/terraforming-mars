@@ -238,7 +238,6 @@
     "The first corporation action awaits your turn": "Первое действие корпорации ждёт вашего хода",
     "Waiting for ${0} to finish their move": "Ожидаем ход игрока ${0}",
     "The first action unlocks on your turn": "Первое действие станет доступно на вашем ходу",
-    "Mandatory first action": "Обязательное первое действие",
     "Executing": "Выполняется",
     "This prompt is not available in console mode yet.": "Этот запрос пока недоступен в консольном режиме.",
     "System": "Система",

@@ -67,9 +67,13 @@ export class AquiferStandardProject extends StandardProjectCard {
       title: 'Select space for ocean tile',
       spaces,
       priority: Priority.PLACE_OCEAN_TILE,
+      canAffordOptions: this.placementCanAffordOptions(player, payment),
       commit: (space) => this.commitInScope(player, () => {
-        player.game.addOcean(player, space);
+        // Charge BEFORE placing — see CityStandardProject for why the order is
+        // load-bearing. An ocean pays no hazard-removal cost, but it still pays
+        // the Ares ADJACENCY cost of the tiles it lands next to.
         this.commitCost(player, payment);
+        player.game.addOcean(player, space);
       }),
     }));
   }

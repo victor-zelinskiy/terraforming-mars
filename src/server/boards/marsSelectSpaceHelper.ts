@@ -1,4 +1,4 @@
-import {IPlayer} from '../IPlayer';
+import {CanAffordOptions, IPlayer} from '../IPlayer';
 import {Message} from '../../common/logs/Message';
 import {Space} from './Space';
 import {SelectSpace} from '../inputs/SelectSpace';
@@ -90,13 +90,22 @@ export function createMarsSelectSpace(
     placementContext?: PlacementContext,
     /** Cancel handler for a cancellable placement (see SelectSpace.onCancel). */
     onCancel?: () => void,
+    /**
+     * The affordability basis this placement filtered its legal spaces with, so
+     * every cell it excluded for MONEY explains itself as «cannot-afford» (with
+     * the honest M€ gap) instead of falling through to a vaguer reason. Matters
+     * for a PAY-ON-COMMIT standard project, whose own cost is still unspent while
+     * the list is built: without it a hazard cell excluded because the player
+     * cannot pay BOTH the project and the removal reads as merely `unavailable`.
+     */
+    canAffordOptions?: CanAffordOptions,
   },
 ): SelectSpace {
   const illegalSpaces = player.game.board.computeIllegalReasons(
     player,
     options?.placementType,
     legalSpaces,
-    {customReasoner: options?.customReasoner});
+    {customReasoner: options?.customReasoner, canAffordOptions: options?.canAffordOptions});
   const selectSpace = new SelectSpace(title, legalSpaces, illegalSpaces);
   selectSpace.placementType = options?.placementType;
   selectSpace.tileType = options?.tileType;

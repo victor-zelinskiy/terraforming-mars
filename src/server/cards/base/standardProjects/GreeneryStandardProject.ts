@@ -67,9 +67,13 @@ export class GreeneryStandardProject extends StandardProjectCard {
       placementType: 'greenery',
       title: 'Select space for greenery tile',
       spaces,
+      canAffordOptions: this.placementCanAffordOptions(player, payment),
       commit: (space) => this.commitInScope(player, () => {
-        player.game.addGreenery(player, space);
+        // Charge BEFORE placing — see CityStandardProject for why the order is
+        // load-bearing (the tile's own costs must be measured against what is
+        // left once the project is paid for).
         this.commitCost(player, payment);
+        player.game.addGreenery(player, space);
       }),
     }));
   }

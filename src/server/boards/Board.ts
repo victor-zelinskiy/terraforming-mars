@@ -8,7 +8,7 @@ import {CardName} from '../../common/cards/CardName';
 import {AresHandler} from '../ares/AresHandler';
 import {Units} from '../../common/Units';
 import {hazardSeverity} from '../../common/AresTileType';
-import {TR_SOURCES, TRSource} from '../../common/cards/TRSource';
+import {sumTRSources, TR_SOURCES, TRSource} from '../../common/cards/TRSource';
 import {sum} from '../../common/utils/utils';
 
 /**
@@ -231,7 +231,11 @@ export abstract class Board {
     if (additionalCosts.megacredits > 0) {
       const plan: CanAffordOptions = canAffordOptions !== undefined ? {...canAffordOptions} : {cost: 0, tr: {}};
       plan.cost += additionalCosts.megacredits;
-      plan.tr = additionalCosts.tr;
+      // SUM, never replace: the caller's TR (the card / standard project about to
+      // terraform) and the space's TR (clearing its hazard) are both owed, and the
+      // Reds tax is charged on the total. Dropping the caller's half approves a
+      // placement whose deferred Reds payment then has nothing left to take.
+      plan.tr = sumTRSources(canAffordOptions?.tr, additionalCosts.tr);
 
       if (space.undergroundResources === 'place6mc') {
         plan.cost -= 6;

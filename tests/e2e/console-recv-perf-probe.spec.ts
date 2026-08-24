@@ -81,7 +81,7 @@ function gameConfig(projects: ReadonlyArray<string>) {
 // ── raw protocol driving ────────────────────────────────────────────────────
 
 // Raw legacy-protocol JSON: the probe walks server models structurally.
-type AnyModel = Record<string, any>; // eslint-disable-line @typescript-eslint/no-explicit-any
+type AnyModel = Record<string, any>;
 
 async function playerModel(request: APIRequestContext, playerId: string): Promise<AnyModel> {
   const res = await request.get(`/api/player?id=${playerId}`);

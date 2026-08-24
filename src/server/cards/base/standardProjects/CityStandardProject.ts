@@ -82,9 +82,15 @@ export class CityStandardProject extends StandardProjectCard {
       title: 'Select space for city tile',
       spaces,
       sourceCard: this.name,
+      canAffordOptions: this.placementCanAffordOptions(player, payment),
       commit: (space) => this.commitInScope(player, () => {
-        player.game.addCity(player, space);
+        // Charge BEFORE placing, as the committed path always did: the placement
+        // charges its own costs (Ares hazard removal, the Hellas ocean bonus, …)
+        // against what is left, and a placement-time affordability check that
+        // still saw the project's 25 M€ would approve a cost the player cannot
+        // actually pay. The target list already guarantees this succeeds.
         this.commitCost(player, payment);
+        player.game.addCity(player, space);
         player.production.add(Resource.MEGACREDITS, 1);
       }),
     }));

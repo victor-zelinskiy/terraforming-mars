@@ -1,5 +1,5 @@
 import {CardType} from '../../common/cards/CardType';
-import {IPlayer} from '../IPlayer';
+import {CanAffordOptions, IPlayer} from '../IPlayer';
 import {TRSource} from '../../common/cards/TRSource';
 import {CardMetadata} from '../../common/cards/CardMetadata';
 import {CardName} from '../../common/cards/CardName';
@@ -78,6 +78,44 @@ export abstract class StandardProjectCard extends Card implements IStandardProje
 
   public canAct(player: IPlayer): boolean {
     return player.canAfford(this.canPlayOptions(player));
+  }
+
+  /**
+   * The affordability basis a PAY-ON-COMMIT placement must filter its targets by.
+   *
+   * The target list is built BEFORE the project's own cost is charged (that only
+   * happens inside `commit`), so a plain affordability check offers spaces whose
+   * ADDITIONAL placement cost (Ares hazard removal / Ares adjacency / the Hellas
+   * ocean / the Vastitas temperature / the Terra Cimmeria colony) the player can
+   * pay ONLY with money already earmarked for the project itself. Committing such
+   * a space placed the tile and THEN threw «Player does not have N M€» out of the
+   * deferred placement payment — the hazard cleared, its TR granted, the cost
+   * never paid, the turn dead. `canAct` never had that hole (it asks with the
+   * project's cost included); the space list must ask the same question.
+   *
+   * The chosen `payment` is known here, so the answer is EXACT: reserve precisely
+   * what the commit will spend and ask what a placement may still cost on top.
+   * `canPayWith` is deliberately NOT carried over — a placement cost is payable
+   * only in M€ (plus Helion heat / Luna Trade Federation titanium, which
+   * `canAfford` adds itself), never in the steel/seeds/asteroids this project may
+   * accept for its own cost. `tr` carries the project's OWN terraform bump so a
+   * Reds tax on it is reserved too; `Board.canAfford` adds the space's TR to it.
+   */
+  protected placementCanAffordOptions(player: IPlayer, payment: Payment): CanAffordOptions {
+    const reserved = MoonExpansion.adjustedReserveCosts(player, this);
+    return {
+      // Not a second charge: the project's own cost IS `payment`, reserved below.
+      cost: 0,
+      tr: this.tr,
+      reserveUnits: Units.of({
+        megacredits: reserved.megacredits + payment.megacredits,
+        steel: reserved.steel + payment.steel,
+        titanium: reserved.titanium + payment.titanium,
+        plants: reserved.plants + payment.plants,
+        energy: reserved.energy,
+        heat: reserved.heat + payment.heat,
+      }),
+    };
   }
 
   public canPayWith(_player: IPlayer): StandardProjectCanPayWith {

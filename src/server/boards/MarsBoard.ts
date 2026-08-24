@@ -406,20 +406,28 @@ export class MarsBoard extends Board {
    * lower bound on the M€ still needed. Returns 0 when the block isn't a pure
    * M€ gap (e.g. a production-cost block), so the popover keeps the generic
    * "can't afford" line in that case.
+   *
+   * `canAffordOptions.reserveUnits` is honoured: a PAY-ON-COMMIT standard project
+   * reserves its own still-unspent price there, so the gap reported is the one the
+   * player actually faces («need 6 more M€») instead of 0 — money already spoken
+   * for cannot also pay for the tile.
    */
   private placementMegacreditDeficit(
     player: IPlayer,
     space: Space,
     reason: PlacementIllegalReason,
     canAffordOptions?: CanAffordOptions): number {
-    const spendable = player.spendableMegacredits();
+    // An M€-only request: a placement cost takes M€ (plus Helion heat / Luna Trade
+    // Federation titanium, which `affordabilityDeficitFor` adds itself), never the
+    // steel or seeds the CARD behind the placement may have been payable with.
+    const gap = (cost: number) => player.affordabilityDeficitFor({cost, tr: {}, reserveUnits: canAffordOptions?.reserveUnits});
     if (reason === 'cannot-afford') {
       const costs = this.computeAdditionalCosts(space, player.game.gameOptions.aresExtension, canAffordOptions?.bonusMultiplier);
       let cost = costs.megacredits;
       if (space.undergroundResources === 'place6mc') {
         cost -= 6;
       }
-      return Math.max(0, cost - spendable);
+      return gap(cost);
     }
     // cannot-afford-bonus — sum the M€ bonus costs this space would charge
     // (mirrors MarsBoard.canAffordPlacementBonuses).
@@ -437,7 +445,7 @@ export class MarsBoard extends Board {
     if (space.bonus.includes(SpaceBonus.COLONY)) {
       cost += constants.TERRA_CIMMERIA_COLONY_COST;
     }
-    return Math.max(0, cost - spendable);
+    return gap(cost);
   }
 
   /** @returns the first applicable reason this cell is illegal. */
