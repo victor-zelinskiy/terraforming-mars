@@ -863,6 +863,9 @@ describe('Game', () => {
     // 'marsIsTerraformedAnnounced' is private, so it is not in keyof Game, but it
     // is still an enumerable runtime property that must be accounted for here.
     const unserializedFieldsInGame: Array<keyof Game | 'marsIsTerraformedAnnounced'> = [
+      // The Ares adjacency presentation manifest — a bounded transient ring
+      // (a restart loses only the animation, never the money).
+      'aresAdjacencyGrants',
       'createdTime',
       'discardedColonies',
       'doubleDownPrelude',

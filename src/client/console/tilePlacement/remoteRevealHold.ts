@@ -11,16 +11,23 @@
  * stay visible) until the flight's touchdown releases it — the real tile
  * then paints frame-perfect under the settling proxy.
  *
+ * An OCEAN COVER (Ocean City and family) is held WITH the tile it landed
+ * on: the hold carries the PREVIOUS tile type, and BoardSpaceTile keeps
+ * painting that water until the touchdown — a blank hex would erase an
+ * ocean that is still physically there.
+ *
  * Module-level reactive so the hold survives playerView commits and the
  * legacy-flag remount; keyed by space id (per the board's own vocabulary).
  */
 import {reactive} from 'vue';
+import {TileType} from '@/common/TileType';
 
-const held = reactive(new Set<string>());
+const held = reactive(new Map<string, TileType | undefined>());
 
-/** Hide the space's committed tile until its flight lands. */
-export function holdRemoteReveal(spaceId: string): void {
-  held.add(spaceId);
+/** Hide the space's committed tile until its flight lands. `prevTileType`
+ *  (an ocean being covered) keeps painting in its place meanwhile. */
+export function holdRemoteReveal(spaceId: string, prevTileType?: TileType): void {
+  held.set(spaceId, prevTileType);
 }
 
 /** The touchdown (or any degrade path): the committed tile becomes visible.
@@ -32,6 +39,12 @@ export function releaseRemoteReveal(spaceId: string): void {
 /** BoardSpace's render gate (ORed into its `placementCleared`). */
 export function isRemoteRevealHeld(spaceId: string): boolean {
   return held.has(spaceId);
+}
+
+/** The tile a HELD space should keep painting (the covered ocean), or
+ *  undefined for an ordinary fresh placement (blank hex + printed bonuses). */
+export function heldPrevTileOf(spaceId: string): TileType | undefined {
+  return held.get(spaceId);
 }
 
 /** Abort / game-switch: every held tile becomes visible at once. */

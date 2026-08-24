@@ -368,3 +368,33 @@ logic is test-covered.
   special=true) keeps its name + counts-as, unaffected. The lore PARAGRAPH was
   already empty-only. BoardCellInfoPopover.spec (3). vue-tsc + eslint green;
   engine status unchanged (29 engine specs green).
+
+- **2026-08-24** — Premium ADJACENCY-PAYOUT flights + OCEAN COVERS (console
+  placement scenes). Full write-up: `docs/claude/console/ares-adjacency-flights.md`.
+  • Server: `AresAdjacencyGrantModel` — the `lastOceanBonus` pattern generalized:
+    `AresHandler.earnAdjacencyBonuses` records WHICH neighbour paid WHAT to WHOM
+    (per-icon entries with a `delivery` channel reported by the grant code itself;
+    owner payouts with the Marketing-Experts amount) into a bounded transient ring
+    on the game (`aresAdjacencyGrants`, seq from `gameAge`), served on `GameModel`.
+    `CardDrawRevealSource {type:'tile'}` gained `spaceId` (the PAYING cell — the
+    placed cell for a printed DRAW_CARD, the neighbour for Restricted Area:ares).
+    Honesty riders: typed `.tileType()` journal tokens in both adjacency logs; a
+    card-resource bonus with no eligible card now LOGS the loss (was silent).
+  • Placer (own hero): a third reward beat after printed + ocean — each paying
+    tile WAKES at the shared edge (the ocean swell choreography in a warm amber
+    register) and its chip is born just inside the tile; per-chip metric release.
+  • Owner (remote landing): the viewer's own tiles answer a FOREIGN build —
+    staging computes the viewer's income + seeds the panel hold in the commit
+    block; after the foreign tile's touchdown the M€ flies home off their tile.
+  • Adjacency card draw: the cover-lift cinematic self-arms `{kind:'board-tile'}`
+    from the reveal's `spaceId` (venus pattern) and rises out of the paying tile.
+  • OCEAN COVERS (Ocean City / Farm / Sanctuary / New Holland): the four
+    placement detectors accepted only EMPTY→TILED, so a cover was a silent sprite
+    swap. Now both scenes accept OCEAN→cover (mirroring `MarsBoard.canCover`),
+    the held cell keeps painting the WATER (remote hold carries `prevTileType`),
+    printed bonuses are honestly NOT flown (`coveringExistingTile`), and the
+    touchdown answers with a calm landing splash. MarsBot staged turns included.
+  Tests: `AresAdjacencyGrants.spec` (10) + `aresAdjacencyFlights.spec` (7) +
+  placement/board-card-bonus/placementCleared spec extensions; full server
+  (9596) + client (4360) suites green; build:server/test, vue-tsc, eslint,
+  make:css/json green.

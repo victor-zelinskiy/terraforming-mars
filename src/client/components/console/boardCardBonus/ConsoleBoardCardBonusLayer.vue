@@ -49,6 +49,7 @@ import {
   BonusSceneTimings, RectLike,
 } from '@/client/console/boardCardBonus/boardCardBonusModel';
 import {clearColonyPayoutLiftOff, markColonyPayoutLiftOff} from '@/client/console/colonyTrade/colonyResolution';
+import {tilePlacementHolding} from '@/client/console/tilePlacement/consoleTilePlacement';
 import {
   runBonusAbortVisual, runBonusCoverLift, runBonusFanOut, runBonusHandoff,
   runBonusSingleFlight, BonusCoverHandle, BonusSceneHandle,
@@ -155,12 +156,27 @@ export default defineComponent({
         }
         return revealMatchesSource(e.source, s.source) ? e : undefined;
       }
-      // No scene → a venus reveal SELF-ARMS. CRUCIAL: never re-arm the batch
-      // this scene ALREADY handled (`stagedEventId` persists after the scene
-      // ends). Without this, the venus reveal — untaken while the fullscreen
-      // is open — would re-match every time the scene ends and re-arm in an
-      // endless loop, keeping the input gate locked so the take never fires.
-      return isVenusScaleReveal(e.source) && e.id !== s.stagedEventId ? e : undefined;
+      // No scene → a reveal that NAMES its physical source SELF-ARMS.
+      // CRUCIAL: never re-arm the batch this scene ALREADY handled
+      // (`stagedEventId` persists after the scene ends). Without this, the
+      // reveal — untaken while the fullscreen is open — would re-match every
+      // time the scene ends and re-arm in an endless loop, keeping the input
+      // gate locked so the take never fires.
+      if (e.id === s.stagedEventId) {
+        return undefined;
+      }
+      if (isVenusScaleReveal(e.source)) {
+        return e;
+      }
+      // A tile-sourced reveal WITH a paying cell (an Ares adjacency draw —
+      // Restricted Area:ares — or a cell draw whose submit-time arm never
+      // fired) lifts its cover off that hex. It WAITS for the tile-placement
+      // hero: the cause (the tile landing + its reward beats) finishes
+      // before the neighbourhood's card answer rises.
+      if (e.source?.type === 'tile' && e.source.spaceId !== undefined && !tilePlacementHolding()) {
+        return e;
+      }
+      return undefined;
     },
     /** Commit heartbeat — drives the honest "no cards came" recall (board). */
     commitAge(): number {
@@ -176,21 +192,28 @@ export default defineComponent({
       if (e === undefined) {
         return;
       }
-      // A venus-scale reveal with no scene yet SELF-ARMS (atomic: arm + the
-      // stage below land in this one tick, so the overlay veils on first
-      // render). A board scene is already armed → straight to staging.
+      // A reveal with no scene yet SELF-ARMS (atomic: arm + the stage below
+      // land in this one tick, so the overlay veils on first render): a
+      // venus-scale reveal off its marker, a tile-sourced reveal off the
+      // PAYING hex (the Ares adjacency draw). A board scene armed at submit
+      // goes straight to staging.
       if (!boardCardBonusState.active) {
-        armBoardCardBonus({kind: 'venus-scale'});
+        if (e.source?.type === 'tile' && e.source.spaceId !== undefined) {
+          armBoardCardBonus({kind: 'board-tile', spaceId: e.source.spaceId});
+        } else {
+          armBoardCardBonus({kind: 'venus-scale'});
+        }
       }
       this.onRevealArrived(e);
     },
     commitAge() {
       // BOARD + COLONY: the commit landed but no reveal followed → the bonus
       // produced nothing (deck empty / a non-placement pick). Recall the
-      // cover instead of hovering forever. (Venus self-arms FROM its reveal,
-      // so a venus scene always has its batch — this path never applies.)
+      // cover instead of hovering forever. (Venus and the adjacency
+      // `board-tile` self-arm FROM their reveal, so those scenes always have
+      // their batch — this path never applies to them.)
       const source = boardCardBonusState.source;
-      if (!boardCardBonusState.active || source.kind === 'venus-scale') {
+      if (!boardCardBonusState.active || source.kind === 'venus-scale' || source.kind === 'board-tile') {
         return;
       }
       if (boardCardBonusState.stagedEventId !== undefined) {
@@ -247,7 +270,10 @@ export default defineComponent({
     resolveSourceIcons(): Array<HTMLElement> {
       const source = boardCardBonusState.source;
       let sel: string;
-      if (source.kind === 'board-cell') {
+      if (source.kind === 'board-cell' || source.kind === 'board-tile') {
+        // A `board-tile` cell is covered by its tile, so its printed icons
+        // are not rendered — this legitimately resolves EMPTY there and the
+        // scene anchors on the hex instead (`tileCoverRect`).
         sel = `.board-space[data_space_id="${cssEscape(source.spaceId)}"] .board-space-bonus--card`;
       } else if (source.kind === 'colony-cell') {
         // The build slot's card ICON (`.benefit-glyph__card` = the SAME
@@ -275,12 +301,18 @@ export default defineComponent({
       this.teardownVisuals();
       registerBoardCardBonusHandle({abort: (mode) => this.onAbort(mode)});
       registerBonusZoomOrigin(() => this.proxyCardEl());
+      const source = boardCardBonusState.source;
       const icons = this.resolveSourceIcons();
-      if (icons.length === 0) {
+      if (icons.length === 0 && source.kind !== 'board-tile') {
         abortBoardCardBonus('instant');
         return;
       }
-      const from = await stableRect(() => icons[0]);
+      // The paying TILE has no printed icon (its cell is covered by its own
+      // art) — the cover rises out of the tile itself, anchored on a
+      // card-proportioned patch at the hex's centre.
+      const from = icons.length > 0 ?
+        await stableRect(() => icons[0]) :
+        await this.tileCoverRect((source as {spaceId: string}).spaceId);
       if (from === undefined || !boardCardBonusState.active) {
         if (boardCardBonusState.active) {
           abortBoardCardBonus('instant');
@@ -304,6 +336,27 @@ export default defineComponent({
         reduced: consoleReducedMotionActive(),
         onLifted: () => setBoardCardBonusPhase('hover'),
       });
+    },
+    /**
+     * A card-proportioned anchor at the paying TILE's centre (the
+     * `board-tile` source has no printed icon to lift off): sized from the
+     * live hex, same aspect as the board's card icon (16×20), so the cover
+     * separates from the tile at a familiar scale.
+     */
+    async tileCoverRect(spaceId: string): Promise<RectLike | undefined> {
+      const hex = await stableRect(() => document.querySelector<HTMLElement>(
+        `.board-space[data_space_id="${cssEscape(spaceId)}"]`));
+      if (hex === undefined) {
+        return undefined;
+      }
+      const w = Math.max(12, Math.round(hex.width * 0.3));
+      const h = Math.round(w * 1.25);
+      return {
+        left: hex.left + hex.width / 2 - w / 2,
+        top: hex.top + hex.height / 2 - h / 2,
+        width: w,
+        height: h,
+      };
     },
     onRevealArrived(e: DrawnCardEntry): void {
       if (!stageBoardCardBonusReveal(e.id, e.cards.length)) {

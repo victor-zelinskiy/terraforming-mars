@@ -66,6 +66,22 @@
           </div>
         </div>
       </template>
+      <!-- ARES ADJACENCY — one paying neighbour, one wake. The same shoreline
+           pulse anatomy as the ocean's swell, in the tile's warm register
+           (`--ares`); the chip itself is the framework's, born at the lit
+           edge. -->
+      <div v-for="w in tilePlacementState.aresSources" :key="'ares-' + w.id"
+           class="con-tileplace__oceanpulse con-tileplace__oceanpulse--ares"
+           :style="oceanPulseStyle(w)"
+           :ref="(el) => setAresPulseRef(w.id, el as HTMLElement | null)">
+        <div class="con-tileplace__oceanpulse-wash"></div>
+        <div class="con-tileplace__oceanpulse-ring"></div>
+      </div>
+      <!-- OCEAN COVER splash — the sea acknowledges a tile landing ON it. -->
+      <div ref="splash" class="con-tileplace__splash">
+        <div class="con-tileplace__splash-wash"></div>
+        <div class="con-tileplace__splash-ring"></div>
+      </div>
     </template>
     <!-- The REMOTE flight (another player's / the bot's placement) — its
          OWN proxy set, so a remote landing can overlap the own
@@ -79,13 +95,26 @@
         <div class="con-tileplace__art" :class="remoteArtClass"></div>
         <div ref="remoteTouch" class="con-tileplace__touch"></div>
       </div>
+      <!-- The VIEWER's own tiles answering a REMOTE placement (Ares owner
+           income) — the same warm wake, then the M€ chip flies to the rail. -->
+      <div v-for="w in remotePlacementState.aresSources" :key="'rares-' + w.id"
+           class="con-tileplace__oceanpulse con-tileplace__oceanpulse--ares"
+           :style="oceanPulseStyle(w)"
+           :ref="(el) => setRemoteAresPulseRef(w.id, el as HTMLElement | null)">
+        <div class="con-tileplace__oceanpulse-wash"></div>
+        <div class="con-tileplace__oceanpulse-ring"></div>
+      </div>
+      <div ref="remoteSplash" class="con-tileplace__splash">
+        <div class="con-tileplace__splash-wash"></div>
+        <div class="con-tileplace__splash-ring"></div>
+      </div>
     </template>
   </div>
 </template>
 
 <script lang="ts">
 import {defineComponent} from 'vue';
-import {tilePlacementState, registerTilePlacementStage, BonusProxy, OceanCoinProxy} from '@/client/console/tilePlacement/consoleTilePlacement';
+import {tilePlacementState, registerTilePlacementStage, BonusProxy, OceanCoinProxy, AresSourceWake} from '@/client/console/tilePlacement/consoleTilePlacement';
 import {remotePlacementState, abortRemotePlacements} from '@/client/console/tilePlacement/consoleRemotePlacement';
 import {TileStageEls} from '@/client/console/tilePlacement/tilePlacementDirector';
 import {OCEAN_COIN_SPARKS} from '@/client/console/tilePlacement/tilePlacementModel';
@@ -101,6 +130,8 @@ export default defineComponent({
       bonusEls: new Map<number, HTMLElement>(),
       oceanPulseEls: new Map<number, HTMLElement>(),
       oceanCoinEls: new Map<number, HTMLElement>(),
+      aresPulseEls: new Map<number, HTMLElement>(),
+      remoteAresPulseEls: new Map<number, HTMLElement>(),
       /** Stable indices for the condensation particles (the director poses
        *  them deterministically — no randomness anywhere in the scene). */
       oceanSparks: Array.from({length: OCEAN_COIN_SPARKS}, (_, i) => i),
@@ -141,9 +172,11 @@ export default defineComponent({
         this.bonusEls.set(id, el);
       }
     },
-    /** The activation pulse is sized from the OCEAN HEX (never fixed px), so
-     *  it stays proportional under board zoom and every display profile. */
-    oceanPulseStyle(c: OceanCoinProxy): Record<string, string> {
+    /** The activation pulse is sized from the SOURCE HEX (never fixed px), so
+     *  it stays proportional under board zoom and every display profile.
+     *  Shared by the ocean coins and the Ares source wakes — both carry the
+     *  same `{pulseAt, pulseSize}` staging geometry. */
+    oceanPulseStyle(c: OceanCoinProxy | AresSourceWake): Record<string, string> {
       return {
         left: `${Math.round(c.pulseAt.x - c.pulseSize / 2)}px`,
         top: `${Math.round(c.pulseAt.y - c.pulseSize / 2)}px`,
@@ -174,6 +207,20 @@ export default defineComponent({
         this.oceanCoinEls.delete(id);
       } else {
         this.oceanCoinEls.set(id, el);
+      }
+    },
+    setAresPulseRef(id: number, el: HTMLElement | null): void {
+      if (el === null) {
+        this.aresPulseEls.delete(id);
+      } else {
+        this.aresPulseEls.set(id, el);
+      }
+    },
+    setRemoteAresPulseRef(id: number, el: HTMLElement | null): void {
+      if (el === null) {
+        this.remoteAresPulseEls.delete(id);
+      } else {
+        this.remoteAresPulseEls.set(id, el);
       }
     },
   },
@@ -209,6 +256,13 @@ export default defineComponent({
             oceanCoins.push(coin);
           }
         }
+        const aresPulses: Array<HTMLElement> = [];
+        for (const w of tilePlacementState.aresSources) {
+          const pulse = this.aresPulseEls.get(w.id);
+          if (pulse !== undefined && pulse.isConnected) {
+            aresPulses.push(pulse);
+          }
+        }
         return {
           tile,
           edge: tile.querySelector<HTMLElement>('.con-tileplace__edge') ?? undefined,
@@ -217,12 +271,21 @@ export default defineComponent({
           bonusIcons,
           oceanPulses,
           oceanCoins,
+          aresPulses,
+          splash: this.$refs.splash as HTMLElement | undefined,
         };
       },
       remoteEls: (): TileStageEls | undefined => {
         const tile = this.$refs.remoteTile as HTMLElement | undefined;
         if (!tile || !tile.isConnected) {
           return undefined;
+        }
+        const aresPulses: Array<HTMLElement> = [];
+        for (const w of remotePlacementState.aresSources) {
+          const pulse = this.remoteAresPulseEls.get(w.id);
+          if (pulse !== undefined && pulse.isConnected) {
+            aresPulses.push(pulse);
+          }
         }
         return {
           tile,
@@ -232,6 +295,8 @@ export default defineComponent({
           bonusIcons: [],
           oceanPulses: [],
           oceanCoins: [],
+          aresPulses,
+          splash: this.$refs.remoteSplash as HTMLElement | undefined,
         };
       },
     });

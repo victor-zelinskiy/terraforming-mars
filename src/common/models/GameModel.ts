@@ -1,4 +1,5 @@
 import {GameOptionsModel} from './GameOptionsModel';
+import {AresAdjacencyGrantModel} from './AresAdjacencyGrantModel';
 import {MarsBotModel} from './MarsBotModel';
 import {ColonyModel} from './ColonyModel';
 import {Color} from '../Color';
@@ -28,6 +29,9 @@ export type StandardProjectModel = {
 // Common data about a game not assocaited with a player (eg the temperature.)
 export type GameModel = {
   aresData: AresData | undefined;
+  /** Latest Ares adjacency payouts (presentation manifest for the console
+   *  placement scenes; public facts — the log already names every payout). */
+  aresAdjacencyGrants?: ReadonlyArray<AresAdjacencyGrantModel>;
   awards: ReadonlyArray<FundedAwardModel>;
   colonies: ReadonlyArray<ColonyModel>;
   discardedColonies: ReadonlyArray<ColonyName>;

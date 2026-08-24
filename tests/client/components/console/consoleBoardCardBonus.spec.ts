@@ -38,6 +38,25 @@ describe('consoleBoardCardBonus', () => {
     expect(revealMatchesSource({type: 'tile'}, VENUS)).to.be.false;
   });
 
+  it('a spaceId-tagged reveal matches ONLY its own cell (adjacency draws stay apart)', () => {
+    // The armed cell claims its own draw; the neighbouring Restricted Area's
+    // adjacency draw (a different spaceId) waits for its own scene.
+    expect(revealMatchesSource({type: 'tile', spaceId: '05'} as any, CELL)).to.be.true;
+    expect(revealMatchesSource({type: 'tile', spaceId: '08'} as any, CELL)).to.be.false;
+    // A legacy source without spaceId keeps the old blanket match.
+    expect(revealMatchesSource({type: 'tile'}, CELL)).to.be.true;
+  });
+
+  it('a board-tile scene (the paying neighbour) claims exactly its own draw', () => {
+    const TILE = {kind: 'board-tile', spaceId: '08'} as const;
+    expect(revealMatchesSource({type: 'tile', spaceId: '08'} as any, TILE)).to.be.true;
+    expect(revealMatchesSource({type: 'tile', spaceId: '05'} as any, TILE)).to.be.false;
+    // An untagged legacy reveal cannot claim a neighbour scene — the
+    // board-tile arm only ever comes FROM a tagged reveal.
+    expect(revealMatchesSource({type: 'tile'}, TILE)).to.be.false;
+    expect(revealMatchesSource({type: 'globalParameter', parameter: 'venus'} as any, TILE)).to.be.false;
+  });
+
   it('matches a colony-cell scene to its OWN colony reveal (Pluto build bonus)', () => {
     const pluto = {kind: 'colony-cell', colonyName: 'Pluto', slotIndex: 0} as const;
     expect(revealMatchesSource({type: 'colony', colonyName: 'Pluto'} as any, pluto)).to.be.true;

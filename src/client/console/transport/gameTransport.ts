@@ -581,6 +581,10 @@ function fetchPlayerInput(url: string, options: RequestInit, wgtSubmit: boolean)
             // Accepted only when it names the space we armed — the scene
             // never re-derives board adjacency or the M€ rule.
             oceanBonus: newView.lastOceanBonus,
+            // …and its Ares adjacency manifest: WHICH neighbouring tile paid
+            // WHAT to WHOM — the adjacency beat's authority, same principle.
+            aresGrants: newView.game?.aresAdjacencyGrants,
+            viewerColor: newView.thisPlayer?.color,
           });
         if (tileHeroEvent !== undefined) {
           transportHolds.tilePlacementHero = true;
@@ -633,6 +637,7 @@ function fetchPlayerInput(url: string, options: RequestInit, wgtSubmit: boolean)
               aresExtension: newView.game?.gameOptions?.expansions?.ares === true,
               gamePhase: newView.game?.phase,
               viewerColor: newView.thisPlayer?.color,
+              aresGrants: newView.game?.aresAdjacencyGrants,
             });
             if (shouldHoldForTilePlacement(currentView().game.spaces, newView.game.spaces)) {
               armPlacementAnimations();
@@ -688,6 +693,7 @@ function fetchPlayerInput(url: string, options: RequestInit, wgtSubmit: boolean)
           aresExtension: newView.game?.gameOptions?.expansions?.ares === true,
           gamePhase: newView.game?.phase,
           viewerColor: newView.thisPlayer?.color,
+          aresGrants: newView.game?.aresAdjacencyGrants,
         });
         const markerHold = wgtSubmit && shouldHoldForMarkerAnimation(newView);
         const tileHold = shouldHoldForTilePlacement(

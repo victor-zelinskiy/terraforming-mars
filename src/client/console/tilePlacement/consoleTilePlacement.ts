@@ -67,12 +67,19 @@ import {
   BONUS_PRELIFT_START_T, BONUS_RISE_MS, BONUS_HOVER_PX, BONUS_HANDOFF_BREATH_MS,
   OCEAN_PULSE_MS, OCEAN_COIN_LEAD_MS, OCEAN_COIN_FORM_MS, OCEAN_BEAT_BREATH_MS,
   OCEAN_COIN_LIFT_PX, OCEAN_COIN_SPARKS, OCEAN_COIN_T, OCEAN_PULSE_T, OCEAN_PULSE_DRIFT,
+  OCEAN_SPLASH_MS,
   oceanEdgePoint, oceanShoreDirection, oceanTransferSpecs, oceanWaveLeadMs,
 } from '@/client/console/tilePlacement/tilePlacementModel';
+import {
+  AresAdjacencyFlight, ARES_WAVE_LEAD_MS,
+  claimAresGrant, latestAresGrantFor, viewerAresAdjacencyFlights,
+} from '@/client/console/tilePlacement/aresAdjacencyFlights';
+import {AresAdjacencyGrantModel} from '@/common/models/AresAdjacencyGrantModel';
 import {
   TileStageEls, placeTileProxy, playTileFlight, disposeTileProxy,
   placeBonusProxies, playBonusPreLift, playBonusHandoff, killTileTweens,
   playOceanActivation, playOceanCoinMaterialize, playOceanCoinHandoff,
+  playAresSourcePulses, playCoverSplash,
 } from '@/client/console/tilePlacement/tilePlacementDirector';
 import {
   runResourceTransfers, abortResourceTransfers, beginPanelRewardHold, releasePanelRewardHold, clearPanelRewardHold,
@@ -86,6 +93,26 @@ export type BonusProxy = {
   icon: string,
   /** The printed icon's LIVE rect, captured while the cell was uncovered. */
   rect: TileRect,
+};
+
+/**
+ * ONE paying Ares neighbour, ready to be staged: where the tile's wake
+ * pulses, where its chip is born, and which way the shared edge faces. The
+ * same shoreline geometry as the ocean beat — a different answer (warm
+ * infrastructure, not water), the same physical language.
+ */
+export type AresSourceWake = {
+  id: number,
+  /** The chip's birth point — just inside the paying tile, lifted. */
+  at: TransferPoint,
+  /** The wake pulse's centre — nearer the shared edge. */
+  pulseAt: TransferPoint,
+  /** The pulse's box size (proportional to the source hex, never fixed px). */
+  pulseSize: number,
+  /** Unit vector source tile → placed tile (the light drifts along it). */
+  shore: TransferPoint,
+  /** How far back into the source tile the pulse's light starts, in px. */
+  drift: number,
 };
 
 /**
@@ -117,11 +144,17 @@ export const tilePlacementState = reactive({
   spaceId: '' as string,
   /** Set at detect (server-proven) — drives the proxy's tile art. */
   tileType: undefined as TileType | undefined,
+  /** The plain ocean the placed tile landed ON (Ares ocean covers): the
+   *  cell keeps painting the water through the flight (the commit is held
+   *  anyway) and the touchdown answers with the landing splash. */
+  coveredTile: undefined as TileType | undefined,
   aresExtension: false,
   /** The printed stock-bonus icons that rise + pay out after the commit. */
   bonusProxies: [] as Array<BonusProxy>,
   /** The paying adjacent oceans, staged for the ocean beat (empty otherwise). */
   oceanCoins: [] as Array<OceanCoinProxy>,
+  /** The paying Ares neighbours, staged for the adjacency beat. */
+  aresSources: [] as Array<AresSourceWake>,
   reducedMotion: false,
 });
 
@@ -136,6 +169,9 @@ let pendingBonuses: ReadonlyArray<PlacementBonus> = [];
 /** The SERVER's ocean-adjacency breakdown for THIS placement (captured at
  *  detect, matched on the armed space) — the ocean beat's manifest. */
 let pendingOceanBonus: OceanAdjacencyBonusModel | undefined;
+/** The SERVER's Ares adjacency manifest for THIS placement, reduced to the
+ *  viewer's own flights (captured + claimed at detect) — the ares beat. */
+let pendingAresFlights: ReadonlyArray<AresAdjacencyFlight> = [];
 /** The armed hex's live rect (captured at detect — post pan/zoom truth). */
 let hexRect: TileRect | undefined;
 /** The REAL printed-icon container we blanked under the proxies (the
@@ -212,6 +248,7 @@ export function armTilePlacement(opts: {spaceId: string}): void {
   claimed = false;
   pendingBonuses = [];
   pendingOceanBonus = undefined;
+  pendingAresFlights = [];
   hexRect = undefined;
   restoreHeldBonuses();
   bonusesHovering = false;
@@ -223,8 +260,10 @@ export function armTilePlacement(opts: {spaceId: string}): void {
   tilePlacementState.nonce++;
   tilePlacementState.spaceId = opts.spaceId;
   tilePlacementState.tileType = undefined;
+  tilePlacementState.coveredTile = undefined;
   tilePlacementState.bonusProxies = [];
   tilePlacementState.oceanCoins = [];
+  tilePlacementState.aresSources = [];
   tilePlacementState.reducedMotion = consoleReducedMotionActive();
   armSafety = window.setTimeout(() => abortTilePlacement(), TILE_ARM_SAFETY_MS);
 }
@@ -244,7 +283,14 @@ export function armTilePlacement(opts: {spaceId: string}): void {
 export function detectTilePlacement(
   prevSpaces: ReadonlyArray<SpaceModel> | undefined,
   newSpaces: ReadonlyArray<SpaceModel> | undefined,
-  opts?: {aresExtension?: boolean, oceanBonus?: OceanAdjacencyBonusModel},
+  opts?: {
+    aresExtension?: boolean,
+    oceanBonus?: OceanAdjacencyBonusModel,
+    /** The SERVER's Ares adjacency manifest ring (`game.aresAdjacencyGrants`)
+     *  — matched on the armed space + consumed once (`claimAresGrant`). */
+    aresGrants?: ReadonlyArray<AresAdjacencyGrantModel>,
+    viewerColor?: Color,
+  },
 ): {spaceId: string} | undefined {
   if (!tilePlacementState.active || claimed) {
     return undefined;
@@ -262,18 +308,26 @@ export function detectTilePlacement(
     return undefined;
   }
   tilePlacementState.tileType = landed.tileType;
+  tilePlacementState.coveredTile = landed.covers;
   tilePlacementState.aresExtension = opts?.aresExtension === true;
   landedColor = landed.color;
   // The cell is still UNCOVERED on the displayed board — capture the hex +
   // every printed stock icon's live rect now (post pan/zoom truth). The
   // reward beat replays these exact positions over the placed tile.
+  // An OCEAN COVER grants no printed bonuses (the server skipped them:
+  // `coveringExistingTile`) — flying them would be a lie about money.
   hexRect = measureBoardHexRect(spaceId);
   const space = prevSpaces !== undefined ? findSpace(prevSpaces, spaceId) : undefined;
-  pendingBonuses = space !== undefined ? placementBonuses(space.bonus) : [];
+  pendingBonuses = landed.covers === undefined && space !== undefined ? placementBonuses(space.bonus) : [];
   tilePlacementState.bonusProxies = captureBonusIcons(spaceId, pendingBonuses);
   const ocean = opts?.oceanBonus;
   pendingOceanBonus = ocean !== undefined && ocean.spaceId === spaceId &&
     ocean.megacredits > 0 && ocean.oceanSpaceIds.length > 0 ? ocean : undefined;
+  // The Ares adjacency manifest: the newest grant CAUSED BY this placement,
+  // consumed exactly once per client (the remote scene shares the ledger).
+  const grant = latestAresGrantFor(opts?.aresGrants, spaceId);
+  pendingAresFlights = grant !== undefined && opts?.viewerColor !== undefined && claimAresGrant(grant.seq) ?
+    viewerAresAdjacencyFlights(grant, opts.viewerColor) : [];
   return {spaceId};
 }
 
@@ -370,6 +424,11 @@ async function executeApproach(
     holdCubeForHeroPlacement(tilePlacementState.spaceId as SpaceId);
     cubeHeld = true;
   }
+  if (tilePlacementState.coveredTile !== undefined) {
+    // The tile landed ON the water — the sea acknowledges the mass with one
+    // calm ring while the proxy dissolves onto the committed tile.
+    playCoverSplash(els, {hex: hexRect, uiScale: ui, splashMs: motionMs(OCEAN_SPLASH_MS)});
+  }
   paintRealTile();
   tilePlacementState.phase = 'landed';
   await nextTick();
@@ -396,12 +455,13 @@ async function executeApproach(
  */
 export function seedTilePlacementRewardHold(): void {
   if (!tilePlacementState.active || bonusHoldSeeded ||
-      (pendingBonuses.length === 0 && pendingOceanBonus === undefined)) {
+      (pendingBonuses.length === 0 && pendingOceanBonus === undefined && pendingAresFlights.length === 0)) {
     return;
   }
   if (tilePlacementState.reducedMotion) {
     pendingBonuses = [];
     pendingOceanBonus = undefined;
+    pendingAresFlights = [];
     return;
   }
   bonusHoldSeeded = true;
@@ -413,6 +473,9 @@ export function seedTilePlacementRewardHold(): void {
     // delta chip read «+6 M€», not three separate «+2 M€».
     specs.push({channel: 'stock', resource: 'megacredits', amount: pendingOceanBonus.megacredits});
   }
+  // The Ares adjacency flights release per chip — each paying tile's own
+  // touchdown ticks its own metric (the neighbourhood pays tile by tile).
+  specs.push(...pendingAresFlights.map((f) => f.spec));
   beginPanelRewardHold(specs);
 }
 
@@ -430,23 +493,29 @@ export async function endTilePlacement(): Promise<void> {
   }
   const bonuses = pendingBonuses;
   const ocean = pendingOceanBonus;
+  const aresFlights = pendingAresFlights;
   pendingBonuses = [];
   pendingOceanBonus = undefined;
-  if (tilePlacementState.reducedMotion || (bonuses.length === 0 && ocean === undefined)) {
+  pendingAresFlights = [];
+  if (tilePlacementState.reducedMotion || (bonuses.length === 0 && ocean === undefined && aresFlights.length === 0)) {
     finish();
     return;
   }
   tilePlacementState.phase = 'rewarding';
-  // The two payouts of one placement run in SEQUENCE, never on top of each
+  // The payouts of one placement run in SEQUENCE, never on top of each
   // other: what the CELL was printed with, then what the NEIGHBOURING WATER
-  // pays. Each awaits its own touchdowns (not the absorb tail), so the second
-  // beat starts while the first chips are still being absorbed — continuous,
-  // not queued.
+  // pays, then what the NEIGHBOURING TILES pay (the Ares adjacency beat).
+  // Each awaits its own touchdowns (not the absorb tail), so the next
+  // beat starts while the previous chips are still being absorbed —
+  // continuous, not queued.
   if (bonuses.length > 0) {
     await runPrintedBonusBeat(bonuses);
   }
   if (ocean !== undefined && tilePlacementState.active) {
     await runOceanBonusBeat(ocean);
+  }
+  if (aresFlights.length > 0 && tilePlacementState.active) {
+    await runAresAdjacencyBeat(aresFlights);
   }
   // Belt-and-braces: any hold a degraded transfer left behind snaps to the
   // committed truth now (its chip fires marginally late, never lost).
@@ -595,6 +664,86 @@ async function runOceanBonusBeat(bonus: OceanAdjacencyBonusModel): Promise<void>
 }
 
 /**
+ * The ARES ADJACENCY beat — "the neighbourhood answers the new tile".
+ *
+ * The server already granted everything and already named WHICH tile paid
+ * WHAT to WHOM (`AresAdjacencyGrantModel`); this only stages the viewer's
+ * own flights. Per paying tile: the shared edge WAKES (the same shoreline
+ * pulse language as the ocean beat, in the tile's warm register — printed
+ * infrastructure answering, not water), and the chip is born just inside
+ * that tile, riding the shared Resource Transfer Framework onto the exact
+ * panel zone — stock rows, or the single eligible card for an animal /
+ * microbe. Each chip's touchdown releases its own metric.
+ *
+ * Degrades honestly at every step: an unmeasurable source tile flies its
+ * chip from the placed tile itself; no stage at all releases the holds and
+ * the reward is announced by its delta chips alone.
+ */
+async function runAresAdjacencyBeat(flights: ReadonlyArray<AresAdjacencyFlight>): Promise<void> {
+  const releaseAll = () => flights.forEach((f) => releasePanelRewardHold(f.spec));
+  const ui = conUiScale();
+  const tileRect = hexRect ?? measureBoardHexRect(tilePlacementState.spaceId);
+  if (tileRect === undefined || typeof document === 'undefined') {
+    releaseAll();
+    return;
+  }
+  // One wave stagger for pulses AND chips — index-aligned per FLIGHT, so a
+  // tile's wake and its chip always share a launch beat.
+  const delays = flights.map((_, i) => motionMs(transferWaveDelayMs(i, flights.length)));
+  const lift = Math.round(OCEAN_COIN_LIFT_PX * ui);
+  const wakes: Array<AresSourceWake> = [];
+  const pulseDelays: Array<number> = [];
+  const origins: Array<TransferPoint | undefined> = flights.map((f, i) => {
+    const rect = measureBoardHexRect(f.sourceSpaceId);
+    if (rect === undefined) {
+      return undefined; // chip falls back to the placed tile — money never lost
+    }
+    wakes.push({
+      id: i,
+      at: oceanEdgePoint(rect, tileRect, OCEAN_COIN_T, lift),
+      pulseAt: oceanEdgePoint(rect, tileRect, OCEAN_PULSE_T),
+      pulseSize: Math.round(rect.w * 0.66),
+      shore: oceanShoreDirection(rect, tileRect),
+      drift: Math.round(rect.w * OCEAN_PULSE_DRIFT),
+    });
+    pulseDelays.push(delays[i]);
+    return oceanEdgePoint(rect, tileRect, OCEAN_COIN_T, lift);
+  });
+
+  // One calm breath after the previous beat, then the neighbourhood answers.
+  await wait(motionMs(OCEAN_BEAT_BREATH_MS));
+  if (!tilePlacementState.active) {
+    releaseAll();
+    return;
+  }
+  tilePlacementState.aresSources = wakes;
+  await nextTick(); // the layer mounts the wake pulses
+  const els = stage?.els();
+  if (els !== undefined && els.aresPulses.length === wakes.length && wakes.length > 0) {
+    playAresSourcePulses(els, {
+      delays: pulseDelays,
+      shores: wakes.map((w) => w.shore),
+      drifts: wakes.map((w) => w.drift),
+      pulseMs: motionMs(OCEAN_PULSE_MS),
+    });
+    await wait(motionMs(ARES_WAVE_LEAD_MS));
+    if (!tilePlacementState.active) {
+      tilePlacementState.aresSources = [];
+      releaseAll();
+      return;
+    }
+  }
+  await runResourceTransfers({
+    specs: flights.map((f) => f.spec),
+    origins,
+    source: {point: {x: tileRect.x + tileRect.w / 2, y: tileRect.y + tileRect.h / 2}},
+    arrival: 'auto',
+    onArrive: (spec) => releasePanelRewardHold(spec),
+  });
+  tilePlacementState.aresSources = [];
+}
+
+/**
  * Measure the paying oceans and derive each coin's staging geometry. Oceans
  * whose hex isn't on screen (an off-grid slot, a mid-scroll measurement) are
  * skipped — their share still rides the aggregated delta chip, so the money is
@@ -649,17 +798,20 @@ export function abortTilePlacement(): void {
   bonusHoldSeeded = false;
   pendingBonuses = [];
   pendingOceanBonus = undefined;
+  pendingAresFlights = [];
   hexRect = undefined;
   tilePlacementState.active = false;
   tilePlacementState.phase = 'failed';
   tilePlacementState.bonusProxies = [];
   tilePlacementState.oceanCoins = [];
+  tilePlacementState.aresSources = [];
   freeRunGate();
   void nextTick(() => {
     if (tilePlacementState.phase === 'failed') {
       tilePlacementState.phase = 'idle';
       tilePlacementState.spaceId = '';
       tilePlacementState.tileType = undefined;
+      tilePlacementState.coveredTile = undefined;
     }
   });
 }
@@ -679,16 +831,19 @@ function finish(): void {
   bonusHoldSeeded = false;
   pendingBonuses = [];
   pendingOceanBonus = undefined;
+  pendingAresFlights = [];
   hexRect = undefined;
   tilePlacementState.active = false;
   tilePlacementState.phase = 'done';
   tilePlacementState.bonusProxies = [];
   tilePlacementState.oceanCoins = [];
+  tilePlacementState.aresSources = [];
   void nextTick(() => {
     if (tilePlacementState.phase === 'done') {
       tilePlacementState.phase = 'idle';
       tilePlacementState.spaceId = '';
       tilePlacementState.tileType = undefined;
+      tilePlacementState.coveredTile = undefined;
     }
   });
 }

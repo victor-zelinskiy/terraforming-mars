@@ -53,13 +53,21 @@ import {motionMs} from '@/client/components/motion/motionTokens';
 import {conUiScale} from '@/client/console/consoleLayoutProfile';
 import {
   FreshPlacement, detectFreshPlacements, OWN_FLIGHT_PROFILE, REMOTE_FLIGHT_PROFILE,
-  TILE_FLIGHT_MS, TILE_SETTLE_MS,
+  TILE_FLIGHT_MS, TILE_SETTLE_MS, TileRect,
+  OCEAN_PULSE_MS, OCEAN_BEAT_BREATH_MS, OCEAN_COIN_LIFT_PX, OCEAN_COIN_T, OCEAN_PULSE_T, OCEAN_PULSE_DRIFT,
+  OCEAN_SPLASH_MS, oceanEdgePoint, oceanShoreDirection,
 } from '@/client/console/tilePlacement/tilePlacementModel';
 import {
+  AresAdjacencyFlight, ARES_WAVE_LEAD_MS,
+  claimAresGrant, latestAresGrantFor, viewerAresAdjacencyFlights,
+} from '@/client/console/tilePlacement/aresAdjacencyFlights';
+import {AresAdjacencyGrantModel} from '@/common/models/AresAdjacencyGrantModel';
+import {
   placeTileProxy, playTileFlight, disposeTileProxy, killTileTweens,
+  playAresSourcePulses, playCoverSplash,
 } from '@/client/console/tilePlacement/tilePlacementDirector';
 import {
-  tilePlacementState, tileStageRemoteEls, measureBoardHexRect, tableSupplyPoint,
+  tilePlacementState, tileStageRemoteEls, measureBoardHexRect, tableSupplyPoint, AresSourceWake,
 } from '@/client/console/tilePlacement/consoleTilePlacement';
 import {
   holdRemoteReveal, releaseRemoteReveal, isRemoteRevealHeld, clearRemoteRevealHolds,
@@ -67,7 +75,10 @@ import {
 import {
   holdCubeForHeroPlacement, dropCubeForHeroPlacement, restCubeForHeroPlacement,
 } from '@/client/components/board/cubeDropState';
-import {TransferPoint} from '@/client/console/resourceTransfer/resourceTransferModel';
+import {
+  runResourceTransfers, beginPanelRewardHold, releasePanelRewardHold,
+} from '@/client/console/resourceTransfer/consoleResourceTransfer';
+import {TransferPoint, transferWaveDelayMs} from '@/client/console/resourceTransfer/resourceTransferModel';
 import {workspaceStackActive} from '@/client/console/consoleWorkspaceStack';
 import {playedHeroHolding} from '@/client/console/played/consolePlayedHero';
 import {isDeckDrawActive} from '@/client/console/deckDraw/consoleDeckDraw';
@@ -123,6 +134,9 @@ export const remotePlacementState = reactive({
    *  queue is sequential, so one proxy set suffices). */
   tileType: undefined as TileType | undefined,
   aresExtension: false,
+  /** The VIEWER's own tiles answering the current remote placement (the
+   *  Ares owner-income beat) — staged wakes, empty otherwise. */
+  aresSources: [] as Array<AresSourceWake>,
   nonce: 0,
 });
 
@@ -132,6 +146,15 @@ type RemoteEvent = FreshPlacement & {
    *  (an auto-placed reserved-slot city) — it departs from the viewer's
    *  own bottom supply with the OWN pose; provenance stays honest. */
   own: boolean,
+  /**
+   * Everything THIS VIEWER physically receives from the placement's Ares
+   * adjacency manifest — usually the OWNER INCOME of their own neighbouring
+   * tiles (an opponent built next to them), and for an auto-placed own tile
+   * also the placer's own gains. The panel hold for these is seeded at
+   * STAGING (the same synchronous block as the commit — the framework's
+   * phantom-chip contract) and released chip by chip at the beat.
+   */
+  income: ReadonlyArray<AresAdjacencyFlight>,
 };
 
 const queue: Array<RemoteEvent> = [];
@@ -171,8 +194,12 @@ export type RemoteStageOpts = {
   aresExtension?: boolean,
   gamePhase?: string,
   /** The viewer's own colour: their own tile arriving WITHOUT a SelectSpace
-   *  (an auto-placed reserved-slot city) keeps the OWN departure pose. */
+   *  (an auto-placed reserved-slot city) keeps the OWN departure pose — and
+   *  it is who the Ares adjacency manifest's payouts are filtered for. */
   viewerColor?: Color,
+  /** The SERVER's Ares adjacency manifest ring (`game.aresAdjacencyGrants`)
+   *  — the owner-income beat's authority, consumed once per grant. */
+  aresGrants?: ReadonlyArray<AresAdjacencyGrantModel>,
 };
 
 export function stageRemotePlacements(
@@ -212,16 +239,32 @@ export function stageRemoteTileEvents(
     if (isRemoteRevealHeld(e.spaceId) || queue.some((q) => q.spaceId === e.spaceId)) {
       continue; // already staged (a poll/submit double-report of one tile)
     }
-    holdRemoteReveal(e.spaceId);
+    // A cover placement keeps painting the PREVIOUS tile (the ocean) while
+    // held — a blank cell under an arriving Ocean City would erase water
+    // that is still there.
+    holdRemoteReveal(e.spaceId, e.covers);
     if (e.color !== undefined) {
       // Same synchronous block as the colour commit — observeCube keeps a
       // phase already in flight, so the cube waits for its explicit drop.
       holdCubeForHeroPlacement(e.spaceId);
     }
+    // The viewer's own share of this placement's Ares adjacency payouts
+    // (usually: THEIR tile earned owner income from a foreign build). The
+    // panel hold MUST be seeded here — the same synchronous block as the
+    // commit — or Vue flushes a frame with a phantom −N chip.
+    let income: ReadonlyArray<AresAdjacencyFlight> = [];
+    const grant = latestAresGrantFor(opts?.aresGrants, e.spaceId);
+    if (grant !== undefined && opts?.viewerColor !== undefined && claimAresGrant(grant.seq)) {
+      income = viewerAresAdjacencyFlights(grant, opts.viewerColor);
+      if (income.length > 0) {
+        beginPanelRewardHold(income.map((f) => f.spec));
+      }
+    }
     queue.push({
       ...e,
       aresExtension: opts?.aresExtension === true,
       own: e.color !== undefined && e.color === opts?.viewerColor,
+      income,
     });
     queued = true;
   }
@@ -248,6 +291,7 @@ export function abortRemotePlacements(): void {
     if (ev.color !== undefined) {
       restCubeForHeroPlacement(ev.spaceId);
     }
+    releaseIncomeHolds(ev); // the committed money shows at once, never stuck
   }
   queue.length = 0;
   clearRemoteRevealHolds(); // belt-and-braces: nothing may stay hidden
@@ -255,6 +299,7 @@ export function abortRemotePlacements(): void {
   remotePlacementState.active = false;
   remotePlacementState.waitingForBoard = false;
   remotePlacementState.tileType = undefined;
+  remotePlacementState.aresSources = [];
   clearStageSafety();
 }
 
@@ -341,12 +386,100 @@ async function flyRemote(ev: RemoteEvent, myEpoch: number): Promise<void> {
   // Frame-perfect handoff: the COMMITTED tile becomes visible under the
   // settled proxy (identical geometry), the proxy dissolves on it, and the
   // owner cube drops — tile first, then the cube lands on it.
+  if (ev.covers !== undefined) {
+    // The tile landed ON the water — the sea acknowledges the mass while
+    // the proxy dissolves onto the committed cover tile.
+    playCoverSplash(els, {hex, uiScale: ui, splashMs: motionMs(OCEAN_SPLASH_MS)});
+  }
   releaseRemoteReveal(ev.spaceId);
   await nextTick();
   await disposeTileProxy(els, motionMs(110));
   if (epoch === myEpoch && ev.color !== undefined) {
     dropCubeForHeroPlacement(ev.spaceId);
   }
+  // THE VIEWER'S OWN TILES ANSWER: the Ares owner-income beat — their tile
+  // wakes at the edge it shares with the foreign build and sends the M€
+  // home. Runs INSIDE the flight (the stage stays mounted), after the cube.
+  if (epoch === myEpoch && ev.income.length > 0) {
+    await runRemoteAresIncomeBeat(ev, hex, ui, myEpoch);
+  }
+}
+
+/**
+ * The REMOTE half of the Ares adjacency beat: everything the VIEWER receives
+ * from a placement somebody else made — their own tiles' owner income (and,
+ * for an auto-placed own tile, the placer gains). Same wake language and the
+ * same shared framework as the own hero's beat; the hold seeded at staging
+ * is released chip by chip, and every degrade path releases it whole.
+ */
+async function runRemoteAresIncomeBeat(ev: RemoteEvent, tileRect: TileRect, ui: number, myEpoch: number): Promise<void> {
+  const releaseAll = () => releaseIncomeHolds(ev);
+  if (typeof document === 'undefined') {
+    releaseAll();
+    return;
+  }
+  const delays = ev.income.map((_, i) => motionMs(transferWaveDelayMs(i, ev.income.length)));
+  const lift = Math.round(OCEAN_COIN_LIFT_PX * ui);
+  const wakes: Array<AresSourceWake> = [];
+  const pulseDelays: Array<number> = [];
+  const origins: Array<TransferPoint | undefined> = ev.income.map((f, i) => {
+    const rect = measureBoardHexRect(f.sourceSpaceId);
+    if (rect === undefined) {
+      return undefined; // chip falls back to the landed tile — money never lost
+    }
+    wakes.push({
+      id: i,
+      at: oceanEdgePoint(rect, tileRect, OCEAN_COIN_T, lift),
+      pulseAt: oceanEdgePoint(rect, tileRect, OCEAN_PULSE_T),
+      pulseSize: Math.round(rect.w * 0.66),
+      shore: oceanShoreDirection(rect, tileRect),
+      drift: Math.round(rect.w * OCEAN_PULSE_DRIFT),
+    });
+    pulseDelays.push(delays[i]);
+    return oceanEdgePoint(rect, tileRect, OCEAN_COIN_T, lift);
+  });
+  await wait(motionMs(OCEAN_BEAT_BREATH_MS));
+  if (epoch !== myEpoch) {
+    releaseAll();
+    return;
+  }
+  remotePlacementState.aresSources = wakes;
+  await nextTick(); // the layer mounts the wake pulses
+  const els = tileStageRemoteEls();
+  if (els !== undefined && els.aresPulses.length === wakes.length && wakes.length > 0) {
+    playAresSourcePulses(els, {
+      delays: pulseDelays,
+      shores: wakes.map((w) => w.shore),
+      drifts: wakes.map((w) => w.drift),
+      pulseMs: motionMs(OCEAN_PULSE_MS),
+    });
+    await wait(motionMs(ARES_WAVE_LEAD_MS));
+    if (epoch !== myEpoch) {
+      remotePlacementState.aresSources = [];
+      releaseAll();
+      return;
+    }
+  }
+  await runResourceTransfers({
+    specs: ev.income.map((f) => f.spec),
+    origins,
+    source: {point: {x: tileRect.x + tileRect.w / 2, y: tileRect.y + tileRect.h / 2}},
+    arrival: 'auto',
+    onArrive: (spec) => releasePanelRewardHold(spec),
+  });
+  remotePlacementState.aresSources = [];
+}
+
+/** Release every panel hold this event seeded (idempotent per amount — the
+ *  hold map is additive, so releasing what was seeded is always exact). */
+function releaseIncomeHolds(ev: RemoteEvent): void {
+  for (const f of ev.income) {
+    releasePanelRewardHold(f.spec);
+  }
+}
+
+function wait(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
 /**
@@ -401,6 +534,7 @@ function degradeReveal(ev: RemoteEvent): void {
   if (ev.color !== undefined) {
     restCubeForHeroPlacement(ev.spaceId);
   }
+  releaseIncomeHolds(ev); // the income announces via its delta chips alone
 }
 
 /**

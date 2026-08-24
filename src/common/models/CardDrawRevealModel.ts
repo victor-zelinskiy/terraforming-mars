@@ -2,6 +2,7 @@ import {CardModel} from './CardModel';
 import {CardName} from '../cards/CardName';
 import {ColonyName} from '../colonies/ColonyName';
 import {GlobalParameter} from '../GlobalParameter';
+import {SpaceId} from '../Types';
 
 /**
  * Which colony-trade mechanic produced a trade-tagged draw: the trade INCOME
@@ -54,7 +55,13 @@ export type ColonyTradeRevealSegment = {
 export type CardDrawRevealSource =
   | {type: 'card', cardName: CardName}
   | {type: 'colony', colonyName: ColonyName, trade?: ColonyTradeRevealTag}
-  | {type: 'tile'}
+  /**
+   * A board-tile bonus draw. `spaceId` (when known) names the PAYING cell:
+   * the placed cell for its own printed DRAW_CARD bonus, or the NEIGHBOURING
+   * Ares tile for an adjacency draw (Restricted Area:ares) — the console
+   * lifts the card-back cover off that exact hex. Absent on legacy paths.
+   */
+  | {type: 'tile', spaceId?: SpaceId}
   | {type: 'globalParameter', parameter: GlobalParameter}
   | {type: 'other'};
 

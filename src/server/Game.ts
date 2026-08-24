@@ -55,6 +55,7 @@ import {Turmoil} from './turmoil/Turmoil';
 import {RandomMAOptionType} from '../common/ma/RandomMAOptionType';
 import {AresHandler} from './ares/AresHandler';
 import {AresData} from '../common/ares/AresData';
+import {AresAdjacencyGrantModel} from '../common/models/AresAdjacencyGrantModel';
 import {GameSetup, normalizeBoardName} from './GameSetup';
 import {GameCards} from './GameCards';
 import {GlobalParameter} from '../common/GlobalParameter';
@@ -77,7 +78,7 @@ import {CorporationDeck, PreludeDeck, ProjectDeck, CeoDeck} from './cards/Deck';
 import {Logger} from './logs/Logger';
 import {addDays, stringToNumber} from './database/utils';
 import {Tag} from '../common/cards/Tag';
-import {IGame, Score} from './IGame';
+import {IGame, Score, SpaceBonusGrant} from './IGame';
 import {MarsBoard} from './boards/MarsBoard';
 import {UnderworldData} from './underworld/UnderworldData';
 import {UnderworldExpansion} from './underworld/UnderworldExpansion';
@@ -175,6 +176,7 @@ export class Game implements IGame, Logger {
   public discardedColonies: Array<IColony> = []; // Not serialized
   public turmoil: Turmoil | undefined;
   public aresData: AresData | undefined;
+  public aresAdjacencyGrants: Array<AresAdjacencyGrantModel> = []; // Not serialized (presentation manifest ring)
   public moonData: MoonData | undefined;
   public pathfindersData: PathfindersData | undefined;
   public underworldData: UnderworldData = UnderworldExpansion.initializeGameWithoutUnderworld();
@@ -1930,27 +1932,27 @@ export class Game implements IGame, Logger {
   public grantSpaceBonuses(player: IPlayer, space: Space) {
     const bonuses = MultiSet.from(space.bonus);
     bonuses.forEachMultiplicity((count: number, bonus: SpaceBonus) => {
-      this.grantSpaceBonus(player, bonus, count);
+      this.grantSpaceBonus(player, bonus, count, {spaceId: space.id});
     });
   }
 
-  public grantSpaceBonus(player: IPlayer, spaceBonus: SpaceBonus, count: number = 1) {
+  public grantSpaceBonus(player: IPlayer, spaceBonus: SpaceBonus, count: number = 1, source?: {spaceId?: SpaceId}): SpaceBonusGrant {
     switch (spaceBonus) {
     case SpaceBonus.DRAW_CARD:
-      player.drawCard(count, {source: {type: 'tile'}});
-      break;
+      player.drawCard(count, {source: {type: 'tile', spaceId: source?.spaceId}});
+      return {kind: 'draw'};
     case SpaceBonus.PLANT:
       player.stock.add(Resource.PLANTS, count, {log: true});
-      break;
+      return {kind: 'stock', resource: Resource.PLANTS};
     case SpaceBonus.STEEL:
       player.stock.add(Resource.STEEL, count, {log: true});
-      break;
+      return {kind: 'stock', resource: Resource.STEEL};
     case SpaceBonus.TITANIUM:
       player.stock.add(Resource.TITANIUM, count, {log: true});
-      break;
+      return {kind: 'stock', resource: Resource.TITANIUM};
     case SpaceBonus.HEAT:
       player.stock.add(Resource.HEAT, count, {log: true});
-      break;
+      return {kind: 'stock', resource: Resource.HEAT};
     case SpaceBonus.OCEAN:
       // Hellas special requirements ocean tile
       if (this.canAddOcean()) {
@@ -1960,22 +1962,22 @@ export class Game implements IGame, Logger {
             return undefined;
           });
       }
-      break;
+      return {kind: 'other'};
     case SpaceBonus.MICROBE:
       this.defer(new AddResourcesToCard(player, CardResource.MICROBE, {count: count}));
-      break;
+      return {kind: 'other'};
     case SpaceBonus.ANIMAL:
       this.defer(new AddResourcesToCard(player, CardResource.ANIMAL, {count: count}));
-      break;
+      return {kind: 'other'};
     case SpaceBonus.DATA:
       this.defer(new AddResourcesToCard(player, CardResource.DATA, {count: count}));
-      break;
+      return {kind: 'other'};
     case SpaceBonus.ENERGY_PRODUCTION:
       player.production.add(Resource.ENERGY, count, {log: true});
-      break;
+      return {kind: 'other'};
     case SpaceBonus.SCIENCE:
       this.defer(new AddResourcesToCard(player, CardResource.SCIENCE, {count: count}));
-      break;
+      return {kind: 'other'};
     case SpaceBonus.TEMPERATURE:
     case SpaceBonus.TEMPERATURE_4MC:
       if (this.getTemperature() < constants.MAX_TEMPERATURE) {
@@ -1986,23 +1988,23 @@ export class Game implements IGame, Logger {
           {title: 'Select how to pay for placement bonus temperature'}))
           .andThen(() => this.increaseTemperature(player, 1));
       }
-      break;
+      return {kind: 'other'};
     case SpaceBonus.ENERGY:
       player.stock.add(Resource.ENERGY, count, {log: true});
-      break;
+      return {kind: 'stock', resource: Resource.ENERGY};
     case SpaceBonus.ASTEROID:
       this.defer(new AddResourcesToCard(player, CardResource.ASTEROID, {count: count}));
-      break;
+      return {kind: 'other'};
     case SpaceBonus.DELEGATE:
       Turmoil.ifTurmoil(this, () => this.defer(new SendDelegateToArea(player)));
-      break;
+      return {kind: 'other'};
     case SpaceBonus.COLONY:
       this.defer(new SelectPaymentDeferred(
         player,
         constants.TERRA_CIMMERIA_COLONY_COST,
         {title: 'Select how to pay for building a colony'}))
         .andThen(() => this.defer(new BuildColony(player)));
-      break;
+      return {kind: 'other'};
     default:
       throw new Error('Unhandled space bonus ' + spaceBonus + '. Report this exact error, please.');
     }

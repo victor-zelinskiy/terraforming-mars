@@ -233,6 +233,7 @@
     "${0} has the most ${1} tags and earns 1VP": "${0} имеет больше всего меток ${1} и получает 1 ПО",
     "${0} has the most ${1} tags and earns 2VP": "${0} имеет больше всего меток ${1} и получает 2 ПО",
     "${0} have upgraded to ${1}": "${0} улучшил до ${1}",
+    "${0} loses the ${1} adjacency bonus (no card can hold it)": "${0} теряет бонус соседства (${1}) — нет карты, куда его положить",
     "${0}'s TR increases 1 step for eliminating dust storms.": "РТ игрока ${0} повышается на 1 за устранение пылевых бурь.",
     "${0}'s TR increases ${1} step(s) for removing ${2}": "РТ игрока ${0} повышается на ${1} за удаление ${2}",
     "Planetary event: erosions appear on the surface.": "Планетарное событие: на поверхности появляются эрозии.",

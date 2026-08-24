@@ -130,6 +130,14 @@ export function oceanWaveLeadMs(): number {
 }
 
 /**
+ * OCEAN COVER SPLASH — a tile landing ON the water (Ocean City and family).
+ * The sea acknowledges the mass: one ring opens from under the seated tile
+ * and a soft wash brightens the shoreline, then everything settles. Calm,
+ * transform/opacity only, and strictly one-shot.
+ */
+export const OCEAN_SPLASH_MS = 460;
+
+/**
  * A point on the segment from the OCEAN's centre toward the placed tile's
  * centre, at fraction `t`, lifted `liftPx` off the surface.
  *
@@ -361,10 +369,13 @@ export function findSpace(spaces: ReadonlyArray<SpaceModel>, id: string): SpaceM
 
 /**
  * The server-authoritative success proof: the armed space went EMPTY →
- * TILED in this response. A hazard materializing (erosion / dust storm) is
+ * TILED in this response — or OCEAN → an Ares ocean cover (Ocean City /
+ * Farm / Sanctuary / New Holland land ON the water; `covers` carries the
+ * ocean so the scene can keep the water visible under the flight and play
+ * the landing splash). A hazard materializing (erosion / dust storm) is
  * deliberately NOT ours — the hazard has its own ominous entrance — and a
- * covered/replaced tile (hazard cleanup, Ares upgrades) rides its own
- * premium sequence; both return undefined here and the scene unwinds.
+ * hazard being BUILT OVER rides the hazard-cleanup sequence; those return
+ * undefined here and the scene unwinds.
  * `color` = the landed tile's owner (undefined for oceans / neutral tiles)
  * — it drives the premium cube drop after the touchdown.
  */
@@ -372,38 +383,47 @@ export function verifyPlacement(
   prevSpaces: ReadonlyArray<SpaceModel>,
   newSpaces: ReadonlyArray<SpaceModel>,
   spaceId: string,
-): {tileType: TileType, color: Color | undefined} | undefined {
+): {tileType: TileType, color: Color | undefined, covers?: TileType} | undefined {
   const prev = findSpace(prevSpaces, spaceId);
   const next = findSpace(newSpaces, spaceId);
   if (prev === undefined || next === undefined) {
     return undefined;
   }
-  if (prev.tileType !== undefined || next.tileType === undefined) {
+  if (next.tileType === undefined || HAZARD_TILES.has(next.tileType)) {
     return undefined;
   }
-  if (HAZARD_TILES.has(next.tileType)) {
-    return undefined;
+  if (prev.tileType !== undefined) {
+    // The ONE legal non-hazard replacement (`MarsBoard.canCover`): a tile
+    // landing on a plain ocean. Everything else keeps its own sequence.
+    if (prev.tileType !== TileType.OCEAN || next.tileType === TileType.OCEAN) {
+      return undefined;
+    }
+    return {tileType: next.tileType, color: next.color, covers: prev.tileType};
   }
   return {tileType: next.tileType, color: next.color};
 }
 
-/** One fresh tile the response introduced on a previously-empty cell —
- *  the remote-placement scene's unit of work. */
+/** One fresh tile the response introduced on a previously-empty cell (or on
+ *  a plain ocean it covers) — the remote-placement scene's unit of work. */
 export type FreshPlacement = {
   spaceId: SpaceId;
   tileType: TileType;
   /** The owner (drives the flight origin — the acting player's chip in the
    *  status strip — and the cube drop). Undefined for oceans / neutral. */
   color: Color | undefined;
+  /** The plain ocean this tile landed ON (Ares ocean covers): the held cell
+   *  keeps painting the water, and the touchdown plays the splash. */
+  covers?: TileType;
 };
 
 /**
  * Every fresh EMPTY → TILED placement in this response, in board order —
- * the diff the REMOTE placement scene presents (another player's build, a
- * MarsBot turn). Hazards are excluded (their ominous materialization is a
- * separate language), and so are covered/replaced tiles (hazard cleanup /
- * Ares upgrades ride their own premium sequences). Index-aligned like
- * `shouldHoldForTilePlacement`, defensively guarded against id mismatch.
+ * plus every OCEAN → cover replacement (Ocean City and family land on the
+ * water with the same physical language) — the diff the REMOTE placement
+ * scene presents (another player's build, a MarsBot turn). Hazards are
+ * excluded (their ominous materialization is a separate language), and so
+ * is a hazard being built over (the hazard-cleanup sequence). Index-aligned
+ * like `shouldHoldForTilePlacement`, defensively guarded against id mismatch.
  */
 export function detectFreshPlacements(
   prevSpaces: ReadonlyArray<SpaceModel>,
@@ -417,10 +437,14 @@ export function detectFreshPlacements(
     if (prev.id !== next.id) {
       continue;
     }
-    if (prev.tileType !== undefined || next.tileType === undefined) {
+    if (next.tileType === undefined || HAZARD_TILES.has(next.tileType)) {
       continue;
     }
-    if (HAZARD_TILES.has(next.tileType)) {
+    if (prev.tileType !== undefined) {
+      if (prev.tileType !== TileType.OCEAN || next.tileType === TileType.OCEAN) {
+        continue;
+      }
+      out.push({spaceId: next.id, tileType: next.tileType, color: next.color, covers: prev.tileType});
       continue;
     }
     out.push({spaceId: next.id, tileType: next.tileType, color: next.color});

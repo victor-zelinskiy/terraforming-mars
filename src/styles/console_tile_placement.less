@@ -137,6 +137,59 @@
             inset 0 0 .4rem rgba(150, 230, 255, 0.35);
     }
 
+    /* ── ARES ADJACENCY: the neighbouring tile answers ───────────────────
+       The same shoreline swell — identical geometry and choreography — in
+       the tile's warm register: printed infrastructure waking to pay, not
+       water. The palette is the only difference. */
+    &__oceanpulse--ares {
+        .con-tileplace__oceanpulse-wash {
+            background: radial-gradient(50% 50% at 50% 50%,
+                rgba(255, 233, 186, 0.85) 0%,
+                rgba(240, 186, 96, 0.42) 42%,
+                transparent 74%);
+        }
+        .con-tileplace__oceanpulse-ring {
+            border-color: rgba(255, 238, 196, 0.75);
+            box-shadow:
+                0 0 .5rem rgba(250, 200, 120, 0.5),
+                inset 0 0 .4rem rgba(255, 226, 150, 0.35);
+        }
+    }
+
+    /* ── OCEAN COVER: the sea accepts the building ───────────────────────
+       A tile lands ON the water (Ocean City / Farm / Sanctuary / New
+       Holland): one thin ring opens from under the seated tile while a
+       soft wash lights the water's edge, then everything settles. An
+       acknowledgement, deliberately calmer than the payment pulses. */
+    &__splash {
+        position: fixed;
+        top: 0;
+        left: 0;
+        opacity: 0;
+        visibility: hidden; /* the director poses + wakes it at touchdown */
+        pointer-events: none;
+    }
+    &__splash-wash,
+    &__splash-ring {
+        position: absolute;
+        inset: -12%;
+        border-radius: 50%;
+        opacity: 0;
+        visibility: hidden;
+        will-change: transform, opacity;
+    }
+    &__splash-wash {
+        background: radial-gradient(50% 50% at 50% 50%,
+            rgba(160, 236, 255, 0.5) 12%,
+            rgba(96, 208, 240, 0.28) 48%,
+            transparent 76%);
+        mix-blend-mode: screen;
+    }
+    &__splash-ring {
+        border: .1rem solid rgba(196, 244, 255, 0.65);
+        box-shadow: 0 0 .45rem rgba(120, 220, 250, 0.45);
+    }
+
     /* The coin: rem-sized (so it grows with the TV profile exactly like the
        transfer chip) and self-centred on its birth point via a negative
        margin — the director only animates transform/opacity. */
@@ -235,6 +288,7 @@
     .con-tileplace__touch,
     .con-tileplace__shadow,
     .con-tileplace__oceanpulse,
+    .con-tileplace__splash,
     .con-tileplace__coin-spark,
     .con-tileplace__coin-sheen { display: none; }
 }

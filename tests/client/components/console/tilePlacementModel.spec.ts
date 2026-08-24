@@ -12,7 +12,7 @@ import {
   OCEAN_COIN_T, OCEAN_PULSE_T, OCEAN_COIN_LEAD_MS, OCEAN_COIN_FORM_MS,
 } from '@/client/console/tilePlacement/tilePlacementModel';
 import {
-  holdRemoteReveal, releaseRemoteReveal, isRemoteRevealHeld, clearRemoteRevealHolds,
+  holdRemoteReveal, releaseRemoteReveal, isRemoteRevealHeld, clearRemoteRevealHolds, heldPrevTileOf,
 } from '@/client/console/tilePlacement/remoteRevealHold';
 
 function space(id: string, over: Partial<SpaceModel> = {}): SpaceModel {
@@ -76,6 +76,19 @@ describe('tilePlacementModel (pure math of the placement hero scene)', () => {
       const next = [space('05', {tileType: TileType.EROSION_MILD}), space('06')];
       expect(verifyPlacement(prev, next, '05')).to.be.undefined;
     });
+
+    it('accepts a tile landing ON a plain ocean (Ares covers), carrying the water', () => {
+      const onOcean = [space('05', {tileType: TileType.OCEAN}), space('06')];
+      const next = [space('05', {tileType: TileType.OCEAN_CITY, color: 'red'}), space('06')];
+      expect(verifyPlacement(onOcean, next, '05')).to.deep.eq(
+        {tileType: TileType.OCEAN_CITY, color: 'red', covers: TileType.OCEAN});
+    });
+
+    it('rejects a non-ocean replacement (hazard cleanup rides its own sequence)', () => {
+      const onCity = [space('05', {tileType: TileType.CITY, color: 'red'}), space('06')];
+      const next = [space('05', {tileType: TileType.OCEAN_CITY, color: 'red'}), space('06')];
+      expect(verifyPlacement(onCity, next, '05')).to.be.undefined;
+    });
   });
 
   describe('detectFreshPlacements (the remote scene\'s diff)', () => {
@@ -105,6 +118,17 @@ describe('tilePlacementModel (pure math of the placement hero scene)', () => {
       const prev = [space('05')];
       const next = [space('99', {tileType: TileType.CITY, color: 'red'})];
       expect(detectFreshPlacements(prev, next)).to.deep.eq([]);
+    });
+
+    it('collects an OCEAN → cover replacement WITH the water it lands on', () => {
+      const prev = [space('05', {tileType: TileType.OCEAN}), space('06')];
+      const next = [
+        space('05', {tileType: TileType.OCEAN_SANCTUARY, color: 'blue'}),
+        space('06'),
+      ];
+      expect(detectFreshPlacements(prev, next)).to.deep.eq([
+        {spaceId: '05', tileType: TileType.OCEAN_SANCTUARY, color: 'blue', covers: TileType.OCEAN},
+      ]);
     });
   });
 
@@ -136,6 +160,15 @@ describe('tilePlacementModel (pure math of the placement hero scene)', () => {
     afterEach(() => {
       // Module state is bundle-shared under mochapack — never leak a hold.
       clearRemoteRevealHolds();
+    });
+
+    it('an ocean cover remembers the water it hides (heldPrevTileOf)', () => {
+      holdRemoteReveal('05', TileType.OCEAN);
+      holdRemoteReveal('06');
+      expect(heldPrevTileOf('05')).to.eq(TileType.OCEAN);
+      expect(heldPrevTileOf('06')).to.be.undefined;
+      releaseRemoteReveal('05');
+      expect(heldPrevTileOf('05')).to.be.undefined;
     });
 
     it('holds, releases idempotently, and clears wholesale', () => {

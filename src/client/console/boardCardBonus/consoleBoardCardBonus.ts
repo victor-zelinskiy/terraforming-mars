@@ -33,10 +33,14 @@ import {registerAnimationHoldSupplier} from '@/client/components/presentation/an
  * space's id (its `.board-space-bonus--card` icon is the anchor); the
  * `venus-scale` marker is a fixed anchor (`[data-arc-marker="venus-8"]`);
  * `colony-cell` carries the built colony + slot (the build slot's benefit
- * glyph is the anchor — the Pluto DRAW_CARDS build bonus).
+ * glyph is the anchor — the Pluto DRAW_CARDS build bonus); `board-tile`
+ * carries a NEIGHBOURING tile that paid a card draw (the Ares adjacency
+ * bonus — Restricted Area:ares) — the cover rises out of the tile itself
+ * (no printed icon exists there), anchored on its hex.
  */
 export type BonusCoverSource =
   | {kind: 'board-cell', spaceId: string}
+  | {kind: 'board-tile', spaceId: string}
   | {kind: 'venus-scale'}
   | {kind: 'colony-cell', colonyName: string, slotIndex: number};
 
@@ -51,7 +55,14 @@ export function revealMatchesSource(
   sceneSource: BonusCoverSource,
 ): boolean {
   if (sceneSource.kind === 'board-cell') {
-    return revealSource?.type === 'tile';
+    // A modern reveal names its paying cell — an armed cell claims ONLY its
+    // own draw, so an adjacency draw in the same response is never grabbed.
+    // A legacy source without `spaceId` keeps the old blanket match.
+    return revealSource?.type === 'tile' &&
+      (revealSource.spaceId === undefined || revealSource.spaceId === sceneSource.spaceId);
+  }
+  if (sceneSource.kind === 'board-tile') {
+    return revealSource?.type === 'tile' && revealSource.spaceId === sceneSource.spaceId;
   }
   if (sceneSource.kind === 'colony-cell') {
     return revealSource?.type === 'colony' && revealSource.colonyName === sceneSource.colonyName;
@@ -152,7 +163,8 @@ function clearSafety(): void {
  */
 export function isBoardCardBonusFieldPhase(): boolean {
   return boardCardBonusState.active &&
-    boardCardBonusState.source.kind === 'board-cell' &&
+    (boardCardBonusState.source.kind === 'board-cell' ||
+     boardCardBonusState.source.kind === 'board-tile') &&
     (boardCardBonusState.phase === 'lift' ||
      boardCardBonusState.phase === 'hover' ||
      boardCardBonusState.phase === 'gather');

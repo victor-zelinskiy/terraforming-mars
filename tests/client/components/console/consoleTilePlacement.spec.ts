@@ -16,6 +16,9 @@ import {
   seedTilePlacementRewardHold,
 } from '@/client/console/tilePlacement/consoleTilePlacement';
 import {panelRewardHold, heldStock} from '@/client/console/resourceTransfer/consoleResourceTransfer';
+import {AresAdjacencyGrantModel} from '@/common/models/AresAdjacencyGrantModel';
+import {Resource} from '@/common/Resource';
+import {resetAresGrantClaims} from '@/client/console/tilePlacement/aresAdjacencyFlights';
 
 function space(id: string, over: Partial<SpaceModel> = {}): SpaceModel {
   return {id, x: 0, y: 0, spaceType: 'land', bonus: [], ...over} as unknown as SpaceModel;
@@ -28,6 +31,7 @@ function settle(ms: number): Promise<void> {
 describe('consoleTilePlacement (the animation transaction)', () => {
   afterEach(async () => {
     abortTilePlacement();
+    resetAresGrantClaims(); // the consumption ledger is bundle-shared
     await settle(5); // the abort lowers 'failed' → 'idle' on nextTick
   });
 
@@ -122,6 +126,82 @@ describe('consoleTilePlacement (the animation transaction)', () => {
     await endTilePlacement();
     // Not one artificial pause: the end is effectively instant.
     expect(Date.now() - before).to.be.lessThan(120);
+    expect(isTilePlacementActive()).to.be.false;
+  });
+
+  it('the Ares adjacency manifest seeds the VIEWER\'s own chips and releases at the beat', async () => {
+    armTilePlacement({spaceId: '05'});
+    const prev = [space('05'), space('08', {tileType: TileType.LAVA_FLOWS, color: 'blue'})];
+    const next = [
+      space('05', {tileType: TileType.GREENERY, color: 'red'}),
+      space('08', {tileType: TileType.LAVA_FLOWS, color: 'blue'}),
+    ];
+    const grant: AresAdjacencyGrantModel = {
+      seq: 501,
+      spaceId: '05' as SpaceId,
+      placerColor: 'red',
+      grants: [
+        {sourceSpaceId: '08' as SpaceId, bonus: SpaceBonus.HEAT, delivery: 'stock', resource: Resource.HEAT},
+        {sourceSpaceId: '08' as SpaceId, bonus: SpaceBonus.HEAT, delivery: 'stock', resource: Resource.HEAT},
+      ],
+      ownerPayouts: [{sourceSpaceId: '08' as SpaceId, ownerColor: 'blue', megacredits: 1}],
+    };
+    expect(detectTilePlacement(prev, next, {aresGrants: [grant], viewerColor: 'red'}))
+      .to.deep.eq({spaceId: '05'});
+    await runTilePlacement(prev, next);
+    seedTilePlacementRewardHold();
+    // The placer's own units are held; the OTHER owner's M€ is not theirs to hold.
+    expect(heldStock('heat')).to.eq(2);
+    expect(heldStock('megacredits')).to.eq(0);
+    // The beat degrades under JSDOM (no board anchors) and releases everything.
+    await endTilePlacement();
+    expect(panelRewardHold.active).to.be.false;
+    expect(isTilePlacementActive()).to.be.false;
+  });
+
+  it('a grant is consumed ONCE — a second placement on the same cell flies nothing', async () => {
+    const grant: AresAdjacencyGrantModel = {
+      seq: 502,
+      spaceId: '05' as SpaceId,
+      placerColor: 'red',
+      grants: [{sourceSpaceId: '08' as SpaceId, bonus: SpaceBonus.HEAT, delivery: 'stock', resource: Resource.HEAT}],
+      ownerPayouts: [],
+    };
+    armTilePlacement({spaceId: '05'});
+    const prev = [space('05')];
+    const next = [space('05', {tileType: TileType.OCEAN})];
+    expect(detectTilePlacement(prev, next, {aresGrants: [grant], viewerColor: 'red'})).to.not.be.undefined;
+    await runTilePlacement(prev, next);
+    seedTilePlacementRewardHold();
+    expect(heldStock('heat')).to.eq(1);
+    await endTilePlacement();
+    await settle(5);
+
+    // The SAME grant rides every later response — it must never re-fly.
+    armTilePlacement({spaceId: '05'});
+    const prev2 = [space('05', {tileType: TileType.OCEAN})];
+    const next2 = [space('05', {tileType: TileType.OCEAN_CITY, color: 'red'})];
+    expect(detectTilePlacement(prev2, next2, {aresGrants: [grant], viewerColor: 'red'})).to.not.be.undefined;
+    await runTilePlacement(prev2, next2);
+    seedTilePlacementRewardHold();
+    expect(heldStock('heat')).to.eq(0);
+    await endTilePlacement();
+  });
+
+  it('an OCEAN COVER lands with the water remembered and flies NO printed bonuses', async () => {
+    armTilePlacement({spaceId: '09'});
+    const prev = [space('09', {bonus: [SpaceBonus.PLANT, SpaceBonus.PLANT], tileType: TileType.OCEAN})];
+    const next = [space('09', {bonus: [SpaceBonus.PLANT, SpaceBonus.PLANT], tileType: TileType.OCEAN_CITY, color: 'red'})];
+    expect(detectTilePlacement(prev, next)).to.deep.eq({spaceId: '09'});
+    expect(tilePlacementState.coveredTile).to.eq(TileType.OCEAN);
+    await runTilePlacement(prev, next);
+    // The real cover tile painted silently under the proxy.
+    expect(prev[0].tileType).to.eq(TileType.OCEAN_CITY);
+    // The server granted no printed bonuses (`coveringExistingTile`) — a
+    // held plant here would be a lie about money.
+    seedTilePlacementRewardHold();
+    expect(panelRewardHold.active).to.be.false;
+    await endTilePlacement();
     expect(isTilePlacementActive()).to.be.false;
   });
 

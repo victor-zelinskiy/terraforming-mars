@@ -10,6 +10,10 @@ import {
   setPlacementHiddenTiles,
   clearPlacementHiddenTiles,
 } from '@/client/components/board/placementRenderState';
+import {
+  holdRemoteReveal,
+  clearRemoteRevealHolds,
+} from '@/client/console/tilePlacement/remoteRevealHold';
 
 function citySpace() {
   return {
@@ -66,5 +70,43 @@ describe('BoardSpace placement-cleared rendering', () => {
     await wrapper.vm.$nextTick();
 
     expect(wrapper.find('[data-test="tile"]').classes()).to.contain('board-space-tile--placement-cleared');
+  });
+
+  it('a held OCEAN COVER keeps painting the water, never a bare hex', async () => {
+    // A remote Ocean City commits as OCEAN_CITY but stays held with the
+    // ocean it covered: the cell renders the WATER's art (no cleared
+    // blanking, no printed bonuses — exactly what stood there before).
+    holdRemoteReveal('05', TileType.OCEAN);
+    try {
+      const wrapper = mount(BoardSpace, {
+        ...globalConfig,
+        props: {
+          space: {...citySpace(), tileType: TileType.OCEAN_CITY},
+          tileView: 'show',
+        },
+      });
+      const tile = wrapper.find('[data-test="tile"]');
+      expect(tile.classes()).to.contain('board-space-tile--ocean');
+      expect(tile.classes()).to.not.contain('board-space-tile--ocean-city');
+      expect(tile.classes()).to.not.contain('board-space-tile--placement-cleared');
+      expect(wrapper.findComponent(Bonus).exists()).to.be.false;
+    } finally {
+      clearRemoteRevealHolds();
+    }
+  });
+
+  it('an ordinary held remote placement still clears to the bare hex + bonus', () => {
+    holdRemoteReveal('05'); // no previous tile — a fresh EMPTY → TILED hold
+    try {
+      const wrapper = mount(BoardSpace, {
+        ...globalConfig,
+        props: {space: citySpace(), tileView: 'show'},
+      });
+      const tile = wrapper.find('[data-test="tile"]');
+      expect(tile.classes()).to.contain('board-space-tile--placement-cleared');
+      expect(wrapper.findComponent(Bonus).exists()).to.be.true;
+    } finally {
+      clearRemoteRevealHolds();
+    }
   });
 });

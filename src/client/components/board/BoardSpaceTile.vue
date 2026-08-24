@@ -23,7 +23,7 @@ import {
   observeTilePlacement,
 } from '@/client/components/board/tilePlacementAnimation';
 import {placementRenderState} from '@/client/components/board/placementRenderState';
-import {isRemoteRevealHeld} from '@/client/console/tilePlacement/remoteRevealHold';
+import {isRemoteRevealHeld, heldPrevTileOf} from '@/client/console/tilePlacement/remoteRevealHold';
 
 const tileTypeToCssClass: Record<TileType, string> = {
   [TileType.OCEAN]: 'ocean',
@@ -192,6 +192,17 @@ export default defineComponent({
     klass(): string {
       let css = 'board-space';
       if (this.tileType !== undefined) {
+        // A held OCEAN COVER (console remote reveal hold with a previous
+        // tile): the committed cover tile stays hidden, but the cell must
+        // keep painting the WATER it landed on — not a bare hex. Render the
+        // previous tile's own art, without the cleared blanking.
+        const heldPrev = this.placementCleared ? heldPrevTileOf(this.space.id) : undefined;
+        if (heldPrev !== undefined) {
+          const prevClass = tileCssClassOf(heldPrev, this.aresExtension);
+          if (prevClass !== '') {
+            return css + ' board-space-tile--' + prevClass;
+          }
+        }
         let cssClass: string | undefined = tileTypeToCssClass[this.tileType];
         if (this.aresExtension && tileTypeToCssClassAresOverride.has(this.tileType)) {
           cssClass = tileTypeToCssClassAresOverride.get(this.tileType);

@@ -687,6 +687,7 @@ export default defineComponent({
               aresExtension: model.game.gameOptions?.expansions?.ares === true,
               gamePhase: model.game.phase,
               viewerColor: (model as PlayerViewModel).thisPlayer?.color,
+              aresGrants: model.game.aresAdjacencyGrants,
             });
             // …and an OVERLAY MARKER an opponent just placed (a cathedral in
             // one of their cities) gets its own landing instead of popping in —

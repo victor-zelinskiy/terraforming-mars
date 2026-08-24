@@ -54,7 +54,7 @@ import {ClaimedToken} from '@/common/underworld/UnderworldPlayerData';
 import {getSpaceName} from '@/common/boards/spaces';
 import {SpaceType} from '@/common/boards/SpaceType';
 import {placementRenderState} from '@/client/components/board/placementRenderState';
-import {isRemoteRevealHeld} from '@/client/console/tilePlacement/remoteRevealHold';
+import {isRemoteRevealHeld, heldPrevTileOf} from '@/client/console/tilePlacement/remoteRevealHold';
 import {observeCube, cubePhase as cubePhaseForSpace, CubePhase} from '@/client/components/board/cubeDropState';
 import {clearActiveMarker, observeMarkerPlacement} from '@/client/components/board/markerPlacementAnimation';
 
@@ -160,7 +160,11 @@ export default defineComponent({
       return placementRenderState.hiddenTiles.has(this.space.id) || isRemoteRevealHeld(this.space.id);
     },
     showBonus(): boolean {
-      return this.space.tileType === undefined || this.tileView === 'hide' || this.placementCleared;
+      // A held OCEAN COVER keeps painting the covered water (never the bare
+      // hex), so the printed bonuses stay hidden exactly as they were under
+      // the real ocean.
+      const clearedToBareHex = this.placementCleared && heldPrevTileOf(this.space.id) === undefined;
+      return this.space.tileType === undefined || this.tileView === 'hide' || clearedToBareHex;
     },
     // Cube reveal phase for this space (`hidden` during the tile placement
     // animation, `dropping` while the cube lands, `rest` otherwise). PlayerCube

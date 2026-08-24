@@ -7,8 +7,11 @@ import {CardResource} from '../../common/CardResource';
 import {Resource} from '../../common/Resource';
 import {SpaceBonus} from '../../common/boards/SpaceBonus';
 import {HAZARD_STEPS, HazardSeverity, hazardSeverity} from '../../common/AresTileType';
-import {TileType, tileTypeToString} from '../../common/TileType';
+import {TileType} from '../../common/TileType';
 import {AresData, MilestoneCount} from '../../common/ares/AresData';
+import {
+  AresAdjacencyDelivery, AresAdjacencyGrantEntry, AresAdjacencyGrantModel, AresAdjacencyOwnerPayout,
+} from '../../common/models/AresAdjacencyGrantModel';
 import {AdjacencyCost} from './AdjacencyCost';
 import {MultiSet} from 'mnemonist';
 import {Phase} from '../../common/Phase';
@@ -33,14 +36,46 @@ export class AresHandler {
   }
 
   public static earnAdjacencyBonuses(player: IPlayer, space: Space, options?: {giveAresTileOwnerBonus?: boolean}) {
+    // The presentation manifest of THIS placement's adjacency payouts —
+    // recorded beside the grants themselves so it can never drift from what
+    // was actually paid (see AresAdjacencyGrantModel).
+    const grants: Array<AresAdjacencyGrantEntry> = [];
+    const ownerPayouts: Array<AresAdjacencyOwnerPayout> = [];
     for (const adjacentSpace of player.game.board.getAdjacentSpaces(space)) {
-      this.earnAdacencyBonus(space, adjacentSpace, player, options?.giveAresTileOwnerBonus);
+      this.earnAdacencyBonus(space, adjacentSpace, player, options?.giveAresTileOwnerBonus, {grants, ownerPayouts});
+    }
+    if (grants.length > 0 || ownerPayouts.length > 0) {
+      this.recordAdjacencyGrant(player.game, {
+        spaceId: space.id,
+        placerColor: player.color,
+        grants,
+        ownerPayouts,
+      });
+    }
+  }
+
+  /** Bounded ring: enough for one busy response (a MarsBot turn batch), never
+   *  a leak. `seq` derives from the serialized `gameAge`, so it stays
+   *  monotonic across a server restart and a client can consume each grant
+   *  exactly once. */
+  private static recordAdjacencyGrant(game: IGame, grant: Omit<AresAdjacencyGrantModel, 'seq'>): void {
+    const base = game.gameAge * 100;
+    const n = game.aresAdjacencyGrants.filter((g) => g.seq >= base).length;
+    game.aresAdjacencyGrants.push({...grant, seq: base + Math.min(n, 99)});
+    while (game.aresAdjacencyGrants.length > 8) {
+      game.aresAdjacencyGrants.shift();
     }
   }
 
   // |player| placed a tile at |space| next to |adjacentSpace|.
   // Returns true if the adjacent space contains a bonus for adjacency.
-  private static earnAdacencyBonus(newTileSpace: Space, adjacentSpace: Space, player: IPlayer, giveAresTileOwnerBonus: boolean = true): void {
+  private static earnAdacencyBonus(
+    newTileSpace: Space,
+    adjacentSpace: Space,
+    player: IPlayer,
+    giveAresTileOwnerBonus: boolean = true,
+    out?: {grants: Array<AresAdjacencyGrantEntry>, ownerPayouts: Array<AresAdjacencyOwnerPayout>},
+  ): void {
     if (adjacentSpace.adjacency === undefined || adjacentSpace.adjacency.bonus.length === 0) {
       return;
     }
@@ -49,22 +84,27 @@ export class AresHandler {
       throw new Error(`A tile with an adjacency bonus must have an owner (${adjacentSpace.x}, ${adjacentSpace.y}, ${adjacentSpace.adjacency.bonus}`);
     }
 
-    const addResourceToCard = function(player: IPlayer, resourceType: CardResource, resourceAsText: string) {
+    const addResourceToCard = function(player: IPlayer, resourceType: CardResource, resourceAsText: string):
+      {delivery: AresAdjacencyDelivery, targetCard?: CardName} {
       const availableCards = player.getResourceCards(resourceType);
       if (availableCards.length === 0) {
-        return;
+        // No silent loss: the skipped effect names itself in the log.
+        player.game.log('${0} loses the ${1} adjacency bonus (no card can hold it)', (b) =>
+          b.player(player).string(resourceAsText));
+        return {delivery: 'none'};
       } else if (availableCards.length === 1) {
         player.addResourceTo(availableCards[0], {log: true});
-      } else if (availableCards.length > 1) {
-        player.defer(new SelectCard(
-          'Select a card to add an ' + resourceAsText,
-          'Add ' + resourceAsText + 's',
-          availableCards)
-          .andThen((selected) => {
-            player.addResourceTo(selected[0], {log: true});
-            return undefined;
-          }));
+        return {delivery: 'card-resource', targetCard: availableCards[0].name};
       }
+      player.defer(new SelectCard(
+        'Select a card to add an ' + resourceAsText,
+        'Add ' + resourceAsText + 's',
+        availableCards)
+        .andThen((selected) => {
+          player.addResourceTo(selected[0], {log: true});
+          return undefined;
+        }));
+      return {delivery: 'prompt'};
     };
 
     const bonuses = new MultiSet<SpaceBonus>();
@@ -89,7 +129,8 @@ export class AresHandler {
     // Game.grantPlacementBonuses): the bot gains 1 M€ per adjacency-bonus unit
     // instead of the actual resources — it has no use for plants/energy/cards
     // and must never be prompted for a card target. The tile OWNER's income
-    // below is untouched.
+    // below is untouched. No grant entries are recorded — the bot has no
+    // screen, and the human viewers' interest (the owner income) is.
     if (player.isMarsBot) {
       const units = bonuses.size;
       if (units > 0) {
@@ -98,12 +139,17 @@ export class AresHandler {
           b.player(player).number(units));
       }
     } else {
-      AresHandler.grantAdjacencyBonuses(player, bonuses, addResourceToCard);
+      AresHandler.grantAdjacencyBonuses(player, adjacentSpace, bonuses, addResourceToCard, out?.grants);
       const bonusText = Array.from(bonuses.multiplicities())
         .map(([bonus, count]) => `${count} ${SpaceBonus.toString(bonus)}`)
         .join(', ');
-      const tileText = adjacentSpace.tile !== undefined ? tileTypeToString[adjacentSpace.tile.tileType] : 'no tile';
-      player.game.log('${0} gains ${1} for placing next to ${2}', (b) => b.player(player).string(bonusText).string(tileText));
+      const adjacentTile = adjacentSpace.tile;
+      if (adjacentTile !== undefined) {
+        // A typed tile token — the premium journal renders it as a chip.
+        player.game.log('${0} gains ${1} for placing next to ${2}', (b) => b.player(player).string(bonusText).tileType(adjacentTile.tileType));
+      } else {
+        player.game.log('${0} gains ${1} for placing next to ${2}', (b) => b.player(player).string(bonusText).string('no tile'));
+      }
     }
 
     if (giveAresTileOwnerBonus) {
@@ -112,41 +158,71 @@ export class AresHandler {
         ownerBonus = 2;
       }
 
-      const tileText = adjacentSpace.tile !== undefined ? tileTypeToString[adjacentSpace.tile.tileType] : 'no tile';
       adjacentPlayer.stock.add(Resource.MEGACREDITS, ownerBonus, {log: false});
-      player.game.log('${0} gains ${1} M€ for a tile placed next to ${2}', (b) => b.player(adjacentPlayer).number(ownerBonus).string(tileText));
+      const adjacentTile = adjacentSpace.tile;
+      if (adjacentTile !== undefined) {
+        player.game.log('${0} gains ${1} M€ for a tile placed next to ${2}', (b) => b.player(adjacentPlayer).number(ownerBonus).tileType(adjacentTile.tileType));
+      } else {
+        player.game.log('${0} gains ${1} M€ for a tile placed next to ${2}', (b) => b.player(adjacentPlayer).number(ownerBonus).string('no tile'));
+      }
+      out?.ownerPayouts.push({
+        sourceSpaceId: adjacentSpace.id,
+        ownerColor: adjacentPlayer.color,
+        megacredits: ownerBonus,
+      });
     }
   }
 
   private static grantAdjacencyBonuses(
     player: IPlayer,
+    adjacentSpace: Space,
     bonuses: MultiSet<SpaceBonus>,
-    addResourceToCard: (player: IPlayer, resourceType: CardResource, resourceAsText: string) => void): void {
+    addResourceToCard: (player: IPlayer, resourceType: CardResource, resourceAsText: string) => {delivery: AresAdjacencyDelivery, targetCard?: CardName},
+    grants?: Array<AresAdjacencyGrantEntry>): void {
+    const record = (entry: Omit<AresAdjacencyGrantEntry, 'sourceSpaceId' | 'bonus'>, bonus: SpaceBonus) => {
+      grants?.push({sourceSpaceId: adjacentSpace.id, bonus, ...entry});
+    };
     for (const [bonus, qty] of bonuses.multiplicities()) {
       for (let idx = 0; idx < qty; idx++) {
         switch (bonus) {
-        case SpaceBonus.ANIMAL:
-          addResourceToCard(player, CardResource.ANIMAL, 'animal');
+        case SpaceBonus.ANIMAL: {
+          const r = addResourceToCard(player, CardResource.ANIMAL, 'animal');
+          record({delivery: r.delivery, cardResource: CardResource.ANIMAL, targetCard: r.targetCard}, bonus);
           break;
+        }
 
         case SpaceBonus.MEGACREDITS:
           // Route through stock.add (NOT player.megaCredits++) so the adjacency
           // gain reaches the event stream / premium journal. log:false keeps the
           // single summary log below (no double-logging).
           player.stock.add(Resource.MEGACREDITS, 1, {log: false});
+          record({delivery: 'stock', resource: Resource.MEGACREDITS}, bonus);
           break;
 
         case SpaceBonus.ENERGY:
           player.stock.add(Resource.ENERGY, 1, {log: false});
+          record({delivery: 'stock', resource: Resource.ENERGY}, bonus);
           break;
 
-        case SpaceBonus.MICROBE:
-          addResourceToCard(player, CardResource.MICROBE, 'microbe');
+        case SpaceBonus.MICROBE: {
+          const r = addResourceToCard(player, CardResource.MICROBE, 'microbe');
+          record({delivery: r.delivery, cardResource: CardResource.MICROBE, targetCard: r.targetCard}, bonus);
           break;
+        }
 
-        default:
-          player.game.grantSpaceBonus(player, bonus);
+        default: {
+          // The grant itself reports its channel (SpaceBonusGrant) — the
+          // manifest mirrors what actually happened, never a second rule.
+          const granted = player.game.grantSpaceBonus(player, bonus, 1, {spaceId: adjacentSpace.id});
+          if (granted.kind === 'stock') {
+            record({delivery: 'stock', resource: granted.resource}, bonus);
+          } else if (granted.kind === 'draw') {
+            record({delivery: 'draw'}, bonus);
+          } else {
+            record({delivery: 'prompt'}, bonus);
+          }
           break;
+        }
         }
       }
     }

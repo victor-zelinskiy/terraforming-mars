@@ -153,6 +153,7 @@ export class Server {
 
     return {
       aresData: game.aresData,
+      aresAdjacencyGrants: game.aresAdjacencyGrants.length > 0 ? game.aresAdjacencyGrants : undefined,
       awards: this.getAwards(game),
       colonies: coloniesToModel(game, game.colonies, false, true),
       deckSize: game.projectDeck.drawPile.length,

@@ -49,7 +49,7 @@
 import {reactive} from 'vue';
 import {PlayerViewModel, PublicPlayerModel, ViewModel} from '@/common/models/PlayerModel';
 import {MarsBotAttack, MarsBotImpact, MarsBotTurn} from '@/common/automa/MarsBotTurn';
-import {HAZARD_TILES} from '@/common/TileType';
+import {HAZARD_TILES, TileType} from '@/common/TileType';
 import {armPlacementAnimations} from '@/client/components/board/tilePlacementAnimation';
 import {stageRemoteTileEvents} from '@/client/console/tilePlacement/consoleRemotePlacement';
 import {motionMs} from '@/client/components/motion/motionTokens';
@@ -183,7 +183,7 @@ function applyAttack(view: ViewModel, attack: MarsBotAttack): void {
  * armed placement animation), global parameters, per-player resources/TR.
  * Absolute `after` values → idempotent (a re-delivered card cannot double-apply).
  */
-export function applyTurnVisual(view: ViewModel, turn: MarsBotTurn): void {
+export function applyTurnVisual(view: ViewModel, turn: MarsBotTurn, opts?: {aresGrants?: ViewModel['game']['aresAdjacencyGrants']}): void {
   const visual = turn.visual;
   if (visual !== undefined) {
     if (visual.tiles !== undefined && visual.tiles.length > 0) {
@@ -191,18 +191,29 @@ export function applyTurnVisual(view: ViewModel, turn: MarsBotTurn): void {
       // REMOTE flight — staged in this SAME synchronous block as the
       // mutation below, so they commit HIDDEN behind the reveal hold and
       // each becomes visible at its proxy's touchdown (a no-op on desktop /
-      // reduced motion). Hazards and covered cells fall through to the
-      // armed generic entrance unchanged.
+      // reduced motion). Hazards fall through to the armed generic entrance
+      // unchanged; an OCEAN COVER stages WITH the water it lands on.
+      // `opts.aresGrants` is the buffered LATEST view's adjacency manifest —
+      // the presented view predates the batch and cannot know these payouts.
       stageRemoteTileEvents(
         visual.tiles.flatMap((tile) => {
           const space = view.game.spaces.find((s) => s.id === tile.spaceId);
-          return space !== undefined && space.tileType === undefined && !HAZARD_TILES.has(tile.tileType) ?
-            [{spaceId: tile.spaceId, tileType: tile.tileType, color: tile.color}] : [];
+          if (space === undefined || HAZARD_TILES.has(tile.tileType)) {
+            return [];
+          }
+          if (space.tileType === undefined) {
+            return [{spaceId: tile.spaceId, tileType: tile.tileType, color: tile.color}];
+          }
+          if (space.tileType === TileType.OCEAN && tile.tileType !== TileType.OCEAN) {
+            return [{spaceId: tile.spaceId, tileType: tile.tileType, color: tile.color, covers: space.tileType}];
+          }
+          return [];
         }),
         {
           aresExtension: view.game.gameOptions?.expansions?.ares === true,
           gamePhase: view.game.phase,
           viewerColor: (view as PlayerViewModel).thisPlayer?.color,
+          aresGrants: opts?.aresGrants,
         },
       );
       // Arm BEFORE mutating — BoardSpaceTile's watcher fires synchronously
@@ -334,7 +345,7 @@ export function deliverBotTurnVisual(key: string): 'committed' | 'applied' | 'no
     const next = batch.pendingKeys[0];
     const turn = batch.turnsByKey.get(next);
     if (turn !== undefined) {
-      applyTurnVisual(batch.presented, turn);
+      applyTurnVisual(batch.presented, turn, {aresGrants: batch.latest.game.aresAdjacencyGrants});
     }
     batch.pendingKeys.shift();
     batch.turnsByKey.delete(next);

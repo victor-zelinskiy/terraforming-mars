@@ -19,10 +19,12 @@ import {DeferredActionsQueue} from './deferredActions/DeferredActionsQueue';
 import {EventRecorder} from './events/EventRecorder';
 import {SerializedGame} from './SerializedGame';
 import {SpaceBonus} from '../common/boards/SpaceBonus';
+import {Resource} from '../common/Resource';
 import {TileType} from '../common/TileType';
 import {ICard} from './cards/ICard';
 import {Turmoil} from './turmoil/Turmoil';
 import {AresData} from '../common/ares/AresData';
+import {AresAdjacencyGrantModel} from '../common/models/AresAdjacencyGrantModel';
 import {MoonData} from './moon/MoonData';
 import {SeededRandom} from '../common/utils/Random';
 import {PathfindersData} from './pathfinders/PathfindersData';
@@ -41,6 +43,17 @@ export interface Score {
   corporation: String;
   playerScore: number;
 }
+
+/**
+ * How `grantSpaceBonus` actually delivered a bonus: straight into a stock
+ * pool, as a card draw, or via some other flow (a deferred prompt, an
+ * immediate non-stock effect). Presentation metadata only — the branches
+ * report what they did, nothing reads it to decide game state.
+ */
+export type SpaceBonusGrant =
+  | {kind: 'stock', resource: Resource}
+  | {kind: 'draw'}
+  | {kind: 'other'};
 
 export interface IGame extends Logger {
   readonly id: GameId;
@@ -89,6 +102,12 @@ export interface IGame extends Logger {
   // True when resolving Turmoil phase. Does not need to be serialized since the turmoil phase isn't saved in between.
   inTurmoil: boolean;
   aresData: AresData | undefined;
+  /**
+   * Bounded ring of the latest Ares adjacency payouts (presentation manifest
+   * for the console placement scenes — see `AresAdjacencyGrantModel`).
+   * Not serialized: a restart loses only the animation, never the money.
+   */
+  aresAdjacencyGrants: Array<AresAdjacencyGrantModel>;
   moonData: MoonData | undefined;
   pathfindersData: PathfindersData | undefined;
   underworldData: UnderworldData;
@@ -241,7 +260,13 @@ export interface IGame extends Logger {
    * Gives all the bonuses from a space on the map.
    */
   grantSpaceBonuses(player: IPlayer, space: Space): void;
-  grantSpaceBonus(player: IPlayer, spaceBonus: SpaceBonus, count?: number): void;
+  /**
+   * Grants one space bonus. `source.spaceId` (when known) names the PAYING
+   * cell so a card draw's reveal can lift off that exact hex. Returns HOW the
+   * bonus was delivered — presentation metadata for the Ares adjacency
+   * manifest (co-located with the branches so it can never drift).
+   */
+  grantSpaceBonus(player: IPlayer, spaceBonus: SpaceBonus, count?: number, source?: {spaceId?: SpaceId}): SpaceBonusGrant;
   addGreenery(player: IPlayer, space: Space, shouldRaiseOxygen?: boolean): void;
   addCity(player: IPlayer, space: Space, cardName?: CardName | undefined): void;
   canAddOcean(): boolean;

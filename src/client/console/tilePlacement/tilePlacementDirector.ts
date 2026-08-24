@@ -40,6 +40,10 @@ export type TileStageEls = {
   oceanPulses: ReadonlyArray<HTMLElement>,
   /** The materializing M€ coin roots (ocean beat), in oceanCoins order. */
   oceanCoins: ReadonlyArray<HTMLElement>,
+  /** The Ares source-tile wake pulses (adjacency beat), in aresSources order. */
+  aresPulses: ReadonlyArray<HTMLElement>,
+  /** The ocean-cover landing splash (one per stage; absent → no splash). */
+  splash: HTMLElement | undefined,
 };
 
 function guarded(run: (done: () => void) => void, budgetMs: number): Promise<void> {
@@ -266,7 +270,24 @@ export type OceanActivationOpts = {
  * confined to the shoreline — economic infrastructure waking up, not magic.
  */
 export function playOceanActivation(els: TileStageEls, opts: OceanActivationOpts): void {
-  els.oceanPulses.forEach((el, i) => {
+  playShorePulses(els.oceanPulses, opts);
+}
+
+/**
+ * THE NEIGHBOURING TILE ANSWERS (fire-and-forget — the Ares adjacency
+ * beat). Same shoreline physics as the ocean's swell — the light gathers a
+ * little way INTO the paying tile and slides to the shared edge under an
+ * opening ring — with the palette carried by CSS (`--ares`): warm printed
+ * infrastructure waking up, not water.
+ */
+export function playAresSourcePulses(els: TileStageEls, opts: OceanActivationOpts): void {
+  playShorePulses(els.aresPulses, opts);
+}
+
+/** The shared shoreline-pulse mechanics (ocean swell / Ares tile wake) —
+ *  one physical language, palettes differ in CSS only. */
+function playShorePulses(pulses: ReadonlyArray<HTMLElement>, opts: OceanActivationOpts): void {
+  pulses.forEach((el, i) => {
     const wash = el.querySelector<HTMLElement>('.con-tileplace__oceanpulse-wash');
     const ring = el.querySelector<HTMLElement>('.con-tileplace__oceanpulse-ring');
     const shore = opts.shores[i] ?? {x: 0, y: -1};
@@ -290,6 +311,39 @@ export function playOceanActivation(els: TileStageEls, opts: OceanActivationOpts
         .to(ring, {scale: 1.15, autoAlpha: 0, duration: ms * 0.95, ease: 'power2.out'}, 0);
     }
   });
+}
+
+/**
+ * THE SEA ACCEPTS THE BUILDING (fire-and-forget). An ocean-cover touchdown:
+ * one thin ring opens from under the seated tile while a soft wash brightens
+ * the water's edge, then everything settles. Deliberately calmer than the
+ * payment pulses — this is an acknowledgement, not a reward.
+ */
+export function playCoverSplash(els: TileStageEls, opts: {hex: TileRect, uiScale: number, splashMs: number}): void {
+  const splash = els.splash;
+  if (splash === undefined) {
+    return;
+  }
+  const ring = splash.querySelector<HTMLElement>('.con-tileplace__splash-ring');
+  const wash = splash.querySelector<HTMLElement>('.con-tileplace__splash-wash');
+  const ms = opts.splashMs / 1000;
+  gsap.set(splash, {
+    width: opts.hex.w, height: opts.hex.h,
+    x: opts.hex.x, y: opts.hex.y,
+    autoAlpha: 1,
+  });
+  if (ring !== null) {
+    gsap.set(ring, {scale: 0.55, autoAlpha: 0, transformOrigin: 'center center'});
+    gsap.timeline()
+      .to(ring, {autoAlpha: 0.65, duration: ms * 0.22, ease: 'power1.out'}, 0)
+      .to(ring, {scale: 1.28, autoAlpha: 0, duration: ms * 0.85, ease: 'power2.out'}, ms * 0.1);
+  }
+  if (wash !== null) {
+    gsap.set(wash, {scale: 0.8, autoAlpha: 0, transformOrigin: 'center center'});
+    gsap.timeline()
+      .to(wash, {scale: 1, autoAlpha: 0.4, duration: ms * 0.4, ease: 'power1.out'}, 0)
+      .to(wash, {scale: 1.08, autoAlpha: 0, duration: ms * 0.6, ease: 'power1.inOut'}, ms * 0.4);
+  }
 }
 
 export type OceanCoinOpts = {
@@ -389,9 +443,14 @@ export function killTileTweens(els: TileStageEls): void {
     gsap.killTweensOf(els.shadow);
   }
   els.bonusIcons.forEach((el) => gsap.killTweensOf(el));
-  // The ocean pieces animate their CHILDREN (wash / ring / body / sparks), so
-  // killing the roots alone would leave sub-tweens running on a detached tree.
-  [...els.oceanPulses, ...els.oceanCoins].forEach((el) => {
+  // The pulse/coin/splash pieces animate their CHILDREN (wash / ring / body /
+  // sparks), so killing the roots alone would leave sub-tweens running on a
+  // detached tree.
+  const withChildren = [...els.oceanPulses, ...els.oceanCoins, ...els.aresPulses];
+  if (els.splash !== undefined) {
+    withChildren.push(els.splash);
+  }
+  withChildren.forEach((el) => {
     gsap.killTweensOf(el);
     el.querySelectorAll<HTMLElement>('*').forEach((child) => gsap.killTweensOf(child));
   });
