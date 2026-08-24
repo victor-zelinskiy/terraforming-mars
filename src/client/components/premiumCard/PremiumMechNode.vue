@@ -20,9 +20,13 @@
     <span v-else-if="labelText !== undefined" class="pcard-plate" :class="labelAccentClass">{{ labelText }}</span>
     <!-- trade-discount light value token -->
     <span v-else-if="isDiscountToken" class="pcard-token">{{ insideText }}</span>
-    <!-- premium player cube (community / nomads) — the same 3D board marker -->
+    <!-- premium player cube (community) — the same 3D board marker -->
     <span v-else-if="cubeColor !== undefined" class="pcard-cube">
       <player-cube :color="cubeColor" :glow="true" :shadow="false" :overlay-symbol="false" />
+    </span>
+    <!-- the Mars Nomads camp — the SAME NomadToken the board renders -->
+    <span v-else-if="isNomadMarker" class="pcard-cube pcard-cube--nomad">
+      <nomad-token :shadow="false" :glow="true" />
     </span>
     <!-- image icons -->
     <template v-else-if="iconUrl !== undefined">
@@ -106,6 +110,7 @@ import {mechItemIcon, MechIconSpec, tagIconUrl, tileIcon, TileIconSpec} from './
 import {translateText} from '@/client/directives/i18n';
 import {Color} from '@/common/Color';
 import PlayerCube from '@/client/components/PlayerCube.vue';
+import NomadToken from '@/client/components/NomadToken.vue';
 
 type CorpBoxLike = {rows: Array<Array<ItemType>>};
 
@@ -116,7 +121,7 @@ type CorpBoxLike = {rows: Array<Array<ItemType>>};
  */
 export default defineComponent({
   name: 'PremiumMechNode',
-  components: {PlayerCube},
+  components: {PlayerCube, NomadToken},
   props: {
     node: {
       type: [Object, String] as unknown as () => ItemType,
@@ -217,9 +222,13 @@ export default defineComponent({
       default: return undefined;
       }
     },
-    /** Premium player-cube colour for community / nomads markers. */
+    /** Premium player-cube colour for the community marker. */
     cubeColor(): Color | undefined {
       return this.mechIcon?.kind === 'cube' ? this.mechIcon.color : undefined;
+    },
+    /** The Mars Nomads camp marker — the board's own NomadToken. */
+    isNomadMarker(): boolean {
+      return this.mechIcon?.kind === 'nomad';
     },
     isMegacredits(): boolean {
       return this.itemNode?.type === CardRenderItemType.MEGACREDITS;

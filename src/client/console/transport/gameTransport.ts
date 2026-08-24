@@ -129,6 +129,14 @@ import {
   seedTilePlacementRewardHold,
 } from '@/client/console/tilePlacement/consoleTilePlacement';
 import {
+  abortNomadMove,
+  detectNomadMove,
+  endNomadMove,
+  runNomadMove,
+  seedNomadMoveRewardHold,
+  stageRemoteNomadMove,
+} from '@/client/console/nomads/consoleNomadMove';
+import {
   abortColonyBuild,
   detectColonyBuild,
   endColonyBuild,
@@ -216,6 +224,7 @@ export const transportHolds = reactive({
   cardDiscard: false,
   tilePlacementHero: false,
   colonyBuild: false,
+  nomadMove: false,
 });
 
 /** Every transport cinematic gate — the disjunction the board binder (and any
@@ -226,7 +235,8 @@ export function transportHolding(): boolean {
   const h = transportHolds;
   return h.marker || h.tilePlacement || h.conversion || h.hazardCleanup ||
     h.tradeFleet || h.hydroMarker || h.playedHero || h.patentSale ||
-    h.stdProject || h.cardDiscard || h.tilePlacementHero || h.colonyBuild;
+    h.stdProject || h.cardDiscard || h.tilePlacementHero || h.colonyBuild ||
+    h.nomadMove;
 }
 
 /** Reactive transport facts surfaces may read (never write). */
@@ -465,6 +475,7 @@ function applyGlobalParamPreview(newView: PlayerViewModel): void {
 function seedRewardHolds(): void {
   seedPlayedHeroRewardHold();
   seedTilePlacementRewardHold();
+  seedNomadMoveRewardHold();
   seedColonyBuildRewardHold();
   seedColonyTradeRewardHold();
   seedHydroMarkerRewardHold();
@@ -595,6 +606,25 @@ function fetchPlayerInput(url: string, options: RequestInit, wgtSubmit: boolean)
           }
         }
         /*
+         * Console MARS NOMADS MOVE gate. VERIFIES the server actually moved
+         * the camp onto the armed space (the from→to diff) and CAPTURES the
+         * destination's printed bonus icons while the displayed board still
+         * shows the pre-move state. HOLD the commit through lift + hop +
+         * touchdown — the real destination token paints silently under the
+         * settled proxy (targeted preview + marker-baseline pre-adoption),
+         * so the marker hold below sees no remaining nomad diff.
+         */
+        const nomadMoveEvent = detectNomadMove(
+          currentView().game?.spaces, newView.game?.spaces);
+        if (nomadMoveEvent !== undefined) {
+          transportHolds.nomadMove = true;
+          try {
+            await runNomadMove(currentView().game.spaces, newView.game.spaces);
+          } finally {
+            transportHolds.nomadMove = false;
+          }
+        }
+        /*
          * Console COLONY-TRADE launch gate (send a trade fleet to the
          * planet). The ship is already flying to the target berth; HOLD the
          * commit until it DOCKS. Runs BEFORE the bot staging: a trade that
@@ -639,6 +669,11 @@ function fetchPlayerInput(url: string, options: RequestInit, wgtSubmit: boolean)
               viewerColor: newView.thisPlayer?.color,
               aresGrants: newView.game?.aresAdjacencyGrants,
             });
+            // …and a nomad camp that moved in the batch (a concurrent human's
+            // move riding the bot's turns): commit hidden, hop at reveal.
+            stageRemoteNomadMove(currentView().game?.spaces, newView.game?.spaces, {
+              gamePhase: newView.game?.phase,
+            });
             if (shouldHoldForTilePlacement(currentView().game.spaces, newView.game.spaces)) {
               armPlacementAnimations();
             }
@@ -669,6 +704,11 @@ function fetchPlayerInput(url: string, options: RequestInit, wgtSubmit: boolean)
               void endTilePlacement();
             });
           }
+          if (nomadMoveEvent !== undefined) {
+            void nextTick(() => {
+              void endNomadMove();
+            });
+          }
           // …and the docked trade fleet: the ship has landed (the gate
           // above awaited the dock); release the proxy now — the staged
           // pipeline commits the docked board state with the bot's last
@@ -695,6 +735,14 @@ function fetchPlayerInput(url: string, options: RequestInit, wgtSubmit: boolean)
           viewerColor: newView.thisPlayer?.color,
           aresGrants: newView.game?.aresAdjacencyGrants,
         });
+        // …and a REMOTE nomad hop riding the viewer's own submit response (a
+        // concurrent human's move that resolved while the POST was in
+        // flight). The viewer's own armed move was already consumed by the
+        // nomad gate above; an undo restore also lands here (the camp
+        // honestly walks back).
+        stageRemoteNomadMove(currentView().game?.spaces, newView.game?.spaces, {
+          gamePhase: newView.game?.phase,
+        });
         const markerHold = wgtSubmit && shouldHoldForMarkerAnimation(newView);
         const tileHold = shouldHoldForTilePlacement(
           currentView().game.spaces,
@@ -709,6 +757,12 @@ function fetchPlayerInput(url: string, options: RequestInit, wgtSubmit: boolean)
           currentView().game.spaces,
           newView.game.spaces,
         );
+        // Measured NOW — the preview below mutates the displayed spaces, and
+        // a duration read after it would see no landed markers left. The diff
+        // picks the longest landing this response contains (a nomads first
+        // landing outlasts the cathedral's drop).
+        const cathedralHoldMs = cathedralHold ? markerPlacementHoldDurationMs(
+          currentView().game.spaces, newView.game.spaces) : 0;
         // A PLAYER MARKER claimed an empty cell (Land Claim, an Arcadian
         // community): a colour-only diff — the cube popped in without this.
         // A claim collects NOTHING, so this branch stays a pure landing.
@@ -773,7 +827,7 @@ function fetchPlayerInput(url: string, options: RequestInit, wgtSubmit: boolean)
             tileHold ? placementHoldDurationMs() : 0,
             // The FULL landing (not the shorter perceptual window): the
             // prompt this marker causes opens strictly after it settles.
-            cathedralHold ? markerPlacementHoldDurationMs() : 0,
+            cathedralHoldMs,
             ownerCubeHold ? ownerCubeHoldDurationMs() : 0,
           );
           try {
@@ -910,6 +964,14 @@ function fetchPlayerInput(url: string, options: RequestInit, wgtSubmit: boolean)
             void endTilePlacement();
           });
         }
+        if (nomadMoveEvent !== undefined) {
+          // The REWARD + RESTORE beats of the move: the displaced icons
+          // become physical chips and pay out, then the cell's printed
+          // bonuses materialize back — the field is not exhausted.
+          void nextTick(() => {
+            void endNomadMove();
+          });
+        }
         return;
       }
 
@@ -992,6 +1054,9 @@ function abortAllConsoleTransactions(): void {
   // …and the tile-placement hero: no tile flies, no bonus is collected.
   transportHolds.tilePlacementHero = false;
   abortTilePlacement();
+  // …and the nomad move: the camp never lifts off, nothing is collected.
+  transportHolds.nomadMove = false;
+  abortNomadMove();
   // …and the colony-build hero: no cube drops, no bonus is collected.
   transportHolds.colonyBuild = false;
   abortColonyBuild();

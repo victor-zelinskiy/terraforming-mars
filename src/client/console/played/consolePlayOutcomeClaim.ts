@@ -40,6 +40,7 @@ import {
   WorkspaceOutcomeHost,
   WorkspaceOutcomeKind,
   claimWorkspaceOutcome,
+  rehomeWorkspaceOutcome,
   setWorkspaceOutcomeSlot,
 } from '@/client/console/consoleWorkspaceOutcome';
 import {
@@ -49,7 +50,7 @@ import {
 import {playedHeroLandingPrewarm, playedHeroLandingUp} from '@/client/console/played/consolePlayedHero';
 import {workspaceOutcomeState} from '@/client/console/consoleWorkspaceOutcome';
 import {deckDrawDealing} from '@/client/console/deckDraw/consoleDeckDraw';
-import {reactive} from 'vue';
+import {nextTick, reactive} from 'vue';
 
 /** The landing scene's EXIT window — see `playLandingReleasing`. */
 const landingRelease = reactive({releasing: false});
@@ -106,6 +107,49 @@ export function playOutcomeHost(): PlayOutcomeHostSpec | undefined {
   return PLAY_OUTCOME_HOSTS.find((spec) => spec.inFlowOnly ?
     workspaceFrameDescended(spec.host) :
     workspaceFrameMounted(spec.host));
+}
+
+/**
+ * THE STEP IS OVER, THE FLOW IS NOT — hand this play's outcome UP to the
+ * workspace that was hosting the step, and answer whether anybody took it.
+ *
+ * The hand can stand INSIDE the start workspace («Эпатажный спонсор»), and its
+ * ONLY purpose there is the play: the step unmounts as soon as the card lands,
+ * which is several beats before the play's own follow-up exists. Releasing the
+ * claim on that unmount left the pick «Деловые контакты» raises with no owner
+ * at all — a standalone «ДОБОР КАРТ» band over a start workspace that had
+ * never gone anywhere, and a deployment that then advanced its own stage on
+ * top of it because nothing said a step was still owed.
+ *
+ * So the same table answers the exit: skip the host that is leaving, take the
+ * next one still live. `undefined` when there is none — the play really did
+ * end with the step, and the caller releases as before.
+ */
+export function rehomePlayOutcome(leaving: WorkspaceOutcomeHost): boolean {
+  const spec = PLAY_OUTCOME_HOSTS.find((candidate) => candidate.host !== leaving && (candidate.inFlowOnly ?
+    workspaceFrameDescended(candidate.host) :
+    workspaceFrameMounted(candidate.host)));
+  if (spec === undefined) {
+    return false;
+  }
+  // THE ZONE IS PUBLISHED A TICK LATE, AND THAT IS THE POINT. The new host's
+  // zone does not exist yet: the step is unmounting in this very patch, and the
+  // surfaces it was covering re-render as part of it — while a `<Teleport>` in
+  // the SHELL is patched BEFORE its child scene renders them. Named here and
+  // now, the target does not resolve and Vue leaves the content where it stands
+  // (measured: the pick rendered as a bare full-viewport child of `.con-root`,
+  // stripped of its own chrome because it believed it was embedded).
+  //
+  // An empty slot is the console's own «claimed but not ready» state, which
+  // renders the surface NOWHERE for the gap frame — never in a band of its own
+  // for one frame and then somewhere else.
+  rehomeWorkspaceOutcome(spec.host, '');
+  void nextTick(() => {
+    if (workspaceOutcomeState.host === spec.host && workspaceOutcomeState.sourceCard !== '') {
+      setWorkspaceOutcomeSlot(spec.zone);
+    }
+  });
+  return true;
 }
 
 /**

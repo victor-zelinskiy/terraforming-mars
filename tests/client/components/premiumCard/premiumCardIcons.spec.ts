@@ -60,9 +60,12 @@ describe('premiumCardIcons.mechItemIcon', () => {
     expect(mechItemIcon(itemNode(CardRenderItemType.TRADE_DISCOUNT))).to.deep.equal({kind: 'token'});
   });
 
-  it('community + nomads reuse the premium player cube (representative colour)', () => {
+  it('community reuses the premium player cube (representative colour)', () => {
     expect(mechItemIcon(itemNode(CardRenderItemType.COMMUNITY))).to.deep.equal({kind: 'cube', color: 'orange'});
-    expect(mechItemIcon(itemNode(CardRenderItemType.NOMADS))).to.deep.equal({kind: 'cube', color: 'bronze'});
+  });
+
+  it('nomads render the dedicated NomadToken (the board\'s own camp marker, never a player cube)', () => {
+    expect(mechItemIcon(itemNode(CardRenderItemType.NOMADS))).to.deep.equal({kind: 'nomad'});
   });
 
   it('fork premium primitives resolve to their SVG (graphic replacements for prose)', () => {

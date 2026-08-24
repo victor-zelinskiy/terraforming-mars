@@ -30,8 +30,15 @@
              :class="{'board-cube--placing': cathedralPlacing}"
              :style="markerPlacementStyle"></div>
       </template>
-      <template v-if="space.nomads === true">
-        <div class='board-cube--nomad'></div>
+      <!-- The Mars Nomads camp — the premium NomadToken. Flow A (the first
+           landing) plays via the shared marker framework (nomadPlacing);
+           during a MOVE the cell may be reveal-HELD (destination commits
+           hidden until the hop's touchdown) or carry a GHOST (the source
+           keeps the token after the commit until its proxy lifts off). -->
+      <template v-if="showNomadToken">
+        <div class='board-nomad' :style="nomadLandingStyle">
+          <nomad-token :size="16" :landing="nomadPlacing ? 'drop' : 'none'"></nomad-token>
+        </div>
       </template>
       <underground-token v-if="claimedToken !== undefined" :token="claimedToken" location="board"></underground-token>
       <div v-if="space.excavator !== undefined" class="underground-excavator" :class="'underground-excavator--' + space.excavator"></div>
@@ -47,6 +54,7 @@ import {defineComponent} from 'vue';
 import Bonus from '@/client/components/Bonus.vue';
 import BoardSpaceTile from '@/client/components/board/BoardSpaceTile.vue';
 import PlayerCube from '@/client/components/PlayerCube.vue';
+import NomadToken from '@/client/components/NomadToken.vue';
 import UndergroundToken from '@/client/components/underworld/UndergroundToken.vue';
 import {TileView} from '@/client/components/board/TileView';
 import {SpaceModel} from '@/common/models/SpaceModel';
@@ -55,6 +63,7 @@ import {getSpaceName} from '@/common/boards/spaces';
 import {SpaceType} from '@/common/boards/SpaceType';
 import {placementRenderState} from '@/client/components/board/placementRenderState';
 import {isRemoteRevealHeld, heldPrevTileOf} from '@/client/console/tilePlacement/remoteRevealHold';
+import {nomadCellHidden, nomadGhostAt} from '@/client/console/nomads/consoleNomadMove';
 import {observeCube, cubePhase as cubePhaseForSpace, CubePhase} from '@/client/components/board/cubeDropState';
 import {clearActiveMarker, observeMarkerPlacement} from '@/client/components/board/markerPlacementAnimation';
 
@@ -63,6 +72,10 @@ type Data = {
   markerDurationMs: number;
   markerDelayMs: number;
   markerTimer: number | null;
+  nomadPlacing: boolean;
+  nomadDurationMs: number;
+  nomadDelayMs: number;
+  nomadTimer: number | null;
 };
 
 export default defineComponent({
@@ -90,12 +103,17 @@ export default defineComponent({
       markerDurationMs: 0,
       markerDelayMs: 0,
       markerTimer: null,
+      nomadPlacing: false,
+      nomadDurationMs: 0,
+      nomadDelayMs: 0,
+      nomadTimer: null,
     };
   },
   components: {
     'bonus': Bonus,
     'board-space-tile': BoardSpaceTile,
     'player-cube': PlayerCube,
+    'nomad-token': NomadToken,
     'underground-token': UndergroundToken,
   },
   watch: {
@@ -116,11 +134,24 @@ export default defineComponent({
         this.refreshMarkerPlacement();
       },
     },
+    // The Mars Nomads FIRST LANDING (Flow A) — the same framework, its own
+    // richer descent. A MOVE never reaches this beat: the move scene
+    // pre-adopts both cells in the marker baseline before flipping flags.
+    'space.nomads': {
+      immediate: true,
+      handler(): void {
+        this.refreshNomadPlacement();
+      },
+    },
   },
   beforeUnmount() {
     if (this.markerTimer !== null) {
       clearTimeout(this.markerTimer);
       this.markerTimer = null;
+    }
+    if (this.nomadTimer !== null) {
+      clearTimeout(this.nomadTimer);
+      this.nomadTimer = null;
     }
   },
   methods: {
@@ -143,6 +174,27 @@ export default defineComponent({
         this.cathedralPlacing = false;
         this.markerTimer = null;
         clearActiveMarker(spaceId);
+      }, remaining);
+    },
+    refreshNomadPlacement(): void {
+      if (this.nomadTimer !== null) {
+        clearTimeout(this.nomadTimer);
+        this.nomadTimer = null;
+      }
+      const result = observeMarkerPlacement(this.space, 'nomads');
+      if (result === null) {
+        this.nomadPlacing = false;
+        return;
+      }
+      this.nomadPlacing = true;
+      this.nomadDurationMs = result.durationMs;
+      this.nomadDelayMs = result.delayMs;
+      const spaceId = this.space.id;
+      const remaining = Math.max(0, result.durationMs + result.delayMs) + 40;
+      this.nomadTimer = window.setTimeout(() => {
+        this.nomadPlacing = false;
+        this.nomadTimer = null;
+        clearActiveMarker(spaceId, 'nomads');
       }, remaining);
     },
   },
@@ -181,6 +233,32 @@ export default defineComponent({
       return {
         '--marker-placement-duration': `${this.markerDurationMs}ms`,
         '--marker-placement-delay': `${this.markerDelayMs}ms`,
+      };
+    },
+    /**
+     * The camp renders while the flag stands AND the cell is not reveal-held
+     * (a move commits the destination hidden until its proxy's touchdown) —
+     * OR while the cell carries the move scene's source GHOST (the flag is
+     * already gone, but the hop hasn't physically lifted off yet).
+     */
+    showNomadToken(): boolean {
+      if (this.tileView !== 'show') {
+        return false;
+      }
+      if (nomadGhostAt(this.space.id)) {
+        return true;
+      }
+      return this.space.nomads === true && !nomadCellHidden(this.space.id);
+    },
+    // The landing keyframe's duration/delay (same resume contract as the
+    // cathedral marker above).
+    nomadLandingStyle(): Record<string, string> {
+      if (!this.nomadPlacing) {
+        return {};
+      }
+      return {
+        '--nomad-landing-duration': `${this.nomadDurationMs}ms`,
+        '--nomad-landing-delay': `${this.nomadDelayMs}ms`,
       };
     },
     claimedToken(): ClaimedToken | undefined {

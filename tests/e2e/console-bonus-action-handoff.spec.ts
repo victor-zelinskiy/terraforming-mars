@@ -126,7 +126,11 @@ test.describe('console — Head Start bonus actions', () => {
 
     // ── 1b. THE ORDERING CHOICE — claim the steel BEFORE the actions ────────
     await expect(page.locator('.con-start__gainrow'), 'both gains offered').toHaveCount(2);
-    await page.keyboard.press('ArrowDown'); // → the steel row
+    // The panel's cursor is in VISUAL order — the rows are drawn ABOVE the
+    // CTA it opens on, so ↑↑ walks up to the steel row.
+    await page.keyboard.press('ArrowUp');
+    await page.keyboard.press('ArrowUp');
+    await expect(page.locator('.con-start__gainrow').nth(0)).toHaveClass(/--focused/);
     await page.keyboard.press('Enter');
     await expect(page.locator('.con-start__gainrow'), 'the claimed row is gone')
       .toHaveCount(1, {timeout: 20_000});

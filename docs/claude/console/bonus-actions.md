@@ -329,16 +329,37 @@ and the claim shrinks, draw and it grows. The tail line says what happens to
 whatever is never claimed. Both stage panels (the overview and the nested
 sub-stage) host the same zone.
 
-**The focus grammar separates PERFORM from CLAIM.** `stageRowIdx` is the
-panel's cursor: 0 = the stage's own CTA, 1.. = the gain rows; up/down walk it
-(`onNav` owns the pad while a panel stands). The CTA wears an explicit focus
-ring (`--focused`, dim otherwise) and the bar relabels A per focus —
-«Перейти …» / «Выполнить …» on the CTA, «Получить сейчас» on a row
-(`stageGainFocused` → `startSceneCommands`) — so a claim can never be an
-accident of invisible focus. A on a row submits that gain's option
-(`claimStageGain`, latched by `gainClaimPending`). ⚠️ After a claim the cursor
-comes home to the CTA — the remaining row slides into the claimed one's slot,
-so a repeated A would otherwise claim a gain the player never pointed at.
+**The focus grammar separates PERFORM from CLAIM**, and it cost four separate
+defects to get right — every one of them a way for one press to mean two
+things.
+
+- **The cursor is in VISUAL order.** The gain rows are drawn ABOVE the CTA, so
+  the cursor indexes them `0..n-1` and the CTA is `n` (`stageCtaIdx`): ↓ walks
+  toward the CTA, ↑ toward the first row. It used to be «0 = CTA, 1.. = rows»,
+  which made ↓ walk UP the screen and ↑ on the CTA a dead press — from the
+  couch that reads as a d-pad that drops inputs, not as an inverted list.
+- **No d-pad direction is dead.** The panel is one column, so all four walk it
+  (`onNav`): a direction that does nothing is indistinguishable from a lost
+  press.
+- **HOME IS DERIVED, NEVER SEEDED** (`stageCursor: undefined` → `stageFocusIdx`
+  falls back to `stageCtaIdx`). A stored default is only correct if something
+  writes it at the right moment, and a panel already standing when the scene
+  mounts fires no watcher — so the cursor opened on a GAIN ROW and the bar
+  offered «Получить сейчас» to a player who had pressed nothing.
+- **EXACTLY ONE «A» IS LIT.** Both the CTA and every row render the glyph
+  ALWAYS (`--idle` = `opacity: 0`, box reserved) and only the focused one
+  paints it. Two lit A's said both plates answered the same button — which is
+  how a claim happened by accident — and a `v-if` glyph re-fitted the row and
+  visibly moved the whole shrink-to-fit panel on every focus change. The bar
+  relabels A to match («Перейти …» / «Выполнить …» ↔ «Получить сейчас»,
+  `stageGainFocused` → `startSceneCommands`), and the gains caption carries a
+  quiet `dpad` hint so stepping onto a row is discoverable rather than
+  remembered.
+
+A on a row submits that gain's option (`claimStageGain`, latched by
+`gainClaimPending`). ⚠️ After a claim the cursor comes home to the CTA — the
+remaining row slides into the claimed one's slot, so a repeated A would
+otherwise claim a gain the player never pointed at.
 
 ## 4d. The journey rail, and the one thing a progress readout may never do
 
@@ -362,13 +383,41 @@ The rail then reads `✓КОРПОРАЦИЯ → ✓ПРОЕКТЫ → ③ПРО
 `… → ③ПРОЛОГИ → ✓БОНУСНЫЕ ДЕЙСТВИЯ → …` when the player comes back — one
 forward walk, no ✓ ever withdrawn.
 
-**The stage owns the room.** While the briefing stands, `.con-start--bonusroom`
-recedes the deployment QUEUE to `opacity: .16` (the briefing is centred and
-would otherwise cross the remaining prelude's card). Deliberately an opacity
-recede and not the first-action stage's GSAP pose: nothing moves, every rect
-stays measurable for the flights that resume the moment the workspace returns,
-and the beat is one press long. «РАЗЫГРАНО» keeps its light — the plate does not
-reach it, and it is the record of what the player has already done.
+**The stage owns the room — but «РАЗЫГРАНО» IS NOT PART OF THE ROOM.**
+
+The QUEUE recedes (the plate is centred and would otherwise cross the remaining
+prelude's card): the descend phrase, one derived bit → one pair of phrases
+(`stageOwnsRoom` → `runQueueRelease` / `runQueueReturn`).
+
+The SHELF stays. It used to recede with the queue, and that made every seat
+motion end in nothing: the seated card EMERGES from «РАЗЫГРАНО» and SETTLES
+back into it — and inside the bonus window it does BOTH AGAIN for the
+corporation swap — so a receded shelf is a card shrinking toward a place the
+player cannot see («свап карты происходит в пустоту»). `shelfOnStage`
+(`stageOwnsRoom && !embedPresenting`) drives two things that therefore cannot
+disagree:
+
+- **the shelf TUCKS instead of leaving** (`.con-start--shelfstage`): the band
+  caps at `--con-start-shelf-peek` (9rem) with the stacks aligned to its TOP,
+  so names and art stay readable and an inner bottom shadow says the cards
+  continue below the edge. Not transitioned — `max-height` is layout, and the
+  change always happens under a bigger motion (the queue's recede, the seat's
+  rise);
+- **the stage's zone STOPS at that band** (`.con-start__embed--shelfstage`
+  sets `bottom`), so the seat and its plate lay out ABOVE the shelf rather
+  than over it. Both stage panels are `top: 50%` inside that zone, so one
+  declaration re-centres the whole stage.
+
+An embedded STEP (a reveal, a deck pick) still takes the WHOLE room — it needs
+every pixel and nothing is flying to the shelf during it — through its own
+phrase (`embedPresenting` / `embedActive` watchers). The restore pose
+(`poseRoomReceded`) poses the QUEUE only, so a stage that comes back from a
+collapse finds its shelf exactly where it belongs.
+
+The result is that the swap is legible IN THE SHELF: on the overview the
+prelude's place stands empty (its card is seated) while the corporation lies in
+its own; in the sub-stage the two have traded. That exchange is what the e2e
+asserts, and the stage's bottom edge is asserted to clear the shelf band.
 
 ---
 
@@ -428,8 +477,9 @@ would print «2/2» on the player's FIRST bonus action.
 | `tests/client/components/console/consoleStartUi.spec.ts` | the CTA names the destination; the stage outranks the first-action stage |
 | `tests/client/components/console/consoleQuickModel.spec.ts` | only the two turn-control slots are blocked, they name the rule, a parked decision still outranks it |
 | `tests/client/components/overview/bonusActionStatus.spec.ts` | the label on every seat + the counter that counts bonuses |
+| `tests/e2e/console-first-action-draw.spec.ts` | the shelf's half of the same contract on the ORDINARY first-action stage: it stays painted under the briefing with the corp's place empty, the briefing clears its band, and the room still comes back for the drawn candidates |
 | `tests/e2e/console-bonus-action-handoff.spec.ts` | the whole flow on a real board: announce (+ the steel claimed EARLY, no action spent) → A → the workspace is GONE → the hand as its own screen → the wheel refuses only the turn-control verbs → both bonuses → the return → the unclaimed M€ auto-resolved |
-| `tests/e2e/console-bonus-nested-first-action.spec.ts` | the nested case: both markers (+ the M€ rate) on the wire, the OVERVIEW first (plan with the corp chip, current item), a gain claimed ON the corp prompt costing no action, A descends (seat swaps to the corp, 1/2 chip, crumb keeps «Фора»), B walks back up with the claim intact, the rail without a standalone first-action chapter |
+| `tests/e2e/console-bonus-nested-first-action.spec.ts` | the nested case: both markers (+ the M€ rate) on the wire, the OVERVIEW first (plan with the corp chip, current item), the cursor's VISUAL order (↑ lands on the row nearest the CTA) with exactly one lit «A» and a panel box that does not move, the SHELF standing under the stage with the seat's place empty in it, a gain claimed ON the corp prompt costing no action, the cursor home after it, A descends (seat swaps to the corp, 1/2 chip, crumb keeps «Фора»), B walks back up with the claim intact, the rail without a standalone first-action chapter |
 
 ⚠️ **An e2e may not spend the viewer's own bonus over the API.** The client
 deliberately refuses a poll-driven refresh while the VIEWER holds a prompt

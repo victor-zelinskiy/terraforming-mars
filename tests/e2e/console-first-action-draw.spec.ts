@@ -18,6 +18,10 @@ import {bootIntoGame, soloGameConfig, waitQueueIdle} from './consoleStart';
  *    must be back and MEASURABLE, or the hero has no landing target and the
  *    card commits in one frame («разыгрывается одним кадром»).
  *
+ * …and the shelf itself now STAYS through the briefing (tucked to its peek,
+ * the stage laid out above it): it is where the seated card came from and
+ * where it settles back, so receding it made that swap happen in a void.
+ *
  * Both are asserted as VISIBILITY OF THE REAL SURFACES at the moment they are
  * needed, plus the hero proxy actually existing for the play.
  */
@@ -79,14 +83,22 @@ test.describe('console first action · a drawn pick (Valley Trust)', () => {
     await page.waitForTimeout(1200);
     await shoot(page, '01-stage');
 
-    // The briefing owns the room: the surface that HAS content here — the
-    // played shelf (the corporation + the played preludes) — is receded.
-    // (The queue itself is empty at this point: every prelude is played, so
-    // «is the queue away» is not an observable claim yet — the assertion
-    // that matters for the queue is that it is BACK when the drawn
-    // candidates arrive, below.)
+    // THE BRIEFING OWNS THE ROOM — but «РАЗЫГРАНО» IS NOT PART OF IT.
+    //
+    // It used to recede with the queue, and that made both halves of the seat
+    // swap fly into nothing: the corporation EMERGES from this shelf and
+    // SETTLES back into it, so a receded shelf is a card shrinking toward a
+    // place the player cannot see. It stays lit and merely TUCKS to its peek
+    // band (`--shelfstage`), with the stage laid out ABOVE it. The seat's own
+    // place in it stands EMPTY, which is the visible half of the same fact.
     expect(await painted(page, '.con-splayed'),
-      'while the briefing stands, «РАЗЫГРАНО» is away').toBeFalsy();
+      'the shelf stays on stage — it is the seat\'s own home').toBeTruthy();
+    const stageBox = await stage.boundingBox();
+    const shelfBox = await page.locator('.con-splayed').boundingBox();
+    expect((stageBox?.y ?? 0) + (stageBox?.height ?? 0),
+      'and the briefing is laid out above it, never over it').toBeLessThanOrEqual(shelfBox?.y ?? 0);
+    expect(await page.locator('[data-played-key="Valley Trust"] .con-splayed__place').count(),
+      'the seated corporation left its place empty').toBe(1);
 
     // A performs the first action → the three preludes are drawn as a PICK.
     await page.keyboard.press('Enter');

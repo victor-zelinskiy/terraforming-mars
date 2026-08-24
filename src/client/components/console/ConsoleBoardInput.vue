@@ -67,6 +67,7 @@ import BoardPlacementPreviewContent from '@/client/components/board/BoardPlaceme
 import {fetchBoardCellPreview} from '@/client/components/board/boardInfoState';
 import {BoardPlacementPreview} from '@/common/boards/BoardInformationFacts';
 import {armTilePlacement} from '@/client/console/tilePlacement/consoleTilePlacement';
+import {armNomadMove} from '@/client/console/nomads/consoleNomadMove';
 
 /**
  * Marker attribute on cells we annotated with an illegal-reason tooltip.
@@ -370,13 +371,25 @@ export default defineComponent({
         console.warn('[board-input] save without a selected space — ignored');
         return;
       }
-      // CONSOLE PLACEMENT HERO: ARM the premium tile-flight transaction BEFORE
+      // CONSOLE PLACEMENT HERO: ARM the matching premium transaction BEFORE
       // the submit. Every console placement source funnels through this ONE
       // binder (card follow-up / standard project / card action / WGT ocean /
-      // convert-plants), so this is the single arming point. The transport
-      // gate then verifies the server's word before anything visual happens —
-      // a refused pick unwinds with zero trace.
-      armTilePlacement({spaceId: this.spaceId});
+      // convert-plants), so this is the single arming point. WHICH scene owns
+      // the pick is the SERVER's own declaration (`placementEffect`), never a
+      // client guess:
+      //  - 'bonus-only' (Mars Nomads moving its camp) → the nomad-move hop;
+      //  - 'marker' (Land Claim / Arcadian / the nomads' FIRST placement) →
+      //    no hero at all — those are plain landings served by the shared
+      //    marker/owner-cube frameworks, and they grant NOTHING;
+      //  - default → the tile-flight hero.
+      // The transport gate then verifies the server's word before anything
+      // visual happens — a refused pick unwinds with zero trace.
+      const effect = this.playerinput.placementEffect ?? 'tile';
+      if (effect === 'bonus-only') {
+        armNomadMove({toSpaceId: this.spaceId});
+      } else if (effect !== 'marker') {
+        armTilePlacement({spaceId: this.spaceId});
+      }
       this.onsave({type: 'space', spaceId: this.spaceId});
     },
   },

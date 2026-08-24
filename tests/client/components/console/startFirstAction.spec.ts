@@ -1,8 +1,9 @@
 import {expect} from 'chai';
 import {
   firstActionActionable, firstActionAsk, firstActionBranch, firstActionDrawExpected,
-  firstActionOwed, firstActionStageCorp, startWaitMate,
+  firstActionOwed, firstActionStageCorp, startFlowOtherPromptStands, startWaitMate,
 } from '@/client/console/startFirstAction';
+import {ACTION_MENU_FIRST_TITLE} from '@/common/inputs/actionMenuTitles';
 import {PlayerViewModel} from '@/common/models/PlayerModel';
 import {ActionPreview} from '@/common/models/ActionPreviewModel';
 import {LogMessageDataType} from '@/common/logs/LogMessageDataType';
@@ -48,6 +49,48 @@ function view(opts: {
 }
 
 describe('startFirstAction (the first-action stage model)', () => {
+  /**
+   * THE SEQUENCE LAW — «the previous stage has not finished» in its general
+   * form, and the bug it was written for.
+   *
+   * «Эпатажный спонсор» plays «Деловые контакты», whose look-4-keep-2 raises a
+   * deck PICK. That prompt is none of the shapes the stage's enumerated
+   * blockers name, so the «ПЕРВОЕ ДЕЙСТВИЕ» stage stood up on top of the four
+   * cards the player was choosing between — in its «wait for your turn» pose,
+   * with no way back to them. The server asks ONE thing at a time, so «a prompt
+   * is up and it is not this stage's own move» is the honest general answer.
+   */
+  describe('the sequence law: another prompt means the stage before this one is still live', () => {
+    const otherPrompt = (title: string | undefined = 'Select 2 card(s) to keep') =>
+      ({waitingFor: {type: 'card', title, cards: []}} as unknown as PlayerViewModel);
+
+    it('nothing on the wire is quiet at BOTH edges (the turn-wait pose)', () => {
+      expect(startFlowOtherPromptStands(view({pending: ['Valley Trust']}))).to.be.false;
+      expect(startFlowOtherPromptStands(view({pending: ['Valley Trust']}), {allowActionMenu: true})).to.be.false;
+    });
+
+    it('the OWN marked prompt of the stage is quiet at both edges', () => {
+      const live = view({pending: ['Valley Trust'], prompt: true});
+      expect(startFlowOtherPromptStands(live)).to.be.false;
+      expect(startFlowOtherPromptStands(live, {allowActionMenu: true})).to.be.false;
+    });
+
+    it('ANY other prompt blocks — a deck pick the previous stage raised included', () => {
+      expect(startFlowOtherPromptStands(otherPrompt())).to.be.true;
+      expect(startFlowOtherPromptStands(otherPrompt(), {allowActionMenu: true})).to.be.true;
+    });
+
+    it('the ACTION MENU ends the LEAVE edge and never opens the ENTRY one', () => {
+      const menu = otherPrompt(ACTION_MENU_FIRST_TITLE);
+      // ENTRY: the start is still running — a menu there is a bonus window the
+      // workspace serves through a stage of its own.
+      expect(startFlowOtherPromptStands(menu), 'entry waits for it').to.be.true;
+      // LEAVE: the game proper has begun; holding the stage for it would leave
+      // the workspace standing for the rest of the game.
+      expect(startFlowOtherPromptStands(menu, {allowActionMenu: true}), 'the stage may go').to.be.false;
+    });
+  });
+
   it('OWED is the domain ledger plus the live marked prompt — never a client latch', () => {
     expect(firstActionOwed(view())).to.be.false;
     expect(firstActionOwed(view({pending: ['Valley Trust']})), 'the ledger alone (waiting for the turn)').to.be.true;

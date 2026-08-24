@@ -2,7 +2,7 @@ import {expect} from 'chai';
 import {
   beginPlayLandingRelease, claimPlayOutcome, isPlayOutcomeHost, markPlayLandingReleased,
   playLandingHolding, playLandingReleasing, playLandingShowing, playLandingYieldedToOutcome,
-  playOutcomeHost,
+  playOutcomeHost, rehomePlayOutcome,
 } from '@/client/console/played/consolePlayOutcomeClaim';
 import {
   markWorkspaceOutcomePresenting, releaseWorkspaceOutcome, resetWorkspaceOutcome,
@@ -236,6 +236,51 @@ describe('consolePlayOutcomeClaim — WHERE a card play\'s follow-up presents', 
       expect(playLandingShowing()).to.eq(true);
       claimPlayOutcome(LAGRANGE, 0);
       expect(playLandingReleasing(), 'the exit belongs to the play that started it').to.eq(false);
+    });
+  });
+
+  /**
+   * THE STEP ENDS, THE FLOW DOES NOT. The hand can be a STEP of the start
+   * workspace («Эпатажный спонсор»), and its only purpose there is the play:
+   * it unmounts the moment the card lands, beats before the play's own
+   * follow-up exists. Released there, the pick «Деловые контакты» raises
+   * belonged to nobody — a standalone «ДОБОР КАРТ» band over a deployment that
+   * had never gone anywhere.
+   */
+  describe('rehoming the outcome of a hosted step', () => {
+    it('hand ⊂ start → the outcome moves UP to the workspace still standing', () => {
+      standStart();
+      standHand();
+      descendIntoPlay(LAGRANGE);
+      claimPlayOutcome(LAGRANGE, 2);
+      expect(workspaceOutcomeState.host).to.eq('hand');
+      expect(rehomePlayOutcome('hand'), 'the start workspace took it').to.eq(true);
+      expect(workspaceOutcomeState.host).to.eq('start');
+      expect(workspaceOutcomeState.sourceCard, 'the same play, the same chain').to.eq(LAGRANGE);
+      expect(workspaceClaimsPick(), 'and it still answers for the pick').to.eq(true);
+      // The ZONE is deliberately NOT published here: the new host's own zone
+      // renders in this very patch, and a `<Teleport>` named at a target that
+      // does not exist yet drops its content where it stands. An empty slot is
+      // the console's «claimed but not ready» state.
+      expect(workspaceOutcomeState.embedSlot).to.eq('');
+    });
+
+    it('a stage that PRESENTED stays presenting — it moved house, it did not leave', () => {
+      standStart();
+      standHand();
+      descendIntoPlay(LAGRANGE);
+      claimPlayOutcome(LAGRANGE, 2);
+      markWorkspaceOutcomePresenting();
+      rehomePlayOutcome('hand');
+      expect(workspaceOutcomeState.stage).to.eq('presenting');
+    });
+
+    it('no host underneath → nobody takes it, and the caller releases as before', () => {
+      standHand();
+      descendIntoPlay(LAGRANGE);
+      claimPlayOutcome(LAGRANGE, 2);
+      expect(rehomePlayOutcome('hand')).to.eq(false);
+      expect(workspaceOutcomeState.host, 'untouched — the caller decides').to.eq('hand');
     });
   });
 

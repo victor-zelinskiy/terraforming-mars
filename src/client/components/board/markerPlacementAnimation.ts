@@ -42,14 +42,52 @@ import {arePlacementAnimationsArmed} from './tilePlacementAnimation';
 export const MARKER_PLACEMENT_ANIMATION_MS = 620;
 /** Reduced motion: one short controlled fade-in, no travel, no halo. */
 export const MARKER_PLACEMENT_REDUCED_MS = 200;
+/**
+ * The Mars Nomads FIRST LANDING (`nomad-landing-drop` in nomad_token.less):
+ * cell focus halo → the module materializes over the surface → descends with
+ * its shadow converging → micro-compression + dust → settle. Longer than the
+ * cathedral's drop — the camp arrives from altitude, it is not set down.
+ * The cell's printed bonuses deliberately do NOT react: the first placement
+ * grants nothing (`placementEffect: 'marker'`), so no icon may lift, no
+ * counter may move, and no collection flow may start.
+ */
+export const NOMAD_LANDING_ANIMATION_MS = 860;
 
 /** The overlay markers this framework animates (`SpaceModel` flag fields). */
-type MarkerKey = 'cathedral';
+export type MarkerKey = 'cathedral' | 'nomads';
 
-const MARKERS: ReadonlyArray<MarkerKey> = ['cathedral'];
+const MARKERS: ReadonlyArray<MarkerKey> = ['cathedral', 'nomads'];
+
+const MARKER_MS: Record<MarkerKey, number> = {
+  cathedral: MARKER_PLACEMENT_ANIMATION_MS,
+  nomads: NOMAD_LANDING_ANIMATION_MS,
+};
 
 function has(space: SpaceModel, marker: MarkerKey): boolean {
   return space[marker] === true;
+}
+
+/**
+ * A nomads flag APPEARING is only a first LANDING when no cell LOST the flag
+ * in the same response — otherwise it is the camp MOVING, which belongs to
+ * the console nomad-move scene (lift → arc → displace the bonus → collect →
+ * restore), never to this framework's descent. The cathedral has no move.
+ */
+function isMarkerMove(
+  marker: MarkerKey,
+  oldSpaces: ReadonlyArray<SpaceModel>,
+  newSpaces: ReadonlyArray<SpaceModel>,
+): boolean {
+  if (marker !== 'nomads') {
+    return false;
+  }
+  const len = Math.min(oldSpaces.length, newSpaces.length);
+  for (let i = 0; i < len; i++) {
+    if (oldSpaces[i].id === newSpaces[i].id && has(oldSpaces[i], marker) && !has(newSpaces[i], marker)) {
+      return true;
+    }
+  }
+  return false;
 }
 
 type ActiveMarker = {
@@ -118,14 +156,62 @@ export function observeMarkerPlacement(space: SpaceModel, marker: MarkerKey = 'c
     return null;
   }
 
-  const duration = motionMs(prefersReducedMotion() ? MARKER_PLACEMENT_REDUCED_MS : MARKER_PLACEMENT_ANIMATION_MS);
+  const duration = motionMs(prefersReducedMotion() ? MARKER_PLACEMENT_REDUCED_MS : MARKER_MS[marker]);
   activeMarkers.set(k, {startedAt: now(), duration});
   return {marker, durationMs: duration, delayMs: 0};
+}
+
+/**
+ * Pre-adopt a marker the CALLER is about to paint (the console nomad-move
+ * scene flips the destination flag under its own settled proxy): the
+ * baseline is set as if the marker had always been there, and any in-flight
+ * landing on that cell is dropped — so the very next `observeMarkerPlacement`
+ * is a silent no-op even if the placement-animation window happens to be
+ * open for something else in the same response.
+ */
+export function adoptMarkerSilently(spaceId: SpaceId, marker: MarkerKey): void {
+  const k = key(spaceId, marker);
+  markerBaseline.set(k, true);
+  activeMarkers.delete(k);
+}
+
+/** The mirror for a marker the caller REMOVED (the move's source cell). */
+export function forgetMarkerSilently(spaceId: SpaceId, marker: MarkerKey): void {
+  const k = key(spaceId, marker);
+  markerBaseline.set(k, false);
+  activeMarkers.delete(k);
 }
 
 /** GC the in-flight entry once the element's timer fired. */
 export function clearActiveMarker(spaceId: SpaceId, marker: MarkerKey = 'cathedral'): void {
   activeMarkers.delete(key(spaceId, marker));
+}
+
+/** Every marker kind this response LANDS (fresh appearances that are NOT a
+ *  move — a nomads move is the console move scene's, never a landing). */
+export function landedMarkersIn(
+  oldSpaces: ReadonlyArray<SpaceModel>,
+  newSpaces: ReadonlyArray<SpaceModel>,
+): Array<MarkerKey> {
+  const out: Array<MarkerKey> = [];
+  const len = Math.min(oldSpaces.length, newSpaces.length);
+  for (const marker of MARKERS) {
+    if (isMarkerMove(marker, oldSpaces, newSpaces)) {
+      continue;
+    }
+    for (let i = 0; i < len; i++) {
+      const oldSpace = oldSpaces[i];
+      const newSpace = newSpaces[i];
+      if (oldSpace.id !== newSpace.id) {
+        continue;
+      }
+      if (!has(oldSpace, marker) && has(newSpace, marker)) {
+        out.push(marker);
+        break;
+      }
+    }
+  }
+  return out;
 }
 
 /**
@@ -136,39 +222,31 @@ export function shouldHoldForMarkerPlacement(
   oldSpaces: ReadonlyArray<SpaceModel>,
   newSpaces: ReadonlyArray<SpaceModel>,
 ): boolean {
-  const len = Math.min(oldSpaces.length, newSpaces.length);
-  for (let i = 0; i < len; i++) {
-    const oldSpace = oldSpaces[i];
-    const newSpace = newSpaces[i];
-    if (oldSpace.id !== newSpace.id) {
-      continue;
-    }
-    for (const marker of MARKERS) {
-      if (!has(oldSpace, marker) && has(newSpace, marker)) {
-        return true;
-      }
-    }
-  }
-  return false;
+  return landedMarkersIn(oldSpaces, newSpaces).length > 0;
 }
 
 /**
  * Stage 1 of the marker hold (mirrors `applyTilePlacementPreview`): copy JUST
  * the fresh markers onto the displayed spaces, so the landing plays while the
  * REST of the response (the prompt it caused, resources, TR) is still held.
+ * A nomads MOVE is skipped whole — its from/to pair belongs to the console
+ * move scene, which applies its own targeted preview at the touchdown.
  */
 export function applyMarkerPlacementPreview(
   oldSpaces: ReadonlyArray<SpaceModel>,
   newSpaces: ReadonlyArray<SpaceModel>,
 ): void {
   const len = Math.min(oldSpaces.length, newSpaces.length);
-  for (let i = 0; i < len; i++) {
-    const oldSpace = oldSpaces[i];
-    const newSpace = newSpaces[i];
-    if (oldSpace.id !== newSpace.id) {
+  for (const marker of MARKERS) {
+    if (isMarkerMove(marker, oldSpaces, newSpaces)) {
       continue;
     }
-    for (const marker of MARKERS) {
+    for (let i = 0; i < len; i++) {
+      const oldSpace = oldSpaces[i];
+      const newSpace = newSpaces[i];
+      if (oldSpace.id !== newSpace.id) {
+        continue;
+      }
       if (!has(oldSpace, marker) && has(newSpace, marker)) {
         oldSpace[marker] = true;
       }
@@ -179,7 +257,20 @@ export function applyMarkerPlacementPreview(
 /**
  * How long the commit waits: the WHOLE landing, so the follow-up decision modal
  * opens strictly AFTER the marker has settled on the city (never over it).
+ * With the diff supplied, the wait covers the LONGEST landing this response
+ * actually contains (a nomads first landing runs longer than the cathedral's
+ * drop); argless keeps the historical cathedral duration.
  */
-export function markerPlacementHoldDurationMs(): number {
-  return motionMs(prefersReducedMotion() ? MARKER_PLACEMENT_REDUCED_MS : MARKER_PLACEMENT_ANIMATION_MS) + 40;
+export function markerPlacementHoldDurationMs(
+  oldSpaces?: ReadonlyArray<SpaceModel>,
+  newSpaces?: ReadonlyArray<SpaceModel>,
+): number {
+  let base = MARKER_PLACEMENT_ANIMATION_MS;
+  if (oldSpaces !== undefined && newSpaces !== undefined) {
+    const landed = landedMarkersIn(oldSpaces, newSpaces);
+    if (landed.length > 0) {
+      base = Math.max(...landed.map((m) => MARKER_MS[m]));
+    }
+  }
+  return motionMs(prefersReducedMotion() ? MARKER_PLACEMENT_REDUCED_MS : base) + 40;
 }

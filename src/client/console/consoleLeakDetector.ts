@@ -91,6 +91,10 @@ const SERVING_SURFACES: ReadonlyArray<string> = [
   // stays held through the reward beat (printed bonuses paying out) — the
   // placement stage serves it for that window.
   '.con-tileplace',
+  // The MARS NOMADS move: a follow-up prompt committed at the touchdown (an
+  // ocean/temperature placement bonus) stays held through the reward +
+  // restore beats — the hop stage serves it for that window.
+  '.con-nomadmove',
   // The DECK-DRAW scene: the reveal modal is deliberately WITHHELD while the
   // cards are still coming off the deck, so a prompt committed alongside the
   // draw has no modal for that window — the draw stage (mounted for the whole

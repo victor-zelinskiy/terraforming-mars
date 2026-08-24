@@ -202,9 +202,11 @@ export function disposeTileProxy(els: TileStageEls, durationMs: number): Promise
  * icons, visible from this same synchronous turn. The caller blanks the
  * REAL icons in the same turn (the `con-deal-hold` swap discipline), so
  * the takeover is a seamless 1:1 replacement — never a double vision.
+ * Takes the ICON ARRAY (not the whole stage) so the nomad-move scene can
+ * displace a cell's bonuses with the SAME physical rule.
  */
-export function placeBonusProxies(els: TileStageEls): void {
-  els.bonusIcons.forEach((el) => {
+export function placeBonusProxies(icons: ReadonlyArray<HTMLElement>): void {
+  icons.forEach((el) => {
     gsap.set(el, {autoAlpha: 1, y: 0, scale: 1, transformOrigin: 'center center'});
   });
 }
@@ -224,8 +226,8 @@ export type BonusPreLiftOpts = {
  * (layer order), so a bonus is never covered and never pops out from
  * beneath — the tile is revealed sliding UNDER them.
  */
-export function playBonusPreLift(els: TileStageEls, opts: BonusPreLiftOpts): void {
-  els.bonusIcons.forEach((el, i) => {
+export function playBonusPreLift(icons: ReadonlyArray<HTMLElement>, opts: BonusPreLiftOpts): void {
+  icons.forEach((el, i) => {
     gsap.timeline({delay: (opts.delayMs + i * 45) / 1000})
       .to(el, {
         y: -opts.hoverPx,
@@ -242,8 +244,8 @@ export function playBonusPreLift(els: TileStageEls, opts: BonusPreLiftOpts): voi
  * hover point, on the SAME wave stagger — one continuous
  * printed-icon → physical-chip materialization, never a swap.
  */
-export function playBonusHandoff(els: TileStageEls, opts: {count: number}): void {
-  els.bonusIcons.forEach((el, i) => {
+export function playBonusHandoff(icons: ReadonlyArray<HTMLElement>, opts: {count: number}): void {
+  icons.forEach((el, i) => {
     const delay = transferWaveDelayMs(i, opts.count);
     gsap.timeline({delay: (delay + 90) / 1000})
       .to(el, {autoAlpha: 0, scale: 1.05, duration: 0.16, ease: 'power1.in'}, 0);

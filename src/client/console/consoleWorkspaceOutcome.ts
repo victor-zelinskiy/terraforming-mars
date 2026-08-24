@@ -480,6 +480,42 @@ export function markWorkspaceOutcomePresenting(): void {
 }
 
 /**
+ * THE STEP ENDED, THE FLOW DID NOT — move a live claim UP to the workspace
+ * that was hosting the step.
+ *
+ * A card can be played INSIDE a hosted step («Эпатажный спонсор» teleports the
+ * hand into the Game Start Workspace), and the claim is placed on the DEEPEST
+ * host by construction — the hand. But that step's whole purpose is the play,
+ * so it unmounts the moment the card lands, several beats BEFORE the play's own
+ * follow-up arrives. Released there, the pick the card raised belonged to
+ * nobody: it opened as a standalone «ДОБОР КАРТ» band over a start workspace
+ * that was still standing, and the deployment — no longer seeing an embedded
+ * step — felt free to advance to its next stage ON TOP of it.
+ *
+ * The honest answer is the same «nearest live unfinished step» law the claim
+ * was placed by, applied on the way OUT: the outcome belongs to the next host
+ * still on screen, which for a hosted play is the workspace the player never
+ * left.
+ *
+ * ⚠️ THE STAGE IS NOT RESET. It reads as an obvious courtesy — «the artifact is
+ * not on screen in the NEW zone yet» — and it is a trap: the zone is published
+ * on the claim, so `workspaceOutcomeEmbedded` is TRUE on both sides of the
+ * move and never changes. The watcher that would restore `presenting` fires on
+ * a CHANGE, so a stage put back to `awaiting` here stays there forever — and
+ * `embedPresenting` is what makes the host's zone live, so the surface renders
+ * into a zone that is still posed as empty (measured: the pick painted a sliver
+ * behind the header). A claim that was on screen stays on screen; it merely
+ * moved house.
+ */
+export function rehomeWorkspaceOutcome(host: WorkspaceOutcomeHost, slot: string): void {
+  if (workspaceOutcomeState.sourceCard === '') {
+    return;
+  }
+  workspaceOutcomeState.host = host;
+  workspaceOutcomeState.embedSlot = slot;
+}
+
+/**
  * DIAGNOSTIC — WHO performed the LAST release, for the e2e lifecycle probes
  * (`__conColonyDiag`). A wrong release is a one-frame event that took three
  * instrumented e2e runs to localize once; a symbolic reason at each call site

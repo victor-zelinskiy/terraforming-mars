@@ -413,6 +413,7 @@ import {setWorkspaceFrameSlot, workspaceFrameParked} from '@/client/console/cons
 import {
   releaseWorkspaceOutcome, setWorkspaceOutcomeSlot, workspaceOutcomeState,
 } from '@/client/console/consoleWorkspaceOutcome';
+import {rehomePlayOutcome} from '@/client/console/played/consolePlayOutcomeClaim';
 import {
   handStageEnterHook,
   handStageLeaveHook,
@@ -1372,7 +1373,17 @@ export default defineComponent({
     // happens BEFORE this hook and would already have flipped it false.)
     if (this.outcome.host === 'hand' && this.outcome.sourceCard !== '' &&
         !workspaceFrameParked('hand')) {
-      releaseWorkspaceOutcome('hand-unmount');
+      // …AND «THIS STEP IS OVER» IS NOT «THE FLOW IS OVER». When the hand is a
+      // STEP of another workspace («Эпатажный спонсор» plays a project from
+      // inside the Game Start Workspace), the step exists only for the play and
+      // unmounts the moment the card lands — beats before the play's own
+      // follow-up arrives. The outcome then belongs one level UP, to the
+      // workspace the player never left; released here it belonged to nobody,
+      // and «Деловые контакты» raised its pick as a standalone band over a
+      // deployment that had already started its next stage on top of it.
+      if (!rehomePlayOutcome('hand')) {
+        releaseWorkspaceOutcome('hand-unmount');
+      }
     }
     this.ro?.disconnect();
     if (this.rafMeasure !== undefined) {

@@ -1066,6 +1066,14 @@
          (consoleTilePlacement.ts / tilePlacementDirector.ts). -->
     <ConsoleTilePlacementLayer />
 
+    <!-- The MARS NOMADS MOVE stage — the camp module lifts off its cell
+         (the contact shadow stays behind and lets go), hops to the adjacent
+         hex on one tall carried arc, displaces the destination's printed
+         bonuses, collects them through the shared resource chips and lets
+         the field materialize them back
+         (consoleNomadMove.ts / nomadMoveDirector.ts). -->
+    <ConsoleNomadMoveLayer />
+
     <!-- The COLONY-BUILD HERO stage — the player's cube physically drops into
          the built colony's slot while the slot's one-time build bonus is
          lifted out of the cell (a resource glyph rises + hands off to the
@@ -1256,7 +1264,7 @@ import {CardModel} from '@/common/models/CardModel';
 import {CardName} from '@/common/cards/CardName';
 import {Message} from '@/common/logs/Message';
 import {Payment} from '@/common/inputs/Payment';
-import {ColonyBonusCollectMeta, ColonyBonusDiscardMeta, DiscardPromptMeta, SelectCardModel, SelectColonyModel, SelectPaymentModel, SelectProjectCardToPlayModel} from '@/common/models/PlayerInputModel';
+import {ColonyBonusCollectMeta, ColonyBonusDiscardMeta, DiscardPromptMeta, PlacementEffect, SelectCardModel, SelectColonyModel, SelectPaymentModel, SelectProjectCardToPlayModel} from '@/common/models/PlayerInputModel';
 import ConsoleCardActions from '@/client/components/console/ConsoleCardActions.vue';
 import {consoleCardActionsUi, resetCardActionsFilter} from '@/client/console/consoleCardActions';
 import {getMilestone, getAward} from '@/client/MilestoneAwardManifest';
@@ -1581,7 +1589,9 @@ import {ResourceTransferSpec} from '@/client/console/resourceTransfer/resourceTr
 import {runResourceTransfers, beginPanelRewardHold, releasePanelRewardHold, clearPanelRewardHold, panelRewardHold, resetCardResourceLandings} from '@/client/console/resourceTransfer/consoleResourceTransfer';
 import {ActionCommitPlan, actionCommitHolding, consumeActionCommitPlan, releaseActionCommit} from '@/client/console/consoleActionCommit';
 import ConsoleTilePlacementLayer from '@/client/components/console/tilePlacement/ConsoleTilePlacementLayer.vue';
+import ConsoleNomadMoveLayer from '@/client/components/console/nomads/ConsoleNomadMoveLayer.vue';
 import {tilePlacementHolding, tilePlacementState} from '@/client/console/tilePlacement/consoleTilePlacement';
+import {nomadMoveState, nomadMoveHolding} from '@/client/console/nomads/consoleNomadMove';
 import ConsoleColonyBuildLayer from '@/client/components/console/colonyBuild/ConsoleColonyBuildLayer.vue';
 import {armColonyBuild, isColonyBuildActive} from '@/client/console/colonyBuild/consoleColonyBuild';
 import {SpaceBonus} from '@/common/boards/SpaceBonus';
@@ -1788,6 +1798,7 @@ export default defineComponent({
     ConsolePatentSaleLayer,
     ConsoleResourceTransferLayer,
     ConsoleTilePlacementLayer,
+    ConsoleNomadMoveLayer,
     ConsoleColonyBuildLayer,
     CardZoomModal,
     CardZoomCard,
@@ -1850,6 +1861,7 @@ export default defineComponent({
        *  never fire (the hydro black-screen bug). */
       cardDiscardTransaction,
       tilePlacementState,
+      nomadMoveState,
       /** Planet Focus (main-grid placement): phases + held global params. */
       planetFocusState,
       /** Unregister fn of the planet-focus live-params source. */
@@ -2533,6 +2545,14 @@ export default defineComponent({
       const p = this.tilePlacementState.phase;
       return this.tilePlacementState.active && p !== 'idle' && p !== 'armed' && p !== 'failed';
     },
+    /** The nomad-move hero owns the foreground (reactive twin of
+     *  `nomadMoveHolding()` — `nomadMoveState` is in data()). The remote
+     *  hop counts too: a foreign camp mid-air is the same board cinematic. */
+    nomadMoveHolds(): boolean {
+      const p = this.nomadMoveState.phase;
+      return (this.nomadMoveState.active && p !== 'idle' && p !== 'armed' && p !== 'failed') ||
+        this.nomadMoveState.remoteActive;
+    },
     /** The discard cinematic owns the screen for its bounded beat — the same
      *  contract the played / tile heroes have. Without it the task host would
      *  re-mount the instant its nested pick resolved and paint the branch list
@@ -2745,7 +2765,9 @@ export default defineComponent({
         revealOpen: this.consoleRevealMode !== undefined,
         revealPending: this.rawDrawnRevealPending,
         playedHero: this.playedHeroHolds,
-        tileHero: this.tilePlacementHolds,
+        // The nomad-move hop composes into the SAME signal: it is a board
+        // landing cinematic with the tile hero's exact admission semantics.
+        tileHero: this.tilePlacementHolds || this.nomadMoveHolds,
         // Deliberately WITHOUT the board card-bonus scene — it is armed by a
         // placement's own confirm, so it is a separate signal (see below).
         cardArrival: deckDrawHolds() || this.handDeliveryState.flights.length > 0,
@@ -3201,7 +3223,7 @@ export default defineComponent({
       return startExcursionQuiet({
         placementAsked: this.playerView.waitingFor?.type === 'space' ||
           this.convertPlantsPending !== undefined || this.taskSpacePending !== undefined,
-        tileHero: this.tilePlacementHolds,
+        tileHero: this.tilePlacementHolds || this.nomadMoveHolds,
         transfers: isResourceTransferActive(),
         boardBonus: isBoardCardBonusActive(),
         revealBusy: this.consoleRevealMode !== undefined || currentRevealEvent() !== undefined,
@@ -3347,10 +3369,12 @@ export default defineComponent({
      * `startTask` read this.
      */
     rawDrawnRevealPending(): boolean {
-      // The tile-placement hero owns the screen through its landing + reward
-      // beat, and the deck-draw scene deals the cards out first — the drawn
-      // reveal assembles only after those (same holds as the 'drawn' branch).
-      if (this.tilePlacementHolds || deckDrawHolds()) {
+      // The tile-placement / nomad-move heroes own the screen through their
+      // landing + reward beats, and the deck-draw scene deals the cards out
+      // first — the drawn reveal assembles only after those (same holds as
+      // the 'drawn' branch). For the nomad move this is what defers a
+      // card-bonus reveal until the camp has seated and the field restored.
+      if (this.tilePlacementHolds || this.nomadMoveHolds || deckDrawHolds()) {
         return false;
       }
       // A FOREIGN trade's owner-bonus batch is PARKED behind the mandatory
@@ -3534,7 +3558,14 @@ export default defineComponent({
      */
     playComposerReleasable(): boolean {
       return this.pendingPlayCard !== undefined &&
-        workspaceOutcomeState.host === 'hand' &&
+        // ANY host a PLAY can be made in, not literally the hand: when the hand
+        // was a STEP of another workspace («Эпатажный спонсор») the step ends
+        // with the play and its outcome moves UP to the host that is still
+        // standing (`rehomePlayOutcome`). Pinned to 'hand', this went false at
+        // that moment and never came back — the composer stayed mounted over
+        // the very pick it had produced. `pendingPlayCard` is what makes the
+        // widening safe: a start-QUEUE play has none, so it can never match.
+        isPlayOutcomeHost(workspaceOutcomeState.host) &&
         this.workspaceOutcomeEmbedded &&
         !isPlayedHeroActive() &&
         !playLandingShowing();
@@ -3777,7 +3808,8 @@ export default defineComponent({
         this.consoleRevealMode === undefined &&
         !this.rawDrawnRevealPending &&
         !this.playedHeroHolds &&
-        !this.tilePlacementHolds;
+        !this.tilePlacementHolds &&
+        !this.nomadMoveHolds;
     },
     /**
      * THE MANDATORY ACTION IS PAST ITS FIRST PRESENTATION — the plate/chip pair
@@ -3807,7 +3839,8 @@ export default defineComponent({
         this.consoleRevealMode === undefined &&
         !this.rawDrawnRevealPending &&
         !this.playedHeroHolds &&
-        !this.tilePlacementHolds;
+        !this.tilePlacementHolds &&
+        !this.nomadMoveHolds;
     },
     /**
      * The viewer's TOP CHIP carries the pending-decision beacon while the CTA
@@ -4081,7 +4114,7 @@ export default defineComponent({
           qualifiesForPlanetFocus(prompt.spaces, this.playerView.game.spaces)) {
         return true;
       }
-      return (this.tilePlacementState.active || isBoardCardBonusFieldPhase()) &&
+      return (this.tilePlacementState.active || this.nomadMoveState.active || isBoardCardBonusFieldPhase()) &&
         isPlanetFocusEngaged();
     },
     /**
@@ -8821,7 +8854,7 @@ export default defineComponent({
       // timers, so it can never stick. The placement's `armed` beat does NOT
       // gate (nothing visual yet — mirrors the played hero's armed policy),
       // and the pick itself can't double-fire (the arm claims the moment).
-      if (isTradeFleetActive() || isHydroMarkerActive() || isBoardCardBonusActive() || isPatentSaleActive() || tilePlacementHolding()) {
+      if (isTradeFleetActive() || isHydroMarkerActive() || isBoardCardBonusActive() || isPatentSaleActive() || tilePlacementHolding() || nomadMoveHolding()) {
         return true;
       }
       // TRADE REWARDS: the chip waves / card covers / marker glide own the
@@ -10162,7 +10195,7 @@ export default defineComponent({
           // cover must separate at submit time (never after the response).
           const targetId = this.consoleState.boardSpaceId;
           if (targetId !== undefined) {
-            this.armBoardBonusIfCardCell(targetId);
+            this.armBoardBonusIfCardCell(targetId, this.placementSpaceModel?.placementEffect);
           }
           if (board?.activate() !== true) {
             this.showNotice('Cannot place here');
@@ -11885,14 +11918,24 @@ export default defineComponent({
      * tile-source reveal is then staged instead of popping instantly). A
      * cell without the visual source (no icon in the DOM) never arms —
      * the standard reveal flow stays untouched.
+     *
+     * The SERVER's `placementEffect` gates it: a 'marker' pick (Land Claim /
+     * an Arcadian community / the nomads' FIRST placement) grants NOTHING —
+     * lifting the cover would promise a draw the commit never makes — and a
+     * 'bonus-only' pick (the nomads MOVE) DOES draw, but its cover
+     * separates at the move scene's own pre-lift beat (the arriving module
+     * displaces the cell), so the scene arms it itself.
      */
-    armBoardBonusIfCardCell(spaceId: string): void {
+    armBoardBonusIfCardCell(spaceId: string, placementEffect?: PlacementEffect): void {
       // A confirm mid-Planet-Focus-growth settles the board FIRST — this is
       // the earliest cell-anchor measurement of the commit chain (the cover
       // icon rect), and it must never read a still-moving hex. Runs before
       // the DRAW_CARD guard on purpose: armTilePlacement (the next
       // measurer) is only reached through the same submit.
       snapPlanetFocusSettled();
+      if (placementEffect !== undefined && placementEffect !== 'tile') {
+        return;
+      }
       const space = this.playerView.game.spaces.find((s) => s.id === spaceId);
       if (space === undefined || !space.bonus.includes(SpaceBonus.DRAW_CARD)) {
         return;
@@ -12806,7 +12849,8 @@ export default defineComponent({
       this.finalGreeneryCommitting = this.finalGreeneryPickPending;
       this.finalGreeneryPickPending = false;
       this.consoleState.task.deferred = false;
-      this.armBoardBonusIfCardCell(spaceResponse.spaceId);
+      this.armBoardBonusIfCardCell(spaceResponse.spaceId,
+        pending.spacePrompt.type === 'space' ? pending.spacePrompt.placementEffect : undefined);
       this.submit(orWrappedResponse(pending.index, spaceResponse));
     },
     // ── T6: reveal-result ack + notification CTAs ────────────────────────

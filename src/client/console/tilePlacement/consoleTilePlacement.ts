@@ -394,10 +394,10 @@ async function executeApproach(
     // tile DISPLACES them upward — they rise while it descends and HOVER
     // over the seated tile; a bonus is never covered, never pops out from
     // beneath. Fire-and-forget: the rise rides the flight in parallel.
-    placeBonusProxies(els);
+    placeBonusProxies(els.bonusIcons);
     holdRealBonuses();
     bonusesHovering = true;
-    playBonusPreLift(els, {
+    playBonusPreLift(els.bonusIcons, {
       delayMs: Math.round(flightMs * BONUS_PRELIFT_START_T),
       riseMs: motionMs(BONUS_RISE_MS),
       hoverPx: Math.round(BONUS_HOVER_PX * ui),
@@ -550,7 +550,7 @@ async function runPrintedBonusBeat(bonuses: ReadonlyArray<PlacementBonus>): Prom
     return;
   }
   if (els !== undefined && bonusesHovering) {
-    playBonusHandoff(els, {count: bonuses.length});
+    playBonusHandoff(els.bonusIcons, {count: bonuses.length});
   }
   await runResourceTransfers({
     specs: bonuses.map((b) => b.spec),

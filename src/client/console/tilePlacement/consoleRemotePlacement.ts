@@ -493,7 +493,7 @@ function wait(ms: number): Promise<void> {
  *  · the deck dealing — cards are physically crossing the screen;
  *  · a drawn batch still on the table.
  */
-function boardCovered(): boolean {
+export function boardCovered(): boolean {
   return workspaceStackActive() || playedHeroHolding() || isDeckDrawActive() ||
     currentRevealEvent() !== undefined;
 }

@@ -98,6 +98,7 @@ import {
 import {isPlayedHeroActive} from '@/client/console/played/consolePlayedHero';
 import {isPatentSaleActive} from '@/client/console/patentSale/consolePatentSale';
 import {tilePlacementHolding} from '@/client/console/tilePlacement/consoleTilePlacement';
+import {nomadMoveHolding} from '@/client/console/nomads/consoleNomadMove';
 import {isBoardCardBonusActive, boardCardBonusClaimsReveal, isBonusRevealStaged} from '@/client/console/boardCardBonus/consoleBoardCardBonus';
 import {colonyTradeClaimsReveal, isColonyTradeRevealStaged, isPresentedTradeReveal} from '@/client/console/colonyTrade/consoleColonyTrade';
 import {colonyResolutionUi, remoteColonyBonusHold} from '@/client/console/colonyTrade/colonyResolution';
@@ -290,7 +291,7 @@ export default defineComponent({
      */
     otherSceneOwnsScreen(): boolean {
       return isPlayedHeroActive() || isPatentSaleActive() || tilePlacementHolding() ||
-        isBoardCardBonusActive();
+        nomadMoveHolding() || isBoardCardBonusActive();
     },
   },
   watch: {

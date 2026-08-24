@@ -50,6 +50,7 @@ import {
 } from '@/client/console/boardCardBonus/boardCardBonusModel';
 import {clearColonyPayoutLiftOff, markColonyPayoutLiftOff} from '@/client/console/colonyTrade/colonyResolution';
 import {tilePlacementHolding} from '@/client/console/tilePlacement/consoleTilePlacement';
+import {nomadMoveHolding} from '@/client/console/nomads/consoleNomadMove';
 import {
   runBonusAbortVisual, runBonusCoverLift, runBonusFanOut, runBonusHandoff,
   runBonusSingleFlight, BonusCoverHandle, BonusSceneHandle,
@@ -171,9 +172,10 @@ export default defineComponent({
       // A tile-sourced reveal WITH a paying cell (an Ares adjacency draw —
       // Restricted Area:ares — or a cell draw whose submit-time arm never
       // fired) lifts its cover off that hex. It WAITS for the tile-placement
-      // hero: the cause (the tile landing + its reward beats) finishes
-      // before the neighbourhood's card answer rises.
-      if (e.source?.type === 'tile' && e.source.spaceId !== undefined && !tilePlacementHolding()) {
+      // hero AND the nomad-move hop: the cause (the landing + its reward
+      // beats) finishes before the cell's card answer rises.
+      if (e.source?.type === 'tile' && e.source.spaceId !== undefined &&
+          !tilePlacementHolding() && !nomadMoveHolding()) {
         return e;
       }
       return undefined;
@@ -199,7 +201,16 @@ export default defineComponent({
       // goes straight to staging.
       if (!boardCardBonusState.active) {
         if (e.source?.type === 'tile' && e.source.spaceId !== undefined) {
-          armBoardCardBonus({kind: 'board-tile', spaceId: e.source.spaceId});
+          // The cover's PHYSICAL SOURCE depends on what stands on the cell:
+          // a tile → the cover plate over the tile ('board-tile'); a cell
+          // with NO tile (the nomad camp collected a card bonus and its
+          // pre-lift arm never fired — icon missing / degraded) → the
+          // printed icon itself ('board-cell'), which is what is actually
+          // on screen there.
+          const spaceId = e.source.spaceId;
+          const sp = this.playerView.game.spaces.find((s) => s.id === spaceId);
+          armBoardCardBonus(sp?.tileType === undefined ?
+            {kind: 'board-cell', spaceId} : {kind: 'board-tile', spaceId});
         } else {
           armBoardCardBonus({kind: 'venus-scale'});
         }

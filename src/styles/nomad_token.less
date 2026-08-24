@@ -1,0 +1,376 @@
+// ─────────────────────────────────────────────────────────────────────────
+// THE MARS NOMADS MARKER — `NomadToken.vue`
+//
+// A sibling of the premium player cube (player_cube.less): the same
+// orthographic-isometric 3-face construction and the same flat-scene
+// animation discipline, but a DIFFERENT physical object — a low mobile
+// module of dark iridium-titanium with electrum-copper seam light and an
+// engraved wayfinder mark. It must never read as a player's ownership
+// cube: identity sits in MATERIAL + SEAMS + THE MARK, not in hue.
+//
+// Paint-baseline safe: the console strips `filter`/`text-shadow`
+// unconditionally, so nothing here depends on them — the glow/shadow are
+// soft by their own gradients. Animations touch transform/opacity only.
+//
+// The FLAT TWIN of this art (for the legacy render-DSL rows that draw the
+// card's printed action graphic — `.card-resource-nomads` in cards_v2.less)
+// carries the same palette; change one, change both:
+//   body #232830/#1b1f26/#14171d · seams #f0a95e (lit #ffd9a0 → deep #b96f34)
+// ─────────────────────────────────────────────────────────────────────────
+
+.nomad-token {
+	// ── public knobs ────────────────────────────────────────────────────
+	--nt-size: 18px;
+	// The same near-top-down camera as the player cube — one board, one light.
+	--nt-rx: -68deg;
+	--nt-ry: -16deg;
+	// ── derived geometry ────────────────────────────────────────────────
+	--nt-edge: calc(var(--nt-size) * 0.68);
+	--nt-half: calc(var(--nt-edge) / 2);
+	// ── material voice ──────────────────────────────────────────────────
+	--nt-copper: #f0a95e;
+	--nt-copper-soft: rgba(240, 169, 94, 0.42);
+	--nt-copper-faint: rgba(240, 169, 94, 0.16);
+
+	position: relative;
+	display: inline-block;
+	width: var(--nt-size);
+	height: var(--nt-size);
+	vertical-align: middle;
+
+	&__defs {
+		position: absolute;
+		width: 0;
+		height: 0;
+		pointer-events: none;
+	}
+
+	// Warm copper PRESENCE bloom — a whisper of powered-equipment light on the
+	// upper body. Gradient-soft on its own (no blur dependency); grounding
+	// belongs to the contact shadow, never to this.
+	&__glow {
+		position: absolute;
+		inset: -10%;
+		transform: translateY(-16%);
+		border-radius: 50%;
+		background: radial-gradient(closest-side, var(--nt-copper-soft), transparent 70%);
+		opacity: 0.22;
+		z-index: 0;
+		pointer-events: none;
+	}
+
+	// Two-tier contact shadow (the player cube's grounding language): a
+	// pressed near-black core right under the base + a narrow fast-falloff
+	// halo. Pure gradients — reads identically with filters stripped.
+	&__shadow {
+		position: absolute;
+		left: 50%;
+		bottom: calc(var(--nt-size) * 0.03);
+		width: calc(var(--nt-size) * 0.72);
+		height: calc(var(--nt-size) * 0.22);
+		transform: translateX(-50%);
+		background:
+			radial-gradient(ellipse 38% 52% at 50% 26%, rgba(0, 0, 0, 0.95), rgba(0, 0, 0, 0.58) 46%, transparent 64%),
+			radial-gradient(ellipse 84% 88% at 50% 42%, rgba(0, 0, 0, 0.40), rgba(0, 0, 0, 0.12) 54%, transparent 80%);
+		opacity: 1;
+		z-index: 0;
+		pointer-events: none;
+	}
+
+	// The FLAT layer that carries every entrance/landing animation — never
+	// animate the 3D cube itself (compositing flattens preserve-3d mid-tween;
+	// the player cube documents the bug).
+	&__scene {
+		position: absolute;
+		inset: 0;
+		z-index: 1;
+	}
+
+	&__cube {
+		position: absolute;
+		width: var(--nt-edge);
+		height: var(--nt-edge);
+		left: calc((var(--nt-size) - var(--nt-edge)) / 2);
+		top: calc((var(--nt-size) - var(--nt-edge)) / 2);
+		-webkit-transform-style: preserve-3d;
+		transform-style: preserve-3d;
+		-webkit-transform: rotateX(var(--nt-rx)) rotateY(var(--nt-ry));
+		transform: rotateX(var(--nt-rx)) rotateY(var(--nt-ry));
+		transform-origin: 50% 50%;
+	}
+
+	&__face {
+		position: absolute;
+		// Slight overlap at the shared edges kills the 1px seam hairline
+		// (the player cube's fix, kept verbatim).
+		width: calc(var(--nt-edge) + 0.8px);
+		height: calc(var(--nt-edge) + 0.8px);
+		left: -0.4px;
+		top: -0.4px;
+		-webkit-backface-visibility: hidden;
+		backface-visibility: hidden;
+	}
+
+	&__face--top {
+		-webkit-transform: rotateX(90deg) translateZ(var(--nt-half));
+		transform: rotateX(90deg) translateZ(var(--nt-half));
+	}
+
+	&__face--left {
+		-webkit-transform: translateZ(var(--nt-half));
+		transform: translateZ(var(--nt-half));
+	}
+
+	&__face--right {
+		-webkit-transform: rotateY(90deg) translateZ(var(--nt-half));
+		transform: rotateY(90deg) translateZ(var(--nt-half));
+	}
+
+	&__svg {
+		display: block;
+		width: 100%;
+		height: 100%;
+	}
+
+	// ── the material ────────────────────────────────────────────────────
+	// Obsidian iridium-titanium: near-black with a COOL cast, one step apart
+	// per face so the block reads lit. Deliberately far darker than any
+	// player colour — the darkest object on the board wearing warm light.
+	&__base--top {
+		fill: #232830;
+	}
+	&__base--left {
+		fill: #1b1f26;
+	}
+	&__base--right {
+		fill: #14171d;
+	}
+
+	// The charged panel seams — the token's signature. A copper inlay along
+	// the machined edges; the lid's frame is the brightest run, the shadow
+	// side barely carries current. Painted as strokes (gradient-filled via
+	// the component's defs), with a soft under-stroke standing in for glow.
+	&__seam {
+		fill: none;
+		stroke-width: 2.6;
+		opacity: 0.85;
+		stroke-linecap: round;
+	}
+	&__seam--dim {
+		opacity: 0.38;
+	}
+	&__seam--lid {
+		stroke-width: 3;
+		opacity: 0.95;
+	}
+
+	// A recessed service line across each side panel — machined, unlit.
+	&__panel {
+		fill: none;
+		stroke: rgba(0, 0, 0, 0.42);
+		stroke-width: 1.6;
+	}
+
+	// Shadow-side edge definition (the player cube's silhouette keeper).
+	&__edge-lo {
+		fill: none;
+		stroke: rgba(0, 0, 0, 0.38);
+		stroke-width: 1.6;
+		stroke-linecap: round;
+	}
+
+	// ── THE WAYFINDER (engraved route mark on the lid) ──────────────────
+	// Engraving with no filters: a dark groove stroke with the copper inlay
+	// lit INSIDE it (a thinner aligned stroke), plus a faint course chord.
+	&__mark-groove {
+		fill: rgba(8, 10, 14, 0.85);
+		stroke: rgba(0, 0, 0, 0.9);
+		stroke-width: 3;
+		stroke-linejoin: round;
+	}
+	&__mark-inlay {
+		fill: none;
+		stroke-width: 2.2;
+		opacity: 0.9;
+		stroke-linejoin: round;
+	}
+	&__mark-core {
+		fill: var(--nt-copper);
+		stroke: rgba(0, 0, 0, 0.55);
+		stroke-width: 1.2;
+	}
+	&__mark-orbit {
+		fill: none;
+		stroke: rgba(240, 169, 94, 0.5);
+		stroke-width: 2;
+		stroke-dasharray: 7 5;
+		stroke-linecap: round;
+	}
+
+	// ── Flow A stage furniture ──────────────────────────────────────────
+	// The target cell's calm focus halo (ground level, under the descent) and
+	// the one-shot landing dust ring. Both exist only while `--landing`.
+	&__halo {
+		position: absolute;
+		inset: -22%;
+		border-radius: 50%;
+		border: 1.4px solid var(--nt-copper-soft);
+		box-shadow: 0 0 7px var(--nt-copper-faint), inset 0 0 6px var(--nt-copper-faint);
+		opacity: 0;
+		z-index: 0;
+		pointer-events: none;
+	}
+	&__dust {
+		position: absolute;
+		left: 50%;
+		bottom: calc(var(--nt-size) * -0.05);
+		width: calc(var(--nt-size) * 0.9);
+		height: calc(var(--nt-size) * 0.34);
+		transform: translateX(-50%);
+		border-radius: 50%;
+		border: 1.2px solid rgba(214, 186, 148, 0.55);
+		opacity: 0;
+		z-index: 0;
+		pointer-events: none;
+	}
+}
+
+// ── FLOW A — the first landing (no bonus is collected, and none reacts) ─────
+//
+// Driven by the marker-placement framework (markerPlacementAnimation.ts →
+// BoardSpace): duration/delay arrive as custom properties, a NEGATIVE delay
+// resumes a beat a remount interrupted. Choreography: the cell acknowledges
+// (halo) → the module materializes over the surface → descends under
+// gravity while its contact shadow converges → seats with one micro-
+// compression + a dust breath → damped settle. All transform/opacity.
+
+.nomad-token--landing {
+	.nomad-token__scene {
+		animation: nomad-landing-drop var(--nomad-landing-duration, 860ms) linear var(--nomad-landing-delay, 0ms) both;
+		will-change: transform, opacity;
+	}
+	.nomad-token__shadow {
+		animation: nomad-landing-shadow var(--nomad-landing-duration, 860ms) linear var(--nomad-landing-delay, 0ms) both;
+		will-change: transform, opacity;
+	}
+	.nomad-token__glow {
+		animation: nomad-landing-glow var(--nomad-landing-duration, 860ms) ease var(--nomad-landing-delay, 0ms) both;
+	}
+	.nomad-token__halo {
+		animation: nomad-landing-halo var(--nomad-landing-duration, 860ms) ease-out var(--nomad-landing-delay, 0ms) both;
+	}
+	.nomad-token__dust {
+		animation: nomad-landing-dust var(--nomad-landing-duration, 860ms) linear var(--nomad-landing-delay, 0ms) both;
+	}
+}
+
+// The descent. `linear` at the animation level — per-keyframe easings govern
+// each segment (the player cube's smoothness recipe). The module is CLOSER
+// to the camera while high (scale) and its opacity resolves early so the
+// materialization reads as arrival, never as a pop-in.
+@keyframes nomad-landing-drop {
+	0% {
+		transform: translateY(-230%) scale(1.26, 1.26);
+		opacity: 0;
+		animation-timing-function: cubic-bezier(0.25, 0.46, 0.45, 0.94); // materialize drifting down
+	}
+	16% {
+		transform: translateY(-172%) scale(1.22, 1.22);
+		opacity: 0.85;
+		animation-timing-function: cubic-bezier(0.4, 0.04, 0.62, 0.4); // gravity takes it
+	}
+	52% {
+		transform: translateY(-14%) scale(1.05, 1.06);
+		opacity: 1;
+		animation-timing-function: cubic-bezier(0.28, 0.5, 0.45, 1); // decelerating into contact
+	}
+	64% {
+		transform: translateY(0) scale(1.07, 0.90); // contact — micro-compression
+		animation-timing-function: cubic-bezier(0.3, 0, 0.35, 1);
+	}
+	82% {
+		transform: translateY(0) scale(0.985, 1.015); // soft recover
+		animation-timing-function: ease-in-out;
+	}
+	100% {
+		transform: translateY(0) scale(1, 1);
+	}
+}
+
+// The shadow CONVERGES with the module: wide + faint at altitude, tight and
+// pressed at contact — the altitude cue that sells the height.
+@keyframes nomad-landing-shadow {
+	0% {
+		opacity: 0.12;
+		transform: translateX(-50%) scale(1.5, 1.35);
+		animation-timing-function: cubic-bezier(0.4, 0.04, 0.62, 0.4);
+	}
+	16% {
+		opacity: 0.2;
+		transform: translateX(-50%) scale(1.42, 1.3);
+	}
+	52% {
+		opacity: 0.72;
+		transform: translateX(-50%) scale(1.06, 1.04);
+		animation-timing-function: cubic-bezier(0.28, 0.5, 0.45, 1);
+	}
+	64% {
+		opacity: 1;
+		transform: translateX(-50%) scale(1.14, 1.1); // spreads at impact — weight
+	}
+	100% {
+		opacity: 0.95;
+		transform: translateX(-50%) scale(1, 1);
+	}
+}
+
+@keyframes nomad-landing-glow {
+	0% { opacity: 0; transform: translateY(-16%) scale(0.6); }
+	64% { opacity: 0.5; transform: translateY(-16%) scale(1.12); }
+	100% { opacity: 0.22; transform: translateY(-16%) scale(1); }
+}
+
+// The cell's calm acknowledgement: present through the approach, one peak at
+// contact, then it retires — the board pointing, never shouting.
+@keyframes nomad-landing-halo {
+	0% { opacity: 0; transform: scale(0.72); }
+	14% { opacity: 0.5; transform: scale(0.94); }
+	52% { opacity: 0.55; transform: scale(1); }
+	64% { opacity: 0.9; transform: scale(1.06); }
+	84% { opacity: 0.3; transform: scale(1.22); }
+	100% { opacity: 0; transform: scale(1.34); }
+}
+
+// One dust breath at contact — matter acknowledging mass, not an explosion.
+@keyframes nomad-landing-dust {
+	0%, 60% { opacity: 0; transform: translateX(-50%) scale(0.5, 0.5); }
+	66% { opacity: 0.5; transform: translateX(-50%) scale(0.8, 0.7); }
+	84% { opacity: 0.18; transform: translateX(-50%) scale(1.22, 1.05); }
+	100% { opacity: 0; transform: translateX(-50%) scale(1.4, 1.15); }
+}
+
+// Reduced motion: the module simply resolves in place — no travel, no dust,
+// no halo. The JS side already shortens the duration.
+@media (prefers-reduced-motion: reduce) {
+	.nomad-token--landing {
+		.nomad-token__scene {
+			animation: nomad-landing-reduced var(--nomad-landing-duration, 200ms) ease-out var(--nomad-landing-delay, 0ms) both;
+			will-change: opacity;
+		}
+		.nomad-token__shadow,
+		.nomad-token__glow,
+		.nomad-token__halo,
+		.nomad-token__dust {
+			animation: none;
+			opacity: 0;
+		}
+		.nomad-token__shadow {
+			opacity: 1;
+		}
+	}
+}
+
+@keyframes nomad-landing-reduced {
+	0% { opacity: 0; }
+	100% { opacity: 1; }
+}

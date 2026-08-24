@@ -22,6 +22,7 @@ import {
   corpActionOptionIndexFor,
   startFlowCorpPrompt,
 } from '@/client/components/startGameFlow/startGameFlowState';
+import {isActionMenuTitle} from '@/common/inputs/actionMenuTitles';
 import {actionLabelForPlayer, liveWaitingSignal} from '@/client/components/overview/playerLabels';
 import {presentPlayerStatus} from '@/client/components/overview/playerStatusPresenter';
 import {Color} from '@/common/Color';
@@ -36,6 +37,51 @@ import {Color} from '@/common/Color';
 export function firstActionOwed(view: PlayerViewModel): boolean {
   return (view.pendingInitialActions ?? []).length > 0 ||
     startFlowCorpPrompt(view) !== undefined;
+}
+
+/**
+ * THE PREVIOUS STAGE HAS NOT FINISHED — the viewer is still being asked
+ * something that is not this stage's own move.
+ *
+ * A DEPLOYMENT IS A SEQUENCE, and the general form of «the next stage may not
+ * start yet» is not a list of the shapes the previous one can be in — it is the
+ * server's own one-question-at-a-time contract. Exactly one prompt stands for a
+ * player at a time, so «a prompt is up and it is not the corporation's first
+ * action» IS «the work before this stage is still owed», whatever produced it.
+ *
+ * The enumerated blockers the stage used to rely on (the prelude prompt, the
+ * candidate pick, the hero, the queue, an embedded step…) are all TRUE and all
+ * still checked — but they can only ever cover the chains somebody thought of.
+ * «Эпатажный спонсор» → «Деловые контакты» produces a deck PICK, which is none
+ * of them: the stage walked in on top of the four cards the player was choosing
+ * between, in its own «wait for your turn» pose, and there was no way back to
+ * them.
+ *
+ * `allowActionMenu` is the difference between the stage's two edges. For ENTRY
+ * the menu is NOT quiet: the start is still running and a menu there is a bonus
+ * window the workspace serves through its own stage. For LEAVE it is the honest
+ * end — the game proper has begun, and holding the stage for it would strand
+ * the workspace forever. Matching the menu is the ONE sanctioned title check
+ * (`actionMenuTitles.ts`: the server SETS the title from these plain-string
+ * constants and the client DETECTS it from the same module, so i18n never
+ * rewrites it).
+ */
+export function startFlowOtherPromptStands(
+  view: PlayerViewModel,
+  opts: {allowActionMenu?: boolean} = {},
+): boolean {
+  const wf = view.waitingFor;
+  if (wf === undefined) {
+    return false;
+  }
+  if (startFlowCorpPrompt(view) !== undefined) {
+    return false;
+  }
+  if (opts.allowActionMenu === true) {
+    const title = wf.title;
+    return !isActionMenuTitle(typeof title === 'string' ? title : title?.message);
+  }
+  return true;
 }
 
 /**

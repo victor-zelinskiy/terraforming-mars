@@ -275,6 +275,7 @@ import {isPlayedHeroActive} from '@/client/console/played/consolePlayedHero';
 import {isPatentSaleActive} from '@/client/console/patentSale/consolePatentSale';
 import {isCardDiscardActive} from '@/client/console/cardDiscard/consoleCardDiscard';
 import {isTilePlacementActive} from '@/client/console/tilePlacement/consoleTilePlacement';
+import {isNomadMoveActive, stageRemoteNomadMove} from '@/client/console/nomads/consoleNomadMove';
 import {presentFreshBotTurns} from '@/client/components/marsbot/marsBotPresentation';
 import {armDeferredViewRefresh, disarmDeferredViewRefresh} from '@/client/components/deferredViewRefresh';
 import {
@@ -618,7 +619,7 @@ export default defineComponent({
           const sceneBlocked = () =>
             isEnergyConversionActive() || isHazardCleanupActive() || isTradeFleetActive() ||
             isHydroMarkerActive() || isPlayedHeroActive() || isPatentSaleActive() ||
-            isCardDiscardActive() || isTilePlacementActive();
+            isCardDiscardActive() || isTilePlacementActive() || isNomadMoveActive();
           if (sceneBlocked()) {
             armDeferredViewRefresh(sceneBlocked, () => this.update(path));
             return;
@@ -688,6 +689,14 @@ export default defineComponent({
               gamePhase: model.game.phase,
               viewerColor: (model as PlayerViewModel).thisPlayer?.color,
               aresGrants: model.game.aresAdjacencyGrants,
+            });
+            // …and a REMOTE nomad hop (another player moved the camp — this
+            // poll path is how it arrives; an undo restore lands here too and
+            // the camp honestly walks back). Staged in this same synchronous
+            // block: the source keeps a ghost, the destination commits
+            // hidden, the committed token reveals at the proxy's touchdown.
+            stageRemoteNomadMove(prevView?.game.spaces, model.game.spaces, {
+              gamePhase: model.game.phase,
             });
             // …and an OVERLAY MARKER an opponent just placed (a cathedral in
             // one of their cities) gets its own landing instead of popping in —

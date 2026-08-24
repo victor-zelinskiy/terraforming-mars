@@ -30,9 +30,12 @@ export type MechIconSpec =
   | {kind: 'label', text: string, accent?: 'prelude' | 'award'}
   /** A value-bearing light token (trade discount) — the amount rides `amountInside`. */
   | {kind: 'token'}
-  /** A premium player cube (community / nomads) — the SAME 3D board marker,
+  /** A premium player cube (community) — the SAME 3D board marker,
    *  rendered on the card in a representative colour (player-agnostic face). */
   | {kind: 'cube', color: Color}
+  /** The Mars Nomads camp — the SAME NomadToken the board renders (dark
+   *  iridium module, copper seams, engraved wayfinder), never a player cube. */
+  | {kind: 'nomad'}
   /** The CEO once-per-game action marker (`opgArrow`) — an engraved «1×»
    *  capsule + the shared action-gold arrow (`.pcard-opg`). Replaces the
    *  legacy red «OPG» PNG with a premium-native, language-neutral glyph;
@@ -372,9 +375,9 @@ export function mechItemIcon(item: ICardRenderItem): MechIconSpec | undefined {
     // the card shows the SAME cube, orange (its identity + legacy tone).
     return {kind: 'cube', color: 'orange'};
   case CardRenderItemType.NOMADS:
-    // Mars Nomads token — a bronze/gold cube (matches the physical nomad token
-    // + the legacy gold tint).
-    return {kind: 'cube', color: 'bronze'};
+    // Mars Nomads token — the premium NomadToken itself (the board's exact
+    // marker on the card face; ONE visual source for every representation).
+    return {kind: 'nomad'};
   default: {
     const url = ITEM_ICON_URL[item.type];
     if (url !== undefined) {

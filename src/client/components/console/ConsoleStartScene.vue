@@ -25,6 +25,11 @@
          // «РАЗЫГРАНО» paint for the frames before the pose lands — the
          // reported flash of a shelf that immediately disappears again.
          'con-start--roomheld': stageOwnsRoom && !roomPosed,
+         // «РАЗЫГРАНО» STAYS ON STAGE while a stage panel stands: it is the
+         // home the seated card came out of and settles back into, so the
+         // swap must have somewhere visible to happen. It tucks to a PEEK
+         // (the stacks' tops) and the stage lays out above it.
+         'con-start--shelfstage': shelfOnStage,
        }"
        :data-bonus-stage="state.bonusAct.stage"
        :data-first-stage="state.firstAct.stage"
@@ -515,6 +520,11 @@
                    // «РАЗЫГРАНО» shelf, which is exactly what it did.
                    'con-start__embed--firstact': firstActionPanelShown,
                    'con-start__embed--bonusact': bonusActionPanelShown,
+                   // …and the zone STOPS at the shelf's peeking band, so the
+                   // seat and its plate are laid out ABOVE «РАЗЫГРАНО»
+                   // instead of over it. One bit drives both the shelf's
+                   // pose and this reservation — they cannot disagree.
+                   'con-start__embed--shelfstage': shelfOnStage,
                  }">
               <div v-if="embedSourceShown !== undefined" class="con-start__embedsource" ref="embedSourceCol"
                    :class="{'con-start__embedsource--departing': embedSourceDeparting}">
@@ -595,14 +605,26 @@
                     <div class="con-start__gains-cap">
                       <i class="con-start__gains-cap-glyph" aria-hidden="true"></i>
                       <span>{{ stageGainsCaption }}</span>
+                      <span class="con-start__gains-hint">
+                        <GamepadGlyph control="dpad" /><span>{{ $t('Navigate') }}</span>
+                      </span>
                     </div>
                     <button v-for="(g, i) in stageGainRows" :key="g.index"
                             type="button"
                             class="con-start__gainrow"
-                            :class="{'con-start__gainrow--focused': stageRowIdx === i + 1}"
+                            :class="{'con-start__gainrow--focused': stageFocusIdx === i}"
                             @click="claimStageGain(g)">
                       <span class="con-start__gainrow-take">
-                        <GamepadGlyph v-if="stageRowIdx === i + 1" control="confirm" class="con-start__gainrow-glyph" />
+                        <!-- ONE «A» ON SCREEN, AND A BOX THAT NEVER MOVES.
+                             The glyph is ALWAYS in the DOM — a `v-if` here
+                             re-fitted the row on every focus change, and a
+                             shrink-to-fit panel re-fitted with it (the whole
+                             plate visibly jumped). Only the FOCUSED control
+                             paints it: two lit A's read as two different
+                             presses, which is exactly how a claim happened
+                             by accident. -->
+                        <GamepadGlyph control="confirm" class="con-start__gainrow-glyph"
+                                      :class="{'con-start__gainrow-glyph--idle': stageFocusIdx !== i}" />
                         <span class="con-start__gainrow-verb">{{ $t('Claim now') }}</span>
                       </span>
                       <b class="con-start__gainrow-amount">{{ g.amount }}</b>
@@ -622,8 +644,9 @@
                        player is not in. -->
                   <div class="con-start__firstact-state">
                     <div v-if="firstActionActionableNow" class="con-start__firstact-cta"
-                         :class="{'con-start__firstact-cta--focused': stageRowIdx === 0}">
-                      <GamepadGlyph control="confirm" class="con-start__firstact-cta-glyph" />
+                         :class="{'con-start__firstact-cta--focused': stageCtaFocused}">
+                      <GamepadGlyph control="confirm" class="con-start__firstact-cta-glyph"
+                                    :class="{'con-start__firstact-cta-glyph--idle': !stageCtaFocused}" />
                       <span class="con-start__firstact-cta-label">{{ $t('Take first action') }}</span>
                     </div>
                     <div v-else-if="state.firstAct.submitting" class="con-start__firstact-wait con-start__firstact-wait--busy">
@@ -688,14 +711,26 @@
                     <div class="con-start__gains-cap">
                       <i class="con-start__gains-cap-glyph" aria-hidden="true"></i>
                       <span>{{ stageGainsCaption }}</span>
+                      <span class="con-start__gains-hint">
+                        <GamepadGlyph control="dpad" /><span>{{ $t('Navigate') }}</span>
+                      </span>
                     </div>
                     <button v-for="(g, i) in stageGainRows" :key="g.index"
                             type="button"
                             class="con-start__gainrow"
-                            :class="{'con-start__gainrow--focused': stageRowIdx === i + 1}"
+                            :class="{'con-start__gainrow--focused': stageFocusIdx === i}"
                             @click="claimStageGain(g)">
                       <span class="con-start__gainrow-take">
-                        <GamepadGlyph v-if="stageRowIdx === i + 1" control="confirm" class="con-start__gainrow-glyph" />
+                        <!-- ONE «A» ON SCREEN, AND A BOX THAT NEVER MOVES.
+                             The glyph is ALWAYS in the DOM — a `v-if` here
+                             re-fitted the row on every focus change, and a
+                             shrink-to-fit panel re-fitted with it (the whole
+                             plate visibly jumped). Only the FOCUSED control
+                             paints it: two lit A's read as two different
+                             presses, which is exactly how a claim happened
+                             by accident. -->
+                        <GamepadGlyph control="confirm" class="con-start__gainrow-glyph"
+                                      :class="{'con-start__gainrow-glyph--idle': stageFocusIdx !== i}" />
                         <span class="con-start__gainrow-verb">{{ $t('Claim now') }}</span>
                       </span>
                       <b class="con-start__gainrow-amount">{{ g.amount }}</b>
@@ -713,8 +748,9 @@
                        a paint change on a standing panel, never a re-layout. -->
                   <div class="con-start__bonusact-state">
                     <div v-if="bonusActionBarState === 'ready'" class="con-start__bonusact-cta"
-                         :class="{'con-start__bonusact-cta--focused': stageRowIdx === 0}">
-                      <GamepadGlyph control="confirm" class="con-start__bonusact-cta-glyph" />
+                         :class="{'con-start__bonusact-cta--focused': stageCtaFocused}">
+                      <GamepadGlyph control="confirm" class="con-start__bonusact-cta-glyph"
+                                    :class="{'con-start__bonusact-cta-glyph--idle': !stageCtaFocused}" />
                       <template v-if="bonusOverviewVerb === 'firstAction'">
                         <span class="con-start__bonusact-cta-label">{{ $t('Go to the first action') }}</span>
                         <span class="con-start__bonusact-cta-tail">{{ $t('inside this workspace') }}</span>
@@ -940,7 +976,7 @@ import {
 } from '@/client/components/startGameFlow/startGameFlowState';
 import {
   firstActionActionable, firstActionAsk, firstActionBranch, firstActionDrawExpected,
-  firstActionOwed, firstActionStageCorp, startWaitMate,
+  firstActionOwed, firstActionStageCorp, startFlowOtherPromptStands, startWaitMate,
 } from '@/client/console/startFirstAction';
 import ActionEffectChip from '@/client/components/actions/ActionEffectChip.vue';
 import {skippedEffectViews} from '@/client/components/actions/skippedEffectView';
@@ -1285,7 +1321,19 @@ export default defineComponent({
       firstActionLeaveToken: 0,
       /** Focus INSIDE a standing stage panel: 0 = the stage's own CTA, 1.. =
        *  the claimable gain rows (Head Start's «получить до или после»). */
-      stageRowIdx: 0,
+      // THE STAGE PANEL'S CURSOR — an index into the panel's own VISUAL
+      // order: the gain rows top-down, the CTA last (it is drawn under
+      // them). It used to be «0 = CTA, 1.. = rows», which made ↓ walk UP the
+      // screen and ↑ on the CTA a dead press — read from the couch as «the
+      // d-pad dropped my input».
+      //
+      // `undefined` = HOME = the CTA, and it is DERIVED (`stageFocusIdx`)
+      // rather than seeded: a stored default is only correct if something
+      // writes it at the right moment, and a panel that is already standing
+      // when the scene mounts fires no watcher — so the cursor opened on a
+      // GAIN ROW and the bar offered «Получить сейчас» to a player who had
+      // pressed nothing. A press must never be pre-aimed at a claim.
+      stageCursor: undefined as number | undefined,
       /** One claim on the wire at a time (reset when the prompt answers). */
       gainClaimPending: false,
       /** GAME FRAME MATERIALIZATION: the summary layer has been SWAPPED OUT
@@ -2122,9 +2170,27 @@ export default defineComponent({
     stagePanelUp(): boolean {
       return this.bonusActionPanelShown || this.firstActionPanelShown;
     },
+    /**
+     * THE PANEL'S FOCUS TARGETS, in the order the EYE reads them: every
+     * claimable gain row (they are drawn first) and then the stage's own CTA.
+     * The d-pad walks this list, so ↓ always moves toward the CTA and ↑
+     * toward the first row — «the d-pad moves where the eye expects» is the
+     * same law the card-actions grid follows.
+     */
+    stageCtaIdx(): number {
+      return this.stageGainRows.length;
+    },
+    /** Where the cursor actually stands — HOME (the CTA) until it is moved. */
+    stageFocusIdx(): number {
+      return Math.min(this.stageCtaIdx, this.stageCursor ?? this.stageCtaIdx);
+    },
+    /** The cursor stands on the stage's CTA (the panel's last target). */
+    stageCtaFocused(): boolean {
+      return this.stageFocusIdx >= this.stageCtaIdx;
+    },
     /** The cursor stands on a gain row (the bar's A relabels to «Получить»). */
     stageGainFocused(): boolean {
-      return this.stageRowIdx > 0 && this.stageGainRows.length >= this.stageRowIdx;
+      return this.stageFocusIdx < this.stageCtaIdx;
     },
     /**
      * THE NESTED FIRST ACTION — the corp's mandatory move being spent AS bonus
@@ -2276,6 +2342,22 @@ export default defineComponent({
     stageOwnsRoom(): boolean {
       return this.firstActionOwnsRoom || this.bonusActionOwnsRoom;
     },
+    /**
+     * …AND THE SHELF IS PART OF THAT STAGE, not of the room it recedes.
+     *
+     * The seated card EMERGES from «РАЗЫГРАНО» and SETTLES back into it — and
+     * inside the bonus window it does both again for the corporation swap. A
+     * receded shelf makes every one of those flights end in nothing: the card
+     * shrinks toward an invisible place and the player is asked to believe a
+     * destination they cannot see. So while a stage PANEL owns the room the
+     * shelf stays lit and merely TUCKS (`--shelfstage`: the band peeks, the
+     * stage lays out above it) — while an embedded STEP (a reveal, a deck
+     * pick) still takes the whole room, because that step really does need
+     * every pixel and nothing is flying to the shelf during it.
+     */
+    shelfOnStage(): boolean {
+      return this.stageOwnsRoom && !this.embedPresenting;
+    },
     /** The bonus briefing's half of it (the seated granting card + its plate). */
     bonusActionOwnsRoom(): boolean {
       const stage = this.state.bonusAct.stage;
@@ -2328,6 +2410,17 @@ export default defineComponent({
       if (!this.firstActionOwedNow || this.firstActionCorpNow === undefined) {
         return false;
       }
+      // THE STAGE BEFORE THIS ONE IS STILL BEING PLAYED. The general form of
+      // it, not another shape added to the list below: the server asks one
+      // thing at a time, so anything on the wire that is not this stage's own
+      // move IS the deployment's unfinished work. «Эпатажный спонсор» playing
+      // «Деловые контакты» ends in a deck PICK — a prompt none of the
+      // enumerated blockers names — and the stage used to stand up over the
+      // four cards the player was choosing between, offering «Первое действие
+      // станет доступно на вашем ходу» and no way back.
+      if (startFlowOtherPromptStands(this.playerView)) {
+        return false;
+      }
       if (this.yielded || workspaceFrameHasNested('start')) {
         return false;
       }
@@ -2361,6 +2454,14 @@ export default defineComponent({
       // The submit's round trip is chain work too: the server has not said
       // yet what this action produces.
       if (this.state.firstAct.submitting) {
+        return false;
+      }
+      // …and so is ANYTHING the server is still asking that this stage does not
+      // serve — the general form of the enumerated chain shapes below. The
+      // ACTION MENU is the one exception, and it is the honest END: the start
+      // is over and the player's own turn has begun, so holding the stage for
+      // it would leave the workspace standing for the rest of the game.
+      if (startFlowOtherPromptStands(this.playerView, {allowActionMenu: true})) {
         return false;
       }
       return !this.yielded && !workspaceFrameHasNested('start') &&
@@ -3538,11 +3639,13 @@ export default defineComponent({
      */
     'stageGainKey'(): void {
       this.gainClaimPending = false;
-      this.stageRowIdx = 0;
+      this.stageCursor = undefined;
     },
     'stagePanelUp'(up: boolean): void {
+      // A panel opens on its CTA — the verb the stage exists for; the gains
+      // are an OPTION the player steps onto. Both edges just go HOME.
+      this.stageCursor = undefined;
       if (!up) {
-        this.stageRowIdx = 0;
         this.gainClaimPending = false;
       }
     },
@@ -3665,11 +3768,19 @@ export default defineComponent({
      * receding the room on it emptied the deployment for a draw that never
      * came.
      */
-    'embedPresenting'(now: boolean, was: boolean) {
-      if (now && !was) {
-        this.runQueueRelease();
-        this.runPlayedDockRelease();
-      }
+    'embedPresenting': {
+      // POST, because this edge can arrive in the same flush that brings the
+      // deployment back: a step handed on from ANOTHER step (the sponsor's hand
+      // hands its play's pick up to us) rises exactly as `sponsorStep` falls
+      // and the ceremony body re-renders. Asked pre-flush the two surfaces this
+      // recedes do not exist yet, and the room stayed standing behind the step.
+      flush: 'post',
+      handler(now: boolean, was: boolean) {
+        if (now && !was) {
+          this.runQueueRelease();
+          this.runPlayedDockRelease();
+        }
+      },
     },
     /** The claim released (any exit — the take finished, the backstop, the
      *  unmount): the main scene RETURNS first, then the source card carries
@@ -4510,11 +4621,12 @@ export default defineComponent({
       // and the claimable gains). The room behind it is receded, so handing
       // the press to the invisible queue moved a focus nobody could see.
       if (this.stagePanelUp) {
-        if (dir === 'up' || dir === 'down') {
-          const count = 1 + this.stageGainRows.length;
-          const next = Math.min(count - 1, Math.max(0, this.stageRowIdx + (dir === 'down' ? 1 : -1)));
-          this.stageRowIdx = next;
-        }
+        // ONE COLUMN, so EVERY d-pad direction walks it. A direction that
+        // does nothing at all is indistinguishable from a dropped input at
+        // couch distance — and this panel had two of them (↑ on the CTA, and
+        // both horizontals).
+        const step = dir === 'down' || dir === 'right' ? 1 : -1;
+        this.stageCursor = Math.min(this.stageCtaIdx, Math.max(0, this.stageFocusIdx + step));
         return;
       }
       // The summary browses the whole chosen setup with FULL 2D spatial
@@ -5493,7 +5605,7 @@ export default defineComponent({
       // spent (the server's own no-spend loop). Checked before both stage
       // CTAs: the row is where the cursor stands.
       if (this.stagePanelUp && this.stageGainFocused) {
-        const gain = this.stageGainRows[this.stageRowIdx - 1];
+        const gain = this.stageGainRows[this.stageFocusIdx];
         if (gain !== undefined) {
           this.claimStageGain(gain);
         }
@@ -5832,11 +5944,18 @@ export default defineComponent({
       if (this.queueReleased) {
         return;
       }
-      this.queueReleased = true;
       const queue = this.$refs.queueEl as HTMLElement | undefined;
+      // NOT CONNECTED = NOT RELEASED. Latching before the node check turned a
+      // «there was nothing to recede yet» into «this room has already yielded»,
+      // and the room then never yielded at all: a step hosted straight after
+      // ANOTHER step (the sponsor's hand hands its play's pick to the
+      // deployment) rises in the very flush the ceremony body comes back, so
+      // the queue is a frame away from existing. The latch belongs to the work,
+      // not to the attempt — so a later caller can still do it.
       if (queue === undefined || queue === null || !queue.isConnected) {
         return;
       }
+      this.queueReleased = true;
       const name = this.embedSourceShown;
       const esc = name !== undefined && typeof CSS !== 'undefined' && typeof CSS.escape === 'function' ? CSS.escape(name) : name;
       const slot = esc === undefined ? null :
@@ -6081,13 +6200,10 @@ export default defineComponent({
           return;
         }
         this.runQueueRelease();
-        window.setTimeout(() => {
-          // A beat later, so the corp visibly LEAVES the shelf before the
-          // shelf dissolves (reduced motion collapses both to instant sets).
-          if (this.stageOwnsRoom) {
-            this.runPlayedDockRelease();
-          }
-        }, motionMs(140));
+        // «РАЗЫГРАНО» IS NOT RECEDED HERE — it is the stage's own floor (see
+        // `shelfOnStage`). If a step had taken it away earlier, bring it back:
+        // the stage that follows flies cards into it.
+        void this.runPlayedDockReturn();
         this.roomPosed = true;
         return;
       }
@@ -6117,10 +6233,8 @@ export default defineComponent({
      *  in the meantime, and dropping it early is the flash itself. */
     poseRoomReceded(): void {
       this.queueReleased = true;
-      this.playedDockReleased = true;
       const queue = this.$refs.queueEl as HTMLElement | undefined;
-      const dock = this.playedDockRoot();
-      if (queue === undefined || queue === null || !queue.isConnected || dock === null) {
+      if (queue === undefined || queue === null || !queue.isConnected) {
         void this.$nextTick(() => {
           if (this.stageOwnsRoom && !this.roomPosed) {
             this.poseRoomReceded();
@@ -6129,7 +6243,8 @@ export default defineComponent({
         return;
       }
       gsap.set(queue, {autoAlpha: 0});
-      gsap.set(dock, {autoAlpha: 0});
+      // The SHELF is deliberately not posed away: a restored stage finds it
+      // exactly where it belongs — tucked to its peek, under the stage.
       this.roomPosed = true;
     },
     /**
@@ -6327,11 +6442,10 @@ export default defineComponent({
         await this.ensureBonusSeat();
         // The leave's own return brought the ROOM back — but the window still
         // owns it (`stageOwnsRoom` never blinked, so its watcher has no edge
-        // to act on). Re-assert the recede for the overview the player lands
-        // on; the queue's prelude waits behind it exactly as before.
+        // to act on). Re-assert the queue's recede for the overview the
+        // player lands on; the shelf stays, as it does all stage long.
         if (this.stageOwnsRoom) {
           this.runQueueRelease();
-          this.runPlayedDockRelease();
         }
       }
     },
@@ -6364,19 +6478,14 @@ export default defineComponent({
       this.state.firstAct.stage = 'staging';
       this.state.firstAct.submitting = false;
       // The settle flies INTO the shelf, so the shelf must be back and
-      // measurable first (the same order runStartEffectReturn keeps); it
-      // recedes again behind the next corp's rise.
+      // measurable first (the same order runStartEffectReturn keeps) — and it
+      // now STAYS for the next corp's rise: both halves of the swap have a
+      // visible place to come from and go to.
       await this.runPlayedDockReturn();
       await this.runEmbedSourceSettle();
       this.state.firstAct.corp = next;
       this.fetchFirstActionPreview(next);
-      const emerge = this.runEmbedSourceEmerge(next);
-      window.setTimeout(() => {
-        if (this.state.firstAct.stage === 'staging' || this.state.firstAct.stage === 'standing') {
-          this.runPlayedDockRelease();
-        }
-      }, motionMs(140));
-      await emerge;
+      await this.runEmbedSourceEmerge(next);
       if (this.state.firstAct.stage === 'staging') {
         this.state.firstAct.stage = 'standing';
       }

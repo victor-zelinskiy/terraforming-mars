@@ -21359,8 +21359,36 @@ body.con-start-barshold .con-status {
        not paint for the frames between the remount and the pose landing
        (`visibility`, so every rect stays measurable — the seat's return
        flight aims at this shelf). Dropped the moment the pose is applied. */
-    &--roomheld &__queuecol,
-    &--roomheld .con-splayed { visibility: hidden; }
+    &--roomheld &__queuecol { visibility: hidden; }
+
+    /* ── «РАЗЫГРАНО» STAYS ON STAGE ───────────────────────────────────────
+       The seated card comes OUT of this shelf and settles back INTO it, and
+       inside the bonus window it does both again when the corporation takes
+       the seat. With the shelf receded every one of those flights ended in
+       nothing — the card shrank toward a place the player could not see.
+
+       So the shelf keeps its light and TUCKS instead: the band caps at a peek
+       (`--con-start-shelf-peek`), the stacks align to its TOP so their names
+       and art stay readable, and the crop's inner shadow says the cards
+       continue below the edge. The stage's own zone stops at that band
+       (`&__embed--shelfstage`), so seat and plate are laid out ABOVE the
+       shelf rather than over it — one bit drives both, so they cannot drift.
+       Deliberately NOT transitioned: `max-height` is layout, and the change
+       always happens under a bigger motion (the queue's recede, the seat's
+       rise). */
+    --con-start-shelf-peek: 9rem;
+
+    &--shelfstage .con-splayed {
+        max-height: var(--con-start-shelf-peek);
+        align-items: flex-start;
+        box-shadow:
+            inset 0 0 0 .06rem rgba(96, 176, 232, 0.15),
+            inset 0 -1.2rem 1.5rem -.7rem rgba(0, 0, 0, 0.6);
+    }
+    /* The caption rides the band's top with the stacks — bottom-aligned it
+       would sit on the crop line, reading as text falling off an edge. */
+    &--shelfstage .con-splayed__head { justify-content: flex-start; }
+    &__embed--shelfstage { bottom: calc(var(--con-start-shelf-peek) + .9rem); }
 
     /* ── THE FIRST-ACTION STAGE ───────────────────────────────────────────
        The corporation is the SUBJECT here, not the context it is inside an
@@ -21619,7 +21647,12 @@ body.con-start-barshold .con-status {
     &__firstact-cta-glyph {
         flex: 0 0 auto;
         transform: scale(1.06);
+        transition: opacity calc(140ms * var(--motion-scale, 1)) ease;
     }
+    /* EXACTLY ONE «A» IS LIT. With the cursor on a gain row the CTA keeps its
+       plate and its words but gives the letter up — two lit A's told the
+       player that both plates answered the same button. */
+    &__firstact-cta-glyph--idle { opacity: 0; }
     &__firstact--busy &__firstact-cta { opacity: .55; }
     &__firstact-wait {
         display: inline-flex;
@@ -21674,8 +21707,8 @@ body.con-start-barshold .con-status {
         max-width: min(46rem, calc(100% - var(--con-fa-seat-w) - 5rem));
         display: flex;
         flex-direction: column;
-        gap: .55rem;
-        padding: 1.6rem 1.8rem 1.4rem;
+        gap: .4rem;
+        padding: 1.15rem 1.8rem 1.05rem;
         border-radius: .7rem;
         text-align: left;
         background:
@@ -21803,6 +21836,20 @@ body.con-start-barshold .con-status {
         text-transform: uppercase;
         color: fade(#e8c27a, 88%);
     }
+    /* The rows are PAD-REACHABLE, and only the bar said so — about whatever
+       already had the cursor. One quiet hint at the caption's end states the
+       affordance itself, so stepping onto a row is discoverable rather than
+       remembered. */
+    &__gains-hint {
+        margin-left: auto;
+        display: inline-flex;
+        align-items: center;
+        gap: .32rem;
+        font-size: .66rem;
+        font-weight: 700;
+        letter-spacing: .1em;
+        color: fade(@con-text, 42%);
+    }
     &__gains-cap-glyph {
         flex: 0 0 auto;
         width: .5rem;
@@ -21845,7 +21892,13 @@ body.con-start-barshold .con-status {
         opacity: .62;
     }
     &__gainrow--focused &__gainrow-take { opacity: 1; }
-    &__gainrow-glyph { transform: scale(.85); }
+    &__gainrow-glyph {
+        transform: scale(.85);
+        transition: opacity calc(140ms * var(--motion-scale, 1)) ease;
+    }
+    /* NOT `v-if`, NOT `display: none` — the box stays, so a focus change is
+       a paint and never a re-fit of the row (and of the panel around it). */
+    &__gainrow-glyph--idle { opacity: 0; }
     &__gainrow-verb {
         font-size: .74rem;
         font-weight: 800;
@@ -21967,7 +22020,13 @@ body.con-start-barshold .con-status {
             0 0 0 .14rem fade(@con-cyan, 38%),
             0 .5rem 1.4rem fade(@con-mint, 12%);
     }
-    &__bonusact-cta-glyph { flex: 0 0 auto; align-self: center; transform: scale(1.06); }
+    &__bonusact-cta-glyph {
+        flex: 0 0 auto;
+        align-self: center;
+        transform: scale(1.06);
+        transition: opacity calc(140ms * var(--motion-scale, 1)) ease;
+    }
+    &__bonusact-cta-glyph--idle { opacity: 0; }
     &__bonusact-cta-label { font-size: 1.06rem; font-weight: 800; letter-spacing: .01em; }
     /* THE RETURN PROMISE. A workspace that hands the screen away without
        saying it will be back reads as CLOSED, and the player then treats the
