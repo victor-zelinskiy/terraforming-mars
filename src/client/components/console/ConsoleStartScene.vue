@@ -509,8 +509,13 @@
                  draw, and SETTLES back into the stack on release. -->
             <div class="con-start__embed" data-embed-slot="start"
                  :class="{
-                   'con-start__embed--live': embedPresenting || sponsorStep || firstActionPanelShown || bonusActionPanelShown,
-                   'con-start__embed--sourced': embedSourceShown !== undefined,
+                   // ROOM classes ride `…OwnsRoom` (staging + standing), the
+                   // PANELS mount at `standing` only: the seat then wears its
+                   // hero width from the flight's FIRST aim (no post-landing
+                   // resize) and the briefing materializes around the settled
+                   // card — two beats, never a chord over a flying card.
+                   'con-start__embed--live': embedPresenting || sponsorStep || firstActionOwnsRoom || bonusActionOwnsRoom,
+                   'con-start__embed--sourced': embedSourceVisible !== undefined,
                    // THE HERO SIZE BELONGS TO THE BRIEFING, NOT TO THE STAGE.
                    // While the briefing is what the player is looking at, the
                    // corporation IS the subject and fills the room. The moment
@@ -518,21 +523,21 @@
                    // MOVES to those cards and the card becomes context again —
                    // a hero-sized context covers the receiving zone and the
                    // «РАЗЫГРАНО» shelf, which is exactly what it did.
-                   'con-start__embed--firstact': firstActionPanelShown,
-                   'con-start__embed--bonusact': bonusActionPanelShown,
+                   'con-start__embed--firstact': firstActionOwnsRoom,
+                   'con-start__embed--bonusact': bonusActionOwnsRoom,
                    // …and the zone STOPS at the shelf's peeking band, so the
                    // seat and its plate are laid out ABOVE «РАЗЫГРАНО»
                    // instead of over it. One bit drives both the shelf's
                    // pose and this reservation — they cannot disagree.
                    'con-start__embed--shelfstage': shelfOnStage,
                  }">
-              <div v-if="embedSourceShown !== undefined" class="con-start__embedsource" ref="embedSourceCol"
+              <div v-if="embedSourceVisible !== undefined" class="con-start__embedsource" ref="embedSourceCol"
                    :class="{'con-start__embedsource--departing': embedSourceDeparting}">
                 <span class="con-start__embedsource-cap">{{ $t('Source') }}</span>
                 <div class="con-start__embedsource-card"
                      :class="{'con-deal-hold': embedSourceArriving}"
                      data-embed-source-slot>
-                  <ConsolePlayedCardLite :name="embedSourceShown" />
+                  <ConsolePlayedCardLite :name="embedSourceVisible" />
                 </div>
               </div>
 
@@ -1303,6 +1308,14 @@ export default defineComponent({
        *  tableau first); a claim that presents without our hero falls back to
        *  the physical emerge from the dock stack. */
       embedSourceShown: undefined as CardName | undefined,
+      /** The emerge's PRE-FLIGHT half: mounts the seat column while the shelf
+       *  face is STILL PAINTED, so the carry can capture the live pixels.
+       *  (`embedSourceShown` is what reactively blanks the shelf face — and a
+       *  CORPORATION is always its family's only card, so its face element
+       *  LEAVES the DOM in that very patch. Queried after nextTick it was
+       *  null, the emerge degraded, and the corp TELEPORTED into the seat on
+       *  every first-action entry.) */
+      embedSourceIncoming: undefined as CardName | undefined,
       /** The column slot is held empty (its card is still in flight). */
       embedSourceArriving: false,
       /** The source card PHYSICALLY stands in the column (the hero landed /
@@ -2088,7 +2101,9 @@ export default defineComponent({
      */
     bonusActionPanelShown(): boolean {
       const stage = this.state.bonusAct.stage;
-      return (stage === 'staging' || stage === 'standing') &&
+      // `standing` only — same two-beat entry grammar as the first-action
+      // briefing (the plate materializes around the settled card).
+      return stage === 'standing' &&
         // The sub-stage (the corp's briefing) takes the plate while it lives.
         this.state.firstAct.stage === 'idle' &&
         !this.embedPresenting && this.candidatePrompt === undefined;
@@ -2345,6 +2360,12 @@ export default defineComponent({
     firstActionStageLive(): boolean {
       return this.state.firstAct.stage !== 'idle';
     },
+    /** The seat column's card — the incoming half first (the emerge mounts
+     *  the column BEFORE the shelf face is hidden, so the carry can capture
+     *  live pixels), then the settled owner. */
+    embedSourceVisible(): CardName | undefined {
+      return this.embedSourceIncoming ?? this.embedSourceShown;
+    },
     /**
      * THE STAGE OWNS THE ROOM — the deployment's queue and «РАЗЫГРАНО» are
      * receded because the briefing is what the player is looking at.
@@ -2413,9 +2434,14 @@ export default defineComponent({
     },
     /** The briefing PANEL renders — never over an embedded follow-up that is
      *  actually on screen (the reveal owns the zone then; the seat stays
-     *  either way) and never once the action is off performing. */
+     *  either way) and never once the action is off performing.
+     *  `standing` ONLY, never `staging`: the entry's grammar is two beats —
+     *  the corporation flies into its seat FIRST, the briefing materializes
+     *  around the SETTLED card (the doc-comment on `enterFirstActionStage`
+     *  always promised this; mounting at staging played the panel's rise, the
+     *  zone's entry and the carry as one chord over a still-flying card). */
     firstActionPanelShown(): boolean {
-      return (this.state.firstAct.stage === 'staging' || this.state.firstAct.stage === 'standing') &&
+      return this.state.firstAct.stage === 'standing' &&
         !this.embedPresenting && this.candidatePrompt === undefined;
     },
     /**
@@ -2606,6 +2632,7 @@ export default defineComponent({
      */
     effectReturnPending(): boolean {
       return this.embedSourceShown !== undefined ||
+        this.embedSourceIncoming !== undefined ||
         this.queueReleased ||
         this.playedDockReleased;
     },
@@ -5956,33 +5983,57 @@ export default defineComponent({
      */
     async runEmbedSourceEmerge(explicitSource?: CardName): Promise<void> {
       const source = explicitSource ?? this.outcome.sourceCard as CardName;
-      if (source === '' || this.embedSourceShown !== undefined) {
+      if (source === '' || this.embedSourceShown !== undefined || this.embedSourceIncoming !== undefined) {
         return;
       }
-      this.embedSourceShown = source;
-      this.embedSourceArriving = true;
-      await this.$nextTick();
       const root = this.$el as HTMLElement | undefined;
       if (root === undefined || typeof root.querySelector !== 'function') {
-        this.embedSourceArriving = false;
-        return;
-      }
-      const esc = typeof CSS !== 'undefined' && typeof CSS.escape === 'function' ? CSS.escape(source) : source;
-      const dockFace = root.querySelector<HTMLElement>(`.con-start__played [data-played-key="${esc}"] .con-splayed__face`);
-      const colSlot = root.querySelector<HTMLElement>('[data-embed-source-slot]');
-      if (dockFace === null || colSlot === null) {
-        this.embedSourceArriving = false; // degraded: the column simply shows
+        this.embedSourceShown = source;
         this.embedSourceLanded = true;
         return;
       }
-      // Spawn the carry FIRST (the proxy clones the face's live pixels);
-      // `embedSourceShown` is already set, so the dock's REACTIVE `awayCard`
-      // hides the face in the same flush the proxy covers it (an imperative
-      // class here was wiped by the dock's next patch — the duplicate bug).
-      await reseatCards([{name: source, fromEl: dockFace, toEl: colSlot}],
+      // THE ORDER IS THE WHOLE FIX. Setting `embedSourceShown` is what
+      // reactively blanks the shelf face (the dock's `awayCard`) — and a
+      // CORPORATION is always its family's ONLY card, so its face element
+      // does not blank, it LEAVES THE DOM in that patch. The old sequence
+      // (set state → nextTick → query the face) therefore found null on
+      // every first-action entry, degraded to «the column simply shows»,
+      // and the corp TELEPORTED from the shelf into the seat — the reported
+      // «рывок». Now: the INCOMING half mounts the seat column while the
+      // face is still painted; the carry CAPTURES the live pixels
+      // synchronously; and only then does `embedSourceShown` hide the face —
+      // under the already-standing proxy, exactly as the discipline says.
+      const esc = typeof CSS !== 'undefined' && typeof CSS.escape === 'function' ? CSS.escape(source) : source;
+      const dockFace = root.querySelector<HTMLElement>(`.con-start__played [data-played-key="${esc}"] .con-splayed__face`);
+      this.embedSourceIncoming = source;
+      this.embedSourceArriving = true;
+      await this.$nextTick();
+      const colSlot = root.querySelector<HTMLElement>('[data-embed-source-slot]');
+      if (dockFace === null || !dockFace.isConnected || colSlot === null) {
+        // Degraded: the column simply shows (no believable source on screen).
+        // A dev-warn by the flight rule («a missing source/destination is a
+        // dev warn, never a silent just-appear») — this branch is a TELEPORT.
+        console.warn('[start-emerge] degraded to teleport', {
+          source, face: dockFace !== null, connected: dockFace?.isConnected === true, seat: colSlot !== null,
+        });
+        this.embedSourceShown = source;
+        this.embedSourceIncoming = undefined;
+        this.embedSourceArriving = false;
+        this.embedSourceLanded = true;
+        return;
+      }
+      // `reseatCards` measures + spawns SYNCHRONOUSLY before its first await —
+      // the proxy stands over the live face in this very turn…
+      const flight = reseatCards([{name: source, fromEl: dockFace, toEl: colSlot}],
         () => {
           this.embedSourceArriving = false;
         });
+      // …so the face's reactive hide lands in the SAME patch the proxy is
+      // already covering it (an imperative class here was wiped by the dock's
+      // next patch — the historical duplicate bug).
+      this.embedSourceShown = source;
+      this.embedSourceIncoming = undefined;
+      await flight;
       this.embedSourceArriving = false;
       this.embedSourceLanded = true; // the card physically stands in the seat
     },
@@ -6131,6 +6182,7 @@ export default defineComponent({
      *  seat with NO ghost flight, drop the orphaned claim, restore the queue. */
     async abortStartEffectFlow(): Promise<void> {
       this.embedSourceShown = undefined;
+      this.embedSourceIncoming = undefined;
       this.embedSourceArriving = false;
       this.embedSourceLanded = false;
       this.embedSourceDeparting = false;
@@ -6156,6 +6208,7 @@ export default defineComponent({
       this.embedSourceDeparting = true;
       if (!this.embedSourceLanded) {
         this.embedSourceShown = undefined;
+        this.embedSourceIncoming = undefined;
         this.embedSourceArriving = false;
         this.embedSourceDeparting = false;
         return;
@@ -6193,6 +6246,7 @@ export default defineComponent({
           });
       }
       this.embedSourceShown = undefined;
+      this.embedSourceIncoming = undefined;
       this.embedSourceArriving = false;
       this.embedSourceLanded = false;
       this.embedSourceDeparting = false;
@@ -6563,9 +6617,29 @@ export default defineComponent({
       if (this.state.firstAct.stage !== 'performing' || !this.firstActionOwedNow || !this.firstActionChainQuiet) {
         return;
       }
-      this.state.firstAct.stage = 'standing';
       this.state.firstAct.submitting = false;
       const corp = this.firstActionCorpNow;
+      // THE SEAT MAY BE EMPTY HERE — a follow-up chain settles the corp home
+      // (`runEmbedSourceSettle` before its own pick/draw), so the common
+      // re-stand arrives with nobody seated. Standing the briefing over an
+      // empty seat is the teleport class the entry grammar exists to remove:
+      // re-run the SAME two-beat phrase (staging keeps the panel down, the
+      // corp flies back into the seat, the briefing rises around it).
+      if (corp !== undefined &&
+          this.embedSourceShown === undefined && this.embedSourceIncoming === undefined) {
+        this.state.firstAct.stage = 'staging';
+        if (this.state.firstAct.corp !== corp) {
+          this.state.firstAct.corp = corp;
+          this.fetchFirstActionPreview(corp);
+        }
+        void this.runEmbedSourceEmerge(corp).then(() => {
+          if (this.state.firstAct.stage === 'staging') {
+            this.state.firstAct.stage = 'standing';
+          }
+        });
+        return;
+      }
+      this.state.firstAct.stage = 'standing';
       if (corp !== undefined && this.state.firstAct.corp !== corp) {
         void this.swapFirstActionSeat(corp);
       }

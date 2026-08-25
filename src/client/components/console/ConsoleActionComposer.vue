@@ -504,7 +504,11 @@
                CTA. The SAME panel becomes the EXPANDED editor in place (cursor
                inside, every source dialable) — never a separate screen. Usually
                0 or 1 panel. -->
+          <!-- The panel mounts when a PRICED branch is selected — a soft rise
+               (`con-composer__pay-in`) instead of the old one-frame pop into a
+               standing column. -->
           <ConsolePaymentPanel v-for="pc in paymentChoices" :key="'pay' + pc.id"
+                               class="con-composer__pay-in"
                                :view="paymentPanelView(pc)"
                                :mode="payModeFor(pc)"
                                :focus-unit="payFocusUnitFor(pc)"

@@ -1815,9 +1815,15 @@ html.console-native {
     &__pstatus {
         display: inline-flex;
         align-items: center;
+        justify-content: center;
         gap: .3rem;
         padding: .1rem .45rem;
         border-radius: .3rem;
+        /* A WIDTH FLOOR sized for the common labels: the pill relabels every
+           turn flip («ОЖИДАЕТ» ↔ «ДЕЙСТВИЕ 1/2» ↔ «ГОТОВ»), and content-sized
+           it re-widthed the whole top-HUD chip row on each swap. The floor
+           absorbs the ordinary swaps; a rare longer label may still grow it. */
+        min-width: 6.4rem;
         font-size: .75rem;
         letter-spacing: .055rem;
         text-transform: uppercase;
@@ -15253,6 +15259,10 @@ html.con-profile-large.console-mode .notifications-layer.notifications-layer--jo
         pointer-events: none;
         opacity: 1;
         transition: opacity calc(280ms * var(--motion-scale, 1)) ease;
+        /* The scene SURFACES (the family's outcome entry) — it used to pop at
+           full opacity in the very flush the working area only BEGAN its
+           fade, which read as a hard cut between two stages of one screen. */
+        animation: con-colfocus-outcome-in calc(300ms * var(--motion-scale, 1)) ease-out both;
 
         /* The faces are the premium px design box; the cell's zoom scales it
            into the rem layout (multiplied by the profile scale by contract).
@@ -15352,7 +15362,7 @@ html.con-profile-large.console-mode .notifications-layer.notifications-layer--jo
         &--targeting &__result,
         &--carding &__main { transition: none; }
         &__landflash { animation: none; }
-        &__cardland { transition: none; }
+        &__cardland { transition: none; animation: none; }
     }
 
     /* ═══════════════ RESULT — the right SUMMARY RAIL ═══════════════
@@ -21662,6 +21672,11 @@ body.con-start-barshold .con-status {
         letter-spacing: .01em;
         color: @con-text;
         opacity: .78;
+        /* The mint plate MATERIALIZES when the turn arrives (the row is
+           reserved, so this is paint-only) — it used to pop fully formed
+           into a standing briefing. `from`-only: the end state is the plate's
+           OWN opacity (.78 idle / 1 focused), never a hardcoded 1. */
+        animation: con-start-cta-in calc(200ms * var(--motion-scale, 1)) @con-ease-enter;
     }
     /* Same focus grammar as the window's CTA — with the cursor on a gain row
        this plate visibly is NOT what A does. */
@@ -22039,6 +22054,8 @@ body.con-start-barshold .con-status {
         box-shadow: inset 0 0 0 .06rem fade(@con-mint, 34%);
         color: @con-text;
         opacity: .78;
+        /* Same materialization as the first-action CTA (`from`-only). */
+        animation: con-start-cta-in calc(200ms * var(--motion-scale, 1)) @con-ease-enter;
     }
     /* FOCUSED = the press lands here. The mint fill + the outer cyan cursor
        ring light together, and the unfocused pose above stays calm — so with
@@ -22131,8 +22148,15 @@ body.con-start-barshold .con-status {
     from { opacity: 0; transform: translateY(.45rem) scale(.992); }
     to { opacity: 1; transform: translateY(0) scale(1); }
 }
+/* The briefing CTAs' materialization — `from`-only ON PURPOSE: the plates
+   rest at their OWN opacity (.78 idle / 1 focused), so a `to` would flick. */
+@keyframes con-start-cta-in {
+    from { opacity: 0; transform: translateY(.4rem); }
+}
 @media (prefers-reduced-motion: reduce) {
     .con-start__embed--live { animation: none; }
+    .con-start__firstact-cta,
+    .con-start__bonusact-cta { animation: none; }
 }
 
 /* ── THE COMPACT PLAYED DESTINATION — «РАЗЫГРАНО · owner» (ConsoleStartPlayedDock)
@@ -26648,6 +26672,11 @@ body.con-zoom-open .con-ptlink { opacity: 0; }
         margin-top: .5rem;
         padding-top: .5rem;
         box-shadow: 0 -.05rem 0 rgba(120, 150, 185, 0.14);
+    }
+    /* A payment panel mounting mid-configuration (a priced branch was just
+       selected) SURFACES instead of popping fully formed into the column. */
+    .con-composer__pay-in {
+        animation: con-rise calc(180ms * var(--motion-scale, 1)) @con-ease-enter;
     }
     /* The honest disabled-CTA reason (names the first missing decision). */
     .con-composer__cta-hint {

@@ -3,6 +3,9 @@
        ancestor is positioned against THAT ancestor; the body is the safe
        containing block. -->
   <Teleport to="body">
+    <!-- The shell's generic layer fade — this full-bleed surface used to be
+         the one overlay that hard-cut in and out with no entry at all. -->
+    <transition name="con-layer" appear>
     <div
       v-if="state.open && state.review !== undefined"
       class="con-bot-review"
@@ -27,6 +30,7 @@
         </div>
       </div>
     </div>
+    </transition>
   </Teleport>
 </template>
 

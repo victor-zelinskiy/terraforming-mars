@@ -334,12 +334,20 @@
            `repeat` mode (full dossier + filters + all actions with reasons).
            Mounted OVER the source composer (v-show hidden) while the pick is
            out; A = «Выбрать», the chosen action is composed here and RESOLVED
-           back to the source via the bridge. -->
-      <ConsoleCardActions v-if="repeatPickActive"
-                          repeat
-                          ref="repeatPick"
-                          :playerView="playerView"
-                          @close="onRepeatPickClose" />
+           back to the source via the bridge.
+           A plain CSS fade, DELIBERATELY not the surface-motion hooks: the
+           director's pick-bridge fork keys on the source composer's `v-show`
+           pair, and a second 'card-actions' surface entering through the same
+           hooks would classify as a self-handoff. The fade removes the hard
+           cut (this was the one workspace-band plate mounting with no entry
+           at all) without touching the bridge semantics. -->
+      <transition name="con-layer" appear>
+        <ConsoleCardActions v-if="repeatPickActive"
+                            repeat
+                            ref="repeatPick"
+                            :playerView="playerView"
+                            @close="onRepeatPickClose" />
+      </transition>
 
       <!-- THE INFORMATION WORKSPACE (Y) — read-only dossier of the inspected
            player, an ABSOLUTE child of .con-main filling everything right of

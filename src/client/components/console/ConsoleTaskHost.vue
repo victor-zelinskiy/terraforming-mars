@@ -21,7 +21,7 @@
            hero — see .con-ws-stage-frame in console.less. -->
       <div class="con-task"
            :class="{'con-task--wide': activeTask.kind === 'cardSelect', 'con-ws-stage-frame': embedded}"
-           :key="taskKey" data-motion-panel>
+           :key="panelKey" data-motion-panel>
         <!-- ── Frame header ──────────────────────────────────────────
              EMBEDDED: the KICKER is handed UP to the workspace's breadcrumb
              (setWorkspaceOutcomePhase) instead of being drawn here. Rendering
@@ -793,6 +793,17 @@ export default defineComponent({
     },
     taskKey(): string {
       return this.nested !== undefined ? `${this.baseKey}|n${this.nested.index}` : this.baseKey;
+    },
+    /** The keyed FRAME's identity: the prompt PLUS the native projectCard
+     *  stage — pick → pay is a stage swap of the same prompt, and unkeyed it
+     *  re-dressed the standing plate in one frame (a card grid snapping into
+     *  the pay panel). Keying it rides the same `con-task-swap` crossfade
+     *  every prompt→prompt switch uses. `taskKey` itself stays prompt-only:
+     *  the reset epoch and the nested-step machinery must not see a stage
+     *  flip as a new ask. */
+    panelKey(): string {
+      const stage = this.activeTask.kind === 'projectCard' ? `|${this.pcStage}` : '';
+      return `${this.taskKey}${stage}`;
     },
     /**
      * The RESET epoch — a genuinely new server ask OR a fresh card SET inside
