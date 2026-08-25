@@ -2479,12 +2479,19 @@ html.console-native {
         margin-left: -1.1rem;
         border-radius: .4rem;
         box-shadow: 0 .3rem .9rem rgba(0, 0, 0, 0.55);
-        /* The deal-language handoff: releasing .con-deal-hold rides THIS
-           fade — the landed card materializes under its proxy. */
-        transition: opacity calc(160ms * var(--motion-scale, 1)) ease;
+        /* NO opacity transition — deliberately. The handoff is the no-dip
+           overlay: releasing .con-deal-hold SNAPS the real card visible
+           UNDER the still-opaque proxy, and the proxy then fades ON TOP
+           (cardExitDirector / cardRiseDirector). A slot-side fade here made
+           that a crossfade — the combined image dipped at every touchdown. */
 
         &:first-child { margin-left: 0; }
         > :is(.card-container, .pcard) { margin: 0; zoom: calc(0.32 * var(--con-ui-scale, 1)); }
+    }
+    /* The touchdown accents ITS OWN slot — a one-shot settle (never the
+       whole-pile pulse, which shook every settled card on every landing). */
+    &__slot--landed {
+        animation: con-tray-land calc(260ms * var(--motion-scale, 1)) @con-ease-standard;
     }
     /* Big piles (initial draft iterations) overlap tighter — bounded width. */
     &__stack--dense {
@@ -2504,6 +2511,17 @@ html.console-native {
     0% { transform: scale(1); }
     45% { transform: scale(1.035); }
     100% { transform: scale(1); }
+}
+/* The landed card's own settle: it arrives a touch large and seats. */
+@keyframes con-tray-land {
+    0% { transform: scale(1.05); }
+    100% { transform: scale(1); }
+}
+/* The stack re-pack glide (transition-group FLIP): appending a slot to the
+   CENTRED stack moves every settled card half a step — without this move
+   class that shift is a one-frame teleport under a landing card. */
+.con-tray-move {
+    transition: transform calc(240ms * var(--motion-scale, 1)) @con-ease-standard;
 }
 
 /* ── Draft re-pick suppression: the calm "waiting for others" banner ───
@@ -3084,7 +3102,10 @@ html.console-native {
         width: 3.9rem;
         height: 5.5rem;
         border-radius: .3rem;
-        transition: opacity calc(160ms * var(--motion-scale, 1)) ease;
+        /* NO opacity transition — the no-dip handoff: releasing the hold
+           SNAPS the real mini-card visible UNDER the still-opaque proxy,
+           which then fades ON TOP (a slot-side fade made every touchdown a
+           crossfade dip). */
 
         /* The mini card: real premium face, clipped to the seat. */
         :is(.card-container, .pcard) {
@@ -3092,6 +3113,12 @@ html.console-native {
             margin: 0;
             pointer-events: none;
         }
+    }
+    /* The touchdown accents ITS OWN seat (scale-settle, one-shot) — the
+       whole-row pulse is reserved for the set-complete beat: scaling every
+       settled card on every landing is exactly the reported «дрожь». */
+    &__shelf-slot--landed {
+        animation: con-tray-land calc(260ms * var(--motion-scale, 1)) @con-ease-standard;
     }
     &__shelf-seat {
         width: 3.9rem;

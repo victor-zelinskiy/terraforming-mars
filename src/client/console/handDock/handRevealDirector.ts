@@ -73,6 +73,7 @@ import {motionMs} from '@/client/components/motion/motionTokens';
 import {conUiScale} from '@/client/console/consoleLayoutProfile';
 import {consoleReducedMotionActive} from '@/client/console/composables/useConsoleReducedMotion';
 import {CARD_NATURAL_W} from '@/client/console/cardDeal/cardDealModel';
+import {beginDockIntakeAccent} from '@/client/console/handDock/consoleDockAccent';
 import {
   clearRevealFlights, handRevealState, nextRevealId, revealEl, RevealVisual,
 } from '@/client/console/handDock/handRevealState';
@@ -119,6 +120,8 @@ type Episode = {
   /** The grid scrollTop captured when the close episode began. */
   scrollTop: number,
   finished: boolean,
+  /** The intake-accent lease of a CANCELLED open (released on every exit). */
+  accentRelease?: () => void,
 };
 
 let episode: Episode | undefined;
@@ -305,6 +308,8 @@ function teardown(instant: boolean): void {
   }
   clearTimeout(ep.safety);
   window.removeEventListener('resize', ep.onResize);
+  ep.accentRelease?.();
+  ep.accentRelease = undefined;
   ep.tl.kill();
   const els = ep.els.filter((e): e is HTMLElement => e !== undefined);
   if (instant || els.length === 0) {
@@ -435,14 +440,89 @@ function finalizeOpenForward(instant: boolean): void {
 }
 
 function finalizeOpenReverse(instant: boolean): void {
-  if (episode === undefined || episode.finished) {
+  const ep = episode;
+  if (ep === undefined || ep.finished) {
     return;
   }
-  episode.finished = true;
-  handRevealState.phase = 'docked'; // the pack materializes under the proxies
-  handRevealState.holdSlots = false;
+  ep.finished = true;
+  if (instant) {
+    handRevealState.phase = 'docked';
+    handRevealState.holdSlots = false;
+    hooks?.setSection('board');
+    teardown(true);
+    return;
+  }
+  // A CANCELLED OPEN REWINDS TO ITS LAUNCH SNAPSHOT — and the dock has
+  // routinely re-posed since (the album bay swaps the footer's composition,
+  // the pack rides its own 460ms pose transition), so the rewound proxies
+  // land beside the REAL backs and the materialization snaps. Same class as
+  // the close gather: the final approach is flown on LIVE rects. Order is
+  // the fix: the section returns to 'board' FIRST (the dock re-poses in this
+  // very patch, instantly under the cancel accent's transition freeze), each
+  // proxy then glides its residual onto its real back, and only after that
+  // do the backs materialize under the standing proxies.
+  //
+  // ep's own safety/resize are disarmed NOW — they act on the CURRENT module
+  // episode, which may already be a newer one by the time they fire into the
+  // glide window.
+  clearTimeout(ep.safety);
+  window.removeEventListener('resize', ep.onResize);
   hooks?.setSection('board');
-  teardown(instant);
+  let done = false;
+  const conclude = () => {
+    if (done) {
+      return;
+    }
+    done = true;
+    ep.accentRelease?.();
+    ep.accentRelease = undefined;
+    if (episode !== ep) {
+      return; // a newer episode owns the stage and the flight list
+    }
+    handRevealState.phase = 'docked';
+    handRevealState.holdSlots = false;
+    teardown(false);
+  };
+  // Wall-clock backstop: GSAP/rAF can stall the moment the screen goes
+  // quiet (headless/backgrounded compositor) — the materialization must
+  // never hang on a frame that isn't coming.
+  window.setTimeout(conclude, motionMs(160) + 380);
+  void nextTick().then(() => {
+    requestAnimationFrame(() => {
+      if (done || episode !== ep) {
+        conclude();
+        return;
+      }
+      let maxDur = 0;
+      for (const el of ep.els) {
+        const name = el.dataset.revealCard;
+        if (name === undefined || Number(gsap.getProperty(el, 'opacity')) < 0.05) {
+          continue;
+        }
+        const back = document.querySelector<HTMLElement>(`[data-hand-dock-card="${cssEscape(name)}"]`);
+        const r = back?.getBoundingClientRect();
+        if (r === undefined || r.width < 8) {
+          continue;
+        }
+        const ts = r.width / CARD_NATURAL_W;
+        const drift =
+          Math.abs(r.left - Number(gsap.getProperty(el, 'x'))) +
+          Math.abs(r.top - Number(gsap.getProperty(el, 'y'))) +
+          Math.abs(ts - Number(gsap.getProperty(el, 'scale'))) * CARD_NATURAL_W;
+        if (drift < 1.5) {
+          continue;
+        }
+        const d = motionMs(150) / 1000;
+        maxDur = Math.max(maxDur, d);
+        gsap.to(el, {x: r.left, y: r.top, scale: ts, duration: d, ease: 'power2.out', overwrite: 'auto'});
+      }
+      if (maxDur === 0) {
+        conclude();
+        return;
+      }
+      window.setTimeout(conclude, maxDur * 1000 + 50);
+    });
+  });
 }
 
 /** Selector-safe card name (CSS.escape with a quote-only fallback). */
@@ -801,6 +881,15 @@ export function reverseHandReveal(): boolean {
   ep.tl.reversed(nowReversed);
   if (ep.kind === 'open') {
     handRevealState.phase = nowReversed ? 'closing' : 'opening';
+    // The cancel is an INTAKE (cards physically return to the dock): the
+    // accent freezes the pack's pose transitions for the gather, so the
+    // final-approach glide in finalizeOpenReverse lands on a still target.
+    if (nowReversed) {
+      ep.accentRelease ??= beginDockIntakeAccent('hand-open-cancel');
+    } else {
+      ep.accentRelease?.();
+      ep.accentRelease = undefined;
+    }
   } else {
     handRevealState.phase = nowReversed ? 'opening' : 'closing';
     // A close gather flips back toward the OPEN hand: the overlay must be

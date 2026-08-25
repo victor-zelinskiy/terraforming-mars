@@ -25,15 +25,22 @@
         <span class="con-drafttray__count">{{ entries.length }}</span>
         <span v-if="waiting" class="con-drafttray__hint"><GamepadGlyph control="secondary" /><span>{{ $t('Inspect') }}</span></span>
       </div>
-      <div class="con-drafttray__stack" :class="{'con-drafttray__stack--dense': entries.length > 6}">
+      <!-- transition-group: appending a slot re-packs the CENTRED stack, and
+           without FLIP every settled card teleports half a step sideways on
+           the very frame a pick lands (the reported «ячейки дрожат»). The
+           move class glides them instead; the new slot itself enters held
+           (no enter animation — its proxy lands on it). -->
+      <transition-group tag="div" name="con-tray"
+                        class="con-drafttray__stack"
+                        :class="{'con-drafttray__stack--dense': entries.length > 6}">
         <div v-for="(entry, idx) in entries" :key="entry.name + '-' + idx"
              class="con-drafttray__slot"
              :style="{zIndex: idx + 1}"
-             :class="{'con-deal-hold': isHeld(entry.name)}"
+             :class="{'con-deal-hold': isHeld(entry.name), 'con-drafttray__slot--landed': justLanded[entry.name] === true}"
              :data-tray-slot="entry.name">
           <Card :card="entry.card" :key="entry.name" lightweight />
         </div>
-      </div>
+      </transition-group>
     </div>
 
     <!-- The calm wait banner (the draftWait serving surface — leak detector). -->
@@ -77,6 +84,10 @@ export default defineComponent({
       draftTrayState,
       pulsing: false,
       pulseTimer: undefined as number | undefined,
+      /** Per-slot one-shot settle accent (a landing accents ITSELF —
+       *  the whole-pile pulse is reserved for set-complete). */
+      justLanded: {} as Record<string, boolean>,
+      landTimers: {} as Record<string, number>,
     };
   },
   computed: {
@@ -104,7 +115,25 @@ export default defineComponent({
     },
   },
   watch: {
-    /** One-shot pile pulse per landing / set-complete beat. */
+    /** A touchdown settles ITS OWN slot (scale 1.05 → 1, one-shot). */
+    'draftTrayState.lastLand'(land: {n: number, name: string}) {
+      const name = land.name;
+      if (name === '') {
+        return;
+      }
+      if (this.landTimers[name] !== undefined) {
+        window.clearTimeout(this.landTimers[name]);
+      }
+      delete this.justLanded[name];
+      void this.$nextTick(() => {
+        this.justLanded[name] = true;
+        this.landTimers[name] = window.setTimeout(() => {
+          delete this.justLanded[name];
+          delete this.landTimers[name];
+        }, consoleMotionMs(300));
+      });
+    },
+    /** One-shot pile pulse — the set-complete beat only. */
     'draftTrayState.pulseNonce'() {
       if (this.pulseTimer !== undefined) {
         window.clearTimeout(this.pulseTimer);
@@ -126,6 +155,9 @@ export default defineComponent({
     registerTraySlotResolver(undefined);
     if (this.pulseTimer !== undefined) {
       window.clearTimeout(this.pulseTimer);
+    }
+    for (const key of Object.keys(this.landTimers)) {
+      window.clearTimeout(this.landTimers[key]);
     }
   },
   methods: {

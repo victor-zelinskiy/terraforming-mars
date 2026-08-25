@@ -66,8 +66,13 @@ export const draftTrayState = reactive({
    * `con-task-host--table-beat`; releasing it IS the frame materialization.
    */
   tableView: false,
-  /** One-shot pulse trigger for the pile/count (landings, set-complete). */
+  /** One-shot pulse trigger for the WHOLE pile — set-complete only. A
+   *  per-landing whole-pile pulse scaled every already-settled card on
+   *  every touchdown (the reported «ячейки дрожат»); a landing accents
+   *  ITSELF via `lastLand` instead. */
   pulseNonce: 0,
+  /** The most recent touchdown (slot-level settle accent, one per card). */
+  lastLand: {n: 0, name: '' as CardName | ''},
   /** Error-recovery signal: the host un-rejects slots + re-arms submission. */
   recoverNonce: 0,
 });
@@ -196,7 +201,7 @@ export function runDraftPickBeat(args: DraftPickBeatArgs): void {
   }
   if (consoleReducedMotionActive()) {
     args.commit();
-    draftTrayState.pulseNonce++;
+    names.forEach((n) => noteTrayLanding(n));
     // No flights: the beat settles on the next microtask so the submit's
     // response handling still sees a consistent "beat" ordering.
     draftTrayState.pickActive = true;
@@ -212,7 +217,7 @@ export function runDraftPickBeat(args: DraftPickBeatArgs): void {
     onLift: args.commit,
     onLanded: (name) => {
       releaseSlot(name);
-      draftTrayState.pulseNonce++;
+      noteTrayLanding(name);
     },
     onDone: () => {
       pickHandle = undefined;
@@ -274,10 +279,15 @@ export function beginRiseScene(): void {
   draftTrayState.sceneActive = true;
 }
 
-/** An arrival proxy landed — reveal its tray slot + pulse. */
+/** A touchdown accents ITS OWN slot — never the whole pile. */
+function noteTrayLanding(name: CardName): void {
+  draftTrayState.lastLand = {n: draftTrayState.lastLand.n + 1, name};
+}
+
+/** An arrival proxy landed — reveal its tray slot + its own settle accent. */
 export function riseArrivalLanded(name: CardName): void {
   releaseSlot(name);
-  draftTrayState.pulseNonce++;
+  noteTrayLanding(name);
 }
 
 /** The full set is on the tray — the «НАБОР СОБРАН» beat. */
@@ -393,6 +403,7 @@ export function resetDraftTray(): void {
   draftTrayState.pickActive = false;
   draftTrayState.processing = false;
   draftTrayState.pulseNonce = 0;
+  draftTrayState.lastLand = {n: 0, name: ''};
   draftTrayState.recoverNonce = 0;
   flushPickWaiters();
 }

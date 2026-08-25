@@ -273,7 +273,7 @@
                class="con-draftws__shelf-slot"
                :style="{zIndex: idx + 1}"
                :data-tray-slot="entry.name"
-               :class="{'con-deal-hold': shelfHeld(entry.name)}">
+               :class="{'con-deal-hold': shelfHeld(entry.name), 'con-draftws__shelf-slot--landed': shelfJustLanded[entry.name] === true}">
             <Card :card="entry.card" :key="entry.name" lightweight />
           </div>
           <!-- Prepared empty seats up to the known total: the shelf states how
@@ -414,6 +414,10 @@ export default defineComponent({
       perRowByZone: {pick: 5, buy: 5, inspect: 5} as Record<string, number>,
       shelfPulsing: false,
       shelfPulseTimer: undefined as number | undefined,
+      /** Per-seat one-shot settle accent (a landing accents ITSELF — the
+       *  whole-row pulse is the set-complete beat only). */
+      shelfJustLanded: {} as Record<string, boolean>,
+      shelfLandTimers: {} as Record<string, number>,
     };
   },
   computed: {
@@ -780,6 +784,24 @@ export default defineComponent({
         }, consoleMotionMs(280));
       });
     },
+    /** A touchdown settles ITS OWN seat (never the whole row). */
+    'draftTrayState.lastLand'(land: {n: number, name: string}) {
+      const name = land.name;
+      if (name === '') {
+        return;
+      }
+      if (this.shelfLandTimers[name] !== undefined) {
+        window.clearTimeout(this.shelfLandTimers[name]);
+      }
+      delete this.shelfJustLanded[name];
+      void this.$nextTick(() => {
+        this.shelfJustLanded[name] = true;
+        this.shelfLandTimers[name] = window.setTimeout(() => {
+          delete this.shelfJustLanded[name];
+          delete this.shelfLandTimers[name];
+        }, consoleMotionMs(300));
+      });
+    },
     /** The marks OUTLIVE this component: «свернуть» parks the stack, which
      *  unmounts the surface. Mirrored into module state on every change. */
     picks: {
@@ -844,6 +866,9 @@ export default defineComponent({
     }
     if (this.shelfPulseTimer !== undefined) {
       window.clearTimeout(this.shelfPulseTimer);
+    }
+    for (const key of Object.keys(this.shelfLandTimers)) {
+      window.clearTimeout(this.shelfLandTimers[key]);
     }
     if (this.inspectFlightTimer !== undefined) {
       window.clearTimeout(this.inspectFlightTimer);

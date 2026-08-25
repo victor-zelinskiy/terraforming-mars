@@ -29,8 +29,9 @@ import {gsap} from 'gsap';
 import {conUiScale} from '@/client/console/consoleLayoutProfile';
 import {motionMs} from '@/client/components/motion/motionTokens';
 import {
-  CARD_NATURAL_W, DECK_SCALE, riseFlightDelayMs, RiseTimings, riseTotalMs,
+  CARD_NATURAL_W, DECK_SCALE, RiseTimings, riseTotalMs,
 } from '@/client/console/cardDeal/cardDealModel';
+import {addCardCarry} from '@/client/console/cardDeal/cardCarry';
 import {DealHandle, DealTargetRect} from '@/client/console/cardDeal/cardDealDirector';
 
 export type RunRiseArgs = {
@@ -135,7 +136,8 @@ export function runCardRiseTimeline(args: RunRiseArgs): DealHandle {
     }
   });
 
-  // ── A. Arrivals: deck rise → flight(s) into the tray, flipping ───────
+  // ── A. Arrivals: deck rise → carry into the tray, flipping ───────────
+  const ui = conUiScale();
   let arrivalsEnd = 0;
   if (arrivals.length > 0) {
     if (deck !== null) {
@@ -151,18 +153,29 @@ export function runCardRiseTimeline(args: RunRiseArgs): DealHandle {
       const at = s(140) + k * s(timings.arrivalStaggerMs);
       const flight = s(timings.arrivalFlightMs);
       tl.set(proxy, {autoAlpha: 1}, at);
-      tl.to(proxy, {x: source.left, duration: flight, ease: 'power1.inOut'}, at);
-      tl.to(proxy, {y: source.top, duration: flight, ease: 'power3.out'}, at);
-      tl.to(proxy, {scale: scaleOf(source), duration: flight, ease: 'back.out(1.2)'}, at);
+      // The same ONE-clock carry as every tabletop flight (no per-axis ease
+      // salad, no back.out balloon at the landing) — centre-true, with a
+      // light bank into the travel direction.
+      const deckScale = DECK_SCALE * ui;
+      const from = {x: deckAnchor.x - (CARD_NATURAL_W * deckScale) / 2, y: deckAnchor.y, scale: deckScale};
+      const to = {x: source.left, y: source.top, scale: scaleOf(source)};
+      const dist = Math.hypot(to.x - from.x, to.y - from.y);
+      addCardCarry(tl, at, proxy, {
+        naturalH: source.height / scaleOf(source),
+        from, to,
+        duration: flight,
+        sag: Math.min(dist * 0.06, 44 * ui),
+        tilt: Math.max(-1.6, Math.min(1.6, (to.x - from.x) / (500 * ui))),
+      });
       const flip = proxy.querySelector<HTMLElement>('.con-deal-proxy__flip');
       if (flip !== null) {
-        tl.to(flip, {rotationY: 0, duration: flight * 0.55, ease: 'power2.inOut'}, at);
+        tl.to(flip, {rotationY: 0, duration: flight * 0.55, ease: 'power2.inOut'}, at + flight * 0.08);
       }
-      // The real tray mini-card materializes under the landed proxy and the
-      // proxy hands off (deal language) — the whole pile is REAL for the
-      // set-complete pulse (a fixed proxy would not scale with it).
-      tl.call(() => args.onArrivalLanded(index), undefined, at + flight * 0.9);
-      tl.to(proxy, {autoAlpha: 0, duration: s(timings.handoffMs), ease: 'power1.out'}, at + flight * 0.95);
+      // No-dip handoff: the real tray mini-card SNAPS visible under the
+      // still-opaque proxy at touchdown (the slot has no opacity transition),
+      // then the proxy fades ON TOP — the combined image never dims.
+      tl.call(() => args.onArrivalLanded(index), undefined, at + flight);
+      tl.to(proxy, {autoAlpha: 0, duration: s(120), ease: 'power1.out'}, at + flight + 0.001);
       arrivalsEnd = Math.max(arrivalsEnd, at + flight);
     });
     if (deck !== null) {
@@ -183,39 +196,67 @@ export function runCardRiseTimeline(args: RunRiseArgs): DealHandle {
     args.onLiftOff();
   }, undefined, liftStart);
 
-  let flightsEnd = liftStart;
+  // The LANDINGS are the events (the planCardArrival lesson): left → right,
+  // one readable touchdown at a time — a card owed an earlier landing simply
+  // spends less time in the air, and launches stay a quick cascade.
+  const landGap = s(timings.flightStaggerMs + 15);
+  let prevLand = 0;
+  let firstLand = Number.POSITIVE_INFINITY;
+  let lastLand = liftStart;
   proxies.forEach((proxy, i) => {
     const target = targets[i];
-    if (target === undefined) {
+    const source = sources[i];
+    if (target === undefined || source === undefined) {
       return;
     }
     const liftAt = liftStart + i * s(timings.liftStaggerMs);
-    const tilt = (i % 2 === 0 ? -1 : 1) * (1.2 + (i * 137) % 3);
-    tl.to(proxy, {y: `-=${14 * conUiScale()}`, scale: `*=1.05`, rotation: tilt, duration: s(timings.liftMs), ease: 'power2.out'}, liftAt);
-    // riseFlightDelayMs already folds the lift duration in — flights start
-    // strictly after their card's own lift settles (stagger 75 > 40).
-    const at = liftStart + s(riseFlightDelayMs(i, timings));
-    const flight = s(timings.flightMs);
-    tl.to(proxy, {x: target.left, duration: flight, ease: 'power1.inOut'}, at);
-    tl.to(proxy, {y: target.top, duration: flight, ease: 'power2.inOut'}, at);
-    tl.to(proxy, {scale: scaleOf(target), duration: flight, ease: 'back.out(1.15)'}, at);
-    tl.to(proxy, {rotation: 0, duration: flight * 0.75, ease: 'power2.out'}, at);
-    flightsEnd = Math.max(flightsEnd, at + flight);
-  });
-
-  // ── E→F. Frame materializes around the row, proxies dissolve ─────────
-  const frameAt = flightsEnd + 0.04;
-  tl.call(revealFrameOnce, undefined, frameAt);
-  const handoffAt = frameAt + s(timings.frameMs) * 0.8;
-  proxies.forEach((proxy, i) => {
+    // A calm group lift — no per-card tilt jitter (the wobble read): the
+    // bank into the travel direction belongs to the carry itself.
+    tl.to(proxy, {y: `-=${10 * ui}`, scale: `*=1.02`, duration: s(timings.liftMs), ease: 'power2.out'}, liftAt);
+    const sF = scaleOf(source) * 1.02;
+    const sT = scaleOf(target);
+    const from = {x: source.left, y: source.top - 10 * ui, scale: sF};
+    const to = {x: target.left, y: target.top, scale: sT};
+    const dist = Math.hypot(
+      (to.x + (CARD_NATURAL_W * sT) / 2) - (from.x + (CARD_NATURAL_W * sF) / 2),
+      (to.y + (target.height / sT) * sT / 2) - (from.y + (target.height / sT) * sF / 2));
+    const dur = s(timings.flightMs) * Math.max(0.78, Math.min(1.18, 0.66 + dist / (1500 * ui)));
+    // The carry starts as the lift eases out — one gesture, never
+    // lift → full stop → launch.
+    const minAt = liftAt + s(timings.liftMs) * 0.8;
+    const land = Math.max(minAt + dur, prevLand + landGap);
+    prevLand = land;
+    firstLand = Math.min(firstLand, land);
+    lastLand = Math.max(lastLand, land);
+    addCardCarry(tl, land - dur, proxy, {
+      naturalH: target.height / sT,
+      from, to,
+      duration: dur,
+      sag: Math.min(dist * 0.05, 40 * ui),
+      tilt: Math.max(-2, Math.min(2,
+        ((to.x + (CARD_NATURAL_W * sT) / 2) - (from.x + (CARD_NATURAL_W * sF) / 2)) / (420 * ui))),
+    });
+    // No-dip handoff at THIS card's own touchdown: the real card SNAPS
+    // visible under the still-opaque proxy (the draft row has no opacity
+    // transition), the proxy fades ON TOP — never a crossfade dip, never a
+    // whole-row swap after the fact.
     tl.call(() => {
       if (!revealed.has(i)) {
         revealed.add(i);
         onReveal(i);
       }
-    }, undefined, handoffAt + i * 0.02);
-    tl.to(proxy, {autoAlpha: 0, duration: s(timings.handoffMs), ease: 'power1.out'}, handoffAt + i * 0.02);
+    }, undefined, land);
+    tl.to(proxy, {autoAlpha: 0, duration: s(120), ease: 'power1.out'}, land + 0.001);
   });
+
+  // ── E. The frame materializes AS the first card touches down — the
+  // chrome grows around an arriving row, not after a finished one. ──────
+  const frameAt = Number.isFinite(firstLand) ?
+    Math.max(liftStart + s(timings.liftMs), firstLand - s(70)) : liftStart + s(timings.liftMs);
+  tl.call(revealFrameOnce, undefined, frameAt);
+  // The timeline's own tail covers the last proxy's fade — completion can
+  // never race a still-fading handoff.
+  tl.set({}, {}, lastLand + s(160));
 
   tl.eventCallback('onComplete', () => finish(false));
   tl.play(0);

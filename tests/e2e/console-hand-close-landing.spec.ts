@@ -114,6 +114,17 @@ test.describe('hand close landing · full-pose pixel-true handoff', () => {
       await page.waitForTimeout(600);
     }
 
+    // MID-OPEN CANCELS: B lands while the open episode is still flying —
+    // the rewind must land on LIVE berths too (the reversed timeline flies
+    // to its launch snapshot; the corrective final approach + the cancel
+    // accent are what this pins). Three cancel points: early, mid, late.
+    for (const cancelAt of [220, 420, 650]) {
+      await press(page, 'Period', 700); // RT wheel
+      await press(page, 'Enter', cancelAt); // the open starts…
+      await press(page, 'Escape', 2400); // …and B cancels it mid-flight
+      await page.waitForTimeout(500);
+    }
+
     const probe = await page.evaluate(() => {
       const w = window as unknown as {__hcl: {timer: number, samples: number, overlays: Array<Overlay>}};
       window.clearInterval(w.__hcl.timer);
