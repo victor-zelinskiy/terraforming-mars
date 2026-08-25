@@ -331,7 +331,7 @@ export default defineComponent({
         }
         this.burstTimer = window.setTimeout(() => {
           this.turnBurst = false;
-        }, 2600);
+        }, motionMs(2600));
       }
     },
     // One-shot pulse on the Temp/O₂/Oceans group when terraforming completes

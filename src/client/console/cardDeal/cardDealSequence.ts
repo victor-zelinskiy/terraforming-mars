@@ -28,6 +28,7 @@
 
 import {reactive} from 'vue';
 import {CardName} from '@/common/cards/CardName';
+import {restingRectOf} from '@/client/console/cardFlight/landingRect';
 import {AnimationHold, beginAnimationHold} from '@/client/components/presentation/animationHold';
 import {consoleReducedMotionActive, REDUCED_MOTION_CAP_MS} from '@/client/console/composables/useConsoleReducedMotion';
 import {shouldRunDealOnce} from '@/client/console/cardDeal/cardDealMemory';
@@ -181,10 +182,12 @@ export function createCardDealSequence() {
         finish();
         return;
       }
-      const targets: Array<DealTargetRect> = slotCards.map((el) => {
-        const r = el.getBoundingClientRect();
-        return {left: r.left, top: r.top, width: r.width, height: r.height};
-      });
+      // RESTING rects: a slot measured while its host zone is still entering
+      // yields the box it will SETTLE on. The stability retry below still
+      // guards the fit-zoom case, but when the budget runs out on a live
+      // entry, the deal now launches at the resting geometry instead of a
+      // mid-flight snapshot (= no snap at the handoff).
+      const targets: Array<DealTargetRect> = slotCards.map((el) => restingRectOf(el));
       // Layout not ready (fit-zoom mid-retry / fonts / a frame swap still in
       // flight): retry until the rects are non-degenerate AND stable across
       // two consecutive frames. Budget exhausted → degenerate reveals

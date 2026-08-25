@@ -143,8 +143,8 @@
 .con-cards__strip .con-reveal__bonus-zone > .con-cards__slot {
     zoom: var(--con-cards-zoom, 1);
     transition:
-        transform calc(260ms * var(--motion-scale, 1)) cubic-bezier(0.22, 0.61, 0.36, 1),
-        box-shadow calc(260ms * var(--motion-scale, 1)) cubic-bezier(0.22, 0.61, 0.36, 1);
+        transform calc(260ms * var(--motion-scale, 1)) @con-ease-standard,
+        box-shadow calc(260ms * var(--motion-scale, 1)) @con-ease-standard;
 }
 .con-reveal__strip .con-reveal__bonus-zone > .con-cards__slot--focused {
     transform: translateY(-.2rem) scale(var(--con-ws-focus-scale, 1.045));

@@ -80,12 +80,12 @@
    rule binds infinite loops, not single confirmations). */
 .board-space-bonuses--nomad-restore {
     .board-space-bonus {
-        animation: nomad-bonus-restore 430ms cubic-bezier(0.34, 1.3, 0.5, 1) both;
+        animation: nomad-bonus-restore calc(430ms * var(--motion-scale, 1)) cubic-bezier(0.34, 1.3, 0.5, 1) both;
         will-change: transform, opacity;
 
-        &:nth-child(2) { animation-delay: 80ms; }
-        &:nth-child(3) { animation-delay: 160ms; }
-        &:nth-child(4) { animation-delay: 240ms; }
+        &:nth-child(2) { animation-delay: calc(80ms * var(--motion-scale, 1)); }
+        &:nth-child(3) { animation-delay: calc(160ms * var(--motion-scale, 1)); }
+        &:nth-child(4) { animation-delay: calc(240ms * var(--motion-scale, 1)); }
     }
 }
 

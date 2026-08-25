@@ -54,6 +54,7 @@ import {motionMs} from '@/client/components/motion/motionTokens';
 import {consoleReducedMotionActive} from '@/client/console/composables/useConsoleReducedMotion';
 import {ZoomOrigin} from '@/client/console/consoleCardZoom';
 import {conUiScale} from '@/client/console/consoleLayoutProfile';
+import {restingRectOf} from '@/client/console/cardFlight/landingRect';
 import {runHandIntake} from '@/client/console/handDock/handDeliveryDirector';
 
 const HOLD_CLASS = 'con-zoom-hold';
@@ -116,6 +117,24 @@ function usableRect(el: HTMLElement | null): DOMRect | undefined {
   }
   // A slot scrolled fully off-screen is not a believable flight target.
   if (r.bottom < 0 || r.top > window.innerHeight || r.right < 0 || r.left > window.innerWidth) {
+    return undefined;
+  }
+  return r;
+}
+
+/** The LANDING variant: where the slot will REST. A zoom close during a page
+ *  turn / a slot's own entry measured raw sent the returning card onto a rect
+ *  the slot was merely passing through — `restingRectOf` un-maps a live
+ *  transition to its destination, so the retract aims at the final berth. */
+function usableRestingRect(el: HTMLElement | null): {left: number, top: number, width: number, height: number} | undefined {
+  if (el === null || !el.isConnected) {
+    return undefined;
+  }
+  const r = restingRectOf(el);
+  if (r.width < 10 || r.height < 10) {
+    return undefined;
+  }
+  if (r.top + r.height < 0 || r.top > window.innerHeight || r.left + r.width < 0 || r.left > window.innerWidth) {
     return undefined;
   }
   return r;
@@ -308,8 +327,10 @@ export function playZoomClose(dialog: HTMLElement | undefined, index: number): P
     }
     const target = stage.getBoundingClientRect();
     // Geometry from the CARD, hold on the WRAPPER (whole slot empties — no
-    // leftover outline behind the returning card).
-    const source = origin.kind === 'physical' ? usableRect(sourceCardEl(origin, index)) : undefined;
+    // leftover outline behind the returning card). RESTING: this is the
+    // return flight's LANDING — mid-page-turn / mid-entry slots aim at the
+    // rect they will settle on.
+    const source = origin.kind === 'physical' ? usableRestingRect(sourceCardEl(origin, index)) : undefined;
     if (source === undefined || target.width < 10) {
       // No believable slot (textual origin / slot scrolled away): dive.
       ctx.tween = gsap.to(stage, {autoAlpha: 0, y: 18, scale: 0.92, transformOrigin: '50% 60%', duration: motionMs(200) / 1000, ease: 'power2.in', onComplete: done});

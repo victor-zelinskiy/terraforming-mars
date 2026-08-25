@@ -38,6 +38,7 @@
 import {gsap} from 'gsap';
 import {motionMs} from '@/client/components/motion/motionTokens';
 import {conUiScale} from '@/client/console/consoleLayoutProfile';
+import {restingRectOf as sharedRestingRectOf} from '@/client/console/cardFlight/landingRect';
 
 // ── The one-shot registries (armed at the press, consumed by the hooks) ─────
 //
@@ -393,27 +394,12 @@ export function descendCascadeOut(
  * and subtracting it would aim at a box that never exists.
  */
 export function restingRectOf(el: HTMLElement): {left: number, top: number, width: number, height: number} {
-  const r = el.getBoundingClientRect();
-  const box = {left: r.left, top: r.top, width: r.width, height: r.height};
-  if (typeof window === 'undefined' || typeof DOMMatrixReadOnly === 'undefined') {
-    return box;
-  }
-  const raw = window.getComputedStyle(el).transform;
-  if (raw === '' || raw === 'none') {
-    return box;
-  }
-  try {
-    const m = new DOMMatrixReadOnly(raw);
-    if (m.is2D &&
-        Math.abs(m.a - 1) < 0.001 && Math.abs(m.d - 1) < 0.001 &&
-        Math.abs(m.b) < 0.001 && Math.abs(m.c) < 0.001) {
-      box.left -= m.e;
-      box.top -= m.f;
-    }
-  } catch {
-    // An unparseable transform is not worth a broken flight — aim as measured.
-  }
-  return box;
+  // Delegates to the shared landing-geometry primitive (cardFlight/
+  // landingRect.ts), which extends the original self-translation subtraction
+  // with live-entry un-mapping on the element AND its ancestors — the embed
+  // zone / tray / stage classes of last-frame teleports. Kept exported here:
+  // this is where every existing flight importer knows it from.
+  return sharedRestingRectOf(el);
 }
 
 /** A live viewport rect, or undefined when the element is not laid out. */

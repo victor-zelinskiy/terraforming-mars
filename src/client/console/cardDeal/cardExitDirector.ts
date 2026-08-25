@@ -144,13 +144,18 @@ function gatherPoint(): {x: number, y: number} {
 function guarded(run: (done: () => void) => void, budgetMs: number): Promise<void> {
   return new Promise<void>((resolve) => {
     let settled = false;
+    let safety: ReturnType<typeof setTimeout> | undefined;
     const done = () => {
       if (!settled) {
         settled = true;
+        if (safety !== undefined) {
+          clearTimeout(safety); // a completed beat leaves no live timer behind
+          safety = undefined;
+        }
         resolve();
       }
     };
-    setTimeout(done, budgetMs + 1200); // rAF-stall safety
+    safety = setTimeout(done, budgetMs + 1200); // rAF-stall safety
     run(done);
   });
 }

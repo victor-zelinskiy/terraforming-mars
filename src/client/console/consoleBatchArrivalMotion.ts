@@ -450,12 +450,17 @@ export function settleBatchProxiesOnto(args: {
 }): void {
   const {pairs, onDone} = args;
   let done = false;
+  let aimSafety: number | undefined;
   const held: Array<HTMLElement> = [];
   const finish = () => {
     if (done) {
       return;
     }
     done = true;
+    if (aimSafety !== undefined) {
+      window.clearTimeout(aimSafety);
+      aimSafety = undefined;
+    }
     held.forEach((el) => el.classList.remove('con-deal-hold'));
     onDone();
   };
@@ -487,6 +492,13 @@ export function settleBatchProxiesOnto(args: {
   const POLL_FRAMES = 40;
   let frames = 0;
   let prev = '';
+  // rAF starvation net: a quiet headless / backgrounded compositor stops
+  // delivering frames exactly when the screen goes still (the album teardown
+  // precedent) — the aim loop then never re-runs, the travel tween never
+  // starts, and `con-deal-hold` strands the real cards invisible. The wall
+  // clock covers the whole poll budget + the travel leg; `finish` is
+  // idempotent, so a normal completion makes this a no-op.
+  aimSafety = window.setTimeout(finish, motionMs(190) + 1800);
   const aim = (): void => {
     if (done) {
       return;

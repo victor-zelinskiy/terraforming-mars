@@ -36,7 +36,7 @@
  * (transform only; the root fade carries the alpha). */
 .con-endgame--ovopen .con-eg__row {
     transform: translateY(-0.45rem);
-    transition: transform calc(340ms * var(--motion-scale, 1)) cubic-bezier(0.4, 0, 0.7, 0.2);
+    transition: transform calc(340ms * var(--motion-scale, 1)) @con-ease-exit;
     transition-delay: calc(var(--eg-i, 0) * 28ms * var(--motion-scale, 1));
 }
 /* Rail / caption / zone let go first — layers, not one curtain. */
@@ -78,7 +78,7 @@
     pointer-events: none;
     transition:
         opacity calc(240ms * var(--motion-scale, 1)) ease,
-        transform calc(280ms * var(--motion-scale, 1)) cubic-bezier(0.4, 0, 0.7, 0.2);
+        transform calc(280ms * var(--motion-scale, 1)) @con-ease-exit;
 }
 
 @keyframes con-egov-in {
@@ -175,7 +175,7 @@
         border-color calc(200ms * var(--motion-scale, 1)) ease,
         background-color calc(200ms * var(--motion-scale, 1)) ease,
         box-shadow calc(200ms * var(--motion-scale, 1)) ease,
-        transform calc(200ms * var(--motion-scale, 1)) cubic-bezier(0.22, 0.61, 0.36, 1);
+        transform calc(200ms * var(--motion-scale, 1)) @con-ease-standard;
 }
 .con-egov__tab--active {
     color: #f2f8ff;
@@ -193,7 +193,7 @@
     margin-top: 0.7rem;
     overflow: hidden;
     --egov-dx: 1.1rem;
-    animation: con-egov-in calc(380ms * var(--motion-scale, 1)) cubic-bezier(0.16, 1, 0.3, 1) backwards;
+    animation: con-egov-in calc(380ms * var(--motion-scale, 1)) @con-ease-enter backwards;
     animation-delay: calc(200ms * var(--motion-scale, 1));
 }
 .con-egov__viewport--dir-l { --egov-dx: -1.1rem; }
@@ -206,10 +206,10 @@
     transform: translateX(calc(-1 * var(--egov-dx)));
     transition:
         opacity calc(130ms * var(--motion-scale, 1)) ease,
-        transform calc(130ms * var(--motion-scale, 1)) cubic-bezier(0.4, 0, 0.7, 0.2);
+        transform calc(130ms * var(--motion-scale, 1)) @con-ease-exit;
 }
 .con-egov__viewport--in > * {
-    animation: con-egov-pane-in calc(230ms * var(--motion-scale, 1)) cubic-bezier(0.16, 1, 0.3, 1) backwards;
+    animation: con-egov-pane-in calc(230ms * var(--motion-scale, 1)) @con-ease-enter backwards;
 }
 @keyframes con-egov-pane-in {
     from { opacity: 0; transform: translateX(var(--egov-dx, 1.1rem)); }
@@ -266,7 +266,7 @@
     border: 0.05rem solid rgba(150, 175, 205, 0.22);
     background: linear-gradient(180deg, rgba(13, 21, 32, 0.97) 0%, rgba(8, 14, 22, 0.97) 100%);
     box-shadow: 0 0.6rem 2.2rem rgba(0, 0, 0, 0.55);
-    animation: con-egov-detail-in calc(240ms * var(--motion-scale, 1)) cubic-bezier(0.16, 1, 0.3, 1) backwards;
+    animation: con-egov-detail-in calc(240ms * var(--motion-scale, 1)) @con-ease-enter backwards;
     overflow: hidden;
 }
 @keyframes con-egov-detail-in {
@@ -374,7 +374,7 @@
     stroke-width: 0.14rem;
     stroke-linecap: round;
     stroke-linejoin: round;
-    transition: stroke-dashoffset calc(650ms * var(--motion-scale, 1)) cubic-bezier(0.22, 0.61, 0.36, 1);
+    transition: stroke-dashoffset calc(650ms * var(--motion-scale, 1)) @con-ease-standard;
 }
 .con-ovchart__series--dim .con-ovchart__line { stroke-width: 0.09rem; opacity: 0.3; }
 .con-ovchart__series--dim .con-ovchart__area { display: none; }
@@ -421,7 +421,7 @@
  * `--enter` is LATCHED at the pane's mount (a later tab-swap remount lands
  * settled; the pane slide is the only motion, nothing blanks for a delay). */
 .con-ovd--enter .con-ovd__rrow {
-    animation: con-egov-in calc(320ms * var(--motion-scale, 1)) cubic-bezier(0.16, 1, 0.3, 1) backwards;
+    animation: con-egov-in calc(320ms * var(--motion-scale, 1)) @con-ease-enter backwards;
     animation-delay: calc((240ms + var(--ov-i, 0) * 45ms) * var(--motion-scale, 1));
 }
 .con-ovd__rrow--winner {
@@ -571,7 +571,7 @@
     transition: box-shadow calc(180ms * var(--motion-scale, 1)) ease, border-color calc(180ms * var(--motion-scale, 1)) ease;
 }
 .con-ovd--enter .con-ovd__fact {
-    animation: con-egov-in calc(340ms * var(--motion-scale, 1)) cubic-bezier(0.16, 1, 0.3, 1) backwards;
+    animation: con-egov-in calc(340ms * var(--motion-scale, 1)) @con-ease-enter backwards;
     animation-delay: calc((460ms + var(--ov-i, 0) * 70ms) * var(--motion-scale, 1));
 }
 .con-ovd__fact--focused {
@@ -808,7 +808,7 @@
     border-radius: 0.25rem 0.2rem 0.2rem 0.25rem;
     background: var(--eg-c, #8aa4c0);
     min-width: 0;
-    transition: width calc(420ms * var(--motion-scale, 1)) cubic-bezier(0.22, 0.61, 0.36, 1);
+    transition: width calc(420ms * var(--motion-scale, 1)) @con-ease-standard;
 }
 .con-ovs__pbar-fill--neg {
     background:
@@ -1529,7 +1529,7 @@
     top: 0;
     bottom: 0;
     border-radius: 0.22rem;
-    transition: width calc(420ms * var(--motion-scale, 1)) cubic-bezier(0.22, 0.61, 0.36, 1);
+    transition: width calc(420ms * var(--motion-scale, 1)) @con-ease-standard;
 }
 .con-ovp__push-val {
     font-family: @con-font;
@@ -1705,7 +1705,7 @@
     bottom: 0;
     border-radius: 0.2rem;
     background: var(--ov-pc, #8aa4c0);
-    transition: width calc(360ms * var(--motion-scale, 1)) cubic-bezier(0.22, 0.61, 0.36, 1);
+    transition: width calc(360ms * var(--motion-scale, 1)) @con-ease-standard;
 }
 .con-ovpl__mval {
     font-family: @con-font;

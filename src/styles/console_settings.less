@@ -75,7 +75,7 @@
             inset 0 0 0 .05rem fade(@con-cyan, 44%),
             0 1.2rem 4rem rgba(0, 0, 0, 0.68);
         overflow: hidden;
-        animation: con-rise calc(200ms * var(--motion-scale, 1)) cubic-bezier(0.16, 1, 0.3, 1);
+        animation: con-rise calc(200ms * var(--motion-scale, 1)) @con-ease-enter;
     }
     /* The settings console runs wider than the action list: its rows carry a
        label AND a fixed-width stepper, and the tab strip has to hold every

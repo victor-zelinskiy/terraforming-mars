@@ -283,7 +283,7 @@
         color calc(260ms * var(--motion-scale, 1)) ease,
         border-color calc(260ms * var(--motion-scale, 1)) ease,
         background-color calc(260ms * var(--motion-scale, 1)) ease,
-        transform calc(260ms * var(--motion-scale, 1)) cubic-bezier(0.22, 0.61, 0.36, 1);
+        transform calc(260ms * var(--motion-scale, 1)) @con-ease-standard;
 }
 .con-endgame--entering .con-eg__lchip {
     animation: con-eg-fadein calc(360ms * var(--motion-scale, 1)) ease backwards;
@@ -367,7 +367,7 @@
         box-shadow calc(340ms * var(--motion-scale, 1)) ease;
 }
 .con-endgame--entering .con-eg__row {
-    animation: con-eg-row-in calc(430ms * var(--motion-scale, 1)) cubic-bezier(0.16, 1, 0.3, 1) backwards;
+    animation: con-eg-row-in calc(430ms * var(--motion-scale, 1)) @con-ease-enter backwards;
     animation-delay: calc(var(--eg-i, 0) * 80ms * var(--motion-scale, 1));
 }
 @keyframes con-eg-row-in {
@@ -422,7 +422,7 @@
     text-transform: uppercase;
     color: @sem-prestige;
     box-shadow: 0 0.15rem 0.6rem rgba(0, 0, 0, 0.5);
-    animation: con-eg-ribbon-in calc(420ms * var(--motion-scale, 1)) cubic-bezier(0.16, 1, 0.3, 1) backwards;
+    animation: con-eg-ribbon-in calc(420ms * var(--motion-scale, 1)) @con-ease-enter backwards;
     z-index: 3;
 }
 @keyframes con-eg-ribbon-in {
@@ -545,7 +545,7 @@
     transform: scaleX(0);
     transform-origin: left center;
     transition:
-        transform calc(600ms * var(--motion-scale, 1)) cubic-bezier(0.22, 0.61, 0.36, 1),
+        transform calc(600ms * var(--motion-scale, 1)) @con-ease-standard,
         background-color calc(480ms * var(--motion-scale, 1)) ease,
         box-shadow calc(480ms * var(--motion-scale, 1)) ease;
 }
@@ -574,7 +574,7 @@
     box-shadow: inset 0.09rem 0 0 rgba(224, 106, 106, 0.75);
     transform: scaleX(0);
     transform-origin: right center;
-    transition: transform calc(640ms * var(--motion-scale, 1)) cubic-bezier(0.22, 0.61, 0.36, 1);
+    transition: transform calc(640ms * var(--motion-scale, 1)) @con-ease-standard;
     z-index: 2;
 }
 .con-eg__reclaim--on { transform: scaleX(1); }
@@ -593,7 +593,7 @@
     opacity: 0;
     transition:
         opacity calc(280ms * var(--motion-scale, 1)) ease,
-        transform calc(280ms * var(--motion-scale, 1)) cubic-bezier(0.16, 1, 0.3, 1);
+        transform calc(280ms * var(--motion-scale, 1)) @con-ease-enter;
     pointer-events: none;
     z-index: 3;
 }
@@ -623,15 +623,19 @@
     white-space: nowrap;
     z-index: 4;
     /* left rides the (transitioned) edge — keep it in step with the bar. */
-    transition: left calc(600ms * var(--motion-scale, 1)) cubic-bezier(0.22, 0.61, 0.36, 1);
+    transition: left calc(600ms * var(--motion-scale, 1)) @con-ease-standard;
 }
 .con-eg__chip--minus {
     color: #ffb3b3;
     border-color: rgba(224, 106, 106, 0.5);
 }
-.con-eg-chip-enter-active { transition: opacity calc(220ms * var(--motion-scale, 1)) ease, margin-bottom calc(220ms * var(--motion-scale, 1)) cubic-bezier(0.16, 1, 0.3, 1); }
+/* The entry nudge rides TRANSFORM (composed with the base translateX(-50%)),
+ * not margin — same visual, no layout write; `left` stays in the transition
+ * list so a chip appearing while the bar is still growing keeps riding the
+ * edge through its own entry. */
+.con-eg-chip-enter-active { transition: opacity calc(220ms * var(--motion-scale, 1)) ease, transform calc(220ms * var(--motion-scale, 1)) @con-ease-enter, left calc(600ms * var(--motion-scale, 1)) @con-ease-standard; }
 .con-eg-chip-leave-active { transition: opacity calc(200ms * var(--motion-scale, 1)) ease; }
-.con-eg-chip-enter-from { opacity: 0; margin-bottom: -0.25rem; }
+.con-eg-chip-enter-from { opacity: 0; transform: translate(-50%, 0.25rem); }
 .con-eg-chip-leave-to { opacity: 0; }
 
 /* Tie-break M€ — absolute over the track's tail (appearing evidence may
@@ -677,7 +681,7 @@
     opacity: 0;
     transition:
         opacity calc(280ms * var(--motion-scale, 1)) ease,
-        transform calc(280ms * var(--motion-scale, 1)) cubic-bezier(0.16, 1, 0.3, 1);
+        transform calc(280ms * var(--motion-scale, 1)) @con-ease-enter;
     pointer-events: none;
     white-space: nowrap;
 }
@@ -712,7 +716,7 @@
     color: @sem-prestige;
     /* One-shot crowning pulse — plays when the winner class lands
      * (transform-only; the class persists, so it can never replay). */
-    animation: con-eg-total-crown calc(700ms * var(--motion-scale, 1)) cubic-bezier(0.22, 0.61, 0.36, 1);
+    animation: con-eg-total-crown calc(700ms * var(--motion-scale, 1)) @con-ease-standard;
 }
 @keyframes con-eg-total-crown {
     0% { transform: scale(1); }
@@ -817,7 +821,7 @@
         box-shadow calc(200ms * var(--motion-scale, 1)) ease,
         background-color calc(200ms * var(--motion-scale, 1)) ease,
         color calc(200ms * var(--motion-scale, 1)) ease,
-        transform calc(200ms * var(--motion-scale, 1)) cubic-bezier(0.22, 0.61, 0.36, 1);
+        transform calc(200ms * var(--motion-scale, 1)) @con-ease-standard;
 }
 .con-eg__action--focused {
     color: #ffffff;
@@ -848,7 +852,7 @@
 .con-eg-fade-leave-active { transition: opacity calc(180ms * var(--motion-scale, 1)) ease; }
 .con-eg-fade-enter-from,
 .con-eg-fade-leave-to { opacity: 0; }
-.con-eg-rise-enter-active { transition: opacity calc(320ms * var(--motion-scale, 1)) ease, transform calc(320ms * var(--motion-scale, 1)) cubic-bezier(0.16, 1, 0.3, 1); }
+.con-eg-rise-enter-active { transition: opacity calc(320ms * var(--motion-scale, 1)) ease, transform calc(320ms * var(--motion-scale, 1)) @con-ease-enter; }
 .con-eg-rise-leave-active { transition: opacity calc(160ms * var(--motion-scale, 1)) ease; }
 .con-eg-rise-enter-from { opacity: 0; transform: translateY(0.5rem); }
 .con-eg-rise-leave-to { opacity: 0; }

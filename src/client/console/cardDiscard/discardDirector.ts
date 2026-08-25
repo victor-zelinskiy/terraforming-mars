@@ -27,6 +27,7 @@ import {gsap} from 'gsap';
 import {CardName} from '@/common/cards/CardName';
 import {motionMs} from '@/client/components/motion/motionTokens';
 import {conUiScale} from '@/client/console/consoleLayoutProfile';
+import {restingRectOf} from '@/client/console/cardFlight/landingRect';
 import {CARD_NATURAL_W} from '@/client/console/cardDeal/cardDealModel';
 import {
   cardDiscardState,
@@ -74,6 +75,9 @@ export type SpawnedDiscard = {
 
 function elementRect(el: HTMLElement): DiscardRect {
   const card = el.querySelector<HTMLElement>(':is(.card-container, .pcard)') ?? el;
+  // RAW on purpose: this measures a SOURCE — the proxy must be born exactly
+  // over the pixels the player sees this frame (the real card is hidden in
+  // the same block). Only LANDING rects use `restingRectOf`.
   const r = card.getBoundingClientRect();
   return {left: r.left, top: r.top, width: r.width, height: r.height};
 }
@@ -298,10 +302,11 @@ export function runDiscardCarry(
   }
   const unit = conUiScale();
   const tray = discardTrayEl();
-  const trayRect = tray === undefined ? undefined : (() => {
-    const r = tray.getBoundingClientRect();
-    return {left: r.left, top: r.top, width: r.width, height: r.height};
-  })();
+  // RESTING: the tray enters on `con-discard-trayin` (translateY + scale,
+  // `both` fill) and this carry is routinely armed while that entry is still
+  // playing — a raw rect made the packet land where the tray was PASSING and
+  // the pile then slid out from under the settled cards.
+  const trayRect = tray === undefined ? undefined : restingRectOf(tray);
   const lift = s(t.liftMs);
   const carry = s(t.carryMs);
   const land = s(t.landMs);

@@ -1577,7 +1577,12 @@ export default defineComponent({
         void this.$nextTick(() => {
           const slot = this.$refs.focusedCardSlot as HTMLElement | Array<HTMLElement> | undefined;
           const el = Array.isArray(slot) ? slot[0] : slot;
-          el?.scrollIntoView({inline: 'center', block: 'nearest', behavior: 'smooth'});
+          // Snap while a take / collection / FLIP episode owns the strip: a
+          // SMOOTH scroll retargets the container for ~300ms UNDER transforms
+          // whose deltas were measured against the pre-scroll layout — the
+          // cards then glide against a moving floor.
+          const busy = this.takingIdx !== undefined || this.collecting || this.arrivalPending;
+          el?.scrollIntoView({inline: 'center', block: 'nearest', behavior: busy ? 'auto' : 'smooth'});
         });
       }
     },
@@ -1653,7 +1658,9 @@ export default defineComponent({
           void this.$nextTick(() => {
             const slot = this.$refs.focusedCardSlot as HTMLElement | Array<HTMLElement> | undefined;
             const el = Array.isArray(slot) ? slot[0] : slot;
-            el?.scrollIntoView({inline: 'center', block: 'nearest', behavior: 'smooth'});
+            // Same snap-under-episode rule as focusStep (see there).
+            const busy = this.takingIdx !== undefined || this.collecting || this.arrivalPending;
+            el?.scrollIntoView({inline: 'center', block: 'nearest', behavior: busy ? 'auto' : 'smooth'});
           });
         } : undefined,
       );

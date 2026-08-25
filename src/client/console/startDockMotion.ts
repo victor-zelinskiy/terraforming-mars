@@ -61,6 +61,7 @@ import {CardName} from '@/common/cards/CardName';
 import {motionMs} from '@/client/components/motion/motionTokens';
 import {consoleReducedMotionActive} from '@/client/console/composables/useConsoleReducedMotion';
 import {conUiScale} from '@/client/console/consoleLayoutProfile';
+import {restingRectOf} from '@/client/console/cardFlight/landingRect';
 import {
   addCard3DTurn, buildCard3DInner, Card3DInner, CARD3D_SHADOW, FACE_UP_DEG,
   readCard3DInner, setCard3DFace,
@@ -105,6 +106,23 @@ function rectOf(el: HTMLElement | null | undefined): Rect | undefined {
     {x: r.left, y: r.top, w: r.width, h: r.height} : undefined;
 }
 
+/**
+ * The rect a LANDING element will occupy at rest. A start-flow destination is
+ * routinely measured while it (or the zone above it — the embed seat, the
+ * queue, a descend stage) is still running its own entry translate; aiming a
+ * carry at the mid-entry rect is what landed cards 9–18 px off and snapped
+ * them at the handoff. Sources stay `rectOf` (raw): a proxy is born over the
+ * pixels the player currently sees.
+ */
+function restingRectOfEl(el: HTMLElement | null | undefined): Rect | undefined {
+  if (el === null || el === undefined || typeof el.getBoundingClientRect !== 'function') {
+    return undefined;
+  }
+  const r = restingRectOf(el);
+  return r.width > 4 && r.height > 4 ?
+    {x: r.left, y: r.top, w: r.width, h: r.height} : undefined;
+}
+
 /** The measurable CARD inside a slot/tile (its padding/band would misplace
  *  and mis-size a proxy against the pixels the player actually sees). */
 function cardIn(el: HTMLElement | null | undefined): HTMLElement | undefined {
@@ -117,6 +135,14 @@ export function cardRectOf(el: HTMLElement | null | undefined): Rect | undefined
     return undefined;
   }
   return rectOf(cardIn(el) ?? el);
+}
+
+/** The RESTING rect of the card a slot hosts — for LANDING measurements. */
+function restingCardRectOf(el: HTMLElement | null | undefined): Rect | undefined {
+  if (el === null || el === undefined) {
+    return undefined;
+  }
+  return restingRectOfEl(cardIn(el) ?? el);
 }
 
 // ── ONE FLIGHT'S PROXIES — the ownership unit (see rule ① above) ───────────
@@ -618,7 +644,9 @@ export async function measureTargets(
   for (let i = 0; i <= maxFrames && missing.length > 0; i++) {
     const still: Array<CardName> = [];
     for (const name of missing) {
-      const r = cardRectOf(targetFor(name));
+      // RESTING: these are landings — a slot measured mid-entry must yield
+      // the rect it will settle on, or the whole carry aims short.
+      const r = restingCardRectOf(targetFor(name));
       if (r === undefined) {
         still.push(name);
       } else {
@@ -665,7 +693,8 @@ export async function returnFromDock(
     .map((name) => {
       const slot = slotFor(name);
       const card = cardIn(slot);
-      return {name, slot, to: rectOf(card ?? slot ?? undefined), card};
+      // `to` is a LANDING → resting rect (the slot may still be entering).
+      return {name, slot, to: restingRectOfEl(card ?? slot ?? undefined), card};
     })
     .filter((t): t is typeof t & {to: Rect} => t.to !== undefined);
   if (pile === undefined || targets.length === 0 || layerEl === undefined) {
@@ -708,7 +737,7 @@ export async function returnFromDock(
         at,
         flipTo: FACE_UP_DEG,
         tilt: tiltSeedFor(t.name),
-        retarget: () => cardRectOf(t.slot),
+        retarget: () => restingCardRectOf(t.slot),
         onRelease: () => onDepart?.(t.name),
         onDock: () => onLanded?.(t.name),
       });
@@ -767,7 +796,7 @@ export async function reseatCards(
       addFlight(tl, card, p.from, p.to, {
         at: (flightMs(staggerFor(live.length)) * i) / 1000,
         reseat: true,
-        retarget: () => cardRectOf(p.toEl),
+        retarget: () => restingCardRectOf(p.toEl),
         onDock: () => onLanded?.(p.name),
       });
     });
@@ -947,7 +976,7 @@ export function captureCards(sources: ReadonlyArray<DockFlightSource>): Captured
             flipTo: opts?.flipTo,
             tilt: reseat ? 0 : tiltSeedFor(f.name),
             pressEl: opts?.pressElFor?.(f.name) ?? undefined,
-            retarget: () => cardRectOf(f.el),
+            retarget: () => restingCardRectOf(f.el),
             onDock: () => onLanded?.(f.name),
           });
         });

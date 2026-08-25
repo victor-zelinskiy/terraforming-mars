@@ -242,6 +242,16 @@ function killLiveEpisode(): void {
   }
 }
 
+/**
+ * Teardown boundary (game switch / shell unmount). A live commit episode's
+ * timeline used to be killable only by the NEXT episode starting — at shell
+ * teardown it kept ticking on a detached layer and its `finish` (the gate the
+ * composer awaits) never fired. Idempotent.
+ */
+export function abortActionCommitMotion(): void {
+  killLiveEpisode();
+}
+
 /** A quick physical answer from the HUD deck — the draw handoff's «колода
  *  отозвалась» (transform-only, self-clearing, silent when off screen). */
 export function pulseDeckPile(): void {

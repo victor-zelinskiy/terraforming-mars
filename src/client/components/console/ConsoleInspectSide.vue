@@ -22,7 +22,10 @@
       <!-- ── The body — only the content crossfades; the box + card are
            stable (the brief: a page swap, not a new modal). ──────────── -->
       <div class="con-inspect-side__content">
-        <transition :name="reduced ? '' : 'con-inspect-swap'" mode="out-in">
+        <!-- Reduced motion drops the MODE too: an empty-name out-in still
+             sequences leave→enter across two flushes, i.e. a guaranteed blank
+             frame — the exact opposite of «instant swap». -->
+        <transition :name="reduced ? '' : 'con-inspect-swap'" :mode="reduced ? undefined : 'out-in'">
           <ConsoleCardRulesPanel v-if="tab === 'rules'"
                                  key="rules"
                                  embedded

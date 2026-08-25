@@ -213,6 +213,34 @@ export function playHeroReducedHop(els: HeroStageEls, target: HeroRect, duration
   }, durationMs);
 }
 
+/**
+ * FINAL APPROACH — glide the landed proxy onto the re-measured REST box.
+ * The real slot's geometry can legitimately move between the aim and the
+ * commit (the embed seat's fit engine re-solves its zoom when the reveal
+ * mounts inside the same zone — measured 3–5 px + ~5 px of width), and a
+ * dissolve over that mismatch is a visible snap. The remainder is TRAVELLED
+ * instead — the `settleBatchProxiesOnto` discipline, applied to the hero.
+ * Same positioning convention as the flight/hop (centre-anchored scale).
+ */
+export function glideHeroOnto(els: HeroStageEls, target: HeroRect, durationMs: number): Promise<void> {
+  const g = geometry;
+  if (g === undefined) {
+    return Promise.resolve();
+  }
+  const scale = target.w / CARD_NATURAL_W;
+  return guarded((done) => {
+    return gsap.timeline({onComplete: done})
+      .to(els.proxy, {
+        x: target.x + target.w / 2 - CARD_NATURAL_W / 2,
+        y: target.y + target.h / 2 - g.naturalH / 2,
+        scale,
+        rotation: 0,
+        duration: durationMs / 1000,
+        ease: 'power2.out',
+      }, 0);
+  }, durationMs);
+}
+
 /** The frame-perfect handoff: the real slot is already painted underneath
  *  with identical geometry — a short dissolve hides sub-pixel rounding. */
 export function disposeHeroProxy(els: HeroStageEls, durationMs: number): Promise<void> {

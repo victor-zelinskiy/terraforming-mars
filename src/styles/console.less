@@ -28,6 +28,19 @@
 @con-glass-soft: rgba(10, 17, 26, 0.78);
 @con-text: #e8f1fb;
 @con-text-dim: rgba(196, 216, 236, 0.72);
+/* ── THE MOTION EASING LANGUAGE ───────────────────────────────────────
+   The four named curves of `motionTokens.MOTION_EASE`, verbatim — ONE
+   easing vocabulary across JS and CSS. New console motion picks from
+   these (a one-off cubic-bezier needs a reason it can state); durations
+   always ride `calc(<base>ms * var(--motion-scale, 1))`.
+     standard — interactive transitions: quick start, gentle landing
+     enter    — an element entering the scene
+     exit     — an element leaving (slightly sharper)
+     settle   — damped-spring arrival pulse                              */
+@con-ease-standard: cubic-bezier(0.22, 0.61, 0.36, 1);
+@con-ease-enter: cubic-bezier(0.16, 1, 0.3, 1);
+@con-ease-exit: cubic-bezier(0.4, 0, 0.7, 0.2);
+@con-ease-settle: cubic-bezier(0.34, 1.26, 0.44, 1);
 @con-font: Prototype, Ubuntu, sans-serif;
 /* ── THE TYPE ROLES (couch-reading iteration) ─────────────────────────
    DISPLAY (@con-font) — Prototype: headers, chips, labels, numeric
@@ -906,8 +919,8 @@ html.console-native {
        as «the card settled and became the selected one» — at the carousel's
        160ms/ease it read as a kick right after the landing. */
     transition:
-        transform calc(260ms * var(--motion-scale, 1)) cubic-bezier(0.22, 0.61, 0.36, 1),
-        box-shadow calc(260ms * var(--motion-scale, 1)) cubic-bezier(0.22, 0.61, 0.36, 1);
+        transform calc(260ms * var(--motion-scale, 1)) @con-ease-standard,
+        box-shadow calc(260ms * var(--motion-scale, 1)) @con-ease-standard;
 }
 :is(.con-cards__strip, .con-composer__beatrow).con-ws-stage-row > .con-cards__slot--focused {
     transform: translateY(-.2rem) scale(var(--con-ws-focus-scale, 1.045));
@@ -1288,7 +1301,7 @@ html.console-native {
         box-shadow:
             0 -.04rem 0 rgba(220, 242, 255, 0.035),
             0 0 .32rem fade(@con-cyan, 9%);
-        animation: con-wsflow-run-in calc(190ms * var(--motion-scale, 1)) cubic-bezier(0.16, 1, 0.3, 1) calc(220ms * var(--motion-scale, 1)) backwards;
+        animation: con-wsflow-run-in calc(190ms * var(--motion-scale, 1)) @con-ease-enter calc(220ms * var(--motion-scale, 1)) backwards;
     }
     /* A small steel/cyan hand-off node is shared by expanded, compact and
        terminal presentations. It never moves when the rail changes width. */
@@ -2384,7 +2397,7 @@ html.console-native {
         box-shadow: inset 0 0 0 .05rem fade(@con-cyan, 45%), 0 .7rem 2rem rgba(0, 0, 0, 0.5);
         font-size: .85rem;
         color: @con-text;
-        animation: con-rise calc(200ms * var(--motion-scale, 1)) cubic-bezier(0.16, 1, 0.3, 1);
+        animation: con-rise calc(200ms * var(--motion-scale, 1)) @con-ease-enter;
     }
 
     &__pile {
@@ -2396,7 +2409,7 @@ html.console-native {
         border-radius: .6rem;
         background: @con-glass;
         box-shadow: inset 0 0 0 .05rem fade(@con-cyan, 40%), 0 .7rem 2rem rgba(0, 0, 0, 0.5), 0 0 1.5rem fade(@con-cyan, 8%);
-        animation: con-rise calc(200ms * var(--motion-scale, 1)) cubic-bezier(0.16, 1, 0.3, 1);
+        animation: con-rise calc(200ms * var(--motion-scale, 1)) @con-ease-enter;
 
         /* One-shot landing / set-complete acknowledgement. */
         &--pulse {
@@ -2501,7 +2514,7 @@ html.console-native {
     background: @con-glass;
     box-shadow: inset 0 0 0 .05rem fade(@con-cyan, 45%), 0 .7rem 2rem rgba(0, 0, 0, 0.5), 0 0 1.5rem fade(@con-cyan, 8%);
     font-family: @con-font;
-    animation: con-rise calc(200ms * var(--motion-scale, 1)) cubic-bezier(0.16, 1, 0.3, 1);
+    animation: con-rise calc(200ms * var(--motion-scale, 1)) @con-ease-enter;
 
     &__pulse {
         flex-shrink: 0;
@@ -2842,7 +2855,7 @@ html.console-native {
 
     /* ── INSPECT: the drafted cards rise out of the shelf area. ── */
     &__slot--rise {
-        animation: con-draftws-rise calc(360ms * var(--motion-scale, 1)) cubic-bezier(0.16, 1, 0.3, 1) both;
+        animation: con-draftws-rise calc(360ms * var(--motion-scale, 1)) @con-ease-enter both;
     }
 
     /* ── DONE: the terminal beat. ── */
@@ -2851,7 +2864,7 @@ html.console-native {
         flex-direction: column;
         align-items: center;
         gap: .5rem;
-        animation: con-draftws-rise calc(420ms * var(--motion-scale, 1)) cubic-bezier(0.16, 1, 0.3, 1);
+        animation: con-draftws-rise calc(420ms * var(--motion-scale, 1)) @con-ease-enter;
     }
     &__done-mark {
         width: 3.4rem;
@@ -3088,8 +3101,8 @@ html.console-native {
    change is a breath in place (fade + a small rise), never a v-show cut. ── */
 .con-draftws-stage-enter-active {
     transition:
-        opacity calc(300ms * var(--motion-scale, 1)) cubic-bezier(0.16, 1, 0.3, 1),
-        transform calc(300ms * var(--motion-scale, 1)) cubic-bezier(0.16, 1, 0.3, 1);
+        opacity calc(300ms * var(--motion-scale, 1)) @con-ease-enter,
+        transform calc(300ms * var(--motion-scale, 1)) @con-ease-enter;
     transition-delay: calc(90ms * var(--motion-scale, 1));
 }
 .con-draftws-stage-leave-active {
@@ -3144,7 +3157,7 @@ html.console-native {
         flex-direction: column;
         align-items: center;
         gap: .4rem;
-        animation: con-terracere-rise calc(520ms * var(--motion-scale, 1)) cubic-bezier(0.16, 1, 0.3, 1);
+        animation: con-terracere-rise calc(520ms * var(--motion-scale, 1)) @con-ease-enter;
     }
     &__stage {
         position: relative;
@@ -3179,14 +3192,14 @@ html.console-native {
             inset -1.1rem -1.4rem 2.6rem rgba(0, 0, 0, 0.55),
             0 0 2.4rem fade(@con-mint, 32%),
             0 0 0 .1rem fade(@con-mint, 22%);
-        animation: con-terracere-hero calc(720ms * var(--motion-scale, 1)) cubic-bezier(0.34, 1.26, 0.44, 1) both;
+        animation: con-terracere-hero calc(720ms * var(--motion-scale, 1)) @con-ease-settle both;
     }
     &__ring {
         position: absolute;
         inset: 9%;
         border-radius: 50%;
         box-shadow: 0 0 0 .1rem fade(@con-mint, 55%), 0 0 1.7rem fade(@con-mint, 28%);
-        animation: con-terracere-ring calc(1300ms * var(--motion-scale, 1)) cubic-bezier(0.22, 0.61, 0.36, 1) both;
+        animation: con-terracere-ring calc(1300ms * var(--motion-scale, 1)) @con-ease-standard both;
     }
     &__kicker {
         font-size: .95rem;
@@ -3219,7 +3232,7 @@ html.console-native {
         letter-spacing: .06rem;
         text-transform: uppercase;
         text-align: center;
-        animation: con-terracere-pop calc(560ms * var(--motion-scale, 1)) cubic-bezier(0.34, 1.26, 0.44, 1) calc(420ms * var(--motion-scale, 1)) both;
+        animation: con-terracere-pop calc(560ms * var(--motion-scale, 1)) @con-ease-settle calc(420ms * var(--motion-scale, 1)) both;
     }
     /* The FINAL-GENERATION claim is the headline — gold, like the HUD marker. */
     &--final &__sub {
@@ -3980,7 +3993,7 @@ each(@players, {
 .con-ctx-enter-active,
 .con-ctx-leave-active {
     transition: opacity calc(240ms * var(--motion-scale, 1)) ease,
-        transform calc(240ms * var(--motion-scale, 1)) cubic-bezier(0.22, 0.61, 0.36, 1);
+        transform calc(240ms * var(--motion-scale, 1)) @con-ease-standard;
 }
 .con-ctx-enter-from,
 .con-ctx-leave-to {
@@ -4185,7 +4198,7 @@ each(@players, {
             background:
                 radial-gradient(ellipse 58% 54% at 50% 46%, fade(@con-cyan, 4%), transparent 62%),
                 radial-gradient(ellipse 130% 124% at 50% 50%, transparent 52%, fade(#010409, 30%) 96%);
-            transition: opacity calc(520ms * var(--motion-scale, 1)) cubic-bezier(0.22, 0.61, 0.36, 1);
+            transition: opacity calc(520ms * var(--motion-scale, 1)) @con-ease-standard;
         }
 
         /* P29: the fit engine SELF-CENTRES the board — it measures the real
@@ -4255,7 +4268,7 @@ each(@players, {
     pointer-events: none;
 }
 .con-banner {
-    transition: opacity calc(320ms * var(--motion-scale, 1)) cubic-bezier(0.22, 0.61, 0.36, 1);
+    transition: opacity calc(320ms * var(--motion-scale, 1)) @con-ease-standard;
 }
 .con-board--pfocus .con-board__stage,
 .con-board--pfocus-exit .con-board__stage {
@@ -4274,7 +4287,7 @@ each(@players, {
    ending read as cheap. A resize, a calibration nudge and the focus
    handback now all glide through the same rule. */
 .con-board--fitted .con-board__stage > .board-cont {
-    transition: transform calc(var(--pfocus-ms, 300ms) * var(--motion-scale, 1)) var(--pfocus-ease, cubic-bezier(0.22, 0.61, 0.36, 1));
+    transition: transform calc(var(--pfocus-ms, 300ms) * var(--motion-scale, 1)) var(--pfocus-ease, @con-ease-standard);
 }
 .con-board--pfocus-anim .con-board__stage > .board-cont {
     /* The planet is a 2.6k-px box carrying a 100px drop-shadow: hint the
@@ -4288,11 +4301,11 @@ each(@players, {
    the longer tail (nobody asked for it, so it must not feel abrupt). */
 .con-board--pfocus.con-board--pfocus-anim {
     --pfocus-ms: 680ms;
-    --pfocus-ease: cubic-bezier(0.16, 1, 0.3, 1);
+    --pfocus-ease: @con-ease-enter;
 }
 .con-board--pfocus-anim:not(.con-board--pfocus) {
     --pfocus-ms: 760ms;
-    --pfocus-ease: cubic-bezier(0.16, 1, 0.3, 1);
+    --pfocus-ease: @con-ease-enter;
 }
 /* ── the INSTRUMENTS: dematerialize / materialize ────────────────────
    Not a flat fade — the band answers the planet's own motion. The growing
@@ -4320,8 +4333,8 @@ each(@players, {
    switch", however long you make it). */
 .con-board__stage .global-numbers > *,
 .con-board__stage .board-outer-spaces {
-    transition: opacity calc(540ms * var(--motion-scale, 1)) cubic-bezier(0.16, 1, 0.3, 1),
-                transform calc(540ms * var(--motion-scale, 1)) cubic-bezier(0.16, 1, 0.3, 1);
+    transition: opacity calc(540ms * var(--motion-scale, 1)) @con-ease-enter,
+                transform calc(540ms * var(--motion-scale, 1)) @con-ease-enter;
 }
 .con-board__stage .global-numbers .arc-scale,
 .con-board__stage .global-numbers .global-numbers-oceans {
@@ -4577,7 +4590,7 @@ html.console-mode body.placement-pending .board-outer-spaces > .board-space.boar
            to read as opening (150ms was a snap), the settle-flavoured enter
            curve, and the dim/ring states riding the same clock so a step
            never splits into three unrelated blinks. */
-        transition: width calc(260ms * var(--motion-scale, 1)) cubic-bezier(0.16, 1, 0.3, 1),
+        transition: width calc(260ms * var(--motion-scale, 1)) @con-ease-enter,
             box-shadow calc(260ms * var(--motion-scale, 1)) ease,
             background calc(260ms * var(--motion-scale, 1)) ease,
             opacity calc(260ms * var(--motion-scale, 1)) ease,
@@ -4718,7 +4731,7 @@ html.console-mode body.placement-pending .board-outer-spaces > .board-space.boar
         &--viewer { box-shadow: 0 0 0 .1rem rgba(8, 14, 22, 0.9), 0 0 .4rem fade(@con-hydro-aqua, 80%); }
         /* One-shot settle glow when the advance-glide just locked its real
            marker in here — the handoff from the flown proxy to the board. */
-        &--settle { animation: con-hydromarker-settle calc(680ms * var(--motion-scale, 1)) cubic-bezier(0.16, 1, 0.3, 1); }
+        &--settle { animation: con-hydromarker-settle calc(680ms * var(--motion-scale, 1)) @con-ease-enter; }
     }
 
     /* ── The stop-content crossfade. ENTER surfaces a beat AFTER the cell
@@ -4727,7 +4740,7 @@ html.console-mode body.placement-pending .board-outer-spaces > .board-space.boar
        departing text — it lets go where it stood, quickly. ── */
     .con-hydro-stopin-enter-active {
         transition: opacity calc(190ms * var(--motion-scale, 1)) ease calc(90ms * var(--motion-scale, 1)),
-            transform calc(190ms * var(--motion-scale, 1)) cubic-bezier(0.16, 1, 0.3, 1) calc(90ms * var(--motion-scale, 1));
+            transform calc(190ms * var(--motion-scale, 1)) @con-ease-enter calc(90ms * var(--motion-scale, 1));
     }
     .con-hydro-stopin-enter-from {
         opacity: 0;
@@ -5327,7 +5340,7 @@ html.console-mode body.placement-pending .board-outer-spaces > .board-space.boar
         cursor: pointer;
         transition: box-shadow calc(170ms * var(--motion-scale, 1)) ease,
             background calc(170ms * var(--motion-scale, 1)) ease,
-            transform calc(170ms * var(--motion-scale, 1)) cubic-bezier(0.16, 1, 0.3, 1);
+            transform calc(170ms * var(--motion-scale, 1)) @con-ease-enter;
         .hydro-reward { zoom: calc(1.3 * var(--con-ui-scale, 1)); }
 
         /* A thin conduit accent along the top edge — the rail's own motif. */
@@ -5823,7 +5836,7 @@ html.con-profile-large .con-hydro {
         flex-direction: column;
         align-items: center;
         gap: .4rem;
-        animation: con-macere-rise calc(520ms * var(--motion-scale, 1)) cubic-bezier(0.16, 1, 0.3, 1);
+        animation: con-macere-rise calc(520ms * var(--motion-scale, 1)) @con-ease-enter;
     }
     &__halo {
         position: absolute;
@@ -5847,12 +5860,12 @@ html.con-profile-large .con-hydro {
         inset: 12%;
         border-radius: 50%;
         box-shadow: 0 0 0 .1rem fade(@con-ma-gold, 55%), 0 0 1.7rem fade(@con-ma-gold, 30%);
-        animation: con-macere-ring calc(1300ms * var(--motion-scale, 1)) cubic-bezier(0.22, 0.61, 0.36, 1) both;
+        animation: con-macere-ring calc(1300ms * var(--motion-scale, 1)) @con-ease-standard both;
     }
     .ma-hero {
         position: absolute;
         inset: 13%;
-        animation: con-macere-hero calc(720ms * var(--motion-scale, 1)) cubic-bezier(0.34, 1.26, 0.44, 1) both;
+        animation: con-macere-hero calc(720ms * var(--motion-scale, 1)) @con-ease-settle both;
     }
     &__kicker {
         font-size: .95rem;
@@ -5881,7 +5894,7 @@ html.con-profile-large .con-hydro {
         background: fade(@con-ma-gold, 14%);
         box-shadow: inset 0 0 0 .05rem fade(@con-ma-gold, 70%), 0 0 1.5rem fade(@con-ma-gold, 25%);
         color: @con-ma-gold;
-        animation: con-macere-pop calc(560ms * var(--motion-scale, 1)) cubic-bezier(0.34, 1.26, 0.44, 1) calc(420ms * var(--motion-scale, 1)) both;
+        animation: con-macere-pop calc(560ms * var(--motion-scale, 1)) @con-ease-settle calc(420ms * var(--motion-scale, 1)) both;
     }
     &__vp-num { font-size: 1.9rem; font-weight: 800; }
     &__vp-unit { font-size: 1rem; font-weight: 700; letter-spacing: .1rem; }
@@ -5897,7 +5910,7 @@ html.con-profile-large .con-hydro {
         font-size: .95rem;
         color: @con-text;
         b { font-size: 1.15rem; }
-        animation: con-macere-pop calc(560ms * var(--motion-scale, 1)) cubic-bezier(0.34, 1.26, 0.44, 1) calc(420ms * var(--motion-scale, 1)) both;
+        animation: con-macere-pop calc(560ms * var(--motion-scale, 1)) @con-ease-settle calc(420ms * var(--motion-scale, 1)) both;
     }
     /* WHO did it — a colour chip, explicit on both presentations. */
     &__actor {
@@ -5939,7 +5952,7 @@ html.con-profile-large .con-hydro {
             0 .7rem 2.2rem rgba(0, 0, 0, 0.55),
             0 0 1.5rem fade(@con-ma-gold, 12%);
         animation:
-            con-macere-strip-in calc(420ms * var(--motion-scale, 1)) cubic-bezier(0.34, 1.26, 0.44, 1) both,
+            con-macere-strip-in calc(420ms * var(--motion-scale, 1)) @con-ease-settle both,
             con-macere-strip-glow calc(1200ms * var(--motion-scale, 1)) ease-out both;
     }
     &__strip-stage {
@@ -6004,7 +6017,7 @@ html.con-profile-large .con-hydro {
                 0 .7rem 2.2rem rgba(0, 0, 0, 0.55),
                 0 0 1.5rem fade(@con-ma-medal, 11%);
             animation:
-                con-macere-strip-in calc(420ms * var(--motion-scale, 1)) cubic-bezier(0.34, 1.26, 0.44, 1) both,
+                con-macere-strip-in calc(420ms * var(--motion-scale, 1)) @con-ease-settle both,
                 con-macere-strip-glow-medal calc(1200ms * var(--motion-scale, 1)) ease-out both;
         }
         .con-macere__strip-stage {
@@ -6328,7 +6341,7 @@ html.console-mode {
        opens share it — cards stay the main event, panels follow). */
     &__head,
     &__verdictbar {
-        animation: con-hand-chrome-in calc(340ms * var(--motion-scale, 1)) cubic-bezier(0.22, 0.61, 0.36, 1) backwards;
+        animation: con-hand-chrome-in calc(340ms * var(--motion-scale, 1)) @con-ease-standard backwards;
     }
     &__verdictbar {
         animation-delay: calc(140ms * var(--motion-scale, 1));
@@ -6531,7 +6544,7 @@ html.console-mode {
             color: #e2f2ff;
             text-shadow: 0 0 .55rem fade(@con-cyan, 50%), 0 .1rem .3rem rgba(0, 0, 0, 0.7);
             transition:
-                transform calc(200ms * var(--motion-scale, 1)) cubic-bezier(0.22, 0.61, 0.36, 1),
+                transform calc(200ms * var(--motion-scale, 1)) @con-ease-standard,
                 color calc(200ms * var(--motion-scale, 1)) ease;
         }
 
@@ -6564,11 +6577,11 @@ html.console-mode {
         &--pulse &-chev { color: #ffffff; }
         &--left&--pulse &-face,
         &--left&--pulse &-sheet {
-            animation: con-pgedge-kick-right calc(260ms * var(--motion-scale, 1)) cubic-bezier(0.22, 0.61, 0.36, 1);
+            animation: con-pgedge-kick-right calc(260ms * var(--motion-scale, 1)) @con-ease-standard;
         }
         &--right&--pulse &-face,
         &--right&--pulse &-sheet {
-            animation: con-pgedge-kick-left calc(260ms * var(--motion-scale, 1)) cubic-bezier(0.22, 0.61, 0.36, 1);
+            animation: con-pgedge-kick-left calc(260ms * var(--motion-scale, 1)) @con-ease-standard;
         }
         &--pulse &-sheet--1 { animation-delay: calc(40ms * var(--motion-scale, 1)); }
         &--pulse &-sheet--2 { animation-delay: calc(75ms * var(--motion-scale, 1)); }
@@ -6597,7 +6610,7 @@ html.console-mode {
            the `--transit` note above) — a transition here re-creates the
            cross-fade dip at every landing. */
         transition:
-            transform calc(150ms * var(--motion-scale, 1)) cubic-bezier(0.22, 0.61, 0.36, 1),
+            transform calc(150ms * var(--motion-scale, 1)) @con-ease-standard,
             filter calc(150ms * var(--motion-scale, 1)) ease;
         /* Kill the legacy asymmetric card margin (CLAUDE.md "Centering UI"). */
         > :is(.card-container, .pcard) { margin: 0; border-radius: .4rem; }
@@ -7299,7 +7312,7 @@ html.console-mode {
             0 .6rem 1.4rem rgba(0, 0, 0, 0.55),
             0 .15rem .35rem rgba(0, 0, 0, 0.5);
         transition:
-            transform calc(90ms * var(--motion-scale, 1)) cubic-bezier(0.22, 0.61, 0.36, 1),
+            transform calc(90ms * var(--motion-scale, 1)) @con-ease-standard,
             box-shadow calc(120ms * var(--motion-scale, 1)) ease,
             background-color calc(120ms * var(--motion-scale, 1)) ease;
 
@@ -7360,7 +7373,7 @@ html.console-mode {
         box-shadow:
             inset 0 .1rem .3rem rgba(0, 0, 0, 0.45),
             inset 0 0 0 .05rem rgba(120, 150, 185, 0.16);
-        transition: transform calc(90ms * var(--motion-scale, 1)) cubic-bezier(0.22, 0.61, 0.36, 1);
+        transition: transform calc(90ms * var(--motion-scale, 1)) @con-ease-standard;
         .bar-btn-icon { width: 1.9rem; height: 1.9rem; }
         .resource_icon { display: inline-block; width: 1.75rem; height: 1.75rem; background-size: contain; background-repeat: no-repeat; background-position: center; }
         .std-icon { display: inline-block; width: 1.9rem; height: 1.9rem; }
@@ -7572,11 +7585,11 @@ html.console-mode {
    trigger's side (LT ← left shoulder, RT → right shoulder). */
 .con-quick-swapl-enter-active,
 .con-quick-swapr-enter-active {
-    transition: transform calc(130ms * var(--motion-scale, 1)) cubic-bezier(0.16, 1, 0.3, 1), opacity calc(130ms * var(--motion-scale, 1)) ease;
+    transition: transform calc(130ms * var(--motion-scale, 1)) @con-ease-enter, opacity calc(130ms * var(--motion-scale, 1)) ease;
 }
 .con-quick-swapl-leave-active,
 .con-quick-swapr-leave-active {
-    transition: transform calc(70ms * var(--motion-scale, 1)) cubic-bezier(0.4, 0, 0.7, 0.2), opacity calc(70ms * var(--motion-scale, 1)) ease;
+    transition: transform calc(70ms * var(--motion-scale, 1)) @con-ease-exit, opacity calc(70ms * var(--motion-scale, 1)) ease;
 }
 .con-quick-swapl-enter-from { transform: translateX(-1.1rem); opacity: 0; }
 .con-quick-swapl-leave-to { transform: translateX(1.1rem); opacity: 0; }
@@ -9583,7 +9596,7 @@ html.con-profile-handheld .con-mafocus {
            as a crossfade of two screens. */
         > * {
             animation: con-stdp-step-in calc(260ms * var(--motion-scale, 1))
-                cubic-bezier(.22, .61, .36, 1) calc(90ms * var(--motion-scale, 1)) backwards;
+                @con-ease-standard calc(90ms * var(--motion-scale, 1)) backwards;
         }
     }
     &__wallet {
@@ -9927,6 +9940,19 @@ html.con-profile-handheld .con-mafocus {
         min-width: 0;
         flex-wrap: nowrap;
         overflow: hidden;
+        position: relative; /* the chip-leave lift needs a local containing block */
+    }
+    /* The chip set's transition-group (name="con-stdp-chip"): a focus change
+       CROSSFADES the set in place — the markup promised this and the classes
+       did not exist, so chips hard-popped. A leaver is lifted out of flow so
+       the survivors never reflow mid-fade; the row's height is fixed by the
+       rail, so nothing shifts. */
+    .con-stdp-chip-enter-from { opacity: 0; }
+    .con-stdp-chip-enter-active { transition: opacity calc(150ms * var(--motion-scale, 1)) ease-out; }
+    .con-stdp-chip-leave-to { opacity: 0; }
+    .con-stdp-chip-leave-active {
+        position: absolute;
+        transition: opacity calc(100ms * var(--motion-scale, 1)) ease-out;
     }
     /* The pay-on-commit NEXT STEP marker — a quiet tracked-caps accent, the
        flow affordance («› ДАЛЕЕ: …»), never a second command bar. */
@@ -10696,7 +10722,7 @@ html.con-profile-handheld .con-mafocus {
         .con-strat__art { animation: strat-activate-art calc(880ms * var(--motion-scale, 1)) cubic-bezier(0.34, 1.2, 0.5, 1) both; }
         .con-strat__spark { animation: strat-activate-spark calc(760ms * var(--motion-scale, 1)) ease-out both; }
         .con-strat__sweep { animation: strat-activate-sweep calc(640ms * var(--motion-scale, 1)) cubic-bezier(0.3, 0.2, 0.3, 1) both calc(160ms * var(--motion-scale, 1)); }
-        .con-strat__actring { animation: strat-activate-rim calc(520ms * var(--motion-scale, 1)) cubic-bezier(0.22, 0.61, 0.36, 1) both calc(430ms * var(--motion-scale, 1)); }
+        .con-strat__actring { animation: strat-activate-rim calc(520ms * var(--motion-scale, 1)) @con-ease-standard both calc(430ms * var(--motion-scale, 1)); }
         .con-strat__avail { animation: strat-activate-avail calc(380ms * var(--motion-scale, 1)) ease-out both calc(640ms * var(--motion-scale, 1)); }
         .con-strat__readymark svg path { animation: strat-activate-check calc(360ms * var(--motion-scale, 1)) ease-out both calc(120ms * var(--motion-scale, 1)); }
     }
@@ -11151,13 +11177,13 @@ html.con-profile-handheld .con-mafocus {
        milestone's numbers hand their place to the OWNER SEAL, which lands
        into the value zone as the beat's final fixation. ── */
     &__item--sealing {
-        .con-strat__art { animation: strat-seal-art calc(950ms * var(--motion-scale, 1)) cubic-bezier(0.22, 0.61, 0.36, 1) both; }
-        .con-strat__plate { animation: strat-seal-plate calc(950ms * var(--motion-scale, 1)) cubic-bezier(0.22, 0.61, 0.36, 1) both; }
+        .con-strat__art { animation: strat-seal-art calc(950ms * var(--motion-scale, 1)) @con-ease-standard both; }
+        .con-strat__plate { animation: strat-seal-plate calc(950ms * var(--motion-scale, 1)) @con-ease-standard both; }
         .con-strat__gem { animation: strat-seal-gem calc(950ms * var(--motion-scale, 1)) cubic-bezier(0.34, 1.56, 0.64, 1) both; }
         .con-strat__kiss { animation: strat-seal-kiss calc(950ms * var(--motion-scale, 1)) ease-out both; }
         .con-strat__cell { animation: strat-seal-cell calc(460ms * var(--motion-scale, 1)) ease both; }
         .con-strat__ownseal {
-            animation: strat-seal-stamp calc(680ms * var(--motion-scale, 1)) cubic-bezier(0.22, 0.61, 0.36, 1) both;
+            animation: strat-seal-stamp calc(680ms * var(--motion-scale, 1)) @con-ease-standard both;
             animation-delay: calc(240ms * var(--motion-scale, 1));
         }
         .con-strat__bloom { opacity: 0; animation: none; }
@@ -11195,7 +11221,7 @@ html.con-profile-handheld .con-mafocus {
        stood and clicks into its mount (never on a seeded mount/reload —
        the arriving class exists only for the live pose change). */
     &__zone--milestones&__zone--arriving .con-strat__gem {
-        animation: strat-socket-in calc(520ms * var(--motion-scale, 1)) cubic-bezier(0.22, 0.61, 0.36, 1) both;
+        animation: strat-socket-in calc(520ms * var(--motion-scale, 1)) @con-ease-standard both;
         animation-delay: calc(200ms * var(--motion-scale, 1));
     }
     /* Awards 3/3: a LIVE scoreboard of three races — bigger medals AND
@@ -11271,7 +11297,7 @@ html.con-profile-handheld .con-mafocus {
 
     /* The pose ARRIVAL (a transient class while the recomposition plays):
        survivors settle into the new scale — transform-only, one shot. */
-    &__zone--arriving .con-strat__art { animation: strat-pose-in calc(560ms * var(--motion-scale, 1)) cubic-bezier(0.22, 0.61, 0.36, 1) both; }
+    &__zone--arriving .con-strat__art { animation: strat-pose-in calc(560ms * var(--motion-scale, 1)) @con-ease-standard both; }
 }
 
 /* The seal keyframes (transform/opacity only — perf-lite safe). */
@@ -11398,11 +11424,11 @@ html.con-profile-handheld .con-mafocus {
    leavers pin in place (position: absolute — inline top/left set by the
    component) and dissolve, arrivals (an undo) rise back in. */
 .con-strat-row-move {
-    transition: transform calc(520ms * var(--motion-scale, 1)) cubic-bezier(0.16, 1, 0.3, 1);
+    transition: transform calc(520ms * var(--motion-scale, 1)) @con-ease-enter;
 }
 .con-strat-row-enter-active {
     transition: opacity calc(320ms * var(--motion-scale, 1)) ease,
-        transform calc(320ms * var(--motion-scale, 1)) cubic-bezier(0.22, 0.61, 0.36, 1);
+        transform calc(320ms * var(--motion-scale, 1)) @con-ease-standard;
 }
 .con-strat-row-leave-active {
     position: absolute;
@@ -11418,7 +11444,7 @@ html.con-profile-handheld .con-mafocus {
    a changed group crossfades. Plays only on a LIVE change: the groups are
    keyed by colour signature, so a poll re-render moves nothing. */
 .con-strat-race-move {
-    transition: transform calc(360ms * var(--motion-scale, 1) * var(--strat-mo, 1)) cubic-bezier(0.16, 1, 0.3, 1);
+    transition: transform calc(360ms * var(--motion-scale, 1) * var(--strat-mo, 1)) @con-ease-enter;
 }
 .con-strat-race-enter-active {
     transition: opacity calc(280ms * var(--motion-scale, 1) * var(--strat-mo, 1)) ease,
@@ -11436,7 +11462,7 @@ html.con-profile-handheld .con-mafocus {
    settles — never a permanent animation). Same phrase in compact, ~80%. */
 .con-strat-crowncap-enter-active {
     transition: opacity calc(240ms * var(--motion-scale, 1) * var(--strat-mo, 1)) ease,
-        transform calc(240ms * var(--motion-scale, 1) * var(--strat-mo, 1)) cubic-bezier(0.22, 0.61, 0.36, 1);
+        transform calc(240ms * var(--motion-scale, 1) * var(--strat-mo, 1)) @con-ease-standard;
 }
 .con-strat-crowncap-leave-active {
     transition: opacity calc(180ms * var(--motion-scale, 1) * var(--strat-mo, 1)) ease;
@@ -11629,7 +11655,7 @@ html.con-profile-handheld .con-mafocus {
     border-radius: 50%;
     background: @con-mint;
     box-shadow: 0 0 .4rem @con-mint;
-    animation: con-journal-live 1.8s ease-in-out infinite;
+    animation: con-journal-live calc(1800ms * var(--motion-scale, 1)) ease-in-out infinite;
 
     &--off {
         visibility: hidden;
@@ -11742,7 +11768,7 @@ html.con-profile-handheld .con-mafocus {
     background: linear-gradient(180deg, rgba(16, 26, 39, 0.98), rgba(10, 17, 26, 0.98));
     box-shadow: inset 0 0 0 .05rem fade(@con-cyan, 45%), 0 .9rem 2.5rem rgba(0, 0, 0, 0.6);
     text-align: center;
-    animation: con-rise calc(160ms * var(--motion-scale, 1)) cubic-bezier(0.16, 1, 0.3, 1);
+    animation: con-rise calc(160ms * var(--motion-scale, 1)) @con-ease-enter;
 }
 .con-journal__inspect-icon {
     width: 3.2rem;
@@ -11888,7 +11914,7 @@ html.con-profile-handheld .con-mafocus {
 /* Open/close: a calm slide from the right edge (reduced-motion → fade). */
 .con-journal-enter-active,
 .con-journal-leave-active {
-    transition: opacity calc(170ms * var(--motion-scale, 1)) ease, transform calc(170ms * var(--motion-scale, 1)) cubic-bezier(0.16, 1, 0.3, 1);
+    transition: opacity calc(170ms * var(--motion-scale, 1)) ease, transform calc(170ms * var(--motion-scale, 1)) @con-ease-enter;
 }
 .con-journal-enter-from,
 .con-journal-leave-to {
@@ -12455,8 +12481,8 @@ html.con-profile-large.console-mode .notifications-layer.notifications-layer--jo
         transform-origin: 50% 100%;
         opacity: var(--hd-fade, 1);
         transition:
-            transform calc(460ms * var(--motion-scale, 1)) cubic-bezier(0.22, 0.61, 0.36, 1),
-            opacity calc(460ms * var(--motion-scale, 1)) cubic-bezier(0.22, 0.61, 0.36, 1);
+            transform calc(460ms * var(--motion-scale, 1)) @con-ease-standard,
+            opacity calc(460ms * var(--motion-scale, 1)) @con-ease-standard;
     }
     &__card {
         position: absolute;
@@ -12481,7 +12507,7 @@ html.con-profile-large.console-mode .notifications-layer.notifications-layer--jo
             translateY(calc(var(--hd-pop, 0rem) - var(--hd-lift, 0rem) + var(--hd-dy, 0rem)))
             rotate(calc(var(--hd-tilt, 0deg) * var(--hd-fan, 0)));
         transition:
-            transform calc(340ms * var(--motion-scale, 1)) cubic-bezier(0.22, 0.61, 0.36, 1),
+            transform calc(340ms * var(--motion-scale, 1)) @con-ease-standard,
             opacity calc(260ms * var(--motion-scale, 1)) ease;
     }
     /* A dense-thickness card (beyond the 20 distinct positions): a REAL
@@ -12593,7 +12619,7 @@ html.con-profile-large.console-mode .notifications-layer.notifications-layer--jo
         min-width: 1.1ch;
         font-size: .7rem;
         letter-spacing: .02rem;
-        animation: con-hd-num-in calc(220ms * var(--motion-scale, 1)) cubic-bezier(0.22, 0.61, 0.36, 1);
+        animation: con-hd-num-in calc(220ms * var(--motion-scale, 1)) @con-ease-standard;
     }
     &__num--active {
         text-align: right;
@@ -12765,7 +12791,7 @@ html.con-profile-large.console-mode .notifications-layer.notifications-layer--jo
                album came from (keyed on the page — Vue re-creates the node,
                so the animation runs once per turn). Short enough to finish
                inside the page slide; never an odometer roll. */
-            animation: con-pager-in calc(180ms * var(--motion-scale, 1)) cubic-bezier(0.22, 0.61, 0.36, 1);
+            animation: con-pager-in calc(180ms * var(--motion-scale, 1)) @con-ease-standard;
         }
         &--prev b { animation-name: con-pager-in-prev; }
     }
@@ -12799,11 +12825,14 @@ html.con-profile-large.console-mode .notifications-layer.notifications-layer--jo
         height: .08rem;
         border-radius: 49.95rem;
         background: fade(#8aa0b8, 22%);
-        transition: background calc(180ms * var(--motion-scale, 1)) ease, height calc(180ms * var(--motion-scale, 1)) ease;
+        /* The active segment GROWS via transform (scaleY of a hairline is
+           visually identical to the old height change) — motion stays out of
+           layout, per the console rule. */
+        transition: background calc(180ms * var(--motion-scale, 1)) ease, transform calc(180ms * var(--motion-scale, 1)) ease;
 
         &--past { background: fade(@con-cyan, 34%); }
         &--on {
-            height: .14rem;
+            transform: scaleY(1.75);
             background: fade(@con-cyan, 95%);
             box-shadow: 0 0 .4rem fade(@con-cyan, 40%);
         }
@@ -12823,7 +12852,7 @@ html.con-profile-large.console-mode .notifications-layer.notifications-layer--jo
         bottom: 0;
         border-radius: 49.95rem;
         background: fade(@con-cyan, 88%);
-        transition: width calc(180ms * var(--motion-scale, 1)) cubic-bezier(0.22, 0.61, 0.36, 1);
+        transition: width calc(180ms * var(--motion-scale, 1)) @con-ease-standard;
     }
     /* ONE PAGE — no navigation exists, so nothing advertises it: the side
        chips fade to a whisper (cyan voice dropped), the position reads as a
@@ -12960,7 +12989,7 @@ html.con-profile-large.console-mode .notifications-layer.notifications-layer--jo
 .con-hd-enter-active,
 .con-hd-leave-active {
     transition:
-        transform calc(340ms * var(--motion-scale, 1)) cubic-bezier(0.22, 0.61, 0.36, 1),
+        transform calc(340ms * var(--motion-scale, 1)) @con-ease-standard,
         opacity calc(260ms * var(--motion-scale, 1)) ease;
 }
 /* THE PACK'S «MOVE» CLASS — deliberately a NO-OP (see ConsoleHandDock.vue's
@@ -13023,7 +13052,7 @@ html.con-profile-large.console-mode .notifications-layer.notifications-layer--jo
         font-family: @con-font;
         color: @con-text;
         text-align: center;
-        animation: con-rise calc(220ms * var(--motion-scale, 1)) cubic-bezier(0.16, 1, 0.3, 1);
+        animation: con-rise calc(220ms * var(--motion-scale, 1)) @con-ease-enter;
     }
     &__title {
         font-size: 1.2rem;
@@ -18216,7 +18245,7 @@ body.con-start-ceremony {
     padding: .55rem var(--con-pad-x, .9rem) var(--con-band-bottom, 3rem);
     /* GAME FRAME MATERIALIZATION travels this one padding change — the shell
        re-bounds as one calm move, never a snap, and no panel ever flies. */
-    transition: padding calc(480ms * var(--motion-scale, 1)) cubic-bezier(0.16, 1, 0.3, 1);
+    transition: padding calc(480ms * var(--motion-scale, 1)) @con-ease-enter;
 
     /* THE MATERIALIZATION CUT — the one turn the screen swaps UNDER the
        captured cards: every shell transition is disabled so the new bounds,
@@ -18800,7 +18829,9 @@ body.con-start-ceremony {
         zoom: calc(var(--con-start-mini-zoom, 0.62) * var(--con-ui-scale, 1));
         position: relative;
         border-radius: .6rem;
-        transition: transform var(--con-motion-fast, 140ms) ease;
+        /* (`--con-motion-fast` was a phantom token — defined nowhere, so the
+           raw 140ms fallback always won and never scaled with the preset.) */
+        transition: transform calc(140ms * var(--motion-scale, 1)) ease;
         > :is(.card-container, .pcard) { margin: 0; }
 
         /* Identity cards (corp / preludes / CEO) read one notch larger. */
@@ -19202,7 +19233,7 @@ body.con-start-ceremony {
        `backwards` (NOT `both`): a forwards fill would pin the final
        keyframe's transform forever and kill the --focused lift. */
     &__deal {
-        animation: con-start-deal calc(260ms * var(--motion-scale, 1)) cubic-bezier(0.16, 1, 0.3, 1) backwards;
+        animation: con-start-deal calc(260ms * var(--motion-scale, 1)) @con-ease-enter backwards;
     }
 
     /* The inline footer is GONE — the shell command bar (z 11700, fed by
@@ -20887,10 +20918,10 @@ body.con-start-prep .con-status {
    the shell re-bounds (padding transition on .con-start). Plays once, on
    the prep → ceremony class swap. */
 body.con-start-ceremony .con-res {
-    animation: con-start-rail-in calc(480ms * var(--motion-scale, 1)) cubic-bezier(0.16, 1, 0.3, 1) backwards;
+    animation: con-start-rail-in calc(480ms * var(--motion-scale, 1)) @con-ease-enter backwards;
 }
 body.con-start-ceremony .con-status {
-    animation: con-start-hud-in calc(480ms * var(--motion-scale, 1)) cubic-bezier(0.16, 1, 0.3, 1) backwards;
+    animation: con-start-hud-in calc(480ms * var(--motion-scale, 1)) @con-ease-enter backwards;
 }
 @keyframes con-start-rail-in {
     from { opacity: 0; transform: translateX(-0.7rem); }
@@ -21139,8 +21170,8 @@ body.con-start-barshold .con-status {
         align-content: center;
         gap: .6rem 1.2rem;
         transition:
-            opacity calc(280ms * var(--motion-scale, 1)) cubic-bezier(0.16, 1, 0.3, 1),
-            transform calc(280ms * var(--motion-scale, 1)) cubic-bezier(0.16, 1, 0.3, 1);
+            opacity calc(280ms * var(--motion-scale, 1)) @con-ease-enter,
+            transform calc(280ms * var(--motion-scale, 1)) @con-ease-enter;
     }
     &__queue-row {
         display: flex;
@@ -21276,7 +21307,7 @@ body.con-start-barshold .con-status {
         /* The zone's content SURFACES from inside the workspace (REVEAL of the
            descend phrase — the queue released in place a beat earlier). One
            calm rise; the card physics (deck → slots) is the deck-draw scene's. */
-        animation: con-start-embed-in calc(260ms * var(--motion-scale, 1)) cubic-bezier(0.16, 1, 0.3, 1);
+        animation: con-start-embed-in calc(260ms * var(--motion-scale, 1)) @con-ease-enter;
     }
     /* A STEP, not a modal: the source column left + the received cards right
        share one row; the reveal's chassis is capped to a step-sized room
@@ -22052,8 +22083,8 @@ body.con-start-barshold .con-status {
    REVEAL) and lets go in place — never a v-if blink. */
 .con-start-firstact-enter-active {
     transition:
-        opacity calc(300ms * var(--motion-scale, 1)) cubic-bezier(0.16, 1, 0.3, 1),
-        transform calc(300ms * var(--motion-scale, 1)) cubic-bezier(0.16, 1, 0.3, 1);
+        opacity calc(300ms * var(--motion-scale, 1)) @con-ease-enter,
+        transform calc(300ms * var(--motion-scale, 1)) @con-ease-enter;
 }
 .con-start-firstact-leave-active {
     transition: opacity calc(170ms * var(--motion-scale, 1)) ease;
@@ -22070,8 +22101,8 @@ body.con-start-barshold .con-status {
    appear to slide in from anywhere else. */
 .con-start-risk-enter-active {
     transition:
-        opacity calc(180ms * var(--motion-scale, 1)) cubic-bezier(0.16, 1, 0.3, 1),
-        transform calc(180ms * var(--motion-scale, 1)) cubic-bezier(0.16, 1, 0.3, 1);
+        opacity calc(180ms * var(--motion-scale, 1)) @con-ease-enter,
+        transform calc(180ms * var(--motion-scale, 1)) @con-ease-enter;
 }
 .con-start-risk-leave-active {
     transition:
@@ -22324,7 +22355,7 @@ body.con-start-barshold .con-status {
     overflow: hidden;
     border-radius: .44rem;
     transform-origin: left center;
-    transition: width calc(280ms * var(--motion-scale, 1)) cubic-bezier(0.16, 1, 0.3, 1);
+    transition: width calc(280ms * var(--motion-scale, 1)) @con-ease-enter;
 
     &--presentation-compact { width: var(--con-jrail-compact-w); }
     &--presentation-complete { width: var(--con-jrail-terminal-w); }
@@ -22351,7 +22382,7 @@ body.con-start-barshold .con-status {
         transform-origin: left center;
         transition:
             opacity calc(150ms * var(--motion-scale, 1)) ease,
-            transform calc(240ms * var(--motion-scale, 1)) cubic-bezier(0.16, 1, 0.3, 1);
+            transform calc(240ms * var(--motion-scale, 1)) @con-ease-enter;
     }
     &--presentation-expanded &__view--expanded,
     &--presentation-compact &__view--compact,
@@ -22510,9 +22541,9 @@ body.con-start-barshold .con-status {
         transform: scaleX(.985);
         transform-origin: left center;
         transition:
-            max-width calc(280ms * var(--motion-scale, 1)) cubic-bezier(0.16, 1, 0.3, 1),
+            max-width calc(280ms * var(--motion-scale, 1)) @con-ease-enter,
             opacity calc(160ms * var(--motion-scale, 1)) ease,
-            transform calc(260ms * var(--motion-scale, 1)) cubic-bezier(0.16, 1, 0.3, 1);
+            transform calc(260ms * var(--motion-scale, 1)) @con-ease-enter;
     }
     &__phase--open &__phase-body {
         max-width: 36rem;
@@ -22580,7 +22611,7 @@ body.con-start-barshold .con-status {
             color calc(160ms * var(--motion-scale, 1)) ease,
             background-color calc(160ms * var(--motion-scale, 1)) ease,
             box-shadow calc(160ms * var(--motion-scale, 1)) ease,
-            transform calc(200ms * var(--motion-scale, 1)) cubic-bezier(0.16, 1, 0.3, 1);
+            transform calc(200ms * var(--motion-scale, 1)) @con-ease-enter;
     }
     &__item--current &__item-node {
         color: #07131c;
@@ -22589,7 +22620,7 @@ body.con-start-barshold .con-status {
             inset .045rem .045rem 0 rgba(255, 255, 255, 0.28),
             0 0 0 .055rem fade(@con-cyan, 48%),
             0 0 .48rem fade(@con-cyan, 27%);
-        animation: con-jrail-node-acquire calc(300ms * var(--motion-scale, 1)) cubic-bezier(0.16, 1, 0.3, 1) both;
+        animation: con-jrail-node-acquire calc(300ms * var(--motion-scale, 1)) @con-ease-enter both;
     }
     &__item--done &__item-node {
         color: #07130e;
@@ -22898,7 +22929,7 @@ body.con-start-barshold .con-status {
    then this already-standing rail settles from the same LEFT origin. Step
    changes never replay it. */
 .con-wshead--flow .con-jrail {
-    animation: con-wsflow-rail-in calc(300ms * var(--motion-scale, 1)) cubic-bezier(0.16, 1, 0.3, 1) calc(250ms * var(--motion-scale, 1)) backwards;
+    animation: con-wsflow-rail-in calc(300ms * var(--motion-scale, 1)) @con-ease-enter calc(250ms * var(--motion-scale, 1)) backwards;
 }
 @keyframes con-wsflow-rail-in {
     from { opacity: 0; transform: translateX(-.28rem) scaleX(.985); }
@@ -22942,7 +22973,7 @@ body.con-start-barshold .con-status {
     to { opacity: 1; transform: rotate(45deg) scale(1); }
 }
 .con-jrail--presentation-complete .con-jrail__terminal-mark {
-    animation: con-jrail-terminal-seal calc(380ms * var(--motion-scale, 1)) cubic-bezier(0.16, 1, 0.3, 1) both;
+    animation: con-jrail-terminal-seal calc(380ms * var(--motion-scale, 1)) @con-ease-enter both;
 }
 
 /* Narrow viewports keep the ACTIVE phase expanded. Only secondary chrome
@@ -22970,11 +23001,11 @@ body.con-start-barshold .con-status {
    the left — so the new chapter materializes instead of popping. The
    initial mount stays silent (the marker is set only by the phases diff). */
 .con-jrail__item--arrived {
-    animation: con-jrail-node-in calc(340ms * var(--motion-scale, 1)) cubic-bezier(0.16, 1, 0.3, 1) backwards;
+    animation: con-jrail-node-in calc(340ms * var(--motion-scale, 1)) @con-ease-enter backwards;
 }
 .con-jrail__connector--arrived {
     transform-origin: left center;
-    animation: con-jrail-connector-in calc(300ms * var(--motion-scale, 1)) cubic-bezier(0.16, 1, 0.3, 1) backwards;
+    animation: con-jrail-connector-in calc(300ms * var(--motion-scale, 1)) @con-ease-enter backwards;
 }
 @keyframes con-jrail-node-in {
     from { opacity: 0; transform: scale(.82); }
@@ -23154,8 +23185,8 @@ body.con-start-barshold .con-status {
 }
 
 /* Prompt→prompt cross-fade (CTS-3.9). */
-.con-task-swap-enter-active { transition: opacity calc(160ms * var(--motion-scale, 1)) cubic-bezier(0.16, 1, 0.3, 1), transform calc(160ms * var(--motion-scale, 1)) cubic-bezier(0.16, 1, 0.3, 1); }
-.con-task-swap-leave-active { transition: opacity calc(120ms * var(--motion-scale, 1)) cubic-bezier(0.4, 0, 0.7, 0.2); }
+.con-task-swap-enter-active { transition: opacity calc(160ms * var(--motion-scale, 1)) @con-ease-enter, transform calc(160ms * var(--motion-scale, 1)) @con-ease-enter; }
+.con-task-swap-leave-active { transition: opacity calc(120ms * var(--motion-scale, 1)) @con-ease-exit; }
 .con-task-swap-enter-from { opacity: 0; transform: translateY(.5rem); }
 .con-task-swap-leave-to { opacity: 0; }
 
@@ -23324,7 +23355,7 @@ body.con-start-barshold .con-status {
         font-family: @con-font;
         color: @con-text;
         text-align: center;
-        animation: con-rise calc(200ms * var(--motion-scale, 1)) cubic-bezier(0.16, 1, 0.3, 1);
+        animation: con-rise calc(200ms * var(--motion-scale, 1)) @con-ease-enter;
     }
     &__kicker {
         display: inline-flex;
@@ -23402,7 +23433,7 @@ body.con-start-barshold .con-status {
         font-family: @con-font;
         color: @con-text;
         text-align: center;
-        animation: con-rise calc(200ms * var(--motion-scale, 1)) cubic-bezier(0.16, 1, 0.3, 1);
+        animation: con-rise calc(200ms * var(--motion-scale, 1)) @con-ease-enter;
     }
     &__kicker {
         display: inline-flex;
@@ -23655,7 +23686,7 @@ dialog.con-quit {
        only, never a downward translate — a scaled-down start stays INSIDE the
        card's layout box, so it can never overflow the dialog and spawn a
        scrollbar. */
-    animation: con-quit-rise calc(200ms * var(--motion-scale, 1)) cubic-bezier(0.16, 1, 0.3, 1);
+    animation: con-quit-rise calc(200ms * var(--motion-scale, 1)) @con-ease-enter;
 }
 @keyframes con-quit-rise {
     from { opacity: 0; transform: scale(0.965); }
@@ -23857,10 +23888,10 @@ html.console-mode {
  * stranded guard, future task host): calm fade + micro-rise, never a
  * hard pop-in/teardown. The inner __card keeps its own con-rise appear. */
 .con-layer-enter-active {
-    transition: opacity calc(180ms * var(--motion-scale, 1)) cubic-bezier(0.16, 1, 0.3, 1);
+    transition: opacity calc(180ms * var(--motion-scale, 1)) @con-ease-enter;
 }
 .con-layer-leave-active {
-    transition: opacity calc(140ms * var(--motion-scale, 1)) cubic-bezier(0.4, 0, 0.7, 0.2);
+    transition: opacity calc(140ms * var(--motion-scale, 1)) @con-ease-exit;
 }
 .con-layer-enter-from,
 .con-layer-leave-to {
@@ -23880,7 +23911,7 @@ html.console-mode {
    leave-active class — leave-to is not applied until a later frame.
    Same reasoning applies to any other place-bound plate. */
 .con-plate-enter-active {
-    transition: opacity calc(180ms * var(--motion-scale, 1)) cubic-bezier(0.16, 1, 0.3, 1);
+    transition: opacity calc(180ms * var(--motion-scale, 1)) @con-ease-enter;
 }
 .con-plate-leave-active {
     transition: none;
@@ -25676,7 +25707,7 @@ html.console-mode {
         position: relative;
         min-width: 0;
         zoom: var(--con-ptsel-zoom, .58);
-        transition: transform calc(150ms * var(--motion-scale, 1)) cubic-bezier(0.22, 0.61, 0.36, 1);
+        transition: transform calc(150ms * var(--motion-scale, 1)) @con-ease-standard;
         > :is(.card-container, .pcard) { margin: 0; border-radius: .4rem; }
 
         /* The cue's weight is the RING and the lift, not growth: at the sizes
@@ -26323,7 +26354,7 @@ body.con-zoom-open .con-ptlink { opacity: 0; }
         margin-top: .3rem; padding: .7rem .9rem; border-radius: .6rem;
         background: rgba(20, 28, 38, 0.62);
         box-shadow: inset 0 0 0 .05rem rgba(120, 150, 180, 0.2);
-        transition: box-shadow 140ms ease, background 140ms ease;
+        transition: box-shadow calc(140ms * var(--motion-scale, 1)) ease, background calc(140ms * var(--motion-scale, 1)) ease;
         /* ready but not focused — mint-tinted, inviting the play. */
         &--ready {
             background: fade(@con-mint, 12%);
@@ -26938,7 +26969,7 @@ body.con-zoom-open .con-ptlink { opacity: 0; }
    that wants one of these must use its own element. ── */
 .con-composer__actcard,
 .con-composer__playcard > :is(.card-container, .pcard) {
-    transition: transform calc(180ms * var(--motion-scale, 1)) cubic-bezier(0.22, 0.61, 0.36, 1),
+    transition: transform calc(180ms * var(--motion-scale, 1)) @con-ease-standard,
                 box-shadow calc(140ms * var(--motion-scale, 1)) ease;
 }
 .con-composer__actcardwrap--targetfocus > .con-composer__actcard {
@@ -28175,7 +28206,7 @@ html.con-profile-large {
     position: absolute;
     transition:
         opacity calc(220ms * var(--motion-scale, 1)) ease,
-        transform calc(220ms * var(--motion-scale, 1)) cubic-bezier(0.22, 0.61, 0.36, 1);
+        transform calc(220ms * var(--motion-scale, 1)) @con-ease-standard;
 }
 .con-start-corpout-leave-to {
     opacity: 0;
@@ -28189,7 +28220,7 @@ html.con-profile-large {
 }
 /* The prelude cards SLIDE into their new spots (transition-group FLIP). */
 .con-start-shift-move {
-    transition: transform calc(340ms * var(--motion-scale, 1)) cubic-bezier(0.22, 0.61, 0.36, 1);
+    transition: transform calc(340ms * var(--motion-scale, 1)) @con-ease-standard;
 }
 .con-start-shift-leave-active {
     /* A leaving prelude (drawn-pick resolution) frees its slot instantly. */
@@ -28214,7 +28245,7 @@ html.con-profile-large {
 .con-start-launch-enter-active {
     transition:
         opacity calc(260ms * var(--motion-scale, 1)) ease,
-        transform calc(260ms * var(--motion-scale, 1)) cubic-bezier(0.16, 1, 0.3, 1);
+        transform calc(260ms * var(--motion-scale, 1)) @con-ease-enter;
 }
 .con-start-launch-enter-from {
     opacity: 0;
@@ -28260,7 +28291,7 @@ html.con-profile-large {
 
     &--closing {
         opacity: 0;
-        transition-duration: 60ms;
+        transition-duration: calc(60ms * var(--motion-scale, 1));
     }
 }
 /* The «ПРИ РОЗЫГРЫШЕ» play-rail is MINT at the source (premium_card.less
@@ -28515,7 +28546,7 @@ html.con-profile-large {
     }
     &--closing {
         opacity: 0;
-        transition-duration: 60ms;
+        transition-duration: calc(60ms * var(--motion-scale, 1));
     }
     &__scroll {
         flex: 1 1 auto;
@@ -28877,7 +28908,7 @@ html.con-profile-large {
 /* The tab-body content swap — the ONLY thing that moves on LB/RB (a short,
    compositor-only crossfade; the box + card are stable). Reduced motion uses
    the empty transition name → instant swap. */
-.con-inspect-swap-enter-active { transition: opacity calc(130ms * var(--motion-scale, 1)) ease, transform calc(130ms * var(--motion-scale, 1)) cubic-bezier(0.16, 1, 0.3, 1); }
+.con-inspect-swap-enter-active { transition: opacity calc(130ms * var(--motion-scale, 1)) ease, transform calc(130ms * var(--motion-scale, 1)) @con-ease-enter; }
 .con-inspect-swap-leave-active { transition: opacity calc(90ms * var(--motion-scale, 1)) ease; }
 .con-inspect-swap-enter-from { opacity: 0; transform: translateY(.4rem); }
 .con-inspect-swap-leave-to { opacity: 0; }

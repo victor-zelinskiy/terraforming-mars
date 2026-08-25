@@ -1830,7 +1830,7 @@
     border-radius: .55rem;
     background: rgba(10, 18, 28, 0.7);
     box-shadow: inset 0 0 0 .05rem fade(@con-cyan, 12%);
-    transition: box-shadow .12s ease;
+    transition: box-shadow calc(120ms * var(--motion-scale, 1)) ease;
 
     &--focus { box-shadow: inset 0 0 0 .1rem fade(@con-cyan, 80%), 0 0 .8rem fade(@con-cyan, 22%); }
 }
@@ -1896,7 +1896,7 @@
     border-radius: .2rem;
     background: @con-cyan;
     box-shadow: 0 0 .5rem fade(@con-cyan, 50%);
-    transition: width .1s ease;
+    transition: width calc(100ms * var(--motion-scale, 1)) ease;
 }
 .cm-admin__saveinfo {
     font-size: .78rem;

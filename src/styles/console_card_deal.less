@@ -264,7 +264,7 @@
 
 /* ── Selection states: the pick band POPS in (damped-spring ease) ────── */
 .con-cards__pickband {
-    animation: con-pickband-pop calc(240ms * var(--motion-scale, 1)) cubic-bezier(0.34, 1.26, 0.44, 1) backwards;
+    animation: con-pickband-pop calc(240ms * var(--motion-scale, 1)) @con-ease-settle backwards;
 }
 @keyframes con-pickband-pop {
     from { opacity: 0; transform: translateX(-50%) scale(0.72); }
@@ -301,11 +301,11 @@
     to { opacity: 1; }
 }
 .con-verdict-swap-enter-active {
-    transition: opacity calc(90ms * var(--motion-scale, 1)) cubic-bezier(0.16, 1, 0.3, 1),
-        transform calc(90ms * var(--motion-scale, 1)) cubic-bezier(0.16, 1, 0.3, 1);
+    transition: opacity calc(90ms * var(--motion-scale, 1)) @con-ease-enter,
+        transform calc(90ms * var(--motion-scale, 1)) @con-ease-enter;
 }
 .con-verdict-swap-leave-active {
-    transition: opacity calc(60ms * var(--motion-scale, 1)) cubic-bezier(0.4, 0, 0.7, 0.2);
+    transition: opacity calc(60ms * var(--motion-scale, 1)) @con-ease-exit;
 }
 .con-verdict-swap-enter-from { opacity: 0; transform: translateY(.25rem); }
 .con-verdict-swap-leave-to { opacity: 0; }
@@ -701,7 +701,7 @@ dialog.con-zoom {
    hidden until the prompt's frame swap replaces the set. Per-slot stagger
    rides an inline animation-delay set by applyDiscardExit. */
 .con-exit-reject {
-    animation: con-exit-reject calc(300ms * var(--motion-scale, 1)) cubic-bezier(0.4, 0, 0.7, 0.2) both;
+    animation: con-exit-reject calc(300ms * var(--motion-scale, 1)) @con-ease-exit both;
     pointer-events: none;
 }
 @keyframes con-exit-reject {

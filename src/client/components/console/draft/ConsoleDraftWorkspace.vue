@@ -392,6 +392,8 @@ export default defineComponent({
        *  may take the stage while the intake still flies to the dock. */
       discardsSettled: false,
       discardTimer: undefined as number | undefined,
+      /** The zero-buy path's completion gate (no intake flight to ride). */
+      completionFlightsTimer: undefined as number | undefined,
       /** Solved stage layouts (CSS custom-property maps). */
       packetRowStyle: {} as Record<string, string>,
       buyRowStyle: {} as Record<string, string>,
@@ -800,6 +802,9 @@ export default defineComponent({
     if (this.discardTimer !== undefined) {
       window.clearTimeout(this.discardTimer);
     }
+    if (this.completionFlightsTimer !== undefined) {
+      window.clearTimeout(this.completionFlightsTimer);
+    }
     this.disposeClones();
     this.deal.dispose();
     // An engaged rise scene can't outlive its frame — hand the shelf off
@@ -1173,7 +1178,16 @@ export default defineComponent({
       }, consoleMotionMs(rest.length > 0 ? 880 : 200));
       if (bought.length === 0) {
         this.submitCards([]);
-        window.setTimeout(() => markDraftCompletionFlightsDone(), consoleMotionMs(720));
+        // No intake flight to ride on this path — the gate is the discard
+        // exit's read window. Stored + cleared on unmount, so a torn-down
+        // frame can never receive the completion flip.
+        if (this.completionFlightsTimer !== undefined) {
+          window.clearTimeout(this.completionFlightsTimer);
+        }
+        this.completionFlightsTimer = window.setTimeout(() => {
+          this.completionFlightsTimer = undefined;
+          markDraftCompletionFlightsDone();
+        }, consoleMotionMs(720));
         return;
       }
       const entries = bought

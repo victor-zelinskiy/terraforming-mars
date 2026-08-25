@@ -37,6 +37,7 @@ import {registerAnimationHoldSupplier} from '@/client/components/presentation/an
 import {consoleReducedMotionActive} from '@/client/console/composables/useConsoleReducedMotion';
 import {motionMs} from '@/client/components/motion/motionTokens';
 import {conUiScale} from '@/client/console/consoleLayoutProfile';
+import {restingRectOf} from '@/client/console/cardFlight/landingRect';
 import {
   ResourceTransferSpec, TransferPoint, TransferRect,
   transferFlightBudgetMs, transferWaveDelayMs, sourceSpawnPoint, cardResourceKey,
@@ -470,6 +471,19 @@ function measureRect(selector: string): TransferRect | undefined {
   return r.width > 4 && r.height > 4 ? {x: r.left, y: r.top, w: r.width, h: r.height} : undefined;
 }
 
+/** LANDING measure: where the anchor will REST. A reward chip regularly aims
+ *  at a zone that is still running its own entry (an embedded step's rise, a
+ *  stage panel settling) — a raw rect lands the chip where the counter was
+ *  PASSING and the touchdown tick happens off-target. */
+function measureRestingRect(selector: string): TransferRect | undefined {
+  const el = document.querySelector<HTMLElement>(selector);
+  if (el === null) {
+    return undefined;
+  }
+  const r = restingRectOf(el);
+  return r.width > 4 && r.height > 4 ? {x: r.left, y: r.top, w: r.width, h: r.height} : undefined;
+}
+
 function centerOf(rect: TransferRect): TransferPoint {
   return {x: rect.x + rect.w / 2, y: rect.y + rect.h / 2};
 }
@@ -496,13 +510,13 @@ function escapeName(name: string): string {
  *  chosen host card in the «Разыграно» table / the aux satellite). */
 function targetPointFor(spec: ResourceTransferSpec): TransferPoint | undefined {
   if (spec.channel === 'stock') {
-    const r = measureRect(`.con-res__row--${spec.resource} .con-res__stockwrap`) ??
-      measureRect(`.con-res__row--${spec.resource}`);
+    const r = measureRestingRect(`.con-res__row--${spec.resource} .con-res__stockwrap`) ??
+      measureRestingRect(`.con-res__row--${spec.resource}`);
     return r !== undefined ? centerOf(r) : undefined;
   }
   if (spec.channel === 'production') {
-    const r = measureRect(`.con-res__row--${spec.resource} .con-res__prod`) ??
-      measureRect(`.con-res__row--${spec.resource}`);
+    const r = measureRestingRect(`.con-res__row--${spec.resource} .con-res__prod`) ??
+      measureRestingRect(`.con-res__row--${spec.resource}`);
     return r !== undefined ? centerOf(r) : undefined;
   }
   // card-resource: the PRE-SELECTED host card when it's on screen — the
@@ -514,18 +528,18 @@ function targetPointFor(spec: ResourceTransferSpec): TransferPoint | undefined {
   // additional-resources satellite cell, else no flight.
   if (spec.targetCard !== undefined) {
     const esc = escapeName(spec.targetCard);
-    const r = measureRect(`.con-recv [data-played-key="${esc}"] .pcard__res`) ??
-      measureRect(`.con-recv [data-played-key="${esc}"]`) ??
-      measureRect(`.con-colfocus [data-played-key="${esc}"] .pcard__res`) ??
-      measureRect(`.con-colfocus [data-played-key="${esc}"]`) ??
-      measureRect(`.con-hydro [data-played-key="${esc}"] .pcard__res`) ??
-      measureRect(`.con-hydro [data-played-key="${esc}"]`) ??
-      measureRect(`.con-start__played [data-played-key="${esc}"]`) ??
-      measureRect(`.con-played [data-played-key="${esc}"]`);
+    const r = measureRestingRect(`.con-recv [data-played-key="${esc}"] .pcard__res`) ??
+      measureRestingRect(`.con-recv [data-played-key="${esc}"]`) ??
+      measureRestingRect(`.con-colfocus [data-played-key="${esc}"] .pcard__res`) ??
+      measureRestingRect(`.con-colfocus [data-played-key="${esc}"]`) ??
+      measureRestingRect(`.con-hydro [data-played-key="${esc}"] .pcard__res`) ??
+      measureRestingRect(`.con-hydro [data-played-key="${esc}"]`) ??
+      measureRestingRect(`.con-start__played [data-played-key="${esc}"]`) ??
+      measureRestingRect(`.con-played [data-played-key="${esc}"]`);
     if (r !== undefined) {
       return centerOf(r);
     }
   }
-  const aux = measureRect(`.con-res-aux__cell[data-aux-resource="${cardResourceKey(spec.resource)}"]`);
+  const aux = measureRestingRect(`.con-res-aux__cell[data-aux-resource="${cardResourceKey(spec.resource)}"]`);
   return aux !== undefined ? centerOf(aux) : undefined;
 }

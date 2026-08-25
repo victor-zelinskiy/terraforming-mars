@@ -10,11 +10,15 @@
                         :ghostParam="stdpGhostParam" />
 
     <!-- P27: the central banner is reserved for MANDATORY / critical states
-         (placement, awaited decisions) — never a plain "your turn". -->
-    <div v-if="bannerText !== ''" class="con-banner">
-      <span class="con-banner__pulse" aria-hidden="true"></span>
-      <span>{{ bannerText }}</span>
-    </div>
+         (placement, awaited decisions) — never a plain "your turn". Enters/
+         leaves in the same `con-plate` voice as the mandatory card beside it
+         (this band's family transition) — a HUD-band surface never pops. -->
+    <transition name="con-plate">
+      <div v-if="bannerText !== ''" class="con-banner">
+        <span class="con-banner__pulse" aria-hidden="true"></span>
+        <span>{{ bannerText }}</span>
+      </div>
+    </transition>
 
     <!-- CTS: a DEFERRED task (B = inspect the board) docks as an amber chip.
          P15: the return verb is CONTEXT-AWARE (selection / draft / start
@@ -29,11 +33,13 @@
          (same banner-band placement as the deferred chip); the journal (View)
          is the event center. Gains the critical accent when the queue holds a
          gameplay-critical item. -->
-    <div v-if="pendingEvents.count > 0" class="con-banner con-banner--events" :class="{'con-banner--events-critical': pendingEvents.critical}">
-      <span class="con-banner__pulse" aria-hidden="true"></span>
-      <span>{{ $t('Pending events') }}</span>
-      <span class="con-banner__count">+{{ pendingEvents.count }}</span>
-    </div>
+    <transition name="con-plate">
+      <div v-if="pendingEvents.count > 0" class="con-banner con-banner--events" :class="{'con-banner--events-critical': pendingEvents.critical}">
+        <span class="con-banner__pulse" aria-hidden="true"></span>
+        <span>{{ $t('Pending events') }}</span>
+        <span class="con-banner__count">+{{ pendingEvents.count }}</span>
+      </div>
+    </transition>
 
     <!-- MANDATORY ANNOUNCEMENT (consoleMandatoryGate): a mandatory ACTION (corp
          first action / forced hand pick / off-turn reaction / a must-open
@@ -1435,8 +1441,9 @@ import {
   stdProjectsFramePhase,
 } from '@/client/console/consoleStdProjects';
 import {
-  STDP_HOLD_MS, armStdProjectCommit, releaseStdProjectCommit, stdProjectCommitState,
+  STDP_HOLD_MS, armStdProjectCommit, releaseStdProjectCommit, resetStdProjectCommit, stdProjectCommitState,
 } from '@/client/console/consoleStdProjectCommit';
+import {resetMaFocusMotion} from '@/client/console/consoleMaFocusMotion';
 import {resetHandStageMotion, handStageTransitioning, guardHandHeroFlight, heroCommitLift} from '@/client/console/consoleHandStageMotion';
 import {armHandPlayPrewarm, cancelHandPlayPrewarm, resetHandPlayPrewarm} from '@/client/console/consoleHandPlayPrewarm';
 import ConsoleCorpFirstActionConfirm from '@/client/components/console/ConsoleCorpFirstActionConfirm.vue';
@@ -1584,17 +1591,20 @@ import {
 import ConsoleDeckDrawLayer from '@/client/components/console/deckDraw/ConsoleDeckDrawLayer.vue';
 import {abortDeckDraw, deckDrawDealing, deckDrawHolds, isDeckDrawActive} from '@/client/console/deckDraw/consoleDeckDraw';
 import ConsolePatentSaleLayer from '@/client/components/console/patentSale/ConsolePatentSaleLayer.vue';
-import {armPatentSale, isPatentSaleActive, patentSaleState} from '@/client/console/patentSale/consolePatentSale';
+import {abortPatentSale, armPatentSale, isPatentSaleActive, patentSaleState} from '@/client/console/patentSale/consolePatentSale';
 import ConsoleResourceTransferLayer from '@/client/components/console/resourceTransfer/ConsoleResourceTransferLayer.vue';
 import {ResourceTransferSpec} from '@/client/console/resourceTransfer/resourceTransferModel';
-import {runResourceTransfers, beginPanelRewardHold, releasePanelRewardHold, clearPanelRewardHold, panelRewardHold, resetCardResourceLandings} from '@/client/console/resourceTransfer/consoleResourceTransfer';
-import {ActionCommitPlan, actionCommitHolding, consumeActionCommitPlan, releaseActionCommit} from '@/client/console/consoleActionCommit';
+import {abortResourceTransfers, runResourceTransfers, beginPanelRewardHold, releasePanelRewardHold, clearPanelRewardHold, panelRewardHold, resetCardResourceLandings} from '@/client/console/resourceTransfer/consoleResourceTransfer';
+import {ActionCommitPlan, abortConsoleActionCommit, actionCommitHolding, consumeActionCommitPlan, releaseActionCommit} from '@/client/console/consoleActionCommit';
+import {abortActionCommitMotion} from '@/client/console/consoleActionCommitMotion';
 import ConsoleTilePlacementLayer from '@/client/components/console/tilePlacement/ConsoleTilePlacementLayer.vue';
 import ConsoleNomadMoveLayer from '@/client/components/console/nomads/ConsoleNomadMoveLayer.vue';
-import {tilePlacementHolding, tilePlacementState} from '@/client/console/tilePlacement/consoleTilePlacement';
-import {nomadMoveState, nomadMoveHolding} from '@/client/console/nomads/consoleNomadMove';
+import {abortTilePlacement, tilePlacementHolding, tilePlacementState} from '@/client/console/tilePlacement/consoleTilePlacement';
+import {abortRemotePlacements} from '@/client/console/tilePlacement/consoleRemotePlacement';
+import {abortOceanBeat} from '@/client/console/tilePlacement/oceanAdjacencyBeat';
+import {abortNomadMove, nomadMoveState, nomadMoveHolding} from '@/client/console/nomads/consoleNomadMove';
 import ConsoleColonyBuildLayer from '@/client/components/console/colonyBuild/ConsoleColonyBuildLayer.vue';
-import {armColonyBuild, isColonyBuildActive} from '@/client/console/colonyBuild/consoleColonyBuild';
+import {abortColonyBuild, armColonyBuild, isColonyBuildActive} from '@/client/console/colonyBuild/consoleColonyBuild';
 import {SpaceBonus} from '@/common/boards/SpaceBonus';
 import ConsoleJournalPanel from '@/client/components/console/ConsoleJournalPanel.vue';
 import {hydroNetworkState, resetHydroPlan} from '@/client/components/hydronetwork/hydroNetworkState';
@@ -14053,6 +14063,16 @@ export default defineComponent({
     if (this.noticeTimer !== undefined) {
       window.clearTimeout(this.noticeTimer);
     }
+    // These two write motion/flow state when they fire — a torn-down root must
+    // never receive either (they were the only shell timers missing here).
+    if (this.hydroResultTimer !== undefined) {
+      window.clearTimeout(this.hydroResultTimer);
+      this.hydroResultTimer = undefined;
+    }
+    if (this.maFocusSafetyTimer !== undefined) {
+      window.clearTimeout(this.maFocusSafetyTimer);
+      this.maFocusSafetyTimer = undefined;
+    }
     this.releasePresentationLease?.();
     this.releasePresentationLease = undefined;
     this.consoleState.shellMounted = false;
@@ -14083,6 +14103,20 @@ export default defineComponent({
     abortBoardCardBonus('instant'); // recall any in-flight bonus cover (zombie-safe)
     abortDeckDraw(); // drop any in-flight deck-draw scene (zombie-safe)
     abortPlayedHero(); // unwind any in-flight played-card hero scene (zombie-safe)
+    // The rest of the module-scene family. These were reachable only from the
+    // transport's REFUSAL path — a game switch with one of them live carried a
+    // stale scene (timers, holds, a ceremony timeline) into the next game.
+    abortPatentSale();
+    abortTilePlacement();
+    abortRemotePlacements();
+    abortOceanBeat();
+    abortNomadMove();
+    abortResourceTransfers();
+    abortColonyBuild();
+    abortConsoleActionCommit();
+    abortActionCommitMotion(); // the beat's own timeline + overlay layer
+    resetMaFocusMotion(); // kills a live coronation timeline (nothing else can)
+    resetStdProjectCommit(); // drops the hold gate + both its timers
     document.body.classList.remove('con-zoom-open');
     document.body.classList.remove('con-play-modal-open');
     this.clearDepartingPlayCard();

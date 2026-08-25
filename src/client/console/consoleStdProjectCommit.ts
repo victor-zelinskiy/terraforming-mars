@@ -81,11 +81,31 @@ export const stdProjectCommitState = reactive({
 });
 
 let holdTimer: ReturnType<typeof setTimeout> | undefined;
+let holdSafetyTimer: ReturnType<typeof setTimeout> | undefined;
+/** The CURRENT beat's un-resolved `runStdProjectCommit` promise. Exactly one
+ *  may be pending; every exit path (peak, safety, release, abort, a NEXT beat
+ *  arming) funnels through `resolvePending`, so an awaiter — the transport's
+ *  `transportHolds.stdProject` gate — can never be left hanging.
+ *  (The safety used to be an UNSTORED timeout observing the module handle: a
+ *  second commit armed inside its 1600 ms window had its own peak timer killed
+ *  by the previous beat's stale safety, and its promise then never resolved,
+ *  pinning the HUD hold for the session.) */
+let pendingResolve: (() => void) | undefined;
+
+function resolvePending(): void {
+  const r = pendingResolve;
+  pendingResolve = undefined;
+  r?.();
+}
 
 function clearHoldTimer(): void {
   if (holdTimer !== undefined) {
     clearTimeout(holdTimer);
     holdTimer = undefined;
+  }
+  if (holdSafetyTimer !== undefined) {
+    clearTimeout(holdSafetyTimer);
+    holdSafetyTimer = undefined;
   }
 }
 
@@ -96,6 +116,7 @@ function clearHoldTimer(): void {
  */
 export function armStdProjectCommit(card: string): void {
   clearHoldTimer();
+  resolvePending(); // defensive: a new press must never inherit a hung gate
   stdProjectCommitState.phase = 'press';
   stdProjectCommitState.card = card;
 }
@@ -134,28 +155,28 @@ export function runStdProjectCommit(): Promise<void> {
   }
   return new Promise<void>((resolve) => {
     clearHoldTimer();
+    resolvePending(); // a previous beat's awaiter never outlives its beat
+    pendingResolve = resolve;
     const settle = () => {
       clearHoldTimer();
       // The peak: the row is now COMMITTED, and the world may show it.
       if (stdProjectCommitState.phase === 'committing') {
         stdProjectCommitState.phase = 'committed';
       }
-      resolve();
+      resolvePending();
     };
     holdTimer = setTimeout(settle, motionMs(STDP_SWEEP_PEAK_MS));
-    // The safety rides the same handle: whichever fires first wins, and the
-    // gate can never outlive the beat it protects.
-    setTimeout(() => {
-      if (holdTimer !== undefined) {
-        settle();
-      }
-    }, HOLD_SAFETY_MS);
+    // The safety: whichever fires first wins, and the gate can never outlive
+    // the beat it protects. Both handles are STORED and die together in
+    // `clearHoldTimer`, so a stale closure can never fire into a later beat.
+    holdSafetyTimer = setTimeout(settle, HOLD_SAFETY_MS);
   });
 }
 
 /** The flow's conclusion took over (the workspace is leaving). */
 export function releaseStdProjectCommit(): void {
   clearHoldTimer();
+  resolvePending();
   stdProjectCommitState.phase = 'idle';
   stdProjectCommitState.card = '';
 }

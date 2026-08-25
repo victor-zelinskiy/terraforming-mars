@@ -94,14 +94,52 @@ test.describe('start effect flow · interactive draw is ONE play animation', () 
 
     // THE PER-FRAME WITNESS for the whole three-effect sequence.
     await page.evaluate(() => {
-      const w = window as unknown as {__flowWatch: {frames: Array<unknown>, ghost: number, early: number, standalone: number, zoom: number}};
-      const state = {frames: [] as Array<unknown>, ghost: 0, early: 0, standalone: 0, zoom: 0};
+      const w = window as unknown as {__flowWatch: {frames: Array<unknown>, ghost: number, early: number, standalone: number, zoom: number,
+        handoffs: Array<{t: number, dx: number, dy: number, dw: number}>}};
+      const state = {frames: [] as Array<unknown>, ghost: 0, early: 0, standalone: 0, zoom: 0,
+        handoffs: [] as Array<{t: number, dx: number, dy: number, dw: number}>};
       w.__flowWatch = state;
       const t0 = performance.now();
       const vis = (el: Element | null): boolean =>
         el !== null && (el as HTMLElement).checkVisibility({opacityProperty: true, visibilityProperty: true});
+      // THE HANDOFF-DELTA WITNESS. The hero's handoff is «reveal the real
+      // seat card, then DISSOLVE the proxy over it» — so for the dissolve's
+      // whole window BOTH copies exist and one sampled frame gives the true
+      // overlay delta, immune to how sparsely headless rAF ticks (a
+      // last-frame-before-removal comparison read the DESIGNED ±3 px settle
+      // dip whenever sampling landed mid-dip). The seat mounts inside a zone
+      // running `con-start-embed-in`, so a raw (non-resting) landing measure
+      // shows up here as a 9–18 px delta — the visible snap at the handover.
+      const heroDelta = () => {
+        const hero = document.querySelector<HTMLElement>('.con-played-hero__proxy');
+        if (hero === null) {
+          return;
+        }
+        const op = parseFloat(getComputedStyle(hero).opacity);
+        if (!(op > 0.02 && op < 0.97)) {
+          return; // not in the dissolve window — the seat may not be revealed yet
+        }
+        const r = hero.getBoundingClientRect();
+        const seat = document.querySelector<HTMLElement>('[data-embed-source-slot] :is(.card-container, .pcard)') ??
+          document.querySelector<HTMLElement>('[data-embed-source-slot]');
+        if (seat === null || r.width < 10) {
+          return;
+        }
+        const s = seat.getBoundingClientRect();
+        // Only the flight that ENDED at the seat (the return leg dissolves at
+        // the shelf, hundreds of px away). Near-gate at half a card.
+        if (s.width > 10 && Math.abs(s.left - r.left) < 200 && Math.abs(s.top - r.top) < 200) {
+          state.handoffs.push({
+            t: Math.round(performance.now() - t0),
+            dx: Math.round((s.left - r.left) * 100) / 100,
+            dy: Math.round((s.top - r.top) * 100) / 100,
+            dw: Math.round((s.width - r.width) * 100) / 100,
+          });
+        }
+      };
       const tick = () => {
         const t = Math.round(performance.now() - t0);
+        heroDelta();
         // PER-TAKE INTAKE: with a reachable dock a take flies to the hand the
         // moment it is taken — so intake proxies must exist WHILE the reveal
         // still stands (the fallback grammar only flies after the last card).
@@ -189,9 +227,11 @@ test.describe('start effect flow · interactive draw is ONE play animation', () 
     const watch = await page.evaluate(() => (window as unknown as {
       __flowWatch: {frames: Array<{t: number, queueOp: number, revealUp: boolean, colUp: boolean,
         dockFaceUp: boolean, intakeUp: boolean, zoomUp: boolean, inEmbed: boolean, strip: number}>,
-        ghost: number, standalone: number, zoom: number}}).__flowWatch);
+        ghost: number, standalone: number, zoom: number,
+        handoffs: Array<{t: number, dx: number, dy: number, dw: number}>}}).__flowWatch);
     const frames = watch.frames;
     console.log(`[flow-watch] frames=${frames.length} ghost=${watch.ghost} standalone=${watch.standalone} zoom=${watch.zoom}`);
+    console.log(`[flow-watch] hero handoffs: ${watch.handoffs.map((h) => `t=${h.t} Δ=${h.dx},${h.dy} Δw=${h.dw}`).join(' · ') || 'none'}`);
     if (watch.standalone > 0) {
       console.log(`[flow-watch] standalone at ${frames.filter((f) => f.revealUp && !f.inEmbed).map((f) => f.t).join(', ')} ms`);
     }
@@ -231,5 +271,15 @@ test.describe('start effect flow · interactive draw is ONE play animation', () 
     expect(Math.max(...stripCounts), 'a multi-card reveal stood').toBeGreaterThan(1);
     expect(stripCounts.some((c, i) => i > 0 && c < stripCounts[i - 1] && c > 0),
       'the strip never re-flowed after a take (cards stayed in their slots)').toBeTruthy();
+    // 8 · THE HANDOFF IS PIXEL-TRUE. During the dissolve the real seat card
+    //     is painted UNDER the proxy — every sampled overlay frame must be a
+    //     whisker apart. A raw (non-resting) landing measure against the
+    //     still-entering embed zone read 9–18 px here; only subpixel rounding
+    //     (plus one frame of the ±3 px settle tail) is allowed.
+    expect(watch.handoffs.length, 'no hero handoff overlay was witnessed at the seat').toBeGreaterThan(0);
+    for (const h of watch.handoffs) {
+      expect(Math.abs(h.dx), `hero handoff Δx at t=${h.t} (${h.dx},${h.dy})`).toBeLessThan(2);
+      expect(Math.abs(h.dy), `hero handoff Δy at t=${h.t} (${h.dx},${h.dy})`).toBeLessThan(2);
+    }
   });
 });

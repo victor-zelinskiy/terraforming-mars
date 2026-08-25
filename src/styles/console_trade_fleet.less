@@ -141,7 +141,7 @@
     100% { box-shadow: inset 0 0 0 .05rem fade(@con-text, 20%), 0 0 0 .1rem var(--fleet-fill), 0 0 .45rem var(--fleet-glow); }
 }
 .con-coltile--just-docked .con-coltile__dock {
-    animation: con-fleet-settle calc(700ms * var(--motion-scale, 1)) cubic-bezier(0.16, 1, 0.3, 1);
+    animation: con-fleet-settle calc(700ms * var(--motion-scale, 1)) @con-ease-enter;
 }
 @keyframes con-fleet-settle {
     0% { transform: translateY(-.3rem) scale(1.14); }

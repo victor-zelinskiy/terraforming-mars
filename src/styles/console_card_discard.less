@@ -82,7 +82,7 @@
    close episode still measures the same rects it always did. */
 .con-hand--discarding .con-hand__slot {
     transition:
-        transform calc(220ms * var(--motion-scale, 1)) cubic-bezier(0.22, 0.61, 0.36, 1),
+        transform calc(220ms * var(--motion-scale, 1)) @con-ease-standard,
         opacity calc(220ms * var(--motion-scale, 1)) ease-out;
     transform: scale(0.972);
     opacity: .52;

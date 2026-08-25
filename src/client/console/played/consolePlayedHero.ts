@@ -43,6 +43,7 @@ import {registerAnimationHoldSupplier} from '@/client/components/presentation/an
 import {consoleReducedMotionActive} from '@/client/console/composables/useConsoleReducedMotion';
 import {motionMs} from '@/client/components/motion/motionTokens';
 import {conUiScale} from '@/client/console/consoleLayoutProfile';
+import {restingRectOf} from '@/client/console/cardFlight/landingRect';
 import {taskFor} from '@/client/console/consoleTaskRouter';
 import {
   HeroRect, PlayedHeroPhase, planHeroPath,
@@ -50,7 +51,7 @@ import {
   HERO_RESULT_PAUSE_MS, HERO_REDUCED_MS, HERO_REDUCED_PAUSE_MS, HERO_SAFETY_TIMEOUT_MS,
 } from '@/client/console/played/playedHeroModel';
 import {
-  placeHeroProxy, playHeroLift, playHeroFlight, playHeroReducedHop, disposeHeroProxy, killHeroTweens, HeroStageEls,
+  placeHeroProxy, playHeroLift, playHeroFlight, playHeroReducedHop, disposeHeroProxy, glideHeroOnto, killHeroTweens, HeroStageEls,
 } from '@/client/console/played/playedHeroDirector';
 import {
   runResourceTransfers, abortResourceTransfers, beginPanelRewardHold, releasePanelRewardHold, clearPanelRewardHold,
@@ -550,6 +551,22 @@ export async function endPlayedHero(): Promise<void> {
   await nextTick(); // the real card paints UNDER the proxy — same geometry
   const els = stage?.els();
   if (els !== undefined && playedHeroState.proxy !== undefined) {
+    // FINAL APPROACH. «Same geometry» is an aim, not a guarantee: the real
+    // slot can re-fit between the aim and the commit (the embed seat's zoom
+    // re-solves when the reveal mounts in the same zone — measured 3–5 px и
+    // ~5 px of width on «Точке Луны»-class flows). Re-read the SAME resolver
+    // the flight aimed with — it answers instantly for a painted card — and
+    // TRAVEL any remainder before the dissolve, never dissolve across it.
+    if (!consoleReducedMotionActive()) {
+      // Short budget: a painted card answers on the first poll; a vanished
+      // target must degrade to the plain dissolve, never stall the commit.
+      const rest = await awaitTargetRect(180);
+      const cur = currentProxyRect(els);
+      if (rest !== undefined && cur !== undefined &&
+          (Math.abs(rest.x - cur.x) > 1 || Math.abs(rest.y - cur.y) > 1 || Math.abs(rest.w - cur.w) > 1.5)) {
+        await glideHeroOnto(els, rest, motionMs(130));
+      }
+    }
     await disposeHeroProxy(els, motionMs(90));
   }
   playedHeroState.proxy = undefined;
@@ -737,6 +754,9 @@ function captureSourceRect(): HeroRect | undefined {
   // play to the no-flight fallback — the card TELEPORTED onto the tableau.
   const els = document.querySelectorAll<HTMLElement>(sourceSelector);
   for (const el of els) {
+    // RAW on purpose: a SOURCE is measured at its current visual position —
+    // the proxy must be born over the pixels the player sees. Only the
+    // LANDING (awaitTargetRect) uses `restingRectOf`.
     const r = el.getBoundingClientRect();
     if (r.width >= 10 && r.height >= 10) {
       heldSourceEl = el;
@@ -790,8 +810,8 @@ function heroRewardSourceSelectors(card: string): Array<string> {
   ];
 }
 
-async function awaitTargetRect(): Promise<HeroRect | undefined> {
-  const deadline = Date.now() + TARGET_WAIT_BUDGET_MS;
+async function awaitTargetRect(budgetMs = TARGET_WAIT_BUDGET_MS): Promise<HeroRect | undefined> {
+  const deadline = Date.now() + budgetMs;
   // An ARM-SCOPED target override (the start scene's effect-source column):
   // this transaction's card deliberately lands at an INTERMEDIATE position —
   // the source seat of the effect it is about to run — instead of the
@@ -801,7 +821,11 @@ async function awaitTargetRect(): Promise<HeroRect | undefined> {
   if (override !== undefined) {
     while (playedHeroState.active && Date.now() < deadline) {
       for (const el of document.querySelectorAll<HTMLElement>(override)) {
-        const r = el.getBoundingClientRect();
+        // RESTING: the effect-source seat mounts inside a zone that is still
+        // running `con-start-embed-in` (translate+scale) at this very frame —
+        // a raw first-measurable rect made the hero land where the seat was
+        // PASSING, then the card snapped the remaining entry travel.
+        const r = restingRectOf(el);
         if (r.width >= 10 && r.height >= 10) {
           return {x: r.left, y: r.top, w: r.width, h: r.height};
         }

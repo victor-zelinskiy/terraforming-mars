@@ -201,7 +201,12 @@ export default defineComponent({
        * only: topology stays the host's business.
        */
       arrivedKeys: new Set<string>(),
+      arrivedTimers: [] as Array<number>,
     };
+  },
+  beforeUnmount() {
+    this.arrivedTimers.forEach((t) => window.clearTimeout(t));
+    this.arrivedTimers = [];
   },
   watch: {
     phases(now: ReadonlyArray<JourneyPhase>, was: ReadonlyArray<JourneyPhase> | undefined) {
@@ -217,10 +222,14 @@ export default defineComponent({
       }
       fresh.forEach((key) => this.arrivedKeys.add(key));
       // Cosmetic cleanup only — the keyframe has long finished; dropping the
-      // marker just keeps a much later re-render from replaying it.
-      window.setTimeout(() => {
+      // marker just keeps a much later re-render from replaying it. Tracked
+      // and cleared on unmount so a torn-down instance's state is never
+      // written to.
+      const t = window.setTimeout(() => {
+        this.arrivedTimers = this.arrivedTimers.filter((h) => h !== t);
         fresh.forEach((key) => this.arrivedKeys.delete(key));
       }, 900);
+      this.arrivedTimers.push(t);
     },
   },
   methods: {

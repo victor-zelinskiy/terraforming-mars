@@ -286,7 +286,7 @@
            Opacity rides along for the GROUNDED dissolve (bounded category
            flights): the fade must play in BOTH directions of the class flip. */
         transition:
-            transform calc(160ms * var(--motion-scale, 1)) cubic-bezier(0.22, 0.61, 0.36, 1),
+            transform calc(160ms * var(--motion-scale, 1)) @con-ease-standard,
             opacity calc(240ms * var(--motion-scale, 1)) ease;
     }
     &__face {
@@ -659,7 +659,7 @@
        appearing/disappearing can never re-anchor them. */
     &__lift {
         position: relative;
-        transition: transform calc(150ms * var(--motion-scale, 1)) cubic-bezier(0.22, 0.61, 0.36, 1);
+        transition: transform calc(150ms * var(--motion-scale, 1)) @con-ease-standard;
     }
     &__face {
         > :is(.card-container, .pcard) {
