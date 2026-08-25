@@ -374,7 +374,11 @@ export function installConsoleCapture(app: App, win: BrowserWindow): ConsoleExpo
     async copyToClipboard() {
       try {
         const {gameName, when, entries, rich} = await gather();
-        clipboard.writeText(dump(gameName, when, entries, rich));
+        // Electron 44 rearchitected `clipboard` to match the W3C Clipboard API — the
+        // read/write methods now return Promises. Awaiting keeps the success log + `ok`
+        // honest (the write has actually landed) and keeps a rejection inside the catch
+        // below instead of escaping as an unhandled rejection.
+        await clipboard.writeText(dump(gameName, when, entries, rich));
         // eslint-disable-next-line no-console
         console.log(`[console-export] copied ${entries.length} lines (${rich ? 'rich' : 'fallback'}) to the clipboard`);
         return {ok: true, length: entries.length};

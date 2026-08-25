@@ -24,6 +24,17 @@ import {motionFpsCap, type MotionFpsCap} from './motionTokens';
 // Above any real display refresh → GSAP runs every rAF (its native default).
 const AUTO_TICKER_FPS = 240;
 
+/*
+ * (A tightened GLOBAL `lagSmoothing` was tried here against the hand-album
+ * teleports and REVERTED: under a starved compositor — headless, background
+ * tab — rAF ticks arrive so rarely that clamping each one to a frame's worth
+ * of progress makes every animation CRAWL until its own safety timeout
+ * snaps it, which is the same teleport one level up. A flow that must stay
+ * continuous under stalls drives its own clock instead: rAF + an interval
+ * co-driver + a bounded per-tick step — see handRevealDirector's episode
+ * driver and magnetToBerth. GSAP's default lagSmoothing(500, 33) stays.)
+ */
+
 /**
  * Apply the FPS cap to GSAP's global ticker. Call at bootstrap and whenever the
  * player changes the Animation-rate setting. Fire-and-forget (async import).

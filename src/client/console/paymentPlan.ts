@@ -61,7 +61,13 @@ function isStandardUnit(unit: string): unit is keyof Units {
   return (STANDARD_UNIT_KEYS as ReadonlyArray<string>).includes(unit);
 }
 
-function rateFor(unit: SpendableResource, player: PublicPlayerModel, options: Partial<PaymentOptions>): number {
+/**
+ * M€ bought by ONE unit of `unit` for this player under `options` — THE rate
+ * every console payment number is built from. Exported for the left rail's
+ * passive value badges (railValueModel), which must state the same rate the
+ * payment editor would charge by; never duplicate this table.
+ */
+export function rateFor(unit: SpendableResource, player: PublicPlayerModel, options: Partial<PaymentOptions>): number {
   if (unit === 'steel') {
     return player.steelValue;
   }

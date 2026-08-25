@@ -83,6 +83,19 @@ export const handRevealState = reactive({
    *  so a flight decodes the same file its landing slot paints («the copies
    *  are identical» is a contract about the SOURCE too). */
   artTier: 'full' as 'full' | 'thumb',
+  /**
+   * THE STAGE WINDOW — the album's x-range, applied as a STATIC `clip-path`
+   * on the whole reveal layer for the episode's lifetime. A packet-bound
+   * card is erased/revealed by the boundary purely by WHERE IT IS — the
+   * browser clips it for free, with zero per-frame style writes (the old
+   * per-proxy `edgeClipUpdater` wrote 11 clip-paths per frame at the exact
+   * moment the main thread was already saturated by the transition's own
+   * mount work). Set by the director at episode start (same flush as the
+   * flights, so an off-stage spawn never paints unclipped), cleared at the
+   * teardown's settle — never mid-fade, or the parked packet proxies would
+   * pop back into view for the handoff's 200 ms.
+   */
+  stageClip: undefined as {left: number, right: number} | undefined,
 });
 
 const els = new Map<number, HTMLElement>();

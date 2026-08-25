@@ -2,6 +2,7 @@
 
 **Status:** Phase 0 — feasibility audit + implementation-grade plan (analysis only; no Electron runtime added yet).
 **Target runtime:** Electron **43.0.0** · **Windows-first** · macOS signing/notarization deferred to a separate future initiative.
+> **Runtime pin has since moved — this document is a Phase-0 historical record and its `43.0.0` references are NOT the shipped version.** The live pin is `package.json` `devDependencies.electron` (**44.0.0** as of 2026-08-25 — Chromium 152, Node 24.18.1, V8 15.2). Runtime-version upgrades do not amend the Phase-0 analysis below; see the *Runtime upgrades* log at the end of this file.
 **Baseline:** builds on the completed WebSocket realtime layer — see `WEBSOCKET_MIGRATION_PLAN.md` (§L mutation matrix + flag ladder). This document is its desktop-shell companion.
 
 This plan is grounded in a read-only audit of the actual codebase (branch `main`, Node v22.22.3 / npm 10.9.8). Every load-bearing claim cites `file:line`. It is a plan, not an implementation — the first code lands only when Phase 1 is explicitly requested.
@@ -922,3 +923,46 @@ But the overall Electron project goal is larger:
   premium updater,
   and a desktop runtime that is measurably smoother and more optimized than the browser version.
 ```
+
+---
+
+## Runtime upgrades (post-Phase-0 log)
+
+The Phase-0 analysis above is a frozen record and keeps its `43.0.0` references. The **shipped** runtime pin
+lives in `package.json` → `devDependencies.electron` (exact, no caret). Each bump is logged here with what
+was checked, so the next upgrade starts from the previous audit instead of from scratch.
+
+| Date | Pin | Chromium | Node | V8 | Notes |
+| --- | --- | --- | --- | --- | --- |
+| 2026-08-25 | **44.0.0** | 152.0.7977.54 | 24.18.1 | 15.2.124.13 | See audit below |
+| (prior) | 43.4.0 | 150.0.7871.224 | 24.18.1 | 15.0.245.28 | |
+
+### 44.0.0 — breaking-change audit
+
+Electron 44's breaking changes vs. this codebase (upstream list: `docs/breaking-changes.md` @ `v44.0.0`):
+
+| Breaking change | Impact here |
+| --- | --- |
+| **`clipboard` rearchitected to the W3C Clipboard API — read/write methods now return Promises** (RFC 0019) | **HIT — fixed.** `electron/consoleExport.ts` `copyToClipboard()` called `clipboard.writeText()` bare; now `await`ed. Without the `await` the success log + `{ok: true}` fired before the write landed, and a rejection escaped the `try/catch` as an unhandled rejection. |
+| **`clipboard` module removed from the renderer** | No impact — the renderer imports **nothing** from `electron` (grep-verified); its copy paths use the web `navigator.clipboard` via VueUse `useClipboard` (`BugReportDialog.vue`, `EndgameResultsOverlay.vue`, `GameHome.vue`). |
+| **ANGLE statically linked; `libEGL`/`libGLESv2` no longer shipped** | No impact. Nothing references those libraries; `electron-builder.yml` packs `electronDist: node_modules/electron/dist` wholesale. The `--use-gl=angle` / `--use-angle=vulkan` Linux recipe in `electron/perf.ts` targets ANGLE *backends*, which are unaffected by static linking. Verified on Windows: GPU settles to `gpu_compositing: enabled`, `opengl: enabled_on`, `skia_graphite: enabled_on`, `webgl`/`webgpu: enabled`. **Re-verify the Steam Deck / gamescope Vulkan path when next on hardware** — that recipe is the highest-risk surface of this bump. |
+| **Windows `ia32` + Linux `armv7l` prebuilt binaries removed** | No impact — we ship x64 Windows + x64 Linux only; no `ia32`/`armv7l` reference in `electron-builder.yml`, the release workflow, or the pack scripts. |
+| **macOS 12 (Monterey) support dropped** | No impact — Windows-first; macOS is the unstarted Phase 9. |
+| **`net.request` rejects frame destinations without navigate mode** | No impact — the main process never uses the `net` module. |
+| **`webContents` may be `null` in `select-client-certificate`** | No impact — the event is not handled. |
+| **Pre-macOS-13 login-item attributes removed (`openAsHidden`)** | No impact — `setLoginItemSettings` is not used. |
+
+**Verified:** `electron/tsconfig.json` lane compiles clean; the packaged-renderer app boots on 44.0.0 (embedded
+server forked as a `utilityProcess`, `app://bundle/` served, WS gateway up, games restored from the local
+filesystem DB, GPU fully accelerated, zero errors/warnings in the boot log).
+
+**Gotcha for CI and for local upgrades:** the `electron` npm package ships **without a postinstall hook**, so
+neither `npm install` nor `npm ci` populates `node_modules/electron/dist` — which is exactly what
+`electron-builder.yml`'s `electronDist` points at. Unpack it explicitly after a version bump:
+
+```bash
+node node_modules/electron/install.js
+```
+
+The release workflow already does this (`.github/workflows/release.yml`, "Unpack Electron runtime", in both
+the Windows and Linux packaging jobs).

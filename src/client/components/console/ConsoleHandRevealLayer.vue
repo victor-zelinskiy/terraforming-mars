@@ -24,7 +24,12 @@
     any way the player cannot see: it flies a different card and the handoff
     reads as a swap — the reported «карты мигают при открытии руки».
   -->
-  <div class="con-handreveal-layer" aria-hidden="true">
+  <!-- THE STAGE WINDOW: while an album episode flies, the whole layer is
+       statically clipped to the album's x-range (`stageClip`) — a packet-
+       bound proxy beyond the boundary is erased by the clip itself, and a
+       card sliding across it emerges/vanishes progressively, by position,
+       with zero per-frame style writes. -->
+  <div class="con-handreveal-layer" aria-hidden="true" :style="stageStyle">
     <div v-for="f in handRevealState.flights" :key="f.id"
          class="con-deal-proxy"
          :data-reveal-card="f.name"
@@ -57,6 +62,20 @@ export default defineComponent({
   components: {ConsoleCardFaceLite},
   data() {
     return {handRevealState};
+  },
+  computed: {
+    /** The album stage window as a layer-wide static clip (see template).
+     *  Resize is safe without reactivity to `innerWidth`: a resize snaps the
+     *  running episode (`finishInstant`), which clears `stageClip`. */
+    stageStyle(): Record<string, string> {
+      const c = this.handRevealState.stageClip;
+      if (c === undefined) {
+        return {};
+      }
+      const l = Math.max(0, c.left);
+      const r = Math.max(0, window.innerWidth - c.right);
+      return {clipPath: `inset(0px ${r.toFixed(1)}px 0px ${l.toFixed(1)}px)`};
+    },
   },
   methods: {
     registerRevealEl,

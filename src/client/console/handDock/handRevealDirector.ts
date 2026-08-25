@@ -54,10 +54,28 @@
  * EVERY VISIBLE card participates 1:1: backs visible in the dock fly from
  * their real rects, the thickness tail from near-stacked positions at the
  * pack's left flank; overlay slots beyond the visible window get
- * PLAN-derived rects (the grid's math is pure) and their proxies fade at
- * the viewport boundary — physically "into the scroll". The off-window
- * tail is back-only AND sampled down to `OFFSCREEN_PROXY_CAP` flyers (the
- * pack's overlap hides the difference; 30 composited tail layers don't).
+ * PLAN-derived rects (the grid's math is pure). A card bound for a page
+ * PACKET is erased by THE STAGE WINDOW ITSELF — a static `clip-path` on
+ * the whole reveal layer (`handRevealState.stageClip`, the album's
+ * x-range): the proxy slides across the boundary and the browser clips it
+ * by position, both directions, with zero per-frame style writes.
+ *
+ * IGNITION IS PAINT-GATED (the fix for the reported «карты
+ * телепортируются за один кадр»). The episode's spawn flush is the
+ * heaviest work this flow does — the hand section mounts/unmounts around
+ * it, the board returns, 15 proxies mount — and a GSAP timeline started in
+ * that same task spends its first N hundred milliseconds being eaten by
+ * the stall: ticks arrive late and each advances the clock by the WHOLE
+ * missed interval, so the convoy's launch (open) or the packets' re-entry
+ * (close — they depart FIRST by rank) plays between two painted frames.
+ * The timeline therefore arms only after the stage has actually PAINTED
+ * (double-rAF with a wall-clock backstop for starved compositors); the
+ * pack answering the input instantly is the dock accent's job, not the
+ * flight's. And the timeline never rides GSAP's wall-clock ticker at all:
+ * it stays PAUSED and the episode's OWN driver steps it (rAF + interval
+ * co-driver, per-tick dt bounded — startEpisodeDriver), so a mid-flight
+ * stall slides the flight later in time instead of skipping it through
+ * space, and a starved compositor still advances it at real-time pace.
  *
  * Perf: transform/opacity only; one read batch before spawning; no
  * per-frame Vue writes; will-change scoped by the proxy class; safety
@@ -120,6 +138,8 @@ type Episode = {
   /** The grid scrollTop captured when the close episode began. */
   scrollTop: number,
   finished: boolean,
+  /** Stops the episode's own clock (see startEpisodeDriver). */
+  stopDriver?: () => void,
   /** The intake-accent lease of a CANCELLED open (released on every exit). */
   accentRelease?: () => void,
   /** Per-card GATHER landings (magnet promise + the proxy's handoff fade) —
@@ -206,26 +226,121 @@ function boundedPairs(pairs: ReadonlyArray<RevealPair>): ReadonlyArray<RevealPai
   return pairs.filter((p) => p.visible || keep.has(p));
 }
 
-/** The album stage's x-range — the physical boundary packet flights cross. */
+/** The album stage's x-range — the physical boundary packet flights cross.
+ *  Applied as ONE static `clip-path` on the reveal layer for the episode's
+ *  lifetime (`handRevealState.stageClip`): a packet-bound proxy is erased/
+ *  revealed by WHERE IT IS, both directions, magnets and reversals included
+ *  — no per-frame clip writes, no stale clip after a killed tween. */
 export type StageBounds = {left: number, right: number};
 
 /**
- * PACKET PHYSICS: a card bound for (or coming from) a page packet is erased
- * by THE STAGE EDGE ITSELF, exactly as much as its body is past it — the
- * clip follows the proxy's live position every frame, so what the player
- * sees is a card sliding behind (or out from) a real boundary. The previous
- * language — an alpha fade at 72% of the flight plus a time-based clip wipe
- * — erased cards in mid-air («карты растворяются в воздухе»).
+ * PAINT-GATED IGNITION: resolve once the spawn flush has actually painted
+ * (two frames), so the timeline's clock starts on a quiet stage instead of
+ * inside the mount stall — where GSAP's wall-clock catch-up turns the
+ * flight's whole head into one teleport frame. The wall-clock backstop
+ * covers starved compositors (headless / backgrounded): waiting forever for
+ * a frame that is not coming would strand the episode in its build window.
  */
-function edgeClipUpdater(el: HTMLElement, side: 'left' | 'right', stage: StageBounds): () => void {
-  return () => {
-    const x = Number(gsap.getProperty(el, 'x'));
-    const sc = Math.max(0.01, Number(gsap.getProperty(el, 'scale')));
-    const w = CARD_NATURAL_W * sc;
-    const l = side === 'left' ? Math.max(0, (stage.left - x) / sc) : 0;
-    const r = side === 'right' ? Math.max(0, (x + w - stage.right) / sc) : 0;
-    el.style.clipPath = `inset(0px ${r.toFixed(2)}px 0px ${l.toFixed(2)}px)`;
+const IGNITION_MAX_WAIT_MS = 240;
+
+function settledPaint(): Promise<void> {
+  return new Promise((resolve) => {
+    let done = false;
+    const finish = () => {
+      if (!done) {
+        done = true;
+        clearTimeout(backstop);
+        resolve();
+      }
+    };
+    const backstop = window.setTimeout(finish, IGNITION_MAX_WAIT_MS);
+    requestAnimationFrame(() => requestAnimationFrame(finish));
+  });
+}
+
+/** The build epoch — bumped by every new build AND by `resetHandReveal`, so
+ *  an async build continuation (spawn flush / ignition gate) can detect that
+ *  a reset/reconcile swept the state from under it and must not install a
+ *  dead episode over the fresh state. */
+let buildSeq = 0;
+
+/*
+ * THE EPISODE CLOCK — self-driven, stall-proof. GSAP's global ticker rides
+ * rAF and wall time: on a starved compositor (headless, a backgrounded
+ * window, a main thread mid-recalc-storm) ticks arrive rarely and each one
+ * advances a PLAYING timeline by the whole missed stretch — the convoy
+ * teleports (measured: 11 packet cards moved ~260 px between two adjacent
+ * probe samples). Tightening global lagSmoothing just trades the jump for
+ * a crawl that the safety timeout then snaps — the same teleport one level
+ * up. So an episode's timeline stays PAUSED and this driver steps
+ * `tl.time()` itself: rAF for full frame rate where frames flow, an
+ * interval co-driver where they do not (the magnetToBerth discipline), and
+ * every step bounded by MAX_STEP_MS — a stall slides the flight later in
+ * time instead of skipping it through space. The driver lives only for the
+ * episode (no standing cost while the hand is docked).
+ */
+const DRIVER_INTERVAL_MS = 40;
+/** The per-tick clock cap. Bounds how far ONE tick may advance the flight —
+ *  the fastest leg in these timelines peaks at ~4.2 px/ms, so 28 ms keeps a
+ *  sparse-tick step near ~120 logical px: one honest fast frame, never a
+ *  skip across the screen. (At a healthy 60 fps ticks are 16 ms and the cap
+ *  never engages; under starvation the flight runs slightly slower instead
+ *  — which the progress-aware safety is built to tolerate.) */
+const MAX_STEP_MS = 28;
+
+function startEpisodeDriver(ep: Episode): void {
+  const tl = ep.tl;
+  let last = performance.now();
+  let rafId = 0;
+  let iv = 0;
+  let running = true;
+  const stop = () => {
+    if (running) {
+      running = false;
+      window.clearInterval(iv);
+      window.cancelAnimationFrame(rafId);
+    }
   };
+  ep.stopDriver = stop;
+  const step = () => {
+    if (!running) {
+      return;
+    }
+    if (episode !== ep || ep.finished) {
+      stop();
+      return;
+    }
+    const now = performance.now();
+    const dt = Math.min(Math.max(0, now - last), MAX_STEP_MS) / 1000;
+    last = now;
+    if (dt <= 0) {
+      return;
+    }
+    const dur = Math.max(0.001, tl.duration());
+    const rev = tl.reversed();
+    const next = rev ? tl.time() - dt : tl.time() + dt;
+    if (rev ? next <= 0 : next >= dur) {
+      stop();
+      tl.time(rev ? 0 : dur, false);
+      // time() fires the boundary callback itself when the playhead CROSSES
+      // it; when it was already AT the boundary (a build-window reverse from
+      // progress 0) nothing crosses — invoke explicitly. The finalizers are
+      // idempotent, so a double call is harmless.
+      const cb = tl.eventCallback(rev ? 'onReverseComplete' : 'onComplete') as (() => void) | null;
+      cb?.();
+      return;
+    }
+    tl.time(next, false);
+  };
+  const loop = () => {
+    if (!running) {
+      return;
+    }
+    step();
+    rafId = window.requestAnimationFrame(loop);
+  };
+  iv = window.setInterval(step, DRIVER_INTERVAL_MS);
+  rafId = window.requestAnimationFrame(loop);
 }
 
 /**
@@ -308,8 +423,14 @@ function seatChipZoom(el: HTMLElement, slotW: number): void {
  * Spawn one proxy per pair, position each over `from`, size it to the
  * MATERIALIZATION end's aspect (`sizeTo`) so the handoff rect matches the
  * real element exactly. Returns elements in pair order (missing = skipped).
+ *
+ * `stageClipped` — the layer-wide stage window is active (album episodes):
+ * an off-page proxy spawns FULLY OPAQUE at its packet anchor beyond the
+ * boundary (the layer clip is what hides it there), and no per-element
+ * pre-clip is seeded for it — a static local clip would keep the card
+ * invisible for its whole return leg.
  */
-async function spawnProxies(pairs: ReadonlyArray<RevealPair>, from: 'source' | 'target', sizeTo: 'source' | 'target'): Promise<Array<HTMLElement | undefined>> {
+async function spawnProxies(pairs: ReadonlyArray<RevealPair>, from: 'source' | 'target', sizeTo: 'source' | 'target', stageClipped = false): Promise<Array<HTMLElement | undefined>> {
   const els = await spawnFlights(pairs.map((p) => ({name: p.name, face: p.visible, visual: p.visual})));
   pairs.forEach((p, i) => {
     const el = els[i];
@@ -317,11 +438,14 @@ async function spawnProxies(pairs: ReadonlyArray<RevealPair>, from: 'source' | '
       return;
     }
     // Open starts back-side-out (from the dock); close starts face-out.
-    placeProxy(el, p[from], p[sizeTo], from === 'target', from === 'target' && !p.visible ? 0 : 1);
+    // A close-side off-page proxy is transparent only on the DEGRADE path
+    // (no stage window) — its legacy re-entry is an alpha fade.
+    placeProxy(el, p[from], p[sizeTo], from === 'target', from === 'target' && !p.visible && !stageClipped ? 0 : 1);
     seatChipZoom(el, p.target.width);
     // A close episode starts AT the slot: spawn pre-clipped exactly like the
     // real (grid-clipped) slot renders — released as the card lifts away.
-    if (from === 'target' && p.clip !== undefined) {
+    // (Never for a packet pair under the stage window — see above.)
+    if (from === 'target' && p.clip !== undefined && !(stageClipped && !p.visible)) {
       gsap.set(el, {clipPath: clipInset(p.clip, p.target.width)});
     }
   });
@@ -334,6 +458,7 @@ function teardown(instant: boolean): void {
     return;
   }
   clearTimeout(ep.safety);
+  ep.stopDriver?.();
   window.removeEventListener('resize', ep.onResize);
   ep.accentRelease?.();
   ep.accentRelease = undefined;
@@ -342,6 +467,7 @@ function teardown(instant: boolean): void {
   if (instant || els.length === 0) {
     gsap.set(els, {autoAlpha: 0});
     clearRevealFlights();
+    handRevealState.stageClip = undefined;
   } else {
     // The materialization: the real elements SNAPPED fully visible under
     // the proxies (the hold release happened in the caller; hand slots have
@@ -355,6 +481,11 @@ function teardown(instant: boolean): void {
         handoffFade = undefined;
         fade.kill();
         clearRevealFlights();
+        // The stage window outlives the fade on purpose: packet proxies
+        // parked beyond the boundary must stay erased while the on-stage
+        // proxies hand off — clearing it here, with the flights gone, is
+        // the first frame it cannot un-hide anything.
+        handRevealState.stageClip = undefined;
       }
     };
     const fade = gsap.to(els, {
@@ -389,15 +520,20 @@ export async function runHandOpenEpisode(allPairs: ReadonlyArray<RevealPair>, st
   building = true;
   buildingKind = 'open';
   pendingReverse = false;
+  const seq = ++buildSeq;
   handRevealState.phase = 'opening';
   handRevealState.holdSlots = true;
-  // The off-window tail is SAMPLED down (uncovered backs vanish under the
-  // pack's lift-off — the overlap hides them; see OFFSCREEN_PROXY_CAP).
+  // The stage window arms in the SAME flush as the flights: a packet-bound
+  // proxy must never paint a single frame beyond the boundary unclipped.
+  handRevealState.stageClip = stage;
   const pairs = boundedPairs(allPairs);
   // The dock backs hide via the shell's derived `dockLiftedNames` the moment
   // the flights exist — same flush as the proxies' first paint, so the pack
   // vanishes the frame its proxies stand over it, never both at once.
-  const els = await spawnProxies(pairs, 'source', 'target');
+  const els = await spawnProxies(pairs, 'source', 'target', stage !== undefined);
+  if (seq !== buildSeq) {
+    return; // a reset swept the state mid-build — the flights are gone
+  }
   // The first frame must BE the fan: each proxy re-poses onto its berth's
   // TRUE pose (tilt included) before paint — an upright copy over a tilted
   // back straightens the whole fan in one frame at the episode's very start.
@@ -434,16 +570,11 @@ export async function runHandOpenEpisode(allPairs: ReadonlyArray<RevealPair>, st
     // and ease — three separate tweens per card were pure overhead) — a
     // calm, rising, opening gesture ending at the slot's real size. The
     // card STRAIGHTENS out of its fan tilt in the same gesture.
+    // A packet-bound card needs NO code of its own here: it flies whole and
+    // opaque, and the layer's static stage window erases exactly the part
+    // of it that is past the boundary — the card leaves THROUGH the edge,
+    // like a card slid into a sleeve, at zero per-frame cost.
     const fan: gsap.TweenVars = {x: p.target.left, y: p.target.top, scale: scaleTo, rotation: 0, duration: flight, ease: 'power2.inOut'};
-    if (!p.visible && p.clip !== undefined && stage !== undefined) {
-      // PACKET PHYSICS: the stage edge itself erases the card as it slides
-      // past — the clip tracks the live position every frame. No alpha, no
-      // time-based wipe: the card leaves THROUGH the boundary, like a card
-      // slid into a sleeve, and at flight end it is fully behind it.
-      const upd = edgeClipUpdater(el, p.clip.left !== undefined ? 'left' : 'right', stage);
-      upd();
-      fan.onUpdate = upd;
-    }
     tl.to(el, fan, at);
     if (p.visible) {
       const flip = el.querySelector<HTMLElement>('.con-deal-proxy__flip');
@@ -471,10 +602,18 @@ export async function runHandOpenEpisode(allPairs: ReadonlyArray<RevealPair>, st
     }
   });
 
+  // IGNITION: the spawn flush above is the flow's heaviest patch — let it
+  // PAINT before the clock starts, so the launch is never eaten by its own
+  // mount stall (see the header). `building` stays true across the gate; a
+  // B landing inside it is honoured by installEpisode's pendingReverse.
+  await settledPaint();
+  if (seq !== buildSeq) {
+    tl.kill();
+    return;
+  }
   installEpisode('open', tl, els, 0, spawnBudget(pairs.length, OPEN_FLIGHT_MS));
   tl.eventCallback('onComplete', () => finalizeOpenForward(false));
   tl.eventCallback('onReverseComplete', () => finalizeOpenReverse(false));
-  tl.play(0);
 }
 
 function finalizeOpenForward(instant: boolean): void {
@@ -606,18 +745,43 @@ function magnetToBerth(el: HTMLElement, name: string, natH: number, budgetMs: nu
         finish();
         return;
       }
-      const k = 1 - Math.exp(-dt / 70);
-      const nx = Number(gsap.getProperty(el, 'x')) + (pose.x - Number(gsap.getProperty(el, 'x'))) * k;
-      const ny = Number(gsap.getProperty(el, 'y')) + (pose.y - Number(gsap.getProperty(el, 'y'))) * k;
-      const ns = Number(gsap.getProperty(el, 'scale')) + (pose.scale - Number(gsap.getProperty(el, 'scale'))) * k;
-      const nr = Number(gsap.getProperty(el, 'rotation')) + (pose.rotation - Number(gsap.getProperty(el, 'rotation'))) * k;
+      // BOUNDED APPROACH: the convergence tightens as the budget runs out
+      // (τ 70 → 24 ms), but every tick's DISPLACEMENT is absolutely capped —
+      // under sparse ticks «converge faster» would otherwise be exactly a
+      // jump (a rare tick with k→1 moved a card 300 px into the dock in one
+      // painted frame). With the cap the worst case is a brisk, continuous
+      // final approach; the budget stops the clock only at 2×, by which
+      // point the cap has delivered the card within a hop of its berth.
+      const frac = Math.min(1, (now - t0) / budgetMs);
+      const tau = frac < 0.6 ? 70 : 70 - (70 - 24) * ((frac - 0.6) / 0.4);
+      const k = 1 - Math.exp(-dt / tau);
+      const cx = Number(gsap.getProperty(el, 'x'));
+      const cy = Number(gsap.getProperty(el, 'y'));
+      const stepCap = 110 * conUiScale();
+      let mx = (pose.x - cx) * k;
+      let my = (pose.y - cy) * k;
+      const stepLen = Math.hypot(mx, my);
+      const capScale = stepLen > stepCap ? stepCap / stepLen : 1;
+      mx *= capScale;
+      my *= capScale;
+      const kk = k * capScale; // scale/rotation ride the same bounded fraction
+      const nx = cx + mx;
+      const ny = cy + my;
+      const ns = Number(gsap.getProperty(el, 'scale')) + (pose.scale - Number(gsap.getProperty(el, 'scale'))) * kk;
+      const nr = Number(gsap.getProperty(el, 'rotation')) + (pose.rotation - Number(gsap.getProperty(el, 'rotation'))) * kk;
       gsap.set(el, {x: nx, y: ny, scale: ns, rotation: nr});
       const dist = Math.abs(pose.x - nx) + Math.abs(pose.y - ny) +
         Math.abs(pose.scale - ns) * CARD_NATURAL_W + Math.abs(pose.rotation - nr);
       const targetMoved = last !== undefined &&
         (Math.abs(pose.x - last.x) + Math.abs(pose.y - last.y) + Math.abs(pose.rotation - last.rotation)) > 0.25;
       last = pose;
-      if (now - t0 > budgetMs) {
+      // The hard wall is deliberately FAR out (×4): with the step cap the
+      // magnet is always continuous, so the wall only exists for a genuine
+      // wedge — under a starved-tick run the approach may take a couple of
+      // seconds, and snapping it earlier from 300 px out was itself the
+      // teleport this flow forbids. The conclusion's own backstop is sized
+      // above this wall.
+      if (now - t0 > budgetMs * 4) {
         gsap.set(el, pose);
         finish();
         return;
@@ -705,8 +869,10 @@ function concludeGatherOntoDock(ep: Episode, instant: boolean): void {
     handRevealState.holdSlots = false;
     teardown(false);
   };
-  // Wall-clock backstop above the magnets' own budget + the handoff fade.
-  window.setTimeout(conclude, motionMs(700) + 600);
+  // Wall-clock backstop ABOVE the magnets' own hard wall (×4 of their
+  // budget) + the handoff fade: concluding earlier fades still-airborne
+  // cards mid-air, which is a vanish by another name.
+  window.setTimeout(conclude, motionMs(520) * 4 + 900);
   void nextTick().then(() => {
     if (done || episode !== ep) {
       conclude();
@@ -749,10 +915,17 @@ export async function runHandCloseEpisode(allPairs: ReadonlyArray<RevealPair>, s
   building = true;
   buildingKind = 'close';
   pendingReverse = false;
+  const seq = ++buildSeq;
   handRevealState.phase = 'closing';
   handRevealState.holdSlots = true; // same-flush: slots hide under their proxies
+  // Same flush as the flights: packet proxies spawn AT their anchors beyond
+  // the boundary, and the stage window is what keeps that first paint clean.
+  handRevealState.stageClip = stage;
   const pairs = boundedPairs(allPairs);
-  const els = await spawnProxies(pairs, 'target', 'source');
+  const els = await spawnProxies(pairs, 'target', 'source', stage !== undefined);
+  if (seq !== buildSeq) {
+    return; // a reset swept the state mid-build — the flights are gone
+  }
   // The board is the backdrop of the gather from the first flight frame.
   hooks?.setSection('board');
 
@@ -770,16 +943,11 @@ export async function runHandCloseEpisode(allPairs: ReadonlyArray<RevealPair>, s
     // Outer cards start first; the centre card caps the pack last.
     const at = s(spread) * (1 - ranks[i]);
     const flight = s(CLOSE_FLIGHT_MS);
-    let packetUpd: (() => void) | undefined;
-    if (!p.visible && p.clip !== undefined && stage !== undefined) {
-      // PACKET PHYSICS (the return leg): the card starts parked BEYOND the
-      // stage edge and slides IN through it — the edge clip follows the
-      // live position, so the card physically emerges from the boundary
-      // (never an alpha fade-in / a mid-air unclip «из воздуха»).
-      packetUpd = edgeClipUpdater(el, p.clip.left !== undefined ? 'left' : 'right', stage);
-      gsap.set(el, {autoAlpha: 1});
-      packetUpd();
-    } else {
+    // PACKET PHYSICS (the return leg): the card starts parked BEYOND the
+    // stage edge — erased by the layer's static stage window — and slides
+    // IN through it, emerging progressively by position (never an alpha
+    // fade-in / a mid-air unclip «из воздуха»). No per-card code needed.
+    if (stage === undefined) {
       if (!p.visible) {
         // Degrade path (no stage bounds): the legacy fade re-entry.
         tl.to(el, {autoAlpha: 1, duration: flight * 0.3, ease: 'power1.out'}, at);
@@ -789,6 +957,10 @@ export async function runHandCloseEpisode(allPairs: ReadonlyArray<RevealPair>, s
         // card lifts away from it (the reverse of the landing clip).
         tl.to(el, {clipPath: 'inset(0px 0px 0px 0px)', duration: flight * 0.3, ease: 'power1.out'}, at);
       }
+    } else if (p.visible && p.clip !== undefined) {
+      // A boundary slot under the stage window still seeded its own local
+      // pre-clip — release it as the card lifts away.
+      tl.to(el, {clipPath: 'inset(0px 0px 0px 0px)', duration: flight * 0.3, ease: 'power1.out'}, at);
     }
     // THE DOCK BERTH IS PROVISIONAL — the pack's POSE is routinely still
     // settling when the gather is measured (compact → full rides the pack's
@@ -796,41 +968,18 @@ export async function runHandCloseEpisode(allPairs: ReadonlyArray<RevealPair>, s
     // the episode arms). Aiming the whole flight at that snapshot landed the
     // hand in the miniature pose, and the real backs then materialized
     // full-size in one frame. So the carry flies the first ~72% toward the
-    // snapshot, then RE-READS the live back (the ride is settled by then —
-    // spread + 0.72·flight > the pose transition) and lands the final leg on
-    // the REAL berth — the startDockMotion retarget discipline, applied to
-    // the gather.
+    // snapshot, and the MAGNET flies the final leg onto the LIVE berth.
     tl.to(el, {
       x: p.source.left, y: p.source.top, scale: scaleTo,
       duration: flight * 0.72, ease: 'power2.in',
-      onUpdate: packetUpd,
-      // Inside the stage for good: the clip must not linger at a stale
-      // sub-pixel inset through the corrective/magnet legs.
-      onComplete: packetUpd === undefined ? undefined : () => {
-        el.style.clipPath = 'inset(0px 0px 0px 0px)';
-      },
     }, at);
-    tl.call(() => {
-      // A reversed gather (reopen mid-close) owns the proxies again — the
-      // corrective leg must not fight the reversing timeline. (Teardown's
-      // killTweensOf sweeps any corrective that did start.)
-      if (episode === undefined || episode.finished || episode.tl.reversed()) {
-        return;
-      }
-      // The final approach lands the berth's TRUE pose — the card rotates
-      // INTO its fan tilt on the last leg, so the materialized back is the
-      // same object at the same angle (never «upright card snaps tilted»).
-      const to: BerthPose = berthPoseFor(p.name as string, CARD_NATURAL_W, proxyNatH(el)) ??
-        {x: p.source.left, y: p.source.top, scale: scaleTo, rotation: 0};
-      gsap.to(el, {...to, duration: flight * 0.28, ease: 'power2.out', overwrite: 'auto'});
-    }, undefined, at + flight * 0.72);
-    // The timeline's own length covers the corrective leg — its completion
-    // is what starts the teardown/materialization, so the handoff can never
-    // begin under a still-travelling final approach.
-    tl.set({}, {}, at + flight);
-    // THIS CARD LANDS NOW — not in a group at the end. Its magnet settles
-    // it onto the live berth, the back materializes under the proxy, the
-    // proxy fades on top: the fan assembles card by card in flight order.
+    // THE FINAL APPROACH IS THE LANDING — one mechanism, the magnet: it
+    // re-reads the live back every tick (the retarget discipline), its
+    // per-tick displacement is bounded (a separate corrective tween rode
+    // GSAP's starved global ticker and caught up in 300-px frames), the
+    // card rotates INTO its fan tilt on the way, and when it settles ON the
+    // stopped berth the back materializes under it (`landedNames`) and the
+    // proxy fades on top — the fan assembles card by card, in flight order.
     // Reversible until it actually lands (the reverse branch un-lands).
     tl.call(() => {
       const ep = episode;
@@ -838,7 +987,12 @@ export async function runHandCloseEpisode(allPairs: ReadonlyArray<RevealPair>, s
         return;
       }
       beginLanding(ep, el, p.name as string, () => episode === ep && !tl.reversed());
-    }, undefined, at + flight);
+    }, undefined, at + flight * 0.72);
+    // The timeline's own length still covers the approach window — its
+    // completion is what starts the conclusion, and the conclusion awaits
+    // every landing, so the handoff can never begin under a still-
+    // travelling final approach.
+    tl.set({}, {}, at + flight);
     if (p.visible) {
       const flip = el.querySelector<HTMLElement>('.con-deal-proxy__flip');
       if (flip !== null) {
@@ -848,10 +1002,18 @@ export async function runHandCloseEpisode(allPairs: ReadonlyArray<RevealPair>, s
     }
   });
 
+  // IGNITION: the board's return patch above is exactly the stall that used
+  // to eat the packets' whole re-entry (they depart FIRST by rank) — let it
+  // paint before the clock starts. `building` covers the gate; a reopen (B)
+  // landing inside it is honoured by installEpisode's pendingReverse.
+  await settledPaint();
+  if (seq !== buildSeq) {
+    tl.kill();
+    return;
+  }
   installEpisode('close', tl, els, scrollTop, spawnBudget(pairs.length, CLOSE_FLIGHT_MS));
   tl.eventCallback('onComplete', () => finalizeCloseForward(false));
   tl.eventCallback('onReverseComplete', () => finalizeCloseReverse(false));
-  tl.play(0);
 }
 
 function finalizeCloseForward(instant: boolean): void {
@@ -1050,7 +1212,6 @@ export async function runHandFilterEpisode(input: HandFilterInput): Promise<void
 
   installEpisode('filter', tl, els, 0, spawnBudget(input.before.length + enterNames.length, FILTER_ENTER_MS));
   tl.eventCallback('onComplete', () => finalizeFilter(false));
-  tl.play(0);
 }
 
 function finalizeFilter(instant: boolean): void {
@@ -1071,21 +1232,49 @@ function finalizeFilter(instant: boolean): void {
 
 function installEpisode(kind: Episode['kind'], tl: gsap.core.Timeline, els: Array<HTMLElement | undefined>, scrollTop: number, budgetMs: number): void {
   const onResize = () => finishInstant();
-  const safety = window.setTimeout(() => finishInstant(), budgetMs);
+  // PROGRESS-AWARE SAFETY. The episode clock deliberately runs SLOWER than
+  // wall time under load (bounded steps — a stall must not become a jump),
+  // so a fixed wall-clock timeout would snap a perfectly healthy, merely
+  // slowed flight to its end state — the exact mass-vanish this rework
+  // removes, re-introduced by its own watchdog. The safety therefore only
+  // kills an episode whose playhead has genuinely STOPPED; a moving one is
+  // re-checked, with a hard cap (~3.5× budget) as the absolute backstop.
+  let lastProgress = -1;
+  let checks = 0;
+  const safetyCheck = () => {
+    const cur = episode;
+    if (cur === undefined || cur.tl !== tl || cur.finished) {
+      return;
+    }
+    const p = tl.progress();
+    const moving = p !== lastProgress;
+    lastProgress = p;
+    checks++;
+    if (moving && checks < 6) {
+      cur.safety = window.setTimeout(safetyCheck, Math.max(400, budgetMs / 2));
+      return;
+    }
+    finishInstant();
+  };
+  const safety = window.setTimeout(safetyCheck, budgetMs);
   window.addEventListener('resize', onResize);
-  episode = {
+  const ep: Episode = {
     kind, tl, scrollTop, onResize, finished: false,
     safety,
     els: els.filter((e): e is HTMLElement => e !== undefined),
   };
+  episode = ep;
   building = false;
   buildingKind = undefined;
-  // A `B` landed during the build window (measures/spawn): honour it now —
-  // the timeline reverses from ~0 progress, an immediate graceful cancel.
+  // A `B` landed during the build window (measures/spawn/ignition): honour it
+  // now — the timeline reverses from progress 0, an immediate graceful cancel.
   if (pendingReverse) {
     pendingReverse = false;
     reverseHandReveal();
   }
+  // The timeline stays PAUSED for its whole life — the episode's own clock
+  // (rAF + interval co-driver, bounded step) is what advances it.
+  startEpisodeDriver(ep);
 }
 
 /** Snap to the CURRENT direction's end state (resize / safety / unmount). */
@@ -1174,6 +1363,7 @@ export function reverseHandReveal(): boolean {
  */
 export function resetHandReveal(): void {
   finishInstant();
+  buildSeq++; // a mid-build continuation must not install over this reset
   building = false;
   buildingKind = undefined;
   pendingReverse = false;
@@ -1182,5 +1372,6 @@ export function resetHandReveal(): void {
   handRevealState.dockExtraLift = [];
   handRevealState.filterActive = false;
   handRevealState.landedNames.splice(0);
+  handRevealState.stageClip = undefined;
   clearRevealFlights();
 }

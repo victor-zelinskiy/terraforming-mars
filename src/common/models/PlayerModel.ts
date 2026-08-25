@@ -132,6 +132,16 @@ export type PublicPlayerModel = {
   steel: number;
   steelProduction: number;
   steelValue: number;
+  // Standing "may pay with X" grants that no tableau NUMBER carries — the
+  // server-authoritative mirrors of the engine's own payment flags (Helion's
+  // heat, Luna Trade Federation's titanium-anywhere, Martian Lumber Corp's
+  // plants). Exposed so passive surfaces (the console left rail's payment
+  // value badges) can state a rate WITHOUT an active payment prompt, from the
+  // same source `Player.payingAmount` charges by. Public on purpose: each
+  // flag is derivable from the public tableau, so this leaks nothing.
+  canUseHeatAsMegaCredits: boolean;
+  canUseTitaniumAsMegacredits: boolean;
+  canUsePlantsAsMegacredits: boolean;
   tags: Record<Tag, number>
   terraformRating: number;
   timer: TimerModel;
