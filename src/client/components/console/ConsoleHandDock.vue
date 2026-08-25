@@ -3,7 +3,8 @@
        :class="{
          'con-handdock--live': interactive,
          'con-handdock--raised': raised,
-         'con-handdock--compact': compact && !raised,
+         'con-handdock--compact': compact && !raised && !poseHold,
+         'con-handdock--posehold': poseHold,
          'con-handdock--empty': plan.empty,
          'con-handdock--hot': playableCount > 0,
          'con-handdock--receiving': receiving,
@@ -275,6 +276,16 @@ export default defineComponent({
      * pose, and the backs then materialized full-size in one frame).
      */
     intake: {type: Boolean, default: false},
+    /**
+     * THE OPEN'S POSE LATCH: the pack was in its raised/hover pose when the
+     * player pressed, and it must keep PAINTING that exact pose until its
+     * backs hide under the just-spawned proxies — the press flush drops
+     * `raised`/`:hover`, and the resulting ride toward rest used to run
+     * during the mount storm's paint blackout, so the first painted frame
+     * showed a different fan («веер одним кадром стал другим»). Shell-set
+     * in the same task as the press; released once the flights own the pack.
+     */
+    poseHold: {type: Boolean, default: false},
     /**
      * A REVEAL EPISODE IS AIRBORNE (open/close/filter flight): the album
      * spine's opaque instrument well holds transparent so it never covers

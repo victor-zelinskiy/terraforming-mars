@@ -91,7 +91,7 @@ export const handRevealState = reactive({
    * (the server caches chunks at startup; desktop builds ship their own).
    * Bump it whenever the episode architecture changes.
    */
-  rev: 9,
+  rev: 10,
   /**
    * THE STAGE WINDOW — the album's x-range, applied as a STATIC `clip-path`
    * on the whole reveal layer for the episode's lifetime. A packet-bound

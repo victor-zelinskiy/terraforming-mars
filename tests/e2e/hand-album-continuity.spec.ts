@@ -34,7 +34,7 @@ import {bootIntoGame, press, soloGameConfig, waitForTurn} from './consoleStart';
 const NATURAL_W = 320; // CARD_NATURAL_W — the proxy's unscaled box width
 
 type BodyEvent = {
-  kind: 'vanish' | 'pop' | 'teleport' | 'hole' | 'pager',
+  kind: 'vanish' | 'pop' | 'teleport' | 'hole' | 'pager' | 'swapjump' | 'dockjump',
   name: string,
   t: number,
   via: string,
@@ -251,6 +251,43 @@ async function installProbe(page: Page): Promise<void> {
             }
           } else {
             st.pendingVanish.delete(name);
+            // THE SWAP IS BORN IN PLACE: when a card's body switches from
+            // its REAL dock back to its flight proxy (the episode's first
+            // frame), the proxy must stand EXACTLY where the back just
+            // stood — «первый кадр анимации попиксельно совпадает с
+            // последним статичным». A pose snap here (the intake accent
+            // used to snap the raised/hover pose to the resting one in the
+            // same flush) is the reported «веер одним кадром стал другим».
+            if (rec.body.via === 'dock' && cur.via === 'proxy' && now - rec.t < 80) {
+              const dcx = (cur.x + cur.w / 2) - (rec.body.x + rec.body.w / 2);
+              const dcy = (cur.y + cur.h / 2) - (rec.body.y + rec.body.h / 2);
+              const dw = cur.w - rec.body.w;
+              if ((Math.abs(dcx) > 10 || Math.abs(dcy) > 10 || Math.abs(dw) > 10) && st.events.length < 24) {
+                st.events.push({
+                  kind: 'swapjump', name, t: Math.round(now), via: 'proxy',
+                  x: Math.round(cur.x), y: Math.round(cur.y), w: Math.round(cur.w), h: Math.round(cur.h),
+                  detail: `Δc=(${Math.round(dcx)},${Math.round(dcy)}) Δw=${Math.round(dw)} from dock@(${Math.round(rec.body.x)},${Math.round(rec.body.y)} ${Math.round(rec.body.w)}w)`,
+                });
+              }
+            }
+            // THE VISIBLE PACK NEVER RE-POSES IN A BLINK: a dock back that
+            // relocates faster than its own 340 ms pose rides can (>14 px
+            // of centre in <40 ms) is the accent's transition-killing snap
+            // — the fan «одним кадром становится другим» while the player
+            // is looking straight at it. The smooth hover/raise rides move
+            // ~1–3 px per frame and stay far under this line.
+            if (rec.body.via === 'dock' && cur.via === 'dock') {
+              const bdt2 = cur.rt - rec.body.rt;
+              const dcx = (cur.x + cur.w / 2) - (rec.body.x + rec.body.w / 2);
+              const dcy = (cur.y + cur.h / 2) - (rec.body.y + rec.body.h / 2);
+              if (bdt2 > 2 && bdt2 < 40 && Math.hypot(dcx, dcy) > 14 && st.events.length < 24) {
+                st.events.push({
+                  kind: 'dockjump', name, t: Math.round(now), via: 'dock',
+                  x: Math.round(cur.x), y: Math.round(cur.y), w: Math.round(cur.w), h: Math.round(cur.h),
+                  detail: `Δc=(${Math.round(dcx)},${Math.round(dcy)}) in ${Math.round(bdt2)}ms`,
+                });
+              }
+            }
             // (No DOM-side speed detector: a bounded 28 ms clock step of the
             // close's fastest leg legitimately moves a card 250–400+ px —
             // ×2 at 4K — and nothing sampling the DOM at arbitrary instants
@@ -441,7 +478,7 @@ async function bootLargeAlbum(page: Page, request: Parameters<typeof bootIntoGam
   // failure mode that reads exactly like «the fix changed nothing».
   const rev = await page.evaluate(() =>
     document.querySelector('.con-handreveal-layer')?.getAttribute('data-hand-reveal-rev') ?? '(no layer)');
-  expect(rev, 'the served bundle carries the current transition core (stale-server trap)').toBe('9');
+  expect(rev, 'the served bundle carries the current transition core (stale-server trap)').toBe('10');
   await installProbe(page);
   await armProbe(page, true);
   return warns;

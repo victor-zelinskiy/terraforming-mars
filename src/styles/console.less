@@ -13205,7 +13205,17 @@ html.con-profile-large.console-mode .notifications-layer.notifications-layer--jo
        planet is legal, and this pose explicitly restores the whole-pack
        knobs, so compact → raised interpolates the same transform back to
        full size instead of snapping. */
+    /* `--posehold`: the OPEN transition's pose LATCH. The press drops
+       `raised`/`:hover` and mounts the album in one flush, and the pack's
+       340 ms ride toward rest then runs while the mount storm blocks
+       paints — so the FIRST painted frame after the press showed the pack
+       already part-way to rest/compact: «веер одним кадром стал другим».
+       The shell latches this class in the SAME task as the press (no var
+       changes ⇒ no transition fires), the fan keeps painting the exact
+       pose the player pressed on, and it releases only when the backs are
+       already hidden under their just-spawned proxies. */
     &--raised,
+    &--posehold,
     &--live:hover,
     &--live:focus-visible {
         --hd-spread: 1.12;

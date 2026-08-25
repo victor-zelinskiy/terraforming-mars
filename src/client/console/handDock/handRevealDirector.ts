@@ -109,6 +109,13 @@ export type RevealPair = {
   name: CardName,
   /** Where the card lives in the DOCK (real back rect / thickness slot). */
   source: RevealRect,
+  /** The berth's TRUE pose CAPTURED AT THE PRESS (pre-flush — the pose the
+   *  player is looking at, raised/hover included). When present, the spawn
+   *  seats the proxy on THIS pose instead of re-reading the live back: the
+   *  live read lands 2-3 flushes later, mid-way through the pack's ride
+   *  toward rest, and the first painted flight frame then showed a fan the
+   *  player never saw move («веер одним кадром стал другим»). */
+  sourcePose?: BerthPose,
   /** Where the card lives in the OVERLAY (real slot rect / plan-derived). */
   target: RevealRect,
   /** The target slot is inside the grid's visible window. */
@@ -613,12 +620,19 @@ export async function runHandOpenEpisode(allPairs: ReadonlyArray<RevealPair>, st
   if (seq !== buildSeq) {
     return; // a reset swept the state mid-build — the flights are gone
   }
-  // The first frame must BE the fan: each proxy re-poses onto its berth's
-  // TRUE pose (tilt included) before paint — an upright copy over a tilted
-  // back straightens the whole fan in one frame at the episode's very start.
+  // The first frame must BE the fan THE PLAYER PRESSED ON: each proxy seats
+  // on the pose CAPTURED AT THE PRESS (raised/hover included — the shell
+  // reads it synchronously, before the patch that drops those classes), so
+  // the flight is born pixel-on-pixel with the last painted static frame.
+  // Fallback: the live berth read (tilt included), for callers that carry
+  // no capture.
   pairs.forEach((p, i) => {
     const el = els[i];
     if (el === undefined) {
+      return;
+    }
+    if (p.sourcePose !== undefined) {
+      gsap.set(el, p.sourcePose);
       return;
     }
     const pose = berthPoseFor(p.name as string, CARD_NATURAL_W, proxyNatH(el));
@@ -728,7 +742,24 @@ function cssEscape(name: string): string {
 }
 
 /** A proxy pose that lands EXACTLY on a dock berth — rotation included. */
-type BerthPose = {x: number, y: number, scale: number, rotation: number};
+export type BerthPose = {x: number, y: number, scale: number, rotation: number};
+
+/**
+ * Capture every named berth's TRUE pose from the LIVE DOM — synchronously,
+ * so a caller in the press's own task reads the pose ON SCREEN (the Vue
+ * patch that drops `raised`/`:hover` has not flushed yet). This is the open
+ * transition's source of truth for where each card's flight is born.
+ */
+export function captureBerthPoses(names: ReadonlyArray<string>): Map<string, BerthPose> {
+  const out = new Map<string, BerthPose>();
+  for (const name of names) {
+    const pose = berthPoseFor(name, CARD_NATURAL_W, CARD_NATURAL_W * 1.4375);
+    if (pose !== undefined) {
+      out.set(name, pose);
+    }
+  }
+  return out;
+}
 
 /**
  * THE FAN IS A POSE, NOT A RECTANGLE. A dock back carries its own tilt

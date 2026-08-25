@@ -1146,6 +1146,7 @@
                        :raised="consoleState.quick === 'actions'"
                        :compact="handDockCompact"
                        :intake="dockIntakeAccent"
+                       :poseHold="handOpenPoseHold"
                        :transit="handRevealTransit"
                        :liftedNames="dockLiftedNames"
                        :deliveryHeld="dockHeld"
@@ -1489,7 +1490,7 @@ import {
 import {handDeliveryState} from '@/client/console/handDock/handDeliveryState';
 import {isHandDeliveryActive, resetHandDelivery} from '@/client/console/handDock/handDeliveryDirector';
 import {
-  finishInstant, isHandRevealEpisodeRunning, resetHandReveal, reverseHandReveal, runHandCloseEpisode,
+  captureBerthPoses, finishInstant, isHandRevealEpisodeRunning, resetHandReveal, reverseHandReveal, runHandCloseEpisode,
   runHandFilterEpisode, runHandOpenEpisode, runningHandRevealKind, setHandRevealHooks, RevealPair, RevealRect,
 } from '@/client/console/handDock/handRevealDirector';
 import ConsoleDraftTray from '@/client/components/console/cardDeal/ConsoleDraftTray.vue';
@@ -1937,6 +1938,10 @@ export default defineComponent({
       /** A close/collapse gather is in its one-tick MEASURE window (accent
        *  armed, pose settling) — a second B may not race a second gather. */
       handClosePreparing: false,
+      /** The open's POSE LATCH: the pack keeps painting the raised/hover
+       *  pose the player pressed on until its backs hide under the spawned
+       *  proxies (`con-handdock--posehold`). */
+      handOpenPoseHold: false,
       /** The colony-bonus cube this workspace already answered by itself (the
        *  auto-collect's one-shot dedupe — see `colonyBonusAutoCollect`). */
       colonyBonusCollected: '',
@@ -9711,6 +9716,26 @@ export default defineComponent({
       if (this.consoleState.section === 'hand') {
         return;
       }
+      // ── THE PRESS SNAPSHOT — synchronous, PRE-FLUSH. The DOM still shows
+      // the pose the player pressed on (the raised/hover fan: the writes
+      // that drop those classes have not patched yet), so these rects/poses
+      // are exactly the pixels on screen. Every flight is born from THEM —
+      // a live read lands 2-3 flushes later, mid-way through the pack's
+      // ride toward rest, behind the mount storm's paint blackout, and the
+      // first painted flight frame then showed a fan the player never saw
+      // move («веер одним кадром стал другим»).
+      const dockPre = this.$refs.handDock as InstanceType<typeof ConsoleHandDock> | undefined;
+      const pressNames = this.handDockCards.map((c) => c.name);
+      const pressSources = dockPre?.sourceRects(pressNames) ?? new Map<string, RevealRect>();
+      const pressPoses = captureBerthPoses(pressNames);
+      // …and the pack must keep PAINTING that pose until its backs hide
+      // under the spawned proxies: latch the pose class in this same task
+      // (same vars ⇒ no transition fires ⇒ nothing visibly changes).
+      const dockRootEl = (dockPre?.$el ?? null) as HTMLElement | null;
+      if (dockRootEl !== null &&
+          (dockRootEl.classList.contains('con-handdock--raised') || dockRootEl.matches(':hover'))) {
+        this.handOpenPoseHold = true;
+      }
       // `keepTask`: the Game Start Workspace's play-from-hand step OPENS the
       // hand because of a live prompt — deferring it would be the opposite of
       // navigating away, and would drop the very claim that keeps the hand
@@ -9746,16 +9771,19 @@ export default defineComponent({
         const section = this.$refs.handSection as InstanceType<typeof ConsoleHandSection> | undefined;
         const dock = this.$refs.handDock as InstanceType<typeof ConsoleHandDock> | undefined;
         const t = section?.transitionTargets() ?? {pairs: [], scrollTop: 0};
+        // Post-mount dock rects are the FALLBACK only (a card that raced in
+        // after the press) — the press snapshot is the flight's birth pose.
         const sources = dock?.sourceRects(t.pairs.map((p) => p.name)) ?? new Map<string, RevealRect>();
         const pairs: Array<RevealPair> = [];
         for (const p of t.pairs) {
-          const source = sources.get(p.name);
+          const source = pressSources.get(p.name) ?? sources.get(p.name);
           if (source !== undefined) {
-            pairs.push({name: p.name, source, target: p.rect, visible: p.visible, clip: p.clip, visual: this.revealVisualFor(p.name)});
+            pairs.push({name: p.name, source, sourcePose: pressPoses.get(p.name), target: p.rect, visible: p.visible, clip: p.clip, visual: this.revealVisualFor(p.name)});
           }
         }
         await runHandOpenEpisode(pairs, t.stage);
       } finally {
+        this.handOpenPoseHold = false;
         releaseAccent();
       }
     },
@@ -12794,6 +12822,19 @@ export default defineComponent({
       if (isHandRevealEpisodeRunning()) {
         return;
       }
+      // The same press-snapshot discipline as openHandWithReveal: capture
+      // the on-screen poses BEFORE anything mutates (a restore usually finds
+      // the pack at rest, so the latch rarely engages — but a hover-restore
+      // must not snap either).
+      const dockPre = this.$refs.handDock as InstanceType<typeof ConsoleHandDock> | undefined;
+      const pressNames = this.handDockCards.map((c) => c.name);
+      const pressSources = dockPre?.sourceRects(pressNames) ?? new Map<string, RevealRect>();
+      const pressPoses = captureBerthPoses(pressNames);
+      const dockRootEl = (dockPre?.$el ?? null) as HTMLElement | null;
+      if (dockRootEl !== null &&
+          (dockRootEl.classList.contains('con-handdock--raised') || dockRootEl.matches(':hover'))) {
+        this.handOpenPoseHold = true;
+      }
       const releaseAccent = beginDockIntakeAccent('hand-open');
       try {
         await this.$nextTick();
@@ -12809,13 +12850,14 @@ export default defineComponent({
         const sources = dock?.sourceRects(t.pairs.map((p) => p.name)) ?? new Map<string, RevealRect>();
         const pairs: Array<RevealPair> = [];
         for (const p of t.pairs) {
-          const source = sources.get(p.name);
+          const source = pressSources.get(p.name) ?? sources.get(p.name);
           if (source !== undefined) {
-            pairs.push({name: p.name, source, target: p.rect, visible: p.visible, clip: p.clip, visual: this.revealVisualFor(p.name)});
+            pairs.push({name: p.name, source, sourcePose: pressPoses.get(p.name), target: p.rect, visible: p.visible, clip: p.clip, visual: this.revealVisualFor(p.name)});
           }
         }
         await runHandOpenEpisode(pairs, t.stage);
       } finally {
+        this.handOpenPoseHold = false;
         releaseAccent();
       }
     },

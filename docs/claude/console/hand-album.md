@@ -226,6 +226,22 @@ stretch on each rare tick — the convoy's launch (open) and the packets'
 entire re-entry (close: they depart FIRST by rank) played out between two
 painted frames. Four rules now hold, all in `handRevealDirector.ts`:
 
+- **THE FLIGHT IS BORN FROM THE PRESS POSE** (the pose latch): the pack has
+  poses (rest / compact / raised-or-hover), and the press drops
+  `raised`/`:hover` in its own flush — the 340 ms ride toward rest then
+  runs BEHIND the mount storm's paint blackout, so the first painted
+  flight frame used to show a fan the player never saw move (tilt
+  straightened, pack narrowed/sunk — «веер одним кадром стал другим, как
+  будто карт меньше»). Now the shell reads the ON-SCREEN rects + poses
+  SYNCHRONOUSLY in the press's own task (pre-flush — the raised classes
+  are still on the DOM: `captureBerthPoses` + the press `sourceRects`),
+  latches `con-handdock--posehold` (same vars as raised ⇒ no transition
+  fires ⇒ the fan keeps painting the pressed pose through the mount), and
+  every proxy spawns ON the captured pose (`RevealPair.sourcePose`). The
+  latch releases in `finally` — by then the backs are hidden under the
+  proxies and the (invisible) pack may ride wherever it likes. Verified by
+  `hand-pose-sequence-probe.spec.ts`: the backs hide at EXACTLY the press
+  pose, proxies standing on the same pixels.
 - **IGNITION IS PAINT-GATED**: the built timeline arms only after the spawn
   flush has painted (`settledPaint` — double-rAF with a wall-clock backstop
   for starved compositors). The pack answering the press instantly is the
