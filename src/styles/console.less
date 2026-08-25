@@ -1145,7 +1145,10 @@ html.console-native {
        first row's height remains one line and the flow row has a fixed reserve
        — subject/stage crossfades cannot move either row. */
     &--flow {
-        --con-wsflow-axis: .52rem;
+        /* The trace's vertical axis = the EMBLEM'S CENTRE (1.2rem glyph, first
+           in the ident) — .52rem sat a hair left of it and the whole connector
+           read as hung beside the icon instead of emitted from it. */
+        --con-wsflow-axis: .6rem;
         --con-wsflow-rail-axis: .825rem;
         display: grid;
         grid-template-columns: max-content minmax(8rem, 1fr) minmax(0, max-content);
@@ -1159,6 +1162,15 @@ html.console-native {
         grid-column: 1;
         grid-row: 1;
         width: max-content;
+        /* BOTTOM-ANCHORED — the connector's geometry contract. The origin
+           diamond / stem are positioned in fixed rems above the flow row, and
+           row 1 is `minmax(…, auto)`: whenever taller content grew the row, a
+           CENTRED emblem rose away from those fixed offsets and the trace
+           visibly detached from the icon (the reported «связь непремиальна»).
+           Anchoring the ident to the row's bottom makes emblem-centre ↔
+           origin-diamond a constant relationship at every row height. */
+        align-self: end;
+        padding-bottom: .125rem;
     }
     &--flow &__mark {
         width: 1.05rem;
@@ -1288,7 +1300,7 @@ html.console-native {
         border-left: .055rem solid currentColor;
         border-bottom: .055rem solid currentColor;
         border-bottom-left-radius: .5rem;
-        filter: drop-shadow(0 0 .18rem fade(@con-cyan, 8%));
+        /* (No drop-shadow: `filter` never renders in console — dead weight.) */
         animation: con-wsflow-turn-in calc(170ms * var(--motion-scale, 1)) ease-out calc(110ms * var(--motion-scale, 1)) backwards;
     }
     &__flow-run {
@@ -2723,26 +2735,53 @@ html.console-native {
     }
     /* Pick-limit de-emphasis PAINTS here: the shared P15 dim rules are scoped
        to `.con-cards__strip--has-focus`, which this row (deliberately not a
-       strip) never is — the `--dim` class used to select nothing. */
-    &__row > .con-cards__slot--dim > :is(.card-container, .pcard) {
+       strip) never is — the `--dim` class used to select nothing.
+       (Descendant match: the pick row's card sits inside the flip wrapper.) */
+    &__row > .con-cards__slot--dim :is(.card-container, .pcard) {
         opacity: 0.45;
         transition: opacity calc(260ms * var(--motion-scale, 1)) @con-ease-standard;
     }
-    &__row > .con-cards__slot--dim.con-cards__slot--focused > :is(.card-container, .pcard) {
+    &__row > .con-cards__slot--dim.con-cards__slot--focused :is(.card-container, .pcard) {
         opacity: 0.9;
     }
+    /* THE COMMIT TAKES THE CHROME WITH THE CARDS. Past the purchase commit
+       the bought cards physically leave for the dock — but the focus ring /
+       picked ring / pick band live on the SLOT, which stays for layout, so
+       a bare ring stood exactly where the departed card was («след от
+       выбранной карты»). The selection chrome fades the moment the
+       completion beat starts; the slots keep their geometry only. */
+    &__row--departing > .con-cards__slot {
+        box-shadow: none;
+        transform: none;
+        transition: box-shadow calc(160ms * var(--motion-scale, 1)) ease;
+    }
+    &__row--departing .con-cards__pickband { display: none; }
 
     /* The PASS EXIT: the leftover packet visibly leaves toward the neighbor —
-       lift, tilt into the direction, slide off while the face crossfades to
-       the card back (the packet travels turned over). transform/opacity only. */
+       lift, tilt into the direction, slide off while the card TURNS OVER
+       physically (face and back are two sides of one 3D body; a crossfade
+       here read as a one-frame face swap). transform/opacity only; opacity
+       stays on the SLOT — never on the preserve-3d body (grouping kills
+       backface culling and shows a MIRRORED face). */
     &__slot {
         position: relative;
+        perspective: 55rem;
+    }
+    &__slot-flip {
+        transform-style: preserve-3d;
+    }
+    &__slot-face {
+        backface-visibility: hidden;
+        /* Re-states the shared `.con-cards__slot > .pcard` zeroing for the
+           now-nested card (the flip wrapper broke the direct-child match). */
+        :is(.card-container, .pcard) { margin: 0; }
     }
     &__slot-back {
         position: absolute;
         inset: 0;
-        opacity: 0;
         pointer-events: none;
+        backface-visibility: hidden;
+        transform: rotateY(180deg);
 
         .con-card-back {
             position: absolute;
@@ -2753,10 +2792,8 @@ html.console-native {
     }
     &__slot--passing {
         animation: con-draftws-pass calc(820ms * var(--motion-scale, 1)) cubic-bezier(0.45, 0.05, 0.55, 0.95) forwards;
-
-        .con-draftws__slot-back {
-            animation: con-draftws-pass-back calc(820ms * var(--motion-scale, 1)) linear forwards;
-        }
+        /* (The flip child's turn is a WAAPI animation — beginPassExit —
+           delay-matched to this slot's own exit window.) */
     }
 
     /* ── WAIT: the pass lane — calm, physical, never a spinner. ── */
@@ -3131,20 +3168,19 @@ html.console-native {
 
 /* THE PASS EXIT — two readable beats, one gesture: the card GATHERS (a small
    lift with a tilt INTO the travel direction — the hand taking the packet),
-   then ACCELERATES out toward the neighbor while the face crossfades to the
-   card back. Deceleration belongs to arrivals; an exit accelerates. */
+   then ACCELERATES out toward the neighbor while the card physically TURNS
+   OVER (the flip child below — the packet travels back-side-out).
+   Deceleration belongs to arrivals; an exit accelerates. */
 @keyframes con-draftws-pass {
     0% { transform: translateX(0) translateY(0) rotate(0deg) scale(1); opacity: 1; }
     26% { transform: translateX(calc(var(--con-draftws-pass-x, 120px) * 0.06)) translateY(-0.7rem) rotate(calc(var(--con-draftws-pass-dir, 1) * 1.6deg)) scale(1.015); opacity: 1; }
     60% { transform: translateX(calc(var(--con-draftws-pass-x, 120px) * 0.42)) translateY(-0.55rem) rotate(calc(var(--con-draftws-pass-dir, 1) * 3deg)) scale(0.97); opacity: 1; }
     100% { transform: translateX(var(--con-draftws-pass-x, 120px)) translateY(-0.1rem) rotate(calc(var(--con-draftws-pass-dir, 1) * 4.5deg)) scale(0.84); opacity: 0; }
 }
-@keyframes con-draftws-pass-back {
-    0% { opacity: 0; }
-    30% { opacity: 0; }
-    58% { opacity: 1; }
-    100% { opacity: 1; }
-}
+/* (The pass's physical turn is a WAAPI animation built in beginPassExit —
+   still face-up through the gather, fully back-side-out before the card
+   accelerates away. Imperative on purpose: the equivalent CSS animation kept
+   being restarted inside its delay phase by the live patch cycle.) */
 /* COMPOSITOR-ONLY by the ambient-loop rule: this waits for MINUTES in a
    human game, and its old background/box-shadow keyframes kept a full
    style→paint pipeline running the whole time. The dots rest at their
@@ -12578,23 +12614,15 @@ html.con-profile-large.console-mode .notifications-layer.notifications-layer--jo
             transform calc(340ms * var(--motion-scale, 1)) @con-ease-standard,
             opacity calc(260ms * var(--motion-scale, 1)) ease;
     }
-    /* INTAKE = the pose snaps, invisibly. While the intake accent lease is
-       live (cards physically arriving / gathering) the pack is HELD — every
-       back invisible until its proxy's touchdown — so animating the
-       compact→full ride buys nothing; and it is exactly what the gather's
-       landing measure raced: targets taken mid-ride landed the whole hand
-       in the miniature pose, and the backs then materialized full-size in
-       one frame (the reported «прилёт → мгновенный скачок»). With the ride
-       cut, the first measure after the accent IS the full-pose berth. */
-    &--intake &__card {
-        transition: opacity calc(260ms * var(--motion-scale, 1)) ease;
-    }
-    /* …and the PACK's own ride too — the compact pose lives HERE (sink +
-       scale about the tray axis, 460ms). Leaving it riding is what kept the
-       landing measure racing a moving pack even with the cards snapped. */
-    &--intake &__pack {
-        transition: opacity calc(460ms * var(--motion-scale, 1)) @con-ease-standard;
-    }
+    /* INTAKE: the pose RIDES — deliberately. An earlier iteration snapped
+       the pack/card transitions to opacity-only here so the gather's
+       landing measure would not race a moving target, and that snap was
+       itself the reported fan break: any pose change during an intake
+       (fan → straight, compact → full) applied in ONE FRAME. The moving
+       target is instead answered where it belongs — the flights' own
+       final-approach retarget (handRevealDirector reads the LIVE berth at
+       72% / in the cancel glide), so the pack may keep its physical
+       460/340ms rides through every intake. */
     /* A dense-thickness card (beyond the 20 distinct positions): a REAL
        card, cheaply drawn — no blur shadow (dozens of those would cost),
        slightly dimmed so the readable layer above owns the light. */

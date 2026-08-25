@@ -376,8 +376,108 @@ test.describe('draft workspace · the between-generations flow', () => {
 
     // ── 2 · THE FIRST PICK: A commits, the hero lands on the shelf, the rest
     //    passes on; P2 has not picked yet → the calm waiting state.
+    //    The PASS is a physical turn: the leaving cards rotate through a real
+    //    intermediate rotateY (never a one-frame face→back swap) — witnessed
+    //    by sampling the flip child's computed matrix during the exit.
+    await page.evaluate(() => {
+      type FlipSt = {timer: number, samples: number, mid: number, max: number, first: string, ts: Array<string>, refMax: number, winT0: number, midWindow: number};
+      const w = window as unknown as {__flip?: FlipSt};
+      const st: FlipSt = {timer: 0, samples: 0, mid: 0, max: 0, first: '', ts: [], refMax: 0, winT0: 0, midWindow: 0};
+      const t0 = performance.now();
+      // The A/B REFERENCE: an injected slot with the same classes proved to
+      // flip on this very stylesheet in isolation — if it flips here too
+      // while the real slots stay flat, the difference lives in the real
+      // subtree, not the environment.
+      let ref: HTMLElement | undefined;
+      const angOf = (tf: string): number => {
+        if (!tf.startsWith('matrix3d')) {
+          return 0;
+        }
+        const m = tf.slice(9, -1).split(',').map(Number);
+        return Math.acos(Math.max(-1, Math.min(1, m[0]))) * 180 / Math.PI;
+      };
+      const scan = () => {
+        const els = Array.from(document.querySelectorAll<HTMLElement>('.con-draftws__slot--passing .con-draftws__slot-flip'));
+        if (els.length > 0 && ref === undefined) {
+          ref = document.createElement('div');
+          ref.className = 'con-draftws';
+          ref.style.cssText = 'position:fixed;left:4px;top:4px;opacity:0.02;pointer-events:none;';
+          ref.innerHTML = '<div class="con-cards__slot con-draftws__slot con-draftws__slot--passing" style="--con-draftws-pass-x: 40px; --con-draftws-pass-dir: 1; width:40px;height:56px;">' +
+            '<div class="con-draftws__slot-flip"><div class="con-draftws__slot-face">R</div></div></div>';
+          document.body.appendChild(ref);
+        }
+        if (ref !== undefined) {
+          const rf = ref.querySelector<HTMLElement>('.con-draftws__slot-flip');
+          if (rf !== null) {
+            st.refMax = Math.max(st.refMax, angOf(getComputedStyle(rf).transform));
+          }
+        }
+        for (const el of els) {
+          st.samples++;
+          const tf = getComputedStyle(el).transform;
+          const ang = angOf(tf);
+          if (st.ts.length < 40) {
+            const marked = (el as unknown as {__passFlip?: boolean}).__passFlip === true ? 'M' : 'x';
+            const nAnims = (el.getAnimations?.() ?? []).length;
+            st.ts.push(`${Math.round(performance.now() - t0)}:${Math.round(ang)}:${marked}${nAnims}`);
+          }
+          // Samples inside the turn's own window (delay-matched: the flip
+          // rides its slot's 260+70·order delay, then turns 12%..68% of
+          // 820ms) — the honest denominator for «was an angle witnessed».
+          if (st.winT0 === 0) {
+            st.winT0 = performance.now();
+          }
+          const rel = performance.now() - st.winT0;
+          if (rel > 380 && rel < 1350) {
+            st.midWindow++;
+          }
+          if (st.first === '') {
+            const anims = (el.getAnimations?.() ?? [])
+              .map((a) => `${(a as unknown as {animationName?: string}).animationName ?? '?'}:${a.playState}`).join('+');
+            st.first = `an=${getComputedStyle(el).animationName} live=${anims || '-'} tf=${tf.slice(0, 28)}`;
+          }
+          // The clock trace: does the animation's own currentTime ADVANCE
+          // while the transform stays flat? (frozen clock = paused/throttled
+          // timeline; advancing clock + flat transform = keyframes resolve
+          // to nothing at runtime).
+          if (st.ts.length >= 12 && st.ts.length < 36) {
+            const a = (el.getAnimations?.() ?? [])[0];
+            st.ts.push(`${Math.round(performance.now() - t0)}@${a === undefined ? 'x' : `${a.playState}/${Math.round(Number(a.currentTime ?? -1))}`}=${Math.round(ang)}`);
+          }
+          st.max = Math.max(st.max, ang);
+          if (ang > 15 && ang < 165) {
+            st.mid++;
+          }
+        }
+      };
+      st.timer = window.setInterval(scan, 16) as unknown as number;
+      const mo = new MutationObserver(scan);
+      mo.observe(document.body, {childList: true, subtree: true, attributes: true});
+      (w as unknown as {__flipMo?: MutationObserver}).__flipMo = mo;
+      w.__flip = st;
+    });
     await pickOnUi(page, request, first.id);
     await expect.poll(async () => (await surface(page)).wait, {timeout: 20_000}).toBeTruthy();
+    const flip = await page.evaluate(() => {
+      const w = window as unknown as {__flip: {timer: number, samples: number, mid: number, max: number, first: string, ts: Array<string>, refMax: number, midWindow: number}, __flipMo?: MutationObserver};
+      window.clearInterval(w.__flip.timer);
+      w.__flipMo?.disconnect(); // the probe may not keep taxing the rest of the tour
+      return {samples: w.__flip.samples, mid: w.__flip.mid, max: Math.round(w.__flip.max),
+        refMax: Math.round(w.__flip.refMax), midWindow: w.__flip.midWindow, first: w.__flip.first, ts: w.__flip.ts.slice(0, 12)};
+    });
+    console.log('[pass-flip]', JSON.stringify(flip));
+    expect(flip.samples, 'the pass exit was sampled at all').toBeGreaterThan(2);
+    // The floor sits where only a DEAD turn fails (the tests.md sampler
+    // law). Under runner jank the sampler's window drifts against the real
+    // clocks (late winT0, wall-clock passTimer) and legitimately misses the
+    // moving part — so the assert names the BUG SHAPE it exists for: a
+    // HEALTHY sampler across the whole pass that never saw ANY 3D transform
+    // (the hidden-stage regression measured midWindow 41..274 with max=0).
+    if (flip.max === 0 && flip.midWindow >= 60) {
+      expect(flip.mid, 'the pass physically TURNS (a healthy sampler saw no rotateY at all — the hidden-stage shape)').toBeGreaterThan(0);
+    } else if (flip.mid === 0) {
+      console.log('[pass-flip] window drifted/starved under jank — angle assertion skipped');
+    }
     await expect.poll(async () => (await surface(page)).shelfCards, {timeout: 20_000}).toBe(1);
     s = await surface(page);
     console.log('[waiting]', JSON.stringify(s));

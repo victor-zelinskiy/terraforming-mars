@@ -129,6 +129,11 @@ export function runCardRiseTimeline(args: RunRiseArgs): DealHandle {
       rotation: 0,
       autoAlpha: 0,
       transformOrigin: 'top left',
+      // DEPTH READS AS PROGRESS: the leading card (largest mid-flight —
+      // nearest the viewer) paints OVER its trailing, still-small
+      // followers. DOM order gave the OPPOSITE (a far small card covering
+      // a near large one) — the whole clump read as sliding paper.
+      zIndex: proxies.length - i,
     });
     const flip = proxy.querySelector<HTMLElement>('.con-deal-proxy__flip');
     if (flip !== null) {
@@ -198,8 +203,10 @@ export function runCardRiseTimeline(args: RunRiseArgs): DealHandle {
 
   // The LANDINGS are the events (the planCardArrival lesson): left → right,
   // one readable touchdown at a time — a card owed an earlier landing simply
-  // spends less time in the air, and launches stay a quick cascade.
-  const landGap = s(timings.flightStaggerMs + 15);
+  // spends less time in the air, and launches stay a quick cascade. The gap
+  // is generous (×2 stagger): the shelf packs the cards tight, so a denser
+  // schedule kept four airborne bodies overlapping into one clump.
+  const landGap = s(timings.flightStaggerMs * 2);
   let prevLand = 0;
   let firstLand = Number.POSITIVE_INFINITY;
   let lastLand = liftStart;
@@ -232,7 +239,11 @@ export function runCardRiseTimeline(args: RunRiseArgs): DealHandle {
       naturalH: target.height / sT,
       from, to,
       duration: dur,
-      sag: Math.min(dist * 0.05, 40 * ui),
+      // Divergent arcs: each later card lobs a step higher, so the group
+      // FANS APART vertically mid-flight instead of stacking — launched
+      // from a tightly-packed shelf, equal arcs kept them overlapping for
+      // most of the travel.
+      sag: Math.min(dist * 0.05, 40 * ui) + i * 14 * ui,
       tilt: Math.max(-2, Math.min(2,
         ((to.x + (CARD_NATURAL_W * sT) / 2) - (from.x + (CARD_NATURAL_W * sF) / 2)) / (420 * ui))),
     });

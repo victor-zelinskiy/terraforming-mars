@@ -104,11 +104,19 @@
                      'con-draftws__slot--passing': passingNames.includes(entry.name),
                    }"
                    :style="passingSlotStyle(entry.name, i)">
-                <Card :card="entry.card" :key="entry.name" lightweight />
+                <!-- The PASS exit turns the card over PHYSICALLY: face and
+                     back are the two sides of one 3D body (preserve-3d +
+                     the slot's perspective), the flip rides the same exit
+                     window — never a one-frame face→back swap. The slot's
+                     own keyframes keep translate/scale/opacity (opacity may
+                     not live on a preserve-3d element). -->
+                <div class="con-draftws__slot-flip">
+                  <div class="con-draftws__slot-face">
+                    <Card :card="entry.card" :key="entry.name" lightweight />
+                  </div>
+                  <span class="con-draftws__slot-back" aria-hidden="true"><span class="con-card-back"></span></span>
+                </div>
                 <span v-if="isPicked(entry.name) && !pickBeat" class="con-cards__pickband" aria-hidden="true">✓ {{ $t('Card selected') }}</span>
-                <!-- The face→back crossfade of the PASS exit (cheap, honest:
-                     the packet leaves the table turned over). -->
-                <span class="con-draftws__slot-back" aria-hidden="true"><span class="con-card-back"></span></span>
               </div>
             </div>
           </div>
@@ -142,7 +150,8 @@
           <!-- (The purchase economics live in the HEADER's readout slot — the
                cards own the whole stage height.) -->
           <div class="con-draftws__cards">
-            <div class="con-draftws__row" :style="buyRowStyle" ref="buyRow">
+            <div class="con-draftws__row" :style="buyRowStyle" ref="buyRow"
+                 :class="{'con-draftws__row--departing': buyDeparting}">
               <div v-for="(entry, i) in buyEntries" :key="entry.key"
                    class="con-cards__slot con-draftws__slot"
                    :data-zoom-slot="entry.name"
@@ -370,6 +379,8 @@ export default defineComponent({
       dealLaunchTimer: undefined as number | undefined,
       doneTimer: undefined as number | undefined,
       passTimer: undefined as number | undefined,
+      /** The pass-flip re-arm loop (WAAPI turn survives node renewal). */
+      passFlipTimer: undefined as number | undefined,
       /** The packet standing when the workspace MOUNTED (a reload straight
        *  into a live draft): presented instantly, never re-dealt. */
       hydratedPacketKey: '',
@@ -446,7 +457,16 @@ export default defineComponent({
       case 'pick': return 'pick';
       case 'buy': return 'buy';
       case 'wait':
-      case 'idle': return 'wait';
+      case 'idle':
+        // THE PASS EXIT PLAYS ON THE PICK STAGE. The server's answer
+        // routinely lands mid-slide (~300ms after the commit), and flipping
+        // the zone at that instant sent the whole exit — the slide AND the
+        // physical turn — into a `display: none` stage: every declarative
+        // animation froze unpainted, and what the player actually saw was a
+        // stage crossfade swallowing the packet in one frame (the reported
+        // «карты сменились обложкой одним кадром»). The zone holds until
+        // the exit has physically left; the wait stage then crossfades in.
+        return this.passingActive ? 'pick' : 'wait';
       }
     },
     /**
@@ -588,6 +608,13 @@ export default defineComponent({
     },
     flowPresentation() {
       return draftFlowPresentation({completion: draftWorkspaceState.completion, inspecting: this.inspecting});
+    },
+    /** The purchase is committed and its cards are leaving/gone: the row's
+     *  selection chrome (focus ring, pick band) must leave WITH the cards —
+     *  a bare ring standing where a departed card was is the reported
+     *  «след от выбранной карты». */
+    buyDeparting(): boolean {
+      return draftWorkspaceState.completion !== 'none';
     },
     compactContext() {
       return draftCompactContext(this.journeyInput);
@@ -864,6 +891,9 @@ export default defineComponent({
     if (this.passTimer !== undefined) {
       window.clearTimeout(this.passTimer);
     }
+    if (this.passFlipTimer !== undefined) {
+      window.clearInterval(this.passFlipTimer);
+    }
     if (this.shelfPulseTimer !== undefined) {
       window.clearTimeout(this.shelfPulseTimer);
     }
@@ -1078,6 +1108,65 @@ export default defineComponent({
       }
       this.passingNames = [...names];
       this.passingActive = true;
+      // THE PHYSICAL TURN of the pass, delay-matched to each slot's own exit
+      // (12%..68% of the same 820ms window). WAAPI + a RE-ARM loop,
+      // deliberately: the same keyframes as a CSS animation — stylesheet AND
+      // inline — reported `running` in the live tree while the transform
+      // stayed `none` (something in the live patch cycle replaces/renews the
+      // flip nodes mid-pass, resetting any declarative animation into its
+      // delay phase forever; an injected reference slot beside them animated
+      // fine). The loop re-applies the Animation to the CURRENT node in the
+      // CORRECT phase (currentTime seeded from the pass's own clock), so a
+      // node swap costs nothing — the dock magnet's discipline, applied to
+      // a turn.
+      const dir = this.giveSide === 'right' ? 1 : -1;
+      const passT0 = performance.now();
+      const totalMs = consoleMotionMs(260 + 70 * Math.max(0, names.length - 1) + 820) + 120;
+      let rearms = 0;
+      if (this.passFlipTimer !== undefined) {
+        window.clearInterval(this.passFlipTimer);
+      }
+      const tick = () => {
+        const root = this.$el as HTMLElement | undefined;
+        if (root === undefined || typeof root.querySelectorAll !== 'function') {
+          return;
+        }
+        const elapsed = performance.now() - passT0;
+        if (elapsed > totalMs) {
+          window.clearInterval(this.passFlipTimer);
+          this.passFlipTimer = undefined;
+          if (process.env.NODE_ENV !== 'production' && rearms > names.length) {
+            console.log(`[pass-flip-rearm] flip nodes were renewed ${rearms - names.length}x mid-pass`);
+          }
+          return;
+        }
+        names.forEach((name, order) => {
+          const esc = typeof CSS !== 'undefined' && typeof CSS.escape === 'function' ? CSS.escape(name) : name;
+          const flip = root.querySelector<HTMLElement>(
+            `.con-draftws__stage--pick [data-zoom-slot="${esc}"] .con-draftws__slot-flip`) as
+            (HTMLElement & {__passFlip?: boolean}) | null;
+          if (flip === null || flip.__passFlip === true || typeof flip.animate !== 'function') {
+            return;
+          }
+          flip.__passFlip = true;
+          rearms++;
+          const anim = flip.animate([
+            {transform: 'rotateY(0deg)', offset: 0},
+            {transform: 'rotateY(0deg)', offset: 0.12, easing: 'cubic-bezier(0.45, 0.05, 0.55, 0.95)'},
+            {transform: `rotateY(${dir * 180}deg)`, offset: 0.68},
+            {transform: `rotateY(${dir * 180}deg)`, offset: 1},
+          ], {
+            duration: consoleMotionMs(820),
+            delay: consoleMotionMs(260 + order * 70),
+            fill: 'forwards',
+          });
+          // Seed the pass's own clock: a node renewed mid-pass joins the
+          // turn at the phase it would be in, never from zero.
+          anim.currentTime = elapsed;
+        });
+      };
+      this.passFlipTimer = window.setInterval(tick, 50) as unknown as number;
+      void this.$nextTick(tick);
       // The read the packet swap defers to: the sequencing base, the last
       // leaver's stagger and ~85% of the 820ms flight (the cards are
       // essentially faded by then — cutting later buys nothing).
@@ -1534,7 +1623,21 @@ export default defineComponent({
       if (list.length === 0) {
         return;
       }
+      const current = zone === 'buy' || zone === 'pay' ? this.buyRowStyle :
+        zone === 'inspect' ? this.inspectRowStyle : this.packetRowStyle;
       const apply = (style: Record<string, string>) => {
+        // A re-solve that lands on the SAME values must not touch the row:
+        // the deal-end watcher re-fits a LIVE row, and even a no-op
+        // re-assignment (let alone the old blank-first reset) re-laid the
+        // whole line for a frame — the reported «дрожание ряда» on the last
+        // card's landing. This fit's inputs are zoom-independent (slot probe
+        // offsetWidth is pre-zoom, the budget is the STAGE's box), so the
+        // blank-first reset bought nothing here.
+        const same = Object.keys(style).length === Object.keys(current).length &&
+          Object.entries(style).every(([k, v]) => current[k] === v);
+        if (same) {
+          return;
+        }
         if (zone === 'buy' || zone === 'pay') {
           this.buyRowStyle = style;
         } else if (zone === 'inspect') {
@@ -1543,8 +1646,6 @@ export default defineComponent({
           this.packetRowStyle = style;
         }
       };
-      // Reset the outputs before measuring (the fit-engine rule).
-      apply({});
       void this.$nextTick(() => {
         const slot = row.querySelector<HTMLElement>('.con-cards__slot');
         if (slot === null) {

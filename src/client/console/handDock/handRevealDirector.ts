@@ -371,6 +371,19 @@ export async function runHandOpenEpisode(allPairs: ReadonlyArray<RevealPair>): P
   // the flights exist — same flush as the proxies' first paint, so the pack
   // vanishes the frame its proxies stand over it, never both at once.
   const els = await spawnProxies(pairs, 'source', 'target');
+  // The first frame must BE the fan: each proxy re-poses onto its berth's
+  // TRUE pose (tilt included) before paint — an upright copy over a tilted
+  // back straightens the whole fan in one frame at the episode's very start.
+  pairs.forEach((p, i) => {
+    const el = els[i];
+    if (el === undefined) {
+      return;
+    }
+    const pose = berthPoseFor(p.name as string, CARD_NATURAL_W, proxyNatH(el));
+    if (pose !== undefined && Math.abs(pose.rotation) > 0.2) {
+      gsap.set(el, pose);
+    }
+  });
 
   const s = (ms: number) => motionMs(ms) / 1000;
   const ranks = centreRank(pairs);
@@ -389,11 +402,12 @@ export async function runHandOpenEpisode(allPairs: ReadonlyArray<RevealPair>): P
     const flight = s(OPEN_FLIGHT_MS);
     // The input-answer beat: the whole pack rises off the tray as one
     // mass — soft out, so the hold at the top blends into the launch.
-    tl.to(el, {y: p.source.top - LIFT_PX * conUiScale(), duration: s(LIFT_MS), ease: 'power1.out'}, 0);
+    tl.to(el, {y: `-=${LIFT_PX * conUiScale()}`, duration: s(LIFT_MS), ease: 'power1.out'}, 0);
     // The fan-out: ONE combined tween (x/y/scale share the start, duration
     // and ease — three separate tweens per card were pure overhead) — a
-    // calm, rising, opening gesture ending at the slot's real size.
-    tl.to(el, {x: p.target.left, y: p.target.top, scale: scaleTo, duration: flight, ease: 'power2.inOut'}, at);
+    // calm, rising, opening gesture ending at the slot's real size. The
+    // card STRAIGHTENS out of its fan tilt in the same gesture.
+    tl.to(el, {x: p.target.left, y: p.target.top, scale: scaleTo, rotation: 0, duration: flight, ease: 'power2.inOut'}, at);
     if (p.visible) {
       const flip = el.querySelector<HTMLElement>('.con-deal-proxy__flip');
       if (flip !== null) {
@@ -444,6 +458,163 @@ function finalizeOpenReverse(instant: boolean): void {
   if (ep === undefined || ep.finished) {
     return;
   }
+  // A CANCELLED OPEN REWINDS TO ITS LAUNCH SNAPSHOT — and the dock has
+  // routinely re-posed since (the album bay swaps the footer's composition,
+  // the pack rides its own 460ms pose transitions, which the section's
+  // return to 'board' RESTARTS in this very patch). The magnet conclusion
+  // tracks each proxy onto its LIVE berth until the berth stops moving, and
+  // only then lets the backs materialize — one discipline with the close.
+  concludeGatherOntoDock(ep, instant);
+}
+
+/** Selector-safe card name (CSS.escape with a quote-only fallback). */
+function cssEscape(name: string): string {
+  return typeof CSS !== 'undefined' && typeof CSS.escape === 'function' ?
+    CSS.escape(name) : name.replace(/"/g, '\\"');
+}
+
+/** A proxy pose that lands EXACTLY on a dock berth — rotation included. */
+type BerthPose = {x: number, y: number, scale: number, rotation: number};
+
+/**
+ * THE FAN IS A POSE, NOT A RECTANGLE. A dock back carries its own tilt
+ * (`rotate(--hd-tilt · --hd-fan)`), so its AABB lies: an upright proxy
+ * scaled to the AABB width is larger than the real card and lands
+ * straightened — the materialization then snaps it into the tilt («карта
+ * вложена в веер не на свою позицию»). This reads the berth's TRUE pose:
+ * θ from the back's OWN computed matrix (the pack above only translates /
+ * scales, axis-aligned), the painted size from the untransformed layout
+ * box times the composed scale solved out of the AABB, and the top-left
+ * the proxy needs so its ROTATED body is concentric with the berth
+ * (`transformOrigin: top left` — rotation swings about the corner).
+ */
+function berthPoseFor(name: string, proxyNatW: number, proxyNatH: number): BerthPose | undefined {
+  if (typeof document === 'undefined') {
+    return undefined;
+  }
+  const back = document.querySelector<HTMLElement>(`[data-hand-dock-card="${cssEscape(name)}"]`);
+  if (back === null) {
+    return undefined;
+  }
+  const r = back.getBoundingClientRect();
+  if (r.width < 8 || back.offsetWidth < 1) {
+    return undefined;
+  }
+  let theta = 0;
+  const tf = getComputedStyle(back).transform;
+  if (tf !== 'none' && typeof DOMMatrix !== 'undefined') {
+    const m = new DOMMatrix(tf);
+    theta = Math.atan2(m.b, m.a);
+  }
+  const cos = Math.abs(Math.cos(theta));
+  const sin = Math.abs(Math.sin(theta));
+  // Composed ancestor scale out of the AABB: aabbW = (w·cos + h·sin)·s.
+  const s = r.width / (back.offsetWidth * cos + back.offsetHeight * sin);
+  const paintedW = back.offsetWidth * s;
+  const scale = paintedW / proxyNatW;
+  const w = proxyNatW * scale;
+  const h = proxyNatH * scale;
+  const cx = r.left + r.width / 2;
+  const cy = r.top + r.height / 2;
+  const cosT = Math.cos(theta);
+  const sinT = Math.sin(theta);
+  return {
+    x: cx - (cosT * w / 2 - sinT * h / 2),
+    y: cy - (sinT * w / 2 + cosT * h / 2),
+    scale,
+    rotation: theta * 180 / Math.PI,
+  };
+}
+
+/** The proxy's natural box height (width is CARD_NATURAL_W, aspect = berth). */
+function proxyNatH(el: HTMLElement): number {
+  const h = Number.parseFloat(el.style.height);
+  return Number.isFinite(h) && h > 1 ? h : CARD_NATURAL_W * 1.4375;
+}
+
+/**
+ * THE MAGNET — the gather's final approach onto a berth whose pose is STILL
+ * RIDING. With the intake snap gone (the snap itself was the one-frame fan
+ * break) the pack's compact↔full / fan↔straight transitions run physically
+ * through every intake, so a single read of the berth mid-ride lands the
+ * card in a 5%-pose and the materialization snaps the rest. The magnet
+ * converges exponentially onto the LIVE pose each frame and resolves only
+ * once the card is ON the berth and the berth has STOPPED — so the
+ * materialization always swaps two identical poses. Driven by rAF with an
+ * interval co-driver (headless compositors starve rAF exactly when the
+ * screen goes quiet) and wall-clock bounded: on budget it snaps to the live
+ * pose and resolves.
+ */
+function magnetToBerth(el: HTMLElement, name: string, natH: number, budgetMs: number): Promise<void> {
+  return new Promise((resolve) => {
+    let done = false;
+    let stable = 0;
+    let last: BerthPose | undefined;
+    const t0 = performance.now();
+    let prevT = t0;
+    let iv: number | undefined;
+    const finish = () => {
+      if (!done) {
+        done = true;
+        if (iv !== undefined) {
+          window.clearInterval(iv);
+        }
+        resolve();
+      }
+    };
+    const step = () => {
+      if (done || !el.isConnected) {
+        finish();
+        return;
+      }
+      const now = performance.now();
+      const dt = Math.max(1, Math.min(64, now - prevT));
+      prevT = now;
+      const pose = berthPoseFor(name, CARD_NATURAL_W, natH);
+      if (pose === undefined) {
+        finish();
+        return;
+      }
+      const k = 1 - Math.exp(-dt / 70);
+      const nx = Number(gsap.getProperty(el, 'x')) + (pose.x - Number(gsap.getProperty(el, 'x'))) * k;
+      const ny = Number(gsap.getProperty(el, 'y')) + (pose.y - Number(gsap.getProperty(el, 'y'))) * k;
+      const ns = Number(gsap.getProperty(el, 'scale')) + (pose.scale - Number(gsap.getProperty(el, 'scale'))) * k;
+      const nr = Number(gsap.getProperty(el, 'rotation')) + (pose.rotation - Number(gsap.getProperty(el, 'rotation'))) * k;
+      gsap.set(el, {x: nx, y: ny, scale: ns, rotation: nr});
+      const dist = Math.abs(pose.x - nx) + Math.abs(pose.y - ny) +
+        Math.abs(pose.scale - ns) * CARD_NATURAL_W + Math.abs(pose.rotation - nr);
+      const targetMoved = last !== undefined &&
+        (Math.abs(pose.x - last.x) + Math.abs(pose.y - last.y) + Math.abs(pose.rotation - last.rotation)) > 0.25;
+      last = pose;
+      if (now - t0 > budgetMs) {
+        gsap.set(el, pose);
+        finish();
+        return;
+      }
+      if (dist < 0.6 && !targetMoved) {
+        stable++;
+        if (stable >= 2) {
+          gsap.set(el, pose);
+          finish();
+          return;
+        }
+      } else {
+        stable = 0;
+      }
+      requestAnimationFrame(step);
+    };
+    iv = window.setInterval(step, 40);
+    requestAnimationFrame(step);
+  });
+}
+
+/**
+ * The shared gather CONCLUSION: disarm the episode's own safety/resize,
+ * magnet every visible proxy onto its live berth, and only then let the
+ * backs materialize under the standing proxies. Used by the close's forward
+ * finish AND the cancelled open's rewind — one discipline, both doors.
+ */
+function concludeGatherOntoDock(ep: Episode, instant: boolean): void {
   ep.finished = true;
   if (instant) {
     handRevealState.phase = 'docked';
@@ -452,19 +623,6 @@ function finalizeOpenReverse(instant: boolean): void {
     teardown(true);
     return;
   }
-  // A CANCELLED OPEN REWINDS TO ITS LAUNCH SNAPSHOT — and the dock has
-  // routinely re-posed since (the album bay swaps the footer's composition,
-  // the pack rides its own 460ms pose transition), so the rewound proxies
-  // land beside the REAL backs and the materialization snaps. Same class as
-  // the close gather: the final approach is flown on LIVE rects. Order is
-  // the fix: the section returns to 'board' FIRST (the dock re-poses in this
-  // very patch, instantly under the cancel accent's transition freeze), each
-  // proxy then glides its residual onto its real back, and only after that
-  // do the backs materialize under the standing proxies.
-  //
-  // ep's own safety/resize are disarmed NOW — they act on the CURRENT module
-  // episode, which may already be a newer one by the time they fire into the
-  // glide window.
   clearTimeout(ep.safety);
   window.removeEventListener('resize', ep.onResize);
   hooks?.setSection('board');
@@ -483,52 +641,28 @@ function finalizeOpenReverse(instant: boolean): void {
     handRevealState.holdSlots = false;
     teardown(false);
   };
-  // Wall-clock backstop: GSAP/rAF can stall the moment the screen goes
-  // quiet (headless/backgrounded compositor) — the materialization must
-  // never hang on a frame that isn't coming.
-  window.setTimeout(conclude, motionMs(160) + 380);
+  // Wall-clock backstop above the magnets' own budget.
+  window.setTimeout(conclude, motionMs(520) + 500);
   void nextTick().then(() => {
-    requestAnimationFrame(() => {
-      if (done || episode !== ep) {
-        conclude();
-        return;
+    if (done || episode !== ep) {
+      conclude();
+      return;
+    }
+    const magnets: Array<Promise<void>> = [];
+    for (const el of ep.els) {
+      const name = el.dataset.revealCard;
+      if (name === undefined || Number(gsap.getProperty(el, 'opacity')) < 0.05) {
+        continue;
       }
-      let maxDur = 0;
-      for (const el of ep.els) {
-        const name = el.dataset.revealCard;
-        if (name === undefined || Number(gsap.getProperty(el, 'opacity')) < 0.05) {
-          continue;
-        }
-        const back = document.querySelector<HTMLElement>(`[data-hand-dock-card="${cssEscape(name)}"]`);
-        const r = back?.getBoundingClientRect();
-        if (r === undefined || r.width < 8) {
-          continue;
-        }
-        const ts = r.width / CARD_NATURAL_W;
-        const drift =
-          Math.abs(r.left - Number(gsap.getProperty(el, 'x'))) +
-          Math.abs(r.top - Number(gsap.getProperty(el, 'y'))) +
-          Math.abs(ts - Number(gsap.getProperty(el, 'scale'))) * CARD_NATURAL_W;
-        if (drift < 1.5) {
-          continue;
-        }
-        const d = motionMs(150) / 1000;
-        maxDur = Math.max(maxDur, d);
-        gsap.to(el, {x: r.left, y: r.top, scale: ts, duration: d, ease: 'power2.out', overwrite: 'auto'});
-      }
-      if (maxDur === 0) {
-        conclude();
-        return;
-      }
-      window.setTimeout(conclude, maxDur * 1000 + 50);
-    });
+      gsap.killTweensOf(el); // the magnet owns the final approach alone
+      magnets.push(magnetToBerth(el, name, proxyNatH(el), motionMs(520)));
+    }
+    if (magnets.length === 0) {
+      conclude();
+      return;
+    }
+    void Promise.all(magnets).then(conclude);
   });
-}
-
-/** Selector-safe card name (CSS.escape with a quote-only fallback). */
-function cssEscape(name: string): string {
-  return typeof CSS !== 'undefined' && typeof CSS.escape === 'function' ?
-    CSS.escape(name) : name.replace(/"/g, '\\"');
 }
 
 /* ── CLOSE: overlay slots → dock pack ───────────────────────────────── */
@@ -592,12 +726,11 @@ export async function runHandCloseEpisode(allPairs: ReadonlyArray<RevealPair>, s
       if (episode === undefined || episode.finished || episode.tl.reversed()) {
         return;
       }
-      const back = typeof document !== 'undefined' ?
-        document.querySelector<HTMLElement>(`[data-hand-dock-card="${cssEscape(p.name as string)}"]`) : null;
-      const r = back?.getBoundingClientRect();
-      const to = r !== undefined && r.width > 8 ?
-        {x: r.left, y: r.top, scale: r.width / CARD_NATURAL_W} :
-        {x: p.source.left, y: p.source.top, scale: scaleTo};
+      // The final approach lands the berth's TRUE pose — the card rotates
+      // INTO its fan tilt on the last leg, so the materialized back is the
+      // same object at the same angle (never «upright card snaps tilted»).
+      const to: BerthPose = berthPoseFor(p.name as string, CARD_NATURAL_W, proxyNatH(el)) ??
+        {x: p.source.left, y: p.source.top, scale: scaleTo, rotation: 0};
       gsap.to(el, {...to, duration: flight * 0.28, ease: 'power2.out', overwrite: 'auto'});
     }, undefined, at + flight * 0.72);
     // The timeline's own length covers the corrective leg — its completion
@@ -620,13 +753,15 @@ export async function runHandCloseEpisode(allPairs: ReadonlyArray<RevealPair>, s
 }
 
 function finalizeCloseForward(instant: boolean): void {
-  if (episode === undefined || episode.finished) {
+  const ep = episode;
+  if (ep === undefined || ep.finished) {
     return;
   }
-  episode.finished = true;
-  handRevealState.phase = 'docked'; // the pack materializes under the proxies
-  handRevealState.holdSlots = false;
-  teardown(instant);
+  // The gather's 72% corrective aimed at a pose that may STILL be riding
+  // (the pack's transitions run physically through the intake now) — the
+  // magnet conclusion closes the last few px against the live berth and
+  // materializes only once proxy and berth agree.
+  concludeGatherOntoDock(ep, instant);
 }
 
 function finalizeCloseReverse(instant: boolean): void {
@@ -726,7 +861,11 @@ export async function runHandFilterEpisode(input: HandFilterInput): Promise<void
       gsap.set(el, {clipPath: clipInset(p.clip, p.rect.width)});
       tl.to(el, {clipPath: 'inset(0px 0px 0px 0px)', duration: flight * 0.3, ease: 'power1.out'}, at);
     }
-    tl.to(el, {x: home.left, y: home.top, scale: home.width / CARD_NATURAL_W, duration: flight, ease: 'power2.inOut'}, at);
+    // The leaver lands the berth's TRUE pose (fan tilt included) — the
+    // materialized back is then the same object at the same angle.
+    const home2: BerthPose = berthPoseFor(p.name as string, CARD_NATURAL_W, proxyNatH(el)) ??
+      {x: home.left, y: home.top, scale: home.width / CARD_NATURAL_W, rotation: 0};
+    tl.to(el, {...home2, duration: flight, ease: 'power2.inOut'}, at);
     if (p.visible) {
       const flip = el.querySelector<HTMLElement>('.con-deal-proxy__flip');
       if (flip !== null) {
@@ -785,10 +924,15 @@ export async function runHandFilterEpisode(input: HandFilterInput): Promise<void
     }
     placeProxy(el, home, slot.rect, false, 1);
     seatChipZoom(el, slot.rect.width);
+    // The enterer's first frame IS its fan pose — it straightens in flight.
+    const pose = berthPoseFor(slot.name as string, CARD_NATURAL_W, proxyNatH(el));
+    if (pose !== undefined && Math.abs(pose.rotation) > 0.2) {
+      gsap.set(el, pose);
+    }
     // A beat after the movers open room; centre-first fan (the open feel).
     const at = s(80) + stagger * enterRanks[i];
     const flight = s(FILTER_ENTER_MS);
-    tl.to(el, {x: slot.rect.left, y: slot.rect.top, scale: slot.rect.width / CARD_NATURAL_W, duration: flight, ease: 'power2.inOut'}, at);
+    tl.to(el, {x: slot.rect.left, y: slot.rect.top, scale: slot.rect.width / CARD_NATURAL_W, rotation: 0, duration: flight, ease: 'power2.inOut'}, at);
     const flip = el.querySelector<HTMLElement>('.con-deal-proxy__flip');
     if (flip !== null) {
       tl.to(flip, {rotationY: 0, duration: flight * 0.62, ease: 'power2.inOut'}, at + flight * 0.08);

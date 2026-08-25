@@ -161,7 +161,7 @@ export function riseFlightDelayMs(index: number, t: RiseTimings): number {
 
 /**
  * Total BASE duration of the rise scene (safety-timeout budget). The
- * director schedules LANDINGS (left → right, ≥ flightStagger+15ms apart;
+ * director schedules LANDINGS (left → right, ≥ 2×flightStagger apart;
  * per-card travel stretches up to ×1.2 of flightMs) — this bounds that
  * schedule from above.
  */
@@ -172,6 +172,6 @@ export function riseTotalMs(cardCount: number, arrivals: number, t: RiseTimings)
   const arrival = arrivals > 0 ?
     t.arrivalFlightMs + (arrivals - 1) * t.arrivalStaggerMs + t.arrivalSettleMs : 0;
   const set = t.pulseMs + t.setHoldMs;
-  const flights = t.liftMs + t.flightMs * 1.2 + (cardCount - 1) * (t.flightStaggerMs + 15);
+  const flights = t.liftMs + t.flightMs * 1.2 + (cardCount - 1) * t.flightStaggerMs * 2;
   return arrival + set + flights + t.frameMs + t.handoffMs;
 }
