@@ -10,7 +10,7 @@
        borrowed the shelf»), read by the chrome and by e2e; never inferred from
        an animation's side effects. -->
   <div class="con-hand con-hand--album"
-       :class="{'con-ws': !embedded, 'con-hand--embedded': embedded, 'con-hand--transit': transitHold, 'con-hand--under-scene': underScene, 'con-hand--discard': discard !== undefined, 'con-hand--discarding': discarding, 'con-hand--staged': stageOpen, 'con-hand--stagepaused': stagePaused}"
+       :class="{'con-ws': !embedded, 'con-hand--embedded': embedded, 'con-hand--transit': transitHold, 'con-hand--chrome-wait': chromeWait, 'con-hand--under-scene': underScene, 'con-hand--discard': discard !== undefined, 'con-hand--discarding': discarding, 'con-hand--staged': stageOpen, 'con-hand--stagepaused': stagePaused}"
        :data-flow="stageOpen ? (stagePaused ? 'picking' : 'configure') : 'browse'"
        :style="rootStyle">
   <!-- The workspace FRAME — ONE chrome for both presentation states (the card
@@ -807,6 +807,17 @@ export default defineComponent({
     },
     totalCount(): number {
       return this.tagFilters.find((o) => o.value === 'all')?.count ?? this.entries.length;
+    },
+    /**
+     * THE CHROME MATERIALIZES AROUND THE LANDED CARDS. Through the open
+     * episode's flight the header and the verdict rail are RESERVED in
+     * layout (zero shifts) but transparent — they used to stand opaque from
+     * frame 0, and the flights, which dive BEHIND the rail by z-design,
+     * read as covered by it. The fade-in rides the phase leaving 'opening'
+     * (the episode's own finalize), never a timer.
+     */
+    chromeWait(): boolean {
+      return handRevealState.phase === 'opening';
     },
     /** «Можно разыграть: N» — POTENTIAL, the same number the wheel shows: a
      *  count that halves because an opponent started thinking is not a fact

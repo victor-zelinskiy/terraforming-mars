@@ -182,13 +182,13 @@ test.describe('hand album packet physics · large layout, big hand', () => {
       type St = {
         timer: number, samples: number, universe: number, firstProxies: number,
         ghosts: Array<string>, airborn: Array<string>, overlays: number, worst: number,
-        lastSeen: Record<string, number>, backVis: Record<string, boolean>,
+        lastSeen: Record<string, number>, backVis: Record<string, boolean>, railEarly: number,
         lastBox?: {left: number, right: number, top: number, bottom: number},
       };
       const w = window as unknown as {__pp?: St};
       const st: St = {
         timer: 0, samples: 0, universe: 0, firstProxies: 0,
-        ghosts: [], airborn: [], overlays: 0, worst: 0, lastSeen: {}, backVis: {},
+        ghosts: [], airborn: [], overlays: 0, worst: 0, lastSeen: {}, backVis: {}, railEarly: -1,
       };
       const backs = () => Array.from(document.querySelectorAll<HTMLElement>('[data-hand-dock-card]'))
         .filter((b) => {
@@ -210,6 +210,15 @@ test.describe('hand album packet physics · large layout, big hand', () => {
         }
         if (proxies.length > 0 && st.firstProxies === 0) {
           st.firstProxies = proxies.length;
+        }
+        // THE CHROME WAITS: at flight start the verdict rail must be
+        // transparent (it materializes around the LANDED cards, never over
+        // the flying ones — it out-stacks the flights by z-design).
+        if (st.railEarly < 0 && proxies.length >= 6) {
+          const rail = document.querySelector<HTMLElement>('.con-hand__verdictbar');
+          if (rail !== null) {
+            st.railEarly = Number(getComputedStyle(rail).opacity);
+          }
         }
         for (const proxy of proxies) {
           const name = proxy.getAttribute('data-reveal-card') ?? '';
@@ -283,10 +292,10 @@ test.describe('hand album packet physics · large layout, big hand', () => {
     }
 
     const pp = await page.evaluate(() => {
-      const w = window as unknown as {__pp: {timer: number, samples: number, universe: number, firstProxies: number, ghosts: Array<string>, airborn: Array<string>, overlays: number, worst: number}};
+      const w = window as unknown as {__pp: {timer: number, samples: number, universe: number, firstProxies: number, ghosts: Array<string>, airborn: Array<string>, overlays: number, worst: number, railEarly: number}};
       window.clearInterval(w.__pp.timer);
-      const {samples, universe, firstProxies, ghosts, airborn, overlays, worst} = w.__pp;
-      return {samples, universe, firstProxies, ghosts, airborn, overlays, worst: Math.round(worst * 100) / 100};
+      const {samples, universe, firstProxies, ghosts, airborn, overlays, worst, railEarly} = w.__pp;
+      return {samples, universe, firstProxies, ghosts, airborn, overlays, worst: Math.round(worst * 100) / 100, railEarly};
     });
     console.log('[packet-physics]', JSON.stringify(pp));
     expect(pp.samples, 'the watch sampled the tours').toBeGreaterThan(200);
@@ -298,5 +307,8 @@ test.describe('hand album packet physics · large layout, big hand', () => {
     expect(pp.airborn, 'no dock back materializes without its proxy nearby').toEqual([]);
     expect(pp.overlays, 'the materialization overlay was witnessed').toBeGreaterThan(0);
     expect(pp.worst, 'landings stay pixel-true in the large layout too').toBeLessThanOrEqual(3);
+    // The chrome-wait contract: witnessed AND transparent at flight start.
+    expect(pp.railEarly, 'the rail was sampled at flight start').toBeGreaterThanOrEqual(0);
+    expect(pp.railEarly, 'the verdict rail stays transparent over the flying cards').toBeLessThan(0.1);
   });
 });

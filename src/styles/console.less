@@ -6951,6 +6951,19 @@ html.console-mode {
         opacity: 0;
         transition: none;
     }
+    /* THE CHROME MATERIALIZES AROUND THE LANDED CARDS (the open episode's
+       own contract). Header, verdict rail and the page-edge chevrons are
+       reserved in layout from frame 0 — zero shifts — but stay transparent
+       through the flight (the rail out-stacks the flights by z-design and
+       used to COVER them from the first frame) and fade in as the episode
+       hands over (`chromeWait` — the phase leaving 'opening'). */
+    &__head, &__verdictbar {
+        transition: opacity calc(260ms * var(--motion-scale, 1)) ease;
+    }
+    &--chrome-wait :is(&__head, &__verdictbar, &__pgedge) {
+        opacity: 0;
+        transition: none;
+    }
     &__reason {
         padding: .4rem .7rem;
         border-radius: .4rem;
