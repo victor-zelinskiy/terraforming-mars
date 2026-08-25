@@ -65,6 +65,12 @@ export type RevealFlight = {
 export const handRevealState = reactive({
   phase: 'docked' as HandRevealPhase,
   flights: [] as Array<RevealFlight>,
+  /** Names whose GATHER has physically LANDED: the dock back materializes
+   *  under the still-standing proxy the moment its own magnet settles, so
+   *  the fan ASSEMBLES card by card — never in one teardown frame. A
+   *  reversed gather un-lands (the back hides again under the reappearing
+   *  proxy — same pixels, both directions). */
+  landedNames: [] as Array<string>,
   /** Overlay slots held empty (the proxies are the cards right now). */
   holdSlots: false,
   /** Extra dock backs held hidden: filter-episode leavers still in flight. */
@@ -100,6 +106,10 @@ export function revealEl(id: number): HTMLElement | undefined {
 
 export function clearRevealFlights(): void {
   handRevealState.flights = [];
+  // The landing ledger dies WITH the flights, in the same flush: the lift
+  // set derives from `flights − landedNames`, so clearing one without the
+  // other re-hides already-materialized backs for the teardown window.
+  handRevealState.landedNames.splice(0);
   els.clear();
 }
 

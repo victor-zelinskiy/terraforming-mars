@@ -122,6 +122,9 @@ type Episode = {
   finished: boolean,
   /** The intake-accent lease of a CANCELLED open (released on every exit). */
   accentRelease?: () => void,
+  /** Per-card GATHER landings (magnet promise + the proxy's handoff fade) —
+   *  the fan materializes card by card; a reversed gather un-lands them. */
+  landings?: Map<string, {p: Promise<void>, fade?: gsap.core.Tween}>,
 };
 
 let episode: Episode | undefined;
@@ -288,6 +291,7 @@ async function spawnFlights(flights: ReadonlyArray<{name: CardName, face: boolea
   // replaced by the new flight list in this same flush.)
   handoffFade?.kill();
   handoffFade = undefined;
+  handRevealState.landedNames.splice(0);
   handRevealState.flights = flights.map((f) => ({id: nextRevealId(), name: f.name, face: f.face, visual: f.visual}));
   const ids = handRevealState.flights.map((f) => f.id);
   await nextTick();
@@ -575,7 +579,7 @@ function proxyNatH(el: HTMLElement): number {
  * screen goes quiet) and wall-clock bounded: on budget it snaps to the live
  * pose and resolves.
  */
-function magnetToBerth(el: HTMLElement, name: string, natH: number, budgetMs: number): Promise<void> {
+function magnetToBerth(el: HTMLElement, name: string, natH: number, budgetMs: number, alive?: () => boolean): Promise<void> {
   return new Promise((resolve) => {
     let done = false;
     let stable = 0;
@@ -590,7 +594,7 @@ function magnetToBerth(el: HTMLElement, name: string, natH: number, budgetMs: nu
       }
     };
     const step = () => {
-      if (done || !el.isConnected) {
+      if (done || !el.isConnected || alive?.() === false) {
         finish();
         return;
       }
@@ -640,10 +644,39 @@ function magnetToBerth(el: HTMLElement, name: string, natH: number, budgetMs: nu
 }
 
 /**
+ * ONE CARD'S GATHER LANDING: its magnet settles it onto the live berth,
+ * the back materializes UNDER the still-standing proxy the same flush
+ * (`landedNames` → the shell's lift set releases exactly this name), and
+ * the proxy fades ON TOP — the no-dip handoff, per card. The fan therefore
+ * ASSEMBLES piece by piece, pixel-under-proxy, instead of popping whole in
+ * the teardown frame.
+ */
+function beginLanding(ep: Episode, el: HTMLElement, name: string, alive: () => boolean): void {
+  if (ep.landings === undefined) {
+    ep.landings = new Map();
+  }
+  if (ep.landings.has(name)) {
+    return;
+  }
+  const rec: {p: Promise<void>, fade?: gsap.core.Tween} = {p: Promise.resolve()};
+  rec.p = magnetToBerth(el, name, proxyNatH(el), motionMs(520), alive).then(() => {
+    if (episode !== ep || !alive()) {
+      return;
+    }
+    if (!handRevealState.landedNames.includes(name)) {
+      handRevealState.landedNames.push(name);
+    }
+    rec.fade = gsap.to(el, {autoAlpha: 0, duration: motionMs(140) / 1000, ease: 'power1.out'});
+  });
+  ep.landings.set(name, rec);
+}
+
+/**
  * The shared gather CONCLUSION: disarm the episode's own safety/resize,
- * magnet every visible proxy onto its live berth, and only then let the
- * backs materialize under the standing proxies. Used by the close's forward
- * finish AND the cancelled open's rewind — one discipline, both doors.
+ * land every still-unlanded proxy onto its live berth (each back
+ * materializes under its own proxy as its magnet settles), and only then
+ * tear down. Used by the close's forward finish AND the cancelled open's
+ * rewind — one discipline, both doors.
  */
 function concludeGatherOntoDock(ep: Episode, instant: boolean): void {
   ep.finished = true;
@@ -672,27 +705,35 @@ function concludeGatherOntoDock(ep: Episode, instant: boolean): void {
     handRevealState.holdSlots = false;
     teardown(false);
   };
-  // Wall-clock backstop above the magnets' own budget.
-  window.setTimeout(conclude, motionMs(520) + 500);
+  // Wall-clock backstop above the magnets' own budget + the handoff fade.
+  window.setTimeout(conclude, motionMs(700) + 600);
   void nextTick().then(() => {
     if (done || episode !== ep) {
       conclude();
       return;
     }
-    const magnets: Array<Promise<void>> = [];
+    const aliveHere = () => episode === ep;
     for (const el of ep.els) {
       const name = el.dataset.revealCard;
-      if (name === undefined || Number(gsap.getProperty(el, 'opacity')) < 0.05) {
+      if (name === undefined || handRevealState.landedNames.includes(name)) {
         continue;
       }
-      gsap.killTweensOf(el); // the magnet owns the final approach alone
-      magnets.push(magnetToBerth(el, name, proxyNatH(el), motionMs(520)));
+      if (Number(gsap.getProperty(el, 'opacity')) < 0.05 && ep.landings?.has(name) !== true) {
+        continue; // an invisible non-landed proxy has nothing to land
+      }
+      if (ep.landings?.has(name) !== true) {
+        gsap.killTweensOf(el); // the magnet owns the final approach alone
+      }
+      beginLanding(ep, el, name, aliveHere);
     }
-    if (magnets.length === 0) {
+    const all = [...(ep.landings?.values() ?? [])].map((r) => r.p);
+    if (all.length === 0) {
       conclude();
       return;
     }
-    void Promise.all(magnets).then(conclude);
+    // A short tail lets the LAST card's handoff fade breathe before the
+    // teardown sweeps the leftovers.
+    void Promise.all(all).then(() => window.setTimeout(conclude, motionMs(150)));
   });
 }
 
@@ -787,6 +828,17 @@ export async function runHandCloseEpisode(allPairs: ReadonlyArray<RevealPair>, s
     // is what starts the teardown/materialization, so the handoff can never
     // begin under a still-travelling final approach.
     tl.set({}, {}, at + flight);
+    // THIS CARD LANDS NOW — not in a group at the end. Its magnet settles
+    // it onto the live berth, the back materializes under the proxy, the
+    // proxy fades on top: the fan assembles card by card in flight order.
+    // Reversible until it actually lands (the reverse branch un-lands).
+    tl.call(() => {
+      const ep = episode;
+      if (ep === undefined || ep.tl !== tl || ep.finished || tl.reversed()) {
+        return;
+      }
+      beginLanding(ep, el, p.name as string, () => episode === ep && !tl.reversed());
+    }, undefined, at + flight);
     if (p.visible) {
       const flip = el.querySelector<HTMLElement>('.con-deal-proxy__flip');
       if (flip !== null) {
@@ -1086,6 +1138,22 @@ export function reverseHandReveal(): boolean {
     }
   } else {
     handRevealState.phase = nowReversed ? 'opening' : 'closing';
+    if (nowReversed) {
+      // UN-LAND: cards that already gathered stand ON their berths with the
+      // back visible and the proxy faded — reversing swaps the two back at
+      // the SAME pose (pixel-identical), kills their handoff fades, and
+      // resets the ledger so a resumed gather re-lands them cleanly.
+      for (const rec of ep.landings?.values() ?? []) {
+        rec.fade?.kill();
+      }
+      ep.landings = undefined;
+      for (const el of ep.els) {
+        if (el.dataset.revealCard !== undefined) {
+          gsap.set(el, {autoAlpha: 1});
+        }
+      }
+      handRevealState.landedNames.splice(0);
+    }
     // A close gather flips back toward the OPEN hand: the overlay must be
     // there to land in — remount it held + restore the exact scroll the
     // targets were measured at.
@@ -1113,5 +1181,6 @@ export function resetHandReveal(): void {
   handRevealState.holdSlots = false;
   handRevealState.dockExtraLift = [];
   handRevealState.filterActive = false;
+  handRevealState.landedNames.splice(0);
   clearRevealFlights();
 }

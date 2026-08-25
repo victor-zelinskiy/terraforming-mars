@@ -183,12 +183,14 @@ test.describe('hand album packet physics · large layout, big hand', () => {
         timer: number, samples: number, universe: number, firstProxies: number,
         ghosts: Array<string>, airborn: Array<string>, overlays: number, worst: number,
         lastSeen: Record<string, number>, backVis: Record<string, boolean>, railEarly: number,
+        orphans: Array<string>, landTimes: Array<number>, orphanSeen: Record<string, number>,
         lastBox?: {left: number, right: number, top: number, bottom: number},
       };
       const w = window as unknown as {__pp?: St};
       const st: St = {
         timer: 0, samples: 0, universe: 0, firstProxies: 0,
         ghosts: [], airborn: [], overlays: 0, worst: 0, lastSeen: {}, backVis: {}, railEarly: -1,
+        orphans: [], landTimes: [], orphanSeen: {},
       };
       const backs = () => Array.from(document.querySelectorAll<HTMLElement>('[data-hand-dock-card]'))
         .filter((b) => {
@@ -259,14 +261,39 @@ test.describe('hand album packet physics · large layout, big hand', () => {
             }
           }
         }
-        // «ИЗ ВОЗДУХА»: a back that turns visible with no proxy history.
+        // «ИЗ ВОЗДУХА» + THE IDENTITY INVARIANT. While an episode flies,
+        // a HIDDEN dock back is legal ONLY when its own proxy is the live
+        // body on screen — the lift set derives from the flights, so a
+        // hidden back with no painted proxy is a vanished card (the exact
+        // one-frame drop the rework kills by construction).
         const episodeLive = proxies.length > 0;
+        const proxyAlpha: Record<string, number> = {};
+        for (const proxy of proxies) {
+          const n = proxy.getAttribute('data-reveal-card') ?? '';
+          proxyAlpha[n] = Math.max(proxyAlpha[n] ?? 0, Number(getComputedStyle(proxy).opacity));
+        }
         for (const b of Array.from(document.querySelectorAll<HTMLElement>('[data-hand-dock-card]'))) {
           const name = b.getAttribute('data-hand-dock-card') ?? '';
           const cs = getComputedStyle(b);
           const vis = b.getBoundingClientRect().width > 8 && cs.visibility !== 'hidden' && Number(cs.opacity) > 0.5;
           const was = st.backVis[name] === true;
+          if (!vis && episodeLive && (proxyAlpha[name] ?? 0) < 0.05) {
+            // TWO-SAMPLE CONFIRMATION: an MO-driven sampler legitimately
+            // sees the pre-paint microtask between the flights write and
+            // the gsap placement (never painted). A REAL vanished card
+            // stays vanished — confirm only when the same name is orphaned
+            // again ≥ 60ms later.
+            const first = st.orphanSeen[name];
+            if (first === undefined) {
+              st.orphanSeen[name] = now;
+            } else if (now - first > 60 && st.orphans.length < 8) {
+              st.orphans.push(name + '@t=' + Math.round(now) + ' first=' + Math.round(first));
+            }
+          } else {
+            delete st.orphanSeen[name];
+          }
           if (vis && !was && episodeLive) {
+            st.landTimes.push(Math.round(now));
             const seen = st.lastSeen[name];
             if (seen === undefined || now - seen > 450) {
               if (st.airborn.length < 8) {
@@ -292,10 +319,11 @@ test.describe('hand album packet physics · large layout, big hand', () => {
     }
 
     const pp = await page.evaluate(() => {
-      const w = window as unknown as {__pp: {timer: number, samples: number, universe: number, firstProxies: number, ghosts: Array<string>, airborn: Array<string>, overlays: number, worst: number, railEarly: number}};
+      const w = window as unknown as {__pp: {timer: number, samples: number, universe: number, firstProxies: number, ghosts: Array<string>, airborn: Array<string>, overlays: number, worst: number, railEarly: number, orphans: Array<string>, landTimes: Array<number>}};
       window.clearInterval(w.__pp.timer);
-      const {samples, universe, firstProxies, ghosts, airborn, overlays, worst, railEarly} = w.__pp;
-      return {samples, universe, firstProxies, ghosts, airborn, overlays, worst: Math.round(worst * 100) / 100, railEarly};
+      const {samples, universe, firstProxies, ghosts, airborn, overlays, worst, railEarly, orphans, landTimes} = w.__pp;
+      const landSpread = landTimes.length < 2 ? 0 : landTimes[landTimes.length - 1] - landTimes[0];
+      return {samples, universe, firstProxies, ghosts, airborn, overlays, worst: Math.round(worst * 100) / 100, railEarly, orphans, lands: landTimes.length, landSpread};
     });
     console.log('[packet-physics]', JSON.stringify(pp));
     expect(pp.samples, 'the watch sampled the tours').toBeGreaterThan(200);
@@ -310,5 +338,9 @@ test.describe('hand album packet physics · large layout, big hand', () => {
     // The chrome-wait contract: witnessed AND transparent at flight start.
     expect(pp.railEarly, 'the rail was sampled at flight start').toBeGreaterThanOrEqual(0);
     expect(pp.railEarly, 'the verdict rail stays transparent over the flying cards').toBeLessThan(0.1);
+    // THE IDENTITY INVARIANT: a hidden back always has its live proxy —
+    // a card can never vanish, whatever the hand size or pairing.
+    expect(pp.orphans, 'no hidden back ever stood without its live proxy').toEqual([]);
+    console.log('[packet-physics] gather materialized over ' + pp.landSpread + 'ms in ' + pp.lands + ' steps');
   });
 });

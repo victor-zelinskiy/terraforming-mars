@@ -2157,12 +2157,31 @@ export default defineComponent({
      */
     dockLiftedNames(): ReadonlyArray<string> {
       const st = handRevealState;
-      const overlayOwns = st.phase === 'open' || st.phase === 'closing' ||
-        (st.phase === 'opening' && st.flights.length > 0);
-      if (!overlayOwns) {
-        return st.dockExtraLift;
+      // THE STABLE ALBUM STATE: the cards live in the album — the whole
+      // universe leaves the dock (one card, one home). A 'closing' with NO
+      // flights yet is the gather's BUILD window (measure + spawn): the
+      // cards are still in the album, so the universe rule must hold — the
+      // flight-derived rule below would materialize every back for those
+      // two frames as a double of the album.
+      if (st.phase === 'open' || (st.phase === 'closing' && st.flights.length === 0)) {
+        return [...this.handAlbumUniverse.map((e) => e.card.name), ...st.dockExtraLift];
       }
-      return [...this.handAlbumUniverse.map((e) => e.card.name), ...st.dockExtraLift];
+      // EPISODES: a back may be hidden ONLY while its own proxy is the
+      // visible body — the lift set IS the flight set. Hiding the whole
+      // universe here was the reported vanish: any pairing gap (a card the
+      // episode did not fly, for any reason) disappeared in one frame at
+      // the open and left a HOLE through the whole gather, popping back in
+      // the teardown frame. Minus `landedNames`: a gathered card's back
+      // materializes the moment ITS OWN magnet settles — the fan assembles
+      // card by card, pixel-under-proxy.
+      if (st.phase === 'opening' || st.phase === 'closing') {
+        const landed = new Set(st.landedNames);
+        return [
+          ...st.flights.map((f) => f.name as string).filter((n) => !landed.has(n)),
+          ...st.dockExtraLift,
+        ];
+      }
+      return st.dockExtraLift;
     },
     /**
      * The dock renders IDENTICALLY in every shell state (welded into the
