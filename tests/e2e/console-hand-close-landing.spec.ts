@@ -261,12 +261,21 @@ test.describe('hand album packet physics · large layout, big hand', () => {
             }
           }
         }
-        // «ИЗ ВОЗДУХА» + THE IDENTITY INVARIANT. While an episode flies,
-        // a HIDDEN dock back is legal ONLY when its own proxy is the live
-        // body on screen — the lift set derives from the flights, so a
-        // hidden back with no painted proxy is a vanished card (the exact
-        // one-frame drop the rework kills by construction).
-        const episodeLive = proxies.length > 0;
+        // «ИЗ ВОЗДУХА» + THE IDENTITY INVARIANT. While an episode FLIES —
+        // the album slots are held (`.con-hand--transit`), so the proxies
+        // are the only bodies — a HIDDEN dock back is legal ONLY when its
+        // own proxy is the live body on screen. Scoped to the transit hold
+        // on purpose: after the open's finalize the slots ARE the bodies
+        // (packets legitimately park beyond the stage edge), and the
+        // teardown fade's transparent proxy corpses may outlive the fade on
+        // a starved compositor until the wall-clock backstop sweeps them —
+        // a hidden back is then simply «the album owns this card».
+        // Armed while slots are held (open/filter flights) OR the hand
+        // section is gone entirely (the close gather flies over the board);
+        // a landed close back is visible, so the close teardown stays quiet.
+        const episodeLive = proxies.length > 0 &&
+          (document.querySelector('.con-hand--transit') !== null ||
+           document.querySelector('.con-hand') === null);
         const proxyAlpha: Record<string, number> = {};
         for (const proxy of proxies) {
           const n = proxy.getAttribute('data-reveal-card') ?? '';

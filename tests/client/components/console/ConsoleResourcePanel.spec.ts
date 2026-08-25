@@ -4,6 +4,7 @@ import {expect} from 'chai';
 import ConsoleResourcePanel from '@/client/components/console/ConsoleResourcePanel.vue';
 import {PublicPlayerModel} from '@/common/models/PlayerModel';
 import {Tag} from '@/common/cards/Tag';
+import {CardName} from '@/common/cards/CardName';
 import {CONSOLE_TAG_ORDER} from '@/client/components/console/consoleTagMatrix';
 import {privateScoreState} from '@/client/components/overview/privateScoreState';
 
@@ -13,7 +14,7 @@ const BASE_GAME_TAGS: ReadonlyArray<Tag> = [
 ];
 const ALL_PRINTED: ReadonlyArray<Tag> = CONSOLE_TAG_ORDER.filter((t) => t !== Tag.EVENT);
 
-function fakePlayer(tags: Partial<Record<Tag, number>> = {}): PublicPlayerModel {
+function fakePlayer(tags: Partial<Record<Tag, number>> = {}, extra: Partial<Record<string, unknown>> = {}): PublicPlayerModel {
   return {
     color: 'red',
     megacredits: 12, megacreditProduction: 1,
@@ -22,10 +23,15 @@ function fakePlayer(tags: Partial<Record<Tag, number>> = {}): PublicPlayerModel 
     plants: 0, plantProduction: 0,
     energy: 0, energyProduction: 0,
     heat: 0, heatProduction: 0,
+    steelValue: 2, titaniumValue: 3,
+    canUseHeatAsMegaCredits: false,
+    canUseTitaniumAsMegacredits: false,
+    canUsePlantsAsMegacredits: false,
     terraformRating: 20,
     victoryPointsBreakdown: {total: 20},
     tags,
     tableau: [],
+    ...extra,
   } as unknown as PublicPlayerModel;
 }
 
@@ -212,5 +218,170 @@ describe('ConsoleResourcePanel — the dedicated MarsBot rail', () => {
     expect(w.findAll('.con-tagmx__trackrow')).to.have.length(0);
     expect(w.findAll('.con-res__row')).to.have.length(6);
     expect(w.findAll('.con-res__prod').length).to.be.greaterThan(0);
+  });
+});
+
+/**
+ * The VALUE-BADGE layer (railValueModel → ConsoleValueBadge): passive MC-rate
+ * coins on the payment resources + VP-coefficient shields on scoring tags.
+ * The rows/cells never change their own geometry — the badge is an absolute
+ * corner pin, present exactly while the displayed SEAT has the capability.
+ */
+describe('ConsoleResourcePanel — value badges', () => {
+  function mountPlayer(player: PublicPlayerModel, extraProps: Record<string, unknown> = {}) {
+    return mount(ConsoleResourcePanel, {
+      global: globalConfig.global,
+      props: {player, gameTags: BASE_GAME_TAGS as Array<Tag>, ...extraProps},
+    });
+  }
+
+  it('base game: steel «2» and titanium «3»; M€/plants/energy/heat carry none', () => {
+    const w = mountPlayer(fakePlayer());
+    expect(w.find('[data-mc-badge="steel"] .con-valbadge__text').text()).to.eq('2');
+    expect(w.find('[data-mc-badge="titanium"] .con-valbadge__text').text()).to.eq('3');
+    expect(w.find('[data-mc-badge="megacredits"]').exists()).to.be.false;
+    expect(w.find('[data-mc-badge="plants"]').exists()).to.be.false;
+    expect(w.find('[data-mc-badge="energy"]').exists()).to.be.false;
+    expect(w.find('[data-mc-badge="heat"]').exists()).to.be.false;
+  });
+
+  it('a modified value shows live, never the base (Advanced Alloys player)', () => {
+    const w = mountPlayer(fakePlayer({}, {steelValue: 3, titaniumValue: 4}));
+    expect(w.find('[data-mc-badge="steel"] .con-valbadge__text').text()).to.eq('3');
+    expect(w.find('[data-mc-badge="titanium"] .con-valbadge__text').text()).to.eq('4');
+  });
+
+  it('heat gains the coin only under the standing grant (Helion)', () => {
+    const w = mountPlayer(fakePlayer({}, {canUseHeatAsMegaCredits: true, heat: 4}));
+    expect(w.find('[data-mc-badge="heat"] .con-valbadge__text').text()).to.eq('1');
+  });
+
+  it('Luna Trade Federation titanium reads both rates in the wide pill', () => {
+    const w = mountPlayer(fakePlayer({}, {canUseTitaniumAsMegacredits: true}));
+    const badge = w.find('[data-mc-badge="titanium"]');
+    expect(badge.find('.con-valbadge__text').text()).to.eq('3/2');
+    expect(badge.classes()).to.include('con-valbadge--wide');
+  });
+
+  it('an aux chip is badged only when its ENABLING card is in the tableau', () => {
+    const dirigibles = mountPlayer(
+      fakePlayer({}, {tableau: [{name: CardName.DIRIGIBLES, resources: 2}]}),
+      {boardVisible: true});
+    const badge = dirigibles.find('[data-aux-resource] [data-mc-badge]');
+    expect(badge.exists()).to.be.true;
+    expect(badge.find('.con-valbadge__text').text()).to.eq('3');
+
+    // Same resource TYPE on a non-payment holder → chip yes, badge no.
+    const stormcraft = mountPlayer(
+      fakePlayer({}, {tableau: [{name: CardName.STORMCRAFT_INCORPORATED, resources: 3}]}),
+      {boardVisible: true});
+    expect(stormcraft.find('[data-aux-resource]').exists()).to.be.true;
+    expect(stormcraft.find('[data-aux-resource] [data-mc-badge]').exists()).to.be.false;
+  });
+
+  it('the aggregated-chip aria names the honest spendable split', () => {
+    const w = mountPlayer(
+      fakePlayer({}, {tableau: [
+        {name: CardName.DIRIGIBLES, resources: 2},
+        {name: CardName.STORMCRAFT_INCORPORATED, resources: 3},
+      ]}),
+      {boardVisible: true});
+    const label = w.find('[data-aux-resource] [data-mc-badge]').attributes('aria-label') ?? '';
+    expect(label).to.contain('2');
+    expect(label).to.contain('5');
+  });
+
+  it('a scoring tag carries the VP shield — zero-count cell included', () => {
+    const w = mountPlayer(fakePlayer(
+      {[Tag.JOVIAN]: 0} as Partial<Record<Tag, number>>,
+      {tableau: [{name: CardName.IO_MINING_INDUSTRIES}]}));
+    const cell = w.find('[data-tag-cell="jovian"]');
+    expect(cell.classes()).to.include('con-tagmx__cell--zero');
+    expect(cell.find('[data-tag-vp="jovian"] .con-valbadge__text').text()).to.eq('1');
+    // No scoring source → no shield anywhere else.
+    expect(w.findAll('.con-valbadge--vp')).to.have.length(1);
+  });
+
+  it('a ratio scorer renders the vulgar fraction on its tag', () => {
+    const w = mountPlayer(fakePlayer(
+      {[Tag.VENUS]: 3} as Partial<Record<Tag, number>>,
+      {tableau: [{name: CardName.CULTIVATION_OF_VENUS}]}),
+    );
+    const wAll = mount(ConsoleResourcePanel, {
+      global: globalConfig.global,
+      props: {player: fakePlayer(
+        {[Tag.VENUS]: 3} as Partial<Record<Tag, number>>,
+        {tableau: [{name: CardName.CULTIVATION_OF_VENUS}]}),
+      gameTags: ALL_PRINTED as Array<Tag>},
+    });
+    expect(w.findAll('[data-tag-vp]')).to.have.length(0); // Venus not in base tag set
+    expect(wAll.find('[data-tag-vp="venus"] .con-valbadge__text').text()).to.eq('½');
+  });
+
+  it('switching the displayed player swaps every badge atomically', async () => {
+    const w = mountPlayer(fakePlayer({}, {tableau: [{name: CardName.IO_MINING_INDUSTRIES}]}));
+    expect(w.find('[data-mc-badge="steel"] .con-valbadge__text').text()).to.eq('2');
+    expect(w.find('[data-tag-vp="jovian"]').exists()).to.be.true;
+
+    await w.setProps({player: fakePlayer({}, {color: 'blue', steelValue: 3, canUseHeatAsMegaCredits: true})});
+    expect(w.find('[data-mc-badge="steel"] .con-valbadge__text').text()).to.eq('3');
+    expect(w.find('[data-mc-badge="heat"] .con-valbadge__text').text()).to.eq('1');
+    expect(w.find('[data-tag-vp="jovian"]').exists()).to.be.false;
+    // A seat switch is a context change — never a value pulse.
+    expect(w.findAll('.con-valbadge--pulse')).to.have.length(0);
+  });
+
+  it('a value change pulses; mount alone never does', async () => {
+    const w = mountPlayer(fakePlayer());
+    expect(w.findAll('.con-valbadge--pulse')).to.have.length(0);
+    await w.setProps({player: fakePlayer({}, {steelValue: 3})});
+    await new Promise((resolve) => setTimeout(resolve, 10));
+    expect(w.find('[data-mc-badge="steel"]').classes()).to.include('con-valbadge--pulse');
+  });
+
+  it('the badge is a passive layer: aria label present, no focusable control', () => {
+    const w = mountPlayer(fakePlayer());
+    const badge = w.find('[data-mc-badge="steel"]');
+    expect(badge.attributes('aria-label')).to.contain('M€');
+    expect(badge.attributes('role')).to.eq('img');
+    expect(badge.element.querySelector('button, [tabindex]')).to.eq(null);
+  });
+
+  it('the MarsBot rail carries no badges (the Automa has no economy of rates)', () => {
+    const automa = {
+      difficulty: 'normal',
+      tracks: [{tags: [Tag.BUILDING], position: 2, maxPosition: 18, layout: [], regressed: []}],
+      actionDeckSize: 10, bonusDeckSize: 7,
+      bonusDiscard: [], recurringBonusCards: [], destroyedBonusCards: [],
+      playedPile: [], floaters: 3,
+    };
+    const w = mount(ConsoleResourcePanel, {
+      global: globalConfig.global,
+      props: {
+        player: fakePlayer(), gameTags: BASE_GAME_TAGS as Array<Tag>,
+        own: false, automa: automa as never,
+      },
+    });
+    expect(w.findAll('.con-valbadge')).to.have.length(0);
+  });
+
+  it('full house: every badge kind at once, one per host, stable data hooks', () => {
+    const w = mountPlayer(
+      fakePlayer(
+        {[Tag.JOVIAN]: 2} as Partial<Record<Tag, number>>,
+        {
+          steelValue: 3, titaniumValue: 4,
+          canUseHeatAsMegaCredits: true, canUsePlantsAsMegacredits: true,
+          tableau: [
+            {name: CardName.IO_MINING_INDUSTRIES},
+            {name: CardName.DIRIGIBLES, resources: 1},
+            {name: CardName.PSYCHROPHILES, resources: 2},
+            {name: CardName.CARBON_NANOSYSTEMS, resources: 0},
+          ],
+        }),
+      {boardVisible: true});
+    expect(w.findAll('.con-res__row [data-mc-badge]')).to.have.length(4); // steel/ti/plants/heat
+    expect(w.findAll('.con-res-aux__cell [data-mc-badge]')).to.have.length(3); // floaters/microbes/graphene
+    expect(w.findAll('[data-tag-vp]')).to.have.length(1);
   });
 });

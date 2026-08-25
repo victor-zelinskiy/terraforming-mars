@@ -84,9 +84,26 @@
                commit ACKNOWLEDGES here (wheelPulse) — the reservoir about to
                be spent answers the press; the server's own flip/delta
                animations then carry the actual change. -->
-          <i class="con-res__icon" :class="'resource_icon resource_icon--' + row.key" aria-hidden="true"
-             :data-conversion-icon="conversionAnchor(row.key)"
-             :data-wheel-anchor="row.key === 'heat' ? 'res-heat' : undefined"></i>
+          <!-- The iconwrap is the badge's anchor box (same --cr-icon square,
+               so the row grid and the e2e icon-column probes see the same
+               geometry); the measurement attrs stay on the <i> itself. -->
+          <span class="con-res__iconwrap">
+            <i class="con-res__icon" :class="'resource_icon resource_icon--' + row.key" aria-hidden="true"
+               :data-conversion-icon="conversionAnchor(row.key)"
+               :data-wheel-anchor="row.key === 'heat' ? 'res-heat' : undefined"></i>
+            <!-- MC-value badge — «1 unit = N M€» for a resource that is legal
+                 tender for THIS displayed player (railValueModel). Passive:
+                 no focus, no input, zero layout (absolute corner pin). -->
+            <ConsoleValueBadge
+              v-if="row.mcBadge !== undefined"
+              variant="mc"
+              class="con-res__mcbadge"
+              :data-mc-badge="row.key"
+              :text="row.mcBadge.text"
+              :wide="row.mcBadge.rates.length > 1"
+              :label="mcBadgeAria(row.mcBadge)"
+              :scopeKey="player.color" />
+          </span>
           <!-- Delta chips (CTS T7): the SAME AnimatedMetricValue + metric keys
                as the desktop PlayerResource, so every stock/production change
                fires the premium ±N chip in console too (and the energy→heat
@@ -168,7 +185,26 @@
                :class="{'con-tagmx__cell--zero': t.count === 0}"
                :data-tag-cell="t.tag"
                :aria-label="$t(t.tag) + ': ' + t.count">
-            <Tag class="con-tagmx__medal" :tag="t.tag" size="big" type="secondary" />
+            <!-- The medalwrap takes over the medal's flex role in the cell's
+                 vertical fit (same flex/min-height, column, centred) so the
+                 VP shield can pin to the medallion's own corner and track it
+                 when short viewports compress the matrix. -->
+            <span class="con-tagmx__medalwrap">
+              <Tag class="con-tagmx__medal" :tag="t.tag" size="big" type="secondary" />
+              <!-- VP-coefficient badge — this tag is CURRENTLY converted into
+                   VP by the displayed player's own played cards (tagVpBadges).
+                   Full-strength even on a zero cell: «worth collecting» is
+                   exactly what it says. -->
+              <ConsoleValueBadge
+                v-if="tagVpFor(t.tag) !== undefined"
+                variant="vp"
+                class="con-tagmx__vp"
+                :data-tag-vp="t.tag"
+                :text="tagVpFor(t.tag)!.text"
+                :wide="tagVpFor(t.tag)!.wide"
+                :label="tagVpAria(tagVpFor(t.tag)!)"
+                :scopeKey="player.color" />
+            </span>
             <span class="con-tagmx__numwrap">
               <span class="con-tagmx__num">{{ t.count }}</span>
               <AnimatedMetricValue
@@ -195,7 +231,23 @@
          unlocked. -->
     <transition-group v-if="boardVisible && extraGroups.length > 0" tag="div" class="con-res-aux" name="con-extra">
       <div v-for="g in extraGroups" :key="g.resource" class="con-res-aux__cell" :data-aux-resource="auxAnchorKey(g.resource)">
-        <i class="card-resource con-res-aux__icon" :class="extraIconClass(g.resource)" aria-hidden="true"></i>
+        <span class="con-res-aux__iconwrap">
+          <i class="card-resource con-res-aux__icon" :class="extraIconClass(g.resource)" aria-hidden="true"></i>
+          <!-- MC-value badge for a card-bound payment stock: appears ONLY when
+               the enabling card itself (Dirigibles, …) is in the tableau —
+               same-typed resources on other holders are storage, not tender.
+               The aria carries the spendable/total split when the chip
+               aggregates non-payment holders too. -->
+          <ConsoleValueBadge
+            v-if="auxMcBadge(g.resource) !== undefined"
+            variant="mc"
+            class="con-res-aux__mcbadge"
+            :data-mc-badge="auxAnchorKey(g.resource)"
+            :text="auxMcBadge(g.resource)!.text"
+            :wide="auxMcBadge(g.resource)!.rates.length > 1"
+            :label="auxMcAria(g)"
+            :scopeKey="player.color" />
+        </span>
         <span class="con-res-aux__value">{{ g.total }}</span>
         <AnimatedMetricValue
           v-if="epoch !== ''"
@@ -236,12 +288,31 @@ import {cardResourceCSS} from '@/client/components/common/cardResources';
 import {additionalResourceGroups, additionalResourceMetricKey, AdditionalResourceGroup} from '@/client/components/additionalResources/additionalResources';
 import {heldStock, heldProduction, heldCardResource, panelRewardHold} from '@/client/console/resourceTransfer/consoleResourceTransfer';
 import {cardResourceKey} from '@/client/console/resourceTransfer/resourceTransferModel';
+import ConsoleValueBadge from '@/client/components/console/ConsoleValueBadge.vue';
+import {railMcBadges, tagVpBadges, RailMcBadge, RailMcBadges, RailMcContext, TagVpBadge} from '@/client/console/railValueModel';
+import {paymentUnitLabel} from '@/client/console/paymentPlan';
+import {translateText, translateTextWithParams} from '@/client/directives/i18n';
 
-type ResourceRow = {key: string, value: number, production: number};
+type ResourceRow = {key: string, value: number, production: number, mcBadge?: RailMcBadge};
+
+/** RailMcContext → the aria phrase naming WHERE the unit is legal tender. */
+const MC_CONTEXT_KEYS: Record<RailMcContext, string> = {
+  'building': 'for cards with a building tag',
+  'space': 'for cards with a space tag',
+  'non-space-ltf': 'for any other card',
+  'any-card': 'for any card',
+  'plant': 'for cards with a plant tag',
+  'plant-or-greenery': 'for cards with a plant tag or the greenery standard project',
+  'venus': 'for cards with a Venus tag',
+  'moon': 'for cards with a Moon tag',
+  'city-or-space': 'for cards with a city or space tag',
+  'standard-project': 'for standard projects',
+  'aquifer-asteroid': 'for the aquifer and asteroid standard projects',
+};
 
 export default defineComponent({
   name: 'ConsoleResourcePanel',
-  components: {Tag, AnimatedMetricValue, ConsoleVpBadge, PrivateScoreMask},
+  components: {Tag, AnimatedMetricValue, ConsoleVpBadge, ConsoleValueBadge, PrivateScoreMask},
   props: {
     player: {type: Object as PropType<PublicPlayerModel>, required: true},
     /**
@@ -342,14 +413,27 @@ export default defineComponent({
       const hold = this.own && panelRewardHold.active;
       const stock = (key: string, v: number) => hold ? Math.max(0, v - heldStock(key)) : v;
       const prod = (key: string, v: number) => hold ? v - heldProduction(key) : v;
+      // The MC-value badges ride the same computed so a value change (Advanced
+      // Alloys, a player switch) lands in the SAME patch as the numbers —
+      // never a frame with a stale rate. M€ (the unit itself) and energy
+      // never carry one by construction (absent from RailMcStandardKey).
+      const badges = this.mcBadges.standard;
       return [
         {key: 'megacredits', value: stock('megacredits', p.megacredits), production: prod('megacredits', p.megacreditProduction)},
-        {key: 'steel', value: stock('steel', p.steel), production: prod('steel', p.steelProduction)},
-        {key: 'titanium', value: stock('titanium', p.titanium), production: prod('titanium', p.titaniumProduction)},
-        {key: 'plants', value: stock('plants', p.plants), production: prod('plants', p.plantProduction)},
+        {key: 'steel', value: stock('steel', p.steel), production: prod('steel', p.steelProduction), mcBadge: badges.steel},
+        {key: 'titanium', value: stock('titanium', p.titanium), production: prod('titanium', p.titaniumProduction), mcBadge: badges.titanium},
+        {key: 'plants', value: stock('plants', p.plants), production: prod('plants', p.plantProduction), mcBadge: badges.plants},
         {key: 'energy', value: stock('energy', p.energy), production: prod('energy', p.energyProduction)},
-        {key: 'heat', value: stock('heat', p.heat), production: prod('heat', p.heatProduction)},
+        {key: 'heat', value: stock('heat', p.heat), production: prod('heat', p.heatProduction), mcBadge: badges.heat},
       ];
+    },
+    /** The displayed seat's payment-value badges (pure, memoized by model). */
+    mcBadges(): RailMcBadges {
+      return railMcBadges(this.effectivePlayer);
+    },
+    /** The displayed seat's per-tag VP coefficients (pure, memoized by tableau). */
+    tagVp(): ReadonlyMap<CardTag, TagVpBadge> {
+      return tagVpBadges(this.effectivePlayer.tableau);
     },
     tagEntries(): Array<ConsoleTagEntry> {
       // The FULL matrix — every tag available in this game, zeros included
@@ -457,6 +541,51 @@ export default defineComponent({
     },
     extraIconClass(resource: CardResource): string {
       return cardResourceCSS[resource];
+    },
+    /** The VP badge for a МЕТКИ cell, if this tag is being scored right now. */
+    tagVpFor(tag: CardTag): TagVpBadge | undefined {
+      return this.tagVp.get(tag);
+    },
+    /** The MC badge for a ДОП.РЕСУРСЫ chip, if its stock is legal tender. */
+    auxMcBadge(resource: CardResource): RailMcBadge | undefined {
+      return this.mcBadges.cardBound.get(resource);
+    },
+    /**
+     * The MC badge's full accessible sentence: per fact «Сталь: 1 ед. = 3 M€
+     * за карты с меткой „Строительство“», facts joined. The visible badge
+     * carries only the figure — this label is the whole meaning.
+     */
+    mcBadgeAria(badge: RailMcBadge): string {
+      return badge.facts
+        .map((f) => translateTextWithParams('${0}: 1 unit pays ${1} M€ ${2}', [
+          translateText(paymentUnitLabel(f.unit)),
+          String(f.rate),
+          translateText(MC_CONTEXT_KEYS[f.context]),
+        ]))
+        .join(' · ');
+    },
+    /**
+     * Aux chips aggregate EVERY holder of a resource type; the badge's rate
+     * only applies to the enabling card's own stock, so when the two counts
+     * differ the label names the honest split (visual stays one clean coin).
+     */
+    auxMcAria(group: AdditionalResourceGroup): string {
+      const badge = this.mcBadges.cardBound.get(group.resource);
+      if (badge === undefined) {
+        return '';
+      }
+      let label = this.mcBadgeAria(badge);
+      const spendable = badge.facts.reduce((sum, f) => sum + (f.spendableAmount ?? 0), 0);
+      if (spendable < group.total) {
+        label += ' · ' + translateTextWithParams('Spendable from this stock: ${0} of ${1}', [String(spendable), String(group.total)]);
+      }
+      return label;
+    },
+    /** The VP badge's accessible sentence: the rate + the scoring cards. */
+    tagVpAria(badge: TagVpBadge): string {
+      const sources = badge.sources.map((s) => translateText(s.card)).join(', ');
+      return translateTextWithParams('Converted into VP by played cards, current rate: ${0}', [badge.text]) +
+        ' · ' + translateTextWithParams('Sources: ${0}', [sources]);
     },
     /** Couch-reader aria for a bot track: every mapped tag + position/max. */
     trackAria(track: MarsBotRailTrack): string {

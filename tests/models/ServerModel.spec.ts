@@ -174,4 +174,32 @@ describe('ServerModel', () => {
     expect(fromOpponent).has.length(1);
     expect(fromOpponent[0].unplayableReasons).is.undefined;
   });
+
+  // The console rail's passive MC-value badges read the standing payment
+  // grants OFF THE PUBLIC MODEL (no active prompt) — the model must mirror
+  // the exact engine flags Player.payingAmount charges by, for every seat.
+  it('mirrors the standing payment-capability flags onto the public model', () => {
+    createTestGame(false);
+    let model = Server.getPlayerModel(player);
+    expect(model.thisPlayer.canUseHeatAsMegaCredits).is.false;
+    expect(model.thisPlayer.canUseTitaniumAsMegacredits).is.false;
+    expect(model.thisPlayer.canUsePlantsAsMegacredits).is.false;
+
+    // The engine flag, not a card name: Helion, Ambient and any future grant
+    // all set the same field the model mirrors.
+    player.canUseHeatAsMegaCredits = true;
+    player.canUseTitaniumAsMegacredits = true;
+    player.canUsePlantsAsMegacredits = true;
+    model = Server.getPlayerModel(player);
+    expect(model.thisPlayer.canUseHeatAsMegaCredits).is.true;
+    expect(model.thisPlayer.canUseTitaniumAsMegacredits).is.true;
+    expect(model.thisPlayer.canUsePlantsAsMegacredits).is.true;
+
+    // Public on every seat (an inspected opponent's rail shows THEIR grants).
+    const opponentView = Server.getPlayerModel(player2);
+    const fromOpponent = opponentView.players.find((p) => p.color === player.color)!;
+    expect(fromOpponent.canUseHeatAsMegaCredits).is.true;
+    expect(fromOpponent.canUseTitaniumAsMegacredits).is.true;
+    expect(fromOpponent.canUsePlantsAsMegacredits).is.true;
+  });
 });

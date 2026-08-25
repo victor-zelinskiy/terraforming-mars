@@ -294,6 +294,11 @@ function startEpisodeDriver(ep: Episode): void {
   let rafId = 0;
   let iv = 0;
   let running = true;
+  // FOREIGN-CLOCK AUDIT (dev diagnostic): the driver is the ONLY sanctioned
+  // clock — if tl.time() ever drifts from what the driver last wrote, some
+  // other ticker is playing this timeline and every bounded-step guarantee
+  // is void. One warn names it instead of a silent teleport hunt.
+  let expectedTime = tl.time();
   const stop = () => {
     if (running) {
       running = false;
@@ -311,16 +316,30 @@ function startEpisodeDriver(ep: Episode): void {
       return;
     }
     const now = performance.now();
-    const dt = Math.min(Math.max(0, now - last), MAX_STEP_MS) / 1000;
-    last = now;
-    if (dt <= 0) {
+    const rawDt = now - last;
+    // COALESCE back-to-back ticks: the interval and a rAF routinely land
+    // within a few ms of each other, and rendering both doubles the visual
+    // step inside one painted frame (measured: 2 × 28 ms of peak-speed
+    // motion read as one ~270 px jump on a starved run) — besides being
+    // wasted work. One step per ~frame is the contract.
+    if (rawDt < 12) {
       return;
     }
+    const dt = Math.min(rawDt, MAX_STEP_MS) / 1000;
+    last = now;
     const dur = Math.max(0.001, tl.duration());
     const rev = tl.reversed();
-    const next = rev ? tl.time() - dt : tl.time() + dt;
+    const cur = tl.time();
+    if (Math.abs(cur - expectedTime) > 0.012) {
+      console.warn(`[hand-reveal] foreign clock moved tl by ${Math.round((cur - expectedTime) * 1000)}ms (paused=${String(tl.paused())})`);
+    }
+    const next = rev ? cur - dt : cur + dt;
     if (rev ? next <= 0 : next >= dur) {
       stop();
+      if (Math.abs((rev ? 0 : dur) - cur) > (MAX_STEP_MS + 2) / 1000) {
+        console.warn(`[hand-reveal] driver boundary jump ${Math.round(Math.abs((rev ? 0 : dur) - cur) * 1000)}ms`);
+      }
+      expectedTime = rev ? 0 : dur;
       tl.time(rev ? 0 : dur, false);
       // time() fires the boundary callback itself when the playhead CROSSES
       // it; when it was already AT the boundary (a build-window reverse from
@@ -330,7 +349,20 @@ function startEpisodeDriver(ep: Episode): void {
       cb?.();
       return;
     }
+    expectedTime = next;
+    // RENDER-STEP WITNESS (dev diagnostic): one driver render may move a
+    // card at most one bounded step of the flow's fastest leg — ~16 px per
+    // clock-ms at the close's power2.in end phase, times the UI scale
+    // (4K doubles every distance). Anything past that is a broken bound.
+    const witness = ep.els[ep.els.length - 1];
+    const wx = witness === undefined ? 0 : Number(gsap.getProperty(witness, 'x'));
     tl.time(next, false);
+    if (witness !== undefined) {
+      const moved = Math.abs(Number(gsap.getProperty(witness, 'x')) - wx);
+      if (moved > 16 * MAX_STEP_MS * conUiScale()) {
+        console.warn(`[hand-reveal] driver render moved witness ${Math.round(moved)}px in one ${Math.round(dt * 1000)}ms step (t=${next.toFixed(3)})`);
+      }
+    }
   };
   const loop = () => {
     if (!running) {
@@ -497,10 +529,12 @@ function teardown(instant: boolean): void {
     handoffFade = fade;
     // HARD BACKSTOP on a WALL-CLOCK timer: GSAP ticks on rAF, and a quiet
     // headless/backgrounded compositor can stop delivering frames the moment
-    // the screen goes still — which is exactly when this fade runs. Without
-    // it the (already invisible) proxy nodes linger on the layer forever.
-    // Same epoch guard, so a normal completion makes this a no-op.
-    window.setTimeout(settle, motionMs(HANDOFF_MS) + 700);
+    // the screen goes still — which is exactly when this fade runs (the
+    // episode's own driver is gone by now, so nothing else wakes it).
+    // Without it the (already invisible) proxy corpses linger on the layer;
+    // kept TIGHT — a long linger reads as «hidden back with no live proxy»
+    // to the identity probes. Same epoch guard: a normal completion no-ops.
+    window.setTimeout(settle, motionMs(HANDOFF_MS) + 300);
   }
   episode = undefined;
 }
@@ -782,6 +816,9 @@ function magnetToBerth(el: HTMLElement, name: string, natH: number, budgetMs: nu
       // teleport this flow forbids. The conclusion's own backstop is sized
       // above this wall.
       if (now - t0 > budgetMs * 4) {
+        if (dist > 24) {
+          console.warn(`[hand-reveal] magnet wall snap ${name} ${Math.round(dist)}px`);
+        }
         gsap.set(el, pose);
         finish();
         return;
@@ -821,6 +858,15 @@ function beginLanding(ep: Episode, el: HTMLElement, name: string, alive: () => b
   }
   if (ep.landings.has(name)) {
     return;
+  }
+  {
+    const pose = berthPoseFor(name, CARD_NATURAL_W, proxyNatH(el));
+    if (pose !== undefined) {
+      const far = Math.hypot(pose.x - Number(gsap.getProperty(el, 'x')), pose.y - Number(gsap.getProperty(el, 'y')));
+      if (far > 220 * conUiScale()) {
+        console.warn(`[hand-reveal] magnet far start ${name} ${Math.round(far)}px`);
+      }
+    }
   }
   const rec: {p: Promise<void>, fade?: gsap.core.Tween} = {p: Promise.resolve()};
   rec.p = magnetToBerth(el, name, proxyNatH(el), motionMs(520), alive).then(() => {
@@ -872,7 +918,12 @@ function concludeGatherOntoDock(ep: Episode, instant: boolean): void {
   // Wall-clock backstop ABOVE the magnets' own hard wall (×4 of their
   // budget) + the handoff fade: concluding earlier fades still-airborne
   // cards mid-air, which is a vanish by another name.
-  window.setTimeout(conclude, motionMs(520) * 4 + 900);
+  window.setTimeout(() => {
+    if (!done) {
+      console.warn('[hand-reveal] gather conclude backstop fired');
+    }
+    conclude();
+  }, motionMs(520) * 4 + 900);
   void nextTick().then(() => {
     if (done || episode !== ep) {
       conclude();
@@ -1254,6 +1305,7 @@ function installEpisode(kind: Episode['kind'], tl: gsap.core.Timeline, els: Arra
       cur.safety = window.setTimeout(safetyCheck, Math.max(400, budgetMs / 2));
       return;
     }
+    console.warn(`[hand-reveal] safety snap kind=${kind} progress=${p.toFixed(2)} moving=${String(moving)}`);
     finishInstant();
   };
   const safety = window.setTimeout(safetyCheck, budgetMs);

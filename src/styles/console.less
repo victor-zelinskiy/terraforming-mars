@@ -3541,6 +3541,11 @@ each(@players, {
     --cr-rgap: .4rem;       /* gap between rows / aux cells */
     --cr-panel-gap: .6rem;  /* .con-res flex gap (score cap → rows → tags) */
     --cr-score-h: 2.6rem;   /* the TR/VP score cap's FIXED height (aux offset math) */
+    /* Value-badge tokens (the .con-valbadge information layer): the MC coin
+       on the resource rows + aux chips. Sized against --cr-icon so the coin
+       reads as pinned to the icon's corner, never as a second icon. */
+    --valbadge-size: .92rem;
+    --valbadge-fs: .58rem;
 
     position: relative;   /* the absolute aux column anchors to this box */
     flex-shrink: 0;       /* keep the rail's footprint — the board never reflows */
@@ -3646,6 +3651,15 @@ each(@players, {
        the delta-chip anchor — the stockwrap's right corner — stays put on
        the shared axis whatever the digit count). */
     &__stockwrap { justify-self: end; }
+    /* The badge anchor: takes the icon's grid slot (same --cr-icon square,
+       so the icon-column probes and the row grid see identical geometry) and
+       hosts the absolute corner coin. */
+    &__iconwrap {
+        position: relative;
+        display: inline-block;
+        width: var(--cr-icon);
+        height: var(--cr-icon);
+    }
     &__icon {
         display: inline-block;
         width: var(--cr-icon);
@@ -3655,6 +3669,13 @@ each(@players, {
         background-position: center;
         background-size: contain !important;
         filter: drop-shadow(0 .1rem .25rem rgba(0, 0, 0, 0.5));
+    }
+    /* MC-value coin on a resource row — pinned into the icon's lower-right
+       corner; protrudes into the row's own column gap, never over the value.
+       Offsets scale WITH the badge so every profile keeps the same overlap. */
+    &__mcbadge {
+        right: calc(var(--valbadge-size, .92rem) * -.34);
+        bottom: calc(var(--valbadge-size, .92rem) * -.18);
     }
     &__value {
         font-size: 1.25rem;
@@ -3702,6 +3723,10 @@ each(@players, {
 .con-tagmx {
     --ct-icon: 2.1rem;    /* medallion box — the PNG's own ring lands flush */
     --ct-num: 1rem;       /* count typography */
+    /* VP-badge tokens (the .con-valbadge information layer, vp variant):
+       the award shield pinned to a scoring tag's medallion. */
+    --valbadge-size: 1rem;
+    --valbadge-fs: .56rem;
     --ct-gap-y: .35rem;   /* row rhythm */
     --ct-gap-x: .2rem;
 
@@ -3783,6 +3808,27 @@ each(@players, {
         border-radius: .35rem;
         background: rgba(10, 18, 28, 0.35);
         box-shadow: inset 0 .05rem .2rem rgba(0, 0, 0, 0.35);
+    }
+
+    /* The medalwrap takes over the medallion's role in the cell's vertical
+       fit (same flex / min-height, column, centred) purely so the VP shield
+       can pin to the medallion's own corner and track it when short
+       viewports compress the matrix — the medal's own sizing rules apply
+       unchanged one level down. */
+    &__medalwrap {
+        position: relative;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        flex: 0 1 auto;
+        min-height: 0;
+    }
+    /* VP-coefficient shield on a scoring tag — upper-right of the medallion
+       (the count line below stays untouched). Full strength even on a zero
+       cell: «worth collecting» is exactly the message. */
+    &__vp {
+        top: calc(var(--valbadge-size, 1rem) * -.14);
+        right: calc(var(--valbadge-size, 1rem) * -.32);
     }
 
     /* The medallion (Tag.vue root = legacy px .tag-count) re-seated in rem:
@@ -4070,6 +4116,14 @@ each(@players, {
         background: rgba(12, 19, 29, 0.9);
         box-shadow: inset 0 0 0 .05rem fade(@con-cyan, 30%), 0 .2rem .8rem rgba(0, 0, 0, 0.5);
     }
+    /* Badge anchor — the icon's own box, so the coin pins to its corner. */
+    &__iconwrap {
+        position: relative;
+        display: inline-block;
+        flex-shrink: 0;
+        width: var(--cr-icon);
+        height: var(--cr-icon);
+    }
     &__icon {
         display: inline-block;
         width: var(--cr-icon);
@@ -4080,6 +4134,10 @@ each(@players, {
         background-size: contain !important;
         filter: drop-shadow(0 .1rem .2rem rgba(0, 0, 0, 0.6));
     }
+    &__mcbadge {
+        right: calc(var(--valbadge-size, .92rem) * -.3);
+        bottom: calc(var(--valbadge-size, .92rem) * -.15);
+    }
     &__value {
         font-size: 1.05rem;
         font-weight: 700;
@@ -4089,6 +4147,98 @@ each(@players, {
         text-align: right;
         color: @con-text;
     }
+}
+
+/* ── VALUE BADGES — the rail's passive information layer ─────────────
+   ONE chassis (ConsoleValueBadge.vue), two variants that differ in SHAPE
+   and MATERIAL, never colour alone:
+    · --mc  the game's own megacredit tile with the rate engraved — «one
+            unit of this resource replaces N M€» (resource rows + aux chips);
+            a dual-rate text (LTF's «3/2») grows the tile into a gold pill;
+    · --vp  the console's award-shield silhouette (ConsoleVpBadge family)
+            with the tag's current scoring coefficient («1» · «½» · «2⁄2»).
+   Hosts pin it into the icon's corner (absolute; zero layout, zero input).
+   Paint-baseline safe: depth is box-shadow, motion is transform only. */
+.con-valbadge {
+    position: absolute;
+    z-index: 2;               /* over the icon art; the layer is decoration-free */
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    box-sizing: border-box;
+    pointer-events: none;     /* passive — never eats a click meant for the row */
+    line-height: 1;
+    font-variant-numeric: tabular-nums;
+
+    &__text {
+        position: relative;   /* above the shield svg */
+        font-weight: 700;
+        letter-spacing: .01rem;
+    }
+    &__shield {
+        position: absolute;
+        inset: 0;
+        width: 100%;
+        height: 100%;
+    }
+
+    &--mc {
+        width: var(--valbadge-size, .92rem);
+        height: var(--valbadge-size, .92rem);
+        border-radius: .22rem;
+        background: url('./assets/resources/megacredit.png') center / 100% 100% no-repeat;
+        /* The dark seat ring + contact shadow — the coin reads as SET INTO
+           the icon (the pcard cost-badge seat, one register smaller). */
+        box-shadow:
+            0 0 0 .06rem rgba(22, 14, 4, 0.92),
+            0 .1rem .22rem rgba(0, 0, 0, 0.55);
+
+        .con-valbadge__text {
+            color: #2c1d06;
+            font-size: var(--valbadge-fs, .58rem);
+        }
+    }
+    /* Dual-rate form («3/2» — LTF titanium; a shared-icon chip with two
+       tender rates): the square tile cannot hold three glyphs, so the coin
+       grows into a PILL of the same gold family. Height never changes, so
+       the pin geometry (and the row) stay put. */
+    &--mc&--wide {
+        width: auto;
+        min-width: var(--valbadge-size, .92rem);
+        padding: 0 .16rem;
+        border-radius: .3rem;
+        background: linear-gradient(180deg, #f2d795, #cf9f45 55%, #a87a2c);
+        .con-valbadge__text {
+            font-size: calc(var(--valbadge-fs, .58rem) * .94);
+        }
+    }
+
+    &--vp {
+        width: var(--valbadge-size, 1rem);
+        /* the shield's own 40:44 ratio */
+        height: calc(var(--valbadge-size, 1rem) * 1.1);
+
+        .con-valbadge__text {
+            color: #f2e7cd;
+            font-size: var(--valbadge-fs, .56rem);
+            /* the optical centre of the shield core sits above the middle
+               (the point hangs below) */
+            transform: translateY(-14%);
+        }
+    }
+    &--vp&--wide .con-valbadge__text {
+        font-size: calc(var(--valbadge-fs, .56rem) * .84);
+    }
+
+    /* Value-change acknowledgement — one-shot, compositor-only. */
+    &--pulse {
+        animation: con-valbadge-pulse calc(420ms * var(--motion-scale, 1)) cubic-bezier(0.2, 0.9, 0.3, 1.2) both;
+    }
+}
+@keyframes con-valbadge-pulse {
+    0% { transform: scale(1); }
+    38% { transform: scale(1.26); }
+    100% { transform: scale(1); }
 }
 
 /* ── The inspector (ONE stable detail surface) ───────────────────── */
@@ -27730,6 +27880,11 @@ html.con-profile-handheld {
         --cr-rgap: .25rem;
         --cr-panel-gap: .4rem;
         --cr-score-h: 1.95rem;
+        /* Value badges keep a LARGER share of the shrunken icon (the digit
+           must clear the handheld readability floor — same register as the
+           .6rem production chips), so they overlap the corner deeper. */
+        --valbadge-size: .78rem;
+        --valbadge-fs: .55rem;
     }
     /* (width rides --con-rail-w — set in the root-chrome block above.) */
     .con-res {
@@ -27752,6 +27907,8 @@ html.con-profile-handheld {
         /* MarsBot track rows compact with the Deck rail. */
         --ct-track-icon: 1.05rem;
         --ct-track-gap: .2rem;
+        --valbadge-size: .82rem;
+        --valbadge-fs: .52rem;
         padding-top: .4rem;
 
         &__head { margin-bottom: .35rem; }

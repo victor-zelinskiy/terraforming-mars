@@ -719,5 +719,20 @@
     "Attack target": "Цель атаки",
     "Skip scoring": "Пропустить подсчёт",
     "Game overview": "Обзор партии",
-    "Shared victory": "Совместная победа"
+    "Shared victory": "Совместная победа",
+    "${0}: 1 unit pays ${1} M€ ${2}": "${0}: 1 ед. оплачивает ${1} M€ ${2}",
+    "for cards with a building tag": "за карты с меткой «Здание»",
+    "for cards with a space tag": "за карты с меткой «Космос»",
+    "for any other card": "за любые прочие карты",
+    "for any card": "за любые карты",
+    "for cards with a plant tag": "за карты с меткой «Растение»",
+    "for cards with a plant tag or the greenery standard project": "за карты с меткой «Растение» и стандартный проект «Озеленение»",
+    "for cards with a Venus tag": "за карты с меткой «Венера»",
+    "for cards with a Moon tag": "за карты с меткой «Луна»",
+    "for cards with a city or space tag": "за карты с меткой «Город» или «Космос»",
+    "for standard projects": "за стандартные проекты",
+    "for the aquifer and asteroid standard projects": "за стандартные проекты «Аквифер» и «Астероид»",
+    "Spendable from this stock: ${0} of ${1}": "Платёжная часть запаса: ${0} из ${1}",
+    "Converted into VP by played cards, current rate: ${0}": "Метка конвертируется в ПО сыгранными картами, текущий коэффициент: ${0}",
+    "Sources: ${0}": "Источники: ${0}"
 }

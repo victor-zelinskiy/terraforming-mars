@@ -193,12 +193,17 @@ parked with the far-right page packets (`packetExtras` prop → the section's
   anchors beyond the stage edge (earlier pages LEFT, later + filtered-out
   RIGHT), converging with a micro-stagger so the flight reads as a packet
   assembling.
-- A packet-bound proxy carries a **side clip** (`RevealClip.left/right`) —
-  it WIPES behind the stage edge instead of sliding whole over the HUD
-  beside the album, then dissolves late (`flight·0.72`). On close, packets
-  spawn wiped + transparent at their anchors and emerge through the edge on
-  the way home (the close branch releases clip AND fades in — two `if`s, not
-  `else if`). `boundedPairs` still samples the off-page tail to 8 proxies.
+- A packet-bound proxy is erased by **THE STAGE WINDOW** — one static
+  `clip-path` on the whole reveal layer (`handRevealState.stageClip`, the
+  album's x-range, armed in the same flush as the flights and cleared at
+  the teardown's settle). The card flies whole and opaque; the boundary
+  clips exactly the part of it that is past the edge, both directions,
+  magnets and reversals included — zero per-frame clip writes (the old
+  per-proxy `edgeClipUpdater` invalidated paint on 11 cards every frame at
+  the exact moment the transition's own mount work saturated the thread).
+  `RevealClip.left/right` on packet pairs remains only as the DEGRADE
+  signal for a stage-less caller (legacy alpha wipe). `boundedPairs` keeps
+  every card's body (hard max 60 — a runaway guard, not a sampling cap).
 - The FILTER episode is a RE-PAGINATION, not a dock trip: leavers gather
   into the right-edge packet (`section.packetHomeRects` feeds the episode's
   `dock` map — the name is historical), enterers glide out of it, survivors
@@ -209,14 +214,61 @@ parked with the far-right page packets (`packetExtras` prop → the section's
 - `restoreScroll` / `ensureSelectedVisible` are kept as no-ops (the director
   hook shape + the filter measure path call them); `scrollTop` is always 0.
 
+## THE EPISODE CLOCK (iteration 8 — the continuity rework)
+
+The dock ⇄ album transition used to teleport under load («плотный веер за
+один кадр превращается в страницу», the 15-card «Крупные карты» report):
+`tl.play(0)` started the wall-clock in the same task as the proxy spawn,
+the very next frames were consumed by the transition's own heaviest DOM
+work (hand-section mount/unmount, the board's return patch, 15 proxy
+mounts), and GSAP's ticker then advanced the timeline by the WHOLE missed
+stretch on each rare tick — the convoy's launch (open) and the packets'
+entire re-entry (close: they depart FIRST by rank) played out between two
+painted frames. Four rules now hold, all in `handRevealDirector.ts`:
+
+- **IGNITION IS PAINT-GATED**: the built timeline arms only after the spawn
+  flush has painted (`settledPaint` — double-rAF with a wall-clock backstop
+  for starved compositors). The pack answering the press instantly is the
+  dock accent's job, not the flight's. `building` covers the gate; a B
+  inside it rides `pendingReverse`; a reset mid-build is detected by
+  `buildSeq` (never install a dead episode over fresh state).
+- **THE TIMELINE NEVER RIDES GSAP'S TICKER**: it stays paused for life and
+  the episode's own driver steps `tl.time()` — rAF where frames flow, a
+  40 ms interval co-driver where they do not (the magnetToBerth
+  discipline), back-to-back ticks coalesced (≥12 ms apart), every step's
+  dt bounded by `MAX_STEP_MS` (28 ms ≈ one honest fast frame at the
+  flight's peak speed, ~120 px). A stall slides the flight later in time
+  instead of skipping it through space. The driver dies with the episode —
+  zero standing cost while the hand is docked.
+- **THE SAFETY IS PROGRESS-AWARE**: the bounded clock legitimately runs
+  slower than wall time under load, so the watchdog re-checks a MOVING
+  playhead (hard cap ~3.5× budget) and snaps only a genuinely stopped one.
+- **THE FINAL APPROACH IS THE LANDING** (close): the 72 % corrective tween
+  is gone — it rode the starved global ticker and caught up in ~300 px
+  bursts. `beginLanding` fires at 72 % instead; the magnet re-reads the
+  live berth every tick, its per-tick displacement is absolutely capped
+  (110 logical px), its convergence tightens as its budget runs out
+  (τ 70→24 ms), and the hard wall sits at ×4 where the cap has already
+  delivered the card within a hop of its berth. `[hand-reveal]` warns mark
+  every degrade path (driver boundary jump, magnet far start / wall snap,
+  safety snap, conclude backstop) — a silent one is a bug.
+
+Guard: `tests/e2e/hand-album-continuity.spec.ts` — per-card body tracking
+across dock back / proxy / slot with stage-edge exemptions: no vanish or
+pop deep inside the stage, no proxy hop faster than any tween in the flow
+(matrix: 3/9/15/20 cards, page turns incl. a fast LB/RB burst, close from
+first/middle/last page, reopen, mouse open, tv-4K and handheld profiles).
+
 ## What did NOT change
 
-The episode machinery (one reversible GSAP timeline, B mid-open reverses,
-`finishInstant` on resize/safety, the no-dip handoff «slots snap under
-proxies, proxies fade above»), the mode props (sale / select / discard skin /
-pick bridge / embedded-in-start), the descend stage + outcome zones and their
-teleport-slot watchers, the verdict bar, `con-deal-hold` for the staged card,
-art preload at arm time, `revealVisualFor` (the state flies with the card).
+The episode machinery shape (one reversible timeline per episode, B
+mid-open reverses from current progress, `finishInstant` on resize, the
+no-dip handoff «slots snap under proxies, proxies fade above», per-card
+gather landings + un-land on reverse), the mode props (sale / select /
+discard skin / pick bridge / embedded-in-start), the descend stage +
+outcome zones and their teleport-slot watchers, the verdict bar,
+`con-deal-hold` for the staged card, art preload at arm time,
+`revealVisualFor` (the state flies with the card).
 
 ## Traps already paid for
 
