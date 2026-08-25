@@ -181,25 +181,48 @@ function spreadMs(count: number): number {
 }
 
 /**
- * Off-window proxies a single episode may fly. The scroll tail fades at the
- * grid boundary anyway (back-only flyers), and the dock pack's backs are
- * heavily overlapped — a handful of sampled flyers reads exactly like the
- * whole tail while a 30-proxy tail costs real compositor layers on a TV.
- * Visible cards ALWAYS fly 1:1.
+ * EVERY CARD HAS A BODY — the old OFFSCREEN_PROXY_CAP (sample the off-window
+ * tail down to 8) was built for the 5×2 album where the tail is a few cards
+ * hidden under the pack's overlap. Under «Крупные карты» (4 per page) the
+ * tail IS the hand: 11 of 15 cards got sampled/dropped, so a chunk of the
+ * pack vanished in ONE FRAME at the open and popped from nowhere at the
+ * close materialization (the reported «из воздуха»). A pathological bound
+ * remains purely as a runaway guard — far above any real hand.
  */
-const OFFSCREEN_PROXY_CAP = 8;
+const OFFSCREEN_PROXY_HARD_MAX = 60;
 
-/** Sample the off-window tail down to the cap (even stride, order kept). */
 function boundedPairs(pairs: ReadonlyArray<RevealPair>): ReadonlyArray<RevealPair> {
   const off = pairs.filter((p) => !p.visible);
-  if (off.length <= OFFSCREEN_PROXY_CAP) {
+  if (off.length <= OFFSCREEN_PROXY_HARD_MAX) {
     return pairs;
   }
   const keep = new Set<RevealPair>();
-  for (let k = 0; k < OFFSCREEN_PROXY_CAP; k++) {
-    keep.add(off[Math.floor((k * off.length) / OFFSCREEN_PROXY_CAP)]);
+  for (let k = 0; k < OFFSCREEN_PROXY_HARD_MAX; k++) {
+    keep.add(off[Math.floor((k * off.length) / OFFSCREEN_PROXY_HARD_MAX)]);
   }
   return pairs.filter((p) => p.visible || keep.has(p));
+}
+
+/** The album stage's x-range — the physical boundary packet flights cross. */
+export type StageBounds = {left: number, right: number};
+
+/**
+ * PACKET PHYSICS: a card bound for (or coming from) a page packet is erased
+ * by THE STAGE EDGE ITSELF, exactly as much as its body is past it — the
+ * clip follows the proxy's live position every frame, so what the player
+ * sees is a card sliding behind (or out from) a real boundary. The previous
+ * language — an alpha fade at 72% of the flight plus a time-based clip wipe
+ * — erased cards in mid-air («карты растворяются в воздухе»).
+ */
+function edgeClipUpdater(el: HTMLElement, side: 'left' | 'right', stage: StageBounds): () => void {
+  return () => {
+    const x = Number(gsap.getProperty(el, 'x'));
+    const sc = Math.max(0.01, Number(gsap.getProperty(el, 'scale')));
+    const w = CARD_NATURAL_W * sc;
+    const l = side === 'left' ? Math.max(0, (stage.left - x) / sc) : 0;
+    const r = side === 'right' ? Math.max(0, (x + w - stage.right) / sc) : 0;
+    el.style.clipPath = `inset(0px ${r.toFixed(2)}px 0px ${l.toFixed(2)}px)`;
+  };
 }
 
 /**
@@ -353,7 +376,7 @@ function teardown(instant: boolean): void {
  * The shell has ALREADY set section='hand' (slots render held via
  * `holdSlots`) and measured both ends; this builds + plays the episode.
  */
-export async function runHandOpenEpisode(allPairs: ReadonlyArray<RevealPair>): Promise<void> {
+export async function runHandOpenEpisode(allPairs: ReadonlyArray<RevealPair>, stage?: StageBounds): Promise<void> {
   if (allPairs.length === 0 || consoleReducedMotionActive()) {
     handRevealState.phase = 'open';
     handRevealState.holdSlots = false;
@@ -407,7 +430,17 @@ export async function runHandOpenEpisode(allPairs: ReadonlyArray<RevealPair>): P
     // and ease — three separate tweens per card were pure overhead) — a
     // calm, rising, opening gesture ending at the slot's real size. The
     // card STRAIGHTENS out of its fan tilt in the same gesture.
-    tl.to(el, {x: p.target.left, y: p.target.top, scale: scaleTo, rotation: 0, duration: flight, ease: 'power2.inOut'}, at);
+    const fan: gsap.TweenVars = {x: p.target.left, y: p.target.top, scale: scaleTo, rotation: 0, duration: flight, ease: 'power2.inOut'};
+    if (!p.visible && p.clip !== undefined && stage !== undefined) {
+      // PACKET PHYSICS: the stage edge itself erases the card as it slides
+      // past — the clip tracks the live position every frame. No alpha, no
+      // time-based wipe: the card leaves THROUGH the boundary, like a card
+      // slid into a sleeve, and at flight end it is fully behind it.
+      const upd = edgeClipUpdater(el, p.clip.left !== undefined ? 'left' : 'right', stage);
+      upd();
+      fan.onUpdate = upd;
+    }
+    tl.to(el, fan, at);
     if (p.visible) {
       const flip = el.querySelector<HTMLElement>('.con-deal-proxy__flip');
       if (flip !== null) {
@@ -423,12 +456,9 @@ export async function runHandOpenEpisode(allPairs: ReadonlyArray<RevealPair>): P
         gsap.set(el, {clipPath: 'inset(0px 0px 0px 0px)'});
         tl.to(el, {clipPath: clipInset(p.clip, p.target.width), duration: flight * 0.3, ease: 'power1.inOut'}, at + flight * 0.7);
       }
-    } else {
-      // A PAGE-PACKET flight (the album's parked pages / out-of-view
-      // universe): the card visibly reaches the stage edge, WIPES behind it
-      // (the side clip) and lets go — late enough that the departure toward
-      // the packet reads, never a card dissolving over the middle of the
-      // stage (or crossing the HUD beside the album whole).
+    } else if (stage === undefined) {
+      // No stage bounds from the caller — the legacy time-based wipe (kept
+      // only as a degrade path; every album caller threads the bounds).
       if (p.clip !== undefined) {
         gsap.set(el, {clipPath: 'inset(0px 0px 0px 0px)'});
         tl.to(el, {clipPath: clipInset(p.clip, p.target.width), duration: flight * 0.34, ease: 'power1.in'}, at + flight * 0.62);
@@ -668,7 +698,7 @@ function concludeGatherOntoDock(ep: Episode, instant: boolean): void {
 
 /* ── CLOSE: overlay slots → dock pack ───────────────────────────────── */
 
-export async function runHandCloseEpisode(allPairs: ReadonlyArray<RevealPair>, scrollTop: number): Promise<void> {
+export async function runHandCloseEpisode(allPairs: ReadonlyArray<RevealPair>, scrollTop: number, stage?: StageBounds): Promise<void> {
   if (allPairs.length === 0 || consoleReducedMotionActive()) {
     handRevealState.phase = 'docked';
     handRevealState.holdSlots = false;
@@ -699,15 +729,25 @@ export async function runHandCloseEpisode(allPairs: ReadonlyArray<RevealPair>, s
     // Outer cards start first; the centre card caps the pack last.
     const at = s(spread) * (1 - ranks[i]);
     const flight = s(CLOSE_FLIGHT_MS);
-    if (!p.visible) {
-      // A page PACKET re-enters through the album's edge on its way home.
-      tl.to(el, {autoAlpha: 1, duration: flight * 0.3, ease: 'power1.out'}, at);
-    }
-    if (p.clip !== undefined) {
-      // Spawned pre-clipped (a boundary slot / a packet wiped behind the
-      // stage edge) — the clip releases as the card lifts away from it
-      // (the exact reverse of the landing clip / packet wipe).
-      tl.to(el, {clipPath: 'inset(0px 0px 0px 0px)', duration: flight * 0.3, ease: 'power1.out'}, at);
+    let packetUpd: (() => void) | undefined;
+    if (!p.visible && p.clip !== undefined && stage !== undefined) {
+      // PACKET PHYSICS (the return leg): the card starts parked BEYOND the
+      // stage edge and slides IN through it — the edge clip follows the
+      // live position, so the card physically emerges from the boundary
+      // (never an alpha fade-in / a mid-air unclip «из воздуха»).
+      packetUpd = edgeClipUpdater(el, p.clip.left !== undefined ? 'left' : 'right', stage);
+      gsap.set(el, {autoAlpha: 1});
+      packetUpd();
+    } else {
+      if (!p.visible) {
+        // Degrade path (no stage bounds): the legacy fade re-entry.
+        tl.to(el, {autoAlpha: 1, duration: flight * 0.3, ease: 'power1.out'}, at);
+      }
+      if (p.clip !== undefined) {
+        // Spawned pre-clipped (a boundary slot) — the clip releases as the
+        // card lifts away from it (the reverse of the landing clip).
+        tl.to(el, {clipPath: 'inset(0px 0px 0px 0px)', duration: flight * 0.3, ease: 'power1.out'}, at);
+      }
     }
     // THE DOCK BERTH IS PROVISIONAL — the pack's POSE is routinely still
     // settling when the gather is measured (compact → full rides the pack's
@@ -719,7 +759,16 @@ export async function runHandCloseEpisode(allPairs: ReadonlyArray<RevealPair>, s
     // spread + 0.72·flight > the pose transition) and lands the final leg on
     // the REAL berth — the startDockMotion retarget discipline, applied to
     // the gather.
-    tl.to(el, {x: p.source.left, y: p.source.top, scale: scaleTo, duration: flight * 0.72, ease: 'power2.in'}, at);
+    tl.to(el, {
+      x: p.source.left, y: p.source.top, scale: scaleTo,
+      duration: flight * 0.72, ease: 'power2.in',
+      onUpdate: packetUpd,
+      // Inside the stage for good: the clip must not linger at a stale
+      // sub-pixel inset through the corrective/magnet legs.
+      onComplete: packetUpd === undefined ? undefined : () => {
+        el.style.clipPath = 'inset(0px 0px 0px 0px)';
+      },
+    }, at);
     tl.call(() => {
       // A reversed gather (reopen mid-close) owns the proxies again — the
       // corrective leg must not fight the reversing timeline. (Teardown's

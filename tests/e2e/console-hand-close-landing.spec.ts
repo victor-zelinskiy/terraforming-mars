@@ -143,3 +143,160 @@ test.describe('hand close landing · full-pose pixel-true handoff', () => {
     expect(bad.length, `a card materialized off its proxy (the miniature-pose snap):\n  ${story}`).toBe(0);
   });
 });
+
+/**
+ * THE ALBUM'S PACKET PHYSICS («Крупные карты», a big hand). With 4 cards per
+ * page most of the hand lives as page PACKETS beyond the stage edges, and
+ * this scenario is where the old episode fell apart: the off-window tail was
+ * SAMPLED down to 8 proxies (cards vanished in one frame at the open) and
+ * the rest alpha-dissolved mid-air toward off-screen anchors — then popped
+ * from nowhere at the close materialization. Three detectors:
+ *  · ACCOUNTING — the first flight frame carries ONE BODY PER CARD;
+ *  · NO GHOSTS — no proxy is mid-fade while inside the album stage;
+ *  · NO «ИЗ ВОЗДУХА» — a dock back may only materialize where its proxy
+ *    was seen moments before.
+ */
+test.describe('hand album packet physics · large layout, big hand', () => {
+  test.use({viewport: {width: 1920, height: 1080}, deviceScaleFactor: 1});
+
+  test('every card keeps a body through open and close (no vanish, no ghosts)', async ({page, request}) => {
+    test.setTimeout(420_000);
+    await page.addInitScript(() => {
+      try {
+        window.localStorage.setItem('tm_console_album', 'large');
+      } catch {
+        /* storage unavailable — the adaptive layout still exercises packets */
+      }
+    });
+    await bootIntoGame(page, request, {
+      buy: 10, // a packet-dominated hand: 4 visible, the rest parked as packets
+      config: soloGameConfig({
+        players: [{name: 'PacketPhysics', color: 'red', beginner: false, handicap: 0, first: true}],
+        seed: 0.41,
+      }),
+    });
+    await waitForTurn(page);
+    await page.waitForTimeout(2500);
+
+    await page.evaluate(() => {
+      type St = {
+        timer: number, samples: number, universe: number, firstProxies: number,
+        ghosts: Array<string>, airborn: Array<string>, overlays: number, worst: number,
+        lastSeen: Record<string, number>, backVis: Record<string, boolean>,
+        lastBox?: {left: number, right: number, top: number, bottom: number},
+      };
+      const w = window as unknown as {__pp?: St};
+      const st: St = {
+        timer: 0, samples: 0, universe: 0, firstProxies: 0,
+        ghosts: [], airborn: [], overlays: 0, worst: 0, lastSeen: {}, backVis: {},
+      };
+      const backs = () => Array.from(document.querySelectorAll<HTMLElement>('[data-hand-dock-card]'))
+        .filter((b) => {
+          const r = b.getBoundingClientRect();
+          const cs = getComputedStyle(b);
+          return r.width > 8 && cs.visibility !== 'hidden' && Number(cs.opacity) > 0.5;
+        });
+      st.universe = backs().length;
+      const scan = () => {
+        st.samples++;
+        const now = performance.now();
+        const proxies = Array.from(document.querySelectorAll<HTMLElement>('.con-handreveal-layer .con-deal-proxy[data-reveal-card]'));
+        const hand = document.querySelector<HTMLElement>('.con-hand');
+        if (hand !== null) {
+          const hb = hand.getBoundingClientRect();
+          if (hb.width > 100) {
+            st.lastBox = {left: hb.left, right: hb.right, top: hb.top, bottom: hb.bottom};
+          }
+        }
+        if (proxies.length > 0 && st.firstProxies === 0) {
+          st.firstProxies = proxies.length;
+        }
+        for (const proxy of proxies) {
+          const name = proxy.getAttribute('data-reveal-card') ?? '';
+          st.lastSeen[name] = now;
+          const op = Number(getComputedStyle(proxy).opacity);
+          const pr = proxy.getBoundingClientRect();
+          // GHOST: a half-transparent card with NO visible twin underneath —
+          // a card genuinely dissolving into a hole. The no-dip teardown fade
+          // (proxy fading ON TOP of its already-visible back/slot) is legit.
+          const box = st.lastBox;
+          if (op > 0.05 && op < 0.92 && box !== undefined && pr.width > 8 &&
+              pr.right > box.left && pr.left < box.right && pr.bottom > box.top && pr.top < box.bottom - 40) {
+            const twinBack = document.querySelector<HTMLElement>('[data-hand-dock-card="' + CSS.escape(name) + '"]');
+            const twinSlot = document.querySelector<HTMLElement>('[data-zoom-slot="' + CSS.escape(name) + '"]');
+            const visibleTwin = [twinBack, twinSlot].some((t) => {
+              if (t === null) {
+                return false;
+              }
+              const cs = getComputedStyle(t);
+              return t.getBoundingClientRect().width > 8 && cs.visibility !== 'hidden' && Number(cs.opacity) > 0.5;
+            });
+            if (!visibleTwin && st.ghosts.length < 8) {
+              st.ghosts.push(name + '@op=' + op.toFixed(2));
+            }
+          }
+          // The overlay witness (proxy vs its materialized back).
+          const back = document.querySelector<HTMLElement>('[data-hand-dock-card="' + CSS.escape(name) + '"]');
+          if (back !== null) {
+            const bs = getComputedStyle(back);
+            if (bs.visibility !== 'hidden' && Number(bs.opacity) > 0.5) {
+              const br = back.getBoundingClientRect();
+              if (br.width > 8 && pr.width > 8) {
+                st.overlays++;
+                const dx = (pr.left + pr.width / 2) - (br.left + br.width / 2);
+                const dy = (pr.top + pr.height / 2) - (br.top + br.height / 2);
+                st.worst = Math.max(st.worst, Math.abs(dx), Math.abs(dy));
+              }
+            }
+          }
+        }
+        // «ИЗ ВОЗДУХА»: a back that turns visible with no proxy history.
+        const episodeLive = proxies.length > 0;
+        for (const b of Array.from(document.querySelectorAll<HTMLElement>('[data-hand-dock-card]'))) {
+          const name = b.getAttribute('data-hand-dock-card') ?? '';
+          const cs = getComputedStyle(b);
+          const vis = b.getBoundingClientRect().width > 8 && cs.visibility !== 'hidden' && Number(cs.opacity) > 0.5;
+          const was = st.backVis[name] === true;
+          if (vis && !was && episodeLive) {
+            const seen = st.lastSeen[name];
+            if (seen === undefined || now - seen > 450) {
+              if (st.airborn.length < 8) {
+                st.airborn.push(name + '@gap=' + (seen === undefined ? 'never' : String(Math.round(now - seen))));
+              }
+            }
+          }
+          st.backVis[name] = vis;
+        }
+      };
+      st.timer = window.setInterval(scan, 16) as unknown as number;
+      new MutationObserver(scan).observe(document.body, {childList: true, subtree: true, attributes: true});
+      w.__pp = st;
+      scan();
+    });
+
+    // Open → close, twice (the second run re-uses warmed poses/packets).
+    for (let i = 0; i < 2; i++) {
+      await press(page, 'Period', 700); // RT wheel
+      await press(page, 'Enter', 2600); // «КАРТЫ» — the open episode
+      await press(page, 'Escape', 2800); // B — the close gather
+      await page.waitForTimeout(700);
+    }
+
+    const pp = await page.evaluate(() => {
+      const w = window as unknown as {__pp: {timer: number, samples: number, universe: number, firstProxies: number, ghosts: Array<string>, airborn: Array<string>, overlays: number, worst: number}};
+      window.clearInterval(w.__pp.timer);
+      const {samples, universe, firstProxies, ghosts, airborn, overlays, worst} = w.__pp;
+      return {samples, universe, firstProxies, ghosts, airborn, overlays, worst: Math.round(worst * 100) / 100};
+    });
+    console.log('[packet-physics]', JSON.stringify(pp));
+    expect(pp.samples, 'the watch sampled the tours').toBeGreaterThan(200);
+    expect(pp.universe, 'a packet-dominated hand stood in the dock').toBeGreaterThanOrEqual(9);
+    // ONE BODY PER CARD from the first flight frame — the sampling cap's
+    // one-frame vanish is dead. (>= : dockExtraLift may add airborne extras.)
+    expect(pp.firstProxies, 'every card flies (universe=' + pp.universe + ')').toBeGreaterThanOrEqual(pp.universe);
+    expect(pp.ghosts, 'no card is mid-dissolve inside the stage').toEqual([]);
+    expect(pp.airborn, 'no dock back materializes without its proxy nearby').toEqual([]);
+    expect(pp.overlays, 'the materialization overlay was witnessed').toBeGreaterThan(0);
+    expect(pp.worst, 'landings stay pixel-true in the large layout too').toBeLessThanOrEqual(3);
+  });
+});

@@ -8454,7 +8454,7 @@ export default defineComponent({
           this.parkWorkspaceStack();
           return;
         }
-        const episode = runHandCloseEpisode(pairs, t.scrollTop);
+        const episode = runHandCloseEpisode(pairs, t.scrollTop, t.stage);
         this.parkWorkspaceStack();
         await episode;
       } finally {
@@ -9727,7 +9727,7 @@ export default defineComponent({
             pairs.push({name: p.name, source, target: p.rect, visible: p.visible, clip: p.clip, visual: this.revealVisualFor(p.name)});
           }
         }
-        await runHandOpenEpisode(pairs);
+        await runHandOpenEpisode(pairs, t.stage);
       } finally {
         releaseAccent();
       }
@@ -9777,7 +9777,7 @@ export default defineComponent({
             pairs.push({name: p.name, source, target: p.rect, visible: p.visible, clip: p.clip, visual: this.revealVisualFor(p.name)});
           }
         }
-        await runHandCloseEpisode(pairs, t.scrollTop);
+        await runHandCloseEpisode(pairs, t.scrollTop, t.stage);
       } finally {
         this.handClosePreparing = false;
         releaseAccent();
@@ -12787,7 +12787,7 @@ export default defineComponent({
             pairs.push({name: p.name, source, target: p.rect, visible: p.visible, clip: p.clip, visual: this.revealVisualFor(p.name)});
           }
         }
-        await runHandOpenEpisode(pairs);
+        await runHandOpenEpisode(pairs, t.stage);
       } finally {
         releaseAccent();
       }

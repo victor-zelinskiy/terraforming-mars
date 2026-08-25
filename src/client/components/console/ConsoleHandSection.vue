@@ -1240,12 +1240,16 @@ export default defineComponent({
      * One read batch; no writes; no clipping (a page never crosses the
      * viewport edge — partially visible rows are gone with the scroll).
      */
-    transitionTargets(): {pairs: Array<{name: CardName, rect: {left: number, top: number, width: number, height: number}, visible: boolean, clip?: {top: number, bottom: number, left?: number, right?: number}}>, scrollTop: number} {
+    transitionTargets(): {pairs: Array<{name: CardName, rect: {left: number, top: number, width: number, height: number}, visible: boolean, clip?: {top: number, bottom: number, left?: number, right?: number}}>, scrollTop: number, stage?: {left: number, right: number}} {
       const album = this.$refs.album as HTMLElement | undefined;
       if (album === undefined || (this.entries.length === 0 && this.packetExtras.length === 0)) {
         return {pairs: [], scrollTop: 0};
       }
       const box = album.getBoundingClientRect();
+      // The album's x-range — the PHYSICAL boundary packet flights cross.
+      // The director erases/reveals a packet-bound card exactly by this
+      // edge as it slides past (never an alpha fade in mid-air).
+      const stage = {left: box.left, right: box.left + box.width};
       const p = this.plan;
       const s = conUiScale();
       const active = this.activePage;
@@ -1296,7 +1300,7 @@ export default defineComponent({
       this.packetExtras.forEach((name, k) => {
         pairs.push({name: name as CardName, rect: packetOf('right', farDepth + 1, k % p.perPage), visible: false, clip: packetClip('right')});
       });
-      return {pairs, scrollTop: 0};
+      return {pairs, scrollTop: 0, stage};
     },
     /**
      * Packet flight anchors for a set of names (the filter episode's leaver
