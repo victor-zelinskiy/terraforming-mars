@@ -552,13 +552,10 @@ function magnetToBerth(el: HTMLElement, name: string, natH: number, budgetMs: nu
     let last: BerthPose | undefined;
     const t0 = performance.now();
     let prevT = t0;
-    let iv: number | undefined;
     const finish = () => {
       if (!done) {
         done = true;
-        if (iv !== undefined) {
-          window.clearInterval(iv);
-        }
+        window.clearInterval(iv);
         resolve();
       }
     };
@@ -603,7 +600,11 @@ function magnetToBerth(el: HTMLElement, name: string, natH: number, budgetMs: nu
       }
       requestAnimationFrame(step);
     };
-    iv = window.setInterval(step, 40);
+    // The interval CO-DRIVES the rAF loop (a quiet headless/backgrounded
+    // compositor stops delivering frames exactly when the pose settles).
+    // Declared after `step` on purpose: `finish` closes over it and can only
+    // ever run from a callback this line has already scheduled.
+    const iv = window.setInterval(step, 40);
     requestAnimationFrame(step);
   });
 }
