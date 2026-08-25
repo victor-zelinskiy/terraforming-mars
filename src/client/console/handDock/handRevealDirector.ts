@@ -401,6 +401,32 @@ function centreRank(pairs: ReadonlyArray<RevealPair>): Array<number> {
   return dist.map((d) => d / max);
 }
 
+/**
+ * 0..1 sequence by DOCK-BERTH x — the pack's own left-to-right order.
+ *
+ * THE PACK NEVER GOES HOLEY (the reported «handDock дырявый»). The old
+ * centre-of-screen rank gave every packet-bound card the SAME far rank, so
+ * eleven of fifteen cards left the tray in one simultaneous block (the pack
+ * lost its whole right side «за один кадр») and returned as one block to
+ * one side of a fan whose middle then stood empty while the page cards were
+ * still airborne. Staggering by the berth sequence makes the pack SHRINK
+ * CONTIGUOUSLY from one edge on the way out (a fan being picked up, card by
+ * card) and REBUILD CONTIGUOUSLY from the other on the way home (LIFO — the
+ * last card to leave is the first one back), so at every instant the
+ * visible backs form one solid run: a card is only ever missing from the
+ * pack's receding edge, never from its middle.
+ */
+function berthSeq(pairs: ReadonlyArray<RevealPair>): Array<number> {
+  const order = pairs.map((_, i) => i)
+    .sort((a, b) => pairs[a].source.left - pairs[b].source.left);
+  const seq = new Array<number>(pairs.length).fill(0);
+  const n = Math.max(1, pairs.length - 1);
+  order.forEach((pi, k) => {
+    seq[pi] = k / n;
+  });
+  return seq;
+}
+
 function spawnBudget(count: number, flightMs: number): number {
   return motionMs(LIFT_MS + flightMs + spreadMs(count)) + 1500;
 }
@@ -583,7 +609,7 @@ export async function runHandOpenEpisode(allPairs: ReadonlyArray<RevealPair>, st
   });
 
   const s = (ms: number) => motionMs(ms) / 1000;
-  const ranks = centreRank(pairs);
+  const peel = berthSeq(pairs);
   const spread = spreadMs(pairs.length);
   const tl = gsap.timeline({paused: true});
 
@@ -594,8 +620,10 @@ export async function runHandOpenEpisode(allPairs: ReadonlyArray<RevealPair>, st
     }
     const scaleTo = p.target.width / CARD_NATURAL_W;
     // The flight BUTT-JOINS the lift (same y channel — overlapping tweens
-    // on one property fight each other and read as a jitter).
-    const at = s(LIFT_MS) + s(spread) * ranks[i];
+    // on one property fight each other and read as a jitter). The PEEL runs
+    // left-to-right through the pack (berthSeq): the page's own cards move
+    // first, and the tray empties from one edge — never out of its middle.
+    const at = s(LIFT_MS) + s(spread) * peel[i];
     const flight = s(OPEN_FLIGHT_MS);
     // The input-answer beat: the whole pack rises off the tray as one
     // mass — soft out, so the hold at the top blends into the launch.
@@ -981,7 +1009,7 @@ export async function runHandCloseEpisode(allPairs: ReadonlyArray<RevealPair>, s
   hooks?.setSection('board');
 
   const s = (ms: number) => motionMs(ms) / 1000;
-  const ranks = centreRank(pairs);
+  const peel = berthSeq(pairs);
   const spread = spreadMs(pairs.length) * 0.6; // gathering is brisker (§11)
   const tl = gsap.timeline({paused: true});
 
@@ -991,8 +1019,10 @@ export async function runHandCloseEpisode(allPairs: ReadonlyArray<RevealPair>, s
       return;
     }
     const scaleTo = p.source.width / CARD_NATURAL_W;
-    // Outer cards start first; the centre card caps the pack last.
-    const at = s(spread) * (1 - ranks[i]);
+    // LIFO of the open's peel: the pack rebuilds right-to-left, so every
+    // landing extends the fan's one growing edge — the assembled backs are
+    // always a solid run, never a fan with holes in its middle.
+    const at = s(spread) * (1 - peel[i]);
     const flight = s(CLOSE_FLIGHT_MS);
     // PACKET PHYSICS (the return leg): the card starts parked BEYOND the
     // stage edge — erased by the layer's static stage window — and slides

@@ -252,6 +252,19 @@ painted frames. Four rules now hold, all in `handRevealDirector.ts`:
   delivered the card within a hop of its berth. `[hand-reveal]` warns mark
   every degrade path (driver boundary jump, magnet far start / wall snap,
   safety snap, conclude backstop) — a silent one is a bug.
+- **THE PACK NEVER GOES HOLEY** («handDock дырявый»): the open/close
+  stagger runs by `berthSeq` — the pack's own left-to-right berth order —
+  never by centre-of-screen rank, which gave every packet card the same
+  far rank and moved eleven of fifteen cards as ONE simultaneous block out
+  of (and back into) the tray. The open PEELS the pack contiguously from
+  one edge (the page's own cards first), and the close rebuilds it LIFO
+  from the other, so every landing extends the fan's single growing edge —
+  a card is only ever missing from the pack's receding edge, never from
+  its middle. And the album SPINE (the bay's opaque instrument well) is
+  CHROME: it holds transparent (`__pager--held`, shell's
+  `handRevealTransit`) for the whole reveal/filter transit and fades in
+  around the SETTLED cards — standing there from the first flush it
+  covered the bay centre while the pack was still launching behind it.
 
 Guard: `tests/e2e/hand-album-continuity.spec.ts` — per-card body tracking
 across dock back / proxy / slot with stage-edge exemptions: no vanish or

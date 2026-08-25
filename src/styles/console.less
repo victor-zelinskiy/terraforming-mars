@@ -12936,6 +12936,19 @@ html.con-profile-large.console-mode .notifications-layer.notifications-layer--jo
         bottom: .2rem;
         transform: translateX(-50%);
         z-index: 201; /* on the plate, never under a card */
+        /* CHROME MATERIALIZES AROUND THE SETTLED CARDS (the same law the
+           section's head/rail follow): the instrument well is an OPAQUE
+           body on the plate, ABOVE the flight layer — standing there from
+           the episode's first flush it covered the bay's centre while the
+           pack was still launching/landing behind it («часть карт в доке
+           пропадает»). Held transparent + pointer-inert for the whole
+           reveal transit, it fades in only once the cards have settled. */
+        transition: opacity calc(260ms * var(--motion-scale, 1)) ease;
+        &--held {
+            opacity: 0;
+            pointer-events: none;
+            transition: none; /* hide on the SAME frame the flight arms */
+        }
         display: inline-flex;
         align-items: center;
         gap: .5rem;

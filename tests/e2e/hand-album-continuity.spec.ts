@@ -34,7 +34,7 @@ import {bootIntoGame, press, soloGameConfig, waitForTurn} from './consoleStart';
 const NATURAL_W = 320; // CARD_NATURAL_W — the proxy's unscaled box width
 
 type BodyEvent = {
-  kind: 'vanish' | 'pop' | 'teleport',
+  kind: 'vanish' | 'pop' | 'teleport' | 'hole' | 'pager',
   name: string,
   t: number,
   via: string,
@@ -65,6 +65,7 @@ async function installProbe(page: Page): Promise<void> {
       gone: Map<string, {body: Body, t: number}>,
       pendingVanish: Map<string, {body: Body, t: number}>,
       pendingPop: Map<string, {body: Body, t: number}>,
+      pendingZone: Map<string, {t: number, detail: string, x: number}>,
       stage?: {left: number, right: number},
       maxDrop: number, maxJump: number, worstDropAt: number, dropNote: string,
       lastRawUnion: number, prevConfirmed: number, prevConfirmedT: number,
@@ -77,7 +78,7 @@ async function installProbe(page: Page): Promise<void> {
     const st: St = {
       timer: 0, samples: 0, armed: false, events: [],
       last: new Map(), gone: new Map(),
-      pendingVanish: new Map(), pendingPop: new Map(),
+      pendingVanish: new Map(), pendingPop: new Map(), pendingZone: new Map(),
       maxDrop: 0, maxJump: 0, worstDropAt: 0, dropNote: '',
       lastRawUnion: -1, prevConfirmed: -1, prevConfirmedT: 0, universe: 0,
     };
@@ -157,17 +158,21 @@ async function installProbe(page: Page): Promise<void> {
           bodies.set(name, {via: 'slot', x: r.left, y: r.top, w: r.width, h: r.height, rt: performance.now() - t0});
         }
       }
+      const backsAll: Array<{name: string, x: number, w: number, vis: boolean}> = [];
       for (const el of Array.from(document.querySelectorAll<HTMLElement>('[data-hand-dock-card]'))) {
         const name = el.getAttribute('data-hand-dock-card') ?? '';
-        if (bodies.has(name) || !paintReady(el)) {
+        const r = el.getBoundingClientRect();
+        const vis = paintReady(el) && r.width > 8 && r.height > 8 && onScreen(r);
+        if (r.width > 8) {
+          backsAll.push({name, x: r.left, w: r.width, vis});
+        }
+        if (!vis || bodies.has(name)) {
           continue;
         }
-        const r = el.getBoundingClientRect();
-        if (r.width > 8 && r.height > 8 && onScreen(r)) {
-          bodies.set(name, {via: 'dock', x: r.left, y: r.top, w: r.width, h: r.height, rt: performance.now() - t0});
-        }
+        bodies.set(name, {via: 'dock', x: r.left, y: r.top, w: r.width, h: r.height, rt: performance.now() - t0});
       }
       const win = layerWindow();
+      const proxyRects: Array<{x: number, y: number, w: number, h: number}> = [];
       for (const el of Array.from(document.querySelectorAll<HTMLElement>('.con-handreveal-layer [data-reveal-card]'))) {
         const name = el.getAttribute('data-reveal-card') ?? '';
         // An unplaced proxy (the pre-paint microtask before gsap.set) sits
@@ -183,6 +188,7 @@ async function installProbe(page: Page): Promise<void> {
         if (vis.frac <= 0.08 || vis.w < 8) {
           continue;
         }
+        proxyRects.push({x: vis.x, y: r.top, w: vis.w, h: r.height});
         bodies.set(name, {via: 'proxy', x: vis.x, y: r.top, w: vis.w, h: r.height, tf: el.style.transform.slice(0, 90), rt: performance.now() - t0});
       }
       st.universe = Math.max(st.universe, bodies.size);
@@ -280,6 +286,79 @@ async function installProbe(page: Page): Promise<void> {
         for (const name of [...st.pendingPop.keys()]) {
           if (!bodies.has(name)) {
             st.pendingPop.delete(name);
+          }
+        }
+        // ── THE DOCK-ZONE COMPOSITION (the reported «handDock дырявый») ──
+        // While reveal proxies fly, the visible backs of the pack must form
+        // ONE solid run: a hidden back whose berth sits strictly INSIDE the
+        // visible span, with a real visible notch there and NO card body
+        // near it, is a HOLE in the fan. And the album spine's opaque well
+        // may not stand over the bay while cards launch/land through it.
+        const zoneSeen = new Set<string>();
+        if (proxyRects.length > 0) {
+          const visBacks = backsAll.filter((b) => b.vis).sort((a, b) => a.x - b.x);
+          if (visBacks.length >= 2) {
+            const centers = visBacks.map((b) => b.x + b.w / 2);
+            const spanL = centers[0];
+            const spanR = centers[centers.length - 1];
+            for (const b of backsAll) {
+              if (b.vis) {
+                continue;
+              }
+              const c = b.x + b.w / 2;
+              if (c <= spanL + 1 || c >= spanR - 1) {
+                continue; // missing only from the pack's receding edge — legal
+              }
+              let leftC = spanL;
+              let rightC = spanR;
+              for (const vc of centers) {
+                if (vc < c) {
+                  leftC = vc;
+                } else {
+                  rightC = vc;
+                  break;
+                }
+              }
+              const notch = rightC - leftC;
+              const bodyNear = proxyRects.some((p) =>
+                Math.abs((p.x + p.w / 2) - c) < b.w * 1.4 && p.y + p.h > window.innerHeight - 240);
+              if (notch > b.w * 0.8 && !bodyNear) {
+                const key = `hole:${b.name}`;
+                zoneSeen.add(key);
+                const pend = st.pendingZone.get(key);
+                if (pend === undefined) {
+                  st.pendingZone.set(key, {t: now, x: c, detail: `notch ${Math.round(notch)}px inside [${Math.round(spanL)}..${Math.round(spanR)}]`});
+                } else if (now - pend.t > 60 && st.events.length < 24) {
+                  st.pendingZone.delete(key);
+                  st.events.push({
+                    kind: 'hole', name: b.name, t: Math.round(now), via: 'dock',
+                    x: Math.round(pend.x), y: 0, w: Math.round(b.w), h: 0,
+                    detail: pend.detail,
+                  });
+                }
+              }
+            }
+          }
+          const pager = document.querySelector<HTMLElement>('.con-handdock__pager');
+          if (pager !== null && Number(getComputedStyle(pager).opacity) > 0.15) {
+            const key = 'pager';
+            zoneSeen.add(key);
+            const pend = st.pendingZone.get(key);
+            if (pend === undefined) {
+              st.pendingZone.set(key, {t: now, x: 0, detail: ''});
+            } else if (now - pend.t > 60 && st.events.length < 24) {
+              st.pendingZone.delete(key);
+              st.events.push({
+                kind: 'pager', name: 'album-spine', t: Math.round(now), via: 'dock',
+                x: 0, y: 0, w: 0, h: 0,
+                detail: `opaque instrument well over the bay mid-flight (opacity ${getComputedStyle(pager).opacity})`,
+              });
+            }
+          }
+        }
+        for (const key of [...st.pendingZone.keys()]) {
+          if (!zoneSeen.has(key)) {
+            st.pendingZone.delete(key);
           }
         }
       }

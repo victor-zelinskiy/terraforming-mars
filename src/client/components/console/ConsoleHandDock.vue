@@ -97,6 +97,7 @@
             class="con-handdock__pager"
             :class="{
               'con-handdock__pager--single': album.pages <= 1,
+              'con-handdock__pager--held': transit,
               'con-handdock__pager--fired-next': pageFlash === 'next',
               'con-handdock__pager--fired-prev': pageFlash === 'prev',
             }">
@@ -274,6 +275,14 @@ export default defineComponent({
      * pose, and the backs then materialized full-size in one frame).
      */
     intake: {type: Boolean, default: false},
+    /**
+     * A REVEAL EPISODE IS AIRBORNE (open/close/filter flight): the album
+     * spine's opaque instrument well holds transparent so it never covers
+     * the pack launching/landing through the bay — the chrome materializes
+     * around the SETTLED cards, the same law the section's own head and
+     * verdict rail follow. Shell-derived from the reveal phase.
+     */
+    transit: {type: Boolean, default: false},
     /**
      * Names the hand OVERLAY (or a reveal flight) owns right now — those
      * backs render hidden while the chassis + status line stay put

@@ -1146,6 +1146,7 @@
                        :raised="consoleState.quick === 'actions'"
                        :compact="handDockCompact"
                        :intake="dockIntakeAccent"
+                       :transit="handRevealTransit"
                        :liftedNames="dockLiftedNames"
                        :deliveryHeld="dockHeld"
                        :album="handDockAlbum"
@@ -2155,6 +2156,13 @@ export default defineComponent({
      *  - plus `dockExtraLift`: filter-episode leavers still airborne
      *    (released at the episode's materialization).
      */
+    /** A reveal episode (open/close/filter flight) is airborne — the album
+     *  spine's opaque well holds transparent so the pack is never covered
+     *  mid-launch/mid-landing (chrome materializes around SETTLED cards). */
+    handRevealTransit(): boolean {
+      return handRevealState.phase === 'opening' || handRevealState.phase === 'closing' ||
+        handRevealState.filterActive;
+    },
     dockLiftedNames(): ReadonlyArray<string> {
       const st = handRevealState;
       // THE STABLE ALBUM STATE: the cards live in the album — the whole
