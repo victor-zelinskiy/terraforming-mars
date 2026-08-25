@@ -901,7 +901,7 @@
     <!-- The deal cinematic stage: deck + lite proxy flyers (GSAP). Alive
          only while a deal runs — will-change is scoped by construction. -->
     <ConsoleCardDealLayer v-if="deal.state.active" ref="dealLayer"
-                          :cards="deal.state.cards" :nonce="deal.state.nonce" />
+                          :cards="deal.state.cards" :models="dealModels" :nonce="deal.state.nonce" />
   </div>
 </template>
 
@@ -2442,7 +2442,19 @@ export default defineComponent({
      *  zone's entry and the carry as one chord over a still-flying card). */
     firstActionPanelShown(): boolean {
       return this.state.firstAct.stage === 'standing' &&
+        // …and never over an EMPTY seat: whatever ordering emptied it (a
+        // previous effect's settle lagging the quieted server, an entry
+        // variant nobody enumerated), the briefing waits for the corp to be
+        // physically seated — the self-heal watcher below re-runs the
+        // handover phrase for exactly this state.
+        (this.embedSourceShown !== undefined || this.embedSourceIncoming !== undefined) &&
         !this.embedPresenting && this.candidatePrompt === undefined;
+    },
+    /** The self-heal trigger: the stage STANDS but nobody is seated. */
+    firstActionSeatMissing(): boolean {
+      return this.state.firstAct.stage === 'standing' &&
+        this.state.firstAct.corp !== undefined &&
+        this.embedSourceShown === undefined && this.embedSourceIncoming === undefined;
     },
     /**
      * ENTRY IS DUE — the deployment's cards are through, nothing is mid-air,
@@ -2732,6 +2744,12 @@ export default defineComponent({
     },
     stepEntries(): ReadonlyArray<CardModel> {
       return this.currentStep?.input.cards ?? [];
+    },
+    /** Live models aligned with the deal's card list — the flying face must
+     *  match the landed face (the parity contract). */
+    dealModels(): Array<CardModel | undefined> {
+      const pool = this.stepEntries;
+      return this.deal.state.cards.map((name) => pool.find((c) => c.name === name));
     },
     focusedCard(): CardModel | undefined {
       return this.stepEntries[this.focusIdx];
@@ -3878,6 +3896,35 @@ export default defineComponent({
           armDeliveryHold(key, names);
         }
       },
+    },
+    /**
+     * SELF-HEAL: the stage STANDS but the seat is EMPTY. Every enumerated
+     * entry path seats the corp itself, so this fires only for the orderings
+     * nobody enumerated (a previous effect's settle emptying the seat AFTER
+     * the stage stood). The panel refuses to render over an empty seat
+     * (`firstActionPanelShown`), so this watcher is what turns that refusal
+     * into recovery: re-run the handover phrase once per rising edge.
+     * Loop-safe by construction — 'staging' makes the trigger false until
+     * the emerge either seats the corp or degrades (which also seats it).
+     */
+    'firstActionSeatMissing'(now: boolean) {
+      if (!now) {
+        return;
+      }
+      const corp = this.state.firstAct.corp;
+      if (corp === undefined) {
+        return;
+      }
+      this.state.firstAct.stage = 'staging';
+      void (async () => {
+        if (this.embedSourceShown !== undefined && this.embedSourceShown !== corp) {
+          await this.runEmbedSourceSettle();
+        }
+        await this.runEmbedSourceEmerge(corp);
+        if (this.state.firstAct.stage === 'staging') {
+          this.state.firstAct.stage = 'standing';
+        }
+      })();
     },
   },
   mounted() {
@@ -6287,6 +6334,16 @@ export default defineComponent({
       // order — the room stayed away, so the drawn preludes had nowhere
       // visible to be dealt into and the hero had no measurable shelf to fly
       // to (the reported «прологи без анимации, розыгрыш одним кадром»).
+      //
+      // THE SEAT MAY STILL HOLD THE PREVIOUS EFFECT'S CARD: the server
+      // quiets before the client-side settle finishes its return, so an
+      // entry racing that window found the seat occupied, the emerge's guard
+      // stayed silent, and when the old card DID settle home the briefing
+      // stood over an empty seat. The handover is the merger-swap's own
+      // phrase: settle the old occupant first, then the corp rises.
+      if (this.embedSourceShown !== undefined && this.embedSourceShown !== corp) {
+        await this.runEmbedSourceSettle();
+      }
       await this.runEmbedSourceEmerge(corp);
       if (this.state.firstAct.stage === 'staging') {
         this.state.firstAct.stage = 'standing';
@@ -6625,18 +6682,25 @@ export default defineComponent({
       // empty seat is the teleport class the entry grammar exists to remove:
       // re-run the SAME two-beat phrase (staging keeps the panel down, the
       // corp flies back into the seat, the briefing rises around it).
-      if (corp !== undefined &&
-          this.embedSourceShown === undefined && this.embedSourceIncoming === undefined) {
+      if (corp !== undefined && this.embedSourceIncoming === undefined &&
+          this.embedSourceShown !== corp) {
         this.state.firstAct.stage = 'staging';
         if (this.state.firstAct.corp !== corp) {
           this.state.firstAct.corp = corp;
           this.fetchFirstActionPreview(corp);
         }
-        void this.runEmbedSourceEmerge(corp).then(() => {
+        void (async () => {
+          // A stale occupant (the previous effect's card whose settle lagged
+          // the quieted server) hands the seat over first — the merger-swap
+          // phrase, so the briefing never stands over an emptying seat.
+          if (this.embedSourceShown !== undefined && this.embedSourceShown !== corp) {
+            await this.runEmbedSourceSettle();
+          }
+          await this.runEmbedSourceEmerge(corp);
           if (this.state.firstAct.stage === 'staging') {
             this.state.firstAct.stage = 'standing';
           }
-        });
+        })();
         return;
       }
       this.state.firstAct.stage = 'standing';

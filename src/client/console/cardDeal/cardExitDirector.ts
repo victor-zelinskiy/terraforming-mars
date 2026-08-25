@@ -50,6 +50,7 @@
 import {nextTick} from 'vue';
 import {gsap} from 'gsap';
 import {CardName} from '@/common/cards/CardName';
+import {CardModel} from '@/common/models/CardModel';
 import {motionMs} from '@/client/components/motion/motionTokens';
 import {conUiScale} from '@/client/console/consoleLayoutProfile';
 import {consoleReducedMotionActive} from '@/client/console/composables/useConsoleReducedMotion';
@@ -60,6 +61,9 @@ export type ExitSource = {
   name: CardName,
   /** The live slot element (the inner `.card-container` is preferred). */
   el: HTMLElement,
+  /** The live model — flown on the proxy face so the flying copy IS the
+   *  landed copy (cost chip / stored resources / title-safe width). */
+  card?: CardModel,
 };
 
 const HOLD_CLASS = 'con-deal-hold'; // the shared "slot is empty" cascade rule
@@ -92,12 +96,12 @@ type Spawned = {id: number, el: HTMLElement, rect: DOMRect};
  */
 async function spawnProxies(sources: ReadonlyArray<ExitSource>, hero: boolean, holdSource = false): Promise<Array<Spawned>> {
   const entries = sources
-    .map((s) => ({id: nextFlightId(), name: s.name, rect: cardRect(s.el), src: s.el}))
+    .map((s) => ({id: nextFlightId(), name: s.name, rect: cardRect(s.el), src: s.el, card: s.card}))
     .filter((e) => usable(e.rect));
   if (entries.length === 0) {
     return [];
   }
-  cardExitState.flights = [...cardExitState.flights, ...entries.map((e) => ({id: e.id, name: e.name, hero}))];
+  cardExitState.flights = [...cardExitState.flights, ...entries.map((e) => ({id: e.id, name: e.name, hero, card: e.card}))];
   await nextTick();
   const out: Array<Spawned> = [];
   for (const e of entries) {
@@ -380,6 +384,7 @@ export function runDraftPickToTray(args: DraftPickToTrayArgs): DraftPickHandle {
       finish();
       return;
     }
+    const ui = conUiScale();
     await Promise.all(spawnedAll.map(async (s, i) => {
       const name = args.picks[i]?.name;
       if (name === undefined) {
@@ -391,35 +396,70 @@ export function runDraftPickToTray(args: DraftPickToTrayArgs): DraftPickHandle {
       if (skipped) {
         return;
       }
-      // The hero beat: off the table, rim glowing — "this one".
-      await tween(s.el, {y: s.rect.top - 22, scale: `*=1.06`, rotation: -1.6, duration: motionMs(150) / 1000, ease: 'power2.out'});
-      if (skipped) {
-        return;
-      }
-      // The readable hold rides the slot poll (the tray renders the held
-      // slot in the same flush — the rect is usually ready immediately).
-      const [rect] = await Promise.all([
-        stableSlotRect(() => args.resolveSlot(name)),
-        new Promise((r) => setTimeout(r, motionMs(110))),
-      ]);
+      // THE PICK IS ONE GESTURE — take blends into the carry, never
+      // take → FULL STOP → carry (the measured «дёрганый» beat: the card
+      // came to a dead stop in mid-air and re-accelerated on four unrelated
+      // ease clocks). The slot poll runs UNDER the take, not after it.
+      const lift = 22 * ui;
+      const takeP = tween(s.el, {y: s.rect.top - lift, scale: '*=1.06', rotation: -1.6, duration: motionMs(150) / 1000, ease: 'power2.out'});
+      const rect = await stableSlotRect(() => args.resolveSlot(name));
+      await takeP;
       if (skipped) {
         return;
       }
       if (rect === undefined) {
         // No believable tray slot — reveal honestly + a quiet dive out.
         land(name);
-        await tween(s.el, {y: `+=${26 * conUiScale()}`, scale: '*=0.92', autoAlpha: 0, duration: motionMs(200) / 1000, ease: 'power2.in'});
+        await tween(s.el, {y: `+=${26 * ui}`, scale: '*=0.92', autoAlpha: 0, duration: motionMs(200) / 1000, ease: 'power2.in'});
         return;
       }
-      // The arc into the pile: lateral ease + a soft vertical launch, the
-      // card SHRINKS to pile scale and settles with a slight overshoot.
-      const scale = rect.width / CARD_NATURAL_W;
-      const flight = motionMs(440) / 1000;
+      // ONE low-arc carry on ONE clock (the tabletop grammar): a straight
+      // line with a gentle sag, position/scale/rotation all derived from a
+      // single eased progress — the residual take-lift IS the arc's start.
+      // The destination is re-read at 80% and the difference ramps in over
+      // the final fifth (a keep-2 shelf re-fits when the first card lands).
+      const scaleFrom = Number(gsap.getProperty(s.el, 'scale')) || (s.rect.width / CARD_NATURAL_W);
+      const scaleTo = rect.width / CARD_NATURAL_W;
+      const from = {x: s.rect.left, y: s.rect.top - lift};
+      const to = {x: rect.left, y: rect.top};
+      const dist = Math.hypot(to.x - from.x, to.y - from.y);
+      const sag = Math.min(dist * 0.06, 46 * ui);
+      const midX = (from.x + to.x) / 2;
+      const midY = (from.y + to.y) / 2 - sag;
+      const c = {x: 2 * midX - (from.x + to.x) / 2, y: 2 * midY - (from.y + to.y) / 2};
+      const carry = motionMs(430 * Math.max(0.68, Math.min(1.16, 0.62 + dist / (1100 * ui)))) / 1000;
+      const corr = {x: 0, y: 0, s: 0};
+      const RETARGET_AT = 0.8;
+      const drive = {q: 0};
+      const rotFrom = Number(gsap.getProperty(s.el, 'rotation')) || 0;
       const tl = gsap.timeline();
-      tl.to(s.el, {x: rect.left, duration: flight, ease: 'power1.inOut'}, 0);
-      tl.to(s.el, {y: rect.top, duration: flight, ease: 'power2.inOut'}, 0);
-      tl.to(s.el, {scale, duration: flight, ease: 'back.out(1.1)'}, 0);
-      tl.to(s.el, {rotation: 0, duration: flight * 0.7, ease: 'power2.out'}, 0);
+      tl.to(drive, {
+        q: 1,
+        duration: carry,
+        ease: 'power2.inOut',
+        onUpdate: () => {
+          const p = drive.q;
+          const inv = 1 - p;
+          const px = inv * inv * from.x + 2 * inv * p * c.x + p * p * to.x;
+          const py = inv * inv * from.y + 2 * inv * p * c.y + p * p * to.y;
+          const k = p * p * (3 - 2 * p);
+          const cw = p <= RETARGET_AT ? 0 : (p - RETARGET_AT) / (1 - RETARGET_AT);
+          gsap.set(s.el, {
+            x: px + corr.x * cw,
+            y: py + corr.y * cw,
+            scale: scaleFrom + (scaleTo - scaleFrom) * k + corr.s * cw,
+            rotation: rotFrom * (p < 0.85 ? Math.cos(p * Math.PI * 0.5) : 0),
+          });
+        },
+      }, 0);
+      tl.call(() => {
+        const live = args.resolveSlot(name)?.getBoundingClientRect();
+        if (live !== undefined && live.width > 8) {
+          corr.x = live.left - to.x;
+          corr.y = live.top - to.y;
+          corr.s = live.width / CARD_NATURAL_W - scaleTo;
+        }
+      }, undefined, carry * RETARGET_AT);
       await new Promise((r) => {
         const settle = () => r(undefined);
         tl.eventCallback('onComplete', settle).eventCallback('onInterrupt', settle).play();
@@ -427,8 +467,12 @@ export function runDraftPickToTray(args: DraftPickToTrayArgs): DraftPickHandle {
       if (skipped) {
         return;
       }
-      land(name); // the real mini-card materializes under the proxy
-      await tween(s.el, {autoAlpha: 0, duration: motionMs(130) / 1000, ease: 'power1.out'});
+      // Frame-perfect handoff: the real mini-card materializes under the
+      // proxy, the proxy leaves on the NEXT frame — never a crossfade (the
+      // copies differ in shadow/tier, and a fade exposes exactly that).
+      land(name);
+      await new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(() => r(undefined))));
+      gsap.set(s.el, {autoAlpha: 0});
     }));
     clearTimeout(safety);
     finish();

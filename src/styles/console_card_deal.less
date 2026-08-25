@@ -676,8 +676,12 @@ dialog.con-zoom {
     will-change: transform, opacity; /* scoped: proxies exist only mid-flight */
 
     /* The draft HERO pick: a static cyan rim (set once, fades with the
-       element — never an animated box-shadow). */
-    &--hero .con-card-lite {
+       element — never an animated box-shadow).
+       ⚠ The face is the PREMIUM chassis since wave 4 — `.con-card-lite` was
+       its deleted predecessor, and the rim targeting it rendered NOTHING for
+       months: the «this one» accent the director promises simply did not
+       exist, which is half of why the pick read as an unremarkable slide. */
+    &--hero :is(.card-container, .pcard) {
         box-shadow: 0 0 0 .15rem fade(@con-cyan, 85%), 0 0 1.3rem fade(@con-cyan, 30%);
         border-radius: .8rem;
     }
@@ -686,7 +690,7 @@ dialog.con-zoom {
        press answers ON THE CARD the frame it spawns — the mint ring says
        «taken», the deepened drop says «off the shelf». Static, set once,
        travels and fades with the element (box-shadow — perf-lite keeps it). */
-    &--commit .con-card-lite {
+    &--commit :is(.card-container, .pcard) {
         box-shadow:
             0 0 0 .16rem fade(@con-mint, 90%),
             0 0 1.4rem fade(@con-mint, 38%),

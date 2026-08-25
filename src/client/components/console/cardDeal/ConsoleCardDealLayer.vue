@@ -21,7 +21,11 @@
          :ref="(el) => setProxyRef(el, i)">
       <div class="con-deal-proxy__flip">
         <div class="con-deal-proxy__face">
-          <ConsoleCardFaceLite :name="name" />
+          <!-- The parity contract: the flying face must BE the landed face —
+               the live model (when the host has it) + `lightweight` (every
+               console grid draws lightweight). Without both, every deal
+               visibly re-drew its cards at the handoff. -->
+          <ConsoleCardFaceLite :name="name" :card="models?.[i]" lightweight />
         </div>
         <div class="con-deal-proxy__back">
           <div class="con-card-back con-card-back--flyer"></div>
@@ -34,6 +38,7 @@
 <script lang="ts">
 import {defineComponent} from 'vue';
 import {CardName} from '@/common/cards/CardName';
+import {CardModel} from '@/common/models/CardModel';
 import ConsoleCardFaceLite from '@/client/components/console/cardDeal/ConsoleCardFaceLite.vue';
 
 export default defineComponent({
@@ -43,6 +48,13 @@ export default defineComponent({
     cards: {
       type: Array as () => Array<CardName>,
       required: true,
+    },
+    /** Live models aligned with `cards` (undefined entries fall back to the
+     *  name-only face) — the flying copy must match the landed copy. */
+    models: {
+      type: Array as () => Array<CardModel | undefined>,
+      required: false,
+      default: undefined,
     },
     /** Keys the proxy set per prepared deal (sequence.state.nonce). */
     nonce: {

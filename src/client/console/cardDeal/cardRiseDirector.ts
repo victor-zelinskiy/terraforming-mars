@@ -191,7 +191,7 @@ export function runCardRiseTimeline(args: RunRiseArgs): DealHandle {
     }
     const liftAt = liftStart + i * s(timings.liftStaggerMs);
     const tilt = (i % 2 === 0 ? -1 : 1) * (1.2 + (i * 137) % 3);
-    tl.to(proxy, {y: `-=14`, scale: `*=1.05`, rotation: tilt, duration: s(timings.liftMs), ease: 'power2.out'}, liftAt);
+    tl.to(proxy, {y: `-=${14 * conUiScale()}`, scale: `*=1.05`, rotation: tilt, duration: s(timings.liftMs), ease: 'power2.out'}, liftAt);
     // riseFlightDelayMs already folds the lift duration in — flights start
     // strictly after their card's own lift settles (stagger 75 > 40).
     const at = liftStart + s(riseFlightDelayMs(i, timings));

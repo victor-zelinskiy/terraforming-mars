@@ -445,6 +445,12 @@ function finalizeOpenReverse(instant: boolean): void {
   teardown(instant);
 }
 
+/** Selector-safe card name (CSS.escape with a quote-only fallback). */
+function cssEscape(name: string): string {
+  return typeof CSS !== 'undefined' && typeof CSS.escape === 'function' ?
+    CSS.escape(name) : name.replace(/"/g, '\\"');
+}
+
 /* ── CLOSE: overlay slots → dock pack ───────────────────────────────── */
 
 export async function runHandCloseEpisode(allPairs: ReadonlyArray<RevealPair>, scrollTop: number): Promise<void> {
@@ -488,7 +494,36 @@ export async function runHandCloseEpisode(allPairs: ReadonlyArray<RevealPair>, s
       // (the exact reverse of the landing clip / packet wipe).
       tl.to(el, {clipPath: 'inset(0px 0px 0px 0px)', duration: flight * 0.3, ease: 'power1.out'}, at);
     }
-    tl.to(el, {x: p.source.left, y: p.source.top, scale: scaleTo, duration: flight, ease: 'power2.inOut'}, at);
+    // THE DOCK BERTH IS PROVISIONAL — the pack's POSE is routinely still
+    // settling when the gather is measured (compact → full rides the pack's
+    // own 460ms transform transition, and the flip begins in the very flush
+    // the episode arms). Aiming the whole flight at that snapshot landed the
+    // hand in the miniature pose, and the real backs then materialized
+    // full-size in one frame. So the carry flies the first ~72% toward the
+    // snapshot, then RE-READS the live back (the ride is settled by then —
+    // spread + 0.72·flight > the pose transition) and lands the final leg on
+    // the REAL berth — the startDockMotion retarget discipline, applied to
+    // the gather.
+    tl.to(el, {x: p.source.left, y: p.source.top, scale: scaleTo, duration: flight * 0.72, ease: 'power2.in'}, at);
+    tl.call(() => {
+      // A reversed gather (reopen mid-close) owns the proxies again — the
+      // corrective leg must not fight the reversing timeline. (Teardown's
+      // killTweensOf sweeps any corrective that did start.)
+      if (episode === undefined || episode.finished || episode.tl.reversed()) {
+        return;
+      }
+      const back = typeof document !== 'undefined' ?
+        document.querySelector<HTMLElement>(`[data-hand-dock-card="${cssEscape(p.name as string)}"]`) : null;
+      const r = back?.getBoundingClientRect();
+      const to = r !== undefined && r.width > 8 ?
+        {x: r.left, y: r.top, scale: r.width / CARD_NATURAL_W} :
+        {x: p.source.left, y: p.source.top, scale: scaleTo};
+      gsap.to(el, {...to, duration: flight * 0.28, ease: 'power2.out', overwrite: 'auto'});
+    }, undefined, at + flight * 0.72);
+    // The timeline's own length covers the corrective leg — its completion
+    // is what starts the teardown/materialization, so the handoff can never
+    // begin under a still-travelling final approach.
+    tl.set({}, {}, at + flight);
     if (p.visible) {
       const flip = el.querySelector<HTMLElement>('.con-deal-proxy__flip');
       if (flip !== null) {

@@ -12,12 +12,17 @@
 
 import {reactive} from 'vue';
 import {CardName} from '@/common/cards/CardName';
+import {CardModel} from '@/common/models/CardModel';
 
 export type ExitFlight = {
   id: number,
   name: CardName,
   /** Hero accent (the draft pick): a static cyan rim on the proxy. */
   hero: boolean,
+  /** The live model, when the host has it — «the copies are identical» is a
+   *  contract the proxy has to MEET (cost chip / stored resources / the
+   *  title-safe width all differ without it, so every landing re-drew). */
+  card?: CardModel,
 };
 
 export const cardExitState = reactive({

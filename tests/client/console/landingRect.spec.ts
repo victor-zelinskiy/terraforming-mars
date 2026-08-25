@@ -9,7 +9,7 @@
 import {expect} from 'chai';
 import {unmapPoint, unmapRectThrough, LandingRect, TransformLink} from '@/client/console/cardFlight/landingRect';
 
-const IDENTITY = {a: 1, d: 1, e: 0, f: 0};
+const IDENTITY = {a: 1, b: 0, c: 0, d: 1, e: 0, f: 0};
 
 function link(partial: {
   cur?: Partial<TransformLink['cur']>,
@@ -71,7 +71,7 @@ describe('landingRect (pure math)', () => {
 
   it('a finished both-filled entry (cur == end) is a no-op by construction', () => {
     const measured: LandingRect = {left: 120, top: 80, width: 50, height: 50};
-    const end = {a: 1, d: 1, e: 0, f: 0};
+    const end = {...IDENTITY};
     const rest = unmapRectThrough(measured, [link({cur: {...end}, end})]);
     expect(rest).to.deep.equal(measured);
   });
@@ -95,5 +95,52 @@ describe('landingRect (pure math)', () => {
     };
     expect(back.x).to.be.closeTo(700, 1e-9);
     expect(back.y).to.be.closeTo(400, 1e-9);
+  });
+
+  it('un-maps a TILTED pose ride to its tilted rest (the dock pack case)', () => {
+    // A dock back mid pose-ride: compact = tilt 6° + scale 0.7 about the
+    // centre + a sink translate; rest = the SAME tilt at scale 1, no sink.
+    // (The compact→full flip is one transform transition per card, so cur
+    // and end BOTH carry the tilt — the translate-scale-only gate used to
+    // skip every such card and the landing stayed in the miniature pose.)
+    const rad = (d: number) => (d * Math.PI) / 180;
+    const rot = (deg: number, s: number) => ({
+      a: s * Math.cos(rad(deg)), b: s * Math.sin(rad(deg)),
+      c: -s * Math.sin(rad(deg)), d: s * Math.cos(rad(deg)),
+    });
+    const origin = {x: 500, y: 800};
+    const cur = {...rot(6, 0.7), e: 0, f: 12};
+    const end = {...rot(6, 1), e: 0, f: 0};
+    // An untransformed 63×88 back centred on the origin, mapped by CUR:
+    const w = 63;
+    const h = 88;
+    const corners = [
+      {x: -w / 2, y: -h / 2}, {x: w / 2, y: -h / 2},
+      {x: -w / 2, y: h / 2}, {x: w / 2, y: h / 2},
+    ].map((p) => ({
+      x: origin.x + cur.a * p.x + cur.c * p.y + cur.e,
+      y: origin.y + cur.b * p.x + cur.d * p.y + cur.f,
+    }));
+    const xs = corners.map((p) => p.x);
+    const ys = corners.map((p) => p.y);
+    const measured: LandingRect = {
+      left: Math.min(...xs), top: Math.min(...ys),
+      width: Math.max(...xs) - Math.min(...xs), height: Math.max(...ys) - Math.min(...ys),
+    };
+    const rest = unmapRectThrough(measured, [{cur, end, origin}]);
+    // Expected: the same corners under END (tilt kept, scale 1, no sink).
+    const endCorners = [
+      {x: -w / 2, y: -h / 2}, {x: w / 2, y: -h / 2},
+      {x: -w / 2, y: h / 2}, {x: w / 2, y: h / 2},
+    ].map((p) => ({
+      x: origin.x + end.a * p.x + end.c * p.y + end.e,
+      y: origin.y + end.b * p.x + end.d * p.y + end.f,
+    }));
+    const exs = endCorners.map((p) => p.x);
+    const eys = endCorners.map((p) => p.y);
+    expect(rest.left).to.be.closeTo(Math.min(...exs), 1e-6);
+    expect(rest.top).to.be.closeTo(Math.min(...eys), 1e-6);
+    expect(rest.width).to.be.closeTo(Math.max(...exs) - Math.min(...exs), 1e-6);
+    expect(rest.height).to.be.closeTo(Math.max(...eys) - Math.min(...eys), 1e-6);
   });
 });

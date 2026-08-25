@@ -58,10 +58,11 @@ function isPureTranslation(m: DOMMatrixReadOnly): boolean {
     Math.abs(m.b) < 0.001 && Math.abs(m.c) < 0.001;
 }
 
-/** Translate+scale only (no rotation/skew) — the whole entry-animation family. */
-function isTranslateScale(m: DOMMatrixReadOnly): boolean {
-  return m.is2D && Math.abs(m.b) < 0.001 && Math.abs(m.c) < 0.001 &&
-    m.a > 0.05 && m.d > 0.05;
+/** A 2D affine this module can invert (non-degenerate linear part). The dock
+ *  pack's pose ride carries a TILT, so rotation must be first-class — the
+ *  translate+scale-only gate silently skipped every tilted back. */
+function isInvertible2D(m: DOMMatrixReadOnly): boolean {
+  return m.is2D && Math.abs(m.a * m.d - m.b * m.c) > 0.001;
 }
 
 function parseMatrix(raw: string | undefined | null): DOMMatrixReadOnly | undefined {
@@ -137,47 +138,63 @@ function liveTransformAnimation(el: Element): {end: DOMMatrixReadOnly | undefine
 
 type Pt = {x: number, y: number};
 
-/** The pure slice of a transform this module reasons about (translate+scale). */
+/** The pure slice of a 2D affine this module reasons about. */
 export type TransformLink = {
-  /** The element's CURRENT computed matrix (a/d scale, e/f translate). */
-  cur: {a: number, d: number, e: number, f: number},
+  /** The element's CURRENT computed matrix (full 2D linear part + translate). */
+  cur: {a: number, b: number, c: number, d: number, e: number, f: number},
   /** The END-state matrix; `undefined` = identity (the entry shape). */
-  end: {a: number, d: number, e: number, f: number} | undefined,
+  end: {a: number, b: number, c: number, d: number, e: number, f: number} | undefined,
   /** The transform origin in viewport coordinates. */
   origin: Pt,
 };
 
 /**
  * Un-map a viewport point through ONE element's current transform into that
- * element's REST transform (translate+scale about the origin; exact for the
- * origin-free translation part). Pure — spec'd under the server runner.
+ * element's REST transform. Full 2D affine about the origin — the dock pack's
+ * pose ride composes translate + scale + TILT, so rotation is first-class.
+ * (Translation stays origin-free and exact; for rotation/scale the origin is
+ * the element's centre, which every pose/entry in this codebase keeps — and a
+ * centre origin is a fixed point of the linear part, so the same derivation
+ * holds.) Pure — spec'd under the mochapack runner.
  */
 export function unmapPoint(q: Pt, link: TransformLink): Pt {
   const {cur, end, origin} = link;
-  // p_local−O = Mcur⁻¹ · (q − O − tcur)
+  // local = Mcur_lin⁻¹ · (q − O − t_cur)
   const relX = q.x - origin.x - cur.e;
   const relY = q.y - origin.y - cur.f;
-  const localX = relX / cur.a;
-  const localY = relY / cur.d;
+  const det = cur.a * cur.d - cur.b * cur.c;
+  const localX = (cur.d * relX - cur.c * relY) / det;
+  const localY = (cur.a * relY - cur.b * relX) / det;
   if (end === undefined) {
     return {x: origin.x + localX, y: origin.y + localY};
   }
+  // rest = O + Mend_lin · local + t_end
   return {
-    x: origin.x + end.a * localX + end.e,
-    y: origin.y + end.d * localY + end.f,
+    x: origin.x + end.a * localX + end.c * localY + end.e,
+    y: origin.y + end.b * localX + end.d * localY + end.f,
   };
 }
 
 /** Un-map a whole rect through a chain of transform links (outermost applied
- *  last — the walk order `restingRectOf` builds). Pure. */
+ *  last — the walk order `restingRectOf` builds). The measured rect is the
+ *  BOUNDING BOX of a possibly-rotated card, so all four corners travel and
+ *  the result is their bounding box again. Pure. */
 export function unmapRectThrough(
   rect: LandingRect, links: ReadonlyArray<TransformLink>,
 ): LandingRect {
   let box = rect;
   for (const link of links) {
-    const tl = unmapPoint({x: box.left, y: box.top}, link);
-    const br = unmapPoint({x: box.left + box.width, y: box.top + box.height}, link);
-    box = {left: tl.x, top: tl.y, width: br.x - tl.x, height: br.y - tl.y};
+    const corners = [
+      unmapPoint({x: box.left, y: box.top}, link),
+      unmapPoint({x: box.left + box.width, y: box.top}, link),
+      unmapPoint({x: box.left, y: box.top + box.height}, link),
+      unmapPoint({x: box.left + box.width, y: box.top + box.height}, link),
+    ];
+    const xs = corners.map((p) => p.x);
+    const ys = corners.map((p) => p.y);
+    const left = Math.min(...xs);
+    const top = Math.min(...ys);
+    box = {left, top, width: Math.max(...xs) - left, height: Math.max(...ys) - top};
   }
   return box;
 }
@@ -216,21 +233,42 @@ export function restingRectOf(el: HTMLElement): LandingRect {
     if (cur === undefined || isIdentity(cur)) {
       continue; // already at rest this frame (or unreadable) — nothing to undo
     }
-    if (!isTranslateScale(cur) || (live.end !== undefined && !isTranslateScale(live.end))) {
-      continue; // rotation/skew — no landing zone does this; leave as measured
+    if (!isInvertible2D(cur) || (live.end !== undefined && !live.end.is2D)) {
+      continue; // 3D / degenerate — leave as measured
     }
-    // Origin: exact for translation (origin-free); centre for scale — every
-    // entry keeps the default 50% 50% origin. The centre of the TRANSFORMED
-    // box relates to the origin by the matrix's own translation.
+    // ORIGIN. Translation is origin-free (exact). For the linear part:
+    //  · a TRANSLATE+SCALE node (no rotation) gets the EXACT declared origin —
+    //    resolved from the computed `transform-origin` via the mapped top-left
+    //    corner (for an axis-aligned matrix the rect's top-left IS the mapped
+    //    local (0,0), so the untransformed box position falls out exactly).
+    //    The dock PACK scales about `50% 100%` (the tray axis) — the centre
+    //    assumption there produced garbage berths;
+    //  · a ROTATING node falls back to the centre, which is what our rotating
+    //    elements (the pack's tilted cards) actually declare — a centre origin
+    //    is a fixed point of the linear part, so the transformed box's centre
+    //    relates to it by the matrix's own translation alone.
     const nodeRect = node.getBoundingClientRect();
-    const origin: Pt = {
+    const axisAligned = Math.abs(cur.b) < 0.001 && Math.abs(cur.c) < 0.001;
+    let origin: Pt = {
       x: (nodeRect.left + nodeRect.right) / 2 - cur.e,
       y: (nodeRect.top + nodeRect.bottom) / 2 - cur.f,
     };
+    if (axisAligned) {
+      const rawOrigin = window.getComputedStyle(node).transformOrigin;
+      const parts = rawOrigin.split(' ').map((v) => Number.parseFloat(v));
+      if (parts.length >= 2 && Number.isFinite(parts[0]) && Number.isFinite(parts[1])) {
+        const ox = parts[0];
+        const oy = parts[1];
+        // rect.topLeft = B + (I−M_lin)·(ox,oy) + t  ⇒  B, then O = B + (ox,oy).
+        const bx = nodeRect.left - ((1 - cur.a) * ox + cur.e);
+        const by = nodeRect.top - ((1 - cur.d) * oy + cur.f);
+        origin = {x: bx + ox, y: by + oy};
+      }
+    }
     box = unmapRectThrough(box, [{
-      cur: {a: cur.a, d: cur.d, e: cur.e, f: cur.f},
+      cur: {a: cur.a, b: cur.b, c: cur.c, d: cur.d, e: cur.e, f: cur.f},
       end: live.end === undefined ? undefined :
-        {a: live.end.a, d: live.end.d, e: live.end.e, f: live.end.f},
+        {a: live.end.a, b: live.end.b, c: live.end.c, d: live.end.d, e: live.end.e, f: live.end.f},
       origin,
     }]);
   }

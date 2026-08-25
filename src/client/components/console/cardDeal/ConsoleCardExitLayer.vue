@@ -15,7 +15,11 @@
          class="con-exit-proxy"
          :class="{'con-exit-proxy--hero': f.hero}"
          :ref="(el) => registerFlightEl(f.id, el as HTMLElement | null)">
-      <ConsoleCardFaceLite :name="f.name" />
+      <!-- BOTH halves of the parity contract: the live model (cost chip,
+           stored resources, the title-safe width) and `lightweight` (every
+           console grid draws lightweight, and thumb-tier titles differ) —
+           without them each landing visibly re-drew at the handoff. -->
+      <ConsoleCardFaceLite :name="f.name" :card="f.card" lightweight />
     </div>
   </div>
 </template>

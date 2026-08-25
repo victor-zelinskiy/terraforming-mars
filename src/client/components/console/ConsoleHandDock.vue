@@ -7,6 +7,7 @@
          'con-handdock--empty': plan.empty,
          'con-handdock--hot': playableCount > 0,
          'con-handdock--receiving': receiving,
+         'con-handdock--intake': intake,
        }"
        role="button"
        tabindex="-1"
@@ -265,6 +266,15 @@ export default defineComponent({
      */
     compact: {type: Boolean, default: false},
     /**
+     * THE INTAKE ACCENT LEASE IS LIVE — cards are physically arriving or
+     * gathering. The pose SNAPS instead of riding its 340ms transition:
+     * every back is HELD invisible until its proxy's touchdown, so the ride
+     * buys nothing — and it is exactly what the gather's landing measure
+     * raced (targets taken mid-ride landed the whole hand in the miniature
+     * pose, and the backs then materialized full-size in one frame).
+     */
+    intake: {type: Boolean, default: false},
+    /**
      * Names the hand OVERLAY (or a reveal flight) owns right now — those
      * backs render hidden while the chassis + status line stay put
      * (handRevealDirector.ts; the shell derives the set from the visible
@@ -458,6 +468,13 @@ export default defineComponent({
       }
       return out;
     },
+    /* (A resting/`landingRects` variant existed briefly and was REMOVED: the
+       pack composes a card-level dx ride with a pack-level scale ride about a
+       `50% 100%` origin in the same flush the gather arms, and un-mapping
+       that composition mis-aimed the whole fan. The gather's own
+       FINAL-APPROACH retarget in `handRevealDirector` re-reads each live back
+       at 72% of the flight — that is the one honest answer to a pose that is
+       still settling at measure time.) */
   },
 });
 </script>

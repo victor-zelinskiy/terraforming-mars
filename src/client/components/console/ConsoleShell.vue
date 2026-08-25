@@ -1145,6 +1145,7 @@
                        :interactive="handDockInteractive"
                        :raised="consoleState.quick === 'actions'"
                        :compact="handDockCompact"
+                       :intake="dockIntakeAccent"
                        :liftedNames="dockLiftedNames"
                        :deliveryHeld="dockHeld"
                        :album="handDockAlbum"
@@ -1482,7 +1483,7 @@ import ConsoleHandDeliveryLayer from '@/client/components/console/ConsoleHandDel
 import {handRevealState, RevealVisual} from '@/client/console/handDock/handRevealState';
 import {preloadPremiumCardArt} from '@/client/cards/cardArt';
 import {
-  beginDockIntakeAccent, dockIntakeAccentActive, holdDockIntakeAccent, resetDockIntakeAccent,
+  beginDockIntakeAccent, dockIntakeAccentActive, resetDockIntakeAccent,
 } from '@/client/console/handDock/consoleDockAccent';
 import {handDeliveryState} from '@/client/console/handDock/handDeliveryState';
 import {isHandDeliveryActive, resetHandDelivery} from '@/client/console/handDock/handDeliveryDirector';
@@ -1932,6 +1933,9 @@ export default defineComponent({
        * never on the overview grid.
        */
       colonyFocusRestorePending: false,
+      /** A close/collapse gather is in its one-tick MEASURE window (accent
+       *  armed, pose settling) — a second B may not race a second gather. */
+      handClosePreparing: false,
       /** The colony-bonus cube this workspace already answered by itself (the
        *  auto-collect's one-shot dedupe — see `colonyBonusAutoCollect`). */
       colonyBonusCollected: '',
@@ -8421,27 +8425,42 @@ export default defineComponent({
      * presentation mid-flight: the episode registers synchronously.
      */
     async collapseWithHandGather(): Promise<void> {
-      const section = this.$refs.handSection as InstanceType<typeof ConsoleHandSection> | undefined;
-      const dock = this.$refs.handDock as InstanceType<typeof ConsoleHandDock> | undefined;
-      const t = section?.transitionTargets() ?? {pairs: [], scrollTop: 0};
-      const sources = dock?.sourceRects(t.pairs.map((p) => p.name)) ?? new Map<string, RevealRect>();
-      const pairs: Array<RevealPair> = [];
-      for (const p of t.pairs) {
-        const source = sources.get(p.name);
-        if (source !== undefined) {
-          pairs.push({name: p.name, source, target: p.rect, visible: p.visible, clip: p.clip, visual: this.revealVisualFor(p.name)});
-        }
-      }
-      if (pairs.length === 0) {
-        // Nothing measurable — the honest instant park (never a zero-pair
-        // episode, whose empty-input path would pop the hand frame BEFORE
-        // the park and lose the step's depth).
-        this.parkWorkspaceStack();
+      if (this.handClosePreparing) {
         return;
       }
-      const episode = runHandCloseEpisode(pairs, t.scrollTop);
-      this.parkWorkspaceStack();
-      await holdDockIntakeAccent('hand-close', episode);
+      // Same landing-pose discipline as `closeHandWithReveal`: the accent
+      // FIRST, the targets from `landingRects` — a collapse measured in the
+      // compact pose landed the pack in miniature too.
+      this.handClosePreparing = true;
+      const releaseAccent = beginDockIntakeAccent('hand-close');
+      try {
+        await this.$nextTick();
+        const section = this.$refs.handSection as InstanceType<typeof ConsoleHandSection> | undefined;
+        const dock = this.$refs.handDock as InstanceType<typeof ConsoleHandDock> | undefined;
+        const t = section?.transitionTargets() ?? {pairs: [], scrollTop: 0};
+        // RAW berths — provisional; the gather's retarget lands the truth.
+        const sources = dock?.sourceRects(t.pairs.map((p) => p.name)) ?? new Map<string, RevealRect>();
+        const pairs: Array<RevealPair> = [];
+        for (const p of t.pairs) {
+          const source = sources.get(p.name);
+          if (source !== undefined) {
+            pairs.push({name: p.name, source, target: p.rect, visible: p.visible, clip: p.clip, visual: this.revealVisualFor(p.name)});
+          }
+        }
+        if (pairs.length === 0) {
+          // Nothing measurable — the honest instant park (never a zero-pair
+          // episode, whose empty-input path would pop the hand frame BEFORE
+          // the park and lose the step's depth).
+          this.parkWorkspaceStack();
+          return;
+        }
+        const episode = runHandCloseEpisode(pairs, t.scrollTop);
+        this.parkWorkspaceStack();
+        await episode;
+      } finally {
+        this.handClosePreparing = false;
+        releaseAccent();
+      }
     },
     /**
      * Stand the HAND up: a screen of its own, or a STEP inside whatever flow is
@@ -9720,30 +9739,49 @@ export default defineComponent({
      * never reaches here — handleSectionBack reverses the running episode.
      */
     async closeHandWithReveal(exclude?: ReadonlySet<string>): Promise<void> {
-      if (isHandRevealEpisodeRunning() || this.consoleState.section !== 'hand') {
+      if (isHandRevealEpisodeRunning() || this.consoleState.section !== 'hand' || this.handClosePreparing) {
         return;
       }
-      const section = this.$refs.handSection as InstanceType<typeof ConsoleHandSection> | undefined;
-      const dock = this.$refs.handDock as InstanceType<typeof ConsoleHandDock> | undefined;
-      const t = section?.transitionTargets() ?? {pairs: [], scrollTop: 0};
-      const sources = dock?.sourceRects(t.pairs.map((p) => p.name)) ?? new Map<string, RevealRect>();
-      const pairs: Array<RevealPair> = [];
-      for (const p of t.pairs) {
-        // `exclude` = cards that are NOT going home. The discard cinematic owns
-        // them on its own layer and is carrying them the other way, so flying a
-        // second (invisible) proxy to the dock would fight it and, worse, would
-        // land them in a pack they already left.
-        if (exclude?.has(p.name) === true) {
-          continue;
+      // THE LANDING POSE IS THE FULL POSE — the accent begins BEFORE anything
+      // is measured. While the album is open the dock rests COMPACT; targets
+      // measured in that pose landed the whole pack in miniature, and the
+      // real backs then materialized full-size in one frame (the reported
+      // «прилёт → мгновенно обычный размер»). The latch covers the one tick
+      // this now takes (a second B in it must not race a second gather).
+      this.handClosePreparing = true;
+      const releaseAccent = beginDockIntakeAccent('hand-close');
+      try {
+        await this.$nextTick(); // the FULL pose (intake snap) lands before the measure
+        if (isHandRevealEpisodeRunning() || this.consoleState.section !== 'hand') {
+          return;
         }
-        const source = sources.get(p.name);
-        if (source !== undefined) {
-          pairs.push({name: p.name, source, target: p.rect, visible: p.visible, clip: p.clip, visual: this.revealVisualFor(p.name)});
+        const section = this.$refs.handSection as InstanceType<typeof ConsoleHandSection> | undefined;
+        const dock = this.$refs.handDock as InstanceType<typeof ConsoleHandDock> | undefined;
+        const t = section?.transitionTargets() ?? {pairs: [], scrollTop: 0};
+        // RAW berths on purpose: they are PROVISIONAL — the gather's final
+        // approach re-reads the LIVE back per card (the director's retarget),
+        // which is what actually lands the truth whatever the pose was doing
+        // at this instant.
+        const sources = dock?.sourceRects(t.pairs.map((p) => p.name)) ?? new Map<string, RevealRect>();
+        const pairs: Array<RevealPair> = [];
+        for (const p of t.pairs) {
+          // `exclude` = cards that are NOT going home. The discard cinematic owns
+          // them on its own layer and is carrying them the other way, so flying a
+          // second (invisible) proxy to the dock would fight it and, worse, would
+          // land them in a pack they already left.
+          if (exclude?.has(p.name) === true) {
+            continue;
+          }
+          const source = sources.get(p.name);
+          if (source !== undefined) {
+            pairs.push({name: p.name, source, target: p.rect, visible: p.visible, clip: p.clip, visual: this.revealVisualFor(p.name)});
+          }
         }
+        await runHandCloseEpisode(pairs, t.scrollTop);
+      } finally {
+        this.handClosePreparing = false;
+        releaseAccent();
       }
-      // The gather measures the dock's back positions too — same lease, same
-      // reason (see openHandWithReveal).
-      await holdDockIntakeAccent('hand-close', runHandCloseEpisode(pairs, t.scrollTop));
     },
     /**
      * THE DISCARD HAND-OFF (phase D), registered with the discard transaction.

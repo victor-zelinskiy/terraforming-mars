@@ -160,8 +160,13 @@
           </div>
           <!-- The embedded PAYMENT step (Helion heat / steel edge — the common
                M€-only case auto-resolves server-side): the shell teleports the
-               ONE ConsoleTaskHost instance here, `embedded` (no second modal). -->
-          <div v-show="zone === 'pay'" class="con-draftws__paystep" data-draft-pay-slot></div>
+               ONE ConsoleTaskHost instance here, `embedded` (no second modal).
+               It BREATHES in over the card row through the same stage
+               crossfade — every other stage change here is one; this was the
+               file's one raw v-show cut. -->
+          <transition name="con-draftws-stage">
+            <div v-show="zone === 'pay'" class="con-draftws__paystep" data-draft-pay-slot></div>
+          </transition>
         </div>
         </transition>
 
@@ -282,7 +287,7 @@
 
     <!-- The deal cinematic stage (packet arrivals + the research rise). -->
     <ConsoleCardDealLayer v-if="deal.state.active" ref="dealLayer"
-                          :cards="deal.state.cards" :nonce="deal.state.nonce" />
+                          :cards="deal.state.cards" :models="dealModels" :nonce="deal.state.nonce" />
   </section>
 </template>
 
@@ -394,6 +399,13 @@ export default defineComponent({
       discardTimer: undefined as number | undefined,
       /** The zero-buy path's completion gate (no intake flight to ride). */
       completionFlightsTimer: undefined as number | undefined,
+      /** The pick stage's FROZEN presentation while the pass exit reads —
+       *  a fast answer must not swap the v-for under the leaving cards. */
+      presentedPacketFrozen: undefined as ReadonlyArray<CardEntry> | undefined,
+      /** Deferred packet-swap presentation (bounded by `passUntil`). */
+      packetSwapTimer: undefined as number | undefined,
+      /** Wall-clock deadline of the running pass exit's read. */
+      passUntil: 0,
       /** Solved stage layouts (CSS custom-property maps). */
       packetRowStyle: {} as Record<string, string>,
       buyRowStyle: {} as Record<string, string>,
@@ -468,12 +480,24 @@ export default defineComponent({
     packetKey(): string {
       return draftPacketKey(this.playerView);
     },
+    /** What the PICK stage renders: the frozen presentation while the pass
+     *  exit finishes its read (a fast answer used to swap the v-for and cut
+     *  the leavers mid-slide), else the live server packet. */
     packetEntries(): ReadonlyArray<CardEntry> {
+      return this.presentedPacketFrozen ?? this.livePacketEntries;
+    },
+    livePacketEntries(): ReadonlyArray<CardEntry> {
       const input = this.pickInput;
       if (input === undefined) {
         return [];
       }
       return input.cards.map((card, i) => ({name: card.name, key: card.name + '#' + i, card}));
+    },
+    /** Live models aligned with the deal's card list — the flying face must
+     *  match the landed face (buy-zone deals resolve from the buy entries). */
+    dealModels(): Array<CardModel | undefined> {
+      const pool = [...this.packetEntries, ...this.buyEntries];
+      return this.deal.state.cards.map((name) => pool.find((e) => e.name === name)?.card);
     },
     /** Buy candidates — live prompt first, else the frozen snapshot. */
     buyEntries(): ReadonlyArray<CardEntry> {
@@ -676,12 +700,32 @@ export default defineComponent({
         if (next === '' || next === prev) {
           return;
         }
-        this.resetPickState();
-        if (this.inspecting) {
-          this.packetPendingPresent = true;
+        // THE PASS EXIT FINISHES ITS READ FIRST. The v-for swap unmounts the
+        // still-animating leavers, and a fast answer (a bot, a local server)
+        // used to cut them mid-slide on the very frame — the exit essentially
+        // never completed. The swap's PRESENTATION defers until the leavers
+        // are ~faded (bounded by `passUntil`); the server state is already
+        // here, only the paint order changes.
+        if (this.packetSwapTimer !== undefined) {
+          window.clearTimeout(this.packetSwapTimer);
+          this.packetSwapTimer = undefined;
+        }
+        const wait = this.passUntil - Date.now();
+        const present = () => {
+          this.packetSwapTimer = undefined;
+          this.presentedPacketFrozen = undefined; // the swap paints NOW
+          this.resetPickState();
+          if (this.inspecting) {
+            this.packetPendingPresent = true;
+            return;
+          }
+          this.preparePacketArrival();
+        };
+        if (wait > 16) {
+          this.packetSwapTimer = window.setTimeout(present, Math.min(wait, 1900));
           return;
         }
-        this.preparePacketArrival();
+        present();
       },
     },
     /** Every server response re-arms submission (the root identity changes). */
@@ -692,6 +736,11 @@ export default defineComponent({
     zone(next: DraftZone, prev: DraftZone) {
       if (next === prev) {
         return;
+      }
+      if (prev === 'pick' && next !== 'pick') {
+        // The stage-level crossfade owns this handover — a frozen packet
+        // must never outlive the stage it was frozen for.
+        this.presentedPacketFrozen = undefined;
       }
       if (next === 'buy' && this.buySnapshot === undefined && this.buyInput !== undefined) {
         this.buySnapshot = this.buyInput.cards.map((card, i) => ({name: card.name, key: card.name + '#' + i, card}));
@@ -804,6 +853,9 @@ export default defineComponent({
     }
     if (this.completionFlightsTimer !== undefined) {
       window.clearTimeout(this.completionFlightsTimer);
+    }
+    if (this.packetSwapTimer !== undefined) {
+      window.clearTimeout(this.packetSwapTimer);
     }
     this.disposeClones();
     this.deal.dispose();
@@ -956,10 +1008,31 @@ export default defineComponent({
       this.launchPickBeat([...this.picks]);
     },
     launchPickBeat(names: ReadonlyArray<CardName>): void {
+      // FREEZE the packet's presentation for the whole exit read: the answer
+      // lands mid-slide and the v-for swap used to cut the leavers on the
+      // frame. The frozen list is released by the deferred swap presentation
+      // (the packetKey watcher) or by the zone leaving `pick`.
+      this.presentedPacketFrozen = this.livePacketEntries;
       const picks = names
-        .map((name) => ({name, el: this.slotCardEl(name)}))
-        .filter((p): p is {name: CardName, el: HTMLElement} => p.el !== null);
-      // The leftovers physically pass on toward the receiving neighbor.
+        .map((name) => ({
+          name,
+          el: this.slotCardEl(name),
+          // The live model rides the proxy: the flying face must BE the
+          // landed face (cost chip / title-safe width / lightweight tier).
+          card: this.packetEntries.find((e) => e.name === name)?.card,
+        }))
+        .filter((p): p is {name: CardName, el: HTMLElement, card: CardModel | undefined} => {
+          if (p.el === null) {
+            // The flight rule: a missing source is a dev warn, never a
+            // silent «just appear» on the shelf.
+            console.warn('[draft-pick] source slot unresolved — the card will teleport', p.name);
+            return false;
+          }
+          return true;
+        });
+      // The leftovers physically pass on toward the receiving neighbor —
+      // AFTER the hero's take has had the eye (the base delay in
+      // `passingSlotStyle`).
       this.beginPassExit(this.packetEntries.filter((e) => !names.includes(e.name)).map((e) => e.name));
       runDraftPickBeat({
         picks,
@@ -980,23 +1053,51 @@ export default defineComponent({
       }
       this.passingNames = [...names];
       this.passingActive = true;
+      // The read the packet swap defers to: the sequencing base, the last
+      // leaver's stagger and ~85% of the 820ms flight (the cards are
+      // essentially faded by then — cutting later buys nothing).
+      this.passUntil = Date.now() + consoleMotionMs(260 + 70 * Math.max(0, names.length - 1) + 820 * 0.85);
       if (this.passTimer !== undefined) {
         window.clearTimeout(this.passTimer);
       }
+      // Base delay + scaled stagger + the 820ms flight (see passingSlotStyle).
       this.passTimer = window.setTimeout(() => {
         this.passingActive = false;
         this.passTimer = undefined;
-      }, consoleMotionMs(940));
+      }, consoleMotionMs(260 + 70 * Math.max(0, names.length - 1) + 940));
     },
     passingSlotStyle(name: CardName, index: number): Record<string, string> {
-      if (!this.passingNames.includes(name)) {
+      const order = this.passingNames.indexOf(name);
+      if (order < 0) {
         return {};
       }
+      void index;
       const dir = this.giveSide === 'right' ? 1 : -1;
+      // THE EXIT'S DESTINATION IS THE LANE — the physical anchor the NEXT
+      // packet deals in from. A fixed 150px evaporated the cards in
+      // mid-stage (partly clipped by the stage edge at full opacity); the
+      // measured distance closes the same loop the arrival opens.
+      const lane = (dir > 0 ? this.$refs.laneRight : this.$refs.laneLeft) as HTMLElement | undefined;
+      const stage = this.$refs.stageWrap as HTMLElement | undefined;
+      let travel = 150 * conUiScale();
+      const laneRect = lane?.getBoundingClientRect?.();
+      const stageRect = stage?.getBoundingClientRect?.();
+      if (laneRect !== undefined && stageRect !== undefined && laneRect.width >= 0) {
+        // From the stage centre band toward the lane's own x — a bounded,
+        // direction-true travel whatever the packet's width.
+        travel = Math.max(120 * conUiScale(),
+          Math.abs(laneRect.left + laneRect.width / 2 - (stageRect.left + stageRect.width / 2)) * 0.32);
+      }
       return {
-        '--con-draftws-pass-x': `${dir * 150 * conUiScale()}px`,
+        '--con-draftws-pass-x': `${dir * Math.round(travel)}px`,
         '--con-draftws-pass-dir': `${dir}`,
-        'animationDelay': `${index * 70}ms`,
+        // THE HERO READS FIRST. The pick's take + the first beat of its carry
+        // own the eye (~260ms base), THEN the leftovers start toward the
+        // lane — one thing at a time (the same `delayMs` sequencing the buy
+        // path documents). The stagger is by LEAVER order (never the packet
+        // index — the exit's phase must not depend on which card was picked)
+        // and rides the motion scale like every other duration.
+        'animationDelay': `${consoleMotionMs(260 + order * 70)}ms`,
       };
     },
     // ── packet arrival (the deal cinematic) ─────────────────────────────
@@ -1547,8 +1648,12 @@ export default defineComponent({
         // the destination's seat — same physical card, one gesture.
         const scale = t.width / f.width;
         gsap.set(clone, {x: 0, y: 0, scale: 1});
-        const dur = 0.46;
-        const at = i * 0.065;
+        // Through the motion scale like every flight (this was the one
+        // hand-triggered gesture `?motion=` did not touch), and the stagger
+        // spaced to the LANDING-cadence floor — 65ms apart the touchdowns
+        // shared a blink and the spread read as one flash.
+        const dur = consoleMotionMs(460) / 1000;
+        const at = i * (consoleMotionMs(96) / 1000);
         const tl = gsap.timeline({delay: at});
         tl.to(clone, {x: (t.left - f.left) / z, duration: dur, ease: 'power2.inOut'}, 0);
         tl.to(clone, {y: (t.top - f.top) / z, duration: dur, ease: 'power3.out'}, 0);

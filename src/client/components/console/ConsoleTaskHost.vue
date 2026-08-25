@@ -539,7 +539,7 @@
 
     <!-- The deal cinematic stage (draft / buy / research card sets). -->
     <ConsoleCardDealLayer v-if="deal.state.active" ref="dealLayer"
-                          :cards="deal.state.cards" :nonce="deal.state.nonce" />
+                          :cards="deal.state.cards" :models="dealModels" :nonce="deal.state.nonce" />
   </div>
 </template>
 
@@ -1383,6 +1383,12 @@ export default defineComponent({
       return this.wf?.type === 'card' ? (this.wf as SelectCardModel) : undefined;
     },
     /** Selectable candidates first, then the DISABLED ones (with reasons). */
+    /** Live models aligned with the deal's card list — the flying face must
+     *  match the landed face (the parity contract). */
+    dealModels(): Array<CardModel | undefined> {
+      const pool = this.cardEntries.map((e) => e.card);
+      return this.deal.state.cards.map((name) => pool.find((c) => c.name === name));
+    },
     cardEntries(): Array<{card: CardModel, disabled: boolean, reason: string}> {
       const model = this.cardModel;
       if (model === undefined) {

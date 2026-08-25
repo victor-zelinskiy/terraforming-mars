@@ -27,6 +27,7 @@
   <div class="con-handreveal-layer" aria-hidden="true">
     <div v-for="f in handRevealState.flights" :key="f.id"
          class="con-deal-proxy"
+         :data-reveal-card="f.name"
          :ref="(el) => registerRevealEl(f.id, el as HTMLElement | null)">
       <div class="con-deal-proxy__flip">
         <div v-if="f.face"

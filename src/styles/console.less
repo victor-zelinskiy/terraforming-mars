@@ -2689,6 +2689,31 @@ html.console-native {
         }
     }
 
+    /* Focus rides the WS-STAGE grammar, not the carousel's kick: the row is
+       laid out by wsStageLayout (the gap already reserves room for exactly
+       --con-ws-focus-scale), and on a stage the neighbours are the same
+       decision — the focused card reads as SELECTED, not as a bigger card.
+       Without this the bare `.con-cards__slot--focused` (1.08 / 160ms ease)
+       won and every d-pad move kicked. */
+    &__row > .con-cards__slot {
+        transition:
+            transform calc(260ms * var(--motion-scale, 1)) @con-ease-standard,
+            box-shadow calc(260ms * var(--motion-scale, 1)) @con-ease-standard;
+    }
+    &__row > .con-cards__slot--focused {
+        transform: translateY(-.2rem) scale(var(--con-ws-focus-scale, 1.045));
+    }
+    /* Pick-limit de-emphasis PAINTS here: the shared P15 dim rules are scoped
+       to `.con-cards__strip--has-focus`, which this row (deliberately not a
+       strip) never is — the `--dim` class used to select nothing. */
+    &__row > .con-cards__slot--dim > :is(.card-container, .pcard) {
+        opacity: 0.45;
+        transition: opacity calc(260ms * var(--motion-scale, 1)) @con-ease-standard;
+    }
+    &__row > .con-cards__slot--dim.con-cards__slot--focused > :is(.card-container, .pcard) {
+        opacity: 0.9;
+    }
+
     /* The PASS EXIT: the leftover packet visibly leaves toward the neighbor —
        lift, tilt into the direction, slide off while the face crossfades to
        the card back (the packet travels turned over). transform/opacity only. */
@@ -2763,7 +2788,10 @@ html.console-native {
         width: .5rem;
         height: .5rem;
         border-radius: 50%;
-        background: fade(@con-cyan, 30%);
+        /* The BRIGHT pose is the static paint (the loop breathes opacity
+           over it — compositor-only); the resting dim comes from the
+           keyframes' own 0% opacity. */
+        background: fade(@con-cyan, 85%);
         animation: con-draftws-signal calc(1600ms * var(--motion-scale, 1)) ease-in-out infinite;
 
         &:nth-child(2) { animation-delay: calc(200ms * var(--motion-scale, 1)); }
@@ -2870,7 +2898,10 @@ html.console-native {
         flex-direction: column;
         align-items: center;
         gap: .5rem;
-        animation: con-draftws-rise calc(420ms * var(--motion-scale, 1)) @con-ease-enter;
+        /* ONE entrance: the stage-level `con-draftws-stage` crossfade already
+           carries this layer in — the plate's own second rise (420ms on top
+           of the 300ms stage enter, two translateY ramps on nested nodes)
+           read as a stutter, not an accent. */
     }
     &__done-mark {
         width: 3.4rem;
@@ -3087,9 +3118,13 @@ html.console-native {
     58% { opacity: 1; }
     100% { opacity: 1; }
 }
+/* COMPOSITOR-ONLY by the ambient-loop rule: this waits for MINUTES in a
+   human game, and its old background/box-shadow keyframes kept a full
+   style→paint pipeline running the whole time. The dots rest at their
+   BRIGHT pose (static paint) and breathe via opacity+transform alone. */
 @keyframes con-draftws-signal {
-    0%, 100% { transform: scale(1); background: fade(@con-cyan, 25%); box-shadow: none; }
-    45% { transform: scale(1.25); background: fade(@con-cyan, 85%); box-shadow: 0 0 .6rem fade(@con-cyan, 45%); }
+    0%, 100% { transform: scale(1); opacity: .3; }
+    45% { transform: scale(1.25); opacity: 1; }
 }
 /* Rise OUT OF THE SHELF: the card grows from the collection's scale up to the
    reading row — the same physical object, one continuous gesture. */
@@ -12515,6 +12550,23 @@ html.con-profile-large.console-mode .notifications-layer.notifications-layer--jo
         transition:
             transform calc(340ms * var(--motion-scale, 1)) @con-ease-standard,
             opacity calc(260ms * var(--motion-scale, 1)) ease;
+    }
+    /* INTAKE = the pose snaps, invisibly. While the intake accent lease is
+       live (cards physically arriving / gathering) the pack is HELD — every
+       back invisible until its proxy's touchdown — so animating the
+       compact→full ride buys nothing; and it is exactly what the gather's
+       landing measure raced: targets taken mid-ride landed the whole hand
+       in the miniature pose, and the backs then materialized full-size in
+       one frame (the reported «прилёт → мгновенный скачок»). With the ride
+       cut, the first measure after the accent IS the full-pose berth. */
+    &--intake &__card {
+        transition: opacity calc(260ms * var(--motion-scale, 1)) ease;
+    }
+    /* …and the PACK's own ride too — the compact pose lives HERE (sink +
+       scale about the tray axis, 460ms). Leaving it riding is what kept the
+       landing measure racing a moving pack even with the cards snapped. */
+    &--intake &__pack {
+        transition: opacity calc(460ms * var(--motion-scale, 1)) @con-ease-standard;
     }
     /* A dense-thickness card (beyond the 20 distinct positions): a REAL
        card, cheaply drawn — no blur shadow (dozens of those would cost),
