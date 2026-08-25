@@ -232,14 +232,28 @@ painted frames. Four rules now hold, all in `handRevealDirector.ts`:
   dock accent's job, not the flight's. `building` covers the gate; a B
   inside it rides `pendingReverse`; a reset mid-build is detected by
   `buildSeq` (never install a dead episode over fresh state).
-- **THE TIMELINE NEVER RIDES GSAP'S TICKER**: it stays paused for life and
-  the episode's own driver steps `tl.time()` — rAF where frames flow, a
-  40 ms interval co-driver where they do not (the magnetToBerth
-  discipline), back-to-back ticks coalesced (≥12 ms apart), every step's
-  dt bounded by `MAX_STEP_MS` (28 ms ≈ one honest fast frame at the
-  flight's peak speed, ~120 px). A stall slides the flight later in time
-  instead of skipping it through space. The driver dies with the episode —
-  zero standing cost while the hand is docked.
+- **THE TIMELINE NEVER RIDES GSAP'S TICKER — AND THE CLOCK IS
+  PAINT-LOCKED**: it stays paused for life and the episode's own driver
+  steps `tl.time()` on rAF ONLY — one bounded step (`MAX_STEP_MS` 28 ms ≈
+  ~120 px at the flight's peak) per PAINTED frame, so what the player sees
+  between two frames is never more than one step of motion, however slowly
+  the machine paints: a slow machine gets a slower, CONTINUOUS flight
+  (verified by the 6× CPU-throttle guard test). The 40 ms interval is
+  strictly a DEAD-COMPOSITOR watchdog (headless / backgrounded): it
+  advances the clock only after `RAF_DEAD_MS` (260 ms) without a frame —
+  an interval that co-drove in real time re-created the reported
+  «прореживание за один кадр» on paint-starved machines, because the
+  flight ran to schedule while the screen showed only every Nth pose. The
+  magnets follow the same discipline. The driver dies with the episode —
+  zero standing cost while the hand is docked. The progress-aware safety
+  only concludes «stopped» across a REAL interval (a long main-thread
+  block drains both queued checks back-to-back over the same progress).
+- **BUILD IDENTITY IS STAMPED**: `handRevealState.rev` renders as
+  `data-hand-reveal-rev` on the layer root and is named in the per-episode
+  `console.info('[hand-reveal] arm …')` line; the continuity guard asserts
+  it. A stale served chunk (the server caches bundles at startup; desktop
+  ships its own build) reads exactly like «the fix changed nothing» — this
+  marker is how that failure mode gets caught in one glance.
 - **THE SAFETY IS PROGRESS-AWARE**: the bounded clock legitimately runs
   slower than wall time under load, so the watchdog re-checks a MOVING
   playhead (hard cap ~3.5× budget) and snaps only a genuinely stopped one.

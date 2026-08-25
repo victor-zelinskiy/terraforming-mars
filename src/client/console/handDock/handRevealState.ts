@@ -84,6 +84,15 @@ export const handRevealState = reactive({
    *  are identical» is a contract about the SOURCE too). */
   artTier: 'full' as 'full' | 'thumb',
   /**
+   * THE TRANSITION CORE'S REVISION — stamped on the layer root as
+   * `data-hand-reveal-rev` and named in the per-episode arm log. Exists to
+   * kill the ONE debugging failure mode that cost this flow the most: a
+   * stale served bundle looking exactly like «the fix changed nothing»
+   * (the server caches chunks at startup; desktop builds ship their own).
+   * Bump it whenever the episode architecture changes.
+   */
+  rev: 9,
+  /**
    * THE STAGE WINDOW — the album's x-range, applied as a STATIC `clip-path`
    * on the whole reveal layer for the episode's lifetime. A packet-bound
    * card is erased/revealed by the boundary purely by WHERE IT IS — the

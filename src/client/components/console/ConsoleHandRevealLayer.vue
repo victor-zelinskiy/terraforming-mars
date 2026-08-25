@@ -29,7 +29,8 @@
        bound proxy beyond the boundary is erased by the clip itself, and a
        card sliding across it emerges/vanishes progressively, by position,
        with zero per-frame style writes. -->
-  <div class="con-handreveal-layer" aria-hidden="true" :style="stageStyle">
+  <div class="con-handreveal-layer" aria-hidden="true" :style="stageStyle"
+       :data-hand-reveal-rev="handRevealState.rev">
     <div v-for="f in handRevealState.flights" :key="f.id"
          class="con-deal-proxy"
          :data-reveal-card="f.name"

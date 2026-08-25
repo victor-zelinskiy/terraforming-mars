@@ -287,6 +287,14 @@ const DRIVER_INTERVAL_MS = 40;
  *  never engages; under starvation the flight runs slightly slower instead
  *  — which the progress-aware safety is built to tolerate.) */
 const MAX_STEP_MS = 28;
+/** The compositor is considered DEAD (headless / fully backgrounded) only
+ *  after this long without a rAF tick — below it, the interval watchdog
+ *  must NOT advance the clock: on a slow-painting machine ticks between
+ *  paints would run the flight to schedule while the SCREEN shows only
+ *  every Nth pose — the reported «веер прореживается за один кадр». The
+ *  clock is PAINT-LOCKED: one bounded step per painted frame, so a slow
+ *  machine gets a slower, CONTINUOUS flight. */
+const RAF_DEAD_MS = 260;
 
 function startEpisodeDriver(ep: Episode): void {
   const tl = ep.tl;
@@ -364,14 +372,25 @@ function startEpisodeDriver(ep: Episode): void {
       }
     }
   };
+  // PAINT-LOCKED: rAF is the ONE clock — one bounded step per painted
+  // frame, so what the player sees between two frames is never more than
+  // one step of motion, however slow the machine paints. The interval is
+  // strictly a DEAD-COMPOSITOR watchdog (headless, background window): it
+  // advances the clock only when no frame has been painted for RAF_DEAD_MS.
+  let lastRafAt = performance.now();
   const loop = () => {
     if (!running) {
       return;
     }
+    lastRafAt = performance.now();
     step();
     rafId = window.requestAnimationFrame(loop);
   };
-  iv = window.setInterval(step, DRIVER_INTERVAL_MS);
+  iv = window.setInterval(() => {
+    if (running && performance.now() - lastRafAt > RAF_DEAD_MS) {
+      step();
+    }
+  }, DRIVER_INTERVAL_MS);
   rafId = window.requestAnimationFrame(loop);
 }
 
@@ -861,14 +880,30 @@ function magnetToBerth(el: HTMLElement, name: string, natH: number, budgetMs: nu
       } else {
         stable = 0;
       }
-      requestAnimationFrame(step);
     };
-    // The interval CO-DRIVES the rAF loop (a quiet headless/backgrounded
-    // compositor stops delivering frames exactly when the pose settles).
-    // Declared after `step` on purpose: `finish` closes over it and can only
-    // ever run from a callback this line has already scheduled.
-    const iv = window.setInterval(step, 40);
-    requestAnimationFrame(step);
+    // PAINT-LOCKED like the episode driver: rAF is the one clock (one
+    // bounded approach step per painted frame); the interval is strictly
+    // the dead-compositor watchdog (headless / backgrounded — frames stop
+    // exactly when the pose settles). Declared after `step` on purpose:
+    // `finish` closes over `iv` and can only ever run from a callback this
+    // block has already scheduled.
+    let lastRafAt = performance.now();
+    const rafLoop = () => {
+      if (done) {
+        return;
+      }
+      lastRafAt = performance.now();
+      step();
+      if (!done) {
+        requestAnimationFrame(rafLoop);
+      }
+    };
+    const iv = window.setInterval(() => {
+      if (!done && performance.now() - lastRafAt > 260) {
+        step();
+      }
+    }, 40);
+    requestAnimationFrame(rafLoop);
   });
 }
 
@@ -1322,11 +1357,21 @@ function installEpisode(kind: Episode['kind'], tl: gsap.core.Timeline, els: Arra
   // re-checked, with a hard cap (~3.5× budget) as the absolute backstop.
   let lastProgress = -1;
   let checks = 0;
+  let lastCheckAt = performance.now();
   const safetyCheck = () => {
     const cur = episode;
     if (cur === undefined || cur.tl !== tl || cur.finished) {
       return;
     }
+    const now = performance.now();
+    // A long main-thread block queues BOTH pending checks; they then drain
+    // back-to-back and read the SAME progress — «stopped» must only ever be
+    // concluded across a real interval, or the drain snaps a healthy flight.
+    if (now - lastCheckAt < 350) {
+      cur.safety = window.setTimeout(safetyCheck, Math.max(400, budgetMs / 2));
+      return;
+    }
+    lastCheckAt = now;
     const p = tl.progress();
     const moving = p !== lastProgress;
     lastProgress = p;
@@ -1346,6 +1391,9 @@ function installEpisode(kind: Episode['kind'], tl: gsap.core.Timeline, els: Arra
     els: els.filter((e): e is HTMLElement => e !== undefined),
   };
   episode = ep;
+  // The arm log names the revision — `[hand-reveal] arm …` missing from the
+  // console during an episode = a stale bundle is running (see state.rev).
+  console.info(`[hand-reveal] arm ${kind} n=${ep.els.length} rev=${handRevealState.rev}`);
   building = false;
   buildingKind = undefined;
   // A `B` landed during the build window (measures/spawn/ignition): honour it

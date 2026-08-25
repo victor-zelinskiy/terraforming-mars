@@ -410,9 +410,14 @@ async function bootLargeAlbum(page: Page, request: Parameters<typeof bootIntoGam
   // but the product can, exactly, at the write site.
   const warns: Array<string> = [];
   page.on('console', (m) => {
-    if (m.text().includes('[hand-reveal]')) {
+    if (!m.text().includes('[hand-reveal]')) {
+      return;
+    }
+    console.log(`PAGE: ${m.text()}`);
+    // The per-episode `arm … rev=N` line is console.INFO (a build-identity
+    // witness, not a degrade) — only WARNINGS are asserted empty.
+    if (m.type() === 'warning') {
       warns.push(m.text());
-      console.log(`PAGE: ${m.text()}`);
     }
   });
   await page.addInitScript(() => {
@@ -431,6 +436,12 @@ async function bootLargeAlbum(page: Page, request: Parameters<typeof bootIntoGam
   });
   await waitForTurn(page);
   await page.waitForTimeout(2500);
+  // BUILD IDENTITY: the layer stamps the transition core's revision. A
+  // mismatch means the server handed out a cached/stale chunk — the one
+  // failure mode that reads exactly like «the fix changed nothing».
+  const rev = await page.evaluate(() =>
+    document.querySelector('.con-handreveal-layer')?.getAttribute('data-hand-reveal-rev') ?? '(no layer)');
+  expect(rev, 'the served bundle carries the current transition core (stale-server trap)').toBe('9');
   await installProbe(page);
   await armProbe(page, true);
   return warns;
@@ -513,6 +524,25 @@ test.describe('hand album continuity · large layout', () => {
     await page.waitForTimeout(600);
     await armProbe(page, false);
     assertContinuity(await readProbe(page), 8, '9', warns);
+  });
+
+  test('15 cards under 6× CPU throttle: the flight slows, never thins', async ({page, request}) => {
+    test.setTimeout(420_000);
+    const warns = await bootLargeAlbum(page, request, 15, 'ContinuityCPU', 0.43);
+    // The reported machine: paints arrive slowly while the transition works.
+    // The PAINT-LOCKED clock must answer with a slower, continuous flight —
+    // never with a fan that thins between two painted frames.
+    const cdp = await page.context().newCDPSession(page);
+    await cdp.send('Emulation.setCPUThrottlingRate', {rate: 6});
+    console.log('[hac] throttled opening');
+    await press(page, 'Period', 900);
+    await press(page, 'Enter', 5200);
+    console.log('[hac] throttled closing');
+    await press(page, 'Escape', 5600);
+    await cdp.send('Emulation.setCPUThrottlingRate', {rate: 1});
+    await page.waitForTimeout(700);
+    await armProbe(page, false);
+    assertContinuity(await readProbe(page), 12, 'cpu6', warns);
   });
 
   test('20 cards: close from page 1, reopen, close again', async ({page, request}) => {
