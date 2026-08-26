@@ -5609,6 +5609,83 @@ html.console-mode body.placement-pending .board-outer-spaces > .board-space.boar
             .gp-glyph { opacity: 0.4; }
         }
     }
+    /* ── THE BONUS OFFER ────────────────────────────────────────────────
+       A card is offering a move the player did not ask for. The zone reuses
+       the panel, the route line and the CTA vocabulary above — nothing here
+       introduces a visual language of its own; it only lays the three parts
+       out (source · what it grants · take or skip) and marks FOCUS.
+
+       Focus is carried by box-shadow/colour, never by filter or text-shadow:
+       console strips both permanently (console_paint_baseline). */
+    &__panel--bonus {
+        .con-hydro__panelbody {
+            display: flex;
+            flex-direction: column;
+            gap: .55rem;
+        }
+    }
+    &__bonus-source {
+        align-self: center;
+        border-radius: .7rem;
+        padding: .2rem;
+        cursor: pointer;
+        /* Reserve the ring on BOTH states so focus never re-lays the column. */
+        box-shadow: inset 0 0 0 .1rem transparent;
+        transition: box-shadow calc(120ms * var(--motion-scale, 1)) linear;
+
+        &--focused {
+            box-shadow: inset 0 0 0 .1rem fade(@con-hydro-aqua, 90%),
+                        0 0 1rem fade(@con-hydro-aqua, 22%);
+        }
+    }
+    &__bonus-body {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        gap: .35rem;
+        text-align: center;
+    }
+    &__bonus-text {
+        margin: 0;
+        max-width: 26rem;
+        color: rgba(214, 232, 248, 0.92);
+        font-size: .85rem;
+        line-height: 1.35;
+        /* NEVER clamp decision text — density is bought in the model. */
+    }
+    &__route-cost--free {
+        color: @con-hydro-mint;
+        font-weight: 800;
+        text-transform: uppercase;
+        letter-spacing: .04rem;
+    }
+    /* The two answers sit side by side; the SKIP is the quiet one. */
+    &__layer--bonus &__ctazone {
+        flex-direction: row;
+        justify-content: center;
+        gap: .6rem;
+
+        .con-hydro__cta {
+            /* The cursor, not the mouse, is the primary pointer here: a
+               non-focused CTA must not breathe for attention it does not have. */
+            animation: none;
+            box-shadow: inset 0 0 0 .05rem fade(@con-hydro-mint, 55%);
+
+            &--configure {
+                background: rgba(14, 22, 33, 0.6);
+                box-shadow: inset 0 0 0 .05rem rgba(120, 150, 180, 0.3);
+                color: rgba(206, 224, 242, 0.82);
+            }
+            &--focused {
+                box-shadow: inset 0 0 0 .1rem fade(@con-hydro-aqua, 95%),
+                            0 0 1.2rem fade(@con-hydro-aqua, 26%);
+            }
+            &:disabled {
+                cursor: default;
+                color: rgba(196, 216, 236, 0.45);
+            }
+        }
+    }
     &__reasons {
         display: flex;
         flex-direction: column;

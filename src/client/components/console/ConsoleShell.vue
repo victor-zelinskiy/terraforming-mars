@@ -276,6 +276,8 @@
                              :actionAvailable="hydroActionAvailable"
                              :cacheKey="hydroCacheKey"
                              :followUpLive="hydroFollowUpLive"
+                             :bonusOffer="hydroBonusOfferLive ? hydroBonusOfferRaw : undefined"
+                             @bonus-answer="submitHydroBonus($event)"
                              @pick="openHydroRepeatPick"
                              @notice="showNotice($event)"
                              @confirm="submitHydroAdvance($event)"
@@ -1579,7 +1581,7 @@ import {PlacementConversion, PlacementShape} from '@/client/console/placementDos
 import {ConsoleTaskSummary, consoleTaskSummary, placementKicker} from '@/client/console/consoleTaskSummary';
 import {setStartSetupRevealSuspended} from '@/client/components/startGameFlow/startSetupRevealState';
 import {corpActionOptionIndexFor, corporationCardNames, corpStatusFor, startFlowCorpPrompt} from '@/client/components/startGameFlow/startGameFlowState';
-import {cancelResponse, cardsResponse, colonyResponse, orWrappedResponse} from '@/client/console/taskResponses';
+import {cancelResponse, cardsResponse, colonyResponse, orOptionResponse, orWrappedResponse} from '@/client/console/taskResponses';
 import {leakDetectorState, startConsoleLeakDetector, stopConsoleLeakDetector, setConsoleTaskDeferred, setConsoleTaskSpacePlacement} from '@/client/console/consoleLeakDetector';
 import {govScaleFocusState, beginGovScaleClose, commitGovScaleFocus, resetGovScaleFocus} from '@/client/console/consoleGovScaleFocus';
 import ConsoleHydroSection from '@/client/components/console/ConsoleHydroSection.vue';
@@ -11928,6 +11930,14 @@ export default defineComponent({
     },
     // ── hydro advance (mirrors PlayerHome.submitHydroAdvance; the stage-7
     //    COMPOSED repeat appends the ProjInsp/Viron-parity batch tail) ─────
+    /**
+     * ANSWER a card-granted bonus move. ONE call, the ordinary submit funnel —
+     * the index is the SERVER's own (`deltaBonusPrompt.advanceIndex` /
+     * `.skipIndex`), so the console never depends on the option order it sees.
+     */
+    submitHydroBonus(index: number): void {
+      submitInput(orOptionResponse(index) as InputResponse);
+    },
     submitHydroAdvance(payload: {
       spend: number, rewardChoice: number | undefined, selectedCard?: CardName,
       repeat?: ConsoleRepeatPickResult, fromPosition: number, toPosition: number,

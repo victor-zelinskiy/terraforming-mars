@@ -356,6 +356,64 @@
                                    :lockedCard="targetLockedCard" />
         </div>
 
+        <!-- ═══ BONUS — a card is OFFERING a move the player did not ask for.
+             The zone the track's own drawn cards use in other phases, given
+             over to ONE decision: the source card, what it grants, take it or
+             skip. It never titles itself — the stage name goes UP to the
+             crumb (`bonusStageKey` → the frame), the way every embedded step
+             in this console does. ═══ -->
+        <div v-else-if="sceneKey === 'bonus'" key="bonus" class="con-hydro__layer con-hydro__layer--bonus">
+          <div class="con-hydro__panel con-hydro__panel--bonus">
+            <div class="con-hydro__panelbody">
+              <!-- THE SOURCE, exactly as the other flows present one: the card's
+                   own printed graphic + its name. X inspects it — pre-commit the
+                   source IS the current object, so there is no L3 here. -->
+              <div class="con-hydro__bonus-source"
+                   :class="{'con-hydro__bonus-source--focused': sceneFocus === 'bonus-source'}"
+                   data-unfold-item role="button" @click="inspectBonusSource">
+                <ConsoleCardFaceLite :name="bonusOffer.source" />
+              </div>
+
+              <!-- WHAT IT DOES — one calm sentence, and the move stated in the
+                   SAME route grammar the plan panel uses above. -->
+              <div class="con-hydro__bonus-body" data-unfold-item>
+                <span class="con-hydro__route">
+                  <span>{{ bonusOffer.fromPosition }}</span>
+                  <span aria-hidden="true">→</span>
+                  <b>{{ bonusOffer.toPosition }}</b>
+                  <span v-if="bonusOffer.energyCost > 0" class="con-hydro__route-cost">
+                    −{{ bonusOffer.energyCost }}
+                    <i class="con-hydro__chip-ico resource_icon resource_icon--energy" aria-hidden="true"></i>
+                  </span>
+                  <span v-else class="con-hydro__route-cost con-hydro__route-cost--free">{{ $t('Free') }}</span>
+                </span>
+                <p class="con-hydro__bonus-text">{{ bonusBodyText }}</p>
+              </div>
+
+              <!-- TAKE IT / SKIP — the section's own CTA vocabulary. While the
+                   answer is in flight both are inert: a second press cannot
+                   exist, by state rather than by a guard. -->
+              <div class="con-hydro__ctazone" data-unfold-item>
+                <button type="button"
+                        class="con-hydro__cta"
+                        :class="{'con-hydro__cta--focused': sceneFocus === 'bonus-confirm'}"
+                        :disabled="bonusSubmitting"
+                        @click="answerBonus(true)">
+                  <GamepadGlyph control="confirm" />
+                  <span>{{ $t(bonusCopy.confirmKey) }}</span>
+                </button>
+                <button type="button"
+                        class="con-hydro__cta con-hydro__cta--configure"
+                        :class="{'con-hydro__cta--focused': sceneFocus === 'bonus-skip'}"
+                        :disabled="bonusSubmitting"
+                        @click="answerBonus(false)">
+                  <span>{{ $t(bonusCopy.skipKey) }}</span>
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+
         <!-- ═══ COMMIT — the marker is travelling / the landed stage pays. ═══ -->
         <div v-else-if="sceneKey === 'commit'" key="commit" class="con-hydro__layer con-hydro__layer--commit">
           <div class="con-hydro__commitline" data-unfold-item>
@@ -491,7 +549,7 @@ import {CardName} from '@/common/cards/CardName';
 import {CardModel} from '@/common/models/CardModel';
 import {PlayerViewModel} from '@/common/models/PlayerModel';
 import {DeltaTrackPreviewModel} from '@/common/models/DeltaTrackPreviewModel';
-import {$t, translateText, translateTextWithParams} from '@/client/directives/i18n';
+import {$t, translateCardName, translateText, translateTextWithParams} from '@/client/directives/i18n';
 import {iconClassFor} from '@/client/components/modalInputs/optionIcons';
 import {buildHydroModel, HydroModel, HydroStageVM} from '@/client/components/hydronetwork/hydroNetworkModel';
 import {HydroStage} from '@/client/components/hydronetwork/hydroStages';
@@ -527,6 +585,8 @@ import {
 import {playedTargetZoomOrigin} from '@/client/console/played/consolePlayedTargetZoom';
 import {openConsoleCardZoom} from '@/client/console/consoleCardZoom';
 import {getCard} from '@/client/cards/ClientCardManifest';
+import {hydroBonusCopy, hydroZoneState} from '@/client/console/hydroFlow/hydroBonusOffer';
+import type {DeltaBonusPromptMeta} from '@/common/models/DeltaBonusPromptModel';
 import {conUiScale, consoleLayoutState} from '@/client/console/consoleLayoutProfile';
 import {motionMs} from '@/client/components/motion/motionTokens';
 import {cardResourceLandings} from '@/client/console/resourceTransfer/consoleResourceTransfer';
@@ -563,7 +623,7 @@ type RailStop = {
 
 type GroupNode = ActionGroup['nodes'][number];
 
-type SceneKey = 'preview' | 'choice' | 'target' | 'commit' | 'result';
+type SceneKey = 'preview' | 'choice' | 'target' | 'bonus' | 'commit' | 'result';
 
 export default defineComponent({
   name: 'ConsoleHydroSection',
@@ -580,8 +640,15 @@ export default defineComponent({
     /** A follow-up decision of the committed advance is standing (the shell's
      *  live fact — turns the resolving beat into the collapsible phase). */
     followUpLive: {type: Boolean, default: false},
+    /**
+     * A CARD-GRANTED BONUS MOVE the player has not answered yet — the server's
+     * own `deltaBonusPrompt`, already ADMITTED by the shell (the door waits out
+     * the placement's whole arrival chain, drawn cards included). The section
+     * renders the verdict and never re-decides any part of it.
+     */
+    bonusOffer: {type: Object as PropType<DeltaBonusPromptMeta>, default: undefined},
   },
-  emits: ['close', 'confirm', 'pick', 'notice', 'collapse', 'result-done'],
+  emits: ['close', 'confirm', 'pick', 'notice', 'collapse', 'result-done', 'bonus-answer', 'inspect-source'],
   setup() {
     const {reduced} = useConsoleReducedMotion();
     return {reducedMotion: reduced};
@@ -592,7 +659,9 @@ export default defineComponent({
       hydroMarkerState,
       landings: cardResourceLandings,
       /** Scene focus: the track (A = primary) or the pre-select summary. */
-      sceneFocus: 'track' as 'track' | 'summary',
+      sceneFocus: 'track' as 'track' | 'summary' | 'bonus-source' | 'bonus-confirm' | 'bonus-skip',
+      /** The bonus answer is in flight — both CTAs are inert until the server replies. */
+      bonusSubmitting: false,
       /** The reward picker's focused option (pos 1/2). */
       choiceFocus: 0,
       /** Where the cursor stands INSIDE the reward step: on the options, or
@@ -854,9 +923,24 @@ export default defineComponent({
       return this.flow.commit as HydroCommitRecord;
     },
     sceneKey(): SceneKey {
+      // The WORKING ZONE's states are mutually exclusive by construction, and
+      // their precedence is the pure module's contract — what is already
+      // RUNNING outranks what is merely offered, so a second ocean's offer can
+      // never paint over the move in flight.
       const c = this.flow.commit;
-      if (c !== undefined) {
-        return c.phase === 'result' ? 'result' : 'commit';
+      const zone = hydroZoneState({
+        offerLive: this.bonusOffer !== undefined,
+        committing: c !== undefined && c.phase !== 'result',
+        resolving: c?.phase === 'result',
+      });
+      if (zone === 'resolving') {
+        return 'result';
+      }
+      if (zone === 'committing') {
+        return 'commit';
+      }
+      if (zone === 'bonus-offer') {
+        return 'bonus';
       }
       if (this.flow.step === 'reward') {
         return 'choice';
@@ -865,6 +949,31 @@ export default defineComponent({
         return 'target';
       }
       return 'preview';
+    },
+    /** The offer's copy — i18n KEYS from the pure module, never coined here. */
+    bonusCopy(): ReturnType<typeof hydroBonusCopy> {
+      return hydroBonusCopy(this.bonusOffer ?? {
+        source: CardName.DELTA_PROJECT, steps: 1, fromPosition: 0, toPosition: 1,
+        energyCost: 0, waivesTag: false, advanceIndex: 0, skipIndex: 1,
+      });
+    },
+    /** The body sentence with the source card's TRANSLATED name folded in. */
+    bonusBodyText(): string {
+      return translateTextWithParams(this.bonusCopy.bodyKey,
+        this.bonusCopy.bodyParams.map((n) => translateCardName(n as CardName)));
+    },
+    /** The stage name the zone hands UP to the crumb (it never draws one). */
+    bonusStageKey(): string {
+      return this.bonusOffer === undefined ? '' : this.bonusCopy.stageKey;
+    },
+    /** The offer's IDENTITY — a new offer is a new decision. */
+    bonusIdentity(): string {
+      const o = this.bonusOffer;
+      return o === undefined ? '' : [o.source, o.fromPosition, o.toPosition, o.energyCost].join('|');
+    },
+    /** Is the offer answerable right now (not already submitted)? */
+    bonusAnswerable(): boolean {
+      return this.bonusOffer !== undefined && !this.bonusSubmitting;
     },
     flowKind(): string {
       return hydroWorkspacePhase(this.followUpLive);
@@ -939,6 +1048,12 @@ export default defineComponent({
       return '';
     },
     crumbStage(): string {
+      // The offer NEVER titles itself inside the frame — the crumb's tail is
+      // where it names itself, so the workspace name and the source stay put
+      // and only the stage segment advances.
+      if (this.sceneKey === 'bonus') {
+        return this.bonusStageKey;
+      }
       const c = this.flow.commit;
       if (c !== undefined) {
         if (c.phase === 'result') {
@@ -1066,6 +1181,17 @@ export default defineComponent({
           {control: 'back', label: 'Cancel'},
         ];
       }
+      if (this.sceneKey === 'bonus') {
+        // ONE action — one hint. While the answer is in flight every verb is
+        // disabled rather than removed: a bar that empties mid-press reads as
+        // the surface having gone away.
+        return [
+          {control: 'dpadU', control2: 'dpadD', label: 'Choose', priority: 2},
+          {control: 'confirm', label: this.sceneFocus === 'bonus-skip' ? this.bonusCopy.skipKey : this.bonusCopy.confirmKey, enabled: this.bonusAnswerable},
+          {control: 'secondary', label: 'Inspect', enabled: this.bonusAnswerable},
+          {control: 'back', label: this.bonusCopy.skipKey, enabled: this.bonusAnswerable},
+        ];
+      }
       if (this.flow.step === 'target') {
         const cmds: Array<ConsoleCommand> = [{control: 'dpad', label: 'Navigate', priority: 2}];
         if (this.targetLayout.mode === 'tabs' && (this.targetStepModel?.owners.length ?? 0) > 1) {
@@ -1109,6 +1235,23 @@ export default defineComponent({
     },
     viewerColor(): void {
       this.fetchPreview();
+    },
+    /**
+     * A NEW offer seats the cursor on its CONFIRM and clears the in-flight
+     * latch. Keyed on the offer's identity, so a second ocean's offer arriving
+     * after the first is answered starts clean — and the latch can never
+     * survive into a state where both CTAs would stay dead.
+     */
+    bonusIdentity: {
+      immediate: true,
+      handler(now: string): void {
+        this.bonusSubmitting = false;
+        if (now !== '') {
+          this.sceneFocus = 'bonus-confirm';
+        } else if (this.sceneFocus.startsWith('bonus-')) {
+          this.sceneFocus = 'track';
+        }
+      },
     },
     footCommands: {
       immediate: true,
@@ -1409,6 +1552,31 @@ export default defineComponent({
         root?.querySelector<HTMLElement>('.con-hydro__choice-cta') ??
         root?.querySelector<HTMLElement>('.con-hydro__panel'));
     },
+    /** X — inspect the granting card. Pre-commit the source IS the current
+     *  object, so this is X and there is no L3; the destination highlight on
+     *  the track above is untouched by the viewer opening over it. */
+    inspectBonusSource(): void {
+      if (this.bonusOffer === undefined) {
+        return;
+      }
+      // The card's own body, opened over the stage — the destination
+      // highlight on the track above survives the viewer by construction.
+      openConsoleCardZoom([{name: this.bonusOffer.source} as CardModel], 0);
+    },
+    /**
+     * ANSWER the offer. The index comes from the SERVER's marker — never from
+     * the option order this component happens to see — and the in-flight latch
+     * makes a second press impossible by state rather than by a guard.
+     */
+    answerBonus(take: boolean): void {
+      const offer = this.bonusOffer;
+      if (offer === undefined || this.bonusSubmitting) {
+        return;
+      }
+      this.bonusSubmitting = true;
+      this.armSceneFromCta();
+      this.$emit('bonus-answer', take ? offer.advanceIndex : offer.skipIndex);
+    },
     emitConfirm(): void {
       if (!this.model.canConfirm || this.flow.commit !== undefined) {
         return;
@@ -1665,6 +1833,36 @@ export default defineComponent({
           return;
         case 'back':
           closeHydroStep();
+          return;
+        default:
+          return;
+        }
+      }
+      // BONUS — a decision, not a browse layer: the d-pad moves between the
+      // two answers and nothing else, so the track never scrolls under a
+      // question the player is being asked.
+      if (this.sceneKey === 'bonus') {
+        if (intent.kind === 'nav') {
+          if (intent.dir === 'up') {
+            this.sceneFocus = this.sceneFocus === 'bonus-skip' ? 'bonus-confirm' : 'bonus-source';
+          } else if (intent.dir === 'down') {
+            this.sceneFocus = this.sceneFocus === 'bonus-source' ? 'bonus-confirm' : 'bonus-skip';
+          }
+          return;
+        }
+        switch (consoleActionOf(intent)) {
+        case 'primary':
+          if (this.sceneFocus === 'bonus-source') {
+            this.inspectBonusSource();
+          } else {
+            this.answerBonus(this.sceneFocus !== 'bonus-skip');
+          }
+          return;
+        case 'inspect':
+          this.inspectBonusSource();
+          return;
+        case 'back':
+          this.answerBonus(false);
           return;
         default:
           return;

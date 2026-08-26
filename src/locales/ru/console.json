@@ -748,5 +748,11 @@
     "Opponents cannot remove the protected part": "защищённую часть соперники забрать не могут",
     "Opponents cannot reduce it": "соперники не могут его снизить",
     "When targeted you lose half of it, rounded up": "при изъятии теряется вдвое меньше, с округлением вверх",
-    "Protected part of this stock: ${0} of ${1}": "под защитой часть запаса: ${0} из ${1}"
+    "Protected part of this stock: ${0} of ${1}": "под защитой часть запаса: ${0} из ${1}",
+    "BONUS STEP": "БОНУСНЫЙ ШАГ",
+    "Bonus advance": "Бонусное продвижение",
+    "${0} lets you advance 1 step on the Hydronetwork for free for placing an ocean. Your usual advance this generation stays available.": "«${0}» позволяет бесплатно продвинуться на 1 деление по Гидросети за размещённый океан. Обычное продвижение этого поколения останется доступно.",
+    "The next stage is 1 required tag short. Spend 1 energy and take the bonus step? ${0} grants it for placing an ocean, and your usual advance this generation stays available.": "Для следующего этапа не хватает 1 требуемой метки. Потратить 1 энергию и выполнить бонусное продвижение? «${0}» даёт его за размещённый океан, а обычное продвижение этого поколения останется доступно.",
+    "Advance for free": "Продвинуться бесплатно",
+    "Spend 1 energy and advance": "Потратить 1 энергию и продвинуться"
 }
