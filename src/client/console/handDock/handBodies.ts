@@ -197,6 +197,14 @@ export function bodyNaturalH(a: PackAnchor): number {
 export type HandBodiesOracle = {
   /** The card's CURRENT docked pose (live pack pose + live geometry). */
   poseFor: (name: string) => BodyPose | undefined,
+  /**
+   * The docked pose of ONE COPY of `name`, claimed from the hand's END
+   * (`seqFromEnd` 0 = the newest copy). The intake director targets this:
+   * incoming copies are the hand's newest, so end-claiming never aims a
+   * flight at a copy the player already held. Pure — defined the moment
+   * the card is IN the hand model, seated or not.
+   */
+  poseForCopy: (name: string, seqFromEnd: number) => BodyPose | undefined,
   /** Re-seat every docked body on its exact pose (episode-end heal). */
   reconcile: () => void,
   /** Seat bodies that have never been posed (fresh mounts). */

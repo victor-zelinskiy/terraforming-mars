@@ -173,6 +173,44 @@ test.describe('hand delivery · standard 1080', () => {
     await expect(page.locator('.con-handdelivery-layer .con-deal-proxy')).toHaveCount(0);
     await shoot(page, '02-pay-step-faceup');
 
+    // THE SEAMLESS-HANDOFF WITNESS, armed BEFORE the pay press (an order
+    // claim cannot be sampled late): on every `--held` release the body
+    // must stand EXACTLY under its proxy — the intake targets the bodies
+    // layer's analytic pose (tilt included), so the materialization is
+    // pixel-true by construction. A regression here is the v1 rect-vs-pose
+    // mismatch (or the «карты испаряются» degrade, which releases with NO
+    // proxy at all — recorded as offset -1).
+    await page.evaluate(() => {
+      type Rec = {name: string, off: number};
+      const w = window as unknown as {__ho?: {recs: Array<Rec>}};
+      const st = {recs: [] as Array<Rec>};
+      const mo = new MutationObserver((muts) => {
+        for (const m of muts) {
+          if (m.type !== 'attributes' || !(m.target instanceof HTMLElement)) {
+            continue;
+          }
+          const el = m.target;
+          const was = (m.oldValue ?? '').includes('con-handbody--held');
+          const is = el.classList.contains('con-handbody--held');
+          if (!was || is) {
+            continue; // only the RELEASE edge
+          }
+          const name = el.getAttribute('data-hand-dock-card') ?? '';
+          const proxy = document.querySelector<HTMLElement>(`.con-handdelivery-layer [data-delivery-card="${CSS.escape(name)}"]`);
+          if (proxy === null) {
+            st.recs.push({name, off: -1});
+            continue;
+          }
+          const b = el.getBoundingClientRect();
+          const p = proxy.getBoundingClientRect();
+          const off = Math.hypot((b.left + b.width / 2) - (p.left + p.width / 2), (b.top + b.height / 2) - (p.top + p.height / 2));
+          st.recs.push({name, off: Math.round(off * 10) / 10});
+        }
+      });
+      mo.observe(document.body, {subtree: true, attributes: true, attributeFilter: ['class'], attributeOldValue: true});
+      w.__ho = st;
+    });
+
     // PAY → the face-up cards fly from the grid into the dock.
     const flight = page.locator('.con-handdelivery-layer .con-deal-proxy');
     await triggerPay(page, async () => await flight.count() > 0, 'standard delivery');
@@ -192,6 +230,12 @@ test.describe('hand delivery · standard 1080', () => {
     expect(delivered, 'cards materialized in the dock').toBeGreaterThanOrEqual(boughtCount);
     const totalAfter = (await page.locator('.con-handdock__num--total').first().textContent())?.trim();
     expect(totalAfter, 'counter reached the delivered total').toBe(String(delivered));
+    // THE HANDOFF LAW: every release happened UNDER its proxy, on the pose.
+    const handoffs = await page.evaluate(() => (window as unknown as {__ho: {recs: Array<{name: string, off: number}>}}).__ho.recs);
+    console.log(`[delivery] handoffs=${JSON.stringify(handoffs)}`);
+    expect(handoffs.length, 'the release edge was witnessed').toBeGreaterThan(0);
+    const badHandoffs = handoffs.filter((r) => r.off < 0 || r.off > 4);
+    expect(badHandoffs, `a card materialized OFF its proxy (or with no proxy at all):\n  ${JSON.stringify(badHandoffs)}`).toEqual([]);
     await shoot(page, '04-delivered');
   });
 });

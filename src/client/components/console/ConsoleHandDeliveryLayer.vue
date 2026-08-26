@@ -16,6 +16,7 @@
     <div v-for="f in handDeliveryState.flights" :key="f.id"
          class="con-deal-proxy"
          :style="{zIndex: f.z}"
+         :data-delivery-card="f.name"
          :ref="(el) => registerDeliveryEl(f.id, el as HTMLElement | null)">
       <div class="con-deal-proxy__flip">
         <div class="con-deal-proxy__face">

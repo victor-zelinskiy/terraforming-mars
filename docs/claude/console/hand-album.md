@@ -319,6 +319,32 @@ episode states it rather than assuming it:
   (faces mount first). Facing guard: the 9-card close-from-last-page test
   asserts every docked flip's m11 < 0 (backs) after the close.
 
+### THE INTAKE TARGETS THE ORACLE — a card LAYS into its permanent slot
+
+The delivery director (`handDeliveryDirector.ts` — the ONE engine every
+«cards arrive in the hand» case routes through: draft purchases, reveal
+takes standalone AND embedded, deck picks, the task host, the start pay,
+played-card returns) aims every flight at **the bodies layer's ANALYTIC
+pose** (`oracle.poseForCopy(name, seqFromEnd)` — position + scale + the
+fan TILT, copies claimed from the hand's end), polled to two-sample
+stability. The SAME pure function seats the real body, so the handoff is
+pixel-exact by construction: the carry banks into the slot's own angle
+over the final approach and the card lays into its permanent fan position;
+the growing fan re-spreads (the layer's pose ride) while the card is in
+the air, opening the gap it lands in.
+
+⚠️ **The v1 resolver polled `[data-hand-dock-card]` INSIDE
+`.con-handdock`** — the single-owner rework moved the bodies onto the
+layer, so the query found nothing, every flight «gracefully» degraded and
+arriving cards simply materialized (the reported «карты испаряются» in
+the draft / reveal takes / every intake). A DOM-scoped target query is a
+coupling the rework breaks silently; the oracle is scope-free.
+
+Guard: `hand-delivery-probe` arms a release-edge witness BEFORE the pay
+press — every `--held` drop must land ≤4 px under its proxy (measured
+0.1–1 px), and a release with NO proxy (the evaporate degrade) records
+`off: -1` and fails.
+
 ⚠️ **A CSS ANIMATION BREAKS THROUGH chrome-wait.** The section's mount
 rise (`con-hand-chrome-in` on `__head`/`__verdictbar`) is an animation,
 and an ACTIVE animation overrides a normal declaration — so for its

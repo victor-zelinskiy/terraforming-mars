@@ -165,6 +165,7 @@ export default defineComponent({
     window.addEventListener('resize', this.onResize);
     setHandBodiesOracle({
       poseFor: (name) => this.dockedPoseOf(name),
+      poseForCopy: (name, seqFromEnd) => this.dockedPoseOfCopy(name, seqFromEnd),
       reconcile: () => this.applyDockedPoses(true),
       seatNew: () => this.applyDockedPoses(false),
     });
@@ -217,6 +218,25 @@ export default defineComponent({
         return undefined;
       }
       return dockedBodyPose(i, this.cards.length, this.pose as PackPose, a);
+    },
+    /** One COPY of `name`, claimed from the hand's end (0 = newest) — the
+     *  intake director's landing target for duplicate-safe aiming. */
+    dockedPoseOfCopy(name: string, seqFromEnd: number): {x: number, y: number, scale: number, rotation: number} | undefined {
+      const a = this.anchor();
+      if (a === undefined) {
+        return undefined;
+      }
+      const indexes: Array<number> = [];
+      this.cards.forEach((c, i) => {
+        if (c.name === name) {
+          indexes.push(i);
+        }
+      });
+      const idx = indexes[indexes.length - 1 - seqFromEnd];
+      if (idx === undefined) {
+        return undefined;
+      }
+      return dockedBodyPose(idx, this.cards.length, this.pose as PackPose, a);
     },
     /**
      * Seat every DOCKED body on its analytic pose. `animate` rides the

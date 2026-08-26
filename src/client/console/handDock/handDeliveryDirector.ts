@@ -56,6 +56,7 @@ import {conUiScale} from '@/client/console/consoleLayoutProfile';
 import {consoleReducedMotionActive} from '@/client/console/composables/useConsoleReducedMotion';
 import {CARD_NATURAL_W} from '@/client/console/cardDeal/cardDealModel';
 import {dockFaceRotation} from '@/client/console/handDock/handDockPresentation';
+import {handBodiesOracle, BodyPose} from '@/client/console/handDock/handBodies';
 import {registerAnimationHoldSupplier} from '@/client/components/presentation/animationHold';
 import {
   deliveryEl, handDeliveryState, nextDeliveryId, clearDeliveryFlights,
@@ -255,60 +256,61 @@ function usable(r: {width: number} | undefined): r is DOMRect {
 }
 
 /**
- * Claim the dock element for one arriving copy of `name` — the LAST
- * unclaimed match in DOM order. Incoming copies are the hand's newest, so
- * end-claiming never steals the slot of a copy the player already held
- * visible. (Two copies arriving in one run pair up end-first between
- * themselves — adjacent same-name slots, visually indistinguishable.)
- */
-function claimTargetEl(dock: HTMLElement, name: CardName, claimed: Set<HTMLElement>): HTMLElement | undefined {
-  const els = dock.querySelectorAll<HTMLElement>(`[data-hand-dock-card="${esc(name)}"]`);
-  for (let i = els.length - 1; i >= 0; i--) {
-    if (!claimed.has(els[i])) {
-      claimed.add(els[i]);
-      return els[i];
-    }
-  }
-  return undefined;
-}
-
-/**
- * Poll for the entry's REAL dock slot until its rect is STABLE (two equal
- * consecutive frames — outwaits the pack's re-spread transition and the
- * research buy's response). Resolves undefined when the card never reaches
+ * Resolve the LANDING POSE for one arriving copy of `name` — the bodies
+ * layer's ANALYTIC docked pose (position + scale + the fan TILT), polled
+ * until it is defined and STABLE across two consecutive frames (the card
+ * joins the hand on the server response; the growing fan re-tunes every
+ * pose for a flush or two). This is the SAME pure function that seats the
+ * real body, so the handoff is pixel-exact — tilt included — by
+ * construction: the card LAYS into its permanent fan position. Copies are
+ * claimed from the hand's END (`seqFromEnd` 0 = newest): incoming copies
+ * are the newest, so a flight never aims at a copy the player already
+ * held. Falls back to a layer-wide rect measure (rotation 0) when the
+ * oracle is not installed. Resolves undefined when the card never reaches
  * the hand within the budget (the caller degrades gracefully).
+ *
+ * (The v1 resolver polled `[data-hand-dock-card]` INSIDE `.con-handdock` —
+ * the single-owner rework moved every card body onto the reveal layer, so
+ * that query found nothing, every flight «gracefully» degraded and arriving
+ * cards simply materialized: the reported «карты испаряются».)
  */
-function stableTargetRect(dock: HTMLElement, name: CardName, claimed: Set<HTMLElement>, isAborted: () => boolean): Promise<DOMRect | undefined> {
+function stableTargetPose(name: CardName, seqFromEnd: number, isAborted: () => boolean): Promise<BodyPose | undefined> {
   return new Promise((done) => {
     let tries = 0;
     let lastSig = '';
-    let el: HTMLElement | undefined;
     const poll = () => {
       tries++;
       if (isAborted()) {
         done(undefined);
         return;
       }
-      if (el === undefined || !el.isConnected) {
-        if (el !== undefined) {
-          claimed.delete(el);
+      const oracle = handBodiesOracle();
+      if (oracle !== undefined) {
+        const p = oracle.poseForCopy(name as string, seqFromEnd);
+        if (p !== undefined) {
+          const sig = `${Math.round(p.x)},${Math.round(p.y)},${p.scale.toFixed(3)},${p.rotation.toFixed(1)}`;
+          if (sig === lastSig) {
+            done(p);
+            return;
+          }
+          lastSig = sig;
         }
-        el = claimTargetEl(dock, name, claimed);
+      } else {
+        const els = document.querySelectorAll<HTMLElement>(`.con-handreveal-layer [data-hand-dock-card="${esc(name)}"]`);
+        const el = els[els.length - 1 - seqFromEnd];
+        const r = el?.getBoundingClientRect();
+        if (usable(r)) {
+          const sig = `r${Math.round(r.left)},${Math.round(r.top)},${Math.round(r.width)}`;
+          if (sig === lastSig) {
+            done({x: r.left, y: r.top, scale: r.width / CARD_NATURAL_W, rotation: 0});
+            return;
+          }
+          lastSig = sig;
+        }
       }
-      const r = el?.getBoundingClientRect();
-      const ok = usable(r);
-      const sig = ok ? `${Math.round(r.left)},${Math.round(r.top)},${Math.round(r.width)}` : '';
-      if (ok && sig === lastSig) {
-        done(r);
-        return;
-      }
-      lastSig = sig;
       if (tries < POLL_FRAMES) {
         requestAnimationFrame(poll);
       } else {
-        if (el !== undefined) {
-          claimed.delete(el);
-        }
         done(undefined);
       }
     };
@@ -317,13 +319,14 @@ function stableTargetRect(dock: HTMLElement, name: CardName, claimed: Set<HTMLEl
 }
 
 /**
- * Sort key per entry = the card's DOCK position (its index among the dock's
- * `[data-hand-dock-card]` anchors, claimed end-first per name; a card not in
- * the hand yet keys to the append order after the current tail). Flights run
+ * Sort key per entry = the card's DOCK position (its index among the
+ * BODIES layer's `[data-hand-dock-card]` anchors — DOM order is the hand's
+ * append order — claimed end-first per name; a card not in the hand yet
+ * keys to the append order after the current tail). Flights run
  * bottom-first in this order and carry matching z — contract 2.
  */
-function dockOrderKeys(dock: HTMLElement, entries: ReadonlyArray<HandIntakeEntry>): Array<number> {
-  const anchors = Array.from(dock.querySelectorAll<HTMLElement>('[data-hand-dock-card]'));
+function dockOrderKeys(entries: ReadonlyArray<HandIntakeEntry>): Array<number> {
+  const anchors = Array.from(document.querySelectorAll<HTMLElement>('.con-handreveal-layer [data-hand-dock-card]'));
   const byName = new Map<string, Array<number>>();
   anchors.forEach((el, i) => {
     const n = el.getAttribute('data-hand-dock-card') ?? '';
@@ -450,7 +453,7 @@ async function fly(entries: ReadonlyArray<HandIntakeEntry>, snapshots: ReadonlyA
   const ui = conUiScale();
 
   // Contract 2: dock order — bottom-first departure/landing, matching z.
-  const keys = dockOrderKeys(dock, entries);
+  const keys = dockOrderKeys(entries);
   const order = entries.map((_e, i) => i).sort((a, b) => keys[a] - keys[b]);
 
   // Spawn one proxy per entry, z = dock rank inside the layer.
@@ -592,14 +595,24 @@ async function fly(entries: ReadonlyArray<HandIntakeEntry>, snapshots: ReadonlyA
     motionMs(LIFT_MS + ARC_MS + step * n + SETTLE_PRESS_MS + SETTLE_BACK_MS + FADE_MS) + pollBudget + 2000;
   safety = setTimeout(finish, budget);
 
-  const claimed = new Set<HTMLElement>();
-  const touchdown = async (f: Live, rect: DOMRect, scaleTo: number) => {
-    // Materialize the real dock card under the proxy (contract 1) and press
-    // the proxy INTO the pack — the settle beat — fading it out on top.
+  // Per-run copy claims: entry k of name X targets that name's k-th copy
+  // from the hand's END (the newest copies are the arriving ones).
+  const claims = new Map<string, number>();
+  const claimSeq = (name: string) => {
+    const c = claims.get(name) ?? 0;
+    claims.set(name, c + 1);
+    return c;
+  };
+  const touchdown = async (f: Live, pose: BodyPose) => {
+    // Materialize the real body under the proxy (contract 1) and press the
+    // proxy INTO the pack — the settle beat — fading it out on top. The
+    // proxy stands at the body's exact analytic pose (tilt included), so
+    // the release underneath is invisible; the press moves along the pose,
+    // never off it.
     ctx.land(f.entryIdx);
     const tl = gsap.timeline();
-    tl.to(f.el, {y: rect.top + 2.5 * ui, scale: scaleTo * 1.035, duration: s(SETTLE_PRESS_MS), ease: 'power1.out'}, 0);
-    tl.to(f.el, {y: rect.top, scale: scaleTo, duration: s(SETTLE_BACK_MS), ease: 'power2.out'}, s(SETTLE_PRESS_MS));
+    tl.to(f.el, {y: pose.y + 2.5 * ui, scale: pose.scale * 1.035, duration: s(SETTLE_PRESS_MS), ease: 'power1.out'}, 0);
+    tl.to(f.el, {y: pose.y, scale: pose.scale, duration: s(SETTLE_BACK_MS), ease: 'power2.out'}, s(SETTLE_PRESS_MS));
     tl.to(f.el, {autoAlpha: 0, duration: s(FADE_MS), ease: 'power1.out'}, s(70));
     await awaitTimeline(tl);
   };
@@ -611,9 +624,9 @@ async function fly(entries: ReadonlyArray<HandIntakeEntry>, snapshots: ReadonlyA
   };
 
   if (mode === 'stack') {
-    await flyStack(live, dock, dockR, {ui, claimed, isAborted, touchdown, quietOut, ctx});
+    await flyStack(live, dockR, {ui, claimSeq, isAborted, touchdown, quietOut, ctx});
   } else {
-    await flyCascade(live, dock, dockR, {ui, step, claimed, isAborted, touchdown, quietOut, ctx});
+    await flyCascade(live, dockR, {ui, step, claimSeq, isAborted, touchdown, quietOut, ctx});
   }
   finish();
 }
@@ -623,9 +636,9 @@ type LiveFlight = {entryIdx: number, rank: number, name: CardName, el: HTMLEleme
 type FlightTools = {
   ui: number,
   step?: number,
-  claimed: Set<HTMLElement>,
+  claimSeq: (name: string) => number,
   isAborted: () => boolean,
-  touchdown: (f: LiveFlight, rect: DOMRect, scaleTo: number) => Promise<void>,
+  touchdown: (f: LiveFlight, pose: BodyPose) => Promise<void>,
   quietOut: (f: LiveFlight) => Promise<void>,
   ctx: RunCtx,
 };
@@ -636,10 +649,11 @@ type FlightTools = {
  * decelerating drop — the card is PLACED, never dropped), the face→back
  * flip through the heart, the settle press.
  */
-async function flyCascade(live: Array<LiveFlight>, dock: HTMLElement, dockR: DOMRect, t: FlightTools): Promise<void> {
+async function flyCascade(live: Array<LiveFlight>, dockR: DOMRect, t: FlightTools): Promise<void> {
   const step = t.step ?? 100;
   const dockCx = dockR.left + dockR.width / 2;
   await Promise.all(live.map(async (f) => {
+    const seq = t.claimSeq(f.name as string);
     if (f.rank > 0) {
       await delay(motionMs(step) * f.rank);
     }
@@ -647,9 +661,10 @@ async function flyCascade(live: Array<LiveFlight>, dock: HTMLElement, dockR: DOM
       return;
     }
     // LIFT: the card comes off the table, banking toward its flight; the
-    // target resolves while it hovers (usually instantly — the research
-    // buy's server response lands mid-hover). The lift is AWAITED before
-    // the arc: two live tweens on one property fight and read as jitter.
+    // target resolves while it hovers (usually instantly — the analytic
+    // pose is defined the frame the card joins the hand model). The lift
+    // is AWAITED before the arc: two live tweens on one property fight
+    // and read as jitter.
     const lift = f.src !== undefined ?
       tween(f.el, {
         y: f.src.top - 24 * t.ui,
@@ -658,27 +673,26 @@ async function flyCascade(live: Array<LiveFlight>, dock: HTMLElement, dockR: DOM
         duration: s(LIFT_MS),
         ease: 'power2.out',
       }) : Promise.resolve();
-    const [rect] = await Promise.all([
-      stableTargetRect(dock, f.name, t.claimed, t.isAborted),
+    const [pose] = await Promise.all([
+      stableTargetPose(f.name, seq, t.isAborted),
       lift,
     ]);
     if (t.isAborted()) {
       return;
     }
-    if (rect === undefined) {
+    if (pose === undefined) {
       await t.quietOut(f);
       return;
     }
     if (f.src === undefined) {
       // A source that could not be measured: fabricate a departure just
       // above the slot so the card still visibly ARRIVES, never pops.
-      const scaleTo = rect.width / CARD_NATURAL_W;
       gsap.set(f.el, {
         width: CARD_NATURAL_W,
-        height: rect.height / scaleTo,
-        x: rect.left,
-        y: rect.top - 220 * t.ui,
-        scale: scaleTo,
+        height: CARD_NATURAL_W * 1.44,
+        x: pose.x,
+        y: pose.y - 220 * t.ui,
+        scale: pose.scale,
         rotation: 0,
         autoAlpha: 1,
         transformOrigin: 'top left',
@@ -688,15 +702,17 @@ async function flyCascade(live: Array<LiveFlight>, dock: HTMLElement, dockR: DOM
         gsap.set(flipEl, {rotationY: f.back === true ? 180 : 0});
       }
     }
-    const scaleTo = rect.width / CARD_NATURAL_W;
     const flight = s(ARC_MS);
     const tl = gsap.timeline();
     // The carry: X leads laterally, Y is a decelerating descent (inOut — a
-    // card LAID into the hand, not dropped), scale eases to the pack size.
-    tl.to(f.el, {x: rect.left, duration: flight, ease: 'power1.inOut'}, 0);
-    tl.to(f.el, {y: rect.top, duration: flight, ease: 'power2.inOut'}, 0);
-    tl.to(f.el, {scale: scaleTo, duration: flight, ease: 'power2.inOut'}, 0);
-    tl.to(f.el, {rotation: 0, duration: flight * 0.62, ease: 'power2.out'}, flight * 0.3);
+    // card LAID into the hand, not dropped), scale eases to the pack size,
+    // and the rotation BANKS INTO THE FAN'S OWN TILT over the final
+    // approach — the card lands already holding its permanent slot's angle,
+    // a physical card slid into a physical fan.
+    tl.to(f.el, {x: pose.x, duration: flight, ease: 'power1.inOut'}, 0);
+    tl.to(f.el, {y: pose.y, duration: flight, ease: 'power2.inOut'}, 0);
+    tl.to(f.el, {scale: pose.scale, duration: flight, ease: 'power2.inOut'}, 0);
+    tl.to(f.el, {rotation: pose.rotation, duration: flight * 0.62, ease: 'power2.out'}, flight * 0.3);
     const flipEl = f.el.querySelector<HTMLElement>('.con-deal-proxy__flip');
     if (flipEl !== null) {
       tl.to(flipEl, {
@@ -711,7 +727,7 @@ async function flyCascade(live: Array<LiveFlight>, dock: HTMLElement, dockR: DOM
     if (t.isAborted()) {
       return;
     }
-    await t.touchdown(f, rect, scaleTo);
+    await t.touchdown(f, pose);
   }));
 }
 
@@ -721,11 +737,12 @@ async function flyCascade(live: Array<LiveFlight>, dock: HTMLElement, dockR: DOM
  * confirmation pulse, then the cards PEEL off the stack bottom-first, each
  * slipping into its own slot as the counter ticks up.
  */
-async function flyStack(live: Array<LiveFlight>, dock: HTMLElement, dockR: DOMRect, t: FlightTools): Promise<void> {
+async function flyStack(live: Array<LiveFlight>, dockR: DOMRect, t: FlightTools): Promise<void> {
   const n = live.length;
-  const sample = dock.querySelector<HTMLElement>('[data-hand-dock-card]');
-  const sampleW = sample !== null ? sample.getBoundingClientRect().width : 0;
-  const targetScale = (sampleW > 4 ? sampleW : 63 * t.ui) / CARD_NATURAL_W;
+  // Stack sizing from the analytic pose (a PEEK, not a claim — the peel
+  // below claims each copy properly).
+  const samplePose = handBodiesOracle()?.poseForCopy(live[0].name as string, 0);
+  const targetScale = samplePose?.scale ?? (63 * t.ui) / CARD_NATURAL_W;
   const stackScale = targetScale * 1.9;
   const stackW = CARD_NATURAL_W * stackScale;
   const stackX = dockR.left + dockR.width / 2 - stackW / 2;
@@ -790,34 +807,35 @@ async function flyStack(live: Array<LiveFlight>, dock: HTMLElement, dockR: DOMRe
     return;
   }
 
-  // PEEL: bottom-first, each card slips off the stack into its own slot —
-  // the counter ticks with every landing.
+  // PEEL: bottom-first, each card slips off the stack into its own
+  // PERMANENT fan slot (the analytic pose — tilt included), the counter
+  // ticking with every landing.
   await Promise.all(live.map(async (f, k) => {
+    const seq = t.claimSeq(f.name as string);
     if (k > 0) {
       await delay(motionMs(PEEL_STEP_MS) * k);
     }
     if (t.isAborted()) {
       return;
     }
-    const rect = await stableTargetRect(dock, f.name, t.claimed, t.isAborted);
+    const pose = await stableTargetPose(f.name, seq, t.isAborted);
     if (t.isAborted()) {
       return;
     }
-    if (rect === undefined) {
+    if (pose === undefined) {
       await t.quietOut(f);
       return;
     }
-    const scaleTo = rect.width / CARD_NATURAL_W;
     const tl = gsap.timeline();
-    tl.to(f.el, {x: rect.left, duration: s(PEEL_MS), ease: 'power1.inOut'}, 0);
-    tl.to(f.el, {y: rect.top, duration: s(PEEL_MS), ease: 'power2.inOut'}, 0);
-    tl.to(f.el, {scale: scaleTo, duration: s(PEEL_MS), ease: 'power2.inOut'}, 0);
-    tl.to(f.el, {rotation: 0, duration: s(PEEL_MS) * 0.7, ease: 'power2.out'}, 0);
+    tl.to(f.el, {x: pose.x, duration: s(PEEL_MS), ease: 'power1.inOut'}, 0);
+    tl.to(f.el, {y: pose.y, duration: s(PEEL_MS), ease: 'power2.inOut'}, 0);
+    tl.to(f.el, {scale: pose.scale, duration: s(PEEL_MS), ease: 'power2.inOut'}, 0);
+    tl.to(f.el, {rotation: pose.rotation, duration: s(PEEL_MS) * 0.7, ease: 'power2.out'}, 0);
     await awaitTimeline(tl);
     if (t.isAborted()) {
       return;
     }
-    await t.touchdown(f, rect, scaleTo);
+    await t.touchdown(f, pose);
   }));
 }
 
