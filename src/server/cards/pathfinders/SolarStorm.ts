@@ -41,9 +41,12 @@ export class SolarStorm extends Card implements IProjectCard {
       player.game.someoneHasRemovedOtherPlayersPlants = true;
     }
     for (const target of player.game.players) {
-      if (!target.plantsAreProtected()) {
-        // Botanical Experience reduces the impact in half.
-        const qty = target.tableau.has(CardName.BOTANICAL_EXPERIENCE) ? 1 : 2;
+      // The loop covers EVERY player, the caster included — and a protection
+      // worded «other players may not remove» never shields its owner from
+      // their own card, so both questions are asked about the PERPETRATOR.
+      if (!target.isProtectedFrom(Resource.PLANTS, player)) {
+        // Botanical Experience reduces the impact in half (opponents only).
+        const qty = target.losesHalfFrom(player) ? 1 : 2;
         const realAmount = Math.min(qty, target.plants);
         if (realAmount > 0) {
           const msg = message('${0} plants', (b) => b.number(realAmount));

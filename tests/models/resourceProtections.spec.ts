@@ -3,6 +3,7 @@ import {testGame} from '../TestGame';
 import {Server} from '../../src/server/models/ServerModel';
 import {CardName} from '../../src/common/cards/CardName';
 import {CardResource} from '../../src/common/CardResource';
+import {Resource} from '../../src/common/Resource';
 import {ProtectedHabitats} from '../../src/server/cards/base/ProtectedHabitats';
 import {Pets} from '../../src/server/cards/base/Pets';
 import {Birds} from '../../src/server/cards/base/Birds';
@@ -85,6 +86,31 @@ describe('ServerModel — protection projection', () => {
     expect(tableau.find((c) => c.name === CardName.PETS)?.protectedResources).is.true;
     // Every other card stays silent — absent, never `false`.
     expect(tableau.find((c) => c.name === CardName.BIRDS)?.protectedResources).is.undefined;
+  });
+
+  /*
+   * THE SCOPE OF EVERY PRINTED PROTECTION IS «SOMEBODY ELSE». The projection
+   * says «protected from opponents», and the engine must agree: an owner can
+   * still target THEMSELVES with their own «decrease any player's production»
+   * card, while every opponent stays blocked.
+   */
+  it('production protection blocks opponents and never the owner', () => {
+    const [, player, player2] = testGame(2);
+    player.playedCards.push(new LunarSecurityStations());
+    player.production.override({steel: 3, titanium: 3, megacredits: 3});
+
+    expect(player.canHaveProductionReduced(Resource.STEEL, 1, player2), 'an opponent is blocked').is.false;
+    expect(player.canHaveProductionReduced(Resource.STEEL, 1, player), 'the owner may target themselves').is.true;
+    expect(player.canHaveProductionReduced(Resource.TITANIUM, 1, player), 'same for titanium').is.true;
+  });
+
+  it('Private Security has the same scope', () => {
+    const [, player, player2] = testGame(2);
+    player.playedCards.push(new PrivateSecurity());
+    player.production.override({megacredits: 3});
+
+    expect(player.canHaveProductionReduced(Resource.MEGACREDITS, 1, player2)).is.false;
+    expect(player.canHaveProductionReduced(Resource.MEGACREDITS, 1, player)).is.true;
   });
 
   /**

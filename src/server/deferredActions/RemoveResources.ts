@@ -2,7 +2,6 @@ import {IPlayer} from '../IPlayer';
 import {Resource} from '../../common/Resource';
 import {DeferredAction} from './DeferredAction';
 import {Priority} from './Priority';
-import {CardName} from '../../common/cards/CardName';
 import {UnderworldExpansion} from '../underworld/UnderworldExpansion';
 import {message} from '../logs/MessageBuilder';
 
@@ -17,27 +16,26 @@ export class RemoveResources extends DeferredAction<number> {
   }
 
   public execute() {
-    if (this.resource === Resource.PLANTS) {
-      if (this.target.plantsAreProtected()) {
-        this.cb(0);
-        return undefined;
-      }
-    }
-    if (this.resource === Resource.STEEL || this.resource === Resource.TITANIUM) {
-      if (this.target.alloysAreProtected()) {
-        this.cb(0);
-        return undefined;
-      }
+    // Scoped to the PERPETRATOR: this deferred also carries the «EVERY player
+    // loses N» cards (Small Comet, Plant Tax), whose caster is their own
+    // target — and no printed protection defends anyone from themselves.
+    if (this.target.isProtectedFrom(this.resource, this.perpetrator)) {
+      this.cb(0);
+      return undefined;
     }
 
     let qtyLost = Math.min(this.target.stock.get(this.resource), this.count);
 
-    // Botanical Experience hook.
-    if (this.resource === Resource.PLANTS && this.target.tableau.has(CardName.BOTANICAL_EXPERIENCE)) {
+    // Botanical Experience hook (opponents only, same as the protections).
+    if (this.resource === Resource.PLANTS && this.target.losesHalfFrom(this.perpetrator)) {
       qtyLost = Math.ceil(qtyLost / 2);
     }
 
     if (qtyLost === 0) {
+      // Nothing to take is still an ANSWER: the protected branch above reports
+      // it, so an empty stock must too — a caller chaining `andThen` otherwise
+      // waits forever for a callback that never comes.
+      this.cb(0);
       return undefined;
     }
     const msg = message('lose ${0} ${1}', (b) => b.number(qtyLost).string(this.resource));

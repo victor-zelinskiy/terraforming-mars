@@ -4,7 +4,6 @@ import {OrOptions} from '../inputs/OrOptions';
 import {SelectOption} from '../inputs/SelectOption';
 import {DeferredAction} from './DeferredAction';
 import {Priority} from './Priority';
-import {CardName} from '../../common/cards/CardName';
 import {MessageBuilder, message} from '../logs/MessageBuilder';
 import {Message} from '../../common/logs/Message';
 import {ChoiceContextSource, DisabledOptionModel} from '../../common/models/PlayerInputModel';
@@ -47,8 +46,10 @@ export class RemoveAnyPlants extends DeferredAction {
     const removable = AutomaTargeting.attackableStock(target, Resource.PLANTS);
     let qtyToRemove = Math.min(removable, this.count);
 
-    // Botanical Experience hook.
-    if (target.tableau.has(CardName.BOTANICAL_EXPERIENCE)) {
+    // Botanical Experience hook — «PLAYERS may remove your plants, but you
+    // only lose half»: a defence against somebody else, so the SELF option
+    // (this prompt legitimately offers one) takes the whole amount.
+    if (target.losesHalfFrom(this.player)) {
       qtyToRemove = Math.ceil(qtyToRemove / 2);
     }
 

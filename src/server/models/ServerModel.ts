@@ -690,15 +690,21 @@ export class Server {
     return protection;
   }
 
+  /**
+   * Production protection AGAINST OPPONENTS — the scope every printed card
+   * states («Opponents may not remove your…»). The engine applies exactly
+   * this scope (`Player.canHaveProductionReduced` skips both protections when
+   * the attacker is the owner), so the rail's shield and the rule agree.
+   */
   private static getProductionProtections(player: IPlayer) {
-    const defaultProteection = player.tableau.has(CardName.PRIVATE_SECURITY) ? 'on' : 'off';
+    const opponentProtection = player.tableau.has(CardName.PRIVATE_SECURITY) ? 'on' : 'off';
     const protection: Record<Resource, Protection> = {
-      megacredits: defaultProteection,
-      steel: defaultProteection,
-      titanium: defaultProteection,
-      plants: defaultProteection,
-      energy: defaultProteection,
-      heat: defaultProteection,
+      megacredits: opponentProtection,
+      steel: opponentProtection,
+      titanium: opponentProtection,
+      plants: opponentProtection,
+      energy: opponentProtection,
+      heat: opponentProtection,
     };
 
     if (player.alloysAreProtected()) {

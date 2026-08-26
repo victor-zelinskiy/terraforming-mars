@@ -40,6 +40,52 @@ describe('RemoveResources', () => {
     expect(target.plants).eq(0);
   });
 
+  /*
+   * EVERY printed protection is worded against SOMEBODY ELSE («…by other
+   * players» / «Opponents may not…»), so none of them defends its owner from
+   * their own card. This deferred carries exactly that case: Small Comet and
+   * Plant Tax make EVERY player lose 2 plants, the caster included.
+   */
+  it('a self-inflicted loss is never protected (Protected Habitats)', () => {
+    player.plants = 5;
+    player.playedCards.push(new ProtectedHabitats());
+    new RemoveResources(player, player, Resource.PLANTS, 2).andThen(andThen).execute();
+    expect(removed).eq(2);
+    expect(player.plants).eq(3);
+  });
+
+  it('a self-inflicted loss is never protected (Lunar Security Stations)', () => {
+    player.steel = 5;
+    player.playedCards.push(new LunarSecurityStations());
+    new RemoveResources(player, player, Resource.STEEL, 2).andThen(andThen).execute();
+    expect(removed).eq(2);
+    expect(player.steel).eq(3);
+  });
+
+  it('a self-inflicted loss is not halved either (Botanical Experience)', () => {
+    player.plants = 5;
+    player.playedCards.push(new BotanicalExperience());
+    new RemoveResources(player, player, Resource.PLANTS, 4).andThen(andThen).execute();
+    expect(removed).eq(4);
+    expect(player.plants).eq(1);
+  });
+
+  /* An empty stock is an ANSWER, not silence: the protected branch reports 0,
+   * so this one must too — a caller chaining `andThen` would otherwise wait
+   * for a callback that never arrives. */
+  it('reports 0 when there is nothing to take', () => {
+    target.plants = 0;
+    let called = false;
+    new RemoveResources(target, player, Resource.PLANTS, 2)
+      .andThen((c) => {
+        called = true;
+        removed = c;
+      })
+      .execute();
+    expect(called, 'the callback fires even with an empty stock').is.true;
+    expect(removed).eq(0);
+  });
+
   it('Protected Habitats', () => {
     target.plants = 5;
     target.playedCards.push(new ProtectedHabitats());

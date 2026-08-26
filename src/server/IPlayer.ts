@@ -338,6 +338,13 @@ export interface IPlayer {
    * Return true when |resource| cannot be stolen from this player.
    */
   isProtected(resource: Resource | keyof Units): boolean;
+  /** As {@link isProtected}, but scoped to WHO is removing — every printed
+   *  protection is worded against opponents, so a self-inflicted loss is
+   *  never protected. See `Player.isProtectedFrom`. */
+  isProtectedFrom(resource: Resource, attacker: IPlayer): boolean;
+  /** Botanical Experience's «you only lose half, rounded up» — same
+   *  opponents-only scope. See `Player.losesHalfFrom`. */
+  losesHalfFrom(attacker: IPlayer): boolean;
   /**
    * Returns true when this player can lose |minQuantity| units of production.
    *

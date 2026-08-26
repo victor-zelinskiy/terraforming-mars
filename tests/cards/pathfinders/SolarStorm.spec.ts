@@ -11,6 +11,7 @@ import {OrOptions} from '../../../src/server/inputs/OrOptions';
 import {SelectCard} from '../../../src/server/inputs/SelectCard';
 import {SelectSpace} from '../../../src/server/inputs/SelectSpace';
 import {BotanicalExperience} from '../../../src/server/cards/pathfinders/BotanicalExperience';
+import {ProtectedHabitats} from '../../../src/server/cards/base/ProtectedHabitats';
 import {assertIsMaybeBlock} from '../../underworld/underworldAssertions';
 import {cast} from '../../../src/common/utils/utils';
 import {TileType} from '../../../src/common/TileType';
@@ -104,6 +105,37 @@ describe('SolarStorm', () => {
     expect(player.plants).eq(3);
     expect(player2.plants).eq(14);
     expect(player3.plants).eq(398);
+  });
+
+  /*
+   * «Every player loses 2 plants» is played BY somebody, and no printed
+   * protection defends its owner from their own card («…by other players» /
+   * «Opponents may not…»). So the caster's own Protected Habitats does not
+   * spare them, and their own Botanical Experience does not halve it —
+   * while both still shield the opponents.
+   */
+  it('the caster is not protected from their own card', () => {
+    player.plants = 5;
+    player.playedCards.push(new ProtectedHabitats());
+    player2.plants = 15;
+    player2.playedCards.push(new ProtectedHabitats());
+    player3.plants = 9;
+    player3.playedCards.push(new BotanicalExperience());
+
+    card.play(player);
+
+    expect(player.plants, 'the caster loses the full amount').eq(3);
+    expect(player2.plants, 'an opponent stays protected').eq(15);
+    expect(player3.plants, 'an opponent still only loses half').eq(8);
+  });
+
+  it('the caster own Botanical Experience does not halve their loss', () => {
+    player.plants = 5;
+    player.playedCards.push(new BotanicalExperience());
+
+    card.play(player);
+
+    expect(player.plants).eq(3);
   });
 
   it('Compatible with underworld', () => {

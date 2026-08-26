@@ -545,6 +545,33 @@ export class Player implements IPlayer {
     return false;
   }
 
+  /**
+   * EVERY printed protection in the game is worded against SOMEBODY ELSE —
+   * «Your plants, animals and microbes are protected from removal BY OTHER
+   * PLAYERS» (Protected Habitats / Asteroid Deflection System), «OPPONENTS may
+   * not remove your steel or titanium» (Lunar Security Stations), «OPPONENTS
+   * may not remove your basic resource production» (Private Security). So a
+   * loss a player causes THEMSELVES is never protected: a global «every player
+   * loses 2 plants» card hits its own caster, and «remove up to N plants from
+   * any player» may still be aimed at yourself.
+   *
+   * This is the ONE place that pairing lives for stock removals; the card
+   * targeting path (`RemoveResourcesFromCard`) already encodes the same rule
+   * by only consulting Protected Habitats on the opponents branch.
+   */
+  public isProtectedFrom(resource: Resource, attacker: IPlayer): boolean {
+    return attacker !== this && this.isProtected(resource);
+  }
+
+  /**
+   * Botanical Experience — «PLAYERS may remove your plants, but you only lose
+   * half, rounded up». Same scope as the protections above: the halving is a
+   * defence against another player, so a self-inflicted loss is taken whole.
+   */
+  public losesHalfFrom(attacker: IPlayer): boolean {
+    return attacker !== this && this.tableau.has(CardName.BOTANICAL_EXPERIENCE);
+  }
+
   public canHaveProductionReduced(resource: Resource, minQuantity: number, attacker: IPlayer) {
     // MarsBot's "production" is the mapped track position — reducible while the
     // tracker can regress that far (a track at 0 is not a valid target).
@@ -556,15 +583,20 @@ export class Player implements IPlayer {
       return false;
     }
 
-    if (resource === Resource.STEEL || resource === Resource.TITANIUM) {
-      if (this.alloysAreProtected()) {
+    // BOTH protections are worded «OPPONENTS may not reduce your production»
+    // (Lunar Security Stations / Private Security), so neither can stop the
+    // owner from targeting THEMSELVES — which several «decrease any player's
+    // production» cards legitimately offer.
+    if (attacker !== this) {
+      if (resource === Resource.STEEL || resource === Resource.TITANIUM) {
+        if (this.alloysAreProtected()) {
+          return false;
+        }
+      }
+      // The pathfindersExpansion test is just an optimization for non-Pathfinders games.
+      if (this.playedCards.has(CardName.PRIVATE_SECURITY)) {
         return false;
       }
-    }
-
-    // The pathfindersExpansion test is just an optimization for non-Pathfinders games.
-    if (attacker !== this && this.playedCards.has(CardName.PRIVATE_SECURITY)) {
-      return false;
     }
     return true;
   }

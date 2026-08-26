@@ -135,6 +135,35 @@ model because it covers ONE holder's stock.
   The aria names the split («под защитой часть запаса: 4 из 7»). Claiming
   `full` there would promise more than the rules give.
 
+### The SCOPE of every protection is «somebody else» (engine fix)
+
+Every printed protection is worded against another player — «…protected from
+removal **by other players**» (Protected Habitats, Asteroid Deflection
+System), «**Opponents** may not remove your steel or titanium…» (Lunar
+Security Stations), «**Opponents** may not remove your basic resource
+production» (Private Security), «**Players** may remove your plants, but you
+only lose half» (Botanical Experience). Building the rail exposed two places
+where the engine did not carry that scope, both now fixed:
+
+- `RemoveResources` (the deferred behind «EVERY player loses 2 plants» —
+  Small Comet, Plant Tax) and `SolarStorm` shielded the CASTER from their own
+  card, and halved their own loss. Both now ask about the perpetrator.
+- `Player.canHaveProductionReduced` scoped Private Security by attacker but
+  NOT the alloys protection, so a Lunar Security Stations owner could not aim
+  their own «decrease any player's production» at themselves (and, with a
+  protected opponent, could not play the card at all).
+
+The pairing lives in ONE place — `Player.isProtectedFrom(resource, attacker)`
+and `Player.losesHalfFrom(attacker)` — mirroring what the card-targeting path
+(`RemoveResourcesFromCard`) already did by only consulting Protected Habitats
+on its opponents branch. `RemoveResources` also reports `0` when the stock is
+empty (the protected branch always did; a caller chaining `andThen` otherwise
+waited for a callback that never came).
+
+Guarded in `tests/deferredActions/RemoveResources.spec.ts`,
+`tests/cards/pathfinders/SolarStorm.spec.ts` and
+`tests/models/resourceProtections.spec.ts`.
+
 A blanket type shield OUTRANKS the partial reading (nothing on that type is
 exposed). Marks are computed for the DISPLAYED player, so the Information
 Workspace (Y) shows the inspected seat's own shields.
