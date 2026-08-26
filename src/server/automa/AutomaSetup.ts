@@ -10,6 +10,7 @@ import {IGame} from '../IGame';
 import {Player} from '../Player';
 import {AutomaColonies} from './AutomaColonies';
 import {AutomaState, AutomaActionCard} from './AutomaState';
+import {marsBotMapProfile} from './boards/MarsBotMapProfile';
 
 export class AutomaSetup {
   /** Normalize the server `GameOptions` into the shared compatibility input. */
@@ -72,9 +73,10 @@ export class AutomaSetup {
   /**
    * Official bonus deck for the enabled modules (Adding Expansions + Setup Guide):
    * B01–B04, B07 always; B05 unless Colonies replaces it with B17 (+B18);
-   * B06 unless Venus Next replaces it with B15; B08 = the Tharsis Corporate
-   * Competition (the Awards & Milestones module and other maps are out of scope).
-   * B16 is never IN the bonus deck — it recurs through the action deck each generation.
+   * B06 unless Venus Next replaces it with B15; and «the correct Corporate
+   * Competition card … corresponding to the map you're using» (Setup Guide v1.3
+   * step 18) — B08 on Tharsis, B09 on Hellas. B16 is never IN the bonus deck —
+   * it recurs through the action deck each generation.
    */
   public static bonusDeckContents(gameOptions: GameOptions): Array<BonusCardId> {
     const deck: Array<BonusCardId> = [
@@ -89,7 +91,7 @@ export class AutomaSetup {
         BonusCardId.B15_LOBBYISTS_VENUS :
         BonusCardId.B06_LOBBYISTS,
       BonusCardId.B07_LOCAL_NEURAL_INSTANCE,
-      BonusCardId.B08_CORPORATE_COMPETITION,
+      marsBotMapProfile(gameOptions.boardName).corporateCompetition,
     ];
     if (gameOptions.coloniesExtension) {
       deck.push(BonusCardId.B18_OUTER_SYSTEM_FOOTHOLD);

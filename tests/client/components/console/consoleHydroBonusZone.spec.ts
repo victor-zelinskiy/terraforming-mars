@@ -36,6 +36,11 @@ type Vm = {
   crumbStage: string,
   bonusAnswerable: boolean,
   bonusNeedsReward: boolean,
+  bonusCostLine: {before: number, after: number, delta: number} | undefined,
+  bonusGainPresent: boolean,
+  bonusShowsFacts: boolean,
+  bonusRewardOptions: ReadonlyArray<unknown>,
+  bonusRewardView: {lines: ReadonlyArray<{delta: number}>},
   rewardChoice: number | undefined,
   backVerb: string,
   backLabel: string | undefined,
@@ -409,6 +414,49 @@ describe('the Hydronetwork bonus zone', () => {
     });
   });
 
+  /**
+   * ══ THE MOVE IS READ THE WAY AN ORDINARY ADVANCE IS ══════════════════
+   *
+   * The plan panel states an advance as «сейчас → станет» per pool. The bonus
+   * zone used to state its price as a bare «−1 ⚡» chip and its reward not at
+   * all — the player had to do arithmetic against their own rail.
+   */
+  describe('the facts', () => {
+    it('states the PRICE as a before → after line against the live stock', () => {
+      const w = mountSection({...OFFER, energyCost: 1, waivesTag: true});
+      const vm = w.vm as unknown as Vm;
+      // The viewer holds 3 energy (see `viewerPlayer`).
+      expect(vm.bonusCostLine).to.include({before: 3, after: 2, delta: -1});
+      expect(vm.bonusShowsFacts).is.true;
+      w.unmount();
+    });
+
+    it('a FREE step has no price line at all — never a «−0»', () => {
+      const w = mountSection(OFFER);
+      expect((w.vm as unknown as Vm).bonusCostLine).is.undefined;
+      w.unmount();
+    });
+
+    it('states what the landing stage PAYS, in the same delta grammar', () => {
+      // Position 3 pays +2 M€ production.
+      const w = mountSection({...OFFER, fromPosition: 2, toPosition: 3});
+      const vm = w.vm as unknown as Vm;
+      expect(vm.bonusGainPresent).is.true;
+      expect(vm.bonusRewardView.lines).to.have.length(1);
+      expect(vm.bonusRewardView.lines[0].delta).to.eq(2);
+      w.unmount();
+    });
+
+    it('a stage that ASKS which reward offers both alternatives instead', () => {
+      const w = mountSection(CHOICE_OFFER);
+      const vm = w.vm as unknown as Vm;
+      expect(vm.bonusNeedsReward).is.true;
+      expect(vm.bonusRewardOptions).to.have.length(2);
+      expect(vm.bonusGainPresent).is.true;
+      w.unmount();
+    });
+  });
+
   describe('the command bar', () => {
     it('advertises exactly the verbs the zone offers', () => {
       const w = mountSection(OFFER);
@@ -421,16 +469,21 @@ describe('the Hydronetwork bonus zone', () => {
       const w = mountSection(OFFER);
       const vm = w.vm as unknown as Vm;
       const labelOf = () => vm.footCommands.find((c) => c.control === 'confirm')?.label;
-      expect(labelOf()).to.eq('Advance for free');
+      expect(labelOf()).to.eq('Advance');
       vm.sceneFocus = 'bonus-skip';
       expect(labelOf()).to.eq('Skip');
       w.unmount();
     });
 
-    it('the paid offer states its price on the CTA', () => {
+    /**
+     * THE BAR CARRIES A VERB, NOT A PRICE. «Потратить 1 энергию и
+     * продвинуться» pushed «X Осмотреть» and «B Свернуть» off the bar and
+     * still truncated. The cost is a workspace fact (see the facts row).
+     */
+    it('REGRESSION: the paid offer does NOT put its price on the CTA', () => {
       const w = mountSection({...OFFER, energyCost: 1, waivesTag: true});
-      expect((w.vm as unknown as Vm).footCommands.find((c) => c.control === 'confirm')?.label)
-        .to.eq('Spend 1 energy and advance');
+      const label = (w.vm as unknown as Vm).footCommands.find((c) => c.control === 'confirm')?.label;
+      expect(label).to.eq('Advance');
       w.unmount();
     });
 

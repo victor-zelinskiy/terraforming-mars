@@ -7,7 +7,7 @@ import {MarsBotTurn} from '../../common/automa/MarsBotTurn';
 import type {MarsBotTurnRecording} from './AutomaTurnLog';
 import {GameOptions} from '../game/GameOptions';
 import {MarsBotBoard} from './MarsBotBoard';
-import {THARSIS_MARSBOT_BOARD} from './boards/TharsisMarsBot';
+import {marsBotMapProfile} from './boards/MarsBotMapProfile';
 import {VENUS_TRACK} from './boards/VenusMarsBot';
 
 /**
@@ -183,11 +183,19 @@ export class AutomaState {
     public readonly board: MarsBotBoard) {
   }
 
-  /** The track set is derived from the game options: Tharsis + the Venus track when Venus Next is on. */
+  /**
+   * The track set is derived from the game options: the MAP's own board («Use
+   * the MarsBot board that corresponds to the map you are using» — Adding
+   * Expansions p.8) plus the separate Venus track when Venus Next is on.
+   *
+   * Only the map NAME needs to survive a save: the board definition is static
+   * data rebuilt from `gameOptions.boardName` on every load.
+   */
   private static boardFor(gameOptions: GameOptions): MarsBotBoard {
+    const profile = marsBotMapProfile(gameOptions.boardName);
     const tracks = gameOptions.venusNextExtension ?
-      [...THARSIS_MARSBOT_BOARD, VENUS_TRACK] :
-      [...THARSIS_MARSBOT_BOARD];
+      [...profile.tracks, VENUS_TRACK] :
+      [...profile.tracks];
     return new MarsBotBoard(tracks);
   }
 

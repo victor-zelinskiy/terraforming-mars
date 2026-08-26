@@ -5673,6 +5673,34 @@ html.console-mode body.placement-pending .board-outer-spaces > .board-space.boar
         line-height: 1.35;
         /* NEVER clamp decision text — density is bought in the model. */
     }
+    /* THE FACTS — what the move costs and what it pays, in the SAME
+       «сейчас → станет» rows the plan panel states an ordinary advance
+       with. Two labelled groups on one line while they fit; the cap is the
+       body's own reading measure, so the whole decision stays one block. */
+    &__bonus-facts {
+        display: flex;
+        flex-wrap: wrap;
+        align-items: center;
+        gap: .3rem 1.3rem;
+        margin-top: .1rem;
+        min-width: 0;
+    }
+    &__bonus-fact {
+        display: inline-flex;
+        align-items: center;
+        gap: .5rem;
+        min-width: 0;
+
+        .con-hydro__section-label { flex: 0 0 auto; }
+    }
+    /* A COST reads as a cost: the same row, the amber register instead of the
+       mint one — never a differently-shaped widget. */
+    &__delta--cost &__after { color: fade(@con-amber, 95%); }
+    &__plus--cost {
+        background: fade(@con-amber, 12%);
+        box-shadow: inset 0 0 0 .05rem fade(@con-amber, 50%);
+        color: @con-amber;
+    }
     /* THE PRICE, as a compact status badge: one token that says «бесплатно»
        once, inside the route it qualifies — never a second heavy line under it. */
     &__route-cost--free {
@@ -6318,6 +6346,8 @@ html.con-profile-handheld .con-hydro {
     .con-hydro__bonus-action { padding: .42rem .7rem .42rem .6rem; max-width: 100%; }
     .con-hydro__bonus-action-title { font-size: .8rem; }
     .con-hydro__bonus-text { font-size: .775rem; }
+    .con-hydro__bonus-facts { gap: .25rem .9rem; max-width: 26rem; }
+    .con-hydro__bonus-fact .con-hydro__delta { font-size: .775rem; }
 }
 
 /* Hydronetwork · large profile (4K TV): everything one notch up. */
@@ -6346,6 +6376,8 @@ html.con-profile-large .con-hydro {
     .con-hydro__bonus-action { padding: .6rem 1.05rem .6rem .85rem; }
     .con-hydro__bonus-action-title { font-size: 1.05rem; }
     .con-hydro__route-cost--free { font-size: .8rem; }
+    .con-hydro__bonus-facts { gap: .35rem 1.6rem; }
+    .con-hydro__bonus-fact .con-hydro__delta { font-size: 1rem; }
 }
 
 /* ── Milestones/Awards ceremony accents — shared by the MA focus stage

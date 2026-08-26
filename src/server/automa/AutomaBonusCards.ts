@@ -1,12 +1,12 @@
 import * as constants from '../../common/constants';
 import {AutomaTerraformer} from './AutomaTerraformer';
-import {BonusCardId} from '../../common/automa/AutomaTypes';
+import {BonusCardId, MarsBotTrackRole} from '../../common/automa/AutomaTypes';
 import {CardName} from '../../common/cards/CardName';
 import {CardResource} from '../../common/CardResource';
 import {GlobalParameter} from '../../common/GlobalParameter';
 import {Phase} from '../../common/Phase';
 import {Resource} from '../../common/Resource';
-import {Tag} from '../../common/cards/Tag';
+import {CardType} from '../../common/cards/CardType';
 import {TileType} from '../../common/TileType';
 import {SpaceType} from '../../common/boards/SpaceType';
 import {Board} from '../boards/Board';
@@ -14,6 +14,7 @@ import {Space} from '../boards/Space';
 import {IGame} from '../IGame';
 import {IPlayer} from '../IPlayer';
 import {ICard} from '../cards/ICard';
+import {IProjectCard} from '../cards/IProjectCard';
 import {SelectCard} from '../inputs/SelectCard';
 import {SimpleDeferredAction} from '../deferredActions/DeferredAction';
 import {AwardScorer} from '../awards/AwardScorer';
@@ -31,7 +32,7 @@ import {AutomaResolver} from './AutomaResolver';
 import {AutomaTilePlacer} from './AutomaTilePlacer';
 import {AutomaTurnLog} from './AutomaTurnLog';
 import {humansOf, marsBotOf, pickVictim} from './AutomaUtil';
-import {THARSIS_TRACK} from './boards/TharsisMarsBot';
+import {marsBotMapProfile} from './boards/MarsBotMapProfile';
 
 /**
  * Where a resolved bonus card goes. Recurring cards (B16, later B19/B20) stay
@@ -93,6 +94,108 @@ function cubeVpRate(card: ICard): number {
 }
 
 /**
+ * «The human must lose 1 animal or 1 microbe (highest scoring if you have
+ * multiple)» — printed on B02 Invasive Species AND on the Eccentric helper
+ * action of the Hellas Corporate Competition (B09). ONE selection, so the two
+ * can never drift apart.
+ *
+ * `removable` is the outcome the caller can act on; `protected`/`none` are the
+ * two honest ways the sentence can find nothing, which the cards narrate
+ * differently (B02 still resolves and pays; a helper action that finds nothing
+ * is «impossible to resolve» and costs MarsBot nothing).
+ */
+type CubeAttack =
+  | {kind: 'removable', victim: IPlayer, targets: Array<ICard>}
+  | {kind: 'protected', victim: IPlayer}
+  | {kind: 'none'};
+
+/**
+ * Pick the victim and their tied highest-scoring animal/microbe cards.
+ *
+ * Victim canon (§12 Q9): the GLOBAL highest cube rate; ties across players
+ * resolve RANDOMLY with EQUAL weight per PLAYER (never per card — a player with
+ * more equal-rate cards must not attract the hit more often). Consumes the
+ * seeded rng at most ONCE, and only for a genuine cross-player tie.
+ */
+function selectHighestScoringCubeAttack(game: IGame): CubeAttack {
+  const humans = humansOf(game);
+  // Every animal/microbe cube holder across ALL humans (owner-major, stable order).
+  type Holder = {owner: IPlayer, card: ICard};
+  const cubeHolders: Array<Holder> = [];
+  for (const owner of humans) {
+    for (const card of owner.tableau) {
+      if ((card.resourceType === CardResource.ANIMAL || card.resourceType === CardResource.MICROBE) &&
+          card.resourceCount > 0) {
+        cubeHolders.push({owner, card});
+      }
+    }
+  }
+  // Official FAQ (rulebook p.11): Protected Habitats DOES block Invasive Species.
+  // Per-card protection (Pets' protectedResources) blocks the same way — mirrors
+  // the opponent branch of RemoveResourcesFromCard.getAvailableTargetCards.
+  const removable = cubeHolders.filter(({owner, card}) =>
+    !owner.tableau.has(CardName.PROTECTED_HABITATS) && card.protectedResources !== true);
+  if (removable.length > 0) {
+    const maxRate = Math.max(...removable.map(({card}) => cubeVpRate(card)));
+    const tiedOwners = humans.filter((h) =>
+      removable.some(({owner, card}) => owner === h && cubeVpRate(card) === maxRate));
+    const victim = pickVictim(game, tiedOwners, () => 0) ?? tiedOwners[0];
+    // The prompt below only settles ties WITHIN that victim's own equal-rate
+    // cards (scoring-equivalent by construction — never "pick the loss you
+    // prefer").
+    const targets = removable
+      .filter((h) => h.owner === victim && cubeVpRate(h.card) === maxRate)
+      .map((h) => h.card);
+    return {kind: 'removable', victim, targets};
+  }
+  if (cubeHolders.length > 0) {
+    const shielded = (pickVictim(game, cubeHolders, ({card}) => cubeVpRate(card)) ?? cubeHolders[0]).owner;
+    return {kind: 'protected', victim: shielded};
+  }
+  return {kind: 'none'};
+}
+
+/**
+ * Announce the cube attack and hand the victim their pick. The cube leaves via
+ * the victim's own follow-up answer, after this turn commits.
+ */
+function deferCubeRemoval(game: IGame, attack: Extract<CubeAttack, {kind: 'removable'}>, bonusCard: BonusCardId): void {
+  const bot = marsBotOf(game);
+  const {victim, targets} = attack;
+  // The attack is announced NOW (target + demand); the actual cube leaves
+  // via the target's own follow-up pick, after this turn commits.
+  AutomaTurnLog.note(game, {kind: 'attack', attack: {
+    target: victim.color, resource: 'cube', demanded: 1, removed: 0, outcome: 'target-chooses',
+  }});
+  // The pick is shown even for a single candidate (the fork's no-auto-select
+  // rule): the victim confirms WHICH cube leaves.
+  //
+  // The prompt carries its whole meaning STRUCTURALLY (`markBotAttackPrompt`):
+  // who attacked, which of the bot's cards did it, what leaves and what each
+  // candidate costs. The title is a translatable key that no longer has to
+  // smuggle the source card's name in brackets — the client reads the marker.
+  // Built INSIDE the deferred callback so the preview is derived from the
+  // state the player will actually be looking at (the queue may run other
+  // effects between this turn's resolution and the victim's answer).
+  game.defer(new SimpleDeferredAction(victim, () => new SelectCard(
+    'Remove 1 resource from one of your cards',
+    'Remove resource', targets, {min: 1, max: 1})
+    .markBotAttackPrompt(cardResourceAttackPrompt({
+      attacker: bot,
+      victim,
+      source: {kind: 'bonusCard', bonusCard},
+      targets,
+      amount: 1,
+      restrictionKey: 'Only your highest-scoring animal or microbe cards can be chosen.',
+    }))
+    .andThen(([card]) => {
+      // `removingPlayer` attributes the cube loss to the bot (LawSuit hook).
+      victim.removeResourceFrom(card, 1, {log: true, removingPlayer: bot});
+      return undefined;
+    })));
+}
+
+/**
  * Resolves one MarsBot bonus card (rulebook pp.6–7 + Adding Expansions p.3).
  * A failed PRIMARY effect never causes a Failed Action — each card defines its
  * own fallback (rulebook p.5). Returns where the card goes; recurring cards
@@ -108,7 +211,10 @@ export function resolveBonusCard(game: IGame, id: BonusCardId): BonusCardOutcome
   case BonusCardId.B06_LOBBYISTS: return lobbyists(game, /* venus= */ false);
   case BonusCardId.B15_LOBBYISTS_VENUS: return lobbyists(game, /* venus= */ true);
   case BonusCardId.B07_LOCAL_NEURAL_INSTANCE: return localNeuralInstance(game);
-  case BonusCardId.B08_CORPORATE_COMPETITION: return corporateCompetition(game);
+  case BonusCardId.B08_CORPORATE_COMPETITION:
+  case BonusCardId.B09_CORPORATE_COMPETITION_HELLAS:
+    // One card, one resolver: the map only swaps the helper-action list.
+    return corporateCompetition(game);
   case BonusCardId.B16_GOVERNMENT_INTERVENTION: return governmentIntervention(game);
   case BonusCardId.B17_EXPEDITED_CONSTRUCTION_COLONIES: return expeditedConstructionColonies(game);
   case BonusCardId.B18_OUTER_SYSTEM_FOOTHOLD: return outerSystemFoothold(game);
@@ -194,70 +300,13 @@ function invasiveSpecies(game: IGame): BonusCardOutcome {
     bot.stock.add(Resource.MEGACREDITS, 5, {log: true});
   }
 
-  // Every animal/microbe cube holder across ALL humans (owner-major, stable order).
-  type Holder = {owner: IPlayer, card: ICard};
-  const cubeHolders: Array<Holder> = [];
-  for (const owner of humans) {
-    for (const card of owner.tableau) {
-      if ((card.resourceType === CardResource.ANIMAL || card.resourceType === CardResource.MICROBE) &&
-          card.resourceCount > 0) {
-        cubeHolders.push({owner, card});
-      }
-    }
-  }
-  // Official FAQ (rulebook p.11): Protected Habitats DOES block Invasive Species.
-  // Per-card protection (Pets' protectedResources) blocks the same way — mirrors
-  // the opponent branch of RemoveResourcesFromCard.getAvailableTargetCards.
-  const removable = cubeHolders.filter(({owner, card}) =>
-    !owner.tableau.has(CardName.PROTECTED_HABITATS) && card.protectedResources !== true);
-  if (removable.length > 0) {
-    // Victim canon (§12 Q9): the GLOBAL highest cube rate; ties across players
-    // resolve RANDOMLY with EQUAL weight per PLAYER (never per card — a player
-    // with more equal-rate cards must not attract the hit more often). The
-    // prompt below only settles ties WITHIN that victim's own equal-rate cards
-    // (scoring-equivalent by construction — never "pick the loss you prefer").
-    const maxRate = Math.max(...removable.map(({card}) => cubeVpRate(card)));
-    const tiedOwners = humans.filter((h) =>
-      removable.some(({owner, card}) => owner === h && cubeVpRate(card) === maxRate));
-    const victim = pickVictim(game, tiedOwners, () => 0) ?? tiedOwners[0];
-    const targets = removable
-      .filter((h) => h.owner === victim && cubeVpRate(h.card) === maxRate)
-      .map((h) => h.card);
-    // The attack is announced NOW (target + demand); the actual cube leaves
-    // via the target's own follow-up pick, after this turn commits.
-    AutomaTurnLog.note(game, {kind: 'attack', attack: {
-      target: victim.color, resource: 'cube', demanded: 1, removed: 0, outcome: 'target-chooses',
-    }});
-    // The pick is shown even for a single candidate (the fork's no-auto-select
-    // rule): the victim confirms WHICH cube leaves.
-    //
-    // The prompt carries its whole meaning STRUCTURALLY (`markBotAttackPrompt`):
-    // who attacked, which of the bot's cards did it, what leaves and what each
-    // candidate costs. The title is a translatable key that no longer has to
-    // smuggle the source card's name in brackets — the client reads the marker.
-    // Built INSIDE the deferred callback so the preview is derived from the
-    // state the player will actually be looking at (the queue may run other
-    // effects between this turn's resolution and the victim's answer).
-    game.defer(new SimpleDeferredAction(victim, () => new SelectCard(
-      'Remove 1 resource from one of your cards',
-      'Remove resource', targets, {min: 1, max: 1})
-      .markBotAttackPrompt(cardResourceAttackPrompt({
-        attacker: bot,
-        victim,
-        source: {kind: 'bonusCard', bonusCard: BonusCardId.B02_INVASIVE_SPECIES},
-        targets,
-        amount: 1,
-        restrictionKey: 'Only your highest-scoring animal or microbe cards can be chosen.',
-      }))
-      .andThen(([card]) => {
-        // `removingPlayer` attributes the cube loss to the bot (LawSuit hook).
-        victim.removeResourceFrom(card, 1, {log: true, removingPlayer: bot});
-        return undefined;
-      })));
-  } else if (cubeHolders.length > 0) {
+  const attack = selectHighestScoringCubeAttack(game);
+  if (attack.kind === 'removable') {
+    deferCubeRemoval(game, attack, BonusCardId.B02_INVASIVE_SPECIES);
+  } else if (attack.kind === 'protected') {
     // Cubes exist, but Protected Habitats / a per-card protection blocks every
     // removal (official FAQ). The card still resolves (M€ above) and discards.
-    const shielded = (pickVictim(game, cubeHolders, ({card}) => cubeVpRate(card)) ?? cubeHolders[0]).owner;
+    const shielded = attack.victim;
     game.log('${0} animals and microbes are protected — Invasive Species removes nothing', (b) => b.player(shielded));
     AutomaTurnLog.note(game, {kind: 'attack', attack: {
       target: shielded.color, resource: 'cube', demanded: 1, removed: 0, outcome: 'protected',
@@ -441,13 +490,45 @@ function localNeuralInstance(game: IGame): BonusCardOutcome {
   return 'destroy';
 }
 
+/** The Corporate Competition card THIS map plays with — B08 Tharsis, B09 Hellas. */
+function mapCorporateCompetition(game: IGame): BonusCardId {
+  return marsBotMapProfile(game.gameOptions.boardName).corporateCompetition;
+}
+
 /**
- * B08 Corporate Competition (Tharsis): with 5+ M€, help its position on the
- * CLOSEST already-funded award (the one the human leads by the smallest margin
- * or is tied; MarsBot leading everywhere → its own smallest margin), skipping
- * awards whose helper is impossible. A resolved help costs 5 M€; no help
- * possible → draw another bonus card and resolve it (both discarded).
- * The Venuphile helper is added to every version (Adding Expansions p.3).
+ * «Reveal cards from the project deck until a <matching> card is revealed,
+ * resolve it, and discard the rest» — the shape shared by the Magnate,
+ * Celebrity, Incorporator, Forecaster and Administrator helper actions across
+ * the map-specific Corporate Competition cards.
+ *
+ * Rides the deck's own conditional search, so the reveal ORDER, the discarding
+ * of the rejected cards, the reshuffle and the ONE public «Discarded N cards»
+ * line are the engine's — never a private re-implementation, and never one
+ * notification per rejected card. Returns false when the deck holds no
+ * matching card at all (the search is bounded by the deck size): the helper is
+ * then «impossible to resolve» and MarsBot pays nothing.
+ */
+function revealUntilAndResolve(game: IGame, matches: (card: IProjectCard) => boolean): boolean {
+  const found = game.projectDeck.drawByConditionOrThrow(game, 1, matches);
+  if (found.length === 0) {
+    return false;
+  }
+  // Resolved as an ordinary MarsBot project card: its PRINTED TAGS advance this
+  // map's tracks, the corporation hook and the human reactors both fire, and it
+  // joins the played pile. The card's own human text is never executed.
+  resolveProjectCardForBot(game, found[0]);
+  return true;
+}
+
+/**
+ * Corporate Competition — B08 (Tharsis) and B09 (Hellas) are the SAME card with
+ * a different helper-action list, so they are the same resolver: with 5+ M€,
+ * help its position on the CLOSEST already-funded award (the one the human
+ * leads by the smallest margin or is tied; MarsBot leading everywhere → its own
+ * smallest margin), skipping awards whose helper is impossible. A resolved help
+ * costs 5 M€; no help possible → draw another bonus card and resolve it (both
+ * discarded). The Venuphile helper is added to every version (Adding Expansions
+ * p.3). The per-map action list lives in `tryAwardHelper`.
  */
 function corporateCompetition(game: IGame): BonusCardOutcome {
   const automa = game.automa;
@@ -478,7 +559,13 @@ function corporateCompetition(game: IGame): BonusCardOutcome {
     for (const {award} of ordered) {
       if (tryAwardHelper(game, award.name)) {
         AutomaTurnLog.setBonusBranch(game, {key: 'Helped the closest funded award: ${0}', params: [award.name]});
-        bot.stock.deduct(Resource.MEGACREDITS, 5, {log: true});
+        // «If MarsBot takes an action, it loses 5 MC.» The card checked its 5 M€
+        // BEFORE the helper ran, and a helper can spend money of its own on the
+        // way (Hellas' South Pole charges 6 M€ for the greenery it just placed
+        // there) — so the bot may now hold less. It loses what it has; clamped
+        // explicitly because the engine's own under-deduct guard would report
+        // this legal outcome as an illegal state.
+        bot.stock.deduct(Resource.MEGACREDITS, Math.min(5, bot.megaCredits), {log: true});
         return 'discard';
       }
     }
@@ -511,50 +598,80 @@ function corporateCompetition(game: IGame): BonusCardOutcome {
   return 'discard';
 }
 
-/** The Tharsis Corporate Competition helper actions (+ Venuphile). False when impossible. */
+/**
+ * The Corporate Competition helper actions — Tharsis (rulebook p.7), Hellas
+ * (Adding Expansions p.12) and the Venuphile line every version of the card
+ * gains with Venus Next (Adding Expansions p.3). False when the action is
+ * «impossible to resolve»: the caller then tries the NEXT funded award and the
+ * bot pays nothing.
+ *
+ * Award names are unique across the supported board set, so ONE switch serves
+ * every map; the tracks are addressed by canonical ROLE, which is what makes
+ * «advance the science track» reach the Jovian/Science track on Hellas.
+ */
 function tryAwardHelper(game: IGame, awardName: string): boolean {
   const automa = game.automa;
   if (automa === undefined) {
     throw new Error('Not an automa game');
   }
-  const tracks = automa.board.tracks;
-  const advanceIfPossible = (index: number): boolean => {
-    if (!tracks[index].canAdvance()) {
+  const board = automa.board;
+  const advanceRole = (role: MarsBotTrackRole): boolean => {
+    const index = board.getTrackIndexOfRole(role);
+    if (index === undefined || !board.tracks[index].canAdvance()) {
       return false;
     }
     AutomaResolver.advanceTrack(game, index);
     return true;
   };
-  switch (awardName) {
-  case 'Landlord': {
-    // Places a greenery, raising oxygen and TR as normal; all placement rules apply.
+  /** «MarsBot places a greenery tile and raises oxygen 1 step» — all placement rules apply. */
+  const placeGreenery = (): boolean => {
     if (game.board.getAvailableSpacesForGreenery(marsBotOf(game)).length === 0) {
       return false;
     }
     AutomaTilePlacer.placeGreenery(game);
     return true;
-  }
+  };
+  switch (awardName) {
+  // ── Tharsis (B08) ────────────────────────────────────────────────────────
+  case 'Landlord':
+    return placeGreenery();
   case 'Banker': {
     // Advance Building or Event, whichever is least advanced; Building on ties.
-    const building = tracks[THARSIS_TRACK.BUILDING];
-    const event = tracks[THARSIS_TRACK.EVENT];
-    const alive = [
-      {index: THARSIS_TRACK.BUILDING, track: building},
-      {index: THARSIS_TRACK.EVENT, track: event},
-    ].filter((e) => e.track.canAdvance());
+    const alive = (['building', 'event'] as const)
+      .map((role) => ({role, track: board.getTrackOfRole(role)}))
+      .filter((e) => e.track?.canAdvance() === true);
     if (alive.length === 0) {
       return false;
     }
-    alive.sort((a, b) => a.track.position - b.track.position); // Stable: Building first on ties.
-    return advanceIfPossible(alive[0].index);
+    alive.sort((a, b) => (a.track?.position ?? 0) - (b.track?.position ?? 0)); // Stable: Building first on ties.
+    return advanceRole(alive[0].role);
   }
-  case 'Scientist': return advanceIfPossible(THARSIS_TRACK.SCIENCE);
-  case 'Thermalist': return advanceIfPossible(THARSIS_TRACK.ENERGY);
-  case 'Miner': return advanceIfPossible(THARSIS_TRACK.SPACE);
-  case 'Venuphile': {
-    const venusIndex = tracks.findIndex((t) => t.definition.tags.includes(Tag.VENUS));
-    return venusIndex === -1 ? false : advanceIfPossible(venusIndex);
+  case 'Scientist': return advanceRole('science');
+  case 'Thermalist': return advanceRole('power');
+  case 'Miner': return advanceRole('space');
+  // ── Hellas (B09, Adding Expansions p.12) ─────────────────────────────────
+  case 'Cultivator':
+    return placeGreenery();
+  case 'Magnate':
+    // «Reveal cards from the project deck until a green card is revealed,
+    // resolve it, and discard the rest.»
+    return revealUntilAndResolve(game, (card) => card.type === CardType.AUTOMATED);
+  case 'Space Baron': return advanceRole('space');
+  case 'Excentric': {
+    // «You (the player) must remove the highest-scoring animal/microbe cube
+    // from a card in your tableau, if possible» — the same sentence B02
+    // Invasive Species prints, so it is the same resolver. Nothing removable
+    // ⇒ impossible to resolve (no 5 M€ changes hands).
+    const attack = selectHighestScoringCubeAttack(game);
+    if (attack.kind !== 'removable') {
+      return false;
+    }
+    deferCubeRemoval(game, attack, mapCorporateCompetition(game));
+    return true;
   }
+  case 'Contractor': return advanceRole('building');
+  // ── Venus Next: added to ALL versions of the card ─────────────────────────
+  case 'Venuphile': return advanceRole('venus');
   default:
     return false;
   }

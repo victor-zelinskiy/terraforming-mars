@@ -18,8 +18,32 @@ export type TrackAction =
 /** A single track on the MarsBot board (19 positions: 0–18; the Venus track has 13: 0–12). */
 export type TrackLayout = ReadonlyArray<TrackAction | undefined>;
 
+/**
+ * The CANONICAL identity of a track, independent of which map board is in play
+ * and of which tags that board pairs onto it.
+ *
+ * Every rule that names a track — the production-decrease regressions
+ * (rulebook pp.4–5), the milestone/award reference cards, the Corporate
+ * Competition helper actions, the Colonies 2nd-trade-fleet space — names a
+ * ROLE, never a row index and never a tag pairing. Hellas moves the Jovian tag
+ * from the power track onto the science track (Adding Expansions p.8), which is
+ * exactly the difference a role survives and a tag lookup does not: «advance the
+ * building track» is the same instruction on every board.
+ */
+export type MarsBotTrackRole =
+  | 'building'
+  | 'space'
+  | 'event'
+  | 'science'
+  | 'power'
+  | 'earth'
+  | 'bio'
+  | 'venus';
+
 /** Definition of one MarsBot track: which tags and production types map to it. */
 export type TrackDefinition = {
+  /** Canonical track identity — see {@link MarsBotTrackRole}. */
+  readonly role: MarsBotTrackRole;
   readonly tags: ReadonlyArray<Tag>;
   readonly productions: ReadonlyArray<Resource>;
   readonly layout: TrackLayout;

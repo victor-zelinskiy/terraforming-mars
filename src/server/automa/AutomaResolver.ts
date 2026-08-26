@@ -120,11 +120,14 @@ export class AutomaResolver {
       // nests the chain reaction from data instead of guessing by order.
       ...(depth > 0 ? {depth} : {}),
     });
-    // Colonies (Adding Expansions p.6): reaching the 9th space of the Energy
+    // Colonies (Adding Expansions p.6): reaching the 9th space of the POWER
     // track unlocks the 2nd trade fleet — in ADDITION to the space's effect.
+    // «Place a second Trade Fleet on the 9th space of the [power] track»
+    // (Adding Expansions p.4); the Hellas board prints that very reminder on
+    // its power track's space 9 too. Addressed by ROLE, never by row index.
     // Inline (no AutomaColonies import) to keep the module graph acyclic.
     if (game.gameOptions.coloniesExtension && !automa.secondFleetUnlocked &&
-        trackIndex === 4 /* Energy */ && track.position === 9) {
+        trackIndex === automa.board.getTrackIndexOfRole('power') && track.position === 9) {
       automa.secondFleetUnlocked = true;
       game.log('${0} unlocked its second trade fleet', (b) => b.player(marsBotOf(game)));
     }
@@ -193,6 +196,15 @@ export class AutomaResolver {
       // "Gain Floater" (Adding Expansions p.2/p.4). Without Venus Next the token
       // physically goes to the Titan storage area — same single pool for the
       // research-phase floater spend, so `automa.floaters` is the one counter.
+      //
+      // The icon is printed with BOTH expansion badges (Venus + Colonies) on the
+      // map boards that carry it, and is defined in both sections of Adding
+      // Expansions. With NEITHER expansion it is an icon of an unused expansion:
+      // ignored, no Failed Action (rulebook p.7). No-op on Tharsis, whose only
+      // floater cells live on the Venus board itself.
+      if (!game.gameOptions.venusNextExtension && !game.gameOptions.coloniesExtension) {
+        return;
+      }
       const count = action === 'floater2' ? 2 : 1;
       automa.floaters += count;
       game.log('${0} gained ${1} ${2}', (b) => b.player(bot).number(count).cardResource(CardResource.FLOATER));

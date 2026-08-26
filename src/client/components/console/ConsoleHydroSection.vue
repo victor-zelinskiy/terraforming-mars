@@ -402,6 +402,50 @@
                 </span>
                 <p class="con-hydro__bonus-text">{{ bonusBodyText }}</p>
 
+                <!-- WHAT IT COSTS AND WHAT IT PAYS — the SAME «сейчас → станет»
+                     rows the plan panel above states an ordinary advance with.
+                     A bonus move is the same move, so it is read the same way:
+                     an honest before/after per pool, never a bare «−1 ⚡» chip
+                     the player has to do arithmetic against their own rail. -->
+                <div v-if="bonusShowsFacts" class="con-hydro__bonus-facts" data-unfold-item>
+                  <span v-if="bonusCostLine !== undefined" class="con-hydro__bonus-fact">
+                    <span class="con-hydro__section-label">{{ $t('You will spend') }}</span>
+                    <span class="con-hydro__delta con-hydro__delta--cost">
+                      <span class="con-hydro__delta-ico">
+                        <span class="con-hydro__delta-img" :class="deltaIconClass(bonusCostLine)" aria-hidden="true"></span>
+                      </span>
+                      <span class="con-hydro__beforeafter"><b>{{ bonusCostLine.before }}</b> <span aria-hidden="true">→</span> <b class="con-hydro__after">{{ bonusCostLine.after }}</b></span>
+                      <span class="con-hydro__plus con-hydro__plus--cost">−{{ -bonusCostLine.delta }}</span>
+                    </span>
+                  </span>
+                  <span v-if="bonusGainPresent" class="con-hydro__bonus-fact">
+                    <span class="con-hydro__section-label">{{ $t('You will gain') }}</span>
+                    <!-- The landing stage asks WHICH reward (pos 1/2): both
+                         alternatives, exactly as the plan panel offers them —
+                         the pick itself is the step that A opens next. -->
+                    <span v-if="bonusRewardOptions.length > 1" class="con-hydro__gains-choice">
+                      <HydroReward :chips="bonusRewardOptions[0]" :compact="true" />
+                      <span class="con-hydro__stop-or">{{ $t('or') }}</span>
+                      <HydroReward :chips="bonusRewardOptions[1]" :compact="true" />
+                    </span>
+                    <template v-else>
+                      <span v-for="(l, i) in bonusRewardView.lines" :key="i" class="con-hydro__delta" :class="{'con-hydro__delta--zero': l.delta === 0}">
+                        <span class="con-hydro__delta-ico" :class="{'con-hydro__delta-ico--prod': l.production}">
+                          <span class="con-hydro__delta-img" :class="deltaIconClass(l)" aria-hidden="true"></span>
+                        </span>
+                        <span class="con-hydro__beforeafter"><b>{{ l.before }}</b> <span aria-hidden="true">→</span> <b class="con-hydro__after">{{ l.after }}</b></span>
+                        <span v-if="l.delta !== 0" class="con-hydro__plus">+{{ l.delta }}</span>
+                      </span>
+                      <HydroReward v-if="bonusRewardView.lines.length === 0 && bonusRewardView.rawChips.length > 0"
+                                   :chips="bonusRewardView.rawChips" :compact="true" />
+                      <span v-if="bonusRewardView.vp !== undefined" class="con-hydro__vpline">
+                        <span class="con-hydro__stage-vp">{{ bonusRewardView.vp }} {{ $t('VP') }}</span>
+                        <span>{{ $t('VP at game end') }}</span>
+                      </span>
+                    </template>
+                  </span>
+                </div>
+
                 <!-- TAKE IT / SKIP — a COMPACT BINARY CHOICE, not two settings
                      rows. The pair sizes to its own content and sits under the
                      statement it answers instead of spanning a 4K content
@@ -574,6 +618,7 @@ import {ActionGroup, playerActionGroups} from '@/client/components/actions/actio
 import {stripNodeOr} from '@/client/components/actions/actionBranchView';
 import {Color} from '@/common/Color';
 import {Tag} from '@/common/cards/Tag';
+import {Resource} from '@/common/Resource';
 import {CardName} from '@/common/cards/CardName';
 import {CardModel} from '@/common/models/CardModel';
 import {PlayerViewModel} from '@/common/models/PlayerModel';
@@ -1036,6 +1081,39 @@ export default defineComponent({
     bonusSourceView(): ReturnType<typeof choiceSourceView> {
       const offer = this.bonusOffer;
       return offer === undefined ? undefined : choiceSourceView({kind: 'card', card: offer.source});
+    },
+    /** The landing stage itself — the ONE object the facts are read from. */
+    bonusStage(): HydroStage | undefined {
+      return this.bonusOffer === undefined ? undefined : HYDRO_STAGES[this.bonusOffer.toPosition];
+    },
+    /**
+     * THE PRICE as a «сейчас → станет» line, not a bare chip. The server's own
+     * `energyCost` (0 for a plain bonus step, 1 for the tag waiver) against the
+     * viewer's live stock — the same shape `buildRewardView` produces, so it
+     * renders through the very same row.
+     */
+    bonusCostLine(): HydroDeltaLine | undefined {
+      const cost = this.bonusOffer?.energyCost ?? 0;
+      if (cost <= 0) {
+        return undefined;
+      }
+      const have = this.snapshot.energy;
+      return {resource: Resource.ENERGY, labelKey: 'Energy', before: have, after: have - cost, delta: -cost};
+    },
+    /** The landing stage's reward ALTERNATIVES (two ⇒ the pick is a step). */
+    bonusRewardOptions(): HydroStage['rewardOptions'] {
+      return this.bonusNeedsReward ? (this.bonusStage?.rewardOptions ?? []) : [];
+    },
+    /** Has the landing stage anything to state as a gain? */
+    bonusGainPresent(): boolean {
+      if (this.bonusNeedsReward) {
+        return true; // the two alternatives are the statement
+      }
+      const v = this.bonusRewardView;
+      return v.lines.length > 0 || v.rawChips.length > 0 || v.vp !== undefined;
+    },
+    bonusShowsFacts(): boolean {
+      return this.bonusCostLine !== undefined || this.bonusGainPresent;
     },
     /** Does the offer's LANDING stage ask which reward to take (pos 1/2)? */
     bonusNeedsReward(): boolean {

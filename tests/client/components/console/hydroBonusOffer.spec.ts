@@ -87,11 +87,32 @@ describe('hydroBonusOffer (the card-granted bonus move)', () => {
       expect(copy.confirmKey).to.not.match(/energy/i);
     });
 
-    it('the waiver offer states the shortfall and the price', () => {
+    it('the waiver offer states the shortfall and the price IN THE BODY', () => {
       const copy = hydroBonusCopy(meta({waivesTag: true, energyCost: 1}));
       expect(copy.bodyKey).to.match(/1 required tag/i);
-      expect(copy.confirmKey).to.match(/1 energy/i);
+      expect(copy.bodyKey).to.match(/1 energy/i);
       expect(copy.bodyKey).to.match(/stays available/i);
+    });
+
+    /**
+     * THE VERB IS THE VERB, AND ONLY THE VERB.
+     *
+     * The A-label is echoed into the ONE bottom command bar, where
+     * «ПОТРАТИТЬ 1 ЭНЕРГИЮ И ПРОДВИНУТЬСЯ» crowded out «X Осмотреть» and
+     * «B Свернуть» and then truncated itself. The price is stated by the
+     * workspace's own «Будет потрачено» delta row instead — and a bonus
+     * advance must not read differently from an ordinary one.
+     */
+    it('REGRESSION: the CTA is ONE short verb, identical for both shapes', () => {
+      const free = hydroBonusCopy(meta());
+      const paid = hydroBonusCopy(meta({waivesTag: true, energyCost: 1}));
+      expect(paid.confirmKey).to.eq(free.confirmKey);
+      expect(free.confirmKey).to.eq('Advance');
+      // No price, no adverb — nothing that grows with the offer's shape.
+      for (const copy of [free, paid]) {
+        expect(copy.confirmKey).to.not.match(/energy|free/i);
+        expect(copy.confirmKey.split(' ')).to.have.length(1);
+      }
     });
 
     // The zone hands its stage name UP to the workspace crumb (a step surface

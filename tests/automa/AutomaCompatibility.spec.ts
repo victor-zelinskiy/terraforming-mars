@@ -29,11 +29,15 @@ describe('automaCompatibility — the shared UI/server conflict rules', () => {
     expect(automaConflicts(cleanInput())).is.empty;
   });
 
-  it('a non-Tharsis board conflicts and names the board', () => {
-    const conflicts = automaConflicts({...cleanInput(), boardName: BoardName.HELLAS});
+  it('Hellas is supported — it has a MarsBot board, reference card and B09', () => {
+    expect(automaConflicts({...cleanInput(), boardName: BoardName.HELLAS})).is.empty;
+  });
+
+  it('a board without a MarsBot profile conflicts and names it', () => {
+    const conflicts = automaConflicts({...cleanInput(), boardName: BoardName.ELYSIUM});
     expect(conflicts).has.length(1);
     expect(conflicts[0].key).eq('board');
-    expect(conflicts[0].reason).eq('the hellas board yet — the POC covers Tharsis');
+    expect(conflicts[0].reason).eq('the elysium board yet — MarsBot covers tharsis and hellas');
   });
 
   it('reports EVERY conflict (the UI highlights all of them at once)', () => {

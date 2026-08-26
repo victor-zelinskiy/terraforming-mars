@@ -461,7 +461,7 @@ export function stateAutomaConflictKeys(): ReadonlySet<string> {
  * The generic fallback covers keys the premium form can't normally produce.
  */
 const AUTOMA_BLOCKER_TEXT: Partial<Record<string, string>> = {
-  'board': 'MarsBot plays on the Tharsis map only for now',
+  'board': 'MarsBot plays on the Tharsis and Hellas maps only for now',
   'rule:randomMilestonesAwards': 'MarsBot uses the printed milestones and awards',
   'rule:randomBoardTiles': 'MarsBot needs the printed board layout',
 };

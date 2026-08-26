@@ -7,7 +7,6 @@ import {marsBotCorpInfo} from '../../common/automa/MarsBotCorpData';
 import {IGame} from '../IGame';
 import {IPlayer} from '../IPlayer';
 import {bumpCorpStat, marsBotOf} from './AutomaUtil';
-import {THARSIS_TRACK} from './boards/TharsisMarsBot';
 
 /**
  * How the human's turn interacts with MarsBot (rulebook pp.4–5 + Adding
@@ -52,15 +51,20 @@ export class AutomaTargeting {
     [CardResource.ANIMAL]: ColonyName.MIRANDA,
   };
 
-  /** Decrease production → regress this track (rulebook pp.4–5). */
-  private static readonly PRODUCTION_TRACK: Record<Resource, number> = {
-    [Resource.STEEL]: THARSIS_TRACK.BUILDING,
-    [Resource.TITANIUM]: THARSIS_TRACK.SPACE,
-    [Resource.MEGACREDITS]: THARSIS_TRACK.EVENT,
-    [Resource.ENERGY]: THARSIS_TRACK.ENERGY,
-    [Resource.HEAT]: THARSIS_TRACK.EARTH,
-    [Resource.PLANTS]: THARSIS_TRACK.BIO,
-  };
+  /**
+   * Decrease production → regress this track (rulebook pp.4–5): steel →
+   * Building, titanium → Space, M€ → Event, energy → Energy, heat → Earth,
+   * plants → the bio track.
+   *
+   * Read from the BOARD's own `productions` declarations — the production badge
+   * printed on each track's space 0 — never from a tag pairing and never from a
+   * row index. Hellas moves the Jovian TAG onto the science track without
+   * moving a single production badge, so this mapping is identical there.
+   */
+  private static trackFor(game: IGame, resource: Resource) {
+    const index = game.automa?.board.getTrackIndexForProduction(resource);
+    return index === undefined ? undefined : game.automa?.board.tracks[index];
+  }
 
   private static storageOf(game: IGame, colony: ColonyName | undefined): number {
     if (colony === undefined || !game.gameOptions.coloniesExtension) {
@@ -285,7 +289,10 @@ export class AutomaTargeting {
     if (automa === undefined) {
       throw new Error('Not an automa game');
     }
-    const track = automa.board.tracks[AutomaTargeting.PRODUCTION_TRACK[resource]];
+    const track = AutomaTargeting.trackFor(game, resource);
+    if (track === undefined) {
+      return; // No track carries that production badge on this board.
+    }
     let regressed = 0;
     for (let i = 0; i < steps && track.position > 0; i++) {
       track.regress();
@@ -309,7 +316,10 @@ export class AutomaTargeting {
     if (automa === undefined) {
       return undefined;
     }
-    const track = automa.board.tracks[AutomaTargeting.PRODUCTION_TRACK[resource]];
+    const track = AutomaTargeting.trackFor(game, resource);
+    if (track === undefined) {
+      return undefined;
+    }
     const applied = Math.min(steps, track.position);
     return {tag: track.definition.tags[0], from: track.position, to: track.position - applied, steps: applied};
   }
@@ -345,7 +355,7 @@ export class AutomaTargeting {
     if (automa === undefined) {
       return false;
     }
-    return automa.board.tracks[AutomaTargeting.PRODUCTION_TRACK[resource]].position >= minQuantity;
+    return (AutomaTargeting.trackFor(game, resource)?.position ?? 0) >= minQuantity;
   }
 
   /**

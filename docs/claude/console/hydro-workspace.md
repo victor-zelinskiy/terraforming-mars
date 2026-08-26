@@ -127,6 +127,98 @@ standard deal (the Pluto language), embedded under the standing track.
 - A server refusal calls `rollbackHydroCommit()` beside `abortHydroMarker()`
   in BOTH WaitingFor error paths — the draft returns intact, B lives.
 
+## The CARD-GRANTED BONUS MOVE (Dynamic Ocean Barrier, DP03)
+
+A card may hand the player a step on the track they did not ask for. The offer
+arrives as an ordinary `OrOptions` carrying the SERVER's structural marker
+`deltaBonusPrompt` (`BonusDeltaAdvance`, queued `BACK_OF_THE_LINE` so every
+other consequence of the placement — the hex's card draw and its reveal
+included — is finished first). The client never re-derives a single field of it.
+
+**THE DOOR** waits for the whole arrival chain (`admits('followUp')`) and then
+either OPENS the workspace (`anchor: {type:'prompt'}` — a frame that hands the
+screen back) or QUEUES into one already standing. Pure policy in
+`hydroBonusOffer.ts`; the order is pinned at the seam by
+`hydroBonusDoorOrder.spec.ts` and in the DOM by `console-hydro-bonus-order.spec.ts`.
+
+⚠️ **A DOOR IS A DECISION *AND* THE FRAME IT IS APPLIED TO — two live states
+never make the decision CHANGE, and a change watcher therefore never runs.**
+Both shipped as one report:
+ - A **RELOAD** with the offer already on the wire computes the door as `open`
+   on its FIRST evaluation and never again — the workspace never opened and the
+   leak detector correctly shouted «STRANDED PROMPT: waitingFor "or" (task kind
+   "choice") has NO serving surface». The mount edge is asked from `mounted()`
+   (`syncHydroBonusDoor`), never with `immediate` — an immediate handler runs at
+   SETUP, before there is a shell to enter a workspace from.
+ - Opening «ГИДРОСЕТЬ» **FROM THE WHEEL** while the offer is parked keeps the
+   decision at `queue` (a parked frame is still «known») while standing up a
+   BRAND-NEW live frame that never earned its `serves`. The offer still
+   rendered, but `frameServing('choice')` answered with the PARKED frame, so
+   the screen the player was standing in did not count as the prompt's home:
+   the top chip beaconed at somebody looking straight at the decision.
+So the watched signal carries the frame's depth (`hydroBonusDoorSignal`) and
+the handler is IDEMPOTENT — any number of edges is harmless, a missing one is a
+strand. The chip's own side of that fact is `promptServedByStandingFrame`
+(ConsoleShell): a LIVE frame entitled to answer the standing prompt is the
+third honest form of «здесь», beside `shellTaskOnSurface` and a presenting
+claim. Parked frames deliberately do NOT count — the player walked away, which
+is exactly when the beacon is their only reminder.
+
+**IT IS THE SAME MOVE, SO IT GETS THE SAME PRESENTATION.** Taking the offer
+routes through `ConsoleShell.beginHydroAdvancePresentation` — the ONE opening
+that «Укрепить гидросеть» uses: commit record → outcome claim + `serves` →
+`armHydroMarker` → submit. The marker glides, the landed stage pays out through
+the reward wave, the counters tick on touchdown and the result stage holds. The
+only difference a bonus move is allowed to have is the price. (Before this it
+submitted and closed in the same breath: nothing was armed, so nothing moved and
+the whole advance happened off screen.) The close gate is the pure
+`hydroResolutionBusyOf` — its falling edge is what opens the result stage, and
+the result stage is the only door to closing the workspace.
+
+**B IS «СВЕРНУТЬ», NEVER AN ANSWER.** A refusal is an option the player focuses
+and confirms with A, like every other refusal in this console; B on the one
+button that means «step out and look at the board» everywhere else silently
+declined a card's effect, irreversibly. The rule is shared policy, not a hydro
+branch: `backVerbWithOwedPrompt(phase, ownsPrompt)` turns CLOSE into COLLAPSE
+while a prompt is owed and touches nothing else. The park then reaches the
+board-home mandatory card (`consoleTaskSummary`'s `deltaBonus` row names the
+workspace), and A there restores the same prompt at the same depth.
+
+**THE MOVE IS READ THE WAY AN ORDINARY ADVANCE IS.** The zone states what the
+step COSTS and what it PAYS in the same «сейчас → станет» delta rows the plan
+panel uses (`Будет потрачено` — the amber cost register; `Вы получите` — the
+landing stage's reward, or both alternatives when it asks). The CTA carries the
+VERB and nothing else (`Advance`, identical for the free step and the waiver):
+it is echoed into the ONE command bar, where «ПОТРАТИТЬ 1 ЭНЕРГИЮ И
+ПРОДВИНУТЬСЯ» crowded out «X Осмотреть» and «B Свернуть» and then truncated
+itself — and a bonus advance must not read differently from a paid one.
+
+**«СНАЧАЛА ЗАВЕРШИТЕ ТЕКУЩЕЕ ДЕЙСТВИЕ» IS ABOUT ANOTHER SCREEN.** `turnState`
+is `hydroTurnStateOf({waiting, actionMenu, ownsPrompt})`: a prompt THIS
+workspace serves is `own-prompt` (status chip «Предложен бонусный шаг», no
+reason emitted), a prompt somebody else serves is `busy`. Deriving it from
+`waitingFor !== undefined` printed the warning inside the workspace the prompt
+itself had opened — telling the player to go and finish the thing in front of
+them.
+
+**WHAT THE LANDING STILL OWES.** A bonus move cannot pre-collect its stage's
+follow-up (the server framed the offer as a two-option question), so
+`hydroBonusAdvancePlan(stage)` — keyed on the stage's own `followUp`, never a
+position literal — declares what the frame must SERVE while the result
+resolves: pos 5 claims its 4-card batch (`deckSelect`), pos 7 serves everything
+the copied action can raise, pos 9 serves the target `cardSelect`. A follow-up
+the frame does not serve rises as a band OVER the workspace that caused it.
+The reward CHOICE of pos 1/2 is the exception the workspace does pre-collect —
+the offer's confirm opens its own reward step and both halves submit as ONE
+batch.
+
+**THE SOURCE CARD IS PHYSICAL.** The dock carries `data-zoom-slot` and X opens
+the shared `slotZoomOrigin` fullscreen: the card LIFTS OUT of that slot, the
+slot is held empty for the whole flight (`con-zoom-hold` + the `:has()` rule),
+and it flies back into it on close. Without an origin the viewer used its
+textual rise-from-depth entrance — a second, identical card materialising while
+the first sat in the source zone.
+
 ## Gotchas
 
 1. **The Delta Project is never a card face.** `promptSource.ts`
@@ -142,8 +234,24 @@ standard deal (the Pluto language), embedded under the standing track.
    (`hydroSceneEnterHook/LeaveHook` — unfold from the pressed rect +
    cascade); a bare `v-if` blink is banned. The track outside the scene
    never moves.
+5. **ONE route grammar from the offer to the result.** The commit and result
+   scenes state the price the way the offer does — `−N ⚡` when there is one,
+   the «БЕСПЛАТНО» badge when there is not. «−0 ⚡» is a price on the one
+   move whose whole point is that it has none.
+6. ⚠️ **An e2e visibility probe must walk the ANCESTOR CHAIN.** `opacity` is
+   not an inherited computed value, so a card inside the zoom flight proxy
+   (authored `opacity: 0`, revealed by its tween's from-state) reports
+   `opacity: 1` and counts as a second visible card. Two runs of the
+   frame-by-frame inspect probe failed on that before the product was even
+   suspect.
 
-Guards: `tests/client/components/console/consoleHydroFlow.spec.ts`,
+Guards: `tests/client/components/console/consoleHydroFlow.spec.ts` (incl. the
+close gate — «the flow cannot reach its result stage while the chain is
+busy»), `consoleHydroBonusZone.spec.ts`, `hydroBonusOffer.spec.ts`,
+`hydroBonusDoorOrder.spec.ts`, `consoleWorkspaceFlow.spec.ts` (B under an owed
+prompt), `hydroReasons.spec.ts` (`hydroTurnStateOf`),
+`tests/cards/delta/DynamicOceanBarrier.spec.ts`,
+`tests/e2e/console-hydro-bonus-order.spec.ts`,
 `hydroTargetStep.spec.ts`, the marker rows in
 `tests/delta/DeltaProjectExpansion.spec.ts`, the Delta row in
 `promptSource.spec.ts`; the batch shape stays pinned by

@@ -30,6 +30,7 @@ export const VENUS_CELL9_TARGET_TRACK = 6; // Tharsis Bio track (Plant/Animal/Mi
 export const VENUS_TRACK_INDEX = 7;
 
 export const VENUS_TRACK: TrackDefinition = {
+  role: 'venus',
   tags: [Tag.VENUS],
   productions: [],
   maxPosition: 12,

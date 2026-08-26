@@ -3961,7 +3961,31 @@ export default defineComponent({
     promptServedWhereIStand(): boolean {
       return this.shellTaskOnSurface ||
         (workspaceOutcomeState.host !== undefined &&
-          workspaceOutcomeState.stage === 'presenting');
+          workspaceOutcomeState.stage === 'presenting') ||
+        this.promptServedByStandingFrame;
+    },
+    /**
+     * THE THIRD HONEST FORM OF «здесь»: a workspace that is ON SCREEN and is
+     * ENTITLED to answer the standing prompt.
+     *
+     * `shellTaskOnSurface` covers the shell-section kinds and the claim covers
+     * an outcome being presented; neither knows about a prompt a workspace
+     * serves in its own scene — the Hydronetwork's card-granted bonus offer is
+     * exactly that. Without this the top chip flashed for attention at a player
+     * standing on the very decision it was pointing them to.
+     *
+     * LIVE frames only, deliberately. A PARKED frame serves the prompt too
+     * (that is what keeps it out of the leak detector), but the player has
+     * walked away from it — which is precisely when the beacon is the only
+     * reminder they have.
+     */
+    promptServedByStandingFrame(): boolean {
+      const task = taskFor(this.playerView);
+      if (task === undefined) {
+        return false;
+      }
+      const frame = frameServing(task.kind);
+      return frame !== undefined && workspaceFrameIndex(frame.kind) !== -1;
     },
     /** The prompt card's copy (one consoleTaskSummary source, so nothing can
      *  diverge). The A-verb relabels by STATE: «Открыть» for a fresh held
@@ -5291,6 +5315,30 @@ export default defineComponent({
         offerLive: this.hydroBonusOfferLive,
         frameKnown: workspaceFrameKnown('hydro'),
       });
+    },
+    /**
+     * THE DOOR'S DECISION **AND THE FRAME IT MUST BE APPLIED TO**.
+     *
+     * The action alone is not enough to watch, and both gaps stranded a live
+     * prompt:
+     *  - A RELOAD with the offer already on the wire evaluates the action as
+     *    `open` on the FIRST computation and never changes it, so a change
+     *    watcher never runs — the workspace never opened, the leak detector
+     *    (rightly) reported «STRANDED PROMPT: waitingFor "or"», and the amber
+     *    guard was the only thing on screen. The mount edge is asked from
+     *    `mounted()`, never with `immediate` (that runs at SETUP, before the
+     *    first render).
+     *  - OPENING «ГИДРОСЕТЬ» FROM THE WHEEL while the offer is parked keeps the
+     *    action at `queue` (a parked frame is still «known»), yet creates a
+     *    BRAND-NEW live frame that has not earned its `serves` — so the screen
+     *    the player is standing in did not count as the prompt's home, and the
+     *    top chip flashed for attention at somebody standing on the decision.
+     *
+     * The frame's depth is therefore part of the signal, and the handler is
+     * idempotent so any number of edges is harmless.
+     */
+    hydroBonusDoorSignal(): string {
+      return [this.hydroBonusDoor, workspaceFrameIndex('hydro')].join('|');
     },
 
     /**
@@ -7896,19 +7944,8 @@ export default defineComponent({
      * registry keeps `hydro.serves` empty on purpose), so a hydro screen idling
      * at its browse layer can never mask an unrelated stranded choice.
      */
-    hydroBonusDoor(action: ReturnType<typeof hydroBonusDoorAction>): void {
-      if (action === 'none') {
-        return;
-      }
-      if (action === 'open') {
-        this.deferShellTask();
-        enterWorkspace('hydro', {anchor: {type: 'prompt', promptType: 'or'}});
-        // REMEMBER that WE opened it. The offer is a visit the player did not
-        // ask for, so answering it must hand the screen back — but a player who
-        // was ALREADY on the track (the `queue` case) keeps their own screen.
-        this.hydroBonusBorrowed = true;
-      }
-      setWorkspaceFrameServes('hydro', ['choice']);
+    hydroBonusDoorSignal(): void {
+      this.syncHydroBonusDoor();
     },
     startExcursionQuietNow(now: boolean): void {
       if (now && boardExcursionActive()) {
@@ -11996,6 +12033,25 @@ export default defineComponent({
       setWorkspaceFrameServes('hydro', []);
       goBoardHome();
     },
+    syncHydroBonusDoor(): void {
+      const action = this.hydroBonusDoor;
+      if (action === 'none') {
+        return;
+      }
+      if (action === 'open') {
+        this.deferShellTask();
+        enterWorkspace('hydro', {anchor: {type: 'prompt', promptType: 'or'}});
+        // REMEMBER that WE opened it. The offer is a visit the player did not
+        // ask for, so answering it must hand the screen back — but a player who
+        // was ALREADY on the track (the `queue` case) keeps their own screen.
+        this.hydroBonusBorrowed = true;
+      }
+      // IDEMPOTENT, and re-asserted on every edge: a frame that was stood up
+      // by the wheel (or restored from the park) must ALSO earn the serve, or
+      // the screen the player is looking at is not the prompt's home as far as
+      // the leak detector, the chip beacon and `frameServing` are concerned.
+      setWorkspaceFrameServes('hydro', ['choice']);
+    },
     /**
      * ANSWER a card-granted bonus move. ONE call, the ordinary submit funnel —
      * the index is the SERVER's own (`deltaBonusPrompt.advanceIndex` /
@@ -14331,6 +14387,13 @@ export default defineComponent({
     // before the shell reported its presence (mouse tooltips are suppressed in
     // console mode from here on — see ArcScale.mouseTooltipsSuppressed).
     hideScaleTooltip();
+    // THE DOOR'S MOUNT EDGE. A reload with a card-granted bonus move already on
+    // the wire computes its door as `open` on the very first evaluation, so no
+    // change watcher can ever fire for it — the workspace never opened and the
+    // prompt was genuinely stranded. Asked HERE, not with `immediate`: an
+    // immediate handler runs at setup, before there is a shell to enter a
+    // workspace from.
+    this.syncHydroBonusDoor();
     startConsoleLeakDetector(() => this.playerView);
     // T6: the notification CTAs go through the typed notificationBus;
     // PlayerHome's listeners don't exist in console — the shell answers them.

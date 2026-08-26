@@ -1,5 +1,7 @@
 import {Tag} from '../../common/cards/Tag';
+import {Resource} from '../../common/Resource';
 import {
+  MarsBotTrackRole,
   TrackAction,
   TrackDefinition,
   MARSBOT_MAX_TRACK_POSITION,
@@ -63,19 +65,61 @@ export class MarsBotTrack {
 export class MarsBotBoard {
   public readonly tracks: ReadonlyArray<MarsBotTrack>;
   private readonly tagToTrack: Map<Tag, number>;
+  private readonly roleToTrack: Map<MarsBotTrackRole, number>;
+  private readonly productionToTrack: Map<Resource, number>;
 
   constructor(public readonly data: ReadonlyArray<TrackDefinition>) {
     this.tracks = data.map((def) => new MarsBotTrack(def));
     this.tagToTrack = new Map();
+    this.roleToTrack = new Map();
+    this.productionToTrack = new Map();
     for (let i = 0; i < data.length; i++) {
       for (const tag of data[i].tags) {
         this.tagToTrack.set(tag, i);
+      }
+      this.roleToTrack.set(data[i].role, i);
+      for (const production of data[i].productions) {
+        this.productionToTrack.set(production, i);
       }
     }
   }
 
   public getTrackIndexForTag(tag: Tag): number | undefined {
     return this.tagToTrack.get(tag);
+  }
+
+  /**
+   * The index of the track holding this canonical ROLE — how every rule that
+   * names a track resolves it, on any map (see {@link MarsBotTrackRole}).
+   * `undefined` only for a role this board does not have (`venus` without
+   * Venus Next).
+   */
+  public getTrackIndexOfRole(role: MarsBotTrackRole): number | undefined {
+    return this.roleToTrack.get(role);
+  }
+
+  /** As {@link getTrackIndexOfRole}, but for a role the board is known to have. */
+  public trackIndexOfRoleOrThrow(role: MarsBotTrackRole): number {
+    const index = this.roleToTrack.get(role);
+    if (index === undefined) {
+      throw new Error(`MarsBot board has no '${role}' track`);
+    }
+    return index;
+  }
+
+  public getTrackOfRole(role: MarsBotTrackRole): MarsBotTrack | undefined {
+    const index = this.roleToTrack.get(role);
+    return index === undefined ? undefined : this.tracks[index];
+  }
+
+  /**
+   * «Decrease MarsBot's X production → regress its Y track» (rulebook pp.4–5).
+   * Derived from the board's own `productions` declarations, so the mapping is
+   * whatever the printed board says — never a tag pairing (Hellas moves the
+   * Jovian TAG without moving any production) and never a row index.
+   */
+  public getTrackIndexForProduction(resource: Resource): number | undefined {
+    return this.productionToTrack.get(resource);
   }
 
   /** Check if a tag is mapped to any track. */

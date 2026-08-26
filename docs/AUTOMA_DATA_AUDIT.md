@@ -31,6 +31,44 @@ RB-A p.6 печатает Government Intervention с номером **B16** → 
 Статус: **принят как верный baseline** (решение владельца проекта, 2026-07-07). Повторная
 физическая сверка НЕ блокирует POC. Функциональное поведение покрывается тестами против RB-A.
 
+## 2a. Hellas MarsBot board (`src/server/automa/boards/HellasMarsBot.ts`)
+
+Статус: **транскрибирован покадрово** с официального компонента «Hellas MarsBot board»
+(late PnP / low-ink лист, «compatible with rules v1.16+», предоставлен владельцем 2026-08-26).
+Каждая из 7 × 19 клеток закреплена отдельным ассертом в
+`tests/automa/HellasMarsBotBoard.spec.ts` — сдвиг ОДНОЙ иконки падает с её координатами.
+
+**Раскладка треков (сверху вниз, как напечатано):** Building (сталь) · Space (титан) ·
+Event (M€) · **Jovian+Science** (без производства) · Power (энергия) · City+Earth (тепло) ·
+Microbe/Animal/Plant (растения).
+
+**Единственное отличие тегов от Tharsis — официальное** (RB-C p.8): *«Hellas and Elysium: the
+[Jovian] tag is paired with [Science], not with [Power] (as it is on the Tharsis board)»*.
+Производственные регрессии при этом НЕ меняются — они идут по печатному значку производства
+на клетке 0 каждого трека (`productions` в определении), а не по паре тегов.
+
+**Полный diff клеток против Tharsis** (закреплён тестом):
+
+| Трек:клетка | Tharsis | Hellas |
+|---|---|---|
+| building:11 | `tag_1` (продвинуть Space) | пусто |
+| event:6 | `venus2` | `floater2` |
+| science:2 | пусто | `floater` |
+| science:5 | пусто | `floater2` |
+| power:2 | `venus` | `advance` |
+| power:4 | `venus2` | пусто |
+
+**Значки расширений на клетках.** Клетка Space 7 несёт ТОЛЬКО синий бейдж «V» (дуга шкалы
+Венеры) → `venus`, игнорируется без Venus Next. Клетки-флоатеры (science 2/5, event 6) несут
+«V» **и** тёмный треугольник Colonies → работают при Venus **или** Colonies («Gain Floater: if
+playing without Venus Next, place a resource token in the Titan storage area», RB-C p.4), и
+игнорируются без обоих (RB-A p.7, значок неиспользуемого расширения). Клетка Power 9
+дополнительно печатает жетон второго Trade Fleet — это и есть «9th space of the [power] track»
+из RB-C p.4/p.6.
+
+⚠️ Venus-ряд с предоставленного low-ink листа НЕ импортирован: трек Венеры остаётся отдельной
+подсистемой (`VenusMarsBot.ts`), приклеиваемой 8-м треком к любой карте.
+
 ## 3. Venus Next MarsBot board (`src/server/automa/boards/VenusMarsBot.ts`)
 
 Статус: **транскрибирован** с RB-A p.2 (кроп «1 Venus Next MarsBot board», масштаб 26–30).
@@ -267,3 +305,68 @@ Event-карты: `Tag.EVENT` не хранится в `tags[]` (тип карт
 - **NEVER-TRIGGERS для бота** (его флипы не проходят `playCard`, картами он не владеет): все `onCardPlayedByAnyPlayer`-реакторы (PharmacyUnion, Splice, SolarLogistics), PolderTechDutch (only-own-tiles), PublicPlans (своя рука), MarsNomads fan-out.
 - **PER-CARD (закрыто):** LawSuit, StJosephOfCupertinoMission — таблица выше.
 - Ни одна promo-карта не использует декларативный opponents-tag `Counter` (единственная такая — base Toll Station); положительного production оппонентам в promo нет — страхует guard в `Production.add`.
+
+---
+
+## 11. Hellas — правила карты (RB-C: Adding Expansions)
+
+Статус: **закрыто по официальным источникам**, реализовано как MAP PROFILE
+(`src/server/automa/boards/MarsBotMapProfile.ts`) поверх общего движка. Второй профиль после
+Tharsis; Tharsis не менялся ни в одной клетке (регресс-тест — `HellasMarsBotBoard.spec.ts`).
+
+### 11.1. Setup (RB-C p.8 + Setup Guide v1.3 шаг 18)
+«Use the MarsBot board that corresponds to the map… Replace Corporate Competition (B08) with the
+card of the same name that corresponds to the current map (B09–B13)» → профиль карты отдаёт
+`corporateCompetition`, остальной состав бонусной колоды не трогается.
+
+### 11.2. Вехи (RB-C p.9 + p.2 для Venus)
+| Веха | Условие для бота |
+|---|---|
+| Diversifier | space 3 на КАЖДОМ треке; с Venus — «3 on **7 of the eight** tracks» (один трек заменяем, RB-C p.2) |
+| Tactician | 35+ M€ |
+| Polar Explorer | без изменений (3+ тайла бота в двух нижних рядах) |
+| Energizer | трек **Power** ≥ 6 |
+| Rim Settler | трек **Jovian/Science** ≥ 6 |
+
+⚠️ Diversifier ≠ Planner: Planner **исключает** трек Венеры из набора, Diversifier **считает** его
+и отбрасывает худший из восьми.
+
+### 11.3. Награды (RB-C p.9)
+| Награда | Оценка бота |
+|---|---|
+| Cultivator | без изменений (озеленения бота на поле) |
+| Magnate | зелёные карты в **played pile** бота (у бота нет tableau — `award.getScore` вернул бы 0) |
+| Space Baron | позиция трека **Space** |
+| Excentric | `floor(M€ / 5)` |
+| Contractor | позиция трека **Building** |
+| Venuphile | позиция трека Венеры (только с Venus, RB-C p.3) |
+
+⚠️ **Space Baron = SPACE-трек, не Science.** Источник §17.1 файла `1.txt` (OCR миниатюры
+страницы компонентов RB-A) читает его как «Science track space» — это ошибка извлечения.
+Печатная reference-страница RB-C p.9 показывает значок КОСМОСА, а сама карта B09 печатает
+открытым текстом «Space Baron: Advance the space track».
+
+### 11.4. Тайбрейкеры размещения (RB-C p.10)
+Единый нумерованный список для всех карт; для Hellas активны шаги 1, 2 и 4:
+1. смежность с максимумом океанов;
+2. **Polar Region (два нижних ряда)** — только Hellas;
+4. максимум покрытых бонус-иконок;
+7. флип карты проекта (общий финальный тайбрейк).
+
+Шаг 2 стоит МЕЖДУ океанами и иконками — не в конце. Tharsis печатает только шаги 1 и 4.
+
+### 11.5. Южный полюс (RB-C p.11 «ADDITIONAL PLACEMENT BONUS RULES»)
+Гекс с бонусом-океаном и −6 M€ (`SpaceName.HELLAS_OCEAN_TILE`):
+- **есть свободные океаны И у бота ≥6 M€:** приоритет ВЫШЕ прочих 2-бонусных гексов (реализовано
+  весом 2.5 — строго выше 2 и ниже 3, как явно оговорено у близнеца Terra Cimmeria); при
+  постановке бот НЕ получает M€ за иконки, а ставит океан (+1 TR) и теряет 6 M€;
+- **иначе:** «hex without rewards» для тайбрейкеров (вес 0) и «doesn't gain or lose anything»
+  при постановке. Остаётся ЛЕГАЛЬНОЙ клеткой даже когда бот не может заплатить — человеческий
+  путь легальности её отбрасывает, поэтому бот запрашивает тот же вопрос с зачётом стоимости.
+
+### 11.6. B09 Corporate Competition — helper-действия (RB-C p.12 + скан карты)
+Cultivator → озеленение +1 кислород · Magnate → вскрывать колоду до ЗЕЛЁНОЙ карты и разыграть её
+(остальные в сброс) · Space Baron → продвинуть трек Space · Excentric → человек теряет самое
+ценное животное/бактерию · Contractor → продвинуть трек Building · Venuphile → трек Венеры.
+Резолвер ОБЩИЙ с B08 (`corporateCompetition`): различается только список helper'ов, который
+живёт в одном `switch` по имени награды (имена уникальны в поддерживаемом наборе карт).

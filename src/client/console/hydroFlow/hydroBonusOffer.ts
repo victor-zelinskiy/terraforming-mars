@@ -176,14 +176,20 @@ export function hydroBonusCopy(meta: DeltaBonusPromptMeta): HydroBonusCopy {
     titleKey: 'Bonus advance',
     bodyKey: 'The next stage is 1 required tag short. Spend 1 energy and take the bonus step? ${0} grants it for placing an ocean, and your usual advance this generation stays available.',
     bodyParams: [meta.source],
-    confirmKey: 'Spend 1 energy and advance',
+    // THE VERB, and only the verb. The price is stated by the workspace's own
+    // «Будет потрачено» delta row, in the SAME «сейчас → станет» grammar
+    // the plan panel uses — never folded into the button, which is echoed into
+    // the ONE command bar where a 34-character label crowded out «X Осмотреть»
+    // and «B Свернуть» and then truncated itself. Identical for both shapes:
+    // a bonus advance must not read differently from an ordinary one.
+    confirmKey: 'Advance',
     skipKey: 'Skip',
   } : {
     stageKey: 'BONUS STEP',
     titleKey: 'Bonus advance',
     bodyKey: '${0} lets you advance 1 step on the Hydronetwork for free for placing an ocean. Your usual advance this generation stays available.',
     bodyParams: [meta.source],
-    confirmKey: 'Advance for free',
+    confirmKey: 'Advance',
     skipKey: 'Skip',
   };
 }

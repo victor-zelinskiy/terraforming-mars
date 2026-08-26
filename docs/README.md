@@ -70,7 +70,7 @@ files here are the deeper dives it points at.
 
 ## MarsBot / Automa (solo AI)
 - [MARSBOT_STATUS_AUDIT.md](MARSBOT_STATUS_AUDIT.md) — bot lifecycle / player-chip status audit.
-- [AUTOMA_DATA_AUDIT.md](AUTOMA_DATA_AUDIT.md) — Automa data tables audit (§9 = official FAQ card-specific rules + coverage status; §10 = MarsBot corporations, Rule Book B transcribed).
+- [AUTOMA_DATA_AUDIT.md](AUTOMA_DATA_AUDIT.md) — Automa data tables audit (§2a = the Hellas MarsBot board, transcribed cell by cell + its diff vs Tharsis; §9 = official FAQ card-specific rules + coverage status; §10 = MarsBot corporations, Rule Book B transcribed; §11 = the Hellas MAP PROFILE — milestones, awards, placement tiebreakers, the South Pole hex, B09).
 - [claude/marsbot-corporation-checklist.md](claude/marsbot-corporation-checklist.md) — **the checklist for adding a MarsBot corporation** (read this before implementing one).
 - [claude/marsbot-corporations.md](claude/marsbot-corporations.md) — the MarsBot corporation framework contract (registry/data/behavior, the selection gate, track cubes, B23 recurring lifecycle, the Ecoline plant-attack FAQ, corp stats).
 - [AUTOMA_PROMO_MULTIPLAYER_FRAME.md](AUTOMA_PROMO_MULTIPLAYER_FRAME.md) — binding design frame for MarsBot promo adaptation + future multiplayer-with-bot mode (two modes, no global card patches, positive-production policy, per-card hook rules).

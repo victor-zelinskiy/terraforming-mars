@@ -10,10 +10,11 @@ export const MARSBOT_MILESTONE_DESCRIPTIONS: Partial<Record<MilestoneName, strin
   'Builder': 'Building track \u2265 8',
   'Planner': 'All tracks \u2265 4 (except Venus)',
   // Hellas
-  'Diversifier': 'All tracks \u2265 3',
+  'Diversifier': 'All tracks \u2265 3 (7 of 8 with Venus)',
   'Tactician': '35+ MC',
   'Energizer': 'Energy track \u2265 6',
-  'Rim Settler': 'Space + Science track \u2265 6',
+  'Polar Explorer': '3+ tiles on the two bottom rows',
+  'Rim Settler': 'Jovian + Science track \u2265 6',
   // Elysium
   'Generalist': 'All tracks \u2265 2 (except Venus)',
   'Specialist': 'Any track \u2265 10',

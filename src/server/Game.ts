@@ -10,6 +10,7 @@ import {AutomaSetup} from './automa/AutomaSetup';
 import {marsBotOf} from './automa/AutomaUtil';
 import {AutomaState} from './automa/AutomaState';
 import {AutomaTilePlacer} from './automa/AutomaTilePlacer';
+import {botCoveredIconMegacredits} from './automa/AutomaPlacementBonus';
 import {BeginnerCorporation} from './cards/corporation/BeginnerCorporation';
 import {Board} from './boards/Board';
 import {CardName} from '../common/cards/CardName';
@@ -1864,7 +1865,11 @@ export class Game implements IGame, Logger {
         // steel, titanium, cards, etc.), it gains 1 MC for each icon covered
         // (instead of the printed rewards)." (Automa rulebook p.9). The ocean
         // adjacency M€ below is shared — the bot's oceanBonus is the default 2.
-        const icons = space.bonus.length;
+        //
+        // A map's conditional PAY-TO-USE hex pays its own printed transaction
+        // instead of icon M€ (Hellas' South Pole) — see AutomaPlacementBonus,
+        // the one source the placement TIEBREAK reads too.
+        const icons = botCoveredIconMegacredits(this, space);
         if (icons > 0) {
           this.events.withSource({kind: 'spaceBonus'}, () => {
             player.stock.add(Resource.MEGACREDITS, icons);

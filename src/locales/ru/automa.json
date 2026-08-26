@@ -47,8 +47,8 @@
     "The standard MarsBot experience — the official Automa rules as printed.": "Стандартный бот — официальные правила автомы как напечатано.",
     "MarsBot claims milestones aggressively at the start of each generation when it meets enough of them.": "Бот агрессивно заявляет достижения в начале каждого поколения, когда выполняет достаточно условий.",
     "Hard, plus an extra project card every round and +1 VP for each played card with a non-negative VP icon.": "Сложный, плюс дополнительная карта проекта каждый раунд и +1 ПО за каждую разыгранную карту с неотрицательным значком ПО.",
-    "MarsBot supports the Tharsis map with Corporate Era, Prelude, Venus Next, Colonies and Hydronetworks. Conflicting options are highlighted below.": "Бот поддерживает карту Фарсида с дополнениями «Корпоративная эра», «Прелюдия», «Венера», «Колонии» и «Гидросеть». Конфликтующие опции подсвечены ниже.",
-    "MarsBot plays on the Tharsis map only for now": "Бот пока играет только на карте Фарсида",
+    "MarsBot supports the Tharsis and Hellas maps with Corporate Era, Prelude, Venus Next, Colonies and Hydronetworks. Conflicting options are highlighted below.": "Бот поддерживает карты Фарсида и Эллада с дополнениями «Корпоративная эра», «Прелюдия», «Венера», «Колонии» и «Гидросеть». Конфликтующие опции подсвечены ниже.",
+    "MarsBot plays on the Tharsis and Hellas maps only for now": "Бот пока играет только на картах Фарсида и Эллада",
     "MarsBot does not support Promos yet": "Бот пока не поддерживает промокарты",
     "MarsBot uses the printed milestones and awards": "Бот использует печатные достижения и награды",
     "Once per generation, at the start of its first turn, MarsBot advances up to 4 rows on the Hydronetwork, consuming one Power increment of its Energy tracker per row.": "Раз в поколение, в начале своего первого хода, бот продвигается по Гидросети — до 4 рядов, тратя по одному делению своего трека Энергии за ряд.",
@@ -258,7 +258,7 @@
     "Corporate Competition": "Корпоративная конкуренция",
     "With 5+ M€, MarsBot pushes the award race it is closest to being ahead on, then loses 5 M€.": "Имея 5+ M€, бот усиливает гонку за наградой, где ближе всего к лидерству, затем теряет 5 M€.",
     "Corporate Competition (Hellas)": "Корпоративная конкуренция (Эллада)",
-    "The Hellas-map version of Corporate Competition.": "Версия «Корпоративной конкуренции» для карты Эллада.",
+    "With 5+ M€, MarsBot pushes the Hellas award race it is closest to being ahead on, then loses 5 M€.": "Имея 5+ M€, бот усиливает гонку за наградой Эллады, где ближе всего к лидерству, затем теряет 5 M€.",
     "Corporate Competition (Elysium)": "Корпоративная конкуренция (Элизий)",
     "The Elysium-map version of Corporate Competition.": "Версия «Корпоративной конкуренции» для карты Элизий.",
     "Corporate Competition (Utopia Planitia)": "Корпоративная конкуренция (Утопия)",
@@ -637,5 +637,12 @@
     "${0} gained ${1} M€ from its corporation ${2} for resolving a card with a single tag": "${0} получает ${1} М€ от корпорации ${2} за розыгрыш карты с единственной меткой",
     "${0} consumed ${1} Power increment(s) for the Hydronetwork": "${0} тратит делений трека Энергии на Гидросеть: ${1}",
     "${0} advanced ${1} row(s) on the Hydronetwork, reaching ${2}": "${0} продвигается по Гидросети на ${1} ряд(а) и достигает этапа «${2}»",
-    "${0} does not receive the Hydronetwork reward (MarsBot gains only the final VP)": "${0} не получает награду Гидросети (бот получает только финальные ПО)"
+    "${0} does not receive the Hydronetwork reward (MarsBot gains only the final VP)": "${0} не получает награду Гидросети (бот получает только финальные ПО)",
+    "Landlord places a greenery; Banker, Scientist, Thermalist and Miner advance a track": "«Собственник» ставит озеленение; «Банкир», «Ученый», «Теплотехник» и «Шахтёр» продвигают трек",
+    "Cultivator places a greenery and raises oxygen 1 step": "«Агроном» ставит озеленение и поднимает кислород на 1 шаг",
+    "Magnate reveals project cards until a green one and resolves it": "«Магнат» вскрывает карты проектов до зелёной и разыгрывает её",
+    "Space Baron advances the space track; Contractor the building track": "«Покоритель» продвигает космический трек, «Подрядчик» — строительный",
+    "Excentric makes the opponent lose their most valuable animal or microbe": "«Эксцентрик» заставляет соперника потерять самое ценное животное или бактерию",
+    "Venuphile advances the Venus track": "«Венерианец» продвигает трек Венеры",
+    "With no funded award it can help, it draws another bonus card instead": "Если нет оплаченной награды, которой можно помочь, бот берёт ещё одну бонусную карту"
 }

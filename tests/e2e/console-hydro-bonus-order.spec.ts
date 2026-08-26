@@ -94,11 +94,12 @@ async function key(page: Page, code: string, settleMs = 400): Promise<void> {
 }
 
 /** Boot + drive the start wizard, buying the probe's cards into the hand. */
-async function openAtBoard(page: Page, request: APIRequestContext): Promise<void> {
+async function openAtBoard(page: Page, request: APIRequestContext): Promise<string> {
   const created = await request.post('/api/creategame', {data: newGameConfig()});
   expect(created.ok(), `create-game failed: ${created.status()}`).toBeTruthy();
   const model = await created.json() as {players: Array<{id: string}>};
-  await page.goto(`/player?id=${model.players[0].id}&console=1`);
+  const playerId = model.players[0].id;
+  await page.goto(`/player?id=${playerId}&console=1`);
   await page.waitForSelector('.con-start__frame, .con-root', {timeout: 45_000});
   await page.waitForSelector('.boot-loader', {state: 'detached', timeout: 150_000}).catch(() => {});
   await page.waitForTimeout(3000);
@@ -156,6 +157,8 @@ async function openAtBoard(page: Page, request: APIRequestContext): Promise<void
   }
   await expect(page.locator('.con-start')).toHaveCount(0, {timeout: 60_000});
   await page.waitForTimeout(3500);
+  // The player id is what lets a spec RELOAD the page mid-flow.
+  return playerId;
 }
 
 /**
@@ -683,11 +686,132 @@ test.describe('the bonus offer never stands over the cards the placement drew', 
       body: document.querySelector('.con-hydro__bonus-text')?.textContent?.trim() ?? '',
       cost: document.querySelector('.con-hydro__route-cost')?.textContent?.replace(/\s+/g, ' ').trim() ?? '',
       free: document.querySelector('.con-hydro__route-cost--free') !== null,
+      // THE PRICE AS A PREMIUM «сейчас → станет» ROW — the same grammar the
+      // plan panel states an ordinary advance with.
+      spendRow: document.querySelector('.con-hydro__delta--cost')
+        ?.textContent?.replace(/\s+/g, ' ').trim() ?? '',
+      spendLabel: document.querySelector('.con-hydro__bonus-fact .con-hydro__section-label')
+        ?.textContent?.trim() ?? '',
+      barConfirm: Array.from(document.querySelectorAll('.con-cmd, .con-cmdbar__cmd'))
+        .map((e) => e.textContent?.replace(/\s+/g, ' ').trim() ?? '')
+        .find((t) => /Продвин/i.test(t)) ?? '',
     }));
-    expect(paid.confirm, `paid CTA read «${paid.confirm}»`).toMatch(/энерги/i);
+    // THE VERB IS THE VERB. «ПОТРАТИТЬ 1 ЭНЕРГИЮ И ПРОДВИНУТЬСЯ» crowded
+    // «X Осмотреть» and «B Свернуть» off the ONE command bar and then
+    // truncated itself — a bonus advance must not read differently from an
+    // ordinary one.
+    expect(paid.confirm, `paid CTA read «${paid.confirm}»`).not.toMatch(/энерги/i);
+    expect(paid.confirm.split(/\s+/), `paid CTA read «${paid.confirm}»`).toHaveLength(1);
     expect(paid.body, `paid body read «${paid.body}»`).toMatch(/метк/i);
     expect(paid.cost, `paid cost chip read «${paid.cost}»`).toContain('1');
+    // …and the PRICE is stated in the workspace, as before → after.
+    expect(paid.spendLabel, `the facts row read «${paid.spendLabel}»`).toMatch(/потрачен/i);
+    expect(paid.spendRow, `the spend row read «${paid.spendRow}»`).toMatch(/\d+\s*→\s*\d+/);
+    expect(paid.spendRow, `the spend row read «${paid.spendRow}»`).toContain('−1');
     await page.locator('.con-hydro__layer--bonus').screenshot({path: 'screenshots/hydro-bonus/paid.png'}).catch(() => {});
     expect(paid.free, 'the paid offer must not advertise itself as free').toBe(false);
+  });
+
+  /**
+   * ══ THE TWO EDGES A CHANGE WATCHER CANNOT SEE ══════════════════════
+   *
+   * The door that puts a card-granted offer on screen is a watcher on a
+   * computed. Two live states never make that computed CHANGE, and both
+   * shipped:
+   *
+   *  1. A RELOAD with the offer already on the wire evaluates the door as
+   *     `open` on its FIRST computation — so nothing ever fires, the workspace
+   *     never opens, and the leak detector correctly reports «STRANDED PROMPT:
+   *     waitingFor "or" (task kind "choice") has NO serving surface». The amber
+   *     guard was the only thing on screen.
+   *  2. OPENING «ГИДРОСЕТЬ» FROM THE WHEEL while the offer is parked leaves
+   *     the door at `queue` (a parked frame is still «known») while creating a
+   *     BRAND-NEW live frame that never earned its `serves` — so the screen the
+   *     player is standing in did not count as the prompt's home and the top
+   *     chip flashed for attention at somebody standing on the decision.
+   */
+  test('a RELOAD and a WHEEL entry both land on the offer — never stranded, never nagged', async ({page, request}) => {
+    const playerId = await openAtBoard(page, request);
+
+    await playFromHand(page, BARRIER);
+    await page.waitForTimeout(2000);
+    await playFromHand(page, OCEAN_CARD);
+    await expect(page.locator('.board-space--available').first()).toBeVisible({timeout: 25_000});
+    await key(page, 'Enter', 1500); // any legal ocean cell
+
+    // Work the placement's own chain (a reveal, if the hex drew) to the offer.
+    for (let i = 0; i < 90; i++) {
+      const state = await page.evaluate(() => ({
+        reveal: document.querySelector('.con-reveal, .con-deckpick') !== null,
+        bonus: document.querySelector('.con-hydro__layer--bonus') !== null,
+      }));
+      if (state.bonus) {
+        break;
+      }
+      await key(page, state.reveal ? 'Enter' : 'Escape', state.reveal ? 700 : 300);
+    }
+    await expect(page.locator('.con-hydro__layer--bonus')).toBeVisible({timeout: 30_000});
+
+    // ══ 1. THE RELOAD ══════════════════════════════════════
+    await page.goto(`/player?id=${playerId}&console=1`);
+    await page.waitForSelector('.con-start__frame, .con-root', {timeout: 60_000});
+    await page.waitForSelector('.boot-loader', {state: 'detached', timeout: 150_000}).catch(() => {});
+
+    // The workspace comes up BY ITSELF, on the mount edge — no press.
+    await expect(page.locator('.con-hydro__layer--bonus')).toBeVisible({timeout: 45_000});
+    // …and the amber guard never rose. Checked over a WINDOW: the detector runs
+    // on a 1 s clock with a 3-tick debounce, so a single read proves nothing.
+    for (let i = 0; i < 8; i++) {
+      expect(await page.locator('.con-stranded').count(), 'the stranded guard rose over a live offer').toBe(0);
+      await page.waitForTimeout(600);
+    }
+    // The offer is still the SAME unanswered prompt — a reload resolves nothing.
+    const afterReload = await page.evaluate(async () => {
+      const id = new URLSearchParams(location.search).get('id');
+      const v = await (await fetch(`/api/player?id=${id}`)).json();
+      return v.waitingFor?.deltaBonusPrompt !== undefined;
+    });
+    expect(afterReload, 'the reload answered the prompt').toBe(true);
+
+    // ══ 2. COLLAPSE → THE WHEEL ════════════════════════════════
+    await key(page, 'Escape', 1600);
+    await expect(page.locator('.con-hydro')).toHaveCount(0, {timeout: 15_000});
+
+    // RT (`Period`) opens the action-category wheel; the guard must not rise
+    // over it either — that is the screen the reported strand was seen on.
+    await key(page, 'Period', 1200);
+    await expect(page.locator('.con-quick')).toBeVisible({timeout: 10_000});
+    for (let i = 0; i < 6; i++) {
+      expect(await page.locator('.con-stranded').count(), 'the stranded guard rose over the wheel').toBe(0);
+      await page.waitForTimeout(600);
+    }
+
+    // POSITIVE CONTROL for the beacon assertion below: with the decision parked
+    // and the player looking at something else, the top chip IS the reminder —
+    // that is what it is for. (The strip debounces engagement by 1200 ms; the
+    // guard window above has already spent 3.6 s.)
+    expect(await page.locator('.con-status__beacon').count(),
+      'the beacon must light while the player is away from the decision').toBeGreaterThan(0);
+
+    // The wheel is PRESS→RELEASE (wheelArmModel): the DOWN edge of a d-pad
+    // direction ARMS its slot and the UP edge COMMITS it — a tap is the whole
+    // gesture, and there is no confirm press to wait for. A slot's IDENTITY is
+    // its SPATIAL class (the model's own map: `hydro` is `left`), never the
+    // translated label.
+    await expect(page.locator('.con-quick__slot--left')).toBeVisible({timeout: 8_000});
+    await key(page, 'ArrowLeft', 2500);
+    await expect(page.locator('.con-quick'), 'the wheel committed and closed')
+      .toHaveCount(0, {timeout: 10_000});
+
+    // The offer is on screen again…
+    await expect(page.locator('.con-hydro__layer--bonus')).toBeVisible({timeout: 20_000});
+    // …and the player is standing in the prompt's own home, so the top chip
+    // must NOT be flashing for attention. (The strip debounces engagement by
+    // 1200 ms — wait past it, or the assertion proves only that it is slow.)
+    await page.waitForTimeout(2500);
+    expect(await page.locator('.con-status__beacon').count(),
+      'the chip beaconed at a player standing on the decision').toBe(0);
+    // …and still no guard.
+    expect(await page.locator('.con-stranded').count()).toBe(0);
   });
 });

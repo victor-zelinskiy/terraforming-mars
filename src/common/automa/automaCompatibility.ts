@@ -75,13 +75,31 @@ type Rule = {
 };
 
 /**
- * The POC supports exactly the officially-covered module set on Tharsis:
- * Corporate Era + Prelude 1 + Venus Next + Colonies (any subset). The rule
+ * The maps MarsBot has a board, a reference card and a Corporate Competition
+ * card for. Each one needs a `MarsBotMapProfile` on the server
+ * (`src/server/automa/boards/MarsBotMapProfile.ts`) — a spec pins the two lists
+ * together, so adding a name here without its profile fails loudly.
+ *
+ * Lives in `common` because BOTH the create-game UI (which greys out the
+ * unsupported boards) and the server guard read it.
+ */
+export const AUTOMA_SUPPORTED_BOARDS: ReadonlyArray<BoardName> = [
+  BoardName.THARSIS,
+  BoardName.HELLAS,
+];
+
+/**
+ * The supported module set: Corporate Era + Prelude 1 + Venus Next + Colonies
+ * (any subset), on any board in {@link AUTOMA_SUPPORTED_BOARDS}. The rule
  * ORDER is load-bearing — the server throws the FIRST conflict, and existing
  * tests/messages rely on the current wording.
  */
 const RULES: ReadonlyArray<Rule> = [
-  {key: 'board', test: (o) => o.boardName !== BoardName.THARSIS, reason: (o) => `the ${o.boardName} board yet — the POC covers Tharsis`},
+  {
+    key: 'board',
+    test: (o) => !AUTOMA_SUPPORTED_BOARDS.includes(o.boardName as BoardName),
+    reason: (o) => `the ${o.boardName} board yet — MarsBot covers ${AUTOMA_SUPPORTED_BOARDS.join(' and ')}`,
+  },
   // Unsupported expansions / modules.
   {key: 'expansion:turmoil', test: (o) => o.turmoil, reason: () => 'Turmoil in the POC'},
   {key: 'expansion:prelude2', test: (o) => o.prelude2, reason: () => 'Prelude 2 (per the official rules, and out of POC scope)'},

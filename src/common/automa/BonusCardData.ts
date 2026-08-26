@@ -49,7 +49,7 @@ export const BONUS_CARD_INFO: Readonly<Record<BonusCardId, BonusCardInfo>> = {
   },
   [BonusCardId.B09_CORPORATE_COMPETITION_HELLAS]: {
     name: 'Corporate Competition (Hellas)',
-    text: 'The Hellas-map version of Corporate Competition.',
+    text: 'With 5+ M€, MarsBot pushes the Hellas award race it is closest to being ahead on, then loses 5 M€.',
   },
   [BonusCardId.B10_CORPORATE_COMPETITION_ELYSIUM]: {
     name: 'Corporate Competition (Elysium)',
@@ -244,7 +244,26 @@ export function buildBonusCardView(id: BonusCardId, ctx: BonusCardContext): Bonu
       name,
       lines: [
         {icon: 'award', text: 'With 5+ M€: MarsBot pushes the award race it is closest to leading'},
+        {icon: 'tile', text: 'Landlord places a greenery; Banker, Scientist, Thermalist and Miner advance a track', muted: true},
+        ...(ctx.venus ? [{icon: 'venus', text: 'Venuphile advances the Venus track', muted: true}] : []),
         {icon: 'megacredits', text: 'Then it pays ${0} M€', params: ['5']},
+        {icon: 'deck', text: 'With no funded award it can help, it draws another bonus card instead', muted: true},
+      ],
+      fate: FATE_DISCARD,
+    };
+  case BonusCardId.B09_CORPORATE_COMPETITION_HELLAS:
+    // The Hellas face (Adding Expansions p.12): same card, its own helper list.
+    return {
+      name,
+      lines: [
+        {icon: 'award', text: 'With 5+ M€: MarsBot pushes the award race it is closest to leading'},
+        {icon: 'greenery', text: 'Cultivator places a greenery and raises oxygen 1 step', muted: true},
+        {icon: 'cards', text: 'Magnate reveals project cards until a green one and resolves it', muted: true},
+        {icon: 'tile', text: 'Space Baron advances the space track; Contractor the building track', muted: true},
+        {icon: 'animal', text: 'Excentric makes the opponent lose their most valuable animal or microbe', muted: true},
+        ...(ctx.venus ? [{icon: 'venus', text: 'Venuphile advances the Venus track', muted: true}] : []),
+        {icon: 'megacredits', text: 'Then it pays ${0} M€', params: ['5']},
+        {icon: 'deck', text: 'With no funded award it can help, it draws another bonus card instead', muted: true},
       ],
       fate: FATE_DISCARD,
     };

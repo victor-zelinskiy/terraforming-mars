@@ -101,13 +101,18 @@ describe('premium create — MarsBot mode', () => {
     });
   });
 
-  it('a non-Tharsis map conflicts in marsbot mode', () => {
+  it('a map without a MarsBot board conflicts in marsbot mode', () => {
     setGameMode('marsbot');
     setSlotName(0, 'Astronaut');
     createGameState.config.mapMode = 'specific';
-    createGameState.config.mapId = BoardName.HELLAS;
+    createGameState.config.mapId = BoardName.ELYSIUM;
     expect(stateAutomaConflictKeys().has('board')).is.true;
     expect(canCreateGame()).is.false;
+
+    // Hellas has its own MarsBot board, reference card and B09.
+    createGameState.config.mapId = BoardName.HELLAS;
+    expect(stateAutomaConflictKeys().has('board')).is.false;
+    expect(canCreateGame()).is.true;
 
     createGameState.config.mapId = BoardName.THARSIS;
     expect(canCreateGame()).is.true;

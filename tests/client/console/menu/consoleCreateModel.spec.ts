@@ -258,7 +258,10 @@ describe('consoleCreateModel', () => {
       toggleExpansion('promo');
       const promoRow = expansionRows().find((r) => r.meta.id === 'promo');
       expect(promoRow?.conflictKey).to.eq(undefined);
+      // Hellas is supported (its own MarsBot board + B09); Elysium is not yet.
       selectMap(BoardName.HELLAS);
+      expect(mapRows().find((m) => m.selected)?.conflict).to.eq(false);
+      selectMap(BoardName.ELYSIUM);
       expect(mapRows().find((m) => m.selected)?.conflict).to.eq(true);
     });
   });
@@ -304,7 +307,7 @@ describe('consoleCreateModel', () => {
       // Promo is automa-supported now — a RULES conflict stands in for the
       // former expansions-deck one.
       createGameState.config.rules.randomBoardTiles = true;
-      selectMap(BoardName.HELLAS);
+      selectMap(BoardName.ELYSIUM); // Hellas is supported now; Elysium has no MarsBot board yet.
       const issues = launchIssues();
       const decks = issues.map((i) => i.target.deck);
       expect(decks).to.include('rules');
