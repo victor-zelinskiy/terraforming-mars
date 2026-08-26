@@ -277,6 +277,7 @@
                              :cacheKey="hydroCacheKey"
                              :followUpLive="hydroFollowUpLive"
                              :bonusOffer="hydroBonusOfferLive ? hydroBonusOfferRaw : undefined"
+                             :ownsPrompt="hydroBonusOfferRaw !== undefined"
                              @bonus-answer="submitHydroBonus($event)"
                              @pick="openHydroRepeatPick"
                              @notice="showNotice($event)"
@@ -1539,7 +1540,8 @@ import {consolePlayCardUi} from '@/client/console/consolePlayCardUi';
 import {consoleStartUi} from '@/client/console/consoleStartUi';
 import {consoleStartState, startAwaitingOthers, startCorporationPlayed, startDeferredSummary, startSceneHeld} from '@/client/console/consoleStartState';
 import {boardExcursionActive, boardExcursionQuiet, engageBoardExcursion, releaseBoardExcursion} from '@/client/console/boardExcursion';
-import {hydroBonusDoorAction, hydroBonusOffer} from '@/client/console/hydroFlow/hydroBonusOffer';
+import {hydroBonusAdvancePlan, hydroBonusDoorAction, hydroBonusOffer} from '@/client/console/hydroFlow/hydroBonusOffer';
+import {HYDRO_STAGES} from '@/client/components/hydronetwork/hydroStages';
 import {bonusActionInStartFlow, bonusActionOnBoard, bonusActionOwed, bonusActionTurnControlReason} from '@/client/console/bonusAction';
 import {firstActionOwed} from '@/client/console/startFirstAction';
 import {isResourceTransferActive} from '@/client/console/resourceTransfer/consoleResourceTransfer';
@@ -1589,7 +1591,8 @@ import ConsoleHydroMarkerLayer from '@/client/components/console/hydroMarker/Con
 import {armHydroMarker, abortHydroMarker, isHydroMarkerActive, hydroMarkerState} from '@/client/console/hydroMarker/consoleHydroMarker';
 import {
   HydroResolutionKind, advanceHydroCommitPhase, beginHydroCommit, hydroFlowState,
-  hydroWorkspacePhase, isHydroCeremonyActive, resetHydroFlow, setHydroRepeatBridge,
+  hydroResolutionBusyOf, hydroWorkspacePhase, isHydroCeremonyActive, resetHydroFlow, resolutionKindFor,
+  setHydroRepeatBridge,
 } from '@/client/console/hydroFlow/consoleHydroFlow';
 import {bonusDiscardStep, BonusDiscardStep} from '@/client/console/colonyTrade/colonyBonusDiscardStep';
 import {drawnRevealCommandRun} from '@/client/console/consoleRevealCommands';
@@ -3003,14 +3006,18 @@ export default defineComponent({
      * advances the flow to the result stage.
      */
     hydroResolutionBusy(): boolean {
-      if (this.hydroFlow.commit === undefined) {
-        return false;
-      }
-      return isHydroMarkerActive() ||
-        panelRewardHold.active ||
-        isResourceTransferActive() ||
-        isHydroCeremonyActive() ||
-        this.hydroFollowUpLive;
+      // The predicate itself is pure + spec'd (`hydroResolutionBusyOf`): its
+      // FALLING EDGE is what lets the flow reach its result stage, and the
+      // result stage is the only door to closing the workspace. A signal
+      // missing from it is a workspace that closes over its own animation.
+      return hydroResolutionBusyOf({
+        committed: this.hydroFlow.commit !== undefined,
+        markerGliding: isHydroMarkerActive(),
+        rewardHeld: panelRewardHold.active,
+        transfersFlying: isResourceTransferActive(),
+        ceremony: isHydroCeremonyActive(),
+        followUpInteractive: this.hydroFollowUpLive,
+      });
     },
     venusBonusActive(): boolean {
       return this.nativeCompositeTask?.kind === 'venusBonus' && !this.consoleState.task.deferred;
@@ -11994,7 +12001,19 @@ export default defineComponent({
      * the index is the SERVER's own (`deltaBonusPrompt.advanceIndex` /
      * `.skipIndex`), so the console never depends on the option order it sees.
      */
-    submitHydroBonus(payload: {index: number, rewardChoice: number | undefined}): void {
+    submitHydroBonus(payload: {
+      take: boolean, index: number, rewardChoice: number | undefined,
+      fromPosition?: number, toPosition?: number, spend?: number,
+      rewards?: ReadonlyArray<ResourceTransferSpec>,
+      resultLines?: ReadonlyArray<HydroDeltaLine>, vp?: number, stageNameKey?: string,
+    }): void {
+      // The flow owns the moment from the first press — a second one (a double
+      // tap, a held button, a raced click) finds a standing commit / an armed
+      // marker and does nothing. Identical guard to `submitHydroAdvance`,
+      // because the double-submit it prevents is identical.
+      if (isHydroMarkerActive() || this.hydroFlow.commit !== undefined) {
+        return;
+      }
       // ONE batch, the same shape the standard advance submits: the offer's own
       // answer, then the landing stage's reward when the workspace pre-collected
       // it. That is what keeps the reward out of a second modal.
@@ -12002,11 +12021,99 @@ export default defineComponent({
       if (payload.rewardChoice !== undefined) {
         responses.push(orOptionResponse(payload.rewardChoice));
       }
+      // TAKING IS AN ADVANCE, so it opens the ADVANCE's presentation — the very
+      // same one «Укрепить гидросеть» opens. The player must not be able to
+      // tell a bonus move from a paid one by watching it: the marker glides,
+      // the landed stage pays out through the reward wave, the counters tick on
+      // touchdown and the result stage holds. Without this the answer went
+      // straight onto the wire, the workspace had nothing to wait for and
+      // closed on the spot — the move happened entirely off screen.
+      if (payload.take) {
+        const to = payload.toPosition ?? 0;
+        const plan = hydroBonusAdvancePlan(HYDRO_STAGES[to]);
+        this.beginHydroAdvancePresentation({
+          kind: resolutionKindFor(to, {composedRepeat: false, selectedCard: undefined}),
+          fromPosition: payload.fromPosition ?? 0,
+          toPosition: to,
+          spend: payload.spend ?? 0,
+          rewardChoice: payload.rewardChoice,
+          selectedCard: undefined,
+          composedRepeat: false,
+          targetBefore: undefined,
+          rewardLines: payload.resultLines ?? [],
+          vp: payload.vp,
+          stageNameKey: payload.stageNameKey ?? '',
+          rewards: payload.rewards ?? [],
+          // A bonus move cannot pre-collect its landing stage's follow-up (the
+          // server framed the offer as a two-option question), so whatever the
+          // stage still asks arrives afterwards — and must EMBED here rather
+          // than rise as a band over the workspace that caused it.
+          serves: plan.serves,
+          claimDraw: plan.claimsDraw ? plan.drawCount : 0,
+        });
+      }
       if (responses.length === 1) {
         submitInput(responses[0] as InputResponse);
       } else {
         this.submitBatch(responses);
       }
+    },
+    /**
+     * THE ONE PRESENTATION OPENING OF A TRACK ADVANCE — the commit record, the
+     * embedded-outcome claim, the frame's serving contract and the ARMED marker
+     * glide, in that order, all BEFORE anything reaches the wire.
+     *
+     * Shared by the player's own «Укрепить гидросеть» and by a card-granted
+     * bonus move, because the two must be indistinguishable to watch. The
+     * ordering is load-bearing:
+     *  - the commit record FREEZES the decision (route, reward lines, the
+     *    landed stage's name) while the live model still describes the move —
+     *    a tick later it describes the NEXT one;
+     *  - the claim + `serves` are raised SYNCHRONOUSLY, so a follow-up the
+     *    response carries finds a host already standing;
+     *  - `armHydroMarker` starts the client-side glide and closes the input
+     *    gate in the same synchronous block as the submit — which is what makes
+     *    a double press impossible by construction, and what gives the
+     *    transport's `detectHydroMarker` a gate to hold the commit behind.
+     */
+    beginHydroAdvancePresentation(payload: {
+      kind: HydroResolutionKind, fromPosition: number, toPosition: number, spend: number,
+      rewardChoice: number | undefined, selectedCard: CardName | undefined,
+      composedRepeat: boolean, targetBefore: number | undefined,
+      rewardLines: ReadonlyArray<HydroDeltaLine>, vp: number | undefined, stageNameKey: string,
+      rewards: ReadonlyArray<ResourceTransferSpec>,
+      serves?: ReadonlyArray<TaskKind>, claimDraw?: number,
+    }): void {
+      beginHydroCommit({
+        kind: payload.kind,
+        fromPosition: payload.fromPosition,
+        toPosition: payload.toPosition,
+        spend: payload.spend,
+        rewardChoice: payload.rewardChoice,
+        selectedCard: payload.selectedCard,
+        composedRepeat: payload.composedRepeat,
+        targetBefore: payload.targetBefore,
+        rewardLines: payload.rewardLines,
+        vp: payload.vp,
+        stageNameKey: payload.stageNameKey,
+      });
+      if ((payload.claimDraw ?? 0) > 0) {
+        claimWorkspaceOutcome('hydro', CardName.DELTA_PROJECT, ['draw', 'pick'], 0, payload.claimDraw ?? 0);
+      }
+      if (payload.serves !== undefined && payload.serves.length > 0) {
+        setWorkspaceFrameServes('hydro', payload.serves);
+      }
+      if (payload.kind === 'card-resource') {
+        // The presented target's counter ticks off the framework's own
+        // touchdown tally — a payout ARMS by resetting it.
+        resetCardResourceLandings();
+      }
+      // PREMIUM MARKER ADVANCE: ARM the glide (client-side, from-to) FIRST —
+      // the transport's `holdingForHydroMarker` gate BLOCKS the commit (delta
+      // chips / new position) until the token LOCKS IN — then the caller
+      // submits. The flow advances off the marker watcher.
+      armHydroMarker(payload.fromPosition, payload.toPosition, this.thisPlayer.color, payload.rewards);
+      this.syncHydroFramePhase();
     },
     submitHydroAdvance(payload: {
       spend: number, rewardChoice: number | undefined, selectedCard?: CardName,
@@ -12021,27 +12128,14 @@ export default defineComponent({
       }
       const responses = hydroAdvanceResponses(optionResponseForPath(path), payload);
       const kind: HydroResolutionKind = payload.kind ?? 'plain';
-      // THE COMMIT BOUNDARY — the flow record freezes the decision (route,
-      // choice, target, the result stage's lines) before anything moves.
-      beginHydroCommit({
-        kind,
-        fromPosition: payload.fromPosition,
-        toPosition: payload.toPosition,
-        spend: payload.spend,
-        rewardChoice: payload.rewardChoice,
-        selectedCard: payload.selectedCard,
-        composedRepeat: payload.repeat !== undefined,
-        targetBefore: payload.targetBefore,
-        rewardLines: payload.resultLines ?? [],
-        vp: payload.vp,
-        stageNameKey: payload.stageNameKey ?? '',
-      });
       // The landed stage's CARD payout presents INSIDE the workspace — the
       // claim is raised synchronously at submit (the North-Star embedded
       // outcome), and the follow-up prompt is what the parked frame serves.
+      let serves: ReadonlyArray<TaskKind> = [];
+      let claimDraw = 0;
       if (kind === 'deck-draw') {
-        claimWorkspaceOutcome('hydro', CardName.DELTA_PROJECT, ['draw', 'pick'], 0, 4);
-        setWorkspaceFrameServes('hydro', ['deckSelect']);
+        claimDraw = 4;
+        serves = ['deckSelect'];
       } else if (kind === 'repeat' && payload.repeat !== undefined) {
         // The repeated action's own draws/picks/VERDICT embed exactly like a
         // direct activation's would — kinds derived from its cached preview
@@ -12069,18 +12163,24 @@ export default defineComponent({
           claimWorkspaceOutcome('hydro', payload.repeat.chosenCard, kinds,
             payload.repeat.nodeIndex, expectedCards);
         }
-        setWorkspaceFrameServes('hydro', ['deckSelect', 'cardSelect', 'payment', 'choice', 'amount', 'resource', 'player']);
-      } else if (kind === 'card-resource') {
-        // The presented target's counter ticks off the framework's own
-        // touchdown tally — a payout ARMS by resetting it.
-        resetCardResourceLandings();
+        serves = ['deckSelect', 'cardSelect', 'payment', 'choice', 'amount', 'resource', 'player'];
       }
-      // PREMIUM MARKER ADVANCE: ARM the glide (client-side, from→to) FIRST —
-      // the WaitingFor `holdingForHydroMarker` gate BLOCKS the commit (delta
-      // chips / new position) until the token LOCKS IN — then submit. The
-      // flow advances off the marker watcher; desktop is unaffected.
-      armHydroMarker(payload.fromPosition, payload.toPosition, this.thisPlayer.color, payload.rewards ?? []);
-      this.syncHydroFramePhase();
+      this.beginHydroAdvancePresentation({
+        kind,
+        fromPosition: payload.fromPosition,
+        toPosition: payload.toPosition,
+        spend: payload.spend,
+        rewardChoice: payload.rewardChoice,
+        selectedCard: payload.selectedCard,
+        composedRepeat: payload.repeat !== undefined,
+        targetBefore: payload.targetBefore,
+        rewardLines: payload.resultLines ?? [],
+        vp: payload.vp,
+        stageNameKey: payload.stageNameKey ?? '',
+        rewards: payload.rewards ?? [],
+        serves,
+        claimDraw,
+      });
       this.submitBatch(responses);
     },
     /** The flow is over (result read / skipped) — reset and go home. */

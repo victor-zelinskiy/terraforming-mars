@@ -3,8 +3,9 @@ import {CardName} from '@/common/cards/CardName';
 import type {DeltaBonusPromptMeta} from '@/common/models/DeltaBonusPromptModel';
 import type {PlayerInputModel} from '@/common/models/PlayerInputModel';
 import {
-  hydroBonusCopy, hydroBonusDoorAction, hydroBonusOffer, hydroZoneState,
+  hydroBonusAdvancePlan, hydroBonusCopy, hydroBonusDoorAction, hydroBonusOffer, hydroZoneState,
 } from '@/client/console/hydroFlow/hydroBonusOffer';
+import {HYDRO_STAGES} from '@/client/components/hydronetwork/hydroStages';
 import {
   collapseWorkspaceStack, enterWorkspace, resetWorkspaceStack,
   setWorkspaceFrameServes, workspaceSurfacesFor,
@@ -122,6 +123,53 @@ describe('hydroBonusOffer (the card-granted bonus move)', () => {
  * surface» and the amber guard rose over a Hydronetwork that was rendering the
  * offer perfectly underneath it («STRANDED PROMPT: waitingFor "or"»).
  */
+/**
+ * ══ WHAT A COMMITTED BONUS MOVE STILL OWES ═════════════════════════
+ *
+ * The standard advance pre-collects its landing stage's follow-up before the
+ * batch leaves. A bonus move cannot — the server framed the offer as a
+ * two-option question — so everything past «take it» arrives afterwards, and
+ * has to EMBED in the workspace that caused it rather than rise as a band over
+ * it.
+ */
+describe('hydroBonusAdvancePlan', () => {
+  it('a plain reward owes nothing at all', () => {
+    for (const pos of [1, 2, 3, 4, 6, 8, 10, 11]) {
+      const plan = hydroBonusAdvancePlan(HYDRO_STAGES[pos]);
+      expect(plan.serves, `position ${pos}`).to.have.length(0);
+      expect(plan.claimsDraw, `position ${pos}`).is.false;
+    }
+  });
+
+  it('«Гидромоделирование» (5) claims its batch so the pick is a STAGE of this flow', () => {
+    const plan = hydroBonusAdvancePlan(HYDRO_STAGES[5]);
+    expect(plan.serves).to.deep.eq(['deckSelect']);
+    expect(plan.claimsDraw).is.true;
+    expect(plan.drawCount, 'look at 4, keep 2').to.eq(4);
+  });
+
+  it('the repeat stage (7) serves every input the copied action can raise', () => {
+    const plan = hydroBonusAdvancePlan(HYDRO_STAGES[7]);
+    expect(plan.serves).to.include.members(
+      ['deckSelect', 'cardSelect', 'payment', 'choice', 'amount', 'resource', 'player']);
+    expect(plan.claimsDraw).is.false;
+  });
+
+  it('the animal target (9) serves the card pick the SERVER will ask for', () => {
+    expect(hydroBonusAdvancePlan(HYDRO_STAGES[9]).serves).to.deep.eq(['cardSelect']);
+  });
+
+  /** Keyed on the stage's own `followUp`, so the plan cannot drift from the
+   *  table the rail and the reward view already read. */
+  it('is derived from the stage table, not from position literals', () => {
+    for (const stage of HYDRO_STAGES) {
+      const owes = hydroBonusAdvancePlan(stage).serves.length > 0;
+      expect(owes, `position ${stage.position}`).to.eq(stage.followUp !== undefined);
+    }
+    expect(hydroBonusAdvancePlan(undefined).serves).to.have.length(0);
+  });
+});
+
 describe('a frame that EARNED a serves is a serving surface', () => {
   afterEach(() => {
     resetWorkspaceStack();

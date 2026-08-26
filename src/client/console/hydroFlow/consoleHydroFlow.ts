@@ -146,6 +146,41 @@ export function hydroPhaseOf(
   return s.step !== undefined || s.repeatBridge ? 'configure' : 'browse';
 }
 
+/**
+ * IS THE COMMITTED ADVANCE STILL PHYSICALLY HAPPENING?
+ *
+ * THE CLOSE GATE OF THE WHOLE FLOW, and the reason it is a function rather
+ * than a shell computed: the workspace may only reach its result stage — and
+ * therefore may only close — on this predicate's FALLING EDGE. Never a
+ * timeout, never «the server answered», never «the press is over».
+ *
+ * Each signal is a different way the move is still on screen, and every one of
+ * them has to be here or the workspace closes over its own animation:
+ *  - `markerGliding` — the token is travelling between the two stops;
+ *  - `rewardHeld` — the panel is showing `committed - held`, i.e. the gain has
+ *    been granted by the server and is deliberately NOT on the counter yet;
+ *  - `transfersFlying` — the reward chips are in the air;
+ *  - `ceremony` — the VP culmination of a finish position;
+ *  - `followUpInteractive` — the landed stage is asking the player something.
+ *
+ * `committed` gates them all: none of these signals means anything about THIS
+ * flow before the commit boundary.
+ */
+export function hydroResolutionBusyOf(signals: {
+  committed: boolean,
+  markerGliding: boolean,
+  rewardHeld: boolean,
+  transfersFlying: boolean,
+  ceremony: boolean,
+  followUpInteractive: boolean,
+}): boolean {
+  if (!signals.committed) {
+    return false;
+  }
+  return signals.markerGliding || signals.rewardHeld || signals.transfersFlying ||
+    signals.ceremony || signals.followUpInteractive;
+}
+
 /** The live-module convenience readers (the section/shell side). */
 export function hydroWorkspacePhase(followUpInteractive: boolean): WorkspacePhase {
   return hydroPhaseOf(hydroFlowState, followUpInteractive);

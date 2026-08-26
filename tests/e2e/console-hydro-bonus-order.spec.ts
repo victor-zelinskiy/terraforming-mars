@@ -255,6 +255,21 @@ async function walkToSpace(page: Page, spaceId: string): Promise<void> {
 
 type Sample = {t: number, reveal: boolean, bonusZone: boolean, hydro: boolean, modal: boolean, stranded: boolean};
 
+/** One frame of the COMMIT episode: is the workspace still standing, and is
+ *  anything of the advance still physically moving? */
+type MoveSample = {t: number, hydro: boolean, marker: boolean, transfer: boolean, commitScene: boolean};
+/**
+ * One frame of the INSPECT episode. `visible` counts every PAINTED face of the
+ * source card; `apart` counts them only when they are NOT standing on the same
+ * rect — which is the distinction that matters. The canonical close flight
+ * deliberately cross-fades the returning stage OVER the revealed slot card for
+ * ~60 ms («the card materializes back into its slot», the same handoff language
+ * the deal uses), and that is ONE card arriving, not two on screen. Two faces
+ * in DIFFERENT places is the defect: a fullscreen copy while the original still
+ * sits in the source zone.
+ */
+type CardSample = {t: number, visible: number, apart: number, zoom: boolean, where: string};
+
 /**
  * Arm the order probe BEFORE the press that starts the episode. Samples on
  * every DOM mutation AND on a 40 ms interval, so a state that exists only
@@ -368,6 +383,209 @@ test.describe('the bonus offer never stands over the cards the placement drew', 
     expect(samples.filter((s) => s.stranded).map((s) => s.t),
       'the leak detector called a served prompt stranded').toEqual([]);
 
+    // ══ NO FALSE «FINISH YOUR CURRENT ACTION FIRST» ══════════════════
+    //
+    // The player is standing in the workspace THIS PROMPT opened. Telling them
+    // to go and finish the current action is telling them to finish the thing
+    // they are looking at.
+    const status = await page.evaluate(() => ({
+      busy: document.querySelector('.con-hydro__chip--busy') !== null,
+      text: document.querySelector('.con-hydro__chip--status')?.textContent?.trim() ?? '',
+    }));
+    expect(status.busy, `the status chip read «${status.text}»`).toBe(false);
+    expect(status.text, `the status chip read «${status.text}»`).not.toMatch(/завершите/i);
+
+    // ══ X — ONE PHYSICAL CARD, NEVER TWO ══════════════════════════
+    //
+    // The fullscreen viewer LIFTS the card out of the source dock and the dock
+    // slot is held empty for the whole flight (`con-zoom-hold`). Sampled
+    // frame-by-frame, because the end states of a FLIP and of a second card
+    // fading in are identical — only the middle tells them apart.
+    await page.evaluate(() => {
+      const w = window as unknown as {__cardFrames?: Array<CardSample>, __cardStop?: () => void};
+      type CardSample = {t: number, visible: number, zoom: boolean};
+      const out: Array<CardSample> = [];
+      const t0 = performance.now();
+      /**
+       * PAINTED, not merely present — and that question is asked of the whole
+       * ANCESTOR CHAIN, never of the element alone. `opacity` does not inherit
+       * as a computed value, so a card inside a transparent parent still
+       * reports `opacity: 1`: the zoom flight proxy is authored `opacity: 0`
+       * and revealed by its tween's from-state, and reading only the inner
+       * `.pcard` counted an invisible proxy as a second card on screen.
+       */
+      const shown = (el: Element): boolean => {
+        const r = el.getBoundingClientRect();
+        if (r.width < 8 || r.height < 8) {
+          return false;
+        }
+        let node: Element | null = el;
+        while (node !== null && node !== document.documentElement) {
+          const cs = getComputedStyle(node);
+          if (cs.visibility === 'hidden' || cs.display === 'none' || Number(cs.opacity) <= 0.02) {
+            return false;
+          }
+          node = node.parentElement;
+        }
+        return true;
+      };
+      /** Do two rects stand on top of each other (a dissolve) or apart? */
+      const overlaps = (a: DOMRect, b: DOMRect): boolean => {
+        const w = Math.min(a.right, b.right) - Math.max(a.left, b.left);
+        const h = Math.min(a.bottom, b.bottom) - Math.max(a.top, b.top);
+        if (w <= 0 || h <= 0) {
+          return false;
+        }
+        const inter = w * h;
+        return inter / Math.min(a.width * a.height, b.width * b.height) > 0.5;
+      };
+      const sample = () => {
+        // Every rendered face of the SOURCE card, anywhere on screen: the dock,
+        // the flight proxy, the dialog. The hold empties the dock via a
+        // `:has(.con-zoom-hold)` rule on the wrapper, so a held slot no longer
+        // paints its card — which is exactly what this counts.
+        const zones: ReadonlyArray<[string, string]> = [
+          ['dock', '.con-hydro__bonus-source :is(.card-container, .pcard)'],
+          ['proxy', '.con-zoom-flight-proxy :is(.card-container, .pcard)'],
+          ['stage', '.card-zoom-stage :is(.card-container, .pcard)'],
+        ];
+        const painted: Array<{zone: string, rect: DOMRect}> = [];
+        for (const [zone, sel] of zones) {
+          for (const el of Array.from(document.querySelectorAll(sel))) {
+            if (shown(el)) {
+              painted.push({zone, rect: el.getBoundingClientRect()});
+            }
+          }
+        }
+        let apart = 0;
+        for (let i = 0; i < painted.length; i++) {
+          for (let j = i + 1; j < painted.length; j++) {
+            if (!overlaps(painted[i].rect, painted[j].rect)) {
+              apart++;
+            }
+          }
+        }
+        out.push({
+          t: Math.round(performance.now() - t0),
+          visible: painted.length,
+          apart,
+          zoom: document.querySelector('.card-zoom-stage') !== null,
+          where: painted.map((f) =>
+            `${f.zone}@${Math.round(f.rect.left)},${Math.round(f.rect.top)} ${Math.round(f.rect.width)}x${Math.round(f.rect.height)}`).join(' + '),
+        });
+      };
+      const mo = new MutationObserver(sample);
+      mo.observe(document.body, {subtree: true, childList: true, attributes: true, attributeFilter: ['class', 'style']});
+      const iv = window.setInterval(sample, 30);
+      w.__cardFrames = out;
+      w.__cardStop = () => {
+        mo.disconnect();
+        window.clearInterval(iv);
+      };
+      sample();
+    });
+
+    // Two full open/close cycles — a repeated inspect must not leave a hidden
+    // card behind or lose the cursor.
+    for (let cycle = 0; cycle < 2; cycle++) {
+      await key(page, 'KeyX', 1400);
+      await expect(page.locator('.card-zoom-stage')).toHaveCount(1, {timeout: 10_000});
+      await key(page, 'Escape', 1400);
+      await expect(page.locator('.card-zoom-stage')).toHaveCount(0, {timeout: 10_000});
+    }
+
+    const cardFrames: Array<CardSample> = await page.evaluate(() => {
+      const w = window as unknown as {__cardFrames?: Array<CardSample>, __cardStop?: () => void};
+      w.__cardStop?.();
+      return w.__cardFrames ?? [];
+    });
+    expect(cardFrames.length, `the inspect probe never sampled (${cardFrames.length})`).toBeGreaterThan(20);
+    // THE CLAIM: not one sampled frame shows the card in TWO PLACES. The only
+    // frames where two faces are painted at all are the landing dissolve, where
+    // they stand on the same rect and one is fading out over the other — the
+    // console's own materialize-into-the-slot handoff.
+    const doubled = cardFrames.filter((f) => f.apart > 0);
+    expect(doubled.map((f) => `${f.t}ms → ${f.where}`),
+      'the source card was painted in two different places').toEqual([]);
+    // …and even the co-located overlap must be a BEAT, not a state: it belongs
+    // to the two flights, never to the standing fullscreen or the standing dock.
+    const overlapMs = cardFrames.filter((f) => f.visible > 1).length * 30;
+    expect(overlapMs, `two faces painted for ~${overlapMs}ms in total`).toBeLessThan(600);
+    // …and the viewer really did open (a dead probe must not pass vacuously).
+    expect(cardFrames.some((f) => f.zoom), 'the fullscreen viewer never opened').toBe(true);
+    // …and the card came back: the dock paints it again once the flight is over.
+    await expect(page.locator('.con-hydro__bonus-source :is(.card-container, .pcard)')).toBeVisible({timeout: 10_000});
+    // The inspection answered nothing — the decision is still standing.
+    await expect(page.locator('.con-hydro__layer--bonus')).toBeVisible();
+
+    // ══ B IS «СВЕРНУТЬ» — IT MUST NOT ANSWER THE PROMPT ═══════════════
+    const posBefore = await page.evaluate(async () => {
+      const id = new URLSearchParams(location.search).get('id');
+      const r = await fetch(`/api/player?id=${id}`);
+      const v = await r.json();
+      return {pos: v.thisPlayer.deltaProject?.position ?? 0, waiting: v.waitingFor !== undefined};
+    });
+    const backLabel = await page.evaluate(() => Array.from(
+      document.querySelectorAll('.con-cmd__label, .con-cmdbar__label'))
+      .map((e) => e.textContent?.trim() ?? '').join(' | '));
+    expect(backLabel, `the command bar read «${backLabel}»`).not.toMatch(/Пропустить/i);
+
+    await key(page, 'Escape', 1600);
+    // The workspace is gone…
+    await expect(page.locator('.con-hydro')).toHaveCount(0, {timeout: 15_000});
+    // …the decision is NOT: the server is still asking, and nothing moved.
+    const posAfter = await page.evaluate(async () => {
+      const id = new URLSearchParams(location.search).get('id');
+      const r = await fetch(`/api/player?id=${id}`);
+      const v = await r.json();
+      return {
+        pos: v.thisPlayer.deltaProject?.position ?? 0,
+        bonus: v.waitingFor?.deltaBonusPrompt !== undefined,
+      };
+    });
+    expect(posBefore.waiting, 'the offer was not on the wire to begin with').toBe(true);
+    expect(posAfter.pos, 'B moved the marker — it answered the prompt').toBe(posBefore.pos);
+    expect(posAfter.bonus, 'B resolved the offer instead of minimizing it').toBe(true);
+
+    // …and the board-home mandatory card is the way back INTO THE SAME PROMPT.
+    await expect(page.locator('.con-mandatory')).toBeVisible({timeout: 20_000});
+    await key(page, 'Enter', 2000);
+    await expect(page.locator('.con-hydro__layer--bonus')).toBeVisible({timeout: 20_000});
+    // No duplicate: exactly one workspace, one offer, one source card.
+    expect(await page.locator('.con-hydro').count()).toBe(1);
+    expect(await page.locator('.con-hydro__layer--bonus').count()).toBe(1);
+    // …and no false warning on the way back in either.
+    expect(await page.locator('.con-hydro__chip--busy').count(),
+      'the re-entered workspace nagged about the current action').toBe(0);
+
+    // ══ THE MOVE IS PRESENTED — AND THE WORKSPACE OUTLIVES IT ════════════
+    //
+    // A free bonus step must look exactly like a paid advance: the marker
+    // glides, the landed stage pays out, the counters tick — and only then may
+    // the workspace go. It used to submit and close in the same breath.
+    await page.evaluate(() => {
+      const w = window as unknown as {__move?: Array<MoveSample>, __moveStop?: () => void};
+      type MoveSample = {t: number, hydro: boolean, marker: boolean, transfer: boolean, commitScene: boolean};
+      const out: Array<MoveSample> = [];
+      const t0 = performance.now();
+      const sample = () => out.push({
+        t: Math.round(performance.now() - t0),
+        hydro: document.querySelector('.con-hydro') !== null,
+        marker: document.querySelector('.con-hydromarker') !== null,
+        transfer: document.querySelector('.con-transfer') !== null,
+        commitScene: document.querySelector('.con-hydro__layer--commit, .con-hydro__layer--result') !== null,
+      });
+      const mo = new MutationObserver(sample);
+      mo.observe(document.body, {subtree: true, childList: true, attributes: true, attributeFilter: ['class', 'style']});
+      const iv = window.setInterval(sample, 30);
+      w.__move = out;
+      w.__moveStop = () => {
+        mo.disconnect();
+        window.clearInterval(iv);
+      };
+      sample();
+    });
+
     // ══ THE PAID OFFER — the same flow, one stage further up the track ══
     //
     // Take the free step (it lands on position 1, «building», which the barrier's
@@ -390,6 +608,37 @@ test.describe('the bonus offer never stands over the cards the placement drew', 
     // The offer was a visit the player did not ask for, so answering it HANDS
     // THE SCREEN BACK: the Hydronetwork must leave by itself.
     await expect(page.locator('.con-hydro')).toHaveCount(0, {timeout: 30_000});
+
+    // ══ …AND THE CLOSE CAME LAST ═══════════════════════════════
+    const move: Array<MoveSample> = await page.evaluate(() => {
+      const w = window as unknown as {__move?: Array<MoveSample>, __moveStop?: () => void};
+      w.__moveStop?.();
+      return w.__move ?? [];
+    });
+    expect(move.length, `the move probe never sampled (${move.length})`).toBeGreaterThan(20);
+
+    // 1. The marker ACTUALLY GLIDED. A bonus step that skips this is the
+    //    original defect: the position simply changed while nobody looked.
+    const glided = move.filter((m) => m.marker);
+    expect(glided.length, 'the marker never glided for the free bonus step').toBeGreaterThan(0);
+
+    // 2. The commit scene stood — the workspace narrated its own move.
+    expect(move.some((m) => m.commitScene),
+      'the workspace never showed the move it was making').toBe(true);
+
+    // 3. THE CLAIM: the workspace never closed while the move was still
+    //    physically happening. Not one frame with the marker (or a reward
+    //    chip) in the air and no Hydronetwork under it.
+    const closedEarly = move.filter((m) => !m.hydro && (m.marker || m.transfer));
+    expect(closedEarly.map((m) => `${m.t}ms`),
+      'the workspace closed while the advance was still animating').toEqual([]);
+
+    // 4. …and the LAST frame in which anything was moving comes BEFORE the
+    //    workspace's last frame: the close is the chain's completion event.
+    const lastMoving = move.map((m) => m.marker || m.transfer).lastIndexOf(true);
+    const lastHydro = move.map((m) => m.hydro).lastIndexOf(true);
+    expect(lastHydro, `last moving #${lastMoving}, last workspace #${lastHydro}`)
+      .toBeGreaterThanOrEqual(lastMoving);
     await playFromHand(page, OCEAN_CARD_2);
     await expect(page.locator('.board-space--available').first()).toBeVisible({timeout: 25_000});
     await key(page, 'Enter', 1500); // any legal ocean cell will do here

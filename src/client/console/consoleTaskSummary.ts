@@ -237,6 +237,18 @@ export function consoleTaskSummary(
     switch (task.flavor) {
     case 'wgt':
       return {kickerKey: 'Government Support', ask: ask(wf, 'Choose an option'), returnKey: 'Return to the decision'};
+    case 'deltaBonus':
+      // The MINIMIZED bonus offer's way back. It names the WORKSPACE, not the
+      // widget: A on this card restores the parked Hydronetwork at the exact
+      // prompt the player stepped away from, so the card must promise that
+      // place. The source is the card that granted the move (the server's own
+      // `choiceContext`), which is also what the workspace shows in «ИСТОЧНИК».
+      return {
+        kickerKey: 'Mars Hydronetwork',
+        ask: ask(wf, 'Bonus advance'),
+        sourceCard: source,
+        returnKey: 'Return to the decision',
+      };
     case 'confirm':
       return {kickerKey: 'Confirmation', ask: ask(wf, 'Confirm the action'), sourceCard: source, returnKey: 'Return to the decision'};
     case 'contextual':

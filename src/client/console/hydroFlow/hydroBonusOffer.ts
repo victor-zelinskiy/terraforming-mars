@@ -26,6 +26,8 @@
  */
 import type {DeltaBonusPromptMeta} from '@/common/models/DeltaBonusPromptModel';
 import type {PlayerInputModel} from '@/common/models/PlayerInputModel';
+import type {HydroStage} from '@/client/components/hydronetwork/hydroStages';
+import type {TaskKind} from '@/client/console/consoleTaskRouter';
 
 /**
  * The offer carried by the CURRENT top-level prompt, or undefined. Structural:
@@ -99,6 +101,56 @@ export function hydroBonusDoorAction(input: {
     return 'none';
   }
   return input.frameKnown ? 'queue' : 'open';
+}
+
+/**
+ * WHAT A COMMITTED BONUS MOVE STILL OWES — the workspace's serving contract for
+ * the stage it lands on.
+ *
+ * THE STANDARD ADVANCE PRE-COLLECTS its landing stage's follow-up (the
+ * position-7 repeat is composed in the action browser before the batch leaves).
+ * A BONUS MOVE CANNOT: the offer arrives already framed by the server as a
+ * two-option question, so everything past «take it» is asked afterwards, as an
+ * ordinary follow-up prompt. That is not a degradation — it is the same
+ * contract the workspace already honours for the standard move's own
+ * consequences — but it only reads that way if the follow-up EMBEDS. A prompt
+ * the frame does not serve rises as a band OVER the workspace that caused it:
+ * one press, two surfaces, the reported «модалка поверх Гидросети».
+ *
+ * Keyed on the stage's own `followUp` (the same table the rail and the reward
+ * view read), never on a position literal — a re-numbered track cannot make
+ * this silently wrong.
+ */
+export type HydroBonusAdvancePlan = {
+  /** Prompt kinds the hydro frame must serve while the landed stage resolves. */
+  serves: ReadonlyArray<TaskKind>;
+  /** The landed stage DRAWS a batch the player picks from (pos 5) — the
+   *  workspace claims it so the pick is a stage of this flow, not a new demand. */
+  claimsDraw: boolean;
+  /** How many cards that batch holds (the claim's expected count). */
+  drawCount: number;
+};
+
+/** Every input the repeated action of position 7 can itself raise. Identical to
+ *  what `submitHydroAdvance` serves for a COMPOSED repeat — the two paths reach
+ *  the same server code, so they may not advertise different contracts. */
+const REPEAT_SERVES: ReadonlyArray<TaskKind> =
+  ['deckSelect', 'cardSelect', 'payment', 'choice', 'amount', 'resource', 'player'];
+
+export function hydroBonusAdvancePlan(stage: HydroStage | undefined): HydroBonusAdvancePlan {
+  switch (stage?.followUp) {
+  case 'draw':
+    // «Гидромоделирование»: look at 4, keep 2 — the embedded deck pick.
+    return {serves: ['deckSelect'], claimsDraw: true, drawCount: 4};
+  case 'reuse-action':
+    return {serves: REPEAT_SERVES, claimsDraw: false, drawCount: 0};
+  case 'add-animals':
+    // The target card is asked by the server (the bonus offer had no room to
+    // pre-select it) — the pick belongs inside this workspace.
+    return {serves: ['cardSelect'], claimsDraw: false, drawCount: 0};
+  default:
+    return {serves: [], claimsDraw: false, drawCount: 0};
+  }
 }
 
 /** The zone's copy, as ENGLISH i18n KEYS (+ params). Never rendered raw. */

@@ -5659,6 +5659,11 @@ html.console-mode body.placement-pending .board-outer-spaces > .board-space.boar
         align-items: flex-start;
         gap: .45rem;
         min-width: 0;
+        /* The statement + its answers are ONE block: never stretched across a
+           4K content column. The cap is a READING measure (the console reading
+           ladder), not a magic number — the sentence above and the button pair
+           below share it, which is what makes them read as one object. */
+        max-width: 34rem;
     }
     &__bonus-text {
         margin: 0;
@@ -5668,32 +5673,46 @@ html.console-mode body.placement-pending .board-outer-spaces > .board-space.boar
         line-height: 1.35;
         /* NEVER clamp decision text — density is bought in the model. */
     }
+    /* THE PRICE, as a compact status badge: one token that says «бесплатно»
+       once, inside the route it qualifies — never a second heavy line under it. */
     &__route-cost--free {
+        padding: .05rem .4rem;
+        border-radius: 49.95rem;
+        background: fade(@con-hydro-mint, 14%);
+        box-shadow: inset 0 0 0 .05rem fade(@con-hydro-mint, 34%);
         color: @con-hydro-mint;
+        font-size: .68rem;
         font-weight: 800;
         text-transform: uppercase;
-        letter-spacing: .04rem;
+        letter-spacing: .06rem;
+        line-height: 1.5;
     }
-    /* THE TWO ANSWERS — the console's own optional-decision grammar
-       (`.con-decision__action`), not a pair of oversized CTAs. A stacked pair,
-       each with the state rail, the A glyph on the focused one, and a DECLINE
-       in calm graphite: refusing is a decision, not an unavailable one. */
+    /* THE TWO ANSWERS — a COMPACT BINARY CHOICE in this console's own
+       decision grammar (`.con-decision__action`: state rail, A glyph on the
+       focused one, a DECLINE in calm graphite because refusing is a decision
+       and not an unavailable one) — at the size a two-word answer deserves.
+       A ROW that sizes to its content, so a short verb never becomes a
+       full-width settings line with a hand's width of empty space in it. */
     &__bonus-actions {
         display: flex;
-        flex-direction: column;
-        gap: .55rem;
-        width: 100%;
+        flex-direction: row;
+        flex-wrap: wrap;
+        align-items: stretch;
+        gap: .5rem;
+        width: auto;
+        max-width: 100%;
         min-width: 0;
-        margin-top: .2rem;
+        margin-top: .35rem;
     }
     &__bonus-action {
         position: relative;
-        display: flex;
+        display: inline-flex;
+        flex: 0 1 auto;
         align-items: center;
-        gap: .45rem;
-        padding: .7rem .85rem;
+        gap: .4rem;
+        padding: .5rem .85rem .5rem .7rem;
         border: none;
-        border-radius: .55rem;
+        border-radius: .5rem;
         text-align: left;
         background: linear-gradient(180deg, rgba(22, 36, 52, 0.9), rgba(14, 23, 34, 0.92));
         box-shadow: inset 0 0 0 .05rem rgba(120, 160, 200, 0.2);
@@ -5710,11 +5729,22 @@ html.console-mode body.placement-pending .board-outer-spaces > .board-space.boar
             content: '';
             position: absolute;
             left: 0;
-            top: .5rem;
-            bottom: .5rem;
+            top: .35rem;
+            bottom: .35rem;
             width: .12rem;
             border-radius: 49.95rem;
             background: fade(@con-hydro-aqua, 30%);
+        }
+
+        /* THE OFFER LEADS — by weight and a hint of its own tint, never by a
+           glow that would out-shout the track above it. */
+        &--primary {
+            background: linear-gradient(180deg, fade(@con-hydro-aqua, 16%), rgba(14, 23, 34, 0.92));
+            box-shadow: inset 0 0 0 .05rem fade(@con-hydro-aqua, 34%);
+
+            &::before { background: fade(@con-hydro-aqua, 62%); }
+
+            .con-hydro__bonus-action-title { font-weight: 800; }
         }
 
         &--focused {
@@ -5732,6 +5762,25 @@ html.console-mode body.placement-pending .board-outer-spaces > .board-space.boar
             box-shadow: inset 0 0 0 .05rem rgba(150, 160, 175, 0.24);
 
             &::before { background: rgba(160, 172, 188, 0.42); }
+
+            .con-hydro__bonus-action-title { color: fade(@con-text, 92%); font-weight: 600; }
+        }
+        /* The second class written out in FULL: a bare `&` re-expands the
+           whole current selector, which is how a compound rule silently
+           becomes one that matches nothing. */
+        &--decline.con-hydro__bonus-action--focused {
+            box-shadow:
+                inset 0 0 0 .075rem fade(@con-hydro-aqua, 82%),
+                0 0 1rem fade(@con-hydro-aqua, 15%);
+
+            &::before { background: @con-hydro-aqua; }
+        }
+
+        &:hover:not(:disabled) {
+            box-shadow: inset 0 0 0 .075rem fade(@con-hydro-aqua, 55%);
+        }
+        &:active:not(:disabled) {
+            transform: translateY(.05rem);
         }
 
         &:disabled {
@@ -5741,13 +5790,18 @@ html.console-mode body.placement-pending .board-outer-spaces > .board-space.boar
         }
     }
     &__bonus-action-title {
-        font-size: .98rem;
+        font-size: .92rem;
         font-weight: 700;
-        /* TV rule: never truncate a decision — wrap instead. */
+        white-space: nowrap;
+        /* TV rule: never truncate a decision — a label too long for one line
+           gives up the nowrap and wraps rather than being cut. */
         min-width: 0;
         overflow-wrap: anywhere;
     }
-    &__bonus-action-a { margin-left: auto; }
+    /* The glyph LEADS the label (it is the press, not a trailing decoration) —
+       and never `margin-left: auto`, which is what stretched the pair to the
+       panel's full width in the first place. */
+    &__bonus-action-a { flex: 0 0 auto; }
 
     &__reasons {
         display: flex;
@@ -6253,6 +6307,17 @@ html.con-profile-handheld .con-hydro {
     .con-hydro__choice-ask { font-size: .8rem; }
     .con-hydro__cere-value { font-size: 1.6rem; }
     .con-hydro__panel--result { width: min(40rem, 100%); }
+
+    /* THE BONUS DECISION on the Deck's narrow band: the same composition,
+       recomposed tighter. The pair stays a ROW while both verbs fit and WRAPS
+       to a stacked column when they do not (`flex-wrap` on the row + a real
+       cap here) — the vertical fallback the narrow layout is entitled to,
+       without a second set of rules describing it. */
+    .con-hydro__bonus-body { max-width: 26rem; }
+    .con-hydro__bonus-actions { max-width: 26rem; gap: .4rem; }
+    .con-hydro__bonus-action { padding: .42rem .7rem .42rem .6rem; max-width: 100%; }
+    .con-hydro__bonus-action-title { font-size: .8rem; }
+    .con-hydro__bonus-text { font-size: .775rem; }
 }
 
 /* Hydronetwork · large profile (4K TV): everything one notch up. */
@@ -6272,6 +6337,15 @@ html.con-profile-large .con-hydro {
     .con-hydro__choice-img { width: 3.1rem; height: 3.1rem; }
     .con-hydro__choice-values b { font-size: 1.7rem; }
     .con-hydro__cere-value { font-size: 2.6rem; }
+
+    /* 4K TV: one notch up for READING distance — and still compact. The cap
+       grows with the type so the measure stays the same number of characters;
+       what must never grow is the empty space inside a two-word button. */
+    .con-hydro__bonus-body { max-width: 46rem; }
+    .con-hydro__bonus-text { font-size: 1rem; }
+    .con-hydro__bonus-action { padding: .6rem 1.05rem .6rem .85rem; }
+    .con-hydro__bonus-action-title { font-size: 1.05rem; }
+    .con-hydro__route-cost--free { font-size: .8rem; }
 }
 
 /* ── Milestones/Awards ceremony accents — shared by the MA focus stage

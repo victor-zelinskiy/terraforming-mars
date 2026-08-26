@@ -96,10 +96,50 @@ export function hydroPrimaryBlocker(reasons: ReadonlyArray<HydroReason>): Availa
  *                      block is a RULE, never the turn (claiming «не ваш ход»
  *                      here is a lie the player can see through: their own turn
  *                      chip says «ДЕЙСТВИЕ»);
- *  - 'busy'          — the viewer is mid-decision (a nested prompt owns them);
+ *  - 'own-prompt'    — the standing prompt is THIS WORKSPACE'S OWN (a
+ *                      card-granted bonus move). The player is not "busy
+ *                      elsewhere": they are standing exactly where the prompt
+ *                      sent them, and the surface below is the decision itself.
+ *                      «Сначала завершите текущее действие» over that decision
+ *                      is self-contradictory — it tells the player to go and
+ *                      finish the thing they are looking at;
+ *  - 'busy'          — the viewer is mid-decision SOMEWHERE ELSE: a prompt this
+ *                      screen does not serve owns them (they walked in here
+ *                      from the wheel to look at the track), so the advance is
+ *                      genuinely out of reach and saying so is the truth;
  *  - 'not-your-turn' — the server isn't waiting on the viewer at all.
+ *
+ * ⚠️ NEVER derive this from `waitingFor !== undefined` alone. That is exactly
+ * how «busy» came to be reported inside the workspace the prompt itself opened:
+ * the presence of a prompt says nothing about WHOSE surface is on screen. The
+ * distinguishing fact is structural and already maintained — does this
+ * workspace OWN the standing prompt (`ownsPrompt`) — never the route the player
+ * took to get here.
  */
-export type HydroTurnState = 'action-menu' | 'busy' | 'not-your-turn';
+export type HydroTurnState = 'action-menu' | 'own-prompt' | 'busy' | 'not-your-turn';
+
+/**
+ * The turn state, decided ONCE from the three structural facts the console
+ * already has. PURE — no DOM, no title matching (invariant 1): `actionMenu` is
+ * the caller's own structural verdict and `ownsPrompt` is «the standing
+ * `waitingFor` is the one this workspace renders».
+ */
+export function hydroTurnStateOf(input: {
+  /** The server is waiting on the viewer at all. */
+  waiting: boolean,
+  /** …and what it is asking is the ACTION MENU. */
+  actionMenu: boolean,
+  /** …or a prompt THIS workspace is the surface for. */
+  ownsPrompt: boolean,
+}): HydroTurnState {
+  if (!input.waiting) {
+    return 'not-your-turn';
+  }
+  if (input.actionMenu) {
+    return 'action-menu';
+  }
+  return input.ownsPrompt ? 'own-prompt' : 'busy';
+}
 
 export type HydroReasonsInput = {
   model: HydroModel;
@@ -150,6 +190,11 @@ export function hydroPlanReasons(input: HydroReasonsInput): ReadonlyArray<HydroR
       break;
     case 'busy':
       out.push({kind: 'finish-current-action', textKey: 'Finish your current action first', blocking: true});
+      break;
+    // The standing prompt IS this screen. There is no OTHER action to finish
+    // first, and the decision it is asking for is rendered right below — the
+    // scene owns the explanation, so the plan panel stays silent about it.
+    case 'own-prompt':
       break;
     case 'action-menu':
       break;

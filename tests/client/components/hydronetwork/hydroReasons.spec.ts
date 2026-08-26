@@ -1,6 +1,6 @@
 import {expect} from 'chai';
 import {buildHydroModel, HydroModelInput, HydroPlayerPos} from '../../../../src/client/components/hydronetwork/hydroNetworkModel';
-import {destinationAt, gradeDestination, hydroPlanReasons, hydroPrimaryBlocker, hydroReasonBlocker, HydroReasonKind, HydroTurnState} from '../../../../src/client/components/hydronetwork/hydroReasons';
+import {destinationAt, gradeDestination, hydroPlanReasons, hydroPrimaryBlocker, hydroReasonBlocker, HydroReasonKind, HydroTurnState, hydroTurnStateOf} from '../../../../src/client/components/hydronetwork/hydroReasons';
 import {DeltaTrackDestination, DeltaTrackPreviewModel} from '../../../../src/common/models/DeltaTrackPreviewModel';
 import {Tag} from '../../../../src/common/cards/Tag';
 import {CardName} from '../../../../src/common/cards/CardName';
@@ -182,11 +182,27 @@ describe('hydroPlanReasons', () => {
     const unknown = reasonsFor({selectedPosition: 1, actionAvailable: false}, {turnState: 'action-menu'});
     expect(unknown.map((r) => r.kind)).deep.eq(['unavailable']);
 
-    // Mid-decision: the open prompt owns the player — say THAT.
+    // Mid-decision SOMEWHERE ELSE: the open prompt owns the player — say THAT.
     const busy = reasonsFor({selectedPosition: 1, actionAvailable: false}, {turnState: 'busy'});
     expect(busy.map((r) => r.kind)).deep.eq(['finish-current-action']);
   });
 
+  /**
+   * …AND NEVER BLAMES «текущее действие» WHEN THE CURRENT ACTION IS THIS SCREEN.
+   *
+   * A card-granted bonus move (Dynamic Ocean Barrier) routes the player INTO
+   * the Hydronetwork and then asks its question there. The old derivation read
+   * «a prompt exists and it is not the action menu ⇒ busy», so the workspace
+   * the prompt itself had opened printed «Сначала завершите текущее
+   * действие» directly above the decision it was telling the player to go
+   * and finish.
+   */
+  it('REGRESSION: an OWN prompt is not «busy» — the player is standing where it sent them', () => {
+    const own = reasonsFor({selectedPosition: 1, actionAvailable: false}, {turnState: 'own-prompt'});
+    expect(own.map((r) => r.kind)).to.not.include('finish-current-action');
+    // …and it does not fabricate a turn excuse in its place either.
+    expect(own.map((r) => r.kind)).to.not.include('not-your-turn');
+  });
   it('a clean stage gates on the bonus choice, then the card pick', () => {
     const choice = reasonsFor({selectedPosition: 1});
     expect(choice.map((r) => r.kind)).deep.eq(['choose-bonus']);
@@ -280,5 +296,31 @@ describe('gradeDestination / destinationAt', () => {
     expect(destinationAt(preview, 1)?.steps).eq(1);
     expect(destinationAt(preview, 11)?.steps).eq(11);
     expect(destinationAt(undefined, 3)).eq(undefined);
+  });
+});
+
+/**
+ * THE TURN STATE ITSELF — three structural facts, four answers, and the ONE
+ * distinction the old inline derivation could not make.
+ */
+describe('hydroTurnStateOf', () => {
+  it('no prompt at all → not-your-turn', () => {
+    expect(hydroTurnStateOf({waiting: false, actionMenu: false, ownsPrompt: false})).eq('not-your-turn');
+    // Nothing else can outrank «the server is not asking the viewer anything».
+    expect(hydroTurnStateOf({waiting: false, actionMenu: true, ownsPrompt: true})).eq('not-your-turn');
+  });
+
+  it('the action menu → action-menu (a withheld advance there is a RULE)', () => {
+    expect(hydroTurnStateOf({waiting: true, actionMenu: true, ownsPrompt: false})).eq('action-menu');
+  });
+
+  it('a prompt THIS workspace owns → own-prompt, however the player got here', () => {
+    expect(hydroTurnStateOf({waiting: true, actionMenu: false, ownsPrompt: true})).eq('own-prompt');
+  });
+
+  /** The wheel-entry case: something ELSE is owed, so the advance really is
+   *  out of reach and saying so is the truth. */
+  it('a prompt this workspace does NOT own → busy', () => {
+    expect(hydroTurnStateOf({waiting: true, actionMenu: false, ownsPrompt: false})).eq('busy');
   });
 });

@@ -2,7 +2,7 @@ import {expect} from 'chai';
 import {CardName} from '@/common/cards/CardName';
 import {
   HydroCommitRecord, advanceHydroCommitPhase, beginHydroCommit, closeHydroStep, hydroDraftFresh,
-  hydroFlowState, hydroPhaseOf, hydroWorkspaceBackVerb, hydroWorkspacePhase,
+  hydroFlowState, hydroPhaseOf, hydroResolutionBusyOf, hydroWorkspaceBackVerb, hydroWorkspacePhase,
   hydroWorkspaceRestorePlan, noteHydroDraftTouched, openHydroStep, resetHydroFlow,
   resolutionKindFor, rollbackHydroCommit, setHydroCeremonyActive, setHydroRepeatBridge,
 } from '@/client/console/hydroFlow/consoleHydroFlow';
@@ -130,5 +130,88 @@ describe('consoleHydroFlow', () => {
     closeHydroStep();
     expect(hydroFlowState.step).eq(undefined);
     expect(hydroWorkspacePhase(false)).eq('browse');
+  });
+});
+
+/**
+ * ══ THE WORKSPACE MAY NOT CLOSE BEFORE ITS ANIMATION CHAIN IS OVER ════════
+ *
+ * The only door out of a committed hydro flow is the RESULT stage, and the
+ * only thing that opens it is the FALLING EDGE of this predicate. So «the
+ * workspace waits for the animation» is exactly «every way the move is still
+ * on screen is a term here» — which is why it is one pure function and not a
+ * condition spelled out at the shell's watcher.
+ *
+ * The defect these pin: a card-granted bonus move used to submit and close in
+ * the same breath. Nothing was busy because nothing had been ARMED — the
+ * predicate was right, its inputs were empty — so the marker never moved, the
+ * reward never flew, and the whole advance happened off screen.
+ */
+describe('the hydro close gate', () => {
+  const QUIET = {
+    committed: true, markerGliding: false, rewardHeld: false,
+    transfersFlying: false, ceremony: false, followUpInteractive: false,
+  };
+
+  /** Each signal on its OWN must hold the flow — a table, so a new one that
+   *  someone forgets to add here is a visible gap rather than a silent one. */
+  const SIGNALS: ReadonlyArray<[string, keyof typeof QUIET]> = [
+    ['the marker is gliding between the stops', 'markerGliding'],
+    ['the granted reward is held off the counter', 'rewardHeld'],
+    ['the reward chips are in the air', 'transfersFlying'],
+    ['the VP ceremony is running', 'ceremony'],
+    ['the landed stage is asking something', 'followUpInteractive'],
+  ];
+
+  for (const [what, key] of SIGNALS) {
+    it(`holds the flow while ${what}`, () => {
+      expect(hydroResolutionBusyOf({...QUIET, [key]: true}), key).eq(true);
+    });
+  }
+
+  it('releases only when EVERY one of them has settled', () => {
+    expect(hydroResolutionBusyOf(QUIET)).eq(false);
+  });
+
+  it('says nothing about a flow that has not committed', () => {
+    // Before the boundary these signals belong to somebody else's scene.
+    expect(hydroResolutionBusyOf({
+      ...QUIET, committed: false, markerGliding: true, transfersFlying: true,
+    })).eq(false);
+  });
+
+  /**
+   * THE WALK, in the order the shell drives it. `result` is the phase the
+   * command bar offers «Продолжить» on and the only one `finishHydroFlow`
+   * accepts — so «the flow cannot be finished early» is «the phase machine
+   * cannot reach `result` while the chain is busy».
+   */
+  it('REGRESSION: the flow cannot reach its result stage while the chain is busy', () => {
+    resetHydroFlow();
+    beginHydroCommit(commitRec());
+    expect(hydroFlowState.commit?.phase).eq('moving');
+
+    // The glide owns the beat: the shell's watcher does not advance here.
+    let busy = hydroResolutionBusyOf({...QUIET, markerGliding: true});
+    expect(busy, 'gliding').eq(true);
+    expect(hydroWorkspacePhase(false), 'a beat in flight, not a destination').eq('executing');
+
+    // The token locks in → the landed stage may pay out.
+    advanceHydroCommitPhase('resolving');
+    busy = hydroResolutionBusyOf({...QUIET, rewardHeld: true, transfersFlying: true});
+    expect(busy, 'the reward is still flying').eq(true);
+    // …and the shell only advances on `!busy`, so the phase stays put.
+    if (!busy) {
+      advanceHydroCommitPhase('result');
+    }
+    expect(hydroFlowState.commit?.phase, 'still resolving').eq('resolving');
+
+    // Everything has landed — now, and only now, the result stage opens.
+    busy = hydroResolutionBusyOf(QUIET);
+    expect(busy).eq(false);
+    advanceHydroCommitPhase('result');
+    expect(hydroFlowState.commit?.phase).eq('result');
+    expect(hydroWorkspacePhase(false)).eq('completing');
+    resetHydroFlow();
   });
 });

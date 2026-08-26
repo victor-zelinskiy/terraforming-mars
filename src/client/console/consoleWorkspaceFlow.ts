@@ -128,9 +128,49 @@ export function backVerbFor(phase: WorkspacePhase): WorkspaceBackVerb {
   }
 }
 
+/**
+ * WHAT B DOES WHEN THE SERVER IS STILL ASKING THIS WORKSPACE SOMETHING.
+ *
+ * A PROMPT-ROUTED workspace is not a screen the player wandered into: it is the
+ * surface a live `waitingFor` is answered on. `close` there is a lie twice over
+ * — it strands the prompt with nowhere to be rendered (the leak detector's own
+ * definition of a soft-lock) and it throws away a decision the player was
+ * merely stepping away from. So the CLOSE verb — and only it — becomes
+ * COLLAPSE: the workspace parks at full depth, the decision stays live and
+ * unanswered, and the board-home mandatory card is the way back.
+ *
+ * Everything else keeps its own answer, on purpose:
+ *  - `back` — a reversible step INSIDE the workspace still has somewhere to
+ *    fold back TO (the reward picker returns to the offer that opened it);
+ *  - `collapse` — already the verb;
+ *  - `none` — a beat in flight absorbs input whether or not a prompt is owed.
+ *
+ * B NEVER ANSWERS THE PROMPT. A refusal («Пропустить») is an ordinary option
+ * the player focuses and confirms with A. Binding it to B made the decline
+ * reachable by the one press that everywhere else in this console means «step
+ * out», so a player reaching for the board silently declined a card's effect —
+ * and the effect could not be got back.
+ */
+export function backVerbWithOwedPrompt(phase: WorkspacePhase, ownsPrompt: boolean): WorkspaceBackVerb {
+  const verb = backVerbFor(phase);
+  return ownsPrompt && verb === 'close' ? 'collapse' : verb;
+}
+
 /** The i18n key B should be LABELLED with, for the command bar. */
 export function backLabelFor(phase: WorkspacePhase): string | undefined {
   switch (backVerbFor(phase)) {
+  case 'close': return 'Close';
+  case 'back': return 'Cancel';
+  case 'collapse': return 'Minimize';
+  case 'none': return undefined;
+  }
+}
+
+/** The same label, keyed on the VERB — for a caller that already derived one
+ *  (`backVerbWithOwedPrompt`) and must not re-derive it from the phase and
+ *  get a different answer. */
+export function backLabelForVerb(verb: WorkspaceBackVerb): string | undefined {
+  switch (verb) {
   case 'close': return 'Close';
   case 'back': return 'Cancel';
   case 'collapse': return 'Minimize';

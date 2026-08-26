@@ -1,6 +1,7 @@
 import {expect} from 'chai';
 import {
-  acceptsInput, backLabelFor, backVerbFor, isCommitted, isNavigationDestination, isReversible,
+  acceptsInput, backLabelFor, backLabelForVerb, backVerbFor, backVerbWithOwedPrompt, isCommitted,
+  isNavigationDestination, isReversible,
   WorkspacePhase, workspaceConclusionFor, workspacePhaseOf,
 } from '@/client/console/consoleWorkspaceFlow';
 import {buildWorkspaceHeader} from '@/client/console/consoleWorkspaceHeader';
@@ -33,6 +34,50 @@ describe('consoleWorkspaceFlow — the commit boundary', () => {
     // A beat in flight swallows B: nothing to cancel, nothing to come back to.
     expect(backVerbFor('executing')).to.eq('none');
     expect(backVerbFor('completing')).to.eq('none');
+  });
+
+  /**
+   * THE THIRD BUG. A PROMPT-ROUTED workspace stands on a live `waitingFor`.
+   * `close` there strands the prompt with no surface to be answered on — and
+   * in the Hydronetwork's card-granted bonus move B did worse than that: it
+   * was wired straight to «Пропустить», so the one press that means «step out
+   * and look at the board» everywhere else in this console silently DECLINED a
+   * card's effect, irreversibly.
+   *
+   * The rule is one line: an owed prompt turns CLOSE into COLLAPSE, and
+   * touches nothing else. B never answers anything.
+   */
+  describe('B under an OWED prompt', () => {
+    it('turns CLOSE into COLLAPSE — the decision stays live, the board becomes readable', () => {
+      expect(backVerbWithOwedPrompt('browse', true)).to.eq('collapse');
+      expect(backLabelForVerb(backVerbWithOwedPrompt('browse', true))).to.eq('Minimize');
+    });
+
+    it('leaves every OTHER phase exactly as it was', () => {
+      for (const phase of ALL) {
+        if (phase === 'browse') {
+          continue;
+        }
+        expect(backVerbWithOwedPrompt(phase, true), phase).to.eq(backVerbFor(phase));
+      }
+      // …and a reversible step INSIDE the workspace still folds back, because
+      // there is somewhere to fold back TO.
+      expect(backVerbWithOwedPrompt('configure', true)).to.eq('back');
+    });
+
+    it('changes nothing at all when no prompt is owed', () => {
+      for (const phase of ALL) {
+        expect(backVerbWithOwedPrompt(phase, false), phase).to.eq(backVerbFor(phase));
+      }
+    });
+
+    it('never produces a verb that could ANSWER anything', () => {
+      // The four verbs are exhaustive and none of them is a game decision.
+      for (const phase of ALL) {
+        expect(['close', 'back', 'collapse', 'none'], phase)
+          .to.include(backVerbWithOwedPrompt(phase, true));
+      }
+    });
   });
 
   /**

@@ -10,6 +10,10 @@ import {Tag} from '../../../src/common/cards/Tag';
 import {Phase} from '../../../src/common/Phase';
 import {TileType} from '../../../src/common/TileType';
 import {OrOptions} from '../../../src/server/inputs/OrOptions';
+import {SelectOption} from '../../../src/server/inputs/SelectOption';
+import {SimpleDeferredAction} from '../../../src/server/deferredActions/DeferredAction';
+import {Priority} from '../../../src/server/deferredActions/Priority';
+import {SpaceBonus} from '../../../src/common/boards/SpaceBonus';
 import {IGame} from '../../../src/server/IGame';
 import {cast, toName} from '../../../src/common/utils/utils';
 import {fakeCard, runAllActions} from '../../TestingUtils';
@@ -88,6 +92,48 @@ describe('DynamicOceanBarrier', () => {
       cast(player.popWaitingFor(), OrOptions).options[0].cb(undefined);
       runAllActions(game);
       expect(player.deltaProjectData!.position).to.eq(4);
+    });
+
+    /**
+     * ══ THE OFFER IS THE PLACEMENT'S LAST CONSEQUENCE ════════════════════
+     *
+     * The move this card grants is CAUSED by the placement, so everything the
+     * placement itself owes — the hex's bonuses, the card draw and its reveal,
+     * an Ares follow-up, anything another card queued off the same tile — must
+     * be finished before the player is asked anything here. That is the whole
+     * job of `BACK_OF_THE_LINE`, and it is what the console's own door then
+     * waits on to keep the Hydronetwork from opening over a drawn-cards reveal.
+     */
+    it('resolves AFTER every other consequence of the same placement', () => {
+      grantPathTags(player, 1);
+      placeOcean(game, player);
+      // An ordinary consequence of the same placement, queued at the DEFAULT
+      // priority the executor uses — and queued AFTER the offer, so ordering
+      // by insertion would get this wrong.
+      const marker = new SelectOption('Some other consequence');
+      game.defer(new SimpleDeferredAction(player, () => marker, Priority.DEFAULT));
+      runAllActions(game);
+
+      // The other consequence is asked FIRST…
+      expect(player.popWaitingFor()).to.eq(marker);
+      marker.cb(undefined);
+      runAllActions(game);
+      // …and only then the bonus offer.
+      expect(cast(player.popWaitingFor(), OrOptions).options).to.have.length(2);
+    });
+
+    it('draws the hex\'s own card bonus BEFORE it offers the move', () => {
+      grantPathTags(player, 1);
+      const space = game.board.getAvailableSpacesForOcean(player)
+        .find((s) => s.bonus.includes(SpaceBonus.DRAW_CARD));
+      expect(space, 'the board offers an ocean hex printing a card draw').is.not.undefined;
+      const before = player.cardsInHand.length;
+      game.addTile(player, space!, {tileType: TileType.OCEAN});
+      // The draw is SYNCHRONOUS inside the placement — already in hand by the
+      // time the deferred queue is even drained.
+      expect(player.cardsInHand.length).to.be.greaterThan(before);
+      runAllActions(game);
+      expect(cast(player.popWaitingFor(), OrOptions).options).to.have.length(2);
     });
 
     it('ignores an ocean placed by someone else', () => {
