@@ -289,6 +289,36 @@ marks ownership) and releases them; nothing mounts or unmounts mid-flight.
   late poll), `[data-hand-dock-card]` (the berth anchor, always present —
   every intake/delivery director targets it unchanged).
 
+### THE FACING MODEL (rev 15) — the album is FACE-UP, the dock has a knob
+
+**The whole spread is laid out FACE-UP** — the active page AND every
+packet (the pages parked beyond the stage edges are face-up spreads, not
+face-down stacks). Facing is therefore deterministic per mode, and every
+episode states it rather than assuming it:
+
+- **OPEN**: every card turns to face-up in flight (packet-bound ones play
+  the same turn while the stage window wipes them out — which also means
+  `seizeBodies` mounts faces for ALL pairs: a face-less flip turning to 0
+  is a transparent card);
+- **CLOSE**: every NON-active-page body is SEATED at its packet-target
+  anchor face-up in the seize flush (a VISITED page leaves its bodies in
+  shelf mode at STALE slot rects — released with a bare alpha they popped
+  mid-screen and flew home face-up: the reported «карты залетают в док
+  лицом» when closing from a later page), and EVERY pair turns to
+  `dockFaceRotation()` on approach;
+- **FILTER**: never turns a card — leavers glide onto their spread
+  face-up, enterers arrive showing their face from the first frame (the
+  old back-then-instant-face was a packet still carrying its open-time
+  back);
+- **DOCKED**: `handDockPresentation.ts` — the «Карты в доке» setting
+  («Рубашкой» default / «Лицом» tabletop), persisted
+  (`tm_console_dock_faces`). `dockFaceRotation()` is the ONE resting
+  target: the layer's fresh seat + re-poses self-heal to it, the close's
+  approach turn aims at it, and the delivery director's landing turn lays
+  arrivals into it. A live toggle flips the standing fan over in place
+  (faces mount first). Facing guard: the 9-card close-from-last-page test
+  asserts every docked flip's m11 < 0 (backs) after the close.
+
 ## THE EPISODE CLOCK (iteration 8 — the continuity rework)
 
 The dock ⇄ album transition used to teleport under load («плотный веер за

@@ -1619,6 +1619,17 @@ html.console-native {
 .con-root.con-root--ws-dockcover:not(.con-root--dock-intake) .con-handreveal-layer {
     z-index: 11469;
 }
+/* …and the BEHIND-WORKSPACE tuck (colonies / hydro sections, drafting):
+   there the WHOLE footer drops to z:-1, plate included — the docked fan
+   follows it one step lower, so the section's bottom rail covers the
+   cards and the plate still paints over their bottoms (the exact ordering
+   the in-footer pack had). Negative z keeps them above the root's own
+   background; flights stay high (delivery proxies live on their own
+   z11646 layer and legitimately fly OVER the section into the tucked
+   dock — the Pluto trade-draw contract). */
+.con-root.con-root--footer-behind .con-handreveal-layer {
+    z-index: -2;
+}
 
 .con-wf-host {
     display: none;

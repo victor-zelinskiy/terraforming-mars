@@ -55,6 +55,7 @@ import {beginDockIntakeAccent} from '@/client/console/handDock/consoleDockAccent
 import {conUiScale} from '@/client/console/consoleLayoutProfile';
 import {consoleReducedMotionActive} from '@/client/console/composables/useConsoleReducedMotion';
 import {CARD_NATURAL_W} from '@/client/console/cardDeal/cardDealModel';
+import {dockFaceRotation} from '@/client/console/handDock/handDockPresentation';
 import {registerAnimationHoldSupplier} from '@/client/components/presentation/animationHold';
 import {
   deliveryEl, handDeliveryState, nextDeliveryId, clearDeliveryFlights,
@@ -699,7 +700,9 @@ async function flyCascade(live: Array<LiveFlight>, dock: HTMLElement, dockR: DOM
     const flipEl = f.el.querySelector<HTMLElement>('.con-deal-proxy__flip');
     if (flipEl !== null) {
       tl.to(flipEl, {
-        rotationY: 180,
+        // A card is LAID into the hand in the dock's resting presentation
+        // («Рубашкой» turns it over mid-carry, «Лицом» keeps the face).
+        rotationY: dockFaceRotation(),
         duration: flight * FLIP_SPAN,
         ease: 'power2.inOut',
       }, flight * FLIP_LEAD);

@@ -5465,6 +5465,12 @@ export default defineComponent({
         // accent), when the dock is FULL and on top by the presence
         // contract. Root-level because the layer is not a dock descendant.
         'con-root--dock-intake': this.dockIntakeAccent,
+        // …and the BEHIND-WORKSPACE tuck (colonies / hydro sections, the
+        // drafting phases): the whole footer drops to z:-1 there — the
+        // docked fan must follow it under the section content, or the
+        // cards paint over the very rail the plate just tucked behind
+        // (the reported «на workspace карты поднимаются выше дока»).
+        'con-root--footer-behind': this.dockBehindWorkspace,
       };
     },
     conMainClasses(): Record<string, boolean> {

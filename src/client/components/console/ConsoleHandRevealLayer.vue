@@ -56,8 +56,9 @@ import {CardModel} from '@/common/models/CardModel';
 import {handRevealState, RevealVisual} from '@/client/console/handDock/handRevealState';
 import {
   PackAnchor, PackPose, bodyNaturalH, dockedBodyPose, handBodiesState, handBodyEl, handBodyMode,
-  packProfileTuning, registerHandBody, setHandBodiesOracle,
+  packProfileTuning, registerHandBody, setHandBodiesOracle, ensureHandBodyFaces,
 } from '@/client/console/handDock/handBodies';
+import {dockFaceRotation, handDockPresentation} from '@/client/console/handDock/handDockPresentation';
 import {handDockPlan} from '@/client/console/consoleHandDock';
 import {consoleLayoutState} from '@/client/console/consoleLayoutProfile';
 import {motionMs} from '@/client/components/motion/motionTokens';
@@ -79,7 +80,7 @@ export default defineComponent({
     pose: {type: String as PropType<PackPose>, default: 'rest'},
   },
   data() {
-    return {handRevealState, handBodiesState, layout: consoleLayoutState, anchorRetries: 0};
+    return {handRevealState, handBodiesState, layout: consoleLayoutState, anchorRetries: 0, dockPresentation: handDockPresentation};
   },
   computed: {
     heldSet(): Set<string> {
@@ -124,6 +125,11 @@ export default defineComponent({
   },
   watch: {
     poseEpoch() {
+      // Face-up presentation: every card in the pack shows its face, so a
+      // newly arrived card needs one mounted (cheap, render-once, cached).
+      if (this.dockPresentation.faceUp) {
+        ensureHandBodyFaces(this.cards.map((c) => c.name));
+      }
       // The pose RIDE exists for the STANDING pack only. During an episode
       // the director owns every body: the flight departs from the live
       // painted pose and the finalize reconciles — while the ride's 340ms
@@ -136,6 +142,24 @@ export default defineComponent({
       // The patch (new bodies mount / order changes) lands first.
       void this.$nextTick().then(() => this.applyDockedPoses(true));
     },
+    // The dock-presentation toggle («Рубашкой» ↔ «Лицом»): the standing fan
+    // turns over in place — one 3D flip of every docked card. Faces mount
+    // first (a face-less flip turning to 0 shows a transparent card).
+    'dockPresentation.faceUp'() {
+      ensureHandBodyFaces(this.cards.map((c) => c.name));
+      void this.$nextTick().then(() => {
+        const target = dockFaceRotation();
+        this.cards.forEach((c) => {
+          if (handBodyMode(c.name) !== 'docked') {
+            return;
+          }
+          const flip = handBodyEl(c.name)?.querySelector<HTMLElement>('.con-deal-proxy__flip');
+          if (flip !== null && flip !== undefined) {
+            gsap.to(flip, {rotationY: target, duration: motionMs(420) / 1000, ease: 'power2.inOut', overwrite: 'auto'});
+          }
+        });
+      });
+    },
   },
   mounted() {
     window.addEventListener('resize', this.onResize);
@@ -144,6 +168,9 @@ export default defineComponent({
       reconcile: () => this.applyDockedPoses(true),
       seatNew: () => this.applyDockedPoses(false),
     });
+    if (this.dockPresentation.faceUp) {
+      ensureHandBodyFaces(this.cards.map((c) => c.name));
+    }
     void this.$nextTick().then(() => this.applyDockedPoses(false));
   },
   beforeUnmount() {
@@ -223,11 +250,15 @@ export default defineComponent({
         const pose = dockedBodyPose(i, n, this.pose as PackPose, a);
         const fresh = el.style.transform === '';
         gsap.killTweensOf(el);
+        // A DOCKED card rests in the chosen presentation («Рубашкой» /
+        // «Лицом») — fresh seats state it, and re-poses self-heal any
+        // residue an interrupted episode left (the close already turns
+        // every card on approach, so this is normally a no-op).
+        const flip = el.querySelector<HTMLElement>('.con-deal-proxy__flip');
         if (fresh || !animate) {
           gsap.set(el, {...pose, autoAlpha: 1});
-          const flip = el.querySelector<HTMLElement>('.con-deal-proxy__flip');
-          if (flip !== null && fresh) {
-            gsap.set(flip, {rotationY: 180}); // docked = back-side-out
+          if (flip !== null) {
+            gsap.set(flip, {rotationY: dockFaceRotation()});
           }
           if (fresh && animate) {
             // The arrival pop: rise out of the tray (the old con-hd-enter).
@@ -236,6 +267,9 @@ export default defineComponent({
           return;
         }
         gsap.to(el, {...pose, autoAlpha: 1, duration: motionMs(340) / 1000, ease: 'power2.out', overwrite: 'auto'});
+        if (flip !== null) {
+          gsap.to(flip, {rotationY: dockFaceRotation(), duration: motionMs(340) / 1000, ease: 'power2.inOut', overwrite: 'auto'});
+        }
       });
     },
   },

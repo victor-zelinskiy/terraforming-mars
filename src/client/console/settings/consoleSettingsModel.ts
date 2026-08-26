@@ -62,6 +62,7 @@ import {consoleFxLiteState, setConsoleFxLite} from '@/client/console/consoleFxLi
 import {reduceMotionOverrideState, setReduceMotionOverride} from '@/client/utils/reducedMotion';
 import {READING_SCALE_CHOICES, readingScaleState, setConsoleReadingScale} from '@/client/console/consoleReadingScale';
 import {ALBUM_LAYOUT_CHOICES, ALBUM_LAYOUT_LABELS, albumLayoutState, setConsoleAlbumLayout} from '@/client/console/consoleAlbumLayout';
+import {handDockPresentation, setHandDockFaceUp} from '@/client/console/handDock/handDockPresentation';
 import {
   FEED_MODE_CHOICES,
   FEED_MODE_LABELS,
@@ -81,7 +82,7 @@ export type ConsoleSettingsCategoryId =
   'interface' | 'controls' | 'graphics' | 'game' | 'network' | 'diagnostics';
 
 export type ConsoleSettingId =
-  'shell' | 'display' | 'textScale' | 'albumLayout' | 'notifications' | 'controller' | 'buttons' | 'wheelControl' |
+  'shell' | 'display' | 'textScale' | 'albumLayout' | 'dockCards' | 'notifications' | 'controller' | 'buttons' | 'wheelControl' |
   'motionSpeed' | 'motionRate' | 'fxLite' | 'reduceMotion' | 'privateScore' | 'gameServer' | 'lanVisible';
 
 /** One dialable preference: a ring of options plus where we are in it. */
@@ -263,6 +264,20 @@ function interfaceCategory(): ConsoleSettingsCategory {
     ALBUM_LAYOUT_CHOICES, albumLayoutState.layout,
     (v) => translateText(ALBUM_LAYOUT_LABELS[v]),
     (v) => setConsoleAlbumLayout(v),
+  ));
+  // The HAND DOCK presentation: the resting pack shows card BACKS (the
+  // default — the premium poker-hand read) or FACES (the tabletop feel —
+  // «я реально держу свои карты»). Pure presentation: every arrival's
+  // landing turn and the standing fan follow it; a live toggle flips the
+  // fan over in place (handDockPresentation.ts).
+  rows.push(ringRow(
+    'dockCards', 'Hand tray cards',
+    handDockPresentation.faceUp ?
+      'Cards rest face up in the tray, arrivals land showing their face' :
+      'Cards rest face down in the tray, arrivals turn over on landing',
+    [false, true], handDockPresentation.faceUp,
+    (v) => translateText(v ? 'Face up' : 'Face down'),
+    (v) => setHandDockFaceUp(v),
   ));
   // Which top-right quick toasts present: everything (the default — identical
   // to the pre-setting behaviour) or only events that directly involve the

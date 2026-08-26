@@ -48,6 +48,7 @@ import {
   handBodiesOracle, handBodyEl, handBodyMode, setHandBodiesFlying, ensureHandBodyFaces,
   setHandBodyMode, resetHandBodies,
 } from '@/client/console/handDock/handBodies';
+import {dockFaceRotation} from '@/client/console/handDock/handDockPresentation';
 
 export type RevealRect = {left: number, top: number, width: number, height: number};
 
@@ -257,7 +258,11 @@ function startEpisodeDriver(ep: Episode): void {
  */
 function seizeBodies(pairs: ReadonlyArray<RevealPair>): Array<HTMLElement | undefined> {
   setHandBodiesFlying(pairs.map((p) => p.name as string));
-  ensureHandBodyFaces(pairs.filter((p) => p.visible).map((p) => p.name as string));
+  // EVERY seized body needs its face: the album's physical model lays the
+  // whole hand out FACE-UP (packet spreads included — a face-less flip
+  // turning to 0 shows a transparent card), and the close's approach turn
+  // starts from a face too. A mounted face is a warm cache, never churn.
+  ensureHandBodyFaces(pairs.map((p) => p.name as string));
   const visuals: Record<string, RevealVisual> = {};
   for (const p of pairs) {
     if (p.visual !== undefined) {
@@ -330,6 +335,10 @@ export async function runHandOpenEpisode(allPairs: ReadonlyArray<RevealPair>, st
     for (const p of allPairs) {
       const el = handBodyEl(p.name as string);
       if (el !== undefined) {
+        const flip = el.querySelector<HTMLElement>('.con-deal-proxy__flip');
+        if (flip !== null) {
+          gsap.set(flip, {rotationY: 0}); // the album lays every card FACE-UP
+        }
         if (p.visible) {
           setHandBodyMode(p.name as string, 'shelf');
           gsap.set(el, {autoAlpha: 0});
@@ -378,16 +387,17 @@ export async function runHandOpenEpisode(allPairs: ReadonlyArray<RevealPair>, st
       x: p.target.left, y: p.target.top, scale: scaleTo, rotation: 0,
       duration: flight, ease: 'power2.inOut',
     }, at);
-    if (p.visible) {
-      const flip = el.querySelector<HTMLElement>('.con-deal-proxy__flip');
-      if (flip !== null) {
-        // The 3D turn is the flight's heart — slow enough to READ, landing
-        // face-out exactly as the slot will render.
-        tl.to(flip, {rotationY: 0, duration: flight * 0.62, ease: 'power2.inOut'}, at + flight * 0.08);
-      }
+    // EVERY card turns face-up — the album's physical model lays the whole
+    // hand out FACE-UP, page cards and packet spreads alike (a packet that
+    // stayed back-side later re-entered on a filter «рубашкой и вдруг
+    // лицом», and a close from a visited page flew stale faces home). The
+    // 3D turn is the flight's heart — slow enough to READ; packet-bound
+    // bodies play the same turn while the stage window wipes them out
+    // through the boundary.
+    const flip = el.querySelector<HTMLElement>('.con-deal-proxy__flip');
+    if (flip !== null) {
+      tl.to(flip, {rotationY: 0, duration: flight * 0.62, ease: 'power2.inOut'}, at + flight * 0.08);
     }
-    // Packet-bound bodies need no code: the stage window erases them by
-    // position as they slide through the boundary.
   });
 
   await settledPaint();
@@ -446,6 +456,10 @@ export async function runHandCloseEpisode(allPairs: ReadonlyArray<RevealPair>, s
       const el = handBodyEl(p.name as string);
       if (el !== undefined) {
         gsap.set(el, {autoAlpha: 1});
+        const flip = el.querySelector<HTMLElement>('.con-deal-proxy__flip');
+        if (flip !== null) {
+          gsap.set(flip, {rotationY: dockFaceRotation()}); // docked presentation, instantly
+        }
       }
     }
     void nextTick().then(() => hooks?.setSection('board'));
@@ -462,24 +476,25 @@ export async function runHandCloseEpisode(allPairs: ReadonlyArray<RevealPair>, s
   const els = seizeBodies(allPairs);
   // THE REVERSE HANDOFF, same flush as the hold: page bodies un-hide AT
   // their slot rects (pixel-identical to the card the slot just stopped
-  // painting — the face is still mounted from the open); packet bodies
-  // stand parked at their anchors already.
+  // painting); every NON-active-page body SEATS at its packet-target
+  // anchor, face-up. Seating is load-bearing, not cosmetic: a page the
+  // player VISITED left its bodies in shelf mode at STALE slot rects with
+  // their faces out — released with a bare alpha, they popped mid-screen
+  // and flew home face-up («карты залетают в док лицом» when closing from
+  // a later page). The pairs already carry the packet rects; the stage
+  // clip erases the seated packets until their LIFO entry.
   allPairs.forEach((p, i) => {
     const el = els[i];
     if (el === undefined) {
       return;
     }
-    if (p.visible) {
-      gsap.set(el, {
-        x: p.target.left, y: p.target.top,
-        scale: p.target.width / naturalWOf(el), rotation: 0, autoAlpha: 1,
-      });
-      const flip = el.querySelector<HTMLElement>('.con-deal-proxy__flip');
-      if (flip !== null) {
-        gsap.set(flip, {rotationY: 0}); // face-out, as the slot rendered
-      }
-    } else {
-      gsap.set(el, {autoAlpha: 1});
+    gsap.set(el, {
+      x: p.target.left, y: p.target.top,
+      scale: p.target.width / naturalWOf(el), rotation: 0, autoAlpha: 1,
+    });
+    const flip = el.querySelector<HTMLElement>('.con-deal-proxy__flip');
+    if (flip !== null) {
+      gsap.set(flip, {rotationY: 0}); // the album holds every card face-up
     }
   });
   // The board is the backdrop of the gather from the first flight frame —
@@ -505,7 +520,7 @@ export async function runHandCloseEpisode(allPairs: ReadonlyArray<RevealPair>, s
     seqByBerth[idx] = allPairs.length <= 1 ? 0 : k / (allPairs.length - 1);
   });
 
-  allPairs.forEach((p, i) => {
+  allPairs.forEach((_p, i) => {
     const el = els[i];
     const to = targets[i];
     if (el === undefined || to === undefined) {
@@ -517,11 +532,13 @@ export async function runHandCloseEpisode(allPairs: ReadonlyArray<RevealPair>, s
       x: to.x, y: to.y, scale: to.scale, rotation: to.rotation,
       duration: flight, ease: 'power2.in',
     }, at);
-    if (p.visible) {
-      const flip = el.querySelector<HTMLElement>('.con-deal-proxy__flip');
-      if (flip !== null) {
-        tl.to(flip, {rotationY: 180, duration: flight * 0.55, ease: 'power2.inOut'}, at + flight * 0.38);
-      }
+    // EVERY card turns to the dock's resting presentation on approach —
+    // packets fly in face-up off their spreads and turn with the page
+    // cards (only the visible ones used to turn; a card from a visited
+    // page landed face-up in a fan of backs).
+    const flip = el.querySelector<HTMLElement>('.con-deal-proxy__flip');
+    if (flip !== null) {
+      tl.to(flip, {rotationY: dockFaceRotation(), duration: flight * 0.55, ease: 'power2.inOut'}, at + flight * 0.38);
     }
   });
 
@@ -612,12 +629,16 @@ export async function runHandFilterEpisode(input: HandFilterInput): Promise<void
     const from = beforeByName.get(p.name as string);
     if (from !== undefined) {
       gsap.set(el, {x: from.rect.left, y: from.rect.top, scale: from.rect.width / naturalWOf(el), rotation: 0, autoAlpha: 1});
-      const flip = el.querySelector<HTMLElement>('.con-deal-proxy__flip');
-      if (flip !== null) {
-        gsap.set(flip, {rotationY: from.visible ? 0 : 180});
-      }
     } else {
       gsap.set(el, {autoAlpha: 1}); // an enterer starts at its packet anchor
+    }
+    // The whole album is FACE-UP — packets included (the spreads are laid
+    // out face-up), so a filter episode never turns a card: an enterer
+    // arrives showing its face from the first frame («залетали рубашкой и
+    // одним кадром переворачивались» was a packet still carrying its back).
+    const flip = el.querySelector<HTMLElement>('.con-deal-proxy__flip');
+    if (flip !== null) {
+      gsap.set(flip, {rotationY: 0});
     }
   });
   await nextTick();
@@ -640,13 +661,9 @@ export async function runHandFilterEpisode(input: HandFilterInput): Promise<void
     }
     const at = stagger * (i / Math.max(1, leavers.length - 1)) * 0.6;
     const flight = s(FILTER_LEAVE_MS);
+    // A leaver GLIDES onto its spread face-up — no turn: the packet it
+    // joins is laid out face-up like every page.
     tl.to(el, {x: home.left, y: home.top, scale: home.width / naturalWOf(el), duration: flight, ease: 'power2.inOut'}, at);
-    if (p.visible) {
-      const flip = el.querySelector<HTMLElement>('.con-deal-proxy__flip');
-      if (flip !== null) {
-        tl.to(flip, {rotationY: 180, duration: flight * 0.55, ease: 'power2.inOut'}, at + flight * 0.38);
-      }
-    }
   });
   moverNames.forEach((n) => {
     const el = els[cursor++];
@@ -664,11 +681,9 @@ export async function runHandFilterEpisode(input: HandFilterInput): Promise<void
     }
     const at = s(80) + stagger * (i / Math.max(1, enterNames.length - 1)) * 0.6;
     const flight = s(FILTER_ENTER_MS);
+    // Face-up from the first frame — the seat above already aligned the
+    // flip; an enterer slides in off its spread, never turns.
     tl.to(el, {x: slot.rect.left, y: slot.rect.top, scale: slot.rect.width / naturalWOf(el), rotation: 0, duration: flight, ease: 'power2.inOut'}, at);
-    const flip = el.querySelector<HTMLElement>('.con-deal-proxy__flip');
-    if (flip !== null) {
-      tl.to(flip, {rotationY: 0, duration: flight * 0.62, ease: 'power2.inOut'}, at + flight * 0.08);
-    }
   });
 
   await settledPaint();

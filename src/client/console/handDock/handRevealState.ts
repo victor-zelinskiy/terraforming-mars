@@ -65,13 +65,14 @@ export const handRevealState = reactive({
    * kill the ONE debugging failure mode that cost this flow the most: a
    * stale served bundle looking exactly like «the fix changed nothing»
    * (the server caches chunks at startup; desktop builds ship their own).
-   * Bump it whenever the episode architecture changes. 14 = the
-   * single-owner bodies rework (11) + the top-left transform-origin fix
-   * (12) + the pose ride yielding to episodes (13) + the close's section
-   * hook firing one tick late (the collapse parks between — synchronous,
-   * it popped the hosted hand frame before the park).
+   * Bump it whenever the episode architecture changes. 15 = the FACE-UP
+   * ALBUM model (the whole spread — pages AND packets — is laid out
+   * face-up: every open flight turns every card, a close seats packets at
+   * their anchors and turns everything to the dock's presentation, filter
+   * episodes never turn a card) + the dock presentation setting
+   * («Рубашкой»/«Лицом», handDockPresentation.ts).
    */
-  rev: 14,
+  rev: 15,
   /**
    * THE STAGE WINDOW — the album's x-range, applied as a STATIC `clip-path`
    * on the whole layer for the album's lifetime. A packet-parked body is

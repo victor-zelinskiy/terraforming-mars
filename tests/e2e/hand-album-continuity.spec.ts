@@ -489,7 +489,7 @@ async function bootLargeAlbum(page: Page, request: Parameters<typeof bootIntoGam
   // failure mode that reads exactly like «the fix changed nothing».
   const rev = await page.evaluate(() =>
     document.querySelector('.con-handreveal-layer')?.getAttribute('data-hand-reveal-rev') ?? '(no layer)');
-  expect(rev, 'the served bundle carries the current transition core (stale-server trap)').toBe('14');
+  expect(rev, 'the served bundle carries the current transition core (stale-server trap)').toBe('15');
   await installProbe(page);
   await armProbe(page, true);
   return warns;
@@ -593,6 +593,29 @@ test.describe('hand album continuity · large layout', () => {
     console.log('[hac] closing from last page');
     await press(page, 'Escape', 2800);
     await page.waitForTimeout(600);
+    // THE FACING LAW at the exact reported repro (close from a LATER page):
+    // every docked body rests in the dock's default presentation — BACKS.
+    // Visited pages leave their bodies face-up in shelf mode; a close that
+    // releases them without seating flew stale faces home («карты залетают
+    // в handDock лицом»). rotY 180 ⇔ the flip matrix's m11 is negative.
+    const facing = await page.evaluate(() => {
+      const out: Array<string> = [];
+      for (const el of Array.from(document.querySelectorAll<HTMLElement>('.con-handbody[data-hand-body-mode="docked"]'))) {
+        const flip = el.querySelector<HTMLElement>('.con-deal-proxy__flip');
+        if (flip === null) {
+          continue; // no flip chassis — nothing to face
+        }
+        const t = getComputedStyle(flip).transform;
+        const m = /matrix(?:3d)?\(([-\d.e, ]+)\)/.exec(t);
+        // No transform at all = rotY 0 = a FACE — as reportable as m11 > 0.
+        const m11 = m === null ? 1 : Number.parseFloat(m[1].split(',')[0]);
+        if (m11 > -0.5) {
+          out.push(`${el.getAttribute('data-hand-dock-card')}@m11=${m11.toFixed(2)}`);
+        }
+      }
+      return out;
+    });
+    expect(facing, `docked cards showing a FACE after the close (default = backs):\n  ${facing.join('\n  ')}`).toEqual([]);
     await armProbe(page, false);
     assertContinuity(await readProbe(page), 8, '9', warns);
   });
