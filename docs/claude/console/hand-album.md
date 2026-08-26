@@ -319,6 +319,18 @@ episode states it rather than assuming it:
   (faces mount first). Facing guard: the 9-card close-from-last-page test
   asserts every docked flip's m11 < 0 (backs) after the close.
 
+⚠️ **A CSS ANIMATION BREAKS THROUGH chrome-wait.** The section's mount
+rise (`con-hand-chrome-in` on `__head`/`__verdictbar`) is an animation,
+and an ACTIVE animation overrides a normal declaration — so for its
+480 ms run the verdict rail faded in over `.con-hand--chrome-wait`'s
+`opacity: 0` and snapped back when the fill let go («status rail
+появляется → пропадает → появляется» at the open). chrome-wait therefore
+also sets `animation: none`; lifting the class re-triggers the rise
+(`none → named` restarts a CSS animation), so the same quiet rise plays
+exactly once, at the cards' final approach. Guard:
+`tests/e2e/hand-chrome-flash-probe.spec.ts` (per-state opacity recorder:
+no painted rail while chrome-wait holds, one rise after).
+
 ## THE EPISODE CLOCK (iteration 8 — the continuity rework)
 
 The dock ⇄ album transition used to teleport under load («плотный веер за

@@ -7135,6 +7135,14 @@ html.console-mode {
     &--chrome-wait :is(&__head, &__verdictbar, &__pgedge) {
         opacity: 0;
         transition: none;
+        /* The MOUNT rise (`con-hand-chrome-in`, above) is a CSS animation,
+           and an active animation OVERRIDES this rule's opacity for its
+           whole run — the rail faded IN mid-flight and snapped back to 0
+           when the animation's fill let go (the reported «status rail
+           мигает» at the open). Suppressed here, it RESTARTS the moment
+           chrome-wait lifts (none → named re-triggers), so the same quiet
+           rise plays exactly when the cards make their final approach. */
+        animation: none;
     }
     &__reason {
         padding: .4rem .7rem;
