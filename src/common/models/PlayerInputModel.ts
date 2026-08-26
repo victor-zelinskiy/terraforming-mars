@@ -2,6 +2,7 @@ import {CardModel} from './CardModel';
 import {ColonyModel} from './ColonyModel';
 import type {ActionEffect, VictoryPointsDelta} from './ActionPreviewModel';
 import type {BotAttackPromptMeta} from './BotAttackPromptModel';
+import type {DeltaBonusPromptMeta} from './DeltaBonusPromptModel';
 import type {TargetImpact, TargetImpactChange} from './TargetImpactModel';
 import {CardName} from '../cards/CardName';
 import {ColonyName} from '../colonies/ColonyName';
@@ -426,6 +427,11 @@ export type BaseInputModel = {
    *  costs (see {@link BotAttackPromptMeta}). Serialized on the input's own
    *  `toModel` (nesting-safe), not centrally. */
   botAttackPrompt?: BotAttackPromptMeta;
+  /** Explicit "a card is offering you a BONUS move on the Delta Project track"
+   *  marker (see {@link DeltaBonusPromptMeta}) — source card, destination and
+   *  the server's own verdict on cost. Serialized centrally in
+   *  ServerModel.getWaitingFor: a bonus offer is always the TOP-LEVEL prompt. */
+  deltaBonusPrompt?: DeltaBonusPromptMeta;
 }
 
 export type AndOptionsModel = BaseInputModel & {

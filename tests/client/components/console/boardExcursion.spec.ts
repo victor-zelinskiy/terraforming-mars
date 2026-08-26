@@ -1,8 +1,9 @@
 import {expect} from 'chai';
 import {
-  engageStartExcursion, releaseStartExcursion, startExcursionActive,
-  startExcursionQuiet, StartExcursionSignals, EXCURSION_BLOCKING_KINDS,
-} from '@/client/console/startBoardExcursion';
+  boardExcursionActive, boardExcursionHolder, boardExcursionQuiet,
+  BoardExcursionSignals, engageBoardExcursion, releaseBoardExcursion,
+  EXCURSION_BLOCKING_KINDS,
+} from '@/client/console/boardExcursion';
 import {TaskKind} from '@/client/console/consoleTaskRouter';
 
 /**
@@ -14,7 +15,7 @@ import {TaskKind} from '@/client/console/consoleTaskRouter';
  * placement). The workspace returns exactly once, onto a settled frame —
  * never between two legs of one play.
  */
-function quietSignals(overrides: Partial<StartExcursionSignals> = {}): StartExcursionSignals {
+function quietSignals(overrides: Partial<BoardExcursionSignals> = {}): BoardExcursionSignals {
   return {
     placementAsked: false,
     tileHero: false,
@@ -27,28 +28,46 @@ function quietSignals(overrides: Partial<StartExcursionSignals> = {}): StartExcu
   };
 }
 
-describe('startBoardExcursion (the placement completion barrier)', () => {
+describe('boardExcursion (the placement completion barrier)', () => {
   afterEach(() => {
-    releaseStartExcursion(); // module state is bundle-shared — never leak the latch
+    releaseBoardExcursion(); // module state is bundle-shared — never leak the latch
   });
 
   it('the latch: engage → active, release → inactive', () => {
-    expect(startExcursionActive()).to.be.false;
-    engageStartExcursion();
-    expect(startExcursionActive()).to.be.true;
-    releaseStartExcursion();
-    expect(startExcursionActive()).to.be.false;
+    expect(boardExcursionActive()).to.be.false;
+    engageBoardExcursion('start');
+    expect(boardExcursionActive()).to.be.true;
+    releaseBoardExcursion();
+    expect(boardExcursionActive()).to.be.false;
+  });
+
+  // The barrier is workspace-AGNOSTIC: a consumer asks about ITS OWN yield,
+  // because another workspace's excursion is no reason for this one to hide.
+  it('names its holder, and answers only for that holder', () => {
+    expect(boardExcursionHolder()).is.undefined;
+    engageBoardExcursion('hydro');
+    expect(boardExcursionHolder()).to.eq('hydro');
+    expect(boardExcursionActive('hydro')).to.be.true;
+    expect(boardExcursionActive('start')).to.be.false;
+    expect(boardExcursionActive()).to.be.true;
+  });
+
+  it('a second holder replaces the first — one screen, one yield', () => {
+    engageBoardExcursion('start');
+    engageBoardExcursion('hydro');
+    expect(boardExcursionActive('start')).to.be.false;
+    expect(boardExcursionActive('hydro')).to.be.true;
   });
 
   it('a fully settled chain is quiet', () => {
-    expect(startExcursionQuiet(quietSignals())).to.be.true;
+    expect(boardExcursionQuiet(quietSignals())).to.be.true;
   });
 
   it('EVERY visual leg of the chain individually holds the barrier', () => {
     // The space still asked (incl. a chained second placement held behind the
     // first tile's cinematic), the commit flight + reward beat, the resource
     // flights, the cell's bonus-card scene, the reveal, the hand intake.
-    const legs: Array<Partial<StartExcursionSignals>> = [
+    const legs: Array<Partial<BoardExcursionSignals>> = [
       {placementAsked: true},
       {tileHero: true},
       {transfers: true},
@@ -57,7 +76,7 @@ describe('startBoardExcursion (the placement completion barrier)', () => {
       {handIntake: true},
     ];
     for (const leg of legs) {
-      expect(startExcursionQuiet(quietSignals(leg)), JSON.stringify(leg)).to.be.false;
+      expect(boardExcursionQuiet(quietSignals(leg)), JSON.stringify(leg)).to.be.false;
     }
   });
 
@@ -66,7 +85,7 @@ describe('startBoardExcursion (the placement completion barrier)', () => {
     // board-band follow-up keep the workspace hidden — returning under them
     // is exactly the mid-chain flash the barrier removes.
     for (const kind of EXCURSION_BLOCKING_KINDS) {
-      expect(startExcursionQuiet(quietSignals({followUpKind: kind})), kind).to.be.false;
+      expect(boardExcursionQuiet(quietSignals({followUpKind: kind})), kind).to.be.false;
     }
     expect(EXCURSION_BLOCKING_KINDS.has('distribute'), 'the Ares hazard penalty is a distribute').to.be.true;
     expect(EXCURSION_BLOCKING_KINDS.has('choice')).to.be.true;
@@ -82,7 +101,7 @@ describe('startBoardExcursion (the placement completion barrier)', () => {
     ];
     for (const kind of releasing) {
       expect(EXCURSION_BLOCKING_KINDS.has(kind), `${kind} must not block the return`).to.be.false;
-      expect(startExcursionQuiet(quietSignals({followUpKind: kind})), kind).to.be.true;
+      expect(boardExcursionQuiet(quietSignals({followUpKind: kind})), kind).to.be.true;
     }
   });
 
@@ -91,7 +110,7 @@ describe('startBoardExcursion (the placement completion barrier)', () => {
     // (often HELD behind the first tile's cinematic) — the raw signal keeps
     // the barrier down without any admission gating.
     expect(EXCURSION_BLOCKING_KINDS.has('space')).to.be.false;
-    expect(startExcursionQuiet(quietSignals({placementAsked: true, followUpKind: 'space'}))).to.be.false;
+    expect(boardExcursionQuiet(quietSignals({placementAsked: true, followUpKind: 'space'}))).to.be.false;
   });
 
   /*
@@ -105,6 +124,6 @@ describe('startBoardExcursion (the placement completion barrier)', () => {
    */
   it('a plain action menu still means the deployment is over', () => {
     expect(EXCURSION_BLOCKING_KINDS.has('actionMenu')).to.be.false;
-    expect(startExcursionQuiet(quietSignals({followUpKind: 'actionMenu'}))).to.be.true;
+    expect(boardExcursionQuiet(quietSignals({followUpKind: 'actionMenu'}))).to.be.true;
   });
 });

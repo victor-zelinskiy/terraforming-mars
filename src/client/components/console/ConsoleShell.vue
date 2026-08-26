@@ -1536,7 +1536,8 @@ import {armColonyFocusQuickExit} from '@/client/console/consoleColonyFocusMotion
 import {consolePlayCardUi} from '@/client/console/consolePlayCardUi';
 import {consoleStartUi} from '@/client/console/consoleStartUi';
 import {consoleStartState, startAwaitingOthers, startCorporationPlayed, startDeferredSummary, startSceneHeld} from '@/client/console/consoleStartState';
-import {engageStartExcursion, releaseStartExcursion, startExcursionActive, startExcursionQuiet, startExcursionState} from '@/client/console/startBoardExcursion';
+import {boardExcursionActive, boardExcursionQuiet, engageBoardExcursion, releaseBoardExcursion} from '@/client/console/boardExcursion';
+import {hydroBonusDoorAction, hydroBonusOffer} from '@/client/console/hydroFlow/hydroBonusOffer';
 import {bonusActionInStartFlow, bonusActionOnBoard, bonusActionOwed, bonusActionTurnControlReason} from '@/client/console/bonusAction';
 import {firstActionOwed} from '@/client/console/startFirstAction';
 import {isResourceTransferActive} from '@/client/console/resourceTransfer/consoleResourceTransfer';
@@ -3253,7 +3254,7 @@ export default defineComponent({
      *  yielded to a board placement and that placement's causal chain has not
      *  fully completed yet. */
     startExcursionHolds(): boolean {
-      return startExcursionState.active;
+      return boardExcursionActive('start');
     },
     /** The barrier ENGAGES the moment the serving workspace yields to a board
      *  placement (the placement is the CAUSE; everything after it is chain). */
@@ -3268,7 +3269,7 @@ export default defineComponent({
      * viewer's own chain, so another player's cinematic can never wedge it.
      */
     startExcursionQuietNow(): boolean {
-      return startExcursionQuiet({
+      return boardExcursionQuiet({
         placementAsked: this.playerView.waitingFor?.type === 'space' ||
           this.convertPlantsPending !== undefined || this.taskSpacePending !== undefined,
         tileHero: this.tilePlacementHolds || this.nomadMoveHolds,
@@ -5225,6 +5226,36 @@ export default defineComponent({
     colonyPromptOpenable(): boolean {
       return this.colonyPromptRaw && this.admits('followUp');
     },
+    /**
+     * A CARD-GRANTED BONUS MOVE on the track — read STRUCTURALLY off the
+     * server's own `deltaBonusPrompt` marker, never off an option title.
+     */
+    hydroBonusOfferRaw(): ReturnType<typeof hydroBonusOffer> {
+      return hydroBonusOffer(this.playerView.waitingFor);
+    },
+    /**
+     * …AND ITS DOOR. `followUp` is the family for a screen OPENED for a prompt
+     * that arrived beside an effect the player is still working through — which
+     * is exactly this case: the placement that granted the move routinely draws
+     * a card in the SAME response, and the drawn-cards reveal must be finished
+     * («processed» = every card TAKEN) before the track is put on screen.
+     * Without this the offer stood under a live reveal, both from one placement.
+     */
+    hydroBonusOfferLive(): boolean {
+      return this.hydroBonusOfferRaw !== undefined && this.admits('followUp');
+    },
+    /**
+     * OPEN vs QUEUE. An ocean placed while the player was ALREADY on the track
+     * must not tear the workspace down and rebuild it — the offer joins the
+     * flow it is already in. Policy lives in the pure module.
+     */
+    hydroBonusDoor(): ReturnType<typeof hydroBonusDoorAction> {
+      return hydroBonusDoorAction({
+        offerLive: this.hydroBonusOfferLive,
+        frameKnown: workspaceFrameKnown('hydro'),
+      });
+    },
+
     /**
      * A STEP THIS FLOW OWES IS NOT ON SCREEN YET — the door above is holding it
      * back while the previous effect of the same press finishes.
@@ -7811,11 +7842,30 @@ export default defineComponent({
      */
     startExcursionEngage(now: boolean): void {
       if (now) {
-        engageStartExcursion();
+        engageBoardExcursion('start');
       }
     },
+    /**
+     * THE DOOR, once the admission policy lets the offer through.
+     *
+     * `prompt` anchor: this frame exists ONLY to answer that offer, so it hands
+     * the screen back when the offer is gone — unlike the player's own visit,
+     * which stays. `serves` is EARNED here for the span of the offer (the
+     * registry keeps `hydro.serves` empty on purpose), so a hydro screen idling
+     * at its browse layer can never mask an unrelated stranded choice.
+     */
+    hydroBonusDoor(action: ReturnType<typeof hydroBonusDoorAction>): void {
+      if (action === 'none') {
+        return;
+      }
+      if (action === 'open') {
+        this.deferShellTask();
+        enterWorkspace('hydro', {anchor: {type: 'prompt', promptType: 'or'}});
+      }
+      setWorkspaceFrameServes('hydro', ['choice']);
+    },
     startExcursionQuietNow(now: boolean): void {
-      if (now && startExcursionActive()) {
+      if (now && boardExcursionActive()) {
         this.scheduleStartExcursionRelease();
       }
     },
@@ -7841,8 +7891,8 @@ export default defineComponent({
      *  on) — a latch without its scene is meaningless, and it must never
      *  leak into a rematch. */
     startSceneServes(now: boolean): void {
-      if (!now && startExcursionActive()) {
-        releaseStartExcursion();
+      if (!now && boardExcursionActive()) {
+        releaseBoardExcursion();
       }
     },
     /**
@@ -12728,8 +12778,8 @@ export default defineComponent({
           if (token !== this.excursionReleaseToken) {
             return; // a newer beat superseded this check
           }
-          if (startExcursionActive() && this.startExcursionQuietNow) {
-            releaseStartExcursion();
+          if (boardExcursionActive() && this.startExcursionQuietNow) {
+            releaseBoardExcursion();
           }
         };
         if (typeof requestAnimationFrame === 'function') {
@@ -14116,7 +14166,7 @@ export default defineComponent({
     resetPlanetFocus(); // never carry a held HUD / mid-exit phase across games
     resetHandReveal(); // never leak a mid-episode timeline / held dock
     resetHandDelivery(); // never leak a mid-flight delivery / held dock
-    releaseStartExcursion(); // a leaked barrier would hide the next game's start scene
+    releaseBoardExcursion(); // a leaked barrier would hide the next game's start scene
     resetDockIntakeAccent(); // a leaked lease would disable the compact pose
     resetConsoleHandPick(); // never leak a client pick across games/sessions
     // The stack can never outlive the shell: an orphaned frame suppresses the

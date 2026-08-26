@@ -83,7 +83,20 @@ export class BonusDeltaAdvance extends DeferredAction {
         return undefined;
       });
     const skip = new SelectOption('Skip the bonus step', 'Skip').andThen(() => undefined);
+    const from = player.deltaProjectData?.position ?? 0;
     return new OrOptions(advance, skip)
+      // THE STRUCTURAL identity of the offer: everything the console needs to
+      // present it, decided HERE by the same pipeline that will execute it.
+      .markDeltaBonusPrompt({
+        source: this.source.name,
+        steps: 1,
+        fromPosition: from,
+        toPosition: from + 1,
+        energyCost: options.energyToll ?? 0,
+        waivesTag: options.tagWaiver === true,
+        advanceIndex: 0,
+        skipIndex: 1,
+      })
       .markChoiceContext(namedCardEffect(
         this.source.name,
         false,

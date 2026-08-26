@@ -471,6 +471,9 @@ export class Server {
     }
     // Contextual-choice marker — routes the prompt to the premium
     // ContextualChoiceContent modal (source card + trigger + rich options).
+    if (waitingFor.deltaBonusPrompt !== undefined) {
+      model.deltaBonusPrompt = waitingFor.deltaBonusPrompt;
+    }
     if (waitingFor.choiceContext !== undefined) {
       model.choiceContext = waitingFor.choiceContext;
     }

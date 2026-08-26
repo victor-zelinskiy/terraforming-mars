@@ -5,6 +5,7 @@ import {InputResponse} from '../common/inputs/InputResponse';
 import {IPlayer} from './IPlayer';
 import {PlayerInputModel, StartGamePromptMeta, BonusActionPromptMeta, AwardFundingPromptMeta, ChoiceContext, ColonyBonusCollectMeta, DeckPickPromptMeta, DiscardPromptMeta, DraftPromptMeta, FinalGreeneryPromptMeta, PlacementContext, VenusBonusPromptMeta, SpendHeatPromptMeta} from '../common/models/PlayerInputModel';
 import {BotAttackPromptMeta} from '../common/models/BotAttackPromptModel';
+import {DeltaBonusPromptMeta} from '../common/models/DeltaBonusPromptModel';
 
 export interface PlayerInput {
     type: PlayerInputType;
@@ -58,6 +59,7 @@ export interface PlayerInput {
     // per-candidate consequence. Serialized on the input's own toModel
     // (nesting-safe), not centrally.
     botAttackPrompt?: BotAttackPromptMeta;
+    deltaBonusPrompt?: DeltaBonusPromptMeta;
 
     // Contextual annotation identifying this PlayerInput.
     annotation: string | undefined;
@@ -117,6 +119,7 @@ export abstract class BasePlayerInput<T> implements PlayerInput {
   public finalGreeneryPrompt: FinalGreeneryPromptMeta | undefined;
   public colonyBonusPrompt: ColonyBonusCollectMeta | undefined;
   public botAttackPrompt: BotAttackPromptMeta | undefined;
+  public deltaBonusPrompt: DeltaBonusPromptMeta | undefined;
 
   public abstract toModel(player: IPlayer): PlayerInputModel;
   public abstract process(response: InputResponse, player: IPlayer): PlayerInput | undefined;
@@ -262,6 +265,17 @@ export abstract class BasePlayerInput<T> implements PlayerInput {
    *  See {@link BotAttackPromptMeta}. */
   public markBotAttackPrompt(meta: BotAttackPromptMeta): this {
     this.botAttackPrompt = meta;
+    return this;
+  }
+
+  /** Mark this prompt as a CARD-GRANTED BONUS MOVE on the Delta Project track
+   *  (chainable): which card granted it, where the marker would land, and the
+   *  server's own verdict on what it costs. Built by
+   *  `deferredActions/BonusDeltaAdvance.ts` — the one entry point for such a
+   *  move — so the console never recovers any of it from an option title.
+   *  See {@link DeltaBonusPromptMeta}. */
+  public markDeltaBonusPrompt(meta: DeltaBonusPromptMeta): this {
+    this.deltaBonusPrompt = meta;
     return this;
   }
 }

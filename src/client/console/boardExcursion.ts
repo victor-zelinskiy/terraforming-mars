@@ -2,9 +2,10 @@
  * @console-shared LIVE — console native stands on this file, so it is NOT covered
  * by the desktop-UI deprecation. Full quality bar applies (tests, guards, i18n).
  *
- * START BOARD EXCURSION — the COMPLETION BARRIER of the Game Start Workspace.
+ * BOARD EXCURSION — the COMPLETION BARRIER of a workspace that yields to the
+ * board.
  *
- * When a start card's effect asks for a BOARD PLACEMENT, the workspace yields
+ * When a workspace's flow asks for a BOARD PLACEMENT, the workspace yields
  * the screen to the board (the board is an always-mounted host — the yield IS
  * the hand-off). The bug this module removes: the yield used to end the moment
  * the space prompt resolved, so the workspace popped back BETWEEN the causally
@@ -42,29 +43,50 @@
  * animation either; a pending PROMPT holds it indefinitely by design — the
  * prompt is being served, and answering it is what advances the chain.
  *
- * The consumer is the shell's `startSceneVisible`: the scene stays HIDDEN
+ * ONE LATCH, ONE HOLDER. The barrier is workspace-AGNOSTIC: it records WHICH
+ * frame yielded, so every workspace that can survive a placement (the
+ * phase-anchored roots — the start scene, and the Hydronetwork while it owns a
+ * card-granted bonus move) reads the same latch instead of growing a private
+ * copy of it. Only one workspace can be yielding at a time by construction —
+ * the yield IS the hand-off of the whole screen — so a single holder is the
+ * honest shape, and `boardExcursionActive(kind)` lets a consumer ask about its
+ * OWN yield rather than about anybody's.
+ *
+ * The consumers are the shells' `…Visible` computeds: the surface stays HIDDEN
  * (collapse semantics — mounted, state intact) while the latch is engaged, so
  * the parent workspace returns exactly once, onto a settled frame.
  */
 import {reactive} from 'vue';
 import {TaskKind} from '@/client/console/consoleTaskRouter';
+import type {WorkspaceFrameKind} from '@/client/console/consoleWorkspaceStack';
 
-export const startExcursionState = reactive({
-  /** The latch: the start workspace has yielded to a board placement and the
-   *  placement's causal chain has not fully completed yet. */
-  active: false,
+export const boardExcursionState = reactive({
+  /** WHICH workspace has yielded to a board placement whose causal chain has
+   *  not fully completed yet — undefined when the latch is open. */
+  holder: undefined as WorkspaceFrameKind | undefined,
 });
 
-export function engageStartExcursion(): void {
-  startExcursionState.active = true;
+export function engageBoardExcursion(holder: WorkspaceFrameKind): void {
+  boardExcursionState.holder = holder;
 }
 
-export function releaseStartExcursion(): void {
-  startExcursionState.active = false;
+export function releaseBoardExcursion(): void {
+  boardExcursionState.holder = undefined;
 }
 
-export function startExcursionActive(): boolean {
-  return startExcursionState.active;
+/** The frame currently holding the barrier, or undefined. */
+export function boardExcursionHolder(): WorkspaceFrameKind | undefined {
+  return boardExcursionState.holder;
+}
+
+/**
+ * Is the barrier engaged — by `holder` when one is named, by anyone otherwise?
+ * A consumer asks about its OWN yield: another workspace's excursion is not a
+ * reason for this one to stay hidden.
+ */
+export function boardExcursionActive(holder?: WorkspaceFrameKind): boolean {
+  const current = boardExcursionState.holder;
+  return current !== undefined && (holder === undefined || current === holder);
 }
 
 /**
@@ -93,7 +115,7 @@ export const EXCURSION_BLOCKING_KINDS: ReadonlySet<TaskKind> = new Set<TaskKind>
 ]);
 
 /** The live signals of one placement chain, as the shell reads them. */
-export type StartExcursionSignals = {
+export type BoardExcursionSignals = {
   /** A space is (still) being asked of the viewer — raw `waitingFor.type ===
    *  'space'` plus the client-side pickers, NOT admission-gated: a held
    *  chained placement is still owed chain work. */
@@ -120,7 +142,7 @@ export type StartExcursionSignals = {
  * next-tick re-check, so a one-flush hand-off between two signals — tile
  * settle → reveal claim — can never slip a false release through).
  */
-export function startExcursionQuiet(s: StartExcursionSignals): boolean {
+export function boardExcursionQuiet(s: BoardExcursionSignals): boolean {
   if (s.placementAsked || s.tileHero || s.transfers || s.boardBonus || s.revealBusy || s.handIntake) {
     return false;
   }

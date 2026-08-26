@@ -1,0 +1,109 @@
+import {expect} from 'chai';
+import {CardName} from '@/common/cards/CardName';
+import type {DeltaBonusPromptMeta} from '@/common/models/DeltaBonusPromptModel';
+import type {PlayerInputModel} from '@/common/models/PlayerInputModel';
+import {
+  hydroBonusCopy, hydroBonusDoorAction, hydroBonusOffer, hydroZoneState,
+} from '@/client/console/hydroFlow/hydroBonusOffer';
+
+function meta(overrides: Partial<DeltaBonusPromptMeta> = {}): DeltaBonusPromptMeta {
+  return {
+    source: CardName.DYNAMIC_OCEAN_BARRIER,
+    steps: 1,
+    fromPosition: 2,
+    toPosition: 3,
+    energyCost: 0,
+    waivesTag: false,
+    advanceIndex: 0,
+    skipIndex: 1,
+    ...overrides,
+  };
+}
+
+describe('hydroBonusOffer (the card-granted bonus move)', () => {
+  describe('detection is STRUCTURAL', () => {
+    it('reads the server marker, never a title', () => {
+      const wf = {type: 'or', title: 'anything at all', deltaBonusPrompt: meta()} as unknown as PlayerInputModel;
+      expect(hydroBonusOffer(wf)?.source).to.eq(CardName.DYNAMIC_OCEAN_BARRIER);
+    });
+
+    it('an unmarked prompt is not an offer, whatever it says', () => {
+      const wf = {type: 'or', title: 'Advance 1 step on the Delta Project track'} as unknown as PlayerInputModel;
+      expect(hydroBonusOffer(wf)).is.undefined;
+      expect(hydroBonusOffer(undefined)).is.undefined;
+    });
+  });
+
+  describe('the working zone is mutually exclusive', () => {
+    it('an idle workspace shows nothing of the offer family', () => {
+      expect(hydroZoneState({offerLive: false, committing: false, resolving: false})).to.eq('idle');
+    });
+
+    it('a live, admitted offer owns the zone', () => {
+      expect(hydroZoneState({offerLive: true, committing: false, resolving: false})).to.eq('bonus-offer');
+    });
+
+    // What is already RUNNING outranks what is merely offered — a second
+    // ocean's offer can never paint over the move in flight.
+    it('a commit in flight outranks a fresh offer', () => {
+      expect(hydroZoneState({offerLive: true, committing: true, resolving: false})).to.eq('committing');
+    });
+
+    it('a resolving reward outranks both', () => {
+      expect(hydroZoneState({offerLive: true, committing: true, resolving: true})).to.eq('resolving');
+    });
+  });
+
+  describe('the door', () => {
+    it('opens the workspace when no hydro frame exists', () => {
+      expect(hydroBonusDoorAction({offerLive: true, frameKnown: false})).to.eq('open');
+    });
+
+    // Re-entering would tear the standing workspace down and rebuild it — the
+    // flicker the completion barrier exists to remove.
+    it('QUEUES into a workspace that is already standing', () => {
+      expect(hydroBonusDoorAction({offerLive: true, frameKnown: true})).to.eq('queue');
+    });
+
+    it('does nothing without an offer', () => {
+      expect(hydroBonusDoorAction({offerLive: false, frameKnown: false})).to.eq('none');
+      expect(hydroBonusDoorAction({offerLive: false, frameKnown: true})).to.eq('none');
+    });
+  });
+
+  describe('the copy states all four things', () => {
+    it('the free offer names the source, the reason and the surviving advance', () => {
+      const copy = hydroBonusCopy(meta());
+      expect(copy.bodyParams).to.deep.eq([CardName.DYNAMIC_OCEAN_BARRIER]);
+      expect(copy.bodyKey).to.contain('${0}');
+      expect(copy.bodyKey).to.match(/free/i);
+      expect(copy.bodyKey).to.match(/ocean/i);
+      expect(copy.bodyKey).to.match(/stays available/i);
+      expect(copy.confirmKey).to.not.match(/energy/i);
+    });
+
+    it('the waiver offer states the shortfall and the price', () => {
+      const copy = hydroBonusCopy(meta({waivesTag: true, energyCost: 1}));
+      expect(copy.bodyKey).to.match(/1 required tag/i);
+      expect(copy.confirmKey).to.match(/1 energy/i);
+      expect(copy.bodyKey).to.match(/stays available/i);
+    });
+
+    // The zone hands its stage name UP to the workspace crumb (a step surface
+    // never titles itself inside someone else's frame).
+    it('carries a stage name for the crumb, identical for both shapes', () => {
+      expect(hydroBonusCopy(meta()).stageKey).to.eq(hydroBonusCopy(meta({waivesTag: true})).stageKey);
+      expect(hydroBonusCopy(meta()).stageKey).to.have.length.greaterThan(0);
+    });
+
+    // Never leak the technical action card the standard advance rides.
+    it('never mentions the hidden Delta Project action card', () => {
+      for (const m of [meta(), meta({waivesTag: true})]) {
+        const copy = hydroBonusCopy(m);
+        for (const text of [copy.titleKey, copy.bodyKey, copy.confirmKey, copy.skipKey]) {
+          expect(text).to.not.contain(CardName.DELTA_PROJECT);
+        }
+      }
+    });
+  });
+});
