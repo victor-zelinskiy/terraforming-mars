@@ -393,7 +393,7 @@ export function findTradeColonyContext(
 
 /** The Hydronetwork (Delta Project) advance action in the action menu. */
 export function findHydroActionPath(wf: PlayerInputModel | undefined): ReadonlyArray<number> | undefined {
-  return findOptionPathByTitle(wf, 'Advance on the Delta Project track');
+  return findOptionPathByTitle(wf, 'Advance on the Hydronetwork track');
 }
 
 /** Wrap an inner response in one OR layer per path index (innermost first). */

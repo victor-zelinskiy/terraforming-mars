@@ -18,10 +18,10 @@ export class DeltaProject extends PreludeCard implements IActionCard {
         cardNumber: 'DP01',
         // The action browser's one-liner: the printed rule is 263 characters
         // and clamps on every profile (see tests/cards/actionCaption.spec.ts).
-        infoText: [{kind: 'action-short', text: 'Spend energy to advance on the Delta track'}],
+        infoText: [{kind: 'action-short', text: 'Spend energy to advance on the Hydronetwork'}],
         renderData: CardRenderer.builder((b) => {
-          b.action('Spend any amount of energy to move that number of steps on the Delta Project track. Each step requires having all the matching tags in play up to that level; wild tags can replace missing ones. Gain resources next to your position.', (ab) => {
-            ab.text('X').energy(1).startAction.text('X').plate('Delta track');
+          b.action('Spend any amount of energy to move that number of steps on the Hydronetwork track. Each step requires having all the matching tags in play up to that level; wild tags can replace missing ones. Gain resources next to your position.', (ab) => {
+            ab.text('X').energy(1).startAction.text('X').plate('Hydronetwork');
           });
         }),
       },
@@ -52,7 +52,7 @@ export class DeltaProject extends PreludeCard implements IActionCard {
       return ruleReason('Not in this game');
     }
     if (progress.position >= MAX_TRACK_POSITION) {
-      return ruleReason('You have reached the end of the Delta Project track.');
+      return ruleReason('You have reached the end of the Hydronetwork track.');
     }
     if (player.energy === 0) {
       return notEnoughEnergy();

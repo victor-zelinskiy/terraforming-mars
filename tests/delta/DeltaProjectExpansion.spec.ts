@@ -271,9 +271,11 @@ describe('DeltaProjectExpansion', () => {
 
       const selectCard = cast(player.popWaitingFor(), SelectCard);
       expect(selectCard.cards).includes(regolith);
-      // The STRUCTURAL prompt identity (the client never routes by title):
-      // the reuse pick is sourced to the Delta Project.
-      expect(selectCard.choiceContext?.source).deep.eq({kind: 'card', card: CardName.DELTA_PROJECT});
+      // The STRUCTURAL prompt identity (the client never routes by title).
+      // The track is a BOARD SUBSYSTEM, so its prompts are sourced to the
+      // system — never to the internal subsystem CARD, which the player is
+      // not supposed to know exists (tests/i18n/hydronetworkNaming.spec.ts).
+      expect(selectCard.choiceContext?.source).deep.eq({kind: 'system'});
       selectCard.cb([regolith]);
       runAllActions(game);
 
@@ -512,7 +514,7 @@ describe('DeltaProjectExpansion', () => {
     function findDeltaAction(p: TestPlayer): SelectOption | undefined {
       const actions = cast(p.getActions(), OrOptions);
       return actions.options.find(
-        (o): o is SelectOption => o.title === 'Advance on the Delta Project track');
+        (o): o is SelectOption => o.title === 'Advance on the Hydronetwork track');
     }
 
     it('initializes the track for every player when the expansion is enabled', () => {

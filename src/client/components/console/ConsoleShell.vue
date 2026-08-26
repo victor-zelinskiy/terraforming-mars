@@ -2892,7 +2892,18 @@ export default defineComponent({
         return true;
       }
       const task = taskFor(this.playerView);
-      return task !== undefined && SECTION_SERVED_KINDS.has(task.kind);
+      if (task === undefined) {
+        return false;
+      }
+      // …or a live WORKSPACE FRAME has declared it serves this kind. That is
+      // the general form of the set below: a frame earns `serves` at runtime
+      // for the span of a prompt it owns (the Hydronetwork's bonus offer, the
+      // landed stage's follow-up), and while it does, the legacy fallback must
+      // not treat the prompt as unserved.
+      if (frameServing(task.kind) !== undefined) {
+        return true;
+      }
+      return SECTION_SERVED_KINDS.has(task.kind);
     },
     /**
      * The three prompts that used to fall through to the DESKTOP modal inside
@@ -11935,8 +11946,19 @@ export default defineComponent({
      * the index is the SERVER's own (`deltaBonusPrompt.advanceIndex` /
      * `.skipIndex`), so the console never depends on the option order it sees.
      */
-    submitHydroBonus(index: number): void {
-      submitInput(orOptionResponse(index) as InputResponse);
+    submitHydroBonus(payload: {index: number, rewardChoice: number | undefined}): void {
+      // ONE batch, the same shape the standard advance submits: the offer's own
+      // answer, then the landing stage's reward when the workspace pre-collected
+      // it. That is what keeps the reward out of a second modal.
+      const responses: Array<unknown> = [orOptionResponse(payload.index)];
+      if (payload.rewardChoice !== undefined) {
+        responses.push(orOptionResponse(payload.rewardChoice));
+      }
+      if (responses.length === 1) {
+        submitInput(responses[0] as InputResponse);
+      } else {
+        this.submitBatch(responses);
+      }
     },
     submitHydroAdvance(payload: {
       spend: number, rewardChoice: number | undefined, selectedCard?: CardName,

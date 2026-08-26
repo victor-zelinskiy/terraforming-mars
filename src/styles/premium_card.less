@@ -1645,6 +1645,15 @@
 .pcard__lower .pcard-mech-group:last-child:has(.pcard-plate):has(> * + *) {
   justify-content: center;
 }
+/* …and a plate INSIDE AN EFFECT is not a plate-label row at all. An effect is a
+   self-contained «cause : result» statement (Dynamic Ocean Barrier draws
+   «[океан] : ГИДРОСЕТЬ»), and its plate is a short NOUN rather than the wide
+   label the rescue above exists for — measured 79px of content in a 147px box,
+   so flex-start had nothing to rescue and simply parked the whole statement
+   against the left edge with half the row empty beside it. */
+.pcard__lower .pcard-mech-group:last-child:has(.pcard-plate):has(.pcard-effect) {
+  justify-content: center;
+}
 /* content rows paint above the engraved corner stamp (see .pcard__exp) */
 .pcard__lower .pcard-mech-group { position: relative; z-index: 1; }
 

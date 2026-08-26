@@ -13,8 +13,6 @@
     "Opening": "Открываем",
     "Retry": "Повторить",
     "Promo": "Промо",
-    "Delta Project": "Проект «Дельта»",
-
     "Main menu": "Главное меню",
     "My games": "Мои партии",
     "Enter game": "Войти в партию",
@@ -27,7 +25,6 @@
     "Several players share your name here": "Здесь несколько игроков с вашим именем",
     "No seat with your name": "Нет места с вашим именем",
     "Your name and cube colour prefill every party you create or join.": "Имя и цвет кубика подставляются в каждую партию, которую вы создаёте или к которой присоединяетесь.",
-
     "Friends": "Друзья",
     "Manage": "Управлять",
     "Add friend": "Добавить друга",
@@ -39,7 +36,6 @@
     "Choose a friend": "Выберите друга",
     "Type a new name": "Ввести новое имя",
     "Already in the party": "Уже в партии",
-
     "Profiles": "Профили",
     "Switch between your saved players, add a new one, or remove an old one.": "Переключайтесь между сохранёнными игроками, добавляйте нового или удаляйте старого.",
     "Add": "Добавить",

@@ -55,6 +55,37 @@
  * The consumers are the shells' `…Visible` computeds: the surface stays HIDDEN
  * (collapse semantics — mounted, state intact) while the latch is engaged, so
  * the parent workspace returns exactly once, onto a settled frame.
+ *
+ * ── WHO CONSUMES IT TODAY, AND WHY NOBODY ELSE DOES ─────────────────────────
+ *
+ * Exactly ONE: the GAME START WORKSPACE. That is not an omission — it is the
+ * only workspace in the current scope that both SURVIVES a placement and can
+ * be handed one. The inventory, from the two mechanisms that decide it:
+ *
+ *  1. A placement runs `goBoardHome()`, which truncates the stack to
+ *     `root.anchor.type === 'phase' ? 1 : 0`. So `card-actions`, `hand`,
+ *     `colonies`, `hydro`, `standard-projects`, `milestones` and `awards` are
+ *     torn down by the yield itself — they do not come back, so there is no
+ *     return to time. (`standard-projects` makes that explicit: it FOLDS for
+ *     a City/Ocean/Greenery target and keeps only a cancel-resume draft of its
+ *     own, `stdProjectsFlow.boardExcursion` — a different concept with a
+ *     confusingly similar name, and NOT a barrier consumer.)
+ *  2. Of the three PHASE-anchored roots that do survive — `start`, `draft`,
+ *     `endgame` — only `start` can be asked for a space: a draft serves
+ *     `cardSelect`/`draftWait` and plays no card, and the endgame frame opens
+ *     after the game has ended, past the final-greenery phase.
+ *
+ * THE EXTENSION POINT. The latch is workspace-agnostic precisely so the next
+ * mechanic that needs it costs one line rather than a second copy of this
+ * module. A future consumer needs exactly three things:
+ *   - a PHASE anchor (else the yield deletes it and the barrier is moot);
+ *   - `engageBoardExcursion('<kind>')` on the rising edge of «this frame is
+ *     serving AND a placement is active»;
+ *   - its own `…Visible` computed reading `boardExcursionActive('<kind>')`,
+ *     plus the shared release the shell already runs off `boardExcursionQuiet`.
+ * Do NOT wire a consumer before it has one of those: a holder that can never
+ * be engaged is dead code, and a `…Visible` term that is always false hides
+ * nothing while looking like it does.
  */
 import {reactive} from 'vue';
 import {TaskKind} from '@/client/console/consoleTaskRouter';

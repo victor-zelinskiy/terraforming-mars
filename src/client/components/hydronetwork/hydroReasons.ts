@@ -122,7 +122,7 @@ export function hydroPlanReasons(input: HydroReasonsInput): ReadonlyArray<HydroR
     return [{kind: 'loading', textKey: 'Loading', blocking: true}];
   }
   if (model.atEndOfTrack) {
-    return [{kind: 'end-of-track', textKey: 'You have reached the end of the Delta Project track.', blocking: true}];
+    return [{kind: 'end-of-track', textKey: 'You have reached the end of the Hydronetwork track.', blocking: true}];
   }
   if (model.usedThisGeneration) {
     // The whole-generation gate — nothing else matters until the next one.

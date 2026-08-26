@@ -158,7 +158,7 @@ describe('AutomaDeltaProject — Solo Delta Project reference card', () => {
       // The "no reward" line is a guide-only implementation detail (marsBotGuide) —
       // it must NOT leak into the journal; the reward is proven skipped by the
       // empty stops + zero resources above.
-      expect(game.gameLog.some((m) => m.message.includes('does not receive the Delta Project reward'))).is.false;
+      expect(game.gameLog.some((m) => m.message.includes('does not receive the Hydronetwork reward'))).is.false;
     });
 
     it('traversed and landed production rows grant nothing', () => {
@@ -224,7 +224,7 @@ describe('AutomaDeltaProject — Solo Delta Project reference card', () => {
       expect(AutomaDeltaProject.getValidAdvanceSteps(game)).deep.eq([1, 3]);
       resolve(game);
       expect(bot.deltaProjectData!.position).eq(11);
-      expect(game.gameLog.some((m) => m.message === '${0} leapt past the occupied 2 VP position to reach ${1} on the Delta Project (5 VP at game end)')).is.true;
+      expect(game.gameLog.some((m) => m.message === '${0} leapt past the occupied 2 VP position to reach ${1} on the Hydronetwork (5 VP at game end)')).is.true;
     });
 
     it('an occupied 2 VP slot leaves only the jump onto the free 5 VP slot from position 9', () => {
@@ -322,10 +322,10 @@ describe('AutomaDeltaProject — Solo Delta Project reference card', () => {
     expect(root, 'delta-project root log').is.not.undefined;
     expect(root!.correlationId).is.a('number');
     const grouped = game.gameLog.filter((m) => m.correlationId === root!.correlationId).map((m) => m.message);
-    expect(grouped).contains('${0} consumed ${1} Power increment(s) for the Delta Project');
-    expect(grouped).contains('${0} advanced ${1} row(s) on the Delta Project, reaching ${2}');
+    expect(grouped).contains('${0} consumed ${1} Power increment(s) for the Hydronetwork');
+    expect(grouped).contains('${0} advanced ${1} row(s) on the Hydronetwork, reaching ${2}');
     // The guide-only "no reward" implementation detail is NOT journaled.
-    expect(grouped).not.contains('${0} does not receive the Delta Project reward (MarsBot gains only the final VP)');
+    expect(grouped).not.contains('${0} does not receive the Hydronetwork reward (MarsBot gains only the final VP)');
     const ev = game.events.events.find((e) =>
       e.type === 'action' && e.source?.kind === 'card' && e.source.card === CardName.DELTA_PROJECT && e.player === bot.color);
     expect(ev, 'delta-project action event').is.not.undefined;

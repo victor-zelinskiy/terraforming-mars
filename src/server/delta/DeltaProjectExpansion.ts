@@ -3,7 +3,7 @@ import {IPlayer} from '../IPlayer';
 import {DeltaProjectPlayerModel} from '../../common/models/DeltaProjectPlayerModel';
 import {DeltaTrackDestination, DeltaTrackPreviewModel} from '../../common/models/DeltaTrackPreviewModel';
 import {DELTA_STAGE_NAMES} from '../../common/delta/deltaStages';
-import {namedCardEffect} from '../inputs/choiceContext';
+import {systemChoice} from '../inputs/choiceContext';
 import {CardName} from '../../common/cards/CardName';
 import {Tag} from '../../common/cards/Tag';
 import {Resource} from '../../common/Resource';
@@ -353,18 +353,18 @@ export class DeltaProjectExpansion {
       }
       progress.stops.push({position: newPos, generation: game.generation});
 
-      game.log('${0} directed ${1} energy into the Delta Project, reaching ${2}', (b) =>
+      game.log('${0} directed ${1} energy into the Hydronetwork, reaching ${2}', (b) =>
         b.player(player).number(steps).string(stageName));
 
       if (newPos === VP2_POSITION) {
-        game.log('${0} claimed the ${1} position on the Delta Project (2 VP at game end)', (b) =>
+        game.log('${0} claimed the ${1} position on the Hydronetwork (2 VP at game end)', (b) =>
           b.player(player).string(stageName));
       } else if (newPos === VP5_POSITION) {
         if (jumpedOverVp2) {
-          game.log('${0} leapt past the occupied 2 VP position to reach ${1} on the Delta Project (5 VP at game end)', (b) =>
+          game.log('${0} leapt past the occupied 2 VP position to reach ${1} on the Hydronetwork (5 VP at game end)', (b) =>
             b.player(player).string(stageName));
         } else {
-          game.log('${0} claimed the ${1} position on the Delta Project (5 VP at game end)', (b) =>
+          game.log('${0} claimed the ${1} position on the Hydronetwork (5 VP at game end)', (b) =>
             b.player(player).string(stageName));
         }
       }
@@ -395,7 +395,7 @@ export class DeltaProjectExpansion {
           DeltaProjectExpansion.recordStopChoice(player, 1);
           return undefined;
         }),
-      ).markChoiceContext(namedCardEffect(CardName.DELTA_PROJECT, false, 'Choose your Delta Project reward', 'effect-choice')));
+      ).markChoiceContext(systemChoice('system', 'Choose your Hydronetwork reward', 'effect-choice')));
       break;
 
     case Tag.POWER: // Choose +1 energy production or +1 heat production
@@ -410,7 +410,7 @@ export class DeltaProjectExpansion {
           DeltaProjectExpansion.recordStopChoice(player, 1);
           return undefined;
         }),
-      ).markChoiceContext(namedCardEffect(CardName.DELTA_PROJECT, false, 'Choose your Delta Project reward', 'effect-choice')));
+      ).markChoiceContext(systemChoice('system', 'Choose your Hydronetwork reward', 'effect-choice')));
       break;
 
     case Tag.EARTH: // +2 MC production
@@ -447,7 +447,7 @@ export class DeltaProjectExpansion {
         ).andThen(([card]) => {
           player.game.log('${0} reused ${1} action via ${2}', (b) => b.player(player).card(card).cardName(CardName.DELTA_PROJECT));
           return card.action(player);
-        }).markChoiceContext(namedCardEffect(CardName.DELTA_PROJECT, false, 'Use a blue card action that has already been used this generation', 'effect-choice')));
+        }).markChoiceContext(systemChoice('system', 'Use a blue card action that has already been used this generation', 'effect-choice')));
       }
       break;
     }
@@ -463,7 +463,7 @@ export class DeltaProjectExpansion {
             card.onNonCardTagAddedByAnyPlayer?.(p, Tag.JOVIAN);
           }
         }
-        player.game.log('${0} gained a Jovian tag from the Delta Project', (b) => b.player(player));
+        player.game.log('${0} gained a Jovian tag from the Hydronetwork', (b) => b.player(player));
       }
       break;
     }
@@ -506,9 +506,9 @@ export class DeltaProjectExpansion {
     // `deltaProject` category so the score report shows it under "Достижения и
     // награды" rather than the generic card-VP bucket.
     if (progress.position === VP5_POSITION) {
-      builder.setVictoryPoints('deltaProject', 5, 'Delta Project (5VP)');
+      builder.setVictoryPoints('deltaProject', 5, 'Hydronetwork (5 VP)');
     } else if (progress.position === VP2_POSITION) {
-      builder.setVictoryPoints('deltaProject', 2, 'Delta Project (2VP)');
+      builder.setVictoryPoints('deltaProject', 2, 'Hydronetwork (2 VP)');
     }
   }
 }

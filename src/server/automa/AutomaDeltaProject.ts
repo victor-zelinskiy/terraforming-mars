@@ -185,20 +185,20 @@ export class AutomaDeltaProject {
       // reward", and the bot never receives rewards — its traversed rows must
       // honestly read as "passed" in the history panel.
 
-      game.log('${0} consumed ${1} Power increment(s) for the Delta Project', (b) =>
+      game.log('${0} consumed ${1} Power increment(s) for the Hydronetwork', (b) =>
         b.player(bot).number(steps));
-      game.log('${0} advanced ${1} row(s) on the Delta Project, reaching ${2}', (b) =>
+      game.log('${0} advanced ${1} row(s) on the Hydronetwork, reaching ${2}', (b) =>
         b.player(bot).number(steps).string(stageName));
 
       if (newPos === VP2_POSITION) {
-        game.log('${0} claimed the ${1} position on the Delta Project (2 VP at game end)', (b) =>
+        game.log('${0} claimed the ${1} position on the Hydronetwork (2 VP at game end)', (b) =>
           b.player(bot).string(stageName));
       } else if (newPos === VP5_POSITION) {
         if (jumpedOverVp2) {
-          game.log('${0} leapt past the occupied 2 VP position to reach ${1} on the Delta Project (5 VP at game end)', (b) =>
+          game.log('${0} leapt past the occupied 2 VP position to reach ${1} on the Hydronetwork (5 VP at game end)', (b) =>
             b.player(bot).string(stageName));
         } else {
-          game.log('${0} claimed the ${1} position on the Delta Project (5 VP at game end)', (b) =>
+          game.log('${0} claimed the ${1} position on the Hydronetwork (5 VP at game end)', (b) =>
             b.player(bot).string(stageName));
         }
       }

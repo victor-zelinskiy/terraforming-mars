@@ -552,7 +552,7 @@ import {DeltaTrackPreviewModel} from '@/common/models/DeltaTrackPreviewModel';
 import {$t, translateCardName, translateText, translateTextWithParams} from '@/client/directives/i18n';
 import {iconClassFor} from '@/client/components/modalInputs/optionIcons';
 import {buildHydroModel, HydroModel, HydroStageVM} from '@/client/components/hydronetwork/hydroNetworkModel';
-import {HydroStage} from '@/client/components/hydronetwork/hydroStages';
+import {HYDRO_STAGES, HydroStage, hydroStageNeedsChoice} from '@/client/components/hydronetwork/hydroStages';
 import {buildRewardView, HydroDeltaLine, HydroPlayerSnapshot, HydroRewardView} from '@/client/components/hydronetwork/hydroReward';
 import {destinationAt, gradeDestination, HydroReason, hydroPlanReasons, hydroPrimaryBlocker, hydroReasonBlocker, HydroStopGrade, HydroTurnState} from '@/client/components/hydronetwork/hydroReasons';
 import {AvailabilityBlocker} from '@/common/availability/AvailabilityBlocker';
@@ -939,14 +939,17 @@ export default defineComponent({
       if (zone === 'committing') {
         return 'commit';
       }
-      if (zone === 'bonus-offer') {
-        return 'bonus';
-      }
+      // The reward step is HOW the offer is answered, not a competing state:
+      // it is opened by the offer's own confirm and submits the whole move as
+      // one batch. So it outranks the offer while it stands.
       if (this.flow.step === 'reward') {
         return 'choice';
       }
       if (this.flow.step === 'target') {
         return 'target';
+      }
+      if (zone === 'bonus-offer') {
+        return 'bonus';
       }
       return 'preview';
     },
@@ -970,6 +973,15 @@ export default defineComponent({
     bonusIdentity(): string {
       const o = this.bonusOffer;
       return o === undefined ? '' : [o.source, o.fromPosition, o.toPosition, o.energyCost].join('|');
+    },
+    /** Does the offer's LANDING stage ask which reward to take (pos 1/2)? */
+    bonusNeedsReward(): boolean {
+      const offer = this.bonusOffer;
+      if (offer === undefined) {
+        return false;
+      }
+      const stage = HYDRO_STAGES[offer.toPosition];
+      return stage !== undefined && hydroStageNeedsChoice(stage);
     },
     /** Is the offer answerable right now (not already submitted)? */
     bonusAnswerable(): boolean {
@@ -1087,11 +1099,17 @@ export default defineComponent({
     /** Each option carries its OWN honest delta (`line`) — the one object the
      *  card renders. `chips` stays as the fallback for a reward with no
      *  concrete reading. */
+    /** The stage the reward step is about: the OFFER's landing stage while one
+     *  is live, else the player's own planned target. */
+    choiceStageModel(): HydroStage | undefined {
+      const offer = this.bonusOffer;
+      return offer !== undefined ? HYDRO_STAGES[offer.toPosition] : this.model.targetStage;
+    },
     choiceOptions(): ReadonlyArray<{
       chips: HydroStage['rewardOptions'][number],
       line: HydroDeltaLine | undefined,
     }> {
-      const stage = this.model.targetStage;
+      const stage = this.choiceStageModel;
       if (stage === undefined) {
         return [];
       }
@@ -1573,9 +1591,27 @@ export default defineComponent({
       if (offer === undefined || this.bonusSubmitting) {
         return;
       }
+      if (take && this.bonusNeedsReward) {
+        // The landing stage asks WHICH reward. That question belongs to this
+        // workspace's own reward step — never to a second modal on top of it —
+        // and both halves then submit as ONE batch, exactly like the standard
+        // advance does. Seat the plan on the destination so the step describes
+        // the stage the move actually lands on.
+        hydroNetworkState.selectedPosition = offer.toPosition;
+        this.openChoiceStep();
+        return;
+      }
+      this.submitBonus(take ? offer.advanceIndex : offer.skipIndex, undefined);
+    },
+    /** The ONE submit of a bonus answer (with the pre-collected reward, when
+     *  the landing stage had one). A second press cannot exist past this. */
+    submitBonus(index: number, rewardChoice: number | undefined): void {
+      if (this.bonusSubmitting) {
+        return;
+      }
       this.bonusSubmitting = true;
       this.armSceneFromCta();
-      this.$emit('bonus-answer', take ? offer.advanceIndex : offer.skipIndex);
+      this.$emit('bonus-answer', {index, rewardChoice});
     },
     emitConfirm(): void {
       if (!this.model.canConfirm || this.flow.commit !== undefined) {
@@ -1605,7 +1641,7 @@ export default defineComponent({
     },
     // ── the REWARD CHOICE step (pos 1/2) — pick AND confirm, in place ─────
     openChoiceStep(): void {
-      if (this.model.targetStage === undefined || this.flow.step === 'reward') {
+      if (this.choiceStageModel === undefined || this.flow.step === 'reward') {
         return;
       }
       this.armSceneFromCta();
@@ -1628,6 +1664,13 @@ export default defineComponent({
       if (this.rewardChoice === undefined) {
         return;
       }
+      // Answering a card-granted offer: the step is the offer's second half,
+      // so it commits THAT — never the player's own planned advance.
+      if (this.bonusOffer !== undefined) {
+        closeHydroStep();
+        this.submitBonus(this.bonusOffer.advanceIndex, this.rewardChoice);
+        return;
+      }
       const blocking = this.reasons.filter((r) => r.blocking);
       if (blocking.length > 0) {
         this.$emit('notice', this.reasonText(blocking[0]));
@@ -1635,7 +1678,8 @@ export default defineComponent({
       }
       this.emitConfirm();
     },
-    /** B — leave the step with NOTHING configured behind it. */
+    /** B — leave the step with NOTHING configured behind it. (Under an offer
+     *  that lands the player back on the offer itself, undecided.) */
     closeChoiceStep(): void {
       hydroNetworkState.rewardChoice = undefined;
       this.choiceStage = 'options';

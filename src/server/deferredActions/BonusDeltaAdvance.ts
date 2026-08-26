@@ -101,8 +101,8 @@ export class BonusDeltaAdvance extends DeferredAction {
         this.source.name,
         false,
         paid ?
-          'Spend 1 energy to ignore 1 required tag and advance 1 step on the Delta Project track' :
-          'Advance 1 step on the Delta Project track without paying energy',
+          'Spend 1 energy to ignore 1 required tag and advance 1 step on the Hydronetwork' :
+          'Advance 1 step on the Hydronetwork without paying energy',
         'effect-choice'));
   }
 }

@@ -144,7 +144,7 @@ describe('turnIntents', () => {
   });
 
   it('finds the hydro advance path', () => {
-    const menu = or('Take your next action', [option('Advance on the Delta Project track')]) as PlayerInputModel;
+    const menu = or('Take your next action', [option('Advance on the Hydronetwork track')]) as PlayerInputModel;
     expect(findHydroActionPath(menu)).to.deep.eq([0]);
     expect(findHydroActionPath(undefined)).to.eq(undefined);
   });

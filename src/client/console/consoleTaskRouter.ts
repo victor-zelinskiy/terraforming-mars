@@ -29,7 +29,13 @@ export type ConsoleTask =
   | {kind: 'actionMenu'}
   /** Board placement — natively handled by the console placement mode. */
   | {kind: 'space'}
-  | {kind: 'choice', flavor: 'generic' | 'contextual' | 'wgt' | 'confirm'}
+  /**
+   * `deltaBonus` — a card is offering a BONUS MOVE on the Hydronetwork track.
+   * It has a DEDICATED workspace (the track itself), so it is never a modal:
+   * the flavor exists so `taskServedByHost` can decline it structurally, off
+   * the server's own `deltaBonusPrompt` marker, rather than by a title.
+   */
+  | {kind: 'choice', flavor: 'generic' | 'contextual' | 'wgt' | 'confirm' | 'deltaBonus'}
   /** FREE award funding (Vitor's start action) — served by the premium
    *  awards MA screen in free-sponsorship mode, NOT the generic task host
    *  (the desktop routes it to AwardsOverlay for the same reason). */
@@ -484,6 +490,10 @@ export function taskFor(view: PlayerViewModel): ConsoleTask | undefined {
     if (title === WGT_TITLE) {
       return {kind: 'choice', flavor: 'wgt'};
     }
+    // STRUCTURAL, before the generic fallback: the Hydronetwork owns this one.
+    if (wf.deltaBonusPrompt !== undefined) {
+      return {kind: 'choice', flavor: 'deltaBonus'};
+    }
     return {kind: 'choice', flavor: wf.choiceContext !== undefined ? 'contextual' : 'generic'};
   }
 
@@ -640,6 +650,12 @@ export function taskServedByHost(view: PlayerViewModel): ConsoleTask | undefined
     return task.mode === 'generic' ? task : undefined;
   case 'choice': {
     const wf = view.waitingFor;
+    // A dedicated workspace serves it — the host must NOT raise a modal beside
+    // it. (Rendering both is exactly what shipped: the contextual-choice modal
+    // over a live Hydronetwork zone, one offer, two surfaces.)
+    if (task.flavor === 'deltaBonus') {
+      return undefined;
+    }
     if (wf?.type === 'option') {
       return task; // bare confirm — always a leaf
     }

@@ -2499,7 +2499,7 @@ export class Player implements IPlayer {
         this.deltaProjectData.usedThisGeneration !== true &&
         DeltaProjectExpansion.maxSteps(this) > 0) {
       action.options.push(
-        new SelectOption('Advance on the Delta Project track', 'Advance').andThen(() => {
+        new SelectOption('Advance on the Hydronetwork track', 'Advance').andThen(() => {
           return new DeltaProjectInput(DeltaProjectExpansion.getValidAdvanceSteps(this)).andThen((amount) => {
             DeltaProjectExpansion.advance(this, amount);
             if (this.deltaProjectData !== undefined) {

@@ -3,7 +3,8 @@ import {mount} from '@vue/test-utils';
 import ConsoleHydroSection from '@/client/components/console/ConsoleHydroSection.vue';
 import {CardName} from '@/common/cards/CardName';
 import type {DeltaBonusPromptMeta} from '@/common/models/DeltaBonusPromptModel';
-import {resetHydroFlow, beginHydroCommit} from '@/client/console/hydroFlow/consoleHydroFlow';
+import {resetHydroFlow, beginHydroCommit, hydroFlowState} from '@/client/console/hydroFlow/consoleHydroFlow';
+import {hydroNetworkState} from '@/client/components/hydronetwork/hydroNetworkState';
 
 /**
  * THE BONUS OFFER'S WORKING ZONE — the bottom of the Hydronetwork workspace,
@@ -31,8 +32,11 @@ type Vm = {
   bonusSubmitting: boolean,
   crumbStage: string,
   bonusAnswerable: boolean,
+  bonusNeedsReward: boolean,
+  rewardChoice: number | undefined,
   footCommands: ReadonlyArray<{control: string, label: string, enabled?: boolean}>,
   answerBonus(take: boolean): void,
+  confirmChoiceStep(): void,
 };
 
 function mountSection(offer: DeltaBonusPromptMeta | undefined) {
@@ -45,9 +49,12 @@ function mountSection(offer: DeltaBonusPromptMeta | undefined) {
   });
 }
 
+const CHOICE_OFFER: DeltaBonusPromptMeta = {...OFFER, fromPosition: 0, toPosition: 1};
+
 describe('the Hydronetwork bonus zone', () => {
   afterEach(() => {
     resetHydroFlow(); // module state is bundle-shared — never leak the flow
+    hydroNetworkState.rewardChoice = undefined;
   });
 
   it('an offer OWNS the working zone; without one the zone is not the offer', () => {
@@ -88,12 +95,12 @@ describe('the Hydronetwork bonus zone', () => {
     it('submits the SERVER\'s own index, for both answers', () => {
       const take = mountSection(OFFER);
       (take.vm as unknown as Vm).answerBonus(true);
-      expect(take.emitted('bonus-answer')?.[0]).to.deep.eq([OFFER.advanceIndex]);
+      expect(take.emitted('bonus-answer')?.[0]).to.deep.eq([{index: OFFER.advanceIndex, rewardChoice: undefined}]);
       take.unmount();
 
       const skip = mountSection({...OFFER, advanceIndex: 3, skipIndex: 7});
       (skip.vm as unknown as Vm).answerBonus(false);
-      expect(skip.emitted('bonus-answer')?.[0]).to.deep.eq([7]);
+      expect(skip.emitted('bonus-answer')?.[0]).to.deep.eq([{index: 7, rewardChoice: undefined}]);
       skip.unmount();
     });
 
@@ -107,6 +114,50 @@ describe('the Hydronetwork bonus zone', () => {
       expect(w.emitted('bonus-answer')).to.have.length(1);
       expect(vm.bonusSubmitting).is.true;
       expect(vm.bonusAnswerable).is.false;
+      w.unmount();
+    });
+  });
+
+  /**
+   * THE REWARD IS ASKED IN THE WORKSPACE, NEVER BY A SECOND MODAL.
+   *
+   * Landing on a choice stage (1 = steel or plants, 2 = energy or heat) used to
+   * answer the offer first and then raise the generic contextual-choice modal
+   * for the reward — a second surface over the workspace that owns the track.
+   * The offer's confirm now opens the workspace's OWN reward step and both
+   * halves submit as ONE batch.
+   */
+  describe('a landing that asks for a reward', () => {
+    it('knows the stage asks, and takes the player to the reward STEP', () => {
+      const w = mountSection(CHOICE_OFFER);
+      const vm = w.vm as unknown as Vm;
+      expect(vm.bonusNeedsReward).is.true;
+      vm.answerBonus(true);
+      // Nothing submitted yet — the question is still open, inside the workspace.
+      expect(w.emitted('bonus-answer')).is.undefined;
+      expect(hydroFlowState.step).to.eq('reward');
+      expect(vm.sceneKey).to.eq('choice');
+      w.unmount();
+    });
+
+    it('submits the offer AND the reward as one batch', () => {
+      const w = mountSection(CHOICE_OFFER);
+      const vm = w.vm as unknown as Vm;
+      vm.answerBonus(true);
+      hydroNetworkState.rewardChoice = 1;
+      vm.confirmChoiceStep();
+      expect(w.emitted('bonus-answer')?.[0])
+        .to.deep.eq([{index: CHOICE_OFFER.advanceIndex, rewardChoice: 1}]);
+      w.unmount();
+    });
+
+    it('a stage with ONE reward submits straight away', () => {
+      // Position 3 pays +2 M€ production — nothing to choose.
+      const w = mountSection({...OFFER, fromPosition: 2, toPosition: 3});
+      const vm = w.vm as unknown as Vm;
+      expect(vm.bonusNeedsReward).is.false;
+      vm.answerBonus(true);
+      expect(w.emitted('bonus-answer')?.[0]).to.deep.eq([{index: 0, rewardChoice: undefined}]);
       w.unmount();
     });
   });
