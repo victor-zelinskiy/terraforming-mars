@@ -76,14 +76,15 @@ for (const profile of PROFILES) {
       await key(page, 'KeyE', 1400); // → НАГРАДЫ (the category toggle survives)
       expect(await page.locator('.con-ma').count(), 'the MA workspace must survive the category switch').toBe(1);
 
-      // No per-item CTA (criterion 1) and A = «Выбрать» in the footer (2).
+      // No per-item CTA (criterion 1); A carries the CONTEXTUAL verb (2):
+      // the focused first fundable award advertises the INTENT («Спонсировать»),
+      // and the universal «Выбрать» is gone — a dead race and a live claim no
+      // longer promise the same thing.
       expect(await page.locator('.con-ma__btn').count(), 'the per-item CTA must be gone').toBe(0);
       expect(await page.locator('.con-ma__cta').count(), 'the CTA zone must be gone').toBe(0);
       const listBar = await barText(page);
-      expect(listBar, 'the overview footer advertises SELECT').toContain('ВЫБРАТЬ');
-      // The last trace of the modal era: `X Осмотреть` is GONE — one primary
-      // verb, and A opens every item (including the ones it cannot buy).
-      expect(listBar, 'the inspect verb must be gone from the bar').not.toContain('ОСМОТРЕТЬ');
+      expect(listBar, 'the overview footer advertises the intent verb').toContain('СПОНСИРОВАТЬ');
+      expect(listBar, 'the universal select verb must be gone').not.toContain('ВЫБРАТЬ');
 
       // THE HEADER states the SYSTEM: the live price, never a wallet delta.
       const head = (await page.locator('.con-ma__wshead').innerText()).replace(/\s+/g, ' ');
@@ -230,6 +231,8 @@ for (const profile of PROFILES) {
         for (let i = 0; i < blockedIdx; i++) {
           await key(page, i % 2 === 0 ? 'ArrowRight' : 'ArrowDown', 260);
         }
+        // A blocked focus advertises the READING verb — never a false intent.
+        expect(await barText(page), 'a blocked item offers «Осмотреть»').toContain('ОСМОТРЕТЬ');
         await key(page, 'Enter', 1400);
         if (await page.locator('.con-mafocus').count() > 0) {
           const stage = (await page.locator('.con-mafocus').innerText()).replace(/\s+/g, ' ');

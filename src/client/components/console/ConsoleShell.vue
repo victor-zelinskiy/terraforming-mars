@@ -476,7 +476,8 @@
                        :focusInspect="maFocusInspect"
                        :focusAvailable="maFocusAvailable"
                        :focusBlockReason="maFocusBlockReason"
-                       @ceremony-done="onMaCeremonyDone" />
+                       @ceremony-done="onMaCeremonyDone"
+                       @pick="onMaPick" />
       <!-- (The BLUE-CARD ACTION CENTER left this chain — it is the ACTION
            WORKSPACE now, an absolute child of .con-main right of the player
            rail; see the mount next to ConsoleInfoMode.) -->
@@ -1016,7 +1017,10 @@
          timeline per episode; handRevealDirector.ts). UNDER the footer
          band: the dock/bar furniture occludes the flights per pixel, so a
          card slots in BEHIND the tray texture, never over it. -->
-    <ConsoleHandRevealLayer />
+    <!-- SINGLE-OWNER HAND BODIES: every hand card is ONE persistent element
+         here for its whole life — docked pack, flights, album shelf, page
+         packets (handBodies.ts). The dock below renders only chassis. -->
+    <ConsoleHandRevealLayer :cards="handDockCards" :held="dockHeld" :pose="handPackPose" />
 
     <!-- The STARTING-CARDS DELIVERY stage — the cards you paid for fly from
          the top-HUD project deck down into the hand dock bay
@@ -1146,11 +1150,11 @@
                        :raised="consoleState.quick === 'actions'"
                        :compact="handDockCompact"
                        :intake="dockIntakeAccent"
-                       :poseHold="handOpenPoseHold"
                        :transit="handRevealTransit"
-                       :liftedNames="dockLiftedNames"
                        :deliveryHeld="dockHeld"
                        :album="handDockAlbum"
+                       @mouseenter="dockHover = true"
+                       @mouseleave="dockHover = false"
                        @open="onHandDockOpen"
                        @page="onDockPage" />
       <!-- The command bar keeps its BAY (centre track) for the whole in-game
@@ -1490,8 +1494,8 @@ import {
 import {handDeliveryState} from '@/client/console/handDock/handDeliveryState';
 import {isHandDeliveryActive, resetHandDelivery} from '@/client/console/handDock/handDeliveryDirector';
 import {
-  captureBerthPoses, finishInstant, isHandRevealEpisodeRunning, resetHandReveal, reverseHandReveal, runHandCloseEpisode,
-  runHandFilterEpisode, runHandOpenEpisode, runningHandRevealKind, setHandRevealHooks, RevealPair, RevealRect,
+  finishInstant, isHandRevealEpisodeRunning, resetHandReveal, reverseHandReveal, runHandCloseEpisode,
+  runHandFilterEpisode, runHandOpenEpisode, runningHandRevealKind, setHandRevealHooks, settledPaint, RevealPair,
 } from '@/client/console/handDock/handRevealDirector';
 import ConsoleDraftTray from '@/client/components/console/cardDeal/ConsoleDraftTray.vue';
 import {runCardTransfer} from '@/client/console/cardDeal/cardExitDirector';
@@ -1938,10 +1942,9 @@ export default defineComponent({
       /** A close/collapse gather is in its one-tick MEASURE window (accent
        *  armed, pose settling) — a second B may not race a second gather. */
       handClosePreparing: false,
-      /** The open's POSE LATCH: the pack keeps painting the raised/hover
-       *  pose the player pressed on until its backs hide under the spawned
-       *  proxies (`con-handdock--posehold`). */
-      handOpenPoseHold: false,
+      /** The pointer rests on the dock chassis — the bodies layer answers
+       *  with the raised pose while the dock is interactive. */
+      dockHover: false,
       /** The colony-bonus cube this workspace already answered by itself (the
        *  auto-collect's one-shot dedupe — see `colonyBonusAutoCollect`). */
       colonyBonusCollected: '',
@@ -2168,34 +2171,24 @@ export default defineComponent({
       return handRevealState.phase === 'opening' || handRevealState.phase === 'closing' ||
         handRevealState.filterActive;
     },
-    dockLiftedNames(): ReadonlyArray<string> {
-      const st = handRevealState;
-      // THE STABLE ALBUM STATE: the cards live in the album — the whole
-      // universe leaves the dock (one card, one home). A 'closing' with NO
-      // flights yet is the gather's BUILD window (measure + spawn): the
-      // cards are still in the album, so the universe rule must hold — the
-      // flight-derived rule below would materialize every back for those
-      // two frames as a double of the album.
-      if (st.phase === 'open' || (st.phase === 'closing' && st.flights.length === 0)) {
-        return [...this.handAlbumUniverse.map((e) => e.card.name), ...st.dockExtraLift];
+    /**
+     * The PACK POSE the bodies layer renders (single-owner rework): raised
+     * while the RT wheel offers «КАРТЫ» or the pointer rests on the live
+     * dock (the «на готове» answer), compact when a busy screen asks the
+     * pack to step back, rest otherwise. Pose CHANGES ride the layer's own
+     * 340ms tween — and because the flight seizes the bodies wherever this
+     * pose left them, the pose can never snap under the player's eyes.
+     */
+    handPackPose(): 'rest' | 'compact' | 'raised' {
+      if (this.consoleState.quick === 'actions' || (this.dockHover && this.handDockInteractive)) {
+        return 'raised';
       }
-      // EPISODES: a back may be hidden ONLY while its own proxy is the
-      // visible body — the lift set IS the flight set. Hiding the whole
-      // universe here was the reported vanish: any pairing gap (a card the
-      // episode did not fly, for any reason) disappeared in one frame at
-      // the open and left a HOLE through the whole gather, popping back in
-      // the teardown frame. Minus `landedNames`: a gathered card's back
-      // materializes the moment ITS OWN magnet settles — the fan assembles
-      // card by card, pixel-under-proxy.
-      if (st.phase === 'opening' || st.phase === 'closing') {
-        const landed = new Set(st.landedNames);
-        return [
-          ...st.flights.map((f) => f.name as string).filter((n) => !landed.has(n)),
-          ...st.dockExtraLift,
-        ];
-      }
-      return st.dockExtraLift;
+      return this.handDockCompact ? 'compact' : 'rest';
     },
+    /* (dockLiftedNames RETIRED by the single-owner bodies rework: the dock
+       renders no card backs any more, so there is nothing to lift — the
+       same persistent element is the docked back, the flight and the
+       shelf/packet state. See handBodies.ts.) */
     /**
      * The dock renders IDENTICALLY in every shell state (welded into the
      * bar) — this only gates the CLICK affordance (hover lift + pointer),
@@ -5465,6 +5458,13 @@ export default defineComponent({
         'con-root--ws-open': this.wsPresence.wsOpen,
         'con-root--ws-dockcover': this.wsPresence.wsDockcover,
         'con-root--pfocus': this.wsPresence.planetFocus,
+        // The dock-cover exception for the BODIES layer (single-owner
+        // rework): the docked pack lives on `.con-handreveal-layer`, whose
+        // z must drop under a `--ws-dockcover` panel exactly like the old
+        // pack did — EXCEPT while cards are physically arriving (the intake
+        // accent), when the dock is FULL and on top by the presence
+        // contract. Root-level because the layer is not a dock descendant.
+        'con-root--dock-intake': this.dockIntakeAccent,
       };
     },
     conMainClasses(): Record<string, boolean> {
@@ -6407,18 +6407,29 @@ export default defineComponent({
             return [];
           }
           return [
-            {control: 'confirm', label: this.maScreenKind === 'milestones' ? 'Claim' : 'Fund',
+            {control: 'confirm', label: this.maScreenKind === 'milestones' ? 'Claim milestone' : 'Fund',
               enabled: this.maFocusAvailable, highlight: this.maFocusAvailable},
             {control: 'back', label: 'Back'},
           ];
         }
-        // The OVERVIEW: ONE primary verb. A opens the detail stage for EVERY
-        // item — available, blocked, already taken — so the old `X Осмотреть`
-        // has nothing left to show and is gone with the modal era it belonged
-        // to. Bumpers switch the category, B closes the workspace.
+        // The OVERVIEW: ONE primary verb, and it is CONTEXTUAL — A on an item
+        // whose action is genuinely offered names the INTENT («Заявить» /
+        // «Спонсировать» — the press leads into that action's confirmation
+        // stage), while a blocked / taken item honestly offers the reading
+        // verb («Осмотреть» — A still opens every item; the stage explains).
+        // A universal «Выбрать» promised the same thing for a dead race and a
+        // live claim. Bumpers switch the category, B closes the workspace.
         const anyMa = this.maScreenItems.length > 0;
+        const focusedMa = this.maScreenItems[this.consoleState.sheetIndex];
+        const maIntent = focusedMa !== undefined && focusedMa.available && focusedMa.takenBy === undefined;
         return [
-          {control: 'confirm', label: 'Select', enabled: anyMa},
+          {
+            control: 'confirm',
+            label: !maIntent ? 'Inspect' :
+              this.maScreenKind === 'milestones' ? 'Claim milestone' : 'Fund',
+            enabled: anyMa,
+            highlight: maIntent,
+          },
           {control: this.maScreenKind === 'milestones' ? 'bumperR' : 'bumperL',
             label: this.maScreenKind === 'milestones' ? 'Awards' : 'Milestones'},
           {control: 'back', label: this.awardFundingActive ? 'Minimize' : 'Close'},
@@ -8468,17 +8479,11 @@ export default defineComponent({
       try {
         await this.$nextTick();
         const section = this.$refs.handSection as InstanceType<typeof ConsoleHandSection> | undefined;
-        const dock = this.$refs.handDock as InstanceType<typeof ConsoleHandDock> | undefined;
         const t = section?.transitionTargets() ?? {pairs: [], scrollTop: 0};
-        // RAW berths — provisional; the gather's retarget lands the truth.
-        const sources = dock?.sourceRects(t.pairs.map((p) => p.name)) ?? new Map<string, RevealRect>();
-        const pairs: Array<RevealPair> = [];
-        for (const p of t.pairs) {
-          const source = sources.get(p.name);
-          if (source !== undefined) {
-            pairs.push({name: p.name, source, target: p.rect, visible: p.visible, clip: p.clip, visual: this.revealVisualFor(p.name)});
-          }
-        }
+        // Landing targets are analytic (the bodies layer's pose oracle).
+        const pairs: Array<RevealPair> = t.pairs.map((p) => ({
+          name: p.name, target: p.rect, visible: p.visible, clip: p.clip, visual: this.revealVisualFor(p.name),
+        }));
         if (pairs.length === 0) {
           // Nothing measurable — the honest instant park (never a zero-pair
           // episode, whose empty-input path would pop the hand frame BEFORE
@@ -8649,7 +8654,7 @@ export default defineComponent({
         setColonyDiscardStage(false);
         // Let the stage publish its zones before anything measures against it
         // (the settle beat of the restore — a held batch opens on it now).
-        await new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(() => r(undefined))));
+        await settledPaint();
       } else {
         setColonyDiscardStage(false);
       }
@@ -9716,26 +9721,9 @@ export default defineComponent({
       if (this.consoleState.section === 'hand') {
         return;
       }
-      // ── THE PRESS SNAPSHOT — synchronous, PRE-FLUSH. The DOM still shows
-      // the pose the player pressed on (the raised/hover fan: the writes
-      // that drop those classes have not patched yet), so these rects/poses
-      // are exactly the pixels on screen. Every flight is born from THEM —
-      // a live read lands 2-3 flushes later, mid-way through the pack's
-      // ride toward rest, behind the mount storm's paint blackout, and the
-      // first painted flight frame then showed a fan the player never saw
-      // move («веер одним кадром стал другим»).
-      const dockPre = this.$refs.handDock as InstanceType<typeof ConsoleHandDock> | undefined;
-      const pressNames = this.handDockCards.map((c) => c.name);
-      const pressSources = dockPre?.sourceRects(pressNames) ?? new Map<string, RevealRect>();
-      const pressPoses = captureBerthPoses(pressNames);
-      // …and the pack must keep PAINTING that pose until its backs hide
-      // under the spawned proxies: latch the pose class in this same task
-      // (same vars ⇒ no transition fires ⇒ nothing visibly changes).
-      const dockRootEl = (dockPre?.$el ?? null) as HTMLElement | null;
-      if (dockRootEl !== null &&
-          (dockRootEl.classList.contains('con-handdock--raised') || dockRootEl.matches(':hover'))) {
-        this.handOpenPoseHold = true;
-      }
+      // SINGLE-OWNER: the bodies ARE the visible pack, wherever the pose
+      // ride has them this instant — the episode seizes them in place, so
+      // no snapshot, no pose latch and no dock measure exist any more.
       // `keepTask`: the Game Start Workspace's play-from-hand step OPENS the
       // hand because of a live prompt — deferring it would be the opposite of
       // navigating away, and would drop the very claim that keeps the hand
@@ -9766,24 +9754,16 @@ export default defineComponent({
         this.openHandWorkspace({overlay: opts?.overlay});
         await this.$nextTick();
         // Two frames: the grid measures itself + ensureSelectedVisible seats
-        // the scroll — the targets below are the settled layout.
-        await new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(() => r(undefined))));
+        // the scroll — the targets below are the settled layout. Bounded: an
+        // idle compositor withholding rAF must not latch `opening` forever.
+        await settledPaint();
         const section = this.$refs.handSection as InstanceType<typeof ConsoleHandSection> | undefined;
-        const dock = this.$refs.handDock as InstanceType<typeof ConsoleHandDock> | undefined;
         const t = section?.transitionTargets() ?? {pairs: [], scrollTop: 0};
-        // Post-mount dock rects are the FALLBACK only (a card that raced in
-        // after the press) — the press snapshot is the flight's birth pose.
-        const sources = dock?.sourceRects(t.pairs.map((p) => p.name)) ?? new Map<string, RevealRect>();
-        const pairs: Array<RevealPair> = [];
-        for (const p of t.pairs) {
-          const source = pressSources.get(p.name) ?? sources.get(p.name);
-          if (source !== undefined) {
-            pairs.push({name: p.name, source, sourcePose: pressPoses.get(p.name), target: p.rect, visible: p.visible, clip: p.clip, visual: this.revealVisualFor(p.name)});
-          }
-        }
+        const pairs: Array<RevealPair> = t.pairs.map((p) => ({
+          name: p.name, target: p.rect, visible: p.visible, clip: p.clip, visual: this.revealVisualFor(p.name),
+        }));
         await runHandOpenEpisode(pairs, t.stage);
       } finally {
-        this.handOpenPoseHold = false;
         releaseAccent();
       }
     },
@@ -9811,26 +9791,19 @@ export default defineComponent({
           return;
         }
         const section = this.$refs.handSection as InstanceType<typeof ConsoleHandSection> | undefined;
-        const dock = this.$refs.handDock as InstanceType<typeof ConsoleHandDock> | undefined;
         const t = section?.transitionTargets() ?? {pairs: [], scrollTop: 0};
-        // RAW berths on purpose: they are PROVISIONAL — the gather's final
-        // approach re-reads the LIVE back per card (the director's retarget),
-        // which is what actually lands the truth whatever the pose was doing
-        // at this instant.
-        const sources = dock?.sourceRects(t.pairs.map((p) => p.name)) ?? new Map<string, RevealRect>();
+        // The landing targets are ANALYTIC (the bodies layer's pose oracle):
+        // no dock measure, no provisional berths, no retarget races.
         const pairs: Array<RevealPair> = [];
         for (const p of t.pairs) {
           // `exclude` = cards that are NOT going home. The discard cinematic owns
-          // them on its own layer and is carrying them the other way, so flying a
-          // second (invisible) proxy to the dock would fight it and, worse, would
-          // land them in a pack they already left.
+          // them on its own layer and is carrying them the other way, so flying
+          // their bodies to the dock would fight it and, worse, would land them
+          // in a pack they already left.
           if (exclude?.has(p.name) === true) {
             continue;
           }
-          const source = sources.get(p.name);
-          if (source !== undefined) {
-            pairs.push({name: p.name, source, target: p.rect, visible: p.visible, clip: p.clip, visual: this.revealVisualFor(p.name)});
-          }
+          pairs.push({name: p.name, target: p.rect, visible: p.visible, clip: p.clip, visual: this.revealVisualFor(p.name)});
         }
         await runHandCloseEpisode(pairs, t.scrollTop, t.stage);
       } finally {
@@ -10692,6 +10665,15 @@ export default defineComponent({
      *  and its emblem pedestal's rects) synchronously at the press. */
     enterMaFocus(): void {
       (this.$refs.maScreen as InstanceType<typeof ConsoleMaScreen> | undefined)?.enterFocus();
+    },
+    /** Mouse/touch on an overview tile: focus it; a second click on the
+     *  focused tile descends (the controller's own two-step, same doors). */
+    onMaPick(i: number): void {
+      if (this.consoleState.sheetIndex === i) {
+        this.enterMaFocus();
+      } else {
+        this.consoleState.sheetIndex = i;
+      }
     },
     /** B on the detail stage (pre-commit) — fold back to the overview; the
      *  browse layer was only parked, so selection and scroll survive. */
@@ -12822,19 +12804,8 @@ export default defineComponent({
       if (isHandRevealEpisodeRunning()) {
         return;
       }
-      // The same press-snapshot discipline as openHandWithReveal: capture
-      // the on-screen poses BEFORE anything mutates (a restore usually finds
-      // the pack at rest, so the latch rarely engages — but a hover-restore
-      // must not snap either).
-      const dockPre = this.$refs.handDock as InstanceType<typeof ConsoleHandDock> | undefined;
-      const pressNames = this.handDockCards.map((c) => c.name);
-      const pressSources = dockPre?.sourceRects(pressNames) ?? new Map<string, RevealRect>();
-      const pressPoses = captureBerthPoses(pressNames);
-      const dockRootEl = (dockPre?.$el ?? null) as HTMLElement | null;
-      if (dockRootEl !== null &&
-          (dockRootEl.classList.contains('con-handdock--raised') || dockRootEl.matches(':hover'))) {
-        this.handOpenPoseHold = true;
-      }
+      // SINGLE-OWNER: the bodies stand wherever they stand — the episode
+      // seizes them in place; only the album targets need measuring.
       const releaseAccent = beginDockIntakeAccent('hand-open');
       try {
         await this.$nextTick();
@@ -12846,18 +12817,11 @@ export default defineComponent({
             t = section.transitionTargets();
           }
         }
-        const dock = this.$refs.handDock as InstanceType<typeof ConsoleHandDock> | undefined;
-        const sources = dock?.sourceRects(t.pairs.map((p) => p.name)) ?? new Map<string, RevealRect>();
-        const pairs: Array<RevealPair> = [];
-        for (const p of t.pairs) {
-          const source = pressSources.get(p.name) ?? sources.get(p.name);
-          if (source !== undefined) {
-            pairs.push({name: p.name, source, sourcePose: pressPoses.get(p.name), target: p.rect, visible: p.visible, clip: p.clip, visual: this.revealVisualFor(p.name)});
-          }
-        }
+        const pairs: Array<RevealPair> = t.pairs.map((p) => ({
+          name: p.name, target: p.rect, visible: p.visible, clip: p.clip, visual: this.revealVisualFor(p.name),
+        }));
         await runHandOpenEpisode(pairs, t.stage);
       } finally {
-        this.handOpenPoseHold = false;
         releaseAccent();
       }
     },

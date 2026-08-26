@@ -159,6 +159,71 @@ describe('consoleMaModel (P26)', () => {
     expect(manifest.description).to.eq('rule text');
   });
 
+  /*
+   * The AWARD RACE CASSETTE model — the tile's leader/second tiers and the
+   * viewer's position tone. The tier grammar mirrors the strategy rail's
+   * (`awardLeaders` + `maScoreGroups` — one shared derivation), and the
+   * ranked-second gate mirrors `giveAwards`: a silver 2nd exists only under a
+   * SINGLE leader in a >2-player race.
+   */
+  describe('award race tiers and the viewer tone', () => {
+    const green: Color = 'green';
+    const award = (scores: ConsoleMaSource['scores']): ConsoleMaSource => ({
+      name: 'Banker', playerName: undefined, color: undefined, scores,
+    });
+
+    it('sole lead: crowned tier is mine, tone «lead», ranked silver second', () => {
+      const [it] = buildConsoleMaItems('awards', [award([
+        {color: me, score: 5}, {color: rival, score: 3}, {color: green, score: 1},
+      ])], opts());
+      expect(it.raceTone).to.eq('lead');
+      expect(it.leader).to.deep.eq({colors: [me], score: 5});
+      expect(it.second).to.deep.eq({colors: [rival], score: 3});
+      expect(it.secondRanked).to.eq(true);
+    });
+
+    it('tie for the lead: every co-leader in one tier, tone «tie», NO ranked second', () => {
+      const [it] = buildConsoleMaItems('awards', [award([
+        {color: me, score: 4}, {color: rival, score: 4}, {color: green, score: 2},
+      ])], opts());
+      expect(it.raceTone).to.eq('tie');
+      expect(it.leader?.colors).to.have.members([me, rival]);
+      expect(it.second).to.deep.eq({colors: [green], score: 2});
+      // A tie for 1st awards no 2nd place — the chaser is unranked.
+      expect(it.secondRanked).to.eq(false);
+    });
+
+    it('behind: the rival is crowned, tone «behind» (my score may be in neither tier)', () => {
+      const [it] = buildConsoleMaItems('awards', [award([
+        {color: me, score: 1}, {color: rival, score: 6}, {color: green, score: 4},
+      ])], opts());
+      expect(it.raceTone).to.eq('behind');
+      expect(it.leader).to.deep.eq({colors: [rival], score: 6});
+      expect(it.second).to.deep.eq({colors: [green], score: 4});
+      expect(it.secondRanked).to.eq(true);
+    });
+
+    it('a duel pays no 2nd place: the chaser is never ranked', () => {
+      const [it] = buildConsoleMaItems('awards', [award([
+        {color: me, score: 5}, {color: rival, score: 3},
+      ])], opts());
+      expect(it.second).to.deep.eq({colors: [rival], score: 3});
+      expect(it.secondRanked).to.eq(false);
+    });
+
+    it('an untouched race: no tiers, tone «empty»; milestones never carry tiers', () => {
+      const [it] = buildConsoleMaItems('awards', [award([
+        {color: me, score: 0}, {color: rival, score: 0},
+      ])], opts());
+      expect(it.raceTone).to.eq('empty');
+      expect(it.leader).to.eq(undefined);
+      expect(it.second).to.eq(undefined);
+      const [m] = buildConsoleMaItems('milestones', [milestone()], opts());
+      expect(m.leader).to.eq(undefined);
+      expect(m.raceTone).to.eq('empty');
+    });
+  });
+
   describe('stepGrid (2-column dashboard nav)', () => {
     it('moves within a full 6-item grid', () => {
       expect(stepGrid(0, 'right', 6, 2)).to.eq(1);

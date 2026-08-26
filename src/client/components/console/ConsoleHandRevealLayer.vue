@@ -1,49 +1,45 @@
 <template>
   <!--
-    HAND REVEAL LAYER — the fixed stage of the dock ↔ hand-overlay physical
-    transition (handRevealDirector.ts). One proxy per hand card: the deal
-    language's 3D flip chassis (back = the canonical sleeve, face = the
-    FaceLite twin). Off-window scroll-tail proxies carry NO face (cheap
-    back-only flyers, sampled down by the director). Pointer-inert, clipped;
-    sits UNDER the footer band AND under the hand section's status rail
-    (console_card_deal.less / `.con-main--hand` in console.less) so a card
-    descending into the dock is occluded by the REAL tray/bar texture per
-    pixel — it slots in BEHIND the furniture, never painting over it.
+    HAND BODIES LAYER — the ONE OWNER of the hand's physical cards (the
+    rework of the dock ⇄ album transition; module: handDock/handBodies.ts).
 
-    THE STATE FLIES WITH THE CARD: the face renders the card's LANDED
-    presentation — the LIVE model, the unplayable / select-disabled dim and
-    the compact blocker chip (`flight.visual`, threaded by the shell) — so
-    the state is readable DURING the flight and nothing pops at the handoff.
+    Every card in the hand is ONE persistent element here, alive through the
+    docked pack, the open/close flights, the album shelf and the page
+    packets. The dock renders only chassis; «карта исчезла при свапе» is
+    inexpressible — the same element continues. The historical root class is
+    kept on purpose: its z (11645, under the footer band — bodies nest into
+    the tray behind the plate, exactly the intake physics), the static STAGE
+    WINDOW clip and the art no-refade rule all hang off it, as do the e2e
+    probes' selectors.
 
-    ⚠️ The face must be the SAME PICTURE the grid slot under it renders, and
-    that takes both halves of the contract: the live `card` (the discount
-    chip, the stored-resource capsule, the disabled wash — and, through the
-    cost chip's title safe-area, the name's size and line breaks) and
-    `lightweight`, the grid's own `thumb` quality tier (solid warm ink title,
-    no plate textures). Omitting either does not make the flight cheaper in
-    any way the player cannot see: it flies a different card and the handoff
-    reads as a swap — the reported «карты мигают при открытии руки».
+    Attributes are the CONTRACT: `data-hand-dock-card` always (the berth
+    anchor every intake/delivery director and probe targets), plus
+    `data-reveal-card` ONLY while a reveal episode owns the body (the
+    probes' «flight is live» signal). The face mounts lazily (first time a
+    card needs one) and then stays — a mounted face is a warm cache.
   -->
-  <!-- THE STAGE WINDOW: while an album episode flies, the whole layer is
-       statically clipped to the album's x-range (`stageClip`) — a packet-
-       bound proxy beyond the boundary is erased by the clip itself, and a
-       card sliding across it emerges/vanishes progressively, by position,
-       with zero per-frame style writes. -->
   <div class="con-handreveal-layer" aria-hidden="true" :style="stageStyle"
        :data-hand-reveal-rev="handRevealState.rev">
-    <div v-for="f in handRevealState.flights" :key="f.id"
-         class="con-deal-proxy"
-         :data-reveal-card="f.name"
-         :ref="(el) => registerRevealEl(f.id, el as HTMLElement | null)">
+    <div v-for="(c, i) in cards" :key="c.name"
+         class="con-deal-proxy con-handbody"
+         :class="{
+           'con-handbody--held': heldSet.has(c.name),
+           'con-handbody--deep': deepSet.has(c.name),
+         }"
+         :style="{zIndex: 3 + i, width: naturalW + 'px', height: naturalH + 'px'}"
+         :data-hand-dock-card="c.name"
+         :data-hand-body-mode="modeOf(c.name)"
+         :data-reveal-card="flyingSet.has(c.name) ? c.name : undefined"
+         :ref="(el) => registerHandBody(c.name, el as HTMLElement | null)">
       <div class="con-deal-proxy__flip">
-        <div v-if="f.face"
+        <div v-if="faceSet.has(c.name)"
              class="con-deal-proxy__face"
              :class="{
-               'con-deal-proxy__face--dim': f.visual?.dim === 'soft',
-               'con-deal-proxy__face--dim-strong': f.visual?.dim === 'strong',
+               'con-deal-proxy__face--dim': visualOf(c.name)?.dim === 'soft',
+               'con-deal-proxy__face--dim-strong': visualOf(c.name)?.dim === 'strong',
              }">
-          <ConsoleCardFaceLite :name="f.name" :card="f.visual?.card" :artTier="handRevealState.artTier" lightweight />
-          <span v-if="f.visual?.chip !== undefined" class="con-deal-proxy__chip">{{ $t(f.visual.chip) }}</span>
+          <ConsoleCardFaceLite :name="c.name" :card="visualOf(c.name)?.card ?? c" :artTier="handRevealState.artTier" lightweight />
+          <span v-if="visualOf(c.name)?.chip !== undefined" class="con-deal-proxy__chip">{{ $t(visualOf(c.name)!.chip!) }}</span>
         </div>
         <div class="con-deal-proxy__back">
           <div class="con-card-back con-card-back--flyer"></div>
@@ -54,20 +50,64 @@
 </template>
 
 <script lang="ts">
-import {defineComponent} from 'vue';
-import {handRevealState, registerRevealEl} from '@/client/console/handDock/handRevealState';
+import {defineComponent, PropType} from 'vue';
+import {gsap} from 'gsap';
+import {CardModel} from '@/common/models/CardModel';
+import {handRevealState, RevealVisual} from '@/client/console/handDock/handRevealState';
+import {
+  PackAnchor, PackPose, bodyNaturalH, dockedBodyPose, handBodiesState, handBodyEl, handBodyMode,
+  packProfileTuning, registerHandBody, setHandBodiesOracle,
+} from '@/client/console/handDock/handBodies';
+import {handDockPlan} from '@/client/console/consoleHandDock';
+import {consoleLayoutState} from '@/client/console/consoleLayoutProfile';
+import {motionMs} from '@/client/components/motion/motionTokens';
+import {CARD_NATURAL_W} from '@/client/console/cardDeal/cardDealModel';
 import ConsoleCardFaceLite from '@/client/components/console/cardDeal/ConsoleCardFaceLite.vue';
 
 export default defineComponent({
-  name: 'ConsoleHandRevealLayer',
+  name: 'ConsoleHandBodies',
   components: {ConsoleCardFaceLite},
+  props: {
+    /** The hand in SERVER order (the dock's old `cards` prop — append-order,
+     *  newest right; DOM order is the pack's z-order). */
+    cards: {type: Array as PropType<ReadonlyArray<CardModel>>, required: true},
+    /** Names withheld while still arriving (the delivery hold — hidden with
+     *  layout, released on the intake's touchdown). */
+    held: {type: Array as PropType<ReadonlyArray<string>>, default: () => []},
+    /** The pack-level pose (rest / compact / raised) — shell-derived from
+     *  the same flags that used to drive the dock's CSS pose classes. */
+    pose: {type: String as PropType<PackPose>, default: 'rest'},
+  },
   data() {
-    return {handRevealState};
+    return {handRevealState, handBodiesState, layout: consoleLayoutState, anchorRetries: 0};
   },
   computed: {
-    /** The album stage window as a layer-wide static clip (see template).
-     *  Resize is safe without reactivity to `innerWidth`: a resize snaps the
-     *  running episode (`finishInstant`), which clears `stageClip`. */
+    heldSet(): Set<string> {
+      return new Set(this.held);
+    },
+    flyingSet(): Set<string> {
+      return new Set(this.handBodiesState.flying);
+    },
+    faceSet(): Set<string> {
+      return new Set(this.handBodiesState.faces);
+    },
+    deepSet(): Set<string> {
+      const plan = handDockPlan(this.cards.length);
+      const out = new Set<string>();
+      plan.slots.forEach((s, i) => {
+        if (s.deep && this.cards[i] !== undefined) {
+          out.add(this.cards[i].name);
+        }
+      });
+      return out;
+    },
+    naturalW(): number {
+      return CARD_NATURAL_W;
+    },
+    naturalH(): number {
+      const a = this.anchor();
+      return a === undefined ? CARD_NATURAL_W * 1.4 : bodyNaturalH(a);
+    },
     stageStyle(): Record<string, string> {
       const c = this.handRevealState.stageClip;
       if (c === undefined) {
@@ -77,9 +117,127 @@ export default defineComponent({
       const r = Math.max(0, window.innerWidth - c.right);
       return {clipPath: `inset(0px ${r.toFixed(1)}px 0px ${l.toFixed(1)}px)`};
     },
+    /** One string that changes whenever the DOCKED composition must re-pose. */
+    poseEpoch(): string {
+      return `${this.cards.map((c) => c.name).join('|')}::${this.pose}::${this.layout.profile}::${this.layout.uiScale}`;
+    },
+  },
+  watch: {
+    poseEpoch() {
+      // The pose RIDE exists for the STANDING pack only. During an episode
+      // the director owns every body: the flight departs from the live
+      // painted pose and the finalize reconciles — while the ride's 340ms
+      // tween lives on the GLOBAL gsap ticker, which the album's mount
+      // storm starves; its catch-up then lands the whole raised→rest delta
+      // in ONE frame (the handheld probe's 15px dockjump at the open).
+      if (this.handRevealState.phase !== 'docked') {
+        return;
+      }
+      // The patch (new bodies mount / order changes) lands first.
+      void this.$nextTick().then(() => this.applyDockedPoses(true));
+    },
+  },
+  mounted() {
+    window.addEventListener('resize', this.onResize);
+    setHandBodiesOracle({
+      poseFor: (name) => this.dockedPoseOf(name),
+      reconcile: () => this.applyDockedPoses(true),
+      seatNew: () => this.applyDockedPoses(false),
+    });
+    void this.$nextTick().then(() => this.applyDockedPoses(false));
+  },
+  beforeUnmount() {
+    window.removeEventListener('resize', this.onResize);
+    setHandBodiesOracle(undefined);
   },
   methods: {
-    registerRevealEl,
+    registerHandBody,
+    visualOf(name: string): RevealVisual | undefined {
+      return this.handRevealState.flightVisuals[name];
+    },
+    /** The body's mode as a DOM fact (probes and e2e read it — the module
+     *  state is not reachable from a page context). Always present. */
+    modeOf(name: string): string {
+      return this.handBodiesState.modes[name] ?? 'docked';
+    },
+    onResize(): void {
+      this.applyDockedPoses(false); // instant — resize snaps, like every fit engine
+    },
+    /** The pack's bottom-centre anchor, measured off the dock chassis. The
+     *  anchor box is DELIBERATELY zero-width («cards centre themselves
+     *  around this axis» — console.less), so the judge of measurability is
+     *  its HEIGHT, and the axis is its left edge. */
+    anchor(): PackAnchor | undefined {
+      const box = document.querySelector<HTMLElement>('.con-handdock__pack');
+      if (box === null) {
+        return undefined;
+      }
+      const r = box.getBoundingClientRect();
+      if (r.height < 2) {
+        return undefined;
+      }
+      const remPx = Number.parseFloat(getComputedStyle(document.documentElement).fontSize) || 20;
+      const tune = packProfileTuning(this.layout.profile);
+      return {ax: r.left + r.width / 2, ay: r.bottom, remPx, ...tune};
+    },
+    dockedPoseOf(name: string): {x: number, y: number, scale: number, rotation: number} | undefined {
+      const a = this.anchor();
+      if (a === undefined) {
+        return undefined;
+      }
+      const i = this.cards.findIndex((c) => c.name === name);
+      if (i === -1) {
+        return undefined;
+      }
+      return dockedBodyPose(i, this.cards.length, this.pose as PackPose, a);
+    },
+    /**
+     * Seat every DOCKED body on its analytic pose. `animate` rides the
+     * pack's own 340ms pose language (rest↔compact↔raised, re-spreads on
+     * count changes); a fresh body (no transform yet) always SEATS
+     * instantly and pops in from the tray — never slides in from (0,0).
+     */
+    applyDockedPoses(animate: boolean): void {
+      const a = this.anchor();
+      if (a === undefined) {
+        // The dock chassis may mount a beat after this layer — retry on a
+        // bounded TIMER ladder (never rAF: a fully idle headless compositor
+        // withholds frames exactly at load, and an unseated pack must not
+        // depend on one arriving).
+        if (this.anchorRetries < 60) {
+          this.anchorRetries++;
+          window.setTimeout(() => this.applyDockedPoses(animate), 60);
+        }
+        return;
+      }
+      this.anchorRetries = 0;
+      const n = this.cards.length;
+      this.cards.forEach((c, i) => {
+        if (handBodyMode(c.name) !== 'docked') {
+          return;
+        }
+        const el = handBodyEl(c.name);
+        if (el === undefined) {
+          return;
+        }
+        const pose = dockedBodyPose(i, n, this.pose as PackPose, a);
+        const fresh = el.style.transform === '';
+        gsap.killTweensOf(el);
+        if (fresh || !animate) {
+          gsap.set(el, {...pose, autoAlpha: 1});
+          const flip = el.querySelector<HTMLElement>('.con-deal-proxy__flip');
+          if (flip !== null && fresh) {
+            gsap.set(flip, {rotationY: 180}); // docked = back-side-out
+          }
+          if (fresh && animate) {
+            // The arrival pop: rise out of the tray (the old con-hd-enter).
+            gsap.from(el, {y: `+=${1.15 * a.remPx}`, autoAlpha: 0, duration: motionMs(300) / 1000, ease: 'power2.out'});
+          }
+          return;
+        }
+        gsap.to(el, {...pose, autoAlpha: 1, duration: motionMs(340) / 1000, ease: 'power2.out', overwrite: 'auto'});
+      });
+    },
   },
 });
 </script>

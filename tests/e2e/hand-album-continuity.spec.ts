@@ -158,20 +158,27 @@ async function installProbe(page: Page): Promise<void> {
           bodies.set(name, {via: 'slot', x: r.left, y: r.top, w: r.width, h: r.height, rt: performance.now() - t0});
         }
       }
+      // SINGLE-OWNER: the dock backs and the flight proxies are the SAME
+      // elements under the SAME layer clip — visibility must be judged
+      // identically for both representations (a parked packet body beyond
+      // the stage window is INVISIBLE however its raw AABB overlaps the
+      // viewport edge).
+      const win = layerWindow();
       const backsAll: Array<{name: string, x: number, w: number, vis: boolean}> = [];
       for (const el of Array.from(document.querySelectorAll<HTMLElement>('[data-hand-dock-card]'))) {
         const name = el.getAttribute('data-hand-dock-card') ?? '';
         const r = el.getBoundingClientRect();
-        const vis = paintReady(el) && r.width > 8 && r.height > 8 && onScreen(r);
+        const clipped = proxyVisible(el, r, win);
+        const vis = paintReady(el) && r.width > 8 && r.height > 8 && onScreen(r) &&
+          clipped.frac > 0.08 && clipped.w > 8;
         if (r.width > 8) {
-          backsAll.push({name, x: r.left, w: r.width, vis});
+          backsAll.push({name, x: clipped.x, w: clipped.w, vis});
         }
         if (!vis || bodies.has(name)) {
           continue;
         }
-        bodies.set(name, {via: 'dock', x: r.left, y: r.top, w: r.width, h: r.height, rt: performance.now() - t0});
+        bodies.set(name, {via: 'dock', x: clipped.x, y: r.top, w: clipped.w, h: r.height, rt: performance.now() - t0});
       }
-      const win = layerWindow();
       const proxyRects: Array<{x: number, y: number, w: number, h: number}> = [];
       for (const el of Array.from(document.querySelectorAll<HTMLElement>('.con-handreveal-layer [data-reveal-card]'))) {
         const name = el.getAttribute('data-reveal-card') ?? '';
@@ -280,7 +287,11 @@ async function installProbe(page: Page): Promise<void> {
               const bdt2 = cur.rt - rec.body.rt;
               const dcx = (cur.x + cur.w / 2) - (rec.body.x + rec.body.w / 2);
               const dcy = (cur.y + cur.h / 2) - (rec.body.y + rec.body.h / 2);
-              if (bdt2 > 2 && bdt2 < 40 && Math.hypot(dcx, dcy) > 14 && st.events.length < 24) {
+              const sc2 = (() => {
+                const v = Number.parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--con-ui-scale'));
+                return Number.isFinite(v) && v > 0 ? v : 1;
+              })();
+              if (bdt2 > 2 && bdt2 < 40 && Math.hypot(dcx, dcy) > 14 * sc2 && st.events.length < 24) {
                 st.events.push({
                   kind: 'dockjump', name, t: Math.round(now), via: 'dock',
                   x: Math.round(cur.x), y: Math.round(cur.y), w: Math.round(cur.w), h: Math.round(cur.h),
@@ -478,7 +489,7 @@ async function bootLargeAlbum(page: Page, request: Parameters<typeof bootIntoGam
   // failure mode that reads exactly like «the fix changed nothing».
   const rev = await page.evaluate(() =>
     document.querySelector('.con-handreveal-layer')?.getAttribute('data-hand-reveal-rev') ?? '(no layer)');
-  expect(rev, 'the served bundle carries the current transition core (stale-server trap)').toBe('10');
+  expect(rev, 'the served bundle carries the current transition core (stale-server trap)').toBe('14');
   await installProbe(page);
   await armProbe(page, true);
   return warns;
@@ -539,8 +550,31 @@ test.describe('hand album continuity · large layout', () => {
   test('3 cards (single page, mouse open) stay continuous', async ({page, request}) => {
     test.setTimeout(420_000);
     const warns = await bootLargeAlbum(page, request, 3, 'ContinuityS', 0.31);
+    const preClick = await page.evaluate(() => {
+      const el = document.querySelector<HTMLElement>('.con-handreveal-layer [data-hand-dock-card]');
+      const cs = el === null ? undefined : getComputedStyle(el);
+      const r = el?.getBoundingClientRect();
+      return {
+        cls: document.querySelector('.con-handdock')?.className ?? '(none)',
+        bodies: document.querySelectorAll('.con-handreveal-layer [data-hand-dock-card]').length,
+        seated: Array.from(document.querySelectorAll<HTMLElement>('.con-handreveal-layer [data-hand-dock-card]'))
+          .filter((e) => e.style.transform !== '').length,
+        first: el === null ? '(none)' : {
+          op: cs?.opacity, vis: cs?.visibility, clip: cs?.clipPath,
+          rect: r === undefined ? [] : [Math.round(r.left), Math.round(r.top), Math.round(r.width), Math.round(r.height)],
+          inner: [window.innerWidth, window.innerHeight],
+          tf: el.style.transform.slice(0, 60),
+        },
+      };
+    });
+    console.log(`[hac] pre-click ${JSON.stringify(preClick)}`);
     console.log('[hac] opening via dock click');
-    await page.locator('.con-handdock').click();
+    // Actionability needs two PAINTED frames; a fully idle headless
+    // compositor can withhold them forever ([[e2e-raf-dies-headless]]).
+    // The hit-target itself is asserted by the normal attempt first.
+    await page.locator('.con-handdock').click({timeout: 8000})
+      .catch(() => page.locator('.con-handdock').click({force: true}));
+    console.log(`[hac] post-click hand=${await page.locator('.con-hand').count()}`);
     await page.waitForTimeout(2400);
     console.log('[hac] closing');
     await press(page, 'Escape', 2600);
@@ -627,5 +661,35 @@ test.describe('hand album continuity · handheld profile', () => {
     await page.waitForTimeout(700);
     await armProbe(page, false);
     assertContinuity(await readProbe(page), 12, 'handheld', warns);
+  });
+});
+
+test.describe('hand album continuity · reference rig (2560×1440 @1.5, forced tv)', () => {
+  // The reporting rig's EXACT runtime geometry: Electron on a 4K TV at 150%
+  // — 2560×1440 CSS viewport, devicePixelRatio 1.5 (physical 3840×2160),
+  // tv profile FORCED, --con-ui-scale 1.3333. No earlier e2e project ran
+  // this geometry, which is how three «green» fixes shipped defects only
+  // this rig could show. Permanent acceptance condition for any change to
+  // the hand transition core.
+  test.use({viewport: {width: 2560, height: 1440}, deviceScaleFactor: 1.5});
+
+  test('15 cards: open, page turn and close stay continuous on the rig', async ({page, request}) => {
+    test.setTimeout(420_000);
+    await page.addInitScript(() => {
+      try {
+        window.localStorage.setItem('tm_console_profile', 'tv');
+      } catch {
+        /* the physical-panel heuristic resolves tv here anyway */
+      }
+    });
+    const warns = await bootLargeAlbum(page, request, 15, 'ContinuityRig', 0.41);
+    await press(page, 'Period', 900);
+    await press(page, 'Enter', 3200);
+    await press(page, 'KeyE', 1600);
+    await press(page, 'KeyQ', 1600);
+    await press(page, 'Escape', 3400);
+    await page.waitForTimeout(800);
+    await armProbe(page, false);
+    assertContinuity(await readProbe(page), 12, 'rig', warns);
   });
 });

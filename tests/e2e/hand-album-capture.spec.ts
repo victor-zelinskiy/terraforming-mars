@@ -73,8 +73,18 @@ async function key(page: Page, code: string, settleMs = 300): Promise<void> {
 
 test('capture: open → walk → jump → close', async ({page, request}) => {
   test.setTimeout(480_000);
-  // 13 cards: the walk crosses from the full 5×2 page onto the 3-card
-  // SHOWCASE page — the density transition is the tape's subject now.
+  // LARGE layout (4/page) — the reporting user's own mode, where most of
+  // the hand lives as page packets: the dense-fan open and the LIFO close
+  // assembly are exactly what the tape must show.
+  await page.addInitScript(() => {
+    try {
+      window.localStorage.setItem('tm_console_album', 'large');
+    } catch {
+      /* adaptive layout still shows the transition */
+    }
+  });
+  // 13 cards: the walk crosses a page edge; with 4/page the packet tail is
+  // the majority of the hand.
   await bootIntoGame(page, request, {config: newGameConfig(), buy: 13, query: ''});
   await page.waitForTimeout(1200);
 

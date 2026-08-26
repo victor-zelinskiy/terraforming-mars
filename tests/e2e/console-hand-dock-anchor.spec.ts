@@ -57,6 +57,9 @@ async function installAnchorWatch(page: Page): Promise<void> {
       violations: [] as Array<Violation>,
       dockRects: new Set<string>(),
       sawWorkspace: false,
+      /** name → first out-of-tray sighting (rect + time) awaiting its
+       *  stationary confirmation. */
+      pendingOut: {} as Record<string, {x: number, y: number, t: number}>,
     };
     const scan = () => {
       state.samples++;
@@ -72,15 +75,33 @@ async function installAnchorWatch(page: Page): Promise<void> {
       if (document.querySelector('.con-cardactions') !== null) {
         state.sawWorkspace = true;
       }
-      for (const el of Array.from(document.querySelectorAll<HTMLElement>('.con-handdock__card'))) {
+      const now = performance.now();
+      for (const el of Array.from(document.querySelectorAll<HTMLElement>('.con-handbody[data-hand-body-mode="docked"]'))) {
         const cs = getComputedStyle(el);
+        const name = el.getAttribute('data-hand-dock-card') ?? '';
         if (cs.visibility === 'hidden' || Number(cs.opacity) < 0.03) {
-          continue; // lifted into the album / held mid-delivery — not on screen
+          delete state.pendingOut[name];
+          continue; // held mid-delivery / unseated — not on screen
         }
         const b = el.getBoundingClientRect();
         const out = b.top < d.top - topSlack || b.top > d.bottom ||
           b.left < d.left - sideSlack || b.right > d.right + sideSlack;
-        if (out && state.violations.length < 20) {
+        // TWO-SAMPLE STATIONARY CONFIRMATION (single-owner rework): a body
+        // released mid-screen legitimately GLIDES home on the layer's own
+        // 340 ms reconcile tween (the physical gather when a flow swallows
+        // the hand) — mode already 'docked', rect still travelling. A REAL
+        // escape STANDS: same spot, out of the tray, ≥ 420 ms later.
+        if (!out) {
+          delete state.pendingOut[name];
+          continue;
+        }
+        const seen = state.pendingOut[name];
+        if (seen === undefined || Math.abs(seen.x - b.left) > 8 || Math.abs(seen.y - b.top) > 8) {
+          state.pendingOut[name] = {x: b.left, y: b.top, t: now};
+          continue; // first sighting / still moving — the tween is alive
+        }
+        if (now - seen.t >= 420 && state.violations.length < 20) {
+          delete state.pendingOut[name];
           state.violations.push({
             label: state.label,
             card: [Math.round(b.left), Math.round(b.top), Math.round(b.width), Math.round(b.height)],

@@ -2,7 +2,7 @@
   <!-- data-motion-*: the director animates the panel (NON_SHADE_OWNERS —
        the OWN dim stays by design; density lives in the panel materials). -->
   <div class="con-ma con-ws con-ws--dockcover" role="dialog" :aria-label="$t(title)"
-       :class="{'con-ma--focus': focusState.open}"
+       :class="['con-ma--' + kind, {'con-ma--focus': focusState.open}]"
        data-motion-surface="ma-screen">
     <div class="con-ma__backdrop" aria-hidden="true"></div>
     <div class="con-ma__panel" data-motion-panel>
@@ -29,10 +29,15 @@
                      :committed="crumbCommitted">
         <template #trailing>
           <div class="con-ma__tally">
+            <!-- The NEXT free slot arms gold while the fund action is genuinely
+                 offered (awards only — the strategy rail's own door grammar:
+                 with money and a slot nearly every award is fundable, so the
+                 accent lives at the ACTION level, never as per-row glow). -->
             <div class="con-ma__slots" aria-hidden="true">
               <span v-for="(c, i) in slots" :key="i"
                     class="con-ma__slot"
-                    :class="c !== undefined ? 'player_bg_color_' + c : 'con-ma__slot--empty'"></span>
+                    :class="c !== undefined ? 'player_bg_color_' + c :
+                      ['con-ma__slot--empty', {'con-ma__slot--next': kind === 'awards' && anyAvailable && i === takenCount}]"></span>
             </div>
             <div v-if="allTaken" class="con-ma__complete">✓ {{ $t(kind === 'awards' ? 'All funded' : 'All claimed') }}</div>
             <div v-else class="con-ma__count">{{ $t(kind === 'awards' ? 'Funded' : 'Claimed') }} <b>{{ takenCount }}/{{ maxSlots }}</b></div>
@@ -55,7 +60,12 @@
            in place: the browse DOM is only parked (selection / scroll / focus
            survive by construction). ── -->
       <div class="con-ma__stagewrap">
-        <div class="con-ma__browse" :class="{'con-ma__browse--parked': focusState.open}">
+        <div class="con-ma__browse"
+             :class="{
+               'con-ma__browse--parked': focusState.open,
+               'con-ma__browse--arrive-l': kindArrive === 'left',
+               'con-ma__browse--arrive-r': kindArrive === 'right',
+             }">
           <!-- The dashboard: a 2-column grid whose rows STRETCH to fill the
                panel — the standard 5–6 items always fit with NO scrollbar (an
                odd list's last card spans both columns; overflow scroll is an
@@ -67,21 +77,39 @@
                      class="con-ma__card"
                      :class="{
                        'con-ma__card--focused': i === index,
-                       // P29: the strong actionable lift is a MILESTONE semantic
-                       // (a hard condition was met). A fundable award is a normal
-                       // economy action — the row stays calm.
+                       // P29/P33: the loud actionable state is a MILESTONE
+                       // semantic (a hard threshold was just met — a game
+                       // moment). A fundable award is a normal economy action —
+                       // the row stays calm and the header tray arms instead.
                        'con-ma__card--go': it.available && it.kind === 'milestone',
                        'con-ma__card--taken': it.takenBy !== undefined,
+                       'con-ma__card--dead': it.slotsExhausted,
+                       // The one-shot availability REVEAL — played only on a
+                       // live watched rising edge (mount/reload seed silently).
+                       'con-ma__card--arriving': revealNames.includes(it.name),
                      }"
-                     :ref="i === index ? 'focusedCard' : undefined">
+                     :ref="i === index ? 'focusedCard' : undefined"
+                     @click="onCardClick(i)">
               <span v-if="railClass(it) !== ''" class="con-ma__rail" :class="railClass(it)" aria-hidden="true"></span>
 
               <!-- Art stage: built for the transparent 512×512 icons — a soft
                    radial pedestal, contain (NEVER cropped). It is also the
                    FLIP twin of the focus stage's hero pedestal: the emblem
-                   physically continues into the detail state. -->
+                   physically continues into the detail state. A claimable
+                   milestone carries the ACTIVATION OPTICS on the emblem itself
+                   (the strategy rail's gold-white «can act now» light — rim +
+                   bottom crystal; the availability signal lives HERE, never on
+                   the focus ring's channel). A funded award mounts the
+                   SPONSOR'S cube in a gold socket at the ribbon corner. -->
               <div class="con-ma__stage" aria-hidden="true">
                 <div class="con-ma__art" :style="{backgroundImage: `url(assets/ma/${artSlug(it)}.png)`}"></div>
+                <template v-if="it.kind === 'milestone'">
+                  <i class="con-ma__sweep"></i>
+                  <i class="con-ma__actring"></i>
+                  <i class="con-ma__spark"></i>
+                </template>
+                <i v-if="it.kind === 'award' && it.takenBy !== undefined"
+                   class="con-ma__gem" :class="'player_bg_color_' + it.takenBy.color"></i>
               </div>
 
               <div class="con-ma__body">
@@ -94,27 +122,79 @@
                 </div>
               </div>
 
-              <!-- Status column: the dominant YOU metric (score / threshold +
-                   meter for milestones; leadership for awards) and the rivals
-                   strip (OTHER players only). Action semantics live in the
-                   detail stage — the overview compares, it never commits. -->
+              <!-- Status column — the two grammars diverge HERE, on purpose:
+                   a MILESTONE is a personal threshold (your count, the drawn
+                   ✓, the meter, and the «ДОСТУПНО» word in the fixed foot —
+                   the right rail's own cell, one language in both places);
+                   an AWARD is a RACE (the two-level cassette: crowned leader
+                   tier over the chaser tier, then where YOU stand). The
+                   overview compares, it never commits. -->
               <div class="con-ma__status">
-                <div class="con-ma__metric" :class="metricClass(it)">
+                <!-- MILESTONE, taken: the quiet owner seal (the words live in
+                     the body line — the column answers with the object). -->
+                <div v-if="it.kind === 'milestone' && it.takenBy !== undefined"
+                     class="con-ma__seal"
+                     :class="{'con-ma__seal--mine': it.takenBy.color === it.myColor}">
+                  <i class="con-ma__seal-cube" :class="'player_bg_color_' + it.takenBy.color" aria-hidden="true"></i>
+                  <i class="con-ma__seal-tick" aria-hidden="true">
+                    <svg viewBox="0 0 12 10"><path d="M1.6 5.4 L4.6 8.3 L10.4 1.7" /></svg>
+                  </i>
+                </div>
+                <!-- MILESTONE, open: my count toward the threshold. -->
+                <div v-else-if="it.kind === 'milestone'" class="con-ma__metric" :class="metricClass(it)">
                   <span class="con-ma__metric-label">{{ $t('You') }}</span>
                   <span class="con-ma__metric-value">
+                    <i v-if="it.myReady && it.scores.length > 0" class="con-ma__readymark" aria-hidden="true">
+                      <svg viewBox="0 0 12 10"><path d="M1.6 5.4 L4.6 8.3 L10.4 1.7" /></svg>
+                    </i>
                     <template v-if="it.scores.length === 0">—</template>
                     <!-- Condition milestone (no numeric threshold): the raw
                          score is not progress, so show met / not-met. -->
-                    <template v-else-if="it.kind === 'milestone' && it.threshold === undefined"><b>{{ it.myReady ? '✓' : '—' }}</b></template>
-                    <template v-else><b>{{ it.myScore }}</b><span v-if="it.threshold !== undefined" class="con-ma__metric-req">/{{ it.threshold }}</span></template>
+                    <template v-else-if="it.threshold === undefined"><b v-if="!it.myReady">—</b></template>
+                    <template v-else><b>{{ it.myScore }}</b><span class="con-ma__metric-req">/{{ it.threshold }}</span></template>
                   </span>
-                  <span v-if="it.kind === 'award' && it.scores.length > 0" class="con-ma__metric-sub" :class="{'con-ma__metric-sub--lead': it.myLead}">
-                    <template v-if="it.myLead">{{ $t('You lead') }}</template>
-                    <template v-else>{{ $t('Leader') }}: {{ it.leaderScore }}</template>
+                  <!-- The FIXED foot line swaps content, never height: the
+                       hairline meter while the claim is not offered, the
+                       gold-white «ДОСТУПНО» while it genuinely is. -->
+                  <span class="con-ma__metric-foot">
+                    <span v-if="it.available" class="con-ma__avail">{{ $t('Available now') }}</span>
+                    <span v-else-if="it.threshold !== undefined && it.scores.length > 0" class="con-ma__meter" aria-hidden="true"><i :style="{width: meterWidth(it)}"></i></span>
                   </span>
-                  <span v-if="it.threshold !== undefined && it.scores.length > 0" class="con-ma__meter" aria-hidden="true"><i :style="{width: meterWidth(it)}"></i></span>
                 </div>
-                <div v-if="rivals(it).length > 0" class="con-ma__rivals">
+                <!-- AWARD: the race cassette (the strategy rail's two-level
+                     grammar at tile scale — crown caps the leader cluster,
+                     a ranked second earns the silver step). -->
+                <div v-else class="con-ma__race" :class="'con-ma__race--' + it.raceTone">
+                  <template v-if="it.leader !== undefined">
+                    <span class="con-ma__tier con-ma__tier--i">
+                      <span class="con-ma__tier-chips">
+                        <i class="con-ma__crown" aria-hidden="true">
+                          <svg viewBox="0 0 18 15">
+                            <path d="M2.4 12.2 L3 5.6 L6.5 8.1 L9 1 L11.5 8.1 L15 5.6 L15.6 12.2 Z" />
+                            <path class="con-ma__crown-base" d="M2.9 13 H15.1 A0.62 0.62 0 0 1 15.1 14.24 H2.9 A0.62 0.62 0 0 1 2.9 13 Z" />
+                            <path class="con-ma__crown-light" d="M9 3.5 L10.2 7.6 L9 8.8 L7.8 7.6 Z" />
+                          </svg>
+                        </i>
+                        <i v-for="c in it.leader.colors" :key="c" class="con-ma__cube"
+                           :class="['player_bg_color_' + c, {'con-ma__cube--me': c === it.myColor}]"></i>
+                      </span>
+                      <b class="con-ma__tier-score">{{ it.leader.score }}</b>
+                    </span>
+                    <span v-if="it.second !== undefined" class="con-ma__tier con-ma__tier--ii"
+                          :class="{'con-ma__tier--ranked': it.secondRanked}">
+                      <span class="con-ma__tier-chips">
+                        <i v-for="c in it.second.colors" :key="c" class="con-ma__cube con-ma__cube--ii"
+                           :class="['player_bg_color_' + c, {'con-ma__cube--me': c === it.myColor}]"></i>
+                      </span>
+                      <b class="con-ma__tier-score con-ma__tier-score--ii">{{ it.second.score }}</b>
+                    </span>
+                  </template>
+                  <span v-else class="con-ma__race-none" aria-hidden="true">—</span>
+                  <span class="con-ma__race-foot" :class="'con-ma__race-foot--' + it.raceTone">{{ raceFootText(it) }}</span>
+                </div>
+                <!-- The rivals strip is the MILESTONE slot-race read (who else
+                     is close / already met) — the award cassette says it all. -->
+                <div v-if="it.kind === 'milestone' && it.takenBy === undefined && rivals(it).length > 0" class="con-ma__rivals">
                   <span class="con-ma__rivals-label">{{ $t('Rivals') }}</span>
                   <span v-for="s in rivals(it)" :key="s.color"
                         class="con-ma__rival"
@@ -173,6 +253,8 @@ import ConsoleMaFocusStage from '@/client/components/console/ConsoleMaFocusStage
 import ConsoleMaRail from '@/client/components/console/ConsoleMaRail.vue';
 import {ConsoleMaItem, ConsoleMaKind, ConsoleMaScore} from '@/client/components/console/consoleMaModel';
 import {buildMaRail, MaRailView} from '@/client/components/console/consoleMaRail';
+import {motionMs} from '@/client/components/motion/motionTokens';
+import {$t, translateTextWithParams} from '@/client/directives/i18n';
 import {MaConfirmView} from '@/client/components/ma/maConfirmModel';
 import {MaInspectView} from '@/client/components/console/consoleMaInspectModel';
 import {maDisplayName} from '@/client/components/ma/maArt';
@@ -207,7 +289,23 @@ export default defineComponent({
     focusAvailable: {type: Boolean, default: false},
     focusBlockReason: {type: String, default: ''},
   },
-  emits: ['ceremony-done'],
+  emits: ['ceremony-done', 'pick'],
+  data() {
+    return {
+      /**
+       * The one-shot availability REVEAL ledger (seed-then-diff, the strategy
+       * rail's idiom): names whose «offered now» rose on a LIVE watched frame.
+       * The first observation after mount seeds silently — opening the
+       * workspace never replays a ceremony for a state that merely IS.
+       */
+      revealNames: [] as Array<string>,
+      /** The LB/RB arrive beat — the direction the new category came from. */
+      kindArrive: '' as '' | 'left' | 'right',
+      /** The reveal ledger's seed (undefined = the next pass seeds silently). */
+      availSeed: undefined as Set<string> | undefined,
+      arriveTimer: undefined as number | undefined,
+    };
+  },
   computed: {
     focusState() {
       return maFocusState;
@@ -262,6 +360,10 @@ export default defineComponent({
     focused(): ConsoleMaItem | undefined {
       return this.items[this.index];
     },
+    /** Any open item is offered RIGHT NOW — arms the tray's next slot. */
+    anyAvailable(): boolean {
+      return this.items.some((it) => it.available && it.takenBy === undefined);
+    },
     focusedName(): string {
       return this.focused !== undefined ? maDisplayName(this.focused.name) : '';
     },
@@ -289,13 +391,50 @@ export default defineComponent({
         (this.$refs.grid as {ensureVisible?: (el: Element | null | undefined) => void} | undefined)?.ensureVisible?.(el);
       });
     },
-    kind() {
+    kind(next: ConsoleMaKind, prev: ConsoleMaKind) {
       // A category switch happens from the overview only; a defensively-open
       // stage of the OTHER kind must not survive the swap.
       if (maFocusState.open) {
         resetMaFocus();
       }
       (this.$refs.grid as {scrollToStart?: () => void} | undefined)?.scrollToStart?.();
+      // The ARRIVE beat: the new category slides in from its bumper's side
+      // (RB → awards arrive from the right). One-shot class + timer — the
+      // frame, head and rail never move; only the browse content arrives.
+      this.availSeed = undefined; // the other category seeds fresh
+      this.revealNames = [];
+      this.kindArrive = next === 'awards' && prev === 'milestones' ? 'right' : 'left';
+      window.clearTimeout(this.arriveTimer);
+      this.arriveTimer = window.setTimeout(() => {
+        this.kindArrive = '';
+      }, motionMs(260));
+    },
+    /**
+     * THE AVAILABILITY REVEAL — seed-then-diff over the items' own identity.
+     * The first pass per mount/category seeds silently; a LIVE rising edge
+     * («offered now» appearing on a milestone while the player watches) plays
+     * the one-shot arrival phrase on that tile, once.
+     */
+    items: {
+      immediate: true,
+      handler(next: ReadonlyArray<ConsoleMaItem>) {
+        const now = new Set(next
+          .filter((it) => it.kind === 'milestone' && it.available && it.takenBy === undefined)
+          .map((it) => it.name));
+        const seed = this.availSeed;
+        this.availSeed = now;
+        if (seed === undefined) {
+          return; // mount / category swap — never replay a standing state
+        }
+        for (const name of now) {
+          if (!seed.has(name) && !this.revealNames.includes(name)) {
+            this.revealNames.push(name);
+            window.setTimeout(() => {
+              this.revealNames = this.revealNames.filter((n) => n !== name);
+            }, motionMs(1400));
+          }
+        }
+      },
     },
   },
   mounted() {
@@ -307,6 +446,7 @@ export default defineComponent({
     }
   },
   beforeUnmount() {
+    window.clearTimeout(this.arriveTimer);
     if (maFocusState.open) {
       if (maFocusState.phase === 'detail') {
         // A lateral move / a defer under a live PRE-COMMIT detail — keep the
@@ -340,11 +480,33 @@ export default defineComponent({
       // P29: the mint "act now" rail is milestone-only (see the card class).
       return it.available && it.kind === 'milestone' ? 'con-ma__rail--go' : '';
     },
+    /** Milestone metric tones: gold-white «offered now» over green «met». */
     metricClass(it: ConsoleMaItem): string {
-      if (it.kind === 'award') {
-        return it.myLead ? 'con-ma__metric--lead' : '';
+      if (it.available) {
+        return 'con-ma__metric--now';
       }
       return it.myReady && it.scores.length > 0 ? 'con-ma__metric--ready' : '';
+    },
+    /**
+     * The award race foot — WHERE THE VIEWER STANDS, in words (colour alone
+     * may never carry it): leads / shares the lead / trails (with their own
+     * count — they may not be in either rendered tier) / no race yet.
+     */
+    raceFootText(it: ConsoleMaItem): string {
+      switch (it.raceTone) {
+      case 'lead': return $t('You lead');
+      case 'tie': return $t('Tied for the lead');
+      case 'behind': return translateTextWithParams('You: ${0}', [String(it.myScore)]);
+      default: return $t('No race yet');
+      }
+    },
+    /** Mouse/touch parity: a click focuses the tile; a click on the focused
+     *  tile opens it (the same two-step the controller speaks). */
+    onCardClick(i: number): void {
+      if (maFocusState.open) {
+        return;
+      }
+      this.$emit('pick', i);
     },
     meterWidth(it: ConsoleMaItem): string {
       const t = it.threshold ?? 0;

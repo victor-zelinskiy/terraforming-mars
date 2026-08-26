@@ -21,7 +21,7 @@
  */
 import {Color} from '@/common/Color';
 import {awardLeaders} from '@/common/models/awardDisplay';
-import {ConsoleMaSource} from '@/client/components/console/consoleMaModel';
+import {ConsoleMaSource, maScoreGroups} from '@/client/components/console/consoleMaModel';
 
 /** One score tier of an award race — every player tied at this score. */
 export type MaHudGroup = {colors: ReadonlyArray<Color>, score: number};
@@ -83,25 +83,6 @@ export type MaHudZoneOptions = {
   cost: number,
 };
 
-/** Distinct score tiers, highest first, zeros dropped; colours keep input order. */
-function scoreGroups(scores: ReadonlyArray<{color: Color, score: number}>): Array<MaHudGroup> {
-  const byScore = new Map<number, Array<Color>>();
-  for (const s of scores) {
-    if (s.score <= 0) {
-      continue;
-    }
-    const bucket = byScore.get(s.score);
-    if (bucket === undefined) {
-      byScore.set(s.score, [s.color]);
-    } else {
-      bucket.push(s.color);
-    }
-  }
-  return [...byScore.entries()]
-    .sort((a, b) => b[0] - a[0])
-    .map(([score, colors]) => ({score, colors}));
-}
-
 export function buildMaHudZone(
   kind: 'milestones' | 'awards',
   models: ReadonlyArray<ConsoleMaSource>,
@@ -122,8 +103,9 @@ export function buildMaHudZone(
       // The race runs to game END — the leader stays relevant after funding
       // (the funder is not necessarily the scorer), so the groups are computed
       // regardless of `taken`. `awardLeaders` is the ONE shared top-tier
-      // derivation; the second tier reuses the same grouping rules.
-      const groups = scoreGroups(m.scores);
+      // derivation; the second tier reuses the same grouping rules
+      // (`maScoreGroups` — one source for the HUD and the workspace cassette).
+      const groups = maScoreGroups(m.scores);
       const leaders = awardLeaders(m.scores);
       item.leader = leaders.length > 0 ?
         {colors: leaders.map((l) => l.color), score: leaders[0].score} : undefined;

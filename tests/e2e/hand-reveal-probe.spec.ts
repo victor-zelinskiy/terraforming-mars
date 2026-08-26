@@ -1,18 +1,20 @@
 import {test, expect, APIRequestContext, Page} from '@playwright/test';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
-import {bootIntoGame} from './consoleStart';
+import {bootIntoGame, waitForBoardHome} from './consoleStart';
 
 /**
  * HAND REVEAL probe — the dock ↔ hand-overlay physical transition
- * (handRevealDirector.ts). Drives a real game and verifies the episode
- * contracts live:
- *  - mid-open: proxies fly while BOTH ends are held (one card — one
- *    visible representation);
- *  - settled open: proxies gone, slots released, dock pack lifted;
+ * (handRevealDirector.ts, single-owner BODIES architecture: every hand card
+ * is ONE persistent element on the layer; an episode SEIZES bodies — marked
+ * `data-reveal-card` — and releases them, never mounts/unmounts them).
+ * Drives a real game and verifies the episode contracts live:
+ *  - mid-open: seized bodies fly (one card — one visible representation);
+ *  - settled open: the episode released every body (`data-reveal-card`
+ *    gone), slots released, bodies live on the album (shelf/packet modes);
  *  - `B` mid-open: the same timeline reverses back to the dock;
  *  - reopen mid-close: the gather reverses back to the open hand;
- *  - reduced motion: no proxies, instant states;
+ *  - reduced motion: no flights, instant connected states;
  *  - handheld + tv profiles boot the same choreography.
  * Screenshots to screenshots/hand-reveal/ for the motion review.
  */
@@ -56,7 +58,11 @@ function newGameConfig() {
     randomMA: 'No randomization',
     includeFanMA: false,
     soloTR: false,
-    customCorporationsList: [],
+    // QUIET corporations, pinned — a randomly dealt triggered-draw corp
+    // (Point Luna, Research Network) parks a received-cards reveal over
+    // the board at boot and swallows the wheel (the deal is not
+    // reproducible; the explicit list is the one forced knob).
+    customCorporationsList: ['CrediCor', 'Helion'],
     bannedCards: [],
     includedCards: [],
     customColoniesList: [],
@@ -103,15 +109,21 @@ async function bootGame(page: Page, request: APIRequestContext, buyProjects: num
     buy: buyProjects, // the cards this probe needs in hand
     query: profileQuery,
   });
+  // DRAIN the road home — the deal is NOT reproducible (tests.md), so a
+  // dealt corporation with a triggered draw (Point Luna) can park a
+  // received-card reveal over the board at boot and swallow the wheel.
+  await waitForBoardHome(page);
   // The hand must actually hold cards — otherwise the episode under test
-  // has nothing to fly and every assertion below would be vacuous.
-  const count = await page.locator('.con-handdock [data-hand-dock-card]').count();
+  // has nothing to fly and every assertion below would be vacuous. The
+  // bodies live on the LAYER (single-owner rework), not inside the dock.
+  const count = await page.locator('.con-handreveal-layer [data-hand-dock-card]').count();
   expect(count, 'the probe needs a non-empty hand').toBeGreaterThan(0);
 }
 
-/** Wait for the first reveal proxy (spawn is a couple frames after A). */
+/** Wait for the first SEIZED body (episode ownership lands a couple frames
+ *  after A — `data-reveal-card` is the «flight is live» contract mark). */
 async function expectProxies(page: Page): Promise<void> {
-  await expect(page.locator('.con-handreveal-layer .con-deal-proxy').first()).toBeVisible({timeout: 3500});
+  await expect(page.locator('.con-handreveal-layer [data-reveal-card]').first()).toBeVisible({timeout: 3500});
 }
 
 /**
@@ -131,7 +143,7 @@ async function openHandFast(page: Page): Promise<void> {
     await page.keyboard.press('Enter');
     for (let i = 0; i < 12; i++) {
       const started = await page.evaluate(() =>
-        document.querySelectorAll('.con-hand, .con-handreveal-layer .con-deal-proxy').length > 0);
+        document.querySelectorAll('.con-hand, .con-handreveal-layer [data-reveal-card]').length > 0);
       if (started) {
         return;
       }
@@ -146,20 +158,20 @@ test.describe('hand reveal · standard 1080', () => {
   test('open: proxies fly while both ends are held; settle releases everything', async ({page, request}) => {
     test.setTimeout(420_000);
     await bootGame(page, request, 3);
-    const dockBacks = await page.locator('.con-handdock__card').count();
+    const dockBacks = await page.locator('.con-handbody').count();
     expect(dockBacks).toBeGreaterThan(0);
 
     await openHandFast(page);
     await expectProxies(page); // mid-flight — the episode is airborne
-    // ONE visible representation: proxies exist, slots held, dock lifted.
+    // ONE visible representation: bodies seized, slots held.
     await expect(page.locator('.con-hand--transit')).toHaveCount(1);
-    await expect(page.locator('.con-handdock__card--lifted')).not.toHaveCount(0);
     await shoot(page, '01-mid-open');
 
     await page.waitForTimeout(2100); // settle (open ≈ lift 140 + flight 600 + spread + handoff)
     await expect(page.locator('.con-hand--transit')).toHaveCount(0);
-    await expect(page.locator('.con-handreveal-layer .con-deal-proxy')).toHaveCount(0);
-    await expect(page.locator('.con-handdock__card--lifted')).not.toHaveCount(0); // cards live in the hand
+    await expect(page.locator('.con-handreveal-layer [data-reveal-card]')).toHaveCount(0);
+    // Cards live on the ALBUM now — bodies off the pack (shelf / packet).
+    await expect(page.locator('.con-handbody:not([data-hand-body-mode="docked"])')).not.toHaveCount(0);
     const slots = await page.locator('.con-hand__slot').count();
     expect(slots).toBeGreaterThan(0);
     await shoot(page, '02-open-settled');
@@ -170,10 +182,11 @@ test.describe('hand reveal · standard 1080', () => {
     await expectProxies(page);
     await shoot(page, '03-mid-close');
     await page.waitForTimeout(1700);
-    await expect(page.locator('.con-handreveal-layer .con-deal-proxy')).toHaveCount(0);
-    await expect(page.locator('.con-handdock__card--lifted')).toHaveCount(0);
+    await expect(page.locator('.con-handreveal-layer [data-reveal-card]')).toHaveCount(0);
+    await expect(page.locator('.con-handbody:not([data-hand-body-mode="docked"])')).toHaveCount(0);
     await expect(page.locator('.con-board')).toBeVisible();
-    expect(await page.locator('.con-handdock__card').count()).toBe(dockBacks);
+    // N cards = N bodies, before and after — the single-owner invariant.
+    expect(await page.locator('.con-handbody').count()).toBe(dockBacks);
     await shoot(page, '04-docked-again');
   });
 
@@ -195,9 +208,9 @@ test.describe('hand reveal · standard 1080', () => {
       await page.waitForTimeout(1900);
       // Back home: board + full dock pack, nothing stuck.
       await expect(page.locator('.con-board')).toBeVisible();
-      await expect(page.locator('.con-handdock__card--lifted')).toHaveCount(0);
-      await expect(page.locator('.con-handreveal-layer .con-deal-proxy')).toHaveCount(0);
-      expect(await page.locator('.con-handdock__card').count()).toBeGreaterThan(0);
+      await expect(page.locator('.con-handbody:not([data-hand-body-mode="docked"])')).toHaveCount(0);
+      await expect(page.locator('.con-handreveal-layer [data-reveal-card]')).toHaveCount(0);
+      expect(await page.locator('.con-handbody').count()).toBeGreaterThan(0);
     }
     await shoot(page, '06-after-reversals');
   });
@@ -208,18 +221,35 @@ test.describe('hand reveal · standard 1080', () => {
 
     await openHandFast(page);
     await page.waitForTimeout(2200); // fully open
+    // ARM THE FLIGHT WITNESS BEFORE THE PRESS (tests.md: an order claim
+    // cannot be sampled late). Under single ownership `data-reveal-card`
+    // lives only from seize to release — a short reverse (Escape +130ms,
+    // reversed in as long again) can be over before a late poll looks.
+    await page.evaluate(() => {
+      const w = window as unknown as {__sawFly?: boolean, __sawFlyMo?: MutationObserver};
+      w.__sawFly = false;
+      const mo = new MutationObserver(() => {
+        if (document.querySelector('.con-handreveal-layer [data-reveal-card]') !== null) {
+          w.__sawFly = true;
+          mo.disconnect();
+        }
+      });
+      mo.observe(document.body, {childList: true, subtree: true, attributes: true});
+      w.__sawFlyMo = mo;
+    });
     await page.keyboard.press('Escape'); // gather begins
     await page.waitForTimeout(130);
     // Reopen mid-close: the dock click is the entry (RT needs the wheel).
     await page.mouse.click(960, 1035);
     await page.waitForTimeout(120);
-    await expectProxies(page);
+    const sawFly = await page.evaluate(() => (window as unknown as {__sawFly?: boolean}).__sawFly === true);
+    expect(sawFly, 'the close gather seized bodies (the flight was live)').toBe(true);
     await shoot(page, '07-mid-reopen');
     await page.waitForTimeout(2000);
-    // Landed OPEN again: hand section up, slots visible, no proxies.
+    // Landed OPEN again: hand section up, slots visible, episode released.
     await expect(page.locator('.con-hand')).toHaveCount(1);
     await expect(page.locator('.con-hand--transit')).toHaveCount(0);
-    await expect(page.locator('.con-handreveal-layer .con-deal-proxy')).toHaveCount(0);
+    await expect(page.locator('.con-handreveal-layer [data-reveal-card]')).toHaveCount(0);
     await shoot(page, '08-reopened');
   });
 });
@@ -236,14 +266,14 @@ test.describe('hand reveal · reduced motion', () => {
     await openHandFast(page);
     await page.waitForTimeout(250);
     await expect(page.locator('.con-hand')).toHaveCount(1);
-    await expect(page.locator('.con-handreveal-layer .con-deal-proxy')).toHaveCount(0);
+    await expect(page.locator('.con-handreveal-layer [data-reveal-card]')).toHaveCount(0);
     await expect(page.locator('.con-hand--transit')).toHaveCount(0);
-    await expect(page.locator('.con-handdock__card--lifted')).not.toHaveCount(0);
+    await expect(page.locator('.con-handbody:not([data-hand-body-mode="docked"])')).not.toHaveCount(0);
     await shoot(page, '09-reduced-open');
     await page.keyboard.press('Escape');
     await page.waitForTimeout(250);
     await expect(page.locator('.con-board')).toBeVisible();
-    await expect(page.locator('.con-handdock__card--lifted')).toHaveCount(0);
+    await expect(page.locator('.con-handbody:not([data-hand-body-mode="docked"])')).toHaveCount(0);
   });
 });
 
@@ -258,7 +288,7 @@ test.describe('hand reveal · deck handheld', () => {
     await shoot(page, '10-handheld-mid-open');
     await page.waitForTimeout(2000);
     await expect(page.locator('.con-hand--transit')).toHaveCount(0);
-    await expect(page.locator('.con-handreveal-layer .con-deal-proxy')).toHaveCount(0);
+    await expect(page.locator('.con-handreveal-layer [data-reveal-card]')).toHaveCount(0);
     await shoot(page, '11-handheld-open');
   });
 });
@@ -274,7 +304,7 @@ test.describe('hand reveal · tv 1080', () => {
     await shoot(page, '12-tv-mid-open');
     await page.waitForTimeout(2000);
     await expect(page.locator('.con-hand--transit')).toHaveCount(0);
-    await expect(page.locator('.con-handreveal-layer .con-deal-proxy')).toHaveCount(0);
+    await expect(page.locator('.con-handreveal-layer [data-reveal-card]')).toHaveCount(0);
     await shoot(page, '13-tv-open');
   });
 });

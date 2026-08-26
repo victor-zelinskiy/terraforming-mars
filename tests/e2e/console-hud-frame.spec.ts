@@ -98,7 +98,11 @@ async function readFrameGeometry(page: Page): Promise<FrameGeometry> {
     probe.remove();
     const strip = document.querySelector('.con-status') as HTMLElement;
     const bar = document.querySelector('.con-footer .con-cmdbar') as HTMLElement;
-    const dockCard = document.querySelector('.con-handdock__card');
+    // The dock cards are BODIES on the reveal layer now (single-owner
+    // rework) — the pack's visual top is the highest docked body top.
+    const dockCardTops = Array.from(document.querySelectorAll('.con-handbody[data-hand-body-mode="docked"]'))
+      .map((el) => el.getBoundingClientRect().top)
+      .filter((t) => Number.isFinite(t));
     return {
       remPx,
       hudToken,
@@ -120,7 +124,7 @@ async function readFrameGeometry(page: Page): Promise<FrameGeometry> {
       stratContent: rectOf('.con-strat__zone'),
       board: rectOf('.con-board'),
       plateTop: rectOf('.con-handdock__plate')?.top,
-      dockCardTop: dockCard === null ? undefined : dockCard.getBoundingClientRect().top,
+      dockCardTop: dockCardTops.length === 0 ? undefined : Math.min(...dockCardTops),
       boardStageBottom: rectOf('.con-board__stage')?.bottom,
       viewport: {width: window.innerWidth, height: window.innerHeight},
     };

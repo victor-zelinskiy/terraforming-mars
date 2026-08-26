@@ -278,6 +278,15 @@ test('the Standard-Projects workspace owns the whole flow (nested steps, B-retur
   });
   expect(Number(packZ), 'the dock pack must sit UNDER the band surfaces while the workspace is open')
     .toBeLessThan(11480);
+  // …and since the single-owner rework the pack's CARDS are bodies on the
+  // reveal layer — the cover contract must drop the LAYER too, or the
+  // docked fan paints over the panel (the v2 edition of the same leak).
+  const layerZ = await page.evaluate(() => {
+    const layer = document.querySelector('.con-handreveal-layer');
+    return layer === null ? '' : getComputedStyle(layer).zIndex;
+  });
+  expect(Number(layerZ), 'the bodies layer (the docked fan) must sit UNDER the band surfaces too')
+    .toBeLessThan(11480);
 
   // ── THE TERMINAL COMMIT: one press, a committed beat, then the workspace
   // closes itself — and a rapid double-press cannot submit twice. ──

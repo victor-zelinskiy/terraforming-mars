@@ -319,9 +319,9 @@ for (const profile of PROFILES) {
       // ── close: every card gathers home, nothing stays lifted ─────────
       await key(page, 'Escape', 2400);
       await expect(page.locator('.con-hand')).toHaveCount(0);
-      await expect(page.locator('.con-handdock__card--lifted')).toHaveCount(0);
-      await expect(page.locator('.con-handreveal-layer .con-deal-proxy')).toHaveCount(0);
-      const dockBacks = await page.locator('.con-handdock__card').count();
+      await expect(page.locator('.con-handbody:not([data-hand-body-mode="docked"])')).toHaveCount(0);
+      await expect(page.locator('.con-handreveal-layer [data-reveal-card]')).toHaveCount(0);
+      const dockBacks = await page.locator('.con-handbody').count();
       expect(dockBacks, 'the dock pack is whole again').toBeGreaterThan(0);
       await shoot(page, `${profile.tag}-4-closed`);
     });
@@ -590,8 +590,8 @@ for (const tail of [1, 2, 3] as const) {
       // ── close: every card gathers, nothing stays lifted ──────────────
       await key(page, 'Escape', 2400);
       await expect(page.locator('.con-hand')).toHaveCount(0);
-      await expect(page.locator('.con-handdock__card--lifted')).toHaveCount(0);
-      await expect(page.locator('.con-handreveal-layer .con-deal-proxy')).toHaveCount(0);
+      await expect(page.locator('.con-handbody:not([data-hand-body-mode="docked"])')).toHaveCount(0);
+      await expect(page.locator('.con-handreveal-layer [data-reveal-card]')).toHaveCount(0);
     });
   });
 }

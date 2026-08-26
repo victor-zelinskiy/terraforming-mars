@@ -168,7 +168,7 @@ test.describe('hand delivery · standard 1080', () => {
     // The cards are HELD out of the dock — never in hand before payment.
     const totalBeforePay = (await page.locator('.con-handdock__num--total').first().textContent())?.trim();
     expect(totalBeforePay, 'dock counter withheld before payment').toBe('0');
-    expect(await page.locator('.con-handdock__card--held').count(), 'cards laid out but held').toBeGreaterThan(0);
+    expect(await page.locator('.con-handbody--held').count(), 'cards laid out but held').toBeGreaterThan(0);
     // No flight yet — the delivery fires ONLY on the pay press.
     await expect(page.locator('.con-handdelivery-layer .con-deal-proxy')).toHaveCount(0);
     await shoot(page, '02-pay-step-faceup');
@@ -187,8 +187,8 @@ test.describe('hand delivery · standard 1080', () => {
     // Settle: proxies gone, cards materialized, counter caught up to N (≥1).
     await page.waitForTimeout(3000);
     await expect(page.locator('.con-handdelivery-layer .con-deal-proxy')).toHaveCount(0);
-    await expect(page.locator('.con-handdock__card--held')).toHaveCount(0);
-    const delivered = await page.locator('.con-handdock__card').count();
+    await expect(page.locator('.con-handbody--held')).toHaveCount(0);
+    const delivered = await page.locator('.con-handbody').count();
     expect(delivered, 'cards materialized in the dock').toBeGreaterThanOrEqual(boughtCount);
     const totalAfter = (await page.locator('.con-handdock__num--total').first().textContent())?.trim();
     expect(totalAfter, 'counter reached the delivered total').toBe(String(delivered));
@@ -207,13 +207,13 @@ test.describe('hand delivery · reduced motion', () => {
     const corporation = await toSummary(page, request);
     await toPayStep(page, corporation);
     // Held before the pay press even under reduced motion.
-    expect(await page.locator('.con-handdock__card--held').count()).toBeGreaterThan(0);
-    const held = page.locator('.con-handdock__card--held');
+    expect(await page.locator('.con-handbody--held').count()).toBeGreaterThan(0);
+    const held = page.locator('.con-handbody--held');
     await triggerPay(page, async () => await held.count() === 0, 'reduced-motion delivery');
     // No flight; the cards are simply there, no stuck hold.
     await expect(page.locator('.con-handdelivery-layer .con-deal-proxy')).toHaveCount(0);
     await expect(held).toHaveCount(0);
-    expect(await page.locator('.con-handdock__card').count()).toBeGreaterThan(0);
+    expect(await page.locator('.con-handbody').count()).toBeGreaterThan(0);
     await shoot(page, '05-reduced-delivered');
   });
 });
@@ -232,7 +232,7 @@ test.describe('hand delivery · tv 1080', () => {
     await shoot(page, '06-tv-mid-delivery');
     await page.waitForTimeout(3000);
     await expect(page.locator('.con-handdelivery-layer .con-deal-proxy')).toHaveCount(0);
-    expect(await page.locator('.con-handdock__card').count()).toBeGreaterThan(0);
+    expect(await page.locator('.con-handbody').count()).toBeGreaterThan(0);
     await shoot(page, '07-tv-delivered');
   });
 });

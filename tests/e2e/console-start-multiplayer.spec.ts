@@ -94,7 +94,7 @@ async function dockState(page: Page): Promise<{painted: boolean, total: number, 
       painted: dock !== null &&
         (dock as HTMLElement).checkVisibility({opacityProperty: true, visibilityProperty: true}),
       total: Number.parseInt((document.querySelector('.con-handdock__num--total')?.textContent ?? '').trim(), 10) || 0,
-      held: document.querySelectorAll('.con-handdock__card--held, .con-handdock__card--lifted').length,
+      held: document.querySelectorAll('.con-handbody--held, .con-handbody:not([data-hand-body-mode="docked"])').length,
     };
   });
 }

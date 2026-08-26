@@ -3,59 +3,67 @@ import * as fs from 'fs';
 import * as path from 'path';
 
 const LESS = path.join(__dirname, '..', '..', 'src', 'styles', 'console.less');
+const DEAL_LESS = path.join(__dirname, '..', '..', 'src', 'styles', 'console_card_deal.less');
 const DOCK = path.join(__dirname, '..', '..', 'src', 'client', 'components', 'console', 'ConsoleHandDock.vue');
 
 /**
- * THE HAND-DOCK ANCHOR CONTRACT — the pack's geometry is CSS-ONLY.
+ * THE HAND-DOCK ANCHOR CONTRACT — single-owner bodies edition.
  *
- * Every back in the dock shares ONE box (`position: absolute; left: 0;
- * bottom: 0`); its entire on-screen placement is its own `transform`
- * (`--hd-dx/--hd-dy/--hd-tilt` × the pose knobs), and a re-spread is animated
- * by the card's own `transition: transform`. Nothing may ever MEASURE a dock
- * card and write a position back onto it — a measured position is a snapshot
- * of one layout, and the shell legitimately passes through transient layouts
- * inside a Vue flush (a teleported `--embed` surface standing in the root's
- * flex column for one patch shortened `.con-main` and lifted the whole footer
- * ~493px).
+ * The dock renders CHASSIS ONLY (plate, wings, counter, pager, the pack
+ * ANCHOR box); the hand's physical cards are BODIES on the reveal layer
+ * (`ConsoleHandRevealLayer` / handBodies.ts), positioned exclusively by GSAP
+ * transforms in the top-left-origin BodyPose grammar. Every invariant below
+ * is one careless edit away from being undone, invisible to a runtime unit
+ * test, and was a shipped bug at least once — so they are pinned at the
+ * source:
  *
- * Both halves of the fix are invisible to a runtime unit test and both are one
- * edit away from being undone, so they are pinned at the source:
- *
- *  1. the pack's `<transition-group>` names a NEUTRAL move class, so Vue's
- *     FLIP probe (`hasCSSTransform`) answers false and `onUpdated` returns
- *     before it measures a single rect;
- *  2. that class actually kills the transition — and does it with TWO classes,
- *     because `.con-handdock__card` declares `transition: transform` at the
- *     same specificity and would otherwise win on source order.
- *
- * Without (1) the pack inherited a ~493px FLIP delta and slid back into the
- * dock from the centre of the screen over 340ms; without (2) the same happens
- * again with no visible tell in the markup.
+ *  1. the dock template hosts NO card elements — a card element re-added to
+ *     the pack re-creates the two-owner architecture (and its «карта исчезла
+ *     при свапе» class) by construction;
+ *  2. `.con-handdock__pack` stays an absolutely-positioned ANCHOR (the
+ *     analytic pose measures its axis; in-flow it would re-anchor the whole
+ *     fan to wherever the footer flex puts it);
+ *  3. `.con-handbody` pins `transform-origin: 0 0` — the analytic pose,
+ *     every flight target and the packet seats compute x/y for a TOP-LEFT
+ *     origin; the browser default (50% 50%) shifts the visual box by
+ *     (1−s)/2·(w,h) ≈ 180px at pack scale, which rendered the whole docked
+ *     fan below the viewport;
+ *  4. `.con-handbody` boots `visibility: hidden` — an unseated body must
+ *     never paint a natural-size card at the layer origin (gsap's first
+ *     pose write flips it visible via autoAlpha);
+ *  5. an embedded surface can never join the root column (unchanged from
+ *     the pre-rework contract — the teleport-fallback flush protection).
  */
-describe('hand-dock anchor contract (pack geometry is CSS-only)', () => {
+describe('hand-dock anchor contract (chassis-only dock, top-left bodies)', () => {
   const less = fs.readFileSync(LESS, 'utf8');
+  const dealLess = fs.readFileSync(DEAL_LESS, 'utf8');
   const dock = fs.readFileSync(DOCK, 'utf8');
 
-  it('the pack transition-group disables Vue FLIP with a named move class', () => {
-    const group = /<transition-group\b[^>]*>/.exec(dock);
-    expect(group, 'the pack still renders a <transition-group>').to.not.be.null;
-    expect(group![0], 'the pack must name its own move class — the default `con-hd-move` runs FLIP')
-      .to.match(/move-class="con-hd-still"/);
+  it('the dock renders no card elements — bodies live on the reveal layer', () => {
+    const template = /<template>([\s\S]*)<\/template>/.exec(dock);
+    expect(template, 'ConsoleHandDock.vue has a template').to.not.be.null;
+    expect(template![1], 'no per-card berth markup in the dock (single-owner: the layer owns every card)')
+      .to.not.match(/data-hand-dock-card|__card\b|transition-group/);
+    expect(template![1], 'the pack anchor box stays (the analytic pose measures its axis)')
+      .to.match(/class="con-handdock__pack"/);
   });
 
-  it('`.con-hd-still` neutralises the transition at a specificity the card cannot beat', () => {
-    const rule = /\.con-handdock__pack\s+\.con-hd-still\s*\{([^}]*)\}/.exec(less);
-    expect(rule, '.con-handdock__pack .con-hd-still must exist (two classes — see the header)').to.not.be.null;
-    expect(rule![1].replace(/\s+/g, ' '), 'the move class must transition nothing')
-      .to.match(/transition:\s*none/);
-  });
-
-  it('the dock chassis stays welded to the footer (no positioning of its own)', () => {
-    // The pack is absolutely positioned INSIDE the dock, and the dock inside
-    // the footer: the only way its cards can leave the tray is a transform.
+  it('the pack anchor is absolutely positioned inside the dock', () => {
     const pack = /&__pack\s*\{([\s\S]*?)\n {4}\}/.exec(less);
     expect(pack, '.con-handdock__pack rule').to.not.be.null;
     expect(pack![1]).to.match(/position:\s*absolute/);
+  });
+
+  it('bodies pin the top-left transform origin (the BodyPose grammar)', () => {
+    const body = /\.con-handbody\s*\{([^}]*)\}/.exec(dealLess);
+    expect(body, '.con-handbody rule in console_card_deal.less').to.not.be.null;
+    expect(body![1].replace(/\s+/g, ' '), 'transform-origin: 0 0 — the analytic pose and every flight target assume it')
+      .to.match(/transform-origin:\s*0\s+0/);
+  });
+
+  it('an unseated body never paints (visibility boots hidden)', () => {
+    const body = /\.con-handbody\s*\{([^}]*)\}/.exec(dealLess);
+    expect(body![1].replace(/\s+/g, ' ')).to.match(/visibility:\s*hidden/);
   });
 
   it('an embedded surface can never join the root column', () => {

@@ -1,10 +1,78 @@
 # The MILESTONES/AWARDS workspace — one flow, one emblem
 
-**Status: SHIPPED 2026-08-12.** The console «Награды»/«Достижения» screens are
-a full North-Star workspace: `Overview → Hero Detail → Commit → Ceremony
-inside the workspace → Settle → Close`. The old `ConsoleMaConfirm` modal is
-GONE from the console-native flow (the desktop `MaConfirmContent` path is
-untouched); the per-item CTA is gone from the overview.
+**Status: SHIPPED 2026-08-12; browse-grammar iteration (P33) 2026-08-26.**
+The console «Награды»/«Достижения» screens are a full North-Star workspace:
+`Overview → Hero Detail → Commit → Ceremony inside the workspace → Settle →
+Close`. The old `ConsoleMaConfirm` modal is GONE from the console-native flow
+(the desktop `MaConfirmContent` path is untouched); the per-item CTA is gone
+from the overview.
+
+## The BROWSE GRAMMAR (iteration P33) — availability ≠ focus, two identities
+
+Guard: `tests/e2e/console-ma-states.spec.ts` (the staged state matrix at 4K —
+structural asserts + screenshots); unit: the race-tier matrix in
+`consoleMaModel.spec.ts`.
+
+**TWO CHANNELS, NEVER ONE.** Focus answers «where is the controller» and owns
+the tile's RING (`box-shadow` — cyan, semantic-blind, identical on every
+tile). Availability answers «what can I take right now» and owns the tile's
+GROUND (mint wash), the EMBLEM's activation optics and the metric's word —
+so the two states coexist on one tile by construction. The old compound rule
+(`--focused--go` repainting the ring mint) made the two strongest signals
+fight for one border; whichever lost simply vanished. ⚠ A KIND SCOPE that
+re-states the card's base `box-shadow` (the awards' warm hairline) raises
+specificity past the bare `--focused` rule — the focus ring and hover must be
+RE-ASSERTED inside that scope, or FHD/Deck lose the ring while the
+profile-scoped TV rule keeps it (shipped once, caught by screenshot).
+
+**The availability language is the STRATEGY RAIL's, verbatim** (one grammar in
+both places): GREEN = the requirement is met (drawn ✓ stroke, value, meter,
+mint metric rim — «yours, waiting» when it is not your turn), GOLD-WHITE =
+the action is offered THIS frame (`.con-ma__actring` rim + bottom `__spark`
+crystal on the emblem + «ДОСТУПНО» in the metric's fixed-height foot + the
+`--now` metric rim), PLAYER COLOUR = owner/sponsor only. The workspace rim is
+STATIC (the peripheral HUD keeps the breathing — a decision surface the
+player is already reading does not blink). The one-shot availability REVEAL
+(`--arriving`, the rail's own `strat-activate-*` keyframes) plays only on a
+LIVE rising edge (seed-then-diff in the component; mount/category switch
+seed silently). Milestone-only, by the P29 decision: a fundable award is a
+normal economy action — its accent is the DOOR's (the header tray's next
+slot arms gold, `__slot--next`), never a per-row glow.
+
+**TWO SIBLING IDENTITIES.** Milestones = PROGRESS AND THRESHOLD: the family's
+cool cyan/mint axis, progress instruments (meter → drawn ✓ → «ДОСТУПНО»),
+the flag emblem tinted mint. Awards = COMPETITION AND SPONSORSHIP: a warm
+podium atmosphere (gold-shifted card grounds/hairlines/pedestal light, the
+warm backdrop radial), and the status column is a RACE CASSETTE — the trophy
+rail's two-level grammar at tile scale: crown-capped leader cluster (tier I,
+gold tread) over the chaser tier (silver tread ONLY for a rules-paid 2nd:
+single leader and >2 players — `secondRanked`, mirroring `giveAwards`), the
+viewer's enamel cube ringed white, and ONE word underneath for where YOU
+stand («Вы лидируете» / «Делите лидерство» / «Вы: N» / «Нет гонки» — colour
+alone never carries it). The funded award mounts the SPONSOR's cube in a
+gold socket at the emblem's ribbon corner (`__gem`) and keeps the race live
+(funder ≠ scorer). A taken milestone recomposes its column to the quiet
+OWNER SEAL (enamel cube + neutral engraved ✓ on a gold hairline) — words
+stay in the body's owner line. Race tiers are derived ONCE in
+`consoleMaModel` (`maScoreGroups` + `awardLeaders`) and shared with
+`consoleMaHudModel` — never a second grouping.
+
+**CONTEXTUAL VERBS.** The overview's A names the INTENT when the focused
+item's action is genuinely offered — «Заявить» (`Claim milestone`) /
+«Спонсировать» (`Fund`), highlighted — and the READING verb «Осмотреть»
+(`Inspect`) on a blocked/taken item; the universal «Выбрать» promised the
+same thing for a dead race and a live claim. The detail stage's commit uses
+the same intent verbs. A still opens EVERY item (the press only descends;
+the ARM keeps a double-tap from buying).
+
+**Mouse parity**: a click focuses a tile, a second click on the focused tile
+descends (`@pick` → the shell's `onMaPick`); hover is a soft hairline that
+never out-specifies the focus ring.
+
+**LB/RB is an ARRIVE beat, not a remount**: the browse content slides in from
+the pressed bumper's side (one-shot class + timer, transform/opacity only,
+240 ms) while the frame, head and status rail stand still; the reveal ledger
+reseeds per category.
 
 Guard: `tests/e2e/console-ma-workspace.spec.ts` (the full flow on a real
 human+MarsBot game). Unit: `tests/client/components/console/consoleMaFocus.spec.ts`,

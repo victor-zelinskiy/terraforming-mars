@@ -16,11 +16,40 @@
  * the "+N to the threshold" gap context explains it.
  */
 import {Color} from '@/common/Color';
+import {awardLeaders} from '@/common/models/awardDisplay';
 import {offTurnReason} from '@/client/console/offTurnReason';
 
 export type ConsoleMaKind = 'milestones' | 'awards';
 
 export type ConsoleMaScore = {color: Color, score: number, claimable?: boolean};
+
+/** One score tier of an award race — every player tied at this score. */
+export type MaRaceTier = {colors: ReadonlyArray<Color>, score: number};
+
+/** Distinct score tiers, highest first, zeros dropped; colours keep input
+ *  order. The ONE grouping shared by the workspace race cassette and the
+ *  strategy-rail HUD (consoleMaHudModel imports it — never a second copy). */
+export function maScoreGroups(scores: ReadonlyArray<{color: Color, score: number}>): Array<MaRaceTier> {
+  const byScore = new Map<number, Array<Color>>();
+  for (const s of scores) {
+    if (s.score <= 0) {
+      continue;
+    }
+    const bucket = byScore.get(s.score);
+    if (bucket === undefined) {
+      byScore.set(s.score, [s.color]);
+    } else {
+      bucket.push(s.color);
+    }
+  }
+  return [...byScore.entries()]
+    .sort((a, b) => b[0] - a[0])
+    .map(([score, colors]) => ({score, colors}));
+}
+
+/** The viewer's COMPETITIVE POSITION in an award race — the award tile's
+ *  whole point, stated as one tone (colour alone may never carry it). */
+export type MaRaceTone = 'lead' | 'tie' | 'behind' | 'empty';
 
 /** The common shape of ClaimedMilestoneModel / FundedAwardModel. */
 export type ConsoleMaSource = {
@@ -48,6 +77,16 @@ export type ConsoleMaItem = {
   /** Award: the viewer currently (co-)leads the race. */
   myLead: boolean,
   leaderScore: number,
+  /** Awards only: the top score tier (ties → every co-leader). */
+  leader?: MaRaceTier,
+  /** Awards only: the next distinct non-zero tier below the leaders. */
+  second?: MaRaceTier,
+  /** Awards only: `second` is a REAL ranked 2nd place — it would score the
+   *  2nd-place VP at game end (single leader AND >2 players; mirrors
+   *  `giveAwards`). A `false` second is a plain chaser, never a silver step. */
+  secondRanked: boolean,
+  /** Awards only: the viewer's position in the race ('empty' elsewhere). */
+  raceTone: MaRaceTone,
   /** Claim/fund price — absent once taken or when the slot race is closed. */
   cost?: number,
   /** The action is offered RIGHT NOW (present in the waitingFor tree). */
@@ -111,6 +150,29 @@ export function buildConsoleMaItems(
     const myLead = itemKind === 'award' && m.scores.length > 0 && myScore >= leaderScore && myScore > 0;
     const available = !taken && opts.availableNow.has(m.name);
 
+    // The award RACE — the same tier grammar the strategy rail exhibits
+    // (crown over the top cluster, one silver-ranked second). The race runs
+    // to game END, so it is computed regardless of `taken` (funder ≠ scorer).
+    let leader: MaRaceTier | undefined;
+    let second: MaRaceTier | undefined;
+    let secondRanked = false;
+    let raceTone: MaRaceTone = 'empty';
+    if (itemKind === 'award') {
+      const groups = maScoreGroups(m.scores);
+      const leaders = awardLeaders(m.scores);
+      leader = leaders.length > 0 ?
+        {colors: leaders.map((l) => l.color), score: leaders[0].score} : undefined;
+      second = groups.length > 1 ? groups[1] : undefined;
+      // The rules' own 2nd-place gate (giveAwards): single leader AND >2
+      // players. `m.scores` carries every seat, so its length IS the player
+      // count for this award.
+      secondRanked = second !== undefined && leaders.length === 1 && m.scores.length > 2;
+      if (leader !== undefined) {
+        const amongLeaders = leader.colors.includes(opts.myColor);
+        raceTone = amongLeaders ? (leader.colors.length > 1 ? 'tie' : 'lead') : 'behind';
+      }
+    }
+
     let blocker = '';
     if (!taken && !available) {
       if (opts.blockedReason !== undefined && opts.blockedReason !== '') {
@@ -151,6 +213,10 @@ export function buildConsoleMaItems(
       myReady,
       myLead,
       leaderScore,
+      leader,
+      second,
+      secondRanked,
+      raceTone,
       cost: taken || slotsExhausted ? undefined : opts.nextCost,
       available,
       blocker,

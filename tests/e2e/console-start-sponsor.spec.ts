@@ -141,7 +141,7 @@ async function surfaces(page: Page) {
           return false;
         }
         const rr = rail.getBoundingClientRect();
-        return Array.from(document.querySelectorAll('.con-handdock__card'))
+        return Array.from(document.querySelectorAll('.con-handbody[data-hand-body-mode="docked"]'))
           .some((c) => {
             const cr = c.getBoundingClientRect();
             const st = getComputedStyle(c);
@@ -284,6 +284,12 @@ test.describe('console start — «Эпатажный спонсор» as a work
    */
   test('the step survives minimize→restore and a reload, with its cards', async ({page, request}) => {
     test.setTimeout(300_000);
+    page.on('pageerror', (e) => console.log(`[sponsor:pageerror] ${e.message}`));
+    page.on('console', (m) => {
+      if (m.type() === 'error' || m.type() === 'warning') {
+        console.log(`[sponsor:${m.type()}] ${m.text().slice(0, 300)}`);
+      }
+    });
     const created = await request.post('/api/creategame', {
       data: cfg({preludes: ['Eccentric Sponsor', 'Metals Company', 'Supplier', 'Business Empire']}),
     });

@@ -8,6 +8,7 @@
        :class="['con-mafocus--' + kind, {
          'con-mafocus--committing': phase === 'committing',
          'con-mafocus--cere': ceremonyUp,
+         'con-mafocus--avail': available && phase === 'detail',
        }]">
     <div class="con-mafocus__surface" data-unfold-surface>
       <span class="con-mafocus__edge" data-unfold-edge aria-hidden="true"></span>
@@ -19,6 +20,11 @@
         <div class="con-mafocus__side">
           <div class="con-mafocus__stage" data-ma-focus-hero>
             <MaHeroArt :name="item.name" :kind="kind" class="con-mafocus__hero" />
+            <!-- The «can act NOW» light — the same gold-white activation rim
+                 the overview tile and the strategy rail wear. Absolute, zero
+                 layout: the hero column's children stay identical in every
+                 phase; only the light comes and goes with availability. -->
+            <i class="con-mafocus__actring" aria-hidden="true"></i>
           </div>
           <div class="con-mafocus__name" data-ma-detail data-unfold-item v-i18n>{{ displayView.displayName }}</div>
           <!-- THE STATE BADGE — ONE short word-pair, never a sentence. It says
@@ -84,7 +90,17 @@
               <div v-for="r in displayInspect.rows" :key="r.color"
                    class="con-mafocus__row"
                    :class="{'con-mafocus__row--viewer': r.viewer, 'con-mafocus__row--leader': r.isLeader}">
-                <span class="con-mafocus__row-rank" aria-hidden="true">{{ r.rank }}</span>
+                <span class="con-mafocus__row-rank" aria-hidden="true">
+                  <!-- The award identity echo: the RACE leader wears the same
+                       crown the overview cassette caps its cluster with. -->
+                  <i v-if="kind === 'award' && r.isLeader" class="con-mafocus__row-crown">
+                    <svg viewBox="0 0 18 15">
+                      <path d="M2.4 12.2 L3 5.6 L6.5 8.1 L9 1 L11.5 8.1 L15 5.6 L15.6 12.2 Z" />
+                      <path class="con-mafocus__row-crown-base" d="M2.9 13 H15.1 A0.62 0.62 0 0 1 15.1 14.24 H2.9 A0.62 0.62 0 0 1 2.9 13 Z" />
+                    </svg>
+                  </i>
+                  <template v-else>{{ r.rank }}</template>
+                </span>
                 <span class="con-mafocus__dot" :class="'player_bg_color_' + r.color" aria-hidden="true"></span>
                 <span class="con-mafocus__row-name">{{ r.viewer ? $t('You') : r.name }}</span>
                 <span class="con-mafocus__row-bar" aria-hidden="true"><i :style="{width: r.barPct + '%'}"></i></span>

@@ -15,7 +15,8 @@ function item(over: Partial<ConsoleMaItem>): ConsoleMaItem {
   return {
     key: 'x', name: 'Landlord', kind: 'award', description: 'desc',
     scores: [], threshold: undefined, myColor: R, myScore: 0, myReady: false,
-    myLead: false, leaderScore: 0, cost: undefined, available: false, blocker: '',
+    myLead: false, leaderScore: 0, secondRanked: false, raceTone: 'empty',
+    cost: undefined, available: false, blocker: '',
     takenBy: undefined, slotsExhausted: false,
     ...over,
   };

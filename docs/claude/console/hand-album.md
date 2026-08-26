@@ -180,11 +180,12 @@ can only ever be programmatic there.
 
 ## THE WHOLE HAND LEAVES THE DOCK (the physical model)
 
-`dockLiftedNames` lifts the **album UNIVERSE** (`handAlbumUniverse` — mode-
-narrowed, NEVER view-filtered), so the dock genuinely empties for the whole
-open hand — no «remainder pack» while the player leafs pages. A card outside
-the tag / «only suitable» filter is not on any page, but it is IN the album:
-parked with the far-right page packets (`packetExtras` prop → the section's
+The album owns the **album UNIVERSE** (`handAlbumUniverse` — mode-narrowed,
+NEVER view-filtered): every one of those cards' BODIES leaves the docked
+pack for the album (shelf or packet mode — `dockLiftedNames` is gone; the
+dock renders no cards to lift). A card outside the tag / «only suitable»
+filter is not on any page, but it is IN the album: parked with the
+far-right page packets (`packetExtras` prop → the section's
 `transitionTargets` appends packet pairs for them).
 
 - `transitionTargets` (the reveal transition's geometry source): active-page
@@ -214,6 +215,80 @@ parked with the far-right page packets (`packetExtras` prop → the section's
 - `restoreScroll` / `ensureSelectedVisible` are kept as no-ops (the director
   hook shape + the filter measure path call them); `scrollTop` is always 0.
 
+## THE SINGLE OWNER — hand BODIES (rev 14, the physicality rework)
+
+Every hand card is **ONE persistent DOM element** for its whole life —
+`ConsoleHandRevealLayer` (renamed in spirit to *ConsoleHandBodies*; the
+class stays for the z/clip/spec contracts) renders one body per card, and
+the docked pack / the flights / the album shelf / the page packets are
+**STATES of that element** (`handDock/handBodies.ts`: `docked | flying |
+shelf | packet`, module-reactive). The dock renders CHASSIS ONLY (plate,
+counter, wings, pager, the zero-width `__pack` ANCHOR box). «Карта исчезла
+при свапе» is inexpressible by construction: there is no swap — an episode
+**SEIZES** the standing bodies where they are painted (`data-reveal-card`
+marks ownership) and releases them; nothing mounts or unmounts mid-flight.
+
+- **THE DOCKED POSE IS ANALYTIC** (`dockedBodyPose`): `handDockPlan` slots
+  (rem) + the pose knobs ported from the old CSS vars (rest / compact /
+  raised: spread·lift·fan·scale·sink) + the measured pack anchor + live
+  `remPx`. A close flight's landing target is therefore a **pure function**
+  (the layer's pose ORACLE: `poseFor` / `reconcile` / `seatNew`) — no dock
+  measure, no provisional berths, no magnets, no retarget races.
+- ⚠️ **THE POSE GRAMMAR IS TOP-LEFT-ORIGIN** — `translate(x,y) rotate scale`
+  computed for `transform-origin: 0 0`, pinned in CSS on `.con-handbody`.
+  With the browser default (50% 50%) every placement shifts by
+  (1−s)/2·(w,h) ≈ 180 px at pack scale: the ENTIRE docked fan rendered
+  below the viewport while every probe stayed green (bodies enter through
+  the bottom edge → the stage-edge exemption swallowed it). Guarded by
+  `tests/styles/handDockAnchorContract.spec.ts` + the continuity matrix
+  counting the pack in its universe.
+- **THE POSE RIDE YIELDS TO EPISODES**: the layer's poseEpoch watcher
+  re-poses the STANDING pack only (`phase === 'docked'`). During an episode
+  the director owns every body — the flight departs from the live painted
+  pose (physically right) and the finalize reconciles. The ride's 340 ms
+  tween lives on the GLOBAL gsap ticker, which the album's mount storm
+  starves: its catch-up landed the whole raised→rest delta in ONE frame
+  (the handheld probe's 15 px dockjump).
+- **THE ANCHOR IS STABLE UNDER CSS POSES**: `.con-handdock__pack` keeps its
+  CSS pose transform (planet-focus reads `--hd-scale` through it), and the
+  anchor math is immune by construction — zero width + `transform-origin:
+  50% 100%` make ax/ay invariant under the scale.
+- **THE COVER CONTRACT MOVED WITH THE CARDS**: a `--ws-dockcover` panel must
+  cover the docked fan, which now lives on the layer (z 11645) — so
+  `.con-root--ws-dockcover:not(--dock-intake) .con-handreveal-layer` drops
+  to 11469 (the same gap the pack used), with the intake accent published
+  as a root class because the layer is not a dock descendant and a root
+  `:has()` is banned.
+- **BODIES BOOT INVISIBLE** (`visibility: hidden` until the first pose
+  write flips it via autoAlpha) — an unseated body must never paint a
+  natural-size card at the layer origin. The anchor-missing retry is a
+  bounded TIMER ladder, never rAF (an idle headless compositor withholds
+  frames exactly at load).
+- **THE CLOSE'S SECTION HOOK FIRES ONE TICK LATE, by contract**:
+  `collapseWithHandGather` starts the gather and THEN parks the stack,
+  relying on the episode's exit verb resolving against the already-empty
+  live stack (a no-op). Fired synchronously from the build block, the
+  hook popped the hosted hand frame BEFORE the park — the restored start
+  came back without its step («рука вернулась вне workspace»). The first
+  painted flight frame is later than a tick (settledPaint gates
+  ignition), so the board-backdrop contract still holds.
+- **THE DOCK ROOT IS A STACKING CONTEXT NOW** (`z-index: 11702`): with
+  the cards out of its DOM, the pointer over the pack area met the root's
+  transparent box — and with z auto it lost the hit test to `.con-main`
+  (z 1), so the board intercepted every dock hover/click. 11702 keeps the
+  chassis exactly where it painted (above bodies 11645 + delivery 11646,
+  under the verdict rail 11711).
+- **BODIES CARRY NO `will-change`** (`will-change: auto` overrides the
+  proxy class): ~20 permanent composited layers on an idle board is the
+  «standing cost while closed» the perf contract bans; GSAP promotes for
+  the duration of its own tween.
+- The e2e vocabulary: `.con-handbody` (all bodies), `--held` (delivery
+  hold), `[data-hand-body-mode]` (the mode as a DOM fact),
+  `[data-reveal-card]` (episode ownership — lives seize→release only, so
+  a flight witness is a MutationObserver armed BEFORE the press, never a
+  late poll), `[data-hand-dock-card]` (the berth anchor, always present —
+  every intake/delivery director targets it unchanged).
+
 ## THE EPISODE CLOCK (iteration 8 — the continuity rework)
 
 The dock ⇄ album transition used to teleport under load («плотный веер за
@@ -226,22 +301,13 @@ stretch on each rare tick — the convoy's launch (open) and the packets'
 entire re-entry (close: they depart FIRST by rank) played out between two
 painted frames. Four rules now hold, all in `handRevealDirector.ts`:
 
-- **THE FLIGHT IS BORN FROM THE PRESS POSE** (the pose latch): the pack has
-  poses (rest / compact / raised-or-hover), and the press drops
-  `raised`/`:hover` in its own flush — the 340 ms ride toward rest then
-  runs BEHIND the mount storm's paint blackout, so the first painted
-  flight frame used to show a fan the player never saw move (tilt
-  straightened, pack narrowed/sunk — «веер одним кадром стал другим, как
-  будто карт меньше»). Now the shell reads the ON-SCREEN rects + poses
-  SYNCHRONOUSLY in the press's own task (pre-flush — the raised classes
-  are still on the DOM: `captureBerthPoses` + the press `sourceRects`),
-  latches `con-handdock--posehold` (same vars as raised ⇒ no transition
-  fires ⇒ the fan keeps painting the pressed pose through the mount), and
-  every proxy spawns ON the captured pose (`RevealPair.sourcePose`). The
-  latch releases in `finally` — by then the backs are hidden under the
-  proxies and the (invisible) pack may ride wherever it likes. Verified by
-  `hand-pose-sequence-probe.spec.ts`: the backs hide at EXACTLY the press
-  pose, proxies standing on the same pixels.
+- **THE FLIGHT IS BORN FROM THE PAINTED POSE** (v2 — seize in place): the
+  press-snapshot/pose-latch machinery of iteration 8 (`captureBerthPoses`,
+  `con-handdock--posehold`, `RevealPair.sourcePose`) is DELETED — under
+  single ownership the episode seizes the very elements the player is
+  looking at, so the first flight frame IS the last standing frame by
+  construction, whatever pose ride was mid-air. The pose watcher yielding
+  to episodes (above) closes the other half of the same defect.
 - **IGNITION IS PAINT-GATED**: the built timeline arms only after the spawn
   flush has painted (`settledPaint` — double-rAF with a wall-clock backstop
   for starved compositors). The pack answering the press instantly is the
@@ -273,15 +339,13 @@ painted frames. Four rules now hold, all in `handRevealDirector.ts`:
 - **THE SAFETY IS PROGRESS-AWARE**: the bounded clock legitimately runs
   slower than wall time under load, so the watchdog re-checks a MOVING
   playhead (hard cap ~3.5× budget) and snaps only a genuinely stopped one.
-- **THE FINAL APPROACH IS THE LANDING** (close): the 72 % corrective tween
-  is gone — it rode the starved global ticker and caught up in ~300 px
-  bursts. `beginLanding` fires at 72 % instead; the magnet re-reads the
-  live berth every tick, its per-tick displacement is absolutely capped
-  (110 logical px), its convergence tightens as its budget runs out
-  (τ 70→24 ms), and the hard wall sits at ×4 where the cap has already
-  delivered the card within a hop of its berth. `[hand-reveal]` warns mark
-  every degrade path (driver boundary jump, magnet far start / wall snap,
-  safety snap, conclude backstop) — a silent one is a bug.
+- **THE LANDING IS ANALYTIC** (v2): the close magnets (final-approach
+  re-aim, displacement caps, τ-adaptive convergence) are DELETED — the
+  landing target is the pose oracle's pure function, computed once at
+  close start, and a pose that moves mid-flight is healed by the layer's
+  own reconcile tween after arrival. `[hand-reveal]` warns still mark
+  every degrade path (driver boundary jump, render-step witness, safety
+  snap, conclude backstop) — a silent one is a bug.
 - **THE PACK NEVER GOES HOLEY** («handDock дырявый»): the open/close
   stagger runs by `berthSeq` — the pack's own left-to-right berth order —
   never by centre-of-screen rank, which gave every packet card the same
@@ -298,9 +362,13 @@ painted frames. Four rules now hold, all in `handRevealDirector.ts`:
 
 Guard: `tests/e2e/hand-album-continuity.spec.ts` — per-card body tracking
 across dock back / proxy / slot with stage-edge exemptions: no vanish or
-pop deep inside the stage, no proxy hop faster than any tween in the flow
-(matrix: 3/9/15/20 cards, page turns incl. a fast LB/RB burst, close from
-first/middle/last page, reopen, mouse open, tv-4K and handheld profiles).
+pop deep inside the stage, no teleport, no dockjump (matrix: 3/9/15/20
+cards, page turns incl. a fast LB/RB burst, close from first/middle/last
+page, reopen, mouse open, 6× CPU throttle, tv-4K, handheld — and the
+**reference rig**: 2560×1440 CSS @ deviceScaleFactor 1.5, forced tv
+profile, the reporting user's exact Electron geometry; no earlier project
+ran it, which is how three «green» fixes shipped defects only that rig
+could show. Permanent acceptance condition for the transition core).
 
 ## What did NOT change
 

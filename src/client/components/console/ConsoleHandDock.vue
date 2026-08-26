@@ -3,8 +3,7 @@
        :class="{
          'con-handdock--live': interactive,
          'con-handdock--raised': raised,
-         'con-handdock--compact': compact && !raised && !poseHold,
-         'con-handdock--posehold': poseHold,
+         'con-handdock--compact': compact && !raised,
          'con-handdock--empty': plan.empty,
          'con-handdock--hot': playableCount > 0,
          'con-handdock--receiving': receiving,
@@ -55,16 +54,12 @@
          construction, and no layout an unrelated surface passes through can
          reach it. (It is also cheaper: no 2N `getBoundingClientRect` and no
          forced reflow per dock update.) Enter/leave are untouched. -->
-    <div class="con-handdock__pack" aria-hidden="true">
-      <transition-group name="con-hd" move-class="con-hd-still">
-        <span v-for="(slot, i) in packSlots"
-              :key="slot.key"
-              class="con-handdock__card"
-              :class="{'con-handdock__card--deep': slot.deep, 'con-handdock__card--held': slot.held, 'con-handdock__card--lifted': slot.lifted}"
-              :data-hand-dock-card="slot.name"
-              :style="{'--hd-dx': slot.dx + 'rem', '--hd-dy': slot.dy + 'rem', '--hd-tilt': slot.tilt + 'deg', zIndex: 3 + i}"></span>
-      </transition-group>
-    </div>
+    <!-- SINGLE-OWNER REWORK: the pack's card backs are NOT rendered here
+         any more — the hand BODIES layer owns every card element for its
+         whole life (handBodies.ts). This box stays as the pack's GEOMETRY
+         ANCHOR: the layer measures its bottom-centre to place the docked
+         pose, so LESS and JS can never disagree about where the tray is. -->
+    <div class="con-handdock__pack" aria-hidden="true"></div>
 
     <!-- The tray PLATE (paints in front of the card bottoms — the pack sits
          IN the tray, not on top of the footer) + the STATUS line:
@@ -218,20 +213,6 @@ export type HandDockAlbum = {
   canNext: boolean,
 };
 
-type PackSlot = {
-  key: string,
-  name: string,
-  dx: number,
-  dy: number,
-  tilt: number,
-  deep: boolean,
-  /** In flight from the deck — laid out but hidden (delivery hold). */
-  held: boolean,
-  /** Owned by the open hand overlay (or a reveal flight) — back hidden,
-   *  still counted (the card IS in the hand, just displayed elsewhere). */
-  lifted: boolean,
-};
-
 export default defineComponent({
   name: 'ConsoleHandDock',
   components: {AnimatedMetricValue, GamepadGlyph},
@@ -277,16 +258,6 @@ export default defineComponent({
      */
     intake: {type: Boolean, default: false},
     /**
-     * THE OPEN'S POSE LATCH: the pack was in its raised/hover pose when the
-     * player pressed, and it must keep PAINTING that exact pose until its
-     * backs hide under the just-spawned proxies — the press flush drops
-     * `raised`/`:hover`, and the resulting ride toward rest used to run
-     * during the mount storm's paint blackout, so the first painted frame
-     * showed a different fan («веер одним кадром стал другим»). Shell-set
-     * in the same task as the press; released once the flights own the pack.
-     */
-    poseHold: {type: Boolean, default: false},
-    /**
      * A REVEAL EPISODE IS AIRBORNE (open/close/filter flight): the album
      * spine's opaque instrument well holds transparent so it never covers
      * the pack launching/landing through the bay — the chrome materializes
@@ -294,16 +265,6 @@ export default defineComponent({
      * verdict rail follow. Shell-derived from the reveal phase.
      */
     transit: {type: Boolean, default: false},
-    /**
-     * Names the hand OVERLAY (or a reveal flight) owns right now — those
-     * backs render hidden while the chassis + status line stay put
-     * (handRevealDirector.ts; the shell derives the set from the visible
-     * hand entries + airborne filter-leavers). A MULTISET like
-     * `deliveryHeld`: a duplicated name hides only as many copies as are
-     * listed, so a card OUTSIDE the active tag filter keeps its back
-     * physically in the tray while the hand is open.
-     */
-    liftedNames: {type: Array as PropType<ReadonlyArray<string>>, default: () => []},
     /**
      * HAND-INTAKE hold: names withheld from the shown pack while they are
      * still on their way in (handDeliveryDirector.ts — the starting-cards
@@ -341,56 +302,18 @@ export default defineComponent({
       }
       return m;
     },
-    /** Overlay-owned copies per name (multiset — see the prop doc). */
-    liftedCounts(): Map<string, number> {
-      const m = new Map<string, number>();
-      for (const n of this.liftedNames) {
-        m.set(n, (m.get(n) ?? 0) + 1);
-      }
-      return m;
-    },
-    /** The count the STATUS LINE shows — held (in-flight) copies excluded. */
+    /** The count the STATUS LINE shows — held (in-flight) copies excluded.
+     *  (The pack itself is rendered by the hand BODIES layer now.) */
     count(): number {
-      return this.packSlots.reduce((n, s) => n + (s.held ? 0 : 1), 0);
+      let held = 0;
+      this.heldCounts.forEach((k) => {
+        held += k;
+      });
+      return Math.max(0, this.cards.length - held);
     },
-    /** The pack LAYOUT is always the full hand (proxies must land on final
-     *  positions) — the count above is the display-only, delivery-aware one. */
+    /** Geometry plan — kept for the bay/empty computed only. */
     plan(): HandDockPlan {
       return handDockPlan(this.cards.length);
-    },
-    /** EVERY card gets its slot (index ↔ index: the plan's slots are in
-     *  hand order — oldest first, the deep-thickness head, then the
-     *  distinct tail). Keys stay unique even if a variant duplicate ever
-     *  lands in hand. A held name hides its NEWEST copies (arriving cards
-     *  are the hand's tail — an already-shown older copy never blinks).
-     *  Card sizes stay CSS-owned (console.less defaults mirror the model
-     *  constants; profiles override them). */
-    packSlots(): Array<PackSlot> {
-      const totals = new Map<string, number>();
-      for (const card of this.cards) {
-        totals.set(card.name, (totals.get(card.name) ?? 0) + 1);
-      }
-      const seen = new Map<string, number>();
-      return this.cards.map((card, i) => {
-        const n = (seen.get(card.name) ?? 0) + 1;
-        seen.set(card.name, n);
-        const total = totals.get(card.name) ?? 1;
-        const heldK = Math.min(this.heldCounts.get(card.name) ?? 0, total);
-        const liftK = Math.min(this.liftedCounts.get(card.name) ?? 0, total - heldK);
-        const slot = this.plan.slots[i];
-        const held = n > total - heldK;
-        return {
-          key: n === 1 ? card.name : `${card.name}#${n}`,
-          name: card.name,
-          dx: slot.dx,
-          dy: slot.dy,
-          tilt: slot.tilt,
-          deep: slot.deep,
-          held,
-          // The next-newest copies after the held ones are the lifted ones.
-          lifted: !held && n > total - heldK - liftK,
-        };
-      });
     },
     ariaLabel(): string {
       return `${translateText('Cards in hand')}: ${this.count}`;
@@ -457,44 +380,6 @@ export default defineComponent({
         this.$emit('page', dir);
       }
     },
-    /**
-     * Every hand card's DOCK home, keyed by name (the reveal transition's
-     * source/landing rects). EVERY card renders its own real back now
-     * (distinct positions ≤20, dense thickness beyond), so this is a pure
-     * DOM read — the plate-centre fallback only covers a card racing in
-     * between patches.
-     */
-    sourceRects(names: ReadonlyArray<string>): Map<string, {left: number, top: number, width: number, height: number}> {
-      const root = this.$el as HTMLElement | undefined;
-      const out = new Map<string, {left: number, top: number, width: number, height: number}>();
-      if (root === undefined || root === null) {
-        return out;
-      }
-      const backs = new Map<string, DOMRect>();
-      for (const el of root.querySelectorAll<HTMLElement>('[data-hand-dock-card]')) {
-        const r = el.getBoundingClientRect();
-        backs.set(el.getAttribute('data-hand-dock-card') ?? '', r);
-      }
-      const fallback = (root.querySelector<HTMLElement>('.con-handdock__plate') ?? root).getBoundingClientRect();
-      for (const name of names) {
-        const back = backs.get(name);
-        if (back !== undefined) {
-          out.set(name, {left: back.left, top: back.top, width: back.width, height: back.height});
-        } else {
-          const w = 63;
-          const h = 88;
-          out.set(name, {left: fallback.left + fallback.width / 2 - w / 2, top: fallback.top - h * 0.55, width: w, height: h});
-        }
-      }
-      return out;
-    },
-    /* (A resting/`landingRects` variant existed briefly and was REMOVED: the
-       pack composes a card-level dx ride with a pack-level scale ride about a
-       `50% 100%` origin in the same flush the gather arms, and un-mapping
-       that composition mis-aimed the whole fan. The gather's own
-       FINAL-APPROACH retarget in `handRevealDirector` re-reads each live back
-       at 72% of the flight — that is the one honest answer to a pose that is
-       still settling at measure time.) */
   },
 });
 </script>

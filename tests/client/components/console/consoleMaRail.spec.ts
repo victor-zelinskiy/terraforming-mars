@@ -27,6 +27,8 @@ describe('consoleMaRail', () => {
     myReady: false,
     myLead: false,
     leaderScore: 0,
+    secondRanked: false,
+    raceTone: 'empty',
     available: true,
     blocker: '',
     slotsExhausted: false,

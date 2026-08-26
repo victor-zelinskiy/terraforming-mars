@@ -1,5 +1,5 @@
 import {test, expect, Page} from '@playwright/test';
-import {bootIntoGame} from './consoleStart';
+import {bootIntoGame, waitForBoardHome} from './consoleStart';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
 
@@ -21,7 +21,12 @@ const OUT = path.resolve('screenshots', 'hand-dock');
 function newGameConfig() {
   const expansions: Record<string, boolean> = {
     corpera: true, promo: false, venus: false, colonies: false,
-    prelude: true, prelude2: false, turmoil: false, community: false,
+    // NO PRELUDES (the reveal-probe precedent): the deal is not
+    // reproducible, and a random drawing/tile-placing prelude parks a
+    // veiled received-cards reveal (pointer-swallowing) over the very
+    // board home this spec measures. A test pays for what it asserts —
+    // and «0 cards → empty tray» becomes deterministic as a bonus.
+    prelude: false, prelude2: false, turmoil: false, community: false,
     ares: false, moon: false, pathfinders: false, ceo: false,
     starwars: false, underworld: false, deltaProject: false,
   };
@@ -51,7 +56,12 @@ function newGameConfig() {
     randomMA: 'No randomization',
     includeFanMA: false,
     soloTR: false,
-    customCorporationsList: [],
+    // QUIET corporations, pinned — the deal is NOT reproducible (seed is
+    // ignored, tests.md), and a randomly dealt triggered-draw corp (Point
+    // Luna, Research Network) parks a received-cards reveal over the board
+    // at boot: the dock then honestly reads «busy», which is not this
+    // spec's subject. The explicit list is the ONE forced knob.
+    customCorporationsList: ['CrediCor', 'Helion'],
     bannedCards: [],
     includedCards: [],
     customColoniesList: [],
@@ -97,6 +107,12 @@ async function bootGame(page: Page, request: any, buyProjects: number, profileQu
     buy: buyProjects,
     query: profileQuery,
   });
+  // DRAIN the road home — the deal is NOT reproducible (tests.md), so a
+  // dealt corporation with a triggered draw (Point Luna on its own Earth
+  // tag) parks a received-card reveal over the board at boot: the wheel is
+  // then legitimately suppressed and every dock claim below reads a busy
+  // screen, not the standing pose this spec is about.
+  await waitForBoardHome(page);
   await page.waitForTimeout(1200);
   return playerId;
 }
@@ -153,7 +169,7 @@ test.describe('hand dock · standard 1080', () => {
     await assertDockCentered(page);
     // Silhouettes mirror the REAL hand (server truth; preludes may draw).
     const hand = await handSize(request, playerId);
-    await expect(page.locator('.con-handdock__card')).toHaveCount(hand); // EVERY card is a physical back now
+    await expect(page.locator('.con-handbody')).toHaveCount(hand); // EVERY card is a physical body now (single-owner layer)
     await assertNoClippedHints(page);
     await shoot(page, '01-board-2cards');
 
@@ -197,20 +213,17 @@ test.describe('hand dock · standard 1080', () => {
 
   test('0 cards: the clean empty tray; placement keeps the dock clear of the board', async ({page, request}) => {
     test.setTimeout(240_000);
-    // Buy nothing; at seed .42 the first two preludes draw no cards.
+    // Buy nothing — with preludes off the empty tray is deterministic.
     const playerId = await bootGame(page, request, 0);
 
     const dock = page.locator('.con-handdock');
     const hand = await handSize(request, playerId);
-    await expect(page.locator('.con-handdock__card')).toHaveCount(hand); // EVERY card is a physical back now
+    await expect(page.locator('.con-handbody')).toHaveCount(hand); // EVERY card is a physical body now (single-owner layer)
     // No placeholder at 0 cards — the empty pack + «0» counter say it; a
     // dashed ghost frame was removed (it read as a broken/awaiting slot).
     await expect(page.locator('.con-handdock__ghost')).toHaveCount(0);
-    if (hand === 0) {
-      await expect(dock).toHaveClass(/con-handdock--empty/);
-    } else {
-      console.log(`[probe] preludes drew ${hand} card(s) — empty-tray evidence not reachable at this seed`);
-    }
+    expect(hand, 'no preludes, nothing bought — the tray must be empty').toBe(0);
+    await expect(dock).toHaveClass(/con-handdock--empty/);
     await assertDockCentered(page);
     await shoot(page, '06-board-empty');
 
@@ -235,7 +248,7 @@ test.describe('hand dock · deck handheld', () => {
     const playerId = await bootGame(page, request, 3);
     await assertDockCentered(page);
     const hand = await handSize(request, playerId);
-    await expect(page.locator('.con-handdock__card')).toHaveCount(hand); // EVERY card is a physical back now
+    await expect(page.locator('.con-handbody')).toHaveCount(hand); // EVERY card is a physical body now (single-owner layer)
     await assertNoClippedHints(page);
     await shoot(page, '08-handheld-3cards');
   });

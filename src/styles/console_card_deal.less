@@ -636,6 +636,43 @@ dialog.con-zoom {
     transition: none;
 }
 
+/* ── HAND BODIES (single-owner rework) ────────────────────────────────
+   Every hand card is ONE persistent element on this layer for its whole
+   life — the docked pack, the flights, the album shelf and the page
+   packets are STATES of the same element (handBodies.ts). The chassis
+   above (plate/wings/counter, z11700+) occludes the docked pack's bottoms
+   per pixel — the cards nest INTO the tray, the same physics every intake
+   already had. */
+.con-handbody {
+    /* Unseated until the layer places it (gsap autoAlpha flips visibility
+       on the first pose write) — a fresh body must never paint a natural-
+       size card at the layer origin. */
+    visibility: hidden;
+    /* `.con-deal-proxy`'s `will-change` assumes flight-scoped proxies;
+       bodies are PERMANENT — 20 standing composited layers on an idle
+       board is exactly the «no standing cost while closed» violation.
+       GSAP promotes an element for the duration of its own tween. */
+    will-change: auto;
+    /* The BodyPose grammar: translate(x,y) rotate scale for a TOP-LEFT
+       origin box. The analytic pose, every flight target and the packet
+       seats all compute x/y for this origin — the browser default (50% 50%)
+       shifts the visual box by (1−s)/2·(w,h), which at pack scale ≈0.2 is
+       ~180px: the whole docked fan rendered below the viewport. */
+    transform-origin: 0 0;
+}
+.con-handbody--held {
+    /* Still arriving (delivery hold): laid out, hidden, released on the
+       intake's touchdown — instant, no transition. */
+    visibility: hidden !important;
+}
+.con-handbody--deep {
+    /* Dense-thickness card (a 21+ hand): the quiet hairline the old
+       `__card--deep` carried. (Its `filter: brightness` was already inert —
+       the console paint baseline strips `filter` — so the hairline IS the
+       whole historical dim; don't re-author dead filters.) */
+    box-shadow: inset 0 0 0 .05rem rgba(140, 170, 200, 0.26);
+}
+
 /* ── HAND INTAKE — "cards physically arrive in the player's hand" ─────
    (handDeliveryDirector.ts / ConsoleHandDeliveryLayer.vue). Face→back flip
    proxies depart whatever surface released the cards (the start-ceremony

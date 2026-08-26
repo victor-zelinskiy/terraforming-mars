@@ -1608,6 +1608,17 @@ html.console-native {
 .con-root.con-root--ws-dockcover .con-handdock:not(.con-handdock--receiving) .con-handdock__pack {
     z-index: 11469;
 }
+/* …and since the single-owner rework the pack's CARDS are BODIES on the
+   reveal layer (z11645) — the same cover contract must drop the LAYER, or
+   the docked fan paints over every dockcover panel (the game-surface leak,
+   v2 edition). The intake exception rides the root class (the layer is not
+   a dock descendant, and a root `:has()` is banned): while cards arrive,
+   the dock is FULL and on top. A flight EPISODE never coexists with a
+   dockcover surface — opening the hand replaces the workspace laterally —
+   so the drop only ever demotes a STANDING pack. */
+.con-root.con-root--ws-dockcover:not(.con-root--dock-intake) .con-handreveal-layer {
+    z-index: 11469;
+}
 
 .con-wf-host {
     display: none;
@@ -8874,26 +8885,70 @@ html.console-mode {
         &:last-child:nth-child(odd) {
             grid-column: span 2;
         }
-        /* Actionable NOW — a quiet mint lift (the rail carries it). */
-        &--go {
-            background: linear-gradient(165deg, rgba(22, 36, 44, 0.95), rgba(13, 22, 28, 0.95));
+        /* Mouse parity (the console shell IS the desktop shell): a soft
+           pointer affordance that never borrows a semantic channel — and
+           never out-specifies the focus ring. */
+        cursor: pointer;
+
+        &:hover:not(.con-ma__card--focused) {
             box-shadow:
-                inset 0 0 0 .05rem fade(@con-mint, 30%),
-                inset 0 .05rem 0 rgba(255, 255, 255, 0.04);
+                inset 0 0 0 .05rem rgba(126, 156, 188, 0.34),
+                inset 0 .05rem 0 rgba(255, 255, 255, 0.05);
+        }
+
+        /* ═══ TWO CHANNELS, NEVER ONE (the availability-vs-focus split) ═══
+           FOCUS answers «where is the controller» and owns the tile's RING
+           (box-shadow) — cyan, on every tile, always. AVAILABILITY answers
+           «what can I take right now» and owns the tile's GROUND (background
+           wash) + the emblem's activation light + the metric's word — so the
+           two states COEXIST on one tile by construction. The old compound
+           rule re-painted the focus ring mint on an available tile: the two
+           strongest signals fought for one border, and whichever lost simply
+           vanished. */
+
+        /* Actionable NOW (milestone) — the GROUND lifts toward mint; the
+           loud part of the state lives on the emblem (actring/spark) and in
+           the metric's «ДОСТУПНО». Never the ring channel. */
+        &--go {
+            background:
+                linear-gradient(100deg, fade(@con-mint, 13%), transparent 46%),
+                linear-gradient(165deg, rgba(23, 40, 46, 0.96), rgba(13, 24, 29, 0.96));
         }
         &--taken {
             background: linear-gradient(165deg, rgba(17, 25, 36, 0.95), rgba(11, 16, 24, 0.95));
+
+            .con-ma__art {
+                filter: saturate(0.6) brightness(0.82) drop-shadow(0 .4rem .7rem rgba(0, 0, 0, 0.55));
+            }
+            .con-ma__name { color: fade(#e8f1fa, 82%); }
         }
+        /* The race is closed for good (3/3 elsewhere) — recede without
+           disappearing: muted ink + a dimmed emblem, never a ghost tile. */
+        &--dead {
+            .con-ma__art {
+                filter: saturate(0.45) brightness(0.68) drop-shadow(0 .4rem .7rem rgba(0, 0, 0, 0.55));
+            }
+            .con-ma__name,
+            .con-ma__metric-value { color: fade(#cfe4f7, 55%); }
+            .con-ma__desc { color: fade(@con-text-dim, 62%); }
+        }
+        /* FOCUS — the cyan ring, semantic-blind: it looks the same on every
+           tile and replaces only the resting hairline, never a state. */
         &--focused {
             box-shadow:
                 inset 0 0 0 .075rem fade(@con-cyan, 85%),
                 0 0 1.1rem fade(@con-cyan, 18%);
-            background: linear-gradient(165deg, rgba(25, 38, 55, 0.96), rgba(15, 24, 36, 0.96));
         }
-        &--focused&--go {
-            box-shadow:
-                inset 0 0 0 .075rem fade(@con-mint, 85%),
-                0 0 1.1rem fade(@con-mint, 20%);
+        /* The one-shot AVAILABILITY REVEAL (a live rising edge only): the
+           emblem takes the strategy rail's own activation phrase — the same
+           motion language in both places. */
+        &--arriving {
+            .con-ma__art { animation: strat-activate-art calc(880ms * var(--motion-scale, 1)) cubic-bezier(0.34, 1.2, 0.5, 1) both; }
+            .con-ma__spark { animation: strat-activate-spark calc(760ms * var(--motion-scale, 1)) ease-out both; }
+            .con-ma__sweep { animation: strat-activate-sweep calc(640ms * var(--motion-scale, 1)) cubic-bezier(0.3, 0.2, 0.3, 1) both calc(160ms * var(--motion-scale, 1)); }
+            .con-ma__actring { animation: strat-activate-rim calc(520ms * var(--motion-scale, 1)) @con-ease-standard both calc(430ms * var(--motion-scale, 1)); }
+            .con-ma__avail { animation: strat-activate-avail calc(380ms * var(--motion-scale, 1)) ease-out both calc(640ms * var(--motion-scale, 1)); }
+            .con-ma__readymark svg path { animation: strat-activate-check calc(360ms * var(--motion-scale, 1)) ease-out both calc(120ms * var(--motion-scale, 1)); }
         }
     }
     /* State rail on the card's left edge (mint = act now / owner colour). */
@@ -8957,6 +9012,85 @@ html.console-mode {
         filter: drop-shadow(0 .4rem .7rem rgba(0, 0, 0, 0.55)) saturate(1.1);
     }
 
+    /* ── the milestone ACTIVATION OPTICS — the strategy rail's «can act NOW»
+       light, spoken at tile scale: the gold-white RIM around the emblem, the
+       lit bottom crystal, the one-shot contour sweep. The rim is STATIC here
+       (the workspace is a decision surface the player is already reading —
+       the peripheral HUD keeps the breathing); the availability signal lives
+       on the EMBLEM and in the metric, never on the focus ring's channel. */
+    &__actring {
+        position: absolute;
+        inset: 9%;
+        border-radius: 50%;
+        box-shadow: 0 0 0 .09rem rgba(246, 232, 198, 0.66),
+            0 0 .8rem fade(@strat-gold, 40%),
+            inset 0 0 .6rem fade(@strat-gold, 15%);
+        opacity: 0;
+        transition: opacity calc(300ms * var(--motion-scale, 1)) ease;
+        pointer-events: none;
+        z-index: 2;
+    }
+    &__spark {
+        position: absolute;
+        left: 50%;
+        bottom: 2%;
+        width: 38%;
+        height: 22%;
+        transform: translateX(-50%);
+        background: radial-gradient(ellipse at 50% 58%,
+            rgba(255, 246, 218, 0.95) 8%,
+            rgba(240, 205, 130, 0.5) 40%,
+            transparent 72%);
+        opacity: 0;
+        transition: opacity calc(300ms * var(--motion-scale, 1)) ease;
+        pointer-events: none;
+        z-index: 2;
+    }
+    &__sweep {
+        position: absolute;
+        inset: 7%;
+        border-radius: 50%;
+        background: conic-gradient(from 180deg,
+            transparent 0 76%,
+            rgba(255, 242, 208, 0.05) 80%,
+            rgba(255, 242, 208, 0.9) 89%,
+            transparent 97%);
+        -webkit-mask: radial-gradient(closest-side, transparent 76%, #000 82%, #000 96%, transparent 100%);
+        mask: radial-gradient(closest-side, transparent 76%, #000 82%, #000 96%, transparent 100%);
+        opacity: 0;
+        pointer-events: none;
+        z-index: 2;
+    }
+    &__card--go &__actring { opacity: 1; }
+    &__card--go &__spark { opacity: 0.85; }
+
+    /* ── the SPONSOR SOCKET (awards, funded) — the trophy rail's provenance
+       grammar at tile scale: the funder's enamel cube in a gold socket at
+       the emblem's ribbon corner. Who PAID, said with the object; the body
+       line beneath says it in words (funder ≠ scorer — the cassette keeps
+       the race). */
+    &__gem {
+        position: absolute;
+        right: 7%;
+        bottom: 8%;
+        z-index: 2;
+        width: 1.15rem;
+        height: 1.15rem;
+        border-radius: .22rem;
+        background-image: linear-gradient(180deg,
+            rgba(255, 255, 255, 0.42),
+            rgba(255, 255, 255, 0.08) 36%,
+            rgba(0, 0, 0, 0.1) 62%,
+            rgba(0, 0, 0, 0.32));
+        box-shadow:
+            inset 0 .08rem .1rem rgba(255, 255, 255, 0.34),
+            inset 0 -.1rem .13rem rgba(0, 0, 0, 0.42),
+            inset 0 0 0 .07rem rgba(16, 22, 30, 0.8),
+            0 0 0 .09rem fade(@strat-gold, 40%),
+            0 .15rem .45rem rgba(0, 0, 0, 0.55);
+        pointer-events: none;
+    }
+
     /* ── body: name / rule / owner ──────────────────────────────── */
     &__body {
         flex: 1 1 auto;
@@ -9000,8 +9134,10 @@ html.console-mode {
         flex-shrink: 0;
         box-shadow: inset 0 0 0 .05rem rgba(0, 0, 0, 0.5), 0 0 .3rem rgba(0, 0, 0, 0.4);
     }
+    /* The owner's verb is a SETTLED fact — quiet gold, never the mint that
+       means «requirement met» (colour semantics stay the rail's). */
     &__owner-verb {
-        color: @con-mint;
+        color: fade(#ffe9c4, 88%);
         font-size: .625rem;
         font-weight: 800;
         letter-spacing: .04rem;
@@ -9022,6 +9158,10 @@ html.console-mode {
         width: 9.5rem;
         flex-shrink: 0;
     }
+    /* ── the MILESTONE metric — your count toward the threshold. Colour
+       semantics are the strategy rail's, verbatim: GREEN = the requirement
+       is met (check, value, meter), GOLD-WHITE = the claim is offered THIS
+       frame («ДОСТУПНО» + the warm rim) — and never a player colour. */
     &__metric {
         display: flex;
         flex-direction: column;
@@ -9033,16 +9173,22 @@ html.console-mode {
         background: rgba(9, 15, 23, 0.75);
         box-shadow: inset 0 0 0 .075rem rgba(150, 175, 205, 0.32);
 
+        /* Met, but NOT actionable now (turn / money / mid-action): the green
+           facts and a moderate mint rim — «yours, waiting», never an error. */
         &--ready {
             box-shadow: inset 0 0 0 .075rem fade(@con-mint, 85%), 0 0 .8rem fade(@con-mint, 18%);
 
             .con-ma__metric-value { color: #d7ffe9; }
             .con-ma__meter i { background: linear-gradient(90deg, fade(@con-mint, 75%), @con-mint); }
         }
-        &--lead {
-            box-shadow: inset 0 0 0 .075rem fade(@con-amber, 85%), 0 0 .8rem fade(@con-amber, 20%);
+        /* Offered RIGHT NOW: the green facts stay, the box joins the emblem's
+           gold-white activation light. */
+        &--now {
+            background: rgba(14, 19, 22, 0.8);
+            box-shadow: inset 0 0 0 .075rem rgba(246, 232, 198, 0.6), 0 0 .9rem fade(@strat-gold, 22%);
 
-            .con-ma__metric-value { color: #ffe9c4; }
+            .con-ma__metric-value { color: #d7ffe9; }
+            .con-ma__meter i { background: linear-gradient(90deg, fade(@con-mint, 75%), @con-mint); }
         }
     }
     &__metric-label {
@@ -9053,6 +9199,8 @@ html.console-mode {
         color: @con-text-dim;
     }
     &__metric-value {
+        display: inline-flex;
+        align-items: baseline;
         font-size: 1.5rem;
         font-weight: 800;
         line-height: 1.05;
@@ -9064,26 +9212,59 @@ html.console-mode {
 
         b { font-weight: 800; }
     }
+    /* The requirement check — a real drawn STROKE (the activation draws it
+       live; the standing state renders it complete). Same glyph as the rail. */
+    &__readymark {
+        align-self: center;
+        width: .95rem;
+        margin-right: .3rem;
+        flex-shrink: 0;
+
+        svg {
+            display: block;
+            width: 100%;
+            height: auto;
+        }
+        svg path {
+            fill: none;
+            stroke: @con-mint;
+            stroke-width: 2.4;
+            stroke-linecap: round;
+            stroke-linejoin: round;
+            stroke-dasharray: 14;
+            stroke-dashoffset: 0;
+        }
+    }
     &__metric-req {
         margin-left: .1rem;
         font-size: .85rem;
         font-weight: 600;
         color: @con-text-dim;
     }
-    &__metric-sub {
+    /* The metric's FOOT — one fixed-height line that swaps its content: the
+       hairline meter while the claim is not offered ⇄ the gold-white
+       «ДОСТУПНО» while it genuinely is. Fixed height: the swap never moves
+       the numbers, and a focus change can never hide the state. */
+    &__metric-foot {
+        display: inline-flex;
+        align-items: center;
+        justify-content: flex-end;
+        width: 100%;
+        height: .8rem;
+        margin-top: .1rem;
+    }
+    &__avail {
         font-size: .625rem;
-        color: @con-text-dim;
+        font-weight: 800;
+        letter-spacing: .11rem;
+        text-transform: uppercase;
+        color: #f2e3bd;
         white-space: nowrap;
-
-        &--lead {
-            color: #ffe9c4;
-            font-weight: 700;
-        }
+        margin-right: -.11rem;
     }
     &__meter {
         width: 100%;
         height: .2rem;
-        margin-top: .2rem;
         border-radius: 49.95rem;
         background: rgba(255, 255, 255, 0.09);
         overflow: hidden;
@@ -9095,6 +9276,219 @@ html.console-mode {
             background: linear-gradient(90deg, fade(@con-cyan, 70%), @con-cyan);
             transition: width calc(220ms * var(--motion-scale, 1)) ease;
         }
+    }
+    /* ── the OWNER SEAL (milestone, taken) — the settled trophy: the owner's
+       enamel cube and the neutral engraved check on a quiet gold hairline.
+       Deliberately the column's QUIETEST composition (words live in the body
+       line): prestige, never a call to action. */
+    &__seal {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        gap: .55rem;
+        width: 100%;
+        padding: .55rem .75rem;
+        border-radius: .6rem;
+        background: rgba(9, 15, 23, 0.55);
+        box-shadow: inset 0 0 0 .05rem fade(@strat-gold, 26%);
+    }
+    &__seal-cube {
+        width: 1rem;
+        height: 1rem;
+        border-radius: .2rem;
+        flex-shrink: 0;
+        background-image: linear-gradient(180deg,
+            rgba(255, 255, 255, 0.42),
+            rgba(255, 255, 255, 0.08) 36%,
+            rgba(0, 0, 0, 0.1) 62%,
+            rgba(0, 0, 0, 0.32));
+        box-shadow:
+            inset 0 .07rem .09rem rgba(255, 255, 255, 0.34),
+            inset 0 -.09rem .12rem rgba(0, 0, 0, 0.42),
+            inset 0 0 0 .06rem rgba(16, 22, 30, 0.8),
+            0 .1rem .2rem rgba(0, 0, 0, 0.5);
+    }
+    &__seal--mine .con-ma__seal-cube {
+        box-shadow:
+            inset 0 0 0 .09rem rgba(255, 255, 255, 0.5),
+            inset 0 .07rem .09rem rgba(255, 255, 255, 0.34),
+            inset 0 -.09rem .12rem rgba(0, 0, 0, 0.42),
+            0 .1rem .2rem rgba(0, 0, 0, 0.5);
+    }
+    &__seal-tick {
+        width: .9rem;
+        flex-shrink: 0;
+
+        svg {
+            display: block;
+            width: 100%;
+            height: auto;
+        }
+        svg path {
+            fill: none;
+            stroke: fade(#e8f1fa, 78%);
+            stroke-width: 2.2;
+            stroke-linecap: round;
+            stroke-linejoin: round;
+        }
+    }
+    /* ── the AWARD RACE CASSETTE — the trophy rail's two-level grammar at
+       tile scale: the crowned leader tier over the chaser tier, rank spoken
+       by METAL (gold tread / silver tread), the viewer's cube ringed white,
+       and one word underneath for where YOU stand. This is the award tile's
+       whole identity: a race, not a personal threshold. */
+    &__race {
+        display: flex;
+        flex-direction: column;
+        align-items: stretch;
+        gap: .3rem;
+        width: 100%;
+        padding: .45rem .75rem .5rem;
+        border-radius: .6rem;
+        position: relative;
+        background: rgba(12, 13, 16, 0.62);
+        box-shadow: inset 0 0 0 .05rem rgba(190, 170, 130, 0.22);
+        min-height: 3.4rem;
+        justify-content: center;
+    }
+    &__tier {
+        position: relative;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: .5rem;
+        min-height: 1.25rem;
+        padding: 0 .1rem .12rem;
+
+        /* The STEP — rank as material: gold under the leaders… */
+        &::after {
+            content: '';
+            position: absolute;
+            left: 4%;
+            right: 0;
+            bottom: 0;
+            height: .06rem;
+            border-radius: .05rem;
+            background: linear-gradient(90deg,
+                transparent,
+                fade(@strat-gold, 52%) 26%,
+                fade(@strat-gold, 52%) 88%,
+                transparent);
+            pointer-events: none;
+        }
+        /* …silver under a REAL second place, a faint tread under a chaser
+           the rules would not pay (tie for 1st / a duel). */
+        &--ii::after {
+            background: linear-gradient(90deg,
+                transparent,
+                rgba(160, 180, 200, 0.18) 26%,
+                rgba(160, 180, 200, 0.18) 88%,
+                transparent);
+        }
+        &--ii&--ranked::after {
+            background: linear-gradient(90deg,
+                transparent,
+                rgba(190, 210, 230, 0.34) 26%,
+                rgba(190, 210, 230, 0.34) 88%,
+                transparent);
+        }
+    }
+    &__tier-chips {
+        position: relative; /* the crown anchors to the CLUSTER's box */
+        display: inline-flex;
+        align-items: center;
+        gap: .14rem;
+        /* Air for the crown-cap above the cubes. */
+        margin-top: .5rem;
+    }
+    &__crown {
+        position: absolute;
+        left: 50%;
+        bottom: calc(100% + .06rem);
+        width: .85rem;
+        transform: translateX(-50%);
+        color: #eed08b;
+        pointer-events: none;
+
+        svg {
+            display: block;
+            width: 100%;
+            height: auto;
+            fill: currentColor;
+        }
+    }
+    &__crown-base { fill: #c9a75e; }
+    &__crown-light { fill: rgba(255, 250, 230, 0.5); }
+    /* The player cube — the shared ENAMEL material (one family with the
+       rail's cassette and the sponsor socket). */
+    &__cube {
+        flex-shrink: 0;
+        width: .8rem;
+        height: .8rem;
+        border-radius: .18rem;
+        background-image: linear-gradient(180deg,
+            rgba(255, 255, 255, 0.42),
+            rgba(255, 255, 255, 0.08) 36%,
+            rgba(0, 0, 0, 0.1) 62%,
+            rgba(0, 0, 0, 0.32));
+        box-shadow:
+            inset 0 .06rem .08rem rgba(255, 255, 255, 0.34),
+            inset 0 -.08rem .1rem rgba(0, 0, 0, 0.42),
+            inset 0 0 0 .055rem rgba(16, 22, 30, 0.8),
+            0 .08rem .16rem rgba(0, 0, 0, 0.5);
+
+        &--me {
+            box-shadow:
+                inset 0 .06rem .08rem rgba(255, 255, 255, 0.34),
+                inset 0 -.08rem .1rem rgba(0, 0, 0, 0.42),
+                inset 0 0 0 .055rem rgba(16, 22, 30, 0.8),
+                0 0 0 .07rem rgba(255, 255, 255, 0.62),
+                0 .08rem .16rem rgba(0, 0, 0, 0.5);
+        }
+        &--ii {
+            width: .68rem;
+            height: .68rem;
+        }
+    }
+    &__tier-score {
+        font-size: 1.3rem;
+        font-weight: 800;
+        line-height: 1;
+        font-variant-numeric: tabular-nums;
+        color: #ffe9c4;
+        white-space: nowrap;
+
+        &--ii {
+            font-size: 1rem;
+            color: #cbd9e6;
+        }
+    }
+    /* The empty race — one calm centred dash, never a disabled plate. */
+    &__race-none {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        min-height: 1.6rem;
+        color: fade(@con-text-dim, 55%);
+        font-size: 1rem;
+    }
+    /* Where YOU stand — the one word under the cassette. Amber carries the
+       podium tones; TRAILING states the viewer's own count (they may be in
+       neither rendered tier). */
+    &__race-foot {
+        font-size: .625rem;
+        font-weight: 800;
+        letter-spacing: .075rem;
+        text-transform: uppercase;
+        text-align: right;
+        color: @con-text-dim;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+
+        &--lead,
+        &--tie { color: #ffe9c4; }
+        &--empty { font-weight: 600; letter-spacing: .04rem; }
     }
     &__rivals {
         display: inline-flex;
@@ -9144,6 +9538,91 @@ html.console-mode {
         padding-right: var(--con-stage-gain, 0rem);
         border-top: .05rem solid fade(@con-cyan, 16%);
     }
+
+    /* ═══ TWO SIBLING IDENTITIES, ONE FAMILY ═══════════════════════════
+       МILESTONES read as PROGRESS AND THRESHOLD — the family's cool
+       cyan/mint axis (the default above), progress instruments (meter,
+       drawn check, «ДОСТУПНО»), the flag. AWARDS read as COMPETITION AND
+       SPONSORSHIP — a warm podium atmosphere: gold-shifted ground and
+       hairlines, warm pedestal light, the crown/cassette instruments, the
+       trophy. Same chassis, same geometry — the ATMOSPHERE and the status
+       instruments are what tell the two apart before the title is read. */
+    &--awards {
+        .con-ma__backdrop {
+            background:
+                radial-gradient(90% 80% at 72% 18%, rgba(214, 164, 78, 0.10), transparent 62%),
+                radial-gradient(120% 115% at 42% 42%, rgba(8, 6, 3, 0.62), rgba(8, 6, 3, 0.46) 70%, rgba(8, 6, 3, 0.38));
+        }
+        .con-ma__card {
+            background: linear-gradient(165deg, rgba(28, 26, 21, 0.94), rgba(17, 15, 12, 0.94));
+            box-shadow:
+                inset 0 0 0 .05rem rgba(196, 174, 132, 0.17),
+                inset 0 .05rem 0 rgba(255, 255, 255, 0.04);
+        }
+        /* The kind scope raised the card's specificity, so the focus ring and
+           the hover hairline must be RE-ASSERTED at the same weight — or the
+           warm base silently out-specifies them (the ringless-FHD bug). */
+        .con-ma__card:hover:not(.con-ma__card--focused) {
+            box-shadow:
+                inset 0 0 0 .05rem rgba(196, 174, 132, 0.32),
+                inset 0 .05rem 0 rgba(255, 255, 255, 0.05);
+        }
+        .con-ma__card--focused {
+            box-shadow:
+                inset 0 0 0 .075rem fade(@con-cyan, 85%),
+                0 0 1.1rem fade(@con-cyan, 18%);
+        }
+        .con-ma__card--taken {
+            background: linear-gradient(165deg, rgba(23, 21, 17, 0.95), rgba(14, 12, 10, 0.95));
+        }
+        .con-ma__stage {
+            background:
+                radial-gradient(circle at 50% 58%, rgba(255, 205, 120, 0.10), transparent 66%),
+                rgba(15, 12, 8, 0.6);
+            box-shadow:
+                inset 0 0 0 .05rem rgba(196, 170, 120, 0.22),
+                inset 0 -.6rem 1.1rem rgba(0, 0, 0, 0.4);
+        }
+        .con-ma__price {
+            box-shadow: inset 0 0 0 .075rem fade(@strat-gold, 48%);
+        }
+        .con-ma__foot { border-top-color: fade(@strat-gold, 18%); }
+        .con-wshead__emblem { color: #eed08b; }
+    }
+    /* The milestone identity keeps the family default (cool axis) and adds
+       its own instrument tint at the door: the flag burns cyan-mint. */
+    &--milestones {
+        .con-wshead__emblem { color: #9fe8d0; }
+    }
+
+    /* The header tray's NEXT slot arms gold while the awards action is
+       genuinely offered — the strategy rail's own door grammar (the accent
+       lives at the ACTION level; award rows stay calm by design). */
+    &__slot--next {
+        box-shadow: inset 0 0 0 .075rem fade(@strat-gold, 85%),
+            0 0 .45rem fade(@strat-gold, 45%);
+    }
+
+    /* ── the LB/RB ARRIVE beat — the new category's content slides in from
+       its bumper's side while frame, head and rail stand still. One-shot
+       class (data + timer), transform/opacity only, never a remount. ── */
+    &__browse--arrive-l .con-ma__scroll-host,
+    &__browse--arrive-l .con-ma__foot {
+        animation: con-ma-arrive-l calc(240ms * var(--motion-scale, 1)) @con-ease-standard both;
+    }
+    &__browse--arrive-r .con-ma__scroll-host,
+    &__browse--arrive-r .con-ma__foot {
+        animation: con-ma-arrive-r calc(240ms * var(--motion-scale, 1)) @con-ease-standard both;
+    }
+}
+
+@keyframes con-ma-arrive-l {
+    from { opacity: 0.25; transform: translateX(-1.1rem); }
+    to { opacity: 1; transform: none; }
+}
+@keyframes con-ma-arrive-r {
+    from { opacity: 0.25; transform: translateX(1.1rem); }
+    to { opacity: 1; transform: none; }
 }
 
 /* ── THE MA STATUS RAIL — the ONE projected-transaction line of the
@@ -9331,6 +9810,43 @@ html.console-mode {
         position: absolute;
         inset: 8%;
     }
+    /* The «can act NOW» light on the hero — the overview tile's activation
+       rim carried into the confirmation context (absolute: zero layout, the
+       hero's children are identical in every phase). Lit only pre-commit. */
+    &__actring {
+        position: absolute;
+        inset: 10%;
+        border-radius: 50%;
+        box-shadow: 0 0 0 .11rem rgba(246, 232, 198, 0.6),
+            0 0 1.1rem fade(@strat-gold, 38%),
+            inset 0 0 .8rem fade(@strat-gold, 14%);
+        opacity: 0;
+        transition: opacity calc(300ms * var(--motion-scale, 1)) ease;
+        pointer-events: none;
+        z-index: 2;
+    }
+    &--avail &__actring { opacity: 1; }
+    /* The award identity: warm hairlines on the plates, the leader's crown
+       in the race — the same podium instruments the overview speaks. */
+    &--award &__plate {
+        box-shadow:
+            inset 0 0 0 .05rem rgba(196, 174, 132, 0.2),
+            inset 0 .05rem 0 rgba(255, 255, 255, 0.04);
+    }
+    &__row-crown {
+        display: block;
+        width: 1rem;
+        margin: 0 auto;
+        color: #eed08b;
+
+        svg {
+            display: block;
+            width: 100%;
+            height: auto;
+            fill: currentColor;
+        }
+    }
+    &__row-crown-base { fill: #c9a75e; }
     &__name {
         max-width: 100%;
         font-size: var(--mafocus-name, 1.5rem);
@@ -11685,6 +12201,17 @@ html.con-profile-handheld .con-mafocus {
     .con-strat__item--activating .con-strat__readymark svg path,
     .con-strat__item--repulse .con-strat__actring,
     .con-strat__item--repulse .con-strat__spark { animation: none; }
+    /* The MA workspace speaks the same activation phrase — same statics. */
+    .con-ma__card--arriving .con-ma__art,
+    .con-ma__card--arriving .con-ma__spark,
+    .con-ma__card--arriving .con-ma__sweep,
+    .con-ma__card--arriving .con-ma__actring,
+    .con-ma__card--arriving .con-ma__avail,
+    .con-ma__card--arriving .con-ma__readymark svg path,
+    .con-ma__browse--arrive-l .con-ma__scroll-host,
+    .con-ma__browse--arrive-l .con-ma__foot,
+    .con-ma__browse--arrive-r .con-ma__scroll-host,
+    .con-ma__browse--arrive-r .con-ma__foot { animation: none; }
 }
 
 /* The recomposition's TransitionGroup classes: survivors FLIP (move),
@@ -12655,12 +13182,18 @@ html.con-profile-large.console-mode .notifications-layer.notifications-layer--jo
    the model constants (HAND_DOCK_CARD_*_REM) — keep them in sync. */
 .con-handdock {
     position: absolute;
-    /* Centre WITHOUT transform (left:0/right:0 + margin:auto) — a `transform`
-       would make the dock a stacking context and re-TRAP the pack in the
-       chassis band, defeating the whole point. NO z-index on the root either;
-       the chassis (wings/plate, high z) and the pack (low z in scenes) are
-       given their OWN z below, relative to `.con-root`. Width-agnostic, so the
-       per-profile width overrides still centre. */
+    /* Centre WITHOUT transform (left:0/right:0 + margin:auto). Since the
+       single-owner rework the root IS a stacking context (z below): the old
+       «no z on the root» rule existed so the PACK could dive to z0 under
+       scenes while the chassis stayed high — the pack is an empty anchor
+       now and that dive is gone. The root z serves the HIT TEST: the cards
+       left this DOM, so the root's own (transparent) box is what the
+       pointer meets over the pack area — with z auto it lost to
+       `.con-main` (z1) and the board intercepted every dock hover/click.
+       11702 keeps the whole chassis exactly where it painted before:
+       above the bodies layer (11645) and the delivery flights (11646),
+       under the hand verdict rail (11711) and every cinematic. */
+    z-index: 11702;
     left: 0;
     right: 0;
     margin-left: auto;
@@ -12696,6 +13229,14 @@ html.con-profile-large.console-mode .notifications-layer.notifications-layer--jo
        hover / the RT wheel raise / card enter-leave). */
     cursor: default;
     pointer-events: none;
+    /* SINGLE-OWNER REWORK: the card backs left this DOM (the bodies layer
+       owns them, pointer-inert by contract), so the ROOT itself is the
+       click/hover target while the dock is live — without this the pointer
+       fell THROUGH the chassis into the board underneath. */
+    &--live {
+        pointer-events: auto;
+        cursor: pointer;
+    }
 
     /* ── shoulder rails: the bar's top rim flowing around the bay ── */
     &__wing {
