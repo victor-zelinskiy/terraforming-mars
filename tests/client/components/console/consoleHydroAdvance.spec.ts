@@ -1,5 +1,5 @@
 import {expect} from 'chai';
-import {hydroAdvanceResponses} from '@/client/console/consoleHydroAdvance';
+import {hydroAdvanceResponses, hydroAdvanceTail} from '@/client/console/consoleHydroAdvance';
 import {CardName} from '@/common/cards/CardName';
 
 const ACTIVATE = {type: 'or', index: 3, response: {type: 'option'}};
@@ -87,6 +87,46 @@ describe('hydroAdvanceResponses (console advance batch)', () => {
     expect(out).to.deep.equal([
       ACTIVATE,
       {type: 'deltaProject', amount: 1},
+    ]);
+  });
+});
+
+/**
+ * ══ THE LANDED STAGE'S ANSWERS ARE THE SAME ON BOTH ROADS ═══════════════
+ *
+ * The player's own action and a card's bonus offer differ ONLY in how the move
+ * is authorised — `activate` + `{deltaProject, amount}` versus one `OrOptions`
+ * index. From the landing on they reach the same server code, so they must send
+ * the same tail. A bonus move that assembled its own is how the stage-7 pick
+ * ended up arriving AFTER the commit, as a standalone legacy card browser.
+ */
+describe('hydroAdvanceTail (shared by the bonus offer)', () => {
+  it('is exactly what the standard batch carries past its own prefix', () => {
+    const payload = {spend: 3, rewardChoice: 1, selectedCard: CardName.PETS};
+    const full = hydroAdvanceResponses(ACTIVATE, payload);
+    expect(hydroAdvanceTail(payload)).to.deep.equal(full.slice(2));
+  });
+
+  it('carries nothing when the landed stage asks nothing', () => {
+    expect(hydroAdvanceTail({spend: 2, rewardChoice: undefined})).to.deep.equal([]);
+  });
+
+  it('carries the COMPOSED repeat tail, not a bare pick', () => {
+    const tail = hydroAdvanceTail({
+      spend: 0,
+      rewardChoice: undefined,
+      selectedCard: CardName.VIRON,
+      repeat: {
+        chosenCard: CardName.VIRON,
+        nodeIndex: 0,
+        composed: {branchIndex: 1, preResponses: [], optionResponse: undefined, stepResponses: []},
+      },
+    });
+    // More than the bare `{card:[X]}`: the chosen action's own responses ride
+    // along in defer order (ProjInsp/Viron parity).
+    expect(tail).to.deep.equal([
+      {type: 'card', cards: [CardName.VIRON]},
+      {type: 'or', index: 1, response: {type: 'option'}},
     ]);
   });
 });

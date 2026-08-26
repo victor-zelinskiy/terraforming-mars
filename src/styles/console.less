@@ -5673,6 +5673,57 @@ html.console-mode body.placement-pending .board-outer-spaces > .board-space.boar
         line-height: 1.35;
         /* NEVER clamp decision text — density is bought in the model. */
     }
+    /* THE OMISSION WARNING — a RESERVED line, never a line that appears.
+       The whole point of the gate is to warn the player ON the press they
+       aimed at the confirm; if the warning grew the layout it would move that
+       very button under their thumb. So the slot is always laid out (the
+       reserved-line idiom this workspace already uses for the route notes) and
+       only its CONTENT changes. */
+    &__pickwarn {
+        display: flex;
+        align-items: center;
+        gap: .4rem;
+        margin: 0;
+        min-height: 1.15rem;
+        font-size: .8rem;
+        font-weight: 700;
+        line-height: 1.15rem;
+        color: @con-amber;
+        /* Nothing to read yet — but the line is already here. */
+        opacity: 0;
+        transition: opacity calc(140ms * var(--motion-scale, 1)) ease-out;
+    }
+    &__pickwarn--on {
+        opacity: 1;
+        /* One short attention beat, compositor-only (the paint baseline strips
+           `filter`/`text-shadow`, and an ambient loop would be worse than
+           useless here — this is a one-shot). */
+        animation: con-hydro-warn calc(320ms * var(--motion-scale, 1)) @con-ease-standard;
+    }
+    &__pickwarn-mark {
+        font-size: .9rem;
+        line-height: 1;
+    }
+
+    /* THE LANDED STAGE'S PRE-SELECT, on the offer's own window. Same chip as
+       the plan panel's «Ваш выбор»; an UNMADE pick states itself in the amber
+       register so the row reads as owed rather than as decoration. */
+    &__bonus-pick {
+        align-self: stretch;
+        margin-top: .35rem;
+    }
+    &__bonus-pick--missing {
+        box-shadow: inset 0 0 0 .05rem fade(@con-amber, 40%);
+
+        .con-hydro__summary-body--empty { color: fade(@con-amber, 95%); }
+    }
+    &__summary-body--empty {
+        display: inline-flex;
+        align-items: center;
+        gap: .4rem;
+        font-weight: 700;
+    }
+
     /* THE FACTS — what the move costs and what it pays, in the SAME
        «сейчас → станет» rows the plan panel states an ordinary advance
        with. Two labelled groups on one line while they fit; the cap is the
@@ -6262,6 +6313,13 @@ html.console-mode body.placement-pending .board-outer-spaces > .board-space.boar
     .con-hydro .con-hydro-stopin-leave-active { transition-duration: 1ms; transition-delay: 0ms; }
 }
 
+@keyframes con-hydro-warn {
+    0% { transform: translateX(0); }
+    28% { transform: translateX(.18rem); }
+    62% { transform: translateX(-.12rem); }
+    100% { transform: translateX(0); }
+}
+
 /* ── Hydronetwork · handheld profile (Steam Deck 1280×800 — the primary
    target): the SAME composition, recomposed tighter, never scaled down. */
 html.con-profile-handheld .con-hydro {
@@ -6347,6 +6405,8 @@ html.con-profile-handheld .con-hydro {
     .con-hydro__bonus-action-title { font-size: .8rem; }
     .con-hydro__bonus-text { font-size: .775rem; }
     .con-hydro__bonus-facts { gap: .25rem .9rem; max-width: 26rem; }
+    .con-hydro__pickwarn { font-size: .725rem; min-height: 1rem; line-height: 1rem; }
+    .con-hydro__bonus-pick { max-width: 26rem; }
     .con-hydro__bonus-fact .con-hydro__delta { font-size: .775rem; }
 }
 
@@ -6377,6 +6437,7 @@ html.con-profile-large .con-hydro {
     .con-hydro__bonus-action-title { font-size: 1.05rem; }
     .con-hydro__route-cost--free { font-size: .8rem; }
     .con-hydro__bonus-facts { gap: .35rem 1.6rem; }
+    .con-hydro__pickwarn { font-size: .95rem; min-height: 1.4rem; line-height: 1.4rem; }
     .con-hydro__bonus-fact .con-hydro__delta { font-size: 1rem; }
 }
 

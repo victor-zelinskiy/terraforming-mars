@@ -5,6 +5,7 @@ import {CardName} from '@/common/cards/CardName';
 import type {DeltaBonusPromptMeta} from '@/common/models/DeltaBonusPromptModel';
 import {resetHydroFlow, beginHydroCommit, hydroFlowState} from '@/client/console/hydroFlow/consoleHydroFlow';
 import {hydroNetworkState} from '@/client/components/hydronetwork/hydroNetworkState';
+import {consoleHydroUi} from '@/client/console/consoleHydroState';
 
 /**
  * THE BONUS OFFER'S WORKING ZONE — the bottom of the Hydronetwork workspace,
@@ -41,6 +42,12 @@ type Vm = {
   bonusShowsFacts: boolean,
   bonusRewardOptions: ReadonlyArray<unknown>,
   bonusRewardView: {lines: ReadonlyArray<{delta: number}>},
+  bonusNeedsCard: boolean,
+  bonusPickMissing: boolean,
+  pickWarned: boolean,
+  pickWarningKey: string,
+  model: {selectedCard: string | undefined, needsCardSelect: string | undefined, mustSelectCard: boolean},
+  openBonusPick(): void,
   rewardChoice: number | undefined,
   backVerb: string,
   backLabel: string | undefined,
@@ -63,7 +70,10 @@ function viewerPlayer() {
     megacreditProduction: 0, steelProduction: 0, titaniumProduction: 0,
     plantProduction: 0, energyProduction: 1, heatProduction: 0,
     tags: {},
-    tableau: [],
+    // A real animal host, so the pos-9 target step has something to offer —
+    // the step builds its owners from the TABLEAU, not from the eligibility
+    // list alone (a name with no card on the table is dropped, never invented).
+    tableau: [{name: 'Birds', resources: 3}],
     deltaProject: {position: 2, stops: []},
   };
 }
@@ -90,6 +100,40 @@ function mountSection(offer: DeltaBonusPromptMeta | undefined, opts: {
 }
 
 const CHOICE_OFFER: DeltaBonusPromptMeta = {...OFFER, fromPosition: 0, toPosition: 1};
+/** Position 7 — «Микробная рекультивация»: repeat a used blue action. */
+const REPEAT_OFFER: DeltaBonusPromptMeta = {...OFFER, fromPosition: 6, toPosition: 7};
+/** Position 9 — «Ареалы видов»: 2 animals onto a card of your choice. */
+const ANIMAL_OFFER: DeltaBonusPromptMeta = {...OFFER, fromPosition: 8, toPosition: 9};
+
+/** The SERVER's eligibility lists live on the track preview — the same shape
+ *  the plan panel reads, so seating one is what makes the offer's landing stage
+ *  answerable by the very machinery the ordinary advance uses. */
+function seatPreview(opts: {reuse?: ReadonlyArray<string>, animals?: ReadonlyArray<string>}): void {
+  hydroNetworkState.previewColor = 'red' as never;
+  hydroNetworkState.preview = {
+    currentPosition: 2,
+    availableEnergy: 9,
+    usedThisGeneration: false,
+    atEndOfTrack: false,
+    maxLegalSteps: 9,
+    maxEnergySteps: 9,
+    maxPreviewSteps: 9,
+    reuseActionCards: opts.reuse ?? [],
+    animalTargetCards: opts.animals ?? [],
+    destinations: Array.from({length: 9}, (_, i) => ({
+      steps: i + 1,
+      position: i + 3,
+      legal: true,
+      affordable: true,
+      energyDeficit: 0,
+      occupied: false,
+      jumpedOverVp2: false,
+      requiredTags: [],
+      wildCoveredTags: [],
+      missingTags: [],
+    })),
+  } as never;
+}
 
 /** A prompt that is NOT this workspace's — the wheel-entry case. */
 const FOREIGN_PROMPT = {type: 'card', title: 'Discard a card'};
@@ -98,6 +142,10 @@ describe('the Hydronetwork bonus zone', () => {
   afterEach(() => {
     resetHydroFlow(); // module state is bundle-shared — never leak the flow
     hydroNetworkState.rewardChoice = undefined;
+    hydroNetworkState.selectedCard = undefined;
+    hydroNetworkState.preview = undefined;
+    hydroNetworkState.previewColor = undefined;
+    consoleHydroUi.repeatResult = undefined;
   });
 
   it('an offer OWNS the working zone; without one the zone is not the offer', () => {
@@ -453,6 +501,173 @@ describe('the Hydronetwork bonus zone', () => {
       expect(vm.bonusNeedsReward).is.true;
       expect(vm.bonusRewardOptions).to.have.length(2);
       expect(vm.bonusGainPresent).is.true;
+      w.unmount();
+    });
+  });
+
+  /**
+   * ══ THE LANDED STAGE'S PICK IS MADE **HERE** ════════════════════════
+   *
+   * Positions 7 and 9 defer a SelectCard. Reached through a card's offer the
+   * workspace used to pre-collect nothing, so the pick arrived AFTER the commit
+   * as the generic card browser — a standalone legacy surface over the very
+   * workspace that had just asked the question.
+   *
+   * The fix is not a second implementation: an offer SEATS the plan on its own
+   * destination, so `model.needsCardSelect`, the eligibility list, the repeat
+   * browser bridge and the embedded target step all describe the landing stage
+   * exactly as they do for the player's own advance.
+   */
+  describe('the landed stage\'s pre-select', () => {
+    it('SEATS the plan on the offer\'s destination, so the landing stage is what is configured', () => {
+      seatPreview({reuse: ['Ironworks']});
+      const w = mountSection(REPEAT_OFFER);
+      expect(hydroNetworkState.selectedPosition, 'the plan follows the offer').to.eq(7);
+      expect((w.vm as unknown as Vm).model.needsCardSelect).to.eq('reuse-action');
+      w.unmount();
+    });
+
+    it('pos 7 asks for the action, and A on the row opens the SAME repeat bridge', () => {
+      seatPreview({reuse: ['Ironworks']});
+      const w = mountSection(REPEAT_OFFER);
+      const vm = w.vm as unknown as Vm;
+      expect(vm.bonusNeedsCard).is.true;
+      expect(vm.bonusPickMissing).is.true;
+      vm.openBonusPick();
+      // `pick` is the shell's `openHydroRepeatPick` — the ordinary advance's
+      // own door, not a bonus-only one.
+      expect(w.emitted('pick')).to.have.length(1);
+      w.unmount();
+    });
+
+    it('pos 9 asks for the target card, and A on the row opens the SAME step', () => {
+      seatPreview({animals: ['Birds']});
+      const w = mountSection(ANIMAL_OFFER);
+      const vm = w.vm as unknown as Vm;
+      expect(vm.bonusNeedsCard).is.true;
+      expect(vm.model.needsCardSelect).to.eq('animal-target');
+      vm.openBonusPick();
+      expect(hydroFlowState.step, 'the embedded target step').to.eq('target');
+      expect(vm.sceneKey).to.eq('target');
+      w.unmount();
+    });
+
+    it('a stage with NO candidates asks nothing — the reward simply fizzles', () => {
+      seatPreview({reuse: []});
+      const w = mountSection(REPEAT_OFFER);
+      const vm = w.vm as unknown as Vm;
+      expect(vm.bonusNeedsCard).is.false;
+      expect(vm.bonusPickMissing).is.false;
+      w.unmount();
+    });
+
+    /** THE WHOLE POINT: the pick rides the SAME batch, so the server never asks
+     *  again — no post-commit browser. */
+    it('carries the pick in the answer, so nothing is asked after the commit', async () => {
+      seatPreview({animals: ['Birds']});
+      const w = mountSection(ANIMAL_OFFER);
+      const vm = w.vm as unknown as Vm;
+      // The pick is made from INSIDE the standing workspace — which is also why
+      // a fresh mount is free to drop a stale plan draft (`resetHydroPlan`)
+      // without ever touching a choice the player just made here.
+      hydroNetworkState.selectedCard = 'Birds' as never;
+      await w.vm.$nextTick();
+      expect(vm.bonusPickMissing).is.false;
+      vm.answerBonus(true);
+      const p = w.emitted('bonus-answer')?.[0][0] as {selectedCard?: string};
+      expect(p.selectedCard).to.eq('Birds');
+      w.unmount();
+    });
+  });
+
+  /**
+   * ══ THE OMISSION IS NAMED, AND COSTS AN EXPLICIT SECOND PRESS ══════════
+   *
+   * The pos 7/9 pick is MANDATORY (`hydroNetworkModel`: the reward cannot be
+   * skipped), so a confirm that ignores it forfeits nothing — it only postpones
+   * the question into a surface nobody chose. The gate is therefore a warning,
+   * never a bypass.
+   */
+  describe('the missing-pick gate', () => {
+    it('the first confirm WARNS and submits nothing', () => {
+      seatPreview({reuse: ['Ironworks']});
+      const w = mountSection(REPEAT_OFFER);
+      const vm = w.vm as unknown as Vm;
+      vm.answerBonus(true);
+      expect(w.emitted('bonus-answer'), 'nothing was submitted').is.undefined;
+      expect(vm.pickWarned).is.true;
+      // …and it NAMES what is missing, never a bare «нельзя».
+      expect(vm.pickWarningKey).to.match(/action to repeat/i);
+      // …and it points the cursor AT the thing to do next.
+      expect(vm.sceneFocus).to.eq('bonus-pick');
+      w.unmount();
+    });
+
+    it('the SECOND press goes and answers it', () => {
+      seatPreview({reuse: ['Ironworks']});
+      const w = mountSection(REPEAT_OFFER);
+      const vm = w.vm as unknown as Vm;
+      vm.answerBonus(true);
+      vm.handleIntent({kind: 'press', button: 'confirm'});
+      expect(w.emitted('pick'), 'the second press opens the pre-select').to.have.length(1);
+      w.unmount();
+    });
+
+    it('names the ANIMAL target when that is what is missing', () => {
+      seatPreview({animals: ['Birds']});
+      const w = mountSection(ANIMAL_OFFER);
+      const vm = w.vm as unknown as Vm;
+      vm.answerBonus(true);
+      expect(vm.pickWarningKey).to.match(/animals/i);
+      w.unmount();
+    });
+
+    /** The warning describes a STATE, so it dies with the state it named. */
+    it('clears itself the moment the pick is made', async () => {
+      seatPreview({animals: ['Birds']});
+      const w = mountSection(ANIMAL_OFFER);
+      const vm = w.vm as unknown as Vm;
+      vm.answerBonus(true);
+      expect(vm.pickWarned).is.true;
+      hydroNetworkState.selectedCard = 'Birds' as never;
+      await w.vm.$nextTick();
+      expect(vm.pickWarned).is.false;
+      expect(vm.bonusPickMissing).is.false;
+      w.unmount();
+    });
+
+    /**
+     * THE WARNING'S SLOT IS ALWAYS IN LAYOUT.
+     *
+     * The gate fires on the press the player aimed AT the confirm, so a warning
+     * that grew the column would move that very button out from under their
+     * thumb. The line is therefore always rendered and only its CONTENT
+     * changes — the reserved-line idiom this workspace already uses for the
+     * route notes.
+     */
+    it('reserves its line: arming changes CONTENT, never the node count', async () => {
+      seatPreview({reuse: ['Ironworks']});
+      const w = mountSection(REPEAT_OFFER);
+      const vm = w.vm as unknown as Vm;
+      const slot = () => w.findAll('.con-hydro__pickwarn');
+      const before = slot().length;
+      expect(before, 'the slot exists before there is anything to say').to.be.greaterThan(0);
+      expect(slot()[0].text(), 'and it says nothing yet').to.eq('');
+
+      vm.answerBonus(true);
+      await w.vm.$nextTick();
+      expect(slot().length, 'the same number of nodes').to.eq(before);
+      expect(slot()[0].classes()).to.contain('con-hydro__pickwarn--on');
+      expect(slot()[0].text(), 'now it names the omission').to.not.eq('');
+      w.unmount();
+    });
+
+    /** A SKIP is a whole answer — it is not missing anything. */
+    it('never gates the refusal', () => {
+      seatPreview({reuse: ['Ironworks']});
+      const w = mountSection(REPEAT_OFFER);
+      (w.vm as unknown as Vm).answerBonus(false);
+      expect(w.emitted('bonus-answer')?.[0][0]).to.include({take: false});
       w.unmount();
     });
   });

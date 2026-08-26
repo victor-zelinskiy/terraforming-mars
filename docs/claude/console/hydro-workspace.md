@@ -201,16 +201,48 @@ reason emitted), a prompt somebody else serves is `busy`. Deriving it from
 itself had opened — telling the player to go and finish the thing in front of
 them.
 
+**THE LANDED STAGE'S PICK IS MADE ON THE OFFER'S OWN WINDOW.** Positions 7
+(repeat a used blue action) and 9 (which card receives the animals) defer a
+`SelectCard`. Reached through an offer the workspace used to pre-collect
+nothing, so the pick arrived AFTER the commit as the generic card browser — a
+standalone legacy surface over the very workspace that had just asked the
+question. The fix is NOT a second implementation: an offer **seats the plan on
+its own destination** (`seatPlanOnOffer`), after which `model.needsCardSelect`,
+the eligibility list, the repeat-browser bridge (`$emit('pick')`), the embedded
+target step (`openTargetStep`) and the summary chip all describe the LANDING
+stage exactly as they do for the player's own advance. The zone then renders
+the same `.con-hydro__summary` row, and the answer rides the SAME batch tail
+(`hydroAdvanceTail` — shared with `hydroAdvanceResponses`, so the two roads onto
+the track cannot diverge past the landing).
+⚠️ The seating is asked on BOTH edges: the offer watcher runs at SETUP and
+`mounted()` legitimately calls `resetHydroPlan()` for a fresh open, which lands
+after it and wiped the seat. A mount is not a change; it has to ask for itself.
+
+**AND THE OMISSION IS NAMED.** The pos 7/9 pick is MANDATORY (the model says so:
+«a pos 7/9 card pick is MANDATORY before confirm — the reward can't be skipped
+per the rules»), so a confirm that ignores it forfeits nothing — it only
+postpones the question into a surface nobody chose. The gate is therefore a
+WARNING and never a bypass: the first confirm names what is missing
+(`pickWarningKey`) and puts the cursor on the pre-select row; the second press
+goes and answers it. Shared by the offer and the plan CTA, because it is the
+same omission either way — the CTA used to relabel itself «Выбрать действие» and
+never say why.
+⚠️ **The warning's slot is ALWAYS in layout** (`.con-hydro__pickwarn`, reserved
+height, content-only toggle). It fires on the press the player aimed AT the
+confirm, so a line that grew the column would move that very button out from
+under their thumb. Pinned by `consoleHydroBonusZone.spec.ts` «reserves its
+line».
+
 **WHAT THE LANDING STILL OWES.** A bonus move cannot pre-collect its stage's
 follow-up (the server framed the offer as a two-option question), so
 `hydroBonusAdvancePlan(stage)` — keyed on the stage's own `followUp`, never a
 position literal — declares what the frame must SERVE while the result
 resolves: pos 5 claims its 4-card batch (`deckSelect`), pos 7 serves everything
-the copied action can raise, pos 9 serves the target `cardSelect`. A follow-up
-the frame does not serve rises as a band OVER the workspace that caused it.
-The reward CHOICE of pos 1/2 is the exception the workspace does pre-collect —
-the offer's confirm opens its own reward step and both halves submit as ONE
-batch.
+the REPEATED action raises once it runs, pos 9 keeps `cardSelect` as the honest
+net. A follow-up the frame does not serve rises as a band OVER the workspace
+that caused it. Everything the workspace CAN ask up front — the pos 1/2 reward
+choice, the pos 7 repeat, the pos 9 target — is pre-collected instead and rides
+the one batch.
 
 **THE SOURCE CARD IS PHYSICAL.** The dock carries `data-zoom-slot` and X opens
 the shared `slotZoomOrigin` fullscreen: the card LIFTS OUT of that slot, the

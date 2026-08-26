@@ -230,6 +230,17 @@
                 </span>
               </div>
 
+              <!-- …and the SAME omission warning here: the plan CTA relabels
+                   itself «Выбрать действие» but never said WHY the reinforce it
+                   was showing a moment ago had gone. Reserved line, so it
+                   cannot move the CTA it sits above. -->
+              <p class="con-hydro__pickwarn" :class="{'con-hydro__pickwarn--on': pickWarned && planPickMissing}" role="status" data-unfold-item>
+                <span v-if="pickWarned && planPickMissing">
+                  <span class="con-hydro__pickwarn-mark" aria-hidden="true">⚠</span>
+                  {{ $t(pickWarningKey) }}
+                </span>
+              </p>
+
               <!-- CTA / the specific reasons — never a bare «недоступно». -->
               <div class="con-hydro__ctazone" data-unfold-item>
                 <button v-if="primaryVerb !== 'blocked'" type="button"
@@ -446,6 +457,50 @@
                   </span>
                 </div>
 
+                <!-- THE LANDED STAGE'S PRE-SELECT — the SAME summary chip the
+                     plan panel draws for the player's own advance, on the same
+                     window that confirms the move. A on it opens the SAME step
+                     (the repeat browser bridge / the embedded target step);
+                     nothing here is a second implementation. Without it the
+                     pos-7 / pos-9 pick arrived AFTER the commit, as a
+                     standalone legacy card browser. -->
+                <div v-if="bonusNeedsCard"
+                     class="con-hydro__summary con-hydro__bonus-pick"
+                     :class="{
+                       'con-hydro__summary--focused': sceneFocus === 'bonus-pick',
+                       'con-hydro__bonus-pick--missing': bonusPickMissing,
+                     }"
+                     data-unfold-item
+                     role="button"
+                     @click="openBonusPick">
+                  <span class="con-hydro__section-label">{{ $t(model.needsCardSelect === 'reuse-action' ? 'Action to repeat' : 'Target card') }}</span>
+                  <!-- pos 7: the chosen action — the SAME premium button graphic
+                       the composers draw in their filled repeat slot. -->
+                  <span v-if="model.needsCardSelect === 'reuse-action' && model.selectedCard !== undefined && repeatNode !== undefined"
+                        class="con-composer__repeatpick con-hydro__pick-action">
+                    <span class="con-composer__repeatpick-graphic card-container" v-i18n v-strip-action-prefix>
+                      <CardRenderEffectBoxComponent v-if="repeatNode.actionNode !== undefined" :effectData="repeatNode.actionNode" />
+                      <CardRenderData v-else-if="repeatNode.renderRoot !== undefined" :renderData="repeatNode.renderRoot" />
+                      <span v-else class="con-composer__graphic-text">{{ repeatNode.text }}</span>
+                    </span>
+                    <span class="con-composer__repeatpick-name">{{ $t(model.selectedCard) }}</span>
+                    <span class="con-hydro__bonus-tick" aria-hidden="true">✓</span>
+                  </span>
+                  <!-- pos 9: the chosen target card + the honest count. -->
+                  <span v-else-if="model.selectedCard !== undefined" class="con-hydro__summary-body">
+                    <b>{{ $t(model.selectedCard) }}</b>
+                    <span v-if="selectedAnimalCurrent !== undefined" class="con-hydro__pick-cur">
+                      <span class="card-resource card-resource-animal" aria-hidden="true"></span>
+                      {{ selectedAnimalCurrent }} → {{ selectedAnimalCurrent + 2 }}
+                    </span>
+                    <span class="con-hydro__bonus-tick" aria-hidden="true">✓</span>
+                  </span>
+                  <span v-else class="con-hydro__summary-body con-hydro__summary-body--empty">
+                    <GamepadGlyph control="confirm" />
+                    <span>{{ $t(model.needsCardSelect === 'reuse-action' ? 'Choose an action' : 'Choose a card') }}</span>
+                  </span>
+                </div>
+
                 <!-- TAKE IT / SKIP — a COMPACT BINARY CHOICE, not two settings
                      rows. The pair sizes to its own content and sits under the
                      statement it answers instead of spanning a 4K content
@@ -475,6 +530,17 @@
                     <span class="con-hydro__bonus-action-title">{{ $t(bonusCopy.skipKey) }}</span>
                   </button>
                 </div>
+
+                <!-- THE OMISSION, NAMED — in a slot that is ALWAYS in layout
+                     (the reserved-line idiom this console already uses for the
+                     route notes): a warning that appears must never push the
+                     answers the player is aiming at. -->
+                <p class="con-hydro__pickwarn" :class="{'con-hydro__pickwarn--on': pickWarned && bonusPickMissing}" role="status">
+                  <span v-if="pickWarned && bonusPickMissing">
+                    <span class="con-hydro__pickwarn-mark" aria-hidden="true">⚠</span>
+                    {{ $t(pickWarningKey) }}
+                  </span>
+                </p>
               </div>
             </div>
           </div>
@@ -747,7 +813,20 @@ export default defineComponent({
       hydroMarkerState,
       landings: cardResourceLandings,
       /** Scene focus: the track (A = primary) or the pre-select summary. */
-      sceneFocus: 'track' as 'track' | 'summary' | 'bonus-source' | 'bonus-confirm' | 'bonus-skip',
+      sceneFocus: 'track' as 'track' | 'summary' | 'bonus-source' | 'bonus-pick' | 'bonus-confirm' | 'bonus-skip',
+      /**
+       * A CONFIRM WAS ATTEMPTED WITH THE LANDED STAGE'S PICK STILL MISSING.
+       *
+       * Positions 7 and 9 defer a SelectCard the rules do not let anyone skip
+       * (`hydroNetworkModel`: «a pos 7/9 card pick is MANDATORY before
+       * confirm»), so a confirm that ignores it does not forfeit anything — it
+       * merely postpones the question into a surface nobody chose. The gate is
+       * therefore a WARNING, not a bypass: the first press names what is
+       * missing and puts the cursor on it, the second press goes and answers
+       * it. Shared by the plan CTA and the bonus offer, because it is the same
+       * omission either way.
+       */
+      pickWarned: false,
       /** The bonus answer is in flight — both CTAs are inert until the server replies. */
       bonusSubmitting: false,
       /** The reward picker's focused option (pos 1/2). */
@@ -1124,6 +1203,35 @@ export default defineComponent({
       const stage = HYDRO_STAGES[offer.toPosition];
       return stage !== undefined && hydroStageNeedsChoice(stage);
     },
+    /**
+     * THE OFFER'S LANDING STAGE ASKS FOR A CARD — pos 7 (which blue action to
+     * repeat) or pos 9 (which card receives the animals).
+     *
+     * Read off the SAME model the plan panel reads, which is honest because an
+     * offer SEATS the plan on its own destination the moment it goes live (see
+     * the `bonusIdentity` watcher). That seating is the whole trick: every
+     * pre-select mechanism this workspace already owns — the repeat browser
+     * bridge, the embedded target step, the summary chip, the eligibility list
+     * — then describes the landing stage with no second implementation.
+     */
+    bonusNeedsCard(): boolean {
+      return this.bonusOffer !== undefined && this.model.mustSelectCard;
+    },
+    /** …and it has not been made yet. */
+    bonusPickMissing(): boolean {
+      return this.bonusNeedsCard && this.model.selectedCard === undefined;
+    },
+    /** WHAT IS MISSING, named. Never a bare «нельзя». */
+    pickWarningKey(): string {
+      return this.model.needsCardSelect === 'reuse-action' ?
+        'Choose the action to repeat first' : 'Choose the card to receive the animals first';
+    },
+    /** The PLAYER'S OWN advance is missing the landed stage's pick. Same
+     *  omission, same warning — asked of the plan layer rather than the offer. */
+    planPickMissing(): boolean {
+      return this.bonusOffer === undefined && this.model.mode === 'plan' &&
+        this.model.mustSelectCard && this.model.selectedCard === undefined;
+    },
     /** Is the offer answerable right now (not already submitted)? */
     bonusAnswerable(): boolean {
       return this.bonusOffer !== undefined && !this.bonusSubmitting;
@@ -1141,6 +1249,11 @@ export default defineComponent({
         stage: this.bonusOffer === undefined ? undefined : HYDRO_STAGES[this.bonusOffer.toPosition],
         snapshot: this.snapshot,
         rewardChoice: this.rewardChoice,
+        // …including the pos-9 target, so the facts row states the animals'
+        // own «сейчас → станет» the moment the card is picked — identical to
+        // what the plan panel shows for the player's own advance.
+        animalTargetCurrent: this.selectedAnimalCurrent,
+        animalTargetCardName: this.model.selectedCard,
       });
     },
     /**
@@ -1453,7 +1566,8 @@ export default defineComponent({
       immediate: true,
       handler(now: string): void {
         this.bonusSubmitting = false;
-        if (now !== '') {
+        this.pickWarned = false;
+        if (now !== '' && this.seatPlanOnOffer()) {
           this.sceneFocus = 'bonus-confirm';
         } else if (this.sceneFocus.startsWith('bonus-')) {
           this.sceneFocus = 'track';
@@ -1533,6 +1647,9 @@ export default defineComponent({
     // A stale pre-selected card silently left the model (the preview moved) —
     // tell the player instead of letting the CTA flip wordlessly.
     'model.selectedCard'(card: CardName | undefined, prev: CardName | undefined): void {
+      // The warning describes a STATE, never a press, so it dies with the
+      // state it named — a pick made (or dropped) re-arms the gate honestly.
+      this.pickWarned = false;
       if (card === undefined && prev !== undefined &&
           hydroNetworkState.selectedCard === prev && this.flow.commit === undefined) {
         this.$emit('notice', translateText('The selected card is no longer available'));
@@ -1570,6 +1687,9 @@ export default defineComponent({
     if (this.sceneKey === 'commit') {
       this.publishEmbedZone();
     }
+    // THE MOUNT EDGE of the seating — after the restore plan, whose fresh-open
+    // branch resets the very field the offer needs seated.
+    this.seatPlanOnOffer();
     if (this.flow.step === 'target') {
       void this.$nextTick(() => this.seatTargetStep());
     }
@@ -1589,6 +1709,31 @@ export default defineComponent({
     $t,
     fetchPreview(): void {
       fetchHydroPreview(this.playerView.id, this.viewerColor, this.cacheKey + ':' + this.viewerColor);
+    },
+    /**
+     * SEAT THE PLAN ON THE OFFER'S DESTINATION.
+     *
+     * Everything this workspace already knows how to pre-select — the reward
+     * step, the repeat browser bridge, the embedded target step, the
+     * eligibility list, the summary chip — is derived from `selectedPosition`.
+     * Seating it here makes ALL of them describe the LANDING stage, with no
+     * second implementation and no per-case wiring: that is what lets a
+     * card-granted move reuse the ordinary advance's pre-select verbatim
+     * instead of letting the pick arrive after the commit as a standalone
+     * legacy card browser.
+     *
+     * ⚠️ ASKED ON BOTH EDGES. The offer watcher runs at SETUP, and `mounted()`
+     * legitimately calls `resetHydroPlan()` for a fresh open — which lands
+     * AFTER it and wiped the seat, so the landing stage was never the thing
+     * being configured. A mount is not a change; it has to ask for itself.
+     */
+    seatPlanOnOffer(): boolean {
+      const offer = this.bonusOffer;
+      if (offer === undefined) {
+        return false;
+      }
+      hydroNetworkState.selectedPosition = offer.toPosition;
+      return true;
     },
     syncFrameCrumb(): void {
       setWorkspaceFrameSubject('hydro', this.crumbSubject);
@@ -1719,10 +1864,20 @@ export default defineComponent({
         this.openChoiceStep();
         return;
       case 'choose-action':
-        this.$emit('pick');
-        return;
       case 'choose-card':
-        this.openTargetStep();
+        // THE SAME GATE THE OFFER USES. The CTA quietly relabelled itself from
+        // «Укрепить» to «Выбрать действие» and never said WHY — the
+        // pos 7/9 pick is MANDATORY (the reward cannot be skipped), so the
+        // first press names the omission and the second goes and answers it.
+        if (!this.pickWarned) {
+          this.pickWarned = true;
+          return;
+        }
+        if (this.primaryVerb === 'choose-action') {
+          this.$emit('pick');
+        } else {
+          this.openTargetStep();
+        }
         return;
       case 'reinforce':
         this.emitConfirm();
@@ -1796,25 +1951,33 @@ export default defineComponent({
      * whatever is one press past «Продвинуться».
      */
     navBonus(dir: 'up' | 'down' | 'left' | 'right'): void {
-      const hasSource = this.bonusSourceView !== undefined;
+      // The zone's focusables, top-to-bottom, exactly as they are laid out.
+      // An edge HOLDS — never a wrap: a decision's cursor that loops turns
+      // «Пропустить» into whatever is one press past «Продвинуться».
+      const column: Array<typeof this.sceneFocus> = [];
+      if (this.bonusSourceView !== undefined) {
+        column.push('bonus-source');
+      }
+      if (this.bonusNeedsCard) {
+        column.push('bonus-pick');
+      }
+      column.push('bonus-confirm');
+      const at = Math.max(0, column.indexOf(this.sceneFocus === 'bonus-skip' ? 'bonus-confirm' : this.sceneFocus));
       switch (dir) {
       case 'left':
-        this.sceneFocus = this.sceneFocus === 'bonus-skip' ? 'bonus-confirm' :
-          (hasSource ? 'bonus-source' : this.sceneFocus);
+        // The two ANSWERS sit side by side; everything above them is a column.
+        this.sceneFocus = this.sceneFocus === 'bonus-skip' ? 'bonus-confirm' : column[Math.max(0, at - 1)];
         return;
       case 'right':
-        this.sceneFocus = this.sceneFocus === 'bonus-source' ? 'bonus-confirm' :
-          this.sceneFocus === 'bonus-confirm' ? 'bonus-skip' : 'bonus-skip';
+        this.sceneFocus = this.sceneFocus === 'bonus-confirm' ? 'bonus-skip' :
+          this.sceneFocus === 'bonus-skip' ? 'bonus-skip' : column[Math.min(column.length - 1, at + 1)];
         return;
       case 'up':
-        if (this.sceneFocus === 'bonus-skip') {
-          this.sceneFocus = 'bonus-confirm';
-        } else if (hasSource) {
-          this.sceneFocus = 'bonus-source';
-        }
+        this.sceneFocus = this.sceneFocus === 'bonus-skip' ? 'bonus-confirm' : column[Math.max(0, at - 1)];
         return;
       case 'down':
-        this.sceneFocus = this.sceneFocus === 'bonus-source' ? 'bonus-confirm' : 'bonus-skip';
+        this.sceneFocus = this.sceneFocus === 'bonus-confirm' ? 'bonus-skip' :
+          this.sceneFocus === 'bonus-skip' ? 'bonus-skip' : column[Math.min(column.length - 1, at + 1)];
         return;
       }
     },
@@ -1823,9 +1986,35 @@ export default defineComponent({
      * the option order this component happens to see — and the in-flight latch
      * makes a second press impossible by state rather than by a guard.
      */
+    /**
+     * OPEN THE LANDED STAGE'S PRE-SELECT — the very same step the player's own
+     * advance opens for the same stage. `$emit('pick')` is the shell's repeat
+     * browser bridge; `openTargetStep` is the embedded target step. Neither is
+     * re-implemented here, and neither knows it was reached from an offer.
+     */
+    openBonusPick(): void {
+      if (!this.bonusNeedsCard) {
+        return;
+      }
+      this.pickWarned = false;
+      if (this.model.needsCardSelect === 'reuse-action') {
+        this.$emit('pick');
+        return;
+      }
+      this.openTargetStep();
+    },
     answerBonus(take: boolean): void {
       const offer = this.bonusOffer;
       if (offer === undefined || this.bonusSubmitting) {
+        return;
+      }
+      // THE PICK IS OWED. A confirm that ignores it postpones a MANDATORY
+      // question into a surface nobody chose — so the first press names what
+      // is missing and moves the cursor onto it; the second press goes and
+      // answers it (`bonus-pick` → openBonusPick).
+      if (take && this.bonusPickMissing) {
+        this.pickWarned = true;
+        this.sceneFocus = 'bonus-pick';
         return;
       }
       if (take && this.bonusNeedsReward) {
@@ -1865,10 +2054,16 @@ export default defineComponent({
         return;
       }
       const view = this.bonusRewardView;
+      // The landed stage's own answers ride the SAME batch the standard
+      // advance sends (`hydroAdvanceTail`) — pre-collected here, never asked
+      // again after the commit.
+      const repeat = this.model.needsCardSelect === 'reuse-action' ? this.chosenRepeat : undefined;
       this.$emit('bonus-answer', {
         take: true,
         index,
         rewardChoice,
+        selectedCard: this.model.mustSelectCard ? this.model.selectedCard : undefined,
+        repeat,
         fromPosition: offer.fromPosition,
         toPosition: offer.toPosition,
         // The server's own verdict on the price (0 for a plain bonus step, 1
@@ -1878,6 +2073,9 @@ export default defineComponent({
         resultLines: view.lines,
         vp: view.vp,
         stageNameKey: HYDRO_STAGES[offer.toPosition]?.nameKey ?? '',
+        // The pos-9 presented target freezes its pre-commit count here, exactly
+        // as `emitConfirm` does for the player's own advance.
+        targetBefore: this.selectedAnimalCurrent,
       });
     },
     emitConfirm(): void {
@@ -2166,6 +2364,8 @@ export default defineComponent({
         case 'primary':
           if (this.sceneFocus === 'bonus-source') {
             this.inspectBonusSource();
+          } else if (this.sceneFocus === 'bonus-pick') {
+            this.openBonusPick();
           } else {
             this.answerBonus(this.sceneFocus !== 'bonus-skip');
           }

@@ -1652,7 +1652,7 @@ import {resolveAwaiting, AWAITING_SAFETY_MS} from '@/client/console/surfaceMotio
 import {surfaceEnterHook, surfaceLeaveHook, surfaceEnterCancelledHook, surfaceLeaveCancelledHook, pinQuickWheelBox} from '@/client/console/surfaceMotion/surfaceMotionDirector';
 import {consoleHandPickState, cancelConsoleHandPick, enterConsoleHandPick, resolveConsoleHandPick, resetConsoleHandPick} from '@/client/console/consoleHandPick';
 import {consoleRepeatPickState, cancelConsoleRepeatPick, enterConsoleRepeatPick, resetConsoleRepeatPick, ConsoleRepeatPickResult} from '@/client/console/consoleRepeatPick';
-import {hydroAdvanceResponses} from '@/client/console/consoleHydroAdvance';
+import {hydroAdvanceResponses, hydroAdvanceTail} from '@/client/console/consoleHydroAdvance';
 import {consoleRepeatPickUi, resetConsoleRepeatPickUi} from '@/client/console/consoleRepeatPickUi';
 import {conUiScale, consoleLayoutState} from '@/client/console/consoleLayoutProfile';
 import {albumSpecFor} from '@/client/components/console/consoleHandAlbum';
@@ -12059,9 +12059,11 @@ export default defineComponent({
      */
     submitHydroBonus(payload: {
       take: boolean, index: number, rewardChoice: number | undefined,
+      selectedCard?: CardName, repeat?: ConsoleRepeatPickResult,
       fromPosition?: number, toPosition?: number, spend?: number,
       rewards?: ReadonlyArray<ResourceTransferSpec>,
       resultLines?: ReadonlyArray<HydroDeltaLine>, vp?: number, stageNameKey?: string,
+      targetBefore?: number,
     }): void {
       // The flow owns the moment from the first press — a second one (a double
       // tap, a held button, a raced click) finds a standing commit / an armed
@@ -12070,13 +12072,23 @@ export default defineComponent({
       if (isHydroMarkerActive() || this.hydroFlow.commit !== undefined) {
         return;
       }
-      // ONE batch, the same shape the standard advance submits: the offer's own
-      // answer, then the landing stage's reward when the workspace pre-collected
-      // it. That is what keeps the reward out of a second modal.
-      const responses: Array<unknown> = [orOptionResponse(payload.index)];
-      if (payload.rewardChoice !== undefined) {
-        responses.push(orOptionResponse(payload.rewardChoice));
-      }
+      // ONE batch, and literally the SAME TAIL the standard advance sends
+      // (`hydroAdvanceTail`): the offer's own answer, then everything the
+      // LANDED STAGE defers — the reward choice (pos 1/2) and the card pick
+      // (pos 7's composed repeat / pos 9's animal target). The two ways onto
+      // the track differ only in how the move is authorised; from the landing
+      // on they are the same server code, so they are the same batch. A bonus
+      // move that omitted this tail is how the stage-7 pick arrived AFTER the
+      // commit, as a standalone legacy card browser.
+      const responses: Array<unknown> = [
+        orOptionResponse(payload.index),
+        ...(payload.take ? hydroAdvanceTail({
+          spend: 0, // the prefix is the offer's own index, never a spend step
+          rewardChoice: payload.rewardChoice,
+          selectedCard: payload.selectedCard,
+          repeat: payload.repeat,
+        }) : []),
+      ];
       // TAKING IS AN ADVANCE, so it opens the ADVANCE's presentation — the very
       // same one «Укрепить гидросеть» opens. The player must not be able to
       // tell a bonus move from a paid one by watching it: the marker glides,
@@ -12088,22 +12100,27 @@ export default defineComponent({
         const to = payload.toPosition ?? 0;
         const plan = hydroBonusAdvancePlan(HYDRO_STAGES[to]);
         this.beginHydroAdvancePresentation({
-          kind: resolutionKindFor(to, {composedRepeat: false, selectedCard: undefined}),
+          kind: resolutionKindFor(to, {
+            composedRepeat: payload.repeat !== undefined,
+            selectedCard: payload.selectedCard,
+          }),
           fromPosition: payload.fromPosition ?? 0,
           toPosition: to,
           spend: payload.spend ?? 0,
           rewardChoice: payload.rewardChoice,
-          selectedCard: undefined,
-          composedRepeat: false,
-          targetBefore: undefined,
+          selectedCard: payload.selectedCard,
+          composedRepeat: payload.repeat !== undefined,
+          targetBefore: payload.targetBefore,
           rewardLines: payload.resultLines ?? [],
           vp: payload.vp,
           stageNameKey: payload.stageNameKey ?? '',
           rewards: payload.rewards ?? [],
-          // A bonus move cannot pre-collect its landing stage's follow-up (the
-          // server framed the offer as a two-option question), so whatever the
-          // stage still asks arrives afterwards — and must EMBED here rather
-          // than rise as a band over the workspace that caused it.
+          // The workspace pre-collects everything it can ask for (the reward
+          // choice, the repeat, the animal target — all on the offer's own
+          // window). What is left is what the pre-collection cannot reach: the
+          // pos-5 draw, and the inputs a REPEATED action raises once it runs.
+          // Those must EMBED here rather than rise as a band over the
+          // workspace that caused them.
           serves: plan.serves,
           claimDraw: plan.claimsDraw ? plan.drawCount : 0,
         });
