@@ -28,7 +28,9 @@ import {expect, test, Page, APIRequestContext} from '@playwright/test';
 const BARRIER = 'Dynamic Ocean Barrier';
 /** Cost 11, no requirement, `behavior: {ocean: {}}` — the whole play is the ocean. */
 const OCEAN_CARD = 'Subterranean Reservoir';
-const FILLER = ['Acquired Company', 'Investment Loan'];
+/** Cost 23, no requirement, `ocean: {count: 2}` — the SECOND ocean source. */
+const OCEAN_CARD_2 = 'Ice Asteroid';
+const FILLER = ['Acquired Company'];
 
 /** Tharsis y=1, last space: `ocean(DRAW_CARD, DRAW_CARD)` — two cards, so the
  *  reveal is unmistakable. `shuffleMapOption: false` keeps the printed layout. */
@@ -72,7 +74,7 @@ function newGameConfig() {
     includedCards: [],
     customColoniesList: [],
     customPreludes: [],
-    customProjectCards: [BARRIER, OCEAN_CARD, ...FILLER],
+    customProjectCards: [BARRIER, OCEAN_CARD, OCEAN_CARD_2, ...FILLER],
     requiresMoonTrackCompletion: false,
     requiresVenusTrackCompletion: false,
     moonStandardProjectVariant: false,
@@ -101,7 +103,7 @@ async function openAtBoard(page: Page, request: APIRequestContext): Promise<void
   await page.waitForSelector('.boot-loader', {state: 'detached', timeout: 150_000}).catch(() => {});
   await page.waitForTimeout(3000);
 
-  const buy = [BARRIER, OCEAN_CARD, ...FILLER];
+  const buy = [BARRIER, OCEAN_CARD, OCEAN_CARD_2, ...FILLER];
   let lastFocused = '';
   let stalls = 0;
   for (let i = 0; i < 240 && await page.locator('.con-start__frame').count() > 0; i++) {
@@ -251,7 +253,7 @@ async function walkToSpace(page: Page, spaceId: string): Promise<void> {
   throw new Error(`the cursor never reached space ${spaceId}; it visited ${seen.size} cells: ${[...seen].join(',')}`);
 }
 
-type Sample = {t: number, reveal: boolean, bonusZone: boolean, hydro: boolean, modal: boolean};
+type Sample = {t: number, reveal: boolean, bonusZone: boolean, hydro: boolean, modal: boolean, stranded: boolean};
 
 /**
  * Arm the order probe BEFORE the press that starts the episode. Samples on
@@ -261,7 +263,7 @@ type Sample = {t: number, reveal: boolean, bonusZone: boolean, hydro: boolean, m
 async function armProbe(page: Page): Promise<void> {
   await page.evaluate(() => {
     const w = window as unknown as {__hydroOrder?: Array<Sample>, __hydroStop?: () => void};
-    type Sample = {t: number, reveal: boolean, bonusZone: boolean, hydro: boolean, modal: boolean};
+    type Sample = {t: number, reveal: boolean, bonusZone: boolean, hydro: boolean, modal: boolean, stranded: boolean};
     const out: Array<Sample> = [];
     const t0 = performance.now();
     const sample = () => {
@@ -274,6 +276,10 @@ async function armProbe(page: Page): Promise<void> {
         // The generic contextual-choice surface — the thing a dedicated
         // workspace must make impossible.
         modal: document.querySelector('.con-decision, .con-task-host .con-task') !== null,
+        // The leak detector's amber guard. It rose OVER a Hydronetwork that was
+        // rendering the offer perfectly underneath, because the detector read
+        // the registry's DEFAULT `serves` and never the frame's earned one.
+        stranded: document.querySelector('.con-stranded') !== null,
       });
     };
     const mo = new MutationObserver(sample);
@@ -329,6 +335,7 @@ test.describe('the bonus offer never stands over the cards the placement drew', 
       await key(page, state.reveal ? 'Enter' : 'Escape', state.reveal ? 700 : 300);
     }
     await expect(page.locator('.con-hydro__layer--bonus')).toBeVisible({timeout: 30_000});
+    await page.locator('.con-hydro__layer--bonus').screenshot({path: 'screenshots/hydro-bonus/free.png'}).catch(() => {});
 
     const samples = await readProbe(page);
     // A DEAD probe must fail loudly rather than pass vacuously.
@@ -356,5 +363,62 @@ test.describe('the bonus offer never stands over the cards the placement drew', 
     //    contextual-choice modal must never rise beside it. Not once.
     const modalFrames = samples.filter((s) => s.modal);
     expect(modalFrames.map((s) => s.t), 'the legacy choice modal rose over the workspace').toEqual([]);
+
+    // 5. …and the stranded guard never masked the zone either.
+    expect(samples.filter((s) => s.stranded).map((s) => s.t),
+      'the leak detector called a served prompt stranded').toEqual([]);
+
+    // ══ THE PAID OFFER — the same flow, one stage further up the track ══
+    //
+    // Take the free step (it lands on position 1, «building», which the barrier's
+    // OWN tag covers), then place another ocean. The next stage wants POWER,
+    // which this player has not got — so the offer is no longer free: the server
+    // decides it costs 1 energy to waive that one tag, and the zone must say so.
+    // A on the focused CONFIRM takes the free step. Landing on position 1 asks
+    // WHICH reward — and it asks INSIDE this workspace (the whole point), so
+    // keep answering until the move is fully resolved.
+    for (let i = 0; i < 20 && await page.locator('.con-hydro').count() > 0; i++) {
+      const zone = await page.evaluate(() => ({
+        bonus: document.querySelector('.con-hydro__layer--bonus') !== null,
+        choice: document.querySelector('.con-hydro__layer--choice') !== null,
+      }));
+      // …and a reward asked here is NEVER a modal beside the workspace.
+      expect(await page.locator('.con-decision').count(), 'a modal rose for the reward').toBe(0);
+      await key(page, 'Enter', zone.bonus || zone.choice ? 1400 : 900);
+    }
+
+    // The offer was a visit the player did not ask for, so answering it HANDS
+    // THE SCREEN BACK: the Hydronetwork must leave by itself.
+    await expect(page.locator('.con-hydro')).toHaveCount(0, {timeout: 30_000});
+    await playFromHand(page, OCEAN_CARD_2);
+    await expect(page.locator('.board-space--available').first()).toBeVisible({timeout: 25_000});
+    await key(page, 'Enter', 1500); // any legal ocean cell will do here
+
+    for (let i = 0; i < 90; i++) {
+      const state = await page.evaluate(() => ({
+        reveal: document.querySelector('.con-reveal, .con-deckpick') !== null,
+        bonus: document.querySelector('.con-hydro__layer--bonus') !== null,
+        space: document.querySelector('.board-space--available') !== null,
+      }));
+      if (state.bonus) {
+        break;
+      }
+      await key(page, state.reveal || state.space ? 'Enter' : 'Escape', 700);
+    }
+    await expect(page.locator('.con-hydro__layer--bonus')).toBeVisible({timeout: 30_000});
+
+    // THE SERVER'S OWN VERDICT, rendered: the price is on the CTA and in the
+    // body, and the free wording is gone. The client decided none of it.
+    const paid = await page.evaluate(() => ({
+      confirm: document.querySelector('.con-hydro__bonus-action .con-hydro__bonus-action-title')?.textContent?.trim() ?? '',
+      body: document.querySelector('.con-hydro__bonus-text')?.textContent?.trim() ?? '',
+      cost: document.querySelector('.con-hydro__route-cost')?.textContent?.replace(/\s+/g, ' ').trim() ?? '',
+      free: document.querySelector('.con-hydro__route-cost--free') !== null,
+    }));
+    expect(paid.confirm, `paid CTA read «${paid.confirm}»`).toMatch(/энерги/i);
+    expect(paid.body, `paid body read «${paid.body}»`).toMatch(/метк/i);
+    expect(paid.cost, `paid cost chip read «${paid.cost}»`).toContain('1');
+    await page.locator('.con-hydro__layer--bonus').screenshot({path: 'screenshots/hydro-bonus/paid.png'}).catch(() => {});
+    expect(paid.free, 'the paid offer must not advertise itself as free').toBe(false);
   });
 });

@@ -260,6 +260,19 @@ export function workspaceSurfacesFor(kind: TaskKind): ReadonlyArray<string> {
       seen.add(spec.rootSelector);
     }
   }
+  // …AND THE SERVES A LIVE FRAME HAS EARNED. The registry row is only the
+  // DEFAULT: several workspaces deliberately declare `serves: []` and take a
+  // kind at runtime for the span of one prompt (the Hydronetwork's
+  // card-granted bonus offer, the landed stage's follow-up), precisely so an
+  // idling screen cannot mask an unrelated stranded prompt. Reading the
+  // registry alone made the detector blind to exactly those spans — the amber
+  // guard rose over a Hydronetwork that was rendering the offer correctly
+  // underneath it. A parked frame counts too: its surface comes back with it.
+  for (const frame of [...workspaceStackState.frames, ...workspaceStackState.parked]) {
+    if (frame.serves.includes(kind)) {
+      seen.add(WORKSPACE_KINDS[frame.kind].rootSelector);
+    }
+  }
   return [...seen];
 }
 

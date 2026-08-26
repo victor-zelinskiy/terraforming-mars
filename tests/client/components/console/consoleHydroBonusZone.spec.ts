@@ -45,7 +45,7 @@ function mountSection(offer: DeltaBonusPromptMeta | undefined) {
       playerView: {thisPlayer: {color: 'red'}, players: [{color: 'red'}], game: {}} as never,
       bonusOffer: offer,
     },
-    global: {stubs: {ConsoleWsHead: true, ConsoleCardFaceLite: true, ConsolePlayedTargetStep: true, GamepadGlyph: true, HydroReward: true}},
+    global: {stubs: {ConsoleWsHead: true, ConsoleCardFaceLite: true, ConsoleSourceDock: true, ConsolePlayedTargetStep: true, GamepadGlyph: true, HydroReward: true}},
   });
 }
 

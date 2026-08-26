@@ -364,14 +364,16 @@
              in this console does. ═══ -->
         <div v-else-if="sceneKey === 'bonus'" key="bonus" class="con-hydro__layer con-hydro__layer--bonus">
           <div class="con-hydro__panel con-hydro__panel--bonus">
-            <div class="con-hydro__panelbody">
-              <!-- THE SOURCE, exactly as the other flows present one: the card's
-                   own printed graphic + its name. X inspects it — pre-commit the
-                   source IS the current object, so there is no L3 here. -->
-              <div class="con-hydro__bonus-source"
+            <div class="con-hydro__panelbody con-hydro__bonus-main">
+              <!-- THE SOURCE — the console's ONE answer to «почему этот промт
+                   пришёл»: the shared dock, `compact` because the subject here
+                   is the DECISION, not the card. X inspects it; pre-commit the
+                   source IS the current object, so there is no L3. -->
+              <div v-if="bonusSourceView !== undefined"
+                   class="con-hydro__bonus-source"
                    :class="{'con-hydro__bonus-source--focused': sceneFocus === 'bonus-source'}"
                    data-unfold-item role="button" @click="inspectBonusSource">
-                <ConsoleCardFaceLite :name="bonusOffer.source" />
+                <ConsoleSourceDock :view="bonusSourceView" :compact="true" />
               </div>
 
               <!-- WHAT IT DOES — one calm sentence, and the move stated in the
@@ -390,24 +392,29 @@
                 <p class="con-hydro__bonus-text">{{ bonusBodyText }}</p>
               </div>
 
-              <!-- TAKE IT / SKIP — the section's own CTA vocabulary. While the
-                   answer is in flight both are inert: a second press cannot
+              <!-- TAKE IT / SKIP — the console's OWN grammar for an optional
+                   decision (`ConsoleEffectDecision`'s action cards): a stacked
+                   pair, each with the state rail, the A glyph on the focused
+                   one, and a DECLINE that is calm graphite rather than dimmed
+                   (refusing is a decision, not an unavailable one). While the
+                   answer is in flight both are inert — a second press cannot
                    exist, by state rather than by a guard. -->
-              <div class="con-hydro__ctazone" data-unfold-item>
+              <div class="con-hydro__bonus-actions" data-unfold-item>
                 <button type="button"
-                        class="con-hydro__cta"
-                        :class="{'con-hydro__cta--focused': sceneFocus === 'bonus-confirm'}"
+                        class="con-hydro__bonus-action"
+                        :class="{'con-hydro__bonus-action--focused': sceneFocus === 'bonus-confirm'}"
                         :disabled="bonusSubmitting"
                         @click="answerBonus(true)">
-                  <GamepadGlyph control="confirm" />
-                  <span>{{ $t(bonusCopy.confirmKey) }}</span>
+                  <span class="con-hydro__bonus-action-title">{{ $t(bonusCopy.confirmKey) }}</span>
+                  <GamepadGlyph v-if="sceneFocus === 'bonus-confirm'" control="confirm" class="con-hydro__bonus-action-a" />
                 </button>
                 <button type="button"
-                        class="con-hydro__cta con-hydro__cta--configure"
-                        :class="{'con-hydro__cta--focused': sceneFocus === 'bonus-skip'}"
+                        class="con-hydro__bonus-action con-hydro__bonus-action--decline"
+                        :class="{'con-hydro__bonus-action--focused': sceneFocus === 'bonus-skip'}"
                         :disabled="bonusSubmitting"
                         @click="answerBonus(false)">
-                  <span>{{ $t(bonusCopy.skipKey) }}</span>
+                  <span class="con-hydro__bonus-action-title">{{ $t(bonusCopy.skipKey) }}</span>
+                  <GamepadGlyph v-if="sceneFocus === 'bonus-skip'" control="confirm" class="con-hydro__bonus-action-a" />
                 </button>
               </div>
             </div>
@@ -538,6 +545,8 @@ import HydroReward from '@/client/components/hydronetwork/HydroReward.vue';
 import ConsoleWsHead from '@/client/components/console/foundation/ConsoleWsHead.vue';
 import ConsolePlayedTargetStep from '@/client/components/console/played/ConsolePlayedTargetStep.vue';
 import ConsoleCardFaceLite from '@/client/components/console/cardDeal/ConsoleCardFaceLite.vue';
+import ConsoleSourceDock from '@/client/components/console/ConsoleSourceDock.vue';
+import {choiceSourceView} from '@/client/console/promptSource';
 import CardRenderEffectBoxComponent from '@/client/components/card/CardRenderEffectBoxComponent.vue';
 import CardRenderData from '@/client/components/card/CardRenderData.vue';
 import {stripActionPrefix} from '@/client/directives/stripActionPrefix';
@@ -628,7 +637,7 @@ type SceneKey = 'preview' | 'choice' | 'target' | 'bonus' | 'commit' | 'result';
 export default defineComponent({
   name: 'ConsoleHydroSection',
   components: {
-    GamepadGlyph, HydroReward, ConsoleWsHead, ConsolePlayedTargetStep, ConsoleCardFaceLite,
+    GamepadGlyph, HydroReward, ConsoleWsHead, ConsolePlayedTargetStep, ConsoleCardFaceLite, ConsoleSourceDock,
     CardRenderEffectBoxComponent, CardRenderData,
   },
   directives: {stripActionPrefix},
@@ -973,6 +982,11 @@ export default defineComponent({
     bonusIdentity(): string {
       const o = this.bonusOffer;
       return o === undefined ? '' : [o.source, o.fromPosition, o.toPosition, o.energyCost].join('|');
+    },
+    /** The source, in the console's ONE source-view shape. */
+    bonusSourceView(): ReturnType<typeof choiceSourceView> {
+      const offer = this.bonusOffer;
+      return offer === undefined ? undefined : choiceSourceView({kind: 'card', card: offer.source});
     },
     /** Does the offer's LANDING stage ask which reward to take (pos 1/2)? */
     bonusNeedsReward(): boolean {

@@ -867,7 +867,7 @@ html.con-profile-tv {
            voice. Matches the base override's specificity (panel-scoped). */
         &__panel:not(.con-hydro__panel--details) .con-hydro__stage-tag { width: 4.4rem; height: 4.4rem; }
         &__panel:not(.con-hydro__panel--details) .con-hydro__stage-name { font-size: 1.75rem; }
-        &__panel:not(.con-hydro__panel--details) .con-hydro__panelbody {
+        &__panel:not(.con-hydro__panel--details):not(.con-hydro__panel--bonus) .con-hydro__panelbody {
             grid-template-columns: minmax(15rem, 19rem) minmax(0, 1fr) minmax(17rem, 21rem);
             column-gap: 1.6rem;
             row-gap: .9rem;

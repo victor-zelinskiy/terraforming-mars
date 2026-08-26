@@ -1986,6 +1986,9 @@ export default defineComponent({
       hydroFlow: hydroFlowState,
       /** The hydro result stage's read-hold timer (A/B skip it). */
       hydroResultTimer: undefined as number | undefined,
+      /** The Hydronetwork was opened BY a card's bonus offer (not by the
+       *  player), so answering it hands the screen back. */
+      hydroBonusBorrowed: false,
       /** The colony workspace flow (browse ⇄ focus stage) — module reactive,
        *  mirrored here for path watchers (vue-path-watcher rule). */
       colonyFocus: colonyFocusState,
@@ -5262,6 +5265,20 @@ export default defineComponent({
      * must not tear the workspace down and rebuild it — the offer joins the
      * flow it is already in. Policy lives in the pure module.
      */
+    /**
+     * THE OFFER IS OVER — a computed SIGNAL of everything the hand-back waits
+     * for, so the return fires on whichever of them settles last (the answer's
+     * response, a reward step closing, a follow-up ending).
+     */
+    hydroBonusReturnSignal(): string {
+      return [
+        this.hydroBonusOfferRaw === undefined,
+        this.hydroFlow.step === undefined,
+        this.hydroFlow.commit === undefined,
+        !workspaceFrameHasNested('hydro'),
+        !this.hydroFollowUpLive,
+      ].join('|');
+    },
     hydroBonusDoor(): ReturnType<typeof hydroBonusDoorAction> {
       return hydroBonusDoorAction({
         offerLive: this.hydroBonusOfferLive,
@@ -7858,6 +7875,11 @@ export default defineComponent({
         engageBoardExcursion('start');
       }
     },
+    /** The offer is over — hand the screen back once the move it started has
+     *  finished resolving (see `hydroBonusReturn`). */
+    hydroBonusReturnSignal(): void {
+      this.hydroBonusReturn();
+    },
     /**
      * THE DOOR, once the admission policy lets the offer through.
      *
@@ -7874,6 +7896,10 @@ export default defineComponent({
       if (action === 'open') {
         this.deferShellTask();
         enterWorkspace('hydro', {anchor: {type: 'prompt', promptType: 'or'}});
+        // REMEMBER that WE opened it. The offer is a visit the player did not
+        // ask for, so answering it must hand the screen back — but a player who
+        // was ALREADY on the track (the `queue` case) keeps their own screen.
+        this.hydroBonusBorrowed = true;
       }
       setWorkspaceFrameServes('hydro', ['choice']);
     },
@@ -11941,6 +11967,28 @@ export default defineComponent({
     },
     // ── hydro advance (mirrors PlayerHome.submitHydroAdvance; the stage-7
     //    COMPOSED repeat appends the ProjInsp/Viron-parity batch tail) ─────
+    /**
+     * THE OFFER IS OVER — return to the flow the player came from.
+     *
+     * A prompt-anchored frame hands the screen back when its prompt is gone;
+     * this is that hand-back, and it is deliberately keyed on the RAW offer
+     * rather than the admitted one (the door's own gate falls first while the
+     * answer is in flight). It waits for the move's own consequences: a reward
+     * step still open, a commit beat, a follow-up the track raised — the same
+     * «nothing is still owed» the shared conclusion asks.
+     */
+    hydroBonusReturn(): void {
+      if (!this.hydroBonusBorrowed || this.hydroBonusOfferRaw !== undefined) {
+        return;
+      }
+      if (this.hydroFlow.step !== undefined || this.hydroFlow.commit !== undefined ||
+          workspaceFrameHasNested('hydro') || this.hydroFollowUpLive) {
+        return; // the move is still resolving — its own ending will come here
+      }
+      this.hydroBonusBorrowed = false;
+      setWorkspaceFrameServes('hydro', []);
+      goBoardHome();
+    },
     /**
      * ANSWER a card-granted bonus move. ONE call, the ordinary submit funnel —
      * the index is the SERVER's own (`deltaBonusPrompt.advanceIndex` /

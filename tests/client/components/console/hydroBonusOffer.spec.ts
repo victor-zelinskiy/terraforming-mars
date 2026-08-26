@@ -5,6 +5,10 @@ import type {PlayerInputModel} from '@/common/models/PlayerInputModel';
 import {
   hydroBonusCopy, hydroBonusDoorAction, hydroBonusOffer, hydroZoneState,
 } from '@/client/console/hydroFlow/hydroBonusOffer';
+import {
+  collapseWorkspaceStack, enterWorkspace, resetWorkspaceStack,
+  setWorkspaceFrameServes, workspaceSurfacesFor,
+} from '@/client/console/consoleWorkspaceStack';
 
 function meta(overrides: Partial<DeltaBonusPromptMeta> = {}): DeltaBonusPromptMeta {
   return {
@@ -105,5 +109,38 @@ describe('hydroBonusOffer (the card-granted bonus move)', () => {
         }
       }
     });
+  });
+});
+
+/**
+ * THE LEAK DETECTOR MUST SEE AN EARNED `serves`.
+ *
+ * Several workspaces declare `serves: []` in the registry and take a kind at
+ * RUNTIME for the span of one prompt — precisely so an idling screen cannot
+ * mask an unrelated stranded prompt. `workspaceSurfacesFor` read only the
+ * registry default, so for exactly those spans it reported «no serving
+ * surface» and the amber guard rose over a Hydronetwork that was rendering the
+ * offer perfectly underneath it («STRANDED PROMPT: waitingFor "or"»).
+ */
+describe('a frame that EARNED a serves is a serving surface', () => {
+  afterEach(() => {
+    resetWorkspaceStack();
+  });
+
+  it('the registry default alone does not serve a runtime-earned kind', () => {
+    expect(workspaceSurfacesFor('choice')).to.not.contain('.con-hydro');
+  });
+
+  it('…but a live frame that earned it does', () => {
+    enterWorkspace('hydro');
+    setWorkspaceFrameServes('hydro', ['choice']);
+    expect(workspaceSurfacesFor('choice')).to.contain('.con-hydro');
+  });
+
+  it('…and so does a PARKED one — its surface comes back with it', () => {
+    enterWorkspace('hydro');
+    setWorkspaceFrameServes('hydro', ['choice']);
+    collapseWorkspaceStack();
+    expect(workspaceSurfacesFor('choice')).to.contain('.con-hydro');
   });
 });
