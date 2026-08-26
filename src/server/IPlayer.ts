@@ -240,7 +240,14 @@ export interface IPlayer {
    */
   colonyTradeManifest: ColonyTradeManifestModel | undefined;
   playedCards: PlayedCards;
-  cardCost: number;
+  /** The base buy-to-hand price: 3 M€, or the corporation's replacement. */
+  baseCardCost: number;
+  /**
+   * The price of buying ONE card to hand — `baseCardCost` minus every permanent
+   * modifier in the tableau, floored at 0. Read-only because it is DERIVED: the
+   * only writable half is `baseCardCost`.
+   */
+  readonly cardCost: number;
   // This will eventually replace playedCards.
   tableau: PlayedCards;
 

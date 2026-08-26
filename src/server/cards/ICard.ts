@@ -153,6 +153,18 @@ export interface ICard {
   getStandardProjectDiscount?(player: IPlayer, card: IStandardProjectCard): number;
 
   /**
+   * Describes the M€ discount `player` could apply to BUYING ONE CARD TO HAND
+   * (Quantum Research). The sibling of `getCardDiscount`, for the other cost:
+   * that one cheapens PLAYING a project card, this one cheapens the research /
+   * draft purchase price. Summed over the tableau by `Player.cardCost`, whose
+   * result is the single authoritative buy price every purchase flow reads.
+   *
+   * DERIVED, never stored — a permanent modifier declared here can not be
+   * applied twice by a reload, an undo or a clone.
+   */
+  getCardPurchaseDiscount?(player: IPlayer): number;
+
+  /**
    * The +/- bonus applied to global parameter requirements, e.g. Adaptation Technology.
    *
    * `parameter` describes which global parameter is being tested.

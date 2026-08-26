@@ -14,7 +14,7 @@ import {nodeAvailability} from '../../src/client/components/actions/actionBranch
 import {ActionEntry} from '../../src/client/components/actions/actionModel';
 import {buildConsoleActionsModel} from '../../src/client/console/consoleCardActions';
 
-const SCOPE = new Set<GameModule>(['base', 'corpera', 'promo', 'venus', 'colonies', 'prelude', 'ares']);
+const SCOPE = new Set<GameModule>(['base', 'corpera', 'promo', 'venus', 'colonies', 'prelude', 'ares', 'deltaProject']);
 
 /**
  * THE TWO LEVELS OF «CAN THIS BE ACTIVATED» MUST AGREE.

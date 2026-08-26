@@ -15,7 +15,7 @@ import {bareAmountDials} from './amountDialGuard';
 
 // Only modules whose PROJECT cards are played from hand via the "РАЗЫГРАТЬ КАРТУ"
 // modal. Preludes / corporations use the start-of-game flow, not this modal.
-const SCOPE = new Set<GameModule>(['base', 'corpera', 'promo', 'venus', 'colonies', 'prelude', 'ares']);
+const SCOPE = new Set<GameModule>(['base', 'corpera', 'promo', 'venus', 'colonies', 'prelude', 'ares', 'deltaProject']);
 
 /**
  * In-scope PROJECT cards whose `bespokePlay` produces an on-play CHOICE that is

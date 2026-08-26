@@ -15,7 +15,7 @@ import {CardType} from '../../src/common/cards/CardType';
  * graphic linkage, no duplication, and the flagship Asteroid split.
  */
 
-const SCOPE_MODULES = new Set<GameModule>(['base', 'corpera', 'promo', 'venus', 'colonies', 'prelude', 'ares']);
+const SCOPE_MODULES = new Set<GameModule>(['base', 'corpera', 'promo', 'venus', 'colonies', 'prelude', 'ares', 'deltaProject']);
 const SCOPE_TYPES = new Set<CardType>([CardType.AUTOMATED, CardType.ACTIVE, CardType.EVENT, CardType.PRELUDE, CardType.CORPORATION]);
 
 function loadCards(): Array<ClientCard> {

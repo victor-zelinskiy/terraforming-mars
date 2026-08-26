@@ -60,7 +60,7 @@ import {Size} from '../../../common/cards/render/Size';
 import {Behavior} from '../../behavior/Behavior';
 import {Card} from '../../cards/Card';
 
-const SCOPE_MODULES: ReadonlySet<GameModule> = new Set(['base', 'corpera', 'promo', 'venus', 'colonies', 'prelude', 'ares']);
+const SCOPE_MODULES: ReadonlySet<GameModule> = new Set(['base', 'corpera', 'promo', 'venus', 'colonies', 'prelude', 'ares', 'deltaProject']);
 const SCOPE_TYPES: ReadonlySet<CardType> = new Set([CardType.AUTOMATED, CardType.ACTIVE, CardType.EVENT, CardType.PRELUDE, CardType.CORPORATION]);
 
 /** Locales whose card-information coverage is ENFORCED (audited). */

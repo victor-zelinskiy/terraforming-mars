@@ -425,7 +425,7 @@ export function playerEffectGroups(tableau: ReadonlyArray<CardModel>): Array<Eff
 
 // Current scope for the effects feature.
 const SCOPE_MODULES: ReadonlySet<GameModule> =
-  new Set<GameModule>(['base', 'corpera', 'promo', 'venus', 'colonies', 'prelude', 'ares']);
+  new Set<GameModule>(['base', 'corpera', 'promo', 'venus', 'colonies', 'prelude', 'ares', 'deltaProject']);
 
 /**
  * Every in-scope card (Base / CorpEra / Promo / Venus / Colonies / Prelude) that

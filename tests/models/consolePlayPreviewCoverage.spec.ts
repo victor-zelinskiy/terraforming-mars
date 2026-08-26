@@ -12,7 +12,7 @@ import {testGame} from '../TestGame';
 import {fakeCard} from '../TestingUtils';
 import {cardPlayPreview} from '../../src/server/models/cardPlayPreview';
 
-const SCOPE = new Set<GameModule>(['base', 'corpera', 'promo', 'venus', 'colonies', 'prelude']);
+const SCOPE = new Set<GameModule>(['base', 'corpera', 'promo', 'venus', 'colonies', 'prelude', 'deltaProject']);
 
 /**
  * The console PLAY composer (ConsolePlayCardConfirm) must pre-collect EVERY

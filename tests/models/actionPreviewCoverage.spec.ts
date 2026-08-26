@@ -11,7 +11,7 @@ import {testGame} from '../TestGame';
 import {fakeCard} from '../TestingUtils';
 import {actionPreview} from '../../src/server/models/actionPreview';
 
-const SCOPE = new Set<GameModule>(['base', 'corpera', 'promo', 'venus', 'colonies', 'prelude', 'ares']);
+const SCOPE = new Set<GameModule>(['base', 'corpera', 'promo', 'venus', 'colonies', 'prelude', 'ares', 'deltaProject']);
 
 /** Iterate every constructable in-scope action card. */
 function forEachActionCard(fn: (card: ICard & IActionCard, module: GameModule) => void): void {

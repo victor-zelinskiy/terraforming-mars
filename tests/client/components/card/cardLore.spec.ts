@@ -237,7 +237,7 @@ describe('cardLore', () => {
   describe('current scope coverage', () => {
     // Mirrors the premium-face scope: every card that can reach the fullscreen
     // viewer must have a real archive entry — never the fallback.
-    const SCOPE = new Set<GameModule>(['base', 'corpera', 'promo', 'venus', 'colonies', 'prelude', 'ares']);
+    const SCOPE = new Set<GameModule>(['base', 'corpera', 'promo', 'venus', 'colonies', 'prelude', 'ares', 'deltaProject']);
     const LORE_CARD_TYPES = new Set<CardType>([
       CardType.AUTOMATED,
       CardType.ACTIVE,
@@ -246,11 +246,21 @@ describe('cardLore', () => {
       CardType.CORPORATION,
     ]);
 
+    /**
+     * In the manifest, but never DEALT — so neither ever reaches a hand, a
+     * tableau or the fullscreen viewer, which is where an archive entry is read:
+     *  - Beginner Corporation — the rules/training corp;
+     *  - Delta Project — the Hydronetwork's board subsystem (`instantiate:
+     *    false`; the track is shared from turn one and advanced by a standard
+     *    action, no card is dealt). The module's real cards (DP02+) are covered.
+     */
+    const NEVER_DEALT = new Set<CardName>([CardName.BEGINNER_CORPORATION, CardName.DELTA_PROJECT]);
+
     function inScope(): ReadonlyArray<ClientCard> {
       return getCards((c) =>
         SCOPE.has(c.module) &&
         LORE_CARD_TYPES.has(c.type) &&
-        c.name !== CardName.BEGINNER_CORPORATION);
+        !NEVER_DEALT.has(c.name));
     }
 
     it('no in-scope card falls back', () => {

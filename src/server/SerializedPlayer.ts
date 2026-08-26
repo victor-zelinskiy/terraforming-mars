@@ -34,6 +34,13 @@ export interface SerializedPlayer extends DeprecatedFields{
   canUseHeatAsMegaCredits: boolean;
   canUseTitaniumAsMegacredits: boolean;
   canUsePlantsAsMegaCredits: boolean;
+  /**
+   * The BASE buy-to-hand price (`Player.baseCardCost`) — 3 M€ or the
+   * corporation's replacement. Permanent per-card modifiers are NOT stored
+   * here: they are re-derived from the tableau by `Player.cardCost`, so a
+   * reload can never apply one twice. Older saves wrote the same number (no
+   * card modified it before), so they restore unchanged.
+   */
   cardCost: number;
   cardDiscount: number;
   cardsInHand: Array<CardName>;

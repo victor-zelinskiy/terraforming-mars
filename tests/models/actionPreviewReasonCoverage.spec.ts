@@ -5,7 +5,7 @@ import {isIActionCard, ICard, IActionCard} from '../../src/server/cards/ICard';
 import {GameModule} from '../../src/common/cards/GameModule';
 import {actionPreview} from '../../src/server/models/actionPreview';
 
-const SCOPE = new Set<GameModule>(['base', 'corpera', 'promo', 'venus', 'colonies', 'prelude', 'ares']);
+const SCOPE = new Set<GameModule>(['base', 'corpera', 'promo', 'venus', 'colonies', 'prelude', 'ares', 'deltaProject']);
 
 /**
  * The BEHAVIOURAL guard for preview-branch reasons: for every in-scope action

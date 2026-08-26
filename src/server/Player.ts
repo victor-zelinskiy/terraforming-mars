@@ -265,7 +265,12 @@ export class Player implements IPlayer {
   public playedCards: PlayedCards = new PlayedCards();
   public draftedCards: Array<IProjectCard> = [];
   public draftHand: Array<IProjectCard> = [];
-  public cardCost: number = constants.CARD_COST;
+  /**
+   * The BASE price of buying one card to hand: 3 M€, replaced by the
+   * corporation that redefines it (Polyphemos 5, Terralabs 1). This is the
+   * SERIALIZED half of the price — see the derived {@link cardCost}.
+   */
+  public baseCardCost: number = constants.CARD_COST;
   public needsToDraft?: boolean;
 
   public timer: Timer = Timer.newInstance();
@@ -944,6 +949,29 @@ export class Player implements IPlayer {
     }
   }
 
+  /**
+   * THE price of buying ONE card to hand — the single authoritative answer for
+   * every buy-to-hand flow (`ChooseCards`' affordability + charge, the initial
+   * corporation purchase, and `PublicPlayerModel.cardCost`, which is what both
+   * the desktop and the console UI show). Note this is the RESEARCH/draft
+   * purchase price and has nothing to do with {@link getCardCost}, the cost of
+   * PLAYING a project card.
+   *
+   * `baseCardCost` (3 M€, or the corporation's replacement) minus every
+   * permanent modifier a card in the tableau declares, floored at 0 — the same
+   * shape as `getCardCostBreakdown`, so a modifier can never turn a purchase
+   * into income. Deriving it (rather than mutating a stored number) is what
+   * makes a reload, an undo or a clone impossible to double-apply: the
+   * serialized state carries only the base.
+   */
+  public get cardCost(): number {
+    let cost = this.baseCardCost;
+    for (const playedCard of this.tableau) {
+      cost -= playedCard.getCardPurchaseDiscount?.(this) ?? 0;
+    }
+    return Math.max(cost, 0);
+  }
+
   public getCardCost(card: IProjectCard): number {
     return this.getCardCostBreakdown(card).final;
   }
@@ -1406,9 +1434,11 @@ export class Player implements IPlayer {
 
     // Update starting MC
     this.megaCredits += corporationCard.startingMegaCredits;
-    // Update card cost.
+    // Update card cost. A corporation REPLACES the base price (Merger can stack
+    // a second one), so it writes the base; per-card modifiers are derived on
+    // top of it by the `cardCost` getter.
     if (corporationCard.cardCost !== undefined) {
-      this.cardCost += corporationCard.cardCost - constants.CARD_COST;
+      this.baseCardCost += corporationCard.cardCost - constants.CARD_COST;
     }
 
     let cardsBought = 0;
@@ -2759,7 +2789,9 @@ export class Player implements IPlayer {
       ceoCardsInHand: Array.from(this.ceoCardsInHand).map(toName),
       playedCards: this.playedCards.serialize(),
       draftedCards: this.draftedCards.map(toName),
-      cardCost: this.cardCost,
+      // The BASE price only (see SerializedPlayer.cardCost) — tableau modifiers
+      // are re-derived on load, so they can never be baked in twice.
+      cardCost: this.baseCardCost,
       needsToDraft: this.needsToDraft,
       cardDiscount: this.colonies.cardDiscount,
       // Colonies
@@ -2830,7 +2862,7 @@ export class Player implements IPlayer {
     player.canUseHeatAsMegaCredits = d.canUseHeatAsMegaCredits;
     player.canUsePlantsAsMegacredits = d.canUsePlantsAsMegaCredits;
     player.canUseTitaniumAsMegacredits = d.canUseTitaniumAsMegacredits;
-    player.cardCost = d.cardCost;
+    player.baseCardCost = d.cardCost;
     player.colonies.cardDiscount = d.cardDiscount;
     player.colonies.tradeDiscount = d.colonyTradeDiscount;
     player.colonies.tradeOffset = d.colonyTradeOffset;

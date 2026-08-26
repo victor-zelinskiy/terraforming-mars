@@ -389,5 +389,7 @@
   "When any ocean is placed, you may pay 5 M€ (steel may be used) to raise your energy production 1 step and add 1 hydroelectric resource to this card.": "Когда любой игрок размещает океан, вы можете заплатить 5 М€ (можно платить сталью), чтобы увеличить своё производство энергии на 1 и добавить 1 гидроресурс на эту карту.",
   "When you perform an action, the wild tag counts as any tag of your choice.": "При выполнении действия универсальная метка считается любой меткой на ваш выбор.",
   "When you play a science tag, including this, either add a science resource to this card, or remove a science resource from it to draw a card.": "Когда вы разыгрываете метку науки (включая эту карту), добавьте жетон науки на эту карту либо удалите с неё жетон науки, чтобы взять карту.",
-  "Your plants, animals and microbes are protected from removal by other players.": "Другие игроки не могут удалять ваши растения, животных и бактерий."
+  "Your plants, animals and microbes are protected from removal by other players.": "Другие игроки не могут удалять ваши растения, животных и бактерий.",
+  "Action: Spend any amount of energy to move that number of steps on the Delta Project track. Each step requires having all the matching tags in play up to that level; wild tags can replace missing ones. Gain resources next to your position.": "Действие: потратьте любое количество энергии, чтобы продвинуться на столько же делений по треку Гидросети. Для каждого деления нужны все соответствующие метки в игре вплоть до этого уровня; универсальные метки заменяют недостающие. Получите ресурсы рядом со своей позицией.",
+  "Spend energy to advance on the Delta track": "Потратьте энергию для продвижения по Гидросети"
 }

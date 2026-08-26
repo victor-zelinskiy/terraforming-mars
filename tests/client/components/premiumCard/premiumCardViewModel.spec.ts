@@ -321,7 +321,7 @@ describe('the OR choice marker is never lost on the face', () => {
   });
 
   it('every in-scope multi-action card carries a choice marker at each action junction', () => {
-    const SCOPE_ALL = new Set<GameModule>(['base', 'corpera', 'promo', 'venus', 'colonies', 'prelude', 'ares', 'ceo']);
+    const SCOPE_ALL = new Set<GameModule>(['base', 'corpera', 'promo', 'venus', 'colonies', 'prelude', 'ares', 'ceo', 'deltaProject']);
     const offenders: Array<string> = [];
     for (const card of getCards((c) => SCOPE_ALL.has(c.module) && isPremiumFaceType(c.type))) {
       const groups = buildPremiumCardViewModel(card).mechanics.groups;
@@ -335,7 +335,7 @@ describe('the OR choice marker is never lost on the face', () => {
   });
 
   it('no group renders a stray leading/trailing bare OR glyph, incl. inside effect frames (population sweep)', () => {
-    const SCOPE_ALL = new Set<GameModule>(['base', 'corpera', 'promo', 'venus', 'colonies', 'prelude', 'ares', 'ceo']);
+    const SCOPE_ALL = new Set<GameModule>(['base', 'corpera', 'promo', 'venus', 'colonies', 'prelude', 'ares', 'ceo', 'deltaProject']);
     const offenders = new Set<string>();
     for (const card of getCards((c) => SCOPE_ALL.has(c.module) && isPremiumFaceType(c.type))) {
       for (const group of buildPremiumCardViewModel(card).mechanics.groups) {
@@ -448,7 +448,7 @@ describe('premium face coverage guard', () => {
   // (the art takes the space). A NEW card landing in this list should be
   // triaged (does it truly have no graphics?), never silently accepted.
   // 'ceo' joined in desktop-removal wave 4 (all L-cards render mechanics).
-  const SCOPE = new Set<GameModule>(['base', 'corpera', 'promo', 'venus', 'colonies', 'prelude', 'ares', 'ceo']);
+  const SCOPE = new Set<GameModule>(['base', 'corpera', 'promo', 'venus', 'colonies', 'prelude', 'ares', 'ceo', 'deltaProject']);
   const NO_MECHANICS_ACCEPTED = new Set<string>([
     CardName.ADVANCED_ECOSYSTEMS,
     CardName.BREATHING_FILTERS,
@@ -545,7 +545,7 @@ describe('card art coverage — full premium-face scope (project + prelude + cor
   // CEO face's procedural identity band (.pcard-ceo-ident) is the INTENDED
   // look of the whole type — resolveArt answers undefined by design, so an
   // art sweep over CEOs would assert a fallback that is not a gap.
-  const SCOPE = new Set<GameModule>(['base', 'corpera', 'promo', 'venus', 'colonies', 'prelude', 'ares']);
+  const SCOPE = new Set<GameModule>(['base', 'corpera', 'promo', 'venus', 'colonies', 'prelude', 'ares', 'deltaProject']);
   // Corporations with NO real illustration to scan — the corp premium face
   // falls back to the wordmark identity zone by design in this case (see
   // "Corporation face" in CLAUDE.md). A newly-added corp landing here should
@@ -553,6 +553,13 @@ describe('card art coverage — full premium-face scope (project + prelude + cor
   // just never delivered?) — never silently accepted without a reason.
   const NO_ART_ACCEPTED = new Set<string>([
     CardName.BEGINNER_CORPORATION, // the rules/training corp — no printed illustration exists to scan
+    // The Hydronetwork's board SUBSYSTEM wearing a card's clothes: `instantiate:
+    // false`, never dealt, never in a hand or a tableau (every player shares the
+    // track from turn one and advances via a standard action). Like the standard
+    // projects above it is board machinery with no printed illustration, so the
+    // procedural theme fallback IS its look wherever the client draws it as a
+    // source chip. The module's real cards (DP02+) are covered normally.
+    CardName.DELTA_PROJECT,
     // Standard projects / standard actions ship PROCEDURAL faces by design —
     // no SP/SA card was ever illustrated (the printed originals are board
     // panels, not cards), so the neutral engineered theme fallback IS the art.
@@ -588,7 +595,7 @@ describe('card lore coverage — project + prelude + corporation', () => {
   // source card's lore when it has no entry of its own. Standard projects /
   // standard actions joined the premium face WITHOUT lore by design (board
   // machinery, not flavoured cards) — LORE_CARD_TYPES pins them out.
-  const SCOPE = new Set<GameModule>(['base', 'corpera', 'promo', 'venus', 'colonies', 'prelude', 'ares']);
+  const SCOPE = new Set<GameModule>(['base', 'corpera', 'promo', 'venus', 'colonies', 'prelude', 'ares', 'deltaProject']);
   const LORE_CARD_TYPES = new Set<CardType>([
     CardType.AUTOMATED,
     CardType.ACTIVE,
@@ -597,6 +604,15 @@ describe('card lore coverage — project + prelude + corporation', () => {
     CardType.CORPORATION,
   ]);
   const LORE_BY_CARD_NUMBER: Readonly<Record<string, string>> = loreTexts;
+  /**
+   * In the manifest, but never DEALT — so neither ever reaches a hand, a tableau
+   * or the fullscreen viewer, which is where an archive entry is read:
+   *  - Beginner Corporation — the rules/training corp;
+   *  - Delta Project — the Hydronetwork's board subsystem (`instantiate: false`;
+   *    the track is shared from turn one and advanced by a standard action).
+   * The module's real cards (DP02+) are covered normally.
+   */
+  const NEVER_DEALT = new Set<CardName>([CardName.BEGINNER_CORPORATION, CardName.DELTA_PROJECT]);
 
   function loreTextFor(card: ClientCard, seen = new Set<CardName>()): string | undefined {
     if (seen.has(card.name)) {
@@ -625,7 +641,7 @@ describe('card lore coverage — project + prelude + corporation', () => {
     const cards = getCards((c) =>
       SCOPE.has(c.module) &&
       LORE_CARD_TYPES.has(c.type) &&
-      c.name !== CardName.BEGINNER_CORPORATION,
+      !NEVER_DEALT.has(c.name),
     );
     expect(cards.length).to.be.greaterThan(490);
     const cardsByNumber = new Map<string, Array<string>>();
@@ -782,7 +798,7 @@ describe('premium face is ICONS-ONLY: prose plainText never renders', () => {
     // vpText fine print are KEPT. CEO faces drop plainText the same way
     // (Xavier) — their rule prose renders in the DEDICATED `vm.prose` zone,
     // never baked into the mechanics rows.
-    const SCOPE = new Set<GameModule>(['base', 'corpera', 'promo', 'venus', 'colonies', 'prelude', 'ares', 'ceo']);
+    const SCOPE = new Set<GameModule>(['base', 'corpera', 'promo', 'venus', 'colonies', 'prelude', 'ares', 'ceo', 'deltaProject']);
     const cards = getCards((c) => SCOPE.has(c.module) && isPremiumFaceType(c.type));
     const offenders: Array<string> = [];
     for (const card of cards) {

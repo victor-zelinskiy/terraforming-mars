@@ -6,7 +6,7 @@ import {GameModule} from '../../src/common/cards/GameModule';
 import {unplayableReasons} from '../../src/server/models/unplayableReasons';
 import {CEOsFavoriteProject} from '../../src/server/cards/base/CEOsFavoriteProject';
 
-const SCOPE = new Set<GameModule>(['base', 'corpera', 'promo', 'venus', 'colonies', 'prelude', 'ares']);
+const SCOPE = new Set<GameModule>(['base', 'corpera', 'promo', 'venus', 'colonies', 'prelude', 'ares', 'deltaProject']);
 
 /**
  * True when the card's OWN class prototype defines `method` (a per-card override),

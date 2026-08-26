@@ -1,6 +1,7 @@
 import {CardName} from '../../../common/cards/CardName';
 import {ModuleManifest} from '../ModuleManifest';
 import {DeltaProject} from './DeltaProject';
+import {QuantumResearch} from './QuantumResearch';
 
 /**
  * THE DELTA PROJECT («Гидросеть») CARD MANIFEST.
@@ -19,6 +20,9 @@ import {DeltaProject} from './DeltaProject';
  */
 export const DELTA_PROJECT_CARD_MANIFEST = new ModuleManifest({
   module: 'deltaProject',
+  projectCards: {
+    [CardName.QUANTUM_RESEARCH]: {Factory: QuantumResearch},
+  },
   preludeCards: {
     // NEVER DEALT. The Delta Project is a global subsystem every player shares
     // (Game.newInstance seeds `deltaProjectData`; the advance is a standard

@@ -155,7 +155,7 @@ Card types: `EVENT`, `ACTIVE`, `AUTOMATED`, `PRELUDE`, `CORPORATION`, `CEO`, `ST
 ### Expansions
 Each has a directory under `src/server/cards/` plus a manifest: `base`, `corporation`, `promo`, `venusNext`, `colonies`, `prelude`, `prelude2`, `turmoil`, `community`, `ares`, `moon`, `pathfinders`, `ceos`, `starwars`, `underworld`, `delta`. Test dirs mostly mirror these (note `tests/cards/ceo` vs `src/server/cards/ceos`). ⚠️ The `GameModule` **key** ≠ the source dir for two: key `ceo` ↔ dir `ceos`, key `deltaProject` ↔ dir `delta`.
 
-Premium-subsystem scope today: `base`, `corpera`, `promo`, `venus`, `colonies`, `prelude`, `ares`. Everything else is the frontier — widening it is the `docs/claude/expansion-adaptation-checklist.md` procedure.
+Premium-subsystem scope today: `base`, `corpera`, `promo`, `venus`, `colonies`, `prelude`, `ares`, `deltaProject`. Everything else is the frontier — widening it is the `docs/claude/expansion-adaptation-checklist.md` procedure.
 
 ### MarsBot corporations
 The bot's corporations (Rule Book B) are their OWN entities — the human card behind one gives only identity, art, lore and the selection-collision key. **Adding the next corporation is a checklist, and skipping a step is how one silently ships broken: `docs/claude/marsbot-corporation-checklist.md`** (contract: `docs/claude/marsbot-corporations.md`, official data: `docs/AUTOMA_DATA_AUDIT.md` §10). The short form loads itself as `.claude/rules/marsbot-corps.md` when you touch `src/server/automa/corps/**`.

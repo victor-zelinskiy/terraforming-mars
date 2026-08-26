@@ -17,7 +17,7 @@ import {PolderTechDutch} from '../../src/server/cards/promo/PolderTechDutch';
 // Modules whose corporations flow through the console's dedicated first-action
 // confirm modal today. Widen alongside the other preview SCOPE sets when an
 // expansion is adapted (the EXPANSION ADAPTATION CHECKLIST).
-const SCOPE = new Set<GameModule>(['base', 'corpera', 'promo', 'venus', 'colonies', 'prelude']);
+const SCOPE = new Set<GameModule>(['base', 'corpera', 'promo', 'venus', 'colonies', 'prelude', 'deltaProject']);
 
 function forEachInScopeCorporation(cb: (corp: ICorporationCard, module: GameModule) => void): void {
   for (const manifest of ALL_MODULE_MANIFESTS) {

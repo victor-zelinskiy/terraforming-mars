@@ -38,7 +38,7 @@ import {setTemperature, setVenusScaleLevel, setOxygenLevel, churn} from '../Test
  * decision someone has to make on purpose.
  */
 
-const SCOPE = new Set<GameModule>(['base', 'corpera', 'promo', 'venus', 'colonies', 'prelude', 'ares']);
+const SCOPE = new Set<GameModule>(['base', 'corpera', 'promo', 'venus', 'colonies', 'prelude', 'ares', 'deltaProject']);
 
 /**
  * Cards whose action still defers a payment the preview does not pre-collect

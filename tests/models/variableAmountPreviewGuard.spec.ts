@@ -26,7 +26,7 @@ import {testGame} from '../TestGame';
  * hook that builds its chips by hand) cannot quietly reintroduce the hole.
  */
 
-const SCOPE = new Set<GameModule>(['base', 'corpera', 'promo', 'venus', 'colonies', 'prelude', 'ares']);
+const SCOPE = new Set<GameModule>(['base', 'corpera', 'promo', 'venus', 'colonies', 'prelude', 'ares', 'deltaProject']);
 
 /** The chip a declared clause must produce, as `icon` + whether it is production. */
 type Clause = {field: string, icon: string, production: boolean};

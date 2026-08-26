@@ -24,7 +24,7 @@ import {GameModule} from '../common/cards/GameModule';
 import {CardType} from '../common/cards/CardType';
 
 // The premium-face scope (mirrors PremiumCardsPlayground SCOPE_MODULES).
-const SCOPE_MODULES: ReadonlySet<GameModule> = new Set(['base', 'corpera', 'promo', 'venus', 'colonies', 'prelude', 'ares']);
+const SCOPE_MODULES: ReadonlySet<GameModule> = new Set(['base', 'corpera', 'promo', 'venus', 'colonies', 'prelude', 'ares', 'deltaProject']);
 // Project + prelude only — corporations are EXCLUDED per the audit request
 // (they render an identity/wordmark zone instead of art).
 const SCOPE_TYPES: ReadonlySet<CardType> = new Set([CardType.AUTOMATED, CardType.ACTIVE, CardType.EVENT, CardType.PRELUDE]);
