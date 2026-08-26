@@ -34,15 +34,20 @@
 
   <!-- Attack -->
   <template v-else-if="line.kind === 'attack'">
-    <span class="mbr__who">
+    <!-- No `target` ⇒ nobody at the table held it: the line names the DEMAND,
+         never a seat that merely happened to be first. -->
+    <span v-if="line.attack.target !== undefined" class="mbr__who">
       <span class="mbr__pdot" :class="'player_bg_color_' + line.attack.target" aria-hidden="true"></span>
       <span class="mbr__pname">{{ targetName(line.attack.target) }}</span>
+    </span>
+    <span v-else class="mbr__who">
+      <span class="mbr__pname" v-i18n>Nobody</span>
     </span>
     <span class="mbr__imp-chip" :class="attackTone(line.attack)">
       <span class="mbr__imp-icons">
         <i v-for="icon in attackIcons(line.attack)" :key="icon" class="mbr__chip-icon" :class="icon" aria-hidden="true"></i>
       </span>
-      <span v-if="line.attack.before !== undefined && line.attack.after !== undefined" class="mbr__vals">
+      <span v-if="line.attack.target !== undefined && line.attack.before !== undefined && line.attack.after !== undefined" class="mbr__vals">
         {{ line.attack.before }}<span class="mbr__arrow" aria-hidden="true">→</span>{{ line.attack.after }}
       </span>
       <span v-if="attackNote(line.attack) !== ''" class="mbr__note" v-i18n>{{ attackNote(line.attack) }}</span>

@@ -177,7 +177,7 @@ describe('AutomaTurnLog — the typed turn script', () => {
     expect(victimImpacts, 'the attack already narrated this loss').lengthOf(0);
   });
 
-  it('a zero-outcome attack is STILL recorded — the target + "nothing to lose"', () => {
+  it('a zero-outcome attack is STILL recorded — with NO target, since nobody was hit', () => {
     const [game, human] = testAutomaGame();
     const automa = game.automa!;
     startActionPhase(game, human);
@@ -188,8 +188,11 @@ describe('AutomaTurnLog — the typed turn script', () => {
     const steps = automa.lastTurn!.steps;
     const attack = steps.find((s): s is Extract<MarsBotTurnStep, {kind: 'attack'}> => s.kind === 'attack');
     expect(attack, 'a no-op attack must not vanish from the script').is.not.undefined;
+    // No `target`: nobody at the table held a plant, so naming a seat would
+    // read (in a multiplayer game) as «that player was singled out and got
+    // lucky» — a different, false statement.
     expect(attack!.attack).deep.eq({
-      target: human.color, resource: 'plants', demanded: 5, removed: 0,
+      resource: 'plants', demanded: 5, removed: 0,
       before: 0, after: 0, outcome: 'nothing-to-lose',
     });
   });

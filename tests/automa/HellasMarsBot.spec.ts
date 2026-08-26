@@ -542,6 +542,22 @@ describe('HELLAS + MarsBot — B09 Corporate Competition', () => {
     expect(game.automa!.bonusDeck).is.empty;
   });
 
+  it('«leftmost if tied» means the AWARD ROW, not the order they were funded', () => {
+    const [game, human, bot] = hellasGame();
+    // Fund the RIGHTMOST of two awards first. Both are dead level against the
+    // human (bot 0, human 0), so only the printed «leftmost» tiebreak decides —
+    // and it must ignore the funding order the two arrived in.
+    const row = game.awards.map((a) => a.name);
+    expect(row.indexOf('Space Baron'), 'Space Baron sits right of Cultivator').is.above(row.indexOf('Cultivator'));
+    fund(game, human, 'Space Baron');
+    fund(game, human, 'Cultivator');
+    bot.megaCredits = 6;
+
+    resolve(game, BonusCardId.B09_CORPORATE_COMPETITION_HELLAS);
+    expect(game.board.getGreeneries(bot), 'the LEFTMOST award (Cultivator) was helped').has.length(1);
+    expect(position(game, 'space'), 'the later-funded Space Baron was not').eq(0);
+  });
+
   it('a successful help pays 5 M€ exactly once, even with several funded awards', () => {
     const [game, human, bot] = hellasGame();
     fund(game, human, 'Contractor');

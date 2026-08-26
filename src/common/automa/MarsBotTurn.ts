@@ -135,7 +135,13 @@ export type MarsBotAttackOutcome = 'hit' | 'nothing-to-lose' | 'protected' | 'ta
  * "highest-scoring animal/microbe resource cube" demand of Invasive Species.
  */
 export type MarsBotAttack = {
-  target: Color;
+  /**
+   * WHO the attack landed on. ABSENT for 'nothing-to-lose': there was no
+   * target — nobody at the table held the resource — and naming a seat anyway
+   * (the first human) reads in a multiplayer game as «that player was singled
+   * out and got lucky», which is a different, false statement.
+   */
+  target?: Color;
   resource: Resource | 'cube';
   /** The printed demand ("loses up to N"). */
   demanded: number;

@@ -172,8 +172,9 @@ function applyImpact(view: ViewModel, impact: MarsBotImpact): void {
 }
 
 function applyAttack(view: ViewModel, attack: MarsBotAttack): void {
-  // Only a concrete stock loss carries numbers ('target-chooses' resolves later).
-  if (attack.after !== undefined && attack.resource !== 'cube') {
+  // Only a concrete stock loss on a REAL target carries numbers
+  // ('target-chooses' resolves later; 'nothing-to-lose' has no target at all).
+  if (attack.target !== undefined && attack.after !== undefined && attack.resource !== 'cube') {
     setValue(view, attack.target, attack.resource, 'stock', attack.after);
   }
 }

@@ -259,9 +259,10 @@ function meteorShower(game: IGame): BonusCardOutcome {
       }}, {consumeLog: true});
       return 'destroy';
     }
-    // Nobody has a plant at all — say so; silence reads as a bug.
+    // Nobody at the table has a plant at all — say so; silence reads as a bug.
+    // No `target`: there was no victim, and naming one would be a lie.
     AutomaTurnLog.note(game, {kind: 'attack', attack: {
-      target: humans[0].color, resource: Resource.PLANTS, demanded: 5, removed: 0,
+      resource: Resource.PLANTS, demanded: 5, removed: 0,
       before: 0, after: 0, outcome: 'nothing-to-lose',
     }});
     return 'discard';
@@ -290,7 +291,6 @@ function invasiveSpecies(game: IGame): BonusCardOutcome {
     throw new Error('Not an automa game');
   }
   const bot = marsBotOf(game);
-  const humans = humansOf(game);
 
   if (game.gameOptions.venusNextExtension || game.gameOptions.coloniesExtension) {
     bot.stock.add(Resource.MEGACREDITS, 2, {log: true});
@@ -313,8 +313,9 @@ function invasiveSpecies(game: IGame): BonusCardOutcome {
     }}, {consumeLog: true});
   } else {
     // No animal/microbe cube anywhere — say so; silence reads as a bug.
+    // No `target`, for the same reason as Meteor Shower's empty branch.
     AutomaTurnLog.note(game, {kind: 'attack', attack: {
-      target: humans[0].color, resource: 'cube', demanded: 1, removed: 0,
+      resource: 'cube', demanded: 1, removed: 0,
       before: 0, after: 0, outcome: 'nothing-to-lose',
     }});
   }
@@ -547,7 +548,12 @@ function corporateCompetition(game: IGame): BonusCardOutcome {
   // costs 5 M€. With no funded awards this loop simply doesn't run.
   // §12 Q12: "the human's lead" generalizes to the BEST human per award.
   if (game.fundedAwards.length > 0) {
-    const withMargin = game.fundedAwards.map(({award}) => {
+    // «Leftmost if tied» means the AWARD ROW, not the order the awards happened
+    // to be funded in — so the candidates enter the sort already in row order
+    // (Venuphile last), and JS's stable sort keeps that as the tiebreak.
+    const leftmost = AutomaMilestonesAwards.awardsInLeftmostOrder(game);
+    const funded = game.fundedAwards.map(({award}) => award);
+    const withMargin = leftmost.filter((award) => funded.includes(award)).map((award) => {
       const scorer = new AwardScorer(game, award);
       const bestHuman = Math.max(...humans.map((h) => scorer.get(h)));
       return {award, humanLead: bestHuman - scorer.get(bot)};

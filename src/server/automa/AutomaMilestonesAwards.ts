@@ -18,6 +18,17 @@ export class AutomaMilestonesAwards {
   }
 
   /**
+   * The AWARD ROW as the printed "leftmost" tiebreaker reads it: board order,
+   * Venuphile last. EXPORTED because Corporate Competition prints the same
+   * word for a different question — «resolve the closest funded award's
+   * action, LEFTMOST IF TIED» — and `game.fundedAwards` is in FUNDING order,
+   * which is not the row order the card is talking about.
+   */
+  public static awardsInLeftmostOrder(game: IGame): ReadonlyArray<IAward> {
+    return AutomaMilestonesAwards.leftmostOrder(game.awards, 'Venuphile');
+  }
+
+  /**
    * The milestone MarsBot would claim right now, or undefined (3 claimed / it
    * meets none). Tiebreakers (rulebook p.8): (1) one the human also meets;
    * (2) the one the human is closest to meeting; (3) leftmost (Hoverlord last).

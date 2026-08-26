@@ -12,6 +12,8 @@ import {resolveBonusCard, routeBonusCard} from '../../src/server/automa/AutomaBo
 import {AutomaMilestonesAwards} from '../../src/server/automa/AutomaMilestonesAwards';
 import {THARSIS_TRACK} from '../../src/server/automa/boards/TharsisMarsBot';
 import {Birds} from '../../src/server/cards/base/Birds';
+import {Fish} from '../../src/server/cards/base/Fish';
+import {Livestock} from '../../src/server/cards/base/Livestock';
 import {ProtectedHabitats} from '../../src/server/cards/base/ProtectedHabitats';
 import {Tardigrades} from '../../src/server/cards/base/Tardigrades';
 import {cast} from '../../src/common/utils/utils';
@@ -163,6 +165,61 @@ describe('Automa multiplayer (mode B)', () => {
       expect(h2.getWaitingFor()).is.undefined;
       const prompt = cast(h1.popWaitingFor(), SelectCard);
       expect(prompt.cards.map((c) => c.name)).deep.eq([CardName.TARDIGRADES]);
+    });
+  });
+
+  /**
+   * A tie observed at ONE seed cannot tell «seeded random» apart from «take the
+   * first candidate» — both answer «player 1» every time. These sweep the SEED
+   * so the distribution itself is the assertion.
+   */
+  describe('victim canon (Q9) — the tie is genuinely SPREAD, never the first seat', () => {
+    const SEEDS = 24;
+
+    it('B01: a four-way plant tie lands on several different seats', () => {
+      const hits = new Map<string, number>();
+      for (let seed = 0; seed < SEEDS; seed++) {
+        const [game, humans] = testAutomaMultiplayerGame(4, {seed: (seed + 1) / (SEEDS + 1)}, `-b01spread-${seed}`);
+        humans.forEach((h) => h.plants = 5);
+        resolve(game, BonusCardId.B01_METEOR_SHOWER);
+        const victims = humans.filter((h) => h.plants === 0);
+        expect(victims, 'exactly one of the tied humans is hit').has.length(1);
+        hits.set(victims[0].color, (hits.get(victims[0].color) ?? 0) + 1);
+      }
+      const spread = [...hits.entries()].map(([color, n]) => `${color}:${n}`).join(' ');
+      expect(hits.size, `only these seats were ever hit — ${spread}`).is.at.least(3);
+      // The decisive claim: seat 1 is not simply always taken.
+      expect(hits.get('blue') ?? 0, `blue took ${hits.get('blue') ?? 0}/${SEEDS} — ${spread}`).is.below(SEEDS);
+    });
+
+    it('B02: equal-rate cubes weigh per PLAYER, not per CARD', () => {
+      // h1 holds THREE equal-rate cards, h2 holds ONE. A per-CARD roll would hit
+      // h1 about three times as often; the canon says one roll per PLAYER.
+      const hits = new Map<string, number>();
+      for (let seed = 0; seed < SEEDS; seed++) {
+        const [game, humans] = testAutomaMultiplayerGame(2, {seed: (seed + 1) / (SEEDS + 1)}, `-b02weight-${seed}`);
+        const [h1, h2] = humans;
+        for (const card of [new Birds(), new Fish(), new Livestock()]) { // all rate 1
+          card.resourceCount = 1;
+          h1.playedCards.push(card);
+        }
+        const lone = new Birds(); // rate 1 — a cross-player tie.
+        lone.resourceCount = 1;
+        h2.playedCards.push(lone);
+        resolve(game, BonusCardId.B02_INVASIVE_SPECIES);
+        runAllActions(game);
+        const prompted = humans.filter((h) => h.getWaitingFor() !== undefined);
+        expect(prompted, 'exactly one owner answers').has.length(1);
+        hits.set(prompted[0].color, (hits.get(prompted[0].color) ?? 0) + 1);
+      }
+      const many = hits.get('blue') ?? 0;
+      const one = hits.get('red') ?? 0;
+      const spread = `blue(3 cards):${many} red(1 card):${one}`;
+      expect(one, `the single-card owner was never picked — ${spread}`).is.above(0);
+      expect(many, `the three-card owner was never picked — ${spread}`).is.above(0);
+      // Equal weight per player ⇒ neither seat may dominate. A per-CARD roll
+      // would land near 18/6; this band rejects that shape.
+      expect(many, `card count is leaking into the odds — ${spread}`).is.at.most(SEEDS * 0.75);
     });
   });
 

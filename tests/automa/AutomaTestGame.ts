@@ -21,6 +21,13 @@ export type AutomaTestOptions = Partial<GameOptions> & {
   corporation?: MarsBotCorpId | 'random';
   /** Keep the human's SelectInitialCards prompt (default: popped, like testGame). */
   keepInitialCardSelection?: boolean;
+  /**
+   * The game's rng seed (default 0, like `Game.newInstance`). Varying it is how
+   * a spec proves a SEEDED random choice is actually SPREAD — at one seed, a
+   * victim tie that always lands on the same seat is indistinguishable from
+   * «pick the first candidate».
+   */
+  seed?: number;
 };
 
 /**
@@ -28,13 +35,13 @@ export type AutomaTestOptions = Partial<GameOptions> & {
  * the bot the engine seats itself. Returns [game, human, bot].
  */
 export function testAutomaGame(customOptions?: AutomaTestOptions, idSuffix = ''): [IGame, TestPlayer, IPlayer] {
-  const {difficulty, corporation, keepInitialCardSelection, ...gameOptions} = customOptions ?? {};
+  const {difficulty, corporation, keepInitialCardSelection, seed, ...gameOptions} = customOptions ?? {};
   const forced = corporation ?? MarsBotCorpId.C01_CREDICOR;
   const human = TestPlayer.BLUE.newPlayer({name: 'player1', idSuffix});
   const game = Game.newInstance(`game-id${idSuffix}`, [human], human, `spectator-id${idSuffix}`, {
     automa: {difficulty: difficulty ?? 'normal', ...(forced !== 'random' ? {corporation: forced} : {})},
     ...gameOptions,
-  });
+  }, seed ?? 0);
   if (keepInitialCardSelection !== true) {
     if (human.getWaitingFor() instanceof SelectInitialCards) {
       human.popWaitingFor();
@@ -52,14 +59,14 @@ const MULTI_COLORS = [TestPlayer.BLUE, TestPlayer.RED, TestPlayer.GREEN, TestPla
  */
 export function testAutomaMultiplayerGame(
   humanCount: number, customOptions?: AutomaTestOptions, idSuffix = ''): [IGame, ReadonlyArray<TestPlayer>, IPlayer] {
-  const {difficulty, corporation, keepInitialCardSelection, ...gameOptions} = customOptions ?? {};
+  const {difficulty, corporation, keepInitialCardSelection, seed, ...gameOptions} = customOptions ?? {};
   const forced = corporation ?? MarsBotCorpId.C01_CREDICOR;
   const humans = MULTI_COLORS.slice(0, humanCount)
     .map((factory, i) => factory.newPlayer({name: `player${i + 1}`, idSuffix}));
   const game = Game.newInstance(`game-id${idSuffix}`, humans, humans[0], `spectator-id${idSuffix}`, {
     automa: {difficulty: difficulty ?? 'normal', ...(forced !== 'random' ? {corporation: forced} : {})},
     ...gameOptions,
-  });
+  }, seed ?? 0);
   if (keepInitialCardSelection !== true) {
     for (const human of humans) {
       if (human.getWaitingFor() instanceof SelectInitialCards) {
