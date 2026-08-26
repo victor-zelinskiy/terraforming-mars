@@ -36,6 +36,15 @@ export interface CardModel {
     resources?: number | undefined;
     calculatedCost?: number;
     isSelfReplicatingRobotsCard?: boolean,
+    /**
+     * The card's PRINTED resource protection (`Pets`, `Bioengineering
+     * Enclosure`): the resources stored here cannot be removed by an opponent
+     * — Pets' cannot be removed by anyone, its own owner included. Public,
+     * because it is a printed property already visible on the card's face;
+     * absent (never `false`) on every other card. The console rail reads it to
+     * qualify an aggregated card-resource chip's protection.
+     */
+    protectedResources?: true,
     discount?: Array<CardDiscount>,
     isDisabled?: boolean; // Used with Pharmacy Union
     // When this card is a DISABLED candidate in a SelectCard prompt (it's a

@@ -7,6 +7,7 @@ import {GameModel} from './GameModel';
 import {PlayerId, ParticipantId} from '../Types';
 import {CardName} from '../cards/CardName';
 import {Resource} from '../Resource';
+import {CardResource} from '../CardResource';
 import {PartyName} from '../turmoil/PartyName';
 import {Agenda} from '../turmoil/Types';
 import {Tag} from '../cards/Tag';
@@ -127,6 +128,19 @@ export type PublicPlayerModel = {
   plantProduction: number;
   protectedResources: Record<Resource, Protection>;
   protectedProduction: Record<Resource, Protection>;
+  /**
+   * Protection of the resources stored ON THIS PLAYER'S CARDS, by resource
+   * type — today Protected Habitats' blanket shield over every animal and
+   * microbe they hold (`RemoveResourcesFromCard` filters exactly those out of
+   * an opponent's target list). Only PROTECTED types appear; an absent key
+   * means «not protected», so a new source is one entry, never a migration.
+   *
+   * Per-CARD protection (Pets, Bioengineering Enclosure) is not here — it is
+   * a printed property of the card and rides `CardModel.protectedResources`,
+   * so a surface that aggregates several holders can tell «all of this stock
+   * is shielded» from «part of it is».
+   */
+  protectedCardResources: Partial<Record<CardResource, Protection>>;
   tableau: ReadonlyArray<CardModel>;
   selfReplicatingRobotsCards: Array<CardModel>;
   steel: number;

@@ -742,5 +742,11 @@
     "for the aquifer and asteroid standard projects": "за стандартные проекты «Аквифер» и «Астероид»",
     "Spendable from this stock: ${0} of ${1}": "Платёжная часть запаса: ${0} из ${1}",
     "Converted into VP by played cards, current rate: ${0}": "Метка конвертируется в ПО сыгранными картами, текущий коэффициент: ${0}",
-    "Sources: ${0}": "Источники: ${0}"
+    "Sources: ${0}": "Источники: ${0}",
+    "protected": "под защитой",
+    "Opponents cannot remove it": "соперники не могут его забрать",
+    "Opponents cannot remove the protected part": "защищённую часть соперники забрать не могут",
+    "Opponents cannot reduce it": "соперники не могут его снизить",
+    "When targeted you lose half of it, rounded up": "при изъятии теряется вдвое меньше, с округлением вверх",
+    "Protected part of this stock: ${0} of ${1}": "под защитой часть запаса: ${0} из ${1}"
 }

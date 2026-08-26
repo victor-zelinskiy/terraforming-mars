@@ -14,6 +14,7 @@ import {SpaceHighlight, SpaceModel} from '../../common/models/SpaceModel';
 import {TileType} from '../../common/TileType';
 import {Phase} from '../../common/Phase';
 import {Resource} from '../../common/Resource';
+import {CardResource} from '../../common/CardResource';
 import {ClaimedMilestoneModel, MilestoneScore} from '../../common/models/ClaimedMilestoneModel';
 import {AutomaDeltaProject} from '../automa/AutomaDeltaProject';
 import {AutomaState} from '../automa/AutomaState';
@@ -587,6 +588,7 @@ export class Server {
       potentialActions: potential,
       protectedResources: Server.getResourceProtections(player),
       protectedProduction: Server.getProductionProtections(player),
+      protectedCardResources: Server.getCardResourceProtections(player),
       // actionReasons only for the viewer's OWN tableau (the self-model): the
       // Actions overlay needs the "why can't I activate" reasons only for the
       // player who can actually act; opponents' actions are view-only.
@@ -665,6 +667,26 @@ export class Server {
       protection.plants = 'half';
     }
 
+    return protection;
+  }
+
+  /**
+   * Protection of the resources stored ON the player's cards, by type. The
+   * one blanket source is Protected Habitats, and the rule it encodes is the
+   * target FILTER in `RemoveResourcesFromCard.getAvailableTargetCards`: an
+   * opponent may not take animals or microbes from a player who holds it.
+   *
+   * Per-CARD printed protection (Pets, Bioengineering Enclosure) deliberately
+   * stays on the card (`CardModel.protectedResources`) — it shields ONE
+   * card's stock, so folding it in here would claim a whole resource type is
+   * safe when only part of it is.
+   */
+  private static getCardResourceProtections(player: IPlayer): Partial<Record<CardResource, Protection>> {
+    const protection: Partial<Record<CardResource, Protection>> = {};
+    if (player.tableau.has(CardName.PROTECTED_HABITATS)) {
+      protection[CardResource.ANIMAL] = 'on';
+      protection[CardResource.MICROBE] = 'on';
+    }
     return protection;
   }
 

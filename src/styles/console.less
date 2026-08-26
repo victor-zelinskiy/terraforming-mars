@@ -3568,6 +3568,10 @@ each(@players, {
        reads as pinned to the icon's corner, never as a second icon. */
     --valbadge-size: .92rem;
     --valbadge-fs: .58rem;
+    /* Protection-mark token (the .con-shieldmark information layer): the
+       printed shield pinned to an icon's UPPER-LEFT corner — the opposite
+       corner from the MC coin, so the two layers can never collide. */
+    --shieldmark-size: .92rem;
 
     position: relative;   /* the absolute aux column anchors to this box */
     flex-shrink: 0;       /* keep the rail's footprint — the board never reflows */
@@ -3692,6 +3696,13 @@ each(@players, {
         background-size: contain !important;
         filter: drop-shadow(0 .1rem .25rem rgba(0, 0, 0, 0.5));
     }
+    /* Protection shield — the icon's UPPER-LEFT corner, mirroring the coin's
+       lower-right. It leans into the row's own padding, so it costs the grid
+       nothing and never touches the icon's main symbol. */
+    &__shield {
+        top: calc(var(--shieldmark-size, .92rem) * -.3);
+        left: calc(var(--shieldmark-size, .92rem) * -.32);
+    }
     /* MC-value coin on a resource row — pinned into the icon's lower-right
        corner; protrudes into the row's own column gap, never over the value.
        Offsets scale WITH the badge so every profile keeps the same overlap. */
@@ -3715,6 +3726,7 @@ each(@players, {
        in the row grid's own end track (no margin push): whole by
        construction, inside the plate's right padding. */
     &__prod {
+        position: relative;   /* the production shield's anchor (zero layout) */
         min-width: 2rem;
         padding: .15rem .3rem;
         border-radius: .25rem;
@@ -3724,6 +3736,15 @@ each(@players, {
         font-size: .9rem;
         font-weight: 700;
         text-align: center;
+
+        /* The production half of the protection fact: pinned INSIDE the
+           chip's upper-left corner at a smaller register than the stock
+           shield — the stock is the headline, production is its footnote. */
+        .con-shieldmark {
+            --shieldmark-size: .66rem;
+            top: -.22rem;
+            left: -.24rem;
+        }
 
         &--negative {
             background: linear-gradient(180deg, #8a2b2b, #6b2020);
@@ -4156,6 +4177,10 @@ each(@players, {
         background-size: contain !important;
         filter: drop-shadow(0 .1rem .2rem rgba(0, 0, 0, 0.6));
     }
+    &__shield {
+        top: calc(var(--shieldmark-size, .92rem) * -.28);
+        left: calc(var(--shieldmark-size, .92rem) * -.3);
+    }
     &__mcbadge {
         right: calc(var(--valbadge-size, .92rem) * -.3);
         bottom: calc(var(--valbadge-size, .92rem) * -.15);
@@ -4261,6 +4286,78 @@ each(@players, {
     0% { transform: scale(1); }
     38% { transform: scale(1.26); }
     100% { transform: scale(1); }
+}
+
+/* ── PROTECTION MARKS — «this stock is under guard» ──────────────────
+   The printed shield of the card face (assets/misc/shield-protect.svg),
+   redrawn inline so the three states differ by MATERIAL — the console paint
+   baseline strips `filter`, so the legacy grayscale/opacity «half» variant
+   would have read as FULL protection here.
+
+     · full    gold body + engraved check   — cannot be taken
+     · half    gold body + «½»              — taken at half, rounded up
+     · partial graphite body, gold rim+check — only part of this chip is safe
+
+   Hosts pin it into an icon's upper-left corner (absolute, zero layout, no
+   pointer events). Depth is box-shadow; the entrance is transform/opacity. */
+.con-shieldmark {
+    position: absolute;
+    z-index: 3;              /* above the icon art and its coin */
+    width: var(--shieldmark-size, .92rem);
+    /* the shield's own 24:26 ratio */
+    height: calc(var(--shieldmark-size, .92rem) * 1.083);
+    pointer-events: none;
+    line-height: 0;
+
+    &__svg {
+        width: 100%;
+        height: 100%;
+        display: block;
+    }
+    &__body {
+        fill: #d9b25e;
+        stroke: #f7e6b8;
+    }
+    &__check {
+        stroke: #2c1d06;
+    }
+    &__half {
+        fill: #2c1d06;
+        font-family: @con-font;
+        font-size: 13px;   /* SVG user units (viewBox 24×26) */ /* keep-px */
+        font-weight: 700;
+    }
+
+    /* «They still take it, only half» — the shield stays gold (a real rule is
+       in force) and the ½ carries the difference; a dimmed shield would be
+       invisible at couch distance and would read as «weaker», not «halved». */
+    &--half .con-shieldmark__body {
+        fill: #c9a24f;
+    }
+    /* «Part of this stock» — a shield filled only to its waist: the body is
+       the panel's own graphite under a gold rim, and the LEVEL of gold is the
+       message. A literal fill reads at a glance; a colour-only variant of the
+       full mark did not (measured on the 4K probe). */
+    &--partial {
+        .con-shieldmark__body {
+            fill: #16202e;
+            stroke: #d9b25e;
+        }
+        .con-shieldmark__fill {
+            fill: #d9b25e;
+        }
+    }
+
+    /* The mark exists only while the protection does, so its mount IS the
+       moment it was gained — one short settle, never a loop. */
+    &--enter {
+        animation: con-shieldmark-in calc(460ms * var(--motion-scale, 1)) cubic-bezier(0.2, 0.9, 0.3, 1.15) both;
+    }
+}
+@keyframes con-shieldmark-in {
+    0% { transform: scale(0.4) translateY(.12rem); opacity: 0; }
+    62% { transform: scale(1.14) translateY(0); opacity: 1; }
+    100% { transform: scale(1); opacity: 1; }
 }
 
 /* ── The inspector (ONE stable detail surface) ───────────────────── */
@@ -28468,6 +28565,7 @@ html.con-profile-handheld {
            .6rem production chips), so they overlap the corner deeper. */
         --valbadge-size: .78rem;
         --valbadge-fs: .55rem;
+        --shieldmark-size: .74rem;
     }
     /* (width rides --con-rail-w — set in the root-chrome block above.) */
     .con-res {

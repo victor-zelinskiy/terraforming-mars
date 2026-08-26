@@ -88,6 +88,16 @@
                so the row grid and the e2e icon-column probes see the same
                geometry); the measurement attrs stay on the <i> itself. -->
           <span class="con-res__iconwrap">
+            <!-- PROTECTION mark — upper-left, so it can never collide with the
+                 MC coin in the lower-right. Present exactly while the server
+                 says this stock is protected (railProtectionModel). -->
+            <ConsoleProtectionMark
+              v-if="row.protection !== undefined"
+              class="con-res__shield"
+              :data-protection="row.key"
+              :data-protection-kind="row.protection.kind"
+              :kind="row.protection.kind"
+              :label="stockProtectionAria(row)" />
             <i class="con-res__icon" :class="'resource_icon resource_icon--' + row.key" aria-hidden="true"
                :data-conversion-icon="conversionAnchor(row.key)"
                :data-wheel-anchor="row.key === 'heat' ? 'res-heat' : undefined"></i>
@@ -122,6 +132,17 @@
           </span>
           <span class="con-res__prod" :class="{'con-res__prod--negative': row.production < 0}">
             {{ row.production >= 0 ? '+' + row.production : row.production }}
+            <!-- The PRODUCTION half of the same fact (Lunar Security Stations,
+                 Private Security). Pinned INSIDE the chip's own corner, so a
+                 protected row never widens the chip and the value axis the
+                 rail contract guards stays put. -->
+            <ConsoleProtectionMark
+              v-if="row.productionProtection !== undefined"
+              class="con-res__prod-shield"
+              :data-protection-production="row.key"
+              :data-protection-kind="row.productionProtection.kind"
+              :kind="row.productionProtection.kind"
+              :label="productionProtectionAria(row)" />
           </span>
           <AnimatedMetricValue
             v-if="epoch !== ''"
@@ -232,6 +253,16 @@
     <transition-group v-if="boardVisible && extraGroups.length > 0" tag="div" class="con-res-aux" name="con-extra">
       <div v-for="g in extraGroups" :key="g.resource" class="con-res-aux__cell" :data-aux-resource="auxAnchorKey(g.resource)">
         <span class="con-res-aux__iconwrap">
+          <!-- The card-resource half: a blanket type shield (Protected
+               Habitats) or a PARTIAL one when this chip aggregates protected
+               and unprotected holders — the aria then names the split. -->
+          <ConsoleProtectionMark
+            v-if="auxProtection(g.resource) !== undefined"
+            class="con-res-aux__shield"
+            :data-protection="auxAnchorKey(g.resource)"
+            :data-protection-kind="auxProtection(g.resource)!.kind"
+            :kind="auxProtection(g.resource)!.kind"
+            :label="auxProtectionAria(g)" />
           <i class="card-resource con-res-aux__icon" :class="extraIconClass(g.resource)" aria-hidden="true"></i>
           <!-- MC-value badge for a card-bound payment stock: appears ONLY when
                the enabling card itself (Dirigibles, …) is in the tableau —
@@ -289,11 +320,22 @@ import {additionalResourceGroups, additionalResourceMetricKey, AdditionalResourc
 import {heldStock, heldProduction, heldCardResource, panelRewardHold} from '@/client/console/resourceTransfer/consoleResourceTransfer';
 import {cardResourceKey} from '@/client/console/resourceTransfer/resourceTransferModel';
 import ConsoleValueBadge from '@/client/components/console/ConsoleValueBadge.vue';
+import ConsoleProtectionMark from '@/client/components/console/ConsoleProtectionMark.vue';
+import {railProtections, RailProtectionMark, RailProtections} from '@/client/console/railProtectionModel';
 import {railMcBadges, tagVpBadges, RailMcBadge, RailMcBadges, RailMcContext, TagVpBadge} from '@/client/console/railValueModel';
 import {paymentUnitLabel} from '@/client/console/paymentPlan';
 import {translateText, translateTextWithParams} from '@/client/directives/i18n';
 
-type ResourceRow = {key: string, value: number, production: number, mcBadge?: RailMcBadge};
+type ResourceRow = {
+  key: string,
+  value: number,
+  production: number,
+  mcBadge?: RailMcBadge,
+  /** «This stock is protected» (railProtectionModel) — absent when it is not. */
+  protection?: RailProtectionMark,
+  /** The same fact for this row's PRODUCTION chip. */
+  productionProtection?: RailProtectionMark,
+};
 
 /** RailMcContext → the aria phrase naming WHERE the unit is legal tender. */
 const MC_CONTEXT_KEYS: Record<RailMcContext, string> = {
@@ -312,7 +354,7 @@ const MC_CONTEXT_KEYS: Record<RailMcContext, string> = {
 
 export default defineComponent({
   name: 'ConsoleResourcePanel',
-  components: {Tag, AnimatedMetricValue, ConsoleVpBadge, ConsoleValueBadge, PrivateScoreMask},
+  components: {Tag, AnimatedMetricValue, ConsoleVpBadge, ConsoleValueBadge, ConsoleProtectionMark, PrivateScoreMask},
   props: {
     player: {type: Object as PropType<PublicPlayerModel>, required: true},
     /**
@@ -418,18 +460,30 @@ export default defineComponent({
       // never a frame with a stale rate. M€ (the unit itself) and energy
       // never carry one by construction (absent from RailMcStandardKey).
       const badges = this.mcBadges.standard;
+      // Protection rides the SAME computed as the numbers and the coins, so a
+      // gained shield, a changed rate and a changed stock always land in one
+      // patch — never a frame where the rail contradicts itself.
+      const shields = this.protections;
+      const mark = (key: string): {protection?: RailProtectionMark, productionProtection?: RailProtectionMark} => ({
+        protection: shields.stock[key as keyof typeof shields.stock],
+        productionProtection: shields.production[key as keyof typeof shields.production],
+      });
       return [
-        {key: 'megacredits', value: stock('megacredits', p.megacredits), production: prod('megacredits', p.megacreditProduction)},
-        {key: 'steel', value: stock('steel', p.steel), production: prod('steel', p.steelProduction), mcBadge: badges.steel},
-        {key: 'titanium', value: stock('titanium', p.titanium), production: prod('titanium', p.titaniumProduction), mcBadge: badges.titanium},
-        {key: 'plants', value: stock('plants', p.plants), production: prod('plants', p.plantProduction), mcBadge: badges.plants},
-        {key: 'energy', value: stock('energy', p.energy), production: prod('energy', p.energyProduction)},
-        {key: 'heat', value: stock('heat', p.heat), production: prod('heat', p.heatProduction), mcBadge: badges.heat},
+        {key: 'megacredits', value: stock('megacredits', p.megacredits), production: prod('megacredits', p.megacreditProduction), ...mark('megacredits')},
+        {key: 'steel', value: stock('steel', p.steel), production: prod('steel', p.steelProduction), mcBadge: badges.steel, ...mark('steel')},
+        {key: 'titanium', value: stock('titanium', p.titanium), production: prod('titanium', p.titaniumProduction), mcBadge: badges.titanium, ...mark('titanium')},
+        {key: 'plants', value: stock('plants', p.plants), production: prod('plants', p.plantProduction), mcBadge: badges.plants, ...mark('plants')},
+        {key: 'energy', value: stock('energy', p.energy), production: prod('energy', p.energyProduction), ...mark('energy')},
+        {key: 'heat', value: stock('heat', p.heat), production: prod('heat', p.heatProduction), mcBadge: badges.heat, ...mark('heat')},
       ];
     },
     /** The displayed seat's payment-value badges (pure, memoized by model). */
     mcBadges(): RailMcBadges {
       return railMcBadges(this.effectivePlayer);
+    },
+    /** The displayed seat's protection marks (pure, memoized by model). */
+    protections(): RailProtections {
+      return railProtections(this.effectivePlayer);
     },
     /** The displayed seat's per-tag VP coefficients (pure, memoized by tableau). */
     tagVp(): ReadonlyMap<CardTag, TagVpBadge> {
@@ -541,6 +595,64 @@ export default defineComponent({
     },
     extraIconClass(resource: CardResource): string {
       return cardResourceCSS[resource];
+    },
+    /** The protection mark for a ДОП.РЕСУРСЫ chip, if its stock is shielded. */
+    auxProtection(resource: CardResource): RailProtectionMark | undefined {
+      return this.protections.cardResources.get(resource);
+    },
+    /**
+     * The protection sentence. The glyph states «shielded»; the label states
+     * the RULE — and for `half` that rule is «a removal still happens, its
+     * amount is halved, rounded up», never «half of it is safe».
+     */
+    protectionAria(subject: string, mark: RailProtectionMark, extra?: string): string {
+      const rule = mark.kind === 'half' ?
+        translateText('When targeted you lose half of it, rounded up') :
+        mark.kind === 'partial' ?
+          translateText('Opponents cannot remove the protected part') :
+          translateText('Opponents cannot remove it');
+      const parts = [`${subject}: ${translateText('protected')}`, rule];
+      if (extra !== undefined) {
+        parts.push(extra);
+      }
+      if (mark.sources.length > 0) {
+        parts.push(translateTextWithParams('Sources: ${0}', [mark.sources.map((c) => translateText(c)).join(', ')]));
+      }
+      return parts.join(' · ');
+    },
+    stockProtectionAria(row: ResourceRow): string {
+      return row.protection === undefined ? '' :
+        this.protectionAria(translateText(paymentUnitLabel(row.key)), row.protection);
+    },
+    /** Production wording is its own verb — «reduce», not «remove». */
+    productionProtectionAria(row: ResourceRow): string {
+      const mark = row.productionProtection;
+      if (mark === undefined) {
+        return '';
+      }
+      const parts = [
+        `${translateText(paymentUnitLabel(row.key))} · ${translateText('Production')}: ${translateText('protected')}`,
+        translateText('Opponents cannot reduce it'),
+      ];
+      if (mark.sources.length > 0) {
+        parts.push(translateTextWithParams('Sources: ${0}', [mark.sources.map((c) => translateText(c)).join(', ')]));
+      }
+      return parts.join(' · ');
+    },
+    /**
+     * A chip aggregates every holder, so a PARTIAL mark must name the split —
+     * otherwise the shield would claim more than the rules give.
+     */
+    auxProtectionAria(group: AdditionalResourceGroup): string {
+      const mark = this.protections.cardResources.get(group.resource);
+      if (mark === undefined) {
+        return '';
+      }
+      const extra = mark.kind === 'partial' ?
+        translateTextWithParams('Protected part of this stock: ${0} of ${1}',
+          [String(mark.protectedAmount ?? 0), String(mark.total ?? group.total)]) :
+        undefined;
+      return this.protectionAria(translateText(group.resource), mark, extra);
     },
     /** The VP badge for a МЕТКИ cell, if this tag is being scored right now. */
     tagVpFor(tag: CardTag): TagVpBadge | undefined {

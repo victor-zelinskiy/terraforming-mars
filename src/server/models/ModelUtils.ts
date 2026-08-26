@@ -126,6 +126,13 @@ export function cardsToModel(
       model.resources = card.resourceCount;
       model.isSelfReplicatingRobotsCard = true;
     }
+    // The PRINTED protection of the resources stored on this card (Pets /
+    // Bioengineering Enclosure) — a face-visible property, so it rides every
+    // seat's tableau. The console rail uses it to tell a fully protected
+    // card-resource chip from a partly protected one.
+    if (card.protectedResources === true) {
+      model.protectedResources = true;
+    }
     if (card.warnings.size > 0) {
       model.warnings = Array.from(card.warnings);
     }

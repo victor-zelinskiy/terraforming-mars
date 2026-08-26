@@ -1,4 +1,4 @@
-# Rail VALUE BADGES — the left rail's passive information layer
+# Rail VALUE BADGES + PROTECTION MARKS — the left rail's passive layer
 
 «Сколько M€ заменяет одна единица» и «во сколько ПО конвертируется метка» —
 прямо на иконках левого рейла, без открытия payment-редактора и без подсчёта
@@ -92,3 +92,86 @@ motion skips it entirely). Mount never animates: no «мигание при за
   figures (Helion forced), badge pinned inside its row and clear of the
   value column, text inside the plate, ONE row height, no VP shield in a
   fresh game; screenshots to `screenshots/rail-value-badges/`.
+
+---
+
+# PROTECTION MARKS — «этот запас под защитой»
+
+The second half of the same passive layer: a shield pinned to a guarded
+stock, so «мои растения не отберут» is answered by a glance at the rail
+instead of by remembering which cards are in the tableau.
+
+## The read-model (`src/client/console/railProtectionModel.ts`)
+
+Three server-authoritative inputs, none of them re-derived here:
+
+| Layer | Source | Covers |
+| --- | --- | --- |
+| stock | `PublicPlayerModel.protectedResources` | the six resource rows |
+| production | `PublicPlayerModel.protectedProduction` | each row's brown chip |
+| card resources | `PublicPlayerModel.protectedCardResources` (**new**) + the printed `CardModel.protectedResources` (**new**) | the ДОП.РЕСУРСЫ chips |
+
+`protectedResources` / `protectedProduction` already existed and were already
+public for every seat — they simply had **zero** client readers. The two new
+fields close the card-resource gap: the blanket type shield (Protected
+Habitats over animals + microbes, built in `ServerModel.getCardResourceProtections`
+from the same `RemoveResourcesFromCard` filter the engine enforces) and the
+PRINTED per-card shield (Pets, Bioengineering Enclosure), which rides the card
+model because it covers ONE holder's stock.
+
+**Three kinds, three meanings, three materials:**
+
+- `full` — gold body + engraved check: an opponent cannot take it.
+- `half` — gold body + «½»: **Botanical Experience**. The rule is *«a removal
+  still happens, its amount is halved, rounded up»* (`Math.ceil(qty / 2)` in
+  every removal path), NOT «half the stock is safe» — the aria says exactly
+  that. The shield stays GOLD: a real rule is in force, and a dimmed shield
+  would be invisible at couch distance and would read as «weaker» rather than
+  «halved». (This is also why the legacy desktop `.shield_icon_half` — an
+  `opacity` + `grayscale` variant — could not be reused: the console paint
+  baseline strips `filter`, so it would have rendered as FULL protection.)
+- `partial` — hollow shield (graphite body, gold rim + check): a ДОП.РЕСУРСЫ
+  chip that aggregates a protected and an unprotected holder (Pets + Birds).
+  The aria names the split («под защитой часть запаса: 4 из 7»). Claiming
+  `full` there would promise more than the rules give.
+
+A blanket type shield OUTRANKS the partial reading (nothing on that type is
+exposed). Marks are computed for the DISPLAYED player, so the Information
+Workspace (Y) shows the inspected seat's own shields.
+
+## Presentation (`ConsoleProtectionMark.vue` + `.con-shieldmark`)
+
+The silhouette IS the printed one — the same heraldic shield the card face
+prints for Protected Habitats / Pets / Asteroid Deflection System
+(`assets/misc/shield-protect.svg`), redrawn inline in flat fills so the three
+states differ by material rather than by a stripped filter.
+
+Placement is the corner OPPOSITE the MC coin: the shield takes the icon's
+**upper-left**, the coin the lower-right, so the two layers can never collide
+(guarded in e2e). Production protection is the same mark at a smaller register
+pinned inside the chip's own corner — absolutely positioned, because a glyph
+in the chip's flow would widen it and move the value axis the rail contract
+guards. Tokens: `--shieldmark-size` on `.con-res-host` / `.con-tagmx`, one
+override per profile. Entrance is a single settle on mount (the mark exists
+only while the protection does, so a mount IS the moment it was gained);
+reduced motion skips it.
+
+## Guards
+
+- `tests/client/components/console/railProtectionModel.spec.ts` — the model:
+  full / half, alloys + their production, the blanket type shield, the
+  printed per-card shield, the partial split, blanket-outranks-partial, a
+  legacy model with no fields.
+- `tests/client/components/console/ConsoleResourcePanel.spec.ts` («protection
+  marks») — mount-level: presence per row, the `½` glyph, the production mark
+  living inside the chip, the aux chip's partial aria, seat switching, the
+  passive contract, no marks on the bot rail.
+- `tests/models/resourceProtections.spec.ts` — **the projection's first
+  guard**: the six-resource matrix over Protected Habitats / Asteroid
+  Deflection System / Botanical Experience / Lunar Security Stations /
+  Private Security, the printed card flag, and «every seat sees an
+  opponent's protections».
+- `tests/e2e/console-rail-protection.spec.ts` — the real shell at fhd / tv4k /
+  deck: no shield before «Защищённая среда обитания» is played, one after,
+  pinned to the icon's upper-left, never overlapping the coin, and row
+  heights + icon column pixel-identical before/after.

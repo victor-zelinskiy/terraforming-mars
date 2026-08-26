@@ -14,9 +14,14 @@ const BASE_GAME_TAGS: ReadonlyArray<Tag> = [
 ];
 const ALL_PRINTED: ReadonlyArray<Tag> = CONSOLE_TAG_ORDER.filter((t) => t !== Tag.EVENT);
 
+const NO_PROTECTION = {megacredits: 'off', steel: 'off', titanium: 'off', plants: 'off', energy: 'off', heat: 'off'} as const;
+
 function fakePlayer(tags: Partial<Record<Tag, number>> = {}, extra: Partial<Record<string, unknown>> = {}): PublicPlayerModel {
   return {
     color: 'red',
+    protectedResources: {...NO_PROTECTION},
+    protectedProduction: {...NO_PROTECTION},
+    protectedCardResources: {},
     megacredits: 12, megacreditProduction: 1,
     steel: 0, steelProduction: 0,
     titanium: 0, titaniumProduction: 0,
@@ -383,5 +388,134 @@ describe('ConsoleResourcePanel — value badges', () => {
     expect(w.findAll('.con-res__row [data-mc-badge]')).to.have.length(4); // steel/ti/plants/heat
     expect(w.findAll('.con-res-aux__cell [data-mc-badge]')).to.have.length(3); // floaters/microbes/graphene
     expect(w.findAll('[data-tag-vp]')).to.have.length(1);
+  });
+});
+
+/**
+ * The PROTECTION layer (railProtectionModel → ConsoleProtectionMark): the
+ * printed shield pinned to a guarded stock. It is passive, it is per SEAT
+ * (an inspected opponent shows THEIR shields), and it never claims more than
+ * the rules give — a halved effect and a partly-shielded chip each read as
+ * their own material.
+ */
+describe('ConsoleResourcePanel — protection marks', () => {
+  const NONE = NO_PROTECTION;
+
+  function mountPlayer(player: PublicPlayerModel, extraProps: Record<string, unknown> = {}) {
+    return mount(ConsoleResourcePanel, {
+      global: globalConfig.global,
+      props: {player, gameTags: BASE_GAME_TAGS as Array<Tag>, ...extraProps},
+    });
+  }
+
+  it('an unprotected rail carries no shield anywhere', () => {
+    const w = mountPlayer(fakePlayer());
+    expect(w.findAll('.con-shieldmark')).to.have.length(0);
+  });
+
+  it('protected plants: a FULL shield on the plants row only', () => {
+    const w = mountPlayer(fakePlayer({}, {
+      protectedResources: {...NONE, plants: 'on'},
+      plants: 7,
+      tableau: [{name: CardName.PROTECTED_HABITATS}],
+    }));
+    const shield = w.find('[data-protection="plants"]');
+    expect(shield.exists()).to.be.true;
+    expect(shield.attributes('data-protection-kind')).to.eq('full');
+    expect(w.findAll('.con-shieldmark')).to.have.length(1);
+    // The mark states the RULE, not just «protected». (The unit runner has no
+    // RU bundle: translateText yields the English key, which IS the source text.)
+    expect(shield.attributes('aria-label')).to.contain('Opponents cannot remove it');
+  });
+
+  it('Botanical Experience: a HALF shield whose label says «lose half, rounded up»', () => {
+    const w = mountPlayer(fakePlayer({}, {
+      protectedResources: {...NONE, plants: 'half'},
+      plants: 7,
+      tableau: [{name: CardName.BOTANICAL_EXPERIENCE}],
+    }));
+    const shield = w.find('[data-protection="plants"]');
+    expect(shield.attributes('data-protection-kind')).to.eq('half');
+    expect(shield.find('.con-shieldmark__half').exists()).to.be.true;
+    expect(shield.find('.con-shieldmark__check').exists()).to.be.false;
+    expect(shield.attributes('aria-label')).to.contain('lose half of it, rounded up');
+  });
+
+  it('production protection rides the CHIP, not the icon', () => {
+    const w = mountPlayer(fakePlayer({}, {
+      protectedResources: {...NONE, steel: 'on', titanium: 'on'},
+      protectedProduction: {...NONE, steel: 'on', titanium: 'on'},
+      tableau: [{name: CardName.LUNAR_SECURITY_STATIONS}],
+    }));
+    expect(w.findAll('[data-protection="steel"]')).to.have.length(1);
+    const prodMark = w.find('[data-protection-production="steel"]');
+    expect(prodMark.exists()).to.be.true;
+    expect(prodMark.element.closest('.con-res__prod')).to.not.eq(null);
+    expect(prodMark.attributes('aria-label')).to.contain('Opponents cannot reduce it');
+    // Two stocks + two productions, nothing else.
+    expect(w.findAll('.con-shieldmark')).to.have.length(4);
+  });
+
+  it('an aux chip is shielded by the blanket type protection', () => {
+    const w = mountPlayer(fakePlayer({}, {
+      protectedCardResources: {Animal: 'on', Microbe: 'on'},
+      tableau: [{name: CardName.PROTECTED_HABITATS}, {name: CardName.BIRDS, resources: 3}],
+    }), {boardVisible: true});
+    const shield = w.find('.con-res-aux__cell [data-protection]');
+    expect(shield.exists()).to.be.true;
+    expect(shield.attributes('data-protection-kind')).to.eq('full');
+  });
+
+  it('a mixed chip reads PARTIAL and its label names the split', () => {
+    const w = mountPlayer(fakePlayer({}, {
+      tableau: [{name: CardName.PETS, resources: 4, protectedResources: true}, {name: CardName.BIRDS, resources: 3}],
+    }), {boardVisible: true});
+    const shield = w.find('.con-res-aux__cell [data-protection]');
+    expect(shield.attributes('data-protection-kind')).to.eq('partial');
+    const label = shield.attributes('aria-label') ?? '';
+    expect(label).to.contain('4');
+    expect(label).to.contain('7');
+  });
+
+  it('an ordinary holder gets a chip but no shield', () => {
+    const w = mountPlayer(fakePlayer({}, {tableau: [{name: CardName.BIRDS, resources: 3}]}), {boardVisible: true});
+    expect(w.find('.con-res-aux__cell').exists()).to.be.true;
+    expect(w.find('.con-res-aux__cell [data-protection]').exists()).to.be.false;
+  });
+
+  it('switching to an inspected opponent swaps the shields with the seat', async () => {
+    const w = mountPlayer(fakePlayer({}, {protectedResources: {...NONE, plants: 'on'}, plants: 4}));
+    expect(w.find('[data-protection="plants"]').exists()).to.be.true;
+    await w.setProps({player: fakePlayer({}, {color: 'blue'}), own: false});
+    expect(w.findAll('.con-shieldmark')).to.have.length(0);
+    await w.setProps({player: fakePlayer({}, {
+      color: 'green',
+      protectedProduction: {megacredits: 'on', steel: 'on', titanium: 'on', plants: 'on', energy: 'on', heat: 'on'},
+      tableau: [{name: CardName.PRIVATE_SECURITY}],
+    }), own: false});
+    expect(w.findAll('[data-protection-production]')).to.have.length(6);
+    expect(w.findAll('[data-protection]')).to.have.length(0);
+  });
+
+  it('the mark is passive: role=img, a label, no focusable control', () => {
+    const w = mountPlayer(fakePlayer({}, {protectedResources: {...NONE, plants: 'on'}}));
+    const shield = w.find('[data-protection="plants"]');
+    expect(shield.attributes('role')).to.eq('img');
+    expect((shield.attributes('aria-label') ?? '').length).to.be.greaterThan(0);
+    expect(shield.element.querySelector('button, [tabindex]')).to.eq(null);
+  });
+
+  it('the MarsBot rail carries no shields', () => {
+    const automa = {
+      difficulty: 'normal',
+      tracks: [{tags: [Tag.BUILDING], position: 1, maxPosition: 18, layout: [], regressed: []}],
+      actionDeckSize: 10, bonusDeckSize: 7,
+      bonusDiscard: [], recurringBonusCards: [], destroyedBonusCards: [],
+      playedPile: [], floaters: 2,
+    };
+    const w = mountPlayer(
+      fakePlayer({}, {protectedResources: {...NONE, plants: 'on'}}),
+      {own: false, automa: automa as never});
+    expect(w.findAll('.con-shieldmark')).to.have.length(0);
   });
 });
