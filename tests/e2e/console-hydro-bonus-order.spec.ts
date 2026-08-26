@@ -507,10 +507,30 @@ test.describe('the bonus offer never stands over the cards the placement drew', 
     const doubled = cardFrames.filter((f) => f.apart > 0);
     expect(doubled.map((f) => `${f.t}ms → ${f.where}`),
       'the source card was painted in two different places').toEqual([]);
-    // …and even the co-located overlap must be a BEAT, not a state: it belongs
-    // to the two flights, never to the standing fullscreen or the standing dock.
-    const overlapMs = cardFrames.filter((f) => f.visible > 1).length * 30;
-    expect(overlapMs, `two faces painted for ~${overlapMs}ms in total`).toBeLessThan(600);
+    // …and even the CO-LOCATED overlap must be a BEAT, not a state: it belongs
+    // to the landing cross-fade of a flight, never to a standing fullscreen or
+    // a standing dock. Measured as the ELAPSED span of each contiguous run of
+    // overlapping samples — counting samples and multiplying by the interval
+    // measures how often the observer fired, which during a GSAP tween is
+    // «very often» and says nothing about how long anything was on screen.
+    const runs: Array<number> = [];
+    let runStart: number | undefined;
+    let runEnd = 0;
+    for (const f of cardFrames) {
+      if (f.visible > 1) {
+        runStart = runStart ?? f.t;
+        runEnd = f.t;
+      } else if (runStart !== undefined) {
+        runs.push(runEnd - runStart);
+        runStart = undefined;
+      }
+    }
+    if (runStart !== undefined) {
+      runs.push(runEnd - runStart);
+    }
+    const longest = runs.length > 0 ? Math.max(...runs) : 0;
+    expect(longest, `the longest co-located overlap ran ${longest}ms (runs: ${runs.join(', ')}ms)`)
+      .toBeLessThan(300);
     // …and the viewer really did open (a dead probe must not pass vacuously).
     expect(cardFrames.some((f) => f.zoom), 'the fullscreen viewer never opened').toBe(true);
     // …and the card came back: the dock paints it again once the flight is over.
