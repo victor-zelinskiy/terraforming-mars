@@ -1058,6 +1058,7 @@ export enum CardName {
   // Delta Project
   DELTA_PROJECT = 'Delta Project',
   QUANTUM_RESEARCH = 'Quantum Research',
+  DYNAMIC_OCEAN_BARRIER = 'Dynamic Ocean Barrier',
 
   // Underworld Standard Projects
   EXCAVATE_STANDARD_PROJECT = 'Excavate:SP',

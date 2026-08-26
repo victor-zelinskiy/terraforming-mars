@@ -42,6 +42,41 @@ export const VP5_POSITION = 11;
 
 export const MAX_TRACK_POSITION = DELTA_TRACK_TAGS.length - 1; // 11 (positions 0–11)
 
+/**
+ * THE ONE ENTRY POINT FOR A BONUS ADVANCE.
+ *
+ * A card may grant a move on the SAME track the standard action moves on
+ * (Dynamic Ocean Barrier, on every ocean the owner places). Such a move must be
+ * the standard move in every respect that the player can observe — position,
+ * destination validation, rewards, choices, the repeat-blue-action pick, the
+ * journal scope, the event recorder — and differ ONLY in how it was started and
+ * how it is paid for. So it is NOT a second pipeline: it is the same
+ * {@link DeltaProjectExpansion.getValidAdvanceSteps} /
+ * {@link DeltaProjectExpansion.advance} pair carrying this context.
+ *
+ * The once-per-generation limit is deliberately NOT a term here: it lives in
+ * `Player.getActions`' own option callback (`deltaProjectData.usedThisGeneration`),
+ * never inside `advance`, so a move that does not go through that option cannot
+ * spend the standard action and cannot be blocked by it having been spent.
+ */
+export type AdvanceOptions = {
+  /**
+   * Hard ceiling on the step count, independent of energy (a bonus grants a
+   * fixed number of steps — the card says how many, not the player's stock).
+   */
+  maxSteps?: number;
+  /** Energy is not spent per step. */
+  free?: boolean;
+  /**
+   * Cover EXACTLY ONE otherwise-uncoverable required tag for THIS move only.
+   * Grants no tag, changes no tableau, never carries to a later move, and can
+   * never cover a deficit of two.
+   */
+  tagWaiver?: boolean;
+  /** M€-free energy toll charged once for the whole move (the waiver's price). */
+  energyToll?: number;
+};
+
 export class DeltaProjectExpansion {
   private constructor() {}
 
@@ -78,7 +113,20 @@ export class DeltaProjectExpansion {
   }
 
   // Whether the player has enough tags (using wilds to fill gaps) to reach targetPos.
-  private static canReachPosition(player: IPlayer, targetPos: number): boolean {
+  private static canReachPosition(player: IPlayer, targetPos: number, options?: AdvanceOptions): boolean {
+    return DeltaProjectExpansion.missingTagCount(player, targetPos) <= (options?.tagWaiver === true ? 1 : 0);
+  }
+
+  /**
+   * How many of the path's required tags the player CANNOT cover — raw tags
+   * first, then wilds, exactly as the standard rule does. 0 ⇔ the standard
+   * movement pipeline already allows the step; 1 ⇔ a single waiver would.
+   *
+   * The ONE place this arithmetic lives: a card that offers to cover a missing
+   * tag asks here rather than re-counting tags of its own (which is how a
+   * requirement modifier or a wild would silently stop being honoured).
+   */
+  public static missingTagCount(player: IPlayer, targetPos: number): number {
     let missing = 0;
     for (let pos = 1; pos <= Math.min(targetPos, 9); pos++) {
       const tag = DELTA_TRACK_TAGS[pos];
@@ -86,7 +134,7 @@ export class DeltaProjectExpansion {
         missing++;
       }
     }
-    return missing <= player.tags.count(Tag.WILD, 'raw');
+    return Math.max(0, missing - player.tags.count(Tag.WILD, 'raw'));
   }
 
   /**
@@ -207,7 +255,7 @@ export class DeltaProjectExpansion {
    * For example `[1, 2, 3]` when several jump sizes work, or `[2]` when only a two-step jump ends on a legal space.
    * Returns an empty array when no advance is possible.
    */
-  public static getValidAdvanceSteps(player: IPlayer): ReadonlyArray<number> {
+  public static getValidAdvanceSteps(player: IPlayer, options?: AdvanceOptions): ReadonlyArray<number> {
     const game = player.game;
     const progress = DeltaProjectExpansion.getProgress(player);
     const currentPos = progress.position;
@@ -217,7 +265,12 @@ export class DeltaProjectExpansion {
     }
 
     const result: number[] = [];
-    const maxByEnergy = Math.min(player.energy, MAX_TRACK_POSITION - currentPos);
+    // A bonus move is bounded by what the CARD grants, not by the stock: it
+    // pays no per-step energy, so the player's energy must not shorten it.
+    const budget = options?.free === true ?
+      (options.maxSteps ?? MAX_TRACK_POSITION) :
+      Math.min(player.energy, options?.maxSteps ?? MAX_TRACK_POSITION);
+    const maxByEnergy = Math.min(budget, MAX_TRACK_POSITION - currentPos);
 
     for (let steps = 1; steps <= maxByEnergy; steps++) {
       const newPos = currentPos + steps;
@@ -225,7 +278,7 @@ export class DeltaProjectExpansion {
         break;
       }
 
-      if (!DeltaProjectExpansion.canReachPosition(player, newPos)) {
+      if (!DeltaProjectExpansion.canReachPosition(player, newPos, options)) {
         continue;
       }
 
@@ -252,15 +305,24 @@ export class DeltaProjectExpansion {
    * - Cannot land on position VP spots if another player already occupies that position.
    * - Cannot move beyond position 11 (5VP).
    */
-  public static maxSteps(player: IPlayer): number {
-    const steps = DeltaProjectExpansion.getValidAdvanceSteps(player);
+  public static maxSteps(player: IPlayer, options?: AdvanceOptions): number {
+    const steps = DeltaProjectExpansion.getValidAdvanceSteps(player, options);
     return steps.length === 0 ? 0 : Math.max(...steps);
   }
 
-  public static advance(player: IPlayer, steps: number): void {
-    const valid = DeltaProjectExpansion.getValidAdvanceSteps(player);
+  public static advance(player: IPlayer, steps: number, options?: AdvanceOptions): void {
+    // Re-validated against the SAME option set the offer was computed with —
+    // the authoritative check happens HERE, at commit, never at prompt time.
+    const valid = DeltaProjectExpansion.getValidAdvanceSteps(player, options);
     if (!valid.includes(steps)) {
       throw new Error(`Invalid Delta Project advance: ${String(steps)} step(s) (valid: ${valid.join(', ')})`);
+    }
+    // The toll is the waiver's price and is charged ONCE for the whole move.
+    // Checked before anything mutates, so an unaffordable toll cannot leave a
+    // half-applied move behind.
+    const energyToll = options?.energyToll ?? 0;
+    if (energyToll > player.energy) {
+      throw new Error(`Not enough energy for the Delta Project toll: ${String(energyToll)}`);
     }
 
     const game = player.game;
@@ -280,7 +342,9 @@ export class DeltaProjectExpansion {
     // their result logs stay in the same group.
     game.events.beginAction(player, {kind: 'card', card: CardName.DELTA_PROJECT, owner: player.color}, {category: 'delta-project'});
     try {
-      player.stock.deduct(Resource.ENERGY, steps);
+      // Per-step energy is the STANDARD action's price; a bonus move pays only
+      // its own toll (0 for a plain bonus, 1 for a tag waiver).
+      player.stock.deduct(Resource.ENERGY, options?.free === true ? energyToll : steps);
       progress.position = newPos;
       // Record the landing for the per-stage history panel (a choice stage's
       // chosen reward is filled in by the deferred OrOptions callback below).
