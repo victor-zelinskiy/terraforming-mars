@@ -110,31 +110,90 @@ export function actionNodeDescription(node: {actionNode?: ICardRenderEffect | un
   return node.text ?? '';
 }
 
+/** Is this item the `or()` connector symbol? */
+function isOrSymbol(item: ItemType | undefined): boolean {
+  return item !== undefined && isICardRenderSymbol(item) && item.type === CardRenderSymbolType.OR;
+}
+
 /**
- * A copy of an action render node with a LEADING `or()` connector symbol stripped
- * from its cause row. The DSL draws an `or` action as STACKED boxes whose 2nd+ box
- * opens with an OR symbol so the FULL card reads "do box 1 OR box 2" (e.g. Weather
- * Balloons / Icy Impactors / Rotator Impacts: "ИЛИ <floater> → …"). When the
- * Actions overlay / confirm modal SPLIT those boxes into their OWN per-branch
- * blocks (each with its own ВЫПОЛНИТЬ), that leading OR is orphaned — a stray
- * "ИЛИ" atop a lone branch. Strip it so each branch reads as a standalone action.
- * Never mutates the shared manifest node (returns a shallow copy); a no-op when
- * the node doesn't open with OR (the first branch, or any non-`or` action).
+ * …and the LAYOUT FILLER that surrounds it: the spacing the DSL habitually
+ * writes beside a connector (`.nbsp.or()`), and the empty trailing slot the row
+ * builder leaves at the end of every effect row. Both are meaningless once the
+ * connector they spaced is gone — and the trailing one is why «is the last item
+ * an OR?» answered no for a row that visibly ended in one.
+ */
+function isFiller(item: ItemType | undefined): boolean {
+  if (item === undefined) {
+    return false;
+  }
+  if (isICardRenderSymbol(item)) {
+    return item.type === CardRenderSymbolType.NBSP || item.type === CardRenderSymbolType.EMPTY;
+  }
+  // The row builder's empty tail slot: no `is`, nothing to draw.
+  return (item as unknown as {is?: unknown}).is === undefined;
+}
+
+/**
+ * A copy of an action render node with its `or()` CONNECTOR stripped — the one
+ * that joins this box to a SIBLING box on the printed card.
+ *
+ * The DSL draws an `or` action as STACKED boxes and marks the join in one of two
+ * places, both of which are correct on the full card face and both of which are
+ * ORPHANED the moment a single box is shown on its own (an Actions-overlay tile,
+ * the composer's repeat slot, the Hydronetwork's pre-select row):
+ *
+ *  - LEADING, opening the 2nd+ box's CAUSE row — «ИЛИ <floater> → …» (Weather
+ *    Balloons / Icy Impactors / Rotator Impacts);
+ *  - TRAILING, closing the 1st box's EFFECT row — «1 M€ → <asteroid>* ИЛИ»
+ *    (Asteroid Rights, whose first `action()` literally ends `.nbsp.or()`).
+ *
+ * Only the leading form used to be stripped, so a lone Asteroid Rights branch
+ * read «… ИЛИ» with nothing after it — the same orphan, at the other end.
+ *
+ * An `or()` INSIDE an effect row is a different thing entirely («производство
+ * M€ ИЛИ 2 титана» — one branch offering two outcomes) and is deliberately
+ * left alone: only a connector at the very EDGE of the box joins boxes.
+ *
+ * Never mutates the shared manifest node (returns a shallow copy); a no-op for
+ * a node that carries no edge connector.
  */
 export function branchActionNode(node: ICardRenderEffect): ICardRenderEffect {
   const cause = node.rows[0];
-  const first = cause?.[0];
-  if (first === undefined || !isICardRenderSymbol(first) || first.type !== CardRenderSymbolType.OR) {
+  const effect = node.rows[2];
+  let newCause = cause;
+  if (isOrSymbol(cause?.[0])) {
+    const trimmed = cause.slice(1);
+    // An emptied cause makes the box renderer drop the delimiter (the action
+    // arrow), so keep an EMPTY placeholder — mirrors how the DSL uses `empty()`
+    // for a cause-less action ("→ effect").
+    newCause = trimmed.length > 0 ?
+      trimmed :
+      [{is: 'symbol', type: CardRenderSymbolType.EMPTY, size: Size.MEDIUM} as ICardRenderSymbol];
+  }
+  let newEffect = effect;
+  if (effect !== undefined) {
+    // Walk in past the trailing filler to find the row's LAST MEANINGFUL item.
+    let end = effect.length;
+    while (end > 0 && isFiller(effect[end - 1])) {
+      end--;
+    }
+    if (end > 0 && isOrSymbol(effect[end - 1])) {
+      // …and cut the spacing that preceded the connector with it. Never empties
+      // the row: a box with no effect at all is not a branch, so a degenerate
+      // node is left exactly as it is.
+      let cut = end - 1;
+      while (cut > 1 && isFiller(effect[cut - 1])) {
+        cut--;
+      }
+      if (cut > 0) {
+        newEffect = effect.slice(0, cut);
+      }
+    }
+  }
+  if (newCause === cause && newEffect === effect) {
     return node;
   }
-  const trimmed = cause.slice(1);
-  // An emptied cause makes the box renderer drop the delimiter (the action arrow),
-  // so keep an EMPTY placeholder — mirrors how the DSL uses `empty()` for a
-  // cause-less action ("→ effect").
-  const newCause: Array<ItemType> = trimmed.length > 0 ?
-    trimmed :
-    [{is: 'symbol', type: CardRenderSymbolType.EMPTY, size: Size.MEDIUM} as ICardRenderSymbol];
-  return {...node, rows: [newCause, node.rows[1], node.rows[2]]};
+  return {...node, rows: [newCause, node.rows[1], newEffect]};
 }
 
 /**

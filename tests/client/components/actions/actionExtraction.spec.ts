@@ -21,6 +21,29 @@ function opensWithOr(node: ICardRenderEffect): boolean {
   return first !== undefined && isICardRenderSymbol(first) && first.type === CardRenderSymbolType.OR;
 }
 
+/**
+ * …and the other place the DSL marks a join between two stacked boxes: a
+ * connector CLOSING the effect row. The row builder leaves an empty tail slot
+ * after it, so «is the last item an OR?» answers no for a row that visibly
+ * ends in one — walk in past the filler first.
+ */
+function endsWithOr(node: ICardRenderEffect): boolean {
+  const effect = node.rows[2] ?? [];
+  let end = effect.length;
+  while (end > 0) {
+    const item = effect[end - 1];
+    const filler = isICardRenderSymbol(item) ?
+      (item.type === CardRenderSymbolType.NBSP || item.type === CardRenderSymbolType.EMPTY) :
+      (item as unknown as {is?: unknown}).is === undefined;
+    if (!filler) {
+      break;
+    }
+    end--;
+  }
+  const last = effect[end - 1];
+  return last !== undefined && isICardRenderSymbol(last) && last.type === CardRenderSymbolType.OR;
+}
+
 function model(name: CardName, isDisabled = false): CardModel {
   return {name, isDisabled} as CardModel;
 }
@@ -160,6 +183,52 @@ describe('actionExtraction', () => {
     expect(stripped.rows[2]).to.eq(original.rows[2]);
     // The shared manifest node is NOT mutated.
     expect(opensWithOr(original)).to.eq(true);
+  });
+
+  /**
+   * THE OTHER END OF THE SAME ORPHAN.
+   *
+   * The DSL marks the join between two stacked `or` boxes in one of two places,
+   * and only the leading form was stripped. Asteroid Rights' FIRST action
+   * literally ends `.nbsp.or()` — so shown on its own (an Actions-overlay tile,
+   * the composer's repeat slot, the Hydronetwork's pre-select row) it read
+   * «1 M€ → <asteroid>* ИЛИ» with nothing after the ИЛИ.
+   */
+  it('strips a TRAILING OR (and its spacer) from an action node\'s effect row', () => {
+    const nodes = playerActionGroups([model(CardName.ASTEROID_RIGHTS)])[0].nodes;
+    const withTail = nodes.find((n) => n.actionNode !== undefined && endsWithOr(n.actionNode));
+    expect(withTail, 'expected an action node ending with OR').to.not.eq(undefined);
+    const original = withTail!.actionNode as ICardRenderEffect;
+
+    const stripped = branchActionNode(original);
+    expect(endsWithOr(stripped), 'the orphaned connector is gone').to.eq(false);
+    // The cause and the delimiter are untouched — only the connector left.
+    expect(stripped.rows[0]).to.eq(original.rows[0]);
+    expect(stripped.rows[1]).to.eq(original.rows[1]);
+    // …and the effect itself survives: the box still says what it does.
+    expect(stripped.rows[2].length).to.be.greaterThan(0);
+    expect(stripped.rows[2].length).to.be.lessThan(original.rows[2].length);
+    // The shared manifest node is NOT mutated.
+    expect(endsWithOr(original)).to.eq(true);
+  });
+
+  /**
+   * An `or()` INSIDE an effect row is a different thing entirely — ONE branch
+   * offering two outcomes («производство M€ ИЛИ 2 титана», Asteroid Rights'
+   * SECOND action). Only a connector at the very EDGE of the box joins boxes.
+   */
+  it('keeps an OR that is INSIDE the effect — that one is the branch\'s own choice', () => {
+    const nodes = playerActionGroups([model(CardName.ASTEROID_RIGHTS)])[0].nodes;
+    const inner = nodes.find((n) => {
+      const a = n.actionNode;
+      if (a === undefined || endsWithOr(a)) {
+        return false;
+      }
+      return (a.rows[2] ?? []).some((i) => isICardRenderSymbol(i) && i.type === CardRenderSymbolType.OR);
+    });
+    expect(inner, 'expected a node with an OR inside its effect').to.not.eq(undefined);
+    const original = inner!.actionNode as ICardRenderEffect;
+    expect(branchActionNode(original).rows[2]).to.eq(original.rows[2]);
   });
 
   it('returns an action node WITHOUT a leading OR unchanged (identity)', () => {

@@ -190,45 +190,23 @@
                     <span>{{ $t('VP at game end') }}</span>
                   </span>
                 </template>
-                <span v-if="fizzleNote !== ''" class="con-hydro__routenote con-hydro__routenote--warn">
-                  ⚑ {{ $t('This reward will be skipped') }} — {{ $t(fizzleNote) }}
-                </span>
+                <!-- («Нечего выбирать» is stated ONCE, by the pick row below —
+                     the stage's own home for that question.) -->
               </div>
 
               <!-- The PRE-SELECT SUMMARY — the configured decision, focusable
                    («A Изменить» when the cursor stands here). -->
-              <div v-if="summaryPresent"
-                   class="con-hydro__summary"
-                   :class="{'con-hydro__summary--focused': sceneFocus === 'summary'}"
-                   data-unfold-item
-                   role="button"
-                   @click="onChangeSelection">
-                <span class="con-hydro__section-label">{{ $t('Your selection') }}</span>
-                <!-- (pos 1/2 has NO summary row: the reward is chosen and
-                     CONFIRMED inside its own step, so nothing about it is
-                     ever configured out here — see openChoiceStep.) -->
-                <!-- pos 7: the chosen action — the SAME premium button graphic
-                     the composers draw in their filled repeat slot. -->
-                <span v-if="model.needsCardSelect === 'reuse-action' && model.selectedCard !== undefined && repeatNode !== undefined"
-                      class="con-composer__repeatpick con-hydro__pick-action">
-                  <span class="con-composer__repeatpick-graphic card-container" v-i18n v-strip-action-prefix>
-                    <CardRenderEffectBoxComponent v-if="repeatNode.actionNode !== undefined" :effectData="repeatNode.actionNode" />
-                    <CardRenderData v-else-if="repeatNode.renderRoot !== undefined" :renderData="repeatNode.renderRoot" />
-                    <span v-else class="con-composer__graphic-text">{{ repeatNode.text }}</span>
-                  </span>
-                  <span class="con-composer__repeatpick-name">{{ $t(model.selectedCard) }}</span>
-                  <span class="con-hydro__bonus-tick" aria-hidden="true">✓</span>
-                </span>
-                <!-- pos 9: the chosen target card + the honest count. -->
-                <span v-else-if="model.selectedCard !== undefined" class="con-hydro__summary-body">
-                  <b>{{ $t(model.selectedCard) }}</b>
-                  <span v-if="selectedAnimalCurrent !== undefined" class="con-hydro__pick-cur">
-                    <span class="card-resource card-resource-animal" aria-hidden="true"></span>
-                    {{ selectedAnimalCurrent }} → {{ selectedAnimalCurrent + 2 }}
-                  </span>
-                  <span class="con-hydro__bonus-tick" aria-hidden="true">✓</span>
-                </span>
-              </div>
+              <!-- (pos 1/2 has NO row here: the reward is chosen and CONFIRMED
+                   inside its own step, so nothing about it is ever configured
+                   out here — see openChoiceStep.) -->
+              <ConsoleHydroPickRow v-if="pickKind !== undefined"
+                                   :kind="pickKind"
+                                   :card="model.selectedCard"
+                                   :node="repeatNode"
+                                   :animalCurrent="selectedAnimalCurrent"
+                                   :focused="sceneFocus === 'summary'"
+                                   :fizzled="pickFizzled"
+                                   @open="onChangeSelection" />
 
               <!-- …and the SAME omission warning here: the plan CTA relabels
                    itself «Выбрать действие» but never said WHY the reinforce it
@@ -464,42 +442,14 @@
                      nothing here is a second implementation. Without it the
                      pos-7 / pos-9 pick arrived AFTER the commit, as a
                      standalone legacy card browser. -->
-                <div v-if="bonusNeedsCard"
-                     class="con-hydro__summary con-hydro__bonus-pick"
-                     :class="{
-                       'con-hydro__summary--focused': sceneFocus === 'bonus-pick',
-                       'con-hydro__bonus-pick--missing': bonusPickMissing,
-                     }"
-                     data-unfold-item
-                     role="button"
-                     @click="openBonusPick">
-                  <span class="con-hydro__section-label">{{ $t(model.needsCardSelect === 'reuse-action' ? 'Action to repeat' : 'Target card') }}</span>
-                  <!-- pos 7: the chosen action — the SAME premium button graphic
-                       the composers draw in their filled repeat slot. -->
-                  <span v-if="model.needsCardSelect === 'reuse-action' && model.selectedCard !== undefined && repeatNode !== undefined"
-                        class="con-composer__repeatpick con-hydro__pick-action">
-                    <span class="con-composer__repeatpick-graphic card-container" v-i18n v-strip-action-prefix>
-                      <CardRenderEffectBoxComponent v-if="repeatNode.actionNode !== undefined" :effectData="repeatNode.actionNode" />
-                      <CardRenderData v-else-if="repeatNode.renderRoot !== undefined" :renderData="repeatNode.renderRoot" />
-                      <span v-else class="con-composer__graphic-text">{{ repeatNode.text }}</span>
-                    </span>
-                    <span class="con-composer__repeatpick-name">{{ $t(model.selectedCard) }}</span>
-                    <span class="con-hydro__bonus-tick" aria-hidden="true">✓</span>
-                  </span>
-                  <!-- pos 9: the chosen target card + the honest count. -->
-                  <span v-else-if="model.selectedCard !== undefined" class="con-hydro__summary-body">
-                    <b>{{ $t(model.selectedCard) }}</b>
-                    <span v-if="selectedAnimalCurrent !== undefined" class="con-hydro__pick-cur">
-                      <span class="card-resource card-resource-animal" aria-hidden="true"></span>
-                      {{ selectedAnimalCurrent }} → {{ selectedAnimalCurrent + 2 }}
-                    </span>
-                    <span class="con-hydro__bonus-tick" aria-hidden="true">✓</span>
-                  </span>
-                  <span v-else class="con-hydro__summary-body con-hydro__summary-body--empty">
-                    <GamepadGlyph control="confirm" />
-                    <span>{{ $t(model.needsCardSelect === 'reuse-action' ? 'Choose an action' : 'Choose a card') }}</span>
-                  </span>
-                </div>
+                <ConsoleHydroPickRow v-if="pickKind !== undefined"
+                                     :kind="pickKind"
+                                     :card="model.selectedCard"
+                                     :node="repeatNode"
+                                     :animalCurrent="selectedAnimalCurrent"
+                                     :focused="sceneFocus === 'bonus-pick'"
+                                     :fizzled="pickFizzled"
+                                     @open="openBonusPick" />
 
                 <!-- TAKE IT / SKIP — a COMPACT BINARY CHOICE, not two settings
                      rows. The pair sizes to its own content and sits under the
@@ -676,6 +626,7 @@ import ConsoleWsHead from '@/client/components/console/foundation/ConsoleWsHead.
 import ConsolePlayedTargetStep from '@/client/components/console/played/ConsolePlayedTargetStep.vue';
 import ConsoleCardFaceLite from '@/client/components/console/cardDeal/ConsoleCardFaceLite.vue';
 import ConsoleSourceDock from '@/client/components/console/ConsoleSourceDock.vue';
+import ConsoleHydroPickRow, {HYDRO_PICK_COPY, HydroPickKind} from '@/client/components/console/hydroFlow/ConsoleHydroPickRow.vue';
 import {choiceSourceView} from '@/client/console/promptSource';
 import CardRenderEffectBoxComponent from '@/client/components/card/CardRenderEffectBoxComponent.vue';
 import CardRenderData from '@/client/components/card/CardRenderData.vue';
@@ -770,6 +721,7 @@ export default defineComponent({
   name: 'ConsoleHydroSection',
   components: {
     GamepadGlyph, HydroReward, ConsoleWsHead, ConsolePlayedTargetStep, ConsoleCardFaceLite, ConsoleSourceDock,
+    ConsoleHydroPickRow,
     CardRenderEffectBoxComponent, CardRenderData,
   },
   directives: {stripActionPrefix},
@@ -1221,10 +1173,46 @@ export default defineComponent({
     bonusPickMissing(): boolean {
       return this.bonusNeedsCard && this.model.selectedCard === undefined;
     },
-    /** WHAT IS MISSING, named. Never a bare «нельзя». */
+    /**
+     * THE PICK ROW'S IDENTITY — which question the landed stage asks, or
+     * undefined when it asks none. ONE derivation for both scenes.
+     */
+    pickKind(): HydroPickKind | undefined {
+      const k = this.model.needsCardSelect;
+      return k === 'reuse-action' || k === 'animal-target' ? k : undefined;
+    },
+    /** The stage asks, but the SERVER offered no candidate — the reward simply
+     *  fizzles. Nothing is owed, so nothing may warn about it. */
+    pickFizzled(): boolean {
+      return this.pickKind !== undefined && !this.model.mustSelectCard;
+    },
+    /** WHAT IS MISSING, named. Never a bare «нельзя», and never an instruction
+     *  the player cannot follow (a fizzled stage has nothing to choose). */
     pickWarningKey(): string {
-      return this.model.needsCardSelect === 'reuse-action' ?
-        'Choose the action to repeat first' : 'Choose the card to receive the animals first';
+      return this.pickKind === undefined ? '' : HYDRO_PICK_COPY[this.pickKind].warn;
+    },
+    /**
+     * WHAT A DOES, FOLLOWING THE CURSOR. The bar is the only place a verb
+     * lives, so it has to name the act the cursor is actually on — it read
+     * «Продвинуться» while the player stood on the pre-select row, which
+     * is the bar describing a different button.
+     */
+    bonusConfirmLabel(): string {
+      if (this.sceneFocus === 'bonus-pick') {
+        return this.pickVerbKey;
+      }
+      if (this.sceneFocus === 'bonus-source') {
+        return 'Inspect';
+      }
+      return this.sceneFocus === 'bonus-skip' ? this.bonusCopy.skipKey : this.bonusCopy.confirmKey;
+    },
+    /** The verb the ONE command bar shows while the cursor is on the row. */
+    pickVerbKey(): string {
+      if (this.pickKind === undefined) {
+        return '';
+      }
+      const copy = HYDRO_PICK_COPY[this.pickKind];
+      return this.model.selectedCard === undefined ? copy.choose : copy.change;
     },
     /** The PLAYER'S OWN advance is missing the landed stage's pick. Same
      *  omission, same warning — asked of the plan layer rather than the offer. */
@@ -1290,12 +1278,16 @@ export default defineComponent({
      * exact state that used to survive a trip to the board and could then
      * only be changed by finding this chip.
      */
+    /**
+     * THE PICK ROW STANDS FOR THE WHOLE STAGE, not only for a made choice.
+     *
+     * It used to appear only ONCE something had been chosen, so the one thing
+     * the player had to do was the one thing the panel did not show — the CTA
+     * quietly relabelled itself and that was the entire affordance. The row is
+     * now the question's home from the first frame, in both scenes.
+     */
     summaryPresent(): boolean {
-      const m = this.model;
-      if (m.mode !== 'plan') {
-        return false;
-      }
-      return m.needsCardSelect !== undefined && m.selectedCard !== undefined;
+      return this.model.mode === 'plan' && this.pickKind !== undefined;
     },
     /** What A means on the preview layer (the CTA and the bar agree). */
     primaryVerb(): 'reinforce' | 'choose-reward' | 'choose-action' | 'choose-card' | 'blocked' {
@@ -1505,7 +1497,7 @@ export default defineComponent({
         // harmless and the flow comes back to its own result.
         return [
           {control: 'dpad', label: 'Choose', priority: 2},
-          {control: 'confirm', label: this.sceneFocus === 'bonus-skip' ? this.bonusCopy.skipKey : this.bonusCopy.confirmKey, enabled: this.bonusAnswerable},
+          {control: 'confirm', label: this.bonusConfirmLabel, enabled: this.bonusAnswerable},
           {control: 'secondary', label: 'Inspect', enabled: this.bonusAnswerable},
           {control: 'back', label: this.backLabel ?? 'Minimize'},
         ];
@@ -1530,7 +1522,10 @@ export default defineComponent({
       if (this.model.mode === 'details') {
         cmds.push({control: 'confirm', label: 'Back to plan'});
       } else if (this.sceneFocus === 'summary') {
-        cmds.push({control: 'confirm', label: 'Change selection'});
+        // The row's own verb — «Выбрать» while the question stands, «Сменить»
+        // once it is answered. A generic «Изменить выбор» over an unanswered
+        // row promises there is a selection to change.
+        cmds.push({control: 'confirm', label: this.pickVerbKey, enabled: !this.pickFizzled});
       } else {
         cmds.push({control: 'confirm', label: this.primaryLabel, enabled: this.primaryVerb !== 'blocked'});
       }
@@ -1568,7 +1563,12 @@ export default defineComponent({
         this.bonusSubmitting = false;
         this.pickWarned = false;
         if (now !== '' && this.seatPlanOnOffer()) {
-          this.sceneFocus = 'bonus-confirm';
+          // THE CURSOR STARTS ON THE QUESTION. When the landed stage owes a
+          // pick, THAT is what the player must do first — seating them on the
+          // confirm makes the first press a warning and the affordance they
+          // needed a hunt. Nothing owed (or nothing choosable) → the confirm,
+          // which is then genuinely the next act.
+          this.sceneFocus = this.bonusPickMissing ? 'bonus-pick' : 'bonus-confirm';
         } else if (this.sceneFocus.startsWith('bonus-')) {
           this.sceneFocus = 'track';
         }
@@ -1650,6 +1650,16 @@ export default defineComponent({
       // The warning describes a STATE, never a press, so it dies with the
       // state it named — a pick made (or dropped) re-arms the gate honestly.
       this.pickWarned = false;
+      // …and a made pick HANDS THE CURSOR ON to what is now the next act. The
+      // player answered the question the row was asking; leaving them parked on
+      // an answered row makes them hunt for the confirm they just earned.
+      if (card !== undefined && prev === undefined) {
+        if (this.sceneFocus === 'bonus-pick') {
+          this.sceneFocus = 'bonus-confirm';
+        } else if (this.sceneFocus === 'summary') {
+          this.sceneFocus = 'track';
+        }
+      }
       if (card === undefined && prev !== undefined &&
           hydroNetworkState.selectedCard === prev && this.flow.commit === undefined) {
         this.$emit('notice', translateText('The selected card is no longer available'));
@@ -1692,6 +1702,11 @@ export default defineComponent({
     this.seatPlanOnOffer();
     if (this.flow.step === 'target') {
       void this.$nextTick(() => this.seatTargetStep());
+    }
+    // …and the plan layer seats its cursor the same way: the pick is the act,
+    // so the cursor starts on it rather than on a confirm that cannot fire.
+    if (this.bonusOffer === undefined && this.planPickMissing) {
+      this.sceneFocus = 'summary';
     }
     this.syncFrameCrumb();
     this.fetchPreview();

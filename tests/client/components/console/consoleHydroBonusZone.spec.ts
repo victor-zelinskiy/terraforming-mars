@@ -44,6 +44,10 @@ type Vm = {
   bonusRewardView: {lines: ReadonlyArray<{delta: number}>},
   bonusNeedsCard: boolean,
   bonusPickMissing: boolean,
+  pickKind: string | undefined,
+  pickFizzled: boolean,
+  pickVerbKey: string,
+  summaryPresent: boolean,
   pickWarned: boolean,
   pickWarningKey: string,
   model: {selectedCard: string | undefined, needsCardSelect: string | undefined, mustSelectCard: boolean},
@@ -576,6 +580,107 @@ describe('the Hydronetwork bonus zone', () => {
       vm.answerBonus(true);
       const p = w.emitted('bonus-answer')?.[0][0] as {selectedCard?: string};
       expect(p.selectedCard).to.eq('Birds');
+      w.unmount();
+    });
+  });
+
+  /**
+   * ══ THE CURSOR STARTS ON THE ACT, AND THE BAR NAMES IT ════════════════
+   *
+   * The pre-select is the thing the player must do first, so seating them on
+   * the confirm made their first press a warning and the affordance they needed
+   * a hunt — while the ONE command bar went on advertising «Продвинуться» over
+   * a cursor that was standing somewhere else entirely.
+   */
+  describe('the cursor and the bar follow the act', () => {
+    it('starts ON the pick row while the question stands', () => {
+      seatPreview({reuse: ['Ironworks']});
+      const w = mountSection(REPEAT_OFFER);
+      expect((w.vm as unknown as Vm).sceneFocus).to.eq('bonus-pick');
+      w.unmount();
+    });
+
+    it('starts on the CONFIRM when nothing is owed', () => {
+      const w = mountSection(OFFER);
+      expect((w.vm as unknown as Vm).sceneFocus).to.eq('bonus-confirm');
+      w.unmount();
+    });
+
+    it('…and on the CONFIRM when there is physically nothing to choose', () => {
+      seatPreview({reuse: []});
+      const w = mountSection(REPEAT_OFFER);
+      const vm = w.vm as unknown as Vm;
+      expect(vm.pickFizzled).is.true;
+      expect(vm.sceneFocus).to.eq('bonus-confirm');
+      w.unmount();
+    });
+
+    it('HANDS THE CURSOR ON to the confirm once the pick is made', async () => {
+      seatPreview({animals: ['Birds']});
+      const w = mountSection(ANIMAL_OFFER);
+      const vm = w.vm as unknown as Vm;
+      expect(vm.sceneFocus).to.eq('bonus-pick');
+      hydroNetworkState.selectedCard = 'Birds' as never;
+      await w.vm.$nextTick();
+      expect(vm.sceneFocus).to.eq('bonus-confirm');
+      w.unmount();
+    });
+
+    it('the bar names the ROW\'s verb while the cursor is on it', () => {
+      seatPreview({reuse: ['Ironworks']});
+      const w = mountSection(REPEAT_OFFER);
+      const vm = w.vm as unknown as Vm;
+      const labelOf = () => vm.footCommands.find((c) => c.control === 'confirm')?.label;
+      expect(vm.sceneFocus).to.eq('bonus-pick');
+      expect(labelOf(), 'never «Продвинуться» over the pre-select').to.eq('Choose an action');
+      vm.sceneFocus = 'bonus-confirm';
+      expect(labelOf()).to.eq('Advance');
+      vm.sceneFocus = 'bonus-source';
+      expect(labelOf()).to.eq('Inspect');
+      w.unmount();
+    });
+
+    it('…and says CHANGE once something is chosen', async () => {
+      seatPreview({animals: ['Birds']});
+      const w = mountSection(ANIMAL_OFFER);
+      const vm = w.vm as unknown as Vm;
+      hydroNetworkState.selectedCard = 'Birds' as never;
+      await w.vm.$nextTick();
+      vm.sceneFocus = 'bonus-pick';
+      expect(vm.footCommands.find((c) => c.control === 'confirm')?.label).to.eq('Change the card');
+      w.unmount();
+    });
+  });
+
+  /**
+   * ══ A DEAD END IS NOT AN INSTRUCTION ═══════════════════════════
+   *
+   * With no candidate the reward simply fizzles. Telling the player to «выберите
+   * действие» there is an instruction they cannot follow.
+   */
+  describe('a stage with nothing to choose', () => {
+    it('states the fizzle instead of a press, and never warns', () => {
+      seatPreview({reuse: []});
+      const w = mountSection(REPEAT_OFFER);
+      const vm = w.vm as unknown as Vm;
+      expect(vm.pickKind, 'the stage still ASKS — it just has no candidate').to.eq('reuse-action');
+      expect(vm.pickFizzled).is.true;
+      expect(vm.bonusNeedsCard, 'nothing is owed').is.false;
+      expect(vm.bonusPickMissing).is.false;
+      // The confirm goes straight through — no gate, no warning.
+      vm.answerBonus(true);
+      expect(w.emitted('bonus-answer')).to.have.length(1);
+      expect(vm.pickWarned).is.false;
+      w.unmount();
+    });
+
+    it('the row says so in words the player can act on', () => {
+      seatPreview({animals: []});
+      const w = mountSection(ANIMAL_OFFER);
+      const row = w.find('.con-hydro__pickrow');
+      expect(row.exists()).is.true;
+      expect(row.classes()).to.contain('con-hydro__pickrow--fizzled');
+      expect(row.text()).to.not.match(/Сначала|first/i);
       w.unmount();
     });
   });

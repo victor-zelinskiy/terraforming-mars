@@ -5705,23 +5705,38 @@ html.console-mode body.placement-pending .board-outer-spaces > .board-space.boar
         line-height: 1;
     }
 
-    /* THE LANDED STAGE'S PRE-SELECT, on the offer's own window. Same chip as
-       the plan panel's «Ваш выбор»; an UNMADE pick states itself in the amber
-       register so the row reads as owed rather than as decoration. */
-    &__bonus-pick {
+    /* THE LANDED STAGE'S PRE-SELECT — ONE row, both roads onto the track (the
+       player's own advance and a card's offer). Three states, each with its
+       own register: OWED (amber, the press is the point), ANSWERED (the
+       branch's own graphic + a mint tick), FIZZLED (calm, no press on offer —
+       there is physically nothing to choose). */
+    &__pickrow {
         align-self: stretch;
         margin-top: .35rem;
     }
-    &__bonus-pick--missing {
+    &__pickrow--missing {
         box-shadow: inset 0 0 0 .05rem fade(@con-amber, 40%);
 
         .con-hydro__summary-body--empty { color: fade(@con-amber, 95%); }
+    }
+    /* A dead end is not a warning: nothing is owed, so nothing shouts. */
+    &__pickrow--fizzled {
+        box-shadow: inset 0 0 0 .05rem rgba(150, 160, 175, 0.2);
+        cursor: default;
     }
     &__summary-body--empty {
         display: inline-flex;
         align-items: center;
         gap: .4rem;
         font-weight: 700;
+    }
+    &__summary-body--fizzled {
+        display: inline-flex;
+        align-items: center;
+        gap: .4rem;
+        color: @con-text-dim;
+        font-size: .8rem;
+        font-weight: 600;
     }
 
     /* THE FACTS — what the move costs and what it pays, in the SAME
@@ -6406,7 +6421,7 @@ html.con-profile-handheld .con-hydro {
     .con-hydro__bonus-text { font-size: .775rem; }
     .con-hydro__bonus-facts { gap: .25rem .9rem; max-width: 26rem; }
     .con-hydro__pickwarn { font-size: .725rem; min-height: 1rem; line-height: 1rem; }
-    .con-hydro__bonus-pick { max-width: 26rem; }
+    .con-hydro__pickrow { max-width: 26rem; }
     .con-hydro__bonus-fact .con-hydro__delta { font-size: .775rem; }
 }
 
