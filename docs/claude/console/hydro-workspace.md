@@ -218,6 +218,38 @@ the track cannot diverge past the landing).
 `mounted()` legitimately calls `resetHydroPlan()` for a fresh open, which lands
 after it and wiped the seat. A mount is not a change; it has to ask for itself.
 
+**ONE ROW, BOTH ROADS** (`hydroFlow/ConsoleHydroPickRow.vue`). The pre-select is
+a single component used by the offer's window AND the plan panel — same label,
+same branch graphic, same focus ring, same verbs, one copy table
+(`HYDRO_PICK_COPY`). Three states it never lies about:
+ - **UNCHOSEN** — the amber owed register; the press is the content;
+ - **CHOSEN** — the branch's own printed graphic + the card's name + a tick;
+ - **FIZZLED** — the server offered no candidate, so the reward simply fizzles.
+   The row states THAT and offers no press at all: «выберите действие» where
+   there is physically nothing to choose is an instruction the player cannot
+   follow, and nothing is owed, so nothing warns.
+The plan panel's row is no longer conditional on a made choice: it stands for
+the whole stage from the first frame (the CTA quietly relabelling itself used to
+be the entire affordance).
+
+**THE CURSOR STARTS ON THE ACT, AND THE BAR NAMES IT.** With a pick owed the
+cursor seats on the ROW (seating it on the confirm made the first press a
+warning and the affordance a hunt); a made pick HANDS THE CURSOR ON to the
+confirm. The ONE command bar follows it — `Выбрать действие` / `Сменить
+действие` on the row, `Осмотреть` on the source, `Продвинуться` /
+`Пропустить` on the answers. A bar that says «Продвинуться» over a cursor
+standing somewhere else is the bar describing a different button.
+
+⚠️ **A BRANCH SHOWN ALONE MUST DROP THE CONNECTOR THAT JOINED IT TO ITS
+SIBLING.** The DSL marks an `or` join in two places and only the LEADING one was
+stripped — «Права на астероиды» ends its first `action()` with `.nbsp.or()`, so
+a lone branch read «1 M€ → <asteroid>* ИЛИ» with nothing after the ИЛИ. Fixed in
+the SHARED `branchActionNode` (so the Actions-workspace tile, the composer's
+repeat slot and this row all gained it), walking in past the row builder's empty
+tail slot first — «is the last item an OR?» answers no for a row that visibly ends
+in one. An `or()` INSIDE the effect is a different thing (one branch, two
+outcomes) and is deliberately left alone.
+
 **AND THE OMISSION IS NAMED.** The pos 7/9 pick is MANDATORY (the model says so:
 «a pos 7/9 card pick is MANDATORY before confirm — the reward can't be skipped
 per the rules»), so a confirm that ignores it forfeits nothing — it only
@@ -281,7 +313,9 @@ Guards: `tests/client/components/console/consoleHydroFlow.spec.ts` (incl. the
 close gate — «the flow cannot reach its result stage while the chain is
 busy»), `consoleHydroBonusZone.spec.ts`, `hydroBonusOffer.spec.ts`,
 `hydroBonusDoorOrder.spec.ts`, `consoleWorkspaceFlow.spec.ts` (B under an owed
-prompt), `hydroReasons.spec.ts` (`hydroTurnStateOf`),
+prompt), `hydroReasons.spec.ts` (`hydroTurnStateOf`), `consoleHydroPickRow.spec.ts` (the
+row's three states + the branch render), `actionExtraction.spec.ts` (the
+leading AND trailing `or` connectors),
 `tests/cards/delta/DynamicOceanBarrier.spec.ts`,
 `tests/e2e/console-hydro-bonus-order.spec.ts`,
 `hydroTargetStep.spec.ts`, the marker rows in

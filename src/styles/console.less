@@ -5830,6 +5830,19 @@ html.console-mode body.placement-pending .board-outer-spaces > .board-space.boar
             background: fade(@con-hydro-aqua, 30%);
         }
 
+        /* …AND IT IS NOT THE CTA WHILE THE LANDED STAGE'S PICK IS OWED. A
+           confirm that cannot fire must not read as the act: no primary tint,
+           calm label — the pre-select row above carries the moment (and the ONE
+           «A», which follows the cursor). */
+        &--pending {
+            background: linear-gradient(180deg, rgba(28, 33, 40, 0.9), rgba(18, 22, 28, 0.92));
+            box-shadow: inset 0 0 0 .05rem rgba(150, 160, 175, 0.24);
+
+            &::before { background: rgba(160, 172, 188, 0.35); }
+
+            .con-hydro__bonus-action-title { color: fade(@con-text, 78%); font-weight: 600; }
+        }
+
         /* THE OFFER LEADS — by weight and a hint of its own tint, never by a
            glow that would out-shout the track above it. */
         &--primary {

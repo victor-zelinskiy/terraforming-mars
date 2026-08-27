@@ -1,23 +1,4 @@
 <template>
-  <!--
-    THE LANDED STAGE'S PRE-SELECT — ONE row, both roads onto the track.
-
-    Positions 7 (repeat a used blue action) and 9 (which card receives the
-    animals) defer a `SelectCard` the rules do not let anyone skip. This is
-    where it is answered, and it reads the same whether the move is the
-    player's own advance or a card's bonus offer — the same label, the same
-    branch graphic the Actions workspace draws, the same focus ring, the same
-    verbs. Two similar rows in two scenes is exactly how they drifted.
-
-    THREE STATES, and the row never lies about which it is in:
-      · NOTHING TO CHOOSE — the server offered no candidate, so the reward
-        fizzles. The row states THAT and offers no press: telling a player to
-        «choose an action first» when there is physically nothing to choose is
-        an instruction they cannot follow.
-      · UNCHOSEN — the press is the point, so the row wears the amber owed
-        register and names the verb.
-      · CHOSEN — the branch's own printed graphic + the card's name + a tick.
-  -->
   <div class="con-hydro__summary con-hydro__pickrow"
        :class="{
          'con-hydro__summary--focused': focused && !fizzled,
@@ -59,15 +40,38 @@
       <span class="con-hydro__bonus-tick" aria-hidden="true">✓</span>
     </span>
 
-    <!-- UNCHOSEN — the press IS the content. -->
+    <!-- UNCHOSEN — the press IS the content.
+         THE GLYPH FOLLOWS THE CURSOR: only the FOCUSED affordance wears the
+         cap (the quick wheel's own rule). Drawn unconditionally it put a
+         second «A» on screen beside the confirm's, so two buttons claimed the
+         same press. -->
     <span v-else class="con-hydro__summary-body con-hydro__summary-body--empty">
-      <GamepadGlyph control="confirm" />
+      <GamepadGlyph v-if="focused" control="confirm" />
       <span>{{ $t(chooseKey) }}</span>
     </span>
   </div>
 </template>
 
 <script lang="ts">
+/*
+ * THE LANDED STAGE'S PRE-SELECT — ONE row, both roads onto the track.
+ *
+ * Positions 7 (repeat a used blue action) and 9 (which card receives the
+ * animals) defer a `SelectCard` the rules do not let anyone skip. This is
+ * where it is answered, and it reads the same whether the move is the
+ * player's own advance or a card's bonus offer — the same label, the same
+ * branch graphic the Actions workspace draws, the same focus ring, the same
+ * verbs. Two similar rows in two scenes is exactly how they drifted.
+ *
+ * THREE STATES, and the row never lies about which it is in:
+ * · NOTHING TO CHOOSE — the server offered no candidate, so the reward
+ * fizzles. The row states THAT and offers no press: telling a player to
+ * «choose an action first» when there is physically nothing to choose is
+ * an instruction they cannot follow.
+ * · UNCHOSEN — the press is the point, so the row wears the amber owed
+ * register and names the verb.
+ * · CHOSEN — the branch's own printed graphic + the card's name + a tick.
+ */
 import {defineComponent, PropType} from 'vue';
 import {CardName} from '@/common/cards/CardName';
 import {ActionGroup} from '@/client/components/actions/actionExtraction';

@@ -463,9 +463,17 @@
                      While the answer is in flight both are inert — a second
                      press cannot exist, by state rather than by a guard. -->
                 <div class="con-hydro__bonus-actions" data-unfold-item>
+                  <!-- …and it is NOT THE CTA while the landed stage's pick is
+                       still owed: a confirm that cannot fire must not wear the
+                       primary tint, and the ONE «A» on screen belongs to the
+                       act the player has to perform. -->
                   <button type="button"
-                          class="con-hydro__bonus-action con-hydro__bonus-action--primary"
-                          :class="{'con-hydro__bonus-action--focused': sceneFocus === 'bonus-confirm'}"
+                          class="con-hydro__bonus-action"
+                          :class="{
+                            'con-hydro__bonus-action--primary': !bonusPickMissing,
+                            'con-hydro__bonus-action--pending': bonusPickMissing,
+                            'con-hydro__bonus-action--focused': sceneFocus === 'bonus-confirm',
+                          }"
                           :disabled="bonusSubmitting"
                           @click="answerBonus(true)">
                     <GamepadGlyph v-if="sceneFocus === 'bonus-confirm'" control="confirm" class="con-hydro__bonus-action-a" />
@@ -790,6 +798,16 @@ export default defineComponent({
       targetFocus: undefined as PlayedTargetFocus | undefined,
       targetZoneW: 0,
       targetZoneH: 0,
+      /**
+       * THE CURSOR'S INITIAL SEAT IS OWED, not decided at setup.
+       *
+       * «Does this stage owe a pick?» is answered by the track PREVIEW, and the
+       * preview is fetched in `mounted()` — so at setup the answer is always
+       * «no» and the cursor parked on a confirm that cannot fire, beside a
+       * pre-select row nobody was pointed at. The seat is therefore CLAIMED
+       * here and applied by the first frame that can actually answer.
+       */
+      seatOwed: false,
       /** One-shot: the ceremony has been started for this commit. */
       cereStarted: false,
       cereHandle: undefined as HydroCeremonyHandle | undefined,
@@ -1563,16 +1581,24 @@ export default defineComponent({
         this.bonusSubmitting = false;
         this.pickWarned = false;
         if (now !== '' && this.seatPlanOnOffer()) {
-          // THE CURSOR STARTS ON THE QUESTION. When the landed stage owes a
-          // pick, THAT is what the player must do first — seating them on the
-          // confirm makes the first press a warning and the affordance they
-          // needed a hunt. Nothing owed (or nothing choosable) → the confirm,
-          // which is then genuinely the next act.
-          this.sceneFocus = this.bonusPickMissing ? 'bonus-pick' : 'bonus-confirm';
+          // THE CURSOR STARTS ON THE QUESTION — but only the PREVIEW knows
+          // whether there is one, so claim the seat and let the first frame
+          // that can answer place it (`applyOwedSeat`).
+          this.sceneFocus = 'bonus-confirm';
+          this.seatOwed = true;
+          this.applyOwedSeat();
         } else if (this.sceneFocus.startsWith('bonus-')) {
           this.sceneFocus = 'track';
         }
       },
+    },
+    /** The preview landed (or the stage changed under it) — the owed seat can
+     *  finally be placed. */
+    pickKind(): void {
+      this.applyOwedSeat();
+    },
+    'model.mustSelectCard'(): void {
+      this.applyOwedSeat();
     },
     footCommands: {
       immediate: true,
@@ -1704,10 +1730,10 @@ export default defineComponent({
       void this.$nextTick(() => this.seatTargetStep());
     }
     // …and the plan layer seats its cursor the same way: the pick is the act,
-    // so the cursor starts on it rather than on a confirm that cannot fire.
-    if (this.bonusOffer === undefined && this.planPickMissing) {
-      this.sceneFocus = 'summary';
-    }
+    // so the cursor starts on it rather than on a CTA that cannot fire. Claimed,
+    // not decided — `fetchPreview()` below is what makes the question answerable.
+    this.seatOwed = true;
+    this.applyOwedSeat();
     this.syncFrameCrumb();
     this.fetchPreview();
   },
@@ -1742,6 +1768,25 @@ export default defineComponent({
      * AFTER it and wiped the seat, so the landing stage was never the thing
      * being configured. A mount is not a change; it has to ask for itself.
      */
+    /**
+     * PLACE THE OWED SEAT, once something can answer «is a pick required here?».
+     *
+     * A ONE-SHOT: consumed by the first frame with a live preview, so a seat
+     * decided here can never later fight the player's own cursor (or the
+     * hand-off a made pick performs). Without it the seat was decided at SETUP,
+     * where the preview does not exist yet and the answer is always «no».
+     */
+    applyOwedSeat(): void {
+      if (!this.seatOwed || this.preview === undefined) {
+        return;
+      }
+      this.seatOwed = false;
+      if (this.bonusOffer !== undefined) {
+        this.sceneFocus = this.bonusPickMissing ? 'bonus-pick' : 'bonus-confirm';
+      } else if (this.planPickMissing) {
+        this.sceneFocus = 'summary';
+      }
+    },
     seatPlanOnOffer(): boolean {
       const offer = this.bonusOffer;
       if (offer === undefined) {

@@ -600,6 +600,50 @@ describe('the Hydronetwork bonus zone', () => {
       w.unmount();
     });
 
+    /**
+     * THE SEAT IS OWED, NOT DECIDED AT SETUP.
+     *
+     * «Does this stage owe a pick?» is answered by the track PREVIEW, which is
+     * fetched in `mounted()` — so at setup the answer is always «no». Decided
+     * there, the cursor parked on «Продвинуться» (which cannot fire) beside a
+     * pre-select row nobody was pointed at, and never moved again.
+     */
+    it('REGRESSION: places the seat when the PREVIEW lands, not at setup', async () => {
+      // Mount with NO preview — exactly the real open, where the fetch is still
+      // in flight and the model cannot yet answer.
+      const w = mountSection(REPEAT_OFFER);
+      const vm = w.vm as unknown as Vm;
+      expect(vm.pickKind, 'nothing can be known yet').to.eq(undefined);
+
+      seatPreview({reuse: ['Ironworks']});
+      await w.vm.$nextTick();
+      expect(vm.pickKind).to.eq('reuse-action');
+      expect(vm.sceneFocus, 'the owed seat is placed by the frame that can answer').to.eq('bonus-pick');
+
+      // …and the SCREEN agrees, which is the whole report: the confirm wore the
+      // focus ring AND an «A» beside the row's own, so two buttons claimed one
+      // press over a pre-select nobody was pointed at.
+      const confirm = w.findAll('.con-hydro__bonus-action')[0];
+      expect(confirm.classes(), 'the confirm is not focused').to.not.contain('con-hydro__bonus-action--focused');
+      expect(confirm.classes(), 'nor the primary CTA').to.not.contain('con-hydro__bonus-action--primary');
+      const glyphs = w.findAllComponents({name: 'GamepadGlyph'})
+        .filter((g) => g.props('control') === 'confirm').length;
+      expect(glyphs, 'exactly one «A» on screen').to.eq(1);
+      w.unmount();
+    });
+
+    /** …and it is a ONE-SHOT: a seat placed once never fights the player. */
+    it('never re-seats after the player has moved', async () => {
+      seatPreview({reuse: ['Ironworks']});
+      const w = mountSection(REPEAT_OFFER);
+      const vm = w.vm as unknown as Vm;
+      vm.sceneFocus = 'bonus-skip';
+      seatPreview({reuse: ['Ironworks', 'Viron']});
+      await w.vm.$nextTick();
+      expect(vm.sceneFocus).to.eq('bonus-skip');
+      w.unmount();
+    });
+
     it('starts on the CONFIRM when nothing is owed', () => {
       const w = mountSection(OFFER);
       expect((w.vm as unknown as Vm).sceneFocus).to.eq('bonus-confirm');
@@ -648,6 +692,52 @@ describe('the Hydronetwork bonus zone', () => {
       await w.vm.$nextTick();
       vm.sceneFocus = 'bonus-pick';
       expect(vm.footCommands.find((c) => c.control === 'confirm')?.label).to.eq('Change the card');
+      w.unmount();
+    });
+  });
+
+  /**
+   * ══ ONE ACT, ONE CTA, ONE «A» ════════════════════════════════
+   *
+   * While the landed stage's pick is owed, «Продвинуться» cannot fire — so it
+   * must not wear the primary tint, and it must not claim the press. Both the
+   * row and the confirm drew an «A», so two buttons advertised the same button.
+   */
+  describe('the confirm while a pick is owed', () => {
+    it('is NOT the primary CTA', () => {
+      seatPreview({reuse: ['Ironworks']});
+      const w = mountSection(REPEAT_OFFER);
+      const confirm = w.findAll('.con-hydro__bonus-action')[0];
+      expect(confirm.classes(), 'no primary tint over a confirm that cannot fire')
+        .to.not.contain('con-hydro__bonus-action--primary');
+      expect(confirm.classes()).to.contain('con-hydro__bonus-action--pending');
+      w.unmount();
+    });
+
+    it('…and IS the primary CTA once the pick is made', async () => {
+      seatPreview({reuse: ['Ironworks']});
+      const w = mountSection(REPEAT_OFFER);
+      hydroNetworkState.selectedCard = 'Ironworks' as never;
+      await w.vm.$nextTick();
+      const confirm = w.findAll('.con-hydro__bonus-action')[0];
+      expect(confirm.classes()).to.contain('con-hydro__bonus-action--primary');
+      expect(confirm.classes()).to.not.contain('con-hydro__bonus-action--pending');
+      w.unmount();
+    });
+
+    /** THE ONE «A» ON SCREEN follows the cursor — the quick wheel's own rule. */
+    it('exactly ONE affordance wears the confirm glyph', async () => {
+      seatPreview({reuse: ['Ironworks']});
+      const w = mountSection(REPEAT_OFFER);
+      const vm = w.vm as unknown as Vm;
+      const glyphs = () => w.findAllComponents({name: 'GamepadGlyph'})
+        .filter((g) => g.props('control') === 'confirm').length;
+      expect(vm.sceneFocus).to.eq('bonus-pick');
+      expect(glyphs(), 'on the row, and nowhere else').to.eq(1);
+
+      vm.sceneFocus = 'bonus-confirm';
+      await w.vm.$nextTick();
+      expect(glyphs(), 'on the confirm, and nowhere else').to.eq(1);
       w.unmount();
     });
   });
