@@ -1033,7 +1033,11 @@
     <!-- SINGLE-OWNER HAND BODIES: every hand card is ONE persistent element
          here for its whole life — docked pack, flights, album shelf, page
          packets (handBodies.ts). The dock below renders only chassis. -->
-    <ConsoleHandRevealLayer :cards="handDockCards" :held="dockHeld" :pose="handPackPose" />
+    <!-- …and the bodies ARE the dock's cards, so they leave with it: the
+         chassis already hides at Phase.END (`handDockVisible`) while this
+         layer kept painting the pack at z 11645 — over a scoring scene that
+         lives at 11480. `handBodyCards`, never `handDockCards`. -->
+    <ConsoleHandRevealLayer :cards="handBodyCards" :held="dockHeld" :pose="handPackPose" />
 
     <!-- The STARTING-CARDS DELIVERY stage — the cards you paid for fly from
          the top-HUD project deck down into the hand dock bay
@@ -1408,6 +1412,7 @@ import {deckPickHolding, resetDeckPick} from '@/client/console/deckPick/consoleD
 import ConsoleStartScene from '@/client/components/console/ConsoleStartScene.vue';
 import ConsoleEndgameWorkspace from '@/client/components/console/ConsoleEndgameWorkspace.vue';
 import {consoleEndgameUi, noteConsoleEndgameLivePhase, resetConsoleEndgame} from '@/client/console/endgame/consoleEndgameState';
+import {sealLiveGameSurfaces} from '@/client/console/endgame/consoleEndgameSeal';
 import ConsoleRevealOverlay, {ConsoleRevealMode} from '@/client/components/console/ConsoleRevealOverlay.vue';
 import ConsolePlayCardConfirm from '@/client/components/console/ConsolePlayCardConfirm.vue';
 import type {ConsoleHandStage} from '@/client/components/console/ConsoleHandSection.vue';
@@ -2150,6 +2155,23 @@ export default defineComponent({
         ...this.playerView.cardsInHand,
         ...(this.thisPlayer.selfReplicatingRobotsCards ?? []),
       ];
+    },
+    /**
+     * The bodies the single-owner layer actually renders.
+     *
+     * THE PACK LEAVES WITH THE DOCK. `handDockVisible` already hides the
+     * chassis in the post-game — but the CARDS are not the dock's children,
+     * they are one persistent fixed layer of their own (handBodies.ts), and
+     * that layer paints at z 11645 while the scoring scene sits at 11480. So
+     * the finale ran under a full hand of cards nobody could put away.
+     *
+     * Gated on the PHASE alone, deliberately: the pre-game setup window is the
+     * dock's other hidden state, and cards are physically flying into it there
+     * (the multiplayer research gap — see `setupHandPending`). «The game is
+     * over» is the only moment there is no hand to own.
+     */
+    handBodyCards(): ReadonlyArray<CardModel> {
+      return this.postGame ? [] : this.handDockCards;
     },
     /**
      * Names the dock must WITHHOLD (hidden-with-layout + excluded from the
@@ -3390,6 +3412,30 @@ export default defineComponent({
     endgameFrameLive(): boolean {
       return this.playerView.game.phase === Phase.END;
     },
+    /**
+     * THE GAME IS OVER — the one predicate every «this instrument belongs to
+     * the live game» read shares (the hand pack, the action vocabulary, the
+     * blocked reason). Same fact as `endgameFrameLive`; a separate NAME
+     * because those readers are not asking about a workspace anchor.
+     */
+    postGame(): boolean {
+      return this.endgameFrameLive;
+    },
+    /**
+     * THE POST-GAME INSPECTION — the player collapsed the results (B) to walk
+     * the final state. The console goes READ-ONLY FREE ROAM: the pad routes
+     * through the ordinary chain (board + its two inspection modes, Journal,
+     * «Разыграно», Information, the colonies and hydro screens), the action
+     * vocabulary answers «партия завершена», and B at the board-home root is
+     * the road back to the results.
+     *
+     * It exists because the alternative shipped: the workspace consumed the
+     * whole pad for the WHOLE post-game, so «свернуть» opened a board the
+     * player could look at and nothing else — a still image with one button.
+     */
+    postGameInspection(): boolean {
+      return this.endgameWorkspaceMounted && this.endgameCollapsed;
+    },
     /** PRESENCE IS THE STACK (invariant 1) — the workspace's ONE v-if. */
     endgameWorkspaceMounted(): boolean {
       return workspaceFrameRenders('endgame');
@@ -4030,6 +4076,15 @@ export default defineComponent({
      * move. The player was told five wrong things instead of the one right one.
      */
     actionBlockedReason(): string {
+      // …and the one reason that outranks even that: there is no game left to
+      // act in. The post-game inspection walks the same screens with the same
+      // verbs on them, so every one of those verbs needs an honest answer —
+      // «сейчас не ваш ход» would be arithmetic about a turn order that no
+      // longer exists. Stated ONCE, here, so the LT wheel, the standard
+      // projects and the board-home guards can never disagree.
+      if (this.postGame) {
+        return 'The game is over';
+      }
       return this.placementActive || this.mandatoryDeferredActive ?
         'Finish your current action first' : '';
     },
@@ -5648,6 +5703,7 @@ export default defineComponent({
           hasColonies: this.game.colonies.length > 0,
           hasTurmoil: this.game.gameOptions.expansions.turmoil === true,
           hasHydro: this.game.gameOptions.expansions.deltaProject === true,
+          postGame: this.postGame,
         });
       }
       if (this.consoleState.quick === 'basics') {
@@ -5956,12 +6012,18 @@ export default defineComponent({
         default: return this.activeTaskSummary?.kickerKey ?? 'Awaiting decision';
         }
       }
-      if (this.endgameWorkspaceMounted) {
+      if (this.endgameStageUp) {
         // The scene's own header already reads «ФИНАЛЬНЫЙ ПОДСЧЁТ» /
-        // «ИТОГИ ПАРТИИ» — repeating it in the bar is noise. While the
-        // scene is COLLAPSED (the board inspection) the bar names where
-        // the B verb leads back to.
-        return this.endgameCollapsed ? 'Game results' : '';
+        // «ИТОГИ ПАРТИИ» — repeating it in the bar is noise.
+        return '';
+      }
+      // COLLAPSED: the bar belongs to the surface the player walked to (the
+      // journal names itself, the colonies name themselves) — it falls
+      // through the ordinary chain below and only the BOARD HOME, which has
+      // no name of its own in the live game, is labelled from here.
+      if (this.postGameInspection && this.consoleState.section === 'board' &&
+          !journalState.open && !this.playedTableVisible && !this.infoModeState.open) {
+        return 'Final state';
       }
       if (this.infoModeState.open) {
         return 'Information';
@@ -6163,10 +6225,13 @@ export default defineComponent({
           {control: 'back', label: 'Back'},
         ];
       }
-      // THE FINAL SCORING WORKSPACE owns the whole post-game screen — its
-      // bar contract follows the ceremony phase (the one labelled skip verb
-      // while the count runs, the action-list verbs once it settles).
-      if (this.endgameWorkspaceMounted) {
+      // THE FINAL SCORING WORKSPACE owns the screen while its scene shows —
+      // its bar contract follows the ceremony phase (the one labelled skip
+      // verb while the count runs, the action-list verbs once it settles).
+      // COLLAPSED it owns nothing: the bar falls through to whatever surface
+      // the free roam is standing on, and the board home appends the one verb
+      // that leads back (see the board `home` run below).
+      if (this.endgameStageUp) {
         return [...(panelCommands('endgame') ?? [])];
       }
       // LT INFORMATION MODE — the dashboard publishes its live contextual
@@ -6772,6 +6837,15 @@ export default defineComponent({
       // bar (A is otherwise free on the board home).
       if (this.mandatoryAnnounceVisible) {
         home.unshift({control: 'confirm', label: this.mandatoryAnnounceView.openLabel});
+      }
+      // THE POST-GAME INSPECTION: the SAME home run — every view verb on it
+      // still works, and the two wheels are how «Колонии» and «Гидросеть» are
+      // reached at all — plus the one verb that leads back to the results.
+      // The wheels' dead tiles say why they are dead («партия завершена»),
+      // which is this console's rule everywhere else; hiding them would make
+      // the post-game a different screen instead of the same one, read-only.
+      if (this.postGameInspection) {
+        return [...home, {control: 'back', label: 'Game results', priority: 5}];
       }
       return home;
     },
@@ -7692,12 +7766,34 @@ export default defineComponent({
      * settled result (a reload into an already-ended game must never replay
      * a reveal uninvited). The falling edge (an undo / admin rollback) tears
      * the frame down and resets the ceremony state completely.
+     *
+     * ⚠ THE RISING EDGE IS A TEARDOWN FIRST. Phase.END arrives from the POLL,
+     * so whatever the player had open at that instant is still open — and the
+     * scoring scene is one of the LOWEST layers in the shell (11480), under
+     * the quick wheel, every sheet, Info Mode and the hand pack. The workspace
+     * then consumes the whole pad, so none of them could be dismissed any
+     * more: an open action wheel became a lid welded over the finale. ONE
+     * named seal closes the live game down (`sealLiveGameSurfaces` + the two
+     * surfaces this component owns itself) BEFORE the frame stands up, so the
+     * post-game always starts from a screen somebody chose.
      */
     endgameFrameLive: {
       immediate: true,
       handler(live: boolean): void {
         if (live) {
           if (!workspaceFrameKnown('endgame')) {
+            sealLiveGameSurfaces();
+            // The two surfaces this component owns as its OWN state (the seal
+            // can only reach module-reactive ones).
+            this.playedOpen = false;
+            this.journalColonyInspect = undefined;
+            this.dockHover = false;
+            // …and the HAND'S PRESENTATION. `handBodyCards` empties the layer
+            // on the same frame, so an album that was open (bodies in
+            // `shelf`/`packet`, an episode mid-timeline) would leave the pack
+            // stuck in a foreign mode with no elements left to reconcile it.
+            // Same call the sale-cancel / game-switch paths make.
+            resetHandReveal();
             enterWorkspace('endgame', {anchor: {type: 'phase', phase: 'end'}});
           }
         } else {
@@ -9314,13 +9410,23 @@ export default defineComponent({
         this.scrollActiveConsole(intent.dy, intent.dx);
         return true;
       }
-      // THE FINAL SCORING WORKSPACE owns the pad for the whole post-game
+      // THE FINAL SCORING WORKSPACE owns the pad WHILE ITS SCENE IS ON SCREEN
       // («Обзор партии» included — the workspace routes to its own scene).
       // It consumes EVERYTHING below deliberately: Info
       // Mode, the journal and the wheels are live-game instruments — and
       // during the ceremony an Info Mode peek would leak the very totals
       // the count is about to reveal.
-      if (this.endgameWorkspaceMounted) {
+      //
+      // ⚠ …AND ONLY WHILE ITS SCENE IS ON SCREEN (`endgameStageUp`, not
+      // `…Mounted`). Past «Свернуть» the scene is hidden BY THE PLAYER'S OWN
+      // HAND to read the final board, and a hidden surface that keeps eating
+      // the pad is not a workspace, it is a lock: the whole post-game
+      // inspection was one static board with a single button on it. Collapsed,
+      // the chain below runs normally — every surface it reaches is a VIEW
+      // surface at Phase.END, and the action verbs answer with a reason
+      // (`actionBlockedReason`). B at the board-home root brings the results
+      // back (`handleSectionBack`).
+      if (this.endgameStageUp) {
         // …except a LIVE drawn-cards reveal: a reload into an ended game can
         // still owe undelivered draws, and that overlay stands OVER the
         // settled result (its branch normally sits below this one, which
@@ -10664,6 +10770,16 @@ export default defineComponent({
       }
       if (this.consoleState.inspecting) {
         this.exitInspection();
+        return;
+      }
+      // THE POST-GAME INSPECTION ENDS WHERE IT STARTED. B is one calm step
+      // back on every level of the free roam; at the board-home ROOT — the
+      // level below which there is nothing left — the last step is the road
+      // back to the results the player minimized. DELIBERATELY LAST: the
+      // inspection modes above are steps of their own, and swallowing them
+      // here would make B skip a level the player can see.
+      if (this.postGameInspection) {
+        (this.$refs.endgameWs as InstanceType<typeof ConsoleEndgameWorkspace> | undefined)?.expandFromBoard();
       }
     },
     // ── the console-native journal (View — board home only) ─────────────
@@ -11738,7 +11854,14 @@ export default defineComponent({
         this.enterColonyFocus(pick.buttonLabel === 'Build' ? 'build' : 'pick');
         return;
       }
-      if (this.actionBlockedReason !== '') {
+      // THE STAGE IS THE DOSSIER — the one exemption to the blocked-reason
+      // guard, and only in the post-game. A blocked LIVE game means a decision
+      // is owed and starting a trade would desync the prompt the server holds;
+      // a FINISHED game holds no prompt at all, and refusing the descent there
+      // would take the colonies' final state away from the read-only
+      // inspection over an action nobody asked for. The stage's own CTA is
+      // dead on its own terms (no offer to answer).
+      if (this.actionBlockedReason !== '' && !this.postGame) {
         this.showNotice(this.actionBlockedReason);
         return;
       }

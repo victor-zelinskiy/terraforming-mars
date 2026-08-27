@@ -35,6 +35,7 @@ import {motionMs} from '@/client/components/motion/motionTokens';
 import {consoleReducedMotionActive} from '@/client/console/composables/useConsoleReducedMotion';
 import {conUiScale} from '@/client/console/consoleLayoutProfile';
 import {
+  CapturedRect,
   SurfaceMotionId,
   SurfaceDeparture,
 } from '@/client/console/surfaceMotion/surfaceMotionModel';
@@ -539,7 +540,13 @@ function contentCascade(id: SurfaceMotionId, el: Element, tl: gsap.core.Timeline
  * card travels; the eye keeps its object).
  */
 function enterPhase(el: Element, panel: HTMLElement, dep: SurfaceDeparture, done: () => void): void {
-  guarded(el, PHASE_ANCHOR_MS + 80, done, (finish) => {
+  // THE CARRIED OBJECTS, decided BEFORE anything is posed — the panel's own
+  // entrance depends on whether one exists.
+  const carried = Array.from(el.querySelectorAll<HTMLElement>('[data-motion-anchor]'))
+    .map((node) => ({node, from: dep.anchors.get(node.dataset.motionAnchor ?? '')}))
+    .filter((c): c is {node: HTMLElement, from: CapturedRect} => c.from !== undefined);
+
+  guarded(el, PHASE_ANCHOR_MS + 240, done, (finish) => {
     const tl = gsap.timeline({onComplete: finish});
     const rect = panel.getBoundingClientRect();
     let dx = 0;
@@ -550,58 +557,90 @@ function enterPhase(el: Element, panel: HTMLElement, dep: SurfaceDeparture, done
     }
     const cap = 26 * conUiScale();
     const clamp = (v: number) => Math.max(-cap, Math.min(cap, v * 0.16));
+    // ⚠️ A SCENE THAT CARRIES AN OBJECT MAY NOT MOVE UNDER IT. The panel's
+    // directional recompose is a `scale` + `translate` on the very ancestor the
+    // anchor is measured inside, so its rect during the entrance is not the
+    // rect it will rest at — the FLIP then aims at a moving, shrunken target
+    // and the card reads as «something growing over on the left» instead of
+    // the object the player was just holding. When something is carried the
+    // scene MATERIALISES in place instead; the travel the eye follows is the
+    // card's, and there is only one of it.
     tl.fromTo(panel,
-      {autoAlpha: 0, x: clamp(dx), y: clamp(dy), scale: 0.99, transformOrigin: '50% 50%'},
+      carried.length > 0 ?
+        {autoAlpha: 0} :
+        {autoAlpha: 0, x: clamp(dx), y: clamp(dy), scale: 0.99, transformOrigin: '50% 50%'},
       {autoAlpha: 1, x: 0, y: 0, scale: 1, duration: s(PHASE_MS), ease: 'power3.out', clearProps: 'transform,opacity,visibility'}, 0);
 
-    // Anchor FLIPs — matched by id against the capture. Transform-only:
-    // translate from the old rect's top-left + scale by the width ratio.
-    // ZOOM COMPENSATION: card slots live inside CSS `zoom:` contexts (the
-    // reveal source is zoomed 0.92×uiScale) which rescale a child's
-    // transform pixels — viewport-px deltas must be divided by the
-    // effective zoom (visual width / layout width) or the card undershoots.
-    //
-    // MEASURED ON THE NEXT FRAME, and that is load-bearing: `@enter` fires
-    // with the surface in the DOM but not yet laid out by its own machinery —
-    // a screen that arranges itself (the track seats its scene layer, publishes
-    // its zone, re-fits its rail) settles a frame later, so a rect read here is
-    // the anchor's PRE-LAYOUT position. Measured on the Hydronetwork's source
-    // dock: 216px out, which the FLIP then faithfully animated away from,
-    // leaving the card parked off its own slot. Reading it a frame later costs
-    // nothing on a surface that was already settled (the rect is the same) and
-    // is the difference between a travel and a displacement on one that wasn't.
-    requestAnimationFrame(() => {
+    if (carried.length === 0) {
+      return tl;
+    }
+    // HOLD the carried objects while their destination settles. `@enter` fires
+    // with the surface in the DOM but not yet laid out by its own machinery (a
+    // screen that seats a scene layer, publishes a zone and re-fits a rail
+    // settles over several frames), so a rect read now is a PRE-LAYOUT one —
+    // measured on the Hydronetwork's source dock: 216px out. They are invisible
+    // for that gap rather than painted at a home they are about to leave.
+    gsap.set(carried.map((c) => c.node), {autoAlpha: 0});
+    settledRects(carried.map((c) => c.node), (rects) => {
       if (!el.isConnected) {
+        gsap.set(carried.map((c) => c.node), {clearProps: 'transform,opacity,visibility'});
         return;
       }
-      for (const anchorEl of el.querySelectorAll<HTMLElement>('[data-motion-anchor]')) {
-        const anchorId = anchorEl.dataset.motionAnchor;
-        const from = anchorId !== undefined ? dep.anchors.get(anchorId) : undefined;
-        if (from === undefined) {
-          continue;
+      carried.forEach(({node, from}, i) => {
+        const to = rects[i];
+        const scale = to === undefined || to.width < 10 ? NaN : from.width / to.width;
+        if (to === undefined || !isFinite(scale) || scale <= 0) {
+          gsap.set(node, {clearProps: 'transform,opacity,visibility'});
+          return;
         }
-        const to = anchorEl.getBoundingClientRect();
-        if (to.width < 10 || to.height < 10) {
-          continue;
-        }
-        const scale = from.width / to.width;
-        if (!isFinite(scale) || scale <= 0) {
-          continue;
-        }
-        const effZoom = anchorEl.offsetWidth > 0 ? to.width / anchorEl.offsetWidth : 1;
+        // ZOOM COMPENSATION: card slots live inside CSS `zoom:` contexts, which
+        // rescale a child's transform pixels — viewport-px deltas must be
+        // divided by the effective zoom (visual width / layout width) or the
+        // card undershoots.
+        const effZoom = node.offsetWidth > 0 ? to.width / node.offsetWidth : 1;
         // `overwrite` — the arriving surface may run its OWN entry cascade over
-        // the same element (the track's `[data-unfold-item]` groups). Two
-        // un-owned tweens on one transform leave whichever finishes first in
-        // charge of the final frame, which is how a travelling card ended up
-        // wearing a stale translate for the rest of its life.
-        gsap.fromTo(anchorEl,
-          {x: (from.left - to.left) / effZoom, y: (from.top - to.top) / effZoom, scale, transformOrigin: 'top left', opacity: 1},
+        // the same element. Two un-owned tweens on one transform leave whichever
+        // finishes first in charge of the final frame, which is how a travelling
+        // card ended up wearing a stale translate for the rest of its life.
+        gsap.fromTo(node,
+          {x: (from.left - to.left) / effZoom, y: (from.top - to.top) / effZoom, scale,
+            transformOrigin: 'top left', autoAlpha: 1},
           {x: 0, y: 0, scale: 1, duration: s(PHASE_ANCHOR_MS), ease: 'power3.inOut',
-            overwrite: 'auto', clearProps: 'transform,opacity'});
-      }
+            overwrite: 'auto', clearProps: 'transform,opacity,visibility'});
+      });
     });
     return tl;
   });
+}
+
+/**
+ * THE RECTS OF `nodes`, ONCE THEY HAVE STOPPED MOVING.
+ *
+ * Two agreeing frames, bounded — the project's own settle rule, and the only
+ * honest way to aim a FLIP at a surface that lays ITSELF out after mounting.
+ * Falls through with whatever it has on the bound, so a target that never
+ * settles degrades to a slightly-off travel rather than to nothing at all.
+ */
+function settledRects(
+  nodes: ReadonlyArray<HTMLElement>,
+  done: (rects: ReadonlyArray<DOMRect | undefined>) => void,
+): void {
+  const MAX_FRAMES = 12;
+  let frames = 0;
+  let last = '';
+  const read = (): Array<DOMRect> => nodes.map((n) => n.getBoundingClientRect());
+  const sample = () => {
+    frames++;
+    const rects = read();
+    const sig = rects.map((r) => `${Math.round(r.left)},${Math.round(r.top)},${Math.round(r.width)}`).join('|');
+    if ((sig === last && rects.every((r) => r.width >= 10)) || frames >= MAX_FRAMES) {
+      done(rects);
+      return;
+    }
+    last = sig;
+    requestAnimationFrame(sample);
+  };
+  requestAnimationFrame(sample);
 }
 
 // ── the wheel's COMMIT PIN ──────────────────────────────────────────────────

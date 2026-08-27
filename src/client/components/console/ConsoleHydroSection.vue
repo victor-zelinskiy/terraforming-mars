@@ -725,6 +725,7 @@ import {
   workspaceFrameEmblem, workspaceFrameHost, workspaceFrameRoot, workspaceStackCrumb,
 } from '@/client/console/consoleWorkspaceStack';
 import {setWorkspaceOutcomeSlot, workspaceOutcomeState} from '@/client/console/consoleWorkspaceOutcome';
+import {holdCarriedAnchors} from '@/client/console/surfaceMotion/surfaceMotionState';
 import {useConsoleReducedMotion} from '@/client/console/composables/useConsoleReducedMotion';
 
 /** Reason kinds the «Требования» row already shows as red marks — the CTA
@@ -1828,6 +1829,12 @@ export default defineComponent({
     },
   },
   mounted(): void {
+    // A CARRIED OBJECT MAY NOT PAINT BEFORE ITS TRAVEL STARTS. When this screen
+    // is the next stage of a flow the player began elsewhere, the source card
+    // is FLIPping in from that flow's hero slot — and this component paints
+    // before the enter hook can pose it. Held here, released by the FLIP (or by
+    // its own bounded safety).
+    holdCarriedAnchors(this.$refs.rootEl as HTMLElement | undefined);
     // RESUME ≠ FRESH-OPEN: decide ONCE, host-scoped, what this mount can
     // honestly rebuild (the actionWorkspaceRestorePlan idiom).
     const plan = hydroWorkspaceRestorePlan({

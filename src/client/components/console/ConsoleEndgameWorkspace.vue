@@ -456,8 +456,13 @@ export default defineComponent({
     },
     footCommands(): Array<ConsoleCommand> {
       if (this.ui.collapsed) {
-        // The board is on show; the one verb is the road back to the results.
-        return [{control: 'back', label: 'Game results', priority: 5}];
+        // NOTHING. The board is on show and the pad belongs to the post-game
+        // free roam — every surface it reaches publishes its own contract, and
+        // the road back («B Итоги партии») is appended by the shell to the
+        // BOARD HOME run, the one level where it is actually the next step.
+        // Publishing it from here put one verb over every screen the player
+        // walked to and hid what that screen could actually do.
+        return [];
       }
       if (this.overviewParked) {
         // The overview scene: its own level's verbs, nothing inherited.
@@ -839,6 +844,16 @@ export default defineComponent({
     },
     // ── input (delegated by the shell) ────────────────────────────────────
     handleIntent(intent: GamepadIntent): void {
+      // ⚠ COLLAPSED, THIS IS NOT CALLED AT ALL. The shell routes on
+      // `endgameStageUp` (mounted AND showing): past «Свернуть» the pad
+      // belongs to the post-game READ-ONLY FREE ROAM — the board, the
+      // journal, «Разыграно», Information, the colonies — and the shell's own
+      // board-home B calls `expandFromBoard()` when there is nothing shallower
+      // left to close. A hidden scene must never eat a press; this one did,
+      // and the whole inspection was a static board with one live button.
+      if (this.ui.collapsed) {
+        return;
+      }
       // The OVERVIEW SCENE owns the pad while it stands (entering included —
       // a transition must never absorb input). Its `leaving` beat belongs to
       // the scoring scene the player is returning to.
@@ -847,7 +862,7 @@ export default defineComponent({
         return;
       }
       if (intent.kind === 'nav') {
-        if (!this.ui.collapsed && this.ui.phase === 'actions') {
+        if (this.ui.phase === 'actions') {
           const delta = intent.dir === 'down' || intent.dir === 'right' ? 1 : -1;
           const len = this.actions.length;
           this.ui.actionsFocus = (this.ui.actionsFocus + delta + len) % len;
@@ -856,13 +871,6 @@ export default defineComponent({
       }
       const action = consoleActionOf(intent);
       if (action === undefined) {
-        return;
-      }
-      if (this.ui.collapsed) {
-        // The board inspection: B (or A) is the road back to the results.
-        if (action === 'back' || action === 'primary') {
-          this.expandFromBoard();
-        }
         return;
       }
       if (this.ui.phase !== 'actions') {

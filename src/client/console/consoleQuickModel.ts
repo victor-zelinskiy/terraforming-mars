@@ -88,21 +88,33 @@ export type RtQuickContext = {
   hasTurmoil: boolean,
   /** The Delta-Project (Hydronetwork) expansion is on. */
   hasHydro: boolean,
+  /**
+   * Phase.END — the post-game READ-ONLY inspection.
+   *
+   * The two PERSONAL screens close with the game: the hand no longer exists
+   * (its dock and its cards leave the shell at the boundary — opening the
+   * album would run a reveal over an empty pack), and the Action Center is a
+   * turn instrument with nothing left to perform. The two BOARD screens are
+   * unaffected: «Торговля» and «Гидросеть» are how the final colony and track
+   * state is READ, and reading is the whole point of the post-game.
+   */
+  postGame?: boolean,
 };
 
 /** RT — the action-category selector: what KIND of action to take. */
 export function buildRtQuickEntries(ctx: RtQuickContext): Array<QuickEntry> {
+  const over = ctx.postGame === true;
   return [
     {
       // «КАРТЫ» — the same term everywhere: the dock reads «КАРТЫ n/m»
       // (state), this slot OPENS the cards screen (action), and the hand
       // dock below raises while this wheel is open (same axis).
       id: 'cards', slot: 'center', label: 'Cards', barIcon: 'cards',
-      badge: ctx.cardsPlayable, available: true, reason: '',
+      badge: ctx.cardsPlayable, available: !over, reason: over ? 'The game is over' : '',
     },
     {
       id: 'cardActions', slot: 'up', label: 'Card actions', barIcon: 'actions',
-      badge: ctx.actionsAvailable, available: true, reason: '',
+      badge: ctx.actionsAvailable, available: !over, reason: over ? 'The game is over' : '',
     },
     {
       // The badge is the number of trades still POSSIBLE, not the number of

@@ -178,6 +178,47 @@ export function isAnchorHandoffLive(): boolean {
   return surfaceMotionState.departure !== undefined || now() - departureTakenAt < 600;
 }
 
+/** How long a carried object may stay held before it is shown regardless. */
+const CARRY_HOLD_MAX_MS = 900;
+
+/**
+ * HOLD THE OBJECTS THIS SURFACE IS RECEIVING, from its own `mounted()`.
+ *
+ * A carried card must not PAINT at its destination before the FLIP that
+ * brings it there has started: the eye then sees a second card appear beside
+ * the first and only afterwards jump back to be animated. The enter hook is
+ * too late to prevent that — it races the surface's own first paint, and a
+ * screen that lays itself out (a scene layer, a published zone, a re-fitted
+ * rail) can beat it by two or three frames. `mounted()` cannot: it runs
+ * before the component has painted anything.
+ *
+ * Deliberately plain style writes, not GSAP: the FLIP's own `autoAlpha: 1`
+ * overwrites them, and the SAFETY below is what guarantees an object is never
+ * left invisible by a travel that never happened.
+ */
+export function holdCarriedAnchors(root: Element | null | undefined): void {
+  if (root === null || root === undefined || typeof window === 'undefined' || !isAnchorHandoffLive()) {
+    return;
+  }
+  const anchors = Array.from(root.querySelectorAll<HTMLElement>('[data-motion-anchor]'));
+  if (anchors.length === 0) {
+    return;
+  }
+  for (const node of anchors) {
+    node.style.opacity = '0';
+    node.style.visibility = 'hidden';
+  }
+  window.setTimeout(() => {
+    for (const node of anchors) {
+      // Only OUR hold is released — a FLIP that ran has already replaced both.
+      if (node.style.opacity === '0' && node.style.visibility === 'hidden') {
+        node.style.removeProperty('opacity');
+        node.style.removeProperty('visibility');
+      }
+    }
+  }, CARRY_HOLD_MAX_MS);
+}
+
 // ── the awaiting handoff ────────────────────────────────────────────────────
 
 export function beginAwaitingHandoff(from: SurfaceMotionId, fingerprint: {gameAge: number, undoCount: number}): void {

@@ -334,7 +334,79 @@ test.describe('console — the card-action Hydronetwork door', () => {
     await shoot(page, '1-variant');
 
     // ── A: the door. Nothing on the wire, nothing spent. ──────────────────
+    //
+    // THE CARD IS ONE PHYSICAL OBJECT ACROSS THE WALK. Arm the sampler BEFORE
+    // the press and record the hero's rect from the same frame: the card's
+    // first PAINTED frame on the track must be where the player last saw it,
+    // not a second card growing somewhere else. `setInterval`, never rAF —
+    // headless Chromium drives rAF off the compositor.
+    await page.evaluate(() => {
+      const w = window as unknown as {
+        __carry?: {hero?: {x: number, y: number, w: number}, samples: Array<{x: number, y: number, w: number}>},
+      };
+      const hero = document.querySelector('.con-composer__actcardwrap') as HTMLElement | null;
+      const hr = hero?.getBoundingClientRect();
+      w.__carry = {
+        hero: hr === undefined ? undefined : {x: Math.round(hr.left), y: Math.round(hr.top), w: Math.round(hr.width)},
+        samples: [],
+      };
+      const tick = () => {
+        const el = document.querySelector('.con-hydro__bonus-source') as HTMLElement | null;
+        if (el === null || Number(getComputedStyle(el).opacity) < 0.05) {
+          return;
+        }
+        const r = el.getBoundingClientRect();
+        w.__carry?.samples.push({x: Math.round(r.left), y: Math.round(r.top), w: Math.round(r.width),
+          moving: el.style.transform !== ''} as never);
+      };
+      setInterval(tick, 16);
+    });
     await press(page, 'Enter', 2500);
+    const carry = await page.evaluate(() => {
+      const w = window as unknown as {
+        __carry?: {hero?: {x: number, y: number, w: number}, samples: Array<{x: number, y: number, w: number}>},
+      };
+      return w.__carry;
+    });
+    const first = carry?.samples[0];
+    const hero0 = carry?.hero;
+    const carried = `hero=${JSON.stringify(hero0)} first=${JSON.stringify(first)} n=${carry?.samples.length}`;
+    expect(hero0, `the composer hero must have been measured (${carried})`).toBeDefined();
+    expect(first, `the card must PAINT on the track (${carried})`).toBeDefined();
+    // It starts where it was: same corner, same size, within a hair.
+    expect(Math.abs((first?.x ?? 0) - (hero0?.x ?? 0)), `the carry must START at the hero (${carried})`)
+      .toBeLessThanOrEqual(24);
+    expect(Math.abs((first?.y ?? 0) - (hero0?.y ?? 0)), `the carry must START at the hero (${carried})`)
+      .toBeLessThanOrEqual(24);
+    expect(Math.abs((first?.w ?? 0) - (hero0?.w ?? 0)), `the carry must START at the hero's SIZE (${carried})`)
+      .toBeLessThanOrEqual(24);
+    // …and its FIRST painted frame is already part of the travel. Without the
+    // mount-time hold the surface beat the enter hook by two or three frames
+    // and painted the card at its destination first — a second card appearing
+    // beside the one the player was holding, and only then jumping back.
+    expect((first as unknown as {moving?: boolean})?.moving,
+      `the card's first painted frame must already be travelling (${carried})`).toBe(true);
+    // …and where there IS ground to cover, it covers it in frames rather than
+    // in one jump. How far the two seats are apart is a PROFILE fact (at 1920
+    // the hero and the source dock very nearly coincide — the honest travel is
+    // then a few pixels), so the distance decides whether there is anything to
+    // assert at all; the START assertion above is the claim that holds
+    // everywhere.
+    const samples = carry?.samples ?? [];
+    const rest = samples[samples.length - 1];
+    const carrySpan = Math.max(
+      Math.abs((rest?.x ?? 0) - (hero0?.x ?? 0)),
+      Math.abs((rest?.y ?? 0) - (hero0?.y ?? 0)),
+      Math.abs((rest?.w ?? 0) - (hero0?.w ?? 0)));
+    const moved = samples.filter((sm, i, all) =>
+      i > 0 && (sm.x !== all[i - 1].x || sm.y !== all[i - 1].y || sm.w !== all[i - 1].w)).length;
+    if (carrySpan >= 40) {
+      expect(moved, `the carry must TRAVEL, not appear (${carried} span=${carrySpan} moved=${moved})`)
+        .toBeGreaterThan(4);
+    }
+    // Wherever it started, it RESTS in its own slot — a FLIP that never
+    // finishes parks the card off its seat for the rest of the surface's life.
+    expect(rest, `the carry must come to rest (${carried})`).toBeDefined();
     const open = await readout(page);
     await shoot(page, '2-hydro-step');
     expect(open.hydroUp, 'the ordinary Hydronetwork working zone must stand').toBe(true);
