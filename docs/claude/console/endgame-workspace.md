@@ -21,11 +21,12 @@ mode (`EndgameExperience :console-native` — no auto-reveal, no pill;
 | pure track geometry + anchored labels | `src/client/console/endgame/consoleEndgameLayout.ts` |
 | beat script (pure) | `src/client/console/endgame/consoleEndgameScript.ts` |
 | reactive machine | `src/client/console/endgame/consoleEndgameState.ts` |
+| the END boundary seal | `src/client/console/endgame/consoleEndgameSeal.ts` |
 | GSAP director | `src/client/console/endgame/consoleEndgameDirector.ts` |
 | surface | `src/client/components/console/ConsoleEndgameWorkspace.vue` |
 | view→model adapter | `src/client/components/endgame/endgameViewAdapter.ts` (shared with desktop) |
 | styles | `src/styles/console_endgame.less` |
-| specs | `tests/client/components/console/consoleEndgameModel.spec.ts`, `consoleEndgameCeremony.spec.ts`, `consoleEndgameLayout.spec.ts`, `tests/e2e/console-endgame.spec.ts` (+ shared journey `tests/e2e/consoleEndgameHarness.ts`) |
+| specs | `tests/client/components/console/consoleEndgameModel.spec.ts`, `consoleEndgameCeremony.spec.ts`, `consoleEndgameLayout.spec.ts`, `consoleEndgameSeal.spec.ts`, `tests/e2e/console-endgame.spec.ts`, `tests/e2e/console-endgame-boundary.spec.ts` (+ shared journey `tests/e2e/consoleEndgameHarness.ts`) |
 
 ## The VM is a RE-PROJECTION, never a second source of numbers
 
@@ -122,16 +123,83 @@ transient zone annunciation; the deciding M€ chips stay on the contender
 rows through the settled state (absolute — zero layout impact). Winner gold
 ≠ focus cyan by hue, weight and placement.
 
-## Collapse (B = «Свернуть») and re-entry
+## THE BOUNDARY IS A TEARDOWN (`consoleEndgameSeal.ts`)
+
+Phase.END arrives from the POLL, not from a press, so whatever the player had
+open at that instant is still open one frame later — and `.con-endgame` is one
+of the LOWEST layers in the shell (11480). The quick wheel (11500), a sheet
+(11500), Information (11560), the hand pack (11645) and the notification feed
+(12650) therefore kept painting OVER the finale, and because the workspace
+consumes the whole pad while its scene stands, none of them could be dismissed
+any more: an open action wheel was a lid welded over the final scoring.
+
+`sealLiveGameSurfaces()` runs ONCE on the rising edge of `endgameFrameLive`,
+BEFORE `enterWorkspace('endgame')`, and dismisses every live-game instrument
+BY NAME — the quick wheel / sheets / confirm / sale (`closeConsoleLayers`), the
+workspace PARK (a decision set aside for a game that has ended), Information,
+the journal + its local layers, the fullscreen viewer, the colony focus stage,
+both board inspection modes, the prompt-scoped picks, the notification feed,
+the surface-motion shade. The shell adds what it owns as component state
+(«Разыграно», the journal's colony dossier, `resetHandReveal`). **A new console
+surface is a new line there and a new row in `consoleEndgameSeal.spec.ts`** —
+that spec is the boundary's worklist.
+
+Deliberately NOT sealed: the workspace STACK (the phase root's own
+`enterWorkspace` unwinds it), every `waitingFor`-derived surface (the transport
+is down; nothing is ever owed), and the drawn-cards REVEAL — a reload into an
+ended game can still owe undelivered draws, and «no silent loss» outranks a
+tidy screen.
+
+⚠ `closeInfoMode()` LATCHES a dismiss tail (`infoModeState.closing`) whose
+release is the panel's own after-leave hook — which cannot fire for a panel
+that was never mounted. Sealing an already-closed Info Mode pinned `closing`
+true for the session, and `con-root--rail-replaced` reads it: the trophy
+gallery went dark for the whole post-game inspection, the exact defect
+`endgameStageUp` exists to prevent. The seal asks before closing. A latch
+belongs to the WORK, not to the ATTEMPT.
+
+**The HAND leaves with its dock.** `handDockVisible` already hid the CHASSIS at
+Phase.END, but the cards are not the dock's children — they are one persistent
+fixed layer of their own (`handBodies.ts`), so the finale ran under a full hand
+nobody could put away. `ConsoleShell.handBodyCards` (the layer's `cards` prop)
+is empty in the post-game — gated on the PHASE alone, deliberately: the
+pre-game setup window is the dock's other hidden state and cards are physically
+flying into it there.
+
+## Collapse (B = «Свернуть») and the READ-ONLY FREE ROAM
 
 B in ANY phase parks the scene: `consoleEndgameUi.collapsed = true`, the
 director timeline PAUSES (`handle.pause()`; the safety net re-arms while
 paused instead of skipping), the workspace hides via v-show with its frame
 still in the stack, `.con-root--endgame` drops (HUD + final board return)
-and the bar reads `B Итоги партии`. B/A returns: scene shows, the timeline
-resumes on the next frame. B never leads to the main menu — «В главное
-меню» is an ordinary A-confirmed action. While collapsed the workspace
-still owns the pad (nav is inert; the board is a static read).
+and the bar reads `B Итоги партии`. B never leads to the main menu — «В главное
+меню» is an ordinary A-confirmed action.
+
+**Collapsed, the workspace owns NOTHING** — it publishes no bar commands and
+its `handleIntent` returns immediately. The shell routes on `endgameStageUp`
+(mounted AND showing), so past «Свернуть» the pad runs the ORDINARY chain and
+the post-game is a read-only free roam over the same screens: the board and
+both its inspection modes (L3 / R3), «Журнал» (View), «Разыграно» (X),
+«Информация» (Y), and — through the RT wheel, which is how they are reached at
+all — «Колонии» and «Гидросеть». Every action verb answers «Партия завершена»
+(`actionBlockedReason` gains the post-game answer, which the LT wheel, the
+standard projects, the MA items and the hand press all read), and the RT
+wheel's two PERSONAL tiles («Карты», «Действия карт») are blocked with that
+same reason while the two BOARD tiles stay open. Blocked with a reason, never
+hidden — the console's rule everywhere else. The ONE exemption is
+`confirmColonySelection`: the focus stage IS the colony's dossier, and refusing
+the descent would take the colonies' final state away from the inspection.
+
+**B is one calm level, every time.** A surface closes itself; an inspection
+mode exits; and at the BOARD-HOME ROOT — where there is nothing shallower left
+— `handleSectionBack` calls the workspace's `expandFromBoard()` and the results
+come back, settled, from the same beat. The bar's road home is appended to the
+board `home` run (a `back` command is `keep: true` in the fit model, so it
+survives every drop pass; it needs no `priority`).
+
+The alternative shipped and was the report: a hidden scene that keeps eating
+the pad is not a workspace, it is a lock — the whole inspection was a static
+board with one live button.
 
 **Re-entry:** the ceremony auto-plays only when this page load SAW a live
 phase (`sawLivePhase`) and hasn't played yet; a reload straight into an
@@ -172,22 +240,25 @@ nothing about the ceremony changed.
 
 ## Input & the bottom bar
 
-The shell delegates the whole pad to the workspace while it stands
-(`endgameWorkspaceMounted` branch in `handleIntent`) — Info Mode / journal /
-wheels are deliberately consumed (an Info peek would leak pre-reveal totals).
-One exception: ⚠ **a LIVE drawn-cards reveal keeps the pad** (a reload can
-owe undelivered draws; the overlay stands over the settled result and its
-normal branch sits BELOW this one). «Обзор партии» is the workspace's OWN
-internal scene — the workspace routes the whole pad to it while it stands
-(`overviewParked` branch at the top of `handleIntent`); the desktop
-`.eg-results` overlay never rises in console mode. Full contract:
+The shell delegates the whole pad to the workspace while its SCENE IS ON
+SCREEN (`endgameStageUp` branch in `handleIntent` — mounted AND showing) —
+Info Mode / journal / wheels are deliberately consumed there (an Info peek
+would leak pre-reveal totals). One exception: ⚠ **a LIVE drawn-cards reveal
+keeps the pad** (a reload can owe undelivered draws; the overlay stands over
+the settled result and its normal branch sits BELOW this one). Past «Свернуть»
+the branch steps aside entirely — see the free roam above. «Обзор партии» is
+the workspace's OWN internal scene — the workspace routes the whole pad to it
+while it stands (`overviewParked` branch at the top of `handleIntent`); the
+desktop `.eg-results` overlay never rises in console mode. Full contract:
 `docs/claude/console/endgame-overview.md`.
 
 Bar: PanelOwner `'endgame'`; during the count `B Свернуть · X Пропустить
-подсчёт`; settled `dpad Выбрать · A Подтвердить · B Свернуть`; collapsed
+подсчёт`; settled `dpad Выбрать · A Подтвердить · B Свернуть`. COLLAPSED the
+workspace publishes NOTHING — the bar belongs to whatever surface the free roam
+is standing on, and the board home carries the ordinary view run plus
 `B Итоги партии`. The bar CONTEXT is empty while the scene shows (the scene's
 own header already reads «ФИНАЛЬНЫЙ ПОДСЧЁТ» → «ИТОГИ ПАРТИИ» at settle) and
-`Game results` while collapsed. Post-game actions (real flows only), in
+`Final state` on the collapsed board home (every other surface names itself). Post-game actions (real flows only), in
 priority order: `Game overview` (default focus) → rematch verbs from
 `rematchState` (**`Rematch`** when `votes.length <= 1` — a bot/solo game's
 offer creates instantly, there is nobody to propose to; else `Offer

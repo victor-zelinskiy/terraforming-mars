@@ -36,13 +36,14 @@
  */
 import {clearCardBrowserPicks, closeConsoleLayers, consoleState} from '@/client/console/consoleRouter';
 import {discardWorkspacePark} from '@/client/console/consoleWorkspaceStack';
-import {closeInfoMode} from '@/client/console/infoModeState';
+import {closeInfoMode, infoModeState, settleInfoModeClose} from '@/client/console/infoModeState';
 import {journalState} from '@/client/components/journal/journalState';
 import {resetConsoleJournalUi} from '@/client/console/consoleJournalState';
 import {closeConsoleCardZoom} from '@/client/console/consoleCardZoom';
 import {closeColonyFocus} from '@/client/console/consoleColoniesModel';
 import {resetPlanetFocus} from '@/client/console/planetFocus';
 import {resetSurfaceMotion} from '@/client/console/surfaceMotion/surfaceMotionState';
+import {clearTransient, setTurn} from '@/client/components/notifications/notificationState';
 
 /**
  * Dismiss every live-game instrument that survives a phase change on its own.
@@ -69,7 +70,20 @@ export function sealLiveGameSurfaces(): void {
   // Information Mode is a live-game instrument twice over: it stands at
   // 11560, and during the count an Info peek would pre-reveal the very
   // totals the ceremony is about to narrate.
-  closeInfoMode();
+  //
+  // ⚠ ASK BEFORE CLOSING — `closeInfoMode` LATCHES a dismiss tail
+  // (`infoModeState.closing`), and the release is the PANEL'S OWN after-leave
+  // hook, which cannot fire for a panel that was never mounted. Closing an
+  // already-closed Info Mode therefore pinned `closing` true for the rest of
+  // the session, and `con-root--rail-replaced` reads it: the trophy gallery
+  // stayed dark for the whole post-game inspection, which is the very defect
+  // `endgameStageUp` was written to fix. A latch belongs to the WORK, not to
+  // the ATTEMPT.
+  if (infoModeState.open) {
+    closeInfoMode();
+  } else {
+    settleInfoModeClose();
+  }
   journalState.open = false;
   resetConsoleJournalUi();
   closeConsoleCardZoom();
@@ -86,6 +100,15 @@ export function sealLiveGameSurfaces(): void {
   consoleState.scaleInspecting = false;
   consoleState.trackMarker = undefined;
   consoleState.freeRoam = false;
+  // THE LIVE GAME'S EVENT FEED belongs to the live game. The ceremony holds
+  // the foreground, so ordinary toasts do not vanish — they QUEUE, and the
+  // hold releases the moment the player collapses the scene: the reward for
+  // going to look at the final board was a burst of «Игрок-blue разыграл…»
+  // over it, at z 12650, above every console layer. Nothing is lost — the
+  // journal is the record of all of it, and the journal is one press away in
+  // the post-game inspection.
+  clearTransient();
+  setTurn(undefined);
   // Never inherit a held handoff or a stuck shade owner: the dim belongs to
   // the surface that raised it, and every one of them has just left.
   resetSurfaceMotion();

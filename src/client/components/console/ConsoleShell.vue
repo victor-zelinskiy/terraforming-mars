@@ -6844,8 +6844,11 @@ export default defineComponent({
       // The wheels' dead tiles say why they are dead («партия завершена»),
       // which is this console's rule everywhere else; hiding them would make
       // the post-game a different screen instead of the same one, read-only.
+      // (No `priority`: a `back` command is `keep: true` in the bar's fit
+      //  model, so the road home survives every drop pass by construction —
+      //  a priority number there would only read as «drop this first».)
       if (this.postGameInspection) {
-        return [...home, {control: 'back', label: 'Game results', priority: 5}];
+        return [...home, {control: 'back', label: 'Game results'}];
       }
       return home;
     },

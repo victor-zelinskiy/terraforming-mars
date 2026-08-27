@@ -7,18 +7,24 @@ import {
   enterWorkspace, collapseWorkspaceStack, resetWorkspaceStack,
   workspaceStackDepth, workspaceStackCollapsed, workspaceFrameIndex,
 } from '@/client/console/consoleWorkspaceStack';
-import {infoModeState, openInfoMode, closeInfoMode} from '@/client/console/infoModeState';
+import {infoModeState, openInfoMode, closeInfoMode, settleInfoModeClose} from '@/client/console/infoModeState';
 import {journalState} from '@/client/components/journal/journalState';
 import {consoleJournalUi, resetConsoleJournalUi} from '@/client/console/consoleJournalState';
 import {consoleCardZoom, openConsoleCardZoom, closeConsoleCardZoom} from '@/client/console/consoleCardZoom';
 import {colonyFocusState, openColonyFocus, closeColonyFocus} from '@/client/console/consoleColoniesModel';
 import {planetFocusState, resetPlanetFocus} from '@/client/console/planetFocus';
 import {surfaceMotionState, addShadeOwner, resetSurfaceMotion} from '@/client/console/surfaceMotion/surfaceMotionState';
+import {notificationState, pushTransient, clearTransient} from '@/client/components/notifications/notificationState';
+import {NotificationModel} from '@/client/components/notifications/notificationTypes';
 import {CardName} from '@/common/cards/CardName';
 import {CardModel} from '@/common/models/CardModel';
 import {ColonyName} from '@/common/colonies/ColonyName';
 
 const zoomCard = (name: CardName): CardModel => ({name} as CardModel);
+const toast = (id: string, kind: 'normal' | 'negative'): NotificationModel => ({
+  id, kind, variant: 'generic', priority: 1, typeLabelKey: 'Event',
+  pills: [], detailCount: 0, generation: 1, ttl: 6000,
+} as unknown as NotificationModel);
 
 /**
  * THE END-OF-GAME SEAL (`consoleEndgameSeal.ts`).
@@ -39,11 +45,13 @@ describe('consoleEndgameSeal', () => {
   const clean = () => {
     resetWorkspaceStack();
     closeInfoMode();
+    settleInfoModeClose();
     closeConsoleCardZoom();
     closeColonyFocus();
     resetConsoleJournalUi();
     resetPlanetFocus();
     resetSurfaceMotion();
+    clearTransient();
     journalState.open = false;
     consoleState.quick = undefined;
     consoleState.confirm = undefined;
@@ -99,6 +107,33 @@ describe('consoleEndgameSeal', () => {
     expect(infoModeState.open).to.eq(false);
   });
 
+  /*
+   * A LATCH BELONGS TO THE WORK, NOT TO THE ATTEMPT.
+   *
+   * `closeInfoMode` latches a DISMISS TAIL (`closing`), released by the
+   * panel's own after-leave hook — which cannot fire for a panel that was
+   * never mounted. Sealing an already-closed Info Mode therefore pinned
+   * `closing` true for the rest of the session, and `con-root--rail-replaced`
+   * reads it: the trophy gallery stayed dark for the WHOLE post-game
+   * inspection — the exact defect `endgameStageUp` exists to prevent. Caught
+   * by `console-endgame.spec.ts` § «the whole HUD comes back».
+   */
+  it('leaves NO dismiss tail behind when Information Mode was never open', () => {
+    expect(infoModeState.open, 'precondition').to.eq(false);
+    sealLiveGameSurfaces();
+    expect(infoModeState.closing, 'the closing latch').to.eq(false);
+  });
+
+  it('…and still hands an OPEN Information Mode to its own leave hook', () => {
+    openInfoMode('red', false);
+    sealLiveGameSurfaces();
+    expect(infoModeState.open, 'closed').to.eq(false);
+    // The panel IS mounted here, so its after-leave hook owns the release —
+    // settling it from the seal would drop `--info` mid-transition.
+    expect(infoModeState.closing, 'the leave still owns its tail').to.eq(true);
+    settleInfoModeClose();
+  });
+
   it('closes the JOURNAL and its local layers', () => {
     journalState.open = true;
     consoleJournalUi.filterOpen = true;
@@ -148,6 +183,25 @@ describe('consoleEndgameSeal', () => {
     expect(consoleState.select.suitableOnly, 'suitable filter').to.eq(true);
     expect(consoleState.task.deferred, 'deferred').to.eq(false);
     expect(recallCardBrowserPicks('k'), 'browser picks').to.deep.eq([]);
+  });
+
+  /*
+   * The ceremony HOLDS the foreground, so live-game toasts do not vanish —
+   * they QUEUE, and the hold releases the moment the player collapses the
+   * scene. The reward for going to look at the final board was a burst of
+   * stale «разыграл карту» cards over it, at z 12650 — above every console
+   * layer. Nothing is lost: the journal is the record, and it is one press
+   * away in the post-game inspection.
+   */
+  it('drains the live-game NOTIFICATION feed, visible and queued alike', () => {
+    pushTransient(toast('seal-a', 'normal'));
+    pushTransient(toast('seal-b', 'negative'));
+    expect(notificationState.transient.length + notificationState.queue.length,
+      'precondition').to.be.greaterThan(0);
+    sealLiveGameSurfaces();
+    expect(notificationState.transient, 'visible').to.deep.eq([]);
+    expect(notificationState.queue, 'queued').to.deep.eq([]);
+    expect(notificationState.turn, 'the turn card').to.eq(undefined);
   });
 
   it('resets PLANET FOCUS — a held HUD must not survive into the post-game', () => {

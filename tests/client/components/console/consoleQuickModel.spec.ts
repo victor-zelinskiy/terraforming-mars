@@ -88,6 +88,39 @@ describe('consoleQuickModel (P27)', () => {
       expect(voting?.reason).to.eq('Voting arrives with a future update');
     });
 
+    /*
+     * THE POST-GAME KEEPS THE WHEEL, and that is the point: the collapsed
+     * final scoring is a READ-ONLY free roam over the same screens, and the
+     * two BOARD screens — «Торговля» and «Гидросеть» — are how the final
+     * colony and track state is read at all. The two PERSONAL ones close with
+     * the game: the hand no longer exists (dock and cards leave the shell at
+     * the boundary, so the album would run a reveal over an empty pack) and
+     * the Action Center has nothing left to perform. Blocked WITH A REASON,
+     * never hidden — the same rule every other dead tile follows.
+     */
+    it('post-game: the personal categories are blocked with a reason, the screens stay open', () => {
+      const bySlot = new Map(buildRtQuickEntries({
+        cardsPlayable: 0, cardsTotal: 4, actionsAvailable: 0, tradesAvailable: 0, hydroAvailable: 0,
+        hasColonies: true, hasTurmoil: false, hasHydro: true, postGame: true,
+      }).map((e) => [e.slot, e]));
+      expect(bySlot.get('center')?.available, 'cards').to.eq(false);
+      expect(bySlot.get('center')?.reason, 'cards reason').to.eq('The game is over');
+      expect(bySlot.get('up')?.available, 'card actions').to.eq(false);
+      expect(bySlot.get('up')?.reason, 'card actions reason').to.eq('The game is over');
+      expect(bySlot.get('right')?.available, 'trading').to.eq(true);
+      expect(bySlot.get('left')?.available, 'hydronetwork').to.eq(true);
+    });
+
+    it('a LIVE game is untouched by the post-game flag being absent', () => {
+      const bySlot = new Map(buildRtQuickEntries({
+        cardsPlayable: 2, cardsTotal: 4, actionsAvailable: 1, tradesAvailable: 0, hydroAvailable: 0,
+        hasColonies: true, hasTurmoil: false, hasHydro: true,
+      }).map((e) => [e.slot, e]));
+      expect(bySlot.get('center')?.available, 'cards').to.eq(true);
+      expect(bySlot.get('center')?.reason, 'cards reason').to.eq('');
+      expect(bySlot.get('up')?.available, 'card actions').to.eq(true);
+    });
+
     it('every slot has a glyph mapping', () => {
       for (const e of buildRtQuickEntries({cardsPlayable: 0, cardsTotal: 0, actionsAvailable: 0, tradesAvailable: 0, hydroAvailable: 0, hasColonies: true, hasTurmoil: false, hasHydro: true})) {
         expect(QUICK_SLOT_GLYPH[e.slot]).to.not.eq(undefined);
