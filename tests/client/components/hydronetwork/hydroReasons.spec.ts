@@ -1,6 +1,6 @@
 import {expect} from 'chai';
 import {buildHydroModel, HydroModelInput, HydroPlayerPos} from '../../../../src/client/components/hydronetwork/hydroNetworkModel';
-import {destinationAt, gradeDestination, hydroPlanReasons, hydroPrimaryBlocker, hydroReasonBlocker, HydroReasonKind, HydroTurnState, hydroTurnStateOf} from '../../../../src/client/components/hydronetwork/hydroReasons';
+import {destinationAt, gradeDestination, hydroPlanReasons, hydroPrimaryBlocker, hydroReasonBlocker, HydroReasonKind, hydroRuleBlocked, HydroTurnState, hydroTurnStateOf} from '../../../../src/client/components/hydronetwork/hydroReasons';
 import {DeltaTrackDestination, DeltaTrackPreviewModel} from '../../../../src/common/models/DeltaTrackPreviewModel';
 import {Tag} from '../../../../src/common/cards/Tag';
 import {CardName} from '../../../../src/common/cards/CardName';
@@ -322,5 +322,46 @@ describe('hydroTurnStateOf', () => {
    *  out of reach and saying so is the truth. */
   it('a prompt this workspace does NOT own → busy', () => {
     expect(hydroTurnStateOf({waiting: true, actionMenu: false, ownsPrompt: false})).eq('busy');
+  });
+});
+
+/**
+ * ══ IMPOSSIBLE vs MERELY OUT OF REACH ════════════════════════════
+ *
+ * The distinction this console already formalizes (`AvailabilityBlocker`), asked
+ * of a reason LIST. Its first consumer is the pre-select row: configuring which
+ * action a stage would repeat, for a stage the player cannot reach, is an offer
+ * to decide something that will never happen.
+ */
+describe('hydroRuleBlocked', () => {
+  const rule = (kind: HydroReasonKind) => [{kind, textKey: '', blocking: true}];
+
+  it('a REAL RULE says the move is impossible', () => {
+    for (const kind of ['missing-tag', 'vp-occupied', 'no-energy', 'energy-deficit',
+      'used-this-generation', 'end-of-track', 'unavailable'] as ReadonlyArray<HydroReasonKind>) {
+      expect(hydroRuleBlocked(rule(kind)), kind).eq(true);
+    }
+  });
+
+  /** Planning off-turn is supported everywhere in this console — the turn is an
+   *  EXECUTION gate, never a statement about the move. */
+  it('a TURN / EXECUTION gate does NOT', () => {
+    for (const kind of ['not-your-turn', 'finish-current-action', 'loading'] as ReadonlyArray<HydroReasonKind>) {
+      expect(hydroRuleBlocked(rule(kind)), kind).eq(false);
+    }
+  });
+
+  it('a non-blocking to-do is not a rule either', () => {
+    expect(hydroRuleBlocked([{kind: 'choose-card', textKey: '', blocking: false}])).eq(false);
+    expect(hydroRuleBlocked([])).eq(false);
+  });
+
+  /** A rule OUTRANKS a turn gate — the two arriving together is the ordinary
+   *  case (off-turn AND short a tag), and it is still impossible. */
+  it('answers true when a rule stands beside a turn gate', () => {
+    expect(hydroRuleBlocked([
+      {kind: 'not-your-turn', textKey: '', blocking: true},
+      {kind: 'missing-tag', textKey: '', blocking: true},
+    ])).eq(true);
   });
 });

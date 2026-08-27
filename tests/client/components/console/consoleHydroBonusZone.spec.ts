@@ -46,6 +46,7 @@ type Vm = {
   bonusPickMissing: boolean,
   pickKind: string | undefined,
   pickFizzled: boolean,
+  planPickOffered: boolean,
   pickVerbKey: string,
   summaryPresent: boolean,
   pickWarned: boolean,
@@ -146,6 +147,7 @@ describe('the Hydronetwork bonus zone', () => {
   afterEach(() => {
     resetHydroFlow(); // module state is bundle-shared — never leak the flow
     hydroNetworkState.rewardChoice = undefined;
+    hydroNetworkState.selectedPosition = -1;
     hydroNetworkState.selectedCard = undefined;
     hydroNetworkState.preview = undefined;
     hydroNetworkState.previewColor = undefined;
@@ -692,6 +694,50 @@ describe('the Hydronetwork bonus zone', () => {
       await w.vm.$nextTick();
       vm.sceneFocus = 'bonus-pick';
       expect(vm.footCommands.find((c) => c.control === 'confirm')?.label).to.eq('Change the card');
+      w.unmount();
+    });
+  });
+
+  /**
+   * ══ NO MOVE, NO PRE-SELECT ════════════════════════════════
+   *
+   * On the PLAN layer a stage is only worth configuring if the player can reach
+   * it. Offering «Выберите действие» for a stage whose path tag is missing
+   * invites a decision that can never be used.
+   */
+  describe('a plan the rules refuse', () => {
+    /** The viewer stands at 2 with NO tags at all — position 7 is unreachable. */
+    function blockedPreview(): void {
+      seatPreview({reuse: ['Ironworks']});
+      const p = hydroNetworkState.preview as unknown as {destinations: Array<Record<string, unknown>>};
+      for (const d of p.destinations) {
+        d.legal = false;
+        d.missingTags = ['microbe'];
+      }
+    }
+
+    it('offers no pre-select for a stage the rules refuse', async () => {
+      const w = mountSection(undefined, {ownsPrompt: false});
+      blockedPreview();
+      hydroNetworkState.selectedPosition = 7;
+      await w.vm.$nextTick();
+      const vm = w.vm as unknown as Vm;
+      expect(vm.pickKind, 'the stage still ASKS for a pick').to.eq('reuse-action');
+      expect(vm.planPickOffered, 'but there is no move to configure').is.false;
+      expect(w.find('.con-hydro__pickrow').exists(), 'so the row is not there').is.false;
+      // …and nothing nags about a choice that cannot matter.
+      expect(vm.pickWarned).is.false;
+      w.unmount();
+    });
+
+    it('…and offers it again the moment the stage is reachable', async () => {
+      const w = mountSection(undefined, {ownsPrompt: false});
+      seatPreview({reuse: ['Ironworks']});
+      hydroNetworkState.selectedPosition = 7;
+      await w.vm.$nextTick();
+      const vm = w.vm as unknown as Vm;
+      expect(vm.planPickOffered).is.true;
+      expect(w.find('.con-hydro__pickrow').exists()).is.true;
       w.unmount();
     });
   });
