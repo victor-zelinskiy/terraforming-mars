@@ -142,8 +142,9 @@ describe('the card-entry Hydronetwork move (Storm Surge Barrier)', () => {
     });
 
     it('hands ONE WORD up to the crumb, and not the root noun', () => {
+      // The SUBDIVISION, never the act: «ДЕЙСТВИЯ КАРТ › <карта> › ГИДРОСЕТЬ».
       const stage = hydroAdvanceCopy(offer(), 'card-entry').stageKey;
-      expect(stage).to.eq('ADVANCE');
+      expect(stage).to.eq('Hydronetwork');
       expect(stage.split(' ')).to.have.length(1);
     });
 

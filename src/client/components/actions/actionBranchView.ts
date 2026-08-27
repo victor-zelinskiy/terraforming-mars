@@ -1,4 +1,5 @@
 import {CardName} from '@/common/cards/CardName';
+import {Tag} from '@/common/cards/Tag';
 import {Message} from '@/common/logs/Message';
 import {ActionPreviewBranch} from '@/common/models/ActionPreviewModel';
 import {ActionGroup, actionNodeDescription, branchActionNode} from '@/client/components/actions/actionExtraction';
@@ -127,7 +128,10 @@ export function buildBranchViews(
 }
 
 /** A branch's "why not", normalized: the raw i18n template + its params. */
-export type BranchReason = {message: string | Message, params: ReadonlyArray<string>};
+/** A branch's refusal. `tag` is the one it is ABOUT, when it is about one —
+ *  the surface fills the message's `${0}` from its translated name (never a
+ *  server-worded param, which would freeze the sentence to one language). */
+export type BranchReason = {message: string | Message, params: ReadonlyArray<string>, tag?: Tag};
 
 /**
  * THE PER-VARIANT VERDICT — one render node judged against its WHOLE branch set.
@@ -171,7 +175,8 @@ export type NodeAvailability = {
 };
 
 function reasonKey(r: BranchReason): string {
-  return (typeof r.message === 'string' ? r.message : r.message.message) + ' ' + r.params.join(' ');
+  return (typeof r.message === 'string' ? r.message : r.message.message) +
+    ' ' + r.params.join(' ') + ' ' + (r.tag ?? '');
 }
 
 export function nodeAvailability(
@@ -205,7 +210,11 @@ export function branchSetAvailability(mine: ReadonlyArray<ActionPreviewBranch>):
     if (b.unavailableReason === undefined) {
       continue;
     }
-    const reason: BranchReason = {message: b.unavailableReason, params: [...(b.unavailableReasonParams ?? [])]};
+    const reason: BranchReason = {
+      message: b.unavailableReason,
+      params: [...(b.unavailableReasonParams ?? [])],
+      tag: b.unavailableReasonTag,
+    };
     const key = reasonKey(reason);
     if (seen.has(key)) {
       continue;

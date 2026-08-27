@@ -10,13 +10,21 @@
          committed flow grows the crumb tail «› <этап> › <шаг>». The old
          two-line lore paragraph is gone: a standing game workspace explains
          itself through its stages, not a header essay. -->
-    <!-- THE CRUMB IS THE STACK'S, NOT THE SCREEN'S. A step standing INSIDE
+    <!-- …AND WHEN THIS SCREEN IS A STEP OF ANOTHER, THE HOST'S OWN HEADER
+         STAYS ON SCREEN AND THIS ONE GOES GHOST (`visibility: hidden`): the
+         line the player is reading is then the SAME DOM node before and after
+         the walk, so its root and its subject cannot blink or shift — only the
+         tail advances, which is the whole contract. The node stays in layout
+         so nothing below it moves; the host publishes the tail through the
+         stack (`setWorkspaceFrameStage`).
+         THE CRUMB IS THE STACK'S, NOT THE SCREEN'S. A step standing INSIDE
          another workspace (a card's advance — «ДЕЙСТВИЯ КАРТ › ШТОРМОВОЙ
          БАРЬЕР › ПРОДВИЖЕНИЕ») keeps reading from where the player started,
          identity symbol included: the workspace name and the carried card
          never restart, only the tail advances. A hydro frame that IS the root
          reads exactly as before. -->
     <ConsoleWsHead class="con-hydro__head"
+                   :class="{'con-hydro__head--ghost': crumbHost !== undefined}"
                    :root="crumbRoot"
                    :emblem="crumbEmblem.emblem"
                    :wheelAnchor="crumbEmblem.wheelAnchor"
@@ -706,7 +714,7 @@ import {playedTargetZoomOrigin} from '@/client/console/played/consolePlayedTarge
 import {openConsoleCardZoom, slotZoomOrigin} from '@/client/console/consoleCardZoom';
 import {backLabelForVerb, backVerbWithOwedPrompt, WorkspaceBackVerb} from '@/client/console/consoleWorkspaceFlow';
 import {getCard} from '@/client/cards/ClientCardManifest';
-import {tagLabel} from '@/client/cards/tagLabel';
+import {reasonParams} from '@/client/cards/tagLabel';
 import {DeltaOfferOrigin, hydroAdvanceCopy, hydroZoneState} from '@/client/console/hydroFlow/hydroBonusOffer';
 import type {DeltaAdvanceOffer, DeltaBonusPromptMeta} from '@/common/models/DeltaBonusPromptModel';
 import {conUiScale, consoleLayoutState} from '@/client/console/consoleLayoutProfile';
@@ -1937,13 +1945,10 @@ export default defineComponent({
       }
     },
     reasonText(r: HydroReason): string {
-      // A reason ABOUT A TAG fills its own `${0}` from that tag's translated
-      // name — the carrier is the enum, never a worded param, so the sentence
-      // is the player's language on every surface that states it.
-      const params = r.params !== undefined ?
-        r.params.map(String) :
-        (r.tag !== undefined ? [tagLabel(r.tag as Tag)] : undefined);
-      return params !== undefined ?
+      // …through the SHARED rule (`reasonParams`) — one sentence, one name for
+      // the missing tag, on every surface that states a refusal.
+      const params = reasonParams(r.params, r.tag as Tag | undefined);
+      return params.length > 0 ?
         translateTextWithParams(r.textKey, params) :
         translateText(r.textKey);
     },

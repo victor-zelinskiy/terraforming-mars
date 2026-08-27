@@ -8,7 +8,12 @@
   <!-- `data-flow` — the EXPLICIT transition state (browse · entering ·
        configure · returning). The chrome and the guards read this, never an
        animation's side effects. -->
+  <!-- `--yielded`: a STEP of this flow took the screen (a card's Hydronetwork
+       advance). The workspace does not LEAVE — its body dissolves and its
+       header stays, so the crumb the player is reading is the same DOM node
+       on both sides of the walk and only its tail advances. -->
   <div ref="rootEl" class="con-cardactions con-ws" role="dialog" :aria-label="$t('Card actions')"
+       :class="{'con-cardactions--yielded': yieldedToStep}"
        :data-flow="flowState" data-motion-surface="card-actions">
     <!-- The action center frame — ONE chrome for both presentation states:
          the browse grid AND the in-frame ACTION FOCUS stage. -->
@@ -39,9 +44,9 @@
                      :wheelAnchor="repeat ? undefined : 'card-actions'"
                      :context="repeat && repeatRequest !== undefined ? (repeatRequest.source.label !== undefined ? 'Repeat action' : repeatRequest.source.card) : ''"
                      :subject="composer !== undefined ? composer.cardName : ''"
-                     :stage="composer !== undefined ? focusKickerKey : ''"
-                     :stageRaw="focusKickerRaw"
-                     :committed="outcomeFlow !== undefined || colonyStepCommitted">
+                     :stage="yieldedToStep ? steppedStage : (composer !== undefined ? focusKickerKey : '')"
+                     :stageRaw="yieldedToStep ? false : focusKickerRaw"
+                     :committed="steppedCommitted || outcomeFlow !== undefined || colonyStepCommitted">
         <!-- ── Filters: two labeled groups with their OWN trigger chips
              (the sanctioned exception to the one-bottom-bar rule). They
              live in the header line and yield to the focus stage. ── -->
@@ -519,7 +524,6 @@ import {buildActionBatch, repeatActionResponses} from '@/client/console/consoleA
 import {consoleLayoutState} from '@/client/console/consoleLayoutProfile';
 import {browseCommandRun, focusKicker, ActionFlowDraft} from '@/client/console/consoleActionFlow';
 import {armDescendOrigin, armDescendRect} from '@/client/console/surfaceMotion/workspaceDescend';
-import {captureSurfaceDeparture} from '@/client/console/surfaceMotion/surfaceMotionState';
 import {
   actionFocusEnterHook,
   actionFocusLeaveHook,
@@ -529,9 +533,11 @@ import {
   resetActionFocusMotion,
 } from '@/client/console/consoleActionFocusMotion';
 import {setConsoleActionRevealClaim, resetConsoleActionRevealClaim} from '@/client/console/consoleActionComposerUi';
-import {closeWorkspaceRoot, pushWorkspaceFrame, setWorkspaceFrameSubject, workspaceFrameHost, workspaceFrameKnown, workspaceFrameMounted, workspaceFramePhase, workspaceFrameStage, workspaceFrameSubject} from '@/client/console/consoleWorkspaceStack';
+import {addShadeOwner, captureSurfaceDeparture, removeShadeOwner} from '@/client/console/surfaceMotion/surfaceMotionState';
+import {closeWorkspaceRoot, pushWorkspaceFrame, setWorkspaceFrameSubject, workspaceFrameHost, workspaceFrameIsOverlay, workspaceFrameKnown, workspaceFrameMounted, workspaceFramePhase, workspaceFrameStage, workspaceFrameSubject} from '@/client/console/consoleWorkspaceStack';
 import {beginCardColonyTrade, clearCardColonyTrade, colonyStepCrumbParts} from '@/client/console/colonyTrade/colonyTradeEntry';
 import {beginCardDeltaAdvance} from '@/client/console/hydroFlow/deltaAdvanceEntry';
+import {reasonParams} from '@/client/cards/tagLabel';
 import type {DeltaAdvanceOffer} from '@/common/models/DeltaBonusPromptModel';
 import {setColonyFleetBerth} from '@/client/console/consoleColoniesModel';
 import {backVerbFor, isCommitted, WorkspacePhase, workspacePhaseOf} from '@/client/console/consoleWorkspaceFlow';
@@ -632,6 +638,9 @@ export default defineComponent({
   data() {
     return {
       consoleCardActionsUi,
+      /** This surface handed the shared dim to a step that took the screen —
+       *  so it is ours to restore when that step hands the screen back. */
+      shadeYielded: false,
       /** The focused variant tile key (`cardName#nodeIndex`). */
       focusKey: '',
       /** The focus cursor's last live position in the flat order — when a
@@ -851,6 +860,21 @@ export default defineComponent({
       const published = workspaceOutcomeState.phaseKey;
       return published !== '' ? published : focusKicker('draw');
     },
+    /**
+     * A STEP OF THIS FLOW HAS THE SCREEN — a card's Hydronetwork advance,
+     * pushed as an OVERLAY frame of this stack. The workspace stays mounted
+     * and keeps drawing its header (see `--yielded`); everything else lets go.
+     */
+    yieldedToStep(): boolean {
+      return workspaceFrameHost('hydro') === 'card-actions' && workspaceFrameIsOverlay('hydro');
+    },
+    /** …and the crumb's TAIL is that step's own stage, published to the stack. */
+    steppedStage(): string {
+      return workspaceFrameStage('hydro');
+    },
+    steppedCommitted(): boolean {
+      return isCommitted(workspaceFramePhase('hydro') ?? 'browse');
+    },
     /** A colony step is hosted in the composer's outcome zone. */
     colonyStepHosted(): boolean {
       return workspaceFrameHost('colonies') === 'card-actions';
@@ -1017,6 +1041,34 @@ export default defineComponent({
      * cleared (`workspaceFrameKnown` counts the park): «свернуть» keeps the
      * decision live, and the payment must still be its own on restore.
      */
+    /**
+     * A WORKSPACE THAT YIELDED THE SCREEN YIELDS ITS DIM WITH IT.
+     *
+     * The shared `.con-shade` is owned by whoever is presenting, and this
+     * surface acquires it on entry and drops it on LEAVE — which used to be
+     * the same moment, because a step took the screen by hiding this one. It
+     * no longer leaves (that is what keeps the crumb from blinking), so
+     * without this the track stood UNDER a dim belonging to the workspace it
+     * had just been handed the screen by: correct header, greyed-out track.
+     * The step's own screen is a section and owns no dim of its own.
+     */
+    'yieldedToStep': {
+      immediate: true,
+      handler(on: boolean): void {
+        // The entry hook is what ACQUIRES the dim in the first place, so the
+        // immediate `false` must not add one before this surface has entered —
+        // only a real fall (a step handing the screen back) restores it.
+        if (on) {
+          removeShadeOwner('card-actions');
+        } else if (this.shadeYielded) {
+          this.shadeYielded = false;
+          addShadeOwner('card-actions');
+        }
+        if (on) {
+          this.shadeYielded = true;
+        }
+      },
+    },
     'colonyStepHosted': {
       immediate: true,
       handler(on: boolean) {
@@ -1364,7 +1416,7 @@ export default defineComponent({
         return '';
       }
       return typeof reason.message === 'string' ?
-        translateTextWithParams(reason.message, [...reason.params]) :
+        translateTextWithParams(reason.message, reasonParams(reason.params, reason.tag)) :
         translateMessage(reason.message);
     },
     rangeText(vc: ConsoleVariableChip): string {

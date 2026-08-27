@@ -319,12 +319,15 @@
              right command bar, blank screen. Opening the list to LOOK while
              another flow is parked is a supported intent (`collapsed` below
              is exactly what keeps it read-only). -->
-        <!-- v-show while an OVERLAY frame of this stack stands over it (the
-             client pick bridge; a card's Hydronetwork step): the composer and
-             every capture must survive the round trip untouched, and the two
-             surfaces must never be lit at once. -->
+        <!-- v-show while the client PICK BRIDGE hides it: the composer and every
+             capture must survive that round trip untouched.
+             A card's Hydronetwork step is deliberately NOT in this list — that
+             workspace does not leave, it YIELDS (`--yielded`): its body
+             dissolves and its HEADER stays, so the crumb the player is reading
+             is the same DOM node on both sides of the walk. Hiding it here is
+             what made the header blink and shift. -->
         <ConsoleCardActions v-if="workspaceFrameRenders('card-actions')"
-                            v-show="!pickBridgeActive && !cardDeltaStepStanding"
+                            v-show="!pickBridgeActive"
                             ref="cardActions"
                             :playerView="playerView"
                             :collapsed="workspaceCollapsed"
@@ -5311,10 +5314,6 @@ export default defineComponent({
      */
     hydroCardOffer(): ReturnType<typeof cardDeltaAdvanceOffer> {
       return cardDeltaAdvanceOffer();
-    },
-    /** A card's Hydronetwork step stands OVER the action workspace. */
-    cardDeltaStepStanding(): boolean {
-      return this.hydroCardOffer !== undefined && workspaceFrameIsOverlay('hydro');
     },
     /** Does a hydro frame (live or parked) still exist to carry the entry? */
     cardDeltaEntryFrameLive(): boolean {

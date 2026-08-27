@@ -32,6 +32,7 @@
  */
 
 import {reactive} from 'vue';
+import {Tag} from '@/common/cards/Tag';
 import {CardName} from '@/common/cards/CardName';
 import {CardResource} from '@/common/CardResource';
 import {Message} from '@/common/logs/Message';
@@ -50,7 +51,9 @@ type GroupNode = ActionGroup['nodes'][number];
 
 /** A normalized "why not" reason — a raw i18n template + its params; the
  *  component translates via `translateTextWithParams` / `translateMessage`. */
-export type ConsoleActionReason = {message: string | Message, params: ReadonlyArray<string>};
+/** A slot's refusal. `tag` is the one it is ABOUT, when it is about one — the
+ *  surface fills the message's `${0}` from its translated name (`tagLabel`). */
+export type ConsoleActionReason = {message: string | Message, params: ReadonlyArray<string>, tag?: Tag};
 
 /**
  * A VARIABLE piece of an action formula — a value the PLAYER will choose in the
@@ -568,11 +571,15 @@ const ACTIVATION_DEFS: ReadonlyArray<{value: ActivationFilter, label: string}> =
 /** Display/sort rank — available first, blocked/soft next, activated last. */
 const STATUS_RANK: Record<ActionStatus, number> = {available: 0, rules: 1, soft: 1, activated: 2};
 
-function reasonFrom(message: string | Message | undefined, params: ReadonlyArray<unknown> | undefined): ConsoleActionReason | undefined {
+function reasonFrom(
+  message: string | Message | undefined,
+  params: ReadonlyArray<unknown> | undefined,
+  tag?: Tag,
+): ConsoleActionReason | undefined {
   if (message === undefined) {
     return undefined;
   }
-  return {message, params: (params ?? []).map((p) => String(p))};
+  return {message, params: (params ?? []).map((p) => String(p)), tag};
 }
 
 /** Every SelectAmount carried by a branch (its direct optionInput + input steps). */
@@ -760,7 +767,7 @@ function buildTiles(
           // Used this gen, but the rules block it NOW — the SAME concrete reason a
           // normal blocked action shows (e.g. «Недостаточно стали»), from the preview
           // (declarative / bespoke hook / bespoke-dynamic `actionUnavailableReason`).
-          reason = reasonFrom(blocked.message, blocked.params);
+          reason = reasonFrom(blocked.message, blocked.params, blocked.tag);
         } else {
           // The preview hasn't loaded yet — a temporary honest line, refined on
           // load (the internal re-entrancy guard `checkLoops` never surfaces here:
@@ -769,7 +776,7 @@ function buildTiles(
         }
       } else if (avail.allBlocked) {
         status = 'rules';
-        reason = reasonFrom(blocked?.message ?? 'Unavailable right now', blocked?.params);
+        reason = reasonFrom(blocked?.message ?? 'Unavailable right now', blocked?.params, blocked?.tag);
       } else {
         status = 'available';
       }
@@ -781,14 +788,14 @@ function buildTiles(
       // asteroid» row is dead while the card holds none).
       if (avail.allBlocked) {
         status = 'rules';
-        reason = reasonFrom(blocked?.message ?? 'Unavailable right now', blocked?.params);
+        reason = reasonFrom(blocked?.message ?? 'Unavailable right now', blocked?.params, blocked?.tag);
       }
     } else if (cardStatus === 'rules') {
       status = cardStatus;
       // The whole card is blocked — prefer this variant's own branch reason,
       // else the card-level structured reason.
       reason = blocked !== undefined ?
-        reasonFrom(blocked.message, blocked.params) :
+        reasonFrom(blocked.message, blocked.params, blocked.tag) :
         reasonFrom(entry.state.reasons[0]?.message, entry.state.reasons[0]?.params);
     } else {
       status = cardStatus;

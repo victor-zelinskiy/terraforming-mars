@@ -178,6 +178,8 @@ type Readout = {
   composerCrumbStage: string,
   composerUp: boolean,
   composerCta: string,
+  /** Which workspace owns the DRAWN header — it must not change on the walk. */
+  crumbHost: string,
   /** The crumb ROOT's own box — the line must not move between the two hosts. */
   rootBox: {x: number, y: number, h: number} | undefined,
   /** The source card's box, wherever it currently lives. */
@@ -191,13 +193,24 @@ async function readout(page: Page): Promise<Readout> {
     const bar = Array.from(document.querySelectorAll('.con-cmdbar__cmd'));
     return {
       hydroUp: document.querySelector('.con-hydro__layer--bonus') !== null,
-      // SCOPED to the head that is on screen. The action workspace stays
-      // MOUNTED underneath (v-show), so an unscoped query reads its hidden
-      // header — the probe would then measure the wrong crumb entirely.
-      crumbRoot: text('.con-hydro__head .con-wshead__root'),
-      crumbSubject: text('.con-hydro__head .con-wshead__subject'),
-      crumbStage: text('.con-hydro__head .con-wshead__step'),
-      composerCrumbStage: text('.con-cardactions__head .con-wshead__step'),
+      // THE HEAD THE PLAYER IS ACTUALLY READING. Both workspaces keep a header
+      // in the DOM through the walk — the host's draws, the step's goes ghost
+      // (`visibility: hidden`) — so the probe has to pick the DRAWN one, and
+      // WHICH one it is is itself the claim: it must be the same node before
+      // and after.
+      ...(() => {
+        const heads = Array.from(document.querySelectorAll('.con-wshead'));
+        const live = heads.find((h) => getComputedStyle(h).visibility !== 'hidden' &&
+          (h as HTMLElement).offsetParent !== null);
+        const t = (sel: string): string =>
+          (live?.querySelector(sel) as HTMLElement | null)?.innerText.replace(/\s+/g, ' ').trim() ?? '';
+        return {
+          crumbHost: live === null || live === undefined ? '' : (live.className.match(/con-(\w+)__head/) ?? [])[1] ?? '',
+          crumbRoot: t('.con-wshead__root'),
+          crumbSubject: t('.con-wshead__subject'),
+          crumbStage: t('.con-wshead__step'),
+        };
+      })(),
       sourceUp: document.querySelector('.con-hydro__bonus-source') !== null,
       actions: Array.from(document.querySelectorAll('.con-hydro__bonus-action-title'))
         .map((n) => (n as HTMLElement).innerText.trim()),
@@ -209,10 +222,9 @@ async function readout(page: Page): Promise<Readout> {
       composerUp: document.querySelector('.con-cardactions__stagewrap .con-composer--stage') !== null,
       composerCta: text('.con-composer__cta-label'),
       rootBox: (() => {
-        // The VISIBLE head — the action workspace stays mounted (v-show) under
-        // the track, so its hidden header must never be the one measured.
         const heads = Array.from(document.querySelectorAll('.con-wshead__root'));
-        const live = heads.find((h) => (h as HTMLElement).offsetParent !== null);
+        const live = heads.find((h) => (h as HTMLElement).offsetParent !== null &&
+          getComputedStyle(h).visibility !== 'hidden');
         if (live === undefined) {
           return undefined;
         }
@@ -330,7 +342,16 @@ test.describe('console — the card-action Hydronetwork door', () => {
     // The crumb keeps the ORIGIN and is the only trace of it.
     expect(open.crumbRoot).toContain('ДЕЙСТВИЯ КАРТ');
     expect(open.crumbSubject.toUpperCase()).toContain('ШТОРМОВОЙ');
-    expect(open.crumbStage.toUpperCase()).toContain('ПРОДВИЖЕНИЕ');
+    // Only the TAIL advanced — «НАСТРОЙКА» → «ГИДРОСЕТЬ», the subdivision the
+    // player walked into.
+    expect(open.crumbStage.toUpperCase()).toContain('ГИДРОСЕТЬ');
+    // …and it is the SAME header that advanced it. The workspace does not
+    // leave when a step of it takes the screen — it yields its body and keeps
+    // its line, which is the only way root and subject can be guaranteed not
+    // to blink or shift.
+    expect(open.crumbHost, 'the drawn header must still belong to the host workspace')
+      .toBe(setup.crumbHost);
+    expect(open.crumbHost).toBe('cardactions');
     // …and the zone never titles itself.
     expect(open.actions, 'one verb — a move nobody demanded has no refusal')
       .toEqual(['Продвинуться']);
@@ -372,6 +393,15 @@ test.describe('console — the card-action Hydronetwork door', () => {
     expect(Math.abs((flip?.w ?? 0) - (flip?.layoutW ?? 0)),
       `the card must rest at its natural size (${JSON.stringify(flip)})`).toBeLessThanOrEqual(2);
 
+    // …AND THE TRACK IS NOT STANDING UNDER SOMEBODY ELSE'S DIM. The shared
+    // `.con-shade` belongs to whoever is presenting; the action workspace used
+    // to drop it by LEAVING, and it no longer leaves. Left unhandled the
+    // player got the right header over a greyed-out track.
+    const shade = await page.evaluate(() => {
+      const el = document.querySelector('.con-shade') as HTMLElement | null;
+      return el === null ? 0 : Number(getComputedStyle(el).opacity);
+    });
+    expect(shade, 'the yielding workspace must hand its dim over too').toBeLessThan(0.05);
     const geo = `setup=${JSON.stringify(setup.rootBox)} hydro=${JSON.stringify(open.rootBox)}`;
     expect(setup.rootBox, 'the composer must have a measurable crumb').toBeDefined();
     expect(open.rootBox, 'the track must have a measurable crumb').toBeDefined();

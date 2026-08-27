@@ -140,11 +140,33 @@ const accentBaseline: Record<AccentName, AccentState> = {
  * Resize handling: a ResizeObserver on the parent container re-snapshots
  * anchor coordinates whenever the container's layout changes (e.g.
  * `--board-scale` adjust, viewport resize, fullscreen toggle). If a
- * resize lands while no animation is running, the marker re-places at
- * the current value.
+ * resize lands while no animation is running, the marker RECONCILES —
+ * see below.
  *
  * Reduced motion: animations collapse to a short fade-step instead of a
  * multi-anchor traversal.
+ *
+ * ⭐ THE CURSOR MAY NEVER LAG THE DIAL IT SITS ON. The fill, the digits
+ * and the HUD readout are plain reactive bindings — they cannot be late.
+ * The cursor is the one element driven by imperative code, so it is the
+ * only one that CAN be, and a ring pointing at 3 on a dial filled to 4
+ * reads as a broken game, not as a late animation. Three rules keep it
+ * honest, and each replaced a way it went out of sync:
+ *
+ *   1. THE ELEMENT'S INLINE TRANSFORM IS THE TRUTH, always written by us
+ *      (`applyAnchor`) — never handed to `Animation.commitStyles()`,
+ *      which throws whenever the target is not being rendered.
+ *   2. A CHANGE IS NEVER DROPPED. `moveTo` is the single entry point and
+ *      handles every state (no anchors yet · value off the printed dial ·
+ *      hidden section) by RECOVERING, never by returning early. There is
+ *      no latch that can leave the watcher permanently deaf.
+ *   3. AN OFF-SCREEN CHANGE SNAPS. A traversal behind a `display: none`
+ *      section is unreadable by definition, so the marker lands on the
+ *      value immediately and the section handoff shows nothing but the
+ *      truth.
+ *
+ * …and `reconcile()` re-asserts the invariant whenever the marker's world
+ * moved underneath it (board re-fit, the section coming back).
  */
 export default defineComponent({
   name: 'AnimatedScaleMarker',
@@ -175,24 +197,32 @@ export default defineComponent({
       activeAnimation: null as Animation | null,
       settleTimeout: null as ReturnType<typeof setTimeout> | null,
       resizeObserver: null as ResizeObserver | null,
-      ready: false,
+      /**
+       * The marker HAS a real position on the dial (an anchor was found for
+       * the current value and the transform was written). Drives the opacity
+       * class — and NOTHING else. It used to be a `ready` LATCH that also
+       * gated the `value` watcher, which is how the ocean cursor died: the
+       * ocean dial's digits are 1..9 (arcScaleConfigs.OCEAN_ARC), a game
+       * starts at 0 oceans, so `mounted()` found no anchor, returned early
+       * and left the latch false — and the watcher then ignored every
+       * subsequent ocean for the rest of the session. A value outside the
+       * dial's printed range is a normal, RECOVERABLE state now: the marker
+       * hides, keeps watching, and arrives the moment the value lands on a
+       * cell that exists.
+       */
+      placed: false,
     };
   },
   computed: {
     markerClasses(): Array<string> {
       const classes = [`scale-marker--${this.accent}`];
-      classes.push(this.ready ? 'scale-marker--ready' : 'scale-marker--pending');
+      classes.push(this.placed ? 'scale-marker--ready' : 'scale-marker--pending');
       return classes;
     },
   },
   watch: {
     value(newVal: number, oldVal: number): void {
       if (newVal === oldVal) {
-        return;
-      }
-      if (!this.ready) {
-        // Anchors weren't snapshotted yet (component just mounted).
-        // The mounted() hook will pick up the current value directly.
         return;
       }
       /*
@@ -205,17 +235,11 @@ export default defineComponent({
        * the same animation a second time.
        */
       accentBaseline[this.accent].lastValue = newVal;
-      this.animateTo(newVal);
+      this.moveTo(newVal);
     },
   },
   mounted(): void {
     this.snapshotAnchors();
-    if (this.anchors.length === 0) {
-      // No anchors found — caller probably mounted us outside a scale
-      // container, or the legacy val-* DOM is missing. Leave the marker
-      // hidden via the `pending` class and bail.
-      return;
-    }
 
     /*
      * Pull the previous value from the cross-remount baseline (see the
@@ -232,33 +256,35 @@ export default defineComponent({
     const targetIdx = this.findAnchorIndex(this.value);
     const prevIdx = prevValue !== undefined ? this.findAnchorIndex(prevValue) : -1;
 
-    if (targetIdx < 0) {
-      // Value isn't in our anchor map (out of range). Nothing useful to
-      // place — keep the marker hidden.
-      return;
+    if (targetIdx >= 0) {
+      if (prevValue === undefined || prevValue === this.value || prevIdx < 0) {
+        // First mount of the session, or no change, or previous value
+        // outside our anchor map (e.g. cross-game-session reset). Snap to
+        // current value, no animation.
+        this.placeAt(this.value);
+      } else {
+        // Cross-remount change detected — anchor the marker at the
+        // PREVIOUS position so the arc traversal starts where the player
+        // last saw it, then animate to the new value on the next tick.
+        // Deferring by one tick gives the browser a chance to paint the
+        // initial transform before WAAPI takes over, avoiding a flicker.
+        this.placeAt(prevValue);
+        this.$nextTick(() => {
+          if (this.anchors.length === 0) {
+            return;
+          }
+          this.animateTo(this.value);
+        });
+      }
     }
-    if (prevValue === undefined || prevValue === this.value || prevIdx < 0) {
-      // First mount of the session, or no change, or previous value
-      // outside our anchor map (e.g. cross-game-session reset). Snap to
-      // current value, no animation.
-      this.placeAt(this.value);
-      this.ready = true;
-    } else {
-      // Cross-remount change detected — anchor the marker at the
-      // PREVIOUS position so the arc traversal starts where the player
-      // last saw it, then animate to the new value on the next tick.
-      // Deferring by one tick gives the browser a chance to paint the
-      // initial transform before WAAPI takes over, avoiding a flicker.
-      this.placeAt(prevValue);
-      this.ready = true;
-      this.$nextTick(() => {
-        if (this.anchors.length === 0) {
-          return;
-        }
-        this.animateTo(this.value);
-      });
-    }
-
+    /*
+     * ⚠ THE OBSERVER IS INSTALLED UNCONDITIONALLY — it is the marker's only
+     * self-heal channel, so the two states that most need it (no anchors
+     * yet · value off the printed dial) may not be the two that skip it.
+     * It is also the VISIBILITY signal the console needs for free: the
+     * board section is a `v-show` sibling, so a section handoff flips it
+     * `display: none` and back, and each flip resizes the observed box.
+     */
     const container = this.$el.parentElement as HTMLElement | null;
     if (container !== null && typeof ResizeObserver !== 'undefined') {
       this.resizeObserver = new ResizeObserver(() => this.onResize());
@@ -306,6 +332,17 @@ export default defineComponent({
     snapshotAnchors(): void {
       const parent = this.$el.parentElement as HTMLElement | null;
       if (parent === null) {
+        return;
+      }
+      if (this.anchors.length > 0 && !this.isRendered()) {
+        /*
+         * A `display: none` subtree reports offsetLeft/offsetTop 0 for
+         * EVERY digit, so re-snapshotting there would collapse the whole
+         * dial onto one point. The console flips the board section's
+         * display on every section handoff and the ResizeObserver reports
+         * that as a resize — keep the last honest map until the board is
+         * back on screen (the return fires the observer again).
+         */
         return;
       }
       const nodes = parent.querySelectorAll<HTMLElement>(':scope > .global-numbers-value');
@@ -424,12 +461,98 @@ export default defineComponent({
       if (idx < 0) {
         return;
       }
+      this.applyAnchor(this.anchors[idx]);
+      this.currentValue = value;
+      this.placed = true;
+    },
+    /**
+     * Write a position to the element's OWN inline style — the marker's
+     * single source of visual truth.
+     *
+     * ⚠ Everything that ends an animation routes through here instead of
+     * `Animation.commitStyles()`. commitStyles throws `InvalidStateError`
+     * the moment the target «is not being rendered», and the console board
+     * section is a `v-show` sibling: every parameter change that lands
+     * while the player is in their hand / a workspace / another section
+     * animates a `display: none` marker. The throw was caught and ignored,
+     * the `cancel()` that follows then dropped the `fill: forwards` result,
+     * and the cursor SNAPPED BACK to the transform of the previous value —
+     * while the arc fill and the digits (plain reactive style bindings)
+     * already read the new one. That is the desync: the ring one value
+     * behind the dial it sits on, most often in multiplayer, where the
+     * changes arrive from somebody else's turn while this player is
+     * looking somewhere other than the board.
+     */
+    applyAnchor(a: Anchor): void {
       const marker = this.$refs.marker as HTMLElement | undefined;
       if (marker === undefined) {
         return;
       }
-      marker.style.transform = this.transformFor(this.anchors[idx]);
-      this.currentValue = value;
+      marker.style.transform = this.transformFor(a);
+    },
+    /**
+     * The marker is actually being RENDERED (no `display: none` ancestor).
+     * The marker is `position: absolute`, so a null offsetParent means
+     * exactly that.
+     */
+    isRendered(): boolean {
+      const marker = this.$refs.marker as HTMLElement | undefined;
+      return marker !== undefined && marker.offsetParent !== null;
+    },
+    /**
+     * THE ONE ENTRY POINT for "the dial now reads `value`" — snap, glide or
+     * hide, and never lose the change. Every caller (the prop watcher, the
+     * resize reconcile) goes through it, so a value can no longer be
+     * dropped by a state the marker happened to be in.
+     */
+    moveTo(value: number): void {
+      if (this.anchors.length === 0) {
+        // Mounted before its digits existed (or measured while hidden) —
+        // the map is cheap, take it now rather than stay dead forever.
+        this.snapshotAnchors();
+      }
+      if (this.findAnchorIndex(value) < 0) {
+        /*
+         * OFF THE PRINTED DIAL — the ocean scale's digits start at 1 while
+         * the parameter starts at 0. There is no cell to point at, so the
+         * cursor steps off (the opacity transition carries it) and waits;
+         * the first ocean brings it back on.
+         */
+        if (this.activeAnimation !== null) {
+          this.activeAnimation.cancel();
+          this.activeAnimation = null;
+        }
+        this.currentValue = undefined;
+        this.placed = false;
+        return;
+      }
+      if (!this.placed || this.currentValue === undefined) {
+        // No position to travel FROM (first placement, or a return from
+        // off-dial): arrive rather than glide out of nowhere. Off-dial →
+        // on-dial is a real arrival, so it earns the settle accent.
+        const arriving = !this.placed && this.currentValue === undefined;
+        this.placeAt(value);
+        if (arriving && this.isRendered()) {
+          this.triggerSettle();
+        }
+        return;
+      }
+      this.animateTo(value);
+    },
+    /**
+     * The displayed value must equal the prop — the invariant every
+     * self-heal restores. Called whenever the marker's world changed
+     * underneath it (resize, board re-fit, the section coming back).
+     */
+    reconcile(): void {
+      if (this.currentValue !== this.value) {
+        this.moveTo(this.value);
+        return;
+      }
+      if (this.currentValue !== undefined) {
+        // Same value, possibly new coordinates (board re-fit / re-scale).
+        this.placeAt(this.currentValue);
+      }
     },
     /**
      * Read the marker's CURRENT computed transform and return it as a
@@ -486,6 +609,23 @@ export default defineComponent({
       }
 
       /*
+       * OFF-SCREEN fast path — the board section is hidden (`v-show`), so
+       * there is no glide for anyone to read. SNAP: a traversal nobody
+       * sees is pure waste, and worse, it is the state whose landing
+       * cannot be committed (see `applyAnchor`) — the marker used to come
+       * back from the hand one value behind the dial. Landing on the
+       * value NOW is what makes the section handoff invisible.
+       */
+      if (!this.isRendered()) {
+        if (this.activeAnimation !== null) {
+          this.activeAnimation.cancel();
+          this.activeAnimation = null;
+        }
+        this.placeAt(targetValue);
+        return; // no settle: the arrival accent would play to an empty room
+      }
+
+      /*
        * Reduced-motion fast path: skip the arc traversal entirely.
        * The OS / user has asked for less movement, so we don't animate
        * along the dial at all — just snap the marker to the new
@@ -513,12 +653,11 @@ export default defineComponent({
       let seedAnchor: Anchor | undefined;
       if (this.activeAnimation !== null) {
         seedAnchor = this.currentVisualAnchor();
-        try {
-          this.activeAnimation.commitStyles();
-        } catch (e) {
-          // commitStyles can throw if the element is detached / animation
-          // is in a non-committable state. Either way, cancel still
-          // releases the running keyframes.
+        // Freeze the pose we just read into the inline style BEFORE the
+        // cancel drops the running keyframes — our own write, never
+        // commitStyles (see `applyAnchor`).
+        if (seedAnchor !== undefined) {
+          this.applyAnchor(seedAnchor);
         }
         this.activeAnimation.cancel();
         this.activeAnimation = null;
@@ -572,14 +711,17 @@ export default defineComponent({
       });
       this.activeAnimation = anim;
       this.currentValue = targetValue;
+      this.placed = true;
+      const destination = this.anchors[targetIdx];
 
       const onFinish = () => {
         if (this.activeAnimation === anim) {
-          try {
-            anim.commitStyles();
-          } catch (e) {
-            // see note above
-          }
+          // Land on the DESTINATION we computed, written by us. Anchors
+          // may have been re-snapshotted mid-flight (a board re-fit while
+          // the marker travelled), so re-read the value's current anchor —
+          // the trip's own keyframes are the stale ones by then.
+          const idx = this.findAnchorIndex(targetValue);
+          this.applyAnchor(idx >= 0 ? this.anchors[idx] : destination);
           anim.cancel();
           this.activeAnimation = null;
         }
@@ -615,11 +757,13 @@ export default defineComponent({
       this.snapshotAnchors();
       // If the resize lands mid-animation, the WAAPI keyframes are now
       // stale, but cancelling would yank the marker. Cheaper to let the
-      // current trip finish at its old destination — the NEXT animation
-      // will use the refreshed anchors. If no animation is running,
-      // re-place at the current value so any layout shift catches up.
-      if (this.activeAnimation === null && this.currentValue !== undefined) {
-        this.placeAt(this.currentValue);
+      // current trip finish — its landing re-reads the refreshed anchors
+      // (see `onFinish`). Otherwise RECONCILE: the observed box also
+      // changes when the console's `v-show` board section returns, which
+      // is precisely when a value that arrived off-screen (or a dial the
+      // value only just stepped onto) has to be caught up.
+      if (this.activeAnimation === null) {
+        this.reconcile();
       }
     },
   },

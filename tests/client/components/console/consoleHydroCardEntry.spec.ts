@@ -191,7 +191,9 @@ describe('the Hydronetwork card-action entry', () => {
 
   it('the zone never titles itself — the stage name goes UP to the crumb', () => {
     const w = mountSection({cardOffer: CARD_OFFER});
-    expect((w.vm as unknown as Vm).crumbStage).to.eq('ADVANCE');
+    // The tail names the SUBDIVISION the player walked into, not the act (the
+    // act is what the CTA says): «ДЕЙСТВИЯ КАРТ › <карта> › ГИДРОСЕТЬ».
+    expect((w.vm as unknown as Vm).crumbStage).to.eq('Hydronetwork');
     expect(w.text()).to.not.contain('Extra advance');
     w.unmount();
   });

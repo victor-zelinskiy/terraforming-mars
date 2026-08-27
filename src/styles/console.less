@@ -4560,13 +4560,55 @@ each(@players, {
        The side panels keep their full height (the dock never reaches them). */
     padding-bottom: 3.05rem;
 
+    /* ── THE INSTRUMENT BLEED ────────────────────────────────────────────
+       How far the arc dials' own DECORATION may paint past the stage box.
+
+       The fit engine frames the board by the union of its SEMANTIC content
+       (`CONTENT_SELECTOR` — hex cells, band contours, digits, chips), and
+       the vertical axis is the binding one: the ocean band's outer edge
+       lands within 2px of the stage's bottom, the Venus band's within 2px
+       of its top. The gliding CURSOR (`.scale-marker`) is not in that union
+       and cannot be — it MOVES, so measuring it would re-scale the whole
+       planet every time a parameter ticks. Its ring, its radial ticks and
+       their glow reach well past the band they sit on (`ARC_MARKER_BLEED`
+       in ConsoleBoardSection.vue derives the exact figure), so with
+       `overflow: hidden` the stage sliced the ocean cursor along a hard
+       horizontal line — the defect the player reported as «the hand dock
+       cuts the circle»: not the dock at all, its reserved clearance simply
+       starts there.
+
+       Reserving the overhang in the FIT instead would shrink the planet ~6%
+       for a decoration, and the room is already there and empty: below is
+       the dock clearance (`padding-bottom` above — the cards themselves
+       ride z11702+ and legitimately cover the board), above is the gap to
+       the status strip (z11706), which occludes anything that reaches it.
+       So the instruments are allowed to pass BEHIND the frame members
+       rather than be cut by an invisible box. Board-space units × the live
+       board scale, so the bleed tracks the planet at every profile.
+
+       The token is published in PX by the fit engine (`applyBoardScale` —
+       board-space units × the live board scale), because
+       `overflow-clip-margin` does NOT accept `calc()` in Blink; a `var()`
+       substitution of a finished length does parse. The rem fallback
+       covers the frames before the first fit. */
+    --con-arc-bleed: 2rem;
+
     &__stage {
         flex: 1;
         min-width: 0;
         display: flex;
         align-items: center;
         justify-content: center;
-        overflow: hidden;
+        /* `clip`, not `hidden`: `overflow-clip-margin` is what pushes the
+           clip box past the padding box, and unlike a `clip-path` it makes
+           the stage NO stacking context — the board's own z-order against
+           the recessed-stage vignette (`.con-board::before`, z2) stays
+           exactly as it was. Both axes take the margin; the horizontal one
+           is inert by construction (the stage band is always wider than
+           the planet's aspect, so the fit binds on HEIGHT and the content
+           sits hundreds of px inside the side edges). */
+        overflow: clip;
+        overflow-clip-margin: var(--con-arc-bleed, 2rem);
         /* Anchor for the planet-focus veil (::before below). */
         position: relative;
 
@@ -4657,8 +4699,15 @@ each(@players, {
 .con-board--pfocus .con-board__stage,
 .con-board--pfocus-exit .con-board__stage {
     overflow: visible;
-    /* Down to the dock's clearance, and not one pixel to the sides. */
-    clip-path: polygon(0 0, 100% 0, 100% calc(100% + var(--pfocus-bleed, 2.9rem)), 0 calc(100% + var(--pfocus-bleed, 2.9rem)));
+    /* Down to the dock's clearance, and not one pixel to the sides. The top
+       keeps the ordinary instrument bleed (`--con-arc-bleed`): the arcs
+       materialize back INSIDE the return, so the Venus cursor must not be
+       re-sliced for the last frames of the exit. */
+    clip-path: polygon(
+        0 calc(-1 * var(--con-arc-bleed)),
+        100% calc(-1 * var(--con-arc-bleed)),
+        100% calc(100% + var(--pfocus-bleed, 2.9rem)),
+        0 calc(100% + var(--pfocus-bleed, 2.9rem)));
 }
 /* ⚠ THE PLANET NEVER JUMPS — the transform transition is PERMANENT (from
    the first fit onward), not scoped to the focus transition.
@@ -4891,6 +4940,11 @@ html.console-mode body.placement-pending .board-outer-spaces > .board-space.boar
 
     /* The shared workspace header (fall-through class on ConsoleWsHead). */
     &__head { flex-shrink: 0; }
+    /* HOSTED — the host's own header is the one on screen (the SAME DOM node
+       before and after the walk, so the crumb's root and subject cannot blink
+       or shift). This one keeps its BOX so nothing below it moves, and draws
+       nothing: `visibility`, never `display`. */
+    &__head--ghost { visibility: hidden; }
     &__chip {
         display: inline-flex;
         align-items: center;
@@ -5169,9 +5223,16 @@ html.console-mode body.placement-pending .board-outer-spaces > .board-space.boar
         min-width: 0;
         overflow: hidden;
     }
-    /* The PREVIEW panel is TOP-ANCHORED: content that grows moves ONLY the
-       bottom edge (a centred panel moved both — the «дёргание» of stepping). */
-    &__layer--preview {
+    /* The PLAN panel is TOP-ANCHORED: content that grows moves ONLY the
+       bottom edge (a centred panel moved both — the «дёргание» of stepping).
+       BOTH plan-shaped scenes share the anchor — the player's own preview and
+       a card's advance offer are the SAME dossier under the SAME track, so
+       they must hang off it identically: the stop's connector line has to
+       TOUCH the panel it points at, and a centred bonus layer left it hanging
+       in ~145px of void with the panel adrift in the middle of the band. One
+       vertical rhythm, one premium language, in both modes. */
+    &__layer--preview,
+    &__layer--bonus {
         justify-content: flex-start;
         padding-top: .35rem;
     }
@@ -5652,7 +5713,10 @@ html.console-mode body.placement-pending .board-outer-spaces > .board-space.boar
         display: grid;
         grid-template-columns: minmax(8rem, 26%) 1fr;
         grid-auto-rows: min-content;
-        align-content: center;
+        /* TOP-ANCHORED like the plan body it stands in for — a centred content
+           block inside a floor-height panel drifts away from the panel's own
+           top edge, which is the line the track's connector points at. */
+        align-content: start;
         gap: .5rem 1.1rem;
         align-items: center;
         min-height: 0;
@@ -25360,6 +25424,40 @@ html.console-mode {
         .con-stage-surface();
     }
 
+    /* ── YIELDED — a STEP of this flow took the screen (a card's Hydronetwork
+       advance, an OVERLAY frame of this same stack).
+       The workspace does NOT leave: leaving means its header leaves too, and a
+       header that is rebuilt on the other side blinks and shifts however
+       carefully its two copies are aligned. So the HEAD stays — the very same
+       DOM node, only its tail advancing — and everything else lets go: the
+       plate's own surface, the browse grid, the composer, the hero card. The
+       step's screen materialises underneath in the same beat.
+       `pointer-events: none` on the body, never on the root: the head keeps
+       its wheel anchor. `visibility` is deliberately NOT used — the body must
+       keep its box so the head cannot move when it goes. */
+    &--yielded {
+        /* The plate is transparent and inert — the step's screen lives BELOW
+           it in the stacking order and must take every press. The header wins
+           its own back (it keeps the wheel anchor). */
+        pointer-events: none;
+    }
+    &--yielded &__head { pointer-events: auto; }
+    &--yielded &__frame {
+        background: none;
+        box-shadow: none;
+    }
+    &--yielded &__frame > *:not(&__head) {
+        opacity: 0;
+        transition: opacity calc(200ms * var(--motion-scale, 1)) ease-out;
+    }
+    /* …EXCEPT THE CARRIED CARD, which does not dissolve — it TRAVELS. Its copy
+       on the incoming side FLIPs out of this exact rect, so this one has to be
+       gone on the very first frame or the eye sees two of it. No transition:
+       the motion the player reads is the flight, not this. */
+    &--yielded [data-motion-anchor] {
+        opacity: 0;
+        transition: none;
+    }
     /* ── Header — the SHARED workspace line (`.con-wshead`, rendered by
        ConsoleWsHead.vue). Everything that used to live here — the identity
        row, the three type voices, the fixed-height two-layer aux zone and the

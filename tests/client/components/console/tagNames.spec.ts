@@ -1,6 +1,7 @@
 import {expect} from 'chai';
 import {Tag} from '@/common/cards/Tag';
 import {tagNameKey} from '@/common/cards/tagNames';
+import {reasonParams, tagLabel} from '@/client/cards/tagLabel';
 import {HYDRO_STAGES} from '@/client/components/hydronetwork/hydroStages';
 
 /**
@@ -30,5 +31,28 @@ describe('tag display names', () => {
 
   it('answers undefined for a tag with no printed name of its own', () => {
     expect(tagNameKey(Tag.CRIME)).is.undefined;
+  });
+
+  describe('reasonParams — the ONE rule every refusal renders by', () => {
+    it('fills the message slot from the TAG when the reason is about one', () => {
+      expect(reasonParams(undefined, Tag.BUILDING)).to.deep.eq([tagLabel(Tag.BUILDING)]);
+      expect(reasonParams([], Tag.PLANT)[0]).to.not.eq('');
+    });
+
+    it('the tag WINS over any params the server also sent', () => {
+      expect(reasonParams(['7'], Tag.POWER)).to.deep.eq([tagLabel(Tag.POWER)]);
+    });
+
+    it('falls back to the params for every other reason', () => {
+      expect(reasonParams(['7', 2], undefined)).to.deep.eq(['7', '2']);
+      expect(reasonParams(undefined, undefined)).to.deep.eq([]);
+    });
+
+    it('falls back rather than rendering an EMPTY slot for a nameless tag', () => {
+      // «Не хватает обязательной метки:» with nothing after the colon is the
+      // exact defect this guard exists for — a named slot must never resolve
+      // to ''.
+      expect(reasonParams(['fallback'], Tag.CRIME)).to.deep.eq(['fallback']);
+    });
   });
 });

@@ -98,6 +98,21 @@ const CONTENT_SELECTOR = [
   // Planetary-event chips (ocean/Ares thresholds) sit OUTSIDE the band.
   '.scale-event',
 ].join(', ');
+/**
+ * The arc CURSOR's overhang past the band it rides, in BOARD px — the one
+ * piece of visible board content the union above deliberately does not
+ * measure (see `publishArcBleed`). From `scale_marker.less`: the marker box
+ * is 34px, its radial tick reaches 11px beyond that box (`--tick { bottom:
+ * -11px }`) and carries a 12px glow — 17 + 11 + 12 = 40 from the digit
+ * centre — while the fitted stage edge sits only ~10 past that same centre
+ * (measured at 4K: digit centre 1897, stage bottom 1932, scale 3.36). So
+ * 40 − 10, taken as 32.
+ *
+ * Being generous costs nothing (the room below is the dock's own reserved
+ * clearance, ~122px at 4K, and above it the status strip occludes); being
+ * short puts a hard line back through the glow.
+ */
+const ARC_MARKER_BLEED = 32; /* keep-px: board px-space */
 /** Sanity clamps for the MEASURED natural box — a mid-transition / stray
  *  measurement can never explode or collapse the board. */
 const NATURAL_W_MIN = 480;
@@ -482,10 +497,30 @@ export default defineComponent({
       const moved = Math.abs(scale - this.appliedScale) > 0.0005;
       this.appliedScale = scale;
       document.documentElement.style.setProperty('--board-scale', scale.toFixed(4));
+      this.publishArcBleed(scale);
       if (moved && this.fitted) {
         this.armBoardTween();
       }
       this.fitted = true;
+    },
+    /**
+     * THE INSTRUMENT BLEED — how far the stage's clip box reaches past its
+     * padding box, in screen px (`--con-arc-bleed`, consumed by
+     * `overflow-clip-margin` in console.less, where the rationale lives).
+     *
+     * It is the arc CURSOR's overhang: the marker's ring + its radial
+     * ticks + their glow reach ~ARC_MARKER_BLEED board-px beyond the band
+     * they ride, and the band is exactly what the fit frames — so without
+     * this the ocean cursor is sliced along the stage's bottom edge. The
+     * cursor cannot be measured into the natural box the way the band is:
+     * it MOVES, so the planet would re-scale on every parameter tick.
+     *
+     * Written from JS because `overflow-clip-margin` rejects `calc()` in
+     * Blink (a plain `var()` substitution of a finished length parses).
+     */
+    publishArcBleed(scale: number): void {
+      const stage = this.$refs.stage as HTMLElement | undefined;
+      stage?.style.setProperty('--con-arc-bleed', `${(ARC_MARKER_BLEED * scale).toFixed(1)}px`);
     },
     /** Hold measurements off until the transform has actually PAINTED at its
      *  target. Timers describe intended CSS duration, not compositor

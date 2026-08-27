@@ -18,3 +18,28 @@ export function tagLabel(tag: Tag | undefined): string {
   const key = tag === undefined ? undefined : tagNameKey(tag);
   return key === undefined ? '' : translateText(key);
 }
+
+/**
+ * THE PARAMS A REASON RENDERS WITH — the one rule, for every surface that
+ * states a refusal.
+ *
+ * «A reason ABOUT a tag fills its own `${0}` from that tag's name.» The tag
+ * rides structurally (an enum), never as a worded param: the server picks WHICH
+ * tag, the client picks the WORD, so the sentence is the player's language on
+ * the card's disabled variant, in its browse tile and on the Hydronetwork plan
+ * panel alike. Written once because it had already been written three times,
+ * and two of them rendered «Не хватает обязательной метки:» with nothing after
+ * the colon.
+ */
+export function reasonParams(
+  params: ReadonlyArray<string | number> | undefined,
+  tag: Tag | undefined,
+): Array<string> {
+  if (tag !== undefined) {
+    const label = tagLabel(tag);
+    if (label !== '') {
+      return [label];
+    }
+  }
+  return (params ?? []).map(String);
+}

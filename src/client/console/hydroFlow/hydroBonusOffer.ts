@@ -199,9 +199,12 @@ export type HydroBonusCopy = {
 export function hydroAdvanceCopy(offer: DeltaAdvanceOffer, origin: DeltaOfferOrigin): HydroBonusCopy {
   if (origin === 'card-entry') {
     return {
-      // ONE WORD, and not the root's noun: the crumb already reads
-      // «ДЕЙСТВИЯ КАРТ › <карта> › …», so the tail names only the step.
-      stageKey: 'ADVANCE',
+      // ONE WORD, and it names the SUBDIVISION the player walked into — the
+      // crumb reads «ДЕЙСТВИЯ КАРТ › <карта> › ГИДРОСЕТЬ», so the tail says
+      // WHERE they are, which is the only thing that changed. (It used to say
+      // «ПРОДВИЖЕНИЕ», which describes the act rather than the place, and the
+      // act is what the CTA already says.)
+      stageKey: 'Hydronetwork',
       titleKey: 'Extra advance',
       bodyKey: '${0} lets you spend 1 energy and advance 1 step on the Hydronetwork. Your usual advance this generation stays available.',
       bodyParams: [offer.source],
