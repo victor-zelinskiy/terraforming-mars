@@ -108,6 +108,11 @@ describe('hydroPlanReasons', () => {
     const tags = rs.filter((r) => r.kind === 'missing-tag');
     expect(tags.map((r) => r.tag)).deep.eq([Tag.POWER, Tag.EARTH]);
     expect(tags.every((r) => r.blocking)).eq(true);
+    // …and the row NAMES the tag. «Не хватает обязательной метки» is true and
+    // useless; the `${0}` slot is filled from `tag` itself (the surface
+    // translates its own name for it), so the plan panel and a card's disabled
+    // variant can never name the missing tag differently.
+    expect(tags.every((r) => r.textKey === 'Required tag is missing: ${0}')).eq(true);
   });
 
   it('energy deficit is concrete: need N, you have M', () => {

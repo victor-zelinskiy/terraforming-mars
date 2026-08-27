@@ -1394,7 +1394,7 @@ export default defineComponent({
       return this.planPickOffered;
     },
     /** What A means on the preview layer (the CTA and the bar agree). */
-    primaryVerb(): 'reinforce' | 'choose-reward' | 'choose-action' | 'choose-card' | 'blocked' {
+    primaryVerb(): 'reinforce' | 'choose-reward' | 'blocked' {
       const m = this.model;
       if (m.mode !== 'plan') {
         return 'blocked';
@@ -1405,18 +1405,14 @@ export default defineComponent({
       if (m.targetNeedsChoice && this.reasons.every((r) => !r.blocking)) {
         return 'choose-reward';
       }
-      if (m.mustSelectCard && m.selectedCard === undefined && this.reasons.every((r) => !r.blocking)) {
-        return m.needsCardSelect === 'reuse-action' ? 'choose-action' : 'choose-card';
-      }
+      // ⚠️ The pos 7/9 PICK is NOT a CTA state. The row above owns that
+      // question (and the cursor starts on it); relabelling the commit button
+      // «Выбрать действие» made it a SECOND picker opener — and, with the
+      // pick also gating the commit, left no way to advance at all.
       return m.canConfirm ? 'reinforce' : 'blocked';
     },
     primaryLabel(): string {
-      switch (this.primaryVerb) {
-      case 'choose-reward': return 'Choose a reward';
-      case 'choose-action': return 'Choose an action';
-      case 'choose-card': return 'Choose a card';
-      default: return 'Reinforce the hydronetwork';
-      }
+      return this.primaryVerb === 'choose-reward' ? 'Choose a reward' : 'Reinforce the hydronetwork';
     },
     commitCaption(): string {
       const c = this.flow.commit;
@@ -2058,23 +2054,15 @@ export default defineComponent({
       case 'choose-reward':
         this.openChoiceStep();
         return;
-      case 'choose-action':
-      case 'choose-card':
-        // THE SAME GATE THE OFFER USES. The CTA quietly relabelled itself from
-        // «Укрепить» to «Выбрать действие» and never said WHY — the
-        // pos 7/9 pick is MANDATORY (the reward cannot be skipped), so the
-        // first press names the omission and the second goes and answers it.
-        if (!this.pickWarned) {
+      case 'reinforce':
+        // THE SAME GATE THE OFFER USES: the landed stage's pick is still
+        // unchosen, so the FIRST press names that and the SECOND advances
+        // anyway. A HEADS-UP, never a lock — advancing without stopping to
+        // configure the reward is a legal move (see `hydroNetworkModel`).
+        if (this.planPickMissing && !this.pickWarned) {
           this.pickWarned = true;
           return;
         }
-        if (this.primaryVerb === 'choose-action') {
-          this.$emit('pick');
-        } else {
-          this.openTargetStep();
-        }
-        return;
-      case 'reinforce':
         this.emitConfirm();
         return;
       default:
@@ -2212,13 +2200,12 @@ export default defineComponent({
       if (!take && !this.bonusSkipOffered) {
         return;
       }
-      // THE PICK IS OWED. A confirm that ignores it postpones a MANDATORY
-      // question into a surface nobody chose — so the first press names what
-      // is missing and moves the cursor onto it; the second press goes and
-      // answers it (`bonus-pick` → openBonusPick).
-      if (take && this.bonusPickMissing) {
+      // THE PICK IS STILL UNCHOSEN — say so ONCE, then take the second press
+      // at face value. ⚠️ The cursor STAYS on the confirm: moving it to the
+      // row made the second press open the picker instead, so the player
+      // could never advance at all. A warning is a heads-up, not a lock.
+      if (take && this.bonusPickMissing && !this.pickWarned) {
         this.pickWarned = true;
-        this.sceneFocus = 'bonus-pick';
         return;
       }
       if (take && this.bonusNeedsReward) {

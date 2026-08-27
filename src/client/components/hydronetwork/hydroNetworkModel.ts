@@ -281,9 +281,15 @@ export function buildHydroModel(input: HydroModelInput): HydroModel {
   const mustSelectCard = needsCardSelect !== undefined && eligibleCardNames.length > 0;
   const selectedCard =
     input.selectedCard !== undefined && eligibleCardNames.includes(input.selectedCard) ? input.selectedCard : undefined;
-  // A pos 7/9 card pick is MANDATORY before confirm (the reward can't be skipped
-  // per the rules) — the CTA stays disabled with a "choose first" reason until picked.
-  const cardSelectSatisfied = !mustSelectCard || selectedCard !== undefined;
+  // ⚠️ A pos 7/9 card pick is PRE-COLLECTED, never a COMMIT REQUIREMENT.
+  //
+  // Advancing without stopping to configure the landed stage's reward is a
+  // legal move, and the pick is not lost by it: the SERVER defers the same
+  // SelectCard either way, and the console embeds that prompt in this very
+  // workspace. Gating the commit on it TRAPPED the player — the CTA could not
+  // fire, the only live affordance was the picker, and there was no way to
+  // advance at all. The UI's job here is a WARNING («this is still unchosen»),
+  // never a lock.
 
   const choiceSatisfied = !targetNeedsChoice || input.rewardChoice !== undefined;
   const canConfirm =
@@ -293,8 +299,7 @@ export function buildHydroModel(input: HydroModelInput): HydroModel {
     destination !== undefined &&
     destination.legal === true &&
     destination.affordable === true &&
-    choiceSatisfied &&
-    cardSelectSatisfied;
+    choiceSatisfied;
 
   // PLAN mode: OTHER players who have ALREADY been THROUGH the planned TARGET stage,
   // so the viewer is never in the dark about it. Three relationships are surfaced:

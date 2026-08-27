@@ -291,6 +291,26 @@ test.describe('console — the card-action Hydronetwork door', () => {
 
     await openCardActions(page);
     await focusAdvanceVariant(page);
+    await shoot(page, '0-browse');
+    // The PRINTED FORMULA in a variant tile is drawn by the render DSL at the
+    // console's own scale, and its `plate()` («ГИДРОСЕТЬ») ships a fixed 130px
+    // physical-card box — it must not out-grow the row it sits in.
+    const plate = await page.evaluate(() => {
+      const el = document.querySelector('.con-cardactions__graphic .card-plate') as HTMLElement | null;
+      const row = el?.closest('.con-cardactions__graphic') as HTMLElement | null;
+      if (el === null || row === null) {
+        return undefined;
+      }
+      const r = el.getBoundingClientRect();
+      const rr = row.getBoundingClientRect();
+      return {w: Math.round(r.width), h: Math.round(r.height), rowH: Math.round(rr.height)};
+    });
+    expect(plate, 'the advance variant draws a Hydronetwork plate').toBeDefined();
+    expect(plate?.h ?? 0, `the plate must fit its own row (${JSON.stringify(plate)})`)
+      .toBeLessThanOrEqual(plate?.rowH ?? 0);
+    // Content-sized: the label is 9 characters, so a box wider than ~half the
+    // formula row is the printed 130px slug, not a fitted plate.
+    expect(plate?.w ?? 999, `the plate must size to its label (${JSON.stringify(plate)})`).toBeLessThan(130);
     await openActionFocus(page);
     await page.waitForTimeout(800);
 
@@ -328,17 +348,30 @@ test.describe('console — the card-action Hydronetwork door', () => {
     // THE CRUMB LINE DOES NOT MOVE ON THE WALK. It is the one thing that
     // proves the two screens are one flow, and two hand-written frame
     // paddings had it stepping 11px left and 12px up between them.
+    // THE CARRIED CARD SETTLES. It FLIPs from the composer's hero slot into
+    // the track's source dock, and a FLIP that never clears its own transform
+    // is the worst of both worlds: the card parks off its slot for the rest of
+    // the surface's life. (Measured before the fix: a stale
+    // `translate(-78px, -216px) scale(0.95)` — the anchor had been measured a
+    // frame before the track laid itself out, and the layer's own entry
+    // cascade owned the same transform.)
     const flip = await page.evaluate(() => {
       const el = document.querySelector('.con-hydro__bonus-source') as HTMLElement | null;
       if (el === null) {
-        return 'no source';
+        return undefined;
       }
-      const cs = getComputedStyle(el);
       const r = el.getBoundingClientRect();
-      return `transform=${cs.transform} inline=${el.style.transform || '-'} box=${Math.round(r.width)}x${Math.round(r.height)} offsetW=${el.offsetWidth}`;
+      return {
+        inline: el.style.transform,
+        w: Math.round(r.width),
+        layoutW: el.offsetWidth,
+      };
     });
-    // eslint-disable-next-line no-console
-    console.log('[FLIP]', flip);
+    expect(flip, 'the source dock must be on stage').toBeDefined();
+    expect(flip?.inline ?? '', `the FLIP must clear its own transform (${JSON.stringify(flip)})`).toBe('');
+    expect(Math.abs((flip?.w ?? 0) - (flip?.layoutW ?? 0)),
+      `the card must rest at its natural size (${JSON.stringify(flip)})`).toBeLessThanOrEqual(2);
+
     const geo = `setup=${JSON.stringify(setup.rootBox)} hydro=${JSON.stringify(open.rootBox)}`;
     expect(setup.rootBox, 'the composer must have a measurable crumb').toBeDefined();
     expect(open.rootBox, 'the track must have a measurable crumb').toBeDefined();
@@ -352,6 +385,35 @@ test.describe('console — the card-action Hydronetwork door', () => {
     expect(back.hydroUp, 'B leaves the track').toBe(false);
     expect(back.composerUp, 'B lands back on the card variant').toBe(true);
     expect(back.composerCta).toContain('Гидросеть');
+    // …AND THE CARD CAME BACK WITH IT. The walk out blanks the departing copy
+    // so the travelling card is never double — free for a surface that then
+    // unmounts, a permanent hole in this one, which waits mounted under the
+    // track. Its hero slot came up empty and stayed empty for the rest of the
+    // game until the entrance learned to heal what the exit posed.
+    // SETTLED, not sampled: the slot's own keyed face swap and the returning
+    // FLIP both run on the way back, so a one-shot read can catch either
+    // mid-flight. Two agreeing samples is the project's own settle rule.
+    const readHero = () => page.evaluate(() => {
+      const el = document.querySelector('.con-composer__actcardwrap') as HTMLElement | null;
+      if (el === null) {
+        return undefined;
+      }
+      const r = el.getBoundingClientRect();
+      return {opacity: getComputedStyle(el).opacity, w: Math.round(r.width), h: Math.round(r.height)};
+    });
+    let hero = await readHero();
+    for (let i = 0; i < 20; i++) {
+      await page.waitForTimeout(200);
+      const next = await readHero();
+      if (JSON.stringify(next) === JSON.stringify(hero) && Number(next?.opacity ?? 0) > 0.9) {
+        break;
+      }
+      hero = next;
+    }
+    expect(hero, 'the composer hero slot must exist').toBeDefined();
+    expect(Number(hero?.opacity ?? 0), `the carried card must come back visible (${JSON.stringify(hero)})`)
+      .toBeGreaterThan(0.9);
+    expect(hero?.w ?? 0, 'and at its own size').toBeGreaterThan(100);
     expect(await serverState(request, playerId), 'B spends nothing').toEqual(before);
 
     // ── Re-enter and CONFIRM. ─────────────────────────────────────────────

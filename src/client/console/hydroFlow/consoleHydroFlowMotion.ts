@@ -18,6 +18,7 @@
  * in the same order.
  */
 import {gsap} from 'gsap';
+import {isAnchorHandoffLive} from '@/client/console/surfaceMotion/surfaceMotionState';
 import {
   armDescendRect, descendCascade, descendRectOf, descendRelease, descendUnfold, guardedDescend,
   killDescendEpisode, takeDescendRect,
@@ -47,7 +48,15 @@ export function armHydroSceneOrigin(el: HTMLElement | null | undefined): void {
 export function hydroSceneEnterHook(el: Element, done: () => void): void {
   const layer = el as HTMLElement;
   const from = takeDescendRect(SCENE_RECT_KEY);
-  const items = Array.from(layer.querySelectorAll<HTMLElement>('[data-unfold-item]'));
+  // A CARRIED OBJECT BELONGS TO THE CARRY, NOT TO THE LOCAL CASCADE. When this
+  // layer arrives as the next stage of a flow the player started elsewhere (a
+  // card's «Открыть Гидросеть»), the source card is FLIPPING in from the
+  // composer's hero slot — cascading the very same element from inside would
+  // be two owners on one transform, and the card ends up wearing whichever
+  // finished last. `isAnchorHandoffLive` is the shared fact for exactly this.
+  const carried = isAnchorHandoffLive();
+  const items = Array.from(layer.querySelectorAll<HTMLElement>('[data-unfold-item]'))
+    .filter((n) => !(carried && n.hasAttribute('data-motion-anchor')));
   guardedDescend(layer, LAYER_MS, done, (finish) => {
     const tl = gsap.timeline({onComplete: finish});
     if (from === undefined || !descendUnfold(tl, layer, from, motionMs(LAYER_MS) / 1000 * 0.72, 0)) {
@@ -65,7 +74,9 @@ export function hydroSceneLeaveHook(el: Element, done: () => void): void {
   const layer = el as HTMLElement;
   guardedDescend(layer, 220, done, (finish) => {
     const tl = gsap.timeline({onComplete: finish});
-    const items = Array.from(layer.querySelectorAll<HTMLElement>('[data-unfold-item]'));
+    const carried = isAnchorHandoffLive();
+    const items = Array.from(layer.querySelectorAll<HTMLElement>('[data-unfold-item]'))
+      .filter((n) => !(carried && n.hasAttribute('data-motion-anchor')));
     if (items.length > 0) {
       descendRelease(tl, items, motionMs(160) / 1000, 0);
     }

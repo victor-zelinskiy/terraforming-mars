@@ -315,12 +315,26 @@ describe('StormSurgeBarrier', () => {
       expect(card.actionPreview(player).branches[0].available).is.true;
     });
 
-    it('is refused when the next stage requirements are unmet', () => {
+    it('is refused when the next stage requirements are unmet, and NAMES the tag', () => {
       // Position 2 reached; position 3 needs EARTH, which the player lacks.
       (player.deltaProjectData as {position: number}).position = 2;
       player.stock.add(Resource.ENERGY, 5);
       expect(advanceBranch().available).is.false;
-      expect(advanceBranch().unavailableReason).to.eq('Required tag is missing — you have none');
+      // «не хватает обязательной метки» is true and useless — the refusal has
+      // to say WHICH. The tag rides structurally (the surface translates its
+      // own name for it); the message is its `${0}` slot.
+      expect(advanceBranch().unavailableReason).to.eq('Required tag is missing: ${0}');
+      expect(advanceBranch().unavailableReasonTag).to.eq(Tag.EARTH);
+    });
+
+    it('names the FIRST uncovered tag of the path, in track order', () => {
+      // Nothing played but the card itself (building + power): the first
+      // uncovered requirement standing at position 0 is position 1's BUILDING…
+      const bare = new StormSurgeBarrier();
+      const [, lone] = testGame(1, {deltaProjectExpansion: true});
+      lone.stock.add(Resource.ENERGY, 5);
+      expect(DeltaProjectExpansion.missingPathTags(lone, 1)).to.deep.eq([Tag.BUILDING]);
+      expect(bare.actionPreview(lone).branches[1].unavailableReasonTag).to.eq(Tag.BUILDING);
     });
 
     it('is refused one tag short EVEN WITH energy — this card grants no waiver', () => {

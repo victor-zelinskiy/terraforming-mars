@@ -236,6 +236,17 @@ export function surfaceEnterHook(el: Element, done: () => void): void {
   if (nested.length > 0) {
     gsap.set(nested, {clearProps: 'transform,opacity,visibility'});
   }
+  // …AND THE SAME RULE FOR ANCHORS. A leave that hands its card to an
+  // incoming FLIP BLANKS its own copy (`opacity: 0`) so the travelling card is
+  // never double — which is free for a surface that then unmounts, and a
+  // permanent hole in one hidden by `v-show`. The action workspace is exactly
+  // that: it waits, mounted, under a card's Hydronetwork step, so on the walk
+  // back its hero slot came up EMPTY and stayed empty for the rest of the
+  // game. Heal here, before the FLIP re-poses whatever it claims.
+  const anchors = el.querySelectorAll<HTMLElement>('[data-motion-anchor]');
+  if (anchors.length > 0) {
+    gsap.set(anchors, {clearProps: 'opacity'});
+  }
   const reduced = consoleReducedMotionActive();
   const departure = takeSurfaceDeparture(id);
   const wheelOrigin = id === 'quick' ? undefined : takeWheelOrigin();
@@ -549,25 +560,46 @@ function enterPhase(el: Element, panel: HTMLElement, dep: SurfaceDeparture, done
     // reveal source is zoomed 0.92×uiScale) which rescale a child's
     // transform pixels — viewport-px deltas must be divided by the
     // effective zoom (visual width / layout width) or the card undershoots.
-    for (const anchorEl of el.querySelectorAll<HTMLElement>('[data-motion-anchor]')) {
-      const anchorId = anchorEl.dataset.motionAnchor;
-      const from = anchorId !== undefined ? dep.anchors.get(anchorId) : undefined;
-      if (from === undefined) {
-        continue;
+    //
+    // MEASURED ON THE NEXT FRAME, and that is load-bearing: `@enter` fires
+    // with the surface in the DOM but not yet laid out by its own machinery —
+    // a screen that arranges itself (the track seats its scene layer, publishes
+    // its zone, re-fits its rail) settles a frame later, so a rect read here is
+    // the anchor's PRE-LAYOUT position. Measured on the Hydronetwork's source
+    // dock: 216px out, which the FLIP then faithfully animated away from,
+    // leaving the card parked off its own slot. Reading it a frame later costs
+    // nothing on a surface that was already settled (the rect is the same) and
+    // is the difference between a travel and a displacement on one that wasn't.
+    requestAnimationFrame(() => {
+      if (!el.isConnected) {
+        return;
       }
-      const to = anchorEl.getBoundingClientRect();
-      if (to.width < 10 || to.height < 10) {
-        continue;
+      for (const anchorEl of el.querySelectorAll<HTMLElement>('[data-motion-anchor]')) {
+        const anchorId = anchorEl.dataset.motionAnchor;
+        const from = anchorId !== undefined ? dep.anchors.get(anchorId) : undefined;
+        if (from === undefined) {
+          continue;
+        }
+        const to = anchorEl.getBoundingClientRect();
+        if (to.width < 10 || to.height < 10) {
+          continue;
+        }
+        const scale = from.width / to.width;
+        if (!isFinite(scale) || scale <= 0) {
+          continue;
+        }
+        const effZoom = anchorEl.offsetWidth > 0 ? to.width / anchorEl.offsetWidth : 1;
+        // `overwrite` — the arriving surface may run its OWN entry cascade over
+        // the same element (the track's `[data-unfold-item]` groups). Two
+        // un-owned tweens on one transform leave whichever finishes first in
+        // charge of the final frame, which is how a travelling card ended up
+        // wearing a stale translate for the rest of its life.
+        gsap.fromTo(anchorEl,
+          {x: (from.left - to.left) / effZoom, y: (from.top - to.top) / effZoom, scale, transformOrigin: 'top left', opacity: 1},
+          {x: 0, y: 0, scale: 1, duration: s(PHASE_ANCHOR_MS), ease: 'power3.inOut',
+            overwrite: 'auto', clearProps: 'transform,opacity'});
       }
-      const scale = from.width / to.width;
-      if (!isFinite(scale) || scale <= 0) {
-        continue;
-      }
-      const effZoom = anchorEl.offsetWidth > 0 ? to.width / anchorEl.offsetWidth : 1;
-      tl.fromTo(anchorEl,
-        {x: (from.left - to.left) / effZoom, y: (from.top - to.top) / effZoom, scale, transformOrigin: 'top left', opacity: 1},
-        {x: 0, y: 0, scale: 1, duration: s(PHASE_ANCHOR_MS), ease: 'power3.inOut', clearProps: 'transform'}, 0);
-    }
+    });
     return tl;
   });
 }

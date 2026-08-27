@@ -48,6 +48,10 @@ type Vm = {
   pickFizzled: boolean,
   planPickOffered: boolean,
   pickVerbKey: string,
+  primaryVerb: string,
+  primaryLabel: string,
+  planPickMissing: boolean,
+  onPrimary(): void,
   summaryPresent: boolean,
   pickWarned: boolean,
   pickWarningKey: string,
@@ -86,6 +90,9 @@ function viewerPlayer() {
 function mountSection(offer: DeltaBonusPromptMeta | undefined, opts: {
   ownsPrompt?: boolean,
   waitingFor?: unknown,
+  /** The server is offering the advance ACTION (the plan layer's own commit
+   *  needs it — an offer never does). */
+  actionAvailable?: boolean,
 } = {}) {
   return mount(ConsoleHydroSection, {
     props: {
@@ -96,6 +103,7 @@ function mountSection(offer: DeltaBonusPromptMeta | undefined, opts: {
         waitingFor: opts.waitingFor,
       } as never,
       bonusOffer: offer,
+      actionAvailable: opts.actionAvailable ?? false,
       // The default mirrors the shell: the RAW offer is what «this workspace is
       // owed a prompt» means, and every mount with an offer has one.
       ownsPrompt: opts.ownsPrompt ?? offer !== undefined,
@@ -699,6 +707,59 @@ describe('the Hydronetwork bonus zone', () => {
   });
 
   /**
+   * ══ THE PLAYER'S OWN ADVANCE OBEYS THE SAME GATE ═══════════════════
+   *
+   * Same omission, same heads-up, same second press — and the CTA is the
+   * ADVANCE throughout. It used to relabel itself «Выбрать действие», which made
+   * it a SECOND picker opener beside the row; with the pick ALSO gating the
+   * commit, there was no way to advance at all.
+   */
+  describe('the plan layer\'s gate', () => {
+    async function planAtRepeatStage() {
+      const w = mountSection(undefined, {ownsPrompt: false, actionAvailable: true});
+      seatPreview({reuse: ['Ironworks']});
+      hydroNetworkState.selectedPosition = 7;
+      await w.vm.$nextTick();
+      return w;
+    }
+
+    it('the CTA stays the ADVANCE while the pick is unchosen', async () => {
+      const w = await planAtRepeatStage();
+      const vm = w.vm as unknown as Vm;
+      expect(vm.planPickMissing).is.true;
+      expect(vm.primaryVerb, 'never a second picker opener').to.eq('reinforce');
+      expect(vm.primaryLabel).to.eq('Reinforce the hydronetwork');
+      w.unmount();
+    });
+
+    it('REGRESSION: warns once, then advances on the second press', async () => {
+      const w = await planAtRepeatStage();
+      const vm = w.vm as unknown as Vm;
+      vm.onPrimary();
+      expect(w.emitted('confirm'), 'the first press only warns').is.undefined;
+      expect(vm.pickWarned).is.true;
+
+      vm.onPrimary();
+      const p = w.emitted('confirm')?.[0][0] as {toPosition: number, selectedCard?: string};
+      expect(p, 'the second press advances').to.not.eq(undefined);
+      expect(p.toPosition).to.eq(7);
+      expect(p.selectedCard, 'with nothing pre-collected').is.undefined;
+      w.unmount();
+    });
+
+    it('no warning at all once the pick is made — one press advances', async () => {
+      const w = await planAtRepeatStage();
+      const vm = w.vm as unknown as Vm;
+      hydroNetworkState.selectedCard = 'Ironworks' as never;
+      await w.vm.$nextTick();
+      expect(vm.planPickMissing).is.false;
+      vm.onPrimary();
+      expect(w.emitted('confirm'), 'nothing to warn about').to.have.length(1);
+      w.unmount();
+    });
+  });
+
+  /**
    * ══ NO MOVE, NO PRE-SELECT ════════════════════════════════
    *
    * On the PLAN layer a stage is only worth configuring if the player can reach
@@ -834,23 +895,50 @@ describe('the Hydronetwork bonus zone', () => {
       seatPreview({reuse: ['Ironworks']});
       const w = mountSection(REPEAT_OFFER);
       const vm = w.vm as unknown as Vm;
+      vm.sceneFocus = 'bonus-confirm';
       vm.answerBonus(true);
-      expect(w.emitted('bonus-answer'), 'nothing was submitted').is.undefined;
+      expect(w.emitted('bonus-answer'), 'nothing was submitted yet').is.undefined;
       expect(vm.pickWarned).is.true;
-      // …and it NAMES what is missing, never a bare «нельзя».
+      // …and it NAMES what is unchosen, never a bare «нельзя».
       expect(vm.pickWarningKey).to.match(/action to repeat/i);
-      // …and it points the cursor AT the thing to do next.
-      expect(vm.sceneFocus).to.eq('bonus-pick');
       w.unmount();
     });
 
-    it('the SECOND press goes and answers it', () => {
+    /**
+     * ⚠️ AND THE SECOND PRESS ADVANCES. A warning is a HEADS-UP, not a lock:
+     * advancing without stopping to configure the landed stage's reward is a
+     * legal move, and the server asks for the card afterwards either way (the
+     * console embeds that prompt in this very workspace).
+     *
+     * The first version of this gate moved the cursor onto the row, so the
+     * second press opened the picker instead — the player could never advance
+     * at all. THE CURSOR STAYS PUT.
+     */
+    it('REGRESSION: the SECOND press advances — the cursor never moves', () => {
       seatPreview({reuse: ['Ironworks']});
       const w = mountSection(REPEAT_OFFER);
       const vm = w.vm as unknown as Vm;
+      vm.sceneFocus = 'bonus-confirm';
       vm.answerBonus(true);
+      expect(vm.sceneFocus, 'the warning does not steal the cursor').to.eq('bonus-confirm');
+      vm.answerBonus(true);
+      const p = w.emitted('bonus-answer')?.[0][0] as {take: boolean, selectedCard?: string};
+      expect(p.take, 'the move went through').is.true;
+      expect(p.selectedCard, 'with nothing pre-collected').is.undefined;
+      expect(w.emitted('pick'), 'and it never opened the picker instead').is.undefined;
+      w.unmount();
+    });
+
+    /** …and A on the ROW is still the way to answer it, whenever the player
+     *  wants to — the two affordances are separate, which is the whole point. */
+    it('the row is still the door to the pick', () => {
+      seatPreview({reuse: ['Ironworks']});
+      const w = mountSection(REPEAT_OFFER);
+      const vm = w.vm as unknown as Vm;
+      expect(vm.sceneFocus, 'and the cursor starts there').to.eq('bonus-pick');
       vm.handleIntent({kind: 'press', button: 'confirm'});
-      expect(w.emitted('pick'), 'the second press opens the pre-select').to.have.length(1);
+      expect(w.emitted('pick')).to.have.length(1);
+      expect(w.emitted('bonus-answer'), 'the row never submits the move').is.undefined;
       w.unmount();
     });
 

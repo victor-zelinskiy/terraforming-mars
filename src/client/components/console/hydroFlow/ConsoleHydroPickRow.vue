@@ -96,14 +96,14 @@ export const HYDRO_PICK_COPY: Readonly<Record<HydroPickKind, {
     choose: 'Choose an action',
     change: 'Change the action',
     fizzle: 'No used actions to repeat',
-    warn: 'Choose the action to repeat first',
+    warn: 'The action to repeat is not chosen — you will be asked after advancing',
   },
   'animal-target': {
     label: 'Target card',
     choose: 'Choose a card',
     change: 'Change the card',
     fizzle: 'No card can receive the animals',
-    warn: 'Choose the card to receive the animals first',
+    warn: 'The card for the animals is not chosen — you will be asked after advancing',
   },
 };
 

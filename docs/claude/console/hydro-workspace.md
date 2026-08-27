@@ -250,15 +250,22 @@ tail slot first — «is the last item an OR?» answers no for a row that visibl
 in one. An `or()` INSIDE the effect is a different thing (one branch, two
 outcomes) and is deliberately left alone.
 
-**AND THE OMISSION IS NAMED.** The pos 7/9 pick is MANDATORY (the model says so:
-«a pos 7/9 card pick is MANDATORY before confirm — the reward can't be skipped
-per the rules»), so a confirm that ignores it forfeits nothing — it only
-postpones the question into a surface nobody chose. The gate is therefore a
-WARNING and never a bypass: the first confirm names what is missing
-(`pickWarningKey`) and puts the cursor on the pre-select row; the second press
-goes and answers it. Shared by the offer and the plan CTA, because it is the
-same omission either way — the CTA used to relabel itself «Выбрать действие» and
-never say why.
+**AND THE OMISSION IS NAMED — BUT NEVER LOCKS THE COMMIT.** Advancing without
+stopping to configure the landed stage's reward is a LEGAL move, and the pick is
+not lost by it: the server defers the same `SelectCard` either way and the
+console embeds that prompt in the workspace that made the move (which is why
+`submitHydroAdvance` unions `hydroBonusAdvancePlan`'s `serves` whenever the pick
+was not pre-collected). So `canConfirm` does NOT require it — the model used to,
+and that assertion was the trap: the CTA could not fire, the only live
+affordance was the picker, and there was no way to advance at all.
+
+The gate is a HEADS-UP: the first confirm names what is unchosen
+(`pickWarningKey` — «его спросят после продвижения», which is the truth), the
+second press advances. ⚠️ **The cursor STAYS PUT** — an earlier version moved it
+onto the row, so the second press opened the picker instead and the player was
+trapped a second time. The row is the OTHER affordance, reached by the cursor
+that starts on it; the CTA is always the advance and never relabels itself into
+a second picker opener.
 ⚠️ **The warning's slot is ALWAYS in layout** (`.con-hydro__pickwarn`, reserved
 height, content-only toggle). It fires on the press the player aimed AT the
 confirm, so a line that grew the column would move that very button out from

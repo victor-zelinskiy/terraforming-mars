@@ -253,7 +253,18 @@ describe('buildHydroModel (iteration 2)', () => {
     expect(botAt3?.isMarsBot).eq(true);
   });
 
-  it('gates confirm on a pos-9 animal target preselection (mandatory — no skip)', () => {
+  /**
+   * ⚠️ THE PICK IS PRE-COLLECTED, NEVER A COMMIT REQUIREMENT.
+   *
+   * This used to assert the opposite («the reward can't be skipped → confirm is
+   * BLOCKED») and that assertion was the bug: advancing without stopping to
+   * configure the landed stage's reward is a legal move, and the pick is not
+   * lost by it — the SERVER defers the same SelectCard either way, and the
+   * console embeds that prompt in the workspace that made the move. Gating the
+   * commit on it TRAPPED the player: the CTA could not fire and the only live
+   * affordance left was the picker.
+   */
+  it('does NOT gate confirm on a pos-9 animal target preselection', () => {
     const base = input({
       preview: fullPreview(1, {
         currentPosition: 8, maxLegalSteps: 1, maxEnergySteps: 1, maxPreviewSteps: 3,
@@ -265,9 +276,11 @@ describe('buildHydroModel (iteration 2)', () => {
     });
     const without = buildHydroModel(base);
     expect(without.needsCardSelect).eq('animal-target');
+    // The stage still ASKS — that is what the pre-select row is for …
     expect(without.mustSelectCard).eq(true);
-    // The reward can't be skipped (rules) → confirm is BLOCKED until a card is picked.
-    expect(without.canConfirm).eq(false);
+    // … but the advance itself stays confirmable. (The console warns once and
+    // takes a second press at face value.)
+    expect(without.canConfirm).eq(true);
     const withCard = buildHydroModel({...base, selectedCard: 'Birds' as never});
     expect(withCard.selectedCard).eq('Birds');
     expect(withCard.canConfirm).eq(true);

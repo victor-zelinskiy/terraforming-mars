@@ -12374,6 +12374,17 @@ export default defineComponent({
         }
         serves = ['deckSelect', 'cardSelect', 'payment', 'choice', 'amount', 'resource', 'player'];
       }
+      // …AND WHATEVER THE PLAYER DID NOT PRE-COLLECT. Advancing without
+      // stopping to configure the landed stage's reward is a legal move, and
+      // the SERVER then defers the same SelectCard — which must EMBED in this
+      // workspace rather than rise as a band over the move that caused it.
+      // Same plan the card-granted offer uses, keyed on the stage's own
+      // `followUp`; unioned, so a pre-collected path loses nothing.
+      if (payload.selectedCard === undefined) {
+        const owed = hydroBonusAdvancePlan(HYDRO_STAGES[payload.toPosition]);
+        serves = [...new Set<TaskKind>([...serves, ...owed.serves])];
+        claimDraw = claimDraw > 0 ? claimDraw : (owed.claimsDraw ? owed.drawCount : 0);
+      }
       this.beginHydroAdvancePresentation({
         kind,
         fromPosition: payload.fromPosition,
