@@ -3,6 +3,7 @@ import {ModuleManifest} from '../ModuleManifest';
 import {DeltaProject} from './DeltaProject';
 import {QuantumResearch} from './QuantumResearch';
 import {DynamicOceanBarrier} from './DynamicOceanBarrier';
+import {StormSurgeBarrier} from './StormSurgeBarrier';
 
 /**
  * THE DELTA PROJECT («Гидросеть») CARD MANIFEST.
@@ -24,6 +25,7 @@ export const DELTA_PROJECT_CARD_MANIFEST = new ModuleManifest({
   projectCards: {
     [CardName.QUANTUM_RESEARCH]: {Factory: QuantumResearch},
     [CardName.DYNAMIC_OCEAN_BARRIER]: {Factory: DynamicOceanBarrier},
+    [CardName.STORM_SURGE_BARRIER]: {Factory: StormSurgeBarrier},
   },
   preludeCards: {
     // NEVER DEALT. The Delta Project is a global subsystem every player shares

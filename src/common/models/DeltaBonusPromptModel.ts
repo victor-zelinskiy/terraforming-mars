@@ -28,7 +28,7 @@ import {CardName} from '../cards/CardName';
  * the TOP-LEVEL prompt (it is queued at `BACK_OF_THE_LINE`, after everything
  * the placement itself owed), so it can never arrive nested.
  */
-export type DeltaBonusPromptMeta = {
+export type DeltaAdvanceOffer = {
   /** The card that granted the move — the workspace's source card. */
   source: CardName;
   /** How many track positions the move covers (1 today; the field is the rule). */
@@ -49,6 +49,22 @@ export type DeltaBonusPromptMeta = {
    * move the player can already make is never sold to them.
    */
   waivesTag: boolean;
+};
+
+/**
+ * THE OFFER AS A STANDING SERVER PROMPT (Dynamic Ocean Barrier): the player did
+ * not ask for it, so it arrives as an `OrOptions` and carries the two option
+ * indices the console binds its CTA and its refusal to — never a title.
+ *
+ * The OTHER provenance of the very same offer is a CARD ACTION the player chose
+ * (Storm Surge Barrier's advance mode). Nothing is on the wire there: the whole
+ * pre-commit step is a client draft and the batch leaves only at the final
+ * confirm, so there is no option index to bind and no «Skip» to offer — B is the
+ * way out. That is exactly the difference the split expresses, and it is the
+ * whole difference: everything the workspace PRESENTS comes from the base
+ * {@link DeltaAdvanceOffer}, which both provenances fill identically.
+ */
+export type DeltaBonusPromptMeta = DeltaAdvanceOffer & {
   /**
    * The option index that TAKES the move, and the one that declines it — so the
    * console binds its CTA and its refusal without reading either title.

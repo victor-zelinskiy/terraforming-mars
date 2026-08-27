@@ -155,12 +155,27 @@ type WorkspaceKindSpec = {
    * chain that had to be re-authored each time a new host appeared.
    */
   hosts?: 'always' | 'inFlow',
+  /**
+   * The workspace's IDENTITY SYMBOL (a `BarButtonIcon` name) and, when that
+   * symbol is a wheel flight's landing anchor, its `data-wheel-anchor` id.
+   *
+   * It lives here rather than only in the host's own markup because it is part
+   * of the CRUMB'S PARENT ANCHOR, and a nested screen draws the crumb of the
+   * frame the player actually started in: a card's Hydronetwork step reads
+   * «⚡ ДЕЙСТВИЯ КАРТ › <карта> › ПРОДВИЖЕНИЕ», symbol included. A per-case
+   * table in the nested surface would be one more thing a new host silently
+   * fails to update.
+   */
+  emblem?: string,
+  wheelAnchor?: string,
 };
 
 const WORKSPACE_KINDS: Record<WorkspaceFrameKind, WorkspaceKindSpec> = {
   'card-actions': {
     root: 'Card actions', rootSelector: '.con-cardactions', sheet: 'cardActions',
     serves: [], hosts: 'always',
+    emblem: 'actions',
+    wheelAnchor: 'card-actions',
   },
   'hand': {
     root: 'Cards in hand', rootSelector: '.con-hand', section: 'hand',
@@ -177,6 +192,8 @@ const WORKSPACE_KINDS: Record<WorkspaceFrameKind, WorkspaceKindSpec> = {
     // on the real hand INSIDE this workspace). `inFlow`: at the browse layer
     // there is no flow for a follow-up to belong to.
     hosts: 'inFlow',
+    emblem: 'colonies',
+    wheelAnchor: 'trading',
   },
   'hydro': {
     root: 'Mars Hydronetwork', rootSelector: '.con-hydro', section: 'hydro',
@@ -189,6 +206,8 @@ const WORKSPACE_KINDS: Record<WorkspaceFrameKind, WorkspaceKindSpec> = {
     // trade runs INSIDE this workspace). `inFlow`: at the browse layer there
     // is no flow for a follow-up to belong to.
     hosts: 'inFlow',
+    emblem: 'hydronetwork',
+    wheelAnchor: 'hydro',
   },
   // The start workspace is a full-bleed scene: it owns the screen outright and
   // projects onto neither axis.
@@ -215,6 +234,7 @@ const WORKSPACE_KINDS: Record<WorkspaceFrameKind, WorkspaceKindSpec> = {
     // screen of its own. `inFlow`: at the browse layer there is no flow for a
     // follow-up to belong to.
     hosts: 'inFlow',
+    emblem: 'standard-projects',
   },
   // Milestones and awards are two kinds on one chassis — the same DOM root,
   // two sheet identities, because they are two different screens to the player.
@@ -632,6 +652,12 @@ export function workspaceStackCrumb(): {
 /** The root i18n key for a kind (hosts that draw their own head read this). */
 export function workspaceFrameRoot(kind: WorkspaceFrameKind): string {
   return WORKSPACE_KINDS[kind].root;
+}
+
+/** The identity symbol of a kind's parent anchor (+ its wheel anchor id). */
+export function workspaceFrameEmblem(kind: WorkspaceFrameKind): {emblem?: string, wheelAnchor?: string} {
+  const spec = WORKSPACE_KINDS[kind];
+  return {emblem: spec.emblem, wheelAnchor: spec.wheelAnchor};
 }
 
 // ── the projections onto the shell's two legacy navigation axes ─────────────

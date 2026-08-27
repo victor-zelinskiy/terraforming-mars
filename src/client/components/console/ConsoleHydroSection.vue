@@ -10,11 +10,17 @@
          committed flow grows the crumb tail «› <этап> › <шаг>». The old
          two-line lore paragraph is gone: a standing game workspace explains
          itself through its stages, not a header essay. -->
+    <!-- THE CRUMB IS THE STACK'S, NOT THE SCREEN'S. A step standing INSIDE
+         another workspace (a card's advance — «ДЕЙСТВИЯ КАРТ › ШТОРМОВОЙ
+         БАРЬЕР › ПРОДВИЖЕНИЕ») keeps reading from where the player started,
+         identity symbol included: the workspace name and the carried card
+         never restart, only the tail advances. A hydro frame that IS the root
+         reads exactly as before. -->
     <ConsoleWsHead class="con-hydro__head"
-                   root="Mars Hydronetwork"
-                   emblem="hydronetwork"
-                   wheelAnchor="hydro"
-                   :subject="crumbSubject"
+                   :root="crumbRoot"
+                   :emblem="crumbEmblem.emblem"
+                   :wheelAnchor="crumbEmblem.wheelAnchor"
+                   :subject="headSubject"
                    :stage="crumbStage"
                    :committed="crumbCommitted">
       <span class="con-hydro__chip">
@@ -369,7 +375,7 @@
               <div v-if="bonusSourceView !== undefined"
                    class="con-hydro__bonus-source"
                    :class="{'con-hydro__bonus-source--focused': sceneFocus === 'bonus-source'}"
-                   :data-zoom-slot="bonusOffer.source"
+                   :data-zoom-slot="offerRec.source"
                    data-unfold-item role="button" @click="inspectBonusSource">
                 <ConsoleSourceDock :view="bonusSourceView" :compact="true" />
               </div>
@@ -381,13 +387,13 @@
                    one block the eye reads top-to-bottom without travelling. -->
               <div class="con-hydro__bonus-body" data-unfold-item>
                 <span class="con-hydro__route">
-                  <span>{{ bonusOffer.fromPosition }}</span>
+                  <span>{{ offerRec.fromPosition }}</span>
                   <span aria-hidden="true">→</span>
-                  <b>{{ bonusOffer.toPosition }}</b>
+                  <b>{{ offerRec.toPosition }}</b>
                   <!-- THE PRICE, as a compact status badge — one token, never a
                        second heavy sentence repeating what the CTA says. -->
-                  <span v-if="bonusOffer.energyCost > 0" class="con-hydro__route-cost">
-                    −{{ bonusOffer.energyCost }}
+                  <span v-if="offerRec.energyCost > 0" class="con-hydro__route-cost">
+                    −{{ offerRec.energyCost }}
                     <i class="con-hydro__chip-ico resource_icon resource_icon--energy" aria-hidden="true"></i>
                   </span>
                   <span v-else class="con-hydro__route-cost con-hydro__route-cost--free">{{ $t('Free') }}</span>
@@ -486,7 +492,14 @@
                     <GamepadGlyph v-if="sceneFocus === 'bonus-confirm'" control="confirm" class="con-hydro__bonus-action-a" />
                     <span class="con-hydro__bonus-action-title">{{ $t(bonusCopy.confirmKey) }}</span>
                   </button>
-                  <button type="button"
+                  <!-- THE REFUSAL EXISTS ONLY WHERE THERE IS SOMETHING TO
+                       REFUSE. A card ENTRY asked no question — the player chose
+                       this move inside their own action and nothing is on the
+                       wire — so B (one level back to the variant selector) is
+                       the way out, and a «Пропустить» here would answer a
+                       question nobody asked and read as a mandatory effect. -->
+                  <button v-if="bonusSkipOffered"
+                          type="button"
                           class="con-hydro__bonus-action con-hydro__bonus-action--decline"
                           :class="{'con-hydro__bonus-action--focused': sceneFocus === 'bonus-skip'}"
                           :disabled="bonusSubmitting"
@@ -692,13 +705,14 @@ import {playedTargetZoomOrigin} from '@/client/console/played/consolePlayedTarge
 import {openConsoleCardZoom, slotZoomOrigin} from '@/client/console/consoleCardZoom';
 import {backLabelForVerb, backVerbWithOwedPrompt, WorkspaceBackVerb} from '@/client/console/consoleWorkspaceFlow';
 import {getCard} from '@/client/cards/ClientCardManifest';
-import {hydroBonusCopy, hydroZoneState} from '@/client/console/hydroFlow/hydroBonusOffer';
-import type {DeltaBonusPromptMeta} from '@/common/models/DeltaBonusPromptModel';
+import {DeltaOfferOrigin, hydroAdvanceCopy, hydroZoneState} from '@/client/console/hydroFlow/hydroBonusOffer';
+import type {DeltaAdvanceOffer, DeltaBonusPromptMeta} from '@/common/models/DeltaBonusPromptModel';
 import {conUiScale, consoleLayoutState} from '@/client/console/consoleLayoutProfile';
 import {motionMs} from '@/client/components/motion/motionTokens';
 import {cardResourceLandings} from '@/client/console/resourceTransfer/consoleResourceTransfer';
 import {
-  setWorkspaceFrameSlot, setWorkspaceFrameStage, setWorkspaceFrameSubject,
+  WorkspaceFrameKind, setWorkspaceFrameSlot, setWorkspaceFrameStage, setWorkspaceFrameSubject,
+  workspaceFrameEmblem, workspaceFrameHost, workspaceFrameRoot, workspaceStackCrumb,
 } from '@/client/console/consoleWorkspaceStack';
 import {setWorkspaceOutcomeSlot, workspaceOutcomeState} from '@/client/console/consoleWorkspaceOutcome';
 import {useConsoleReducedMotion} from '@/client/console/composables/useConsoleReducedMotion';
@@ -768,8 +782,19 @@ export default defineComponent({
      * decision this screen exists to take).
      */
     ownsPrompt: {type: Boolean, default: false},
+    /**
+     * A move on this track the player CHOSE inside a card's own action (Storm
+     * Surge Barrier's advance mode) — the SERVER's description of it, carried
+     * from the card's action preview.
+     *
+     * The other provenance of the very same offer. Nothing is on the wire yet:
+     * the whole step is a pre-commit draft, so this workspace presents it with
+     * every mechanism it already owns (destination, requirements, reward,
+     * pre-select) and the ONE confirm at the end sends the card's whole batch.
+     */
+    cardOffer: {type: Object as PropType<DeltaAdvanceOffer>, default: undefined},
   },
-  emits: ['close', 'confirm', 'pick', 'notice', 'collapse', 'result-done', 'bonus-answer', 'inspect-source'],
+  emits: ['close', 'confirm', 'pick', 'notice', 'collapse', 'result-done', 'bonus-answer', 'card-advance', 'inspect-source'],
   setup() {
     const {reduced} = useConsoleReducedMotion();
     return {reducedMotion: reduced};
@@ -962,7 +987,7 @@ export default defineComponent({
       // использовано в этом поколении» over a live bonus offer is the whole
       // header contradicting the whole scene. (The bonus move is precisely
       // the one that does NOT spend the generation.)
-      if (this.turnState === 'own-prompt') {
+      if (this.advanceOffer !== undefined || this.turnState === 'own-prompt') {
         return 'offer';
       }
       if (this.model.usedThisGeneration) {
@@ -989,7 +1014,7 @@ export default defineComponent({
       // false «Сначала завершите текущее действие» printed over the very
       // decision it was telling the player to go and finish.
       case 'busy': return 'Finish your current action first';
-      case 'offer': return 'Bonus step offered';
+      case 'offer': return this.offerOrigin === 'card-entry' ? 'Extra advance offered' : 'Bonus step offered';
       case 'blocked': return 'Unavailable right now';
       default: return 'Reinforcement available';
       }
@@ -1088,7 +1113,7 @@ export default defineComponent({
       // never paint over the move in flight.
       const c = this.flow.commit;
       const zone = hydroZoneState({
-        offerLive: this.bonusOffer !== undefined,
+        offerLive: this.advanceOffer !== undefined,
         committing: c !== undefined && c.phase !== 'result',
         resolving: c?.phase === 'result',
       });
@@ -1112,12 +1137,42 @@ export default defineComponent({
       }
       return 'preview';
     },
+    /**
+     * THE MOVE A CARD IS PUTTING ON THIS TRACK, whichever door it came through.
+     *
+     * Everything the zone PRESENTS — the source card, the route, the price, the
+     * landing stage's reward and its pre-select — is read from here and from
+     * nothing else, so a card-granted offer and a card-chosen move are one
+     * scene rather than two similar ones. Only the ANSWER differs, and that is
+     * what `offerOrigin` below is for.
+     *
+     * A standing server prompt WINS: it is a demand, and a draft can wait.
+     */
+    advanceOffer(): DeltaAdvanceOffer | undefined {
+      return this.bonusOffer ?? this.cardOffer;
+    },
+    /** How the player got here — the ONE axis the scene branches on. */
+    offerOrigin(): DeltaOfferOrigin | undefined {
+      if (this.bonusOffer !== undefined) {
+        return 'prompt';
+      }
+      return this.cardOffer !== undefined ? 'card-entry' : undefined;
+    },
+    /** The standing offer, for the bonus layer — which renders iff one does
+     *  (the `commitRec` idiom: a narrowing read, never a second source). */
+    offerRec(): DeltaAdvanceOffer {
+      return this.advanceOffer as DeltaAdvanceOffer;
+    },
+    /** Is there a refusal to offer at all? Only a standing prompt has one. */
+    bonusSkipOffered(): boolean {
+      return this.offerOrigin === 'prompt';
+    },
     /** The offer's copy — i18n KEYS from the pure module, never coined here. */
-    bonusCopy(): ReturnType<typeof hydroBonusCopy> {
-      return hydroBonusCopy(this.bonusOffer ?? {
+    bonusCopy(): ReturnType<typeof hydroAdvanceCopy> {
+      return hydroAdvanceCopy(this.advanceOffer ?? {
         source: CardName.DELTA_PROJECT, steps: 1, fromPosition: 0, toPosition: 1,
-        energyCost: 0, waivesTag: false, advanceIndex: 0, skipIndex: 1,
-      });
+        energyCost: 0, waivesTag: false,
+      }, this.offerOrigin ?? 'prompt');
     },
     /** The body sentence with the source card's TRANSLATED name folded in. */
     bonusBodyText(): string {
@@ -1126,21 +1181,21 @@ export default defineComponent({
     },
     /** The stage name the zone hands UP to the crumb (it never draws one). */
     bonusStageKey(): string {
-      return this.bonusOffer === undefined ? '' : this.bonusCopy.stageKey;
+      return this.advanceOffer === undefined ? '' : this.bonusCopy.stageKey;
     },
     /** The offer's IDENTITY — a new offer is a new decision. */
     bonusIdentity(): string {
-      const o = this.bonusOffer;
-      return o === undefined ? '' : [o.source, o.fromPosition, o.toPosition, o.energyCost].join('|');
+      const o = this.advanceOffer;
+      return o === undefined ? '' : [this.offerOrigin, o.source, o.fromPosition, o.toPosition, o.energyCost].join('|');
     },
     /** The source, in the console's ONE source-view shape. */
     bonusSourceView(): ReturnType<typeof choiceSourceView> {
-      const offer = this.bonusOffer;
+      const offer = this.advanceOffer;
       return offer === undefined ? undefined : choiceSourceView({kind: 'card', card: offer.source});
     },
     /** The landing stage itself — the ONE object the facts are read from. */
     bonusStage(): HydroStage | undefined {
-      return this.bonusOffer === undefined ? undefined : HYDRO_STAGES[this.bonusOffer.toPosition];
+      return this.advanceOffer === undefined ? undefined : HYDRO_STAGES[this.advanceOffer.toPosition];
     },
     /**
      * THE PRICE as a «сейчас → станет» line, not a bare chip. The server's own
@@ -1149,7 +1204,7 @@ export default defineComponent({
      * renders through the very same row.
      */
     bonusCostLine(): HydroDeltaLine | undefined {
-      const cost = this.bonusOffer?.energyCost ?? 0;
+      const cost = this.advanceOffer?.energyCost ?? 0;
       if (cost <= 0) {
         return undefined;
       }
@@ -1173,7 +1228,7 @@ export default defineComponent({
     },
     /** Does the offer's LANDING stage ask which reward to take (pos 1/2)? */
     bonusNeedsReward(): boolean {
-      const offer = this.bonusOffer;
+      const offer = this.advanceOffer;
       if (offer === undefined) {
         return false;
       }
@@ -1192,7 +1247,7 @@ export default defineComponent({
      * — then describes the landing stage with no second implementation.
      */
     bonusNeedsCard(): boolean {
-      return this.bonusOffer !== undefined && this.model.mustSelectCard;
+      return this.advanceOffer !== undefined && this.model.mustSelectCard;
     },
     /** …and it has not been made yet. */
     bonusPickMissing(): boolean {
@@ -1253,7 +1308,7 @@ export default defineComponent({
      * disagree about whether the move is on the table.
      */
     planPickOffered(): boolean {
-      return this.bonusOffer === undefined && this.model.mode === 'plan' &&
+      return this.advanceOffer === undefined && this.model.mode === 'plan' &&
         this.pickKind !== undefined && !hydroRuleBlocked(this.reasons);
     },
     /** The PLAYER'S OWN advance is missing the landed stage's pick. Same
@@ -1263,7 +1318,7 @@ export default defineComponent({
     },
     /** Is the offer answerable right now (not already submitted)? */
     bonusAnswerable(): boolean {
-      return this.bonusOffer !== undefined && !this.bonusSubmitting;
+      return this.advanceOffer !== undefined && !this.bonusSubmitting;
     },
     /**
      * THE LANDING STAGE'S REWARD, in the SAME view the standard advance builds
@@ -1275,7 +1330,7 @@ export default defineComponent({
      */
     bonusRewardView(): HydroRewardView {
       return buildRewardView({
-        stage: this.bonusOffer === undefined ? undefined : HYDRO_STAGES[this.bonusOffer.toPosition],
+        stage: this.advanceOffer === undefined ? undefined : HYDRO_STAGES[this.advanceOffer.toPosition],
         snapshot: this.snapshot,
         rewardChoice: this.rewardChoice,
         // …including the pos-9 target, so the facts row states the animals'
@@ -1302,6 +1357,12 @@ export default defineComponent({
       return backVerbWithOwedPrompt(hydroWorkspacePhase(this.followUpLive), this.ownsPrompt);
     },
     backLabel(): string | undefined {
+      // A card ENTRY is one logical level inside «ДЕЙСТВИЯ КАРТ», and B walks
+      // back onto the variant the player chose — never «закрыть», which would
+      // describe leaving a workspace they did not open.
+      if (this.offerOrigin === 'card-entry' && this.backVerb === 'close') {
+        return 'Back to the action';
+      }
       return backLabelForVerb(this.backVerb);
     },
     flowKind(): string {
@@ -1370,7 +1431,36 @@ export default defineComponent({
       default: return 'The stage reward is resolving';
       }
     },
+    /** The frame hosting this one, or undefined when the track IS the root. */
+    crumbHost(): WorkspaceFrameKind | undefined {
+      return workspaceFrameHost('hydro');
+    },
+    crumbRoot(): string {
+      return this.crumbHost === undefined ? 'Mars Hydronetwork' : workspaceFrameRoot(this.crumbHost);
+    },
+    crumbEmblem(): {emblem?: string, wheelAnchor?: string} {
+      return workspaceFrameEmblem(this.crumbHost ?? 'hydro');
+    },
+    /**
+     * THE SUBJECT THE HEADER DRAWS — the DEEPEST carried object of the whole
+     * stack, which for a hosted step is the host's (the card the player is
+     * acting with). Published separately from {@link crumbSubject}, which is
+     * what this FRAME contributes to that same stack: a hosted step
+     * contributes nothing, so the card never restarts.
+     */
+    headSubject(): string {
+      return this.crumbHost === undefined ?
+        this.crumbSubject :
+        (workspaceStackCrumb()?.subject?.text ?? '');
+    },
     crumbSubject(): string {
+      // HOSTED: the SUBJECT belongs to the host (the card the player is
+      // acting with) and must never restart. What this screen would have
+      // called a subject is a STAGE of that card's flow, and `crumbStage`
+      // already says it.
+      if (this.crumbHost !== undefined) {
+        return '';
+      }
       const c = this.flow.commit;
       if (c !== undefined) {
         return c.stageNameKey;
@@ -1423,7 +1513,7 @@ export default defineComponent({
     /** The stage the reward step is about: the OFFER's landing stage while one
      *  is live, else the player's own planned target. */
     choiceStageModel(): HydroStage | undefined {
-      const offer = this.bonusOffer;
+      const offer = this.advanceOffer;
       return offer !== undefined ? HYDRO_STAGES[offer.toPosition] : this.model.targetStage;
     },
     choiceOptions(): ReadonlyArray<{
@@ -1572,7 +1662,9 @@ export default defineComponent({
       }
       // «К полю» closes; under an OWED prompt the same press collapses instead
       // (the browse layer is standing over a live decision — see `backVerb`).
-      cmds.push({control: 'back', label: this.backVerb === 'collapse' ? 'Minimize' : 'To the board'});
+      cmds.push({control: 'back',
+        label: this.backVerb === 'collapse' ? 'Minimize' :
+          this.offerOrigin === 'card-entry' ? 'Back to the action' : 'To the board'});
       return cmds;
     },
     /** The draft's world-version fingerprint (for RESUME ≠ FRESH decisions). */
@@ -1614,6 +1706,18 @@ export default defineComponent({
           this.sceneFocus = 'track';
         }
       },
+    },
+    /**
+     * THE SERVER REFUSED — the move did not happen (`rollbackHydroCommit`), so
+     * the answer's in-flight latch must die with it or BOTH answers stay inert
+     * and the zone becomes a dead end. The falling edge of the commit record is
+     * the ONE honest signal: a rejected batch and a network failure unwind
+     * through the same battery.
+     */
+    'flow.commit'(now: unknown, prev: unknown): void {
+      if (now === undefined && prev !== undefined && this.advanceOffer !== undefined) {
+        this.bonusSubmitting = false;
+      }
     },
     /** The preview landed (or the stage changed under it) — the owed seat can
      *  finally be placed. */
@@ -1804,14 +1908,14 @@ export default defineComponent({
         return;
       }
       this.seatOwed = false;
-      if (this.bonusOffer !== undefined) {
+      if (this.advanceOffer !== undefined) {
         this.sceneFocus = this.bonusPickMissing ? 'bonus-pick' : 'bonus-confirm';
       } else if (this.planPickMissing) {
         this.sceneFocus = 'summary';
       }
     },
     seatPlanOnOffer(): boolean {
-      const offer = this.bonusOffer;
+      const offer = this.advanceOffer;
       if (offer === undefined) {
         return false;
       }
@@ -2011,10 +2115,10 @@ export default defineComponent({
      * while the first one sat in the source zone.
      */
     inspectBonusSource(): void {
-      if (this.bonusOffer === undefined) {
+      if (this.advanceOffer === undefined) {
         return;
       }
-      openConsoleCardZoom([{name: this.bonusOffer.source} as CardModel], 0, undefined, undefined, {
+      openConsoleCardZoom([{name: this.advanceOffer.source} as CardModel], 0, undefined, undefined, {
         statusLabel: 'Source',
         // The SHARED slot origin — the same one the hand, the reveal and the
         // action browser pass. It resolves the WRAPPER, which is what lets the
@@ -2022,7 +2126,7 @@ export default defineComponent({
         // than only zeroing the face and leaving its focus ring behind.
         origin: slotZoomOrigin(
           () => this.$refs.rootEl as HTMLElement | undefined,
-          () => this.bonusOffer?.source ?? ''),
+          () => this.advanceOffer?.source ?? ''),
       });
     },
     /**
@@ -2045,6 +2149,10 @@ export default defineComponent({
         column.push('bonus-pick');
       }
       column.push('bonus-confirm');
+      // A card ENTRY has no refusal, so «one press past the confirm» must be
+      // the confirm itself — a ring that can land on an unrendered button is a
+      // dead cursor stop, which is the same defect as a wrapping one.
+      const skip = this.bonusSkipOffered;
       const at = Math.max(0, column.indexOf(this.sceneFocus === 'bonus-skip' ? 'bonus-confirm' : this.sceneFocus));
       switch (dir) {
       case 'left':
@@ -2052,14 +2160,14 @@ export default defineComponent({
         this.sceneFocus = this.sceneFocus === 'bonus-skip' ? 'bonus-confirm' : column[Math.max(0, at - 1)];
         return;
       case 'right':
-        this.sceneFocus = this.sceneFocus === 'bonus-confirm' ? 'bonus-skip' :
+        this.sceneFocus = skip && this.sceneFocus === 'bonus-confirm' ? 'bonus-skip' :
           this.sceneFocus === 'bonus-skip' ? 'bonus-skip' : column[Math.min(column.length - 1, at + 1)];
         return;
       case 'up':
         this.sceneFocus = this.sceneFocus === 'bonus-skip' ? 'bonus-confirm' : column[Math.max(0, at - 1)];
         return;
       case 'down':
-        this.sceneFocus = this.sceneFocus === 'bonus-confirm' ? 'bonus-skip' :
+        this.sceneFocus = skip && this.sceneFocus === 'bonus-confirm' ? 'bonus-skip' :
           this.sceneFocus === 'bonus-skip' ? 'bonus-skip' : column[Math.min(column.length - 1, at + 1)];
         return;
       }
@@ -2087,8 +2195,13 @@ export default defineComponent({
       this.openTargetStep();
     },
     answerBonus(take: boolean): void {
-      const offer = this.bonusOffer;
+      const offer = this.advanceOffer;
       if (offer === undefined || this.bonusSubmitting) {
+        return;
+      }
+      // A card ENTRY has no refusal — B is its way out — so a `false` here can
+      // only be a stray press on a button that is not rendered.
+      if (!take && !this.bonusSkipOffered) {
         return;
       }
       // THE PICK IS OWED. A confirm that ignores it postpones a MANDATORY
@@ -2110,7 +2223,12 @@ export default defineComponent({
         this.openChoiceStep();
         return;
       }
-      this.submitBonus(take, take ? offer.advanceIndex : offer.skipIndex, undefined);
+      if (this.offerOrigin === 'card-entry') {
+        this.submitCardAdvance(undefined);
+        return;
+      }
+      const meta = this.bonusOffer as DeltaBonusPromptMeta;
+      this.submitBonus(take, take ? meta.advanceIndex : meta.skipIndex, undefined);
     },
     /**
      * THE ONE SUBMIT of a bonus answer (with the pre-collected reward, when the
@@ -2158,6 +2276,44 @@ export default defineComponent({
         stageNameKey: HYDRO_STAGES[offer.toPosition]?.nameKey ?? '',
         // The pos-9 presented target freezes its pre-commit count here, exactly
         // as `emitConfirm` does for the player's own advance.
+        targetBefore: this.selectedAnimalCurrent,
+      });
+    },
+    /**
+     * THE ONE SUBMIT OF A CARD-ENTRY MOVE — the same payload `submitBonus`
+     * sends, minus the option index there is none of.
+     *
+     * Everything past this point is IDENTICAL to a bonus move and to the
+     * player's own advance: the marker glides, the landed stage pays out
+     * through the reward wave, the counters tick on touchdown and the result
+     * stage holds. The only thing this method owns is the moment: BEFORE it,
+     * nothing has been spent, the card is not used and B is a clean way back;
+     * after it, the shell assembles the card's whole batch and the server
+     * commits card-used + energy + movement in one response.
+     */
+    submitCardAdvance(rewardChoice: number | undefined): void {
+      const offer = this.cardOffer;
+      if (offer === undefined || this.bonusSubmitting || this.flow.commit !== undefined) {
+        return;
+      }
+      this.bonusSubmitting = true;
+      this.armSceneFromCta();
+      const view = this.bonusRewardView;
+      const repeat = this.model.needsCardSelect === 'reuse-action' ? this.chosenRepeat : undefined;
+      this.$emit('card-advance', {
+        rewardChoice,
+        selectedCard: this.model.mustSelectCard ? this.model.selectedCard : undefined,
+        repeat,
+        steps: offer.steps,
+        fromPosition: offer.fromPosition,
+        toPosition: offer.toPosition,
+        // The SERVER's own verdict on the price — never the standard action's
+        // per-step cost, which this move does not pay.
+        spend: offer.energyCost,
+        rewards: hydroRewardTransfers(view),
+        resultLines: view.lines,
+        vp: view.vp,
+        stageNameKey: HYDRO_STAGES[offer.toPosition]?.nameKey ?? '',
         targetBefore: this.selectedAnimalCurrent,
       });
     },
@@ -2212,15 +2368,19 @@ export default defineComponent({
       if (this.rewardChoice === undefined) {
         return;
       }
-      // Answering a card-granted offer: the step is the offer's second half,
-      // so it commits THAT — never the player's own planned advance.
-      if (this.bonusOffer !== undefined) {
+      // Answering a CARD'S move: the step is that move's second half, so it
+      // commits THAT — never the player's own planned advance. Both
+      // provenances land here; only the submit differs.
+      if (this.advanceOffer !== undefined) {
         // The reward view must be read BEFORE the step closes — `sceneKey`
         // swaps on the same tick and the offer's landing stage is what the
         // transfers are measured from.
-        const index = this.bonusOffer.advanceIndex;
         const choice = this.rewardChoice;
-        this.submitBonus(true, index, choice);
+        if (this.offerOrigin === 'card-entry') {
+          this.submitCardAdvance(choice);
+        } else {
+          this.submitBonus(true, (this.bonusOffer as DeltaBonusPromptMeta).advanceIndex, choice);
+        }
         closeHydroStep();
         return;
       }

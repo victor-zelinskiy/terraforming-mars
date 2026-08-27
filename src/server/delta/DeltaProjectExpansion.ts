@@ -16,6 +16,8 @@ import {namedCardSource} from '../inputs/choiceContext';
 import {AddResourcesToCard} from '../deferredActions/AddResourcesToCard';
 import {CardResource} from '../../common/CardResource';
 import {IActionCard, ICard, isIActionCard, isIHasCheckLoops} from '../cards/ICard';
+import {UnplayableReason} from '../../common/cards/UnplayableReason';
+import {notEnoughEnergy, ruleReason} from '../cards/actionReasons';
 
 /**
  * The ordered tags for each track position (1-indexed).
@@ -73,9 +75,27 @@ export type AdvanceOptions = {
    * never cover a deficit of two.
    */
   tagWaiver?: boolean;
-  /** M€-free energy toll charged once for the whole move (the waiver's price). */
+  /**
+   * Energy charged ONCE for the whole move, instead of the standard per-step
+   * price. It is the toll of whatever the granting card sells: the tag waiver
+   * (Dynamic Ocean Barrier) or the move itself (Storm Surge Barrier, which
+   * grants no waiver and always charges 1).
+   */
   energyToll?: number;
 };
+
+/**
+ * THE DP04 CONTEXT — Storm Surge Barrier's «spend 1 energy, advance 1 step».
+ *
+ * Declared beside its sibling shapes in `BonusDeltaAdvance` so the family is
+ * readable in one place: `free` (no per-step price) + `energyToll: 1` (the move
+ * costs exactly one energy, always) + NO `tagWaiver` (the card buys a step, not
+ * a requirement — a missing path tag blocks it exactly as it blocks the
+ * standard action). Nothing here mentions the once-per-generation limit,
+ * because that limit is not a term of `advance` at all: it lives in
+ * `Player.getActions`' own option callback, which this move never goes through.
+ */
+export const DP04_ADVANCE: AdvanceOptions = {maxSteps: 1, free: true, energyToll: 1};
 
 export class DeltaProjectExpansion {
   private constructor() {}
@@ -291,6 +311,51 @@ export class DeltaProjectExpansion {
       result.push(steps);
     }
     return result;
+  }
+
+  /**
+   * WHY A CARD-GRANTED ONE-STEP MOVE IS REFUSED — the ONE answer, shared by
+   * every card that grants one.
+   *
+   * Asked in the SAME order the movement pipeline itself checks, and phrased in
+   * the keys the console Hydronetwork screen already uses for its own reasons
+   * (`client/components/hydronetwork/hydroReasons.ts`), so a card's disabled
+   * variant and the workspace it would open can never say different things.
+   *
+   * `undefined` ⇔ {@link DeltaProjectExpansion.getValidAdvanceSteps} admits a
+   * one-step move under `options` — the two are asked of the same state, so the
+   * button and its explanation cannot drift apart.
+   *
+   * DELIBERATELY NOT the STANDARD action's reason (`DeltaProject`): that one
+   * answers a different question. A multi-step advance can be refused at one
+   * step and legal at two (an opponent on the 2 VP slot with the 5 VP slot
+   * free), so «why can't I move ONE step» is not «why can't I advance».
+   */
+  public static bonusAdvanceUnavailableReason(player: IPlayer, options?: AdvanceOptions): UnplayableReason | undefined {
+    const progress = player.deltaProjectData;
+    if (progress === undefined) {
+      return ruleReason('Not in this game');
+    }
+    if (progress.position >= MAX_TRACK_POSITION) {
+      return ruleReason('You have reached the end of the Hydronetwork track.');
+    }
+    // The price of the move: the whole-move toll when the card pays per move,
+    // else the standard action's 1 energy per step.
+    const owed = options?.free === true ? (options.energyToll ?? 0) : 1;
+    if (player.energy < owed) {
+      return notEnoughEnergy();
+    }
+    const next = progress.position + 1;
+    if ((next === VP2_POSITION || next === VP5_POSITION) &&
+        DeltaProjectExpansion.hasOtherPlayerAtPosition(player.game, next, player)) {
+      return ruleReason('This VP position is occupied by another player');
+    }
+    if (DeltaProjectExpansion.getValidAdvanceSteps(player, options).includes(1)) {
+      return undefined;
+    }
+    // Energy is available and the space is free, so what stops the advance is
+    // the tag path — the track's own rule, not an economic shortfall.
+    return ruleReason('Required tag is missing — you have none');
   }
 
   /**

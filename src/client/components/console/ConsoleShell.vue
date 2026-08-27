@@ -278,7 +278,9 @@
                              :followUpLive="hydroFollowUpLive"
                              :bonusOffer="hydroBonusOfferLive ? hydroBonusOfferRaw : undefined"
                              :ownsPrompt="hydroBonusOfferRaw !== undefined"
+                             :cardOffer="hydroCardOffer"
                              @bonus-answer="submitHydroBonus($event)"
+                             @card-advance="submitHydroCardAdvance($event)"
                              @pick="openHydroRepeatPick"
                              @notice="showNotice($event)"
                              @confirm="submitHydroAdvance($event)"
@@ -317,8 +319,12 @@
              right command bar, blank screen. Opening the list to LOOK while
              another flow is parked is a supported intent (`collapsed` below
              is exactly what keeps it read-only). -->
+        <!-- v-show while an OVERLAY frame of this stack stands over it (the
+             client pick bridge; a card's Hydronetwork step): the composer and
+             every capture must survive the round trip untouched, and the two
+             surfaces must never be lit at once. -->
         <ConsoleCardActions v-if="workspaceFrameRenders('card-actions')"
-                            v-show="!pickBridgeActive"
+                            v-show="!pickBridgeActive && !cardDeltaStepStanding"
                             ref="cardActions"
                             :playerView="playerView"
                             :collapsed="workspaceCollapsed"
@@ -329,6 +335,7 @@
                             @flow-complete="onCardActionsFlowComplete"
                             @collapse="onCardActionsCollapse"
                             @colony-step="onCardActionsColonyStep"
+                            @delta-step="onCardActionsDeltaStep"
                             @close="onCardActionsClose" />
       </transition>
 
@@ -1652,7 +1659,8 @@ import {resolveAwaiting, AWAITING_SAFETY_MS} from '@/client/console/surfaceMotio
 import {surfaceEnterHook, surfaceLeaveHook, surfaceEnterCancelledHook, surfaceLeaveCancelledHook, pinQuickWheelBox} from '@/client/console/surfaceMotion/surfaceMotionDirector';
 import {consoleHandPickState, cancelConsoleHandPick, enterConsoleHandPick, resolveConsoleHandPick, resetConsoleHandPick} from '@/client/console/consoleHandPick';
 import {consoleRepeatPickState, cancelConsoleRepeatPick, enterConsoleRepeatPick, resetConsoleRepeatPick, ConsoleRepeatPickResult} from '@/client/console/consoleRepeatPick';
-import {hydroAdvanceResponses, hydroAdvanceTail} from '@/client/console/consoleHydroAdvance';
+import {hydroAdvanceBatch, hydroAdvanceResponses, hydroAdvanceTail} from '@/client/console/consoleHydroAdvance';
+import {cardDeltaAdvanceCard, cardDeltaAdvanceOffer, clearCardDeltaAdvance, deltaAdvanceEntryState, deltaAdvancePrefix} from '@/client/console/hydroFlow/deltaAdvanceEntry';
 import {consoleRepeatPickUi, resetConsoleRepeatPickUi} from '@/client/console/consoleRepeatPickUi';
 import {conUiScale, consoleLayoutState} from '@/client/console/consoleLayoutProfile';
 import {albumSpecFor} from '@/client/components/console/consoleHandAlbum';
@@ -1683,6 +1691,7 @@ import {
   promptIdentityKey,
   optionResponseForPath,
   wrapPath,
+  findPerformActionCard,
 } from '@/client/console/turnIntents';
 import {infoModeState, openInfoMode, closeInfoMode, settleInfoModeClose, restoreConsoleSnapshot, cyclePlayer, InfoDetail} from '@/client/console/infoModeState';
 import {playInspectedSwitchMotion, playInspectedReturnMotion} from '@/client/console/inspectSwitchMotion';
@@ -5292,6 +5301,26 @@ export default defineComponent({
       return this.hydroBonusOfferRaw !== undefined && this.admits('followUp');
     },
     /**
+     * A MOVE THE PLAYER CHOSE inside a card's own action (Storm Surge Barrier's
+     * advance mode) — the SECOND provenance of the same offer, and the one with
+     * NOTHING on the wire: the entry lock is client state until the workspace's
+     * own confirm sends the card's whole batch.
+     *
+     * No admission gate, deliberately: an offer the player WALKED to has no
+     * arriving effect to wait out, and there is no prompt to hold back.
+     */
+    hydroCardOffer(): ReturnType<typeof cardDeltaAdvanceOffer> {
+      return cardDeltaAdvanceOffer();
+    },
+    /** A card's Hydronetwork step stands OVER the action workspace. */
+    cardDeltaStepStanding(): boolean {
+      return this.hydroCardOffer !== undefined && workspaceFrameIsOverlay('hydro');
+    },
+    /** Does a hydro frame (live or parked) still exist to carry the entry? */
+    cardDeltaEntryFrameLive(): boolean {
+      return workspaceFrameKnown('hydro');
+    },
+    /**
      * OPEN vs QUEUE. An ocean placed while the player was ALREADY on the track
      * must not tear the workspace down and rebuild it — the offer joins the
      * flow it is already in. Policy lives in the pure module.
@@ -6974,6 +7003,26 @@ export default defineComponent({
     },
   },
   watch: {
+    /**
+     * A CARD'S HYDRONETWORK ENTRY DIES WITH ITS FRAME.
+     *
+     * B popped the frame, or the finished move unwound the whole stack — either
+     * way the lock must go, or the next visit to the track would still believe
+     * it is serving that card. Watched HERE, in the always-mounted shell: the
+     * action workspace unmounts together with the very frames whose departure
+     * this observes, so it cannot be the witness of its own end.
+     *
+     * Keyed on `workspaceFrameKnown`, so a PARKED hydro frame (the player
+     * minimized the move to read the board) keeps its entry intact.
+     */
+    cardDeltaEntryFrameLive: {
+      immediate: true,
+      handler(live: boolean): void {
+        if (!live && cardDeltaAdvanceCard() !== '') {
+          clearCardDeltaAdvance();
+        }
+      },
+    },
     /** The MA commit's verdict may arrive on either feed — the ceremony
      *  queue (fed by NotificationLayer's update) or the raw view values.
      *  Both watchers run the same pure decision; a no-op when not committing. */
@@ -12130,6 +12179,93 @@ export default defineComponent({
       } else {
         this.submitBatch(responses);
       }
+    },
+    /**
+     * THE PLAYER LEFT FOR THE TRACK — the door's own half of the handoff.
+     *
+     * Nothing is submitted here (the entry lock and the frame are already up);
+     * the track's plan is simply reset so the step opens on the SERVER's own
+     * destination rather than on whatever the player was studying the last time
+     * they visited the workspace by hand. The seating itself is the section's
+     * (`seatPlanOnOffer`, keyed on the offer's identity) — one implementation
+     * for both provenances.
+     */
+    onCardActionsDeltaStep(): void {
+      resetHydroPlan();
+      consoleHydroUi.repeatResult = undefined;
+      resetHydroFlow();
+    },
+    /**
+     * THE ONE ATOMIC COMMIT of a card's Hydronetwork move.
+     *
+     * ONE batch, and literally the SAME TAIL the standard advance sends: the
+     * card-action PREFIX (activate pick + branch pick — re-resolved from the
+     * LIVE `waitingFor`, so a refreshed view cannot address a stale menu), then
+     * `{deltaProject, amount}`, then everything the LANDED stage defers. The
+     * server therefore marks the card used, charges its energy and moves the
+     * marker in one response — there is no reachable state where one of the
+     * three happened without the others.
+     *
+     * And from the presentation's seat this IS the standard advance: the same
+     * `beginHydroAdvancePresentation`, so the marker glides, the landed stage
+     * pays out through the reward wave and the result stage holds. The player
+     * must not be able to tell a card's move from their own by watching it.
+     */
+    submitHydroCardAdvance(payload: {
+      rewardChoice: number | undefined, selectedCard?: CardName,
+      repeat?: ConsoleRepeatPickResult, steps: number,
+      fromPosition: number, toPosition: number, spend: number,
+      rewards?: ReadonlyArray<ResourceTransferSpec>,
+      resultLines?: ReadonlyArray<HydroDeltaLine>, vp?: number, stageNameKey?: string,
+      targetBefore?: number,
+    }): void {
+      // The flow owns the moment from the first press — identical guard to
+      // `submitHydroAdvance`, because the double submit it prevents is the same.
+      if (isHydroMarkerActive() || this.hydroFlow.commit !== undefined) {
+        return;
+      }
+      const card = cardDeltaAdvanceCard();
+      const perform = findPerformActionCard(this.playerView.waitingFor);
+      if (card === '' || perform === undefined) {
+        // The action is no longer on the table (the view moved under the draft).
+        // Say so and leave the entry standing — the player's own B is the exit.
+        this.showNotice(offTurnReason(this.awaitingInput));
+        return;
+      }
+      const responses = hydroAdvanceBatch(
+        deltaAdvancePrefix(perform.path, card, deltaAdvanceEntryState.branchIndex),
+        payload.steps,
+        {
+          spend: payload.spend,
+          rewardChoice: payload.rewardChoice,
+          selectedCard: payload.selectedCard,
+          repeat: payload.repeat,
+        });
+      const to = payload.toPosition;
+      const plan = hydroBonusAdvancePlan(HYDRO_STAGES[to]);
+      this.beginHydroAdvancePresentation({
+        kind: resolutionKindFor(to, {
+          composedRepeat: payload.repeat !== undefined,
+          selectedCard: payload.selectedCard,
+        }),
+        fromPosition: payload.fromPosition,
+        toPosition: to,
+        spend: payload.spend,
+        rewardChoice: payload.rewardChoice,
+        selectedCard: payload.selectedCard,
+        composedRepeat: payload.repeat !== undefined,
+        targetBefore: payload.targetBefore,
+        rewardLines: payload.resultLines ?? [],
+        vp: payload.vp,
+        stageNameKey: payload.stageNameKey ?? '',
+        rewards: payload.rewards ?? [],
+        // What the pre-collection cannot reach: the pos-5 draw and the inputs a
+        // REPEATED action raises once it runs. Those EMBED here rather than
+        // rising as a band over the workspace that caused them.
+        serves: plan.serves,
+        claimDraw: plan.claimsDraw ? plan.drawCount : 0,
+      });
+      this.submitBatch(responses);
     },
     /**
      * THE ONE PRESENTATION OPENING OF A TRACK ADVANCE — the commit record, the

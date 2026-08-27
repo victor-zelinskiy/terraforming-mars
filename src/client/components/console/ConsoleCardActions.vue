@@ -428,6 +428,7 @@
                                :repeatPickDisabled="repeat"
                                @confirm="onComposerConfirm"
                                @colony-trade="onComposerColonyTrade"
+                               @delta-advance="onComposerDeltaAdvance"
                                @cancel="onComposerCancel"
                                @inspect-source="onInspectSource"
                                @commands="onComposerCommands"
@@ -529,6 +530,8 @@ import {
 import {setConsoleActionRevealClaim, resetConsoleActionRevealClaim} from '@/client/console/consoleActionComposerUi';
 import {closeWorkspaceRoot, pushWorkspaceFrame, setWorkspaceFrameSubject, workspaceFrameHost, workspaceFrameKnown, workspaceFrameMounted, workspaceFramePhase, workspaceFrameStage, workspaceFrameSubject} from '@/client/console/consoleWorkspaceStack';
 import {beginCardColonyTrade, clearCardColonyTrade, colonyStepCrumbParts} from '@/client/console/colonyTrade/colonyTradeEntry';
+import {beginCardDeltaAdvance} from '@/client/console/hydroFlow/deltaAdvanceEntry';
+import type {DeltaAdvanceOffer} from '@/common/models/DeltaBonusPromptModel';
 import {setColonyFleetBerth} from '@/client/console/consoleColoniesModel';
 import {backVerbFor, isCommitted, WorkspacePhase, workspacePhaseOf} from '@/client/console/consoleWorkspaceFlow';
 import {
@@ -624,7 +627,7 @@ export default defineComponent({
      *  answer, so this surface never invents a second one. */
     blockedReason: {type: String, default: ''},
   },
-  emits: ['close', 'submit-batch', 'reveal-ack', 'collapse', 'blocked', 'colony-step', 'flow-complete'],
+  emits: ['close', 'submit-batch', 'reveal-ack', 'collapse', 'blocked', 'colony-step', 'delta-step', 'flow-complete'],
   data() {
     return {
       consoleCardActionsUi,
@@ -1832,6 +1835,47 @@ export default defineComponent({
         serves: ['colony'], anchor: {type: 'always'},
       });
       this.$emit('colony-step');
+    },
+    /**
+     * THE TRACK'S DOOR — the exact sibling of the colony one above, and for
+     * the same reason: `playActionCard` marks a card action used at the BRANCH
+     * PICK, so submitting first would spend the card before the destination is
+     * even on screen and leave B nothing to undo.
+     *
+     * So nothing is submitted. The Hydronetwork workspace is pushed as a frame
+     * of THIS stack — the crumb keeps reading «ДЕЙСТВИЯ КАРТ › <карта> › …»,
+     * B is one logical level back onto this exact variant, and the workspace's
+     * own confirm sends the ONE batch that activates the card and makes the
+     * move together.
+     *
+     * `overlay: true` — the track is a full workspace (an eleven-stage rail, a
+     * plan panel, its own step zones), not something that fits in a composer's
+     * outcome slot. This is the sanctioned OVERLAY case the stack documents
+     * for the client pick bridge: the composer waits underneath with every
+     * capture intact, and there is no zone for the frame to wait on.
+     *
+     * `always` for the anchor, deliberately NOT `actionAvailable`: the commit
+     * marks this card used, so an availability anchor would fail on the very
+     * response that starts the movement and the reconciler would tear the
+     * resolution out of the workspace hosting it.
+     */
+    onComposerDeltaAdvance(payload: {offer: DeltaAdvanceOffer, branchIndex: number}): void {
+      if (this.composer === undefined) {
+        return;
+      }
+      // A track flow of the player's own is already standing (or PARKED — a
+      // move they minimized to read the board). A second one beside it is not
+      // expressible, so NAME the reason instead of refusing in silence.
+      if (workspaceFrameKnown('hydro')) {
+        this.$emit('blocked', translateText('Finish your current action first'));
+        return;
+      }
+      beginCardDeltaAdvance(payload.offer.source, payload.branchIndex, payload.offer);
+      pushWorkspaceFrame({
+        kind: 'hydro', subject: '', stage: '', phase: 'browse',
+        serves: [], anchor: {type: 'always'}, overlay: true,
+      });
+      this.$emit('delta-step');
     },
     /** Assemble + submit the byte-identical batch (revalidated at submit time,
      *  mirroring PlayerHome.submitCardActionBatch's re-walk). */

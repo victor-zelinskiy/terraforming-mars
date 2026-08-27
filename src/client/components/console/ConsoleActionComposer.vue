@@ -684,6 +684,7 @@ import {consoleActionOf, ConsoleAction} from '@/client/console/composables/conso
 import {NextStepRow, noteRow, placementRow} from '@/client/console/consolePlacementNextStep';
 import {TradeColonyContext, findTradeColonyContext} from '@/client/console/turnIntents';
 import {lockedTradePaymentIndex, lockedTradePaymentReason} from '@/client/console/colonyTrade/colonyTradeEntry';
+import type {DeltaAdvanceOffer} from '@/common/models/DeltaBonusPromptModel';
 import {consoleTranslate} from '@/client/console/consoleTranslate';
 import {isBoilerplateTitle} from '@/client/console/consoleTaskSummary';
 import {tileIconStyle} from '@/client/console/consoleTileIcon';
@@ -888,7 +889,7 @@ export default defineComponent({
      */
     repeatPickDisabled: {type: Boolean, default: false},
   },
-  emits: ['confirm', 'colony-trade', 'cancel', 'inspect-source', 'reveal-ack', 'commands'],
+  emits: ['confirm', 'colony-trade', 'delta-advance', 'cancel', 'inspect-source', 'reveal-ack', 'commands'],
   data() {
     return {
       selectedPos: undefined as number | undefined,
@@ -1602,6 +1603,11 @@ export default defineComponent({
           // NAMES the tile (Aquifer Pumping → «разместите тайл океана»), through
           // the same presenter the play composer uses.
           out.push(placementRow(step, consoleTranslate, textOf));
+        } else if (step.kind === 'deltaAdvance') {
+          // This branch does not move the marker — it OPENS the track, and the
+          // energy is charged by the confirm there. Say so: the whole point of
+          // the flow is that A here costs the player nothing yet.
+          out.push(noteRow(translateText('The destination and the confirmation are on the Hydronetwork.')));
         } else if (step.kind === 'colonyTrade') {
           // This branch does not perform a trade — it ENTERS the one trade,
           // and the fee is charged there. Say so: the whole point of the flow
@@ -1767,6 +1773,16 @@ export default defineComponent({
       const reason = lockedTradePaymentReason(ctx.disabledPayments, card);
       return reason !== undefined ? textOf(reason) : translateText('Trading is not available right now');
     },
+    /**
+     * THIS BRANCH IS A HYDRONETWORK MOVE — the server's own description of it,
+     * from the branch's `deltaAdvance` step. Structural, exactly like
+     * `tradeEntryCard`: a note's prose could never carry the destination, and
+     * its text is translated in place.
+     */
+    deltaEntryOffer(): DeltaAdvanceOffer | undefined {
+      const step = this.selectedBranch?.steps.find((s) => s.kind === 'deltaAdvance');
+      return step?.kind === 'deltaAdvance' ? step.offer : undefined;
+    },
     ctaIndex(): number {
       return this.navItems.length;
     },
@@ -1825,7 +1841,12 @@ export default defineComponent({
      * nothing to undo.
      */
     commitVerbKey(): string {
-      return this.tradeEntryCard !== undefined ? 'Choose a colony' : this.commitLabel;
+      if (this.tradeEntryCard !== undefined) {
+        return 'Choose a colony';
+      }
+      // Nor does an advance branch: the destination, its requirements and its
+      // reward are studied ON the track, and the one confirm is there.
+      return this.deltaEntryOffer !== undefined ? 'Open the Hydronetwork' : this.commitLabel;
     },
     ctaDockLabel(): string {
       if (!this.payExpanded) {
@@ -3310,6 +3331,14 @@ export default defineComponent({
       //    «настраивал → активировал», and this press crosses no boundary.
       if (this.tradeEntryCard !== undefined) {
         this.$emit('colony-trade', {card: this.tradeEntryCard});
+        return;
+      }
+      // ── THE SAME DOOR, onto the Hydronetwork. Nothing is spent, nothing is
+      //    marked used, nothing goes on the wire: the branch's runtime index
+      //    travels with the offer so the workspace's own confirm can assemble
+      //    the ONE batch that activates the card and makes the move together.
+      if (this.deltaEntryOffer !== undefined) {
+        this.$emit('delta-advance', {offer: this.deltaEntryOffer, branchIndex: branch.index});
         return;
       }
       this.submitting = true;

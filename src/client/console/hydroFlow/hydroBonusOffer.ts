@@ -24,7 +24,7 @@
  * PURE: no Vue, no DOM, no i18n import — it returns KEYS. That also lets its
  * spec run under the faster server runner.
  */
-import type {DeltaBonusPromptMeta} from '@/common/models/DeltaBonusPromptModel';
+import type {DeltaAdvanceOffer, DeltaBonusPromptMeta} from '@/common/models/DeltaBonusPromptModel';
 import type {PlayerInputModel} from '@/common/models/PlayerInputModel';
 import type {HydroStage} from '@/client/components/hydronetwork/hydroStages';
 import type {TaskKind} from '@/client/console/consoleTaskRouter';
@@ -153,6 +153,24 @@ export function hydroBonusAdvancePlan(stage: HydroStage | undefined): HydroBonus
   }
 }
 
+/**
+ * HOW THE PLAYER GOT HERE — the ONE thing that differs between the two ways a
+ * card puts a move on this track, and therefore the only axis the zone branches
+ * on.
+ *
+ *  · `prompt`     — the server ASKED (Dynamic Ocean Barrier's ocean grant). An
+ *                   `OrOptions` is standing, so the refusal is an OPTION the
+ *                   player focuses and confirms, exactly like every other
+ *                   refusal in this console.
+ *  · `card-entry` — the player CHOSE this move inside a card's own action
+ *                   (Storm Surge Barrier). Nothing is on the wire: the whole
+ *                   step is a pre-commit draft, so there is nothing to decline —
+ *                   B walks back to the card's variant selector and spends
+ *                   nothing. Offering «Пропустить» here would answer a question
+ *                   nobody asked and read as a mandatory effect.
+ */
+export type DeltaOfferOrigin = 'prompt' | 'card-entry';
+
 /** The zone's copy, as ENGLISH i18n KEYS (+ params). Never rendered raw. */
 export type HydroBonusCopy = {
   /** Stage name handed UP to the workspace crumb — never drawn by the zone. */
@@ -162,34 +180,54 @@ export type HydroBonusCopy = {
   /** `${0}` in `bodyKey` — the granting card's name (translated by the caller). */
   bodyParams: ReadonlyArray<string>;
   confirmKey: string;
+  /** The REFUSAL option, or '' when there is none to offer (`card-entry`). */
   skipKey: string;
 };
 
 /**
  * The four things the player must understand, in one place:
- * WHO granted it, WHY (an ocean was placed), that the generation's own advance
- * SURVIVES, and WHAT confirming does.
+ * WHO granted it, WHY, that the generation's own advance SURVIVES, and WHAT
+ * confirming does.
+ *
+ * THE VERB IS THE VERB, and only the verb, in every shape. The price is stated
+ * by the workspace's own «Будет потрачено» delta row, in the SAME «сейчас →
+ * станет» grammar the plan panel uses — never folded into the button, which is
+ * echoed into the ONE command bar where a 34-character label crowded out
+ * «X Осмотреть» and «B Свернуть» and then truncated itself. Identical for all
+ * three shapes: a card's advance must not read differently from an ordinary one.
  */
-export function hydroBonusCopy(meta: DeltaBonusPromptMeta): HydroBonusCopy {
-  return meta.waivesTag ? {
+export function hydroAdvanceCopy(offer: DeltaAdvanceOffer, origin: DeltaOfferOrigin): HydroBonusCopy {
+  if (origin === 'card-entry') {
+    return {
+      // ONE WORD, and not the root's noun: the crumb already reads
+      // «ДЕЙСТВИЯ КАРТ › <карта> › …», so the tail names only the step.
+      stageKey: 'ADVANCE',
+      titleKey: 'Extra advance',
+      bodyKey: '${0} lets you spend 1 energy and advance 1 step on the Hydronetwork. Your usual advance this generation stays available.',
+      bodyParams: [offer.source],
+      confirmKey: 'Advance',
+      skipKey: '',
+    };
+  }
+  return offer.waivesTag ? {
     stageKey: 'BONUS STEP',
     titleKey: 'Bonus advance',
     bodyKey: 'The next stage is 1 required tag short. Spend 1 energy and take the bonus step? ${0} grants it for placing an ocean, and your usual advance this generation stays available.',
-    bodyParams: [meta.source],
-    // THE VERB, and only the verb. The price is stated by the workspace's own
-    // «Будет потрачено» delta row, in the SAME «сейчас → станет» grammar
-    // the plan panel uses — never folded into the button, which is echoed into
-    // the ONE command bar where a 34-character label crowded out «X Осмотреть»
-    // and «B Свернуть» and then truncated itself. Identical for both shapes:
-    // a bonus advance must not read differently from an ordinary one.
+    bodyParams: [offer.source],
     confirmKey: 'Advance',
     skipKey: 'Skip',
   } : {
     stageKey: 'BONUS STEP',
     titleKey: 'Bonus advance',
     bodyKey: '${0} lets you advance 1 step on the Hydronetwork for free for placing an ocean. Your usual advance this generation stays available.',
-    bodyParams: [meta.source],
+    bodyParams: [offer.source],
     confirmKey: 'Advance',
     skipKey: 'Skip',
   };
+}
+
+/** The standing-prompt shape (the historical signature, unchanged for callers
+ *  that only ever see a server offer). */
+export function hydroBonusCopy(meta: DeltaBonusPromptMeta): HydroBonusCopy {
+  return hydroAdvanceCopy(meta, 'prompt');
 }

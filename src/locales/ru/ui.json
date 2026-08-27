@@ -1206,5 +1206,7 @@
   "Choose before playing": "Выбор перед розыгрышем",
   "Not enough resources": "Недостаточно ресурсов",
   "FROM THE ARCHIVES": "ЗАПИСЬ ИЗ АРХИВА",
-  "No archive entry is available.": "Архивная запись отсутствует."
+  "No archive entry is available.": "Архивная запись отсутствует.",
+  "No tile of yours is next to an ocean": "Ни один ваш тайл не соседствует с океаном",
+  "Your tiles next to an ocean": "Ваши тайлы рядом с океаном"
 }

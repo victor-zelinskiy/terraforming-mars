@@ -6,6 +6,7 @@ import {Message} from '../logs/Message';
 import {TileType} from '../TileType';
 import {Units} from '../Units';
 import {PlayerInputModel, SelectCardModel} from './PlayerInputModel';
+import {DeltaAdvanceOffer} from './DeltaBonusPromptModel';
 
 /**
  * What a resource move does to ONE candidate card's victory points.
@@ -338,6 +339,23 @@ export type ActionPreviewStep =
    * there.
    */
   | {kind: 'colonyTrade', card: CardName}
+  /**
+   * THIS BRANCH *IS* A MOVE ON THE HYDRONETWORK — it does not run a track of
+   * its own, it enters the ONE Delta Project workspace and commits there.
+   *
+   * The sibling of `colonyTrade`, and structural for the same reason: the
+   * console reads it to turn the branch's commit into a NAVIGATION into the
+   * «Гидросеть» workspace (the destination, its requirements and its reward are
+   * studied THERE, and B walks back out with nothing spent), and `offer` is the
+   * SERVER's own verdict on the move — where the marker stands, where it would
+   * land, what it costs. A prose note could only be pattern-matched by its text,
+   * which is banned, and it would say nothing about the move itself.
+   *
+   * `offer.energyCost` is the price of THIS card's move (never the standard
+   * action's per-step energy) and `offer.waivesTag` is false for a card that
+   * grants no waiver — the client never re-derives either.
+   */
+  | {kind: 'deltaAdvance', offer: DeltaAdvanceOffer}
   | {
     kind: 'boardPlacement',
     placementType: string,

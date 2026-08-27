@@ -9,6 +9,7 @@ import {TileType} from '../../common/TileType';
 import {UnplayableReason} from '../../common/cards/UnplayableReason';
 import {MAX_OXYGEN_LEVEL, MAX_TEMPERATURE, MIN_TEMPERATURE, MAX_VENUS_SCALE} from '../../common/constants';
 import {ActionPreview, ActionPreviewBranch, ActionPreviewStep, ActionEffect, ActionRevealDescriptor, VictoryPointsDelta} from '../../common/models/ActionPreviewModel';
+import {DeltaAdvanceOffer} from '../../common/models/DeltaBonusPromptModel';
 import {AmountConversionModel, AmountCostModel, AmountResultModel, PlayerInputModel} from '../../common/models/PlayerInputModel';
 import {effectsForBehavior, copiedProductionUnits, resourceVictoryPoints} from '../models/actionPreview';
 import {Units} from '../../common/Units';
@@ -221,6 +222,23 @@ export function noteStep(noteKind: 'colony' | 'board' | 'generic', text?: string
  */
 export function colonyTradeStep(card: ICard): ActionPreviewStep {
   return {kind: 'colonyTrade', card: card.name};
+}
+
+/**
+ * THIS BRANCH IS A MOVE ON THE HYDRONETWORK — declared, not described.
+ *
+ * The sibling of {@link colonyTradeStep}, and it exists for the same reason: a
+ * card whose action reads «spend 1 energy, advance 1 step» does not run a track
+ * of its own — it enters the ONE Delta Project workspace, where the destination,
+ * its requirements and its reward are studied and the move is confirmed. Saying
+ * so structurally is what lets the console hand the player over instead of
+ * committing the card action, so nothing is spent until that confirm.
+ *
+ * `offer` is the SERVER's whole verdict on the move (position, destination,
+ * price, waiver) — the client renders it and re-derives no term of it.
+ */
+export function deltaAdvanceStep(offer: DeltaAdvanceOffer): ActionPreviewStep {
+  return {kind: 'deltaAdvance', offer};
 }
 
 /**
