@@ -169,6 +169,14 @@ export type ActionPreviewBranch = {
   /** Params for `unavailableReason`'s template (e.g. the M€ deficit). */
   unavailableReasonParams?: ReadonlyArray<string>;
   /**
+   * The TAG this refusal is about, when it is about one — the surface fills the
+   * reason's `${0}` slot with its own translated NAME («не хватает метки:
+   * Здание») and may draw its icon. Structural on purpose: a tag NAME is a
+   * translation, so a server-worded param would freeze the sentence to the
+   * server's language.
+   */
+  unavailableReasonTag?: Tag;
+  /**
    * Keys identifying which of the card's action render nodes belong to THIS
    * branch (matched by ordinal to the client's extracted action nodes), so the
    * overlay can draw a per-branch button graphic. Empty → the whole card render.

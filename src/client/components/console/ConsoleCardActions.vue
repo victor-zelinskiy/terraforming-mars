@@ -519,6 +519,7 @@ import {buildActionBatch, repeatActionResponses} from '@/client/console/consoleA
 import {consoleLayoutState} from '@/client/console/consoleLayoutProfile';
 import {browseCommandRun, focusKicker, ActionFlowDraft} from '@/client/console/consoleActionFlow';
 import {armDescendOrigin, armDescendRect} from '@/client/console/surfaceMotion/workspaceDescend';
+import {captureSurfaceDeparture} from '@/client/console/surfaceMotion/surfaceMotionState';
 import {
   actionFocusEnterHook,
   actionFocusLeaveHook,
@@ -1871,6 +1872,14 @@ export default defineComponent({
         return;
       }
       beginCardDeltaAdvance(payload.offer.source, payload.branchIndex, payload.offer);
+      // CAPTURE THE DEPARTURE BEFORE THE STACK MOVES. The track's frame and
+      // this workspace's `v-show` flip in the SAME patch, and the hydro
+      // section is declared FIRST in the shell — so its enter hook runs before
+      // this surface's leave ever fires, and a capture left to that leave
+      // arrives after the FLIP has already given up. Measuring here (the
+      // `awaiting handoff` idiom) is what lets the hero card TRAVEL into the
+      // track's source dock instead of blinking between two screens.
+      captureSurfaceDeparture('card-actions', this.$refs.rootEl as HTMLElement | undefined ?? null);
       pushWorkspaceFrame({
         kind: 'hydro', subject: '', stage: '', phase: 'browse',
         serves: [], anchor: {type: 'always'}, overlay: true,

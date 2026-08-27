@@ -685,6 +685,7 @@ import {NextStepRow, noteRow, placementRow} from '@/client/console/consolePlacem
 import {TradeColonyContext, findTradeColonyContext} from '@/client/console/turnIntents';
 import {lockedTradePaymentIndex, lockedTradePaymentReason} from '@/client/console/colonyTrade/colonyTradeEntry';
 import type {DeltaAdvanceOffer} from '@/common/models/DeltaBonusPromptModel';
+import {tagLabel} from '@/client/cards/tagLabel';
 import {consoleTranslate} from '@/client/console/consoleTranslate';
 import {isBoilerplateTitle} from '@/client/console/consoleTaskSummary';
 import {tileIconStyle} from '@/client/console/consoleTileIcon';
@@ -2143,9 +2144,16 @@ export default defineComponent({
       return raw !== '' ? translateText(raw) : '';
     },
     branchReason(b: ActionPreviewBranch): string {
-      return b.unavailableReason === undefined ?
-        translateText('Unavailable right now') :
-        textOf(b.unavailableReason, b.unavailableReasonParams);
+      if (b.unavailableReason === undefined) {
+        return translateText('Unavailable right now');
+      }
+      // A refusal ABOUT A TAG fills its own `${0}` from that tag's translated
+      // name — the same rule the Hydronetwork plan panel states it by, so the
+      // two surfaces can never name the missing tag differently.
+      const params = b.unavailableReasonTag !== undefined ?
+        [tagLabel(b.unavailableReasonTag)] :
+        b.unavailableReasonParams;
+      return textOf(b.unavailableReason, params);
     },
     rangeText(vc: ConsoleVariableChip): string {
       const unit = vc.unit ?? '';

@@ -178,6 +178,10 @@ type Readout = {
   composerCrumbStage: string,
   composerUp: boolean,
   composerCta: string,
+  /** The crumb ROOT's own box — the line must not move between the two hosts. */
+  rootBox: {x: number, y: number, h: number} | undefined,
+  /** The source card's box, wherever it currently lives. */
+  sourceBox: {x: number, y: number, w: number} | undefined,
 };
 
 async function readout(page: Page): Promise<Readout> {
@@ -204,6 +208,25 @@ async function readout(page: Page): Promise<Readout> {
       routeText: text('.con-hydro__route'),
       composerUp: document.querySelector('.con-cardactions__stagewrap .con-composer--stage') !== null,
       composerCta: text('.con-composer__cta-label'),
+      rootBox: (() => {
+        // The VISIBLE head — the action workspace stays mounted (v-show) under
+        // the track, so its hidden header must never be the one measured.
+        const heads = Array.from(document.querySelectorAll('.con-wshead__root'));
+        const live = heads.find((h) => (h as HTMLElement).offsetParent !== null);
+        if (live === undefined) {
+          return undefined;
+        }
+        const r = live.getBoundingClientRect();
+        return {x: Math.round(r.left), y: Math.round(r.top), h: Math.round(r.height)};
+      })(),
+      sourceBox: (() => {
+        const el = document.querySelector('.con-hydro__bonus-source, .con-composer__actcardwrap');
+        if (el === null || (el as HTMLElement).offsetParent === null) {
+          return undefined;
+        }
+        const r = el.getBoundingClientRect();
+        return {x: Math.round(r.left), y: Math.round(r.top), w: Math.round(r.width)};
+      })(),
     };
   });
 }
@@ -302,6 +325,26 @@ test.describe('console — the card-action Hydronetwork door', () => {
     const parked = await serverState(request, playerId);
     expect(parked, 'the door commits NOTHING').toEqual(before);
 
+    // THE CRUMB LINE DOES NOT MOVE ON THE WALK. It is the one thing that
+    // proves the two screens are one flow, and two hand-written frame
+    // paddings had it stepping 11px left and 12px up between them.
+    const flip = await page.evaluate(() => {
+      const el = document.querySelector('.con-hydro__bonus-source') as HTMLElement | null;
+      if (el === null) {
+        return 'no source';
+      }
+      const cs = getComputedStyle(el);
+      const r = el.getBoundingClientRect();
+      return `transform=${cs.transform} inline=${el.style.transform || '-'} box=${Math.round(r.width)}x${Math.round(r.height)} offsetW=${el.offsetWidth}`;
+    });
+    // eslint-disable-next-line no-console
+    console.log('[FLIP]', flip);
+    const geo = `setup=${JSON.stringify(setup.rootBox)} hydro=${JSON.stringify(open.rootBox)}`;
+    expect(setup.rootBox, 'the composer must have a measurable crumb').toBeDefined();
+    expect(open.rootBox, 'the track must have a measurable crumb').toBeDefined();
+    expect(Math.abs((open.rootBox?.x ?? 0) - (setup.rootBox?.x ?? 0)), `crumb x moved (${geo})`).toBeLessThanOrEqual(2);
+    expect(Math.abs((open.rootBox?.y ?? 0) - (setup.rootBox?.y ?? 0)), `crumb y moved (${geo})`).toBeLessThanOrEqual(2);
+
     // ── B: one logical level back, onto the same variant. ─────────────────
     await press(page, 'Escape', 2500);
     const back = await readout(page);
@@ -314,6 +357,26 @@ test.describe('console — the card-action Hydronetwork door', () => {
     // ── Re-enter and CONFIRM. ─────────────────────────────────────────────
     await press(page, 'Enter', 2500);
     expect((await readout(page)).hydroUp, 're-entering shows the step again').toBe(true);
+
+    // THE MARKER'S OWN LEG, sampled from inside the page. `setInterval` +
+    // `MutationObserver`, never `requestAnimationFrame`: headless Chromium
+    // drives rAF off the compositor, so a rAF sampler stops sampling exactly
+    // when the screen goes quiet.
+    await page.evaluate(() => {
+      const w = window as unknown as {__mk?: Array<{t: number, phase: string, x: number}>};
+      w.__mk = [];
+      const t0 = performance.now();
+      const tick = () => {
+        const el = document.querySelector('.con-hydromarker') as HTMLElement | null;
+        if (el === null) {
+          return;
+        }
+        const r = el.getBoundingClientRect();
+        const phase = (el.className.match(/con-hydromarker--(\w+)/) ?? [])[1] ?? '';
+        w.__mk?.push({t: Math.round(performance.now() - t0), phase, x: Math.round(r.left)});
+      };
+      setInterval(tick, 16);
+    });
 
     // A on the confirm routes into the LANDED STAGE'S OWN reward step when it
     // has one (position 1 asks «2 steel or 2 plants»), and that step is where
@@ -329,6 +392,27 @@ test.describe('console — the card-action Hydronetwork door', () => {
       after = await serverState(request, playerId);
     }
     await shoot(page, '4-committed');
+
+    // ── THE MARKER ACTUALLY TRAVELLED. ────────────────────────────────────
+    //
+    // The client leg is armed at the confirm but cannot start until the layer
+    // re-renders and both stop anchors measure stable; the RESPONSE beats that
+    // now that the WebSocket channel answers in about one frame, where the old
+    // 1 s poll gave the glide its run for free. Left unhandled, the gate opened
+    // past a director that did not exist yet, the view committed, the layer
+    // unmounted mid-glide and the marker simply APPEARED on the new stop
+    // (measured: 19 samples over 343 ms, phases charge+glide only, 5 moving).
+    // So this asserts the PHRASE, not a duration: it ran to its own landing.
+    const mk = await page.evaluate(() =>
+      (window as unknown as {__mk?: Array<{t: number, phase: string, x: number}>}).__mk ?? []);
+    const xs = mk.map((m) => m.x);
+    const phases = [...new Set(mk.map((m) => m.phase))];
+    const moving = xs.filter((x, i) => i > 0 && x !== xs[i - 1]).length;
+    const span = mk.length > 0 ? mk[mk.length - 1].t - mk[0].t : 0;
+    const report = `samples=${mk.length} span=${span}ms phases=${JSON.stringify(phases)} moving=${moving}`;
+    expect(phases, `the glide must reach its ARRIVAL (${report})`).toContain('arrive');
+    expect(moving, `the marker must visibly travel, not appear (${report})`).toBeGreaterThan(10);
+    expect(span, `the whole leg must play, not one frame of it (${report})`).toBeGreaterThan(600);
 
     // The move: exactly one step, exactly one energy, and the generation's own
     // advance is untouched.

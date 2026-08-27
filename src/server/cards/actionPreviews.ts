@@ -3,6 +3,7 @@ import {ICard, IActionCard} from './ICard';
 import {CardName} from '../../common/cards/CardName';
 import {CardResource} from '../../common/CardResource';
 import {CardType} from '../../common/cards/CardType';
+import {Tag} from '../../common/cards/Tag';
 import {Resource} from '../../common/Resource';
 import {Message} from '../../common/logs/Message';
 import {TileType} from '../../common/TileType';
@@ -566,6 +567,16 @@ function reasonParams(r: string | Message | UnplayableReason | undefined): Reado
   return r !== undefined && typeof r !== 'string' && 'type' in r ? r.params : undefined;
 }
 
+/**
+ * The TAG a refusal is about — carried structurally so the surface can NAME it
+ * («не хватает метки: Здание») and draw its icon, instead of the player being
+ * told only that a tag is missing. Never a param: a tag NAME is a translation,
+ * and the server would have had to word it in its own language.
+ */
+function reasonTag(r: string | Message | UnplayableReason | undefined): Tag | undefined {
+  return r !== undefined && typeof r !== 'string' && 'type' in r ? r.tag : undefined;
+}
+
 function definedSteps(steps: ReadonlyArray<ActionPreviewStep | undefined> | undefined): ReadonlyArray<ActionPreviewStep> {
   return (steps ?? []).filter((s): s is ActionPreviewStep => s !== undefined);
 }
@@ -620,6 +631,7 @@ export function singleBranch(
     available,
     unavailableReason: reasonMessage(reason),
     unavailableReasonParams: reasonParams(reason),
+    unavailableReasonTag: reasonTag(reason),
     renderKeys: [],
     effects,
     steps: available ? steps : [],
@@ -753,6 +765,7 @@ export function dynamic(card: ActionCard, player: IPlayer): ActionPreview {
     available,
     unavailableReason: reasonMessage(reason),
     unavailableReasonParams: reasonParams(reason),
+    unavailableReasonTag: reasonTag(reason),
     renderKeys: [], effects: [], steps: [],
   }]};
 }
@@ -787,6 +800,7 @@ export function orBranches(
       available: s.available,
       unavailableReason: s.available ? undefined : reasonMessage(s.unavailableReason),
       unavailableReasonParams: s.available ? undefined : reasonParams(s.unavailableReason),
+      unavailableReasonTag: s.available ? undefined : reasonTag(s.unavailableReason),
       renderKeys: [s.renderKey ?? String(i)],
       effects: s.effects ?? [],
       optionInput: s.available ? s.optionInput : undefined,

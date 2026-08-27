@@ -90,6 +90,14 @@ const PHASE_PAIRS: ReadonlySet<string> = new Set([
   // The play composer's follow-ups ride the same continuation (the on-play
   // choices that could not be pre-collected arrive as host prompts).
   'play-composer>task-host',
+  // A card action whose commit is a WALK, not a submit: «Штормовой барьер» →
+  // «Открыть Гидросеть» pushes the track as an OVERLAY frame of the same
+  // stack. Nothing was spent and nothing changed hands — it is the next stage
+  // of one activation, so the source card TRAVELS out of the composer's hero
+  // slot into the track's source dock instead of blinking out of one screen
+  // and into another. …and back again on B, which is the same walk reversed.
+  'card-actions>section',
+  'section>card-actions',
 ]);
 
 export function isPhasePair(from: SurfaceMotionId, to: SurfaceMotionId): boolean {

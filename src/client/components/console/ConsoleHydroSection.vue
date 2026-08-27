@@ -4,7 +4,7 @@
            role="region"
            :aria-label="$t('Mars Hydronetwork')"
            :data-flow="flowKind"
-           :class="{'con-hydro--cere': ceremonyDim}">
+           :class="{'con-hydro--cere': ceremonyDim, 'con-hydro--hosted': crumbHost !== undefined}">
     <!-- ── THE WORKSPACE HEADER — the shared ConsoleWsHead: root «ГИДРОСЕТЬ
          МАРСА» + the live chips as the aux browse layer; a configuring or
          committed flow grows the crumb tail «› <этап> › <шаг>». The old
@@ -376,6 +376,7 @@
                    class="con-hydro__bonus-source"
                    :class="{'con-hydro__bonus-source--focused': sceneFocus === 'bonus-source'}"
                    :data-zoom-slot="offerRec.source"
+                   :data-motion-anchor="'card:' + offerRec.source"
                    data-unfold-item role="button" @click="inspectBonusSource">
                 <ConsoleSourceDock :view="bonusSourceView" :compact="true" />
               </div>
@@ -705,6 +706,7 @@ import {playedTargetZoomOrigin} from '@/client/console/played/consolePlayedTarge
 import {openConsoleCardZoom, slotZoomOrigin} from '@/client/console/consoleCardZoom';
 import {backLabelForVerb, backVerbWithOwedPrompt, WorkspaceBackVerb} from '@/client/console/consoleWorkspaceFlow';
 import {getCard} from '@/client/cards/ClientCardManifest';
+import {tagLabel} from '@/client/cards/tagLabel';
 import {DeltaOfferOrigin, hydroAdvanceCopy, hydroZoneState} from '@/client/console/hydroFlow/hydroBonusOffer';
 import type {DeltaAdvanceOffer, DeltaBonusPromptMeta} from '@/common/models/DeltaBonusPromptModel';
 import {conUiScale, consoleLayoutState} from '@/client/console/consoleLayoutProfile';
@@ -1939,8 +1941,14 @@ export default defineComponent({
       }
     },
     reasonText(r: HydroReason): string {
-      return r.params !== undefined ?
-        translateTextWithParams(r.textKey, r.params.map(String)) :
+      // A reason ABOUT A TAG fills its own `${0}` from that tag's translated
+      // name — the carrier is the enum, never a worded param, so the sentence
+      // is the player's language on every surface that states it.
+      const params = r.params !== undefined ?
+        r.params.map(String) :
+        (r.tag !== undefined ? [tagLabel(r.tag as Tag)] : undefined);
+      return params !== undefined ?
+        translateTextWithParams(r.textKey, params) :
         translateText(r.textKey);
     },
     /** The reason's visual register — data, never a per-row colour choice. */

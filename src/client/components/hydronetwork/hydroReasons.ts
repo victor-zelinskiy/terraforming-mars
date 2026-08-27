@@ -221,7 +221,10 @@ export function hydroPlanReasons(input: HydroReasonsInput): ReadonlyArray<HydroR
   const d = model.destination;
   if (d !== undefined) {
     for (const tag of d.missingTags) {
-      out.push({kind: 'missing-tag', textKey: 'Required tag is missing — you have none', tag, blocking: true});
+      // NAMES the tag. `tag` is the carrier (structural — the surface
+      // translates its own name for it and may draw its icon); the `${0}`
+      // slot is filled from that very field, never from a second source.
+      out.push({kind: 'missing-tag', textKey: 'Required tag is missing: ${0}', tag, blocking: true});
     }
     if (d.occupied) {
       if (occupantName !== undefined && occupantName !== '') {

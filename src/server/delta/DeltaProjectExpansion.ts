@@ -158,6 +158,17 @@ export class DeltaProjectExpansion {
   }
 
   /**
+   * WHICH path tags the player cannot cover on the way to `targetPos`, in
+   * track order. The list behind {@link DeltaProjectExpansion.missingTagCount}
+   * — exposed because a refusal has to NAME the missing tag, and re-deriving
+   * that name anywhere else is how the two surfaces that state it would come
+   * to state different things.
+   */
+  public static missingPathTags(player: IPlayer, targetPos: number): ReadonlyArray<Tag> {
+    return DeltaProjectExpansion.pathTagAnalysis(player, targetPos).missingTags;
+  }
+
+  /**
    * Breaks down the tag requirement for reaching `targetPos`: the full path tags,
    * which lacked tags a wild covers, and which remain uncovered (⇒ illegal). The
    * wild→tag assignment is positional (arbitrary but stable) — only the counts /
@@ -354,8 +365,20 @@ export class DeltaProjectExpansion {
       return undefined;
     }
     // Energy is available and the space is free, so what stops the advance is
-    // the tag path — the track's own rule, not an economic shortfall.
-    return ruleReason('Required tag is missing — you have none');
+    // the tag path — the track's own rule, not an economic shortfall. NAME the
+    // tag: «не хватает обязательной метки» tells the player that something is
+    // wrong and nothing about what to do about it. The `tag` field is what
+    // carries it (structural — the client translates its own name for it),
+    // and the `${0}` slot is filled from that same field, never from a param
+    // the server would have had to word in its own language.
+    const missing = DeltaProjectExpansion.missingPathTags(player, next);
+    return {
+      type: 'tag',
+      message: missing.length > 0 ?
+        'Required tag is missing: ${0}' :
+        'Required tag is missing — you have none',
+      tag: missing[0],
+    };
   }
 
   /**

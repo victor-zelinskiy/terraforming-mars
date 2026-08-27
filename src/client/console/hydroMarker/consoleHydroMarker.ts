@@ -34,6 +34,8 @@ import {Color} from '@/common/Color';
 import {registerAnimationHoldSupplier} from '@/client/components/presentation/animationHold';
 import {consoleReducedMotionActive} from '@/client/console/composables/useConsoleReducedMotion';
 import type {HydroMarkerDirectorHandle} from '@/client/console/hydroMarker/hydroMarkerDirector';
+import {arriveReadyMs, markerTimings, reducedMarkerTimings} from '@/client/console/hydroMarker/hydroMarkerModel';
+import {motionMs} from '@/client/components/motion/motionTokens';
 import {ResourceTransferSpec} from '@/client/console/resourceTransfer/resourceTransferModel';
 import {
   runResourceTransfers, beginPanelRewardHold, releasePanelRewardHold,
@@ -73,6 +75,26 @@ export const hydroMarkerState = reactive<HydroMarkerState>({
 
 let handle: HydroMarkerDirectorHandle | undefined;
 let lockResolve: (() => void) | undefined;
+/**
+ * A LOCK REQUESTED BEFORE THE DIRECTOR EXISTED.
+ *
+ * The client leg is armed synchronously at the confirm, but the glide itself
+ * cannot start until the layer has re-rendered AND both stop anchors measure
+ * stable (two agreeing rAF samples) — a handful of frames. The RESPONSE now
+ * routinely beats that: the WebSocket channel is the primary update signal, so
+ * the server's answer arrives in about one frame where the old 1-second poll
+ * gave the glide its whole run for free. `runHydroMarker` then found no handle,
+ * fell through its 100 ms fallback, the view committed, `endHydroMarker`
+ * finalized and the layer unmounted — and the marker simply appeared on the new
+ * stop, one frame, every time.
+ *
+ * So a lock asked for too early is REMEMBERED and handed to the director the
+ * moment it registers. The director already owns the other half of the same
+ * rule (`lockRequested && arriveReached`), so the glide still plays out in
+ * full and the gate opens on its real landing.
+ */
+let pendingLock: (() => void) | undefined;
+let pendingLockSafetyId = 0;
 let claimed = false; // detectHydroMarker consumes the arm exactly once
 let armSafetyId = 0;
 let settleTimerId = 0;
@@ -93,6 +115,21 @@ registerAnimationHoldSupplier('hydro-marker', isHydroMarkerActive);
 /** The director registers its handle so the controller can drive lock/skip. */
 export function registerHydroMarkerHandle(h: HydroMarkerDirectorHandle | undefined): void {
   handle = h;
+  // …and a lock that arrived before the glide existed is served NOW, so the
+  // move the player is watching is the one the gate is waiting on.
+  if (h !== undefined && pendingLock !== undefined) {
+    const done = pendingLock;
+    pendingLock = undefined;
+    clearPendingLockSafety();
+    h.lock(done);
+  }
+}
+
+function clearPendingLockSafety(): void {
+  if (pendingLockSafetyId !== 0) {
+    clearTimeout(pendingLockSafetyId);
+    pendingLockSafetyId = 0;
+  }
 }
 
 /** The director reports phase transitions (charge → glide → arrive). */
@@ -204,7 +241,19 @@ export function runHydroMarker(): Promise<void> {
   if (handle !== undefined) {
     handle.lock(done);
   } else {
-    setTimeout(done, hydroMarkerState.reducedMotion ? 0 : 100);
+    // WAIT for the director rather than resolving past it (see `pendingLock`).
+    // The safety is a BACKSTOP for the one case that genuinely has no glide —
+    // no believable anchors, a stalled rAF — and is sized to the whole
+    // client leg plus the lock, so it can never cut a running glide short.
+    pendingLock = done;
+    clearPendingLockSafety();
+    const t = hydroMarkerState.reducedMotion ? reducedMarkerTimings() : markerTimings();
+    pendingLockSafetyId = setTimeout(() => {
+      pendingLockSafetyId = 0;
+      const cb = pendingLock;
+      pendingLock = undefined;
+      cb?.();
+    }, motionMs(arriveReadyMs(t) + t.lockMs) + 600) as unknown as number;
   }
   return promise;
 }
@@ -217,6 +266,8 @@ export function runHydroMarker(): Promise<void> {
  */
 export function endHydroMarker(): void {
   clearArmSafety();
+  clearPendingLockSafety();
+  pendingLock = undefined;
   const settled = hydroMarkerState.toPosition;
   const rewards = pendingRewards;
   pendingRewards = [];
@@ -253,9 +304,15 @@ export function endHydroMarker(): void {
  */
 export function abortHydroMarker(): void {
   clearArmSafety();
-  if (!hydroMarkerState.active && lockResolve === undefined) {
+  clearPendingLockSafety();
+  if (!hydroMarkerState.active && lockResolve === undefined && pendingLock === undefined) {
     return;
   }
+  // A lock still owed to a director that never arrived is answered here, or
+  // the transport's gate would hold the whole view behind a dead flight.
+  const owed = pendingLock;
+  pendingLock = undefined;
+  owed?.();
   handle?.skip();
   handle = undefined;
   claimed = false;
@@ -274,6 +331,8 @@ export function abortHydroMarker(): void {
 /** Test-only full reset. */
 export function resetHydroMarker(): void {
   clearArmSafety();
+  clearPendingLockSafety();
+  pendingLock = undefined;
   if (settleTimerId !== 0) {
     clearTimeout(settleTimerId);
     settleTimerId = 0;

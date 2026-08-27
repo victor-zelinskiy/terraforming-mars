@@ -473,6 +473,17 @@ html.console-native {
        --con-stage-gain. */
     --con-stage-x: var(--con-pad-x);
     --con-stage-gain: calc(var(--con-hud-pad-x) - var(--con-stage-x));
+    /* ═══ THE WORKSPACE-FRAME PERIMETER ═══
+       The inset a workspace's own chrome (its header line first of all) sits
+       at inside its frame. It is a TOKEN because a workspace hosted INSIDE
+       another one has to adopt the host's perimeter: the crumb is the one
+       line that must not move on the walk from «ДЕЙСТВИЯ КАРТ › <карта> ›
+       НАСТРОЙКА» to «… › ПРОДВИЖЕНИЕ», and two hand-written paddings put it
+       11px left and 12px up between the two screens. Profiles override the
+       TOKENS, never the per-surface declarations. */
+    --con-ws-frame-pad-t: .75rem;
+    --con-ws-frame-pad-x: 1.1rem;
+    --con-ws-frame-pad-b: .7rem;
     /* ═══ THE STABLE STATUS-RAIL CONTRACT ═══
        Every workspace foot/status rail is a FIXED-height instrument: its
        content changes with the cursor, its box never does — the body above
@@ -4864,9 +4875,19 @@ html.console-mode body.placement-pending .board-outer-spaces > .board-space.boar
        track and the dossier are large visual matter: the VISUAL-STAGE inset
        (two-level safe area) — nothing textual lives at this screen's right
        edge. */
-    padding: .1rem var(--con-stage-x, .55rem) 0 .55rem;
+    padding: var(--con-hydro-pad-t, .1rem) var(--con-stage-x, .55rem) 0 var(--con-hydro-pad-l, .55rem);
     font-family: @con-font;
     color: @con-text;
+
+    /* HOSTED — the track is standing as a STEP of another workspace (a card's
+       «Открыть Гидросеть»), so it lives inside that frame and takes its
+       perimeter. Only the two edges the HEADER hangs off move: the right and
+       bottom stay the track's own, because the 11-stop rail is large visual
+       matter and keeps the visual-stage inset. */
+    &--hosted {
+        --con-hydro-pad-t: var(--con-ws-frame-pad-t);
+        --con-hydro-pad-l: var(--con-ws-frame-pad-x);
+    }
 
     /* The shared workspace header (fall-through class on ConsoleWsHead). */
     &__head { flex-shrink: 0; }
@@ -25331,8 +25352,11 @@ html.console-mode {
         display: flex;
         flex-direction: column;
         gap: .55rem;
-        /* THE STAGE SURFACE (perimeter shell) — see .con-stage-surface(). */
-        padding: .75rem var(--con-hud-pad-x, 1.1rem) .7rem 1.1rem;
+        /* THE STAGE SURFACE (perimeter shell) — see .con-stage-surface().
+           The perimeter is the SHARED workspace-frame token, so a screen
+           hosted inside this one lands its header on the same line. */
+        padding: var(--con-ws-frame-pad-t) var(--con-hud-pad-x, var(--con-ws-frame-pad-x))
+                 var(--con-ws-frame-pad-b) var(--con-ws-frame-pad-x);
         .con-stage-surface();
     }
 
@@ -28521,7 +28545,7 @@ html .con-composer--stage.con-composer--colonystep {
    geometry itself (right of the rail) rides the seam tokens the profile
    already overrides on .con-main. */
 html.con-profile-handheld .con-cardactions {
-    .con-cardactions__frame { padding: .5rem var(--con-hud-pad-x, .7rem) .45rem .7rem; gap: .45rem; }
+    .con-cardactions__frame { gap: .45rem; }
     /* The Deck's control tier must stay ONE row: the LB/RB · LT/RT keycaps
        already identify the groups — the text labels are couch luxury
        (same call as .con-status__intel-label). */
@@ -28662,6 +28686,11 @@ html.con-profile-handheld {
         --con-rail-w: 7.55rem;
         /* (--con-stage-x rides the shared edge pad — base rule.) */
         --con-ws-foot-h: 2.1rem;
+        /* The Deck's tighter workspace-frame perimeter — the TOKENS, so every
+           workspace (and every screen hosted inside one) compacts together. */
+        --con-ws-frame-pad-t: .5rem;
+        --con-ws-frame-pad-x: .7rem;
+        --con-ws-frame-pad-b: .45rem;
     }
     .con-status {
         gap: .6rem;

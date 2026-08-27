@@ -85,6 +85,7 @@
     "A joint engineering megaproject: spend energy to advance; only the stage you stop on grants its reward.": "Совместный инженерный мегапроект: тратьте энергию на продвижение — награду даёт только этап, на котором вы остановились.",
     "The Hydronetwork has already been reinforced this generation": "Гидросеть уже укреплялась в этом поколении",
     "Required tag is missing — you have none": "Не хватает обязательной метки — у вас её нет",
+    "Required tag is missing: ${0}": "Не хватает обязательной метки: ${0}",
     "The finish position is occupied by ${0}": "Финишная позиция занята: ${0}",
     "Requires ${0} energy — you have ${1}": "Нужно энергии: ${0} — у вас ${1}",
     "Choose a bonus": "Выберите бонус",
