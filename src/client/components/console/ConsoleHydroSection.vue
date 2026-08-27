@@ -199,7 +199,10 @@
               <!-- (pos 1/2 has NO row here: the reward is chosen and CONFIRMED
                    inside its own step, so nothing about it is ever configured
                    out here — see openChoiceStep.) -->
-              <ConsoleHydroPickRow v-if="pickKind !== undefined"
+              <!-- …and ONLY for a stage the player can actually reach: a real rule
+                   in the way (no path tag, an occupied slot, no energy) means
+                   there is no move to configure, so there is no row. -->
+              <ConsoleHydroPickRow v-if="planPickOffered && pickKind !== undefined"
                                    :kind="pickKind"
                                    :card="model.selectedCard"
                                    :node="repeatNode"
@@ -442,7 +445,11 @@
                      nothing here is a second implementation. Without it the
                      pos-7 / pos-9 pick arrived AFTER the commit, as a
                      standalone legacy card browser. -->
-                <ConsoleHydroPickRow v-if="pickKind !== undefined"
+                <!-- The OFFER's own row is NOT gated on the plan's rule check:
+                     the server already vetted this step (a waiver offer is legal
+                     precisely BECAUSE it ignores one missing tag, which the
+                     seated plan still reports as a DOMAIN blocker). -->
+                <ConsoleHydroPickRow v-if="pickKind !== undefined && (bonusNeedsCard || pickFizzled)"
                                      :kind="pickKind"
                                      :card="model.selectedCard"
                                      :node="repeatNode"
@@ -653,7 +660,7 @@ import {iconClassFor} from '@/client/components/modalInputs/optionIcons';
 import {buildHydroModel, HydroModel, HydroStageVM} from '@/client/components/hydronetwork/hydroNetworkModel';
 import {HYDRO_STAGES, HydroStage, hydroStageNeedsChoice} from '@/client/components/hydronetwork/hydroStages';
 import {buildRewardView, HydroDeltaLine, HydroPlayerSnapshot, HydroRewardView} from '@/client/components/hydronetwork/hydroReward';
-import {destinationAt, gradeDestination, HydroReason, hydroPlanReasons, hydroPrimaryBlocker, hydroReasonBlocker, HydroStopGrade, HydroTurnState, hydroTurnStateOf} from '@/client/components/hydronetwork/hydroReasons';
+import {destinationAt, gradeDestination, HydroReason, hydroPlanReasons, hydroPrimaryBlocker, hydroReasonBlocker, hydroRuleBlocked, HydroStopGrade, HydroTurnState, hydroTurnStateOf} from '@/client/components/hydronetwork/hydroReasons';
 import {AvailabilityBlocker} from '@/common/availability/AvailabilityBlocker';
 import {ACTION_MENU_TITLES} from '@/common/inputs/actionMenuTitles';
 import {Message} from '@/common/logs/Message';
@@ -1232,11 +1239,27 @@ export default defineComponent({
       const copy = HYDRO_PICK_COPY[this.pickKind];
       return this.model.selectedCard === undefined ? copy.choose : copy.change;
     },
+    /**
+     * IS THE PRE-SELECT EVEN ON OFFER on the plan layer?
+     *
+     * Only for a stage the player can actually REACH. A real rule in the way —
+     * a missing path tag, an occupied VP slot, no energy, the generation
+     * already spent — means the advance cannot be made at all, and inviting
+     * the player to configure which action it would repeat is an offer to
+     * decide something that will never happen. (A TURN gate is deliberately
+     * not one of those: planning off-turn is supported everywhere here.)
+     *
+     * The SAME condition the CTA uses, so the row and the button can never
+     * disagree about whether the move is on the table.
+     */
+    planPickOffered(): boolean {
+      return this.bonusOffer === undefined && this.model.mode === 'plan' &&
+        this.pickKind !== undefined && !hydroRuleBlocked(this.reasons);
+    },
     /** The PLAYER'S OWN advance is missing the landed stage's pick. Same
      *  omission, same warning — asked of the plan layer rather than the offer. */
     planPickMissing(): boolean {
-      return this.bonusOffer === undefined && this.model.mode === 'plan' &&
-        this.model.mustSelectCard && this.model.selectedCard === undefined;
+      return this.planPickOffered && this.model.mustSelectCard && this.model.selectedCard === undefined;
     },
     /** Is the offer answerable right now (not already submitted)? */
     bonusAnswerable(): boolean {
@@ -1305,7 +1328,7 @@ export default defineComponent({
      * now the question's home from the first frame, in both scenes.
      */
     summaryPresent(): boolean {
-      return this.model.mode === 'plan' && this.pickKind !== undefined;
+      return this.planPickOffered;
     },
     /** What A means on the preview layer (the CTA and the bar agree). */
     primaryVerb(): 'reinforce' | 'choose-reward' | 'choose-action' | 'choose-card' | 'blocked' {

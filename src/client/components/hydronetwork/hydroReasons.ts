@@ -81,6 +81,23 @@ export function hydroReasonBlocker(reason: HydroReason): AvailabilityBlocker {
 }
 
 /**
+ * IS THE MOVE IMPOSSIBLE, rather than merely out of reach this second?
+ *
+ * A `DOMAIN` blocker is a real game rule — a missing path tag, an occupied VP
+ * slot, no energy, the generation already spent, the end of the track — and it
+ * says the advance cannot be made in the CURRENT game state at all. A turn /
+ * execution gate says nothing of the kind: planning off-turn is supported
+ * everywhere in this console, so it deliberately does NOT answer true here.
+ *
+ * Its first consumer is the pre-select row: configuring which action to repeat
+ * (or which card receives the animals) for a stage the player cannot reach is
+ * an offer to decide something that will never happen.
+ */
+export function hydroRuleBlocked(reasons: ReadonlyArray<HydroReason>): boolean {
+  return reasons.some((r) => r.blocking && hydroReasonBlocker(r).code === 'DOMAIN');
+}
+
+/**
  * The reason list's WINNING blocker (a real rule outranks a turn gate — «Сейчас
  * не ваш ход» must never mask «не хватает энергии»). `undefined` = nothing
  * blocks the advance.
