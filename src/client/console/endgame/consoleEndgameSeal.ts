@@ -41,7 +41,7 @@ import {journalState} from '@/client/components/journal/journalState';
 import {resetConsoleJournalUi} from '@/client/console/consoleJournalState';
 import {closeConsoleCardZoom} from '@/client/console/consoleCardZoom';
 import {closeColonyFocus} from '@/client/console/consoleColoniesModel';
-import {resetPlanetFocus} from '@/client/console/planetFocus';
+import {beginPlanetFocusExit, isPlanetFocusEngaged, resetPlanetFocus} from '@/client/console/planetFocus';
 import {resetSurfaceMotion} from '@/client/console/surfaceMotion/surfaceMotionState';
 import {clearTransient, setTurn} from '@/client/components/notifications/notificationState';
 
@@ -87,7 +87,23 @@ export function sealLiveGameSurfaces(): void {
   journalState.open = false;
   resetConsoleJournalUi();
   closeConsoleCardZoom();
-  resetPlanetFocus();
+  // PLANET FOCUS IS ASKED TO END, NOT TO VANISH.
+  //
+  // The module owns WHEN the mode ends; the BOARD owns its geometry (the
+  // camera moved in, and the pre-focus framing is replayed on the `exiting`
+  // phase). `resetPlanetFocus` is a hard DROP — it jumps straight to `idle`,
+  // so `exiting` never happens, nothing replays the framing, and the stage's
+  // box does not change either, so no resize ever re-derives it: the player
+  // collapsed the results onto a planet zoomed in, clipped by both bars, with
+  // the arcs cut off. The ordinary exit costs nothing here (it plays under the
+  // arriving scene) and unfreezes `heldParams` through its own settle, so the
+  // post-game HUD reads live values. The hard drop stays for the case it is
+  // FOR: nothing engaged, nothing to unwind.
+  if (isPlanetFocusEngaged()) {
+    beginPlanetFocusExit();
+  } else {
+    resetPlanetFocus();
+  }
   // The colony FOCUS STAGE outlives its own frame (it is module state, not a
   // frame phase): the endgame root unwinds the stack, but a stage left open
   // would re-open UNDER the player the next time they walk into «Колонии»

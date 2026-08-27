@@ -307,6 +307,22 @@ describe('the OR choice marker is never lost on the face', () => {
     expect(actions[1].orJoin).to.eq(true);
   });
 
+  it('a LEADING OR inside the action frame (Rotator Impacts) draws ONE divider, not two «или»', () => {
+    // The DSL opens the second action box's CAUSE with `or()` («ИЛИ <asteroid>
+    // → Venus»). The panel already draws the «ИЛИ» divider between two action
+    // groups, so leaving that glyph inline printed the word TWICE — once as the
+    // divider, once again inside the box right under it.
+    const groups = vmOf(CardName.ROTATOR_IMPACTS).mechanics.groups;
+    const actions = groups.filter((g) => g.kind === 'action');
+    expect(actions.length).to.eq(2);
+    expect(actions[1].orJoin, 'the second action must carry the ИЛИ divider').to.eq(true);
+    const cause = effectParts(actions[1].nodes.find(isICardRenderEffect)!).cause;
+    expect(cause.some((n) => isICardRenderSymbol(n) && (n as {type: string}).type === 'OR'),
+      'the connector is still drawn INSIDE the box — that is the second «или»').to.eq(false);
+    // …and the branch itself is intact: the spent asteroid still opens the cause.
+    expect(cause.length).to.be.greaterThan(0);
+  });
+
   it('a leading edge OR (Sabotage) becomes the divider; interior OR stays inline', () => {
     const groups = vmOf(CardName.SABOTAGE).mechanics.groups;
     // the second row led with an OR → it becomes a divider
@@ -348,10 +364,18 @@ describe('the OR choice marker is never lost on the face', () => {
         // legitimate inline choice within one action and stays.
         for (const node of group.nodes) {
           if (isICardRenderEffect(node)) {
-            const result = effectParts(node).result.filter((n) => !isSpacer(n));
-            const edge = [result[0], result[result.length - 1]];
-            if (edge.some((n) => isICardRenderSymbol(n) && (n as {type: string}).type === 'OR')) {
-              stray = true;
+            // BOTH rows of the frame: the DSL marks the join between two stacked
+            // boxes at either end — leading the 2nd box's CAUSE («ИЛИ <floater>
+            // → …») or closing the 1st box's RESULT («… <asteroid> ИЛИ»).
+            // Checking only the result is what let Rotator Impacts / Weather
+            // Balloons / Icy Impactors / Extractor Balloons print a DOUBLE «или».
+            const parts = effectParts(node);
+            for (const row of [parts.cause, parts.result]) {
+              const drawn = row.filter((n) => !isSpacer(n));
+              const edge = [drawn[0], drawn[drawn.length - 1]];
+              if (edge.some((n) => isICardRenderSymbol(n) && (n as {type: string}).type === 'OR')) {
+                stray = true;
+              }
             }
           }
         }

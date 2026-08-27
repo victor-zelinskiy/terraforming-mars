@@ -204,10 +204,27 @@ describe('consoleEndgameSeal', () => {
     expect(notificationState.turn, 'the turn card').to.eq(undefined);
   });
 
-  it('resets PLANET FOCUS — a held HUD must not survive into the post-game', () => {
+  /*
+   * PLANET FOCUS IS ASKED TO END, NOT TO VANISH. The module owns WHEN the
+   * mode ends; the BOARD owns its geometry — the camera moved in, and the
+   * pre-focus framing is replayed on the `exiting` phase. A hard
+   * `resetPlanetFocus()` jumps straight to `idle`, so nothing replays it and
+   * nothing re-derives it either (the stage's box does not change across the
+   * boundary, so no resize reaches the fit): the player collapsed the results
+   * onto a planet zoomed in, clipped by both bars, arcs cut off.
+   */
+  it('ENDS an engaged planet focus through its own exit (never a hard drop)', () => {
     planetFocusState.phase = 'active';
     sealLiveGameSurfaces();
-    expect(planetFocusState.phase).to.eq('idle');
+    expect(planetFocusState.phase, 'the exit has begun').to.eq('exit-prep');
+  });
+
+  it('…and hard-drops it when nothing is engaged — the case the reset is for', () => {
+    planetFocusState.phase = 'idle';
+    planetFocusState.heldParams = {temperature: -30, oxygenLevel: 0, oceans: 0, venusScaleLevel: 0};
+    sealLiveGameSurfaces();
+    expect(planetFocusState.phase, 'phase').to.eq('idle');
+    expect(planetFocusState.heldParams, 'no frozen parameters survive').to.eq(undefined);
   });
 
   it('releases every SHADE OWNER — the dim belongs to surfaces that have all left', () => {

@@ -409,6 +409,26 @@ export default defineComponent({
         // on the same numbers, so it is a no-op). Re-running the restore at
         // idle used to re-arm calibration and undo the replay.
         void this.$nextTick(() => this.restoreNormalFraming());
+        return;
+      }
+      /*
+       * …AND THE MODE CAN END WITHOUT EXITING. `resetPlanetFocus()` is a
+       * legitimate HARD DROP (shell unmount, game switch, and — since the
+       * end-of-game seal — the Phase.END boundary): it jumps the phase
+       * straight to `idle` from wherever it stood, so the `exiting` branch
+       * above never runs and the FOCUS framing is simply left applied. The
+       * module owns WHEN the mode ends; this component owns the geometry, and
+       * a geometry nobody restored is a planet the player finds zoomed in,
+       * clipped by both bars, with the arcs cut off — the reported endgame
+       * bug, one collapse later.
+       *
+       * `fitMode` is the honest witness: after a real exit the replay has
+       * already set it to `normal`, so this can neither double-restore nor
+       * undo it. Nothing re-derives it on its own either — the stage's box
+       * does not change, so no resize reaches `scheduleFit`.
+       */
+      if (now === 'idle' && this.fitMode === 'focus') {
+        void this.$nextTick(() => this.restoreNormalFraming());
       }
     },
     /** The band has finished condensing — the board is measurable again, so

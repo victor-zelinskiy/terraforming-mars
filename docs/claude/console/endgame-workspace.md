@@ -150,6 +150,21 @@ is down; nothing is ever owed), and the drawn-cards REVEAL — a reload into an
 ended game can still owe undelivered draws, and «no silent loss» outranks a
 tidy screen.
 
+⚠ **PLANET FOCUS IS ASKED TO END, NOT TO VANISH.** The module owns WHEN the
+mode ends; `ConsoleBoardSection` owns its GEOMETRY — the camera moved in, and
+the pre-focus framing is replayed on the `exiting` phase. `resetPlanetFocus()`
+is a hard DROP: it jumps straight to `idle`, so `exiting` never happens,
+nothing replays the framing, and nothing re-derives it either (the stage's box
+is identical across the boundary — every HUD member the post-game hides uses
+`visibility` — so no resize ever reaches `scheduleFit`). The player collapsed
+the results onto a planet zoomed in, clipped by both bars, arcs cut off. Fixed
+on BOTH sides: the seal calls `beginPlanetFocusExit()` when the mode is engaged
+(the ordinary exit costs nothing under the arriving scene and unfreezes
+`heldParams` through its own settle), and the board SELF-HEALS at `idle` when
+`fitMode` is still `'focus'` — so any future hard drop, from any caller, is
+covered. The `--board-scale` across the boundary is pinned in
+`console-endgame-boundary.spec.ts`.
+
 ⚠ `closeInfoMode()` LATCHES a dismiss tail (`infoModeState.closing`) whose
 release is the panel's own after-leave hook — which cannot fire for a panel
 that was never mounted. Sealing an already-closed Info Mode pinned `closing`

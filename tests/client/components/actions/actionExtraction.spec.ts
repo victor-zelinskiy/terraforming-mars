@@ -13,6 +13,7 @@ import {
   branchActionNode,
   actionNodeDescription,
 } from '@/client/components/actions/actionExtraction';
+import {getCards} from '@/client/cards/ClientCardManifest';
 import {ICardRenderEffect, isICardRenderSymbol} from '@/common/cards/render/Types';
 import {CardRenderSymbolType} from '@/common/cards/render/CardRenderSymbolType';
 
@@ -237,5 +238,40 @@ describe('actionExtraction', () => {
     expect(noOr, 'expected an action node without a leading OR').to.not.eq(undefined);
     const original = noOr!.actionNode as ICardRenderEffect;
     expect(branchActionNode(original)).to.eq(original);
+  });
+
+  /**
+   * THE SHAPE THE MANIFEST ACTUALLY DELIVERS.
+   *
+   * Server-side the row builder's empty tail slot is `undefined`; the CLIENT
+   * reads render data from `cards.json`, and JSON has no `undefined` — that
+   * slot arrives as `null`. The connector stripper read `.is` off it raw and
+   * THREW, so building the console action tiles for a tableau holding Venus
+   * Orbital Survey or Project Workshop crashed. Every action card in the game
+   * goes through this call, so the sweep is the whole population, not a sample.
+   */
+  it('survives the JSON null tail slot for EVERY action card in the game', () => {
+    const offenders: Array<string> = [];
+    let nodes = 0;
+    // NOT allScopeActionCardNames(): the console builds its tiles from the
+    // TABLEAU, so an out-of-scope module's action card reaches this call too —
+    // and both cards that crashed (prelude2, community) are outside that set.
+    for (const {name: cardName} of getCards((c) => cardHasAction(c.name))) {
+      for (const group of playerActionGroups([model(cardName)])) {
+        for (const entry of group.nodes) {
+          if (entry.actionNode === undefined) {
+            continue;
+          }
+          nodes++;
+          try {
+            branchActionNode(entry.actionNode);
+          } catch (err) {
+            offenders.push(`${cardName}: ${(err as Error).message}`);
+          }
+        }
+      }
+    }
+    expect(nodes, 'the sweep collected no action nodes').to.be.greaterThan(100);
+    expect(offenders, `branchActionNode threw for:\n${offenders.join('\n')}`).to.deep.eq([]);
   });
 });

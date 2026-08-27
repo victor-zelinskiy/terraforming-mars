@@ -125,10 +125,31 @@ function lastMeaningful(nodes: ReadonlyArray<ItemType>): number {
   return -1;
 }
 
+/** Index of the first non-spacer node, or -1. */
+function firstMeaningful(nodes: ReadonlyArray<ItemType>): number {
+  for (let i = 0; i < nodes.length; i++) {
+    if (!isSpacerNode(nodes[i])) {
+      return i;
+    }
+  }
+  return -1;
+}
+
 /** Drop a TRAILING connector OR (+ its spacers) — it renders as the group divider. */
 function dropTrailingOr(nodes: ReadonlyArray<ItemType>): Array<ItemType> {
   const j = lastMeaningful(nodes);
   return (j >= 0 && isOrNode(nodes[j])) ? nodes.slice(0, j) : [...nodes];
+}
+
+/** Drop a LEADING connector OR (+ the spacers that framed it) — same divider. */
+function dropLeadingOr(nodes: ReadonlyArray<ItemType>): Array<ItemType> {
+  const i = firstMeaningful(nodes);
+  if (i < 0 || !isOrNode(nodes[i])) {
+    return [...nodes];
+  }
+  const rest = nodes.slice(i + 1);
+  const k = firstMeaningful(rest);
+  return k < 0 ? [] : rest.slice(k);
 }
 
 /**
@@ -159,7 +180,11 @@ export function effectParts(node: ICardRenderEffect): EffectParts {
   const delimiterRow = rows.length > 1 ? rows[1] : [];
   const delimiter = delimiterRow.find(isICardRenderSymbol);
   return {
-    cause: renderableNodes(rows[0] ?? []),
+    // A LEADING OR opening the cause is a CONNECTOR to the PREVIOUS action row
+    // («ИЛИ <floater> → …» — Rotator Impacts, Weather Balloons, Icy Impactors):
+    // nothing stands to its left, so it can only join boxes. Drawn as the «ИЛИ»
+    // divider; left inline it printed a SECOND «или» right under the divider.
+    cause: dropLeadingOr(renderableNodes(rows[0] ?? [])),
     delimiter,
     // A trailing OR inside the result is a CONNECTOR to the next action row
     // (drawn as the «ИЛИ» divider), never an inline glyph.
@@ -179,13 +204,25 @@ function effectFrameTrailingOr(nodes: ReadonlyArray<ItemType>): boolean {
   return k >= 0 && isOrNode(result[k]);
 }
 
+/** Does this group's FIRST node open its effect frame's CAUSE with an OR? */
+function effectFrameLeadingOr(nodes: ReadonlyArray<ItemType>): boolean {
+  const i = firstMeaningful(nodes);
+  const node = i >= 0 ? nodes[i] : undefined;
+  if (node === undefined || typeof node === 'string' || !isICardRenderEffect(node)) {
+    return false;
+  }
+  const cause = renderableNodes(node.rows[0] ?? []);
+  const k = firstMeaningful(cause);
+  return k >= 0 && isOrNode(cause[k]);
+}
+
 type OrEdges = {nodes: Array<ItemType>, leadingOr: boolean, trailingOr: boolean};
 
 /**
  * Split a group's EDGE connector ORs (leading / trailing — at the root OR
- * inside a trailing effect frame) from its inline content. An edge OR joins
- * two alternative groups and becomes the «ИЛИ» divider; an INTERIOR OR
- * (between two content items in one row) stays inline.
+ * inside the group's leading/trailing effect frame) from its inline content.
+ * An edge OR joins two alternative groups and becomes the «ИЛИ» divider; an
+ * INTERIOR OR (between two content items in one row) stays inline.
  */
 function orEdges(rawNodes: ReadonlyArray<ItemType>): OrEdges {
   let nodes = [...rawNodes];
@@ -200,6 +237,10 @@ function orEdges(rawNodes: ReadonlyArray<ItemType>): OrEdges {
   if (i < nodes.length && isOrNode(nodes[i])) {
     leadingOr = true;
     nodes = nodes.slice(i + 1);
+  } else if (effectFrameLeadingOr(nodes)) {
+    // leading OR lives inside the effect frame's CAUSE row — effectParts strips
+    // it from the RENDER; here it only signals the join.
+    leadingOr = true;
   }
   // trailing connector OR (root level)
   const j = lastMeaningful(nodes);
@@ -515,8 +556,8 @@ export function buildMechanics(renderData: CardComponent | undefined, options: B
   /*
    * The CHOICE marker must never be lost (the player has to read "one of
    * these, not both" from the face), and it must never leave a stray glyph:
-   *  1. every EDGE connector OR (leading / trailing at the root OR inside a
-   *     trailing effect frame — an OR-only row is just the degenerate case,
+   *  1. every EDGE connector OR (leading / trailing at the root OR at the
+   *     matching edge INSIDE the frame — an OR-only row is the degenerate case,
    *     its content strips to empty) is removed from the render (`orEdges`
    *     + `effectParts`) and re-expressed as `orJoin` on the group it
    *     joins → the panel draws the premium «ИЛИ» divider, not a lone «или»;

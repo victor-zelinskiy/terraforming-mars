@@ -205,6 +205,22 @@ describe('PremiumCard', () => {
     expect(corp.classes()).to.include('pcard--theme-corporation');
   });
 
+  /**
+   * THE WORD «ИЛИ», PRINTED TWICE. Rotator Impacts opens its second action box
+   * with the DSL connector `or()`, and the panel ALSO draws the «ИЛИ» divider
+   * between two action groups — so the face said «ИЛИ» on the divider and again
+   * inside the box directly below it. The connector belongs to the divider; the
+   * mechanics plate must never render a bare OR glyph of its own.
+   */
+  it('an `or`-action face prints the choice word ONCE (Rotator Impacts)', () => {
+    for (const name of [CardName.ROTATOR_IMPACTS, CardName.WEATHER_BALLOONS, CardName.ICY_IMPACTORS, CardName.EXTRACTOR_BALLOONS]) {
+      const wrapper = mount(PremiumCard, {props: {name, inert: true}});
+      expect(wrapper.findAll('.pcard-mech-or').length, `${name}: exactly one ИЛИ divider`).to.eq(1);
+      expect(wrapper.findAll('.pcard-sym--or').length, `${name}: a SECOND «или» is drawn inside the box`).to.eq(0);
+      wrapper.unmount();
+    }
+  });
+
   it('an inert/static face plants no teleport anchors in body; a live face does', () => {
     const before = document.body.childNodes.length;
     const inert = mount(PremiumCard, {props: {name: CardName.COMET, inert: true}});

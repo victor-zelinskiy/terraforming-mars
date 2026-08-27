@@ -42,6 +42,12 @@ async function openActionWheel(page: Page): Promise<void> {
   }, 20_000, 'the RT action wheel');
 }
 
+/** The live `--board-scale` — the planet's whole framing, in one number. */
+async function boardScale(page: Page): Promise<number> {
+  return page.evaluate(() =>
+    Number(getComputedStyle(document.documentElement).getPropertyValue('--board-scale')));
+}
+
 /** Press `code`, then settle a beat with real frames (nothing here is instant). */
 async function press(page: Page, code: string, settleMs = 700): Promise<void> {
   await page.keyboard.press(code);
@@ -68,6 +74,12 @@ test.describe('console endgame — the boundary seal and the read-only free roam
     await openActionWheel(page);
     await expect(page.locator('.con-quick'), 'the wheel is open BEFORE the game ends').toBeVisible();
     const handBefore = await page.locator('[data-hand-dock-card]').count();
+    // THE FRAMING THE PLAYER LEAVES WITH IS THE ONE THEY COME BACK TO. The
+    // stage box is identical across the boundary (every HUD member the
+    // post-game hides uses `visibility`, so no box is removed), so the fit
+    // has nothing to re-derive and the number must be the same one.
+    const scaleBefore = await boardScale(page);
+    expect(scaleBefore, 'a live board scale to compare against').toBeGreaterThan(0);
     await shoot(page, SHOT_DIR, '01-wheel-open-before-end');
 
     await drive(request, ids, (m) => m.game.phase === 'end');
@@ -105,6 +117,17 @@ test.describe('console endgame — the boundary seal and the read-only free roam
     await expect(page.locator('.con-endgame'), 'the scene is hidden, its frame alive').toBeHidden();
     await expect(page.locator('.con-board'), 'the final board is on show').toBeVisible();
     await shoot(page, SHOT_DIR, '04-collapsed');
+
+    // …AT THE FRAMING IT WAS LEFT AT. The boundary tears the live game down,
+    // and PLANET FOCUS is the one live-game mode whose geometry the BOARD
+    // owns while the module owns its lifetime: a hard reset jumps the phase
+    // to `idle` without passing `exiting`, so nothing replays the pre-focus
+    // framing and the collapse reveals a planet zoomed in, clipped by both
+    // bars, arcs cut off. `ConsoleBoardSection` heals that at `idle` when the
+    // framing is still a focus one; this is the number that proves it.
+    const scaleAfter = await boardScale(page);
+    expect(Math.abs(scaleAfter - scaleBefore) / scaleBefore,
+      `board scale drifted across the endgame: ${scaleBefore} → ${scaleAfter}`).toBeLessThan(0.02);
 
     // The JOURNAL — the fullest read of what happened.
     await press(page, 'KeyR');

@@ -126,6 +126,13 @@ function isFiller(item: ItemType | undefined): boolean {
   if (item === undefined) {
     return false;
   }
+  // ⚠️ The client reads render data from the JSON manifest (`cards.json`), and
+  // JSON has no `undefined` — the builder's empty tail slot arrives as `null`.
+  // A raw property read on it THREW while stripping the connector (Venus
+  // Orbital Survey, Project Workshop), so null is checked before any read.
+  if ((item as unknown) === null) {
+    return true;
+  }
   if (isICardRenderSymbol(item)) {
     return item.type === CardRenderSymbolType.NBSP || item.type === CardRenderSymbolType.EMPTY;
   }
