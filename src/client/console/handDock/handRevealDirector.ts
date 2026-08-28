@@ -33,7 +33,8 @@
  * gets a slower, continuous flight), with a dead-compositor watchdog and a
  * progress-aware safety. The ignition gate lets the album's mount storm
  * paint before the clock starts. `[hand-reveal]` warns mark every degrade;
- * the arm log names the core revision (`handRevealState.rev`).
+ * the dev-only VERBOSE arm log (`armLog`) names the core revision
+ * (`handRevealState.rev`).
  */
 
 import {nextTick} from 'vue';
@@ -49,6 +50,24 @@ import {
   setHandBodyMode, resetHandBodies,
 } from '@/client/console/handDock/handBodies';
 import {dockFaceRotation} from '@/client/console/handDock/handDockPresentation';
+
+const DEV = typeof process !== 'undefined' && process.env?.NODE_ENV !== 'production';
+
+/**
+ * The per-episode ARM journal — a dev-only VERBOSE line, never `console.info`.
+ *
+ * It exists for degrade hunts (which direction armed, over how many bodies, at
+ * which core revision), and the hand opens and closes constantly: at the
+ * default log level it drowned every real message — including the leak
+ * detector's own strand warning — in `[hand-reveal] arm …`. `console.debug` is
+ * DevTools' Verbose tier, so the journal stays one filter click away instead of
+ * being deleted. Same policy (and same shape) as `tradeLog`.
+ */
+function armLog(message: string): void {
+  if (DEV) {
+    console.debug(`[hand-reveal] ${message}`);
+  }
+}
 
 export type RevealRect = {left: number, top: number, width: number, height: number};
 
@@ -747,7 +766,7 @@ function installEpisode(kind: Episode['kind'], tl: gsap.core.Timeline, els: Arra
     els: els.map((e) => e as HTMLElement),
   };
   episode = ep;
-  console.info(`[hand-reveal] arm ${kind} n=${pairs.length} rev=${handRevealState.rev}`);
+  armLog(`arm ${kind} n=${pairs.length} rev=${handRevealState.rev}`);
   building = false;
   buildingKind = undefined;
   if (pendingReverse) {

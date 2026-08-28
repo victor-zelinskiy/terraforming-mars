@@ -363,6 +363,77 @@ test.describe('a play\'s TRIGGERED effect resolves inside the workspace it was p
   });
 
   /**
+   * «СВЕРНУТЬ» AND BACK — the round trip, on an EMBEDDED stage.
+   *
+   * B past the commit boundary parks the whole stack: the workspace unmounts,
+   * the decision stays live, and the board-home card is the way back. What the
+   * park destroys is the workspace's DOM — including the very node the embedded
+   * decision is teleported into — while the CLAIM (and with it the published
+   * zone SELECTOR) deliberately survives.
+   *
+   * That asymmetry is the bug this guards. A `<Teleport>` re-resolves its target
+   * only when `to` CHANGES, so a selector left published across the park kept
+   * Vue pointing at the DETACHED div: on the way back the decision mounted into
+   * a node that is not in the document. The crumb read
+   * «КАРТЫ В РУКЕ › <карта> › ЭФФЕКТ», the kicker and the command bar advertised
+   * the stage — and the screen was empty, with
+   * `[console-leak-detector] STRANDED PROMPT: waitingFor "or"` as the only
+   * evidence. So the assertion is deliberately made on BOTH sides: the surface
+   * is back INSIDE the zone (a detached mount matches no selector at all), and
+   * the strand guard never rises while the player reads it.
+   */
+  test('«свернуть» → back: the embedded decision returns INSIDE the workspace', async ({page, request}) => {
+    await bootWithHand(page, request, [MARS_UNIVERSITY, ...FILLER]);
+    await playFromHand(page, MARS_UNIVERSITY);
+
+    const embedded = page.locator('.con-hand__outcome .con-decision');
+    await expect(embedded).toBeVisible({timeout: 60_000});
+    await page.waitForTimeout(900); // let the arrival settle before minimizing
+    await shoot(page, 'collapse-before');
+
+    // B = «свернуть». The stack parks at full depth and the board-home card
+    // becomes the door back (never a close: nothing is submitted here).
+    await press(page, 'Escape', 1800);
+    await expect(page.locator('.con-hand__frame')).toHaveCount(0, {timeout: 30_000});
+    await expect(page.locator('.con-decision')).toHaveCount(0, {timeout: 30_000});
+    const card = page.locator('[data-test="con-mandatory-announce"]');
+    await expect(card).toBeVisible({timeout: 30_000});
+    await shoot(page, 'collapse-parked');
+
+    // A on that card = RESUME — the same instance, the same depth, the same
+    // decision, no second trip to the server.
+    await press(page, 'Enter', 2500);
+    await expect(page.locator('.con-hand__frame')).toBeVisible({timeout: 30_000});
+    await expect(embedded, 'the decision came back INSIDE the workspace it was minimized from')
+      .toBeVisible({timeout: 30_000});
+    await shoot(page, 'collapse-restored');
+
+    // …and it STAYS served. The strand guard is debounced over two 1 Hz passes,
+    // so a broken restore needs a few seconds to shout — watch that whole window
+    // rather than sampling the frame right after the press.
+    for (let i = 0; i < 8; i++) {
+      await page.waitForTimeout(600);
+      expect(await page.locator('.con-stranded').count(),
+        'no stranded-prompt guard over a restored embedded decision').toBe(0);
+      expect(await page.locator('.con-hand__outcome .con-decision').count(),
+        'the restored decision never fell back to a band of its own')
+        .toBe(await page.locator('.con-decision').count());
+    }
+
+    // The round trip cost the flow nothing: it still finishes, and it still
+    // finishes by LEAVING.
+    const log = await watchEffectChain(page, 'collapse-resume');
+    console.log(`[collapse+resume trace]\n${log.trace.join('\n')}`);
+    expect(log.decisionStandaloneFrames,
+      'the resumed decision never stood as a band of its own').toBe(0);
+    expect(log.decisionOrphanFrames,
+      'the workspace never let go while its own effect was still asking').toBe(0);
+    expect(log.drawEmbedded,
+      'the card the resumed effect produced arrived in the same zone').toBeTruthy();
+    await expect(page.locator('.con-hand__frame')).toHaveCount(0, {timeout: 60_000});
+  });
+
+  /**
    * A BATCH AND AN EFFECT IN THE SAME RESPONSE — the reported «Акведуки +
    * Рециклон» shape, on in-scope cards: «Демонстрация технологий» draws 2
    * cards AND its science tag wakes «Марсианский университет», both delivered

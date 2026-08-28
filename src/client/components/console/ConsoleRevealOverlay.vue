@@ -479,7 +479,8 @@ import {
 } from '@/client/components/drawnCards/drawnCardsState';
 import {ColonyBonusDiscardMeta} from '@/common/models/PlayerInputModel';
 import {
-  bonusDiscardStep, bonusZones, segmentlessZoneBatch, BonusDiscardStep, BonusZone,
+  bonusDiscardOwnsBatch, bonusDiscardStep, bonusZones, segmentlessZoneBatch,
+  BonusDiscardStep, BonusZone,
 } from '@/client/console/colonyTrade/colonyBonusDiscardStep';
 import {CardName} from '@/common/cards/CardName';
 import {handDockReachable, runHandIntake} from '@/client/console/handDock/handDeliveryDirector';
@@ -833,7 +834,15 @@ export default defineComponent({
      * belong to the ONE shared discard flow (cardDiscard/*).
      */
     bonusDiscard(): ColonyBonusDiscardMeta | undefined {
-      return this.mode === 'drawn' ? this.playerView.waitingFor?.discardPrompt?.colonyBonus : undefined;
+      if (this.mode !== 'drawn') {
+        return undefined;
+      }
+      // …OF THIS BATCH. A marker that belongs to another colony's payout is a
+      // parked demand, not this reveal's closing step — see
+      // `bonusDiscardOwnsBatch` for the four surfaces that read it and the
+      // freeze the unscoped read caused on the take path.
+      const meta = this.playerView.waitingFor?.discardPrompt?.colonyBonus;
+      return bonusDiscardOwnsBatch(meta, this.drawnEvent?.source) ? meta : undefined;
     },
     /** The closing step — ONE shared derivation with the shell's command bar. */
     discardStep(): BonusDiscardStep | undefined {

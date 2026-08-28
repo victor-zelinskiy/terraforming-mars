@@ -438,16 +438,53 @@ export function remoteColonyBonusPendingFor(s: ColonyResolutionSignals): {colony
 }
 
 /**
+ * …AND THE PARK IS ABOUT ONE BATCH, NEVER ABOUT «THE REVEAL».
+ *
+ * `remoteColonyBonusPendingFor` answers a STATE question — «a foreign trade
+ * owes the viewer a bonus and they have not walked in yet». This answers the
+ * only question a PRESENTATION layer may ask of it: «is the batch I am about
+ * to show THE ONE that is parked?».
+ *
+ * They were the same call, and the difference is a real freeze. The viewer sits
+ * on their OWN reveal (a card action's draw, the card still untaken) when an
+ * opponent's Pluto trade lands its discard marker. Read as a state, the park
+ * took the WHOLE reveal down: the player's own untaken card lost its surface,
+ * `admissionSignals.reveal*` went false — and every door that signal was
+ * holding shut (the bonus's own announcement among them) was admitted OVER the
+ * flow they were still standing in. Then the door armed the entry, the park
+ * released, and the viewer's own batch came back INSIDE the colony workspace,
+ * presented as somebody else's payout: two flows in one zone, no way back.
+ *
+ * The parked batch is the bonus's OWN and nothing else — a batch of that
+ * colony, or none drawn yet (the collect delivery draws on the answer, and a
+ * discard marker can ride a frame ahead of its own batch). Matched on the
+ * colony NAME rather than the bonus role: a merged payout's income batch is
+ * the same delivery from the player's side, and holding one half of it while
+ * the other presents would tear the strip in two.
+ */
+export function remoteColonyBonusParksReveal(
+  pending: {colonyName: string} | undefined,
+  source: CardDrawRevealSource | undefined,
+): boolean {
+  if (pending === undefined) {
+    return false;
+  }
+  return source === undefined || revealColonyOf(source) === pending.colonyName;
+}
+
+/**
  * The LIVE form of the remote hold, for the scene layers (deck-draw) that only
  * know the batch they are about to claim: while the viewer's entry is still
- * owed, the batch's presentation must not start — the mandatory announcement
- * is the door, and arming the entry is what releases this.
+ * owed, THAT batch's presentation must not start — the mandatory announcement
+ * is the door, and arming the entry is what releases this. Scoped to the batch
+ * asked about (see `remoteColonyBonusParksReveal`): an unrelated draw of the
+ * viewer's own keeps dealing.
  */
 export function remoteColonyBonusHold(
   wf: PlayerInputModel | undefined,
   source: CardDrawRevealSource | undefined,
 ): boolean {
-  return remoteColonyBonusPendingFor({
+  return remoteColonyBonusParksReveal(remoteColonyBonusPendingFor({
     discardMeta: colonyBonusDiscardOf(wf),
     collectMeta: colonyBonusCollectOf(wf),
     // A card-target bonus has no batch to hold, so it is never a reason to
@@ -460,5 +497,5 @@ export function remoteColonyBonusHold(
     entryColony: colonyBonusEntry.colonyName,
     entryAwaiting: colonyBonusEntry.awaiting,
     claimedByColonies: workspaceOutcomeState.host === 'colonies',
-  }) !== undefined;
+  }), source);
 }

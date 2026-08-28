@@ -1494,7 +1494,8 @@ import {
   colonyBonusCardPickOf,
   colonyBonusEntry, colonyResolutionColony, colonyResolutionEvidenceFor, colonyResolutionLiveFor,
   colonyResolutionUi, noteColonyBonusEntryWaitOver,
-  noticeColonyResolutionDiscard, remoteColonyBonusPendingFor, resetColonyResolutionUi,
+  noticeColonyResolutionDiscard, remoteColonyBonusParksReveal, remoteColonyBonusPendingFor,
+  resetColonyResolutionUi,
   setColonyDiscardStage,
 } from '@/client/console/colonyTrade/colonyResolution';
 import {cardColonyTradeCard} from '@/client/console/colonyTrade/colonyTradeEntry';
@@ -1609,7 +1610,7 @@ import {
   hydroResolutionBusyOf, hydroWorkspacePhase, isHydroCeremonyActive, resetHydroFlow, resolutionKindFor,
   setHydroRepeatBridge,
 } from '@/client/console/hydroFlow/consoleHydroFlow';
-import {bonusDiscardStep, BonusDiscardStep} from '@/client/console/colonyTrade/colonyBonusDiscardStep';
+import {bonusDiscardOwnsBatch, bonusDiscardStep, BonusDiscardStep} from '@/client/console/colonyTrade/colonyBonusDiscardStep';
 import {drawnRevealCommandRun} from '@/client/console/consoleRevealCommands';
 import {workspaceClaimsDrawReveal, workspaceClaimsColonyReveal, workspaceClaimsDeckCheck, workspaceClaimsEffect, workspaceClaimsPick, workspaceOutcomeClaimed, workspaceOutcomeBeatPending, claimWorkspaceOutcome, lastOutcomeReleaseStack, markWorkspaceOutcomeAnswerIn, markWorkspaceOutcomeArrivalDone, markWorkspaceOutcomeBeatDone, markWorkspaceOutcomePresenting, outcomeHostConcludesFlow, releaseWorkspaceOutcome, resetWorkspaceOutcome, setWorkspaceOutcomePhase, workspaceOutcomeState} from '@/client/console/consoleWorkspaceOutcome';
 import type {WorkspaceOutcomeKind} from '@/client/console/consoleWorkspaceOutcome';
@@ -3512,10 +3513,19 @@ export default defineComponent({
       // player off their screen — the announcement is the door, and opening it
       // arms the entry, which is what releases this hold. Without it the batch
       // mounted a full-bleed reveal over wherever the player stood.
-      if (this.remoteColonyBonusPending !== undefined) {
-        return false;
-      }
-      return currentRevealEvent() !== undefined;
+      //
+      // ⚠️ THE PARK IS ABOUT THAT BATCH, NOT ABOUT «THE REVEAL». This signal is
+      // what every admission family reads as «the player is still in a reveal»
+      // (`admissionSignals.revealPending`), so a state-shaped park lied about
+      // the viewer's OWN untaken draw: an opponent's Pluto marker landing while
+      // the player worked through a card action's reveal dropped the block, and
+      // the bonus's own door opened on top of the flow they were in. Scoped to
+      // the batch that would present (`remoteColonyBonusParksReveal`), so an
+      // unrelated draw of the viewer's own keeps its surface and keeps holding
+      // every other prompt out until it is finished.
+      const ev = currentRevealEvent();
+      return ev !== undefined &&
+        !remoteColonyBonusParksReveal(this.remoteColonyBonusPending, ev.source);
     },
     /**
      * The reveal modal's MANDATORY closing step, when the pending prompt is the
@@ -3529,7 +3539,12 @@ export default defineComponent({
       }
       const ev = currentRevealEvent();
       const untaken = ev === undefined ? 0 : ev.cards.length - ev.takenIndices.size;
-      return bonusDiscardStep(this.playerView.waitingFor?.discardPrompt?.colonyBonus, untaken);
+      // …and only for the batch the marker OWNS: the overlay scopes the very
+      // same read (`bonusDiscard`), and the bar must never advertise a verb the
+      // surface it describes does not have.
+      const meta = this.playerView.waitingFor?.discardPrompt?.colonyBonus;
+      return bonusDiscardStep(
+        bonusDiscardOwnsBatch(meta, ev?.source) ? meta : undefined, untaken);
     },
     /** The T6 REVEAL overlay mode (drawn > result > viewer), undefined = none. */
     /**
@@ -5311,6 +5326,12 @@ export default defineComponent({
      * exist, the viewer neither traded nor entered yet. While this holds the
      * presentation is parked behind the mandatory announcement — the plate
      * blinks, nothing force-opens, and the announce's press is the one door.
+     *
+     * A STATE, not a verdict about a batch. What it parks is scoped by
+     * `remoteColonyBonusParksReveal` at every reader: a reveal of the viewer's
+     * OWN that happens to be on the table when the marker lands is not this
+     * bonus's, and taking it down cost the player their untaken card and every
+     * gate that reveal was holding shut.
      */
     remoteColonyBonusPending(): {colonyName: string} | undefined {
       return remoteColonyBonusPendingFor(this.colonyResolutionSignals);

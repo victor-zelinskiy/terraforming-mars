@@ -22,6 +22,7 @@ import {
   colonyResolutionUi,
   noteColonyBonusEntryWaitOver,
   noticeColonyResolutionDiscard,
+  remoteColonyBonusParksReveal,
   remoteColonyBonusPendingFor,
   resetColonyResolutionUi,
   revealColonyOf,
@@ -221,6 +222,49 @@ describe('colonyResolution', () => {
       // it would not even be on the viewer's view model; a bonus-role batch
       // is the only foreign colony batch that opens an entry.
       expect(remoteColonyBonusPendingFor({...IDLE, revealSource: incomeSource})).to.eq(undefined);
+    });
+
+    /*
+     * …AND THE PARK IS ABOUT ONE BATCH, NEVER ABOUT «THE REVEAL».
+     *
+     * The reported freeze: the viewer sits on their OWN reveal (a card action's
+     * draw, the card still untaken) when an opponent's Pluto trade lands its
+     * discard marker. Read as a STATE, the park took the whole reveal down —
+     * the untaken card lost its surface, the shell's `revealPending` admission
+     * signal went false, and the bonus's own door opened over the flow the
+     * player was still standing in. Then the door armed the entry, the park
+     * released, and the viewer's own batch came back inside the COLONY
+     * workspace as somebody else's payout.
+     */
+    describe('scoped to the batch it parks', () => {
+      const pending = {colonyName: 'Pluto'};
+
+      it('parks the bonus\'s own batch', () => {
+        expect(remoteColonyBonusParksReveal(pending, bonusSource)).to.eq(true);
+      });
+
+      it('parks a merged payout\'s income half too — one delivery, one strip', () => {
+        expect(remoteColonyBonusParksReveal(pending, incomeSource)).to.eq(true);
+      });
+
+      it('parks the gap before the batch (a collect draws on the answer)', () => {
+        expect(remoteColonyBonusParksReveal(pending, undefined)).to.eq(true);
+      });
+
+      it('NEVER parks the viewer\'s own unrelated draw — the reported freeze', () => {
+        const ownDraw: CardDrawRevealSource = {type: 'card', cardName: 'Restricted Area'} as CardDrawRevealSource;
+        expect(remoteColonyBonusParksReveal(pending, ownDraw)).to.eq(false);
+      });
+
+      it('never parks another colony\'s batch', () => {
+        const other: CardDrawRevealSource = {type: 'colony', colonyName: ColonyName.MIRANDA};
+        expect(remoteColonyBonusParksReveal(pending, other)).to.eq(false);
+      });
+
+      it('parks nothing at all while no remote bonus is pending', () => {
+        expect(remoteColonyBonusParksReveal(undefined, bonusSource)).to.eq(false);
+        expect(remoteColonyBonusParksReveal(undefined, undefined)).to.eq(false);
+      });
     });
   });
 

@@ -1,7 +1,8 @@
 import {expect} from 'chai';
 import {ColonyName} from '@/common/colonies/ColonyName';
 import {
-  bonusDiscardStep, bonusZones, segmentlessZoneBatch, BONUS_DISCARD_LABEL, BONUS_DISCARD_LOCKED_REASON,
+  bonusDiscardOwnsBatch, bonusDiscardStep, bonusZones, segmentlessZoneBatch,
+  BONUS_DISCARD_LABEL, BONUS_DISCARD_LOCKED_REASON,
 } from '@/client/console/colonyTrade/colonyBonusDiscardStep';
 import {
   drawnCardsState, currentRevealEvent, holdRevealForFollowUp, isRevealHeldForFollowUp,
@@ -168,6 +169,51 @@ describe('the colony bonus sequence', () => {
     it('never claims a multi-card batch (the rules draw exactly one per cube)', () => {
       expect(segmentlessZoneBatch(plutoSource, undefined, meta, 2)).to.eq(false);
       expect(segmentlessZoneBatch(plutoSource, undefined, meta, 0)).to.eq(false);
+    });
+  });
+
+  /*
+   * THE MARKER IS THE SERVER'S PROMPT; THE BATCH IS THE SCREEN — and only the
+   * colony's own payout makes them one thing.
+   *
+   * A foreign trade's discard marker can stand while the viewer works through a
+   * reveal of their OWN (a card action's draw). Read unscoped, that batch grew a
+   * closing «сбросить карту» step it did not owe, rendered zones for somebody
+   * else's colony — and, because the take path reads «a discard is owed» as
+   * «this batch is not finished», HELD ITSELF OPEN on its own last card: never
+   * released, never acked, no way back.
+   */
+  describe('bonusDiscardOwnsBatch — whose payout is on the table', () => {
+    const marker = {colonyName: ColonyName.PLUTO, index: 1, total: 1};
+
+    it('owns the colony\'s own batch, trade-stamped or not', () => {
+      expect(bonusDiscardOwnsBatch(marker, {type: 'colony', colonyName: ColonyName.PLUTO})).to.eq(true);
+      expect(bonusDiscardOwnsBatch(marker, {
+        type: 'colony', colonyName: ColonyName.PLUTO, trade: {tradeId: 'Pluto:g3:a10', role: 'bonus'},
+      })).to.eq(true);
+      // …and a merged payout's income half is the same delivery.
+      expect(bonusDiscardOwnsBatch(marker, {
+        type: 'colony', colonyName: ColonyName.PLUTO, trade: {tradeId: 'Pluto:g3:a10', role: 'income'},
+      })).to.eq(true);
+    });
+
+    it('DISOWNS the viewer\'s own card draw standing in front of it', () => {
+      expect(bonusDiscardOwnsBatch(marker, {type: 'card', cardName: 'Restricted Area'} as never)).to.eq(false);
+    });
+
+    it('disowns another colony\'s batch', () => {
+      expect(bonusDiscardOwnsBatch(marker, {type: 'colony', colonyName: ColonyName.MIRANDA})).to.eq(false);
+    });
+
+    it('owns nothing without a marker (an ordinary reveal has no closing step)', () => {
+      expect(bonusDiscardOwnsBatch(undefined, {type: 'colony', colonyName: ColonyName.PLUTO})).to.eq(false);
+      expect(bonusDiscardOwnsBatch(undefined, undefined)).to.eq(false);
+    });
+
+    it('a batch with NO source cannot be disowned — the step stays reachable', () => {
+      // Nothing to judge it by, and the alternative is stranding the player
+      // with a mandatory discard and no door to it.
+      expect(bonusDiscardOwnsBatch(marker, undefined)).to.eq(true);
     });
   });
 });

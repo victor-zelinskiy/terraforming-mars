@@ -1380,6 +1380,22 @@ export default defineComponent({
     // teleports the next surface into a detached node, and the unmount watcher
     // does not fire (Vue tears the component down before its watchers run).
     setWorkspaceFrameSlot('hand', '');
+    // …AND THE OUTCOME ZONE IS THE SAME LAW — PARK INCLUDED. The CLAIM
+    // deliberately survives «свернуть» (below); the DOM node does not, and the
+    // slot describes a NODE. Left published, it is not merely stale: a
+    // `<Teleport>`'s `to` is UNCHANGED across the park, so Vue never re-resolves
+    // it and keeps the DETACHED div as its target — the restored surface then
+    // mounts into a node that is not in the document. Measured on «Марсианский
+    // университет»: collapse the embedded decision, return from the board card,
+    // and the crumb, the kicker and the command bar all announce the stage while
+    // NOTHING is on screen (`[console-leak-detector] STRANDED PROMPT: "or"`).
+    // Cleared here, the host re-publishes the same selector on its way back and
+    // that CHANGE is what makes the teleport look the target up again. Guards
+    // all four consumers of the zone at once — the embedded reveal, the deck
+    // pick, the buy prompt and the effect decision.
+    if (this.outcome.host === 'hand') {
+      setWorkspaceOutcomeSlot('');
+    }
     // A CLAIM CAN NEVER OUTLIVE ITS FLOW: an orphaned one is worse than a leak
     // (it suppresses the standalone presenters, so the artifact shows NOWHERE).
     // …unless the workspace was PARKED — «свернуть» keeps the whole decision

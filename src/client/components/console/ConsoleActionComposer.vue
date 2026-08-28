@@ -1927,9 +1927,21 @@ export default defineComponent({
     // reactive and it must be retracted on the way out — a stale selector
     // would teleport the NEXT batch into a detached node (invisible cards, an
     // un-takeable prompt) instead of falling back to the band.
+    // ⚠️ ONLY THE OWNER WRITES THE SHARED SLOT — the same law as the command
+    // store below, and for the same reason. `repeat-pick` mounts a SECOND
+    // composer over this one (`publishCommands: false`; the registry says that
+    // frame never hosts and never serves), and this watcher is `immediate`, so
+    // the nested instance mounted with `on === false` and wiped the zone the
+    // OUTER composer — or the hand workspace hosting the play — had published.
+    // A wipe is not a stale selector, it is worse: the publisher's own watcher
+    // has nothing to fire on afterwards, so the zone never comes back and the
+    // artifact re-homes nowhere.
     drawOutcomeOn: {
       immediate: true,
       handler(on: boolean) {
+        if (!this.publishCommands) {
+          return;
+        }
         setWorkspaceOutcomeSlot(on ? '[data-embed-slot="workspace-reveal"]' : '');
       },
     },
@@ -2130,8 +2142,12 @@ export default defineComponent({
     this.abortBeatFlight();
     // The zone dies with the stage — retract the teleport target so a re-homed
     // presenter falls back to its band instead of into a detached node. The
-    // watcher does not fire on unmount, so this cannot be left to it.
-    setWorkspaceOutcomeSlot('');
+    // watcher does not fire on unmount, so this cannot be left to it. OWNER
+    // ONLY, exactly as in the watcher above: the nested repeat-pick instance
+    // leaving must not retract somebody else's live zone.
+    if (this.publishCommands) {
+      setWorkspaceOutcomeSlot('');
+    }
     // Same for the colonies-step zone (embed rule 4, the retract half).
     if (this.colonyStepOn) {
       setWorkspaceFrameSlot('card-actions', '');

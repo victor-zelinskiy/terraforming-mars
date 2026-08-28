@@ -112,6 +112,37 @@ export function segmentlessZoneBatch(
 }
 
 /**
+ * DOES THIS PENDING DISCARD BELONG TO THE BATCH ON THE TABLE?
+ *
+ * The marker is a property of the SERVER's current prompt; the batch is a
+ * property of the screen — and the two are only the same thing when the batch
+ * is that colony's payout. They were read as one: every surface derived from
+ * `waitingFor.discardPrompt.colonyBonus` alone (the closing step, the zones,
+ * the income/bonus split, and — worst — the take path's follow-up hold).
+ *
+ * A foreign trade's marker can arrive while the viewer is working through a
+ * reveal of their OWN (a card action's draw, an unrelated colony's income).
+ * Unscoped, that batch grew a «сбросить карту» step it does not owe, rendered
+ * bonus ZONES for somebody else's colony, and — because the take path reads
+ * «a discard is owed» as «this batch is not finished» — held itself open on
+ * its own last card: never released, never acked, no way back.
+ *
+ * A batch with no source cannot be disowned (there is nothing to judge it by),
+ * so it keeps today's behaviour: the step stays reachable rather than stranding
+ * the player with a mandatory discard and no door to it.
+ */
+export function bonusDiscardOwnsBatch(
+  meta: ColonyBonusDiscardMeta | undefined,
+  source: CardDrawRevealSource | undefined,
+): boolean {
+  if (meta === undefined) {
+    return false;
+  }
+  return source === undefined ||
+    (source.type === 'colony' && source.colonyName === meta.colonyName);
+}
+
+/**
  * @param meta the server's structural marker on the pending discard prompt
  * @param untakenCards cards of the reveal batch the player has not taken yet
  */
