@@ -72,4 +72,48 @@ describe('Astrodrill', () => {
     resourceChoices.options[4].cb();
     expect(player.heat).to.eq(1);
   });
+
+  /*
+   * The «which standard resource» pick is PRE-COLLECTED: it is declared as the
+   * branch's own step, so the console composer hosts it inside the workspace and
+   * the batch answers it in the same submit. Left undeclared it arrived after the
+   * confirm as a bare generic band — the exact failure the pre-collect contract
+   * exists to prevent (guarded corpus-wide by actionPromptCoverage.spec).
+   */
+  it('the resource pick is a DECLARED step of the branch, not a follow-up', () => {
+    const preview = card.actionPreview(player);
+    const branch = preview.branches[2];
+    expect(branch.title).to.eq('Gain a standard resource');
+    expect(branch.steps).has.lengthOf(1);
+    const step = branch.steps[0];
+    expect(step.kind).to.eq('input');
+    const input = (step as {input: {type: string, options: ReadonlyArray<unknown>}}).input;
+    expect(input.type).to.eq('or');
+    expect(input.options).has.lengthOf(6);
+  });
+
+  it('every option carries premium metadata — the icon AND this player\'s before→after', () => {
+    player.titanium = 4;
+    const step = card.actionPreview(player).branches[2].steps[0] as
+      {input: {options: ReadonlyArray<{title: unknown, metadata?: {icon?: string, effects?: ReadonlyArray<{current?: number, resulting?: number}>}}>}};
+    // Branch order mirrors `action()`: titanium first.
+    const titanium = step.input.options[0];
+    expect(titanium.metadata?.icon).to.eq('titanium');
+    expect(titanium.metadata?.effects?.[0].current).to.eq(4);
+    expect(titanium.metadata?.effects?.[0].resulting).to.eq(5);
+    // …and every one of the six is premium, not just the first.
+    for (const opt of step.input.options) {
+      expect(opt.metadata?.icon, String(opt.title)).to.be.a('string');
+      expect(opt.metadata?.effects, String(opt.title)).has.lengthOf(1);
+    }
+  });
+
+  it('the preview\'s OrOptions is READ-ONLY — building it grants nothing', () => {
+    const before = {ti: player.titanium, st: player.steel, pl: player.plants, mc: player.megaCredits};
+    card.actionPreview(player);
+    expect(player.titanium).to.eq(before.ti);
+    expect(player.steel).to.eq(before.st);
+    expect(player.plants).to.eq(before.pl);
+    expect(player.megaCredits).to.eq(before.mc);
+  });
 });

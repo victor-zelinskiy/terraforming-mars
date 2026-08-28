@@ -14,6 +14,7 @@ import {PlaceOceanTile} from '../../deferredActions/PlaceOceanTile';
 import {Resource} from '../../../common/Resource';
 import * as actionReason from '../actionReasons';
 import * as actionPreviews from '../actionPreviews';
+import {TileType} from '../../../common/TileType';
 
 const ASTEROID_COST = 10;
 
@@ -76,10 +77,14 @@ export class IcyImpactors extends Card implements IActionCard {
     const pay = actionPreviews.paymentStep(player, ASTEROID_COST, {canUseTitanium: true});
     return actionPreviews.orBranches(this, [
       {
-        // The first player places the ocean on the board after submit (no step).
+        // The ocean is placed on the board after submit — never pre-collectable,
+        // but DECLARED all the same (an undeclared follow-up reads to the flow as
+        // «nothing happens next»). The first player choosing the space is the
+        // card's own rule and rides the placement itself.
         available: this.canAffordToPlaceOcean(player),
         title: 'Spend 1 asteroid here to place an ocean (first player chooses where to place it)',
         effects: [actionPreviews.cardCost(this, 1)],
+        steps: [actionPreviews.boardPlacementStep('ocean', {tileType: TileType.OCEAN})],
         unavailableReason: this.resourceCount === 0 ?
           actionReason.ruleReason('No asteroid on this card') :
           actionReason.ruleReason('Can\'t afford to place the ocean'),

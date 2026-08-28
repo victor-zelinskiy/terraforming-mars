@@ -1859,7 +1859,25 @@ export default defineComponent({
     'flow.repeatBridge'(on: boolean): void {
       if (!on) {
         void this.$nextTick(() => {
-          playHydroBridgeReturn(this.$refs.rootEl as HTMLElement | undefined, this.reducedMotion === true);
+          const root = this.$refs.rootEl as HTMLElement | undefined;
+          // ⚠️ THE ROOT IS POSED TOO, and by somebody else. This section
+          // publishes no `[data-motion-panel]`, so the surface-motion director
+          // falls back to posing the ROOT ITSELF (`panelsOf` → `[el]`) — and its
+          // `v-show` flip fires a real enter/leave pair. Whenever that pair is
+          // not perfectly reversible (a suppression flag read on the wrong
+          // side of a flush, an instant re-show that heals nothing) the leave's
+          // opacity stays on the root and the workspace comes back ON SCREEN
+          // AND DEAD — the reported «после возврата интерфейс залипает», with
+          // a readable crumb over a ghost body.
+          //
+          // So the return CLEARS the inline pose unconditionally, on the root
+          // as well as on the layers. A surface arriving back from a bridge
+          // owns no leftover inline style by definition: healing what nobody
+          // posed costs one `gsap.set`, and NOT healing it costs the screen.
+          if (root !== undefined && root !== null) {
+            gsap.set(root, {clearProps: 'transform,opacity,visibility'});
+          }
+          playHydroBridgeReturn(root, this.reducedMotion === true);
         });
       }
     },

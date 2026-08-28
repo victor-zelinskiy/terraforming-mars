@@ -280,6 +280,56 @@ describe('resourceTransferModel (pure math of the shared resource-transfer langu
       ]);
     });
 
+    /*
+     * The gain the player CHOSE — an OR step («получите любой стандартный
+     * ресурс»). The branch's own chips cannot state it (the resource does not
+     * exist at preview time), so the CHOSEN option's server-built
+     * `OptionMetadata.effects` are the authoritative amount. Without this the
+     * rail counters ticked with nothing flying to them.
+     */
+    describe('an OR step\'s chosen option', () => {
+      const orStep = {
+        kind: 'input' as const,
+        input: {
+          type: 'or',
+          title: 'Gain a standard resource',
+          buttonLabel: 'Gain',
+          options: [
+            {type: 'option', title: 'Gain 1 titanium', buttonLabel: 'Gain titanium',
+              metadata: {kind: 'resourceGain', icon: 'titanium', amount: 1,
+                effects: [{direction: 'gain', icon: 'titanium', amount: 1, current: 2, resulting: 3}]}},
+            {type: 'option', title: 'Gain 1 energy production', buttonLabel: 'Gain',
+              metadata: {kind: 'resourceGain', icon: 'energy', amount: 1,
+                effects: [{direction: 'gain', icon: 'energy', amount: 1, note: 'production'}]}},
+            {type: 'option', title: 'Raise Venus', buttonLabel: 'Raise',
+              metadata: {kind: 'globalParameter', icon: 'venus', amount: 1,
+                effects: [{direction: 'gain', icon: 'venus', amount: 1, unit: '%'}]}},
+          ],
+        },
+      } as never;
+      const extract = (response: unknown) => extractPlayRewards({
+        cardName: CardName.ASTRODRILL, effects: [], steps: [orStep], stepResponses: {0: response},
+      });
+
+      it('flies the picked resource into STOCK', () => {
+        expect(extract({type: 'or', index: 0, response: {type: 'option'}}))
+          .to.deep.eq([{channel: 'stock', resource: 'titanium', amount: 1}]);
+      });
+
+      it('honours the option\'s own channel — a production note lands on production', () => {
+        expect(extract({type: 'or', index: 1, response: {type: 'option'}}))
+          .to.deep.eq([{channel: 'production', resource: 'energy', amount: 1}]);
+      });
+
+      it('a global-parameter option never flies (the HUD scale owns it)', () => {
+        expect(extract({type: 'or', index: 2, response: {type: 'option'}})).to.deep.eq([]);
+      });
+
+      it('an UNANSWERED step carries nothing — never a guessed default', () => {
+        expect(extract(undefined)).to.deep.eq([]);
+      });
+    });
+
     it('a card with NO immediate resource gain extracts nothing (no empty beat)', () => {
       const specs = extractPlayRewards({
         cardName: CardName.VIRUS,

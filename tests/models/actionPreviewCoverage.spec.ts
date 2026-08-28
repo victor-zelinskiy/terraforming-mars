@@ -45,9 +45,15 @@ function forEachActionCard(fn: (card: ICard & IActionCard, module: GameModule) =
  * console iteration must eliminate: an AVAILABLE branch with no cost/gain chips,
  * no interactive step, no direct input, no reveal, AND no descriptive title. A
  * note-only branch (a board / colony follow-up) has a `note` step → not mute; a
- * branch with a MEANINGFUL TITLE (e.g. AstroDrill's "Gain a standard resource",
- * whose resource type is a post-submit nested OrOptions — desktop-parity thin) is
- * NOT mute (the composer renders the title). An UNAVAILABLE branch is exempt.
+ * branch with a MEANINGFUL TITLE is NOT mute (the composer renders the title).
+ * An UNAVAILABLE branch is exempt.
+ *
+ * ⚠️ "Has a title" answers ONLY «will this render as a bare Confirm». It says
+ * nothing about whether the branch finishes the action, and reading it as
+ * permission is how AstroDrill's «Gain a standard resource» kept a post-submit
+ * nested OrOptions for the whole life of the console composer, excused here as
+ * "desktop-parity thin". That question belongs to
+ * `actionPromptCoverage.spec.ts` check 4 (the branch's own follow-up).
  */
 function isMuteBranch(b: ActionPreviewBranch): boolean {
   const title = typeof b.title === 'string' ? b.title : b.title.message;

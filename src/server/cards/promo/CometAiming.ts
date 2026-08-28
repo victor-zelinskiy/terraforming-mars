@@ -16,6 +16,7 @@ import {Payment} from '../../../common/inputs/Payment';
 import {Resource} from '../../../common/Resource';
 import * as actionReason from '../actionReasons';
 import * as actionPreviews from '../actionPreviews';
+import {TileType} from '../../../common/TileType';
 
 export class CometAiming extends Card implements IActionCard, IProjectCard {
   constructor() {
@@ -72,10 +73,14 @@ export class CometAiming extends Card implements IActionCard, IProjectCard {
     const pickTarget = asteroidCards.length >= 1;
     return actionPreviews.orBranches(this, [
       {
-        // The ocean is placed on the board after submit (no pre-collectable step).
+        // The ocean is placed on the board after submit — a board interaction is
+        // never pre-collectable, but it must be DECLARED: an undeclared follow-up
+        // reads to the flow as «nothing happens next», so the confirm never says
+        // the board is coming and the commit beat can't route to the tile.
         available: this.resourceCount > 0 && this.canAffordOcean(player),
         title: 'Remove an asteroid resource to place an ocean',
         effects: [actionPreviews.cardCost(this, 1)],
+        steps: [actionPreviews.boardPlacementStep('ocean', {tileType: TileType.OCEAN})],
         unavailableReason: this.resourceCount === 0 ?
           actionReason.ruleReason('No asteroid on this card') :
           actionReason.ruleReason('Can\'t afford to place the ocean'),

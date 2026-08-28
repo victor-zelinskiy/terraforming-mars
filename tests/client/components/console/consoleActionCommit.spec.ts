@@ -120,4 +120,50 @@ describe('consoleActionCommit — the universal activation beat', () => {
       expect(specs).to.deep.eq([]);
     });
   });
+
+  /*
+   * A branch whose RESULT is picked in a step («получите любой стандартный
+   * ресурс» — Astrodrill) states nothing in its own chips: at preview time the
+   * resource does not exist yet. Read without the captures the category is
+   * `generic` and the wave is empty, so the rail counters tick with nothing
+   * flying to them — the one thing every other gain in the console does not do.
+   */
+  describe('an OR STEP\'s chosen option is part of the result', () => {
+    const orBranch = branchWith({
+      steps: [{
+        kind: 'input',
+        input: {
+          type: 'or',
+          title: 'Gain a standard resource',
+          buttonLabel: 'Gain',
+          options: [
+            {type: 'option', title: 'Gain 1 titanium', buttonLabel: 'Gain titanium',
+              metadata: {kind: 'resourceGain', icon: 'titanium', amount: 1,
+                effects: [{direction: 'gain', icon: 'titanium', amount: 1, current: 10, resulting: 11}]}},
+            {type: 'option', title: 'Gain 1 plant', buttonLabel: 'Gain plant',
+              metadata: {kind: 'resourceGain', icon: 'plants', amount: 1,
+                effects: [{direction: 'gain', icon: 'plants', amount: 1, current: 4, resulting: 5}]}},
+          ],
+        } as never,
+      }],
+    });
+    const pickPlants = {0: {type: 'or', index: 1, response: {type: 'option'}}};
+
+    it('with no answer yet the branch is generic and carries no wave', () => {
+      expect(commitKindForBranch(orBranch)).to.eq('generic');
+      expect(commitRewardSpecs(CardName.ASTRODRILL, orBranch, {})).to.deep.eq([]);
+    });
+
+    it('the CHOSEN option decides the category and what flies', () => {
+      expect(commitKindForBranch(orBranch, pickPlants)).to.eq('resources');
+      expect(commitRewardSpecs(CardName.ASTRODRILL, orBranch, pickPlants)).to.deep.eq([
+        {channel: 'stock', resource: 'plants', amount: 1},
+      ]);
+    });
+
+    it('the OTHER option flies the OTHER resource — never a fixed guess', () => {
+      expect(commitRewardSpecs(CardName.ASTRODRILL, orBranch, {0: {type: 'or', index: 0, response: {type: 'option'}}}))
+        .to.deep.eq([{channel: 'stock', resource: 'titanium', amount: 1}]);
+    });
+  });
 });

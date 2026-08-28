@@ -213,17 +213,37 @@ describe('the repeat-action pick is a nested workspace FRAME', () => {
       // «ДЕЙСТВИЯ КАРТ › ШТОРМОВОЙ БАРЬЕР › ПОВТОР ДЕЙСТВИЯ»: the flow's own
       // root and the card it is about, with the pick as the tail.
       expect(vm.repeatCrumbRoot).to.eq('Card actions');
-      expect(vm.repeatCrumbContext).to.eq(CardName.STORM_SURGE_BARRIER);
-      expect(vm.repeatCrumb?.stage).to.eq('Repeat action');
+      expect(vm.repeatStepCrumb?.subject).to.eq(CardName.STORM_SURGE_BARRIER);
+      expect(vm.repeatStepCrumb?.stage).to.eq('Repeat action');
       w.unmount();
     });
 
-    it('with no host it falls back to the request\'s own source label', async () => {
+    it('a HOSTED pick keeps the host\'s IDENT — the header may not change height', async () => {
+      // ⚠️ The ident owns the header's height: it never wraps and never
+      // shrinks, so a word added there narrows the aux zone beside it and the
+      // filter groups break to a second tier — a taller header, and the crumb
+      // line lands ~36 px below the host's. Walking one level deeper then
+      // MOVES the one line whose job is to prove the flow never broke. The
+      // path goes in the DEEP layer, which is an absolute overlay and costs
+      // exactly nothing.
+      seatCardEntryStack();
+      openPick();
+      const w = factory(true);
+      await settle(w);
+
+      expect((w.vm as any).repeatCrumbContext, 'the ident carries the root ALONE').to.eq('');
+      w.unmount();
+    });
+
+    it('with no host it keeps its own ident — a root pick is not a step', async () => {
       openPick(); // no flow underneath — the pick is the root
       const w = factory(true);
       await settle(w);
 
-      expect((w.vm as any).repeatCrumbRoot).to.eq('Mars Hydronetwork');
+      const vm = w.vm as any;
+      expect(vm.repeatCrumbRoot).to.eq('Mars Hydronetwork');
+      expect(vm.repeatCrumbContext).to.eq('Repeat action');
+      expect(vm.repeatStepCrumb, 'no host ⇒ no deep crumb, so the filters stay').to.eq(undefined);
       w.unmount();
     });
   });

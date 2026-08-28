@@ -21,7 +21,8 @@
  */
 import {reactive} from 'vue';
 import {CardName} from '@/common/cards/CardName';
-import {ActionPreviewBranch} from '@/common/models/ActionPreviewModel';
+import {ActionEffect, ActionPreviewBranch} from '@/common/models/ActionPreviewModel';
+import {OrOptionsModel} from '@/common/models/PlayerInputModel';
 import {
   ResourceTransferSpec, TransferPoint, extractPlayRewards, isStandardResource, mergeTransferSpecs,
 } from '@/client/console/resourceTransfer/resourceTransferModel';
@@ -159,20 +160,57 @@ const GLOBAL_PARAM_ICONS: ReadonlySet<string> =
   new Set(['temperature', 'oxygen', 'venus', 'oceans', 'tr']);
 
 /**
+ * The premium chips of the options the player picked in this branch's OR steps
+ * — the server's own `OptionMetadata.effects` for the outcome that was actually
+ * chosen. The same fact `extractPlayRewards` reads to build the reward specs,
+ * asked here for the CATEGORY.
+ */
+function chosenStepEffects(
+  branch: ActionPreviewBranch,
+  stepResponses: Readonly<Record<number, unknown>>,
+): Array<ActionEffect> {
+  const out: Array<ActionEffect> = [];
+  (branch.steps ?? []).forEach((step, i) => {
+    if (step.kind !== 'input' || step.input.type !== 'or') {
+      return;
+    }
+    const r = stepResponses[i] as {type?: string, index?: number} | undefined;
+    if (r === undefined || r.type !== 'or' || typeof r.index !== 'number') {
+      return;
+    }
+    const opt = (step.input as OrOptionsModel).options[r.index] as
+      {metadata?: {effects?: ReadonlyArray<ActionEffect>}} | undefined;
+    out.push(...(opt?.metadata?.effects ?? []));
+  });
+  return out;
+}
+
+/**
  * The result CATEGORY of a branch — structural, from the same preview the
  * claim kinds derive from (never from the card's identity). Precedence
  * mirrors how large a result's own presentation is: a reveal/draw owns a
  * whole stage, a tile owns the board, a global owns the HUD scale, resources
  * own the rail wave; anything else keeps the mechanical commit alone.
  */
-export function commitKindForBranch(branch: ActionPreviewBranch | undefined): ActionCommitKind {
+export function commitKindForBranch(
+  branch: ActionPreviewBranch | undefined,
+  /**
+   * The captured step responses. A branch whose RESULT is chosen in a step
+   * («получите любой стандартный ресурс» → titanium) states nothing in its own
+   * chips — at preview time the resource does not exist yet — so without the
+   * answers the category reads `generic` and the commit plays the mechanical
+   * beat alone while the rail counters tick behind it, unexplained. The chosen
+   * option's own chips join the pool; precedence is unchanged.
+   */
+  stepResponses: Readonly<Record<number, unknown>> = {},
+): ActionCommitKind {
   if (branch === undefined) {
     return 'generic';
   }
   if (branch.reveal !== undefined) {
     return 'deck-check';
   }
-  const effects = branch.effects ?? [];
+  const effects = [...(branch.effects ?? []), ...chosenStepEffects(branch, stepResponses)];
   if (effects.some((e) => e.direction === 'gain' && e.icon === 'cards')) {
     return 'draw';
   }

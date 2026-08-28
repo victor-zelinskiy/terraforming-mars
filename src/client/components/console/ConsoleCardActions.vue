@@ -48,9 +48,11 @@
                      :emblem="repeat ? repeatCrumbEmblem.emblem : 'actions'"
                      :wheelAnchor="repeat ? repeatCrumbEmblem.wheelAnchor : 'card-actions'"
                      :context="repeat ? repeatCrumbContext : ''"
-                     :subject="composer !== undefined ? composer.cardName : ''"
-                     :stage="yieldedToStep ? steppedStage : (composer !== undefined ? focusKickerKey : '')"
-                     :stageRaw="yieldedToStep ? false : focusKickerRaw"
+                     :subject="repeatStepCrumb !== undefined ? repeatStepCrumb.subject :
+                       (composer !== undefined ? composer.cardName : '')"
+                     :stage="repeatStepCrumb !== undefined ? repeatStepCrumb.stage :
+                       (yieldedToStep ? steppedStage : (composer !== undefined ? focusKickerKey : ''))"
+                     :stageRaw="repeatStepCrumb !== undefined ? false : (yieldedToStep ? false : focusKickerRaw)"
                      :committed="steppedCommitted || outcomeFlow !== undefined || colonyStepCommitted">
         <!-- ── Filters: two labeled groups with their OWN trigger chips
              (the sanctioned exception to the one-bottom-bar rule). They
@@ -782,17 +784,61 @@ export default defineComponent({
     repeatCrumbRoot(): string {
       return this.repeatCrumb?.root ?? this.repeatRequest?.source.label ?? 'Repeat action';
     },
+    /**
+     * THE HOSTED PICK'S CRUMB — and the reason it does not go in the IDENT.
+     *
+     * ⚠️ THE HEADER'S HEIGHT IS THE IDENT'S BUSINESS. The ident never shrinks
+     * and never wraps, so every word added there narrows the aux zone beside
+     * it — and the card centre's aux (two filter groups + the counts) then
+     * wraps to a SECOND TIER. That is a taller header, so the crumb line lands
+     * ~36 px lower than the host's: walking one level deeper visibly MOVED the
+     * line whose entire job is to prove the flow never broke («заголовок
+     * съезжает в другие координаты»). Putting the path in the ident is what
+     * did it.
+     *
+     * The DEEP layer costs nothing: it is an absolute overlay over the aux
+     * zone (`--deep { position: absolute; inset: 0 }`), whose height stays the
+     * browse layer's. So a hosted pick keeps the HOST'S ident — the bare root,
+     * one tier, the same box — and states the path there instead: the line is
+     * pixel-identical before and after the step opens and simply GAINS a tail.
+     *
+     * The cost is the header's own either/or: the deep layer crossfades the
+     * filter chips out. That is the SAME trade every hosted step in this
+     * console already makes (the Hydronetwork step's own chips go too), and it
+     * is the right way round — inside a flow the player needs to know WHERE
+     * THEY ARE more than they need the filter legend, and LB/RB still drive
+     * the filters. A pick standing on its OWN (no frame below it) is not a
+     * step, keeps its filters and states its source in the ident, exactly as
+     * before.
+     */
+    repeatStepCrumb(): {subject: string, stage: string} | undefined {
+      const crumb = this.repeatCrumb;
+      if (crumb === undefined) {
+        return undefined;
+      }
+      return {
+        // The carried object of the whole chain — the card the flow is about.
+        subject: crumb.subject?.text ?? '',
+        // The tail, and the only segment that animates: what the player is
+        // doing HERE. The stage the pick landed on is already the subject in
+        // the track's own chain, so naming it again would print one word twice.
+        stage: crumb.stage ?? 'Repeat action',
+      };
+    },
     /** The stack's own identity symbol — it belongs to the ROOT workspace and
      *  may not change because a step opened (see the workspace-identity rule). */
     repeatCrumbEmblem(): {emblem?: string, wheelAnchor?: string} {
       const host = this.repeat ? workspaceStackRootKind() : undefined;
       return host === undefined ? {} : workspaceFrameEmblem(host);
     },
-    /** The carried object: the card the whole flow is about. */
+    /**
+     * The ident's SECOND fixed segment — for a pick standing on its own only.
+     * A HOSTED pick states its path in the deep layer instead, because the
+     * ident owns the header's height (see {@link repeatStepCrumb}).
+     */
     repeatCrumbContext(): string {
-      const carried = this.repeatCrumb?.subject?.text;
-      if (carried !== undefined && carried !== '') {
-        return carried;
+      if (this.repeatCrumb !== undefined) {
+        return '';
       }
       const request = this.repeatRequest;
       if (request === undefined) {

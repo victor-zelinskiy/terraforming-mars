@@ -22,6 +22,7 @@
 
 import {CardName} from '@/common/cards/CardName';
 import {ActionEffect, ActionPreviewStep} from '@/common/models/ActionPreviewModel';
+import {OrOptionsModel} from '@/common/models/PlayerInputModel';
 
 /**
  * The three destination channels of the left panel. `stock` lands on the
@@ -234,6 +235,20 @@ function stepCardResource(step: ActionPreviewStep, picked: CardName): string | u
   return input.cards?.find((c) => c.name === picked)?.resourceType;
 }
 
+/**
+ * The premium chips of the option a captured `{type:'or', index, …}` response
+ * picked — the server's `OptionMetadata.effects` for that one outcome. Absent
+ * response / non-or response / an option with no metadata → `undefined`.
+ */
+function chosenOptionOf(model: OrOptionsModel, response: unknown): ReadonlyArray<ActionEffect> | undefined {
+  const r = response as {type?: string, index?: number} | undefined;
+  if (r === undefined || r.type !== 'or' || typeof r.index !== 'number') {
+    return undefined;
+  }
+  const opt = model.options[r.index] as {metadata?: {effects?: ReadonlyArray<ActionEffect>}} | undefined;
+  return opt?.metadata?.effects;
+}
+
 function pickedCardOf(response: unknown): CardName | undefined {
   const r = response as {type?: string, cards?: ReadonlyArray<string>} | undefined;
   if (r !== undefined && r.type === 'card' && Array.isArray(r.cards) && r.cards.length > 0) {
@@ -329,6 +344,36 @@ export function extractPlayRewards(args: ExtractPlayRewardsArgs): Array<Resource
     }
     claimedSteps.add(i);
     out.push({channel: 'card-resource', resource, amount, targetCard: picked});
+  });
+
+  /*
+   * OR-STEP picks — the branch says WHAT KIND of thing is gained and the step
+   * says WHICH ONE («получите любой стандартный ресурс» → titanium). The
+   * branch's own chips cannot state it: at preview time the resource does not
+   * exist yet, so the chip loop above finds nothing and the reward wave was
+   * handed no spec at all — the counters ticked with nothing flying to them,
+   * which is the one thing every other gain in the console does not do.
+   *
+   * The CHOSEN option's `OptionMetadata.effects` are the server's own chips for
+   * exactly this outcome (`gainStock` / `gainProduction`), so this reads the
+   * same authoritative vocabulary as `args.effects` — never a re-derivation
+   * from the option's title.
+   */
+  args.steps.forEach((step, i) => {
+    if (claimedSteps.has(i) || step.kind !== 'input' || step.input.type !== 'or') {
+      return;
+    }
+    const chosen = chosenOptionOf(step.input as OrOptionsModel, args.stepResponses[i]);
+    if (chosen === undefined) {
+      return;
+    }
+    claimedSteps.add(i);
+    for (const e of chosen) {
+      if (e.direction !== 'gain' || e.amount <= 0 || e.unit !== undefined || !isStandardResource(e.icon)) {
+        continue;
+      }
+      out.push({channel: e.note === 'production' ? 'production' : 'stock', resource: e.icon, amount: e.amount});
+    }
   });
 
   // Copy-production picks (Robotic Workforce / Cyberia Systems): the chosen

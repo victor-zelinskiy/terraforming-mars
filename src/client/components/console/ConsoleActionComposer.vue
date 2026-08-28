@@ -286,6 +286,11 @@
               <b>{{ item.resCount }}</b>
             </span>
             <span v-if="item.impact !== ''" class="con-composer__opt-impact">{{ item.impact }}</span>
+            <!-- An or-option's own premium chips — the SAME `ActionEffectChip`
+                 the branch formula and the play screen use, so «получить титан»
+                 reads as `[титан] +1 · 10 → 11` and never as a bare word. -->
+            <span v-for="(eff, k) in (item.chips ?? [])" :key="'ch' + k" class="con-composer__opt-chip"><ActionEffectChip :effect="eff" /></span>
+            <span v-for="(w, k) in (item.warnings ?? [])" :key="'w' + k" class="con-composer__opt-warn">⚠ {{ $t(w) }}</span>
             <!-- «Это вы» on a PLAYER row: the rules allow hitting your own
                  production and we may not remove the option, so the job is to
                  make it impossible to pick by accident. Only when it COSTS you
@@ -660,6 +665,7 @@ import {
   initialVariantSelection,
 } from '@/client/console/consoleActionComposer';
 import {variablePartsForBranch, ConsoleVariableChip} from '@/client/console/consoleCardActions';
+import {buildOrItems, orItemResponse, ConsoleOrItem} from '@/client/console/consoleOrChoice';
 import {paymentLanes, megacreditsAvailable, paymentCovers, paymentFromCounts, initialCounts, dialLaneCount, buildPaymentView, PaymentView, PaymentSourceRow, editableRows, quickAdjustRow} from '@/client/console/paymentPlan';
 import ActionEffectChip from '@/client/components/actions/ActionEffectChip.vue';
 import CardRenderEffectBoxComponent from '@/client/components/card/CardRenderEffectBoxComponent.vue';
@@ -775,6 +781,12 @@ type ListItem = {
   chosen: boolean,
   color?: string,
   card?: CardModel,
+  /** An or-option's premium chips (icon + `current → resulting`). */
+  chips?: ReadonlyArray<ActionEffect>,
+  /** The engine's own per-option cautions, already resolved to sentences. */
+  warnings?: ReadonlyArray<string>,
+  /** The source row of an or-option (its index IS the submitted response). */
+  orItem?: ConsoleOrItem,
 };
 
 /** A branch's premium formula view (static chips + variable ranges). */
@@ -1654,15 +1666,27 @@ export default defineComponent({
         return items;
       }
       if (c.input.type === 'or') {
-        const model = c.input as OrOptionsModel;
+        // The SHARED premium or-row builder (`buildOrItems`) — the same one the
+        // PLAY composer stands on. This list used to map options to bare titles,
+        // so a «which standard resource» pick read as six words with no icon and
+        // no before→after, while the identical pick on the play screen rendered
+        // chips. One builder, one vocabulary: the option's own `OptionMetadata`
+        // becomes `ActionEffectChip`s exactly as everywhere else.
         const chosen = this.picks[c.id];
-        return model.options.map((opt, i): ListItem => ({
-          key: 'o' + i,
-          label: textOf(opt.title),
+        return buildOrItems(c.input as OrOptionsModel).map((it): ListItem => ({
+          key: it.key,
+          label: textOf(it.label),
           resIcon: '', resCount: 0, impact: '',
-          disabled: opt.type !== 'option',
-          reason: opt.type !== 'option' ? translateText('Unavailable right now') : '',
-          chosen: chosen === String(i),
+          // A NESTED-input option (an OrOptions branch that is itself a
+          // SelectPlayer/SelectCard) has no host on this screen — it stays
+          // unpickable, but says WHY rather than claiming the rules forbid it.
+          disabled: it.disabled || it.nested !== undefined,
+          reason: it.nested !== undefined ? translateText('Not available on this screen') : textOf(it.reason),
+          chosen: chosen === String(it.optionIndex),
+          color: it.playerColor,
+          chips: it.chips,
+          warnings: it.warnings,
+          orItem: it,
         }));
       }
       return [];
@@ -2641,6 +2665,16 @@ export default defineComponent({
       if (multi !== undefined && gain !== undefined) {
         return `+${multi.length * gain.amount}`;
       }
+      // A captured or-option keeps its before→after on the COLLAPSED row too —
+      // the reading the player chose by must survive the sub-list closing, or
+      // the summary falls back to a bare resource name and the decision reads
+      // as un-made again.
+      if (c.input.type === 'or') {
+        const item = buildOrItems(c.input as OrOptionsModel)
+          .find((it) => String(it.optionIndex) === this.picks[c.id]);
+        const chip = item?.chips.find((e) => e.current !== undefined && e.resulting !== undefined);
+        return chip === undefined ? '' : `${chip.current} → ${chip.resulting}`;
+      }
       if (c.input.type !== 'card' || c.amount === undefined) {
         return '';
       }
@@ -3292,10 +3326,12 @@ export default defineComponent({
       } else if (c.input.type === 'player' && item.color !== undefined) {
         this.picks[c.id] = item.color;
         this.captureFor(c, {type: 'player', player: item.color});
-      } else if (c.input.type === 'or') {
-        const optIdx = Number(item.key.slice(1));
-        this.picks[c.id] = String(optIdx);
-        this.captureFor(c, {type: 'or', index: optIdx, response: {type: 'option'}});
+      } else if (c.input.type === 'or' && item.orItem !== undefined) {
+        // `orItemResponse` — the shared byte-parity builder, not a hand-rolled
+        // literal: the index it submits is the option's OWN index, so a list
+        // that ever grows informational `disabledOptions` rows cannot shift it.
+        this.picks[c.id] = String(item.orItem.optionIndex);
+        this.captureFor(c, orItemResponse(item.orItem));
       }
       this.sub = undefined;
     },
@@ -3356,7 +3392,10 @@ export default defineComponent({
       //    the answer). The nested repeat-pick composer only CAPTURES a
       //    choice — no server activation, no commit beat there.
       if (this.publishCommands) {
-        const kind = commitKindForBranch(branch);
+        // BOTH read the captures: a branch whose result is chosen in a step
+        // («любой стандартный ресурс») has no chips of its own, so the category
+        // and the reward wave are only knowable once the answer is in hand.
+        const kind = commitKindForBranch(branch, this.captured);
         const specs = commitRewardSpecs(this.entry.cardName, branch, this.captured);
         const root = this.$refs.rootEl as HTMLElement | undefined;
         const wrap = root?.querySelector<HTMLElement>('.con-composer__actcardwrap') ?? undefined;

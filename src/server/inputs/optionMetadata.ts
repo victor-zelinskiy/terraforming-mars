@@ -59,6 +59,35 @@ export function gainResource(resource: Resource, amount: number): OptionMetadata
 }
 
 /**
+ * "Gain N <resource>" into STOCK, with the viewer's own `current → resulting`.
+ * The stock twin of `gainProduction`, and the shape a «pick WHICH standard
+ * resource» choice owes: six rows reading «Титан» / «Сталь» / «Растения» are
+ * six names, and the player's actual question — which pool do I want moved, and
+ * from what to what — is answered by none of them. With the chip the same row
+ * reads `[титан] 10 → 11`, in the one premium vocabulary every other surface
+ * already speaks (`ActionEffectChip`).
+ *
+ * It also makes the choice ADDRESSABLE by the console's reward wave: the chosen
+ * option's `effects` are what the commit flies into the rail, so the resource
+ * the player picked is the resource that visibly moves.
+ */
+export function gainStock(player: IPlayer, resource: Resource, amount: number): OptionMetadata {
+  const current = player.stock.get(resource);
+  return {
+    kind: 'resourceGain',
+    icon: RESOURCE_ICON[resource],
+    amount,
+    effects: [{
+      direction: 'gain',
+      icon: RESOURCE_ICON[resource],
+      amount,
+      current,
+      resulting: current + amount,
+    }],
+  };
+}
+
+/**
  * "Gain N PRODUCTION of <resource>" — a self production increase. Shows the
  * resource icon as the lead anchor + a mint production chip with the viewer's
  * current → resulting production (note 'production'), so a "pick which production

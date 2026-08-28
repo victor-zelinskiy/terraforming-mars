@@ -15,6 +15,7 @@ import {digit} from '../Options';
 import {ICorporationCard} from '../corporation/ICorporationCard';
 import * as actionReason from '../actionReasons';
 import * as actionPreviews from '../actionPreviews';
+import {gainStock} from '../../inputs/optionMetadata';
 
 export class Astrodrill extends CorporationCard implements ICorporationCard, IActionCard {
   constructor() {
@@ -92,46 +93,55 @@ export class Astrodrill extends CorporationCard implements ICorporationCard, IAc
         vpBox: actionPreviews.targetVictoryPoints(player, asteroidCards, 1),
       },
       {
-        // Picking WHICH standard resource is a nested OrOptions that rides the
-        // follow-up routing after submit.
         available: true,
         title: 'Gain a standard resource',
+        // WHICH standard resource is a real decision, and it is pre-collected —
+        // the SAME OrOptions the live action builds (`standardResourceOptions`
+        // is side-effect-free; every mutation lives in an `andThen` the preview
+        // never calls), so the composer hosts it as an embedded step INSIDE the
+        // workspace and the batch replays it byte-for-byte. Left undeclared it
+        // arrived AFTER the confirm as a bare generic band — a screen the flow
+        // promises the player will never see.
+        steps: [actionPreviews.orOptionsStep(player, this.standardResourceOptions(player))],
       },
     ], {autoResolveSingle: false});
+  }
+
+  /**
+   * The six standard-resource options — built WITHOUT side effects (the gains
+   * live in `andThen`) so `actionPreview` and `action` can share one builder and
+   * cannot drift. Each option carries premium metadata (icon + this player's own
+   * `current → resulting`), which is also what the console's commit wave flies
+   * into the rail once the choice is made.
+   */
+  private standardResourceOptions(player: IPlayer): OrOptions {
+    const gain = (resource: Resource, title: string, label: string) =>
+      new SelectOption(title, label)
+        .withMetadata(gainStock(player, resource, 1))
+        .andThen(() => {
+          player.stock.add(resource, 1, {log: true});
+          return undefined;
+        });
+    // TITLED, because the surface hosting it shows the title as the step's own
+    // heading: untitled it fell back to the generic «ВЫБЕРИТЕ ВАРИАНТ», which is
+    // what the WHOLE screen is already about. `Choose a resource` is an existing
+    // key — the decision names itself in one word.
+    return new OrOptions(
+      gain(Resource.TITANIUM, 'Gain 1 titanium', 'Gain titanium'),
+      gain(Resource.STEEL, 'Gain 1 steel', 'Gain steel'),
+      gain(Resource.PLANTS, 'Gain 1 plant', 'Gain plant'),
+      gain(Resource.ENERGY, 'Gain 1 energy', 'Gain energy'),
+      gain(Resource.HEAT, 'Gain 1 heat', 'Gain heat'),
+      gain(Resource.MEGACREDITS, 'Gain 1 M€', 'Gain M€'),
+    ).setTitle('Choose a resource');
   }
 
   public action(player: IPlayer) {
     const asteroidCards = player.getResourceCards(CardResource.ASTEROID);
     const opts = [];
 
-    const gainStandardResource = new SelectOption('Gain a standard resource', 'Gain').andThen(() => {
-      return new OrOptions(
-        new SelectOption('Gain 1 titanium', 'Gain titanium').andThen(() => {
-          player.stock.add(Resource.TITANIUM, 1, {log: true});
-          return undefined;
-        }),
-        new SelectOption('Gain 1 steel', 'Gain steel').andThen(() => {
-          player.stock.add(Resource.STEEL, 1, {log: true});
-          return undefined;
-        }),
-        new SelectOption('Gain 1 plant', 'Gain plant').andThen(() => {
-          player.stock.add(Resource.PLANTS, 1, {log: true});
-          return undefined;
-        }),
-        new SelectOption('Gain 1 energy', 'Gain energy').andThen(() => {
-          player.stock.add(Resource.ENERGY, 1, {log: true});
-          return undefined;
-        }),
-        new SelectOption('Gain 1 heat', 'Gain heat').andThen(() => {
-          player.stock.add(Resource.HEAT, 1, {log: true});
-          return undefined;
-        }),
-        new SelectOption('Gain 1 M€', 'Gain M€').andThen(() => {
-          player.stock.add(Resource.MEGACREDITS, 1, {log: true});
-          return undefined;
-        }),
-      );
-    });
+    const gainStandardResource = new SelectOption('Gain a standard resource', 'Gain')
+      .andThen(() => this.standardResourceOptions(player));
 
     const addResource = new SelectCard(
       'Select card to add 1 asteroid',

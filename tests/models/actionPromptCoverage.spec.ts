@@ -58,6 +58,23 @@ const SCOPE = new Set<GameModule>(['base', 'corpera', 'promo', 'venus', 'colonie
  */
 const LEFTOVER_PAYMENT_WORKLIST = new Set<CardName>([]);
 
+/**
+ * Cards whose CHOSEN BRANCH still produces a prompt the preview declares
+ * NOTHING about — so the composer's batch ends, the server is left holding a
+ * live `waitingFor`, and it surfaces as a bare generic band right after the
+ * player confirmed. `Astrodrill`'s «получите любой стандартный ресурс» shipped
+ * that way for the whole life of the console composer.
+ *
+ * A follow-up that CANNOT be pre-collected is not a leak — it is a DECLARATION
+ * (`boardPlacement` / `colonyTrade` / `deltaAdvance` / `note`): the confirm then
+ * says what is coming and the commit beat routes to the right result category.
+ * The only failure this list records is saying nothing at all.
+ *
+ * EMPTY ON PURPOSE — the in-scope class is closed. An entry here would mean
+ * someone decided a branch may keep leaking a prompt and had to say so.
+ */
+const LEFTOVER_FOLLOWUP_WORKLIST = new Set<CardName>([]);
+
 /** Iterate every constructable in-scope action card. */
 function forEachActionCard(fn: (Factory: new () => ICard, module: GameModule) => void): void {
   for (const manifest of ALL_MODULE_MANIFESTS) {
@@ -251,6 +268,94 @@ describe('action prompt coverage (the pre-collect contract)', () => {
     });
 
     expect(failures, `\n${failures.join('\n')}\n`).is.empty;
+  }).timeout(120_000);
+
+  /**
+   * THE BRANCH'S OWN FOLLOW-UP.
+   *
+   * The two checks above measure the SHAPE of the branch list (does the preview
+   * promise a pick that isn't there, do the indices line up) and one specific
+   * leftover (a payment). Neither asks the question the player actually feels:
+   * «I picked this branch and confirmed — is the server done asking?»
+   *
+   * That is a third, independent way to leak, and it is the one that shipped:
+   * `Astrodrill`'s third branch answers with a nested `OrOptions` (which of the
+   * six standard resources), and the preview said nothing, so a screen the flow
+   * promises the player will never see arrived right after the confirm.
+   *
+   * SCOPE, stated honestly: only branches whose runtime option is a
+   * `SelectOption` — the family the composer answers with a bare
+   * `{type:'option'}` and therefore the family that can silently end the batch.
+   * An `optionInput` branch (the composer submits a real input response) would
+   * need a synthesized answer to walk past, and its shape is already covered by
+   * the index check above. Only the FIRST leftover prompt is inspected: one is
+   * enough to fail, and answering further ones would mean re-implementing the
+   * batch replay inside a guard.
+   */
+  it('a branch\'s own follow-up is DECLARED — hosted, or named (worklist)', () => {
+    const leaking = new Map<CardName, string>();
+    const scanned = new Set<CardName>();
+
+    forEachActionCard((Factory, module) => {
+      for (const profile of PROFILES) {
+        const a = setup(Factory, profile);
+        scanned.add(a.card.name);
+        if (!a.card.canAct(a.player)) {
+          continue;
+        }
+        const preview = actionPreview(a.player, a.card);
+        if (preview.kind === 'dynamic') {
+          continue;
+        }
+
+        preview.branches.forEach((branch) => {
+          if (!branch.available || branch.optionInput !== undefined || leaking.has(a.card.name)) {
+            return;
+          }
+          // A branch that declares ANYTHING about what follows is honest: a
+          // hosted step is pre-collected, a named one is an announced hand-off.
+          if (branch.steps.length > 0) {
+            return;
+          }
+
+          // Walk THIS branch on its own fresh game and see what the server is
+          // still holding once the deferred queue has drained.
+          const b = setup(Factory, profile);
+          let live: PlayerInput | undefined;
+          try {
+            live = b.card.action(b.player);
+          } catch {
+            return;
+          }
+          const option = branch.index >= 0 ?
+            (live instanceof OrOptions ? live.options[branch.index] : undefined) :
+            live;
+          if (!(option instanceof SelectOption)) {
+            return;
+          }
+          let leftover: PlayerInput | undefined;
+          try {
+            leftover = churn(() => option.cb(undefined), b.player);
+          } catch {
+            return; // a throw is the OTHER checks' business, not this one
+          }
+          if (leftover !== undefined) {
+            const shape = leftover instanceof OrOptions ? `or(${leftover.options.length})` : leftover.type;
+            leaking.set(a.card.name, `${module}/${a.card.name} [${profile.label}] "${String(branch.title)}" → ${shape}`);
+          }
+        });
+      }
+    });
+
+    const regressions = [...leaking.entries()].filter(([name]) => !LEFTOVER_FOLLOWUP_WORKLIST.has(name));
+    expect(
+      regressions.map(([, where]) => where),
+      '\nBranches leaking an UNDECLARED follow-up (pre-collect it as a step, or declare it with boardPlacementStep / noteStep / colonyTradeStep / deltaAdvanceStep):\n' +
+        `${regressions.map(([, where]) => where).join('\n')}\n`,
+    ).is.empty;
+
+    const stale = [...LEFTOVER_FOLLOWUP_WORKLIST].filter((n) => scanned.has(n) && !leaking.has(n));
+    expect(stale, `\nFIXED — remove from LEFTOVER_FOLLOWUP_WORKLIST:\n${stale.join('\n')}\n`).is.empty;
   }).timeout(120_000);
 
   /*
