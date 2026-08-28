@@ -161,6 +161,76 @@ describe('card information model', function() {
     }
   });
 
+  it('no mechanic DRAWN on the card face is left undescribed', () => {
+    // The reverse direction of the linkage guard above: not «does every block
+    // point at a real graphic» but «does every graphic have a block». Saturn
+    // Surfing shipped with an EMPTY «при розыгрыше» — its printed «add 1 floater
+    // per Earth tag» row was drawn on the face and described by nothing, because
+    // an `action-short` caption counted as authoring the on-play zone and
+    // switched the behavior derivation off. Eleven more cards were in the same
+    // state (Business Network, Red Spot Observatory, Teslaract, Law Suit …).
+    //
+    // Text-only rows (the vpText fine print, a plate header) carry no mechanic
+    // and are not matched.
+    //
+    // ACCEPTED = ONE mechanic the render draws across SEVERAL rows: the block
+    // describes the whole thing and can only anchor to one of them. Every entry
+    // needs its reason; a NEW card here is a real gap — author `infoText` or
+    // add the generator field, never extend this map silently.
+    const ACCEPTED = new Map<string, string>([
+      ['Desperate Measures', 'the or-branches (temperature / oxygen) are the second row of the cube rule'],
+      ['Olympus Conference', 'the "remove a science resource → draw" branch is the second row of the one effect'],
+      ['Viral Enhancers', 'the bare tag row is the trigger half of the effect drawn below it'],
+      ['Neptunian Power Consultants', 'the production/resource row is the payoff half of the ocean effect'],
+      ['Io Sulphur Research', 'the "3 Venus tags → 3 cards" row is the second branch of the one draw rule'],
+    ]);
+    const offenders: Array<string> = [];
+    for (const card of cards) {
+      if (ACCEPTED.has(card.name)) {
+        continue;
+      }
+      const described = new Set((info(card)?.groups ?? []).flatMap((g) => g.blocks.map((b) => b.graphicId)));
+      for (const row of deriveGraphicIds(card.metadata.renderData)) {
+        if (row.kind !== 'row' || described.has(row.id)) {
+          continue;
+        }
+        if (row.tokens.every((token) => token === 'text' || token === 'plate')) {
+          continue;
+        }
+        offenders.push(`${card.name}: graphic ${row.id} is drawn on the face but no block describes it`);
+      }
+    }
+    expect(offenders,
+      `undescribed mechanic — author infoText, add a generator field, or justify in ACCEPTED:\n${offenders.join('\n')}`,
+    ).to.deep.eq([]);
+  });
+
+  it('an augmenting infoText entry never switches the on-play derivation off', () => {
+    // The mechanism behind the guard above, pinned directly: a card whose ONLY
+    // authored text is an `action-short` caption or a `victory-points` line
+    // still derives its «при розыгрыше» from `behavior` / its description.
+    const expected: ReadonlyArray<[string, string]> = [
+      ['Saturn Surfing', 'Add 1 floater here for every Earth tag you have, including this.'],
+      ['Business Network', 'Decrease your M€ production 1 step.'],
+      ['Red Spot Observatory', 'Draw 2 cards.'],
+      ['Teslaract', 'Gain 1 TR.'],
+      ['Industrial Center', 'Place this tile adjacent to a city tile.'],
+      ['Law Suit', 'Place this card face down in THAT PLAYER\'S EVENT PILE.'],
+    ];
+    for (const [name, text] of expected) {
+      const card = cards.find((c) => c.name === name)!;
+      const onPlay = (info(card)?.groups ?? []).find((g) => g.kind === 'immediate');
+      expect(onPlay?.blocks.map((b) => b.text), `${name}: on-play zone`).to.include(text);
+    }
+    // …and it must NOT invent one where the card draws no on-play mechanic:
+    // these two print their VP rule as the description.
+    for (const name of ['St. Joseph of Cupertino Mission', 'Vermin']) {
+      const card = cards.find((c) => c.name === name)!;
+      const kinds = (info(card)?.groups ?? []).map((g) => g.kind);
+      expect(kinds, `${name}: VP-only description must not seed a phantom on-play block`).to.not.include('immediate');
+    }
+  });
+
   it('the Asteroid card carries its three separate mechanic blocks, each linked', () => {
     const asteroid = cards.find((c) => c.name === 'Asteroid')!;
     const immediate = info(asteroid)!.groups.find((g) => g.kind === 'immediate')!;
@@ -254,7 +324,13 @@ describe('card information model', function() {
 
   it('behavior-derived cards do not drop any KEY rule from the description', () => {
     const audit = JSON.parse(fs.readFileSync('src/genfiles/cardInfoAudit.json', 'utf8'));
-    const statusOf = new Map<string, string>(audit.cards.map((c: {name: string, status: string}) => [c.name, c.status]));
+    type Entry = {name: string, status: string, onPlay: string};
+    const statusOf = new Map<string, string>(audit.cards.map((c: Entry) => [c.name, c.status]));
+    // `status` alone under-covers: a card can carry authored text for ANOTHER
+    // zone (an action caption) and still have a GENERATED on-play zone, which is
+    // exactly the prose this guard exists to word-diff. `onPlay: 'derived'` is
+    // the honest condition — a strict widening of the old `status === 'ok'`.
+    const onPlayOf = new Map<string, string>(audit.cards.map((c: Entry) => [c.name, c.onPlay]));
 
     // Fold wording/stemming differences so only a GENUINE missing rule trips it.
     const SYN: Record<string, string> = {
@@ -264,10 +340,11 @@ describe('card information model', function() {
       two: '2', three: '3', four: '4', five: '5', six: '6',
       another: 'any', other: 'any', others: 'any', adjacent: 'adjacency',
       placed: 'place', playing: 'play', plus: 'gain',
+      revealed: 'reveal', discarding: 'discard',
     };
     const STOP = new Set(('a an the to of your you and or on for this that with may can if at in is are be it as ' +
       'by from up per each all not into one them get pay step steps tile tiles place raise increase decrease ' +
-      'gain lose add remove production tr oxygen').split(/\s+/));
+      'gain lose add remove production tr oxygen have those').split(/\s+/));
     const norm = (w: string) => {
       w = w.toLowerCase(); return SYN[w] ?? w;
     };
@@ -295,11 +372,12 @@ describe('card information model', function() {
       ['Deimos Down:promo', '"adjacent to no city tile" = "not next to a city", shown'],
       ['Neutralizer Factory', '"Venus track" = "Raise Venus …", shown'],
       ['AstroDrill', '"3 asteroid resources" = "3 asteroids on this card" — same starting card-resources, only the noun differs'],
+      ['PolderTECH Dutch', '"next to each other" = "an adjacent greenery tile", shown; only the wording differs'],
     ]);
 
     const offenders: Array<string> = [];
     for (const card of cards) {
-      if (statusOf.get(card.name) !== 'ok') {
+      if (statusOf.get(card.name) !== 'ok' && onPlayOf.get(card.name) !== 'derived') {
         continue; // authored = hand-written; seeded = full description verbatim
       }
       const desc = typeof card.metadata.description === 'string' ? card.metadata.description : card.metadata.description?.text;

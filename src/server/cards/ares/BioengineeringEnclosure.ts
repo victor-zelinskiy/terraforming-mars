@@ -30,7 +30,16 @@ export class BioengineeringEnclosure extends Card implements IProjectCard, IActi
       metadata: {
         description: 'Requires 1 science tag to play. Add 2 animals to this card. OTHERS MAY NOT REMOVE ANIMALS FROM THIS CARD.',
         cardNumber: 'A01',
-        infoText: [{kind: 'action-short', text: 'Move an animal to another card'}],
+        // `protectedResources` has NO graphic of its own here (unlike Pets, which
+        // draws a protection effect frame) — only the action's asterisks point at
+        // it, so the printed fine print needs a co-located block or the rule is
+        // carried nowhere. Authoring it takes the on-play zone over, so the
+        // behavior-derived «add 2 animals» line is restated alongside it.
+        infoText: [
+          {kind: 'action-short', text: 'Move an animal to another card'},
+          {text: 'Add 2 animals to this card.', tokens: ['res-animal']},
+          {kind: 'note', text: 'Animals may not be removed from this card.', tokens: ['res-animal']},
+        ],
         renderData: CardRenderer.builder((b) => {
           b.action('Remove 1 animal from THIS card to add 1 animal to ANOTHER card.', (eb) => {
             eb.resource(CardResource.ANIMAL).asterix().startAction.resource(CardResource.ANIMAL).asterix();

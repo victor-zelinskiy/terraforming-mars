@@ -42,6 +42,22 @@
     &__tile--remote {
         filter: drop-shadow(0 .22rem .4rem rgba(0, 0, 0, 0.38));
     }
+    /* The DEPARTING tile of a remove-and-replace placement (Kaguya Tech /
+       Lunar Mine Urbanization): the SAME body as an arriving tile, because
+       it is the same kind of object — only the direction of travel differs.
+       It stands 1:1 over the doomed board tile from the first frame (the
+       director poses it visible), so it needs no materialization gate; it is
+       kept BELOW the arriving proxy in DOM order, which is all the ordering
+       the scene needs — the two never travel at once. */
+    &__tile--depart {
+        /* The owner marker rides ON the tile: its socket comes from the live
+           hex (inline right/bottom), so nothing here may re-place it. */
+        > .player-cube.board-owner-cube {
+            /* The board's own rule already positions the cube; the proxy only
+               has to stop it from catching pointer events on the stage. */
+            pointer-events: none;
+        }
+    }
 
     &__art,
     &__edge {
@@ -291,4 +307,32 @@
     .con-tileplace__splash,
     .con-tileplace__coin-spark,
     .con-tileplace__coin-sheen { display: none; }
+}
+
+/* ── THE UNCOVERED CELL BONUS (remove-and-replace) ────────────────────────
+   The cell a removal empties paints its printed bonus for the first time
+   while the doomed tile is still rising off it — so the icons must SURFACE
+   rather than exist, or the reveal reads as a pop the instant the swap
+   happens. One shot, started partway into the lift (`consoleTilePlacement`
+   sets the delay from the same timing constant the director uses), and
+   deliberately transform/opacity only.
+
+   Scoped to the console board's own bonus container, exactly like the
+   `.con-deal-hold` blanking discipline it hands over to: the tile-placement
+   transaction owns both classes and removes this one before it blanks. */
+.board-space-bonuses.con-tileplace-reveal {
+    /* 280ms MIRRORS `TILE_DEPART_REVEAL_MS` (tilePlacementModel) — the JS side
+       owns the delay, this side owns the duration; keep the two in step. */
+    animation: con-tileplace-uncover calc(280ms * var(--motion-scale, 1)) cubic-bezier(0.22, 1, 0.36, 1) var(--con-tileplace-reveal-delay, 0ms) backwards;
+}
+
+@keyframes con-tileplace-uncover {
+    from {
+        opacity: 0;
+        transform: scale(0.86);
+    }
+    to {
+        opacity: 1;
+        transform: scale(1);
+    }
 }

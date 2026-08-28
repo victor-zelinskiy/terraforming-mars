@@ -44,6 +44,13 @@ export type TileStageEls = {
   aresPulses: ReadonlyArray<HTMLElement>,
   /** The ocean-cover landing splash (one per stage; absent → no splash). */
   splash: HTMLElement | undefined,
+  /** The DEPARTING tile proxy of a remove-and-replace placement (the twin of
+   *  the doomed board tile, carrying its own thickness edge and owner cube).
+   *  Absent for an ordinary landing — there is nothing to remove. */
+  depart: HTMLElement | undefined,
+  /** The thickness underlay INSIDE the departing proxy (release decompresses
+   *  it — the exact inverse of the landing's contact squash). */
+  departEdge: HTMLElement | undefined,
 };
 
 function guarded(run: (done: () => void) => void, budgetMs: number): Promise<void> {
@@ -111,6 +118,93 @@ export function placeTileProxy(els: TileStageEls, opts: TilePoseOpts): boolean {
     });
   }
   return true;
+}
+
+/**
+ * Pose the DEPARTING proxy exactly over the doomed board tile: same box, same
+ * art, seated (scale 1, square, thickness compressed to its resting 1px). The
+ * caller blanks the real cell in this same synchronous turn — the takeover is
+ * 1:1, so the swap itself is invisible and the only thing the player ever sees
+ * move is the proxy. Returns false on degenerate geometry.
+ */
+export function placeDepartProxy(els: TileStageEls, hex: TileRect): boolean {
+  if (els.depart === undefined || hex.w < 8 || hex.h < 8) {
+    return false;
+  }
+  gsap.set(els.depart, {
+    width: hex.w,
+    height: hex.h,
+    x: hex.x,
+    y: hex.y,
+    scale: 1,
+    rotation: 0,
+    transformOrigin: 'center center',
+    autoAlpha: 1,
+  });
+  if (els.departEdge !== undefined) {
+    gsap.set(els.departEdge, {y: 1}); // seated thickness — release decompresses it
+  }
+  return true;
+}
+
+export type TileDepartureOpts = {
+  hex: TileRect,
+  /** The lift in px (proportional to the hex — the model computes it). */
+  liftPx: number,
+  departMs: number,
+  /** Where in the lift the fade begins (0..1) — it clears the cell first. */
+  fadeAt: number,
+  tiltDeg: number,
+  scale: number,
+};
+
+/**
+ * The UNSEATING (awaited): the standing tile releases from the surface — its
+ * thickness edge decompresses as the contact breaks, it rises off the plane
+ * toward the camera growing slightly, tips as it clears, and dissolves on its
+ * way out. Its parked ground shadow (if the stage has one) widens and fades
+ * with it, so the cell is visibly EMPTY, not merely uncovered. Resolves once
+ * the tile is gone — the cleared cell is then the player's to read.
+ */
+export function playTileDeparture(els: TileStageEls, opts: TileDepartureOpts): Promise<void> {
+  const depart = els.depart;
+  if (depart === undefined) {
+    return Promise.resolve();
+  }
+  const secs = opts.departMs / 1000;
+  return guarded((done) => {
+    const tl = gsap.timeline({onComplete: done});
+    // The contact breaks BEFORE the tile moves — the thickness is what was
+    // holding it down (the landing compresses this same edge on touchdown).
+    if (els.departEdge !== undefined) {
+      tl.to(els.departEdge, {y: 4, duration: secs * 0.3, ease: 'power2.out'}, 0);
+    }
+    tl.to(depart, {
+      y: opts.hex.y - opts.liftPx,
+      scale: opts.scale,
+      rotation: opts.tiltDeg,
+      duration: secs,
+      ease: 'power2.in', // gathers speed as it leaves — carried away, not tossed
+    }, 0);
+    tl.to(depart, {
+      autoAlpha: 0,
+      duration: secs * (1 - opts.fadeAt),
+      ease: 'power1.in',
+    }, secs * opts.fadeAt);
+    if (els.shadow !== undefined) {
+      // The ground shadow the tile was casting spreads and thins as it rises.
+      gsap.set(els.shadow, {
+        width: opts.hex.w,
+        height: opts.hex.h * 0.5,
+        x: opts.hex.x,
+        y: opts.hex.y + opts.hex.h * 0.42,
+        scale: 0.86,
+        autoAlpha: 0.5,
+        transformOrigin: 'center center',
+      });
+      tl.to(els.shadow, {scale: 1.16, autoAlpha: 0, duration: secs * 0.86, ease: 'power1.out'}, 0);
+    }
+  }, opts.departMs + 400);
 }
 
 export type TileFlightOpts = {
@@ -450,6 +544,12 @@ export function killTileTweens(els: TileStageEls): void {
   gsap.killTweensOf(els.tile);
   if (els.edge !== undefined) {
     gsap.killTweensOf(els.edge);
+  }
+  if (els.depart !== undefined) {
+    gsap.killTweensOf(els.depart);
+  }
+  if (els.departEdge !== undefined) {
+    gsap.killTweensOf(els.departEdge);
   }
   if (els.touch !== undefined) {
     gsap.killTweensOf(els.touch);

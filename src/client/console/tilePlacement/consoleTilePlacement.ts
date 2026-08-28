@@ -32,6 +32,19 @@
  *        coins, not by three identical «+2 M€» chips.
  *   abortTilePlacement() is wired into every error path and a safety timer.
  *
+ *   REMOVE-AND-REPLACE (Kaguya Tech on Mars, Lunar Mine Urbanization on the
+ *   Moon — "remove 1 of yours and place this there, gain placement bonuses as
+ *   usual") prefixes ONE beat to that sequence and changes nothing else: the
+ *   arm carries the prompt's own `hiddenTiles` declaration, `verifyPlacement`
+ *   is thereby licensed to read the tile→tile diff as a placement, and the
+ *   scene opens with the REMOVAL — the doomed tile's proxy takes it over, the
+ *   cell blanks to a bare hex with its printed bonus surfacing, the tile rises
+ *   away carrying its owner cube, one breath, and then the ordinary flight
+ *   brings the replacement in. Unlike an ocean COVER the cell was EMPTIED, so
+ *   the printed bonuses are granted and paid out as for any bare hex — they
+ *   are just captured a frame later, because they do not exist until the
+ *   removal uncovers them. Contract: docs/claude/console/tile-replacement.md.
+ *
  * Ownership map:
  *   - phases / geometry / bonus extraction → tilePlacementModel (pure);
  *   - GSAP work on the stage              → tilePlacementDirector;
@@ -64,11 +77,16 @@ import {
   TilePlacementPhase, PlacementBonus, TileRect,
   placementBonuses, verifyPlacement, findSpace, applySpacePreview,
   TILE_FLIGHT_MS, TILE_SETTLE_MS, TILE_REDUCED_MS, TILE_ARM_SAFETY_MS,
+  TILE_DEPART_MS, TILE_DEPART_SCALE, TILE_DEPART_TILT_DEG, TILE_DEPART_FADE_T,
+  TILE_DEPART_REVEAL_T, TILE_DEPART_BREATH_MS, departureLiftPx, departingCubePose, DepartingCubePose,
   BONUS_PRELIFT_START_T, BONUS_RISE_MS, BONUS_HOVER_PX, BONUS_HANDOFF_BREATH_MS,
   OCEAN_BEAT_BREATH_MS, OCEAN_COIN_LIFT_PX, OCEAN_COIN_T, OCEAN_PULSE_T, OCEAN_PULSE_DRIFT,
   OCEAN_PULSE_MS, OCEAN_SPLASH_MS,
   oceanEdgePoint, oceanShoreDirection,
 } from '@/client/console/tilePlacement/tilePlacementModel';
+import {
+  setPlacementHiddenTiles, clearPlacementHiddenTiles,
+} from '@/client/components/board/placementRenderState';
 import {
   abortOceanBeat, oceanBonusFor, runOceanAdjacencyBeat,
 } from '@/client/console/tilePlacement/oceanAdjacencyBeat';
@@ -81,6 +99,7 @@ import {
   TileStageEls, placeTileProxy, playTileFlight, disposeTileProxy,
   placeBonusProxies, playBonusPreLift, playBonusHandoff, killTileTweens,
   playAresSourcePulses, playCoverSplash,
+  placeDepartProxy, playTileDeparture,
 } from '@/client/console/tilePlacement/tilePlacementDirector';
 import {
   runResourceTransfers, abortResourceTransfers, beginPanelRewardHold, releasePanelRewardHold, clearPanelRewardHold,
@@ -128,6 +147,14 @@ export const tilePlacementState = reactive({
    *  cell keeps painting the water through the flight (the commit is held
    *  anyway) and the touchdown answers with the landing splash. */
   coveredTile: undefined as TileType | undefined,
+  /** REMOVE-AND-REPLACE (Kaguya Tech / Lunar Mine Urbanization): the tile the
+   *  server took OFF the armed cell before placing on it. Set at detect —
+   *  drives the departure proxy's art and, by its presence, the whole opening
+   *  beat. Undefined for every ordinary landing. */
+  departingTile: undefined as TileType | undefined,
+  /** The owner marker standing on that doomed tile — it leaves ON it, so the
+   *  proxy carries a twin posed for the live hex. */
+  departingCube: undefined as DepartingCubePose | undefined,
   aresExtension: false,
   /** The printed stock-bonus icons that rise + pay out after the commit. */
   bonusProxies: [] as Array<BonusProxy>,
@@ -166,6 +193,15 @@ let cubeHeld = false;
 let bonusesHovering = false;
 /** The hold was seeded for THIS transaction (the commit path's one-shot). */
 let bonusHoldSeeded = false;
+/** The armed pick named a DECLARED remove-and-replace cell (the prompt's
+ *  `hiddenTiles` marker). Only such an arm may read a tile→tile diff as a
+ *  placement — see `verifyPlacement`. */
+let armedReplacing = false;
+/** TRUE while THIS transaction is the one hiding the armed cell's tile
+ *  (the removal window). Released the moment the new tile paints. */
+let clearedCellHeld = false;
+/** The printed-icon container we set the one-shot surfacing class on. */
+let revealedBonusEl: HTMLElement | undefined;
 
 // ── stage registry (the layer plugs in) ─────────────────────────────────────
 
@@ -216,7 +252,13 @@ registerAnimationHoldSupplier('tile-placement', tilePlacementHolding);
  * Nothing visual happens until the server proves the tile landed on the
  * armed space. Sets `active` synchronously — the input gate closes at once.
  */
-export function armTilePlacement(opts: {spaceId: string}): void {
+export function armTilePlacement(opts: {
+  spaceId: string,
+  /** The prompt DECLARED this cell a remove-and-replace target (its
+   *  `hiddenTiles` names it): the tile standing there is removed before the
+   *  new one is placed, so the scene opens with the departure beat. */
+  replacing?: boolean,
+}): void {
   // A confirm that lands while Planet Focus is still GROWING the board
   // snaps the transition to its settled state NOW — the detect measures the
   // target hex right after the response, and the flight must never aim at
@@ -229,16 +271,20 @@ export function armTilePlacement(opts: {spaceId: string}): void {
   pendingAresFlights = [];
   hexRect = undefined;
   restoreHeldBonuses();
+  releaseClearedCell();
   bonusesHovering = false;
   bonusHoldSeeded = false;
   landedColor = undefined;
   cubeHeld = false;
+  armedReplacing = opts.replacing === true;
   tilePlacementState.active = true;
   tilePlacementState.phase = 'armed';
   tilePlacementState.nonce++;
   tilePlacementState.spaceId = opts.spaceId;
   tilePlacementState.tileType = undefined;
   tilePlacementState.coveredTile = undefined;
+  tilePlacementState.departingTile = undefined;
+  tilePlacementState.departingCube = undefined;
   tilePlacementState.bonusProxies = [];
   tilePlacementState.aresSources = [];
   tilePlacementState.reducedMotion = consoleReducedMotionActive();
@@ -279,7 +325,7 @@ export function detectTilePlacement(
   }
   const spaceId = tilePlacementState.spaceId;
   const landed = prevSpaces !== undefined && newSpaces !== undefined ?
-    verifyPlacement(prevSpaces, newSpaces, spaceId) : undefined;
+    verifyPlacement(prevSpaces, newSpaces, spaceId, {replacing: armedReplacing}) : undefined;
   if (landed === undefined) {
     abortTilePlacement();
     return undefined;
@@ -296,7 +342,18 @@ export function detectTilePlacement(
   hexRect = measureBoardHexRect(spaceId);
   const space = prevSpaces !== undefined ? findSpace(prevSpaces, spaceId) : undefined;
   pendingBonuses = landed.covers === undefined && space !== undefined ? placementBonuses(space.bonus) : [];
-  tilePlacementState.bonusProxies = captureBonusIcons(spaceId, pendingBonuses);
+  if (landed.replaces !== undefined) {
+    // A REMOVE-AND-REPLACE cell is the one case where the printed icons are
+    // NOT on screen yet: the doomed tile is still standing on them (the
+    // server emptied the cell, so they ARE granted — `coveringExistingTile`
+    // was false). Their rects are captured by the departure beat instead, the
+    // frame after the removal uncovers them; here we only stage what leaves.
+    tilePlacementState.departingTile = landed.replaces.tileType;
+    tilePlacementState.departingCube = departingCubePose(landed.replaces.color, hexRect);
+    tilePlacementState.bonusProxies = [];
+  } else {
+    tilePlacementState.bonusProxies = captureBonusIcons(spaceId, pendingBonuses);
+  }
   const ocean = opts?.oceanBonus;
   pendingOceanBonus = oceanBonusFor(ocean, spaceId);
   // The Ares adjacency manifest: the newest grant CAUSED BY this placement,
@@ -336,8 +393,15 @@ async function executeApproach(
   if (!tilePlacementState.active) {
     return;
   }
-  tilePlacementState.phase = 'approaching';
-  const paintRealTile = () => applySpacePreview(prevSpaces, newSpaces, tilePlacementState.spaceId);
+  const departing = tilePlacementState.departingTile !== undefined;
+  tilePlacementState.phase = departing ? 'departing' : 'approaching';
+  // The removal window closes in the SAME synchronous turn the new tile
+  // paints: the cell must never be simultaneously "cleared" and carrying its
+  // replacement (that would blank the tile that just landed).
+  const paintRealTile = () => {
+    releaseClearedCell();
+    applySpacePreview(prevSpaces, newSpaces, tilePlacementState.spaceId);
+  };
 
   if (tilePlacementState.reducedMotion || hexRect === undefined || typeof document === 'undefined') {
     // Reduced / unmeasurable: the tile appears in place with a short
@@ -350,6 +414,19 @@ async function executeApproach(
   await nextTick(); // the layer mounts the proxy
   if (!tilePlacementState.active) {
     return;
+  }
+  if (departing) {
+    // The doomed tile lifts off and the emptied cell surfaces its printed
+    // bonus — the beat that makes "remove yours, place this there" physical.
+    await runDeparture(hexRect);
+    if (!tilePlacementState.active) {
+      return;
+    }
+    tilePlacementState.phase = 'approaching';
+    await nextTick(); // …and the bonus proxies the departure just staged mount
+    if (!tilePlacementState.active) {
+      return;
+    }
   }
   const els = stage?.els();
   const ui = conUiScale();
@@ -413,6 +490,60 @@ async function executeApproach(
     cubeHeld = false;
     dropCubeForHeroPlacement(tilePlacementState.spaceId as SpaceId);
   }
+}
+
+/**
+ * THE REMOVAL (the opening beat of a remove-and-replace placement).
+ *
+ * Choreography, in the project's own physical grammar:
+ *   1. a proxy of the doomed tile is posed 1:1 over it and the REAL cell is
+ *      blanked in that same synchronous turn (the `con-deal-hold` swap
+ *      discipline) — nothing is seen to change, but from now on the cell
+ *      underneath is a bare hex WITH its printed bonuses;
+ *   2. the owner marker is held: it leaves ON the tile it was marking, so the
+ *      proxy carries the twin and the cell keeps none;
+ *   3. those printed icons' rects are captured (they exist only now — the
+ *      reward beat at the end replays these exact positions);
+ *   4. the tile UNSEATS and rises away while the bonus it was standing on
+ *      SURFACES underneath it (a one-shot CSS reveal, started partway into
+ *      the lift so it reads as uncovered BY the departure);
+ *   5. one calm breath on the cleared cell — then the ordinary flight brings
+ *      the replacement in, exactly as for any empty hex.
+ *
+ * Degrades at every step: a missing stage still clears the cell and captures
+ * the icons, so the landing + reward beat are never lost — only the lift is.
+ */
+async function runDeparture(hex: TileRect): Promise<void> {
+  const spaceId = tilePlacementState.spaceId;
+  const els = stage?.els();
+  const posed = els !== undefined && placeDepartProxy(els, hex);
+  holdClearedCell();
+  if (tilePlacementState.departingCube !== undefined) {
+    holdCubeForHeroPlacement(spaceId as SpaceId);
+    cubeHeld = true;
+  }
+  await nextTick(); // the cell repaints as a bare hex — its icons exist now
+  if (!tilePlacementState.active) {
+    return;
+  }
+  tilePlacementState.bonusProxies = captureBonusIcons(spaceId, pendingBonuses);
+  if (!posed || els === undefined) {
+    return; // no lift to play; the cell is cleared and the landing follows
+  }
+  const departMs = motionMs(TILE_DEPART_MS);
+  revealClearedBonuses(Math.round(departMs * TILE_DEPART_REVEAL_T));
+  await playTileDeparture(els, {
+    hex,
+    liftPx: departureLiftPx(hex),
+    departMs,
+    fadeAt: TILE_DEPART_FADE_T,
+    tiltDeg: TILE_DEPART_TILT_DEG,
+    scale: TILE_DEPART_SCALE,
+  });
+  if (!tilePlacementState.active) {
+    return;
+  }
+  await wait(motionMs(TILE_DEPART_BREATH_MS));
 }
 
 /**
@@ -664,6 +795,9 @@ export function abortTilePlacement(): void {
   abortOceanBeat(); // …and the shared water beat this placement may have staged
   clearPanelRewardHold();
   restoreHeldBonuses(); // the printed icons un-blank — the field is intact
+  // …and a removal caught mid-lift puts the doomed tile back: the server may
+  // have refused the placement, in which case that tile is still standing.
+  releaseClearedCell();
   if (cubeHeld) {
     // The tile was already painted when the cube was held — show the cube
     // at rest (no drop beat) rather than leaving it stranded invisible.
@@ -676,6 +810,7 @@ export function abortTilePlacement(): void {
   pendingOceanBonus = undefined;
   pendingAresFlights = [];
   hexRect = undefined;
+  armedReplacing = false;
   tilePlacementState.active = false;
   tilePlacementState.phase = 'failed';
   tilePlacementState.bonusProxies = [];
@@ -687,6 +822,8 @@ export function abortTilePlacement(): void {
       tilePlacementState.spaceId = '';
       tilePlacementState.tileType = undefined;
       tilePlacementState.coveredTile = undefined;
+      tilePlacementState.departingTile = undefined;
+      tilePlacementState.departingCube = undefined;
     }
   });
 }
@@ -697,6 +834,8 @@ function finish(): void {
   // Un-blank the printed icons: the placed tile's art covers them on the
   // real board anyway (same as every pre-existing tile) — invisible swap.
   restoreHeldBonuses();
+  // Belt-and-braces: the removal window normally closes at the handoff paint.
+  releaseClearedCell();
   if (cubeHeld) {
     // Belt-and-braces: the drop normally fires at the proxy handoff.
     cubeHeld = false;
@@ -708,6 +847,7 @@ function finish(): void {
   pendingOceanBonus = undefined;
   pendingAresFlights = [];
   hexRect = undefined;
+  armedReplacing = false;
   tilePlacementState.active = false;
   tilePlacementState.phase = 'done';
   tilePlacementState.bonusProxies = [];
@@ -718,6 +858,8 @@ function finish(): void {
       tilePlacementState.spaceId = '';
       tilePlacementState.tileType = undefined;
       tilePlacementState.coveredTile = undefined;
+      tilePlacementState.departingTile = undefined;
+      tilePlacementState.departingCube = undefined;
     }
   });
 }
@@ -740,15 +882,21 @@ function escapeId(id: string): string {
     CSS.escape(id) : id.replace(/"/g, '\\"');
 }
 
+/** The armed cell's printed-icon container (present only while the cell
+ *  reads as empty — an occupied cell renders no bonuses at all). */
+function bonusContainerEl(): HTMLElement | null {
+  if (typeof document === 'undefined') {
+    return null;
+  }
+  return document.querySelector<HTMLElement>(
+    `.board-space[data_space_id="${escapeId(tilePlacementState.spaceId)}"] .board-space-bonuses`);
+}
+
 /** Blank the REAL printed-icon container the same synchronous turn the
  *  proxies stand over it (the shared `con-deal-hold` swap discipline) —
  *  the takeover is 1:1, never a double vision. */
 function holdRealBonuses(): void {
-  if (typeof document === 'undefined') {
-    return;
-  }
-  const el = document.querySelector<HTMLElement>(
-    `.board-space[data_space_id="${escapeId(tilePlacementState.spaceId)}"] .board-space-bonuses`);
+  const el = bonusContainerEl();
   if (el !== null) {
     heldBonusEl = el;
     el.classList.add('con-deal-hold');
@@ -758,6 +906,49 @@ function holdRealBonuses(): void {
 function restoreHeldBonuses(): void {
   heldBonusEl?.classList.remove('con-deal-hold');
   heldBonusEl = undefined;
+}
+
+/**
+ * THE REMOVAL WINDOW. `placementRenderState.hiddenTiles` is the board's own
+ * "this cell renders WITHOUT its tile graphic, with its placement bonus
+ * instead" switch, and this transaction is its ONE owner: it opens the window
+ * as the doomed tile's proxy takes over and closes it in the same synchronous
+ * turn the replacement paints. (It also silences the generic placement chrome
+ * on that cell — `BoardSpaceTile.refreshPlacement` reads the module state
+ * directly — so no ring can flash over an apparently-empty hex.)
+ */
+function holdClearedCell(): void {
+  clearedCellHeld = true;
+  setPlacementHiddenTiles([tilePlacementState.spaceId as SpaceId]);
+}
+
+function releaseClearedCell(): void {
+  clearBonusReveal();
+  if (!clearedCellHeld) {
+    return;
+  }
+  clearedCellHeld = false;
+  clearPlacementHiddenTiles();
+}
+
+/** The uncovered bonus SURFACES (one-shot CSS, started partway into the lift
+ *  — see `.board-space-bonuses.con-tileplace-reveal`). Applied AFTER the
+ *  rects are captured: the keyframe scales the container, and a mid-animation
+ *  `getBoundingClientRect` would hand the reward beat a shrunken origin. */
+function revealClearedBonuses(delayMs: number): void {
+  const el = bonusContainerEl();
+  if (el === null) {
+    return;
+  }
+  revealedBonusEl = el;
+  el.style.setProperty('--con-tileplace-reveal-delay', `${delayMs}ms`);
+  el.classList.add('con-tileplace-reveal');
+}
+
+function clearBonusReveal(): void {
+  revealedBonusEl?.classList.remove('con-tileplace-reveal');
+  revealedBonusEl?.style.removeProperty('--con-tileplace-reveal-delay');
+  revealedBonusEl = undefined;
 }
 
 /** The live rect of a board hex (post pan/zoom truth) — shared with the

@@ -393,5 +393,8 @@
     "Action: Spend any amount of energy to move that number of steps on the Hydronetwork track. Each step requires having all the matching tags in play up to that level; wild tags can replace missing ones. Gain resources next to your position.": "Действие: потратьте любое количество энергии, чтобы продвинуться на столько же делений по треку Гидросети. Для каждого деления нужны все соответствующие метки в игре вплоть до этого уровня; универсальные метки заменяют недостающие. Получите ресурсы рядом со своей позицией.",
     "Spend energy to advance on the Hydronetwork": "Потратьте энергию для продвижения по Гидросети",
     "Gain 1 energy per ocean-side tile of yours": "1 энергия за каждый приморский тайл",
-    "Advance 1 step on the Hydronetwork for 1 energy": "Продвинуться на 1 деление за 1 энергию"
+    "Advance 1 step on the Hydronetwork for 1 energy": "Продвинуться на 1 деление за 1 энергию",
+    "Steal 3 M€ from a player that REMOVED YOUR RESOURCES OR DECREASED YOUR PRODUCTION this generation.": "Заберите себе 3 М€ у игрока, который в этом поколении УДАЛЯЛ ВАШИ РЕСУРСЫ ИЛИ СНИЖАЛ ВАШЕ ПРОИЗВОДСТВО.",
+    "Place this card face down in THAT PLAYER'S EVENT PILE.": "Положите эту карту рубашкой вверх в СТОПКУ СОБЫТИЙ ТОГО ИГРОКА.",
+    "Animals may not be removed from this card.": "Животных с этой карты удалять нельзя."
 }

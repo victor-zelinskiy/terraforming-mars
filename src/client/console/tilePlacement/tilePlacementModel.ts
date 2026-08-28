@@ -47,6 +47,7 @@ import {ResourceTransferSpec, TransferPoint} from '@/client/console/resourceTran
 export type TilePlacementPhase =
   | 'idle'
   | 'armed' // space pick submitted — nothing visual yet
+  | 'departing' // remove-and-replace: the doomed tile lifts off the cell
   | 'approaching' // server success proven; the tile flies to the hex
   | 'landed' // touchdown + settle done; real tile painted under the proxy
   | 'rewarding' // post-commit: printed bonuses materialize + pay out
@@ -179,6 +180,85 @@ export function oceanTransferSpecs(count: number, perOcean: number): Array<Resou
     out.push({channel: 'stock', resource: 'megacredits', amount: perOcean});
   }
   return out;
+}
+
+/**
+ * TILE DEPARTURE — the opening beat of a REMOVE-AND-REPLACE placement
+ * ("remove 1 of your greenery tiles and place a city there": Kaguya Tech on
+ * Mars, Lunar Mine Urbanization on the Moon).
+ *
+ * The card does two physical things to ONE cell, so the scene shows two: the
+ * standing tile is UNSEATED — it releases from the surface, rises off the
+ * plane toward the camera with its thickness edge decompressing (the exact
+ * inverse of the landing's contact squash), tips a little as it clears, and
+ * fades out on its way — and the cell it leaves behind is a bare hex with its
+ * PRINTED BONUS surfacing, which is precisely what the player is about to be
+ * paid ("gain placement bonuses as usual"). Only then does the ordinary
+ * flight bring the new tile in, and the ordinary reward beat pays those very
+ * icons. Nothing about the arrival is special-cased: the removal is a
+ * PREFIX, not a second dialect of landing.
+ */
+/** The lift-off (the whole unseating reads inside it). */
+export const TILE_DEPART_MS = 380;
+/** How far the tile rises, as a fraction of the hex height — proportional,
+ *  so it survives board zoom and every display profile (never fixed px). */
+export const TILE_DEPART_LIFT = 0.62;
+/** …growing as it comes toward the camera (mirrors the arrival's cruise). */
+export const TILE_DEPART_SCALE = 1.16;
+/** …with a small carried tip, the mirror of the landing's unwinding tilt. */
+export const TILE_DEPART_TILT_DEG = -4.5;
+/** Where in the lift the tile starts to fade (it clears the cell first). */
+export const TILE_DEPART_FADE_T = 0.42;
+/** When the emptied cell's printed bonus starts surfacing, as a fraction of
+ *  the lift — early enough to read as UNCOVERED BY the departure, late
+ *  enough that the tile is no longer sitting on top of it. */
+export const TILE_DEPART_REVEAL_T = 0.34;
+/** The bonus reveal's own duration (the CSS one-shot mirrors this). */
+export const TILE_DEPART_REVEAL_MS = 280;
+/** One calm breath on the cleared cell — the player reads WHAT the removal
+ *  uncovered before the replacement tile starts its approach. */
+export const TILE_DEPART_BREATH_MS = 130;
+
+/** The departing tile's lift in px for a live hex — proportional to the hex
+ *  itself (post pan/zoom truth), with a floor so a tiny board still reads. */
+export function departureLiftPx(hex: TileRect): number {
+  return Math.max(16, Math.round(hex.h * TILE_DEPART_LIFT));
+}
+
+/**
+ * The OWNER MARKER travels with the tile it was marking, so the departing
+ * proxy carries a twin of the cell's cube. The board's own placement is
+ * authored in px against the UNSCALED hex (`.board-space` 46×51,
+ * `.player-cube.board-owner-cube { right: 7px; bottom: 14px }`, `:size="12"`)
+ * and then rides the board's zoom transform; the proxy is a FIXED element
+ * posed at the MEASURED (already-scaled) rect, so the same numbers have to be
+ * re-derived as a fraction of that live box — otherwise the twin drifts off
+ * its socket the moment the board is zoomed.
+ */
+const BOARD_HEX_W = 46;
+const BOARD_HEX_H = 51;
+const OWNER_CUBE_RIGHT = 7;
+const OWNER_CUBE_BOTTOM = 14;
+const OWNER_CUBE_SIZE = 12;
+
+export type DepartingCubePose = {
+  color: Color,
+  /** `--pc-size` in px for this hex (PlayerCube's footprint prop). */
+  size: number,
+  right: number,
+  bottom: number,
+};
+
+export function departingCubePose(color: Color | undefined, hex: TileRect | undefined): DepartingCubePose | undefined {
+  if (color === undefined || hex === undefined || hex.w < 8 || hex.h < 8) {
+    return undefined;
+  }
+  return {
+    color,
+    size: (hex.w / BOARD_HEX_W) * OWNER_CUBE_SIZE,
+    right: (hex.w / BOARD_HEX_W) * OWNER_CUBE_RIGHT,
+    bottom: (hex.h / BOARD_HEX_H) * OWNER_CUBE_BOTTOM,
+  };
 }
 
 /** Departure pose: the tile is picked up CLOSE to the camera… */
@@ -383,7 +463,24 @@ export function verifyPlacement(
   prevSpaces: ReadonlyArray<SpaceModel>,
   newSpaces: ReadonlyArray<SpaceModel>,
   spaceId: string,
-): {tileType: TileType, color: Color | undefined, covers?: TileType} | undefined {
+  opts?: {
+    /**
+     * The prompt DECLARED this cell a remove-and-replace target (its
+     * `hiddenTiles` names it — the server marker Kaguya Tech / Lunar Mine
+     * Urbanization set). Only then may a tile→tile diff be read as "the old
+     * tile was removed and the new one placed on the emptied cell"; without
+     * the declaration an unexplained type change is still refused, exactly
+     * as before, so a hazard cleanup or a server correction can never be
+     * mistaken for a placement.
+     */
+    replacing?: boolean,
+  },
+): {
+  tileType: TileType,
+  color: Color | undefined,
+  covers?: TileType,
+  replaces?: {tileType: TileType, color: Color | undefined},
+} | undefined {
   const prev = findSpace(prevSpaces, spaceId);
   const next = findSpace(newSpaces, spaceId);
   if (prev === undefined || next === undefined) {
@@ -393,8 +490,22 @@ export function verifyPlacement(
     return undefined;
   }
   if (prev.tileType !== undefined) {
-    // The ONE legal non-hazard replacement (`MarsBoard.canCover`): a tile
-    // landing on a plain ocean. Everything else keeps its own sequence.
+    if (prev.tileType === next.tileType) {
+      return undefined; // nothing changed on the cell — no placement to show
+    }
+    // A DECLARED removal: the server emptied the cell and placed on it, so
+    // the printed bonuses are granted "as usual" — the scene opens with the
+    // doomed tile lifting away and pays those icons at the end. A hazard on
+    // either side keeps its own ominous language.
+    if (opts?.replacing === true && !HAZARD_TILES.has(prev.tileType)) {
+      return {
+        tileType: next.tileType,
+        color: next.color,
+        replaces: {tileType: prev.tileType, color: prev.color},
+      };
+    }
+    // The ONE legal UNdeclared non-hazard replacement (`MarsBoard.canCover`):
+    // a tile landing on a plain ocean. Everything else keeps its own sequence.
     if (prev.tileType !== TileType.OCEAN || next.tileType === TileType.OCEAN) {
       return undefined;
     }

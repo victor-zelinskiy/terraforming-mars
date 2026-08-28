@@ -3,6 +3,7 @@ import {buildOrItems, orItemResponse, buildTabbedTargets} from '@/client/console
 import {OrOptionsModel} from '@/common/models/PlayerInputModel';
 import {TabbedTargetsStep} from '@/common/models/ActionPreviewModel';
 import {LogMessageDataType} from '@/common/logs/LogMessageDataType';
+import {Color} from '@/common/Color';
 
 function leaf(title: unknown, metadata?: unknown) {
   return {type: 'option', title, metadata} as unknown;
@@ -156,5 +157,55 @@ describe('consoleOrChoice — tabbed targets (Virus)', () => {
     expect(targets).to.have.length(1);
     expect(targets[0].playerColor).to.eq('neutral');
     expect(targets[0].response).to.deep.eq({type: 'or', index: 0, response: {type: 'option'}});
+  });
+
+  /**
+   * A CARD TARGET MUST NAME ITS VICTIM.
+   *
+   * Every plant row is a PLAYER target, so it always carried a colour + a name;
+   * the animal rows are CARD targets, whose model is a bare `SelectCardModel`,
+   * and they shipped as a card name with nothing beside it. The list then read
+   * «убрать 2 животных с "Пингвинов"» without saying whose penguins — and Virus
+   * takes from ANY player, so one of those cards can be the viewer's own.
+   */
+  it('carries the OWNER of an animal CARD target (colour dot + name + self flag)', () => {
+    const step = {
+      kind: 'tabbedTargets',
+      animal: {
+        label: 'Animals', icon: 'animal', amount: 2, branchIndex: 0,
+        input: {type: 'card', cards: [{name: 'Penguins', resources: 3}, {name: 'Pets', resources: 1}]},
+      },
+      plant: {label: 'Plants', icon: 'plants', amount: 5, targets: [{color: 'red', name: 'Red', current: 6, resulting: 1, optionIndex: 1}]},
+    } as unknown as TabbedTargetsStep;
+    const owners: Record<string, {color: Color, name: string, self: boolean}> = {
+      Penguins: {color: 'red' as Color, name: 'Red', self: false},
+      Pets: {color: 'blue' as Color, name: 'Me', self: true},
+    };
+    const targets = buildTabbedTargets(step, (name) => owners[name]);
+    const penguins = targets.find((t) => t.cardName === 'Penguins')!;
+    expect(penguins.playerColor).to.eq('red');
+    expect(penguins.ownerName).to.eq('Red');
+    expect(penguins.ownerSelf).to.eq(false);
+    const pets = targets.find((t) => t.cardName === 'Pets')!;
+    expect(pets.ownerName).to.eq('Me');
+    expect(pets.ownerSelf).to.eq(true);
+    // …and the card MODEL rides along: the sub-list advertises «ОСМОТРЕТЬ», and
+    // the inspector opens over a model, not a name.
+    expect(pets.card).to.deep.eq({name: 'Pets', resources: 1});
+    expect(targets.find((t) => t.tab === 'plant')!.card).to.eq(undefined);
+    // The owner is DECORATION on the response — the submitted bytes are the
+    // same with or without a resolver.
+    expect(targets.map((t) => t.response)).to.deep.eq(buildTabbedTargets(step).map((t) => t.response));
+  });
+
+  it('leaves a card target ownerless when the host cannot resolve it (no crash, no fake owner)', () => {
+    const step = {
+      kind: 'tabbedTargets',
+      animal: {label: 'Animals', icon: 'animal', amount: 2, branchIndex: 0, input: {type: 'card', cards: [{name: 'Pets', resources: 1}]}},
+    } as unknown as TabbedTargetsStep;
+    const targets = buildTabbedTargets(step, () => undefined);
+    expect(targets[0].playerColor).to.eq(undefined);
+    expect(targets[0].ownerName).to.eq(undefined);
+    expect(targets[0].ownerSelf).to.eq(undefined);
   });
 });

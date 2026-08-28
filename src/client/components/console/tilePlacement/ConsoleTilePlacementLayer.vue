@@ -58,6 +58,22 @@
     </template>
     <template v-if="tilePlacementState.active">
       <div ref="shadow" class="con-tileplace__shadow"></div>
+      <!-- THE DEPARTING TILE (remove-and-replace only) — the twin of the tile
+           the card takes OFF this cell before placing on it. Same anatomy as
+           the arriving proxy (art + thickness edge), plus the OWNER MARKER,
+           which leaves on the tile it was marking; its box is posed by the
+           director and the cube is placed from the live hex, so the twin
+           stays in its socket under any board zoom. -->
+      <div v-if="departArtClass !== ''" ref="depart" class="con-tileplace__tile con-tileplace__tile--depart">
+        <div ref="departEdge" class="con-tileplace__edge" :class="departArtClass"></div>
+        <div class="con-tileplace__art" :class="departArtClass"></div>
+        <player-cube
+          v-if="tilePlacementState.departingCube !== undefined"
+          class="board-owner-cube"
+          :color="tilePlacementState.departingCube.color"
+          :size="tilePlacementState.departingCube.size"
+          :style="departCubeStyle"></player-cube>
+      </div>
       <div v-if="artClass !== ''" ref="tile" class="con-tileplace__tile">
         <div class="con-tileplace__edge" :class="artClass"></div>
         <div class="con-tileplace__art" :class="artClass"></div>
@@ -125,9 +141,19 @@ import {remotePlacementState, abortRemotePlacements} from '@/client/console/tile
 import {TileStageEls} from '@/client/console/tilePlacement/tilePlacementDirector';
 import {OCEAN_COIN_SPARKS} from '@/client/console/tilePlacement/tilePlacementModel';
 import {tileCssClassOf} from '@/client/components/board/BoardSpaceTile.vue';
+import PlayerCube from '@/client/components/PlayerCube.vue';
+
+/** Vue 3 leaves a template ref as `null` once its element has rendered and
+ *  then been removed (`v-if` off) — the same guard the tile ref uses. */
+function connected(el: HTMLElement | undefined): HTMLElement | undefined {
+  return el && el.isConnected ? el : undefined;
+}
 
 export default defineComponent({
   name: 'ConsoleTilePlacementLayer',
+  components: {
+    'player-cube': PlayerCube,
+  },
   data() {
     return {
       tilePlacementState,
@@ -161,6 +187,25 @@ export default defineComponent({
       }
       const suffix = tileCssClassOf(t, remotePlacementState.aresExtension);
       return suffix === '' ? '' : 'board-space-tile--' + suffix;
+    },
+    /** The tile the removal takes OFF the cell (remove-and-replace only). */
+    departArtClass(): string {
+      const t = tilePlacementState.departingTile;
+      if (t === undefined) {
+        return '';
+      }
+      const suffix = tileCssClassOf(t, tilePlacementState.aresExtension);
+      return suffix === '' ? '' : 'board-space-tile--' + suffix;
+    },
+    /** The owner marker's socket, re-derived for the LIVE hex — the board's
+     *  own px offsets are authored against the unscaled cell and then ride the
+     *  board's zoom, which a fixed proxy does not inherit. */
+    departCubeStyle(): Record<string, string> {
+      const c = tilePlacementState.departingCube;
+      return c === undefined ? {} : {
+        right: `${c.right}px`,
+        bottom: `${c.bottom}px`,
+      };
     },
   },
   methods: {
@@ -266,6 +311,8 @@ export default defineComponent({
           bonusIcons,
           aresPulses,
           splash: this.$refs.splash as HTMLElement | undefined,
+          depart: connected(this.$refs.depart as HTMLElement | undefined),
+          departEdge: connected(this.$refs.departEdge as HTMLElement | undefined),
         };
       },
       remoteEls: (): TileStageEls | undefined => {
@@ -288,6 +335,10 @@ export default defineComponent({
           bonusIcons: [],
           aresPulses,
           splash: this.$refs.remoteSplash as HTMLElement | undefined,
+          // A remote placement has no removal beat of its own (see
+          // consoleRemotePlacement) — nothing departs on this stage.
+          depart: undefined,
+          departEdge: undefined,
         };
       },
     });
