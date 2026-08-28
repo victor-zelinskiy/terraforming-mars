@@ -77,7 +77,7 @@
         <div v-if="gamesNeedName" class="cm-gamelist__empty">{{ $t('Set your player name to see your games') }}</div>
         <div v-else-if="gamesFirstLoad" class="cm-gamelist__empty">{{ $t('Loading') }}…</div>
         <div v-else-if="gamesLoadError" class="cm-gamelist__empty cm-gamelist__empty--error">{{ $t('Could not load your games') }}</div>
-        <div v-else-if="gamesCount === 0" class="cm-gamelist__empty">{{ $t(gamesEmptyKey) }}</div>
+        <div v-else-if="gamesRowCount === 0 && !lanEntryVisible" class="cm-gamelist__empty">{{ $t(gamesEmptyKey) }}</div>
         <ConsoleScrollArea v-else ref="gamesScroll" class="cm-gamelist-scroll">
           <div class="cm-gamelist">
           <button
@@ -134,12 +134,22 @@
           <!-- LAN hosts (host-as-server mode): games discovered over mDNS on other
                couches. Joining pins the seat to that host's server and navigates —
                the session then talks to the host directly (docs/EMBEDDED_SERVER.md §6). -->
-          <template v-if="visibleLanRows.length > 0 || lanTrouble.length > 0">
-            <div class="cm-gamelist__lanhead">{{ $t('On your local network') }}</div>
-            <!-- A host that stopped answering SAYS SO. Silence here used to be
-                 indistinguishable from «that couch has no games». -->
+          <template v-if="lanSectionVisible">
+            <!-- The listing is NAME-scoped, and that is invisible unless it is
+                 said: a host with no row is usually a seat under another name,
+                 not a broken network. -->
+            <div class="cm-gamelist__lanhead">
+              {{ $t('On your local network') }}
+              <span v-if="identityName !== ''" class="cm-gamelist__lanwho">{{ $t('games with') }} «{{ identityName }}»</span>
+            </div>
+            <!-- A host that stopped answering SAYS SO, and says WHY. Silence
+                 here used to be indistinguishable from «that couch has no
+                 games», which is what made a LAN problem undiagnosable. -->
             <div v-for="host in lanTrouble" :key="host.id" class="cm-gamelist__lanstatus">
-              {{ host.label }} — {{ $t('not responding') }}
+              {{ host.label }} — {{ $t('not responding') }}<template v-if="host.reason !== ''"> · {{ host.reason }}</template>
+            </div>
+            <div v-for="host in lanEmptyHosts" :key="host.id" class="cm-gamelist__lanstatus cm-gamelist__lanstatus--calm">
+              {{ host.label }} — {{ $t('no games with your name') }}
             </div>
             <button
               v-for="(row, k) in visibleLanRows"
@@ -181,6 +191,31 @@
               </div>
             </button>
           </template>
+
+          <!-- With the add-a-host tool present the list is never «empty», so the
+               answer to «сколько у меня партий» moves inside it. -->
+          <div v-if="gamesRowCount === 0" class="cm-gamelist__empty cm-gamelist__empty--inline">{{ $t(gamesEmptyKey) }}</div>
+
+          <!-- MANUAL HOST — the fallback that always works. Discovery is
+               multicast, and multicast is the first thing a router's client
+               isolation, a guest SSID or a firewall drops; without a typed
+               address such a network has no way into a LAN game at all. Last in
+               the cursor ring, so it never gets in the way of a real row. -->
+          <button
+            v-if="lanEntryVisible"
+            type="button"
+            class="cm-game cm-game--add"
+            :class="{'cm-game--cursor': gamesCursor === gamesCount - 1}"
+            @click="enterGameAt(gamesCount - 1)"
+            @mousemove="gamesCursor = gamesCount - 1"
+          >
+            <div class="cm-game__head">
+              <span class="cm-game__name">＋ {{ $t('Add a host by address') }}</span>
+            </div>
+            <div class="cm-game__foot">
+              <span class="cm-game__meta">{{ $t('When the network hides other players, type their address') }}</span>
+            </div>
+          </button>
           </div>
         </ConsoleScrollArea>
       </div>
@@ -207,6 +242,18 @@
         </div>
       </div>
     </div>
+
+    <!-- Manual LAN host entry (the on-screen keyboard owns every intent). -->
+    <ConsoleVirtualKeyboard
+      v-if="lanEntry"
+      ref="lankeyboard"
+      :initial="lanDraft"
+      :title="'Host address'"
+      :issue="lanIssue"
+      @update="lanDraft = $event"
+      @commit="commitManualHost"
+      @cancel="cancelManualHost"
+    />
 
     <!-- ── Profile editor ──────────────────────────────────────────────── -->
     <ConsoleProfileEditor v-if="overlay === 'profile'" ref="profile" @close="closeOverlay" @manage-friends="openFriends" @manage-profiles="openProfiles" />
@@ -326,7 +373,8 @@ import {
   setLobbyIdentity, refreshLobby, loadLobbyArchive, setLobbyOwnVersion,
   lobbyFirstLoad, lobbyUnreachable, localLobbySource,
 } from '@/client/components/mainMenu/lobbyState';
-import {initLanDiscovery, publishLanName} from '@/client/components/mainMenu/lanState';
+import {initLanDiscovery, publishLanName, addManualHost, removeManualHost, lanState} from '@/client/components/mainMenu/lanState';
+import ConsoleVirtualKeyboard from '@/client/components/console/menu/ConsoleVirtualKeyboard.vue';
 import {pinServerEndpoint} from '@/client/utils/serverEndpoints';
 import {lastGameEntered, recordLastGameEntered} from '@/client/components/mainMenu/lastGameState';
 import {navigateWithCurtain} from '@/client/console/loadingScreenState';
@@ -347,7 +395,7 @@ type MenuOverlay = 'games' | 'profile' | 'profiles' | 'friends' | 'language' | '
 
 export default defineComponent({
   name: 'ConsoleMainMenu',
-  components: {ConsoleCommandBar, ConsoleScrollArea, GamepadGlyph, ConsoleProfileEditor, ConsoleProfilesEditor, ConsoleFriendsEditor, ConsoleLanguagePicker, ConsoleOptionsPanel, ConsoleAdminRollback, ConsolePlaygroundHub},
+  components: {ConsoleCommandBar, ConsoleScrollArea, GamepadGlyph, ConsoleVirtualKeyboard, ConsoleProfileEditor, ConsoleProfilesEditor, ConsoleFriendsEditor, ConsoleLanguagePicker, ConsoleOptionsPanel, ConsoleAdminRollback, ConsolePlaygroundHub},
   setup() {
     // Foundation: page-level overflow lock while this screen owns the viewport.
     useConsoleNativeSurface();
@@ -369,6 +417,11 @@ export default defineComponent({
       gamesConfirm: undefined as undefined | {kind: 'one', game: JoinableGameSummary} | {kind: 'all'},
       gamesDeleting: false,
       gamesError: false,
+      // Manual LAN host entry (the multicast-blocked fallback).
+      lanState,
+      lanEntry: false,
+      lanDraft: '',
+      lanIssue: '',
     };
   },
   computed: {
@@ -398,8 +451,19 @@ export default defineComponent({
     visibleLanRows(): ReadonlyArray<LobbyRow> {
       return this.gamesTab === 'finished' ? [] : this.lobbyState.lanRows;
     },
-    /** Cursor range of the games overlay: local rows first, then LAN rows. */
+    /**
+     * Cursor range of the games overlay: local rows, then LAN rows, then the
+     * «add a host» affordance last — a real party is always ahead of a tool.
+     */
     gamesCount(): number {
+      return this.gamesRowCount + (this.lanEntryVisible ? 1 : 0);
+    },
+    /**
+     * PARTIES only. The empty / loading / error states must answer «сколько у
+     * меня партий», not «сколько строк на экране» — counting the add-a-host
+     * tool as a row would silently retire «У вас пока нет незавершённых партий».
+     */
+    gamesRowCount(): number {
       return this.localRows.length + this.visibleLanRows.length;
     },
     /** The two slices as a segmented control (count shown once its list loaded). */
@@ -433,14 +497,48 @@ export default defineComponent({
     gamesEmptyKey(): string {
       return this.gamesTab === 'finished' ? 'You have no finished games yet.' : 'You have no unfinished games yet.';
     },
-    /** LAN sources that answered nothing / stopped answering — shown, not hidden. */
-    lanTrouble(): ReadonlyArray<{id: string, label: string}> {
+    /**
+     * LAN hosts that could not be asked — SHOWN with the reason, never silently
+     * absent. «Не отвечает» alone leaves the player unable to tell a slow couch
+     * from a blocked port, which is the one thing they can act on.
+     */
+    lanTrouble(): ReadonlyArray<{id: string, label: string, reason: string}> {
       if (this.gamesTab === 'finished') {
         return [];
       }
       return this.lobbyState.sources
         .filter((s) => s.kind === 'lan' && s.status === 'unreachable')
+        .map((s) => ({id: s.id, label: s.label, reason: s.lastError}));
+    },
+    /**
+     * A LAN host that answered, but with nothing for THIS player. Also a state
+     * that must speak: name matching is what a listing is scoped by, and a
+     * silent empty section reads as «сеть не работает» when in fact the seat is
+     * simply under another name.
+     */
+    lanEmptyHosts(): ReadonlyArray<{id: string, label: string}> {
+      if (this.gamesTab === 'finished') {
+        return [];
+      }
+      const withRows = new Set(this.lobbyState.lanRows.map((row) => row.sourceId));
+      return this.lobbyState.sources
+        .filter((s) => s.kind === 'lan' && s.status === 'ok' && !withRows.has(s.id))
         .map((s) => ({id: s.id, label: s.label}));
+    },
+    /** True when the LAN section has anything at all to say. */
+    lanSectionVisible(): boolean {
+      return this.visibleLanRows.length > 0 || this.lanTrouble.length > 0 || this.lanEmptyHosts.length > 0;
+    },
+    /**
+     * The manual-host affordance. Only in the live slice, only on a shell that
+     * has LAN at all — on the web there is nothing to type an address into.
+     */
+    lanEntryVisible(): boolean {
+      return this.gamesTab !== 'finished' && this.appModeEffective === 'host';
+    },
+    /** Hand-typed hosts, so X can take one back off the list. */
+    manualHosts(): ReadonlyArray<{entry: string}> {
+      return this.lanState.manual;
     },
     /** Deletion is offered only for games on THIS device's embedded server. */
     canDeleteLocal(): boolean {
@@ -550,17 +648,23 @@ export default defineComponent({
         // A row whose host has gone quiet stays LISTED (the game exists) but the
         // verb must not offer to enter it — the navigation would land on a
         // curtain that never lifts.
-        const enterable = row !== undefined && this.joinable(row) && lanRow?.stale !== true;
+        const onAdd = this.onLanEntryRow();
+        const enterable = onAdd || (row !== undefined && this.joinable(row) && lanRow?.stale !== true);
         const archive = this.gamesTab === 'finished';
+        const manualRow = lanRow !== undefined && this.manualHosts.some((h) => h.entry === lanRow.hostName);
         const bar: Array<ConsoleCommand> = [
           {control: 'dpad', label: 'Navigate'},
           // A finished row is opened to READ it — the verb says so, since the
           // press leads to the settled final scoring, not into a turn.
-          {control: 'confirm', label: archive ? 'Open the results' : 'Enter game', enabled: enterable, highlight: enterable && this.yourTurn(row)},
+          {control: 'confirm', label: onAdd ? 'Add a host' : (archive ? 'Open the results' : 'Enter game'), enabled: enterable, highlight: !onAdd && enterable && row !== undefined && this.yourTurn(row)},
           {control: 'stickL', label: archive ? 'Active games' : 'Finished games'},
           {control: 'triggerR', label: 'Refresh', enabled: !this.lobbyState.refreshing},
         ];
-        if (this.canDeleteLocal) {
+        if (manualRow) {
+          // The same physical button, an honest label: on someone else's couch
+          // there is no game to delete, only our own typed entry.
+          bar.push({control: 'inspect', label: 'Remove host'});
+        } else if (this.canDeleteLocal) {
           bar.push(
             {control: 'secondary', label: 'Delete', enabled: cursorLocal !== undefined},
             {control: 'inspect', label: 'Delete all', enabled: this.hasLocalGames},
@@ -768,6 +872,17 @@ export default defineComponent({
         return hub?.handleIntent?.(intent) ?? true;
       }
       if (this.overlay === 'games') {
+        // The on-screen keyboard owns every intent while an address is typed.
+        if (this.lanEntry) {
+          const vk = this.$refs.lankeyboard as {handleIntent?: (i: GamepadIntent) => boolean} | undefined;
+          if (vk?.handleIntent?.(intent) === true) {
+            return true;
+          }
+          if (action === 'back') {
+            this.cancelManualHost();
+          }
+          return true;
+        }
         // The deletion confirm swallows everything but confirm/cancel.
         if (this.gamesConfirm !== undefined) {
           if (action === 'primary') {
@@ -796,7 +911,12 @@ export default defineComponent({
           return true;
         }
         if (action === 'inspect') {
-          // X — delete the cursored LOCAL game (LAN rows are another host's).
+          // On a hand-typed LAN host X takes the ENTRY away (there is nothing
+          // else to delete on someone else's couch); on a local row it stays
+          // the game-deletion verb.
+          if (this.removeManualHostAt(this.gamesCursor)) {
+            return true;
+          }
           this.requestDeleteAt(this.gamesCursor);
           return true;
         }
@@ -944,6 +1064,8 @@ export default defineComponent({
       menuPadState.textEntry = false;
       this.gamesConfirm = undefined;
       this.gamesError = false;
+      this.lanEntry = false;
+      this.lanIssue = '';
       closeLobbyList();
       // The profile may have just set the identity — re-advertise this host
       // under the (possibly new) name. The list itself follows the identity
@@ -963,6 +1085,48 @@ export default defineComponent({
      */
     isNewGame(g: JoinableGameSummary): boolean {
       return this.lobbyState.newIds.includes(g.id);
+    },
+    /** The cursor is parked on the «add a host» affordance (always last). */
+    onLanEntryRow(): boolean {
+      return this.lanEntryVisible && this.gamesCursor === this.gamesCount - 1;
+    },
+    /** Open the on-screen keyboard for a hand-typed host address. */
+    openManualHost(): void {
+      this.lanDraft = '';
+      this.lanIssue = '';
+      this.lanEntry = true;
+      // Silence the console key bridge — the on-screen keyboard owns input.
+      menuPadState.textEntry = true;
+    },
+    commitManualHost(value: string): void {
+      // `addManualHost` validates the address itself (a bare IP, host:port, an
+      // http:// paste, a bracketed IPv6). A rejection keeps the keyboard open
+      // with the reason rather than swallowing the attempt.
+      if (!addManualHost(value)) {
+        this.lanIssue = 'That is not a usable address';
+        return;
+      }
+      this.lanEntry = false;
+      this.lanIssue = '';
+      menuPadState.textEntry = false;
+      // The new host is a SOURCE like any other — the one refresh path asks it.
+      void refreshLobby();
+    },
+    cancelManualHost(): void {
+      this.lanEntry = false;
+      this.lanIssue = '';
+      menuPadState.textEntry = false;
+    },
+    /** X on a LAN row we typed ourselves — take the entry back off the list. */
+    removeManualHostAt(i: number): boolean {
+      const row = this.visibleLanRows[i - this.localRows.length];
+      const entry = this.manualHosts.find((h) => row !== undefined && row.hostName === h.entry);
+      if (entry === undefined) {
+        return false;
+      }
+      removeManualHost(entry.entry);
+      void refreshLobby();
+      return true;
     },
     /**
      * Manual re-ask (RT). The list refreshes itself on open, on push, on focus
@@ -1038,6 +1202,10 @@ export default defineComponent({
     },
     enterGameAt(i: number): void {
       this.gamesCursor = i;
+      if (this.lanEntryVisible && i === this.gamesCount - 1) {
+        this.openManualHost();
+        return;
+      }
       if (i < this.localRows.length) {
         const g = this.localRows[i];
         if (g !== undefined) {

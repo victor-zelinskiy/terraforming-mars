@@ -178,6 +178,8 @@ export interface DesktopLanDiagnostics {
   port: number;
   links: DesktopLanLink[];
   hosts: number;
+  /** Discovered but hidden — they stopped answering a socket. */
+  hiddenHosts: number;
   /**
    * Whether anything has ever ASKED us. Staying false while responses arrive is
    * the fingerprint of blocked inbound multicast — on Windows, a network

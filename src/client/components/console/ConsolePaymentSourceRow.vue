@@ -88,7 +88,7 @@
  * naming the resource, what is spent, what remains and what it is worth.
  */
 import {defineComponent, PropType} from 'vue';
-import {PaymentSourceRow} from '@/client/console/paymentPlan';
+import {PaymentSourceRow, paymentUnitIcon} from '@/client/console/paymentPlan';
 import GamepadGlyph from '@/client/components/gamepad/GamepadGlyph.vue';
 import {iconClassFor} from '@/client/components/modalInputs/optionIcons';
 import {translateText} from '@/client/directives/i18n';
@@ -107,7 +107,9 @@ export default defineComponent({
   },
   computed: {
     iconClass(): string {
-      return iconClassFor(this.row.unit);
+      // The LEDGER key is not the SPRITE key (`microbes` → `microbe`,
+      // `auroraiData` → `data`, …) — one translation, in the pure model.
+      return iconClassFor(paymentUnitIcon(this.row.unit));
     },
     /** The dial pills belong to the row the bumpers actually drive: the single
      *  quick-adjust lane on the compact screen, the focused lane when expanded. */

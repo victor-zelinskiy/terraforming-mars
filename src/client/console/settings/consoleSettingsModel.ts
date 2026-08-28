@@ -448,10 +448,83 @@ function diagnosticsCategory(input: ConsoleSettingsInput): ConsoleSettingsCatego
     note: versionMismatch(input) ? translateText('Client and server versions differ') : '',
     noteBad: versionMismatch(input),
   };
+  const groups: Array<ConsoleReadoutGroup> = [connection, display];
+  const lan = lanGroup(input);
+  if (lan !== undefined) {
+    groups.push(lan);
+  }
   return {
     id: 'diagnostics', label: 'Diagnostics', glyph: '⊙', minor: true, rows: [],
-    readout: [connection, display],
+    readout: groups,
   };
+}
+
+/**
+ * LAN health — the answer to «почему я не вижу партий по локальной сети».
+ *
+ * The utility process already collects all of this per link; until now nothing
+ * displayed it, so the one question a player can actually ask about LAN play
+ * had no screen. Three rows carry the whole diagnosis:
+ *
+ *  - **Advertising** — are we announcing at all (visibility is a LAUNCH-time
+ *    bind, so «On» here and «off» in the setting means: restart pending);
+ *  - **Inbound** — has anything ever ASKED us? False while we can still send is
+ *    the fingerprint of a firewall dropping inbound multicast (the Windows
+ *    default for an unsigned app on a network classified Public);
+ *  - **Hosts** — found, and how many are hidden because they stopped answering
+ *    a socket (`lanDiscovery`'s liveness check — mDNS finds a couch, a socket
+ *    says whether it is still there).
+ */
+function lanGroup(input: ConsoleSettingsInput): ConsoleReadoutGroup | undefined {
+  const d = input.lan?.diagnostics;
+  if (input.lan === undefined || d === undefined) {
+    return undefined;
+  }
+  const links = d.links ?? [];
+  const published = links.filter((l) => l.published).length;
+  const errors = links.filter((l) => l.error !== '');
+  const rows: Array<ConsoleReadoutRow> = [
+    {
+      label: 'LAN advertising',
+      raw: false,
+      value: d.advertising ? `${translateText('On')} · ${d.serviceName}` : translateText('Off'),
+      tone: d.advertising ? 'ok' : 'plain',
+    },
+    {
+      label: 'Network links',
+      raw: false,
+      value: `${links.length} · ${translateText('published')} ${published}`,
+      tone: links.length === 0 ? 'bad' : (published === 0 && d.advertising ? 'warn' : 'plain'),
+    },
+    {
+      // The firewall tell. We can always SEND; being asked is the half that
+      // gets blocked, and it is invisible without this row.
+      label: 'Inbound queries',
+      raw: false,
+      value: translateText(d.inboundSeen ? 'Yes' : 'No'),
+      tone: d.inboundSeen ? 'ok' : 'warn',
+    },
+    {
+      label: 'Hosts found',
+      raw: false,
+      value: d.hiddenHosts > 0 ? `${d.hosts} · ${translateText('hidden')} ${d.hiddenHosts}` : String(d.hosts),
+      tone: d.hosts > 0 ? 'ok' : 'plain',
+    },
+  ];
+  for (const link of links) {
+    rows.push({
+      label: `${link.address}${link.virtual ? ' *' : ''}`,
+      raw: true,
+      value: link.error !== '' ?
+        link.error :
+        `${link.name} · ${translateText('queries')} ${link.queriesIn} · ${translateText('replies')} ${link.responsesIn}`,
+      tone: link.error !== '' ? 'bad' : 'mono',
+    });
+  }
+  const note = errors.length > 0 ?
+    translateText('A network link reported an error') :
+    (d.advertising && !d.inboundSeen ? translateText('Nothing has queried this machine yet — inbound multicast may be blocked by a firewall') : '');
+  return {label: 'Local network', rows, note, noteBad: errors.length > 0 || (d.advertising && !d.inboundSeen)};
 }
 
 /**

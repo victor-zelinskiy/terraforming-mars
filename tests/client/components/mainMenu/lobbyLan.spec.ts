@@ -5,7 +5,7 @@ import {
   lobbyState, lobbyRows, lobbySource,
   startLobbyWatch, openLobbyList, closeLobbyList, refreshLobby, resetLobbyStateForTesting,
 } from '../../../../src/client/components/mainMenu/lobbyState';
-import {lanState, resetLanStateForTesting} from '../../../../src/client/components/mainMenu/lanState';
+import {lanState, addManualHost, removeManualHost, parseManualEntry, resetLanStateForTesting} from '../../../../src/client/components/mainMenu/lanState';
 import {resetLobbyChannelsForTesting} from '../../../../src/client/components/mainMenu/lobbyChannel';
 
 /**
@@ -174,6 +174,64 @@ describe('client/mainMenu/lobbyState — LAN sources', () => {
     void refreshLobby();
     await settle();
     expect(hostCalls.length).to.eq(probed);
+  });
+
+  /**
+   * mDNS is multicast, and multicast is the first thing a router's client
+   * isolation, a guest SSID or a firewall drops. A hand-typed address is the
+   * fallback that works whenever the two machines can reach each other at all —
+   * so it must behave as an ordinary source, not as a second code path.
+   */
+  describe('a hand-typed host', () => {
+    it('becomes a source and is asked like any other', async () => {
+      hostGames = [game('manual-1')];
+      startLobbyWatch('Victor');
+      await settle();
+      await openLobbyList();
+      await settle();
+      expect(lobbyRows()).to.be.empty;
+
+      expect(addManualHost('192.168.1.9')).to.be.true;
+      await flush();
+      expect(hostCalls.some((u) => u.includes('192.168.1.9:17325'))).to.be.true;
+      expect(lobbyRows().map((r) => r.game.id)).to.deep.eq(['manual-1']);
+    });
+
+    it('takes the default embedded port, and honours an explicit one', () => {
+      expect(parseManualEntry('192.168.1.9')).to.deep.eq({address: '192.168.1.9', port: 17325});
+      expect(parseManualEntry('http://deck.local:9000/')).to.deep.eq({address: 'deck.local', port: 9000});
+      expect(parseManualEntry('[fe80::1]:9000')).to.deep.eq({address: 'fe80::1', port: 9000});
+      expect(parseManualEntry('   ')).to.eq(undefined);
+      expect(parseManualEntry('192.168.1.9:99999')).to.eq(undefined);
+    });
+
+    it('is dropped — with its rows — when the player removes it', async () => {
+      hostGames = [game('manual-1')];
+      startLobbyWatch('Victor');
+      await settle();
+      await openLobbyList();
+      await settle();
+      addManualHost('192.168.1.9');
+      await flush();
+      expect(lobbyRows()).to.have.length(1);
+
+      removeManualHost('192.168.1.9');
+      await flush();
+      expect(lobbyRows()).to.be.empty;
+    });
+
+    it('never doubles a host that mDNS also found', async () => {
+      hostGames = [game('manual-1')];
+      publishHost(['192.168.1.5']);
+      startLobbyWatch('Victor');
+      await settle();
+      await openLobbyList();
+      await settle();
+      // The same endpoint, typed by hand: one row, not two.
+      addManualHost('192.168.1.5');
+      await flush();
+      expect(lobbyRows()).to.have.length(1);
+    });
   });
 
   it('races a host\'s addresses so one dead NIC cannot hide its games', async () => {

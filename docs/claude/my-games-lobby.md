@@ -15,7 +15,76 @@ them (the realtime LOBBY room).
 Reported 2026-08-28: *«захожу в "Мои партии" — партий нет, хотя они точно созданы; особенно
 в локальном режиме по LAN. После перезахода в игру они появляются.»*
 
-That symptom had **four independent causes**, and they all rendered as the same sentence —
+### 1.1 THE ROOT CAUSE — mDNS liveness (this is the one that mattered)
+
+⚠️ **Everything in §1.2 was real, and none of it was the reported bug.** The first pass at
+this reworked the client, shipped, and the symptom came back unchanged. The cause was one
+layer lower:
+
+`bonjour-service`'s `Browser` emits `up` **exactly once per service**. A repeat response for
+a service it already holds updates nothing and re-emits nothing (`browser.js`:
+`if (existingService) { updateServiceSrv; updateServiceTxt; return; }`, and both of those
+bail out when the records are unchanged — the freshly built object, with its new
+`receiveTime`, is discarded). Its own `expire()` is never scheduled.
+
+`LanDiscovery` fed `lastSeen` **only** from that one-shot `up` callback, and swept out any
+host older than a 45 s TTL. So:
+
+> **every discovered host was deleted 45 seconds after being found — permanently**, because
+> the Browser would never announce it a second time. The only thing that brought it back was
+> restarting the app (a new Browser ⇒ a new `up`).
+
+Which is exactly what was reported, twice: play a LAN game for ten minutes, go back to the
+menu, and the host you were *still talking to* is not on the list — until you restart.
+
+**The fix (`lanDiscovery.ts`): mDNS is how a host is FOUND; a SOCKET is what says it is
+still there.**
+
+- **Presence** is re-read from `browser.services` on every query tick (`reconcile`), so a
+  host we ever dropped can come back without a restart.
+- **Liveness** is `reachable()` — a raced TCP connect to the host's addresses, run only once
+  a host has gone mDNS-quiet past `HOST_QUIET_MS`. Two failed checks hide it; it stays on a
+  30 s re-check rotation (`offline`), so a couch that is switched back on returns by itself.
+- Multicast silence therefore removes nothing. Over Wi-Fi, which is unacknowledged and
+  lossy, that distinction is the whole feature.
+- **One row per machine** (`dedupeByEndpoint`): now that liveness is a socket, a crashed
+  app's stale advertisement would answer *forever* (what listens on its address:port is the
+  machine's current app), so advertisements resolving to the same endpoint collapse to the
+  freshest one. Measured live: three ghost `victor` rows became one.
+
+**Where the rules live.** All of it is one sockets-free engine — `HostRegistry` in
+`lanDiscovery.ts` — so every decision is testable to the last branch and `LanDiscovery`
+keeps only plumbing (browsers in, timer ticks, emits out). Its four invariants:
+
+1. **Presence is additive.** Nothing leaves because it stopped being mentioned.
+2. **Only a socket removes a host** (or its own mDNS goodbye).
+3. **A hidden host is never forgotten** — it keeps its record and its slot in the re-check
+   rotation, so it returns without an app restart *and without discovery's help*.
+4. **One row per machine** (`dedupeByEndpoint`).
+
+⚠️ Invariant 1 is the one that is easy to lose twice. The FIRST attempt at this fix removed
+hosts the browsers no longer listed — and `rebuildLinks()` (a Wi-Fi reconnect, a VPN toggle,
+a dock) destroys every Browser and builds fresh ones whose lists start EMPTY. Same wipe as
+the original bug, new costume. Removal belongs to the liveness check alone.
+
+Guards:
+- `tests/electron/lanHostRegistry.spec.ts` — the whole decision machine, 16 cases, no
+  sockets: quiet-but-alive stays, an empty listing removes nothing, one strike is survivable,
+  two hide it, a hidden host retries and returns, ghosts collapse.
+- `tests/electron/lanDiscovery.spec.ts` — the pure helpers (`hostPresencePlan`, `reachable`,
+  `dedupeByEndpoint`, naming, address ordering).
+- `tests/integration/lanDiscovery.spec.ts` — **real multicast, real sockets**, two
+  `LanDiscovery` instances over loopback with injected timings (`npm run test:integration`;
+  out of the default suite because a CI runner has no usable multicast). Measured: the host
+  survives 3× the quiet window, drops once its socket dies, and comes back on its own.
+
+**The seams** that make the above possible are in `LanDiscoveryOptions`: `timings`
+(quiet / recheck / connect budget), `connect` (the socket probe) and `clock`.
+
+### 1.2 The four things that ALSO had to be fixed
+
+These are real defects, each of which could produce the same sentence — they were just not
+the cause of this report. They all rendered as
 «У вас пока нет незавершённых партий»:
 
 1. **The identity could arrive after the loader ran, and nothing re-ran.** `mounted()` read
@@ -149,14 +218,34 @@ entries). Everything about *listing* — probing, endpoints, statuses, rows, fre
   games) and is always treated as unverified.
 - **`newIds`** marks rows that arrived while the player was watching — the visible proof
   that push works. Never marked on a first / hydrated list.
+- **A failed probe reports WHY** (`LobbySource.lastError`): a timeout, `HTTP 500`, or the
+  browser's own network message. «Не отвечает» with no reason leaves the player unable to
+  tell a slow couch from a blocked port, which is the only part they can act on.
+- **A HAND-TYPED host is an ordinary source.** mDNS is multicast, and multicast is the first
+  thing a router's client isolation, a guest SSID or a firewall drops; `lanState`'s manual
+  entries (persisted, `parseManualEntry` accepts a bare IP, `host:port`, an `http://` paste
+  or a bracketed IPv6) feed the same source list, are probed by the same code and are deduped
+  against discovery so a host found both ways is listed once.
 
 ---
 
 ## 5. UI surface (`ConsoleMainMenu.vue`)
 
 - The four honest states above, instead of one sentence.
-- LAN section prints a per-host status line for an unreachable host, and a stale row says
-  «не отвечает» and refuses entry (navigating would land on a curtain that never lifts).
+- The LAN section speaks in all THREE of its states, never by omission: a host that could not
+  be asked («не отвечает» + the reason), a host that answered with nothing for this player
+  («нет партий с вашим именем» — the listing is name-scoped, and the head now says whose
+  name), and a stale row that is shown but refuses entry (navigating would land on a curtain
+  that never lifts).
+- **«＋ Добавить хост по адресу»** closes the LAN list (last in the cursor ring, host mode
+  only) and opens the on-screen keyboard; X on a hand-typed row removes the entry. This is the
+  only way in on a network that drops multicast — it was designed for, persisted, and until
+  now had no screen.
+- **Diagnostics → «Локальная сеть»** (the settings console) finally displays what the utility
+  process has always collected: advertising + service name, links and how many carry an
+  advertisement, **inbound queries** (false while we can still send = the fingerprint of a
+  firewall dropping inbound multicast), hosts found / hidden, and a per-link line with its
+  own error. Before this, «не вижу партий по сети» had no screen that could answer it.
 - A «Новая» chip on freshly arrived rows.
 - **RT = «Обновить»** in the games command bar — the list refreshes itself, this is for the
   player who wants to know it just did.
@@ -172,7 +261,9 @@ entries). Everything about *listing* — probing, endpoints, statuses, rows, fre
 | `tests/routes/ApiGamesJoinable.spec.ts` | a game created / ended / deleted / renamed after a previous listing is correct on the very next one (the cache-staleness classes) |
 | `tests/realtime/LobbyBroadcast.spec.ts` | the lobby room broadcasts to its members and nobody else; disconnect leaves it; an unchanged save does not wake anyone |
 | `tests/client/components/mainMenu/lobbyState.spec.ts` | the six contract points: late identity, empty vs unreachable, rows survive a failure, open re-asks, `newIds`, profile switch, archive slice, clean teardown |
-| `tests/client/components/mainMenu/lobbyLan.spec.ts` | the reported scenario: a host discovered → listed on open; a host appearing while open is asked at once; unreachable says so and keeps rows then drops them; a host that leaves takes its rows; closing retires LAN sources; addresses are raced |
+| `tests/client/components/mainMenu/lobbyLan.spec.ts` | the reported scenario: a host discovered → listed on open; a host appearing while open is asked at once; unreachable says so and keeps rows then drops them; a host that leaves takes its rows; closing retires LAN sources; addresses are raced; a hand-typed host behaves as an ordinary source (added, parsed, removed, never doubled against discovery) |
+| `tests/electron/lanHostRegistry.spec.ts` | ⭐ the LAN presence/liveness engine — the two bugs above as assertions |
+| `tests/integration/lanDiscovery.spec.ts` | real multicast + real sockets end to end (`npm run test:integration`) |
 
 ## 7. If you extend this
 

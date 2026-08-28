@@ -351,6 +351,30 @@ export function paymentUnitLabel(unit: string): string {
 }
 
 /**
+ * The SPRITE key of a payment unit — a `SpendableResource` is the payment
+ * LEDGER's name for a source, not the art's name for the thing being spent, so
+ * the two must be translated on purpose. `iconClassFor` resolves standard
+ * resources by key (`plants` → `resource_icon--plants`) and everything else as
+ * `card-resource-<key>`, and those classes are generated SINGULAR from
+ * `@card_resource_types` — so `seeds` / `auroraiData` / `kuiperAsteroids` /
+ * `spireScience` all resolved to classes no stylesheet defines and rendered an
+ * empty box where the resource should be. One table, next to the labels.
+ */
+const PAY_UNIT_ICONS: Readonly<Record<string, string>> = {
+  microbes: 'microbe',
+  floaters: 'floater',
+  seeds: 'seed',
+  auroraiData: 'data',
+  kuiperAsteroids: 'asteroid',
+  spireScience: 'science',
+  lunaArchivesScience: 'science',
+};
+
+export function paymentUnitIcon(unit: string): string {
+  return PAY_UNIT_ICONS[unit] ?? unit;
+}
+
+/**
  * ONE payment SOURCE row — everything both densities need about a single way of
  * paying, so the compact summary and the expanded editor can never disagree
  * about a resource. `available → remaining` is the stock story, `used` is the

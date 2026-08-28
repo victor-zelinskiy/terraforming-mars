@@ -766,5 +766,16 @@
     "Extra advance": "Дополнительное продвижение",
     "${0} lets you spend 1 energy and advance 1 step on the Hydronetwork. Your usual advance this generation stays available.": "«${0}» позволяет потратить 1 энергию и продвинуться на 1 деление по Гидросети. Обычное продвижение этого поколения останется доступно.",
     "Back to the action": "Назад к выбору действия",
-    "Extra advance offered": "Доступно дополнительное продвижение"
+    "Extra advance offered": "Доступно дополнительное продвижение",
+    "Local network": "Локальная сеть",
+    "LAN advertising": "Объявление в сети",
+    "Network links": "Сетевые интерфейсы",
+    "Inbound queries": "Входящие запросы",
+    "Hosts found": "Найдено хостов",
+    "published": "объявлено",
+    "queries": "запросов",
+    "replies": "ответов",
+    "hidden": "скрыто",
+    "A network link reported an error": "Один из сетевых интерфейсов сообщил об ошибке",
+    "Nothing has queried this machine yet — inbound multicast may be blocked by a firewall": "Этот компьютер ещё никто не спрашивал — входящий multicast может блокировать брандмауэр"
 }

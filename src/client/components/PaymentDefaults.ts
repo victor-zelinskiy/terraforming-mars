@@ -64,11 +64,29 @@ export function computeDefaultPayment(
 }
 
 /**
+ * Resources the default mix spends ONLY to the minimum the price demands,
+ * never greedily.
+ *
+ * The greedy pass exists because steel / titanium / the payment-card resources
+ * buy nothing else — leaving them unspent while paying flexible M€ is strictly
+ * worse. That reasoning does NOT hold for a resource with a competing use of
+ * its own: heat raises the temperature, and plants (Martian Lumber Corp's
+ * building-tag grant) buy greeneries — 8 of them are a tile, a TR step and a
+ * VP. Defaulting those to «spend as many as fit» quietly cashes in the
+ * player's terraforming for money they already had.
+ *
+ * Both are still spent up to the MINIMUM the price needs (the count above this
+ * pass), so a card that is only affordable WITH plants still opens affordable.
+ */
+const NON_GREEDY_UNITS: ReadonlySet<SpendableResource> = new Set(['heat', 'plants']);
+
+/**
  * Returns the number of units of a resource to contribute toward a cost.
  *
  * Logic involves a minimum requirement to cover the gap (cost minus MC and
- * other resources), followed by a greedy allocation for non-heat resources
- * to maximize resource usage without exceeding the total cost.
+ * other resources), followed by a greedy allocation for the resources that
+ * have no competing use ({@link NON_GREEDY_UNITS}) to maximize resource usage
+ * without exceeding the total cost.
  *
  * @param cost - Total MC cost to cover.
  * @param unit - The specific spendable resource being evaluated.
@@ -96,9 +114,9 @@ function unitContribution(
   );
 
   // Greedy: add more units as long as we don't push the total past the cost.
-  // Heat is non-greedy: only use the minimum needed.
+  // Heat and plants are non-greedy: only use the minimum needed.
   // The condition includes mcAlreadyCovered so two resources together cannot overspend.
-  if (unit !== 'heat') {
+  if (!NON_GREEDY_UNITS.has(unit)) {
     let mcValue = count * rate;
     while (count < available && mcAlreadyCovered + mcValue + rate <= cost) {
       count++;

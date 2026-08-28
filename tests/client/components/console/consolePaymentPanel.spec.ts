@@ -15,6 +15,7 @@ import {buildPaymentView, PaymentLane, PaymentView} from '@/client/console/payme
  */
 const STEEL: PaymentLane = {unit: 'steel', rate: 2, available: 5, reserved: false};
 const TITANIUM: PaymentLane = {unit: 'titanium', rate: 3, available: 4, reserved: false};
+const PLANTS: PaymentLane = {unit: 'plants', rate: 3, available: 7, reserved: false};
 
 function view(over: Partial<Parameters<typeof buildPaymentView>[0]> = {}): PaymentView {
   return buildPaymentView({cost: 11, lanes: [STEEL], counts: {steel: 5}, mcAvailable: 65, ...over});
@@ -197,5 +198,44 @@ describe('ConsolePaymentPanel — one panel, two densities', () => {
     expect(mc.find('.con-payrow__before').text()).to.equal('163');
     expect(mc.find('.con-payrow__after').text()).to.equal('163');
     expect(w.find('.con-paystatus').classes()).to.include('con-paystatus--exact');
+  });
+
+  /**
+   * Martian Lumber Corp's plants are an ordinary alternative source and must
+   * read as one: the same row, the same ×3 rate badge, the same dial pills the
+   * single-alt quick-adjust puts on steel.
+   */
+  it('a plants lane (Martian Lumber Corp) is an ordinary alt source row', () => {
+    const w = mountPanel(view({cost: 12, lanes: [PLANTS], counts: {plants: 4}, mcAvailable: 20}));
+    expect(unitsOf(w)).to.deep.equal(['plants', 'megacredits']);
+    const plants = w.findAll('.con-payrow')[0];
+    expect(plants.find('.con-payrow__rate').text()).to.equal('×3');
+    expect(plants.find('.con-payrow__used').text()).to.equal('4');
+    expect(plants.find('.con-payrow__worth-num').text()).to.equal('12'); // 4 × 3
+    expect(plants.find('.con-payrow__icon').classes()).to.include('resource_icon--plants');
+    // The only alternative → the bumpers drive it in place, no editor stage.
+    expect(plants.find('.con-payrow__pills').exists()).to.be.true;
+    expect(w.find('.con-pay__hint').exists()).to.be.false;
+  });
+
+  /**
+   * A row's icon comes from the SPRITE table, not from the ledger key — the
+   * `card-resource-*` classes are generated singular, so `microbes` /
+   * `auroraiData` / `lunaArchivesScience` used to resolve to classes no
+   * stylesheet defines and painted an empty box.
+   */
+  it('card-bound sources resolve a REAL sprite class, not their ledger key', () => {
+    const cases: Array<[PaymentLane, string]> = [
+      [{unit: 'microbes', rate: 2, available: 3, reserved: false}, 'card-resource-microbe'],
+      [{unit: 'floaters', rate: 3, available: 3, reserved: false}, 'card-resource-floater'],
+      [{unit: 'lunaArchivesScience', rate: 1, available: 3, reserved: false}, 'card-resource-science'],
+      [{unit: 'seeds', rate: 5, available: 3, reserved: false}, 'card-resource-seed'],
+      [{unit: 'auroraiData', rate: 3, available: 3, reserved: false}, 'card-resource-data'],
+      [{unit: 'kuiperAsteroids', rate: 1, available: 3, reserved: false}, 'card-resource-asteroid'],
+    ];
+    for (const [lane, expected] of cases) {
+      const w = mountPanel(view({cost: 12, lanes: [lane], counts: {}, mcAvailable: 20}));
+      expect(w.findAll('.con-payrow')[0].find('.con-payrow__icon').classes(), lane.unit).to.include(expected);
+    }
   });
 });

@@ -15,10 +15,28 @@ import {Units} from '@/common/Units';
 
 export type SpendablePaymentAmounts = Record<SpendableResource, number>;
 
+/**
+ * EVERY way a generic (project-card / SelectPayment) price can be paid, in
+ * panel order. A unit MISSING here is a unit the payment surface cannot even
+ * offer — `paymentLanes` iterates exactly this list — so the list must stay a
+ * superset of `SPENDABLE_RESOURCES`; `paymentOptionsAllowResource` + a
+ * 0-balance check are what narrow it per prompt. Dropping `plants`,
+ * `microbes`, `floaters` and `lunaArchivesScience` here (they were only ever
+ * absent by omission) silently disabled Martian Lumber Corp, Psychrophiles,
+ * Dirigibles and Luna Archives in EVERY console payment: the server offered
+ * `paymentOptions.plants`, and the client had nowhere to put the lane.
+ *
+ * Order carries the DEFAULT allocation too (computeDefaultPayment spends
+ * alternates in this sequence), so it mirrors the upstream project-card order.
+ */
 export const GENERIC_PAYMENT_ORDER: ReadonlyArray<SpendableResource> = [
   'steel',
   'titanium',
   'heat',
+  'plants',
+  'microbes',
+  'floaters',
+  'lunaArchivesScience',
   'seeds',
   'auroraiData',
   'kuiperAsteroids',
@@ -82,15 +100,29 @@ export function paymentOptionsAllowResource(
   return options[unit] === true;
 }
 
+/**
+ * A standard project's ways to pay — a CLOSED list mirroring the server's own
+ * (`SelectStandardProjectToPlay.process`), deliberately NOT a spread of the
+ * card-play options.
+ *
+ * `baseOptions` is the PROJECT-CARD grant set, and it carries units a standard
+ * project does not accept: Martian Lumber Corp's `plants` rides in on
+ * `SelectCardToPlay.toModel` and the server's standard-project branch has no
+ * `plants` term at all, so a spread would offer the player a lane the submit is
+ * then rejected for («Did not spend enough to pay for standard project»).
+ * Everything this list omits is denied by construction rather than by whichever
+ * units happen to be missing upstream.
+ */
 export function buildStandardProjectPaymentOptions(
   baseOptions: Partial<PaymentOptions>,
   card: CardModel,
 ): Partial<PaymentOptions> {
   const canPayWith = card.standardProjectCanPayWith ?? {};
   return {
-    ...baseOptions,
+    heat: baseOptions.heat === true,
     steel: canPayWith.steel === true,
     titanium: canPayWith.titanium === true,
+    lunaTradeFederationTitanium: baseOptions.lunaTradeFederationTitanium === true,
     seeds: canPayWith.seeds === true,
     kuiperAsteroids: canPayWith.kuiperAsteroids === true,
     auroraiData: true,

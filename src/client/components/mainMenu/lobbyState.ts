@@ -6,6 +6,7 @@ import {ServerEndpoint, wsBaseFromApiBase} from '@/client/utils/serverEndpoints'
 import {DesktopLanHost} from '@/client/components/desktop/desktopUpdateState';
 import {lanState, ManualHost} from './lanState';
 import {openLobbyChannel, LobbyChannelHandle, lobbyChannelHealthy} from './lobbyChannel';
+import {$t} from '@/client/directives/i18n';
 
 /**
  * «МОИ ПАРТИИ» — THE LOBBY MODEL.
@@ -89,6 +90,13 @@ export type LobbySource = {
   lastOkAt: number | undefined;
   /** Consecutive failures since the last success. */
   failures: number;
+  /**
+   * Why the last attempt failed ('' = it did not). Short and concrete —
+   * «таймаут», «HTTP 500», the browser's own network message. A LAN source that
+   * only ever says «не отвечает» cannot tell a slow host from a blocked port,
+   * which is exactly the question a player is left with.
+   */
+  lastError: string;
   /** The push channel for this server is carrying right now. */
   live: boolean;
   /** The host runs a different build than we do (soft warning on its rows). */
@@ -250,6 +258,7 @@ function ensureLocalSource(): void {
     status: 'idle',
     lastOkAt: undefined,
     failures: 0,
+    lastError: '',
     live: false,
     versionMismatch: false,
   }, ...lobbyState.sources];
@@ -312,6 +321,7 @@ function syncLanSources(): void {
       status: 'idle',
       lastOkAt: undefined,
       failures: 0,
+      lastError: '',
       live: false,
       versionMismatch: versionMismatch(host),
     });
@@ -367,20 +377,34 @@ function apiBaseOf(address: string, port: number): string {
   return `http://${host}:${port}`;
 }
 
-async function fetchFrom(base: string, name: string): Promise<Array<JoinableGameSummary> | undefined> {
+/** One address, answered or explained. A rejection carries the REASON. */
+async function fetchFrom(base: string, name: string): Promise<Array<JoinableGameSummary>> {
   const controller = new AbortController();
-  const timer = window.setTimeout(() => controller.abort(), LAN_PROBE_TIMEOUT_MS);
+  let timedOut = false;
+  const timer = window.setTimeout(() => {
+    timedOut = true;
+    controller.abort();
+  }, LAN_PROBE_TIMEOUT_MS);
   try {
     const res = await fetch(`${base}/${paths.API_GAMES_JOINABLE}${joinableQuery(name, 'active')}`, {signal: controller.signal});
     if (!res.ok) {
-      return undefined;
+      throw new Error(`HTTP ${res.status}`);
     }
     return await res.json() as Array<JoinableGameSummary>;
-  } catch {
-    return undefined;
+  } catch (err) {
+    if (timedOut) {
+      throw new Error($t('no answer'));
+    }
+    throw new Error(errorText(err));
   } finally {
     clearTimeout(timer);
   }
+}
+
+/** The shortest honest description of a failure — never an empty string. */
+function errorText(err: unknown): string {
+  const message = (err as {message?: unknown})?.message;
+  return typeof message === 'string' && message !== '' ? message : String(err);
 }
 
 /** Working endpoint per LAN source — skips re-probing dead NICs every tick. */
@@ -394,20 +418,25 @@ const endpointCache = new Map<string, ServerEndpoint>();
  * and the dead ones do not fail fast — they hang to the timeout. Sequentially
  * that is one timeout each, which the poll tick laps.
  */
-async function probeFirst(bases: ReadonlyArray<string>, name: string): Promise<{base: string, games: Array<JoinableGameSummary>} | undefined> {
+type ProbeResult =
+  | {ok: true, base: string, games: Array<JoinableGameSummary>}
+  | {ok: false, reason: string};
+
+async function probeFirst(bases: ReadonlyArray<string>, name: string): Promise<ProbeResult> {
   if (bases.length === 0) {
-    return undefined;
+    return {ok: false, reason: $t('no address')};
   }
   try {
-    return await Promise.any(bases.map(async (base) => {
-      const games = await fetchFrom(base, name);
-      if (games === undefined) {
-        throw new Error(`unreachable: ${base}`);
-      }
-      return {base, games};
-    }));
-  } catch {
-    return undefined;
+    return await Promise.any(bases.map(async (base) => ({
+      ok: true as const,
+      base,
+      games: await fetchFrom(base, name),
+    })));
+  } catch (err) {
+    // Every candidate failed. `Promise.any` hands back all of them; the first
+    // is as good as any and far better than the silence this used to report.
+    const errors = (err as {errors?: ReadonlyArray<unknown>})?.errors ?? [];
+    return {ok: false, reason: errors.length > 0 ? errorText(errors[0]) : errorText(err)};
   }
 }
 
@@ -469,17 +498,17 @@ async function refreshLocal(name: string): Promise<void> {
     }
     lobbyState.localRows = games.map((game) => toRow(LOCAL_SOURCE_ID, 'local', '', undefined, game, false, false));
     lobbyState.hydrated = false;
-    setSource(LOCAL_SOURCE_ID, {status: 'ok', lastOkAt: Date.now(), failures: 0});
+    setSource(LOCAL_SOURCE_ID, {status: 'ok', lastOkAt: Date.now(), failures: 0, lastError: ''});
     persistCache(name, games);
     if (hadVerifiedList) {
       markNew(games.filter((g) => !known.has(g.id)).map((g) => g.id));
     }
-  } catch {
+  } catch (err) {
     if (!isCurrent(LOCAL_SOURCE_ID, seq, name)) {
       return;
     }
     const source = localLobbySource();
-    setSource(LOCAL_SOURCE_ID, {status: 'unreachable', failures: (source?.failures ?? 0) + 1});
+    setSource(LOCAL_SOURCE_ID, {status: 'unreachable', failures: (source?.failures ?? 0) + 1, lastError: errorText(err)});
   }
 }
 
@@ -495,16 +524,16 @@ async function refreshLan(source: LobbySource, name: string): Promise<void> {
   // A cached endpoint is tried FIRST and alone; if it has died we fall back to
   // the full sweep in the same tick, so a host that changed NIC self-heals
   // without waiting a whole poll interval.
-  const hit = (cached !== undefined && candidates.includes(cached.apiBase) ?
-    await probeFirst([cached.apiBase], name) : undefined) ??
-    await probeFirst(candidates, name);
+  const cachedHit = cached !== undefined && candidates.includes(cached.apiBase) ?
+    await probeFirst([cached.apiBase], name) : undefined;
+  const hit = cachedHit?.ok === true ? cachedHit : await probeFirst(candidates, name);
   if (!isCurrent(source.id, seq, name)) {
     return;
   }
-  if (hit === undefined) {
+  if (!hit.ok) {
     endpointCache.delete(source.id);
     const failures = (lobbySource(source.id)?.failures ?? 0) + 1;
-    setSource(source.id, {status: 'unreachable', failures});
+    setSource(source.id, {status: 'unreachable', failures, lastError: hit.reason});
     // Keep showing what we last saw — but mark it, and give up after a few
     // rounds so a host that is off (yet still cached by mDNS) does not haunt
     // the list forever.
@@ -521,7 +550,7 @@ async function refreshLan(source: LobbySource, name: string): Promise<void> {
     toRow(source.id, 'lan', host.name, endpoint, game, versionMismatch(host), false));
   lobbyState.lanRows = [...lobbyState.lanRows.filter((row) => row.sourceId !== source.id), ...rows];
   reorderLanRows();
-  setSource(source.id, {status: 'ok', endpoint, lastOkAt: Date.now(), failures: 0});
+  setSource(source.id, {status: 'ok', endpoint, lastOkAt: Date.now(), failures: 0, lastError: ''});
   if (current?.lastOkAt !== undefined) {
     markNew(hit.games.filter((g) => !known.has(g.id)).map((g) => g.id));
   }
@@ -822,7 +851,7 @@ export function setLobbyIdentity(displayName: string): void {
   lobbyState.archiveStatus = 'idle';
   lobbyState.hydrated = false;
   clearHighlights();
-  lobbyState.sources = lobbyState.sources.map((s) => ({...s, status: 'idle', lastOkAt: undefined, failures: 0}));
+  lobbyState.sources = lobbyState.sources.map((s) => ({...s, status: 'idle', lastOkAt: undefined, failures: 0, lastError: ''}));
   if (watching) {
     void refreshLobby();
   }

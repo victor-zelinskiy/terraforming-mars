@@ -40,6 +40,8 @@ export type LanDiagnostics = {
   port: number;
   links: LanLinkStatus[];
   hosts: number;
+  /** Discovered but hidden — they stopped answering a socket. */
+  hiddenHosts: number;
   /** False while responses arrive = we can send but not be asked (firewall). */
   inboundSeen: boolean;
 };

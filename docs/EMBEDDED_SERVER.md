@@ -214,6 +214,16 @@ probes its addresses (first `api/games/joinable?name=<myName>` to answer wins) �
 returned player id to that host's endpoint + navigate to `player?id=...`. A version mismatch
 between guest and host renders a warning (soft block in v1).
 
+⚠️⚠️ **mDNS FINDS a host; a SOCKET says it is still there.** `bonjour-service`'s Browser
+emits `up` exactly once per service and never re-announces one it already holds, so a
+"last seen" fed from that callback freezes at discovery — and the TTL sweep that read it
+deleted EVERY host 45 s after finding it, permanently (only an app restart brought it back).
+`lanDiscovery.ts` now re-reads presence from `browser.services` every query tick and decides
+liveness with a raced TCP connect (`reachable`) once a host goes quiet; two failures hide it,
+a 30 s re-check rotation brings it back on its own. Advertisements that resolve to the same
+address:port collapse to the freshest (`dedupeByEndpoint`) — a crashed app's ghost would
+otherwise answer forever, because the machine's CURRENT app is what is listening.
+
 ⚠️ **Discovery only says WHO is there — the listing is its own subsystem.**
 `lanState.ts` is hosts (mDNS + manual entries); `lobbyState.ts` treats each host as one
 SOURCE beside this device's own server, with its own status, its own race-guarded refresh

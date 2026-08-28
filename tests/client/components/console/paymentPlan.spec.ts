@@ -3,8 +3,11 @@ import {
   alternativeContribution, autoMegacredits, dialLaneCount, initialCounts, laneCap,
   paymentCovers, paymentFromCounts, PaymentLane,
   paymentLanes, paymentOverpay, paymentTotal, PaymentPromptLike, projectCardPaymentOptions,
-  projectCardPaymentPrompt,
+  projectCardPaymentPrompt, paymentUnitIcon,
 } from '@/client/console/paymentPlan';
+import {buildStandardProjectPaymentOptions, GENERIC_PAYMENT_ORDER} from '@/client/components/payment/paymentModelUtils';
+import {SPENDABLE_RESOURCES} from '@/common/inputs/Spendable';
+import {CardModel} from '@/common/models/CardModel';
 import {PublicPlayerModel} from '@/common/models/PlayerModel';
 import {Units} from '@/common/Units';
 import {Tag} from '@/common/cards/Tag';
@@ -275,5 +278,111 @@ describe('paymentPlan (T3 native payment math)', () => {
     // Fully-reserved → the lane disappears (nothing spendable).
     const p2 = projectCardPaymentPrompt(10, [Tag.BUILDING], {}, undefined, {...reserve, steel: 4});
     expect(paymentLanes(p2, player({steel: 4})).find((l) => l.unit === 'steel')).to.eq(undefined);
+  });
+
+  // ── every spendable resource must REACH the panel ────────────────────────
+  //
+  // `paymentLanes` iterates GENERIC_PAYMENT_ORDER, so a unit missing from that
+  // list is a unit no console payment surface can offer — however loudly the
+  // server says it may be spent. Four of them (plants / microbes / floaters /
+  // lunaArchivesScience) were absent by omission and silently disabled Martian
+  // Lumber Corp, Psychrophiles, Dirigibles and Luna Archives everywhere.
+  it('the lane order covers EVERY spendable resource (no unit can be unreachable)', () => {
+    const missing = SPENDABLE_RESOURCES.filter((unit) => !GENERIC_PAYMENT_ORDER.includes(unit));
+    expect(missing, `unreachable in every console payment surface: ${missing.join(', ')}`).to.deep.eq([]);
+  });
+
+  it('Martian Lumber Corp: a BUILDING card gets a plants lane at ×3', () => {
+    // The server grant (`paymentOptions.plants`) plus the card's building tag.
+    const p = projectCardPaymentPrompt(12, [Tag.BUILDING], {plants: true}, undefined, undefined);
+    const plants = paymentLanes(p, player({plants: 6})).find((l) => l.unit === 'plants');
+    expect(plants).to.deep.include({unit: 'plants', rate: 3, available: 6});
+  });
+
+  it('Martian Lumber Corp: no building tag OR no grant → no plants lane', () => {
+    const noTag = projectCardPaymentPrompt(12, [Tag.SPACE], {plants: true}, undefined, undefined);
+    expect(paymentLanes(noTag, player({plants: 6})).find((l) => l.unit === 'plants')).to.eq(undefined);
+    const noGrant = projectCardPaymentPrompt(12, [Tag.BUILDING], {}, undefined, undefined);
+    expect(paymentLanes(noGrant, player({plants: 6})).find((l) => l.unit === 'plants')).to.eq(undefined);
+  });
+
+  it('the card-bound alternates reach the panel too (Psychrophiles / Dirigibles / Luna Archives)', () => {
+    const holder = (name: CardName, resources: number) => ({name, resources});
+    const rich = player({
+      tableau: [
+        holder(CardName.PSYCHROPHILES, 3),
+        holder(CardName.DIRIGIBLES, 2),
+        holder(CardName.LUNA_ARCHIVES, 4),
+      ],
+    });
+    const plant = projectCardPaymentPrompt(12, [Tag.PLANT], {}, undefined, undefined);
+    expect(paymentLanes(plant, rich).find((l) => l.unit === 'microbes')).to.deep.include({rate: 2, available: 3});
+    const venus = projectCardPaymentPrompt(12, [Tag.VENUS], {}, undefined, undefined);
+    expect(paymentLanes(venus, rich).find((l) => l.unit === 'floaters')).to.deep.include({rate: 3, available: 2});
+    const moon = projectCardPaymentPrompt(12, [Tag.MOON], {}, undefined, undefined);
+    expect(paymentLanes(moon, rich).find((l) => l.unit === 'lunaArchivesScience')).to.deep.include({rate: 1, available: 4});
+  });
+
+  // ── the DEFAULT mix never cashes in a resource that has another use ──────
+  it('initialCounts: steel stays greedy, plants are left alone (per-unit exemption)', () => {
+    // 8 plants are a greenery, a TR step and a VP — spending them by default
+    // for money the player already has is a silent loss (heat, the other
+    // convertible resource, has always been exempt from the greedy pass).
+    // Steel buys nothing else, so it keeps filling the price first.
+    const p = projectCardPaymentPrompt(12, [Tag.BUILDING], {plants: true}, undefined, undefined);
+    const lanes = paymentLanes(p, player({steel: 4, plants: 6, megacredits: 20}));
+    const counts = initialCounts(12, lanes, 20);
+    expect(counts.steel).to.eq(4); // 4 × 2 = 8 — greedy, as before
+    expect(counts.plants).to.eq(0);
+    expect(autoMegacredits(12, lanes, counts, 20)).to.eq(4);
+  });
+
+  it('initialCounts: plants still cover the MINIMUM when M€ falls short', () => {
+    // Plants the only alternative, 4 M€ on hand against 12: they must close
+    // the 8 M€ gap (ceil(8/3) = 3), and no further — the last 3 come from M€.
+    const p = projectCardPaymentPrompt(12, [Tag.BUILDING], {plants: true}, undefined, undefined);
+    const lanes = paymentLanes(p, player({steel: 0, titanium: 0, plants: 6, megacredits: 4}));
+    const counts = initialCounts(12, lanes, 4);
+    expect(counts.plants).to.eq(3);
+    expect(autoMegacredits(12, lanes, counts, 4)).to.eq(3);
+    expect(paymentCovers(12, lanes, counts, 4)).to.eq(true);
+    expect(paymentOverpay(12, lanes, counts, 4)).to.eq(0);
+  });
+
+  /**
+   * A STANDARD PROJECT accepts a closed list the server enforces on submit, and
+   * the project-card grants are not on it. Offering a lane the server will
+   * reject is worse than offering none — the player builds a mix, presses
+   * confirm and gets «Did not spend enough».
+   */
+  it('a standard project never inherits the project-card grants (plants above all)', () => {
+    const card = {standardProjectCanPayWith: {steel: true}} as unknown as CardModel;
+    const options = buildStandardProjectPaymentOptions(
+      // Exactly what `SelectCardToPlay.toModel` sends for a Martian Lumber player.
+      {heat: true, lunaTradeFederationTitanium: true, plants: true},
+      card);
+    expect(options.plants).to.not.eq(true);
+    expect(paymentLanes({amount: 8, paymentOptions: options}, player({plants: 9})).map((l) => l.unit))
+      .to.not.include('plants');
+    // …while the grants a standard project DOES honour still come through.
+    expect(options.heat).to.eq(true);
+    expect(options.lunaTradeFederationTitanium).to.eq(true);
+    expect(options.steel).to.eq(true);
+  });
+
+  it('the panel icon key is the SPRITE name, not the ledger key', () => {
+    // `card-resource-<key>` classes are generated SINGULAR from the LESS
+    // `@card_resource_types` list, so the plural/camelCase ledger keys resolve
+    // to classes no stylesheet defines (an empty box where the resource goes).
+    expect(paymentUnitIcon('microbes')).to.eq('microbe');
+    expect(paymentUnitIcon('floaters')).to.eq('floater');
+    expect(paymentUnitIcon('seeds')).to.eq('seed');
+    expect(paymentUnitIcon('auroraiData')).to.eq('data');
+    expect(paymentUnitIcon('kuiperAsteroids')).to.eq('asteroid');
+    expect(paymentUnitIcon('spireScience')).to.eq('science');
+    expect(paymentUnitIcon('lunaArchivesScience')).to.eq('science');
+    // Standard resources already ARE their sprite key.
+    expect(paymentUnitIcon('plants')).to.eq('plants');
+    expect(paymentUnitIcon('megacredits')).to.eq('megacredits');
   });
 });

@@ -56,6 +56,43 @@ Three lane-count facts come out of the same object, and no host re-derives them:
 | `quickAdjustEligible` | **exactly 1** alternative | the inline dial: LB/RB + RT МАКС. on the row itself |
 | `editorEligible` | **≥2** alternatives | the LT entry — and nothing else |
 
+### Which units can reach the panel at all — `GENERIC_PAYMENT_ORDER`
+
+`paymentLanes` iterates **`GENERIC_PAYMENT_ORDER`** (`paymentModelUtils.ts`) and
+narrows it twice: `paymentOptionsAllowResource(prompt.paymentOptions, unit)`,
+then «does the player own any». Everything downstream — rows, dial, editor,
+verdict, submitted `Payment` — is generic over the resulting lanes.
+
+So **the order is not a preference list, it is the reachable set**: a unit
+missing from it is a unit no console payment surface can offer, however loudly
+the server says it may be spent. Four of them were absent by omission
+(`plants`, `microbes`, `floaters`, `lunaArchivesScience`), which silently
+disabled Martian Lumber Corp, Psychrophiles, Dirigibles and Luna Archives
+everywhere: the server sent `paymentOptions.plants = true` for a building card
+and the client had nowhere to put the lane. The list must stay a **superset of
+`SPENDABLE_RESOURCES`** — guarded in `paymentPlan.spec.ts`.
+
+Two rules ride with it:
+
+- **The default mix never cashes in a resource that has another use.**
+  `computeDefaultPayment`'s greedy pass exists because steel / titanium / the
+  payment-card resources buy nothing else. Heat (temperature) and **plants**
+  (greeneries — 8 of them are a tile, a TR step and a VP) are exempt
+  (`NON_GREEDY_UNITS` in `PaymentDefaults.ts`): spent up to the MINIMUM the
+  price demands and no further, so a card that is only affordable *with* plants
+  still opens affordable, and one that is not leaves them alone.
+- **A ledger key is not a sprite key.** `paymentUnitIcon` maps
+  `microbes → microbe`, `auroraiData → data`, `lunaArchivesScience → science`, …
+  The `card-resource-*` classes are generated SINGULAR from the LESS
+  `@card_resource_types` list, so the raw keys resolved to classes no stylesheet
+  defines and painted an empty box.
+
+**A standard project is NOT a project card** (`buildStandardProjectPaymentOptions`):
+it accepts a CLOSED list mirroring `SelectStandardProjectToPlay.process`, never a
+spread of the card-play grants — the base options carry `plants`, the server's
+standard-project branch has no `plants` term, and offering that lane would end in
+«Did not spend enough to pay for standard project» after the player built the mix.
+
 ### The editor only exists where it is a second STAGE
 
 `editorEligible` is `lanes.length > 1`, not `> 0`. With one alternative the
