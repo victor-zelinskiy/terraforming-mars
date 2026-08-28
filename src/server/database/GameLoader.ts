@@ -12,6 +12,7 @@ import {durationToMilliseconds} from '../utils/durations';
 import {CacheConfig} from './CacheConfig';
 import {Clock} from '../../common/Timer';
 import {RealtimeHub} from '../server/realtime/RealtimeHub';
+import {LobbyIndex} from '../models/lobbyIndex';
 
 const metrics = {
   initialize: new prometheus.Gauge({
@@ -157,6 +158,13 @@ export class GameLoader implements IGameLoader {
     if (isNew) {
       metrics.gamesCreated.inc({players: String(game.players.length)});
     }
+    // A CREATED game must reach the lobby immediately: this is the bump that
+    // pushes «a new game appeared» to every menu sitting on the lobby channel.
+    LobbyIndex.getInstance().recordGame(game);
+  }
+
+  public peek(gameId: GameId): IGame | undefined {
+    return this.cache.peek(gameId);
   }
 
   public async getIds(): Promise<Array<GameIdLedger>> {
@@ -322,6 +330,11 @@ export class GameLoader implements IGameLoader {
    * A broadcast failure must never break the caller; an empty room is a no-op.
    */
   public notifyGameStateChanged(game: IGame): void {
+    // The lobby listing shows generation / phase / whose turn it is, so every
+    // observable transition refreshes the index too. The index only bumps its
+    // revision when something a LISTING shows actually moved, so an ordinary
+    // in-turn save does not wake every menu on the network.
+    LobbyIndex.getInstance().recordGame(game);
     try {
       RealtimeHub.getInstance().invalidate({
         gameId: game.id,
@@ -341,6 +354,7 @@ export class GameLoader implements IGameLoader {
     if (!this.purgedGames.includes(gameId)) {
       this.purgedGames.push(gameId);
     }
+    LobbyIndex.getInstance().drop(gameId);
     await Database.getInstance().deleteGame(gameId);
   }
 
@@ -348,6 +362,9 @@ export class GameLoader implements IGameLoader {
     const database = Database.getInstance();
     const purgedGames = await database.purgeUnfinishedGames();
     this.purgedGames.push(...purgedGames);
+    for (const gameId of purgedGames) {
+      LobbyIndex.getInstance().drop(gameId);
+    }
     metrics.gamesPurged.inc(purgedGames.length);
     await database.compressCompletedGames();
   }

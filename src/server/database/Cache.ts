@@ -59,6 +59,16 @@ export class Cache extends EventEmitter {
     return {games: this.games, participantIds: this.participantIds};
   }
 
+  /**
+   * The resident instance of `gameId`, or undefined when it is not in memory
+   * (not loaded, evicted, or the preload hasn't finished yet). Synchronous and
+   * side-effect free ON PURPOSE: a bulk sweep must not reset idle clocks the
+   * way {@link touch} does. See `IGameLoader.peek`.
+   */
+  public peek(gameId: GameId): IGame | undefined {
+    return this.loaded ? this.games.get(gameId) : undefined;
+  }
+
   public mark(gameId: GameId) {
     console.log(`Marking ${gameId} to be evicted in ${this.config.evictMillis}ms`);
     this.evictionSchedule.set(gameId, this.clock.now() + this.config.evictMillis);

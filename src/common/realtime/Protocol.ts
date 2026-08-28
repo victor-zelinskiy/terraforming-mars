@@ -1,10 +1,15 @@
 /**
  * Realtime WebSocket protocol — SHARED between server and client.
  *
- * Phase 1 scope (transport + diagnostics only): a versioned envelope, a
- * hello handshake, and a heartbeat. There is deliberately NO game
- * subscription, NO invalidation, and NO command transport here yet — those
- * arrive in later phases and extend the message unions below.
+ * Two ROOM kinds share the one socket protocol:
+ *   - a GAME room (`SUBSCRIBE_GAME`), keyed by a private participant token,
+ *     which broadcasts `GAME_STATE_INVALIDATED` as that game advances;
+ *   - the LOBBY room (`SUBSCRIBE_LOBBY`), anonymous and server-wide, which
+ *     broadcasts `LOBBY_INVALIDATED` when the SET of games changes (created,
+ *     finished, deleted, or a listed field moved).
+ * Both are pure INVALIDATIONS: the payload is a version cursor, never state.
+ * A new message type is additive - the parsers below return `undefined` for
+ * anything they don't know, so an older peer ignores it rather than breaking.
  *
  * This module is intentionally free of any Node- or browser-specific API (no
  * `ws`, no `window`) so both sides import the exact same types + guards. The
@@ -21,6 +26,8 @@ export const ClientMessageType = {
   SUBSCRIBE: 'SUBSCRIBE_GAME',
   RESUME: 'RESUME_GAME',
   UNSUBSCRIBE: 'UNSUBSCRIBE_GAME',
+  SUBSCRIBE_LOBBY: 'SUBSCRIBE_LOBBY',
+  UNSUBSCRIBE_LOBBY: 'UNSUBSCRIBE_LOBBY',
 } as const;
 export type ClientMessageType = typeof ClientMessageType[keyof typeof ClientMessageType];
 
@@ -31,6 +38,8 @@ export const ServerMessageType = {
   PROTOCOL_INCOMPATIBLE: 'PROTOCOL_INCOMPATIBLE',
   SUBSCRIBED: 'SUBSCRIBED',
   INVALIDATED: 'GAME_STATE_INVALIDATED',
+  LOBBY_SUBSCRIBED: 'LOBBY_SUBSCRIBED',
+  LOBBY_INVALIDATED: 'LOBBY_INVALIDATED',
 } as const;
 export type ServerMessageType = typeof ServerMessageType[keyof typeof ServerMessageType];
 
@@ -82,12 +91,37 @@ export interface UnsubscribeGameMessage extends BaseMessage {
   type: typeof ClientMessageType.UNSUBSCRIBE;
 }
 
+/**
+ * Join the LOBBY room: "tell me when the set of games on this server changes".
+ *
+ * Deliberately UNAUTHENTICATED, exactly like the `api/games/joinable` route it
+ * exists to wake: the notification carries no game data at all (only a revision
+ * counter), and the listing it prompts is itself name-scoped and hands out only
+ * the requester's own seat link. A lobby subscriber learns nothing it could not
+ * learn by polling that route.
+ *
+ * `lastRevision` (optional) is the revision the client already knows. When the
+ * server is further along it answers with an invalidation immediately, so a
+ * client that reconnects after a gap never sits on a stale list waiting for the
+ * NEXT change.
+ */
+export interface SubscribeLobbyMessage extends BaseMessage {
+  type: typeof ClientMessageType.SUBSCRIBE_LOBBY;
+  lastRevision?: number;
+}
+
+export interface UnsubscribeLobbyMessage extends BaseMessage {
+  type: typeof ClientMessageType.UNSUBSCRIBE_LOBBY;
+}
+
 export type ClientMessage =
   | ClientHelloMessage
   | ClientPingMessage
   | SubscribeGameMessage
   | ResumeGameMessage
-  | UnsubscribeGameMessage;
+  | UnsubscribeGameMessage
+  | SubscribeLobbyMessage
+  | UnsubscribeLobbyMessage;
 
 // ---- Server -> Client -------------------------------------------------------
 
@@ -144,13 +178,35 @@ export interface GameStateInvalidatedMessage extends BaseMessage {
   phase?: string;
 }
 
+/** Ack of a lobby subscription, carrying the server's current lobby revision. */
+export interface LobbySubscribedMessage extends BaseMessage {
+  type: typeof ServerMessageType.LOBBY_SUBSCRIBED;
+  revision: number;
+}
+
+/**
+ * "The set of games on this server changed - re-ask for the listing."
+ *
+ * Like {@link GameStateInvalidatedMessage} this is a SIGNAL, never the data:
+ * the authoritative list is still fetched over REST (`api/games/joinable`),
+ * which is what keeps the lobby name-scoped and the WS room anonymous. The
+ * revision is monotonic per server process; a client only uses it to tell a
+ * genuinely newer state from a duplicate.
+ */
+export interface LobbyInvalidatedMessage extends BaseMessage {
+  type: typeof ServerMessageType.LOBBY_INVALIDATED;
+  revision: number;
+}
+
 export type ServerMessage =
   | ServerHelloMessage
   | ServerPongMessage
   | ServerErrorMessage
   | ProtocolIncompatibleMessage
   | SubscribedMessage
-  | GameStateInvalidatedMessage;
+  | GameStateInvalidatedMessage
+  | LobbySubscribedMessage
+  | LobbyInvalidatedMessage;
 
 // ---- Builders ---------------------------------------------------------------
 
@@ -182,6 +238,18 @@ export function unsubscribeGame(correlationId?: string, now: number = Date.now()
   return {...envelope(now, correlationId), type: ClientMessageType.UNSUBSCRIBE};
 }
 
+export function subscribeLobby(lastRevision?: number, correlationId?: string, now: number = Date.now()): SubscribeLobbyMessage {
+  const message: SubscribeLobbyMessage = {...envelope(now, correlationId), type: ClientMessageType.SUBSCRIBE_LOBBY};
+  if (lastRevision !== undefined) {
+    message.lastRevision = lastRevision;
+  }
+  return message;
+}
+
+export function unsubscribeLobby(correlationId?: string, now: number = Date.now()): UnsubscribeLobbyMessage {
+  return {...envelope(now, correlationId), type: ClientMessageType.UNSUBSCRIBE_LOBBY};
+}
+
 export function serverHello(serverVersion: string, serverBuildVersion?: string, correlationId?: string, now: number = Date.now()): ServerHelloMessage {
   return {...envelope(now, correlationId), type: ServerMessageType.HELLO, serverVersion, serverBuildVersion};
 }
@@ -200,6 +268,14 @@ export function protocolIncompatible(now: number = Date.now()): ProtocolIncompat
 
 export function subscribed(gameAge: number, undoCount: number, correlationId?: string, now: number = Date.now()): SubscribedMessage {
   return {...envelope(now, correlationId), type: ServerMessageType.SUBSCRIBED, gameAge, undoCount};
+}
+
+export function lobbySubscribed(revision: number, correlationId?: string, now: number = Date.now()): LobbySubscribedMessage {
+  return {...envelope(now, correlationId), type: ServerMessageType.LOBBY_SUBSCRIBED, revision};
+}
+
+export function lobbyInvalidated(revision: number, now: number = Date.now()): LobbyInvalidatedMessage {
+  return {...envelope(now), type: ServerMessageType.LOBBY_INVALIDATED, revision};
 }
 
 export function gameStateInvalidated(gameId: string, gameAge: number, undoCount: number, phase?: string, now: number = Date.now()): GameStateInvalidatedMessage {
@@ -257,6 +333,13 @@ export function parseClientMessage(raw: string): ClientMessage | undefined {
     return (typeof parsed.participantId === 'string' && typeof parsed.lastGameAge === 'number' && typeof parsed.lastUndoCount === 'number') ? (parsed as unknown as ResumeGameMessage) : undefined;
   case ClientMessageType.UNSUBSCRIBE:
     return parsed as unknown as UnsubscribeGameMessage;
+  case ClientMessageType.SUBSCRIBE_LOBBY:
+    if (parsed.lastRevision !== undefined && typeof parsed.lastRevision !== 'number') {
+      return undefined;
+    }
+    return parsed as unknown as SubscribeLobbyMessage;
+  case ClientMessageType.UNSUBSCRIBE_LOBBY:
+    return parsed as unknown as UnsubscribeLobbyMessage;
   default:
     return undefined;
   }
@@ -289,6 +372,10 @@ export function parseServerMessage(raw: string): ServerMessage | undefined {
     return (typeof parsed.gameAge === 'number' && typeof parsed.undoCount === 'number') ? (parsed as unknown as SubscribedMessage) : undefined;
   case ServerMessageType.INVALIDATED:
     return (typeof parsed.gameId === 'string' && typeof parsed.gameAge === 'number' && typeof parsed.undoCount === 'number') ? (parsed as unknown as GameStateInvalidatedMessage) : undefined;
+  case ServerMessageType.LOBBY_SUBSCRIBED:
+    return typeof parsed.revision === 'number' ? (parsed as unknown as LobbySubscribedMessage) : undefined;
+  case ServerMessageType.LOBBY_INVALIDATED:
+    return typeof parsed.revision === 'number' ? (parsed as unknown as LobbyInvalidatedMessage) : undefined;
   default:
     return undefined;
   }

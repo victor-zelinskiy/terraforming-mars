@@ -21,6 +21,14 @@ export interface IGameLoader {
    */
   getGame(id: GameId | PlayerId | SpectatorId, forceLoad?: boolean): Promise<IGame | undefined>;
   /**
+   * The RESIDENT instance of a game, or undefined when it is not in memory.
+   *
+   * Unlike {@link getGame} this never loads, never awaits and — deliberately —
+   * never TOUCHES the cache: it is for bulk read-only sweeps (the lobby index)
+   * that must not reset every game's idle clock and defeat idle eviction.
+   */
+  peek(gameId: GameId): IGame | undefined;
+  /**
    * Reload a game at a specific version, deleting all versions ahead of it.
    *
    * @param {GameId} gameId the id of the game to retrieve

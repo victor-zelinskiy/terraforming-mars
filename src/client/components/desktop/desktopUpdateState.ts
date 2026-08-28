@@ -254,7 +254,7 @@ export function initDesktopUpdates(): void {
  * turn. `recheck` is idempotent and cheap (one call to our own server, which caches the GitHub
  * reads), and the main process ignores it outright once a download is in flight.
  *
- * Same shape as joinGamesState's start/stopJoinPolling — call from the menu's mounted /
+ * Same shape as lobbyState's start/stopLobbyWatch — call from the menu's mounted /
  * beforeUnmount. Inert on the web (no bridge) and in an unpackaged dev shell (the main process
  * short-circuits to `idle`).
  */

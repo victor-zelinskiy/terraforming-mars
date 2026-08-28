@@ -1,6 +1,6 @@
 import prometheus from 'prom-client';
 import {GameId} from '@/common/Types';
-import {ServerMessage, gameStateInvalidated} from '@/common/realtime/Protocol';
+import {ServerMessage, gameStateInvalidated, lobbyInvalidated} from '@/common/realtime/Protocol';
 
 /**
  * Realtime game rooms.
@@ -29,6 +29,8 @@ export interface RealtimeSubscriber {
   readonly id: number;
   gameId: GameId | undefined;
   participantId: string | undefined;
+  /** True while this connection is in the server-wide LOBBY room. */
+  inLobby?: boolean;
   send(message: ServerMessage): void;
 }
 
@@ -64,6 +66,16 @@ const metrics = {
     help: 'Total game-state invalidations broadcast to at least one subscriber',
     registers: [prometheus.register],
   }),
+  lobbySubscribers: new prometheus.Gauge({
+    name: 'realtime_lobby_subscribers',
+    help: 'Number of realtime connections subscribed to the lobby room',
+    registers: [prometheus.register],
+  }),
+  lobbyInvalidations: new prometheus.Counter({
+    name: 'realtime_lobby_invalidations_total',
+    help: 'Total lobby invalidations broadcast to at least one subscriber',
+    registers: [prometheus.register],
+  }),
 };
 
 /** Safe default until a resolver is configured: reject every subscription. */
@@ -73,6 +85,12 @@ export class RealtimeHub {
   private static instance: RealtimeHub | undefined;
 
   private readonly rooms = new Map<GameId, Set<RealtimeSubscriber>>();
+  /**
+   * The LOBBY room - one server-wide set, not keyed by anything. Its members
+   * are menus sitting on "My games"; the broadcast carries only a revision, so
+   * membership grants no access to any game (see `SubscribeLobbyMessage`).
+   */
+  private readonly lobby = new Set<RealtimeSubscriber>();
   private resolver: SubscriptionResolver = rejectAllResolver;
 
   public static getInstance(): RealtimeHub {
@@ -120,7 +138,43 @@ export class RealtimeHub {
   /** Same as unsubscribe; named for the socket-close path for readability. */
   public handleDisconnect(subscriber: RealtimeSubscriber): void {
     this.removeFromRoom(subscriber);
+    this.unsubscribeLobby(subscriber);
     this.updateMetrics();
+  }
+
+  /** Join the server-wide lobby room. Idempotent. */
+  public subscribeLobby(subscriber: RealtimeSubscriber): void {
+    this.lobby.add(subscriber);
+    subscriber.inLobby = true;
+    metrics.lobbySubscribers.set(this.lobby.size);
+  }
+
+  public unsubscribeLobby(subscriber: RealtimeSubscriber): void {
+    if (this.lobby.delete(subscriber)) {
+      subscriber.inLobby = false;
+      metrics.lobbySubscribers.set(this.lobby.size);
+    }
+  }
+
+  /**
+   * Broadcast "the set of games changed" to every lobby subscriber. The payload
+   * is the lobby index's revision - never the listing itself, which stays
+   * name-scoped behind `api/games/joinable`. No-op on an empty room.
+   */
+  public invalidateLobby(revision: number): number {
+    if (this.lobby.size === 0) {
+      return 0;
+    }
+    const message = lobbyInvalidated(revision);
+    for (const subscriber of this.lobby) {
+      subscriber.send(message);
+    }
+    metrics.lobbyInvalidations.inc();
+    return this.lobby.size;
+  }
+
+  public lobbySize(): number {
+    return this.lobby.size;
   }
 
   /**

@@ -15,7 +15,10 @@ import {
   ResumeGameMessage,
   ServerMessage,
   SubscribeGameMessage,
+  SubscribeLobbyMessage,
   gameStateInvalidated,
+  lobbyInvalidated,
+  lobbySubscribed,
   parseClientMessage,
   protocolIncompatible,
   serializeMessage,
@@ -24,6 +27,7 @@ import {
   serverPong,
   subscribed,
 } from '@/common/realtime/Protocol';
+import {LobbyIndex} from '@/server/models/lobbyIndex';
 
 /**
  * Phase 1 realtime WebSocket gateway.
@@ -84,6 +88,8 @@ class RealtimeConnection {
   public participantId: string | undefined = undefined;
   /** Set once the connection has joined a game room (Phase 2). */
   public gameId: GameId | undefined = undefined;
+  /** True while this connection sits in the server-wide lobby room. */
+  public inLobby = false;
   public helloReceived = false;
   /** Heartbeat liveness flag, reset on every ws-level pong. */
   public isAlive = true;
@@ -264,6 +270,13 @@ export class RealtimeServer {
       this.hub.unsubscribe(conn);
       vlog(`[realtime] unsubscribe #${conn.id}`);
       break;
+    case ClientMessageType.SUBSCRIBE_LOBBY:
+      this.handleSubscribeLobby(conn, message);
+      break;
+    case ClientMessageType.UNSUBSCRIBE_LOBBY:
+      this.hub.unsubscribeLobby(conn);
+      vlog(`[realtime] lobby unsubscribe #${conn.id}`);
+      break;
     }
   }
 
@@ -285,6 +298,25 @@ export class RealtimeServer {
     }
     vlog(`[realtime] subscribe #${conn.id} game=${result.gameId} roomSize=${result.roomSize}`);
     this.send(conn, subscribed(result.gameAge ?? 0, result.undoCount ?? 0, message.correlationId));
+  }
+
+  /**
+   * Join the LOBBY room and ack with the server's current revision.
+   *
+   * No authorization step: the room is anonymous by design (the broadcast is a
+   * bare counter, and the listing it wakes is name-scoped behind REST). A
+   * client that names a `lastRevision` older than ours is answered with an
+   * invalidation right away, so a reconnect after a gap re-syncs without
+   * waiting for the next change.
+   */
+  private handleSubscribeLobby(conn: RealtimeConnection, message: SubscribeLobbyMessage): void {
+    this.hub.subscribeLobby(conn);
+    const revision = LobbyIndex.getInstance().revision();
+    vlog(`[realtime] lobby subscribe #${conn.id} revision=${revision} last=${message.lastRevision ?? '(none)'}`);
+    this.send(conn, lobbySubscribed(revision, message.correlationId));
+    if (message.lastRevision !== undefined && message.lastRevision !== revision) {
+      this.send(conn, lobbyInvalidated(revision));
+    }
   }
 
   /**

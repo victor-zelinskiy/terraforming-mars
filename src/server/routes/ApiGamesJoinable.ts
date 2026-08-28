@@ -4,7 +4,8 @@ import {Context} from './IHandler';
 import {Request} from '../Request';
 import {Response} from '../Response';
 import {JoinableGameStatus, JoinableGameSummary} from '../../common/models/JoinableGameModel';
-import {getJoinableGameSummary} from '../models/joinableGames';
+import {joinableSummaryFromRecord} from '../models/joinableGames';
+import {LobbyIndex} from '../models/lobbyIndex';
 import {normalizePlayerName} from '../../common/utils/playerName';
 
 /**
@@ -22,12 +23,18 @@ import {normalizePlayerName} from '../../common/utils/playerName';
  *
  * No serverId gate: the result is name-scoped and exposes only board-public
  * information (game name, map, enabled expansions, player names + colours) plus
- * the requester's OWN seat link (see {@link getJoinableGameSummary}).
+ * the requester's OWN seat link (see {@link joinableSummaryFromRecord}).
  *
- * NOTE on cost: this scans every known game (load-then-filter), mirroring the
- * admin overview. That is fine for a self-hosted fork and is deliberately kept
- * behind this one route so it can later be replaced by an indexed
- * name→game query (or an account-id index) without touching the client.
+ * COST: the scan runs over the LOBBY INDEX (`models/lobbyIndex.ts`), never over
+ * freshly deserialized games — a resident game is re-derived for free, a cold
+ * one is read once in its serialized form and cached until it changes. That
+ * matters beyond CPU: this route is what a LAN guest PROBES (with a timeout),
+ * and the old load-every-game scan could outlast that timeout on a real
+ * library, which listed the host's games as «none» instead of «slow».
+ *
+ * PUSH: every change to the index bumps its revision, which the realtime lobby
+ * room broadcasts (`RealtimeHub.invalidateLobby`) — so a client re-asks this
+ * route when something actually changed instead of polling to find out.
  */
 export class ApiGamesJoinable extends Handler {
   public static readonly INSTANCE = new ApiGamesJoinable();
@@ -45,28 +52,17 @@ export class ApiGamesJoinable extends Handler {
     // an unknown value can never widen what a caller sees.
     const status: JoinableGameStatus = ctx.url.searchParams.get('status') === 'finished' ? 'finished' : 'active';
 
-    const ledger = await ctx.gameLoader.getIds();
-    if (ledger === undefined) {
-      responses.writeJson(res, ctx, []);
-      return;
-    }
-
+    const records = await LobbyIndex.getInstance().snapshot(ctx.gameLoader);
     const summaries: Array<JoinableGameSummary> = [];
-    for (const {gameId} of ledger) {
-      try {
-        const game = await ctx.gameLoader.getGame(gameId);
-        if (game === undefined) {
-          continue;
-        }
-        const summary = getJoinableGameSummary(game, normalized, status);
-        if (summary !== undefined) {
-          summaries.push(summary);
-        }
-      } catch (err) {
-        console.warn(`ApiGamesJoinable: skipping game ${gameId}`, err);
+    for (const record of records) {
+      const summary = joinableSummaryFromRecord(record, normalized, status);
+      if (summary !== undefined) {
+        summaries.push(summary);
       }
     }
 
+    // The index already yields newest-first; sorting again keeps this route's
+    // contract true of its own output rather than of someone else's ordering.
     summaries.sort((a, b) => b.createdTimeMs - a.createdTimeMs);
     responses.writeJson(res, ctx, summaries);
   }

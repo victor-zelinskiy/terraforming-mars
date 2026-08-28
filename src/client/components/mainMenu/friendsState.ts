@@ -12,7 +12,7 @@ import {normalizePlayerName, validatePlayerName} from '@/common/utils/playerName
  * seat lines up with the case-insensitive duplicate check on the create screen.
  *
  * Persisted in localStorage under ONE key (mirrors playerIdentity /
- * lastGameState / joinGamesState) so a future account/contacts backend is a
+ * lastGameState / lobbyState) so a future account/contacts backend is a
  * single-file swap. The module-level reactive store survives component
  * remounts, like journalState / identityState.
  */

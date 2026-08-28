@@ -11,7 +11,7 @@ import {
 /**
  * Module-reactive state for the dev-only admin game-rollback tool (the console
  * main-menu «Откат партий» plate → ConsoleAdminRollback.vue). Module-level so it
- * survives the overlay's `v-if` mount/unmount, mirroring joinGamesState.
+ * survives the overlay's `v-if` mount/unmount, mirroring lobbyState.
  *
  * All calls carry the admin's display `name` — the server soft-gates on
  * ADMIN_NAME (see src/common/utils/adminName.ts).

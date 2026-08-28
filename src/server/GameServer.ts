@@ -29,6 +29,7 @@ import {SessionManager} from './server/auth/SessionManager';
 import {RealtimeServer} from './server/realtime/RealtimeServer';
 import {RealtimeHub} from './server/realtime/RealtimeHub';
 import {gameLoaderSubscriptionResolver} from './server/realtime/subscriptionResolver';
+import {LobbyIndex} from './models/lobbyIndex';
 import {BotTurnScheduler} from './automa/BotTurnScheduler';
 
 export type GameServerOptions = {
@@ -158,6 +159,13 @@ export async function startGameServer(options: GameServerOptions = {}): Promise<
   // Realtime: wire the game-subscription lookup here; the WebSocket gateway
   // itself is attached only once this server is actually LISTENING (below).
   RealtimeHub.getInstance().configureResolver(gameLoaderSubscriptionResolver);
+  // ...and the LOBBY channel: every change to the lobby index (a game created,
+  // finished, deleted, or a listed field that moved) becomes one broadcast to
+  // the menus watching "My games". Injected here rather than imported by the
+  // index, so `GameLoader -> lobbyIndex -> RealtimeHub` can never cycle.
+  LobbyIndex.getInstance().onRevisionChanged((revision) => {
+    RealtimeHub.getInstance().invalidateLobby(revision);
+  });
 
   // Server-authoritative MarsBot turn pacing: the bot's turn resolves on a
   // bounded, non-blocking server timer (players first see it become the active

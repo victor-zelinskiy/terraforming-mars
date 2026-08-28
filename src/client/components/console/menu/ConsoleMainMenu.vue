@@ -70,7 +70,12 @@
         <div v-if="gamesTab === 'finished'" class="cm-overlay__body cm-overlay__body--dim">
           {{ $t('Open a finished game to review the results or replay the final scoring.') }}
         </div>
-        <div v-if="gamesFirstLoad" class="cm-gamelist__empty">{{ $t('Loading') }}…</div>
+        <!-- FOUR distinct answers, never one sentence for all of them: no name
+             yet · still asking · asked and failed · asked and there are none.
+             Collapsing them is what made a party that existed read as one that
+             did not. -->
+        <div v-if="gamesNeedName" class="cm-gamelist__empty">{{ $t('Set your player name to see your games') }}</div>
+        <div v-else-if="gamesFirstLoad" class="cm-gamelist__empty">{{ $t('Loading') }}…</div>
         <div v-else-if="gamesLoadError" class="cm-gamelist__empty cm-gamelist__empty--error">{{ $t('Could not load your games') }}</div>
         <div v-else-if="gamesCount === 0" class="cm-gamelist__empty">{{ $t(gamesEmptyKey) }}</div>
         <ConsoleScrollArea v-else ref="gamesScroll" class="cm-gamelist-scroll">
@@ -86,6 +91,7 @@
           >
             <div class="cm-game__head">
               <span class="cm-game__name">{{ g.name }}</span>
+              <span v-if="isNewGame(g)" class="cm-game__new">{{ $t('New') }}</span>
               <span v-if="yourTurn(g)" class="cm-game__turn">{{ $t('Your turn') }}</span>
               <span v-else-if="!joinable(g)" class="cm-game__note">{{ $t(g.ambiguous ? 'Several players share your name here' : 'No seat with your name') }}</span>
             </div>
@@ -128,21 +134,28 @@
           <!-- LAN hosts (host-as-server mode): games discovered over mDNS on other
                couches. Joining pins the seat to that host's server and navigates —
                the session then talks to the host directly (docs/EMBEDDED_SERVER.md §6). -->
-          <template v-if="visibleLanRows.length > 0">
+          <template v-if="visibleLanRows.length > 0 || lanTrouble.length > 0">
             <div class="cm-gamelist__lanhead">{{ $t('On your local network') }}</div>
+            <!-- A host that stopped answering SAYS SO. Silence here used to be
+                 indistinguishable from «that couch has no games». -->
+            <div v-for="host in lanTrouble" :key="host.id" class="cm-gamelist__lanstatus">
+              {{ host.label }} — {{ $t('not responding') }}
+            </div>
             <button
               v-for="(row, k) in visibleLanRows"
-              :key="'lan:' + row.host.id + ':' + row.game.id"
+              :key="row.key"
               type="button"
               class="cm-game cm-game--lan"
-              :class="{'cm-game--cursor': localRows.length + k === gamesCursor, 'cm-game--disabled': !joinable(row.game)}"
+              :class="{'cm-game--cursor': localRows.length + k === gamesCursor, 'cm-game--disabled': !joinable(row.game) || row.stale}"
               @click="enterGameAt(localRows.length + k)"
               @mousemove="gamesCursor = localRows.length + k"
             >
               <div class="cm-game__head">
                 <span class="cm-game__name">{{ row.game.name }}</span>
-                <span class="cm-game__lanhost">{{ row.host.name }}</span>
-                <span v-if="yourTurn(row.game)" class="cm-game__turn">{{ $t('Your turn') }}</span>
+                <span v-if="isNewGame(row.game)" class="cm-game__new">{{ $t('New') }}</span>
+                <span class="cm-game__lanhost">{{ row.hostName }}</span>
+                <span v-if="row.stale" class="cm-game__note">{{ $t('not responding') }}</span>
+                <span v-else-if="yourTurn(row.game)" class="cm-game__turn">{{ $t('Your turn') }}</span>
                 <span v-else-if="!joinable(row.game)" class="cm-game__note">{{ $t(row.game.ambiguous ? 'Several players share your name here' : 'No seat with your name') }}</span>
                 <span v-else-if="row.versionMismatch" class="cm-game__note">{{ $t('Host version differs from yours') }}</span>
               </div>
@@ -307,8 +320,13 @@ import {isAdminName} from '@/common/utils/adminName';
 import {identityState, ensureIdentityLoaded} from '@/client/components/mainMenu/identity/identityState';
 import {ensureProfilesLoaded} from '@/client/components/mainMenu/profilesState';
 import {prefillIdentityFromSteam} from '@/client/components/mainMenu/identity/steamIdentity';
-import {joinGamesState, finishedGamesState, hydrateJoinableGames, loadJoinableGames, loadFinishedGames, startJoinPolling, stopJoinPolling} from '@/client/components/mainMenu/joinGamesState';
-import {lanState, LanGameRow, initLanDiscovery, publishLanName, startLanPolling, stopLanPolling} from '@/client/components/mainMenu/lanState';
+import {
+  lobbyState, LobbyRow,
+  hydrateLobbyCache, startLobbyWatch, stopLobbyWatch, openLobbyList, closeLobbyList,
+  setLobbyIdentity, refreshLobby, loadLobbyArchive, setLobbyOwnVersion,
+  lobbyFirstLoad, lobbyUnreachable, localLobbySource,
+} from '@/client/components/mainMenu/lobbyState';
+import {initLanDiscovery, publishLanName} from '@/client/components/mainMenu/lanState';
 import {pinServerEndpoint} from '@/client/utils/serverEndpoints';
 import {lastGameEntered, recordLastGameEntered} from '@/client/components/mainMenu/lastGameState';
 import {navigateWithCurtain} from '@/client/console/loadingScreenState';
@@ -337,9 +355,7 @@ export default defineComponent({
   data() {
     return {
       identityState,
-      joinGamesState,
-      finishedGamesState,
-      lanState,
+      lobbyState,
       cursor: 0,
       gamesCursor: 0,
       /** Which slice of «Мои партии» the list shows (L3 toggles). */
@@ -366,24 +382,21 @@ export default defineComponent({
     isAdmin(): boolean {
       return isAdminName(this.identityName);
     },
+    /** Unfinished games on THIS device's server. */
     games(): ReadonlyArray<JoinableGameSummary> {
-      return this.joinGamesState.games;
+      return this.lobbyState.localRows.map((row) => row.game);
     },
     /** The ARCHIVE — games of this player that have already ended. */
     finishedGames(): ReadonlyArray<JoinableGameSummary> {
-      return this.finishedGamesState.games;
-    },
-    /** Games on OTHER hosts discovered over the LAN (host-as-server mode). */
-    lanRows(): ReadonlyArray<LanGameRow> {
-      return this.lanState.games;
+      return this.lobbyState.archive;
     },
     /** The rows of the SHOWN slice that live on this server. */
     localRows(): ReadonlyArray<JoinableGameSummary> {
       return this.gamesTab === 'finished' ? this.finishedGames : this.games;
     },
     /** LAN hosts publish their UNFINISHED games only — the archive is local. */
-    visibleLanRows(): ReadonlyArray<LanGameRow> {
-      return this.gamesTab === 'finished' ? [] : this.lanRows;
+    visibleLanRows(): ReadonlyArray<LobbyRow> {
+      return this.gamesTab === 'finished' ? [] : this.lobbyState.lanRows;
     },
     /** Cursor range of the games overlay: local rows first, then LAN rows. */
     gamesCount(): number {
@@ -392,23 +405,42 @@ export default defineComponent({
     /** The two slices as a segmented control (count shown once its list loaded). */
     gamesTabs(): ReadonlyArray<{id: JoinableGameStatus, label: string, count: number | undefined}> {
       return [
-        {id: 'active', label: 'Active games', count: this.joinGamesState.loadedOnce ? this.games.length : undefined},
-        {id: 'finished', label: 'Finished games', count: this.finishedGamesState.loadedOnce ? this.finishedGames.length : undefined},
+        {id: 'active', label: 'Active games', count: localLobbySource()?.lastOkAt !== undefined ? this.games.length : undefined},
+        {id: 'finished', label: 'Finished games', count: this.lobbyState.archiveStatus === 'ok' ? this.finishedGames.length : undefined},
       ];
     },
-    /** The FIRST load of the shown slice — later refreshes are silent. */
+    /**
+     * «Загрузка…» — we have nothing to show AND are still finding out. This is
+     * deliberately NOT the same state as «нет партий»: an unanswered list and an
+     * empty library used to render the same sentence, which is how a LAN party
+     * that existed read as one that did not.
+     */
     gamesFirstLoad(): boolean {
       return this.gamesTab === 'finished' ?
-        this.finishedGamesState.loading && !this.finishedGamesState.loadedOnce :
-        this.joinGamesState.loading && !this.joinGamesState.loadedOnce;
+        this.lobbyState.archiveStatus === 'loading' && this.finishedGames.length === 0 :
+        lobbyFirstLoad();
     },
-    /** A failed load only speaks when it left nothing to show. */
+    /** We asked and could not find out — never rendered as «no games». */
     gamesLoadError(): boolean {
-      const failed = this.gamesTab === 'finished' ? this.finishedGamesState.error : this.joinGamesState.error;
-      return failed && this.gamesCount === 0;
+      return this.gamesTab === 'finished' ?
+        this.lobbyState.archiveStatus === 'unreachable' && this.finishedGames.length === 0 :
+        lobbyUnreachable();
+    },
+    /** No identity yet — the list is name-scoped, so say THAT, not «пусто». */
+    gamesNeedName(): boolean {
+      return this.identityName === '';
     },
     gamesEmptyKey(): string {
       return this.gamesTab === 'finished' ? 'You have no finished games yet.' : 'You have no unfinished games yet.';
+    },
+    /** LAN sources that answered nothing / stopped answering — shown, not hidden. */
+    lanTrouble(): ReadonlyArray<{id: string, label: string}> {
+      if (this.gamesTab === 'finished') {
+        return [];
+      }
+      return this.lobbyState.sources
+        .filter((s) => s.kind === 'lan' && s.status === 'unreachable')
+        .map((s) => ({id: s.id, label: s.label}));
     },
     /** Deletion is offered only for games on THIS device's embedded server. */
     canDeleteLocal(): boolean {
@@ -521,6 +553,7 @@ export default defineComponent({
           // press leads to the settled final scoring, not into a turn.
           {control: 'confirm', label: archive ? 'Open the results' : 'Enter game', enabled: row !== undefined && this.joinable(row), highlight: row !== undefined && this.yourTurn(row)},
           {control: 'stickL', label: archive ? 'Active games' : 'Finished games'},
+          {control: 'triggerR', label: 'Refresh', enabled: !this.lobbyState.refreshing},
         ];
         if (this.canDeleteLocal) {
           bar.push(
@@ -611,9 +644,21 @@ export default defineComponent({
     // profile into identityState) BEFORE the first render, so the header /
     // games reflect the active profile even before the profile editor is opened.
     ensureProfilesLoaded();
-    hydrateJoinableGames(this.identityName);
+    hydrateLobbyCache(this.identityName);
   },
   watch: {
+    /**
+     * The identity may resolve AFTER the first frame (Steam prefill on a fresh
+     * install, the profile roster, a profile switch). The lobby is name-scoped,
+     * so this is the difference between a list and an empty screen — and its
+     * absence is exactly why «Мои партии» used to need an app restart.
+     */
+    identityName(name: string) {
+      setLobbyIdentity(name);
+      if (name !== '') {
+        publishLanName(name);
+      }
+    },
     // The Steam state loads async (getSteamState). When it arrives, show the first-run prompt
     // if it's warranted (Windows first launch, not added, not dismissed) and nothing else is open.
     'steamState.loaded'(loaded: boolean) {
@@ -640,17 +685,20 @@ export default defineComponent({
         this.appModeEffective = info.effective;
       }
     }).catch(() => {});
-    const name = this.identityName;
-    if (name !== '') {
-      void loadJoinableGames(name, {silent: true});
-      startJoinPolling();
-      publishLanName(name);
+    // The lobby watch runs for the whole menu: it keeps CONTINUE and the badge
+    // live (push + a slow fallback poll) even before «Мои партии» is opened, and
+    // it starts with an EMPTY name too — the identity watcher above feeds it.
+    startLobbyWatch(this.identityName);
+    if (this.identityName !== '') {
+      publishLanName(this.identityName);
     }
     // Version readout (desktop shell prefers the baked app version; web uses settings.json).
     const bridge = desktopBridge();
     if (bridge !== undefined) {
       void bridge.getVersion().then((v) => {
         this.desktopVersion = typeof v === 'string' ? v : '';
+        // A LAN host on another build gets a warning on its rows.
+        setLobbyOwnVersion(this.desktopVersion);
       }).catch(() => undefined);
     }
     // Watch for a new version for as long as the menu is up. The menu is the safe place to be
@@ -659,8 +707,7 @@ export default defineComponent({
   },
   beforeUnmount() {
     this.offPad?.();
-    stopJoinPolling();
-    stopLanPolling();
+    stopLobbyWatch();
     stopMenuUpdateWatch();
   },
   methods: {
@@ -733,6 +780,10 @@ export default defineComponent({
         }
         if (intent.kind === 'press' && intent.button === 'stickL') {
           this.setGamesTab(this.gamesTab === 'finished' ? 'active' : 'finished');
+          return true;
+        }
+        if (intent.kind === 'press' && intent.button === 'triggerR') {
+          this.refreshGames();
           return true;
         }
         if (action === 'primary') {
@@ -819,16 +870,13 @@ export default defineComponent({
         this.gamesCursor = 0;
         this.gamesConfirm = undefined;
         this.gamesError = false;
-        if (this.identityName !== '') {
-          void loadJoinableGames(this.identityName);
-          // The archive is loaded ONCE per menu session — its count belongs on
-          // the tab chip before the player presses L3, and a finished game
-          // never changes (the toggle refreshes it silently afterwards).
-          if (!this.finishedGamesState.loadedOnce) {
-            void loadFinishedGames(this.identityName);
-          }
-          // LAN hosts are re-queried while the list is open (they answer in ~ms).
-          startLanPolling(this.identityName);
+        // ENTERING THE SCREEN IS A REFRESH — unconditionally, every time, for
+        // every source (this device + every LAN host). Showing something is
+        // never a reason not to check whether it is still true.
+        void openLobbyList();
+        // The archive's count belongs on the tab chip before L3 is pressed.
+        if (this.lobbyState.archiveStatus === 'idle') {
+          void loadLobbyArchive();
         }
         break;
       case 'profile':
@@ -880,31 +928,44 @@ export default defineComponent({
     openProfiles(): void {
       this.overlay = 'profiles';
     },
-    /** B in the roster returns to the profile editor; refresh games since the active player may have changed. */
+    /** B in the roster returns to the profile editor. A profile switch is picked
+     * up by the identity watcher, which reloads the lobby for the new name. */
     backToProfileFromProfiles(): void {
       menuPadState.textEntry = false;
       this.overlay = 'profile';
-      const name = this.identityName;
-      if (name !== '') {
-        void loadJoinableGames(name, {silent: true});
-      }
     },
     closeOverlay(): void {
       this.overlay = undefined;
       menuPadState.textEntry = false;
       this.gamesConfirm = undefined;
       this.gamesError = false;
-      stopLanPolling();
-      // The profile may have just set the identity — refresh the games list and
-      // re-advertise this host under the (possibly new) name.
+      closeLobbyList();
+      // The profile may have just set the identity — re-advertise this host
+      // under the (possibly new) name. The list itself follows the identity
+      // watcher, so there is no second refresh path here.
       const name = this.identityName;
       if (name !== '') {
-        void loadJoinableGames(name, {silent: true});
         publishLanName(name);
       }
     },
     joinable(g: JoinableGameSummary): boolean {
       return g.you !== undefined;
+    },
+    /**
+     * A row that ARRIVED while the player was on this screen — the visible
+     * proof that the push channel works. It decays on its own; nothing else
+     * depends on it.
+     */
+    isNewGame(g: JoinableGameSummary): boolean {
+      return this.lobbyState.newIds.includes(g.id);
+    },
+    /**
+     * Manual re-ask (RT). The list refreshes itself on open, on push, on focus
+     * and on a poll floor — this is for the player who wants to KNOW it just
+     * did, and the way out of any source that has gone quiet.
+     */
+    refreshGames(): void {
+      void refreshLobby({archive: this.gamesTab === 'finished'});
     },
     yourTurn(g: JoinableGameSummary): boolean {
       // A finished game keeps an `activePlayer` (whoever was to move when it
@@ -921,12 +982,11 @@ export default defineComponent({
       this.gamesConfirm = undefined;
       this.gamesError = false;
       this.keepGamesCursorVisible();
-      if (tab === 'finished' && this.identityName !== '' && !this.finishedGamesState.loading) {
-        // Silent once the archive is on screen (no loading flash over rows the
-        // player is already reading); loud on the very first load. A load
-        // already in flight is left alone — the scan is not cheap and a second
-        // one would only rewrite the same list.
-        void loadFinishedGames(this.identityName, {silent: this.finishedGamesState.loadedOnce});
+      if (tab === 'finished' && this.lobbyState.archiveStatus !== 'loading') {
+        // Re-ask on every toggle: a game that has just ended belongs here
+        // without a restart. A load already in flight is left alone — the scan
+        // is not free and a second one would only rewrite the same list.
+        void loadLobbyArchive();
       }
     },
     boardLabel(g: JoinableGameSummary): string {
@@ -981,9 +1041,11 @@ export default defineComponent({
         return;
       }
       // A LAN row: pin the seat to the HOST's server first — from then on every
-      // request and the WebSocket for this game go to that host (§6).
+      // request and the WebSocket for this game go to that host (§6). A row whose
+      // host has stopped answering is kept on screen (it exists) but not entered:
+      // the navigation would land on a curtain that never lifts.
       const row = this.visibleLanRows[i - this.localRows.length];
-      if (row?.game.you !== undefined) {
+      if (row !== undefined && !row.stale && row.endpoint !== undefined && row.game.you !== undefined) {
         pinServerEndpoint(row.game.you.id, row.endpoint);
         recordLastGameEntered(row.game.id);
         navigateWithCurtain(paths.PLAYER + '?id=' + encodeURIComponent(row.game.you.id), 'expedition');
@@ -1022,14 +1084,9 @@ export default defineComponent({
           throw new Error(`delete failed (${res.status})`);
         }
         this.gamesConfirm = undefined;
-        // Refresh the lists (the live one also rewrites the joinable cache →
-        // CONTINUE/badge; the archive only when it has already been loaded).
-        if (this.identityName !== '') {
-          await loadJoinableGames(this.identityName, {silent: true});
-          if (this.finishedGamesState.loadedOnce) {
-            await loadFinishedGames(this.identityName, {silent: true});
-          }
-        }
+        // Re-ask rather than patch the list locally: the server is the one that
+        // knows what is left (and the same refresh rewrites the CONTINUE cache).
+        await refreshLobby({archive: true});
         this.gamesCursor = Math.min(this.gamesCursor, Math.max(0, this.gamesCount - 1));
       } catch {
         this.gamesError = true;

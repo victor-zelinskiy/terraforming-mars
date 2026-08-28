@@ -16,6 +16,9 @@ export class FakeGameLoader implements IGameLoader {
         return {gameId: gameId, participantIds: []};
       });
   }
+  public peek(gameId: GameId): IGame | undefined {
+    return this.games.get(gameId);
+  }
   public getGame(id: GameId | PlayerId | SpectatorId): Promise<IGame | undefined> {
     if (isGameId(id)) {
       return Promise.resolve(this.games.get(id));

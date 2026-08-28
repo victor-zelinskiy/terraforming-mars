@@ -6,12 +6,15 @@ import {JoinableGameSummary} from '../../src/common/models/JoinableGameModel';
 import {Phase} from '../../src/common/Phase';
 import {MockResponse} from './HttpMocks';
 import {RouteTestScaffolding} from './RouteTestScaffolding';
+import {LobbyIndex} from '../../src/server/models/lobbyIndex';
 
 describe('ApiGamesJoinable', () => {
   let res: MockResponse;
   let scaffolding: RouteTestScaffolding;
 
   beforeEach(() => {
+    // The listing reads a process-wide index; each case gets a clean one.
+    LobbyIndex.resetForTesting();
     scaffolding = new RouteTestScaffolding();
     res = new MockResponse();
   });
@@ -64,5 +67,70 @@ describe('ApiGamesJoinable', () => {
     scaffolding.url = '/api/games/joinable?name=victor&status=everything';
     await scaffolding.get(ApiGamesJoinable.INSTANCE, res);
     expect(ids()).deep.eq(['game-live']);
+  });
+
+  // ── Freshness ─────────────────────────────────────────────────────────────
+  // The listing is cached per game (that is what keeps it cheap enough for a
+  // LAN guest to probe). These are the cases that cache MUST NOT break — each
+  // of them shipped as «the game exists but the menu says it does not».
+
+  it('a game created AFTER a previous listing appears in the next one', async () => {
+    addGame('game-first');
+    scaffolding.url = '/api/games/joinable?name=victor';
+    await scaffolding.get(ApiGamesJoinable.INSTANCE, res);
+    expect(ids()).deep.eq(['game-first']);
+
+    addGame('game-second');
+    const res2 = new MockResponse();
+    await scaffolding.get(ApiGamesJoinable.INSTANCE, res2);
+    const listed = (JSON.parse(res2.content) as Array<JoinableGameSummary>).map((g) => g.id);
+    expect(listed).to.have.members(['game-first', 'game-second']);
+  });
+
+  it('a game that has since ENDED leaves the active slice and enters the archive', async () => {
+    const game = addGame('game-turning');
+    scaffolding.url = '/api/games/joinable?name=victor';
+    await scaffolding.get(ApiGamesJoinable.INSTANCE, res);
+    expect(ids()).deep.eq(['game-turning']);
+
+    game.phase = Phase.END;
+    const active = new MockResponse();
+    await scaffolding.get(ApiGamesJoinable.INSTANCE, active);
+    expect(active.content).eq('[]');
+
+    scaffolding.url = '/api/games/joinable?name=victor&status=finished';
+    const archive = new MockResponse();
+    await scaffolding.get(ApiGamesJoinable.INSTANCE, archive);
+    expect((JSON.parse(archive.content) as Array<JoinableGameSummary>).map((g) => g.id)).deep.eq(['game-turning']);
+  });
+
+  it('a DELETED game stops being listed', async () => {
+    addGame('game-doomed');
+    addGame('game-kept');
+    scaffolding.url = '/api/games/joinable?name=victor';
+    await scaffolding.get(ApiGamesJoinable.INSTANCE, res);
+    expect(ids()).to.have.members(['game-doomed', 'game-kept']);
+
+    await scaffolding.ctx.gameLoader.deleteGame('game-doomed' as 'game-id');
+    const after = new MockResponse();
+    await scaffolding.get(ApiGamesJoinable.INSTANCE, after);
+    expect((JSON.parse(after.content) as Array<JoinableGameSummary>).map((g) => g.id)).deep.eq(['game-kept']);
+  });
+
+  it('a RENAMED seat is matched under the new name on the very next listing', async () => {
+    const game = addGame('game-rename');
+    scaffolding.url = '/api/games/joinable?name=victor';
+    await scaffolding.get(ApiGamesJoinable.INSTANCE, res);
+    expect(ids()).deep.eq(['game-rename']);
+
+    game.players[0].name = 'Nadia';
+    const asVictor = new MockResponse();
+    await scaffolding.get(ApiGamesJoinable.INSTANCE, asVictor);
+    expect(asVictor.content).eq('[]');
+
+    scaffolding.url = '/api/games/joinable?name=NADIA';
+    const asNadia = new MockResponse();
+    await scaffolding.get(ApiGamesJoinable.INSTANCE, asNadia);
+    expect((JSON.parse(asNadia.content) as Array<JoinableGameSummary>).map((g) => g.id)).deep.eq(['game-rename']);
   });
 });
