@@ -314,6 +314,33 @@ export function actionFocusLeaveHook(el: Element, done: () => void): void {
   });
 }
 
+/**
+ * THE WORKSPACE TAKES ITS SCREEN BACK from a STEP that had it (a card's
+ * Hydronetwork advance — an overlay frame of this same stack).
+ *
+ * This is the yield's reverse, and it is NOT a transition: the workspace never
+ * left, so there is no `@enter` to hang it on — it dissolved its body in place
+ * and kept its header. So it comes back the way every deeper layer in this
+ * console does: the content CASCADES from inside, while the one carried object
+ * is left alone — its travel home is `carryAnchorsHome`'s, and two owners on
+ * one transform is how a card ends up wearing whichever finished last.
+ *
+ * The flat 200 ms opacity transition this replaces could not do the job: the
+ * carried card lives INSIDE the fading subtree and `opacity` is multiplicative,
+ * so the one object that must never blink blinked with everything else.
+ */
+export function playActionCarryReturn(root: Element | null | undefined): void {
+  if (root === null || root === undefined || typeof window === 'undefined') {
+    return;
+  }
+  const groups = Array.from(root.querySelectorAll<HTMLElement>('[data-unfold-item]'))
+    .filter((n) => n.querySelector('[data-motion-anchor]') === null && !n.hasAttribute('data-motion-anchor'));
+  if (groups.length === 0 || consoleReducedMotionActive()) {
+    return;
+  }
+  descendCascade(gsap.timeline(), groups, s(CASCADE_MS), 0);
+}
+
 /** Cancelled-pair hooks: drop the dead tween and restore the browse layer to
  *  the direction the element is ACTUALLY taking. */
 export function actionFocusEnterCancelledHook(el: Element): void {

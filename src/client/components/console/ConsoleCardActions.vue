@@ -12,8 +12,13 @@
        advance). The workspace does not LEAVE — its body dissolves and its
        header stays, so the crumb the player is reading is the same DOM node
        on both sides of the walk and only its tail advances. -->
+  <!-- `--carryback`: the step is handing the screen BACK and the source card is
+       travelling home through this body. The un-yield's flat opacity fade is
+       suppressed for its length — `opacity` is multiplicative, so it would
+       fade the one object that must never blink; the content comes back as a
+       CASCADE instead (`playActionCarryReturn`). -->
   <div ref="rootEl" class="con-cardactions con-ws" role="dialog" :aria-label="$t('Card actions')"
-       :class="{'con-cardactions--yielded': yieldedToStep}"
+       :class="{'con-cardactions--yielded': yieldedToStep, 'con-cardactions--carryback': carryingBack}"
        :data-flow="flowState" data-motion-surface="card-actions">
     <!-- The action center frame — ONE chrome for both presentation states:
          the browse grid AND the in-frame ACTION FOCUS stage. -->
@@ -530,10 +535,12 @@ import {
   actionFocusEnterCancelledHook,
   actionFocusLeaveCancelledHook,
   armActionFocusOrigin,
+  playActionCarryReturn,
   resetActionFocusMotion,
 } from '@/client/console/consoleActionFocusMotion';
 import {setConsoleActionRevealClaim, resetConsoleActionRevealClaim} from '@/client/console/consoleActionComposerUi';
-import {addShadeOwner, captureSurfaceDeparture, removeShadeOwner} from '@/client/console/surfaceMotion/surfaceMotionState';
+import {addShadeOwner, captureSurfaceDeparture, removeShadeOwner, surfaceMotionState} from '@/client/console/surfaceMotion/surfaceMotionState';
+import {carryAnchorsHome} from '@/client/console/surfaceMotion/surfaceMotionDirector';
 import {closeWorkspaceRoot, pushWorkspaceFrame, setWorkspaceFrameSubject, workspaceFrameHost, workspaceFrameIsOverlay, workspaceFrameKnown, workspaceFrameMounted, workspaceFramePhase, workspaceFrameStage, workspaceFrameSubject} from '@/client/console/consoleWorkspaceStack';
 import {beginCardColonyTrade, clearCardColonyTrade, colonyStepCrumbParts} from '@/client/console/colonyTrade/colonyTradeEntry';
 import {beginCardDeltaAdvance} from '@/client/console/hydroFlow/deltaAdvanceEntry';
@@ -868,6 +875,21 @@ export default defineComponent({
     yieldedToStep(): boolean {
       return workspaceFrameHost('hydro') === 'card-actions' && workspaceFrameIsOverlay('hydro');
     },
+    /**
+     * A CARRIED OBJECT IS COMING BACK THROUGH THIS BODY — suppress the
+     * un-yield's fade for its length (see the `--carryback` note on the root).
+     *
+     * Read off the SHARED carry flag rather than off the pending capture: the
+     * capture is consumed at the START of the travel (in this component's own
+     * post-flush watcher, before the browser computes style), so a class keyed
+     * on it would already be gone on the frame the opacity flips — which is the
+     * one frame it exists for. A carry live while this workspace was never
+     * yielded is harmless: the children are then at opacity 1 and not changing,
+     * so suppressing a transition animates nothing.
+     */
+    carryingBack(): boolean {
+      return !this.yieldedToStep && surfaceMotionState.carrying;
+    },
     /** …and the crumb's TAIL is that step's own stage, published to the stack. */
     steppedStage(): string {
       return workspaceFrameStage('hydro');
@@ -1054,6 +1076,9 @@ export default defineComponent({
      */
     'yieldedToStep': {
       immediate: true,
+      // POST: the carry below measures this body's own hero slot, which the
+      // un-yield is re-laying out in this very patch.
+      flush: 'post',
       handler(on: boolean): void {
         // The entry hook is what ACQUIRES the dim in the first place, so the
         // immediate `false` must not add one before this surface has entered —
@@ -1066,6 +1091,14 @@ export default defineComponent({
         }
         if (on) {
           this.shadeYielded = true;
+          return;
+        }
+        // THE STEP HANDED THE SCREEN BACK. Take the card home (the step
+        // captured its rect at the press — this surface never re-enters, so
+        // `enterPhase` can never run for it) and play the body's own return.
+        // Only the CARRY suppressed the fade, so only the carry replaces it.
+        if (carryAnchorsHome(this.$refs.rootEl as HTMLElement | undefined, 'card-actions')) {
+          playActionCarryReturn(this.$refs.rootEl as HTMLElement | undefined);
         }
       },
     },

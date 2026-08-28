@@ -68,6 +68,8 @@ export const surfaceMotionState = reactive({
   /** The destination emblem to ECHO (`data-wheel-anchor` id) — the incoming
    *  surface's enter materializes it a beat into the reveal. */
   wheelEcho: undefined as string | undefined,
+  /** A carried object is crossing between two surfaces (see `armAnchorCarry`). */
+  carrying: false,
 });
 
 /** The ONE shade predicate the shell binds (`.con-shade--on`). */
@@ -153,6 +155,43 @@ export function captureSurfaceDeparture(from: SurfaceMotionId, root: Element | n
     }
   }
   surfaceMotionState.departure = {from, at: now(), panel: panelRect, anchors};
+  if (anchors.size > 0) {
+    armAnchorCarry();
+  }
+}
+
+/**
+ * A CARRIED OBJECT IS BETWEEN TWO SURFACES RIGHT NOW — reactive, because the
+ * surfaces it crosses have to POSE for it.
+ *
+ * An ancestor's `opacity` is multiplicative, so a surface that fades its body
+ * back in also fades the one object that must never blink. The receiving side
+ * reads this to suppress that fade for the length of the carry (and to play
+ * its content back in some other way instead). It is deliberately NOT
+ * `departure !== undefined`: the capture is CONSUMED at the start of the
+ * travel, while the pose has to hold until the travel ends.
+ */
+let carryTimer = 0;
+
+/** The carry may never outlive this — a capture nobody consumed, an unmount
+ *  mid-travel, a killed tween: the pose must not stick. */
+const CARRY_MAX_MS = 2500;
+
+function armAnchorCarry(): void {
+  surfaceMotionState.carrying = true;
+  if (carryTimer !== 0) {
+    window.clearTimeout(carryTimer);
+  }
+  carryTimer = window.setTimeout(endAnchorCarry, CARRY_MAX_MS);
+}
+
+/** The carried objects are home (or the carry died) — drop the pose. */
+export function endAnchorCarry(): void {
+  if (carryTimer !== 0) {
+    window.clearTimeout(carryTimer);
+    carryTimer = 0;
+  }
+  surfaceMotionState.carrying = false;
 }
 
 /** When a departure was last CONSUMED (an incoming FLIP claimed it) — the
@@ -301,4 +340,6 @@ export function resetSurfaceMotion(): void {
   surfaceMotionState.wheelOrigin = undefined;
   surfaceMotionState.wheelChosenSlot = undefined;
   surfaceMotionState.wheelEcho = undefined;
+  // A pose held for a travel that the boundary just cancelled.
+  endAnchorCarry();
 }

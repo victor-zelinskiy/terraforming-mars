@@ -25450,6 +25450,16 @@ html.console-mode {
         opacity: 0;
         transition: opacity calc(200ms * var(--motion-scale, 1)) ease-out;
     }
+    /* …AND THE BODY DOES NOT FADE BACK IN AROUND A CARD IT IS CARRYING.
+       `opacity` is multiplicative through every ancestor, so this one flat
+       transition also faded the source card travelling home inside it — the
+       object whose whole contract is that it never blinks. While the carry
+       runs the return is instant HERE and the content comes back as the
+       console's own cascade instead (`playActionCarryReturn`), which is the
+       same phrase the browse ⇄ focus return already speaks. */
+    &--carryback &__frame > *:not(&__head) {
+        transition: none;
+    }
     /* …AND THE CARRIED CARD HANDS OVER — it does not blink out.
        Its copy on the incoming side is PINNED to this exact rect at this
        exact size on the first frame, so the two are one picture and the

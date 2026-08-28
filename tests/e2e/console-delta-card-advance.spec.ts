@@ -502,7 +502,54 @@ test.describe('console — the card-action Hydronetwork door', () => {
     expect(Math.abs((open.rootBox?.y ?? 0) - (setup.rootBox?.y ?? 0)), `crumb y moved (${geo})`).toBeLessThanOrEqual(2);
 
     // ── B: one logical level back, onto the same variant. ─────────────────
+    //
+    // …AND THE CARD WALKS BACK THE SAME WAY IT WALKED IN. The workspace does
+    // not re-enter (it never left — it YIELDED), so there is no transition
+    // hook to carry it: without `carryAnchorsHome` the hero simply faded back
+    // into its slot while a second copy dissolved inside the departing track.
+    // Same claim as the entry, mirrored: the FIRST painted frame of the hero
+    // card is the DOCK's own box.
+    const dockBox = await page.evaluate(() => {
+      const el = document.querySelector('.con-hydro__bonus-source .pcard');
+      if (el === null) {
+        return undefined;
+      }
+      const r = el.getBoundingClientRect();
+      return {x: Math.round(r.left), y: Math.round(r.top), w: Math.round(r.width), h: Math.round(r.height)};
+    });
+    expect(dockBox, 'the track must be showing the source card').toBeDefined();
+    await page.evaluate(() => {
+      type Box = {x: number, y: number, w: number, h: number, op: number};
+      const w = window as unknown as {__home?: Array<Box>};
+      w.__home = [];
+      setInterval(() => {
+        const el = document.querySelector('.con-composer__actcardwrap .pcard');
+        const wrap = document.querySelector('.con-composer__actcardwrap') as HTMLElement | null;
+        if (el === null || wrap === null || wrap.offsetParent === null) {
+          return;
+        }
+        // The PAINTED opacity — `opacity` is multiplicative, and the body this
+        // card rides home through is exactly what used to fade it out.
+        let op = 1;
+        for (let n: Element | null = el; n !== null; n = n.parentElement) {
+          op *= Number(getComputedStyle(n).opacity);
+        }
+        const r = el.getBoundingClientRect();
+        w.__home?.push({x: Math.round(r.left), y: Math.round(r.top), w: Math.round(r.width), h: Math.round(r.height), op});
+      }, 16);
+    });
     await press(page, 'Escape', 2500);
+    const home = await page.evaluate(() => (window as unknown as {__home?: Array<{x: number, y: number, w: number, h: number, op: number}>}).__home ?? []);
+    const firstHome = home[0];
+    const homeMsg = `dock=${JSON.stringify(dockBox)} first=${JSON.stringify(firstHome)} n=${home.length}`;
+    expect(firstHome, `the hero must paint on the way back (${homeMsg})`).toBeDefined();
+    for (const axis of ['x', 'y', 'w', 'h'] as const) {
+      expect(Math.abs((firstHome?.[axis] ?? 0) - (dockBox?.[axis] ?? 0)),
+        `the walk home must START at the dock's own card (${axis}: ${homeMsg})`).toBeLessThanOrEqual(6);
+    }
+    // …and SOLID while it travels: the un-yield's flat opacity fade used to
+    // run straight through the object it was carrying.
+    expect(firstHome?.op ?? 0, `the carried card must not fade home (${homeMsg})`).toBeGreaterThan(0.9);
     const back = await readout(page);
     await shoot(page, '3-back');
     expect(back.hydroUp, 'B leaves the track').toBe(false);

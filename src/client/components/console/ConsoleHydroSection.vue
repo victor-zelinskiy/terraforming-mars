@@ -739,7 +739,7 @@ import {
   workspaceFrameEmblem, workspaceFrameHost, workspaceFrameRoot, workspaceStackCrumb,
 } from '@/client/console/consoleWorkspaceStack';
 import {setWorkspaceOutcomeSlot, workspaceOutcomeState} from '@/client/console/consoleWorkspaceOutcome';
-import {holdCarriedAnchors} from '@/client/console/surfaceMotion/surfaceMotionState';
+import {captureSurfaceDeparture, holdCarriedAnchors} from '@/client/console/surfaceMotion/surfaceMotionState';
 import {useConsoleReducedMotion} from '@/client/console/composables/useConsoleReducedMotion';
 
 /** Reason kinds the «Требования» row already shows as red marks — the CTA
@@ -2746,6 +2746,19 @@ export default defineComponent({
     /** B on a layer whose verb is close-or-collapse. ONE door, so the button
      *  can never do one thing and the bar say another. */
     emitBack(): void {
+      // THE WALK BACK CARRIES THE CARD, exactly as the walk in did. This screen
+      // is a STEP of the workspace that opened it (a card's «Открыть
+      // Гидросеть»), and B is that step ending — so the source card returns to
+      // the hero slot it came out of instead of dissolving here while a second
+      // copy fades in over there.
+      //
+      // CAPTURED BEFORE THE STACK MOVES, and synchronously: the frame pops in
+      // this very call, and everything measured here stops being true with it.
+      // The host consumes it (`carryAnchorsHome`) — it never re-enters, so
+      // there is no transition hook to measure from.
+      if (this.backVerb !== 'collapse' && this.crumbHost !== undefined) {
+        captureSurfaceDeparture('section', this.$refs.rootEl as HTMLElement | undefined ?? null);
+      }
       this.$emit(this.backVerb === 'collapse' ? 'collapse' : 'close');
     },
   },

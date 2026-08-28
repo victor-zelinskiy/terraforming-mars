@@ -43,6 +43,7 @@ import {
   addShadeOwner,
   removeShadeOwner,
   isAnchorHandoffLive,
+  endAnchorCarry,
   takeSurfaceDeparture,
   takeWheelOrigin,
   takeWheelChosenSlot,
@@ -572,80 +573,132 @@ function enterPhase(el: Element, panel: HTMLElement, dep: SurfaceDeparture, done
       {autoAlpha: 1, x: 0, y: 0, scale: 1, duration: s(PHASE_MS), ease: 'power3.out', clearProps: 'transform,opacity,visibility'}, 0);
 
     if (carried.length === 0) {
+      endAnchorCarry();
       return tl;
     }
-    // PIN THE CARRIED OBJECTS TO THEIR DEPARTURE RECT ON THE FIRST FRAME, and
-    // only START TRAVELLING once the destination has settled.
-    //
-    // `@enter` fires with the surface in the DOM but not yet laid out by its
-    // own machinery (a screen that seats a scene layer, publishes a zone and
-    // re-fits a rail settles over several frames), so the rect the object will
-    // come to REST at is not knowable yet. Its DEPARTURE rect is — the capture
-    // recorded it — and pinning to that needs no such knowledge: the delta is
-    // re-derived against whatever box the element currently has, so the PAINTED
-    // position stays `from` on every frame of the settle, however far the
-    // layout moves underneath. What the settle decides is when the travel may
-    // BEGIN, not where the object stands until then.
-    //
-    // The old code held the object INVISIBLE for that whole gap, and the
-    // outgoing copy was already blanked — so the card the player was holding
-    // vanished for a beat and then re-appeared mid-flight, reading as a new
-    // card arriving rather than as the one they had.
-    const pin = (node: HTMLElement, from: CapturedRect): boolean => {
-      const to = restingBoxOf(node);
-      const scale = to.width < 10 ? NaN : from.width / to.width;
-      if (!isFinite(scale) || scale <= 0) {
-        return false;
-      }
-      // ZOOM COMPENSATION: card slots live inside CSS `zoom:` contexts, which
-      // rescale a child's transform pixels — viewport-px deltas must be
-      // divided by the effective zoom (visual width / layout width) or the
-      // card undershoots.
-      const effZoom = node.offsetWidth > 0 ? to.width / node.offsetWidth : 1;
-      gsap.set(node, {
-        x: (from.left - to.left) / effZoom, y: (from.top - to.top) / effZoom, scale,
-        transformOrigin: 'top left', autoAlpha: 1,
-      });
-      return true;
-    };
-    const flying: Array<{node: HTMLElement, from: CapturedRect}> = [];
-    for (const c of carried) {
-      // `mounted()`'s hold (`holdCarriedAnchors`) blanks an arriving anchor so
-      // it cannot paint at a home it is about to leave; the pin is what
-      // releases it, and the marker keeps a LATE mount hook from re-hiding an
-      // object that is already standing in its travel.
-      c.node.dataset.motionCarried = '1';
-      if (pin(c.node, c.from)) {
-        flying.push(c);
-      } else {
-        delete c.node.dataset.motionCarried;
-        gsap.set(c.node, {clearProps: 'transform,opacity,visibility'});
-      }
-    }
-    if (flying.length === 0) {
-      return tl;
-    }
-    settledRects(flying.map((c) => c.node), () => {
-      for (const {node, from} of flying) {
-        delete node.dataset.motionCarried;
-        // Re-pinned against the SETTLED box: the paint does not move, only the
-        // delta the travel is measured from.
-        if (!el.isConnected || !pin(node, from)) {
-          gsap.set(node, {clearProps: 'transform,opacity,visibility'});
-          continue;
-        }
-        // `overwrite` — the arriving surface may run its OWN entry cascade over
-        // the same element. Two un-owned tweens on one transform leave whichever
-        // finishes first in charge of the final frame, which is how a travelling
-        // card ended up wearing a stale translate for the rest of its life.
-        gsap.to(node, {
-          x: 0, y: 0, scale: 1, duration: s(PHASE_ANCHOR_MS), ease: 'power3.inOut',
-          overwrite: 'auto', clearProps: 'transform,opacity,visibility',
-        });
-      }
-    });
+    runAnchorCarry(el, carried);
     return tl;
   });
+}
+
+/**
+ * THE CARRY — pin the carried objects to their DEPARTURE rect on the first
+ * frame, and only START TRAVELLING once the destination has settled.
+ *
+ * A destination fires its `@enter` with the surface in the DOM but not yet
+ * laid out by its own machinery (a screen that seats a scene layer, publishes
+ * a zone and re-fits a rail settles over several frames), so the rect the
+ * object will come to REST at is not knowable yet. Its DEPARTURE rect is — the
+ * capture recorded it — and pinning to that needs no such knowledge: the delta
+ * is re-derived against whatever box the element currently has, so the PAINTED
+ * position stays `from` on every frame of the settle, however far the layout
+ * moves underneath. What the settle decides is when the travel may BEGIN, not
+ * where the object stands until then.
+ *
+ * The old code held the object INVISIBLE for that whole gap, and the outgoing
+ * copy was already blanked — so the card the player was holding vanished for a
+ * beat and then re-appeared mid-flight, reading as a new card arriving rather
+ * than as the one they had.
+ */
+function runAnchorCarry(el: Element, carried: ReadonlyArray<{node: HTMLElement, from: CapturedRect}>): void {
+  const pin = (node: HTMLElement, from: CapturedRect): boolean => {
+    const to = restingBoxOf(node);
+    const scale = to.width < 10 ? NaN : from.width / to.width;
+    if (!isFinite(scale) || scale <= 0) {
+      return false;
+    }
+    // ZOOM COMPENSATION: card slots live inside CSS `zoom:` contexts, which
+    // rescale a child's transform pixels — viewport-px deltas must be divided
+    // by the effective zoom (visual width / layout width) or the card
+    // undershoots.
+    const effZoom = node.offsetWidth > 0 ? to.width / node.offsetWidth : 1;
+    gsap.set(node, {
+      x: (from.left - to.left) / effZoom, y: (from.top - to.top) / effZoom, scale,
+      transformOrigin: 'top left', autoAlpha: 1,
+    });
+    return true;
+  };
+  const flying: Array<{node: HTMLElement, from: CapturedRect}> = [];
+  for (const c of carried) {
+    // `mounted()`'s hold (`holdCarriedAnchors`) blanks an arriving anchor so it
+    // cannot paint at a home it is about to leave; the pin is what releases it,
+    // and the marker keeps a LATE mount hook from re-hiding an object that is
+    // already standing in its travel.
+    c.node.dataset.motionCarried = '1';
+    if (pin(c.node, c.from)) {
+      flying.push(c);
+    } else {
+      delete c.node.dataset.motionCarried;
+      gsap.set(c.node, {clearProps: 'transform,opacity,visibility'});
+    }
+  }
+  if (flying.length === 0) {
+    endAnchorCarry();
+    return;
+  }
+  settledRects(flying.map((c) => c.node), () => {
+    let owed = flying.length;
+    // The pose the receiving surface holds for this carry drops when the LAST
+    // object is home — on completion AND on a kill, or a killed tween would
+    // leave a screen posed for a travel that is over.
+    const settle = () => {
+      owed--;
+      if (owed <= 0) {
+        endAnchorCarry();
+      }
+    };
+    for (const {node, from} of flying) {
+      delete node.dataset.motionCarried;
+      // Re-pinned against the SETTLED box: the paint does not move, only the
+      // delta the travel is measured from.
+      if (!el.isConnected || !pin(node, from)) {
+        gsap.set(node, {clearProps: 'transform,opacity,visibility'});
+        settle();
+        continue;
+      }
+      // `overwrite` — the arriving surface may run its OWN entry cascade over
+      // the same element. Two un-owned tweens on one transform leave whichever
+      // finishes first in charge of the final frame, which is how a travelling
+      // card ended up wearing a stale translate for the rest of its life.
+      gsap.to(node, {
+        x: 0, y: 0, scale: 1, duration: s(PHASE_ANCHOR_MS), ease: 'power3.inOut',
+        overwrite: 'auto', clearProps: 'transform,opacity,visibility',
+        onComplete: settle, onInterrupt: settle,
+      });
+    }
+  });
+}
+
+/**
+ * BRING THE CARRIED OBJECTS HOME INTO A SURFACE THAT NEVER LEFT.
+ *
+ * The walk INTO a step and the walk back out are the same phrase, but only one
+ * of them has a Vue transition to hang on: the host workspace does not unmount
+ * while its step owns the screen — it YIELDS (its body dissolves, its header
+ * stays), so on the way back there is no `@enter` and `enterPhase` can never
+ * run. Without this the card simply faded back into its hero slot while a
+ * second copy dissolved somewhere else on screen: two objects for one card,
+ * which is exactly what the entry stopped doing.
+ *
+ * Returns whether a carry actually started, so the caller can pose (or not).
+ */
+export function carryAnchorsHome(root: Element | null | undefined, id: SurfaceMotionId): boolean {
+  if (root === null || root === undefined || typeof window === 'undefined') {
+    return false;
+  }
+  const dep = takeSurfaceDeparture(id);
+  if (dep === undefined) {
+    return false;
+  }
+  const carried = Array.from(root.querySelectorAll<HTMLElement>('[data-motion-anchor]'))
+    .map((node) => ({node, from: dep.anchors.get(node.dataset.motionAnchor ?? '')}))
+    .filter((c): c is {node: HTMLElement, from: CapturedRect} => c.from !== undefined);
+  if (carried.length === 0) {
+    endAnchorCarry();
+    return false;
+  }
+  runAnchorCarry(root, carried);
+  return true;
 }
 
 /**
