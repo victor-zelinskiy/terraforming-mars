@@ -990,6 +990,7 @@ import {skippedEffectViews} from '@/client/components/actions/skippedEffectView'
 import {NextStepRow, noteRow, placementRow} from '@/client/console/consolePlacementNextStep';
 import {consoleTranslate} from '@/client/console/consoleTranslate';
 import {tileIconStyle} from '@/client/console/consoleTileIcon';
+import {gameStateVersion} from '@/client/console/gameStateVersion';
 import {
   armPlayedHero, isPlayedHeroActive, playedHeroHolding, playedHeroState,
 } from '@/client/console/played/consolePlayedHero';
@@ -1234,8 +1235,11 @@ export default defineComponent({
       /** The source card is LEAVING its seat for «РАЗЫГРАНО» — the caption
        *  dissolves with the departure, never after it. */
       embedSourceDeparting: false,
-      /** In-flight / done prefetches (never re-request the same card). */
+      /** In-flight / done prefetches (never re-request the same card WITHIN
+       *  one game-state version — see `prefetchPlayRewards`). */
       rewardFetched: new Set<CardName>(),
+      /** The game-state version `playRewards` / `drawExpected` belong to. */
+      rewardVersion: '',
       /** The played-hero transaction (module reactive — the queue and the
        *  played zone derive their reserved slots from it). */
       heroState: playedHeroState,
@@ -1329,6 +1333,12 @@ export default defineComponent({
        *  MACHINE lives in `consoleStartState.firstAct` — it must survive the
        *  collapse, which unmounts this component; only this cache is local.) */
       firstActionPreviews: new Map<CardName, ActionPreview | undefined>(),
+      /** The game-state version those previews were fetched under. A corp's
+       *  first action is priced against live state, and the deployment CHANGES
+       *  that state under the briefing (preludes pay out before the action is
+       *  taken) — so the cache is version-scoped like every other server-derived
+       *  one (`gameStateVersion`), never keyed by corp name alone. */
+      firstActionPreviewsVersion: '',
       /** The room's receded pose has been applied in THIS mount — until it is,
        *  a restore renders the queue/shelf hidden by class, so a re-entered
        *  stage can never flash them before the pose lands. */
@@ -3118,8 +3128,19 @@ export default defineComponent({
     /** Identity of the pressable ceremony set — drives the reward pre-fetch
      *  (the deferred corp + Merger's offered corps / drew-N candidates + the
      *  prelude rail). */
+    /**
+     * The game-state version every SERVER-DERIVED prefetch in this scene is
+     * scoped to (`gameStateVersion`). The deployment moves the state under its
+     * own briefing — each prelude pays out before the next card is pressed, and
+     * other seats act in the same phase — so a preview cached by CARD NAME
+     * alone outlives the state it was priced against.
+     */
+    startPreviewVersion(): string {
+      return gameStateVersion(this.playerView);
+    },
     playRewardKey(): string {
       return [
+        this.startPreviewVersion,
         this.corpPlayCard?.name ?? '',
         ...this.candidateCards.map((c) => c.name),
         ...this.preludeRail.map((e) => e.name),
@@ -3410,6 +3431,20 @@ export default defineComponent({
       immediate: true,
       handler() {
         this.prefetchPlayRewards();
+      },
+    },
+    /**
+     * THE BRIEFING RE-ASKS WHEN THE STATE MOVES. The first-action preview is
+     * fetched once, at stage entry — but the stage then STANDS, waiting for the
+     * player, while preludes pay out and other seats act. Not `immediate`: the
+     * stage entry owns the first ask.
+     */
+    'startPreviewVersion': {
+      handler() {
+        const corp = this.state.firstAct.corp;
+        if (corp !== undefined) {
+          this.fetchFirstActionPreview(corp);
+        }
       },
     },
     /**
@@ -6584,6 +6619,11 @@ export default defineComponent({
      *  a failed fetch degrades to the ask + the confirm, exactly like the
      *  ceremony's reward prefetch. */
     fetchFirstActionPreview(corp: CardName): void {
+      const version = this.startPreviewVersion;
+      if (this.firstActionPreviewsVersion !== version) {
+        this.firstActionPreviewsVersion = version;
+        this.firstActionPreviews = new Map();
+      }
       if (this.firstActionPreviews.has(corp) || typeof fetch !== 'function') {
         return;
       }
@@ -6593,7 +6633,9 @@ export default defineComponent({
       fetch(url)
         .then((r) => (r.ok ? r.json() : undefined))
         .then((p) => {
-          this.firstActionPreviews.set(corp, p as ActionPreview | undefined);
+          if (this.firstActionPreviewsVersion === version) {
+            this.firstActionPreviews.set(corp, p as ActionPreview | undefined);
+          }
         })
         .catch(() => {
           // Degraded honestly: the stage still shows the ask + the CTA.
@@ -6855,6 +6897,16 @@ export default defineComponent({
       if (typeof fetch !== 'function') {
         return; // JSDOM / a headless host — the beat degrades honestly
       }
+      // SERVER-DERIVED ⇒ VERSION-SCOPED. A prelude's reward can be priced off
+      // the state a PREVIOUS prelude just changed («M€ равно вашему запасу
+      // стали»), so a manifest kept under the card's name alone would arm the
+      // beat with the numbers of a state two plays ago. `rewardFetched` is the
+      // dedup INSIDE one version, never across versions.
+      const version = this.startPreviewVersion;
+      if (this.rewardVersion !== version) {
+        this.rewardVersion = version;
+        this.rewardFetched = new Set();
+      }
       // Every card the player can press RIGHT NOW: the deferred corporation,
       // Merger's offered corporations (its `corporationSelection` candidates —
       // the 2nd corp plays EXACTLY like the first, so it gets the identical
@@ -6891,7 +6943,7 @@ export default defineComponent({
               steps: branch.steps,
               stepResponses: {}, // the ceremony pre-collects nothing
             }).filter((spec) => spec.channel !== 'card-resource');
-            if (rewards.length > 0) {
+            if (rewards.length > 0 && this.rewardVersion === version) {
               this.playRewards.set(name, rewards);
             }
             // The same structural read the card-actions workspace uses: a
@@ -6903,7 +6955,7 @@ export default defineComponent({
                 expected += Math.max(1, Math.round(e.amount));
               }
             }
-            if (expected > 0) {
+            if (expected > 0 && this.rewardVersion === version) {
               this.drawExpected.set(name, expected);
             }
           })

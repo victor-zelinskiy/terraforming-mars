@@ -9,6 +9,7 @@ import {
   takeHandPlayPreview,
   handPlayVersionOf,
 } from '@/client/console/consoleHandPlayPrewarm';
+import {gameStateVersion} from '@/client/console/gameStateVersion';
 
 /** A minimal view carrying exactly what the version key reads. */
 function view(gameAge: number, undoCount = 0, id = 'p-test'): PlayerViewModel {
@@ -121,6 +122,12 @@ describe('consoleHandPlayPrewarm — the focus-dwell preparation pipeline', () =
   });
 
   it('the version key reads player + gameAge + undoCount — nothing else', () => {
-    expect(handPlayVersionOf(view(7, 2, 'me'))).to.eq('me|7|2');
+    // The SHARED stamp (`gameStateVersion`), not a private recipe: this cache
+    // and the action-preview store must go stale on the same events, so the
+    // format belongs to that one function.
+    expect(handPlayVersionOf(view(7, 2, 'me'))).to.eq(gameStateVersion({id: 'me', game: {gameAge: 7, undoCount: 2}}));
+    // The counters are LABELLED (`a`/`u`) so a key in a log or a failure
+    // message says which one moved.
+    expect(handPlayVersionOf(view(7, 2, 'me'))).to.eq('me|a7|u2');
   });
 });

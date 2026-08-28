@@ -33,6 +33,7 @@ import {ActionPreview} from '@/common/models/ActionPreviewModel';
 import {PlayerViewModel} from '@/common/models/PlayerModel';
 import {paths} from '@/common/app/paths';
 import {apiUrl} from '@/client/utils/runtimeConfig';
+import {gameStateVersion} from '@/client/console/gameStateVersion';
 
 /** Stable focus this long → the card is being CONSIDERED, not riffled past. */
 export const HAND_PLAY_DWELL_MS = 90;
@@ -47,9 +48,11 @@ const cache = new Map<string, CacheEntry>();
 let armedTimer: ReturnType<typeof setTimeout> | undefined;
 let armedName = '';
 
-/** The game-state version a preparation is only valid under. */
+/** The game-state version a preparation is only valid under — the SHARED
+ *  stamp (`gameStateVersion`), not a private recipe: this cache and the action
+ *  preview store must go stale on exactly the same events. */
 export function handPlayVersionOf(view: Pick<PlayerViewModel, 'id' | 'game'>): string {
-  return `${view.id}|${view.game.gameAge}|${view.game.undoCount ?? 0}`;
+  return gameStateVersion(view);
 }
 
 /** The ONE preview URL builder — the composer and the prewarm share it, so

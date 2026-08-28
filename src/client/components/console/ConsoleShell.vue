@@ -1663,6 +1663,7 @@ import {wheelControlState} from '@/client/console/quickWheel/wheelControlMode';
 import {wheelHandoffSpecFor, CONFIRM_HANDOFF} from '@/client/console/quickWheel/wheelHandoffModel';
 import {pulseWheelAnchors} from '@/client/console/quickWheel/wheelPulse';
 import {actionPreviewMap, ensureActionPreviews, resetActionPreviews} from '@/client/console/actionPreviewStore';
+import {gameStateVersion} from '@/client/console/gameStateVersion';
 import BarButtonIcon from '@/client/components/overview/BarButtonIcon.vue';
 import {resolveAwaiting, AWAITING_SAFETY_MS} from '@/client/console/surfaceMotion/surfaceMotionModel';
 import {surfaceEnterHook, surfaceLeaveHook, surfaceEnterCancelledHook, surfaceLeaveCancelledHook, pinQuickWheelBox} from '@/client/console/surfaceMotion/surfaceMotionDirector';
@@ -5558,7 +5559,7 @@ export default defineComponent({
      * overlay's within-generation refetch).
      */
     hydroCacheKey(): string {
-      return `${this.game.generation}:${this.game.gameAge}:${this.game.undoCount}`;
+      return gameStateVersion(this.playerView);
     },
     // ── the console-native journal (View — board home only) ────────────
     /** The journal surface renders (it replaces the right info panel). */

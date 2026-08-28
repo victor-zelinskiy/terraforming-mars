@@ -119,6 +119,7 @@ import {consoleActionOf} from '@/client/console/composables/consoleActionModel';
 import {NextStepRow, noteRow, placementRow} from '@/client/console/consolePlacementNextStep';
 import {consoleTranslate} from '@/client/console/consoleTranslate';
 import {tileIconStyle} from '@/client/console/consoleTileIcon';
+import {gameStateVersion} from '@/client/console/gameStateVersion';
 import {startFlowCorpPrompt, corpActionOptionIndexFor} from '@/client/components/startGameFlow/startGameFlowState';
 
 function textOf(v: string | Message | undefined): string {
@@ -143,8 +144,12 @@ export default defineComponent({
   data() {
     return {
       idx: 0,
-      /** Fetched previews by corp name (`name in previews` = fetch settled). */
+      /** Fetched previews by corp name (`name in previews` = fetch settled),
+       *  scoped to the game-state version they were fetched under — a corp's
+       *  first action is priced against live state (`canAfford`, production),
+       *  so a preview outliving its own inputs is a lie about the ask. */
       previews: {} as Record<string, ActionPreview | undefined>,
+      previewsVersion: '',
       submitting: false,
     };
   },
@@ -171,6 +176,10 @@ export default defineComponent({
         }
       }
       return translateText('Take the first action of your corporation');
+    },
+    /** The game-state version the fetched previews belong to. */
+    previewVersion(): string {
+      return gameStateVersion(this.playerView);
     },
     loading(): boolean {
       const name = this.currentName;
@@ -240,6 +249,29 @@ export default defineComponent({
     playerView() {
       this.submitting = false;
     },
+    /**
+     * The server state moved — every fetched preview is a spent verdict. Drop
+     * them AND re-ask for the one on screen: `currentName` has not changed, so
+     * its own watcher will not fire, and a cleared cache with nobody refilling
+     * it is a permanent «Загрузка…».
+     */
+    previewVersion: {
+      immediate: true,
+      handler(version: string) {
+        if (this.previewsVersion === version) {
+          return;
+        }
+        const seeding = this.previewsVersion === '';
+        this.previewsVersion = version;
+        this.previews = {};
+        const name = this.currentName;
+        // On the SEEDING pass the `currentName` watcher (declared above, also
+        // immediate) has already asked — refetching here would double it.
+        if (!seeding && name !== undefined) {
+          this.fetchPreview(name);
+        }
+      },
+    },
   },
   methods: {
     /** The «ДАЛЕЕ» row's inline tile pictogram (the same art as the card face). */
@@ -247,14 +279,22 @@ export default defineComponent({
     fetchPreview(name: CardName): void {
       const url = apiUrl(paths.API_CORP_FIRST_ACTION_PREVIEW) +
         '?id=' + encodeURIComponent(this.playerView.id) + '&corp=' + encodeURIComponent(name);
+      // The version at REQUEST time: an answer that lands after the state moved
+      // is dropped rather than stored under the new version (the prewarm cache's
+      // rule — a stale answer is never patched, it simply stops matching).
+      const version = this.previewVersion;
       fetch(url)
         .then((r) => (r.ok ? r.json() : undefined))
         .then((p) => {
-          this.previews = {...this.previews, [name]: p as ActionPreview | undefined};
+          if (this.previewsVersion === version) {
+            this.previews = {...this.previews, [name]: p as ActionPreview | undefined};
+          }
         })
         .catch(() => {
           // Graceful: the modal still shows the ask + the confirm CTA.
-          this.previews = {...this.previews, [name]: undefined};
+          if (this.previewsVersion === version) {
+            this.previews = {...this.previews, [name]: undefined};
+          }
         });
     },
     switchCorp(step: 1 | -1): void {

@@ -14,14 +14,19 @@
  * final geometry and order on the FIRST frame.
  *
  * Contract:
- *  - keyed by an availability FINGERPRINT (player id + tableau action state +
- *    the server's activatable set): a real game-state change invalidates the
- *    whole cache and refetches; a poll replay of the same state is a no-op;
+ *  - keyed by the SERVER'S OWN STATE VERSION (`gameStateVersion`) plus a
+ *    structural net — see `actionPreviewFingerprint`. A real game-state change
+ *    re-asks for EVERY preview; a poll replay of the same state is a no-op;
+ *  - freshness is PER ENTRY (`versions`). An entry answered under an older
+ *    version keeps PAINTING while its replacement is on the wire and is
+ *    overwritten as it lands — true SWR. Blanking the cache instead would
+ *    strip every tile's meta line and re-rank the status sort several times
+ *    per opponent turn, which is the defect this store was built to remove;
  *  - in-flight de-dup (ensure() is idempotent and cheap to call often);
- *  - a STALE response (fingerprint moved while the request flew) is dropped;
- *  - a fetch failure seeds the same confirm-only dynamic fallback the
- *    component used — activation is never blocked by a lost request, and a
- *    later successful pass may overwrite the fallback (SWR).
+ *  - a STALE response (the version moved while the request flew) is dropped;
+ *  - a fetch failure seeds the confirm-only dynamic fallback — activation is
+ *    never blocked by a lost request, and a stale entry never survives its own
+ *    failed refetch.
  */
 
 import {reactive} from 'vue';
@@ -32,11 +37,18 @@ import {paths} from '@/common/app/paths';
 import {apiUrl} from '@/client/utils/runtimeConfig';
 import {buildActionEntries} from '@/client/components/actions/actionModel';
 import {findPerformActionCard} from '@/client/console/turnIntents';
+import {gameStateVersion} from '@/client/console/gameStateVersion';
 
 export const actionPreviewStore = reactive({
-  /** The availability fingerprint the cached previews belong to. */
+  /** The version the LATEST ensure() asked about. */
   key: '',
   previews: {} as Record<string, ActionPreview | undefined>,
+  /**
+   * Per card: the version its cached preview was FETCHED under. An entry whose
+   * version is behind `key` is stale-in-flight — still painted (see below),
+   * already re-requested, replaced the moment its answer lands.
+   */
+  versions: {} as Record<string, string>,
 });
 
 /** Requests queued OR on the wire (per card) — ensure() never double-fetches. */
@@ -85,8 +97,9 @@ function runPreviewFetch(job: PreviewFetchJob): void {
       if (actionPreviewStore.key === job.key) {
         if (p !== undefined) {
           actionPreviewStore.previews[job.cardName] = p as ActionPreview;
+          actionPreviewStore.versions[job.cardName] = job.key;
         } else {
-          seedFallback(job.cardName);
+          seedFallback(job.cardName, job.key);
         }
       }
       pumpPreviewFetches();
@@ -94,7 +107,7 @@ function runPreviewFetch(job: PreviewFetchJob): void {
     .catch(() => {
       done();
       if (actionPreviewStore.key === job.key) {
-        seedFallback(job.cardName);
+        seedFallback(job.cardName, job.key);
       }
       pumpPreviewFetches();
     });
@@ -115,26 +128,60 @@ function pumpPreviewFetches(): void {
   }
 }
 
-/** The same availability fingerprint recipe the Action Center watches. */
+/**
+ * THE cache key — read by the store AND by every surface that watches for
+ * "should these previews be refetched?". There is exactly one recipe; a second
+ * copy at a call site is how the Action Center's watcher silently stopped
+ * agreeing with the store it was driving.
+ *
+ * TERM 1 — THE SERVER'S OWN STATE VERSION, and it is the one that makes this
+ * complete. A preview is a SERVER verdict computed off the server's whole live
+ * state, so the client cannot enumerate its inputs: `Factorum`'s first branch
+ * reads `player.energy`, `Viron`'s reads the played tableau, a requirement-
+ * gated action reads a global parameter, an opponent-targeting action reads
+ * another seat. Every hand-listed term below is an allow-list of what somebody
+ * remembered, and the cache used to survive changes to its own input — the
+ * player spent their energy, none of the structural terms moved, and «Фактотум»
+ * stayed blocked with «Только когда у вас нет энергии» for the rest of the
+ * game. `gameAge`/`undoCount` cannot miss it: the server bumps one of them for
+ * every log event and once per fully-resolved action.
+ *
+ * TERMS 2+ — the STRUCTURAL NET, kept deliberately. It covers the one window
+ * the version does not: state the server has already changed and shown us
+ * inside a still-unresolved action (a deferred step mid-chain logs nothing and
+ * bumps nothing). It is a net, not the guarantee — never "fix" a staleness bug
+ * by adding a term here alone.
+ */
 export function actionPreviewFingerprint(playerView: PlayerViewModel): string {
-  const cards = playerView.thisPlayer.tableau
+  const p = playerView.thisPlayer;
+  const cards = p.tableau
     .map((c) => `${c.name}:${c.actionReasons?.length ?? 0}:${c.resources ?? ''}:${c.isDisabled === true ? 'd' : ''}`)
     .join('|');
   const available = (findPerformActionCard(playerView.waitingFor)?.model.cards ?? [])
     .map((c) => c.name).sort().join(',');
+  // The viewer's ECONOMY — what most action previews actually price themselves
+  // against (`canAfford`, «только когда у вас нет энергии», production steps).
+  const stock = `${p.megacredits},${p.steel},${p.titanium},${p.plants},${p.energy},${p.heat},${p.terraformRating}`;
+  const prod = `${p.megacreditProduction},${p.steelProduction},${p.titaniumProduction},${p.plantProduction},${p.energyProduction},${p.heatProduction}`;
   // The viewer's OWN Hydronetwork position: a preview may carry a track move's
   // whole verdict (Storm Surge Barrier's `DeltaAdvanceOffer` — from, to, the
   // landing stage), and the ordinary track advance changes NONE of the terms
-  // above. Without this term a cached offer survived a real move and the card
-  // door then opened on a STALE route: the marker animated 5→6 while the
-  // server (correctly, off its live state) moved 7→8 and granted the other
-  // stage's reward.
-  const delta = playerView.thisPlayer.deltaProject?.position ?? '';
-  return `${playerView.id}#${cards}#${available}#dp${delta}`;
+  // above.
+  const delta = p.deltaProject?.position ?? '';
+  return `${gameStateVersion(playerView)}#${cards}#${available}#${stock}#${prod}#dp${delta}`;
 }
 
-function seedFallback(cardName: CardName): void {
-  if (actionPreviewStore.previews[cardName] !== undefined) {
+/**
+ * A lost request must never block an activation — and, just as importantly,
+ * must never leave a STALE verdict standing for good. So the confirm-only
+ * dynamic preview replaces an entry from an older version (the failure is the
+ * end of that entry's grace period), and is stamped under the current version
+ * so ensure() stops re-asking within this state. A fresh entry is kept: it is
+ * already the answer for this very version.
+ */
+function seedFallback(cardName: CardName, key: string): void {
+  if (actionPreviewStore.versions[cardName] === key &&
+      actionPreviewStore.previews[cardName] !== undefined) {
     return;
   }
   actionPreviewStore.previews[cardName] = {
@@ -143,6 +190,7 @@ function seedFallback(cardName: CardName): void {
     kind: 'dynamic',
     branches: [{index: -1, title: '', available: true, renderKeys: [], effects: [], steps: []}],
   };
+  actionPreviewStore.versions[cardName] = key;
 }
 
 /**
@@ -156,8 +204,17 @@ export function ensureActionPreviews(playerView: PlayerViewModel): void {
   }
   const key = actionPreviewFingerprint(playerView);
   if (actionPreviewStore.key !== key) {
+    // A VERSION CHANGE RE-ASKS; IT DOES NOT BLANK THE GRID. Wiping `previews`
+    // here was correct while the key only ever moved on the viewer's OWN
+    // committed action (the workspace is mid-commit then, and its `committedPreview`
+    // latch hides the gap). The key now moves on ANY server-side change — an
+    // opponent's turn included — and the Action Center is explicitly a PLANNING
+    // instrument read during opponents' turns, so a wipe would drop every
+    // tile's meta line and re-rank the status sort several times per opponent
+    // turn: exactly the «jumping tiles» this store exists to remove. The
+    // previous answers keep painting for the few hundred ms their replacements
+    // are on the wire, per-entry, and each is overwritten as it lands.
     actionPreviewStore.key = key;
-    actionPreviewStore.previews = {};
     inflight.clear();
     fetchQueue.length = 0;
     abortActiveFetches();
@@ -168,9 +225,20 @@ export function ensureActionPreviews(playerView: PlayerViewModel): void {
     awaitingInput: playerView.waitingFor !== undefined,
     usedNames: new Set(playerView.thisPlayer.actionsThisGeneration ?? []),
   });
+  // Drop what is no longer an action source at all (a card left the tableau) —
+  // without the wipe, nothing else would ever evict it.
+  const live = new Set<string>(entries.map((e) => String(e.cardName)));
+  for (const cached of Object.keys(actionPreviewStore.previews)) {
+    if (!live.has(cached)) {
+      delete actionPreviewStore.previews[cached];
+      delete actionPreviewStore.versions[cached];
+    }
+  }
   for (const entry of entries) {
     const cardName = entry.cardName;
-    if (actionPreviewStore.previews[cardName] !== undefined || inflight.has(cardName)) {
+    // FRESHNESS IS PER ENTRY, not «is anything cached»: an entry answered under
+    // an older version is exactly what has to be re-asked.
+    if (actionPreviewStore.versions[cardName] === key || inflight.has(cardName)) {
       continue;
     }
     inflight.add(cardName);
@@ -197,6 +265,7 @@ export function actionPreviewMap(): Map<CardName, ActionPreview> {
 export function resetActionPreviews(): void {
   actionPreviewStore.key = '';
   actionPreviewStore.previews = {};
+  actionPreviewStore.versions = {};
   inflight.clear();
   fetchQueue.length = 0;
   abortActiveFetches();

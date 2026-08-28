@@ -494,7 +494,8 @@ import {CardModel} from '@/common/models/CardModel';
 import {CardResource} from '@/common/CardResource';
 import {ActionPreview} from '@/common/models/ActionPreviewModel';
 import type {ICardRenderEffect} from '@/common/cards/render/Types';
-import {actionPreviewMap, ensureActionPreviews} from '@/client/console/actionPreviewStore';
+import {actionPreviewFingerprint, actionPreviewMap, ensureActionPreviews} from '@/client/console/actionPreviewStore';
+import {gameStateVersion} from '@/client/console/gameStateVersion';
 import {EffectOverlayStat} from '@/common/events/aggregate';
 import {paths} from '@/common/app/paths';
 import {apiUrl} from '@/client/utils/runtimeConfig';
@@ -864,11 +865,22 @@ export default defineComponent({
       return buildConsoleActionsModel(this.entries, this.previewMap, this.cardResources, this.activeFilter, this.repeatAvailability, columns);
     },
     /** Re-fetch previews when anything availability-relevant changes. */
+    /**
+     * THE STORE'S OWN KEY — never a second recipe. This watcher is what drives
+     * `ensureActionPreviews` while the workspace is open, so a private copy of
+     * the fingerprint means the surface refetches on a different set of changes
+     * than the cache invalidates on: this one had already drifted (no viewer id,
+     * no Hydronetwork position), and both halves were blind to the viewer's own
+     * resources — which is how «Фактотум» went on refusing an activation the
+     * server would have accepted (spend the energy, come back, same cached
+     * verdict). One function, `actionPreviewFingerprint`, for both.
+     */
     previewFingerprint(): string {
-      const cards = this.thisPlayer.tableau
-        .map((c) => `${c.name}:${c.actionReasons?.length ?? 0}:${c.resources ?? ''}:${c.isDisabled === true ? 'd' : ''}`)
-        .join('|');
-      return `${cards}#${[...this.availableNames].sort().join(',')}`;
+      return actionPreviewFingerprint(this.playerView);
+    },
+    /** The version the fetched action-usage aggregate belongs to. */
+    statsVersion(): string {
+      return `${gameStateVersion(this.playerView)}#${this.thisPlayer.color}`;
     },
     focusedTile(): ConsoleActionTile | undefined {
       return this.model.tiles.find((t) => t.key === this.focusKey) ?? this.model.tiles[0];
@@ -1215,7 +1227,15 @@ export default defineComponent({
         this.fetchAllPreviews();
       },
     },
-    'playerView.game.generation': {
+    /**
+     * The usage aggregate is SERVER-derived too, so it is versioned like the
+     * previews. Keyed on the GENERATION it counted the player's own activations
+     * of this very generation one behind for the whole generation — the panel
+     * said «использовано 0 раз» about the action just taken. The server memoizes
+     * the aggregate on the same `gameAge:undoCount` pair, so a refetch inside an
+     * unchanged state is a memo hit.
+     */
+    'statsVersion': {
       immediate: true,
       handler() {
         this.fetchStats();

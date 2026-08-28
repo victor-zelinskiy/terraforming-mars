@@ -25,15 +25,29 @@ const ACTION_CARDS = [
   CardName.SMALL_ANIMALS,
 ];
 
-function viewWith(cards: ReadonlyArray<CardName>, id = 'p-spec-preview-id'): PlayerViewModel {
+type ViewOverrides = {id?: string, gameAge?: number, undoCount?: number, energy?: number};
+
+function viewWith(cards: ReadonlyArray<CardName>, overrides: ViewOverrides = {}): PlayerViewModel {
   return {
-    id,
+    id: overrides.id ?? 'p-spec-preview-id',
+    game: {gameAge: overrides.gameAge ?? 12, undoCount: overrides.undoCount ?? 0},
     thisPlayer: {
       tableau: cards.map((name) => ({name})),
       actionsThisGeneration: [],
+      megacredits: 20, steel: 0, titanium: 0, plants: 0,
+      energy: overrides.energy ?? 0, heat: 0, terraformRating: 20,
+      megacreditProduction: 0, steelProduction: 1, titaniumProduction: 0,
+      plantProduction: 0, energyProduction: 0, heatProduction: 0,
     },
     waitingFor: undefined,
   } as unknown as PlayerViewModel;
+}
+
+async function drain(pending: Array<PendingFetch>): Promise<void> {
+  while (pending.length > 0) {
+    pending.shift()?.resolve(previewBody('x'));
+    await tick();
+  }
 }
 
 function previewBody(card: string) {
@@ -99,6 +113,100 @@ describe('actionPreviewStore (bounded pre-warm fan-out)', () => {
     expect(started).eq(ACTION_CARDS.length);
   });
 
+  it('SPENDING A RESOURCE invalidates the cache (a branch is gated on the stock)', async () => {
+    // REGRESSION («Фактотум»). Its first branch is available iff
+    // `player.energy === 0`. The player opened the workspace holding energy
+    // (branch refused: «Только когда у вас нет энергии»), went and SPENT that
+    // energy, and came back on their next turn — the tableau, the server's
+    // activatable set and the track position were all unchanged, so the same
+    // cached preview was served and the activation stayed refused for the rest
+    // of the game. The key is the SERVER'S state version now, so the whole
+    // family of "a preview reads state nobody listed" is closed at once.
+    const before = viewWith(ACTION_CARDS, {energy: 4, gameAge: 30});
+    ensureActionPreviews(before);
+    const keyBefore = actionPreviewStore.key;
+    await drain(pending);
+    expect(started, 'every action source answered once').eq(ACTION_CARDS.length);
+
+    // The energy is gone — and the server counted the action that spent it.
+    ensureActionPreviews(viewWith(ACTION_CARDS, {energy: 0, gameAge: 31}));
+    expect(actionPreviewStore.key, 'the state moved, so the key must').not.eq(keyBefore);
+    await drain(pending);
+    expect(started, 'and every spent verdict is re-asked').eq(ACTION_CARDS.length * 2);
+    for (const name of ACTION_CARDS) {
+      expect(actionPreviewStore.versions[name], name).eq(actionPreviewStore.key);
+    }
+  });
+
+  it('the SERVER STATE VERSION alone invalidates it — no structural term needed', async () => {
+    // The general half of the same rule: whatever the preview happened to read
+    // (a global parameter, an opponent's tableau, a card the client models as
+    // nothing at all), a server-side change moves `gameAge`/`undoCount`.
+    ensureActionPreviews(viewWith(ACTION_CARDS, {gameAge: 40}));
+    const keyBefore = actionPreviewStore.key;
+    await drain(pending);
+
+    ensureActionPreviews(viewWith(ACTION_CARDS, {gameAge: 41}));
+    expect(actionPreviewStore.key).not.eq(keyBefore);
+    await drain(pending);
+    expect(started, 'a bare version bump re-asks everything').eq(ACTION_CARDS.length * 2);
+
+    // …and an UNDO is a state change too, even when nothing else moved.
+    const keyAfterAge = actionPreviewStore.key;
+    ensureActionPreviews(viewWith(ACTION_CARDS, {gameAge: 41, undoCount: 1}));
+    expect(actionPreviewStore.key).not.eq(keyAfterAge);
+  });
+
+  it('a re-ask does NOT blank the grid — the old answers paint until replaced', async () => {
+    // The other half of the same change. The key now moves on ANY server-side
+    // change, opponents' turns included, and the Action Center is read during
+    // those on purpose. Wiping the cache on every bump would strip each tile's
+    // branch refinement and re-rank the status sort several times per opponent
+    // turn — the «jumping tiles» this store exists to remove.
+    ensureActionPreviews(viewWith(ACTION_CARDS, {gameAge: 50}));
+    while (pending.length > 0) {
+      pending.shift()?.resolve(previewBody('old'));
+      await tick();
+    }
+    ensureActionPreviews(viewWith(ACTION_CARDS, {gameAge: 51}));
+    for (const name of ACTION_CARDS) {
+      expect(actionPreviewStore.previews[name]?.card, name).eq('old'); // still painting
+      expect(actionPreviewStore.versions[name], `${name} is marked stale`).not.eq(actionPreviewStore.key);
+    }
+
+    // …and each is replaced the moment its own answer lands.
+    while (pending.length > 0) {
+      pending.shift()?.resolve(previewBody('fresh'));
+      await tick();
+    }
+    for (const name of ACTION_CARDS) {
+      expect(actionPreviewStore.previews[name]?.card, name).eq('fresh');
+      expect(actionPreviewStore.versions[name]).eq(actionPreviewStore.key);
+    }
+  });
+
+  it('a stale entry never survives its own FAILED refetch', async () => {
+    // The escape hatch that would recreate the bug: if a refetch fails, the
+    // entry it was replacing must not go on answering forever. It degrades to
+    // the permissive confirm-only fallback instead — activation is never
+    // blocked by a lost request, and no spent verdict outlives its refetch.
+    ensureActionPreviews(viewWith(ACTION_CARDS, {gameAge: 60}));
+    while (pending.length > 0) {
+      pending.shift()?.resolve(previewBody('old'));
+      await tick();
+    }
+    ensureActionPreviews(viewWith(ACTION_CARDS, {gameAge: 61}));
+    while (pending.length > 0) {
+      pending.shift()?.resolve(undefined); // a server error / a lost answer
+      await tick();
+    }
+    for (const name of ACTION_CARDS) {
+      expect(actionPreviewStore.previews[name]?.card, name).not.eq('old');
+      expect(actionPreviewStore.previews[name]?.branches[0]?.available, name).eq(true);
+      expect(actionPreviewStore.versions[name]).eq(actionPreviewStore.key);
+    }
+  });
+
   it('an ordinary track move INVALIDATES the cache (a preview carries the route)', async () => {
     // REGRESSION: Storm Surge Barrier's preview carries the SERVER's whole
     // verdict on a Hydronetwork move — from, to, the landing stage. An
@@ -109,10 +217,7 @@ describe('actionPreviewStore (bounded pre-warm fan-out)', () => {
     const before = viewWith(ACTION_CARDS);
     ensureActionPreviews(before);
     const keyBefore = actionPreviewStore.key;
-    while (pending.length > 0) {
-      pending.shift()?.resolve(previewBody('x'));
-      await tick();
-    }
+    await drain(pending);
     expect(actionPreviewStore.previews[ACTION_CARDS[0]]).not.eq(undefined);
 
     const after = viewWith(ACTION_CARDS);
@@ -120,7 +225,12 @@ describe('actionPreviewStore (bounded pre-warm fan-out)', () => {
     ensureActionPreviews(after);
 
     expect(actionPreviewStore.key, 'the track position is part of the fingerprint').not.eq(keyBefore);
-    expect(actionPreviewStore.previews[ACTION_CARDS[0]], 'and the stale previews are dropped').eq(undefined);
+    expect(
+      actionPreviewStore.versions[ACTION_CARDS[0]],
+      'and the spent offer is marked stale + re-asked',
+    ).not.eq(actionPreviewStore.key);
+    await drain(pending);
+    expect(started, 'every preview re-asked').eq(ACTION_CARDS.length * 2);
   });
 
   it('the same position is NOT a change (a poll replay stays a no-op)', async () => {
