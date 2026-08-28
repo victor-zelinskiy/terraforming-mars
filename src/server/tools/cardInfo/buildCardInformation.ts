@@ -73,6 +73,14 @@ type AuditEntry = {
   module: GameModule;
   type: CardType;
   status: 'ok' | 'authored' | 'seeded' | 'needs-curation';
+  /**
+   * Where the ON-PLAY zone's text came from, independently of `status` — a card
+   * can carry authored text (an action caption, the VP line) and still DERIVE
+   * its «при розыгрыше». The dropped-rule guard keys off this: a derived zone is
+   * generated prose that must be word-diffed against the printed description,
+   * whoever else authored the card's other zones.
+   */
+  onPlay: 'derived' | 'seeded' | 'authored' | 'none';
   blocks: number;
   requirementBlocks: number;
   unlinkedBlocks: Array<string>;
@@ -794,6 +802,9 @@ export function buildCardInformation(card: ICard, module: GameModule): CardInfor
       module,
       type: card.type,
       status: corp.status,
+      // A corporation ALWAYS auto-derives its starting resources — `infoText`
+      // only augments, so its on-play zone is never authored-in-place.
+      onPlay: 'derived',
       blocks: corp.information.groups.reduce((acc, g) => acc + g.blocks.length, 0),
       requirementBlocks: 0,
       unlinkedBlocks: corp.unlinked,
@@ -843,6 +854,24 @@ export function buildCardInformation(card: ICard, module: GameModule): CardInfor
   let vpTextOverride: string | undefined;
   let immediate: Array<CardInfoBlock> = [];
   const authoredGroups: Array<CardInfoGroup> = [];
+  // Authored text REPLACES the derived on-play zone — but ONLY when it is text
+  // about the CARD'S RULES. `action-short` (a caption for an action block) and
+  // `victory-points` (the VP line) AUGMENT a different zone and produce no
+  // block of their own, so a card carrying nothing else must keep deriving its
+  // «при розыгрыше» from `behavior` / its printed description. Letting them
+  // suppress it shipped a whole class of cards with an EMPTY on-play zone:
+  // Saturn Surfing's «add 1 floater per Earth tag» vanished behind an action
+  // caption, and Business Network's «−1 M€ production», Red Spot Observatory's
+  // «draw 2 cards», Law Suit's «steal 3 M€» the same way.
+  // An EMPTY array is the explicit «my rules are fully carried by my
+  // effect/action frames» marker (Viral Enhancers, whose bare trigger row is
+  // the effect's other half) — it keeps owning the zone.
+  // Guards: `no mechanic DRAWN on the card face is left undescribed` +
+  // `an augmenting infoText entry never switches the on-play derivation off`.
+  const authorsOnPlayZone = authored !== undefined &&
+    (authored.length === 0 ||
+      authored.some((entry) => entry.kind !== 'action-short' && entry.kind !== 'victory-points'));
+  const takenRows = new Set<string>();
   if (authored !== undefined) {
     status = 'authored';
     authored.forEach((entry, i) => {
@@ -854,7 +883,14 @@ export function buildCardInformation(card: ICard, module: GameModule): CardInfor
       if (kind === 'action-short') {
         return; // not a block — `applyActionShorts` rides it on the action's own
       }
-      const match = entry.tokens !== undefined ? graphicOf(matchGraphic(graphics, entry.tokens, card.metadata.renderData)) : {};
+      let match: GraphicMatch = {};
+      if (entry.tokens !== undefined) {
+        const hit = matchGraphic(graphics, entry.tokens, card.metadata.renderData, takenRows);
+        if (hit.graphicId !== undefined && hit.nodeIndex !== undefined) {
+          takenRows.add(`${hit.graphicId}#${hit.nodeIndex}`);
+        }
+        match = graphicOf(hit);
+      }
       const block: CardInfoBlock = {
         id: `mech:authored.${i}`,
         kind,
@@ -868,15 +904,19 @@ export function buildCardInformation(card: ICard, module: GameModule): CardInfor
         immediate.push(block);
       }
     });
-  } else {
+  }
+  let onPlay: AuditEntry['onPlay'] = authorsOnPlayZone && immediate.length > 0 ? 'authored' : 'none';
+  if (!authorsOnPlayZone) {
     const pending = behaviorBlocks(card, notes);
     const hasBespoke = hasBespokePlay(card);
     if (pending !== undefined && pending.length > 0 && !hasBespoke && !notes.includes('behavior-partial')) {
       immediate = orderBehaviorBlocks(pending, graphics, card.metadata.renderData);
+      onPlay = 'derived';
     } else if (pending !== undefined && pending.length > 0) {
       // Declarative part + a bespoke remainder → keep the canonical blocks,
       // flag for curation (the bespoke part is not yet described).
       immediate = orderBehaviorBlocks(pending, graphics, card.metadata.renderData);
+      onPlay = 'derived';
       status = 'needs-curation';
     } else {
       // Fully bespoke — seed a single block from the printed description
@@ -885,13 +925,24 @@ export function buildCardInformation(card: ICard, module: GameModule): CardInfor
       const mechRows = graphics.filter((g) => g.kind === 'row' && !g.tokens.every((token) => token === 'text' || token === 'plate'));
       const description = descriptionText(card);
       const cleaned = description === undefined ? '' : stripRequirementSentences(description, requirements.length > 0);
-      if (cleaned.length > 0) {
+      // A card that draws NO on-play mechanic row has no on-play zone: with its
+      // rules already carried by a described effect/action frame or an authored
+      // VP line, the printed prose would only duplicate them in a phantom «при
+      // розыгрыше» (St. Joseph of Cupertino Mission and Vermin print their VP
+      // rule as the description). Special Design is what this must NOT touch —
+      // it draws its whole rule as a text plate and owns no frame, so the
+      // description is its ONLY text source and still seeds.
+      const root = isICardRenderRoot(card.metadata.renderData) ? card.metadata.renderData : undefined;
+      const describedElsewhere = vpTextOverride !== undefined || (root !== undefined && graphics.some((g) =>
+        (g.kind === 'effect' || g.kind === 'action') && frameDescription(frameNodeOf(root, g)) !== undefined));
+      if (cleaned.length > 0 && (mechRows.length > 0 || !describedElsewhere)) {
         immediate = [{
           id: 'mech:description',
           kind: 'immediate',
           text: key(cleaned),
           graphicId: mechRows.length === 1 ? mechRows[0].id : undefined,
         }];
+        onPlay = 'seeded';
         status = mechRows.length <= 1 ? 'seeded' : 'needs-curation';
         // A seeded block that is actually SEVERAL sentences reads as one
         // run-on paragraph in the fullscreen panel (the design wants one line
@@ -937,6 +988,7 @@ export function buildCardInformation(card: ICard, module: GameModule): CardInfor
     module,
     type: card.type,
     status,
+    onPlay,
     blocks: groups.reduce((acc, g) => acc + g.blocks.length, 0),
     requirementBlocks: reqBlocks.length,
     unlinkedBlocks: unlinked,
@@ -971,7 +1023,11 @@ type GraphicMatchPos = GraphicMatch & {rowIndex?: number, nodeIndex?: number};
  * Also returns the matched node's `rowIndex`/`nodeIndex` — the render reading
  * position `orderBehaviorBlocks` sorts by (never serialized into the block).
  */
-function matchGraphic(graphics: ReadonlyArray<GraphicBlockRef>, tokens: ReadonlyArray<string>, renderData: ICard['metadata']['renderData']): GraphicMatchPos {
+function matchGraphic(
+  graphics: ReadonlyArray<GraphicBlockRef>,
+  tokens: ReadonlyArray<string>,
+  renderData: ICard['metadata']['renderData'],
+  taken?: Set<string>): GraphicMatchPos {
   // RESERVED address `tags` → the card's tag cluster (like `req:*`/`vp`) — for a
   // rule ABOUT the printed tags that has no mechanic row (Research Coordination's
   // wild-tag rule points at the wild medallion, not a phantom render row).
@@ -979,18 +1035,34 @@ function matchGraphic(graphics: ReadonlyArray<GraphicBlockRef>, tokens: Readonly
     return {graphicId: 'tags'};
   }
   const root = renderData !== undefined && isICardRenderRoot(renderData) ? renderData : undefined;
-  for (const ref of graphics) {
-    if (ref.kind !== 'row') {
-      continue;
-    }
-    for (const wanted of tokens) {
-      if (ref.tokens.some((have) => have === wanted || have.startsWith(wanted))) {
-        const {node, nodeIndex} = matchRowNode(root?.rows[ref.rowIndex], wanted);
+  const find = (skipTaken: boolean): GraphicMatchPos | undefined => {
+    for (const ref of graphics) {
+      if (ref.kind !== 'row') {
+        continue;
+      }
+      for (const wanted of tokens) {
+        if (!ref.tokens.some((have) => have === wanted || have.startsWith(wanted))) {
+          continue;
+        }
+        const skip = skipTaken ? (i: number) => taken?.has(`${ref.id}#${i}`) === true : undefined;
+        const {node, nodeIndex} = matchRowNode(root?.rows[ref.rowIndex], wanted, skip);
+        if (skipTaken && nodeIndex === undefined) {
+          continue; // every node of this row that could carry the block is spoken for
+        }
         return {graphicId: ref.id, graphicNode: node, rowIndex: ref.rowIndex, nodeIndex};
       }
     }
-  }
-  return {};
+    return undefined;
+  };
+  // Several blocks of ONE card can want the same token — Sponsored Academies
+  // writes «discard 1 card» / «draw 3 cards» / «all opponents draw 1 card» and
+  // the render draws three `cards` graphics across two rows. Taking the first
+  // match every time anchored all three to the discard graphic and left the two
+  // draw graphics described by nothing. An ANCHOR already spoken for therefore
+  // steps aside for a still-free one; when none is left, the block falls back to
+  // sharing (two blocks about ONE graphic — Desperate Measures' rule and its
+  // fine print — stay together).
+  return (taken === undefined ? undefined : find(true)) ?? find(false) ?? {};
 }
 
 /** Only the serializable half of a match (drops the ordering position). */
@@ -1083,14 +1155,15 @@ function orderBehaviorBlocks(pending: ReadonlyArray<Pending>, graphics: Readonly
   return positioned.map((p) => p.block);
 }
 
-/** The first row node whose token matches — same rule as the row match. */
-function matchRowNode(row: ReadonlyArray<ItemType> | undefined, wanted: string): {node?: string, nodeIndex?: number} {
+/** The first row node whose token matches — same rule as the row match.
+ *  `skip` passes over anchors an earlier block of the same card already took. */
+function matchRowNode(row: ReadonlyArray<ItemType> | undefined, wanted: string, skip?: (nodeIndex: number) => boolean): {node?: string, nodeIndex?: number} {
   if (row === undefined) {
     return {};
   }
   for (let i = 0; i < row.length; i++) {
     const token = nodeGraphicToken(row[i]);
-    if (token !== undefined && (token === wanted || token.startsWith(wanted))) {
+    if (token !== undefined && (token === wanted || token.startsWith(wanted)) && skip?.(i) !== true) {
       return {node: token, nodeIndex: i};
     }
   }

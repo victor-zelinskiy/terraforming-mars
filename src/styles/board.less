@@ -413,15 +413,13 @@
 	background-image: none;
 }
 
-// Remove-and-replace targets (KaguyaTech / Lunar Mine Urbanization): the doomed
-// tile is about to be removed, so its sprite is suppressed and the placement
-// bonus shows in its place. Keyed PURELY on the `--placement-cleared` marker
-// (NOT also on `--available`): the marker only ever lives during that card's
-// SelectSpace (set on mount, cleared on unmount — see placementRenderState.ts),
-// so the doomed greenery/city is hidden the instant the prompt opens, even
-// before the async `.board-space--available` highlight class lands on the
-// wrapper. Without this independence the old tile could flash through (the
-// "city over greenery" overlap) on the frame before the highlight is applied.
+// A cell whose tile is being REMOVED right now (KaguyaTech / Lunar Mine
+// Urbanization mid-removal, or a remote placement held until its flight lands):
+// the sprite is suppressed and the cell's placement bonus shows in its place.
+// Keyed PURELY on the `--placement-cleared` marker, never also on
+// `--available`: the marker is set by the cinematic in the same synchronous
+// turn its proxy takes the tile over (see placementRenderState.ts), and a
+// second condition would let the real tile paint through for that frame.
 .board-space > .board-space-tile--placement-cleared {
 	background-image: none;
 }

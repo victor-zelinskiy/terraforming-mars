@@ -10,6 +10,9 @@ import {
   BONUS_PRELIFT_START_T, BONUS_RISE_MS,
   oceanEdgePoint, oceanShoreDirection, oceanTransferSpecs, oceanWaveLeadMs,
   OCEAN_COIN_T, OCEAN_PULSE_T, OCEAN_COIN_LEAD_MS, OCEAN_COIN_FORM_MS,
+  departureLiftPx, departingCubePose,
+  TILE_DEPART_MS, TILE_DEPART_LIFT, TILE_DEPART_FADE_T,
+  TILE_DEPART_REVEAL_T, TILE_DEPART_REVEAL_MS, TILE_DEPART_BREATH_MS,
 } from '@/client/console/tilePlacement/tilePlacementModel';
 import {
   holdRemoteReveal, releaseRemoteReveal, isRemoteRevealHeld, clearRemoteRevealHolds, heldPrevTileOf,
@@ -88,6 +91,101 @@ describe('tilePlacementModel (pure math of the placement hero scene)', () => {
       const onCity = [space('05', {tileType: TileType.CITY, color: 'red'}), space('06')];
       const next = [space('05', {tileType: TileType.OCEAN_CITY, color: 'red'}), space('06')];
       expect(verifyPlacement(onCity, next, '05')).to.be.undefined;
+    });
+
+    describe('a DECLARED remove-and-replace (Kaguya Tech / Lunar Mine Urbanization)', () => {
+      const onGreenery = [space('05', {tileType: TileType.GREENERY, color: 'red'}), space('06')];
+      const toCity = [space('05', {tileType: TileType.CITY, color: 'red'}), space('06')];
+
+      it('reads the tile→tile diff as a placement and reports what LEAVES', () => {
+        expect(verifyPlacement(onGreenery, toCity, '05', {replacing: true})).to.deep.eq({
+          tileType: TileType.CITY,
+          color: 'red',
+          replaces: {tileType: TileType.GREENERY, color: 'red'},
+        });
+      });
+
+      it('is NOT `covers`: the server emptied the cell, so the printed bonuses ARE granted', () => {
+        const landed = verifyPlacement(onGreenery, toCity, '05', {replacing: true});
+        expect(landed?.covers).to.be.undefined;
+      });
+
+      it('WITHOUT the declaration the very same diff is still refused', () => {
+        // The prompt's `hiddenTiles` marker is what licenses this reading — an
+        // unexplained type change stays somebody else's sequence.
+        expect(verifyPlacement(onGreenery, toCity, '05')).to.be.undefined;
+        expect(verifyPlacement(onGreenery, toCity, '05', {replacing: false})).to.be.undefined;
+      });
+
+      it('a HAZARD on either side keeps its own ominous language', () => {
+        const onHazard = [space('05', {tileType: TileType.EROSION_MILD}), space('06')];
+        expect(verifyPlacement(onHazard, toCity, '05', {replacing: true})).to.be.undefined;
+        const toHazard = [space('05', {tileType: TileType.EROSION_MILD}), space('06')];
+        expect(verifyPlacement(onGreenery, toHazard, '05', {replacing: true})).to.be.undefined;
+      });
+
+      it('an unchanged cell is not a placement, declared or not', () => {
+        const same = [space('05', {tileType: TileType.GREENERY, color: 'red'}), space('06')];
+        expect(verifyPlacement(onGreenery, same, '05', {replacing: true})).to.be.undefined;
+        expect(verifyPlacement(onGreenery, same, '05')).to.be.undefined;
+      });
+    });
+  });
+
+  describe('the DEPARTURE beat (the removal half of a remove-and-replace)', () => {
+    it('the lift is a fraction of the LIVE hex — proportional under any board zoom', () => {
+      expect(departureLiftPx({x: 0, y: 0, w: 46, h: 100})).to.eq(Math.round(100 * TILE_DEPART_LIFT));
+      // …and twice the hex is twice the lift (the zoomed board reads the same).
+      expect(departureLiftPx({x: 0, y: 0, w: 92, h: 200}))
+        .to.eq(2 * departureLiftPx({x: 0, y: 0, w: 46, h: 100}));
+    });
+
+    it('a tiny hex still gets a readable lift (the floor)', () => {
+      expect(departureLiftPx({x: 0, y: 0, w: 9, h: 9})).to.eq(16);
+    });
+
+    it('the tile CLEARS the cell before it starts to fade', () => {
+      expect(TILE_DEPART_FADE_T).to.be.greaterThan(0.3);
+      expect(TILE_DEPART_FADE_T).to.be.lessThan(1);
+    });
+
+    it('the uncovered bonus surfaces DURING the lift, and finishes before the replacement flies', () => {
+      const revealStart = TILE_DEPART_REVEAL_T * TILE_DEPART_MS;
+      // Late enough that the tile is no longer sitting on the icons…
+      expect(revealStart).to.be.greaterThan(0);
+      // …early enough to read as uncovered BY the departure, not after it…
+      expect(revealStart).to.be.lessThan(TILE_DEPART_MS);
+      // …and settled by the time the ordinary flight begins (lift + breath).
+      expect(revealStart + TILE_DEPART_REVEAL_MS)
+        .to.be.at.most(TILE_DEPART_MS + TILE_DEPART_BREATH_MS + TILE_FLIGHT_MS);
+    });
+
+    it('the whole removal is a PREFIX, not a second scene — it costs under a second', () => {
+      expect(TILE_DEPART_MS + TILE_DEPART_BREATH_MS).to.be.lessThan(700);
+    });
+
+    describe('the owner marker travelling with its tile', () => {
+      // The board authors the socket in px against the UNSCALED 46×51 cell
+      // (`.player-cube.board-owner-cube { right: 7px; bottom: 14px }`,
+      // `:size="12"`); a fixed proxy does not inherit the board's zoom, so
+      // the pose is re-derived from the measured hex.
+      it('reproduces the board socket exactly at board scale 1', () => {
+        const pose = departingCubePose('red', {x: 0, y: 0, w: 46, h: 51});
+        expect(pose).to.deep.eq({color: 'red', size: 12, right: 7, bottom: 14});
+      });
+
+      it('scales with the live hex — the twin never drifts out of its socket', () => {
+        const pose = departingCubePose('blue', {x: 0, y: 0, w: 92, h: 102});
+        expect(pose?.size).to.eq(24);
+        expect(pose?.right).to.eq(14);
+        expect(pose?.bottom).to.eq(28);
+      });
+
+      it('an ownerless tile (an ocean) carries no cube, and neither does a degenerate hex', () => {
+        expect(departingCubePose(undefined, {x: 0, y: 0, w: 46, h: 51})).to.be.undefined;
+        expect(departingCubePose('red', undefined)).to.be.undefined;
+        expect(departingCubePose('red', {x: 0, y: 0, w: 2, h: 2})).to.be.undefined;
+      });
     });
   });
 

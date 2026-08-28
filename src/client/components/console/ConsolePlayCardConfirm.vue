@@ -125,7 +125,14 @@
                    :ref="sub.index === i ? 'focusedEl' : undefined">
                 <span v-if="item.tab !== undefined" class="con-composer__opt-tab" :class="'con-composer__opt-tab--' + item.tab">{{ $t(item.tab === 'animal' ? 'Animals' : 'Plants') }}</span>
                 <span v-if="item.color !== undefined" class="con-composer__opt-dot" :class="'player_bg_color_' + item.color" aria-hidden="true"></span>
-                <span class="con-composer__opt-name">{{ item.label }}</span>
+                <span class="con-composer__opt-name">{{ item.label
+                  }}<!-- WHOSE card this is. A player row IS its owner; a CARD row
+                       names a card, so without this the animal targets of an
+                       attack said nothing about the victim while every plant row
+                       beside them did. Attached to the name (not a column of its
+                       own), because it is an attribute of that name. -->
+                  <span v-if="item.owner !== undefined" class="con-composer__opt-owner">{{ item.owner }}</span>
+                </span>
                 <span v-if="item.orItem !== undefined && item.orItem.nested !== undefined" class="con-composer__opt-chevron" aria-hidden="true">›</span>
                 <span v-for="(eff, k) in (item.chips ?? [])" :key="'ch' + k" class="con-composer__opt-chip"><ActionEffectChip :effect="eff" /></span>
                 <span v-if="item.impact" class="con-composer__opt-impact">
@@ -140,6 +147,11 @@
                      the same rule: only when it costs you and somebody else was
                      selectable — a forced self-hit is not a mistake to prevent. -->
                 <span v-if="item.selfHarm" class="con-composer__opt-warn">⚠ {{ $t('This is you') }}</span>
+                <!-- …and the same caution on a CARD row the viewer owns. Virus
+                     removes «from any player», so the target list mixes an
+                     opponent's card with one of your own — the row that reads
+                     most like a clean attack is the one that costs you. -->
+                <span v-if="item.selfCard" class="con-composer__opt-warn">⚠ {{ $t('This is your card') }}</span>
                 <span v-if="item.disabled && item.reason !== ''" class="con-composer__opt-reason">✕ {{ item.reason }}</span>
                 <span v-else-if="item.chosen" class="con-composer__opt-check" aria-hidden="true">✓</span>
               </div>
@@ -479,7 +491,7 @@
 import {defineComponent, PropType} from 'vue';
 import Card from '@/client/components/card/CardFace.vue';
 import {Color} from '@/common/Color';
-import {displayNameForColor} from '@/client/components/marsbot/marsBotDisplay';
+import {displayNameForColor, participantDisplayName} from '@/client/components/marsbot/marsBotDisplay';
 import GamepadGlyph from '@/client/components/gamepad/GamepadGlyph.vue';
 import ActionEffectChip from '@/client/components/actions/ActionEffectChip.vue';
 import CardRenderEffectBoxComponent from '@/client/components/card/CardRenderEffectBoxComponent.vue';
@@ -521,7 +533,7 @@ import {
   spendHeatPlan, spendHeatStock, spendHeatResponse, spendHeatValid,
   orderedPreResponses, orderedStepResponses, tabbedStepsOf,
 } from '@/client/console/consoleActionComposer';
-import {buildOrItems, orItemResponse, buildTabbedTargets, ConsoleOrItem} from '@/client/console/consoleOrChoice';
+import {buildOrItems, orItemResponse, buildTabbedTargets, ConsoleOrItem, ConsoleTabbedTarget, TabbedCardOwner} from '@/client/console/consoleOrChoice';
 import {TabbedTargetsStep} from '@/common/models/ActionPreviewModel';
 import {
   playComposerFootHints, FootHint, PlayFocusKind,
@@ -617,8 +629,13 @@ type ListItem = {
   tab?: string,
   /** The engine's own cautions for this option, already sentences (i18n keys). */
   warnings?: ReadonlyArray<string>,
+  /** WHO the row takes from, when the row's own label names a CARD instead of a
+   *  player (a tabbed animal target). */
+  owner?: string,
   /** This row is the VIEWER, the move costs them, and another target existed. */
   selfHarm?: boolean,
+  /** …the same, for a CARD row standing in the viewer's own tableau. */
+  selfCard?: boolean,
   /** The whole or-item, when this row is an OrOptions option (leaf or nested). */
   orItem?: ConsoleOrItem,
 };
@@ -1457,9 +1474,19 @@ export default defineComponent({
           return [];
         }
         const chosenKey = this.picks['tabbed#' + sub.stepIndex];
-        return buildTabbedTargets(ts.step).map((t): ListItem => ({
+        const targets = this.tabbedTargets(ts.step);
+        // The self-caution follows the PLAYER-row rule exactly: it fires only
+        // when another target was selectable — a forced self-hit is not a
+        // mistake to prevent.
+        const hasAlternative = targets.filter((t) => !t.disabled).length > 1;
+        return targets.map((t): ListItem => ({
           key: t.key, label: translateText(t.label), meta: '', disabled: t.disabled,
           reason: textOf(t.reason), chosen: chosenKey === t.key, color: t.playerColor, impact: t.impact, impactIcon: t.icon, tab: t.tab,
+          // The sub-list already advertises «ОСМОТРЕТЬ»; carrying the model is
+          // what makes that press do anything on a card row.
+          card: t.card,
+          owner: t.ownerName,
+          selfCard: t.ownerSelf === true && !t.disabled && hasAlternative,
         }));
       }
       // NESTED-input or option (Comet for Venus's SelectPlayer sitting in the or).
@@ -1770,15 +1797,42 @@ export default defineComponent({
       }
       return false;
     },
-    /** The chosen tabbed-target's label (Virus) for the row, or '' when none. */
+    /** The tabbed targets (Virus) WITH each animal card's owner resolved — the
+     *  ONE build point, so the rows, the folded answer and the pick can't
+     *  disagree about what the player chose. */
+    tabbedTargets(step: TabbedTargetsStep): ReadonlyArray<ConsoleTabbedTarget> {
+      return buildTabbedTargets(step, (name) => this.cardOwner(name));
+    },
+    /**
+     * WHO holds a played card, by name (cards are unique in a game). The server
+     * models a card pick as bare names, so an attack on a CARD can only name its
+     * victim from the live view — the same resolution the played-target picker
+     * uses. Not on anyone's tableau ⇒ it is the viewer's (a hand / SRR-hosted
+     * card), never a misleading "neutral".
+     */
+    cardOwner(name: string): TabbedCardOwner | undefined {
+      const me = this.thisPlayer.color;
+      const owner = this.playerView.players.find((p) => p.tableau.some((c) => c.name === name)) ??
+        this.playerView.players.find((p) => p.color === me);
+      return owner === undefined ?
+        undefined :
+        {color: owner.color, name: participantDisplayName(owner), self: owner.color === me};
+    },
+    /** The chosen tabbed-target's label (Virus) for the row, or '' when none.
+     *  A CARD target carries its owner into the folded answer too — «from whom»
+     *  is half the decision and must survive the sub-picker closing. */
     tabbedChosenLabel(stepIndex: number): string {
       const ts = this.tabbedSteps.find((t) => t.index === stepIndex);
       const key = this.picks['tabbed#' + stepIndex];
       if (ts === undefined || key === undefined) {
         return '';
       }
-      const target = buildTabbedTargets(ts.step).find((t) => t.key === key);
-      return target !== undefined ? translateText(target.label) : '';
+      const target = this.tabbedTargets(ts.step).find((t) => t.key === key);
+      if (target === undefined) {
+        return '';
+      }
+      const label = translateText(target.label);
+      return target.ownerName !== undefined ? `${label} · ${target.ownerName}` : label;
     },
     /** Premium player rows (with a per-target `current → resulting` impact). */
     playerItems(model: SelectPlayerModel, chosen: string | undefined): Array<ListItem> {
@@ -2829,7 +2883,7 @@ export default defineComponent({
       // TABBED target (Virus) — captures the top-level or-response into its step.
       if (sub.kind === 'tabbed') {
         const ts = this.tabbedSteps.find((t) => t.index === sub.stepIndex);
-        const target = ts !== undefined ? buildTabbedTargets(ts.step).find((t) => t.key === item.key) : undefined;
+        const target = ts !== undefined ? this.tabbedTargets(ts.step).find((t) => t.key === item.key) : undefined;
         if (target === undefined) {
           return;
         }

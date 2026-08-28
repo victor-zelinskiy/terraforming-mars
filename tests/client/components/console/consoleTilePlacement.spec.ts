@@ -19,6 +19,38 @@ import {panelRewardHold, heldStock} from '@/client/console/resourceTransfer/cons
 import {AresAdjacencyGrantModel} from '@/common/models/AresAdjacencyGrantModel';
 import {Resource} from '@/common/Resource';
 import {resetAresGrantClaims} from '@/client/console/tilePlacement/aresAdjacencyFlights';
+import {placementRenderState} from '@/client/components/board/placementRenderState';
+import {cubePhase} from '@/client/components/board/cubeDropState';
+
+/**
+ * A measurable board cell — JSDOM reports every rect as 0x0, so the scene's
+ * geometry guards degrade unless the rects are stubbed. Returns a teardown.
+ * The printed icons are mounted from the start: on the real board they appear
+ * the frame the cell is blanked, and what this fixture exercises is that the
+ * departure captures them AFTER opening that window, never before.
+ */
+function boardCell(id: string, opts: {bonusIcons?: number} = {}): () => void {
+  const cell = document.createElement('div');
+  cell.className = 'board-space';
+  cell.setAttribute('data_space_id', id);
+  cell.getBoundingClientRect = () => ({
+    x: 400, y: 300, left: 400, top: 300, right: 446, bottom: 351, width: 46, height: 51, toJSON: () => ({}),
+  } as DOMRect);
+  const bonuses = document.createElement('div');
+  bonuses.className = 'board-space-bonuses';
+  for (let i = 0; i < (opts.bonusIcons ?? 0); i++) {
+    const icon = document.createElement('i');
+    icon.className = 'board-space-bonus';
+    icon.getBoundingClientRect = () => ({
+      x: 410 + i * 12, y: 320, left: 410 + i * 12, top: 320,
+      right: 420 + i * 12, bottom: 330, width: 10, height: 10, toJSON: () => ({}),
+    } as DOMRect);
+    bonuses.appendChild(icon);
+  }
+  cell.appendChild(bonuses);
+  document.body.appendChild(cell);
+  return () => cell.remove();
+}
 
 function space(id: string, over: Partial<SpaceModel> = {}): SpaceModel {
   return {id, x: 0, y: 0, spaceType: 'land', bonus: [], ...over} as unknown as SpaceModel;
@@ -326,6 +358,114 @@ describe('consoleTilePlacement (the animation transaction)', () => {
       expect(panelRewardHold.active).to.be.false;
       await endTilePlacement(); // clean no-op
       expect(isTilePlacementActive()).to.be.false;
+    });
+  });
+
+  /*
+   * REMOVE-AND-REPLACE (Kaguya Tech: "remove one of your greeneries and place
+   * a city there"). The scene opens with a REMOVAL: the doomed tile's proxy
+   * takes it over, the cell is blanked to a bare hex - which is the frame its
+   * printed bonus first exists - the tile rises away, and only then does the
+   * ordinary flight bring the replacement in.
+   */
+  describe('the removal beat (a declared remove-and-replace)', () => {
+    let teardown: (() => void) | undefined;
+
+    afterEach(() => {
+      teardown?.();
+      teardown = undefined;
+    });
+
+    const greeneryToCity = (bonus: Array<SpaceBonus> = []) => ({
+      prev: [space('05', {bonus, tileType: TileType.GREENERY, color: 'red'})],
+      next: [space('05', {bonus, tileType: TileType.CITY, color: 'red'})],
+    });
+
+    it('an arm that declares the removal STAGES what leaves', () => {
+      teardown = boardCell('05');
+      armTilePlacement({spaceId: '05', replacing: true});
+      const {prev, next} = greeneryToCity();
+      expect(detectTilePlacement(prev, next)).to.deep.eq({spaceId: '05'});
+      expect(tilePlacementState.tileType).to.eq(TileType.CITY);
+      expect(tilePlacementState.departingTile).to.eq(TileType.GREENERY);
+      // ...including the owner marker, which leaves ON the tile it was marking.
+      expect(tilePlacementState.departingCube?.color).to.eq('red');
+    });
+
+    it('an UNDECLARED tile-to-tile diff still aborts - the marker is the licence', async () => {
+      teardown = boardCell('05');
+      armTilePlacement({spaceId: '05'});
+      const {prev, next} = greeneryToCity();
+      expect(detectTilePlacement(prev, next)).to.be.undefined;
+      expect(isTilePlacementActive()).to.be.false;
+      expect(placementRenderState.hiddenTiles.size).to.eq(0);
+      await settle(5);
+    });
+
+    it('the printed bonuses are captured AFTER the removal uncovers them, and paid as usual', async () => {
+      teardown = boardCell('05', {bonusIcons: 2});
+      armTilePlacement({spaceId: '05', replacing: true});
+      const {prev, next} = greeneryToCity([SpaceBonus.STEEL, SpaceBonus.PLANT]);
+      detectTilePlacement(prev, next);
+      // At detect the doomed tile is still standing on them - nothing to
+      // capture yet (an ordinary landing captures here; this one cannot).
+      expect(tilePlacementState.bonusProxies).to.have.length(0);
+
+      await runTilePlacement(prev, next);
+      // ...the departure opened the window, and the icons were measured in it.
+      expect(tilePlacementState.bonusProxies.map((b) => b.icon)).to.deep.eq(['steel', 'plant']);
+      // The cell was EMPTIED before the placement, so the bonuses are granted
+      // exactly as for a bare hex - never suppressed like an ocean cover.
+      seedTilePlacementRewardHold();
+      expect(heldStock('steel')).to.eq(1);
+      expect(heldStock('plants')).to.eq(1);
+      await endTilePlacement();
+      expect(isTilePlacementActive()).to.be.false;
+    });
+
+    it('the removal window is CLOSED again by the time the replacement paints', async () => {
+      teardown = boardCell('05', {bonusIcons: 1});
+      armTilePlacement({spaceId: '05', replacing: true});
+      const {prev, next} = greeneryToCity([SpaceBonus.STEEL]);
+      detectTilePlacement(prev, next);
+      await runTilePlacement(prev, next);
+      // The real tile is painted on the displayed spaces...
+      expect(prev[0].tileType).to.eq(TileType.CITY);
+      // ...so the cell may no longer render as emptied, or the city it has
+      // just received would be blanked along with the greenery that left.
+      expect(placementRenderState.hiddenTiles.size).to.eq(0);
+      await endTilePlacement();
+    });
+
+    it('an abort mid-removal puts the doomed tile back - the server may have refused', async () => {
+      teardown = boardCell('05', {bonusIcons: 1});
+      armTilePlacement({spaceId: '05', replacing: true});
+      const {prev, next} = greeneryToCity([SpaceBonus.STEEL]);
+      detectTilePlacement(prev, next);
+      abortTilePlacement();
+      expect(placementRenderState.hiddenTiles.size).to.eq(0);
+      // ...and the owner marker can never be stranded invisible.
+      expect(cubePhase('05' as SpaceId)).to.not.eq('hidden');
+      await settle(5);
+    });
+
+    it('the staging does not leak into the NEXT, ordinary placement', async () => {
+      teardown = boardCell('05');
+      armTilePlacement({spaceId: '05', replacing: true});
+      const {prev, next} = greeneryToCity();
+      detectTilePlacement(prev, next);
+      await runTilePlacement(prev, next);
+      await endTilePlacement();
+      await settle(5);
+
+      armTilePlacement({spaceId: '06'});
+      const p2 = [space('06')];
+      const n2 = [space('06', {tileType: TileType.CITY, color: 'red'})];
+      expect(detectTilePlacement(p2, n2)).to.deep.eq({spaceId: '06'});
+      expect(tilePlacementState.departingTile).to.be.undefined;
+      expect(tilePlacementState.departingCube).to.be.undefined;
+      await runTilePlacement(p2, n2);
+      await endTilePlacement();
     });
   });
 

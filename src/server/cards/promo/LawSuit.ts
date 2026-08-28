@@ -25,11 +25,13 @@ export class LawSuit extends Card implements IProjectCard {
       victoryPoints: 'special',
 
       metadata: {
-
+        // The on-play rule is TWO steps (steal, then the card changes hands) —
+        // one line each, in play order. Seeding it from the printed description
+        // produced a single run-on paragraph.
         infoText: [
-
+          {text: 'Steal 3 M€ from a player that REMOVED YOUR RESOURCES OR DECREASED YOUR PRODUCTION this generation.', tokens: ['megacredits']},
+          {text: 'Place this card face down in THAT PLAYER\'S EVENT PILE.'},
           {kind: 'victory-points', text: 'The player who takes this card counts it as −1 VP.'},
-
         ],
         cardNumber: 'X06',
         renderData: CardRenderer.builder((b) => {

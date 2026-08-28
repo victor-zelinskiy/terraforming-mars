@@ -10,15 +10,25 @@
  * decision we use a reactive store instead, the same pattern the fork uses
  * for `placementLockState` / `boardCellHighlight`.
  *
- * `hiddenTiles` holds the space ids whose CURRENT tile will be physically
- * removed before the new tile is placed (KaguyaTech, LunarMineUrbanization).
- * The board renders those cells WITHOUT the doomed tile graphic and WITH the
- * placement bonus, so the player sees what they'll gain. Every OTHER occupied
- * target keeps its tile visible (St. Joseph's cathedral overlay, picking an
- * ocean to remove, placing over a hazard, …) — the base tile is information.
+ * `hiddenTiles` holds the space ids whose tile is being physically REMOVED
+ * RIGHT NOW (KaguyaTech, LunarMineUrbanization — "remove one of yours, place
+ * this there"). Such a cell renders WITHOUT its tile graphic and WITH its
+ * placement bonus — i.e. as the emptied hex it has just become — and the
+ * generic placement chrome is silenced on it (BoardSpaceTile.refreshPlacement
+ * reads this store directly), so no impact ring can flash over an apparently
+ * empty cell.
  *
- * ConsoleBoardInput.vue populates this from `SelectSpaceModel.hiddenTiles` on mount
- * and clears it on unmount, so the store reflects exactly the current prompt.
+ * ⚠️ ONE OWNER, and it is the CINEMATIC: `consoleTilePlacement`'s departure
+ * beat opens the window as the doomed tile's proxy takes over and closes it in
+ * the same synchronous turn the replacement paints. It used to be the PROMPT
+ * (ConsoleBoardInput on mount → unmount), which hid the tile for the whole
+ * pick: every candidate greenery became an identical bare hex, so the player
+ * chose among objects they could not see, and the uncovering — the card's own
+ * "gain placement bonuses as usual" — was spent before the card acted. What a
+ * cell is worth during the pick is the placement dossier's job. Every OTHER
+ * occupied target keeps its tile visible at all times (St. Joseph's cathedral
+ * overlay, picking an ocean to remove, placing over a hazard, …) — the base
+ * tile is information.
  */
 
 import {reactive} from 'vue';

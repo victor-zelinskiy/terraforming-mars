@@ -61,7 +61,7 @@ import {PlacementIllegalSpace} from '@/common/inputs/PlacementIllegalReason';
 import {UnplayableReason} from '@/common/cards/UnplayableReason';
 import PlacementReasonPopover from '@/client/components/board/PlacementReasonPopover.vue';
 import {placementReasonToUnplayable} from '@/client/components/board/placementReason';
-import {setPlacementHiddenTiles, clearPlacementHiddenTiles, setPlacementHighlightActive} from '@/client/components/board/placementRenderState';
+import {setPlacementHighlightActive} from '@/client/components/board/placementRenderState';
 import BoardPlacementPreviewPopover from '@/client/components/board/BoardPlacementPreviewPopover.vue';
 import BoardPlacementPreviewContent from '@/client/components/board/BoardPlacementPreviewContent.vue';
 import {fetchBoardCellPreview} from '@/client/components/board/boardInfoState';
@@ -388,15 +388,25 @@ export default defineComponent({
       if (effect === 'bonus-only') {
         armNomadMove({toSpaceId: this.spaceId});
       } else if (effect !== 'marker') {
-        armTilePlacement({spaceId: this.spaceId});
+        // …and WHETHER the cell already carries a tile that this placement
+        // REMOVES first is the server's declaration too (`hiddenTiles` — the
+        // remove-and-replace marker Kaguya Tech / Lunar Mine Urbanization
+        // set). It is what licenses the hero to read a tile→tile diff as a
+        // placement at all, and it opens the scene with the removal beat.
+        armTilePlacement({spaceId: this.spaceId, replacing: this.isClearedTarget(this.spaceId)});
       }
       this.onsave({type: 'space', spaceId: this.spaceId});
     },
   },
   mounted() {
-    // Tell the board which occupied targets are remove-and-replace cells so
-    // their doomed tile graphic is hidden + the placement bonus is shown.
-    setPlacementHiddenTiles(this.playerinput.hiddenTiles);
+    // NOTE: the doomed tile of a remove-and-replace target is deliberately NOT
+    // hidden here. The board must show what is physically standing on it while
+    // the player CHOOSES which of their tiles to sacrifice — pre-hiding turned
+    // every candidate greenery into an identical bare hex, and spent the
+    // uncovering (the card's own "gain placement bonuses as usual") before the
+    // card had done anything. What the cell is worth is the dossier panel's
+    // job; the removal itself is a beat of the placement scene, which is the
+    // one owner of `placementRenderState.hiddenTiles` now.
     this.disableAnimation();
     const tiles = this.getSelectableSpaces();
     this.animateSpaces(tiles);
@@ -424,7 +434,6 @@ export default defineComponent({
   // Safe to run on every unmount because `disableAnimation` is idempotent
   // and clearing `onclick` on an already-cleared tile is a no-op.
   beforeUnmount() {
-    clearPlacementHiddenTiles();
     this.disableAnimation();
     const tiles = this.getSelectableSpaces();
     for (const tile of tiles) {

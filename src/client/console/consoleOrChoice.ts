@@ -23,6 +23,7 @@ import {Message} from '@/common/logs/Message';
 import {LogMessageDataType} from '@/common/logs/LogMessageDataType';
 import {ActionEffect} from '@/common/models/ActionPreviewModel';
 import {OptionMetadata, OrOptionsModel, PlayerInputModel} from '@/common/models/PlayerInputModel';
+import {CardModel} from '@/common/models/CardModel';
 import {TabbedTargetsStep} from '@/common/models/ActionPreviewModel';
 
 /** One premium row of an OrOptions pick. */
@@ -179,17 +180,44 @@ export type ConsoleTabbedTarget = {
   reason: string | Message;
   playerColor?: Color;
   cardName?: string;
+  /** The card BEHIND a card target. The sub-list advertises «ОСМОТРЕТЬ» for a
+   *  tabbed step, and the inspector needs a model — without it the promised
+   *  press was inert on exactly the rows that name a card the player may never
+   *  have seen. */
+  card?: CardModel;
+  /** WHO the row takes from. A PLAYER row IS its owner (the label already names
+   *  them); a CARD row names a card, so this is the only place the victim is
+   *  stated. */
+  ownerName?: string;
+  /** The card belongs to the VIEWER — the removal hits their own tableau. */
+  ownerSelf?: boolean;
   /** The top-level OrOptions response this target submits. */
   response: unknown;
 };
 
 /**
+ * WHO owns an animal-holding CARD target — resolved by the HOST from the live
+ * player view (`players[].tableau`), because a `SelectCardModel` carries only the
+ * card's NAME. Cards are unique in a game, so the name IS the key.
+ *
+ * Without it the animal rows named a card and never said whose it was, while
+ * every plant row (a PLAYER target) showed a colour dot and a name — so «убрать
+ * 2 животных» read as an attack on nobody in particular. That matters most on
+ * the row it hides hardest: Virus takes from ANY player, so one of those cards
+ * can be the VIEWER'S OWN, with nothing on the row to say so.
+ */
+export type TabbedCardOwner = {color: Color, name: string, self: boolean};
+
+/**
  * The flat target list of a `tabbedTargets` step — the animal-card options then
  * the plant-player options. Each carries its byte-identical top-level `{type:'or',
  * index, response}` (the animal card nests a `{type:'card'}`, a plant player a
- * `{type:'option'}`).
+ * `{type:'option'}`). `ownerOf` is optional: the response never depends on it, so
+ * a call site that only needs the keys/responses (the pick) may omit it.
  */
-export function buildTabbedTargets(step: TabbedTargetsStep): Array<ConsoleTabbedTarget> {
+export function buildTabbedTargets(
+  step: TabbedTargetsStep,
+  ownerOf?: (cardName: string) => TabbedCardOwner | undefined): Array<ConsoleTabbedTarget> {
   const out: Array<ConsoleTabbedTarget> = [];
   if (step.animal !== undefined) {
     const branchIndex = step.animal.branchIndex;
@@ -197,6 +225,7 @@ export function buildTabbedTargets(step: TabbedTargetsStep): Array<ConsoleTabbed
     if (step.animal.input !== undefined && branchIndex !== undefined) {
       for (const card of step.animal.input.cards) {
         const from = card.resources ?? 0;
+        const owner = ownerOf?.(card.name);
         out.push({
           tab: 'animal',
           key: 'a' + card.name,
@@ -206,6 +235,10 @@ export function buildTabbedTargets(step: TabbedTargetsStep): Array<ConsoleTabbed
           disabled: card.isDisabled === true,
           reason: card.isDisabled === true ? (card.disabledReason ?? '') : '',
           cardName: card.name,
+          card,
+          playerColor: owner?.color,
+          ownerName: owner?.name,
+          ownerSelf: owner?.self,
           response: {type: 'or', index: branchIndex, response: {type: 'card', cards: [card.name]}},
         });
       }
