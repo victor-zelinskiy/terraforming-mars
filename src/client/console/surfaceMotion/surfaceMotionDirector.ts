@@ -574,67 +574,119 @@ function enterPhase(el: Element, panel: HTMLElement, dep: SurfaceDeparture, done
     if (carried.length === 0) {
       return tl;
     }
-    // HOLD the carried objects while their destination settles. `@enter` fires
-    // with the surface in the DOM but not yet laid out by its own machinery (a
-    // screen that seats a scene layer, publishes a zone and re-fits a rail
-    // settles over several frames), so a rect read now is a PRE-LAYOUT one —
-    // measured on the Hydronetwork's source dock: 216px out. They are invisible
-    // for that gap rather than painted at a home they are about to leave.
-    gsap.set(carried.map((c) => c.node), {autoAlpha: 0});
-    settledRects(carried.map((c) => c.node), (rects) => {
-      if (!el.isConnected) {
-        gsap.set(carried.map((c) => c.node), {clearProps: 'transform,opacity,visibility'});
-        return;
+    // PIN THE CARRIED OBJECTS TO THEIR DEPARTURE RECT ON THE FIRST FRAME, and
+    // only START TRAVELLING once the destination has settled.
+    //
+    // `@enter` fires with the surface in the DOM but not yet laid out by its
+    // own machinery (a screen that seats a scene layer, publishes a zone and
+    // re-fits a rail settles over several frames), so the rect the object will
+    // come to REST at is not knowable yet. Its DEPARTURE rect is — the capture
+    // recorded it — and pinning to that needs no such knowledge: the delta is
+    // re-derived against whatever box the element currently has, so the PAINTED
+    // position stays `from` on every frame of the settle, however far the
+    // layout moves underneath. What the settle decides is when the travel may
+    // BEGIN, not where the object stands until then.
+    //
+    // The old code held the object INVISIBLE for that whole gap, and the
+    // outgoing copy was already blanked — so the card the player was holding
+    // vanished for a beat and then re-appeared mid-flight, reading as a new
+    // card arriving rather than as the one they had.
+    const pin = (node: HTMLElement, from: CapturedRect): boolean => {
+      const to = restingBoxOf(node);
+      const scale = to.width < 10 ? NaN : from.width / to.width;
+      if (!isFinite(scale) || scale <= 0) {
+        return false;
       }
-      carried.forEach(({node, from}, i) => {
-        const to = rects[i];
-        const scale = to === undefined || to.width < 10 ? NaN : from.width / to.width;
-        if (to === undefined || !isFinite(scale) || scale <= 0) {
+      // ZOOM COMPENSATION: card slots live inside CSS `zoom:` contexts, which
+      // rescale a child's transform pixels — viewport-px deltas must be
+      // divided by the effective zoom (visual width / layout width) or the
+      // card undershoots.
+      const effZoom = node.offsetWidth > 0 ? to.width / node.offsetWidth : 1;
+      gsap.set(node, {
+        x: (from.left - to.left) / effZoom, y: (from.top - to.top) / effZoom, scale,
+        transformOrigin: 'top left', autoAlpha: 1,
+      });
+      return true;
+    };
+    const flying: Array<{node: HTMLElement, from: CapturedRect}> = [];
+    for (const c of carried) {
+      // `mounted()`'s hold (`holdCarriedAnchors`) blanks an arriving anchor so
+      // it cannot paint at a home it is about to leave; the pin is what
+      // releases it, and the marker keeps a LATE mount hook from re-hiding an
+      // object that is already standing in its travel.
+      c.node.dataset.motionCarried = '1';
+      if (pin(c.node, c.from)) {
+        flying.push(c);
+      } else {
+        delete c.node.dataset.motionCarried;
+        gsap.set(c.node, {clearProps: 'transform,opacity,visibility'});
+      }
+    }
+    if (flying.length === 0) {
+      return tl;
+    }
+    settledRects(flying.map((c) => c.node), () => {
+      for (const {node, from} of flying) {
+        delete node.dataset.motionCarried;
+        // Re-pinned against the SETTLED box: the paint does not move, only the
+        // delta the travel is measured from.
+        if (!el.isConnected || !pin(node, from)) {
           gsap.set(node, {clearProps: 'transform,opacity,visibility'});
-          return;
+          continue;
         }
-        // ZOOM COMPENSATION: card slots live inside CSS `zoom:` contexts, which
-        // rescale a child's transform pixels — viewport-px deltas must be
-        // divided by the effective zoom (visual width / layout width) or the
-        // card undershoots.
-        const effZoom = node.offsetWidth > 0 ? to.width / node.offsetWidth : 1;
         // `overwrite` — the arriving surface may run its OWN entry cascade over
         // the same element. Two un-owned tweens on one transform leave whichever
         // finishes first in charge of the final frame, which is how a travelling
         // card ended up wearing a stale translate for the rest of its life.
-        gsap.fromTo(node,
-          {x: (from.left - to.left) / effZoom, y: (from.top - to.top) / effZoom, scale,
-            transformOrigin: 'top left', autoAlpha: 1},
-          {x: 0, y: 0, scale: 1, duration: s(PHASE_ANCHOR_MS), ease: 'power3.inOut',
-            overwrite: 'auto', clearProps: 'transform,opacity,visibility'});
-      });
+        gsap.to(node, {
+          x: 0, y: 0, scale: 1, duration: s(PHASE_ANCHOR_MS), ease: 'power3.inOut',
+          overwrite: 'auto', clearProps: 'transform,opacity,visibility',
+        });
+      }
     });
     return tl;
   });
 }
 
 /**
- * THE RECTS OF `nodes`, ONCE THEY HAVE STOPPED MOVING.
+ * THE BOX AN ELEMENT WOULD OCCUPY WITHOUT ITS OWN PIN.
+ *
+ * A pinned carried object is HELD at its departure rect, so its client rect is
+ * a CONSTANT that says nothing about the layout underneath it — measuring it
+ * would report «settled» on the second frame every time, which is exactly the
+ * knowledge the settle exists to wait for. The inline transform is suspended
+ * for the read and restored in the SAME task, so no frame can paint without
+ * it (and GSAP's own cache is untouched: the string goes back byte-identical).
+ */
+function restingBoxOf(node: HTMLElement): DOMRect {
+  const held = node.style.transform;
+  if (held === '' || held === 'none') {
+    return node.getBoundingClientRect();
+  }
+  node.style.transform = 'none';
+  const rect = node.getBoundingClientRect();
+  node.style.transform = held;
+  return rect;
+}
+
+/**
+ * `done` ONCE `nodes` HAVE STOPPED MOVING.
  *
  * Two agreeing frames, bounded — the project's own settle rule, and the only
- * honest way to aim a FLIP at a surface that lays ITSELF out after mounting.
- * Falls through with whatever it has on the bound, so a target that never
- * settles degrades to a slightly-off travel rather than to nothing at all.
+ * honest way to time a FLIP against a surface that lays ITSELF out after
+ * mounting. Falls through on the bound, so a target that never settles
+ * degrades to a slightly-early travel rather than to no travel at all.
  */
-function settledRects(
-  nodes: ReadonlyArray<HTMLElement>,
-  done: (rects: ReadonlyArray<DOMRect | undefined>) => void,
-): void {
+function settledRects(nodes: ReadonlyArray<HTMLElement>, done: () => void): void {
   const MAX_FRAMES = 12;
   let frames = 0;
   let last = '';
-  const read = (): Array<DOMRect> => nodes.map((n) => n.getBoundingClientRect());
   const sample = () => {
     frames++;
-    const rects = read();
+    const rects = nodes.map((n) => restingBoxOf(n));
     const sig = rects.map((r) => `${Math.round(r.left)},${Math.round(r.top)},${Math.round(r.width)}`).join('|');
     if ((sig === last && rects.every((r) => r.width >= 10)) || frames >= MAX_FRAMES) {
-      done(rects);
+      done();
       return;
     }
     last = sig;

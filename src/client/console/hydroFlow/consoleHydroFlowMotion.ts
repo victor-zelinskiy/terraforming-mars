@@ -33,6 +33,21 @@ const LAYER_MS = 430;
 /** The one-shot origin key of the next layer's unfold (armed at the press). */
 const SCENE_RECT_KEY = 'hydro-scene';
 
+/**
+ * The layer's cascade groups, MINUS whatever is carrying an object in from
+ * another surface.
+ *
+ * A carried object belongs to the CARRY, not to the local cascade: two owners
+ * on one transform leave the card wearing whichever finished last. The anchor
+ * marker sits on the card FACE (so the FLIP maps picture onto picture), which
+ * is a DESCENDANT of the `[data-unfold-item]` slot holding it — so the question
+ * is «does this group contain the carried object», not «is it the object».
+ */
+function cascadeItems(layer: HTMLElement, carried: boolean): Array<HTMLElement> {
+  return Array.from(layer.querySelectorAll<HTMLElement>('[data-unfold-item]'))
+    .filter((n) => !(carried && (n.hasAttribute('data-motion-anchor') || n.querySelector('[data-motion-anchor]') !== null)));
+}
+
 /** Arm the rect the NEXT scene layer unfolds from — call SYNCHRONOUSLY in the
  *  press handler (the pressed CTA / summary chip / stop), before the layer
  *  swap re-renders the zone. */
@@ -48,15 +63,10 @@ export function armHydroSceneOrigin(el: HTMLElement | null | undefined): void {
 export function hydroSceneEnterHook(el: Element, done: () => void): void {
   const layer = el as HTMLElement;
   const from = takeDescendRect(SCENE_RECT_KEY);
-  // A CARRIED OBJECT BELONGS TO THE CARRY, NOT TO THE LOCAL CASCADE. When this
-  // layer arrives as the next stage of a flow the player started elsewhere (a
-  // card's «Открыть Гидросеть»), the source card is FLIPPING in from the
-  // composer's hero slot — cascading the very same element from inside would
-  // be two owners on one transform, and the card ends up wearing whichever
-  // finished last. `isAnchorHandoffLive` is the shared fact for exactly this.
-  const carried = isAnchorHandoffLive();
-  const items = Array.from(layer.querySelectorAll<HTMLElement>('[data-unfold-item]'))
-    .filter((n) => !(carried && n.hasAttribute('data-motion-anchor')));
+  // When this layer arrives as the next stage of a flow the player started
+  // elsewhere (a card's «Открыть Гидросеть»), the source card is FLIPPING in
+  // from the composer's hero slot. `isAnchorHandoffLive` is the shared fact.
+  const items = cascadeItems(layer, isAnchorHandoffLive());
   guardedDescend(layer, LAYER_MS, done, (finish) => {
     const tl = gsap.timeline({onComplete: finish});
     if (from === undefined || !descendUnfold(tl, layer, from, motionMs(LAYER_MS) / 1000 * 0.72, 0)) {
@@ -74,9 +84,7 @@ export function hydroSceneLeaveHook(el: Element, done: () => void): void {
   const layer = el as HTMLElement;
   guardedDescend(layer, 220, done, (finish) => {
     const tl = gsap.timeline({onComplete: finish});
-    const carried = isAnchorHandoffLive();
-    const items = Array.from(layer.querySelectorAll<HTMLElement>('[data-unfold-item]'))
-      .filter((n) => !(carried && n.hasAttribute('data-motion-anchor')));
+    const items = cascadeItems(layer, isAnchorHandoffLive());
     if (items.length > 0) {
       descendRelease(tl, items, motionMs(160) / 1000, 0);
     }

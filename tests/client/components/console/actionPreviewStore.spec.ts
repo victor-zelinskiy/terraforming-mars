@@ -99,6 +99,47 @@ describe('actionPreviewStore (bounded pre-warm fan-out)', () => {
     expect(started).eq(ACTION_CARDS.length);
   });
 
+  it('an ordinary track move INVALIDATES the cache (a preview carries the route)', async () => {
+    // REGRESSION: Storm Surge Barrier's preview carries the SERVER's whole
+    // verdict on a Hydronetwork move — from, to, the landing stage. An
+    // ordinary advance on the track changes none of the other fingerprint
+    // terms, so the cached offer survived a real move and the card's door then
+    // opened on a spent route: the marker animated 5→6 while the server moved
+    // 7→8 and paid the other stage's reward.
+    const before = viewWith(ACTION_CARDS);
+    ensureActionPreviews(before);
+    const keyBefore = actionPreviewStore.key;
+    while (pending.length > 0) {
+      pending.shift()?.resolve(previewBody('x'));
+      await tick();
+    }
+    expect(actionPreviewStore.previews[ACTION_CARDS[0]]).not.eq(undefined);
+
+    const after = viewWith(ACTION_CARDS);
+    (after.thisPlayer as unknown as {deltaProject: unknown}).deltaProject = {position: 7, stops: []};
+    ensureActionPreviews(after);
+
+    expect(actionPreviewStore.key, 'the track position is part of the fingerprint').not.eq(keyBefore);
+    expect(actionPreviewStore.previews[ACTION_CARDS[0]], 'and the stale previews are dropped').eq(undefined);
+  });
+
+  it('the same position is NOT a change (a poll replay stays a no-op)', async () => {
+    const seated = () => {
+      const v = viewWith(ACTION_CARDS);
+      (v.thisPlayer as unknown as {deltaProject: unknown}).deltaProject = {position: 3, stops: []};
+      return v;
+    };
+    ensureActionPreviews(seated());
+    const key = actionPreviewStore.key;
+    while (pending.length > 0) {
+      pending.shift()?.resolve(previewBody('x'));
+      await tick();
+    }
+    ensureActionPreviews(seated());
+    expect(actionPreviewStore.key).eq(key);
+    expect(started).eq(ACTION_CARDS.length); // nothing refetched
+  });
+
   it('a fingerprint change aborts stale requests and drops the stale queue', async () => {
     ensureActionPreviews(viewWith(ACTION_CARDS));
     expect(started).eq(4);

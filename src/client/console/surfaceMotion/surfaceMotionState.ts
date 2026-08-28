@@ -200,7 +200,12 @@ export function holdCarriedAnchors(root: Element | null | undefined): void {
   if (root === null || root === undefined || typeof window === 'undefined' || !isAnchorHandoffLive()) {
     return;
   }
-  const anchors = Array.from(root.querySelectorAll<HTMLElement>('[data-motion-anchor]'));
+  // …EXCEPT one the FLIP has already pinned. `mounted()` and the transition's
+  // `@enter` fire in the same flush and their order is not ours to choose, so
+  // a hold applied after the pin would blank an object that is already
+  // standing at its departure rect — the very frame this exists to protect.
+  const anchors = Array.from(root.querySelectorAll<HTMLElement>('[data-motion-anchor]'))
+    .filter((node) => node.dataset.motionCarried !== '1');
   if (anchors.length === 0) {
     return;
   }

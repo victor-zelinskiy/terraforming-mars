@@ -28,7 +28,15 @@
        }">
     <div v-if="!chip" class="con-src__label">{{ $t('Source') }}</div>
 
-    <div v-if="cardName !== undefined" class="con-src__card">
+    <!-- `motionAnchor` rides the CARD's own slot, never the dock: a surface
+         motion FLIP carries ONE object and scales it uniformly, so the two
+         boxes it maps between must BE that object. The dock is a caption plus
+         a card inside a column the host may stretch — mapping a hero card onto
+         that box lands the picture at a fraction of its size, below where the
+         eye left it. `.con-src__card` is the unzoomed tight wrapper of the
+         face (the composer's `actcardwrap` idiom), so the two rects differ by
+         scale alone. -->
+    <div v-if="cardName !== undefined" class="con-src__card" :data-motion-anchor="motionAnchor">
       <Card :card="{name: cardName}" :key="cardName" />
     </div>
 
@@ -89,6 +97,13 @@ export default defineComponent({
      * drawn; the command bar still opens the real face fullscreen.
      */
     chip: {type: Boolean, default: false},
+    /**
+     * The surface-motion anchor id (`card:<name>`) this dock's card face
+     * ANSWERS TO — set by a host whose card TRAVELS into it from another
+     * surface (the Hydronetwork's card-action door). Opt-in: a dock nobody
+     * carries into stays unmarked, so no unrelated phase FLIP can claim it.
+     */
+    motionAnchor: {type: String, default: undefined},
   },
   computed: {
     /** The plate is the CHIP's only body, and a non-card source's always. */

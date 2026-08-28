@@ -29,6 +29,14 @@ export type HydroAdvancePayload = {
   selectedCard?: CardName;
   /** The composed stage-7 repeat pick (console-only pre-collection). */
   repeat?: ConsoleRepeatPickResult;
+  /**
+   * The player CONSCIOUSLY declined the landed stage's target reward (pos 7
+   * repeat / pos 9 animals) — the warned second press. Rides the
+   * `{deltaProject}` step as `waiveReward`, so the server defers no follow-up
+   * SelectCard: «если не выбрал — значит не надо», with no prompt after the
+   * confirm. Never set alongside `selectedCard`.
+   */
+  waiveTarget?: boolean;
 };
 
 /**
@@ -80,9 +88,16 @@ export function hydroAdvanceTail(payload: HydroAdvancePayload): Array<unknown> {
 export function hydroAdvanceBatch(
   prefix: ReadonlyArray<unknown>, steps: number, payload: HydroAdvancePayload,
 ): Array<unknown> {
+  // The waive rides the MOVE's own step, and the key exists only when true —
+  // every non-waiving batch stays byte-identical to the historical shape.
+  const move: {type: 'deltaProject', amount: number, waiveReward?: true} =
+    {type: 'deltaProject', amount: steps};
+  if (payload.waiveTarget === true) {
+    move.waiveReward = true;
+  }
   return [
     ...prefix,
-    {type: 'deltaProject' as const, amount: steps},
+    move,
     ...hydroAdvanceTail(payload),
   ];
 }

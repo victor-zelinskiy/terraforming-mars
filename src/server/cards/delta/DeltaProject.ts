@@ -65,10 +65,11 @@ export class DeltaProject extends PreludeCard implements IActionCard {
   public action(player: IPlayer): PlayerInput {
     const validSteps = DeltaProjectExpansion.getValidAdvanceSteps(player);
 
-    return new DeltaProjectInput(
-      validSteps,
-    ).andThen((amount) => {
-      DeltaProjectExpansion.advance(player, amount);
+    // Kept by reference: `waiveReward` (the conscious decline of a pos 7/9
+    // target reward) is set on the input by process() before the callback.
+    const input = new DeltaProjectInput(validSteps);
+    return input.andThen((amount) => {
+      DeltaProjectExpansion.advance(player, amount, undefined, {waiveTargetReward: input.waiveReward});
       return undefined;
     });
   }

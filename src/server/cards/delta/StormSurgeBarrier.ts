@@ -262,14 +262,17 @@ export class StormSurgeBarrier extends Card implements IProjectCard {
       }));
     }
     if (this.canAdvance(player)) {
-      options.push(new SelectOption('Spend 1 energy and advance on the Hydronetwork', 'Advance').andThen(() =>
+      options.push(new SelectOption('Spend 1 energy and advance on the Hydronetwork', 'Advance').andThen(() => {
         // `[1]` — the card grants exactly one step, so the input has exactly
-        // one legal answer and re-validates it on arrival.
-        new DeltaProjectInput(DeltaProjectExpansion.getValidAdvanceSteps(player, DP04_ADVANCE))
-          .andThen((amount) => {
-            DeltaProjectExpansion.advance(player, amount, DP04_ADVANCE);
-            return undefined;
-          })));
+        // one legal answer and re-validates it on arrival. Kept by reference:
+        // `waiveReward` (the conscious decline of a pos 7/9 target reward) is
+        // set on it by process() before the callback runs.
+        const input = new DeltaProjectInput(DeltaProjectExpansion.getValidAdvanceSteps(player, DP04_ADVANCE));
+        return input.andThen((amount) => {
+          DeltaProjectExpansion.advance(player, amount, DP04_ADVANCE, {waiveTargetReward: input.waiveReward});
+          return undefined;
+        });
+      }));
     }
     if (options.length === 0) {
       return undefined;

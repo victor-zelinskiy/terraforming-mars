@@ -398,7 +398,16 @@ export class DeltaProjectExpansion {
     return steps.length === 0 ? 0 : Math.max(...steps);
   }
 
-  public static advance(player: IPlayer, steps: number, options?: AdvanceOptions): void {
+  public static advance(player: IPlayer, steps: number, options?: AdvanceOptions, extras?: {
+    /**
+     * The player CONSCIOUSLY declined the landed stage's target-bearing reward
+     * (pos 7 repeat / pos 9 animals) — carried by the `{deltaProject}` response
+     * (`DeltaProjectInput.waiveReward`). The decline is logged BY NAME (no
+     * silent loss) and the follow-up SelectCard is never deferred. Ignored for
+     * every other landing: only the two target picks are waivable.
+     */
+    waiveTargetReward?: boolean,
+  }): void {
     // Re-validated against the SAME option set the offer was computed with —
     // the authoritative check happens HERE, at commit, never at prompt time.
     const valid = DeltaProjectExpansion.getValidAdvanceSteps(player, options);
@@ -457,13 +466,13 @@ export class DeltaProjectExpansion {
         }
       }
 
-      DeltaProjectExpansion.resolveReward(player, newPos);
+      DeltaProjectExpansion.resolveReward(player, newPos, extras?.waiveTargetReward === true);
     } finally {
       game.events.endScope();
     }
   }
 
-  private static resolveReward(player: IPlayer, position: number): void {
+  private static resolveReward(player: IPlayer, position: number, waiveTargetReward = false): void {
     // Positions 10/11 (VP spots) have no additional reward beyond VP claiming.
     switch (DELTA_TRACK_TAGS[position]) {
     case Tag.BUILDING: // Choose 2 steel or 2 plants
@@ -524,6 +533,14 @@ export class DeltaProjectExpansion {
     case Tag.MICROBE: { // Reuse a used blue card action
       const actionCards = DeltaProjectExpansion.getUsedActionCards(player);
       if (actionCards.length > 0) {
+        // A CONSCIOUS DECLINE forfeits the reward instead of postponing the
+        // question — logged by name (no silent loss), and nothing is deferred,
+        // so no follow-up prompt can rise after the move the player already
+        // confirmed «without copying».
+        if (waiveTargetReward) {
+          player.game.log('${0} declined to reuse a card action from the Hydronetwork', (b) => b.player(player));
+          break;
+        }
         // The console pre-collects this pick (batch-submitted with the
         // advance). markChoiceContext is the STRUCTURAL identity for the
         // fallback path (batch divergence / reconnect): the client must
@@ -557,6 +574,16 @@ export class DeltaProjectExpansion {
     }
 
     case Tag.ANIMAL: // Add 2 animals to any card
+      // A CONSCIOUS DECLINE — same contract as the pos-7 waive: named in the
+      // log only when there was actually something to decline (an empty pool
+      // is the ordinary fizzle, already stated by the client), and nothing is
+      // deferred, so no target prompt follows the confirmed move.
+      if (waiveTargetReward) {
+        if (new AddResourcesToCard(player, CardResource.ANIMAL, {count: 2}).getCards().length > 0) {
+          player.game.log('${0} declined to add animals from the Hydronetwork', (b) => b.player(player));
+        }
+        break;
+      }
       // `cause` = the structural prompt identity (choiceContext) for the
       // fallback path — the console pre-collects the target, but a batch
       // divergence / reconnect must still route this premium, not bare.

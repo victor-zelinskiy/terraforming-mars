@@ -71,6 +71,10 @@ export type HydroCommitRecord = {
   selectedCard: CardName | undefined;
   /** The stage-7 composed repeat rode the batch (vs a bare card pick). */
   composedRepeat: boolean;
+  /** The landed stage's target reward was CONSCIOUSLY declined (the warned
+   *  second press) — the result stage names the forfeit, never a silent
+   *  nothing. Absent = the reward resolved (or fizzled) as always. */
+  waivedTarget?: boolean;
   /** Pos 9: the target card's resource count BEFORE the commit — the presented
    *  face is frozen at this value and ticks per physical touchdown. */
   targetBefore: number | undefined;

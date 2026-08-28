@@ -111,6 +111,37 @@ describe('hydroAdvanceTail (shared by the bonus offer)', () => {
     expect(hydroAdvanceTail({spend: 2, rewardChoice: undefined})).to.deep.equal([]);
   });
 
+  it('a DECLINED target reward rides the move step, never the tail', () => {
+    // «Если не выбрал, значит не надо»: the player confirmed past the warning
+    // with no pick, so the decision travels WITH the move — the server then
+    // defers no SelectCard and nothing rises after the confirmed advance.
+    expect(hydroAdvanceResponses(ACTIVATE, {
+      spend: 1, rewardChoice: undefined, waiveTarget: true,
+    })).to.deep.equal([
+      ACTIVATE,
+      {type: 'deltaProject', amount: 1, waiveReward: true},
+    ]);
+  });
+
+  it('an ordinary batch is byte-identical to the historical shape', () => {
+    // The key EXISTS only when the decline was actually made — every other
+    // batch must keep the exact bytes the server has always received.
+    const plain = hydroAdvanceResponses(ACTIVATE, {spend: 2, rewardChoice: undefined});
+    expect(Object.keys(plain[1] as object)).to.deep.equal(['type', 'amount']);
+    expect(hydroAdvanceResponses(ACTIVATE, {spend: 2, rewardChoice: undefined, waiveTarget: false}))
+      .to.deep.equal(plain);
+  });
+
+  it('a decline still carries a CHOICE the same stage asked for', () => {
+    // The two are independent: pos 1/2's reward choice is not a target pick,
+    // so a landing that asks both keeps answering the one it was given.
+    expect(hydroAdvanceResponses(ACTIVATE, {spend: 1, rewardChoice: 0, waiveTarget: true})).to.deep.equal([
+      ACTIVATE,
+      {type: 'deltaProject', amount: 1, waiveReward: true},
+      {type: 'or', index: 0, response: {type: 'option'}},
+    ]);
+  });
+
   it('carries the COMPOSED repeat tail, not a bare pick', () => {
     const tail = hydroAdvanceTail({
       spend: 0,

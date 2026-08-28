@@ -217,10 +217,18 @@ export function isSelectClaimedUndergroundTokenResponse(response: InputResponse)
 export interface DeltaProjectInputResponse {
   type: 'deltaProject',
   amount: number;
+  /**
+   * The player CONSCIOUSLY declines the landed stage's target-bearing reward
+   * (position 7's repeat pick / position 9's animal target) — the server then
+   * defers no follow-up SelectCard for it. Absent = the reward resolves as
+   * always (pre-collected in the same batch, or asked afterwards).
+   */
+  waiveReward?: boolean;
 }
 
 export function isDeltaProjectInputResponse(response: InputResponse): response is DeltaProjectInputResponse {
-  return response.type === 'deltaProject' && matches(response, ['type', 'amount']);
+  return response.type === 'deltaProject' &&
+    (matches(response, ['type', 'amount']) || matches(response, ['type', 'amount', 'waiveReward']));
 }
 
 export type InputResponse =

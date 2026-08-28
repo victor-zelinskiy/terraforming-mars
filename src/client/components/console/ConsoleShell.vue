@@ -12338,6 +12338,9 @@ export default defineComponent({
      */
     submitHydroCardAdvance(payload: {
       rewardChoice: number | undefined, selectedCard?: CardName,
+      /** The landed stage's target reward was CONSCIOUSLY declined — the same
+       *  contract the player's own advance carries. */
+      waiveTarget?: boolean,
       repeat?: ConsoleRepeatPickResult, steps: number,
       fromPosition: number, toPosition: number, spend: number,
       rewards?: ReadonlyArray<ResourceTransferSpec>,
@@ -12364,10 +12367,16 @@ export default defineComponent({
           spend: payload.spend,
           rewardChoice: payload.rewardChoice,
           selectedCard: payload.selectedCard,
+          waiveTarget: payload.waiveTarget,
           repeat: payload.repeat,
         });
       const to = payload.toPosition;
-      const plan = hydroBonusAdvancePlan(HYDRO_STAGES[to]);
+      // A WAIVED move owes no follow-up (the batch declined the pick), so the
+      // frame must not arm to serve one — same rule as the player's own
+      // advance. The pos-5 draw is not waivable and is unaffected.
+      const plan = payload.waiveTarget === true ?
+        {serves: [] as ReadonlyArray<TaskKind>, claimsDraw: false, drawCount: 0} :
+        hydroBonusAdvancePlan(HYDRO_STAGES[to]);
       this.beginHydroAdvancePresentation({
         kind: resolutionKindFor(to, {
           composedRepeat: payload.repeat !== undefined,
@@ -12378,6 +12387,7 @@ export default defineComponent({
         spend: payload.spend,
         rewardChoice: payload.rewardChoice,
         selectedCard: payload.selectedCard,
+        waivedTarget: payload.waiveTarget === true,
         composedRepeat: payload.repeat !== undefined,
         targetBefore: payload.targetBefore,
         rewardLines: payload.resultLines ?? [],
@@ -12413,6 +12423,7 @@ export default defineComponent({
     beginHydroAdvancePresentation(payload: {
       kind: HydroResolutionKind, fromPosition: number, toPosition: number, spend: number,
       rewardChoice: number | undefined, selectedCard: CardName | undefined,
+      waivedTarget?: boolean,
       composedRepeat: boolean, targetBefore: number | undefined,
       rewardLines: ReadonlyArray<HydroDeltaLine>, vp: number | undefined, stageNameKey: string,
       rewards: ReadonlyArray<ResourceTransferSpec>,
@@ -12425,6 +12436,7 @@ export default defineComponent({
         spend: payload.spend,
         rewardChoice: payload.rewardChoice,
         selectedCard: payload.selectedCard,
+        waivedTarget: payload.waivedTarget === true,
         composedRepeat: payload.composedRepeat,
         targetBefore: payload.targetBefore,
         rewardLines: payload.rewardLines,
@@ -12451,6 +12463,9 @@ export default defineComponent({
     },
     submitHydroAdvance(payload: {
       spend: number, rewardChoice: number | undefined, selectedCard?: CardName,
+      /** The landed stage's target reward was CONSCIOUSLY declined (the warned
+       *  second press) — rides the batch, and owes no follow-up. */
+      waiveTarget?: boolean,
       repeat?: ConsoleRepeatPickResult, fromPosition: number, toPosition: number,
       rewards?: ReadonlyArray<ResourceTransferSpec>,
       resultLines?: ReadonlyArray<HydroDeltaLine>, vp?: number,
@@ -12505,7 +12520,12 @@ export default defineComponent({
       // workspace rather than rise as a band over the move that caused it.
       // Same plan the card-granted offer uses, keyed on the stage's own
       // `followUp`; unioned, so a pre-collected path loses nothing.
-      if (payload.selectedCard === undefined) {
+      //
+      // A WAIVED move owes nothing: the batch declined the pick, so the server
+      // defers no prompt and the frame must not arm to serve one — a `serves`
+      // set standing for a question that never arrives is a workspace waiting
+      // on an event that cannot happen.
+      if (payload.selectedCard === undefined && payload.waiveTarget !== true) {
         const owed = hydroBonusAdvancePlan(HYDRO_STAGES[payload.toPosition]);
         serves = [...new Set<TaskKind>([...serves, ...owed.serves])];
         claimDraw = claimDraw > 0 ? claimDraw : (owed.claimsDraw ? owed.drawCount : 0);
@@ -12517,6 +12537,7 @@ export default defineComponent({
         spend: payload.spend,
         rewardChoice: payload.rewardChoice,
         selectedCard: payload.selectedCard,
+        waivedTarget: payload.waiveTarget === true,
         composedRepeat: payload.repeat !== undefined,
         targetBefore: payload.targetBefore,
         rewardLines: payload.resultLines ?? [],

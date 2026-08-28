@@ -380,13 +380,21 @@
                    shared hold rule keys on, so while the card is in the
                    player's hands this whole slot — card, focus ring and all —
                    is empty rather than showing a second copy of it. -->
+              <!-- THE CARRIED OBJECT IS THE CARD, NOT THIS SLOT. The card
+                   TRAVELS here out of the action composer's hero (the card
+                   door), and a FLIP maps one box onto another — so the anchor
+                   goes on the dock's own card face. On the slot it mapped the
+                   hero onto «caption + card, stretched to the grid column»:
+                   the picture arrived at 43 % of the size the player had just
+                   been holding and above where they left it, which is the
+                   whole «карта появляется заново и скачет откуда-то слева». -->
               <div v-if="bonusSourceView !== undefined"
                    class="con-hydro__bonus-source"
                    :class="{'con-hydro__bonus-source--focused': sceneFocus === 'bonus-source'}"
                    :data-zoom-slot="offerRec.source"
-                   :data-motion-anchor="'card:' + offerRec.source"
                    data-unfold-item role="button" @click="inspectBonusSource">
-                <ConsoleSourceDock :view="bonusSourceView" :compact="true" />
+                <ConsoleSourceDock :view="bonusSourceView" :compact="true"
+                                   :motionAnchor="'card:' + offerRec.source" />
               </div>
 
               <!-- WHAT IT DOES — one calm sentence, the move in the SAME route
@@ -625,6 +633,12 @@
               <span v-else-if="commitRec.kind === 'card-resource' && commitRec.selectedCard !== undefined" class="con-hydro__result-note">
                 → {{ $t(commitRec.selectedCard) }}
               </span>
+              <!-- The FORFEIT, named — a consciously declined target reward may
+                   never end as a silent nothing (cross-cutting «no silent
+                   loss»): the result states which effect was declined. -->
+              <span v-else-if="commitRec.waivedTarget === true" class="con-hydro__result-note">
+                ↷ {{ $t(waivedNoteKey) }}
+              </span>
             </div>
             <div class="con-hydro__result-hint" data-unfold-item>
               <GamepadGlyph control="confirm" />
@@ -820,14 +834,16 @@ export default defineComponent({
       /**
        * A CONFIRM WAS ATTEMPTED WITH THE LANDED STAGE'S PICK STILL MISSING.
        *
-       * Positions 7 and 9 defer a SelectCard the rules do not let anyone skip
-       * (`hydroNetworkModel`: «a pos 7/9 card pick is MANDATORY before
-       * confirm»), so a confirm that ignores it does not forfeit anything — it
-       * merely postpones the question into a surface nobody chose. The gate is
-       * therefore a WARNING, not a bypass: the first press names what is
-       * missing and puts the cursor on it, the second press goes and answers
-       * it. Shared by the plan CTA and the bonus offer, because it is the same
-       * omission either way.
+       * The first press is a HEADS-UP that names the stake; the second press is
+       * taken at face value. WHAT THE STAKE IS depends on the door. On the two
+       * WAIVABLE roads (the player's own advance, a card's entry) the batch
+       * carries the decision itself (`waiveTarget` → the server defers no
+       * follow-up ask), so the second press FORFEITS the reward: «если не
+       * выбрал — значит не надо», and the flow ends where the player left it
+       * instead of raising a question they have already declined. The DOB
+       * prompt door answers with a bare `OrOptions` index and cannot carry a
+       * waive, so there the second press still postpones the pick into the
+       * embedded follow-up — and its own warning says exactly that.
        */
       pickWarned: false,
       /** The bonus answer is in flight — both CTAs are inert until the server replies. */
@@ -1277,10 +1293,27 @@ export default defineComponent({
     pickFizzled(): boolean {
       return this.pickKind !== undefined && !this.model.mustSelectCard;
     },
-    /** WHAT IS MISSING, named. Never a bare «нельзя», and never an instruction
-     *  the player cannot follow (a fizzled stage has nothing to choose). */
+    /** WHAT IS MISSING, named — AND what the second press will do with it.
+     *  Never a bare «нельзя», and never an instruction the player cannot follow
+     *  (a fizzled stage has nothing to choose). The two doors that CAN carry a
+     *  waive promise a forfeit; the prompt door, which cannot, promises the
+     *  postponed question it will actually raise. */
     pickWarningKey(): string {
-      return this.pickKind === undefined ? '' : HYDRO_PICK_COPY[this.pickKind].warn;
+      if (this.pickKind === undefined) {
+        return '';
+      }
+      const copy = HYDRO_PICK_COPY[this.pickKind];
+      return this.offerOrigin === 'prompt' ? copy.warn : copy.warnWaive;
+    },
+    /** The forfeit, named on the RESULT stage — a declined reward may never
+     *  read as a silent nothing (the console-wide «no silent loss»). Keyed on
+     *  the COMMIT's own landing, never on the live model, which has moved on. */
+    waivedNoteKey(): string {
+      const c = this.flow.commit;
+      if (c === undefined) {
+        return '';
+      }
+      return c.toPosition === 7 ? 'Action copy declined' : 'Animal placement declined';
     },
     /**
      * WHAT A DOES, FOLLOWING THE CURSOR. The bar is the only place a verb
@@ -1326,6 +1359,20 @@ export default defineComponent({
      *  omission, same warning — asked of the plan layer rather than the offer. */
     planPickMissing(): boolean {
       return this.planPickOffered && this.model.mustSelectCard && this.model.selectedCard === undefined;
+    },
+    /**
+     * THIS COMMIT FORFEITS THE TARGET REWARD.
+     *
+     * Candidates exist (`mustSelectCard`) and none was chosen, so a confirm
+     * standing past the warning IS the decision: the batch carries it
+     * (`waiveTarget` → `{deltaProject, waiveReward}`), the server defers no
+     * SelectCard, and nothing rises after the move the player already
+     * confirmed. Read off the MODEL, so both waivable doors — the plan CTA and
+     * a card's entry — answer it identically; the prompt door never asks it
+     * (its answer is an option index, which cannot carry the field).
+     */
+    waiveTargetNow(): boolean {
+      return this.model.mustSelectCard && this.model.selectedCard === undefined;
     },
     /** Is the offer answerable right now (not already submitted)? */
     bonusAnswerable(): boolean {
@@ -2049,7 +2096,14 @@ export default defineComponent({
       this.choiceStage = 'options';
       hydroNetworkState.selectedCard = undefined;
       consoleHydroUi.repeatResult = undefined;
-      this.sceneFocus = 'track';
+      // THE CURSOR LANDS ON THE QUESTION. A stage that owes a target pick
+      // (pos 7/9 with live candidates) seats it on the pre-select row, so the
+      // default A OPENS THE PICKER: advancing without a target then takes a
+      // deliberate ↑ plus the warned second press, and can never be a stray A
+      // on a stage the player has only just stepped onto. Stepping on with
+      // ←/→ re-takes the track first (see `handleIntent`), so the walk itself
+      // is untouched — only where the cursor RESTS changes.
+      this.sceneFocus = this.planPickMissing ? 'summary' : 'track';
     },
     /** A — the smart primary: open the pending pre-select, else commit. */
     onPrimary(): void {
@@ -2303,6 +2357,21 @@ export default defineComponent({
       if (offer === undefined || this.bonusSubmitting || this.flow.commit !== undefined) {
         return;
       }
+      // ⚠️ A STALE OFFER MAY NOT MOVE THE MARKER. The offer is the SERVER's
+      // verdict, taken when the door opened; the track model is LIVE. Once the
+      // marker has moved under it, every term of the offer — the route, the
+      // landing stage, its reward — describes a move that no longer exists,
+      // while the server resolves the real one from its own state: exactly the
+      // reported «анимация 5→6 поверх настоящего хода 7→8, и награда не та».
+      // The CAUSE is fixed upstream (the preview cache now keys on the track
+      // position, so the door never opens on a spent offer); this is the net
+      // that keeps a future race HONEST instead of animated. Asked BEFORE the
+      // in-flight latch, so both CTAs stay live and B still walks back to the
+      // card — whose preview is refreshed by then.
+      if (offer.fromPosition !== this.model.currentPosition) {
+        this.$emit('notice', translateText('The track position has changed — reopen the action'));
+        return;
+      }
       this.bonusSubmitting = true;
       this.armSceneFromCta();
       const view = this.bonusRewardView;
@@ -2310,6 +2379,9 @@ export default defineComponent({
       this.$emit('card-advance', {
         rewardChoice,
         selectedCard: this.model.mustSelectCard ? this.model.selectedCard : undefined,
+        // Same contract as the player's own advance: the warned confirm with
+        // no pick FORFEITS the reward rather than postponing it.
+        waiveTarget: this.waiveTargetNow ? true : undefined,
         repeat,
         steps: offer.steps,
         fromPosition: offer.fromPosition,
@@ -2334,6 +2406,9 @@ export default defineComponent({
         spend: this.model.selectedSpend,
         rewardChoice: this.model.targetNeedsChoice ? hydroNetworkState.rewardChoice : undefined,
         selectedCard: this.model.mustSelectCard ? this.model.selectedCard : undefined,
+        // The warned confirm with no pick is a CONSCIOUS decline — the server
+        // defers no follow-up ask for it (see `waiveTargetNow`).
+        waiveTarget: this.waiveTargetNow ? true : undefined,
         repeat,
         fromPosition: this.model.currentPosition,
         toPosition: this.model.selectedPosition,

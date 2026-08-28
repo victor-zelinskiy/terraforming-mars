@@ -25450,14 +25450,16 @@ html.console-mode {
         opacity: 0;
         transition: opacity calc(200ms * var(--motion-scale, 1)) ease-out;
     }
-    /* …EXCEPT THE CARRIED CARD, which does not dissolve — it TRAVELS. Its copy
-       on the incoming side FLIPs out of this exact rect, so this one has to be
-       gone on the very first frame or the eye sees two of it. No transition:
-       the motion the player reads is the flight, not this. */
-    &--yielded [data-motion-anchor] {
-        opacity: 0;
-        transition: none;
-    }
+    /* …AND THE CARRIED CARD HANDS OVER — it does not blink out.
+       Its copy on the incoming side is PINNED to this exact rect at this
+       exact size on the first frame, so the two are one picture and the
+       crossing is a dissolve IN PLACE: the arriving screen fades up over the
+       leaving one, the object inside them never moves, and only then does it
+       travel to its new home. It used to be killed here on frame 0 with
+       `transition: none` — which was correct only while the incoming copy was
+       held invisible until its screen had settled: the card the player was
+       holding vanished for that gap and re-appeared mid-flight, reading as a
+       different card arriving. It dissolves WITH the body it belongs to. */
     /* ── Header — the SHARED workspace line (`.con-wshead`, rendered by
        ConsoleWsHead.vue). Everything that used to live here — the identity
        row, the three type voices, the fixed-height two-layer aux zone and the

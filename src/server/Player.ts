@@ -2500,8 +2500,12 @@ export class Player implements IPlayer {
         DeltaProjectExpansion.maxSteps(this) > 0) {
       action.options.push(
         new SelectOption('Advance on the Hydronetwork track', 'Advance').andThen(() => {
-          return new DeltaProjectInput(DeltaProjectExpansion.getValidAdvanceSteps(this)).andThen((amount) => {
-            DeltaProjectExpansion.advance(this, amount);
+          // The input is kept by reference: `waiveReward` (the conscious
+          // decline of a pos 7/9 target reward) is set on it by process()
+          // BEFORE this callback runs.
+          const input = new DeltaProjectInput(DeltaProjectExpansion.getValidAdvanceSteps(this));
+          return input.andThen((amount) => {
+            DeltaProjectExpansion.advance(this, amount, undefined, {waiveTargetReward: input.waiveReward});
             if (this.deltaProjectData !== undefined) {
               this.deltaProjectData.usedThisGeneration = true;
             }

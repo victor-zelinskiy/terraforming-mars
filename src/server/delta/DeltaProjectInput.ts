@@ -5,6 +5,15 @@ import {InputError} from '../inputs/InputError';
 
 export class DeltaProjectInput extends BasePlayerInput<number> {
   /**
+   * The response consciously declined the landed stage's TARGET-bearing reward
+   * (pos 7 repeat / pos 9 animals) — set from the wire in {@link process},
+   * BEFORE the callback runs, so the `andThen` closures read it off this very
+   * input and hand it to `DeltaProjectExpansion.advance`. A field rather than a
+   * callback-signature change: the amount stays the input's one answer.
+   */
+  public waiveReward = false;
+
+  /**
    * @param validSteps the legal step counts the player may submit. Each value
    * is both the number of track positions to advance and the energy cost.
    * Sparse (not always `[1..max]`) when an opponent occupies a VP spot —
@@ -33,6 +42,7 @@ export class DeltaProjectInput extends BasePlayerInput<number> {
     if (!this.validSteps.includes(input.amount)) {
       throw new InputError('Amount must be one of: ' + this.validSteps.join(', '));
     }
+    this.waiveReward = input.waiveReward === true;
     return this.cb(input.amount);
   }
 }

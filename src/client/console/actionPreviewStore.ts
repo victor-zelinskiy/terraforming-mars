@@ -122,7 +122,15 @@ export function actionPreviewFingerprint(playerView: PlayerViewModel): string {
     .join('|');
   const available = (findPerformActionCard(playerView.waitingFor)?.model.cards ?? [])
     .map((c) => c.name).sort().join(',');
-  return `${playerView.id}#${cards}#${available}`;
+  // The viewer's OWN Hydronetwork position: a preview may carry a track move's
+  // whole verdict (Storm Surge Barrier's `DeltaAdvanceOffer` — from, to, the
+  // landing stage), and the ordinary track advance changes NONE of the terms
+  // above. Without this term a cached offer survived a real move and the card
+  // door then opened on a STALE route: the marker animated 5→6 while the
+  // server (correctly, off its live state) moved 7→8 and granted the other
+  // stage's reward.
+  const delta = playerView.thisPlayer.deltaProject?.position ?? '';
+  return `${playerView.id}#${cards}#${available}#dp${delta}`;
 }
 
 function seedFallback(cardName: CardName): void {

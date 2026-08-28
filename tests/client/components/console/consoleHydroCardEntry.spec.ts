@@ -63,7 +63,7 @@ type Vm = {
   model: {usedThisGeneration: boolean},
 };
 
-function viewerPlayer() {
+function viewerPlayer(position = 2) {
   return {
     color: 'red',
     steel: 1, plants: 2, titanium: 0, energy: 3, heat: 0, megacredits: 10,
@@ -71,7 +71,7 @@ function viewerPlayer() {
     plantProduction: 0, energyProduction: 1, heatProduction: 0,
     tags: {},
     tableau: [{name: 'Birds', resources: 3}],
-    deltaProject: {position: 2, stops: []},
+    deltaProject: {position, stops: []},
   };
 }
 
@@ -79,12 +79,15 @@ function mountSection(opts: {
   cardOffer?: DeltaAdvanceOffer,
   bonusOffer?: DeltaBonusPromptMeta,
   waitingFor?: unknown,
+  /** Where the viewer's marker actually stands (default: the fixture's 2). */
+  position?: number,
 } = {}) {
+  const at = opts.position ?? 2;
   return mount(ConsoleHydroSection, {
     props: {
       playerView: {
-        thisPlayer: viewerPlayer(),
-        players: [viewerPlayer()],
+        thisPlayer: viewerPlayer(at),
+        players: [viewerPlayer(at)],
         game: {},
         waitingFor: opts.waitingFor,
       } as never,
@@ -99,10 +102,11 @@ function mountSection(opts: {
 }
 
 /** The SERVER's own track preview — the shape the plan panel reads. */
-function seatPreview(overrides: {usedThisGeneration?: boolean} = {}): void {
+function seatPreview(overrides: {usedThisGeneration?: boolean, position?: number} = {}): void {
+  const at = overrides.position ?? 2;
   hydroNetworkState.previewColor = 'red' as never;
   hydroNetworkState.preview = {
-    currentPosition: 2,
+    currentPosition: at,
     availableEnergy: 3,
     usedThisGeneration: overrides.usedThisGeneration ?? false,
     atEndOfTrack: false,
@@ -113,7 +117,7 @@ function seatPreview(overrides: {usedThisGeneration?: boolean} = {}): void {
     animalTargetCards: [],
     destinations: Array.from({length: 9}, (_, i) => ({
       steps: i + 1,
-      position: i + 3,
+      position: at + i + 1,
       legal: true,
       affordable: true,
       energyDeficit: 0,
@@ -247,9 +251,15 @@ describe('the Hydronetwork card-action entry', () => {
   });
 
   it('a landing stage that asks for a reward commits the CARD move from its step', () => {
-    seatPreview();
-    // Position 0 → 1: the steel-or-plants choice stage.
-    const w = mountSection({cardOffer: {...CARD_OFFER, fromPosition: 0, toPosition: 1}, waitingFor: ACTION_MENU});
+    // Position 0 → 1: the steel-or-plants choice stage. The marker is seated
+    // at 0 too — an offer whose `fromPosition` disagrees with the live track is
+    // a SPENT route, which the section now refuses rather than animates.
+    seatPreview({position: 0});
+    const w = mountSection({
+      position: 0,
+      cardOffer: {...CARD_OFFER, fromPosition: 0, toPosition: 1},
+      waitingFor: ACTION_MENU,
+    });
     const vm = w.vm as unknown as Vm;
     vm.answerBonus(true);
     // The confirm ROUTES INTO the reward step instead of committing.

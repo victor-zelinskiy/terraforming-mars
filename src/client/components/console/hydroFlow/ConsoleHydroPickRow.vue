@@ -87,9 +87,18 @@ type GroupNode = ActionGroup['nodes'][number];
 export type HydroPickKind = 'reuse-action' | 'animal-target';
 
 /** The row's copy, keyed on the pick — ONE table, so the two scenes cannot
- *  word the same question differently. */
+ *  word the same question differently.
+ *
+ *  TWO WARNINGS, because there are two honest outcomes and the copy may never
+ *  promise the wrong one: `warn` POSTPONES the question (the DOB prompt door,
+ *  whose answer is a bare option index and cannot carry a decision about the
+ *  landing), `warnWaive` FORFEITS the reward (the player's own advance and a
+ *  card's entry, whose batch carries `waiveReward` — «если не выбрал, значит
+ *  не надо»). One table, so a door can only pick between them, never coin a
+ *  third phrasing. */
 export const HYDRO_PICK_COPY: Readonly<Record<HydroPickKind, {
-  label: string, choose: string, change: string, fizzle: string, warn: string,
+  label: string, choose: string, change: string, fizzle: string,
+  warn: string, warnWaive: string,
 }>> = {
   'reuse-action': {
     label: 'Action to repeat',
@@ -97,6 +106,7 @@ export const HYDRO_PICK_COPY: Readonly<Record<HydroPickKind, {
     change: 'Change the action',
     fizzle: 'No used actions to repeat',
     warn: 'The action to repeat is not chosen — you will be asked after advancing',
+    warnWaive: 'No action is chosen — press again to advance without repeating one',
   },
   'animal-target': {
     label: 'Target card',
@@ -104,6 +114,7 @@ export const HYDRO_PICK_COPY: Readonly<Record<HydroPickKind, {
     change: 'Change the card',
     fizzle: 'No card can receive the animals',
     warn: 'The card for the animals is not chosen — you will be asked after advancing',
+    warnWaive: 'No card is chosen — press again to advance without the animals',
   },
 };
 

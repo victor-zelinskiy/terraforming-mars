@@ -35,13 +35,20 @@
 
     /* The premium card face. The zoom lives on the CARD, never on the dock, so
        the label and the plate keep their own size and a display profile can
-       still scale the whole dock without dragging the caption with it. */
+       still scale the whole dock without dragging the caption with it.
+       …and it sits on the FACE rather than on this slot, which leaves
+       `.con-src__card` an UNZOOMED wrapper whose layout box is exactly the
+       card's visual box — the composer hero's `actcardwrap` idiom, and what
+       makes this slot a 1:1 surface-motion anchor (transform px stay viewport
+       px, and the rect a FLIP maps onto is the picture, not a column). */
     &__card {
-        zoom: calc(0.8 * var(--con-ui-scale, 1));
-        :is(.card-container, .pcard) { margin: 0; }
+        :is(.card-container, .pcard) {
+            margin: 0;
+            zoom: calc(0.8 * var(--con-ui-scale, 1));
+        }
     }
 
-    &--compact &__card { zoom: calc(0.56 * var(--con-ui-scale, 1)); }
+    &--compact &__card :is(.card-container, .pcard) { zoom: calc(0.56 * var(--con-ui-scale, 1)); }
 
     /* A MARSBOT BONUS CARD is TEXT, not art — so it does not take the card's
        zoom ladder. `BonusCardFace` is px-authored (12px lines), which the
