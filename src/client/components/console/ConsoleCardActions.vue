@@ -43,11 +43,11 @@
            card source (Viron / Проверка проекта) keeps the classic
            «ПОВТОР ДЕЙСТВИЯ › <карта>» form. -->
       <ConsoleWsHead class="con-cardactions__head"
-                     :root="repeat ? (repeatRequest?.source.label ?? 'Repeat action') : 'Card actions'"
+                     :root="repeat ? repeatCrumbRoot : 'Card actions'"
                      :mark="repeat ? '⟳' : ''"
-                     :emblem="repeat ? undefined : 'actions'"
-                     :wheelAnchor="repeat ? undefined : 'card-actions'"
-                     :context="repeat && repeatRequest !== undefined ? (repeatRequest.source.label !== undefined ? 'Repeat action' : repeatRequest.source.card) : ''"
+                     :emblem="repeat ? repeatCrumbEmblem.emblem : 'actions'"
+                     :wheelAnchor="repeat ? repeatCrumbEmblem.wheelAnchor : 'card-actions'"
+                     :context="repeat ? repeatCrumbContext : ''"
                      :subject="composer !== undefined ? composer.cardName : ''"
                      :stage="yieldedToStep ? steppedStage : (composer !== undefined ? focusKickerKey : '')"
                      :stageRaw="yieldedToStep ? false : focusKickerRaw"
@@ -541,7 +541,7 @@ import {
 import {setConsoleActionRevealClaim, resetConsoleActionRevealClaim} from '@/client/console/consoleActionComposerUi';
 import {addShadeOwner, captureSurfaceDeparture, removeShadeOwner, surfaceMotionState} from '@/client/console/surfaceMotion/surfaceMotionState';
 import {carryAnchorsHome} from '@/client/console/surfaceMotion/surfaceMotionDirector';
-import {closeWorkspaceRoot, pushWorkspaceFrame, setWorkspaceFrameSubject, workspaceFrameHost, workspaceFrameIsOverlay, workspaceFrameKnown, workspaceFrameMounted, workspaceFramePhase, workspaceFrameStage, workspaceFrameSubject} from '@/client/console/consoleWorkspaceStack';
+import {closeWorkspaceRoot, pushWorkspaceFrame, setWorkspaceFrameSubject, workspaceFrameEmblem, workspaceFrameHost, workspaceFrameIsOverlay, workspaceFrameKnown, workspaceFrameMounted, workspaceFramePhase, workspaceFrameStage, workspaceFrameSubject, workspaceStackCrumb, workspaceStackRootKind} from '@/client/console/consoleWorkspaceStack';
 import {beginCardColonyTrade, clearCardColonyTrade, colonyStepCrumbParts} from '@/client/console/colonyTrade/colonyTradeEntry';
 import {beginCardDeltaAdvance} from '@/client/console/hydroFlow/deltaAdvanceEntry';
 import {reasonParams} from '@/client/cards/tagLabel';
@@ -761,6 +761,45 @@ export default defineComponent({
     repeatRequest() {
       return this.repeat ? consoleRepeatPickState.request : undefined;
     },
+    /**
+     * THE PICK'S CRUMB IS THE STACK'S — it is a STEP, not a screen of its own.
+     *
+     * The player reached it from inside a flow («ДЕЙСТВИЯ КАРТ › ШТОРМОВОЙ
+     * БАРЬЕР › ГИДРОСЕТЬ»), so the line must keep naming that flow and only
+     * GAIN the tail «ПОВТОР ДЕЙСТВИЯ»: the root and the carried card are the
+     * same words before and after the walk. Titling itself
+     * («ГИДРОСЕТЬ МАРСА › Повтор действия») is what made a step read as a
+     * lateral jump to a screen the player never asked for.
+     *
+     * The request's own `source` survives as the FALLBACK for the one case
+     * with nothing below it in the stack — a producer that never stood up a
+     * workspace at all.
+     */
+    repeatCrumb(): ReturnType<typeof workspaceStackCrumb> {
+      return this.repeat && workspaceFrameHost('repeat-pick') !== undefined ?
+        workspaceStackCrumb() : undefined;
+    },
+    repeatCrumbRoot(): string {
+      return this.repeatCrumb?.root ?? this.repeatRequest?.source.label ?? 'Repeat action';
+    },
+    /** The stack's own identity symbol — it belongs to the ROOT workspace and
+     *  may not change because a step opened (see the workspace-identity rule). */
+    repeatCrumbEmblem(): {emblem?: string, wheelAnchor?: string} {
+      const host = this.repeat ? workspaceStackRootKind() : undefined;
+      return host === undefined ? {} : workspaceFrameEmblem(host);
+    },
+    /** The carried object: the card the whole flow is about. */
+    repeatCrumbContext(): string {
+      const carried = this.repeatCrumb?.subject?.text;
+      if (carried !== undefined && carried !== '') {
+        return carried;
+      }
+      const request = this.repeatRequest;
+      if (request === undefined) {
+        return '';
+      }
+      return request.source.label !== undefined ? 'Repeat action' : request.source.card;
+    },
     /** The repeat availability: selectable candidates + used-this-gen (activation). */
     repeatAvailability(): RepeatAvailability | undefined {
       if (!this.repeat) {
@@ -872,8 +911,18 @@ export default defineComponent({
      * pushed as an OVERLAY frame of this stack. The workspace stays mounted
      * and keeps drawing its header (see `--yielded`); everything else lets go.
      */
+    /**
+     * ⚠️ ASKED OF THIS INSTANCE, not of the stack alone. «Has a step taken my
+     * screen?» is a GLOBAL question with a per-instance answer: the REPEAT
+     * browser is itself the step, so the very nesting that makes the action
+     * centre yield is the nesting that makes the pick VISIBLE. Reading the raw
+     * stack, the second instance dissolved its own body the moment it opened
+     * from inside a card's Hydronetwork advance — header, filters and counts
+     * intact over an empty band, with the grid it exists for unrendered.
+     */
     yieldedToStep(): boolean {
-      return workspaceFrameHost('hydro') === 'card-actions' && workspaceFrameIsOverlay('hydro');
+      return !this.repeat &&
+        workspaceFrameHost('hydro') === 'card-actions' && workspaceFrameIsOverlay('hydro');
     },
     /**
      * A CARRIED OBJECT IS COMING BACK THROUGH THIS BODY — suppress the

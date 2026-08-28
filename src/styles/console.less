@@ -5694,6 +5694,19 @@ html.console-mode body.placement-pending .board-outer-spaces > .board-space.boar
             animation: none;
             .gp-glyph { opacity: 0.4; }
         }
+        /* PENDING — the move is legal and this button LIVE, but it is not the
+           act in front of the player: the landed stage still owes its target,
+           and the pick row above owns that press. So the plate keeps its
+           affordance and gives up the PRIMARY register (the mint fill and the
+           breathing loop that reads as «press me»). Deliberately NOT
+           `--disabled`: advancing from here is a legal, deliberate move, and a
+           control that looks refused would say the opposite. */
+        &--pending {
+            background: rgba(14, 22, 33, 0.55);
+            box-shadow: inset 0 0 0 .05rem rgba(120, 150, 180, 0.32);
+            color: rgba(206, 224, 240, 0.74);
+            animation: none;
+        }
     }
     /* ── THE BONUS OFFER ────────────────────────────────────────────────
        A card is offering a move the player did not ask for. The zone reuses

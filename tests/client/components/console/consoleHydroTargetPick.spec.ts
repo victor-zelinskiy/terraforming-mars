@@ -41,6 +41,7 @@ type Vm = {
   planPickOffered: boolean,
   pickFizzled: boolean,
   waiveTargetNow: boolean,
+  ctaFocused: boolean,
   waivedNoteKey: string,
   model: {currentPosition: number, selectedPosition: number, mustSelectCard: boolean, canConfirm: boolean},
   selectPosition(position: number): void,
@@ -263,6 +264,54 @@ describe('the Hydronetwork landing-stage target pick', () => {
       // (The shell is what opens the commit record; the key is asserted off
       // the same landing the batch just declared.)
       expect(vm.model.selectedPosition).to.eq(7);
+      w.unmount();
+    });
+  });
+
+  describe('ONE act, ONE «A» — the commit recedes while the target is owed', () => {
+    it('the plan CTA drops both the glyph and the primary register', async () => {
+      seatPreview(6, {reuseActionCards: [REPEAT_CANDIDATE]});
+      const w = mountSection(6);
+      const vm = w.vm as unknown as Vm;
+      vm.selectPosition(7);
+      await w.vm.$nextTick();
+
+      // The cursor rests on the pick row, so the row wears the cap…
+      expect(vm.sceneFocus).to.eq('summary');
+      expect(w.find('.con-hydro__cta').classes(), 'the commit is not the primary act')
+        .to.include('con-hydro__cta--pending');
+      // …and the commit draws NO «A» of its own: two lit CTAs each claiming
+      // the same button is exactly what was reported.
+      expect(w.find('.con-hydro__cta').findAll('.gp-glyph, gamepad-glyph-stub'))
+        .to.have.length(0);
+      w.unmount();
+    });
+
+    it('…and takes the glyph back the moment the cursor stands on it', async () => {
+      seatPreview(6, {reuseActionCards: [REPEAT_CANDIDATE]});
+      const w = mountSection(6);
+      const vm = w.vm as unknown as Vm;
+      vm.selectPosition(7);
+      await w.vm.$nextTick();
+
+      vm.sceneFocus = 'track'; // ↑ off the row — the CTA is what A presses now
+      await w.vm.$nextTick();
+      expect(vm.ctaFocused).is.true;
+      // The register is keyed on the OWED TARGET, not on the cursor: the move
+      // is still not the act in front of the player.
+      expect(w.find('.con-hydro__cta').classes()).to.include('con-hydro__cta--pending');
+      w.unmount();
+    });
+
+    it('a stage that owes nothing keeps its ordinary primary CTA', async () => {
+      seatPreview(2);
+      const w = mountSection(2);
+      const vm = w.vm as unknown as Vm;
+      vm.selectPosition(3);
+      await w.vm.$nextTick();
+
+      expect(vm.ctaFocused).is.true;
+      expect(w.find('.con-hydro__cta').classes()).to.not.include('con-hydro__cta--pending');
       w.unmount();
     });
   });

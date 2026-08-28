@@ -355,7 +355,7 @@
            cut (this was the one workspace-band plate mounting with no entry
            at all) without touching the bridge semantics. -->
       <transition name="con-layer" appear>
-        <ConsoleCardActions v-if="repeatPickActive"
+        <ConsoleCardActions v-if="workspaceFrameRenders('repeat-pick')"
                             repeat
                             ref="repeatPick"
                             :playerView="playerView"
@@ -4818,6 +4818,11 @@ export default defineComponent({
     repeatPickActive(): boolean {
       return consoleRepeatPickState.active;
     },
+    /** The pick's own frame, as the STACK sees it — the witness that the step
+     *  is still standing (see the guard watcher of the same name). */
+    repeatPickFrameLive(): boolean {
+      return workspaceFrameKnown('repeat-pick');
+    },
     /** The hand section is in EITHER select mode — the server `handSelect`
      *  task OR a client composer pick. One UI, two sources. */
     handSelectUiActive(): boolean {
@@ -7479,6 +7484,22 @@ export default defineComponent({
     repeatPickActive(active: boolean) {
       if (!active && this.hydroFlow.repeatBridge) {
         setHydroRepeatBridge(false);
+      }
+    },
+    /**
+     * …AND THE CONVERSE: the flag may never outlive the FRAME either.
+     *
+     * The pick's flag is what hides the surfaces underneath it
+     * (`pickBridgeActive`), so a stack unwound by somebody else — a lateral
+     * move, a flow that finished, a restore — would leave the source hidden
+     * behind a browser that is no longer rendered: a blank band with a live
+     * command bar, recoverable only by reload. Cancelling is the honest answer
+     * (the source comes back with its captures and its old pick intact), and it
+     * is idempotent.
+     */
+    repeatPickFrameLive(live: boolean) {
+      if (!live && consoleRepeatPickState.active) {
+        cancelConsoleRepeatPick();
       }
     },
     // THE RECOVERY NET: the SERVER phase drives the flow when the glide
@@ -11509,12 +11530,14 @@ export default defineComponent({
           setHydroRepeatBridge(false);
         });
       };
-      const section = this.$refs.hydroSection as InstanceType<typeof ConsoleHydroSection> | undefined;
-      if (section === undefined || section === null) {
-        openBridge();
-        return;
-      }
-      section.playBridgeHandoff(openBridge);
+      // NO POSE-AND-HEAL HANDOFF. The step is a FRAME now: the track wears
+      // `--yielded` for exactly as long as that frame stands inside it (derived
+      // state — it cannot survive the pick), and the browser's own entrance
+      // carries the arrival. The old release tween dimmed the track's layers to
+      // 12 % and depended on a return tween to undo it; a return that did not
+      // land left the workspace on screen and dead, which is precisely what B
+      // out of the pick used to produce.
+      openBridge();
     },
     useStandardProject(cardName: CardName): void {
       const action = this.standardProjectsAction;

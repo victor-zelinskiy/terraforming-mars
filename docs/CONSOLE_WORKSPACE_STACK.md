@@ -145,8 +145,34 @@ workspace ends up waiting on a beat nobody will play. A spec fences it.
 `WORKSPACE_KINDS` holds, per workspace: the crumb root (an existing i18n key), the DOM root
 (the leak detector's presence probe), the projection onto `section`/`sheet`, and the default
 `serves`. Rows today: `card-actions`, `hand`, `colonies`, `hydro`, `start`, `draft`,
-`standard-projects`, `milestones`, `awards`. (`hydro-pick` is gone — the hydro workspace's
-own embedded target step replaced the flat pick sheet.)
+`standard-projects`, `milestones`, `awards`, `repeat-pick`, `endgame`. (`hydro-pick` is gone
+— the hydro workspace's own embedded target step replaced the flat pick sheet.)
+
+**`repeat-pick` is the action centre's chassis as a SECOND kind** (the milestones/awards
+precedent: one `rootSelector`, two screens), and it is the row that closed a class of bug
+rather than adding a screen. «Choose an already-activated action to copy» is always a STEP
+inside the flow that asked — a card's Hydronetwork advance, Viron, «Проверка проекта» — and
+while it lived as a bare neighbour on a module flag it had none of the contract:
+
+* it **titled itself** «ГИДРОСЕТЬ МАРСА › Повтор действия», so a step read as a lateral jump;
+* its host was handed the screen by a *pose-and-heal* pair (a GSAP release dimming the track's
+  layers to 12 %, a return tween undoing it) — and a return that did not land left the
+  workspace on screen and DEAD: a readable crumb over a ghost body;
+* and, decisively, the second `ConsoleCardActions` asked the GLOBAL stack «has a step taken my
+  screen?». Inside a card-entry advance the answer is yes — the hydro frame IS nested in
+  card-actions — so the browser **dissolved its own body**: header, filters and
+  «3 всего / 1 можно выбрать» over an empty band, with the grid it exists for unrendered.
+
+As a frame it gets the crumb («ДЕЙСТВИЯ КАРТ › ШТОРМОВОЙ БАРЬЕР › ПОВТОР ДЕЙСТВИЯ» — the root
+and the carried card come from the frames below, so the line only ever gains a tail), «B pops
+exactly one level», and a swap that is PRESENCE rather than a pose. It is `overlay: true` (the
+sanctioned pick-bridge case: it needs the whole band and has no zone to wait for), the bridge
+itself pushes and pops it so all three producers are covered at once, and the shell holds the
+converse guard — a flag that outlives its frame would leave the source hidden behind a browser
+that is no longer rendered. **The per-instance lesson generalises: «has a step taken my screen?»
+is a question about the stack whose answer depends on WHO IS ASKING** — the surface that IS the
+step can never be the surface that yielded to it. Guard:
+`tests/client/components/console/consoleRepeatPickFrame.spec.ts`.
 
 Three things are deliberately **not** in the registry because they are genuinely not constant
 per kind: `serves` at runtime (a frame earns and loses prompts — an action only serves a card

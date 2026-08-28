@@ -99,6 +99,22 @@ export type WorkspaceFrameKind =
   /** «ВЕХИ» / «НАГРАДЫ» — the premium MA screen, one kind each. */
   | 'milestones'
   | 'awards'
+  /**
+   * «ПОВТОР ДЕЙСТВИЯ» — the action centre reused to pick an ALREADY-ACTIVATED
+   * action to copy (Viron, «Проверка проекта», the Hydronetwork's stage 7).
+   *
+   * A KIND OF ITS OWN even though it shares the card centre's chassis, for the
+   * same reason milestones and awards are two kinds on one root: to the player
+   * it is a different screen, and — decisively — it is always a STEP INSIDE
+   * the flow that asked for it. As a frame it inherits the whole contract for
+   * free: the crumb reads the stack («ДЕЙСТВИЯ КАРТ › ШТОРМОВОЙ БАРЬЕР ›
+   * ПОВТОР ДЕЙСТВИЯ»), B pops exactly one level, and its host cannot fold
+   * under it. While it was a bare neighbour on a module flag it had none of
+   * those: it titled itself, its host stayed posed mid-handoff, and the second
+   * `ConsoleCardActions` answered «has a step taken my screen?» with the
+   * GLOBAL stack — so the browser dissolved its own body.
+   */
+  | 'repeat-pick'
   /** «ФИНАЛЬНЫЙ ПОДСЧЁТ» — the post-game scoring ceremony + action list. */
   | 'endgame';
 
@@ -250,6 +266,15 @@ const WORKSPACE_KINDS: Record<WorkspaceFrameKind, WorkspaceKindSpec> = {
   // it IS the post-game (the ceremony, the ranking, the action list), owns the
   // screen outright and projects onto neither navigation axis. It serves no
   // prompt: at Phase.END the transport is down and nothing is ever owed.
+  // The repeat pick shares the action centre's DOM root (one chassis, two
+  // screens — the milestones/awards precedent) and its sheet projection: what
+  // the player is looking at IS a card-actions-shaped surface, so the axis
+  // must say so, or the command bar and the input router disagree with the
+  // screen. It never hosts and never serves: it is a pure client PICK.
+  'repeat-pick': {
+    root: 'Repeat action', rootSelector: '.con-cardactions', sheet: 'cardActions',
+    serves: [],
+  },
   'endgame': {
     root: 'Final scoring', rootSelector: '.con-endgame',
     serves: [],
@@ -652,6 +677,18 @@ export function workspaceStackCrumb(): {
 /** The root i18n key for a kind (hosts that draw their own head read this). */
 export function workspaceFrameRoot(kind: WorkspaceFrameKind): string {
   return WORKSPACE_KINDS[kind].root;
+}
+
+/**
+ * The OUTERMOST frame's kind — what the whole chain is a flow of.
+ *
+ * A nested step draws the identity symbol of the workspace it belongs to, and
+ * that symbol belongs to the PARENT: it must be the same box, in the same
+ * place, before and after the step opened. Asking the stack for its root is
+ * the only way to get that without every step naming its possible hosts.
+ */
+export function workspaceStackRootKind(): WorkspaceFrameKind | undefined {
+  return workspaceStackState.frames[0]?.kind;
 }
 
 /** The identity symbol of a kind's parent anchor (+ its wheel anchor id). */

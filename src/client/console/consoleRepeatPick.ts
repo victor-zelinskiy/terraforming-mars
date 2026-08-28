@@ -26,6 +26,7 @@
 
 import {reactive} from 'vue';
 import {CardName} from '@/common/cards/CardName';
+import {popWorkspaceFrame, pushWorkspaceFrame, workspaceStackTop} from '@/client/console/consoleWorkspaceStack';
 import {Message} from '@/common/logs/Message';
 import {RepeatComposed} from '@/client/console/consoleActionComposer';
 import {resetConsoleRepeatPickFilter} from '@/client/console/consoleRepeatPickUi';
@@ -91,6 +92,37 @@ export function enterConsoleRepeatPick(
   resolveCb = onResolve;
   cancelCb = onCancel;
   consoleRepeatPickState.active = true;
+  // …AND IT IS A STEP OF THE FLOW THAT ASKED, so it stands in the STACK.
+  // `overlay` is the sanctioned exception the contract already names (this
+  // IS the client pick bridge): the browser needs the whole band and has no
+  // zone to wait for, so it must not be held off screen. Everything else — the
+  // continuous crumb, «B pops one level», «a host may not fold under a live
+  // step» — then follows from the stack instead of from per-case wiring.
+  pushWorkspaceFrame({
+    kind: 'repeat-pick',
+    subject: '',
+    // The stage segment the crumb's tail advances to. The root and the carried
+    // card come from the frames BELOW, so the line only ever gains a tail.
+    stage: 'Repeat action',
+    phase: 'configure',
+    serves: [],
+    anchor: {type: 'always'},
+    overlay: true,
+  });
+}
+
+/**
+ * Pop the pick's own frame — and ONLY when it is the frame on top.
+ *
+ * Every exit routes through here (resolve · cancel · a hard teardown), so the
+ * flag and the frame can never disagree. The guard is what makes a hard reset
+ * safe: a game switch clears the whole stack on its own, and popping blindly
+ * would then take a frame belonging to somebody else.
+ */
+function popRepeatPickFrame(): void {
+  if (workspaceStackTop()?.kind === 'repeat-pick') {
+    popWorkspaceFrame();
+  }
 }
 
 /** Deliver the composed repeat to the waiting source surface. */
@@ -115,6 +147,7 @@ export function cancelConsoleRepeatPick(): void {
 
 /** Hard reset (game switch / shell unmount) — fires NO callbacks. */
 export function resetConsoleRepeatPick(): void {
+  popRepeatPickFrame();
   consoleRepeatPickState.active = false;
   consoleRepeatPickState.request = undefined;
   resolveCb = undefined;

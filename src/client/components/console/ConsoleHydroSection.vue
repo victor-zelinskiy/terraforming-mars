@@ -238,11 +238,21 @@
 
               <!-- CTA / the specific reasons — never a bare «недоступно». -->
               <div class="con-hydro__ctazone" data-unfold-item>
+                <!-- THE PRIMARY PULL BELONGS TO THE PRIMARY ACT, and the glyph
+                     FOLLOWS THE CURSOR. While the landed stage still owes its
+                     target, the pick row above is the act: this commit recedes
+                     to a calm plate, gives up the «press me» breathing, and
+                     wears the «A» only where the cursor actually stands. Two
+                     lit CTAs both claiming the same button is the report this
+                     answers. -->
                 <button v-if="primaryVerb !== 'blocked'" type="button"
                         class="con-hydro__cta"
-                        :class="{'con-hydro__cta--configure': primaryVerb !== 'reinforce'}"
+                        :class="{
+                          'con-hydro__cta--configure': primaryVerb !== 'reinforce',
+                          'con-hydro__cta--pending': planPickMissing,
+                        }"
                         @click="onPrimary">
-                  <GamepadGlyph control="confirm" />
+                  <GamepadGlyph v-if="ctaFocused" control="confirm" />
                   <span>{{ $t(primaryLabel) }}</span>
                 </button>
                 <template v-else>
@@ -717,7 +727,7 @@ import {
 import {buildHydroTargetModel, hydroPresentedTargetModel} from '@/client/console/hydroFlow/hydroTargetStep';
 import {
   HydroCeremonyHandle, armHydroSceneOrigin, hydroSceneCancelledHook, hydroSceneEnterHook,
-  hydroSceneLeaveHook, playHydroBridgeRelease, playHydroBridgeReturn, runHydroCeremony,
+  hydroSceneLeaveHook, playHydroBridgeReturn, runHydroCeremony,
 } from '@/client/console/hydroFlow/consoleHydroFlowMotion';
 import {
   PlayedTargetCell, PlayedTargetFocus, PlayedTargetLayout, PlayedTargetModel, PlayedTargetNavDir,
@@ -1470,6 +1480,12 @@ export default defineComponent({
     primaryLabel(): string {
       return this.primaryVerb === 'choose-reward' ? 'Choose a reward' : 'Reinforce the hydronetwork';
     },
+    /** Is the COMMIT what A would press right now? On the plan layer the cursor
+     *  stands either on the pre-select row or on everything else, and only the
+     *  focused affordance may wear the cap (the quick wheel's own rule). */
+    ctaFocused(): boolean {
+      return this.sceneFocus !== 'summary';
+    },
     commitCaption(): string {
       const c = this.flow.commit;
       if (c === undefined) {
@@ -1830,11 +1846,16 @@ export default defineComponent({
       this.maybeStartCeremony(this.markerSettled);
     },
     // THE NESTED FULL-SCENE STEP (position 7's repeat browser) takes the
-    // whole band, so this workspace hands the screen over and TAKES IT BACK
-    // — never sits lit underneath. The release runs before the bridge opens
-    // (see playBridgeHandoff); this is the return half, one tick after the
-    // host has made us visible again (a tween on a hidden element lands as
-    // a pop).
+    // whole band; this workspace is hidden for its length and comes back when
+    // the step's FRAME pops.
+    //
+    // ⚠️ NOTHING POSES THIS SURFACE ANY MORE. The step used to be handed the
+    // screen by a release tween (the track's own layers down to 12 %) that a
+    // return tween had to undo — and a return that did not land left the
+    // workspace ON SCREEN AND DEAD: a readable crumb over a ghost body with no
+    // way forward. The step is a stack FRAME now, so the swap is PRESENCE, not
+    // a pose. This heal stays as the one-line insurance that an episode left
+    // over from an older build (or a killed tween) cannot survive the return.
     'flow.repeatBridge'(on: boolean): void {
       if (!on) {
         void this.$nextTick(() => {
@@ -2031,18 +2052,6 @@ export default defineComponent({
         return 'card-resource card-resource-animal';
       }
       return l.resource !== undefined ? iconClassFor(l.resource) : '';
-    },
-    /**
-     * HAND THE SCREEN to a nested full-scene step (the shell calls this
-     * before opening the repeat browser). The workspace releases, and the
-     * bridge opens on the settle — so the two surfaces are never both lit.
-     */
-    playBridgeHandoff(open: () => void): void {
-      if (this.reducedMotion === true) {
-        open();
-        return;
-      }
-      playHydroBridgeRelease(this.$refs.rootEl as HTMLElement | undefined, open);
     },
     /** The panel-body RETUNE — the content breathes through a stop change
      *  while the panel frame stands still. GSAP owns the overlap semantics:
