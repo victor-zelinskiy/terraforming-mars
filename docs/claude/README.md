@@ -29,6 +29,7 @@ Nothing was thrown away: every character of the old file is either in `CLAUDE.md
 | `premium-tooltips.md` | the full tooltip rationale + adopter list |
 | `start-game-flow.md` | touching the generation-1 orchestration modal |
 | `rematch-flow.md` | touching the end-of-game rematch subsystem |
+| `my-games-lobby.md` | touching «Мои партии», the game listing endpoint, LAN host discovery or the realtime LOBBY room — the lobby index, the push channel and the one client model that owns the screen |
 | `desktop-ui/deprecation-and-update-model.md` | the full desktop-freeze rationale + the no-remount/structural-sharing/motion rework |
 | `desktop-ui/action-ui-rework-and-philosophy.md` | the dedicated-button migration contract + modal philosophy |
 | `desktop-ui/overlay-played-cards.md` | the РАЗЫГРАНО tableau, fit planner, pick-mode |

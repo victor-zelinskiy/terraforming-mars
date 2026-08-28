@@ -214,6 +214,16 @@ probes its addresses (first `api/games/joinable?name=<myName>` to answer wins) �
 returned player id to that host's endpoint + navigate to `player?id=...`. A version mismatch
 between guest and host renders a warning (soft block in v1).
 
+⚠️ **Discovery only says WHO is there — the listing is its own subsystem.**
+`lanState.ts` is hosts (mDNS + manual entries); `lobbyState.ts` treats each host as one
+SOURCE beside this device's own server, with its own status, its own race-guarded refresh
+and its own realtime **LOBBY** channel (`SUBSCRIBE_LOBBY` on the host's `/ws`, which pushes
+«the set of games here changed»). The probe races all of a host's addresses in parallel with
+a 6 s budget, and a host that answers slowly or not at all is reported as such — never as
+«that couch has no games». The host side answers from an in-memory index rather than by
+deserializing its whole library, which is what used to blow the guest's probe budget.
+Full write-up: `docs/claude/my-games-lobby.md`.
+
 **Settings row** («Настройки» → `ConsoleOptionsPanel`): «Сервер партий» — Локальный / Удалённый
 (+ subtitle: applies after relaunch). Persisted via the desktop bridge into the session store.
 
