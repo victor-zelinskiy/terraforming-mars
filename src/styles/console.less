@@ -3923,6 +3923,13 @@ each(@players, {
         @s: extract(@value, 2);
         &__medal.tag-@{n} { --tag-face-scale: @s; }
     });
+    /* The NO-TAGS counter's medallion (tag-none.png, the same premium disc the
+       cards print) — seated by the rules above, with its OWN measured fill:
+       640 / 596px alpha bbox = 1.067, plus the family's hair of over-fill so
+       the ring lands AT the box edge rather than a gap inside it.
+       Deliberately not an @tag-fill entry: that map is the 17 printed tags and
+       also drives the card surfaces, where this marker stays unseated. */
+    &__medal--none { --tag-face-scale: 1.07; }
 
     &__numwrap {
         position: relative;   /* the tag delta-chip anchor */

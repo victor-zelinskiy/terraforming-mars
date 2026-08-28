@@ -172,6 +172,9 @@ function seedRevealBaselines(numbers: StartSetupOverride): void {
     const value = staged !== undefined ? (staged[tag] ?? 0) : (finalTags[tag] ?? 0);
     changeFeedbackManager.setBaseline(scope, `tag.${tag}`, value);
   }
+  // The no-tag counter rides the same rule, and its key is NOT in `finalTags`
+  // (no deck prints the absence of a tag) — so it is seeded explicitly.
+  changeFeedbackManager.setBaseline(scope, 'tag.none', numbers.noTagsCount ?? event.finalNoTags);
 }
 
 /**

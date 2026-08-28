@@ -53,12 +53,15 @@ export type LobbyChannelHandle = {
 };
 
 type Listener = (revision: number) => void;
+/** «This channel's ability to carry pushes changed» — connect / drop / reject. */
+type HealthListener = () => void;
 
 type Channel = {
   wsBase: string;
   socket: WebSocket | undefined;
   status: LobbyChannelStatus;
   listeners: Set<Listener>;
+  healthListeners: Set<HealthListener>;
   subscribed: boolean;
   /** Highest revision this channel has seen (resume cursor on reconnect). */
   revision: number | undefined;
@@ -135,6 +138,7 @@ function onMessage(channel: Channel, raw: string): void {
     channel.subscribed = true;
     channel.lastPongAt = now();
     channel.revision = message.revision;
+    notifyHealth(channel);
     break;
   case ServerMessageType.LOBBY_INVALIDATED:
     channel.lastPongAt = now();
@@ -148,12 +152,14 @@ function onMessage(channel: Channel, raw: string): void {
       channel.unsupported = true;
       channel.status = 'unsupported';
       closeSocket(channel);
+      notifyHealth(channel);
     }
     break;
   case ServerMessageType.PROTOCOL_INCOMPATIBLE:
     channel.unsupported = true;
     channel.status = 'unsupported';
     closeSocket(channel);
+    notifyHealth(channel);
     break;
   default:
     break;
@@ -166,6 +172,22 @@ function notify(channel: Channel, revision: number): void {
       listener(revision);
     } catch (err) {
       console.warn('lobbyChannel: listener failed', err);
+    }
+  }
+}
+
+/**
+ * Announce a health TRANSITION. Without this the owner only re-evaluates health
+ * when its own poll fires, so a channel that dropped under a long (healthy)
+ * interval would keep that interval for up to the whole period — the one window
+ * where the fallback is needed most.
+ */
+function notifyHealth(channel: Channel): void {
+  for (const listener of [...channel.healthListeners]) {
+    try {
+      listener();
+    } catch (err) {
+      console.warn('lobbyChannel: health listener failed', err);
     }
   }
 }
@@ -227,10 +249,14 @@ function connect(channel: Channel): void {
     if (channel.socket !== socket) {
       return;
     }
+    const wasCarrying = channel.subscribed;
     channel.socket = undefined;
     channel.subscribed = false;
     clearTimers(channel);
     scheduleReconnect(channel);
+    if (wasCarrying) {
+      notifyHealth(channel);
+    }
   };
 }
 
@@ -246,7 +272,7 @@ function destroy(channel: Channel): void {
  * Safe to call for a base that has no realtime gateway — it simply never
  * becomes healthy, and the caller's fallback poll stays in charge.
  */
-export function openLobbyChannel(wsBase: string, onInvalidate: Listener): LobbyChannelHandle {
+export function openLobbyChannel(wsBase: string, onInvalidate: Listener, onHealthChange?: HealthListener): LobbyChannelHandle {
   if (!realtimeClientEnabled() || wsBase === '') {
     return {close: () => {}};
   }
@@ -257,6 +283,7 @@ export function openLobbyChannel(wsBase: string, onInvalidate: Listener): LobbyC
       socket: undefined,
       status: 'connecting',
       listeners: new Set(),
+      healthListeners: new Set(),
       subscribed: false,
       revision: undefined,
       lastPongAt: undefined,
@@ -271,6 +298,9 @@ export function openLobbyChannel(wsBase: string, onInvalidate: Listener): LobbyC
   }
   const owner = channel;
   owner.listeners.add(onInvalidate);
+  if (onHealthChange !== undefined) {
+    owner.healthListeners.add(onHealthChange);
+  }
   let released = false;
   return {
     close: () => {
@@ -279,6 +309,9 @@ export function openLobbyChannel(wsBase: string, onInvalidate: Listener): LobbyC
       }
       released = true;
       owner.listeners.delete(onInvalidate);
+      if (onHealthChange !== undefined) {
+        owner.healthListeners.delete(onHealthChange);
+      }
       if (owner.listeners.size === 0) {
         destroy(owner);
       }

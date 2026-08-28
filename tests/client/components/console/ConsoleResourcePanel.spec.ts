@@ -5,14 +5,16 @@ import ConsoleResourcePanel from '@/client/components/console/ConsoleResourcePan
 import {PublicPlayerModel} from '@/common/models/PlayerModel';
 import {Tag} from '@/common/cards/Tag';
 import {CardName} from '@/common/cards/CardName';
-import {CONSOLE_TAG_ORDER} from '@/client/components/console/consoleTagMatrix';
+import {CONSOLE_TAG_ORDER, NO_TAG_CELL} from '@/client/components/console/consoleTagMatrix';
 import {privateScoreState} from '@/client/components/overview/privateScoreState';
 
 const BASE_GAME_TAGS: ReadonlyArray<Tag> = [
   Tag.BUILDING, Tag.SPACE, Tag.SCIENCE, Tag.POWER, Tag.EARTH, Tag.JOVIAN,
   Tag.PLANT, Tag.MICROBE, Tag.ANIMAL, Tag.CITY,
 ];
-const ALL_PRINTED: ReadonlyArray<Tag> = CONSOLE_TAG_ORDER.filter((t) => t !== Tag.EVENT);
+/** Every cell a DECK can print — the order minus the two deck-less counters. */
+const ALL_PRINTED: ReadonlyArray<Tag> =
+  CONSOLE_TAG_ORDER.filter((t): t is Tag => t !== Tag.EVENT && t !== NO_TAG_CELL);
 
 const NO_PROTECTION = {megacredits: 'off', steel: 'off', titanium: 'off', plants: 'off', energy: 'off', heat: 'off'} as const;
 
@@ -35,15 +37,17 @@ function fakePlayer(tags: Partial<Record<Tag, number>> = {}, extra: Partial<Reco
     terraformRating: 20,
     victoryPointsBreakdown: {total: 20},
     tags,
+    noTagsCount: 0,
     tableau: [],
     ...extra,
   } as unknown as PublicPlayerModel;
 }
 
-function mountWith(tags: Partial<Record<Tag, number>>, gameTags: ReadonlyArray<Tag> = BASE_GAME_TAGS) {
+function mountWith(tags: Partial<Record<Tag, number>>, gameTags: ReadonlyArray<Tag> = BASE_GAME_TAGS,
+  extra: Partial<Record<string, unknown>> = {}) {
   return mount(ConsoleResourcePanel, {
     global: globalConfig.global,
-    props: {player: fakePlayer(tags), gameTags: gameTags as Array<Tag>},
+    props: {player: fakePlayer(tags, extra), gameTags: gameTags as Array<Tag>},
   });
 }
 
@@ -53,7 +57,7 @@ const cellTags = (w: ReturnType<typeof mountWith>) =>
 describe('ConsoleResourcePanel — МЕТКИ tag matrix', () => {
   it('renders EVERY available tag, zeros included and visible', () => {
     const w = mountWith({[Tag.BUILDING]: 2} as Partial<Record<Tag, number>>);
-    expect(cellTags(w)).to.have.length(11); // 10 base printed + events
+    expect(cellTags(w)).to.have.length(12); // 10 base printed + events + no-tags
     const zero = w.find('[data-tag-cell="space"]');
     expect(zero.exists()).to.be.true;
     expect(zero.find('.con-tagmx__num').text()).to.eq('0');
@@ -70,7 +74,7 @@ describe('ConsoleResourcePanel — МЕТКИ tag matrix', () => {
     const busy = cellTags(mountWith({[Tag.CITY]: 9, [Tag.JOVIAN]: 3} as Partial<Record<Tag, number>>));
     expect(busy).to.deep.eq(zeroes);
     expect(zeroes[0]).to.eq('building');
-    expect(zeroes[zeroes.length - 1]).to.eq('event');
+    expect(zeroes[zeroes.length - 1]).to.eq('none');
   });
 
   it('a game without an expansion never grows its tags; a full pool shows them all', () => {
@@ -86,6 +90,7 @@ describe('ConsoleResourcePanel — МЕТКИ tag matrix', () => {
     const tags = cellTags(w);
     expect(tags).to.include('building');
     expect(tags).to.include('event');
+    expect(tags).to.include('none');
     expect(tags).to.not.include('moon');
   });
 
@@ -105,6 +110,36 @@ describe('ConsoleResourcePanel — МЕТКИ tag matrix', () => {
     const w = mountWith({[Tag.EARTH]: 12, [Tag.PLANT]: 132} as Partial<Record<Tag, number>>);
     expect(w.find('[data-tag-cell="earth"] .con-tagmx__num').text()).to.eq('12');
     expect(w.find('[data-tag-cell="plant"] .con-tagmx__num').text()).to.eq('132');
+  });
+
+  /*
+   * The no-tags counter — the one cell that counts the ABSENCE of a tag. It
+   * rides its own server field, seats the printed medallion itself (not
+   * Tag.vue), and otherwise behaves exactly like every other cell.
+   */
+  it('the no-tags cell reads the server count, not the tag map', () => {
+    const w = mountWith({[Tag.BUILDING]: 2} as Partial<Record<Tag, number>>, BASE_GAME_TAGS, {noTagsCount: 3});
+    const cell = w.find('[data-tag-cell="none"]');
+    expect(cell.exists()).to.be.true;
+    expect(cell.find('.con-tagmx__num').text()).to.eq('3');
+    expect(cell.classes()).to.not.include('con-tagmx__cell--zero');
+  });
+
+  it('the no-tags cell dims at 0 like any other, and never renders a Tag medallion', () => {
+    const w = mountWith({}, BASE_GAME_TAGS, {noTagsCount: 0});
+    const cell = w.find('[data-tag-cell="none"]');
+    expect(cell.classes()).to.include('con-tagmx__cell--zero');
+    expect(cell.find('.con-tagmx__num').text()).to.eq('0');
+    // The medallion is the shared `.tag-count` chassis + the no-tags face.
+    const medal = cell.find('.con-tagmx__medal');
+    expect(medal.classes()).to.include('tag-count');
+    expect(medal.classes()).to.include('tag-none');
+    expect(medal.classes()).to.include('con-tagmx__medal--none');
+  });
+
+  it('an absent noTagsCount (legacy model) reads 0 rather than blank', () => {
+    const w = mountWith({}, BASE_GAME_TAGS, {noTagsCount: undefined});
+    expect(w.find('[data-tag-cell="none"] .con-tagmx__num').text()).to.eq('0');
   });
 });
 

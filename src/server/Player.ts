@@ -18,6 +18,7 @@ import {ICard, isIActionCard, IActionCard} from './cards/ICard';
 import {IMilestone} from './milestones/IMilestone';
 import {IProjectCard} from './cards/IProjectCard';
 import {OrOptions} from './inputs/OrOptions';
+import {clearBatchTail} from './inputs/deferredInputBatch';
 import {PartyHooks} from './turmoil/parties/PartyHooks';
 import {PartyName} from '../common/turmoil/PartyName';
 import {Phase} from '../common/Phase';
@@ -2239,6 +2240,13 @@ export class Player implements IPlayer {
       game.deferredActions.runAll(() => this.takeAction());
       return;
     }
+
+    // The action is FULLY RESOLVED here (the deferred queue drained above), so a
+    // pre-collected batch response that never found its prompt has expired: it
+    // was an answer to a question THIS action was going to ask, and it must not
+    // be able to land on one the next action asks. See
+    // `inputs/deferredInputBatch.ts`.
+    clearBatchTail(this);
 
     // Signal that game state advanced so OTHER players' (and spectators')
     // clients refresh promptly. `gameAge` is the change-detector the

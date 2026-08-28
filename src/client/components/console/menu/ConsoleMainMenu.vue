@@ -545,13 +545,18 @@ export default defineComponent({
           ];
         }
         const cursorLocal = this.gamesCursor < this.localRows.length ? this.localRows[this.gamesCursor] : undefined;
-        const row = cursorLocal ?? this.visibleLanRows[this.gamesCursor - this.localRows.length]?.game;
+        const lanRow = cursorLocal === undefined ? this.visibleLanRows[this.gamesCursor - this.localRows.length] : undefined;
+        const row = cursorLocal ?? lanRow?.game;
+        // A row whose host has gone quiet stays LISTED (the game exists) but the
+        // verb must not offer to enter it — the navigation would land on a
+        // curtain that never lifts.
+        const enterable = row !== undefined && this.joinable(row) && lanRow?.stale !== true;
         const archive = this.gamesTab === 'finished';
         const bar: Array<ConsoleCommand> = [
           {control: 'dpad', label: 'Navigate'},
           // A finished row is opened to READ it — the verb says so, since the
           // press leads to the settled final scoring, not into a turn.
-          {control: 'confirm', label: archive ? 'Open the results' : 'Enter game', enabled: row !== undefined && this.joinable(row), highlight: row !== undefined && this.yourTurn(row)},
+          {control: 'confirm', label: archive ? 'Open the results' : 'Enter game', enabled: enterable, highlight: enterable && this.yourTurn(row)},
           {control: 'stickL', label: archive ? 'Active games' : 'Finished games'},
           {control: 'triggerR', label: 'Refresh', enabled: !this.lobbyState.refreshing},
         ];

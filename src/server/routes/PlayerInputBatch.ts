@@ -3,9 +3,7 @@ import {IPlayer} from '../IPlayer';
 import {Server} from '../models/ServerModel';
 import {Handler} from './Handler';
 import {Context} from './IHandler';
-import {InputResponse, isOrOptionsResponse} from '../../common/inputs/InputResponse';
-import {PlayerInput} from '../PlayerInput';
-import {OrOptions} from '../inputs/OrOptions';
+import {InputResponse} from '../../common/inputs/InputResponse';
 import {isPlayerId} from '../../common/Types';
 import {Request} from '../Request';
 import {Response} from '../Response';
@@ -15,6 +13,7 @@ import {statusCode} from '../../common/http/statusCode';
 import {InputError} from '../inputs/InputError';
 import {isIProjectCard} from '../cards/IProjectCard';
 import {AppErrorResponse, INVALID_RUN_ID} from '../../common/app/AppErrorId';
+import {replayBatch} from '../inputs/deferredInputBatch';
 
 /**
  * Submits an ORDERED ARRAY of input responses in one request — the mechanism
@@ -25,49 +24,17 @@ import {AppErrorResponse, INVALID_RUN_ID} from '../../common/app/AppErrorId';
  * The confirm modal collected every step up front, so the player sees no
  * follow-up modal spam.
  *
- * GRACEFUL FALLBACK: each `player.process` validates server-side and restores
- * its `waitingFor` on failure. If a LATER response doesn't match the live
- * `waitingFor` (state drifted from the preview, or a step we couldn't pre-collect
- * — e.g. board placement / payment), the loop stops and returns the current
- * model; the leftover `waitingFor` renders through the existing client routing
- * (PlacementBanner / modal). The FIRST response failing (the action pick itself)
- * is a real error and is rethrown. This route never mutates beyond what the same
- * responses would do one-at-a-time through `PlayerInput`.
+ * The replay itself — including what happens to a response whose prompt has not
+ * been asked yet — lives in `inputs/deferredInputBatch.ts`, because the SINGLE
+ * input route shares it: a prompt that jumps ahead of the card's own on-play
+ * input (Olympus Conference &c.) must not throw the player's pre-collected
+ * answer away. This route never mutates beyond what the same responses would do
+ * one-at-a-time through `PlayerInput`.
  */
 
-/**
- * Reconcile a PRE-COLLECTED batch response with the input ACTUALLY waiting.
- *
- * The action-preview batch is assembled from a preview whose branches model a
- * card's `action()` as an OrOptions (each branch is given a runtime OR index).
- * But a card's `action()` COLLAPSES a multi-branch OrOptions to a BARE input at
- * runtime when only ONE branch is live — e.g. Factorum returns the bare
- * "Spend 3 M€ to draw a building card" SelectOption (not an OrOptions) once the
- * player already has energy. The pre-collected `{type:'or', index, response}`
- * then can't process against the bare input: the batch stops and the bare input
- * surfaces as a REDUNDANT follow-up modal, right after the player confirmed.
- *
- * This reconciles the wrap/no-wrap ambiguity WITHOUT changing any game logic —
- * it only reshapes the pre-collected response to the live input:
- *  - an OR-wrapped response against a NON-OrOptions input → UNWRAP to the inner
- *    response (the server already picked the sole live option; the OR index is
- *    irrelevant, only the inner response matters);
- *  - a bare response against a SINGLE-option OrOptions → WRAP it (index 0).
- * Every OTHER mismatch is a genuine divergence and is left to fail, so the
- * batch's graceful fallback still surfaces the real leftover prompt.
- *
- * Affects BOTH platforms (desktop `submitCardActionBatch` + console composer
- * both post here). Pure + unit-tested (tests/routes/PlayerInputBatch.spec.ts).
- */
-export function reconcileBatchResponse(response: InputResponse, input: PlayerInput): InputResponse {
-  if (input.type !== 'or' && isOrOptionsResponse(response)) {
-    return response.response;
-  }
-  if (input.type === 'or' && !isOrOptionsResponse(response) && (input as OrOptions).options.length === 1) {
-    return {type: 'or', index: 0, response};
-  }
-  return response;
-}
+// Historic import site — `reconcileBatchResponse` now lives beside the replay
+// it belongs to. Re-exported so the route stays the documented entry point.
+export {reconcileBatchResponse} from '../inputs/deferredInputBatch';
 
 export class PlayerInputBatch extends Handler {
   public static readonly INSTANCE = new PlayerInputBatch();
@@ -123,25 +90,7 @@ export class PlayerInputBatch extends Handler {
           const entity = JSON.parse(body);
           validateRunId(entity);
           const inputResponses: ReadonlyArray<InputResponse> = Array.isArray(entity.responses) ? entity.responses : [];
-          for (let i = 0; i < inputResponses.length; i++) {
-            const waitingFor = player.getWaitingFor();
-            if (waitingFor === undefined) {
-              // The action already fully resolved server-side (e.g. an
-              // auto-selected single branch with no further steps). Stop.
-              break;
-            }
-            try {
-              // Reshape a pre-collected OR-wrapper to the live input shape when
-              // the card's action() collapsed to a bare input (Factorum &c.),
-              // so the confirmed step lands instead of popping a redundant modal.
-              player.process(reconcileBatchResponse(inputResponses[i], waitingFor));
-            } catch (e) {
-              if (i === 0) {
-                throw e; // the action pick itself failed — surface it.
-              }
-              break; // a later step diverged — leave the leftover prompt for the client.
-            }
-          }
+          replayBatch(player, inputResponses);
           responses.writeJson(res, ctx, Server.getPlayerModel(player));
           resolve();
         } catch (e) {

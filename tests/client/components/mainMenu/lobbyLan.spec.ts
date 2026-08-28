@@ -1,5 +1,6 @@
 import {expect} from 'chai';
 import {JoinableGameSummary} from '../../../../src/common/models/JoinableGameModel';
+import {GameId, PlayerId} from '../../../../src/common/Types';
 import {
   lobbyState, lobbyRows, lobbySource,
   startLobbyWatch, openLobbyList, closeLobbyList, refreshLobby, resetLobbyStateForTesting,
@@ -16,7 +17,7 @@ import {resetLobbyChannelsForTesting} from '../../../../src/client/components/ma
 
 function game(id: string): JoinableGameSummary {
   return {
-    id: id as JoinableGameSummary['id'],
+    id: id as GameId,
     name: id,
     createdTimeMs: 1,
     phase: 'research' as JoinableGameSummary['phase'],
@@ -27,7 +28,7 @@ function game(id: string): JoinableGameSummary {
     maxPlayers: 1,
     activePlayer: 'red',
     finished: false,
-    you: {id: `p-${id}` as JoinableGameSummary['id'], color: 'red'},
+    you: {id: `p-${id}` as PlayerId, color: 'red'},
     ambiguous: false,
   } as JoinableGameSummary;
 }

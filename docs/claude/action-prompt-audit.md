@@ -3,7 +3,9 @@
 **Triggered by:** Factorum's corporation action showing a generic «◈ ПОДТВЕРЖДЕНИЕ / Потратьте 3 M€, чтобы добрать карту строительства» band in the console-native shell, *after* the action workspace had already taken the confirmation.
 
 **Status:** the in-scope classes below are FIXED and guarded by
-`tests/models/actionPromptCoverage.spec.ts`. The Turmoil class is open and recorded.
+`tests/models/actionPromptCoverage.spec.ts` (classes 1–5) and
+`tests/inputs/deferredInputBatch.spec.ts` (class 6). The Turmoil AVAILABILITY class (§4,
+CLASS 4) is open and recorded.
 
 ---
 
@@ -201,6 +203,93 @@ six bare words):
 Guarded by check 4 (`LEFTOVER_FOLLOWUP_WORKLIST`, empty) and at the real surface by
 `tests/e2e/console-action-resource-pick.spec.ts`.
 
+### CLASS 6 — a prompt that JUMPS AHEAD of the pre-collected one (added 2026-08-28)
+
+**Triggered by:** Astra Mechanica. Its «верните до 2 разыгранных событий в руку» is chosen
+INSIDE the play composer, on the real cards, and after the play the very same question arrived
+again as a standalone «◈ ЦЕЛЬ НА КАРТЕ» band — the one thing a pre-select must never do.
+
+Classes 1–5 all ask *"does the preview describe the right prompts?"*. This one is different:
+**the preview was right, and the prompts arrived in a different ORDER.**
+
+`Player.playCardImpl` defers the played card's own on-play input at `Priority.DEFAULT` — which
+is the 17th rung of a 22-rung ladder. Everything the SAME play sets off that sits earlier
+prompts FIRST, and the positional batch replay then met a question it had no answer for,
+stopped, and **discarded every remaining pre-collected response**.
+
+#### The interlopers — every prompt that can outrank a card's own on-play input
+
+| priority | source | the prompt | reachable by |
+| --- | --- | --- | --- |
+| `COST` (1) | `Player.increaseTerraformRating` under Reds | `SelectPaymentDeferred` «Select how to pay for TR increase» | ANY card that raises TR / a global parameter, whenever the player can pay with something other than plain M€ (Helion, Luna, steel/titanium) — see CLASS 3, same rule |
+| `BEFORE_PHARMACY_UNION` (2) | `ceos/Faraday.onCardPlayed` | `or` «Pay 3 M€ to draw a &lt;tag&gt; card / Do nothing» | ANY tag, on every 5-tag threshold |
+| `PHARMACY_UNION` (3) / `SUPERPOWER` (-1) | `promo/PharmacyUnion.onCardPlayed` | `or` «Turn it face down for 3 TR / …» | a SCIENCE (or microbe+science) tag |
+| `HYPERSPACE_DRIVE_PROTOTYPE` (5) | `underworld/HyperspaceDrivePrototype` | `AddResourcesToCard(SCIENCE)` target pick | a SCIENCE tag, with 2+ science-resource cards |
+| `OLYMPUS_CONFERENCE` (6) | `base/OlympusConference.onCardPlayed` | `or` «add a science resource / remove one to draw» | a SCIENCE tag, once the card holds a resource |
+| `DRAW_CARDS` (8) | `DrawCards` / `ChooseCards` | a keep-some pick | a trigger that draws with a choice |
+| `IDENTIFY` / `EXCAVATE` (14/15) | `underworld/*SpacesDeferred` | board-space picks | an underworld trigger on the play |
+
+`OPPONENT_TRIGGER` (4) is NOT on this list: those prompts go to the card's OWNER, i.e. another
+player's `waitingFor`, and cannot displace the active player's.
+
+#### The victims — measured, not guessed
+
+Building `cardPlayPreview` for every in-scope project card (base, corpera, promo, venus,
+colonies, prelude, ares, deltaProject) and counting pre-collected `input` steps gives **21
+cards**. Of those, **12 are reachable by an interloper today**:
+
+| card | what it pre-collects | interloper |
+| --- | --- | --- |
+| `promo/AstraMechanica` | the up-to-2 event return (`mergeCardSteps`) | SCIENCE tag → Olympus / Pharmacy Union / Hyperspace Drive |
+| `base/Asteroid` · `base/BigAsteroid` · `base/Comet` · `base/DeimosDown` (+`:promo`, +`:ares`) · `base/GiantIceAsteroid` · `base/MiningExpedition` · `promo/SmallAsteroid` · `ares/MetallicAsteroid` | the plant-attack target (`removeAnyPlants`) | raises a global parameter → the Reds tax at `COST` |
+| `colonies/JovianLanterns` | the floater target | raises TR → the Reds tax at `COST` |
+
+The remaining nine (`Insulation`, `Hackers`, `Virus`, `CyberiaSystems`, `PublicPlans`,
+`Atmoscoop`, `AtmoCollectors`, `ImpactorSwarm`, `TitanFloatingLaunchpad`) neither carry a
+science tag nor raise a parameter, so nothing currently outranks them — which is a property of
+today's card set, not a guarantee.
+
+The same exposure applies to every OTHER batch producer, because they all post to the same
+route: the blue-action composer, the standard-projects workspace, the colony trade composer,
+the Hydronetwork commit and the ProjectInspection repeat tail.
+
+#### The fix — the answer WAITS for its prompt instead of being thrown away
+
+`src/server/inputs/deferredInputBatch.ts` (the replay moved out of the route, which now only
+parses and serializes):
+
+- a response refused because the live input is a DIFFERENT KIND of question is a queue jump:
+  the rest of the batch is **PARKED**, not dropped;
+- `drainBatchTail` runs after every single-input response (`routes/PlayerInput.ts`), so the
+  moment the interloper is answered the pre-collected answer lands by itself — no second
+  prompt, no re-decision;
+- a response the MATCHING prompt itself refuses is a genuine divergence (the state moved since
+  the preview): the tail is dropped and the player answers for real;
+- `Player.takeAction` clears the park once the deferred queue has drained, so an answer can
+  never survive into the action after the one it was collected for.
+
+Nothing about rules ORDER changed: Olympus still resolves before Astra Mechanica's return, the
+Reds tax is still paid before the plant attack. Only the player's already-made decision stops
+being lost in between.
+
+Guarded by `tests/inputs/deferredInputBatch.spec.ts` (Astra Mechanica × Olympus, Astra
+Mechanica × Pharmacy Union, `Asteroid` × the Reds tax, plus the divergence / expiry / first-
+response-throws cases).
+
+#### Residual hazard, recorded — an interloper of the SAME input type
+
+The batch carries no prompt IDENTITY, only responses, so «is this my prompt?» is answered by
+input TYPE. That is exact for every combination in the table above (a `card` answer meeting an
+`or`, an `or` answer meeting a `payment`), but it cannot tell an interloping `OrOptions` from
+the card's own: a pre-collected `{type:'or', index}` would be ACCEPTED by Olympus Conference's
+own `or` and run the wrong branch — the CLASS 2 failure mode, arriving by a different road.
+
+Not reachable in the current card set: the eleven cards that pre-collect an `or` are all
+plant-attacks reached only by the Reds tax (a `payment`), and the one science-tagged victim
+(Astra Mechanica) pre-collects a `card`. If it ever becomes reachable the honest instrument is
+to make the batch state what each response was collected FOR (the step's declared shape), not
+to guess harder from the response alone.
+
 ## 5. The guard
 
 `tests/models/actionPromptCoverage.spec.ts` — walks every in-scope action card across three
@@ -241,6 +330,11 @@ walk past and its shape is already covered by check 2.
   `action()` shares) when the surface can host it; DECLARE it (`boardPlacementStep` /
   `noteStep` / `colonyTradeStep` / `deltaAdvanceStep`) when it is inherently a board / colony
   / track interaction. Saying nothing is the only wrong answer.
+- **Order is not a promise.** A pre-collected response is matched to the prompt that is
+  actually waiting, and an effect the same play triggers can be waiting first (CLASS 6). Never
+  build a flow that depends on the card's own input being the very next thing the server asks;
+  if a new pre-collect ever needs a guarantee, the honest instrument is the `Priority` ladder,
+  not the batch.
 - **A pre-collected `OrOptions` needs option METADATA and a TITLE.** Six rows reading «Титан»
   / «Сталь» answer a different question than the player is asking: attach
   `optionMetadata.gainStock` / `gainProduction` / … so each row carries its icon and the

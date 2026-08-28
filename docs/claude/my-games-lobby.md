@@ -117,7 +117,12 @@ entries). Everything about *listing* — probing, endpoints, statuses, rows, fre
 3. **Push first, poll as a floor.** `lobbyChannel.ts` opens one WS per server (pooled by
    `wsBase`, ref-counted) and reports `lobbyChannelHealthy()`. The poll re-arms itself after
    every refresh at the cadence the current state deserves: open 30 s live / 5 s otherwise,
-   closed 120 s live / 20 s otherwise. A push is debounced 250 ms.
+   closed 120 s live / 20 s otherwise. A push is debounced 250 ms. The channel also reports
+   health TRANSITIONS (`onHealthChange`), which re-arm the poll immediately — the long
+   «everything is pushing» interval must not outlive the push it was granted for, which is
+   precisely the window where the fallback matters. A server without the lobby room answers
+   the subscribe with an ERROR; the channel records that once, stops retrying and reports
+   itself un-healthy, so that source simply keeps the short poll.
 4. **The identity is an INPUT, not a precondition.** `startLobbyWatch('')` is legal;
    `setLobbyIdentity(name)` (driven by a `watch` on `identityName` in the menu) resets and
    reloads. This is cause #1 above, closed structurally.

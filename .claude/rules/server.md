@@ -16,6 +16,7 @@ paths:
 ## Effects, choices, sequencing
 - `Behavior` (`src/server/behavior/Behavior.ts`) is the declarative effect DSL, interpreted by `Executor`.
 - Multi-step effects and player choices queue via `game.defer(action)` with a `Priority`; chain follow-ups with `.andThen()`. **Step ORDER is load-bearing** — a preview's pre-collected steps must be emitted in the SAME order the executor defers them, or the batch replay misaligns.
+- **A card's own on-play input sits at `Priority.DEFAULT` — an effect the same play TRIGGERS can be asked first** (the Reds tax at `COST`, Olympus Conference / Pharmacy Union on a science tag, …). A pre-collected answer therefore does not always meet its own prompt: `inputs/deferredInputBatch.ts` PARKS it and lands it once the interloper is answered (`drainBatchTail`), and `Player.takeAction` expires it with the action. Never make a flow depend on the card's input being the very next thing asked; full audit in `docs/claude/action-prompt-audit.md` § CLASS 6.
 - Player choices are `PlayerInput`s in `src/server/inputs/` (`SelectSpace`, `SelectCard`, `OrOptions`, …).
 
 ## UI markers — the client must never guess

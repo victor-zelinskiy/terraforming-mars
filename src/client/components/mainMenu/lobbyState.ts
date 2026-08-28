@@ -621,7 +621,10 @@ function openChannel(sourceId: string, wsBase: string): void {
     return;
   }
   channelBases.set(sourceId, wsBase);
-  channels.set(sourceId, openLobbyChannel(wsBase, () => onPush(sourceId)));
+  // The health hook re-arms the poll the moment a channel starts or stops
+  // carrying: the long «everything is pushing» interval must not outlive the
+  // push it was granted for.
+  channels.set(sourceId, openLobbyChannel(wsBase, () => onPush(sourceId), onChannelHealthChanged));
   updateLiveFlags();
 }
 
@@ -650,6 +653,11 @@ function onPush(_sourceId: string): void {
     pushTimer = undefined;
     void refreshLobby();
   }, PUSH_DEBOUNCE_MS);
+}
+
+function onChannelHealthChanged(): void {
+  updateLiveFlags();
+  armPoll();
 }
 
 function updateLiveFlags(): void {

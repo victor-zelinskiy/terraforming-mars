@@ -47,8 +47,16 @@ export type StagedSetupNumbers = Pick<PublicPlayerModel,
  * corporation's / preludes' tags appear in step with their bonuses, not before).
  * At baseline the tags are empty (the corp isn't "applied" yet); at corp/done the
  * tags field is omitted so the panel reads the canonical (real) tags.
+ *
+ * `noTagsCount` is the МЕТКИ matrix's no-tag counter and stages on exactly the
+ * same rule — a TAGLESS corporation (Credicor, Robinson Industries) lands in it,
+ * so leaving it canonical would show the player owning a tagless card before
+ * their corporation was applied.
  */
-export type StartSetupOverride = StagedSetupNumbers & {tags?: Partial<Record<Tag, number>>};
+export type StartSetupOverride = StagedSetupNumbers & {
+  tags?: Partial<Record<Tag, number>>,
+  noTagsCount?: number,
+};
 
 /** A fully-resolved setup ready to reveal. */
 export type StartSetupEvent = {
@@ -64,6 +72,8 @@ export type StartSetupEvent = {
   readonly final: StagedSetupNumbers;
   /** The committed (final) tag counts — for seeding the tag baselines on minimize. */
   readonly finalTags: Partial<Record<Tag, number>>;
+  /** The committed (final) no-tag card count — seeded like the tags above. */
+  readonly finalNoTags: number;
 };
 
 function asPlayerView(view: ViewModel | undefined): PlayerViewModel | undefined {
@@ -115,6 +125,7 @@ export function readStartSetupEvent(view: ViewModel | undefined): StartSetupEven
     snapshot,
     final: numbersOf(pv.thisPlayer),
     finalTags: pv.thisPlayer.tags ?? {},
+    finalNoTags: pv.thisPlayer.noTagsCount ?? 0,
   };
 }
 
@@ -161,8 +172,10 @@ export function stagedNumbersFor(event: StartSetupEvent, stage: StartSetupStage)
       energyProduction: b.production.energy,
       heatProduction: b.production.heat,
       terraformRating: b.terraformRating,
-      // The corporation isn't "applied" yet — its tags appear at the corp stage.
+      // The corporation isn't "applied" yet — its tags appear at the corp stage,
+      // and so does the card itself when it happens to print no tag at all.
       tags: {},
+      noTagsCount: 0,
     };
   }
   if (stage === 'corp') {

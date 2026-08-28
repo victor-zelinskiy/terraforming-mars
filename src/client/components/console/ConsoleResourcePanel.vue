@@ -205,13 +205,21 @@
                class="con-tagmx__cell"
                :class="{'con-tagmx__cell--zero': t.count === 0}"
                :data-tag-cell="t.tag"
-               :aria-label="$t(t.tag) + ': ' + t.count">
+               :aria-label="cellAria(t)">
             <!-- The medalwrap takes over the medal's flex role in the cell's
                  vertical fit (same flex/min-height, column, centred) so the
                  VP shield can pin to the medallion's own corner and track it
                  when short viewports compress the matrix. -->
             <span class="con-tagmx__medalwrap">
-              <Tag class="con-tagmx__medal" :tag="t.tag" size="big" type="secondary" />
+              <!-- 'none' is the ONE cell that counts the ABSENCE of a tag
+                   (consoleTagMatrix.NO_TAG_CELL) — not a Tag, so it seats the
+                   printed no-tags medallion itself instead of going through
+                   Tag.vue. Same `.tag-count` chassis, so every matrix rule
+                   (size, zero state, seating) applies unchanged. -->
+              <span v-if="t.tag === 'none'"
+                    class="con-tagmx__medal con-tagmx__medal--none tag-count tag-none"
+                    aria-hidden="true"></span>
+              <Tag v-else class="con-tagmx__medal" :tag="t.tag" size="big" type="secondary" />
               <!-- VP-coefficient badge — this tag is CURRENTLY converted into
                    VP by the displayed player's own played cards (tagVpBadges).
                    Full-strength even on a zero cell: «worth collecting» is
@@ -306,7 +314,7 @@ import {MarsBotModel} from '@/common/models/MarsBotModel';
 import {Tag as CardTag} from '@/common/cards/Tag';
 import {CardResource} from '@/common/CardResource';
 import Tag from '@/client/components/Tag.vue';
-import {consoleTagEntries, ConsoleTagEntry} from '@/client/components/console/consoleTagMatrix';
+import {consoleTagEntries, ConsoleTagCell, ConsoleTagEntry, NO_TAG_CELL} from '@/client/components/console/consoleTagMatrix';
 import {marsBotRailEconomy, marsBotRailTracks, MarsBotRailEconomyRow, MarsBotRailTrack} from '@/client/components/console/marsBotRailModel';
 import AnimatedMetricValue from '@/client/components/feedback/AnimatedMetricValue.vue';
 import ConsoleVpBadge from '@/client/components/console/ConsoleVpBadge.vue';
@@ -494,7 +502,10 @@ export default defineComponent({
       // (fixed positions; zero cells render dimmed, never hidden). During the
       // setup reveal the counts stage with the corp bonus (empty at baseline →
       // the corporation's tags appear when it's applied), like the resources.
-      return consoleTagEntries(this.gameTags, this.effectivePlayer.tags);
+      // The no-tag cell rides its OWN server field (Tags.numberOfCardsWithNoTags),
+      // which the staged override doesn't carry — a corporation is a card like
+      // any other and lands in it the moment the server counts it.
+      return consoleTagEntries(this.gameTags, this.effectivePlayer.tags, this.effectivePlayer.noTagsCount);
     },
     /** The dedicated MarsBot presentation is active (inspecting the bot seat). */
     botMode(): boolean {
@@ -655,8 +666,18 @@ export default defineComponent({
       return this.protectionAria(translateText(group.resource), mark, extra);
     },
     /** The VP badge for a МЕТКИ cell, if this tag is being scored right now. */
-    tagVpFor(tag: CardTag): TagVpBadge | undefined {
-      return this.tagVp.get(tag);
+    tagVpFor(tag: ConsoleTagCell): TagVpBadge | undefined {
+      // The no-tag counter is never a scoring tag — the map simply has no
+      // entry for it, so no branch is needed here.
+      return this.tagVp.get(tag as CardTag);
+    },
+    /**
+     * The cell's couch-reader sentence. Every tag names itself through its own
+     * i18n key; the no-tag counter is the ABSENCE of one, so it carries a
+     * spelled-out label instead («Карты без меток: 3»).
+     */
+    cellAria(entry: ConsoleTagEntry): string {
+      return this.$t(entry.tag === NO_TAG_CELL ? 'Cards with no tags' : entry.tag) + ': ' + entry.count;
     },
     /** The MC badge for a ДОП.РЕСУРСЫ chip, if its stock is legal tender. */
     auxMcBadge(resource: CardResource): RailMcBadge | undefined {

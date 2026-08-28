@@ -25,7 +25,7 @@ Nothing was thrown away: every character of the old file is either in `CLAUDE.md
 | `terraforming-progress-hud.md` | touching the terraforming % HUD or the completion ceremony |
 | `energy-heat-conversion.md` | touching the end-of-generation energy→heat transition |
 | `modal-inputs-and-metadata-contract.md` | routing a new modal input type or attaching per-card option metadata |
-| `action-prompt-audit.md` | writing or editing a card `action()` / `actionPreview()` — the pre-collect contract, the leftover-prompt classes it broke, and the guard that now enforces it |
+| `action-prompt-audit.md` | writing or editing a card `action()` / `actionPreview()` / `cardPlayPreview()` — the pre-collect contract, the six leftover-prompt classes it broke (incl. **CLASS 6: a triggered effect asked BEFORE the card's own input, which used to throw the pre-selected answer away**) and the guards that now enforce it |
 | `premium-tooltips.md` | the full tooltip rationale + adopter list |
 | `start-game-flow.md` | touching the generation-1 orchestration modal |
 | `rematch-flow.md` | touching the end-of-game rematch subsystem |

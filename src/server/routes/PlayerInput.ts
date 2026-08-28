@@ -15,6 +15,7 @@ import {statusCode} from '../../common/http/statusCode';
 import {InputError} from '../inputs/InputError';
 import {isIProjectCard} from '../cards/IProjectCard';
 import {AppErrorResponse, INVALID_RUN_ID} from '../../common/app/AppErrorId';
+import {drainBatchTail} from '../inputs/deferredInputBatch';
 
 export class PlayerInput extends Handler {
   public static readonly INSTANCE = new PlayerInput();
@@ -103,6 +104,12 @@ export class PlayerInput extends Handler {
             await this.performUndo(req, res, ctx, player);
           } else {
             player.process(entity);
+            // A prompt that jumped AHEAD of a pre-collected batch response
+            // (Olympus Conference on the science tag of the card being played)
+            // has just been answered — so the answer the player already gave in
+            // the play modal gets its turn now, instead of being asked again.
+            // See `inputs/deferredInputBatch.ts`.
+            drainBatchTail(player);
             responses.writeJson(res, ctx, Server.getPlayerModel(player));
           }
           resolve();

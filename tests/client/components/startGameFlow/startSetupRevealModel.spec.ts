@@ -39,6 +39,7 @@ function view(startingSetup: StartingSetupModel | undefined, final: {megacredits
       megacreditProduction: 0, steelProduction: 0, titaniumProduction: 0, plantProduction: 0, energyProduction: 0, heatProduction: 0,
       terraformRating: final.terraformRating ?? 20,
       tags: {building: 1},
+      noTagsCount: 2,
     },
   } as unknown as PlayerViewModel;
 }
@@ -59,6 +60,9 @@ describe('startSetupRevealModel', () => {
     expect(event?.runId).eq('r1');
     expect(event?.final.megacredits).eq(21);
     expect(event?.final.steel).eq(20);
+    // The committed tag facts, for seeding the matrix baselines on minimize.
+    expect(event?.finalTags).deep.eq({building: 1});
+    expect(event?.finalNoTags).eq(2);
   });
 
   it('stagedNumbersFor: baseline = pre-corp (tags empty), corp = bonus (payment reversed, tags canonical), done = final', () => {
@@ -67,12 +71,16 @@ describe('startSetupRevealModel', () => {
     expect(baseline.megacredits).eq(0);
     expect(baseline.steel).eq(0);
     expect(baseline.terraformRating).eq(20);
-    // The corp isn't "applied" at baseline → its tags are not shown yet.
+    // The corp isn't "applied" at baseline → its tags are not shown yet, and
+    // neither is the corp itself when it prints none (the no-tag counter).
     expect(baseline.tags).deep.eq({});
+    expect(baseline.noTagsCount).eq(0);
 
     // corp/done read the canonical tags (the override omits `tags`).
     expect(stagedNumbersFor(event, 'corp').tags).is.undefined;
     expect(stagedNumbersFor(event, 'done').tags).is.undefined;
+    expect(stagedNumbersFor(event, 'corp').noTagsCount).is.undefined;
+    expect(stagedNumbersFor(event, 'done').noTagsCount).is.undefined;
 
     const corp = stagedNumbersFor(event, 'corp');
     // Corp bonus applied, payment NOT yet → M€ = final (21) + payment (9) = 30.
