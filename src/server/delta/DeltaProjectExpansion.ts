@@ -466,6 +466,22 @@ export class DeltaProjectExpansion {
         }
       }
 
+      // ONE committed advance = ONE semantic movement event for the mover's own
+      // passive cards (Development Manager listens for `steps >= 2`). Fired
+      // after the position is committed and BEFORE the landing reward resolves,
+      // so a movement-triggered gain always precedes a reward-triggered one
+      // (the pos-3 reward is itself a +2 M€-production change) — the journal
+      // order mirrors the real resolution order. Mirrors the dispatch shape of
+      // `Production.add` (tableau of the affected player only, wrapped in a
+      // lazy effect scope so an inert hook records nothing).
+      for (const card of player.tableau) {
+        if (card.onDeltaTrackAdvance === undefined) {
+          continue;
+        }
+        game.events.withEffect(player, card, 'delta-advance',
+          () => card.onDeltaTrackAdvance?.(player, steps));
+      }
+
       DeltaProjectExpansion.resolveReward(player, newPos, extras?.waiveTargetReward === true);
     } finally {
       game.events.endScope();

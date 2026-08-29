@@ -56,6 +56,7 @@ export type EventTrigger =
   | 'tag-added'
   | 'cards-not-bought'
   | 'insurance-claim'
+  | 'delta-advance' // one committed advance on the Delta Project («Гидросеть») track
   | 'automa-corporation'; // a MarsBot corporation's printed effect fired (Rule Book B)
 
 /**

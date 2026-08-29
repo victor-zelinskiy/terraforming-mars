@@ -6,5 +6,7 @@
     "Storm Surge Barrier": "Штормовой барьер",
     "Action: Gain 1 energy for each of your tiles next to an ocean tile.": "Действие: получите 1 энергию за каждый свой тайл, соседний с тайлом океана.",
     "Action: Spend 1 energy to advance 1 step on the Hydronetwork track.": "Действие: потратьте 1 энергию, чтобы продвинуться на 1 деление по треку Гидросети.",
-    "Requires that you have a city tile adjacent to an ocean tile.": "Требуется, чтобы у вас был тайл города, соседний с тайлом океана."
+    "Requires that you have a city tile adjacent to an ocean tile.": "Требуется, чтобы у вас был тайл города, соседний с тайлом океана.",
+    "Development Manager": "Менеджер развития",
+    "Effect: Each time you increase a type of production 2 or more steps, or advance 2 or more steps on the Hydronetwork track, gain 2 M€.": "Эффект: каждый раз, когда вы увеличиваете один тип производства на 2 или более шагов или продвигаетесь на 2 или более делений по треку Гидросети, получите 2 M€."
 }

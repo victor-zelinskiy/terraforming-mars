@@ -240,6 +240,18 @@ export interface ICard {
    */
   onProductionGain?(player: IPlayer, resource: Resource, amount: number): void;
   /**
+   * Callback when the card owner completes ONE advance on the Delta Project
+   * («Гидросеть») track. Fired once per committed `DeltaProjectExpansion.advance`
+   * — the single authoritative movement pipeline — with the full logical
+   * distance of that one move (jumped-over spaces count as steps). Never fired
+   * for another player's move, a failed/rejected advance, or state restoration
+   * (deserialization assigns the position directly).
+   *
+   * @param player the card owner (always the moving player).
+   * @param steps the number of logical steps this single move advanced.
+   */
+  onDeltaTrackAdvance?(player: IPlayer, steps: number): void;
+  /**
    * Callback during the production phase. Used to reset between generations.
    *
    * @param player the card owner.
