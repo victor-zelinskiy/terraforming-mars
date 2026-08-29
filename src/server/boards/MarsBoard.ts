@@ -29,12 +29,14 @@ function committedMegacredits(player: IPlayer, canAffordOptions?: CanAffordOptio
 
 export class MarsBoard extends Board {
   private readonly edges: ReadonlyArray<Space>;
+  private readonly edgeIds: ReadonlySet<SpaceId>;
 
   public constructor(
     spaces: ReadonlyArray<Space>,
     noctisCitySpaceId?: SpaceId | undefined) {
     super(spaces, noctisCitySpaceId);
     this.edges = this.computeEdges();
+    this.edgeIds = new Set(this.edges.map((space) => space.id));
   }
 
   public getCitiesOffMars(player?: IPlayer): Array<Space> {
@@ -321,6 +323,21 @@ export class MarsBoard extends Board {
 
   public getEdges(): ReadonlyArray<Space> {
     return this.edges;
+  }
+
+  /**
+   * Is this space on the board's EDGE? The membership twin of
+   * {@link getEdges}, derived from the same `computeEdges` result — the list
+   * and the predicate can never disagree.
+   *
+   * THE one source for every edge rule: the Edgedancer award («Suburban» on
+   * the Utopia Planitia MarsBot reference card) counts these tiles, MarsBot's
+   * Utopia placement tiebreaker treats them as carrying one EXTRA reward icon
+   * (Adding Expansions p.10 step 4), and B11's Suburban helper is
+   * hard-constrained to them.
+   */
+  public isEdge(space: Space): boolean {
+    return this.edgeIds.has(space.id);
   }
 
   public getAvailableIsolatedSpaces(player: IPlayer, canAffordOptions?: CanAffordOptions): ReadonlyArray<Space> {

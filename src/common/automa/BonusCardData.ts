@@ -57,7 +57,7 @@ export const BONUS_CARD_INFO: Readonly<Record<BonusCardId, BonusCardInfo>> = {
   },
   [BonusCardId.B11_CORPORATE_COMPETITION_UTOPIA]: {
     name: 'Corporate Competition (Utopia Planitia)',
-    text: 'The Utopia Planitia version of Corporate Competition.',
+    text: 'With 5+ M€, MarsBot pushes the Utopia Planitia award race it is closest to being ahead on, then loses 5 M€.',
   },
   [BonusCardId.B12_CORPORATE_COMPETITION_CIMMERIA]: {
     name: 'Corporate Competition (Terra Cimmeria)',
@@ -281,6 +281,25 @@ export function buildBonusCardView(id: BonusCardId, ctx: BonusCardContext): Bonu
         {icon: 'greenery', text: 'Desert Settler places a greenery in the southern region and raises oxygen 1 step', muted: true},
         {icon: 'greenery', text: 'Estate Dealer places a greenery adjacent to an ocean and raises oxygen 1 step', muted: true},
         {icon: 'tr', text: 'Benefactor raises the MarsBot TR 2 steps', muted: true},
+        ...(ctx.venus ? [{icon: 'venus', text: 'Venuphile advances the Venus track', muted: true}] : []),
+        {icon: 'megacredits', text: 'Then it pays ${0} M€', params: ['5']},
+        {icon: 'deck', text: 'With no funded award it can help, it draws another bonus card instead', muted: true},
+      ],
+      fate: FATE_DISCARD,
+    };
+  case BonusCardId.B11_CORPORATE_COMPETITION_UTOPIA:
+    // The Utopia Planitia face (B11): same card, its own helper list. Suburban
+    // (Edgedancer here) is CONSTRAINED to the board edge — with no legal edge
+    // space the helper is impossible and the card moves on to the next funded
+    // award rather than placing inland.
+    return {
+      name,
+      lines: [
+        {icon: 'award', text: 'With 5+ M€: MarsBot pushes the award race it is closest to leading'},
+        {icon: 'greenery', text: 'Suburban places a greenery on the board edge and raises oxygen 1 step', muted: true},
+        {icon: 'tile', text: 'Investor advances the Earth track; Botanist the plant track', muted: true},
+        {icon: 'cards', text: 'Incorporator reveals project cards until one costs 10 M€ or less and resolves it', muted: true},
+        {icon: 'city', text: 'Metropolist places a city', muted: true},
         ...(ctx.venus ? [{icon: 'venus', text: 'Venuphile advances the Venus track', muted: true}] : []),
         {icon: 'megacredits', text: 'Then it pays ${0} M€', params: ['5']},
         {icon: 'deck', text: 'With no funded award it can help, it draws another bonus card instead', muted: true},

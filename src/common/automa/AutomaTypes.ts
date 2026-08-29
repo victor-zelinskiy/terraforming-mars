@@ -13,6 +13,7 @@ export type TrackAction =
   | 'city'
   | 'venus' | 'venus2'
   | 'floater' | 'floater2' // Venus Next MarsBot board: gain 1 / 2 floaters (Adding Expansions p.2)
+  | 'colony' // Utopia Planitia: «Place a Colony» — the ordinary bot colony build
   | `tag_${number}`;
 
 /** A single track on the MarsBot board (19 positions: 0–18; the Venus track has 13: 0–12). */

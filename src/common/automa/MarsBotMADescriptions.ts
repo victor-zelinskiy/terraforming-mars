@@ -22,6 +22,12 @@ export const MARSBOT_MILESTONE_DESCRIPTIONS: Partial<Record<MilestoneName, strin
   'Tycoon10': '10 green/blue cards in played pile',
   'Tycoon': '15 green/blue cards in played pile',
   'Legend': '5 red cards in played pile',
+  // Utopia Planitia (the fork's canonical names for the board's slots:
+  // Specialist → Land Specialist, Trader → Tradesman, Metallurgist → Smith)
+  'Land Specialist': '3+ bonus cards destroyed',
+  'Tradesman': 'Jovian/Energy, Earth/City and Venus tracks all \u2265 2',
+  'Smith': 'Building + Space tracks combined \u2265 7',
+  'Pioneer': '3+ colonies (unchanged)',
   // Terra Cimmeria Nova
   'Architect': 'Science track \u2265 6',
   'Coastguard': '4+ tiles adjacent to ocean',
@@ -76,8 +82,10 @@ export const MARSBOT_AWARD_DESCRIPTIONS: Partial<Record<AwardName, string>> = {
   'Zoologist': 'Bio track + 5',
   'Forecaster': 'Every 7 MC = 1 card with requirement',
   // Utopia Planitia
-  'Investor': 'Building + Science track',
+  'Edgedancer': 'Tiles on the board edge (unchanged)',
+  'Investor': 'Earth/City track',
   'Botanist': 'Bio track minus 2',
+  'Metropolist': 'Cities owned (unchanged)',
   'Incorporator': 'Cards costing 10 MC or less (including events)',
   // Vastitas Borealis Nova
   'Traveller': 'Building + Science track + 5',

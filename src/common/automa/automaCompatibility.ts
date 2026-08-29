@@ -87,6 +87,7 @@ export const AUTOMA_SUPPORTED_BOARDS: ReadonlyArray<BoardName> = [
   BoardName.THARSIS,
   BoardName.HELLAS,
   BoardName.ELYSIUM,
+  BoardName.UTOPIA_PLANITIA,
 ];
 
 /** «tharsis, hellas and elysium» — the list read out in the rejection reason. */

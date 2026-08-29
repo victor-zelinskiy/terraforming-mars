@@ -28,6 +28,7 @@ export type TrackActionGlyph =
   | {kind: 'param', icon: 'temperature' | 'ocean' | 'venus', count: 1 | 2}
   | {kind: 'tile', tile: 'greenery' | 'city'}
   | {kind: 'floater', count: 1 | 2}
+  | {kind: 'colony'}
   | {kind: 'ma', which: 'milestone' | 'award'};
 
 export function trackActionGlyph(action: TrackAction): TrackActionGlyph {
@@ -50,6 +51,7 @@ export function trackActionGlyph(action: TrackAction): TrackActionGlyph {
   case 'city': return {kind: 'tile', tile: 'city'};
   case 'floater': return {kind: 'floater', count: 1};
   case 'floater2': return {kind: 'floater', count: 2};
+  case 'colony': return {kind: 'colony'};
   case 'milestone': return {kind: 'ma', which: 'milestone'};
   case 'award': return {kind: 'ma', which: 'award'};
   default: return {kind: 'advance'};
@@ -77,6 +79,7 @@ export function trackActionLabel(action: TrackAction): {message: string, params:
     return {message: 'Place an ocean', params: []};
   case 'tile': return {message: glyph.tile === 'greenery' ? 'Place a greenery' : 'Place a city', params: []};
   case 'floater': return {message: glyph.count === 2 ? 'Gain 2 floaters' : 'Gain 1 floater', params: []};
+  case 'colony': return {message: 'Place a colony', params: []};
   case 'ma': return {message: glyph.which === 'milestone' ? 'Claim a milestone' : 'Fund an award', params: []};
   }
 }

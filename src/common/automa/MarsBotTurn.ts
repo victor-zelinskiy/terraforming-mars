@@ -31,6 +31,7 @@ export type FailedActionReason =
   | 'temperature-maxed'
   | 'oceans-complete'
   | 'no-tile-space'
+  | 'no-colony-tile'
   | 'milestones-claimed'
   | 'no-milestone-criteria'
   | 'awards-funded'

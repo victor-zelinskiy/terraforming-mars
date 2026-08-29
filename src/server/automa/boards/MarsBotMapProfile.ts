@@ -9,6 +9,7 @@ import {botRewardIcons} from '../AutomaPlacementBonus';
 import {ELYSIUM_MARSBOT_BOARD} from './ElysiumMarsBot';
 import {HELLAS_MARSBOT_BOARD} from './HellasMarsBot';
 import {THARSIS_MARSBOT_BOARD} from './TharsisMarsBot';
+import {UTOPIA_MARSBOT_BOARD} from './UtopiaMarsBot';
 
 /**
  * THE MAP PROFILE — everything that differs between MarsBot boards, and nothing
@@ -47,7 +48,10 @@ const OCEAN_ADJACENCY: MarsBotPlacementTiebreaker = {
  */
 const REWARD_ICONS: MarsBotPlacementTiebreaker = {
   id: 'reward-icons',
-  score: (game, bot, space) => botRewardIcons(game, bot, space) + AutomaAres.adjacencyBonusUnits(game, space),
+  score: (game, bot, space) =>
+    botRewardIcons(game, bot, space) +
+    AutomaAres.adjacencyBonusUnits(game, space) +
+    (marsBotMapProfile(game.gameOptions.boardName).tiebreakRewardBonus?.(game, space) ?? 0),
 };
 
 /**
@@ -89,6 +93,21 @@ export type MarsBotMapProfile = {
    * project-card flip (Adding Expansions p.10).
    */
   readonly placementTiebreakers: ReadonlyArray<MarsBotPlacementTiebreaker>;
+  /**
+   * Reward icons this MAP grants a space on top of the printed ones, FOR
+   * TIEBREAKERS ONLY — «On Utopia Planitia, edge spaces are considered to
+   * have an additional reward icon for purposes of tiebreakers» (Adding
+   * Expansions p.10, a bullet UNDER step 4).
+   *
+   * Declared here, not as an extra tiebreaker step, because that is what the
+   * rule says: it changes the COUNT the existing «cover the most reward
+   * icons» step compares, so a 2-icon inland hex still beats a 0-icon edge
+   * one. A separate «prefer edges» step would rank them the other way round.
+   *
+   * Tiebreak-only is load-bearing: the payout stays `botCoveredIconMegacredits`
+   * (1 M€ per PRINTED icon), so an edge hex never pays for its virtual icon.
+   */
+  readonly tiebreakRewardBonus?: (game: IGame, space: Space) => number;
 };
 
 const THARSIS_PROFILE: MarsBotMapProfile = {
@@ -118,7 +137,21 @@ const ELYSIUM_PROFILE: MarsBotMapProfile = {
   placementTiebreakers: [OCEAN_ADJACENCY, REWARD_ICONS, ELYSIUM_SOUTHERN_REGION],
 };
 
-const PROFILES: ReadonlyArray<MarsBotMapProfile> = [THARSIS_PROFILE, HELLAS_PROFILE, ELYSIUM_PROFILE];
+const UTOPIA_PROFILE: MarsBotMapProfile = {
+  boardName: BoardName.UTOPIA_PLANITIA,
+  tracks: UTOPIA_MARSBOT_BOARD,
+  corporateCompetition: BonusCardId.B11_CORPORATE_COMPETITION_UTOPIA,
+  // Adding Expansions p.10: 1. oceans · 4. reward icons. Utopia prints NO
+  // region step — its own bullet rides step 4 as `tiebreakRewardBonus` below.
+  placementTiebreakers: [OCEAN_ADJACENCY, REWARD_ICONS],
+  // «Edge spaces are considered to have an additional reward icon.» One
+  // canonical edge predicate (`MarsBoard.isEdge`), shared with the Edgedancer
+  // award and B11's Suburban helper.
+  tiebreakRewardBonus: (game, space) => (game.board.isEdge(space) ? 1 : 0),
+};
+
+const PROFILES: ReadonlyArray<MarsBotMapProfile> =
+  [THARSIS_PROFILE, HELLAS_PROFILE, ELYSIUM_PROFILE, UTOPIA_PROFILE];
 
 /** Every board MarsBot can be played on. */
 export const MARSBOT_BOARDS: ReadonlyArray<BoardName> = PROFILES.map((p) => p.boardName);

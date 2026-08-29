@@ -214,6 +214,7 @@ export function resolveBonusCard(game: IGame, id: BonusCardId): BonusCardOutcome
   case BonusCardId.B08_CORPORATE_COMPETITION:
   case BonusCardId.B09_CORPORATE_COMPETITION_HELLAS:
   case BonusCardId.B10_CORPORATE_COMPETITION_ELYSIUM:
+  case BonusCardId.B11_CORPORATE_COMPETITION_UTOPIA:
     // One card, one resolver: the map only swaps the helper-action list.
     return corporateCompetition(game);
   case BonusCardId.B16_GOVERNMENT_INTERVENTION: return governmentIntervention(game);
@@ -492,7 +493,7 @@ function localNeuralInstance(game: IGame): BonusCardOutcome {
   return 'destroy';
 }
 
-/** The Corporate Competition card THIS map plays with — B08 Tharsis, B09 Hellas, B10 Elysium. */
+/** The Corporate Competition card THIS map plays with — B08/B09/B10/B11, one per map. */
 function mapCorporateCompetition(game: IGame): BonusCardId {
   return marsBotMapProfile(game.gameOptions.boardName).corporateCompetition;
 }
@@ -500,9 +501,9 @@ function mapCorporateCompetition(game: IGame): BonusCardId {
 /**
  * «Reveal cards from the project deck until a <matching> card is revealed,
  * resolve it, and discard the rest» — the shape shared by the Magnate (B09,
- * green), Celebrity (B10, cost 20+), Incorporator, Forecaster and Administrator
- * helper actions across the map-specific Corporate Competition cards. ONE
- * reveal loop; only the predicate is per-card.
+ * green), Celebrity (B10, cost 20+), Incorporator (B11, cost ≤10), Forecaster
+ * and Administrator helper actions across the map-specific Corporate
+ * Competition cards. ONE reveal loop; only the predicate is per-card.
  *
  * Rides the deck's own conditional search, so the reveal ORDER, the discarding
  * of the rejected cards, the reshuffle and the ONE public «Discarded N cards»
@@ -524,9 +525,9 @@ function revealUntilAndResolve(game: IGame, matches: (card: IProjectCard) => boo
 }
 
 /**
- * Corporate Competition — B08 (Tharsis), B09 (Hellas) and B10 (Elysium) are the
- * SAME card with a different helper-action list, so they are the same resolver:
- * with 5+ M€,
+ * Corporate Competition — B08 (Tharsis), B09 (Hellas), B10 (Elysium) and B11
+ * (Utopia Planitia) are the SAME card with a different helper-action list, so
+ * they are the same resolver: with 5+ M€,
  * help its position on the CLOSEST already-funded award (the one the human
  * leads by the smallest margin or is tied; MarsBot leading everywhere → its own
  * smallest margin), skipping awards whose helper is impossible. A resolved help
@@ -609,8 +610,9 @@ function corporateCompetition(game: IGame): BonusCardOutcome {
 
 /**
  * The Corporate Competition helper actions — Tharsis (rulebook p.7), Hellas
- * (Adding Expansions p.12), Elysium (B10) and the Venuphile line every version
- * of the card gains with Venus Next (Adding Expansions p.3). False when the
+ * (Adding Expansions p.12), Elysium (B10), Utopia Planitia (B11) and the
+ * Venuphile line every version of the card gains with Venus Next (Adding
+ * Expansions p.3). False when the
  * action is «impossible to resolve»: the caller then tries the NEXT funded
  * award and the bot pays nothing — which is how B10's two CONSTRAINED greenery
  * helpers refuse rather than place somewhere the card does not allow.
@@ -647,6 +649,8 @@ function tryAwardHelper(game: IGame, awardName: string): boolean {
    */
   const placeGreenery = (restrict?: (space: Space) => boolean): boolean =>
     AutomaTilePlacer.placeGreenery(game, {restrict, onEmpty: 'impossible'});
+  /** «MarsBot places a city tile» — the ordinary bot city pipeline (B11 Metropolist). */
+  const placeCity = (): boolean => AutomaTilePlacer.placeCity(game, {onEmpty: 'impossible'});
   switch (awardName) {
   // ── Tharsis (B08) ────────────────────────────────────────────────────────
   case 'Landlord':
@@ -717,6 +721,31 @@ function tryAwardHelper(game: IGame, awardName: string): boolean {
     // placement bonus. Always possible, so it always costs the 5 M€.
     marsBotOf(game).increaseTerraformRating(2, {log: true});
     return true;
+  // ── Utopia Planitia (B11, the official card) ─────────────────────
+  // The fork's canonical name for the board's «Suburban» slot is Edgedancer.
+  case 'Edgedancer':
+    // «MarsBot places a greenery tile ON THE EDGE OF THE BOARD and raises
+    // oxygen 1 step.» A hard constraint on the legal set — the same edge
+    // predicate the award counts and the placement tiebreaker rewards — so no
+    // legal edge space means impossible, never a greenery somewhere inland.
+    return placeGreenery((space) => game.board.isEdge(space));
+  case 'Investor':
+    // «Advance the Earth track.» On this board that row carries City + Earth;
+    // addressed by ROLE, so it is the same track the award scores.
+    return advanceRole('earth');
+  case 'Botanist':
+    // «Advance the plant track» — the bio row (Plant/Animal/Microbe).
+    return advanceRole('bio');
+  case 'Incorporator':
+    // «Reveal cards from the project deck until a card with a cost of 10 M€ or
+    // less is revealed, and resolve it.» Magnate's shape, cheap end: 10
+    // EXACTLY qualifies, and an EVENT costing ≤10 qualifies (the bot counts
+    // events for this award, so its helper must be able to find one).
+    return revealUntilAndResolve(game, (card) => card.cost <= 10);
+  case 'Metropolist':
+    // «MarsBot places a city tile.» The ordinary city pipeline, tiebreakers
+    // and all; no legal space ⇒ impossible, and the card tries the next award.
+    return placeCity();
   // ── Venus Next: added to ALL versions of the card ─────────────────────────
   case 'Venuphile': return advanceRole('venus');
   default:

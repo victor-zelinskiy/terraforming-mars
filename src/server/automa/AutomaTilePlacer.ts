@@ -18,13 +18,14 @@ import {
 import {marsBotOf} from './AutomaUtil';
 
 /**
- * A greenery placed by something other than a printed track icon.
+ * A tile placed by something other than a printed track icon.
  *
- * `restrict` is a card's HARD CONSTRAINT on the legal spaces; `onEmpty` says
- * what "nowhere to place" means for that caller — a Failed Action (the printed
- * icon) or a silently impossible action (a Corporate Competition helper).
+ * `restrict` is a card's HARD CONSTRAINT on the legal spaces (B10's Southern
+ * Region, B11's board edge); `onEmpty` says what "nowhere to place" means for
+ * that caller — a Failed Action (the printed icon) or a silently impossible
+ * action (a Corporate Competition helper).
  */
-export type BotGreeneryOptions = {
+export type BotTileOptions = {
   readonly restrict?: (space: Space) => boolean;
   readonly onEmpty?: 'failed-action' | 'impossible';
 };
@@ -140,7 +141,7 @@ export class AutomaTilePlacer {
    * different, smaller one (Ares hazard filtering / a Hellas South Pole rebate
    * are inside here, not in the caller).
    */
-  public static placeGreenery(game: IGame, options?: BotGreeneryOptions): boolean {
+  public static placeGreenery(game: IGame, options?: BotTileOptions): boolean {
     const bot = marsBotOf(game);
     // Ares: the bot never places ON a hazard (cleanup is a human economic
     // decision — see AutomaAres); identity without Ares.
@@ -178,21 +179,32 @@ export class AutomaTilePlacer {
    * "MarsBot places a city tile adjacent to as much existing greenery as
    * possible" (any greenery), on top of the normal city rules (not adjacent to
    * other cities, not on reserved spaces).
+   *
+   * Returns whether the tile went down — the greenery twin above explains why
+   * the legality question and the placement have to be the same computation.
    */
-  public static placeCity(game: IGame): void {
+  public static placeCity(game: IGame, options?: BotTileOptions): boolean {
     const bot = marsBotOf(game);
     // Ares: never ON a hazard; identity without Ares (see placeGreenery).
-    const available = AutomaAres.withoutHazardSpaces(game, AutomaTilePlacer.candidatesFor(game, bot,
-      (options) => game.board.getAvailableSpacesForCity(bot, options)));
+    let available = AutomaAres.withoutHazardSpaces(game, AutomaTilePlacer.candidatesFor(game, bot,
+      (opts) => game.board.getAvailableSpacesForCity(bot, opts)));
+    if (options?.restrict !== undefined) {
+      available = available.filter(options.restrict);
+    }
     if (available.length === 0) {
-      failedAction(game, 'no-tile-space');
-      return;
+      // See placeGreenery: a printed icon spends a Failed Action, a helper
+      // action is simply «impossible to resolve» and costs the bot nothing.
+      if (options?.onEmpty !== 'impossible') {
+        failedAction(game, 'no-tile-space');
+      }
+      return false;
     }
     let candidates = keepMax(available, (space) => AutomaTilePlacer.adjacentGreeneries(game, space));
     // Ares: strong hazard avoidance after the printed city strategy.
     candidates = [...AutomaAres.preferAwayFromHazards(game, candidates)];
     const space = AutomaTilePlacer.breakTie(game, candidates);
     AutomaTilePlacer.placeAndSettle(game, bot, space, () => game.addCity(bot, space));
+    return true;
   }
 
   /**

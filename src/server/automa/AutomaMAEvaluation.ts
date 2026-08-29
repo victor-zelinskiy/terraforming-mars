@@ -57,6 +57,19 @@ function bestTrackPosition(game: IGame): number {
 }
 
 /**
+ * "All N of the following tracks at space X or higher" — the least-advanced of
+ * a NAMED set of roles (Utopia's Trader). The weakest member is both the gate
+ * and the honest display value, exactly like `everyTrackScore`.
+ *
+ * A role the board does not have counts as 0, which is the right answer and not
+ * a special case: Trader names the Venus track, and without Venus Next MarsBot
+ * genuinely cannot reach space 2 on a track that is not in play.
+ */
+function allTracksScore(game: IGame, roles: ReadonlyArray<MarsBotTrackRole>): number {
+  return Math.min(...roles.map((role) => trackPosition(game, role)));
+}
+
+/**
  * Project cards in MarsBot's PLAYED PILE matching a predicate — the bot has no
  * tableau, so every «cards in play» criterion has to read the pile instead.
  * The card OBJECT is what answers (its printed type and cost), never a UI
@@ -185,6 +198,35 @@ export class AutomaMAEvaluation {
         value: botPlayedPile(game, (card) => card.type === CardType.EVENT),
         target: printedTarget(milestone, game, 5),
       };
+    // ── Utopia Planitia (Adding Expansions p.9) ──────────────────────────────
+    // The fork ships this board's slots under its own canonical names, so the
+    // cases below read Land Specialist / Tradesman / Smith where the reference
+    // card prints Specialist / Trader / Metallurgist (deduplicated clones — see
+    // the notes in Milestones.ts). The deprecated originals are aliased beside
+    // them so an old save still evaluates.
+    case 'Land Specialist':
+      // "3 or more MarsBot bonus cards are destroyed." Nothing to do with the
+      // human's special tiles — the bot's reference card replaces the criterion
+      // outright, and the count is its permanent DESTROYED pile (B04/B05/B07 and
+      // friends remove themselves from the game), never the per-generation discard.
+      return {value: game.automa?.destroyedBonusCards.length ?? 0, target: 3};
+    case 'Trader':
+    case 'Tradesman':
+      // "All 3 of the following tracks at space 2 or higher: [Jovian/Energy],
+      // [Earth/City], [Venus]." Named by ROLE, so the Jovian pairing sitting on
+      // the POWER track here (and on the science track on Hellas/Elysium) changes
+      // nothing. Without Venus Next that track is absent and reads 0 — the
+      // milestone is then simply unreachable, the honest answer for a criterion
+      // that names a track nobody has.
+      return {value: allTracksScore(game, ['power', 'earth', 'venus']), target: 2};
+    case 'Metallurgist':
+    case 'Smith':
+      // "[Building] track and [Space] track have a COMBINED value of 7 or higher."
+      // The board's own player aid still prints the pre-errata 5; the current
+      // rulebook says 7, and a rulebook outranks a stale board reminder.
+      return {value: trackPosition(game, 'building') + trackPosition(game, 'space'), target: 7};
+    case 'Researcher': // "[Science] track at space 4 or higher".
+      return {value: trackPosition(game, 'science'), target: 4};
     // ── Venus Next ───────────────────────────────────────────────────────────
     case 'Hoverlord': // Unchanged: 7 floater resources (Adding Expansions p.2).
       return {value: game.automa?.floaters ?? 0, target: 7};
@@ -195,6 +237,9 @@ export class AutomaMAEvaluation {
       //   · Terraformer (incl. the fork's Terraformer29 variant) — real TR;
       //   · Mayor / Gardener — real city and greenery tiles;
       //   · Hellas' Polar Explorer — real tiles in the two bottom rows;
+      //   · Utopia Planitia's Pioneer — real colonies: the bot's id really is
+      //     on the tile (`AutomaColonies.botBuildColony`), so
+      //     `getColoniesCount()` counts it exactly like a player's;
       //   · Ares: Networker reads aresData.milestoneResults (the bot is
       //     tallied there like any player); Purifier honestly stays 0 (the bot
       //     never covers a hazard).
@@ -205,7 +250,10 @@ export class AutomaMAEvaluation {
       // because the bot keeps its cards in `automa.playedPile` instead of a
       // tableau, so `canClaim` would read a permanent 0. "Unchanged rule" and
       // "default branch" are therefore not the same question: ask whether the
-      // player evaluator can SEE the bot's version of the quantity.
+      // player evaluator can SEE the bot's version of the quantity. Utopia's
+      // Pioneer above is the control case — same "Unchanged" wording, and it
+      // genuinely belongs here, because a colony is one of the few quantities
+      // the bot keeps in the very place the player milestone looks.
       // A card-based milestone that cannot appear here
       // (validateOptions pins the board set) reads the bot's empty tableau and
       // is honestly "not met". Nothing to normalize: same metric, same scale.
@@ -353,6 +401,21 @@ export class AutomaMAEvaluation {
       // be compared against the humans' TR here.
       score = bot.terraformRating - 15;
       break;
+    // ── Utopia Planitia (Adding Expansions p.9) ──────────────────────────────
+    case 'Investor': // "[Earth/City] track space".
+      score = trackPosition(game, 'earth');
+      break;
+    case 'Botanist':
+      // "[Bio] track space MINUS 2" — an evaluation handicap, like Elysium's
+      // Benefactor. The track itself never moves for it.
+      score = trackPosition(game, 'bio') - 2;
+      break;
+    case 'Incorporator':
+      // "As usual, but MarsBot INCLUDES EVENTS in this count unlike you" —
+      // Celebrity's twin at the other end of the price range: the played pile
+      // instead of a tableau, and red cards counted. 10 EXACTLY qualifies.
+      score = botPlayedPile(game, (card) => card.cost <= 10);
+      break;
     // ── Venus Next ───────────────────────────────────────────────────────────
     case 'Venuphile': // Venus track position (Adding Expansions p.3).
       score = trackPosition(game, 'venus');
@@ -363,7 +426,10 @@ export class AutomaMAEvaluation {
       // whole Elysium tile pair: Desert Settler ("unchanged", tiles in the
       // Southern Region) and Estate Dealer ("unchanged", tiles adjacent to an
       // ocean) read the bot's REAL tiles through the very same evaluator the
-      // humans use — there is nothing bot-specific to write. The Ares pair
+      // humans use — there is nothing bot-specific to write, and Utopia
+      // Planitia's two "Unchanged" awards ride it for the same reason:
+      // Edgedancer ("Suburban" on the reference card) counts the bot's real
+      // tiles on the board edge, Metropolist its real cities. The Ares pair
       // rides it too: Rugged counts its REAL tiles next to hazards,
       // Entrepreneur honestly reads 0 (the bot never owns adjacency-bonus
       // tiles); anything else cannot appear (validateOptions pins the board

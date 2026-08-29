@@ -107,6 +107,7 @@ export default defineComponent({
       case 'param': return {iconClass: 'mb-ico mb-ico--' + g.icon, symbol: ''};
       case 'tile': return {iconClass: 'mb-ico mb-ico--' + g.tile, symbol: ''};
       case 'floater': return {iconClass: 'mb-ico mb-ico--floater', symbol: ''};
+      case 'colony': return {iconClass: '', symbol: '◉'};
       case 'ma': return {iconClass: '', symbol: g.which === 'milestone' ? '🏆' : '🏅'};
       }
     },

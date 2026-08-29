@@ -119,6 +119,61 @@ the [power] track» (RB-C p.4/p.6).
 RESOURCES» и таблица финального пересчёта M€ (`AutomaScoring`). Сверка Venus-ряда с листа с
 `VENUS_TRACK` выполнена и совпала — это подтверждение существующих данных, а не новый источник.
 
+## 2c. Utopia Planitia MarsBot board (`src/server/automa/boards/UtopiaMarsBot.ts`)
+
+Статус: **транскрибирован покадрово** с официального компонента «Utopia Planitia MarsBot board»
+(«compatible with rules v1.16+»); семь основных треков сверены клетка-в-клетку с retail-фотографией
+(владелец, 2026-08-29). Каждая из 7 × 19 клеток закреплена отдельным ассертом в
+`tests/automa/UtopiaMarsBotBoard.spec.ts`.
+
+**Раскладка треков (сверху вниз, как напечатано):** Building (сталь) · Space (титан) ·
+Event (M€) · **Science** (без производства) · **Jovian+Energy** (энергия) · Earth+City (тепло) ·
+Plant/Animal/Microbe (растения). Тот же порядок строк, что у Tharsis/Hellas/Elysium.
+
+⚠️ **Пара тегов — как у THARSIS, а не как у Hellas/Elysium.** RB-C p.8 называет ровно две карты:
+*«Hellas and Elysium: the [Jovian] tag is paired with [Science]»* — Утопии в списке нет, поэтому
+здесь Jovian едет на треке Power, а Science стоит отдельно. Производственные регрессии, как всегда,
+идут по печатному значку на клетке 0: энергия откатывает **Jovian+Energy**, тепло — **Earth+City**.
+
+**Полный diff клеток против Tharsis** (закреплён тестом):
+
+| Трек:клетка | Tharsis | Utopia |
+|---|---|---|
+| building:11 | `tag_1` (продвинуть Space) | `tag_7` (продвинуть **Венеру**) |
+| space:1 | `advance` | пусто |
+| space:4 | пусто | `advance` |
+| space:5 | `ocean` | **`colony`** (Place a Colony) |
+| space:10 | пусто | `ocean` |
+| space:11 | `tr3` | `tr2` |
+| event:6 | `venus2` | `floater2` |
+| science:3 | `advance` | пусто |
+| science:5 | пусто | `greenery` |
+| science:6 | `greenery` | `milestone` |
+| science:9 | `milestone` | `advance` |
+| power:2 | `venus` | `floater` |
+| power:4 | `venus2` | `floater2` |
+| bio:7 | `advance` | пусто |
+
+**Две новые для движка печатные иконки.**
+
+1. **`colony` (space 5) — «Place a Colony».** Резолвится обычным ботовым конвейером колоний
+   (`AutomaColonies.botBuildColony`, тот же, что у B17/B18): случайный выбор плитки методом
+   флипа, 2 ресурса в складскую зону, замена Европы океаном, триггеры «any player built a colony»
+   и хук корпорации. Нет подходящей плитки → Failed Action (`no-colony-tile`). Без модуля Colonies —
+   иконка неиспользуемого расширения: игнорируется, без Failed Action (RB-A p.7).
+2. **`tag_7` (building 11) — круглая тег-иконка ВЕНЕРЫ.** Та же нотация «продвинуть трек этого
+   тега», но цель — приклеиваемый 8-м трек Венеры. Без Venus Next такого трека нет: `performTrackAction`
+   проверяет диапазон и игнорирует клетку (тоже RB-A p.7). Тест пинит и номер строки, и оба режима.
+
+**Значки расширений на клетках.** Space 7 — синий бейдж «V» → `venus`. Клетки-флоатеры
+(power 2/4, event 6) несут «V» **и** треугольник Colonies → работают при Venus **или** Colonies.
+Power 9 печатает жетон второго Trade Fleet — «9th space of the [power] track» (RB-C p.4/p.6).
+
+⚠️ **Что с листа НЕ переносится:** встроенный ряд Венеры, «FAILED ACTIONS = 5», «REMOVE ANY
+RESOURCES», таблица финального пересчёта M€. Плюс **устаревшая панель вех самого листа**: она печатает
+Metallurgist как «tracks' spots (combined) at **5**», тогда как текущий рулбук говорит **7**.
+Реализована семёрка — приоритет у современного официального текста, а не у напоминания на компоненте.
+
 ## 3. Venus Next MarsBot board (`src/server/automa/boards/VenusMarsBot.ts`)
 
 Статус: **транскрибирован** с RB-A p.2 (кроп «1 Venus Next MarsBot board», масштаб 26–30).
@@ -578,3 +633,99 @@ Magnate: у Hellas предикат «зелёная», у Elysium «cost ≥ 20
 отвергнутую карту отдельного foreground-уведомления не бывает.
 
 ⚠️ **Benefactor даёт именно РТ**, а не глобальный параметр и не тайл: `increaseTerraformRating(2)`.
+
+## 13. Utopia Planitia — правила карты (RB-C: Adding Expansions + карта B11)
+
+Статус: **закрыто по официальным источникам**, реализовано как ЧЕТВЁРТЫЙ map profile поверх общего
+движка. Ни Tharsis, ни Hellas, ни Elysium не менялись ни в одной клетке (регресс-тесты —
+`HellasMarsBotBoard.spec.ts`, `ElysiumMarsBotBoard.spec.ts`, `UtopiaMarsBotBoard.spec.ts`).
+
+### 13.1. Setup
+Профиль отдаёт `corporateCompetition = B11` (Tharsis → B08, Hellas → B09, Elysium → B10,
+Utopia → B11); остальной состав бонусной колоды не трогается.
+
+### 13.2. Имена слотов: форк ≠ печатная карта
+Форк схлопнул клоны вех/наград, поэтому слоты этой карты живут под своими каноническими именами.
+Это НЕ переименование правил — критерий бота привязан к тому имени, которое реально попадает в игру:
+
+| На reference card | В коде (форк) | Почему |
+|---|---|---|
+| Specialist | `Land Specialist` | «Specialist» уже занят Элизием |
+| Trader | `Tradesman` | `Trader` — deprecated клон `Tradesman` |
+| Metallurgist | `Smith` | `Metallurgist` — deprecated клон `Smith` |
+| Suburban | `Edgedancer` | одна и та же метрика «тайлы по краю поля» |
+
+Устаревшие имена (`Trader`, `Metallurgist`) оставлены алиасами в `botMilestoneProgress`, чтобы
+старое сохранение продолжало считаться.
+
+### 13.3. Вехи (RB-C p.9)
+| Веха | Условие для бота | Семья |
+|---|---|---|
+| Specialist (`Land Specialist`) | **3+ УНИЧТОЖЕННЫХ** бонусных карты | своё правило бота |
+| Trader (`Tradesman`) | Jovian/Energy, Earth/City **и** Венера — все на space 2+ | своё правило бота |
+| Metallurgist (`Smith`) | Building + Space **суммарно** 7+ | своё правило бота |
+| Researcher | Science на space 4+ | своё правило бота |
+| Pioneer | *Unchanged* — 3 колонии | **default**: колонии бота настоящие |
+| Hoverlord | *Unchanged* — 7 флоатеров | существующая ветка Venus |
+
+⚠️ **Specialist читает пул УНИЧТОЖЕННЫХ карт** (`destroyedBonusCards`), а не сброс поколения.
+⚠️ **Trader берёт МИНИМУМ из трёх названных треков** — трек Венеры входит в набор, поэтому без
+Venus Next веха честно недостижима (читает 0), а не «почти выполнена».
+⚠️ **Pioneer — контрольный случай для семьи `default`:** формулировка «Unchanged» такая же, как у
+Tycoon/Legend Элизия, но здесь она действительно ведёт в `default`, потому что колонии бота лежат
+ровно там, куда смотрит игроцкий эвалюатор (`getColoniesCount`). У Tycoon/Legend не так — карты бота
+лежат в `automa.playedPile`, а не в tableau.
+
+### 13.4. Награды (RB-C p.9)
+| Награда | Сила бота |
+|---|---|
+| Suburban (`Edgedancer`) | *Unchanged* — настоящие тайлы по краю поля (**default**) |
+| Investor | клетка трека Earth/City |
+| Botanist | клетка трека Bio **минус 2** (только для оценки; сам трек не двигается) |
+| Incorporator | карты стоимостью **≤ 10 M€** в стопке разыгранных, **включая события** |
+| Metropolist | *Unchanged* — настоящие города (**default**) |
+| Venuphile | клетка трека Венеры |
+
+### 13.5. Тайбрейкеры размещения (RB-C p.10)
+Для Utopia активны шаги 1 и 4:
+1. **Максимум соседних океанов**;
+4. **Максимум закрытых наградных иконок**, причём *«On Utopia Planitia, edge spaces are considered
+   to have an additional reward icon for purposes of tiebreakers»*;
+7. флип карты проекта.
+
+⚠️ **Край — НЕ отдельный шаг.** Это буллет ВНУТРИ шага 4, то есть арифметика:
+`effective = printed + (край ? 1 : 0)`. Поэтому клетка с 2 печатными иконками в глубине поля
+по-прежнему бьёт пустую клетку на краю (0+1), а 1+1 бьёт просто 1. Отдельный шаг «предпочитать край»
+ранжировал бы их наоборот. В коде это `MarsBotMapProfile.tiebreakRewardBonus` — декларативные данные
+карты, а не новый шаг.
+
+⚠️ **Только для тайбрейка.** Выплата остаётся `botCoveredIconMegacredits` (1 M€ за ПЕЧАТНУЮ иконку),
+поэтому за виртуальную краевую иконку бот денег не получает.
+
+⚠️ **Канонический предикат края — один:** `MarsBoard.isEdge` (множество-близнец уже существовавшего
+`getEdges()`). Его читают награда Edgedancer, тайбрейкер Utopia и helper B11 Suburban.
+
+⚠️ **Никакой протечки.** У Utopia нет ни шага Polar Region (Hellas), ни Southern Region (Elysium),
+ни пары Jovian+Science.
+
+### 13.6. B11 Corporate Competition
+Общая рамка не менялась: 5+ M€ → ближайшая оплаченная награда (leftmost при равенстве), невозможный
+helper пропускается, оплата 5 M€ только после успешного helper'а, иначе — добор ещё одной бонусной
+карты тем же связанным flow.
+
+| Награда | Helper |
+|---|---|
+| Suburban (`Edgedancer`) | озеленение **на краю поля** + O₂ (жёсткое ограничение) |
+| Investor | продвинуть трек Earth/City |
+| Botanist | продвинуть трек Bio |
+| Incorporator | вскрывать колоду до карты **≤ 10 M€**, разыграть её |
+| Metropolist | поставить город (обычный конвейер) |
+| Venuphile | продвинуть трек Венеры |
+
+⚠️ **Suburban — жёсткое ограничение, а не тайбрейк:** кандидаты = легальные клетки озеленения ∩
+край поля. Пусто → helper невозможен, карта идёт к следующей награде; «поставить озеленение
+где-нибудь ещё» не бывает.
+
+⚠️ **Incorporator использует ОБЩИЙ примитив вскрытия** (`revealUntilAndResolve`) — тот же, что
+Magnate (B09, «зелёная») и Celebrity (B10, «≥ 20»). Здесь предикат «≤ 10», ровно 10 подходит.
+Второго цикла вскрытия нет.

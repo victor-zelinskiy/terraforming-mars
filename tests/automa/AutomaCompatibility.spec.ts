@@ -37,12 +37,16 @@ describe('automaCompatibility — the shared UI/server conflict rules', () => {
     expect(automaConflicts({...cleanInput(), boardName: BoardName.ELYSIUM})).is.empty;
   });
 
+  it('Utopia Planitia is supported — its own MarsBot board, reference card and B11', () => {
+    expect(automaConflicts({...cleanInput(), boardName: BoardName.UTOPIA_PLANITIA})).is.empty;
+  });
+
   it('a board without a MarsBot profile conflicts and names it', () => {
     const conflicts = automaConflicts({...cleanInput(), boardName: BoardName.AMAZONIS});
     expect(conflicts).has.length(1);
     expect(conflicts[0].key).eq('board');
     expect(conflicts[0].reason)
-      .eq('the amazonis p. board yet — MarsBot covers tharsis, hellas and elysium');
+      .eq('the amazonis p. board yet — MarsBot covers tharsis, hellas, elysium and utopia planitia');
   });
 
   it('reports EVERY conflict (the UI highlights all of them at once)', () => {

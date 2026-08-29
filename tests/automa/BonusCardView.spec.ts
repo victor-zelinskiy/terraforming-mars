@@ -87,11 +87,34 @@ describe('buildBonusCardView — the card face resolved for THIS game', () => {
     expect(venus.lines.map((l) => l.text).join(' | ')).to.include('Venuphile');
   });
 
-  it('the three Corporate Competition faces are the SAME card with different helpers', () => {
+  it('Corporate Competition (B11) shows the UTOPIA helper list, and Venuphile only with Venus', () => {
+    const base = buildBonusCardView(BonusCardId.B11_CORPORATE_COMPETITION_UTOPIA, BASE);
+    expect(base.name).eq('Corporate Competition (Utopia Planitia)');
+    const text = base.lines.map((l) => l.text).join(' | ');
+    // Every printed helper is on the face — this is what fullscreen inspect reads.
+    expect(text).to.include('Suburban');
+    expect(text).to.include('Investor');
+    expect(text).to.include('Botanist');
+    expect(text).to.include('Incorporator');
+    expect(text).to.include('Metropolist');
+    // …and the greenery's hard constraint is stated, not implied.
+    expect(text).to.include('on the board edge');
+    expect(text, 'and the reveal-until threshold is a number, not a hint').to.include('10 M€ or less');
+    expect(text, 'Venuphile is a Venus Next addition').to.not.include('Venuphile');
+    expect(base.lines.some((l) => l.icon === 'megacredits' && l.params?.[0] === '5'),
+      'the 5 M€ payment is on the face').is.true;
+    expect(base.fate.kind).eq('discard');
+
+    const venus = buildBonusCardView(BonusCardId.B11_CORPORATE_COMPETITION_UTOPIA, VENUS);
+    expect(venus.lines.map((l) => l.text).join(' | ')).to.include('Venuphile');
+  });
+
+  it('the four Corporate Competition faces are the SAME card with different helpers', () => {
     const ids = [
       BonusCardId.B08_CORPORATE_COMPETITION,
       BonusCardId.B09_CORPORATE_COMPETITION_HELLAS,
       BonusCardId.B10_CORPORATE_COMPETITION_ELYSIUM,
+      BonusCardId.B11_CORPORATE_COMPETITION_UTOPIA,
     ];
     for (const id of ids) {
       const view = buildBonusCardView(id, BASE);
@@ -103,7 +126,7 @@ describe('buildBonusCardView — the card face resolved for THIS game', () => {
     }
     // …and no two of them carry the same helper list.
     const bodies = ids.map((id) => buildBonusCardView(id, BASE).lines.map((l) => l.text).join('|'));
-    expect(new Set(bodies).size, 'each map has its own helper list').eq(3);
+    expect(new Set(bodies).size, 'each map has its own helper list').eq(4);
   });
 
   it('Do It Right (B25) is Lobbyists without the destruction — and it says so', () => {
