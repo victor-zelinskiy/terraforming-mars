@@ -108,6 +108,7 @@ function seatPreview(overrides: {usedThisGeneration?: boolean, position?: number
   hydroNetworkState.preview = {
     currentPosition: at,
     availableEnergy: 3,
+    availableSteelSubstitute: 0,
     usedThisGeneration: overrides.usedThisGeneration ?? false,
     atEndOfTrack: false,
     maxLegalSteps: 9,

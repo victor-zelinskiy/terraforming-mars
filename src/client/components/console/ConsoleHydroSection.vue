@@ -163,9 +163,30 @@
                 <span class="con-hydro__req-energy" :class="{'con-hydro__req-energy--short': !targetAffordable}">
                   <i class="con-hydro__chip-ico resource_icon resource_icon--energy" aria-hidden="true"></i>
                   <b>{{ model.selectedSpend }}</b>
-                  <span class="con-hydro__req-have">{{ $t('You have') }}: {{ model.availableEnergy }}</span>
+                  <span class="con-hydro__req-have">{{ $t('You have') }}: {{ model.availableEnergy }}<template v-if="model.availableSteelSubstitute > 0"> + {{ model.availableSteelSubstitute }}<i class="con-hydro__chip-ico resource_icon resource_icon--steel" aria-hidden="true"></i></template></span>
                   <span class="con-hydro__req-mark" aria-hidden="true">{{ targetAffordable ? '✓' : '✕' }}</span>
                 </span>
+              </div>
+              <!-- Delta Works payment mix — ONE linked value (the steel share;
+                   energy is the remainder), so the total always equals the
+                   cost by construction. The bumpers shift one unit; with a
+                   single valid mix the row is a plain summary, never a stop. -->
+              <div v-if="mixRowVisible" class="con-hydro__mixline" data-unfold-item>
+                <span class="con-hydro__section-label">{{ $t('Payment') }}</span>
+                <span class="con-hydro__mix-part">
+                  <i class="con-hydro__chip-ico resource_icon resource_icon--energy" aria-hidden="true"></i>
+                  <b>{{ mixEnergy }}</b>
+                </span>
+                <span class="con-hydro__mix-plus" aria-hidden="true">+</span>
+                <span class="con-hydro__mix-part">
+                  <i class="con-hydro__chip-ico resource_icon resource_icon--steel" aria-hidden="true"></i>
+                  <b>{{ mixSteel }}</b>
+                </span>
+                <span v-if="mixAdjustable" class="con-hydro__mix-dial" aria-hidden="true">
+                  <GamepadGlyph control="bumperL" /><GamepadGlyph control="bumperR" />
+                </span>
+                <span class="con-hydro__mix-left">{{ $t('Left after paying') }}: {{ mixEnergyLeft }}<i class="con-hydro__chip-ico resource_icon resource_icon--energy" aria-hidden="true"></i> {{ mixSteelLeft }}<i class="con-hydro__chip-ico resource_icon resource_icon--steel" aria-hidden="true"></i></span>
+                <span class="con-hydro__mix-src">1<i class="con-hydro__chip-ico resource_icon resource_icon--steel" aria-hidden="true"></i>=1<i class="con-hydro__chip-ico resource_icon resource_icon--energy" aria-hidden="true"></i> · {{ $t(mixSourceName) }}</span>
               </div>
               <!-- Route notes: skipped rewards + the 2VP leap — tied to the
                    track (the amber route stops), one quiet line each. The
@@ -562,8 +583,8 @@
                    result: a price when there is one, the FREE badge when there
                    is not. «−0 ⚡» is a price on the one move that has none. -->
               <span v-if="commitRec.spend > 0" class="con-hydro__route-cost">
-                −{{ commitRec.spend }}
-                <i class="con-hydro__chip-ico resource_icon resource_icon--energy" aria-hidden="true"></i>
+                <template v-if="commitRec.spend - commitRec.spendSteel > 0">−{{ commitRec.spend - commitRec.spendSteel }}<i class="con-hydro__chip-ico resource_icon resource_icon--energy" aria-hidden="true"></i></template>
+                <template v-if="commitRec.spendSteel > 0">−{{ commitRec.spendSteel }}<i class="con-hydro__chip-ico resource_icon resource_icon--steel" aria-hidden="true"></i></template>
               </span>
               <span v-else class="con-hydro__route-cost con-hydro__route-cost--free">{{ $t('Free') }}</span>
             </span>
@@ -621,8 +642,8 @@
                 <span aria-hidden="true">→</span>
                 <b>{{ commitRec.toPosition }}</b>
                 <span v-if="commitRec.spend > 0" class="con-hydro__route-cost">
-                  −{{ commitRec.spend }}
-                  <i class="con-hydro__chip-ico resource_icon resource_icon--energy" aria-hidden="true"></i>
+                  <template v-if="commitRec.spend - commitRec.spendSteel > 0">−{{ commitRec.spend - commitRec.spendSteel }}<i class="con-hydro__chip-ico resource_icon resource_icon--energy" aria-hidden="true"></i></template>
+                  <template v-if="commitRec.spendSteel > 0">−{{ commitRec.spendSteel }}<i class="con-hydro__chip-ico resource_icon resource_icon--steel" aria-hidden="true"></i></template>
                 </span>
                 <span v-else class="con-hydro__route-cost con-hydro__route-cost--free">{{ $t('Free') }}</span>
               </span>
@@ -839,6 +860,14 @@ export default defineComponent({
       flow: hydroFlowState,
       hydroMarkerState,
       landings: cardResourceLandings,
+      /**
+       * The player's Delta Works mix PREFERENCE — the steel share they dialed
+       * (bumpers). The EFFECTIVE steel is this clamped to the live
+       * [minSteelForSpend, maxSteelForSpend] range (see `mixSteel`), so a
+       * destination/cost change re-clamps without spending anything silently,
+       * and 0 keeps the energy-first default (steel covers only the deficit).
+       */
+      steelPreference: 0,
       /** Scene focus: the track (A = primary) or the pre-select summary. */
       sceneFocus: 'track' as 'track' | 'summary' | 'bonus-source' | 'bonus-pick' | 'bonus-confirm' | 'bonus-skip',
       /**
@@ -1649,6 +1678,37 @@ export default defineComponent({
     },
 
     /** The command contract of the current step — published to the shell. */
+    // ── Delta Works payment mix (steel 1:1 for energy) ────────────────────
+    /** The row exists while the substitution is live and something is owed. */
+    mixRowVisible(): boolean {
+      return this.model.mode === 'plan' && this.model.selectedSpend > 0 &&
+        this.model.availableSteelSubstitute > 0;
+    },
+    /** More than one valid mix — the bumpers become a dial; else a summary. */
+    mixAdjustable(): boolean {
+      return this.mixRowVisible && this.model.maxSteelForSpend > this.model.minSteelForSpend;
+    },
+    /** The EFFECTIVE steel share: the preference clamped to the live range —
+     *  never silently more than the deficit demands, never more than usable. */
+    mixSteel(): number {
+      if (!this.mixRowVisible) {
+        return 0;
+      }
+      return Math.max(this.model.minSteelForSpend, Math.min(this.steelPreference, this.model.maxSteelForSpend));
+    },
+    mixEnergy(): number {
+      return this.model.selectedSpend - this.mixSteel;
+    },
+    mixEnergyLeft(): number {
+      return this.model.availableEnergy - this.mixEnergy;
+    },
+    mixSteelLeft(): number {
+      return this.model.availableSteelSubstitute - this.mixSteel;
+    },
+    /** The substitution's source card name (its English name IS the i18n key). */
+    mixSourceName(): string {
+      return this.model.steelSubstituteCard ?? '';
+    },
     footCommands(): ReadonlyArray<ConsoleCommand> {
       const c = this.flow.commit;
       if (c !== undefined) {
@@ -1720,6 +1780,9 @@ export default defineComponent({
         cmds.push({control: 'dpadU', control2: 'dpadD', label: 'Selection', priority: 3});
       }
       cmds.push({control: 'triggerR', label: 'Farthest stage'});
+      if (this.mixAdjustable) {
+        cmds.push({control: 'bumperL', control2: 'bumperR', label: 'Payment mix'});
+      }
       if (this.model.mode === 'details') {
         cmds.push({control: 'confirm', label: 'Back to plan'});
       } else if (this.sceneFocus === 'summary') {
@@ -2110,6 +2173,16 @@ export default defineComponent({
       closeHydroStep();
       this.selectPosition(position);
     },
+    /** One bumper press = one unit of the price moved between energy and
+     *  Delta Works steel. A no-op without a live choice, so the pair can
+     *  never surprise a player whose mix is fixed. */
+    adjustMix(delta: number): void {
+      if (!this.mixAdjustable || this.flow.commit !== undefined) {
+        return;
+      }
+      this.steelPreference = Math.max(this.model.minSteelForSpend,
+        Math.min(this.mixSteel + delta, this.model.maxSteelForSpend));
+    },
     selectPosition(position: number): void {
       const last = this.model.stages.length - 1;
       const next = Math.min(last, Math.max(0, position));
@@ -2431,6 +2504,9 @@ export default defineComponent({
       const repeat = this.model.needsCardSelect === 'reuse-action' ? this.chosenRepeat : undefined;
       this.$emit('confirm', {
         spend: this.model.selectedSpend,
+        // The chosen Delta Works mix — the ONE linked steel value (energy is
+        // the remainder). Omitted at 0 so the batch stays byte-identical.
+        steelSpend: this.mixSteel > 0 ? this.mixSteel : undefined,
         rewardChoice: this.model.targetNeedsChoice ? hydroNetworkState.rewardChoice : undefined,
         selectedCard: this.model.mustSelectCard ? this.model.selectedCard : undefined,
         // The warned confirm with no pick is a CONSCIOUS decline — the server
@@ -2756,6 +2832,12 @@ export default defineComponent({
         }
         return;
       }
+      case 'prevSection': // LB — one unit of the price back to energy.
+        this.adjustMix(-1);
+        return;
+      case 'nextSection': // RB — one more unit paid with Delta Works steel.
+        this.adjustMix(1);
+        return;
       case 'primary':
         if (this.sceneFocus === 'summary') {
           this.onChangeSelection();

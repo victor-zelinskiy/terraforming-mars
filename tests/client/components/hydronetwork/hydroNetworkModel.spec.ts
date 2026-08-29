@@ -29,6 +29,7 @@ function fullPreview(energy: number, overrides: Partial<DeltaTrackPreviewModel> 
   return {
     currentPosition: 0,
     availableEnergy: energy,
+    availableSteelSubstitute: 0,
     usedThisGeneration: false,
     atEndOfTrack: false,
     maxLegalSteps: Math.min(energy, 11),

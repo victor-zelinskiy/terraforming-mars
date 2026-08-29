@@ -13,7 +13,8 @@ import {
 import {AddResourcesToCard} from '../deferredActions/AddResourcesToCard';
 import {SelectPaymentDeferred} from '../deferredActions/SelectPaymentDeferred';
 import {StealResources} from '../deferredActions/StealResources';
-import {TradeWithMegacredits} from '../player/Colonies';
+import {TradeWithEnergy, TradeWithMegacredits} from '../player/Colonies';
+import {DeltaWorks} from '../cards/delta/DeltaWorks';
 import {IPlayer} from '../IPlayer';
 import {IColony} from './IColony';
 import {message} from '../logs/MessageBuilder';
@@ -87,6 +88,20 @@ export function buildColonyTradePreview(player: IPlayer, colony: IColony): Colon
       .previewPaymentModel() :
     undefined;
 
+  // ── The ENERGY path's source mix (Delta Works: 1 steel = 1 energy) —
+  //    mirrors TradeWithEnergy.trade exactly: min = the energy deficit,
+  //    max = min(stock, cost); min < max is when the server will ASK. ────────
+  const steelSubstitute = DeltaWorks.steelSubstituteAvailable(player);
+  const energyTrader = new TradeWithEnergy(player);
+  const energyMix = steelSubstitute > 0 ? {
+    cost: energyTrader.cost,
+    energyAvailable: player.energy,
+    steelAvailable: steelSubstitute,
+    minSteel: Math.max(0, energyTrader.cost - player.energy),
+    maxSteel: Math.min(steelSubstitute, energyTrader.cost),
+    card: CardName.DELTA_WORKS,
+  } : undefined;
+
   // ── Flat every-trade card modifiers (mirrors Colony.handleTrade). ─────────
   const flatBonuses: Array<{card: CardName, resource: string, amount: number}> = [];
   if (player.tableau.has(CardName.VENUS_TRADE_HUB)) {
@@ -104,6 +119,7 @@ export function buildColonyTradePreview(player: IPlayer, colony: IColony): Colon
     track: {current: colony.trackPosition, effective, steps, willAsk},
     rewardQuantity,
     ...(megacreditsPayment !== undefined ? {megacreditsPayment} : {}),
+    ...(energyMix !== undefined ? {energyMix} : {}),
     followUps,
     ...(buildFollowUps.length > 0 ? {buildFollowUps} : {}),
     ...(flatBonuses.length > 0 ? {flatBonuses} : {}),

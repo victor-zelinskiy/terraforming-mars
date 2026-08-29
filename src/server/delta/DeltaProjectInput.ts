@@ -14,6 +14,16 @@ export class DeltaProjectInput extends BasePlayerInput<number> {
   public waiveReward = false;
 
   /**
+   * Steel spent 1:1 in place of energy (Delta Works) — set from the wire in
+   * {@link process} like {@link waiveReward}, read by the `andThen` closure
+   * and handed to `advance` as the payment mix. 0 = the whole price is
+   * energy (the legacy wire shape omits the field entirely). Range-checked
+   * structurally here; the authoritative mix validation lives in
+   * `DeltaProjectExpansion.resolveAdvancePayment`, at commit.
+   */
+  public steelSpent = 0;
+
+  /**
    * @param validSteps the legal step counts the player may submit. Each value
    * is both the number of track positions to advance and the energy cost.
    * Sparse (not always `[1..max]`) when an opponent occupies a VP spot —
@@ -42,7 +52,12 @@ export class DeltaProjectInput extends BasePlayerInput<number> {
     if (!this.validSteps.includes(input.amount)) {
       throw new InputError('Amount must be one of: ' + this.validSteps.join(', '));
     }
+    const steel = input.steel ?? 0;
+    if (!Number.isInteger(steel) || steel < 0 || steel > input.amount) {
+      throw new InputError('Steel share must be an integer between 0 and the step count');
+    }
     this.waiveReward = input.waiveReward === true;
+    this.steelSpent = steel;
     return this.cb(input.amount);
   }
 }

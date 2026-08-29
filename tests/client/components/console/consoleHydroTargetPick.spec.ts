@@ -72,6 +72,7 @@ function seatPreview(position: number, opts: {
   hydroNetworkState.preview = {
     currentPosition: position,
     availableEnergy: 9,
+    availableSteelSubstitute: 0,
     usedThisGeneration: false,
     atEndOfTrack: false,
     maxLegalSteps: remaining,

@@ -1061,6 +1061,7 @@ export enum CardName {
   DYNAMIC_OCEAN_BARRIER = 'Dynamic Ocean Barrier',
   STORM_SURGE_BARRIER = 'Storm Surge Barrier',
   DEVELOPMENT_MANAGER = 'Development Manager',
+  DELTA_WORKS = 'Delta Works',
 
   // Underworld Standard Projects
   EXCAVATE_STANDARD_PROJECT = 'Excavate:SP',

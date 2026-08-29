@@ -2513,7 +2513,10 @@ export class Player implements IPlayer {
           // BEFORE this callback runs.
           const input = new DeltaProjectInput(DeltaProjectExpansion.getValidAdvanceSteps(this));
           return input.andThen((amount) => {
-            DeltaProjectExpansion.advance(this, amount, undefined, {waiveTargetReward: input.waiveReward});
+            DeltaProjectExpansion.advance(this, amount, undefined, {
+              waiveTargetReward: input.waiveReward,
+              payment: {energy: amount - input.steelSpent, steel: input.steelSpent},
+            });
             if (this.deltaProjectData !== undefined) {
               this.deltaProjectData.usedThisGeneration = true;
             }

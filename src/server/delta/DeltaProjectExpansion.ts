@@ -16,6 +16,7 @@ import {namedCardSource} from '../inputs/choiceContext';
 import {AddResourcesToCard} from '../deferredActions/AddResourcesToCard';
 import {CardResource} from '../../common/CardResource';
 import {IActionCard, ICard, isIActionCard, isIHasCheckLoops} from '../cards/ICard';
+import {DeltaWorks} from '../cards/delta/DeltaWorks';
 import {UnplayableReason} from '../../common/cards/UnplayableReason';
 import {notEnoughEnergy, ruleReason} from '../cards/actionReasons';
 
@@ -211,6 +212,7 @@ export class DeltaProjectExpansion {
       return {
         currentPosition: 0,
         availableEnergy: player.energy,
+        availableSteelSubstitute: 0,
         usedThisGeneration: false,
         atEndOfTrack: false,
         maxLegalSteps: 0,
@@ -224,9 +226,13 @@ export class DeltaProjectExpansion {
     const game = player.game;
     const currentPos = progress.position;
     const energy = player.energy;
+    // Delta Works: steel pays 1:1 for the STANDARD advance, so the budget the
+    // preview grades affordability against is energy + the live substitute.
+    const steelSubstitute = DeltaWorks.steelSubstituteAvailable(player);
+    const budget = energy + steelSubstitute;
     // The preview covers the WHOLE remaining track (not just affordable steps) so
-    // the player can click any distant stage to study it; energy only gates the
-    // stepper bound + the confirm.
+    // the player can click any distant stage to study it; the budget only gates
+    // the stepper bound + the confirm.
     const maxPreviewSteps = Math.max(0, MAX_TRACK_POSITION - currentPos);
 
     const destinations: Array<DeltaTrackDestination> = [];
@@ -241,7 +247,7 @@ export class DeltaProjectExpansion {
         position === VP5_POSITION &&
         DeltaProjectExpansion.hasOtherPlayerAtPosition(game, VP2_POSITION, player);
       const legal = tagInfo.missingTags.length === 0 && !occupied;
-      const affordable = steps <= energy;
+      const affordable = steps <= budget;
       if (legal && affordable) {
         maxLegalSteps = steps;
       }
@@ -250,7 +256,7 @@ export class DeltaProjectExpansion {
         position,
         legal,
         affordable,
-        energyDeficit: Math.max(0, steps - energy),
+        energyDeficit: Math.max(0, steps - budget),
         occupied,
         jumpedOverVp2,
         requiredTags: tagInfo.requiredTags,
@@ -269,10 +275,12 @@ export class DeltaProjectExpansion {
     return {
       currentPosition: currentPos,
       availableEnergy: energy,
+      availableSteelSubstitute: steelSubstitute,
+      ...(steelSubstitute > 0 ? {steelSubstituteCard: CardName.DELTA_WORKS} : {}),
       usedThisGeneration: progress.usedThisGeneration === true,
       atEndOfTrack: currentPos >= MAX_TRACK_POSITION,
       maxLegalSteps,
-      maxEnergySteps: Math.max(0, Math.min(energy, MAX_TRACK_POSITION - currentPos)),
+      maxEnergySteps: Math.max(0, Math.min(budget, MAX_TRACK_POSITION - currentPos)),
       maxPreviewSteps,
       destinations,
       reuseActionCards,
@@ -298,9 +306,12 @@ export class DeltaProjectExpansion {
     const result: number[] = [];
     // A bonus move is bounded by what the CARD grants, not by the stock: it
     // pays no per-step energy, so the player's energy must not shorten it.
+    // The STANDARD advance's budget is energy plus Delta Works's 1:1 steel
+    // substitute (the mix itself is validated at commit) — a bonus move's
+    // toll stays energy-only, so the substitute never widens it.
     const budget = options?.free === true ?
       (options.maxSteps ?? MAX_TRACK_POSITION) :
-      Math.min(player.energy, options?.maxSteps ?? MAX_TRACK_POSITION);
+      Math.min(player.energy + DeltaWorks.steelSubstituteAvailable(player), options?.maxSteps ?? MAX_TRACK_POSITION);
     const maxByEnergy = Math.min(budget, MAX_TRACK_POSITION - currentPos);
 
     for (let steps = 1; steps <= maxByEnergy; steps++) {
@@ -407,6 +418,13 @@ export class DeltaProjectExpansion {
      * every other landing: only the two target picks are waivable.
      */
     waiveTargetReward?: boolean,
+    /**
+     * The STANDARD advance's chosen payment mix (Delta Works: 1 steel = 1
+     * energy). Must total `steps`; steel > 0 requires the card in the tableau.
+     * Absent = the energy-first default (energy, then steel for the deficit
+     * only). Ignored for `free` bonus contexts — their toll is energy-only.
+     */
+    payment?: {energy: number, steel: number},
   }): void {
     // Re-validated against the SAME option set the offer was computed with —
     // the authoritative check happens HERE, at commit, never at prompt time.
@@ -421,6 +439,9 @@ export class DeltaProjectExpansion {
     if (energyToll > player.energy) {
       throw new Error(`Not enough energy for the Delta Project toll: ${String(energyToll)}`);
     }
+    // The actual {energy, steel} the move is paid with — fully validated HERE,
+    // before any mutation, so a stale/impossible mix rejects atomically.
+    const payment = DeltaProjectExpansion.resolveAdvancePayment(player, steps, options, extras?.payment);
 
     const game = player.game;
     const progress = DeltaProjectExpansion.getProgress(player);
@@ -439,9 +460,15 @@ export class DeltaProjectExpansion {
     // their result logs stay in the same group.
     game.events.beginAction(player, {kind: 'card', card: CardName.DELTA_PROJECT, owner: player.color}, {category: 'delta-project'});
     try {
-      // Per-step energy is the STANDARD action's price; a bonus move pays only
-      // its own toll (0 for a plain bonus, 1 for a tag waiver).
-      player.stock.deduct(Resource.ENERGY, options?.free === true ? energyToll : steps);
+      // The STANDARD action's per-step price, in the player's chosen mix of
+      // energy and Delta Works steel; a bonus move pays only its own toll
+      // (0 for a plain bonus, 1 for a tag waiver — always energy).
+      player.stock.deduct(Resource.ENERGY, payment.energy);
+      if (payment.steel > 0) {
+        // The substitution is Delta Works's effect — source the steel spend to
+        // the card so the journal/event stream names the modifier.
+        player.stock.deduct(Resource.STEEL, payment.steel, {log: false, from: {card: CardName.DELTA_WORKS}});
+      }
       progress.position = newPos;
       // Record the landing for the per-stage history panel (a choice stage's
       // chosen reward is filled in by the deferred OrOptions callback below).
@@ -450,8 +477,17 @@ export class DeltaProjectExpansion {
       }
       progress.stops.push({position: newPos, generation: game.generation});
 
-      game.log('${0} directed ${1} energy into the Hydronetwork, reaching ${2}', (b) =>
-        b.player(player).number(steps).string(stageName));
+      // The log names the ACTUAL mix spent — never «N energy» over steel.
+      if (payment.steel === 0) {
+        game.log('${0} directed ${1} energy into the Hydronetwork, reaching ${2}', (b) =>
+          b.player(player).number(steps).string(stageName));
+      } else if (payment.energy === 0) {
+        game.log('${0} directed ${1} steel into the Hydronetwork, reaching ${2}', (b) =>
+          b.player(player).number(payment.steel).string(stageName));
+      } else {
+        game.log('${0} directed ${1} energy and ${2} steel into the Hydronetwork, reaching ${3}', (b) =>
+          b.player(player).number(payment.energy).number(payment.steel).string(stageName));
+      }
 
       if (newPos === VP2_POSITION) {
         game.log('${0} claimed the ${1} position on the Hydronetwork (2 VP at game end)', (b) =>
@@ -486,6 +522,53 @@ export class DeltaProjectExpansion {
     } finally {
       game.events.endScope();
     }
+  }
+
+  /**
+   * The actual {energy, steel} mix ONE advance is paid with — validated in
+   * full BEFORE any mutation. Steel substitutes energy 1:1 ONLY for the
+   * STANDARD per-step price and ONLY while Delta Works is in the tableau; a
+   * `free` bonus context (DP03's bonus step, DP04's card action) pays its
+   * energy toll and nothing else, whatever mix was requested. Exact-total by
+   * construction: an under- or over-payment is a thrown error, never a clamp.
+   * With no requested mix (legacy wire shape / DP01) the default is
+   * energy-first — steel covers ONLY the deficit, never silently more.
+   */
+  private static resolveAdvancePayment(
+    player: IPlayer,
+    steps: number,
+    options: AdvanceOptions | undefined,
+    requested: {energy: number, steel: number} | undefined,
+  ): {energy: number, steel: number} {
+    if (options?.free === true) {
+      return {energy: options.energyToll ?? 0, steel: 0};
+    }
+    const substitute = DeltaWorks.steelSubstituteAvailable(player);
+    if (requested !== undefined) {
+      const {energy, steel} = requested;
+      if (!Number.isInteger(energy) || !Number.isInteger(steel) || energy < 0 || steel < 0) {
+        throw new Error('Invalid Hydronetwork payment: amounts must be non-negative integers');
+      }
+      if (energy + steel !== steps) {
+        throw new Error(`Invalid Hydronetwork payment: ${String(energy)} energy + ${String(steel)} steel does not equal ${String(steps)} step(s)`);
+      }
+      if (steel > 0 && substitute === 0) {
+        throw new Error('Steel cannot pay for Hydronetwork steps without Delta Works');
+      }
+      if (steel > substitute) {
+        throw new Error('Not enough steel for the Hydronetwork advance');
+      }
+      if (energy > player.energy) {
+        throw new Error('Not enough energy for the Hydronetwork advance');
+      }
+      return requested;
+    }
+    const steel = Math.min(Math.max(0, steps - player.energy), substitute);
+    const energy = steps - steel;
+    if (energy > player.energy) {
+      throw new Error('Not enough energy for the Hydronetwork advance');
+    }
+    return {energy, steel};
   }
 
   private static resolveReward(player: IPlayer, position: number, waiveTargetReward = false): void {

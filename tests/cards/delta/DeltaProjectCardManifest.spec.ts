@@ -95,16 +95,19 @@ describe('DeltaProjectCardManifest', () => {
       .filter(([_name, factory]) => factory.instantiate !== false)
       .map(([name]) => name);
 
+    // Colonies ride along in BOTH halves of every comparison: DP06 (Delta
+    // Works) carries `compatibility: 'colonies'`, so without them it is
+    // legitimately absent — the module gate is what these tests isolate.
     it('adds the module\'s project cards to the deck when the expansion is on', () => {
-      const names = new GameCards(options({deltaProjectExpansion: true})).getProjectCards().map(toName);
+      const names = new GameCards(options({deltaProjectExpansion: true, coloniesExtension: true})).getProjectCards().map(toName);
       for (const name of dealtProjectNames) {
         expect(names, `${name} should be dealt with Hydronetworks on`).to.contain(name);
       }
     });
 
     it('adds nothing to the deck when the expansion is off', () => {
-      const off = new GameCards(options({deltaProjectExpansion: false}));
-      const on = new GameCards(options({deltaProjectExpansion: true}));
+      const off = new GameCards(options({deltaProjectExpansion: false, coloniesExtension: true}));
+      const on = new GameCards(options({deltaProjectExpansion: true, coloniesExtension: true}));
       const offNames = off.getProjectCards().map(toName);
 
       for (const name of dealtProjectNames) {

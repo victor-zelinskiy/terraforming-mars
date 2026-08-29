@@ -7,20 +7,21 @@ import {CardName} from '../cards/CardName';
  * UI never guesses.
  *
  * The preview covers EVERY remaining position (1..end-of-track), NOT only the
- * energy-affordable ones — so the player can click a distant stage to study what
- * it requires. `legal` = tags + VP occupancy OK (independent of energy);
- * `affordable` = within the player's energy. Confirm needs `legal && affordable`.
+ * affordable ones — so the player can click a distant stage to study what it
+ * requires. `legal` = tags + VP occupancy OK (independent of the budget);
+ * `affordable` = within the player's payment budget (energy, plus steel 1:1
+ * while Delta Works is in the tableau). Confirm needs `legal && affordable`.
  */
 export type DeltaTrackDestination = {
-  /** Track positions advanced (also the energy cost). */
+  /** Track positions advanced (also the energy-equivalent cost). */
   steps: number;
   /** Absolute track position reached (currentPosition + steps). */
   position: number;
   /** Tags OK (path requirements met, wilds applied) AND not blocked by VP occupancy. */
   legal: boolean;
-  /** Within the player's current energy (steps <= availableEnergy). */
+  /** Within the player's payment budget (steps <= energy + steel substitute). */
   affordable: boolean;
-  /** Extra energy needed beyond what the player has (0 when affordable). */
+  /** Energy-equivalent units missing beyond the whole budget (0 when affordable). */
   energyDeficit: number;
   /** The destination is a VP slot already occupied by another player. */
   occupied: boolean;
@@ -42,11 +43,20 @@ export type DeltaTrackDestination = {
 export type DeltaTrackPreviewModel = {
   currentPosition: number;
   availableEnergy: number;
+  /**
+   * Steel usable 1:1 in place of energy for the STANDARD advance (Delta Works
+   * in the viewer's tableau) — 0 when the substitution is not live. The budget
+   * behind `affordable`/`maxEnergySteps` is `availableEnergy + this`.
+   */
+  availableSteelSubstitute: number;
+  /** The card granting the steel substitution (its source badge) — present iff
+   *  `availableSteelSubstitute > 0`. */
+  steelSubstituteCard?: CardName;
   usedThisGeneration: boolean;
   atEndOfTrack: boolean;
   /** Highest legal AND affordable step count (best confirmable move). Drives the default spend. */
   maxLegalSteps: number;
-  /** Deepest energy-affordable step count — bounds the −/+ stepper. */
+  /** Deepest affordable step count (energy + steel substitute) — bounds the −/+ stepper. */
   maxEnergySteps: number;
   /** Deepest reachable step count on the track (= destinations.length) — bounds click-preview. */
   maxPreviewSteps: number;

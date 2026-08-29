@@ -14,6 +14,10 @@ import {SelectColony} from '../inputs/SelectColony';
 import {IColonyTrader} from '../colonies/IColonyTrader';
 import {TradeWithCollegiumCopernicus} from '../cards/pathfinders/CollegiumCopernicus';
 import {message} from '../logs/MessageBuilder';
+import {SelectAmount} from '../inputs/SelectAmount';
+import {InputError} from '../inputs/InputError';
+import {cardEffect} from '../inputs/choiceContext';
+import {DeltaWorks} from '../cards/delta/DeltaWorks';
 import {TradeWithDarksideSmugglersUnion} from '../cards/moon/DarksideSmugglersUnion';
 import {Payment} from '../../common/inputs/Payment';
 import {TradeWithHectateSpeditions} from '../cards/underworld/HecateSpeditions';
@@ -318,30 +322,96 @@ export class TradeWithEnergy implements IColonyTrader {
     this.tradeCost = ENERGY_TRADE_COST - player.colonies.tradeDiscount;
   }
 
+  /** The effective energy-equivalent trade fee (discounts applied) — read by
+   *  the trade preview (`colonyTradePreview.ts`) so the cost math never forks. */
+  public get cost(): number {
+    return this.tradeCost;
+  }
+
+  /** Steel usable 1:1 for energy in THIS payment (Delta Works live), else 0. */
+  private steelSubstitute(): number {
+    return DeltaWorks.steelSubstituteAvailable(this.player);
+  }
+
   public canUse() {
-    return this.player.energy >= this.tradeCost;
+    // The family stays energy-DENOMINATED; Delta Works only widens its
+    // SOURCES, so affordability is the combined pool — never a fourth option.
+    return this.player.energy + this.steelSubstitute() >= this.tradeCost;
   }
   public optionText() {
     return message('Pay ${0} energy', (b) => b.number(this.tradeCost));
   }
   public optionMetadata() {
+    // The chip previews the energy-first DEFAULT; a chosen steel mix is the
+    // composer's own mix row (fed by the preview's `energyMix`), never this.
     return {kind: 'resourceRemoval' as const, icon: 'energy', amount: this.tradeCost,
       resource: {current: this.player.energy, resulting: Math.max(0, this.player.energy - this.tradeCost)}};
   }
   public disabledReason() {
-    return 'Not enough energy';
+    return this.steelSubstitute() > 0 ? 'Not enough energy and steel' : 'Not enough energy';
   }
 
-  public trade(colony: IColony) {
+  /** Deduct the ACTUAL chosen mix and run the trade. Substitution, never
+   *  conversion: no energy is added anywhere, the steel leaves as steel. */
+  private pay(colony: IColony, steel: number) {
+    const energy = this.tradeCost - steel;
     // The trade FEE is a payment, not a colony benefit — attribute it to the
     // `payment` source so the journal reads "Оплата → −N", distinct from the
     // colony's trade reward / bonus rows. (The reward comes from colony.trade.)
     this.player.game.events.withSource({kind: 'payment'}, () => {
-      this.player.stock.deduct(Resource.ENERGY, this.tradeCost);
-      this.player.game.log('${0} spent ${1} energy to trade with ${2}', (b) => b.player(this.player).number(this.tradeCost).colony(colony));
+      this.player.stock.deduct(Resource.ENERGY, energy);
+      if (steel > 0) {
+        // The substitution is Delta Works's effect — source the steel spend
+        // to the card so the journal/event stream names the modifier.
+        this.player.stock.deduct(Resource.STEEL, steel, {log: false, from: {card: CardName.DELTA_WORKS}});
+      }
+      if (steel === 0) {
+        this.player.game.log('${0} spent ${1} energy to trade with ${2}', (b) => b.player(this.player).number(this.tradeCost).colony(colony));
+      } else if (energy === 0) {
+        this.player.game.log('${0} spent ${1} steel to trade with ${2}', (b) => b.player(this.player).number(steel).colony(colony));
+      } else {
+        this.player.game.log('${0} spent ${1} energy and ${2} steel to trade with ${3}', (b) => b.player(this.player).number(energy).number(steel).colony(colony));
+      }
     });
     recordTradeDiscountSaving(this.player, colony, 'energy', ENERGY_TRADE_COST);
     colony.trade(this.player);
+  }
+
+  public trade(colony: IColony) {
+    const cost = this.tradeCost;
+    const substitute = this.steelSubstitute();
+    const maxSteel = Math.min(substitute, cost);
+    const minSteel = Math.max(0, cost - this.player.energy);
+    if (cost > 0 && maxSteel > minSteel) {
+      // Delta Works: the fee stays energy-denominated, the SOURCE mix is the
+      // player's. ONE linked dial — the steel share; energy is the remainder,
+      // so the total can never disagree with the cost. Deferred exactly like
+      // the M€ path's payment prompt, so the console pre-collects the answer
+      // in the same batch; the default (min) is energy-first.
+      const input = new SelectAmount(
+        message('Use steel as energy for this trade (1 steel = 1 energy, ${0} to pay)', (b) => b.number(cost)),
+        'Pay', minSteel, maxSteel)
+        .andThen((steel) => {
+          // Re-validated at commit: the mix must still be payable NOW (the
+          // stock or the tableau may have moved since the prompt was built).
+          if (steel > this.steelSubstitute() || cost - steel > this.player.energy) {
+            throw new InputError('Cannot afford that energy and steel mix');
+          }
+          this.pay(colony, steel);
+          return undefined;
+        });
+      const deltaWorks = this.player.tableau.get(CardName.DELTA_WORKS);
+      if (deltaWorks !== undefined) {
+        // Name WHO turned one payment into a mix (the premium fallback surface
+        // shows the source card when the batch diverges).
+        input.markChoiceContext(cardEffect(deltaWorks, undefined, 'effect-choice'));
+      }
+      this.player.defer(() => input);
+    } else {
+      // No choice to make: energy-only (no Delta Works / no steel), or the one
+      // forced mix (the deficit dictates the steel share). Shown, never asked.
+      this.pay(colony, minSteel);
+    }
   }
 }
 

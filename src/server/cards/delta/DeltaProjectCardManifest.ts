@@ -5,6 +5,7 @@ import {QuantumResearch} from './QuantumResearch';
 import {DynamicOceanBarrier} from './DynamicOceanBarrier';
 import {StormSurgeBarrier} from './StormSurgeBarrier';
 import {DevelopmentManager} from './DevelopmentManager';
+import {DeltaWorks} from './DeltaWorks';
 
 /**
  * THE DELTA PROJECT («Гидросеть») CARD MANIFEST.
@@ -28,6 +29,9 @@ export const DELTA_PROJECT_CARD_MANIFEST = new ModuleManifest({
     [CardName.DYNAMIC_OCEAN_BARRIER]: {Factory: DynamicOceanBarrier},
     [CardName.STORM_SURGE_BARRIER]: {Factory: StormSurgeBarrier},
     [CardName.DEVELOPMENT_MANAGER]: {Factory: DevelopmentManager},
+    // Half of its printed effect modifies the colony trade flow, so the card
+    // needs BOTH modules (the deltaProject half is the manifest's own gate).
+    [CardName.DELTA_WORKS]: {Factory: DeltaWorks, compatibility: 'colonies'},
   },
   preludeCards: {
     // NEVER DEALT. The Delta Project is a global subsystem every player shares

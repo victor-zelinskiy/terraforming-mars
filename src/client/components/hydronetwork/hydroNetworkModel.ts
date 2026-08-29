@@ -99,11 +99,19 @@ export type HydroModel = {
   /** 'plan' when a future target is selected; 'details' for current/passed. */
   mode: 'plan' | 'details';
   availableEnergy: number;
+  /** Steel usable 1:1 in place of energy (Delta Works live), else 0. */
+  availableSteelSubstitute: number;
+  /** The substitution's source card — present iff the substitute is > 0. */
+  steelSubstituteCard: CardName | undefined;
   atEndOfTrack: boolean;
   usedThisGeneration: boolean;
 
   // ── Plan mode ──────────────────────────────────────────────────────────
-  selectedSpend: number; // energy/steps for the target (0 in details mode)
+  selectedSpend: number; // energy-equivalent steps for the target (0 in details mode)
+  /** Steel the selected spend REQUIRES at minimum (the energy deficit). */
+  minSteelForSpend: number;
+  /** Steel the selected spend can use at most (min of substitute and spend). */
+  maxSteelForSpend: number;
   defaultSpend: number;
   /** Inclusive −/+ bounds. The stepper is energy-bounded; clicks bypass it. */
   minSpend: number;
@@ -179,6 +187,8 @@ export function buildHydroModel(input: HydroModelInput): HydroModel {
   const preview = input.preview;
   const currentPosition = viewerPosition(input);
   const availableEnergy = preview?.availableEnergy ?? 0;
+  const availableSteelSubstitute = preview?.availableSteelSubstitute ?? 0;
+  const steelSubstituteCard = preview?.steelSubstituteCard;
   const maxSpend = preview?.maxPreviewSteps ?? 0;
   const stepperMax = preview?.maxEnergySteps ?? 0;
   // Default to a SINGLE step (the nearest area) when any advance is possible, so
@@ -342,15 +352,24 @@ export function buildHydroModel(input: HydroModelInput): HydroModel {
     detailsHistory = detailsHistory.sort((a, b) => (a.isViewer === b.isViewer ? 0 : a.isViewer ? -1 : 1));
   }
 
+  // The mix bounds for the SELECTED spend (Delta Works: 1 steel = 1 energy).
+  // min = the energy deficit the steel MUST cover; max = what it CAN cover.
+  const minSteelForSpend = mode === 'plan' ? Math.max(0, selectedSpend - availableEnergy) : 0;
+  const maxSteelForSpend = mode === 'plan' ? Math.min(availableSteelSubstitute, selectedSpend) : 0;
+
   return {
     stages,
     currentPosition,
     selectedPosition,
     mode,
     availableEnergy,
+    availableSteelSubstitute,
+    steelSubstituteCard,
     atEndOfTrack: preview?.atEndOfTrack ?? (currentPosition >= MAX_POS),
     usedThisGeneration: preview?.usedThisGeneration ?? false,
     selectedSpend,
+    minSteelForSpend,
+    maxSteelForSpend,
     defaultSpend,
     minSpend: maxSpend === 0 ? 0 : 1,
     stepperMax,

@@ -67,6 +67,8 @@ export type HydroCommitRecord = {
   fromPosition: number;
   toPosition: number;
   spend: number;
+  /** Steel spent 1:1 in place of energy (Delta Works) — 0 = energy-only. */
+  spendSteel: number;
   rewardChoice: number | undefined;
   selectedCard: CardName | undefined;
   /** The stage-7 composed repeat rode the batch (vs a bare card pick). */

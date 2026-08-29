@@ -224,11 +224,22 @@ export interface DeltaProjectInputResponse {
    * always (pre-collected in the same batch, or asked afterwards).
    */
   waiveReward?: boolean;
+  /**
+   * Steel spent 1:1 in place of energy for this advance (Delta Works). The
+   * energy share is the remainder (`amount - steel`) — one linked value, so a
+   * mix can never disagree with the cost. Omitted (never 0) when the whole
+   * price is energy: the wire shape without the field stays byte-identical to
+   * the pre-Delta-Works client, and the server re-validates the mix at commit.
+   */
+  steel?: number;
 }
 
 export function isDeltaProjectInputResponse(response: InputResponse): response is DeltaProjectInputResponse {
   return response.type === 'deltaProject' &&
-    (matches(response, ['type', 'amount']) || matches(response, ['type', 'amount', 'waiveReward']));
+    (matches(response, ['type', 'amount']) ||
+     matches(response, ['type', 'amount', 'waiveReward']) ||
+     matches(response, ['type', 'amount', 'steel']) ||
+     matches(response, ['type', 'amount', 'waiveReward', 'steel']));
 }
 
 export type InputResponse =

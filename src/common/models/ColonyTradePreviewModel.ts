@@ -91,6 +91,28 @@ export type ColonyTradePreviewModel = {
    * picks the M€ payment path; the other follow-ups apply to every path.
    */
   megacreditsPayment?: SelectPaymentModel;
+  /**
+   * The ENERGY path's source mix (Delta Works: 1 steel = 1 energy) — present
+   * whenever the substitution is live, regardless of whether it changes
+   * anything. When `minSteel < maxSteel` the server defers ONE linked
+   * SelectAmount (the steel share; energy is the remainder) exactly like the
+   * M€ path defers its payment prompt, so the composer pre-collects it in the
+   * same batch. `minSteel === maxSteel` = a single valid mix: shown, never
+   * asked. Applies ONLY when the player picks the energy payment path.
+   */
+  energyMix?: {
+    /** Energy-equivalent fee of the energy path (discounts applied). */
+    cost: number;
+    energyAvailable: number;
+    /** Steel usable 1:1 (the card is in the tableau; the amount is live stock). */
+    steelAvailable: number;
+    /** Steel needed at minimum (the energy deficit). */
+    minSteel: number;
+    /** Steel usable at most (min of stock and cost). */
+    maxSteel: number;
+    /** The substitution's source card (Delta Works) — the mix row's badge. */
+    card: CardName;
+  };
   /** Every other follow-up, in live prompt order. */
   followUps: ReadonlyArray<ColonyTradeFollowUpModel>;
   /**

@@ -234,8 +234,19 @@ export function hydroPlanReasons(input: HydroReasonsInput): ReadonlyArray<HydroR
       }
     }
     if (!d.affordable) {
-      if (model.availableEnergy === 0) {
+      // With Delta Works live the price is energy-EQUIVALENT (steel pays 1:1),
+      // so the reason states the whole combined budget — never «no energy»
+      // over a player whose steel could still pay.
+      const substitute = model.availableSteelSubstitute;
+      if (model.availableEnergy === 0 && substitute === 0) {
         out.push({kind: 'no-energy', textKey: 'You have no energy to advance the track.', blocking: true});
+      } else if (substitute > 0) {
+        out.push({
+          kind: 'energy-deficit',
+          textKey: 'Requires ${0} energy-equivalent — you have ${1} energy and ${2} steel',
+          params: [d.steps, model.availableEnergy, substitute],
+          blocking: true,
+        });
       } else {
         out.push({
           kind: 'energy-deficit',

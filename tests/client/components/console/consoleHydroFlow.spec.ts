@@ -13,6 +13,7 @@ function commitRec(over: Partial<Omit<HydroCommitRecord, 'phase'>> = {}): Omit<H
     fromPosition: 0,
     toPosition: 3,
     spend: 3,
+    spendSteel: 0,
     rewardChoice: undefined,
     selectedCard: undefined,
     composedRepeat: false,

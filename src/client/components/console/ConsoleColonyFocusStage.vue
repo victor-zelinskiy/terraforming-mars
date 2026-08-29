@@ -929,6 +929,9 @@ export default defineComponent({
   data() {
     return {
       payIdx: 0,
+      /** The dialed Delta Works steel share (clamped live in `tradeSteelMix`);
+       *  0 keeps the energy-first default — steel covers only the deficit. */
+      steelMixPreference: 0,
       focusIdx: 0,
       subIdx: 0,
       sub: undefined as Sub,
@@ -1393,6 +1396,31 @@ export default defineComponent({
     isMcSelected(): boolean {
       return this.options[this.payIdx]?.metadata?.icon === 'megacredits';
     },
+    /** The energy payment family is the chosen path (Delta Works mix applies). */
+    isEnergySelected(): boolean {
+      return this.options[this.payIdx]?.metadata?.icon === 'energy';
+    },
+    /** The live Delta Works mix of the energy fee, or undefined without one. */
+    energyMixInfo(): ColonyTradePreviewModel['energyMix'] {
+      const mix = this.preview?.energyMix;
+      if (mix === undefined || !this.isEnergySelected || !this.tradeConfigLive) {
+        return undefined;
+      }
+      return mix;
+    },
+    /** The EFFECTIVE steel share: the dialed preference clamped to the live
+     *  range — energy-first by default (preference 0 → the bare deficit). */
+    tradeSteelMix(): number {
+      const mix = this.energyMixInfo;
+      if (mix === undefined) {
+        return 0;
+      }
+      return Math.max(mix.minSteel, Math.min(this.steelMixPreference, mix.maxSteel));
+    },
+    tradeMixAdjustable(): boolean {
+      const mix = this.energyMixInfo;
+      return mix !== undefined && mix.maxSteel > mix.minSteel;
+    },
     tradeConfigLive(): boolean {
       return this.intent === 'trade' && this.presentAvailable;
     },
@@ -1412,7 +1440,7 @@ export default defineComponent({
     },
     steps(): Array<TradeStep> {
       if (this.tradeConfigLive) {
-        return tradeSteps(this.preview, this.isMcSelected);
+        return tradeSteps(this.preview, this.isMcSelected, this.isEnergySelected);
       }
       return this.buildConfigLive ? buildSteps(this.preview) : [];
     },
@@ -1422,6 +1450,9 @@ export default defineComponent({
         if (step.kind === 'payment') {
           return 'payment';
         }
+        if (step.kind === 'energyMix') {
+          return 'energyMix';
+        }
         if (step.kind === 'trackChoice') {
           return 'track';
         }
@@ -1429,15 +1460,21 @@ export default defineComponent({
       });
     },
     stepRows(): Array<StepRow> {
-      return this.steps.map((step, i) => {
+      return this.steps.flatMap((step, i): Array<StepRow> => {
         const key = this.stepKeys[i];
         if (step.kind === 'payment') {
-          return {key, kind: 'payment' as const, label: 'Payment', iconClass: ''};
+          return [{key, kind: 'payment' as const, label: 'Payment', iconClass: ''}];
+        }
+        // The Delta Works mix is answered IN the energy pay row (its dial +
+        // summary live there) — never a second decision row, so an always-valid
+        // default costs the player no extra focus stop.
+        if (step.kind === 'energyMix') {
+          return [];
         }
         if (step.kind === 'trackChoice') {
-          return {key, kind: 'trackChoice' as const, label: 'Colony track', iconClass: ''};
+          return [{key, kind: 'trackChoice' as const, label: 'Colony track', iconClass: ''}];
         }
-        return {
+        return [{
           key,
           kind: 'cardTarget' as const,
           label: step.role === 'tradeReward' ?
@@ -1445,7 +1482,7 @@ export default defineComponent({
             (step.role === 'buildBonus' ? 'Build bonus target' : 'Colony bonus target'),
           iconClass: this.resourceIconClass(step.resource),
           step,
-        };
+        }];
       });
     },
     focusables(): Array<Focusable> {
@@ -2655,6 +2692,11 @@ export default defineComponent({
           if (view !== undefined && player !== undefined) {
             capturesByIndex[i] = paymentFromCounts(view.cost, this.payLanes, this.paymentCounts, megacreditsAvailable(player));
           }
+        } else if (step.kind === 'energyMix') {
+          // The linked Delta Works dial always holds a valid answer (the
+          // clamped steel share; energy is the remainder) — captured like the
+          // M€ payment, so the mix prompt never surfaces standalone.
+          capturesByIndex[i] = this.tradeSteelMix;
         } else if (this.captures[key] !== undefined) {
           capturesByIndex[i] = this.captures[key];
         }

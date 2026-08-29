@@ -88,6 +88,8 @@
     "Required tag is missing: ${0}": "Не хватает обязательной метки: ${0}",
     "The finish position is occupied by ${0}": "Финишная позиция занята: ${0}",
     "Requires ${0} energy — you have ${1}": "Нужно энергии: ${0} — у вас ${1}",
+    "Requires ${0} energy-equivalent — you have ${1} energy and ${2} steel": "Нужно энергоединиц: ${0} — у вас ${1} энергии и ${2} стали",
+    "Use steel as energy for this trade (1 steel = 1 energy, ${0} to pay)": "Используйте сталь как энергию для этой торговли (1 сталь = 1 энергия, оплатить: ${0})",
     "Choose a bonus": "Выберите бонус",
     "Switch bonus": "Сменить бонус",
     "The bonus is chosen when you confirm": "Бонус выбирается при подтверждении",

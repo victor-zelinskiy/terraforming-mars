@@ -126,6 +126,7 @@ function seatPreview(opts: {reuse?: ReadonlyArray<string>, animals?: ReadonlyArr
   hydroNetworkState.preview = {
     currentPosition: 2,
     availableEnergy: 9,
+    availableSteelSubstitute: 0,
     usedThisGeneration: false,
     atEndOfTrack: false,
     maxLegalSteps: 9,

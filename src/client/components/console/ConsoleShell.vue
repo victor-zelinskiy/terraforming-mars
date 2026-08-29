@@ -12326,6 +12326,7 @@ export default defineComponent({
           fromPosition: payload.fromPosition ?? 0,
           toPosition: to,
           spend: payload.spend ?? 0,
+          spendSteel: 0,
           rewardChoice: payload.rewardChoice,
           selectedCard: payload.selectedCard,
           composedRepeat: payload.repeat !== undefined,
@@ -12430,6 +12431,8 @@ export default defineComponent({
         fromPosition: payload.fromPosition,
         toPosition: to,
         spend: payload.spend,
+        // A card move's toll is energy-only — Delta Works never applies here.
+        spendSteel: 0,
         rewardChoice: payload.rewardChoice,
         selectedCard: payload.selectedCard,
         waivedTarget: payload.waiveTarget === true,
@@ -12467,6 +12470,7 @@ export default defineComponent({
      */
     beginHydroAdvancePresentation(payload: {
       kind: HydroResolutionKind, fromPosition: number, toPosition: number, spend: number,
+      spendSteel?: number,
       rewardChoice: number | undefined, selectedCard: CardName | undefined,
       waivedTarget?: boolean,
       composedRepeat: boolean, targetBefore: number | undefined,
@@ -12479,6 +12483,7 @@ export default defineComponent({
         fromPosition: payload.fromPosition,
         toPosition: payload.toPosition,
         spend: payload.spend,
+        spendSteel: payload.spendSteel ?? 0,
         rewardChoice: payload.rewardChoice,
         selectedCard: payload.selectedCard,
         waivedTarget: payload.waivedTarget === true,
@@ -12507,7 +12512,10 @@ export default defineComponent({
       this.syncHydroFramePhase();
     },
     submitHydroAdvance(payload: {
-      spend: number, rewardChoice: number | undefined, selectedCard?: CardName,
+      spend: number,
+      /** The Delta Works steel share of the price (energy is the remainder). */
+      steelSpend?: number,
+      rewardChoice: number | undefined, selectedCard?: CardName,
       /** The landed stage's target reward was CONSCIOUSLY declined (the warned
        *  second press) — rides the batch, and owes no follow-up. */
       waiveTarget?: boolean,
@@ -12580,6 +12588,7 @@ export default defineComponent({
         fromPosition: payload.fromPosition,
         toPosition: payload.toPosition,
         spend: payload.spend,
+        spendSteel: payload.steelSpend ?? 0,
         rewardChoice: payload.rewardChoice,
         selectedCard: payload.selectedCard,
         waivedTarget: payload.waiveTarget === true,

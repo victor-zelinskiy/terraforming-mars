@@ -25,6 +25,13 @@ import type {ConsoleRepeatPickResult} from '@/client/console/consoleRepeatPick';
 
 export type HydroAdvancePayload = {
   spend: number;
+  /**
+   * Steel spent 1:1 in place of energy (Delta Works) — the ONE linked value;
+   * the energy share is the remainder. Absent/0 = energy-only, and the wire
+   * key is then omitted so the batch stays byte-identical to the historical
+   * shape. Card moves (DP04) never set it: their toll is energy-only.
+   */
+  steelSpend?: number;
   rewardChoice: number | undefined;
   selectedCard?: CardName;
   /** The composed stage-7 repeat pick (console-only pre-collection). */
@@ -88,12 +95,16 @@ export function hydroAdvanceTail(payload: HydroAdvancePayload): Array<unknown> {
 export function hydroAdvanceBatch(
   prefix: ReadonlyArray<unknown>, steps: number, payload: HydroAdvancePayload,
 ): Array<unknown> {
-  // The waive rides the MOVE's own step, and the key exists only when true —
-  // every non-waiving batch stays byte-identical to the historical shape.
-  const move: {type: 'deltaProject', amount: number, waiveReward?: true} =
+  // The waive and the steel share ride the MOVE's own step, and each key
+  // exists only when meaningful — every energy-only, non-waiving batch stays
+  // byte-identical to the historical shape.
+  const move: {type: 'deltaProject', amount: number, waiveReward?: true, steel?: number} =
     {type: 'deltaProject', amount: steps};
   if (payload.waiveTarget === true) {
     move.waiveReward = true;
+  }
+  if (payload.steelSpend !== undefined && payload.steelSpend > 0) {
+    move.steel = payload.steelSpend;
   }
   return [
     ...prefix,

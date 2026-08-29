@@ -40,6 +40,10 @@ import {SelectCardModel, SelectPaymentModel} from '@/common/models/PlayerInputMo
 
 export type TradeStep =
   | {kind: 'payment', model: SelectPaymentModel}
+  /** The ENERGY path's Delta Works mix — ONE linked value (the steel share;
+   *  energy is the remainder). Present only when the server will ASK
+   *  (minSteel < maxSteel); a single valid mix is shown, never asked. */
+  | {kind: 'energyMix', cost: number, minSteel: number, maxSteel: number, card: CardName}
   | {kind: 'trackChoice', steps: number}
   | {
       kind: 'cardTarget',
@@ -73,13 +77,19 @@ function followUpSteps(followUps: ReadonlyArray<ColonyTradeFollowUpModel>): Arra
  * in live prompt order. `useMegacredits` = the player picked the M€ payment
  * path (the only path whose payment can itself prompt).
  */
-export function tradeSteps(preview: ColonyTradePreviewModel | undefined, useMegacredits: boolean): Array<TradeStep> {
+export function tradeSteps(preview: ColonyTradePreviewModel | undefined, useMegacredits: boolean, useEnergy = false): Array<TradeStep> {
   if (preview === undefined) {
     return [];
   }
   const steps: Array<TradeStep> = [];
   if (useMegacredits && preview.megacreditsPayment !== undefined) {
     steps.push({kind: 'payment', model: preview.megacreditsPayment});
+  }
+  // The energy path's Delta Works mix prompt — deferred by the server exactly
+  // like the M€ payment, and ONLY when there is a real choice to make.
+  const mix = preview.energyMix;
+  if (useEnergy && mix !== undefined && mix.minSteel < mix.maxSteel && mix.cost > 0) {
+    steps.push({kind: 'energyMix', cost: mix.cost, minSteel: mix.minSteel, maxSteel: mix.maxSteel, card: mix.card});
   }
   steps.push(...followUpSteps(preview.followUps));
   return steps;
@@ -154,6 +164,8 @@ export function stepResponse(step: TradeStep, capture: unknown): InputResponse |
   switch (step.kind) {
   case 'payment':
     return capture === undefined ? undefined : {type: 'payment', payment: capture as Payment};
+  case 'energyMix':
+    return capture === undefined ? undefined : {type: 'amount', amount: capture as number};
   case 'trackChoice':
     return capture === undefined ? undefined : trackChoiceResponse(step.steps, capture as number);
   case 'cardTarget':
