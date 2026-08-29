@@ -1,13 +1,65 @@
 # The HYDRO workspace — the track is the protagonist, one flow around it
 
-**Status: REWORKED 2026-08-13.** The console «Гидросеть Марса» is a full
-North-Star workspace: `preview → pre-select (embedded / nested) → summary →
-A «Укрепить гидросеть» → marker glide → resolution ON the landed stage →
-result hold → close`. The old confirm modal (`ConsoleHydroConfirm`) and the
-flat `hydroPick` sheet (`hydro-pick` frame kind) are GONE; the `X Подробности`
-help panel and the header lore paragraph are gone too. The stop-lift draw
-cinematic (`hydroDraw/*`) is retired — position 5 plays the deck pick's own
-standard deal (the Pluto language), embedded under the standing track.
+**Status: REWORKED 2026-08-13; SHELL CONTRACT 2026-08-29.** The console
+«Гидросеть Марса» is a full North-Star workspace: `preview → pre-select
+(embedded / nested) → summary → A «Укрепить гидросеть» → marker glide →
+resolution ON the landed stage → result hold → close`. The old confirm modal
+(`ConsoleHydroConfirm`) and the flat `hydroPick` sheet (`hydro-pick` frame
+kind) are GONE; the `X Подробности` help panel and the header lore paragraph
+are gone too. The stop-lift draw cinematic (`hydroDraw/*`) is retired —
+position 5 plays the deck pick's own standard deal (the Pluto language),
+embedded under the standing track.
+
+## THE SHELL — one standing frame, three zones that never trade places
+
+**The work surface is ONE `.con-hydro__panel`** (glass, `position: absolute;
+inset: 0` of the scene — from the track anchor to the foot line), holding a
+constant grid `ctx | flow | act` (column tokens `--hydro-ctx-w` /
+`--hydro-act-w` on `__scene`; the profiles override the TOKENS, never the
+grid). **No substate may move any edge of the surface or of its columns** —
+the per-state centred panels this replaced seated the choice/payment/result
+states ~250 px lower than the preview, tearing the track connector off
+mid-flow (the shipped «интерфейс проваливается вниз» report).
+
+- **CTX — the persistent identity column** (`ctxView`, ONE derivation): the
+  stage variant (glyph 3.1rem base / 4.4rem tv · name · «Этап N из 11» · the
+  state chip in a RESERVED slot · the route) or the SOURCE variant (the
+  granting card + route) for a card's move. Past the commit it reads the
+  FROZEN record (`sourceCard` / `stageNameKey` / actual energy+steel price) —
+  the live model has moved on. It never re-enters with a layer; a stop change
+  retunes it in place together with the plan body.
+- **FLOW — the one transitioning zone** (`__flow` hosts the keyed
+  `__layer--*`s; the descend phrase plays HERE). Every layer is TOP-ANCHORED;
+  `--choice`/`--result` centre their content INSIDE the standing zone (a
+  composition, not a coordinate system). The reward step renders through
+  **`ConsoleHydroPlanSteps`** — the movement plan's decisions as a LIST
+  (today always length 1; a future multi-reward move grows the DATA, the
+  progress head + per-stage chip rail appear only at length > 1 —
+  `hydroPlanSteps.ts` is the pure model, `consoleHydroPlanSteps.spec.ts`
+  pins 1/3/6). The payment substep is the shared `ConsolePaymentPanel` in
+  this zone (crumb tail «ОПЛАТА»), with the chosen stage reward pinned above
+  it (`__paychoice`) — the ctx column IS the pinned summary.
+- **ACT — the persistent action column**: ONE physical home for the
+  decision's verbs in every substate (plan CTA + reasons as one `__verdict`
+  chassis · choice commit · payment reinforce · the bonus answer pair ·
+  result «Продолжить»); bodies crossfade (`con-hydro-act`), bottom-seated.
+  The column NEVER unmounts — a column that came and went re-measured the
+  flow zone under a leaving layer. A bar-driven substate (commit, target)
+  keeps it as composed air.
+- **The connector stem** (`__stop--focused::after`, 1.05rem) physically
+  crosses the root's .5rem flex gap + the rail's .3rem padding and PLUGS into
+  the frame's top edge — in every substate, because the frame's top never
+  moves. Pinned by `console-hydro-geometry.spec.ts` (gap ∈ [0, 0.9rem]) and
+  by the `hydroAnchor` probes in `console-dp06-payment-mix.spec.ts`
+  (preview → choice → payment → back → result, fhd + tv4k).
+- **Skipped rewards are a POLICY COUNT** («↷ Промежуточные награды будут
+  пропущены · N»), never the raw roster — the route stops are lit on the rail
+  right above. The commit record carries `skippedCount` and the result stage
+  restates it.
+- ⚠️ **Never re-introduce a per-panel `:not()` ladder for the hero scale.**
+  The old `console_tv.less` rule (`:not(--details)` only) matched the payment
+  panel that the base chain excluded — the payment summary shipped at ×1.4
+  the preview's icon/title scale. The ctx column has ONE scale per profile.
 
 ## The pieces
 
@@ -23,20 +75,22 @@ standard deal (the Pluto language), embedded under the standing track.
 
 ## The flow contract
 
-- **PREVIEW** (`browse`): the track rail is the primary object; the compact
-  panel beneath shows destination identity, route `A → B · −N⚡`,
-  requirements, the honest «сейчас → станет» deltas, the pre-select summary
-  and ONE CTA. The old three-column stretch, the «История этапа» block and
+- **PREVIEW** (`browse`): the track rail is the primary object; the standing
+  frame beneath reads it — identity + route in the CTX column, requirements /
+  notes / the honest «сейчас → станет» deltas / the price line / the
+  pre-select summary in the FLOW zone, ONE CTA (or the verdict block) in the
+  ACT column. The old three-column stretch, the «История этапа» block and
   the read-only bonus preview are gone. dpad ←/→ = stages (unchanged), RT =
   farthest, dpad ↓ = the summary chip, B = close.
 - **PRE-SELECT is a client DRAFT** — nothing submits, nothing is spent, the
   marker does not move:
   - pos 1/2 → the embedded REWARD CHOICE step, which **confirms itself**: a
     D-pad row of the two option cards (each with its own delta preview;
-    never LB/RB) plus the step's OWN commit row underneath. `A` on an option
-    holds it and arms that CTA, `A` again reinforces; `↑`/`←`/`→` return to
-    the options. The flow never walks BACKWARDS to be confirmed on the
-    parent — that was one press of pure delay.
+    never LB/RB — rendered through `ConsoleHydroPlanSteps`, the plan-of-1
+    strip) plus the step's OWN commit standing in the ACT column. `A` on an
+    option holds it and arms that CTA, `A` again reinforces; `↑`/`←`/`→`
+    return to the options. The flow never walks BACKWARDS to be confirmed on
+    the parent — that was one press of pure delay.
     ⚠️ **The choice is SCOPED TO THE STEP**, not a standing pre-select:
     `openChoiceStep` clears it on every entry, `B` clears it on the way out,
     and a mount with no live step clears it too. It therefore has no summary
