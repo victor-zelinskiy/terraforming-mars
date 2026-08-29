@@ -682,7 +682,9 @@ test.describe('the bonus offer never stands over the cards the placement drew', 
     // THE SERVER'S OWN VERDICT, rendered: the price is on the CTA and in the
     // body, and the free wording is gone. The client decided none of it.
     const paid = await page.evaluate(() => ({
-      confirm: document.querySelector('.con-hydro__ctazone .con-hydro__cta span:last-of-type')?.textContent?.trim() ?? '',
+      // Direct child only — the permanent glyph slot nests `.gp-glyph`, itself
+      // a last-of-type span, so an unscoped query reads the badge's «A».
+      confirm: document.querySelector('.con-hydro__ctazone .con-hydro__cta > span:last-of-type')?.textContent?.trim() ?? '',
       body: document.querySelector('.con-hydro__bonus-text')?.textContent?.trim() ?? '',
       cost: document.querySelector('.con-hydro__route-cost')?.textContent?.replace(/\s+/g, ' ').trim() ?? '',
       free: document.querySelector('.con-hydro__route-cost--free') !== null,

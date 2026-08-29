@@ -212,7 +212,10 @@ async function readout(page: Page): Promise<Readout> {
         };
       })(),
       sourceUp: document.querySelector('.con-hydro__bonus-source') !== null,
-      actions: Array.from(document.querySelectorAll('.con-hydro__ctazone .con-hydro__cta span:last-of-type, .con-hydro__bonus-action-title'))
+      // DIRECT children only: the permanent glyph slot nests its own span
+      // (`.gp-glyph`, itself a last-of-type among the slot's children), so an
+      // unscoped descendant query re-collects the badge's «A» as an action.
+      actions: Array.from(document.querySelectorAll('.con-hydro__ctazone .con-hydro__cta > span:last-of-type, .con-hydro__bonus-action-title'))
         .map((n) => (n as HTMLElement).innerText.trim()),
       declineUp: document.querySelector('.con-hydro__bonus-action--decline') !== null,
       // The WHOLE bar — the glyph is a component, so «which entry is B» is
