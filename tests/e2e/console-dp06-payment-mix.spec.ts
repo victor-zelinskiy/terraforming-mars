@@ -153,6 +153,40 @@ async function barText(page: Page): Promise<string> {
   return (await page.locator('.con-cmdbar').innerText()).replace(/\s+/g, ' ').toUpperCase();
 }
 
+/**
+ * THE SHELL ANCHOR — the hydro work surface's own coordinates plus the
+ * persistent context column's box. The whole point of the one-frame layout
+ * contract is that these do NOT move between substates (preview → choice →
+ * payment → result): the connector stem stays landed, the identity column
+ * keeps its scale, the CTA column keeps its place.
+ */
+type HydroAnchor = {panel: {x: number, y: number, w: number, h: number}, ctx: {x: number, y: number, w: number}, stemGap: number};
+async function hydroAnchor(page: Page): Promise<HydroAnchor> {
+  return page.evaluate(() => {
+    const box = (el: Element | null) => {
+      if (el === null) {
+        throw new Error('hydro shell chrome missing');
+      }
+      const b = el.getBoundingClientRect();
+      return {x: b.left, y: b.top, w: b.width, h: b.height, b: b.bottom};
+    };
+    const panel = box(document.querySelector('.con-hydro__panel'));
+    const ctx = box(document.querySelector('.con-hydro__ctx'));
+    const focused = document.querySelector('.con-hydro__stop--focused');
+    const stemGap = focused === null ? -1 : panel.y - focused.getBoundingClientRect().bottom;
+    return {panel: {x: panel.x, y: panel.y, w: panel.w, h: panel.h}, ctx: {x: ctx.x, y: ctx.y, w: ctx.w}, stemGap};
+  });
+}
+
+function expectSameAnchor(a: HydroAnchor, b: HydroAnchor, label: string): void {
+  expect(Math.abs(b.panel.y - a.panel.y), `${label}: the surface top may not move`).toBeLessThanOrEqual(1);
+  expect(Math.abs(b.panel.x - a.panel.x), `${label}: the surface left may not move`).toBeLessThanOrEqual(1);
+  expect(Math.abs(b.panel.w - a.panel.w), `${label}: the surface width may not move`).toBeLessThanOrEqual(1);
+  expect(Math.abs(b.panel.h - a.panel.h), `${label}: the surface height may not move`).toBeLessThanOrEqual(1);
+  expect(Math.abs(b.ctx.x - a.ctx.x), `${label}: the context column may not move`).toBeLessThanOrEqual(1);
+  expect(Math.abs(b.ctx.w - a.ctx.w), `${label}: the context column may not resize`).toBeLessThanOrEqual(1);
+}
+
 /** The viewer's live server numbers. */
 async function serverState(request: APIRequestContext, id: string): Promise<{
   energy: number, steel: number, deltaPosition: number, lunaVisitor: boolean,
@@ -212,6 +246,13 @@ for (const profile of PROFILES) {
       // A hidden dial is the forbidden shape: RB on Configure changes nothing.
       await press(page, 'KeyE', 700);
       expect(await readDraft(page, '.con-hydro__payline-mix')).toEqual(['1', '0']);
+      // THE SHELL ANCHOR at Configure — the reference every later substate is
+      // measured against, plus the connector contract: the focused stop's stem
+      // (0.85rem) physically reaches the surface's top edge.
+      const rem = await page.evaluate(() => parseFloat(getComputedStyle(document.documentElement).fontSize));
+      const a0 = await hydroAnchor(page);
+      expect(a0.stemGap, 'the stem gap is a touch, not a void').toBeGreaterThanOrEqual(0);
+      expect(a0.stemGap).toBeLessThanOrEqual(0.9 * rem);
       await shoot(page, `${profile.tag}-hydro-01-configure`);
 
       // ── Stage 1 asks its reward CHOICE first (Configure's own pre-select);
@@ -219,14 +260,17 @@ for (const profile of PROFILES) {
       //    final reinforce, because several mixes exist. ──
       await press(page, 'Enter', 1200);
       await page.waitForSelector('.con-hydro__layer--choice', {timeout: 8_000});
+      expectSameAnchor(a0, await hydroAnchor(page), 'preview → reward choice');
       await press(page, 'Enter', 900); // pick the focused reward option
       const barChoice = await barText(page);
       expect(barChoice).toContain('ПРОДОЛЖИТЬ К ОПЛАТЕ');
       expect(barChoice).not.toContain('УКРЕПИТЬ ГИДРОСЕТЬ');
+      await shoot(page, `${profile.tag}-hydro-01b-choice`);
 
       // ── CONFIGURE → PAYMENT (the gateway press) ──
       await press(page, 'Enter', 1200);
       await page.waitForSelector('.con-hydro__layer--payment .con-pay', {timeout: 8_000});
+      expectSameAnchor(a0, await hydroAnchor(page), 'choice → payment');
       const step0 = await readPanel(page, '.con-hydro__layer--payment .con-pay');
       expect(step0.units).toEqual(['steel', 'energy']);
       expect(step0.steelPills).toBe(true);
@@ -248,6 +292,7 @@ for (const profile of PROFILES) {
       await press(page, 'Escape', 900);
       expect(await page.locator('.con-hydro__layer--payment').count(), 'B folded the substep').toBe(0);
       await page.waitForSelector('.con-hydro__payline', {timeout: 6_000});
+      expectSameAnchor(a0, await hydroAnchor(page), 'payment → back to preview');
       expect(await page.locator('.con-hydro__gains-choice').count(), 'the reward pick survives B').toBe(0);
       expect(await readDraft(page, '.con-hydro__payline-mix'), 'the dialed draft survives B').toEqual(['0', '1']);
       await shoot(page, `${profile.tag}-hydro-03-back`);
@@ -270,7 +315,11 @@ for (const profile of PROFILES) {
       // ledger reads 500 − 1 (the dialed steel share) + 2 = 501.
       expect(after.steel, 'the dialed steel was spent, the stage reward landed').toBe(501);
       expect(after.energy, 'no energy was spent for a steel-only mix').toBe(500);
-      await page.waitForTimeout(2500); // the resolving scene settles
+      // THE RESULT stands in the SAME frame: the payoff may not re-seat the
+      // surface the decision was made on (the old centred result layer sat
+      // ~250px lower and tore the connector off).
+      await page.waitForSelector('.con-hydro__layer--result', {timeout: 20_000});
+      expectSameAnchor(a0, await hydroAnchor(page), 'commit → result');
       await shoot(page, `${profile.tag}-hydro-04-resolved`);
     });
 

@@ -110,45 +110,78 @@
       </template>
     </div>
 
-    <!-- ── THE SCENE — the transformable lower zone. ONE region whose layers
-         (preview → picker → commit → result) advance IN PLACE via the
-         workspace-descend phrase; the track above never moves. ───────────── -->
+    <!-- ── THE SCENE — the transformable lower zone. ONE STANDING FRAME whose
+         top edge is welded under the track (the connector stem always lands
+         on it), holding three zones that never trade places:
+           ctx (identity: the stage, or the granting card) · flow (the stage
+           content — the ONLY part that transitions) · act (the decision).
+         Substates advance the FLOW in place via the workspace-descend phrase;
+         the frame, the context column and the action column stand — which is
+         the whole layout contract this rework bought: no substate may move
+         the surface's own coordinates. ───────────────────────────────────── -->
     <div class="con-hydro__scene" ref="sceneEl">
-      <transition :css="false"
-                  @enter="sceneEnter" @leave="sceneLeave"
-                  @enter-cancelled="sceneCancelled" @leave-cancelled="sceneCancelled">
-        <!-- ═══ PREVIEW — the compact plan/details panel. ═══ -->
-        <div v-if="sceneKey === 'preview'" key="preview" class="con-hydro__layer con-hydro__layer--preview">
-          <div class="con-hydro__panel" :class="{'con-hydro__panel--details': model.mode === 'details'}">
-            <!-- ONE body element: stepping between stops RETUNES it (a soft
-                 GSAP dip-and-rise) instead of hard-swapping rows — the panel
-                 frame itself never moves, rows reserve their lines, and the
-                 content breathes through the change. -->
-            <div class="con-hydro__panelbody" ref="panelBody">
-            <!-- Identity row: stage glyph + name + status + route. -->
-            <div class="con-hydro__ident" data-unfold-item>
-              <span v-if="selectedStage.tag !== undefined" class="con-hydro__stage-tag resource-tag" :class="'tag-' + selectedStage.tag" aria-hidden="true"></span>
-              <span v-else-if="selectedStage.vp !== undefined" class="con-hydro__stage-vp">{{ selectedStage.vp }} {{ $t('VP') }}</span>
-              <span v-else class="con-hydro__stage-flag" aria-hidden="true">⚑</span>
-              <div class="con-hydro__stage-titles">
-                <div class="con-hydro__stage-name">{{ $t(selectedStage.nameKey) }}</div>
-                <div class="con-hydro__stage-pos">{{ stageOfText }}</div>
-              </div>
-              <span class="con-hydro__stage-badge" :class="'con-hydro__stage-badge--' + stageBadge.kind">
-                <span class="con-hydro__chip-dot" aria-hidden="true"></span>
-                <span>{{ stageBadge.text }}</span>
-              </span>
-              <span v-if="model.mode === 'plan'" class="con-hydro__route">
-                <span>{{ model.currentPosition }}</span>
-                <span aria-hidden="true">→</span>
-                <b>{{ model.selectedPosition }}</b>
-                <span class="con-hydro__route-cost">
-                  −{{ model.selectedSpend }}
-                  <i class="con-hydro__chip-ico resource_icon resource_icon--energy" aria-hidden="true"></i>
-                </span>
-              </span>
+      <div class="con-hydro__panel">
+        <!-- ═══ CTX — the persistent identity column. ONE DOM node across
+             every substate: the stage variant (glyph · name · position ·
+             state · route) for the player's own flow, the SOURCE variant
+             (the granting card · route) for a card's move. Past the commit
+             it reads the FROZEN record — the live model has moved on and
+             would describe the next advance. It never re-enters with a
+             layer: stage changes retune it in place. ═══ -->
+        <div class="con-hydro__ctx" ref="ctxEl">
+          <div v-if="ctxView.kind === 'source'"
+               class="con-hydro__bonus-source"
+               :class="{'con-hydro__bonus-source--focused': sceneFocus === 'bonus-source'}"
+               :data-zoom-slot="ctxView.source"
+               role="button" @click="inspectBonusSource">
+            <ConsoleSourceDock v-if="ctxSourceView !== undefined"
+                               :view="ctxSourceView" :compact="true"
+                               :motionAnchor="'card:' + ctxView.source" />
+          </div>
+          <div v-else class="con-hydro__ident">
+            <span v-if="ctxView.tag !== undefined" class="con-hydro__stage-tag resource-tag" :class="'tag-' + ctxView.tag" aria-hidden="true"></span>
+            <span v-else-if="ctxView.vp !== undefined" class="con-hydro__stage-vp">{{ ctxView.vp }} {{ $t('VP') }}</span>
+            <span v-else class="con-hydro__stage-flag" aria-hidden="true">⚑</span>
+            <div class="con-hydro__stage-titles">
+              <div class="con-hydro__stage-name">{{ $t(ctxView.nameKey ?? '') }}</div>
+              <div class="con-hydro__stage-pos">{{ ctxView.posText }}</div>
             </div>
+          </div>
+          <!-- The state chip rides a RESERVED slot: a badge that comes and
+               goes may never re-seat the route line beneath it. -->
+          <div class="con-hydro__ctx-badge">
+            <span v-if="ctxView.badge !== undefined" class="con-hydro__stage-badge" :class="'con-hydro__stage-badge--' + ctxView.badge.kind">
+              <span class="con-hydro__chip-dot" aria-hidden="true"></span>
+              <span>{{ ctxView.badge.text }}</span>
+            </span>
+          </div>
+          <!-- The ROUTE — one grammar, one home, every substate: from → to,
+               the price chip (or the FREE badge — «−0 ⚡» is a price on the
+               one move whose whole point is that it has none). -->
+          <span v-if="ctxView.route !== undefined" class="con-hydro__route">
+            <span>{{ ctxView.route.from }}</span>
+            <span aria-hidden="true">→</span>
+            <b>{{ ctxView.route.to }}</b>
+            <span v-if="ctxView.route.free" class="con-hydro__route-cost con-hydro__route-cost--free">{{ $t('Free') }}</span>
+            <span v-else class="con-hydro__route-cost">
+              <template v-if="ctxView.route.energy > 0">−{{ ctxView.route.energy }}<i class="con-hydro__chip-ico resource_icon resource_icon--energy" aria-hidden="true"></i></template>
+              <template v-if="ctxView.route.steel > 0">−{{ ctxView.route.steel }}<i class="con-hydro__chip-ico resource_icon resource_icon--steel" aria-hidden="true"></i></template>
+            </span>
+          </span>
+        </div>
 
+        <!-- ═══ FLOW — the one transitioning zone. ═══ -->
+        <div class="con-hydro__flow">
+          <transition :css="false"
+                      @enter="sceneEnter" @leave="sceneLeave"
+                      @enter-cancelled="sceneCancelled" @leave-cancelled="sceneCancelled">
+        <!-- ═══ PREVIEW — the plan/details reading. ═══ -->
+        <div v-if="sceneKey === 'preview'" key="preview" class="con-hydro__layer con-hydro__layer--preview">
+            <!-- ONE body element: stepping between stops RETUNES it (a soft
+                 GSAP dip-and-rise) instead of hard-swapping rows — the frame
+                 never moves, rows reserve their lines, and the content
+                 breathes through the change. -->
+            <div class="con-hydro__panelbody" ref="panelBody">
             <template v-if="model.mode === 'plan'">
               <!-- Requirements row: the PATH TAGS, and nothing else. Owning
                    the resources that PAY for the move is not a tag
@@ -164,13 +197,16 @@
                   <span v-if="tagStatus(t) === 'wild'" class="con-hydro__req-wild" aria-hidden="true">✱</span>
                 </span>
               </div>
-              <!-- Route notes: skipped rewards + the 2VP leap — tied to the
-                   track (the amber route stops), one quiet line each. The
+              <!-- Route notes: the skipped-reward POLICY + the 2VP leap — one
+                   quiet line each. The policy is a COUNT, never the raw list
+                   of stage names (the route stops are lit mint on the rail
+                   right above — the names are one focus step away, and a
+                   two-line roster drowned the decision it annotated). The
                    STRIP is always in layout (a reserved line, the settings
                    idiom) — appearing text may never re-flow the rows below. -->
               <div class="con-hydro__routenotes" data-unfold-item>
                 <span v-if="model.skippedStages.length > 0" class="con-hydro__routenote">
-                  ↷ {{ $t('Skipped rewards') }}: {{ skippedNames }}
+                  ↷ {{ skippedSummary }}
                 </span>
                 <span v-if="jumpedOverVp2" class="con-hydro__routenote">
                   ⤴ {{ $t('The occupied 2 VP position is leapt over to reach the 5 VP slot.') }}
@@ -258,59 +294,6 @@
                                    :fizzled="pickFizzled"
                                    @open="onChangeSelection" />
 
-              <!-- …and the SAME omission warning here: the plan CTA relabels
-                   itself «Выбрать действие» but never said WHY the reinforce it
-                   was showing a moment ago had gone. Reserved line, so it
-                   cannot move the CTA it sits above. -->
-              <p class="con-hydro__pickwarn" :class="{'con-hydro__pickwarn--on': pickWarned && planPickMissing}" role="status" data-unfold-item>
-                <span v-if="pickWarned && planPickMissing">
-                  <span class="con-hydro__pickwarn-mark" aria-hidden="true">⚠</span>
-                  {{ $t(pickWarningKey) }}
-                </span>
-              </p>
-
-              <!-- CTA / the specific reasons — never a bare «недоступно». -->
-              <div class="con-hydro__ctazone" data-unfold-item>
-                <!-- THE PRIMARY PULL BELONGS TO THE PRIMARY ACT, and the glyph
-                     FOLLOWS THE CURSOR. While the landed stage still owes its
-                     target, the pick row above is the act: this commit recedes
-                     to a calm plate, gives up the «press me» breathing, and
-                     wears the «A» only where the cursor actually stands. Two
-                     lit CTAs both claiming the same button is the report this
-                     answers. -->
-                <button v-if="primaryVerb !== 'blocked'" type="button"
-                        class="con-hydro__cta"
-                        :class="{
-                          'con-hydro__cta--configure': primaryVerb !== 'reinforce',
-                          'con-hydro__cta--pending': planPickMissing,
-                        }"
-                        @click="onPrimary">
-                  <GamepadGlyph v-if="ctaFocused" control="confirm" />
-                  <span>{{ $t(primaryLabel) }}</span>
-                </button>
-                <template v-else>
-                  <div class="con-hydro__cta con-hydro__cta--disabled" aria-disabled="true">
-                    <GamepadGlyph control="confirm" />
-                    <span>{{ $t('Reinforce the hydronetwork') }}</span>
-                  </div>
-                  <div class="con-hydro__reasons">
-                    <div v-if="requirementsUnmet" class="con-hydro__reason">
-                      <span class="con-hydro__reason-glyph" aria-hidden="true">✕</span>
-                      <span>{{ $t('Stage requirements are not met') }}</span>
-                    </div>
-                    <!-- The tone is the reason's OWN semantics: a turn gate is
-                         amber «не сейчас», a track rule is the red ✕. -->
-                    <div v-for="(r, i) in ctaReasons" :key="i" class="con-hydro__reason"
-                         :class="{
-                           'con-hydro__reason--todo': !r.blocking,
-                           'con-hydro__reason--notnow': r.blocking && reasonTone(r) === 'warning',
-                         }">
-                      <span class="con-hydro__reason-glyph" aria-hidden="true">{{ !r.blocking ? '→' : (reasonTone(r) === 'warning' ? '⏳' : '✕') }}</span>
-                      <span>{{ reasonText(r) }}</span>
-                    </div>
-                  </div>
-                </template>
-              </div>
             </template>
 
             <!-- Details mode: the viewer's own relation to this stage. -->
@@ -322,75 +305,21 @@
               </div>
             </template>
             </div>
-          </div>
         </div>
 
-        <!-- ═══ REWARD CHOICE (pos 1/2) — a physical D-pad row of the two
-             options AND the commit that follows them. The step is the WHOLE
-             decision: pick → the CTA right underneath arms → confirm. The
-             flow never walks BACKWARDS to be confirmed somewhere else (that
-             was one press of pure delay), and because the choice belongs to
-             the step it can never be left configured behind the player's
-             back — leaving asks again next time. ═══ -->
+        <!-- ═══ REWARD CHOICE (pos 1/2) — the movement plan's DECISIONS,
+             rendered through the shared strip. Today the plan is always ONE
+             decision (this stage's binary reward) and the strip IS the
+             familiar physical D-pad row; a future move that grants several
+             stage rewards grows the LIST, never this layer. The step is the
+             whole decision: pick → the CTA in the action column arms →
+             confirm; leaving asks again next time (the choice is scoped to
+             the step, never a standing pre-select). ═══ -->
         <div v-else-if="sceneKey === 'choice'" key="choice" class="con-hydro__layer con-hydro__layer--choice">
-          <div class="con-hydro__panel con-hydro__panel--choice">
-            <div class="con-hydro__choice-ask" data-unfold-item>{{ $t('Choose the stage reward') }}</div>
-            <!-- ONE object per option: the reward's own icon is the HERO of
-                 the card (it used to be printed twice — once as the abstract
-                 chip, once inside the delta line — and both were small). The
-                 name and the `сейчас → станет` reading stand beside it, so
-                 the card reads as one statement instead of two stacked
-                 renderings of the same thing. -->
-            <div class="con-hydro__choice-row" data-unfold-item>
-              <template v-for="(opt, i) in choiceOptions" :key="i">
-                <span v-if="i > 0" class="con-hydro__choice-or" aria-hidden="true">{{ $t('or') }}</span>
-                <button type="button"
-                        class="con-hydro__choice-card"
-                        :class="{
-                          'con-hydro__choice-card--focused': choiceStage === 'options' && choiceFocus === i,
-                          'con-hydro__choice-card--selected': rewardChoice === i,
-                          'con-hydro__choice-card--muted': choiceStage === 'confirm' && rewardChoice !== i,
-                        }"
-                        @click="pickChoice(i)">
-                  <template v-if="opt.line !== undefined">
-                    <span class="con-hydro__choice-socket"
-                          :class="{'con-hydro__choice-socket--prod': opt.line.production}">
-                      <span class="con-hydro__choice-img" :class="deltaIconClass(opt.line)" aria-hidden="true"></span>
-                    </span>
-                    <span class="con-hydro__choice-read">
-                      <span v-if="opt.line.labelKey" class="con-hydro__choice-name">{{ $t(opt.line.labelKey) }}</span>
-                      <span class="con-hydro__choice-values">
-                        <b>{{ opt.line.before }}</b>
-                        <i class="con-hydro__choice-arrow" aria-hidden="true">→</i>
-                        <b class="con-hydro__choice-after">{{ opt.line.after }}</b>
-                        <em v-if="opt.line.delta !== 0" class="con-hydro__plus">+{{ opt.line.delta }}</em>
-                      </span>
-                    </span>
-                  </template>
-                  <!-- A reward with no concrete delta (never a pos 1/2 stage
-                       today) still renders honestly through the shared chip. -->
-                  <HydroReward v-else :chips="opt.chips" />
-                  <span class="con-hydro__choice-mark" :class="{'con-hydro__choice-mark--on': rewardChoice === i}" aria-hidden="true">✓</span>
-                </button>
-              </template>
-            </div>
-            <!-- The step's OWN commit. Always in layout (it is what comes
-                 next, and a row that appears would re-seat the cards under
-                 the cursor); live only once an option is actually held. -->
-            <div class="con-hydro__choice-cta" data-unfold-item>
-              <button type="button"
-                      class="con-hydro__cta"
-                      :class="{
-                        'con-hydro__cta--disabled': rewardChoice === undefined,
-                        'con-hydro__cta--armed': choiceStage === 'confirm',
-                      }"
-                      :aria-disabled="rewardChoice === undefined ? 'true' : undefined"
-                      @click="confirmChoiceStep">
-                <GamepadGlyph control="confirm" />
-                <span>{{ $t(choiceCommitLabel) }}</span>
-              </button>
-            </div>
-          </div>
+          <ConsoleHydroPlanSteps :steps="planDecisions"
+                                 :focus="choiceFocus"
+                                 :stage="choiceStage"
+                                 @pick="pickChoice" />
         </div>
 
         <!-- ═══ TARGET PICK (pos 9) — the SHARED played-card target selector,
@@ -405,110 +334,45 @@
                                    :lockedCard="targetLockedCard" />
         </div>
 
-        <!-- ═══ PAYMENT — the Delta Works COMPOSITION substep. The track above
-             stays the spatial context; the plan's own reading has been
-             CONFIRMED and collapses to a pinned summary; the premium payment
-             selector takes the freed working area. Exists ONLY while the
-             server model admits at least two valid mixes; B walks back to the
-             plan with every selection and the draft intact. ═══ -->
+        <!-- ═══ PAYMENT — the Delta Works COMPOSITION substep. The context
+             column IS the pinned summary now (the same stage identity and
+             route the plan showed — nothing re-states itself); the premium
+             payment selector takes the flow zone; the final act stands in
+             the action column. Exists ONLY while the server model admits at
+             least two valid mixes; B walks back to the plan with every
+             selection and the draft intact. ═══ -->
         <div v-else-if="sceneKey === 'payment'" key="payment" class="con-hydro__layer con-hydro__layer--payment">
-          <div class="con-hydro__panel con-hydro__panel--payment">
-            <div class="con-hydro__panelbody con-hydro__paystep">
-              <!-- The PINNED SUMMARY of the confirmed plan: the stage, the
-                   route and the price — context, never controls. -->
-              <div class="con-hydro__paystep-summary">
-                <span v-if="selectedStage.tag !== undefined" class="con-hydro__stage-tag resource-tag" :class="'tag-' + selectedStage.tag" aria-hidden="true"></span>
-                <span v-else-if="selectedStage.vp !== undefined" class="con-hydro__stage-vp">{{ selectedStage.vp }} {{ $t('VP') }}</span>
-                <div class="con-hydro__stage-titles">
-                  <div class="con-hydro__stage-name">{{ $t(selectedStage.nameKey) }}</div>
-                  <div class="con-hydro__stage-pos">{{ stageOfText }}</div>
-                </div>
-                <span class="con-hydro__route">
-                  <span>{{ model.currentPosition }}</span>
-                  <span aria-hidden="true">→</span>
-                  <b>{{ model.selectedPosition }}</b>
-                  <span class="con-hydro__route-cost">
-                    −{{ model.selectedSpend }}
-                    <i class="con-hydro__chip-ico resource_icon resource_icon--energy" aria-hidden="true"></i>
-                  </span>
-                </span>
-              </div>
-
-              <!-- THE COMPOSITION — the shared premium payment panel over the
-                   ONE canonical draft, with the room it deserves. -->
-              <div class="con-hydro__paystep-panel">
-                <ConsolePaymentPanel :view="mixPaymentView"
-                                     mode="compact"
-                                     hint-mode="none"
-                                     title-key="Payment mix"
-                                     :source-card="mixSourceCard"
-                                     :flash-nonce="mixFlashNonce" />
-              </div>
-
-              <!-- The FINAL act — the same server-authoritative reinforce. -->
-              <div class="con-hydro__ctazone con-hydro__paystep-cta">
-                <button type="button" class="con-hydro__cta" @click="onPaymentConfirm">
-                  <GamepadGlyph control="confirm" />
-                  <span>{{ $t('Reinforce the hydronetwork') }}</span>
-                </button>
-              </div>
-            </div>
+          <!-- The decision already made upstream stays VISIBLE: the chosen
+               stage reward (when this stage asked for one) — the walk into
+               the composition may not orphan the choice it pays for. -->
+          <div v-if="paymentChosenReward !== undefined" class="con-hydro__paychoice" data-unfold-item>
+            <span class="con-hydro__section-label">{{ $t('Reward') }}</span>
+            <HydroReward :chips="paymentChosenReward" :compact="true" />
+            <span class="con-hydro__bonus-tick" aria-hidden="true">✓</span>
+          </div>
+          <!-- THE COMPOSITION — the shared premium payment panel over the
+               ONE canonical draft, with the room it deserves. -->
+          <div class="con-hydro__paypanel" data-unfold-item>
+            <ConsolePaymentPanel :view="mixPaymentView"
+                                 mode="compact"
+                                 hint-mode="none"
+                                 title-key="Payment mix"
+                                 :source-card="mixSourceCard"
+                                 :flash-nonce="mixFlashNonce" />
           </div>
         </div>
 
         <!-- ═══ BONUS — a card is OFFERING a move the player did not ask for.
-             The zone the track's own drawn cards use in other phases, given
-             over to ONE decision: the source card, what it grants, take it or
-             skip. It never titles itself — the stage name goes UP to the
-             crumb (`bonusStageKey` → the frame), the way every embedded step
-             in this console does. ═══ -->
+             The SOURCE and the ROUTE live in the context column (the same
+             slots every substate uses — a card's move is the same move); the
+             flow zone states WHAT IT DOES and the landed stage's pre-select;
+             the answers stand in the action column. It never titles itself —
+             the stage name goes UP to the crumb (`bonusStageKey` → the
+             frame), the way every embedded step in this console does. ═══ -->
         <div v-else-if="sceneKey === 'bonus'" key="bonus" class="con-hydro__layer con-hydro__layer--bonus">
-          <div class="con-hydro__panel con-hydro__panel--bonus">
-            <div class="con-hydro__panelbody con-hydro__bonus-main">
-              <!-- THE SOURCE — the console's ONE answer to «почему этот промт
-                   пришёл»: the shared dock, `compact` because the subject here
-                   is the DECISION, not the card. X inspects it; pre-commit the
-                   source IS the current object, so there is no L3. -->
-              <!-- `data-zoom-slot` is the console's ONE marker for «the
-                   fullscreen viewer lifts a card OUT of here»: it is what the
-                   shared hold rule keys on, so while the card is in the
-                   player's hands this whole slot — card, focus ring and all —
-                   is empty rather than showing a second copy of it. -->
-              <!-- THE CARRIED OBJECT IS THE CARD, NOT THIS SLOT. The card
-                   TRAVELS here out of the action composer's hero (the card
-                   door), and a FLIP maps one box onto another — so the anchor
-                   goes on the dock's own card face. On the slot it mapped the
-                   hero onto «caption + card, stretched to the grid column»:
-                   the picture arrived at 43 % of the size the player had just
-                   been holding and above where they left it, which is the
-                   whole «карта появляется заново и скачет откуда-то слева». -->
-              <div v-if="bonusSourceView !== undefined"
-                   class="con-hydro__bonus-source"
-                   :class="{'con-hydro__bonus-source--focused': sceneFocus === 'bonus-source'}"
-                   :data-zoom-slot="offerRec.source"
-                   data-unfold-item role="button" @click="inspectBonusSource">
-                <ConsoleSourceDock :view="bonusSourceView" :compact="true"
-                                   :motionAnchor="'card:' + offerRec.source" />
-              </div>
-
-              <!-- WHAT IT DOES — one calm sentence, the move in the SAME route
-                   grammar the plan panel uses above, and the two answers, all
-                   in ONE column. The decision is ATTACHED to the statement it
-                   answers: the route, the price badge and the pair of verbs are
-                   one block the eye reads top-to-bottom without travelling. -->
+              <!-- WHAT IT DOES — one calm sentence and the honest facts, one
+                   column the eye reads top-to-bottom without travelling. -->
               <div class="con-hydro__bonus-body" data-unfold-item>
-                <span class="con-hydro__route">
-                  <span>{{ offerRec.fromPosition }}</span>
-                  <span aria-hidden="true">→</span>
-                  <b>{{ offerRec.toPosition }}</b>
-                  <!-- THE PRICE, as a compact status badge — one token, never a
-                       second heavy sentence repeating what the CTA says. -->
-                  <span v-if="offerRec.energyCost > 0" class="con-hydro__route-cost">
-                    −{{ offerRec.energyCost }}
-                    <i class="con-hydro__chip-ico resource_icon resource_icon--energy" aria-hidden="true"></i>
-                  </span>
-                  <span v-else class="con-hydro__route-cost con-hydro__route-cost--free">{{ $t('Free') }}</span>
-                </span>
                 <p class="con-hydro__bonus-text">{{ bonusBodyText }}</p>
 
                 <!-- WHAT IT COSTS AND WHAT IT PAYS — the SAME «сейчас → станет»
@@ -575,82 +439,15 @@
                                      :fizzled="pickFizzled"
                                      @open="openBonusPick" />
 
-                <!-- TAKE IT / SKIP — a COMPACT BINARY CHOICE, not two settings
-                     rows. The pair sizes to its own content and sits under the
-                     statement it answers instead of spanning a 4K content
-                     column; the offer leads (aqua, heavier), the refusal stays
-                     calm graphite beside it — secondary, never dimmed, because
-                     refusing is a decision and not an unavailable one. Each
-                     keeps the state rail + the A glyph, so it is still this
-                     console's own decision grammar (`.con-decision__action`),
-                     only at the size a two-word answer deserves.
-                     While the answer is in flight both are inert — a second
-                     press cannot exist, by state rather than by a guard. -->
-                <div class="con-hydro__bonus-actions" data-unfold-item>
-                  <!-- …and it is NOT THE CTA while the landed stage's pick is
-                       still owed: a confirm that cannot fire must not wear the
-                       primary tint, and the ONE «A» on screen belongs to the
-                       act the player has to perform. -->
-                  <button type="button"
-                          class="con-hydro__bonus-action"
-                          :class="{
-                            'con-hydro__bonus-action--primary': !bonusPickMissing,
-                            'con-hydro__bonus-action--pending': bonusPickMissing,
-                            'con-hydro__bonus-action--focused': sceneFocus === 'bonus-confirm',
-                          }"
-                          :disabled="bonusSubmitting"
-                          @click="answerBonus(true)">
-                    <GamepadGlyph v-if="sceneFocus === 'bonus-confirm'" control="confirm" class="con-hydro__bonus-action-a" />
-                    <span class="con-hydro__bonus-action-title">{{ $t(bonusCopy.confirmKey) }}</span>
-                  </button>
-                  <!-- THE REFUSAL EXISTS ONLY WHERE THERE IS SOMETHING TO
-                       REFUSE. A card ENTRY asked no question — the player chose
-                       this move inside their own action and nothing is on the
-                       wire — so B (one level back to the variant selector) is
-                       the way out, and a «Пропустить» here would answer a
-                       question nobody asked and read as a mandatory effect. -->
-                  <button v-if="bonusSkipOffered"
-                          type="button"
-                          class="con-hydro__bonus-action con-hydro__bonus-action--decline"
-                          :class="{'con-hydro__bonus-action--focused': sceneFocus === 'bonus-skip'}"
-                          :disabled="bonusSubmitting"
-                          @click="answerBonus(false)">
-                    <GamepadGlyph v-if="sceneFocus === 'bonus-skip'" control="confirm" class="con-hydro__bonus-action-a" />
-                    <span class="con-hydro__bonus-action-title">{{ $t(bonusCopy.skipKey) }}</span>
-                  </button>
-                </div>
-
-                <!-- THE OMISSION, NAMED — in a slot that is ALWAYS in layout
-                     (the reserved-line idiom this console already uses for the
-                     route notes): a warning that appears must never push the
-                     answers the player is aiming at. -->
-                <p class="con-hydro__pickwarn" :class="{'con-hydro__pickwarn--on': pickWarned && bonusPickMissing}" role="status">
-                  <span v-if="pickWarned && bonusPickMissing">
-                    <span class="con-hydro__pickwarn-mark" aria-hidden="true">⚠</span>
-                    {{ $t(pickWarningKey) }}
-                  </span>
-                </p>
               </div>
-            </div>
-          </div>
         </div>
 
-        <!-- ═══ COMMIT — the marker is travelling / the landed stage pays. ═══ -->
+        <!-- ═══ COMMIT — the marker is travelling / the landed stage pays.
+             The route and the price live in the context column (frozen off
+             the record); this zone narrates the BEAT and hosts the landed
+             stage's own scene. ═══ -->
         <div v-else-if="sceneKey === 'commit'" key="commit" class="con-hydro__layer con-hydro__layer--commit">
           <div class="con-hydro__commitline" data-unfold-item>
-            <span class="con-hydro__route">
-              <span>{{ commitRec.fromPosition }}</span>
-              <span aria-hidden="true">→</span>
-              <b>{{ commitRec.toPosition }}</b>
-              <!-- ONE route grammar from the offer through the commit to the
-                   result: a price when there is one, the FREE badge when there
-                   is not. «−0 ⚡» is a price on the one move that has none. -->
-              <span v-if="commitRec.spend > 0" class="con-hydro__route-cost">
-                <template v-if="commitRec.spend - commitRec.spendSteel > 0">−{{ commitRec.spend - commitRec.spendSteel }}<i class="con-hydro__chip-ico resource_icon resource_icon--energy" aria-hidden="true"></i></template>
-                <template v-if="commitRec.spendSteel > 0">−{{ commitRec.spendSteel }}<i class="con-hydro__chip-ico resource_icon resource_icon--steel" aria-hidden="true"></i></template>
-              </span>
-              <span v-else class="con-hydro__route-cost con-hydro__route-cost--free">{{ $t('Free') }}</span>
-            </span>
             <b class="con-hydro__commit-stage">{{ $t(commitRec.stageNameKey) }}</b>
             <span class="con-hydro__commit-caption">{{ $t(commitCaption) }}<i class="con-hydro__commit-spin" aria-hidden="true"></i></span>
           </div>
@@ -691,25 +488,18 @@
           <div class="con-hydro__embed" data-embed-slot="hydro"></div>
         </div>
 
-        <!-- ═══ RESULT — the compact read-hold summary. ═══ -->
+        <!-- ═══ RESULT — the read-hold payoff. The route and the actual price
+             stand frozen in the context column; this zone states what the
+             move DELIVERED: the landed stage, the honest deltas, the resolved
+             choices and every named omission. ═══ -->
         <div v-else key="result" class="con-hydro__layer con-hydro__layer--result">
-          <div class="con-hydro__panel con-hydro__panel--result">
-            <div class="con-hydro__result-head" data-unfold-item>
+          <div class="con-hydro__result" data-unfold-item>
+            <div class="con-hydro__result-head">
               <span class="con-hydro__bonus-tick" aria-hidden="true">✓</span>
               <b>{{ $t('Reinforcement complete') }}</b>
               <span class="con-hydro__result-stage">{{ $t(commitRec.stageNameKey) }}</span>
             </div>
-            <div class="con-hydro__result-rows" data-unfold-item>
-              <span class="con-hydro__route">
-                <span>{{ commitRec.fromPosition }}</span>
-                <span aria-hidden="true">→</span>
-                <b>{{ commitRec.toPosition }}</b>
-                <span v-if="commitRec.spend > 0" class="con-hydro__route-cost">
-                  <template v-if="commitRec.spend - commitRec.spendSteel > 0">−{{ commitRec.spend - commitRec.spendSteel }}<i class="con-hydro__chip-ico resource_icon resource_icon--energy" aria-hidden="true"></i></template>
-                  <template v-if="commitRec.spendSteel > 0">−{{ commitRec.spendSteel }}<i class="con-hydro__chip-ico resource_icon resource_icon--steel" aria-hidden="true"></i></template>
-                </span>
-                <span v-else class="con-hydro__route-cost con-hydro__route-cost--free">{{ $t('Free') }}</span>
-              </span>
+            <div class="con-hydro__result-rows">
               <span v-for="(l, i) in commitRec.rewardLines" :key="i" class="con-hydro__delta" :class="{'con-hydro__delta--zero': l.delta === 0}">
                 <span class="con-hydro__delta-ico" :class="{'con-hydro__delta-ico--prod': l.production}">
                   <span class="con-hydro__delta-img" :class="deltaIconClass(l)" aria-hidden="true"></span>
@@ -734,13 +524,152 @@
                 ↷ {{ $t(waivedNoteKey) }}
               </span>
             </div>
-            <div class="con-hydro__result-hint" data-unfold-item>
-              <GamepadGlyph control="confirm" />
-              <span>{{ $t('Continue') }}</span>
+            <!-- The standing track rule, restated where it applied: stages
+                 passed over paid nothing — the count, never a roster. -->
+            <div v-if="(commitRec.skippedCount ?? 0) > 0" class="con-hydro__result-skip">
+              ↷ {{ resultSkippedText }}
             </div>
           </div>
         </div>
-      </transition>
+          </transition>
+        </div>
+
+        <!-- ═══ ACT — the persistent action column: the decision's own verbs,
+             in ONE physical home whatever the substate. The COLUMN never
+             unmounts (a column that came and went re-measured the flow zone
+             under a leaving layer — the mid-transition reflow this shell
+             exists to ban); its content crossfades. A substate with no
+             standing verb (the commit beat, the target grid — their verbs
+             live on the ONE bottom bar) keeps the column as composed air. ═══ -->
+        <div class="con-hydro__act">
+          <transition name="con-hydro-act">
+            <!-- PREVIEW / plan: the omission warning (reserved line) + the
+                 primary, or the disabled verdict with its honest reasons. -->
+            <div v-if="actKey === 'plan'" key="plan" class="con-hydro__ctazone">
+              <p class="con-hydro__pickwarn" :class="{'con-hydro__pickwarn--on': pickWarned && planPickMissing}" role="status">
+                <span v-if="pickWarned && planPickMissing">
+                  <span class="con-hydro__pickwarn-mark" aria-hidden="true">⚠</span>
+                  {{ $t(pickWarningKey) }}
+                </span>
+              </p>
+              <button v-if="primaryVerb !== 'blocked'" type="button"
+                      class="con-hydro__cta"
+                      :class="{
+                        'con-hydro__cta--configure': primaryVerb !== 'reinforce',
+                        'con-hydro__cta--pending': planPickMissing,
+                      }"
+                      @click="onPrimary">
+                <GamepadGlyph v-if="ctaFocused" control="confirm" />
+                <span>{{ $t(primaryLabel) }}</span>
+              </button>
+              <!-- The refused act and its WHY are one verdict block — the
+                   plate and the reasons share a chassis, so the screen states
+                   «недоступно, потому что…» once, not two competing panels. -->
+              <div v-else class="con-hydro__verdict">
+                <div class="con-hydro__cta con-hydro__cta--disabled" aria-disabled="true">
+                  <GamepadGlyph control="confirm" />
+                  <span>{{ $t('Reinforce the hydronetwork') }}</span>
+                </div>
+                <div class="con-hydro__reasons">
+                  <div v-if="requirementsUnmet" class="con-hydro__reason">
+                    <span class="con-hydro__reason-glyph" aria-hidden="true">✕</span>
+                    <span>{{ $t('Stage requirements are not met') }}</span>
+                  </div>
+                  <!-- The tone is the reason's OWN semantics: a turn gate is
+                       amber «не сейчас», a track rule is the red ✕. -->
+                  <div v-for="(r, i) in ctaReasons" :key="i" class="con-hydro__reason"
+                       :class="{
+                         'con-hydro__reason--todo': !r.blocking,
+                         'con-hydro__reason--notnow': r.blocking && reasonTone(r) === 'warning',
+                       }">
+                    <span class="con-hydro__reason-glyph" aria-hidden="true">{{ !r.blocking ? '→' : (reasonTone(r) === 'warning' ? '⏳' : '✕') }}</span>
+                    <span>{{ reasonText(r) }}</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <!-- DETAILS / a bar-driven substate: nothing to press — the
+                 column stands, quietly. -->
+            <div v-else-if="actKey === 'details' || actKey === 'quiet'" :key="actKey" class="con-hydro__ctazone"></div>
+
+            <!-- REWARD CHOICE: the step's own commit — always in layout, live
+                 once an option is actually held. -->
+            <div v-else-if="actKey === 'choice'" key="choice" class="con-hydro__ctazone">
+              <button type="button"
+                      class="con-hydro__cta"
+                      :class="{
+                        'con-hydro__cta--disabled': rewardChoice === undefined,
+                        'con-hydro__cta--armed': choiceStage === 'confirm',
+                      }"
+                      :aria-disabled="rewardChoice === undefined ? 'true' : undefined"
+                      @click="confirmChoiceStep">
+                <GamepadGlyph control="confirm" />
+                <span>{{ $t(choiceCommitLabel) }}</span>
+              </button>
+            </div>
+
+            <!-- PAYMENT: the FINAL act — the same server-authoritative
+                 reinforce the single-allocation path fires from Configure. -->
+            <div v-else-if="actKey === 'payment'" key="payment" class="con-hydro__ctazone">
+              <button type="button" class="con-hydro__cta" @click="onPaymentConfirm">
+                <GamepadGlyph control="confirm" />
+                <span>{{ $t('Reinforce the hydronetwork') }}</span>
+              </button>
+            </div>
+
+            <!-- BONUS: take it / skip — the offer leads, the refusal stays a
+                 decision (calm, never dimmed). While the answer is in flight
+                 both are inert — a second press cannot exist, by state. -->
+            <div v-else-if="actKey === 'bonus'" key="bonus" class="con-hydro__ctazone">
+              <p class="con-hydro__pickwarn" :class="{'con-hydro__pickwarn--on': pickWarned && bonusPickMissing}" role="status">
+                <span v-if="pickWarned && bonusPickMissing">
+                  <span class="con-hydro__pickwarn-mark" aria-hidden="true">⚠</span>
+                  {{ $t(pickWarningKey) }}
+                </span>
+              </p>
+              <div class="con-hydro__bonus-actions">
+                <!-- …and it is NOT THE CTA while the landed stage's pick is
+                     still owed: a confirm that cannot fire must not wear the
+                     primary tint — the ONE «A» belongs to the act in front. -->
+                <button type="button"
+                        class="con-hydro__bonus-action"
+                        :class="{
+                          'con-hydro__bonus-action--primary': !bonusPickMissing,
+                          'con-hydro__bonus-action--pending': bonusPickMissing,
+                          'con-hydro__bonus-action--focused': sceneFocus === 'bonus-confirm',
+                        }"
+                        :disabled="bonusSubmitting"
+                        @click="answerBonus(true)">
+                  <GamepadGlyph v-if="sceneFocus === 'bonus-confirm'" control="confirm" class="con-hydro__bonus-action-a" />
+                  <span class="con-hydro__bonus-action-title">{{ $t(bonusCopy.confirmKey) }}</span>
+                </button>
+                <!-- THE REFUSAL EXISTS ONLY WHERE THERE IS SOMETHING TO
+                     REFUSE. A card ENTRY asked no question — B (one level back
+                     to the variant selector) is the way out, and a
+                     «Пропустить» here would answer a question nobody asked. -->
+                <button v-if="bonusSkipOffered"
+                        type="button"
+                        class="con-hydro__bonus-action con-hydro__bonus-action--decline"
+                        :class="{'con-hydro__bonus-action--focused': sceneFocus === 'bonus-skip'}"
+                        :disabled="bonusSubmitting"
+                        @click="answerBonus(false)">
+                  <GamepadGlyph v-if="sceneFocus === 'bonus-skip'" control="confirm" class="con-hydro__bonus-action-a" />
+                  <span class="con-hydro__bonus-action-title">{{ $t(bonusCopy.skipKey) }}</span>
+                </button>
+              </div>
+            </div>
+
+            <!-- RESULT: the one continue — the same plate, the same home. -->
+            <div v-else key="result" class="con-hydro__ctazone">
+              <button type="button" class="con-hydro__cta" @click="$emit('result-done')">
+                <GamepadGlyph control="confirm" />
+                <span>{{ $t('Continue') }}</span>
+              </button>
+            </div>
+          </transition>
+        </div>
+      </div>
     </div>
   </section>
 </template>
@@ -772,6 +701,8 @@ import ConsolePlayedTargetStep from '@/client/components/console/played/ConsoleP
 import ConsoleCardFaceLite from '@/client/components/console/cardDeal/ConsoleCardFaceLite.vue';
 import ConsoleSourceDock from '@/client/components/console/ConsoleSourceDock.vue';
 import ConsoleHydroPickRow, {HYDRO_PICK_COPY, HydroPickKind} from '@/client/components/console/hydroFlow/ConsoleHydroPickRow.vue';
+import ConsoleHydroPlanSteps from '@/client/components/console/hydroFlow/ConsoleHydroPlanSteps.vue';
+import {HydroPlanDecision} from '@/client/console/hydroFlow/hydroPlanSteps';
 import ConsolePaymentPanel from '@/client/components/console/ConsolePaymentPanel.vue';
 import {buildEnergyMixView, clampEnergyMixSteel, PaymentView} from '@/client/console/paymentPlan';
 import {choiceSourceView} from '@/client/console/promptSource';
@@ -867,11 +798,32 @@ type GroupNode = ActionGroup['nodes'][number];
 
 type SceneKey = 'preview' | 'choice' | 'target' | 'payment' | 'bonus' | 'commit' | 'result';
 
+/**
+ * THE CONTEXT COLUMN'S VIEW — one derivation for every substate, so the
+ * identity anchor can never change scale or meaning between two frames of the
+ * same flow. Past the commit it is FROZEN off the record; under a live offer
+ * it is the granting card; otherwise it is the live selected stage.
+ */
+type HydroCtxView = {
+  kind: 'stage' | 'source';
+  /** The granting card (the `source` variant). */
+  source?: CardName;
+  /** The stage glyph (the `stage` variant): tag, VP or the start flag. */
+  tag?: Tag;
+  vp?: number;
+  nameKey?: string;
+  posText?: string;
+  /** The state chip — rendered into a RESERVED slot. */
+  badge?: {kind: string; text: string};
+  /** The route + price — ONE grammar, every substate that has a move. */
+  route?: {from: number; to: number; energy: number; steel: number; free: boolean};
+};
+
 export default defineComponent({
   name: 'ConsoleHydroSection',
   components: {
     GamepadGlyph, HydroReward, ConsoleWsHead, ConsolePlayedTargetStep, ConsoleCardFaceLite, ConsoleSourceDock,
-    ConsoleHydroPickRow, ConsolePaymentPanel,
+    ConsoleHydroPickRow, ConsoleHydroPlanSteps, ConsolePaymentPanel,
     CardRenderEffectBoxComponent, CardRenderData,
   },
   directives: {stripActionPrefix},
@@ -1212,9 +1164,6 @@ export default defineComponent({
     jumpedOverVp2(): boolean {
       return this.model.destination?.jumpedOverVp2 === true;
     },
-    skippedNames(): string {
-      return this.model.skippedStages.map((s) => translateText(s.nameKey)).join(', ');
-    },
     startSelected(): boolean {
       return this.model.mode === 'details' && this.model.selectedPosition === 0;
     },
@@ -1276,6 +1225,101 @@ export default defineComponent({
       }
       return 'preview';
     },
+    /** Which action-column body stands — the crossfade key. `quiet` is a
+     *  substate whose verbs live on the ONE bottom bar (the commit beat, the
+     *  target grid): the column stands as composed air, never unmounts. */
+    actKey(): string {
+      switch (this.sceneKey) {
+      case 'preview': return this.model.mode === 'plan' ? 'plan' : 'details';
+      case 'choice': return 'choice';
+      case 'payment': return 'payment';
+      case 'bonus': return 'bonus';
+      case 'commit':
+      case 'target': return 'quiet';
+      default: return 'result';
+      }
+    },
+    /** The context column — see {@link HydroCtxView}. */
+    ctxView(): HydroCtxView {
+      const c = this.flow.commit;
+      if (c !== undefined) {
+        const badge = c.phase === 'result' ?
+          {kind: 'built', text: $t('Completed')} :
+          {kind: 'notnow', text: $t('Executing')};
+        const route = {
+          from: c.fromPosition, to: c.toPosition,
+          energy: c.spend - c.spendSteel, steel: c.spendSteel, free: c.spend === 0,
+        };
+        if (c.sourceCard !== undefined) {
+          return {kind: 'source', source: c.sourceCard, badge, route};
+        }
+        const stage = HYDRO_STAGES[c.toPosition];
+        return {
+          kind: 'stage', tag: stage?.tag, vp: stage?.vp,
+          nameKey: c.stageNameKey,
+          posText: translateTextWithParams('Stage ${0} of ${1}', [String(c.toPosition), '11']),
+          badge, route,
+        };
+      }
+      const offer = this.advanceOffer;
+      if (offer !== undefined) {
+        return {
+          kind: 'source', source: offer.source,
+          route: {
+            from: offer.fromPosition, to: offer.toPosition,
+            energy: offer.energyCost, steel: 0, free: offer.energyCost === 0,
+          },
+        };
+      }
+      const s = this.selectedStage;
+      return {
+        kind: 'stage', tag: s.tag, vp: s.vp, nameKey: s.nameKey,
+        posText: this.stageOfText,
+        badge: this.stageBadge,
+        route: this.model.mode === 'plan' ? {
+          from: this.model.currentPosition, to: this.model.selectedPosition,
+          energy: this.model.selectedSpend, steel: 0, free: false,
+        } : undefined,
+      };
+    },
+    /** The ctx source card in the console's ONE source-view shape. */
+    ctxSourceView(): ReturnType<typeof choiceSourceView> {
+      const card = this.ctxView.source;
+      return card === undefined ? undefined : choiceSourceView({kind: 'card', card});
+    },
+    /** The movement plan's DECISIONS — today always length 1 (this stage's
+     *  binary reward); the strip renders whatever the list holds. */
+    planDecisions(): ReadonlyArray<HydroPlanDecision> {
+      const stage = this.choiceStageModel;
+      if (stage === undefined) {
+        return [];
+      }
+      const pos = this.advanceOffer?.toPosition ?? this.model.selectedPosition;
+      return [{
+        id: 'reward:' + pos,
+        stagePosition: pos,
+        stageNameKey: stage.nameKey,
+        options: this.choiceOptions,
+        chosen: this.rewardChoice,
+      }];
+    },
+    /** The chosen stage reward, kept visible through the payment substep —
+     *  the walk into the composition may not orphan the choice it pays for. */
+    paymentChosenReward(): HydroStage['rewardOptions'][number] | undefined {
+      if (!this.model.targetNeedsChoice || this.rewardChoice === undefined) {
+        return undefined;
+      }
+      return this.selectedStage.rewardOptions[this.rewardChoice];
+    },
+    /** The skipped-reward POLICY, compact: a count, never the raw roster. */
+    skippedSummary(): string {
+      return translateTextWithParams('Intermediate rewards are skipped · ${0}',
+        [String(this.model.skippedStages.length)]);
+    },
+    resultSkippedText(): string {
+      return translateTextWithParams('Intermediate rewards are skipped · ${0}',
+        [String(this.commitRec.skippedCount ?? 0)]);
+    },
     /**
      * THE MOVE A CARD IS PUTTING ON THIS TRACK, whichever door it came through.
      *
@@ -1296,11 +1340,6 @@ export default defineComponent({
         return 'prompt';
       }
       return this.cardOffer !== undefined ? 'card-entry' : undefined;
-    },
-    /** The standing offer, for the bonus layer — which renders iff one does
-     *  (the `commitRec` idiom: a narrowing read, never a second source). */
-    offerRec(): DeltaAdvanceOffer {
-      return this.advanceOffer as DeltaAdvanceOffer;
     },
     /** Is there a refusal to offer at all? Only a standing prompt has one. */
     bonusSkipOffered(): boolean {
@@ -1326,11 +1365,6 @@ export default defineComponent({
     bonusIdentity(): string {
       const o = this.advanceOffer;
       return o === undefined ? '' : [this.offerOrigin, o.source, o.fromPosition, o.toPosition, o.energyCost].join('|');
-    },
-    /** The source, in the console's ONE source-view shape. */
-    bonusSourceView(): ReturnType<typeof choiceSourceView> {
-      const offer = this.advanceOffer;
-      return offer === undefined ? undefined : choiceSourceView({kind: 'card', card: offer.source});
     },
     /** The landing stage itself — the ONE object the facts are read from. */
     bonusStage(): HydroStage | undefined {
@@ -1684,6 +1718,10 @@ export default defineComponent({
       switch (this.flow.step) {
       case 'reward': return 'Reward choice';
       case 'target': return 'Target card';
+      // The composition substep names itself in the crumb tail exactly as its
+      // sibling steps do — «ГИДРОСЕТЬ МАРСА › <этап> › ОПЛАТА». A step whose
+      // tail stayed empty read as the header losing the walk.
+      case 'payment': return 'Payment';
       default: return this.flow.repeatBridge ? 'Repeat action' : '';
       }
     },
@@ -2236,24 +2274,28 @@ export default defineComponent({
       return l.resource !== undefined ? iconClassFor(l.resource) : '';
     },
     /** The panel-body RETUNE — the content breathes through a stop change
-     *  while the panel frame stands still. GSAP owns the overlap semantics:
-     *  a rapid re-step overwrites the running dip from its CURRENT pose. */
+     *  while the frame stands still. The persistent context column rides the
+     *  SAME tween (its identity changed with the stop), so the two zones read
+     *  as one instrument re-tuning, never two blinks. GSAP owns the overlap
+     *  semantics: a rapid re-step overwrites the running dip from its CURRENT
+     *  pose. */
     retunePanel(): void {
       if (this.reducedMotion === true) {
         return;
       }
-      const body = this.$refs.panelBody as HTMLElement | undefined;
-      if (body === undefined || body === null) {
+      const targets = [this.$refs.panelBody, this.$refs.ctxEl]
+        .filter((el): el is HTMLElement => el !== undefined && el !== null) as Array<HTMLElement>;
+      if (targets.length === 0) {
         return;
       }
-      gsap.fromTo(body,
+      gsap.fromTo(targets,
         {opacity: 0.45, y: 5 * conUiScale()},
         {
           opacity: 1, y: 0,
           duration: motionMs(230) / 1000,
           ease: 'power2.out',
           overwrite: 'auto',
-          onComplete: () => gsap.set(body, {clearProps: 'opacity,transform'}),
+          onComplete: () => gsap.set(targets, {clearProps: 'opacity,transform'}),
         });
     },
     // ── the SCENE transition hooks (the workspace-descend phrase) ──────────
@@ -2301,6 +2343,9 @@ export default defineComponent({
      */
     openPaymentStep(): void {
       this.paymentReturnFocus = this.sceneFocus === 'summary' ? 'summary' : 'track';
+      // The composition UNFOLDS from the gateway press (the same descend
+      // phrase every other step enters with — a bare fade read as a swap).
+      this.armSceneFromCta();
       openHydroStep('payment');
     },
     /** PAYMENT → CONFIGURE: B — draft, destination and pre-selects intact. */
@@ -2398,7 +2443,6 @@ export default defineComponent({
     armSceneFromCta(): void {
       const root = this.$refs.rootEl as HTMLElement | undefined;
       armHydroSceneOrigin(root?.querySelector<HTMLElement>('.con-hydro__ctazone') ??
-        root?.querySelector<HTMLElement>('.con-hydro__choice-cta') ??
         root?.querySelector<HTMLElement>('.con-hydro__panel'));
     },
     /**
@@ -2442,7 +2486,7 @@ export default defineComponent({
       // An edge HOLDS — never a wrap: a decision's cursor that loops turns
       // «Пропустить» into whatever is one press past «Продвинуться».
       const column: Array<typeof this.sceneFocus> = [];
-      if (this.bonusSourceView !== undefined) {
+      if (this.ctxSourceView !== undefined) {
         column.push('bonus-source');
       }
       if (this.bonusNeedsCard) {
@@ -2573,6 +2617,9 @@ export default defineComponent({
         resultLines: view.lines,
         vp: view.vp,
         stageNameKey: HYDRO_STAGES[offer.toPosition]?.nameKey ?? '',
+        // The GRANTING CARD — the context column keeps showing it through the
+        // commit and the result, so the origin never blinks away mid-flow.
+        sourceCard: offer.source,
         // The pos-9 presented target freezes its pre-commit count here, exactly
         // as `emitConfirm` does for the player's own advance.
         targetBefore: this.selectedAnimalCurrent,
@@ -2631,6 +2678,7 @@ export default defineComponent({
         resultLines: view.lines,
         vp: view.vp,
         stageNameKey: HYDRO_STAGES[offer.toPosition]?.nameKey ?? '',
+        sourceCard: offer.source,
         targetBefore: this.selectedAnimalCurrent,
       });
     },
@@ -2663,6 +2711,9 @@ export default defineComponent({
           composedRepeat: repeat !== undefined,
           selectedCard: this.model.mustSelectCard ? this.model.selectedCard : undefined,
         }),
+        // The standing track rule, counted at the decision: the result stage
+        // names how many intermediate rewards this jump passed over.
+        skippedCount: this.model.skippedStages.length,
         targetBefore: this.selectedAnimalCurrent,
       });
     },

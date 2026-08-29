@@ -12299,6 +12299,7 @@ export default defineComponent({
       fromPosition?: number, toPosition?: number, spend?: number,
       rewards?: ReadonlyArray<ResourceTransferSpec>,
       resultLines?: ReadonlyArray<HydroDeltaLine>, vp?: number, stageNameKey?: string,
+      sourceCard?: CardName,
       targetBefore?: number,
     }): void {
       // The flow owns the moment from the first press — a second one (a double
@@ -12352,6 +12353,7 @@ export default defineComponent({
           vp: payload.vp,
           stageNameKey: payload.stageNameKey ?? '',
           rewards: payload.rewards ?? [],
+          sourceCard: payload.sourceCard,
           // The workspace pre-collects everything it can ask for (the reward
           // choice, the repeat, the animal target — all on the offer's own
           // window). What is left is what the pre-collection cannot reach: the
@@ -12408,6 +12410,7 @@ export default defineComponent({
       fromPosition: number, toPosition: number, spend: number,
       rewards?: ReadonlyArray<ResourceTransferSpec>,
       resultLines?: ReadonlyArray<HydroDeltaLine>, vp?: number, stageNameKey?: string,
+      sourceCard?: CardName,
       targetBefore?: number,
     }): void {
       // The flow owns the moment from the first press — identical guard to
@@ -12459,6 +12462,7 @@ export default defineComponent({
         vp: payload.vp,
         stageNameKey: payload.stageNameKey ?? '',
         rewards: payload.rewards ?? [],
+        sourceCard: payload.sourceCard,
         // What the pre-collection cannot reach: the pos-5 draw and the inputs a
         // REPEATED action raises once it runs. Those EMBED here rather than
         // rising as a band over the workspace that caused them.
@@ -12493,6 +12497,7 @@ export default defineComponent({
       composedRepeat: boolean, targetBefore: number | undefined,
       rewardLines: ReadonlyArray<HydroDeltaLine>, vp: number | undefined, stageNameKey: string,
       rewards: ReadonlyArray<ResourceTransferSpec>,
+      sourceCard?: CardName, skippedCount?: number,
       serves?: ReadonlyArray<TaskKind>, claimDraw?: number,
     }): void {
       beginHydroCommit({
@@ -12509,6 +12514,10 @@ export default defineComponent({
         rewardLines: payload.rewardLines,
         vp: payload.vp,
         stageNameKey: payload.stageNameKey,
+        // The context column keeps the granting card / the omission count
+        // through the commit and the result — frozen here, with the rest.
+        sourceCard: payload.sourceCard,
+        skippedCount: payload.skippedCount,
       });
       if ((payload.claimDraw ?? 0) > 0) {
         claimWorkspaceOutcome('hydro', CardName.DELTA_PROJECT, ['draw', 'pick'], 0, payload.claimDraw ?? 0);
@@ -12539,7 +12548,8 @@ export default defineComponent({
       repeat?: ConsoleRepeatPickResult, fromPosition: number, toPosition: number,
       rewards?: ReadonlyArray<ResourceTransferSpec>,
       resultLines?: ReadonlyArray<HydroDeltaLine>, vp?: number,
-      stageNameKey?: string, kind?: HydroResolutionKind, targetBefore?: number,
+      stageNameKey?: string, kind?: HydroResolutionKind,
+      skippedCount?: number, targetBefore?: number,
     }): void {
       const path = findHydroActionPath(this.playerView.waitingFor);
       if (path === undefined || isHydroMarkerActive() || this.hydroFlow.commit !== undefined) {
@@ -12615,6 +12625,7 @@ export default defineComponent({
         vp: payload.vp,
         stageNameKey: payload.stageNameKey ?? '',
         rewards: payload.rewards ?? [],
+        skippedCount: payload.skippedCount,
         serves,
         claimDraw,
       });

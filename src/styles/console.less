@@ -5082,10 +5082,14 @@ html.console-mode body.placement-pending .board-outer-spaces > .board-space.boar
             background: fade(@con-cyan, 11%);
             box-shadow: inset 0 0 0 .1rem fade(@con-cyan, 85%), 0 0 1.1rem fade(@con-cyan, 25%);
 
-            /* TRACK → DETAIL: a short stem grows from the hero stop toward
-               the dossier below — the panel reads as THIS stop's own reading,
-               not a neighbouring surface. Static paint on the focused cell
-               only; it rides the same 260ms clock as the cell growth. */
+            /* TRACK → DETAIL: the stem grows from the hero stop and PLUGS
+               INTO the work surface below (the frame's top edge is welded
+               under the rail, so the stem physically crosses the seam — the
+               panel reads as THIS stop's own reading in EVERY substate, and
+               the connector can never end in a void). Static paint on the
+               focused cell only; it rides the same 260ms clock as the cell
+               growth. The seam it must cross: the root's .5rem flex gap + the
+               rail's .3rem bottom padding. */
             &::after {
                 content: '';
                 position: absolute;
@@ -5093,9 +5097,9 @@ html.console-mode body.placement-pending .board-outer-spaces > .board-space.boar
                 left: 50%;
                 transform: translateX(-50%);
                 width: .14rem;
-                height: .85rem;
+                height: 1.05rem;
                 border-radius: .07rem;
-                background: linear-gradient(180deg, fade(@con-cyan, 75%), fade(@con-cyan, 12%));
+                background: linear-gradient(180deg, fade(@con-cyan, 85%), fade(@con-cyan, 20%));
                 pointer-events: none;
             }
         }
@@ -5212,10 +5216,79 @@ html.console-mode body.placement-pending .board-outer-spaces > .board-space.boar
         opacity: 0;
     }
 
-    /* ── THE SCENE — one region, stacked layers, the track never moves. ── */
+    /* ── THE SCENE — one region, one STANDING FRAME, the track never moves.
+       The frame IS the work surface: its top edge is welded right under the
+       rail (the focused stop's connector stem lands ON it in every substate),
+       its bottom reaches the command bar's line, and its three zones never
+       trade places:
+           ctx (identity) · flow (the transitioning stage) · act (decision).
+       Substates change what the FLOW says — never where any edge of the
+       surface stands. This is the layout contract the rework bought: the
+       centred per-state panels used to seat the surface ~250px lower on the
+       choice/payment/result states, tearing the stem off mid-flow. ── */
     &__scene {
         position: relative;
         flex: 1;
+        min-height: 0;
+        min-width: 0;
+        /* Column tokens — the profiles override THESE, never the grid. */
+        --hydro-ctx-w: 14rem;
+        --hydro-act-w: 15.5rem;
+        --hydro-panel-pad: .8rem 1rem;
+        --hydro-col-gap: 1.2rem;
+    }
+    /* THE FRAME — one glass chassis for every substate, filling the stage
+       from the track anchor to the foot line. Air lives INSIDE it (composed
+       by each zone), never as a random gap around a floating dossier. */
+    &__panel {
+        position: absolute;
+        inset: 0;
+        display: grid;
+        grid-template-columns: var(--hydro-ctx-w) minmax(0, 1fr) var(--hydro-act-w);
+        grid-template-areas: "ctx flow act";
+        column-gap: var(--hydro-col-gap);
+        padding: var(--hydro-panel-pad);
+        border-radius: .7rem;
+        background: @con-glass;
+        box-shadow: inset 0 0 0 .05rem fade(@con-hydro-aqua, 25%), 0 .6rem 2rem rgba(0, 0, 0, 0.4);
+        overflow: hidden;
+    }
+    /* ── CTX — the persistent identity column: the stage (glyph · name ·
+       position · state chip · route), or the granting card in a card flow.
+       ONE DOM node across every substate — it retunes on a stop change and
+       NEVER re-enters with a layer, which is what keeps the icon, the title
+       and the route from jumping in scale or place mid-flow. ── */
+    &__ctx {
+        grid-area: ctx;
+        display: flex;
+        flex-direction: column;
+        align-items: flex-start;
+        gap: .55rem;
+        min-height: 0;
+        min-width: 0;
+        padding: .1rem 1rem 0 .1rem;
+        border-right: .05rem solid rgba(120, 155, 190, 0.14);
+        will-change: opacity, transform;
+
+        .con-hydro__route { margin-top: .1rem; }
+        .con-hydro__bonus-source { align-self: flex-start; max-width: 100%; }
+    }
+    &__ident {
+        display: flex;
+        flex-direction: column;
+        align-items: flex-start;
+        gap: .55rem;
+        min-height: 2.7rem;
+    }
+    /* The state chip's RESERVED slot — a badge that comes and goes may never
+       re-seat the route line beneath it. */
+    &__ctx-badge { min-height: 1.75rem; }
+    &__stage-titles { min-width: 0; }
+
+    /* ── FLOW — the one transitioning zone. ── */
+    &__flow {
+        grid-area: flow;
+        position: relative;
         min-height: 0;
         min-width: 0;
     }
@@ -5224,134 +5297,32 @@ html.console-mode body.placement-pending .board-outer-spaces > .board-space.boar
         inset: 0;
         display: flex;
         flex-direction: column;
-        align-items: center;
-        justify-content: center;
+        align-items: stretch;
+        /* TOP-ANCHORED, every substate: content that grows moves ONLY the
+           bottom of its own column — the surface's coordinates never move. */
+        justify-content: flex-start;
         min-height: 0;
         min-width: 0;
         overflow: hidden;
     }
-    /* The PLAN panel is TOP-ANCHORED: content that grows moves ONLY the
-       bottom edge (a centred panel moved both — the «дёргание» of stepping).
-       BOTH plan-shaped scenes share the anchor — the player's own preview and
-       a card's advance offer are the SAME dossier under the SAME track, so
-       they must hang off it identically: the stop's connector line has to
-       TOUCH the panel it points at, and a centred bonus layer left it hanging
-       in ~145px of void with the panel adrift in the middle of the band. One
-       vertical rhythm, one premium language, in both modes. */
-    &__layer--preview,
-    &__layer--bonus {
-        justify-content: flex-start;
-        padding-top: .35rem;
+    /* The two COMPOSED moments — the decision hero and the payoff — centre
+       their content INSIDE the standing flow zone. The frame, the context
+       column and the action column do not move: this is a composition of the
+       zone's inside, never a new coordinate system. */
+    &__layer--choice,
+    &__layer--result {
+        justify-content: center;
+        align-items: center;
     }
-    /* The compact PANEL — a dossier, not a stretch: composition sets the
-       size, the tall host gives air AROUND it (the colony-focus idiom).
-       GEOMETRY IS RESERVED: a fixed width, a floor height and top-anchored
-       placement (the preview layer) — stepping between stops changes what
-       the rows SAY, never where the panel's edges stand. The padding lives
-       on the BODY (the retune target), so a departing body could overlay
-       the frame pixel-exact if it ever had to. */
-    &__panel {
-        position: relative;
-        width: min(70rem, 100%);
-        min-height: 13.5rem;
-        max-height: 100%;
-        display: flex;
-        flex-direction: column;
-        border-radius: .7rem;
-        background: @con-glass;
-        box-shadow: inset 0 0 0 .05rem fade(@con-hydro-aqua, 25%), 0 .6rem 2rem rgba(0, 0, 0, 0.4);
-        overflow-y: auto; /* the RARE fallback — chrome-less */
-        scrollbar-width: none;
-        &::-webkit-scrollbar { display: none; }
-    }
-    /* DETAILS shares the EXACT frame geometry of the plan (width + floor):
-       stepping across the current position may not move a single panel edge —
-       width/height are banned from animating, so the only seamless width
-       change is none. The shorter content simply gets air beneath it. */
-    &__panel--details {}
     &__panelbody {
         flex: 1;
         min-height: 0;
         display: flex;
         flex-direction: column;
         gap: .55rem;
-        padding: .8rem 1rem;
+        padding: .1rem .2rem 0 .1rem;
         will-change: opacity, transform;
     }
-    /* ═══ THE HERO RECOMPOSITION (plan mode) — «hero | flow | action» ═══
-       The selected stage stops being the first thin row of a stack and
-       becomes the dossier's HERO COLUMN (big stage glyph, name, position,
-       state, route); the middle column reads the decision flow top-down
-       (requirements → notes → reward → choice); the right column is the
-       ACTION (CTA + its honest reasons), bottom-seated. The track above and
-       this panel now share one subject — the stem lands on the hero's own
-       column. CSS-only over the existing DOM: the details/choice/commit/
-       result layers keep their stacked composition. */
-    /* …and NOT the bonus panel: the plan recomposition lays out hero / req /
-       act, none of which a card-granted offer has. Inherited, it dragged the
-       offer's three parts into a 3-column plan grid and stacked the source on
-       top of its own decision. */
-    &__panel:not(&__panel--details):not(&__panel--bonus):not(&__panel--payment) .con-hydro__panelbody {
-        display: grid;
-        /* hero · the stage's own reading · the act. The PRICE is one reserved
-           line in the reading column («ОПЛАТА ⚡/🔩 N …»); the full payment
-           selector is its own SUBSTEP layer and never competes with the
-           plan's reading for width. */
-        grid-template-columns: minmax(12rem, 15rem) minmax(0, 1fr) minmax(14rem, 17rem);
-        grid-template-rows: auto auto auto auto minmax(0, 1fr);
-        grid-template-areas:
-            "hero req     act"
-            "hero notes   act"
-            "hero gains   act"
-            "hero pay     act"
-            "hero summary act";
-        column-gap: 1.2rem;
-        row-gap: .55rem;
-    }
-    &__panel:not(&__panel--details):not(&__panel--bonus):not(&__panel--payment) {
-        .con-hydro__ident {
-            grid-area: hero;
-            flex-direction: column;
-            flex-wrap: nowrap;
-            align-items: flex-start;
-            justify-content: flex-start;
-            gap: .55rem;
-            min-height: 0;
-            padding-right: 1rem;
-            border-right: .05rem solid rgba(120, 155, 190, 0.14);
-
-            .con-hydro__route { margin-left: 0; }
-        }
-        .con-hydro__stage-tag { width: 3.1rem; height: 3.1rem; }
-        .con-hydro__stage-name { font-size: 1.3rem; line-height: 1.15; }
-        .con-hydro__reqline { grid-area: req; }
-        .con-hydro__routenotes { grid-area: notes; }
-        .con-hydro__gains { grid-area: gains; }
-        .con-hydro__payline { grid-area: pay; }
-        .con-hydro__summary { grid-area: summary; align-self: start; }
-        .con-hydro__ctazone {
-            grid-area: act;
-            margin-top: 0;
-            align-self: stretch;
-            justify-content: flex-end;
-            padding-left: 1rem;
-            border-left: .05rem solid rgba(120, 155, 190, 0.14);
-
-            .con-hydro__cta { width: 100%; justify-content: center; text-align: center; }
-        }
-    }
-    /* Row RESERVES (the settings-model layout-shift contract): every row
-       keeps its line whether this stop fills it or not — the next row down
-       never re-seats because the content above changed its mind. */
-    &__ident {
-        display: flex;
-        align-items: center;
-        gap: .6rem;
-        flex-wrap: wrap;
-        min-height: 2.7rem;
-        .con-hydro__route { margin-left: auto; }
-    }
-    &__stage-titles { min-width: 0; }
     &__reqline {
         display: flex;
         align-items: center;
@@ -5406,44 +5377,27 @@ html.console-mode body.placement-pending .board-outer-spaces > .board-space.boar
         box-shadow: inset 0 0 0 .05rem fade(@con-cyan, 40%);
     }
 
-    /* THE PAYMENT SUBSTEP — the working area handed over to the composition:
-       pinned plan summary · the shared premium panel · the final act. */
-    &__panel--payment { width: min(70rem, 100%); }
-    &__paystep {
-        display: grid;
-        grid-template-columns: minmax(13rem, 16rem) minmax(0, 1fr) minmax(14rem, 17rem);
-        grid-template-areas: "summary panel cta";
-        column-gap: 1.2rem;
-        align-items: start;
-    }
-    &__paystep-summary {
-        grid-area: summary;
+    /* THE PAYMENT SUBSTEP — the flow zone handed over to the composition.
+       The context column IS the pinned summary (the same identity, the same
+       route — nothing re-states itself at a second scale), the final act
+       stands in the action column like every other commit. */
+    /* The composition column: the pinned reward line and the panel share ONE
+       width and one left edge — two blocks on two different axes read as an
+       accident, not a composition. */
+    &__paychoice {
         display: flex;
-        flex-direction: column;
-        align-items: flex-start;
-        gap: .55rem;
-        padding-right: 1rem;
-        border-right: .05rem solid rgba(120, 155, 190, 0.14);
-
-        .con-hydro__route { margin-left: 0; }
+        align-items: center;
+        gap: .6rem;
+        width: min(var(--hydro-pay-w, 38rem), 100%);
+        margin: 0 auto;
+        padding: .1rem .2rem;
+        .hydro-reward { zoom: calc(1.15 * var(--con-ui-scale, 1)); }
     }
-    &__paystep-panel {
-        grid-area: panel;
+    &__paypanel {
         min-width: 0;
-        align-self: center;
+        padding-top: .2rem;
 
-        .con-pay { width: min(38rem, 100%); margin: 0 auto; }
-    }
-    &__paystep-cta {
-        grid-area: cta;
-        align-self: stretch;
-        display: flex;
-        flex-direction: column;
-        justify-content: flex-end;
-        padding-left: 1rem;
-        border-left: .05rem solid rgba(120, 155, 190, 0.14);
-
-        .con-hydro__cta { width: 100%; justify-content: center; text-align: center; }
+        .con-pay { width: min(var(--hydro-pay-w, 38rem), 100%); margin: 0 auto; }
     }
     &__routenotes {
         display: flex;
@@ -5475,8 +5429,10 @@ html.console-mode body.placement-pending .board-outer-spaces > .board-space.boar
         gap: .6rem;
     }
     &__stage-tag {
-        width: 2.3rem;
-        height: 2.3rem;
+        /* The context column's identity object — ONE scale for every substate
+           (the old per-panel ladders let the payment step blow it up ×1.4). */
+        width: 3.1rem;
+        height: 3.1rem;
         flex-shrink: 0;
         background-size: contain;
         background-position: center;
@@ -5498,9 +5454,9 @@ html.console-mode body.placement-pending .board-outer-spaces > .board-space.boar
     }
     &__stage-flag { font-size: 1.5rem; color: @con-hydro-aqua; }
     &__stage-name {
-        font-size: 1.05rem;
+        font-size: 1.3rem;
         font-weight: 700;
-        line-height: 1.2;
+        line-height: 1.15;
     }
     &__stage-pos {
         font-size: .7rem;
@@ -5737,17 +5693,51 @@ html.console-mode body.placement-pending .board-outer-spaces > .board-space.boar
     }
     &__bonus-tick { color: @con-hydro-mint; font-size: .95rem; font-weight: 800; }
 
-    /* CTA zone — the strongest control OR the specific reason list. */
+    /* ── ACT — the persistent action column: ONE physical home for the
+       decision's own verbs across every substate (the CTA plate never moves;
+       only its label and state advance, the way the crumb tail does). ── */
+    &__act {
+        grid-area: act;
+        position: relative;
+        min-height: 0;
+        min-width: 0;
+        border-left: .05rem solid rgba(120, 155, 190, 0.14);
+    }
+    /* The act BODY — one per substate, crossfaded in place (absolute inside
+       the standing column, so an arriving body can never re-seat a leaving
+       one). BOTTOM-SEATED: the decision line seats the frame's bottom edge;
+       the air opens ABOVE it — a composed instrument, never a stack of rows
+       with a void below. */
     &__ctazone {
+        position: absolute;
+        inset: 0;
         display: flex;
         flex-direction: column;
+        justify-content: flex-end;
         gap: .4rem;
-        padding-top: .15rem;
-        /* The decision line SEATS the panel's bottom edge: when the dossier
-           has more room than content (the tall 4K stage), the air opens
-           BETWEEN the facts and the action — a composed instrument, not a
-           stack of rows with a void below it. */
-        margin-top: auto;
+        padding: .15rem .1rem .1rem 1rem;
+        min-width: 0;
+
+        .con-hydro__cta { width: 100%; justify-content: center; text-align: center; }
+    }
+    .con-hydro-act-enter-active,
+    .con-hydro-act-leave-active {
+        transition: opacity calc(160ms * var(--motion-scale, 1)) ease;
+    }
+    .con-hydro-act-enter-from,
+    .con-hydro-act-leave-to { opacity: 0; }
+    /* The refused act and its WHY are ONE verdict block — a shared chassis,
+       so «недоступно» and «потому что» can never read as two competing
+       panels. */
+    &__verdict {
+        display: flex;
+        flex-direction: column;
+        border-radius: .6rem;
+        background: rgba(10, 16, 24, 0.4);
+        box-shadow: inset 0 0 0 .05rem rgba(150, 160, 175, 0.22);
+
+        .con-hydro__cta--disabled { background: transparent; box-shadow: none; }
+        .con-hydro__reasons { padding: 0 .4rem .4rem; }
     }
     &__cta {
         display: inline-flex;
@@ -5798,27 +5788,9 @@ html.console-mode body.placement-pending .board-outer-spaces > .board-space.boar
 
        Focus is carried by box-shadow/colour, never by filter or text-shadow:
        console strips both permanently (console_paint_baseline). */
-    /* SOURCE beside DECISION — the same proportion the decision screen uses:
-       the card is recognisable and never dominant, so the answer the player
-       must give is what the zone is actually about. Stacking them made the
-       card eat the whole zone and pushed both answers off a 720p screen. */
-    /* `&__panelbody` above declares the column flex, and this element carries
-       BOTH classes — so the grid has to out-specify it, not merely follow it. */
-    &__panelbody&__bonus-main {
-        display: grid;
-        grid-template-columns: minmax(8rem, 26%) 1fr;
-        grid-auto-rows: min-content;
-        /* TOP-ANCHORED like the plan body it stands in for — a centred content
-           block inside a floor-height panel drifts away from the panel's own
-           top edge, which is the line the track's connector points at. */
-        align-content: start;
-        gap: .5rem 1.1rem;
-        align-items: center;
-        min-height: 0;
-    }
-    /* The source spans both rows of the right column, so the statement and the
-       answers read as one block beside it rather than two stacked halves. */
-    &__bonus-source { grid-row: 1 / span 2; }
+    /* SOURCE — the granting card, standing in the CONTEXT column (the same
+       identity slot the stage glyph uses: a card's move is the same move, so
+       it gets the same anatomy — never its own absolute layout). */
     &__bonus-source {
         align-self: center;
         border-radius: .7rem;
@@ -5839,6 +5811,7 @@ html.console-mode body.placement-pending .board-outer-spaces > .board-space.boar
         align-items: flex-start;
         gap: .45rem;
         min-width: 0;
+        padding: .1rem .2rem 0 .1rem;
         /* The statement + its answers are ONE block: never stretched across a
            4K content column. The cap is a READING measure (the console reading
            ladder), not a magic number — the sentence above and the button pair
@@ -5961,22 +5934,18 @@ html.console-mode body.placement-pending .board-outer-spaces > .board-space.boar
         letter-spacing: .06rem;
         line-height: 1.5;
     }
-    /* THE TWO ANSWERS — a COMPACT BINARY CHOICE in this console's own
-       decision grammar (`.con-decision__action`: state rail, A glyph on the
-       focused one, a DECLINE in calm graphite because refusing is a decision
-       and not an unavailable one) — at the size a two-word answer deserves.
-       A ROW that sizes to its content, so a short verb never becomes a
-       full-width settings line with a hand's width of empty space in it. */
+    /* THE TWO ANSWERS — this console's own decision grammar (state rail, the
+       A glyph on the focused one, a DECLINE in calm graphite because refusing
+       is a decision and not an unavailable one), standing in the ACTION
+       COLUMN: the offer where every other primary stands, the refusal right
+       beneath it. One column, full-width plates — the same muscle memory as
+       the plan's own CTA. */
     &__bonus-actions {
         display: flex;
-        flex-direction: row;
-        flex-wrap: wrap;
+        flex-direction: column;
         align-items: stretch;
         gap: .5rem;
-        width: auto;
-        max-width: 100%;
         min-width: 0;
-        margin-top: .35rem;
     }
     &__bonus-action {
         position: relative;
@@ -6134,15 +6103,72 @@ html.console-mode body.placement-pending .board-outer-spaces > .board-space.boar
     }
     &__detail-status { font-size: .85rem; font-weight: 700; }
 
-    /* ── THE REWARD-CHOICE layer (pos 1/2) — a physical D-pad row. ── */
-    /* (The base panel's padding lives on the retune BODY — the step panels
-       carry their own, since their content is not the retuned body.) */
-    &__panel--choice {
-        width: min(52rem, 100%);
-        min-height: 0;
+    /* ── THE REWARD-CHOICE layer (pos 1/2) — the movement plan's DECISIONS
+       through the shared strip: today one decision (the familiar physical
+       D-pad row), tomorrow a list — the strip's height stays bounded by
+       construction (one active options row + one shrinkable chip rail). ── */
+    &__plansteps {
+        display: flex;
+        flex-direction: column;
         align-items: center;
         gap: .55rem;
-        padding: .9rem 1rem;
+        width: 100%;
+        min-width: 0;
+        padding: .4rem .6rem;
+    }
+    &__plansteps-head {
+        display: flex;
+        align-items: center;
+        gap: .8rem;
+        min-width: 0;
+        max-width: 100%;
+    }
+    &__plansteps-progress {
+        flex: 0 0 auto;
+        font-size: .75rem;
+        font-weight: 800;
+        letter-spacing: .07rem;
+        text-transform: uppercase;
+        color: fade(@con-cyan, 92%);
+    }
+    /* The other decisions of the plan — a SHRINKABLE chip rail (min-width 0 +
+       ellipsis), so any count of decisions stays one line and never scrolls. */
+    &__plansteps-rail {
+        display: flex;
+        align-items: center;
+        gap: .4rem;
+        min-width: 0;
+    }
+    &__plansteps-chip {
+        display: inline-flex;
+        align-items: center;
+        gap: .3rem;
+        min-width: 0;
+        padding: .25rem .55rem;
+        border-radius: 49.95rem;
+        background: rgba(12, 20, 30, 0.6);
+        box-shadow: inset 0 0 0 .05rem rgba(120, 150, 180, 0.22);
+        font-size: .7rem;
+        font-weight: 700;
+        color: @con-text-dim;
+
+        &--done {
+            box-shadow: inset 0 0 0 .05rem fade(@con-hydro-mint, 45%);
+            color: @con-text;
+            .con-hydro__plansteps-chip-mark { color: @con-hydro-mint; }
+        }
+        &--active {
+            box-shadow: inset 0 0 0 .07rem fade(@con-cyan, 70%);
+            color: @con-text;
+        }
+    }
+    &__plansteps-chip-mark { flex: 0 0 auto; }
+    &__plansteps-chip-pos { flex: 0 0 auto; color: @con-text-dim; }
+    &__plansteps-chip-name {
+        min-width: 0;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
     }
     &__choice-ask {
         font-size: .95rem;
@@ -6173,7 +6199,14 @@ html.console-mode body.placement-pending .board-outer-spaces > .board-space.boar
        box-shadow (perf-lite keeps every functional cue). */
     &__choice-card {
         position: relative;
-        flex: 0 1 22rem;
+        /* The pair SHARES the flow zone: equal halves, capped — never a fixed
+           basis wider than the zone (that is how both options clipped at 4K:
+           `min-width: auto` kept each card at its content width and the
+           centred row overflowed BOTH edges of the column). */
+        flex: 1 1 0;
+        min-width: 0;
+        max-width: 24rem;
+        overflow: hidden; /* the radius clips a mis-fit — never a spilled pill */
         display: flex;
         align-items: center;
         gap: .95rem;
@@ -6320,14 +6353,6 @@ html.console-mode body.placement-pending .board-outer-spaces > .board-space.boar
             color: @con-hydro-mint;
         }
     }
-    /* The step's OWN commit row — always in layout (a row that appeared on
-       the pick would re-seat the cards under the cursor). */
-    &__choice-cta {
-        display: flex;
-        justify-content: center;
-        align-self: stretch;
-        padding-top: .15rem;
-    }
     /* The cursor has moved DOWN onto the commit: it lights, the unchosen
        option settles back. Both cues are box-shadow/colour (perf-lite keeps
        them), never opacity on the option itself. */
@@ -6348,12 +6373,13 @@ html.console-mode body.placement-pending .board-outer-spaces > .board-space.boar
         padding: .2rem .1rem;
     }
 
-    /* ── THE COMMIT layer — route line, the landed stage's own scene, and
-       the embed zone the follow-up teleports into. ── */
+    /* ── THE COMMIT layer — the beat line, the landed stage's own scene, and
+       the embed zone the follow-up teleports into (the route lives in the
+       context column, frozen off the record). ── */
     &__layer--commit {
         justify-content: flex-start;
         gap: .5rem;
-        padding: .3rem .2rem 0;
+        padding: .1rem .2rem 0 .1rem;
     }
     &__commitline {
         display: flex;
@@ -6361,6 +6387,7 @@ html.console-mode body.placement-pending .board-outer-spaces > .board-space.boar
         gap: .8rem;
         flex-wrap: wrap;
         flex-shrink: 0;
+        align-self: flex-start;
         padding: .5rem .9rem;
         border-radius: .6rem;
         background: rgba(12, 20, 30, 0.55);
@@ -6464,33 +6491,34 @@ html.console-mode body.placement-pending .board-outer-spaces > .board-space.boar
     /* The ceremony dims the scene chrome — NEVER the track above it. */
     &--cere &__commitline { opacity: 0.35; transition: opacity calc(300ms * var(--motion-scale, 1)) ease; }
 
-    /* ── THE RESULT layer — the compact read-hold summary. ── */
-    &__panel--result {
-        width: min(48rem, 100%);
-        min-height: 0;
-        align-items: flex-start;
+    /* ── THE RESULT layer — the read-hold payoff, centred in the standing
+       flow zone (the frame and both columns do not move). ── */
+    &__result {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
         gap: .55rem;
+        max-width: 100%;
         padding: .9rem 1rem;
     }
     &__result-head {
         display: flex;
         align-items: center;
         gap: .55rem;
-        font-size: 1rem;
+        font-size: 1.05rem;
         b { letter-spacing: .04rem; text-transform: uppercase; }
     }
     &__result-stage { color: @con-text-dim; font-size: .85rem; }
     &__result-rows {
         display: flex;
         align-items: center;
+        justify-content: center;
         gap: .55rem 1.1rem;
         flex-wrap: wrap;
     }
     &__result-note { font-size: .85rem; font-weight: 700; color: fade(@con-cyan, 95%); }
-    &__result-hint {
-        display: inline-flex;
-        align-items: center;
-        gap: .45rem;
+    /* The standing track rule, restated where it applied — quiet, one line. */
+    &__result-skip {
         font-size: .775rem;
         color: @con-text-dim;
     }
@@ -6533,19 +6561,18 @@ html.console-mode body.placement-pending .board-outer-spaces > .board-space.boar
 html.con-profile-handheld .con-hydro {
     gap: .35rem;
 
-    /* The Deck's narrow band cannot afford three columns — the dossier
-       keeps its stacked composition there (the hero grid is a big-screen
-       recomposition). */
-    .con-hydro__panel:not(.con-hydro__panel--details):not(.con-hydro__panel--bonus) .con-hydro__panelbody {
-        display: flex;
-        flex-direction: column;
+    /* The Deck's narrow band keeps the SAME three-zone anatomy, recomposed
+       tighter: narrower identity/action columns, the same stable frame. */
+    .con-hydro__scene {
+        --hydro-ctx-w: 9.6rem;
+        --hydro-act-w: 11rem;
+        --hydro-panel-pad: .55rem .65rem;
+        --hydro-col-gap: .8rem;
     }
-    .con-hydro__panel:not(.con-hydro__panel--details):not(.con-hydro__panel--bonus) {
-        .con-hydro__ident { flex-direction: row; align-items: center; border-right: 0; padding-right: 0; }
-        .con-hydro__ident .con-hydro__route { margin-left: auto; }
-        .con-hydro__stage-tag { width: 2.1rem; height: 2.1rem; }
-        .con-hydro__ctazone { border-left: 0; padding-left: 0; justify-content: flex-start; }
-    }
+    .con-hydro__ctx { padding-right: .6rem; gap: .4rem; }
+    .con-hydro__ident { min-height: 2.2rem; gap: .4rem; }
+    .con-hydro__ctx-badge { min-height: 1.45rem; }
+    .con-hydro__ctazone { padding-left: .6rem; }
 
     .con-hydro__chip { padding: .25rem .55rem; font-size: .7rem; b { font-size: .8rem; } }
     .con-hydro__chip-ico { width: .9rem; height: .9rem; }
@@ -6568,15 +6595,13 @@ html.con-profile-handheld .con-hydro {
     .con-hydro__stop-marker { width: .55rem; height: .55rem; }
     .con-hydro__link { min-width: .2rem; max-width: .7rem; }
 
-    .con-hydro__panel { width: min(52rem, 100%); min-height: 10.4rem; }
-    .con-hydro__panelbody { gap: .4rem; padding: .55rem .65rem; }
+    .con-hydro__panelbody { gap: .4rem; }
     .con-hydro__stop-open { width: 7.2rem; }
-    .con-hydro__ident { min-height: 2.2rem; }
     .con-hydro__reqline { min-height: 1.9rem; }
     .con-hydro__gains { min-height: 1.9rem; }
     .con-hydro__section-label { font-size: .6rem; letter-spacing: .07rem; }
-    .con-hydro__stage-tag { width: 1.8rem; height: 1.8rem; }
-    .con-hydro__stage-name { font-size: .85rem; }
+    .con-hydro__stage-tag { width: 2.1rem; height: 2.1rem; }
+    .con-hydro__stage-name { font-size: .9rem; }
     .con-hydro__stage-pos { font-size: .625rem; }
     .con-hydro__stage-badge { font-size: .65rem; padding: .2rem .5rem; }
     .con-hydro__route { font-size: .8rem; b { font-size: .9rem; } }
@@ -6591,14 +6616,13 @@ html.con-profile-handheld .con-hydro {
     .con-hydro__cta { padding: .5rem .7rem; font-size: .775rem; }
     .con-hydro__reason { font-size: .675rem; padding: .3rem .45rem; }
     .con-hydro__detail-status { font-size: .75rem; }
-    .con-hydro__choice-card { flex-basis: 17rem; min-height: 5.8rem; padding: .7rem .8rem; gap: .7rem; .hydro-reward { zoom: 1.1; } }
+    .con-hydro__choice-card { max-width: 17rem; min-height: 5.8rem; padding: .7rem .8rem; gap: .7rem; .hydro-reward { zoom: 1.1; } }
     .con-hydro__choice-socket { width: 3.3rem; height: 3.3rem; border-radius: .55rem; }
     .con-hydro__choice-img { width: 2.2rem; height: 2.2rem; }
     .con-hydro__choice-name { font-size: .675rem; }
     .con-hydro__choice-values b { font-size: 1.2rem; }
     .con-hydro__choice-ask { font-size: .8rem; }
     .con-hydro__cere-value { font-size: 1.6rem; }
-    .con-hydro__panel--result { width: min(40rem, 100%); }
 
     /* THE BONUS DECISION on the Deck's narrow band: the same composition,
        recomposed tighter. The pair stays a ROW while both verbs fit and WRAPS
@@ -6622,13 +6646,16 @@ html.con-profile-large .con-hydro {
     .con-hydro__stop { width: 6.4rem; min-height: 12.2rem; &--focused { width: 12.2rem; } }
     .con-hydro__stop-tag { width: 2.2rem; height: 2.2rem; }
     .con-hydro__stop-name { font-size: .85rem; }
-    .con-hydro__stage-name { font-size: 1.25rem; }
+    .con-hydro__stage-name { font-size: 1.4rem; }
     .con-hydro__delta { font-size: 1rem; }
     .con-hydro__cta { font-size: 1.05rem; padding: .8rem 1.1rem; }
     .con-hydro__reason { font-size: .9rem; }
-    .con-hydro__panel { width: min(80rem, 100%); }
+    .con-hydro__scene {
+        --hydro-ctx-w: 15.5rem;
+        --hydro-act-w: 17rem;
+    }
     .con-hydro__stop-open { width: 11.4rem; }
-    .con-hydro__choice-card { flex-basis: 24rem; min-height: 8rem; }
+    .con-hydro__choice-card { max-width: 26rem; min-height: 8rem; }
     .con-hydro__choice-socket { width: 4.6rem; height: 4.6rem; }
     .con-hydro__choice-img { width: 3.1rem; height: 3.1rem; }
     .con-hydro__choice-values b { font-size: 1.7rem; }

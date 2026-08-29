@@ -83,6 +83,14 @@ export type HydroCommitRecord = {
   /** Pos 9: the target card's resource count BEFORE the commit — the presented
    *  face is frozen at this value and ticks per physical touchdown. */
   targetBefore: number | undefined;
+  /** The CARD whose effect authorised this move (DOB's bonus step, Storm
+   *  Surge Barrier's entry) — the context column keeps showing it through the
+   *  commit and the result, so the origin never blinks away mid-flow. Absent
+   *  for the player's own advance. */
+  sourceCard?: CardName;
+  /** Intermediate stages passed WITHOUT their reward (the standing track
+   *  rule) — the result names the omission honestly. 0/absent = none. */
+  skippedCount?: number;
   /** Frozen «сейчас → станет» lines for the result stage — the live model
    *  moves on with the commit and would describe the NEXT advance. */
   rewardLines: ReadonlyArray<HydroDeltaLine>;

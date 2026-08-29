@@ -93,7 +93,6 @@
     "Choose a bonus": "Выберите бонус",
     "Switch bonus": "Сменить бонус",
     "The bonus is chosen when you confirm": "Бонус выбирается при подтверждении",
-    "Skipped rewards": "Пропущенные награды",
     "Covered by a wild tag": "Закрыто универсальной меткой",
     "You will spend": "Будет потрачено",
     "Requirements": "Требования",
@@ -146,5 +145,7 @@
     "Skip the bonus step": "Пропустить бонусный шаг",
     "Spend and advance": "Потратить и продвинуться",
     "Advance 1 step on the Hydronetwork without paying energy": "Продвинуться на 1 деление по Гидросети, не тратя энергию",
-    "Spend 1 energy to ignore 1 required tag and advance 1 step on the Hydronetwork": "Потратить 1 энергию, чтобы проигнорировать 1 требуемую метку и продвинуться на 1 деление"
+    "Spend 1 energy to ignore 1 required tag and advance 1 step on the Hydronetwork": "Потратить 1 энергию, чтобы проигнорировать 1 требуемую метку и продвинуться на 1 деление",
+    "Intermediate rewards are skipped · ${0}": "Промежуточные награды будут пропущены · ${0}",
+    "Decision ${0} of ${1}": "Решение ${0} из ${1}"
 }

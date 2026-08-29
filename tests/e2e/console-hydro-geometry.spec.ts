@@ -64,6 +64,7 @@ for (const profile of PROFILES) {
         const focused = document.querySelector('.con-hydro__stop--focused');
         const panel = document.querySelector('.con-hydro__panel');
         const body = document.querySelector('.con-hydro__panelbody');
+        const ctx = document.querySelector('.con-hydro__ctx');
         const cta = document.querySelector('.con-hydro__ctazone');
         const rail = document.querySelector('.con-hydro__rail');
         if (root === null || stop === null || panel === null || rail === null) {
@@ -75,6 +76,7 @@ for (const profile of PROFILES) {
           rem: parseFloat(getComputedStyle(document.documentElement).fontSize),
           root: r(root), stop: r(stop), focused: focused !== null ? r(focused) : undefined,
           panel: r(panel), body: body !== null ? r(body) : undefined,
+          ctx: ctx !== null ? r(ctx) : undefined,
           cta: cta !== null ? r(cta) : undefined,
           rail: r(rail),
           stem: stemColor.includes('gradient'),
@@ -86,10 +88,17 @@ for (const profile of PROFILES) {
       // ladders may only grow them).
       expect(geo.stop.w).toBeGreaterThanOrEqual(5.1 * rem);
       expect(geo.stop.h).toBeGreaterThanOrEqual(10.3 * rem);
-      // The hero stop is magnified AND carries the connector stem.
+      // The hero stop is magnified AND carries the connector stem — which
+      // physically REACHES the work surface (the stem is 0.85rem long; the
+      // gap between the cell and the frame's top edge must stay inside it).
       expect(geo.focused, 'a focused stop exists').toBeTruthy();
       expect(geo.focused!.w).toBeGreaterThan(geo.stop.w * 1.5);
       expect(geo.stem, 'track → detail connector stem').toBe(true);
+      const stemGap = geo.panel.y - geo.focused!.b;
+      expect(stemGap, 'the stem lands ON the surface, never in a void').toBeGreaterThanOrEqual(0);
+      expect(stemGap).toBeLessThanOrEqual(0.9 * rem);
+      // The persistent context column stands inside the frame.
+      expect(geo.ctx, 'the identity column exists').toBeTruthy();
 
       // The dossier panel spans the widened floor (min(70rem, 100%) base,
       // 88rem TV) and the CTA seats its bottom edge.
@@ -136,6 +145,34 @@ for (const profile of PROFILES) {
       expect(Math.abs(after.panelTop - geo.panel.y)).toBeLessThanOrEqual(1);
       expect(Math.abs(after.panelW - geo.panel.w)).toBeLessThanOrEqual(1);
       expect(after.stem).toBe(true);
+
+      // ── THE FAR STAGE: many requirements + the skipped-reward POLICY as a
+      //    compact count — never the raw roster of stage names (the old
+      //    two-line list drowned the decision it annotated). The frame's own
+      //    coordinates still do not move. ──
+      for (let i = 0; i < 8; i++) {
+        await press(page, 'ArrowRight', 350);
+      }
+      await page.waitForTimeout(600);
+      const far = await page.evaluate(() => {
+        const p = document.querySelector('.con-hydro__panel');
+        const f = document.querySelector('.con-hydro__stop--focused');
+        const notes = Array.from(document.querySelectorAll('.con-hydro__routenote'))
+          .map((n) => (n as HTMLElement).innerText.trim());
+        return {
+          panelTop: p === null ? -1 : p.getBoundingClientRect().top,
+          focusedRight: f === null ? -1 : f.getBoundingClientRect().right,
+          notes,
+          reqCount: document.querySelectorAll('.con-hydro__req-tag').length,
+        };
+      });
+      expect(Math.abs(far.panelTop - geo.panel.y), 'the far stage keeps the anchor').toBeLessThanOrEqual(1);
+      expect(far.reqCount, 'the far stage states its whole requirement set').toBeGreaterThanOrEqual(5);
+      const skipNote = far.notes.find((n) => n.includes('↷'));
+      expect(skipNote, 'the skipped-reward policy line exists').toBeTruthy();
+      expect(skipNote!, 'a COUNT, never a roster').toMatch(/·\s*\d+/);
+      expect(skipNote!.includes(','), 'no comma-separated stage names').toBe(false);
+      await shoot(page, `${profile.tag}-03-hydro-far`);
 
       await press(page, 'Escape', 800);
     });
