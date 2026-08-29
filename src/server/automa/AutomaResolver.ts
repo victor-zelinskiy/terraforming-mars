@@ -7,6 +7,7 @@ import {TrackAction} from '../../common/automa/AutomaTypes';
 import {IGame} from '../IGame';
 import {IProjectCard} from '../cards/IProjectCard';
 import {failedAction} from './AutomaFailedAction';
+import {AutomaColonies} from './AutomaColonies';
 import {AutomaCorporations} from './corps/AutomaCorporations';
 import {AutomaHumanTagReactions} from './AutomaHumanTagReactions';
 import {AutomaMilestonesAwards} from './AutomaMilestonesAwards';
@@ -123,9 +124,10 @@ export class AutomaResolver {
     // Colonies (Adding Expansions p.6): reaching the 9th space of the POWER
     // track unlocks the 2nd trade fleet — in ADDITION to the space's effect.
     // «Place a second Trade Fleet on the 9th space of the [power] track»
-    // (Adding Expansions p.4); the Hellas board prints that very reminder on
-    // its power track's space 9 too. Addressed by ROLE, never by row index.
-    // Inline (no AutomaColonies import) to keep the module graph acyclic.
+    // (Adding Expansions p.4); the Hellas and Utopia boards print that very
+    // reminder on their power track's space 9 too. Addressed by ROLE, never by
+    // row index. Kept inline (two fields) rather than routed through
+    // AutomaColonies — it is a flag flip, not colony machinery.
     if (game.gameOptions.coloniesExtension && !automa.secondFleetUnlocked &&
         trackIndex === automa.board.getTrackIndexOfRole('power') && track.position === 9) {
       automa.secondFleetUnlocked = true;
@@ -173,7 +175,17 @@ export class AutomaResolver {
       return;
     }
     if (action.startsWith('tag_')) {
-      AutomaResolver.advanceTrack(game, Number(action.substring(4)), depth + 1);
+      // «A circular tag icon = advance the track that tag belongs to.» The
+      // target is a board-local ROW INDEX, and one of them can be absent:
+      // Utopia's building 11 prints the VENUS tag, whose track only exists
+      // with Venus Next. An icon of an unused expansion is ignored — no
+      // Failed Action (rulebook p.7), the same reading the `venus` / `floater`
+      // / `colony` cells get.
+      const target = Number(action.substring(4));
+      if (target < 0 || target >= automa.board.tracks.length) {
+        return;
+      }
+      AutomaResolver.advanceTrack(game, target, depth + 1);
       return;
     }
     if (/^tr\d$/.test(action)) {
@@ -227,6 +239,21 @@ export class AutomaResolver {
       return;
     case 'city':
       AutomaTilePlacer.placeCity(game);
+      return;
+    case 'colony':
+      // Utopia Planitia's «Place a Colony» cell. Without Colonies it is an
+      // icon of an unused expansion: ignored, no Failed Action (rulebook p.7).
+      // With it, the ORDINARY bot colony build runs — the same one B17/B18
+      // use, so the random tile pick, the 2 storage resources, Europa's ocean
+      // replacement, the any-player «colony was built» triggers and the
+      // corporation hook are all the production ones. No eligible tile is a
+      // printed icon with nothing to do: a Failed Action.
+      if (!game.gameOptions.coloniesExtension) {
+        return;
+      }
+      if (!AutomaColonies.botBuildColony(game)) {
+        failedAction(game, 'no-colony-tile');
+      }
       return;
     case 'milestone':
       AutomaMilestonesAwards.claimMilestoneAction(game);

@@ -22,10 +22,19 @@ export const MARSBOT_MILESTONE_DESCRIPTIONS: Partial<Record<MilestoneName, strin
   'Tycoon10': '10 green/blue cards in played pile',
   'Tycoon': '15 green/blue cards in played pile',
   'Legend': '5 red cards in played pile',
-  // Terra Cimmeria Nova
-  'Architect': 'Science track \u2265 6',
-  'Coastguard': '4+ tiles adjacent to ocean',
+  // Utopia Planitia (the fork's canonical names for the board's slots:
+  // Specialist → Land Specialist, Trader → Tradesman, Metallurgist → Smith)
+  'Land Specialist': '3+ bonus cards destroyed',
+  'Tradesman': 'Jovian/Energy, Earth/City and Venus tracks all \u2265 2',
+  'Smith': 'Building + Space tracks combined \u2265 7',
+  'Pioneer': '3+ colonies (unchanged)',
+  // Terra Cimmeria — the board the Automa material means is TERRA_CIMMERIA_NOVA
+  // (Coast Guard → Coastguard, Forester → C. Forester, Financier → Fundraiser)
+  'Planetologist': 'Jovian/Earth + Venus tracks combined \u2265 5',
+  'Architect': 'City/Science track \u2265 6',
+  'Coastguard': 'Tiles adjacent to ocean (unchanged)',
   'C. Forester': 'Bio track \u2265 10',
+  'Fundraiser': 'Event track \u2265 10',
   // Vastitas Borealis Nova
   'Agronomist': 'Bio + Science track \u2265 4',
   'Engineer': 'Energy + Science track \u2265 10',
@@ -35,7 +44,6 @@ export const MARSBOT_MILESTONE_DESCRIPTIONS: Partial<Record<MilestoneName, strin
   'Briber': '20+ MC (loses 12 MC on claim)',
   'Builder7': 'Building track \u2265 7',
   'Forester': 'Bio track \u2265 6',
-  'Fundraiser': 'Energy track \u2265 8',
   'Hydrologist': '4 oceans placed',
   'Landshaper': '1+ city, 1+ greenery, Building track \u2265 5',
   'Legend4': '4 red cards in played pile',
@@ -72,12 +80,15 @@ export const MARSBOT_AWARD_DESCRIPTIONS: Partial<Record<AwardName, string>> = {
   'Benefactor': 'TR minus 15',
   // Terra Cimmeria
   'Electrician': 'Energy track',
-  'Mogul': 'Highest track \u00d7 2',
-  'Zoologist': 'Bio track + 5',
+  'Founder': 'Tiles next to special tiles (the Neural Instance counts for MarsBot only)',
+  'Mogul': 'Most-advanced track \u00d7 2',
+  'A. Zoologist': 'Bio track + 5',
   'Forecaster': 'Every 7 MC = 1 card with requirement',
   // Utopia Planitia
-  'Investor': 'Building + Science track',
+  'Edgedancer': 'Tiles on the board edge (unchanged)',
+  'Investor': 'Earth/City track',
   'Botanist': 'Bio track minus 2',
+  'Metropolist': 'Cities owned (unchanged)',
   'Incorporator': 'Cards costing 10 MC or less (including events)',
   // Vastitas Borealis Nova
   'Traveller': 'Building + Science track + 5',

@@ -1,5 +1,9 @@
 import {expect} from 'chai';
 import {BoardName} from '../../src/common/boards/BoardName';
+import {AUTOMA_SUPPORTED_BOARDS} from '../../src/common/automa/automaCompatibility';
+import {milestoneManifest} from '../../src/server/milestones/Milestones';
+import {awardManifest} from '../../src/server/awards/Awards';
+import {BonusCardId} from '../../src/common/automa/AutomaTypes';
 import {CardName} from '../../src/common/cards/CardName';
 import {IGame} from '../../src/server/IGame';
 import {IPlayer} from '../../src/server/IPlayer';
@@ -53,6 +57,18 @@ const BOT_METRIC: ReadonlyArray<string> = [
   // threshold, which makes the rescale the identity.
   'Tycoon', // covers the fork's Tycoon10 (10 green/blue in the played pile)
   'Legend', // covers the modular Legend4
+  // Utopia Planitia — the fork's canonical names for the board's slots
+  // (the reference card prints Specialist / Trader / Metallurgist).
+  'Land Specialist', // 3 DESTROYED bonus cards ↔ 3 special tiles
+  'Tradesman', // Jovian/Energy + Earth/City + Venus all at 2 ↔ 3 resource types
+  'Smith', // Building + Space combined 7 ↔ 6 steel+titanium production
+  'Researcher', // Science track 4 ↔ 4 science tags
+  // Terra Cimmeria — the fork's canonical names for the board's slots (the
+  // reference card prints Coast Guard / Forester / Financier).
+  'Planetologist', // Jovian/Earth + Venus combined 5 ↔ 2+2+2 Earth/Venus/Jovian tags
+  'Architect', // City/Science track 6 ↔ 3 city tags
+  'C. Forester', // Bio track 10 ↔ 3 plant production
+  'Fundraiser', // Event track 10 ↔ 12 M€ production
   'Hoverlord', // 7 floaters ↔ 7 floaters
 ];
 
@@ -64,9 +80,20 @@ const PLAYER_METRIC: ReadonlyArray<string> = [
   'Polar Explorer', // real tiles in the polar rows
   'Networker', // Ares: the bot is tallied in aresData like any player
   'Purifier', // Ares: honestly 0 — the bot never covers a hazard
+  // Utopia Planitia's Pioneer is the CONTROL CASE for the Tycoon/Legend note
+  // above: worded "Unchanged" like they are, and genuinely belonging here,
+  // because the bot's colonies really do live where the player metric looks.
+  'Pioneer', // real colonies (`AutomaColonies.botBuildColony` puts its id on the tile)
+  // Terra Cimmeria's Coast Guard is the second control case: «Unchanged», and
+  // the criterion (tiles next to oceans) is one the bot's real tiles satisfy.
+  'Coastguard', // real tiles adjacent to real ocean tiles
 ];
 
 const SCOPE: ReadonlyArray<string> = [...BOT_METRIC, ...PLAYER_METRIC];
+
+/** Each board's printed milestone / award row, straight from the manifests. */
+const MILESTONES_BY_BOARD = milestoneManifest.boards;
+const AWARDS_BY_BOARD = awardManifest.boards;
 
 /** The fork ships threshold variants under suffixed names (Terraformer29, Tycoon10). */
 function baseName(name: string): string {
@@ -82,6 +109,10 @@ function supportedGames(): Array<[string, IGame, IPlayer]> {
     ['Tharsis+Venus+Ares', {boardName: BoardName.THARSIS, venusNextExtension: true, aresExtension: true}],
     ['Hellas+Venus+Ares', {boardName: BoardName.HELLAS, venusNextExtension: true, aresExtension: true}],
     ['Elysium+Venus+Ares', {boardName: BoardName.ELYSIUM, venusNextExtension: true, aresExtension: true}],
+    ['Utopia Planitia', {boardName: BoardName.UTOPIA_PLANITIA}],
+    ['Utopia+Venus+Colonies', {boardName: BoardName.UTOPIA_PLANITIA, venusNextExtension: true, coloniesExtension: true}],
+    ['Terra Cimmeria', {boardName: BoardName.TERRA_CIMMERIA_NOVA}],
+    ['Terra Cimmeria+Venus+Colonies', {boardName: BoardName.TERRA_CIMMERIA_NOVA, venusNextExtension: true, coloniesExtension: true}],
   ];
   return combos.map(([label, options], i) => {
     const [game, /* human */, bot] = testAutomaGame(options, `-norm-${i}`);
@@ -92,8 +123,8 @@ function supportedGames(): Array<[string, IGame, IPlayer]> {
 /**
  * Moves EVERY quantity a bot criterion can read at once, so one sweep crosses
  * every threshold in the set: tracks, M€ (crosses Tactician's 35 at k=9),
- * floaters, TR — and the PLAYED PILE, which is where the Tycoon/Legend family
- * lives (the bot has no tableau).
+ * floaters, TR, the PLAYED PILE (where the Tycoon/Legend family lives — the bot
+ * has no tableau) and the DESTROYED bonus pile (Utopia's Specialist).
  */
 function sweepBotState(game: IGame, bot: IPlayer, k: number): void {
   for (const track of game.automa!.board.tracks) {
@@ -106,6 +137,10 @@ function sweepBotState(game: IGame, bot: IPlayer, k: number): void {
     ...new Array<CardName>(k).fill(CardName.ALGAE), // green
     ...new Array<CardName>(k).fill(CardName.BIG_ASTEROID), // red
   ];
+  // Utopia's Specialist reads the DESTROYED bonus pile — a quantity nothing
+  // else in the sweep touches, so without this its criterion could never cross
+  // its threshold and `familyGuard` would report it as never diverging.
+  game.automa!.destroyedBonusCards = new Array<BonusCardId>(k).fill(BonusCardId.B04_OVERACHIEVEMENT);
 }
 
 function milestonesUnderTest(game: IGame): Array<IMilestone> {
@@ -135,15 +170,44 @@ describe('AutomaMAEvaluation — milestone normalization (the bot reads as a pla
       names.join(', ')).is.empty;
   });
 
+  it('noNameServesTwoBoards: one milestone/award NAME never reaches two supported boards', () => {
+    // `botMilestoneProgress` and `botAwardScore` are keyed by NAME, which is
+    // only sound while a name means one thing across the supported set. It is
+    // not a law of the domain — several names DO repeat across the fork's full
+    // board list (Forester, Planetologist, Architect, Incorporator, Forecaster,
+    // Zoologist …), and the supported five simply never collide. The day a new
+    // map breaks that, this fails with the offending name instead of the switch
+    // silently applying another board's rule.
+    const seen = new Map<string, string>();
+    const collisions: Array<string> = [];
+    for (const boardName of AUTOMA_SUPPORTED_BOARDS) {
+      for (const name of [...MILESTONES_BY_BOARD[boardName], ...AWARDS_BY_BOARD[boardName]]) {
+        const owner = seen.get(name);
+        if (owner !== undefined && owner !== boardName) {
+          collisions.push(`${name}: ${owner} + ${boardName}`);
+        }
+        seen.set(name, boardName);
+      }
+    }
+    expect(collisions,
+      'a name on two supported boards cannot be keyed by name alone — make the ' +
+      'branch map-aware before adding this board: ' + collisions.join(' · ')).is.empty;
+  });
+
   it('familyGuard: the declared family is the family the evaluator actually uses', () => {
     // The `undefined` branch is DEFINED as «read the player's own metric», so a
     // PLAYER_METRIC milestone must agree with `getScore`/`canClaim` in every
     // swept state — and a BOT_METRIC one must visibly disagree somewhere, or it
     // is not carrying a criterion of its own at all.
     const wrongUnchanged: Array<string> = [];
-    const neverDiverged = new Set<string>();
+    // Collected ACROSS the whole supported set, not per combo: a criterion can
+    // be honestly inert in one configuration — Utopia's Trader names the Venus
+    // track, so without Venus Next it reads 0 forever, which coincides with the
+    // player metric. A BOT_METRIC entry with no branch at all still diverges
+    // NOWHERE, which is the bug this claim exists to catch.
+    const diverged = new Set<string>();
+    const declared = new Set<string>();
     for (const [label, game, bot] of supportedGames()) {
-      const diverged = new Set<string>();
       for (let k = 0; k <= 12; k++) {
         sweepBotState(game, bot, k);
         for (const milestone of milestonesUnderTest(game)) {
@@ -154,25 +218,23 @@ describe('AutomaMAEvaluation — milestone normalization (the bot reads as a pla
           if (PLAYER_METRIC.includes(name) && !(sameScore && sameMet)) {
             wrongUnchanged.push(`${label}/${milestone.name} @k=${k}`);
           }
-          if (BOT_METRIC.includes(name) && !(sameScore && sameMet)) {
-            diverged.add(name);
+          if (BOT_METRIC.includes(name)) {
+            declared.add(name);
+            if (!(sameScore && sameMet)) {
+              diverged.add(name);
+            }
           }
         }
       }
-      for (const milestone of milestonesUnderTest(game)) {
-        const name = baseName(milestone.name);
-        if (BOT_METRIC.includes(name) && !diverged.has(name)) {
-          neverDiverged.add(`${label}/${milestone.name}`);
-        }
-      }
     }
+    const neverDiverged = [...declared].filter((name) => !diverged.has(name)).sort();
     expect(wrongUnchanged,
       'listed in PLAYER_METRIC but the evaluator does NOT use the player metric: ' +
       wrongUnchanged.join(' · ')).is.empty;
-    expect([...neverDiverged],
-      'listed in BOT_METRIC but never differs from the player metric — either it has no ' +
-      'branch in botMilestoneProgress, or the sweep does not move what it reads: ' +
-      [...neverDiverged].join(' · ')).is.empty;
+    expect(neverDiverged,
+      'listed in BOT_METRIC but never differs from the player metric on ANY supported board — ' +
+      'either it has no branch in botMilestoneProgress, or the sweep does not move what it reads: ' +
+      neverDiverged.join(' · ')).is.empty;
   });
 
   it('the displayed score crosses the printed threshold on the SAME step the bot may claim', () => {
@@ -274,6 +336,95 @@ describe('AutomaMAEvaluation — milestone normalization (the bot reads as a pla
     expect(shown('Tycoon10'), '2 green/blue cards read as 2').eq(2);
     expect(shown('Legend'), '1 event reads as 1').eq(1);
     expect(bot.playedCards.length, 'and none of it came from a tableau').eq(0);
+  });
+
+  it('the UTOPIA PLANITIA criteria land on their printed thresholds', () => {
+    const [game] = testAutomaGame(
+      {boardName: BoardName.UTOPIA_PLANITIA, venusNextExtension: true}, '-rescale-u');
+    const shown = (name: string) =>
+      AutomaMAEvaluation.botMilestoneScore(game.milestones.find((m) => m.name === name)!, game);
+    const met = (name: string) =>
+      AutomaMAEvaluation.botMilestoneMet(game.milestones.find((m) => m.name === name)!, game);
+    const at = (role: 'building' | 'space' | 'science' | 'power' | 'earth' | 'venus', value: number) => {
+      game.automa!.board.getTrackOfRole(role)!.position = value;
+    };
+
+    // Specialist: 3 destroyed bonus cards ↔ 3 special tiles — scales agree.
+    game.automa!.destroyedBonusCards = [BonusCardId.B04_OVERACHIEVEMENT, BonusCardId.B05_EXPEDITED_CONSTRUCTION];
+    expect(shown('Land Specialist'), '2 destroyed of 3 → 2 of 3').eq(2);
+    expect(met('Land Specialist')).is.false;
+    game.automa!.destroyedBonusCards.push(BonusCardId.B07_LOCAL_NEURAL_INSTANCE);
+    expect(shown('Land Specialist')).eq(3);
+    expect(met('Land Specialist')).is.true;
+
+    // Trader: all three named tracks at 2 ↔ 3 resource types. The WEAKEST of
+    // the three is the score, so a soaring Venus track cannot inflate it.
+    at('power', 2);
+    at('earth', 2);
+    at('venus', 1);
+    expect(shown('Tradesman'), 'the weakest of the three, 1 of 2 → 1 of 3').eq(1);
+    expect(met('Tradesman')).is.false;
+    at('venus', 2);
+    expect(shown('Tradesman')).eq(3);
+    expect(met('Tradesman')).is.true;
+
+    // Metallurgist: Building + Space combined 7 ↔ 6 steel+titanium production.
+    at('building', 2);
+    at('space', 2);
+    expect(shown('Smith'), 'combined 4 of 7 → floor(4·6/7) = 3 of 6').eq(3);
+    expect(met('Smith')).is.false;
+    at('space', 5);
+    expect(shown('Smith'), 'combined 7 reads the printed 6 exactly').eq(6);
+    expect(met('Smith')).is.true;
+
+    // Researcher: Science track 4 ↔ 4 science tags — scales agree.
+    at('science', 2);
+    expect(shown('Researcher'), 'Science 2 of 4 = 50%').eq(2);
+    at('science', 4);
+    expect(shown('Researcher')).eq(4);
+    expect(met('Researcher')).is.true;
+  });
+
+  it('the TERRA CIMMERIA criteria land on their printed thresholds', () => {
+    const [game] = testAutomaGame(
+      {boardName: BoardName.TERRA_CIMMERIA_NOVA, venusNextExtension: true}, '-rescale-tc');
+    const shown = (name: string) =>
+      AutomaMAEvaluation.botMilestoneScore(game.milestones.find((m) => m.name === name)!, game);
+    const met = (name: string) =>
+      AutomaMAEvaluation.botMilestoneMet(game.milestones.find((m) => m.name === name)!, game);
+    const at = (role: 'science' | 'event' | 'earth' | 'bio' | 'venus', value: number) => {
+      game.automa!.board.getTrackOfRole(role)!.position = value;
+    };
+
+    // Planetologist: Jovian/Earth + Venus combined 5 ↔ 2+2+2 tags (threshold 6).
+    at('earth', 2);
+    at('venus', 2);
+    expect(shown('Planetologist'), 'combined 4 of 5 → floor(4·6/5) = 4 of 6').eq(4);
+    expect(met('Planetologist')).is.false;
+    at('venus', 3);
+    expect(shown('Planetologist'), 'combined 5 reads the printed 6 exactly').eq(6);
+    expect(met('Planetologist')).is.true;
+
+    // Architect: City/Science track 6 ↔ 3 city tags.
+    at('science', 4);
+    expect(shown('Architect'), 'floor(4·3/6) = 2 of 3').eq(2);
+    at('science', 6);
+    expect(shown('Architect')).eq(3);
+    expect(met('Architect')).is.true;
+
+    // Forester: Bio track 10 ↔ 3 plant production.
+    at('bio', 5);
+    expect(shown('C. Forester'), 'floor(5·3/10) = 1 of 3').eq(1);
+    at('bio', 10);
+    expect(shown('C. Forester')).eq(3);
+    expect(met('C. Forester')).is.true;
+
+    // Financier: Event track 10 ↔ 12 M€ production.
+    at('event', 5);
+    expect(shown('Fundraiser'), 'floor(5·12/10) = 6 of 12').eq(6);
+    at('event', 10);
+    expect(shown('Fundraiser')).eq(12);
+    expect(met('Fundraiser')).is.true;
   });
 
   it('the MODEL the client receives carries the normalized number, not the M€', () => {

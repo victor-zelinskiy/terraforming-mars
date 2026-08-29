@@ -37,12 +37,27 @@ describe('automaCompatibility — the shared UI/server conflict rules', () => {
     expect(automaConflicts({...cleanInput(), boardName: BoardName.ELYSIUM})).is.empty;
   });
 
+  it('Utopia Planitia is supported — its own MarsBot board, reference card and B11', () => {
+    expect(automaConflicts({...cleanInput(), boardName: BoardName.UTOPIA_PLANITIA})).is.empty;
+  });
+
+  it('Terra Cimmeria NOVA is supported — its own MarsBot board, reference card and B12', () => {
+    expect(automaConflicts({...cleanInput(), boardName: BoardName.TERRA_CIMMERIA_NOVA})).is.empty;
+  });
+
+  it('…but the fork\'s OLDER Terra Cimmeria is a different map, and is not', () => {
+    // Same name, different board: no MSL Curiosity hex and a different
+    // milestone/award row, so none of B12's rules would apply to it.
+    const conflicts = automaConflicts({...cleanInput(), boardName: BoardName.TERRA_CIMMERIA});
+    expect(conflicts.map((c) => c.key)).deep.eq(['board']);
+  });
+
   it('a board without a MarsBot profile conflicts and names it', () => {
     const conflicts = automaConflicts({...cleanInput(), boardName: BoardName.AMAZONIS});
     expect(conflicts).has.length(1);
     expect(conflicts[0].key).eq('board');
     expect(conflicts[0].reason)
-      .eq('the amazonis p. board yet — MarsBot covers tharsis, hellas and elysium');
+      .eq('the amazonis p. board yet — MarsBot covers tharsis, hellas, elysium, utopia planitia and terra cimmeria nova');
   });
 
   it('reports EVERY conflict (the UI highlights all of them at once)', () => {

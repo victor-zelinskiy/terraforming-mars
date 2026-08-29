@@ -17,6 +17,7 @@ const FAILED_ACTION_TEMPLATES: Record<FailedActionReason, string> = {
   'temperature-maxed': '${0} took a Failed Action (the temperature is already complete) and gained ${1} M€',
   'oceans-complete': '${0} took a Failed Action (all oceans are already placed) and gained ${1} M€',
   'no-tile-space': '${0} took a Failed Action (no legal space for the tile) and gained ${1} M€',
+  'no-colony-tile': '${0} took a Failed Action (no colony tile it could settle) and gained ${1} M€',
   'milestones-claimed': '${0} took a Failed Action (three milestones have already been claimed) and gained ${1} M€',
   'no-milestone-criteria': '${0} took a Failed Action (it does not meet any milestone\'s criteria) and gained ${1} M€',
   'awards-funded': '${0} took a Failed Action (three awards have already been funded) and gained ${1} M€',

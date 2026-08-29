@@ -1,5 +1,5 @@
 import {BoardName} from '../../common/boards/BoardName';
-import {HELLAS_BONUS_OCEAN_COST} from '../../common/constants';
+import {HELLAS_BONUS_OCEAN_COST, TERRA_CIMMERIA_COLONY_COST} from '../../common/constants';
 import {Resource} from '../../common/Resource';
 import {SpaceBonus} from '../../common/boards/SpaceBonus';
 import {SpaceName} from '../../common/boards/SpaceName';
@@ -20,19 +20,25 @@ import {IPlayer} from '../IPlayer';
  * The default rule is flat: «MarsBot gains 1 MC for each icon covered (instead
  * of the printed rewards)» (rulebook p.9). The exceptions are the maps' printed
  * PAY-TO-USE hexes, whose reward is CONDITIONAL — Adding Expansions p.11
- * «ADDITIONAL PLACEMENT BONUS RULES». Only Hellas' South Pole is in scope; the
- * Terra Cimmeria / Vastitas Borealis twins land here when those maps do.
+ * «ADDITIONAL PLACEMENT BONUS RULES»: Hellas' South Pole and Terra Cimmeria's
+ * MSL Curiosity. Both have the same three-state shape — USABLE (a priority
+ * strictly between a 2-icon and a 3-icon hex, plus its own printed transaction
+ * when the tile lands), UNUSABLE («a hex without rewards», and landing there
+ * gains and loses nothing) and, for MSL, ABSENT (no Colonies ⇒ the board never
+ * prints the bonus at all). The Vastitas Borealis twin lands here when that
+ * map does.
  */
 
 /**
- * The Hellas South Pole's reward-icon weight while it is usable: «treated as a
- * higher priority than other 2-bonus-resource hexes, but otherwise is the same
- * priority for other tiebreakers» (Adding Expansions p.11). Strictly above 2
- * and below 3 — the clamp the Terra Cimmeria twin spells out («but lower than
- * the 3 resource ones»); on Hellas no LAND hex prints 3 icons anyway, so both
- * readings of the shorter Hellas wording agree.
+ * A usable PAY-TO-USE hex's reward-icon weight: «treated as a higher priority
+ * than other 2-bonus-resource hexes, but otherwise is the same priority for
+ * other tiebreakers» (Hellas, Adding Expansions p.11) / «a higher priority than
+ * other 2-bonus-resource hexes (but lower than the 3 resource ones)» (MSL
+ * Curiosity). Strictly above 2 and below 3 — the longer MSL wording spells the
+ * clamp out, and on Hellas no LAND hex prints 3 icons anyway, so both readings
+ * of the shorter wording agree.
  */
-const SOUTH_POLE_PRIORITY = 2.5;
+const PAY_TO_USE_PRIORITY = 2.5;
 
 /** The Hellas South Pole hex — the one printing an ocean bonus that charges 6 M€. */
 export function isHellasSouthPole(game: IGame, space: Space): boolean {
@@ -50,6 +56,37 @@ export function hellasSouthPoleUsable(game: IGame, bot: IPlayer): boolean {
 }
 
 /**
+ * TERRA CIMMERIA'S MSL CURIOSITY — «the hex containing a colony and −5 MC».
+ *
+ * Identified by the PRINTED BONUS, never by a coordinate: `TerraCimmeriaNovaBoard`
+ * is the only board that prints `SpaceBonus.COLONY`, and it STRIPS that bonus
+ * from every space when Colonies is out of the game — which IS the official
+ * third state, «if playing without Colonies, treat this hex as empty for both
+ * MarsBot and the player». So this predicate is automatically false without
+ * Colonies and nothing downstream has to ask about the expansion.
+ */
+export function isMslCuriosity(space: Space): boolean {
+  return space.bonus.includes(SpaceBonus.COLONY);
+}
+
+/**
+ * «If there is still a colony tile without a MarsBot colony available and
+ * MarsBot has at least 5 MC» — the condition that decides BOTH halves of the
+ * MSL rule, exactly like the South Pole's.
+ *
+ * The colony question is the very one `AutomaColonies.botBuildColony` asks
+ * itself, so a hex ranked USABLE can never turn out to have nowhere to put the
+ * colony it promised.
+ */
+export function mslCuriosityUsable(game: IGame, bot: IPlayer): boolean {
+  if (bot.megaCredits < TERRA_CIMMERIA_COLONY_COST) {
+    return false;
+  }
+  return game.colonies.some((colony) =>
+    colony.isActive && !colony.isFull() && !colony.colonies.includes(bot.id));
+}
+
+/**
  * How many reward icons this hex counts as FOR MARSBOT's tiebreakers — plain
  * `space.bonus.length` everywhere except a conditional pay-to-use hex.
  */
@@ -57,7 +94,12 @@ export function botRewardIcons(game: IGame, bot: IPlayer, space: Space): number 
   if (isHellasSouthPole(game, space)) {
     // Unusable ⇒ «treated as a hex without rewards for the purposes of
     // tiebreakers» — 0, not the 1 printed icon.
-    return hellasSouthPoleUsable(game, bot) ? SOUTH_POLE_PRIORITY : 0;
+    return hellasSouthPoleUsable(game, bot) ? PAY_TO_USE_PRIORITY : 0;
+  }
+  if (isMslCuriosity(space)) {
+    // The same three states — and note this modifies STEP 4 only. Ocean
+    // adjacency and Terra Cimmeria's special-tile step still run first.
+    return mslCuriosityUsable(game, bot) ? PAY_TO_USE_PRIORITY : 0;
   }
   return space.bonus.length;
 }
@@ -69,7 +111,7 @@ export function botRewardIcons(game: IGame, bot: IPlayer, space: Space): number 
  * anything».
  */
 export function botCoveredIconMegacredits(game: IGame, space: Space): number {
-  return isHellasSouthPole(game, space) ? 0 : space.bonus.length;
+  return isHellasSouthPole(game, space) || isMslCuriosity(space) ? 0 : space.bonus.length;
 }
 
 /**
@@ -93,6 +135,34 @@ export function settleHellasSouthPole(bot: IPlayer, usable: boolean, placeOcean:
 }
 
 /**
+ * MSL Curiosity's own printed transaction, once MarsBot's tile is on it: «it
+ * doesn't gain 2 resources, but places a colony (using the method described
+ * under Expedited Construction in the Colonies expansion, including gaining 2
+ * matching resources) and loses 5 MC».
+ *
+ * `usable` is captured BEFORE the tile lands, for the South Pole's reason: the
+ * placement itself can pay the bot ocean-adjacency M€, and a hex that was
+ * RANKED as reward-less must not turn into a colony because that money arrived
+ * in between.
+ *
+ * The colony rides `AutomaColonies.botBuildColony` — the same primitive B17/B18
+ * use — so the random tile pick, the 2 matching storage resources, Europa's
+ * ocean replacement, the «any player built a colony» triggers and the
+ * corporation hook are all the production ones. Passed in as a callback to keep
+ * this module free of the colony import (it is read by `Game` itself).
+ */
+export function settleMslCuriosity(bot: IPlayer, usable: boolean, buildColony: () => void): void {
+  if (!usable) {
+    // «If MarsBot places on here, it doesn't gain or lose anything.»
+    return;
+  }
+  // The colony FIRST, then the price — so a bot holding exactly 5 M€ can still
+  // pay for the thing it just received.
+  buildColony();
+  bot.stock.deduct(Resource.MEGACREDITS, TERRA_CIMMERIA_COLONY_COST, {log: true});
+}
+
+/**
  * The M€ rebate that makes a conditional pay-to-use hex legal for MarsBot.
  *
  * The human legality path drops the South Pole when the player cannot pay its
@@ -109,4 +179,22 @@ export const HELLAS_SOUTH_POLE_REBATE = -HELLAS_BONUS_OCEAN_COST;
 export function needsSouthPoleRebate(game: IGame, bot: IPlayer): boolean {
   return game.gameOptions.boardName === BoardName.HELLAS &&
     bot.megaCredits < HELLAS_BONUS_OCEAN_COST;
+}
+
+/**
+ * The same rebate for MSL Curiosity, which the human path gates TWICE — on the
+ * 5 M€ (`TerraCimmeriaNovaBoard.spaceCosts`) and on «the player has a colony
+ * they could still build» (its `getAvailableSpacesOnLand` override). Official
+ * Automa reads both the other way round: an unusable MSL is not illegal, it is
+ * «a hex without rewards» the bot may still land on for nothing.
+ *
+ * `cost` covers the money gate; the colony gate has no cost to rebate, so the
+ * recovered hex is re-admitted by the caller (see `AutomaTilePlacer`).
+ */
+export const MSL_CURIOSITY_REBATE = -TERRA_CIMMERIA_COLONY_COST;
+
+/** True when the bot cannot use MSL Curiosity and therefore needs it recovered. */
+export function needsMslCuriosityRebate(game: IGame, bot: IPlayer): boolean {
+  return game.gameOptions.boardName === BoardName.TERRA_CIMMERIA_NOVA &&
+    !mslCuriosityUsable(game, bot);
 }

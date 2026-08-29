@@ -6,25 +6,32 @@ import {Space} from '../boards/Space';
 import {IGame} from '../IGame';
 import {IPlayer} from '../IPlayer';
 import {AutomaAres} from './AutomaAres';
+import {AutomaColonies} from './AutomaColonies';
 import {failedAction} from './AutomaFailedAction';
 import {marsBotMapProfile} from './boards/MarsBotMapProfile';
 import {
   HELLAS_SOUTH_POLE_REBATE,
+  MSL_CURIOSITY_REBATE,
   hellasSouthPoleUsable,
   isHellasSouthPole,
+  isMslCuriosity,
+  mslCuriosityUsable,
+  needsMslCuriosityRebate,
   needsSouthPoleRebate,
   settleHellasSouthPole,
+  settleMslCuriosity,
 } from './AutomaPlacementBonus';
 import {marsBotOf} from './AutomaUtil';
 
 /**
- * A greenery placed by something other than a printed track icon.
+ * A tile placed by something other than a printed track icon.
  *
- * `restrict` is a card's HARD CONSTRAINT on the legal spaces; `onEmpty` says
- * what "nowhere to place" means for that caller — a Failed Action (the printed
- * icon) or a silently impossible action (a Corporate Competition helper).
+ * `restrict` is a card's HARD CONSTRAINT on the legal spaces (B10's Southern
+ * Region, B11's board edge); `onEmpty` says what "nowhere to place" means for
+ * that caller — a Failed Action (the printed icon) or a silently impossible
+ * action (a Corporate Competition helper).
  */
-export type BotGreeneryOptions = {
+export type BotTileOptions = {
   readonly restrict?: (space: Space) => boolean;
   readonly onEmpty?: 'failed-action' | 'impossible';
 };
@@ -140,7 +147,7 @@ export class AutomaTilePlacer {
    * different, smaller one (Ares hazard filtering / a Hellas South Pole rebate
    * are inside here, not in the caller).
    */
-  public static placeGreenery(game: IGame, options?: BotGreeneryOptions): boolean {
+  public static placeGreenery(game: IGame, options?: BotTileOptions): boolean {
     const bot = marsBotOf(game);
     // Ares: the bot never places ON a hazard (cleanup is a human economic
     // decision — see AutomaAres); identity without Ares.
@@ -178,21 +185,32 @@ export class AutomaTilePlacer {
    * "MarsBot places a city tile adjacent to as much existing greenery as
    * possible" (any greenery), on top of the normal city rules (not adjacent to
    * other cities, not on reserved spaces).
+   *
+   * Returns whether the tile went down — the greenery twin above explains why
+   * the legality question and the placement have to be the same computation.
    */
-  public static placeCity(game: IGame): void {
+  public static placeCity(game: IGame, options?: BotTileOptions): boolean {
     const bot = marsBotOf(game);
     // Ares: never ON a hazard; identity without Ares (see placeGreenery).
-    const available = AutomaAres.withoutHazardSpaces(game, AutomaTilePlacer.candidatesFor(game, bot,
-      (options) => game.board.getAvailableSpacesForCity(bot, options)));
+    let available = AutomaAres.withoutHazardSpaces(game, AutomaTilePlacer.candidatesFor(game, bot,
+      (opts) => game.board.getAvailableSpacesForCity(bot, opts)));
+    if (options?.restrict !== undefined) {
+      available = available.filter(options.restrict);
+    }
     if (available.length === 0) {
-      failedAction(game, 'no-tile-space');
-      return;
+      // See placeGreenery: a printed icon spends a Failed Action, a helper
+      // action is simply «impossible to resolve» and costs the bot nothing.
+      if (options?.onEmpty !== 'impossible') {
+        failedAction(game, 'no-tile-space');
+      }
+      return false;
     }
     let candidates = keepMax(available, (space) => AutomaTilePlacer.adjacentGreeneries(game, space));
     // Ares: strong hazard avoidance after the printed city strategy.
     candidates = [...AutomaAres.preferAwayFromHazards(game, candidates)];
     const space = AutomaTilePlacer.breakTie(game, candidates);
     AutomaTilePlacer.placeAndSettle(game, bot, space, () => game.addCity(bot, space));
+    return true;
   }
 
   /**
@@ -212,31 +230,54 @@ export class AutomaTilePlacer {
     spaces: (options?: CanAffordOptions) => ReadonlyArray<Space>,
   ): ReadonlyArray<Space> {
     const available = spaces();
-    if (!needsSouthPoleRebate(game, bot)) {
-      return available;
+    if (needsSouthPoleRebate(game, bot)) {
+      const southPole = spaces({cost: HELLAS_SOUTH_POLE_REBATE, tr: {}})
+        .find((space) => isHellasSouthPole(game, space));
+      if (southPole !== undefined && !available.includes(southPole)) {
+        return [...available, southPole];
+      }
     }
-    const southPole = spaces({cost: HELLAS_SOUTH_POLE_REBATE, tr: {}})
-      .find((space) => isHellasSouthPole(game, space));
-    return southPole === undefined || available.includes(southPole) ?
-      available :
-      [...available, southPole];
+    if (needsMslCuriosityRebate(game, bot)) {
+      // MSL Curiosity's human path gates on the 5 M€ AND on «you still have a
+      // colony to build»; the bot's does on neither. The rebated question
+      // recovers the money gate, and the board's colony gate reads the BOT's
+      // own colony list, which the engine never populates — so the hex simply
+      // has to be re-admitted when the rebated list still omits it.
+      const msl = game.board.spaces.find((space) =>
+        isMslCuriosity(space) && spaces({cost: MSL_CURIOSITY_REBATE, tr: {}}).includes(space));
+      const recovered = msl ?? game.board.spaces.find((space) =>
+        isMslCuriosity(space) && space.tile === undefined && space.player === undefined);
+      if (recovered !== undefined && !available.includes(recovered)) {
+        return [...available, recovered];
+      }
+    }
+    return available;
   }
 
   /**
-   * Put the tile down, then settle whatever the HEX itself owes — today only
-   * Hellas' South Pole, whose printed transaction («places an ocean, loses
-   * 6 M€») runs after the tile lands. Usability is read BEFORE the placement:
-   * the tile can pay the bot ocean-adjacency M€, and a hex ranked as
-   * reward-less must not turn into an ocean because that money just arrived.
+   * Put the tile down, then settle whatever the HEX itself owes — Hellas' South
+   * Pole («places an ocean, loses 6 M€») and Terra Cimmeria's MSL Curiosity
+   * («places a colony, loses 5 M€»), both of which run after the tile lands.
+   * Usability is read BEFORE the placement: the tile can pay the bot
+   * ocean-adjacency M€, and a hex ranked as reward-less must not turn into an
+   * ocean (or a colony) because that money just arrived.
    */
   private static placeAndSettle(game: IGame, bot: IPlayer, space: Space, place: () => void): void {
-    if (!isHellasSouthPole(game, space)) {
+    if (isHellasSouthPole(game, space)) {
+      const usable = hellasSouthPoleUsable(game, bot);
       place();
+      settleHellasSouthPole(bot, usable, () => AutomaTilePlacer.placeOcean(game));
       return;
     }
-    const usable = hellasSouthPoleUsable(game, bot);
+    if (isMslCuriosity(space)) {
+      // Terra Cimmeria's MSL Curiosity — the same shape: read usability BEFORE
+      // the tile can pay the bot anything, then run the hex's own transaction.
+      const usable = mslCuriosityUsable(game, bot);
+      place();
+      settleMslCuriosity(bot, usable, () => AutomaColonies.botBuildColony(game));
+      return;
+    }
     place();
-    settleHellasSouthPole(bot, usable, () => AutomaTilePlacer.placeOcean(game));
   }
 
   /**

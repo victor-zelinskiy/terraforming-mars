@@ -87,11 +87,57 @@ describe('buildBonusCardView — the card face resolved for THIS game', () => {
     expect(venus.lines.map((l) => l.text).join(' | ')).to.include('Venuphile');
   });
 
-  it('the three Corporate Competition faces are the SAME card with different helpers', () => {
+  it('Corporate Competition (B11) shows the UTOPIA helper list, and Venuphile only with Venus', () => {
+    const base = buildBonusCardView(BonusCardId.B11_CORPORATE_COMPETITION_UTOPIA, BASE);
+    expect(base.name).eq('Corporate Competition (Utopia Planitia)');
+    const text = base.lines.map((l) => l.text).join(' | ');
+    // Every printed helper is on the face — this is what fullscreen inspect reads.
+    expect(text).to.include('Suburban');
+    expect(text).to.include('Investor');
+    expect(text).to.include('Botanist');
+    expect(text).to.include('Incorporator');
+    expect(text).to.include('Metropolist');
+    // …and the greenery's hard constraint is stated, not implied.
+    expect(text).to.include('on the board edge');
+    expect(text, 'and the reveal-until threshold is a number, not a hint').to.include('10 M€ or less');
+    expect(text, 'Venuphile is a Venus Next addition').to.not.include('Venuphile');
+    expect(base.lines.some((l) => l.icon === 'megacredits' && l.params?.[0] === '5'),
+      'the 5 M€ payment is on the face').is.true;
+    expect(base.fate.kind).eq('discard');
+
+    const venus = buildBonusCardView(BonusCardId.B11_CORPORATE_COMPETITION_UTOPIA, VENUS);
+    expect(venus.lines.map((l) => l.text).join(' | ')).to.include('Venuphile');
+  });
+
+  it('Corporate Competition (B12) shows the TERRA CIMMERIA helper list and its ONE free option', () => {
+    const base = buildBonusCardView(BonusCardId.B12_CORPORATE_COMPETITION_CIMMERIA, BASE);
+    expect(base.name).eq('Corporate Competition (Terra Cimmeria)');
+    const text = base.lines.map((l) => l.text).join(' | ');
+    expect(text).to.include('Electrician');
+    expect(text).to.include('Founder');
+    expect(text).to.include('Mogul');
+    expect(text).to.include('Zoologist');
+    expect(text).to.include('Forecaster');
+    // The hard constraint and the tie rule are stated, not implied.
+    expect(text).to.include('adjacent to a special tile');
+    expect(text).to.include('topmost');
+    // …and so is the one printed EXCEPTION to the card's own payment, which the
+    // player must not have to reconcile from a +5 and a −5.
+    expect(text, 'the face says the option costs nothing').to.include('costs the card nothing');
+    expect(text, 'Venuphile is a Venus Next addition').to.not.include('Venuphile');
+    expect(base.fate.kind).eq('discard');
+
+    const venus = buildBonusCardView(BonusCardId.B12_CORPORATE_COMPETITION_CIMMERIA, VENUS);
+    expect(venus.lines.map((l) => l.text).join(' | ')).to.include('Venuphile');
+  });
+
+  it('the five Corporate Competition faces are the SAME card with different helpers', () => {
     const ids = [
       BonusCardId.B08_CORPORATE_COMPETITION,
       BonusCardId.B09_CORPORATE_COMPETITION_HELLAS,
       BonusCardId.B10_CORPORATE_COMPETITION_ELYSIUM,
+      BonusCardId.B11_CORPORATE_COMPETITION_UTOPIA,
+      BonusCardId.B12_CORPORATE_COMPETITION_CIMMERIA,
     ];
     for (const id of ids) {
       const view = buildBonusCardView(id, BASE);
@@ -103,7 +149,7 @@ describe('buildBonusCardView — the card face resolved for THIS game', () => {
     }
     // …and no two of them carry the same helper list.
     const bodies = ids.map((id) => buildBonusCardView(id, BASE).lines.map((l) => l.text).join('|'));
-    expect(new Set(bodies).size, 'each map has its own helper list').eq(3);
+    expect(new Set(bodies).size, 'each map has its own helper list').eq(5);
   });
 
   it('Do It Right (B25) is Lobbyists without the destruction — and it says so', () => {

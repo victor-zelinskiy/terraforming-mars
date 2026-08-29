@@ -42,6 +42,7 @@
               <i class="mb-ico mb-ico--floater" aria-hidden="true"></i>
               <span v-if="floaterCount(cell) === 2" class="mb-glyph__multi">×2</span>
             </span>
+            <span v-else-if="glyphFor(cell).kind === 'colony'" class="mb-glyph mb-glyph--ma">◉</span>
             <span v-else-if="glyphFor(cell).kind === 'ma'" class="mb-glyph mb-glyph--ma">{{ maGlyph(cell) }}</span>
           </template>
           <span v-if="cell.regressed" class="mb-cell__regress" aria-hidden="true">✕</span>
