@@ -8,46 +8,58 @@
        data-unfold-item
        :role="fizzled ? undefined : 'button'"
        @click="fizzled ? undefined : $emit('open')">
+    <!-- ONE composition in EVERY state: the eyebrow on its OWN line, then the
+         action row — glyph slot first, then the state's content. The eyebrow
+         used to share a wrapping flex line with the body, so it sat inline
+         beside a short «choose» and above a long chosen graphic: the row
+         re-composed itself on every state (and focus) change. -->
     <span class="con-hydro__section-label">{{ $t(labelKey) }}</span>
-
-    <!-- NOTHING TO CHOOSE — the honest dead end, never a «choose first». -->
-    <span v-if="fizzled" class="con-hydro__summary-body con-hydro__summary-body--fizzled">
-      <span class="con-hydro__pickwarn-mark" aria-hidden="true">⚑</span>
-      <span>{{ $t('This reward will be skipped') }} — {{ $t(fizzleKey) }}</span>
-    </span>
-
-    <!-- pos 7: the chosen action — the SAME branch block the Actions
-         workspace draws on its tiles (`stripNodeOr`), never the whole
-         card's action group. -->
-    <span v-else-if="kind === 'reuse-action' && card !== undefined && node !== undefined"
-          class="con-composer__repeatpick con-hydro__pick-action">
-      <span class="con-composer__repeatpick-graphic card-container" v-i18n v-strip-action-prefix>
-        <CardRenderEffectBoxComponent v-if="node.actionNode !== undefined" :effectData="node.actionNode" />
-        <CardRenderData v-else-if="node.renderRoot !== undefined" :renderData="node.renderRoot" />
-        <span v-else class="con-composer__graphic-text">{{ node.text }}</span>
+    <span class="con-hydro__pickrow-body">
+      <!-- THE GLYPH SLOT IS PERMANENT; the badge's VISIBILITY follows the
+           cursor (only the focused affordance wears the cap — the quick
+           wheel's own rule, which keeps exactly one lit «A» on screen).
+           Hidden with footprint preserved, never unmounted: a badge that
+           mounts on focus re-wraps the line under the cursor. -->
+      <span class="con-glyphslot"
+            :class="{'con-glyphslot--ghost': !focused || fizzled}"
+            aria-hidden="true">
+        <GamepadGlyph control="confirm" />
       </span>
-      <span class="con-composer__repeatpick-name">{{ $t(card) }}</span>
-      <span class="con-hydro__bonus-tick" aria-hidden="true">✓</span>
-    </span>
 
-    <!-- pos 9: the chosen target card + the honest count. -->
-    <span v-else-if="card !== undefined" class="con-hydro__summary-body">
-      <b>{{ $t(card) }}</b>
-      <span v-if="animalCurrent !== undefined" class="con-hydro__pick-cur">
-        <span class="card-resource card-resource-animal" aria-hidden="true"></span>
-        {{ animalCurrent }} <span aria-hidden="true">→</span> {{ animalCurrent + 2 }}
+      <!-- NOTHING TO CHOOSE — the honest dead end, never a «choose first». -->
+      <span v-if="fizzled" class="con-hydro__summary-body con-hydro__summary-body--fizzled">
+        <span class="con-hydro__pickwarn-mark" aria-hidden="true">⚑</span>
+        <span>{{ $t('This reward will be skipped') }} — {{ $t(fizzleKey) }}</span>
       </span>
-      <span class="con-hydro__bonus-tick" aria-hidden="true">✓</span>
-    </span>
 
-    <!-- UNCHOSEN — the press IS the content.
-         THE GLYPH FOLLOWS THE CURSOR: only the FOCUSED affordance wears the
-         cap (the quick wheel's own rule). Drawn unconditionally it put a
-         second «A» on screen beside the confirm's, so two buttons claimed the
-         same press. -->
-    <span v-else class="con-hydro__summary-body con-hydro__summary-body--empty">
-      <GamepadGlyph v-if="focused" control="confirm" />
-      <span>{{ $t(chooseKey) }}</span>
+      <!-- pos 7: the chosen action — the SAME branch block the Actions
+           workspace draws on its tiles (`stripNodeOr`), never the whole
+           card's action group. -->
+      <span v-else-if="kind === 'reuse-action' && card !== undefined && node !== undefined"
+            class="con-composer__repeatpick con-hydro__pick-action">
+        <span class="con-composer__repeatpick-graphic card-container" v-i18n v-strip-action-prefix>
+          <CardRenderEffectBoxComponent v-if="node.actionNode !== undefined" :effectData="node.actionNode" />
+          <CardRenderData v-else-if="node.renderRoot !== undefined" :renderData="node.renderRoot" />
+          <span v-else class="con-composer__graphic-text">{{ node.text }}</span>
+        </span>
+        <span class="con-composer__repeatpick-name">{{ $t(card) }}</span>
+        <span class="con-hydro__bonus-tick" aria-hidden="true">✓</span>
+      </span>
+
+      <!-- pos 9: the chosen target card + the honest count. -->
+      <span v-else-if="card !== undefined" class="con-hydro__summary-body">
+        <b>{{ $t(card) }}</b>
+        <span v-if="animalCurrent !== undefined" class="con-hydro__pick-cur">
+          <span class="card-resource card-resource-animal" aria-hidden="true"></span>
+          {{ animalCurrent }} <span aria-hidden="true">→</span> {{ animalCurrent + 2 }}
+        </span>
+        <span class="con-hydro__bonus-tick" aria-hidden="true">✓</span>
+      </span>
+
+      <!-- UNCHOSEN — the press IS the content. -->
+      <span v-else class="con-hydro__summary-body con-hydro__summary-body--empty">
+        <span>{{ $t(chooseKey) }}</span>
+      </span>
     </span>
   </div>
 </template>

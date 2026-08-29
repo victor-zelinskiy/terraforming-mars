@@ -121,6 +121,22 @@ html.gp-mode * {
     }
 }
 
+/* ── The glyph SLOT — a badge's PERMANENT berth inside a control ──────
+   The slot is in the layout in EVERY focus state; losing the cursor hides
+   the badge but never its footprint (`visibility`, not `display`/`v-if`),
+   so a control's outer geometry and its label's position are invariant
+   across focus moves. A control that mounts its badge conditionally
+   re-wraps its own line on every cursor step — the defect this exists to
+   remove. */
+.con-glyphslot {
+    display: inline-flex;
+    flex: 0 0 auto;
+    align-items: center;
+    justify-content: center;
+
+    &--ghost { visibility: hidden; }
+}
+
 /* ── Hint bar ────────────────────────────────────────────────────── */
 .gp-hintbar {
     position: fixed;

@@ -652,4 +652,210 @@ test.describe('console — the card-action Hydronetwork door', () => {
     expect(after.energy, 'exactly one energy').toBe(before.energy - 1);
     expect(after.usedThisGeneration, 'the generation own advance is untouched').toBe(false);
   });
+
+  /**
+   * ══ THE NESTED CHAIN — the dark-screen regression ═══════════════════════
+   *
+   *   Card Actions (origin) → Storm Surge Barrier → Hydronet (6 → 7)
+   *     → the repeat-action selector (a SECOND Card Actions instance)
+   *       → pick → back to the SAME Hydronet instance.
+   *
+   * The workspace must come back FULLY LIT (no stale dim/pose on the root,
+   * rail, scene, ctx or act; no shade; input alive), with the chosen action
+   * standing in the pre-select summary and focus ON that summary — the same
+   * press may not commit the move. This is the exact chain that shipped as
+   * «после выбора действия весь экран остаётся под тёмным overlay».
+   */
+  test('nested repeat selector: origin → Hydronet → selector → back, fully lit', async ({page, request}) => {
+    test.setTimeout(600_000);
+    const DEEP_CARDS = [
+      CARD,                      // Storm Surge Barrier (the door)
+      'Solar Power',             // power + building
+      'Development Manager',     // earth
+      'Space Station',           // space
+      'Research',                // science ×2
+      'Adapted Lichen',          // plant
+      'Tardigrades',             // microbe; ACTIVE — the repeatable action
+    ];
+    const DEEP_CFG = soloGameConfig({
+      players: [{name: 'DeepChain', color: 'red', beginner: false, handicap: 0, first: true}],
+      expansions: {deltaProject: true},
+      customProjectCards: DEEP_CARDS,
+      customCorporationsList: ['Thorgate'],
+      seed: 0.53,
+    });
+    const playerId = await createGameWithCards(request, DEEP_CARDS, {config: DEEP_CFG});
+    await seedGameOverApi(request, playerId, {cards: DEEP_CARDS});
+
+    // The card's own requirement (a city of ours beside an ocean) + the tag
+    // path to stage 7 + a used blue action. All setup, all over the API.
+    let oceanId = '';
+    await standardProject(request, playerId, 'Aquifer', (spaces) => {
+      oceanId = spaces[0];
+      return oceanId;
+    });
+    const board = (await fetchPlayerModel(request, playerId) as Wire).game.spaces as ReadonlyArray<Wire>;
+    const beside = new Set(neighbourIds(board, oceanId));
+    await standardProject(request, playerId, 'City', (spaces) => {
+      const next = spaces.find((s) => beside.has(s));
+      expect(next, `no legal city space beside the ocean ${oceanId}`).toBeDefined();
+      return next as string;
+    });
+    for (const card of DEEP_CARDS) {
+      await playFromMenu(request, playerId, 'Play project card', card);
+    }
+    // USE the blue action — that is what makes it repeatable at stage 7.
+    {
+      const menu = await toActionMenu(request, playerId);
+      const at = (menu.options ?? []).findIndex((o: Wire) =>
+        (o.cards ?? []).some((c: Wire) => c.name === 'Tardigrades') && titleOf(o) !== 'Play project card');
+      expect(at, `the menu offers Tardigrades' action — got ` +
+        `${JSON.stringify((menu.options ?? []).map(titleOf))}`).toBeGreaterThanOrEqual(0);
+      await sendPlayerInput(request, playerId, {
+        type: 'or', index: at, response: {type: 'card', cards: ['Tardigrades']},
+      } as never);
+      await toActionMenu(request, playerId);
+    }
+
+    await openConsole(page, playerId);
+    await waitForBoardHome(page, 25);
+    await waitForTurn(page);
+    await page.waitForTimeout(2000);
+
+    // ── The ORDINARY advance to 6 (the tag path covers it), through the UI. ──
+    await press(page, 'Period', 1100);
+    await press(page, 'ArrowLeft', 1600);
+    await page.waitForSelector('.con-hydro__payline', {timeout: 10_000});
+    for (let i = 0; i < 5; i++) {
+      await press(page, 'ArrowRight', 450);
+    }
+    const at6 = await page.evaluate(() =>
+      document.querySelector('.con-hydro__stop--focused')?.getAttribute('data-hydro-stop') ?? '');
+    expect(at6, 'the plan stands on stage 6').toBe('6');
+    await press(page, 'Enter', 2500); // commit (fixed reward — no substeps)
+    await page.waitForSelector('.con-hydro__layer--result', {timeout: 30_000});
+    await press(page, 'Enter', 2000); // read the result → board home
+    await expect(page.locator('.con-hydro')).toHaveCount(0, {timeout: 15_000});
+    await expect.poll(async () =>
+      ((await fetchPlayerModel(request, playerId)) as Wire).thisPlayer.deltaProject?.position ?? 0,
+    {timeout: 20_000}).toBe(6);
+
+    // ── The DOOR: origin Card Actions → the card's advance → Hydronet 6→7. ──
+    await page.waitForTimeout(1500);
+    await openCardActions(page);
+    await focusAdvanceVariant(page);
+    await openActionFocus(page);
+    await page.waitForTimeout(800);
+    await press(page, 'Enter', 2200); // the door
+    await page.waitForSelector('.con-hydro__layer--bonus', {timeout: 15_000});
+    // Stage 7 owes its pick — the cursor starts ON it (focus priority).
+    const seeded = await page.evaluate(() => ({
+      focusedRow: document.querySelector('.con-hydro__pickrow.con-hydro__summary--focused') !== null,
+      bar: (document.querySelector('.con-cmdbar') as HTMLElement | null)?.innerText ?? '',
+    }));
+    expect(seeded.focusedRow, `the cursor starts on the pre-select (bar «${seeded.bar}»)`).toBe(true);
+    await shoot(page, '5-deep-preselect');
+
+    // ── INTO the nested selector (a SECOND Card Actions instance) and back. ──
+    await press(page, 'Enter', 1800);
+    // ⚠️ The ORIGIN instance is also `.con-cardactions`, mounted but hidden
+    // (v-show) — a bare selector waits on THAT one and times out while the
+    // repeat instance is plainly on screen. `:visible` picks the live one.
+    await page.waitForSelector('.con-cardactions:visible', {timeout: 15_000});
+    await shoot(page, '6-deep-selector');
+    const trace: Array<string> = [];
+    // «Returned» is the hydro ROOT being VISIBLE again (the bonus layer sits
+    // in the DOM even while the root is v-show-hidden — counting it stops the
+    // walk before a single press reaches the selector).
+    const hydroHidden = () => page.evaluate(() => {
+      const el = document.querySelector('.con-hydro') as HTMLElement | null;
+      return el === null || getComputedStyle(el).display === 'none' || el.getBoundingClientRect().width === 0;
+    });
+    for (let i = 0; i < 5 && await hydroHidden(); i++) {
+      await press(page, 'Enter', 1900);
+      trace.push(await page.evaluate(() => [
+        (document.querySelector('.con-wshead__step') as HTMLElement | null)?.innerText ?? '',
+        (document.querySelector('.con-cmdbar') as HTMLElement | null)?.innerText.replace(/\s+/g, ' ') ?? '',
+        document.querySelector('.con-hydro__layer--bonus') !== null ? 'BONUS' : '',
+        document.querySelector('.con-cardactions:not([style*="display: none"])') !== null ? 'SEL' : '',
+      ].join(' § ')));
+    }
+    expect(await hydroHidden(),
+      `the selector never resolved — presses: ${JSON.stringify(trace, null, 1)}`).toBe(false);
+    // ── DIAGNOSTIC SAMPLER: what actually stands after the resolve. ──
+    const timeline: Array<string> = [];
+    for (let i = 0; i < 30; i++) {
+      timeline.push(await page.evaluate(() => {
+        const vis = (sel: string) => {
+          const el = document.querySelector(sel) as HTMLElement | null;
+          if (el === null) {
+            return '∅';
+          }
+          const r = el.getBoundingClientRect();
+          const cs = getComputedStyle(el);
+          return `${cs.display !== 'none' && r.width > 0 ? 'V' : 'h'}·o${cs.opacity}`;
+        };
+        return [
+          'hydro=' + vis('.con-hydro'),
+          'bonus=' + vis('.con-hydro__layer--bonus'),
+          'sel=' + vis('.con-cardactions'),
+          'crumb=' + ((document.querySelector('.con-wshead__step') as HTMLElement | null)?.innerText ?? ''),
+        ].join(' ');
+      }));
+      if (/bonus=V/.test(timeline[timeline.length - 1])) {
+        break;
+      }
+      await page.waitForTimeout(400);
+    }
+    expect(/bonus=V/.test(timeline[timeline.length - 1]),
+      `the workspace never came back visible:\n${timeline.join('\n')}`).toBe(true);
+    await page.waitForTimeout(1400); // let any return motion settle
+    await shoot(page, '7-deep-returned');
+
+    // ── THE LIGHT: every load-bearing layer fully lit, nothing stale. ──
+    const light = await page.evaluate(() => {
+      const op = (sel: string) => {
+        const el = document.querySelector(sel) as HTMLElement | null;
+        if (el === null) {
+          return undefined;
+        }
+        return {
+          opacity: Number(getComputedStyle(el).opacity),
+          inline: (el.style.opacity ?? '') + '|' + (el.style.transform ?? '') + '|' + (el.style.visibility ?? ''),
+          display: getComputedStyle(el).display,
+        };
+      };
+      const shade = document.querySelector('.con-shade') as HTMLElement | null;
+      return {
+        root: op('.con-hydro'),
+        rail: op('.con-hydro__rail'),
+        scene: op('.con-hydro__scene'),
+        panel: op('.con-hydro__panel'),
+        ctx: op('.con-hydro__ctx'),
+        act: op('.con-hydro__act'),
+        origin: op('.con-cardactions'),
+        shade: shade === null ? undefined :
+          {opacity: Number(getComputedStyle(shade).opacity)},
+        inert: document.querySelector('.con-hydro[inert], .con-hydro [inert]') !== null,
+        focusedRow: document.querySelector('.con-hydro__pickrow.con-hydro__summary--focused') !== null,
+        summary: (document.querySelector('.con-hydro__pickrow') as HTMLElement | null)
+          ?.innerText.replace(/\s+/g, ' ').trim() ?? '',
+        bar: (document.querySelector('.con-cmdbar') as HTMLElement | null)
+          ?.innerText.replace(/\s+/g, ' ').trim() ?? '',
+      };
+    });
+    for (const key of ['root', 'rail', 'scene', 'panel', 'ctx', 'act'] as const) {
+      const l = (light as any)[key];
+      expect(l, `${key} is on screen`).toBeDefined();
+      expect(l.opacity, `${key} must be fully lit (inline «${l.inline}»)`).toBeGreaterThan(0.95);
+    }
+    expect((light as any).shade?.opacity ?? 0, 'no stale shade').toBeLessThan(0.05);
+    expect(light.inert, 'nothing inert').toBe(false);
+    expect(String(light.summary), 'the chosen action stands in the summary').toMatch(/Tardigrades|Тихоходки/i);
+    expect(light.focusedRow, `focus returns to the summary (bar «${light.bar}»)`).toBe(true);
+
+    // ── The same press does not commit: the position is still 6. ──
+    const pos = ((await fetchPlayerModel(request, playerId)) as Wire).thisPlayer.deltaProject?.position ?? 0;
+    expect(pos, 'nothing committed by the return').toBe(6);
+  });
 });

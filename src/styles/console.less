@@ -5716,7 +5716,13 @@ html.console-mode body.placement-pending .board-outer-spaces > .board-space.boar
         align-items: center;
         gap: .45rem;
         font-size: .85rem;
-        zoom: calc(1.02 * var(--con-ui-scale, 1));
+        /* NO zoom here. The rem text already rides the root scale
+           (`console_tv.less` html font-size), so a `× var(--con-ui-scale)`
+           zoom DOUBLE-scaled every label and badge on TV (scale²) — the
+           oversized gold «A» of the pre-select row. The px-authored card-DSL
+           inlays integrate LOCALLY instead (`__repeatpick-graphic`,
+           `__pick-cur`), which is the same policy every other mixed line
+           follows. */
     }
     /* Stage 7: the chosen ACTION drawn as the composers' premium button —
        the SHARED `.con-composer__repeatpick` chassis. */
@@ -5824,6 +5830,15 @@ html.console-mode body.placement-pending .board-outer-spaces > .board-space.boar
             animation: none;
         }
     }
+    /* ONE badge size for every hydro verb — rem, so it rides the root scale
+       on every profile (the px `.gp-glyph` base never grows on TV), and CALM:
+       the cap sits inside the line, never over it. */
+    .con-glyphslot .gp-glyph {
+        min-width: 1.1rem;
+        height: 1.1rem;
+        padding: 0 .2rem;
+        font-size: .55rem;
+    }
     /* ── THE BONUS OFFER ────────────────────────────────────────────────
        A card is offering a move the player did not ask for. The zone reuses
        the panel, the route line and the CTA vocabulary above — nothing here
@@ -5906,10 +5921,26 @@ html.console-mode body.placement-pending .board-outer-spaces > .board-space.boar
        player's own advance and a card's offer). Three states, each with its
        own register: OWED (amber, the press is the point), ANSWERED (the
        branch's own graphic + a mint tick), FIZZLED (calm, no press on offer —
-       there is physically nothing to choose). */
+       there is physically nothing to choose).
+
+       ONE COMPOSITION IN EVERY STATE: the eyebrow is a COLUMN row of its own,
+       the body a second row led by the permanent glyph slot. The base
+       `__summary` wrap let the eyebrow sit inline beside a short body and
+       above a long one — the row re-composed itself on every state and focus
+       change, which is the geometry shift this column removes. */
     &__pickrow {
         align-self: stretch;
         margin-top: .35rem;
+        flex-direction: column;
+        align-items: stretch;
+        flex-wrap: nowrap;
+        gap: .3rem;
+    }
+    &__pickrow-body {
+        display: flex;
+        align-items: center;
+        gap: .45rem;
+        min-width: 0;
     }
     &__pickrow--missing {
         box-shadow: inset 0 0 0 .05rem fade(@con-amber, 40%);

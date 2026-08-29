@@ -634,13 +634,16 @@ describe('the Hydronetwork bonus zone', () => {
 
       // …and the SCREEN agrees, which is the whole report: the confirm wore the
       // focus ring AND an «A» beside the row's own, so two buttons claimed one
-      // press over a pre-select nobody was pointed at.
+      // press over a pre-select nobody was pointed at. The badges are MOUNTED
+      // permanently now (the slot keeps every control's geometry invariant
+      // across focus moves) — what may never double is the LIT one.
       const confirm = w.find('.con-hydro__cta');
       expect(confirm.classes(), 'the confirm is not focused').to.not.contain('con-hydro__cta--focused');
       expect(confirm.classes(), 'the primary register recedes while the pick is owed').to.contain('con-hydro__cta--pending');
-      const glyphs = w.findAllComponents({name: 'GamepadGlyph'})
-        .filter((g) => g.props('control') === 'confirm').length;
-      expect(glyphs, 'exactly one «A» on screen').to.eq(1);
+      const litGlyphs = w.findAllComponents({name: 'GamepadGlyph'})
+        .filter((g) => g.props('control') === 'confirm')
+        .filter((g) => (g.element as HTMLElement).closest('.con-glyphslot--ghost') === null).length;
+      expect(litGlyphs, 'exactly one lit «A» on screen').to.eq(1);
       w.unmount();
     });
 
@@ -653,6 +656,32 @@ describe('the Hydronetwork bonus zone', () => {
       seatPreview({reuse: ['Ironworks', 'Viron']});
       await w.vm.$nextTick();
       expect(vm.sceneFocus).to.eq('bonus-skip');
+      w.unmount();
+    });
+
+    /**
+     * A NEW DECISION REVISION RE-SEATS. «Can this pick be answered?» is part
+     * of the decision's IDENTITY (`pickDecisionKey`): a pick that turns from
+     * fizzled to answerable — the game state moved while the player was away —
+     * is a NEW revision, so the remembered cursor on the confirm may not
+     * outrank the newly answerable pre-select. A same-revision re-render (the
+     * candidate LIST changing while the pick stays answerable) re-seats
+     * nothing — that is the spec above.
+     */
+    it('re-seats onto the pick when it becomes answerable (unavailable → available)', async () => {
+      seatPreview({reuse: []}); // fizzled: nothing to choose
+      const w = mountSection(REPEAT_OFFER);
+      const vm = w.vm as unknown as Vm;
+      expect(vm.pickFizzled).is.true;
+      expect(vm.sceneFocus).to.eq('bonus-confirm');
+
+      // The world moved: a used blue action appeared. Same door, same stage —
+      // a new revision of the same decision.
+      seatPreview({reuse: ['Ironworks']});
+      await w.vm.$nextTick();
+      expect(vm.pickFizzled).is.false;
+      expect(vm.sceneFocus, 'the newly answerable pre-select outranks the remembered confirm')
+        .to.eq('bonus-pick');
       w.unmount();
     });
 
@@ -671,14 +700,23 @@ describe('the Hydronetwork bonus zone', () => {
       w.unmount();
     });
 
-    it('HANDS THE CURSOR ON to the confirm once the pick is made', async () => {
+    /**
+     * THE CURSOR STAYS ON THE ANSWERED ROW. The player returns from the
+     * selector seeing WHAT they chose with the verb «Сменить» — and the very
+     * next press can never be the commit they did not aim at (the old
+     * hand-over to the confirm was exactly how a habitual second A committed
+     * a move straight out of the selector).
+     */
+    it('KEEPS THE CURSOR on the pick row once the pick is made', async () => {
       seatPreview({animals: ['Birds']});
       const w = mountSection(ANIMAL_OFFER);
       const vm = w.vm as unknown as Vm;
       expect(vm.sceneFocus).to.eq('bonus-pick');
       hydroNetworkState.selectedCard = 'Birds' as never;
       await w.vm.$nextTick();
-      expect(vm.sceneFocus).to.eq('bonus-confirm');
+      expect(vm.sceneFocus, 'no hand-over: the same press must not commit').to.eq('bonus-pick');
+      expect(vm.footCommands.find((c) => c.control === 'confirm')?.label,
+        'the row now offers CHANGE, not the commit').to.eq('Change the card');
       w.unmount();
     });
 
@@ -832,19 +870,27 @@ describe('the Hydronetwork bonus zone', () => {
       w.unmount();
     });
 
-    /** THE ONE «A» ON SCREEN follows the cursor — the quick wheel's own rule. */
-    it('exactly ONE affordance wears the confirm glyph', async () => {
+    /** THE ONE LIT «A» ON SCREEN follows the cursor — the quick wheel's own
+     *  rule. The badges themselves are mounted PERMANENTLY (the slot keeps
+     *  every control's geometry invariant across focus moves): visibility
+     *  moves, the layout never does. */
+    it('exactly ONE affordance lights the confirm glyph', async () => {
       seatPreview({reuse: ['Ironworks']});
       const w = mountSection(REPEAT_OFFER);
       const vm = w.vm as unknown as Vm;
-      const glyphs = () => w.findAllComponents({name: 'GamepadGlyph'})
-        .filter((g) => g.props('control') === 'confirm').length;
+      const litGlyphs = () => w.findAllComponents({name: 'GamepadGlyph'})
+        .filter((g) => g.props('control') === 'confirm')
+        .filter((g) => (g.element as HTMLElement).closest('.con-glyphslot--ghost') === null).length;
       expect(vm.sceneFocus).to.eq('bonus-pick');
-      expect(glyphs(), 'on the row, and nowhere else').to.eq(1);
+      expect(litGlyphs(), 'on the row, and nowhere else').to.eq(1);
 
       vm.sceneFocus = 'bonus-confirm';
       await w.vm.$nextTick();
-      expect(glyphs(), 'on the confirm, and nowhere else').to.eq(1);
+      expect(litGlyphs(), 'on the confirm, and nowhere else').to.eq(1);
+
+      // …and the SLOTS never move: both berths are in the DOM in both states.
+      expect(w.find('.con-hydro__pickrow .con-glyphslot').exists(), 'the row keeps its berth').to.eq(true);
+      expect(w.find('.con-hydro__cta .con-glyphslot').exists(), 'the confirm keeps its berth').to.eq(true);
       w.unmount();
     });
   });

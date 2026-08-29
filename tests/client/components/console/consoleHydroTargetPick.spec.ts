@@ -281,10 +281,14 @@ describe('the Hydronetwork landing-stage target pick', () => {
       expect(vm.sceneFocus).to.eq('summary');
       expect(w.find('.con-hydro__cta').classes(), 'the commit is not the primary act')
         .to.include('con-hydro__cta--pending');
-      // …and the commit draws NO «A» of its own: two lit CTAs each claiming
-      // the same button is exactly what was reported.
-      expect(w.find('.con-hydro__cta').findAll('.gp-glyph, gamepad-glyph-stub'))
+      // …and the commit LIGHTS no «A» of its own: two lit CTAs each claiming
+      // the same button is exactly what was reported. The badge itself stays
+      // MOUNTED in its permanent slot (geometry never moves on a focus step) —
+      // hidden with its footprint preserved.
+      expect(w.find('.con-hydro__cta').findAll('.con-glyphslot:not(.con-glyphslot--ghost) .gp-glyph'))
         .to.have.length(0);
+      expect(w.find('.con-hydro__cta').find('.con-glyphslot').exists(),
+        'the slot itself is permanent').to.eq(true);
       w.unmount();
     });
 
@@ -298,6 +302,8 @@ describe('the Hydronetwork landing-stage target pick', () => {
       vm.sceneFocus = 'track'; // ↑ off the row — the CTA is what A presses now
       await w.vm.$nextTick();
       expect(vm.ctaFocused).is.true;
+      expect(w.find('.con-hydro__cta .con-glyphslot').classes(), 'the badge lights in its slot')
+        .to.not.include('con-glyphslot--ghost');
       // The register is keyed on the OWED TARGET, not on the cursor: the move
       // is still not the act in front of the player.
       expect(w.find('.con-hydro__cta').classes()).to.include('con-hydro__cta--pending');

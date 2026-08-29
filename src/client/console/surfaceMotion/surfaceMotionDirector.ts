@@ -209,14 +209,25 @@ export function surfaceEnterHook(el: Element, done: () => void): void {
   // cinematic (deal-in slots, bonus veils) — the band motion must not touch
   // their opacity. They still own the shade (drawn) or not (headless).
   const variant = (el as HTMLElement).dataset?.motionVariant;
-  if (variant !== 'headless' && !NON_SHADE_OWNERS.has(id)) {
-    addShadeOwner(id);
-  }
   // A pick-bridge re-show (v-show flip back) is NOT an entrance — the
-  // re-shown surface must cover the section switch in the same frame.
+  // re-shown surface must cover the section switch in the same frame, and it
+  // restores exactly the SHADE OWNERSHIP it held when it was hidden (recorded
+  // per ELEMENT by the leave, so two live instances of one surface kind can
+  // never trade claims). Unconditionally re-adding here is how the nested
+  // repeat selector shipped a permanent dim: the ORIGIN card-actions instance
+  // had lawfully surrendered its shade to its hydro step (`yieldedToStep`),
+  // the v-show round trip re-acquired it on the way back, and the yield
+  // watcher — true on both sides — never fired to give it up again.
   const pickReturn = (el as HTMLElement).dataset?.motionPickHidden === '1';
   if (pickReturn) {
     delete (el as HTMLElement).dataset.motionPickHidden;
+    if ((el as HTMLElement).dataset.motionShadeHeld === '1' &&
+        variant !== 'headless' && !NON_SHADE_OWNERS.has(id)) {
+      addShadeOwner(id);
+    }
+    delete (el as HTMLElement).dataset.motionShadeHeld;
+  } else if (variant !== 'headless' && !NON_SHADE_OWNERS.has(id)) {
+    addShadeOwner(id);
   }
   if (isPickBridgeHidden() || pickReturn || variant === 'headless' || variant === 'drawn') {
     killLive(el);
@@ -820,12 +831,17 @@ export function surfaceLeaveHook(el: Element, done: () => void): void {
     done();
     return;
   }
+  // Record the CURRENT ownership BEFORE releasing it: the pick-bridge flip
+  // back restores exactly this — a surface that had already surrendered its
+  // shade (a yielded host under a live step) must come back without one.
+  const heldShade = surfaceMotionState.shadeOwners.includes(id);
   removeShadeOwner(id);
   const variant = (el as HTMLElement).dataset?.motionVariant;
   if (isPickBridgeHidden()) {
     // The pick bridge hides the surface via v-show — mark it so the flip
     // BACK is recognized as a re-show (instant), not a fresh entrance.
     (el as HTMLElement).dataset.motionPickHidden = '1';
+    (el as HTMLElement).dataset.motionShadeHeld = heldShade ? '1' : '0';
     killLive(el);
     done();
     return;

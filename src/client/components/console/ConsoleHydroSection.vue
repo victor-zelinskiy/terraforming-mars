@@ -525,7 +525,13 @@
                         'con-hydro__cta--pending': planPickMissing,
                       }"
                       @click="onPrimary">
-                <GamepadGlyph v-if="ctaFocused" control="confirm" />
+                <!-- The badge's berth is permanent; its VISIBILITY follows the
+                     cursor (one lit «A» on screen — the pick row owns it while
+                     the pre-select is owed). Mounted conditionally it resized
+                     the plate on every focus move. -->
+                <span class="con-glyphslot" :class="{'con-glyphslot--ghost': !ctaFocused}" aria-hidden="true">
+                  <GamepadGlyph control="confirm" />
+                </span>
                 <span>{{ $t(primaryLabel) }}</span>
               </button>
               <!-- The refused act and its WHY are one verdict block — the
@@ -533,7 +539,7 @@
                    «недоступно, потому что…» once, not two competing panels. -->
               <div v-else class="con-hydro__verdict">
                 <div class="con-hydro__cta con-hydro__cta--disabled" aria-disabled="true">
-                  <GamepadGlyph control="confirm" />
+                  <span class="con-glyphslot" aria-hidden="true"><GamepadGlyph control="confirm" /></span>
                   <span>{{ $t('Reinforce the hydronetwork') }}</span>
                 </div>
                 <div class="con-hydro__reasons">
@@ -572,7 +578,7 @@
                       }"
                       :aria-disabled="rewardChoice === undefined ? 'true' : undefined"
                       @click="confirmChoiceStep">
-                <GamepadGlyph control="confirm" />
+                <span class="con-glyphslot" aria-hidden="true"><GamepadGlyph control="confirm" /></span>
                 <span>{{ $t(choiceCommitLabel) }}</span>
               </button>
               <button v-if="advanceOffer !== undefined && bonusSkipOffered"
@@ -581,7 +587,10 @@
                       :class="{'con-hydro__bonus-action--focused': choiceSkipFocus}"
                       :disabled="bonusSubmitting"
                       @click="answerBonus(false)">
-                <GamepadGlyph v-if="choiceSkipFocus" control="confirm" class="con-hydro__bonus-action-a" />
+                <span class="con-glyphslot con-hydro__bonus-action-a"
+                      :class="{'con-glyphslot--ghost': !choiceSkipFocus}" aria-hidden="true">
+                  <GamepadGlyph control="confirm" />
+                </span>
                 <span class="con-hydro__bonus-action-title">{{ $t(bonusCopy.skipKey) }}</span>
               </button>
             </div>
@@ -590,7 +599,7 @@
                  reinforce the single-allocation path fires from Configure. -->
             <div v-else-if="actKey === 'payment'" key="payment" class="con-hydro__ctazone">
               <button type="button" class="con-hydro__cta" @click="onPaymentConfirm">
-                <GamepadGlyph control="confirm" />
+                <span class="con-glyphslot" aria-hidden="true"><GamepadGlyph control="confirm" /></span>
                 <span>{{ $t('Reinforce the hydronetwork') }}</span>
               </button>
             </div>
@@ -619,7 +628,10 @@
                       }"
                       :disabled="bonusSubmitting"
                       @click="answerBonus(true)">
-                <GamepadGlyph v-if="sceneFocus === 'bonus-confirm'" control="confirm" />
+                <span class="con-glyphslot"
+                      :class="{'con-glyphslot--ghost': sceneFocus !== 'bonus-confirm'}" aria-hidden="true">
+                  <GamepadGlyph control="confirm" />
+                </span>
                 <span>{{ $t(bonusPrimary.label) }}</span>
               </button>
               <button v-if="bonusSkipOffered"
@@ -628,7 +640,10 @@
                       :class="{'con-hydro__bonus-action--focused': sceneFocus === 'bonus-skip'}"
                       :disabled="bonusSubmitting"
                       @click="answerBonus(false)">
-                <GamepadGlyph v-if="sceneFocus === 'bonus-skip'" control="confirm" class="con-hydro__bonus-action-a" />
+                <span class="con-glyphslot con-hydro__bonus-action-a"
+                      :class="{'con-glyphslot--ghost': sceneFocus !== 'bonus-skip'}" aria-hidden="true">
+                  <GamepadGlyph control="confirm" />
+                </span>
                 <span class="con-hydro__bonus-action-title">{{ $t(bonusCopy.skipKey) }}</span>
               </button>
             </div>
@@ -636,7 +651,7 @@
             <!-- RESULT: the one continue — the same plate, the same home. -->
             <div v-else key="result" class="con-hydro__ctazone">
               <button type="button" class="con-hydro__cta" @click="$emit('result-done')">
-                <GamepadGlyph control="confirm" />
+                <span class="con-glyphslot" aria-hidden="true"><GamepadGlyph control="confirm" /></span>
                 <span>{{ $t('Continue') }}</span>
               </button>
             </div>
@@ -892,6 +907,15 @@ export default defineComponent({
       /** The cursor stands on the OPTIONAL REFUSAL beneath the step's commit
        *  (a server-framed offer only) — one more ↓ past the confirm. */
       choiceSkipFocus: false,
+      /** The player has moved the cursor BY HAND inside the current decision
+       *  revision — that revision never re-seats them again (state-driven
+       *  focus, not a watcher that keeps calling `.focus()`). */
+      focusMoved: false,
+      /** The next `pickDecisionKey` change is the player's OWN track walk —
+       *  armed inside `selectPosition` (past its no-op guard, so a clamped
+       *  walk can never leave it latched), consumed by the watcher's flush,
+       *  so an external revision can never ride it. */
+      selfKeyChange: false,
       /** The deck-pick flow, mirrored for reactivity (module reactive). */
       flowDeck: deckPickState,
       /** The target step's cursor (pos 9). */
@@ -1950,6 +1974,20 @@ export default defineComponent({
           this.offerOrigin === 'card-entry' ? 'Back to the action' : 'To the board'});
       return cmds;
     },
+    /**
+     * The pre-select decision's IDENTITY: which door, which stage, which pick
+     * kind, and whether it is currently ANSWERABLE. One derivation for every
+     * pre-select family this track has (repeat action, animal target, and any
+     * future stage decision of the same shape) — never a stage/card literal.
+     */
+    pickDecisionKey(): string {
+      return [
+        this.offerOrigin ?? 'plan',
+        this.advanceOffer?.toPosition ?? this.model.selectedPosition,
+        this.pickKind ?? '-',
+        this.model.mustSelectCard ? 'open' : 'closed',
+      ].join('|');
+    },
     /** The draft's world-version fingerprint (for RESUME ≠ FRESH decisions). */
     draftFingerprint(): string {
       return [
@@ -2109,22 +2147,42 @@ export default defineComponent({
       // The warning describes a STATE, never a press, so it dies with the
       // state it named — a pick made (or dropped) re-arms the gate honestly.
       this.pickWarned = false;
-      // …and a made pick HANDS THE CURSOR ON to what is now the next act. The
-      // player answered the question the row was asking; leaving them parked on
-      // an answered row makes them hunt for the confirm they just earned.
-      if (card !== undefined && prev === undefined) {
-        if (this.sceneFocus === 'bonus-pick') {
-          this.sceneFocus = 'bonus-confirm';
-        } else if (this.sceneFocus === 'summary') {
-          this.sceneFocus = 'track';
-        }
-      }
+      // A MADE PICK KEEPS THE CURSOR ON ITS OWN SUMMARY. The player returns
+      // from the selector seeing WHAT they chose, with the verb «Сменить» —
+      // and the very next press can never be the commit they did not aim at.
+      // Moving on to «Укрепить гидросеть» is their own deliberate navigation.
+      // (The old hand-over to the confirm was exactly how a habitual second A
+      // committed a move straight out of the selector.)
       if (card === undefined && prev !== undefined &&
           hydroNetworkState.selectedCard === prev && this.flow.commit === undefined) {
         this.$emit('notice', translateText('The selected card is no longer available'));
         hydroNetworkState.selectedCard = undefined;
         consoleHydroUi.repeatResult = undefined;
       }
+    },
+    /**
+     * THE DECISION'S OWN IDENTITY — the focus seat is re-decided when THIS
+     * changes, and only then. The key carries the door, the stage and the
+     * pick's AVAILABILITY: `unavailable → available` (the player used a blue
+     * action elsewhere and came back) is a NEW revision of the decision, so a
+     * stale remembered cursor on the commit may not outrank the newly
+     * answerable pre-select. A plain re-render of the same revision changes
+     * nothing. The one change that must NOT re-seat is the revision the player
+     * created themselves — walking the track flips position/pickKind too, and
+     * stealing the cursor off the track mid-walk is the defect this model
+     * exists to remove (`selfKeyChange`, armed inside `selectPosition` in the
+     * same synchronous block as the position write, consumed by this flush).
+     */
+    pickDecisionKey(now: string, prev: string | undefined): void {
+      if (now === prev) {
+        return;
+      }
+      if (this.selfKeyChange) {
+        this.selfKeyChange = false;
+        return;
+      }
+      this.focusMoved = false;
+      this.seatOnOwedPick();
     },
   },
   mounted(): void {
@@ -2226,6 +2284,21 @@ export default defineComponent({
         this.sceneFocus = 'summary';
       }
     },
+    /**
+     * RE-SEAT ON A NEW DECISION REVISION (`pickDecisionKey` changed). Runs the
+     * ordinary owed-seat machinery — same priority, same one-shot — but only
+     * while the browse stage is what the player is looking at, and never over
+     * a cursor they have already moved by hand inside this revision.
+     */
+    seatOnOwedPick(): void {
+      // Only the two BROWSE-shaped scenes hold a seatable pre-select; a step
+      // (choice/target/payment) and the commit own their own cursor.
+      if ((this.sceneKey !== 'preview' && this.sceneKey !== 'bonus') || this.focusMoved) {
+        return;
+      }
+      this.seatOwed = true;
+      this.applyOwedSeat();
+    },
     seatPlanOnOffer(): boolean {
       const offer = this.advanceOffer;
       if (offer === undefined) {
@@ -2325,6 +2398,9 @@ export default defineComponent({
         return;
       }
       closeHydroStep();
+      // A pointer walk is the player's own move too — same contract as the
+      // d-pad: their revision, their cursor.
+      this.focusMoved = true;
       this.selectPosition(position);
     },
     /** One bumper press = one unit of the price moved between energy and
@@ -2376,6 +2452,10 @@ export default defineComponent({
       if (next === this.model.selectedPosition) {
         return;
       }
+      // The player's own walk flips `pickDecisionKey` too — armed HERE, past
+      // the no-op guard (armed at a call site, a clamped/no-op walk would
+      // leave the latch set and swallow the NEXT real external revision).
+      this.selfKeyChange = true;
       hydroNetworkState.selectedPosition = next;
       // NO SILENT DEFAULTS: a choice stage starts unconfigured — the player
       // sees both options and picks one deliberately, inside its own step.
@@ -2493,6 +2573,8 @@ export default defineComponent({
      * whatever is one press past «Продвинуться».
      */
     navBonus(dir: 'up' | 'down' | 'left' | 'right'): void {
+      // A deliberate move: this decision revision may not re-seat the cursor.
+      this.focusMoved = true;
       // The zone's focusables, top-to-bottom, exactly as they are laid out.
       // An edge HOLDS — never a wrap: a decision's cursor that loops turns
       // «Пропустить» into whatever is one press past «Продвинуться».
@@ -3060,6 +3142,8 @@ export default defineComponent({
       }
       // PREVIEW.
       if (intent.kind === 'nav') {
+        // A deliberate move: this decision revision may not re-seat the cursor.
+        this.focusMoved = true;
         if (intent.dir === 'left' || intent.dir === 'right') {
           this.sceneFocus = 'track';
           this.selectPosition(this.model.selectedPosition + (intent.dir === 'right' ? 1 : -1));
@@ -3075,6 +3159,7 @@ export default defineComponent({
         const max = this.preview?.maxLegalSteps ?? 0;
         if (max > 0) {
           this.sceneFocus = 'track';
+          this.focusMoved = true;
           this.selectPosition(this.model.currentPosition + max);
         }
         return;

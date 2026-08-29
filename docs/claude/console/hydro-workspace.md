@@ -113,6 +113,47 @@ deal > 0 and reopen = 0; fhd + tv4k).
 nearest number to the group's left) — «Оставьте себе 2 карт(ы)» is no longer
 expressible; the deck pick's server title now reads correctly for 1/2/5.
 
+## INVARIANT CONTROL GEOMETRY — the glyph slot + the two-line pick row
+
+A control's OUTER geometry and its label's position never change on a focus
+move. The controller badge lives in a PERMANENT `.con-glyphslot`
+(`gamepad.less`) inside every hydro verb — the pick row, the primary CTA, the
+optional refusal — and losing the cursor hides the badge with
+`.con-glyphslot--ghost` (`visibility`, footprint preserved), never `v-if`/
+`display: none`. «Exactly one lit A» is now a claim about NON-GHOST badges.
+The pick row is a COLUMN in every state: the eyebrow (`__section-label`) on
+its own line, then `__pickrow-body` (glyph slot → the state's content) — the
+base `__summary` wrap used to seat the eyebrow inline beside a short
+«выберите» and above a long chosen graphic, re-composing the row on every
+state/focus change. Size discipline: `__summary-body` carries **no
+`zoom: … * var(--con-ui-scale)`** — rem text already rides the root scale
+(`console_tv.less` html font-size), so the zoom DOUBLE-scaled every label and
+badge on TV (scale², the oversized gold «A»); px-authored card-DSL inlays
+integrate locally (`__repeatpick-graphic`'s own zoom, `__pick-cur`'s rem
+icon). Hydro badges are calibrated once (`.con-hydro .con-glyphslot
+.gp-glyph`, rem). Pinned by `consoleHydroBonusZone.spec.ts` (lit-glyph
+counts + permanent berths) and live by
+`tests/e2e/console-hydro-repeat-bridge.spec.ts` (focused-vs-blurred boxes,
+fhd + tv4k).
+
+## FOCUS — seated by the DECISION'S IDENTITY, never by a render
+
+`pickDecisionKey` = door (`offerOrigin` ?? plan) | landing position | pick
+kind | answerable (`mustSelectCard`). The seat machinery (`seatOwed` →
+`applyOwedSeat`: an owed pick outranks the confirm) runs on the MOUNT edge
+and on every CHANGE of that key — so `unavailable → available` (the player
+used a blue action elsewhere and came back) re-seats onto the newly
+answerable pre-select, while a same-revision re-render re-seats nothing. Two
+qualifiers: the player's OWN track walk flips the key too (`selfKeyChange`,
+armed beside the position write, consumed by the watcher's flush — never a
+steal mid-walk), and a hand-moved cursor (`focusMoved`) is never re-seated
+inside its own revision. **A made pick KEEPS the cursor on its own row**
+(the old hand-over to the confirm let a habitual second A commit straight
+out of the selector); the row's verb is now «Сменить», and the selector's
+cancel returns to the same seat untouched. Pinned by
+`consoleHydroBonusZone.spec.ts` («re-seats onto the pick when it becomes
+answerable», «KEEPS THE CURSOR») and live by both repeat-selector e2e specs.
+
 ## The pieces
 
 | Concern | File |
