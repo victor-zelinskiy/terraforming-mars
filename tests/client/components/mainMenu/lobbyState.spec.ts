@@ -2,7 +2,7 @@ import {expect} from 'chai';
 import {JoinableGameSummary} from '../../../../src/common/models/JoinableGameModel';
 import {
   lobbyState, lobbyRows, localLobbySource, lobbyFirstLoad, lobbyUnreachable, lobbyKnownEmpty,
-  startLobbyWatch, stopLobbyWatch, openLobbyList, setLobbyIdentity, refreshLobby,
+  startLobbyWatch, stopLobbyWatch, openLobbyList, closeLobbyList, setLobbyIdentity, refreshLobby,
   loadLobbyArchive, resetLobbyStateForTesting,
 } from '../../../../src/client/components/mainMenu/lobbyState';
 import {resetLanStateForTesting} from '../../../../src/client/components/mainMenu/lanState';
@@ -29,6 +29,9 @@ function game(id: string, extra: Partial<JoinableGameSummary> = {}): JoinableGam
 }
 
 type Answer = {games?: Array<JoinableGameSummary>, fail?: boolean};
+
+/** What the `status=finished` slice answers (the active slice has its own). */
+let archiveAnswer: Array<JoinableGameSummary> = [];
 
 /**
  * Wait until no refresh is in flight.
@@ -61,6 +64,7 @@ describe('client/mainMenu/lobbyState', () => {
     resetLanStateForTesting();
     calls = [];
     answer = {games: []};
+    archiveAnswer = [];
     originalFetch = global.fetch;
     global.fetch = ((url: string) => {
       calls.push(String(url));
@@ -70,7 +74,7 @@ describe('client/mainMenu/lobbyState', () => {
       const finished = String(url).includes('status=finished');
       return Promise.resolve({
         ok: true,
-        json: () => Promise.resolve(finished ? [] : (answer.games ?? [])),
+        json: () => Promise.resolve(finished ? archiveAnswer : (answer.games ?? [])),
       } as unknown as Response);
     }) as typeof fetch;
   });
@@ -182,6 +186,67 @@ describe('client/mainMenu/lobbyState', () => {
     await loadLobbyArchive();
     expect(lobbyState.archiveStatus).to.eq('ok');
     expect(calls.some((u) => u.includes('status=finished'))).to.be.true;
+  });
+
+  /**
+   * The list states its own rule on every row («12 с назад»), so the order has
+   * to be the rule — not whatever order a server happened to answer in. LAN
+   * rows in particular come from several servers, each sorting only its own.
+   */
+  describe('newest first, strictly by creation time', () => {
+    it('sorts the rows even when the answer arrives shuffled', async () => {
+      answer = {games: [
+        game('old', {createdTimeMs: 1_000}),
+        game('newest', {createdTimeMs: 9_000}),
+        game('middle', {createdTimeMs: 5_000}),
+      ]};
+      startLobbyWatch('Victor');
+      await settle();
+      expect(lobbyRows().map((r) => r.game.id)).to.deep.eq(['newest', 'middle', 'old']);
+    });
+
+    it('puts a game created a moment ago on top', async () => {
+      answer = {games: [game('yesterday', {createdTimeMs: 1_000})]};
+      startLobbyWatch('Victor');
+      await settle();
+
+      answer = {games: [game('yesterday', {createdTimeMs: 1_000}), game('fresh', {createdTimeMs: 99_000})]};
+      void refreshLobby();
+      await settle();
+      expect(lobbyRows()[0].game.id).to.eq('fresh');
+    });
+
+    it('sorts the archive the same way', async () => {
+      startLobbyWatch('Victor');
+      await settle();
+      archiveAnswer = [
+        game('a', {createdTimeMs: 2_000, finished: true}),
+        game('b', {createdTimeMs: 8_000, finished: true}),
+      ];
+      await loadLobbyArchive();
+      expect(lobbyState.archive.map((g) => g.id)).to.deep.eq(['b', 'a']);
+    });
+  });
+
+  describe('the age clock', () => {
+    it('advances while the screen is open, and stops when it closes', async () => {
+      answer = {games: [game('g1', {createdTimeMs: Date.now()})]};
+      startLobbyWatch('Victor');
+      await settle();
+      await openLobbyList();
+      await settle();
+
+      const first = lobbyState.nowMs;
+      await new Promise((resolve) => setTimeout(resolve, 1_200));
+      const ticked = lobbyState.nowMs;
+      expect(ticked, 'the shared clock must advance while rows are on screen').to.be.greaterThan(first);
+
+      closeLobbyList();
+      await new Promise((resolve) => setTimeout(resolve, 1_200));
+      expect(lobbyState.nowMs, 'a closed screen must not keep a timer alive').to.eq(ticked);
+      // Two real one-second ticks have to elapse for this to mean anything —
+      // the whole claim is about wall-clock behaviour.
+    }).timeout(10_000);
   });
 
   it('stopping the watch leaves no timers or state behind', async () => {

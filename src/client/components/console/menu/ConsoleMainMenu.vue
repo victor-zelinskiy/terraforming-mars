@@ -113,6 +113,10 @@
 
             <div class="cm-game__foot">
               <span class="cm-game__meta">
+                <!-- The age leads: the list is sorted by it, so it is what
+                     explains the order rather than a rule taken on trust. -->
+                <span class="cm-game__age">{{ createdAgo(g) }}</span>
+                <span class="cm-game__dot" aria-hidden="true">·</span>
                 <span>{{ $t('Generation') }} {{ g.generation }}</span>
                 <span class="cm-game__dot" aria-hidden="true">·</span>
                 <span>{{ boardLabel(g) }}</span>
@@ -184,6 +188,8 @@
               </div>
               <div class="cm-game__foot">
                 <span class="cm-game__meta">
+                  <span class="cm-game__age">{{ createdAgo(row.game) }}</span>
+                  <span class="cm-game__dot" aria-hidden="true">·</span>
                   <span>{{ $t('Generation') }} {{ row.game.generation }}</span>
                   <span class="cm-game__dot" aria-hidden="true">·</span>
                   <span>{{ boardLabel(row.game) }}</span>
@@ -374,6 +380,7 @@ import {
   lobbyFirstLoad, lobbyUnreachable, localLobbySource,
 } from '@/client/components/mainMenu/lobbyState';
 import {initLanDiscovery, publishLanName, addManualHost, removeManualHost, lanState} from '@/client/components/mainMenu/lanState';
+import {lobbyAge, lobbyAgeLabel} from '@/client/components/mainMenu/lobbyAge';
 import ConsoleVirtualKeyboard from '@/client/components/console/menu/ConsoleVirtualKeyboard.vue';
 import {pinServerEndpoint} from '@/client/utils/serverEndpoints';
 import {lastGameEntered, recordLastGameEntered} from '@/client/components/mainMenu/lastGameState';
@@ -1160,6 +1167,15 @@ export default defineComponent({
     },
     boardLabel(g: JoinableGameSummary): string {
       return $t(mapLabelKey(g.boardName));
+    },
+    /**
+     * «12 с назад» / «7 мин назад» — how long ago this party was created, and
+     * the reason it sits where it sits. Reads the ONE shared clock in
+     * `lobbyState`, which re-arms itself at the cadence the freshest row needs,
+     * so every row on screen advances in the same tick.
+     */
+    createdAgo(g: JoinableGameSummary): string {
+      return lobbyAgeLabel(lobbyAge(g.createdTimeMs, this.lobbyState.nowMs));
     },
     /**
      * Crew for the row — names visible, YOU tagged, whose-turn (active)

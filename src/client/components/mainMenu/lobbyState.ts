@@ -6,6 +6,7 @@ import {ServerEndpoint, wsBaseFromApiBase} from '@/client/utils/serverEndpoints'
 import {DesktopLanHost} from '@/client/components/desktop/desktopUpdateState';
 import {lanState, ManualHost} from './lanState';
 import {openLobbyChannel, LobbyChannelHandle, lobbyChannelHealthy} from './lobbyChannel';
+import {lobbyAge, lobbyAgeTickMs} from './lobbyAge';
 import {$t} from '@/client/directives/i18n';
 
 /**
@@ -139,6 +140,13 @@ export const lobbyState = reactive<{
   lastRefreshAt: number | undefined,
   /** The list was seeded from the cross-session cache and not yet verified. */
   hydrated: boolean,
+  /**
+   * The clock every «сколько назад» label reads. One reactive number for the
+   * whole screen: rows are sorted by creation time, so their ages must advance
+   * TOGETHER — a per-row timer would let neighbours drift a second apart and
+   * make the ordering look wrong.
+   */
+  nowMs: number,
 }>({
   open: false,
   identity: '',
@@ -151,11 +159,24 @@ export const lobbyState = reactive<{
   newIds: [],
   lastRefreshAt: undefined,
   hydrated: false,
+  nowMs: Date.now(),
 });
 
 /** Local + LAN, in the order the screen shows them (cursor arithmetic). */
 export function lobbyRows(): ReadonlyArray<LobbyRow> {
   return [...lobbyState.localRows, ...lobbyState.lanRows];
+}
+
+/**
+ * NEWEST FIRST, strictly by creation time.
+ *
+ * The route already answers in this order, but the client sorts anyway: the
+ * screen states the rule («12 с назад» on the top row) and must not depend on
+ * anyone else's ordering to keep it true — LAN rows in particular arrive from
+ * several servers, each ordering only its own answer.
+ */
+function newestFirst<T extends {game: JoinableGameSummary}>(rows: ReadonlyArray<T>): Array<T> {
+  return [...rows].sort((a, b) => b.game.createdTimeMs - a.game.createdTimeMs);
 }
 
 export function lobbySource(id: string): LobbySource | undefined {
@@ -233,7 +254,7 @@ export function hydrateLobbyCache(displayName: string): void {
     }
     lobbyState.identity = displayName;
     ensureLocalSource();
-    lobbyState.localRows = parsed.games.map((game) => toRow(LOCAL_SOURCE_ID, 'local', '', undefined, game, false, false));
+    lobbyState.localRows = newestFirst(parsed.games.map((game) => toRow(LOCAL_SOURCE_ID, 'local', '', undefined, game, false, false)));
     lobbyState.hydrated = true;
   } catch {
     // Corrupt blob — ignore; the refresh populates cleanly.
@@ -397,7 +418,7 @@ async function fetchFrom(base: string, name: string): Promise<Array<JoinableGame
     }
     throw new Error(errorText(err));
   } finally {
-    clearTimeout(timer);
+    window.clearTimeout(timer);
   }
 }
 
@@ -463,7 +484,7 @@ function markNew(ids: ReadonlyArray<string>): void {
   for (const id of ids) {
     const existing = decayTimers.get(id);
     if (existing !== undefined) {
-      clearTimeout(existing);
+      window.clearTimeout(existing);
     }
     decayTimers.set(id, window.setTimeout(() => {
       lobbyState.newIds = lobbyState.newIds.filter((x) => x !== id);
@@ -476,7 +497,7 @@ const decayTimers = new Map<string, number>();
 
 function clearHighlights(): void {
   for (const timer of decayTimers.values()) {
-    clearTimeout(timer);
+    window.clearTimeout(timer);
   }
   decayTimers.clear();
   lobbyState.newIds = [];
@@ -496,7 +517,7 @@ async function refreshLocal(name: string): Promise<void> {
     if (!isCurrent(LOCAL_SOURCE_ID, seq, name)) {
       return;
     }
-    lobbyState.localRows = games.map((game) => toRow(LOCAL_SOURCE_ID, 'local', '', undefined, game, false, false));
+    lobbyState.localRows = newestFirst(games.map((game) => toRow(LOCAL_SOURCE_ID, 'local', '', undefined, game, false, false)));
     lobbyState.hydrated = false;
     setSource(LOCAL_SOURCE_ID, {status: 'ok', lastOkAt: Date.now(), failures: 0, lastError: ''});
     persistCache(name, games);
@@ -557,13 +578,13 @@ async function refreshLan(source: LobbySource, name: string): Promise<void> {
   openChannel(source.id, endpoint.wsBase);
 }
 
-/** LAN rows follow the source order so the list never reshuffles on a refresh. */
+/**
+ * LAN rows share ONE ordering with everything else — creation time, newest
+ * first — rather than being grouped per host. Each row names its own couch, so
+ * grouping bought nothing and broke the one rule the list states out loud.
+ */
 function reorderLanRows(): void {
-  const order = new Map(lobbyState.sources.map((s, i) => [s.id, i]));
-  lobbyState.lanRows = [...lobbyState.lanRows].sort((a, b) => {
-    const bySource = (order.get(a.sourceId) ?? 0) - (order.get(b.sourceId) ?? 0);
-    return bySource !== 0 ? bySource : b.game.createdTimeMs - a.game.createdTimeMs;
-  });
+  lobbyState.lanRows = newestFirst(lobbyState.lanRows);
 }
 
 let inFlight: Promise<void> | undefined;
@@ -601,7 +622,11 @@ export function refreshLobby(opts: {archive?: boolean} = {}): Promise<void> {
     inFlight = undefined;
     lobbyState.refreshing = false;
     lobbyState.lastRefreshAt = Date.now();
+    lobbyState.nowMs = lobbyState.lastRefreshAt;
     armPoll();
+    // A refreshed list can carry a brand-new game: re-decide the tick so its
+    // seconds start counting at once rather than on the previous cadence.
+    armAgeClock();
     if (pendingAgain) {
       pendingAgain = false;
       void refreshLobby();
@@ -620,7 +645,7 @@ async function refreshArchive(name: string): Promise<void> {
     if (!isCurrent(ARCHIVE_SOURCE_ID, seq, name)) {
       return;
     }
-    lobbyState.archive = games;
+    lobbyState.archive = [...games].sort((a, b) => b.createdTimeMs - a.createdTimeMs);
     lobbyState.archiveStatus = 'ok';
   } catch {
     if (isCurrent(ARCHIVE_SOURCE_ID, seq, name)) {
@@ -711,6 +736,52 @@ function allLive(): boolean {
   return scoped.length > 0 && scoped.every((s) => s.live);
 }
 
+// ── The age clock ──────────────────────────────────────────────────────────
+//
+// ⚠️ Every timer in this module is created with `window.setTimeout` and cleared
+// with `window.clearTimeout` — the PAIR matters. In a browser the bare global
+// is the same function, but under jsdom (the client test runner) `window.*` and
+// the Node globals are two different implementations, so a bare `clearTimeout`
+// on a jsdom handle silently does nothing and the timer outlives its screen.
+// Module state is shared across specs here, so that leak corrupts later ones.
+
+let ageTimer: number | undefined;
+
+/**
+ * Advance the shared clock and re-arm at the cadence the FRESHEST row needs:
+ * a game created seconds ago counts up every second, a list of week-old ones
+ * costs a tick a minute. One timer, one reactive write, every label moves.
+ */
+function tickAges(): void {
+  lobbyState.nowMs = Date.now();
+  armAgeClock();
+}
+
+function armAgeClock(): void {
+  if (ageTimer !== undefined) {
+    window.clearTimeout(ageTimer);
+    ageTimer = undefined;
+  }
+  if (!lobbyState.open) {
+    return;
+  }
+  const rows = lobbyRows();
+  const created = rows.length > 0 ?
+    rows.map((row) => row.game.createdTimeMs) :
+    lobbyState.archive.map((game) => game.createdTimeMs);
+  const next = created.reduce(
+    (fastest, at) => Math.min(fastest, lobbyAgeTickMs(lobbyAge(at, lobbyState.nowMs))),
+    60_000);
+  ageTimer = window.setTimeout(tickAges, next);
+}
+
+function stopAgeClock(): void {
+  if (ageTimer !== undefined) {
+    window.clearTimeout(ageTimer);
+    ageTimer = undefined;
+  }
+}
+
 // ── The fallback poll ──────────────────────────────────────────────────────
 
 let pollTimer: number | undefined;
@@ -731,7 +802,7 @@ function pollIntervalMs(): number {
  */
 function armPoll(): void {
   if (pollTimer !== undefined) {
-    clearTimeout(pollTimer);
+    window.clearTimeout(pollTimer);
     pollTimer = undefined;
   }
   if (!watching) {
@@ -795,12 +866,13 @@ export function startLobbyWatch(displayName: string): void {
 export function stopLobbyWatch(): void {
   watching = false;
   lobbyState.open = false;
+  stopAgeClock();
   if (pollTimer !== undefined) {
-    clearTimeout(pollTimer);
+    window.clearTimeout(pollTimer);
     pollTimer = undefined;
   }
   if (pushTimer !== undefined) {
-    clearTimeout(pushTimer);
+    window.clearTimeout(pushTimer);
     pushTimer = undefined;
   }
   stopLanWatch?.();
@@ -819,12 +891,15 @@ export function stopLobbyWatch(): void {
  */
 export function openLobbyList(): Promise<void> {
   lobbyState.open = true;
+  lobbyState.nowMs = Date.now();
+  armAgeClock();
   syncLanSources();
   return refreshLobby();
 }
 
 export function closeLobbyList(): void {
   lobbyState.open = false;
+  stopAgeClock();
   for (const source of lobbyState.sources) {
     if (source.kind === 'lan') {
       closeChannel(source.id);
@@ -860,6 +935,7 @@ export function setLobbyIdentity(displayName: string): void {
 /** Tests: full teardown of the module's shared state. */
 export function resetLobbyStateForTesting(): void {
   stopLobbyWatch();
+  stopAgeClock();
   seqs.clear();
   endpointCache.clear();
   hosts = new Map();

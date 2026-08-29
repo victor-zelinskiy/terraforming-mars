@@ -229,6 +229,41 @@ entries). Everything about *listing* — probing, endpoints, statuses, rows, fre
 
 ---
 
+## 4a. Order and age
+
+**The list is sorted strictly by creation time, newest first** — and every row says how long
+ago it was created («12 с назад» · «7 мин назад» · «3 ч назад» · «2 дн назад»). The two go
+together on purpose: the age is what makes the ordering legible instead of a rule the player
+has to take on trust.
+
+- **The client sorts, it does not inherit an order.** `ApiGamesJoinable` already answers
+  newest-first, but LAN rows arrive from SEVERAL servers, each ordering only its own answer,
+  so `newestFirst()` is applied to the local rows, the LAN rows and the archive alike. LAN
+  rows are no longer grouped per host — every row names its own couch, so grouping bought
+  nothing and broke the stated rule.
+- **One clock for the whole screen** (`lobbyState.nowMs`). A per-row timer would let
+  neighbours drift a second apart and make the ordering look wrong; one reactive number moves
+  every label in the same tick.
+- **The tick re-arms at the cadence the FRESHEST row needs** (`lobbyAgeTickMs`): every second
+  while any row counts seconds, 15 s while they count minutes, a minute beyond that. It runs
+  only while the screen is open, and a completed refresh re-arms it so a brand-new game starts
+  counting immediately.
+- **A future timestamp is ordinary input, not a bug.** A LAN row's `createdTimeMs` comes from
+  the HOST's clock, and two machines on one couch are routinely seconds — sometimes minutes —
+  apart, so `lobbyAge` clamps anything in the future to «только что» rather than printing
+  «-3 мин назад».
+- Units are ABBREVIATED so the label neither wraps the row nor drags Russian plural agreement
+  («1 минуту / 2 минуты / 5 минут») into a string that changes every second.
+
+⚠️ **Timers here are created with `window.setTimeout` and cleared with `window.clearTimeout`
+— the pair matters.** In a browser the bare global is the same function; under jsdom (the
+client test runner) they are two different implementations, so a bare `clearTimeout` on a
+jsdom handle silently does nothing and the timer outlives its screen. Module state is shared
+across specs, so that leak corrupts later ones — the age-clock spec is what caught it.
+
+Guards: `tests/client/components/mainMenu/lobbyAge.spec.ts` (the unit ladder, the clamp, the
+cadence) and the `newest first` / `age clock` blocks in `lobbyState.spec.ts`.
+
 ## 5. UI surface (`ConsoleMainMenu.vue`)
 
 - The four honest states above, instead of one sentence.
@@ -260,7 +295,8 @@ entries). Everything about *listing* — probing, endpoints, statuses, rows, fre
 | `tests/models/lobbyIndex.spec.ts` | live vs serialized derivation are identical; revision bumps only on real change; cold read happens once; a resident game is always re-derived; ledger reconcile |
 | `tests/routes/ApiGamesJoinable.spec.ts` | a game created / ended / deleted / renamed after a previous listing is correct on the very next one (the cache-staleness classes) |
 | `tests/realtime/LobbyBroadcast.spec.ts` | the lobby room broadcasts to its members and nobody else; disconnect leaves it; an unchanged save does not wake anyone |
-| `tests/client/components/mainMenu/lobbyState.spec.ts` | the six contract points: late identity, empty vs unreachable, rows survive a failure, open re-asks, `newIds`, profile switch, archive slice, clean teardown |
+| `tests/client/components/mainMenu/lobbyState.spec.ts` | the six contract points: late identity, empty vs unreachable, rows survive a failure, open re-asks, `newIds`, profile switch, archive slice, clean teardown — plus strict newest-first ordering and the age clock starting/stopping with the screen |
+| `tests/client/components/mainMenu/lobbyAge.spec.ts` | the «сколько назад» ladder, the future-timestamp clamp, the tick cadence |
 | `tests/client/components/mainMenu/lobbyLan.spec.ts` | the reported scenario: a host discovered → listed on open; a host appearing while open is asked at once; unreachable says so and keeps rows then drops them; a host that leaves takes its rows; closing retires LAN sources; addresses are raced; a hand-typed host behaves as an ordinary source (added, parsed, removed, never doubled against discovery) |
 | `tests/electron/lanHostRegistry.spec.ts` | ⭐ the LAN presence/liveness engine — the two bugs above as assertions |
 | `tests/integration/lanDiscovery.spec.ts` | real multicast + real sockets end to end (`npm run test:integration`) |

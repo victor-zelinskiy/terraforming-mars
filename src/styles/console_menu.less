@@ -514,6 +514,12 @@
     color: mix(#ffffff, @con-amber, 35%);
     font-size: .72rem;
 }
+/* «12 с назад» — the sort key, said out loud. Brighter than the rest of the
+   meta line because it is what explains the row's position. */
+.cm-game__age {
+    color: mix(#ffffff, @con-cyan, 55%);
+    font-variant-numeric: tabular-nums;
+}
 /* The LAN head names WHO the listing is scoped to — matching is by player
    name, and a host with no row is usually a seat under a different one. */
 .cm-gamelist__lanwho {

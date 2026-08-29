@@ -98,11 +98,11 @@ function send(channel: Channel, message: Parameters<typeof serializeMessage>[0])
 
 function clearTimers(channel: Channel): void {
   if (channel.pingTimer !== undefined) {
-    clearInterval(channel.pingTimer);
+    window.clearInterval(channel.pingTimer);
     channel.pingTimer = undefined;
   }
   if (channel.reconnectTimer !== undefined) {
-    clearTimeout(channel.reconnectTimer);
+    window.clearTimeout(channel.reconnectTimer);
     channel.reconnectTimer = undefined;
   }
 }
