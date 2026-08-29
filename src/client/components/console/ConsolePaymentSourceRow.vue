@@ -46,12 +46,13 @@
       </span>
     </span>
 
-    <!-- CONTRIBUTION — what this source is worth against the price, in M€. -->
+    <!-- CONTRIBUTION — what this source is worth against the price, in the
+         price's own denomination (M€ for a card, energy for the trade fee). -->
     <span class="con-payrow__cell con-payrow__cell--worth">
       <span class="con-payrow__cap">{{ $t('Contribution') }}</span>
       <span class="con-payrow__worth">
         <span class="con-payrow__worth-num">{{ row.contribution }}</span>
-        <i class="resource_icon resource_icon--megacredits con-payrow__worth-icon" aria-hidden="true"></i>
+        <i class="resource_icon con-payrow__worth-icon" :class="'resource_icon--' + costUnit" aria-hidden="true"></i>
       </span>
     </span>
 
@@ -88,7 +89,7 @@
  * naming the resource, what is spent, what remains and what it is worth.
  */
 import {defineComponent, PropType} from 'vue';
-import {PaymentSourceRow, paymentUnitIcon} from '@/client/console/paymentPlan';
+import {PaymentSourceRow, paymentUnitIcon, paymentUnitLabel} from '@/client/console/paymentPlan';
 import GamepadGlyph from '@/client/components/gamepad/GamepadGlyph.vue';
 import {iconClassFor} from '@/client/components/modalInputs/optionIcons';
 import {translateText} from '@/client/directives/i18n';
@@ -100,6 +101,8 @@ export default defineComponent({
     row: {type: Object as PropType<PaymentSourceRow>, required: true},
     /** Density — `compact` mutes the micro captions, `expanded` lifts them. */
     mode: {type: String as PropType<'compact' | 'expanded'>, default: 'compact'},
+    /** The price's denomination — the contribution column's icon/aria unit. */
+    costUnit: {type: String, default: 'megacredits'},
     /** The expanded editor's cursor is on this row (LB/RB drive it). */
     focused: {type: Boolean, default: false},
     /** Bumped by the host on each adjust to re-key the one-shot pulse. */
@@ -125,11 +128,12 @@ export default defineComponent({
     },
     ariaLabel(): string {
       const r = this.row;
+      const unit = this.costUnit === 'megacredits' ? 'M€' : translateText(paymentUnitLabel(this.costUnit));
       const parts = [
         translateText(r.labelKey),
         `${translateText(this.usedCapKey)}: ${r.used}`,
         `${translateText('Remaining')}: ${r.remaining} ${translateText('of')} ${r.available}`,
-        `${translateText('Contribution')}: ${r.contribution} M€`,
+        `${translateText('Contribution')}: ${r.contribution} ${unit}`,
       ];
       if (r.auto) {
         parts.push(translateText('Paid automatically'));

@@ -6495,11 +6495,19 @@ export default defineComponent({
           // The dossier composition: B is the only verb.
           return [{control: 'back', label: 'Back'}];
         }
-        return [
+        // The Delta Works mix dial rides the bar ONLY while it actually
+        // works (energy family chosen, a real range, no commit in flight) —
+        // the panel's own row pills carry the same pair beside the value.
+        const tradeCmds: Array<ConsoleCommand> = [];
+        if (consoleColoniesUi.composerMixAdjustable) {
+          tradeCmds.push({control: 'bumperL', control2: 'bumperR', label: 'Payment mix', priority: 2});
+        }
+        tradeCmds.push(
           {control: 'confirm', label: 'Select', enabled: consoleColoniesUi.composerEditable},
           {control: 'secondary', label: 'Confirm trade', enabled: consoleColoniesUi.composerReady, highlight: consoleColoniesUi.composerReady},
           {control: 'back', label: 'Back'},
-        ];
+        );
+        return tradeCmds;
       }
       if (this.colonyInspectModel !== undefined) {
         // The read-only JOURNAL colony dossier: B closes, nothing else.

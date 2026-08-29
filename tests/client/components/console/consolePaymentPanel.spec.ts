@@ -2,7 +2,7 @@ import {mount} from '@vue/test-utils';
 import {globalConfig} from '../getLocalVue';
 import {expect} from 'chai';
 import ConsolePaymentPanel from '@/client/components/console/ConsolePaymentPanel.vue';
-import {buildPaymentView, PaymentLane, PaymentView} from '@/client/console/paymentPlan';
+import {buildEnergyMixView, buildPaymentView, PaymentLane, PaymentView} from '@/client/console/paymentPlan';
 
 /**
  * The ONE console payment panel, rendered in both densities.
@@ -237,5 +237,61 @@ describe('ConsolePaymentPanel — one panel, two densities', () => {
       const w = mountPanel(view({cost: 12, lanes: [lane], counts: {}, mcAvailable: 20}));
       expect(w.findAll('.con-payrow')[0].find('.con-payrow__icon').classes(), lane.unit).to.include(expected);
     }
+  });
+
+  /**
+   * The ENERGY-EQUIVALENT price (Delta Works: 1 steel = 1 energy) — the SAME
+   * panel over `buildEnergyMixView`: an energy-denominated ledger (every
+   * price/contribution icon follows `costUnit`), steel as the one dialable
+   * lane, energy as the auto lane that tops up the remainder, and the
+   * modifier's source badge naming the card.
+   */
+  it('an energy-denominated view swaps every ledger icon to energy and badges the source card', () => {
+    const v = buildEnergyMixView({cost: 3, energyAvailable: 500, steelAvailable: 502, minSteel: 0, maxSteel: 3, steelUsed: 1});
+    const w = mountPanel(v, {titleKey: 'Payment mix', hintMode: 'none', sourceCard: 'Delta Works'});
+    expect(unitsOf(w)).to.deep.equal(['steel', 'energy']);
+    // The price and the verdict ledger are stated in ENERGY, not M€.
+    expect(w.find('.con-pay__price-icon').classes()).to.include('resource_icon--energy');
+    expect(w.find('.con-paystatus__icon').classes()).to.include('resource_icon--energy');
+    const [steel, energy] = w.findAll('.con-payrow');
+    expect(steel.find('.con-payrow__worth-icon').classes()).to.include('resource_icon--energy');
+    // Steel is the dialable lane (pills in place, no editor hint), 1:1 —
+    // never the ×2 steelValue of a card payment.
+    expect(steel.find('.con-payrow__pills').exists()).to.be.true;
+    expect(steel.find('.con-payrow__rate').exists()).to.be.false;
+    expect(w.find('.con-pay__hint').exists()).to.be.false;
+    // Energy tops up the remainder — the auto lane's own caption + badge.
+    expect(energy.find('.con-payrow__auto').exists()).to.be.true;
+    expect(energy.find('.con-payrow__used').text()).to.equal('2');
+    expect(steel.find('.con-payrow__used').text()).to.equal('1');
+    // The modifier's source badge: the card name + the 1:1 exchange rule.
+    const badge = w.find('.con-pay__source');
+    expect(badge.exists()).to.be.true;
+    expect(badge.find('.con-pay__source-card').text()).to.equal('Delta Works');
+    expect(badge.findAll('.con-pay__source-icon')).to.have.length(2);
+    // The verdict: paid 3 / 3, exact.
+    expect(w.find('.con-paystatus__paid').text()).to.equal('3');
+    expect(w.find('.con-paystatus').classes()).to.include('con-paystatus--exact');
+  });
+
+  it('a single-allocation energy price is read-only: no pills, no badge without a mix', () => {
+    const v = buildEnergyMixView({cost: 1, energyAvailable: 5, steelAvailable: 0, minSteel: 0, maxSteel: 0, steelUsed: 0});
+    const w = mountPanel(v, {hintMode: 'none'});
+    expect(unitsOf(w)).to.deep.equal(['energy']);
+    const energy = w.findAll('.con-payrow')[0];
+    // Alone, energy is simply the price — not an «auto» lane topping up.
+    expect(energy.find('.con-payrow__auto').exists()).to.be.false;
+    expect(energy.find('.con-payrow__pills').exists()).to.be.false;
+    expect(w.find('.con-pay__source').exists()).to.be.false;
+    expect(w.find('.con-paystatus').classes()).to.include('con-paystatus--exact');
+  });
+
+  it('an unaffordable energy price blocks with an honest shortfall in energy units', () => {
+    const v = buildEnergyMixView({cost: 5, energyAvailable: 1, steelAvailable: 2, minSteel: 3, maxSteel: 2, steelUsed: 0});
+    const w = mountPanel(v, {hintMode: 'none'});
+    expect(w.find('.con-pay--blocked').exists()).to.be.true;
+    expect(w.find('.con-paystatus').classes()).to.include('con-paystatus--short');
+    expect(w.find('.con-paystatus__delta').text()).to.equal('2');
+    expect(w.find('.con-paystatus__delta-icon').classes()).to.include('resource_icon--energy');
   });
 });

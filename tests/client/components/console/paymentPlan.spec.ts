@@ -1,6 +1,7 @@
 import {expect} from 'chai';
 import {
-  alternativeContribution, autoMegacredits, dialLaneCount, initialCounts, laneCap,
+  alternativeContribution, autoMegacredits, buildEnergyMixView, clampEnergyMixSteel,
+  dialLaneCount, initialCounts, laneCap,
   paymentCovers, paymentFromCounts, PaymentLane,
   paymentLanes, paymentOverpay, paymentTotal, PaymentPromptLike, projectCardPaymentOptions,
   projectCardPaymentPrompt, paymentUnitIcon,
@@ -384,5 +385,123 @@ describe('paymentPlan (T3 native payment math)', () => {
     // Standard resources already ARE their sprite key.
     expect(paymentUnitIcon('plants')).to.eq('plants');
     expect(paymentUnitIcon('megacredits')).to.eq('megacredits');
+  });
+});
+
+/**
+ * The ENERGY-EQUIVALENT mix (Delta Works: 1 steel = 1 energy) — the ONE
+ * canonical draft behind the Hydronetwork advance panel AND the colony
+ * trade's energy family. Steel is the dialable lane, energy the auto lane
+ * that settles the remainder; panel, summary, confirm availability and the
+ * request payload all read THIS view — never a second arithmetic.
+ */
+describe('paymentPlan · buildEnergyMixView (Delta Works 1 steel = 1 energy)', () => {
+  const bounds = (cost: number, energy: number, steel: number) => ({
+    cost,
+    energyAvailable: energy,
+    steelAvailable: steel,
+    minSteel: Math.max(0, cost - energy),
+    maxSteel: Math.min(steel, cost),
+  });
+
+  it('a dialed mix: rows, remainder, contribution and the exact verdict move together', () => {
+    const view = buildEnergyMixView({...bounds(3, 500, 502), steelUsed: 1});
+    expect(view.costUnit).to.eq('energy');
+    expect(view.rows.map((r) => r.unit)).to.deep.eq(['steel', 'energy']);
+    const [steel, energy] = view.rows;
+    expect(steel.used).to.eq(1);
+    expect(steel.remaining).to.eq(501);
+    expect(steel.contribution).to.eq(1);
+    expect(steel.quickAdjust).to.eq(true);
+    expect(energy.used).to.eq(2);
+    expect(energy.remaining).to.eq(498);
+    expect(energy.contribution).to.eq(2);
+    expect(energy.auto).to.eq(true);
+    expect(energy.editable).to.eq(false);
+    // Contribution always equals the required total — the linked-dial law.
+    expect(steel.contribution + energy.contribution).to.eq(3);
+    expect(view.status.kind).to.eq('exact');
+    expect(view.status.paid).to.eq(3);
+    expect(view.status.costUnit).to.eq('energy');
+    expect(view.paymentValid).to.eq(true);
+  });
+
+  it('+1 steel is simultaneously −1 energy (and back) — one draft, one update', () => {
+    const b = bounds(3, 500, 502);
+    const at = (steel: number) => buildEnergyMixView({...b, steelUsed: steel});
+    for (const steel of [0, 1, 2, 3]) {
+      const view = at(steel);
+      expect(view.rows[0].used).to.eq(steel);
+      expect(view.rows[1].used).to.eq(3 - steel);
+      expect(view.status.paid).to.eq(3);
+      expect(view.status.kind).to.eq('exact');
+    }
+  });
+
+  it('the clamp obeys the server bounds, never the raw preference', () => {
+    // Deficit forces a minimum steel share; stock caps the maximum.
+    expect(clampEnergyMixSteel(0, {minSteel: 2, maxSteel: 3})).to.eq(2);
+    expect(clampEnergyMixSteel(99, {minSteel: 2, maxSteel: 3})).to.eq(3);
+    expect(clampEnergyMixSteel(2, {minSteel: 0, maxSteel: 3})).to.eq(2);
+    // Unaffordable (min > max): everything usable, the verdict blocks.
+    expect(clampEnergyMixSteel(0, {minSteel: 4, maxSteel: 2})).to.eq(2);
+  });
+
+  it('price 1 with both resources: the two whole allocations toggle', () => {
+    const b = bounds(1, 500, 502);
+    const energyOnly = buildEnergyMixView({...b, steelUsed: 0});
+    expect(energyOnly.rows[0].used).to.eq(0);
+    expect(energyOnly.rows[1].used).to.eq(1);
+    expect(energyOnly.quickAdjustEligible).to.eq(true);
+    const steelOnly = buildEnergyMixView({...b, steelUsed: 1});
+    expect(steelOnly.rows[0].used).to.eq(1);
+    expect(steelOnly.rows[1].used).to.eq(0);
+    expect(steelOnly.status.kind).to.eq('exact');
+  });
+
+  it('a single valid allocation is read-only: no dial, no quick-adjust, no editor', () => {
+    // Steel-only (no energy at all): min = max = cost.
+    const forced = buildEnergyMixView({...bounds(2, 0, 5), steelUsed: 0});
+    expect(forced.rows[0].used).to.eq(2); // clamped up to the deficit
+    expect(forced.rows[0].canIncrease).to.eq(false);
+    expect(forced.rows[0].canDecrease).to.eq(false);
+    expect(forced.rows[0].quickAdjust).to.eq(false);
+    expect(forced.configurable).to.eq(false);
+    expect(forced.quickAdjustEligible).to.eq(false);
+    expect(forced.editorEligible).to.eq(false);
+    expect(forced.status.kind).to.eq('exact');
+  });
+
+  it('no substitution (steelAvailable 0) = the plain energy price, one row, not «auto»', () => {
+    const view = buildEnergyMixView({cost: 2, energyAvailable: 5, steelAvailable: 0, minSteel: 0, maxSteel: 0, steelUsed: 0});
+    expect(view.rows.map((r) => r.unit)).to.deep.eq(['energy']);
+    expect(view.rows[0].auto).to.eq(false);
+    expect(view.rows[0].used).to.eq(2);
+    expect(view.configurable).to.eq(false);
+    expect(view.status.kind).to.eq('exact');
+  });
+
+  it('an unaffordable price is an honest shortfall that blocks the confirm', () => {
+    const view = buildEnergyMixView({...bounds(5, 1, 2), steelUsed: 0});
+    // Everything usable is on the table (1 energy + 2 steel), 2 missing.
+    expect(view.rows[0].used).to.eq(2);
+    expect(view.rows[1].used).to.eq(1);
+    expect(view.status.kind).to.eq('short');
+    expect(view.status.delta).to.eq(2);
+    expect(view.paymentValid).to.eq(false);
+    expect(view.rows[0].canIncrease).to.eq(false);
+  });
+
+  it('the editor stage is NEVER advertised — the compact block is the whole editor', () => {
+    const adjustable = buildEnergyMixView({...bounds(3, 500, 502), steelUsed: 1});
+    expect(adjustable.editorEligible).to.eq(false);
+    expect(adjustable.quickAdjustUnit).to.eq('steel');
+  });
+
+  it('rate is 1:1 by rule — never steelValue, and overpay is unreachable', () => {
+    const view = buildEnergyMixView({...bounds(3, 500, 502), steelUsed: 3});
+    expect(view.rows[0].rate).to.eq(1);
+    expect(view.overpay).to.eq(0);
+    expect(view.status.paid).to.eq(3);
   });
 });

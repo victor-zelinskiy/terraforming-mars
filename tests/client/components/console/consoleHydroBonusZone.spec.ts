@@ -108,7 +108,7 @@ function mountSection(offer: DeltaBonusPromptMeta | undefined, opts: {
       // owed a prompt» means, and every mount with an offer has one.
       ownsPrompt: opts.ownsPrompt ?? offer !== undefined,
     },
-    global: {stubs: {ConsoleWsHead: true, ConsoleCardFaceLite: true, ConsoleSourceDock: true, ConsolePlayedTargetStep: true, GamepadGlyph: true, HydroReward: true}},
+    global: {stubs: {ConsoleWsHead: true, ConsoleCardFaceLite: true, ConsoleSourceDock: true, ConsolePlayedTargetStep: true, GamepadGlyph: true, HydroReward: true, ConsolePaymentPanel: true}},
   });
 }
 

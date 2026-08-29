@@ -425,9 +425,9 @@ export default defineComponent({
         return [];
       }
       const optionMeta = this.options[this.selectedIdx]?.metadata;
-      const payment = optionMeta?.icon !== undefined && optionMeta.amount !== undefined ?
-        {icon: optionMeta.icon, amount: optionMeta.amount} :
-        undefined;
+      const payments = optionMeta?.icon !== undefined && optionMeta.amount !== undefined ?
+        [{icon: optionMeta.icon, amount: optionMeta.amount}] :
+        [];
       const rewardPosition = this.trackChosen !== undefined ?
         Math.min((this.preview?.track.current ?? 0) + this.trackChosen, meta.trade.quantity.length - 1) :
         (this.preview?.track.effective ?? this.rewardTrackPosition);
@@ -437,7 +437,7 @@ export default defineComponent({
       const outcome = tradeOutcome({
         metadata: meta,
         rewardPosition,
-        payment,
+        payments,
         ownColonyCount,
         stocks: player !== undefined ? {
           megacredits: player.megacredits,

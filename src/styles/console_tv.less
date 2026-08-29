@@ -852,8 +852,6 @@ html.con-profile-tv {
         &__req-tag { padding: 0.5rem 0.7rem; min-height: var(--con-hit-min); }
         &__req-tag .resource-tag { width: 2.1rem; height: 2.1rem; }
         &__req-mark { font-size: var(--con-t-secondary); }
-        &__req-energy { font-size: 1.05rem; b { font-size: 1.25rem; } }
-        &__req-have { font-size: var(--con-t-secondary); }
         &__routenote { font-size: var(--con-t-caption); }
         /* Track stops: the VP / flag / position marks read from the couch. */
         &__stop-vp { font-size: 1.25rem; }
@@ -867,9 +865,16 @@ html.con-profile-tv {
            voice. Matches the base override's specificity (panel-scoped). */
         &__panel:not(.con-hydro__panel--details) .con-hydro__stage-tag { width: 4.4rem; height: 4.4rem; }
         &__panel:not(.con-hydro__panel--details) .con-hydro__stage-name { font-size: 1.75rem; }
+        /* The plan dossier hosts the 4-column grid (hero · reading · payment
+           · act) — the band has the width (its right side stood empty), and
+           the payment column reserves the couch-metric panel row's TRUE
+           intrinsic width (icon 1.8 + name + 5/7.2/5 numeric + 7.6 tail +
+           gaps + padding ≈ 35rem): narrower, and the dial pills hang past
+           the frame — the shipped defect this line exists to prevent. */
+        &__panel:not(.con-hydro__panel--details):not(.con-hydro__panel--bonus) { width: min(88rem, 100%); }
         &__panel:not(.con-hydro__panel--details):not(.con-hydro__panel--bonus) .con-hydro__panelbody {
-            grid-template-columns: minmax(15rem, 19rem) minmax(0, 1fr) minmax(17rem, 21rem);
-            column-gap: 1.6rem;
+            grid-template-columns: minmax(14rem, 17rem) minmax(0, 1fr) minmax(35.2rem, 36.5rem) minmax(14rem, 18rem);
+            column-gap: 1.3rem;
             row-gap: .9rem;
         }
         &__stage-vp { font-size: 1.1rem; }

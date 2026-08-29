@@ -134,6 +134,41 @@
         color: fade(@con-cyan, 88%);
     }
 
+    /* ── The payment MODIFIER's source badge — «Delta Works · 1 🔩 = 1 ⚡».
+       A quiet secondary line between the rows and the verdict: the CARD name
+       leads (its own voice, cyan like every source attribution), the exchange
+       rule follows as icon arithmetic. Reserved height — the badge is constant
+       for the flow's whole life, so it never shifts the CTA. ── */
+    &__source {
+        display: flex;
+        align-items: center;
+        gap: .3rem;
+        min-height: 1.15rem;
+        font-size: .68rem;
+        line-height: 1.15rem;
+    }
+    &__source-card {
+        font-weight: 700;
+        letter-spacing: .03rem;
+        color: fade(@con-cyan, 90%);
+    }
+    &__source-rule {
+        display: inline-flex;
+        align-items: center;
+        gap: .12rem;
+        color: @con-text-dim;
+        font-variant-numeric: tabular-nums;
+    }
+    &__source-icon {
+        width: .85rem;
+        height: .85rem;
+        display: inline-block;
+        background-size: contain !important;
+        background-repeat: no-repeat;
+        background-position: center;
+        vertical-align: middle;
+    }
+
     &__rows {
         display: flex;
         flex-direction: column;

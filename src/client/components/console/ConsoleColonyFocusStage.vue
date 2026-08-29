@@ -404,34 +404,48 @@
                    commit the server takes the options away and a bare
                    «СПОСОБ ОПЛАТЫ» over nothing read as a broken panel. -->
               <div v-if="tradeConfigLive && visiblePayEntries.length + visibleDisabledEntries.length > 0" class="con-colfocus__sec-title">{{ $t('Payment method') }}</div>
-              <div v-for="entry in tradeConfigLive ? visiblePayEntries : []" :key="'p' + entry.index"
-                   class="con-colfocus__payrow"
-                   :class="{
-                     'con-colfocus__payrow--focused': isFocused('pay', entry.index),
-                     'con-colfocus__payrow--chosen': payIdx === entry.index,
-                     // THE FEE IS FIXED by the entry (a card action walked in
-                     // here), and a fixed fee is not a list: the other paths
-                     // are not merely unpickable, they are unreachable, so
-                     // showing them would be a menu that refuses every item.
-                     // They are filtered out entirely — see `visiblePayEntries`.
-                     'con-colfocus__payrow--locked': lockedPayIdx === entry.index,
-                   }"
-                   :ref="isFocused('pay', entry.index) ? 'focusedEl' : undefined">
-                <span class="con-colfocus__payrow-pick" aria-hidden="true">
-                  <span v-if="payIdx === entry.index" class="con-colfocus__payrow-dot"></span>
-                </span>
-                <i v-if="entry.iconClass !== ''" class="con-colfocus__payrow-icon" :class="entry.iconClass" aria-hidden="true"></i>
-                <span class="con-colfocus__payrow-title">{{ entry.title }}</span>
-                <span v-if="entry.preview !== ''" class="con-colfocus__payrow-delta">{{ entry.preview }}</span>
-                <!-- Delta Works: the energy fee's SOURCE mix — one linked line
-                     (steel dialed with the bumpers, energy is the remainder). -->
-                <span v-if="entry.index === payIdx && energyMixInfo !== undefined" class="con-colfocus__payrow-mix">
-                  <i class="resource_icon resource_icon--energy" aria-hidden="true"></i><b>{{ (energyMixInfo.cost ?? 0) - tradeSteelMix }}</b>
-                  <span aria-hidden="true">+</span>
-                  <i class="resource_icon resource_icon--steel" aria-hidden="true"></i><b>{{ tradeSteelMix }}</b>
-                  <span class="con-colfocus__payrow-mix-src">{{ $t(energyMixInfo.card) }}</span>
-                </span>
-              </div>
+              <template v-for="entry in tradeConfigLive ? visiblePayEntries : []" :key="'p' + entry.index">
+                <div class="con-colfocus__payrow"
+                     :class="{
+                       'con-colfocus__payrow--focused': isFocused('pay', entry.index),
+                       'con-colfocus__payrow--chosen': payIdx === entry.index,
+                       // THE FEE IS FIXED by the entry (a card action walked in
+                       // here), and a fixed fee is not a list: the other paths
+                       // are not merely unpickable, they are unreachable, so
+                       // showing them would be a menu that refuses every item.
+                       // They are filtered out entirely — see `visiblePayEntries`.
+                       'con-colfocus__payrow--locked': lockedPayIdx === entry.index,
+                     }"
+                     :ref="isFocused('pay', entry.index) ? 'focusedEl' : undefined">
+                  <span class="con-colfocus__payrow-pick" aria-hidden="true">
+                    <span v-if="payIdx === entry.index" class="con-colfocus__payrow-dot"></span>
+                  </span>
+                  <i v-if="entry.iconClass !== ''" class="con-colfocus__payrow-icon" :class="entry.iconClass" aria-hidden="true"></i>
+                  <span class="con-colfocus__payrow-title">{{ entry.title }}</span>
+                  <!-- The energy-first delta is HIDDEN under a live mix: the
+                       composition panel below carries the honest remainders
+                       of BOTH resources — a single «500 → 497» beside it
+                       would be the stale energy-only reading again. -->
+                  <span v-if="entry.preview !== '' && !(entry.index === payIdx && energyMixInfo !== undefined)"
+                        class="con-colfocus__payrow-delta">{{ entry.preview }}</span>
+                </div>
+                <!-- Delta Works: the energy fee's COMPOSITION — the SHARED
+                     compact premium payment panel (the card-play selector's
+                     grammar) over the ONE mix draft, unfolded INSIDE the
+                     chosen family's row group. Steel is dialed with the
+                     bumpers (the pills sit on its row), energy tops up the
+                     remainder, the badge names the card that widened the
+                     family. Never a fourth payment method, never a modal. -->
+                <div v-if="entry.index === payIdx && energyMixInfo !== undefined"
+                     class="con-colfocus__paymix">
+                  <ConsolePaymentPanel :view="tradeMixView"
+                                       mode="compact"
+                                       hint-mode="none"
+                                       title-key="Payment mix"
+                                       :source-card="energyMixInfo.card"
+                                       :flash-nonce="mixFlashNonce" />
+                </div>
+              </template>
               <div v-for="(d, i) in tradeConfigLive ? visibleDisabledEntries : []" :key="'d' + i" class="con-colfocus__payrow con-colfocus__payrow--off">
                 <span class="con-colfocus__payrow-pick" aria-hidden="true"></span>
                 <i v-if="d.iconClass !== ''" class="con-colfocus__payrow-icon" :class="d.iconClass" aria-hidden="true"></i>
@@ -450,7 +464,19 @@
                 </span>
                 <i v-if="heldPayment.iconClass !== ''" class="con-colfocus__payrow-icon" :class="heldPayment.iconClass" aria-hidden="true"></i>
                 <span class="con-colfocus__payrow-title">{{ heldPayment.title }}</span>
-                <span v-if="heldPayment.preview !== ''" class="con-colfocus__payrow-delta">{{ heldPayment.preview }}</span>
+                <!-- A mix commit keeps showing the ACTUAL composition it was
+                     paid with — never the energy-first preview the family's
+                     row advertised before the dial. -->
+                <span v-if="heldPayment.mix !== undefined" class="con-colfocus__payrow-mix">
+                  <template v-if="heldPayment.mix.energy > 0">
+                    <i class="resource_icon resource_icon--energy" aria-hidden="true"></i><b>{{ heldPayment.mix.energy }}</b>
+                  </template>
+                  <span v-if="heldPayment.mix.energy > 0 && heldPayment.mix.steel > 0" aria-hidden="true">+</span>
+                  <template v-if="heldPayment.mix.steel > 0">
+                    <i class="resource_icon resource_icon--steel" aria-hidden="true"></i><b>{{ heldPayment.mix.steel }}</b>
+                  </template>
+                </span>
+                <span v-else-if="heldPayment.preview !== ''" class="con-colfocus__payrow-delta">{{ heldPayment.preview }}</span>
               </div>
 
               <template v-if="stepRows.length > 0">
@@ -795,6 +821,8 @@ import {
   initialCounts,
   dialLaneCount,
   buildPaymentView,
+  buildEnergyMixView,
+  clampEnergyMixSteel,
   editableRows,
   PaymentLane,
   PaymentView,
@@ -859,7 +887,14 @@ function textOf(v: string | Message | undefined): string {
   return typeof v === 'string' ? translateText(v) : translateMessage(v);
 }
 
-type PayEntry = {title: string, iconClass: string, preview: string};
+type PayEntry = {
+  title: string,
+  iconClass: string,
+  preview: string,
+  /** The Delta Works mix PINNED at the commit boundary — the held row keeps
+   *  showing the composition the move was actually paid with. */
+  mix?: {energy: number, steel: number},
+};
 type StepRow = {
   key: string,
   kind: 'payment' | 'trackChoice' | 'cardTarget',
@@ -940,6 +975,8 @@ export default defineComponent({
       /** The dialed Delta Works steel share (clamped live in `tradeSteelMix`);
        *  0 keeps the energy-first default — steel covers only the deficit. */
       steelMixPreference: 0,
+      /** Re-keys the mix panel's one-shot pulse on each dial press. */
+      mixFlashNonce: 0,
       focusIdx: 0,
       subIdx: 0,
       sub: undefined as Sub,
@@ -1416,18 +1453,37 @@ export default defineComponent({
       }
       return mix;
     },
-    /** The EFFECTIVE steel share: the dialed preference clamped to the live
-     *  range — energy-first by default (preference 0 → the bare deficit). */
+    /** The EFFECTIVE steel share — THE canonical draft value: the dialed
+     *  preference clamped by the ONE shared rule to the SERVER's own bounds
+     *  (energy-first by default — preference 0 is the bare deficit). The
+     *  family row, the composition panel, the right «ОПЛАТА» summary and the
+     *  submitted batch all read THIS number. */
     tradeSteelMix(): number {
       const mix = this.energyMixInfo;
       if (mix === undefined) {
         return 0;
       }
-      return Math.max(mix.minSteel, Math.min(this.steelMixPreference, mix.maxSteel));
+      return clampEnergyMixSteel(this.steelMixPreference, mix);
     },
     tradeMixAdjustable(): boolean {
       const mix = this.energyMixInfo;
       return mix !== undefined && mix.maxSteel > mix.minSteel;
+    },
+    /** The whole energy-family fee as the SHARED PaymentView — the same rows /
+     *  captions / verdict grammar the card-play selector renders. */
+    tradeMixView(): PaymentView {
+      const mix = this.energyMixInfo;
+      if (mix === undefined) {
+        return buildEnergyMixView({cost: 0, energyAvailable: 0, steelAvailable: 0, minSteel: 0, maxSteel: 0, steelUsed: 0});
+      }
+      return buildEnergyMixView({
+        cost: mix.cost,
+        energyAvailable: mix.energyAvailable,
+        steelAvailable: mix.steelAvailable,
+        minSteel: mix.minSteel,
+        maxSteel: mix.maxSteel,
+        steelUsed: this.tradeSteelMix,
+      });
     },
     tradeConfigLive(): boolean {
       return this.intent === 'trade' && this.presentAvailable;
@@ -1731,18 +1787,45 @@ export default defineComponent({
       }
       return this.colony.colonies.filter((c) => c === this.viewerColor).length;
     },
-    outcome(): {cost: Array<TradeOutcomeChip>, gains: Array<TradeOutcomeChip>} {
-      const player = this.thisPlayer;
-      const meta = this.tradeConfigLive ? this.options[this.payIdx]?.metadata : undefined;
-      const payment = meta?.icon !== undefined && meta.amount !== undefined ?
+    /**
+     * The ACTUAL payment parts of the chosen path — THE one place the right
+     * «ОПЛАТА» summary, its `current → resulting` pairs and the running-stock
+     * sequence read the fee from. For the energy family under Delta Works the
+     * parts come from the CANONICAL mix draft (`tradeSteelMix`), so a dial
+     * press updates the row, the composition panel and this summary in the
+     * same reactive flush — an energy-first «−3» over a dialed mix was the
+     * stale-summary bug this computed exists to kill.
+     */
+    outcomePayments(): Array<{icon: string, amount: number, resource?: {current: number, resulting: number}}> {
+      if (!this.tradeConfigLive) {
+        return [];
+      }
+      const mix = this.energyMixInfo;
+      if (mix !== undefined) {
+        const steel = this.tradeSteelMix;
+        const energy = Math.max(0, mix.cost - steel);
+        const parts: Array<{icon: string, amount: number}> = [];
+        if (energy > 0) {
+          parts.push({icon: 'energy', amount: energy});
+        }
+        if (steel > 0) {
+          parts.push({icon: 'steel', amount: steel});
+        }
+        return parts;
+      }
+      const meta = this.options[this.payIdx]?.metadata;
+      return meta?.icon !== undefined && meta.amount !== undefined ?
         // `resource` rides along: for a CARD-paid fee it is the ONLY source of
         // the before → after (the viewer's rail has no floaters on it).
-        {icon: meta.icon, amount: meta.amount, resource: meta.resource} :
-        undefined;
+        [{icon: meta.icon, amount: meta.amount, resource: meta.resource}] :
+        [];
+    },
+    outcome(): {cost: Array<TradeOutcomeChip>, gains: Array<TradeOutcomeChip>} {
+      const player = this.thisPlayer;
       return tradeOutcome({
         metadata: this.metadata,
         rewardPosition: this.rewardPosition,
-        payment,
+        payments: this.outcomePayments,
         ownColonyCount: this.ownColonyCount,
         flatBonuses: this.preview?.flatBonuses,
         stocks: player !== undefined ? {
@@ -1905,6 +1988,12 @@ export default defineComponent({
       this.measureFit();
     },
     canConfirm() {
+      this.syncUiMirror();
+    },
+    // The chosen family gates the mix dial's bar hint — a switch to
+    // M€/titanium must drop it in the same flush (the value the mirror
+    // publishes is derived, so only this edge re-publishes it).
+    payIdx() {
       this.syncUiMirror();
     },
     // The fee options arrive with the prompt, which can land a frame after the
@@ -2263,6 +2352,11 @@ export default defineComponent({
       // trade's two verbs (A opens the decision, X builds) instead of the bare
       // «A Построить», which would silently commit an unanswered decision.
       consoleColoniesUi.composerDecisions = this.hasDecisions;
+      // …and the LB/RB mix dial is advertised exactly while it works: energy
+      // family chosen, a real range to dial, no commit in flight. A stale
+      // hint over M€/titanium would promise a dead control.
+      consoleColoniesUi.composerMixAdjustable =
+        this.tradeMixAdjustable && this.sub === undefined && this.heldView === undefined;
     },
     /** The shell routes every intent here while the stage is open. */
     handleIntent(intent: GamepadIntent): void {
@@ -2346,7 +2440,14 @@ export default defineComponent({
       if (mix === undefined) {
         return;
       }
-      this.steelMixPreference = Math.max(mix.minSteel, Math.min(this.tradeSteelMix + delta, mix.maxSteel));
+      const next = clampEnergyMixSteel(this.tradeSteelMix + delta, mix);
+      if (next === this.tradeSteelMix) {
+        return;
+      }
+      this.steelMixPreference = next;
+      // Re-keys the one-shot pulse on the steel row — the shared payment
+      // acknowledgement, so the panel and the summary move as one beat.
+      this.mixFlashNonce += 1;
     },
     onPress(action: ConsoleAction): void {
       // THE TARGET STEP SPEAKS THE SHARED SELECTOR'S GRAMMAR — A chooses,
@@ -2778,10 +2879,20 @@ export default defineComponent({
       // panel (an origin larger than the zone clips to nothing and the unfold
       // silently degrades into a fade).
       armOutcomeOriginFrom(this.$refs.mainEl as HTMLElement | undefined);
+      // A mix fee pins the ACTUAL dialed composition into the held row — the
+      // entry's own preview is the energy-first default and would misreport
+      // a commit that spends steel.
+      const held: PayEntry | undefined = this.payEntries[this.payIdx];
+      const mix = this.energyMixInfo;
       this.heldView = {
         mode: this.presentMode,
         available: this.presentAvailable,
-        payment: this.payEntries[this.payIdx],
+        payment: held === undefined ? undefined : {
+          ...held,
+          ...(mix !== undefined ?
+            {mix: {energy: Math.max(0, mix.cost - this.tradeSteelMix), steel: this.tradeSteelMix}} :
+            {}),
+        },
       };
       // THE PRESENTED TARGETS — snapshotted AT the boundary, like everything
       // else in the held view: the server's answer will rewrite the preview
@@ -2816,6 +2927,7 @@ export default defineComponent({
     consoleColoniesUi.composerReady = false;
     consoleColoniesUi.composerEditable = false;
     consoleColoniesUi.composerDecisions = false;
+    consoleColoniesUi.composerMixAdjustable = false;
     // A stage that is GONE hides nothing: the closing beat must never wait on
     // a screen that no longer exists (the discard closes this stage mid-flow,
     // and the reset then plays on the restored one — or on the overview tile).

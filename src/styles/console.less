@@ -5252,7 +5252,10 @@ html.console-mode body.placement-pending .board-outer-spaces > .board-space.boar
        the frame pixel-exact if it ever had to. */
     &__panel {
         position: relative;
-        width: min(70rem, 100%);
+        /* Wide enough for the 4-column plan grid (hero · reading · payment ·
+           act) — the payment column earned real room out of the band's free
+           right side, never out of the reading column. */
+        width: min(78rem, 100%);
         min-height: 13.5rem;
         max-height: 100%;
         display: flex;
@@ -5293,13 +5296,19 @@ html.console-mode body.placement-pending .board-outer-spaces > .board-space.boar
        top of its own decision. */
     &__panel:not(&__panel--details):not(&__panel--bonus) .con-hydro__panelbody {
         display: grid;
-        grid-template-columns: minmax(12rem, 15rem) minmax(0, 1fr) minmax(14rem, 17rem);
+        /* hero · the stage's own reading · the PAYMENT COMPOSITION · the act.
+           The payment column is the compact premium panel (the card-play
+           selector's grammar) — it reads beside the outcome, never as a
+           micro-line squeezed under it. Its floor is the panel row's OWN
+           intrinsic width (icon + name + the three fixed numeric columns +
+           the dial tail): narrower, and the pills hang past the frame. */
+        grid-template-columns: minmax(12rem, 14rem) minmax(0, 1fr) minmax(30rem, 31rem) minmax(13.5rem, 16rem);
         grid-template-rows: auto auto auto minmax(0, 1fr);
         grid-template-areas:
-            "hero req     act"
-            "hero notes   act"
-            "hero gains   act"
-            "hero summary act";
+            "hero req     pay act"
+            "hero notes   pay act"
+            "hero gains   pay act"
+            "hero summary pay act";
         column-gap: 1.2rem;
         row-gap: .55rem;
     }
@@ -5322,6 +5331,7 @@ html.console-mode body.placement-pending .board-outer-spaces > .board-space.boar
         .con-hydro__reqline { grid-area: req; }
         .con-hydro__routenotes { grid-area: notes; }
         .con-hydro__gains { grid-area: gains; }
+        .con-hydro__pay { grid-area: pay; }
         .con-hydro__summary { grid-area: summary; align-self: start; }
         .con-hydro__ctazone {
             grid-area: act;
@@ -5353,34 +5363,18 @@ html.console-mode body.placement-pending .board-outer-spaces > .board-space.boar
         flex-wrap: wrap;
         min-height: 2.3rem;
     }
-    /* Delta Works payment mix — one linked line: energy + steel = the cost. */
-    &__mixline {
-        display: flex;
-        align-items: center;
-        gap: .45rem;
-        flex-wrap: wrap;
-        min-height: 1.5rem;
-        font-size: .775rem;
-    }
-    &__mix-part {
-        display: inline-flex;
-        align-items: center;
-        gap: .2rem;
-    }
-    &__mix-plus { color: @con-text-dim; }
-    &__mix-dial {
-        display: inline-flex;
-        align-items: center;
-        gap: .15rem;
-    }
-    &__mix-left { font-size: .725rem; color: @con-text-dim; }
-    &__mix-src {
-        margin-left: auto;
-        font-size: .7rem;
-        color: @con-cyan;
-        display: inline-flex;
-        align-items: center;
-        gap: .15rem;
+    /* THE PAYMENT COMPOSITION column — hosts the SHARED compact premium
+       payment panel (.con-pay). The old one-line «ОПЛАТА ⚡1+🔩0 …» micro-mix
+       is gone: composition, remainders, contribution and the verdict are the
+       panel's own rows, TV-readable by construction. */
+    &__pay {
+        align-self: start;
+        min-width: 0;
+
+        .con-pay { width: 100%; }
+        /* NO token retune here: the panel's shared metrics (incl. the couch
+           bump in console_payment.less) are the ONE payment language — the
+           column below reserves the row's true intrinsic width instead. */
     }
     &__routenotes {
         display: flex;
@@ -5542,26 +5536,9 @@ html.console-mode body.placement-pending .board-outer-spaces > .board-space.boar
     }
     &__req-mark { font-size: .75rem; font-weight: 800; }
     &__req-wild { color: @con-cyan; font-size: .7rem; font-weight: 800; }
-    &__req-energy {
-        display: inline-flex;
-        align-items: center;
-        gap: .4rem;
-        align-self: flex-start;
-        padding: .4rem .6rem;
-        border-radius: .5rem;
-        background: rgba(12, 20, 30, 0.6);
-        box-shadow: inset 0 0 0 .05rem fade(@con-hydro-mint, 40%);
-        font-size: .85rem;
-        b { font-size: 1rem; }
-        .con-hydro__req-mark { color: @con-hydro-mint; }
-
-        &--short {
-            box-shadow: inset 0 0 0 .05rem fade(@con-red, 60%);
-            background: fade(@con-red, 7%);
-            .con-hydro__req-mark { color: @con-red; }
-        }
-    }
-    &__req-have { font-size: .725rem; color: @con-text-dim; }
+    /* (The old `__req-energy` affordability chip is gone: owning the resources
+       that PAY for the move is not a tag requirement — the payment panel's
+       verdict is the one place that says «не хватает».) */
     &__vpline {
         display: flex;
         align-items: center;
@@ -6536,8 +6513,6 @@ html.con-profile-handheld .con-hydro {
     .con-hydro__route { font-size: .8rem; b { font-size: .9rem; } }
     .con-hydro__route-cost { font-size: .7rem; }
     .con-hydro__req-tag .resource-tag { width: 1.1rem; height: 1.1rem; }
-    .con-hydro__req-energy { font-size: .75rem; padding: .3rem .5rem; b { font-size: .85rem; } }
-    .con-hydro__req-have { font-size: .625rem; }
     .con-hydro__routenote { font-size: .65rem; }
     .con-hydro__delta { font-size: .75rem; }
     .con-hydro__delta-img { width: 1.1rem; height: 1.1rem; }
@@ -16291,7 +16266,8 @@ html.con-profile-large.console-mode .notifications-layer.notifications-layer--jo
     &__payrow-title { flex: 1; min-width: 0; font-size: .8rem; font-weight: 700; overflow: hidden; text-overflow: ellipsis; }
     &__payrow-delta { font-size: .74rem; font-weight: 700; color: fade(@con-cyan, 85%); font-variant-numeric: tabular-nums; }
     &__payrow-reason { font-size: .66rem; color: @con-amber; }
-    /* Delta Works: the energy fee's live source mix on the chosen row. */
+    /* Delta Works: the COMMITTED mix pinned on the held row («⚡2 + 🔩1») —
+       the live composition itself is the shared panel below the chosen row. */
     &__payrow-mix {
         display: inline-flex;
         align-items: center;
@@ -16300,7 +16276,15 @@ html.con-profile-large.console-mode .notifications-layer.notifications-layer--jo
         font-variant-numeric: tabular-nums;
         .resource_icon { width: .85rem; height: .85rem; }
     }
-    &__payrow-mix-src { margin-left: .3rem; font-size: .62rem; color: fade(@con-cyan, 75%); }
+    /* The energy family's COMPOSITION — the shared compact premium payment
+       panel (.con-pay), unfolded INSIDE the chosen row's group: indented under
+       the radio column so it reads as part of the selected method, never as a
+       new surface or a fourth payment path. */
+    &__paymix {
+        margin: .15rem 0 .35rem 1.65rem;
+
+        .con-pay { width: 100%; }
+    }
     &__steprow {
         display: flex;
         align-items: center;

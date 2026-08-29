@@ -519,6 +519,7 @@
   "Trade": "Торговать",
   "Pay ${0} titanium": "Заплатить ${0} титана",
   "Pay ${0} energy": "Заплатить ${0} энергии",
+  "Pay ${0} energy and/or steel": "Заплатить ${0}: энергия и/или сталь",
   "Not enough energy": "Недостаточно энергии",
   "Not enough energy and steel": "Недостаточно энергии и стали",
   "Not enough titanium": "Недостаточно титана",

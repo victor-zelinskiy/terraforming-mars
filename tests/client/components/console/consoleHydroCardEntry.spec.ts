@@ -97,7 +97,7 @@ function mountSection(opts: {
       // entry has none — that is the whole point.
       ownsPrompt: opts.bonusOffer !== undefined,
     },
-    global: {stubs: {ConsoleWsHead: true, ConsoleCardFaceLite: true, ConsoleSourceDock: true, ConsolePlayedTargetStep: true, GamepadGlyph: true, HydroReward: true}},
+    global: {stubs: {ConsoleWsHead: true, ConsoleCardFaceLite: true, ConsoleSourceDock: true, ConsolePlayedTargetStep: true, GamepadGlyph: true, HydroReward: true, ConsolePaymentPanel: true}},
   });
 }
 

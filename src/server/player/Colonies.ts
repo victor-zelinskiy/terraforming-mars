@@ -339,6 +339,14 @@ export class TradeWithEnergy implements IColonyTrader {
     return this.player.energy + this.steelSubstitute() >= this.tradeCost;
   }
   public optionText() {
+    // While the Delta Works substitution is LIVE the family's own name must
+    // admit steel — «Pay 3 energy» over a mix that spends steel passes the
+    // chosen composition off as a pure energy payment. Same family, same
+    // option, honest label; without the substitution the historical text
+    // stands byte-identical.
+    if (this.steelSubstitute() > 0) {
+      return message('Pay ${0} energy and/or steel', (b) => b.number(this.tradeCost));
+    }
     return message('Pay ${0} energy', (b) => b.number(this.tradeCost));
   }
   public optionMetadata() {

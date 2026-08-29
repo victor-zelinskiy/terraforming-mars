@@ -109,7 +109,7 @@ function mountSection(position: number, opts: {cardOffer?: DeltaAdvanceOffer} = 
       actionAvailable: true,
       cardOffer: opts.cardOffer,
     },
-    global: {stubs: {ConsoleWsHead: true, ConsoleCardFaceLite: true, ConsoleSourceDock: true, ConsolePlayedTargetStep: true, GamepadGlyph: true, HydroReward: true}},
+    global: {stubs: {ConsoleWsHead: true, ConsoleCardFaceLite: true, ConsoleSourceDock: true, ConsolePlayedTargetStep: true, GamepadGlyph: true, HydroReward: true, ConsolePaymentPanel: true}},
   });
 }
 

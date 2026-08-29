@@ -411,13 +411,17 @@ export type TradeOutcomeArgs = {
   /** The reward track position the trade will read (track choice applied). */
   rewardPosition: number;
   /**
-   * The chosen payment's summary. `resource` is the SERVER's own
-   * `current → resulting` for that path — the only possible source when the
-   * fee is paid from a CARD (a floater on Titan Floating Launch-Pad, data on
-   * Collegium Copernicus): the viewer's rail knows nothing about it, so the
-   * summary printed a bare «−1» beside fully-dressed resource rows.
+   * The chosen payment's ACTUAL parts, in spend order — ONE part for every
+   * ordinary path, TWO for the Delta Works energy/steel mix (the summary must
+   * show the real resource deltas of the dialed composition, never an
+   * energy-first «−3» over a mix that spends steel). `resource` is the
+   * SERVER's own `current → resulting` for that part — the only possible
+   * source when the fee is paid from a CARD (a floater on Titan Floating
+   * Launch-Pad, data on Collegium Copernicus): the viewer's rail knows
+   * nothing about it, so the summary printed a bare «−1» beside
+   * fully-dressed resource rows.
    */
-  payment: {icon: string, amount: number, resource?: {current: number, resulting: number}} | undefined;
+  payments: ReadonlyArray<{icon: string, amount: number, resource?: {current: number, resulting: number}}>;
   /** The viewer's own colonies on this tile (each yields the colony bonus). */
   ownColonyCount: number;
   /** The viewer's live stocks, for `current → resulting` on standard gains. */
@@ -443,20 +447,21 @@ export function tradeOutcome(args: TradeOutcomeArgs): {cost: Array<TradeOutcomeC
   // Track the viewer's stocks through the sequence (payment → gains).
   const running: Partial<Record<string, number>> = {...args.stocks};
 
-  if (args.payment !== undefined) {
+  for (const payment of args.payments) {
     // A STOCK fee is tracked through the sequence (paying 3 energy into a
-    // 4-energy reward must read 3 → 0, then 0 → 4). A CARD fee is not on the
-    // rail at all, so its pair can only be the server's — and without it the
-    // row printed a bare «−1» while every resource sibling carried its own
-    // before → after.
-    const onRail = Object.prototype.hasOwnProperty.call(running, args.payment.icon);
-    const current = onRail ? running[args.payment.icon] : args.payment.resource?.current;
+    // 4-energy reward must read 3 → 0, then 0 → 4) — and a MIX's parts track
+    // through it one after another, so each part carries its own honest
+    // before → after. A CARD fee is not on the rail at all, so its pair can
+    // only be the server's — and without it the row printed a bare «−1»
+    // while every resource sibling carried its own before → after.
+    const onRail = Object.prototype.hasOwnProperty.call(running, payment.icon);
+    const current = onRail ? running[payment.icon] : payment.resource?.current;
     const resulting = onRail ?
-      (current !== undefined ? Math.max(0, current - args.payment.amount) : undefined) :
-      args.payment.resource?.resulting;
-    cost.push({direction: 'cost', icon: args.payment.icon, amount: args.payment.amount, current, resulting});
+      (current !== undefined ? Math.max(0, current - payment.amount) : undefined) :
+      payment.resource?.resulting;
+    cost.push({direction: 'cost', icon: payment.icon, amount: payment.amount, current, resulting});
     if (onRail && resulting !== undefined) {
-      running[args.payment.icon] = resulting;
+      running[payment.icon] = resulting;
     }
   }
 

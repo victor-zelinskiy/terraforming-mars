@@ -104,6 +104,10 @@ export const consoleColoniesUi = reactive({
    *  speaks the two-verb grammar (A opens the decision, X commits) for a
    *  build exactly as it does for a trade. */
   composerDecisions: false,
+  /** Focus stage: the Delta Works energy/steel mix is LIVE AND ADJUSTABLE —
+   *  the bar advertises the LB/RB dial exactly while it works, and drops the
+   *  hint the moment another payment family (or a fixed mix) is chosen. */
+  composerMixAdjustable: false,
 });
 
 export function resetConsoleColoniesUi(): void {
@@ -112,6 +116,7 @@ export function resetConsoleColoniesUi(): void {
   consoleColoniesUi.composerReady = false;
   consoleColoniesUi.composerEditable = false;
   consoleColoniesUi.composerDecisions = false;
+  consoleColoniesUi.composerMixAdjustable = false;
 }
 
 // ── THE COLONY WORKSPACE FLOW — browse ⇄ focus, one typed state ─────────────

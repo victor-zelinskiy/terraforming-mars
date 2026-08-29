@@ -150,7 +150,10 @@
             </div>
 
             <template v-if="model.mode === 'plan'">
-              <!-- Requirements row: path tags + energy, one compact line. -->
+              <!-- Requirements row: the PATH TAGS, and nothing else. Owning
+                   the resources that PAY for the move is not a tag
+                   requirement — affordability lives in the payment panel,
+                   whose verdict is the one place that says «не хватает». -->
               <div class="con-hydro__reqline" data-unfold-item>
                 <span class="con-hydro__section-label">{{ $t('Requirements') }}</span>
                 <span v-for="(t, i) in requiredTags" :key="i"
@@ -160,33 +163,6 @@
                   <span class="con-hydro__req-mark" aria-hidden="true">{{ tagStatus(t) === 'missing' ? '✕' : '✓' }}</span>
                   <span v-if="tagStatus(t) === 'wild'" class="con-hydro__req-wild" aria-hidden="true">✱</span>
                 </span>
-                <span class="con-hydro__req-energy" :class="{'con-hydro__req-energy--short': !targetAffordable}">
-                  <i class="con-hydro__chip-ico resource_icon resource_icon--energy" aria-hidden="true"></i>
-                  <b>{{ model.selectedSpend }}</b>
-                  <span class="con-hydro__req-have">{{ $t('You have') }}: {{ model.availableEnergy }}<template v-if="model.availableSteelSubstitute > 0"> + {{ model.availableSteelSubstitute }}<i class="con-hydro__chip-ico resource_icon resource_icon--steel" aria-hidden="true"></i></template></span>
-                  <span class="con-hydro__req-mark" aria-hidden="true">{{ targetAffordable ? '✓' : '✕' }}</span>
-                </span>
-              </div>
-              <!-- Delta Works payment mix — ONE linked value (the steel share;
-                   energy is the remainder), so the total always equals the
-                   cost by construction. The bumpers shift one unit; with a
-                   single valid mix the row is a plain summary, never a stop. -->
-              <div v-if="mixRowVisible" class="con-hydro__mixline" data-unfold-item>
-                <span class="con-hydro__section-label">{{ $t('Payment') }}</span>
-                <span class="con-hydro__mix-part">
-                  <i class="con-hydro__chip-ico resource_icon resource_icon--energy" aria-hidden="true"></i>
-                  <b>{{ mixEnergy }}</b>
-                </span>
-                <span class="con-hydro__mix-plus" aria-hidden="true">+</span>
-                <span class="con-hydro__mix-part">
-                  <i class="con-hydro__chip-ico resource_icon resource_icon--steel" aria-hidden="true"></i>
-                  <b>{{ mixSteel }}</b>
-                </span>
-                <span v-if="mixAdjustable" class="con-hydro__mix-dial" aria-hidden="true">
-                  <GamepadGlyph control="bumperL" /><GamepadGlyph control="bumperR" />
-                </span>
-                <span class="con-hydro__mix-left">{{ $t('Left after paying') }}: {{ mixEnergyLeft }}<i class="con-hydro__chip-ico resource_icon resource_icon--energy" aria-hidden="true"></i> {{ mixSteelLeft }}<i class="con-hydro__chip-ico resource_icon resource_icon--steel" aria-hidden="true"></i></span>
-                <span class="con-hydro__mix-src">1<i class="con-hydro__chip-ico resource_icon resource_icon--steel" aria-hidden="true"></i>=1<i class="con-hydro__chip-ico resource_icon resource_icon--energy" aria-hidden="true"></i> · {{ $t(mixSourceName) }}</span>
               </div>
               <!-- Route notes: skipped rewards + the 2VP leap — tied to the
                    track (the amber route stops), one quiet line each. The
@@ -227,6 +203,23 @@
                 </template>
                 <!-- («Нечего выбирать» is stated ONCE, by the pick row below —
                      the stage's own home for that question.) -->
+              </div>
+
+              <!-- ═══ THE PAYMENT COMPOSITION — the SHARED premium payment
+                   panel (the card-play / trade selector's grammar) over the
+                   ONE energy-mix draft: which sources pay this advance, what
+                   each contributes, what remains of each, and the ОПЛАЧЕНО
+                   N/N verdict. Steel joins via Delta Works (its source badge
+                   under the rows); the LB/RB pills sit ON the steel row —
+                   the same dial the command bar advertises. With a single
+                   valid allocation the rows are a read-only summary. ═══ -->
+              <div v-if="model.selectedSpend > 0" class="con-hydro__pay" data-unfold-item>
+                <ConsolePaymentPanel :view="mixPaymentView"
+                                     mode="compact"
+                                     hint-mode="none"
+                                     :title-key="mixTitleKey"
+                                     :source-card="mixSourceCard"
+                                     :flash-nonce="mixFlashNonce" />
               </div>
 
               <!-- The PRE-SELECT SUMMARY — the configured decision, focusable
@@ -709,6 +702,8 @@ import ConsolePlayedTargetStep from '@/client/components/console/played/ConsoleP
 import ConsoleCardFaceLite from '@/client/components/console/cardDeal/ConsoleCardFaceLite.vue';
 import ConsoleSourceDock from '@/client/components/console/ConsoleSourceDock.vue';
 import ConsoleHydroPickRow, {HYDRO_PICK_COPY, HydroPickKind} from '@/client/components/console/hydroFlow/ConsoleHydroPickRow.vue';
+import ConsolePaymentPanel from '@/client/components/console/ConsolePaymentPanel.vue';
+import {buildEnergyMixView, clampEnergyMixSteel, PaymentView} from '@/client/console/paymentPlan';
 import {choiceSourceView} from '@/client/console/promptSource';
 import CardRenderEffectBoxComponent from '@/client/components/card/CardRenderEffectBoxComponent.vue';
 import CardRenderData from '@/client/components/card/CardRenderData.vue';
@@ -806,7 +801,7 @@ export default defineComponent({
   name: 'ConsoleHydroSection',
   components: {
     GamepadGlyph, HydroReward, ConsoleWsHead, ConsolePlayedTargetStep, ConsoleCardFaceLite, ConsoleSourceDock,
-    ConsoleHydroPickRow,
+    ConsoleHydroPickRow, ConsolePaymentPanel,
     CardRenderEffectBoxComponent, CardRenderData,
   },
   directives: {stripActionPrefix},
@@ -868,6 +863,8 @@ export default defineComponent({
        * and 0 keeps the energy-first default (steel covers only the deficit).
        */
       steelPreference: 0,
+      /** Re-keys the payment panel's one-shot pulse on each dial press. */
+      mixFlashNonce: 0,
       /** Scene focus: the track (A = primary) or the pre-select summary. */
       sceneFocus: 'track' as 'track' | 'summary' | 'bonus-source' | 'bonus-pick' | 'bonus-confirm' | 'bonus-skip',
       /**
@@ -1138,9 +1135,6 @@ export default defineComponent({
     },
     requiredTags(): ReadonlyArray<Tag> {
       return (this.model.destination?.requiredTags ?? []) as ReadonlyArray<Tag>;
-    },
-    targetAffordable(): boolean {
-      return this.model.destination?.affordable ?? false;
     },
     jumpedOverVp2(): boolean {
       return this.model.destination?.jumpedOverVp2 === true;
@@ -1679,7 +1673,7 @@ export default defineComponent({
 
     /** The command contract of the current step — published to the shell. */
     // ── Delta Works payment mix (steel 1:1 for energy) ────────────────────
-    /** The row exists while the substitution is live and something is owed. */
+    /** The substitution is live (the card in the tableau, steel on hand). */
     mixRowVisible(): boolean {
       return this.model.mode === 'plan' && this.model.selectedSpend > 0 &&
         this.model.availableSteelSubstitute > 0;
@@ -1688,26 +1682,37 @@ export default defineComponent({
     mixAdjustable(): boolean {
       return this.mixRowVisible && this.model.maxSteelForSpend > this.model.minSteelForSpend;
     },
-    /** The EFFECTIVE steel share: the preference clamped to the live range —
-     *  never silently more than the deficit demands, never more than usable. */
+    /** The EFFECTIVE steel share — THE canonical draft value. The preference
+     *  is clamped by the ONE shared rule (never a private copy of the bounds
+     *  arithmetic); the panel, the command bar, the commit record and the
+     *  submit payload all read THIS number. */
     mixSteel(): number {
       if (!this.mixRowVisible) {
         return 0;
       }
-      return Math.max(this.model.minSteelForSpend, Math.min(this.steelPreference, this.model.maxSteelForSpend));
+      return clampEnergyMixSteel(this.steelPreference,
+        {minSteel: this.model.minSteelForSpend, maxSteel: this.model.maxSteelForSpend});
     },
-    mixEnergy(): number {
-      return this.model.selectedSpend - this.mixSteel;
+    /** The whole payment as the SHARED PaymentView — the same rows / captions /
+     *  verdict grammar the card-play selector renders, over the same draft. */
+    mixPaymentView(): PaymentView {
+      return buildEnergyMixView({
+        cost: this.model.selectedSpend,
+        energyAvailable: this.model.availableEnergy,
+        steelAvailable: this.model.availableSteelSubstitute,
+        minSteel: this.model.minSteelForSpend,
+        maxSteel: this.model.maxSteelForSpend,
+        steelUsed: this.mixSteel,
+      });
     },
-    mixEnergyLeft(): number {
-      return this.model.availableEnergy - this.mixEnergy;
+    /** «СОСТАВ ОПЛАТЫ» only when there is a composition to speak of. */
+    mixTitleKey(): string {
+      return this.mixRowVisible ? 'Payment mix' : 'Payment';
     },
-    mixSteelLeft(): number {
-      return this.model.availableSteelSubstitute - this.mixSteel;
-    },
-    /** The substitution's source card name (its English name IS the i18n key). */
-    mixSourceName(): string {
-      return this.model.steelSubstituteCard ?? '';
+    /** The substitution's source card (English name IS the i18n key) — the
+     *  panel's secondary badge, present only while the mix is live. */
+    mixSourceCard(): string | undefined {
+      return this.mixRowVisible ? this.model.steelSubstituteCard : undefined;
     },
     footCommands(): ReadonlyArray<ConsoleCommand> {
       const c = this.flow.commit;
@@ -2175,13 +2180,21 @@ export default defineComponent({
     },
     /** One bumper press = one unit of the price moved between energy and
      *  Delta Works steel. A no-op without a live choice, so the pair can
-     *  never surprise a player whose mix is fixed. */
+     *  never surprise a player whose mix is fixed. Past the commit boundary
+     *  the draft is frozen — the guard also kills a held repeat. */
     adjustMix(delta: number): void {
       if (!this.mixAdjustable || this.flow.commit !== undefined) {
         return;
       }
-      this.steelPreference = Math.max(this.model.minSteelForSpend,
-        Math.min(this.mixSteel + delta, this.model.maxSteelForSpend));
+      const next = clampEnergyMixSteel(this.mixSteel + delta,
+        {minSteel: this.model.minSteelForSpend, maxSteel: this.model.maxSteelForSpend});
+      if (next === this.mixSteel) {
+        return;
+      }
+      this.steelPreference = next;
+      // Re-keys the one-shot pulse on the steel row — the same acknowledgement
+      // every other payment surface plays on a dial press.
+      this.mixFlashNonce += 1;
     },
     selectPosition(position: number): void {
       const last = this.model.stages.length - 1;

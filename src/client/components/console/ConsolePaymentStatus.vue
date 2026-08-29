@@ -13,7 +13,7 @@
       <b class="con-paystatus__paid">{{ status.paid }}</b>
       <span class="con-paystatus__sep" aria-hidden="true">/</span>
       <span class="con-paystatus__cost">{{ status.cost }}</span>
-      <i class="resource_icon resource_icon--megacredits con-paystatus__icon" aria-hidden="true"></i>
+      <i class="resource_icon con-paystatus__icon" :class="'resource_icon--' + costUnit" aria-hidden="true"></i>
     </span>
 
     <!-- The verdict phrase — «Точная оплата» / «Переплата +1» / «Не хватает 2». -->
@@ -21,7 +21,7 @@
       <span class="con-paystatus__verdict-text">{{ $t(status.labelKey) }}</span>
       <template v-if="status.delta > 0">
         <b class="con-paystatus__delta">{{ deltaSign }}{{ status.delta }}</b>
-        <i class="resource_icon resource_icon--megacredits con-paystatus__delta-icon" aria-hidden="true"></i>
+        <i class="resource_icon con-paystatus__delta-icon" :class="'resource_icon--' + costUnit" aria-hidden="true"></i>
       </template>
     </span>
   </div>
@@ -40,7 +40,7 @@
  * this component was introduced to kill.
  */
 import {defineComponent, PropType} from 'vue';
-import {PaymentStatus} from '@/client/console/paymentPlan';
+import {PaymentStatus, paymentUnitLabel} from '@/client/console/paymentPlan';
 import {translateText} from '@/client/directives/i18n';
 
 export default defineComponent({
@@ -63,11 +63,18 @@ export default defineComponent({
     deltaSign(): string {
       return this.status.kind === 'overpay' ? '+' : '';
     },
+    /** The price's denomination — the ledger's icon/aria unit. */
+    costUnit(): string {
+      return this.status.costUnit ?? 'megacredits';
+    },
+    unitName(): string {
+      return this.status.costUnit === undefined ? 'M€' : translateText(paymentUnitLabel(this.status.costUnit));
+    },
     ariaLabel(): string {
       const s = this.status;
-      const head = `${translateText('Paid')}: ${s.paid} ${translateText('of')} ${s.cost} M€`;
+      const head = `${translateText('Paid')}: ${s.paid} ${translateText('of')} ${s.cost} ${this.unitName}`;
       const verdict = s.delta > 0 ?
-        `${translateText(s.labelKey)} ${this.deltaSign}${s.delta} M€` :
+        `${translateText(s.labelKey)} ${this.deltaSign}${s.delta} ${this.unitName}` :
         translateText(s.labelKey);
       return `${head}. ${verdict}`;
     },

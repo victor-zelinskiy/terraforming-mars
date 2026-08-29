@@ -336,6 +336,15 @@ export function initialCounts(
 // dialed by hand. Nothing downstream re-derives payment math: if a number is
 // shown anywhere, it comes from a field below.
 
+/**
+ * A unit the payment PANEL can present. The M€ ledger's spendables, plus the
+ * units a NON-M€-denominated price is stated in: the Delta Works energy fee
+ * (Hydronetwork advance / colony trade) is priced and paid in energy, which is
+ * deliberately NOT a `SpendableResource` — nothing may ever pay an M€ cost
+ * with it, and widening THAT union would widen server validation.
+ */
+export type PaymentPanelUnit = SpendableResource | 'energy';
+
 /** The i18n key naming a payment unit — shared by every payment surface (the
  *  per-component `laneLabel` copies this table used to drift). */
 const PAY_UNIT_LABELS: Readonly<Record<string, string>> = {
@@ -381,7 +390,7 @@ export function paymentUnitIcon(unit: string): string {
  * spend, `contribution` is what that spend is WORTH against the price.
  */
 export type PaymentSourceRow = {
-  unit: SpendableResource;
+  unit: PaymentPanelUnit;
   /** i18n key for the resource name (English text IS the key here). */
   labelKey: string;
   /** M€ bought by ONE unit (1 for M€, `steelValue` for steel, …). */
@@ -427,6 +436,10 @@ export type PaymentStatus = {
   labelKey: string;
   /** The mix covers the price (the confirm may proceed). */
   ok: boolean;
+  /** The unit the price is DENOMINATED in — M€ for a card/project payment
+   *  (default), `energy` for the Delta Works energy-equivalent fee. Only the
+   *  ledger's icon/aria change; the arithmetic is unit-blind. */
+  costUnit?: PaymentPanelUnit;
 };
 
 /**
@@ -460,13 +473,15 @@ export type PaymentView = {
    * (and the hosts refuse to open it) — one flow, no redundant depth.
    */
   editorEligible: boolean;
-  quickAdjustUnit: SpendableResource | undefined;
+  quickAdjustUnit: PaymentPanelUnit | undefined;
   paymentValid: boolean;
   /** M€-equivalent shortfall (0 when valid). */
   deficit: number;
   /** M€-equivalent OVERPAY — value spent above the cost (unavoidable rate
    *  remainder; 0 when exact). Mutually exclusive with `deficit`. */
   overpay: number;
+  /** The price's denomination (see PaymentStatus.costUnit). Absent = M€. */
+  costUnit?: PaymentPanelUnit;
 };
 
 /**
@@ -576,6 +591,132 @@ export function buildPaymentView(args: {
     paymentValid,
     deficit,
     overpay,
+  };
+}
+
+// ── The ENERGY-EQUIVALENT mix (Delta Works: 1 steel = 1 energy) ──────────────
+//
+// The Hydronetwork advance and the colony trade's energy family charge a price
+// DENOMINATED IN ENERGY, and Delta Works lets steel substitute 1:1. That is
+// the M€ panel's shape with the units renamed: steel is the one dialable
+// alternative lane, ENERGY is the auto lane that always settles the remainder
+// — so both surfaces render the ordinary ConsolePaymentPanel over the ordinary
+// PaymentView, and no second arithmetic exists.
+//
+// The draft is ONE number (the steel share; energy is the remainder by
+// construction, so the total can never disagree with the price) and its legal
+// range comes from the SERVER's own payment model (the colony preview's
+// `energyMix`, the hydro preview's budget fields) — this builder never
+// re-derives eligibility, it only presents the numbers it is handed.
+
+export type EnergyMixArgs = {
+  /** The energy-equivalent price (discounts applied — the server's number). */
+  cost: number;
+  /** Live energy stock. */
+  energyAvailable: number;
+  /** Steel usable 1:1 (Delta Works in the tableau; 0 = no substitution). */
+  steelAvailable: number;
+  /** Server-model bounds of the steel share (minSteel = the energy deficit). */
+  minSteel: number;
+  maxSteel: number;
+  /** The CANONICAL draft: the dialed steel share, already clamped by the host
+   *  to [minSteel, maxSteel]. Everything below derives from this one value. */
+  steelUsed: number;
+};
+
+/**
+ * ONE clamp for the dialed steel share — both hosts route their preference
+ * through this instead of keeping a private copy of the bounds arithmetic.
+ * An unaffordable price (minSteel > maxSteel) clamps to the maximum usable
+ * steel: the draft stays showable, the verdict says «Не хватает».
+ */
+export function clampEnergyMixSteel(preferred: number, bounds: {minSteel: number, maxSteel: number}): number {
+  if (bounds.minSteel > bounds.maxSteel) {
+    return bounds.maxSteel;
+  }
+  return Math.max(bounds.minSteel, Math.min(preferred, bounds.maxSteel));
+}
+
+/**
+ * The energy-equivalent price as the SHARED PaymentView: a dialable steel lane
+ * (present only while the substitution is live) + the auto energy lane that
+ * tops up the remainder. Rate is 1:1 BY RULE (the printed effect), never
+ * `steelValue` — Delta Works substitutes, it does not convert.
+ *
+ * With `steelAvailable === 0` the view is the read-only energy-only price
+ * (one row, no controls) — the same panel a player without the card reads,
+ * so «single allocation» and «adjustable» are states of one surface, never
+ * two designs.
+ */
+export function buildEnergyMixView(args: EnergyMixArgs): PaymentView {
+  const {cost, energyAvailable, steelAvailable} = args;
+  const steelLaneExists = steelAvailable > 0;
+  const steelUsed = steelLaneExists ? clampEnergyMixSteel(args.steelUsed, args) : 0;
+  // The energy share is the remainder; when the combined pool cannot cover
+  // the price the lane honestly empties the stock and the verdict blocks.
+  const energyUsed = Math.min(Math.max(0, cost - steelUsed), energyAvailable);
+  const paid = energyUsed + steelUsed;
+  const deficit = Math.max(0, cost - paid);
+  const adjustable = steelLaneExists && args.maxSteel > args.minSteel;
+
+  const rows: Array<PaymentSourceRow> = [];
+  if (steelLaneExists) {
+    rows.push({
+      unit: 'steel',
+      labelKey: paymentUnitLabel('steel'),
+      rate: 1,
+      available: steelAvailable,
+      used: steelUsed,
+      remaining: Math.max(0, steelAvailable - steelUsed),
+      contribution: steelUsed,
+      auto: false,
+      editable: adjustable,
+      reserved: false,
+      min: args.minSteel,
+      max: args.maxSteel,
+      canIncrease: adjustable && steelUsed < args.maxSteel,
+      canDecrease: adjustable && steelUsed > args.minSteel,
+      quickAdjust: adjustable,
+    });
+  }
+  rows.push({
+    unit: 'energy',
+    labelKey: paymentUnitLabel('energy'),
+    rate: 1,
+    available: energyAvailable,
+    used: energyUsed,
+    remaining: Math.max(0, energyAvailable - energyUsed),
+    contribution: energyUsed,
+    // Energy is the AUTO lane only while steel actually shares the bill —
+    // alone it is simply the price, not a lane «topping up» anything.
+    auto: steelLaneExists,
+    editable: false,
+    reserved: false,
+    min: energyUsed,
+    max: energyUsed,
+    canIncrease: false,
+    canDecrease: false,
+    quickAdjust: false,
+  });
+
+  // Rate 1:1 on both lanes ⇒ overpay is unreachable; the verdict is exact,
+  // free, or an honest shortfall naming the missing amount.
+  const status = statusOf({cost, paid, valid: deficit === 0, deficit, overpay: 0});
+  status.costUnit = 'energy';
+  return {
+    cost,
+    rows,
+    status,
+    configurable: adjustable,
+    quickAdjustEligible: adjustable,
+    // The compact block IS the whole editor here (one dialable lane) — LT
+    // must never advertise a second stage.
+    editorEligible: false,
+    quickAdjustUnit: adjustable ? 'steel' : undefined,
+    paymentValid: deficit === 0,
+    deficit,
+    overpay: 0,
+    costUnit: 'energy',
   };
 }
 

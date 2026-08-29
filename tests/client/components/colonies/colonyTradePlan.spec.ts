@@ -289,7 +289,7 @@ describe('colonyTradePlan', () => {
     };
 
     it('a RAIL fee reads its pair off the viewer\'s own stock, and keeps it in sequence', () => {
-      const out = tradeOutcome({...OUTCOME_ARGS, payment: {icon: 'titanium', amount: 1}});
+      const out = tradeOutcome({...OUTCOME_ARGS, payments: [{icon: 'titanium', amount: 1}]});
       expect(out.cost).to.deep.eq([
         {direction: 'cost', icon: 'titanium', amount: 1, current: 531, resulting: 530},
       ]);
@@ -300,7 +300,7 @@ describe('colonyTradePlan', () => {
     it('a CARD fee takes its pair from the SERVER — the rail knows nothing about floaters', () => {
       const out = tradeOutcome({
         ...OUTCOME_ARGS,
-        payment: {icon: 'floater', amount: 1, resource: {current: 1, resulting: 0}},
+        payments: [{icon: 'floater', amount: 1, resource: {current: 1, resulting: 0}}],
       });
       expect(out.cost).to.deep.eq([
         {direction: 'cost', icon: 'floater', amount: 1, current: 1, resulting: 0},
@@ -310,9 +310,32 @@ describe('colonyTradePlan', () => {
     });
 
     it('a card fee with no server pair still states the amount, never a wrong pair', () => {
-      const out = tradeOutcome({...OUTCOME_ARGS, payment: {icon: 'data', amount: 3}});
+      const out = tradeOutcome({...OUTCOME_ARGS, payments: [{icon: 'data', amount: 3}]});
       expect(out.cost).to.deep.eq([
         {direction: 'cost', icon: 'data', amount: 3, current: undefined, resulting: undefined},
+      ]);
+    });
+
+    it('a Delta Works MIX is TWO honest chips, each with its own rail pair — never «−3 energy»', () => {
+      const out = tradeOutcome({
+        ...OUTCOME_ARGS,
+        stocks: {...OUTCOME_ARGS.stocks, energy: 500, steel: 502},
+        payments: [{icon: 'energy', amount: 2}, {icon: 'steel', amount: 1}],
+      });
+      expect(out.cost).to.deep.eq([
+        {direction: 'cost', icon: 'energy', amount: 2, current: 500, resulting: 498},
+        {direction: 'cost', icon: 'steel', amount: 1, current: 502, resulting: 501},
+      ]);
+    });
+
+    it('a steel-only mix charges ONLY steel, and the running stock stays continuous', () => {
+      const out = tradeOutcome({
+        ...OUTCOME_ARGS,
+        stocks: {...OUTCOME_ARGS.stocks, energy: 0, steel: 3},
+        payments: [{icon: 'steel', amount: 3}],
+      });
+      expect(out.cost).to.deep.eq([
+        {direction: 'cost', icon: 'steel', amount: 3, current: 3, resulting: 0},
       ]);
     });
   });
@@ -346,7 +369,7 @@ describe('colonyRewardPackage', () => {
 
   it('Io: the track and YOUR settlement merge into ONE total, with an honest pair', () => {
     const out = tradeOutcome({
-      metadata: IO, rewardPosition: 3, payment: undefined, ownColonyCount: 1,
+      metadata: IO, rewardPosition: 3, payments: [], ownColonyCount: 1,
       stocks: {heat: 1001}, production: {},
     });
     const pkg = colonyRewardPackage({gains: out.gains, metadata: IO, colony: colony(['red', 'green']), viewer: 'red'});
@@ -365,7 +388,7 @@ describe('colonyRewardPackage', () => {
 
   it('Miranda: different rewards to different places stay SEPARATE lines', () => {
     const out = tradeOutcome({
-      metadata: MIRANDA, rewardPosition: 3, payment: undefined, ownColonyCount: 1,
+      metadata: MIRANDA, rewardPosition: 3, payments: [], ownColonyCount: 1,
       stocks: {}, production: {},
     });
     const pkg = colonyRewardPackage({gains: out.gains, metadata: MIRANDA, colony: colony(['red', 'green']), viewer: 'red'});
@@ -382,7 +405,7 @@ describe('colonyRewardPackage', () => {
 
   it('several of YOUR OWN settlements aggregate into one «×N» line', () => {
     const out = tradeOutcome({
-      metadata: MIRANDA, rewardPosition: 1, payment: undefined, ownColonyCount: 2,
+      metadata: MIRANDA, rewardPosition: 1, payments: [], ownColonyCount: 2,
       stocks: {}, production: {},
     });
     const pkg = colonyRewardPackage({gains: out.gains, metadata: MIRANDA, colony: colony(['red', 'red']), viewer: 'red'});
@@ -394,7 +417,7 @@ describe('colonyRewardPackage', () => {
 
   it('a card that pays on EVERY trade is its own named part of your total', () => {
     const out = tradeOutcome({
-      metadata: IO, rewardPosition: 1, payment: undefined, ownColonyCount: 0,
+      metadata: IO, rewardPosition: 1, payments: [], ownColonyCount: 0,
       stocks: {heat: 10, megacredits: 40}, production: {},
       flatBonuses: [{card: 'Venus Trade Hub', resource: 'megacredits', amount: 3}],
     });
@@ -406,7 +429,7 @@ describe('colonyRewardPackage', () => {
 
   it('a colony with no settlements pays nobody else', () => {
     const out = tradeOutcome({
-      metadata: IO, rewardPosition: 2, payment: undefined, ownColonyCount: 0,
+      metadata: IO, rewardPosition: 2, payments: [], ownColonyCount: 0,
       stocks: {heat: 5}, production: {},
     });
     const pkg = colonyRewardPackage({gains: out.gains, metadata: IO, colony: colony([]), viewer: 'red'});

@@ -23,7 +23,7 @@
       <span class="con-pay__price">
         <span class="con-pay__price-label">{{ $t('Cost') }}</span>
         <b class="con-pay__price-value">{{ view.cost }}</b>
-        <i class="resource_icon resource_icon--megacredits con-pay__price-icon" aria-hidden="true"></i>
+        <i class="resource_icon con-pay__price-icon" :class="'resource_icon--' + costUnit" aria-hidden="true"></i>
       </span>
 
       <!-- The mode switch as a SECONDARY action OF THIS BLOCK (never a
@@ -39,8 +39,21 @@
       <ConsolePaymentSourceRow v-for="row in view.rows" :key="row.unit"
                                :row="row"
                                :mode="mode"
+                               :cost-unit="costUnit"
                                :focused="mode === 'expanded' && row.unit === focusUnit"
                                :flash-nonce="flashNonce" />
+    </div>
+
+    <!-- The payment MODIFIER's source — a secondary badge naming the card that
+         widened this price's sources («Delta Works · 1 steel = 1 energy»),
+         never a term of the arithmetic rows above. Rendered only when a host
+         passes one, and constant for the flow's whole life (no layout shift). -->
+    <div v-if="sourceCard !== undefined" class="con-pay__source" :aria-label="sourceLabel">
+      <span class="con-pay__source-card">{{ $t(sourceCard) }}</span>
+      <span class="con-pay__source-rule" aria-hidden="true">
+        · 1<i class="resource_icon resource_icon--steel con-pay__source-icon"></i>
+        = 1<i class="resource_icon resource_icon--energy con-pay__source-icon"></i>
+      </span>
     </div>
 
     <ConsolePaymentStatus :status="view.status" :mode="mode" />
@@ -64,7 +77,7 @@
  * verdict or the geometry.
  */
 import {defineComponent, PropType} from 'vue';
-import {PaymentView} from '@/client/console/paymentPlan';
+import {PaymentView, paymentUnitLabel} from '@/client/console/paymentPlan';
 import {GlyphControl} from '@/client/gamepad/glyphSets';
 import GamepadGlyph from '@/client/components/gamepad/GamepadGlyph.vue';
 import ConsolePaymentSourceRow from '@/client/components/console/ConsolePaymentSourceRow.vue';
@@ -94,8 +107,18 @@ export default defineComponent({
      * bottom command bar already carries the controls.
      */
     hintMode: {type: String as PropType<'auto' | 'none'>, default: 'auto'},
+    /**
+     * The card that MODIFIES this payment's sources (Delta Works widening the
+     * energy fee to steel) — rendered as a secondary source badge under the
+     * rows. The English card name IS its i18n key.
+     */
+    sourceCard: {type: String, default: undefined},
   },
   computed: {
+    /** The price's denomination — every icon/aria in the panel follows it. */
+    costUnit(): string {
+      return this.view.costUnit ?? 'megacredits';
+    },
     hint(): PanelHint | undefined {
       if (this.hintMode === 'none') {
         return undefined;
@@ -109,7 +132,13 @@ export default defineComponent({
       return this.view.editorEligible ? {control: 'triggerL', label: 'Configure payment'} : undefined;
     },
     panelLabel(): string {
-      return `${translateText(this.titleKey)}: ${translateText('Cost')} ${this.view.cost} M€`;
+      const unit = this.view.costUnit !== undefined ? translateText(paymentUnitLabel(this.view.costUnit)) : 'M€';
+      return `${translateText(this.titleKey)}: ${translateText('Cost')} ${this.view.cost} ${unit}`;
+    },
+    sourceLabel(): string {
+      return this.sourceCard === undefined ?
+        '' :
+        `${translateText(this.sourceCard)}: 1 ${translateText('Steel')} = 1 ${translateText('Energy')}`;
     },
   },
 });
