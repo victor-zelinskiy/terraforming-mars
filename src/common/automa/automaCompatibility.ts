@@ -86,7 +86,15 @@ type Rule = {
 export const AUTOMA_SUPPORTED_BOARDS: ReadonlyArray<BoardName> = [
   BoardName.THARSIS,
   BoardName.HELLAS,
+  BoardName.ELYSIUM,
 ];
+
+/** «tharsis, hellas and elysium» — the list read out in the rejection reason. */
+function supportedBoardList(): string {
+  const names = [...AUTOMA_SUPPORTED_BOARDS];
+  const last = names.pop();
+  return names.length === 0 ? String(last) : `${names.join(', ')} and ${last}`;
+}
 
 /**
  * The supported module set: Corporate Era + Prelude 1 + Venus Next + Colonies
@@ -98,7 +106,7 @@ const RULES: ReadonlyArray<Rule> = [
   {
     key: 'board',
     test: (o) => !AUTOMA_SUPPORTED_BOARDS.includes(o.boardName as BoardName),
-    reason: (o) => `the ${o.boardName} board yet — MarsBot covers ${AUTOMA_SUPPORTED_BOARDS.join(' and ')}`,
+    reason: (o) => `the ${o.boardName} board yet — MarsBot covers ${supportedBoardList()}`,
   },
   // Unsupported expansions / modules.
   {key: 'expansion:turmoil', test: (o) => o.turmoil, reason: () => 'Turmoil in the POC'},

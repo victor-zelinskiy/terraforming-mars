@@ -211,7 +211,7 @@ describe('AutomaSetup', () => {
       // covered positively below. A custom COLONY list stays rejected: it is
       // direct bot data (the 11-area shipping board).
       ['a custom colony list', {coloniesExtension: true, customColoniesList: [ColonyName.IAPETUS]}],
-      ['a board with no MarsBot profile', {boardName: BoardName.ELYSIUM}],
+      ['a board with no MarsBot profile', {boardName: BoardName.AMAZONIS}],
     ];
     for (const [label, options] of cases) {
       it(label, () => {

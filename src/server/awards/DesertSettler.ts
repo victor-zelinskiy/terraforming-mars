@@ -9,7 +9,7 @@ export class DesertSettler implements IAward {
     return player.game.board.spaces
       .filter(Board.ownedBy(player))
       .filter(Board.hasRealTile)
-      .filter((space) => space.y >= 5 && space.y <= 8)
+      .filter(Board.isSouthernRegion)
       .length;
   }
 }

@@ -105,12 +105,17 @@ describe('premium create — MarsBot mode', () => {
     setGameMode('marsbot');
     setSlotName(0, 'Astronaut');
     createGameState.config.mapMode = 'specific';
-    createGameState.config.mapId = BoardName.ELYSIUM;
+    createGameState.config.mapId = BoardName.AMAZONIS;
     expect(stateAutomaConflictKeys().has('board')).is.true;
     expect(canCreateGame()).is.false;
 
     // Hellas has its own MarsBot board, reference card and B09.
     createGameState.config.mapId = BoardName.HELLAS;
+    expect(stateAutomaConflictKeys().has('board')).is.false;
+    expect(canCreateGame()).is.true;
+
+    // …and Elysium its own board, reference card and B10.
+    createGameState.config.mapId = BoardName.ELYSIUM;
     expect(stateAutomaConflictKeys().has('board')).is.false;
     expect(canCreateGame()).is.true;
 

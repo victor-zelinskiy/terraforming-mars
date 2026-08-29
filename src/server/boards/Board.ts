@@ -341,6 +341,28 @@ export abstract class Board {
     return space.tile !== undefined && GREENERY_TILES.has(space.tile.tileType);
   }
 
+  /**
+   * ELYSIUM'S SOUTHERN REGION — «the bottom four rows» (rows 5–8 of the nine).
+   *
+   * THE one predicate: the Desert Settler award counts tiles here, the MarsBot
+   * Elysium placement tiebreaker prefers spaces here (Adding Expansions p.10
+   * step 5) and the B10 Corporate Competition Desert Settler helper is HARD
+   * CONSTRAINED to it. Three readings of one printed region can never disagree
+   * if there is only one of them.
+   */
+  public static isSouthernRegion(space: Space): boolean {
+    return space.y >= 5 && space.y <= 8;
+  }
+
+  /**
+   * HELLAS' POLAR REGION — «the bottom two rows» (rows 7–8). Read by the Polar
+   * Explorer milestone and by the Hellas placement tiebreaker (Adding
+   * Expansions p.10 step 2); the southern twin above.
+   */
+  public static isPolarRegion(space: Space): boolean {
+    return space.y >= 7 && space.y <= 8;
+  }
+
   public static ownedBy(player: IPlayer): (space: Space) => boolean {
     return (space: Space) => space.player?.id === player.id || space.coOwner?.id === player.id;
   }

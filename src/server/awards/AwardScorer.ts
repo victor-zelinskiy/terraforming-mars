@@ -17,7 +17,10 @@ export class AwardScorer {
         this.scores.set(player.id, AutomaMAEvaluation.botAwardScore(award, game));
         continue;
       }
-      let score = award.getScore(player);
+      // An Automa game may redefine a HUMAN's strength for one award — the
+      // Elysium Industrialist note is the only one today. `undefined` (always,
+      // outside an automa game) keeps the printed rule.
+      let score = AutomaMAEvaluation.humanAwardScore(award, game, player) ?? award.getScore(player);
       if (player.tableau.has(CardName.ASIMOV)) {
         score += ASIMOV_AWARD_BONUS;
       }

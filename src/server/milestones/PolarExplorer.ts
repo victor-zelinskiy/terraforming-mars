@@ -13,7 +13,7 @@ export class PolarExplorer extends BaseMilestone {
     return player.game.board.spaces
       .filter(Board.ownedBy(player))
       .filter(Board.hasRealTile)
-      .filter((space) => space.y >= 7 && space.y <= 8).length;
+      .filter(Board.isPolarRegion).length;
   }
 }
 

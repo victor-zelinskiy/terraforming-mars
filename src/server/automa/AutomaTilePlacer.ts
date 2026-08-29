@@ -17,6 +17,18 @@ import {
 } from './AutomaPlacementBonus';
 import {marsBotOf} from './AutomaUtil';
 
+/**
+ * A greenery placed by something other than a printed track icon.
+ *
+ * `restrict` is a card's HARD CONSTRAINT on the legal spaces; `onEmpty` says
+ * what "nowhere to place" means for that caller — a Failed Action (the printed
+ * icon) or a silently impossible action (a Corporate Competition helper).
+ */
+export type BotGreeneryOptions = {
+  readonly restrict?: (space: Space) => boolean;
+  readonly onEmpty?: 'failed-action' | 'impossible';
+};
+
 /** Keep the items with the highest score. */
 function keepMax(spaces: ReadonlyArray<Space>, score: (space: Space) => number): Array<Space> {
   const max = Math.max(...spaces.map(score));
@@ -120,16 +132,36 @@ export class AutomaTilePlacer {
    * cities while minimizing adjacency to any of your cities", on top of the
    * normal greenery rules (next to its own tiles when possible, not on
    * reserved spaces — the engine's getAvailableSpacesForGreenery).
+   *
+   * Returns whether the tile actually went down — the answer a HELPER ACTION
+   * needs, and the reason this is the ONE pipeline every greenery rides: the
+   * legality question and the placement are the same computation, so a caller
+   * can never conclude "possible" from one list and then place from a
+   * different, smaller one (Ares hazard filtering / a Hellas South Pole rebate
+   * are inside here, not in the caller).
    */
-  public static placeGreenery(game: IGame): void {
+  public static placeGreenery(game: IGame, options?: BotGreeneryOptions): boolean {
     const bot = marsBotOf(game);
     // Ares: the bot never places ON a hazard (cleanup is a human economic
     // decision — see AutomaAres); identity without Ares.
-    const available = AutomaAres.withoutHazardSpaces(game, AutomaTilePlacer.candidatesFor(game, bot,
-      (options) => game.board.getAvailableSpacesForGreenery(bot, options)));
+    let available = AutomaAres.withoutHazardSpaces(game, AutomaTilePlacer.candidatesFor(game, bot,
+      (opts) => game.board.getAvailableSpacesForGreenery(bot, opts)));
+    // A card's HARD CONSTRAINT ("in the Southern Region", "adjacent to an
+    // ocean") narrows the LEGAL set — it is not a preference and never a
+    // tiebreaker, so it is applied before any strategy and an empty result is
+    // final. B10's Desert Settler / Estate Dealer helpers are the two today.
+    if (options?.restrict !== undefined) {
+      available = available.filter(options.restrict);
+    }
     if (available.length === 0) {
-      failedAction(game, 'no-tile-space');
-      return;
+      // A printed track icon with nowhere to go is a Failed Action (rulebook
+      // p.6). A helper action is instead «impossible to resolve»: the
+      // Corporate Competition card moves on to the next funded award and
+      // MarsBot pays nothing — so it must not spend a Failed Action here.
+      if (options?.onEmpty !== 'impossible') {
+        failedAction(game, 'no-tile-space');
+      }
+      return false;
     }
     let candidates = keepMax(available, (space) => AutomaTilePlacer.adjacentCitiesOf(game, space, bot));
     candidates = keepMin(candidates, (space) => AutomaTilePlacer.adjacentOpponentCities(game, space, bot));
@@ -139,6 +171,7 @@ export class AutomaTilePlacer {
     candidates = [...AutomaAres.preferAwayFromHazards(game, candidates)];
     const space = AutomaTilePlacer.breakTie(game, candidates);
     AutomaTilePlacer.placeAndSettle(game, bot, space, () => game.addGreenery(bot, space));
+    return true;
   }
 
   /**

@@ -6,6 +6,7 @@ import {IGame} from '../../IGame';
 import {IPlayer} from '../../IPlayer';
 import {AutomaAres} from '../AutomaAres';
 import {botRewardIcons} from '../AutomaPlacementBonus';
+import {ELYSIUM_MARSBOT_BOARD} from './ElysiumMarsBot';
 import {HELLAS_MARSBOT_BOARD} from './HellasMarsBot';
 import {THARSIS_MARSBOT_BOARD} from './TharsisMarsBot';
 
@@ -23,7 +24,7 @@ import {THARSIS_MARSBOT_BOARD} from './TharsisMarsBot';
 /** One ordered placement tiebreaker. Highest score wins; ties fall through. */
 export type MarsBotPlacementTiebreaker = {
   /** Stable id — what the specs pin and what a future placement log would name. */
-  readonly id: 'oceans' | 'polar-region' | 'reward-icons';
+  readonly id: 'oceans' | 'polar-region' | 'reward-icons' | 'southern-region';
   readonly score: (game: IGame, bot: IPlayer, space: Space) => number;
 };
 
@@ -56,7 +57,21 @@ const REWARD_ICONS: MarsBotPlacementTiebreaker = {
  */
 const HELLAS_POLAR_REGION: MarsBotPlacementTiebreaker = {
   id: 'polar-region',
-  score: (_game, _bot, space) => (space.y >= 7 && space.y <= 8 ? 1 : 0),
+  score: (_game, _bot, space) => (Board.isPolarRegion(space) ? 1 : 0),
+};
+
+/**
+ * «Elysium: Southern Region (bottom four rows)» — Adding Expansions p.10
+ * step 5, i.e. AFTER the reward icons (step 4), which is the mirror image of
+ * Hellas' Polar step (step 2, BEFORE them). Getting the two the same way round
+ * is exactly the leak this map is here to disprove.
+ *
+ * The same four rows the Desert Settler award counts and the B10 Desert Settler
+ * helper is constrained to — one predicate (`Board.isSouthernRegion`).
+ */
+const ELYSIUM_SOUTHERN_REGION: MarsBotPlacementTiebreaker = {
+  id: 'southern-region',
+  score: (_game, _bot, space) => (Board.isSouthernRegion(space) ? 1 : 0),
 };
 
 export type MarsBotMapProfile = {
@@ -92,7 +107,18 @@ const HELLAS_PROFILE: MarsBotMapProfile = {
   placementTiebreakers: [OCEAN_ADJACENCY, HELLAS_POLAR_REGION, REWARD_ICONS],
 };
 
-const PROFILES: ReadonlyArray<MarsBotMapProfile> = [THARSIS_PROFILE, HELLAS_PROFILE];
+const ELYSIUM_PROFILE: MarsBotMapProfile = {
+  boardName: BoardName.ELYSIUM,
+  tracks: ELYSIUM_MARSBOT_BOARD,
+  corporateCompetition: BonusCardId.B10_CORPORATE_COMPETITION_ELYSIUM,
+  // Adding Expansions p.10: 1. oceans · 4. reward icons · 5. Southern Region.
+  // NOT Hellas' order with the region swapped — Elysium prints its region step
+  // AFTER the icons, so a hex with more covered icons outside the region beats
+  // a bare hex inside it.
+  placementTiebreakers: [OCEAN_ADJACENCY, REWARD_ICONS, ELYSIUM_SOUTHERN_REGION],
+};
+
+const PROFILES: ReadonlyArray<MarsBotMapProfile> = [THARSIS_PROFILE, HELLAS_PROFILE, ELYSIUM_PROFILE];
 
 /** Every board MarsBot can be played on. */
 export const MARSBOT_BOARDS: ReadonlyArray<BoardName> = PROFILES.map((p) => p.boardName);

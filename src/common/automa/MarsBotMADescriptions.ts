@@ -15,10 +15,11 @@ export const MARSBOT_MILESTONE_DESCRIPTIONS: Partial<Record<MilestoneName, strin
   'Energizer': 'Energy track \u2265 6',
   'Polar Explorer': '3+ tiles on the two bottom rows',
   'Rim Settler': 'Jovian + Science track \u2265 6',
-  // Elysium
+  // Elysium (the fork ships Tycoon10 on this board, not the classic 15-card Tycoon)
   'Generalist': 'All tracks \u2265 2 (except Venus)',
-  'Specialist': 'Any track \u2265 10',
+  'Specialist': 'Any track \u2265 10 (Venus included)',
   'Ecologist': 'Bio track \u2265 4',
+  'Tycoon10': '10 green/blue cards in played pile',
   'Tycoon': '15 green/blue cards in played pile',
   'Legend': '5 red cards in played pile',
   // Terra Cimmeria Nova
@@ -47,7 +48,6 @@ export const MARSBOT_MILESTONE_DESCRIPTIONS: Partial<Record<MilestoneName, strin
   'Tactician4': '30+ MC',
   'Terran5': 'Earth track \u2265 5',
   'Thawer': 'Raised temperature 5+ times',
-  'Tycoon10': '10 blue/green cards in played pile',
 };
 
 /** MarsBot-specific descriptions for how awards are scored. */
@@ -67,6 +67,8 @@ export const MARSBOT_AWARD_DESCRIPTIONS: Partial<Record<AwardName, string>> = {
   // Elysium
   'Celebrity': 'Cards costing 20+ MC (including events)',
   'Industrialist': 'Energy track + 5',
+  'Desert Settler': 'Tiles on the four bottom rows (unchanged)',
+  'Estate Dealer': 'Tiles adjacent to an ocean (unchanged)',
   'Benefactor': 'TR minus 15',
   // Terra Cimmeria
   'Electrician': 'Energy track',

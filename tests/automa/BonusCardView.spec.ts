@@ -52,6 +52,7 @@ describe('buildBonusCardView — the card face resolved for THIS game', () => {
       BonusCardId.B05_EXPEDITED_CONSTRUCTION, BonusCardId.B06_LOBBYISTS,
       BonusCardId.B07_LOCAL_NEURAL_INSTANCE, BonusCardId.B08_CORPORATE_COMPETITION,
       BonusCardId.B09_CORPORATE_COMPETITION_HELLAS,
+      BonusCardId.B10_CORPORATE_COMPETITION_ELYSIUM,
       BonusCardId.B15_LOBBYISTS_VENUS, BonusCardId.B16_GOVERNMENT_INTERVENTION,
       BonusCardId.B17_EXPEDITED_CONSTRUCTION_COLONIES, BonusCardId.B18_OUTER_SYSTEM_FOOTHOLD,
       BonusCardId.B19_SHIPPING_LINES, BonusCardId.B20_EXTENDED_SHIPPING_LINES,
@@ -62,6 +63,47 @@ describe('buildBonusCardView — the card face resolved for THIS game', () => {
         expect(line.text, `${id}: "${line.text}"`).to.not.match(/^You\b/i);
       }
     }
+  });
+
+  it('Corporate Competition (B10) shows the ELYSIUM helper list, and Venuphile only with Venus', () => {
+    const base = buildBonusCardView(BonusCardId.B10_CORPORATE_COMPETITION_ELYSIUM, BASE);
+    expect(base.name).eq('Corporate Competition (Elysium)');
+    const text = base.lines.map((l) => l.text).join(' | ');
+    // Every printed helper is on the face — this is what fullscreen inspect reads.
+    expect(text).to.include('Celebrity');
+    expect(text).to.include('Industrialist');
+    expect(text).to.include('Desert Settler');
+    expect(text).to.include('Estate Dealer');
+    expect(text).to.include('Benefactor');
+    // …and both greenery constraints are stated, not implied.
+    expect(text).to.include('southern region');
+    expect(text).to.include('adjacent to an ocean');
+    expect(text, 'Venuphile is a Venus Next addition').to.not.include('Venuphile');
+    expect(base.lines.some((l) => l.icon === 'megacredits' && l.params?.[0] === '5'),
+      'the 5 M\u20ac payment is on the face').is.true;
+    expect(base.fate.kind).eq('discard');
+
+    const venus = buildBonusCardView(BonusCardId.B10_CORPORATE_COMPETITION_ELYSIUM, VENUS);
+    expect(venus.lines.map((l) => l.text).join(' | ')).to.include('Venuphile');
+  });
+
+  it('the three Corporate Competition faces are the SAME card with different helpers', () => {
+    const ids = [
+      BonusCardId.B08_CORPORATE_COMPETITION,
+      BonusCardId.B09_CORPORATE_COMPETITION_HELLAS,
+      BonusCardId.B10_CORPORATE_COMPETITION_ELYSIUM,
+    ];
+    for (const id of ids) {
+      const view = buildBonusCardView(id, BASE);
+      expect(view.lines[0].icon, id).eq('award');
+      expect(view.lines[0].text, id).to.include('With 5+');
+      expect(view.lines[view.lines.length - 1].text, `${id} states the fallback`)
+        .to.include('draws another bonus card');
+      expect(view.fate.kind, id).eq('discard');
+    }
+    // …and no two of them carry the same helper list.
+    const bodies = ids.map((id) => buildBonusCardView(id, BASE).lines.map((l) => l.text).join('|'));
+    expect(new Set(bodies).size, 'each map has its own helper list').eq(3);
   });
 
   it('Do It Right (B25) is Lobbyists without the destruction — and it says so', () => {

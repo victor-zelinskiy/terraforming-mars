@@ -53,7 +53,7 @@ export const BONUS_CARD_INFO: Readonly<Record<BonusCardId, BonusCardInfo>> = {
   },
   [BonusCardId.B10_CORPORATE_COMPETITION_ELYSIUM]: {
     name: 'Corporate Competition (Elysium)',
-    text: 'The Elysium-map version of Corporate Competition.',
+    text: 'With 5+ M€, MarsBot pushes the Elysium award race it is closest to being ahead on, then loses 5 M€.',
   },
   [BonusCardId.B11_CORPORATE_COMPETITION_UTOPIA]: {
     name: 'Corporate Competition (Utopia Planitia)',
@@ -261,6 +261,26 @@ export function buildBonusCardView(id: BonusCardId, ctx: BonusCardContext): Bonu
         {icon: 'cards', text: 'Magnate reveals project cards until a green one and resolves it', muted: true},
         {icon: 'tile', text: 'Space Baron advances the space track; Contractor the building track', muted: true},
         {icon: 'animal', text: 'Excentric makes the opponent lose their most valuable animal or microbe', muted: true},
+        ...(ctx.venus ? [{icon: 'venus', text: 'Venuphile advances the Venus track', muted: true}] : []),
+        {icon: 'megacredits', text: 'Then it pays ${0} M€', params: ['5']},
+        {icon: 'deck', text: 'With no funded award it can help, it draws another bonus card instead', muted: true},
+      ],
+      fate: FATE_DISCARD,
+    };
+  case BonusCardId.B10_CORPORATE_COMPETITION_ELYSIUM:
+    // The Elysium face (B10): same card, its own helper list. The two greenery
+    // helpers are CONSTRAINED — a helper with no legal space is impossible,
+    // and the card moves on to the next funded award instead of placing
+    // somewhere the constraint forbids.
+    return {
+      name,
+      lines: [
+        {icon: 'award', text: 'With 5+ M€: MarsBot pushes the award race it is closest to leading'},
+        {icon: 'cards', text: 'Celebrity reveals project cards until one costs 20+ M€ and resolves it', muted: true},
+        {icon: 'energy', text: 'Industrialist advances the power track', muted: true},
+        {icon: 'greenery', text: 'Desert Settler places a greenery in the southern region and raises oxygen 1 step', muted: true},
+        {icon: 'greenery', text: 'Estate Dealer places a greenery adjacent to an ocean and raises oxygen 1 step', muted: true},
+        {icon: 'tr', text: 'Benefactor raises the MarsBot TR 2 steps', muted: true},
         ...(ctx.venus ? [{icon: 'venus', text: 'Venuphile advances the Venus track', muted: true}] : []),
         {icon: 'megacredits', text: 'Then it pays ${0} M€', params: ['5']},
         {icon: 'deck', text: 'With no funded award it can help, it draws another bonus card instead', muted: true},

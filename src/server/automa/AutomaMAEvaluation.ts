@@ -4,6 +4,8 @@ import {AutomaCorporations} from './corps/AutomaCorporations';
 import {IAward} from '../awards/IAward';
 import {IMilestone, milestoneThreshold} from '../milestones/IMilestone';
 import {IGame} from '../IGame';
+import {IPlayer} from '../IPlayer';
+import {IProjectCard} from '../cards/IProjectCard';
 import {newProjectCard} from '../createCard';
 import {marsBotOf} from './AutomaUtil';
 
@@ -48,15 +50,48 @@ function diversifierScore(game: IGame): number {
   return everyTrackScore(tracks.map((t) => t.position), substitutable);
 }
 
-/** Green (automated) project cards in MarsBot's PLAYED PILE — the bot has no tableau. */
-function botPlayedPileCount(game: IGame, type: CardType): number {
+/** The furthest-advanced track — "any one track at space N or higher". */
+function bestTrackPosition(game: IGame): number {
+  const positions = game.automa?.board.tracks.map((t) => t.position) ?? [];
+  return positions.length === 0 ? 0 : Math.max(...positions);
+}
+
+/**
+ * Project cards in MarsBot's PLAYED PILE matching a predicate — the bot has no
+ * tableau, so every «cards in play» criterion has to read the pile instead.
+ * The card OBJECT is what answers (its printed type and cost), never a UI
+ * colour or a stored label.
+ */
+function botPlayedPile(game: IGame, matches: (card: IProjectCard) => boolean): number {
   let count = 0;
   for (const name of game.automa?.playedPile ?? []) {
-    if (newProjectCard(name)?.type === type) {
+    const card = newProjectCard(name);
+    if (card !== undefined && matches(card)) {
       count++;
     }
   }
   return count;
+}
+
+/** Green (automated) project cards in MarsBot's played pile. */
+function botPlayedPileCount(game: IGame, type: CardType): number {
+  return botPlayedPile(game, (card) => card.type === type);
+}
+
+/** «Green/blue cards» — the pair the Tycoon family counts (never events). */
+const GREEN_AND_BLUE: ReadonlyArray<CardType> = [CardType.AUTOMATED, CardType.ACTIVE];
+
+/**
+ * The milestone's OWN printed threshold, used as the `target` of a bot
+ * criterion that is the PLAYER's metric read out of a different container
+ * (the played pile). Keeping the two equal makes the normalization the
+ * identity — the bot's row shows the very number a human row would.
+ *
+ * `fallback` covers a milestone with no numeric threshold, which cannot happen
+ * for this family but must not silently become a division by zero.
+ */
+function printedTarget(milestone: IMilestone, game: IGame, fallback: number): number {
+  return milestoneThreshold(milestone, game) ?? fallback;
 }
 
 /**
@@ -112,17 +147,66 @@ export class AutomaMAEvaluation {
       return {value: trackPosition(game, 'power'), target: 6};
     case 'Rim Settler': // "[Jovian/Science] track at space 6 or higher".
       return {value: trackPosition(game, 'science'), target: 6};
+    // ── Elysium (Adding Expansions p.9) ──────────────────────────────────────
+    case 'Generalist':
+      // "At least space 2 on EVERY track" — and the board prints the exclusion
+      // itself: «(excl. [V])». So this is Planner's shape, NOT Diversifier's:
+      // the Venus track leaves the set entirely instead of being the one
+      // substitutable member. Seven Martian tracks at 2 with Venus at 0 is MET;
+      // Venus at 18 never stands in for a Martian track that is still at 1.
+      return {value: everyTrackScore(martianTracks(game).map((t) => t.position), 0), target: 2};
+    case 'Specialist':
+      // "Any one track at space 10 or higher". No exclusion is printed here —
+      // the sheet marks «(excl. [V])» on Generalist alone — and «the Venus
+      // track behaves identically to every other track» (Adding Expansions
+      // p.2), so the Venus track is a candidate like the rest.
+      return {value: bestTrackPosition(game), target: 10};
+    case 'Ecologist': // "[Bio] track at space 4 or higher".
+      return {value: trackPosition(game, 'bio'), target: 4};
+    case 'Tycoon':
+    case 'Tycoon10': // the fork's Elysium variant (10 blue+green, not 15)
+      // Officially "Unchanged (green/blue cards in MarsBot's played pile)" —
+      // the SAME metric as the human's, but the bot has no tableau, so the
+      // milestone's own getScore would honestly read 0 forever. It is here for
+      // that container difference ALONE: the target is the milestone's own
+      // printed threshold (the fork ships Tycoon10 on Elysium, so this reads
+      // 10, not a hard-coded 15), which makes the normalization the identity —
+      // the bot's row is literally the human's number. The award twin of this
+      // case is Magnate in `botAwardScore`.
+      return {
+        value: botPlayedPile(game, (card) => GREEN_AND_BLUE.includes(card.type)),
+        target: printedTarget(milestone, game, 15),
+      };
+    case 'Legend':
+    case 'Legend4': // the modular variant (4 red)
+      // "Unchanged (red cards in MarsBot's played pile)" — the played-pile
+      // container case again, see Tycoon above. Covers the modular Legend4.
+      return {
+        value: botPlayedPile(game, (card) => card.type === CardType.EVENT),
+        target: printedTarget(milestone, game, 5),
+      };
     // ── Venus Next ───────────────────────────────────────────────────────────
     case 'Hoverlord': // Unchanged: 7 floater resources (Adding Expansions p.2).
       return {value: game.automa?.floaters ?? 0, target: 7};
     default:
-      // "Unchanged" milestones (Terraformer — incl. the fork's Terraformer29
-      // threshold variant — Mayor, Gardener, and Hellas' Polar Explorer)
-      // evaluate the bot exactly like a player: its TR and its tiles are real,
-      // so the milestone's own canClaim is the honest source. The Ares
-      // additions ride this too: Networker reads aresData.milestoneResults (the
-      // bot is tallied there like any player), Purifier honestly stays 0 (the
-      // bot never covers a hazard). A card-based milestone that cannot appear here
+      // THE «UNCHANGED» FAMILY — the bot is judged by the PLAYER's own metric
+      // because it honestly HAS that metric, in the very place the player
+      // milestone looks:
+      //   · Terraformer (incl. the fork's Terraformer29 variant) — real TR;
+      //   · Mayor / Gardener — real city and greenery tiles;
+      //   · Hellas' Polar Explorer — real tiles in the two bottom rows;
+      //   · Ares: Networker reads aresData.milestoneResults (the bot is
+      //     tallied there like any player); Purifier honestly stays 0 (the bot
+      //     never covers a hazard).
+      // ELYSIUM CONTRIBUTES NOTHING HERE, and that is a decision, not an
+      // oversight: its row is Generalist / Specialist / Ecologist (own track
+      // criteria) plus Tycoon and Legend, which are worded "Unchanged" yet
+      // still get explicit branches above — not because the RULE differs but
+      // because the bot keeps its cards in `automa.playedPile` instead of a
+      // tableau, so `canClaim` would read a permanent 0. "Unchanged rule" and
+      // "default branch" are therefore not the same question: ask whether the
+      // player evaluator can SEE the bot's version of the quantity.
+      // A card-based milestone that cannot appear here
       // (validateOptions pins the board set) reads the bot's empty tableau and
       // is honestly "not met". Nothing to normalize: same metric, same scale.
       return undefined;
@@ -182,6 +266,36 @@ export class AutomaMAEvaluation {
   }
 
   /**
+   * A HUMAN's award strength as the Automa rules define it — `undefined` when
+   * the printed award rule stands unchanged, which is every award but one.
+   *
+   * INDUSTRIALIST (Elysium). The reference card spells the human side out:
+   * «when considering your strength for Industrialist, MarsBot counts your
+   * current steel resources, your current steel production, and your current
+   * power production. (Your current power resources do not count since they
+   * cannot be carried over.)» That is a rules override, not a hint: the
+   * printed award reads «most steel and energy», and after the final
+   * production the plain evaluator switches to `steel + energy` — counting
+   * exactly the resources this sentence excludes and dropping the production
+   * it includes.
+   *
+   * Applied through `AwardScorer` so ONE number serves the bot's funding
+   * decision, the award overlay and the endgame VP alike; a game without
+   * MarsBot never reaches it, so ordinary player-side scoring is untouched.
+   */
+  public static humanAwardScore(award: IAward, game: IGame, player: IPlayer): number | undefined {
+    if (game.automa === undefined) {
+      return undefined;
+    }
+    switch (award.name) {
+    case 'Industrialist':
+      return player.steel + player.production.steel + player.production.energy;
+    default:
+      return undefined;
+    }
+  }
+
+  /**
    * "How MarsBot determines how it stands within each award" — the map's
    * reference card (+ Venuphile). Easy difficulty: every value −5 (rulebook
    * p.11, no floor — the printed rule has none).
@@ -221,16 +335,39 @@ export class AutomaMAEvaluation {
     case 'Contractor': // "[Building] track space".
       score = trackPosition(game, 'building');
       break;
+    // ── Elysium (Adding Expansions p.9) ──────────────────────────────────────
+    case 'Celebrity':
+      // "As usual, but MarsBot INCLUDES EVENTS in this count unlike you" — the
+      // one printed asymmetry on this card. Two differences from the player's
+      // own getScore, then: the pile instead of a tableau, and red cards
+      // counted. Cost is the card's own printed base cost, 20 EXACTLY included.
+      score = botPlayedPile(game, (card) => card.cost >= 20);
+      break;
+    case 'Industrialist': // "[Power] track space + 5".
+      score = trackPosition(game, 'power') + 5;
+      break;
+    case 'Benefactor':
+      // "Reduce MarsBot's TR by 15 FOR THE PURPOSE OF THIS AWARD" — an
+      // evaluation-only handicap. The bot's actual terraform rating is
+      // untouched (no event, no endgame change): this number exists solely to
+      // be compared against the humans' TR here.
+      score = bot.terraformRating - 15;
+      break;
     // ── Venus Next ───────────────────────────────────────────────────────────
     case 'Venuphile': // Venus track position (Adding Expansions p.3).
       score = trackPosition(game, 'venus');
       break;
     default:
       // Tile-based awards evaluate the bot's real board presence — Hellas'
-      // Cultivator ("unchanged", greeneries owned) rides this, as does the
-      // Ares pair: Rugged counts its REAL tiles next to hazards, Entrepreneur
-      // honestly reads 0 (the bot never owns adjacency-bonus tiles); anything
-      // else cannot appear (validateOptions pins the board set).
+      // Cultivator ("unchanged", greeneries owned) rides this, and so does the
+      // whole Elysium tile pair: Desert Settler ("unchanged", tiles in the
+      // Southern Region) and Estate Dealer ("unchanged", tiles adjacent to an
+      // ocean) read the bot's REAL tiles through the very same evaluator the
+      // humans use — there is nothing bot-specific to write. The Ares pair
+      // rides it too: Rugged counts its REAL tiles next to hazards,
+      // Entrepreneur honestly reads 0 (the bot never owns adjacency-bonus
+      // tiles); anything else cannot appear (validateOptions pins the board
+      // set).
       score = award.getScore(bot);
       break;
     }
