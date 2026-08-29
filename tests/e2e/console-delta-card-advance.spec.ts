@@ -212,7 +212,7 @@ async function readout(page: Page): Promise<Readout> {
         };
       })(),
       sourceUp: document.querySelector('.con-hydro__bonus-source') !== null,
-      actions: Array.from(document.querySelectorAll('.con-hydro__bonus-action-title'))
+      actions: Array.from(document.querySelectorAll('.con-hydro__ctazone .con-hydro__cta span:last-of-type, .con-hydro__bonus-action-title'))
         .map((n) => (n as HTMLElement).innerText.trim()),
       declineUp: document.querySelector('.con-hydro__bonus-action--decline') !== null,
       // The WHOLE bar — the glyph is a component, so «which entry is B» is
@@ -446,8 +446,8 @@ test.describe('console — the card-action Hydronetwork door', () => {
       .toBe(setup.crumbHost);
     expect(open.crumbHost).toBe('cardactions');
     // …and the zone never titles itself.
-    expect(open.actions, 'one verb — a move nobody demanded has no refusal')
-      .toEqual(['Продвинуться']);
+    expect(open.actions, 'ONE primary in the decision\'s own vocabulary — no refusal beside it')
+      .toEqual(['ВЫБЕРИТЕ НАГРАДУ']);
     expect(open.declineUp, 'a card entry offers no «Пропустить»').toBe(false);
     // The bar is UPPERCASED by CSS, so the comparison is case-insensitive.
     expect(open.backLabel.toLowerCase(), 'B names the level it goes back to')

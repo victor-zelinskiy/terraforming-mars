@@ -1,6 +1,7 @@
 import {LogMessageDataType} from '@/common/logs/LogMessageDataType';
 import {Message} from '@/common/logs/Message';
 import {getPreferences} from '@/client/utils/PreferencesManager';
+import {resolvePluralGroups} from '@/client/i18n/pluralForms';
 import {LogMessageData} from '@/common/logs/LogMessageData';
 import {Log} from '@/common/logs/Log';
 import {PlayerViewModel} from '@/common/models/PlayerModel';
@@ -66,7 +67,7 @@ export function translateCardName(cardValue: string): string {
 
 export function translateMessage(message: Message): string {
   message.message = translateText(message.message);
-  return Log.applyData(message, (datum) => {
+  const rendered = Log.applyData(message, (datum) => {
     if (datum === undefined) {
       return '';
     }
@@ -100,6 +101,13 @@ export function translateMessage(message: Message): string {
       return translateText(String(datum.value));
     }
   });
+  // NUMBER-DEPENDENT WORD FORMS. A translation may inline its plural variants
+  // as `{карту|карты|карт}`; after substitution each group resolves against
+  // the nearest number to its LEFT under the active language's own rules —
+  // so «Оставьте себе 2 карт(ы)» stops being expressible: the translator
+  // states real forms and no caller concatenates a suffix. Strings without
+  // groups pass through untouched (the whole corpus has none by default).
+  return resolvePluralGroups(rendered, getPreferences().lang);
 }
 
 export type TranslateTextOptions = {

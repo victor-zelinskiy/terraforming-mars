@@ -5323,6 +5323,38 @@ html.console-mode body.placement-pending .board-outer-spaces > .board-space.boar
         padding: .1rem .2rem 0 .1rem;
         will-change: opacity, transform;
     }
+
+    /* ── IMMERSIVE CARD SCENE — while the landed stage's embedded card pick
+       is live, the cards are the undisputed primary content: the identity and
+       action columns and the commit line DISSOLVE (opacity only — the grid
+       never re-lays, so nothing jumps), the embed zone takes the WHOLE
+       surface, and everything returns with the same fade when the selection
+       is over. Keyed by the section on the deck-pick flow's own phase. ── */
+    &__ctx,
+    &__act,
+    &__commitline {
+        transition: opacity calc(220ms * var(--motion-scale, 1)) ease;
+    }
+    &__panel--immersive {
+        .con-hydro__ctx,
+        .con-hydro__act,
+        .con-hydro__commitline {
+            opacity: 0;
+            pointer-events: none;
+        }
+        /* The embed zone must measure against the PANEL, so the positioned
+           flow/layer ancestors step out of the chain for the scene's length
+           (they are static content while the cards own the frame). */
+        .con-hydro__flow,
+        .con-hydro__layer--commit {
+            position: static;
+        }
+        .con-hydro__embed {
+            position: absolute;
+            inset: .55rem .7rem;
+            z-index: 2;
+        }
+    }
     &__reqline {
         display: flex;
         align-items: center;
@@ -5719,6 +5751,7 @@ html.console-mode body.placement-pending .board-outer-spaces > .board-space.boar
         min-width: 0;
 
         .con-hydro__cta { width: 100%; justify-content: center; text-align: center; }
+        .con-hydro__bonus-action { width: 100%; }
     }
     .con-hydro-act-enter-active,
     .con-hydro-act-leave-active {
@@ -5777,6 +5810,17 @@ html.console-mode body.placement-pending .board-outer-spaces > .board-space.boar
             background: rgba(14, 22, 33, 0.55);
             box-shadow: inset 0 0 0 .05rem rgba(120, 150, 180, 0.32);
             color: rgba(206, 224, 240, 0.74);
+            animation: none;
+        }
+        /* The CURSOR stands here (a scene whose focus walks several targets —
+           the source card, the pick row, the answers): the same ring language
+           as every focused plate, on top of whatever register the CTA wears. */
+        &--focused {
+            box-shadow: inset 0 0 0 .1rem fade(@con-cyan, 88%), 0 0 1.1rem fade(@con-cyan, 20%);
+        }
+        /* A submitted answer holds BOTH answers inert — by state, briefly. */
+        &:disabled {
+            cursor: default;
             animation: none;
         }
     }
@@ -6211,7 +6255,10 @@ html.console-mode body.placement-pending .board-outer-spaces > .board-space.boar
         align-items: center;
         gap: .95rem;
         min-height: 7.2rem;
-        padding: 1rem 1.15rem;
+        /* The selection mark's RESERVED slot: the right padding carries the
+           check's full box (.7 offset + 1.35 mark + air), so a long label
+           wraps inside its own column and can never run under the badge. */
+        padding: 1rem 2.6rem 1rem 1.15rem;
         border: none;
         border-radius: .8rem;
         text-align: left;
@@ -6616,7 +6663,7 @@ html.con-profile-handheld .con-hydro {
     .con-hydro__cta { padding: .5rem .7rem; font-size: .775rem; }
     .con-hydro__reason { font-size: .675rem; padding: .3rem .45rem; }
     .con-hydro__detail-status { font-size: .75rem; }
-    .con-hydro__choice-card { max-width: 17rem; min-height: 5.8rem; padding: .7rem .8rem; gap: .7rem; .hydro-reward { zoom: 1.1; } }
+    .con-hydro__choice-card { max-width: 17rem; min-height: 5.8rem; padding: .7rem 2.2rem .7rem .8rem; gap: .7rem; .hydro-reward { zoom: 1.1; } }
     .con-hydro__choice-socket { width: 3.3rem; height: 3.3rem; border-radius: .55rem; }
     .con-hydro__choice-img { width: 2.2rem; height: 2.2rem; }
     .con-hydro__choice-name { font-size: .675rem; }
@@ -6655,7 +6702,7 @@ html.con-profile-large .con-hydro {
         --hydro-act-w: 17rem;
     }
     .con-hydro__stop-open { width: 11.4rem; }
-    .con-hydro__choice-card { max-width: 26rem; min-height: 8rem; }
+    .con-hydro__choice-card { max-width: 26rem; min-height: 8rem; padding-right: 2.9rem; }
     .con-hydro__choice-socket { width: 4.6rem; height: 4.6rem; }
     .con-hydro__choice-img { width: 3.1rem; height: 3.1rem; }
     .con-hydro__choice-values b { font-size: 1.7rem; }

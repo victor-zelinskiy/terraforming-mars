@@ -120,7 +120,7 @@
          the whole layout contract this rework bought: no substate may move
          the surface's own coordinates. ───────────────────────────────────── -->
     <div class="con-hydro__scene" ref="sceneEl">
-      <div class="con-hydro__panel">
+      <div class="con-hydro__panel" :class="{'con-hydro__panel--immersive': immersive}">
         <!-- ═══ CTX — the persistent identity column. ONE DOM node across
              every substate: the stage variant (glyph · name · position ·
              state · route) for the player's own flow, the SOURCE variant
@@ -213,33 +213,13 @@
                 </span>
               </div>
 
-              <!-- Outcome row: the honest «сейчас → станет» deltas. -->
-              <div class="con-hydro__gains" data-unfold-item>
-                <span class="con-hydro__section-label">{{ $t('You will gain') }}</span>
-                <template v-if="model.targetNeedsChoice && rewardChoice === undefined">
-                  <span class="con-hydro__gains-choice">
-                    <HydroReward :chips="selectedStage.rewardOptions[0]" :compact="true" />
-                    <span class="con-hydro__stop-or">{{ $t('or') }}</span>
-                    <HydroReward :chips="selectedStage.rewardOptions[1]" :compact="true" />
-                  </span>
-                </template>
-                <template v-else>
-                  <span v-for="(l, i) in rewardView.lines" :key="i" class="con-hydro__delta" :class="{'con-hydro__delta--zero': l.delta === 0}">
-                    <span class="con-hydro__delta-ico" :class="{'con-hydro__delta-ico--prod': l.production}">
-                      <span class="con-hydro__delta-img" :class="deltaIconClass(l)" aria-hidden="true"></span>
-                    </span>
-                    <span class="con-hydro__beforeafter"><b>{{ l.before }}</b> <span aria-hidden="true">→</span> <b class="con-hydro__after">{{ l.after }}</b></span>
-                    <span v-if="l.delta !== 0" class="con-hydro__plus">+{{ l.delta }}</span>
-                  </span>
-                  <HydroReward v-if="rewardView.lines.length === 0 && rewardView.rawChips.length > 0" :chips="rewardView.rawChips" />
-                  <span v-if="rewardView.vp !== undefined" class="con-hydro__vpline">
-                    <span class="con-hydro__stage-vp">{{ rewardView.vp }} {{ $t('VP') }}</span>
-                    <span>{{ $t('VP at game end') }}</span>
-                  </span>
-                </template>
-                <!-- («Нечего выбирать» is stated ONCE, by the pick row below —
-                     the stage's own home for that question.) -->
-              </div>
+              <!-- Outcome row — the ONE shared block (see ConsoleHydroGains):
+                   honest deltas, the alternatives while the choice is open.
+                   («Нечего выбирать» is stated ONCE, by the pick row below —
+                   the stage's own home for that question.) -->
+              <ConsoleHydroGains :view="rewardView"
+                                 :options="model.targetNeedsChoice && rewardChoice === undefined ? selectedStage.rewardOptions : undefined"
+                                 data-unfold-item />
 
               <!-- ═══ THE PRICE LINE — Configure states WHAT the advance
                    costs and WHICH sources may pay it; the full composition
@@ -375,47 +355,29 @@
               <div class="con-hydro__bonus-body" data-unfold-item>
                 <p class="con-hydro__bonus-text">{{ bonusBodyText }}</p>
 
-                <!-- WHAT IT COSTS AND WHAT IT PAYS — the SAME «сейчас → станет»
-                     rows the plan panel above states an ordinary advance with.
-                     A bonus move is the same move, so it is read the same way:
-                     an honest before/after per pool, never a bare «−1 ⚡» chip
-                     the player has to do arithmetic against their own rail. -->
-                <div v-if="bonusShowsFacts" class="con-hydro__bonus-facts" data-unfold-item>
-                  <span v-if="bonusCostLine !== undefined" class="con-hydro__bonus-fact">
-                    <span class="con-hydro__section-label">{{ $t('You will spend') }}</span>
-                    <span class="con-hydro__delta con-hydro__delta--cost">
-                      <span class="con-hydro__delta-ico">
-                        <span class="con-hydro__delta-img" :class="deltaIconClass(bonusCostLine)" aria-hidden="true"></span>
-                      </span>
-                      <span class="con-hydro__beforeafter"><b>{{ bonusCostLine.before }}</b> <span aria-hidden="true">→</span> <b class="con-hydro__after">{{ bonusCostLine.after }}</b></span>
-                      <span class="con-hydro__plus con-hydro__plus--cost">−{{ -bonusCostLine.delta }}</span>
-                    </span>
+                <!-- WHAT IT PAYS — the ONE outcome block the plan panel uses,
+                     verbatim: same component, same typography, same icons,
+                     same «сейчас → станет», same «или». An UNRESOLVED stage
+                     choice shows the ALTERNATIVES (never a concrete delta for
+                     a decision the player has not made), and the primary CTA
+                     beside it says «Выберите награду». -->
+                <ConsoleHydroGains v-if="bonusGainPresent"
+                                   :view="bonusRewardView"
+                                   :options="bonusNeedsReward && rewardChoice === undefined ? bonusRewardOptions : undefined"
+                                   :compact="true"
+                                   data-unfold-item />
+                <!-- WHAT IT COSTS — the plan panel's own payment line (the
+                     same classes, the same price chip, the same before →
+                     after), never a source-only «будет потрачено» dialect. -->
+                <div v-if="bonusCostLine !== undefined" class="con-hydro__payline" data-unfold-item>
+                  <span class="con-hydro__section-label">{{ $t('Payment') }}</span>
+                  <span class="con-hydro__payline-price">
+                    <i class="con-hydro__chip-ico resource_icon resource_icon--energy" aria-hidden="true"></i>
+                    <b>{{ -bonusCostLine.delta }}</b>
                   </span>
-                  <span v-if="bonusGainPresent" class="con-hydro__bonus-fact">
-                    <span class="con-hydro__section-label">{{ $t('You will gain') }}</span>
-                    <!-- The landing stage asks WHICH reward (pos 1/2): both
-                         alternatives, exactly as the plan panel offers them —
-                         the pick itself is the step that A opens next. -->
-                    <span v-if="bonusRewardOptions.length > 1" class="con-hydro__gains-choice">
-                      <HydroReward :chips="bonusRewardOptions[0]" :compact="true" />
-                      <span class="con-hydro__stop-or">{{ $t('or') }}</span>
-                      <HydroReward :chips="bonusRewardOptions[1]" :compact="true" />
-                    </span>
-                    <template v-else>
-                      <span v-for="(l, i) in bonusRewardView.lines" :key="i" class="con-hydro__delta" :class="{'con-hydro__delta--zero': l.delta === 0}">
-                        <span class="con-hydro__delta-ico" :class="{'con-hydro__delta-ico--prod': l.production}">
-                          <span class="con-hydro__delta-img" :class="deltaIconClass(l)" aria-hidden="true"></span>
-                        </span>
-                        <span class="con-hydro__beforeafter"><b>{{ l.before }}</b> <span aria-hidden="true">→</span> <b class="con-hydro__after">{{ l.after }}</b></span>
-                        <span v-if="l.delta !== 0" class="con-hydro__plus">+{{ l.delta }}</span>
-                      </span>
-                      <HydroReward v-if="bonusRewardView.lines.length === 0 && bonusRewardView.rawChips.length > 0"
-                                   :chips="bonusRewardView.rawChips" :compact="true" />
-                      <span v-if="bonusRewardView.vp !== undefined" class="con-hydro__vpline">
-                        <span class="con-hydro__stage-vp">{{ bonusRewardView.vp }} {{ $t('VP') }}</span>
-                        <span>{{ $t('VP at game end') }}</span>
-                      </span>
-                    </template>
+                  <span class="con-hydro__payline-mix">
+                    <span class="con-hydro__payline-part">−{{ -bonusCostLine.delta }}<i class="con-hydro__chip-ico resource_icon resource_icon--energy" aria-hidden="true"></i></span>
+                    <span class="con-hydro__payline-left">{{ bonusCostLine.before }} → {{ bonusCostLine.after }}</span>
                   </span>
                 </div>
 
@@ -447,9 +409,13 @@
              the record); this zone narrates the BEAT and hosts the landed
              stage's own scene. ═══ -->
         <div v-else-if="sceneKey === 'commit'" key="commit" class="con-hydro__layer con-hydro__layer--commit">
+          <!-- The spinner exists ONLY while the GAME is working (marker /
+               payout in flight). While a follow-up waits on the PLAYER it
+               would read as loading over a screen that is waiting for them —
+               an ambiguous system symbol, deliberately absent. -->
           <div class="con-hydro__commitline" data-unfold-item>
             <b class="con-hydro__commit-stage">{{ $t(commitRec.stageNameKey) }}</b>
-            <span class="con-hydro__commit-caption">{{ $t(commitCaption) }}<i class="con-hydro__commit-spin" aria-hidden="true"></i></span>
+            <span class="con-hydro__commit-caption">{{ $t(commitCaption) }}<i v-if="!followUpLive" class="con-hydro__commit-spin" aria-hidden="true"></i></span>
           </div>
 
           <!-- pos 9: the chosen host card, physically ON STAGE — the animals
@@ -594,18 +560,29 @@
             <div v-else-if="actKey === 'details' || actKey === 'quiet'" :key="actKey" class="con-hydro__ctazone"></div>
 
             <!-- REWARD CHOICE: the step's own commit — always in layout, live
-                 once an option is actually held. -->
+                 once an option is actually held. An OPTIONAL source move keeps
+                 its refusal reachable here too (the rules still allow it until
+                 the commit), as the same calm secondary it is on the offer. -->
             <div v-else-if="actKey === 'choice'" key="choice" class="con-hydro__ctazone">
               <button type="button"
                       class="con-hydro__cta"
                       :class="{
                         'con-hydro__cta--disabled': rewardChoice === undefined,
-                        'con-hydro__cta--armed': choiceStage === 'confirm',
+                        'con-hydro__cta--armed': choiceStage === 'confirm' && !choiceSkipFocus,
                       }"
                       :aria-disabled="rewardChoice === undefined ? 'true' : undefined"
                       @click="confirmChoiceStep">
                 <GamepadGlyph control="confirm" />
                 <span>{{ $t(choiceCommitLabel) }}</span>
+              </button>
+              <button v-if="advanceOffer !== undefined && bonusSkipOffered"
+                      type="button"
+                      class="con-hydro__bonus-action con-hydro__bonus-action--decline"
+                      :class="{'con-hydro__bonus-action--focused': choiceSkipFocus}"
+                      :disabled="bonusSubmitting"
+                      @click="answerBonus(false)">
+                <GamepadGlyph v-if="choiceSkipFocus" control="confirm" class="con-hydro__bonus-action-a" />
+                <span class="con-hydro__bonus-action-title">{{ $t(bonusCopy.skipKey) }}</span>
               </button>
             </div>
 
@@ -618,9 +595,14 @@
               </button>
             </div>
 
-            <!-- BONUS: take it / skip — the offer leads, the refusal stays a
-                 decision (calm, never dimmed). While the answer is in flight
-                 both are inert — a second press cannot exist, by state. -->
+            <!-- BONUS: the SAME primary the player's own advance wears, named
+                 by the NEXT REQUIRED INTERACTION («Выберите награду» over an
+                 unresolved stage choice, «Укрепить гидросеть» when ready) —
+                 the source explains WHY the move exists, it never renames the
+                 decision. The optional refusal stays a calm SECONDARY beneath
+                 it (a decision, never dimmed; only where the server framed
+                 one — a card ENTRY's way out is B). While the answer is in
+                 flight both are inert — by state, not by a guard. -->
             <div v-else-if="actKey === 'bonus'" key="bonus" class="con-hydro__ctazone">
               <p class="con-hydro__pickwarn" :class="{'con-hydro__pickwarn--on': pickWarned && bonusPickMissing}" role="status">
                 <span v-if="pickWarned && bonusPickMissing">
@@ -628,36 +610,27 @@
                   {{ $t(pickWarningKey) }}
                 </span>
               </p>
-              <div class="con-hydro__bonus-actions">
-                <!-- …and it is NOT THE CTA while the landed stage's pick is
-                     still owed: a confirm that cannot fire must not wear the
-                     primary tint — the ONE «A» belongs to the act in front. -->
-                <button type="button"
-                        class="con-hydro__bonus-action"
-                        :class="{
-                          'con-hydro__bonus-action--primary': !bonusPickMissing,
-                          'con-hydro__bonus-action--pending': bonusPickMissing,
-                          'con-hydro__bonus-action--focused': sceneFocus === 'bonus-confirm',
-                        }"
-                        :disabled="bonusSubmitting"
-                        @click="answerBonus(true)">
-                  <GamepadGlyph v-if="sceneFocus === 'bonus-confirm'" control="confirm" class="con-hydro__bonus-action-a" />
-                  <span class="con-hydro__bonus-action-title">{{ $t(bonusCopy.confirmKey) }}</span>
-                </button>
-                <!-- THE REFUSAL EXISTS ONLY WHERE THERE IS SOMETHING TO
-                     REFUSE. A card ENTRY asked no question — B (one level back
-                     to the variant selector) is the way out, and a
-                     «Пропустить» here would answer a question nobody asked. -->
-                <button v-if="bonusSkipOffered"
-                        type="button"
-                        class="con-hydro__bonus-action con-hydro__bonus-action--decline"
-                        :class="{'con-hydro__bonus-action--focused': sceneFocus === 'bonus-skip'}"
-                        :disabled="bonusSubmitting"
-                        @click="answerBonus(false)">
-                  <GamepadGlyph v-if="sceneFocus === 'bonus-skip'" control="confirm" class="con-hydro__bonus-action-a" />
-                  <span class="con-hydro__bonus-action-title">{{ $t(bonusCopy.skipKey) }}</span>
-                </button>
-              </div>
+              <button type="button"
+                      class="con-hydro__cta"
+                      :class="{
+                        'con-hydro__cta--configure': bonusPrimary.verb !== 'reinforce',
+                        'con-hydro__cta--pending': bonusPrimary.pending,
+                        'con-hydro__cta--focused': sceneFocus === 'bonus-confirm',
+                      }"
+                      :disabled="bonusSubmitting"
+                      @click="answerBonus(true)">
+                <GamepadGlyph v-if="sceneFocus === 'bonus-confirm'" control="confirm" />
+                <span>{{ $t(bonusPrimary.label) }}</span>
+              </button>
+              <button v-if="bonusSkipOffered"
+                      type="button"
+                      class="con-hydro__bonus-action con-hydro__bonus-action--decline"
+                      :class="{'con-hydro__bonus-action--focused': sceneFocus === 'bonus-skip'}"
+                      :disabled="bonusSubmitting"
+                      @click="answerBonus(false)">
+                <GamepadGlyph v-if="sceneFocus === 'bonus-skip'" control="confirm" class="con-hydro__bonus-action-a" />
+                <span class="con-hydro__bonus-action-title">{{ $t(bonusCopy.skipKey) }}</span>
+              </button>
             </div>
 
             <!-- RESULT: the one continue — the same plate, the same home. -->
@@ -702,7 +675,9 @@ import ConsoleCardFaceLite from '@/client/components/console/cardDeal/ConsoleCar
 import ConsoleSourceDock from '@/client/components/console/ConsoleSourceDock.vue';
 import ConsoleHydroPickRow, {HYDRO_PICK_COPY, HydroPickKind} from '@/client/components/console/hydroFlow/ConsoleHydroPickRow.vue';
 import ConsoleHydroPlanSteps from '@/client/components/console/hydroFlow/ConsoleHydroPlanSteps.vue';
+import ConsoleHydroGains from '@/client/components/console/hydroFlow/ConsoleHydroGains.vue';
 import {HydroPlanDecision} from '@/client/console/hydroFlow/hydroPlanSteps';
+import {deckPickState} from '@/client/console/deckPick/consoleDeckPick';
 import ConsolePaymentPanel from '@/client/components/console/ConsolePaymentPanel.vue';
 import {buildEnergyMixView, clampEnergyMixSteel, PaymentView} from '@/client/console/paymentPlan';
 import {choiceSourceView} from '@/client/console/promptSource';
@@ -756,7 +731,7 @@ import {openConsoleCardZoom, slotZoomOrigin} from '@/client/console/consoleCardZ
 import {backLabelForVerb, backVerbWithOwedPrompt, WorkspaceBackVerb} from '@/client/console/consoleWorkspaceFlow';
 import {getCard} from '@/client/cards/ClientCardManifest';
 import {reasonParams} from '@/client/cards/tagLabel';
-import {DeltaOfferOrigin, hydroAdvanceCopy, hydroZoneState} from '@/client/console/hydroFlow/hydroBonusOffer';
+import {DeltaOfferOrigin, HYDRO_PRIMARY_KEY, HydroNextInteraction, hydroAdvanceCopy, hydroNextInteraction, hydroZoneState} from '@/client/console/hydroFlow/hydroBonusOffer';
 import type {DeltaAdvanceOffer, DeltaBonusPromptMeta} from '@/common/models/DeltaBonusPromptModel';
 import {conUiScale, consoleLayoutState} from '@/client/console/consoleLayoutProfile';
 import {motionMs} from '@/client/components/motion/motionTokens';
@@ -823,7 +798,7 @@ export default defineComponent({
   name: 'ConsoleHydroSection',
   components: {
     GamepadGlyph, HydroReward, ConsoleWsHead, ConsolePlayedTargetStep, ConsoleCardFaceLite, ConsoleSourceDock,
-    ConsoleHydroPickRow, ConsoleHydroPlanSteps, ConsolePaymentPanel,
+    ConsoleHydroPickRow, ConsoleHydroPlanSteps, ConsoleHydroGains, ConsolePaymentPanel,
     CardRenderEffectBoxComponent, CardRenderData,
   },
   directives: {stripActionPrefix},
@@ -914,6 +889,11 @@ export default defineComponent({
       /** Where the cursor stands INSIDE the reward step: on the options, or
        *  on the commit that follows them (the step confirms itself). */
       choiceStage: 'options' as 'options' | 'confirm',
+      /** The cursor stands on the OPTIONAL REFUSAL beneath the step's commit
+       *  (a server-framed offer only) — one more ↓ past the confirm. */
+      choiceSkipFocus: false,
+      /** The deck-pick flow, mirrored for reactivity (module reactive). */
+      flowDeck: deckPickState,
       /** The target step's cursor (pos 9). */
       targetFocus: undefined as PlayedTargetFocus | undefined,
       targetZoneW: 0,
@@ -1396,8 +1376,11 @@ export default defineComponent({
       const v = this.bonusRewardView;
       return v.lines.length > 0 || v.rawChips.length > 0 || v.vp !== undefined;
     },
-    bonusShowsFacts(): boolean {
-      return this.bonusCostLine !== undefined || this.bonusGainPresent;
+    /** The optional refusal is reachable INSIDE the reward step too — the
+     *  rules still allow declining until the commit (a server-framed offer
+     *  only; a card entry's way out is B). */
+    choiceSkipOffered(): boolean {
+      return this.advanceOffer !== undefined && this.bonusSkipOffered;
     },
     /** Does the offer's LANDING stage ask which reward to take (pos 1/2)? */
     bonusNeedsReward(): boolean {
@@ -1467,6 +1450,33 @@ export default defineComponent({
      * «Продвинуться» while the player stood on the pre-select row, which
      * is the bar describing a different button.
      */
+    /**
+     * THE PRIMARY of a source move — named by the NEXT REQUIRED INTERACTION,
+     * one vocabulary with the player's own advance (the parity law: the
+     * source explains the move, it never renames the decision). `pending`
+     * mirrors the plan CTA's rule: legal but not the act in front while the
+     * landed stage's pick is owed.
+     */
+    bonusPrimary(): {verb: HydroNextInteraction, label: string, pending: boolean} {
+      const verb = hydroNextInteraction({
+        needsChoice: this.bonusNeedsReward,
+        choiceMade: this.rewardChoice !== undefined,
+      });
+      return {verb, label: HYDRO_PRIMARY_KEY[verb], pending: verb === 'reinforce' && this.bonusPickMissing};
+    },
+    /**
+     * THE CARD SCENE OWNS THE FRAME. While the landed stage's embedded deck
+     * pick is live inside this workspace, the cards are the undisputed primary
+     * content: the identity/action columns and the commit line dissolve, the
+     * embed zone takes the whole surface, and everything returns when the
+     * selection is over. Keyed on the deck-pick flow's own phase — never on a
+     * mount or a visibility flag.
+     */
+    immersive(): boolean {
+      return this.flowDeck.phase !== 'idle' &&
+        this.flow.commit !== undefined &&
+        workspaceOutcomeState.host === 'hydro';
+    },
     bonusConfirmLabel(): string {
       if (this.sceneFocus === 'bonus-pick') {
         return this.pickVerbKey;
@@ -1474,7 +1484,7 @@ export default defineComponent({
       if (this.sceneFocus === 'bonus-source') {
         return 'Inspect';
       }
-      return this.sceneFocus === 'bonus-skip' ? this.bonusCopy.skipKey : this.bonusCopy.confirmKey;
+      return this.sceneFocus === 'bonus-skip' ? this.bonusCopy.skipKey : this.bonusPrimary.label;
     },
     /** The verb the ONE command bar shows while the cursor is on the row. */
     pickVerbKey(): string {
@@ -1857,11 +1867,12 @@ export default defineComponent({
       if (this.flow.step === 'reward') {
         // The step confirms ITSELF: A on an option arms the commit right
         // under it, A again reinforces. ↑ (or ←/→) goes back to the options
-        // — a change of mind never leaves the step either.
+        // — a change of mind never leaves the step either. The bar follows
+        // the cursor onto the optional refusal, exactly as the offer's does.
         if (this.choiceStage === 'confirm') {
           return [
             {control: 'dpadU', control2: 'dpadD', label: 'Change selection', priority: 2},
-            {control: 'confirm', label: this.choiceCommitLabel},
+            {control: 'confirm', label: this.choiceSkipFocus ? this.bonusCopy.skipKey : this.choiceCommitLabel},
             {control: 'back', label: 'Cancel'},
           ];
         }
@@ -2729,6 +2740,7 @@ export default defineComponent({
       hydroNetworkState.rewardChoice = undefined;
       this.choiceFocus = 0;
       this.choiceStage = 'options';
+      this.choiceSkipFocus = false;
       openHydroStep('reward');
     },
     /** A on an option — hold it and arm the commit right underneath. */
@@ -2736,6 +2748,7 @@ export default defineComponent({
       hydroNetworkState.rewardChoice = index;
       this.choiceFocus = index;
       this.choiceStage = 'confirm';
+      this.choiceSkipFocus = false;
     },
     /** A on the step's own CTA — the advance commits from HERE. */
     confirmChoiceStep(): void {
@@ -2777,6 +2790,7 @@ export default defineComponent({
     closeChoiceStep(): void {
       hydroNetworkState.rewardChoice = undefined;
       this.choiceStage = 'options';
+      this.choiceSkipFocus = false;
       closeHydroStep();
       this.sceneFocus = 'track';
     },
@@ -2928,17 +2942,30 @@ export default defineComponent({
             // Sideways always means «the options» — from the armed CTA it
             // steps back up into them AND moves, one gesture.
             this.choiceStage = 'options';
+            this.choiceSkipFocus = false;
             this.choiceFocus = (this.choiceFocus + (intent.dir === 'right' ? 1 : n - 1)) % n;
-          } else if (intent.dir === 'down' && this.rewardChoice !== undefined) {
-            this.choiceStage = 'confirm';
+          } else if (intent.dir === 'down') {
+            // ↓ walks the act column: options → the armed commit → the
+            // optional refusal beneath it (a server-framed offer only).
+            if (this.choiceStage === 'confirm' && this.choiceSkipOffered) {
+              this.choiceSkipFocus = true;
+            } else if (this.rewardChoice !== undefined) {
+              this.choiceStage = 'confirm';
+            }
           } else if (intent.dir === 'up') {
-            this.choiceStage = 'options';
+            if (this.choiceSkipFocus) {
+              this.choiceSkipFocus = false;
+            } else {
+              this.choiceStage = 'options';
+            }
           }
           return;
         }
         switch (consoleActionOf(intent)) {
         case 'primary':
-          if (this.choiceStage === 'confirm') {
+          if (this.choiceSkipFocus) {
+            this.answerBonus(false);
+          } else if (this.choiceStage === 'confirm') {
             this.confirmChoiceStep();
           } else {
             this.pickChoice(this.choiceFocus);

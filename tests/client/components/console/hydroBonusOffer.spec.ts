@@ -3,7 +3,8 @@ import {CardName} from '@/common/cards/CardName';
 import type {DeltaBonusPromptMeta} from '@/common/models/DeltaBonusPromptModel';
 import type {PlayerInputModel} from '@/common/models/PlayerInputModel';
 import {
-  hydroBonusAdvancePlan, hydroBonusCopy, hydroBonusDoorAction, hydroBonusOffer, hydroZoneState,
+  HYDRO_PRIMARY_KEY, hydroBonusAdvancePlan, hydroBonusCopy, hydroBonusDoorAction, hydroBonusOffer,
+  hydroNextInteraction, hydroZoneState,
 } from '@/client/console/hydroFlow/hydroBonusOffer';
 import {HYDRO_STAGES} from '@/client/components/hydronetwork/hydroStages';
 import {
@@ -84,7 +85,6 @@ describe('hydroBonusOffer (the card-granted bonus move)', () => {
       expect(copy.bodyKey).to.match(/free/i);
       expect(copy.bodyKey).to.match(/ocean/i);
       expect(copy.bodyKey).to.match(/stays available/i);
-      expect(copy.confirmKey).to.not.match(/energy/i);
     });
 
     it('the waiver offer states the shortfall and the price IN THE BODY', () => {
@@ -95,23 +95,24 @@ describe('hydroBonusOffer (the card-granted bonus move)', () => {
     });
 
     /**
-     * THE VERB IS THE VERB, AND ONLY THE VERB.
+     * THE PRIMARY IS THE DECISION'S, NOT THE SOURCE'S.
      *
-     * The A-label is echoed into the ONE bottom command bar, where
-     * «ПОТРАТИТЬ 1 ЭНЕРГИЮ И ПРОДВИНУТЬСЯ» crowded out «X Осмотреть» and
-     * «B Свернуть» and then truncated itself. The price is stated by the
-     * workspace's own «Будет потрачено» delta row instead — and a bonus
-     * advance must not read differently from an ordinary one.
+     * The parity law of the workspace: a source move asks «Выберите награду»
+     * over an unresolved stage choice and commits as «Укрепить гидросеть»
+     * when ready — the SAME vocabulary as the player's own advance, whatever
+     * the offer's shape. «Продвинуться» as a source-only final verb (and any
+     * price folded into the button) is the fork this retires; the copy
+     * deliberately carries NO confirm key at all.
      */
-    it('REGRESSION: the CTA is ONE short verb, identical for both shapes', () => {
-      const free = hydroBonusCopy(meta());
-      const paid = hydroBonusCopy(meta({waivesTag: true, energyCost: 1}));
-      expect(paid.confirmKey).to.eq(free.confirmKey);
-      expect(free.confirmKey).to.eq('Advance');
+    it('REGRESSION: the primary is named by the NEXT INTERACTION, one vocabulary for every door', () => {
+      expect(hydroNextInteraction({needsChoice: false, choiceMade: false})).to.eq('reinforce');
+      expect(hydroNextInteraction({needsChoice: true, choiceMade: false})).to.eq('choose-reward');
+      expect(hydroNextInteraction({needsChoice: true, choiceMade: true})).to.eq('reinforce');
+      expect(HYDRO_PRIMARY_KEY['reinforce']).to.eq('Reinforce the hydronetwork');
+      expect(HYDRO_PRIMARY_KEY['choose-reward']).to.eq('Choose a reward');
       // No price, no adverb — nothing that grows with the offer's shape.
-      for (const copy of [free, paid]) {
-        expect(copy.confirmKey).to.not.match(/energy|free/i);
-        expect(copy.confirmKey.split(' ')).to.have.length(1);
+      for (const label of Object.values(HYDRO_PRIMARY_KEY)) {
+        expect(label).to.not.match(/energy|free/i);
       }
     });
 
@@ -126,7 +127,7 @@ describe('hydroBonusOffer (the card-granted bonus move)', () => {
     it('never mentions the hidden Delta Project action card', () => {
       for (const m of [meta(), meta({waivesTag: true})]) {
         const copy = hydroBonusCopy(m);
-        for (const text of [copy.titleKey, copy.bodyKey, copy.confirmKey, copy.skipKey]) {
+        for (const text of [copy.titleKey, copy.bodyKey, copy.skipKey]) {
           expect(text).to.not.contain(CardName.DELTA_PROJECT);
         }
       }

@@ -52,7 +52,52 @@ export const deckPickState = reactive({
   committing: false,
   /** How many cards the player kept — the clearing beat's copy reads it. */
   kept: 0,
+  /**
+   * THE BATCH THE DEAL HAS ALREADY PLAYED FOR — the reward batch's stable
+   * identity (the surface's structural prompt key: card names + bounds).
+   *
+   * The deal is the presentation of a NEW batch, exactly once. A remount is
+   * not a new batch: collapsing the hosting workspace and reopening the
+   * mandatory prompt re-mounts the surface over the SAME server ask, and
+   * keying the deal on the mount replayed the whole draw — cards flying off
+   * a deck they had already left. Module state, deliberately: a flag in the
+   * component died with it, which was the bug.
+   */
+  dealtKey: '',
 });
+
+/**
+ * The player's UNSUBMITTED table state, surviving a park (collapse → board →
+ * reopen re-mounts the surface): the draft picks and the cursor. Never the
+ * answer — the server ask is untouched; this is presentation persistence for
+ * the same batch identity only.
+ */
+let pickDraft: {key: string, picks: Array<CardName>, focusIdx: number} | undefined;
+
+/** Should a mount PLAY THE DEAL for this batch — true only the first time. */
+export function shouldDealBatch(key: string): boolean {
+  return deckPickState.dealtKey !== key;
+}
+
+/** The deal for this batch has physically played (or been adopted). */
+export function markBatchDealt(key: string): void {
+  deckPickState.dealtKey = key;
+}
+
+/** Park the draft on unmount — same-batch remounts restore it. */
+export function saveDeckPickDraft(key: string, picks: ReadonlyArray<CardName>, focusIdx: number): void {
+  pickDraft = {key, picks: [...picks], focusIdx};
+}
+
+/** The draft for THIS batch, consumed; a different batch gets nothing. */
+export function takeDeckPickDraft(key: string): {picks: Array<CardName>, focusIdx: number} | undefined {
+  const d = pickDraft;
+  pickDraft = undefined;
+  if (d === undefined || d.key !== key) {
+    return undefined;
+  }
+  return {picks: d.picks, focusIdx: d.focusIdx};
+}
 
 /** Is the flow in one of its own animated beats? */
 export function isDeckPickBusy(): boolean {
@@ -116,6 +161,8 @@ export function beginDeckPickClearing(): void {
 export function endDeckPickCommit(): void {
   deckPickState.committing = false;
   deckPickState.phase = 'idle';
+  // The batch is ANSWERED — a parked draft for it can never be honest again.
+  pickDraft = undefined;
 }
 
 /** The submit was refused: give the screen back rather than stranding it. */
@@ -196,5 +243,7 @@ export function resetDeckPick(): void {
   deckPickState.phase = 'idle';
   deckPickState.committing = false;
   deckPickState.kept = 0;
+  deckPickState.dealtKey = '';
+  pickDraft = undefined;
   clearDeckPickFlight();
 }

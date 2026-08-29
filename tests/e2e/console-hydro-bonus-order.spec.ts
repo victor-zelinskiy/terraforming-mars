@@ -682,32 +682,30 @@ test.describe('the bonus offer never stands over the cards the placement drew', 
     // THE SERVER'S OWN VERDICT, rendered: the price is on the CTA and in the
     // body, and the free wording is gone. The client decided none of it.
     const paid = await page.evaluate(() => ({
-      confirm: document.querySelector('.con-hydro__bonus-action .con-hydro__bonus-action-title')?.textContent?.trim() ?? '',
+      confirm: document.querySelector('.con-hydro__ctazone .con-hydro__cta span:last-of-type')?.textContent?.trim() ?? '',
       body: document.querySelector('.con-hydro__bonus-text')?.textContent?.trim() ?? '',
       cost: document.querySelector('.con-hydro__route-cost')?.textContent?.replace(/\s+/g, ' ').trim() ?? '',
       free: document.querySelector('.con-hydro__route-cost--free') !== null,
       // THE PRICE AS A PREMIUM «сейчас → станет» ROW — the same grammar the
       // plan panel states an ordinary advance with.
-      spendRow: document.querySelector('.con-hydro__delta--cost')
+      spendRow: document.querySelector('.con-hydro__payline-mix')
         ?.textContent?.replace(/\s+/g, ' ').trim() ?? '',
-      spendLabel: document.querySelector('.con-hydro__bonus-fact .con-hydro__section-label')
+      spendLabel: document.querySelector('.con-hydro__payline .con-hydro__section-label')
         ?.textContent?.trim() ?? '',
-      barConfirm: Array.from(document.querySelectorAll('.con-cmd, .con-cmdbar__cmd'))
-        .map((e) => e.textContent?.replace(/\s+/g, ' ').trim() ?? '')
-        .find((t) => /Продвин/i.test(t)) ?? '',
     }));
-    // THE VERB IS THE VERB. «ПОТРАТИТЬ 1 ЭНЕРГИЮ И ПРОДВИНУТЬСЯ» crowded
-    // «X Осмотреть» and «B Свернуть» off the ONE command bar and then
-    // truncated itself — a bonus advance must not read differently from an
-    // ordinary one.
-    expect(paid.confirm, `paid CTA read «${paid.confirm}»`).not.toMatch(/энерги/i);
-    expect(paid.confirm.split(/\s+/), `paid CTA read «${paid.confirm}»`).toHaveLength(1);
+    // THE PARITY LAW: the primary is the DECISION's own vocabulary — the
+    // same «Укрепить гидросеть» the player's advance commits with, no price
+    // folded in, whatever the offer's shape (the source-only «Продвинуться»
+    // dialect is retired).
+    expect(paid.confirm, `paid CTA read «${paid.confirm}»`).not.toMatch(/энерги|продвин/i);
+    expect(paid.confirm, `paid CTA read «${paid.confirm}»`)
+      .toMatch(/УКРЕПИТЬ ГИДРОСЕТЬ|ВЫБЕРИТЕ НАГРАДУ/i);
     expect(paid.body, `paid body read «${paid.body}»`).toMatch(/метк/i);
     expect(paid.cost, `paid cost chip read «${paid.cost}»`).toContain('1');
-    // …and the PRICE is stated in the workspace, as before → after.
-    expect(paid.spendLabel, `the facts row read «${paid.spendLabel}»`).toMatch(/потрачен/i);
-    expect(paid.spendRow, `the spend row read «${paid.spendRow}»`).toMatch(/\d+\s*→\s*\d+/);
-    expect(paid.spendRow, `the spend row read «${paid.spendRow}»`).toContain('−1');
+    // …and the PRICE is stated through the plan panel's OWN payment line.
+    expect(paid.spendLabel, `the payment row read «${paid.spendLabel}»`).toMatch(/оплат/i);
+    expect(paid.spendRow, `the payment row read «${paid.spendRow}»`).toMatch(/\d+\s*→\s*\d+/);
+    expect(paid.spendRow, `the payment row read «${paid.spendRow}»`).toContain('−1');
     await page.locator('.con-hydro__layer--bonus').screenshot({path: 'screenshots/hydro-bonus/paid.png'}).catch(() => {});
     expect(paid.free, 'the paid offer must not advertise itself as free').toBe(false);
   });

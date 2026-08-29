@@ -39,7 +39,6 @@ type Vm = {
   bonusNeedsReward: boolean,
   bonusCostLine: {before: number, after: number, delta: number} | undefined,
   bonusGainPresent: boolean,
-  bonusShowsFacts: boolean,
   bonusRewardOptions: ReadonlyArray<unknown>,
   bonusRewardView: {lines: ReadonlyArray<{delta: number}>},
   bonusNeedsCard: boolean,
@@ -490,7 +489,9 @@ describe('the Hydronetwork bonus zone', () => {
       const vm = w.vm as unknown as Vm;
       // The viewer holds 3 energy (see `viewerPlayer`).
       expect(vm.bonusCostLine).to.include({before: 3, after: 2, delta: -1});
-      expect(vm.bonusShowsFacts).is.true;
+      // …and the screen states it through the plan panel's OWN payment line —
+      // never a source-only «будет потрачено» dialect.
+      expect(w.find('.con-hydro__payline').exists()).is.true;
       w.unmount();
     });
 
@@ -634,9 +635,9 @@ describe('the Hydronetwork bonus zone', () => {
       // …and the SCREEN agrees, which is the whole report: the confirm wore the
       // focus ring AND an «A» beside the row's own, so two buttons claimed one
       // press over a pre-select nobody was pointed at.
-      const confirm = w.findAll('.con-hydro__bonus-action')[0];
-      expect(confirm.classes(), 'the confirm is not focused').to.not.contain('con-hydro__bonus-action--focused');
-      expect(confirm.classes(), 'nor the primary CTA').to.not.contain('con-hydro__bonus-action--primary');
+      const confirm = w.find('.con-hydro__cta');
+      expect(confirm.classes(), 'the confirm is not focused').to.not.contain('con-hydro__cta--focused');
+      expect(confirm.classes(), 'the primary register recedes while the pick is owed').to.contain('con-hydro__cta--pending');
       const glyphs = w.findAllComponents({name: 'GamepadGlyph'})
         .filter((g) => g.props('control') === 'confirm').length;
       expect(glyphs, 'exactly one «A» on screen').to.eq(1);
@@ -689,7 +690,7 @@ describe('the Hydronetwork bonus zone', () => {
       expect(vm.sceneFocus).to.eq('bonus-pick');
       expect(labelOf(), 'never «Продвинуться» over the pre-select').to.eq('Choose an action');
       vm.sceneFocus = 'bonus-confirm';
-      expect(labelOf()).to.eq('Advance');
+      expect(labelOf()).to.eq('Reinforce the hydronetwork');
       vm.sceneFocus = 'bonus-source';
       expect(labelOf()).to.eq('Inspect');
       w.unmount();
@@ -812,24 +813,22 @@ describe('the Hydronetwork bonus zone', () => {
    * row and the confirm drew an «A», so two buttons advertised the same button.
    */
   describe('the confirm while a pick is owed', () => {
-    it('is NOT the primary CTA', () => {
+    it('recedes from the primary register (the plan CTA\'s own --pending rule)', () => {
       seatPreview({reuse: ['Ironworks']});
       const w = mountSection(REPEAT_OFFER);
-      const confirm = w.findAll('.con-hydro__bonus-action')[0];
-      expect(confirm.classes(), 'no primary tint over a confirm that cannot fire')
-        .to.not.contain('con-hydro__bonus-action--primary');
-      expect(confirm.classes()).to.contain('con-hydro__bonus-action--pending');
+      const confirm = w.find('.con-hydro__cta');
+      expect(confirm.classes(), 'no «press me» register over a confirm that is not the act in front')
+        .to.contain('con-hydro__cta--pending');
       w.unmount();
     });
 
-    it('…and IS the primary CTA once the pick is made', async () => {
+    it('…and takes the primary register back once the pick is made', async () => {
       seatPreview({reuse: ['Ironworks']});
       const w = mountSection(REPEAT_OFFER);
       hydroNetworkState.selectedCard = 'Ironworks' as never;
       await w.vm.$nextTick();
-      const confirm = w.findAll('.con-hydro__bonus-action')[0];
-      expect(confirm.classes()).to.contain('con-hydro__bonus-action--primary');
-      expect(confirm.classes()).to.not.contain('con-hydro__bonus-action--pending');
+      const confirm = w.find('.con-hydro__cta');
+      expect(confirm.classes()).to.not.contain('con-hydro__cta--pending');
       w.unmount();
     });
 
@@ -1014,7 +1013,7 @@ describe('the Hydronetwork bonus zone', () => {
       const w = mountSection(OFFER);
       const vm = w.vm as unknown as Vm;
       const labelOf = () => vm.footCommands.find((c) => c.control === 'confirm')?.label;
-      expect(labelOf()).to.eq('Advance');
+      expect(labelOf()).to.eq('Reinforce the hydronetwork');
       vm.sceneFocus = 'bonus-skip';
       expect(labelOf()).to.eq('Skip');
       w.unmount();
@@ -1028,7 +1027,7 @@ describe('the Hydronetwork bonus zone', () => {
     it('REGRESSION: the paid offer does NOT put its price on the CTA', () => {
       const w = mountSection({...OFFER, energyCost: 1, waivesTag: true});
       const label = (w.vm as unknown as Vm).footCommands.find((c) => c.control === 'confirm')?.label;
-      expect(label).to.eq('Advance');
+      expect(label).to.eq('Reinforce the hydronetwork');
       w.unmount();
     });
 

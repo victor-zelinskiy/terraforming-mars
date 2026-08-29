@@ -157,7 +157,8 @@ import {markWorkspaceOutcomeArrivalDone, setWorkspaceOutcomePhase, workspaceOutc
 import {
   armDeckPickFlight, beginDeckPickChoosing, beginDeckPickClearing, beginDeckPickDeal,
   beginDeckPickSend, clearDeckPickFlight, deckPickProxyEls, deckPickState,
-  endDeckPickCommit, rollbackDeckPickCommit,
+  endDeckPickCommit, markBatchDealt, rollbackDeckPickCommit, saveDeckPickDraft,
+  shouldDealBatch, takeDeckPickDraft,
 } from '@/client/console/deckPick/consoleDeckPick';
 import {motionMs} from '@/client/components/motion/motionTokens';
 
@@ -460,6 +461,12 @@ export default defineComponent({
     }
   },
   beforeUnmount(): void {
+    // PARK THE TABLE, not the answer: an unanswered batch keeps its draft
+    // picks and cursor in module state, so the collapse → reopen round trip
+    // restores the same selection instead of a cleared one.
+    if (this.phase === 'choosing' && !this.submitting && this.model !== undefined) {
+      saveDeckPickDraft(this.promptKey, this.picks, this.focusIdx);
+    }
     clearPanelCommands('deckPick');
     if (this.embedded) {
       setWorkspaceOutcomePhase('');
@@ -490,14 +497,18 @@ export default defineComponent({
     startDeal(): void {
       this.handle?.kill();
       this.handle = undefined;
-      // ADOPT, NEVER RE-DEAL. Hosted inside a workspace whose own execution
-      // beat already pulled these cards off the pile at confirm, there is
-      // nothing left to deal: the cards are standing in these very slots under
-      // the host's landed proxies, and the host's handoff is what uncovers them
-      // (and what opens the arrival gate — we must not open it early over
-      // proxies that are still there). Dealing anyway meant the batch flew
-      // twice off the same deck, with the cards blinking out in between.
-      if (this.embedded && workspaceOutcomeArrivalFlown()) {
+      // ADOPT, NEVER RE-DEAL — two distinct reasons, one behaviour:
+      //  · the HOST's own execution beat already pulled these cards off the
+      //    pile at confirm (the hand-play door): they are standing in these
+      //    very slots under the host's landed proxies;
+      //  · this BATCH has already been dealt by a previous mount of this very
+      //    surface (collapse → reopen of the hosting workspace, an inspect
+      //    round trip, a duplicate render of the same server ask). The deal is
+      //    the presentation of a NEW batch, exactly once — keyed on the
+      //    batch's own identity in MODULE state, never on the mount.
+      // Dealing anyway meant cards flying off a deck they had already left.
+      const hostFlew = this.embedded && workspaceOutcomeArrivalFlown();
+      if (hostFlew || !shouldDealBatch(this.promptKey)) {
         this.flyOn = false;
         this.held.clear();
         // Through `deal` all the same, so a previous commit's bookkeeping is
@@ -505,6 +516,20 @@ export default defineComponent({
         // not linger there, because the cards have already landed.
         beginDeckPickDeal();
         beginDeckPickChoosing();
+        markBatchDealt(this.promptKey);
+        // The parked table state of THIS batch comes back with it: the draft
+        // picks and the cursor survive the round trip to the board.
+        const draft = takeDeckPickDraft(this.promptKey);
+        if (draft !== undefined) {
+          this.picks = draft.picks.filter((n) => this.entries.some((e) => e.name === n));
+          this.focusIdx = Math.min(Math.max(0, draft.focusIdx), Math.max(0, this.entries.length - 1));
+        }
+        // A batch-identity adopt owns its arrival gate (nothing else will open
+        // it); a HOST-flown adopt must NOT — the host's handoff opens it, and
+        // opening early would uncover cards its proxies still stand over.
+        if (!hostFlew) {
+          markWorkspaceOutcomeArrivalDone();
+        }
         this.scheduleFit();
         return;
       }
@@ -587,6 +612,9 @@ export default defineComponent({
       clearDeckPickFlight();
       this.held.clear();
       releaseDeckDisplay();
+      // THIS batch's deal has physically played — a later remount of the same
+      // server ask adopts a settled table instead of re-dealing it.
+      markBatchDealt(this.promptKey);
       // The claim's ARRIVAL gate is ours to open: this surface flew the batch,
       // so nothing else is going to say the cards have landed. Left closed it
       // would sit on the 5 s backstop while a fully interactive stage waited

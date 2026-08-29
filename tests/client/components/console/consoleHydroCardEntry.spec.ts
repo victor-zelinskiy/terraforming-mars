@@ -165,7 +165,9 @@ describe('the Hydronetwork card-action entry', () => {
     const w = mountSection({cardOffer: CARD_OFFER});
     const vm = w.vm as unknown as Vm;
     expect(vm.bonusSkipOffered).is.false;
-    expect(w.findAll('.con-hydro__bonus-action')).to.have.length(1);
+    // The primary is the SAME CTA plate the player's own advance wears (the
+    // parity law) — and no refusal stands beside it.
+    expect(w.find('.con-hydro__cta').exists()).is.true;
     expect(w.findAll('.con-hydro__bonus-action--decline')).to.have.length(0);
     // …and a stray press on the button that is not there answers nothing.
     vm.answerBonus(false);

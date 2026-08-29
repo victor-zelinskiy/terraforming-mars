@@ -1,8 +1,8 @@
 import {expect} from 'chai';
 import {
   beginDeckPickChoosing, beginDeckPickClearing, beginDeckPickDeal, beginDeckPickSend,
-  deckPickHolding, deckPickState, endDeckPickCommit, isDeckPickBusy,
-  resetDeckPick, rollbackDeckPickCommit,
+  deckPickHolding, deckPickState, endDeckPickCommit, isDeckPickBusy, markBatchDealt,
+  resetDeckPick, rollbackDeckPickCommit, saveDeckPickDraft, shouldDealBatch, takeDeckPickDraft,
 } from '../../../../src/client/console/deckPick/consoleDeckPick';
 
 /**
@@ -94,5 +94,67 @@ describe('consoleDeckPick', () => {
     expect(deckPickState.phase).to.eq('dealing');
     expect(deckPickState.committing).to.be.false;
     expect(deckPickState.kept).to.eq(0);
+  });
+
+  /**
+   * ══ THE DEAL PLAYS EXACTLY ONCE PER BATCH ══════════════════════════════
+   *
+   * The deal is the presentation of a NEW reward batch — keyed on the batch's
+   * own identity (the structural prompt key), never on a mount. Collapsing the
+   * hosting workspace and reopening the mandatory prompt re-mounts the surface
+   * over the SAME server ask; keying on the mount replayed the whole draw.
+   */
+  describe('the deal-once identity', () => {
+    const KEY = 'CardA|CardB|CardC|CardD#2-2';
+
+    it('a NEW batch deals; the SAME batch adopts on every later mount', () => {
+      expect(shouldDealBatch(KEY), 'first presentation → deal').to.be.true;
+      markBatchDealt(KEY);
+      expect(shouldDealBatch(KEY), 'collapse → reopen / inspect / resize → adopt').to.be.false;
+      expect(shouldDealBatch('CardE|CardF#1-1'), 'the NEXT batch is new again').to.be.true;
+    });
+
+    it('a duplicate render of the same ask cannot double-deal', () => {
+      markBatchDealt(KEY);
+      markBatchDealt(KEY);
+      expect(shouldDealBatch(KEY)).to.be.false;
+    });
+
+    it('the reset epoch clears the identity (a new game may deal again)', () => {
+      markBatchDealt(KEY);
+      resetDeckPick();
+      expect(shouldDealBatch(KEY)).to.be.true;
+    });
+  });
+
+  /**
+   * ══ THE PARKED TABLE ═══════════════════════════════════════════════════
+   *
+   * «Свернуть» keeps the pending choice: the draft picks and the cursor are
+   * MODULE state, restored to a remount of the SAME batch and never to a
+   * different one. The answer itself is untouched — this is presentation
+   * persistence, not a submit.
+   */
+  describe('the parked draft', () => {
+    const KEY = 'CardA|CardB|CardC|CardD#2-2';
+
+    it('survives a park and comes back for the same batch, consumed', () => {
+      saveDeckPickDraft(KEY, ['CardA', 'CardC'] as never, 2);
+      const back = takeDeckPickDraft(KEY);
+      expect(back?.picks).to.deep.eq(['CardA', 'CardC']);
+      expect(back?.focusIdx).to.eq(2);
+      expect(takeDeckPickDraft(KEY), 'consumed — a second take gets nothing').to.eq(undefined);
+    });
+
+    it('a DIFFERENT batch never inherits a stale draft', () => {
+      saveDeckPickDraft(KEY, ['CardA'] as never, 0);
+      expect(takeDeckPickDraft('CardE|CardF#1-1')).to.eq(undefined);
+    });
+
+    it('an ANSWERED batch cannot hand its draft back', () => {
+      saveDeckPickDraft(KEY, ['CardA'] as never, 0);
+      endDeckPickCommit();
+      expect(takeDeckPickDraft(KEY)).to.eq(undefined);
+    });
   });
 });

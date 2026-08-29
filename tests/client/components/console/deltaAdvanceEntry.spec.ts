@@ -133,12 +133,12 @@ describe('the card-entry Hydronetwork move (Storm Surge Barrier)', () => {
       expect(hydroAdvanceCopy(offer(), 'prompt').skipKey).to.eq('Skip');
     });
 
-    it('states the VERB and only the verb, identically for every provenance', () => {
-      // The price is the workspace's own «Будет потрачено» row — never folded
-      // into a button that is echoed into the ONE command bar.
-      expect(hydroAdvanceCopy(offer(), 'card-entry').confirmKey).to.eq('Advance');
-      expect(hydroAdvanceCopy(offer(), 'prompt').confirmKey).to.eq('Advance');
-      expect(hydroAdvanceCopy(offer({waivesTag: true}), 'prompt').confirmKey).to.eq('Advance');
+    it('carries NO confirm verb at all — the primary is the decision\'s, one vocabulary for every door', () => {
+      // The parity law: the copy explains the source; the CTA is named by
+      // `hydroNextInteraction` («Выберите награду» / «Укрепить гидросеть»)
+      // identically for the player's own advance and for every card door.
+      expect('confirmKey' in (hydroAdvanceCopy(offer(), 'card-entry') as object)).to.eq(false);
+      expect('confirmKey' in (hydroAdvanceCopy(offer(), 'prompt') as object)).to.eq(false);
     });
 
     it('hands ONE WORD up to the crumb, and not the root noun', () => {

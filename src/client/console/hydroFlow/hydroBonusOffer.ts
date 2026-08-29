@@ -171,7 +171,30 @@ export function hydroBonusAdvancePlan(stage: HydroStage | undefined): HydroBonus
  */
 export type DeltaOfferOrigin = 'prompt' | 'card-entry';
 
-/** The zone's copy, as ENGLISH i18n KEYS (+ params). Never rendered raw. */
+/**
+ * THE NEXT REQUIRED INTERACTION of a track move — the ONE thing the primary
+ * CTA is named after, whatever door the move came through. The parity law of
+ * the workspace: a source card changes CONTEXT (the card, the explanation,
+ * the price, an optional refusal), never the DECISION LANGUAGE — so a move
+ * with an unresolved stage choice asks «Выберите награду» from every door,
+ * and a ready move commits as «Укрепить гидросеть» from every door.
+ * «Продвинуться» as a source-only final verb is the fork this retires.
+ */
+export type HydroNextInteraction = 'choose-reward' | 'reinforce';
+
+export function hydroNextInteraction(input: {needsChoice: boolean, choiceMade: boolean}): HydroNextInteraction {
+  return input.needsChoice && !input.choiceMade ? 'choose-reward' : 'reinforce';
+}
+
+/** The primary CTA's label KEY per interaction — one vocabulary, every flow. */
+export const HYDRO_PRIMARY_KEY: Readonly<Record<HydroNextInteraction, string>> = {
+  'choose-reward': 'Choose a reward',
+  'reinforce': 'Reinforce the hydronetwork',
+};
+
+/** The zone's copy, as ENGLISH i18n KEYS (+ params). Never rendered raw.
+ *  (The primary CTA is NOT here: it is named by {@link hydroNextInteraction}
+ *  — the source explains itself, it never renames the decision.) */
 export type HydroBonusCopy = {
   /** Stage name handed UP to the workspace crumb — never drawn by the zone. */
   stageKey: string;
@@ -179,7 +202,6 @@ export type HydroBonusCopy = {
   bodyKey: string;
   /** `${0}` in `bodyKey` — the granting card's name (translated by the caller). */
   bodyParams: ReadonlyArray<string>;
-  confirmKey: string;
   /** The REFUSAL option, or '' when there is none to offer (`card-entry`). */
   skipKey: string;
 };
@@ -208,7 +230,6 @@ export function hydroAdvanceCopy(offer: DeltaAdvanceOffer, origin: DeltaOfferOri
       titleKey: 'Extra advance',
       bodyKey: '${0} lets you spend 1 energy and advance 1 step on the Hydronetwork. Your usual advance this generation stays available.',
       bodyParams: [offer.source],
-      confirmKey: 'Advance',
       skipKey: '',
     };
   }
@@ -217,14 +238,12 @@ export function hydroAdvanceCopy(offer: DeltaAdvanceOffer, origin: DeltaOfferOri
     titleKey: 'Bonus advance',
     bodyKey: 'The next stage is 1 required tag short. Spend 1 energy and take the bonus step? ${0} grants it for placing an ocean, and your usual advance this generation stays available.',
     bodyParams: [offer.source],
-    confirmKey: 'Advance',
     skipKey: 'Skip',
   } : {
     stageKey: 'BONUS STEP',
     titleKey: 'Bonus advance',
     bodyKey: '${0} lets you advance 1 step on the Hydronetwork for free for placing an ocean. Your usual advance this generation stays available.',
     bodyParams: [offer.source],
-    confirmKey: 'Advance',
     skipKey: 'Skip',
   };
 }
