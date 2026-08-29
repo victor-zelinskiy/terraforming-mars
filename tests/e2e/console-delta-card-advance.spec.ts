@@ -841,6 +841,7 @@ test.describe('console — the card-action Hydronetwork door', () => {
           {opacity: Number(getComputedStyle(shade).opacity)},
         inert: document.querySelector('.con-hydro[inert], .con-hydro [inert]') !== null,
         focusedRow: document.querySelector('.con-hydro__pickrow.con-hydro__summary--focused') !== null,
+        ctaFocused: document.querySelector('.con-hydro__cta--focused') !== null,
         summary: (document.querySelector('.con-hydro__pickrow') as HTMLElement | null)
           ?.innerText.replace(/\s+/g, ' ').trim() ?? '',
         bar: (document.querySelector('.con-cmdbar') as HTMLElement | null)
@@ -855,7 +856,9 @@ test.describe('console — the card-action Hydronetwork door', () => {
     expect((light as any).shade?.opacity ?? 0, 'no stale shade').toBeLessThan(0.05);
     expect(light.inert, 'nothing inert').toBe(false);
     expect(String(light.summary), 'the chosen action stands in the summary').toMatch(/Tardigrades|Тихоходки/i);
-    expect(light.focusedRow, `focus returns to the summary (bar «${light.bar}»)`).toBe(true);
+    // THE ANSWER MOVES THE CURSOR ON: nothing left open → the offer's CTA.
+    expect(light.focusedRow, 'the resolved decision does not hold the cursor').toBe(false);
+    expect(light.ctaFocused, `focus advanced to the final CTA (bar «${light.bar}»)`).toBe(true);
 
     // ── The same press does not commit: the position is still 6. ──
     const pos = ((await fetchPlayerModel(request, playerId)) as Wire).thisPlayer.deltaProject?.position ?? 0;

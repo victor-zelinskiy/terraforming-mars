@@ -47,6 +47,7 @@ type Vm = {
   selectPosition(position: number): void,
   onPrimary(): void,
   answerBonus(take: boolean): void,
+  handleIntent(intent: unknown): void,
 };
 
 function viewerPlayer(position: number) {
@@ -135,7 +136,7 @@ describe('the Hydronetwork landing-stage target pick', () => {
 
       expect(vm.pickKind).to.eq('reuse-action');
       expect(vm.planPickMissing).is.true;
-      expect(vm.sceneFocus).to.eq('summary');
+      expect(vm.sceneFocus).to.eq('rail:0:reuse-action');
       w.unmount();
     });
 
@@ -147,32 +148,40 @@ describe('the Hydronetwork landing-stage target pick', () => {
       vm.selectPosition(9);
 
       expect(vm.pickKind).to.eq('animal-target');
-      expect(vm.sceneFocus).to.eq('summary');
+      expect(vm.sceneFocus).to.eq('rail:0:animal-target');
       w.unmount();
     });
 
-    it('a stage that owes NOTHING leaves the cursor on the track', () => {
+    it('a stage that owes NOTHING seats the FINAL CTA (the focus matrix)', () => {
       seatPreview(2);
       const w = mountSection(2);
       const vm = w.vm as unknown as Vm;
 
-      vm.selectPosition(3); // +2 M€ production — no pick of any kind
+      // No decisions → the automatic seat is the CTA, never a decision slot.
       expect(vm.pickKind).to.eq(undefined);
+      expect(vm.sceneFocus).to.eq('cta');
+      expect(vm.ctaFocused).is.true;
+
+      // …and the player's own WALK re-takes the track (their revision).
+      vm.handleIntent({kind: 'nav', dir: 'left'});
       expect(vm.sceneFocus).to.eq('track');
       w.unmount();
     });
 
-    it('a FIZZLED stage (no candidate at all) is not a question — cursor stays', () => {
+    it('a FIZZLED stage (no candidate at all) is not a question — the CTA seats', () => {
       seatPreview(6, {reuseActionCards: []});
       const w = mountSection(6);
       const vm = w.vm as unknown as Vm;
 
-      vm.selectPosition(7);
-
-      // The row still names the stage, but there is nothing to point AT: an
-      // instruction the player cannot follow is worse than no cursor move.
+      // The rail still names the stage's slot, but there is nothing to point
+      // AT — an unavailable decision never takes the automatic seat: the
+      // entry seat is the final CTA (the focus matrix).
       expect(vm.pickFizzled).is.true;
       expect(vm.planPickMissing).is.false;
+      expect(vm.sceneFocus).to.eq('cta');
+
+      // …and the player's own walk re-takes the track as everywhere else.
+      vm.handleIntent({kind: 'nav', dir: 'left'});
       expect(vm.sceneFocus).to.eq('track');
       w.unmount();
     });
@@ -186,7 +195,7 @@ describe('the Hydronetwork landing-stage target pick', () => {
       hydroNetworkState.selectedCard = REPEAT_CANDIDATE;
       vm.selectPosition(5);
       vm.selectPosition(7); // the pick is cleared by the walk — asked again
-      expect(vm.sceneFocus).to.eq('summary');
+      expect(vm.sceneFocus).to.eq('rail:0:reuse-action');
       w.unmount();
     });
   });
@@ -278,7 +287,7 @@ describe('the Hydronetwork landing-stage target pick', () => {
       await w.vm.$nextTick();
 
       // The cursor rests on the pick row, so the row wears the cap…
-      expect(vm.sceneFocus).to.eq('summary');
+      expect(vm.sceneFocus).to.eq('rail:0:reuse-action');
       expect(w.find('.con-hydro__cta').classes(), 'the commit is not the primary act')
         .to.include('con-hydro__cta--pending');
       // …and the commit LIGHTS no «A» of its own: two lit CTAs each claiming

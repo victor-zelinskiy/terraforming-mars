@@ -257,22 +257,11 @@
                 <span v-if="mixAdjustable" class="con-hydro__payline-next">{{ $t('Next: payment composition') }}</span>
               </div>
 
-              <!-- The PRE-SELECT SUMMARY — the configured decision, focusable
-                   («A Изменить» when the cursor stands here). -->
-              <!-- (pos 1/2 has NO row here: the reward is chosen and CONFIRMED
-                   inside its own step, so nothing about it is ever configured
-                   out here — see openChoiceStep.) -->
-              <!-- …and ONLY for a stage the player can actually reach: a real rule
-                   in the way (no path tag, an occupied slot, no energy) means
-                   there is no move to configure, so there is no row. -->
-              <ConsoleHydroPickRow v-if="planPickOffered && pickKind !== undefined"
-                                   :kind="pickKind"
-                                   :card="model.selectedCard"
-                                   :node="repeatNode"
-                                   :animalCurrent="selectedAnimalCurrent"
-                                   :focused="sceneFocus === 'summary'"
-                                   :fizzled="pickFizzled"
-                                   @open="onChangeSelection" />
+              <!-- (The stage's PRE-SELECT lives in the DECISION RAIL — the
+                   action column on the right, directly above the final CTA.
+                   The centre explains the step; it holds nothing that looks
+                   like a focusable action, and the chosen target is never
+                   duplicated here.) -->
 
             </template>
 
@@ -381,25 +370,10 @@
                   </span>
                 </div>
 
-                <!-- THE LANDED STAGE'S PRE-SELECT — the SAME summary chip the
-                     plan panel draws for the player's own advance, on the same
-                     window that confirms the move. A on it opens the SAME step
-                     (the repeat browser bridge / the embedded target step);
-                     nothing here is a second implementation. Without it the
-                     pos-7 / pos-9 pick arrived AFTER the commit, as a
-                     standalone legacy card browser. -->
-                <!-- The OFFER's own row is NOT gated on the plan's rule check:
-                     the server already vetted this step (a waiver offer is legal
-                     precisely BECAUSE it ignores one missing tag, which the
-                     seated plan still reports as a DOMAIN blocker). -->
-                <ConsoleHydroPickRow v-if="pickKind !== undefined && (bonusNeedsCard || pickFizzled)"
-                                     :kind="pickKind"
-                                     :card="model.selectedCard"
-                                     :node="repeatNode"
-                                     :animalCurrent="selectedAnimalCurrent"
-                                     :focused="sceneFocus === 'bonus-pick'"
-                                     :fizzled="pickFizzled"
-                                     @open="openBonusPick" />
+                <!-- (The landed stage's PRE-SELECT lives in the DECISION RAIL
+                     — the action column, above the answer plates. Same rail,
+                     same cards, same focus contract as the player's own
+                     advance: the parity law.) -->
 
               </div>
         </div>
@@ -512,6 +486,17 @@
             <!-- PREVIEW / plan: the omission warning (reserved line) + the
                  primary, or the disabled verdict with its honest reasons. -->
             <div v-if="actKey === 'plan'" key="plan" class="con-hydro__ctazone">
+              <!-- THE DECISION RAIL — every interactive pre-select of this
+                   step, top to bottom in game resolution order, directly
+                   above the final CTA. The screen's vertical order IS the
+                   ↑/↓ focus order; the stack pins to the top of the column
+                   and the CTA keeps its bottom berth whatever appears,
+                   resolves or fizzles above it. -->
+              <ConsoleHydroDecisionRail :decisions="railDecisions"
+                                        :focusNode="sceneFocus"
+                                        :repeatNode="repeatNode"
+                                        :animalCurrent="selectedAnimalCurrent"
+                                        @open="focusAndOpenRail" />
               <p class="con-hydro__pickwarn" :class="{'con-hydro__pickwarn--on': pickWarned && planPickMissing}" role="status">
                 <span v-if="pickWarned && planPickMissing">
                   <span class="con-hydro__pickwarn-mark" aria-hidden="true">⚠</span>
@@ -523,6 +508,7 @@
                       :class="{
                         'con-hydro__cta--configure': primaryVerb !== 'reinforce',
                         'con-hydro__cta--pending': planPickMissing,
+                        'con-hydro__cta--focused': sceneFocus === 'cta',
                       }"
                       @click="onPrimary">
                 <!-- The badge's berth is permanent; its VISIBILITY follows the
@@ -613,6 +599,13 @@
                  one — a card ENTRY's way out is B). While the answer is in
                  flight both are inert — by state, not by a guard. -->
             <div v-else-if="actKey === 'bonus'" key="bonus" class="con-hydro__ctazone">
+              <!-- THE SAME DECISION RAIL as the plan scene — one component,
+                   one focus contract, whatever door opened the move. -->
+              <ConsoleHydroDecisionRail :decisions="railDecisions"
+                                        :focusNode="sceneFocus"
+                                        :repeatNode="repeatNode"
+                                        :animalCurrent="selectedAnimalCurrent"
+                                        @open="focusAndOpenRail" />
               <p class="con-hydro__pickwarn" :class="{'con-hydro__pickwarn--on': pickWarned && bonusPickMissing}" role="status">
                 <span v-if="pickWarned && bonusPickMissing">
                   <span class="con-hydro__pickwarn-mark" aria-hidden="true">⚠</span>
@@ -688,7 +681,20 @@ import ConsoleWsHead from '@/client/components/console/foundation/ConsoleWsHead.
 import ConsolePlayedTargetStep from '@/client/components/console/played/ConsolePlayedTargetStep.vue';
 import ConsoleCardFaceLite from '@/client/components/console/cardDeal/ConsoleCardFaceLite.vue';
 import ConsoleSourceDock from '@/client/components/console/ConsoleSourceDock.vue';
-import ConsoleHydroPickRow, {HYDRO_PICK_COPY, HydroPickKind} from '@/client/components/console/hydroFlow/ConsoleHydroPickRow.vue';
+import ConsoleHydroDecisionRail from '@/client/components/console/hydroFlow/ConsoleHydroDecisionRail.vue';
+import {
+  HYDRO_PICK_COPY,
+  HYDRO_RAIL_CTA,
+  HydroPickKind,
+  HydroRailDecision,
+  buildHydroDecisions,
+  initialRailFocus,
+  nextRailFocus,
+  railFocusNodes,
+  railIdOf,
+  railNodeOf,
+  railStep,
+} from '@/client/console/hydroFlow/hydroDecisionRail';
 import ConsoleHydroPlanSteps from '@/client/components/console/hydroFlow/ConsoleHydroPlanSteps.vue';
 import ConsoleHydroGains from '@/client/components/console/hydroFlow/ConsoleHydroGains.vue';
 import {HydroPlanDecision} from '@/client/console/hydroFlow/hydroPlanSteps';
@@ -788,6 +794,11 @@ type GroupNode = ActionGroup['nodes'][number];
 
 type SceneKey = 'preview' | 'choice' | 'target' | 'payment' | 'bonus' | 'commit' | 'result';
 
+/** The scene cursor's stops. Rail decisions are DATA-driven nodes
+ *  (`rail:<id>` — see `hydroDecisionRail.ts`); the rest are the scenes' own
+ *  fixed stops. The spatial ↑/↓ order and this graph are the same fact. */
+type HydroSceneFocus = 'track' | 'cta' | 'bonus-source' | 'bonus-confirm' | 'bonus-skip' | `rail:${string}`;
+
 /**
  * THE CONTEXT COLUMN'S VIEW — one derivation for every substate, so the
  * identity anchor can never change scale or meaning between two frames of the
@@ -813,7 +824,7 @@ export default defineComponent({
   name: 'ConsoleHydroSection',
   components: {
     GamepadGlyph, HydroReward, ConsoleWsHead, ConsolePlayedTargetStep, ConsoleCardFaceLite, ConsoleSourceDock,
-    ConsoleHydroPickRow, ConsoleHydroPlanSteps, ConsoleHydroGains, ConsolePaymentPanel,
+    ConsoleHydroDecisionRail, ConsoleHydroPlanSteps, ConsoleHydroGains, ConsolePaymentPanel,
     CardRenderEffectBoxComponent, CardRenderData,
   },
   directives: {stripActionPrefix},
@@ -879,9 +890,11 @@ export default defineComponent({
       mixFlashNonce: 0,
       /** Where the cursor stood when the payment substep opened — B restores
        *  it, so the walk back lands where the walk in left. */
-      paymentReturnFocus: 'track' as 'track' | 'summary',
-      /** Scene focus: the track (A = primary) or the pre-select summary. */
-      sceneFocus: 'track' as 'track' | 'summary' | 'bonus-source' | 'bonus-pick' | 'bonus-confirm' | 'bonus-skip',
+      paymentReturnFocus: 'track' as HydroSceneFocus,
+      /** Scene focus. The DECISION RAIL's nodes are data-driven
+       *  (`rail:<decision id>`); `track`/`cta` are the plan scene's own stops,
+       *  `bonus-*` the offer scene's. One spatial order, one graph. */
+      sceneFocus: 'track' as HydroSceneFocus,
       /**
        * A CONFIRM WAS ATTEMPTED WITH THE LANDED STAGE'S PICK STILL MISSING.
        *
@@ -1502,7 +1515,7 @@ export default defineComponent({
         workspaceOutcomeState.host === 'hydro';
     },
     bonusConfirmLabel(): string {
-      if (this.sceneFocus === 'bonus-pick') {
+      if (railIdOf(this.sceneFocus) !== undefined) {
         return this.pickVerbKey;
       }
       if (this.sceneFocus === 'bonus-source') {
@@ -1626,8 +1639,35 @@ export default defineComponent({
      * quietly relabelled itself and that was the entire affordance. The row is
      * now the question's home from the first frame, in both scenes.
      */
-    summaryPresent(): boolean {
-      return this.planPickOffered;
+    /**
+     * THE DECISION RAIL — every interactive pre-select of the current step,
+     * as ONE ordered array of descriptors (the pure model in
+     * `hydroDecisionRail.ts`). Both scenes feed the same builder: the offer
+     * scene when a card's move is on the table, the plan scene otherwise. A
+     * future multi-reward movement grows THIS array — never a new layout.
+     */
+    railDecisions(): Array<HydroRailDecision> {
+      const offer = this.advanceOffer !== undefined;
+      return buildHydroDecisions({
+        offered: offer ?
+          (this.pickKind !== undefined && (this.bonusNeedsCard || this.pickFizzled)) :
+          this.planPickOffered,
+        kind: this.pickKind,
+        mustSelectCard: this.model.mustSelectCard,
+        chosen: this.model.selectedCard,
+        // The prompt door postpones instead of waiving — its decision is not
+        // optional in the rail sense (the server will re-ask).
+        optional: this.offerOrigin !== 'prompt',
+      });
+    },
+    /** The rail decision the cursor stands on (undefined off the rail). */
+    railFocusedDecision(): HydroRailDecision | undefined {
+      const id = railIdOf(this.sceneFocus);
+      return id === undefined ? undefined : this.railDecisions.find((d) => d.id === id);
+    },
+    /** Does the rail hold any FOCUSABLE decision (the ↑/↓ hint's gate)? */
+    railHasDecisions(): boolean {
+      return this.railDecisions.some((d) => d.state !== 'unavailable');
     },
     /** What A means on the preview layer (the CTA and the bar agree). */
     primaryVerb(): 'reinforce' | 'choose-reward' | 'blocked' {
@@ -1664,10 +1704,10 @@ export default defineComponent({
         'Continue to payment' : 'Reinforce the hydronetwork';
     },
     /** Is the COMMIT what A would press right now? On the plan layer the cursor
-     *  stands either on the pre-select row or on everything else, and only the
-     *  focused affordance may wear the cap (the quick wheel's own rule). */
+     *  stands either on a rail decision or on everything else (track/cta), and
+     *  only the focused affordance may wear the cap (the quick wheel's rule). */
     ctaFocused(): boolean {
-      return this.sceneFocus !== 'summary';
+      return railIdOf(this.sceneFocus) === undefined;
     },
     commitCaption(): string {
       const c = this.flow.commit;
@@ -1951,7 +1991,7 @@ export default defineComponent({
         return cmds;
       }
       const cmds: Array<ConsoleCommand> = [{control: 'dpadH', label: 'Stages', priority: 2}];
-      if (this.summaryPresent) {
+      if (this.railHasDecisions) {
         cmds.push({control: 'dpadU', control2: 'dpadD', label: 'Selection', priority: 3});
       }
       cmds.push({control: 'triggerR', label: 'Farthest stage'});
@@ -1959,11 +1999,11 @@ export default defineComponent({
       // substep; the CTA's own «Продолжить к оплате» names the way there.)
       if (this.model.mode === 'details') {
         cmds.push({control: 'confirm', label: 'Back to plan'});
-      } else if (this.sceneFocus === 'summary') {
-        // The row's own verb — «Выбрать» while the question stands, «Сменить»
-        // once it is answered. A generic «Изменить выбор» over an unanswered
-        // row promises there is a selection to change.
-        cmds.push({control: 'confirm', label: this.pickVerbKey, enabled: !this.pickFizzled});
+      } else if (this.railFocusedDecision !== undefined) {
+        // The decision's own verb — «Выбрать» while the question stands,
+        // «Сменить» once it is answered. A generic «Изменить выбор» over an
+        // unanswered row promises there is a selection to change.
+        cmds.push({control: 'confirm', label: this.pickVerbKey, enabled: this.railFocusedDecision.state !== 'unavailable'});
       } else {
         cmds.push({control: 'confirm', label: this.primaryLabel, enabled: this.primaryVerb !== 'blocked'});
       }
@@ -2147,12 +2187,20 @@ export default defineComponent({
       // The warning describes a STATE, never a press, so it dies with the
       // state it named — a pick made (or dropped) re-arms the gate honestly.
       this.pickWarned = false;
-      // A MADE PICK KEEPS THE CURSOR ON ITS OWN SUMMARY. The player returns
-      // from the selector seeing WHAT they chose, with the verb «Сменить» —
-      // and the very next press can never be the commit they did not aim at.
-      // Moving on to «Укрепить гидросеть» is their own deliberate navigation.
-      // (The old hand-over to the confirm was exactly how a habitual second A
-      // committed a move straight out of the selector.)
+      // AN ANSWER MOVES THE CURSOR ON: the resolved decision shows its
+      // summary and the seat goes to the NEXT open decision in game order —
+      // or to the final CTA when nothing is left open. Only when the cursor
+      // was ON the rail (the return from the child selector); a player
+      // standing elsewhere is never yanked. The press that confirmed the
+      // child selector cannot land on the new seat: button intents exist
+      // only on the press EDGE (pad edge-detect, `keyboardConsoleIntent`
+      // drops key repeat), so the CTA takes a fresh, deliberate A.
+      if (card !== undefined && prev === undefined) {
+        const answered = this.railDecisions.find((d) => d.chosen === card) ?? this.railDecisions[0];
+        if (answered !== undefined && railIdOf(this.sceneFocus) !== undefined) {
+          this.seatRailFocus(nextRailFocus(this.railDecisions, answered.id));
+        }
+      }
       if (card === undefined && prev !== undefined &&
           hydroNetworkState.selectedCard === prev && this.flow.commit === undefined) {
         this.$emit('notice', translateText('The selected card is no longer available'));
@@ -2278,11 +2326,20 @@ export default defineComponent({
         return;
       }
       this.seatOwed = false;
-      if (this.advanceOffer !== undefined) {
-        this.sceneFocus = this.bonusPickMissing ? 'bonus-pick' : 'bonus-confirm';
-      } else if (this.planPickMissing) {
-        this.sceneFocus = 'summary';
+      // THE MATRIX, computed from decision STATE alone: the first open
+      // decision in game order, else the final CTA. A resolved pick never
+      // retakes the automatic seat; an unavailable slot never counts.
+      this.seatRailFocus(initialRailFocus(this.railDecisions));
+    },
+    /** Seat a rail node, mapping the CTA stop onto the scene's own confirm
+     *  (the offer's answer plate, or the plan's commit). ONE mapper, so no
+     *  caller re-guesses which button is «the CTA» in which scene. */
+    seatRailFocus(node: string): void {
+      if (node !== HYDRO_RAIL_CTA) {
+        this.sceneFocus = node as HydroSceneFocus;
+        return;
       }
+      this.sceneFocus = this.advanceOffer !== undefined ? 'bonus-confirm' : 'cta';
     },
     /**
      * RE-SEAT ON A NEW DECISION REVISION (`pickDecisionKey` changed). Runs the
@@ -2429,16 +2486,20 @@ export default defineComponent({
      * nothing is spent; the focus seat is remembered for the walk back.
      */
     openPaymentStep(): void {
-      this.paymentReturnFocus = this.sceneFocus === 'summary' ? 'summary' : 'track';
+      this.paymentReturnFocus = railIdOf(this.sceneFocus) !== undefined ? this.sceneFocus : 'track';
       // The composition UNFOLDS from the gateway press (the same descend
       // phrase every other step enters with — a bare fade read as a swap).
       this.armSceneFromCta();
       openHydroStep('payment');
     },
-    /** PAYMENT → CONFIGURE: B — draft, destination and pre-selects intact. */
+    /** PAYMENT → CONFIGURE: B — draft, destination and pre-selects intact.
+     *  The remembered rail seat is honoured only while that node is still in
+     *  the focus graph (the decision may have gone unavailable meanwhile). */
     closePaymentStep(): void {
       closeHydroStep();
-      this.sceneFocus = this.paymentReturnFocus === 'summary' && this.summaryPresent ? 'summary' : 'track';
+      const back = this.paymentReturnFocus;
+      this.sceneFocus = railIdOf(back) !== undefined &&
+        railFocusNodes(this.railDecisions).includes(back) ? back : 'track';
     },
     /** The FINAL act of the payment substep — the same server-authoritative
      *  reinforce the single-allocation path fires from Configure. */
@@ -2464,13 +2525,15 @@ export default defineComponent({
       hydroNetworkState.selectedCard = undefined;
       consoleHydroUi.repeatResult = undefined;
       // THE CURSOR LANDS ON THE QUESTION. A stage that owes a target pick
-      // (pos 7/9 with live candidates) seats it on the pre-select row, so the
-      // default A OPENS THE PICKER: advancing without a target then takes a
-      // deliberate ↑ plus the warned second press, and can never be a stray A
-      // on a stage the player has only just stepped onto. Stepping on with
-      // ←/→ re-takes the track first (see `handleIntent`), so the walk itself
-      // is untouched — only where the cursor RESTS changes.
-      this.sceneFocus = this.planPickMissing ? 'summary' : 'track';
+      // (pos 7/9 with live candidates) seats it on the rail's first open
+      // decision, so the default A OPENS THE PICKER: advancing without a
+      // target then takes a deliberate walk plus the warned second press, and
+      // can never be a stray A on a stage the player has only just stepped
+      // onto. Stepping on with ←/→ re-takes the track first (see
+      // `handleIntent`), so the walk itself is untouched — only where the
+      // cursor RESTS changes.
+      this.sceneFocus = this.planPickMissing ?
+        initialRailFocus(this.railDecisions) as HydroSceneFocus : 'track';
     },
     /** A — the smart primary: open the pending pre-select, else commit. */
     onPrimary(): void {
@@ -2509,9 +2572,32 @@ export default defineComponent({
         return;
       }
     },
-    /** A on the summary / a click on it — revisit the configured pre-select.
-     *  (Only the card picks have one: the reward is chosen and confirmed
-     *  inside its own step, so it is never configured out here.) */
+    /**
+     * A on a rail decision (or a click on its card) — open its OWN existing
+     * selector: choose while it is open, change once it is resolved. ONE door
+     * for both scenes; each routes into the machinery it already had (the
+     * repeat browser bridge / the embedded target step) — nothing here is a
+     * second implementation.
+     */
+    openRailDecision(): void {
+      if (this.advanceOffer !== undefined) {
+        this.openBonusPick();
+        return;
+      }
+      this.onChangeSelection();
+    },
+    /** A CLICK on a decision card = point + press: seat the cursor on that
+     *  node, then open its selector — the same two facts the pad expresses
+     *  as ↑/↓ + A. Unavailable slots take no press (out of the graph). */
+    focusAndOpenRail(d: HydroRailDecision): void {
+      if (d.state === 'unavailable') {
+        return;
+      }
+      this.focusMoved = true;
+      this.seatRailFocus(railNodeOf(d));
+      this.openRailDecision();
+    },
+    /** The plan scene's door (see `openRailDecision`). */
     onChangeSelection(): void {
       const m = this.model;
       if (m.mode !== 'plan') {
@@ -2528,7 +2614,8 @@ export default defineComponent({
     },
     armSceneFromSummary(): void {
       const root = this.$refs.rootEl as HTMLElement | undefined;
-      armHydroSceneOrigin(root?.querySelector<HTMLElement>('.con-hydro__summary') ??
+      armHydroSceneOrigin(root?.querySelector<HTMLElement>('.con-hydro__summary--focused') ??
+        root?.querySelector<HTMLElement>('.con-hydro__pickrow') ??
         root?.querySelector<HTMLElement>('.con-hydro__ctazone'));
     },
     armSceneFromCta(): void {
@@ -2575,17 +2662,18 @@ export default defineComponent({
     navBonus(dir: 'up' | 'down' | 'left' | 'right'): void {
       // A deliberate move: this decision revision may not re-seat the cursor.
       this.focusMoved = true;
-      // The zone's focusables, top-to-bottom, exactly as they are laid out.
-      // An edge HOLDS — never a wrap: a decision's cursor that loops turns
-      // «Пропустить» into whatever is one press past «Продвинуться».
+      // The zone's focusables, top-to-bottom, exactly as they are laid out:
+      // the source card, then the DECISION RAIL's own order (its CTA stop is
+      // this scene's confirm plate). An edge HOLDS — never a wrap: a
+      // decision's cursor that loops turns «Пропустить» into whatever is one
+      // press past «Продвинуться».
       const column: Array<typeof this.sceneFocus> = [];
       if (this.ctxSourceView !== undefined) {
         column.push('bonus-source');
       }
-      if (this.bonusNeedsCard) {
-        column.push('bonus-pick');
+      for (const node of railFocusNodes(this.railDecisions)) {
+        column.push(node === HYDRO_RAIL_CTA ? 'bonus-confirm' : node as HydroSceneFocus);
       }
-      column.push('bonus-confirm');
       // A card ENTRY has no refusal, so «one press past the confirm» must be
       // the confirm itself — a ring that can land on an unrendered button is a
       // dead cursor stop, which is the same defect as a wrapping one.
@@ -2882,7 +2970,7 @@ export default defineComponent({
       if (owners.length === 0) {
         return;
       }
-      if (this.sceneFocus !== 'summary') {
+      if (railIdOf(this.sceneFocus) === undefined) {
         this.armSceneFromCta();
       }
       this.targetFocus = findPlayedTargetFocus(this.targetLockedCard, owners) ??
@@ -3121,8 +3209,8 @@ export default defineComponent({
         case 'primary':
           if (this.sceneFocus === 'bonus-source') {
             this.inspectBonusSource();
-          } else if (this.sceneFocus === 'bonus-pick') {
-            this.openBonusPick();
+          } else if (railIdOf(this.sceneFocus) !== undefined) {
+            this.openRailDecision();
           } else {
             this.answerBonus(this.sceneFocus !== 'bonus-skip');
           }
@@ -3147,10 +3235,24 @@ export default defineComponent({
         if (intent.dir === 'left' || intent.dir === 'right') {
           this.sceneFocus = 'track';
           this.selectPosition(this.model.selectedPosition + (intent.dir === 'right' ? 1 : -1));
-        } else if (intent.dir === 'down' && this.summaryPresent) {
-          this.sceneFocus = 'summary';
+        } else if (intent.dir === 'down') {
+          // ↓ walks the SPATIAL column: track → the rail's decisions, top to
+          // bottom, → the final CTA. The bottom edge HOLDS (no wrap — the
+          // scene-wide convention).
+          const to = railStep(this.railDecisions, this.sceneFocus, 1);
+          if (to !== 'out-bottom' && to !== 'out-top') {
+            this.seatRailFocus(to);
+          }
         } else if (intent.dir === 'up') {
-          this.sceneFocus = 'track';
+          if (this.sceneFocus === 'track') {
+            return;
+          }
+          const to = railStep(this.railDecisions, this.sceneFocus, -1);
+          if (to === 'out-top') {
+            this.sceneFocus = 'track';
+          } else if (to !== 'out-bottom') {
+            this.seatRailFocus(to);
+          }
         }
         return;
       }
@@ -3167,8 +3269,8 @@ export default defineComponent({
       // (No LB/RB here: the composition dial belongs to the PAYMENT substep
       // alone — a hidden control on Configure is the forbidden shape.)
       case 'primary':
-        if (this.sceneFocus === 'summary') {
-          this.onChangeSelection();
+        if (railIdOf(this.sceneFocus) !== undefined) {
+          this.openRailDecision();
         } else {
           this.onPrimary();
         }

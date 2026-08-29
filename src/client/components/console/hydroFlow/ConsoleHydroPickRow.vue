@@ -92,43 +92,15 @@ import CardRenderData from '@/client/components/card/CardRenderData.vue';
 import GamepadGlyph from '@/client/components/gamepad/GamepadGlyph.vue';
 import {stripActionPrefix} from '@/client/directives/stripActionPrefix';
 import {$t} from '@/client/directives/i18n';
+import {HYDRO_PICK_COPY, HydroPickKind} from '@/client/console/hydroFlow/hydroDecisionRail';
 
 type GroupNode = ActionGroup['nodes'][number];
 
-/** Which pick the landed stage asks for. */
-export type HydroPickKind = 'reuse-action' | 'animal-target';
-
-/** The row's copy, keyed on the pick — ONE table, so the two scenes cannot
- *  word the same question differently.
- *
- *  TWO WARNINGS, because there are two honest outcomes and the copy may never
- *  promise the wrong one: `warn` POSTPONES the question (the DOB prompt door,
- *  whose answer is a bare option index and cannot carry a decision about the
- *  landing), `warnWaive` FORFEITS the reward (the player's own advance and a
- *  card's entry, whose batch carries `waiveReward` — «если не выбрал, значит
- *  не надо»). One table, so a door can only pick between them, never coin a
- *  third phrasing. */
-export const HYDRO_PICK_COPY: Readonly<Record<HydroPickKind, {
-  label: string, choose: string, change: string, fizzle: string,
-  warn: string, warnWaive: string,
-}>> = {
-  'reuse-action': {
-    label: 'Action to repeat',
-    choose: 'Choose an action',
-    change: 'Change the action',
-    fizzle: 'No used actions to repeat',
-    warn: 'The action to repeat is not chosen — you will be asked after advancing',
-    warnWaive: 'No action is chosen — press again to advance without repeating one',
-  },
-  'animal-target': {
-    label: 'Target card',
-    choose: 'Choose a card',
-    change: 'Change the card',
-    fizzle: 'No card can receive the animals',
-    warn: 'The card for the animals is not chosen — you will be asked after advancing',
-    warnWaive: 'No card is chosen — press again to advance without the animals',
-  },
-};
+// The copy table and the kind union live in the PURE rail model
+// (`hydroDecisionRail.ts`) — one source for the card, the section and the
+// specs. Re-exported so existing importers keep their path.
+export {HYDRO_PICK_COPY};
+export type {HydroPickKind};
 
 export default defineComponent({
   name: 'ConsoleHydroPickRow',

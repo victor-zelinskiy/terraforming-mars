@@ -5759,6 +5759,48 @@ html.console-mode body.placement-pending .board-outer-spaces > .board-space.boar
         .con-hydro__cta { width: 100%; justify-content: center; text-align: center; }
         .con-hydro__bonus-action { width: 100%; }
     }
+    /* ── THE DECISION RAIL — the step's pre-selects, stacked at the TOP of
+       the action column, the final CTA pinned at its bottom. `margin-bottom:
+       auto` against the zone's `flex-end` is the whole geometry: the stack
+       claims the top, the flexible space opens between, and the CTA's berth
+       never moves when a decision appears, resolves or fizzles. The cards
+       share the column's full width — one axis with the CTA. ── */
+    &__railstack {
+        display: flex;
+        flex-direction: column;
+        gap: .45rem;
+        margin-bottom: auto;
+        min-height: 0;
+        min-width: 0;
+
+        .con-hydro__pickrow { margin-top: 0; }
+        /* The chosen-action block COMPACTS to the column: the branch graphic
+           at the master-tile scale (not the wide-panel 1.4), the name free to
+           wrap — a decision card is a summary, never a shrunken modal. The
+           check rides a RESERVED corner (absolute, padded for) so a wrapped
+           name can never strand it on a line of its own. */
+        .con-composer__repeatpick {
+            flex-wrap: wrap;
+            gap: .5rem;
+            padding: .45rem 1.5rem .45rem .6rem;
+        }
+        .con-composer__repeatpick-graphic { zoom: calc(1.1 * var(--con-ui-scale, 1)); }
+        .con-composer__repeatpick-name {
+            font-size: .85rem;
+            min-width: 0;
+            overflow-wrap: anywhere;
+        }
+        .con-hydro__pick-action {
+            position: relative;
+
+            .con-hydro__bonus-tick {
+                position: absolute;
+                top: .3rem;
+                right: .45rem;
+                margin-left: 0;
+            }
+        }
+    }
     .con-hydro-act-enter-active,
     .con-hydro-act-leave-active {
         transition: opacity calc(160ms * var(--motion-scale, 1)) ease;

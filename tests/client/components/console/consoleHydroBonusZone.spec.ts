@@ -51,7 +51,6 @@ type Vm = {
   primaryLabel: string,
   planPickMissing: boolean,
   onPrimary(): void,
-  summaryPresent: boolean,
   pickWarned: boolean,
   pickWarningKey: string,
   model: {selectedCard: string | undefined, needsCardSelect: string | undefined, mustSelectCard: boolean},
@@ -608,7 +607,7 @@ describe('the Hydronetwork bonus zone', () => {
     it('starts ON the pick row while the question stands', () => {
       seatPreview({reuse: ['Ironworks']});
       const w = mountSection(REPEAT_OFFER);
-      expect((w.vm as unknown as Vm).sceneFocus).to.eq('bonus-pick');
+      expect((w.vm as unknown as Vm).sceneFocus).to.eq('rail:0:reuse-action');
       w.unmount();
     });
 
@@ -630,7 +629,7 @@ describe('the Hydronetwork bonus zone', () => {
       seatPreview({reuse: ['Ironworks']});
       await w.vm.$nextTick();
       expect(vm.pickKind).to.eq('reuse-action');
-      expect(vm.sceneFocus, 'the owed seat is placed by the frame that can answer').to.eq('bonus-pick');
+      expect(vm.sceneFocus, 'the owed seat is placed by the frame that can answer').to.eq('rail:0:reuse-action');
 
       // …and the SCREEN agrees, which is the whole report: the confirm wore the
       // focus ring AND an «A» beside the row's own, so two buttons claimed one
@@ -681,7 +680,7 @@ describe('the Hydronetwork bonus zone', () => {
       await w.vm.$nextTick();
       expect(vm.pickFizzled).is.false;
       expect(vm.sceneFocus, 'the newly answerable pre-select outranks the remembered confirm')
-        .to.eq('bonus-pick');
+        .to.eq('rail:0:reuse-action');
       w.unmount();
     });
 
@@ -701,22 +700,30 @@ describe('the Hydronetwork bonus zone', () => {
     });
 
     /**
-     * THE CURSOR STAYS ON THE ANSWERED ROW. The player returns from the
-     * selector seeing WHAT they chose with the verb «Сменить» — and the very
-     * next press can never be the commit they did not aim at (the old
-     * hand-over to the confirm was exactly how a habitual second A committed
-     * a move straight out of the selector).
+     * AN ANSWER MOVES THE CURSOR ON — to the next open decision, or (with
+     * nothing left open) to the final CTA. The resolved card stays in the
+     * rail with its summary and offers «Сменить» only when the player walks
+     * BACK onto it themselves. The confirming press cannot leak into the new
+     * seat: button intents exist only on the press EDGE (the pad's
+     * edge-detect; `keyboardConsoleIntent` drops key repeat), so the CTA
+     * always takes a fresh, deliberate A.
      */
-    it('KEEPS THE CURSOR on the pick row once the pick is made', async () => {
+    it('ADVANCES THE CURSOR to the confirm once the last pick is made', async () => {
       seatPreview({animals: ['Birds']});
       const w = mountSection(ANIMAL_OFFER);
       const vm = w.vm as unknown as Vm;
-      expect(vm.sceneFocus).to.eq('bonus-pick');
+      expect(vm.sceneFocus).to.eq('rail:0:animal-target');
       hydroNetworkState.selectedCard = 'Birds' as never;
       await w.vm.$nextTick();
-      expect(vm.sceneFocus, 'no hand-over: the same press must not commit').to.eq('bonus-pick');
+      expect(vm.sceneFocus, 'nothing left open → the CTA').to.eq('bonus-confirm');
       expect(vm.footCommands.find((c) => c.control === 'confirm')?.label,
-        'the row now offers CHANGE, not the commit').to.eq('Change the card');
+        'the bar names the COMMIT now').to.eq('Reinforce the hydronetwork');
+
+      // …and walking BACK onto the resolved card is the change affordance.
+      vm.handleIntent({kind: 'nav', dir: 'up'});
+      expect(vm.sceneFocus).to.eq('rail:0:animal-target');
+      expect(vm.footCommands.find((c) => c.control === 'confirm')?.label,
+        'the resolved row offers CHANGE').to.eq('Change the card');
       w.unmount();
     });
 
@@ -725,7 +732,7 @@ describe('the Hydronetwork bonus zone', () => {
       const w = mountSection(REPEAT_OFFER);
       const vm = w.vm as unknown as Vm;
       const labelOf = () => vm.footCommands.find((c) => c.control === 'confirm')?.label;
-      expect(vm.sceneFocus).to.eq('bonus-pick');
+      expect(vm.sceneFocus).to.eq('rail:0:reuse-action');
       expect(labelOf(), 'never «Продвинуться» over the pre-select').to.eq('Choose an action');
       vm.sceneFocus = 'bonus-confirm';
       expect(labelOf()).to.eq('Reinforce the hydronetwork');
@@ -740,7 +747,7 @@ describe('the Hydronetwork bonus zone', () => {
       const vm = w.vm as unknown as Vm;
       hydroNetworkState.selectedCard = 'Birds' as never;
       await w.vm.$nextTick();
-      vm.sceneFocus = 'bonus-pick';
+      vm.sceneFocus = 'rail:0:animal-target';
       expect(vm.footCommands.find((c) => c.control === 'confirm')?.label).to.eq('Change the card');
       w.unmount();
     });
@@ -881,7 +888,7 @@ describe('the Hydronetwork bonus zone', () => {
       const litGlyphs = () => w.findAllComponents({name: 'GamepadGlyph'})
         .filter((g) => g.props('control') === 'confirm')
         .filter((g) => (g.element as HTMLElement).closest('.con-glyphslot--ghost') === null).length;
-      expect(vm.sceneFocus).to.eq('bonus-pick');
+      expect(vm.sceneFocus).to.eq('rail:0:reuse-action');
       expect(litGlyphs(), 'on the row, and nowhere else').to.eq(1);
 
       vm.sceneFocus = 'bonus-confirm';
@@ -981,7 +988,7 @@ describe('the Hydronetwork bonus zone', () => {
       seatPreview({reuse: ['Ironworks']});
       const w = mountSection(REPEAT_OFFER);
       const vm = w.vm as unknown as Vm;
-      expect(vm.sceneFocus, 'and the cursor starts there').to.eq('bonus-pick');
+      expect(vm.sceneFocus, 'and the cursor starts there').to.eq('rail:0:reuse-action');
       vm.handleIntent({kind: 'press', button: 'confirm'});
       expect(w.emitted('pick')).to.have.length(1);
       expect(w.emitted('bonus-answer'), 'the row never submits the move').is.undefined;

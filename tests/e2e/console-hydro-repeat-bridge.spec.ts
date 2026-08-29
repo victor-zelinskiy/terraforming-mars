@@ -144,6 +144,7 @@ async function lightProbe(page: Page): Promise<Record<string, unknown>> {
       })(),
       inert: document.querySelector('.con-hydro[inert], .con-hydro [inert]') !== null,
       focusedRow: document.querySelector('.con-hydro__pickrow.con-hydro__summary--focused') !== null,
+      ctaFocused: document.querySelector('.con-hydro__cta--focused') !== null,
       pickedSummary: (document.querySelector('.con-hydro__pickrow') as HTMLElement | null)
         ?.innerText.replace(/\s+/g, ' ').trim() ?? '',
       barText: (document.querySelector('.con-cmdbar') as HTMLElement | null)
@@ -251,13 +252,13 @@ for (const profile of PROFILES) {
       expectLit(back, 'after the selector round trip');
       expect(String(back.pickedSummary), 'the chosen action stands in the summary')
         .toMatch(/Tardigrades|Тихоходки/i);
-      // FOCUS RETURNS TO THE SUMMARY — seeing the result, not arming the commit.
-      expect(back.focusedRow, 'focus is on the pre-select summary').toBe(true);
-      expect(String(back.barText), 'the bar names the row\'s verb, not the commit')
-        .toMatch(/сменить действие/i);
-
-      // ── The SAME press does not commit: A on the summary re-opens the
-      //    selector (change), B backs out with the pick intact. ──
+      // THE ANSWER MOVES THE CURSOR ON: nothing left open → the FINAL CTA
+      // owns the seat, the resolved decision keeps its summary in the rail.
+      expect(back.focusedRow, 'the resolved decision does not hold the cursor').toBe(false);
+      expect(back.ctaFocused, 'focus advanced to the final CTA').toBe(true);
+      expect(String(back.barText), 'the bar names the commit now')
+        .toMatch(/укрепить гидросеть/i);
+      // …and the press that confirmed the selector did NOT leak into it:
       const pos0 = await page.evaluate(async () => {
         const pid = new URLSearchParams(location.search).get('id');
         const r = await fetch(`/api/player?id=${pid}`);
@@ -265,6 +266,15 @@ for (const profile of PROFILES) {
         return v.thisPlayer.deltaProject?.position ?? 0;
       });
       expect(pos0, 'nothing committed by the return').toBe(0);
+
+      // ── CHANGING A RESOLVED DECISION IS A MANUAL WALK: ↑ from the CTA onto
+      //    the resolved card («A Сменить»), A re-opens the selector, B backs
+      //    out with the pick intact and the seat unchanged. ──
+      await press(page, 'ArrowUp', 600);
+      const onRow = await lightProbe(page);
+      expect(onRow.focusedRow, '↑ lands on the resolved decision card').toBe(true);
+      expect(String(onRow.barText), 'the resolved row offers CHANGE')
+        .toMatch(/сменить действие/i);
       await press(page, 'Enter', 1600);
       await page.waitForSelector('.con-cardactions', {timeout: 15_000});
       await press(page, 'Escape', 1600);

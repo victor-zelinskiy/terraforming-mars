@@ -136,6 +136,34 @@ counts + permanent berths) and live by
 `tests/e2e/console-hydro-repeat-bridge.spec.ts` (focused-vs-blurred boxes,
 fhd + tv4k).
 
+## THE DECISION RAIL — one right-hand column of decisions above the CTA
+
+Every interactive pre-select of the current step is ONE descriptor in ONE
+ordered array (`hydroDecisionRail.ts`: `HydroRailDecision` — id `order:kind`,
+game `order`, `state: open|resolved|unavailable`, `optional`, `chosen`,
+`skipReasonKey`), rendered by ONE component (`ConsoleHydroDecisionRail.vue`)
+as a stack of premium decision cards at the TOP of the action column,
+directly above the final CTA (`__railstack` `margin-bottom: auto` against
+the zone's `flex-end` — the CTA's berth never moves when a decision appears,
+resolves or fizzles). The CENTRE holds no focusable-looking blocks and never
+duplicates a chosen target. The screen's top-to-bottom order IS the ↑/↓
+focus graph (`railStep`): track → decisions in game order → CTA (bonus:
+source → decisions → confirm → skip); an `unavailable` slot renders as a
+compact status with the honest reason and is OUT of the graph. Both scenes
+(plan, card offer) feed the same builder — a future multi-reward movement
+grows the ARRAY (fixture pinned in `consoleHydroDecisionRail.spec.ts` +
+`hydroDecisionRail.spec.ts`), never a new layout.
+
+**The automatic seat is the MATRIX** (`initialRailFocus`): first `open`
+decision in game order, else the CTA — on entry, resume, and every decision
+revision (`pickDecisionKey`); a resolved pick never retakes it. **An answer
+moves the cursor ON** (`nextRailFocus`, wrapping to reopened earlier
+decisions): the next open decision, else the CTA — and the child selector's
+own confirming press cannot leak into the new seat, because button intents
+exist only on the press EDGE (pad edge-detect; `keyboardConsoleIntent`
+drops key repeat). Changing a resolved decision is a MANUAL walk (↑ onto
+its card → «A Сменить» → the same selector).
+
 ## FOCUS — seated by the DECISION'S IDENTITY, never by a render
 
 `pickDecisionKey` = door (`offerOrigin` ?? plan) | landing position | pick
@@ -145,14 +173,16 @@ and on every CHANGE of that key — so `unavailable → available` (the player
 used a blue action elsewhere and came back) re-seats onto the newly
 answerable pre-select, while a same-revision re-render re-seats nothing. Two
 qualifiers: the player's OWN track walk flips the key too (`selfKeyChange`,
-armed beside the position write, consumed by the watcher's flush — never a
-steal mid-walk), and a hand-moved cursor (`focusMoved`) is never re-seated
-inside its own revision. **A made pick KEEPS the cursor on its own row**
-(the old hand-over to the confirm let a habitual second A commit straight
-out of the selector); the row's verb is now «Сменить», and the selector's
-cancel returns to the same seat untouched. Pinned by
+armed inside `selectPosition` past its no-op guard, consumed by the
+watcher's flush — never a steal mid-walk), and a hand-moved cursor
+(`focusMoved`) is never re-seated inside its own revision. **A made pick
+moves the cursor ON** (see § THE DECISION RAIL — `nextRailFocus`: the next
+open decision, else the CTA); the resolved card keeps its summary and
+offers «Сменить» only under a manual walk, and the selector's CANCEL
+returns to the same seat untouched. Pinned by
 `consoleHydroBonusZone.spec.ts` («re-seats onto the pick when it becomes
-answerable», «KEEPS THE CURSOR») and live by both repeat-selector e2e specs.
+answerable», «ADVANCES THE CURSOR») and live by both repeat-selector e2e
+specs.
 
 ## The pieces
 
