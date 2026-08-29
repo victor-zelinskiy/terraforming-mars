@@ -16291,6 +16291,16 @@ html.con-profile-large.console-mode .notifications-layer.notifications-layer--jo
     &__payrow-title { flex: 1; min-width: 0; font-size: .8rem; font-weight: 700; overflow: hidden; text-overflow: ellipsis; }
     &__payrow-delta { font-size: .74rem; font-weight: 700; color: fade(@con-cyan, 85%); font-variant-numeric: tabular-nums; }
     &__payrow-reason { font-size: .66rem; color: @con-amber; }
+    /* Delta Works: the energy fee's live source mix on the chosen row. */
+    &__payrow-mix {
+        display: inline-flex;
+        align-items: center;
+        gap: .18rem;
+        font-size: .7rem;
+        font-variant-numeric: tabular-nums;
+        .resource_icon { width: .85rem; height: .85rem; }
+    }
+    &__payrow-mix-src { margin-left: .3rem; font-size: .62rem; color: fade(@con-cyan, 75%); }
     &__steprow {
         display: flex;
         align-items: center;

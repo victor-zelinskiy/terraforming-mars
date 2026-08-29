@@ -423,6 +423,14 @@
                 <i v-if="entry.iconClass !== ''" class="con-colfocus__payrow-icon" :class="entry.iconClass" aria-hidden="true"></i>
                 <span class="con-colfocus__payrow-title">{{ entry.title }}</span>
                 <span v-if="entry.preview !== ''" class="con-colfocus__payrow-delta">{{ entry.preview }}</span>
+                <!-- Delta Works: the energy fee's SOURCE mix — one linked line
+                     (steel dialed with the bumpers, energy is the remainder). -->
+                <span v-if="entry.index === payIdx && energyMixInfo !== undefined" class="con-colfocus__payrow-mix">
+                  <i class="resource_icon resource_icon--energy" aria-hidden="true"></i><b>{{ (energyMixInfo.cost ?? 0) - tradeSteelMix }}</b>
+                  <span aria-hidden="true">+</span>
+                  <i class="resource_icon resource_icon--steel" aria-hidden="true"></i><b>{{ tradeSteelMix }}</b>
+                  <span class="con-colfocus__payrow-mix-src">{{ $t(energyMixInfo.card) }}</span>
+                </span>
               </div>
               <div v-for="(d, i) in tradeConfigLive ? visibleDisabledEntries : []" :key="'d' + i" class="con-colfocus__payrow con-colfocus__payrow--off">
                 <span class="con-colfocus__payrow-pick" aria-hidden="true"></span>
@@ -2327,6 +2335,19 @@ export default defineComponent({
       }
       return 0;
     },
+    /** One bumper press = one unit of the energy fee moved between energy and
+     *  Delta Works steel. A no-op without a live choice (fixed mix, other
+     *  payment family, or no substitution) — the pair can never surprise. */
+    adjustTradeMix(delta: number): void {
+      if (!this.tradeMixAdjustable) {
+        return;
+      }
+      const mix = this.energyMixInfo;
+      if (mix === undefined) {
+        return;
+      }
+      this.steelMixPreference = Math.max(mix.minSteel, Math.min(this.tradeSteelMix + delta, mix.maxSteel));
+    },
     onPress(action: ConsoleAction): void {
       // THE TARGET STEP SPEAKS THE SHARED SELECTOR'S GRAMMAR — A chooses,
       // X inspects the focused candidate fullscreen (never a second confirm
@@ -2345,6 +2366,12 @@ export default defineComponent({
         }
       }
       switch (action) {
+      case 'prevSection': // LB — one unit of the energy fee back to energy.
+        this.adjustTradeMix(-1);
+        return;
+      case 'nextSection': // RB — one more unit paid with Delta Works steel.
+        this.adjustTradeMix(1);
+        return;
       case 'primary':
         // BUILD / PICK with nothing to choose: A IS the confirm (the
         // destination slot and the grant are already shown). A build that DOES
