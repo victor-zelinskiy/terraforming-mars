@@ -295,7 +295,10 @@ describe('HELLAS + MarsBot — milestones (Adding Expansions p.9)', () => {
     expect(AutomaMAEvaluation.botMilestoneMet(milestone(game, 'Tactician'), game)).is.false;
     bot.megaCredits = 35;
     expect(AutomaMAEvaluation.botMilestoneMet(milestone(game, 'Tactician'), game)).is.true;
-    expect(AutomaMAEvaluation.botMilestoneScore(milestone(game, 'Tactician'), game)).eq(35);
+    // The DISPLAYED progress is the bot's M€ re-expressed on the player's own
+    // scale (5 cards with requirements) — 35 M€ is exactly the threshold, so
+    // it reads 5/5. The full mapping lives in AutomaMilestoneNormalization.
+    expect(AutomaMAEvaluation.botMilestoneScore(milestone(game, 'Tactician'), game)).eq(5);
   });
 
   it('Polar Explorer: unchanged — 3 bot tiles on the two bottom rows only', () => {

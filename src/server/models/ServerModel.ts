@@ -21,6 +21,7 @@ import {AutomaState} from '../automa/AutomaState';
 import {AutomaCorporations} from '../automa/corps/AutomaCorporations';
 import {MarsBotCorpModel, marsBotCorpInfo} from '../../common/automa/MarsBotCorpData';
 import {AutomaMAEvaluation} from '../automa/AutomaMAEvaluation';
+import {milestoneThreshold} from '../milestones/IMilestone';
 import {FundedAwardModel, AwardScore} from '../../common/models/FundedAwardModel';
 import {getTurmoilModel} from '../models/TurmoilModel';
 import {GameModel} from '../../common/models/GameModel';
@@ -398,9 +399,9 @@ export class Server {
       // Per-game threshold + description. Most milestones return their static
       // values; a few (Terraformer) implement getThreshold/getDescription to
       // pick a different number based on expansion state (e.g. Turmoil).
-      const threshold = milestone.getThreshold !== undefined ?
-        milestone.getThreshold(game) :
-        (milestone as unknown as {threshold?: number}).threshold;
+      // The threshold comes from the SHARED helper because MarsBot's score is
+      // normalized onto this very number — the two must never disagree.
+      const threshold = milestoneThreshold(milestone, game);
       const description = milestone.getDescription !== undefined ?
         milestone.getDescription(game) :
         milestone.description;

@@ -2,7 +2,7 @@ import {CardType} from '../../common/cards/CardType';
 import {MarsBotTrackRole} from '../../common/automa/AutomaTypes';
 import {AutomaCorporations} from './corps/AutomaCorporations';
 import {IAward} from '../awards/IAward';
-import {IMilestone} from '../milestones/IMilestone';
+import {IMilestone, milestoneThreshold} from '../milestones/IMilestone';
 import {IGame} from '../IGame';
 import {newProjectCard} from '../createCard';
 import {marsBotOf} from './AutomaUtil';
@@ -77,27 +77,44 @@ function botPlayedPileCount(game: IGame, type: CardType): number {
  * it without an import cycle.
  */
 export class AutomaMAEvaluation {
-  /** "How MarsBot determines how it meets milestones" — the map's reference card. */
-  public static botMilestoneMet(milestone: IMilestone, game: IGame): boolean {
-    const bot = marsBotOf(game);
+  /**
+   * MarsBot's OWN criterion for one milestone, as a FRACTION: how far it has
+   * come (`value`) out of what its reference card demands (`target`).
+   *
+   * `undefined` = the bot is judged by the PLAYER's own metric (the
+   * "unchanged" family) — there is nothing to translate.
+   *
+   * ⚠️ THIS IS THE ONE PLACE A BOT MILESTONE RULE IS WRITTEN. Both public
+   * entry points read it: `botMilestoneMet` is `value >= target`, and
+   * `botMilestoneScore` is the same fraction re-expressed on the player's
+   * scale. A second switch is exactly how "met" and "displayed progress"
+   * silently drift apart — so when a new map / expansion gives the bot its own
+   * criterion, add it HERE as value + target and never as a bare boolean. The
+   * normalization below (and the guard test that enumerates this scope,
+   * `tests/automa/AutomaMilestoneNormalization.spec.ts`) then covers it for
+   * free.
+   */
+  private static botMilestoneProgress(
+    milestone: IMilestone, game: IGame,
+  ): {value: number, target: number} | undefined {
     switch (milestone.name) {
     // ── Tharsis ──────────────────────────────────────────────────────────────
     case 'Builder': // Space 8 on the Building track (the human counts building tags).
-      return trackPosition(game, 'building') >= 8;
+      return {value: trackPosition(game, 'building'), target: 8};
     case 'Planner': // Space 4 on every track — except Venus (Adding Expansions p.2).
-      return everyTrackScore(martianTracks(game).map((t) => t.position), 0) >= 4;
+      return {value: everyTrackScore(martianTracks(game).map((t) => t.position), 0), target: 4};
     // ── Hellas (Adding Expansions p.9) ───────────────────────────────────────
     case 'Diversifier': // "At least space 3 on every track" (7 of 8 with Venus).
-      return diversifierScore(game) >= 3;
+      return {value: diversifierScore(game), target: 3};
     case 'Tactician': // "It has at least 35 MC".
-      return bot.megaCredits >= 35;
+      return {value: marsBotOf(game).megaCredits, target: 35};
     case 'Energizer': // "[Power] track at space 6 or higher".
-      return trackPosition(game, 'power') >= 6;
+      return {value: trackPosition(game, 'power'), target: 6};
     case 'Rim Settler': // "[Jovian/Science] track at space 6 or higher".
-      return trackPosition(game, 'science') >= 6;
+      return {value: trackPosition(game, 'science'), target: 6};
     // ── Venus Next ───────────────────────────────────────────────────────────
     case 'Hoverlord': // Unchanged: 7 floater resources (Adding Expansions p.2).
-      return (game.automa?.floaters ?? 0) >= 7;
+      return {value: game.automa?.floaters ?? 0, target: 7};
     default:
       // "Unchanged" milestones (Terraformer — incl. the fork's Terraformer29
       // threshold variant — Mayor, Gardener, and Hellas' Polar Explorer)
@@ -105,26 +122,63 @@ export class AutomaMAEvaluation {
       // so the milestone's own canClaim is the honest source. The Ares
       // additions ride this too: Networker reads aresData.milestoneResults (the
       // bot is tallied there like any player), Purifier honestly stays 0 (the
-      // bot never covers оь). A card-based milestone that cannot appear here
+      // bot never covers a hazard). A card-based milestone that cannot appear here
       // (validateOptions pins the board set) reads the bot's empty tableau and
-      // is honestly "not met".
-      return milestone.canClaim(bot);
+      // is honestly "not met". Nothing to normalize: same metric, same scale.
+      return undefined;
     }
   }
 
-  /** A display value for the milestone score list (progress toward the automa criterion). */
+  /** "How MarsBot determines how it meets milestones" — the map's reference card. */
+  public static botMilestoneMet(milestone: IMilestone, game: IGame): boolean {
+    const progress = AutomaMAEvaluation.botMilestoneProgress(milestone, game);
+    return progress === undefined ?
+      milestone.canClaim(marsBotOf(game)) :
+      progress.value >= progress.target;
+  }
+
+  /**
+   * MarsBot's progress on the PLAYER'S scale — the number every UI surface
+   * shows in the milestone list, next to the human rows.
+   *
+   * NORMALIZATION CONTRACT (why this is not the raw metric). At the table
+   * MarsBot is just another player, and what a human needs from a milestone
+   * row is "how close is it" — stated in the SAME units as everyone else's.
+   * The bot's internal units (M€ for Tactician, a track space for Rim Settler)
+   * are an implementation detail of the reference card and must never reach
+   * the client: under one printed threshold they read as nonsense («Вы 2/5 ·
+   * Бот 41») and rank the race by a number that means nothing.
+   *
+   *     displayed = floor(value * threshold / target)
+   *
+   * so Tactician (bot: 35 M€ ↔ player: 5 cards with requirements) reads
+   * 34 M€ → 4/5, 35 → 5/5, 40 → 5/5, 50 → 7/5 — still visibly past the
+   * threshold, still in the player's units.
+   *
+   * The floor is load-bearing, not cosmetic: `floor(v·H/T) >= H` holds EXACTLY
+   * when `v >= T`, so the displayed number crosses the printed threshold on
+   * the very frame `botMilestoneMet` flips. A client can therefore never paint
+   * "can claim" early or hide it late — and needs no bot-specific code to get
+   * that right.
+   *
+   * AWARDS ARE DELIBERATELY NOT NORMALIZED (`botAwardScore` below): an award
+   * score is compared DIRECTLY against the human scores to hand out the 5/2 VP
+   * (`AwardScorer` → `giveAwards`), so it is already the shared currency the
+   * rules speak — rescaling it would make the displayed race contradict the
+   * endgame result.
+   */
   public static botMilestoneScore(milestone: IMilestone, game: IGame): number {
-    const bot = marsBotOf(game);
-    switch (milestone.name) {
-    case 'Builder': return trackPosition(game, 'building');
-    case 'Planner': return everyTrackScore(martianTracks(game).map((t) => t.position), 0);
-    case 'Diversifier': return diversifierScore(game);
-    case 'Tactician': return bot.megaCredits;
-    case 'Energizer': return trackPosition(game, 'power');
-    case 'Rim Settler': return trackPosition(game, 'science');
-    case 'Hoverlord': return game.automa?.floaters ?? 0;
-    default: return milestone.getScore(bot); // "Unchanged" milestones: the bot is an ordinary player.
+    const progress = AutomaMAEvaluation.botMilestoneProgress(milestone, game);
+    if (progress === undefined) {
+      return milestone.getScore(marsBotOf(game));
     }
+    const threshold = milestoneThreshold(milestone, game);
+    if (threshold === undefined || progress.target <= 0) {
+      // A milestone with no numeric threshold has no scale to map onto; the
+      // raw progress is the only honest thing left to say.
+      return progress.value;
+    }
+    return Math.floor((progress.value * threshold) / progress.target);
   }
 
   /**

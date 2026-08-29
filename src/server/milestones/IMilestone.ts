@@ -16,6 +16,25 @@ export interface IMilestone {
   getDescription?(game: IGame): string;
 }
 
+/**
+ * The milestone's threshold FOR THIS GAME: the per-game override first
+ * (Terraformer's lower Turmoil target), else the printed number.
+ *
+ * `undefined` for a milestone whose rule is not «score ≥ N» — a caller must
+ * not invent a number for those (the console renders them as met / not-met
+ * instead of a progress bar).
+ *
+ * One helper because two consumers must agree by construction: the model the
+ * client receives (`Server.getMilestones`) and the scale MarsBot's progress is
+ * normalized onto (`AutomaMAEvaluation.botMilestoneScore`).
+ */
+export function milestoneThreshold(milestone: IMilestone, game: IGame): number | undefined {
+  if (milestone.getThreshold !== undefined) {
+    return milestone.getThreshold(game);
+  }
+  return (milestone as Partial<BaseMilestone>).threshold;
+}
+
 export abstract class BaseMilestone implements IMilestone {
   public readonly name: MilestoneName;
   public readonly description: string;
