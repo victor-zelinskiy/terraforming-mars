@@ -35,8 +35,11 @@ import {backVerbFor} from '@/client/console/consoleWorkspaceFlow';
 import type {HydroDeltaLine} from '@/client/components/hydronetwork/hydroReward';
 import {registerAnimationHoldSupplier} from '@/client/components/presentation/animationHold';
 
-/** An embedded pre-select step standing INSIDE the workspace scene. */
-export type HydroPreStep = 'reward' | 'target';
+/** An embedded pre-select step standing INSIDE the workspace scene.
+ *  `payment` is the Delta Works COMPOSITION step — entered from the plan's
+ *  own confirm, and ONLY when the server model admits at least two valid
+ *  energy/steel mixes (`minSteelForSpend < maxSteelForSpend`). */
+export type HydroPreStep = 'reward' | 'target' | 'payment';
 
 /**
  * Where a committed advance stands. `moving` covers submit→glide→lock (the

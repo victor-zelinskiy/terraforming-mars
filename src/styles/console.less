@@ -5252,10 +5252,7 @@ html.console-mode body.placement-pending .board-outer-spaces > .board-space.boar
        the frame pixel-exact if it ever had to. */
     &__panel {
         position: relative;
-        /* Wide enough for the 4-column plan grid (hero · reading · payment ·
-           act) — the payment column earned real room out of the band's free
-           right side, never out of the reading column. */
-        width: min(78rem, 100%);
+        width: min(70rem, 100%);
         min-height: 13.5rem;
         max-height: 100%;
         display: flex;
@@ -5294,25 +5291,24 @@ html.console-mode body.placement-pending .board-outer-spaces > .board-space.boar
        act, none of which a card-granted offer has. Inherited, it dragged the
        offer's three parts into a 3-column plan grid and stacked the source on
        top of its own decision. */
-    &__panel:not(&__panel--details):not(&__panel--bonus) .con-hydro__panelbody {
+    &__panel:not(&__panel--details):not(&__panel--bonus):not(&__panel--payment) .con-hydro__panelbody {
         display: grid;
-        /* hero · the stage's own reading · the PAYMENT COMPOSITION · the act.
-           The payment column is the compact premium panel (the card-play
-           selector's grammar) — it reads beside the outcome, never as a
-           micro-line squeezed under it. Its floor is the panel row's OWN
-           intrinsic width (icon + name + the three fixed numeric columns +
-           the dial tail): narrower, and the pills hang past the frame. */
-        grid-template-columns: minmax(12rem, 14rem) minmax(0, 1fr) minmax(30rem, 31rem) minmax(13.5rem, 16rem);
-        grid-template-rows: auto auto auto minmax(0, 1fr);
+        /* hero · the stage's own reading · the act. The PRICE is one reserved
+           line in the reading column («ОПЛАТА ⚡/🔩 N …»); the full payment
+           selector is its own SUBSTEP layer and never competes with the
+           plan's reading for width. */
+        grid-template-columns: minmax(12rem, 15rem) minmax(0, 1fr) minmax(14rem, 17rem);
+        grid-template-rows: auto auto auto auto minmax(0, 1fr);
         grid-template-areas:
-            "hero req     pay act"
-            "hero notes   pay act"
-            "hero gains   pay act"
-            "hero summary pay act";
+            "hero req     act"
+            "hero notes   act"
+            "hero gains   act"
+            "hero pay     act"
+            "hero summary act";
         column-gap: 1.2rem;
         row-gap: .55rem;
     }
-    &__panel:not(&__panel--details):not(&__panel--bonus) {
+    &__panel:not(&__panel--details):not(&__panel--bonus):not(&__panel--payment) {
         .con-hydro__ident {
             grid-area: hero;
             flex-direction: column;
@@ -5331,7 +5327,7 @@ html.console-mode body.placement-pending .board-outer-spaces > .board-space.boar
         .con-hydro__reqline { grid-area: req; }
         .con-hydro__routenotes { grid-area: notes; }
         .con-hydro__gains { grid-area: gains; }
-        .con-hydro__pay { grid-area: pay; }
+        .con-hydro__payline { grid-area: pay; }
         .con-hydro__summary { grid-area: summary; align-self: start; }
         .con-hydro__ctazone {
             grid-area: act;
@@ -5363,18 +5359,91 @@ html.console-mode body.placement-pending .board-outer-spaces > .board-space.boar
         flex-wrap: wrap;
         min-height: 2.3rem;
     }
-    /* THE PAYMENT COMPOSITION column — hosts the SHARED compact premium
-       payment panel (.con-pay). The old one-line «ОПЛАТА ⚡1+🔩0 …» micro-mix
-       is gone: composition, remainders, contribution and the verdict are the
-       panel's own rows, TV-readable by construction. */
-    &__pay {
-        align-self: start;
-        min-width: 0;
+    /* THE PRICE LINE (Configure) — one reserved line: label, the ⚡/🔩 pair,
+       the value, the flexible-family phrase, the compact draft and the
+       honest next-step hint. The full selector lives on the PAYMENT substep. */
+    &__payline {
+        display: flex;
+        align-items: center;
+        gap: .5rem;
+        flex-wrap: wrap;
+        min-height: 1.6rem;
+    }
+    &__payline-price {
+        display: inline-flex;
+        align-items: center;
+        gap: .25rem;
+        padding: .25rem .55rem;
+        border-radius: .5rem;
+        background: rgba(12, 20, 30, 0.6);
+        box-shadow: inset 0 0 0 .05rem fade(@con-hydro-mint, 40%);
+        font-size: .85rem;
+        b { font-size: 1rem; }
+    }
+    &__payline-slash { color: @con-text-dim; font-weight: 700; }
+    &__payline-family { font-size: .75rem; font-weight: 700; color: fade(@con-cyan, 88%); }
+    &__payline-mix {
+        display: inline-flex;
+        align-items: center;
+        gap: .25rem;
+        font-size: .78rem;
+        font-variant-numeric: tabular-nums;
+        b { font-size: .9rem; }
+    }
+    &__payline-will { color: @con-text-dim; font-size: .72rem; }
+    &__payline-part { display: inline-flex; align-items: center; gap: .15rem; }
+    &__payline-left { color: @con-text-dim; font-size: .72rem; }
+    &__payline-src { font-size: .68rem; font-weight: 700; color: fade(@con-cyan, 75%); }
+    &__payline-next {
+        margin-left: auto;
+        padding: .18rem .5rem;
+        border-radius: .4rem;
+        font-size: .66rem;
+        font-weight: 800;
+        letter-spacing: .06rem;
+        text-transform: uppercase;
+        color: fade(@con-cyan, 92%);
+        box-shadow: inset 0 0 0 .05rem fade(@con-cyan, 40%);
+    }
 
-        .con-pay { width: 100%; }
-        /* NO token retune here: the panel's shared metrics (incl. the couch
-           bump in console_payment.less) are the ONE payment language — the
-           column below reserves the row's true intrinsic width instead. */
+    /* THE PAYMENT SUBSTEP — the working area handed over to the composition:
+       pinned plan summary · the shared premium panel · the final act. */
+    &__panel--payment { width: min(70rem, 100%); }
+    &__paystep {
+        display: grid;
+        grid-template-columns: minmax(13rem, 16rem) minmax(0, 1fr) minmax(14rem, 17rem);
+        grid-template-areas: "summary panel cta";
+        column-gap: 1.2rem;
+        align-items: start;
+    }
+    &__paystep-summary {
+        grid-area: summary;
+        display: flex;
+        flex-direction: column;
+        align-items: flex-start;
+        gap: .55rem;
+        padding-right: 1rem;
+        border-right: .05rem solid rgba(120, 155, 190, 0.14);
+
+        .con-hydro__route { margin-left: 0; }
+    }
+    &__paystep-panel {
+        grid-area: panel;
+        min-width: 0;
+        align-self: center;
+
+        .con-pay { width: min(38rem, 100%); margin: 0 auto; }
+    }
+    &__paystep-cta {
+        grid-area: cta;
+        align-self: stretch;
+        display: flex;
+        flex-direction: column;
+        justify-content: flex-end;
+        padding-left: 1rem;
+        border-left: .05rem solid rgba(120, 155, 190, 0.14);
+
+        .con-hydro__cta { width: 100%; justify-content: center; text-align: center; }
     }
     &__routenotes {
         display: flex;
@@ -16266,8 +16335,9 @@ html.con-profile-large.console-mode .notifications-layer.notifications-layer--jo
     &__payrow-title { flex: 1; min-width: 0; font-size: .8rem; font-weight: 700; overflow: hidden; text-overflow: ellipsis; }
     &__payrow-delta { font-size: .74rem; font-weight: 700; color: fade(@con-cyan, 85%); font-variant-numeric: tabular-nums; }
     &__payrow-reason { font-size: .66rem; color: @con-amber; }
-    /* Delta Works: the COMMITTED mix pinned on the held row («⚡2 + 🔩1») —
-       the live composition itself is the shared panel below the chosen row. */
+    /* Delta Works: the compact draft on the chosen family row («⚡2 + 🔩1»)
+       and the pinned mix on the held row — the composition is EDITED on its
+       own substep, never inline in this list. */
     &__payrow-mix {
         display: inline-flex;
         align-items: center;
@@ -16276,14 +16346,48 @@ html.con-profile-large.console-mode .notifications-layer.notifications-layer--jo
         font-variant-numeric: tabular-nums;
         .resource_icon { width: .85rem; height: .85rem; }
     }
-    /* The energy family's COMPOSITION — the shared compact premium payment
-       panel (.con-pay), unfolded INSIDE the chosen row's group: indented under
-       the radio column so it reads as part of the selected method, never as a
-       new surface or a fourth payment path. */
-    &__paymix {
-        margin: .15rem 0 .35rem 1.65rem;
+    /* The flexible family's ⚡/🔩 icon pair separator. */
+    &__payrow-slash { color: @con-text-dim; font-weight: 800; margin: 0 -.1rem; }
+    /* «Далее: состав оплаты» — the honest next-step tag on the chosen row,
+       present exactly while several server-valid mixes exist. */
+    &__payrow-next {
+        flex-shrink: 0;
+        padding: .1rem .45rem;
+        border-radius: .35rem;
+        font-size: .6rem;
+        font-weight: 800;
+        letter-spacing: .06rem;
+        text-transform: uppercase;
+        color: fade(@con-cyan, 92%);
+        box-shadow: inset 0 0 0 .05rem fade(@con-cyan, 40%);
+    }
+    /* THE COMPOSITION SUBSTEP — the working area handed to the premium
+       payment selector; the already-decided target rides as pinned context. */
+    &__mixstep {
+        display: flex;
+        flex-direction: column;
+        gap: .5rem;
 
         .con-pay { width: 100%; }
+    }
+    &__mixstep-ctx {
+        display: flex;
+        align-items: center;
+        gap: .6rem;
+        flex-wrap: wrap;
+        min-height: 1.5rem;
+        font-size: .74rem;
+    }
+    &__mixstep-ctxlabel { color: @con-text-dim; font-weight: 700; }
+    &__mixstep-target {
+        display: inline-flex;
+        align-items: center;
+        gap: .3rem;
+        padding: .15rem .5rem;
+        border-radius: .4rem;
+        background: rgba(120, 155, 190, 0.08);
+        font-weight: 700;
+        em { font-style: normal; color: fade(@con-cyan, 85%); font-variant-numeric: tabular-nums; }
     }
     &__steprow {
         display: flex;

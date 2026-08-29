@@ -94,8 +94,9 @@ export const consoleColoniesUi = reactive({
   inspectOpen: false,
   /** Focus stage: which sub-surface owns the pad ('' = the review rows).
    *  `targets` = the embedded played-card target step (physical candidates:
-   *  A = choose, X = inspect the focused card — its own command grammar). */
-  composerSub: '' as '' | 'list' | 'lanes' | 'targets',
+   *  A = choose, X = inspect the focused card — its own command grammar);
+   *  `mix` = the Delta Works composition substep (LB/RB dial · X confirm). */
+  composerSub: '' as '' | 'list' | 'lanes' | 'targets' | 'mix',
   /** Focus stage: every decision is captured — X (confirm) is meaningful. */
   composerReady: false,
   /** Focus stage: the focused row opens something on A. */

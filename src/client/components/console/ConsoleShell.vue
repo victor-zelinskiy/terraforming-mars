@@ -6452,6 +6452,15 @@ export default defineComponent({
             {control: 'back', label: 'Back'},
           ];
         }
+        // The Delta Works COMPOSITION substep: the dial, the same final
+        // trade confirm, and B back to Configure. Nothing else.
+        if (consoleColoniesUi.composerSub === 'mix') {
+          return [
+            {control: 'bumperL', control2: 'bumperR', label: 'Payment mix', priority: 2},
+            {control: 'secondary', label: 'Confirm trade', enabled: consoleColoniesUi.composerReady, highlight: consoleColoniesUi.composerReady},
+            {control: 'back', label: 'Back'},
+          ];
+        }
         if (consoleColoniesUi.composerSub === 'list') {
           return [
             {control: 'confirm', label: 'Select'},
@@ -6495,19 +6504,19 @@ export default defineComponent({
           // The dossier composition: B is the only verb.
           return [{control: 'back', label: 'Back'}];
         }
-        // The Delta Works mix dial rides the bar ONLY while it actually
-        // works (energy family chosen, a real range, no commit in flight) —
-        // the panel's own row pills carry the same pair beside the value.
-        const tradeCmds: Array<ConsoleCommand> = [];
-        if (consoleColoniesUi.composerMixAdjustable) {
-          tradeCmds.push({control: 'bumperL', control2: 'bumperR', label: 'Payment mix', priority: 2});
-        }
-        tradeCmds.push(
+        // Configure: NO composition controls here (the dial lives on the
+        // payment substep). With several valid mixes X is a GATEWAY — its
+        // label says so instead of promising the final commit.
+        return [
           {control: 'confirm', label: 'Select', enabled: consoleColoniesUi.composerEditable},
-          {control: 'secondary', label: 'Confirm trade', enabled: consoleColoniesUi.composerReady, highlight: consoleColoniesUi.composerReady},
+          {
+            control: 'secondary',
+            label: consoleColoniesUi.composerMixAdjustable ? 'Continue to payment' : 'Confirm trade',
+            enabled: consoleColoniesUi.composerReady,
+            highlight: consoleColoniesUi.composerReady,
+          },
           {control: 'back', label: 'Back'},
-        );
-        return tradeCmds;
+        ];
       }
       if (this.colonyInspectModel !== undefined) {
         // The read-only JOURNAL colony dossier: B closes, nothing else.

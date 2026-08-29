@@ -365,6 +365,32 @@
                                  :flash-nonce="payFlashNonce" />
           </template>
 
+          <!-- SUB: the Delta Works COMPOSITION substep — the working area
+               handed over to the premium payment selector. Everything the
+               player already decided stays pinned as CONTEXT (the chosen
+               target card, the reward — the right rail keeps the live
+               summary); the bumpers dial the ONE draft; X is the same final
+               trade confirm; B walks back to Configure with every selection
+               and the draft intact. Never a modal, never a fourth method. -->
+          <template v-else-if="sub === 'mix' && energyMixInfo !== undefined">
+            <div class="con-colfocus__mixstep">
+              <div v-if="cardTargetLines.length > 0" class="con-colfocus__mixstep-ctx">
+                <span class="con-colfocus__mixstep-ctxlabel">{{ $t(cardTargetLines.length > 1 ? 'To these cards:' : 'To this card:') }}</span>
+                <span v-for="line in cardTargetLines" :key="line.card" class="con-colfocus__mixstep-target">
+                  <i v-if="line.iconClass !== ''" :class="line.iconClass" aria-hidden="true"></i>
+                  <span>{{ $t(line.card) }}</span>
+                  <em>{{ line.before }} → {{ line.after }}</em>
+                </span>
+              </div>
+              <ConsolePaymentPanel :view="tradeMixView"
+                                   mode="compact"
+                                   hint-mode="none"
+                                   title-key="Payment mix"
+                                   :source-card="energyMixInfo.card"
+                                   :flash-nonce="mixFlashNonce" />
+            </div>
+          </template>
+
           <!-- SUB: track advance choice (IncreaseColonyTrack). -->
           <template v-else-if="sub === 'track' && trackStep !== undefined">
             <div class="con-colfocus__sub-title">{{ $t('Increase colony track before trade') }}</div>
@@ -404,48 +430,48 @@
                    commit the server takes the options away and a bare
                    «СПОСОБ ОПЛАТЫ» over nothing read as a broken panel. -->
               <div v-if="tradeConfigLive && visiblePayEntries.length + visibleDisabledEntries.length > 0" class="con-colfocus__sec-title">{{ $t('Payment method') }}</div>
-              <template v-for="entry in tradeConfigLive ? visiblePayEntries : []" :key="'p' + entry.index">
-                <div class="con-colfocus__payrow"
-                     :class="{
-                       'con-colfocus__payrow--focused': isFocused('pay', entry.index),
-                       'con-colfocus__payrow--chosen': payIdx === entry.index,
-                       // THE FEE IS FIXED by the entry (a card action walked in
-                       // here), and a fixed fee is not a list: the other paths
-                       // are not merely unpickable, they are unreachable, so
-                       // showing them would be a menu that refuses every item.
-                       // They are filtered out entirely — see `visiblePayEntries`.
-                       'con-colfocus__payrow--locked': lockedPayIdx === entry.index,
-                     }"
-                     :ref="isFocused('pay', entry.index) ? 'focusedEl' : undefined">
-                  <span class="con-colfocus__payrow-pick" aria-hidden="true">
-                    <span v-if="payIdx === entry.index" class="con-colfocus__payrow-dot"></span>
+              <div v-for="entry in tradeConfigLive ? visiblePayEntries : []" :key="'p' + entry.index"
+                   class="con-colfocus__payrow"
+                   :class="{
+                     'con-colfocus__payrow--focused': isFocused('pay', entry.index),
+                     'con-colfocus__payrow--chosen': payIdx === entry.index,
+                     // THE FEE IS FIXED by the entry (a card action walked in
+                     // here), and a fixed fee is not a list: the other paths
+                     // are not merely unpickable, they are unreachable, so
+                     // showing them would be a menu that refuses every item.
+                     // They are filtered out entirely — see `visiblePayEntries`.
+                     'con-colfocus__payrow--locked': lockedPayIdx === entry.index,
+                   }"
+                   :ref="isFocused('pay', entry.index) ? 'focusedEl' : undefined">
+                <span class="con-colfocus__payrow-pick" aria-hidden="true">
+                  <span v-if="payIdx === entry.index" class="con-colfocus__payrow-dot"></span>
+                </span>
+                <!-- The FLEXIBLE family declares itself BEFORE any step: the
+                     ⚡/🔩 icon pair (never a lone energy icon over a family
+                     steel may pay) — present exactly while the Delta Works
+                     substitution is live in this trade. -->
+                <template v-if="entry.index === energyEntryIdx && energyMixLive">
+                  <i class="con-colfocus__payrow-icon resource_icon resource_icon--energy con-task__opt-res" aria-hidden="true"></i>
+                  <span class="con-colfocus__payrow-slash" aria-hidden="true">/</span>
+                  <i class="con-colfocus__payrow-icon resource_icon resource_icon--steel con-task__opt-res" aria-hidden="true"></i>
+                </template>
+                <i v-else-if="entry.iconClass !== ''" class="con-colfocus__payrow-icon" :class="entry.iconClass" aria-hidden="true"></i>
+                <span class="con-colfocus__payrow-title">{{ entry.title }}</span>
+                <!-- The CHOSEN flexible family shows its compact draft
+                     («⚡2 + 🔩1») in place of the stale energy-only delta;
+                     with several valid mixes the NEXT STEP is named honestly
+                     — the composition itself is edited on the payment
+                     substep, never inline in this list. -->
+                <template v-if="entry.index === payIdx && energyMixInfo !== undefined">
+                  <span class="con-colfocus__payrow-mix">
+                    <i class="resource_icon resource_icon--energy" aria-hidden="true"></i><b>{{ (energyMixInfo.cost ?? 0) - tradeSteelMix }}</b>
+                    <span aria-hidden="true">+</span>
+                    <i class="resource_icon resource_icon--steel" aria-hidden="true"></i><b>{{ tradeSteelMix }}</b>
                   </span>
-                  <i v-if="entry.iconClass !== ''" class="con-colfocus__payrow-icon" :class="entry.iconClass" aria-hidden="true"></i>
-                  <span class="con-colfocus__payrow-title">{{ entry.title }}</span>
-                  <!-- The energy-first delta is HIDDEN under a live mix: the
-                       composition panel below carries the honest remainders
-                       of BOTH resources — a single «500 → 497» beside it
-                       would be the stale energy-only reading again. -->
-                  <span v-if="entry.preview !== '' && !(entry.index === payIdx && energyMixInfo !== undefined)"
-                        class="con-colfocus__payrow-delta">{{ entry.preview }}</span>
-                </div>
-                <!-- Delta Works: the energy fee's COMPOSITION — the SHARED
-                     compact premium payment panel (the card-play selector's
-                     grammar) over the ONE mix draft, unfolded INSIDE the
-                     chosen family's row group. Steel is dialed with the
-                     bumpers (the pills sit on its row), energy tops up the
-                     remainder, the badge names the card that widened the
-                     family. Never a fourth payment method, never a modal. -->
-                <div v-if="entry.index === payIdx && energyMixInfo !== undefined"
-                     class="con-colfocus__paymix">
-                  <ConsolePaymentPanel :view="tradeMixView"
-                                       mode="compact"
-                                       hint-mode="none"
-                                       title-key="Payment mix"
-                                       :source-card="energyMixInfo.card"
-                                       :flash-nonce="mixFlashNonce" />
-                </div>
-              </template>
+                  <span v-if="tradeMixAdjustable" class="con-colfocus__payrow-next">{{ $t('Next: payment composition') }}</span>
+                </template>
+                <span v-else-if="entry.preview !== ''" class="con-colfocus__payrow-delta">{{ entry.preview }}</span>
+              </div>
               <div v-for="(d, i) in tradeConfigLive ? visibleDisabledEntries : []" :key="'d' + i" class="con-colfocus__payrow con-colfocus__payrow--off">
                 <span class="con-colfocus__payrow-pick" aria-hidden="true"></span>
                 <i v-if="d.iconClass !== ''" class="con-colfocus__payrow-icon" :class="d.iconClass" aria-hidden="true"></i>
@@ -920,7 +946,10 @@ const CARDLAND_READ_MS = 680;
  */
 const CARDLAND_NET_MS = 2200;
 
-type Sub = undefined | 'lanes' | 'track' | 'targets';
+/** The stage's nested sub-screens. `mix` is the Delta Works COMPOSITION
+ *  step — entered from the trade's own confirm, ONLY while the server model
+ *  admits at least two valid energy/steel mixes (`minSteel < maxSteel`). */
+type Sub = undefined | 'lanes' | 'track' | 'targets' | 'mix';
 type NoticeRow = {tone: 'warn' | 'info', iconClass: string, text: string};
 type Focusable = {zone: 'pay' | 'step', index: number};
 type TrackCell = {
@@ -977,6 +1006,9 @@ export default defineComponent({
       steelMixPreference: 0,
       /** Re-keys the mix panel's one-shot pulse on each dial press. */
       mixFlashNonce: 0,
+      /** Where the cursor stood when the composition substep opened — B
+       *  restores it, so the walk back lands on the family row it left. */
+      mixReturnFocusIdx: 0,
       focusIdx: 0,
       subIdx: 0,
       sub: undefined as Sub,
@@ -1452,6 +1484,16 @@ export default defineComponent({
         return undefined;
       }
       return mix;
+    },
+    /** The substitution is live in THIS trade (server capability — present iff
+     *  Delta Works widens the family), regardless of which row is chosen:
+     *  what puts the ⚡/🔩 pair on the family row BEFORE any selection. */
+    energyMixLive(): boolean {
+      return this.tradeConfigLive && this.preview?.energyMix !== undefined;
+    },
+    /** The energy family's own option index (metadata-keyed, never a title). */
+    energyEntryIdx(): number {
+      return this.options.findIndex((o) => o.metadata?.icon === 'energy');
     },
     /** The EFFECTIVE steel share — THE canonical draft value: the dialed
      *  preference clamped by the ONE shared rule to the SERVER's own bounds
@@ -1932,7 +1974,12 @@ export default defineComponent({
         return false;
       }
       return this.steps.every((step, i) => {
-        if (step.kind === 'payment') {
+        // The M€ payment answers from the live lane counts and the Delta
+        // Works mix from the canonical draft — both are captured AT SUBMIT
+        // (emitConfirm) and always hold a valid value, so neither is a
+        // missing answer. Requiring a capture for the mix kept the trade's
+        // confirm dead for as long as the composition choice existed.
+        if (step.kind === 'payment' || step.kind === 'energyMix') {
           return true;
         }
         return this.captures[this.stepKeys[i]] !== undefined;
@@ -1990,10 +2037,20 @@ export default defineComponent({
     canConfirm() {
       this.syncUiMirror();
     },
-    // The chosen family gates the mix dial's bar hint — a switch to
+    // The chosen family gates the confirm's gateway label — a switch to
     // M€/titanium must drop it in the same flush (the value the mirror
     // publishes is derived, so only this edge re-publishes it).
     payIdx() {
+      this.syncUiMirror();
+    },
+    // The WORLD moved under the composition substep (undo, a refreshed
+    // preview, the card leaving the tableau) and the choice is gone — the
+    // step folds honestly back to Configure; a single valid allocation needs
+    // no step, and a dead one must not stand.
+    tradeMixAdjustable(adjustable: boolean) {
+      if (!adjustable && this.sub === 'mix') {
+        this.closeMixStep();
+      }
       this.syncUiMirror();
     },
     // The fee options arrive with the prompt, which can land a frame after the
@@ -2345,18 +2402,20 @@ export default defineComponent({
     syncUiMirror(): void {
       consoleColoniesUi.composerSub = this.sub === undefined ?
         '' :
-        (this.sub === 'lanes' ? 'lanes' : (this.sub === 'targets' ? 'targets' : 'list'));
+        (this.sub === 'lanes' ? 'lanes' :
+          (this.sub === 'targets' ? 'targets' :
+            (this.sub === 'mix' ? 'mix' : 'list')));
       consoleColoniesUi.composerReady = this.canConfirm;
       consoleColoniesUi.composerEditable = this.configLive && this.focusedRowEditable;
       // The BAR follows the act's real grammar: a build that composes gets the
       // trade's two verbs (A opens the decision, X builds) instead of the bare
       // «A Построить», which would silently commit an unanswered decision.
       consoleColoniesUi.composerDecisions = this.hasDecisions;
-      // …and the LB/RB mix dial is advertised exactly while it works: energy
-      // family chosen, a real range to dial, no commit in flight. A stale
-      // hint over M€/titanium would promise a dead control.
+      // «X will open the composition step, not commit» — what relabels the
+      // Configure bar's confirm to «Продолжить к оплате». True exactly while
+      // the server model admits several mixes and no commit is in flight.
       consoleColoniesUi.composerMixAdjustable =
-        this.tradeMixAdjustable && this.sub === undefined && this.heldView === undefined;
+        this.tradeMixAdjustable && this.heldView === undefined;
     },
     /** The shell routes every intent here while the stage is open. */
     handleIntent(intent: GamepadIntent): void {
@@ -2430,10 +2489,11 @@ export default defineComponent({
       return 0;
     },
     /** One bumper press = one unit of the energy fee moved between energy and
-     *  Delta Works steel. A no-op without a live choice (fixed mix, other
-     *  payment family, or no substitution) — the pair can never surprise. */
+     *  Delta Works steel. The dial lives ONLY on the composition substep —
+     *  on Configure the selector is not active, so LB/RB must be inert (a
+     *  hidden control is the forbidden shape). */
     adjustTradeMix(delta: number): void {
-      if (!this.tradeMixAdjustable) {
+      if (this.sub !== 'mix' || !this.tradeMixAdjustable) {
         return;
       }
       const mix = this.energyMixInfo;
@@ -2448,6 +2508,23 @@ export default defineComponent({
       // Re-keys the one-shot pulse on the steel row — the shared payment
       // acknowledgement, so the panel and the summary move as one beat.
       this.mixFlashNonce += 1;
+    },
+    /**
+     * CONFIGURE → PAYMENT: every obligatory decision is captured (the same
+     * `canConfirm` gate the direct confirm passes) and the server model
+     * admits at least two mixes. Nothing is submitted; the focus seat is
+     * remembered so B lands back on the family row.
+     */
+    openMixStep(): void {
+      this.mixReturnFocusIdx = this.focusIdx;
+      this.sub = 'mix';
+    },
+    /** PAYMENT → CONFIGURE: B — colony, track, targets, family and the
+     *  dialed draft all intact; the cursor returns where it left. */
+    closeMixStep(): void {
+      this.sub = undefined;
+      this.focusIdx = Math.min(this.mixReturnFocusIdx, Math.max(0, this.focusables.length - 1));
+      this.scrollFocusedIntoView();
     },
     onPress(action: ConsoleAction): void {
       // THE TARGET STEP SPEAKS THE SHARED SELECTOR'S GRAMMAR — A chooses,
@@ -2466,13 +2543,31 @@ export default defineComponent({
         default: return;
         }
       }
+      // THE COMPOSITION SUBSTEP owns its own three verbs: the dial, the same
+      // final trade confirm, and B back to Configure (draft intact).
+      if (this.sub === 'mix') {
+        switch (action) {
+        case 'prevSection':
+          this.adjustTradeMix(-1);
+          return;
+        case 'nextSection':
+          this.adjustTradeMix(1);
+          return;
+        case 'inspect':
+          if (this.canConfirm) {
+            this.emitConfirm();
+          }
+          return;
+        case 'back':
+          this.closeMixStep();
+          return;
+        default:
+          return;
+        }
+      }
       switch (action) {
-      case 'prevSection': // LB — one unit of the energy fee back to energy.
-        this.adjustTradeMix(-1);
-        return;
-      case 'nextSection': // RB — one more unit paid with Delta Works steel.
-        this.adjustTradeMix(1);
-        return;
+      // (No LB/RB on Configure: the dial belongs to the payment substep —
+      // a hidden control the screen never advertised is the forbidden shape.)
       case 'primary':
         // BUILD / PICK with nothing to choose: A IS the confirm (the
         // destination slot and the grant are already shown). A build that DOES
@@ -2492,6 +2587,13 @@ export default defineComponent({
         // decision is in) — the trade, and a build that had decisions.
         if (this.sub === undefined && this.canConfirm &&
             (this.intent === 'trade' || (this.intent === 'build' && this.hasDecisions))) {
+          // CONFIGURE → PAYMENT, only while the server model admits at least
+          // two valid mixes of the chosen energy family; a single valid
+          // allocation (and every other family) goes straight to Resolve.
+          if (this.intent === 'trade' && this.tradeMixAdjustable) {
+            this.openMixStep();
+            return;
+          }
           this.emitConfirm();
         } else if (this.sub !== undefined) {
           this.onConfirmPress();

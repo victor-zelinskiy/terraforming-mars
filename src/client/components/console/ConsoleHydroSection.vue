@@ -205,21 +205,40 @@
                      the stage's own home for that question.) -->
               </div>
 
-              <!-- ═══ THE PAYMENT COMPOSITION — the SHARED premium payment
-                   panel (the card-play / trade selector's grammar) over the
-                   ONE energy-mix draft: which sources pay this advance, what
-                   each contributes, what remains of each, and the ОПЛАЧЕНО
-                   N/N verdict. Steel joins via Delta Works (its source badge
-                   under the rows); the LB/RB pills sit ON the steel row —
-                   the same dial the command bar advertises. With a single
-                   valid allocation the rows are a read-only summary. ═══ -->
-              <div v-if="model.selectedSpend > 0" class="con-hydro__pay" data-unfold-item>
-                <ConsolePaymentPanel :view="mixPaymentView"
-                                     mode="compact"
-                                     hint-mode="none"
-                                     :title-key="mixTitleKey"
-                                     :source-card="mixSourceCard"
-                                     :flash-nonce="mixFlashNonce" />
+              <!-- ═══ THE PRICE LINE — Configure states WHAT the advance
+                   costs and WHICH sources may pay it; the full composition
+                   editor is its own SUBSTEP (`flow.step === 'payment'`),
+                   entered from the confirm only while the server model
+                   admits more than one mix. One reserved line, never a
+                   panel competing with the plan's own reading. ═══ -->
+              <div v-if="model.selectedSpend > 0" class="con-hydro__payline" data-unfold-item>
+                <span class="con-hydro__section-label">{{ $t('Payment') }}</span>
+                <span class="con-hydro__payline-price">
+                  <i class="con-hydro__chip-ico resource_icon resource_icon--energy" aria-hidden="true"></i>
+                  <template v-if="mixRowVisible">
+                    <span class="con-hydro__payline-slash" aria-hidden="true">/</span>
+                    <i class="con-hydro__chip-ico resource_icon resource_icon--steel" aria-hidden="true"></i>
+                  </template>
+                  <b>{{ model.selectedSpend }}</b>
+                </span>
+                <span v-if="mixRowVisible" class="con-hydro__payline-family">{{ $t('Energy and/or steel') }}</span>
+                <!-- The CURRENT draft, compact: «⚡2 + 🔩1». For a single valid
+                     allocation this IS the whole statement (nothing to dial);
+                     while several exist the next step is named honestly. -->
+                <span class="con-hydro__payline-mix">
+                  <template v-if="!mixRowVisible">
+                    <span class="con-hydro__payline-part">−{{ model.selectedSpend }}<i class="con-hydro__chip-ico resource_icon resource_icon--energy" aria-hidden="true"></i></span>
+                    <span class="con-hydro__payline-left">{{ model.availableEnergy }} → {{ model.availableEnergy - model.selectedSpend }}</span>
+                  </template>
+                  <template v-else>
+                    <span v-if="!mixAdjustable" class="con-hydro__payline-will">{{ $t('Will pay') }}:</span>
+                    <span class="con-hydro__payline-part"><b>{{ model.selectedSpend - mixSteel }}</b><i class="con-hydro__chip-ico resource_icon resource_icon--energy" aria-hidden="true"></i></span>
+                    <span aria-hidden="true">+</span>
+                    <span class="con-hydro__payline-part"><b>{{ mixSteel }}</b><i class="con-hydro__chip-ico resource_icon resource_icon--steel" aria-hidden="true"></i></span>
+                  </template>
+                </span>
+                <span v-if="mixRowVisible" class="con-hydro__payline-src">{{ $t(mixSourceCard ?? '') }}</span>
+                <span v-if="mixAdjustable" class="con-hydro__payline-next">{{ $t('Next: payment composition') }}</span>
               </div>
 
               <!-- The PRE-SELECT SUMMARY — the configured decision, focusable
@@ -368,7 +387,7 @@
                       :aria-disabled="rewardChoice === undefined ? 'true' : undefined"
                       @click="confirmChoiceStep">
                 <GamepadGlyph control="confirm" />
-                <span>{{ $t('Reinforce the hydronetwork') }}</span>
+                <span>{{ $t(choiceCommitLabel) }}</span>
               </button>
             </div>
           </div>
@@ -384,6 +403,57 @@
                                    :focus="targetFocus"
                                    :bandHeight="targetBandH"
                                    :lockedCard="targetLockedCard" />
+        </div>
+
+        <!-- ═══ PAYMENT — the Delta Works COMPOSITION substep. The track above
+             stays the spatial context; the plan's own reading has been
+             CONFIRMED and collapses to a pinned summary; the premium payment
+             selector takes the freed working area. Exists ONLY while the
+             server model admits at least two valid mixes; B walks back to the
+             plan with every selection and the draft intact. ═══ -->
+        <div v-else-if="sceneKey === 'payment'" key="payment" class="con-hydro__layer con-hydro__layer--payment">
+          <div class="con-hydro__panel con-hydro__panel--payment">
+            <div class="con-hydro__panelbody con-hydro__paystep">
+              <!-- The PINNED SUMMARY of the confirmed plan: the stage, the
+                   route and the price — context, never controls. -->
+              <div class="con-hydro__paystep-summary">
+                <span v-if="selectedStage.tag !== undefined" class="con-hydro__stage-tag resource-tag" :class="'tag-' + selectedStage.tag" aria-hidden="true"></span>
+                <span v-else-if="selectedStage.vp !== undefined" class="con-hydro__stage-vp">{{ selectedStage.vp }} {{ $t('VP') }}</span>
+                <div class="con-hydro__stage-titles">
+                  <div class="con-hydro__stage-name">{{ $t(selectedStage.nameKey) }}</div>
+                  <div class="con-hydro__stage-pos">{{ stageOfText }}</div>
+                </div>
+                <span class="con-hydro__route">
+                  <span>{{ model.currentPosition }}</span>
+                  <span aria-hidden="true">→</span>
+                  <b>{{ model.selectedPosition }}</b>
+                  <span class="con-hydro__route-cost">
+                    −{{ model.selectedSpend }}
+                    <i class="con-hydro__chip-ico resource_icon resource_icon--energy" aria-hidden="true"></i>
+                  </span>
+                </span>
+              </div>
+
+              <!-- THE COMPOSITION — the shared premium payment panel over the
+                   ONE canonical draft, with the room it deserves. -->
+              <div class="con-hydro__paystep-panel">
+                <ConsolePaymentPanel :view="mixPaymentView"
+                                     mode="compact"
+                                     hint-mode="none"
+                                     title-key="Payment mix"
+                                     :source-card="mixSourceCard"
+                                     :flash-nonce="mixFlashNonce" />
+              </div>
+
+              <!-- The FINAL act — the same server-authoritative reinforce. -->
+              <div class="con-hydro__ctazone con-hydro__paystep-cta">
+                <button type="button" class="con-hydro__cta" @click="onPaymentConfirm">
+                  <GamepadGlyph control="confirm" />
+                  <span>{{ $t('Reinforce the hydronetwork') }}</span>
+                </button>
+              </div>
+            </div>
+          </div>
         </div>
 
         <!-- ═══ BONUS — a card is OFFERING a move the player did not ask for.
@@ -795,7 +865,7 @@ type RailStop = {
 
 type GroupNode = ActionGroup['nodes'][number];
 
-type SceneKey = 'preview' | 'choice' | 'target' | 'bonus' | 'commit' | 'result';
+type SceneKey = 'preview' | 'choice' | 'target' | 'payment' | 'bonus' | 'commit' | 'result';
 
 export default defineComponent({
   name: 'ConsoleHydroSection',
@@ -865,6 +935,9 @@ export default defineComponent({
       steelPreference: 0,
       /** Re-keys the payment panel's one-shot pulse on each dial press. */
       mixFlashNonce: 0,
+      /** Where the cursor stood when the payment substep opened — B restores
+       *  it, so the walk back lands where the walk in left. */
+      paymentReturnFocus: 'track' as 'track' | 'summary',
       /** Scene focus: the track (A = primary) or the pre-select summary. */
       sceneFocus: 'track' as 'track' | 'summary' | 'bonus-source' | 'bonus-pick' | 'bonus-confirm' | 'bonus-skip',
       /**
@@ -1192,6 +1265,12 @@ export default defineComponent({
       if (this.flow.step === 'target') {
         return 'target';
       }
+      // The COMPOSITION step — the plan's confirm routed here because the
+      // server model admits more than one energy/steel mix. Same substep
+      // family as the pre-selects: state-driven, B walks back to the plan.
+      if (this.flow.step === 'payment') {
+        return 'payment';
+      }
       if (zone === 'bonus-offer') {
         return 'bonus';
       }
@@ -1501,7 +1580,20 @@ export default defineComponent({
       return m.canConfirm ? 'reinforce' : 'blocked';
     },
     primaryLabel(): string {
-      return this.primaryVerb === 'choose-reward' ? 'Choose a reward' : 'Reinforce the hydronetwork';
+      if (this.primaryVerb === 'choose-reward') {
+        return 'Choose a reward';
+      }
+      // With several valid mixes the plan's confirm is a GATEWAY, not the
+      // final commit — the label must not promise a reinforce it will not
+      // perform. The final verb lives on the payment substep.
+      return this.mixAdjustable ? 'Continue to payment' : 'Reinforce the hydronetwork';
+    },
+    /** The reward step's commit verb: a GATEWAY while several mixes exist on
+     *  the player's own advance (a card-granted move pays its energy toll and
+     *  never mixes, so its verb stays final). */
+    choiceCommitLabel(): string {
+      return this.advanceOffer === undefined && this.mixAdjustable ?
+        'Continue to payment' : 'Reinforce the hydronetwork';
     },
     /** Is the COMMIT what A would press right now? On the plan layer the cursor
      *  stands either on the pre-select row or on everything else, and only the
@@ -1705,10 +1797,6 @@ export default defineComponent({
         steelUsed: this.mixSteel,
       });
     },
-    /** «СОСТАВ ОПЛАТЫ» only when there is a composition to speak of. */
-    mixTitleKey(): string {
-      return this.mixRowVisible ? 'Payment mix' : 'Payment';
-    },
     /** The substitution's source card (English name IS the i18n key) — the
      *  panel's secondary badge, present only while the mix is live. */
     mixSourceCard(): string | undefined {
@@ -1735,7 +1823,7 @@ export default defineComponent({
         if (this.choiceStage === 'confirm') {
           return [
             {control: 'dpadU', control2: 'dpadD', label: 'Change selection', priority: 2},
-            {control: 'confirm', label: 'Reinforce the hydronetwork'},
+            {control: 'confirm', label: this.choiceCommitLabel},
             {control: 'back', label: 'Cancel'},
           ];
         }
@@ -1743,6 +1831,15 @@ export default defineComponent({
           {control: 'dpadH', label: 'Reward options', priority: 2},
           {control: 'confirm', label: 'Select'},
           {control: 'back', label: 'Cancel'},
+        ];
+      }
+      // PAYMENT — the composition substep's own contract: the dial, the
+      // final reinforce, and B back to the plan. Nothing else.
+      if (this.flow.step === 'payment') {
+        return [
+          {control: 'bumperL', control2: 'bumperR', label: 'Payment mix', priority: 2},
+          {control: 'confirm', label: 'Reinforce the hydronetwork'},
+          {control: 'back', label: 'Back'},
         ];
       }
       if (this.sceneKey === 'bonus') {
@@ -1785,9 +1882,8 @@ export default defineComponent({
         cmds.push({control: 'dpadU', control2: 'dpadD', label: 'Selection', priority: 3});
       }
       cmds.push({control: 'triggerR', label: 'Farthest stage'});
-      if (this.mixAdjustable) {
-        cmds.push({control: 'bumperL', control2: 'bumperR', label: 'Payment mix'});
-      }
+      // (No LB/RB mix hint on Configure — the dial belongs to the payment
+      // substep; the CTA's own «Продолжить к оплате» names the way there.)
       if (this.model.mode === 'details') {
         cmds.push({control: 'confirm', label: 'Back to plan'});
       } else if (this.sceneFocus === 'summary') {
@@ -2179,11 +2275,12 @@ export default defineComponent({
       this.selectPosition(position);
     },
     /** One bumper press = one unit of the price moved between energy and
-     *  Delta Works steel. A no-op without a live choice, so the pair can
-     *  never surprise a player whose mix is fixed. Past the commit boundary
-     *  the draft is frozen — the guard also kills a held repeat. */
+     *  Delta Works steel. The dial lives ONLY on the payment substep — on
+     *  Configure the selector is not active and a hidden LB/RB would be a
+     *  control the screen never advertised. Past the commit boundary the
+     *  draft is frozen — the guard also kills a held repeat. */
     adjustMix(delta: number): void {
-      if (!this.mixAdjustable || this.flow.commit !== undefined) {
+      if (this.flow.step !== 'payment' || !this.mixAdjustable || this.flow.commit !== undefined) {
         return;
       }
       const next = clampEnergyMixSteel(this.mixSteel + delta,
@@ -2195,6 +2292,27 @@ export default defineComponent({
       // Re-keys the one-shot pulse on the steel row — the same acknowledgement
       // every other payment surface plays on a dial press.
       this.mixFlashNonce += 1;
+    },
+    /**
+     * CONFIGURE → PAYMENT: the plan is complete (the same gate the direct
+     * reinforce passes) and the server model admits at least two mixes — the
+     * working area hands over to the composition step. Nothing is submitted,
+     * nothing is spent; the focus seat is remembered for the walk back.
+     */
+    openPaymentStep(): void {
+      this.paymentReturnFocus = this.sceneFocus === 'summary' ? 'summary' : 'track';
+      openHydroStep('payment');
+    },
+    /** PAYMENT → CONFIGURE: B — draft, destination and pre-selects intact. */
+    closePaymentStep(): void {
+      closeHydroStep();
+      this.sceneFocus = this.paymentReturnFocus === 'summary' && this.summaryPresent ? 'summary' : 'track';
+    },
+    /** The FINAL act of the payment substep — the same server-authoritative
+     *  reinforce the single-allocation path fires from Configure. */
+    onPaymentConfirm(): void {
+      this.armSceneFromCta();
+      this.emitConfirm();
     },
     selectPosition(position: number): void {
       const last = this.model.stages.length - 1;
@@ -2240,6 +2358,13 @@ export default defineComponent({
         // configure the reward is a legal move (see `hydroNetworkModel`).
         if (this.planPickMissing && !this.pickWarned) {
           this.pickWarned = true;
+          return;
+        }
+        // CONFIGURE → PAYMENT, only while the server model admits at least
+        // two valid mixes (`minSteelForSpend < maxSteelForSpend`). A single
+        // valid allocation goes straight to Resolve — no extra step.
+        if (this.mixAdjustable) {
+          this.openPaymentStep();
           return;
         }
         this.emitConfirm();
@@ -2587,6 +2712,13 @@ export default defineComponent({
         this.$emit('notice', this.reasonText(blocking[0]));
         return;
       }
+      // CONFIGURE → PAYMENT, the same gateway the plan's own confirm takes:
+      // the chosen reward is captured (it survives in hydroNetworkState), and
+      // the composition step is the LAST stop before Resolve.
+      if (this.mixAdjustable) {
+        this.openPaymentStep();
+        return;
+      }
       this.emitConfirm();
     },
     /** B — leave the step with NOTHING configured behind it. (Under an offer
@@ -2793,6 +2925,30 @@ export default defineComponent({
           return;
         }
       }
+      // PAYMENT — the composition substep: the bumpers dial the ONE draft,
+      // A is the final reinforce, B walks back to the plan with everything
+      // (destination, pre-selects, the dialed draft) intact.
+      if (this.flow.step === 'payment') {
+        if (intent.kind === 'nav') {
+          return;
+        }
+        switch (consoleActionOf(intent)) {
+        case 'prevSection':
+          this.adjustMix(-1);
+          return;
+        case 'nextSection':
+          this.adjustMix(1);
+          return;
+        case 'primary':
+          this.onPaymentConfirm();
+          return;
+        case 'back':
+          this.closePaymentStep();
+          return;
+        default:
+          return;
+        }
+      }
       // BONUS — a decision, not a browse layer: the d-pad moves between the
       // two answers and nothing else, so the track never scrolls under a
       // question the player is being asked.
@@ -2845,12 +3001,8 @@ export default defineComponent({
         }
         return;
       }
-      case 'prevSection': // LB — one unit of the price back to energy.
-        this.adjustMix(-1);
-        return;
-      case 'nextSection': // RB — one more unit paid with Delta Works steel.
-        this.adjustMix(1);
-        return;
+      // (No LB/RB here: the composition dial belongs to the PAYMENT substep
+      // alone — a hidden control on Configure is the forbidden shape.)
       case 'primary':
         if (this.sceneFocus === 'summary') {
           this.onChangeSelection();
