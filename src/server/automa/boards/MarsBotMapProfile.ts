@@ -1,6 +1,6 @@
 import {BoardName} from '../../../common/boards/BoardName';
 import {BonusCardId, TrackDefinition} from '../../../common/automa/AutomaTypes';
-import {Board} from '../../boards/Board';
+import {Board, isSpecialTileSpace} from '../../boards/Board';
 import {Space} from '../../boards/Space';
 import {IGame} from '../../IGame';
 import {IPlayer} from '../../IPlayer';
@@ -8,6 +8,7 @@ import {AutomaAres} from '../AutomaAres';
 import {botRewardIcons} from '../AutomaPlacementBonus';
 import {ELYSIUM_MARSBOT_BOARD} from './ElysiumMarsBot';
 import {HELLAS_MARSBOT_BOARD} from './HellasMarsBot';
+import {TERRA_CIMMERIA_MARSBOT_BOARD} from './TerraCimmeriaMarsBot';
 import {THARSIS_MARSBOT_BOARD} from './TharsisMarsBot';
 import {UTOPIA_MARSBOT_BOARD} from './UtopiaMarsBot';
 
@@ -25,7 +26,7 @@ import {UTOPIA_MARSBOT_BOARD} from './UtopiaMarsBot';
 /** One ordered placement tiebreaker. Highest score wins; ties fall through. */
 export type MarsBotPlacementTiebreaker = {
   /** Stable id — what the specs pin and what a future placement log would name. */
-  readonly id: 'oceans' | 'polar-region' | 'reward-icons' | 'southern-region';
+  readonly id: 'oceans' | 'polar-region' | 'special-tile' | 'reward-icons' | 'southern-region';
   readonly score: (game: IGame, bot: IPlayer, space: Space) => number;
 };
 
@@ -76,6 +77,27 @@ const HELLAS_POLAR_REGION: MarsBotPlacementTiebreaker = {
 const ELYSIUM_SOUTHERN_REGION: MarsBotPlacementTiebreaker = {
   id: 'southern-region',
   score: (_game, _bot, space) => (Board.isSouthernRegion(space) ? 1 : 0),
+};
+
+/**
+ * «Terra Cimmeria: Adjacent to one or more special tiles (including the Neural
+ * Instance tile)» — Adding Expansions p.10 step 3, BETWEEN ocean adjacency and
+ * the reward icons.
+ *
+ * A YES/NO test, deliberately not a count: the printed rule says «one or more»,
+ * so two adjacent special tiles are no better than one and the hexes fall
+ * through to the reward-icon step together. Scoring the count here would invent
+ * a preference the rulebook does not print.
+ *
+ * «Special tile» is the canonical domain classifier (`isSpecialTileSpace` →
+ * `common/TileType.isSpecialTile`), which already answers TRUE for the Neural
+ * Instance — the tile this map's rule calls out by name. The same predicate
+ * serves the Founder award and B12's Founder helper.
+ */
+const TERRA_CIMMERIA_SPECIAL_TILE: MarsBotPlacementTiebreaker = {
+  id: 'special-tile',
+  score: (game, _bot, space) =>
+    (game.board.getAdjacentSpaces(space).some(isSpecialTileSpace) ? 1 : 0),
 };
 
 export type MarsBotMapProfile = {
@@ -150,8 +172,24 @@ const UTOPIA_PROFILE: MarsBotMapProfile = {
   tiebreakRewardBonus: (game, space) => (game.board.isEdge(space) ? 1 : 0),
 };
 
+/**
+ * TERRA CIMMERIA — and specifically `TERRA_CIMMERIA_NOVA`, which is the board the
+ * official Automa material means: it prints the MSL Curiosity colony hex and
+ * carries the B12 milestone/award row. The fork's older `TERRA_CIMMERIA` is an
+ * unrelated map (different M&A, no colony hex) and stays unsupported.
+ */
+const TERRA_CIMMERIA_PROFILE: MarsBotMapProfile = {
+  boardName: BoardName.TERRA_CIMMERIA_NOVA,
+  tracks: TERRA_CIMMERIA_MARSBOT_BOARD,
+  corporateCompetition: BonusCardId.B12_CORPORATE_COMPETITION_CIMMERIA,
+  // Adding Expansions p.10: 1. oceans · 3. special-tile adjacency · 4. reward
+  // icons. The MSL Curiosity hex rides step 4 as a conditional weight
+  // (`AutomaPlacementBonus`), so it can never outrank the two steps above it.
+  placementTiebreakers: [OCEAN_ADJACENCY, TERRA_CIMMERIA_SPECIAL_TILE, REWARD_ICONS],
+};
+
 const PROFILES: ReadonlyArray<MarsBotMapProfile> =
-  [THARSIS_PROFILE, HELLAS_PROFILE, ELYSIUM_PROFILE, UTOPIA_PROFILE];
+  [THARSIS_PROFILE, HELLAS_PROFILE, ELYSIUM_PROFILE, UTOPIA_PROFILE, TERRA_CIMMERIA_PROFILE];
 
 /** Every board MarsBot can be played on. */
 export const MARSBOT_BOARDS: ReadonlyArray<BoardName> = PROFILES.map((p) => p.boardName);

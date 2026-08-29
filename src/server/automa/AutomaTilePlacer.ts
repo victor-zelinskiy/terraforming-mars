@@ -6,14 +6,20 @@ import {Space} from '../boards/Space';
 import {IGame} from '../IGame';
 import {IPlayer} from '../IPlayer';
 import {AutomaAres} from './AutomaAres';
+import {AutomaColonies} from './AutomaColonies';
 import {failedAction} from './AutomaFailedAction';
 import {marsBotMapProfile} from './boards/MarsBotMapProfile';
 import {
   HELLAS_SOUTH_POLE_REBATE,
+  MSL_CURIOSITY_REBATE,
   hellasSouthPoleUsable,
   isHellasSouthPole,
+  isMslCuriosity,
+  mslCuriosityUsable,
+  needsMslCuriosityRebate,
   needsSouthPoleRebate,
   settleHellasSouthPole,
+  settleMslCuriosity,
 } from './AutomaPlacementBonus';
 import {marsBotOf} from './AutomaUtil';
 
@@ -224,31 +230,54 @@ export class AutomaTilePlacer {
     spaces: (options?: CanAffordOptions) => ReadonlyArray<Space>,
   ): ReadonlyArray<Space> {
     const available = spaces();
-    if (!needsSouthPoleRebate(game, bot)) {
-      return available;
+    if (needsSouthPoleRebate(game, bot)) {
+      const southPole = spaces({cost: HELLAS_SOUTH_POLE_REBATE, tr: {}})
+        .find((space) => isHellasSouthPole(game, space));
+      if (southPole !== undefined && !available.includes(southPole)) {
+        return [...available, southPole];
+      }
     }
-    const southPole = spaces({cost: HELLAS_SOUTH_POLE_REBATE, tr: {}})
-      .find((space) => isHellasSouthPole(game, space));
-    return southPole === undefined || available.includes(southPole) ?
-      available :
-      [...available, southPole];
+    if (needsMslCuriosityRebate(game, bot)) {
+      // MSL Curiosity's human path gates on the 5 M€ AND on «you still have a
+      // colony to build»; the bot's does on neither. The rebated question
+      // recovers the money gate, and the board's colony gate reads the BOT's
+      // own colony list, which the engine never populates — so the hex simply
+      // has to be re-admitted when the rebated list still omits it.
+      const msl = game.board.spaces.find((space) =>
+        isMslCuriosity(space) && spaces({cost: MSL_CURIOSITY_REBATE, tr: {}}).includes(space));
+      const recovered = msl ?? game.board.spaces.find((space) =>
+        isMslCuriosity(space) && space.tile === undefined && space.player === undefined);
+      if (recovered !== undefined && !available.includes(recovered)) {
+        return [...available, recovered];
+      }
+    }
+    return available;
   }
 
   /**
-   * Put the tile down, then settle whatever the HEX itself owes — today only
-   * Hellas' South Pole, whose printed transaction («places an ocean, loses
-   * 6 M€») runs after the tile lands. Usability is read BEFORE the placement:
-   * the tile can pay the bot ocean-adjacency M€, and a hex ranked as
-   * reward-less must not turn into an ocean because that money just arrived.
+   * Put the tile down, then settle whatever the HEX itself owes — Hellas' South
+   * Pole («places an ocean, loses 6 M€») and Terra Cimmeria's MSL Curiosity
+   * («places a colony, loses 5 M€»), both of which run after the tile lands.
+   * Usability is read BEFORE the placement: the tile can pay the bot
+   * ocean-adjacency M€, and a hex ranked as reward-less must not turn into an
+   * ocean (or a colony) because that money just arrived.
    */
   private static placeAndSettle(game: IGame, bot: IPlayer, space: Space, place: () => void): void {
-    if (!isHellasSouthPole(game, space)) {
+    if (isHellasSouthPole(game, space)) {
+      const usable = hellasSouthPoleUsable(game, bot);
       place();
+      settleHellasSouthPole(bot, usable, () => AutomaTilePlacer.placeOcean(game));
       return;
     }
-    const usable = hellasSouthPoleUsable(game, bot);
+    if (isMslCuriosity(space)) {
+      // Terra Cimmeria's MSL Curiosity — the same shape: read usability BEFORE
+      // the tile can pay the bot anything, then run the hex's own transaction.
+      const usable = mslCuriosityUsable(game, bot);
+      place();
+      settleMslCuriosity(bot, usable, () => AutomaColonies.botBuildColony(game));
+      return;
+    }
     place();
-    settleHellasSouthPole(bot, usable, () => AutomaTilePlacer.placeOcean(game));
   }
 
   /**

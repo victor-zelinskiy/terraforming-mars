@@ -61,7 +61,7 @@ export const BONUS_CARD_INFO: Readonly<Record<BonusCardId, BonusCardInfo>> = {
   },
   [BonusCardId.B12_CORPORATE_COMPETITION_CIMMERIA]: {
     name: 'Corporate Competition (Terra Cimmeria)',
-    text: 'The Terra Cimmeria version of Corporate Competition.',
+    text: 'With 5+ M€, MarsBot pushes the Terra Cimmeria award race it is closest to being ahead on, then loses 5 M€ — except Forecaster, which pays it 5 M€ instead.',
   },
   [BonusCardId.B13_CORPORATE_COMPETITION_BOREALIS]: {
     name: 'Corporate Competition (Vastitas Borealis)',
@@ -302,6 +302,25 @@ export function buildBonusCardView(id: BonusCardId, ctx: BonusCardContext): Bonu
         {icon: 'city', text: 'Metropolist places a city', muted: true},
         ...(ctx.venus ? [{icon: 'venus', text: 'Venuphile advances the Venus track', muted: true}] : []),
         {icon: 'megacredits', text: 'Then it pays ${0} M€', params: ['5']},
+        {icon: 'deck', text: 'With no funded award it can help, it draws another bonus card instead', muted: true},
+      ],
+      fate: FATE_DISCARD,
+    };
+  case BonusCardId.B12_CORPORATE_COMPETITION_CIMMERIA:
+    // The Terra Cimmeria face (B12): same card, its own helper list — and the
+    // one printed EXCEPTION to the card's payment, which the face states
+    // outright rather than leaving the player to reconcile a +5 and a −5.
+    return {
+      name,
+      lines: [
+        {icon: 'award', text: 'With 5+ M€: MarsBot pushes the award race it is closest to leading'},
+        {icon: 'energy', text: 'Electrician advances the energy track; Zoologist the animal track', muted: true},
+        {icon: 'city', text: 'Founder places a city adjacent to a special tile', muted: true},
+        {icon: 'tile', text: 'Mogul advances the most-advanced track (the topmost one if tied)', muted: true},
+        {icon: 'cards', text: 'Forecaster reveals project cards until one has requirements and resolves it', muted: true},
+        ...(ctx.venus ? [{icon: 'venus', text: 'Venuphile advances the Venus track', muted: true}] : []),
+        {icon: 'megacredits', text: 'Then it pays ${0} M€', params: ['5']},
+        {icon: 'megacredits', text: 'Forecaster instead GAINS ${0} M€ — that option costs the card nothing', params: ['5']},
         {icon: 'deck', text: 'With no funded award it can help, it draws another bonus card instead', muted: true},
       ],
       fate: FATE_DISCARD,

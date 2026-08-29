@@ -1,5 +1,8 @@
 import {expect} from 'chai';
 import {BoardName} from '../../src/common/boards/BoardName';
+import {AUTOMA_SUPPORTED_BOARDS} from '../../src/common/automa/automaCompatibility';
+import {milestoneManifest} from '../../src/server/milestones/Milestones';
+import {awardManifest} from '../../src/server/awards/Awards';
 import {BonusCardId} from '../../src/common/automa/AutomaTypes';
 import {CardName} from '../../src/common/cards/CardName';
 import {IGame} from '../../src/server/IGame';
@@ -60,6 +63,12 @@ const BOT_METRIC: ReadonlyArray<string> = [
   'Tradesman', // Jovian/Energy + Earth/City + Venus all at 2 ↔ 3 resource types
   'Smith', // Building + Space combined 7 ↔ 6 steel+titanium production
   'Researcher', // Science track 4 ↔ 4 science tags
+  // Terra Cimmeria — the fork's canonical names for the board's slots (the
+  // reference card prints Coast Guard / Forester / Financier).
+  'Planetologist', // Jovian/Earth + Venus combined 5 ↔ 2+2+2 Earth/Venus/Jovian tags
+  'Architect', // City/Science track 6 ↔ 3 city tags
+  'C. Forester', // Bio track 10 ↔ 3 plant production
+  'Fundraiser', // Event track 10 ↔ 12 M€ production
   'Hoverlord', // 7 floaters ↔ 7 floaters
 ];
 
@@ -75,9 +84,16 @@ const PLAYER_METRIC: ReadonlyArray<string> = [
   // above: worded "Unchanged" like they are, and genuinely belonging here,
   // because the bot's colonies really do live where the player metric looks.
   'Pioneer', // real colonies (`AutomaColonies.botBuildColony` puts its id on the tile)
+  // Terra Cimmeria's Coast Guard is the second control case: «Unchanged», and
+  // the criterion (tiles next to oceans) is one the bot's real tiles satisfy.
+  'Coastguard', // real tiles adjacent to real ocean tiles
 ];
 
 const SCOPE: ReadonlyArray<string> = [...BOT_METRIC, ...PLAYER_METRIC];
+
+/** Each board's printed milestone / award row, straight from the manifests. */
+const MILESTONES_BY_BOARD = milestoneManifest.boards;
+const AWARDS_BY_BOARD = awardManifest.boards;
 
 /** The fork ships threshold variants under suffixed names (Terraformer29, Tycoon10). */
 function baseName(name: string): string {
@@ -95,6 +111,8 @@ function supportedGames(): Array<[string, IGame, IPlayer]> {
     ['Elysium+Venus+Ares', {boardName: BoardName.ELYSIUM, venusNextExtension: true, aresExtension: true}],
     ['Utopia Planitia', {boardName: BoardName.UTOPIA_PLANITIA}],
     ['Utopia+Venus+Colonies', {boardName: BoardName.UTOPIA_PLANITIA, venusNextExtension: true, coloniesExtension: true}],
+    ['Terra Cimmeria', {boardName: BoardName.TERRA_CIMMERIA_NOVA}],
+    ['Terra Cimmeria+Venus+Colonies', {boardName: BoardName.TERRA_CIMMERIA_NOVA, venusNextExtension: true, coloniesExtension: true}],
   ];
   return combos.map(([label, options], i) => {
     const [game, /* human */, bot] = testAutomaGame(options, `-norm-${i}`);
@@ -150,6 +168,30 @@ describe('AutomaMAEvaluation — milestone normalization (the bot reads as a pla
       'milestones with no normalization decision — for each, either add its rule to ' +
       'AutomaMAEvaluation.botMilestoneProgress (value + target) or list it in PLAYER_METRIC: ' +
       names.join(', ')).is.empty;
+  });
+
+  it('noNameServesTwoBoards: one milestone/award NAME never reaches two supported boards', () => {
+    // `botMilestoneProgress` and `botAwardScore` are keyed by NAME, which is
+    // only sound while a name means one thing across the supported set. It is
+    // not a law of the domain — several names DO repeat across the fork's full
+    // board list (Forester, Planetologist, Architect, Incorporator, Forecaster,
+    // Zoologist …), and the supported five simply never collide. The day a new
+    // map breaks that, this fails with the offending name instead of the switch
+    // silently applying another board's rule.
+    const seen = new Map<string, string>();
+    const collisions: Array<string> = [];
+    for (const boardName of AUTOMA_SUPPORTED_BOARDS) {
+      for (const name of [...MILESTONES_BY_BOARD[boardName], ...AWARDS_BY_BOARD[boardName]]) {
+        const owner = seen.get(name);
+        if (owner !== undefined && owner !== boardName) {
+          collisions.push(`${name}: ${owner} + ${boardName}`);
+        }
+        seen.set(name, boardName);
+      }
+    }
+    expect(collisions,
+      'a name on two supported boards cannot be keyed by name alone — make the ' +
+      'branch map-aware before adding this board: ' + collisions.join(' · ')).is.empty;
   });
 
   it('familyGuard: the declared family is the family the evaluator actually uses', () => {
@@ -341,6 +383,48 @@ describe('AutomaMAEvaluation — milestone normalization (the bot reads as a pla
     at('science', 4);
     expect(shown('Researcher')).eq(4);
     expect(met('Researcher')).is.true;
+  });
+
+  it('the TERRA CIMMERIA criteria land on their printed thresholds', () => {
+    const [game] = testAutomaGame(
+      {boardName: BoardName.TERRA_CIMMERIA_NOVA, venusNextExtension: true}, '-rescale-tc');
+    const shown = (name: string) =>
+      AutomaMAEvaluation.botMilestoneScore(game.milestones.find((m) => m.name === name)!, game);
+    const met = (name: string) =>
+      AutomaMAEvaluation.botMilestoneMet(game.milestones.find((m) => m.name === name)!, game);
+    const at = (role: 'science' | 'event' | 'earth' | 'bio' | 'venus', value: number) => {
+      game.automa!.board.getTrackOfRole(role)!.position = value;
+    };
+
+    // Planetologist: Jovian/Earth + Venus combined 5 ↔ 2+2+2 tags (threshold 6).
+    at('earth', 2);
+    at('venus', 2);
+    expect(shown('Planetologist'), 'combined 4 of 5 → floor(4·6/5) = 4 of 6').eq(4);
+    expect(met('Planetologist')).is.false;
+    at('venus', 3);
+    expect(shown('Planetologist'), 'combined 5 reads the printed 6 exactly').eq(6);
+    expect(met('Planetologist')).is.true;
+
+    // Architect: City/Science track 6 ↔ 3 city tags.
+    at('science', 4);
+    expect(shown('Architect'), 'floor(4·3/6) = 2 of 3').eq(2);
+    at('science', 6);
+    expect(shown('Architect')).eq(3);
+    expect(met('Architect')).is.true;
+
+    // Forester: Bio track 10 ↔ 3 plant production.
+    at('bio', 5);
+    expect(shown('C. Forester'), 'floor(5·3/10) = 1 of 3').eq(1);
+    at('bio', 10);
+    expect(shown('C. Forester')).eq(3);
+    expect(met('C. Forester')).is.true;
+
+    // Financier: Event track 10 ↔ 12 M€ production.
+    at('event', 5);
+    expect(shown('Fundraiser'), 'floor(5·12/10) = 6 of 12').eq(6);
+    at('event', 10);
+    expect(shown('Fundraiser')).eq(12);
+    expect(met('Fundraiser')).is.true;
   });
 
   it('the MODEL the client receives carries the normalized number, not the M€', () => {

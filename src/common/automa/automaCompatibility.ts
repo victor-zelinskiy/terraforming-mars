@@ -88,6 +88,10 @@ export const AUTOMA_SUPPORTED_BOARDS: ReadonlyArray<BoardName> = [
   BoardName.HELLAS,
   BoardName.ELYSIUM,
   BoardName.UTOPIA_PLANITIA,
+  // The board the official Automa material calls «Terra Cimmeria»: the one
+  // with the MSL Curiosity colony hex and the B12 milestone/award row. The
+  // fork's older `TERRA_CIMMERIA` is a different map and is NOT supported.
+  BoardName.TERRA_CIMMERIA_NOVA,
 ];
 
 /** «tharsis, hellas and elysium» — the list read out in the rejection reason. */

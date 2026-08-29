@@ -18,6 +18,7 @@ import {AutomaSetup} from '../../src/server/automa/AutomaSetup';
 import {AutomaState} from '../../src/server/automa/AutomaState';
 import {AutomaTilePlacer} from '../../src/server/automa/AutomaTilePlacer';
 import {Server} from '../../src/server/models/ServerModel';
+import {AutomaTurnLog} from '../../src/server/automa/AutomaTurnLog';
 import {resolveBonusCard, routeBonusCard} from '../../src/server/automa/AutomaBonusCards';
 import {Algae} from '../../src/server/cards/base/Algae';
 import {ArtificialLake} from '../../src/server/cards/base/ArtificialLake';
@@ -230,7 +231,7 @@ describe('UTOPIA PLANITIA + MarsBot — the «Place a Colony» track cell', () =
 
   it('the review records the landing on the colony cell with its printed action', () => {
     const [game] = utopiaGame({coloniesExtension: true});
-    game.automa!.turnRecording = {steps: [], logIndex: game.gameLog.length};
+    AutomaTurnLog.begin(game); // the real bootstrap — snapshots included
     landOnColonyCell(game);
     const steps = game.automa!.turnRecording!.steps;
     const advance = steps.find((s) => s.kind === 'advance' && s.to === 5);
@@ -650,7 +651,7 @@ describe('UTOPIA PLANITIA + MarsBot — placement (Adding Expansions p.10)', () 
     const [game, , bot] = utopiaGame();
     const edgeBare = land(game, (s) => game.board.isEdge(s) && s.bonus.length === 0);
     const before = bot.megaCredits;
-    game.grantPlacementBonuses(bot, edgeBare, []);
+    game.grantPlacementBonuses(bot, edgeBare);
     expect(bot.megaCredits, 'a bare edge hex covers no printed icon').eq(before);
   });
 
@@ -682,8 +683,8 @@ describe('UTOPIA PLANITIA + MarsBot — a real game runs', () => {
 
 describe('UTOPIA PLANITIA + MarsBot — what the client and the endgame receive', () => {
   it('the server model carries the UTOPIA cells — the Turn Review mini-scale reads THEM', () => {
-    const [game, human] = utopiaGame();
-    const model = Server.getGameModel(game, human).automa!;
+    const [game] = utopiaGame();
+    const model = Server.getGameModel(game).automa!;
     expect(model.tracks).has.length(7);
     const space = model.tracks[game.automa!.board.trackIndexOfRoleOrThrow('space')];
     expect(space.layout[5], 'the Place-a-Colony cell reaches the client').eq('colony');

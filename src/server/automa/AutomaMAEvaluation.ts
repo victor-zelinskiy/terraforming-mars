@@ -6,6 +6,9 @@ import {IMilestone, milestoneThreshold} from '../milestones/IMilestone';
 import {IGame} from '../IGame';
 import {IPlayer} from '../IPlayer';
 import {IProjectCard} from '../cards/IProjectCard';
+import {Founder} from '../awards/modular/Founder';
+import {isSpecialTileSpace} from '../boards/Board';
+import {TileType} from '../../common/TileType';
 import {newProjectCard} from '../createCard';
 import {marsBotOf} from './AutomaUtil';
 
@@ -227,6 +230,28 @@ export class AutomaMAEvaluation {
       return {value: trackPosition(game, 'building') + trackPosition(game, 'space'), target: 7};
     case 'Researcher': // "[Science] track at space 4 or higher".
       return {value: trackPosition(game, 'science'), target: 4};
+    // ── Terra Cimmeria (Adding Expansions p.9) ───────────────────────────────
+    // The fork ships this board's slots under its own canonical names, so the
+    // cases below read Coastguard / C. Forester / Fundraiser where the reference
+    // card prints Coast Guard / Forester / Financier. NOTE the board is
+    // TERRA_CIMMERIA_NOVA — the fork's older TERRA_CIMMERIA is a different map
+    // with a different M&A row and is not automa-supported, so no name here is
+    // ambiguous (pinned by `noNameServesTwoBoards` in the normalization spec).
+    case 'Planetologist':
+      // "[Jovian/Earth] track and [Venus] track have a combined value of 5 or
+      // higher." Named by ROLE, so the Jovian pairing sitting on the EARTH row
+      // here (and on Power/Science elsewhere) needs no special case. Without
+      // Venus Next that track is absent and contributes 0 — the same reading
+      // every other Venus-naming criterion uses (`trackPosition` returns 0 for a
+      // role the board does not have), so the milestone is simply harder, not
+      // unreachable: the Jovian/Earth row alone can still carry it to 5.
+      return {value: trackPosition(game, 'earth') + trackPosition(game, 'venus'), target: 5};
+    case 'Architect': // "[City/Science] track at space 6 or higher".
+      return {value: trackPosition(game, 'science'), target: 6};
+    case 'C. Forester': // "[Bio] track at space 10 or higher".
+      return {value: trackPosition(game, 'bio'), target: 10};
+    case 'Fundraiser': // "[Event] track at space 10 or higher".
+      return {value: trackPosition(game, 'event'), target: 10};
     // ── Venus Next ───────────────────────────────────────────────────────────
     case 'Hoverlord': // Unchanged: 7 floater resources (Adding Expansions p.2).
       return {value: game.automa?.floaters ?? 0, target: 7};
@@ -240,6 +265,11 @@ export class AutomaMAEvaluation {
       //   · Utopia Planitia's Pioneer — real colonies: the bot's id really is
       //     on the tile (`AutomaColonies.botBuildColony`), so
       //     `getColoniesCount()` counts it exactly like a player's;
+      //   · Terra Cimmeria's Coastguard — "Unchanged", and honestly so: the
+      //     criterion is TILES ADJACENT TO OCEANS, and the bot's tiles are real
+      //     board tiles, so the milestone's own getScore reads them exactly as
+      //     it reads a human's. Nothing to normalize — same metric, same units,
+      //     same threshold (whatever this board prints for it);
       //   · Ares: Networker reads aresData.milestoneResults (the bot is
       //     tallied there like any player); Purifier honestly stays 0 (the bot
       //     never covers a hazard).
@@ -327,6 +357,11 @@ export class AutomaMAEvaluation {
    * exactly the resources this sentence excludes and dropping the production
    * it includes.
    *
+   * FOUNDER (Terra Cimmeria) is the other one, and it reads the other way
+   * round: the printed award is unchanged for the BOT, and the humans lose one
+   * tile from the special-tile set — the Neural Instance, which only exists in
+   * an automa game in the first place.
+   *
    * Applied through `AwardScorer` so ONE number serves the bot's funding
    * decision, the award overlay and the endgame VP alike; a game without
    * MarsBot never reaches it, so ordinary player-side scoring is untouched.
@@ -338,6 +373,15 @@ export class AutomaMAEvaluation {
     switch (award.name) {
     case 'Industrialist':
       return player.steel + player.production.steel + player.production.energy;
+    case 'Founder':
+      // TERRA CIMMERIA. "Unchanged, but the Neural Instance tile counts as a
+      // special tile for MarsBot BUT NOT FOR YOU!" The bot keeps the canonical
+      // classifier (which answers TRUE for it); the humans count the same
+      // adjacency over a set with that one tile removed. Same counting code —
+      // `Founder.count` takes the set as an argument precisely so these two
+      // readings cannot drift.
+      return Founder.count(player, (space) =>
+        isSpecialTileSpace(space) && space.tile?.tileType !== TileType.NEURAL_INSTANCE);
     default:
       return undefined;
     }
@@ -416,6 +460,25 @@ export class AutomaMAEvaluation {
       // instead of a tableau, and red cards counted. 10 EXACTLY qualifies.
       score = botPlayedPile(game, (card) => card.cost <= 10);
       break;
+    // ── Terra Cimmeria (Adding Expansions p.9) ───────────────────────────────
+    case 'Electrician':
+      // "[Energy] track space" — the STANDALONE energy row on this board
+      // (Jovian moved to Earth), reached by canonical role.
+      score = trackPosition(game, 'power');
+      break;
+    case 'Mogul':
+      // "The most-advanced track's space number doubled." A read, never a
+      // mutation, and a tie changes nothing about the NUMBER.
+      score = bestTrackPosition(game) * 2;
+      break;
+    case 'A. Zoologist': // "[Bio] track space + 5".
+      score = trackPosition(game, 'bio') + 5;
+      break;
+    case 'Forecaster':
+      // "Every 7 MC counts as 1 card with requirement" — floor, like Hellas'
+      // Excentric: 6 M€ is 0 cards, 7 is 1, 13 is 1, 14 is 2.
+      score = Math.floor(bot.megaCredits / 7);
+      break;
     // ── Venus Next ───────────────────────────────────────────────────────────
     case 'Venuphile': // Venus track position (Adding Expansions p.3).
       score = trackPosition(game, 'venus');
@@ -429,7 +492,11 @@ export class AutomaMAEvaluation {
       // humans use — there is nothing bot-specific to write, and Utopia
       // Planitia's two "Unchanged" awards ride it for the same reason:
       // Edgedancer ("Suburban" on the reference card) counts the bot's real
-      // tiles on the board edge, Metropolist its real cities. The Ares pair
+      // tiles on the board edge, Metropolist its real cities. Terra Cimmeria's
+      // FOUNDER rides it for the third time — "Unchanged", and the bot's tiles
+      // and their special-tile neighbours are all real. Its asymmetry is on the
+      // HUMAN side instead ("the Neural Instance counts as a special tile for
+      // MarsBot but not for you"), which is `humanAwardScore` below. The Ares pair
       // rides it too: Rugged counts its REAL tiles next to hazards,
       // Entrepreneur honestly reads 0 (the bot never owns adjacency-bonus
       // tiles); anything else cannot appear (validateOptions pins the board

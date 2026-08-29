@@ -9,7 +9,7 @@ import {Resource} from '../../common/Resource';
 import {CardType} from '../../common/cards/CardType';
 import {TileType} from '../../common/TileType';
 import {SpaceType} from '../../common/boards/SpaceType';
-import {Board} from '../boards/Board';
+import {Board, isSpecialTileSpace} from '../boards/Board';
 import {Space} from '../boards/Space';
 import {IGame} from '../IGame';
 import {IPlayer} from '../IPlayer';
@@ -215,6 +215,7 @@ export function resolveBonusCard(game: IGame, id: BonusCardId): BonusCardOutcome
   case BonusCardId.B09_CORPORATE_COMPETITION_HELLAS:
   case BonusCardId.B10_CORPORATE_COMPETITION_ELYSIUM:
   case BonusCardId.B11_CORPORATE_COMPETITION_UTOPIA:
+  case BonusCardId.B12_CORPORATE_COMPETITION_CIMMERIA:
     // One card, one resolver: the map only swaps the helper-action list.
     return corporateCompetition(game);
   case BonusCardId.B16_GOVERNMENT_INTERVENTION: return governmentIntervention(game);
@@ -493,7 +494,7 @@ function localNeuralInstance(game: IGame): BonusCardOutcome {
   return 'destroy';
 }
 
-/** The Corporate Competition card THIS map plays with — B08/B09/B10/B11, one per map. */
+/** The Corporate Competition card THIS map plays with — B08…B12, one per map. */
 function mapCorporateCompetition(game: IGame): BonusCardId {
   return marsBotMapProfile(game.gameOptions.boardName).corporateCompetition;
 }
@@ -502,8 +503,9 @@ function mapCorporateCompetition(game: IGame): BonusCardId {
  * «Reveal cards from the project deck until a <matching> card is revealed,
  * resolve it, and discard the rest» — the shape shared by the Magnate (B09,
  * green), Celebrity (B10, cost 20+), Incorporator (B11, cost ≤10), Forecaster
- * and Administrator helper actions across the map-specific Corporate
- * Competition cards. ONE reveal loop; only the predicate is per-card.
+ * (B12, has requirements) and Administrator helper actions across the
+ * map-specific Corporate Competition cards. ONE reveal loop; only the predicate
+ * is per-card.
  *
  * Rides the deck's own conditional search, so the reveal ORDER, the discarding
  * of the rejected cards, the reshuffle and the ONE public «Discarded N cards»
@@ -525,9 +527,9 @@ function revealUntilAndResolve(game: IGame, matches: (card: IProjectCard) => boo
 }
 
 /**
- * Corporate Competition — B08 (Tharsis), B09 (Hellas), B10 (Elysium) and B11
- * (Utopia Planitia) are the SAME card with a different helper-action list, so
- * they are the same resolver: with 5+ M€,
+ * Corporate Competition — B08 (Tharsis), B09 (Hellas), B10 (Elysium), B11
+ * (Utopia Planitia) and B12 (Terra Cimmeria) are the SAME card with a different
+ * helper-action list, so they are the same resolver: with 5+ M€,
  * help its position on the CLOSEST already-funded award (the one the human
  * leads by the smallest margin or is tied; MarsBot leading everywhere → its own
  * smallest margin), skipping awards whose helper is impossible. A resolved help
@@ -569,13 +571,15 @@ function corporateCompetition(game: IGame): BonusCardOutcome {
     for (const {award} of ordered) {
       if (tryAwardHelper(game, award.name)) {
         AutomaTurnLog.setBonusBranch(game, {key: 'Helped the closest funded award: ${0}', params: [award.name]});
-        // «If MarsBot takes an action, it loses 5 MC.» The card checked its 5 M€
-        // BEFORE the helper ran, and a helper can spend money of its own on the
-        // way (Hellas' South Pole charges 6 M€ for the greenery it just placed
-        // there) — so the bot may now hold less. It loses what it has; clamped
-        // explicitly because the engine's own under-deduct guard would report
-        // this legal outcome as an illegal state.
-        bot.stock.deduct(Resource.MEGACREDITS, Math.min(5, bot.megaCredits), {log: true});
+        if (!helperIsFree(award.name)) {
+          // «If MarsBot takes an action, it loses 5 MC.» The card checked its 5 M€
+          // BEFORE the helper ran, and a helper can spend money of its own on the
+          // way (Hellas' South Pole charges 6 M€ for the greenery it just placed
+          // there) — so the bot may now hold less. It loses what it has; clamped
+          // explicitly because the engine's own under-deduct guard would report
+          // this legal outcome as an illegal state.
+          bot.stock.deduct(Resource.MEGACREDITS, Math.min(5, bot.megaCredits), {log: true});
+        }
         return 'discard';
       }
     }
@@ -609,10 +613,25 @@ function corporateCompetition(game: IGame): BonusCardOutcome {
 }
 
 /**
+ * The helper actions that do NOT trigger the card's own 5 M€ payment.
+ *
+ * B12's Forecaster is the only one: it PAYS the bot 5 M€, and Adding Expansions
+ * states the option does not cost MarsBot the usual 5 — so the net effect is
+ * +5 M€, not 0. Implemented as a payment that never happens rather than a
+ * +5/−5 pair, because the journal, the stats, the turn review and any replay
+ * all read the EVENTS: a cancelling pair would show the player a −5 M€ that the
+ * rules say never occurs.
+ */
+function helperIsFree(awardName: string): boolean {
+  return awardName === 'Forecaster';
+}
+
+/**
  * The Corporate Competition helper actions — Tharsis (rulebook p.7), Hellas
- * (Adding Expansions p.12), Elysium (B10), Utopia Planitia (B11) and the
- * Venuphile line every version of the card gains with Venus Next (Adding
- * Expansions p.3). False when the
+ * (Adding Expansions p.12), Elysium (B10), Utopia Planitia (B11), Terra
+ * Cimmeria (B12) and the Venuphile line every version of the card gains with
+ * Venus Next (Adding Expansions p.3). One helper — B12's Forecaster — is
+ * exempt from the card's payment; see `helperIsFree` above. False when the
  * action is «impossible to resolve»: the caller then tries the NEXT funded
  * award and the bot pays nothing — which is how B10's two CONSTRAINED greenery
  * helpers refuse rather than place somewhere the card does not allow.
@@ -746,6 +765,52 @@ function tryAwardHelper(game: IGame, awardName: string): boolean {
     // «MarsBot places a city tile.» The ordinary city pipeline, tiebreakers
     // and all; no legal space ⇒ impossible, and the card tries the next award.
     return placeCity();
+  // ── Terra Cimmeria (B12, the official card) ────────────────────────
+  case 'Electrician':
+    // «Advance the power track.» On this board that row carries ENERGY alone
+    // (Jovian moved to Earth) — reached by canonical role, so the helper and
+    // the award read the very same track.
+    return advanceRole('power');
+  case 'Founder': {
+    // «MarsBot places a city tile adjacent to a special tile.» A HARD
+    // constraint on the legal set, with the Neural Instance counted in (the
+    // canonical classifier already says so) — the same predicate the placement
+    // tiebreaker and the award use. No such legal city space ⇒ impossible, and
+    // the card tries the next funded award rather than placing anywhere.
+    const board = game.board;
+    return AutomaTilePlacer.placeCity(game, {
+      restrict: (space) => board.getAdjacentSpaces(space).some(isSpecialTileSpace),
+      onEmpty: 'impossible',
+    });
+  }
+  case 'Mogul': {
+    // «Advance the most-advanced track.» Ties go to the TOPMOST track, which is
+    // the map profile's own printed row order — `getMostAdvancedNonMaxedTrackIndex`
+    // walks the board in exactly that order and keeps the first of equals, so
+    // the choice is deterministic and never an enum or iteration accident.
+    const index = automa.board.getMostAdvancedNonMaxedTrackIndex();
+    if (index === undefined) {
+      return false; // Every track is maxed — impossible to resolve.
+    }
+    AutomaResolver.advanceTrack(game, index);
+    return true;
+  }
+  case 'A. Zoologist':
+    // «Advance the animal track» — on this board Animal sits on the bio row,
+    // so this is the ordinary tag-style advancement: landing action, chain,
+    // events and review all included.
+    return advanceRole('bio');
+  case 'Forecaster':
+    // «Reveal cards from the project deck until a card WITH REQUIREMENTS is
+    // revealed. Resolve it, and MarsBot gains 5 MC.» The requirement is a
+    // SEARCH criterion only — MarsBot never checks whether it could meet it.
+    // Canonical card metadata answers it (`card.requirements`), never text.
+    // ⚠️ And this helper does NOT pay the card's 5 M€ — see `helperIsFree`.
+    if (!revealUntilAndResolve(game, (card) => card.requirements.length > 0)) {
+      return false;
+    }
+    marsBotOf(game).stock.add(Resource.MEGACREDITS, 5, {log: true});
+    return true;
   // ── Venus Next: added to ALL versions of the card ─────────────────────────
   case 'Venuphile': return advanceRole('venus');
   default:
