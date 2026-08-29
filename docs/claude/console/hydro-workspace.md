@@ -61,6 +61,58 @@ mid-flow (the shipped «интерфейс проваливается вниз»
   panel that the base chain excluded — the payment summary shipped at ×1.4
   the preview's icon/title scale. The ctx column has ONE scale per profile.
 
+## THE PARITY LAW — the source changes context, never the decision language
+
+A source card (SSB's entry, DOB's offer) adds the card, an explanation, a
+special price and possibly a refusal. It may NOT fork the decision surfaces:
+
+- **The primary is named by the NEXT REQUIRED INTERACTION**
+  (`hydroNextInteraction` + `HYDRO_PRIMARY_KEY` in `hydroBonusOffer.ts`):
+  unresolved stage choice → «Выберите награду», ready → «Укрепить
+  гидросеть» — the SAME mint `__cta` plate as the plan's own, from every
+  door. `HydroBonusCopy` deliberately carries NO confirm key; «Продвинуться»
+  as a source-only final verb is retired. The optional «Пропустить» stays a
+  calm SECONDARY beneath the primary (server-framed offers only; a card
+  entry's way out is B), reachable inside the reward step too (↓ past the
+  armed commit), and B stays «Свернуть» — never an answer.
+- **«Вы получите» is ONE component** (`ConsoleHydroGains.vue`) for the
+  preview AND the source zone: same typography/icons/«или»; an UNRESOLVED
+  choice shows the ALTERNATIVES (never a concrete delta — the shipped
+  «502 → 502» over an unmade choice); an honest zero reads «Без изменений».
+  The source price renders through the plan's own `__payline` classes —
+  the «Будет потрачено» dialect is gone.
+- **The reward step, the pos 7/9 picks, the payment substep and the result
+  are the same components/state** whichever door opened the flow (this was
+  already true structurally; the CTA/gains forks above were the residue).
+
+## THE CARD SCENE — immersive, and the deal plays ONCE per batch
+
+While the landed stage's embedded deck pick is live (`deckPickState.phase !==
+'idle'` ∧ commit standing ∧ claim host `hydro`), the frame wears
+`__panel--immersive`: ctx/act/commitline DISSOLVE (opacity only — the grid
+never re-lays), `__flow`/`__layer--commit` drop to `position: static` so
+`__embed` measures against the PANEL and takes the whole surface; everything
+fades back when the selection ends. The commit spinner renders only while the
+GAME works (`v-if="!followUpLive"`) — never over a screen waiting for the
+player.
+
+**Deal-once**: the deal is the presentation of a NEW reward batch, keyed on
+the batch's own identity in MODULE state (`deckPickState.dealtKey` = the
+surface's structural `promptKey`; `shouldDealBatch`/`markBatchDealt`), never
+on a mount. Collapse → reopen / inspect / resize ADOPT a settled table; the
+unanswered draft picks + cursor survive the park
+(`saveDeckPickDraft`/`takeDeckPickDraft`, cleared when the batch is
+answered). A host-flown adopt (`workspaceOutcomeArrivalFlown`) still defers
+its arrival gate to the host's handoff. Pinned by `consoleDeckPick.spec.ts`
+and live by `tests/e2e/console-hydro-cards-scene.spec.ts` (stage 5 via four
+API-played tag cards → one 5-step advance; deal-proxy counter proves first
+deal > 0 and reopen = 0; fhd + tv4k).
+
+**Pluralization**: translations inline number forms as `{карту|карты|карт}`
+(`src/client/i18n/pluralForms.ts`, resolved in `translateMessage` against the
+nearest number to the group's left) — «Оставьте себе 2 карт(ы)» is no longer
+expressible; the deck pick's server title now reads correctly for 1/2/5.
+
 ## The pieces
 
 | Concern | File |
