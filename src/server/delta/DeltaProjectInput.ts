@@ -1,5 +1,5 @@
 import {BasePlayerInput} from '../PlayerInput';
-import {InputResponse, isDeltaProjectInputResponse} from '../../common/inputs/InputResponse';
+import {DeltaStageAnswer, InputResponse, isDeltaProjectInputResponse} from '../../common/inputs/InputResponse';
 import {DeltaProjectInputModel} from '../../common/models/PlayerInputModel';
 import {InputError} from '../inputs/InputError';
 import {CardName} from '../../common/cards/CardName';
@@ -43,6 +43,16 @@ export class DeltaProjectInput extends BasePlayerInput<number> {
 
   /** The declared choice answers of the same plan (see the wire doc). */
   public plannedChoices: ReadonlyArray<{position: number, choice: number}> = [];
+
+  /**
+   * THE INVOCATION PLAN — the pre-answered stage asks, by position (see the
+   * wire doc on `DeltaProjectInputResponse.answers`). Same by-reference
+   * contract as the fields above: set from the wire BEFORE the callback,
+   * handed to `advance`, CONSUMED by the reward resolution itself. The
+   * authoritative validation happens at consume time against the live
+   * candidate lists — a stale entry degrades to that stage's own prompt.
+   */
+  public answers: ReadonlyArray<DeltaStageAnswer> = [];
 
   /**
    * @param validSteps the legal step counts the player may submit. Each value
@@ -96,11 +106,22 @@ export class DeltaProjectInput extends BasePlayerInput<number> {
           !Number.isInteger(c.choice) || c.choice < 0)) {
       throw new InputError('Planned choices must name track positions and options');
     }
+    const answers = input.answers ?? [];
+    if (!Array.isArray(answers) ||
+        answers.some((a) => a === null || typeof a !== 'object' ||
+          !Number.isInteger(a.position) || a.position < 0 || a.position > 11 ||
+          (a.rewardChoice !== undefined && (!Number.isInteger(a.rewardChoice) || a.rewardChoice < 0)) ||
+          (a.selectedCard !== undefined && typeof a.selectedCard !== 'string') ||
+          (a.repeatResponses !== undefined && (!Array.isArray(a.repeatResponses) ||
+            a.repeatResponses.some((r: unknown) => r === null || typeof r !== 'object'))))) {
+      throw new InputError('Stage answers must name track positions with valid picks');
+    }
     this.waiveReward = input.waiveReward === true;
     this.steelSpent = steel;
     this.waivedSteps = waivedSteps;
     this.plannedActions = plannedActions;
     this.plannedChoices = plannedChoices;
+    this.answers = answers;
     return this.cb(input.amount);
   }
 }

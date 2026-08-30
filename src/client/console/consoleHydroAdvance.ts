@@ -4,14 +4,22 @@
  * shape is unit-guarded, exactly like the play/action composers' builders.
  *
  * The server contract (DeltaProjectExpansion.advance): the activate option is
- * answered first, then the `{deltaProject, amount}` step; a CHOICE stage
- * (pos 1/2) defers an OrOptions answered by `{or, index}`; a CARD-pick stage
- * defers a SelectCard (pos 7 reuse-action / pos 9 animal target) answered by
- * `{card:[X]}`. For pos 7 the chosen action then RUNS — its own inputs arrive
- * next, so a COMPOSED repeat (the console ДЕЙСТВИЯ КАРТ repeat surface) appends
- * the byte-identical `repeatActionResponses` tail: `[{card:[chosen]}, ...the
- * chosen action's own composed responses]` — the same tail ProjectInspection /
- * Viron ride.
+ * answered first, then the `{deltaProject, amount}` MOVE step. Every
+ * stage-level ask the player pre-answered — the reward choice (pos 1/2), the
+ * repeated action (pos 7, its composed nested responses included), the animal
+ * target (pos 9) — rides the move step's own `answers` field, one entry per
+ * position, CONSUMED by the server's reward resolution itself. Nothing
+ * stage-level rides the response stream any more: a positional stream had
+ * three silent loss modes (parked behind the stage-5 hidden draw, the whole
+ * remainder wiped by one value refusal, a same-shaped entry swallowed by the
+ * wrong stage's prompt), and each of them ended as a re-asked question the
+ * player had already answered.
+ *
+ * The ONE remaining stream consumer is the PROMPT door (`hydroAdvanceTail`,
+ * used by submitHydroBonus): a card-granted offer answers with a bare
+ * OrOptions index — there is no move step to carry the plan — and its
+ * single-step advance defers its stage's asks inline, where the positional
+ * replay is unambiguous.
  *
  * A repeat composition whose `chosenCard` no longer matches the plan's
  * `selectedCard` is STALE (the plan moved / the preview refreshed) — it
@@ -20,7 +28,8 @@
  * the reward itself.
  */
 import {CardName} from '@/common/cards/CardName';
-import {repeatActionResponses} from '@/client/console/consoleActionComposer';
+import type {DeltaStageAnswer, InputResponse} from '@/common/inputs/InputResponse';
+import {RepeatComposed, buildActionBatch, repeatActionResponses} from '@/client/console/consoleActionComposer';
 import type {ConsoleRepeatPickResult} from '@/client/console/consoleRepeatPick';
 
 export type HydroAdvancePayload = {
@@ -64,6 +73,9 @@ export type HydroAdvancePayload = {
    */
   plannedActions?: ReadonlyArray<{position: number, card: CardName}>;
   plannedChoices?: ReadonlyArray<{position: number, choice: number}>;
+  /** The landing position — the single-landing answer's address on the move
+   *  step (a traversal's answers carry their own positions). */
+  toPosition?: number;
 };
 
 /** One traversal stage's pre-collected answer. */
@@ -78,17 +90,17 @@ export type HydroTraversalAnswer = {
 };
 
 /**
- * THE LANDED STAGE'S OWN ANSWERS — everything the server defers AFTER the move
- * itself: the reward choice (pos 1/2) and the card pick (pos 7 reuse-action /
- * pos 9 animal target, the latter possibly carrying the composed repeat tail).
+ * THE PROMPT DOOR'S RESPONSE STREAM — everything the server defers after a
+ * card-granted offer is taken: the reward choice (pos 1/2) and the card pick
+ * (pos 7 reuse-action / pos 9 animal target, the latter possibly carrying the
+ * composed repeat tail). The offer answers with a bare OrOptions index — there
+ * is no move step to carry the invocation plan — and its single-step advance
+ * defers its stage's asks inline, where the positional replay is unambiguous
+ * (no hidden-information stop can stand between an answer and its prompt).
  *
- * SEPARATE from the prefix on purpose. The two ways onto the track differ ONLY
- * in how the move is authorised — the player's own action (`activate` +
- * `{deltaProject, amount}`) or a card's offer (one `OrOptions` index) — and
- * from the landing on they are the same server code, so they must be the same
- * batch. A bonus move that assembled its own tail is how the stage-7 pick
- * ended up arriving as a standalone legacy card browser instead of being
- * pre-collected in the workspace that asked for it.
+ * The MOVE-STEP doors (the player's own advance, a card's chosen advance) no
+ * longer ride this: their whole plan is `answers` on the move step itself
+ * (see `moveStepAnswers`), consumed by the server's reward resolution.
  */
 export function hydroAdvanceTail(payload: HydroAdvancePayload): Array<unknown> {
   // A traversal's answers ride in PATH ORDER — the server's per-stage reward
@@ -127,8 +139,78 @@ export function hydroAdvanceTail(payload: HydroAdvancePayload): Array<unknown> {
 }
 
 /**
+ * THE REPEATED ACTION'S OWN COMPOSED RESPONSES, WITHOUT the root card pick —
+ * what rides `DeltaStageAnswer.repeatResponses`. The server consumes the root
+ * pick from the answer itself and runs `card.action()`; these are the answers
+ * to the prompts THAT raises, in defer order — byte-identical to what follows
+ * the `{card:[chosen]}` pick in a direct activation's batch (the same
+ * `buildActionBatch`, with an empty prefix).
+ */
+export function repeatComposedResponses(composed: RepeatComposed): Array<unknown> {
+  return buildActionBatch({
+    performPath: [],
+    cardName: CardName.DELTA_PROJECT, // unused: the empty prefix wins
+    prefix: [],
+    branchIndex: composed.branchIndex,
+    preResponses: composed.preResponses,
+    optionResponse: composed.optionResponse,
+    stepResponses: composed.stepResponses,
+  });
+}
+
+/**
+ * THE MOVE STEP'S INVOCATION PLAN — one `DeltaStageAnswer` per pre-answered
+ * stage ask, consumed server-side by the reward resolution itself. A stale
+ * composed repeat (chosenCard ≠ the drafted pick) degrades to the bare card
+ * answer — the action's own inputs then arrive as embedded runtime follow-ups.
+ */
+function moveStepAnswers(payload: HydroAdvancePayload): Array<DeltaStageAnswer> | undefined {
+  const toWire = (a: HydroTraversalAnswer): DeltaStageAnswer | undefined => {
+    const entry: {
+      position: number, rewardChoice?: number, selectedCard?: CardName,
+      repeatResponses?: ReadonlyArray<InputResponse>,
+    } = {position: a.position};
+    let has = false;
+    if (a.rewardChoice !== undefined) {
+      entry.rewardChoice = a.rewardChoice;
+      has = true;
+    }
+    if (a.selectedCard !== undefined) {
+      entry.selectedCard = a.selectedCard;
+      has = true;
+      if (a.repeat !== undefined && a.repeat.chosenCard === a.selectedCard) {
+        const composed = repeatComposedResponses(a.repeat.composed);
+        if (composed.length > 0) {
+          // The composed responses are heterogeneous wire shapes — typed at
+          // the boundary exactly as the batch route consumes them.
+          entry.repeatResponses = composed as ReadonlyArray<InputResponse>;
+        }
+      }
+    }
+    return has ? entry : undefined;
+  };
+  if (payload.traversalAnswers !== undefined) {
+    const answers = payload.traversalAnswers
+      .map(toWire)
+      .filter((a): a is DeltaStageAnswer => a !== undefined);
+    return answers.length > 0 ? answers : undefined;
+  }
+  if (payload.toPosition === undefined) {
+    return undefined;
+  }
+  const single = toWire({
+    position: payload.toPosition,
+    rewardChoice: payload.rewardChoice,
+    selectedCard: payload.selectedCard,
+    repeat: payload.repeat,
+  });
+  return single !== undefined ? [single] : undefined;
+}
+
+/**
  * Assemble a full advance batch from an arbitrary PREFIX: `[...prefix,
- * {deltaProject, amount}, choice?, card-pick / composed-repeat tail?]`.
+ * {deltaProject, amount, answers?}]` — the whole invocation plan rides the
+ * move step (see the module header); the response stream past it is empty.
  *
  * The prefix is the only thing the two AUTHORISED ways onto the track differ
  * by. The player's own action authorises with ONE response (the wrapped
@@ -153,6 +235,7 @@ export function hydroAdvanceBatch(
     waivedSteps?: ReadonlyArray<number>,
     plannedActions?: ReadonlyArray<{position: number, card: CardName}>,
     plannedChoices?: ReadonlyArray<{position: number, choice: number}>,
+    answers?: ReadonlyArray<DeltaStageAnswer>,
   } = {type: 'deltaProject', amount: steps};
   if (payload.waiveTarget === true) {
     move.waiveReward = true;
@@ -169,10 +252,13 @@ export function hydroAdvanceBatch(
   if (payload.plannedChoices !== undefined && payload.plannedChoices.length > 0) {
     move.plannedChoices = payload.plannedChoices;
   }
+  const answers = moveStepAnswers(payload);
+  if (answers !== undefined) {
+    move.answers = answers;
+  }
   return [
     ...prefix,
     move,
-    ...hydroAdvanceTail(payload),
   ];
 }
 

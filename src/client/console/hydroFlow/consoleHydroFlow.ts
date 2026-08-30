@@ -143,12 +143,22 @@ export const hydroFlowState = reactive<{
   draftVersion: string;
   /** One-shot: the ceremony choreography is running (pos 10/11). */
   ceremonyActive: boolean;
+  /**
+   * THE TERMINAL CEREMONY HAS FINISHED PRESENTING (or was honestly skipped by
+   * the recovery net). A ceremony-kind commit OWES this beat: the flow may not
+   * reach its result stage — and therefore may not close — before the
+   * culmination has actually played. Server completion (the VP is granted the
+   * moment the response applies) and presentation completion are two different
+   * events, and the result stage waits for both.
+   */
+  ceremonyPlayed: boolean;
 }>({
   step: undefined,
   repeatBridge: false,
   commit: undefined,
   draftVersion: '',
   ceremonyActive: false,
+  ceremonyPlayed: false,
 });
 
 const COMMIT_ORDER: ReadonlyArray<HydroCommitPhase> = ['moving', 'resolving', 'result'];
@@ -236,13 +246,22 @@ export function hydroResolutionBusyOf(signals: {
    * reach its result (nor a traversal resume) over a card in the air.
    */
   intakeFlying?: boolean,
+  /**
+   * A TERMINAL LANDING STILL OWES ITS CULMINATION ({@link hydroCeremonyOwed}).
+   * Distinct from `ceremony` (the choreography is RUNNING): this one is true
+   * from the commit until the ceremony has finished PRESENTING, so the gap
+   * between the marker settling and the ceremony's own $nextTick start can
+   * never read as «resolution over» — the exact frame the summary used to be
+   * skipped in. Released by `markHydroCeremonyPlayed`, never by a timeout.
+   */
+  ceremonyOwed?: boolean,
 }): boolean {
   if (!signals.committed) {
     return false;
   }
   return signals.markerGliding || signals.rewardHeld || signals.transfersFlying ||
     signals.ceremony || signals.followUpInteractive || signals.traversalPending === true ||
-    signals.intakeFlying === true;
+    signals.intakeFlying === true || signals.ceremonyOwed === true;
 }
 
 /** The live-module convenience readers (the section/shell side). */
@@ -277,6 +296,7 @@ export function beginHydroCommit(rec: Omit<HydroCommitRecord, 'phase'>): void {
   hydroFlowState.step = undefined;
   hydroFlowState.repeatBridge = false;
   hydroFlowState.commit = {...rec, phase: 'moving'};
+  hydroFlowState.ceremonyPlayed = false;
 }
 
 /** Forward-only — a stray signal can never resurrect a spent beat. */
@@ -296,6 +316,7 @@ export function advanceHydroCommitPhase(phase: HydroCommitPhase): void {
 export function rollbackHydroCommit(): void {
   hydroFlowState.commit = undefined;
   hydroFlowState.ceremonyActive = false;
+  hydroFlowState.ceremonyPlayed = false;
 }
 
 /** The flow is over (result read / workspace closing) — full reset. */
@@ -305,6 +326,7 @@ export function resetHydroFlow(): void {
   hydroFlowState.commit = undefined;
   hydroFlowState.draftVersion = '';
   hydroFlowState.ceremonyActive = false;
+  hydroFlowState.ceremonyPlayed = false;
 }
 
 export function setHydroCeremonyActive(on: boolean): void {
@@ -312,6 +334,33 @@ export function setHydroCeremonyActive(on: boolean): void {
 }
 export function isHydroCeremonyActive(): boolean {
   return hydroFlowState.ceremonyActive;
+}
+
+/**
+ * THE CEREMONY FINISHED PRESENTING (culmination played to its end, or the
+ * recovery net honestly skipped a culmination whose glide degraded). The one
+ * completion signal that releases {@link hydroCeremonyOwed} — the flow then
+ * advances to its RESULT stage through the ordinary busy falling edge. The
+ * ceremony itself never ends the flow: the summary is the mandatory terminal
+ * stage of every successful movement, and the ceremony is the beat before it.
+ */
+export function markHydroCeremonyPlayed(): void {
+  if (hydroFlowState.commit !== undefined) {
+    hydroFlowState.ceremonyPlayed = true;
+  }
+}
+
+/**
+ * A TERMINAL (VP) landing still OWES its culmination: the commit resolves at
+ * a finish stage and the ceremony has neither played nor been skipped by the
+ * recovery net. A term of `hydroResolutionBusyOf` — the flow may not reach
+ * the result stage (nor close) over an unplayed culmination, and equally may
+ * not stall once it HAS played: completion is this flag, never a timeout.
+ */
+export function hydroCeremonyOwed(): boolean {
+  const c = hydroFlowState.commit;
+  return c !== undefined && c.kind === 'ceremony' && c.phase !== 'result' &&
+    !hydroFlowState.ceremonyPlayed;
 }
 
 // The ceremony is a cinematic INSIDE a mandatory-free workspace: ordinary

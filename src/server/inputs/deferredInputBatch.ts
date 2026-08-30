@@ -212,10 +212,28 @@ function hiddenInfoPrompt(waitingFor: PlayerInput): boolean {
 }
 
 /**
+ * PARK responses for prompts that are ABOUT to be asked — the server-side
+ * door of a pre-answered nested plan. A consumed Hydronetwork stage answer
+ * (`DeltaProjectExpansion.resolveReward`) runs its repeated action through
+ * the REAL pipeline; the action's own inputs then rise as ordinary prompts,
+ * and these responses are what the drain feeds them. Append semantics —
+ * exactly what `replayBatch`'s own parking does.
+ */
+export function parkBatchTail(player: IPlayer, responses: ReadonlyArray<InputResponse>): void {
+  if (responses.length === 0) {
+    return;
+  }
+  parkedTails.set(player, [...(parkedTails.get(player) ?? []), ...responses]);
+}
+
+/**
  * Drop the parked tail. Called when the action it belongs to is over
  * (`Player.takeAction`, once the deferred queue has drained): a pre-collected
  * answer that never found its prompt is stale, and must not be able to land on
- * a question the NEXT action asks.
+ * a question the NEXT action asks. Also called at each traversal stage
+ * boundary (`DeltaProjectExpansion.advance`'s per-position steps): a leftover
+ * of the PREVIOUS stage's repeat (its prompt auto-resolved past the answer)
+ * must never be able to land on the NEXT stage's same-shaped runtime ask.
  */
 export function clearBatchTail(player: IPlayer): void {
   parkedTails.delete(player);

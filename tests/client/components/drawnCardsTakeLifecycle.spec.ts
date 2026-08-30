@@ -1,7 +1,8 @@
 import {expect} from 'chai';
 import {
   currentRevealEvent, drawnCardsState, isEventFullyTaken, markAllTaken,
-  markCardTaken, reconcileDrawnCards, untakenNameMultiset,
+  markCardTaken, markRevealPresented, reconcileDrawnCards, revealPresented,
+  untakenNameMultiset,
 } from '@/client/components/drawnCards/drawnCardsState';
 import {CardName} from '@/common/cards/CardName';
 
@@ -91,5 +92,38 @@ describe('drawnCards — the take lifecycle behind the reveal surface', () => {
     expect(currentRevealEvent()?.id).to.eq(2);
     markCardTaken(2, 0);
     expect(currentRevealEvent()).to.eq(undefined);
+  });
+
+  /**
+   * THE PRESENTED LATCH — the scene-exit barrier's one-directional witness.
+   * A batch that has NOT presented yet waits out the previous card stage's
+   * exit (the deck pick's commit beats, the dock flights); a batch that IS
+   * presenting starts flights of its own with every take, and those must
+   * never re-raise the barrier under it. Presentation is decided once per
+   * batch and only ever hardens; the latch dies with the batch, never
+   * mid-life.
+   */
+  it('the presented latch hardens per batch and dies with the batch', () => {
+    twoCardBatch();
+    expect(revealPresented(1), 'assembling — not on the scene yet').to.eq(false);
+    markRevealPresented(1);
+    expect(revealPresented(1)).to.eq(true);
+    // Take flights of its own cannot un-present it.
+    markCardTaken(1, 0);
+    expect(revealPresented(1)).to.eq(true);
+    // The server dropping the batch is the latch's only end.
+    reconcileDrawnCards([]);
+    expect(revealPresented(1)).to.eq(false);
+  });
+
+  it('a later batch presents on its own latch — the previous one says nothing about it', () => {
+    twoCardBatch();
+    markRevealPresented(1);
+    reconcileDrawnCards([
+      {id: 1, cards: [{name: A}, {name: B}]} as never,
+      {id: 2, cards: [{name: A}]} as never,
+    ]);
+    expect(revealPresented(1)).to.eq(true);
+    expect(revealPresented(2), 'the queued batch has not taken the scene').to.eq(false);
   });
 });

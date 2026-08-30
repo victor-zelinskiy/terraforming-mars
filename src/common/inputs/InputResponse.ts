@@ -255,6 +255,30 @@ export interface DeltaProjectInputResponse {
    * may honestly fund a later declared action. Omitted when none.
    */
   plannedChoices?: ReadonlyArray<{position: number, choice: number}>;
+  /**
+   * THE INVOCATION PLAN — every stage-level ask the player pre-answered, by
+   * position, CONSUMED by the server's own reward resolution (never replayed
+   * as a positional response stream). One entry per asking stage: the chosen
+   * reward alternative (stages 1/2), the picked card (stage 7's repeated
+   * action / stage 9's animal target), and — for a composed repeat — the
+   * repeated action's OWN nested responses, fed to the prompts that action
+   * raises when it runs. A missing / stale entry degrades to the ordinary
+   * prompt for THAT stage alone (served embedded), never to a dropped plan.
+   * Omitted when nothing was pre-answered (historical shapes byte-identical).
+   */
+  answers?: ReadonlyArray<DeltaStageAnswer>;
+}
+
+/** One pre-answered stage ask of a Hydronetwork advance (see `answers`). */
+export interface DeltaStageAnswer {
+  position: number;
+  /** Choice stages (1/2): the picked alternative index. */
+  rewardChoice?: number;
+  /** Target stages (7/9): the picked card. */
+  selectedCard?: CardName;
+  /** Stage 7: the composed repeat's own nested responses, in the repeated
+   *  action's defer order (byte-identical to a direct activation's batch). */
+  repeatResponses?: ReadonlyArray<InputResponse>;
 }
 
 export function isDeltaProjectInputResponse(response: InputResponse): response is DeltaProjectInputResponse {
@@ -263,7 +287,7 @@ export function isDeltaProjectInputResponse(response: InputResponse): response i
   }
   // `amount` is required; the optional fields compose freely (each is
   // omitted when meaningless, so the historical shapes stay byte-identical).
-  const allowed = ['type', 'amount', 'waiveReward', 'steel', 'waivedSteps', 'plannedActions', 'plannedChoices'];
+  const allowed = ['type', 'amount', 'waiveReward', 'steel', 'waivedSteps', 'plannedActions', 'plannedChoices', 'answers'];
   const keys = Object.keys(response);
   return keys.includes('amount') && keys.every((k) => allowed.includes(k));
 }

@@ -6349,7 +6349,11 @@ html.console-mode body.placement-pending .board-outer-spaces > .board-space.boar
     }
     &__choice-row {
         display: flex;
-        align-items: center;
+        /* STRETCH, not center: the pair must keep ONE height whatever line
+           count each title wraps to — the taller card sets the row and the
+           sibling grows to it (content stays centred by the card's own
+           internal alignment). */
+        align-items: stretch;
         gap: .8rem;
         align-self: stretch;
         justify-content: center;
@@ -6488,6 +6492,15 @@ html.console-mode body.placement-pending .board-outer-spaces > .board-space.boar
         letter-spacing: .06rem;
         text-transform: uppercase;
         color: fade(@con-hydro-aqua, 92%);
+        /* The STATUS CORNER is reserved by the card's right padding, and the
+           title must NEVER paint into it: a long unbreakable RU word
+           («ПРОИЗВОДСТВО») overflowed the shrunk flex column straight under
+           the check slot. Emergency mid-word breaking (the composer's
+           repeatpick-name idiom) keeps every line inside its own column —
+           there are no hyphenation dictionaries in the runtime, so `anywhere`
+           is the honest wrap of last resort. */
+        min-width: 0;
+        overflow-wrap: anywhere;
     }
     &__choice-values {
         display: inline-flex;
@@ -6670,7 +6683,10 @@ html.console-mode body.placement-pending .board-outer-spaces > .board-space.boar
     }
 
     /* ── THE FINISH CEREMONY (pos 10/11) — the value rises out of the landed
-       stop into this seat; the shared burst fires here. ── */
+       stop into this seat; the shared burst fires here. The seat MOUNTS on
+       the marker's arrival (see `cereVisible`), so its entry belongs to CSS:
+       `backwards` makes the first painted frame the entrance's start — one
+       reveal, never a v-if pop — while the GSAP value FLIP plays over it. ── */
     &__cere {
         display: flex;
         flex-direction: column;
@@ -6678,6 +6694,7 @@ html.console-mode body.placement-pending .board-outer-spaces > .board-space.boar
         gap: .5rem;
         flex-shrink: 0;
         padding: 1rem 0 .4rem;
+        animation: con-hydro-cere-in calc(260ms * var(--motion-scale, 1)) @con-ease-enter backwards;
     }
     &__cere-seat {
         position: relative;
@@ -6794,8 +6811,14 @@ html.console-mode body.placement-pending .board-outer-spaces > .board-space.boar
     from { opacity: 1; }
     to { opacity: 0; }
 }
+/* The ceremony seat's ENTRY — one-shot, compositor-only (opacity/transform). */
+@keyframes con-hydro-cere-in {
+    from { opacity: 0; transform: translateY(.5rem); }
+    to { opacity: 1; transform: translateY(0); }
+}
 @media (prefers-reduced-motion: reduce) {
     .con-hydro__cta { animation: none; }
+    .con-hydro__cere { animation: none; }
     .con-hydro__commit-spin { animation: none; }
     .con-hydro__stop,
     .con-hydro__link { transition-duration: 1ms; }

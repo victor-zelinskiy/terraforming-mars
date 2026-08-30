@@ -22,6 +22,8 @@ import {IActionCard, ICard, isIActionCard, isIHasCheckLoops} from '../cards/ICar
 import {DeltaWorks} from '../cards/delta/DeltaWorks';
 import {UnplayableReason} from '../../common/cards/UnplayableReason';
 import {notEnoughEnergy, ruleReason} from '../cards/actionReasons';
+import {DeltaStageAnswer} from '../../common/inputs/InputResponse';
+import {clearBatchTail, parkBatchTail} from '../inputs/deferredInputBatch';
 
 /**
  * The ordered tags for each track position (1-indexed).
@@ -508,6 +510,16 @@ export class DeltaProjectExpansion {
     plannedActions?: ReadonlyArray<{position: number, card: CardName}>,
     plannedChoices?: ReadonlyArray<{position: number, choice: number}>,
     /**
+     * THE INVOCATION PLAN — the pre-answered stage asks, by position,
+     * CONSUMED by {@link resolveReward} itself (the same closures / deferred
+     * actions the prompts would run, so plan and prompt cannot diverge).
+     * Validated at consume time against the LIVE candidate lists: a stale
+     * entry degrades to that one stage's ordinary prompt, never to a dropped
+     * plan. A composed repeat's own nested responses ride along and are
+     * parked for the prompts the repeated action raises when it runs.
+     */
+    answers?: ReadonlyArray<DeltaStageAnswer>,
+    /**
      * The STANDARD advance's chosen payment mix (Delta Works: 1 steel = 1
      * energy). Must total `steps`; steel > 0 requires the card in the tableau.
      * Absent = the energy-first default (energy, then steel for the deficit
@@ -656,10 +668,14 @@ export class DeltaProjectExpansion {
           game.log('${0} crossed the 2 VP stage — its reward is claimed only by stopping there', (b) => b.player(player));
         }
       }
+      const answersByPos = new Map<number, DeltaStageAnswer>();
+      for (const a of extras?.answers ?? []) {
+        answersByPos.set(a.position, a);
+      }
       if (rewarded.length <= 1) {
         // The historical shape — only the destination pays. Resolved inline,
         // byte- and order-identical to every advance before Delta Surge.
-        DeltaProjectExpansion.resolveReward(player, newPos, waived.has(newPos));
+        DeltaProjectExpansion.resolveReward(player, newPos, waived.has(newPos), answersByPos.get(newPos));
       } else {
         // DELTA SURGE: every crossed stage pays, IN PATH ORDER. Each stage
         // rides its own deferred step at BACK_OF_THE_LINE: anything a stage's
@@ -669,10 +685,25 @@ export class DeltaProjectExpansion {
         // executes — strict path order without re-implementing a single
         // reward. The steps capture the live journal scope at defer time, so
         // the whole payout stays one grouped delta-project event.
+        //
+        // `repeatParkStanding` scopes the stage-boundary cleanup to what THIS
+        // advance parked: a CONSUMED repeat whose prompt auto-resolved (a
+        // single candidate) leaves its nested answer as a stray of the same
+        // `card` shape, and the NEXT stage's own runtime ask must never be
+        // able to swallow it. By the next step the previous chain has fully
+        // resolved (its prompts queue nearer than BACK_OF_THE_LINE), so a
+        // still-standing park of ours is moot by construction. A LEGACY
+        // stream tail (parked by replayBatch behind the stage-5 hidden draw)
+        // is deliberately untouched — it still owes its own prompts.
+        let repeatParkStanding = false;
         for (const step of rewarded) {
           const position = step.position;
           player.defer(() => {
-            DeltaProjectExpansion.resolveReward(player, position, waived.has(position));
+            if (repeatParkStanding) {
+              clearBatchTail(player);
+            }
+            repeatParkStanding = DeltaProjectExpansion.resolveReward(
+              player, position, waived.has(position), answersByPos.get(position));
             return undefined;
           }, Priority.BACK_OF_THE_LINE);
         }
@@ -729,10 +760,28 @@ export class DeltaProjectExpansion {
     return {energy, steel};
   }
 
-  private static resolveReward(player: IPlayer, position: number, waiveTargetReward = false): void {
+  /** @returns whether this stage PARKED a consumed repeat's nested responses —
+   *  the traversal's stage-boundary cleanup drops what is still standing of
+   *  them (an auto-resolved prompt's stray) before the next stage resolves. */
+  private static resolveReward(player: IPlayer, position: number, waiveTargetReward = false, answer?: DeltaStageAnswer): boolean {
+    let parkedRepeat = false;
     // Positions 10/11 (VP spots) have no additional reward beyond VP claiming.
     switch (DELTA_TRACK_TAGS[position]) {
-    case Tag.BUILDING: // Choose 2 steel or 2 plants
+    case Tag.BUILDING: { // Choose 2 steel or 2 plants
+      // ONE effect per alternative, run by the prompt's own option AND by a
+      // consumed pre-answer — the same closure, so plan and prompt cannot
+      // diverge (never a second implementation of the reward).
+      const gainBuilding = (choice: 0 | 1): void => {
+        player.stock.add(choice === 0 ? Resource.STEEL : Resource.PLANTS, 2,
+          {log: true, from: {card: CardName.DELTA_PROJECT}});
+        DeltaProjectExpansion.recordStopChoice(player, position, choice);
+      };
+      // THE DECLARED ANSWER consumes the ask server-side (validated: the
+      // choice is structural, 0/1). Anything else falls to the prompt.
+      if (answer?.rewardChoice === 0 || answer?.rewardChoice === 1) {
+        gainBuilding(answer.rewardChoice);
+        break;
+      }
       // The premium overlay pre-collects this choice in the action-zone (it is
       // batch-submitted with the advance). markChoiceContext is a graceful
       // fallback: if the OrOptions ever surfaces as a standalone prompt (batch
@@ -740,32 +789,39 @@ export class DeltaProjectExpansion {
       // sourced to the Delta Project, not a bare option list.
       player.defer(() => new OrOptions(
         new SelectOption('Gain 2 steel', 'Gain steel').andThen(() => {
-          player.stock.add(Resource.STEEL, 2, {log: true, from: {card: CardName.DELTA_PROJECT}});
-          DeltaProjectExpansion.recordStopChoice(player, position, 0);
+          gainBuilding(0);
           return undefined;
         }),
         new SelectOption('Gain 2 plants', 'Gain plants').andThen(() => {
-          player.stock.add(Resource.PLANTS, 2, {log: true, from: {card: CardName.DELTA_PROJECT}});
-          DeltaProjectExpansion.recordStopChoice(player, position, 1);
+          gainBuilding(1);
           return undefined;
         }),
       ).markChoiceContext(systemChoice('system', 'Choose your Hydronetwork reward', 'effect-choice')));
       break;
+    }
 
-    case Tag.POWER: // Choose +1 energy production or +1 heat production
+    case Tag.POWER: { // Choose +1 energy production or +1 heat production
+      const gainPower = (choice: 0 | 1): void => {
+        player.production.add(choice === 0 ? Resource.ENERGY : Resource.HEAT, 1,
+          {log: true, from: {card: CardName.DELTA_PROJECT}});
+        DeltaProjectExpansion.recordStopChoice(player, position, choice);
+      };
+      if (answer?.rewardChoice === 0 || answer?.rewardChoice === 1) {
+        gainPower(answer.rewardChoice);
+        break;
+      }
       player.defer(() => new OrOptions(
         new SelectOption('Increase energy production 1 step', 'Increase').andThen(() => {
-          player.production.add(Resource.ENERGY, 1, {log: true, from: {card: CardName.DELTA_PROJECT}});
-          DeltaProjectExpansion.recordStopChoice(player, position, 0);
+          gainPower(0);
           return undefined;
         }),
         new SelectOption('Increase heat production 1 step', 'Increase').andThen(() => {
-          player.production.add(Resource.HEAT, 1, {log: true, from: {card: CardName.DELTA_PROJECT}});
-          DeltaProjectExpansion.recordStopChoice(player, position, 1);
+          gainPower(1);
           return undefined;
         }),
       ).markChoiceContext(systemChoice('system', 'Choose your Hydronetwork reward', 'effect-choice')));
       break;
+    }
 
     case Tag.EARTH: // +2 MC production
       player.production.add(Resource.MEGACREDITS, 2, {log: true, from: {card: CardName.DELTA_PROJECT}});
@@ -802,6 +858,26 @@ export class DeltaProjectExpansion {
         // confirmed «without copying».
         if (waiveTargetReward) {
           player.game.log('${0} declined to reuse a card action from the Hydronetwork', (b) => b.player(player));
+          break;
+        }
+        // THE DECLARED ANSWER consumes the pick server-side, against the SAME
+        // eligibility filter the prompt would offer — a stale card degrades to
+        // the ordinary prompt below (the runtime follow-up, served embedded).
+        // The action then runs through the REAL pipeline (`card.action`), and
+        // its composed nested responses are PARKED for the prompts it raises
+        // — the same drain a direct activation's batch rides, so an ask the
+        // plan could not know (hidden information, a runtime-only follow-up)
+        // still surfaces as its own prompt.
+        const planned = answer?.selectedCard !== undefined ?
+          actionCards.find((c) => c.name === answer.selectedCard) :
+          undefined;
+        if (planned !== undefined) {
+          player.game.log('${0} reused ${1} action via ${2}', (b) => b.player(player).card(planned).cardName(CardName.DELTA_PROJECT));
+          if (answer?.repeatResponses !== undefined && answer.repeatResponses.length > 0) {
+            parkBatchTail(player, answer.repeatResponses);
+            parkedRepeat = true;
+          }
+          player.defer(() => planned.action(player));
           break;
         }
         // The console pre-collects this pick (batch-submitted with the
@@ -847,6 +923,24 @@ export class DeltaProjectExpansion {
         }
         break;
       }
+      // THE DECLARED TARGET consumes the ask through the SAME deferred action
+      // the prompt path runs, narrowed to the pre-answered card (the FIXED-
+      // target `filter` exemption: the player already saw the target and its
+      // «сейчас → станет» at pre-select). Validated against the LIVE
+      // eligibility first — a stale target degrades to the ordinary prompt
+      // with only the actual candidates.
+      if (answer?.selectedCard !== undefined) {
+        const target = answer.selectedCard;
+        const eligible = new AddResourcesToCard(player, CardResource.ANIMAL, {count: 2})
+          .getCards().some((c) => c.name === target);
+        if (eligible) {
+          player.game.defer(new AddResourcesToCard(player, CardResource.ANIMAL, {
+            count: 2, filter: (c) => c.name === target,
+            cause: namedCardSource(CardName.DELTA_PROJECT),
+          }));
+          break;
+        }
+      }
       // `cause` = the structural prompt identity (choiceContext) for the
       // fallback path — the console pre-collects the target, but a batch
       // divergence / reconnect must still route this premium, not bare.
@@ -855,6 +949,7 @@ export class DeltaProjectExpansion {
       }));
       break;
     }
+    return parkedRepeat;
   }
 
   // Public: the projected-plan dry run (`deltaAdvancePlan.ts`) asks THIS very

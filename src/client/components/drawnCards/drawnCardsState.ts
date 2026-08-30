@@ -112,6 +112,12 @@ export function reconcileDrawnCards(reveals: ReadonlyArray<CardDrawRevealModel>)
   if (followUpHoldId !== undefined && !incomingIds.has(followUpHoldId)) {
     followUpHoldId = undefined;
   }
+  // The presented latch follows the batches it describes (bounded set).
+  for (const id of presentedIds) {
+    if (!incomingIds.has(id)) {
+      presentedIds.delete(id);
+    }
+  }
 }
 
 function untakenCount(e: DrawnCardEntry): number {
@@ -181,6 +187,30 @@ export function isRevealHeldForFollowUp(id: number | undefined): boolean {
 export function currentRevealEvent(): DrawnCardEntry | undefined {
   return drawnCardsState.events.find((e) =>
     !e.dismissed && (untakenCount(e) > 0 || isRevealHeldForFollowUp(e.id)));
+}
+
+/*
+ * THE PRESENTED LATCH — «this batch has taken the working scene», per batch id.
+ *
+ * The scene-exit barrier (ConsoleShell.revealHeldForWorkspace) holds a batch
+ * that has NOT presented yet while the PREVIOUS card stage's exit is still
+ * playing (the deck pick's commit beats, the taken cards' dock flights). The
+ * latch is what makes that hold one-directional: a batch that IS presenting
+ * starts dock flights of its own with every take, and without the latch those
+ * flights would re-raise the very barrier and yank the surface mid-batch.
+ * Presentation is decided once per batch and only ever hardens — the same
+ * discipline as the reveal's `ownedBatchKey`. Cleared with the batch itself
+ * (reconcile), never mid-life.
+ */
+const presentedIds = new Set<number>();
+
+/** The overlay reports: this batch is ON the scene (its first presenting frame). */
+export function markRevealPresented(id: number): void {
+  presentedIds.add(id);
+}
+
+export function revealPresented(id: number): boolean {
+  return presentedIds.has(id);
 }
 
 /**

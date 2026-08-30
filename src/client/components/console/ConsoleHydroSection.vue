@@ -453,8 +453,14 @@
           </div>
 
           <!-- pos 10/11: the finish CEREMONY — the value rises out of the
-               landed stop into this seat; the shared burst fires here. -->
-          <div v-if="commitRec.kind === 'ceremony'" class="con-hydro__cere">
+               landed stop into this seat; the shared burst fires here. The
+               seat EXISTS only from the marker's physical arrival at the
+               terminal stop (`cereVisible`) — a terminal scene standing in
+               the DOM from the commit frame was the rules cursor painting
+               the finale while the presentation was still mid-track. Its
+               entry is CSS (`con-hydro-cere-in`, `backwards`), so the first
+               painted frame is already the entrance — never a v-if pop. -->
+          <div v-if="cereVisible" class="con-hydro__cere">
             <div class="con-hydro__cere-seat" ref="cereSeat">
               <div class="con-hydro__cere-value" ref="cereValue">
                 {{ commitRec.vp }} <small>{{ $t('VP') }}</small>
@@ -808,9 +814,10 @@ import {participantDisplayName} from '@/client/components/marsbot/marsBotDisplay
 import {ConsoleCommand} from '@/client/console/consoleCommandModel';
 import {
   HydroCommitRecord, HydroTraversalSegmentRecord, closeHydroStep, hydroDraftFresh, hydroFlowState,
-  hydroWorkspacePhase, hydroWorkspaceRestorePlan, noteHydroDraftTouched, openHydroStep, resetHydroFlow,
-  resolutionKindFor, setHydroCeremonyActive,
+  hydroWorkspacePhase, hydroWorkspaceRestorePlan, markHydroCeremonyPlayed, noteHydroDraftTouched, openHydroStep,
+  resetHydroFlow, resolutionKindFor, setHydroCeremonyActive,
 } from '@/client/console/hydroFlow/consoleHydroFlow';
+import {hydroTraversalPending} from '@/client/console/hydroMarker/consoleHydroMarker';
 import {buildHydroTargetModel, hydroPresentedTargetModel} from '@/client/console/hydroFlow/hydroTargetStep';
 import {
   HydroCeremonyHandle, armHydroSceneOrigin, hydroSceneCancelledHook, hydroSceneEnterHook,
@@ -1421,6 +1428,29 @@ export default defineComponent({
       default: return 'result';
       }
     },
+    /**
+     * THE PRESENTATION CURSOR'S STAGE of a committed move — the ONE post-commit
+     * stage derivation every identity surface reads (the ctx column, the crumb
+     * subject, the commit head). While a traversal plan is still being
+     * PRESENTED it is the sequence's own current cell; a finished plan — and
+     * the historical single landing, whose presentation is trivially its
+     * destination — reads the frozen record. The rules cursor (the server
+     * position) already holds the destination the moment the response applies;
+     * painting it early is the finale before the movement.
+     */
+    presentedCommitStage(): {position: number, nameKey: string} | undefined {
+      const c = this.flow.commit;
+      if (c === undefined) {
+        return undefined;
+      }
+      if (c.traversal !== undefined && this.hydroMarkerState.planCursor >= 0) {
+        const seg = this.traversalCurrentSegment;
+        if (seg !== undefined) {
+          return {position: seg.position, nameKey: seg.stageNameKey};
+        }
+      }
+      return {position: c.toPosition, nameKey: c.stageNameKey};
+    },
     /** The context column — see {@link HydroCtxView}. */
     ctxView(): HydroCtxView {
       const c = this.flow.commit;
@@ -1435,11 +1465,17 @@ export default defineComponent({
         if (c.sourceCard !== undefined) {
           return {kind: 'source', source: c.sourceCard, badge, route};
         }
-        const stage = HYDRO_STAGES[c.toPosition];
+        // The identity FOLLOWS THE PRESENTATION CURSOR: naming the terminal
+        // stage (its 5 ПО glyph, «Этап 11 из 11») while the marker is still
+        // walking the middle of the track is the rules cursor leaking into
+        // the presentation. The ROUTE stays the whole move — the commitment
+        // is honest; only the CURRENT stage is the cursor's.
+        const at = this.presentedCommitStage ?? {position: c.toPosition, nameKey: c.stageNameKey};
+        const stage = HYDRO_STAGES[at.position];
         return {
           kind: 'stage', tag: stage?.tag, vp: stage?.vp,
-          nameKey: c.stageNameKey,
-          posText: translateTextWithParams('Stage ${0} of ${1}', [String(c.toPosition), '11']),
+          nameKey: at.nameKey,
+          posText: translateTextWithParams('Stage ${0} of ${1}', [String(at.position), '11']),
           badge, route,
         };
       }
@@ -1971,16 +2007,30 @@ export default defineComponent({
       }
     },
     /** The commit head follows the SEQUENCE's cursor on a traversal — the
-     *  header may never sit on the destination while the marker walks. */
+     *  header may never sit on the destination while the marker walks.
+     *  (The ONE post-commit stage derivation — `presentedCommitStage`.) */
     commitStageText(): string {
       const c = this.flow.commit;
       if (c === undefined) {
         return '';
       }
-      if (c.traversal !== undefined && this.hydroMarkerState.planCursor >= 0) {
-        return this.traversalCurrentSegment?.stageNameKey ?? c.stageNameKey;
+      return this.presentedCommitStage?.nameKey ?? c.stageNameKey;
+    },
+    /**
+     * THE TERMINAL CEREMONY SEAT EXISTS ONLY FROM THE MARKER'S ARRIVAL at the
+     * finish stop — never as the commit layer's standing furniture. Before the
+     * physical settle the terminal reward has no presence in the scene at all
+     * (no early hero to hide with opacity tricks); from the settle it stands
+     * through the ceremony until the result layer replaces the commit layer.
+     * `cereStarted` latches on the exact settle edge, so the 800 ms settle
+     * pulse clearing cannot blink the seat away mid-ceremony.
+     */
+    cereVisible(): boolean {
+      const c = this.flow.commit;
+      if (c === undefined || c.kind !== 'ceremony' || c.phase === 'result') {
+        return false;
       }
-      return c.stageNameKey;
+      return this.cereStarted || this.flow.ceremonyActive || this.markerSettled === c.toPosition;
     },
     /** The committed traversal segment the sequence is AT (the paused stop, or
      *  the leg in flight). Undefined once the plan finishes. */
@@ -2036,7 +2086,9 @@ export default defineComponent({
       }
       const c = this.flow.commit;
       if (c !== undefined) {
-        return c.stageNameKey;
+        // The subject follows the PRESENTATION CURSOR — a traversal's header
+        // may never sit on the destination while the marker walks.
+        return this.presentedCommitStage?.nameKey ?? c.stageNameKey;
       }
       if (this.flow.step !== undefined || this.flow.repeatBridge) {
         return this.model.targetStage?.nameKey ?? '';
@@ -2057,6 +2109,24 @@ export default defineComponent({
         }
         if (c.phase === 'moving') {
           return 'Movement';
+        }
+        // A TRAVERSAL'S TAIL FOLLOWS THE SEQUENCE'S OWN CURSOR — «ФИНАЛЬНАЯ
+        // НАГРАДА» may only ever name the terminal cell the marker has
+        // actually reached, never the destination of a walk still in its
+        // middle (the phase leaves `moving` on the first pause, so the
+        // destination noun below would otherwise take the tail right there).
+        if (c.traversal !== undefined && this.hydroMarkerState.planCursor >= 0) {
+          if (!this.hydroMarkerState.planPaused) {
+            return 'Movement';
+          }
+          if (workspaceOutcomeState.host === 'hydro' && workspaceOutcomeState.phaseKey !== '') {
+            return workspaceOutcomeState.phaseKey;
+          }
+          switch (this.traversalCurrentSegment?.kind) {
+          case 'repeat': return 'Repeat action';
+          case 'ceremony': return 'Final reward';
+          default: return 'Reward';
+          }
         }
         // The embedded surface hands its stage name UP — read it back for the
         // crumb tail; fall back to the resolution's own noun.
@@ -2442,6 +2512,12 @@ export default defineComponent({
       if (now === undefined && prev !== undefined && this.advanceOffer !== undefined) {
         this.bonusSubmitting = false;
       }
+      // The ceremony one-shot belongs to ONE commit — a rollback (server
+      // refusal) or a finished flow must re-arm it for the next resolution;
+      // a stale latch would silently skip the next terminal culmination.
+      if (now === undefined && prev !== undefined) {
+        this.cereStarted = false;
+      }
     },
     /** The preview landed (or the stage changed under it) — the owed seat can
      *  finally be placed. */
@@ -2512,6 +2588,15 @@ export default defineComponent({
     },
     'flow.commit.phase'(): void {
       this.maybeStartCeremony(this.markerSettled);
+    },
+    // …and a traversal plan ENDING (finished or aborted) re-asks the same
+    // question: a plan that died without a settle on the terminal stop is the
+    // degraded-glide case — the recovery branch completes the owed ceremony
+    // honestly, so the flow can never hang on a culmination that cannot come.
+    'hydroMarkerState.planCursor'(cursor: number): void {
+      if (cursor < 0) {
+        this.maybeStartCeremony(this.markerSettled);
+      }
     },
     // THE NESTED FULL-SCENE STEP (position 7's repeat browser) takes the
     // whole band; this workspace is hidden for its length and comes back when
@@ -3685,10 +3770,30 @@ export default defineComponent({
       });
     },
     // ── the CEREMONY (pos 10/11) ───────────────────────────────────────────
+    /**
+     * The culmination starts ONLY on the marker's physical arrival at the
+     * terminal stop, and its completion NEVER ends the flow: it releases the
+     * `ceremonyOwed` busy term (`markHydroCeremonyPlayed`), the resolution's
+     * ordinary falling edge advances to the RESULT stage, and the summary —
+     * the mandatory terminal stage of every movement — shows the awarded VP
+     * with the rest of the move's ledger. A ceremony that cannot come (the
+     * glide degraded — no genuine settle will ever fire) is honestly SKIPPED
+     * through the same completion signal: the recovery-net semantics, with
+     * the summary still owed and still shown.
+     */
     maybeStartCeremony(settledPos: number): void {
       const c = this.flow.commit;
-      if (c === undefined || c.kind !== 'ceremony' || c.phase !== 'resolving' ||
-          this.cereStarted || settledPos !== c.toPosition) {
+      if (c === undefined || c.kind !== 'ceremony' || c.phase !== 'resolving' || this.cereStarted) {
+        return;
+      }
+      if (settledPos !== c.toPosition) {
+        // THE RECOVERY NET: the flow reached `resolving` with the marker idle,
+        // no plan standing and no settle on the terminal stop — the glide
+        // degraded (expired arm / aborted plan) and no arrival will ever fire.
+        // The culmination is skipped honestly; the summary still follows.
+        if (!this.markerGliding && !hydroTraversalPending()) {
+          markHydroCeremonyPlayed();
+        }
         return;
       }
       this.cereStarted = true;
@@ -3697,7 +3802,8 @@ export default defineComponent({
         const seat = this.$refs.cereSeat as HTMLElement | undefined;
         const sceneEl = this.$refs.sceneEl as HTMLElement | undefined;
         if (root === undefined || seat === undefined || seat === null || sceneEl === undefined) {
-          this.$emit('result-done');
+          // No stage to play on (mid-teardown) — complete without pretending.
+          markHydroCeremonyPlayed();
           return;
         }
         setHydroCeremonyActive(true);
@@ -3714,7 +3820,7 @@ export default defineComponent({
           onDone: () => {
             this.cereHandle = undefined;
             setHydroCeremonyActive(false);
-            this.$emit('result-done');
+            markHydroCeremonyPlayed();
           },
         });
       });

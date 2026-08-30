@@ -341,7 +341,15 @@ export function buildHydroModel(input: HydroModelInput): HydroModel {
     const markers = markersByPos.get(pos) ?? [];
     const occupiedByOther = stage.vp !== undefined && markers.some((m) => !m.isViewer);
     const stop = hasStopAt(viewerStops, pos);
-    const rewardedByViewer = stop !== undefined && pos !== currentPosition;
+    // While a committed traversal is still being PRESENTED (`visualViewerPosition`
+    // active), a server stop record AHEAD of the presentation cursor may not
+    // paint its ✓ yet — the rules cursor already holds the whole resolution,
+    // and a destination marked «done» before the marker arrives is the finale
+    // leaking into the walk. `skippedByViewer` clamps by construction
+    // (`currentPosition` IS the presentation cursor here).
+    const presenting = input.visualViewerPosition !== undefined && input.visualViewerPosition >= 0;
+    const rewardedByViewer = stop !== undefined && pos !== currentPosition &&
+      (!presenting || pos < currentPosition);
     const skippedByViewer = stop === undefined && currentPosition > pos && pos > 0;
 
     let state: HydroStageState;

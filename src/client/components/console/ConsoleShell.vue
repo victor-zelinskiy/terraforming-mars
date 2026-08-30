@@ -1585,7 +1585,7 @@ import {marsBotCorpAnnotations} from '@/client/components/marsbot/marsBotCorpRul
 import {consoleCardZoom, openConsoleCardZoom, navigateConsoleCardZoom, closeConsoleCardZoom, setConsoleZoomInspectTab, slotZoomOrigin, ZoomOrigin, ConsoleZoomProvenance} from '@/client/console/consoleCardZoom';
 import {beginZoomOpen, cancelZoomOpen, playZoomOpenFlight, zoomOpenSourceRect, playZoomClose, playZoomDepart, playZoomHandoff, playZoomSwap, retargetZoomHold, releaseZoomMotion} from '@/client/console/consoleZoomMotion';
 import {consoleReducedMotionActive} from '@/client/console/composables/useConsoleReducedMotion';
-import {currentRevealEvent, drawnCardsState, untakenNameMultiset} from '@/client/components/drawnCards/drawnCardsState';
+import {currentRevealEvent, drawnCardsState, markRevealPresented, revealPresented, untakenNameMultiset} from '@/client/components/drawnCards/drawnCardsState';
 import {energyConversionState} from '@/client/components/feedback/energyConversionTransition';
 import {revealViewerState} from '@/client/components/notifications/revealViewerState';
 import {ConsoleTask, TaskKind, taskFor, taskMinimizable, taskServedByHost, shellTaskOnSurface, followUpStepStage, NATIVE_COMPOSITE_KINDS, SCENE_KINDS, SECTION_SERVED_KINDS, SHELL_SECTION_KINDS, corpFirstActionInStartFlow} from '@/client/console/consoleTaskRouter';
@@ -1612,9 +1612,9 @@ import {
   HydroMarkerLegPlan, hydroTraversalPaused, hydroTraversalPending, resumeHydroMarkerTraversal,
 } from '@/client/console/hydroMarker/consoleHydroMarker';
 import {
-  HydroResolutionKind, HydroTraversalSegmentRecord, advanceHydroCommitPhase, beginHydroCommit, hydroFlowState,
-  hydroResolutionBusyOf, hydroWorkspacePhase, isHydroCeremonyActive, resetHydroFlow, resolutionKindFor,
-  setHydroRepeatBridge,
+  HydroResolutionKind, HydroTraversalSegmentRecord, advanceHydroCommitPhase, beginHydroCommit, hydroCeremonyOwed,
+  hydroFlowState, hydroResolutionBusyOf, hydroWorkspacePhase, isHydroCeremonyActive, resetHydroFlow,
+  resolutionKindFor, setHydroRepeatBridge,
 } from '@/client/console/hydroFlow/consoleHydroFlow';
 import {bonusDiscardOwnsBatch, bonusDiscardStep, BonusDiscardStep} from '@/client/console/colonyTrade/colonyBonusDiscardStep';
 import {drawnRevealCommandRun} from '@/client/console/consoleRevealCommands';
@@ -3125,6 +3125,10 @@ export default defineComponent({
         // a tick after the take press, ~a second before the card physically
         // lands — the delivery flights are the only signal that spans it.
         intakeFlying: this.cardArrivalBusy,
+        // A terminal landing owes its CULMINATION from the commit until the
+        // ceremony has finished presenting — the summary may never be skipped
+        // by the gap between the marker's settle and the ceremony's start.
+        ceremonyOwed: hydroCeremonyOwed(),
       });
     },
     /**
@@ -3858,10 +3862,25 @@ export default defineComponent({
      *  a legacy modal, and the reason «Плутон открывает модалку» was reported
      *  against a flow that had no legacy component in it at all. */
     revealHeldForWorkspace(): boolean {
-      const source = currentRevealEvent()?.source;
-      return this.rawDrawnRevealPending &&
-        (workspaceClaimsDrawReveal(source) || workspaceClaimsColonyReveal(source)) &&
-        (workspaceOutcomeState.embedSlot === '' || workspaceOutcomeBeatPending());
+      const ev = currentRevealEvent();
+      if (ev === undefined || !this.rawDrawnRevealPending ||
+          !(workspaceClaimsDrawReveal(ev.source) || workspaceClaimsColonyReveal(ev.source))) {
+        return false;
+      }
+      if (workspaceOutcomeState.embedSlot === '' || workspaceOutcomeBeatPending()) {
+        return true;
+      }
+      // THE SCENE-EXIT BARRIER: exactly one card stage owns the working scene
+      // at a time. A batch that has NOT presented yet waits out the PREVIOUS
+      // stage's whole exit — the deck pick's commit beats (picks flying to the
+      // dock, the rest tumbling away) and the taken cards' delivery flights.
+      // The `revealPresented` latch makes the hold one-directional: a batch
+      // already ON the scene starts flights of its own with every take, and
+      // those must never re-raise the barrier under it. Completion signals
+      // only (the deck pick's own commit lifecycle, the delivery flight
+      // list) — never a timeout.
+      return !revealPresented(ev.id) &&
+        (deckPickHolding() || handDeliveryState.flights.length > 0);
     },
     /**
      * WHERE THE DECK-CHECK VERDICT PRESENTS — nowhere, the full-bleed band, or
@@ -3879,6 +3898,20 @@ export default defineComponent({
         hostDrawsItself: workspaceOutcomeState.host === 'card-actions',
         stageMounted: lr !== undefined && lr.action === consoleActionComposerUi.revealClaim,
       });
+    },
+    /**
+     * THE SCENE LEASE, reported where it is DECIDED: the batch the shell
+     * admits to present (`consoleRevealMode === 'drawn'`) latches
+     * `revealPresented` — the scene-exit barrier (`revealHeldForWorkspace`)
+     * then can never re-raise under this batch's own take flights. Marked
+     * HERE and not in the overlay: the overlay's instance persists across a
+     * batch switch, and its own watcher fired one flush before the shell's
+     * v-if could hold the NEXT batch — marking it presented while the
+     * previous stage's exits were still playing, which is exactly the window
+     * the barrier exists for.
+     */
+    presentedDrawnRevealId(): number | undefined {
+      return this.consoleRevealMode === 'drawn' ? currentRevealEvent()?.id : undefined;
     },
     consoleRevealMode(): ConsoleRevealMode | undefined {
       if (this.revealHeldForWorkspace) {
@@ -7586,7 +7619,12 @@ export default defineComponent({
         return;
       }
       const c = this.hydroFlow.commit;
-      if (!busy && c !== undefined && c.phase === 'resolving' && c.kind !== 'ceremony') {
+      // A ceremony landing rides the SAME edge as every other resolution: the
+      // culmination is a busy term of its own (`ceremonyOwed` — released only
+      // by the ceremony's completion), so this edge fires strictly AFTER it.
+      // The summary is the mandatory terminal stage of every movement — the
+      // ceremony is the beat before it, never a substitute ending.
+      if (!busy && c !== undefined && c.phase === 'resolving') {
         advanceHydroCommitPhase('result');
       }
     },
@@ -7694,6 +7732,18 @@ export default defineComponent({
         return;
       }
       resumeHydroMarkerTraversal();
+    },
+    // The batch the shell ADMITS to present takes the scene lease — the
+    // scene-exit barrier is one-directional from this frame on (see the
+    // computed's own doc). `immediate`: a batch can already be presenting
+    // when the shell (re)creates this watcher graph.
+    presentedDrawnRevealId: {
+      immediate: true,
+      handler(id: number | undefined): void {
+        if (id !== undefined) {
+          markRevealPresented(id);
+        }
+      },
     },
     // A mandatory surface claimed the screen — the journal yields so the
     // task / placement / reveal is never hidden behind it (and never has
@@ -12633,6 +12683,8 @@ export default defineComponent({
           selectedCard: payload.selectedCard,
           waiveTarget: payload.waiveTarget,
           repeat: payload.repeat,
+          // The landing — the single-landing answer's address on the move step.
+          toPosition: payload.toPosition,
         });
       const to = payload.toPosition;
       // A WAIVED move owes no follow-up (the batch declined the pick), so the
@@ -12889,6 +12941,15 @@ export default defineComponent({
         if (seg !== undefined) {
           serves = [...new Set<TaskKind>([...serves,
             'deckSelect', 'cardSelect', 'payment', 'choice', 'amount', 'resource', 'player'])];
+        }
+        // A CONSUMED plan can still degrade PER STAGE (a target gone stale
+        // mid-walk, a choice the server re-frames): the fallback prompt is a
+        // runtime follow-up of THIS move and must EMBED here — a traversal
+        // whose only ask was an animal target otherwise armed no serves at
+        // all, and the fallback rose as a standalone band over the track.
+        if (payload.traversal.some((s) => s.kind === 'card-resource' || s.rewardChoice !== undefined ||
+            s.selectedCard !== undefined)) {
+          serves = [...new Set<TaskKind>([...serves, 'cardSelect', 'choice'])];
         }
       } else if (kind === 'deck-draw') {
         claimDraw = 4;

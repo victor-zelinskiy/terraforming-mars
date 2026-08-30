@@ -269,7 +269,10 @@ export class StormSurgeBarrier extends Card implements IProjectCard {
         // set on it by process() before the callback runs.
         const input = new DeltaProjectInput(DeltaProjectExpansion.getValidAdvanceSteps(player, DP04_ADVANCE));
         return input.andThen((amount) => {
-          DeltaProjectExpansion.advance(player, amount, DP04_ADVANCE, {waiveTargetReward: input.waiveReward});
+          DeltaProjectExpansion.advance(player, amount, DP04_ADVANCE, {
+            waiveTargetReward: input.waiveReward,
+            answers: input.answers,
+          });
           return undefined;
         });
       }));

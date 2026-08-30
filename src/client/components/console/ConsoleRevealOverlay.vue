@@ -649,6 +649,10 @@ export default defineComponent({
     drawnEvent(): DrawnCardEntry | undefined {
       return this.mode === 'drawn' ? currentRevealEvent() : undefined;
     },
+    /** The measured embedded fit applies — the watcher owns install/teardown. */
+    embedFitEligible(): boolean {
+      return this.embedded && this.mode === 'drawn';
+    },
     drawnSource(): CardDrawRevealSource | undefined {
       const source = this.drawnEvent?.source;
       return source !== undefined && source.type !== 'other' ? source : undefined;
@@ -1172,6 +1176,23 @@ export default defineComponent({
         void this.$nextTick(() => this.fitEmbeddedStrip());
       }
     },
+    /**
+     * THE FIT'S LIFECYCLE RIDES THE EMBED, NOT THE MOUNT. The overlay is one
+     * re-homed instance (`<Teleport>` re-targets, `mounted()` never re-runs),
+     * so «embedded» has real edges mid-life: the workspace publishes its zone
+     * a flush after the batch arrives, a standalone batch follows an embedded
+     * one, a park retracts the slot. Rising edge → install the measured fit
+     * (the same `wsStageLayout` solve the deck pick uses — count-aware from
+     * the real zone box); falling edge → tear it down and drop the solved
+     * zoom, so a standalone presentation honestly reads its own ladder.
+     */
+    embedFitEligible(on: boolean) {
+      if (on) {
+        this.installEmbedFit();
+      } else {
+        this.teardownEmbedFit();
+      }
+    },
     // Single-card reveal: (re-)open the fullscreen whenever it should be
     // showing but isn't — the initial mount is handled in mounted(); this
     // covers a multi→single batch transition and any unexpected close.
@@ -1230,25 +1251,14 @@ export default defineComponent({
       this.scheduleResultFlight();
     }
     // EMBEDDED: the shared row fit sizes the strip (one size source with the
-    // buy pick). Runs on mount / count / resize — never per focus move.
-    if (this.embedded && this.mode === 'drawn') {
-      void this.$nextTick(() => this.fitEmbeddedStrip());
-      // Options-API mounted() has no effect scope — keep the stop handles and
-      // release them ourselves (the buy host's exact pattern).
-      this.stopFitResize = useEventListener(window, 'resize', () => this.scheduleEmbedFit());
-      // The stage zone GROWS as the workspace unfolds (and again when the
-      // command bar / status line settle): a first fit against the opening
-      // box is a permanently small card. The observer is the honest wait —
-      // never a guessed delay — and the settle pass is its cheap backstop
-      // for a growth that produced no observable resize.
-      const root = this.$refs.rootEl as HTMLElement | undefined;
-      if (root !== undefined) {
-        this.stopFitObs = useResizeObserver(root, () => this.scheduleEmbedFit()).stop;
-      }
-      this.settleFitTimer = window.setTimeout(() => {
-        this.settleFitTimer = undefined;
-        this.fitEmbeddedStrip();
-      }, motionMs(480));
+    // buy pick). The mount edge asks for itself; the LIFECYCLE belongs to the
+    // `embedFitEligible` watcher — the overlay is ONE re-homed instance, so
+    // `embedded` routinely flips true AFTER mount (the teleport re-targets
+    // when the workspace publishes its zone) and a mounted()-only install
+    // left `embedFitZoom` at 0 forever: the received cards then fell back to
+    // the coarse count ladder and rendered as thumbnails in a huge zone.
+    if (this.embedFitEligible) {
+      this.installEmbedFit();
     }
   },
   beforeUnmount() {
@@ -1258,13 +1268,8 @@ export default defineComponent({
       setWorkspaceOutcomePhase('');
     }
     this.abortResultFlight();
-    this.stopFitResize?.();
-    this.stopFitObs?.();
+    this.teardownEmbedFit();
     this.stopRowObs?.();
-    if (this.settleFitTimer !== undefined) {
-      window.clearTimeout(this.settleFitTimer);
-      this.settleFitTimer = undefined;
-    }
   },
   methods: {
     dealDelay(i: number): Record<string, string> {
@@ -1272,6 +1277,44 @@ export default defineComponent({
         return {};
       }
       return {animationDelay: `calc(${Math.min(Math.max(i, 0), 12) * 55}ms * var(--motion-scale, 1))`};
+    },
+    /**
+     * INSTALL the embedded-fit machinery (idempotent — the mount edge and the
+     * `embedFitEligible` rising edge both ask). Options-API has no effect
+     * scope here — the stop handles are kept and released by the teardown.
+     */
+    installEmbedFit(): void {
+      if (this.stopFitResize !== undefined) {
+        return;
+      }
+      void this.$nextTick(() => this.fitEmbeddedStrip());
+      this.stopFitResize = useEventListener(window, 'resize', () => this.scheduleEmbedFit());
+      // The stage zone GROWS as the workspace unfolds (and again when the
+      // command bar / status line settle): a first fit against the opening
+      // box is a permanently small card. The observer is the honest wait —
+      // never a guessed delay — and the settle pass is its cheap backstop
+      // for a growth that produced no observable resize.
+      const root = this.$refs.rootEl as HTMLElement | undefined;
+      if (root !== undefined && root !== null) {
+        this.stopFitObs = useResizeObserver(root, () => this.scheduleEmbedFit()).stop;
+      }
+      this.settleFitTimer = window.setTimeout(() => {
+        this.settleFitTimer = undefined;
+        this.fitEmbeddedStrip();
+      }, motionMs(480));
+    },
+    /** The embed ended (re-homed standalone / unmount) — release the handles
+     *  and drop the solved zoom so the ladder honestly serves standalone. */
+    teardownEmbedFit(): void {
+      this.stopFitResize?.();
+      this.stopFitResize = undefined;
+      this.stopFitObs?.();
+      this.stopFitObs = undefined;
+      if (this.settleFitTimer !== undefined) {
+        window.clearTimeout(this.settleFitTimer);
+        this.settleFitTimer = undefined;
+      }
+      this.embedFitZoom = 0;
     },
     /** rAF-coalesced embedded fit for resize bursts (mirrors the buy host). */
     scheduleEmbedFit(): void {

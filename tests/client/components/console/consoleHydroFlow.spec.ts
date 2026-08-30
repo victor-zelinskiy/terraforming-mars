@@ -1,10 +1,11 @@
 import {expect} from 'chai';
 import {CardName} from '@/common/cards/CardName';
 import {
-  HydroCommitRecord, advanceHydroCommitPhase, beginHydroCommit, closeHydroStep, hydroDraftFresh,
-  hydroFlowState, hydroPhaseOf, hydroResolutionBusyOf, hydroWorkspaceBackVerb, hydroWorkspacePhase,
-  hydroWorkspaceRestorePlan, noteHydroDraftTouched, openHydroStep, resetHydroFlow,
-  resolutionKindFor, rollbackHydroCommit, setHydroCeremonyActive, setHydroRepeatBridge,
+  HydroCommitRecord, advanceHydroCommitPhase, beginHydroCommit, closeHydroStep, hydroCeremonyOwed,
+  hydroDraftFresh, hydroFlowState, hydroPhaseOf, hydroResolutionBusyOf, hydroWorkspaceBackVerb,
+  hydroWorkspacePhase, hydroWorkspaceRestorePlan, markHydroCeremonyPlayed, noteHydroDraftTouched,
+  openHydroStep, resetHydroFlow, resolutionKindFor, rollbackHydroCommit, setHydroCeremonyActive,
+  setHydroRepeatBridge,
 } from '@/client/console/hydroFlow/consoleHydroFlow';
 
 function commitRec(over: Partial<Omit<HydroCommitRecord, 'phase'>> = {}): Omit<HydroCommitRecord, 'phase'> {
@@ -184,6 +185,14 @@ describe('the hydro close gate', () => {
     expect(hydroResolutionBusyOf({...QUIET, intakeFlying: true})).eq(true);
   });
 
+  it('holds the flow while a terminal CULMINATION is still OWED — the settle gap included', () => {
+    // Distinct from `ceremony` (running): owed is true from the commit until
+    // the ceremony has finished PRESENTING, so the gap between the marker
+    // settling and the ceremony's own next-tick start can never read as
+    // «resolution over» — the exact frame the summary used to be skipped in.
+    expect(hydroResolutionBusyOf({...QUIET, ceremonyOwed: true})).eq(true);
+  });
+
   it('releases only when EVERY one of them has settled', () => {
     expect(hydroResolutionBusyOf(QUIET)).eq(false);
   });
@@ -227,6 +236,49 @@ describe('the hydro close gate', () => {
     advanceHydroCommitPhase('result');
     expect(hydroFlowState.commit?.phase).eq('result');
     expect(hydroWorkspacePhase(false)).eq('completing');
+    resetHydroFlow();
+  });
+
+  /**
+   * THE TERMINAL SEQUENCE: marker arrival → ceremony → SUMMARY → close. The
+   * ceremony is the beat BEFORE the summary, never a substitute ending — its
+   * completion releases the owed term, the ordinary falling edge advances the
+   * phase, and the result stage (with the awarded VP in its ledger) is the
+   * only door out. The stray-completion guard rides the same state: a played
+   * mark belongs to ONE commit and dies with it.
+   */
+  it('REGRESSION: a ceremony landing reaches the summary through the same busy edge', () => {
+    resetHydroFlow();
+    beginHydroCommit(commitRec({kind: 'ceremony', toPosition: 11, vp: 5}));
+    advanceHydroCommitPhase('resolving');
+
+    // The marker settled; the ceremony has not started its choreography yet
+    // (its start lives on a next tick) — the owed term spans the gap.
+    expect(hydroCeremonyOwed(), 'owed from the commit').eq(true);
+    expect(hydroResolutionBusyOf({...QUIET, ceremonyOwed: hydroCeremonyOwed()}),
+      'the settle gap cannot read as «resolution over»').eq(true);
+
+    // The choreography runs…
+    setHydroCeremonyActive(true);
+    expect(hydroResolutionBusyOf({...QUIET, ceremony: true, ceremonyOwed: hydroCeremonyOwed()})).eq(true);
+
+    // …and its completion — never a timeout — releases the owed term.
+    setHydroCeremonyActive(false);
+    markHydroCeremonyPlayed();
+    expect(hydroCeremonyOwed()).eq(false);
+    const busy = hydroResolutionBusyOf({...QUIET, ceremonyOwed: hydroCeremonyOwed()});
+    expect(busy).eq(false);
+    advanceHydroCommitPhase('result');
+    expect(hydroFlowState.commit?.phase, 'the summary stage stands').eq('result');
+    expect(hydroWorkspacePhase(false)).eq('completing');
+
+    // A stale completion cannot touch the NEXT resolution: the mark died
+    // with its commit.
+    resetHydroFlow();
+    markHydroCeremonyPlayed();
+    expect(hydroFlowState.ceremonyPlayed, 'no commit → nothing to mark').eq(false);
+    beginHydroCommit(commitRec({kind: 'ceremony', toPosition: 10, vp: 2}));
+    expect(hydroCeremonyOwed(), 'a fresh terminal commit owes its own culmination').eq(true);
     resetHydroFlow();
   });
 });

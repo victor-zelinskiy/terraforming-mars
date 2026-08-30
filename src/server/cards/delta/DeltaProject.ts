@@ -74,6 +74,7 @@ export class DeltaProject extends PreludeCard implements IActionCard {
         waivedTargetPositions: input.waivedSteps,
         plannedActions: input.plannedActions,
         plannedChoices: input.plannedChoices,
+        answers: input.answers,
       });
       return undefined;
     });

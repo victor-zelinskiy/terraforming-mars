@@ -2518,6 +2518,7 @@ export class Player implements IPlayer {
               waivedTargetPositions: input.waivedSteps,
               plannedActions: input.plannedActions,
               plannedChoices: input.plannedChoices,
+              answers: input.answers,
               payment: {energy: amount - input.steelSpent, steel: input.steelSpent},
             });
             if (this.deltaProjectData !== undefined) {
