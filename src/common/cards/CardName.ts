@@ -1062,6 +1062,7 @@ export enum CardName {
   STORM_SURGE_BARRIER = 'Storm Surge Barrier',
   DEVELOPMENT_MANAGER = 'Development Manager',
   DELTA_WORKS = 'Delta Works',
+  DELTA_SURGE = 'Delta Surge',
 
   // Underworld Standard Projects
   EXCAVATE_STANDARD_PROJECT = 'Excavate:SP',

@@ -33,6 +33,35 @@ export type DeltaTrackDestination = {
   wildCoveredTags: ReadonlyArray<Tag>;
   /** Path tags still uncovered even after wilds — non-empty ⇒ illegal by tags. */
   missingTags: ReadonlyArray<Tag>;
+  /** The move's ORDERED reward plan (one entry per crossed/landed stage) —
+   *  present only while a traversal modifier (Delta Surge) is live. See
+   *  {@link DeltaTraversalStep}. */
+  traversal?: ReadonlyArray<DeltaTraversalStep>;
+};
+
+/**
+ * ONE crossed-or-landed stage of a single advance — the ordered reward plan
+ * the SERVER authored for it. Present on a destination only while a tableau
+ * modifier (Delta Surge) turns the intermediate stages into paying ones; the
+ * unmodified track needs no plan (only the destination pays, which the client
+ * already knows).
+ *
+ * The SAME builder (`DeltaProjectExpansion.traversalSteps`) produces this for
+ * the preview and drives the committed advance, so the promise and the payout
+ * cannot diverge. Positions run in PATH ORDER, `from+1 .. destination`.
+ */
+export type DeltaTraversalStep = {
+  position: number;
+  /** This stage's reward is granted by this move. The destination always is. */
+  rewarded: boolean;
+  /**
+   * Why a crossed stage pays nothing:
+   *  - 'vp-step' — the 2 VP stage's value is POSITIONAL (scored from the final
+   *    marker position, the slot exclusive), so the modifier's own rule
+   *    excludes it («Does not apply to the 2 VP step»);
+   *  - 'standing-rule' — no modifier: intermediates never pay (the base rule).
+   */
+  skipped?: 'vp-step' | 'standing-rule';
 };
 
 /**
@@ -67,4 +96,8 @@ export type DeltaTrackPreviewModel = {
   reuseActionCards: ReadonlyArray<CardName>;
   /** Cards that can receive the pos 9 animals — pre-collected before confirm. */
   animalTargetCards: ReadonlyArray<CardName>;
+  /** The tableau card whose effect grants each crossed stage's reward on a
+   *  multi-step advance (Delta Surge) — absent when none is live. The client
+   *  presents it as the move's secondary MODIFIER, never as the source. */
+  traversalModifierCard?: CardName;
 };

@@ -1,8 +1,11 @@
 import {expect} from 'chai';
 import {testGame} from '../TestGame';
 import {DeltaProjectExpansion} from '../../src/server/delta/DeltaProjectExpansion';
+import {DeltaSurge} from '../../src/server/cards/delta/DeltaSurge';
+import {OrOptions} from '../../src/server/inputs/OrOptions';
 import {Tag} from '../../src/common/cards/Tag';
-import {fakeCard} from '../TestingUtils';
+import {fakeCard, runAllActions} from '../TestingUtils';
+import {cast} from '../../src/common/utils/utils';
 import {CardName} from '../../src/common/cards/CardName';
 
 describe('Delta Project journal signal', () => {
@@ -39,6 +42,32 @@ describe('Delta Project journal signal', () => {
     // The advance line + the +2 M€ production reward line share one journal group.
     expect(grouped.length).to.be.greaterThan(1);
     expect(player.production.megacredits).to.eq(2);
+  });
+
+  it('a Delta Surge traversal stays ONE grouped movement event — never a spam of moves', () => {
+    const [game, player] = testGame(2, {deltaProjectExpansion: true});
+    player.playedCards.push(fakeCard({tags: [Tag.BUILDING, Tag.POWER, Tag.EARTH, Tag.SPACE]}));
+    player.playedCards.push(new DeltaSurge());
+    player.energy = 4;
+
+    DeltaProjectExpansion.advance(player, 4);
+    // Answer both crossed choices so every reward resolves in the group.
+    runAllActions(game);
+    cast(player.popWaitingFor(), OrOptions).options[0].cb();
+    runAllActions(game);
+    cast(player.popWaitingFor(), OrOptions).options[0].cb();
+    runAllActions(game);
+
+    const root = game.gameLog.find((m) => m.category === 'delta-project' && m.role === 'root-action');
+    expect(root).to.not.be.undefined;
+    // ONE root; the activation line and every stage's reward line share the
+    // one correlation group (the ordered payout is a single game event).
+    const roots = game.gameLog.filter((m) => m.category === 'delta-project' && m.role === 'root-action');
+    expect(roots.length).to.eq(1);
+    const grouped = game.gameLog.filter((m) => m.correlationId === root!.correlationId);
+    const text = grouped.map((m) => m.message).join('\n');
+    expect(text).to.contain('grants the reward of every stage crossed');
+    expect(grouped.length, 'movement + activation + stage rewards in one group').to.be.greaterThan(3);
   });
 
   it('logs the jump past an occupied 2 VP position', () => {

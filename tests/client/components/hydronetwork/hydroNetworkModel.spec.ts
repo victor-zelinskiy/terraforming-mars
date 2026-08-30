@@ -317,3 +317,98 @@ describe('buildHydroModel (iteration 2)', () => {
     expect(m.canConfirm).eq(false);
   });
 });
+
+describe('buildHydroModel — the MULTI-REWARD traversal (Delta Surge)', () => {
+  /** A preview whose server plan pays every crossed stage (the modifier). */
+  function surgePreview(energy: number, overrides: Partial<DeltaTrackPreviewModel> = {}): DeltaTrackPreviewModel {
+    const base = fullPreview(energy, overrides);
+    return {
+      ...base,
+      traversalModifierCard: 'Delta Surge' as DeltaTrackPreviewModel['traversalModifierCard'],
+      destinations: base.destinations.map((d) => ({
+        ...d,
+        traversal: Array.from({length: d.steps}, (_, i) => {
+          const position = i + 1;
+          if (position === d.position) {
+            return {position, rewarded: true};
+          }
+          return position === 10 || position === 11 ?
+            {position, rewarded: false, skipped: 'vp-step' as const} :
+            {position, rewarded: true};
+        }),
+      })),
+    };
+  }
+
+  it('a one-step move stays the historical shape (no traversal surface)', () => {
+    const m = buildHydroModel(input({preview: surgePreview(3), selectedPosition: 1}));
+    expect(m.traversalActive).eq(false);
+    expect(m.traversalStages).deep.eq([]);
+    expect(m.traversalModifierCard).eq('Delta Surge');
+  });
+
+  it('a multi-step move builds the ordered stage plan and lights the route cells', () => {
+    const m = buildHydroModel(input({preview: surgePreview(4), selectedPosition: 4}));
+    expect(m.traversalActive).eq(true);
+    expect(m.traversalStages.map((s) => s.position)).deep.eq([1, 2, 3, 4]);
+    expect(m.traversalStages.map((s) => s.ask)).deep.eq(['choice', 'choice', 'none', 'none']);
+    expect(m.traversalStages[3].isDestination).eq(true);
+    // Nothing is standing-rule-skipped under the modifier.
+    expect(m.skippedStages).deep.eq([]);
+    const route = m.stages.filter((s) => s.state === 'route');
+    expect(route.every((s) => s.routeRewarded)).eq(true);
+    expect(route.every((s) => !s.willSkipReward)).eq(true);
+  });
+
+  it('the commit is GATED on every crossed choice; target picks stay waivable', () => {
+    const open = buildHydroModel(input({preview: surgePreview(4), selectedPosition: 4}));
+    expect(open.canConfirm, 'choices at 1 and 2 unmade').eq(false);
+    const made = buildHydroModel(input({
+      preview: surgePreview(4), selectedPosition: 4,
+      planChoices: {1: 0, 2: 1},
+    }));
+    expect(made.canConfirm).eq(true);
+  });
+
+  it('the crossed 2 VP cell is EXCLUDED and named — the destination VP stays a plan stage', () => {
+    const m = buildHydroModel(input({preview: surgePreview(11), selectedPosition: 11, planChoices: {1: 0, 2: 0}}));
+    expect(m.traversalExcludedVp).eq(true);
+    expect(m.traversalStages.some((s) => s.position === 10), 'crossed 10 never pays').eq(false);
+    expect(m.traversalStages.at(-1)?.position).eq(11);
+    const cell10 = m.stages[10];
+    expect(cell10.routeExcluded).eq(true);
+    expect(cell10.routeRewarded).eq(false);
+  });
+
+  it('per-position drafts resolve their own stages (picks validated against the shared lists)', () => {
+    const m = buildHydroModel(input({
+      preview: surgePreview(9, {
+        reuseActionCards: ['Viron' as never],
+        animalTargetCards: ['Birds' as never],
+      }),
+      selectedPosition: 9,
+      planChoices: {1: 0, 2: 0},
+      planPicks: {7: 'Viron' as never, 9: 'Ants' as never},
+    }));
+    const seven = m.traversalStages.find((s) => s.position === 7);
+    const nine = m.traversalStages.find((s) => s.position === 9);
+    expect(seven?.pick).eq('Viron');
+    expect(seven?.mustSelect).eq(true);
+    // A draft not in the SHARED eligible list silently drops (stale pick).
+    expect(nine?.pick).eq(undefined);
+    expect(nine?.mustSelect).eq(true);
+  });
+
+  it('the presentation cursor overrides the viewer position (marker + states), never other players', () => {
+    const m = buildHydroModel(input({
+      preview: surgePreview(4),
+      players: [viewer({position: 4}), {color: 'blue', name: 'B', position: 2, isViewer: false, isMarsBot: false, stops: []}],
+      visualViewerPosition: 1,
+      selectedPosition: 4,
+    }));
+    expect(m.currentPosition).eq(1);
+    expect(m.stages[1].markers.some((x) => x.isViewer)).eq(true);
+    expect(m.stages[4].markers.some((x) => x.isViewer)).eq(false);
+    expect(m.stages[2].markers.some((x) => !x.isViewer), 'the opponent stays put').eq(true);
+  });
+});

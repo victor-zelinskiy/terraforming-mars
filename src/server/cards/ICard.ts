@@ -252,6 +252,16 @@ export interface ICard {
    */
   onDeltaTrackAdvance?(player: IPlayer, steps: number): void;
   /**
+   * While this card sits in the moving player's tableau, ONE committed
+   * multi-step advance on the Delta Project («Гидросеть») track grants the
+   * reward of EVERY stage it crosses, in path order — not only the landing
+   * stage's (Delta Surge). The 2 VP stage is positional and stays excluded
+   * when crossed; a landing on it is untouched. Declared, never computed:
+   * the shared traversal plan (`DeltaProjectExpansion.traversalSteps`) is
+   * the single reader, for the preview and the commit alike.
+   */
+  readonly grantsDeltaTraversalRewards?: boolean;
+  /**
    * Callback during the production phase. Used to reset between generations.
    *
    * @param player the card owner.

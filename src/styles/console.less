@@ -5064,6 +5064,18 @@ html.console-mode body.placement-pending .board-outer-spaces > .board-space.boar
         &--target {
             box-shadow: inset 0 0 0 .05rem fade(@con-hydro-mint, 55%);
         }
+        /* A TRAVERSAL (Delta Surge): a crossed cell that PAYS reads as a lit
+           paying stop; the excluded 2 VP crossing stays gold-dimmed — the
+           route states which cells reward before the player commits. */
+        &--route-paid {
+            background: fade(@con-hydro-mint, 9%);
+            box-shadow: inset 0 0 0 .08rem fade(@con-hydro-mint, 75%), 0 0 .6rem fade(@con-hydro-mint, 18%);
+        }
+        &--route-excl {
+            background: fade(@con-hydro-gold, 4%);
+            box-shadow: inset 0 0 0 .05rem fade(@con-hydro-gold, 35%);
+            filter: saturate(0.7);
+        }
         &--future { opacity: 0.82; }
         &--vp {
             box-shadow: inset 0 0 0 .05rem fade(@con-hydro-gold, 45%);
@@ -5332,13 +5344,17 @@ html.console-mode body.placement-pending .board-outer-spaces > .board-space.boar
        is over. Keyed by the section on the deck-pick flow's own phase. ── */
     &__ctx,
     &__act,
-    &__commitline {
+    &__commitline,
+    &__travline {
         transition: opacity calc(220ms * var(--motion-scale, 1)) ease;
     }
     &__panel--immersive {
         .con-hydro__ctx,
         .con-hydro__act,
-        .con-hydro__commitline {
+        .con-hydro__commitline,
+        /* The traversal strip yields too — a chip half-hidden under a dealt
+           card reads as clutter, and the strip returns with the frame. */
+        .con-hydro__travline {
             opacity: 0;
             pointer-events: none;
         }
@@ -5442,6 +5458,8 @@ html.console-mode body.placement-pending .board-outer-spaces > .board-space.boar
         line-height: 1.35;
         color: @con-text-dim;
         &--warn { color: #ffe3b0; }
+        /* The traversal modifier's promise — the mint of a paying route. */
+        &--paid { color: fade(@con-hydro-mint, 92%); font-weight: 700; }
     }
     &__detailline {
         display: flex;
@@ -6539,6 +6557,55 @@ html.console-mode body.placement-pending .board-outer-spaces > .board-space.boar
         overflow: hidden;
     }
 
+    /* ── THE TRAVERSAL STRIP (Delta Surge) — the committed plan's stages in
+       path order, following the sequence's own cursor: done ✓ · the CURRENT
+       cell lit · the excluded 2 VP crossed out · the rest pending. One line,
+       shrinkable chips, no scroll by construction. ── */
+    &__travline {
+        display: flex;
+        align-items: stretch;
+        gap: .35rem;
+        flex-wrap: wrap;
+        flex-shrink: 0;
+        align-self: flex-start;
+        max-width: 100%;
+    }
+    &__travchip {
+        display: inline-flex;
+        align-items: center;
+        gap: .35rem;
+        min-width: 0;
+        padding: .25rem .55rem;
+        border-radius: .5rem;
+        background: rgba(12, 20, 30, 0.5);
+        box-shadow: inset 0 0 0 .05rem fade(@con-text-dim, 25%);
+        color: @con-text-dim;
+        font-size: .7rem;
+        b { font-size: .8rem; color: inherit; }
+    }
+    &__travchip-name {
+        min-width: 0;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+        max-width: 7.5rem;
+    }
+    &__travchip-mark { font-weight: 800; }
+    &__travchip--done {
+        color: fade(@con-hydro-mint, 92%);
+        box-shadow: inset 0 0 0 .05rem fade(@con-hydro-mint, 40%);
+    }
+    &__travchip--current {
+        color: @con-text;
+        background: fade(@con-hydro-aqua, 14%);
+        box-shadow: inset 0 0 0 .07rem fade(@con-hydro-aqua, 75%), 0 0 .8rem fade(@con-hydro-aqua, 18%);
+    }
+    &__travchip--excl {
+        color: fade(@con-text-dim, 80%);
+        text-decoration: line-through;
+        text-decoration-color: fade(@con-hydro-gold, 60%);
+    }
+
     /* pos 9 — the chosen host card ON STAGE (frozen counter, per-touchdown
        tick + flash; the transfer ladder lands on its .pcard__res). */
     &__cardland {
@@ -6641,6 +6708,38 @@ html.console-mode body.placement-pending .board-outer-spaces > .board-space.boar
     &__result-skip {
         font-size: .775rem;
         color: @con-text-dim;
+    }
+
+    /* ── A TRAVERSAL's result — per-stage groups in path order: each stop's
+       own deltas under its name, the excluded 2 VP named. ── */
+    &__result-stages {
+        display: flex;
+        flex-direction: column;
+        align-items: stretch;
+        gap: .35rem;
+        max-width: 100%;
+        min-height: 0;
+    }
+    &__result-stagerow {
+        display: flex;
+        align-items: center;
+        gap: .6rem 1rem;
+        flex-wrap: wrap;
+        padding: .3rem .6rem;
+        border-radius: .5rem;
+        background: rgba(12, 20, 30, 0.42);
+    }
+    &__result-stagerow--excl {
+        opacity: .75;
+    }
+    &__result-stagename {
+        display: inline-flex;
+        align-items: baseline;
+        gap: .4rem;
+        min-width: 9rem;
+        font-size: .8rem;
+        color: @con-text-dim;
+        b { color: @con-text; font-size: .85rem; }
     }
 }
 /* Hydro reward chips (shared HydroReward renderer) read on dark console

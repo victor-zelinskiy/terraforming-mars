@@ -13,7 +13,9 @@
          used to share a wrapping flex line with the body, so it sat inline
          beside a short «choose» and above a long chosen graphic: the row
          re-composed itself on every state (and focus) change. -->
-    <span class="con-hydro__section-label">{{ $t(labelKey) }}</span>
+    <span class="con-hydro__section-label">
+      {{ $t(labelKey) }}<template v-if="stageLabel !== ''"> · {{ stageLabel }}</template>
+    </span>
     <span class="con-hydro__pickrow-body">
       <!-- THE GLYPH SLOT IS PERMANENT; the badge's VISIBILITY follows the
            cursor (only the focused affordance wears the cap — the quick
@@ -43,6 +45,12 @@
           <span v-else class="con-composer__graphic-text">{{ node.text }}</span>
         </span>
         <span class="con-composer__repeatpick-name">{{ $t(card) }}</span>
+        <span class="con-hydro__bonus-tick" aria-hidden="true">✓</span>
+      </span>
+
+      <!-- pos 1/2 on a traversal: the CHOSEN alternative's own printed chips. -->
+      <span v-else-if="kind === 'reward-choice' && chips !== undefined" class="con-hydro__summary-body">
+        <HydroReward :chips="chips" :compact="true" />
         <span class="con-hydro__bonus-tick" aria-hidden="true">✓</span>
       </span>
 
@@ -90,8 +98,10 @@ import {ActionGroup} from '@/client/components/actions/actionExtraction';
 import CardRenderEffectBoxComponent from '@/client/components/card/CardRenderEffectBoxComponent.vue';
 import CardRenderData from '@/client/components/card/CardRenderData.vue';
 import GamepadGlyph from '@/client/components/gamepad/GamepadGlyph.vue';
+import HydroReward from '@/client/components/hydronetwork/HydroReward.vue';
 import {stripActionPrefix} from '@/client/directives/stripActionPrefix';
 import {$t} from '@/client/directives/i18n';
+import {HydroStage} from '@/client/components/hydronetwork/hydroStages';
 import {HYDRO_PICK_COPY, HydroPickKind} from '@/client/console/hydroFlow/hydroDecisionRail';
 
 type GroupNode = ActionGroup['nodes'][number];
@@ -104,7 +114,7 @@ export type {HydroPickKind};
 
 export default defineComponent({
   name: 'ConsoleHydroPickRow',
-  components: {CardRenderEffectBoxComponent, CardRenderData, GamepadGlyph},
+  components: {CardRenderEffectBoxComponent, CardRenderData, GamepadGlyph, HydroReward},
   directives: {stripActionPrefix},
   props: {
     kind: {type: String as PropType<HydroPickKind>, required: true},
@@ -114,6 +124,10 @@ export default defineComponent({
     node: {type: Object as PropType<GroupNode>, default: undefined},
     /** pos 9: the target's live animal count, for the honest «сейчас → станет». */
     animalCurrent: {type: Number, default: undefined},
+    /** `reward-choice`: the CHOSEN alternative's printed chips (the summary). */
+    chips: {type: Array as PropType<HydroStage['rewardOptions'][number]>, default: undefined},
+    /** A traversal decision names its stage — «Награда этапа · Плотина». */
+    stageLabel: {type: String, default: ''},
     focused: {type: Boolean, default: false},
     /** The server offered NO candidate — the reward fizzles and nothing is owed. */
     fizzled: {type: Boolean, default: false},

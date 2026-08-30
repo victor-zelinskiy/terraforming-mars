@@ -21,6 +21,15 @@ export const hydroNetworkState = reactive<{
   rewardChoice: number | undefined;
   /** Pre-collected target card for a card-pick reward (pos 7 / pos 9). */
   selectedCard: CardName | undefined;
+  /**
+   * MULTI-REWARD TRAVERSAL DRAFTS (Delta Surge) — per-POSITION answers of one
+   * planned move: the crossed choice stages' picked alternative and the
+   * crossed target stages' picked card. The single-landing fields above stay
+   * the historical draft (byte-parity with every pre-traversal flow); these
+   * exist only while the plan's reward set holds more than the destination.
+   */
+  planChoices: Record<number, number>;
+  planPicks: Partial<Record<number, CardName>>;
   /** Set while a pos 7/9 pick is delegated to the ДЕЙСТВИЯ / РАЗЫГРАНО overlay,
    *  so PlayerHome restores this overlay when the pick resolves or is abandoned. */
   awaitingPick: 'reuse-action' | 'animal-target' | undefined;
@@ -33,6 +42,8 @@ export const hydroNetworkState = reactive<{
   selectedPosition: -1,
   rewardChoice: undefined,
   selectedCard: undefined,
+  planChoices: {},
+  planPicks: {},
   awaitingPick: undefined,
   previewScope: undefined,
   preview: undefined,
@@ -44,6 +55,8 @@ export function resetHydroPlan(): void {
   hydroNetworkState.selectedPosition = -1;
   hydroNetworkState.rewardChoice = undefined;
   hydroNetworkState.selectedCard = undefined;
+  hydroNetworkState.planChoices = {};
+  hydroNetworkState.planPicks = {};
   hydroNetworkState.awaitingPick = undefined;
 }
 

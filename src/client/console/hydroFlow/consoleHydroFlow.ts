@@ -33,6 +33,7 @@ import {CardName} from '@/common/cards/CardName';
 import type {WorkspacePhase, WorkspaceBackVerb} from '@/client/console/consoleWorkspaceFlow';
 import {backVerbFor} from '@/client/console/consoleWorkspaceFlow';
 import type {HydroDeltaLine} from '@/client/components/hydronetwork/hydroReward';
+import type {ResourceTransferSpec} from '@/client/console/resourceTransfer/resourceTransferModel';
 import {registerAnimationHoldSupplier} from '@/client/components/presentation/animationHold';
 
 /** An embedded pre-select step standing INSIDE the workspace scene.
@@ -62,6 +63,28 @@ export type HydroResolutionKind =
   | 'card-resource'
   /** Pos 10/11: the VP ceremony (2 ПО / 5 ПО) plays over the track. */
   | 'ceremony';
+
+/**
+ * ONE stage of a committed MULTI-REWARD traversal (Delta Surge) — everything
+ * its presentation owes, frozen at submit: the wave to fly on arrival, the
+ * frozen result lines, and how the stage resolves (`kind` reuses the landing
+ * vocabulary; `excluded` marks the crossed 2 VP cell — settle, no wave, the
+ * omission named). Path order.
+ */
+export type HydroTraversalSegmentRecord = {
+  position: number;
+  kind: HydroResolutionKind | 'excluded';
+  stageNameKey: string;
+  transfers: ReadonlyArray<ResourceTransferSpec>;
+  rewardLines: ReadonlyArray<HydroDeltaLine>;
+  rewardChoice?: number;
+  selectedCard?: CardName;
+  composedRepeat?: boolean;
+  /** The target-bearing reward was consciously declined (named, never silent). */
+  waived?: boolean;
+  /** Pos 9: the target's pre-commit count (the presented face's freeze). */
+  targetBefore?: number;
+};
 
 /** The committed advance — frozen at submit, updated forward-only. */
 export type HydroCommitRecord = {
@@ -98,6 +121,15 @@ export type HydroCommitRecord = {
   vp: number | undefined;
   /** The landed stage name key — the result stage names its source. */
   stageNameKey: string;
+  /**
+   * THE ORDERED TRAVERSAL (Delta Surge): one record per crossed/landed stage,
+   * in path order — the presentation sequence's whole plan. Absent = the
+   * historical single-landing move (every field above describes it alone).
+   */
+  traversal?: ReadonlyArray<HydroTraversalSegmentRecord>;
+  /** The tableau card whose effect granted the crossed rewards — presented as
+   *  the move's secondary MODIFIER (inspectable), never as its source. */
+  modifierCard?: CardName;
 };
 
 export const hydroFlowState = reactive<{
@@ -190,12 +222,19 @@ export function hydroResolutionBusyOf(signals: {
   transfersFlying: boolean,
   ceremony: boolean,
   followUpInteractive: boolean,
+  /**
+   * A MULTI-LEG TRAVERSAL PLAN still holds unfinished legs (Delta Surge) —
+   * true through its pauses too, where the marker itself is not gliding and
+   * an interactive stop may momentarily hold no other signal. The plan's own
+   * completion drops it; a timeout never does.
+   */
+  traversalPending?: boolean,
 }): boolean {
   if (!signals.committed) {
     return false;
   }
   return signals.markerGliding || signals.rewardHeld || signals.transfersFlying ||
-    signals.ceremony || signals.followUpInteractive;
+    signals.ceremony || signals.followUpInteractive || signals.traversalPending === true;
 }
 
 /** The live-module convenience readers (the section/shell side). */

@@ -16,10 +16,14 @@
  */
 
 import {CardName} from '@/common/cards/CardName';
+import type {HydroTraversalStagePlan} from '@/client/components/hydronetwork/hydroNetworkModel';
 
 /** Which pick a landed stage asks for. (The union grows with future stage
- *  decisions — a new kind is a new copy row, never a new layout.) */
-export type HydroPickKind = 'reuse-action' | 'animal-target';
+ *  decisions — a new kind is a new copy row, never a new layout.)
+ *  `reward-choice` is a traversal stage's OWN binary reward (pos 1/2) asked
+ *  as a standing pre-select — only a multi-reward move builds it (the single
+ *  landing keeps its step-scoped choice, deliberately not a pre-select). */
+export type HydroPickKind = 'reuse-action' | 'animal-target' | 'reward-choice';
 
 /** The row's copy, keyed on the pick — ONE table, so the two scenes cannot
  *  word the same question differently.
@@ -51,6 +55,17 @@ export const HYDRO_PICK_COPY: Readonly<Record<HydroPickKind, {
     warn: 'The card for the animals is not chosen — you will be asked after advancing',
     warnWaive: 'No card is chosen — press again to advance without the animals',
   },
+  // A stage's reward CHOICE is MANDATORY (the commit is gated on it), so its
+  // warn keys are never rendered — present because the table's shape is one
+  // contract for every kind, and honest if a door ever needs them.
+  'reward-choice': {
+    label: 'Stage reward',
+    choose: 'Choose a reward',
+    change: 'Change the reward',
+    fizzle: 'This stage offers no reward',
+    warn: 'The stage reward is not chosen',
+    warnWaive: 'The stage reward is not chosen',
+  },
 };
 
 /**
@@ -81,6 +96,13 @@ export type HydroRailDecision = {
   chosen?: CardName,
   /** `unavailable`: the honest reason the reward will be skipped. */
   skipReasonKey?: string,
+  /** TRAVERSAL decisions: the stage this decision belongs to — the card names
+   *  it, so several decisions of one move stay tied to their stops. */
+  stagePosition?: number,
+  /** The stage's name key (the card's eyebrow suffix). */
+  stageNameKey?: string,
+  /** `reward-choice`: the resolved alternative index (the summary's chips). */
+  chosenOption?: number,
 };
 
 /** The final CTA's focus node — always the LAST stop of the rail. */
@@ -135,6 +157,54 @@ export function buildHydroDecisions(input: HydroRailInput): Array<HydroRailDecis
     chosen: input.chosen,
     skipReasonKey: state === 'unavailable' ? copy.fizzle : undefined,
   }];
+}
+
+/**
+ * THE MULTI-REWARD MOVE'S RAIL (Delta Surge) — one decision per interactive
+ * ask of the plan, IN PATH ORDER: every crossed choice stage (mandatory — the
+ * commit gates on it), every target pick (optional — the waive door). The
+ * hidden-information draw (stage 5) deliberately builds NOTHING: its answer
+ * cannot exist before the cards do, so it is an interactive STOP of the
+ * committed sequence, never a pre-select to imitate.
+ *
+ * The array flows into the SAME rail component and the SAME focus algorithms
+ * as the single question — growing the data was the layout's whole promise.
+ */
+export function buildTraversalDecisions(stages: ReadonlyArray<HydroTraversalStagePlan>): Array<HydroRailDecision> {
+  const out: Array<HydroRailDecision> = [];
+  stages.forEach((s, order) => {
+    if (s.ask === 'choice') {
+      out.push({
+        id: order + ':reward-choice',
+        kind: 'reward-choice',
+        order,
+        state: s.choice !== undefined ? 'resolved' : 'open',
+        optional: false,
+        stagePosition: s.position,
+        stageNameKey: s.stage.nameKey,
+        chosenOption: s.choice,
+      });
+      return;
+    }
+    if (s.ask === 'reuse-action' || s.ask === 'animal-target') {
+      const copy = HYDRO_PICK_COPY[s.ask];
+      const state: HydroRailDecisionState =
+        !s.mustSelect ? 'unavailable' :
+          s.pick !== undefined ? 'resolved' : 'open';
+      out.push({
+        id: order + ':' + s.ask,
+        kind: s.ask,
+        order,
+        state,
+        optional: true,
+        chosen: s.pick,
+        skipReasonKey: state === 'unavailable' ? copy.fizzle : undefined,
+        stagePosition: s.position,
+        stageNameKey: s.stage.nameKey,
+      });
+    }
+  });
+  return out;
 }
 
 /** The rail's FOCUSABLE nodes, top to bottom: every non-unavailable decision

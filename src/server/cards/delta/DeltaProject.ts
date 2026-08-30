@@ -69,7 +69,10 @@ export class DeltaProject extends PreludeCard implements IActionCard {
     // target reward) is set on the input by process() before the callback.
     const input = new DeltaProjectInput(validSteps);
     return input.andThen((amount) => {
-      DeltaProjectExpansion.advance(player, amount, undefined, {waiveTargetReward: input.waiveReward});
+      DeltaProjectExpansion.advance(player, amount, undefined, {
+        waiveTargetReward: input.waiveReward,
+        waivedTargetPositions: input.waivedSteps,
+      });
       return undefined;
     });
   }

@@ -232,14 +232,25 @@ export interface DeltaProjectInputResponse {
    * the pre-Delta-Works client, and the server re-validates the mix at commit.
    */
   steel?: number;
+  /**
+   * PER-POSITION conscious declines of target-bearing stage rewards along a
+   * multi-reward traversal (Delta Surge — one path can hold BOTH the position
+   * 7 repeat and the position 9 animals, each answered or declined on its
+   * own). Omitted (never `[]`) when nothing is declined; `waiveReward` above
+   * stays the landing-only shorthand — the server unions the two.
+   */
+  waivedSteps?: ReadonlyArray<number>;
 }
 
 export function isDeltaProjectInputResponse(response: InputResponse): response is DeltaProjectInputResponse {
-  return response.type === 'deltaProject' &&
-    (matches(response, ['type', 'amount']) ||
-     matches(response, ['type', 'amount', 'waiveReward']) ||
-     matches(response, ['type', 'amount', 'steel']) ||
-     matches(response, ['type', 'amount', 'waiveReward', 'steel']));
+  if (response.type !== 'deltaProject') {
+    return false;
+  }
+  // `amount` is required; the three optional fields compose freely (each is
+  // omitted when meaningless, so the historical shapes stay byte-identical).
+  const allowed = ['type', 'amount', 'waiveReward', 'steel', 'waivedSteps'];
+  const keys = Object.keys(response);
+  return keys.includes('amount') && keys.every((k) => allowed.includes(k));
 }
 
 export type InputResponse =

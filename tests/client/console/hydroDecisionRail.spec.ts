@@ -3,6 +3,7 @@ import {
   HYDRO_RAIL_CTA,
   HydroRailDecision,
   buildHydroDecisions,
+  buildTraversalDecisions,
   initialRailFocus,
   nextRailFocus,
   railFocusNodes,
@@ -10,7 +11,20 @@ import {
   railNodeOf,
   railStep,
 } from '@/client/console/hydroFlow/hydroDecisionRail';
+import {HydroTraversalStagePlan} from '@/client/components/hydronetwork/hydroNetworkModel';
+import {HYDRO_STAGES} from '@/client/components/hydronetwork/hydroStages';
 import {CardName} from '@/common/cards/CardName';
+
+/** A traversal stage-plan row (the model's own shape, hand-built). */
+function stagePlan(position: number, over: Partial<HydroTraversalStagePlan> = {}): HydroTraversalStagePlan {
+  const stage = HYDRO_STAGES[position];
+  const ask: HydroTraversalStagePlan['ask'] =
+    stage.rewardOptions.length > 1 ? 'choice' :
+      stage.followUp === 'reuse-action' ? 'reuse-action' :
+        stage.followUp === 'add-animals' ? 'animal-target' :
+          stage.followUp === 'draw' ? 'draw' : 'none';
+  return {position, stage, ask, mustSelect: false, isDestination: false, ...over};
+}
 
 /** A hand-built multi-decision rail — the FUTURE multi-reward movement's
  *  honest fixture: three decisions of two kinds, out-of-order on purpose
@@ -47,6 +61,61 @@ describe('hydroDecisionRail (the pure decision + focus model)', () => {
       const [d] = buildHydroDecisions({offered: true, kind: 'animal-target', mustSelectCard: false, chosen: undefined, optional: false});
       expect(d.state).to.eq('unavailable');
       expect(d.skipReasonKey).to.eq('No card can receive the animals');
+    });
+  });
+
+  describe('buildTraversalDecisions (a multi-reward movement — Delta Surge)', () => {
+    it('one decision per interactive ask, IN PATH ORDER; plain stages build nothing', () => {
+      // 0 → 4: choice (1), choice (2), plain (3), plain destination (4).
+      const rail = buildTraversalDecisions([
+        stagePlan(1), stagePlan(2), stagePlan(3), stagePlan(4, {isDestination: true}),
+      ]);
+      expect(rail.map((d) => d.kind)).to.deep.eq(['reward-choice', 'reward-choice']);
+      expect(rail.map((d) => d.stagePosition)).to.deep.eq([1, 2]);
+      expect(rail.map((d) => d.order)).to.deep.eq([0, 1]);
+      expect(rail.every((d) => !d.optional), 'a choice is mandatory').to.eq(true);
+      expect(rail.every((d) => d.state === 'open')).to.eq(true);
+    });
+
+    it('a drafted choice resolves its decision and carries the option index', () => {
+      const [d] = buildTraversalDecisions([stagePlan(1, {choice: 1})]);
+      expect(d.state).to.eq('resolved');
+      expect(d.chosenOption).to.eq(1);
+      expect(d.stageNameKey).to.eq(HYDRO_STAGES[1].nameKey);
+    });
+
+    it('target stages are OPTIONAL (the waive door) and fizzle honestly', () => {
+      const rail = buildTraversalDecisions([
+        stagePlan(7, {mustSelect: true}),
+        stagePlan(8),
+        stagePlan(9, {mustSelect: false}),
+      ]);
+      expect(rail.map((d) => d.kind)).to.deep.eq(['reuse-action', 'animal-target']);
+      expect(rail[0].state).to.eq('open');
+      expect(rail[0].optional).to.eq(true);
+      expect(rail[1].state).to.eq('unavailable');
+      expect(rail[1].skipReasonKey).to.eq('No card can receive the animals');
+    });
+
+    it('the hidden-information draw (stage 5) builds NOTHING — it is a stop, never a pre-select', () => {
+      const rail = buildTraversalDecisions([stagePlan(5), stagePlan(6)]);
+      expect(rail).to.deep.eq([]);
+    });
+
+    it('the focus contract holds over the grown array: first open → next open → CTA', () => {
+      const rail = buildTraversalDecisions([
+        stagePlan(1, {choice: 0}),
+        stagePlan(2),
+        stagePlan(7, {mustSelect: true, pick: CardName.BIRDS}),
+        stagePlan(9, {mustSelect: true}),
+      ]);
+      // Resolved (1) never takes the seat; the open choice at 2 does.
+      expect(initialRailFocus(rail)).to.eq('rail:1:reward-choice');
+      // Answering it moves ON to the open animal pick, skipping the resolved 7.
+      expect(nextRailFocus(rail.map((d) => d.id === '1:reward-choice' ? {...d, state: 'resolved' as const} : d), '1:reward-choice'))
+        .to.eq('rail:3:animal-target');
+      // Everything answered → the CTA.
+      expect(initialRailFocus(rail.map((d) => ({...d, state: 'resolved' as const})))).to.eq(HYDRO_RAIL_CTA);
     });
   });
 

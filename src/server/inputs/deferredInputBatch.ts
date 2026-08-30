@@ -100,6 +100,19 @@ export function replayBatch(player: IPlayer, responses: ReadonlyArray<InputRespo
       // single branch with no further steps). Nothing left to answer.
       break;
     }
+    // A HIDDEN-INFORMATION prompt (a deck pick — «look at the top N») asks
+    // about cards that did not exist when the batch was assembled, so the
+    // batch can never contain its answer BY CONSTRUCTION. Never even TRY the
+    // next response against it: a same-shaped answer aimed at a LATER prompt
+    // (a Delta Surge traversal's card pick behind the stage-5 draw) would
+    // either be refused and read as a genuine divergence — wiping the tail —
+    // or, worse, name a card the draw happens to contain and be CONSUMED by
+    // the wrong question. Park the rest (i > 0; a batch that OPENS on a
+    // hidden prompt is a real divergence and falls through to process).
+    if (i > 0 && hiddenInfoPrompt(waitingFor)) {
+      parkedTails.set(player, [...(parkedTails.get(player) ?? []), ...responses.slice(i)]);
+      return;
+    }
     // Reshape a pre-collected OR-wrapper to the live input shape when the
     // card's action() collapsed to a bare input (Factorum &c.), so the
     // confirmed step lands instead of popping a redundant modal.
@@ -145,6 +158,11 @@ export function drainBatchTail(player: IPlayer): void {
     if (waitingFor === undefined) {
       break;
     }
+    if (hiddenInfoPrompt(waitingFor)) {
+      // The player must SEE the drawn cards to answer — a parked response is
+      // never theirs (see replayBatch). It stays parked for its own prompt.
+      break;
+    }
     const response = reconcileBatchResponse(rest[0], waitingFor);
     try {
       player.process(response);
@@ -181,6 +199,16 @@ export function drainBatchTail(player: IPlayer): void {
  */
 function jumpedTheQueue(response: InputResponse, waitingFor: PlayerInput): boolean {
   return response.type !== waitingFor.type;
+}
+
+/**
+ * A prompt whose answer CANNOT have been pre-collected, whatever its type: a
+ * deck pick asks about cards revealed only now. The marker is the server's own
+ * (`ChooseCards.execute` → `markDeckPickPrompt`, the single funnel of the
+ * draw-and-select family), never a title.
+ */
+function hiddenInfoPrompt(waitingFor: PlayerInput): boolean {
+  return waitingFor.deckPickPrompt !== undefined;
 }
 
 /**

@@ -170,6 +170,12 @@ describe('the hydro close gate', () => {
     });
   }
 
+  it('holds the flow while a TRAVERSAL plan still has legs — its pauses included', () => {
+    // A parked stop can momentarily hold no other signal (the marker idle,
+    // nothing flying) — the plan itself is what keeps the flow honest.
+    expect(hydroResolutionBusyOf({...QUIET, traversalPending: true})).eq(true);
+  });
+
   it('releases only when EVERY one of them has settled', () => {
     expect(hydroResolutionBusyOf(QUIET)).eq(false);
   });

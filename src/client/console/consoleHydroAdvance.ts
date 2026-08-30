@@ -44,6 +44,29 @@ export type HydroAdvancePayload = {
    * confirm. Never set alongside `selectedCard`.
    */
   waiveTarget?: boolean;
+  /**
+   * A MULTI-REWARD TRAVERSAL'S ORDERED ANSWERS (Delta Surge) — one entry per
+   * rewarded stage that ASKS, in path order. Present ⇒ the tail is built from
+   * THIS (the single-landing fields above are the historical shape and are
+   * ignored), because the server defers one reward step per stage in exactly
+   * this order. A stage-5 crossing contributes NOTHING here: its answer is
+   * hidden information, asked at the stop (the batch parks behind it).
+   */
+  traversalAnswers?: ReadonlyArray<HydroTraversalAnswer>;
+  /** Per-position conscious declines of target-bearing stages — rides the
+   *  move step as `waivedSteps` (the server unions it with `waiveReward`). */
+  waivedSteps?: ReadonlyArray<number>;
+};
+
+/** One traversal stage's pre-collected answer. */
+export type HydroTraversalAnswer = {
+  position: number;
+  /** Choice stages (1/2): the picked alternative index. */
+  rewardChoice?: number;
+  /** Target stages (7/9): the picked card. */
+  selectedCard?: CardName;
+  /** Stage 7: the composed repeat (byte-parity with the landing case). */
+  repeat?: ConsoleRepeatPickResult;
 };
 
 /**
@@ -60,6 +83,25 @@ export type HydroAdvancePayload = {
  * pre-collected in the workspace that asked for it.
  */
 export function hydroAdvanceTail(payload: HydroAdvancePayload): Array<unknown> {
+  // A traversal's answers ride in PATH ORDER — the server's per-stage reward
+  // steps defer in exactly that order, so position K's answer meets position
+  // K's prompt. Each entry reuses the single-landing shapes verbatim.
+  if (payload.traversalAnswers !== undefined) {
+    const tail: Array<unknown> = [];
+    for (const a of payload.traversalAnswers) {
+      if (a.rewardChoice !== undefined) {
+        tail.push({type: 'or' as const, index: a.rewardChoice, response: {type: 'option' as const}});
+      }
+      if (a.selectedCard !== undefined) {
+        if (a.repeat !== undefined && a.repeat.chosenCard === a.selectedCard) {
+          tail.push(...repeatActionResponses(a.repeat.chosenCard, a.repeat.composed));
+        } else {
+          tail.push({type: 'card' as const, cards: [a.selectedCard]});
+        }
+      }
+    }
+    return tail;
+  }
   const tail: Array<unknown> = [];
   if (payload.rewardChoice !== undefined) {
     tail.push({type: 'or' as const, index: payload.rewardChoice, response: {type: 'option' as const}});
@@ -98,13 +140,16 @@ export function hydroAdvanceBatch(
   // The waive and the steel share ride the MOVE's own step, and each key
   // exists only when meaningful — every energy-only, non-waiving batch stays
   // byte-identical to the historical shape.
-  const move: {type: 'deltaProject', amount: number, waiveReward?: true, steel?: number} =
+  const move: {type: 'deltaProject', amount: number, waiveReward?: true, steel?: number, waivedSteps?: ReadonlyArray<number>} =
     {type: 'deltaProject', amount: steps};
   if (payload.waiveTarget === true) {
     move.waiveReward = true;
   }
   if (payload.steelSpend !== undefined && payload.steelSpend > 0) {
     move.steel = payload.steelSpend;
+  }
+  if (payload.waivedSteps !== undefined && payload.waivedSteps.length > 0) {
+    move.waivedSteps = payload.waivedSteps;
   }
   return [
     ...prefix,

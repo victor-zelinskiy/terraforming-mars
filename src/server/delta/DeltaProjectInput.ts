@@ -24,6 +24,15 @@ export class DeltaProjectInput extends BasePlayerInput<number> {
   public steelSpent = 0;
 
   /**
+   * PER-POSITION conscious declines of target-bearing stage rewards along a
+   * multi-reward traversal (Delta Surge) — same by-reference contract as
+   * {@link waiveReward}: set from the wire BEFORE the callback, read by the
+   * `andThen` closure, handed to `advance` (`waivedTargetPositions`). Empty
+   * for the historical wire shapes.
+   */
+  public waivedSteps: ReadonlyArray<number> = [];
+
+  /**
    * @param validSteps the legal step counts the player may submit. Each value
    * is both the number of track positions to advance and the energy cost.
    * Sparse (not always `[1..max]`) when an opponent occupies a VP spot —
@@ -56,8 +65,14 @@ export class DeltaProjectInput extends BasePlayerInput<number> {
     if (!Number.isInteger(steel) || steel < 0 || steel > input.amount) {
       throw new InputError('Steel share must be an integer between 0 and the step count');
     }
+    const waivedSteps = input.waivedSteps ?? [];
+    if (!Array.isArray(waivedSteps) ||
+        waivedSteps.some((p) => !Number.isInteger(p) || p < 0 || p > 11)) {
+      throw new InputError('Waived steps must be track positions');
+    }
     this.waiveReward = input.waiveReward === true;
     this.steelSpent = steel;
+    this.waivedSteps = waivedSteps;
     return this.cb(input.amount);
   }
 }

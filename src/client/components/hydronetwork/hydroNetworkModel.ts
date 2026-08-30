@@ -18,7 +18,7 @@
  */
 import {Color} from '@/common/Color';
 import {CardName} from '@/common/cards/CardName';
-import {DeltaTrackDestination, DeltaTrackPreviewModel} from '@/common/models/DeltaTrackPreviewModel';
+import {DeltaTrackDestination, DeltaTrackPreviewModel, DeltaTraversalStep} from '@/common/models/DeltaTrackPreviewModel';
 import {DeltaStop} from '@/common/models/DeltaProjectPlayerModel';
 import {HYDRO_STAGES, HydroStage, hydroStageNeedsChoice, HydroFollowUp} from './hydroStages';
 
@@ -46,6 +46,12 @@ export type HydroStageVM = {
   skippedByViewer: boolean;
   /** On the CURRENT plan: an intermediate stage whose reward will be skipped. */
   willSkipReward: boolean;
+  /** On the CURRENT plan: a crossed stage whose reward WILL be granted (the
+   *  Delta Surge traversal) — the route cell lights as a paying stop. */
+  routeRewarded: boolean;
+  /** On the CURRENT plan: the crossed 2 VP stage, excluded by the modifier's
+   *  own printed rule — named, never a silent skip. */
+  routeExcluded: boolean;
   // Target-only (state === 'target'):
   targetLegal: boolean;
   targetAffordable: boolean;
@@ -86,11 +92,42 @@ export type HydroModelInput = {
   rewardChoice: number | undefined;
   /** Pre-collected target card for a card-pick reward (pos 7 / pos 9). */
   selectedCard: CardName | undefined;
+  /** Multi-reward traversal drafts (Delta Surge): per-position answers. */
+  planChoices?: Record<number, number>;
+  planPicks?: Partial<Record<number, CardName>>;
+  /**
+   * WHERE THE VIEWER'S MARKER VISUALLY STANDS while a committed traversal is
+   * still being presented — the sequence's own cursor. The server position is
+   * already the destination the moment the response applies; painting it
+   * would show the finale before the movement. Absent = the server truth.
+   */
+  visualViewerPosition?: number;
   actionAvailable: boolean;
 };
 
 /** A reward that needs a card pick before confirm. */
 export type HydroCardSelectKind = 'reuse-action' | 'animal-target';
+
+/**
+ * ONE stage of a MULTI-REWARD move's plan (Delta Surge), enriched for the
+ * decision surfaces: which question it asks (if any), the draft answer, and
+ * whether candidates exist. Path order; only REWARDED stages appear (the
+ * excluded 2 VP crossing is stated by `traversalExcludedVp`, not planned).
+ */
+export type HydroTraversalStagePlan = {
+  position: number;
+  stage: HydroStage;
+  /** The stage's interactive ask: a reward CHOICE (pos 1/2), a target pick
+   *  (pos 7/9), a hidden-information draw (pos 5), or nothing. */
+  ask: 'choice' | 'reuse-action' | 'animal-target' | 'draw' | 'none';
+  /** Choice stages: the drafted alternative (undefined = still open). */
+  choice?: number;
+  /** Target stages: the drafted card (undefined = open or fizzled). */
+  pick?: CardName;
+  /** Target stages: candidates exist, so the pick is answerable. */
+  mustSelect: boolean;
+  isDestination: boolean;
+};
 
 export type HydroModel = {
   stages: ReadonlyArray<HydroStageVM>;
@@ -122,6 +159,19 @@ export type HydroModel = {
   targetNeedsChoice: boolean;
   targetFollowUp: HydroFollowUp | undefined;
   skippedStages: ReadonlyArray<HydroStage>;
+  // ── Multi-reward traversal (Delta Surge) ───────────────────────────────
+  /** The move grants MORE than the destination's reward — the plan below is
+   *  the decision surface's whole input. False for every historical move. */
+  traversalActive: boolean;
+  /** The SERVER's ordered plan for the selected move (absent without the
+   *  modifier — the historical single-landing shape). */
+  traversal: ReadonlyArray<DeltaTraversalStep> | undefined;
+  /** Rewarded stages of the plan, enriched with drafts (path order). */
+  traversalStages: ReadonlyArray<HydroTraversalStagePlan>;
+  /** The crossed 2 VP stage is excluded by the modifier's printed rule. */
+  traversalExcludedVp: boolean;
+  /** The tableau card whose effect grants the crossed rewards. */
+  traversalModifierCard: CardName | undefined;
   // Pre-collected card pick (pos 7 reuse-action / pos 9 animal target).
   needsCardSelect: HydroCardSelectKind | undefined;
   eligibleCardNames: ReadonlyArray<CardName>;
@@ -143,6 +193,12 @@ export type HydroModel = {
 const MAX_POS = 11;
 
 function viewerPosition(input: HydroModelInput): number {
+  // The traversal presentation's own cursor outranks the server truth for the
+  // whole sequence: the response already holds the destination, and painting
+  // it early is the finale before the movement.
+  if (input.visualViewerPosition !== undefined && input.visualViewerPosition >= 0) {
+    return input.visualViewerPosition;
+  }
   if (input.preview !== undefined) {
     return input.preview.currentPosition;
   }
@@ -220,10 +276,42 @@ export function buildHydroModel(input: HydroModelInput): HydroModel {
   const viewerStops = input.players.find((p) => p.isViewer)?.stops ?? [];
   const markersByPos = new Map<number, Array<HydroMarker>>();
   for (const p of input.players) {
-    const list = markersByPos.get(p.position) ?? [];
+    // The viewer's marker rides the presentation cursor too (see viewerPosition).
+    const pos = p.isViewer ? currentPosition : p.position;
+    const list = markersByPos.get(pos) ?? [];
     list.push({color: p.color, isViewer: p.isViewer});
-    markersByPos.set(p.position, list);
+    markersByPos.set(pos, list);
   }
+
+  // ── The multi-reward traversal plan (Delta Surge) ────────────────────────
+  const traversal = mode === 'plan' ? destination?.traversal : undefined;
+  const rewardedSteps = (traversal ?? []).filter((s) => s.rewarded);
+  const traversalActive = rewardedSteps.length > 1;
+  const planChoices = input.planChoices ?? {};
+  const planPicks = input.planPicks ?? {};
+  const reuseCards = preview?.reuseActionCards ?? [];
+  const animalCards = preview?.animalTargetCards ?? [];
+  const traversalStages: Array<HydroTraversalStagePlan> = !traversalActive ? [] :
+    rewardedSteps.map((step) => {
+      const stage = HYDRO_STAGES[step.position];
+      const ask: HydroTraversalStagePlan['ask'] =
+        hydroStageNeedsChoice(stage) ? 'choice' :
+          stage.followUp === 'reuse-action' ? 'reuse-action' :
+            stage.followUp === 'add-animals' ? 'animal-target' :
+              stage.followUp === 'draw' ? 'draw' : 'none';
+      const eligible = ask === 'reuse-action' ? reuseCards : ask === 'animal-target' ? animalCards : [];
+      const draftedPick = planPicks[step.position];
+      return {
+        position: step.position,
+        stage,
+        ask,
+        choice: ask === 'choice' ? planChoices[step.position] : undefined,
+        pick: draftedPick !== undefined && eligible.includes(draftedPick) ? draftedPick : undefined,
+        mustSelect: eligible.length > 0,
+        isDestination: step.position === destinationPosition,
+      };
+    });
+  const traversalExcludedVp = (traversal ?? []).some((s) => s.skipped === 'vp-step');
 
   const stages: Array<HydroStageVM> = HYDRO_STAGES.map((stage): HydroStageVM => {
     const pos = stage.position;
@@ -249,7 +337,11 @@ export function buildHydroModel(input: HydroModelInput): HydroModel {
     }
 
     const isTarget = state === 'target';
-    const willSkipReward = state === 'route' && (stage.rewardOptions.length > 0 || stage.vp !== undefined);
+    const traversalStep = traversal?.find((s) => s.position === pos);
+    const routeRewarded = state === 'route' && traversalStep?.rewarded === true;
+    const routeExcluded = state === 'route' && traversalStep?.skipped === 'vp-step';
+    const willSkipReward = state === 'route' && !routeRewarded && !routeExcluded &&
+      (stage.rewardOptions.length > 0 || stage.vp !== undefined);
     return {
       stage,
       position: pos,
@@ -260,6 +352,8 @@ export function buildHydroModel(input: HydroModelInput): HydroModel {
       rewardedByViewer,
       skippedByViewer,
       willSkipReward,
+      routeRewarded,
+      routeExcluded,
       targetLegal: isTarget ? (destination?.legal ?? false) : false,
       targetAffordable: isTarget ? (destination?.affordable ?? false) : false,
       requiredTags: isTarget ? (destination?.requiredTags ?? []) : [],
@@ -268,9 +362,11 @@ export function buildHydroModel(input: HydroModelInput): HydroModel {
     };
   });
 
-  // Skipped intermediate stages (rewards not granted on a jump).
+  // Skipped intermediate stages (rewards not granted on a jump). Under a live
+  // traversal NOTHING is skipped by the standing rule — the modifier pays the
+  // crossings, and the one exclusion (the 2 VP crossing) is named separately.
   const skippedStages: Array<HydroStage> = [];
-  if (mode === 'plan') {
+  if (mode === 'plan' && !traversalActive) {
     for (let pos = currentPosition + 1; pos < destinationPosition; pos++) {
       const s = HYDRO_STAGES[pos];
       if (s !== undefined && s.rewardOptions.length > 0) {
@@ -301,7 +397,13 @@ export function buildHydroModel(input: HydroModelInput): HydroModel {
   // advance at all. The UI's job here is a WARNING («this is still unchosen»),
   // never a lock.
 
-  const choiceSatisfied = !targetNeedsChoice || input.rewardChoice !== undefined;
+  // A CHOICE is mandatory pre-select wherever it is fully known: the single
+  // landing asks its one question; a traversal asks EVERY crossed choice
+  // stage's (each an entry of the plan, each visible on the rail). Target
+  // picks stay waivable and never lock the commit (the warned-press door).
+  const choiceSatisfied = traversalActive ?
+    traversalStages.every((s) => s.ask !== 'choice' || s.choice !== undefined) :
+    (!targetNeedsChoice || input.rewardChoice !== undefined);
   const canConfirm =
     input.actionAvailable === true &&
     preview !== undefined &&
@@ -379,6 +481,11 @@ export function buildHydroModel(input: HydroModelInput): HydroModel {
     targetNeedsChoice,
     targetFollowUp,
     skippedStages,
+    traversalActive,
+    traversal,
+    traversalStages,
+    traversalExcludedVp,
+    traversalModifierCard: preview?.traversalModifierCard,
     needsCardSelect,
     eligibleCardNames,
     selectedCard,

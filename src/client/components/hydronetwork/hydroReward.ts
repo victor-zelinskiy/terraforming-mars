@@ -7,7 +7,7 @@
  * No Vue / DOM / i18n — unit-tested by hydroReward.spec.ts.
  */
 import {Resource} from '@/common/Resource';
-import {HydroStage, HydroRewardChip} from './hydroStages';
+import {HYDRO_STAGES, HydroStage, HydroRewardChip} from './hydroStages';
 
 export type HydroPlayerSnapshot = {
   steel: number;
@@ -56,6 +56,91 @@ const FOLLOWUP: Record<string, string> = {
   reuse: 'After confirming, the chosen action is performed',
   animals: 'After confirming, the chosen card receives the animals',
 };
+
+/** Apply one delta line to a snapshot copy — the traversal builder's
+ *  threading step (panel metrics only; card resources live on the card). */
+function applyLineToSnapshot(s: HydroPlayerSnapshot, l: HydroDeltaLine): HydroPlayerSnapshot {
+  const n: HydroPlayerSnapshot = {...s, prod: {...s.prod}};
+  if (l.special === 'jovian-tag') {
+    n.jovianTags += l.delta;
+    return n;
+  }
+  if (l.special === 'animals' || l.resource === undefined) {
+    return n;
+  }
+  const key = ({
+    [Resource.STEEL]: 'steel',
+    [Resource.PLANTS]: 'plants',
+    [Resource.TITANIUM]: 'titanium',
+    [Resource.ENERGY]: 'energy',
+    [Resource.HEAT]: 'heat',
+    [Resource.MEGACREDITS]: 'megacredits',
+  } as const)[l.resource];
+  if (key === undefined) {
+    return n;
+  }
+  if (l.production === true) {
+    n.prod[key] += l.delta;
+  } else {
+    n[key] += l.delta;
+  }
+  return n;
+}
+
+/**
+ * THE TRAVERSAL'S REWARD VIEWS (Delta Surge) — every paying stage's own
+ * «сейчас → станет», with the snapshot THREADED through the stages in path
+ * order: stage 6's plants read the stage-1 choice's gain, two stages moving
+ * one pool chain their before → after honestly. Also returns each stage's
+ * STARTING snapshot (the choice step's per-option previews read it) and the
+ * COMBINED view (the preview's one «Вы получите» block + the frozen result).
+ */
+export function buildTraversalRewardViews(opts: {
+  steps: ReadonlyArray<{
+    position: number;
+    choice?: number;
+    animalCurrent?: number;
+    animalCardName?: string;
+  }>;
+  snapshot: HydroPlayerSnapshot;
+}): {
+  perStage: Partial<Record<number, HydroRewardView>>;
+  startSnapshots: Partial<Record<number, HydroPlayerSnapshot>>;
+  combined: HydroRewardView;
+} {
+  const perStage: Partial<Record<number, HydroRewardView>> = {};
+  const startSnapshots: Partial<Record<number, HydroPlayerSnapshot>> = {};
+  const lines: Array<HydroDeltaLine> = [];
+  const rawChips: Array<HydroRewardChip> = [];
+  let vp: number | undefined;
+  let needsChoiceFirst = false;
+  let snapshot = opts.snapshot;
+  for (const step of opts.steps) {
+    startSnapshots[step.position] = snapshot;
+    const view = buildRewardView({
+      stage: HYDRO_STAGES[step.position],
+      snapshot,
+      rewardChoice: step.choice,
+      animalTargetCurrent: step.animalCurrent,
+      animalTargetCardName: step.animalCardName,
+    });
+    perStage[step.position] = view;
+    lines.push(...view.lines);
+    rawChips.push(...view.rawChips);
+    if (view.vp !== undefined) {
+      vp = view.vp;
+    }
+    needsChoiceFirst = needsChoiceFirst || view.needsChoiceFirst;
+    for (const l of view.lines) {
+      snapshot = applyLineToSnapshot(snapshot, l);
+    }
+  }
+  return {
+    perStage,
+    startSnapshots,
+    combined: {lines, rawChips, vp, needsChoiceFirst},
+  };
+}
 
 export function buildRewardView(opts: {
   stage: HydroStage | undefined;

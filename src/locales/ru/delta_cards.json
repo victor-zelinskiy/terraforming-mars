@@ -10,5 +10,7 @@
     "Development Manager": "Менеджер развития",
     "Effect: Each time you increase a type of production 2 or more steps, or advance 2 or more steps on the Hydronetwork track, gain 2 M€.": "Эффект: каждый раз, когда вы увеличиваете один тип производства на 2 или более шагов или продвигаетесь на 2 или более делений по треку Гидросети, получите 2 M€.",
     "Delta Works": "Дельтовые сооружения",
-    "Effect: When doing the Hydronetwork action or when you trade with a Colony, you may use a steel as energy.": "Эффект: выполняя действие Гидросети или торгуя с колонией, вы можете использовать сталь как энергию."
+    "Effect: When doing the Hydronetwork action or when you trade with a Colony, you may use a steel as energy.": "Эффект: выполняя действие Гидросети или торгуя с колонией, вы можете использовать сталь как энергию.",
+    "Delta Surge": "Нагонная волна",
+    "Effect: When advancing multiple steps on the Hydronetwork track at once, gain each step's reward. Does not apply to the 2 VP step.": "Эффект: продвигаясь по треку Гидросети сразу на несколько делений, получите награду каждого деления. Не относится к делению «2 ПО»."
 }

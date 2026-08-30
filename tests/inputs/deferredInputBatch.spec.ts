@@ -14,7 +14,10 @@ import {SubterraneanReservoir} from '../../src/server/cards/base/SubterraneanRes
 import {OlympusConference} from '../../src/server/cards/base/OlympusConference';
 import {PharmacyUnion} from '../../src/server/cards/promo/PharmacyUnion';
 import {Asteroid} from '../../src/server/cards/base/Asteroid';
-import {setRulingParty} from '../TestingUtils';
+import {DeltaSurge} from '../../src/server/cards/delta/DeltaSurge';
+import {RegolithEaters} from '../../src/server/cards/base/RegolithEaters';
+import {DELTA_TRACK_TAGS} from '../../src/server/delta/DeltaProjectExpansion';
+import {fakeCard, setRulingParty} from '../TestingUtils';
 import {PartyName} from '../../src/common/turmoil/PartyName';
 import {
   clearBatchTail,
@@ -184,6 +187,51 @@ describe('deferredInputBatch', () => {
     const {player} = astraGame();
 
     expect(() => replayBatch(player, [{type: 'card', cards: [CardName.ANTS]}])).to.throw();
+    expect(parkedBatchTailLength(player)).eq(0);
+  });
+
+  it('PARKS the tail behind a HIDDEN-INFORMATION prompt without even trying it', () => {
+    // The real shape: a Delta Surge traversal crosses stage 5 («look at 4,
+    // keep 2») with the stage-7 repeat pick pre-collected BEHIND it. Both are
+    // `card` responses, so a try-and-refuse would read the refusal as a
+    // genuine divergence and wipe the tail — and if the draw happened to
+    // contain the very card the pick names, the DRAW would silently consume
+    // the answer. A deck-pick prompt is hidden information: the batch can
+    // never contain its answer by construction, so the tail parks untried.
+    const [, player] = testGame(2, {deltaProjectExpansion: true});
+    player.playedCards.push(new DeltaSurge());
+    player.playedCards.push(fakeCard({tags: DELTA_TRACK_TAGS.filter((t) => t !== undefined)}));
+    const regolith = new RegolithEaters();
+    player.playedCards.push(regolith);
+    player.actionsThisGeneration.add(CardName.REGOLITH_EATERS);
+    player.energy = 3;
+    player.deltaProjectData!.position = 4;
+    player.takeAction();
+
+    const menu = cast(player.getWaitingFor(), OrOptions);
+    const idx = menu.options.findIndex((o) => o.title === 'Advance on the Hydronetwork track');
+    expect(idx).gte(0);
+    replayBatch(player, [
+      {type: 'or', index: idx, response: {type: 'option'}},
+      {type: 'deltaProject', amount: 3},
+      {type: 'card', cards: [regolith.name]},
+    ]);
+
+    const draw = cast(player.getWaitingFor(), SelectCard);
+    expect(draw.deckPickPrompt, 'the stage-5 draw carries the hidden-info marker').is.not.undefined;
+    expect(parkedBatchTailLength(player)).eq(1);
+    expect(regolith.resourceCount).eq(0);
+
+    // A drain while the hidden prompt stands leaves the tail parked, untried.
+    drainBatchTail(player);
+    expect(parkedBatchTailLength(player)).eq(1);
+    cast(player.getWaitingFor(), SelectCard);
+
+    // The player answers the draw for real; the parked pick then lands on the
+    // stage-7 prompt it was collected for.
+    player.process({type: 'card', cards: [draw.cards[0].name, draw.cards[1].name]});
+    drainBatchTail(player);
+    expect(regolith.resourceCount, 'the pre-collected repeat pick landed').eq(1);
     expect(parkedBatchTailLength(player)).eq(0);
   });
 });

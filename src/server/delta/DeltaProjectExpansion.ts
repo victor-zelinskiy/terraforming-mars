@@ -1,7 +1,8 @@
 import {IGame} from '../IGame';
 import {IPlayer} from '../IPlayer';
 import {DeltaProjectPlayerModel} from '../../common/models/DeltaProjectPlayerModel';
-import {DeltaTrackDestination, DeltaTrackPreviewModel} from '../../common/models/DeltaTrackPreviewModel';
+import {DeltaTrackDestination, DeltaTrackPreviewModel, DeltaTraversalStep} from '../../common/models/DeltaTrackPreviewModel';
+import {Priority} from '../deferredActions/Priority';
 import {DELTA_STAGE_NAMES} from '../../common/delta/deltaStages';
 import {systemChoice} from '../inputs/choiceContext';
 import {CardName} from '../../common/cards/CardName';
@@ -108,14 +109,62 @@ export class DeltaProjectExpansion {
     return player.deltaProjectData;
   }
 
-  // Records which reward alternative the player took on the most recent landing
-  // (a choice stage, positions 1/2). Runs from the deferred reward OrOptions, so
-  // the latest stop is the current advance's stop.
-  private static recordStopChoice(player: IPlayer, choice: number): void {
-    const stops = player.deltaProjectData?.stops;
-    if (stops !== undefined && stops.length > 0) {
-      stops[stops.length - 1].choice = choice;
+  // Records which reward alternative the player took at a choice stage
+  // (positions 1/2). POSITIONAL: only a stop at that very position takes the
+  // record — a stage CROSSED under Delta Surge grants the same choice but is
+  // not a stop (the marker never stood there), so its answer must not be
+  // written onto the destination's history. Positions only ever increase, so
+  // at most one stop per position exists.
+  private static recordStopChoice(player: IPlayer, position: number, choice: number): void {
+    const stop = player.deltaProjectData?.stops?.find((s) => s.position === position);
+    if (stop !== undefined) {
+      stop.choice = choice;
     }
+  }
+
+  /**
+   * THE TRAVERSAL MODIFIER — the tableau card whose effect turns crossed
+   * stages into paying ones (Delta Surge). Declared per card
+   * (`ICard.grantsDeltaTraversalRewards`, co-located in the card file), read
+   * ONLY here: the preview and the committed advance both ask this one
+   * function, so the promise and the payout cannot diverge. Only the MOVING
+   * player's tableau counts.
+   */
+  public static traversalRewardModifier(player: IPlayer): ICard | undefined {
+    for (const card of player.tableau) {
+      if (card.grantsDeltaTraversalRewards === true) {
+        return card;
+      }
+    }
+    return undefined;
+  }
+
+  /**
+   * THE ORDERED REWARD PLAN of one advance `fromPosition → toPosition` — one
+   * entry per crossed/landed stage, in path order.
+   *
+   * The DESTINATION always pays (the standard rule). A CROSSED stage pays only
+   * under a live traversal modifier, and never the VP stages: their value is
+   * POSITIONAL (scored from the final marker position, the slot exclusive), so
+   * crossing one grants nothing — the printed «Does not apply to the 2 VP
+   * step». The stage definitions themselves are untouched; this is a per-move
+   * applicability verdict, never a rewrite of the track.
+   */
+  public static traversalSteps(player: IPlayer, fromPosition: number, toPosition: number): Array<DeltaTraversalStep> {
+    const modifier = DeltaProjectExpansion.traversalRewardModifier(player) !== undefined;
+    const steps: Array<DeltaTraversalStep> = [];
+    for (let position = fromPosition + 1; position <= toPosition; position++) {
+      if (position === toPosition) {
+        steps.push({position, rewarded: true});
+      } else if (!modifier) {
+        steps.push({position, rewarded: false, skipped: 'standing-rule'});
+      } else if (position === VP2_POSITION || position === VP5_POSITION) {
+        steps.push({position, rewarded: false, skipped: 'vp-step'});
+      } else {
+        steps.push({position, rewarded: true});
+      }
+    }
+    return steps;
   }
 
   // True if another player (not `excludePlayer`) occupies this track position.
@@ -235,6 +284,11 @@ export class DeltaProjectExpansion {
     // the stepper bound + the confirm.
     const maxPreviewSteps = Math.max(0, MAX_TRACK_POSITION - currentPos);
 
+    // A live traversal modifier (Delta Surge) turns crossed stages into paying
+    // ones — every destination then carries the SERVER's ordered reward plan.
+    // Without one the historical payload stays byte-identical (no plan field).
+    const traversalModifier = DeltaProjectExpansion.traversalRewardModifier(player);
+
     const destinations: Array<DeltaTrackDestination> = [];
     let maxLegalSteps = 0;
     for (let steps = 1; steps <= maxPreviewSteps; steps++) {
@@ -262,6 +316,8 @@ export class DeltaProjectExpansion {
         requiredTags: tagInfo.requiredTags,
         wildCoveredTags: tagInfo.wildCoveredTags,
         missingTags: tagInfo.missingTags,
+        ...(traversalModifier !== undefined ?
+          {traversal: DeltaProjectExpansion.traversalSteps(player, currentPos, position)} : {}),
       });
     }
 
@@ -285,6 +341,7 @@ export class DeltaProjectExpansion {
       destinations,
       reuseActionCards,
       animalTargetCards,
+      ...(traversalModifier !== undefined ? {traversalModifierCard: traversalModifier.name} : {}),
     };
   }
 
@@ -419,6 +476,13 @@ export class DeltaProjectExpansion {
      */
     waiveTargetReward?: boolean,
     /**
+     * PER-POSITION conscious declines of target-bearing rewards along a
+     * traversal (Delta Surge — a path can hold BOTH pos 7 and pos 9, each
+     * answered or declined on its own). Same contract as `waiveTargetReward`,
+     * which stays the landing-only shorthand: the two compose (union).
+     */
+    waivedTargetPositions?: ReadonlyArray<number>,
+    /**
      * The STANDARD advance's chosen payment mix (Delta Works: 1 steel = 1
      * energy). Must total `steps`; steel > 0 requires the card in the tableau.
      * Absent = the energy-first default (energy, then steel for the deficit
@@ -518,7 +582,49 @@ export class DeltaProjectExpansion {
           () => card.onDeltaTrackAdvance?.(player, steps));
       }
 
-      DeltaProjectExpansion.resolveReward(player, newPos, extras?.waiveTargetReward === true);
+      // THE ORDERED REWARD RESOLUTION — the one plan builder the preview also
+      // reads. The waives compose: the legacy landing-only flag plus the
+      // per-position set a traversal batch carries.
+      const traversal = DeltaProjectExpansion.traversalSteps(player, currentPos, newPos);
+      const rewarded = traversal.filter((s) => s.rewarded);
+      const waived = new Set<number>(extras?.waivedTargetPositions ?? []);
+      if (extras?.waiveTargetReward === true) {
+        waived.add(newPos);
+      }
+      // The modifier's own journal voice — stated for the MOVE, not per branch:
+      // the activation when crossed stages actually pay, and the printed 2 VP
+      // exclusion whenever that stage is crossed under it (a 9 → 11 leap pays
+      // nothing extra, but the omission still may not be silent).
+      const modifier = DeltaProjectExpansion.traversalRewardModifier(player);
+      if (modifier !== undefined && steps > 1) {
+        if (rewarded.some((s) => s.position !== newPos)) {
+          game.log('${0} grants the reward of every stage crossed on the Hydronetwork', (b) => b.card(modifier));
+        }
+        if (traversal.some((s) => s.skipped === 'vp-step')) {
+          game.log('${0} crossed the 2 VP stage — its reward is claimed only by stopping there', (b) => b.player(player));
+        }
+      }
+      if (rewarded.length <= 1) {
+        // The historical shape — only the destination pays. Resolved inline,
+        // byte- and order-identical to every advance before Delta Surge.
+        DeltaProjectExpansion.resolveReward(player, newPos, waived.has(newPos));
+      } else {
+        // DELTA SURGE: every crossed stage pays, IN PATH ORDER. Each stage
+        // rides its own deferred step at BACK_OF_THE_LINE: anything a stage's
+        // own resolution defers (a reward OrOptions, the stage-5 draw, the
+        // repeated blue action and every input IT raises) queues at a nearer
+        // priority and therefore fully resolves before the next stage's step
+        // executes — strict path order without re-implementing a single
+        // reward. The steps capture the live journal scope at defer time, so
+        // the whole payout stays one grouped delta-project event.
+        for (const step of rewarded) {
+          const position = step.position;
+          player.defer(() => {
+            DeltaProjectExpansion.resolveReward(player, position, waived.has(position));
+            return undefined;
+          }, Priority.BACK_OF_THE_LINE);
+        }
+      }
     } finally {
       game.events.endScope();
     }
@@ -583,12 +689,12 @@ export class DeltaProjectExpansion {
       player.defer(() => new OrOptions(
         new SelectOption('Gain 2 steel', 'Gain steel').andThen(() => {
           player.stock.add(Resource.STEEL, 2, {log: true, from: {card: CardName.DELTA_PROJECT}});
-          DeltaProjectExpansion.recordStopChoice(player, 0);
+          DeltaProjectExpansion.recordStopChoice(player, position, 0);
           return undefined;
         }),
         new SelectOption('Gain 2 plants', 'Gain plants').andThen(() => {
           player.stock.add(Resource.PLANTS, 2, {log: true, from: {card: CardName.DELTA_PROJECT}});
-          DeltaProjectExpansion.recordStopChoice(player, 1);
+          DeltaProjectExpansion.recordStopChoice(player, position, 1);
           return undefined;
         }),
       ).markChoiceContext(systemChoice('system', 'Choose your Hydronetwork reward', 'effect-choice')));
@@ -598,12 +704,12 @@ export class DeltaProjectExpansion {
       player.defer(() => new OrOptions(
         new SelectOption('Increase energy production 1 step', 'Increase').andThen(() => {
           player.production.add(Resource.ENERGY, 1, {log: true, from: {card: CardName.DELTA_PROJECT}});
-          DeltaProjectExpansion.recordStopChoice(player, 0);
+          DeltaProjectExpansion.recordStopChoice(player, position, 0);
           return undefined;
         }),
         new SelectOption('Increase heat production 1 step', 'Increase').andThen(() => {
           player.production.add(Resource.HEAT, 1, {log: true, from: {card: CardName.DELTA_PROJECT}});
-          DeltaProjectExpansion.recordStopChoice(player, 1);
+          DeltaProjectExpansion.recordStopChoice(player, position, 1);
           return undefined;
         }),
       ).markChoiceContext(systemChoice('system', 'Choose your Hydronetwork reward', 'effect-choice')));

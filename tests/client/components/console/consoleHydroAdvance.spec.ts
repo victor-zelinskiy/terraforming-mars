@@ -160,4 +160,69 @@ describe('hydroAdvanceTail (shared by the bonus offer)', () => {
       {type: 'or', index: 1, response: {type: 'option'}},
     ]);
   });
+
+  describe('a MULTI-REWARD traversal (Delta Surge)', () => {
+    it('emits the ordered per-stage answers — path order IS the server defer order', () => {
+      const batch = hydroAdvanceResponses(ACTIVATE, {
+        spend: 4,
+        rewardChoice: undefined,
+        traversalAnswers: [
+          {position: 1, rewardChoice: 0},
+          {position: 2, rewardChoice: 1},
+        ],
+      });
+      expect(batch).to.deep.equal([
+        ACTIVATE,
+        {type: 'deltaProject', amount: 4},
+        {type: 'or', index: 0, response: {type: 'option'}},
+        {type: 'or', index: 1, response: {type: 'option'}},
+      ]);
+    });
+
+    it('a crossed stage-7 composed repeat and a stage-9 pick ride in path order', () => {
+      const tail = hydroAdvanceTail({
+        spend: 4,
+        rewardChoice: undefined,
+        traversalAnswers: [
+          {position: 7, selectedCard: CardName.VIRON, repeat: {
+            chosenCard: CardName.VIRON,
+            nodeIndex: 0,
+            composed: {branchIndex: 1, preResponses: [], optionResponse: undefined, stepResponses: []},
+          }},
+          {position: 9, selectedCard: CardName.BIRDS},
+        ],
+      });
+      expect(tail).to.deep.equal([
+        {type: 'card', cards: [CardName.VIRON]},
+        {type: 'or', index: 1, response: {type: 'option'}},
+        {type: 'card', cards: [CardName.BIRDS]},
+      ]);
+    });
+
+    it('per-position declines ride the MOVE step as waivedSteps', () => {
+      const batch = hydroAdvanceResponses(ACTIVATE, {
+        spend: 3,
+        rewardChoice: undefined,
+        traversalAnswers: [],
+        waivedSteps: [7, 9],
+      });
+      expect(batch).to.deep.equal([
+        ACTIVATE,
+        {type: 'deltaProject', amount: 3, waivedSteps: [7, 9]},
+      ]);
+    });
+
+    it('a stage-5 crossing contributes NOTHING to the tail (hidden information parks the batch)', () => {
+      const batch = hydroAdvanceResponses(ACTIVATE, {
+        spend: 3,
+        rewardChoice: undefined,
+        traversalAnswers: [{position: 6}, {position: 7, selectedCard: CardName.VIRON}],
+      });
+      expect(batch).to.deep.equal([
+        ACTIVATE,
+        {type: 'deltaProject', amount: 3},
+        {type: 'card', cards: [CardName.VIRON]},
+      ]);
+    });
+  });
 });

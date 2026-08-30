@@ -5,6 +5,8 @@
                          :card="d.chosen"
                          :node="d.kind === 'reuse-action' ? repeatNode : undefined"
                          :animalCurrent="d.kind === 'animal-target' ? animalCurrent : undefined"
+                         :chips="chosenChipsOf(d)"
+                         :stageLabel="stageLabelOf(d)"
                          :focused="focusNode === 'rail:' + d.id"
                          :fizzled="d.state === 'unavailable'"
                          @open="$emit('open', d)" />
@@ -29,6 +31,8 @@ import {defineComponent, PropType} from 'vue';
 import {ActionGroup} from '@/client/components/actions/actionExtraction';
 import ConsoleHydroPickRow from '@/client/components/console/hydroFlow/ConsoleHydroPickRow.vue';
 import {HydroRailDecision} from '@/client/console/hydroFlow/hydroDecisionRail';
+import {HYDRO_STAGES, HydroStage} from '@/client/components/hydronetwork/hydroStages';
+import {$t} from '@/client/directives/i18n';
 
 type GroupNode = ActionGroup['nodes'][number];
 
@@ -48,6 +52,21 @@ export default defineComponent({
   computed: {
     ordered(): Array<HydroRailDecision> {
       return [...this.decisions].sort((a, b) => a.order - b.order);
+    },
+  },
+  methods: {
+    /** The resolved reward-choice summary: the chosen alternative's own
+     *  printed chips, straight off the stage definition. */
+    chosenChipsOf(d: HydroRailDecision): HydroStage['rewardOptions'][number] | undefined {
+      if (d.kind !== 'reward-choice' || d.chosenOption === undefined || d.stagePosition === undefined) {
+        return undefined;
+      }
+      return HYDRO_STAGES[d.stagePosition]?.rewardOptions[d.chosenOption];
+    },
+    /** A traversal decision names its stage; a single-question rail keeps the
+     *  bare label (the stage is the whole screen's subject there). */
+    stageLabelOf(d: HydroRailDecision): string {
+      return d.stageNameKey !== undefined ? $t(d.stageNameKey) : '';
     },
   },
 });

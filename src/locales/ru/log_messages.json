@@ -361,5 +361,7 @@
     "${0} leapt past the occupied 2 VP position to reach ${1} on the Hydronetwork (5 VP at game end)": "${0} перепрыгнул занятую позицию 2 ПО и достиг этапа «${1}» Гидросети (5 ПО в конце игры)",
     "${0} claimed the ${1} position on the Hydronetwork (5 VP at game end)": "${0} занял позицию «${1}» Гидросети (5 ПО в конце игры)",
     "${0} declined to reuse a card action from the Hydronetwork": "${0} отказался от повтора действия карты от Гидросети",
-    "${0} declined to add animals from the Hydronetwork": "${0} отказался от животных от Гидросети"
+    "${0} declined to add animals from the Hydronetwork": "${0} отказался от животных от Гидросети",
+    "${0} grants the reward of every stage crossed on the Hydronetwork": "${0}: каждый пересечённый этап Гидросети приносит награду",
+    "${0} crossed the 2 VP stage — its reward is claimed only by stopping there": "${0} пересёк этап «2 ПО» — его награду получают, только остановившись на нём"
 }

@@ -1,7 +1,10 @@
 import {expect} from 'chai';
+import {watch} from 'vue';
 import {
-  abortHydroMarker, armHydroMarker, detectHydroMarker, endHydroMarker, hydroMarkerState,
-  isHydroMarkerActive, registerHydroMarkerHandle, resetHydroMarker, runHydroMarker, setHydroMarkerPhase,
+  abortHydroMarker, armHydroMarker, armHydroMarkerTraversal, detectHydroMarker, endHydroMarker,
+  hydroMarkerState, hydroTraversalPaused, hydroTraversalPending, hydroVisualTrackPosition,
+  isHydroMarkerActive, registerHydroMarkerHandle, resetHydroMarker, resumeHydroMarkerTraversal,
+  runHydroMarker, setHydroMarkerPhase,
 } from '@/client/console/hydroMarker/consoleHydroMarker';
 
 describe('consoleHydroMarker', () => {
@@ -83,5 +86,146 @@ describe('consoleHydroMarker', () => {
     armHydroMarker(0, 1, 'blue');
     setHydroMarkerPhase('arrive');
     expect(hydroMarkerState.phase).to.eq('arrive');
+  });
+
+  describe('the TRAVERSAL plan (Delta Surge — ordered legs, stops, resume)', () => {
+    /** Auto-serve every leg's director: lock and release instantly, and
+     *  re-register on each nonce bump (the layer's own contract). Reduced
+     *  motion keeps the excluded-cell dwell out of the clock. */
+    function autoDirector(): () => void {
+      const serve = () => registerHydroMarkerHandle({
+        lock: (onLand) => onLand(),
+        release: (onGone) => onGone(),
+        skip: () => {},
+      });
+      serve();
+      const stop = watch(() => hydroMarkerState.nonce, () => serve());
+      return stop;
+    }
+
+    /** Poll a condition on macro-ticks (the runner is async across legs). */
+    function until(cond: () => boolean, limitMs = 4000): Promise<void> {
+      return new Promise((resolve, reject) => {
+        const t0 = Date.now();
+        const tick = () => {
+          if (cond()) {
+            resolve();
+          } else if (Date.now() - t0 > limitMs) {
+            reject(new Error('condition never held'));
+          } else {
+            setTimeout(tick, 10);
+          }
+        };
+        tick();
+      });
+    }
+
+    it('arms the whole plan; the FIRST leg rides the standard transport gate', () => {
+      armHydroMarkerTraversal(0, [
+        {position: 1, transfers: []},
+        {position: 2, transfers: []},
+      ], 'blue');
+      expect(isHydroMarkerActive()).to.eq(true);
+      expect(hydroTraversalPending()).to.eq(true);
+      expect(hydroMarkerState.fromPosition).to.eq(0);
+      expect(hydroMarkerState.toPosition).to.eq(1);
+      expect(hydroVisualTrackPosition()).to.eq(0);
+      expect(detectHydroMarker()?.toPosition).to.eq(1);
+      expect(detectHydroMarker(), 'claimed once').to.eq(undefined);
+    });
+
+    it('runs every leg IN ORDER and finishes: the visual cursor walks, never teleports', async () => {
+      const stop = autoDirector();
+      try {
+        hydroMarkerState.reducedMotion = true;
+        armHydroMarkerTraversal(0, [
+          {position: 1, transfers: []},
+          {position: 2, transfers: []},
+          {position: 3, transfers: []},
+        ], 'blue');
+        hydroMarkerState.reducedMotion = true;
+        const seen: Array<number> = [];
+        const unwatch = watch(() => hydroMarkerState.visualPosition, (v) => {
+          if (v >= 0) {
+            seen.push(v);
+          }
+        });
+        detectHydroMarker();
+        await runHydroMarker();
+        endHydroMarker();
+        await until(() => !hydroTraversalPending());
+        unwatch();
+        expect(seen).to.deep.eq([1, 2, 3]);
+        expect(isHydroMarkerActive()).to.eq(false);
+        expect(hydroMarkerState.settledPosition).to.eq(3);
+      } finally {
+        stop();
+      }
+    });
+
+    it('PARKS at an interactive stop (the input gate opens) and RESUMES on the shell signal only', async () => {
+      const stop = autoDirector();
+      try {
+        armHydroMarkerTraversal(4, [
+          {position: 5, transfers: [], stop: 'deck-draw'},
+          {position: 6, transfers: []},
+        ], 'blue');
+        hydroMarkerState.reducedMotion = true;
+        detectHydroMarker();
+        await runHydroMarker();
+        endHydroMarker();
+        await until(() => hydroTraversalPaused());
+        // Parked ON the stop: the player can interact, the plan still stands.
+        expect(isHydroMarkerActive()).to.eq(false);
+        expect(hydroTraversalPending()).to.eq(true);
+        expect(hydroVisualTrackPosition()).to.eq(5);
+        // Nothing moves on its own.
+        await new Promise((r) => setTimeout(r, 60));
+        expect(hydroTraversalPaused()).to.eq(true);
+        resumeHydroMarkerTraversal();
+        expect(isHydroMarkerActive()).to.eq(true);
+        await until(() => !hydroTraversalPending());
+        expect(hydroMarkerState.settledPosition).to.eq(6);
+      } finally {
+        stop();
+      }
+    });
+
+    it('an EXCLUDED cell (the 2 VP crossing) is walked through — settle, no wave, the sequence continues', async () => {
+      const stop = autoDirector();
+      try {
+        armHydroMarkerTraversal(9, [
+          {position: 10, transfers: [], excluded: true},
+          {position: 11, transfers: []},
+        ], 'blue');
+        hydroMarkerState.reducedMotion = true;
+        detectHydroMarker();
+        await runHydroMarker();
+        const seen: Array<number> = [];
+        const unwatch = watch(() => hydroMarkerState.visualPosition, (v) => {
+          if (v >= 0) {
+            seen.push(v);
+          }
+        });
+        endHydroMarker();
+        await until(() => !hydroTraversalPending());
+        unwatch();
+        // The marker physically crossed the excluded cell before the finish.
+        expect(seen).to.deep.eq([10, 11]);
+      } finally {
+        stop();
+      }
+    });
+
+    it('abort mid-plan clears the plan and yields the visual cursor to the server truth', async () => {
+      armHydroMarkerTraversal(0, [
+        {position: 1, transfers: []},
+        {position: 2, transfers: [], stop: 'deck-draw'},
+      ], 'blue');
+      abortHydroMarker();
+      expect(hydroTraversalPending()).to.eq(false);
+      expect(hydroVisualTrackPosition()).to.eq(-1);
+      expect(isHydroMarkerActive()).to.eq(false);
+    });
   });
 });

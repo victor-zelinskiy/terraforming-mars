@@ -1408,7 +1408,7 @@ import {buildFinalGreenery, EYEBROW as FINAL_GREENERY_EYEBROW, FinalGreeneryView
 import ConsoleProductionLoss from '@/client/components/console/ConsoleProductionLoss.vue';
 import ConsoleDeckPick from '@/client/components/console/deckPick/ConsoleDeckPick.vue';
 import ConsoleDeckPickLayer from '@/client/components/console/deckPick/ConsoleDeckPickLayer.vue';
-import {deckPickHolding, resetDeckPick} from '@/client/console/deckPick/consoleDeckPick';
+import {deckPickHolding, deckPickState, resetDeckPick} from '@/client/console/deckPick/consoleDeckPick';
 import ConsoleStartScene from '@/client/components/console/ConsoleStartScene.vue';
 import ConsoleEndgameWorkspace from '@/client/components/console/ConsoleEndgameWorkspace.vue';
 import {consoleEndgameUi, noteConsoleEndgameLivePhase, resetConsoleEndgame} from '@/client/console/endgame/consoleEndgameState';
@@ -1604,9 +1604,12 @@ import {leakDetectorState, startConsoleLeakDetector, stopConsoleLeakDetector, se
 import {govScaleFocusState, beginGovScaleClose, commitGovScaleFocus, resetGovScaleFocus} from '@/client/console/consoleGovScaleFocus';
 import ConsoleHydroSection from '@/client/components/console/ConsoleHydroSection.vue';
 import ConsoleHydroMarkerLayer from '@/client/components/console/hydroMarker/ConsoleHydroMarkerLayer.vue';
-import {armHydroMarker, abortHydroMarker, isHydroMarkerActive, hydroMarkerState} from '@/client/console/hydroMarker/consoleHydroMarker';
 import {
-  HydroResolutionKind, advanceHydroCommitPhase, beginHydroCommit, hydroFlowState,
+  armHydroMarker, armHydroMarkerTraversal, abortHydroMarker, isHydroMarkerActive, hydroMarkerState,
+  HydroMarkerLegPlan, hydroTraversalPaused, hydroTraversalPending, resumeHydroMarkerTraversal,
+} from '@/client/console/hydroMarker/consoleHydroMarker';
+import {
+  HydroResolutionKind, HydroTraversalSegmentRecord, advanceHydroCommitPhase, beginHydroCommit, hydroFlowState,
   hydroResolutionBusyOf, hydroWorkspacePhase, isHydroCeremonyActive, resetHydroFlow, resolutionKindFor,
   setHydroRepeatBridge,
 } from '@/client/console/hydroFlow/consoleHydroFlow';
@@ -1669,7 +1672,7 @@ import {resolveAwaiting, AWAITING_SAFETY_MS} from '@/client/console/surfaceMotio
 import {surfaceEnterHook, surfaceLeaveHook, surfaceEnterCancelledHook, surfaceLeaveCancelledHook, pinQuickWheelBox} from '@/client/console/surfaceMotion/surfaceMotionDirector';
 import {consoleHandPickState, cancelConsoleHandPick, enterConsoleHandPick, resolveConsoleHandPick, resetConsoleHandPick} from '@/client/console/consoleHandPick';
 import {consoleRepeatPickState, cancelConsoleRepeatPick, enterConsoleRepeatPick, resetConsoleRepeatPick, ConsoleRepeatPickResult} from '@/client/console/consoleRepeatPick';
-import {hydroAdvanceBatch, hydroAdvanceResponses, hydroAdvanceTail} from '@/client/console/consoleHydroAdvance';
+import {hydroAdvanceBatch, hydroAdvanceResponses, hydroAdvanceTail, HydroAdvancePayload} from '@/client/console/consoleHydroAdvance';
 import {cardDeltaAdvanceCard, cardDeltaAdvanceOffer, clearCardDeltaAdvance, deltaAdvanceEntryState, deltaAdvancePrefix} from '@/client/console/hydroFlow/deltaAdvanceEntry';
 import {consoleRepeatPickUi, resetConsoleRepeatPickUi} from '@/client/console/consoleRepeatPickUi';
 import {conUiScale, consoleLayoutState} from '@/client/console/consoleLayoutProfile';
@@ -1978,6 +1981,9 @@ export default defineComponent({
       colonyEntryWaitTimer: undefined as number | undefined,
       /** The hydronetwork marker-advance controller (the plan-reset watcher). */
       hydroMarkerState,
+      /** The deck-pick flow, mirrored for reactivity (the traversal's resume
+       *  gate waits out its closing beats — cards to the dock, the clear). */
+      flowDeckState: deckPickState,
       pendingPlayCard: undefined as PendingPlayCard | undefined,
       /** The client hand-pick bridge state (composer → hand section). */
       consoleHandPickState,
@@ -3053,7 +3059,25 @@ export default defineComponent({
         transfersFlying: isResourceTransferActive(),
         ceremony: isHydroCeremonyActive(),
         followUpInteractive: this.hydroFollowUpLive,
+        // A multi-leg traversal plan (Delta Surge) holds the flow through its
+        // pauses too — its own completion is the only thing that drops it.
+        traversalPending: hydroTraversalPending(),
       });
+    },
+    /**
+     * THE TRAVERSAL MAY GLIDE ON — the parked sequence's stop has fully
+     * resolved: no live follow-up, the deck pick's own closing beats done,
+     * and the workspace actually on screen (a park is never a completion).
+     * The watcher below resumes on the rising edge; re-evaluated on restore
+     * too, because every term is reactive.
+     */
+    hydroTraversalResumeReady(): boolean {
+      return hydroTraversalPaused() &&
+        this.hydroFlow.commit !== undefined &&
+        !this.hydroFollowUpLive &&
+        this.flowDeckState.phase === 'idle' && !this.flowDeckState.committing &&
+        !this.consoleState.task.deferred &&
+        !workspaceStackCollapsed();
     },
     venusBonusActive(): boolean {
       return this.nativeCompositeTask?.kind === 'venusBonus' && !this.consoleState.task.deferred;
@@ -7565,6 +7589,19 @@ export default defineComponent({
           this.hydroFlow.commit !== undefined) {
         releaseWorkspaceOutcome('hydro-pick-done');
       }
+    },
+    // THE TRAVERSAL RESUMES on its stop's own completion signal — the deck
+    // pick's closing beats done (cards in the dock, the clear finished), the
+    // repeated action's follow-up chain quiet, the workspace actually on
+    // screen. Never a timeout; a park holds it and the restore re-fires the
+    // computed. A composed repeat waiting PAST the stop claims its outcomes
+    // now — its response is the one that just resolved the stop.
+    hydroTraversalResumeReady(ready: boolean) {
+      if (!ready) {
+        return;
+      }
+      this.claimHydroTraversalRepeat();
+      resumeHydroMarkerTraversal();
     },
     // A mandatory surface claimed the screen — the journal yields so the
     // task / placement / reveal is never hidden behind it (and never has
@@ -12499,6 +12536,7 @@ export default defineComponent({
       rewards: ReadonlyArray<ResourceTransferSpec>,
       sourceCard?: CardName, skippedCount?: number,
       serves?: ReadonlyArray<TaskKind>, claimDraw?: number,
+      traversal?: ReadonlyArray<HydroTraversalSegmentRecord>, modifierCard?: CardName,
     }): void {
       beginHydroCommit({
         kind: payload.kind,
@@ -12518,6 +12556,8 @@ export default defineComponent({
         // through the commit and the result — frozen here, with the rest.
         sourceCard: payload.sourceCard,
         skippedCount: payload.skippedCount,
+        traversal: payload.traversal,
+        modifierCard: payload.modifierCard,
       });
       if ((payload.claimDraw ?? 0) > 0) {
         claimWorkspaceOutcome('hydro', CardName.DELTA_PROJECT, ['draw', 'pick'], 0, payload.claimDraw ?? 0);
@@ -12525,16 +12565,28 @@ export default defineComponent({
       if (payload.serves !== undefined && payload.serves.length > 0) {
         setWorkspaceFrameServes('hydro', payload.serves);
       }
-      if (payload.kind === 'card-resource') {
+      if (payload.kind === 'card-resource' ||
+          payload.traversal?.some((s) => s.kind === 'card-resource') === true) {
         // The presented target's counter ticks off the framework's own
         // touchdown tally — a payout ARMS by resetting it.
         resetCardResourceLandings();
       }
-      // PREMIUM MARKER ADVANCE: ARM the glide (client-side, from-to) FIRST —
-      // the transport's `holdingForHydroMarker` gate BLOCKS the commit (delta
+      // PREMIUM MARKER ADVANCE: ARM the glide (client-side) FIRST — the
+      // transport's `holdingForHydroMarker` gate BLOCKS the commit (delta
       // chips / new position) until the token LOCKS IN — then the caller
-      // submits. The flow advances off the marker watcher.
-      armHydroMarker(payload.fromPosition, payload.toPosition, this.thisPlayer.color, payload.rewards);
+      // submits. The flow advances off the marker watcher. A TRAVERSAL arms
+      // the whole ordered leg plan instead: single-cell hops, per-cell waves,
+      // interactive stops — one sequence, the same gate on its first leg.
+      if (payload.traversal !== undefined && payload.traversal.length > 0) {
+        armHydroMarkerTraversal(payload.fromPosition, payload.traversal.map((s): HydroMarkerLegPlan => ({
+          position: s.position,
+          transfers: s.transfers,
+          stop: s.kind === 'deck-draw' ? 'deck-draw' : s.kind === 'repeat' ? 'repeat' : undefined,
+          excluded: s.kind === 'excluded' ? true : undefined,
+        })), this.thisPlayer.color);
+      } else {
+        armHydroMarker(payload.fromPosition, payload.toPosition, this.thisPlayer.color, payload.rewards);
+      }
       this.syncHydroFramePhase();
     },
     submitHydroAdvance(payload: {
@@ -12550,6 +12602,12 @@ export default defineComponent({
       resultLines?: ReadonlyArray<HydroDeltaLine>, vp?: number,
       stageNameKey?: string, kind?: HydroResolutionKind,
       skippedCount?: number, targetBefore?: number,
+      /** The MULTI-REWARD traversal (Delta Surge): ordered batch answers,
+       *  per-position declines, the presentation segments, the modifier. */
+      traversalAnswers?: HydroAdvancePayload['traversalAnswers'],
+      waivedSteps?: ReadonlyArray<number>,
+      traversal?: ReadonlyArray<HydroTraversalSegmentRecord>,
+      modifierCard?: CardName,
     }): void {
       const path = findHydroActionPath(this.playerView.waitingFor);
       if (path === undefined || isHydroMarkerActive() || this.hydroFlow.commit !== undefined) {
@@ -12562,7 +12620,26 @@ export default defineComponent({
       // outcome), and the follow-up prompt is what the parked frame serves.
       let serves: ReadonlyArray<TaskKind> = [];
       let claimDraw = 0;
-      if (kind === 'deck-draw') {
+      if (payload.traversal !== undefined) {
+        // A TRAVERSAL claims for the NEAREST claim-worthy stage of its first
+        // response range: the stage-5 draw when the path crosses it (its
+        // batch arrives with response 1), else a composed repeat's outcomes.
+        // A repeat PAST the draw claims at the resume edge instead
+        // (`claimHydroTraversalRepeat`) — its outcomes ride response 2.
+        const hasDeck = payload.traversal.some((s) => s.kind === 'deck-draw');
+        const hasRepeat = payload.traversal.some((s) => s.kind === 'repeat');
+        if (hasDeck) {
+          claimDraw = 4;
+          serves = ['deckSelect'];
+        }
+        if (hasRepeat) {
+          serves = [...new Set<TaskKind>([...serves,
+            'deckSelect', 'cardSelect', 'payment', 'choice', 'amount', 'resource', 'player'])];
+          if (!hasDeck) {
+            this.claimHydroTraversalRepeat();
+          }
+        }
+      } else if (kind === 'deck-draw') {
         claimDraw = 4;
         serves = ['deckSelect'];
       } else if (kind === 'repeat' && payload.repeat !== undefined) {
@@ -12605,7 +12682,8 @@ export default defineComponent({
       // defers no prompt and the frame must not arm to serve one — a `serves`
       // set standing for a question that never arrives is a workspace waiting
       // on an event that cannot happen.
-      if (payload.selectedCard === undefined && payload.waiveTarget !== true) {
+      if (payload.traversal === undefined &&
+          payload.selectedCard === undefined && payload.waiveTarget !== true) {
         const owed = hydroBonusAdvancePlan(HYDRO_STAGES[payload.toPosition]);
         serves = [...new Set<TaskKind>([...serves, ...owed.serves])];
         claimDraw = claimDraw > 0 ? claimDraw : (owed.claimsDraw ? owed.drawCount : 0);
@@ -12619,7 +12697,8 @@ export default defineComponent({
         rewardChoice: payload.rewardChoice,
         selectedCard: payload.selectedCard,
         waivedTarget: payload.waiveTarget === true,
-        composedRepeat: payload.repeat !== undefined,
+        composedRepeat: payload.repeat !== undefined ||
+          payload.traversalAnswers?.some((a) => a.repeat !== undefined) === true,
         targetBefore: payload.targetBefore,
         rewardLines: payload.resultLines ?? [],
         vp: payload.vp,
@@ -12628,8 +12707,45 @@ export default defineComponent({
         skippedCount: payload.skippedCount,
         serves,
         claimDraw,
+        traversal: payload.traversal,
+        modifierCard: payload.modifierCard,
       });
       this.submitBatch(responses);
+    },
+    /**
+     * The traversal's COMPOSED-REPEAT claim — raised when the repeated
+     * action's outcomes are about to arrive: at submit when nothing hidden
+     * precedes it, at the RESUME edge when the stage-5 draw did (its response
+     * is the one carrying them). Kinds derived structurally from the cached
+     * preview branch, exactly like a landing repeat; a miss degrades
+     * standalone.
+     */
+    claimHydroTraversalRepeat(): void {
+      const seg = this.hydroFlow.commit?.traversal?.find((s) => s.kind === 'repeat');
+      const repeat = consoleHydroUi.repeatResult;
+      if (seg === undefined || repeat === undefined || repeat.chosenCard !== seg.selectedCard) {
+        return;
+      }
+      if (workspaceOutcomeState.host === 'hydro') {
+        return; // the draw's claim is still standing — never steal it
+      }
+      const branch = actionPreviewMap().get(repeat.chosenCard)?.branches[repeat.composed.branchIndex];
+      let expectedCards = 0;
+      for (const e of branch?.effects ?? []) {
+        if (e.direction === 'gain' && e.icon === 'cards') {
+          expectedCards += Math.max(1, Math.round(e.amount));
+        }
+      }
+      const kinds: Array<WorkspaceOutcomeKind> = [];
+      if (branch?.reveal !== undefined) {
+        kinds.push('deck-check');
+      }
+      if (expectedCards > 0) {
+        kinds.push('draw', 'pick');
+      }
+      if (kinds.length > 0) {
+        claimWorkspaceOutcome('hydro', repeat.chosenCard, kinds, repeat.nodeIndex, expectedCards);
+      }
     },
     /** The flow is over (result read / skipped) — reset and go home. */
     finishHydroFlow(): void {
@@ -13346,7 +13462,7 @@ export default defineComponent({
           // the deck pick's closing beats outlive its prompt, and a PARKED
           // follow-up (deferred / collapsed) still owns its restore.
           (workspaceOutcomeState.host === 'hydro' &&
-            (isHydroMarkerActive() || this.deckPickActive ||
+            (isHydroMarkerActive() || hydroTraversalPending() || this.deckPickActive ||
               this.consoleState.task.deferred || workspaceStackCollapsed())) ||
           (isPlayOutcomeHost(workspaceOutcomeState.host) ?
             // A PLAY CLAIM IS ABOUT CARDS. Read the RAW prompt, never «the gate

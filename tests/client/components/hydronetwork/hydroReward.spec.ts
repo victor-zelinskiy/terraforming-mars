@@ -1,5 +1,5 @@
 import {expect} from 'chai';
-import {buildRewardView, HydroPlayerSnapshot} from '../../../../src/client/components/hydronetwork/hydroReward';
+import {buildRewardView, buildTraversalRewardViews, HydroPlayerSnapshot} from '../../../../src/client/components/hydronetwork/hydroReward';
 import {HYDRO_STAGES} from '../../../../src/client/components/hydronetwork/hydroStages';
 
 function snapshot(overrides: Partial<HydroPlayerSnapshot> = {}): HydroPlayerSnapshot {
@@ -66,5 +66,41 @@ describe('buildRewardView', () => {
   it('pos 10 / 11: VP finish', () => {
     expect(buildRewardView({stage: stage(10), snapshot: snapshot(), rewardChoice: undefined}).vp).eq(2);
     expect(buildRewardView({stage: stage(11), snapshot: snapshot(), rewardChoice: undefined}).vp).eq(5);
+  });
+
+  describe('buildTraversalRewardViews (Delta Surge — the snapshot THREADS)', () => {
+    it('chains before → after through the stages in path order', () => {
+      const s = snapshot();
+      s.plants = 1;
+      s.plantTags = 2;
+      // Stage 1 chose plants (+2), stage 6 pays per plant tag (+2): the
+      // second line must read the FIRST gain in its before.
+      const t = buildTraversalRewardViews({
+        steps: [{position: 1, choice: 1}, {position: 6}],
+        snapshot: s,
+      });
+      expect(t.perStage[1]?.lines[0]).deep.include({before: 1, after: 3, delta: 2});
+      expect(t.perStage[6]?.lines[0]).deep.include({before: 3, after: 5, delta: 2});
+      expect(t.combined.lines.map((l) => l.delta)).deep.eq([2, 2]);
+      // The stage-6 options preview reads the THREADED base.
+      expect(t.startSnapshots[6]?.plants).eq(3);
+    });
+
+    it('carries the destination VP and flags an unmade choice', () => {
+      const t = buildTraversalRewardViews({
+        steps: [{position: 2}, {position: 3}, {position: 10}],
+        snapshot: snapshot(),
+      });
+      expect(t.combined.vp).eq(2);
+      expect(t.combined.needsChoiceFirst, 'stage 2 choice unmade').eq(true);
+      expect(t.perStage[3]?.lines[0]).deep.include({delta: 2, production: true});
+    });
+
+    it('threads production too (stage 2 energy choice before nothing that reads it — the copy stays honest)', () => {
+      const s = snapshot();
+      s.prod.energy = 1;
+      const t = buildTraversalRewardViews({steps: [{position: 2, choice: 0}], snapshot: s});
+      expect(t.perStage[2]?.lines[0]).deep.include({before: 1, after: 2, delta: 1, production: true});
+    });
   });
 });

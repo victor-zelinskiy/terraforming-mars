@@ -57,6 +57,8 @@
                  'con-hydro__stop--focused': stop.vm.isSelected,
                  'con-hydro__stop--vp': stop.vm.stage.vp !== undefined,
                  'con-hydro__stop--dimmed': !globallyActable && stop.vm.state !== 'current' && stop.vm.state !== 'completed',
+                 'con-hydro__stop--route-paid': stop.vm.routeRewarded,
+                 'con-hydro__stop--route-excl': stop.vm.routeExcluded,
                },
              ]"
              @click="onStopClick(stop.position)">
@@ -207,6 +209,15 @@
               <div class="con-hydro__routenotes" data-unfold-item>
                 <span v-if="model.skippedStages.length > 0" class="con-hydro__routenote">
                   ↷ {{ skippedSummary }}
+                </span>
+                <!-- The MODIFIER's promise, named with its card: every crossed
+                     stage pays. The 2 VP crossing is the one exclusion, stated
+                     beside it — an omission may never be silent. -->
+                <span v-if="traversalActive" class="con-hydro__routenote con-hydro__routenote--paid">
+                  ✦ {{ traversalNoteText }}
+                </span>
+                <span v-if="traversalActive && model.traversalExcludedVp" class="con-hydro__routenote">
+                  ↷ {{ $t('The crossed 2 VP stage grants no reward — it is claimed only by stopping there.') }}
                 </span>
                 <span v-if="jumpedOverVp2" class="con-hydro__routenote">
                   ⤴ {{ $t('The occupied 2 VP position is leapt over to reach the 5 VP slot.') }}
@@ -388,8 +399,27 @@
                would read as loading over a screen that is waiting for them —
                an ambiguous system symbol, deliberately absent. -->
           <div class="con-hydro__commitline" data-unfold-item>
-            <b class="con-hydro__commit-stage">{{ $t(commitRec.stageNameKey) }}</b>
+            <b class="con-hydro__commit-stage">{{ $t(commitStageText) }}</b>
             <span class="con-hydro__commit-caption">{{ $t(commitCaption) }}<i v-if="!followUpLive" class="con-hydro__commit-spin" aria-hidden="true"></i></span>
+          </div>
+
+          <!-- THE TRAVERSAL STRIP — the committed plan's stages in path order,
+               following the sequence's own cursor: done ✓, the CURRENT cell
+               lit, the excluded 2 VP crossed out, the rest pending. The strip
+               is the header's honest position while the marker walks. -->
+          <div v-if="commitRec.traversal !== undefined" class="con-hydro__travline" data-unfold-item>
+            <span v-for="seg in commitRec.traversal" :key="seg.position"
+                  class="con-hydro__travchip"
+                  :class="{
+                    'con-hydro__travchip--done': travSegState(seg) === 'done',
+                    'con-hydro__travchip--current': travSegState(seg) === 'current',
+                    'con-hydro__travchip--excl': seg.kind === 'excluded',
+                  }">
+              <b>{{ seg.position }}</b>
+              <span class="con-hydro__travchip-name">{{ $t(seg.stageNameKey) }}</span>
+              <span v-if="seg.kind === 'excluded'" class="con-hydro__travchip-mark" aria-hidden="true">↷</span>
+              <span v-else-if="travSegState(seg) === 'done'" class="con-hydro__travchip-mark" aria-hidden="true">✓</span>
+            </span>
           </div>
 
           <!-- pos 9: the chosen host card, physically ON STAGE — the animals
@@ -405,7 +435,7 @@
             </div>
             <div class="con-hydro__landmeta">
               <i class="card-resource card-resource-animal" aria-hidden="true"></i>
-              <em>{{ commitRec.targetBefore ?? 0 }} → {{ (commitRec.targetBefore ?? 0) + 2 }}</em>
+              <em>{{ presentedBefore }} → {{ presentedBefore + 2 }}</em>
             </div>
           </div>
 
@@ -439,7 +469,36 @@
               <b>{{ $t('Reinforcement complete') }}</b>
               <span class="con-hydro__result-stage">{{ $t(commitRec.stageNameKey) }}</span>
             </div>
-            <div class="con-hydro__result-rows">
+            <!-- A TRAVERSAL's result reads PER STAGE, in path order: each stop's
+                 own deltas under its name, the excluded 2 VP named, a declined
+                 pick named (no silent loss — the console-wide rule). -->
+            <div v-if="commitRec.traversal !== undefined" class="con-hydro__result-stages">
+              <div v-for="seg in commitRec.traversal" :key="seg.position" class="con-hydro__result-stagerow"
+                   :class="{'con-hydro__result-stagerow--excl': seg.kind === 'excluded'}">
+                <span class="con-hydro__result-stagename"><b>{{ seg.position }}</b> {{ $t(seg.stageNameKey) }}</span>
+                <span v-if="seg.kind === 'excluded'" class="con-hydro__result-note">
+                  ↷ {{ $t('Excluded — claimed only by stopping there') }}
+                </span>
+                <template v-else>
+                  <span v-for="(l, i) in seg.rewardLines" :key="i" class="con-hydro__delta" :class="{'con-hydro__delta--zero': l.delta === 0}">
+                    <span class="con-hydro__delta-ico" :class="{'con-hydro__delta-ico--prod': l.production}">
+                      <span class="con-hydro__delta-img" :class="deltaIconClass(l)" aria-hidden="true"></span>
+                    </span>
+                    <span class="con-hydro__beforeafter"><b>{{ l.before }}</b> <span aria-hidden="true">→</span> <b class="con-hydro__after">{{ l.after }}</b></span>
+                    <span v-if="l.delta !== 0" class="con-hydro__plus">+{{ l.delta }}</span>
+                  </span>
+                  <span v-if="seg.kind === 'deck-draw'" class="con-hydro__result-note">⤵ {{ $t('Cards drawn and chosen') }}</span>
+                  <span v-else-if="seg.kind === 'repeat' && seg.selectedCard !== undefined" class="con-hydro__result-note">⟳ {{ $t(seg.selectedCard) }}</span>
+                  <span v-else-if="seg.kind === 'card-resource' && seg.selectedCard !== undefined" class="con-hydro__result-note">→ {{ $t(seg.selectedCard) }}</span>
+                  <span v-else-if="seg.waived === true" class="con-hydro__result-note">↷ {{ $t(seg.position === 7 ? 'Action copy declined' : 'Animal placement declined') }}</span>
+                </template>
+              </div>
+              <span v-if="commitRec.vp !== undefined" class="con-hydro__vpline">
+                <span class="con-hydro__stage-vp">{{ commitRec.vp }} {{ $t('VP') }}</span>
+                <span>{{ $t('VP at game end') }}</span>
+              </span>
+            </div>
+            <div v-else class="con-hydro__result-rows">
               <span v-for="(l, i) in commitRec.rewardLines" :key="i" class="con-hydro__delta" :class="{'con-hydro__delta--zero': l.delta === 0}">
                 <span class="con-hydro__delta-ico" :class="{'con-hydro__delta-ico--prod': l.production}">
                   <span class="con-hydro__delta-img" :class="deltaIconClass(l)" aria-hidden="true"></span>
@@ -688,6 +747,7 @@ import {
   HydroPickKind,
   HydroRailDecision,
   buildHydroDecisions,
+  buildTraversalDecisions,
   initialRailFocus,
   nextRailFocus,
   railFocusNodes,
@@ -716,9 +776,9 @@ import {PlayerViewModel} from '@/common/models/PlayerModel';
 import {DeltaTrackPreviewModel} from '@/common/models/DeltaTrackPreviewModel';
 import {$t, translateCardName, translateText, translateTextWithParams} from '@/client/directives/i18n';
 import {iconClassFor} from '@/client/components/modalInputs/optionIcons';
-import {buildHydroModel, HydroModel, HydroStageVM} from '@/client/components/hydronetwork/hydroNetworkModel';
+import {buildHydroModel, HydroModel, HydroStageVM, HydroTraversalStagePlan} from '@/client/components/hydronetwork/hydroNetworkModel';
 import {HYDRO_STAGES, HydroStage, hydroStageNeedsChoice} from '@/client/components/hydronetwork/hydroStages';
-import {buildRewardView, HydroDeltaLine, HydroPlayerSnapshot, HydroRewardView} from '@/client/components/hydronetwork/hydroReward';
+import {buildRewardView, buildTraversalRewardViews, HydroDeltaLine, HydroPlayerSnapshot, HydroRewardView} from '@/client/components/hydronetwork/hydroReward';
 import {destinationAt, gradeDestination, HydroReason, hydroPlanReasons, hydroPrimaryBlocker, hydroReasonBlocker, hydroRuleBlocked, HydroStopGrade, HydroTurnState, hydroTurnStateOf} from '@/client/components/hydronetwork/hydroReasons';
 import {AvailabilityBlocker} from '@/common/availability/AvailabilityBlocker';
 import {ACTION_MENU_TITLES} from '@/common/inputs/actionMenuTitles';
@@ -733,8 +793,8 @@ import {consoleActionOf} from '@/client/console/composables/consoleActionModel';
 import {participantDisplayName} from '@/client/components/marsbot/marsBotDisplay';
 import {ConsoleCommand} from '@/client/console/consoleCommandModel';
 import {
-  HydroCommitRecord, closeHydroStep, hydroDraftFresh, hydroFlowState, hydroWorkspacePhase,
-  hydroWorkspaceRestorePlan, noteHydroDraftTouched, openHydroStep, resetHydroFlow,
+  HydroCommitRecord, HydroTraversalSegmentRecord, closeHydroStep, hydroDraftFresh, hydroFlowState,
+  hydroWorkspacePhase, hydroWorkspaceRestorePlan, noteHydroDraftTouched, openHydroStep, resetHydroFlow,
   resolutionKindFor, setHydroCeremonyActive,
 } from '@/client/console/hydroFlow/consoleHydroFlow';
 import {buildHydroTargetModel, hydroPresentedTargetModel} from '@/client/console/hydroFlow/hydroTargetStep';
@@ -914,6 +974,10 @@ export default defineComponent({
       bonusSubmitting: false,
       /** The reward picker's focused option (pos 1/2). */
       choiceFocus: 0,
+      /** The TRAVERSAL stage the reward-choice step is editing (a rail
+       *  decision opened it scoped to its own stop) — undefined for the
+       *  single-landing step, whose stage is the plan target. */
+      choicePosition: undefined as number | undefined,
       /** Where the cursor stands INSIDE the reward step: on the options, or
        *  on the commit that follows them (the step confirms itself). */
       choiceStage: 'options' as 'options' | 'confirm',
@@ -985,8 +1049,19 @@ export default defineComponent({
         selectedPosition: hydroNetworkState.selectedPosition,
         rewardChoice: hydroNetworkState.rewardChoice,
         selectedCard: hydroNetworkState.selectedCard,
+        planChoices: hydroNetworkState.planChoices,
+        planPicks: hydroNetworkState.planPicks,
+        // While a committed traversal is being PRESENTED, the marker (and the
+        // header's position chip) follow the sequence's own cursor — never
+        // the server position, which already holds the destination.
+        visualViewerPosition: this.traversalVisualPosition,
         actionAvailable: this.actionAvailable,
       });
+    },
+    /** The traversal presentation's marker cursor (−1 = no plan running).
+     *  Read through the mirrored reactive state so the computed tracks it. */
+    traversalVisualPosition(): number {
+      return this.hydroMarkerState.planCursor >= 0 ? this.hydroMarkerState.visualPosition : -1;
     },
     snapshot(): HydroPlayerSnapshot {
       const p = this.playerView.thisPlayer;
@@ -1010,17 +1085,54 @@ export default defineComponent({
       const animalMode = this.model.needsCardSelect === 'animal-target';
       return names.map((n) => animalMode ? {name: n, current: byName.get(n)?.resources ?? 0} : {name: n});
     },
+    // ── the MULTI-REWARD TRAVERSAL (Delta Surge) ──────────────────────────
+    /** The move pays several stages — the rail/preview/submit all branch on
+     *  this one model fact (never on the card's name). */
+    traversalActive(): boolean {
+      return this.model.traversalActive;
+    },
+    /** The traversal's ANIMAL stage draft (pos 9 crossed or landed). */
+    traversalAnimalStage(): HydroTraversalStagePlan | undefined {
+      return this.model.traversalStages.find((s) => s.ask === 'animal-target');
+    },
+    /** The traversal's REPEAT stage draft (pos 7 crossed or landed). */
+    traversalRepeatStage(): HydroTraversalStagePlan | undefined {
+      return this.model.traversalStages.find((s) => s.ask === 'reuse-action');
+    },
+    /** Per-stage «сейчас → станет» views with the snapshot THREADED through
+     *  the stages in path order — stage 6's plants read the stage-1 gain. */
+    traversalViews(): ReturnType<typeof buildTraversalRewardViews> {
+      const animal = this.traversalAnimalStage;
+      return buildTraversalRewardViews({
+        steps: this.model.traversalStages.map((s) => ({
+          position: s.position,
+          choice: s.choice,
+          animalCurrent: s.position === animal?.position && s.pick !== undefined ?
+            this.animalCurrentOf(s.pick) : undefined,
+          animalCardName: s.position === animal?.position ? s.pick : undefined,
+        })),
+        snapshot: this.snapshot,
+      });
+    },
     selectedAnimalCurrent(): number | undefined {
+      if (this.traversalActive) {
+        const pick = this.traversalAnimalStage?.pick;
+        return pick !== undefined ? this.animalCurrentOf(pick) : undefined;
+      }
       if (this.model.needsCardSelect !== 'animal-target' || this.model.selectedCard === undefined) {
         return undefined;
       }
       return this.eligibleCards.find((c) => c.name === this.model.selectedCard)?.current;
     },
     /** The COMPOSED stage-7 repeat pick, honoured only while its chosen card
-     *  still matches the plan's card. */
+     *  still matches the plan's card (single landing OR the traversal draft). */
     chosenRepeat(): ConsoleRepeatPickResult | undefined {
       const r = consoleHydroUi.repeatResult;
-      return r !== undefined && r.chosenCard === this.model.selectedCard ? r : undefined;
+      if (r === undefined) {
+        return undefined;
+      }
+      const plannedCard = this.traversalActive ? this.traversalRepeatStage?.pick : this.model.selectedCard;
+      return r.chosenCard === plannedCard ? r : undefined;
     },
     repeatNode(): GroupNode | undefined {
       const r = this.chosenRepeat;
@@ -1032,6 +1144,11 @@ export default defineComponent({
       return node !== undefined ? stripNodeOr(node) : undefined;
     },
     rewardView(): HydroRewardView {
+      // A traversal's «Вы получите» is the COMBINED, snapshot-threaded view
+      // of every paying stage — cumulative «сейчас → станет», in path order.
+      if (this.traversalActive) {
+        return this.traversalViews.combined;
+      }
       return buildRewardView({
         stage: this.model.targetStage,
         snapshot: this.snapshot,
@@ -1041,7 +1158,7 @@ export default defineComponent({
       });
     },
     reasons(): ReadonlyArray<HydroReason> {
-      return hydroPlanReasons({
+      const base = hydroPlanReasons({
         model: this.model,
         preview: this.preview,
         actionAvailable: this.actionAvailable,
@@ -1049,6 +1166,13 @@ export default defineComponent({
         rewardChoice: this.rewardChoice,
         occupantName: this.occupantName,
       });
+      // A TRAVERSAL's asks live on the RAIL (one decision per stop, drafted
+      // per position) — the single-flow to-do gates read the wrong drafts and
+      // would double-report a question the rail already answers.
+      if (this.traversalActive && this.advanceOffer === undefined) {
+        return base.filter((r) => r.kind !== 'choose-bonus' && r.kind !== 'choose-card');
+      }
+      return base;
     },
     turnState(): HydroTurnState {
       const wf = this.playerView.waitingFor;
@@ -1150,7 +1274,11 @@ export default defineComponent({
         if (this.model.canConfirm) {
           return {kind: 'ready', text: $t('Available now')};
         }
-        if (!blocking && this.reasons.length > 0) {
+        // A traversal's unmade MANDATORY choices are a to-do, not a verdict —
+        // they live on the rail (the single-flow to-dos are filtered there).
+        const traversalChoicesOpen = this.traversalActive &&
+          this.railDecisions.some((d) => d.kind === 'reward-choice' && d.state === 'open');
+        if (!blocking && (this.reasons.length > 0 || traversalChoicesOpen)) {
           return {kind: 'todo', text: $t('Selection is required')};
         }
         // ONLY the turn stands in the way → the stage is legal and merely out
@@ -1248,7 +1376,9 @@ export default defineComponent({
     actKey(): string {
       switch (this.sceneKey) {
       case 'preview': return this.model.mode === 'plan' ? 'plan' : 'details';
-      case 'choice': return 'choice';
+      // A traversal decision's choice step SELECTS AND RETURNS (the rail owns
+      // the commit) — the column stands as composed air, like the target step.
+      case 'choice': return this.choicePosition !== undefined ? 'quiet' : 'choice';
       case 'payment': return 'payment';
       case 'bonus': return 'bonus';
       case 'commit':
@@ -1310,6 +1440,17 @@ export default defineComponent({
       const stage = this.choiceStageModel;
       if (stage === undefined) {
         return [];
+      }
+      // A traversal decision's step edits ITS OWN stop; the drafted answer
+      // lives per position and returns to the rail on the pick.
+      if (this.choicePosition !== undefined) {
+        return [{
+          id: 'reward:' + this.choicePosition,
+          stagePosition: this.choicePosition,
+          stageNameKey: stage.nameKey,
+          options: this.choiceOptions,
+          chosen: hydroNetworkState.planChoices[this.choicePosition],
+        }];
       }
       const pos = this.advanceOffer?.toPosition ?? this.model.selectedPosition;
       return [{
@@ -1465,6 +1606,12 @@ export default defineComponent({
      *  waive promise a forfeit; the prompt door, which cannot, promises the
      *  postponed question it will actually raise. */
     pickWarningKey(): string {
+      // The traversal names the FIRST unresolved pick (the seat contract
+      // already points the cursor at it) — the waive door's phrasing.
+      if (this.traversalActive && this.advanceOffer === undefined) {
+        const open = this.railDecisions.find((d) => d.state === 'open' && d.optional);
+        return open !== undefined ? HYDRO_PICK_COPY[open.kind].warnWaive : '';
+      }
       if (this.pickKind === undefined) {
         return '';
       }
@@ -1551,7 +1698,24 @@ export default defineComponent({
     /** The PLAYER'S OWN advance is missing the landed stage's pick. Same
      *  omission, same warning — asked of the plan layer rather than the offer. */
     planPickMissing(): boolean {
+      // A traversal warns about EVERY open optional pick at once — the second
+      // press waives them all by name (the per-position `waivedSteps`).
+      if (this.traversalActive && this.advanceOffer === undefined) {
+        return !hydroRuleBlocked(this.reasons) &&
+          this.railDecisions.some((d) => d.state === 'open' && d.optional);
+      }
       return this.planPickOffered && this.model.mustSelectCard && this.model.selectedCard === undefined;
+    },
+    /** The traversal's conscious declines at THIS confirm: every target stage
+     *  with candidates and no pick (the warned second press forfeits them). */
+    traversalWaivedSteps(): Array<number> {
+      if (!this.traversalActive) {
+        return [];
+      }
+      return this.model.traversalStages
+        .filter((s) => (s.ask === 'reuse-action' || s.ask === 'animal-target') &&
+          s.mustSelect && s.pick === undefined)
+        .map((s) => s.position);
     },
     /**
      * THIS COMMIT FORFEITS THE TARGET REWARD.
@@ -1647,6 +1811,12 @@ export default defineComponent({
      * future multi-reward movement grows THIS array — never a new layout.
      */
     railDecisions(): Array<HydroRailDecision> {
+      // A MULTI-REWARD move grows the ARRAY — one decision per interactive
+      // ask of the plan, in path order (the layout's whole promise).
+      if (this.traversalActive && this.advanceOffer === undefined &&
+          !hydroRuleBlocked(this.reasons)) {
+        return buildTraversalDecisions(this.model.traversalStages);
+      }
       const offer = this.advanceOffer !== undefined;
       return buildHydroDecisions({
         offered: offer ?
@@ -1674,6 +1844,18 @@ export default defineComponent({
       const m = this.model;
       if (m.mode !== 'plan') {
         return 'blocked';
+      }
+      // A TRAVERSAL's choices live on the RAIL (per stop, visible, «Сменить»)
+      // — the CTA routes to the first unresolved one, same vocabulary.
+      if (this.traversalActive && this.advanceOffer === undefined) {
+        if (this.reasons.some((r) => r.blocking)) {
+          return 'blocked';
+        }
+        const openChoice = this.railDecisions.find((d) => d.kind === 'reward-choice' && d.state === 'open');
+        if (openChoice !== undefined) {
+          return 'choose-reward';
+        }
+        return m.canConfirm ? 'reinforce' : 'blocked';
       }
       // A choice stage ALWAYS routes into its step — the commit lives there
       // (never «reinforce» out here off a reward the player configured in a
@@ -1714,6 +1896,19 @@ export default defineComponent({
       if (c === undefined) {
         return '';
       }
+      // A traversal narrates its CURRENT cell: the stop's own resolution
+      // while parked there, the movement while the marker walks.
+      if (c.traversal !== undefined && this.hydroMarkerState.planCursor >= 0) {
+        const seg = this.traversalCurrentSegment;
+        if (this.hydroMarkerState.planPaused && seg !== undefined) {
+          switch (seg.kind) {
+          case 'deck-draw': return 'The stage deals its cards';
+          case 'repeat': return 'The chosen action executes';
+          default: return 'The stage reward is resolving';
+          }
+        }
+        return 'The marker is advancing along the track';
+      }
       if (c.phase === 'moving') {
         return 'The marker is advancing along the track';
       }
@@ -1723,6 +1918,40 @@ export default defineComponent({
       case 'ceremony': return 'The finish stage is reached';
       default: return 'The stage reward is resolving';
       }
+    },
+    /** The commit head follows the SEQUENCE's cursor on a traversal — the
+     *  header may never sit on the destination while the marker walks. */
+    commitStageText(): string {
+      const c = this.flow.commit;
+      if (c === undefined) {
+        return '';
+      }
+      if (c.traversal !== undefined && this.hydroMarkerState.planCursor >= 0) {
+        return this.traversalCurrentSegment?.stageNameKey ?? c.stageNameKey;
+      }
+      return c.stageNameKey;
+    },
+    /** The committed traversal segment the sequence is AT (the paused stop, or
+     *  the leg in flight). Undefined once the plan finishes. */
+    traversalCurrentSegment(): HydroTraversalSegmentRecord | undefined {
+      const c = this.flow.commit;
+      if (c?.traversal === undefined) {
+        return undefined;
+      }
+      const cursor = this.hydroMarkerState.planCursor;
+      if (cursor < 0) {
+        return undefined;
+      }
+      // The PAUSED sequence stands on the leg it just finished (cursor is the
+      // NEXT leg to run) — the stop's own cell is cursor − 1.
+      const at = this.hydroMarkerState.planPaused ? cursor - 1 : cursor;
+      return c.traversal[Math.max(0, Math.min(at, c.traversal.length - 1))];
+    },
+    /** The modifier's preview note, its card name folded in. */
+    traversalNoteText(): string {
+      const card = this.model.traversalModifierCard;
+      return translateTextWithParams('${0}: each crossed stage grants its reward',
+        [card !== undefined ? translateCardName(card) : '']);
     },
     /** The frame hosting this one, or undefined when the track IS the root. */
     crumbHost(): WorkspaceFrameKind | undefined {
@@ -1807,9 +2036,13 @@ export default defineComponent({
     /** Each option carries its OWN honest delta (`line`) — the one object the
      *  card renders. `chips` stays as the fallback for a reward with no
      *  concrete reading. */
-    /** The stage the reward step is about: the OFFER's landing stage while one
-     *  is live, else the player's own planned target. */
+    /** The stage the reward step is about: a traversal decision's OWN stop
+     *  when one opened it, the OFFER's landing stage while one is live, else
+     *  the player's own planned target. */
     choiceStageModel(): HydroStage | undefined {
+      if (this.choicePosition !== undefined) {
+        return HYDRO_STAGES[this.choicePosition];
+      }
       const offer = this.advanceOffer;
       return offer !== undefined ? HYDRO_STAGES[offer.toPosition] : this.model.targetStage;
     },
@@ -1821,19 +2054,33 @@ export default defineComponent({
       if (stage === undefined) {
         return [];
       }
+      // A traversal stage's options read the snapshot THREADED up to its own
+      // stop — the honest base after every earlier crossed gain.
+      const snapshot = this.choicePosition !== undefined ?
+        (this.traversalViews.startSnapshots[this.choicePosition] ?? this.snapshot) :
+        this.snapshot;
       return stage.rewardOptions.map((chips, i) => ({
         chips,
-        line: buildRewardView({stage, snapshot: this.snapshot, rewardChoice: i}).lines[0],
+        line: buildRewardView({stage, snapshot, rewardChoice: i}).lines[0],
       }));
     },
 
     // ── the TARGET step (pos 9) ────────────────────────────────────────────
+    /** The animal-target eligibility, whichever shape asks it: the traversal's
+     *  own stage-9 entry, or the single landing's destination-derived list. */
+    animalTargetEligible(): ReadonlyArray<CardName> {
+      if (this.traversalActive && this.advanceOffer === undefined) {
+        const s = this.traversalAnimalStage;
+        return s !== undefined && s.mustSelect ? (this.preview?.animalTargetCards ?? []) : [];
+      }
+      return this.model.needsCardSelect === 'animal-target' ? this.model.eligibleCardNames : [];
+    },
     targetStepModel(): PlayedTargetModel | undefined {
-      if (this.model.needsCardSelect !== 'animal-target' || this.model.eligibleCardNames.length === 0) {
+      if (this.animalTargetEligible.length === 0) {
         return undefined;
       }
       return buildHydroTargetModel({
-        eligible: this.model.eligibleCardNames,
+        eligible: this.animalTargetEligible,
         tableau: this.playerView.thisPlayer.tableau,
         players: this.playerView.players.map((p) => ({name: p.name, color: p.color, tableau: p.tableau})),
         viewerColor: this.viewerColor,
@@ -1853,13 +2100,25 @@ export default defineComponent({
       return Math.max(0, this.targetZoneH);
     },
     targetLockedCard(): string {
+      if (this.traversalActive && this.advanceOffer === undefined) {
+        return this.traversalAnimalStage?.pick ?? '';
+      }
       return this.model.selectedCard ?? '';
     },
 
     // ── the COMMIT scene (pos 9 presented target) ──────────────────────────
     presentedTargetCard(): CardName | undefined {
       const c = this.flow.commit;
-      if (c === undefined || c.phase === 'result' || c.kind !== 'card-resource') {
+      if (c === undefined || c.phase === 'result') {
+        return undefined;
+      }
+      // A traversal presents the target card WHILE ITS OWN CELL resolves —
+      // the animals land on a face standing on stage, exactly as a landing.
+      if (c.traversal !== undefined) {
+        const seg = this.traversalCurrentSegment;
+        return seg?.kind === 'card-resource' ? seg.selectedCard : undefined;
+      }
+      if (c.kind !== 'card-resource') {
         return undefined;
       }
       return c.selectedCard;
@@ -1868,11 +2127,21 @@ export default defineComponent({
       const card = this.presentedTargetCard;
       return card !== undefined ? (this.landings.by[card] ?? 0) : 0;
     },
+    /** The presented face's frozen pre-commit count, whichever shape froze it. */
+    presentedBefore(): number {
+      const c = this.flow.commit;
+      if (c?.traversal !== undefined) {
+        return this.traversalCurrentSegment?.targetBefore ?? 0;
+      }
+      return c?.targetBefore ?? 0;
+    },
     presentedModel(): CardModel {
       const c = this.flow.commit;
       const card = this.presentedTargetCard as CardName;
       const live = this.playerView.thisPlayer.tableau.find((t) => t.name === card);
-      return hydroPresentedTargetModel(card, c?.targetBefore ?? 0, live, this.presentedLanded);
+      const before = c?.traversal !== undefined ?
+        (this.traversalCurrentSegment?.targetBefore ?? 0) : (c?.targetBefore ?? 0);
+      return hydroPresentedTargetModel(card, before, live, this.presentedLanded);
     },
 
     /** The command contract of the current step — published to the shell. */
@@ -1929,6 +2198,15 @@ export default defineComponent({
         return [{control: 'confirm', label: 'Executing', enabled: false}];
       }
       if (this.flow.step === 'reward') {
+        // A traversal decision's step SELECTS AND RETURNS — the rail owns the
+        // final commit, so the bar carries only the selector's verbs.
+        if (this.choicePosition !== undefined) {
+          return [
+            {control: 'dpadH', label: 'Reward options', priority: 2},
+            {control: 'confirm', label: 'Select'},
+            {control: 'back', label: 'Back'},
+          ];
+        }
         // The step confirms ITSELF: A on an option arms the commit right
         // under it, A again reinforces. ↑ (or ←/→) goes back to the options
         // — a change of mind never leaves the step either. The bar follows
@@ -2034,8 +2312,16 @@ export default defineComponent({
         hydroNetworkState.selectedPosition,
         hydroNetworkState.rewardChoice,
         hydroNetworkState.selectedCard,
+        JSON.stringify(hydroNetworkState.planChoices),
+        JSON.stringify(hydroNetworkState.planPicks),
         consoleHydroUi.repeatResult?.chosenCard,
       ].join('|');
+    },
+    /** The repeat bridge's resolve, mirrored for the traversal draft (the
+     *  bridge writes the shared single-landing fields; a traversal keys its
+     *  stage-7 draft per position). */
+    repeatResultMirror(): ConsoleRepeatPickResult | undefined {
+      return consoleHydroUi.repeatResult;
     },
   },
   watch: {
@@ -2181,12 +2467,30 @@ export default defineComponent({
         this.retunePanel();
       }
     },
+    /** The stage-7 repeat bridge resolved while a TRAVERSAL plan stands: the
+     *  chosen card lands in the per-position draft (one write path — the same
+     *  `applyTraversalPick` the target step uses, cursor hand-off included). */
+    repeatResultMirror(result: ConsoleRepeatPickResult | undefined): void {
+      if (result === undefined || !this.traversalActive || this.advanceOffer !== undefined) {
+        return;
+      }
+      const stage = this.traversalRepeatStage;
+      if (stage !== undefined && stage.pick !== result.chosenCard) {
+        this.applyTraversalPick(stage.position, result.chosenCard);
+      }
+    },
     // A stale pre-selected card silently left the model (the preview moved) —
     // tell the player instead of letting the CTA flip wordlessly.
     'model.selectedCard'(card: CardName | undefined, prev: CardName | undefined): void {
       // The warning describes a STATE, never a press, so it dies with the
       // state it named — a pick made (or dropped) re-arms the gate honestly.
       this.pickWarned = false;
+      // A TRAVERSAL's picks ride the per-position drafts and hand the cursor
+      // on in their own write path (`applyTraversalPick`) — the shared field
+      // is only the repeat bridge's mirror there.
+      if (this.traversalActive && this.advanceOffer === undefined) {
+        return;
+      }
       // AN ANSWER MOVES THE CURSOR ON: the resolved decision shows its
       // summary and the seat goes to the NEXT open decision in game order —
       // or to the final CTA when nothing is left open. Only when the cursor
@@ -2414,6 +2718,25 @@ export default defineComponent({
       }
       return l.resource !== undefined ? iconClassFor(l.resource) : '';
     },
+    /** A committed traversal segment's presentation state — the strip's chips
+     *  follow the sequence's own cursor (done / current / pending). */
+    travSegState(seg: HydroTraversalSegmentRecord): 'done' | 'current' | 'pending' {
+      const c = this.flow.commit;
+      if (c?.traversal === undefined) {
+        return 'pending';
+      }
+      const idx = c.traversal.findIndex((s) => s.position === seg.position);
+      const cursor = this.hydroMarkerState.planCursor;
+      if (cursor < 0) {
+        // The plan finished (or never ran — a reload): everything reads done.
+        return 'done';
+      }
+      const at = this.hydroMarkerState.planPaused ? cursor - 1 : cursor;
+      if (idx < at) {
+        return 'done';
+      }
+      return idx === at ? 'current' : 'pending';
+    },
     /** The panel-body RETUNE — the content breathes through a stop change
      *  while the frame stands still. The persistent context column rides the
      *  SAME tween (its identity changed with the stop), so the two zones read
@@ -2523,17 +2846,24 @@ export default defineComponent({
       hydroNetworkState.rewardChoice = undefined;
       this.choiceStage = 'options';
       hydroNetworkState.selectedCard = undefined;
+      // A different destination is a DIFFERENT move: the traversal drafts
+      // describe stops that may no longer be crossed.
+      hydroNetworkState.planChoices = {};
+      hydroNetworkState.planPicks = {};
       consoleHydroUi.repeatResult = undefined;
       // THE CURSOR LANDS ON THE QUESTION. A stage that owes a target pick
       // (pos 7/9 with live candidates) seats it on the rail's first open
       // decision, so the default A OPENS THE PICKER: advancing without a
       // target then takes a deliberate walk plus the warned second press, and
       // can never be a stray A on a stage the player has only just stepped
-      // onto. Stepping on with ←/→ re-takes the track first (see
-      // `handleIntent`), so the walk itself is untouched — only where the
-      // cursor RESTS changes.
-      this.sceneFocus = this.planPickMissing ?
-        initialRailFocus(this.railDecisions) as HydroSceneFocus : 'track';
+      // onto. A TRAVERSAL owes its crossed CHOICES the same way — first open
+      // decision, else the track. Stepping on with ←/→ re-takes the track
+      // first (see `handleIntent`), so the walk itself is untouched — only
+      // where the cursor RESTS changes.
+      const railSeat = initialRailFocus(this.railDecisions);
+      const railOwes = this.planPickMissing ||
+        (this.traversalActive && this.advanceOffer === undefined && railSeat !== HYDRO_RAIL_CTA);
+      this.sceneFocus = railOwes ? railSeat as HydroSceneFocus : 'track';
     },
     /** A — the smart primary: open the pending pre-select, else commit. */
     onPrimary(): void {
@@ -2548,6 +2878,17 @@ export default defineComponent({
       }
       switch (this.primaryVerb) {
       case 'choose-reward':
+        // A traversal routes to the FIRST unresolved choice decision — the
+        // same seat the rail's own contract recommends.
+        if (this.traversalActive && this.advanceOffer === undefined) {
+          const open = this.railDecisions.find((d) => d.kind === 'reward-choice' && d.state === 'open');
+          if (open !== undefined) {
+            this.focusMoved = true;
+            this.seatRailFocus(railNodeOf(open));
+            this.openChoiceStep(open.stagePosition);
+          }
+          return;
+        }
         this.openChoiceStep();
         return;
       case 'reinforce':
@@ -2580,6 +2921,25 @@ export default defineComponent({
      * second implementation.
      */
     openRailDecision(): void {
+      // A TRAVERSAL routes by the FOCUSED decision's own kind — several
+      // decisions of one move each open their own existing selector.
+      if (this.traversalActive && this.advanceOffer === undefined) {
+        const d = this.railFocusedDecision;
+        if (d === undefined || d.state === 'unavailable') {
+          return;
+        }
+        if (d.kind === 'reward-choice') {
+          this.openChoiceStep(d.stagePosition);
+          return;
+        }
+        this.armSceneFromSummary();
+        if (d.kind === 'reuse-action') {
+          this.$emit('pick');
+          return;
+        }
+        this.openTargetStep();
+        return;
+      }
       if (this.advanceOffer !== undefined) {
         this.openBonusPick();
         return;
@@ -2868,6 +3228,35 @@ export default defineComponent({
         return;
       }
       this.armSceneFromCta();
+      // A MULTI-REWARD TRAVERSAL commits its whole ordered plan: per-stage
+      // answers for the batch, per-stage segments for the presentation, the
+      // combined threaded lines for the result — one build, one truth.
+      if (this.traversalActive) {
+        const t = this.buildTraversalCommit();
+        this.$emit('confirm', {
+          spend: this.model.selectedSpend,
+          steelSpend: this.mixSteel > 0 ? this.mixSteel : undefined,
+          rewardChoice: undefined,
+          selectedCard: undefined,
+          waiveTarget: undefined,
+          repeat: undefined,
+          traversalAnswers: t.answers,
+          waivedSteps: t.waived.length > 0 ? t.waived : undefined,
+          traversal: t.segments,
+          modifierCard: this.model.traversalModifierCard,
+          fromPosition: this.model.currentPosition,
+          toPosition: this.model.selectedPosition,
+          // The legs carry their own waves — the single-stop field stays empty.
+          rewards: [],
+          resultLines: t.lines,
+          vp: t.vp,
+          stageNameKey: this.model.targetStage?.nameKey ?? '',
+          kind: t.destinationKind,
+          skippedCount: 0,
+          targetBefore: this.selectedAnimalCurrent,
+        });
+        return;
+      }
       const repeat = this.model.needsCardSelect === 'reuse-action' ? this.chosenRepeat : undefined;
       this.$emit('confirm', {
         spend: this.model.selectedSpend,
@@ -2898,12 +3287,102 @@ export default defineComponent({
         targetBefore: this.selectedAnimalCurrent,
       });
     },
+    /**
+     * THE TRAVERSAL COMMIT BUILD — the plan's per-stage truth, assembled once
+     * at the confirm: the batch answers (path order — the server's own defer
+     * order), the conscious declines, the presentation segments (every
+     * crossed cell, the excluded 2 VP included) and the frozen result lines.
+     */
+    buildTraversalCommit(): {
+      answers: Array<{position: number, rewardChoice?: number, selectedCard?: CardName, repeat?: ConsoleRepeatPickResult}>,
+      waived: Array<number>,
+      segments: Array<HydroTraversalSegmentRecord>,
+      lines: ReadonlyArray<HydroDeltaLine>,
+      vp: number | undefined,
+      destinationKind: ReturnType<typeof resolutionKindFor>,
+      } {
+      const views = this.traversalViews;
+      const waived = this.traversalWaivedSteps;
+      const repeat = this.chosenRepeat;
+      const answers: Array<{position: number, rewardChoice?: number, selectedCard?: CardName, repeat?: ConsoleRepeatPickResult}> = [];
+      const segments: Array<HydroTraversalSegmentRecord> = [];
+      let destinationKind: ReturnType<typeof resolutionKindFor> = 'plain';
+      for (const step of this.model.traversal ?? []) {
+        const stage = HYDRO_STAGES[step.position];
+        if (!step.rewarded) {
+          segments.push({
+            position: step.position,
+            kind: 'excluded',
+            stageNameKey: stage?.nameKey ?? '',
+            transfers: [],
+            rewardLines: [],
+          });
+          continue;
+        }
+        const plan = this.model.traversalStages.find((s) => s.position === step.position);
+        const view = views.perStage[step.position];
+        const transfers = view !== undefined ? hydroRewardTransfers(view) : [];
+        const isDest = step.position === this.model.selectedPosition;
+        let kind: HydroTraversalSegmentRecord['kind'] = 'plain';
+        if (plan?.ask === 'draw') {
+          kind = 'deck-draw';
+        } else if (plan?.ask === 'reuse-action' && plan.pick !== undefined) {
+          kind = 'repeat';
+          answers.push({position: step.position, selectedCard: plan.pick,
+            repeat: repeat?.chosenCard === plan.pick ? repeat : undefined});
+        } else if (plan?.ask === 'animal-target' && plan.pick !== undefined) {
+          kind = 'card-resource';
+          answers.push({position: step.position, selectedCard: plan.pick});
+        } else if (plan?.ask === 'choice' && plan.choice !== undefined) {
+          answers.push({position: step.position, rewardChoice: plan.choice});
+        } else if (stage?.vp !== undefined) {
+          kind = 'ceremony';
+        }
+        segments.push({
+          position: step.position,
+          kind,
+          stageNameKey: stage?.nameKey ?? '',
+          transfers,
+          rewardLines: view?.lines ?? [],
+          rewardChoice: plan?.ask === 'choice' ? plan.choice : undefined,
+          selectedCard: plan?.pick,
+          composedRepeat: plan?.ask === 'reuse-action' && repeat !== undefined && repeat.chosenCard === plan.pick,
+          waived: waived.includes(step.position) ? true : undefined,
+          targetBefore: plan?.ask === 'animal-target' && plan.pick !== undefined ?
+            this.animalCurrentOf(plan.pick) : undefined,
+        });
+        if (isDest) {
+          destinationKind = resolutionKindFor(step.position, {
+            composedRepeat: plan?.ask === 'reuse-action' && repeat !== undefined,
+            selectedCard: plan?.pick,
+          });
+        }
+      }
+      return {answers, waived, segments, lines: views.combined.lines, vp: views.combined.vp, destinationKind};
+    },
     // ── the REWARD CHOICE step (pos 1/2) — pick AND confirm, in place ─────
-    openChoiceStep(): void {
-      if (this.choiceStageModel === undefined || this.flow.step === 'reward') {
+    /** A TRAVERSAL decision opens the step scoped to its own stop (`position`)
+     *  — the pick then RETURNS to the rail (which owns the commit). The
+     *  single-landing step keeps its historical self-confirming shape. */
+    openChoiceStep(position?: number): void {
+      if (this.flow.step === 'reward') {
+        return;
+      }
+      this.choicePosition = position;
+      if (this.choiceStageModel === undefined) {
+        this.choicePosition = undefined;
         return;
       }
       this.armSceneFromCta();
+      if (position !== undefined) {
+        // The step re-asks, but the STANDING draft is the rail's own card —
+        // visible, revisitable, version-guarded (hydroDraftFresh).
+        this.choiceFocus = hydroNetworkState.planChoices[position] ?? 0;
+        this.choiceStage = 'options';
+        this.choiceSkipFocus = false;
+        openHydroStep('reward');
+        return;
+      }
       // The choice is SCOPED TO THE STEP: entering always asks again, so a
       // reward can never be silently carried in from an earlier visit (and
       // «no auto-select» holds by construction — nothing is chosen yet).
@@ -2913,8 +3392,20 @@ export default defineComponent({
       this.choiceSkipFocus = false;
       openHydroStep('reward');
     },
-    /** A on an option — hold it and arm the commit right underneath. */
+    /** A on an option — hold it and arm the commit right underneath. A
+     *  traversal decision instead WRITES ITS DRAFT and returns to the rail
+     *  (the answer moves the cursor on — `nextRailFocus`). */
     pickChoice(index: number): void {
+      if (this.choicePosition !== undefined) {
+        const position = this.choicePosition;
+        hydroNetworkState.planChoices = {...hydroNetworkState.planChoices, [position]: index};
+        this.choicePosition = undefined;
+        closeHydroStep();
+        const answered = this.railDecisions.find((d) => d.kind === 'reward-choice' && d.stagePosition === position);
+        this.seatRailFocus(answered !== undefined ?
+          nextRailFocus(this.railDecisions, answered.id) : initialRailFocus(this.railDecisions));
+        return;
+      }
       hydroNetworkState.rewardChoice = index;
       this.choiceFocus = index;
       this.choiceStage = 'confirm';
@@ -2956,8 +3447,17 @@ export default defineComponent({
       this.emitConfirm();
     },
     /** B — leave the step with NOTHING configured behind it. (Under an offer
-     *  that lands the player back on the offer itself, undecided.) */
+     *  that lands the player back on the offer itself, undecided. A traversal
+     *  decision keeps its STANDING draft — B is «не менять», not «сбросить».) */
     closeChoiceStep(): void {
+      if (this.choicePosition !== undefined) {
+        const position = this.choicePosition;
+        this.choicePosition = undefined;
+        closeHydroStep();
+        const own = this.railDecisions.find((d) => d.kind === 'reward-choice' && d.stagePosition === position);
+        this.seatRailFocus(own !== undefined ? railNodeOf(own) : initialRailFocus(this.railDecisions));
+        return;
+      }
       hydroNetworkState.rewardChoice = undefined;
       this.choiceStage = 'options';
       this.choiceSkipFocus = false;
@@ -3033,9 +3533,33 @@ export default defineComponent({
       if (candidate === undefined) {
         return;
       }
+      // A traversal writes ITS stage's draft and hands the cursor on; the
+      // single landing keeps the shared-field write (whose own watcher does
+      // the same hand-off).
+      if (this.traversalActive && this.advanceOffer === undefined) {
+        const stage = this.traversalAnimalStage;
+        if (stage !== undefined) {
+          this.applyTraversalPick(stage.position, candidate.cardName as CardName);
+        }
+        closeHydroStep();
+        return;
+      }
       hydroNetworkState.selectedCard = candidate.cardName;
       closeHydroStep();
       this.sceneFocus = 'track';
+    },
+    /** ONE write path for a traversal pick (the target step and the repeat
+     *  bridge both land here): the per-position draft + the rail hand-off. */
+    applyTraversalPick(position: number, card: CardName): void {
+      hydroNetworkState.planPicks = {...hydroNetworkState.planPicks, [position]: card};
+      const answered = this.railDecisions.find((d) => d.stagePosition === position && d.kind !== 'reward-choice');
+      if (answered !== undefined && railIdOf(this.sceneFocus) !== undefined) {
+        this.seatRailFocus(nextRailFocus(this.railDecisions, answered.id));
+      }
+    },
+    /** The live animal count of a tableau card (the honest «сейчас → станет»). */
+    animalCurrentOf(card: CardName): number {
+      return this.playerView.thisPlayer.tableau.find((c) => c.name === card)?.resources ?? 0;
     },
     targetInspect(): void {
       const owners = this.targetStepModel?.owners ?? [];
@@ -3106,6 +3630,28 @@ export default defineComponent({
         return;
       }
       if (this.flow.step === 'reward') {
+        // A TRAVERSAL decision's step is a SELECTOR: ←/→ between the options,
+        // A picks and RETURNS to the rail (which owns the commit), B returns
+        // with the standing draft untouched. No confirm stage of its own.
+        if (this.choicePosition !== undefined) {
+          if (intent.kind === 'nav') {
+            const n = this.choiceOptions.length;
+            if ((intent.dir === 'left' || intent.dir === 'right') && n > 0) {
+              this.choiceFocus = (this.choiceFocus + (intent.dir === 'right' ? 1 : n - 1)) % n;
+            }
+            return;
+          }
+          switch (consoleActionOf(intent)) {
+          case 'primary':
+            this.pickChoice(this.choiceFocus);
+            return;
+          case 'back':
+            this.closeChoiceStep();
+            return;
+          default:
+            return;
+          }
+        }
         if (intent.kind === 'nav') {
           const n = this.choiceOptions.length;
           if ((intent.dir === 'left' || intent.dir === 'right') && n > 0) {

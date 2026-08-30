@@ -60,6 +60,26 @@ type HydroMarkerState = {
   /** Briefly the just-advanced stop AFTER the commit — a one-shot settle glow
    *  on the now-real marker (the handoff from proxy to board state). */
   settledPosition: number;
+  /**
+   * ── THE TRAVERSAL PLAN (Delta Surge) ────────────────────────────────────
+   * A multi-reward advance runs as a SEQUENCE of single-cell legs: glide →
+   * lock → the cell's own reward wave (awaited) → the next leg — pausing at
+   * every interactive stop and resuming on the shell's explicit signal.
+   * `planCursor === -1` ⇔ no plan (the historical single-leg move).
+   */
+  planCursor: number;
+  planLength: number;
+  /** The sequence is parked at an interactive stop (deck pick / follow-up):
+   *  `active` is false there so the player can interact — the plan itself is
+   *  what keeps the flow's close gate honest (`traversalPending`). */
+  planPaused: boolean;
+  /**
+   * WHERE THE VIEWER'S MARKER VISUALLY STANDS while a plan runs — the
+   * settled cell of the last completed leg. The section renders the viewer's
+   * marker (and the current-position chip) from THIS, never from the server
+   * position, which already holds the destination. −1 = no plan.
+   */
+  visualPosition: number;
 };
 
 export const hydroMarkerState = reactive<HydroMarkerState>({
@@ -71,7 +91,26 @@ export const hydroMarkerState = reactive<HydroMarkerState>({
   nonce: 0,
   reducedMotion: false,
   settledPosition: -1,
+  planCursor: -1,
+  planLength: 0,
+  planPaused: false,
+  visualPosition: -1,
 });
+
+/**
+ * One leg of a traversal plan: the cell it ARRIVES at (legs are single-cell
+ * hops in path order), the wave to fly there, and how the sequence behaves on
+ * arrival. `stop` parks the sequence for an interactive resolution — resumed
+ * ONLY by the shell's completion signal, never a timeout. `excluded` is the
+ * crossed 2 VP cell: the marker physically crosses it (settle, a calm dwell),
+ * nothing flies, the omission is stated by the workspace.
+ */
+export type HydroMarkerLegPlan = {
+  position: number;
+  transfers: ReadonlyArray<ResourceTransferSpec>;
+  stop?: 'deck-draw' | 'repeat' | 'prompt';
+  excluded?: boolean;
+};
 
 let handle: HydroMarkerDirectorHandle | undefined;
 let lockResolve: (() => void) | undefined;
@@ -102,6 +141,18 @@ let settleTimerId = 0;
  *  (the resource-transfer reward beat). Empty for a tag / VP / flow reward. */
 let pendingRewards: ReadonlyArray<ResourceTransferSpec> = [];
 let rewardHoldSeeded = false;
+/** The traversal plan's legs (module-level: render state is the reactive
+ *  cursor above; the legs themselves never change once armed). */
+let planLegs: ReadonlyArray<HydroMarkerLegPlan> = [];
+/** The next leg index whose rewards have NOT been seeded into the panel hold
+ *  yet — ranges split at hidden-information stops (their rewards arrive in
+ *  the response that answers them). */
+let planSeedFrom = 0;
+/** Invalidates a stale async leg loop after an abort/reset. */
+let planEpoch = 0;
+/** A short readable dwell on the crossed-without-reward cell (the 2 VP
+ *  exclusion): pacing inside the sequence, never a business signal. */
+const EXCLUDED_DWELL_MS = 420;
 
 export function isHydroMarkerActive(): boolean {
   return hydroMarkerState.active;
@@ -171,6 +222,59 @@ export function armHydroMarker(
 }
 
 /**
+ * ARM A TRAVERSAL (Delta Surge) — the multi-leg sibling of `armHydroMarker`:
+ * the same synchronous input-gate close, the same transport gate on the FIRST
+ * leg (the view stays held until its lock, exactly like a single-step move),
+ * then `endHydroMarker` runs the remaining legs sequentially, each with its
+ * own glide → lock → reward wave, pausing at every interactive stop.
+ *
+ * The panel hold is seeded in RANGES split at hidden-information stops: the
+ * first response grants everything up to (and including) the first deck-draw
+ * stop, the response answering that stop grants the next range, and so on —
+ * so a held counter always describes rewards the server has actually granted.
+ */
+export function armHydroMarkerTraversal(
+  fromPosition: number, legs: ReadonlyArray<HydroMarkerLegPlan>, color: Color): void {
+  if (legs.length === 0) {
+    return;
+  }
+  clearArmSafety();
+  claimed = false;
+  planLegs = legs;
+  planEpoch++;
+  hydroMarkerState.planCursor = 0;
+  hydroMarkerState.planLength = legs.length;
+  hydroMarkerState.planPaused = false;
+  hydroMarkerState.visualPosition = fromPosition;
+  const range = seedRangeFrom(0);
+  pendingRewards = range.transfers;
+  planSeedFrom = range.nextFrom;
+  rewardHoldSeeded = false;
+  hydroMarkerState.active = true;
+  hydroMarkerState.phase = 'charge';
+  hydroMarkerState.fromPosition = fromPosition;
+  hydroMarkerState.toPosition = legs[0].position;
+  hydroMarkerState.color = color;
+  hydroMarkerState.reducedMotion = consoleReducedMotionActive();
+  hydroMarkerState.nonce++;
+  armSafetyId = setTimeout(() => abortHydroMarker(), 10000) as unknown as number;
+}
+
+/** The transfers granted by ONE response, starting at leg `from`: everything
+ *  up to (and including) the next hidden-information stop — its own transfers
+ *  are empty, and the rewards past it ride the response that answers it. */
+function seedRangeFrom(from: number): {transfers: Array<ResourceTransferSpec>, nextFrom: number} {
+  const transfers: Array<ResourceTransferSpec> = [];
+  for (let i = from; i < planLegs.length; i++) {
+    transfers.push(...planLegs[i].transfers);
+    if (planLegs[i].stop === 'deck-draw') {
+      return {transfers, nextFrom: i + 1};
+    }
+  }
+  return {transfers, nextFrom: planLegs.length};
+}
+
+/**
  * Seed the PANEL REWARD HOLD for the stage's granted resources — the caller
  * MUST call this in the SAME SYNCHRONOUS BLOCK as `updatePlayerView` (via
  * WaitingFor.seedRewardHolds), never from the flight's promise chain: the
@@ -179,7 +283,12 @@ export function armHydroMarker(
  * reward with no panel metric / reduced motion (those ride the commit).
  */
 export function seedHydroMarkerRewardHold(): void {
-  if (!hydroMarkerState.active || rewardHoldSeeded || pendingRewards.length === 0) {
+  // A PAUSED traversal is also awaiting a seed: the response that answers its
+  // interactive stop is the one carrying the next range's rewards, and it is
+  // the only response that can apply while the sequence is parked (the stop's
+  // prompt is the single live question of the player's own turn).
+  const awaiting = hydroMarkerState.active || hydroMarkerState.planPaused;
+  if (!awaiting || rewardHoldSeeded || pendingRewards.length === 0) {
     return;
   }
   if (hydroMarkerState.reducedMotion) {
@@ -263,11 +372,18 @@ export function runHydroMarker(): Promise<void> {
  * materialized on the new stop UNDER the locked proxy. CROSSFADE the proxy
  * out onto it (`handle.release`), and only when the fade completes CLEAR the
  * flight + fire the one-shot settle glow. Idempotent.
+ *
+ * A TRAVERSAL PLAN branches here: the first leg is the one the transport gate
+ * held the view for; the sequence then runs the remaining legs itself.
  */
 export function endHydroMarker(): void {
   clearArmSafety();
   clearPendingLockSafety();
   pendingLock = undefined;
+  if (hydroMarkerState.planCursor >= 0) {
+    void runTraversalLockedLeg();
+    return;
+  }
   const settled = hydroMarkerState.toPosition;
   const rewards = pendingRewards;
   pendingRewards = [];
@@ -297,6 +413,175 @@ export function endHydroMarker(): void {
   }
 }
 
+// ── THE TRAVERSAL SEQUENCE (Delta Surge) ──────────────────────────────────
+
+/** A LOCKED leg pays out: settle → (dwell for an excluded cell) → the cell's
+ *  reward wave (awaited — the next leg never starts over a flight) → advance
+ *  the cursor; then pause at a stop, finish at the end, or glide on. */
+async function runTraversalLockedLeg(): Promise<void> {
+  const epoch = planEpoch;
+  const cursor = hydroMarkerState.planCursor;
+  const leg = planLegs[cursor];
+  if (leg === undefined) {
+    finalizeTraversal();
+    return;
+  }
+  // The real marker takes the cell BEFORE the proxy fades — a true handoff.
+  hydroMarkerState.visualPosition = leg.position;
+  markLegSettled(leg.position);
+  await releaseProxy();
+  if (planEpoch !== epoch) {
+    return;
+  }
+  if (leg.excluded === true) {
+    // The marker physically crossed the cell; nothing flies, the workspace
+    // names the exclusion. A short readable beat, pacing only.
+    await delay(motionMs(EXCLUDED_DWELL_MS));
+    if (planEpoch !== epoch) {
+      return;
+    }
+  }
+  if (leg.transfers.length > 0) {
+    await runLegRewardWave(leg.position, leg.transfers);
+    if (planEpoch !== epoch) {
+      return;
+    }
+  }
+  hydroMarkerState.planCursor = cursor + 1;
+  if (leg.stop !== undefined) {
+    pauseTraversal();
+    return;
+  }
+  if (cursor + 1 >= planLegs.length) {
+    finalizeTraversal();
+    return;
+  }
+  await startNextLeg();
+}
+
+/** Glide the next single-cell leg: the same layer/director/lock machinery the
+ *  first leg used — one language, one proxy chassis, per cell. */
+async function startNextLeg(): Promise<void> {
+  const epoch = planEpoch;
+  const leg = planLegs[hydroMarkerState.planCursor];
+  if (leg === undefined) {
+    finalizeTraversal();
+    return;
+  }
+  claimed = true; // the transport gate belongs to the FIRST leg only
+  hydroMarkerState.fromPosition = hydroMarkerState.visualPosition;
+  hydroMarkerState.toPosition = leg.position;
+  hydroMarkerState.phase = 'charge';
+  hydroMarkerState.nonce++;
+  await runHydroMarker();
+  if (planEpoch !== epoch) {
+    return;
+  }
+  await runTraversalLockedLeg();
+}
+
+/** Park at an interactive stop: the input gate OPENS (the player must answer
+ *  the stop), the plan stands (`traversalPending` keeps the flow's close gate
+ *  honest), and the NEXT response's seed carries the following reward range. */
+function pauseTraversal(): void {
+  hydroMarkerState.planPaused = true;
+  hydroMarkerState.active = false;
+  hydroMarkerState.phase = 'idle';
+  const range = seedRangeFrom(planSeedFrom);
+  pendingRewards = range.transfers;
+  planSeedFrom = range.nextFrom;
+  rewardHoldSeeded = false;
+}
+
+/**
+ * RESUME (the shell) — the stop's own completion signal fired: the deck
+ * pick's closing beats finished, the repeated action's follow-up chain went
+ * quiet. Never a timeout. Re-closes the input gate and glides on.
+ */
+export function resumeHydroMarkerTraversal(): void {
+  if (!hydroMarkerState.planPaused || hydroMarkerState.planCursor < 0) {
+    return;
+  }
+  hydroMarkerState.planPaused = false;
+  if (hydroMarkerState.planCursor >= planLegs.length) {
+    finalizeTraversal();
+    return;
+  }
+  hydroMarkerState.active = true;
+  void startNextLeg();
+}
+
+function finalizeTraversal(): void {
+  hydroMarkerState.active = false;
+  hydroMarkerState.phase = 'idle';
+  hydroMarkerState.color = '';
+  handle = undefined;
+  claimed = false;
+  hydroMarkerState.planCursor = -1;
+  hydroMarkerState.planLength = 0;
+  hydroMarkerState.planPaused = false;
+  hydroMarkerState.visualPosition = -1;
+  planLegs = [];
+  planSeedFrom = 0;
+  pendingRewards = [];
+  rewardHoldSeeded = false;
+  // Belt-and-braces: any hold a degraded leg left snaps to truth now.
+  clearPanelRewardHold();
+}
+
+function markLegSettled(position: number): void {
+  hydroMarkerState.settledPosition = position;
+  if (settleTimerId !== 0) {
+    clearTimeout(settleTimerId);
+  }
+  settleTimerId = setTimeout(() => {
+    hydroMarkerState.settledPosition = -1;
+    settleTimerId = 0;
+  }, 800) as unknown as number;
+}
+
+function releaseProxy(): Promise<void> {
+  return new Promise((resolve) => {
+    const h = handle;
+    handle = undefined;
+    if (h !== undefined) {
+      h.release(resolve);
+    } else {
+      resolve();
+    }
+  });
+}
+
+/** One leg's wave — the SAME transfer framework, awaited; holds release per
+ *  touchdown and are NEVER cleared here (later legs still own theirs). */
+function runLegRewardWave(stopPosition: number, rewards: ReadonlyArray<ResourceTransferSpec>): Promise<void> {
+  return runResourceTransfers({
+    specs: rewards,
+    source: {selectors: [`[data-hydro-marker="${stopPosition}"]`]},
+    arrival: 'auto',
+    onArrive: (spec) => releasePanelRewardHold(spec),
+  }).then(() => undefined);
+}
+
+function delay(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+/** A traversal plan stands (legs left, pauses included) — a term of the
+ *  flow's close gate: it may only fall on the plan's own completion. */
+export function hydroTraversalPending(): boolean {
+  return hydroMarkerState.planCursor >= 0;
+}
+
+export function hydroTraversalPaused(): boolean {
+  return hydroMarkerState.planPaused;
+}
+
+/** The presentation's own marker cursor (−1 = no plan → server truth). */
+export function hydroVisualTrackPosition(): number {
+  return hydroMarkerState.planCursor >= 0 ? hydroMarkerState.visualPosition : -1;
+}
+
 /**
  * ABORT (submit error / stall) — recall the marker gracefully: the director
  * dissolves the proxy, the section restores, the WaitingFor error alert (if
@@ -305,7 +590,8 @@ export function endHydroMarker(): void {
 export function abortHydroMarker(): void {
   clearArmSafety();
   clearPendingLockSafety();
-  if (!hydroMarkerState.active && lockResolve === undefined && pendingLock === undefined) {
+  if (!hydroMarkerState.active && lockResolve === undefined && pendingLock === undefined &&
+      hydroMarkerState.planCursor < 0) {
     return;
   }
   // A lock still owed to a director that never arrived is answered here, or
@@ -319,6 +605,16 @@ export function abortHydroMarker(): void {
   hydroMarkerState.active = false;
   hydroMarkerState.phase = 'idle';
   hydroMarkerState.color = '';
+  // A traversal plan dies with the abort: the loop's epoch invalidates any
+  // in-flight leg, the visual cursor yields to the server truth (the section
+  // renders the real position again — the recovery-net semantics).
+  planEpoch++;
+  planLegs = [];
+  planSeedFrom = 0;
+  hydroMarkerState.planCursor = -1;
+  hydroMarkerState.planLength = 0;
+  hydroMarkerState.planPaused = false;
+  hydroMarkerState.visualPosition = -1;
   pendingRewards = [];
   rewardHoldSeeded = false;
   abortResourceTransfers();
@@ -342,6 +638,9 @@ export function resetHydroMarker(): void {
   claimed = false;
   pendingRewards = [];
   rewardHoldSeeded = false;
+  planEpoch++;
+  planLegs = [];
+  planSeedFrom = 0;
   hydroMarkerState.active = false;
   hydroMarkerState.phase = 'idle';
   hydroMarkerState.fromPosition = 0;
@@ -350,4 +649,8 @@ export function resetHydroMarker(): void {
   hydroMarkerState.nonce = 0;
   hydroMarkerState.reducedMotion = false;
   hydroMarkerState.settledPosition = -1;
+  hydroMarkerState.planCursor = -1;
+  hydroMarkerState.planLength = 0;
+  hydroMarkerState.planPaused = false;
+  hydroMarkerState.visualPosition = -1;
 }
