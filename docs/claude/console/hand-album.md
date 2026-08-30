@@ -357,6 +357,78 @@ exactly once, at the cards' final approach. Guard:
 `tests/e2e/hand-chrome-flash-probe.spec.ts` (per-state opacity recorder:
 no painted rail while chrome-wait holds, one rise after).
 
+## A GATHER IS A FLIGHT *FROM WHERE THE PLAYER LAST SAW THE CARDS* (2026-08-30)
+
+The premium album → dock gather is what makes the hand feel physical, and for
+a long time it was the ONLY way the pack ever came home. That is wrong for
+exactly one family of endings, and it shipped as **«карты летят каким-то
+непремиальным рывком непонятно откуда в handDock»**.
+
+A card PLAY descends the hand workspace into a stage (`descendWorkspaceFrame`
+→ `configure`), and the descent PARKS the browse layer —
+`.con-hand__browse--parked` is *gone*, not dimmed. From that frame on, the
+album's slot rects describe a grid nobody can see. The play then runs its
+landing scene, the flow concludes, `closeWorkspaceRoot('hand')` flips the
+section, and the section watcher's `resetHandReveal()` reached for
+`oracle.reconcile()` — a **340 ms tween** of every body from its stale album
+rect onto its dock berth. The workspace was already gone by then, so the pack
+materialized *over the board*, hundreds of px from the tray, and darted in.
+
+The law is one sentence: **a gather belongs to the endings the player asks for
+(B out of the album, «свернуть» from it); every other ending returns the pack
+SILENTLY.** Three pieces:
+
+- **`settleHandHome(exclude?)`** (`handRevealDirector`) — the silent return:
+  clear the album presentation, take only the RETURNERS out of their
+  shelf/packet mode, and `oracle.resettle(names)`. The layer seats each body on
+  its analytic dock pose in ONE write (zero travel, faces turned to the dock's
+  presentation) and plays the tray's own arrival rise — the same ~300 ms
+  `y += 1.15rem` pop a card joining the hand has always had, right→left in the
+  close episode's LIFO order, with a budget-capped stagger so 6 cards and 25
+  read alike. An excluded card (a discard cinematic is carrying it the other
+  way) stays SHELVED: docking it would hand it to the pose reconcile, i.e. to
+  the very tween this exists to avoid.
+- **`holdHandBodiesForAlbum()`** — the mirror. The shelf is on screen again (a
+  refused play rolled its descent back to `configure`; a discard the played
+  card forced turned the shelf into the picker), so every body hides back under
+  the slots that render them. No flight either way: the pack was never seen
+  leaving.
+- **`ConsoleShell.handCardsBelongToDock`** — the ONE fact both read, and a
+  STATE rather than an event, so both edges are covered by construction:
+  `section === 'hand'` ∧ `handAlbumParked` ∧ `handPlayLanded`.
+  `handAlbumParked` is derived from the very two props the section parks on
+  (`handStage !== undefined && !pickBridgeActive`), so it cannot disagree with
+  what is painted. `handPlayLanded` reads the HERO's phase
+  (`committing → closing`), never the frame's: a refusal aborts long before
+  `committing` (`detectPlayedHero` commits only once the server has the card in
+  the tableau), and a plain play with no embeddable result stays `executing`
+  from the submit right through to the fold, so the phase could not answer.
+
+Timing follows from that: the pack comes home the instant the card physically
+lands on its pile — under the landing scene, a beat before the workspace folds
+— so **the fold moves nothing**.
+
+Three call sites had to stop assuming a visible album, all the same bug:
+`resetHandReveal` now SEATS its returners instead of tweening them (the fix
+proper — it also covers every other non-choreographed leave); `collapseWorkspace`
+skips `collapseWithHandGather` while the shelf is parked; and
+`restoreDeferredTask` replays the dock → grid open reveal only for a hand parked
+at `browse` — read through the PARK (`workspaceFrameKnownPhase`), since the live
+stack does not hold the frame yet.
+
+⚠️ **Guarding this needed a metric, not a threshold.** A per-frame displacement
+test cannot tell a seat from a flight: headless Chromium drives the episode's
+paint-locked clock off the compositor, so even with frames forced
+(`page.screenshot` → BeginFrame) a 480 ms gather advances ~70 px per sample and
+looks exactly like a series of jumps. `tests/e2e/console-hand-play-return.spec.ts`
+measures **continuous travel** instead — distance accumulated over consecutive
+moving samples, with single teleports excluded — plus **airborne travel**
+(distance covered while `[data-reveal-card]` exists), which is 0 by construction
+for a silent return. Measured: the play ending seats once and then travels
+8–19 px (the rise), `air0px`; the B gather travels 661–1595 px airborne. And the
+primary claim needs no motion metric at all: on the workspace's LAST painted
+frame every body is already within 90 px of the berth it settles on.
+
 ## THE EPISODE CLOCK (iteration 8 — the continuity rework)
 
 The dock ⇄ album transition used to teleport under load («плотный веер за

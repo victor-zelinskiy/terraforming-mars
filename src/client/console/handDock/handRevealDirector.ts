@@ -27,6 +27,15 @@
  *          no measure races, no magnets). Arrival just flips the mode back
  *          to `docked`; the layer's reconcile heals any pose drift.
  *
+ * …AND WHEN THERE IS NOTHING TO FLY FROM. A gather is a flight from where the
+ * player LAST SAW the cards, so it is only ever the honest answer while the
+ * album is on screen. Once the workspace descends into a stage (a card being
+ * played) the browse layer is PARKED, and past the commit it never comes back:
+ * `settleHandHome()` then returns the pack with no flight at all — one seat
+ * onto the analytic dock poses plus the tray's own arrival rise — and
+ * `holdHandBodiesForAlbum()` is its mirror for the rollback. See the shell's
+ * `handCardsBelongToDock`, which owns WHEN each of the two applies.
+ *
  * THE CLOCK (kept from the continuity rework): the timeline never rides
  * GSAP's ticker — it stays paused and the episode's own driver steps it,
  * PAINT-LOCKED (one bounded ≤28 ms step per painted frame; a slow machine
@@ -46,7 +55,7 @@ import {consoleReducedMotionActive} from '@/client/console/composables/useConsol
 import {beginDockIntakeAccent} from '@/client/console/handDock/consoleDockAccent';
 import {handRevealState, RevealVisual} from '@/client/console/handDock/handRevealState';
 import {
-  handBodiesOracle, handBodyEl, handBodyMode, setHandBodiesFlying, ensureHandBodyFaces,
+  handBodiesOracle, handBodiesState, handBodyEl, handBodyMode, setHandBodiesFlying, ensureHandBodyFaces,
   setHandBodyMode, resetHandBodies,
 } from '@/client/console/handDock/handBodies';
 import {dockFaceRotation} from '@/client/console/handDock/handDockPresentation';
@@ -832,10 +841,28 @@ export function reverseHandReveal(): boolean {
   return true;
 }
 
+/** Clear every album-level presentation fact (the shared half of the two
+ *  returns below and of the non-choreographed reset). */
+function clearAlbumPresentation(): void {
+  handRevealState.phase = 'docked';
+  handRevealState.holdSlots = false;
+  handRevealState.filterActive = false;
+  handRevealState.flightVisuals = {};
+  handRevealState.stageClip = undefined;
+}
+
 /**
  * A non-choreographed path closed/replaced the hand (sale cancel, a task
  * surface, a game switch): reconcile the presentation state so the pack
  * never sticks in a foreign mode. Safe to call any time.
+ *
+ * ⚠️ IT MUST NOT TRAVEL. `reconcile` TWEENS every docked body onto its pose —
+ * right for a POSE change (rest↔compact, a re-spread: a few px), catastrophic
+ * for a body coming back from the ALBUM, where the delta is the width of the
+ * screen. That is the whole «карты летят непонятно откуда рывком в док» defect:
+ * the workspace folded, and a beat later the hand's bodies materialized over
+ * the board at the parked grid's stale slot rects and darted into the tray.
+ * This path plays no flights — anything that was away from the pack SEATS.
  */
 export function resetHandReveal(): void {
   finishInstant();
@@ -843,11 +870,84 @@ export function resetHandReveal(): void {
   building = false;
   buildingKind = undefined;
   pendingReverse = false;
-  handRevealState.phase = 'docked';
-  handRevealState.holdSlots = false;
-  handRevealState.filterActive = false;
-  handRevealState.flightVisuals = {};
-  handRevealState.stageClip = undefined;
+  // Captured BEFORE the modes are cleared: exactly the bodies that were away
+  // from the pack (shelf / packet / a killed flight), i.e. the ones with a
+  // distance that must never be animated.
+  const returning = Object.keys(handBodiesState.modes);
+  clearAlbumPresentation();
   resetHandBodies();
-  handBodiesOracle()?.reconcile();
+  const oracle = handBodiesOracle();
+  if (returning.length > 0) {
+    oracle?.resettle(returning);
+  } else {
+    oracle?.reconcile();
+  }
+}
+
+/**
+ * THE SILENT RETURN — the pack comes home WITHOUT a flight.
+ *
+ * A GATHER IS A FLIGHT FROM WHERE THE PLAYER LAST SAW THE CARDS. That is what
+ * makes the B-close premium: the album is on screen, and the cards leave the
+ * exact slots the player is looking at. Once the workspace has DESCENDED into
+ * a stage the album is parked (`.con-hand__browse--parked` — gone, not
+ * dimmed), so from that moment its slot rects describe a grid nobody can see;
+ * a gather measured off them departs from nowhere.
+ *
+ * So past the commit there is no phrase at all: the bodies are seated on their
+ * analytic dock poses in one write and the pack rises out of the tray (the
+ * dock's own arrival pop). It runs a beat BEFORE the workspace folds — while
+ * the play's landing scene still owns the screen — so the fold itself changes
+ * nothing: the dock is already at rest, and nothing blinks.
+ *
+ * `exclude` = cards that are NOT going home (the discard cinematic owns them
+ * on its own layer and is carrying them the other way) — the same contract the
+ * close episode's exclusion set has.
+ *
+ * Returns false when there was nothing to do (already home, or a real episode
+ * owns the bodies — never cut across a live flight).
+ */
+export function settleHandHome(exclude?: ReadonlySet<string>): boolean {
+  if (episode !== undefined || building || handRevealState.phase === 'docked') {
+    return false;
+  }
+  const returning = Object.keys(handBodiesState.modes).filter((n) => exclude?.has(n) !== true);
+  clearAlbumPresentation();
+  setHandBodiesFlying([]);
+  // ONLY the returners leave their album mode. An excluded card stays SHELVED
+  // — invisible — until it physically leaves the hand, exactly as the close
+  // episode's own exclusion leaves it; docking it instead would hand it to the
+  // layer's pose reconcile, i.e. to the very tween this function exists to
+  // avoid, for the one card that is on its way somewhere else.
+  for (const name of returning) {
+    setHandBodyMode(name, 'docked');
+  }
+  handBodiesOracle()?.resettle(returning);
+  return true;
+}
+
+/**
+ * THE MIRROR — the ALBUM takes the cards back, silently.
+ *
+ * The same two states, the other way round: the browse layer is on screen
+ * again (a refused play rolled its descent back to `configure`; a discard the
+ * played card forced turned the shelf into the picker), so the cards belong to
+ * its slots — and the slots render them themselves. Every body therefore hides
+ * under them in one write, exactly as the open episode's handoff leaves it. No
+ * flight: the pack was never seen leaving, so it is never seen going back.
+ */
+export function holdHandBodiesForAlbum(): void {
+  if (episode !== undefined || building || handRevealState.phase !== 'docked') {
+    return;
+  }
+  handRevealState.phase = 'open';
+  handRevealState.holdSlots = false;
+  for (const name of handBodiesOracle()?.names() ?? []) {
+    setHandBodyMode(name, 'shelf');
+    const el = handBodyEl(name);
+    if (el !== undefined) {
+      gsap.killTweensOf(el);
+      gsap.set(el, {autoAlpha: 0});
+    }
+  }
 }

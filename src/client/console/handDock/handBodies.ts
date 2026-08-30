@@ -209,6 +209,18 @@ export type HandBodiesOracle = {
   reconcile: () => void,
   /** Seat bodies that have never been posed (fresh mounts). */
   seatNew: () => void,
+  /**
+   * THE RETURN THAT NEVER FLIES (handRevealDirector.settleHandHome): these
+   * bodies come home from a place the player could NOT see — the album parked
+   * behind a play stage — so there is no flight to play. Each is seated on its
+   * dock pose in ONE write (zero travel) and the pack rises out of the tray.
+   * `reconcile` is the wrong verb there: it TWEENS, and an album→dock delta is
+   * hundreds of px, i.e. cards materializing over the board and darting home.
+   */
+  resettle: (names: ReadonlyArray<string>) => void,
+  /** Every body the layer currently owns, in hand order (the director keeps
+   *  no card list of its own — modes are its state, names are the layer's). */
+  names: () => ReadonlyArray<string>,
 };
 
 let oracle: HandBodiesOracle | undefined;

@@ -55,15 +55,24 @@ import {gsap} from 'gsap';
 import {CardModel} from '@/common/models/CardModel';
 import {handRevealState, RevealVisual} from '@/client/console/handDock/handRevealState';
 import {
-  PackAnchor, PackPose, bodyNaturalH, dockedBodyPose, handBodiesState, handBodyEl, handBodyMode,
+  BodyPose, PackAnchor, PackPose, bodyNaturalH, dockedBodyPose, handBodiesState, handBodyEl, handBodyMode,
   packProfileTuning, registerHandBody, setHandBodiesOracle, ensureHandBodyFaces,
 } from '@/client/console/handDock/handBodies';
+import {consoleReducedMotionActive} from '@/client/console/composables/useConsoleReducedMotion';
 import {dockFaceRotation, handDockPresentation} from '@/client/console/handDock/handDockPresentation';
 import {handDockPlan} from '@/client/console/consoleHandDock';
 import {consoleLayoutState} from '@/client/console/consoleLayoutProfile';
 import {motionMs} from '@/client/components/motion/motionTokens';
 import {CARD_NATURAL_W} from '@/client/console/cardDeal/cardDealModel';
 import ConsoleCardFaceLite from '@/client/components/console/cardDeal/ConsoleCardFaceLite.vue';
+
+/* ── THE SILENT RETURN's motion (resettleBodies) — the tray's own arrival
+   vocabulary, never a journey: the rise matches the fresh-body pop above, and
+   the stagger is BUDGET-capped so the pack's re-forming reads the same at 6
+   cards and at 25. */
+const RESETTLE_RISE_REM = 1.15;
+const RESETTLE_RISE_MS = 300;
+const RESETTLE_SPREAD_MAX_MS = 200;
 
 export default defineComponent({
   name: 'ConsoleHandBodies',
@@ -168,6 +177,8 @@ export default defineComponent({
       poseForCopy: (name, seqFromEnd) => this.dockedPoseOfCopy(name, seqFromEnd),
       reconcile: () => this.applyDockedPoses(true),
       seatNew: () => this.applyDockedPoses(false),
+      resettle: (names) => this.resettleBodies(names),
+      names: () => this.cards.map((c) => c.name as string),
     });
     if (this.dockPresentation.faceUp) {
       ensureHandBodyFaces(this.cards.map((c) => c.name));
@@ -290,6 +301,68 @@ export default defineComponent({
         if (flip !== null) {
           gsap.to(flip, {rotationY: dockFaceRotation(), duration: motionMs(340) / 1000, ease: 'power2.inOut', overwrite: 'auto'});
         }
+      });
+    },
+    /**
+     * THE SILENT RETURN (handRevealDirector.settleHandHome). These bodies come
+     * home from a place the player could NOT see — the album parked behind the
+     * play stage — so there is nothing to fly FROM: each is SEATED on its dock
+     * pose in one write (zero travel, faces already turned to the dock's
+     * presentation) and the pack rises out of the tray, the same 300 ms pop a
+     * card joining the hand has always had. Right→left, the close episode's
+     * own LIFO order, so the fan re-forms along one growing edge instead of
+     * inflating as a blob; the whole stagger is budget-capped, so a 25-card
+     * hand takes no longer than a 6-card one.
+     */
+    resettleBodies(names: ReadonlyArray<string>): void {
+      if (names.length === 0) {
+        return;
+      }
+      const a = this.anchor();
+      if (a === undefined) {
+        // The dock chassis may not be measurable yet — the same bounded TIMER
+        // ladder `applyDockedPoses` uses (never rAF: an idle headless
+        // compositor withholds frames exactly at load).
+        if (this.anchorRetries < 60) {
+          this.anchorRetries++;
+          window.setTimeout(() => this.resettleBodies(names), 60);
+        }
+        return;
+      }
+      this.anchorRetries = 0;
+      const want = new Set(names);
+      const n = this.cards.length;
+      const seats: Array<{el: HTMLElement, pose: BodyPose}> = [];
+      this.cards.forEach((c, i) => {
+        const el = handBodyEl(c.name);
+        if (el === undefined || !want.has(c.name) || handBodyMode(c.name) !== 'docked') {
+          return;
+        }
+        seats.push({el, pose: dockedBodyPose(i, n, this.pose as PackPose, a)});
+      });
+      if (seats.length === 0) {
+        return;
+      }
+      seats.sort((l, r) => r.pose.x - l.pose.x);
+      const reduced = consoleReducedMotionActive();
+      const spread = motionMs(Math.min(RESETTLE_SPREAD_MAX_MS, seats.length * 16)) / 1000;
+      const step = seats.length <= 1 ? 0 : spread / (seats.length - 1);
+      seats.forEach(({el, pose}, k) => {
+        gsap.killTweensOf(el);
+        gsap.set(el, {...pose, autoAlpha: 1});
+        const flip = el.querySelector<HTMLElement>('.con-deal-proxy__flip');
+        if (flip !== null) {
+          gsap.set(flip, {rotationY: dockFaceRotation()});
+        }
+        if (reduced) {
+          return;
+        }
+        // `from` renders its START values immediately (immediateRender), so the
+        // seat above is never painted before the rise begins — no flash.
+        gsap.from(el, {
+          y: `+=${RESETTLE_RISE_REM * a.remPx}`, autoAlpha: 0,
+          duration: motionMs(RESETTLE_RISE_MS) / 1000, ease: 'power2.out', delay: k * step,
+        });
       });
     },
   },
