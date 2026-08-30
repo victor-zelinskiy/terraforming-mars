@@ -61,8 +61,10 @@ export type CardVictoryPointsDetail = {
 };
 
 /** One city's own contribution to the `city` category (1 VP per adjacent
- *  greenery, any owner) — `points` may honestly be 0. */
-export type CityVpDetail = {spaceId: string, points: number};
+ *  greenery, any owner) — `points` may honestly be 0. `cardName` is the
+ *  card whose tile this is (Ganymede Colony, Capital, …), absent for a
+ *  plain standard city. */
+export type CityVpDetail = {spaceId: string, points: number, cardName?: string};
 
 /**
  * The KIND of source that raised a player's terraform rating directly (i.e. NOT

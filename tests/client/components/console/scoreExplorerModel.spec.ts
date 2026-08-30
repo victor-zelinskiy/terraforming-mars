@@ -1,18 +1,19 @@
 import {expect} from 'chai';
 import {buildLiveScoreModel, LiveScoreOptions} from '@/client/console/liveScoreModel';
 import {
-  buildAwardFacts,
+  buildAwardCollection,
   buildBotGroupFacts,
   buildCardGroupTable,
   buildCardsHub,
   buildCityFacts,
   buildGreeneryFacts,
   buildHydroFacts,
-  buildMilestoneFacts,
+  buildMilestoneCollection,
   buildPenaltyFacts,
   buildScoreOverview,
   buildTrProvenance,
   isPseudoCardRow,
+  maArtSlug,
   scoreGridNavigate,
   scoreStagePath,
   ScoreCardLookup,
@@ -105,10 +106,11 @@ describe('scoreExplorerModel — the victory-points exploration levels', () => {
     expect(penalty.sharePct, 'a penalty subtracts — it never draws a positive stripe').to.eq(0);
   });
 
-  it('overview hints: TR names its top sources, cards its families', () => {
+  it('SOURCE LEDGERS: the TR chain starts bare and cuts honestly; cards speak их families', () => {
     const b = breakdown({
       terraformRating: 27,
-      terraformRatingBreakdown: {base: 21, temperature: 0, oxygen: 1, oceans: 1, venus: 0, cards: 4},
+      terraformRatingBreakdown: {base: 21, temperature: 1, oxygen: 1, oceans: 1, venus: 0, cards: 3,
+        cardEntries: [{sourceType: 'card', sourceName: 'Bribed Committee', amount: 3}]},
       victoryPoints: 7,
       detailsCards: [
         {cardName: 'A', victoryPoint: 4, kind: 'conditional'},
@@ -118,16 +120,43 @@ describe('scoreExplorerModel — the victory-points exploration levels', () => {
     const live = buildLiveScoreModel(b, OPTS);
     const model = buildScoreOverview(live, b, CTX);
     const tr = model.tiles.find((t) => t.key === 'tr')!;
-    expect(tr.hint?.kind).to.eq('pairs');
-    if (tr.hint?.kind === 'pairs') {
-      expect(tr.hint.pairs[0]).to.deep.eq({label: 'Cards & effects', value: 4});
+    expect(tr.ledger.kind).to.eq('chain');
+    if (tr.ledger.kind === 'chain') {
+      expect(tr.ledger.pieces[0], 'the start term renders bare, first').to.deep.include({label: 'start', value: 21});
+      // 4 non-start sources, a 3-piece budget → 2 shown + «ещё 2».
+      expect(tr.ledger.pieces).to.have.length(3);
+      expect(tr.ledger.pieces[1].value, 'largest sources first').to.eq(3);
+      expect(tr.ledger.moreCount).to.eq(2);
     }
     const cards = model.tiles.find((t) => t.key === 'cards')!;
-    if (cards.hint?.kind === 'pairs') {
-      expect(cards.hint.pairs.map((p) => p.label)).to.deep.eq(['Conditional cards', 'Fixed VP cards']);
-    } else {
-      expect.fail('cards hint must be family pairs');
+    expect(cards.ledger.kind, 'the cards card speaks its OWN composition').to.eq('chain');
+    if (cards.ledger.kind === 'chain') {
+      expect(cards.ledger.pieces.map((p) => [p.label, p.value])).to.deep.eq(
+        [['Conditional cards', 4], ['Fixed VP cards', 3]]);
     }
+  });
+
+  it('SOURCE LEDGERS: laurels are REAL medallions, zeros are the quiet empty', () => {
+    const b = breakdown({
+      milestones: 10, awards: 5,
+      detailsMilestones: [
+        {message: 'Claimed ${0} milestone', messageArgs: ['Mayor'], victoryPoint: 5},
+        {message: 'Claimed ${0} milestone', messageArgs: ['Gardener'], victoryPoint: 5},
+      ],
+      detailsAwards: [{message: '${0} place for ${1} award (funded by ${2})', messageArgs: ['1st', 'Banker', 'admin'], victoryPoint: 5}],
+    });
+    const model = buildScoreOverview(buildLiveScoreModel(b, OPTS), b, CTX);
+    const ms = model.tiles.find((t) => t.key === 'milestones')!;
+    expect(ms.ledger.kind).to.eq('medallions');
+    if (ms.ledger.kind === 'medallions') {
+      expect(ms.ledger.entries.map((e) => e.slug)).to.deep.eq(['mayor', 'gardener']);
+      expect(ms.ledger.moreCount).to.eq(0);
+    }
+    const aw = model.tiles.find((t) => t.key === 'awards')!;
+    expect(aw.ledger.kind).to.eq('medallions');
+    const zero = buildScoreOverview(buildLiveScoreModel(breakdown({}), OPTS), breakdown({}), CTX)
+      .tiles.find((t) => t.key === 'milestones')!;
+    expect(zero.ledger.kind, 'a zero category keeps ONE quiet sentence — never placeholder icons').to.eq('empty');
   });
 
   // ── level 2: TR ──────────────────────────────────────────────────────────
@@ -147,6 +176,10 @@ describe('scoreExplorerModel — the victory-points exploration levels', () => {
     expect(model.total, 'Σ rows ≡ TR').to.eq(31);
     const flavors = model.rows.map((r) => r.flavor);
     expect(flavors).to.deep.eq(['base', 'handicap', 'param', 'param', 'param', 'hazard', 'source', 'residual']);
+    // The RUNNING chain: walkable row by row, ending at the rating.
+    expect(model.rows[0].running).to.eq(20);
+    expect(model.rows[1].running, '20 + 3 handicap').to.eq(23);
+    expect(model.rows[model.rows.length - 1].running, 'the story ends at the displayed rating').to.eq(31);
     const src = model.rows.find((r) => r.flavor === 'source')!;
     expect(src.label).to.eq('Bribed Committee');
     expect(src.cardId).to.eq('Bribed Committee');
@@ -252,43 +285,84 @@ describe('scoreExplorerModel — the victory-points exploration levels', () => {
     expect(fixed.subtotal).to.eq(7);
   });
 
-  // ── level 2: the other categories ────────────────────────────────────────
-  it('milestones + awards: rows from the server messages, standings when given', () => {
+  // ── level 2: the MA collections (real laurels, никогда placeholders) ─────
+  it('milestone collection: ONLY the claimed laurels, threshold + score enrichment', () => {
     const b = breakdown({
-      milestones: 5, awards: 7,
-      detailsMilestones: [{message: 'Claimed ${0} milestone', messageArgs: ['Mayor'], victoryPoint: 5}],
+      milestones: 5,
+      detailsMilestones: [{message: 'Claimed ${0} milestone', messageArgs: ['Terraformer26'], victoryPoint: 5}],
+    });
+    const coll = buildMilestoneCollection(b, {
+      isBot: false,
+      viewedColor: 'green',
+      milestones: [
+        {name: 'Terraformer26', threshold: 26, description: 'Have a terraform rating of at least 26.',
+          scores: [{playerColor: 'green', playerScore: 27}]},
+        {name: 'Mayor', threshold: 3, scores: []}, // unclaimed — MUST NOT appear
+      ],
+    });
+    expect(coll.entries, 'actual laurels only — no future slots').to.have.length(1);
+    const e = coll.entries[0];
+    expect(e.shortName, 'the numeric variant suffix is stripped for display').to.eq('Terraformer');
+    expect(e.slug).to.eq(maArtSlug('Terraformer26'));
+    expect(e.vp).to.eq(5);
+    expect(e.threshold).to.eq(26);
+    expect(e.myScore).to.eq(27);
+    expect(e.description).to.contain('terraform rating');
+    expect(e.fact.params).to.deep.eq([27, 26]);
+    expect(buildMilestoneCollection(breakdown({}), CTX).entries).to.have.length(0);
+  });
+
+  it('award collection: places, funder, resolved standings, ties — inside the REAL award', () => {
+    const b = breakdown({
+      awards: 7,
       detailsAwards: [
         {message: '${0} place for ${1} award (funded by ${2})', messageArgs: ['1st', 'Banker', 'admin'], victoryPoint: 5},
         {message: '${0} place for ${1} award (funded by ${2})', messageArgs: ['2nd', 'Thermalist', 'MarsBot'], victoryPoint: 2},
       ],
     });
-    expect(buildMilestoneFacts(b).rows[0]).to.deep.include({label: 'Mayor', value: 5});
-    const awards = buildAwardFacts(b, {
+    const coll = buildAwardCollection(b, {
       isBot: false,
       viewedColor: 'green',
-      awards: [{name: 'Banker', scores: [
+      resolveName: (c) => c === 'green' ? 'admin' : 'Бот',
+      awards: [{name: 'Banker', funder: 'admin', scores: [
         {playerColor: 'green', playerScore: 8},
         {playerColor: 'red', playerScore: 8},
         {playerColor: 'blue', playerScore: 3},
       ]}],
     });
-    expect(awards.rows[0].label).to.eq('Banker');
-    expect(awards.rows[0].value).to.eq(5);
-    expect(awards.rows[0].note?.params, 'the tie is stated').to.deep.eq(['1st', 8, 1]);
-    expect(awards.rows[1].note?.params).to.deep.eq(['2nd', 'MarsBot']);
+    expect(coll.entries).to.have.length(2);
+    const banker = coll.entries[0];
+    expect(banker.slug).to.eq('banker');
+    expect(banker.ties, 'the shared first place is a stated tie').to.eq(1);
+    expect(banker.fact.label, 'the place speaks a LOCALIZED sentence, never a raw 1st').to.eq('First place · tied with ${0}');
+    expect(banker.fact.params).to.deep.eq([1]);
+    const standings = banker.standings ?? [];
+    expect(standings.map((s) => [s.place, s.score, s.scoringPlace])).to.deep.eq(
+      [[1, 8, true], [1, 8, true], [3, 3, false]]);
+    expect(standings.find((s) => s.mine)?.name).to.eq('admin');
+    // The second entry has no standings context — the fact still speaks.
+    expect(coll.entries[1].fact.label).to.eq('Second place · funded by ${0}');
+    expect(coll.entries[1].fact.params).to.deep.eq(['MarsBot']);
   });
 
-  it('cities / greenery / hydro / penalties: honest fact rows with empty states', () => {
+  it('cities / greenery / hydro / penalties: honest fact rows, ACTUAL entities only', () => {
     const b = breakdown({
       city: 3, greenery: 4, deltaProject: 5, escapeVelocity: -2,
-      detailsCities: [{spaceId: '09', points: 0}, {spaceId: '11', points: 3}],
+      detailsCities: [{spaceId: '09', points: 0}, {spaceId: '11', points: 3, cardName: 'Ganymede Colony'}],
       detailsCards: [{cardName: 'Vermin', victoryPoint: -2, kind: 'penalty'}],
     });
     const cities = buildCityFacts(b.detailsCities);
     expect(cities.rows.map((r) => r.value), 'contributors first').to.deep.eq([3, 0]);
+    expect(cities.rows[0].label, 'the tile\'s own card names the city').to.eq('Ganymede Colony');
+    expect(cities.rows[1].label, 'a plain city keeps the honest generic name').to.eq('City');
+    expect(cities.rows[1].note?.label).to.eq('no adjacent greeneries');
     expect(buildCityFacts(undefined).emptyKey).to.eq('No cities on the board');
     expect(buildGreeneryFacts(b).rows[0].params).to.deep.eq([4]);
-    expect(buildHydroFacts(b, {isBot: false, deltaPosition: 11}).rows[0]).to.deep.include({value: 5});
+    const hydro = buildHydroFacts(b, {isBot: false, deltaPosition: 11});
+    expect(hydro.rows[0], 'the position is a context row — no value cell').to.deep.include({label: 'Track position: ${0}'});
+    expect(hydro.rows[0].value).to.eq(undefined);
+    expect(hydro.rows[1], 'only the APPLIED zone — never the future slots').to.deep.include({value: 5});
+    expect(hydro.rows[1].params).to.deep.eq([11]);
     const pen = buildPenaltyFacts(b);
     expect(pen.rows.map((r) => r.value), 'every loss named — Vermin AND the clock').to.deep.eq([-2, -2]);
     expect(pen.rows[1].label).to.eq('Escape Velocity');

@@ -343,6 +343,13 @@ export function descendRelease(
 /**
  * CONTEXT REVEAL — the deeper stage's controls surface from INSIDE the opened
  * surface: a short lift + fade with a stagger, never a slide from off-panel.
+ *
+ * ⚠️ The cascade animates to each element's OWN resting opacity, never to a
+ * hard 1: a quiet pose (a zero category's class-driven .5) would otherwise
+ * flash BRIGHT for the whole tween and dim only at `clearProps` — the
+ * measured zero-state flicker. The resting value is read with any inline
+ * opacity cleared first (a previous leave may have left `autoAlpha: 0`
+ * behind, and computed style reads inline).
  */
 export function descendCascade(
   tl: gsap.core.Timeline,
@@ -355,10 +362,17 @@ export function descendCascade(
   if (live.length === 0) {
     return;
   }
+  const restingAlpha = live.map((el) => {
+    el.style.removeProperty('opacity');
+    el.style.removeProperty('visibility');
+    const value = parseFloat(getComputedStyle(el).opacity);
+    return isFinite(value) ? value : 1;
+  });
   tl.fromTo(live,
     {autoAlpha: 0, y: descendPx(9)},
     {
-      autoAlpha: 1, y: 0, duration: durationS, ease: 'expo.out', stagger: staggerS,
+      autoAlpha: (i: number) => restingAlpha[i] ?? 1,
+      y: 0, duration: durationS, ease: 'expo.out', stagger: staggerS,
       clearProps: 'transform,opacity,visibility', overwrite: 'auto',
     },
     at);

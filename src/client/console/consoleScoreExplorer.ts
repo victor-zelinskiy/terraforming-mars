@@ -15,6 +15,7 @@
  */
 import {reactive} from 'vue';
 import type {ConsoleCommand} from '@/client/console/consoleCommandModel';
+import type {ScoreMaEntry} from '@/client/console/scoreExplorerModel';
 
 export const scoreExplorerUi = reactive({
   /** The overview tile cursor (index into the canonical tile list). */
@@ -23,6 +24,12 @@ export const scoreExplorerUi = reactive({
   hubFocus: 0,
   /** The level-3 table row cursor (index into the group's rows). */
   rowFocus: 0,
+  /** The category-detail cursor (MA collection entries / fact rows). */
+  catFocus: 0,
+  /** The read-only MA INSPECTION standing over the category detail (X).
+   *  Not a route — B consumes it first (`consumeScoreBack`), a seat switch
+   *  closes it instantly (the entity may not exist for the next seat). */
+  inspect: undefined as ScoreMaEntry | undefined,
   /** The explorer's live command contract (undefined = not publishing). */
   barCommands: undefined as ReadonlyArray<ConsoleCommand> | undefined,
 });
@@ -31,5 +38,7 @@ export function resetScoreExplorer(): void {
   scoreExplorerUi.gridFocus = 0;
   scoreExplorerUi.hubFocus = 0;
   scoreExplorerUi.rowFocus = 0;
+  scoreExplorerUi.catFocus = 0;
+  scoreExplorerUi.inspect = undefined;
   scoreExplorerUi.barCommands = undefined;
 }

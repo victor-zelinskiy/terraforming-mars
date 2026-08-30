@@ -176,6 +176,26 @@ for (const preset of PRESETS) {
       }
       await page.waitForTimeout(1500);
 
+      // ── MATERIAL: fund an award through the real MA workspace (RB →
+      // descend → commit past the 400ms arm) — the podium the awards
+      // collection and the X inspection will read. A 0–0 metric is a
+      // SHARED first place: both seats then hold a real scoring row. ──
+      if (preset.journey) {
+        const maScreen = page.locator('.con-ma');
+        for (let i = 0; i < 6 && await maScreen.count() === 0; i++) {
+          if (i > 0) {
+            await key(page, 'Enter', 600);
+            await key(page, 'Escape', 500);
+          }
+          await key(page, 'KeyE', 1300); // RB → «НАГРАДЫ»
+        }
+        await expect(maScreen, 'the awards workspace must open').toHaveCount(1);
+        await key(page, 'Enter', 1000); // descend into the focused award
+        await key(page, 'Enter', 1000); // fund (the commit sits past the arm)
+        await page.waitForSelector('.con-ma', {state: 'detached', timeout: 40_000});
+        await page.waitForTimeout(1500);
+      }
+
       // ── LEVEL 0 → 1: the summary tile opens into the overview. ────────
       await openInfo(page);
       await shoot(page, preset, '01-summary');
@@ -213,7 +233,10 @@ for (const preset of PRESETS) {
         }
         return probe ?? {samples: 0, gaps: 0};
       });
-      expect(gapVerdict.samples, 'the frame probe must have sampled the entry').toBeGreaterThan(20);
+      // The floor only catches a DEAD sampler (0–1 ticks): a starved
+      // parallel worker legitimately lands single-digit samples, and the
+      // animation it watches is starved with it (nothing to miss).
+      expect(gapVerdict.samples, 'the frame probe must have sampled the entry').toBeGreaterThan(3);
       expect(gapVerdict.gaps, `the total never misses a frame (${gapVerdict.gaps}/${gapVerdict.samples} dark samples)`).toBe(0);
       const explorer = page.locator('.con-vpx');
       await expect(explorer).toHaveCount(1);
@@ -226,11 +249,30 @@ for (const preset of PRESETS) {
       await expectFits(page, '.con-vpx__grid', 'the category grid');
       const tileCount = await page.locator('.con-vpx__tile').count();
       expect(tileCount, 'every core category is a door').toBeGreaterThanOrEqual(6);
-      // ONE BAR SEMANTIC: the TR tile's share is value/total — NEVER 100%.
-      const trShare = await page.locator('[data-vpx-tile="tr"] .con-vpx__tile-fill')
-        .evaluate((el, arg) => el.getBoundingClientRect().width / (el.parentElement!.getBoundingClientRect().width || 1) * 100, null);
-      expect(trShare, 'TR is a share of the total, not a full bar').toBeLessThan(96);
-      expect(trShare).toBeGreaterThan(20);
+      // NO FALSE PROGRESS: a category card never draws a share track — the
+      // top segmented bar is the ONE place shares live; every card explains
+      // its own subtotal through the source ledger instead.
+      await expect(page.locator('.con-vpx__tile-track, .con-vpx__tile-fill')).toHaveCount(0);
+      await expect(page.locator('.con-vpx__tile-ledger')).toHaveCount(tileCount);
+      const trLedgerText = (await page.locator('[data-vpx-tile="tr"] .con-vpx__tile-ledger').textContent() ?? '').trim();
+      expect(trLedgerText, 'the TR card speaks its arithmetic (start term present)').toMatch(/20\s*старт/i);
+      // THE FOCUS↔SEGMENT LINK: the focused tile's stripe stays lit, the
+      // rest recede; the share line names the share as secondary info. A
+      // ZERO category has no stripe — the bar rests whole, «0 ПО» answers.
+      await expect(page.locator('.con-vpx__seg.con-eg-cat--tr')).not.toHaveClass(/--dim/);
+      await expect(page.locator('.con-vpx__shareline')).toContainText(/\/\s*\d+\s*·\s*\d+%/);
+      const barBoxBefore = await page.locator('[data-vpx-bar]').boundingBox();
+      await key(page, 'ArrowRight', 350); // → «Достижения» (zero)
+      await expect(page.locator('.con-vpx__seg--dim'), 'a zero focus dims nothing — no stripe to link').toHaveCount(0);
+      await expect(page.locator('.con-vpx__shareline')).toContainText(/0\s*ПО/);
+      await focusTile(page, 'cards'); // a SCORING category
+      const lit = await page.locator('.con-vpx__seg:not(.con-vpx__seg--dim)').count();
+      expect(lit, 'exactly one stripe is lit for the focused scoring card').toBe(1);
+      await expect(page.locator('.con-vpx__seg.con-eg-cat--cards')).not.toHaveClass(/--dim/);
+      const barBoxAfter = await page.locator('[data-vpx-bar]').boundingBox();
+      expect(Math.abs((barBoxAfter?.width ?? 0) - (barBoxBefore?.width ?? 0)),
+        'focus never moves the bar\'s geometry').toBeLessThanOrEqual(1);
+      await focusTile(page, 'tr');
       // Zero categories stay IN the list, compact ink.
       await expect(page.locator('.con-vpx__tile--zero').first()).toBeVisible();
       await shoot(page, preset, '02-overview');
@@ -269,10 +311,31 @@ for (const preset of PRESETS) {
       expect(trSum, 'Σ of the named TR rows ≡ the rating').toBe(trTileValue);
       await expect(page.locator('.con-vpx__trsum b')).toHaveText(String(trTileValue));
       await expect(page.locator('.con-vpx__trrow--base')).toContainText(/Стартовый рейтинг/i);
+      // The ARITHMETIC STORY: the first term bare, «+» past it, the running
+      // chain ends exactly at the displayed rating.
+      expect(trRows[0], 'the start term renders bare').not.toMatch(/^\+/);
+      const running = await page.locator('.con-vpx__trrow-run').allTextContents();
+      expect(running[running.length - 1]).toMatch(new RegExp(`→\\s*${trTileValue}$`));
       await shoot(page, preset, '03-tr-provenance');
       await key(page, 'Escape', 1000); // B → the overview, cursor back on TR
-      await expect(page.locator('.con-vpx__cat')).toHaveCount(0);
+      // A starved parallel worker finishes the fold late (the guarded
+      // episode's safety timer), never NOT — budget for load, not for hope.
+      await expect(page.locator('.con-vpx__cat')).toHaveCount(0, {timeout: 15_000});
       await expect(page.locator('[data-vpx-tile="tr"].con-vpx__tile--focused')).toHaveCount(1);
+
+      // ── LEVEL 2: CITIES — ACTUAL tiles only: exactly ONE row for the one
+      // real city, named honestly («Город» — the engine records `tile.card`
+      // only where a rule needs it, e.g. Capital; the model names the card
+      // whenever the server knows it), with its true contribution. No
+      // future slots, no placeholder rows, ever. ─────────────────────────
+      await focusTile(page, 'city');
+      await key(page, 'Enter', 1100);
+      await expect(page.locator('.con-vpx__factrow')).toHaveCount(1);
+      await expect(page.locator('.con-vpx__factrow-label')).toHaveText(/^(Город|Колония на Ганимеде)$/);
+      await expect(page.locator('.con-vpx__factrow-note')).toContainText(/озеленений рядом/i);
+      await shoot(page, preset, '03b-cities');
+      await key(page, 'Escape', 1000);
+      await expect(page.locator('.con-vpx__cat')).toHaveCount(0, {timeout: 15_000});
 
       // ── LEVEL 2: the cards hub — three family doors, honest counts. ───
       await focusTile(page, 'cards');
@@ -288,9 +351,14 @@ for (const preset of PRESETS) {
       await key(page, 'Enter', 1200);
       await expect(page.locator('.con-vpx__table')).toHaveCount(1);
       await expect(crumbStage(page)).toHaveText(/Карты.*Условные/i);
-      // Ganymede Colony: 3 jovian tags → «3 × 1 ПО = 3 ПО» — ITS formula.
+      // Ganymede Colony: «N × 1 ПО = N ПО» — ITS OWN live formula (N = the
+      // jovian count, which the random corporation may raise — the deal is
+      // not reproducible, so the probe reads the row's own value).
       await expect(page.locator('.con-vpx__row').first()).toContainText('Колония на Ганимеде');
-      await expect(page.locator('.con-vpx__row-formula').first()).toContainText(/3\s*×\s*1\s*ПО\s*=\s*3\s*ПО/);
+      const ganyVp = Number(((await page.locator('.con-vpx__row').first().locator('.con-vpx__row-vp').textContent()) ?? '').trim());
+      expect(ganyVp).toBeGreaterThanOrEqual(3);
+      await expect(page.locator('.con-vpx__row-formula').first())
+        .toContainText(new RegExp(`${ganyVp}\\s*×\\s*1\\s*ПО\\s*=\\s*${ganyVp}\\s*ПО`));
       // The preview column shows the REAL premium card of the focused row.
       await expect(page.locator('.con-vpx__preview-card .pcard')).toHaveCount(1);
       await expect(page.locator('.con-vpx__preview-card')).toHaveAttribute('data-zoom-slot', 'Ganymede Colony');
@@ -308,7 +376,7 @@ for (const preset of PRESETS) {
       expect(Number(slotOpacity), 'the origin slot yields its card to the viewer').toBeLessThanOrEqual(0.01);
       await shoot(page, preset, '06-fullscreen');
       await key(page, 'Escape', 1400); // B → the card lands back in the preview
-      await expect(zoom).toHaveCount(0);
+      await expect(zoom).toHaveCount(0, {timeout: 15_000});
       await expect(page.locator('.con-vpx__preview-card .pcard')).toBeVisible();
       expect((await focusedRowName(page))?.trim(), 'row focus survives the round trip')
         .toContain('Колония на Ганимеде');
@@ -336,16 +404,92 @@ for (const preset of PRESETS) {
       await cycleTo(page, 'human');
       await expect(page.locator('.con-vpx__table')).toHaveCount(1);
 
-      // ── THE B CHAIN home: table → hub → overview → summary. ───────────
-      await key(page, 'Escape', 900);
-      await expect(page.locator('.con-vpx__groups')).toHaveCount(1);
-      await key(page, 'Escape', 900);
+      // ── AWARDS: the funded award's REAL medallion, the collection, and
+      // the X inspection (fold back without a duplicate). The place lands
+      // on whoever leads the metric — the seat ring finds the holder. ──
+      await key(page, 'Escape', 900); // → the hub
+      await key(page, 'Escape', 900); // → the overview
+      let holder: 'human' | 'bot' | undefined;
+      for (const seat of ['human', 'bot'] as const) {
+        await cycleTo(page, seat);
+        await focusTile(page, 'awards');
+        const meds = await page.locator('[data-vpx-tile="awards"] .con-vpx__med').count();
+        if (meds > 0) {
+          holder = seat;
+          break;
+        }
+      }
+      expect(holder, 'somebody holds the funded award\'s first place').not.toBe(undefined);
+      await shoot(page, preset, '10-overview-medallions');
+      await key(page, 'Enter', 1100); // → the awards collection
+      await expect(page.locator('.con-vpx__maent').first()).toBeVisible();
+      await expect(page.locator('.con-vpx__maent-art').first()).toBeVisible();
+      await shoot(page, preset, '11-award-collection');
+      // X — the dossier: the emblem FLIPs in; the source slot yields it
+      // (one physical object, never two).
+      const focusedEntryKey = await page.locator('.con-vpx__maent--focused').getAttribute('data-vpx-ma');
+      await key(page, 'KeyX', 1000);
+      await expect(page.locator('.con-vpx__inspect')).toHaveCount(1);
+      await expect(page.locator('.con-vpx__inspect-standrow').first()).toBeVisible();
+      await expect(page.locator('.con-vpx__inspect-rule')).toContainText(/5 ПО/);
+      const srcVis = await page.locator('.con-vpx__maent--focused [data-vpx-ma-art]')
+        .evaluate((el) => getComputedStyle(el).visibility);
+      expect(srcVis, 'the source emblem yields to its flying twin').toBe('hidden');
+      await shoot(page, preset, '12-award-inspect');
+      await key(page, 'Escape', 900); // B → fold back into the entry
+      await expect(page.locator('.con-vpx__inspect')).toHaveCount(0, {timeout: 15_000});
+      await expect(page.locator('.con-vpx__maent--focused')).toHaveAttribute('data-vpx-ma', focusedEntryKey ?? '');
+      const srcVisBack = await page.locator('.con-vpx__maent--focused [data-vpx-ma-art]')
+        .evaluate((el) => getComputedStyle(el).visibility);
+      expect(srcVisBack, 'the emblem is home again').toBe('visible');
+      await expect(crumbStage(page), 'the inspection never moved the route').toHaveText(/Награды/i);
+      await key(page, 'Escape', 900); // → the overview
+      await cycleTo(page, 'human');
+
+      // ── THE B CHAIN home + the ZERO-STATE FRAME PROBE: on no sample of
+      // the reverse may a zero category paint bright (the cascade animates
+      // to each element's OWN resting opacity now). ─────────────────────
       await expect(page.locator('.con-vpx__grid')).toBeVisible();
-      await key(page, 'Escape', 1100);
-      await expect(page.locator('.con-info__layout')).toHaveCount(1);
+      await page.evaluate(() => {
+        const w = window as unknown as {__vpxZero?: {samples: number, hot: number, timer: number}};
+        const probe = {samples: 0, hot: 0, timer: 0};
+        probe.timer = window.setInterval(() => {
+          const els = Array.from(document.querySelectorAll<HTMLElement>('.con-infovp__cat--zero'));
+          for (const el of els) {
+            const r = el.getBoundingClientRect();
+            if (r.width < 4 || r.height < 4) {
+              continue;
+            }
+            probe.samples++;
+            if (parseFloat(getComputedStyle(el).opacity) > 0.75) {
+              probe.hot++;
+            }
+          }
+        }, 16);
+        w.__vpxZero = probe;
+      });
+      // The SHARED TOTAL keeps ONE structure through the morph: no label
+      // appears on either side of the handoff (the same «<n> ПО» signature).
+      const heroSig = await page.locator('.con-vpx [data-vpx-total]')
+        .evaluate((el) => `${el.children.length}:${(el.textContent ?? '').replace(/\s+/g, '')}`);
+      await key(page, 'Escape', 1200);
+      await expect(page.locator('.con-info__layout')).toHaveCount(1, {timeout: 15_000});
       await expect(page.locator('.con-info__zone--vp.con-info__zone--focused'),
         'B lands the ring on the zone the player descended from').toHaveCount(1);
-      await shoot(page, preset, '10-back-at-summary');
+      const zeroVerdict = await page.evaluate(() => {
+        const w = window as unknown as {__vpxZero?: {samples: number, hot: number, timer: number}};
+        const probe = w.__vpxZero;
+        if (probe !== undefined) {
+          window.clearInterval(probe.timer);
+        }
+        return probe ?? {samples: 0, hot: 0};
+      });
+      expect(zeroVerdict.samples, 'the zero probe must have sampled the reverse').toBeGreaterThan(3);
+      expect(zeroVerdict.hot, `a zero category never paints bright (${zeroVerdict.hot}/${zeroVerdict.samples} hot samples)`).toBe(0);
+      const summarySig = await page.locator('.con-info__layout [data-vpx-total]')
+        .evaluate((el) => `${el.children.length}:${(el.textContent ?? '').replace(/\s+/g, '')}`);
+      expect(summarySig, 'the shared total has ONE structure on both sides').toBe(heroSig);
+      await shoot(page, preset, '13-back-at-summary');
 
       // ── REDUCED MOTION: the whole vertical still walks cleanly. ───────
       await page.emulateMedia({reducedMotion: 'reduce'});
@@ -365,5 +509,56 @@ for (const preset of PRESETS) {
       await expect(page.locator('.con-info')).toHaveCount(0);
       expect(pageErrors, 'the whole vertical runs without a page error').toEqual([]);
     });
+
+    if (preset.journey) {
+      // The SLOW-MOTION reverse source (calm preset ≈ ×1.3): a fresh game
+      // full of zero categories, one forward + reverse morph — the video
+      // deliverable for the frame-by-frame zero-state check, with the same
+      // sampler asserting it in-page.
+      test('the reverse morph keeps zero categories quiet (slow source)', async ({page, request}) => {
+        test.setTimeout(300_000);
+        await bootIntoGame(page, request, {
+          config: soloGameConfig({
+            players: [{name: 'ZeroTester', color: 'red', beginner: false, handicap: 0, first: true}],
+            seed: 0.37,
+            automa: {difficulty: 'normal'},
+          }),
+          query: preset.profileQuery + '&motion=calm',
+        });
+        await openInfo(page);
+        await key(page, 'Enter', 1600);
+        await expect(page.locator('.con-vpx')).toHaveCount(1);
+        await page.evaluate(() => {
+          const w = window as unknown as {__vpxZero?: {samples: number, hot: number, timer: number}};
+          const probe = {samples: 0, hot: 0, timer: 0};
+          probe.timer = window.setInterval(() => {
+            for (const el of Array.from(document.querySelectorAll<HTMLElement>('.con-infovp__cat--zero'))) {
+              const r = el.getBoundingClientRect();
+              if (r.width < 4 || r.height < 4) {
+                continue;
+              }
+              probe.samples++;
+              if (parseFloat(getComputedStyle(el).opacity) > 0.75) {
+                probe.hot++;
+              }
+            }
+          }, 16);
+          w.__vpxZero = probe;
+        });
+        await key(page, 'Escape', 2000);
+        await expect(page.locator('.con-info__layout')).toHaveCount(1);
+        const verdict = await page.evaluate(() => {
+          const w = window as unknown as {__vpxZero?: {samples: number, hot: number, timer: number}};
+          const probe = w.__vpxZero;
+          if (probe !== undefined) {
+            window.clearInterval(probe.timer);
+          }
+          return probe ?? {samples: 0, hot: 0};
+        });
+        expect(verdict.samples, 'the slow probe must have sampled').toBeGreaterThan(3);
+        expect(verdict.hot, `zero rows stay quiet on EVERY frame (${verdict.hot}/${verdict.samples})`).toBe(0);
+        await key(page, 'KeyY', 800);
+      });
+    }
   });
 }

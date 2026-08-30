@@ -145,6 +145,46 @@ the list. Parity is spec-guarded against `buildConsoleEndgameVm` values
   unfolding out of the legend's rect. ⚠ Reduced motion: an out-in hook's
   `done` must be a MICROTASK (`Promise.resolve().then(done)`) — a
   synchronous `done` wedges Vue's swap (the old zone stays mounted).
+
+  ITERATION 2 (2026-08-31) — the SOURCE-LEDGER contract + MA inspection:
+  · A category card NEVER draws a share track (an empty track reads as
+    unfinished progress). The top segmented bar is the ONE share surface;
+    each card carries a `ScoreLedger` — `chain` (an arithmetic story,
+    «20 старт · +1 фора», honest «ещё N» cut), `medallions` (the REAL
+    earned MA emblems — `assets/ma/<maArtSlug(name)>.png`, the workspace's
+    own art) or `empty` (one quiet sentence). Uniform card geometry: a
+    zero category changes INK only.
+  · FOCUS↔SEGMENT: the focused/selected category's stripe stays lit, the
+    others dim (`litKey`); a ZERO category lights nothing (no stripe
+    exists) and the absolute share line answers «0 ПО» (`shareKey`). The
+    line never pushes the bar's geometry.
+  · The SHARED TOTAL keeps one structure on both sides of the handoff —
+    no contextual label inside `data-vpx-total` (the «Всего»-in-one-state
+    morph snap; e2e structure probe).
+  · `descendCascade` animates every element to its OWN resting opacity
+    (inline cleared, computed read) — a zero row can never flash bright
+    mid-cascade (the measured zero-state flicker; e2e frame samplers on
+    both directions).
+  · TR is an ARITHMETIC STORY: `TrProvenanceRow.running` walks
+    «20 → 21 → … = TR» (spec: the chain ends at the displayed rating).
+  · MILESTONES/AWARDS are COLLECTIONS of real earned laurels
+    (`buildMilestoneCollection`/`buildAwardCollection` — entries ONLY from
+    `detailsMilestones/Awards`, enriched from the public MA models:
+    threshold/score, funder, resolved standings with shared places, ties;
+    award places speak LOCALIZED sentences, never the raw '1st').
+    X opens the MA INSPECTION — a read-only layer inside the explorer
+    (not a route): the entry's emblem FLIPs into the hero pedestal (the
+    source art holds `visibility: hidden` — one physical object), the
+    dossier unfolds from the entry's rect, B folds everything back
+    (`consumeScoreBack` — the shell asks it before `infoBack`), a seat
+    switch drops it instantly (`dropInspect`).
+  · ACTUAL DATA ONLY, everywhere: cities are the REAL owned tiles
+    (`detailsCities[].cardName` names the tile's card — Ganymede Colony;
+    a plain city stays «Город»), hydro shows the position + the ONE
+    APPLIED VP slot (never future slots), zero categories render one
+    empty sentence — no placeholder rows, no future slots, no fake
+    entities anywhere (a REAL card at 0 VP stays visible with its
+    formula — that is a different thing from a placeholder).
 - The bot's breakdown is REAL mid-game: `ServerModel` opens the VP gate for
   `isMarsBot` seats (its score is table-public by the Automa rules; a
   human opponent keeps the hidden-VP contract). Spec:

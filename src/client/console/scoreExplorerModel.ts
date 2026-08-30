@@ -39,23 +39,53 @@ import type {InfoRouteId} from '@/client/console/infoRoute';
 
 // ── shared shapes ──────────────────────────────────────────────────────────
 
-/** A one-line hint under an overview tile — either label·value pairs (the
- *  category's top sources) or a parameterised sentence. */
-export type ScoreHint =
-  | {kind: 'pairs', pairs: ReadonlyArray<{label: string, value: number}>}
-  | {kind: 'template', template: string, params: ReadonlyArray<string | number>};
+/** One piece of a source ledger — an i18n template + params, optionally
+ *  led by a SIGNED value («+1 Кислород»; the chain's first piece renders
+ *  its value bare — the starting term of the arithmetic). */
+export type LedgerPiece = {
+  key: string;
+  label: string; // i18n template or a raw name (card/milestone names ARE keys)
+  params?: ReadonlyArray<string | number>;
+  value?: number;
+};
+
+/**
+ * THE SOURCE LEDGER of one overview card — what the subtotal is MADE OF
+ * (the top bar already owns «share of the total»; a card never draws that
+ * again). Three shapes, one grammar:
+ *   · chain      — an arithmetic story («20 старт · +1 фора · +1 кислород»,
+ *                  honest `moreCount` when sources were cut);
+ *   · medallions — the REAL earned emblems (milestones/awards) + a caption;
+ *   · empty      — the quiet zero-state sentence.
+ */
+export type ScoreLedger =
+  | {kind: 'chain', pieces: ReadonlyArray<LedgerPiece>, moreCount: number}
+  | {kind: 'medallions', entries: ReadonlyArray<{name: string, slug: string}>, moreCount: number, caption: LedgerPiece}
+  | {kind: 'empty', empty: LedgerPiece};
 
 export type ScoreTile = {
   key: ConsoleEndgameCategoryKey;
   label: string; // i18n key
   accent: ConsoleEndgameCategoryKey;
   value: number;
-  /** value / positiveTotal, 0..100 — THE bar semantic of the explorer. */
+  /** value / positiveTotal, 0..100 — the TOP BAR's semantic. Feeds the
+   *  focus↔segment link and the share line; NEVER a per-card track. */
   sharePct: number;
   zero: boolean;
   penalty: boolean;
-  hint: ScoreHint | undefined;
+  ledger: ScoreLedger;
 };
+
+/** The MA art slug — the same formula the MA workspace binds
+ *  (`assets/ma/<slug>.png`, transparent 512×512). */
+export function maArtSlug(name: string): string {
+  return name.toLowerCase().replaceAll(' ', '-').replaceAll('.', '');
+}
+
+/** Strip the numeric variant suffix (Terraformer26 → Terraformer). */
+export function maShortName(name: string): string {
+  return name.replace(/[0-9]+$/, '');
+}
 
 export type ScoreOverviewModel = {
   total: number;
@@ -67,7 +97,7 @@ export type ScoreOverviewModel = {
   tiles: ReadonlyArray<ScoreTile>;
 };
 
-/** Extra live inputs the hints/details need beyond the breakdown. */
+/** Extra live inputs the ledgers/details need beyond the breakdown. */
 export type ScoreExplorerContext = {
   isBot: boolean;
   /** Delta Project («Гидросеть») track position, when the expansion is on. */
@@ -75,63 +105,125 @@ export type ScoreExplorerContext = {
   /** Funded awards — the server's own standings (public model). */
   awards?: ReadonlyArray<{
     name: string;
+    funder?: string;
+    scores: ReadonlyArray<{playerColor: string, playerScore: number}>;
+  }>;
+  /** Claimed-milestone context (public model) — threshold/score enrichment. */
+  milestones?: ReadonlyArray<{
+    name: string;
+    threshold?: number;
+    description?: string;
     scores: ReadonlyArray<{playerColor: string, playerScore: number}>;
   }>;
   viewedColor?: string;
+  /** Resolve a seat color to its display name («Бот» for the MarsBot). */
+  resolveName?: (color: string) => string;
+  /** Resolve an MA description from the client manifest (fallback). */
+  describeMa?: (kind: 'milestone' | 'award', name: string) => string;
 };
 
 // ── level 1: the overview ──────────────────────────────────────────────────
 
-function pairsHint(pairs: ReadonlyArray<{label: string, value: number}>): ScoreHint | undefined {
-  const top = pairs.filter((p) => p.value !== 0).slice(0, 2);
-  return top.length > 0 ? {kind: 'pairs', pairs: top} : undefined;
+/** How many chain pieces an overview card may speak before «ещё N». */
+const LEDGER_MAX_PIECES = 3;
+/** How many emblem previews an overview card may carry. */
+const LEDGER_MAX_MEDALLIONS = 4;
+
+const EMPTY_LEDGER: ScoreLedger = {kind: 'empty', empty: {key: 'zero', label: 'No points yet'}};
+
+function chain(pieces: ReadonlyArray<LedgerPiece>, moreCount = 0): ScoreLedger {
+  return pieces.length === 0 ? EMPTY_LEDGER : {kind: 'chain', pieces, moreCount};
 }
 
-function tileHint(cat: LiveScoreCategory, b: VictoryPointsBreakdown, ctx: ScoreExplorerContext): ScoreHint | undefined {
+/** Cut a source list to the ledger budget with an honest «ещё N» tail. */
+function chainOf(pieces: ReadonlyArray<LedgerPiece>, max = LEDGER_MAX_PIECES): ScoreLedger {
+  if (pieces.length <= max) {
+    return chain(pieces);
+  }
+  return chain(pieces.slice(0, max), pieces.length - max);
+}
+
+function medallionLedger(names: ReadonlyArray<string>, caption: LedgerPiece): ScoreLedger {
+  if (names.length === 0) {
+    return EMPTY_LEDGER;
+  }
+  const entries = names.slice(0, LEDGER_MAX_MEDALLIONS)
+    .map((name) => ({name: maShortName(name), slug: maArtSlug(name)}));
+  return {kind: 'medallions', entries, moreCount: Math.max(0, names.length - LEDGER_MAX_MEDALLIONS), caption};
+}
+
+/** The TR card's chain: start first (bare), then the LARGEST live sources. */
+function trLedger(b: VictoryPointsBreakdown, isBot: boolean): ScoreLedger {
+  const provenance = buildTrProvenance(b, isBot);
+  const [start, ...rest] = provenance.rows;
+  const pieces: Array<LedgerPiece> = [];
+  if (start !== undefined) {
+    pieces.push({key: start.key, label: 'start', value: start.value});
+  }
+  const sources = rest.filter((r) => r.value !== 0)
+    .sort((a, c) => Math.abs(c.value) - Math.abs(a.value));
+  for (const row of sources.slice(0, LEDGER_MAX_PIECES - 1)) {
+    pieces.push({key: row.key, label: row.label, value: row.value});
+  }
+  const cut = Math.max(0, sources.length - (LEDGER_MAX_PIECES - 1));
+  return pieces.length === 0 ? EMPTY_LEDGER : chain(pieces, cut);
+}
+
+function tileLedger(cat: LiveScoreCategory, b: VictoryPointsBreakdown, ctx: ScoreExplorerContext): ScoreLedger {
   switch (cat.key) {
-  case 'tr': {
-    const tr = b.terraformRatingBreakdown;
-    return pairsHint([
-      {label: 'Temperature', value: tr.temperature},
-      {label: 'Oxygen', value: tr.oxygen},
-      {label: 'Oceans', value: tr.oceans},
-      {label: 'Venus', value: tr.venus},
-      {label: 'Hazard cleanup', value: tr.hazards ?? 0},
-      {label: ctx.isBot ? 'Track actions' : 'Cards & effects', value: tr.cards},
-    ].sort((a, c) => c.value - a.value));
+  case 'tr':
+    return trLedger(b, ctx.isBot);
+  case 'cards': {
+    // The category's own composition — families that actually hold points
+    // (a full-composition strip, never a share-of-total track).
+    const parts = cat.subs.filter((s) => s.value !== 0)
+      .map((s): LedgerPiece => ({key: s.key, label: s.label, value: s.value}));
+    return chainOf(parts);
   }
-  case 'cards':
-    return pairsHint(cat.subs.map((s) => ({label: s.label, value: s.value})));
-  case 'milestones': {
-    const count = b.detailsMilestones.length;
-    return count > 0 ? {kind: 'template', template: 'Milestones claimed: ${0}', params: [count]} : undefined;
-  }
-  case 'awards': {
-    const count = b.detailsAwards.length;
-    return count > 0 ? {kind: 'template', template: 'Award places: ${0}', params: [count]} : undefined;
-  }
+  case 'milestones':
+    return medallionLedger(
+      b.detailsMilestones.map((d) => d.messageArgs?.[0] ?? d.message),
+      {key: 'sum', label: '${0} × 5 VP', params: [b.detailsMilestones.length]});
+  case 'awards':
+    return medallionLedger(
+      b.detailsAwards.map((d) => d.messageArgs?.[1] ?? d.message),
+      {key: 'sum', label: 'Award places: ${0}', params: [b.detailsAwards.length]});
   case 'greenery':
-    return cat.value > 0 ? {kind: 'template', template: '${0} tiles × 1 VP', params: [cat.value]} : undefined;
+    return cat.value > 0 ?
+      chain([{key: 'g', label: '${0} tiles × 1 VP', params: [cat.value]}]) : EMPTY_LEDGER;
   case 'city': {
-    const cities = b.detailsCities?.length;
-    return cities !== undefined && cities > 0 ?
-      {kind: 'template', template: 'Cities: ${0}', params: [cities]} : undefined;
+    const cities = b.detailsCities ?? [];
+    if (cities.length === 0) {
+      return {kind: 'empty', empty: {key: 'zero', label: 'No cities on the board'}};
+    }
+    const pieces: Array<LedgerPiece> = [{key: 'n', label: 'Cities: ${0}', params: [cities.length]}];
+    pieces.push(cat.value > 0 ?
+      {key: 'adj', label: 'adjacent greeneries: ${0}', params: [cat.value]} :
+      {key: 'adj', label: 'no adjacent greeneries'});
+    return chain(pieces);
   }
   case 'delta':
-    return ctx.deltaPosition !== undefined && ctx.deltaPosition > 0 ?
-      {kind: 'template', template: 'Track position: ${0}', params: [ctx.deltaPosition]} : undefined;
+    return cat.value !== 0 && ctx.deltaPosition !== undefined ?
+      chain([{key: 'pos', label: 'Position ${0} → ${1} VP', params: [ctx.deltaPosition, cat.value]}]) :
+      (ctx.deltaPosition !== undefined && ctx.deltaPosition > 0 ?
+        chain([{key: 'pos', label: 'Track position: ${0}', params: [ctx.deltaPosition]}]) : EMPTY_LEDGER);
   case 'moon':
   case 'tracks':
-  case 'penalty':
-    return pairsHint(cat.subs.map((s) => ({label: s.label, value: s.value})));
+  case 'penalty': {
+    const parts = cat.subs.filter((s) => s.value !== 0)
+      .map((s): LedgerPiece => ({key: s.key, label: s.label, value: s.value}));
+    return chainOf(parts);
+  }
   default:
-    return undefined;
+    return EMPTY_LEDGER;
   }
 }
 
 /**
  * Level 1 — the scoring overview. One tile per live category, canonical
- * order; Σ sharePct over positive tiles ≡ 100 (spec-guarded).
+ * order; Σ sharePct over positive tiles ≡ 100 (spec-guarded). Every tile
+ * carries a SOURCE LEDGER — what its subtotal is made of; the share of the
+ * total is the TOP BAR's story alone.
  */
 export function buildScoreOverview(live: LiveScoreModel, b: VictoryPointsBreakdown, ctx: ScoreExplorerContext): ScoreOverviewModel {
   const positive = live.positiveTotal;
@@ -143,7 +235,7 @@ export function buildScoreOverview(live: LiveScoreModel, b: VictoryPointsBreakdo
     sharePct: cat.value > 0 && positive > 0 ? (cat.value / positive) * 100 : 0,
     zero: cat.value === 0,
     penalty: cat.penalty,
-    hint: tileHint(cat, b, ctx),
+    ledger: tileLedger(cat, b, ctx),
   }));
   return {
     total: live.total,
@@ -164,6 +256,9 @@ export type TrProvenanceRow = {
   label: string;
   value: number;
   flavor: TrRowFlavor;
+  /** The RUNNING rating after this row lands — the arithmetic story
+   *  («20 → 21 → 22 → 23»), spec-guarded to end at the displayed rating. */
+  running: number;
   /** CardName — the row can show a card chip / open a preview. */
   cardId?: string;
   generation?: number;
@@ -186,9 +281,9 @@ export function buildTrProvenance(b: VictoryPointsBreakdown, isBot: boolean): Tr
   const tr = b.terraformRatingBreakdown;
   const rows: Array<TrProvenanceRow> = [];
   const base = tr.baseRating ?? tr.base;
-  rows.push({key: 'base', label: 'Starting rating', value: base, flavor: 'base'});
+  rows.push({key: 'base', label: 'Starting rating', value: base, flavor: 'base', running: 0});
   if ((tr.handicap ?? 0) !== 0) {
-    rows.push({key: 'handicap', label: 'Handicap', value: tr.handicap ?? 0, flavor: 'handicap'});
+    rows.push({key: 'handicap', label: 'Handicap', value: tr.handicap ?? 0, flavor: 'handicap', running: 0});
   }
   const params: Array<[string, string, number]> = [
     ['temperature', 'Temperature', tr.temperature],
@@ -198,22 +293,23 @@ export function buildTrProvenance(b: VictoryPointsBreakdown, isBot: boolean): Tr
   ];
   for (const [key, label, value] of params) {
     if (value !== 0) {
-      rows.push({key, label, value, flavor: 'param'});
+      rows.push({key, label, value, flavor: 'param', running: 0});
     }
   }
   if ((tr.hazards ?? 0) !== 0) {
-    rows.push({key: 'hazards', label: 'Hazard cleanup', value: tr.hazards ?? 0, flavor: 'hazard'});
+    rows.push({key: 'hazards', label: 'Hazard cleanup', value: tr.hazards ?? 0, flavor: 'hazard', running: 0});
   }
   const entries = tr.cardEntries ?? [];
   for (const e of entries) {
     if (e.sourceType === 'legacyUnknown') {
-      rows.push({key: 'residual', label: 'Other / untracked sources', value: e.amount, flavor: 'residual'});
+      rows.push({key: 'residual', label: 'Other / untracked sources', value: e.amount, flavor: 'residual', running: 0});
     } else {
       rows.push({
         key: `src:${e.sourceType}:${e.sourceName}:${e.sourceCardId ?? ''}`,
         label: e.sourceName,
         value: e.amount,
         flavor: 'source',
+        running: 0,
         cardId: e.sourceCardId,
         generation: e.generation,
       });
@@ -227,9 +323,16 @@ export function buildTrProvenance(b: VictoryPointsBreakdown, isBot: boolean): Tr
       label: isBot ? 'Track actions' : 'Cards & effects',
       value: tr.cards,
       flavor: 'source',
+      running: 0,
     });
   }
-  return {rows, total: rows.reduce((a, r) => a + r.value, 0)};
+  // The RUNNING chain — «20 → +1 → 23» must be walkable row by row.
+  let running = 0;
+  for (const row of rows) {
+    running += row.value;
+    row.running = running;
+  }
+  return {rows, total: running};
 }
 
 // ── level 2: the cards hub + level 3: the group tables ─────────────────────
@@ -466,7 +569,8 @@ export type ScoreFactRow = {
   /** i18n TEMPLATE (`${0}`-parameterised) or a plain key/raw name. */
   label: string;
   params?: ReadonlyArray<string | number>;
-  value: number;
+  /** Absent = a context row (a track position) — no value cell rendered. */
+  value?: number;
   /** Extra quiet line (i18n template + params). */
   note?: {label: string, params?: ReadonlyArray<string | number>};
 };
@@ -477,57 +581,131 @@ export type CategoryFactsModel = {
   emptyKey: string;
 };
 
-/** «Достижения» — the claimed milestones (5 VP each, the printed rule). */
-export function buildMilestoneFacts(b: VictoryPointsBreakdown): CategoryFactsModel {
-  const rows = b.detailsMilestones.map((d, i): ScoreFactRow => ({
-    key: `ms:${i}`,
-    label: d.messageArgs?.[0] ?? d.message,
-    value: d.victoryPoint,
-  }));
-  return {rows, emptyKey: 'No milestones claimed'};
-}
+// ── the MA collections (real earned emblems + the facts behind them) ───────
 
-/** «Награды» — placements + the funded-award standings behind them. */
-export function buildAwardFacts(b: VictoryPointsBreakdown, ctx: ScoreExplorerContext): CategoryFactsModel {
-  const rows: Array<ScoreFactRow> = b.detailsAwards.map((d, i): ScoreFactRow => {
-    const place = d.messageArgs?.[0] ?? '';
-    const award = d.messageArgs?.[1] ?? d.message;
-    const funder = d.messageArgs?.[2] ?? '';
-    const row: ScoreFactRow = {
-      key: `aw:${i}`,
-      label: award,
-      params: undefined,
-      value: d.victoryPoint,
-      note: {label: '${0} place · funded by ${1}', params: [place, funder]},
+export type ScoreMaEntry = {
+  key: string;
+  kind: 'milestone' | 'award';
+  /** The full raw name (slug/description resolution). */
+  name: string;
+  /** The display name (numeric variant suffix stripped; an i18n key). */
+  shortName: string;
+  /** `assets/ma/<slug>.png`. */
+  slug: string;
+  vp: number;
+  /** The one fact line under the name (place/funder — award; claimed — milestone). */
+  fact: LedgerPiece;
+  /** The full description (server model first, manifest fallback). */
+  description: string;
+  /** Milestone: the per-game threshold + the viewed score, when known. */
+  threshold?: number;
+  myScore?: number;
+  /** Award: the RESOLVED standings, best first (ties share a place). */
+  standings?: ReadonlyArray<{name: string, score: number, place: number, mine: boolean, scoringPlace: boolean}>;
+  /** Award: how many rivals share the viewed participant's score. */
+  ties?: number;
+};
+
+export type ScoreMaCollection = {
+  entries: ReadonlyArray<ScoreMaEntry>;
+  emptyKey: string;
+};
+
+/** «Достижения» — ONLY the milestones the viewed participant actually
+ *  claimed (5 VP each, the printed rule) — real emblems, never placeholders. */
+export function buildMilestoneCollection(b: VictoryPointsBreakdown, ctx: ScoreExplorerContext): ScoreMaCollection {
+  const entries = b.detailsMilestones.map((d, i): ScoreMaEntry => {
+    const name = d.messageArgs?.[0] ?? d.message;
+    const model = ctx.milestones?.find((m) => m.name === name);
+    const myScore = ctx.viewedColor !== undefined ?
+      model?.scores.find((s) => s.playerColor === ctx.viewedColor)?.playerScore : undefined;
+    return {
+      key: `ms:${i}:${name}`,
+      kind: 'milestone',
+      name,
+      shortName: maShortName(name),
+      slug: maArtSlug(name),
+      vp: d.victoryPoint,
+      fact: myScore !== undefined && model?.threshold !== undefined ?
+        {key: 'claimed', label: 'Claimed · ${0}/${1}', params: [myScore, model.threshold]} :
+        {key: 'claimed', label: 'Claimed'},
+      description: model?.description ?? ctx.describeMa?.('milestone', name) ?? '',
+      threshold: model?.threshold,
+      myScore,
     };
-    // The standings behind the place — the server's own scores, ties included.
-    const standing = ctx.awards?.find((a) => a.name === award);
-    if (standing !== undefined && ctx.viewedColor !== undefined) {
-      const mine = standing.scores.find((s) => s.playerColor === ctx.viewedColor)?.playerScore;
-      if (mine !== undefined) {
-        const ties = standing.scores.filter((s) => s.playerScore === mine).length - 1;
-        row.note = {
-          label: ties > 0 ? '${0} place · your score ${1} · tied with ${2}' : '${0} place · your score ${1}',
-          params: ties > 0 ? [place, mine, ties] : [place, mine],
-        };
-      }
-    }
-    return row;
   });
-  return {rows, emptyKey: 'No award placements'};
+  return {entries, emptyKey: 'No milestones claimed'};
 }
 
-/** «Города» — every owned city with its own adjacent-greenery contribution. */
+/** Resolve an award's standings: best first; equal scores share a place. */
+function awardStandings(
+  scores: ReadonlyArray<{playerColor: string, playerScore: number}>,
+  viewedColor: string | undefined,
+  resolveName: ((color: string) => string) | undefined,
+): Array<{name: string, score: number, place: number, mine: boolean, scoringPlace: boolean}> {
+  const sorted = [...scores].sort((a, c) => c.playerScore - a.playerScore);
+  return sorted.map((s) => {
+    const better = sorted.filter((o) => o.playerScore > s.playerScore).length;
+    const place = better + 1;
+    return {
+      name: resolveName?.(s.playerColor) ?? s.playerColor,
+      score: s.playerScore,
+      place,
+      mine: s.playerColor === viewedColor,
+      // The printed rule scores two places (5/2) — deeper rows are context.
+      scoringPlace: place <= 2,
+    };
+  });
+}
+
+/** «Награды» — ONLY the awards where the viewed participant actually took a
+ *  scoring place; the funded-award standings live INSIDE each entry. */
+export function buildAwardCollection(b: VictoryPointsBreakdown, ctx: ScoreExplorerContext): ScoreMaCollection {
+  const entries = b.detailsAwards.map((d, i): ScoreMaEntry => {
+    const place = d.messageArgs?.[0] ?? '';
+    const name = d.messageArgs?.[1] ?? d.message;
+    const funder = d.messageArgs?.[2] ?? '';
+    const standing = ctx.awards?.find((a) => a.name === name);
+    const standings = standing !== undefined ?
+      awardStandings(standing.scores, ctx.viewedColor, ctx.resolveName) : undefined;
+    const mine = standings?.find((s) => s.mine);
+    const ties = mine !== undefined ?
+      Math.max(0, (standings ?? []).filter((s) => s.score === mine.score).length - 1) : undefined;
+    // The server's place argument is a raw '1st'/'2nd' — the fact speaks
+    // through LOCALIZED sentences instead of interpolating English words.
+    const first = place === '1st';
+    return {
+      key: `aw:${i}:${name}`,
+      kind: 'award',
+      name,
+      shortName: maShortName(name),
+      slug: maArtSlug(name),
+      vp: d.victoryPoint,
+      fact: ties !== undefined && ties > 0 ?
+        {key: 'place', label: first ? 'First place · tied with ${0}' : 'Second place · tied with ${0}', params: [ties]} :
+        {key: 'place', label: first ? 'First place · funded by ${0}' : 'Second place · funded by ${0}', params: [funder]},
+      description: ctx.describeMa?.('award', name) ?? '',
+      standings,
+      ties,
+      myScore: mine?.score,
+    };
+  });
+  return {entries, emptyKey: 'No award placements'};
+}
+
+/** «Города» — every ACTUAL owned city (never a future slot): the tile's own
+ *  card names it, contributors first. */
 export function buildCityFacts(cities: ReadonlyArray<CityVpDetail> | undefined): CategoryFactsModel {
   const rows = (cities ?? [])
     .slice()
     .sort((a, c) => c.points - a.points)
-    .map((c, i): ScoreFactRow => ({
+    .map((c): ScoreFactRow => ({
       key: `city:${c.spaceId}`,
-      label: 'City ${0}',
-      params: [i + 1],
+      label: c.cardName ?? 'City',
       value: c.points,
-      note: {label: '${0} adjacent greeneries × 1 VP', params: [c.points]},
+      note: c.points > 0 ?
+        {label: '${0} adjacent greeneries × 1 VP', params: [c.points]} :
+        {label: 'no adjacent greeneries'},
     }));
   return {rows, emptyKey: 'No cities on the board'};
 }
@@ -543,18 +721,22 @@ export function buildGreeneryFacts(b: VictoryPointsBreakdown): CategoryFactsMode
   return {rows, emptyKey: 'No greenery tiles'};
 }
 
-/** «Гидросеть» — the track position IS the score source (printed slots). */
+/** «Гидросеть» — the ACTUAL state only: the position, and the one VP slot
+ *  that APPLIED (never the future slots as a list of coming entries). */
 export function buildHydroFacts(b: VictoryPointsBreakdown, ctx: ScoreExplorerContext): CategoryFactsModel {
   const rows: Array<ScoreFactRow> = [];
-  if (b.deltaProject !== 0 && ctx.deltaPosition !== undefined) {
+  if (ctx.deltaPosition !== undefined && ctx.deltaPosition > 0) {
+    rows.push({key: 'pos', label: 'Track position: ${0}', params: [ctx.deltaPosition]});
+  }
+  if (b.deltaProject !== 0) {
+    // The printed zones: slot 10 → 2 VP, slot 11 → 5 VP; only ONE applies.
+    const slot = b.deltaProject >= 5 ? 11 : 10;
     rows.push({
-      key: 'delta',
-      label: 'Track position: ${0}',
-      params: [ctx.deltaPosition],
+      key: 'zone',
+      label: 'Reached VP slot ${0}',
+      params: [slot],
       value: b.deltaProject,
     });
-  } else if (b.deltaProject !== 0) {
-    rows.push({key: 'delta', label: 'Hydronetwork', value: b.deltaProject});
   }
   return {rows, emptyKey: 'No Hydronetwork VP slots reached'};
 }

@@ -8,20 +8,27 @@
        data-vpx-bar are the shared-element anchors of both directions). -->
   <div class="con-vpx" :class="{'con-vpx--deep': level >= 2}">
     <template v-if="vpVisible">
+      <!-- The HERO. The shared total keeps ONE structure on both sides of
+           the summary handoff (no contextual label inside the anchor — a
+           label that exists in only one state snaps the morph). The SHARE
+           LINE is the top bar's own voice: which stripe the cursor means
+           and what share it holds — absolutely seated, zero layout push. -->
       <div class="con-vpx__hero">
         <div class="con-vpx__totalrow" data-vpx-total>
-          <span class="con-vpx__total-label">{{ $t('Total') }}</span>
           <b class="con-vpx__total">{{ overview.total }}</b>
           <span class="con-vpx__total-vp">{{ $t('VP') }}</span>
         </div>
-        <!-- ONE bar semantic everywhere: width = share of the positive
-             total. Past level 1 the bar stays and the selected category's
-             stripe keeps its ink — colour continuity, not a re-draw. -->
         <div class="con-vpx__bar" data-vpx-bar aria-hidden="true">
           <span v-for="seg in barSegments" :key="seg.key"
                 class="con-vpx__seg"
-                :class="['con-eg-cat--' + seg.accent, {'con-vpx__seg--dim': level >= 2 && seg.key !== renderCategoryKey}]"
+                :class="['con-eg-cat--' + seg.accent, {'con-vpx__seg--dim': litKey !== '' && seg.key !== litKey}]"
                 :style="{width: seg.widthPct + '%'}"></span>
+        </div>
+        <div class="con-vpx__shareline" aria-hidden="true">
+          <template v-if="litShare !== ''">
+            <i class="con-vpx__shareline-dot" :class="'con-eg-cat--' + shareKey"></i>
+            <span>{{ litShare }}</span>
+          </template>
         </div>
         <div v-if="overview.penaltyTotal < 0" class="con-vpx__pennote">{{ $t('Penalties') }} {{ overview.penaltyTotal }} {{ $t('VP') }}</div>
       </div>
@@ -46,10 +53,25 @@
                 <span class="con-vpx__tile-label">{{ $t(tile.label) }}</span>
                 <b class="con-vpx__tile-value">{{ tile.value }}</b>
               </span>
-              <span class="con-vpx__tile-track" aria-hidden="true">
-                <span class="con-vpx__tile-fill" :style="{width: tile.sharePct + '%'}"></span>
+              <!-- The SOURCE LEDGER — what the subtotal is MADE OF (the top
+                   bar already owns «share of the total»; no track here). -->
+              <span class="con-vpx__tile-ledger">
+                <template v-if="tile.ledger.kind === 'chain'">
+                  <span v-for="(p, j) in tile.ledger.pieces" :key="p.key" class="con-vpx__lg-piece">
+                    <b v-if="p.value !== undefined" class="con-vpx__lg-num">{{ ledgerNum(p.value, j) }}</b>
+                    <span class="con-vpx__lg-word">{{ factText(p) }}</span>
+                  </span>
+                  <span v-if="tile.ledger.moreCount > 0" class="con-vpx__lg-more">{{ moreText(tile.ledger.moreCount) }}</span>
+                </template>
+                <template v-else-if="tile.ledger.kind === 'medallions'">
+                  <span class="con-vpx__lg-meds" aria-hidden="true">
+                    <i v-for="m in tile.ledger.entries" :key="m.slug" class="con-vpx__med" :style="maArtStyle(m.slug)"></i>
+                    <span v-if="tile.ledger.moreCount > 0" class="con-vpx__med-more">+{{ tile.ledger.moreCount }}</span>
+                  </span>
+                  <span class="con-vpx__lg-word">{{ factText(tile.ledger.caption) }}</span>
+                </template>
+                <span v-else class="con-vpx__lg-empty">{{ factText(tile.ledger.empty) }}</span>
               </span>
-              <span class="con-vpx__tile-hint">{{ hintText(tile) }}</span>
               <span class="con-vpx__chev" aria-hidden="true">›</span>
             </button>
           </div>
@@ -64,20 +86,49 @@
             <span v-if="categoryShare !== undefined" class="con-vpx__cathead-share">{{ categoryShare }}% {{ $t('of total') }}</span>
           </header>
 
-          <!-- TR: the full provenance — where every point of the rating came
-               from; Σ of the rows IS the rating (server invariant). -->
+          <!-- TR: the ARITHMETIC STORY — where every point came from, with
+               the running rating after each source («20 → 21 → … = 23»);
+               Σ of the rows IS the rating (server invariant). -->
           <ConsoleScrollArea v-if="renderCategoryKey === 'tr'" class="con-vpx__catbody">
             <div class="con-vpx__trrows">
-              <div v-for="row in trModel.rows" :key="row.key"
+              <div v-for="(row, i) in trModel.rows" :key="row.key"
                    class="con-vpx__trrow" :class="'con-vpx__trrow--' + row.flavor" data-vpx-catrow>
                 <span class="con-vpx__trrow-label">{{ $t(row.label) }}</span>
                 <span v-if="row.generation !== undefined" class="con-vpx__trrow-gen">{{ genText(row.generation) }}</span>
-                <b class="con-vpx__trrow-value">{{ signed(row.value) }}</b>
+                <b class="con-vpx__trrow-value">{{ i === 0 ? String(row.value) : plus(row.value) }}</b>
+                <span class="con-vpx__trrow-run">→ {{ row.running }}</span>
               </div>
             </div>
             <div class="con-vpx__trsum" data-vpx-catrow>
               <span>{{ $t('Total') }}</span>
               <b>{{ trModel.total }}</b>
+            </div>
+          </ConsoleScrollArea>
+
+          <!-- ДОСТИЖЕНИЯ / НАГРАДЫ: the REAL earned emblems (the MA
+               workspace's own art), one entry per actual laurel — never a
+               placeholder, never a future slot. X inspects the focused one. -->
+          <ConsoleScrollArea v-else-if="isMaCategory" class="con-vpx__catbody">
+            <div v-if="maCollection.entries.length === 0" class="con-vpx__empty">{{ $t(maCollection.emptyKey) }}</div>
+            <div v-else class="con-vpx__macoll">
+              <button v-for="(e, i) in maCollection.entries" :key="e.key"
+                      type="button"
+                      class="con-vpx__maent"
+                      :class="{
+                        'con-vpx__maent--focused': i === ui.catFocus,
+                        'con-vpx__maent--award': e.kind === 'award',
+                      }"
+                      :data-vpx-ma="e.key" data-vpx-catrow
+                      @click="ui.catFocus = i">
+                <span class="con-vpx__maent-stage" aria-hidden="true">
+                  <i class="con-vpx__maent-art" :data-vpx-ma-art="e.key" :style="maArtStyle(e.slug)"></i>
+                </span>
+                <span class="con-vpx__maent-body">
+                  <span class="con-vpx__maent-name">{{ $t(e.shortName) }}</span>
+                  <span class="con-vpx__maent-fact">{{ factText(e.fact) }}</span>
+                </span>
+                <b class="con-vpx__maent-vp">{{ e.vp }}<span>{{ $t('VP') }}</span></b>
+              </button>
             </div>
           </ConsoleScrollArea>
 
@@ -113,7 +164,7 @@
                 <span class="con-vpx__factrow-label">{{ factText(row) }}</span>
                 <span v-if="row.note !== undefined" class="con-vpx__factrow-note">{{ noteText(row.note) }}</span>
               </span>
-              <b class="con-vpx__factrow-value">{{ signed(row.value) }}</b>
+              <b v-if="row.value !== undefined" class="con-vpx__factrow-value">{{ signed(row.value) }}</b>
             </div>
           </ConsoleScrollArea>
         </div>
@@ -173,6 +224,39 @@
           </div>
         </div>
       </div>
+
+      <!-- ── THE MA INSPECTION (X on a laurel): a read-only layer INSIDE the
+           explorer — the focused entry's emblem physically FLIPs into the
+           hero pedestal (one object, never a duplicate), the dossier
+           unfolds beside it, B folds everything back into the entry. Not a
+           route: the crumb stands, a seat switch dismisses it instantly. -->
+      <div v-if="ui.inspect !== undefined" ref="inspectEl" class="con-vpx__inspect">
+        <div class="con-vpx__inspect-panel" :class="{'con-vpx__inspect-panel--award': ui.inspect.kind === 'award'}">
+          <div class="con-vpx__inspect-stage" aria-hidden="true">
+            <i class="con-vpx__inspect-art" data-vpx-inspect-art :style="maArtStyle(ui.inspect.slug)"></i>
+          </div>
+          <div class="con-vpx__inspect-body">
+            <span class="con-vpx__inspect-kind" data-vpx-inspect-row>{{ $t(ui.inspect.kind === 'award' ? 'Award' : 'Milestone') }}</span>
+            <span class="con-vpx__inspect-name" data-vpx-inspect-row>{{ $t(ui.inspect.shortName) }}</span>
+            <span class="con-vpx__inspect-desc" data-vpx-inspect-row>{{ $t(ui.inspect.description) }}</span>
+            <span class="con-vpx__inspect-fact" data-vpx-inspect-row>{{ factText(ui.inspect.fact) }}</span>
+            <span v-if="ui.inspect.kind === 'milestone' && ui.inspect.threshold !== undefined" class="con-vpx__inspect-fact" data-vpx-inspect-row>
+              {{ thresholdText(ui.inspect) }}
+            </span>
+            <div v-if="ui.inspect.standings !== undefined" class="con-vpx__inspect-standings" data-vpx-inspect-row>
+              <div v-for="s in ui.inspect.standings" :key="s.name + s.score"
+                   class="con-vpx__inspect-standrow"
+                   :class="{'con-vpx__inspect-standrow--mine': s.mine, 'con-vpx__inspect-standrow--scoring': s.scoringPlace}">
+                <span class="con-vpx__inspect-place">{{ s.place }}</span>
+                <span class="con-vpx__inspect-pname">{{ s.name }}</span>
+                <b class="con-vpx__inspect-pscore">{{ s.score }}</b>
+              </div>
+              <div class="con-vpx__inspect-rule" data-vpx-inspect-row>{{ $t('First place 5 VP · second place 2 VP') }}</div>
+            </div>
+            <b class="con-vpx__inspect-vp" data-vpx-inspect-row>{{ ui.inspect.vp }} <span>{{ $t('VP') }}</span></b>
+          </div>
+        </div>
+      </div>
     </template>
 
     <!-- The hidden-VP contract at the SAME depth — the crumb stays honest,
@@ -219,14 +303,14 @@ import {useConsoleViewport} from '@/client/console/composables/useConsoleViewpor
 import {translateText, translateTextWithParams} from '@/client/directives/i18n';
 import {buildLiveScoreModel, LiveScoreModel} from '@/client/console/liveScoreModel';
 import {
-  buildAwardFacts,
+  buildAwardCollection,
   buildBotGroupFacts,
   buildCardGroupTable,
   buildCardsHub,
   buildCityFacts,
   buildGreeneryFacts,
   buildHydroFacts,
-  buildMilestoneFacts,
+  buildMilestoneCollection,
   buildPenaltyFacts,
   buildScoreOverview,
   buildTrProvenance,
@@ -236,11 +320,17 @@ import {
   ScoreCardRow,
   ScoreCardGroupKey,
   ScoreExplorerContext,
+  ScoreMaCollection,
+  ScoreMaEntry,
   ScoreOverviewModel,
   ScoreTile,
   scoreGridNavigate,
   TrProvenanceModel,
 } from '@/client/console/scoreExplorerModel';
+import {getAward, getMilestone} from '@/client/MilestoneAwardManifest';
+import {MilestoneName} from '@/common/ma/MilestoneName';
+import {AwardName} from '@/common/ma/AwardName';
+import {displayNameForColor} from '@/client/components/marsbot/marsBotDisplay';
 import {SCORE_CATEGORY_TABLE} from '@/client/console/endgame/consoleEndgameModel';
 import {infoModeState} from '@/client/console/infoModeState';
 import {InfoRouteId, isVpRoute} from '@/client/console/infoRoute';
@@ -250,6 +340,7 @@ import {
   armDescendRect,
   descendCascade,
   descendCascadeOut,
+  descendFlipFrom,
   descendFold,
   descendRecede,
   descendRectOf,
@@ -336,10 +427,65 @@ export default defineComponent({
         deltaPosition: this.viewed.deltaProject?.position,
         awards: this.playerView.game.awards?.map((a) => ({
           name: a.name,
+          funder: a.playerName,
           scores: a.scores.map((s) => ({playerColor: s.color as string, playerScore: s.score})),
         })),
+        milestones: this.playerView.game.milestones?.map((m) => ({
+          name: m.name,
+          threshold: m.threshold,
+          description: m.description,
+          scores: m.scores.map((s) => ({playerColor: s.color as string, playerScore: s.score})),
+        })),
         viewedColor: this.viewed.color,
+        resolveName: (color) => displayNameForColor(this.playerView.players, color as never),
+        describeMa: (kind, name) => {
+          try {
+            return kind === 'milestone' ?
+              getMilestone(name as MilestoneName).description :
+              getAward(name as AwardName).description;
+          } catch (err) {
+            return '';
+          }
+        },
       };
+    },
+    isMaCategory(): boolean {
+      return this.renderCategoryKey === 'milestones' || this.renderCategoryKey === 'awards';
+    },
+    maCollection(): ScoreMaCollection {
+      const b = this.viewed.victoryPointsBreakdown;
+      return this.renderCategoryKey === 'awards' ?
+        buildAwardCollection(b, this.explorerCtx) :
+        buildMilestoneCollection(b, this.explorerCtx);
+    },
+    /** The category the top bar LIGHTS — the focused tile on the overview,
+     *  the selected category past it (colour continuity of the descend).
+     *  A ZERO category has no stripe to link — the bar rests whole (the
+     *  share line still answers «0 ПО»). */
+    litKey(): string {
+      const key = this.level >= 2 ? this.renderCategoryKey :
+        (this.route === 'vp' ? this.overview.tiles[this.ui.gridFocus]?.key ?? '' : '');
+      const tile = this.overview.tiles.find((t) => t.key === key);
+      return tile !== undefined && tile.value > 0 ? key : '';
+    },
+    /** The share line follows the CURSOR even on a zero tile. */
+    shareKey(): string {
+      if (this.level >= 2) {
+        return this.renderCategoryKey;
+      }
+      return this.route === 'vp' ? this.overview.tiles[this.ui.gridFocus]?.key ?? '' : '';
+    },
+    /** The share line beside the bar: «23 / 39 · 59%» for the lit stripe,
+     *  an honest «0 ПО» when the cursor stands on a zero category. */
+    litShare(): string {
+      const tile = this.overview.tiles.find((t) => t.key === this.shareKey);
+      if (tile === undefined) {
+        return '';
+      }
+      if (tile.value <= 0) {
+        return `${tile.value} ${translateText('VP')}`;
+      }
+      return `${tile.value} / ${this.overview.total} · ${Math.round(tile.sharePct)}%`;
     },
     overview(): ScoreOverviewModel {
       return buildScoreOverview(this.liveScore, this.viewed.victoryPointsBreakdown, this.explorerCtx);
@@ -388,8 +534,6 @@ export default defineComponent({
     factsModel(): CategoryFactsModel {
       const b = this.viewed.victoryPointsBreakdown;
       switch (this.renderCategoryKey) {
-      case 'milestones': return buildMilestoneFacts(b);
-      case 'awards': return buildAwardFacts(b, this.explorerCtx);
       case 'city': return buildCityFacts(b.detailsCities);
       case 'greenery': return buildGreeneryFacts(b);
       case 'delta': return buildHydroFacts(b, this.explorerCtx);
@@ -459,6 +603,12 @@ export default defineComponent({
         cmds.push({control: 'inspect', label: 'Close', priority: 0});
         return cmds;
       }
+      // The INSPECTION owns the pad: one read, one way back.
+      if (this.ui.inspect !== undefined) {
+        cmds.push({control: 'back', label: 'Back'});
+        cmds.push({control: 'inspect', label: 'Close', priority: 0});
+        return cmds;
+      }
       if (this.route === 'vp') {
         cmds.push({control: 'confirm', label: 'Open', enabled: this.overview.tiles.length > 0});
         cmds.push({control: 'back', label: 'To overview'});
@@ -466,6 +616,9 @@ export default defineComponent({
         if (this.renderCategoryKey === 'cards') {
           const tile = this.cardsHub.tiles[this.ui.hubFocus];
           cmds.push({control: 'confirm', label: 'Open', enabled: tile?.enterable === true});
+        }
+        if (this.isMaCategory && this.maCollection.entries[this.ui.catFocus] !== undefined) {
+          cmds.push({control: 'secondary', label: 'Inspect'});
         }
         cmds.push({control: 'back', label: 'Back'});
       } else {
@@ -489,6 +642,11 @@ export default defineComponent({
     'infoModeState.route'(to: InfoRouteId, from: InfoRouteId): void {
       this.onRouteChange(to, from);
     },
+    /** A seat switch keeps the depth but never a stale dossier — the
+     *  entity may not exist for the arriving participant. */
+    'infoModeState.playerColor'(): void {
+      this.dropInspect();
+    },
     /** Clamp the cursors when a seat switch shrinks a list (same depth). */
     'tableModel.rows.length'(len: number): void {
       if (this.ui.rowFocus >= len) {
@@ -500,8 +658,14 @@ export default defineComponent({
         this.ui.gridFocus = Math.max(0, len - 1);
       }
     },
+    'maCollection.entries.length'(len: number): void {
+      if (this.ui.catFocus >= len) {
+        this.ui.catFocus = Math.max(0, len - 1);
+      }
+    },
   },
   beforeUnmount() {
+    this.dropInspect();
     const stage = this.$refs.stageEl as HTMLElement | undefined;
     if (stage !== undefined) {
       killDescendEpisode(stage);
@@ -515,18 +679,26 @@ export default defineComponent({
     signed(v: number): string {
       return String(v);
     },
+    /** «+N» for every additive chain piece past the first (the start term). */
+    plus(v: number): string {
+      return v > 0 ? `+${v}` : String(v);
+    },
+    ledgerNum(v: number, index: number): string {
+      return index === 0 ? String(v) : this.plus(v);
+    },
+    moreText(n: number): string {
+      return translateTextWithParams('+${0} more', [String(n)]);
+    },
+    maArtStyle(slug: string): Record<string, string> {
+      return {backgroundImage: `url(assets/ma/${slug}.png)`};
+    },
+    thresholdText(e: ScoreMaEntry): string {
+      return e.myScore !== undefined ?
+        translateTextWithParams('Threshold: ${0} · your score: ${1}', [String(e.threshold), String(e.myScore)]) :
+        translateTextWithParams('Threshold: ${0}', [String(e.threshold)]);
+    },
     genText(g: number): string {
       return translateTextWithParams('gen ${0}', [String(g)]);
-    },
-    hintText(tile: ScoreTile): string {
-      const hint = tile.hint;
-      if (hint === undefined) {
-        return tile.zero ? translateText('No points yet') : '';
-      }
-      if (hint.kind === 'template') {
-        return translateTextWithParams(hint.template, hint.params.map(String));
-      }
-      return hint.pairs.map((p) => `${translateText(p.label)} ${p.value}`).join(' · ');
     },
     factText(row: {label: string, params?: ReadonlyArray<string | number>}): string {
       return row.params !== undefined ?
@@ -610,6 +782,9 @@ export default defineComponent({
       }
     },
     onNav(dir: 'up' | 'down' | 'left' | 'right'): void {
+      if (this.ui.inspect !== undefined) {
+        return; // the inspection is a read — the pad rests until B
+      }
       if (this.route === 'vp') {
         this.ui.gridFocus = scoreGridNavigate(this.overview.tiles.length, this.ui.gridFocus, dir, this.gridCols);
         return;
@@ -618,6 +793,18 @@ export default defineComponent({
         if (this.renderCategoryKey === 'cards') {
           const step = dir === 'down' || dir === 'right' ? 1 : -1;
           this.ui.hubFocus = Math.min(Math.max(this.ui.hubFocus + step, 0), this.cardsHub.tiles.length - 1);
+          return;
+        }
+        if (this.isMaCategory && this.maCollection.entries.length > 0 && (dir === 'up' || dir === 'down')) {
+          const step = dir === 'down' ? 1 : -1;
+          const next = Math.min(Math.max(this.ui.catFocus + step, 0), this.maCollection.entries.length - 1);
+          if (next !== this.ui.catFocus) {
+            this.ui.catFocus = next;
+            nextTick(() => {
+              const el = (this.$el as HTMLElement).querySelector<HTMLElement>('.con-vpx__maent--focused');
+              el?.scrollIntoView({block: 'nearest'});
+            });
+          }
           return;
         }
         this.scrollCatBody(dir);
@@ -673,6 +860,7 @@ export default defineComponent({
       armDescendRect('vpx-cat', rect);
       armDescendOrigin('vpx-cat', rect !== undefined ? {x: rect.left + rect.width / 2, y: rect.top + rect.height / 2} : undefined);
       this.ui.hubFocus = 0;
+      this.ui.catFocus = 0;
       this.infoModeState.vpCategoryKey = tile.key;
       this.infoModeState.route = 'vpCategory';
     },
@@ -688,6 +876,14 @@ export default defineComponent({
       this.infoModeState.route = 'vpCards';
     },
     onInspectRow(): void {
+      // X on a LAUREL — the read-only MA inspection (both participants).
+      if (this.route === 'vpCategory' && this.isMaCategory) {
+        const entry = this.maCollection.entries[this.ui.catFocus];
+        if (entry !== undefined && this.ui.inspect === undefined) {
+          this.openMaInspect(entry);
+        }
+        return;
+      }
       if (this.route !== 'vpCards' || this.viewedIsBot) {
         return;
       }
@@ -714,8 +910,110 @@ export default defineComponent({
         ),
       });
     },
+    // ── the MA inspection (X → dossier, B → fold back) ───────────────────
+    /** The focused entry's OWN art node in the collection. */
+    maSourceArt(key: string): HTMLElement | null {
+      return (this.$el as HTMLElement).querySelector<HTMLElement>(`[data-vpx-ma-art="${CSS.escape(key)}"]`);
+    },
+    openMaInspect(entry: ScoreMaEntry): void {
+      const sourceArt = this.maSourceArt(entry.key);
+      const entryEl = (this.$el as HTMLElement).querySelector<HTMLElement>(`[data-vpx-ma="${CSS.escape(entry.key)}"]`);
+      armDescendRect('vpx-ins-art', descendRectOf(sourceArt));
+      armDescendRect('vpx-ins-panel', descendRectOf(entryEl));
+      this.ui.inspect = entry;
+      if (consoleReducedMotionActive()) {
+        return;
+      }
+      nextTick(() => {
+        const layer = this.$refs.inspectEl as HTMLElement | undefined;
+        if (layer === undefined) {
+          return;
+        }
+        // The SOURCE emblem yields to its flying twin for the layer's whole
+        // life (one physical object; restored on every close path).
+        if (sourceArt !== null) {
+          sourceArt.style.visibility = 'hidden';
+        }
+        guardedDescend(layer, 640, () => {}, (finish) => {
+          const panel = layer.querySelector<HTMLElement>('.con-vpx__inspect-panel');
+          const art = layer.querySelector<HTMLElement>('[data-vpx-inspect-art]');
+          if (panel === null) {
+            return undefined;
+          }
+          const tl = gsap.timeline({onComplete: finish});
+          if (!descendUnfold(tl, panel, takeDescendRect('vpx-ins-panel'), motionMs(280) / 1000, 0)) {
+            tl.fromTo(panel, {autoAlpha: 0}, {autoAlpha: 1, duration: motionMs(160) / 1000, clearProps: 'opacity,visibility'}, 0);
+          }
+          if (art !== null) {
+            const from = takeDescendRect('vpx-ins-art');
+            const flip = from !== undefined ? descendFlipFrom(art, from) : undefined;
+            if (flip !== undefined) {
+              tl.fromTo(art,
+                {x: flip.x, y: flip.y, scale: flip.scale, transformOrigin: 'top left'},
+                {x: 0, y: 0, scale: 1, duration: motionMs(320) / 1000, ease: 'expo.out', clearProps: 'transform'}, 0);
+            }
+          }
+          descendCascade(tl, Array.from(layer.querySelectorAll<HTMLElement>('[data-vpx-inspect-row]')), motionMs(170) / 1000, motionMs(150) / 1000, 0.025);
+          return tl;
+        });
+      });
+    },
+    /** B while the inspection stands — fold it back into its entry.
+     *  Returns true when the press was consumed (the shell asks FIRST). */
+    consumeScoreBack(): boolean {
+      const entry = this.ui.inspect;
+      if (entry === undefined) {
+        return false;
+      }
+      const layer = this.$refs.inspectEl as HTMLElement | undefined;
+      const sourceArt = this.maSourceArt(entry.key);
+      const restore = () => {
+        sourceArt?.style.removeProperty('visibility');
+        this.ui.inspect = undefined;
+      };
+      if (consoleReducedMotionActive() || layer === undefined) {
+        restore();
+        return true;
+      }
+      guardedDescend(layer, 520, restore, (finish) => {
+        const panel = layer.querySelector<HTMLElement>('.con-vpx__inspect-panel');
+        const art = layer.querySelector<HTMLElement>('[data-vpx-inspect-art]');
+        if (panel === null) {
+          return undefined;
+        }
+        const tl = gsap.timeline({onComplete: finish});
+        descendCascadeOut(tl, Array.from(layer.querySelectorAll<HTMLElement>('[data-vpx-inspect-row]')), motionMs(100) / 1000, 0);
+        if (art !== null && sourceArt !== null) {
+          const home = descendRectOf(sourceArt);
+          const flip = home !== undefined ? descendFlipFrom(art, home) : undefined;
+          if (flip !== undefined) {
+            tl.to(art, {x: flip.x, y: flip.y, scale: flip.scale, transformOrigin: 'top left', duration: motionMs(260) / 1000, ease: 'power2.inOut'}, 0);
+          }
+        }
+        if (!descendFold(tl, panel, descendRectOf((this.$el as HTMLElement).querySelector(`[data-vpx-ma="${CSS.escape(entry.key)}"]`)), motionMs(240) / 1000, motionMs(40) / 1000)) {
+          tl.to(panel, {autoAlpha: 0, duration: motionMs(130) / 1000}, 0);
+        }
+        return tl;
+      });
+      return true;
+    },
+    /** A seat switch / route move dismisses the inspection INSTANTLY (the
+     *  entity may not exist on the other side — never a stale dossier). */
+    dropInspect(): void {
+      const entry = this.ui.inspect;
+      if (entry === undefined) {
+        return;
+      }
+      const layer = this.$refs.inspectEl as HTMLElement | undefined;
+      if (layer !== undefined) {
+        killDescendEpisode(layer);
+      }
+      this.maSourceArt(entry.key)?.style.removeProperty('visibility');
+      this.ui.inspect = undefined;
+    },
     // ── the level transitions (the workspace-descend phrase) ─────────────
     onRouteChange(to: InfoRouteId, from: InfoRouteId): void {
+      this.dropInspect();
       const stage = this.$refs.stageEl as HTMLElement | undefined;
       if (stage !== undefined) {
         killDescendEpisode(stage);

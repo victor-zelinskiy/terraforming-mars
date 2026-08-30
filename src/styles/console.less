@@ -15416,13 +15416,6 @@ html.con-profile-large.console-mode .notifications-layer.notifications-layer--jo
         align-items: baseline;
         gap: .55rem;
     }
-    &__total-label {
-        font-size: 1rem;
-        font-weight: 700;
-        letter-spacing: .14rem;
-        text-transform: uppercase;
-        color: @con-text-dim;
-    }
     &__total {
         font-size: 3rem;
         font-weight: 800;
@@ -15452,9 +15445,33 @@ html.con-profile-large.console-mode .notifications-layer.notifications-layer--jo
         transition: width calc(420ms * var(--motion-scale, 1)) ease,
             opacity calc(260ms * var(--motion-scale, 1)) ease;
     }
-    /* Past level 1 the selected stripe keeps its ink, the rest recede —
-       colour continuity of the descend, not a redraw. */
-    &__seg--dim { opacity: .28; }
+    /* The lit stripe is the FOCUSED/SELECTED category; the rest recede —
+       the focus↔segment link, and the descend's colour continuity. */
+    &__seg--dim { opacity: .3; }
+    /* The share line — the top bar's own secondary voice for the lit
+       stripe («23 / 39 · 59%»). Absolutely seated over the hero's right
+       edge: focus may never push the bar's geometry. */
+    &__shareline {
+        position: absolute;
+        top: .35rem;
+        right: 0;
+        display: flex;
+        align-items: center;
+        gap: .4rem;
+        height: 1.3rem;
+        font-size: .95rem;
+        letter-spacing: .05rem;
+        color: @con-text-dim;
+        font-variant-numeric: tabular-nums;
+    }
+    &__shareline-dot {
+        width: .55rem;
+        height: .55rem;
+        border-radius: .16rem;
+        background: var(--eg-c, @con-cyan);
+        box-shadow: inset 0 0 0 .05rem rgba(0, 0, 0, 0.4);
+    }
+    &__hero { position: relative; }
     &__pennote {
         font-size: .9rem;
         color: #eb8f8f;
@@ -15555,30 +15572,67 @@ html.con-profile-large.console-mode .notifications-layer.notifications-layer--jo
         color: @con-text;
     }
     &__tile--penalty &__tile-value { color: #eb8f8f; }
-    &__tile-track {
-        height: .5rem;
-        border-radius: .22rem;
+    /* The SOURCE LEDGER zone — a fixed two-line well (no focus/seat morph
+       may resize the card): the chain pieces, the medallion previews or
+       the quiet zero sentence. Never a share track — the top bar owns
+       «share of the total» alone. */
+    &__tile-ledger {
+        display: flex;
+        align-items: center;
+        flex-wrap: wrap;
+        gap: .12rem .55rem;
+        min-height: 2.15rem;
         overflow: hidden;
-        background: rgba(10, 16, 25, 0.8);
-        box-shadow: inset 0 0 0 .05rem rgba(120, 150, 180, 0.18);
+        font-size: .85rem;
+        color: @con-text-dim;
     }
-    &__tile-fill {
-        display: block;
-        height: 100%;
-        border-radius: .22rem;
-        background: var(--eg-c, @con-cyan);
-        transition: width calc(420ms * var(--motion-scale, 1)) ease;
+    &__lg-piece {
+        display: inline-flex;
+        align-items: baseline;
+        gap: .3rem;
+        white-space: nowrap;
     }
-    &__tile--penalty &__tile-track {
-        background: repeating-linear-gradient(135deg,
-            fade(#e06a6a, 30%) 0 .35rem, rgba(10, 16, 25, 0.8) .35rem .7rem);
+    &__lg-piece + &__lg-piece::before {
+        content: '·';
+        margin-right: .45rem;
+        color: fade(#cfe0f0, 35%);
     }
-    &__tile-hint {
-        min-height: 1.15rem;
+    &__lg-num {
+        font-size: 1rem;
+        font-weight: 700;
+        font-variant-numeric: tabular-nums;
+        color: @con-text;
+    }
+    &__lg-word {
         overflow: hidden;
         text-overflow: ellipsis;
+    }
+    &__lg-more {
         white-space: nowrap;
-        font-size: .85rem;
+        color: fade(#cfe0f0, 45%);
+        font-size: .78rem;
+    }
+    &__lg-empty { color: fade(#cfe0f0, 40%); }
+    /* The REAL earned emblems (the MA workspace's own 512×512 art). */
+    &__lg-meds {
+        display: inline-flex;
+        align-items: center;
+        gap: .3rem;
+    }
+    &__med {
+        width: 1.75rem;
+        height: 1.75rem;
+        background-repeat: no-repeat;
+        background-position: center;
+        background-size: contain;
+        border-radius: 50%;
+        background-color: rgba(8, 13, 20, 0.75);
+        box-shadow: inset 0 0 0 .05rem rgba(160, 180, 205, 0.28),
+            inset 0 -.35rem .5rem rgba(0, 0, 0, 0.35);
+    }
+    &__med-more {
+        font-size: .82rem;
+        font-weight: 700;
         color: @con-text-dim;
     }
     &__chev {
@@ -15678,6 +15732,15 @@ html.con-profile-large.console-mode .notifications-layer.notifications-layer--jo
         font-weight: 700;
         font-variant-numeric: tabular-nums;
         color: @con-text;
+    }
+    /* The running rating after this row — the arithmetic story's spine. */
+    &__trrow-run {
+        flex: none;
+        min-width: 3.6rem;
+        text-align: right;
+        font-size: .9rem;
+        font-variant-numeric: tabular-nums;
+        color: fade(#cfe0f0, 48%);
     }
     &__trsum {
         display: flex;
@@ -15982,6 +16045,235 @@ html.con-profile-large.console-mode .notifications-layer.notifications-layer--jo
         padding: .5rem .2rem;
         font-size: 1rem;
         color: @con-text-dim;
+    }
+
+    /* ── THE MA COLLECTION — real earned laurels, the MA workspace's own
+       pedestal grammar (radial well + contain art), never a placeholder. */
+    &__macoll {
+        display: flex;
+        flex-direction: column;
+        gap: .45rem;
+        max-width: 52rem;
+    }
+    &__maent {
+        display: flex;
+        align-items: center;
+        gap: .9rem;
+        padding: .55rem .8rem;
+        border: none;
+        border-radius: .5rem;
+        text-align: left;
+        font: inherit;
+        cursor: pointer;
+        color: @con-text-dim;
+        background: rgba(10, 16, 25, 0.55);
+        box-shadow: inset 0 0 0 .05rem rgba(120, 150, 180, 0.14);
+        transition: background calc(150ms * var(--motion-scale, 1)) ease,
+            box-shadow calc(150ms * var(--motion-scale, 1)) ease;
+    }
+    &__maent--focused {
+        background: rgba(18, 30, 44, 0.85);
+        box-shadow: inset 0 0 0 .1rem fade(@con-cyan, 80%),
+            0 .3rem 1.2rem rgba(0, 0, 0, 0.35);
+        color: @con-text;
+    }
+    /* The two systems keep their identities: cool axis for milestones,
+       warm podium for awards (the MA workspace's own split). */
+    &__maent--award {
+        box-shadow: inset 0 0 0 .05rem rgba(120, 150, 180, 0.14),
+            inset 0 -.12rem 0 fade(#ffd87a, 22%);
+    }
+    &__maent--award.con-vpx__maent--focused {
+        box-shadow: inset 0 0 0 .1rem fade(@con-cyan, 80%),
+            inset 0 -.12rem 0 fade(#ffd87a, 30%),
+            0 .3rem 1.2rem rgba(0, 0, 0, 0.35);
+    }
+    &__maent-stage {
+        flex: none;
+        width: 4.2rem;
+        height: 4.2rem;
+        border-radius: .55rem;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        background: radial-gradient(circle at 50% 42%, rgba(38, 56, 78, 0.85), rgba(8, 13, 20, 0.9) 72%);
+        box-shadow: inset 0 0 0 .05rem rgba(160, 180, 205, 0.22);
+    }
+    &__maent-art {
+        width: 3.6rem;
+        height: 3.6rem;
+        background-repeat: no-repeat;
+        background-position: center;
+        background-size: contain;
+    }
+    &__maent-body {
+        flex: 1;
+        min-width: 0;
+        display: flex;
+        flex-direction: column;
+        gap: .18rem;
+    }
+    &__maent-name {
+        font-size: 1.1rem;
+        letter-spacing: .04rem;
+        color: @con-text;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+    }
+    &__maent-fact {
+        font-size: .9rem;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+    }
+    &__maent-vp {
+        flex: none;
+        display: inline-flex;
+        align-items: baseline;
+        gap: .3rem;
+        font-size: 1.45rem;
+        font-weight: 800;
+        font-variant-numeric: tabular-nums;
+        color: @con-text;
+        span {
+            font-size: .8rem;
+            font-weight: 700;
+            letter-spacing: .1rem;
+            color: @con-text-dim;
+        }
+    }
+
+    /* ── THE MA INSPECTION — a read layer over the collection: the emblem
+       FLIPs into a hero pedestal, the dossier reads beside it. */
+    &__inspect {
+        position: absolute;
+        inset: 0;
+        z-index: 4;
+        display: flex;
+        align-items: flex-start;
+        padding-top: 5.4rem;
+        background: rgba(6, 10, 16, 0.78);
+        border-radius: .6rem;
+    }
+    &__inspect-panel {
+        display: flex;
+        gap: 1.4rem;
+        width: min(56rem, 100%);
+        margin: 0 auto;
+        padding: 1.3rem 1.5rem;
+        border-radius: .7rem;
+        background: rgba(13, 21, 32, 0.97);
+        box-shadow: inset 0 0 0 .05rem rgba(120, 150, 180, 0.22),
+            0 1rem 3rem rgba(0, 0, 0, 0.5);
+    }
+    &__inspect-panel--award {
+        box-shadow: inset 0 0 0 .05rem rgba(120, 150, 180, 0.22),
+            inset 0 -.14rem 0 fade(#ffd87a, 30%),
+            0 1rem 3rem rgba(0, 0, 0, 0.5);
+    }
+    &__inspect-stage {
+        flex: none;
+        width: 11rem;
+        height: 11rem;
+        border-radius: .8rem;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        background: radial-gradient(circle at 50% 40%, rgba(44, 64, 88, 0.9), rgba(8, 13, 20, 0.95) 74%);
+        box-shadow: inset 0 0 0 .05rem rgba(160, 180, 205, 0.26);
+    }
+    &__inspect-art {
+        width: 9.4rem;
+        height: 9.4rem;
+        background-repeat: no-repeat;
+        background-position: center;
+        background-size: contain;
+    }
+    &__inspect-body {
+        flex: 1;
+        min-width: 0;
+        display: flex;
+        flex-direction: column;
+        gap: .45rem;
+    }
+    &__inspect-kind {
+        font-size: .8rem;
+        font-weight: 700;
+        letter-spacing: .16rem;
+        text-transform: uppercase;
+        color: @con-text-dim;
+    }
+    &__inspect-name {
+        font-size: 1.7rem;
+        font-weight: 700;
+        letter-spacing: .03rem;
+        color: @con-text;
+    }
+    &__inspect-desc {
+        .con-read-text(450);
+        color: @con-text;
+        max-width: 34rem;
+    }
+    &__inspect-fact {
+        font-size: .95rem;
+        color: @con-text-dim;
+    }
+    &__inspect-standings {
+        display: flex;
+        flex-direction: column;
+        gap: .25rem;
+        margin-top: .3rem;
+        max-width: 26rem;
+    }
+    &__inspect-standrow {
+        display: flex;
+        align-items: baseline;
+        gap: .6rem;
+        padding: .3rem .55rem;
+        border-radius: .35rem;
+        background: rgba(10, 16, 25, 0.6);
+        color: @con-text-dim;
+    }
+    &__inspect-standrow--mine {
+        color: @con-text;
+        box-shadow: inset 0 0 0 .05rem fade(@con-cyan, 55%);
+    }
+    &__inspect-standrow--scoring .con-vpx__inspect-place { color: #ffd87a; }
+    &__inspect-place {
+        flex: none;
+        width: 1.4rem;
+        font-weight: 700;
+        font-variant-numeric: tabular-nums;
+    }
+    &__inspect-pname {
+        flex: 1;
+        min-width: 0;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+    }
+    &__inspect-pscore { font-variant-numeric: tabular-nums; }
+    &__inspect-rule {
+        margin-top: .15rem;
+        font-size: .82rem;
+        color: fade(#cfe0f0, 45%);
+    }
+    &__inspect-vp {
+        margin-top: .3rem;
+        display: inline-flex;
+        align-items: baseline;
+        gap: .35rem;
+        font-size: 1.9rem;
+        font-weight: 800;
+        font-variant-numeric: tabular-nums;
+        color: @con-text;
+        span {
+            font-size: .9rem;
+            font-weight: 700;
+            letter-spacing: .12rem;
+            color: @con-text-dim;
+        }
     }
 
     /* The hidden-VP contract at the SAME depth. */
@@ -30287,7 +30579,14 @@ html.con-profile-handheld {
         &__tile { min-height: 5.6rem; padding: .5rem 1.3rem .45rem .6rem; }
         &__tile-label { font-size: .8rem; }
         &__tile-value { font-size: 1.2rem; }
-        &__tile-hint { font-size: .68rem; }
+        &__tile-ledger { font-size: .68rem; min-height: 1.7rem; gap: .1rem .4rem; }
+        &__lg-num { font-size: .82rem; }
+        &__med { width: 1.35rem; height: 1.35rem; }
+        &__shareline { font-size: .72rem; }
+        &__maent-stage { width: 3.2rem; height: 3.2rem; }
+        &__maent-art { width: 2.7rem; height: 2.7rem; }
+        &__inspect-stage { width: 8rem; height: 8rem; }
+        &__inspect-art { width: 6.8rem; height: 6.8rem; }
         &__groups { grid-template-columns: repeat(3, minmax(0, 1fr)); gap: .45rem; }
         &__group { min-height: 6rem; padding: .5rem 1.2rem .5rem .6rem; }
         &__cathead-label { font-size: 1.05rem; }

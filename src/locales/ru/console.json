@@ -833,5 +833,20 @@
     "oceans placed": "океаны",
     "colonies built": "колонии",
     "Moon mines": "шахты Луны",
-    "Moon roads": "дороги Луны"
+    "Moon roads": "дороги Луны",
+    "start": "старт",
+    "no adjacent greeneries": "озеленений рядом нет",
+    "adjacent greeneries: ${0}": "озеленений рядом: ${0}",
+    "Position ${0} → ${1} VP": "Позиция ${0} → ${1} ПО",
+    "${0} × 5 VP": "${0} × 5 ПО",
+    "Claimed · ${0}/${1}": "Заявлено · ${0}/${1}",
+    "${0} place · tied with ${1}": "${0} место · ничья (${1})",
+    "Reached VP slot ${0}": "Достигнуто ПО-деление ${0}",
+    "Threshold: ${0}": "Порог: ${0}",
+    "Threshold: ${0} · your score: ${1}": "Порог: ${0} · ваш показатель: ${1}",
+    "First place 5 VP · second place 2 VP": "1-е место 5 ПО · 2-е место 2 ПО",
+    "First place · funded by ${0}": "1-е место · спонсор: ${0}",
+    "Second place · funded by ${0}": "2-е место · спонсор: ${0}",
+    "First place · tied with ${0}": "1-е место · ничья (${0})",
+    "Second place · tied with ${0}": "2-е место · ничья (${0})"
 }

@@ -10201,7 +10201,12 @@ export default defineComponent({
             return;
           }
           if (action === 'back') {
-            this.infoBack();
+            // The MA inspection consumes B first (fold back into its entry);
+            // only then does B walk the route tree.
+            const view = this.$refs.infoMode as InstanceType<typeof ConsoleInfoMode> | undefined;
+            if (view?.consumeScoreBack() !== true) {
+              this.infoBack();
+            }
             return;
           }
           if (action === 'prevTab') {

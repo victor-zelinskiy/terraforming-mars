@@ -759,6 +759,10 @@ export default defineComponent({
     handleScoreIntent(intent: GamepadIntent): void {
       (this.$refs.scoreView as {handleIntent?: (i: GamepadIntent) => void} | undefined)?.handleIntent?.(intent);
     },
+    /** B consumes the explorer's MA inspection before walking the tree. */
+    consumeScoreBack(): boolean {
+      return (this.$refs.scoreView as {consumeScoreBack?: () => boolean} | undefined)?.consumeScoreBack?.() === true;
+    },
     // ── the content-zone swap beat (route changes) ──────────────────────
     // Direction follows DEPTH: descending rises from below (the workspace
     // «one level deeper» phrase), B sinks the leaving zone back down. A

@@ -248,7 +248,8 @@ export function calculateVictoryPoints(player: IPlayer) {
         }
       }
       // Every owned city gets a row — a 0-greenery city is an honest 0.
-      cityEntries.push({spaceId: space.id, points: cityPoints});
+      // The tile's own card names the city (Ganymede Colony, Capital, …).
+      cityEntries.push({spaceId: space.id, points: cityPoints, cardName: space.tile?.card});
     }
   });
   builder.setCityDetails(cityEntries);
