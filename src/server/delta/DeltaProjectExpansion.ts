@@ -3,6 +3,8 @@ import {IPlayer} from '../IPlayer';
 import {DeltaProjectPlayerModel} from '../../common/models/DeltaProjectPlayerModel';
 import {DeltaTrackDestination, DeltaTrackPreviewModel, DeltaTraversalStep} from '../../common/models/DeltaTrackPreviewModel';
 import {Priority} from '../deferredActions/Priority';
+import {declaredActionCost, deltaAdvancePlanVerdict} from './deltaAdvancePlan';
+import {Units} from '../../common/Units';
 import {DELTA_STAGE_NAMES} from '../../common/delta/deltaStages';
 import {systemChoice} from '../inputs/choiceContext';
 import {CardName} from '../../common/cards/CardName';
@@ -326,6 +328,18 @@ export class DeltaProjectExpansion {
     // pos 9 add-animals). Computed from current state via the same helpers the
     // reward resolution uses, so the lists are authoritative.
     const reuseActionCards = DeltaProjectExpansion.getUsedActionCards(player).map((c) => c.name);
+    // …and each candidate's MANDATORY declarative stock cost — the ordered
+    // resource plan's per-candidate price, extracted from the card's own
+    // data-defined behavior. The client repeats arithmetic over THESE numbers
+    // (its plan mirrors the server's `deltaAdvancePlanVerdict`); it never
+    // computes a card cost itself.
+    const reuseActionCosts: Partial<Record<CardName, Partial<Units>>> = {};
+    for (const name of reuseActionCards) {
+      const cost = declaredActionCost(player, name);
+      if (Object.keys(cost).length > 0) {
+        reuseActionCosts[name] = cost;
+      }
+    }
     const animalTargetCards = new AddResourcesToCard(player, CardResource.ANIMAL, {count: 2}).getCards().map((c) => c.name);
 
     return {
@@ -340,6 +354,7 @@ export class DeltaProjectExpansion {
       maxPreviewSteps,
       destinations,
       reuseActionCards,
+      ...(Object.keys(reuseActionCosts).length > 0 ? {reuseActionCosts} : {}),
       animalTargetCards,
       ...(traversalModifier !== undefined ? {traversalModifierCard: traversalModifier.name} : {}),
     };
@@ -483,6 +498,16 @@ export class DeltaProjectExpansion {
      */
     waivedTargetPositions?: ReadonlyArray<number>,
     /**
+     * THE DECLARED RESOURCE PLAN: pre-selected repeated actions (and the
+     * choice answers whose guaranteed gains fund them), each at its stage.
+     * Re-validated as an ORDERED projection BEFORE any mutation
+     * (`deltaAdvancePlanVerdict`): a payment mix that starves a declared
+     * action at its own point throws atomically — nothing is spent, the
+     * marker never moves, the draft comes back editable.
+     */
+    plannedActions?: ReadonlyArray<{position: number, card: CardName}>,
+    plannedChoices?: ReadonlyArray<{position: number, choice: number}>,
+    /**
      * The STANDARD advance's chosen payment mix (Delta Works: 1 steel = 1
      * energy). Must total `steps`; steel > 0 requires the card in the tableau.
      * Absent = the energy-first default (energy, then steel for the deficit
@@ -506,6 +531,33 @@ export class DeltaProjectExpansion {
     // The actual {energy, steel} the move is paid with — fully validated HERE,
     // before any mutation, so a stale/impossible mix rejects atomically.
     const payment = DeltaProjectExpansion.resolveAdvancePayment(player, steps, options, extras?.payment);
+
+    // THE ORDERED PROJECTED RESOURCE PLAN — the declared pre-selected actions
+    // must be executable AT THEIR OWN POINTS of the sequence (after this very
+    // payment and every earlier guaranteed gain, before later ones). Checked
+    // BEFORE any mutation: a plan the payment starves refuses atomically,
+    // with nothing spent and the marker unmoved — a promise the pre-select's
+    // green tick made is either kept or refused out loud, never half-run.
+    if (extras?.plannedActions !== undefined && extras.plannedActions.length > 0) {
+      const choices: Record<number, number> = {};
+      for (const c of extras.plannedChoices ?? []) {
+        choices[c.position] = c.choice;
+      }
+      const fromPosition = DeltaProjectExpansion.getProgress(player).position;
+      const verdict = deltaAdvancePlanVerdict(player, {
+        fromPosition,
+        toPosition: fromPosition + steps,
+        payment,
+        choices,
+        actions: extras.plannedActions,
+      });
+      if (!verdict.feasible) {
+        const c = verdict.conflicts[0];
+        throw new Error(
+          `The planned action ${c.card} cannot be executed at stage ${String(c.position)}: ` +
+          (c.reason === 'resources' ? `not enough ${String(c.resource)} at that point` : 'no longer eligible'));
+      }
+    }
 
     const game = player.game;
     const progress = DeltaProjectExpansion.getProgress(player);
@@ -737,7 +789,13 @@ export class DeltaProjectExpansion {
 
     case Tag.MICROBE: { // Reuse a used blue card action
       const actionCards = DeltaProjectExpansion.getUsedActionCards(player);
-      if (actionCards.length > 0) {
+      if (actionCards.length === 0) {
+        // NO SILENT LOSS: the reward fizzling for want of a candidate is a
+        // named omission, never a quiet nothing — the resolution continues.
+        player.game.log('${0} had no usable action to repeat — the Hydronetwork reward is skipped', (b) => b.player(player));
+        break;
+      }
+      {
         // A CONSCIOUS DECLINE forfeits the reward instead of postponing the
         // question — logged by name (no silent loss), and nothing is deferred,
         // so no follow-up prompt can rise after the move the player already
@@ -799,7 +857,10 @@ export class DeltaProjectExpansion {
     }
   }
 
-  private static getUsedActionCards(player: IPlayer): Array<IActionCard & ICard> {
+  // Public: the projected-plan dry run (`deltaAdvancePlan.ts`) asks THIS very
+  // filter under a stock overlay, so pre-select feasibility and the reward's
+  // own candidate list can never use two different eligibility rules.
+  public static getUsedActionCards(player: IPlayer): Array<IActionCard & ICard> {
     const result: Array<IActionCard & ICard> = [];
     for (const playedCard of player.tableau) {
       if (!isIActionCard(playedCard)) {

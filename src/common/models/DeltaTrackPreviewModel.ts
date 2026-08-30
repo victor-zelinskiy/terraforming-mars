@@ -1,5 +1,6 @@
 import {Tag} from '../cards/Tag';
 import {CardName} from '../cards/CardName';
+import {Units} from '../Units';
 
 /**
  * One reachable destination on the Delta Project ("Гидросеть") track, relative to
@@ -94,6 +95,15 @@ export type DeltaTrackPreviewModel = {
   /** Used-this-generation blue card actions eligible for the pos 7 reuse reward —
    *  pre-collected in the overlay before confirm. */
   reuseActionCards: ReadonlyArray<CardName>;
+  /**
+   * The MANDATORY declarative stock cost of each reusable action, extracted by
+   * the server from the card's own data-defined behavior (`action.spend`) —
+   * the projected resource plan's per-candidate price. The client only ever
+   * REPEATS ordered arithmetic over these numbers; it never computes a card
+   * cost itself. Sparse: only candidates with a stock cost appear, so the
+   * historical payload stays byte-identical when none of them has one.
+   */
+  reuseActionCosts?: Partial<Record<CardName, Partial<Units>>>;
   /** Cards that can receive the pos 9 animals — pre-collected before confirm. */
   animalTargetCards: ReadonlyArray<CardName>;
   /** The tableau card whose effect grants each crossed stage's reward on a

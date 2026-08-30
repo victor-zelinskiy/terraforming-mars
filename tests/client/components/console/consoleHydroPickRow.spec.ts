@@ -94,6 +94,31 @@ describe('the Hydronetwork pre-select row', () => {
       expect(dead.emitted('open')).is.undefined;
       dead.unmount();
     });
+
+    /**
+     * CONFLICT — the ordered resource plan cannot keep the made pick. The
+     * promise STANDS (the chosen branch keeps rendering — a silent clearing
+     * is the forbidden outcome), the register turns explicit with the honest
+     * reason, and the row stays a press: A is how the player changes it.
+     */
+    it('CONFLICT keeps the summary, names the reason, and stays a press', async () => {
+      const w = mountRow({
+        card: CardName.ASTEROID_RIGHTS, node: nodeOf(CardName.ASTEROID_RIGHTS, 0),
+        conflictReason: 'Not enough energy left after the movement payment',
+      });
+      expect(w.classes()).to.contain('con-hydro__pickrow--conflict');
+      expect(w.find('.con-composer__repeatpick-graphic').exists(), 'the promise stands').is.true;
+      expect(w.find('.con-hydro__pickrow-conflict').text()).to.contain('Not enough energy');
+      await w.trigger('click');
+      expect(w.emitted('open'), 'A = change the pick').to.have.length(1);
+      w.unmount();
+    });
+
+    it('no conflict → no conflict line (the slotless calm state)', () => {
+      const w = mountRow({card: CardName.ASTEROID_RIGHTS, node: nodeOf(CardName.ASTEROID_RIGHTS, 0)});
+      expect(w.find('.con-hydro__pickrow-conflict').exists()).is.false;
+      w.unmount();
+    });
   });
 
   describe('the animal target', () => {

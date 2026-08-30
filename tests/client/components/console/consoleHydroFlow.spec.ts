@@ -176,6 +176,14 @@ describe('the hydro close gate', () => {
     expect(hydroResolutionBusyOf({...QUIET, traversalPending: true})).eq(true);
   });
 
+  it('holds the flow while the TAKEN CARD is still flying to the dock', () => {
+    // `consoleRevealMode` ends a tick after the take press, ~a second before
+    // the card physically lands — the delivery flights are the only signal
+    // that spans it, so a repeated action's flow (and a paused traversal's
+    // resume) may not conclude over a card still in the air.
+    expect(hydroResolutionBusyOf({...QUIET, intakeFlying: true})).eq(true);
+  });
+
   it('releases only when EVERY one of them has settled', () => {
     expect(hydroResolutionBusyOf(QUIET)).eq(false);
   });

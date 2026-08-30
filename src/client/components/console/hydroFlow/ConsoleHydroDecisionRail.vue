@@ -9,6 +9,7 @@
                          :stageLabel="stageLabelOf(d)"
                          :focused="focusNode === 'rail:' + d.id"
                          :fizzled="d.state === 'unavailable'"
+                         :conflictReason="d.conflictReasonKey ?? ''"
                          @open="$emit('open', d)" />
   </div>
 </template>

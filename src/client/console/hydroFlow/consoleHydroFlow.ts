@@ -229,12 +229,20 @@ export function hydroResolutionBusyOf(signals: {
    * completion drops it; a timeout never does.
    */
   traversalPending?: boolean,
+  /**
+   * A TAKEN CARD IS STILL FLYING to the hand dock. The reveal's own mode
+   * ends a tick after the take press — the delivery flights are the only
+   * signal that survives to the physical landing, and the flow may not
+   * reach its result (nor a traversal resume) over a card in the air.
+   */
+  intakeFlying?: boolean,
 }): boolean {
   if (!signals.committed) {
     return false;
   }
   return signals.markerGliding || signals.rewardHeld || signals.transfersFlying ||
-    signals.ceremony || signals.followUpInteractive || signals.traversalPending === true;
+    signals.ceremony || signals.followUpInteractive || signals.traversalPending === true ||
+    signals.intakeFlying === true;
 }
 
 /** The live-module convenience readers (the section/shell side). */

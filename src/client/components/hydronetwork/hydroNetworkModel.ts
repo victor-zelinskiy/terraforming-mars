@@ -18,8 +18,10 @@
  */
 import {Color} from '@/common/Color';
 import {CardName} from '@/common/cards/CardName';
+import {Units} from '@/common/Units';
 import {DeltaTrackDestination, DeltaTrackPreviewModel, DeltaTraversalStep} from '@/common/models/DeltaTrackPreviewModel';
 import {DeltaStop} from '@/common/models/DeltaProjectPlayerModel';
+import {HydroPlanCommitment, HydroPlanGain, hydroPlanMixVerdict, HydroPlanMixVerdict} from '@/client/console/hydroFlow/hydroResourcePlan';
 import {HYDRO_STAGES, HydroStage, hydroStageNeedsChoice, HydroFollowUp} from './hydroStages';
 
 export type HydroMarker = {color: Color; isViewer: boolean};
@@ -102,6 +104,11 @@ export type HydroModelInput = {
    * would show the finale before the movement. Absent = the server truth.
    */
   visualViewerPosition?: number;
+  /** The viewer's live stock — the ordered resource plan's starting snapshot
+   *  (the projected feasibility of a pre-selected action reads it). */
+  stock?: Partial<Units>;
+  /** The viewer's plant-tag count — stage 6's deterministic gain. */
+  plantTags?: number;
   actionAvailable: boolean;
 };
 
@@ -178,6 +185,22 @@ export type HydroModel = {
   selectedCard: CardName | undefined;
   /** A card MUST be picked before confirm (a pick is needed AND candidates exist). */
   mustSelectCard: boolean;
+  // ── The ordered resource plan (payment ↔ pre-selected action) ──────────
+  /** The plan's repeated-action commitment, when one is drafted. */
+  planCommitment: HydroPlanCommitment | undefined;
+  /** The mix sweep's verdict over the whole ordered plan. */
+  planMixVerdict: HydroPlanMixVerdict | undefined;
+  /** NO payment composition can feed the drafted action at its own point —
+   *  the pick wears an explicit conflict (never a false tick), the commit is
+   *  gated, and the reason names the short resource. */
+  planConflict: {position: number, card: CardName, resource: keyof Units | undefined} | undefined;
+  /** Energy the auto-composition protects for the drafted action (the panel
+   *  and the payline name it — «Зарезервировано: N ⚡ — карта»). */
+  reservedEnergyForAction: number;
+  /** Candidates whose cost NO payment composition of THIS move can feed —
+   *  the repeat browser greys them with the honest reason instead of letting
+   *  a pick that cannot be kept earn a tick. */
+  reuseInfeasibleCards: ReadonlyArray<{name: CardName, resource: keyof Units | undefined}>;
   canConfirm: boolean;
   /** OTHER players who ALREADY stopped at the planned target (so the viewer can
    *  see who's been here + which reward they took). Plan mode only. */
@@ -404,6 +427,83 @@ export function buildHydroModel(input: HydroModelInput): HydroModel {
   const choiceSatisfied = traversalActive ?
     traversalStages.every((s) => s.ask !== 'choice' || s.choice !== undefined) :
     (!targetNeedsChoice || input.rewardChoice !== undefined);
+
+  // ── THE ORDERED RESOURCE PLAN — payment and pre-selected action agree ──
+  // The drafted repeat commitment (single landing OR the traversal's stage),
+  // its server-served cost, and the guaranteed gains that thread before it.
+  // The sweep answers: which steel share protects the promise (the bounds
+  // clamp), and whether ANY does (else an explicit conflict, never a false
+  // tick). The client only repeats arithmetic over served numbers — the
+  // authoritative twin runs at commit (`plannedActions` on the move step).
+  const repeatPickName = traversalActive ?
+    traversalStages.find((s) => s.ask === 'reuse-action')?.pick :
+    (needsCardSelect === 'reuse-action' ? selectedCard : undefined);
+  const repeatPickPosition = traversalActive ?
+    traversalStages.find((s) => s.ask === 'reuse-action')?.position :
+    destinationPosition;
+  const planCommitment: HydroPlanCommitment | undefined =
+    mode === 'plan' && repeatPickName !== undefined && repeatPickPosition !== undefined ? {
+      position: repeatPickPosition,
+      card: repeatPickName,
+      cost: preview?.reuseActionCosts?.[repeatPickName] ?? {},
+    } : undefined;
+  const planGains: Array<HydroPlanGain> = !traversalActive ? [] :
+    traversalStages
+      .map((s): HydroPlanGain => ({
+        position: s.position,
+        // The client mirror of the server's `guaranteedStockGainAt` — the
+        // chosen stage-1 alternative and stage 6's per-tag plants; an unmade
+        // choice guarantees nothing.
+        gain: s.ask === 'choice' && s.position === 1 && s.choice === 0 ? {steel: 2} :
+          s.ask === 'choice' && s.position === 1 && s.choice === 1 ? {plants: 2} :
+            s.position === 6 ? {plants: input.plantTags ?? 0} : {},
+      }))
+      .filter((g) => Object.keys(g.gain).length > 0);
+  const baseMinSteel = mode === 'plan' ? Math.max(0, selectedSpend - availableEnergy) : 0;
+  const baseMaxSteel = mode === 'plan' ? Math.min(availableSteelSubstitute, selectedSpend) : 0;
+  const planMixVerdict = planCommitment !== undefined && preview !== undefined ?
+    hydroPlanMixVerdict({
+      start: Units.of(input.stock ?? {energy: availableEnergy, steel: availableSteelSubstitute}),
+      spend: selectedSpend,
+      minSteel: baseMinSteel,
+      maxSteel: baseMaxSteel,
+      gains: planGains,
+      commitments: [planCommitment],
+    }) : undefined;
+  // Only a COMMITMENT's own named failure is a conflict — an infeasible
+  // verdict with no named conflict means the movement itself is unpayable,
+  // which is the server's `destination.affordable` verdict, already gating.
+  const planConflict = planMixVerdict !== undefined && planMixVerdict.feasibleSteelMin === undefined ?
+    planMixVerdict.conflicts[0] : undefined;
+  const reservedEnergyForAction = planMixVerdict?.reserved.energy ?? 0;
+
+  // Every reuse candidate is graded against the SAME sweep, so the browser
+  // can grey the ones no composition of this move can feed — a promise the
+  // plan cannot keep is never offered as pickable.
+  const reuseInfeasibleCards: Array<{name: CardName, resource: keyof Units | undefined}> = [];
+  if (mode === 'plan' && repeatPickPosition !== undefined && preview?.reuseActionCosts !== undefined &&
+      (traversalActive ? traversalStages.some((s) => s.ask === 'reuse-action') : needsCardSelect === 'reuse-action')) {
+    for (const name of preview.reuseActionCards) {
+      const cost = preview.reuseActionCosts[name];
+      if (cost === undefined) {
+        continue;
+      }
+      const verdict = hydroPlanMixVerdict({
+        start: Units.of(input.stock ?? {energy: availableEnergy, steel: availableSteelSubstitute}),
+        spend: selectedSpend,
+        minSteel: baseMinSteel,
+        maxSteel: baseMaxSteel,
+        gains: planGains,
+        commitments: [{position: repeatPickPosition, card: name, cost}],
+      });
+      // Greyed only for the candidate's OWN failure — an unpayable movement
+      // (no named conflict) is not the candidate's fault and greys nothing.
+      if (verdict.feasibleSteelMin === undefined && verdict.conflicts.length > 0) {
+        reuseInfeasibleCards.push({name, resource: verdict.conflicts[0]?.resource});
+      }
+    }
+  }
+
   const canConfirm =
     input.actionAvailable === true &&
     preview !== undefined &&
@@ -411,7 +511,10 @@ export function buildHydroModel(input: HydroModelInput): HydroModel {
     destination !== undefined &&
     destination.legal === true &&
     destination.affordable === true &&
-    choiceSatisfied;
+    choiceSatisfied &&
+    // A drafted action no payment composition can feed BLOCKS the commit —
+    // the player changes the mix bounds' owner (the action) or the route.
+    planConflict === undefined;
 
   // PLAN mode: OTHER players who have ALREADY been THROUGH the planned TARGET stage,
   // so the viewer is never in the dark about it. Three relationships are surfaced:
@@ -455,9 +558,15 @@ export function buildHydroModel(input: HydroModelInput): HydroModel {
   }
 
   // The mix bounds for the SELECTED spend (Delta Works: 1 steel = 1 energy).
-  // min = the energy deficit the steel MUST cover; max = what it CAN cover.
-  const minSteelForSpend = mode === 'plan' ? Math.max(0, selectedSpend - availableEnergy) : 0;
-  const maxSteelForSpend = mode === 'plan' ? Math.min(availableSteelSubstitute, selectedSpend) : 0;
+  // min = the energy deficit the steel MUST cover; max = what it CAN cover —
+  // both CLAMPED to the plan's feasible window when a commitment stands, so
+  // the auto-composition protects the promised resource and the manual dial
+  // cannot silently break it (to spend reserved energy on the movement, the
+  // player first changes or clears the conflicting action).
+  const minSteelForSpend = mode === 'plan' ?
+    Math.max(baseMinSteel, planMixVerdict?.feasibleSteelMin ?? baseMinSteel) : 0;
+  const maxSteelForSpend = mode === 'plan' ?
+    Math.min(baseMaxSteel, planMixVerdict?.feasibleSteelMax ?? baseMaxSteel) : 0;
 
   return {
     stages,
@@ -490,6 +599,11 @@ export function buildHydroModel(input: HydroModelInput): HydroModel {
     eligibleCardNames,
     selectedCard,
     mustSelectCard,
+    planCommitment,
+    planMixVerdict,
+    planConflict,
+    reservedEnergyForAction,
+    reuseInfeasibleCards,
     canConfirm,
     targetVisitors,
     detailsStage,

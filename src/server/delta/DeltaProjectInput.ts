@@ -2,6 +2,7 @@ import {BasePlayerInput} from '../PlayerInput';
 import {InputResponse, isDeltaProjectInputResponse} from '../../common/inputs/InputResponse';
 import {DeltaProjectInputModel} from '../../common/models/PlayerInputModel';
 import {InputError} from '../inputs/InputError';
+import {CardName} from '../../common/cards/CardName';
 
 export class DeltaProjectInput extends BasePlayerInput<number> {
   /**
@@ -31,6 +32,17 @@ export class DeltaProjectInput extends BasePlayerInput<number> {
    * for the historical wire shapes.
    */
   public waivedSteps: ReadonlyArray<number> = [];
+
+  /**
+   * THE DECLARED RESOURCE PLAN — pre-selected repeated actions at their
+   * stages, same by-reference contract. `advance` re-validates the ordered
+   * projection against these BEFORE any mutation: a mix that starves a
+   * declared action throws atomically (nothing spent, no movement).
+   */
+  public plannedActions: ReadonlyArray<{position: number, card: CardName}> = [];
+
+  /** The declared choice answers of the same plan (see the wire doc). */
+  public plannedChoices: ReadonlyArray<{position: number, choice: number}> = [];
 
   /**
    * @param validSteps the legal step counts the player may submit. Each value
@@ -70,9 +82,25 @@ export class DeltaProjectInput extends BasePlayerInput<number> {
         waivedSteps.some((p) => !Number.isInteger(p) || p < 0 || p > 11)) {
       throw new InputError('Waived steps must be track positions');
     }
+    const plannedActions = input.plannedActions ?? [];
+    if (!Array.isArray(plannedActions) ||
+        plannedActions.some((a) => a === null || typeof a !== 'object' ||
+          !Number.isInteger(a.position) || a.position < 0 || a.position > 11 ||
+          typeof a.card !== 'string')) {
+      throw new InputError('Planned actions must name track positions and cards');
+    }
+    const plannedChoices = input.plannedChoices ?? [];
+    if (!Array.isArray(plannedChoices) ||
+        plannedChoices.some((c) => c === null || typeof c !== 'object' ||
+          !Number.isInteger(c.position) || c.position < 0 || c.position > 11 ||
+          !Number.isInteger(c.choice) || c.choice < 0)) {
+      throw new InputError('Planned choices must name track positions and options');
+    }
     this.waiveReward = input.waiveReward === true;
     this.steelSpent = steel;
     this.waivedSteps = waivedSteps;
+    this.plannedActions = plannedActions;
+    this.plannedChoices = plannedChoices;
     return this.cb(input.amount);
   }
 }

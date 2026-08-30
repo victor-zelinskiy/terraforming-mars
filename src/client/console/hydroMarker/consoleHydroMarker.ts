@@ -150,6 +150,8 @@ let planLegs: ReadonlyArray<HydroMarkerLegPlan> = [];
 let planSeedFrom = 0;
 /** Invalidates a stale async leg loop after an abort/reset. */
 let planEpoch = 0;
+/** An interactive stop's own gains, flown as its CLOSING beat at resume. */
+let pendingResumeWave: {position: number, transfers: ReadonlyArray<ResourceTransferSpec>} | undefined;
 /** A short readable dwell on the crossed-without-reward cell (the 2 VP
  *  exclusion): pacing inside the sequence, never a business signal. */
 const EXCLUDED_DWELL_MS = 420;
@@ -441,16 +443,21 @@ async function runTraversalLockedLeg(): Promise<void> {
       return;
     }
   }
+  hydroMarkerState.planCursor = cursor + 1;
+  if (leg.stop !== undefined) {
+    // An INTERACTIVE stop's own gains fly on the way OUT, not on arrival:
+    // a repeated action's rewards exist only once its whole presentation
+    // (reveal, picks, the hand intake) has finished — the wave is the stop's
+    // closing beat, played by the resume before the next cell.
+    pendingResumeWave = leg.transfers.length > 0 ? {position: leg.position, transfers: leg.transfers} : undefined;
+    pauseTraversal();
+    return;
+  }
   if (leg.transfers.length > 0) {
     await runLegRewardWave(leg.position, leg.transfers);
     if (planEpoch !== epoch) {
       return;
     }
-  }
-  hydroMarkerState.planCursor = cursor + 1;
-  if (leg.stop !== undefined) {
-    pauseTraversal();
-    return;
   }
   if (cursor + 1 >= planLegs.length) {
     finalizeTraversal();
@@ -496,19 +503,32 @@ function pauseTraversal(): void {
 /**
  * RESUME (the shell) — the stop's own completion signal fired: the deck
  * pick's closing beats finished, the repeated action's follow-up chain went
- * quiet. Never a timeout. Re-closes the input gate and glides on.
+ * quiet, the taken card physically landed in the dock. Never a timeout.
+ * Plays the stop's own CLOSING WAVE first (a repeated action's rewards fly
+ * from its cell, counters release per touchdown), then glides on.
  */
 export function resumeHydroMarkerTraversal(): void {
   if (!hydroMarkerState.planPaused || hydroMarkerState.planCursor < 0) {
     return;
   }
   hydroMarkerState.planPaused = false;
-  if (hydroMarkerState.planCursor >= planLegs.length) {
-    finalizeTraversal();
-    return;
-  }
-  hydroMarkerState.active = true;
-  void startNextLeg();
+  const epoch = planEpoch;
+  const wave = pendingResumeWave;
+  pendingResumeWave = undefined;
+  void (async () => {
+    if (wave !== undefined) {
+      await runLegRewardWave(wave.position, wave.transfers);
+      if (planEpoch !== epoch) {
+        return;
+      }
+    }
+    if (hydroMarkerState.planCursor >= planLegs.length) {
+      finalizeTraversal();
+      return;
+    }
+    hydroMarkerState.active = true;
+    await startNextLeg();
+  })();
 }
 
 function finalizeTraversal(): void {
@@ -523,6 +543,7 @@ function finalizeTraversal(): void {
   hydroMarkerState.visualPosition = -1;
   planLegs = [];
   planSeedFrom = 0;
+  pendingResumeWave = undefined;
   pendingRewards = [];
   rewardHoldSeeded = false;
   // Belt-and-braces: any hold a degraded leg left snaps to truth now.
@@ -611,6 +632,7 @@ export function abortHydroMarker(): void {
   planEpoch++;
   planLegs = [];
   planSeedFrom = 0;
+  pendingResumeWave = undefined;
   hydroMarkerState.planCursor = -1;
   hydroMarkerState.planLength = 0;
   hydroMarkerState.planPaused = false;
@@ -641,6 +663,7 @@ export function resetHydroMarker(): void {
   planEpoch++;
   planLegs = [];
   planSeedFrom = 0;
+  pendingResumeWave = undefined;
   hydroMarkerState.active = false;
   hydroMarkerState.phase = 'idle';
   hydroMarkerState.fromPosition = 0;

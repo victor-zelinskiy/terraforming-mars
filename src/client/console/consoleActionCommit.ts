@@ -230,9 +230,14 @@ export function commitKindForBranch(
 /**
  * The reward specs the commit wave carries — the SAME extraction the
  * played-card beat uses (`extractPlayRewards`: server-computed preview
- * amounts, never client re-derivations), narrowed to the two rail channels.
- * Card-resource flights stay with their own flows (the workspace usually
- * folds under this wave, and the aux satellite is hidden while it lives).
+ * amounts, never client re-derivations). ALL THREE channels ride: the rail
+ * wave (stock/production) AND the card-resource flight to the pre-selected
+ * target — an action that puts animals on a card presents the same premium
+ * transfer a card PLAY does (one language, every activation door: the
+ * ДЕЙСТВИЯ КАРТ commit and the Hydronetwork repeat read this one builder).
+ * The transfer framework resolves the landing honestly: the target's own
+ * on-screen face when one is painted, else the additional-resources
+ * satellite — never a silent counter jump with no flight.
  */
 export function commitRewardSpecs(
   cardName: CardName,
@@ -248,5 +253,5 @@ export function commitRewardSpecs(
     steps: branch.steps ?? [],
     stepResponses,
   });
-  return mergeTransferSpecs(all.filter((s) => s.channel === 'stock' || s.channel === 'production'));
+  return mergeTransferSpecs(all);
 }

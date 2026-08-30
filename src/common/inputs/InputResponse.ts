@@ -240,15 +240,30 @@ export interface DeltaProjectInputResponse {
    * stays the landing-only shorthand — the server unions the two.
    */
   waivedSteps?: ReadonlyArray<number>;
+  /**
+   * THE DECLARED RESOURCE PLAN: pre-selected repeated actions, at the stage
+   * where each will execute. The server re-validates the whole ORDERED
+   * projection against these BEFORE any mutation (`deltaAdvancePlanVerdict`)
+   * — a payment mix that starves a declared action refuses atomically, so
+   * nothing is spent and the marker never moves. Omitted when no action is
+   * pre-selected (the historical wire shapes stay byte-identical).
+   */
+  plannedActions?: ReadonlyArray<{position: number, card: CardName}>;
+  /**
+   * The declared CHOICE answers of the same plan (stages 1/2), by position —
+   * the projection threads their guaranteed gains, so an early chosen gain
+   * may honestly fund a later declared action. Omitted when none.
+   */
+  plannedChoices?: ReadonlyArray<{position: number, choice: number}>;
 }
 
 export function isDeltaProjectInputResponse(response: InputResponse): response is DeltaProjectInputResponse {
   if (response.type !== 'deltaProject') {
     return false;
   }
-  // `amount` is required; the three optional fields compose freely (each is
+  // `amount` is required; the optional fields compose freely (each is
   // omitted when meaningless, so the historical shapes stay byte-identical).
-  const allowed = ['type', 'amount', 'waiveReward', 'steel', 'waivedSteps'];
+  const allowed = ['type', 'amount', 'waiveReward', 'steel', 'waivedSteps', 'plannedActions', 'plannedChoices'];
   const keys = Object.keys(response);
   return keys.includes('amount') && keys.every((k) => allowed.includes(k));
 }

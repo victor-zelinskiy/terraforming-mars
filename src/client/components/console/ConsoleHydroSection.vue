@@ -266,6 +266,12 @@
                 </span>
                 <span v-if="mixRowVisible" class="con-hydro__payline-src">{{ $t(mixSourceCard ?? '') }}</span>
                 <span v-if="mixAdjustable" class="con-hydro__payline-next">{{ $t('Next: payment composition') }}</span>
+                <!-- The plan's PROTECTED resource, named where the price is
+                     read: the auto-composition kept this energy for the
+                     pre-selected action, so the movement may not take it. -->
+                <span v-if="reservedNoteText !== ''" class="con-hydro__payline-reserved">
+                  🛡 {{ reservedNoteText }}
+                </span>
               </div>
 
               <!-- (The stage's PRE-SELECT lives in the DECISION RAIL — the
@@ -339,6 +345,13 @@
                                  title-key="Payment mix"
                                  :source-card="mixSourceCard"
                                  :flash-nonce="mixFlashNonce" />
+          </div>
+          <!-- The plan's PROTECTED resource rides into the composition: the
+               dial's bounds already exclude it (the clamp IS the auto-
+               preserve), and this names WHY the range refuses to go further —
+               the pre-selected action holds that energy. -->
+          <div v-if="reservedNoteText !== ''" class="con-hydro__payline-reserved" data-unfold-item>
+            🛡 {{ reservedNoteText }}
           </div>
         </div>
 
@@ -750,6 +763,7 @@ import {
   buildTraversalDecisions,
   initialRailFocus,
   nextRailFocus,
+  planConflictReasonKey,
   railFocusNodes,
   railIdOf,
   railNodeOf,
@@ -896,6 +910,10 @@ export default defineComponent({
     /** A follow-up decision of the committed advance is standing (the shell's
      *  live fact — turns the resolving beat into the collapsible phase). */
     followUpLive: {type: Boolean, default: false},
+    /** An embedded DRAWN-CARDS batch owns the hydro stage (a repeated
+     *  action's own draw presenting in this workspace's zone) — the shell's
+     *  fact; joins the deck pick under the immersive pose. */
+    revealEmbedded: {type: Boolean, default: false},
     /**
      * A CARD-GRANTED BONUS MOVE the player has not answered yet — the server's
      * own `deltaBonusPrompt`, already ADMITTED by the shell (the door waits out
@@ -1042,6 +1060,7 @@ export default defineComponent({
         isMarsBot: p.isMarsBot === true,
         stops: p.deltaProject?.stops ?? [],
       }));
+      const p = this.playerView.thisPlayer;
       return buildHydroModel({
         preview: this.preview,
         players,
@@ -1055,6 +1074,12 @@ export default defineComponent({
         // header's position chip) follow the sequence's own cursor — never
         // the server position, which already holds the destination.
         visualViewerPosition: this.traversalVisualPosition,
+        // The ordered resource plan's starting snapshot + stage 6's gain.
+        stock: {
+          megacredits: p.megacredits, steel: p.steel, titanium: p.titanium,
+          plants: p.plants, energy: p.energy, heat: p.heat,
+        },
+        plantTags: p.tags[Tag.PLANT] ?? 0,
         actionAvailable: this.actionAvailable,
       });
     },
@@ -1169,10 +1194,20 @@ export default defineComponent({
       // A TRAVERSAL's asks live on the RAIL (one decision per stop, drafted
       // per position) — the single-flow to-do gates read the wrong drafts and
       // would double-report a question the rail already answers.
-      if (this.traversalActive && this.advanceOffer === undefined) {
-        return base.filter((r) => r.kind !== 'choose-bonus' && r.kind !== 'choose-card');
+      const out = this.traversalActive && this.advanceOffer === undefined ?
+        base.filter((r) => r.kind !== 'choose-bonus' && r.kind !== 'choose-card') :
+        [...base];
+      // The ORDERED PLAN's payment conflict blocks the commit BY NAME — the
+      // verdict block and the CTA say the same thing the conflicted rail
+      // card does, and the seat matrix routes the cursor to that card.
+      if (this.advanceOffer === undefined && this.model.planConflict !== undefined) {
+        out.push({
+          kind: 'unavailable',
+          textKey: 'The payment mix conflicts with the selected action',
+          blocking: true,
+        });
       }
-      return base;
+      return out;
     },
     turnState(): HydroTurnState {
       const wf = this.playerView.waitingFor;
@@ -1657,9 +1692,21 @@ export default defineComponent({
      * mount or a visibility flag.
      */
     immersive(): boolean {
+      // …and an embedded DRAWN-CARDS reveal (a repeated action's own draw)
+      // takes the frame the same way: the batch is the primary content while
+      // it presents, the track and columns dissolve and return at the take.
+      if (this.revealEmbedded && this.flow.commit !== undefined) {
+        return true;
+      }
       return this.flowDeck.phase !== 'idle' &&
         this.flow.commit !== undefined &&
         workspaceOutcomeState.host === 'hydro';
+    },
+    /** A workspace-outcome claim names THIS host — the reactive mirror the
+     *  mid-scene republish watcher fires on (a path watcher needs a computed;
+     *  see the embed-zone watcher). */
+    outcomeClaimedByHydro(): boolean {
+      return workspaceOutcomeState.host === 'hydro';
     },
     bonusConfirmLabel(): string {
       if (railIdOf(this.sceneFocus) !== undefined) {
@@ -1812,10 +1859,13 @@ export default defineComponent({
      */
     railDecisions(): Array<HydroRailDecision> {
       // A MULTI-REWARD move grows the ARRAY — one decision per interactive
-      // ask of the plan, in path order (the layout's whole promise).
+      // ask of the plan, in path order (the layout's whole promise). The
+      // plan's payment conflict rides in as the decision's own register.
+      const conflict = this.model.planConflict;
       if (this.traversalActive && this.advanceOffer === undefined &&
           !hydroRuleBlocked(this.reasons)) {
-        return buildTraversalDecisions(this.model.traversalStages);
+        return buildTraversalDecisions(this.model.traversalStages,
+          conflict !== undefined ? {position: conflict.position, resource: conflict.resource} : undefined);
       }
       const offer = this.advanceOffer !== undefined;
       return buildHydroDecisions({
@@ -1828,6 +1878,7 @@ export default defineComponent({
         // The prompt door postpones instead of waiving — its decision is not
         // optional in the rail sense (the server will re-ask).
         optional: this.offerOrigin !== 'prompt',
+        conflict: !offer && conflict !== undefined ? {resource: conflict.resource} : undefined,
       });
     },
     /** The rail decision the cursor stands on (undefined off the rail). */
@@ -2183,6 +2234,32 @@ export default defineComponent({
     mixSourceCard(): string | undefined {
       return this.mixRowVisible ? this.model.steelSubstituteCard : undefined;
     },
+    /** «Зарезервировано: N ⚡ — <карта>» — the plan's protected energy, named
+     *  beside the price it is protected FROM. Empty when nothing is held. */
+    reservedNoteText(): string {
+      const m = this.model;
+      if (m.reservedEnergyForAction <= 0 || m.planCommitment === undefined) {
+        return '';
+      }
+      return translateTextWithParams('Reserved: ${0} energy — ${1}',
+        [String(m.reservedEnergyForAction), translateCardName(m.planCommitment.card)]);
+    },
+    /** The plan's declaration for the COMMIT wire: the pre-selected repeated
+     *  action (single landing or the traversal's stage) + the choice answers
+     *  whose gains fund it — the server re-validates the ordered projection
+     *  against these BEFORE any mutation. */
+    plannedActionsForCommit(): Array<{position: number, card: CardName}> {
+      const c = this.model.planCommitment;
+      return c !== undefined ? [{position: c.position, card: c.card}] : [];
+    },
+    plannedChoicesForCommit(): Array<{position: number, choice: number}> {
+      if (!this.traversalActive) {
+        return [];
+      }
+      return this.model.traversalStages
+        .filter((s) => s.ask === 'choice' && s.choice !== undefined)
+        .map((s) => ({position: s.position, choice: s.choice as number}));
+    },
     footCommands(): ReadonlyArray<ConsoleCommand> {
       const c = this.flow.commit;
       if (c !== undefined) {
@@ -2411,6 +2488,20 @@ export default defineComponent({
         }
         if (key !== 'preview') {
           this.sceneFocus = 'track';
+        }
+      },
+    },
+    // …AND RE-PUBLISHED FOR A CLAIM RAISED MID-SCENE. `publishEmbedZone` only
+    // hands the outcome state its slot when the claim is already standing, so
+    // a claim raised while `sceneKey` is ALREADY 'commit' (a release between
+    // two batches of one traversal, a restore) found `embedSlot` empty and
+    // its batch held forever — the sceneKey watcher cannot fire true→true.
+    // The claim's own rising edge is the missing signal.
+    outcomeClaimedByHydro: {
+      flush: 'post',
+      handler(now: boolean): void {
+        if (now && this.sceneKey === 'commit') {
+          this.publishEmbedZone();
         }
       },
     },
@@ -2934,6 +3025,7 @@ export default defineComponent({
         }
         this.armSceneFromSummary();
         if (d.kind === 'reuse-action') {
+          this.publishRepeatDisabled();
           this.$emit('pick');
           return;
         }
@@ -2965,6 +3057,7 @@ export default defineComponent({
       }
       this.armSceneFromSummary();
       if (m.needsCardSelect === 'reuse-action') {
+        this.publishRepeatDisabled();
         this.$emit('pick');
         return;
       }
@@ -3074,6 +3167,7 @@ export default defineComponent({
       }
       this.pickWarned = false;
       if (this.model.needsCardSelect === 'reuse-action') {
+        this.publishRepeatDisabled();
         this.$emit('pick');
         return;
       }
@@ -3242,6 +3336,8 @@ export default defineComponent({
           repeat: undefined,
           traversalAnswers: t.answers,
           waivedSteps: t.waived.length > 0 ? t.waived : undefined,
+          plannedActions: this.plannedActionsForCommit.length > 0 ? this.plannedActionsForCommit : undefined,
+          plannedChoices: this.plannedChoicesForCommit.length > 0 ? this.plannedChoicesForCommit : undefined,
           traversal: t.segments,
           modifierCard: this.model.traversalModifierCard,
           fromPosition: this.model.currentPosition,
@@ -3269,6 +3365,9 @@ export default defineComponent({
         // defers no follow-up ask for it (see `waiveTargetNow`).
         waiveTarget: this.waiveTargetNow ? true : undefined,
         repeat,
+        // The declared plan — the server's atomic pre-commit gate re-walks
+        // the ordered projection against it (nothing spent on refusal).
+        plannedActions: this.plannedActionsForCommit.length > 0 ? this.plannedActionsForCommit : undefined,
         fromPosition: this.model.currentPosition,
         toPosition: this.model.selectedPosition,
         rewards: hydroRewardTransfers(this.rewardView),
@@ -3547,6 +3646,15 @@ export default defineComponent({
       hydroNetworkState.selectedCard = candidate.cardName;
       closeHydroStep();
       this.sceneFocus = 'track';
+    },
+    /** The plan's greyed browser rows, refreshed at every pick emit: the
+     *  candidates NO payment composition of this move can feed, each with
+     *  the honest pre-translated reason (one wording — the rail's own). */
+    publishRepeatDisabled(): void {
+      consoleHydroUi.repeatDisabled = this.model.reuseInfeasibleCards.map((c) => ({
+        name: c.name,
+        reason: translateText(planConflictReasonKey(c.resource)),
+      }));
     },
     /** ONE write path for a traversal pick (the target step and the repeat
      *  bridge both land here): the per-position draft + the rail hand-off. */

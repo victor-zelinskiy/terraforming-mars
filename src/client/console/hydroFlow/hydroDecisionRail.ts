@@ -71,11 +71,17 @@ export const HYDRO_PICK_COPY: Readonly<Record<HydroPickKind, {
 /**
  * `open`     — the question stands and CAN be answered (candidates exist).
  * `resolved` — answered; the card shows a summary and offers «Изменить».
+ * `conflict` — answered, but the ORDERED RESOURCE PLAN cannot keep the
+ *              promise (no payment composition feeds the action at its own
+ *              point). The card keeps its summary, wears the explicit
+ *              conflict register with the reason, STAYS in the focus graph
+ *              (the player walks to it to change or clear it) and GATES the
+ *              commit — never a false tick, never a silent clearing.
  * `unavailable` — the stage asks but the server offered no candidate: the
  *                 reward fizzles. The slot stays in the rail as a STATUS
  *                 (the honest why), out of the focus graph.
  */
-export type HydroRailDecisionState = 'open' | 'resolved' | 'unavailable';
+export type HydroRailDecisionState = 'open' | 'resolved' | 'conflict' | 'unavailable';
 
 /**
  * ONE pre-select of the current step. Identity (`id`) is STABLE across
@@ -96,6 +102,8 @@ export type HydroRailDecision = {
   chosen?: CardName,
   /** `unavailable`: the honest reason the reward will be skipped. */
   skipReasonKey?: string,
+  /** `conflict`: the honest reason the plan cannot keep this promise. */
+  conflictReasonKey?: string,
   /** TRAVERSAL decisions: the stage this decision belongs to — the card names
    *  it, so several decisions of one move stay tied to their stops. */
   stagePosition?: number,
@@ -104,6 +112,15 @@ export type HydroRailDecision = {
   /** `reward-choice`: the resolved alternative index (the summary's chips). */
   chosenOption?: number,
 };
+
+/** The plan's honest conflict wording, per short resource. ONE source, so
+ *  the rail card, the browser's greyed row and the CTA verdict state the
+ *  same conflict the same way. */
+export function planConflictReasonKey(resource: string | undefined): string {
+  return resource === 'energy' ?
+    'Not enough energy left after the movement payment' :
+    'The movement payment conflicts with this action';
+}
 
 /** The final CTA's focus node — always the LAST stop of the rail. */
 export const HYDRO_RAIL_CTA = 'cta';
@@ -136,6 +153,10 @@ export type HydroRailInput = {
   /** The door can carry a waive (plan CTA / card entry) — the decision is
    *  optional there; the prompt door postpones instead. */
   optional: boolean,
+  /** The ordered resource plan cannot keep this pick's promise under ANY
+   *  payment composition — present ⇒ conflicted; `resource` names the short
+   *  one when the shortfall is structural. */
+  conflict?: {resource?: string},
 };
 
 /** Build the rail from today's one-question model. Returns [] when the step
@@ -145,9 +166,11 @@ export function buildHydroDecisions(input: HydroRailInput): Array<HydroRailDecis
     return [];
   }
   const copy = HYDRO_PICK_COPY[input.kind];
+  const conflicted = input.chosen !== undefined && input.conflict !== undefined;
   const state: HydroRailDecisionState =
     !input.mustSelectCard ? 'unavailable' :
-      input.chosen !== undefined ? 'resolved' : 'open';
+      conflicted ? 'conflict' :
+        input.chosen !== undefined ? 'resolved' : 'open';
   return [{
     id: '0:' + input.kind,
     kind: input.kind,
@@ -156,6 +179,7 @@ export function buildHydroDecisions(input: HydroRailInput): Array<HydroRailDecis
     optional: input.optional,
     chosen: input.chosen,
     skipReasonKey: state === 'unavailable' ? copy.fizzle : undefined,
+    conflictReasonKey: state === 'conflict' ? planConflictReasonKey(input.conflict?.resource) : undefined,
   }];
 }
 
@@ -170,7 +194,10 @@ export function buildHydroDecisions(input: HydroRailInput): Array<HydroRailDecis
  * The array flows into the SAME rail component and the SAME focus algorithms
  * as the single question — growing the data was the layout's whole promise.
  */
-export function buildTraversalDecisions(stages: ReadonlyArray<HydroTraversalStagePlan>): Array<HydroRailDecision> {
+export function buildTraversalDecisions(
+  stages: ReadonlyArray<HydroTraversalStagePlan>,
+  conflictAt?: {position: number, resource?: string},
+): Array<HydroRailDecision> {
   const out: Array<HydroRailDecision> = [];
   stages.forEach((s, order) => {
     if (s.ask === 'choice') {
@@ -188,9 +215,11 @@ export function buildTraversalDecisions(stages: ReadonlyArray<HydroTraversalStag
     }
     if (s.ask === 'reuse-action' || s.ask === 'animal-target') {
       const copy = HYDRO_PICK_COPY[s.ask];
+      const conflicted = s.pick !== undefined && conflictAt?.position === s.position;
       const state: HydroRailDecisionState =
         !s.mustSelect ? 'unavailable' :
-          s.pick !== undefined ? 'resolved' : 'open';
+          conflicted ? 'conflict' :
+            s.pick !== undefined ? 'resolved' : 'open';
       out.push({
         id: order + ':' + s.ask,
         kind: s.ask,
@@ -199,6 +228,7 @@ export function buildTraversalDecisions(stages: ReadonlyArray<HydroTraversalStag
         optional: true,
         chosen: s.pick,
         skipReasonKey: state === 'unavailable' ? copy.fizzle : undefined,
+        conflictReasonKey: state === 'conflict' ? planConflictReasonKey(conflictAt?.resource) : undefined,
         stagePosition: s.position,
         stageNameKey: s.stage.nameKey,
       });
@@ -218,15 +248,22 @@ export function railFocusNodes(decisions: ReadonlyArray<HydroRailDecision>): Arr
   return [...rows, HYDRO_RAIL_CTA];
 }
 
+/** An UNRESOLVED decision for the seat matrix: a standing question, or a
+ *  made pick the plan cannot keep — both need the player's hand. */
+function unresolvedState(d: HydroRailDecision): boolean {
+  return d.state === 'open' || d.state === 'conflict';
+}
+
 /**
  * THE AUTOMATIC SEAT — computed from decision STATE, never from a remembered
- * cursor: the first open decision in game order, else the CTA. Applies to
- * entry, resume, revision changes and the return from a child selector.
+ * cursor: the first open (or CONFLICTING) decision in game order, else the
+ * CTA. Applies to entry, resume, revision changes and the return from a
+ * child selector.
  */
 export function initialRailFocus(decisions: ReadonlyArray<HydroRailDecision>): string {
   const first = [...decisions]
     .sort((a, b) => a.order - b.order)
-    .find((d) => d.state === 'open');
+    .find(unresolvedState);
   return first !== undefined ? railNodeOf(first) : HYDRO_RAIL_CTA;
 }
 
@@ -242,7 +279,7 @@ export function nextRailFocus(
   const sorted = [...decisions].sort((a, b) => a.order - b.order);
   const at = sorted.findIndex((d) => d.id === afterId);
   const ring = at === -1 ? sorted : [...sorted.slice(at + 1), ...sorted.slice(0, at)];
-  const next = ring.find((d) => d.state === 'open');
+  const next = ring.find(unresolvedState);
   return next !== undefined ? railNodeOf(next) : HYDRO_RAIL_CTA;
 }
 

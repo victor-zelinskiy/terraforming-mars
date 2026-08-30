@@ -56,6 +56,14 @@ export type HydroAdvancePayload = {
   /** Per-position conscious declines of target-bearing stages — rides the
    *  move step as `waivedSteps` (the server unions it with `waiveReward`). */
   waivedSteps?: ReadonlyArray<number>;
+  /**
+   * THE DECLARED RESOURCE PLAN — the pre-selected repeated action(s) (and
+   * the choice answers whose gains fund them), each at its stage. Rides the
+   * MOVE step: the server re-walks the ordered projection against it BEFORE
+   * any mutation, so a starving mix refuses atomically with nothing spent.
+   */
+  plannedActions?: ReadonlyArray<{position: number, card: CardName}>;
+  plannedChoices?: ReadonlyArray<{position: number, choice: number}>;
 };
 
 /** One traversal stage's pre-collected answer. */
@@ -140,8 +148,12 @@ export function hydroAdvanceBatch(
   // The waive and the steel share ride the MOVE's own step, and each key
   // exists only when meaningful — every energy-only, non-waiving batch stays
   // byte-identical to the historical shape.
-  const move: {type: 'deltaProject', amount: number, waiveReward?: true, steel?: number, waivedSteps?: ReadonlyArray<number>} =
-    {type: 'deltaProject', amount: steps};
+  const move: {
+    type: 'deltaProject', amount: number, waiveReward?: true, steel?: number,
+    waivedSteps?: ReadonlyArray<number>,
+    plannedActions?: ReadonlyArray<{position: number, card: CardName}>,
+    plannedChoices?: ReadonlyArray<{position: number, choice: number}>,
+  } = {type: 'deltaProject', amount: steps};
   if (payload.waiveTarget === true) {
     move.waiveReward = true;
   }
@@ -150,6 +162,12 @@ export function hydroAdvanceBatch(
   }
   if (payload.waivedSteps !== undefined && payload.waivedSteps.length > 0) {
     move.waivedSteps = payload.waivedSteps;
+  }
+  if (payload.plannedActions !== undefined && payload.plannedActions.length > 0) {
+    move.plannedActions = payload.plannedActions;
+  }
+  if (payload.plannedChoices !== undefined && payload.plannedChoices.length > 0) {
+    move.plannedChoices = payload.plannedChoices;
   }
   return [
     ...prefix,

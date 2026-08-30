@@ -318,28 +318,29 @@ describe('buildHydroModel (iteration 2)', () => {
   });
 });
 
-describe('buildHydroModel — the MULTI-REWARD traversal (Delta Surge)', () => {
-  /** A preview whose server plan pays every crossed stage (the modifier). */
-  function surgePreview(energy: number, overrides: Partial<DeltaTrackPreviewModel> = {}): DeltaTrackPreviewModel {
-    const base = fullPreview(energy, overrides);
-    return {
-      ...base,
-      traversalModifierCard: 'Delta Surge' as DeltaTrackPreviewModel['traversalModifierCard'],
-      destinations: base.destinations.map((d) => ({
-        ...d,
-        traversal: Array.from({length: d.steps}, (_, i) => {
-          const position = i + 1;
-          if (position === d.position) {
-            return {position, rewarded: true};
-          }
-          return position === 10 || position === 11 ?
-            {position, rewarded: false, skipped: 'vp-step' as const} :
-            {position, rewarded: true};
-        }),
-      })),
-    };
-  }
+/** A preview whose server plan pays every crossed stage (the modifier) —
+ *  shared by the traversal describe AND the ordered-plan rows below. */
+function surgePreview(energy: number, overrides: Partial<DeltaTrackPreviewModel> = {}): DeltaTrackPreviewModel {
+  const base = fullPreview(energy, overrides);
+  return {
+    ...base,
+    traversalModifierCard: 'Delta Surge' as DeltaTrackPreviewModel['traversalModifierCard'],
+    destinations: base.destinations.map((d) => ({
+      ...d,
+      traversal: Array.from({length: d.steps}, (_, i) => {
+        const position = i + 1;
+        if (position === d.position) {
+          return {position, rewarded: true};
+        }
+        return position === 10 || position === 11 ?
+          {position, rewarded: false, skipped: 'vp-step' as const} :
+          {position, rewarded: true};
+      }),
+    })),
+  };
+}
 
+describe('buildHydroModel — the MULTI-REWARD traversal (Delta Surge)', () => {
   it('a one-step move stays the historical shape (no traversal surface)', () => {
     const m = buildHydroModel(input({preview: surgePreview(3), selectedPosition: 1}));
     expect(m.traversalActive).eq(false);
@@ -410,5 +411,95 @@ describe('buildHydroModel — the MULTI-REWARD traversal (Delta Surge)', () => {
     expect(m.stages[1].markers.some((x) => x.isViewer)).eq(true);
     expect(m.stages[4].markers.some((x) => x.isViewer)).eq(false);
     expect(m.stages[2].markers.some((x) => !x.isViewer), 'the opponent stays put').eq(true);
+  });
+});
+
+/**
+ * THE ORDERED RESOURCE PLAN IN THE MODEL — the payment step and the Decision
+ * Rail agree through these fields: the commitment (server-served cost), the
+ * mix sweep's verdict, the clamped dial bounds (clamp = the auto-preserve),
+ * the named reserve, the explicit conflict that gates the commit, and the
+ * greyed browser candidates. Server twin: `deltaAdvancePlan.spec.ts`.
+ */
+describe('buildHydroModel — the ordered resource plan', () => {
+  const DC = 'Development Center' as never;
+  const costs = (c: Record<string, Partial<import('../../../../src/common/Units').Units>>) =>
+    c as import('../../../../src/common/models/DeltaTrackPreviewModel').DeltaTrackPreviewModel['reuseActionCosts'];
+
+  it('THE BUG CASE: the movement payment starves the pre-selected action → explicit conflict, commit gated', () => {
+    // 8 energy; 7 steps to the repeat stage; the chosen action needs 2 energy
+    // at its own point. 8 − 7 = 1 < 2 — no composition exists.
+    const m = buildHydroModel(input({
+      preview: fullPreview(8, {
+        reuseActionCards: [DC],
+        reuseActionCosts: costs({'Development Center': {energy: 2}}),
+      }),
+      selectedPosition: 7,
+      selectedCard: DC,
+    }));
+    expect(m.planCommitment?.card).eq(DC);
+    expect(m.planCommitment?.cost).deep.eq({energy: 2});
+    expect(m.planConflict?.position).eq(7);
+    expect(m.planConflict?.resource).eq('energy');
+    expect(m.canConfirm, 'a promise the plan cannot keep gates the commit').eq(false);
+    // The browser greys the same candidate for the same reason.
+    expect(m.reuseInfeasibleCards).deep.eq([{name: DC, resource: 'energy'}]);
+  });
+
+  it('DELTA WORKS auto-preserve: the dial\'s lower clamp rises to the mix that keeps the action fed, and the reserve is named', () => {
+    // 8 energy + 2 substitute steel; 7 steps; the action needs 2 energy.
+    // Energy-first (steel 0) starves it; steel 1 leaves exactly 2.
+    const m = buildHydroModel(input({
+      preview: fullPreview(8, {
+        availableSteelSubstitute: 2,
+        reuseActionCards: [DC],
+        reuseActionCosts: costs({'Development Center': {energy: 2}}),
+      }),
+      selectedPosition: 7,
+      selectedCard: DC,
+    }));
+    expect(m.planConflict).eq(undefined);
+    // base min steel is 0 (energy covers the price) — the PLAN raises it.
+    expect(m.minSteelForSpend, 'clamped up to the feasible window').eq(1);
+    expect(m.maxSteelForSpend).eq(2);
+    expect(m.reservedEnergyForAction, 'the protected energy is named').eq(1);
+    expect(m.canConfirm).eq(true);
+  });
+
+  it('the browser greys ONLY the candidates no composition can feed — before any pick is made', () => {
+    const m = buildHydroModel(input({
+      preview: fullPreview(8, {
+        reuseActionCards: [DC, 'Birds' as never],
+        reuseActionCosts: costs({'Development Center': {energy: 2}}),
+      }),
+      selectedPosition: 7,
+    }));
+    // No commitment yet → no conflict, the commit stays open…
+    expect(m.planCommitment).eq(undefined);
+    expect(m.canConfirm).eq(true);
+    // …but the infeasible candidate is already graded for the browser.
+    expect(m.reuseInfeasibleCards).deep.eq([{name: DC, resource: 'energy'}]);
+  });
+
+  it('a TRAVERSAL commitment is fed by an EARLIER chosen gain — and starves when the choice changes', () => {
+    const surged = (picks: Record<number, unknown>, choices: Record<number, number>) => buildHydroModel(input({
+      preview: surgePreview(7, {
+        reuseActionCards: [DC],
+        reuseActionCosts: costs({'Development Center': {steel: 1}}),
+      }),
+      selectedPosition: 7,
+      planPicks: picks as never,
+      planChoices: choices,
+    }));
+    // Stage 1's steel alternative funds the stage-7 action (path order).
+    const fed = surged({7: DC}, {1: 0, 2: 0});
+    expect(fed.planCommitment?.position).eq(7);
+    expect(fed.planConflict).eq(undefined);
+    expect(fed.canConfirm).eq(true);
+    // The plants alternative guarantees no steel — the same plan conflicts.
+    const starved = surged({7: DC}, {1: 1, 2: 0});
+    expect(starved.planConflict?.position).eq(7);
+    expect(starved.planConflict?.resource).eq('steel');
+    expect(starved.canConfirm).eq(false);
   });
 });

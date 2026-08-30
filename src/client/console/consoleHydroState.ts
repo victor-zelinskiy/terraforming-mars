@@ -12,6 +12,7 @@
  * Transient by design: reset on leaving the flow. Never persisted.
  */
 import {reactive} from 'vue';
+import type {CardName} from '@/common/cards/CardName';
 import type {ConsoleCommand} from '@/client/console/consoleCommandModel';
 import type {ConsoleRepeatPickResult} from '@/client/console/consoleRepeatPick';
 
@@ -25,11 +26,17 @@ export const consoleHydroUi = reactive({
    *  (a stale composition silently degrades to the bare card pick, whose
    *  follow-ups then arrive as native tasks — the legacy contract). */
   repeatResult: undefined as ConsoleRepeatPickResult | undefined,
+  /** Candidates the ORDERED RESOURCE PLAN cannot feed under any payment
+   *  composition of the current move — handed to the repeat browser as its
+   *  greyed rows (name + the pre-translated honest reason). Written by the
+   *  section on the pick emit; read once by the shell's browser opener. */
+  repeatDisabled: [] as Array<{name: CardName, reason: string}>,
 });
 
 export function resetConsoleHydroUi(): void {
   consoleHydroUi.commands = [];
   consoleHydroUi.repeatResult = undefined;
+  consoleHydroUi.repeatDisabled = [];
 }
 
 // (The flow-record half of the console hydro state lives in

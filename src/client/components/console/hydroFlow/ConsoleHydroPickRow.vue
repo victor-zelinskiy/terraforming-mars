@@ -4,6 +4,7 @@
          'con-hydro__summary--focused': focused && !fizzled,
          'con-hydro__pickrow--missing': missing,
          'con-hydro__pickrow--fizzled': fizzled,
+         'con-hydro__pickrow--conflict': conflictReason !== '',
        }"
        data-unfold-item
        :role="fizzled ? undefined : 'button'"
@@ -69,6 +70,13 @@
         <span>{{ $t(chooseKey) }}</span>
       </span>
     </span>
+    <!-- THE PLAN'S CONFLICT, named IN PLACE: the promise stands (the summary
+         stays — never a silent clearing), the register says it cannot be
+         kept, and the reason names the short resource. A = change it. -->
+    <span v-if="conflictReason !== ''" class="con-hydro__pickrow-conflict" role="status">
+      <span class="con-hydro__pickwarn-mark" aria-hidden="true">⚠</span>
+      <span>{{ $t(conflictReason) }}</span>
+    </span>
   </div>
 </template>
 
@@ -131,6 +139,8 @@ export default defineComponent({
     focused: {type: Boolean, default: false},
     /** The server offered NO candidate — the reward fizzles and nothing is owed. */
     fizzled: {type: Boolean, default: false},
+    /** The ordered plan cannot keep this pick (i18n key) — '' = no conflict. */
+    conflictReason: {type: String, default: ''},
   },
   emits: ['open'],
   computed: {

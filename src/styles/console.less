@@ -5424,6 +5424,21 @@ html.console-mode body.placement-pending .board-outer-spaces > .board-space.boar
         color: fade(@con-cyan, 92%);
         box-shadow: inset 0 0 0 .05rem fade(@con-cyan, 40%);
     }
+    /* THE PLAN'S PROTECTED RESOURCE, named where the price is read: the
+       auto-composition holds this energy for the pre-selected action, so the
+       movement may not take it. Mint — a kept promise, not a warning. */
+    &__payline-reserved {
+        display: inline-flex;
+        align-items: center;
+        gap: .25rem;
+        padding: .18rem .5rem;
+        border-radius: .4rem;
+        font-size: .68rem;
+        font-weight: 700;
+        color: fade(@con-hydro-mint, 92%);
+        box-shadow: inset 0 0 0 .05rem fade(@con-hydro-mint, 38%);
+        background: fade(@con-hydro-mint, 7%);
+    }
 
     /* THE PAYMENT SUBSTEP — the flow zone handed over to the composition.
        The context column IS the pinned summary (the same identity, the same
@@ -6011,6 +6026,26 @@ html.console-mode body.placement-pending .board-outer-spaces > .board-space.boar
     &__pickrow--fizzled {
         box-shadow: inset 0 0 0 .05rem rgba(150, 160, 175, 0.2);
         cursor: default;
+    }
+    /* THE PLAN CANNOT KEEP THIS PICK — the promise stands (the summary keeps
+       naming the chosen card; a silent clearing is the forbidden outcome),
+       the register says the ordered projection refuses it, and the commit is
+       gated until the player changes the pick or the payment mix. Danger by
+       colour AND weight (the paint baseline strips filters — box-shadow and
+       ink carry the state). */
+    &__pickrow--conflict {
+        box-shadow: inset 0 0 0 .07rem fade(@con-red, 55%);
+        background: fade(@con-red, 8%);
+    }
+    &__pickrow-conflict {
+        display: flex;
+        align-items: center;
+        gap: .4rem;
+        min-height: 1.15rem;
+        font-size: .78rem;
+        font-weight: 700;
+        line-height: 1.15rem;
+        color: fade(@con-red, 95%);
     }
     &__summary-body--empty {
         display: inline-flex;

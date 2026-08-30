@@ -2516,6 +2516,8 @@ export class Player implements IPlayer {
             DeltaProjectExpansion.advance(this, amount, undefined, {
               waiveTargetReward: input.waiveReward,
               waivedTargetPositions: input.waivedSteps,
+              plannedActions: input.plannedActions,
+              plannedChoices: input.plannedChoices,
               payment: {energy: amount - input.steelSpent, steel: input.steelSpent},
             });
             if (this.deltaProjectData !== undefined) {

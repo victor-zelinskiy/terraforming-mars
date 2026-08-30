@@ -4,8 +4,10 @@ import {
   abortHydroMarker, armHydroMarker, armHydroMarkerTraversal, detectHydroMarker, endHydroMarker,
   hydroMarkerState, hydroTraversalPaused, hydroTraversalPending, hydroVisualTrackPosition,
   isHydroMarkerActive, registerHydroMarkerHandle, resetHydroMarker, resumeHydroMarkerTraversal,
-  runHydroMarker, setHydroMarkerPhase,
+  runHydroMarker, seedHydroMarkerRewardHold, setHydroMarkerPhase,
 } from '@/client/console/hydroMarker/consoleHydroMarker';
+import {clearPanelRewardHold, panelRewardHold} from '@/client/console/resourceTransfer/consoleResourceTransfer';
+import {ResourceTransferSpec} from '@/client/console/resourceTransfer/resourceTransferModel';
 
 describe('consoleHydroMarker', () => {
   beforeEach(() => resetHydroMarker());
@@ -226,6 +228,52 @@ describe('consoleHydroMarker', () => {
       expect(hydroTraversalPending()).to.eq(false);
       expect(hydroVisualTrackPosition()).to.eq(-1);
       expect(isHydroMarkerActive()).to.eq(false);
+    });
+
+    it('an interactive stop\'s OWN gains fly at the RESUME, never on arrival (the closing beat)', async () => {
+      // A repeated action's rewards exist only once its whole presentation
+      // (reveal, picks, the hand intake) has finished — so the stop's
+      // transfers are stashed at the pause and become the resume's wave. The
+      // panel hold is the witness: seeded with the response, still HELD
+      // through the whole pause, released only by the resume's wave (jsdom
+      // degrades the flight and releases per spec — honest, just instant).
+      const stop = autoDirector();
+      const steel: ResourceTransferSpec = {channel: 'stock', resource: 'steel', amount: 2};
+      try {
+        armHydroMarkerTraversal(6, [
+          {position: 7, transfers: [steel], stop: 'repeat'},
+        ], 'blue');
+        // The transport's synchronous seed (same block as the view apply).
+        seedHydroMarkerRewardHold();
+        expect(panelRewardHold.active, 'seeded with the response').to.eq(true);
+        detectHydroMarker();
+        await runHydroMarker();
+        endHydroMarker();
+        await until(() => hydroTraversalPaused());
+        // Parked ON the stop: nothing flew — the reward is still held.
+        expect(panelRewardHold.active, 'held through the pause').to.eq(true);
+        expect(hydroTraversalPending()).to.eq(true);
+        resumeHydroMarkerTraversal();
+        await until(() => !hydroTraversalPending());
+        // The resume's wave released the hold (per touchdown; degraded =
+        // instant) and the one-leg plan finished.
+        expect(panelRewardHold.active, 'released by the resume wave').to.eq(false);
+        expect(hydroMarkerState.settledPosition).to.eq(7);
+      } finally {
+        stop();
+        clearPanelRewardHold();
+      }
+    });
+
+    it('abort while parked at a stop clears the stashed resume wave (no ghost flight later)', () => {
+      armHydroMarkerTraversal(6, [
+        {position: 7, transfers: [{channel: 'stock', resource: 'steel', amount: 2}], stop: 'repeat'},
+      ], 'blue');
+      abortHydroMarker();
+      // A resume after the abort must be a no-op: no plan, no wave, no hold.
+      resumeHydroMarkerTraversal();
+      expect(hydroTraversalPending()).to.eq(false);
+      expect(panelRewardHold.active).to.eq(false);
     });
   });
 });

@@ -155,5 +155,9 @@
     "Advance 1 step on the Hydronetwork without paying energy": "Продвинуться на 1 деление по Гидросети, не тратя энергию",
     "Spend 1 energy to ignore 1 required tag and advance 1 step on the Hydronetwork": "Потратить 1 энергию, чтобы проигнорировать 1 требуемую метку и продвинуться на 1 деление",
     "Intermediate rewards are skipped · ${0}": "Промежуточные награды будут пропущены · ${0}",
-    "Decision ${0} of ${1}": "Решение ${0} из ${1}"
+    "Decision ${0} of ${1}": "Решение ${0} из ${1}",
+    "Reserved: ${0} energy — ${1}": "Зарезервировано: ${0} энергии — ${1}",
+    "Not enough energy left after the movement payment": "После оплаты перемещения не хватает энергии",
+    "The movement payment conflicts with this action": "Оплата перемещения конфликтует с этим действием",
+    "The payment mix conflicts with the selected action": "Состав оплаты конфликтует с выбранным действием"
 }

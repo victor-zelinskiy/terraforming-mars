@@ -6,6 +6,7 @@ import {
   buildTraversalDecisions,
   initialRailFocus,
   nextRailFocus,
+  planConflictReasonKey,
   railFocusNodes,
   railIdOf,
   railNodeOf,
@@ -62,6 +63,37 @@ describe('hydroDecisionRail (the pure decision + focus model)', () => {
       expect(d.state).to.eq('unavailable');
       expect(d.skipReasonKey).to.eq('No card can receive the animals');
     });
+
+    it('a made pick the ORDERED PLAN cannot keep → conflict: the summary stands, the reason names the shortfall', () => {
+      const [d] = buildHydroDecisions({
+        offered: true, kind: 'reuse-action', mustSelectCard: true,
+        chosen: CardName.DEVELOPMENT_CENTER, optional: true,
+        conflict: {resource: 'energy'},
+      });
+      expect(d.state).to.eq('conflict');
+      // Never a silent clearing: the chosen card STAYS on the decision.
+      expect(d.chosen).to.eq(CardName.DEVELOPMENT_CENTER);
+      expect(d.conflictReasonKey).to.eq('Not enough energy left after the movement payment');
+    });
+
+    it('a conflict with NO chosen pick is just an open question (nothing to conflict with)', () => {
+      const [d] = buildHydroDecisions({
+        offered: true, kind: 'reuse-action', mustSelectCard: true,
+        chosen: undefined, optional: true, conflict: {resource: 'energy'},
+      });
+      expect(d.state).to.eq('open');
+      expect(d.conflictReasonKey).to.eq(undefined);
+    });
+  });
+
+  describe('planConflictReasonKey (ONE wording for the rail card, the greyed browser row and the CTA)', () => {
+    it('names energy when energy is the structural shortfall', () => {
+      expect(planConflictReasonKey('energy')).to.eq('Not enough energy left after the movement payment');
+    });
+    it('states the generic conflict otherwise', () => {
+      expect(planConflictReasonKey('steel')).to.eq('The movement payment conflicts with this action');
+      expect(planConflictReasonKey(undefined)).to.eq('The movement payment conflicts with this action');
+    });
   });
 
   describe('buildTraversalDecisions (a multi-reward movement — Delta Surge)', () => {
@@ -100,6 +132,17 @@ describe('hydroDecisionRail (the pure decision + focus model)', () => {
     it('the hidden-information draw (stage 5) builds NOTHING — it is a stop, never a pre-select', () => {
       const rail = buildTraversalDecisions([stagePlan(5), stagePlan(6)]);
       expect(rail).to.deep.eq([]);
+    });
+
+    it('the plan\'s conflict marks EXACTLY its own stop — the other picks keep their states', () => {
+      const rail = buildTraversalDecisions([
+        stagePlan(7, {mustSelect: true, pick: CardName.DEVELOPMENT_CENTER}),
+        stagePlan(9, {mustSelect: true, pick: CardName.BIRDS}),
+      ], {position: 7, resource: 'energy'});
+      expect(rail[0].state).to.eq('conflict');
+      expect(rail[0].chosen, 'the promise stands').to.eq(CardName.DEVELOPMENT_CENTER);
+      expect(rail[0].conflictReasonKey).to.eq('Not enough energy left after the movement payment');
+      expect(rail[1].state).to.eq('resolved');
     });
 
     it('the focus contract holds over the grown array: first open → next open → CTA', () => {
@@ -155,6 +198,10 @@ describe('hydroDecisionRail (the pure decision + focus model)', () => {
     it('resolved + unavailable + unresolved → the first REAL unresolved', () => {
       expect(initialRailFocus(multiRail(['resolved', 'unavailable', 'open']))).to.eq('rail:2:animal-target');
     });
+
+    it('a CONFLICT takes the automatic seat like an open question — the player\'s hand is needed there', () => {
+      expect(initialRailFocus(multiRail(['resolved', 'conflict', 'resolved']))).to.eq('rail:1:animal-target');
+    });
   });
 
   describe('nextRailFocus (the seat after an answer)', () => {
@@ -173,6 +220,10 @@ describe('hydroDecisionRail (the pure decision + focus model)', () => {
     it('skips unavailable slots', () => {
       expect(nextRailFocus(multiRail(['resolved', 'unavailable', 'open']), '0:reuse-action')).to.eq('rail:2:animal-target');
     });
+
+    it('returns to a CONFLICTING pick the same way it returns to an open one', () => {
+      expect(nextRailFocus(multiRail(['resolved', 'conflict', 'resolved']), '2:animal-target')).to.eq('rail:1:animal-target');
+    });
   });
 
   describe('railStep (↑/↓ through the visible order)', () => {
@@ -182,6 +233,11 @@ describe('hydroDecisionRail (the pure decision + focus model)', () => {
 
     it('the focus graph skips unavailable decisions', () => {
       expect(railFocusNodes(rail)).to.deep.eq(['rail:0:reuse-action', 'rail:2:animal-target', HYDRO_RAIL_CTA]);
+    });
+
+    it('a CONFLICT stays IN the focus graph (walk to it to change or clear the pick)', () => {
+      expect(railFocusNodes(multiRail(['resolved', 'conflict', 'resolved'])))
+        .to.deep.eq(['rail:0:reuse-action', 'rail:1:animal-target', 'rail:2:animal-target', HYDRO_RAIL_CTA]);
     });
 
     it('↓ walks decision → decision → CTA; the bottom edge exits', () => {

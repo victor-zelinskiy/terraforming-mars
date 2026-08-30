@@ -91,7 +91,7 @@ describe('consoleActionCommit — the universal activation beat', () => {
     });
   });
 
-  describe('commitRewardSpecs — the wave carries the RAIL channels only', () => {
+  describe('commitRewardSpecs — every transfer channel rides the one wave', () => {
     it('stock + production gains become specs (server-computed amounts, merged)', () => {
       const specs = commitRewardSpecs(CardName.BUSINESS_NETWORK, branchWith({
         effects: [gain('plants', 2), gain('plants', 1), gain('heat', 3, 'production')],
@@ -102,7 +102,16 @@ describe('consoleActionCommit — the universal activation beat', () => {
       ]);
     });
 
-    it('card-resource / global / draw gains stay OUT of the wave (their own flows own them)', () => {
+    /**
+     * The CARD-RESOURCE channel RIDES (the 3-path parity fix): an action that
+     * puts a resource on its own card presents the same premium transfer a
+     * card PLAY does — one language for the ДЕЙСТВИЯ КАРТ commit, the normal
+     * activation and the Hydronetwork repeat; the framework resolves the
+     * landing honestly (painted face, else the satellite). Global-parameter
+     * and draw gains stay out — their own flows (HUD scale / the deck) own
+     * them.
+     */
+    it('a card-resource gain rides the wave, aimed at its own card; global / draw stay out', () => {
       const specs = commitRewardSpecs(CardName.BUSINESS_NETWORK, branchWith({
         effects: [
           gain('microbe', 1, 'on this card'),
@@ -110,7 +119,9 @@ describe('consoleActionCommit — the universal activation beat', () => {
           gain('cards', 2),
         ],
       }), {});
-      expect(specs).to.deep.eq([]);
+      expect(specs).to.deep.eq([
+        {channel: 'card-resource', resource: 'microbe', amount: 1, targetCard: CardName.BUSINESS_NETWORK},
+      ]);
     });
 
     it('costs never fly', () => {
