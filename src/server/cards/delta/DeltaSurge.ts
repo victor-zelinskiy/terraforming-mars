@@ -51,8 +51,13 @@ export class DeltaSurge extends Card implements IProjectCard {
       metadata: {
         cardNumber: 'DP07',
         renderData: CardRenderer.builder((b) => {
+          // ONE variable, stated once: the TRIGGER is the Hydronetwork move
+          // itself (the plate), the RESULT is «X rewards» (the asterisked
+          // fine print carries the 2 VP exclusion). The old leading «+X»
+          // restated the X on the trigger side and the compact formula read
+          // as two unrelated quantities («+X [ГИДРОСЕТЬ] : X*»).
           b.effect('When advancing multiple steps on the Hydronetwork track at once, gain each step\'s reward. Does not apply to the 2 VP step.', (eb) => {
-            eb.text('+X').plate('Hydronetwork').startEffect.text('X').asterix();
+            eb.plate('Hydronetwork').startEffect.text('X').asterix();
           }).br;
           b.oceans(1);
         }),

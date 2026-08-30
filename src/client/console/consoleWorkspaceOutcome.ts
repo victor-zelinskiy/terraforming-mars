@@ -480,6 +480,40 @@ export function markWorkspaceOutcomePresenting(): void {
 }
 
 /**
+ * THE CHAIN HAS ANOTHER BATCH QUEUED — the claim STAYS and re-arms for it
+ * instead of dying with the batch just taken.
+ *
+ * One press's causal chain routinely produces SEVERAL drawn batches (a
+ * traversal's stage draw and its repeat's own draw; a colony chain's cycles),
+ * and the server queues them as separate reveal events. The claim used to end
+ * at the first batch's take («the claim ENDS AT THE TAKE»), which was right
+ * for a chain of one — and for a chain of two it stranded the second batch:
+ * claimless, it failed `workspaceClaimsDrawReveal`, skipped the scene-exit
+ * barrier (claim-gated) and rose as the STANDALONE band over the workspace
+ * that was still finishing the first batch's exits — small ladder cards, no
+ * dim, two batches on one frame (the 20260830201630/1638 defect).
+ *
+ * Re-arming keeps host / slot / kinds / scope — the identity of the LEASE —
+ * and resets only the per-batch arrival lifecycle, so the queued batch waits
+ * out the previous exits behind the same barrier and then presents EMBEDDED
+ * in the same zone, exactly like its sibling.
+ */
+export function retainWorkspaceOutcomeForNextBatch(expectedCards = 0): void {
+  if (workspaceOutcomeState.sourceCard === '') {
+    return;
+  }
+  workspaceOutcomeState.stage = 'awaiting';
+  workspaceOutcomeState.expectedCards = Math.max(0, Math.floor(expectedCards));
+  workspaceOutcomeState.arrivalFlown = false;
+  clearArrival();
+  workspaceOutcomeState.arrivalDone =
+    !(workspaceOutcomeState.kinds.includes('draw') || workspaceOutcomeState.kinds.includes('pick'));
+  // The next batch is a fresh «claimed, and nothing came yet» question — the
+  // backstop guards it exactly as it guarded the first one.
+  armSafety();
+}
+
+/**
  * THE STEP ENDED, THE FLOW DID NOT — move a live claim UP to the workspace
  * that was hosting the step.
  *

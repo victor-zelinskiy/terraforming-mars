@@ -149,7 +149,6 @@ import {runBatchArrival, settleBatchProxiesOnto, BatchArrivalHandle} from '@/cli
 import {holdDeckDisplay, releaseDeckDisplay} from '@/client/console/consoleDeckDisplay';
 import {runHandIntake, handDockReachable} from '@/client/console/handDock/handDeliveryDirector';
 import {applyDiscardExit} from '@/client/console/cardDeal/cardExitDirector';
-import {consoleReducedMotionActive} from '@/client/console/composables/useConsoleReducedMotion';
 import {openConsoleCardZoom, slotZoomOrigin} from '@/client/console/consoleCardZoom';
 import {promptSourceView, PromptSourceView} from '@/client/console/promptSource';
 import {cardsResponse} from '@/client/console/taskResponses';
@@ -161,11 +160,6 @@ import {
   shouldDealBatch, takeDeckPickDraft,
 } from '@/client/console/deckPick/consoleDeckPick';
 import {motionMs} from '@/client/components/motion/motionTokens';
-
-/** How long the cards left behind take to tumble away — a short CLEAN-UP beat,
- *  never a phase of its own. `applyDiscardExit` owns the motion; this is only
- *  the budget after which the surface may go. */
-const CLEAR_MS = 380;
 
 /** Bounded retry while the row has no layout yet (JSDOM / mid-reload). */
 const FIT_RETRIES = 20;
@@ -1007,8 +1001,14 @@ export default defineComponent({
     /**
      * The CLEAN-UP beat: the cards nobody took drift away and fade — the
      * project's own «rejected cards» motion, on the REAL slots (a proxy for a
-     * card that is simply being thrown away would be ceremony). Short on
-     * purpose; it exists so the row is not deleted out from under the player.
+     * card that is simply being thrown away would be ceremony).
+     *
+     * AWAITED TO ITS REAL END: `applyDiscardExit` resolves when the LAST
+     * rejected card's animation has actually finished — this beat is a term
+     * of the commit hold (`deckPickHolding`), which is a term of the scene
+     * lease, so releasing it on a fixed budget while the dissolve still
+     * played is exactly how the NEXT batch got the scene over cards that
+     * were still saying goodbye (the 20260830201630 frame).
      */
     async clearRest(kept: ReadonlyArray<CardName>): Promise<void> {
       const rest = this.entries
@@ -1018,13 +1018,7 @@ export default defineComponent({
       if (rest.length === 0) {
         return;
       }
-      applyDiscardExit(rest, {stepMs: 28});
-      if (consoleReducedMotionActive()) {
-        return;
-      }
-      await new Promise<void>((resolve) => {
-        window.setTimeout(resolve, motionMs(CLEAR_MS));
-      });
+      await applyDiscardExit(rest, {stepMs: 28});
     },
     slotEl(name: CardName): HTMLElement | null {
       const root = this.$el as HTMLElement | undefined;

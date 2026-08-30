@@ -290,6 +290,21 @@ export function runLeakDetection(view: PlayerViewModel | undefined): void {
   const served = anyServingSurfaceRendered(task);
   runForegroundWatchdog({surfaceRendered: served, promptLive: wf !== undefined});
 
+  // 2b. THE ONE-BATCH INVARIANT — dev evidence, never a mask. At most ONE
+  // card batch may be VISIBLE in the working scene per frame: a deck pick
+  // still showing candidate cards and a reveal already showing its own is
+  // exactly the overlap the scene lease exists to make unexpressible
+  // (`ConsoleShell.cardStageExitBusy`). This detector pass is 1 Hz — it will
+  // not catch every frame, but a lease regression is a STATE, not a flash,
+  // and one warning with both batch identities beats a silent screenshot.
+  const pickCard = document.querySelector<HTMLElement>('.con-deckpick [data-deckpick-slot]');
+  const revealCard = document.querySelector<HTMLElement>('.con-reveal [data-zoom-slot]');
+  if (pickCard !== null && revealCard !== null &&
+      pickCard.offsetParent !== null && revealCard.offsetParent !== null) {
+    console.warn('[console-leak-detector] BATCH OVERLAP: a deck pick and a reveal are both showing cards',
+      pickCard.getAttribute('data-deckpick-slot'), revealCard.getAttribute('data-zoom-slot'));
+  }
+
   // 1. Stranded prompt.
   if (view === undefined || wf === undefined) {
     clearStranded();

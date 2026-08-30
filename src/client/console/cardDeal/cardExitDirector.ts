@@ -468,23 +468,63 @@ export function runDraftPickToTray(args: DraftPickToTrayArgs): DraftPickHandle {
 }
 
 /**
+ * DISCARD EXITS IN FLIGHT — the join term the scene lease reads: while ANY
+ * rejected-card dissolve is still playing, the previous card stage has not
+ * visually finished, so the NEXT batch may not take the scene. Counted per
+ * run (starts at apply, ends when the LAST element's animation ends), with
+ * the same bounded rAF-stall net every director beat carries — a stuck
+ * count would hold the scene lease forever, which is worse than a beat cut
+ * a frame early.
+ */
+let discardExitRuns = 0;
+
+export function cardExitBusy(): boolean {
+  return discardExitRuns > 0;
+}
+
+/**
  * The subdued DISCARD of non-chosen cards — a cheap CSS animation on the
  * REAL slots (class + per-slot delay), never proxies: they drift toward
  * the discard side and fade, clearly secondary to the hero/collect. The
  * `forwards` fill keeps them hidden until the frame swap replaces them.
+ *
+ * RESOLVES when the run's LAST animation has actually ENDED (per-element
+ * `animationend`, joined) — the completion the deck pick's commit hold and
+ * the scene lease wait on. One finished card never releases the batch.
  */
-export function applyDiscardExit(els: ReadonlyArray<HTMLElement>, opts?: {stepMs?: number, delayMs?: number}): void {
-  if (consoleReducedMotionActive()) {
+export function applyDiscardExit(els: ReadonlyArray<HTMLElement>, opts?: {stepMs?: number, delayMs?: number}): Promise<void> {
+  if (consoleReducedMotionActive() || els.length === 0) {
     els.forEach((el) => el.classList.add(HOLD_CLASS));
-    return;
+    return Promise.resolve();
   }
   const step = opts?.stepMs ?? 24;
   // `delayMs` sequences the read: the HERO beat lands first, THEN the
   // rejected cards start tumbling — the eye follows one thing at a time.
   const base = opts?.delayMs ?? 0;
-  els.forEach((el, i) => {
+  discardExitRuns++;
+  const waits = els.map((el, i) => new Promise<void>((resolve) => {
+    let settled = false;
+    const finish = () => {
+      if (!settled) {
+        settled = true;
+        el.removeEventListener('animationend', onEnd);
+        clearTimeout(net);
+        resolve();
+      }
+    };
+    const onEnd = (ev: AnimationEvent) => {
+      if (ev.target === el) {
+        finish();
+      }
+    };
+    el.addEventListener('animationend', onEnd);
+    // The bounded net: a hidden/unmounted element fires no animationend.
+    const net = setTimeout(finish, motionMs(base + i * step + 300) + 1200);
     el.style.animationDelay = `${motionMs(base + i * step)}ms`;
     el.classList.add('con-exit-reject');
+  }));
+  return Promise.all(waits).then(() => {
+    discardExitRuns = Math.max(0, discardExitRuns - 1);
   });
 }
 

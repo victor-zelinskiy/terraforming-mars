@@ -282,6 +282,21 @@ test.describe('Hydronetwork hosts the repeated action · fhd', () => {
     }));
     expect(during.hydroVisible, 'the track workspace never leaves the screen').toBe(true);
     expect(during.immersive, 'the embedded batch takes the frame (the immersive pose)').toBe(true);
+    // Let the deal-in motion land before the photo — the acceptance frame is
+    // the PRESENTED hero, not the first pixel of its arrival animation.
+    await page.waitForTimeout(1300);
+    const hero = await page.evaluate(() => {
+      const slot = document.querySelector('.con-reveal--embedded .con-cards__slot');
+      const zone = document.querySelector('.con-hydro__embed');
+      return {
+        cardH: slot?.getBoundingClientRect().height ?? 0,
+        zoneH: zone?.getBoundingClientRect().height ?? 0,
+      };
+    });
+    // P0.1b acceptance: the presented card SPENDS the zone (never a thumbnail
+    // in a huge empty scene — the 20260830201638 defect).
+    expect(hero.cardH, `hero ${Math.round(hero.cardH)}px of ${Math.round(hero.zoneH)}px zone`)
+      .toBeGreaterThan(0.6 * hero.zoneH);
     await shoot(page, '04-embedded-reveal');
     // A — take every card of the embedded batch (one press per card; the
     // arrival gate may swallow an early press, so press until it clears).

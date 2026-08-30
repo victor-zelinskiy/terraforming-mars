@@ -3,8 +3,8 @@ import {watch} from 'vue';
 import {
   abortHydroMarker, armHydroMarker, armHydroMarkerTraversal, detectHydroMarker, endHydroMarker,
   hydroMarkerState, hydroTraversalPaused, hydroTraversalPending, hydroVisualTrackPosition,
-  isHydroMarkerActive, registerHydroMarkerHandle, resetHydroMarker, resumeHydroMarkerTraversal,
-  runHydroMarker, seedHydroMarkerRewardHold, setHydroMarkerPhase,
+  isHydroMarkerActive, noteHydroLandPresence, registerHydroMarkerHandle, resetHydroMarker,
+  resumeHydroMarkerTraversal, runHydroMarker, seedHydroMarkerRewardHold, setHydroMarkerPhase,
 } from '@/client/console/hydroMarker/consoleHydroMarker';
 import {clearPanelRewardHold, panelRewardHold} from '@/client/console/resourceTransfer/consoleResourceTransfer';
 import {ResourceTransferSpec} from '@/client/console/resourceTransfer/resourceTransferModel';
@@ -274,6 +274,83 @@ describe('consoleHydroMarker', () => {
       resumeHydroMarkerTraversal();
       expect(hydroTraversalPending()).to.eq(false);
       expect(panelRewardHold.active).to.eq(false);
+    });
+
+    // ── THE PRESENTED TARGET CARD'S EXIT HANDSHAKE (pos 9) ────────────────
+    // The stage-9 payout lands ON a presented card, and the sequence may not
+    // move past the cell while that card is still on stage: the section
+    // reports presence, the leg awaits its full LEAVE before the next leg.
+    describe('the pos-9 presented card holds the sequence until its exit', () => {
+      it('a reported presence BLOCKS the next leg; ending it releases the walk', async () => {
+        const stop = autoDirector();
+        try {
+          hydroMarkerState.reducedMotion = true;
+          // The section stands the pos-9 card up (the arrival mounts it).
+          noteHydroLandPresence(9, true);
+          armHydroMarkerTraversal(8, [
+            {position: 9, transfers: []},
+            {position: 10, transfers: []},
+          ], 'blue');
+          detectHydroMarker();
+          await runHydroMarker();
+          endHydroMarker();
+          // The cell resolved: the cursor has moved past it…
+          await until(() => hydroMarkerState.planCursor === 1);
+          // …but the NEXT leg does not start while the card still stands —
+          // its glide would re-target the marker under a face mid-payout.
+          const nonceAtHold = hydroMarkerState.nonce;
+          await new Promise((r) => setTimeout(r, 60));
+          expect(hydroMarkerState.nonce, 'no next-leg glide during the hold').to.eq(nonceAtHold);
+          expect(hydroTraversalPending(), 'the plan stands').to.eq(true);
+          // The leave transition ends → the sequence continues to 10.
+          noteHydroLandPresence(9, false);
+          await until(() => !hydroTraversalPending());
+          expect(hydroMarkerState.settledPosition).to.eq(10);
+        } finally {
+          stop();
+        }
+      });
+
+      it('a card that never presented blocks NOTHING (the wait is keyed on the report)', async () => {
+        const stop = autoDirector();
+        try {
+          hydroMarkerState.reducedMotion = true;
+          armHydroMarkerTraversal(8, [
+            {position: 9, transfers: []},
+            {position: 10, transfers: []},
+          ], 'blue');
+          detectHydroMarker();
+          await runHydroMarker();
+          endHydroMarker();
+          await until(() => !hydroTraversalPending());
+          expect(hydroMarkerState.settledPosition).to.eq(10);
+        } finally {
+          stop();
+        }
+      });
+
+      it('an abort resolves the waiter — a torn-down scene can never hang the plan epoch', async () => {
+        const stop = autoDirector();
+        try {
+          hydroMarkerState.reducedMotion = true;
+          noteHydroLandPresence(9, true);
+          armHydroMarkerTraversal(8, [
+            {position: 9, transfers: []},
+            {position: 10, transfers: []},
+          ], 'blue');
+          detectHydroMarker();
+          await runHydroMarker();
+          endHydroMarker();
+          await until(() => hydroMarkerState.planCursor === 1);
+          abortHydroMarker();
+          expect(hydroTraversalPending()).to.eq(false);
+          // The waiter died with the abort: a LATE leave report is a no-op.
+          noteHydroLandPresence(9, false);
+          expect(hydroTraversalPending()).to.eq(false);
+        } finally {
+          stop();
+        }
+      });
     });
   });
 });

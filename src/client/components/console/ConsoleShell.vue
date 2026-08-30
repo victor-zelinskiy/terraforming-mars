@@ -1620,7 +1620,8 @@ import {
 } from '@/client/console/hydroFlow/consoleHydroFlow';
 import {bonusDiscardOwnsBatch, bonusDiscardStep, BonusDiscardStep} from '@/client/console/colonyTrade/colonyBonusDiscardStep';
 import {drawnRevealCommandRun} from '@/client/console/consoleRevealCommands';
-import {workspaceClaimsDrawReveal, workspaceClaimsColonyReveal, workspaceClaimsDeckCheck, workspaceClaimsEffect, workspaceClaimsPick, workspaceOutcomeClaimed, workspaceOutcomeBeatPending, claimWorkspaceOutcome, lastOutcomeReleaseStack, markWorkspaceOutcomeAnswerIn, markWorkspaceOutcomeArrivalDone, markWorkspaceOutcomeBeatDone, markWorkspaceOutcomePresenting, outcomeHostConcludesFlow, releaseWorkspaceOutcome, resetWorkspaceOutcome, setWorkspaceOutcomePhase, workspaceOutcomeState} from '@/client/console/consoleWorkspaceOutcome';
+import {workspaceClaimsDrawReveal, workspaceClaimsColonyReveal, workspaceClaimsDeckCheck, workspaceClaimsEffect, workspaceClaimsPick, workspaceOutcomeClaimed, workspaceOutcomeBeatPending, claimWorkspaceOutcome, lastOutcomeReleaseStack, markWorkspaceOutcomeAnswerIn, markWorkspaceOutcomeArrivalDone, markWorkspaceOutcomeBeatDone, markWorkspaceOutcomePresenting, outcomeHostConcludesFlow, releaseWorkspaceOutcome, resetWorkspaceOutcome, retainWorkspaceOutcomeForNextBatch, setWorkspaceOutcomePhase, workspaceOutcomeState} from '@/client/console/consoleWorkspaceOutcome';
+import {cardExitBusy} from '@/client/console/cardDeal/cardExitDirector';
 import type {WorkspaceOutcomeKind, WorkspaceOutcomeScope} from '@/client/console/consoleWorkspaceOutcome';
 import {ResultRevealPresentation, resultRevealPresentation} from '@/client/console/consoleRevealPresentation';
 import {claimPlayOutcome, isPlayOutcomeHost, playLandingShowing} from '@/client/console/played/consolePlayOutcomeClaim';
@@ -3879,15 +3880,30 @@ export default defineComponent({
       }
       // THE SCENE-EXIT BARRIER: exactly one card stage owns the working scene
       // at a time. A batch that has NOT presented yet waits out the PREVIOUS
-      // stage's whole exit — the deck pick's commit beats (picks flying to the
-      // dock, the rest tumbling away) and the taken cards' delivery flights.
-      // The `revealPresented` latch makes the hold one-directional: a batch
-      // already ON the scene starts flights of its own with every take, and
-      // those must never re-raise the barrier under it. Completion signals
-      // only (the deck pick's own commit lifecycle, the delivery flight
-      // list) — never a timeout.
-      return !revealPresented(ev.id) &&
-        (deckPickHolding() || handDeliveryState.flights.length > 0);
+      // stage's whole exit — see `cardStageExitBusy` (the ONE join of every
+      // exit-shaped completion signal). The `revealPresented` latch makes the
+      // hold one-directional: a batch already ON the scene starts flights of
+      // its own with every take, and those must never re-raise the barrier
+      // under it. Completion signals only — never a timeout.
+      return !revealPresented(ev.id) && this.cardStageExitBusy;
+    },
+    /**
+     * THE PREVIOUS CARD STAGE IS STILL LEAVING — the join every «may the next
+     * batch take the scene?» question reads. Terms are COMPLETION-shaped
+     * module facts, each ending on its own real finish:
+     *  · the deck pick's commit hold (picks flying + the rejected dissolve —
+     *    `clearRest` now awaits the LAST card's animationend);
+     *  · the hand-intake delivery flights (the taken cards' physical trip);
+     *  · the standalone discard dissolves (`cardExitBusy` — applyDiscardExit
+     *    counts its own runs to their joined end).
+     * One list, read by the claimed barrier above AND the unclaimed guard in
+     * `consoleRevealMode` — a batch nobody claimed must not overlap either.
+     */
+    cardStageExitBusy(): boolean {
+      return deckPickHolding() ||
+        this.handDeliveryState.flights.length > 0 ||
+        isHandDeliveryActive() ||
+        cardExitBusy();
     },
     /**
      * WHERE THE DECK-CHECK VERDICT PRESENTS — nowhere, the full-bleed band, or
@@ -3925,6 +3941,17 @@ export default defineComponent({
         return undefined;
       }
       if (this.rawDrawnRevealPending) {
+        // ONE VISIBLE CARD BATCH PER FRAME — for the UNCLAIMED batch too.
+        // The workspace barrier above is claim-gated by construction, so a
+        // batch whose claim had already ended (or that never had one) used
+        // to mount the standalone band while the previous stage's exits
+        // still played. The same exit join holds it here: it opens on the
+        // real completions, and the presented latch keeps the hold
+        // one-directional exactly as it does for the claimed path.
+        const ev = currentRevealEvent();
+        if (ev !== undefined && !revealPresented(ev.id) && this.cardStageExitBusy) {
+          return undefined;
+        }
         return 'drawn';
       }
       // A verdict a WORKSPACE owns is ITS stage — either drawn by the host
@@ -13523,6 +13550,22 @@ export default defineComponent({
       // (the reconciler's release → `handOutcomeLive`'s falling edge).
       if (this.playEffectOwed) {
         this.handEffectStageOn();
+        return;
+      }
+      // …AND A QUEUED SIBLING BATCH KEEPS THE LEASE. One press's chain can
+      // produce SEVERAL reveal batches (a traversal's stage draw + its
+      // repeat's own; a chained follow-up draw landing in the take's
+      // response), and the server's own queue is the race-proof witness.
+      // Released here, the next batch was claimless: it skipped the
+      // claim-gated scene-exit barrier and rose as the STANDALONE band over
+      // a workspace still playing this batch's exits — two batches on one
+      // frame, ladder-small cards, no dim. The claim RE-ARMS for it instead
+      // and the same barrier + embed zone serve it as the next stage.
+      const next = drawnCardsState.events.find((e) =>
+        !e.dismissed && e.cards.length - e.takenIndices.size > 0);
+      if (next !== undefined ||
+          (host === 'hydro' && hydroTraversalPending())) {
+        retainWorkspaceOutcomeForNextBatch(next?.cards.length ?? 0);
         return;
       }
       releaseWorkspaceOutcome('drawn-complete');

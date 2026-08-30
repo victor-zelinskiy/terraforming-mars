@@ -83,21 +83,32 @@ describe('the card-entry Hydronetwork move (Storm Surge Barrier)', () => {
       ]);
     });
 
-    it('carries the landed stage reward choice', () => {
-      expect(hydroAdvanceBatch(prefix(), 1, {spend: 1, rewardChoice: 1})).to.deep.eq([
+    it('mounts the landed stage reward choice on the MOVE step (the invocation plan)', () => {
+      // Nothing stage-level rides the response stream any more — the plan is
+      // `answers` on the `{deltaProject}` step, consumed by the server's own
+      // reward resolution (the positional stream had three silent-loss modes).
+      expect(hydroAdvanceBatch(prefix(), 1, {spend: 1, rewardChoice: 1, toPosition: 3})).to.deep.eq([
         ...prefix(),
-        {type: 'deltaProject', amount: 1},
-        {type: 'or', index: 1, response: {type: 'option'}},
+        {type: 'deltaProject', amount: 1, answers: [{position: 3, rewardChoice: 1}]},
       ]);
     });
 
-    it('carries the landed stage card pick', () => {
+    it('mounts the landed stage card pick on the MOVE step', () => {
       expect(hydroAdvanceBatch(prefix(), 1, {
-        spend: 1, rewardChoice: undefined, selectedCard: CardName.SEARCH_FOR_LIFE,
+        spend: 1, rewardChoice: undefined, selectedCard: CardName.SEARCH_FOR_LIFE, toPosition: 3,
       })).to.deep.eq([
         ...prefix(),
+        {type: 'deltaProject', amount: 1, answers: [{position: 3, selectedCard: CardName.SEARCH_FOR_LIFE}]},
+      ]);
+    });
+
+    it('degrades HONESTLY without a landing address: no plan, so the server re-asks', () => {
+      // A single-landing answer needs `toPosition` to become a plan entry —
+      // without it the move goes out bare and the stage's own prompt returns.
+      // A dropped answer costs one extra question, never the reward.
+      expect(hydroAdvanceBatch(prefix(), 1, {spend: 1, rewardChoice: 1})).to.deep.eq([
+        ...prefix(),
         {type: 'deltaProject', amount: 1},
-        {type: 'card', cards: [CardName.SEARCH_FOR_LIFE]},
       ]);
     });
 

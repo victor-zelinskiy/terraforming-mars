@@ -1022,10 +1022,20 @@ export default defineComponent({
      */
     stripZoomStyle(): Record<string, string> {
       // EMBEDDED: the SHARED fit engine owns the size (one source with the
-      // buy pick — see fitEmbeddedStrip). The ladder calc below is only the
-      // first-frame fallback until the fit has measured.
-      if (this.embedded && this.mode === 'drawn' && this.embedFitZoom > 0) {
-        return this.embedLayoutStyle;
+      // buy pick — see fitEmbeddedStrip).
+      if (this.embedded && this.mode === 'drawn') {
+        if (this.embedFitZoom > 0) {
+          return this.embedLayoutStyle;
+        }
+        // The PRE-FIT frames stand at the NATURAL slot size, never the
+        // compact count ladder: the ladder is a full-bleed device, and for
+        // the one-to-two-card hero case it painted a thumbnail that then
+        // JUMPED to the measured fit a frame later (the deck-draw scene
+        // could even measure the small slots and fly at them). The natural
+        // slot is within ~1% of the solved hero here; a large batch is
+        // corrected by the fit before its cards are interactive, clipped by
+        // the zone for the odd frame in between.
+        return {'--con-cards-zoom': 'calc(1 * var(--con-ui-scale, 1))'};
       }
       return {'--con-cards-zoom': `calc(${this.stripZoom} * var(--con-ui-scale, 1) * var(--con-reveal-zoom-boost, 1) * var(--con-reveal-host-scale, 1))`};
     },

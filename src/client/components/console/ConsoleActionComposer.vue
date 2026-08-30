@@ -478,6 +478,15 @@
                 <div v-else class="con-composer__row-value">
                   <span class="con-composer__row-empty">{{ $t('Choose a stage reward on the Hydronetwork') }}…</span>
                 </div>
+                <!-- THE EXACT RESULT of the claimed stage — the ONE hydro
+                     reward view every landing renders (icons, honest
+                     before → after, the draw's «посмотреть 4 / взять 2»
+                     chips). The player confirms a stated outcome, never a
+                     stage name; the position note stays the secondary line. -->
+                <ConsoleHydroGains v-if="stageRewardPreview(item.choice) !== undefined"
+                                   class="con-composer__stagegains"
+                                   :view="stageRewardPreview(item.choice)!"
+                                   :compact="true" />
                 <div class="con-composer__row-note">{{ $t('Your Hydronetwork position will not change.') }}</div>
               </template>
               <template v-else>
@@ -736,9 +745,12 @@ import {isSurfaceAwaitingHandoff} from '@/client/console/surfaceMotion/surfaceMo
 import {enterConsoleHandPick, isHandCardSelection, isCardSelectionWithin} from '@/client/console/consoleHandPick';
 import {enterConsoleRepeatPick, ConsoleRepeatPickResult} from '@/client/console/consoleRepeatPick';
 import {
-  DeltaRewardDraft, deltaRewardCommitSpecs, deltaRewardDraftOf, deltaRewardStepResponse, enterDeltaRewardPick,
+  DeltaRewardDraft, deltaRewardCommitSpecs, deltaRewardDraftOf, deltaRewardPreviewView,
+  deltaRewardStepResponse, enterDeltaRewardPick,
 } from '@/client/console/hydroFlow/deltaRewardEntry';
 import {HYDRO_STAGES} from '@/client/components/hydronetwork/hydroStages';
+import type {HydroRewardView} from '@/client/components/hydronetwork/hydroReward';
+import ConsoleHydroGains from '@/client/components/console/hydroFlow/ConsoleHydroGains.vue';
 import {getCard} from '@/client/cards/ClientCardManifest';
 import ConsolePlayedTargetStep from '@/client/components/console/played/ConsolePlayedTargetStep.vue';
 import ConsolePlayedTargetLink from '@/client/components/console/played/ConsolePlayedTargetLink.vue';
@@ -873,7 +885,7 @@ export type ComposerOutcome =
 
 export default defineComponent({
   name: 'ConsoleActionComposer',
-  components: {ActionEffectChip, CardRenderEffectBoxComponent, CardRenderData, ConsoleScrollArea, ConsolePaymentPanel, ConsoleCardFaceLite, ConsoleWsStageHead, ConsoleRevealVerdict, GamepadGlyph, ConsolePlayedTargetStep, ConsolePlayedTargetLink, ConsoleAmountOperation},
+  components: {ActionEffectChip, CardRenderEffectBoxComponent, CardRenderData, ConsoleScrollArea, ConsolePaymentPanel, ConsoleCardFaceLite, ConsoleWsStageHead, ConsoleRevealVerdict, ConsoleHydroGains, GamepadGlyph, ConsolePlayedTargetStep, ConsolePlayedTargetLink, ConsoleAmountOperation},
   directives: {stripActionPrefix},
   props: {
     playerView: {type: Object as PropType<PlayerViewModel>, required: true},
@@ -2986,6 +2998,16 @@ export default defineComponent({
         this.focusIdx = this.ctaIndex;
         this.scrollFocused();
       });
+    },
+    /** The claimed stage's EXACT outcome for the row — the shared hydro
+     *  reward view over the LIVE snapshot (a stage change re-derives it on
+     *  the spot; server-authored lines, never a UI re-computation). */
+    stageRewardPreview(c: ComposerChoice): HydroRewardView | undefined {
+      const draft = deltaRewardDraftOf(this.captured[c.index]);
+      if (draft === undefined) {
+        return undefined;
+      }
+      return deltaRewardPreviewView(this.stageRewardDraft ?? draft, this.playerView);
     },
     /** The captured claim, summarized for its row (stage name + the picks). */
     stageRewardSummary(c: ComposerChoice): string {

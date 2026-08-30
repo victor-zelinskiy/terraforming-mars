@@ -152,6 +152,60 @@ let planSeedFrom = 0;
 let planEpoch = 0;
 /** An interactive stop's own gains, flown as its CLOSING beat at resume. */
 let pendingResumeWave: {position: number, transfers: ReadonlyArray<ResourceTransferSpec>} | undefined;
+
+/*
+ * ── THE PRESENTED TARGET CARD'S OWN LIFECYCLE (pos 9) ─────────────────────
+ *
+ * The stage-9 reward lands ON a card the section physically stands on stage,
+ * and that card's presence must span the WHOLE payout: mounted at the
+ * marker's arrival (never during the glide TOWARDS the cell), standing for
+ * every chip's flight and impact, and released only once its leave motion has
+ * finished — the next leg may not start over a face that is still saying
+ * goodbye, and a chip may never fly at a slot that has already unmounted.
+ *
+ * The section REPORTS presence (`noteHydroLandPresence`: the card-land block
+ * mounted / finished its leave); the sequence AWAITS absence
+ * (`awaitHydroLandExit`) after the wave, before the cursor moves on. A card
+ * that never presented (collapsed workspace, reduced screen) resolves at
+ * once — the wait is keyed on REPORTED presence, never on a guess about the
+ * DOM. Aborts resolve the waiter (the epoch guard stops the sequence).
+ */
+const landPresence = new Set<number>();
+let landExitWaiter: {position: number, resolve: () => void} | undefined;
+
+/** The section's card-land block for `position` is on stage (true) or has
+ *  fully left — its leave transition ENDED (false). */
+export function noteHydroLandPresence(position: number, on: boolean): void {
+  if (on) {
+    landPresence.add(position);
+    return;
+  }
+  landPresence.delete(position);
+  if (landExitWaiter !== undefined && landExitWaiter.position === position) {
+    const w = landExitWaiter;
+    landExitWaiter = undefined;
+    w.resolve();
+  }
+}
+
+/** Resolve when the presented card of `position` has fully LEFT the stage —
+ *  immediately when it never presented. One waiter at a time by construction
+ *  (the sequence is serial). */
+function awaitHydroLandExit(position: number): Promise<void> {
+  if (!landPresence.has(position)) {
+    return Promise.resolve();
+  }
+  return new Promise<void>((resolve) => {
+    landExitWaiter = {position, resolve};
+  });
+}
+
+function resolveLandExitWaiter(): void {
+  const w = landExitWaiter;
+  landExitWaiter = undefined;
+  landPresence.clear();
+  w?.resolve();
+}
 /** A short readable dwell on the crossed-without-reward cell (the 2 VP
  *  exclusion): pacing inside the sequence, never a business signal. */
 const EXCLUDED_DWELL_MS = 420;
@@ -443,21 +497,33 @@ async function runTraversalLockedLeg(): Promise<void> {
       return;
     }
   }
-  hydroMarkerState.planCursor = cursor + 1;
   if (leg.stop !== undefined) {
     // An INTERACTIVE stop's own gains fly on the way OUT, not on arrival:
     // a repeated action's rewards exist only once its whole presentation
     // (reveal, picks, the hand intake) has finished — the wave is the stop's
     // closing beat, played by the resume before the next cell.
     pendingResumeWave = leg.transfers.length > 0 ? {position: leg.position, transfers: leg.transfers} : undefined;
+    hydroMarkerState.planCursor = cursor + 1;
     pauseTraversal();
     return;
   }
+  // THE CELL'S OWN PAYOUT PLAYS WITH THE CURSOR STILL ON THE CELL. The cursor
+  // is what the section presents from (the current-segment card of pos 9, the
+  // lit traversal chip), so advancing it first unmounted the very face the
+  // chips were flying at — the animals landed on a detached rect while the
+  // scene already narrated the next cell. Order is the contract: settle →
+  // wave (each impact awaited by the run itself) → the presented card's full
+  // EXIT → only then the cursor, and with it the next leg.
   if (leg.transfers.length > 0) {
     await runLegRewardWave(leg.position, leg.transfers);
     if (planEpoch !== epoch) {
       return;
     }
+  }
+  hydroMarkerState.planCursor = cursor + 1;
+  await awaitHydroLandExit(leg.position);
+  if (planEpoch !== epoch) {
+    return;
   }
   if (cursor + 1 >= planLegs.length) {
     finalizeTraversal();
@@ -639,6 +705,7 @@ export function abortHydroMarker(): void {
   hydroMarkerState.visualPosition = -1;
   pendingRewards = [];
   rewardHoldSeeded = false;
+  resolveLandExitWaiter();
   abortResourceTransfers();
   clearPanelRewardHold();
   const r = lockResolve;
@@ -651,6 +718,7 @@ export function resetHydroMarker(): void {
   clearArmSafety();
   clearPendingLockSafety();
   pendingLock = undefined;
+  resolveLandExitWaiter();
   if (settleTimerId !== 0) {
     clearTimeout(settleTimerId);
     settleTimerId = 0;

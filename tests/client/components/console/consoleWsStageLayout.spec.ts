@@ -250,4 +250,39 @@ describe('wsStageLayout — one geometry for buy and reveal', () => {
       expect(style['--con-ws-focus-scale']).to.eq(`${WS_STAGE_FOCUS_SCALE}`);
     });
   });
+
+  describe('a SMALL batch is a PRESENTED hero, never a thumbnail row', () => {
+    // The embedded reveal's REAL numbers (measured off the hydro zone's
+    // `data-fit` at 1080: an immersive band of ~1571×460 over the standard
+    // console slot). The premium claim: with one or two cards the card must
+    // spend the band's height — «compact thumbnails in a huge empty scene»
+    // (20260830201638) is exactly what this pins out.
+    const zone = {availW: 1571, availH: 460, slotW: 320, slotH: 460, ui: 1};
+
+    it('1–2 cards stand at least 60% of the band tall (they use ~100% here)', () => {
+      for (const n of [1, 2]) {
+        const l = wsStageLayout({...zone, n});
+        expect(l.rows, `n=${n} single row`).to.eq(1);
+        expect(l.zoom * zone.slotH, `n=${n} card height uses the band`)
+          .to.be.greaterThan(0.6 * zone.availH);
+      }
+    });
+
+    it('3–4 cards shrink only as far as the row needs — and still fit', () => {
+      for (const n of [3, 4]) {
+        const l = wsStageLayout({...zone, n});
+        const rowW = l.perRow * zone.slotW * l.zoom + (l.perRow - 1) * l.gapPx;
+        expect(rowW, `n=${n} fits the width`).to.be.at.most(zone.availW);
+        expect(l.rows * zone.slotH * l.zoom + (l.rows - 1) * l.rowGapPx,
+          `n=${n} fits the height`).to.be.at.most(zone.availH);
+        expect(l.zoom * zone.slotH, `n=${n} still a readable card`)
+          .to.be.greaterThan(0.5 * zone.availH);
+      }
+    });
+
+    it('the same law at the 4K scale (ui 2 — every budget doubles)', () => {
+      const l = wsStageLayout({availW: 3142, availH: 920, slotW: 320, slotH: 460, n: 2, ui: 2});
+      expect(l.zoom * 460).to.be.greaterThan(0.6 * 920);
+    });
+  });
 });

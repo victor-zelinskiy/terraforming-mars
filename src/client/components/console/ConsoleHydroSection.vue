@@ -460,20 +460,27 @@
 
           <!-- pos 9: the chosen host card, physically ON STAGE — the animals
                land on its own counter capsule; frozen before-count ticks per
-               touchdown. -->
-          <div v-if="presentedTargetCard !== undefined" class="con-hydro__cardland" data-unfold-item>
-            <div class="con-hydro__landcell"
-                 :class="{'con-hydro__landcell--landed': presentedLanded > 0}"
-                 :data-played-key="presentedTargetCard">
-              <ConsoleCardFaceLite :name="presentedTargetCard" :card="presentedModel" />
-              <span v-if="presentedLanded > 0" :key="'flash' + presentedLanded"
-                    class="con-hydro__landflash" aria-hidden="true"></span>
+               touchdown. The card LIVES the whole payout by contract: mounted
+               at the marker's arrival, standing through every chip's impact,
+               and the traversal sequence AWAITS its leave (the presence
+               report below) before the cursor may move on — a chip can never
+               fly at a slot that has already unmounted. -->
+          <transition name="con-hydro-landexit" @after-leave="onLandCardLeft">
+            <div v-if="presentedTargetCard !== undefined" class="con-hydro__cardland" data-unfold-item
+                 :data-land-position="presentedLandPosition">
+              <div class="con-hydro__landcell"
+                   :class="{'con-hydro__landcell--landed': presentedLanded > 0}"
+                   :data-played-key="presentedTargetCard">
+                <ConsoleCardFaceLite :name="presentedTargetCard" :card="presentedModel" />
+                <span v-if="presentedLanded > 0" :key="'flash' + presentedLanded"
+                      class="con-hydro__landflash" aria-hidden="true"></span>
+              </div>
+              <div class="con-hydro__landmeta">
+                <i class="card-resource card-resource-animal" aria-hidden="true"></i>
+                <em>{{ presentedBefore }} → {{ presentedBefore + 2 }}</em>
+              </div>
             </div>
-            <div class="con-hydro__landmeta">
-              <i class="card-resource card-resource-animal" aria-hidden="true"></i>
-              <em>{{ presentedBefore }} → {{ presentedBefore + 2 }}</em>
-            </div>
-          </div>
+          </transition>
 
           <!-- pos 10/11: the finish CEREMONY — the value rises out of the
                landed stop into this seat; the shared burst fires here. The
@@ -867,7 +874,7 @@ import {
   hydroWorkspacePhase, hydroWorkspaceRestorePlan, markHydroCeremonyPlayed, noteHydroDraftTouched, openHydroStep,
   resetHydroFlow, resolutionKindFor, setHydroCeremonyActive,
 } from '@/client/console/hydroFlow/consoleHydroFlow';
-import {hydroTraversalPending} from '@/client/console/hydroMarker/consoleHydroMarker';
+import {hydroTraversalPending, noteHydroLandPresence} from '@/client/console/hydroMarker/consoleHydroMarker';
 import {buildHydroTargetModel, hydroPresentedTargetModel} from '@/client/console/hydroFlow/hydroTargetStep';
 import {
   HydroCeremonyHandle, armHydroSceneOrigin, hydroSceneCancelledHook, hydroSceneEnterHook,
@@ -1098,6 +1105,9 @@ export default defineComponent({
       /** One-shot: the ceremony has been started for this commit. */
       cereStarted: false,
       cereHandle: undefined as HydroCeremonyHandle | undefined,
+      /** The cell whose presented card's PRESENCE this instance reported —
+       *  the leave handshake (`onLandCardLeft`) releases exactly it. */
+      landReportedPosition: -1,
     };
   },
   computed: {
@@ -2416,14 +2426,23 @@ export default defineComponent({
       }
       // A traversal presents the target card WHILE ITS OWN CELL resolves —
       // the animals land on a face standing on stage, exactly as a landing.
+      // FROM THE ARRIVAL, never during the glide TOWARDS the cell: the
+      // cursor names the leg from the charge frame, and mounting the card
+      // then had it standing over a marker still three cells away. The
+      // marker's own settled cell (`visualPosition`) is the arrival fact.
       if (c.traversal !== undefined) {
         const seg = this.traversalCurrentSegment;
-        return seg?.kind === 'card-resource' ? seg.selectedCard : undefined;
+        if (seg?.kind !== 'card-resource') {
+          return undefined;
+        }
+        return this.hydroMarkerState.visualPosition === seg.position ? seg.selectedCard : undefined;
       }
       if (c.kind !== 'card-resource') {
         return undefined;
       }
-      return c.selectedCard;
+      // The single landing's same rule: the card appears when the marker has
+      // ARRIVED (the moving phase ends at the lock), not with the commit.
+      return c.phase === 'moving' ? undefined : c.selectedCard;
     },
     presentedLanded(): number {
       const card = this.presentedTargetCard;
@@ -2444,6 +2463,15 @@ export default defineComponent({
       const before = c?.traversal !== undefined ?
         (this.traversalCurrentSegment?.targetBefore ?? 0) : (c?.targetBefore ?? 0);
       return hydroPresentedTargetModel(card, before, live, this.presentedLanded);
+    },
+    /** The presented card's own CELL — the identity the presence report and
+     *  the leave handshake are keyed on (stable through the whole payout). */
+    presentedLandPosition(): number {
+      const c = this.flow.commit;
+      if (c?.traversal !== undefined) {
+        return this.traversalCurrentSegment?.position ?? -1;
+      }
+      return c?.toPosition ?? -1;
     },
 
     /** The command contract of the current step — published to the shell. */
@@ -2782,6 +2810,21 @@ export default defineComponent({
     markerSettled(pos: number): void {
       this.maybeStartCeremony(pos);
     },
+    // THE PRESENCE REPORT of the pos-9 presented card (the marker sequence
+    // awaits its full EXIT before the cursor moves on). The rising edge is
+    // the mount; the falling edge is deliberately NOT reported here — the
+    // card's leave transition ends it (`onLandCardLeft`), because «no longer
+    // rendered» and «finished leaving» are different frames and the chips'
+    // slot must survive to the second one.
+    presentedTargetCard: {
+      immediate: true,
+      handler(card: CardName | undefined): void {
+        if (card !== undefined && this.presentedLandPosition >= 0) {
+          this.landReportedPosition = this.presentedLandPosition;
+          noteHydroLandPresence(this.presentedLandPosition, true);
+        }
+      },
+    },
     'flow.commit.phase'(): void {
       this.maybeStartCeremony(this.markerSettled);
     },
@@ -2967,11 +3010,25 @@ export default defineComponent({
     consoleHydroUi.commands = [];
     setWorkspaceFrameSubject('hydro', '');
     setWorkspaceFrameStage('hydro', '');
+    // A leave that will never play (the whole section is going) must still
+    // end the presence — a sequence awaiting the card's exit would hang.
+    if (this.landReportedPosition >= 0) {
+      noteHydroLandPresence(this.landReportedPosition, false);
+      this.landReportedPosition = -1;
+    }
   },
   methods: {
     $t,
     fetchPreview(): void {
       fetchHydroPreview(this.playerView.id, this.viewerColor, this.cacheKey + ':' + this.viewerColor);
+    },
+    /** The pos-9 card's leave transition ENDED — release the sequence that
+     *  awaits it (the cursor may move on; the next leg may start). */
+    onLandCardLeft(): void {
+      if (this.landReportedPosition >= 0) {
+        noteHydroLandPresence(this.landReportedPosition, false);
+        this.landReportedPosition = -1;
+      }
     },
     /**
      * SEAT THE PLAN ON THE OFFER'S DESTINATION.

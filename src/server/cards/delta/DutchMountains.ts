@@ -58,9 +58,12 @@ export class DutchMountains extends Card implements IProjectCard {
 
       metadata: {
         cardNumber: 'DP08',
+        // ONE block: the exclusion of the Jovian/VP steps already lives in the
+        // Action text itself — a separate «Особое правило» note restated it
+        // and read as a GLOBAL restriction on the player rather than a clause
+        // of this card's own action.
         infoText: [
           {kind: 'action-short', text: 'Claim a reached stage reward for 3 energy', tokens: ['plate']},
-          {kind: 'note', text: 'The Jovian step and the VP steps cannot be claimed.', tokens: ['plate']},
         ],
         renderData: CardRenderer.builder((b) => {
           // The scan's «Delta Project bonuses» in the fork's own vocabulary —

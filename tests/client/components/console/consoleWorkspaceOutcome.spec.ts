@@ -9,6 +9,7 @@ import {
   outcomeHostConcludesFlow,
   releaseWorkspaceOutcome,
   resetWorkspaceOutcome,
+  retainWorkspaceOutcomeForNextBatch,
   setWorkspaceOutcomeSlot,
   workspaceClaimsColonyReveal,
   workspaceClaimsDeckCheck,
@@ -414,6 +415,34 @@ describe('consoleWorkspaceOutcome — the EMBEDDED claim', () => {
     it('another workspace\'s claim never answers for the colonies', () => {
       claimWorkspaceOutcome('card-actions', AI_CENTRAL, ['draw']);
       expect(workspaceClaimsColonyReveal(colonySource(AI_CENTRAL))).to.eq(false);
+    });
+  });
+
+  describe('RETAIN for a queued sibling batch (one press, several reveals)', () => {
+    it('re-arms the SAME lease: host / kinds / scope / slot survive, the arrival resets', () => {
+      claimWorkspaceOutcome('hydro', AI_CENTRAL, ['draw', 'pick'], 2, 4, 'chain');
+      setWorkspaceOutcomeSlot('[data-embed-slot="hydro"]');
+      markWorkspaceOutcomePresenting();
+      markWorkspaceOutcomeArrivalFlown();
+      markWorkspaceOutcomeArrivalDone();
+      retainWorkspaceOutcomeForNextBatch(2);
+      // The lease's identity is untouched — the queued batch matches it and
+      // presents in the SAME zone, behind the same scene-exit barrier.
+      expect(workspaceOutcomeClaimed()).to.eq(true);
+      expect(workspaceOutcomeState.host).to.eq('hydro');
+      expect(workspaceOutcomeState.scope).to.eq('chain');
+      expect(workspaceOutcomeState.embedSlot).to.eq('[data-embed-slot="hydro"]');
+      expect(workspaceClaimsDrawReveal(cardSource(RESTRICTED)), 'chain scope answers the sibling').to.eq(true);
+      // …while the per-batch lifecycle starts over.
+      expect(workspaceOutcomeState.stage).to.eq('awaiting');
+      expect(workspaceOutcomeState.expectedCards).to.eq(2);
+      expect(workspaceOutcomeArrivalFlown()).to.eq(false);
+      expect(workspaceOutcomeState.arrivalDone, 'a draw claim owes a fresh arrival').to.eq(false);
+    });
+
+    it('with NO live claim it is a no-op (never resurrects a released lease)', () => {
+      retainWorkspaceOutcomeForNextBatch(3);
+      expect(workspaceOutcomeClaimed()).to.eq(false);
     });
   });
 });

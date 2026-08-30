@@ -31,7 +31,7 @@ import type {ConsoleRepeatPickResult} from '@/client/console/consoleRepeatPick';
 import type {ResourceTransferSpec} from '@/client/console/resourceTransfer/resourceTransferModel';
 import {repeatComposedResponses} from '@/client/console/consoleHydroAdvance';
 import {HYDRO_STAGES} from '@/client/components/hydronetwork/hydroStages';
-import {buildRewardView, HydroPlayerSnapshot} from '@/client/components/hydronetwork/hydroReward';
+import {buildRewardView, HydroPlayerSnapshot, HydroRewardView} from '@/client/components/hydronetwork/hydroReward';
 import {hydroRewardTransfers} from '@/client/console/hydroMarker/hydroRewardTransfers';
 import {actionPreviewMap} from '@/client/console/actionPreviewStore';
 import {resetHydroPlan} from '@/client/components/hydronetwork/hydroNetworkState';
@@ -239,12 +239,21 @@ export function deltaRewardClaimPlan(draft: DeltaRewardDraft): {
  * nothing here — their presentation is the claimed batch / the embedded
  * action, exactly as on the track.
  */
-export function deltaRewardCommitSpecs(
+/**
+ * THE CLAIMED STAGE'S OWN «Вы получите» — the ONE reward view every
+ * Hydronetwork landing renders (`buildRewardView` over the live snapshot),
+ * addressed by the DRAFT. This is what the composer's configuration screen
+ * shows under the claimed stage, so the pre-confirm reading and the commit's
+ * flown chips derive from the SAME lines by construction: icons, honest
+ * `before → after`, the draw stage's «посмотреть 4, взять 2» chips, the
+ * picked target's counter — never a UI re-computation of the rule.
+ */
+export function deltaRewardPreviewView(
   draft: DeltaRewardDraft, playerView: PlayerViewModel,
-): ReadonlyArray<ResourceTransferSpec> {
+): HydroRewardView | undefined {
   const stage = HYDRO_STAGES[draft.position];
   if (stage === undefined) {
-    return [];
+    return undefined;
   }
   const p = playerView.thisPlayer;
   const snapshot: HydroPlayerSnapshot = {
@@ -256,7 +265,7 @@ export function deltaRewardCommitSpecs(
     plantTags: p.tags['plant' as never] ?? 0,
     jovianTags: p.tags['jovian' as never] ?? 0,
   };
-  const view = buildRewardView({
+  return buildRewardView({
     stage,
     snapshot,
     rewardChoice: draft.rewardChoice,
@@ -264,5 +273,11 @@ export function deltaRewardCommitSpecs(
       p.tableau.find((c) => c.name === draft.selectedCard)?.resources ?? 0 : undefined,
     animalTargetCardName: draft.selectedCard,
   });
-  return hydroRewardTransfers(view);
+}
+
+export function deltaRewardCommitSpecs(
+  draft: DeltaRewardDraft, playerView: PlayerViewModel,
+): ReadonlyArray<ResourceTransferSpec> {
+  const view = deltaRewardPreviewView(draft, playerView);
+  return view === undefined ? [] : hydroRewardTransfers(view);
 }

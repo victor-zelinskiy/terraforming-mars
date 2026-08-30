@@ -184,6 +184,21 @@ test.describe('Dutch Mountains (DP08) · fhd', () => {
     const mid = await serverState(request, id);
     expect(mid.energy, 'choosing costs nothing').toBe(before.energy);
     expect(mid.mcProduction).toBe(before.mcProduction);
+    // The configuration states the claimed stage's EXACT outcome — the shared
+    // hydro «Вы получите» block with the honest before → after of stage 3
+    // (+2 M€ production off the live counter). Confirming blind is the defect.
+    const gains = await page.evaluate(() => {
+      const block = document.querySelector('.con-composer__stagegains');
+      const line = block?.querySelector('.con-hydro__delta');
+      return {
+        on: block !== null,
+        text: (line?.textContent ?? '').replace(/\s+/g, ' ').trim(),
+      };
+    });
+    expect(gains.on, 'the reward preview block stands in the step row').toBe(true);
+    expect(gains.text, 'an honest before → after of the claimed production')
+      .toContain(`${before.mcProduction}`);
+    expect(gains.text).toContain(`${before.mcProduction + 2}`);
     await shoot(page, '03-configured');
 
     // ── FINAL ACTIVATION: one batch — 3 energy, the stage-3 reward, no move. ──

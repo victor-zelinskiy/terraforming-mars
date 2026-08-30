@@ -1,8 +1,9 @@
 import {expect} from 'chai';
 import {
-  deltaRewardClaimPlan, deltaRewardDraftOf, deltaRewardStepResponse,
+  deltaRewardClaimPlan, deltaRewardDraftOf, deltaRewardPreviewView, deltaRewardStepResponse,
 } from '@/client/console/hydroFlow/deltaRewardEntry';
 import {CardName} from '@/common/cards/CardName';
+import type {PlayerViewModel} from '@/common/models/PlayerModel';
 
 /**
  * THE STAGE-REWARD PICK's wire + claim derivations (Dutch Mountains). The
@@ -65,6 +66,51 @@ describe('deltaRewardEntry', () => {
       {position: 9, rewardChoice: undefined, selectedCard: CardName.BIRDS});
     expect(deltaRewardDraftOf({type: 'card', cards: []})).to.eq(undefined);
     expect(deltaRewardDraftOf(undefined)).to.eq(undefined);
+  });
+
+  describe('the CONFIG preview — the claimed stage\'s exact «Вы получите»', () => {
+    const view = (draft: Parameters<typeof deltaRewardPreviewView>[0]) =>
+      deltaRewardPreviewView(draft, {
+        thisPlayer: {
+          steel: 5, plants: 2, titanium: 1, energy: 9, heat: 3, megacredits: 40,
+          megacreditProduction: 4, steelProduction: 1, titaniumProduction: 0,
+          plantProduction: 0, energyProduction: 2, heatProduction: 1,
+          tags: {plant: 2, jovian: 0},
+          tableau: [{name: CardName.BIRDS, resources: 3}],
+        },
+      } as unknown as PlayerViewModel);
+
+    it('a production stage states the honest before → after (+delta)', () => {
+      const v = view({position: 3})!;
+      expect(v.lines.length).to.be.greaterThan(0);
+      expect(v.lines[0].before).to.eq(4);
+      expect(v.lines[0].after).to.eq(6);
+      expect(v.lines[0].delta).to.eq(2);
+      expect(v.lines[0].production).to.eq(true);
+    });
+
+    it('a resolved CHOICE previews the chosen alternative, never both', () => {
+      const v = view({position: 2, rewardChoice: 1})!;
+      expect(v.lines.length).to.eq(1);
+      expect(v.lines[0].delta).to.be.greaterThan(0);
+    });
+
+    it('the draw stage speaks in take-N semantics (chips, never invented cards)', () => {
+      const v = view({position: 5})!;
+      expect(v.lines.length).to.eq(0);
+      expect(v.rawChips.length).to.be.greaterThan(0);
+    });
+
+    it('a target stage reads the picked card\'s LIVE counter', () => {
+      const v = view({position: 9, selectedCard: CardName.BIRDS})!;
+      const animals = v.lines.find((l) => l.special === 'animals');
+      expect(animals?.before).to.eq(3);
+      expect(animals?.after).to.eq(5);
+    });
+
+    it('an unknown position previews nothing (never a guessed reward)', () => {
+      expect(view({position: 99})).to.eq(undefined);
+    });
   });
 
   describe('the claim plan (structural, off the track configuration)', () => {
