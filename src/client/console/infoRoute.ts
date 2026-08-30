@@ -38,8 +38,16 @@ export type InfoRouteId =
   /** The participant SUMMARY — the root. One canonical layout for every
    *  participant kind (the human/bot variants fill the SAME zones). */
   | 'summary'
-  /** «Победные очки» — the premium scoring breakdown. */
+  /** «Победные очки» — the scoring OVERVIEW (level 1 of the score explorer). */
   | 'vp'
+  /** One scoring category's detail (level 2). WHICH category is the
+   *  `infoModeState.vpCategoryKey` param — the route stays semantic so a
+   *  seat switch keeps the depth, and the crumb tail is supplied by the
+   *  score explorer model (dynamic stage names). */
+  | 'vpCategory'
+  /** One card-scoring group's table (level 3, under the cards category).
+   *  WHICH group is the `infoModeState.vpCardsGroup` param. */
+  | 'vpCards'
   /** «Разыграно» — the embedded premium played-cards table. */
   | 'played'
   /** «Доп. ресурсы» — resources on cards (human) / floaters + shipping
@@ -67,6 +75,8 @@ export type InfoParticipantKind = 'human' | 'bot';
 const INFO_ROUTE_PARENT: Record<InfoRouteId, InfoRouteId | undefined> = {
   summary: undefined,
   vp: 'summary',
+  vpCategory: 'vp',
+  vpCards: 'vpCategory',
   played: 'summary',
   extras: 'summary',
   actions: 'summary',
@@ -140,15 +150,22 @@ export function infoRouteBack(route: InfoRouteId): InfoRouteId | undefined {
 export function infoRouteStagePath(route: InfoRouteId): ReadonlyArray<string> {
   const path: Array<string> = [];
   for (let at: InfoRouteId | undefined = route; at !== undefined && at !== 'summary'; at = INFO_ROUTE_PARENT[at]) {
-    path.unshift(INFO_ROUTE_STAGE[at]);
+    // A '' stage is DYNAMIC (the vp subtree names its tail from the selected
+    // category/group — `scoreStagePath` in the explorer model supplies it).
+    if (INFO_ROUTE_STAGE[at] !== '') {
+      path.unshift(INFO_ROUTE_STAGE[at]);
+    }
   }
   return path;
 }
 
-/** The stage name of ONE route (i18n key; '' only for the root). */
+/** The stage name of ONE route (i18n key; '' = root or a DYNAMIC tail the
+ *  score explorer supplies from its params). */
 const INFO_ROUTE_STAGE: Record<InfoRouteId, string> = {
   summary: '',
   vp: 'Victory Points',
+  vpCategory: '',
+  vpCards: '',
   played: 'Played',
   extras: 'Extra resources',
   actions: 'Actions',
@@ -270,13 +287,23 @@ export function infoZoneNavigate(
  */
 export function infoZoneForRoute(route: InfoRouteId): InfoZoneId | undefined {
   switch (route) {
-  case 'vp': return 'vp';
+  case 'vp':
+  case 'vpCategory':
+  case 'vpCards':
+    return 'vp';
   case 'played': return 'played';
   case 'extras': return 'extras';
   case 'actions': return 'actions';
   case 'effects': return 'effects';
   default: return undefined;
   }
+}
+
+/** Is this route inside the score explorer's own subtree? (The explorer is
+ *  ONE component for all of them — the zone swap never runs between its
+ *  levels, so the descend can be a real FLIP instead of an out-in blink.) */
+export function isVpRoute(route: InfoRouteId): boolean {
+  return route === 'vp' || route === 'vpCategory' || route === 'vpCards';
 }
 
 // ── the BOT SCREEN focus ring ──────────────────────────────────────────────

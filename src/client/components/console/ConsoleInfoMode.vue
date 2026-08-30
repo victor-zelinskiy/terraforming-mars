@@ -74,19 +74,23 @@
               <span v-if="infoModeState.summaryFocus === 'vp'" class="con-info__hotkey"><GamepadGlyph control="confirm" /></span>
             </h3>
             <template v-if="vpVisible">
-              <div class="con-infovp__totalrow">
+              <!-- data-vpx-total / data-vpx-bar / data-vpx-block are the
+                   SHARED-ELEMENT anchors of the score explorer's entry: the
+                   total and the bar fly INTO the explorer's hero on A and
+                   land back here on B (scoreExplorerMotion). -->
+              <div class="con-infovp__totalrow" data-vpx-total>
                 <span class="con-infovp__total">{{ liveScore.total }}</span>
                 <span class="con-infovp__total-label">{{ $t('VP') }}</span>
               </div>
               <!-- The segmented bar: one hue per category (.con-eg-cat--*),
                    widths on the shared positive total. A penalty never draws
                    here (it subtracts — the legend states it). -->
-              <div class="con-infovp__bar" aria-hidden="true">
+              <div class="con-infovp__bar" data-vpx-bar aria-hidden="true">
                 <span v-for="seg in vpBarSegments" :key="seg.key"
                       class="con-infovp__seg" :class="'con-eg-cat--' + seg.accent"
                       :style="{width: seg.widthPct + '%'}"></span>
               </div>
-              <div class="con-infovp__legend">
+              <div class="con-infovp__legend" data-vpx-block>
                 <div v-for="cat in liveScore.categories" :key="cat.key"
                      class="con-infovp__cat" :class="['con-eg-cat--' + cat.accent, {'con-infovp__cat--zero': cat.value === 0, 'con-infovp__cat--penalty': cat.penalty}]">
                   <i class="con-infovp__dot" aria-hidden="true"></i>
@@ -211,59 +215,13 @@
                               @close="closePlayedRoute" />
       </div>
 
-      <!-- ── «ПОБЕДНЫЕ ОЧКИ» — the scoring workspace: total → category
-           bars on ONE shared scale (the endgame's own reading) → sources
-           inside categories → the card list that explains them. -->
-      <div v-else-if="infoModeState.route === 'vp'" key="vp" class="con-info__scroll con-info__detail-scroll con-infovpd" data-insp-slide>
-        <template v-if="vpVisible">
-          <div class="con-infovpd__totalrow">
-            <span class="con-infovpd__total-label">{{ $t('Total') }}</span>
-            <b class="con-infovpd__total">{{ liveScore.total }}</b>
-            <span class="con-infovpd__total-vp">{{ $t('VP') }}</span>
-          </div>
-          <div class="con-infovpd__cats">
-            <section v-for="cat in liveScore.categories" :key="cat.key"
-                     class="con-infovpd__cat"
-                     :class="['con-eg-cat--' + cat.accent, {'con-infovpd__cat--zero': cat.value === 0, 'con-infovpd__cat--penalty': cat.penalty}]">
-              <div class="con-infovpd__cathead">
-                <i class="con-infovpd__dot" aria-hidden="true"></i>
-                <span class="con-infovpd__cat-label">{{ $t(cat.label) }}</span>
-                <b class="con-infovpd__cat-value">{{ cat.value }}</b>
-              </div>
-              <div class="con-infovpd__track" aria-hidden="true">
-                <span class="con-infovpd__fill" :style="{width: catFillPct(cat) + '%'}"></span>
-              </div>
-              <div v-if="cat.subs.length > 0" class="con-infovpd__subs">
-                <div v-for="sub in cat.subs" :key="sub.key" class="con-infovpd__sub">
-                  <span class="con-infovpd__sub-label">{{ $t(sub.label) }}</span>
-                  <b class="con-infovpd__sub-value">{{ sub.value }}</b>
-                </div>
-              </div>
-            </section>
-          </div>
-          <!-- The card sources that EXPLAIN the cards category — structure
-               first, facts second. A human lists its real scoring cards;
-               the bot states its formula facts (stock × rate, adjacency,
-               icons × difficulty) — the same honesty the endgame's cards
-               tab ships. -->
-          <template v-if="!viewedIsBot && vpCardGroups.length > 0">
-            <section v-for="g in vpCardGroups" :key="g.kind" class="con-infovpd__cards">
-              <h4 class="con-infovpd__cards-title"><span>{{ $t(g.label) }}</span><b>{{ g.total }}</b></h4>
-              <div v-for="row in g.rows" :key="row.cardName" class="con-info__exrow">
-                <span class="con-info__exrow-name">{{ $t(row.cardName) }}</span>
-                <span class="con-info__exrow-count">{{ row.victoryPoint }}</span>
-              </div>
-            </section>
-          </template>
-          <section v-if="viewedIsBot && botScoreFacts.length > 0" class="con-infovpd__cards">
-            <h4 class="con-infovpd__cards-title"><span>{{ $t('MarsBot scoring') }}</span></h4>
-            <div v-for="fact in botScoreFacts" :key="fact.key" class="con-info__exrow">
-              <span class="con-info__exrow-name">{{ fact.text }}</span>
-              <span class="con-info__exrow-count">{{ fact.vp }}</span>
-            </div>
-          </section>
-        </template>
-        <div v-else class="con-info__hidden con-info__empty--big">{{ $t('Score is hidden until the end of the game') }}</div>
+      <!-- ── «ПОБЕДНЫЕ ОЧКИ» — the SCORE EXPLORER: overview → category →
+           card family → preview → fullscreen, ONE component for the whole
+           vp subtree (the key is constant across its routes, so a level
+           change is the explorer's own FLIP phrase — never an out-in
+           blink between levels). -->
+      <div v-else-if="isVpRouteUp" key="vp" class="con-info__vpxhost" data-insp-slide>
+        <ConsoleScoreExplorer ref="scoreView" :playerView="playerView" />
       </div>
 
       <!-- ── «ДОП. РЕСУРСЫ» — one semantic screen, two honest fills: a
@@ -392,8 +350,7 @@ import ConsolePlayedOverlay from '@/client/components/console/played/ConsolePlay
 import {iconClassFor} from '@/client/components/modalInputs/optionIcons';
 import {playerActionSourceCount, cardHasAction} from '@/client/components/actions/actionExtraction';
 import {playerEffects, playerEffectGroups, EffectGroup} from '@/client/components/effects/effectExtraction';
-import {buildVictoryPointsModel, VPCardGroup} from '@/client/components/overview/victoryPointsModel';
-import {buildLiveScoreModel, LiveScoreCategory, LiveScoreModel} from '@/client/console/liveScoreModel';
+import {buildLiveScoreModel, LiveScoreModel} from '@/client/console/liveScoreModel';
 import {findPerformActionCard, findPlayProjectCardAction} from '@/client/console/turnIntents';
 import {infoModeState} from '@/client/console/infoModeState';
 import {
@@ -401,7 +358,12 @@ import {
   infoRoutePresentation,
   infoRouteStagePath,
   infoZoneFocusable,
+  isVpRoute,
 } from '@/client/console/infoRoute';
+import {scoreStagePath} from '@/client/console/scoreExplorerModel';
+import {scoreExplorerUi} from '@/client/console/consoleScoreExplorer';
+import {armScoreHandoff, disposeScoreHandoff, playScoreHandoff} from '@/client/console/scoreExplorerMotion';
+import ConsoleScoreExplorer from '@/client/components/console/ConsoleScoreExplorer.vue';
 import {translateText, translateTextWithParams} from '@/client/directives/i18n';
 import {MarsBotModel} from '@/common/models/MarsBotModel';
 import {DIFFICULTY_LABEL} from '@/client/components/marsbot/marsBotView';
@@ -428,7 +390,7 @@ const PLAYED_SUMMARY_LABEL: ReadonlyArray<{key: string, label: string}> = [
 
 export default defineComponent({
   name: 'ConsoleInfoMode',
-  components: {ConsoleMarsBotSections, ConsolePlayedOverlay, ConsoleWsHead, EffectBlock, GamepadGlyph, Card},
+  components: {ConsoleMarsBotSections, ConsolePlayedOverlay, ConsoleScoreExplorer, ConsoleWsHead, EffectBlock, GamepadGlyph, Card},
   props: {
     playerView: {type: Object as PropType<PlayerViewModel>, required: true},
     myTurn: {type: Boolean, default: false},
@@ -479,12 +441,20 @@ export default defineComponent({
       }
       return infoRoutePresentation(this.infoModeState.route, this.viewedKind);
     },
-    /** The crumb's stage phrase — depth 1 is one word, depth 2 the hosted-
-     *  step phrase («ЭКРАН БОТА · ПЛАНШЕТ»). Already translated (stageRaw). */
+    /** The whole vp subtree renders in ONE zone (key 'vp') — a level change
+     *  is the explorer's own phrase, never an out-in swap. */
+    isVpRouteUp(): boolean {
+      return isVpRoute(this.infoModeState.route);
+    },
+    /** The crumb's stage phrase — depth 1 is one word, deeper the hosted-
+     *  step phrase («ЭКРАН БОТА · ПЛАНШЕТ»). The vp subtree names its tail
+     *  DYNAMICALLY (the selected category / family — `scoreStagePath`).
+     *  Already translated (stageRaw). */
     stagePhrase(): string {
-      return infoRouteStagePath(this.infoModeState.route)
-        .map((key) => translateText(key))
-        .join(' · ');
+      const path = this.isVpRouteUp ?
+        scoreStagePath(this.infoModeState.route, this.infoModeState.vpCategoryKey, this.infoModeState.vpCardsGroup) :
+        infoRouteStagePath(this.infoModeState.route);
+      return path.map((key) => translateText(key)).join(' · ');
     },
     fallbackBody(): string {
       return this.viewedKind === 'bot' ?
@@ -551,45 +521,6 @@ export default defineComponent({
           accent: cat.accent,
           widthPct: (cat.value / positive) * 100,
         }));
-    },
-    /** The human card groups that explain the cards category (the same
-     *  detailsCards projection the VP report has always used). */
-    vpCardGroups(): Array<VPCardGroup> {
-      if (this.viewedIsBot) {
-        return [];
-      }
-      const game = this.playerView.game;
-      return buildVictoryPointsModel(this.viewed.victoryPointsBreakdown, {
-        hasMoon: game.moon !== undefined,
-        hasPathfinders: game.pathfinders !== undefined,
-        hasEscapeVelocity: game.gameOptions.escapeVelocity !== undefined,
-      }).cardGroups;
-    },
-    /** The bot's scoring FACTS — the formula behind its card-family
-     *  summands, in the endgame cards-tab's own honesty. */
-    botScoreFacts(): Array<{key: string, text: string, vp: number}> {
-      const automa = this.viewed.victoryPointsBreakdown.automa;
-      if (automa === undefined) {
-        return [];
-      }
-      const facts: Array<{key: string, text: string, vp: number}> = [];
-      if (automa.mcToVp > 0 || this.viewed.megacredits > 0) {
-        facts.push({
-          key: 'mc',
-          text: translateTextWithParams('${0} M€ at 1 VP per ${1} M€', [String(this.viewed.megacredits), String(automa.mcPerVp)]),
-          vp: automa.mcToVp,
-        });
-      }
-      if (automa.neuralInstance > 0) {
-        facts.push({key: 'neural', text: translateText('Neural Instance'), vp: automa.neuralInstance});
-      }
-      if (automa.cardVp > 0) {
-        facts.push({key: 'cards', text: translateText('Played card icons'), vp: automa.cardVp});
-      }
-      if (automa.corpVp > 0) {
-        facts.push({key: 'corp', text: translateText('Bot corporation'), vp: automa.corpVp});
-      }
-      return facts;
     },
     // ── the summary zones ─────────────────────────────────────────────────
     /**
@@ -753,6 +684,12 @@ export default defineComponent({
           {control: 'inspect', label: 'Close', priority: 0},
         ];
       }
+      // The SCORE EXPLORER owns its own command contract (focus-honest
+      // hints — «X Осмотреть» only over a previewable row). One publisher
+      // stays: this computed returns the explorer's list verbatim.
+      if (isVpRoute(route) && scoreExplorerUi.barCommands !== undefined) {
+        return [...scoreExplorerUi.barCommands];
+      }
       const cmds: Array<ConsoleCommand> = [
         {control: 'bumperL', control2: 'bumperR', label: 'Players', priority: 1},
       ];
@@ -794,6 +731,7 @@ export default defineComponent({
   },
   beforeUnmount() {
     clearPanelCommands('infoMode');
+    disposeScoreHandoff();
   },
   methods: {
     tableauCard(name: CardName): CardModel | undefined {
@@ -807,14 +745,6 @@ export default defineComponent({
         'con-info__zone--focused': focusable && this.infoModeState.summaryFocus === zone,
       };
     },
-    /** A category bar's fill on the shared max-category scale. */
-    catFillPct(cat: LiveScoreCategory): number {
-      const max = this.liveScore.maxCategoryValue;
-      if (max <= 0 || cat.value === 0) {
-        return 0;
-      }
-      return Math.min(100, (Math.abs(cat.value) / max) * 100);
-    },
     /** The embedded table's own close event (B at table level). */
     closePlayedRoute(): void {
       this.infoModeState.route = 'summary';
@@ -825,6 +755,10 @@ export default defineComponent({
     handlePlayedIntent(intent: GamepadIntent): void {
       (this.$refs.playedView as {handleIntent?: (i: GamepadIntent) => void} | undefined)?.handleIntent?.(intent);
     },
+    /** …and to the score explorer while a vp route is up (same contract). */
+    handleScoreIntent(intent: GamepadIntent): void {
+      (this.$refs.scoreView as {handleIntent?: (i: GamepadIntent) => void} | undefined)?.handleIntent?.(intent);
+    },
     // ── the content-zone swap beat (route changes) ──────────────────────
     // Direction follows DEPTH: descending rises from below (the workspace
     // «one level deeper» phrase), B sinks the leaving zone back down. A
@@ -833,7 +767,22 @@ export default defineComponent({
     detailZoneEnter(el: Element, done: () => void): void {
       if (consoleReducedMotionActive()) {
         gsap.set(el, {clearProps: 'transform,opacity'});
-        done();
+        // A SYNCHRONOUS done inside an out-in hook wedges the swap: Vue is
+        // still inside the leave/enter patch when the callback fires, and
+        // the deferred insertion of the incoming zone never runs (measured:
+        // the explorer stayed mounted at the summary route). One microtask
+        // of distance is the whole fix — never rAF (headless starves it).
+        void Promise.resolve().then(done);
+        return;
+      }
+      // The SCORE HANDOFF: when the leaving zone armed the shared elements
+      // (summary → explorer, or explorer → summary on B), the total and the
+      // bar FLY between the zones while the categories unfold/cascade —
+      // this replaces the plain fade for exactly this pair of zones.
+      const host = el as HTMLElement;
+      const cascade = Array.from(host.querySelectorAll<HTMLElement>('.con-vpx__tile, .con-infovp__cat'));
+      if (playScoreHandoff(host, cascade, done)) {
+        this.lastDepth = infoRouteDepth(this.infoModeState.route);
         return;
       }
       const depth = infoRouteDepth(this.infoModeState.route);
@@ -845,16 +794,28 @@ export default defineComponent({
     },
     detailZoneLeave(el: Element, done: () => void): void {
       if (consoleReducedMotionActive()) {
-        done();
+        void Promise.resolve().then(done); // see detailZoneEnter — never sync
         return;
       }
-      const depth = infoRouteDepth(this.infoModeState.route);
+      // Arm the shared-element handoff on the two zones that exchange the
+      // total + bar: the summary leaving FOR the explorer, and the explorer
+      // leaving BACK to the summary. The proxies bridge the out-in gap, so
+      // the total never misses a frame.
+      const to = this.infoModeState.route;
+      const host = el as HTMLElement;
+      const summaryToVp = host.classList.contains('con-info__layout') && isVpRoute(to);
+      const vpToSummary = host.classList.contains('con-info__vpxhost') && to === 'summary';
+      if (summaryToVp || vpToSummary) {
+        armScoreHandoff(host);
+      }
+      const depth = infoRouteDepth(to);
       const rising = depth >= this.lastDepth;
       gsap.to(el, {opacity: 0, y: (rising ? -6 : 5) * conUiScale(), duration: motionMs(95) / 1000, ease: 'power1.in', onComplete: done});
     },
     detailZoneCancelled(el: Element): void {
       gsap.killTweensOf(el);
       gsap.set(el, {clearProps: 'transform,opacity'});
+      disposeScoreHandoff();
     },
   },
 });

@@ -12,7 +12,8 @@ import {FundedAward} from '../awards/FundedAward';
 import {AwardScorer} from '../awards/AwardScorer';
 import {AutomaScoring} from '../automa/AutomaScoring';
 import {CardName} from '../../common/cards/CardName';
-import {CardVictoryPointsKind, TerraformRatingBreakdown, TRSourceEntry} from '../../common/game/VictoryPointsBreakdown';
+import {CardVictoryPointsKind, CardVpMechanics, CardVpUnit, CityVpDetail, TerraformRatingBreakdown, TRSourceEntry} from '../../common/game/VictoryPointsBreakdown';
+import {Counter} from '../behavior/Counter';
 
 // The clean standard starting terraform rating. NEVER a fallback bucket for
 // unclassified TR — any residual goes to a `legacyUnknown` source entry instead.
@@ -120,6 +121,70 @@ function classifyCardVictoryPoints(card: ICard, vp: number): CardVictoryPointsKi
   return 'fixed';
 }
 
+/**
+ * The card's scoring FORMULA + live operand for the score explorer — captured
+ * beside the score itself so the client never re-implements a counting rule.
+ *
+ * For a `CountableVictoryPoints` declaration the operand is the SAME Counter
+ * run the score performs, with the printed rate stripped (each/per → 1), so
+ * `floor(counted × each / per) === victoryPoint` holds by construction —
+ * wild-tag substitution, MarsBot track tags and adjacency all stay the
+ * engine's own counting. READ-ONLY (the Counter mutates nothing).
+ */
+function computeCardVpMechanics(player: IPlayer, card: ICard): CardVpMechanics | undefined {
+  const decl = card.victoryPoints;
+  if (typeof decl === 'number') {
+    return {shape: 'fixed'};
+  }
+  if (decl === 'special') {
+    // Bespoke getVictoryPoints — no universal formula. A resource accumulator
+    // still reports its honest stored amount.
+    if (card.resourceType !== undefined) {
+      return {shape: 'special', counted: card.resourceCount, unit: 'resources', resourceType: card.resourceType};
+    }
+    return {shape: 'special'};
+  }
+  if (typeof decl === 'object') {
+    let unit: CardVpUnit = 'other';
+    if (decl.resourcesHere !== undefined) {
+      unit = 'resources';
+    } else if (decl.tag !== undefined) {
+      unit = 'tags';
+    } else if (decl.cities !== undefined) {
+      unit = 'cities';
+    } else if (decl.oceans !== undefined) {
+      unit = 'oceans';
+    } else if (decl.moon?.mine !== undefined) {
+      unit = 'moon-mine';
+    } else if (decl.moon?.road !== undefined) {
+      unit = 'moon-road';
+    } else if (decl.colonies !== undefined) {
+      unit = 'colonies';
+    }
+    const mechanics: CardVpMechanics = {
+      shape: 'per',
+      each: decl.each ?? 1,
+      per: decl.per ?? 1,
+      counted: new Counter(player, card).count({...decl, each: 1, per: 1}, 'vps'),
+      unit,
+    };
+    if (decl.tag !== undefined) {
+      mechanics.tag = decl.tag;
+    }
+    if (unit === 'resources' && card.resourceType !== undefined) {
+      mechanics.resourceType = card.resourceType;
+    }
+    if (decl.nextToThis !== undefined) {
+      mechanics.adjacent = true;
+    }
+    if (decl.all === true) {
+      mechanics.all = true;
+    }
+    return mechanics;
+  }
+  return undefined;
+}
+
 export function calculateVictoryPoints(player: IPlayer) {
   const builder = new VictoryPointsBreakdownBuilder();
 
@@ -135,7 +200,7 @@ export function calculateVictoryPoints(player: IPlayer) {
   for (const playedCard of scoredCards) {
     if (playedCard.victoryPoints !== undefined) {
       const vp = playedCard.getVictoryPoints(player);
-      builder.setVictoryPoints('victoryPoints', vp, playedCard.name, undefined, classifyCardVictoryPoints(playedCard, vp));
+      builder.setVictoryPoints('victoryPoints', vp, playedCard.name, undefined, classifyCardVictoryPoints(playedCard, vp), computeCardVpMechanics(player, playedCard));
       if (vp < 0) {
         negativeVP += vp;
       }
@@ -165,6 +230,7 @@ export function calculateVictoryPoints(player: IPlayer) {
   }
 
   // Victory points from board
+  const cityEntries: Array<CityVpDetail> = [];
   player.game.board.spaces.forEach((space) => {
     // Victory points for greenery tiles
     if (Board.isGreenerySpace(space) && Board.spaceOwnedBy(space, player)) {
@@ -174,13 +240,18 @@ export function calculateVictoryPoints(player: IPlayer) {
     // Victory points for greenery tiles adjacent to cities
     if (Board.isCitySpace(space) && Board.spaceOwnedBy(space, player)) {
       const adjacent = player.game.board.getAdjacentSpaces(space);
+      let cityPoints = 0;
       for (const adj of adjacent) {
         if (Board.isGreenerySpace(adj)) {
           builder.setVictoryPoints('city', 1);
+          cityPoints++;
         }
       }
+      // Every owned city gets a row — a 0-greenery city is an honest 0.
+      cityEntries.push({spaceId: space.id, points: cityPoints});
     }
   });
+  builder.setCityDetails(cityEntries);
 
   // Turmoil Victory Points
   const includeTurmoilVP = player.game.gameIsOver() || player.game.phase === Phase.END;

@@ -1717,7 +1717,8 @@ import {
   findPerformActionCard,
 } from '@/client/console/turnIntents';
 import {infoModeState, openInfoMode, closeInfoMode, settleInfoModeClose, restoreConsoleSnapshot, cyclePlayer} from '@/client/console/infoModeState';
-import {InfoRouteId, infoRouteApplies, infoRouteBack, infoZoneForRoute, infoZoneRoute, infoZoneFocusable, infoZoneNavigate, infoFocusRing, botScreenNavigate} from '@/client/console/infoRoute';
+import {InfoRouteId, infoRouteApplies, infoRouteBack, infoZoneForRoute, infoZoneRoute, infoZoneFocusable, infoZoneNavigate, infoFocusRing, botScreenNavigate, isVpRoute} from '@/client/console/infoRoute';
+import {resetScoreExplorer} from '@/client/console/consoleScoreExplorer';
 import {playInspectedSwitchMotion, playInspectedReturnMotion} from '@/client/console/inspectSwitchMotion';
 import {PlayerInputModel} from '@/common/models/PlayerInputModel';
 import {translateMessage, translateText, translateTextWithParams} from '@/client/directives/i18n';
@@ -10091,6 +10092,7 @@ export default defineComponent({
       if (this.playedOpen) {
         this.closePlayedOverlay();
       }
+      resetScoreExplorer(); // a fresh visit never resumes a stale VP cursor
       openInfoMode(this.thisPlayer.color, this.consoleState.inspecting);
     },
     /** after-leave of the workspace's dismiss transition — release the
@@ -10180,6 +10182,46 @@ export default defineComponent({
           }
         }
         (this.$refs.infoMode as InstanceType<typeof ConsoleInfoMode> | undefined)?.handlePlayedIntent(intent);
+        return;
+      }
+      // THE SCORE EXPLORER (vp subtree): the explorer owns nav, A (descend)
+      // and X (fullscreen the previewed card). The global chords stay
+      // global: Y closes, LB/RB switch the seat (semantic depth survives),
+      // B walks the route tree one level, LT/RT/L3/R3 stay the direct
+      // shortcuts onto their own semantic routes.
+      if (isVpRoute(this.infoModeState.route)) {
+        if (intent.kind === 'press') {
+          const action = consoleActionOf(intent);
+          if (action === 'fullscreen') {
+            this.toggleInfoMode();
+            return;
+          }
+          if (action === 'prevSection' || action === 'nextSection') {
+            this.cycleInspectedPlayer(action === 'prevSection' ? -1 : 1);
+            return;
+          }
+          if (action === 'back') {
+            this.infoBack();
+            return;
+          }
+          if (action === 'prevTab') {
+            this.infoGo('actions');
+            return;
+          }
+          if (action === 'nextTab') {
+            this.infoGo(this.infoViewedKind() === 'bot' ? 'botBonus' : 'effects');
+            return;
+          }
+          if (intent.button === 'stickL') {
+            this.infoGo('extras');
+            return;
+          }
+          if (intent.button === 'stickR') {
+            this.infoGo('botScreen');
+            return;
+          }
+        }
+        (this.$refs.infoMode as InstanceType<typeof ConsoleInfoMode> | undefined)?.handleScoreIntent(intent);
         return;
       }
       const route = this.infoModeState.route;

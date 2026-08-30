@@ -208,12 +208,13 @@ for (const preset of PRESETS) {
       await shoot(page, preset, '02-summary-bot');
 
       // ── 3 · ROUTE PRESERVATION: «ПО» survives the seat ring ─────────
-      await key(page, 'Enter', 800); // A on the focused VP zone → the detail
-      await expect(workspace.locator('.con-infovpd')).toHaveCount(1);
+      await key(page, 'Enter', 800); // A on the focused VP zone → the explorer
+      await expect(workspace.locator('.con-vpx')).toHaveCount(1);
+      await expect(workspace.locator('.con-vpx__grid')).toHaveCount(1);
       await expect(crumbStage(page)).toHaveText(/Победные очки/i);
       await shoot(page, preset, '03-vp-detail-bot');
       await key(page, 'KeyQ', 900); // LB → the human, SAME route
-      await expect(workspace.locator('.con-infovpd'), 'the VP detail survives the seat switch').toHaveCount(1);
+      await expect(workspace.locator('.con-vpx'), 'the score explorer survives the seat switch').toHaveCount(1);
       await expect(crumbStage(page)).toHaveText(/Победные очки/i);
       await expect(botOnStage(page)).toHaveCount(0);
       await shoot(page, preset, '03b-vp-detail-human');
@@ -322,8 +323,8 @@ for (const preset of PRESETS) {
         await key(page, 'KeyY', 1000);
         await expect(page.locator('.con-info'), 'the overlay opens OVER the workspace').toHaveCount(1);
         await cycleTo(page, 'bot');
-        await key(page, 'Enter', 700); // the VP detail on the bot
-        await expect(page.locator('.con-info .con-infovpd')).toHaveCount(1);
+        await key(page, 'Enter', 700); // the score explorer on the bot
+        await expect(page.locator('.con-info .con-vpx')).toHaveCount(1);
         await key(page, 'KeyY', 900); // close from depth — restores the context
         await expect(page.locator('.con-info')).toHaveCount(0);
         await expect(page.locator('.con-stdp'), 'the workspace below SURVIVED the overlay').toBeVisible();

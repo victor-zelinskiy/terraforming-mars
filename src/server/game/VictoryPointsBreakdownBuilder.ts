@@ -1,5 +1,5 @@
 import {Tag} from '../../common/cards/Tag';
-import {AutomaVictoryPoints, CardVictoryPointsKind, TerraformRatingBreakdown, VictoryPointsBreakdown} from '../../common/game/VictoryPointsBreakdown';
+import {AutomaVictoryPoints, CardVictoryPointsKind, CardVpMechanics, CityVpDetail, TerraformRatingBreakdown, VictoryPointsBreakdown} from '../../common/game/VictoryPointsBreakdown';
 
 export type VictoryPoints = 'terraformRating' | 'milestones' | 'awards' | 'greenery' | 'city' | 'escapeVelocity' | 'moon habitat' | 'moon mine' | 'moon road' | 'planetary tracks' | 'deltaProject' | 'victoryPoints';
 
@@ -27,6 +27,7 @@ export class VictoryPointsBreakdownBuilder {
     detailsMilestones: [],
     detailsAwards: [],
     detailsPlanetaryTracks: [],
+    detailsCities: [],
     negativeVP: 0,
   };
 
@@ -69,7 +70,13 @@ export class VictoryPointsBreakdownBuilder {
     this.points.terraformRatingBreakdown = breakdown;
   }
 
-  public setVictoryPoints(key: VictoryPoints, points: number, message?: string, messageArgs?: Array<string>, kind?: CardVictoryPointsKind) {
+  // Per-city contribution rows behind the `city` total. Display-only — the
+  // total is still accumulated through `setVictoryPoints('city', …)`.
+  public setCityDetails(entries: Array<CityVpDetail>) {
+    this.points.detailsCities = entries;
+  }
+
+  public setVictoryPoints(key: VictoryPoints, points: number, message?: string, messageArgs?: Array<string>, kind?: CardVictoryPointsKind, mechanics?: CardVpMechanics) {
     if (points < 0) {
       this.points.negativeVP += points;
     }
@@ -101,7 +108,7 @@ export class VictoryPointsBreakdownBuilder {
     case 'victoryPoints':
       this.points.victoryPoints += points;
       if (message !== undefined) {
-        this.points.detailsCards.push({cardName: message, victoryPoint: points, kind: kind ?? (points < 0 ? 'penalty' : 'fixed')});
+        this.points.detailsCards.push({cardName: message, victoryPoint: points, kind: kind ?? (points < 0 ? 'penalty' : 'fixed'), mechanics});
       }
       break;
     case 'moon habitat':

@@ -15385,132 +15385,616 @@ html.con-profile-large.console-mode .notifications-layer.notifications-layer--jo
     }
 }
 
-/* The DETAIL screen: total → category bars on ONE shared scale (the
-   endgame reading) → sources inside categories → the explaining lists. */
-.con-infovpd {
-    /* The same reading measure as the other detail lists — bar LENGTHS stay
-       comparable inside one shared cap, and a 4K frame keeps its calm. */
-    &__totalrow, &__cats, &__cards {
-        max-width: 64rem;
-        width: 100%;
+/* ── THE SCORE EXPLORER (vp subtree): overview → category → family table →
+   preview. ONE surface, three LAYERS (the stage is a layer stack — a
+   departing level paints through its whole fold). The ONE bar semantic:
+   every share fill is «value / positive total» — never a second hidden
+   scale. Category identity = colour + position + name/value. ─────────── */
+.con-info__vpxhost {
+    flex: 1;
+    min-height: 0;
+    display: flex;
+}
+.con-vpx {
+    flex: 1;
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    gap: .75rem;
+
+    /* ── THE HERO — the same object on every level (and the summary's own
+       total/bar during the handoff flight). */
+    &__hero {
+        flex: none;
+        display: flex;
+        flex-direction: column;
+        gap: .5rem;
+        max-width: 72rem;
     }
     &__totalrow {
         display: flex;
         align-items: baseline;
-        gap: .5rem;
-        padding: .2rem .2rem .4rem;
+        gap: .55rem;
     }
     &__total-label {
         font-size: 1rem;
-        letter-spacing: .1rem;
+        font-weight: 700;
+        letter-spacing: .14rem;
         text-transform: uppercase;
         color: @con-text-dim;
     }
     &__total {
-        font-size: 2rem;
+        font-size: 3rem;
         font-weight: 800;
         line-height: 1;
-        color: @con-mint;
+        letter-spacing: .02rem;
+        color: @con-text;
         font-variant-numeric: tabular-nums;
     }
     &__total-vp {
-        font-size: .9rem;
+        font-size: 1rem;
         font-weight: 700;
-        letter-spacing: .12rem;
+        letter-spacing: .14rem;
         text-transform: uppercase;
         color: @con-text-dim;
     }
-    &__cats {
+    &__bar {
+        display: flex;
+        height: 1.05rem;
+        border-radius: .32rem;
+        overflow: hidden;
+        background: rgba(10, 16, 25, 0.8);
+        box-shadow: inset 0 0 0 .05rem rgba(120, 150, 180, 0.22);
+    }
+    &__seg {
+        background: var(--eg-c, @con-cyan);
+        box-shadow: inset -.05rem 0 0 rgba(5, 8, 13, 0.55);
+        transition: width calc(420ms * var(--motion-scale, 1)) ease,
+            opacity calc(260ms * var(--motion-scale, 1)) ease;
+    }
+    /* Past level 1 the selected stripe keeps its ink, the rest recede —
+       colour continuity of the descend, not a redraw. */
+    &__seg--dim { opacity: .28; }
+    &__pennote {
+        font-size: .9rem;
+        color: #eb8f8f;
+    }
+
+    /* ── THE STAGE — a LAYER STACK: levels stand on top of each other, a
+       leaving level keeps painting through its fold. */
+    &__stage {
+        position: relative;
+        flex: 1;
+        min-height: 0;
+    }
+    &__stage > * {
+        position: absolute;
+        inset: 0;
+        min-height: 0;
+    }
+    /* The two PANELS hug their content — a two-row provenance must not
+       stand as a stage-tall empty plate (they still cap at the stage and
+       scroll inside when a late-game list genuinely fills them). */
+    &__cat,
+    &__table {
+        bottom: auto;
+        max-height: 100%;
+    }
+
+    /* ── LEVEL 1: the overview grid. UNIFORM tile geometry — a zero
+       category changes INK, never layout (an LB/RB seat switch morphs
+       values without a single jump). */
+    &__overview { display: flex; }
+    &__grid {
+        flex: 1;
+        display: grid;
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+        gap: .6rem;
+        align-content: start;
+        max-width: 72rem;
+    }
+    &__tile {
+        position: relative;
         display: flex;
         flex-direction: column;
         gap: .45rem;
-    }
-    &__cat {
-        padding: .55rem .8rem .6rem;
+        min-height: 6.9rem;
+        padding: .65rem 1.7rem .6rem .85rem;
+        border: none;
         border-radius: .5rem;
+        text-align: left;
+        font: inherit;
+        cursor: pointer;
+        color: @con-text-dim;
         background: rgba(14, 22, 33, 0.6);
         box-shadow: inset 0 0 0 .05rem rgba(120, 150, 180, 0.16),
             inset .18rem 0 0 var(--eg-c, fade(@con-cyan, 45%));
+        transition: background calc(160ms * var(--motion-scale, 1)) ease,
+            box-shadow calc(160ms * var(--motion-scale, 1)) ease;
     }
-    &__cat--zero { opacity: .6; }
-    &__cathead {
+    &__tile--focused {
+        background: rgba(18, 30, 44, 0.78);
+        box-shadow: inset 0 0 0 .1rem fade(@con-cyan, 80%),
+            inset .18rem 0 0 var(--eg-c, fade(@con-cyan, 45%)),
+            0 .3rem 1.2rem rgba(0, 0, 0, 0.35);
+        color: @con-text;
+    }
+    /* The ZERO pose — quiet ink, full structure (the category stays a
+       legible, enterable door; it just stops claiming weight). */
+    &__tile--zero > :not(.con-vpx__chev) { opacity: .5; }
+    &__tile--zero.con-vpx__tile--focused > :not(.con-vpx__chev) { opacity: .85; }
+    &__tile-head {
         display: flex;
         align-items: center;
         gap: .5rem;
-        margin-bottom: .4rem;
+        min-width: 0;
     }
     &__dot {
         flex-shrink: 0;
-        width: .65rem;
-        height: .65rem;
+        width: .62rem;
+        height: .62rem;
         border-radius: .18rem;
         background: var(--eg-c, @con-cyan);
         box-shadow: inset 0 0 0 .05rem rgba(0, 0, 0, 0.4);
     }
-    &__cat-label {
-        font-size: 1.05rem;
-        letter-spacing: .04rem;
+    &__tile-label {
+        flex: 1;
+        min-width: 0;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+        font-size: 1.02rem;
+        letter-spacing: .03rem;
         color: @con-text;
     }
-    &__cat-value {
-        margin-left: auto;
-        font-size: 1.3rem;
+    &__tile-value {
+        font-size: 1.55rem;
+        font-weight: 800;
+        line-height: 1;
         font-variant-numeric: tabular-nums;
         color: @con-text;
     }
-    &__cat--penalty &__cat-value { color: #eb8f8f; }
-    /* The bar: every category on the SHARED max-category scale, so
-       lengths are directly comparable («what carried the game» — the
-       desktop report's own rule, the ceremony's own geometry). */
-    &__track {
-        height: .55rem;
-        border-radius: .25rem;
+    &__tile--penalty &__tile-value { color: #eb8f8f; }
+    &__tile-track {
+        height: .5rem;
+        border-radius: .22rem;
         overflow: hidden;
         background: rgba(10, 16, 25, 0.8);
         box-shadow: inset 0 0 0 .05rem rgba(120, 150, 180, 0.18);
     }
-    &__fill {
+    &__tile-fill {
         display: block;
         height: 100%;
-        border-radius: .25rem;
+        border-radius: .22rem;
         background: var(--eg-c, @con-cyan);
         transition: width calc(420ms * var(--motion-scale, 1)) ease;
     }
-    &__cat--penalty &__fill {
+    &__tile--penalty &__tile-track {
         background: repeating-linear-gradient(135deg,
-            fade(#e06a6a, 88%) 0 .35rem, fade(#e06a6a, 55%) .35rem .7rem);
+            fade(#e06a6a, 30%) 0 .35rem, rgba(10, 16, 25, 0.8) .35rem .7rem);
     }
-    &__subs {
+    &__tile-hint {
+        min-height: 1.15rem;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+        font-size: .85rem;
+        color: @con-text-dim;
+    }
+    &__chev {
+        position: absolute;
+        top: .5rem;
+        right: .55rem;
+        font-size: 1.05rem;
+        line-height: 1;
+        color: fade(#cfe0f0, 38%);
+    }
+    &__tile--focused .con-vpx__chev { color: fade(@con-cyan, 85%); }
+
+    /* ── LEVEL 2: the category panel (unfolds OUT OF its tile — it needs
+       its own opaque-ish surface for the clip to read as a panel). */
+    &__cat {
         display: flex;
-        flex-wrap: wrap;
-        gap: .25rem .9rem;
-        margin-top: .45rem;
+        flex-direction: column;
+        gap: .6rem;
+        max-width: 72rem;
+        padding: .8rem 1rem;
+        border-radius: .6rem;
+        background: rgba(13, 21, 32, 0.92);
+        box-shadow: inset 0 0 0 .05rem rgba(120, 150, 180, 0.18),
+            inset .18rem 0 0 var(--eg-c, fade(@con-cyan, 45%));
     }
-    &__sub {
-        display: inline-flex;
+    &__cathead {
+        flex: none;
+        display: flex;
         align-items: baseline;
-        gap: .35rem;
+        gap: .6rem;
+    }
+    &__cathead .con-vpx__dot { align-self: center; }
+    &__cathead-label {
+        font-size: 1.35rem;
+        letter-spacing: .04rem;
+        color: @con-text;
+    }
+    &__cathead-value {
+        font-size: 1.9rem;
+        font-weight: 800;
+        line-height: 1;
+        font-variant-numeric: tabular-nums;
+        color: @con-text;
+    }
+    &__cathead-share {
+        margin-left: auto;
+        font-size: .92rem;
+        letter-spacing: .04rem;
+        color: @con-text-dim;
+    }
+    &__catbody {
+        flex: 1;
+        min-height: 0;
+    }
+    &__catbody--hub {
+        display: flex;
+        overflow: visible;
+    }
+
+    /* TR provenance rows — every source named, Σ ≡ the displayed rating. */
+    &__trrows {
+        display: flex;
+        flex-direction: column;
+        gap: .3rem;
+        max-width: 48rem;
+    }
+    &__trrow {
+        display: flex;
+        align-items: baseline;
+        gap: .6rem;
+        padding: .42rem .65rem;
+        border-radius: .4rem;
+        background: rgba(10, 16, 25, 0.55);
+        box-shadow: inset .14rem 0 0 rgba(120, 150, 180, 0.25);
+        color: @con-text-dim;
+    }
+    &__trrow--base { box-shadow: inset .14rem 0 0 fade(#cfe0f0, 40%); }
+    &__trrow--handicap { box-shadow: inset .14rem 0 0 fade(#ffd87a, 55%); }
+    &__trrow--param { box-shadow: inset .14rem 0 0 fade(@con-cyan, 55%); }
+    &__trrow--hazard { box-shadow: inset .14rem 0 0 fade(#e8a24e, 60%); }
+    &__trrow--source { box-shadow: inset .14rem 0 0 fade(#d08050, 60%); }
+    &__trrow--residual {
+        box-shadow: inset .14rem 0 0 rgba(120, 150, 180, 0.2);
+        font-style: italic;
+    }
+    &__trrow-label {
+        flex: 1;
+        min-width: 0;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+        color: @con-text;
+    }
+    &__trrow-gen { font-size: .85rem; }
+    &__trrow-value {
+        font-size: 1.1rem;
+        font-weight: 700;
+        font-variant-numeric: tabular-nums;
+        color: @con-text;
+    }
+    &__trsum {
+        display: flex;
+        justify-content: space-between;
+        max-width: 48rem;
+        margin-top: .45rem;
+        padding: .5rem .65rem 0;
+        border-top: .05rem solid rgba(120, 150, 180, 0.25);
+        font-weight: 700;
+        color: @con-text;
+        b { font-size: 1.25rem; font-variant-numeric: tabular-nums; }
+    }
+
+    /* The cards hub — the three family doors. */
+    &__groups {
+        flex: 1;
+        display: grid;
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+        gap: .7rem;
+        align-content: start;
+    }
+    &__group {
+        position: relative;
+        display: flex;
+        flex-direction: column;
+        gap: .4rem;
+        min-height: 7.6rem;
+        padding: .7rem 1.7rem .65rem .9rem;
+        border: none;
+        border-radius: .5rem;
+        text-align: left;
+        font: inherit;
+        cursor: pointer;
+        color: @con-text-dim;
+        background: rgba(10, 16, 25, 0.6);
+        box-shadow: inset 0 0 0 .05rem rgba(120, 150, 180, 0.16),
+            inset .18rem 0 0 var(--eg-c, fade(@con-cyan, 45%));
+        transition: background calc(160ms * var(--motion-scale, 1)) ease,
+            box-shadow calc(160ms * var(--motion-scale, 1)) ease;
+    }
+    &__group--focused {
+        background: rgba(18, 30, 44, 0.78);
+        box-shadow: inset 0 0 0 .1rem fade(@con-cyan, 80%),
+            inset .18rem 0 0 var(--eg-c, fade(@con-cyan, 45%)),
+            0 .3rem 1.2rem rgba(0, 0, 0, 0.35);
+    }
+    &__group--dead {
+        cursor: default;
+        opacity: .5;
+    }
+    &__group-head {
+        display: flex;
+        align-items: center;
+        gap: .5rem;
+        min-width: 0;
+    }
+    &__group-label {
+        flex: 1;
+        min-width: 0;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+        font-size: 1.05rem;
+        color: @con-text;
+    }
+    &__group-value {
+        font-size: 1.6rem;
+        font-weight: 800;
+        line-height: 1;
+        font-variant-numeric: tabular-nums;
+        color: @con-text;
+    }
+    &__group-count { font-size: .9rem; }
+    &__group-trait { font-size: .85rem; }
+
+    /* ── LEVEL 3: the family table + the live preview column. */
+    &__table {
+        display: flex;
+        flex-direction: column;
+        gap: .6rem;
+        padding: .8rem 1rem;
+        border-radius: .6rem;
+        background: rgba(13, 21, 32, 0.92);
+        box-shadow: inset 0 0 0 .05rem rgba(120, 150, 180, 0.18),
+            inset .18rem 0 0 var(--eg-c, fade(@con-cyan, 45%));
+    }
+    &__tabhead {
+        flex: none;
+        display: flex;
+        align-items: baseline;
+        gap: .6rem;
+    }
+    &__tabhead .con-vpx__dot { align-self: center; }
+    &__tabhead-label {
+        font-size: 1.3rem;
+        letter-spacing: .04rem;
+        color: @con-text;
+    }
+    &__tabhead-value {
+        font-size: 1.8rem;
+        font-weight: 800;
+        line-height: 1;
+        font-variant-numeric: tabular-nums;
+        color: @con-text;
+    }
+    &__tabhead-count {
+        margin-left: auto;
         font-size: .92rem;
         color: @con-text-dim;
     }
-    &__sub-value {
+    &__split {
+        flex: 1;
+        min-height: 0;
+        display: flex;
+        gap: 1.1rem;
+    }
+    &__split--nopreview .con-vpx__rows { max-width: 58rem; }
+    &__rows {
+        flex: 1 1 auto;
+        min-width: 0;
+    }
+    &__row {
+        display: flex;
+        align-items: center;
+        gap: .7rem;
+        width: 100%;
+        margin-bottom: .35rem;
+        padding: .5rem .7rem;
+        border: none;
+        border-radius: .4rem;
+        text-align: left;
+        font: inherit;
+        cursor: pointer;
+        color: @con-text-dim;
+        background: rgba(10, 16, 25, 0.5);
+        box-shadow: inset 0 0 0 .05rem rgba(120, 150, 180, 0.1);
+        transition: background calc(140ms * var(--motion-scale, 1)) ease,
+            box-shadow calc(140ms * var(--motion-scale, 1)) ease;
+    }
+    &__row--focused {
+        background: rgba(18, 30, 44, 0.85);
+        box-shadow: inset 0 0 0 .1rem fade(@con-cyan, 80%);
         color: @con-text;
+    }
+    &__row--zero { opacity: .55; }
+    &__row--zero.con-vpx__row--focused { opacity: .9; }
+    &__row--neg .con-vpx__row-vp { color: #eb8f8f; }
+    &__row-name {
+        flex: 0 1 15rem;
+        min-width: 8rem;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+        color: @con-text;
+    }
+    &__row-formula {
+        flex: 1 1 auto;
+        min-width: 0;
+        display: inline-flex;
+        align-items: center;
+        gap: .35rem;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+        font-size: .95rem;
         font-variant-numeric: tabular-nums;
     }
-    &__cards {
-        padding: .6rem .8rem;
-        border-radius: .5rem;
-        background: rgba(14, 22, 33, 0.55);
+    &__row-vp {
+        margin-left: auto;
+        font-size: 1.3rem;
+        font-weight: 800;
+        font-variant-numeric: tabular-nums;
+        color: @con-text;
+    }
+    &__tagicon {
+        width: 1.15rem;
+        height: 1.15rem;
+        object-fit: contain;
+    }
+    &__resicon {
+        display: inline-block;
+        width: 1.15rem;
+        height: 1.15rem;
+        background-repeat: no-repeat;
+        background-position: center;
+        background-size: contain !important;
+    }
+
+    /* The PREVIEW — the focused row's REAL card (and the zoom's physical
+       origin). The column is stable: browsing rows re-points the ONE card
+       instance, never re-lays the table. */
+    &__preview {
+        flex: none;
+        width: 21rem;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        gap: .6rem;
+        min-height: 0;
+    }
+    &__preview-card {
+        zoom: calc(1.18 * var(--con-ui-scale, 1));
+        flex: none;
+    }
+    /* The legacy asymmetric margin trap (client-ui rule): the slot centres. */
+    &__preview-card > .card-container { margin: 0; }
+    &__preview-fact {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        gap: .5rem;
+        width: 16rem;
+        min-height: 14rem;
+        border-radius: .6rem;
+        color: @con-text-dim;
+        text-align: center;
+        background: rgba(10, 16, 25, 0.55);
+        box-shadow: inset 0 0 0 .05rem rgba(120, 150, 180, 0.18);
+        padding: 1rem;
+    }
+    &__preview-fact-mark {
+        font-size: 2rem;
+        color: fade(#cfe0f0, 45%);
+    }
+    &__preview-meta {
+        width: 100%;
+        display: flex;
+        flex-direction: column;
+        gap: .25rem;
+        padding: .55rem .7rem;
+        border-radius: .45rem;
+        background: rgba(10, 16, 25, 0.55);
         box-shadow: inset 0 0 0 .05rem rgba(120, 150, 180, 0.14);
     }
-    &__cards-title {
-        display: flex;
-        justify-content: space-between;
-        margin: 0 0 .45rem;
-        font-size: 1.05rem;
-        letter-spacing: .04rem;
-        b { font-size: 1.2rem; }
+    &__preview-name {
+        font-weight: 700;
+        color: @con-text;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
     }
+    &__preview-formula {
+        font-size: .9rem;
+        color: @con-text-dim;
+        font-variant-numeric: tabular-nums;
+    }
+    &__preview-res {
+        display: flex;
+        align-items: center;
+        gap: .35rem;
+        color: @con-text;
+        font-variant-numeric: tabular-nums;
+        .con-vpx__resicon { width: 1.3rem; height: 1.3rem; }
+    }
+    &__preview-rem {
+        margin-left: .35rem;
+        font-size: .85rem;
+        color: @con-text-dim;
+    }
+
+    /* Fact rows (milestones / awards / cities / greenery / hydro / moon /
+       tracks / penalties) — one legible chassis, notes under labels. */
+    &__factrow {
+        display: flex;
+        align-items: center;
+        gap: .7rem;
+        max-width: 52rem;
+        margin-bottom: .35rem;
+        padding: .5rem .7rem;
+        border-radius: .4rem;
+        background: rgba(10, 16, 25, 0.5);
+        box-shadow: inset 0 0 0 .05rem rgba(120, 150, 180, 0.1);
+    }
+    &__factrow-main {
+        flex: 1;
+        min-width: 0;
+        display: flex;
+        flex-direction: column;
+        gap: .12rem;
+    }
+    &__factrow-label {
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+        color: @con-text;
+    }
+    &__factrow-note {
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+        font-size: .88rem;
+        color: @con-text-dim;
+    }
+    &__factrow-value {
+        font-size: 1.25rem;
+        font-weight: 800;
+        font-variant-numeric: tabular-nums;
+        color: @con-text;
+    }
+    &__empty {
+        padding: .5rem .2rem;
+        font-size: 1rem;
+        color: @con-text-dim;
+    }
+
+    /* The hidden-VP contract at the SAME depth. */
+    &__hidden {
+        flex: 1;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        gap: .5rem;
+        color: @con-text-dim;
+    }
+    &__hidden-mark { font-size: 1.6rem; letter-spacing: .3rem; }
 }
 
 /* ── «ЭКРАН БОТА» chrome — the hub's focusable deep entries. ────────── */
@@ -29793,12 +30277,29 @@ html.con-profile-handheld {
         &__cat-value { font-size: .8rem; }
         &__bar { height: .6rem; margin-bottom: .4rem; }
     }
-    .con-infovpd {
-        &__total { font-size: 1.5rem; }
-        &__cat { padding: .4rem .55rem .45rem; }
-        &__cat-label { font-size: .78rem; }
-        &__cat-value { font-size: .95rem; }
-        &__sub { font-size: .68rem; }
+    .con-vpx {
+        gap: .55rem;
+        &__total { font-size: 2.1rem; }
+        &__bar { height: .8rem; }
+        /* Two columns on the Deck — the grid keeps everything on one
+           screen without a scroll (gridCols mirrors this in JS). */
+        &__grid { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: .45rem; }
+        &__tile { min-height: 5.6rem; padding: .5rem 1.3rem .45rem .6rem; }
+        &__tile-label { font-size: .8rem; }
+        &__tile-value { font-size: 1.2rem; }
+        &__tile-hint { font-size: .68rem; }
+        &__groups { grid-template-columns: repeat(3, minmax(0, 1fr)); gap: .45rem; }
+        &__group { min-height: 6rem; padding: .5rem 1.2rem .5rem .6rem; }
+        &__cathead-label { font-size: 1.05rem; }
+        &__cathead-value { font-size: 1.45rem; }
+        &__row { padding: .38rem .5rem; }
+        &__row-name { flex-basis: 10rem; min-width: 6rem; font-size: .8rem; }
+        &__row-formula { font-size: .72rem; }
+        &__row-vp { font-size: 1rem; }
+        &__preview { width: 13.5rem; }
+        &__preview-card { zoom: calc(0.78 * var(--con-ui-scale, 1)); }
+        &__factrow-label { font-size: .8rem; }
+        &__factrow-note { font-size: .68rem; }
     }
 
     /* ── 8 · hand section ────────────────────────────────────────── */

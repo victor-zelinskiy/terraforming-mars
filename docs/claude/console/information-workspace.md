@@ -29,7 +29,9 @@ workspace STACK, and closing restores the exact captured context.
 ## Routes (`infoRoute.ts` — pure, spec'd in `tests/console/infoRoute.spec.ts`)
 
 ```
-summary ─┬─ vp            («Победные очки»)
+summary ─┬─ vp            («Победные очки» — the score explorer's overview)
+         │    └─ vpCategory  (ONE category's detail; param vpCategoryKey)
+         │         └─ vpCards  (a card family's table; param vpCardsGroup)
          ├─ played        («Разыграно», the embedded premium table)
          ├─ extras        («Доп. ресурсы»)
          ├─ actions       («Действия», human-only)
@@ -38,6 +40,15 @@ summary ─┬─ vp            («Победные очки»)
               ├─ botBoard   («Планшет бота»)
               └─ botBonus   («Бонусные карты»)
 ```
+
+The vp subtree's stage names are DYNAMIC (the selected category / family) —
+`scoreStagePath` in `scoreExplorerModel.ts` supplies the tail; the static
+`infoRouteStagePath` skips the '' placeholders. The params live beside the
+route in `infoModeState` (`vpCategoryKey` / `vpCardsGroup`), so LB/RB keeps
+the SEMANTIC depth («Карты» stay «Картами», «Ресурсные» — «Ресурсными»);
+they are written by the explorer's descend verbs and cleared by its own
+fold-completion (never by the shell mid-fold — the departing panel still
+renders from them).
 
 - **B walks the TREE, one level**; at the summary it closes the overlay.
   `Y` closes from any depth. Direct shortcuts (X played · L3 extras · LT
@@ -97,12 +108,43 @@ the list. Parity is spec-guarded against `buildConsoleEndgameVm` values
 (`tests/client/components/console/liveScoreModel.spec.ts`).
 
 - Summary zone (`.con-infovp`): total → ONE segmented bar (one hue per
-  category, widths on the positive total) → the category legend.
-- Detail (`.con-infovpd`): total → category bars on the SHARED
-  max-category scale (the report's «what carried the game» rule) → the
-  sources inside each category → the explaining lists (human: the real
-  card rows via `buildVictoryPointsModel().cardGroups`; bot: the formula
-  facts — stock × rate, adjacency, icons × difficulty).
+  category, widths on the positive total) → the category legend. The
+  `data-vpx-total` / `data-vpx-bar` / `data-vpx-block` anchors are the
+  SHARED ELEMENTS of the explorer's entry.
+- THE SCORE EXPLORER (`ConsoleScoreExplorer.vue`, `.con-vpx` — replaces the
+  old `.con-infovpd` bar list): ONE component for the whole vp subtree
+  (constant zone key — a level change is its own FLIP phrase, never an
+  out-in blink). Levels are LAYERS of one surface (the overview parks under
+  a category, the category under a table — cursors survive B for free);
+  the descends ride `workspaceDescend` (unfold out of the pressed tile /
+  fold back into it). Pure models in `scoreExplorerModel.ts`:
+  · `buildScoreOverview` — tiles in ceremony order, `sharePct` =
+    value/positiveTotal (THE one bar semantic; the max-category detail
+    scale is retired), zero tiles stay IN the list as a quiet pose;
+  · `buildTrProvenance` — Σ named rows ≡ the displayed rating (base /
+    handicap / parameters / hazards / `cardEntries` sources with card ids
+    and generations / the honest `legacyUnknown` residual);
+  · `buildCardsHub` + `buildCardGroupTable` — the three family doors, then
+    rows with the SERVER's own formula (`detailsCards[].mechanics`:
+    shape / each / per / counted from the engine Counter — the client
+    computes no rule), sorted by current VP desc (stored resources break
+    ties, zeros below); pseudo-rows (Turmoil / Colony VP / bribe) are
+    facts, never fake cards; `buildBotGroupFacts` is the bot's fold;
+  · fact builders for milestones / awards (places + standings + ties) /
+    cities (`detailsCities` — every owned city's own contribution) /
+    greenery / hydro (track position) / penalties (every loss named).
+  The PREVIEW column is the focused row's live tableau `CardModel`; X goes
+  through the ONE console zoom inspector (`slotZoomOrigin` on the preview
+  slot — physical origin, LB/RB browses the rows via `onBrowse`, B lands
+  the card back; never the endgame's two-instance duplicate). Cursors +
+  the explorer's command contract live in `consoleScoreExplorer.ts`
+  (`scoreExplorerUi.barCommands` — ConsoleInfoMode republishes verbatim).
+  The summary ⇄ explorer entry is `scoreExplorerMotion.ts`: proxy handoff
+  for the total + bar (arm on leave, FLIP on enter, reveal-then-remove —
+  the total provably never misses a frame; e2e frame probe) + the grid
+  unfolding out of the legend's rect. ⚠ Reduced motion: an out-in hook's
+  `done` must be a MICROTASK (`Promise.resolve().then(done)`) — a
+  synchronous `done` wedges Vue's swap (the old zone stays mounted).
 - The bot's breakdown is REAL mid-game: `ServerModel` opens the VP gate for
   `isMarsBot` seats (its score is table-public by the Automa rules; a
   human opponent keeps the hidden-VP contract). Spec:
@@ -157,9 +199,23 @@ keeps the table's own grammar. Y(0) and LB/RB(1) survive the Deck bar.
 
 ## Tests
 
-- `tests/console/infoRoute.spec.ts` — the tree, capability, ring, clamps.
+- `tests/console/infoRoute.spec.ts` — the tree (vp subtree included),
+  capability, ring, clamps.
 - `tests/client/components/console/liveScoreModel.spec.ts` — Σ ≡ total,
   the ceremony parity (human + bot), the bot fold, TR labels, penalties.
+- `tests/client/components/console/scoreExplorerModel.spec.ts` — the
+  explorer levels: share math (Σ sharePct ≡ 100), TR provenance Σ ≡ TR,
+  family tables (formulas, sorting, zeros, pseudo-rows), bot facts,
+  award standings, the dynamic stage path, the grid clamps.
+- `tests/calculateVictoryPoints.spec.ts` — the read-model extension:
+  `detailsCards[].mechanics` (per/fixed/special + the floor invariant)
+  and `detailsCities` (per-city contribution, opponents' greenery counts).
+- `tests/e2e/console-score-explorer.spec.ts` — the whole vertical on three
+  profiles: no-scroll overview, the shared-element entry (frame probe: the
+  total never misses a frame), TR Σ, formulas, preview → X fullscreen →
+  B (slot yields, focus survives), family sorting, bot parity at depth,
+  the B chain, reduced motion; also the screenshot + flow-video source
+  (`screenshots/score-explorer/<preset>/`).
 - `tests/client/components/console/infoModeState.spec.ts` — lifecycle +
   route reset on open/close.
 - `tests/client/components/console/marsBotRailModel.spec.ts` — economy

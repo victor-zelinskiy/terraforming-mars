@@ -64,6 +64,15 @@ export const infoModeState = reactive({
   summaryFocus: 'vp' as InfoZoneId,
   /** The «Экран бота» focus ring — which deep reference the cursor is on. */
   botScreenFocus: 'botBoard' as BotScreenEntry,
+  /**
+   * The score explorer's route PARAMS (`vpCategory` / `vpCards` routes).
+   * Kept beside the route so an LB/RB seat switch preserves the SEMANTIC
+   * depth («Карты» stay «Картами», «Ресурсные» — «Ресурсными»); the
+   * invariant «params valid for the route» is owned by the write sites
+   * (the explorer's descend verbs + the shell's infoBack).
+   */
+  vpCategoryKey: undefined as string | undefined,
+  vpCardsGroup: undefined as string | undefined,
   snapshot: undefined as ConsoleContextSnapshot | undefined,
 });
 
@@ -106,6 +115,8 @@ export function openInfoMode(viewer: Color, cellFocused: boolean): void {
   infoModeState.route = 'summary';
   infoModeState.summaryFocus = 'vp';
   infoModeState.botScreenFocus = 'botBoard';
+  infoModeState.vpCategoryKey = undefined;
+  infoModeState.vpCardsGroup = undefined;
   infoModeState.closing = false; // a re-open mid-dismiss reclaims the stage
   infoModeState.open = true;
 }
@@ -116,6 +127,8 @@ export function closeInfoMode(): ConsoleContextSnapshot | undefined {
   infoModeState.open = false;
   infoModeState.closing = true;
   infoModeState.route = 'summary';
+  infoModeState.vpCategoryKey = undefined;
+  infoModeState.vpCardsGroup = undefined;
   infoModeState.snapshot = undefined;
   return snap;
 }

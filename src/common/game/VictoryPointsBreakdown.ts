@@ -12,7 +12,57 @@ export type MADetail = {message: string, messageArgs?: Array<string>, victoryPoi
  */
 export type CardVictoryPointsKind = 'resource' | 'conditional' | 'fixed' | 'penalty';
 
-export type CardVictoryPointsDetail = {cardName: string, victoryPoint: number, kind: CardVictoryPointsKind};
+/** What a card's per-unit scoring formula counts. */
+export type CardVpUnit =
+  | 'resources' | 'tags' | 'cities' | 'oceans'
+  | 'moon-mine' | 'moon-road' | 'colonies' | 'other';
+
+/**
+ * The card's scoring FORMULA plus its live operand, captured by the server at
+ * the same moment it computed `victoryPoint` — so the client can explain the
+ * number («7 микробов / 2 = 3 ПО») without re-implementing a single counting
+ * rule (wild tags, MarsBot track tags, adjacency all stay server truth).
+ *
+ * Shapes:
+ *   • fixed   — a printed number; no operands.
+ *   • per     — `each` VP per `per` counted units; `counted` is the SAME
+ *               Counter run the score used, with the rate stripped, so
+ *               `floor(counted × each / per) === victoryPoint` by construction.
+ *   • special — a bespoke `getVictoryPoints`; no universal formula. When the
+ *               card stores a resource, `counted`/`resourceType` still carry
+ *               the honest stored amount (Search For Life, …).
+ */
+export type CardVpMechanics = {
+  shape: 'fixed' | 'per' | 'special';
+  /** VP granted per `per` units (printed rate; 'per' shape only). */
+  each?: number;
+  /** Units required per `each` VP (printed rate; 'per' shape only). */
+  per?: number;
+  /** The live operand — the server Counter's own pre-rate count. */
+  counted?: number;
+  unit?: CardVpUnit;
+  /** The tag being counted, when unit === 'tags'. */
+  tag?: Tag;
+  /** The card's stored resource type (CardResource), when it stores one. */
+  resourceType?: string;
+  /** Only units adjacent to this card's own tile are counted. */
+  adjacent?: true;
+  /** Every player's units count, not only the owner's. */
+  all?: true;
+};
+
+export type CardVictoryPointsDetail = {
+  cardName: string,
+  victoryPoint: number,
+  kind: CardVictoryPointsKind,
+  /** The formula + live operands behind `victoryPoint` (score explorer).
+   *  Absent for pseudo-rows (Turmoil / Colony VP / bribes) and old models. */
+  mechanics?: CardVpMechanics,
+};
+
+/** One city's own contribution to the `city` category (1 VP per adjacent
+ *  greenery, any owner) — `points` may honestly be 0. */
+export type CityVpDetail = {spaceId: string, points: number};
 
 /**
  * The KIND of source that raised a player's terraform rating directly (i.e. NOT
@@ -111,6 +161,9 @@ export type VictoryPointsBreakdown = {
   detailsMilestones: ReadonlyArray<MADetail>;
   detailsAwards: ReadonlyArray<MADetail>;
   detailsPlanetaryTracks: ReadonlyArray<{tag: Tag, points: number}>;
+  /** Per-city contribution behind the `city` total (score explorer).
+   *  Optional so older serialized models / test fixtures stay valid. */
+  detailsCities?: ReadonlyArray<CityVpDetail>;
   // Total VP less than 0. For Underworld
   negativeVP: number;
 }

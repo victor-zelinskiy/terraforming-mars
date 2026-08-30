@@ -17,12 +17,16 @@ import {
   infoZoneNavigate,
   infoZonePresent,
   infoZoneRoute,
+  isVpRoute,
 } from '@/client/console/infoRoute';
 
 const ALL_ROUTES: ReadonlyArray<InfoRouteId> = [
-  'summary', 'vp', 'played', 'extras', 'actions', 'effects',
+  'summary', 'vp', 'vpCategory', 'vpCards', 'played', 'extras', 'actions', 'effects',
   'botScreen', 'botBoard', 'botBonus',
 ];
+/** Routes whose stage name is DYNAMIC (the score explorer supplies the tail
+ *  from its params — `scoreStagePath`). */
+const DYNAMIC_STAGE_ROUTES: ReadonlySet<InfoRouteId> = new Set(['vpCategory', 'vpCards']);
 const KINDS: ReadonlyArray<InfoParticipantKind> = ['human', 'bot'];
 
 describe('infoRoute — the Information workspace route model', () => {
@@ -47,6 +51,24 @@ describe('infoRoute — the Information workspace route model', () => {
     expect(infoRouteDepth('botBoard')).to.eq(2);
     expect(infoRouteDepth('vp')).to.eq(1);
     expect(infoRouteDepth('summary')).to.eq(0);
+  });
+
+  it('the score explorer subtree: vp → vpCategory → vpCards, one B per level, shared capability', () => {
+    expect(infoRouteBack('vpCards'), 'B from a group table returns to its category').to.eq('vpCategory');
+    expect(infoRouteBack('vpCategory'), 'B from a category returns to the overview').to.eq('vp');
+    expect(infoRouteDepth('vpCategory')).to.eq(2);
+    expect(infoRouteDepth('vpCards')).to.eq(3);
+    for (const kind of KINDS) {
+      expect(infoRouteApplies('vpCategory', kind), 'every participant explains its score').to.be.true;
+      expect(infoRouteApplies('vpCards', kind)).to.be.true;
+    }
+    expect(infoZoneForRoute('vpCategory'), 'B chain lands the ring on the VP zone').to.eq('vp');
+    expect(infoZoneForRoute('vpCards')).to.eq('vp');
+    expect(isVpRoute('vp') && isVpRoute('vpCategory') && isVpRoute('vpCards')).to.be.true;
+    expect(isVpRoute('played')).to.be.false;
+    // The dynamic tails do not pollute the static stage path — the explorer
+    // supplies them (`scoreStagePath`).
+    expect(infoRouteStagePath('vpCards')).to.deep.eq(['Victory Points']);
   });
 
   // ── capability ────────────────────────────────────────────────────────
@@ -78,7 +100,7 @@ describe('infoRoute — the Information workspace route model', () => {
     expect(infoRouteStagePath('vp')).to.deep.eq(['Victory Points']);
     expect(infoRouteStagePath('botBoard'), 'stable context BEFORE the mutable tail').to.deep.eq(['MarsBot screen', 'MarsBot board']);
     for (const route of ALL_ROUTES) {
-      if (route !== 'summary') {
+      if (route !== 'summary' && !DYNAMIC_STAGE_ROUTES.has(route)) {
         expect(infoRouteStage(route), `${route} names its stage`).to.not.eq('');
       }
     }
