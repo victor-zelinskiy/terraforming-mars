@@ -118,7 +118,10 @@ export class DeltaProjectExpansion {
   // record — a stage CROSSED under Delta Surge grants the same choice but is
   // not a stop (the marker never stood there), so its answer must not be
   // written onto the destination's history. Positions only ever increase, so
-  // at most one stop per position exists.
+  // at most one stop per position exists. A REWARD-ONLY grant (Dutch
+  // Mountains) never calls this at all (`resolveReward`'s `recordStop`):
+  // re-claiming a stage the player once stopped on must never rewrite that
+  // stop's historical choice.
   private static recordStopChoice(player: IPlayer, position: number, choice: number): void {
     const stop = player.deltaProjectData?.stops?.find((s) => s.position === position);
     if (stop !== undefined) {
@@ -714,6 +717,61 @@ export class DeltaProjectExpansion {
   }
 
   /**
+   * THE STAGES A REWARD-ONLY GRANT MAY CLAIM (Dutch Mountains): every stage
+   * the player's marker has REACHED (their current stage and every stage
+   * behind it), excluding — semantically, never by number literals or
+   * localized names —
+   *  - the START and both VP TERMINALS (`DELTA_TRACK_TAGS[p] === undefined`:
+   *    a cell with no path tag has no stage reward — its value is positional),
+   *  - the JOVIAN stage (its reward is a one-shot tag grant, printed as
+   *    claimable only by standing there).
+   * Track-configuration-driven: a future track re-shape moves this list with
+   * it. The ORDER is path order (the selection surface walks it).
+   */
+  public static rewardClaimableStages(player: IPlayer): Array<number> {
+    // No module data (mixed-deck edge) → nothing claimable, never a throw:
+    // callers include availability hooks that run for every card.
+    const position = player.deltaProjectData?.position ?? 0;
+    const out: Array<number> = [];
+    for (let p = 1; p <= Math.min(position, MAX_TRACK_POSITION); p++) {
+      const tag = DELTA_TRACK_TAGS[p];
+      if (tag === undefined || tag === Tag.JOVIAN) {
+        continue;
+      }
+      out.push(p);
+    }
+    return out;
+  }
+
+  /**
+   * THE REWARD-ONLY ENTRY POINT: grant ONE stage's ordinary reward to the
+   * player WITHOUT any movement — the marker does not move, the position does
+   * not change, no stop is recorded, no movement requirement or price is
+   * re-checked, the generation's own advance is untouched, and no terminal
+   * VP/ceremony can be reached (the claimable filter excludes those stages
+   * semantically). The reward itself is THE resolver every arrival uses
+   * (`resolveReward`) — same resources, same prompts, same declared-answer
+   * consumption (`DeltaStageAnswer`, the invocation-plan contract), same
+   * journal grammar — so a granted reward and a landed reward cannot diverge.
+   *
+   * `source` names the card whose effect opened the door (the log's causal
+   * chain); eligibility is re-validated HERE, at commit, against the live
+   * position — a crafted/stale position throws before anything mutates.
+   */
+  public static grantStageReward(player: IPlayer, position: number, opts: {
+    source: CardName,
+    answer?: DeltaStageAnswer,
+  }): void {
+    if (!DeltaProjectExpansion.rewardClaimableStages(player).includes(position)) {
+      throw new Error(`Stage ${String(position)} is not claimable for a Hydronetwork reward grant`);
+    }
+    const stageName = DELTA_STAGE_NAMES[position] ?? '';
+    player.game.log('${0} claimed the ${1} stage reward of the Hydronetwork via ${2}', (b) =>
+      b.player(player).string(stageName).cardName(opts.source));
+    DeltaProjectExpansion.resolveReward(player, position, false, opts.answer, false);
+  }
+
+  /**
    * The actual {energy, steel} mix ONE advance is paid with — validated in
    * full BEFORE any mutation. Steel substitutes energy 1:1 ONLY for the
    * STANDARD per-step price and ONLY while Delta Works is in the tableau; a
@@ -762,8 +820,10 @@ export class DeltaProjectExpansion {
 
   /** @returns whether this stage PARKED a consumed repeat's nested responses —
    *  the traversal's stage-boundary cleanup drops what is still standing of
-   *  them (an auto-resolved prompt's stray) before the next stage resolves. */
-  private static resolveReward(player: IPlayer, position: number, waiveTargetReward = false, answer?: DeltaStageAnswer): boolean {
+   *  them (an auto-resolved prompt's stray) before the next stage resolves.
+   *  `recordStop` is false for a REWARD-ONLY grant (the marker never stood
+   *  there — nothing may be written onto the stop history). */
+  private static resolveReward(player: IPlayer, position: number, waiveTargetReward = false, answer?: DeltaStageAnswer, recordStop = true): boolean {
     let parkedRepeat = false;
     // Positions 10/11 (VP spots) have no additional reward beyond VP claiming.
     switch (DELTA_TRACK_TAGS[position]) {
@@ -774,7 +834,9 @@ export class DeltaProjectExpansion {
       const gainBuilding = (choice: 0 | 1): void => {
         player.stock.add(choice === 0 ? Resource.STEEL : Resource.PLANTS, 2,
           {log: true, from: {card: CardName.DELTA_PROJECT}});
-        DeltaProjectExpansion.recordStopChoice(player, position, choice);
+        if (recordStop) {
+          DeltaProjectExpansion.recordStopChoice(player, position, choice);
+        }
       };
       // THE DECLARED ANSWER consumes the ask server-side (validated: the
       // choice is structural, 0/1). Anything else falls to the prompt.
@@ -804,7 +866,9 @@ export class DeltaProjectExpansion {
       const gainPower = (choice: 0 | 1): void => {
         player.production.add(choice === 0 ? Resource.ENERGY : Resource.HEAT, 1,
           {log: true, from: {card: CardName.DELTA_PROJECT}});
-        DeltaProjectExpansion.recordStopChoice(player, position, choice);
+        if (recordStop) {
+          DeltaProjectExpansion.recordStopChoice(player, position, choice);
+        }
       };
       if (answer?.rewardChoice === 0 || answer?.rewardChoice === 1) {
         gainPower(answer.rewardChoice);

@@ -396,5 +396,8 @@
     "Advance 1 step on the Hydronetwork for 1 energy": "Продвинуться на 1 деление за 1 энергию",
     "Steal 3 M€ from a player that REMOVED YOUR RESOURCES OR DECREASED YOUR PRODUCTION this generation.": "Заберите себе 3 М€ у игрока, который в этом поколении УДАЛЯЛ ВАШИ РЕСУРСЫ ИЛИ СНИЖАЛ ВАШЕ ПРОИЗВОДСТВО.",
     "Place this card face down in THAT PLAYER'S EVENT PILE.": "Положите эту карту рубашкой вверх в СТОПКУ СОБЫТИЙ ТОГО ИГРОКА.",
-    "Animals may not be removed from this card.": "Животных с этой карты удалять нельзя."
+    "Animals may not be removed from this card.": "Животных с этой карты удалять нельзя.",
+    "Claim a reached stage reward for 3 energy": "Награда достигнутого этапа за 3 энергии",
+    "The Jovian step and the VP steps cannot be claimed.": "Этап Юпитера и этапы ПО получить нельзя.",
+    "Requires that you have moved 4 steps on the Hydronetwork track.": "Требуется продвинуться на 4 этапа по треку Гидросети."
 }

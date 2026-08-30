@@ -281,6 +281,28 @@ export interface DeltaStageAnswer {
   repeatResponses?: ReadonlyArray<InputResponse>;
 }
 
+/**
+ * A REWARD-ONLY stage claim (Dutch Mountains): which reached Hydronetwork
+ * stage's reward to grant — no movement, no position change. The optional
+ * `answer` is the SAME invocation-plan shape the move step carries (its
+ * position must equal `position`); the reward resolver consumes it
+ * identically, so a claimed reward and a landed reward share one contract.
+ */
+export interface DeltaStageRewardResponse {
+  type: 'deltaStageReward',
+  position: number;
+  answer?: DeltaStageAnswer;
+}
+
+export function isDeltaStageRewardResponse(response: InputResponse): response is DeltaStageRewardResponse {
+  if (response.type !== 'deltaStageReward') {
+    return false;
+  }
+  const allowed = ['type', 'position', 'answer'];
+  const keys = Object.keys(response);
+  return keys.includes('position') && keys.every((k) => allowed.includes(k));
+}
+
 export function isDeltaProjectInputResponse(response: InputResponse): response is DeltaProjectInputResponse {
   if (response.type !== 'deltaProject') {
     return false;
@@ -299,6 +321,7 @@ export type InputResponse =
   SelectInitialCardsResponse |
   SelectAmountResponse |
   DeltaProjectInputResponse |
+  DeltaStageRewardResponse |
   SelectCardResponse |
   SelectColonyResponse |
   SelectDelegateResponse |

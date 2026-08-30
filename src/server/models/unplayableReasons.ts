@@ -110,6 +110,9 @@ const FULLY_RESTATED_REQUIREMENTS: ReadonlySet<RequirementType> = new Set([
   RequirementType.TR, RequirementType.TAG, RequirementType.PRODUCTION,
   RequirementType.CITIES, RequirementType.GREENERIES, RequirementType.COLONIES,
   RequirementType.FLOATERS, RequirementType.RESOURCE_TYPES,
+  // «Requires N step(s) advanced on the Hydronetwork» restates the whole
+  // printed rule — the rules block adds nothing over the reason.
+  RequirementType.DELTA_POSITION,
 ]);
 
 /**
@@ -253,6 +256,10 @@ function requirementReason(req: CardRequirement, player: IPlayer, card: IProject
     return {type: 'count', message: 'Requires ${0} corruption', params: [String(required)], current};
   case RequirementType.UNDERGROUND_TOKENS:
     return {type: 'count', message: 'Requires ${0} underground token(s)', params: [String(required)], current};
+  case RequirementType.DELTA_POSITION:
+    // The position IS the steps-moved count (movement is monotone) — the
+    // `current` badge shows honest progress («сейчас: 3») against the bar.
+    return {type: 'count', message: 'Requires ${0} step(s) advanced on the Hydronetwork', params: [String(required)], current};
   case RequirementType.PARTY_LEADERS:
     return {type: 'party', message: 'Requires ${0} party leader(s)', params: [String(required)], current};
   case RequirementType.CHAIRMAN:

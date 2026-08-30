@@ -280,6 +280,7 @@
                              :bonusOffer="hydroBonusOfferLive ? hydroBonusOfferRaw : undefined"
                              :ownsPrompt="hydroBonusOfferRaw !== undefined"
                              :cardOffer="hydroCardOffer"
+                             :rewardOffer="hydroRewardOffer"
                              @bonus-answer="submitHydroBonus($event)"
                              @card-advance="submitHydroCardAdvance($event)"
                              @pick="openHydroRepeatPick"
@@ -287,7 +288,8 @@
                              @confirm="submitHydroAdvance($event)"
                              @collapse="collapseWorkspace()"
                              @result-done="finishHydroFlow()"
-                             @close="leaveWorkspace()" />
+                             @reward-picked="onHydroRewardPicked($event)"
+                             @close="onHydroClose()" />
       </transition>
 
       <!-- THE ACTION WORKSPACE («Действия карт») — the console-native
@@ -1677,6 +1679,10 @@ import {consoleHandPickState, cancelConsoleHandPick, enterConsoleHandPick, resol
 import {consoleRepeatPickState, cancelConsoleRepeatPick, enterConsoleRepeatPick, resetConsoleRepeatPick, ConsoleRepeatPickResult} from '@/client/console/consoleRepeatPick';
 import {hydroAdvanceBatch, hydroAdvanceResponses, hydroAdvanceTail, HydroAdvancePayload} from '@/client/console/consoleHydroAdvance';
 import {cardDeltaAdvanceCard, cardDeltaAdvanceOffer, clearCardDeltaAdvance, deltaAdvanceEntryState, deltaAdvancePrefix} from '@/client/console/hydroFlow/deltaAdvanceEntry';
+import {
+  DeltaRewardDraft, DeltaRewardPickRequest, cancelDeltaRewardPick, deltaRewardPickState,
+  isDeltaRewardPickActive, resetDeltaRewardPick, resolveDeltaRewardPick,
+} from '@/client/console/hydroFlow/deltaRewardEntry';
 import {consoleRepeatPickUi, resetConsoleRepeatPickUi} from '@/client/console/consoleRepeatPickUi';
 import {conUiScale, consoleLayoutState} from '@/client/console/consoleLayoutProfile';
 import {albumSpecFor} from '@/client/components/console/consoleHandAlbum';
@@ -5525,6 +5531,16 @@ export default defineComponent({
      * No admission gate, deliberately: an offer the player WALKED to has no
      * arriving effect to wait out, and there is no prompt to hold back.
      */
+    /** The REWARD-ONLY pick bridge (Dutch Mountains) — the request the hydro
+     *  section presents in reward-select mode while the bridge stands. */
+    hydroRewardOffer(): DeltaRewardPickRequest | undefined {
+      return deltaRewardPickState.active ? deltaRewardPickState.request : undefined;
+    },
+    /** The bridge's frame is alive (a PARKED one included) — the falling edge
+     *  cancels the pick so the composer never waits on a dead bridge. */
+    hydroRewardFrameLive(): boolean {
+      return workspaceFrameKnown('hydro');
+    },
     hydroCardOffer(): ReturnType<typeof cardDeltaAdvanceOffer> {
       return cardDeltaAdvanceOffer();
     },
@@ -7675,6 +7691,14 @@ export default defineComponent({
     repeatPickFrameLive(live: boolean) {
       if (!live && consoleRepeatPickState.active) {
         cancelConsoleRepeatPick();
+      }
+    },
+    // The reward-pick bridge (Dutch Mountains) dies with its frame the same
+    // way: a stack unwound by somebody else must return the composer its
+    // cancel, or it waits forever on a browser that is no longer rendered.
+    hydroRewardFrameLive(live: boolean) {
+      if (!live && isDeltaRewardPickActive()) {
+        cancelDeltaRewardPick();
       }
     },
     // THE RECOVERY NET: the SERVER phase drives the flow when the glide
@@ -13040,6 +13064,21 @@ export default defineComponent({
       });
       this.submitBatch(responses);
     },
+    /** The reward-only pick resolved — hand the draft back to the composer
+     *  (the bridge pops its own frame; the composer captures the response). */
+    onHydroRewardPicked(draft: DeltaRewardDraft): void {
+      resolveDeltaRewardPick(draft);
+    },
+    /** B / close from the hydro section: a live reward-pick bridge returns to
+     *  the composer with the old draft kept; every other provenance keeps the
+     *  ordinary lateral leave. */
+    onHydroClose(): void {
+      if (isDeltaRewardPickActive()) {
+        cancelDeltaRewardPick();
+        return;
+      }
+      leaveWorkspace();
+    },
     /** The flow is over (result read / skipped) — reset and go home. */
     finishHydroFlow(): void {
       if (this.hydroResultTimer !== undefined) {
@@ -15232,6 +15271,7 @@ export default defineComponent({
     resetHandPlayPrewarm(); // pending dwell timers + version-keyed previews
     resetConsoleRepeatPick(); // same for a repeat-action pick + its command store
     resetConsoleRepeatPickUi();
+    resetDeltaRewardPick(); // …and the stage-reward pick bridge (Dutch Mountains)
     // A composer's TABLEAU pick is module state too — fold it (cancel) so a
     // game switch never carries a live pick / dead callbacks across sessions.
     resetCategoryDirector();

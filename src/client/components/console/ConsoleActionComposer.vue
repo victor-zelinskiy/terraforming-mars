@@ -462,6 +462,24 @@
                   </span>
                 </div>
               </template>
+              <!-- The STAGE-REWARD slot (Dutch Mountains): empty → a prompt to
+                   walk the track; filled → the claimed stage + its picks, with
+                   the change affordance under the cursor (the target-summary
+                   grammar). Structural off the input's own type. -->
+              <template v-else-if="item.choice.input.type === 'deltaStageReward'">
+                <div class="con-composer__row-label">{{ $t('Stage reward') }}</div>
+                <div v-if="stageRewardSummary(item.choice) !== ''" class="con-composer__row-value">
+                  <span>{{ stageRewardSummary(item.choice) }}</span>
+                  <span class="con-composer__target-change" :class="{'con-composer__target-change--on': isFocused(item)}">
+                    <GamepadGlyph control="confirm" />
+                    <span>{{ $t('Change selection') }}</span>
+                  </span>
+                </div>
+                <div v-else class="con-composer__row-value">
+                  <span class="con-composer__row-empty">{{ $t('Choose a stage reward on the Hydronetwork') }}…</span>
+                </div>
+                <div class="con-composer__row-note">{{ $t('Your Hydronetwork position will not change.') }}</div>
+              </template>
               <template v-else>
                 <div class="con-composer__row-label">{{ choiceTitle(item.choice) }}</div>
                 <div class="con-composer__row-value">
@@ -643,7 +661,7 @@ import {Message} from '@/common/logs/Message';
 import {CardModel} from '@/common/models/CardModel';
 import {SpendableResource} from '@/common/inputs/Spendable';
 import {ActionPreview, ActionPreviewBranch, ActionEffect} from '@/common/models/ActionPreviewModel';
-import {SelectAmountModel, SelectCardModel, SelectPaymentModel, SelectPlayerModel, OrOptionsModel} from '@/common/models/PlayerInputModel';
+import {DeltaStageRewardInputModel, SelectAmountModel, SelectCardModel, SelectPaymentModel, SelectPlayerModel, OrOptionsModel} from '@/common/models/PlayerInputModel';
 import {ActionEntry} from '@/client/components/actions/actionModel';
 import {ActionGroup, playerActionGroups} from '@/client/components/actions/actionExtraction';
 import {branchPositionsForNode, branchSetAvailability, branchTitleText, stripNodeOr} from '@/client/components/actions/actionBranchView';
@@ -717,6 +735,10 @@ import ConsoleRevealVerdict from '@/client/components/console/foundation/Console
 import {isSurfaceAwaitingHandoff} from '@/client/console/surfaceMotion/surfaceMotionState';
 import {enterConsoleHandPick, isHandCardSelection, isCardSelectionWithin} from '@/client/console/consoleHandPick';
 import {enterConsoleRepeatPick, ConsoleRepeatPickResult} from '@/client/console/consoleRepeatPick';
+import {
+  DeltaRewardDraft, deltaRewardCommitSpecs, deltaRewardDraftOf, deltaRewardStepResponse, enterDeltaRewardPick,
+} from '@/client/console/hydroFlow/deltaRewardEntry';
+import {HYDRO_STAGES} from '@/client/components/hydronetwork/hydroStages';
 import {getCard} from '@/client/cards/ClientCardManifest';
 import ConsolePlayedTargetStep from '@/client/components/console/played/ConsolePlayedTargetStep.vue';
 import ConsolePlayedTargetLink from '@/client/components/console/played/ConsolePlayedTargetLink.vue';
@@ -919,6 +941,11 @@ export default defineComponent({
        *  action + its own composed responses. Filled by `consoleRepeatPick`;
        *  the confirm carries it as `repeat` (NOT a plain step response). */
       repeatResult: undefined as ConsoleRepeatPickResult | undefined,
+      /** The composed stage-reward claim (Dutch Mountains): the FULL draft —
+       *  its wire response is the ordinary captured step, but the composed
+       *  repeat inside it cannot be read back off the wire, so the claim /
+       *  commit-wave derivations keep the draft beside the capture. */
+      stageRewardDraft: undefined as DeltaRewardDraft | undefined,
       amounts: {} as Record<string, number>,
       floaters: {} as Record<string, number>,
       payCounts: {} as Record<string, Partial<Record<SpendableResource, number>>>,
@@ -2880,6 +2907,15 @@ export default defineComponent({
         }
         return;
       }
+      // A Hydronetwork STAGE-REWARD claim (Dutch Mountains) → the REAL track
+      // as the selection surface: the bridge hands the screen to the hydro
+      // workspace in reward-select mode and the composed draft returns as
+      // this step's ordinary captured response. Structural, off the input's
+      // own type — never a card name.
+      if (c.input.type === 'deltaStageReward') {
+        this.openStageRewardPick(c);
+        return;
+      }
       // A hand-card pick (Self-Replicating Robots' link branch: every candidate
       // — eligible AND greyed-with-reason — is a card in hand) routes to the
       // HAND SECTION's premium pick mode; a PLAYED-CARD pick descends into the
@@ -2927,6 +2963,45 @@ export default defineComponent({
         this.focusIdx = this.ctaIndex;
         this.scrollFocused();
       });
+    },
+    /**
+     * Hand the stage-reward claim to the Hydronetwork workspace in
+     * reward-select mode (the pick bridge idiom: this composer stays mounted
+     * underneath with its captures intact, the resolve captures the step's
+     * wire response and re-locates the choice by ID — the preview may have
+     * refreshed during the round trip). The full repeat composition is kept
+     * beside the capture (`stageRewardDraft`) for the claim/specs the wire
+     * response cannot carry back out.
+     */
+    openStageRewardPick(c: ComposerChoice): void {
+      const model = c.input as DeltaStageRewardInputModel;
+      enterDeltaRewardPick({
+        source: this.entry.cardName,
+        claimable: model.claimable,
+        prior: this.stageRewardDraft ?? deltaRewardDraftOf(this.captured[c.index]),
+      }, (draft) => {
+        this.stageRewardDraft = draft;
+        const cur = this.allChoices.find((x) => x.id === c.id) ?? c;
+        this.captureFor(cur, deltaRewardStepResponse(draft));
+        this.focusIdx = this.ctaIndex;
+        this.scrollFocused();
+      });
+    },
+    /** The captured claim, summarized for its row (stage name + the picks). */
+    stageRewardSummary(c: ComposerChoice): string {
+      const draft = deltaRewardDraftOf(this.captured[c.index]);
+      if (draft === undefined) {
+        return '';
+      }
+      const stage = HYDRO_STAGES[draft.position];
+      const parts: Array<string> = [
+        translateTextWithParams('Stage ${0}', [String(draft.position)]) +
+          (stage !== undefined ? ' · ' + translateText(stage.nameKey) : ''),
+      ];
+      if (draft.selectedCard !== undefined) {
+        parts.push(translateCardName(draft.selectedCard));
+      }
+      return parts.join(' — ');
     },
     /** The A-verb a requirement publishes while it holds the cursor. The keys
      *  are the ones the held line already uses — ONE vocabulary, not two. */
@@ -3411,8 +3486,17 @@ export default defineComponent({
         // BOTH read the captures: a branch whose result is chosen in a step
         // («любой стандартный ресурс») has no chips of its own, so the category
         // and the reward wave are only knowable once the answer is in hand.
-        const kind = commitKindForBranch(branch, this.captured);
-        const specs = commitRewardSpecs(this.entry.cardName, branch, this.captured);
+        // A captured STAGE-REWARD claim (Dutch Mountains) contributes the
+        // claimed stage's own transfers/category the same way — through the
+        // one reward view every hydro landing uses, structural off the track.
+        const stageDraft = this.stageRewardDraft;
+        const stageSpecs = stageDraft !== undefined ?
+          deltaRewardCommitSpecs(stageDraft, this.playerView) : [];
+        const stageFollowUp = stageDraft !== undefined ? HYDRO_STAGES[stageDraft.position]?.followUp : undefined;
+        const baseKind = commitKindForBranch(branch, this.captured);
+        const kind = stageFollowUp === 'draw' || stageFollowUp === 'reuse-action' ? 'draw' :
+          (baseKind === 'generic' && stageSpecs.length > 0 ? 'resources' : baseKind);
+        const specs = [...commitRewardSpecs(this.entry.cardName, branch, this.captured), ...stageSpecs];
         const root = this.$refs.rootEl as HTMLElement | undefined;
         const wrap = root?.querySelector<HTMLElement>('.con-composer__actcardwrap') ?? undefined;
         const anchors = wrap !== undefined ? resolveActionCommitAnchors(wrap, this.actionGraphicNode) : undefined;
@@ -3447,6 +3531,10 @@ export default defineComponent({
         // read-only NESTED slot never composed one — the server asks next.
         stepResponses: orderedStepResponses(branch, this.captured),
         repeat: this.repeatPickDisabled ? undefined : this.repeatResult,
+        // The captured stage-reward claim WITH its composed repeat (the wire
+        // response cannot carry the composition back out) — the confirm's
+        // claim derivation reads it structurally.
+        stageReward: this.stageRewardDraft,
       });
     },
     // ── the reveal phase ─────────────────────────────────────────────────

@@ -4,6 +4,22 @@ import {DeltaProjectInputModel} from '../../common/models/PlayerInputModel';
 import {InputError} from '../inputs/InputError';
 import {CardName} from '../../common/cards/CardName';
 
+/**
+ * The STRUCTURAL shape check of one pre-answered stage ask — shared by the
+ * move step's `answers` and the reward-only claim's `answer` (Dutch
+ * Mountains), so the two doors cannot drift. Authoritative VALIDITY (is the
+ * position reachable, is the card a live candidate) is checked at consume
+ * time against live state; this only refuses malformed wire shapes.
+ */
+export function isStructurallyValidStageAnswer(a: DeltaStageAnswer | null | undefined): boolean {
+  return a !== null && a !== undefined && typeof a === 'object' &&
+    Number.isInteger(a.position) && a.position >= 0 && a.position <= 11 &&
+    (a.rewardChoice === undefined || (Number.isInteger(a.rewardChoice) && a.rewardChoice >= 0)) &&
+    (a.selectedCard === undefined || typeof a.selectedCard === 'string') &&
+    (a.repeatResponses === undefined || (Array.isArray(a.repeatResponses) &&
+      a.repeatResponses.every((r: unknown) => r !== null && typeof r === 'object')));
+}
+
 export class DeltaProjectInput extends BasePlayerInput<number> {
   /**
    * The response consciously declined the landed stage's TARGET-bearing reward
@@ -107,13 +123,7 @@ export class DeltaProjectInput extends BasePlayerInput<number> {
       throw new InputError('Planned choices must name track positions and options');
     }
     const answers = input.answers ?? [];
-    if (!Array.isArray(answers) ||
-        answers.some((a) => a === null || typeof a !== 'object' ||
-          !Number.isInteger(a.position) || a.position < 0 || a.position > 11 ||
-          (a.rewardChoice !== undefined && (!Number.isInteger(a.rewardChoice) || a.rewardChoice < 0)) ||
-          (a.selectedCard !== undefined && typeof a.selectedCard !== 'string') ||
-          (a.repeatResponses !== undefined && (!Array.isArray(a.repeatResponses) ||
-            a.repeatResponses.some((r: unknown) => r === null || typeof r !== 'object'))))) {
+    if (!Array.isArray(answers) || answers.some((a) => !isStructurallyValidStageAnswer(a))) {
       throw new InputError('Stage answers must name track positions with valid picks');
     }
     this.waiveReward = input.waiveReward === true;

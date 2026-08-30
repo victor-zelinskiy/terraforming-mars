@@ -1165,6 +1165,10 @@ export default defineComponent({
     },
     // ── amount ───────────────────────────────────────────────────────
     amountMin(): number {
+      if (this.wf?.type === 'deltaStageReward') {
+        const c = (this.wf as PlayerInputModel & {type: 'deltaStageReward'}).claimable;
+        return c.length > 0 ? Math.min(...c) : 0;
+      }
       return this.wf?.type === 'amount' ? (this.wf as PlayerInputModel & {type: 'amount'}).min : 0;
     },
     amountMax(): number {
@@ -1173,6 +1177,10 @@ export default defineComponent({
       }
       if (this.wf?.type === 'deltaProject') {
         return (this.wf as PlayerInputModel & {type: 'deltaProject', max?: number}).max ?? 0;
+      }
+      if (this.wf?.type === 'deltaStageReward') {
+        const c = (this.wf as PlayerInputModel & {type: 'deltaStageReward'}).claimable;
+        return c.length > 0 ? Math.max(...c) : 0;
       }
       return 0;
     },
@@ -3024,7 +3032,14 @@ export default defineComponent({
         return;
       }
       case 'amount':
-        this.submitResponse( this.activeTask.flavor === 'delta' ? deltaProjectResponse(this.value) : amountResponse(this.value));
+        // The 'delta' flavor serves BOTH Hydronetwork shapes on divergence:
+        // the move stepper answers the move step; the reward-only claim
+        // answers with its own positioned response.
+        this.submitResponse( this.activeTask.flavor === 'delta' ?
+          (this.wf?.type === 'deltaStageReward' ?
+            {type: 'deltaStageReward' as const, position: this.value} :
+            deltaProjectResponse(this.value)) :
+          amountResponse(this.value));
         return;
       case 'resource': {
         const unit = this.resourceUnits[this.focusIdx];

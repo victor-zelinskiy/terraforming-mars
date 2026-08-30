@@ -62,6 +62,11 @@ export type CardRequirementDescriptor = {
   undergroundTokens?: number,
   corruption?: number,
 
+  // Delta Project («Гидросеть»)
+  /** Requires the player's Hydronetwork track position to be at least N —
+   *  movement is monotone, so the position IS the steps-moved count. */
+  deltaPosition?: number,
+
   // Adjectives
   count?: number,
   max?: boolean,
@@ -119,6 +124,8 @@ export function requirementType(descriptor: CardRequirementDescriptor): Requirem
     return RequirementType.UNDERGROUND_TOKENS;
   } else if (descriptor.corruption !== undefined) {
     return RequirementType.CORRUPTION;
+  } else if (descriptor.deltaPosition !== undefined) {
+    return RequirementType.DELTA_POSITION;
   } else {
     throw new Error('Unknown requirement: ' + JSON.stringify(descriptor));
   }

@@ -56,7 +56,9 @@
                {
                  'con-hydro__stop--focused': stop.vm.isSelected,
                  'con-hydro__stop--vp': stop.vm.stage.vp !== undefined,
-                 'con-hydro__stop--dimmed': !globallyActable && stop.vm.state !== 'current' && stop.vm.state !== 'completed',
+                 'con-hydro__stop--dimmed': rewardOffer !== undefined ?
+                   !rewardClaimableSet.has(stop.position) :
+                   (!globallyActable && stop.vm.state !== 'current' && stop.vm.state !== 'completed'),
                  'con-hydro__stop--route-paid': stop.vm.routeRewarded,
                  'con-hydro__stop--route-excl': stop.vm.routeExcluded,
                },
@@ -402,6 +404,27 @@
               </div>
         </div>
 
+        <!-- ═══ REWARD-ONLY PICK (Dutch Mountains) — the track as a pure
+             SELECTION surface: the focused stage's honest «Вы получите»
+             through the one shared gains block, the eligibility verdict in
+             plain words, and NOTHING of the movement grammar (no route, no
+             price, no destination) — the position will not change and the
+             scene may not suggest otherwise. ═══ -->
+        <div v-else-if="sceneKey === 'reward-pick'" key="reward-pick" class="con-hydro__layer con-hydro__layer--rewardpick">
+          <div class="con-hydro__panelbody">
+            <div class="con-hydro__detailline" data-unfold-item>
+              <span class="con-hydro__detail-status">{{ $t('Choose the reward of your current stage or one you have passed. Your Hydronetwork position will not change.') }}</span>
+            </div>
+            <ConsoleHydroGains v-if="rewardFocusClaimable"
+                               :view="rewardFocusView"
+                               :options="rewardFocusAsk?.kind === 'choice' && !rewardFocusAsk.answered ? selectedStage.rewardOptions : undefined"
+                               data-unfold-item />
+            <div v-else class="con-hydro__routenotes" data-unfold-item>
+              <span class="con-hydro__routenote">↷ {{ $t(rewardFocusBlockKey) }}</span>
+            </div>
+          </div>
+        </div>
+
         <!-- ═══ COMMIT — the marker is travelling / the landed stage pays.
              The route and the price live in the context column (frozen off
              the record); this zone narrates the BEAT and hosts the landed
@@ -668,6 +691,33 @@
               </button>
             </div>
 
+            <!-- REWARD-ONLY PICK: the ask's status (a reserved line — the act
+                 column may not re-seat the CTA when it appears) + the ONE
+                 confirm that RETURNS the draft to the asking composer. It
+                 never says «Укрепить» — nothing moves. -->
+            <div v-else-if="actKey === 'reward-pick'" key="reward-pick" class="con-hydro__ctazone">
+              <p class="con-hydro__pickwarn" :class="{'con-hydro__pickwarn--on': rewardAskLabel !== ''}" role="status">
+                <span v-if="rewardAskLabel !== ''">
+                  <span v-if="rewardFocusAsk?.answered === true" class="con-hydro__bonus-tick" aria-hidden="true">✓</span>
+                  <span v-else class="con-hydro__pickwarn-mark" aria-hidden="true">→</span>
+                  {{ $t(rewardAskLabel) }}
+                </span>
+              </p>
+              <button type="button"
+                      class="con-hydro__cta"
+                      :class="{
+                        'con-hydro__cta--disabled': !rewardPickReady,
+                        'con-hydro__cta--focused': sceneFocus === 'cta',
+                      }"
+                      :aria-disabled="!rewardPickReady ? 'true' : undefined"
+                      @click="onRewardPickPrimary">
+                <span class="con-glyphslot" :class="{'con-glyphslot--ghost': sceneFocus !== 'cta'}" aria-hidden="true">
+                  <GamepadGlyph control="confirm" />
+                </span>
+                <span>{{ $t('Select the stage reward') }}</span>
+              </button>
+            </div>
+
             <!-- BONUS: the SAME primary the player's own advance wears, named
                  by the NEXT REQUIRED INTERACTION («Выберите награду» over an
                  unresolved stage choice, «Укрепить гидросеть» when ready) —
@@ -834,6 +884,7 @@ import {backLabelForVerb, backVerbWithOwedPrompt, WorkspaceBackVerb} from '@/cli
 import {getCard} from '@/client/cards/ClientCardManifest';
 import {reasonParams} from '@/client/cards/tagLabel';
 import {DeltaOfferOrigin, HYDRO_PRIMARY_KEY, HydroNextInteraction, hydroAdvanceCopy, hydroNextInteraction, hydroZoneState} from '@/client/console/hydroFlow/hydroBonusOffer';
+import type {DeltaRewardDraft, DeltaRewardPickRequest} from '@/client/console/hydroFlow/deltaRewardEntry';
 import type {DeltaAdvanceOffer, DeltaBonusPromptMeta} from '@/common/models/DeltaBonusPromptModel';
 import {conUiScale, consoleLayoutState} from '@/client/console/consoleLayoutProfile';
 import {motionMs} from '@/client/components/motion/motionTokens';
@@ -873,7 +924,7 @@ type RailStop = {
 
 type GroupNode = ActionGroup['nodes'][number];
 
-type SceneKey = 'preview' | 'choice' | 'target' | 'payment' | 'bonus' | 'commit' | 'result';
+type SceneKey = 'preview' | 'choice' | 'target' | 'payment' | 'bonus' | 'reward-pick' | 'commit' | 'result';
 
 /** The scene cursor's stops. Rail decisions are DATA-driven nodes
  *  (`rail:<id>` — see `hydroDecisionRail.ts`); the rest are the scenes' own
@@ -952,8 +1003,18 @@ export default defineComponent({
      * pre-select) and the ONE confirm at the end sends the card's whole batch.
      */
     cardOffer: {type: Object as PropType<DeltaAdvanceOffer>, default: undefined},
+    /**
+     * A REWARD-ONLY STAGE PICK (Dutch Mountains): the workspace is a pure
+     * SELECTION surface — the player studies the track, picks ONE claimable
+     * (reached, non-Jovian, non-VP) stage and its nested pre-selects, and the
+     * resolve RETURNS to the asking composer. No movement is presented, no
+     * route, no price, nothing submits from here: the marker shows the real
+     * position throughout, and the final commit is the composer's own batch.
+     * `claimable` is the SERVER's list (the input model's) — never re-derived.
+     */
+    rewardOffer: {type: Object as PropType<DeltaRewardPickRequest>, default: undefined},
   },
-  emits: ['close', 'confirm', 'pick', 'notice', 'collapse', 'result-done', 'bonus-answer', 'card-advance', 'inspect-source'],
+  emits: ['close', 'confirm', 'pick', 'notice', 'collapse', 'result-done', 'bonus-answer', 'card-advance', 'inspect-source', 'reward-picked'],
   setup() {
     const {reduced} = useConsoleReducedMotion();
     return {reducedMotion: reduced};
@@ -1407,6 +1468,13 @@ export default defineComponent({
       if (this.flow.step === 'payment') {
         return 'payment';
       }
+      // The REWARD-ONLY PICK (Dutch Mountains): a pure selection surface — it
+      // outranks the browse layer for as long as the bridge stands, and its
+      // nested steps (the scoped reward choice / the target grid / the repeat
+      // browser) already took precedence above.
+      if (this.rewardOffer !== undefined) {
+        return 'reward-pick';
+      }
       if (zone === 'bonus-offer') {
         return 'bonus';
       }
@@ -1423,9 +1491,96 @@ export default defineComponent({
       case 'choice': return this.choicePosition !== undefined ? 'quiet' : 'choice';
       case 'payment': return 'payment';
       case 'bonus': return 'bonus';
+      case 'reward-pick': return 'reward-pick';
       case 'commit':
       case 'target': return 'quiet';
       default: return 'result';
+      }
+    },
+    // ── the REWARD-ONLY PICK (Dutch Mountains) ────────────────────────────
+    /** The server's claimable set — the ONE eligibility source of this mode. */
+    rewardClaimableSet(): Set<number> {
+      return new Set(this.rewardOffer?.claimable ?? []);
+    },
+    /** The focused stage is claimable (the CTA / A-press gate). */
+    rewardFocusClaimable(): boolean {
+      return this.rewardClaimableSet.has(this.model.selectedPosition);
+    },
+    /** WHAT the focused stage asks before it can be claimed, and whether the
+     *  ask is answered — the per-position drafts are the traversal's own. */
+    rewardFocusAsk(): {kind: 'choice' | 'target' | 'repeat', answered: boolean} | undefined {
+      const pos = this.model.selectedPosition;
+      const stage = HYDRO_STAGES[pos];
+      if (stage === undefined || !this.rewardFocusClaimable) {
+        return undefined;
+      }
+      if (hydroStageNeedsChoice(stage)) {
+        return {kind: 'choice', answered: hydroNetworkState.planChoices[pos] !== undefined};
+      }
+      if (stage.followUp === 'reuse-action') {
+        // No candidate at all → the reward fizzles server-side; nothing to ask.
+        if ((this.preview?.reuseActionCards ?? []).length === 0) {
+          return undefined;
+        }
+        return {kind: 'repeat', answered: hydroNetworkState.selectedCard !== undefined};
+      }
+      if (stage.followUp === 'add-animals') {
+        if ((this.preview?.animalTargetCards ?? []).length === 0) {
+          return undefined;
+        }
+        return {kind: 'target', answered: hydroNetworkState.planPicks[pos] !== undefined};
+      }
+      return undefined;
+    },
+    /** The pick is complete: a claimable stage with its ask (if any) answered. */
+    rewardPickReady(): boolean {
+      return this.rewardFocusClaimable && (this.rewardFocusAsk?.answered !== false);
+    },
+    /** The focused stage's honest «Вы получите» — the ONE stage-addressed view
+     *  every landing uses (no movement, no route, no destination model). */
+    rewardFocusView(): HydroRewardView {
+      const pos = this.model.selectedPosition;
+      return buildRewardView({
+        stage: HYDRO_STAGES[pos],
+        snapshot: this.snapshot,
+        rewardChoice: hydroNetworkState.planChoices[pos],
+        animalTargetCurrent: hydroNetworkState.planPicks[pos] !== undefined ?
+          this.animalCurrentOf(hydroNetworkState.planPicks[pos] as CardName) : undefined,
+        animalTargetCardName: hydroNetworkState.planPicks[pos],
+      });
+    },
+    /** Why the focused stage cannot be claimed — semantic, off the track
+     *  configuration, never a number literal or a localized name. */
+    rewardFocusBlockKey(): string {
+      const pos = this.model.selectedPosition;
+      if (this.rewardFocusClaimable) {
+        return '';
+      }
+      const stage = HYDRO_STAGES[pos];
+      if (stage === undefined || pos === 0) {
+        return 'The start cell has no stage reward';
+      }
+      if (pos > this.model.currentPosition) {
+        return 'The stage has not been reached yet';
+      }
+      if (stage.vp !== undefined) {
+        return 'The VP steps cannot be claimed by this action';
+      }
+      if (stage.tag === Tag.JOVIAN) {
+        return 'The Jovian step cannot be claimed by this action';
+      }
+      return 'The stage reward is not claimable';
+    },
+    /** The reward-pick mode's own ask row copy (the act column's status). */
+    rewardAskLabel(): string {
+      const ask = this.rewardFocusAsk;
+      if (ask === undefined) {
+        return '';
+      }
+      switch (ask.kind) {
+      case 'choice': return ask.answered ? 'Reward option selected' : 'Choose the stage reward';
+      case 'repeat': return ask.answered ? 'Action selected' : 'Choose an action to repeat';
+      default: return ask.answered ? 'Target card selected' : 'Choose a card to receive the animals';
       }
     },
     /**
@@ -1487,6 +1642,15 @@ export default defineComponent({
             from: offer.fromPosition, to: offer.toPosition,
             energy: offer.energyCost, steel: 0, free: offer.energyCost === 0,
           },
+        };
+      }
+      // The REWARD-ONLY PICK: the source card is the identity, and there is
+      // deliberately NO route — this mode presents no movement, no price, no
+      // destination. The badge names the mode.
+      if (this.rewardOffer !== undefined) {
+        return {
+          kind: 'source', source: this.rewardOffer.source,
+          badge: {kind: 'offer', text: $t('Reward selection')},
         };
       }
       const s = this.selectedStage;
@@ -2102,6 +2266,14 @@ export default defineComponent({
       if (this.sceneKey === 'bonus') {
         return this.bonusStageKey;
       }
+      // The reward-only pick's own tail; its nested steps advance it further.
+      if (this.rewardOffer !== undefined && this.flow.commit === undefined) {
+        switch (this.flow.step) {
+        case 'reward': return 'Reward choice';
+        case 'target': return 'Target card';
+        default: return this.flow.repeatBridge ? 'Repeat action' : 'Reward selection';
+        }
+      }
       const c = this.flow.commit;
       if (c !== undefined) {
         if (c.phase === 'result') {
@@ -2188,8 +2360,14 @@ export default defineComponent({
 
     // ── the TARGET step (pos 9) ────────────────────────────────────────────
     /** The animal-target eligibility, whichever shape asks it: the traversal's
-     *  own stage-9 entry, or the single landing's destination-derived list. */
+     *  own stage-9 entry, the reward-only pick's server list, or the single
+     *  landing's destination-derived list. */
     animalTargetEligible(): ReadonlyArray<CardName> {
+      // The reward-only pick asks the SERVER's own candidate list — the track
+      // preview carries it independently of any movement destination.
+      if (this.rewardOffer !== undefined) {
+        return this.rewardFocusAsk?.kind === 'target' ? (this.preview?.animalTargetCards ?? []) : [];
+      }
       if (this.traversalActive && this.advanceOffer === undefined) {
         const s = this.traversalAnimalStage;
         return s !== undefined && s.mustSelect ? (this.preview?.animalTargetCards ?? []) : [];
@@ -2221,6 +2399,9 @@ export default defineComponent({
       return Math.max(0, this.targetZoneH);
     },
     targetLockedCard(): string {
+      if (this.rewardOffer !== undefined) {
+        return hydroNetworkState.planPicks[this.model.selectedPosition] ?? '';
+      }
       if (this.traversalActive && this.advanceOffer === undefined) {
         return this.traversalAnimalStage?.pick ?? '';
       }
@@ -2378,6 +2559,21 @@ export default defineComponent({
           {control: 'bumperL', control2: 'bumperR', label: 'Payment mix', priority: 2},
           {control: 'confirm', label: 'Reinforce the hydronetwork'},
           {control: 'back', label: 'Back'},
+        ];
+      }
+      // REWARD-ONLY PICK: the track walk, ONE confirm whose label follows the
+      // owed ask, the source inspect and the way back — never a movement verb.
+      if (this.sceneKey === 'reward-pick') {
+        const ask = this.rewardFocusAsk;
+        return [
+          {control: 'dpadH', label: 'Stages', priority: 2},
+          {
+            control: 'confirm',
+            label: ask !== undefined && !ask.answered ? this.rewardAskLabel : 'Select the stage reward',
+            enabled: this.rewardFocusClaimable,
+          },
+          {control: 'secondary', label: 'Inspect'},
+          {control: 'back', label: 'Back to the action'},
         ];
       }
       if (this.sceneKey === 'bonus') {
@@ -2751,6 +2947,7 @@ export default defineComponent({
     // THE MOUNT EDGE of the seating — after the restore plan, whose fresh-open
     // branch resets the very field the offer needs seated.
     this.seatPlanOnOffer();
+    this.seatRewardPick();
     if (this.flow.step === 'target') {
       void this.$nextTick(() => this.seatTargetStep());
     }
@@ -3017,6 +3214,14 @@ export default defineComponent({
       // leave the latch set and swallow the NEXT real external revision).
       this.selfKeyChange = true;
       hydroNetworkState.selectedPosition = next;
+      // The REWARD-ONLY PICK walks FOCUS between stages, never destinations:
+      // the per-position drafts are position-scoped by construction, so a
+      // walk keeps them (stepping back onto a configured stage restores its
+      // answers) — only an incompatible shared repeat is filtered at resolve.
+      if (this.rewardOffer !== undefined) {
+        this.sceneFocus = 'track';
+        return;
+      }
       // NO SILENT DEFAULTS: a choice stage starts unconfigured — the player
       // sees both options and picks one deliberately, inside its own step.
       hydroNetworkState.rewardChoice = undefined;
@@ -3717,6 +3922,17 @@ export default defineComponent({
       if (candidate === undefined) {
         return;
       }
+      // The reward-only pick writes the FOCUSED stage's per-position draft
+      // (the traversal's own dictionary) and returns to the pick's CTA.
+      if (this.rewardOffer !== undefined) {
+        hydroNetworkState.planPicks = {
+          ...hydroNetworkState.planPicks,
+          [this.model.selectedPosition]: candidate.cardName as CardName,
+        };
+        closeHydroStep();
+        this.sceneFocus = 'cta';
+        return;
+      }
       // A traversal writes ITS stage's draft and hands the cursor on; the
       // single landing keeps the shared-field write (whose own watcher does
       // the same hand-off).
@@ -3768,6 +3984,88 @@ export default defineComponent({
           (i) => cards[i]?.name ?? '',
           ''),
       });
+    },
+    // ── the REWARD-ONLY PICK (Dutch Mountains) ────────────────────────────
+    /**
+     * A on the pick's surface: an unanswered ASK opens its own existing
+     * selector (the scoped reward-choice step / the embedded target grid /
+     * the repeat browser bridge — nothing here is a second implementation);
+     * a complete pick RESOLVES the bridge and returns to the composer.
+     */
+    onRewardPickPrimary(): void {
+      const ask = this.rewardFocusAsk;
+      if (!this.rewardFocusClaimable) {
+        this.$emit('notice', translateText(this.rewardFocusBlockKey));
+        return;
+      }
+      if (ask !== undefined && !ask.answered) {
+        this.openRewardAsk(ask.kind);
+        return;
+      }
+      this.resolveRewardPick();
+    },
+    /** Route ONE ask into the machinery the workspace already owns. */
+    openRewardAsk(kind: 'choice' | 'target' | 'repeat'): void {
+      switch (kind) {
+      case 'choice':
+        this.openChoiceStep(this.model.selectedPosition);
+        return;
+      case 'target':
+        this.openTargetStep();
+        return;
+      default:
+        // The stage-7 repeat browser — the shell's bridge writes
+        // `hydroNetworkState.selectedCard` + `consoleHydroUi.repeatResult`.
+        this.$emit('pick');
+        return;
+      }
+    },
+    /** The draft, assembled from the per-position machinery and RETURNED —
+     *  nothing submits, nothing is spent, the marker never moved. */
+    resolveRewardPick(): void {
+      if (!this.rewardPickReady) {
+        return;
+      }
+      const pos = this.model.selectedPosition;
+      const repeat = consoleHydroUi.repeatResult;
+      const repeatCard = this.rewardFocusAsk?.kind === 'repeat' ? hydroNetworkState.selectedCard : undefined;
+      const draft: DeltaRewardDraft = {
+        position: pos,
+        rewardChoice: hydroNetworkState.planChoices[pos],
+        selectedCard: this.rewardFocusAsk?.kind === 'target' ? hydroNetworkState.planPicks[pos] : repeatCard,
+        repeat: repeatCard !== undefined && repeat?.chosenCard === repeatCard ? repeat : undefined,
+      };
+      this.$emit('reward-picked', draft);
+    },
+    /** Seat the pick on ITS OWN stage: the remembered draft's stage on a
+     *  re-open, else the FARTHEST claimable one (the current stage when it is
+     *  claimable; the nearest earlier claimable when the marker stands on an
+     *  excluded cell). Prior nested answers re-seed the per-position drafts. */
+    seatRewardPick(): void {
+      const offer = this.rewardOffer;
+      if (offer === undefined) {
+        return;
+      }
+      const prior = offer.prior;
+      const claimable = offer.claimable;
+      const seat = prior !== undefined && claimable.includes(prior.position) ?
+        prior.position :
+        (claimable.length > 0 ? claimable[claimable.length - 1] : this.model.currentPosition);
+      hydroNetworkState.selectedPosition = seat;
+      if (prior !== undefined && claimable.includes(prior.position)) {
+        if (prior.rewardChoice !== undefined) {
+          hydroNetworkState.planChoices = {...hydroNetworkState.planChoices, [prior.position]: prior.rewardChoice};
+        }
+        if (prior.selectedCard !== undefined) {
+          const stage = HYDRO_STAGES[prior.position];
+          if (stage?.followUp === 'add-animals') {
+            hydroNetworkState.planPicks = {...hydroNetworkState.planPicks, [prior.position]: prior.selectedCard};
+          } else {
+            hydroNetworkState.selectedCard = prior.selectedCard;
+          }
+        }
+      }
+      this.sceneFocus = 'track';
     },
     // ── the CEREMONY (pos 10/11) ───────────────────────────────────────────
     /**
@@ -3952,6 +4250,35 @@ export default defineComponent({
           return;
         case 'back':
           this.closePaymentStep();
+          return;
+        default:
+          return;
+        }
+      }
+      // REWARD-ONLY PICK — the track is the selection surface: ←/→ walks the
+      // stages, ↑/↓ walks track ↔ CTA, A opens the focused stage's ask (or
+      // resolves a complete pick), B returns to the composer unchanged.
+      if (this.sceneKey === 'reward-pick') {
+        if (intent.kind === 'nav') {
+          if (intent.dir === 'left' || intent.dir === 'right') {
+            this.sceneFocus = 'track';
+            this.selectPosition(this.model.selectedPosition + (intent.dir === 'right' ? 1 : -1));
+          } else if (intent.dir === 'down') {
+            this.sceneFocus = 'cta';
+          } else if (intent.dir === 'up') {
+            this.sceneFocus = 'track';
+          }
+          return;
+        }
+        switch (consoleActionOf(intent)) {
+        case 'primary':
+          this.onRewardPickPrimary();
+          return;
+        case 'inspect':
+          this.inspectBonusSource();
+          return;
+        case 'back':
+          this.$emit('close');
           return;
         default:
           return;

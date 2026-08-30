@@ -507,6 +507,11 @@ export function taskFor(view: PlayerViewModel): ConsoleTask | undefined {
     // The Hydronetwork energy stepper — the amount family (normally
     // pre-answered by the hydro confirm batch; standalone = a divergence).
     return {kind: 'amount', flavor: 'delta'};
+  case 'deltaStageReward':
+    // The reward-only stage claim (Dutch Mountains) — normally pre-answered
+    // by the composer's batch; standalone = a divergence. The amount family
+    // serves it as a numbered pick over the claimable positions.
+    return {kind: 'amount', flavor: 'delta'};
   case 'resource':
     return {kind: 'resource'};
   case 'resources':

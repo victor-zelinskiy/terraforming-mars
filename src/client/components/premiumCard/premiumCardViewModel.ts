@@ -215,6 +215,11 @@ const REQUIREMENT_RENDER: Partial<Record<RequirementType, RequirementRender>> = 
   [RequirementType.PARTY]: {value: () => 0, binary: true},
   [RequirementType.CHAIRMAN]: {value: () => 0, iconUrl: `${MISC}/chairman.png`, binary: true},
   [RequirementType.PARTY_LEADERS]: {value: (d) => d.partyLeader ?? d.count ?? 1, iconUrl: `${MISC}/delegate.png`},
+  // Hydronetwork track progress (Dutch Mountains): the module's own medallion
+  // is the ONE established glyph of the track — the same mark the DP cards
+  // carry in their expansion corner, so «[Гидросеть] ≥ 4» reads as track
+  // progress and can never be mistaken for an energy price or an action count.
+  [RequirementType.DELTA_POSITION]: {value: (d) => d.deltaPosition ?? d.count ?? 1, iconUrl: 'assets/expansion_icons/expansion_icon_deltaProject.png'},
 };
 
 export function normalizeRequirement(descriptor: CardRequirementDescriptor): NormalizedRequirement {

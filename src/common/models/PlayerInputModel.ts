@@ -776,6 +776,14 @@ export type DeltaProjectInputModel = BaseInputModel & {
   validSteps: ReadonlyArray<number>;
 }
 
+/** A REWARD-ONLY Hydronetwork stage claim (Dutch Mountains): the server's own
+ *  list of claimable stage positions — the client renders and validates
+ *  against THIS, never a re-derivation. */
+export type DeltaStageRewardInputModel = BaseInputModel & {
+  type: 'deltaStageReward';
+  claimable: ReadonlyArray<number>;
+}
+
 export type SelectDelegateModel = BaseInputModel & {
   type: 'delegate';
   players: Array<ColorWithNeutral>;
@@ -842,4 +850,5 @@ export type PlayerInputModel =
   SelectResourceModel |
   SelectResourcesModel |
   SelectClaimedUndergroundTokenModel |
-  DeltaProjectInputModel;
+  DeltaProjectInputModel |
+  DeltaStageRewardInputModel;

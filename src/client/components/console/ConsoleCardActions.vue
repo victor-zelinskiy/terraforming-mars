@@ -561,7 +561,9 @@ import {
   workspaceOutcomeClaimed,
   workspaceOutcomeState,
   WorkspaceOutcomeKind,
+  WorkspaceOutcomeScope,
 } from '@/client/console/consoleWorkspaceOutcome';
+import {DeltaRewardDraft, deltaRewardClaimPlan} from '@/client/console/hydroFlow/deltaRewardEntry';
 import {currentRevealEvent} from '@/client/components/drawnCards/drawnCardsState';
 import ConsoleActionComposer, {ComposerOutcome} from '@/client/components/console/ConsoleActionComposer.vue';
 import ConsoleCardFaceLite from '@/client/components/console/cardDeal/ConsoleCardFaceLite.vue';
@@ -2088,7 +2090,7 @@ export default defineComponent({
     },
     /** Assemble + submit the byte-identical batch (revalidated at submit time,
      *  mirroring PlayerHome.submitCardActionBatch's re-walk). */
-    onComposerConfirm(payload: {branchIndex: number, preResponses: ReadonlyArray<unknown>, optionResponse: unknown, stepResponses: ReadonlyArray<unknown>, repeat?: ConsoleRepeatPickResult}): void {
+    onComposerConfirm(payload: {branchIndex: number, preResponses: ReadonlyArray<unknown>, optionResponse: unknown, stepResponses: ReadonlyArray<unknown>, repeat?: ConsoleRepeatPickResult, stageReward?: DeltaRewardDraft}): void {
       const comp = this.composer;
       if (comp === undefined) {
         return;
@@ -2175,8 +2177,28 @@ export default defineComponent({
         if (expectedCards > 0) {
           kinds.push('draw', 'pick');
         }
+        // A CLAIMED HYDRONETWORK STAGE REWARD (Dutch Mountains) sends back
+        // whatever THAT stage's resolution raises — the stage-5 keep-pick
+        // batch, a composed repeat's draws / deck-check verdict — and it must
+        // land IN THIS STAGE exactly like the branch's own draws. Derived
+        // structurally from the track configuration + the composed pick's
+        // cached preview (`deltaRewardClaimPlan`), never from a card literal.
+        let stageScope: WorkspaceOutcomeScope | undefined;
+        if (payload.stageReward !== undefined) {
+          const plan = deltaRewardClaimPlan(payload.stageReward);
+          if (plan !== undefined) {
+            for (const k of plan.kinds) {
+              if (!kinds.includes(k)) {
+                kinds.push(k);
+              }
+            }
+            expectedCards += plan.expectedCards;
+            stageScope = plan.scope;
+          }
+        }
         if (kinds.length > 0) {
-          claimWorkspaceOutcome('card-actions', comp.cardName, kinds, comp.nodeIndex, expectedCards);
+          claimWorkspaceOutcome('card-actions', comp.cardName, kinds, comp.nodeIndex, expectedCards,
+            stageScope ?? 'card');
         }
         if (branch?.reveal !== undefined) {
           this.outcomeFlow = {kind: 'deck-check'};

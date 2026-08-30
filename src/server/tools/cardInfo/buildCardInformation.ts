@@ -236,6 +236,11 @@ function requirementBlock(descriptor: CardRequirementDescriptor, dup: number, no
     en = 'Requires that plants were removed from any player this generation.';
     break;
   }
+  case RequirementType.DELTA_POSITION: {
+    const n = descriptor.deltaPosition ?? descriptor.count ?? 1;
+    en = `Requires that you have moved ${enCount(n, 'step', 'steps')} on the Hydronetwork track.`;
+    break;
+  }
   default:
     notes.push(`requirement type '${type}' not templated`);
     return undefined;

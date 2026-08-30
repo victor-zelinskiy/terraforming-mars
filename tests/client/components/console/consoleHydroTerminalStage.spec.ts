@@ -1,7 +1,6 @@
 import {expect} from 'chai';
 import {mount} from '@vue/test-utils';
 import ConsoleHydroSection from '@/client/components/console/ConsoleHydroSection.vue';
-import {CardName} from '@/common/cards/CardName';
 import {
   HydroCommitRecord, HydroTraversalSegmentRecord, beginHydroCommit, resetHydroFlow,
 } from '@/client/console/hydroFlow/consoleHydroFlow';
