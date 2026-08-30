@@ -583,6 +583,19 @@ export function workspaceFramePhase(kind: WorkspaceFrameKind): WorkspacePhase | 
   return depth === -1 ? undefined : workspaceStackState.frames[depth].phase;
 }
 
+/**
+ * The phase of this frame WHEREVER it stands — live or PARKED.
+ *
+ * A park is a frame set aside, not a frame gone, so «what stage is it on» has
+ * the same answer either way; a reader that only consults the live stack gets
+ * `undefined` for a workspace the player is one press away from returning to,
+ * which reads as «browse» to anything that defaults.
+ */
+export function workspaceFrameKnownPhase(kind: WorkspaceFrameKind): WorkspacePhase | undefined {
+  return workspaceFramePhase(kind) ??
+    workspaceStackState.parked.find((f) => f.kind === kind)?.phase;
+}
+
 /** Has the player descended INSIDE this screen (picked an object up)? */
 export function workspaceFrameDescended(kind: WorkspaceFrameKind): boolean {
   const phase = workspaceFramePhase(kind);

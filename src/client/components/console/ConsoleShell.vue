@@ -1451,6 +1451,7 @@ import {
   workspaceFrameHost,
   workspaceFrameIsOverlay,
   workspaceFrameKnown,
+  workspaceFrameKnownPhase,
   workspaceFrameParked,
   workspaceFrameRoot,
   workspaceFrameTarget,
@@ -1513,8 +1514,9 @@ import {
 import {handDeliveryState} from '@/client/console/handDock/handDeliveryState';
 import {isHandDeliveryActive, resetHandDelivery} from '@/client/console/handDock/handDeliveryDirector';
 import {
-  finishInstant, isHandRevealEpisodeRunning, resetHandReveal, reverseHandReveal, runHandCloseEpisode,
-  runHandFilterEpisode, runHandOpenEpisode, runningHandRevealKind, setHandRevealHooks, settledPaint, RevealPair,
+  finishInstant, holdHandBodiesForAlbum, isHandRevealEpisodeRunning, resetHandReveal, reverseHandReveal,
+  runHandCloseEpisode, runHandFilterEpisode, runHandOpenEpisode, runningHandRevealKind, setHandRevealHooks,
+  settleHandHome, settledPaint, RevealPair,
 } from '@/client/console/handDock/handRevealDirector';
 import ConsoleDraftTray from '@/client/components/console/cardDeal/ConsoleDraftTray.vue';
 import {runCardTransfer} from '@/client/console/cardDeal/cardExitDirector';
@@ -2235,6 +2237,51 @@ export default defineComponent({
         return 'raised';
       }
       return this.handDockCompact ? 'compact' : 'rest';
+    },
+    /**
+     * THE ALBUM IS NOT ON SCREEN — the workspace has DESCENDED into a stage, so
+     * the browse layer (the shelf every hand card is laid out on) is parked
+     * behind it: `.con-hand__browse--parked` is GONE, not dimmed.
+     *
+     * Derived from the very two props the section parks on (`stage`,
+     * `stagePaused`), so the two can never disagree — a future change to what
+     * unparks the shelf moves this predicate with it.
+     */
+    handAlbumParked(): boolean {
+      return this.handStage !== undefined && !this.pickBridgeActive;
+    },
+    /**
+     * The play composed in this workspace has PHYSICALLY LANDED — the card has
+     * left the hand, flown, and settled on its pile. This is the point of no
+     * return, and the hero's own phase is the only honest witness of it: a
+     * refusal aborts long BEFORE it (`detectPlayedHero` commits only once the
+     * server has put the card in the viewer's tableau), and the frame's phase
+     * cannot answer — a plain play with no embeddable result stays `executing`
+     * from the submit right through to the fold.
+     */
+    handPlayLanded(): boolean {
+      if (playedHeroState.host !== 'workspace') {
+        return false;
+      }
+      const p = playedHeroState.phase;
+      return p === 'committing' || p === 'showing-result' || p === 'returning' || p === 'closing';
+    },
+    /**
+     * WHERE THE HAND'S CARDS LIVE RIGHT NOW — ONE fact, read by both returns.
+     *
+     * While the hand workspace stands they are EITHER on the album's shelf OR
+     * in the dock, and the discriminator is whether the shelf is on screen…
+     * plus the commit, because a DESCENT is reversible: B hands the card back
+     * into its own slot, and sending the pack home at the descent would fill
+     * the tray under a decision the player can still walk out of.
+     *
+     * So: parked shelf + a move that has physically happened = the cards are
+     * home. It is a STATE, not an event, so both edges are covered by
+     * construction — the rollback of a refused play and the discard that turns
+     * the shelf back into the picker each simply flip it back.
+     */
+    handCardsBelongToDock(): boolean {
+      return this.consoleState.section === 'hand' && this.handAlbumParked && this.handPlayLanded;
     },
     /* (dockLiftedNames RETIRED by the single-owner bodies rework: the dock
        renders no card backs any more, so there is nothing to lift — the
@@ -7750,7 +7797,12 @@ export default defineComponent({
       //  - hand closed by ANY route (sale cancel, a task replacing the
       //    section) → the pack returns; a stuck hold is impossible.
       if (!isHandRevealEpisodeRunning()) {
-        if (section === 'hand' && handRevealState.phase === 'docked') {
+        // …but a hand standing on a COMMITTED STAGE has no album on screen for
+        // the cards to be in — its shelf is parked behind the play's own scene
+        // and the pack has already gone home («the silent return»). Calling
+        // that `open` would both lie and freeze the pack: the layer skips its
+        // pose ride for every phase but `docked`.
+        if (section === 'hand' && handRevealState.phase === 'docked' && !this.handAlbumParked) {
           handRevealState.phase = 'open';
         } else if (section !== 'hand') {
           // LEAVING the hand by any route resets the presentation — including
@@ -8371,6 +8423,37 @@ export default defineComponent({
       }
     },
     /**
+     * THE HAND GOES HOME BEHIND THE SCENE — the play's own quiet closing move.
+     *
+     * The premium GATHER (grid → dock) is a flight from where the player last
+     * saw the cards, so it belongs to the endings the player asks for: B out of
+     * the album, «свернуть» from it. A PLAY does not end there — its descent
+     * parked the shelf the moment the composer opened, and the cards have not
+     * been on screen since. Left to the fold, the pack's bodies then came back
+     * as a flight measured off that invisible grid: they materialized over the
+     * board a beat AFTER the workspace had already dissolved and darted into
+     * the tray from nowhere.
+     *
+     * So the pack comes home the instant the card physically lands on its pile
+     * — under the landing scene, a beat before the workspace folds, with no
+     * travel at all (`settleHandHome`). By the time the fold happens the dock
+     * is already at rest: the ending moves nothing.
+     *
+     * The falling edge is the same law read backwards: the shelf is the cards'
+     * home again (a refused play rolled back to `configure`, or the discard
+     * this play forced turned the shelf into the picker), so the bodies hide
+     * back under its slots. Guarded on the section, because the ordinary way
+     * this goes false is the workspace LEAVING — and there the pack is exactly
+     * where it belongs.
+     */
+    handCardsBelongToDock(now: boolean, was: boolean) {
+      if (now) {
+        settleHandHome();
+      } else if (was && this.consoleState.section === 'hand') {
+        holdHandBodiesForAlbum();
+      }
+    },
+    /**
      * THE PLAY'S OUTCOME IS OVER (every card taken, the pick answered — or the
      * claim turned out to host nothing at all): re-ask the play's ending, which
      * held for exactly this while the cards were on screen.
@@ -8825,8 +8908,14 @@ export default defineComponent({
       // frame («карты в доке просто появляются одним кадром»). Reduced motion
       // keeps the instant park (its own honest short form), and a running
       // episode already owns the moment.
+      //
+      // …but only while the ALBUM IS THE THING ON SCREEN. Collapsing from a
+      // committed stage (the play's landing scene) measured the PARKED grid
+      // and flew the pack out of a shelf nobody could see — the same «летят
+      // непонятно откуда» as the fold. There the pack is already home
+      // (`handCardsBelongToDock`), so the park is all that is left to do.
       if (this.consoleState.section === 'hand' && handRevealState.phase === 'open' &&
-          !isHandRevealEpisodeRunning() && !consoleReducedMotionActive()) {
+          !this.handAlbumParked && !isHandRevealEpisodeRunning() && !consoleReducedMotionActive()) {
         void this.collapseWithHandGather();
         return;
       }
@@ -10168,6 +10257,15 @@ export default defineComponent({
      */
     async closeHandWithReveal(exclude?: ReadonlySet<string>): Promise<void> {
       if (isHandRevealEpisodeRunning() || this.consoleState.section !== 'hand' || this.handClosePreparing) {
+        return;
+      }
+      // A GATHER NEEDS A GRID TO GATHER FROM. With the shelf parked behind a
+      // stage its slot rects describe a grid that is not on screen, so the
+      // flight would depart from nowhere — the silent return owns that ending
+      // (see `handCardsBelongToDock`), and it has usually already run.
+      if (this.handAlbumParked) {
+        settleHandHome(exclude);
+        this.leaveHandAfterAnswer(); // the episode's own `setSection` hook, spelled out
         return;
       }
       // THE LANDING POSE IS THE FULL POSE — the accent begins BEFORE anything
@@ -13557,7 +13655,13 @@ export default defineComponent({
         // phase is seated BEFORE the frames return: the section watcher sees
         // a director-owned transition instead of an untracked open, which
         // would paint the finished grid one frame early.
+        // …a BROWSE hand only. A park taken from a committed stage comes back
+        // TO that stage, with its shelf still parked behind it and its pack
+        // already home — replaying the dock → grid reveal there would fly the
+        // whole hand out into a grid that is not on screen. (The phase is read
+        // through the PARK: the live stack does not hold this frame yet.)
         const handComesBack = workspaceFrameParked('hand') &&
+          workspaceFrameKnownPhase('hand') === 'browse' &&
           !isHandRevealEpisodeRunning() && !consoleReducedMotionActive();
         if (handComesBack) {
           handRevealState.phase = 'opening';
