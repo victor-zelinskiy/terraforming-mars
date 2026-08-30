@@ -197,10 +197,12 @@ for (const preset of PRESETS) {
       await shoot(page, preset, '05-hand');
       await key(page, 'KeyQ', 800); // back to the board
 
-      // ── 6 · LT information mode ────────────────────────────────────
-      await key(page, 'Comma', 1000);
+      // ── 6 · The Information workspace (Y) ──────────────────────────
+      // (Stale before the rework: this shot pressed LT — the standard-
+      // projects wheel — and captured it under the info-mode name.)
+      await key(page, 'KeyY', 1000);
       await shoot(page, preset, '06-info-mode');
-      await key(page, 'Escape', 600);
+      await key(page, 'KeyY', 600);
 
       // ── 7 · RT quick wheel ─────────────────────────────────────────
       await key(page, 'Period', 1000);

@@ -1,10 +1,11 @@
 <template>
-  <!-- THE INFORMATION WORKSPACE (Y) — no longer a centered modal: the root is
-       an ABSOLUTE child of `.con-main` filling everything RIGHT of the left
-       resource rail, between the top HUD and the bottom command bar. The rail
-       stays visible as the mode's SUMMARY panel (ConsoleShell overrides its
-       player context to the inspected player) — the two surfaces are ONE
-       synchronized read of one player.
+  <!-- THE INFORMATION WORKSPACE (Y) — an inspect-only OVERLAY workspace: it
+       opens OVER whatever surface the player is on (board, any workspace, a
+       minimized prompt), never touches the workspace stack, and closing
+       restores the exact captured context (infoModeState.snapshot). The root
+       is an ABSOLUTE child of `.con-main` filling everything RIGHT of the
+       left resource rail; the rail is the mode's SUMMARY half (ConsoleShell
+       overrides its player context to the inspected participant).
        data-motion-*: the surface-motion director materializes the frame from
        the rail seam (open) and returns it there (dismiss); the OWN full dim
        STAYS — the workspace opens OVER arbitrary band surfaces (z 11560,
@@ -13,107 +14,84 @@
     <div class="con-info__backdrop" aria-hidden="true"></div>
     <div class="con-info__frame" data-motion-panel>
 
-      <!-- ── Header: whose dossier + switching hints. The identity zone is
-           the workspace half of the rail↔panel seam — it carries the name /
-           corp the narrow rail cannot, and recomposes directionally on LB/RB
-           (data-insp-slide, inspectSwitchMotion). TR / VP totals live on the
-           RAIL's score cap now — never repeated here. -->
-      <header class="con-info__head">
-        <div class="con-info__who">
-          <GamepadGlyph control="bumperL" class="con-info__bumper" />
-          <span class="con-info__ident" data-insp-slide>
+      <!-- ── THE WORKSPACE HEADER — the ONE crumb grammar every workspace
+           speaks: ИНФОРМАЦИЯ › <участник> › <раздел>. The participant is the
+           SUBJECT (recomposes directionally on LB/RB — its swap transition is
+           ConsoleWsHead's own crossfade), the route is the STAGE (the only
+           other animating segment; depth 2 reads as the hosted-step phrase
+           «ЭКРАН БОТА · ПЛАНШЕТ»). The identity chips + corp/difficulty meta
+           ride the trailing slot — never a second title. -->
+      <ConsoleWsHead class="con-info__head"
+                     root="Information"
+                     :subject="viewedDisplayName"
+                     subjectRaw
+                     :stage="stagePhrase"
+                     stageRaw>
+        <template #trailing>
+          <span class="con-info__meta" data-insp-slide>
             <span :class="'con-status__dot player_bg_color_' + viewed.color"></span>
-            <span class="con-info__name">{{ viewedDisplayName }}</span>
             <span v-if="isSelf" class="con-info__chip con-info__chip--you">{{ $t('You') }}</span>
             <span v-if="isSelf && myTurn" class="con-info__chip con-info__chip--turn">{{ $t('Your turn') }}</span>
             <span v-if="isPassed" class="con-info__chip con-info__chip--passed">{{ $t('passed') }}</span>
+            <!-- The bot with a corporation wears it as its primary identity,
+                 difficulty second: «CrediCor · Обычный». -->
+            <span v-if="corpName !== ''" class="con-info__corp" :class="{'con-info__corp--bot': viewedIsBot}">{{ $t(corpName) }}<template v-if="viewedIsBot"> · {{ $t(botDifficultyLabel) }}</template></span>
+            <span v-else-if="viewedIsBot" class="con-info__corp con-info__corp--bot">{{ $t('Automa opponent') }} · {{ $t(botDifficultyLabel) }}</span>
           </span>
-          <GamepadGlyph control="bumperR" class="con-info__bumper" />
-        </div>
-        <div class="con-info__head-meta" data-insp-slide>
-          <!-- The bot with a corporation wears it as its primary identity,
-               difficulty second: «CrediCor · Обычный». Corpless bot: as before. -->
-          <span v-if="corpName !== ''" class="con-info__corp" :class="{'con-info__corp--bot': viewedIsBot}">{{ $t(corpName) }}<template v-if="viewedIsBot"> · {{ $t(botDifficultyLabel) }}</template></span>
-          <span v-else-if="viewedIsBot" class="con-info__corp con-info__corp--bot">{{ $t('Automa opponent') }} · {{ $t(botDifficultyLabel) }}</span>
-        </div>
-      </header>
+        </template>
+      </ConsoleWsHead>
 
-      <!-- ── CONTENT ZONES — one keyed swap: the dashboard ⇄ a detail swap
-           runs a short out-in beat (detailZone hooks) instead of a bare
-           v-if pop. An LB/RB SEAT switch keeps the key ('dash' is shared by
-           the human and bot dashboards) so it patches INSTANTLY — its beat
-           is the inspectSwitchMotion slide, and rapid presses must never
-           queue zone transitions. -->
+      <!-- ── CONTENT ZONES — one keyed swap per ROUTE: entering a detail is
+           a descend beat (rises from below), B is the same phrase reversed.
+           An LB/RB SEAT switch keeps the key (routes are semantic and
+           survive the switch) so it patches INSTANTLY — its beat is the
+           inspectSwitchMotion slide, and rapid presses never queue zone
+           transitions. -->
       <transition :css="false" mode="out-in"
                   @enter="detailZoneEnter" @leave="detailZoneLeave"
                   @enter-cancelled="detailZoneCancelled" @leave-cancelled="detailZoneCancelled">
 
-      <!-- ── DASHBOARD — one persistent zone ('dash'): the human/bot
-           variants swap INSIDE it, so an LB/RB seat switch patches
-           instantly (its beat is the inspectSwitchMotion slide) and can
-           never queue zone transitions. -->
-      <div v-if="infoModeState.detail === undefined" key="dash" class="con-info__scroll" :class="dashboardIsBot ? 'con-info__grid' : 'con-info__cols'" data-insp-slide>
-      <!-- ── the MarsBot participant ─────────────────────────────────── -->
-      <template v-if="viewedIsBot && botAutoma !== undefined">
-        <!-- Played cards — the SAME unified summary block as a human seat
-             (X opens the same premium table; the note names the provenance). -->
-        <section class="con-info__block con-info__block--played">
-          <h3 class="con-info__block-title">{{ $t('Played cards') }}
-            <span class="con-info__hotkey"><GamepadGlyph control="secondary" /></span>
-          </h3>
-          <template v-if="playedSummary.total > 0">
-            <div class="con-info__stat-lines">
-              <div class="con-info__stat-line con-info__stat-line--total"><span>{{ $t('Total') }}</span><b class="con-info__mint">{{ playedSummary.total }}</b></div>
-              <div v-for="r in playedSummary.rows" :key="r.key" class="con-info__stat-line">
-                <span class="con-info__pcat"><i class="con-info__pcat-dot" :class="'con-info__pcat-dot--' + r.key" aria-hidden="true"></i>{{ $t(r.label) }}</span>
-                <b>{{ r.count }}</b>
-              </div>
-            </div>
-          </template>
-          <div v-else class="con-info__empty">{{ $t('No cards played yet') }}</div>
-          <div class="con-info__note">{{ $t('Everything MarsBot flipped from its action deck this game') }}</div>
-        </section>
-        <ConsoleMarsBotSections mode="dashboard" :bot="viewed" :automa="botAutoma" :ctx="botCardContext" />
-        <!-- VP — the SAME block as a human participant (shared model + rule).
-             The M€→VP conversion note lives here (its economy home moved to
-             the rail, which carries numbers, not prose). -->
-        <section class="con-info__block">
-          <h3 class="con-info__block-title">{{ $t('Victory Points') }}
-            <span v-if="vpVisible" class="con-info__hotkey"><GamepadGlyph control="confirm" /></span>
-          </h3>
-          <template v-if="vpVisible">
-            <div class="con-info__stat-lines">
-              <div v-if="vpTotalRowVisible" class="con-info__stat-line con-info__stat-line--total"><span>{{ $t('Total') }}</span><b>{{ vpTotal }}</b></div>
-              <div v-for="s in vpScales" :key="s.key" class="con-info__stat-line">
-                <span>{{ $t(s.label) }}</span><b>{{ s.total }}</b>
-              </div>
-            </div>
-          </template>
-          <div v-else class="con-info__hidden">{{ $t('Score is hidden until the end of the game') }}</div>
-          <div class="con-info__note">{{ $t('Leftover M€ converts to VP at game end') }}</div>
-        </section>
-      </template>
+      <!-- ── THE PARTICIPANT SUMMARY — ONE canonical layout for EVERY
+           participant. The SHARED zones sit at the same coordinates for a
+           human and the bot (VP · played · cards · extras); the human-only
+           pair (actions / effects) renders AFTER them and its absence never
+           shifts the shared geometry. The zones are a focus ring: d-pad
+           moves, A opens the focused zone's route. -->
+      <div v-if="presentation === 'summary'" key="summary" class="con-info__layout" data-insp-slide>
 
-      <!-- ── the human participant — the DETAIL the rail cannot carry, in
-           three calm columns. The rail already shows this player's TR / VP
-           total / resources / production / the full tag matrix — repeating
-           any of those here is banned (the two surfaces are one instrument). -->
-      <template v-else>
-        <!-- Col 1 — the score STORY (adjacent to the rail's score cap):
-             where the VP total comes from. The big total itself lives on
-             the rail; the one exception is the own seat under the
-             «Приватный счёт» pref (the rail masks — the row is the only
-             honest place left). -->
+        <!-- Col 1 — «ПОБЕДНЫЕ ОЧКИ»: the premium live score. The SAME
+             category system, order and colours as the final scoring
+             ceremony (liveScoreModel over the ceremony's own tables), so
+             live VP, endgame scoring and the finale read as one system.
+             The bot has NO opaque «Подсчёт бота» — its summands live inside
+             the shared categories (cards), exactly like the finale. -->
         <div class="con-info__col">
-          <section class="con-info__block con-info__block--vp">
+          <section class="con-info__zone con-info__zone--vp"
+                   :class="zoneStateClass('vp')" data-zone="vp">
             <h3 class="con-info__block-title">{{ $t('Victory Points') }}
-              <span v-if="vpVisible" class="con-info__hotkey"><GamepadGlyph control="confirm" /></span>
+              <!-- A opens the FOCUSED zone — the glyph rides the ring, so it
+                   can never advertise a press that would open something else. -->
+              <span v-if="infoModeState.summaryFocus === 'vp'" class="con-info__hotkey"><GamepadGlyph control="confirm" /></span>
             </h3>
             <template v-if="vpVisible">
-              <div class="con-info__stat-lines">
-                <div v-if="vpTotalRowVisible" class="con-info__stat-line con-info__stat-line--total"><span>{{ $t('Total') }}</span><b>{{ vpTotal }}</b></div>
-                <div v-for="s in vpScales" :key="s.key" class="con-info__stat-line">
-                  <span>{{ $t(s.label) }}</span><b>{{ s.total }}</b>
+              <div class="con-infovp__totalrow">
+                <span class="con-infovp__total">{{ liveScore.total }}</span>
+                <span class="con-infovp__total-label">{{ $t('VP') }}</span>
+              </div>
+              <!-- The segmented bar: one hue per category (.con-eg-cat--*),
+                   widths on the shared positive total. A penalty never draws
+                   here (it subtracts — the legend states it). -->
+              <div class="con-infovp__bar" aria-hidden="true">
+                <span v-for="seg in vpBarSegments" :key="seg.key"
+                      class="con-infovp__seg" :class="'con-eg-cat--' + seg.accent"
+                      :style="{width: seg.widthPct + '%'}"></span>
+              </div>
+              <div class="con-infovp__legend">
+                <div v-for="cat in liveScore.categories" :key="cat.key"
+                     class="con-infovp__cat" :class="['con-eg-cat--' + cat.accent, {'con-infovp__cat--zero': cat.value === 0, 'con-infovp__cat--penalty': cat.penalty}]">
+                  <i class="con-infovp__dot" aria-hidden="true"></i>
+                  <span class="con-infovp__cat-label">{{ $t(cat.label) }}</span>
+                  <b class="con-infovp__cat-value">{{ cat.value }}</b>
                 </div>
               </div>
             </template>
@@ -121,43 +99,10 @@
           </section>
         </div>
 
-        <!-- Col 2 — availability: cards / actions / effects counters. -->
+        <!-- Col 2 — the card story: what was PLAYED, what remains to play. -->
         <div class="con-info__col">
-          <section class="con-info__block">
-            <h3 class="con-info__block-title">{{ $t('Cards') }}</h3>
-            <div class="con-info__stat-lines">
-              <div v-if="isSelf" class="con-info__stat-line"><span>{{ $t('Playable now') }}</span><b class="con-info__mint">{{ cardsPlayable }}</b></div>
-              <div class="con-info__stat-line"><span>{{ $t('In hand') }}</span><b>{{ cardsTotal }}</b></div>
-            </div>
-            <div v-if="!isSelf" class="con-info__note">{{ $t('Hand contents are hidden') }}</div>
-          </section>
-
-          <section class="con-info__block">
-            <h3 class="con-info__block-title">{{ $t('Actions') }}
-              <span class="con-info__hotkey"><GamepadGlyph control="triggerL" /></span>
-            </h3>
-            <div class="con-info__stat-lines">
-              <div class="con-info__stat-line"><span>{{ $t('Available now') }}</span><b class="con-info__mint">{{ actionsAvailable }}</b></div>
-              <div class="con-info__stat-line"><span>{{ $t('Total') }}</span><b>{{ actionsTotal }}</b></div>
-            </div>
-          </section>
-
-          <section class="con-info__block">
-            <h3 class="con-info__block-title">{{ $t('Effects') }}
-              <span class="con-info__hotkey"><GamepadGlyph control="triggerR" /></span>
-            </h3>
-            <div class="con-info__stat-lines">
-              <div class="con-info__stat-line"><span>{{ $t('Active') }}</span><b class="con-info__mint">{{ effectsCount }}</b></div>
-              <div v-if="discountCount > 0" class="con-info__stat-line"><span>{{ $t('Discounts') }}</span><b>{{ discountCount }}</b></div>
-            </div>
-          </section>
-        </div>
-
-        <!-- Col 3 — the played TABLE summary (X opens the premium table) and
-             resources ON CARDS (the rail's satellite is parked while the
-             workspace is open; the L3 detail shows the hosting cards). -->
-        <div class="con-info__col">
-          <section class="con-info__block con-info__block--played">
+          <section class="con-info__zone con-info__zone--played"
+                   :class="zoneStateClass('played')" data-zone="played">
             <h3 class="con-info__block-title">{{ $t('Played cards') }}
               <span class="con-info__hotkey"><GamepadGlyph control="secondary" /></span>
             </h3>
@@ -172,7 +117,26 @@
             </template>
             <div v-else class="con-info__empty">{{ $t('No cards played yet') }}</div>
           </section>
-          <section class="con-info__block">
+
+          <!-- «КАРТЫ» — the shared abstraction: how much card potential is
+               left. A human reads their hand; the bot reads its decks (the
+               deck MECHANICS live on «Экран бота», never here). A pure
+               readout — everything it knows is already on this face. -->
+          <section class="con-info__zone con-info__zone--cards" data-zone="cards">
+            <h3 class="con-info__block-title">{{ $t('Cards') }}</h3>
+            <div class="con-info__stat-lines">
+              <div v-for="row in cardRows" :key="row.key" class="con-info__stat-line">
+                <span>{{ $t(row.label) }}</span><b :class="{'con-info__mint': row.mint}">{{ row.value }}</b>
+              </div>
+            </div>
+            <div v-if="!isSelf && !viewedIsBot" class="con-info__note">{{ $t('Hand contents are hidden') }}</div>
+          </section>
+        </div>
+
+        <!-- Col 3 — extras first (shared), then the human-only pair. -->
+        <div class="con-info__col">
+          <section class="con-info__zone con-info__zone--extras"
+                   :class="zoneStateClass('extras')" data-zone="extras">
             <h3 class="con-info__block-title">{{ $t('Extra resources') }}
               <span class="con-info__hotkey"><GamepadGlyph control="stickL" /></span>
             </h3>
@@ -184,42 +148,144 @@
             </div>
             <div v-else class="con-info__empty">{{ $t('No resources on cards') }}</div>
           </section>
+
+          <section v-if="!viewedIsBot" class="con-info__zone con-info__zone--actions"
+                   :class="zoneStateClass('actions')" data-zone="actions">
+            <h3 class="con-info__block-title">{{ $t('Actions') }}
+              <span class="con-info__hotkey"><GamepadGlyph control="triggerL" /></span>
+            </h3>
+            <div class="con-info__stat-lines">
+              <div class="con-info__stat-line"><span>{{ $t('Available now') }}</span><b class="con-info__mint">{{ actionsAvailable }}</b></div>
+              <div class="con-info__stat-line"><span>{{ $t('Total') }}</span><b>{{ actionsTotal }}</b></div>
+            </div>
+          </section>
+
+          <section v-if="!viewedIsBot" class="con-info__zone con-info__zone--effects"
+                   :class="zoneStateClass('effects')" data-zone="effects">
+            <h3 class="con-info__block-title">{{ $t('Effects') }}
+              <span class="con-info__hotkey"><GamepadGlyph control="triggerR" /></span>
+            </h3>
+            <div class="con-info__stat-lines">
+              <div class="con-info__stat-line"><span>{{ $t('Active') }}</span><b class="con-info__mint">{{ effectsCount }}</b></div>
+              <div v-if="discountCount > 0" class="con-info__stat-line"><span>{{ $t('Discounts') }}</span><b>{{ discountCount }}</b></div>
+            </div>
+          </section>
+
+          <!-- The bot's door to its internals — a calm entry, not a data
+               dump: the algorithm's own room is one A away. -->
+          <section v-if="viewedIsBot" class="con-info__zone con-info__zone--botdoor" data-zone="botdoor">
+            <h3 class="con-info__block-title">{{ $t('MarsBot screen') }}
+              <span class="con-info__hotkey"><GamepadGlyph control="stickR" /></span>
+            </h3>
+            <div class="con-info__note con-info__note--door">{{ $t('Decks, tracks, storage rules and the printed board') }}</div>
+          </section>
         </div>
-      </template>
+      </div>
+
+      <!-- ── CAPABILITY FALLBACK — the route SURVIVES a seat switch even
+           when the new participant cannot serve it: the crumb stays, LB/RB
+           keeps cycling at the same depth, and the zone says calmly why
+           there is nothing here. Never a silent reset to the summary. -->
+      <div v-else-if="presentation === 'fallback'" :key="'na-' + infoModeState.route" class="con-info__na" data-insp-slide>
+        <div class="con-info__na-mark" aria-hidden="true">∅</div>
+        <div class="con-info__na-title">{{ $t('Not applicable') }}</div>
+        <div class="con-info__na-body">{{ $t(fallbackBody) }}</div>
+        <div class="con-info__na-hint">
+          <GamepadGlyph control="bumperL" /><GamepadGlyph control="bumperR" />
+          <span>{{ $t('Players') }}</span>
+        </div>
       </div>
 
       <!-- ── «РАЗЫГРАНО» — the embedded premium table (X): the SAME
            component as the board-home overlay, re-seated to fill the
-           workspace. The seat is the workspace's inspected player (LB/RB
-           switch it globally — rail, header and table move as one);
-           B folds an open category first, then returns to the dashboard. -->
-      <div v-else-if="infoModeState.detail === 'played'" key="played" class="con-info__playedhost" data-insp-slide>
+           workspace. The seat is the workspace's inspected participant
+           (LB/RB switch it globally — rail, header and table move as one);
+           B folds an open category first, then returns to the summary. -->
+      <div v-else-if="infoModeState.route === 'played'" key="played" class="con-info__playedhost" data-insp-slide>
         <ConsolePlayedOverlay ref="playedView"
                               embedded
                               :players="playerView.players"
                               :thisPlayerColor="playerView.thisPlayer.color"
                               :forcedColor="viewed.color"
                               :automa="botAutoma"
-                              @close="infoModeState.detail = undefined" />
+                              @close="closePlayedRoute" />
       </div>
 
-      <!-- ── DETAILS ─────────────────────────────────────────────────── -->
-      <div v-else :key="'detail-' + (infoModeState.detail ?? '')" class="con-info__detail" data-insp-slide>
-        <div class="con-info__detail-head">
-          <span class="con-info__detail-title">{{ $t(detailTitle) }}</span>
-          <span class="con-info__detail-back"><GamepadGlyph control="back" /><span>{{ $t('To overview') }}</span></span>
-        </div>
+      <!-- ── «ПОБЕДНЫЕ ОЧКИ» — the scoring workspace: total → category
+           bars on ONE shared scale (the endgame's own reading) → sources
+           inside categories → the card list that explains them. -->
+      <div v-else-if="infoModeState.route === 'vp'" key="vp" class="con-info__scroll con-info__detail-scroll con-infovpd" data-insp-slide>
+        <template v-if="vpVisible">
+          <div class="con-infovpd__totalrow">
+            <span class="con-infovpd__total-label">{{ $t('Total') }}</span>
+            <b class="con-infovpd__total">{{ liveScore.total }}</b>
+            <span class="con-infovpd__total-vp">{{ $t('VP') }}</span>
+          </div>
+          <div class="con-infovpd__cats">
+            <section v-for="cat in liveScore.categories" :key="cat.key"
+                     class="con-infovpd__cat"
+                     :class="['con-eg-cat--' + cat.accent, {'con-infovpd__cat--zero': cat.value === 0, 'con-infovpd__cat--penalty': cat.penalty}]">
+              <div class="con-infovpd__cathead">
+                <i class="con-infovpd__dot" aria-hidden="true"></i>
+                <span class="con-infovpd__cat-label">{{ $t(cat.label) }}</span>
+                <b class="con-infovpd__cat-value">{{ cat.value }}</b>
+              </div>
+              <div class="con-infovpd__track" aria-hidden="true">
+                <span class="con-infovpd__fill" :style="{width: catFillPct(cat) + '%'}"></span>
+              </div>
+              <div v-if="cat.subs.length > 0" class="con-infovpd__subs">
+                <div v-for="sub in cat.subs" :key="sub.key" class="con-infovpd__sub">
+                  <span class="con-infovpd__sub-label">{{ $t(sub.label) }}</span>
+                  <b class="con-infovpd__sub-value">{{ sub.value }}</b>
+                </div>
+              </div>
+            </section>
+          </div>
+          <!-- The card sources that EXPLAIN the cards category — structure
+               first, facts second. A human lists its real scoring cards;
+               the bot states its formula facts (stock × rate, adjacency,
+               icons × difficulty) — the same honesty the endgame's cards
+               tab ships. -->
+          <template v-if="!viewedIsBot && vpCardGroups.length > 0">
+            <section v-for="g in vpCardGroups" :key="g.kind" class="con-infovpd__cards">
+              <h4 class="con-infovpd__cards-title"><span>{{ $t(g.label) }}</span><b>{{ g.total }}</b></h4>
+              <div v-for="row in g.rows" :key="row.cardName" class="con-info__exrow">
+                <span class="con-info__exrow-name">{{ $t(row.cardName) }}</span>
+                <span class="con-info__exrow-count">{{ row.victoryPoint }}</span>
+              </div>
+            </section>
+          </template>
+          <section v-if="viewedIsBot && botScoreFacts.length > 0" class="con-infovpd__cards">
+            <h4 class="con-infovpd__cards-title"><span>{{ $t('MarsBot scoring') }}</span></h4>
+            <div v-for="fact in botScoreFacts" :key="fact.key" class="con-info__exrow">
+              <span class="con-info__exrow-name">{{ fact.text }}</span>
+              <span class="con-info__exrow-count">{{ fact.vp }}</span>
+            </div>
+          </section>
+        </template>
+        <div v-else class="con-info__hidden con-info__empty--big">{{ $t('Score is hidden until the end of the game') }}</div>
+      </div>
 
-        <!-- MarsBot details: printed board / played pile / bonus piles -->
-        <ConsoleMarsBotSections
-          v-if="isBotDetail && botAutoma !== undefined"
-          :mode="botDetailMode"
-          :bot="viewed"
-          :automa="botAutoma"
-          :ctx="botCardContext" />
-
-        <!-- Extra resources detail -->
-        <div v-if="infoModeState.detail === 'extras'" class="con-info__scroll con-info__detail-scroll">
+      <!-- ── «ДОП. РЕСУРСЫ» — one semantic screen, two honest fills: a
+           human's resources ON CARDS (live premium card renders), the
+           bot's pools BY TYPE with the colony tiles that hold them. -->
+      <div v-else-if="infoModeState.route === 'extras'" key="extras" class="con-info__scroll con-info__detail-scroll" data-insp-slide>
+        <template v-if="viewedIsBot">
+          <div v-if="botExtraGroups.length === 0" class="con-info__empty con-info__empty--big">{{ $t('No resources on cards') }}</div>
+          <section v-for="g in botExtraGroups" :key="g.key" class="con-info__exgroup">
+            <h4 class="con-info__exgroup-title">
+              <i class="con-info__exicon" :class="g.iconClass" aria-hidden="true"></i>
+              <span>{{ $t(g.label) }}</span>
+              <b class="con-info__mint">{{ g.total }}</b>
+            </h4>
+            <div v-if="g.holders.length > 0" class="con-info__stat-lines con-info__stat-lines--holders">
+              <div v-for="h in g.holders" :key="h.name" class="con-info__stat-line">
+                <span>{{ $t(h.name) }}</span><b>{{ h.amount }}</b>
+              </div>
+            </div>
+          </section>
+        </template>
+        <template v-else>
           <div v-if="extraGroups.length === 0" class="con-info__empty con-info__empty--big">{{ $t('No resources on cards') }}</div>
           <section v-for="g in extraGroups" :key="g.key" class="con-info__exgroup">
             <h4 class="con-info__exgroup-title">
@@ -239,51 +305,40 @@
               </div>
             </div>
           </section>
-        </div>
+        </template>
+      </div>
 
-        <!-- Actions detail -->
-        <div v-else-if="infoModeState.detail === 'actions'" class="con-info__scroll con-info__detail-scroll">
-          <div v-if="actionRows.length === 0" class="con-info__empty con-info__empty--big">{{ $t('No action cards') }}</div>
-          <div v-for="row in actionRows" :key="row.name" class="con-info__acrow" :class="{'con-info__acrow--ok': row.available}">
-            <span class="con-info__acrow-state" aria-hidden="true">{{ row.available ? '✓' : '·' }}</span>
-            <span class="con-info__acrow-name">{{ $t(row.name) }}</span>
-            <span v-if="row.available" class="con-info__acrow-badge">{{ $t('Available now') }}</span>
-            <span v-else-if="row.reason !== ''" class="con-info__acrow-reason">{{ row.reason }}</span>
-          </div>
-          <div v-if="!isSelf" class="con-info__note">{{ $t('Opponent state is read-only') }}</div>
+      <!-- ── «ДЕЙСТВИЯ» (human) ─────────────────────────────────────────── -->
+      <div v-else-if="infoModeState.route === 'actions'" key="actions" class="con-info__scroll con-info__detail-scroll" data-insp-slide>
+        <div v-if="actionRows.length === 0" class="con-info__empty con-info__empty--big">{{ $t('No action cards') }}</div>
+        <div v-for="row in actionRows" :key="row.name" class="con-info__acrow" :class="{'con-info__acrow--ok': row.available}">
+          <span class="con-info__acrow-state" aria-hidden="true">{{ row.available ? '✓' : '·' }}</span>
+          <span class="con-info__acrow-name">{{ $t(row.name) }}</span>
+          <span v-if="row.available" class="con-info__acrow-badge">{{ $t('Available now') }}</span>
+          <span v-else-if="row.reason !== ''" class="con-info__acrow-reason">{{ row.reason }}</span>
         </div>
+        <div v-if="!isSelf" class="con-info__note">{{ $t('Opponent state is read-only') }}</div>
+      </div>
 
-        <!-- Effects detail (reuses the desktop effect blocks — real graphics) -->
-        <div v-else-if="infoModeState.detail === 'effects'" class="con-info__scroll con-info__detail-scroll">
-          <div v-if="effectGroups.length === 0" class="con-info__empty con-info__empty--big">{{ $t('No passive effects') }}</div>
-          <div class="con-info__effects">
-            <EffectBlock v-for="g in effectGroups" :key="g.key" :group="g" :card="tableauCard(g.cardName)" />
-          </div>
+      <!-- ── «ЭФФЕКТЫ» (human) ──────────────────────────────────────────── -->
+      <div v-else-if="infoModeState.route === 'effects'" key="effects" class="con-info__scroll con-info__detail-scroll" data-insp-slide>
+        <div v-if="effectGroups.length === 0" class="con-info__empty con-info__empty--big">{{ $t('No passive effects') }}</div>
+        <div class="con-info__effects">
+          <EffectBlock v-for="g in effectGroups" :key="g.key" :group="g" :card="tableauCard(g.cardName)" />
         </div>
+      </div>
 
-        <!-- VP detail — pure breakdown: the TOTAL lives on the rail's score
-             cap (repeated only while the rail masks the own score). -->
-        <div v-else-if="infoModeState.detail === 'vp'" class="con-info__scroll con-info__detail-scroll">
-          <template v-if="vpVisible">
-            <div v-if="vpTotalRowVisible" class="con-info__vp-totalrow">{{ $t('Total') }} <b>{{ vpTotal }}</b></div>
-            <section v-for="s in vpModel.scales" :key="s.key" class="con-info__vpscale">
-              <h4 class="con-info__vpscale-title"><span>{{ $t(s.label) }}</span><b>{{ s.total }}</b></h4>
-              <div class="con-info__vpsegs">
-                <span v-for="seg in s.segments" :key="seg.key" class="con-info__vpseg" :class="'con-info__vpseg--' + seg.key">
-                  {{ $t(seg.label) }}: <b>{{ seg.value }}</b>
-                </span>
-              </div>
-            </section>
-            <section v-for="g in vpModel.cardGroups" :key="g.kind" class="con-info__vpcards">
-              <h4 class="con-info__vpscale-title"><span>{{ $t(g.label) }}</span><b>{{ g.total }}</b></h4>
-              <div v-for="row in g.rows" :key="row.cardName" class="con-info__exrow">
-                <span class="con-info__exrow-name">{{ $t(row.cardName) }}</span>
-                <span class="con-info__exrow-count">{{ row.victoryPoint }}</span>
-              </div>
-            </section>
-          </template>
-          <div v-else class="con-info__hidden con-info__empty--big">{{ $t('Score is hidden until the end of the game') }}</div>
-        </div>
+      <!-- ── «ЭКРАН БОТА» и его вложенные маршруты — the bot's internals
+           hub (decks, piles, storage rules, conversion, difficulty; the
+           printed board and the bonus piles are one A deeper). -->
+      <div v-else-if="isBotRoute && botAutoma !== undefined" :key="'bot-' + infoModeState.route" class="con-info__scroll con-info__detail-scroll" data-insp-slide>
+        <ConsoleMarsBotSections
+          :mode="botSectionMode"
+          :bot="viewed"
+          :automa="botAutoma"
+          :ctx="botCardContext"
+          :focus="infoModeState.botScreenFocus"
+          :megacredits="viewed.megacredits" />
       </div>
 
       </transition>
@@ -297,29 +352,27 @@
 
 <script lang="ts">
 /**
- * THE INFORMATION WORKSPACE (Y) — the console-native read-only player
- * dashboard: "информация не скрыта — Y, посмотрел, вернулся ровно туда же".
+ * THE INFORMATION WORKSPACE (Y) — the console-native read-only participant
+ * dossier: «информация не скрыта — Y, посмотрел, вернулся ровно туда же».
  *
- * Since the workspace iteration the LEFT RESOURCE RAIL is this mode's
- * summary half: ConsoleShell overrides the rail's player context to the
- * INSPECTED player (infoModeState.playerColor) while the mode is open, so
- * TR / VP total / resources / production / tags read THERE and are never
- * repeated in this panel. This component renders only the DETAIL the rail
- * cannot carry: identity (name/corp), VP breakdown, cards/actions/effects
- * availability, resources on cards, and the hotkey detail screens.
+ * ARCHITECTURE (info-panel rework): the panel speaks the workspace language
+ * (ConsoleWsHead crumb, semantic routes, one command bar contract) while
+ * staying an independent OVERLAY layer — it never enters the workspace
+ * stack, so it can open over any surface and hand it back untouched.
  *
- * All data comes from PUBLIC models (PublicPlayerModel + the client card
- * manifest) — the same sources the desktop chips/overlays read:
- *  - extra card resources: tableau CardModel.resources + manifest
- *    resourceType (tableaus are public; opponent HANDS are never touched —
- *    only cardsInHandNbr, which the desktop shows too);
- *  - actions: availableBlueCardActionCount / playerActionSourceCount;
- *  - effects: the effects-overlay extraction (manifest-driven);
- *  - VP: victoryPointsBreakdown through the SAME pure model as the desktop
- *    VP overlay, gated by the SAME visibility rule (self OR
- *    gameOptions.showOtherPlayersVP) — hidden mode shows the safe panel.
- * Input (hotkeys, player switching, scrolling) is routed by ConsoleShell;
- * this component is pure presentation over infoModeState.
+ *  · ROUTES — `infoRoute.ts`: a semantic tree (summary → details →
+ *    botScreen → botBoard/botBonus) with a capability table. LB/RB keeps
+ *    the route; an inapplicable one presents the FALLBACK, never a reset.
+ *  · SCORE — `liveScoreModel.ts`: the SAME category tables the final
+ *    scoring ceremony uses (order, keys, `.con-eg-cat--*` colours, the bot
+ *    normalisation), so live VP and the finale are one system.
+ *  · PARITY — one summary layout for every participant; the left rail is
+ *    the mode's summary half (economy + the shared tag matrix).
+ *
+ * All data comes from PUBLIC models (PublicPlayerModel + MarsBotModel + the
+ * client card manifest). Input (routes, focus, player switching, scrolling)
+ * is routed by ConsoleShell; this component is presentation over
+ * infoModeState + the pure models. NEVER submits anything.
  */
 import {defineComponent, PropType} from 'vue';
 import {gsap} from 'gsap';
@@ -339,31 +392,29 @@ import ConsolePlayedOverlay from '@/client/components/console/played/ConsolePlay
 import {iconClassFor} from '@/client/components/modalInputs/optionIcons';
 import {playerActionSourceCount, cardHasAction} from '@/client/components/actions/actionExtraction';
 import {playerEffects, playerEffectGroups, EffectGroup} from '@/client/components/effects/effectExtraction';
-import {buildVictoryPointsModel, VictoryPointsModel} from '@/client/components/overview/victoryPointsModel';
-import {shouldMaskOwnPassiveVp} from '@/client/components/overview/privateScoreState';
+import {buildVictoryPointsModel, VPCardGroup} from '@/client/components/overview/victoryPointsModel';
+import {buildLiveScoreModel, LiveScoreCategory, LiveScoreModel} from '@/client/console/liveScoreModel';
 import {findPerformActionCard, findPlayProjectCardAction} from '@/client/console/turnIntents';
 import {infoModeState} from '@/client/console/infoModeState';
-import {translateTextWithParams} from '@/client/directives/i18n';
+import {
+  infoRouteDepth,
+  infoRoutePresentation,
+  infoRouteStagePath,
+  infoZoneFocusable,
+} from '@/client/console/infoRoute';
+import {translateText, translateTextWithParams} from '@/client/directives/i18n';
 import {MarsBotModel} from '@/common/models/MarsBotModel';
 import {DIFFICULTY_LABEL} from '@/client/components/marsbot/marsBotView';
 import {MarsBotGuideContext} from '@/client/components/marsbot/marsBotGuide';
 import {marsBotCorpDisplayName, participantDisplayName} from '@/client/components/marsbot/marsBotDisplay';
+import {marsBotExtraGroups, MarsBotExtraGroup} from '@/client/components/console/marsBotRailModel';
 import ConsoleMarsBotSections from '@/client/components/console/ConsoleMarsBotSections.vue';
+import ConsoleWsHead from '@/client/components/console/foundation/ConsoleWsHead.vue';
 import EffectBlock from '@/client/components/effects/EffectBlock.vue';
 import GamepadGlyph from '@/client/components/gamepad/GamepadGlyph.vue';
 import Card from '@/client/components/card/CardFace.vue';
 import type {ConsoleCommand} from '@/client/console/consoleCommandModel';
 import {setPanelCommands, clearPanelCommands} from '@/client/console/consolePanelUi';
-
-const DETAIL_TITLES: Record<string, string> = {
-  extras: 'Extra resources',
-  actions: 'Actions',
-  effects: 'Effects',
-  vp: 'Victory Points',
-  played: 'Played',
-  botBoard: 'MarsBot board',
-  botBonus: 'Bonus cards',
-};
 
 /** The played-summary rows follow the table's zone order + caption keys. */
 const PLAYED_SUMMARY_LABEL: ReadonlyArray<{key: string, label: string}> = [
@@ -377,13 +428,18 @@ const PLAYED_SUMMARY_LABEL: ReadonlyArray<{key: string, label: string}> = [
 
 export default defineComponent({
   name: 'ConsoleInfoMode',
-  components: {ConsoleMarsBotSections, ConsolePlayedOverlay, EffectBlock, GamepadGlyph, Card},
+  components: {ConsoleMarsBotSections, ConsolePlayedOverlay, ConsoleWsHead, EffectBlock, GamepadGlyph, Card},
   props: {
     playerView: {type: Object as PropType<PlayerViewModel>, required: true},
     myTurn: {type: Boolean, default: false},
   },
   data() {
-    return {infoModeState};
+    return {
+      infoModeState,
+      /** The previous route's depth — signs the zone-swap direction
+       *  (descend rises from below, B sinks back). */
+      lastDepth: 0,
+    };
   },
   computed: {
     viewed(): PublicPlayerModel {
@@ -393,14 +449,12 @@ export default defineComponent({
     isSelf(): boolean {
       return this.viewed.color === this.playerView.thisPlayer.color;
     },
-    /** The viewed participant is the MarsBot seat → bot-specific sections. */
+    /** The viewed participant is the MarsBot seat. */
     viewedIsBot(): boolean {
       return this.viewed.isMarsBot === true;
     },
-    /** The dashboard renders the BOT variant (drives the wrapper's layout
-     *  class — the zone element itself persists across seat switches). */
-    dashboardIsBot(): boolean {
-      return this.viewedIsBot && this.botAutoma !== undefined;
+    viewedKind(): 'human' | 'bot' {
+      return this.viewedIsBot && this.botAutoma !== undefined ? 'bot' : 'human';
     },
     viewedDisplayName(): string {
       return participantDisplayName(this.viewed);
@@ -417,12 +471,33 @@ export default defineComponent({
       const expansions = this.playerView.game.gameOptions.expansions;
       return {venus: expansions.venus === true, colonies: expansions.colonies === true, deltaProject: expansions.deltaProject === true};
     },
-    isBotDetail(): boolean {
-      const d = this.infoModeState.detail;
-      return d === 'botBoard' || d === 'botBonus';
+    /** What the current route presents for the current participant —
+     *  'summary' | 'content' | 'fallback' (the capability contract). */
+    presentation(): 'summary' | 'content' | 'fallback' {
+      if (this.infoModeState.route === 'summary') {
+        return 'summary';
+      }
+      return infoRoutePresentation(this.infoModeState.route, this.viewedKind);
     },
-    botDetailMode(): 'botBoard' | 'botBonus' {
-      return this.infoModeState.detail === 'botBonus' ? 'botBonus' : 'botBoard';
+    /** The crumb's stage phrase — depth 1 is one word, depth 2 the hosted-
+     *  step phrase («ЭКРАН БОТА · ПЛАНШЕТ»). Already translated (stageRaw). */
+    stagePhrase(): string {
+      return infoRouteStagePath(this.infoModeState.route)
+        .map((key) => translateText(key))
+        .join(' · ');
+    },
+    fallbackBody(): string {
+      return this.viewedKind === 'bot' ?
+        'This section exists only for human players' :
+        'This section exists only for the bot';
+    },
+    isBotRoute(): boolean {
+      const r = this.infoModeState.route;
+      return r === 'botScreen' || r === 'botBoard' || r === 'botBonus';
+    },
+    botSectionMode(): 'botScreen' | 'botBoard' | 'botBonus' {
+      const r = this.infoModeState.route;
+      return r === 'botBoard' ? 'botBoard' : r === 'botBonus' ? 'botBonus' : 'botScreen';
     },
     isPassed(): boolean {
       return this.playerView.game.passedPlayers.includes(this.viewed.color);
@@ -444,6 +519,121 @@ export default defineComponent({
         }
       }
       return '';
+    },
+    // ── the LIVE SCORE (shared with the endgame's category system) ────────
+    /** VP visibility: self always; the bot always (its state is open
+     *  information — the server ships its real breakdown); opponents only
+     *  when the game options allow. */
+    vpVisible(): boolean {
+      return this.isSelf || this.viewedIsBot ||
+        this.playerView.game.gameOptions.showOtherPlayersVP === true;
+    },
+    liveScore(): LiveScoreModel {
+      const game = this.playerView.game;
+      return buildLiveScoreModel(this.viewed.victoryPointsBreakdown, {
+        isBot: this.viewedIsBot,
+        hasMoon: game.moon !== undefined,
+        hasPathfinders: game.pathfinders !== undefined,
+        hasDelta: game.gameOptions.expansions.deltaProject === true,
+      });
+    },
+    /** The summary bar's positive segments (a penalty subtracts — it is
+     *  stated in the legend, never drawn as a stripe). */
+    vpBarSegments(): Array<{key: string, accent: string, widthPct: number}> {
+      const positive = this.liveScore.positiveTotal;
+      if (positive <= 0) {
+        return [];
+      }
+      return this.liveScore.categories
+        .filter((cat) => cat.value > 0)
+        .map((cat) => ({
+          key: cat.key,
+          accent: cat.accent,
+          widthPct: (cat.value / positive) * 100,
+        }));
+    },
+    /** The human card groups that explain the cards category (the same
+     *  detailsCards projection the VP report has always used). */
+    vpCardGroups(): Array<VPCardGroup> {
+      if (this.viewedIsBot) {
+        return [];
+      }
+      const game = this.playerView.game;
+      return buildVictoryPointsModel(this.viewed.victoryPointsBreakdown, {
+        hasMoon: game.moon !== undefined,
+        hasPathfinders: game.pathfinders !== undefined,
+        hasEscapeVelocity: game.gameOptions.escapeVelocity !== undefined,
+      }).cardGroups;
+    },
+    /** The bot's scoring FACTS — the formula behind its card-family
+     *  summands, in the endgame cards-tab's own honesty. */
+    botScoreFacts(): Array<{key: string, text: string, vp: number}> {
+      const automa = this.viewed.victoryPointsBreakdown.automa;
+      if (automa === undefined) {
+        return [];
+      }
+      const facts: Array<{key: string, text: string, vp: number}> = [];
+      if (automa.mcToVp > 0 || this.viewed.megacredits > 0) {
+        facts.push({
+          key: 'mc',
+          text: translateTextWithParams('${0} M€ at 1 VP per ${1} M€', [String(this.viewed.megacredits), String(automa.mcPerVp)]),
+          vp: automa.mcToVp,
+        });
+      }
+      if (automa.neuralInstance > 0) {
+        facts.push({key: 'neural', text: translateText('Neural Instance'), vp: automa.neuralInstance});
+      }
+      if (automa.cardVp > 0) {
+        facts.push({key: 'cards', text: translateText('Played card icons'), vp: automa.cardVp});
+      }
+      if (automa.corpVp > 0) {
+        facts.push({key: 'corp', text: translateText('Bot corporation'), vp: automa.corpVp});
+      }
+      return facts;
+    },
+    // ── the summary zones ─────────────────────────────────────────────────
+    /**
+     * The played-table SUMMARY: counts per printed zone through the SAME
+     * grouping the «Разыграно» table uses. THE BOT'S CORPORATION COUNTS —
+     * the table renders it in the corporation slot (parity: a human's
+     * corporation is inside their tableau already), so the summary and the
+     * X detail can never disagree.
+     */
+    playedSummary(): {total: number, rows: Array<{key: string, label: string, count: number}>} {
+      const tableau = this.viewedIsBot && this.botAutoma !== undefined ?
+        botTableauCards(this.botAutoma) : this.viewed.tableau;
+      const zones = buildPlayedZones(tableau);
+      const counts: Record<string, number> = {
+        corporation: zones.corporations.length,
+        prelude: zones.preludes.length,
+        ceo: zones.ceos.length,
+        active: zones.active.length,
+        automated: zones.automated.length,
+        events: zones.events.length,
+      };
+      if (this.viewedIsBot && this.botAutoma?.corporation !== undefined) {
+        counts.corporation += 1;
+      }
+      const rows = PLAYED_SUMMARY_LABEL
+        .map(({key, label}) => ({key, label, count: counts[key] ?? 0}))
+        .filter((r) => r.count > 0);
+      return {total: rows.reduce((n, r) => n + r.count, 0), rows};
+    },
+    /** «КАРТЫ» — the shared card-potential readout, honestly adapted. */
+    cardRows(): Array<{key: string, label: string, value: number, mint: boolean}> {
+      if (this.viewedIsBot && this.botAutoma !== undefined) {
+        return [
+          {key: 'action-deck', label: 'Action deck', value: this.botAutoma.actionDeckSize, mint: true},
+          {key: 'bonus-deck', label: 'Bonus deck', value: this.botAutoma.bonusDeckSize, mint: false},
+        ];
+      }
+      if (this.isSelf) {
+        return [
+          {key: 'playable', label: 'Playable now', value: this.cardsPlayable, mint: true},
+          {key: 'in-hand', label: 'In hand', value: this.cardsTotal, mint: false},
+        ];
+      }
+      return [{key: 'in-hand', label: 'In hand', value: this.cardsTotal, mint: false}];
     },
     /** Extra card resources aggregated by type (public — tableaus only). */
     extraGroups(): Array<{key: string, label: string, iconClass: string, total: number, cards: Array<{card: CardModel, amount: number}>}> {
@@ -477,31 +667,15 @@ export default defineComponent({
         cards: e.cards.sort((a, b) => b.amount - a.amount),
       })).sort((a, b) => b.total - a.total);
     },
-    extraSummary(): Array<{key: string, iconClass: string, total: number}> {
-      return this.extraGroups.map((g) => ({key: g.key, iconClass: g.iconClass, total: g.total}));
+    /** The bot's extra pools by TYPE (floaters / storage), same shape. */
+    botExtraGroups(): Array<MarsBotExtraGroup> {
+      return this.botAutoma !== undefined ? marsBotExtraGroups(this.botAutoma) : [];
     },
-    /**
-     * The played-table SUMMARY (the dashboard block): counts per printed
-     * zone through the SAME grouping the «Разыграно» table uses — the block
-     * and the X detail can never disagree. The bot seat reads its public
-     * played pile (botTableauCards).
-     */
-    playedSummary(): {total: number, rows: Array<{key: string, label: string, count: number}>} {
-      const tableau = this.viewedIsBot && this.botAutoma !== undefined ?
-        botTableauCards(this.botAutoma) : this.viewed.tableau;
-      const zones = buildPlayedZones(tableau);
-      const counts: Record<string, number> = {
-        corporation: zones.corporations.length,
-        prelude: zones.preludes.length,
-        ceo: zones.ceos.length,
-        active: zones.active.length,
-        automated: zones.automated.length,
-        events: zones.events.length,
-      };
-      const rows = PLAYED_SUMMARY_LABEL
-        .map(({key, label}) => ({key, label, count: counts[key] ?? 0}))
-        .filter((r) => r.count > 0);
-      return {total: rows.reduce((n, r) => n + r.count, 0), rows};
+    extraSummary(): Array<{key: string, iconClass: string, total: number}> {
+      if (this.viewedIsBot) {
+        return this.botExtraGroups.map((g) => ({key: g.key, iconClass: `con-info__exicon ${g.iconClass}`, total: g.total}));
+      }
+      return this.extraGroups.map((g) => ({key: g.key, iconClass: g.iconClass, total: g.total}));
     },
     cardsPlayable(): number {
       if (!this.isSelf) {
@@ -532,33 +706,6 @@ export default defineComponent({
     effectGroups(): Array<EffectGroup> {
       return playerEffectGroups(this.viewed.tableau);
     },
-    /** VP visibility: self always; opponents only when the game options allow. */
-    vpVisible(): boolean {
-      return this.isSelf || this.playerView.game.gameOptions.showOtherPlayersVP === true;
-    },
-    vpTotal(): number {
-      return this.viewed.victoryPointsBreakdown.total;
-    },
-    /**
-     * The VP TOTAL's home is the rail's score cap — repeating it here is
-     * banned. The ONE exception: the own seat under the «Приватный счёт»
-     * display pref masks the rail cell, so this deliberately-opened mode
-     * is the only honest place left for the number.
-     */
-    vpTotalRowVisible(): boolean {
-      return this.isSelf && shouldMaskOwnPassiveVp(true);
-    },
-    vpModel(): VictoryPointsModel {
-      const game = this.playerView.game;
-      return buildVictoryPointsModel(this.viewed.victoryPointsBreakdown, {
-        hasMoon: game.moon !== undefined,
-        hasPathfinders: game.pathfinders !== undefined,
-        hasEscapeVelocity: game.gameOptions.escapeVelocity !== undefined,
-      });
-    },
-    vpScales(): Array<{key: string, label: string, total: number}> {
-      return this.vpModel.scales.map((s) => ({key: s.key, label: s.label, total: s.total}));
-    },
     /** Actions detail rows — availability is server truth for SELF only. */
     actionRows(): Array<{name: CardName, available: boolean, reason: string}> {
       const availableNames = this.isSelf ?
@@ -582,22 +729,13 @@ export default defineComponent({
           };
         });
     },
-    detailTitle(): string {
-      return DETAIL_TITLES[this.infoModeState.detail ?? ''] ?? '';
-    },
     /** The live command contract — published to the shell's ONE bottom
      *  command bar through consolePanelUi (the footCommands watch below). */
     footCommands(): Array<ConsoleCommand> {
-      // Drop priorities for the narrow (Deck) bar: the mode's CORE verbs —
-      // Y close (the always-visible exit contract) and LB/RB players (THE
-      // workspace interaction) — outlive the detail hotkey hints, which are
-      // also discoverable on the blocks themselves. X is the ONE default
-      // details verb (the played table, human and bot alike); the seat's
-      // extra readers live on the sticks (L3 extras / R3 bot board).
-      const detail = this.infoModeState.detail;
+      const route = this.infoModeState.route;
       // The embedded «Разыграно» grammar — honest to the table's live
       // mirrors (consolePlayedUi), same verbs as the board-home overlay.
-      if (detail === 'played') {
+      if (route === 'played' && this.presentation === 'content') {
         if (consolePlayedUi.categoryBusy) {
           return [{control: 'back', label: 'Back'}];
         }
@@ -618,26 +756,28 @@ export default defineComponent({
       const cmds: Array<ConsoleCommand> = [
         {control: 'bumperL', control2: 'bumperR', label: 'Players', priority: 1},
       ];
-      if (detail === undefined && this.viewedIsBot) {
-        cmds.push(
-          {control: 'secondary', label: 'Played cards', priority: 2},
-          {control: 'stickR', label: 'MarsBot board', priority: 3},
-          {control: 'triggerR', label: 'Bonus cards', priority: 3},
-          {control: 'confirm', label: 'VP overview', enabled: this.vpVisible},
-        );
-      } else if (detail === undefined) {
-        cmds.push(
-          {control: 'secondary', label: 'Played cards', priority: 2},
-          {control: 'stickL', label: 'Extra resources', priority: 3},
-          {control: 'triggerL', label: 'Actions', priority: 3},
-          {control: 'triggerR', label: 'Effects', priority: 3},
-          {control: 'confirm', label: 'VP overview', enabled: this.vpVisible},
-        );
+      if (route === 'summary') {
+        // A opens the FOCUSED zone; the per-zone shortcuts stay discoverable
+        // on the blocks themselves (one action — one hint).
+        cmds.push({control: 'confirm', label: 'Open', enabled: this.summaryFocusEnterable});
+        cmds.push({control: 'secondary', label: 'Played cards', priority: 2});
+        if (this.viewedKind === 'bot') {
+          cmds.push({control: 'stickR', label: 'MarsBot screen', priority: 3});
+        }
+      } else if (route === 'botScreen' && this.presentation === 'content') {
+        cmds.push({control: 'confirm', label: 'Open'});
+        cmds.push({control: 'back', label: 'To overview'});
+      } else if (infoRouteDepth(route) >= 2) {
+        cmds.push({control: 'back', label: 'Back'});
       } else {
         cmds.push({control: 'back', label: 'To overview'});
       }
       cmds.push({control: 'inspect', label: 'Close', priority: 0});
       return cmds;
+    },
+    /** May A enter the currently focused summary zone? */
+    summaryFocusEnterable(): boolean {
+      return infoZoneFocusable(this.infoModeState.summaryFocus, this.viewedKind);
     },
   },
   watch: {
@@ -659,28 +799,58 @@ export default defineComponent({
     tableauCard(name: CardName): CardModel | undefined {
       return this.viewed.tableau.find((c) => c.name === name);
     },
+    /** The focus-ring state of a summary zone (ring only where A can go). */
+    zoneStateClass(zone: string): Record<string, boolean> {
+      const focusable = infoZoneFocusable(zone as never, this.viewedKind);
+      return {
+        'con-info__zone--focusable': focusable,
+        'con-info__zone--focused': focusable && this.infoModeState.summaryFocus === zone,
+      };
+    },
+    /** A category bar's fill on the shared max-category scale. */
+    catFillPct(cat: LiveScoreCategory): number {
+      const max = this.liveScore.maxCategoryValue;
+      if (max <= 0 || cat.value === 0) {
+        return 0;
+      }
+      return Math.min(100, (Math.abs(cat.value) / max) * 100);
+    },
+    /** The embedded table's own close event (B at table level). */
+    closePlayedRoute(): void {
+      this.infoModeState.route = 'summary';
+      this.infoModeState.summaryFocus = 'played';
+    },
     /** The shell forwards the pad to the embedded «Разыграно» table while
-     *  the played detail is up (LB/RB and Y are handled globally first). */
+     *  the played route is up (LB/RB and Y are handled globally first). */
     handlePlayedIntent(intent: GamepadIntent): void {
       (this.$refs.playedView as {handleIntent?: (i: GamepadIntent) => void} | undefined)?.handleIntent?.(intent);
     },
-    // ── the content-zone swap beat (dashboard ⇄ details) ────────────────
+    // ── the content-zone swap beat (route changes) ──────────────────────
+    // Direction follows DEPTH: descending rises from below (the workspace
+    // «one level deeper» phrase), B sinks the leaving zone back down. A
+    // same-depth swap (fallback ⇄ content on a seat switch) keeps the calm
+    // vertical grammar with the descend sign.
     detailZoneEnter(el: Element, done: () => void): void {
       if (consoleReducedMotionActive()) {
         gsap.set(el, {clearProps: 'transform,opacity'});
         done();
         return;
       }
+      const depth = infoRouteDepth(this.infoModeState.route);
+      const rising = depth >= this.lastDepth;
+      this.lastDepth = depth;
       gsap.fromTo(el,
-        {opacity: 0, y: 8 * conUiScale()},
-        {opacity: 1, y: 0, duration: motionMs(170) / 1000, ease: 'power2.out', clearProps: 'transform,opacity', onComplete: done});
+        {opacity: 0, y: (rising ? 10 : -8) * conUiScale()},
+        {opacity: 1, y: 0, duration: motionMs(180) / 1000, ease: 'power2.out', clearProps: 'transform,opacity', onComplete: done});
     },
     detailZoneLeave(el: Element, done: () => void): void {
       if (consoleReducedMotionActive()) {
         done();
         return;
       }
-      gsap.to(el, {opacity: 0, y: 4 * conUiScale(), duration: motionMs(90) / 1000, ease: 'power1.in', onComplete: done});
+      const depth = infoRouteDepth(this.infoModeState.route);
+      const rising = depth >= this.lastDepth;
+      gsap.to(el, {opacity: 0, y: (rising ? -6 : 5) * conUiScale(), duration: motionMs(95) / 1000, ease: 'power1.in', onComplete: done});
     },
     detailZoneCancelled(el: Element): void {
       gsap.killTweensOf(el);

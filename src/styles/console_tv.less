@@ -224,15 +224,11 @@ html.con-profile-tv {
         --ct-gap-y: 0.4rem;
         /* (The count ladder is gone — the grid SOLVES its rows into the
            section's real height; the token above is the cap.) */
-        /* MarsBot track rows (couch): bigger medals + a thicker gauge. */
-        --ct-track-icon: 1.6rem;
-        --ct-track-gap: 0.35rem;
         /* VP shields on scoring tags — same couch floor as the coin. */
         --valbadge-size: 1.3rem;
         --valbadge-fs: 0.8rem;
 
         &__title { font-size: 0.8rem; }
-        &__trackbar { height: 0.35rem; }
     }
     /* Score cap (TR + VP): couch-first bump — the two hero numbers step up
        with the rail, the emblems follow, the reserved slot still fits three
@@ -1644,7 +1640,6 @@ html.con-profile-tv {
        workspace width breathes instead of stretching rows. */
     .con-info {
         &__frame { padding: 1rem 1.4rem 0.8rem 1.6rem; }
-        &__name { font-size: 1.7rem; }
         &__corp { font-size: 1.15rem; }
         &__chip { font-size: 0.9rem; }
         &__block-title { font-size: 0.95rem; }
@@ -1652,17 +1647,31 @@ html.con-profile-tv {
             font-size: var(--con-t-body);
             b { font-size: 1.3rem; }
         }
-        &__cols { gap: 1rem; }
+        &__layout { gap: 1rem; }
         &__col { max-width: 27rem; }
-        &__grid { grid-template-columns: repeat(3, minmax(0, 27rem)); }
         &__note { font-size: var(--con-t-caption); }
         &__empty { font-size: var(--con-t-secondary); }
         &__extra-count { font-size: 1.4rem; }
         &__exicon { width: 2rem; height: 2rem; }
-        &__detail-title { font-size: 1.5rem; }
         &__acrow { font-size: var(--con-t-body); }
-        &__vpscale-title { font-size: var(--con-t-body); b { font-size: 1.35rem; } }
-        &__vpseg { font-size: var(--con-t-secondary); }
+        &__na-title { font-size: 1.5rem; }
+        &__na-body { font-size: var(--con-t-body); max-width: 30rem; }
+    }
+    /* The live score steps up with the couch tokens — the total is the
+       zone's hero number, the legend rides the body size. */
+    .con-infovp {
+        &__total { font-size: 2.9rem; }
+        &__cat { font-size: var(--con-t-body); }
+        &__cat-value { font-size: 1.3rem; }
+        &__bar { height: 1.05rem; }
+    }
+    .con-infovpd {
+        &__total { font-size: 2.4rem; }
+        &__cat-label { font-size: var(--con-t-body); }
+        &__cat-value { font-size: 1.5rem; }
+        &__track { height: 0.7rem; }
+        &__sub { font-size: var(--con-t-secondary); }
+        &__cards-title { font-size: var(--con-t-body); }
     }
 
     /* ═══ 21 · FOCUS — visible from the couch ═════════════════════

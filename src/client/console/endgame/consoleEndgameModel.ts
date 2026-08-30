@@ -113,7 +113,7 @@ export type ConsoleEndgameVm = {
 
 // ── category tables ────────────────────────────────────────────────────────
 
-type CategoryMeta = {
+export type CategoryMeta = {
   key: ConsoleEndgameCategoryKey;
   label: string;
   legend: string;
@@ -128,8 +128,13 @@ type CategoryMeta = {
  * public category — the biggest late swing), penalties after everything
  * (they subtract from an already-standing bar, which only reads honestly
  * at the end).
+ *
+ * EXPORTED as the ONE category policy of console scoring: the ceremony and
+ * the LIVE Information score (`liveScoreModel.ts`) read this same table, so
+ * category set, order, keys and `.con-eg-cat--<key>` colours can never
+ * diverge between the two surfaces.
  */
-const CATEGORIES: ReadonlyArray<CategoryMeta> = [
+export const SCORE_CATEGORY_TABLE: ReadonlyArray<CategoryMeta> = [
   {key: 'tr', label: 'Terraform rating', legend: 'TR', penalty: false, groups: ['tr']},
   {key: 'milestones', label: 'Milestones', legend: 'Milestones', penalty: false, groups: ['milestones']},
   {key: 'awards', label: 'Awards', legend: 'Awards', penalty: false, groups: ['awards']},
@@ -150,7 +155,7 @@ const CATEGORIES: ReadonlyArray<CategoryMeta> = [
  * «MarsBot scoring» summand onto the card family it factually is.
  * Spec-guarded: mapped ≡ legacy (no VP lost, none double-counted).
  */
-const AUTOMA_SEGMENT_FAMILY: Readonly<Record<string, string>> = {
+export const AUTOMA_SEGMENT_FAMILY: Readonly<Record<string, string>> = {
   'automa-mc': 'cards-resource', // M€ → VP conversion: the bot's engine income
   'automa-neural': 'cards-conditional', // Neural Instance: board-state dependent
   'automa-cards': 'cards-fixed', // printed icons of the played pile
@@ -160,7 +165,7 @@ const AUTOMA_SEGMENT_FAMILY: Readonly<Record<string, string>> = {
 /** The card families in the console reveal order (user-facing dramaturgy:
  *  resource → conditional → fixed — the most volatile family first, the
  *  printed certainty last). */
-const CARD_FAMILY_ORDER: ReadonlyArray<{key: string; label: string}> = [
+export const CARD_FAMILY_ORDER: ReadonlyArray<{key: string; label: string}> = [
   {key: 'cards-resource', label: 'Resource cards'},
   {key: 'cards-conditional', label: 'Conditional cards'},
   {key: 'cards-fixed', label: 'Fixed VP cards'},
@@ -191,7 +196,7 @@ function anyNonZero(values: Record<string, number>): boolean {
  * effects» for a human and «Track actions» for the bot (its TR grows from
  * track advances, not cards). In a mixed game the humans' meaning wins.
  */
-function trCardsLabel(values: Record<string, number>, botColors: ReadonlySet<string>): string {
+export function trCardsLabel(values: Record<string, number>, botColors: ReadonlySet<string>): string {
   const contributors = Object.keys(values).filter((c) => values[c] !== 0);
   if (contributors.length > 0 && contributors.every((c) => botColors.has(c))) {
     return 'Track actions';
@@ -201,7 +206,7 @@ function trCardsLabel(values: Record<string, number>, botColors: ReadonlySet<str
 
 /** «Base rating» is the reveal model's voice; the console ceremony speaks the
  *  VP report's calmer «Starting rating» (a base, not an achievement). */
-const TR_SUB_LABEL: Readonly<Record<string, string>> = {
+export const TR_SUB_LABEL: Readonly<Record<string, string>> = {
   'tr-base': 'Starting rating',
   'tr-temperature': 'Temperature',
   'tr-oxygen': 'Oxygen',
@@ -254,7 +259,7 @@ export function buildConsoleEndgameVm(
     reveal.segments.filter((s) => s.group === group);
 
   const categories: Array<ConsoleEndgameCategory> = [];
-  for (const meta of CATEGORIES) {
+  for (const meta of SCORE_CATEGORY_TABLE) {
     const sourceSegs = meta.groups.flatMap((g) => [...segsOfGroup(g)]);
     if (sourceSegs.length === 0) {
       continue; // absent in this game configuration — no empty visual noise

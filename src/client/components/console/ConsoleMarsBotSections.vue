@@ -1,18 +1,19 @@
 <template>
-  <!-- ── Dashboard blocks (the bot participant's overview) ─────────────── -->
-  <template v-if="mode === 'dashboard'">
-    <!-- The bot's ECONOMY (M€ supply, floaters) and its TAG TRACKS live on
-         the LEFT RAIL now — the Information Workspace overrides the rail to
-         the inspected seat and it renders the dedicated bot presentation
-         (marsBotRailModel). This dashboard keeps only the detail the rail
-         cannot carry: decks, piles, storage — plus the printed-board guide
-         behind X (the botBoard detail). -->
-    <!-- The bot's CORPORATION (Rule Book B) — its own card: bot rules only,
-         identity/art from the original. The face carries the live resource
-         count; the fullscreen inspect lives in the «Разыграно» corporation
-         slot (X → the unified table). -->
+  <!-- ── «ЭКРАН БОТА» — the bot's internals HUB (R3 from its summary).
+       Everything that explains HOW the algorithm works lives here, off the
+       shared participant summary: decks + discard/reshuffle rules, the
+       track internals, the storage conversion rule, the M€→VP ladder, the
+       corporation's bot rules, the difficulty. Its two deep references
+       (the printed board, the open bonus piles) are FOCUSABLE ENTRIES —
+       A descends, B returns here, one level at a time. -->
+  <template v-if="mode === 'botScreen'">
+    <!-- The corporation — bot rules only, identity/art from the original.
+         (The corp also lives in «Разыграно»'s corporation slot — this is
+         the RULES read, that is the card-table one.) -->
     <section v-if="automa.corporation !== undefined" class="con-info__block con-info__block--botcorp">
-      <h3 class="con-info__block-title">{{ $t('Corporation') }}</h3>
+      <h3 class="con-info__block-title">{{ $t('Corporation') }}
+        <span class="con-botscr__difficulty">{{ $t(difficultyLabel) }}</span>
+      </h3>
       <MarsBotCorpFace :id="automa.corporation.id" :resources="automa.corporation.resources"
                        :resource="automa.corporation.resource" compact />
     </section>
@@ -26,12 +27,22 @@
       <div class="con-info__note">{{ $t('One flip per turn; an empty action deck means MarsBot passes') }}</div>
     </section>
 
-    <!-- (The «Разыгранные карты» summary is the UNIFIED block in
-         ConsoleInfoMode now — same block for humans and the bot, X opens
-         the same premium table over the bot's played pile.) -->
-    <section class="con-info__block">
+    <!-- The two deep references — the focus ring's entries. -->
+    <section class="con-info__block con-botscr__entry"
+             :class="{'con-botscr__entry--focused': focus === 'botBoard'}"
+             data-bot-entry="botBoard">
+      <h3 class="con-info__block-title">{{ $t('MarsBot board') }}
+        <!-- A opens the FOCUSED entry — the glyph rides the ring. -->
+        <span v-if="focus === 'botBoard'" class="con-info__hotkey"><GamepadGlyph control="confirm" /></span>
+      </h3>
+      <div class="con-info__note con-info__note--door">{{ $t('The printed tracks, the cube and the teaching notes') }}</div>
+    </section>
+
+    <section class="con-info__block con-botscr__entry"
+             :class="{'con-botscr__entry--focused': focus === 'botBonus'}"
+             data-bot-entry="botBonus">
       <h3 class="con-info__block-title">{{ $t('Bonus cards') }}
-        <span class="con-info__hotkey"><GamepadGlyph control="triggerR" /></span>
+        <span v-if="focus === 'botBonus'" class="con-info__hotkey"><GamepadGlyph control="confirm" /></span>
       </h3>
       <div class="con-info__stat-lines">
         <div v-if="automa.recurringBonusCards.length > 0" class="con-info__stat-line"><span>{{ $t('Recurring') }}</span><b class="con-info__mint">{{ automa.recurringBonusCards.length }}</b></div>
@@ -51,10 +62,24 @@
       </div>
       <div class="con-info__note">{{ $t('Every 5 resources here exchange into a tracker step') }}</div>
     </section>
+
+    <!-- The scoring MECHANICS — why the summary's shared categories read
+         what they read (the ladder, the difficulty clause). -->
+    <section class="con-info__block">
+      <h3 class="con-info__block-title">{{ $t('MarsBot scoring') }}</h3>
+      <div class="con-info__stat-lines">
+        <div v-if="mcRate > 0" class="con-info__stat-line"><span>{{ $t('M€ per VP at game end') }}</span><b>{{ mcRate }}</b></div>
+        <div v-if="automa.floaters > 0" class="con-info__stat-line"><span>{{ $t('Floaters') }}</span><b>{{ automa.floaters }}</b></div>
+      </div>
+      <div class="con-info__note">{{ $t('Leftover M€ converts to VP at game end') }}</div>
+      <div v-if="countsCardVp" class="con-info__note">{{ $t('On Hard and Brutal, printed VP icons on flipped cards score 1 VP each') }}</div>
+    </section>
   </template>
 
-  <!-- ── Detail: the printed board (tracks, TV-sized) + the teaching layer ── -->
-  <div v-else-if="mode === 'botBoard'" class="con-info__scroll con-info__detail-scroll">
+  <!-- ── «ПЛАНШЕТ БОТА» — the printed board (tracks, TV-sized) + the
+       teaching layer. A nested route of «Экран бота»: B returns to the
+       hub, never to the summary. -->
+  <template v-else-if="mode === 'botBoard'">
     <MarsBotTracks :tracks="automa.tracks" :botColor="bot.color" :corporation="automa.corporation" large />
     <div class="con-info__note con-bot__legend">{{ $t('The cube marks the current position; ✕ marks regressed spaces whose action will not trigger again') }}</div>
     <div class="mb-guide mb-guide--console">
@@ -66,14 +91,10 @@
         <p v-for="(body, i) in section.body" :key="i" class="mb-guide__body" v-i18n>{{ body }}</p>
       </div>
     </div>
-  </div>
+  </template>
 
-  <!-- (The played pile detail moved to the UNIFIED embedded «Разыграно»
-       table — the workspace's X detail renders it through the same premium
-       overlay as a human tableau.) -->
-
-  <!-- ── Detail: the open bonus piles ───────────────────────────────────── -->
-  <div v-else-if="mode === 'botBonus'" class="con-info__scroll con-info__detail-scroll">
+  <!-- ── «БОНУСНЫЕ КАРТЫ» — the open bonus piles (a nested route). ────── -->
+  <template v-else-if="mode === 'botBonus'">
     <template v-if="automa.recurringBonusCards.length > 0">
       <h4 class="con-bot__pile-title">{{ $t('Recurring bonus cards') }}</h4>
       <p class="con-info__note con-bot__pile-note">{{ $t('These cards never go to the discard — they are shuffled back into the action deck every generation') }}</p>
@@ -94,25 +115,29 @@
         <BonusCardFace v-for="id in automa.destroyedBonusCards" :key="id" :id="id" :ctx="ctx" large destroyed />
       </div>
     </template>
-  </div>
+  </template>
 </template>
 
 <script lang="ts">
 /**
- * The MarsBot participant sections of the console INFO MODE — the bot's
- * dashboard blocks plus its three details (printed board + the teaching layer
- * / played pile / bonus piles). The human extras/actions/effects don't exist
- * for the Automa, so these replace them while the viewed participant is the
- * bot. Bonus cards render through the SHARED `BonusCardFace` — the effect
- * lines are already resolved for THIS game's expansion set; the teaching
- * blocks come from the SHARED `marsBotGuide`, so console and desktop explain
- * the bot identically. Read-only public data; input routing stays in
- * ConsoleShell and button hints stay in the info-mode footer.
+ * «ЭКРАН БОТА» + its two nested routes — the MarsBot internals of the
+ * console Information workspace. The participant SUMMARY shows the bot as
+ * one more player at the table; THIS surface is where its machinery lives:
+ * decks, discard/reshuffle, storage exchange, the M€→VP ladder, the
+ * difficulty clause, the printed board and the open bonus piles.
+ *
+ * Bonus cards render through the SHARED `BonusCardFace` — the effect lines
+ * are already resolved for THIS game's expansion set; the teaching blocks
+ * come from the SHARED `marsBotGuide`, so console and desktop explain the
+ * bot identically. Read-only public data; input routing stays in
+ * ConsoleShell and button hints stay in the one command bar.
  */
 import {defineComponent, PropType} from 'vue';
 import {PublicPlayerModel} from '@/common/models/PlayerModel';
 import {MarsBotModel} from '@/common/models/MarsBotModel';
+import {BotScreenEntry} from '@/client/console/infoRoute';
 import {GuideSection, MarsBotGuideContext, marsBotGuide} from '@/client/components/marsbot/marsBotGuide';
+import {DIFFICULTY_LABEL} from '@/client/components/marsbot/marsBotView';
 import MarsBotTracks from '@/client/components/marsbot/MarsBotTracks.vue';
 import BonusCardFace from '@/client/components/marsbot/BonusCardFace.vue';
 import MarsBotCorpFace from '@/client/components/marsbot/MarsBotCorpFace.vue';
@@ -122,13 +147,20 @@ export default defineComponent({
   name: 'ConsoleMarsBotSections',
   components: {MarsBotTracks, BonusCardFace, MarsBotCorpFace, GamepadGlyph},
   props: {
-    mode: {type: String as PropType<'dashboard' | 'botBoard' | 'botBonus'>, required: true},
+    mode: {type: String as PropType<'botScreen' | 'botBoard' | 'botBonus'>, required: true},
     bot: {type: Object as PropType<PublicPlayerModel>, required: true},
     automa: {type: Object as PropType<MarsBotModel>, required: true},
     /** The expansion context — resolves bonus-card faces + guide sections for THIS game. */
     ctx: {type: Object as PropType<MarsBotGuideContext>, required: true},
+    /** The hub's focus ring — which deep entry the cursor stands on. */
+    focus: {type: String as PropType<BotScreenEntry>, default: 'botBoard'},
+    /** The bot seat's M€ supply (the scoring block's ladder input). */
+    megacredits: {type: Number, default: 0},
   },
   computed: {
+    difficultyLabel(): string {
+      return DIFFICULTY_LABEL[this.automa.difficulty];
+    },
     storageEntries(): Array<{colony: string, count: number}> {
       const storage = this.automa.shippingStorage;
       if (storage === undefined) {
@@ -137,6 +169,14 @@ export default defineComponent({
       return Object.entries(storage)
         .filter((entry): entry is [string, number] => typeof entry[1] === 'number' && entry[1] > 0)
         .map(([colony, count]) => ({colony, count}));
+    },
+    /** The current M€→VP ladder rate (from the live breakdown's automa
+     *  block — server truth; 0 hides the row on a pre-automa model). */
+    mcRate(): number {
+      return this.bot.victoryPointsBreakdown.automa?.mcPerVp ?? 0;
+    },
+    countsCardVp(): boolean {
+      return this.automa.difficulty === 'hard' || this.automa.difficulty === 'brutal';
     },
     guide(): ReadonlyArray<GuideSection> {
       return marsBotGuide(this.automa.difficulty, this.ctx);

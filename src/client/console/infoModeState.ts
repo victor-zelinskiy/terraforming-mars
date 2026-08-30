@@ -1,10 +1,11 @@
 /*
- * LT INFORMATION MODE state (feedback iteration 3, priority 1).
+ * THE INFORMATION WORKSPACE state (Y).
  *
- * The console-native "what do I need to know" mode: a read-only, full-screen
- * player dashboard (resources/production, tags, extra card resources, cards/
- * actions/effects availability, VP) with LB/RB player switching and hotkey
- * details. NEVER submits anything, NEVER mutates game state.
+ * The console-native "what do I need to know" overlay: a read-only player
+ * dossier (participant summary, VP breakdown, played cards, extra resources,
+ * the bot's internals screen) with LB/RB participant switching and a
+ * semantic route model (`infoRoute.ts`). NEVER submits anything, NEVER
+ * mutates game state.
  *
  * Context restore: opening captures a SNAPSHOT of the console navigation
  * state; closing restores it EXACTLY (screen, sheet, indices, board cell,
@@ -18,13 +19,7 @@
 import {reactive} from 'vue';
 import {Color} from '@/common/Color';
 import {consoleState} from '@/client/console/consoleRouter';
-
-// 'played' and 'vp' are SHARED details (they survive an LB/RB seat switch —
-// the embedded «Разыграно» table simply re-reads the inspected seat). The
-// bot-specific details replace the human ones while the viewed participant
-// is MarsBot: its printed board (tracks) and the open bonus piles — the
-// human extras/actions/effects don't exist for it.
-export type InfoDetail = 'extras' | 'actions' | 'effects' | 'vp' | 'played' | 'botBoard' | 'botBonus';
+import {BotScreenEntry, InfoRouteId, InfoZoneId} from '@/client/console/infoRoute';
 
 /**
  * What LT-open captures and LT-close restores.
@@ -58,7 +53,17 @@ export const infoModeState = reactive({
   closing: false,
   /** Whose profile is displayed (defaults to the viewer on open). */
   playerColor: undefined as Color | undefined,
-  detail: undefined as InfoDetail | undefined,
+  /**
+   * WHERE the player stands inside the panel — a SEMANTIC route
+   * (`infoRoute.ts`). It survives an LB/RB seat switch by contract: a route
+   * the new participant cannot serve keeps the route and presents the
+   * fallback, so cycling the table never loses the player's place.
+   */
+  route: 'summary' as InfoRouteId,
+  /** The summary focus ring — which zone the cursor stands on. */
+  summaryFocus: 'vp' as InfoZoneId,
+  /** The «Экран бота» focus ring — which deep reference the cursor is on. */
+  botScreenFocus: 'botBoard' as BotScreenEntry,
   snapshot: undefined as ConsoleContextSnapshot | undefined,
 });
 
@@ -98,7 +103,9 @@ export function openInfoMode(viewer: Color, cellFocused: boolean): void {
   }
   infoModeState.snapshot = captureConsoleSnapshot(cellFocused);
   infoModeState.playerColor = viewer;
-  infoModeState.detail = undefined;
+  infoModeState.route = 'summary';
+  infoModeState.summaryFocus = 'vp';
+  infoModeState.botScreenFocus = 'botBoard';
   infoModeState.closing = false; // a re-open mid-dismiss reclaims the stage
   infoModeState.open = true;
 }
@@ -108,7 +115,7 @@ export function closeInfoMode(): ConsoleContextSnapshot | undefined {
   const snap = infoModeState.snapshot;
   infoModeState.open = false;
   infoModeState.closing = true;
-  infoModeState.detail = undefined;
+  infoModeState.route = 'summary';
   infoModeState.snapshot = undefined;
   return snap;
 }

@@ -470,12 +470,12 @@ export function surfaceEnterHook(el: Element, done: () => void): void {
 function contentCascade(id: SurfaceMotionId, el: Element, tl: gsap.core.Timeline, at: number): void {
   const u = conUiScale();
   if (id === 'info-mode') {
-    // The dossier composes FROM the rail seam: identity header first, then
-    // the detail columns spread left→right (the bot dashboard's grid blocks
-    // ride the same cue). Selector misses are silent no-ops (detail screens
+    // The dossier composes FROM the rail seam: the crumb header first, then
+    // the summary columns spread left→right (ONE layout for every
+    // participant now). Selector misses are silent no-ops (detail screens
     // re-open with their own layout).
     const head = el.querySelector<HTMLElement>('.con-info__head');
-    const cols = [...el.querySelectorAll<HTMLElement>('.con-info__col, .con-info__grid > .con-info__block')].slice(0, 8);
+    const cols = [...el.querySelectorAll<HTMLElement>('.con-info__col')].slice(0, 8);
     if (head !== null) {
       tl.fromTo(head,
         {y: -6 * u, opacity: 0},

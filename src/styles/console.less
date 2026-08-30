@@ -3661,6 +3661,14 @@ each(@players, {
         flex-direction: column;
         gap: var(--cr-rgap);
     }
+    /* THE BOT SEAT'S ROWS — parity geometry: the zone RESERVES the six-row
+       human height, so the МЕТКИ block below keeps the exact vertical
+       anchor across an LB/RB seat switch. The unfilled rows are deliberate
+       empty space (the Automa has nothing to put there), never a collapsed
+       zone that lets the matrix jump up. */
+    &__rows--bot {
+        min-height: calc(6 * (var(--cr-icon) + 2 * var(--cr-row-py)) + 5 * var(--cr-rgap));
+    }
     &__row {
         /* THE ROW GRID — one fixed track shape for EVERY row:
            `icon | value | production`. The icon track is the token box, the
@@ -3966,73 +3974,19 @@ each(@players, {
         }
     }
 
-    /* ── MARSBOT variant — the printed TAG TRACKS (Information Workspace
-       inspects the bot seat). One row per track: every mapped tag medal
-       (multi-tag tracks overlap into one cluster), a progress fill toward
-       the track's OWN max, the position count. Same instrument language as
-       the matrix (shared head/medal/number); progress is opacity/colour/
-       width — perf-lite safe, no filter carrying state. */
-    &__tracks {
-        display: flex;
-        flex-direction: column;
-        gap: var(--ct-track-gap, .3rem);
-    }
-    &__trackrow {
-        display: flex;
-        align-items: center;
-        gap: .35rem;
-        padding: .15rem .25rem .15rem .15rem;
-        border-radius: .35rem;
-        background: rgba(10, 18, 28, 0.35);
-        box-shadow: inset 0 .05rem .2rem rgba(0, 0, 0, 0.35);
-    }
-    /* The medal cluster reserves a FIXED lane (3 overlapped medals at the
-       widest — the bio track), so every row's bar starts at the same x and
-       the column reads as one gauge stack. */
-    &__trackmedals {
-        flex: 0 0 auto;
-        width: calc(var(--ct-track-icon, 1.35rem) * 2.05);
-        display: inline-flex;
-        align-items: center;
-
+    /* ── «Not tracked» — a MARSBOT cell whose tag maps to no printed track
+       (wild / no-tag). The dash says «this concept does not exist for the
+       Automa» — dimmer than a zero (a zero is a count; this is absence),
+       same footprint, so the shared matrix geometry never moves. */
+    &__cell--na {
         .con-tagmx__medal.tag-count {
-            width: var(--ct-track-icon, 1.35rem);
-            height: var(--ct-track-icon, 1.35rem);
-            flex-shrink: 0;
-        }
-        .con-tagmx__medal.tag-count + .con-tagmx__medal.tag-count {
-            margin-left: calc(var(--ct-track-icon, 1.35rem) * -0.52);
-        }
-    }
-    &__trackbar {
-        flex: 1 1 auto;
-        min-width: 0;
-        height: .3rem;
-        border-radius: 49.95rem;
-        background: rgba(8, 14, 22, 0.85);
-        box-shadow: inset 0 0 0 .05rem rgba(120, 150, 180, 0.18);
-        overflow: hidden;
-    }
-    &__trackfill {
-        display: block;
-        height: 100%;
-        border-radius: inherit;
-        background: linear-gradient(90deg, fade(@con-cyan, 55%), @con-mint);
-        box-shadow: 0 0 .3rem fade(@con-mint, 35%);
-        transition: width calc(300ms * var(--motion-scale, 1)) ease;
-    }
-    &__numwrap--track {
-        margin-top: 0;
-        flex: 0 0 auto;
-        min-width: 1.1rem;
-    }
-    &__trackrow--zero {
-        .con-tagmx__medal.tag-count {
-            opacity: .48;
-            filter: saturate(0.4) contrast(0.94);
+            opacity: .32;
+            filter: saturate(0.25) contrast(0.9);
+            transform: scale(0.93);
+            box-shadow: 0 0 0 .05rem rgba(0, 0, 0, 0.22);
         }
         .con-tagmx__num {
-            color: fade(@con-text, 42%);
+            color: fade(@con-text, 30%);
             font-weight: 600;
             text-shadow: none;
         }
@@ -14905,35 +14859,29 @@ html.con-profile-large.console-mode .notifications-layer.notifications-layer--jo
            the workspace opens OVER arbitrary surfaces, above the shade). */
     }
 
+    /* THE WORKSPACE HEADER — ConsoleWsHead wearing `con-info__head` as its
+       fall-through identity class (the surface-motion cascade targets it).
+       The crumb IS the identity now (ИНФОРМАЦИЯ › <участник> › <раздел>);
+       this modifier only adds the mode's own seam accent underline and the
+       trailing meta styling — never a second flex model. */
     &__head {
-        display: flex;
-        align-items: center;
-        justify-content: space-between;
-        gap: 1rem;
-        padding-bottom: .6rem;
+        padding-bottom: .55rem;
         /* Delicate player-context underline — the accent, not a banner. */
         border-bottom: .05rem solid var(--con-insp-accent-faint, fade(@con-cyan, 22%));
         transition: border-color calc(200ms * var(--motion-scale, 1)) ease;
+
+        /* The participant SUBJECT is the crumb's brightest voice; give it
+           the workspace-standard weight (it is a proper name, subjectRaw). */
+        .con-wshead__subject { font-weight: 700; }
     }
-    &__who {
-        display: flex;
-        align-items: center;
-        gap: .6rem;
-        .con-status__dot { width: .9rem; height: .9rem; }
-    }
-    /* The identity zone (dot + name + state chips) — the directional
-       LB/RB recompose target (data-insp-slide, inspectSwitchMotion). */
-    &__ident {
+    /* The trailing meta (dot + state chips + corp/difficulty) — the LB/RB
+       recompose target (data-insp-slide, inspectSwitchMotion). */
+    &__meta {
         display: inline-flex;
         align-items: center;
-        gap: .6rem;
+        gap: .55rem;
         min-width: 0;
-    }
-    &__bumper .gp-glyph { min-width: 1.7rem; }
-    &__name {
-        font-size: 1.5rem;
-        font-weight: 700;
-        letter-spacing: .03rem;
+        .con-status__dot { width: .8rem; height: .8rem; }
     }
     &__chip {
         padding: .15rem .6rem;
@@ -14947,15 +14895,7 @@ html.con-profile-large.console-mode .notifications-layer.notifications-layer--jo
         &--turn { background: fade(@con-mint, 14%); box-shadow: inset 0 0 0 .05rem fade(@con-mint, 60%); color: @con-mint; }
         &--passed { background: rgba(120, 140, 160, 0.14); box-shadow: inset 0 0 0 .05rem rgba(150, 175, 205, 0.4); color: @con-text-dim; }
     }
-    /* Corp / participant meta only — the TR / VP totals live on the RAIL's
-       score cap now (the workspace never repeats the rail's summary). */
-    &__head-meta {
-        display: flex;
-        align-items: center;
-        gap: .9rem;
-        font-size: 1.05rem;
-    }
-    &__corp { color: @con-text-dim; }
+    &__corp { color: @con-text-dim; font-size: 1.05rem; }
 
     /* FOUNDATION documented exception (CONSOLE_FOUNDATION.md §3.3): the shared
        chrome-less DISPLAY-scroll utility for read-only info surfaces (Info Mode
@@ -14967,21 +14907,14 @@ html.con-profile-large.console-mode .notifications-layer.notifications-layer--jo
         min-height: 0;
         .con-scrollbars();
     }
-    /* The MarsBot dashboard keeps the block GRID (its section count varies
-       with the expansion context); capped column width so the blocks stay
-       couch-readable instead of stretching across the whole workspace. */
-    &__grid {
-        flex: 1;
-        display: grid;
-        grid-template-columns: repeat(3, minmax(0, 24rem));
-        justify-content: start;
-        gap: .7rem;
-        align-content: start;
-    }
-    /* The human dashboard: three calm COLUMNS of detail blocks (VP story ·
-       availability · card resources). Fixed comfortable widths — leftover
-       workspace width stays as breathing room, never stretched rows. */
-    &__cols {
+    /* THE PARTICIPANT SUMMARY — ONE canonical layout for EVERY participant:
+       three calm columns (score story · card story · extras + the
+       human-only pair). The SHARED zones sit at the same coordinates for a
+       human and the bot; the human-only pair renders after them, so its
+       absence never shifts the shared geometry. Fixed comfortable widths —
+       leftover workspace width stays as breathing room, never stretched
+       rows. */
+    &__layout {
         flex: 1;
         min-height: 0;
         display: flex;
@@ -15002,6 +14935,24 @@ html.con-profile-large.console-mode .notifications-layer.notifications-layer--jo
         background: rgba(14, 22, 33, 0.6);
         box-shadow: inset 0 0 0 .05rem rgba(120, 150, 180, 0.16);
     }
+    /* A summary ZONE — the focus ring's stop. Same chassis as a block; the
+       ring is functional state on box-shadow (paint-baseline safe), and it
+       exists only where A can actually go (`--focusable`). */
+    &__zone {
+        padding: .7rem .9rem;
+        border-radius: .5rem;
+        background: rgba(14, 22, 33, 0.6);
+        box-shadow: inset 0 0 0 .05rem rgba(120, 150, 180, 0.16);
+        transition: box-shadow calc(160ms * var(--motion-scale, 1)) ease,
+            background-color calc(160ms * var(--motion-scale, 1)) ease;
+    }
+    &__zone--focused {
+        background: rgba(18, 30, 44, 0.78);
+        box-shadow: inset 0 0 0 .1rem fade(@con-cyan, 80%),
+            0 .3rem 1.2rem rgba(0, 0, 0, 0.35);
+    }
+    /* The hotkey glyph on a NON-focusable zone would advertise a dead A —
+       zones without a route keep their title clean by markup instead. */
     &__block-title {
         display: flex;
         align-items: center;
@@ -15147,31 +15098,14 @@ html.con-profile-large.console-mode .notifications-layer.notifications-layer--jo
         font-size: .95rem;
     }
     /* details */
-    &__detail {
-        flex: 1;
-        min-height: 0;
-        display: flex;
-        flex-direction: column;
-        gap: .5rem;
-    }
-    &__detail-head {
-        display: flex;
-        align-items: center;
-        justify-content: space-between;
-    }
-    &__detail-title {
-        font-size: 1.25rem;
-        font-weight: 700;
-        letter-spacing: .08rem;
-        text-transform: uppercase;
-        color: fade(@con-cyan, 95%);
-    }
-    &__detail-back {
-        display: inline-flex;
-        align-items: center;
-        gap: .4rem;
-        color: @con-text-dim;
-        font-size: .9rem;
+    /* A READING measure for the list-shaped detail screens: full workspace
+       width on a 4K panel puts half a metre between a label and its value.
+       The blocks cap at a comfortable line and the leftover width stays
+       breathing room (the summary columns' own rule). Card galleries
+       (extras) and the embedded table keep the full stage. */
+    &__detail-scroll > :is(.con-info__block, .con-info__exgroup, .con-info__acrow) {
+        max-width: 64rem;
+        width: 100%;
     }
     &__detail-scroll {
         flex: 1;
@@ -15280,41 +15214,286 @@ html.con-profile-large.console-mode .notifications-layer.notifications-layer--jo
         /* Read-only: the reused desktop effect blocks are display-only here. */
         pointer-events: none;
     }
-    /* The VP-detail total strip — only while the rail masks the own score
-       (see &__stat-line--total); the breakdown itself is the content. */
-    &__vp-totalrow {
-        font-size: 1.05rem;
-        color: @con-text-dim;
-
-        b { color: @con-mint; font-size: 1.3rem; margin-left: .4rem; }
+    /* ── CAPABILITY FALLBACK — «Не применимо»: the route survived a seat
+       switch the participant cannot serve. A calm workspace statement in
+       the panel's own voice — never a bare empty frame, never a layout
+       flash (it fills the same content area every route fills). */
+    &__na {
+        flex: 1;
+        min-height: 0;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        gap: .5rem;
+        text-align: center;
     }
-    &__vpscale {
-        padding: .6rem .8rem;
+    &__na-mark {
+        font-size: 2.6rem;
+        line-height: 1;
+        color: rgba(150, 175, 205, 0.4);
+    }
+    &__na-title {
+        font-size: 1.25rem;
+        font-weight: 700;
+        letter-spacing: .1rem;
+        text-transform: uppercase;
+        color: @con-text-dim;
+    }
+    &__na-body {
+        max-width: 24rem;
+        font-size: 1rem;
+        color: @con-text-dim;
+    }
+    &__na-hint {
+        margin-top: .6rem;
+        display: inline-flex;
+        align-items: center;
+        gap: .35rem;
+        color: @con-text-dim;
+        font-size: .85rem;
+        letter-spacing: .06rem;
+        text-transform: uppercase;
+    }
+    /* The door-zone caption (the bot's «Экран бота» entry). */
+    &__note--door {
+        margin-top: .15rem;
+        font-style: normal;
+        font-size: .9rem;
+    }
+    &__stat-lines--holders {
+        margin-top: .2rem;
+        max-width: 22rem;
+    }
+}
+
+/* ── THE LIVE SCORE — the Information workspace's premium VP presentation.
+   The SAME category system, order and `.con-eg-cat--*` colours the final
+   scoring ceremony speaks (liveScoreModel over the ceremony's own tables),
+   so live VP and the finale read as ONE system. Category identity =
+   colour + position + name/value — never colour alone. ─────────────── */
+
+/* The SUMMARY zone: total → segmented bar → category legend. */
+.con-infovp {
+    &__totalrow {
+        display: flex;
+        align-items: baseline;
+        gap: .45rem;
+        margin-bottom: .55rem;
+    }
+    &__total {
+        font-size: 2.3rem;
+        font-weight: 800;
+        line-height: 1;
+        letter-spacing: .02rem;
+        color: @con-text;
+        font-variant-numeric: tabular-nums;
+    }
+    &__total-label {
+        font-size: .95rem;
+        font-weight: 700;
+        letter-spacing: .12rem;
+        text-transform: uppercase;
+        color: @con-text-dim;
+    }
+    /* ONE bar, one hue per category (var(--eg-c) from .con-eg-cat--*),
+       widths on the shared positive total — «what carries the result» at
+       a glance. A dark hairline separates neighbours (the endgame's own
+       settled-bar language). */
+    &__bar {
+        display: flex;
+        height: .85rem;
+        border-radius: .3rem;
+        overflow: hidden;
+        background: rgba(10, 16, 25, 0.8);
+        box-shadow: inset 0 0 0 .05rem rgba(120, 150, 180, 0.22);
+        margin-bottom: .6rem;
+    }
+    &__seg {
+        background: var(--eg-c, @con-cyan);
+        box-shadow: inset -.05rem 0 0 rgba(5, 8, 13, 0.55);
+        transition: width calc(420ms * var(--motion-scale, 1)) ease;
+    }
+    &__legend {
+        display: flex;
+        flex-direction: column;
+        gap: .3rem;
+    }
+    &__cat {
+        display: flex;
+        align-items: center;
+        gap: .5rem;
+        font-size: 1rem;
+        color: @con-text-dim;
+    }
+    &__cat--zero { opacity: .55; }
+    &__cat--penalty .con-infovp__cat-value { color: #eb8f8f; }
+    &__dot {
+        flex-shrink: 0;
+        width: .6rem;
+        height: .6rem;
+        border-radius: .18rem;
+        background: var(--eg-c, @con-cyan);
+        box-shadow: inset 0 0 0 .05rem rgba(0, 0, 0, 0.4);
+    }
+    &__cat-label {
+        min-width: 0;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+    }
+    &__cat-value {
+        margin-left: auto;
+        color: @con-text;
+        font-size: 1.1rem;
+        font-variant-numeric: tabular-nums;
+    }
+}
+
+/* The DETAIL screen: total → category bars on ONE shared scale (the
+   endgame reading) → sources inside categories → the explaining lists. */
+.con-infovpd {
+    /* The same reading measure as the other detail lists — bar LENGTHS stay
+       comparable inside one shared cap, and a 4K frame keeps its calm. */
+    &__totalrow, &__cats, &__cards {
+        max-width: 64rem;
+        width: 100%;
+    }
+    &__totalrow {
+        display: flex;
+        align-items: baseline;
+        gap: .5rem;
+        padding: .2rem .2rem .4rem;
+    }
+    &__total-label {
+        font-size: 1rem;
+        letter-spacing: .1rem;
+        text-transform: uppercase;
+        color: @con-text-dim;
+    }
+    &__total {
+        font-size: 2rem;
+        font-weight: 800;
+        line-height: 1;
+        color: @con-mint;
+        font-variant-numeric: tabular-nums;
+    }
+    &__total-vp {
+        font-size: .9rem;
+        font-weight: 700;
+        letter-spacing: .12rem;
+        text-transform: uppercase;
+        color: @con-text-dim;
+    }
+    &__cats {
+        display: flex;
+        flex-direction: column;
+        gap: .45rem;
+    }
+    &__cat {
+        padding: .55rem .8rem .6rem;
         border-radius: .5rem;
         background: rgba(14, 22, 33, 0.6);
-        box-shadow: inset 0 0 0 .05rem rgba(120, 150, 180, 0.16);
+        box-shadow: inset 0 0 0 .05rem rgba(120, 150, 180, 0.16),
+            inset .18rem 0 0 var(--eg-c, fade(@con-cyan, 45%));
     }
-    &__vpscale-title {
+    &__cat--zero { opacity: .6; }
+    &__cathead {
         display: flex;
-        justify-content: space-between;
-        margin: 0 0 .4rem;
-        font-size: 1.1rem;
-        b { font-size: 1.25rem; }
+        align-items: center;
+        gap: .5rem;
+        margin-bottom: .4rem;
     }
-    &__vpsegs {
+    &__dot {
+        flex-shrink: 0;
+        width: .65rem;
+        height: .65rem;
+        border-radius: .18rem;
+        background: var(--eg-c, @con-cyan);
+        box-shadow: inset 0 0 0 .05rem rgba(0, 0, 0, 0.4);
+    }
+    &__cat-label {
+        font-size: 1.05rem;
+        letter-spacing: .04rem;
+        color: @con-text;
+    }
+    &__cat-value {
+        margin-left: auto;
+        font-size: 1.3rem;
+        font-variant-numeric: tabular-nums;
+        color: @con-text;
+    }
+    &__cat--penalty &__cat-value { color: #eb8f8f; }
+    /* The bar: every category on the SHARED max-category scale, so
+       lengths are directly comparable («what carried the game» — the
+       desktop report's own rule, the ceremony's own geometry). */
+    &__track {
+        height: .55rem;
+        border-radius: .25rem;
+        overflow: hidden;
+        background: rgba(10, 16, 25, 0.8);
+        box-shadow: inset 0 0 0 .05rem rgba(120, 150, 180, 0.18);
+    }
+    &__fill {
+        display: block;
+        height: 100%;
+        border-radius: .25rem;
+        background: var(--eg-c, @con-cyan);
+        transition: width calc(420ms * var(--motion-scale, 1)) ease;
+    }
+    &__cat--penalty &__fill {
+        background: repeating-linear-gradient(135deg,
+            fade(#e06a6a, 88%) 0 .35rem, fade(#e06a6a, 55%) .35rem .7rem);
+    }
+    &__subs {
         display: flex;
         flex-wrap: wrap;
-        gap: .4rem .7rem;
+        gap: .25rem .9rem;
+        margin-top: .45rem;
     }
-    &__vpseg {
-        font-size: .9rem;
+    &__sub {
+        display: inline-flex;
+        align-items: baseline;
+        gap: .35rem;
+        font-size: .92rem;
         color: @con-text-dim;
-        b { color: @con-text; }
     }
-    &__vpcards {
+    &__sub-value {
+        color: @con-text;
+        font-variant-numeric: tabular-nums;
+    }
+    &__cards {
         padding: .6rem .8rem;
         border-radius: .5rem;
         background: rgba(14, 22, 33, 0.55);
+        box-shadow: inset 0 0 0 .05rem rgba(120, 150, 180, 0.14);
+    }
+    &__cards-title {
+        display: flex;
+        justify-content: space-between;
+        margin: 0 0 .45rem;
+        font-size: 1.05rem;
+        letter-spacing: .04rem;
+        b { font-size: 1.2rem; }
+    }
+}
+
+/* ── «ЭКРАН БОТА» chrome — the hub's focusable deep entries. ────────── */
+.con-botscr {
+    &__difficulty {
+        margin-left: auto;
+        font-size: .85rem;
+        letter-spacing: .06rem;
+        color: @mb-accent;
+    }
+    &__entry {
+        transition: box-shadow calc(160ms * var(--motion-scale, 1)) ease,
+            background-color calc(160ms * var(--motion-scale, 1)) ease;
+    }
+    &__entry--focused {
+        background: rgba(18, 30, 44, 0.78);
+        box-shadow: inset 0 0 0 .1rem fade(@con-cyan, 80%),
+            0 .3rem 1.2rem rgba(0, 0, 0, 0.35);
     }
 }
 
@@ -29518,9 +29697,6 @@ html.con-profile-handheld {
         --ct-icon: 1.4rem;
         --ct-num: .78rem;
         --ct-gap-y: .25rem;
-        /* MarsBot track rows compact with the Deck rail. */
-        --ct-track-icon: 1.05rem;
-        --ct-track-gap: .2rem;
         --valbadge-size: .82rem;
         --valbadge-fs: .52rem;
         padding-top: .4rem;
@@ -29528,7 +29704,6 @@ html.con-profile-handheld {
         &__head { margin-bottom: .35rem; }
         &__title { font-size: .55rem; letter-spacing: .08rem; }
         &__cell { padding: .15rem 0 .1rem; }
-        &__trackbar { height: .25rem; }
     }
     .con-res-aux__value { font-size: .75rem; min-width: 1rem; }
     .con-score {
@@ -29559,18 +29734,29 @@ html.con-profile-handheld {
     /* ── 7 · Y Information Workspace ─────────────────────────────── */
     .con-info {
         &__frame { padding: .6rem var(--con-hud-pad-x, .8rem) .5rem 1rem; gap: .45rem; }
-        &__name { font-size: 1.15rem; }
         &__head { padding-bottom: .4rem; }
-        &__grid { gap: .5rem; grid-template-columns: repeat(3, minmax(0, 1fr)); }
         /* The Deck's tighter budget: columns share the width evenly (no cap)
            so three still fit without horizontal scroll. */
-        &__cols { gap: .5rem; }
+        &__layout { gap: .5rem; }
         &__col { max-width: none; gap: .5rem; }
-        &__block { padding: .5rem .6rem; }
+        &__block, &__zone { padding: .5rem .6rem; }
         &__block-title { font-size: .65rem; margin-bottom: .4rem; }
         &__excards { gap: .6rem; }
         &__excard { zoom: 0.6; }
         &__excard-count { font-size: .7rem; i { width: .9rem; height: .9rem; } }
+    }
+    .con-infovp {
+        &__total { font-size: 1.7rem; }
+        &__cat { font-size: .7rem; }
+        &__cat-value { font-size: .8rem; }
+        &__bar { height: .6rem; margin-bottom: .4rem; }
+    }
+    .con-infovpd {
+        &__total { font-size: 1.5rem; }
+        &__cat { padding: .4rem .55rem .45rem; }
+        &__cat-label { font-size: .78rem; }
+        &__cat-value { font-size: .95rem; }
+        &__sub { font-size: .68rem; }
     }
 
     /* ── 8 · hand section ────────────────────────────────────────── */

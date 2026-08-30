@@ -638,8 +638,14 @@ export class Server {
       globalParameterSteps: {},
     };
 
+    // The MarsBot's score is OPEN INFORMATION by the Automa rules: every
+    // input to it (tracks, tiles, M€ supply, played pile, difficulty) is on
+    // the physical table, so hiding the derived number protects nothing —
+    // it only made the live Information workspace show a fake 0 next to the
+    // bot's real TR. Humans keep the ordinary hidden-VP contract.
     if (game.phase === Phase.END || game.isSoloMode() ||
-        game.gameOptions.showOtherPlayersVP === true || modelIsForThisPlayer) {
+        game.gameOptions.showOtherPlayersVP === true || modelIsForThisPlayer ||
+        player.isMarsBot === true) {
       model.victoryPointsBreakdown = player.getVictoryPoints();
       model.victoryPointsByGeneration = player.victoryPointsByGeneration;
       model.globalParameterSteps = player.globalParameterSteps;

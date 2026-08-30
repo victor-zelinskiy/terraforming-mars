@@ -55,9 +55,13 @@ test.describe('console: the MarsBot corporation card', () => {
     }
     await expect(corpLine, 'the bot header wears its corporation as identity').toContainText('Spire');
 
-    // The dashboard block renders the ORDINARY premium corporation card.
-    const dashFace = page.locator('.con-info__block--botcorp .pcard');
-    await expect(dashFace).toBeVisible();
+    // «ЭКРАН БОТА» (R3) carries the corp's rules read — the ORDINARY
+    // premium corporation card (the summary keeps NO corp zone of its own:
+    // the corporation lives inside «Разыграно», parity with a human seat).
+    await key(page, 'KeyV', 1000);
+    const hubFace = page.locator('.con-info__block--botcorp .pcard');
+    await expect(hubFace).toBeVisible();
+    await key(page, 'Escape', 800); // back to the summary
 
     // ── The bot's «РАЗЫГРАНО» — the corporation slot (a real .pcard) ────
     await key(page, 'KeyX', 1400);

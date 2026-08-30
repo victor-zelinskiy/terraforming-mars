@@ -194,17 +194,20 @@ describe('ConsoleResourcePanel — inspected-player VP masking', () => {
 });
 
 /**
- * The DEDICATED MarsBot presentation (Information Workspace inspects the bot
- * seat, the shell passes `automa`): the human economy/tag zones swap to the
- * bot's REAL state — the M€ supply (+floaters) with NO production chips, and
- * the printed TAG TRACKS with progress instead of the tag matrix.
+ * The MarsBot PARTICIPANT presentation (Information Workspace inspects the
+ * bot seat, the shell passes `automa`) — the PARITY contract: the rail keeps
+ * the HUMAN geometry. Economy rows show only what the bot really
+ * accumulates (no production chips, floaters are «Доп. ресурсы» now, the
+ * zone reserves the six-row height), and the МЕТКИ zone is the SAME tag
+ * matrix, filled from the printed tracks (position = the engine's tag
+ * count; an unmapped tag reads «—»).
  */
-describe('ConsoleResourcePanel — the dedicated MarsBot rail', () => {
+describe('ConsoleResourcePanel — the MarsBot participant rail', () => {
   const automa = {
     difficulty: 'normal',
     tracks: [
       {tags: [Tag.BUILDING], position: 2, maxPosition: 18, layout: [], regressed: []},
-      {tags: [Tag.POWER, Tag.JOVIAN], position: 0, maxPosition: 18, layout: [], regressed: []},
+      {tags: [Tag.POWER, Tag.JOVIAN], position: 4, maxPosition: 18, layout: [], regressed: []},
     ],
     actionDeckSize: 10, bonusDeckSize: 7,
     bonusDiscard: [], recurringBonusCards: [], destroyedBonusCards: [],
@@ -221,43 +224,44 @@ describe('ConsoleResourcePanel — the dedicated MarsBot rail', () => {
     });
   }
 
-  it('economy rows: the real M€ supply + floaters, NO production chips', () => {
+  it('economy rows: the real M€ supply only — floaters left for «Доп. ресурсы», NO production chips', () => {
     const w = mountBot();
     expect(w.find('[data-bot-economy="megacredits"] .con-res__value').text()).to.eq('12');
-    expect(w.find('[data-bot-economy="floaters"] .con-res__value').text()).to.eq('3');
+    expect(w.find('[data-bot-economy="floaters"]').exists(), 'floaters are extra resources, not economy').to.be.false;
     expect(w.findAll('.con-res__prod')).to.have.length(0);
-    // The human six-row set is fully replaced, not appended to.
-    expect(w.findAll('.con-res__row')).to.have.length(2);
+    // The rows zone reserves the human six-row height (parity geometry).
+    expect(w.find('.con-res__rows--bot').exists()).to.be.true;
   });
 
-  it('the МЕТКИ zone swaps to the tag tracks (matrix absent)', () => {
+  it('the МЕТКИ zone is the SAME matrix — cells from game.tags, counts from the tracks', () => {
     const w = mountBot();
-    expect(w.findAll('.con-tagmx__trackrow')).to.have.length(2);
-    expect(w.findAll('.con-tagmx__grid')).to.have.length(0);
-    expect(w.findAll('.con-tagmx__cell')).to.have.length(0);
+    expect(w.findAll('.con-tagmx__grid'), 'the shared matrix renders').to.have.length(1);
+    expect(w.findAll('.con-tagmx__trackrow'), 'the old track-row presentation is gone').to.have.length(0);
+    expect(w.find(`[data-tag-cell="${Tag.BUILDING}"] .con-tagmx__num`).text()).to.eq('2');
   });
 
-  it('a multi-tag track renders EVERY mapped tag medal in one cluster', () => {
+  it('one shared track fills EVERY of its tag cells with the same number', () => {
     const w = mountBot();
-    const rows = w.findAll('.con-tagmx__trackrow');
-    expect(rows[1].findAll('.con-tagmx__medal')).to.have.length(2);
-    expect(rows[0].findAll('.con-tagmx__medal')).to.have.length(1);
+    expect(w.find(`[data-tag-cell="${Tag.POWER}"] .con-tagmx__num`).text()).to.eq('4');
+    expect(w.find(`[data-tag-cell="${Tag.JOVIAN}"] .con-tagmx__num`).text()).to.eq('4');
   });
 
-  it('progress reads per-track: fill width + the zero state dim', () => {
+  it('a tag no track serves reads «—» with the not-applicable dim, never a lying 0', () => {
     const w = mountBot();
-    const rows = w.findAll('.con-tagmx__trackrow');
-    expect(rows[0].find('.con-tagmx__trackfill').attributes('style')).to.contain('width: 11%');
-    expect(rows[0].find('.con-tagmx__num').text()).to.eq('2');
-    expect(rows[0].classes()).to.not.include('con-tagmx__trackrow--zero');
-    expect(rows[1].classes()).to.include('con-tagmx__trackrow--zero');
+    // Science exists in the base tag set but this fixture board has no
+    // science track — the cell must say «not tracked».
+    const science = w.find(`[data-tag-cell="${Tag.SCIENCE}"]`);
+    expect(science.find('.con-tagmx__num').text()).to.eq('—');
+    expect(science.classes()).to.include('con-tagmx__cell--na');
+    expect(science.classes()).to.not.include('con-tagmx__cell--zero');
   });
 
   it('without `automa` the human presentation is untouched', () => {
     const w = mountWith({});
-    expect(w.findAll('.con-tagmx__trackrow')).to.have.length(0);
+    expect(w.find('.con-res__rows--bot').exists()).to.be.false;
     expect(w.findAll('.con-res__row')).to.have.length(6);
     expect(w.findAll('.con-res__prod').length).to.be.greaterThan(0);
+    expect(w.find(`[data-tag-cell="${Tag.BUILDING}"]`).exists()).to.be.true;
   });
 });
 

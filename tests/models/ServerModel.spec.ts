@@ -7,6 +7,7 @@ import {Resource} from '../../src/common/Resource';
 import {TestPlayer} from '../TestPlayer';
 import {testGame} from '../TestGame';
 import {Server} from '../../src/server/models/ServerModel';
+import {testAutomaMultiplayerGame} from '../automa/AutomaTestGame';
 import {GlobalParameter} from '../../src/common/GlobalParameter';
 import {Phase} from '../../src/common/Phase';
 import {TharsisRepublic} from '../../src/server/cards/corporation/TharsisRepublic';
@@ -69,6 +70,23 @@ describe('ServerModel', () => {
     expect(response.players[0].victoryPointsBreakdown.milestones).eq(5);
     expect(response.players[1].victoryPointsBreakdown.total).eq(25);
     expect(response.players[1].victoryPointsBreakdown.awards).eq(5);
+  });
+
+  it('The MarsBot seat\'s VP is OPEN mid-game even in hidden-VP mode (its state is table-public)', () => {
+    // Two humans + the bot, showOtherPlayersVP OFF: the human opponent's
+    // breakdown stays zeroed, the bot's is real — every input to the bot's
+    // score (tracks, tiles, M€, played pile) is open information by the
+    // Automa rules, so hiding the derived number only produced a fake 0
+    // next to its real TR in the live Information workspace.
+    const [botGame, humans, bot] = testAutomaMultiplayerGame(2, {showOtherPlayersVP: false});
+    botGame.phase = Phase.ACTION;
+    const response = Server.getPlayerModel(humans[0]);
+    const botSeat = response.players.find((p) => p.isMarsBot === true);
+    const otherHuman = response.players.find((p) => p.color === humans[1].color);
+    expect(botSeat, 'the bot has a seat in the model').is.not.undefined;
+    expect(botSeat!.victoryPointsBreakdown.total, 'the bot\'s live score is real (TR base at minimum)')
+      .eq(bot.getVictoryPoints().total).and.greaterThan(0);
+    expect(otherHuman!.victoryPointsBreakdown.total, 'a human opponent keeps the hidden-VP contract').eq(0);
   });
 
   it('Should include globalParameterSteps at game end', () => {

@@ -1715,7 +1715,8 @@ import {
   wrapPath,
   findPerformActionCard,
 } from '@/client/console/turnIntents';
-import {infoModeState, openInfoMode, closeInfoMode, settleInfoModeClose, restoreConsoleSnapshot, cyclePlayer, InfoDetail} from '@/client/console/infoModeState';
+import {infoModeState, openInfoMode, closeInfoMode, settleInfoModeClose, restoreConsoleSnapshot, cyclePlayer} from '@/client/console/infoModeState';
+import {InfoRouteId, infoRouteApplies, infoRouteBack, infoZoneForRoute, infoZoneRoute, infoZoneFocusable, infoZoneNavigate, infoFocusRing, botScreenNavigate} from '@/client/console/infoRoute';
 import {playInspectedSwitchMotion, playInspectedReturnMotion} from '@/client/console/inspectSwitchMotion';
 import {PlayerInputModel} from '@/common/models/PlayerInputModel';
 import {translateMessage, translateText, translateTextWithParams} from '@/client/directives/i18n';
@@ -5730,11 +5731,6 @@ export default defineComponent({
         // pad it needs.
         this.compositeSurfaceActive;
     },
-    /** VP visibility for the player viewed in Information Mode. */
-    infoVpVisible(): boolean {
-      const color = infoModeState.playerColor;
-      return color === this.thisPlayer.color || this.game.gameOptions.showOtherPlayersVP === true;
-    },
     /**
      * The INSPECTED player of the Information Workspace — a VIEW-ONLY
      * context (never the acting/local player; gameplay code must never read
@@ -5767,9 +5763,13 @@ export default defineComponent({
         this.playerView.game.automa : undefined;
     },
     /** The game rule hides opponents' scores → the rail masks the VP cell
-     *  while an opponent is inspected (same gate as the panel's vpVisible). */
+     *  while a HUMAN opponent is inspected (same gate as the panel's
+     *  vpVisible). The bot's score is open information by the Automa rules
+     *  — the server ships its real breakdown, and the panel shows it, so a
+     *  masked rail cell would contradict the workspace one column over. */
     railVpHidden(): boolean {
-      return !this.railShowsSelf && this.game.gameOptions.showOtherPlayersVP !== true;
+      return !this.railShowsSelf && this.railPlayer.isMarsBot !== true &&
+        this.game.gameOptions.showOtherPlayersVP !== true;
     },
     /** `--info` must persist through the CLOSING transition — see the
      *  template note and infoModeState.closing. */
@@ -10080,19 +10080,66 @@ export default defineComponent({
       const colors = this.playerView.players.map((p) => p.color);
       const before = this.infoModeState.playerColor;
       this.infoModeState.playerColor = cyclePlayer(colors, before, step);
-      this.reconcileInfoDetail();
+      // THE ROUTE SURVIVES the switch by contract (`infoRoute.ts`): a route
+      // the new participant cannot serve presents the workspace FALLBACK at
+      // the same depth — never a silent reset to the summary. The summary
+      // FOCUS is normalized eagerly: a ring standing on a zone the new
+      // participant does not have would leave the summary with no cursor
+      // and a dead A until the first d-pad press.
+      if (!infoZoneFocusable(this.infoModeState.summaryFocus, this.infoViewedKind())) {
+        this.infoModeState.summaryFocus = infoFocusRing(this.infoViewedKind())[0] ?? 'vp';
+      }
       if (this.infoModeState.playerColor !== before) {
         playInspectedSwitchMotion(step);
       }
     },
+    /** The inspected participant's KIND — the capability table's input. */
+    infoViewedKind(): 'human' | 'bot' {
+      const isBot = this.playerView.players
+        .find((p) => p.color === this.infoModeState.playerColor)?.isMarsBot === true;
+      return isBot && this.playerView.game.automa !== undefined ? 'bot' : 'human';
+    },
+    /**
+     * Navigate to a semantic route. A DIRECT shortcut (X / LT / RT / L3 /
+     * R3) is a toggle: pressed on its own route it returns ONE level (the
+     * tree's parent), not to the summary blindly. Entering a route the
+     * CURRENT participant cannot serve is refused — the fallback exists for
+     * a seat switch ARRIVING on a route, never as a place to walk into.
+     */
+    infoGo(route: InfoRouteId): void {
+      if (this.infoModeState.route === route) {
+        this.infoBack();
+        return;
+      }
+      if (!infoRouteApplies(route, this.infoViewedKind())) {
+        return;
+      }
+      this.infoModeState.route = route;
+    },
+    /** B — one logical level up the route tree; at the summary it closes
+     *  the whole overlay (and restores the captured context). */
+    infoBack(): void {
+      const parent = infoRouteBack(this.infoModeState.route);
+      if (parent === undefined) {
+        this.toggleInfoMode();
+        return;
+      }
+      // The ring lands on the zone the player descended from — the
+      // workspace «carried object survives B» rule.
+      const zone = infoZoneForRoute(this.infoModeState.route);
+      this.infoModeState.route = parent;
+      if (parent === 'summary' && zone !== undefined) {
+        this.infoModeState.summaryFocus = zone;
+      }
+    },
     handleInfoIntent(intent: GamepadIntent): void {
-      // THE EMBEDDED «РАЗЫГРАНО» DETAIL (X): the table owns the pad — nav,
+      // THE EMBEDDED «РАЗЫГРАНО» ROUTE (X): the table owns the pad — nav,
       // A (open category), X (inspect), B (fold a category first; at table
-      // level the overlay's close event returns to the dashboard). LB/RB
+      // level the overlay's close event returns to the summary). LB/RB
       // stay the GLOBAL seat switch at TABLE level only (matching the
       // standalone grammar — inside a category view the bumpers are inert);
       // Y keeps the global close.
-      if (this.infoModeState.detail === 'played') {
+      if (this.infoModeState.route === 'played') {
         if (intent.kind === 'press') {
           const action = consoleActionOf(intent);
           if (action === 'fullscreen') {
@@ -10108,8 +10155,29 @@ export default defineComponent({
         (this.$refs.infoMode as InstanceType<typeof ConsoleInfoMode> | undefined)?.handlePlayedIntent(intent);
         return;
       }
+      const route = this.infoModeState.route;
+      const kind = this.infoViewedKind();
       if (intent.kind === 'nav') {
-        // d-pad up/down scrolls the visible info surface.
+        // The SUMMARY is a single-screen zone grid — the d-pad drives the
+        // focus ring (no scroll target exists there by design). «Экран
+        // бота» walks its two deep entries. Every other route scrolls.
+        if (route === 'summary') {
+          this.infoModeState.summaryFocus =
+            infoZoneNavigate(this.infoModeState.summaryFocus, intent.dir, kind);
+          return;
+        }
+        if (route === 'botScreen' && infoRouteApplies('botScreen', kind)) {
+          const before = this.infoModeState.botScreenFocus;
+          this.infoModeState.botScreenFocus = botScreenNavigate(before, intent.dir);
+          if (this.infoModeState.botScreenFocus !== before) {
+            const entry = document.querySelector<HTMLElement>(`[data-bot-entry="${this.infoModeState.botScreenFocus}"]`);
+            entry?.scrollIntoView({block: 'nearest', behavior: 'smooth'});
+            return;
+          }
+          // The cursor is at the ring's edge — the press becomes a plain
+          // scroll, so the hub's informational sections below the entries
+          // (storage, scoring) stay reachable on the d-pad.
+        }
         const scroller = document.querySelector<HTMLElement>('.con-info__scroll');
         if (scroller !== null && (intent.dir === 'up' || intent.dir === 'down')) {
           scroller.scrollBy({top: (intent.dir === 'down' ? 140 : -140) * conUiScale(), behavior: 'smooth'});
@@ -10119,11 +10187,6 @@ export default defineComponent({
       if (intent.kind !== 'press') {
         return;
       }
-      // X = the played table for EVERY participant; the seat-specific extra
-      // readers live on the sticks (L3 human extras / R3 the bot's printed
-      // board) and the triggers (LT actions / RT effects | bonus piles).
-      const viewedIsBot = this.playerView.players
-        .find((p) => p.color === this.infoModeState.playerColor)?.isMarsBot === true;
       switch (consoleActionOf(intent)) {
       case 'prevSection':
         this.cycleInspectedPlayer(-1);
@@ -10132,63 +10195,43 @@ export default defineComponent({
         this.cycleInspectedPlayer(1);
         break;
       case 'inspect':
-        this.openInfoDetail('played');
+        // X — the played table, the ONE default details verb for every seat.
+        this.infoGo('played');
         break;
       case 'prevTab':
-        if (!viewedIsBot) {
-          this.openInfoDetail('actions');
-        }
+        this.infoGo('actions');
         break;
       case 'fullscreen':
         this.toggleInfoMode(); // Y closes — the same key that opened it
         break;
       case 'nextTab':
-        this.openInfoDetail(viewedIsBot ? 'botBonus' : 'effects');
+        // RT — effects (human) / the bonus piles deep in «Экран бота» (bot):
+        // a direct shortcut into the SAME semantic route A reaches.
+        this.infoGo(kind === 'bot' ? 'botBonus' : 'effects');
         break;
       case 'primary':
-        if (this.infoModeState.detail === undefined) {
-          if (this.infoVpVisible) {
-            this.openInfoDetail('vp');
-          } else {
-            this.showNotice('Score is hidden until the end of the game');
+        if (route === 'summary') {
+          const zoneRoute = infoZoneRoute(this.infoModeState.summaryFocus);
+          if (zoneRoute !== undefined && infoZoneFocusable(this.infoModeState.summaryFocus, kind)) {
+            this.infoGo(zoneRoute);
           }
+        } else if (route === 'botScreen' && infoRouteApplies('botScreen', kind)) {
+          this.infoGo(this.infoModeState.botScreenFocus);
         }
         break;
       case 'back':
-        if (this.infoModeState.detail !== undefined) {
-          this.infoModeState.detail = undefined;
-        } else {
-          this.toggleInfoMode(); // dashboard root: B = close + restore
-        }
+        this.infoBack();
         break;
       default:
         // The stick presses stay RAW (no semantic action) — the workspace's
-        // per-seat extra readers.
-        if (intent.button === 'stickL' && !viewedIsBot) {
-          this.openInfoDetail('extras');
-        } else if (intent.button === 'stickR' && viewedIsBot) {
-          this.openInfoDetail('botBoard');
+        // per-seat deep readers: L3 extras (every seat), R3 the bot's
+        // internals screen.
+        if (intent.button === 'stickL') {
+          this.infoGo('extras');
+        } else if (intent.button === 'stickR') {
+          this.infoGo('botScreen');
         }
         break;
-      }
-    },
-    openInfoDetail(detail: InfoDetail): void {
-      this.infoModeState.detail = this.infoModeState.detail === detail ? undefined : detail;
-    },
-    // Cycling between a human and the MarsBot participant: a detail that
-    // exists only for the OTHER participant type falls back to the dashboard
-    // ('vp' and 'played' are SHARED and survive the switch — the embedded
-    // table simply re-reads the new inspected seat).
-    reconcileInfoDetail(): void {
-      const detail = this.infoModeState.detail;
-      if (detail === undefined || detail === 'vp' || detail === 'played') {
-        return;
-      }
-      const isBot = this.playerView.players
-        .find((p) => p.color === this.infoModeState.playerColor)?.isMarsBot === true;
-      const botOnly = detail === 'botBoard' || detail === 'botBonus';
-      if (botOnly !== isBot) {
-        this.infoModeState.detail = undefined;
       }
     },
     // ── P27: the quick selectors — DIRECT input, no aiming ───────────────
@@ -14499,9 +14542,9 @@ export default defineComponent({
         hand?.stickScroll(dy, dx);
         return;
       }
-      // The EMBEDDED «Разыграно» table (Information Workspace X detail) owns
+      // The EMBEDDED «Разыграно» table (Information Workspace X route) owns
       // the right stick while it is the workspace's content.
-      if (this.infoModeState.open && this.infoModeState.detail === 'played') {
+      if (this.infoModeState.open && this.infoModeState.route === 'played') {
         (this.$refs.infoMode as InstanceType<typeof ConsoleInfoMode> | undefined)
           ?.handlePlayedIntent({kind: 'scroll', dx: 0, dy});
         return;

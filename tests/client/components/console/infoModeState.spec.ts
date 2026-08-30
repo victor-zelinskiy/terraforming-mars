@@ -12,7 +12,9 @@ describe('infoModeState — Information Workspace lifecycle', () => {
     infoModeState.open = false;
     infoModeState.closing = false;
     infoModeState.playerColor = undefined;
-    infoModeState.detail = undefined;
+    infoModeState.route = 'summary';
+    infoModeState.summaryFocus = 'vp';
+    infoModeState.botScreenFocus = 'botBoard';
     infoModeState.snapshot = undefined;
   });
 
@@ -37,9 +39,19 @@ describe('infoModeState — Information Workspace lifecycle', () => {
     expect(infoModeState.playerColor).to.eq('blue');
   });
 
-  it('open defaults the inspected player to the viewer', () => {
+  it('open defaults the inspected player to the viewer and lands at the summary', () => {
+    infoModeState.route = 'vp'; // stale state from a previous session
+    infoModeState.summaryFocus = 'effects';
     openInfoMode('green', false);
     expect(infoModeState.playerColor).to.eq('green');
-    expect(infoModeState.detail).to.be.undefined;
+    expect(infoModeState.route, 'a fresh open starts at the participant summary').to.eq('summary');
+    expect(infoModeState.summaryFocus, 'the ring starts on the score zone').to.eq('vp');
+  });
+
+  it('close resets the route — the next open never resumes a stale screen', () => {
+    openInfoMode('red', false);
+    infoModeState.route = 'botBoard';
+    closeInfoMode();
+    expect(infoModeState.route).to.eq('summary');
   });
 });

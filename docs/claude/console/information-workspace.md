@@ -1,222 +1,175 @@
-# The Information Workspace (Y) — layout · inspected-player context · seam
+# The Information Workspace (Y) — the overlay workspace
 
-Stage 1 of the information-panel rework (2026-07-29). The Y panel is no longer
-a centered modal over the whole shell: it is a WORKSPACE that shares the main
-layout with the left resource rail, and the rail is its live SUMMARY half.
+Stage 3 of the information-panel rework (2026-08-30; stages 1–2b 2026-07-29
+are folded in below). «Информация» is a full WORKSPACE in language and
+navigation — the ConsoleWsHead crumb, semantic routes, one command-bar
+contract — while staying an independent OVERLAY layer: it opens OVER any
+surface (board, any workspace, a minimized prompt), never touches the
+workspace STACK, and closing restores the exact captured context.
 
-## Layout — a `.con-main` child, never a fixed band
+## The overlay contract (why it is NOT a stack frame)
 
-`ConsoleInfoMode` mounts INSIDE `.con-main` as an absolute child filling
-everything right of the rail: `inset: 0 0 0 calc(var(--con-rail-w) +
-var(--con-main-gap))`. `.con-main`'s own box IS the space between the top HUD
-and the command bar, so the workspace needs no per-resolution constants.
+- `Y` opens over ANYTHING; `openInfoMode` captures a SNAPSHOT of the
+  transient cursors (`infoModeState.ts` — sheet/hand/board/colony indices,
+  sale picks, cell focus) and closing restores them; the workspace STACK is
+  never entered, so the surface below keeps its route, step, phase, claims
+  and picks by construction. A placement prompt that arrived while open is
+  the one exception: close lands on the board (the mandatory surface).
+- While open the pad belongs to the panel (`handleIntent`'s
+  `infoModeState.open` branch); everything ABOVE it in the chain (mandatory
+  announce A, notification-toast B, endgame scene, cinematics) deliberately
+  outranks it. A second Y closes; `openInfoMode` is idempotent (no double
+  instance can exist).
+- `.con-main--info` rides `open || closing` (the `closing` latch is released
+  by the panel's own after-leave hook — `settleInfoModeClose`); the endgame
+  seal ASKS before closing (a latch belongs to the WORK, not the attempt).
+- Read-only is structural: no route submits anything; the embedded
+  «Разыграно» is display-only; the transport is untouched.
 
-**Seam tokens.** `--con-rail-w` / `--con-main-gap` live on `.con-main` and are
-the ONE source of the rail↔workspace seam geometry: `.con-res` width and the
-workspace's `left` both derive from them. Profiles override the TOKENS (tv →
-9.8rem in `console_tv.less`; handheld → 7.3rem / .4rem in the handheld block)
-— **never a bare `width:` on `.con-res` again**, or the workspace's left edge
-silently drifts off the rail (this exact bug shipped in the first iteration:
-the handheld block still had `width: 7.3rem` and the seam gaped 36px).
+## Routes (`infoRoute.ts` — pure, spec'd in `tests/console/infoRoute.spec.ts`)
 
-**Stacking.** `.con-main--info` (bound to `open || closing`) drops the
-`z-index: 1` trap (precedent: `--hand`) so the workspace root (z 11560) and
-the ELEVATED rail host (z 11561) compete at the root level — above every band
-surface (sheets / composers / task host, 11480+) and above the workspace's own
-full-viewport dim (`__backdrop`, fixed inset 0), below the bars (11700+) and
-the fallback/cinematic layers. This reproduces the old fixed modal's layering
-exactly, with the rail lifted OUT of the dim.
+```
+summary ─┬─ vp            («Победные очки»)
+         ├─ played        («Разыграно», the embedded premium table)
+         ├─ extras        («Доп. ресурсы»)
+         ├─ actions       («Действия», human-only)
+         ├─ effects       («Эффекты», human-only)
+         └─ botScreen     («Экран бота», bot-only)
+              ├─ botBoard   («Планшет бота»)
+              └─ botBonus   («Бонусные карты»)
+```
 
-**`closing` is load-bearing:** `closeInfoMode()` raises it, the shell's
-`@after-leave` (`settleInfoModeClose`) clears it. Binding `--info` to `open`
-alone lets a band surface pop OVER the still-fading panel the moment Y is
-pressed. A re-open mid-dismiss clears it via `openInfoMode`.
+- **B walks the TREE, one level**; at the summary it closes the overlay.
+  `Y` closes from any depth. Direct shortcuts (X played · L3 extras · LT
+  actions · RT effects/botBonus · R3 botScreen) land on the SAME semantic
+  routes; pressed on their own route they act as B.
+- **LB/RB switches the PARTICIPANT, never the place.** The route survives
+  the seat ring; a route the new participant cannot serve KEEPS the route
+  and presents the workspace FALLBACK («Не применимо», `.con-info__na`) at
+  the same depth — never a silent reset (the old `reconcileInfoDetail`
+  did exactly that and is gone). Capability is ONE table
+  (`infoRouteApplies`), read by the router, the bar, the ring and the
+  fallback alike; entering an inapplicable route from the summary is
+  REFUSED (the fallback exists for arriving-by-seat-switch only).
+- **The crumb** is ConsoleWsHead: `ИНФОРМАЦИЯ › <участник> › <раздел>` —
+  root fixed, the participant is the SUBJECT (recomposes on LB/RB), the
+  route is the STAGE tail; depth 2 reads as the hosted-step phrase
+  («ЭКРАН БОТА · ПЛАНШЕТ БОТА»). Identity chips + corp/difficulty ride the
+  trailing slot (`.con-info__meta`, the `data-insp-slide` target).
 
-The frame body is `rgba(6, 11, 18, 0.97)` — denser than `@con-glass` (0.92),
-because the workspace covers LIVE bright surfaces (the right dashboard) and
-their rows ghosted through at 0.92.
+## ONE participant summary (`.con-info__layout`)
 
-## Inspected player — ONE view-only context
+Three columns, ONE canonical layout for every participant; the SHARED
+zones sit at the same coordinates (e2e-guarded ±2px):
 
-`infoModeState.playerColor` is the single source. The shell derives
-`inspectedPlayer` / `railPlayer` (`railPlayer = open ? inspected : thisPlayer`
-— the close flip is ATOMIC with `open`, no flash) and passes it to
-`ConsoleResourcePanel`, which now takes:
+| zone (`data-zone`) | human | bot |
+| --- | --- | --- |
+| `vp` (col 1) | the premium live score | the SAME zone — no bot variant |
+| `played` (col 2) | tableau counts (`buildPlayedZones`) | `playedPile` counts **+ the corporation** (parity: a human corp is in its tableau) |
+| `cards` (col 2) | «Можно разыграть / В руке» | «Колода действий / Колода бонусов» — the shared card-potential abstraction; deck MECHANICS live on «Экран бота» |
+| `extras` (col 3) | resources on cards | floaters + shipping storage BY TYPE (`marsBotExtraGroups`) |
+| `actions`/`effects` (col 3, after extras) | present | HIDDEN — absence never shifts the shared zones |
+| `botdoor` (col 3) | — | the R3 door to «Экран бота» |
 
-- `own` — the displayed seat is the viewer's own. Gates the viewer-specific
-  readouts: the «Приватный счёт» own-VP mask and the resource-transfer HOLDS
-  (an inspected opponent's numbers must never be reduced by the viewer's
-  in-flight chips).
-- `vpHidden` — the game rule (`showOtherPlayersVP === false`) masks an
-  inspected opponent's VP cell with the shared `PrivateScoreMask`.
+The summary is a FOCUS RING (`infoModeState.summaryFocus`, d-pad +
+`infoZoneNavigate` — column-aware, clamping): A opens the focused zone's
+route; a zone with no route («Карты») and an absent zone are not focusable,
+so a dead A is unexpressible. B from a detail lands the ring on the zone it
+was entered from. The A-glyph rides the FOCUSED zone only; the per-zone
+shortcut glyphs (X/L3/LT/RT/R3) are static — those work regardless of
+focus. No separate bot corp zone, no «Треки бота» panel, no bot deck tiles
+on the summary — all of it moved to «Экран бота».
 
-Gameplay never reads the inspected context: convert-highlights are gated to
-`railShowsSelf`, the ДОП.РЕСУРСЫ satellite parks while the mode is open
-(`boardVisible && !open` — it would otherwise paint OVER the workspace from
-the elevated rail host), and submissions are untouched.
+## The LIVE SCORE (`liveScoreModel.ts`) — one system with the finale
 
-`AnimatedMetricValue` needs no help: scope switches (PoV flips) silently
-re-baseline per its manager contract, so LB/RB and close never fire spurious
-delta chips, while realtime changes to the CURRENTLY inspected seat still do.
+`buildLiveScoreModel(breakdown, {isBot, hasMoon, hasPathfinders, hasDelta})`
+is a POLICY REUSE of the endgame: `FINAL_SCORING_SEGMENTS` (each segment
+pulls exactly ONE field the server's builder summed — Σ ≡ total by
+construction) grouped by `SCORE_CATEGORY_TABLE` (the ceremony's order and
+keys, which are also the `.con-eg-cat--<key>` colour classes) with
+`AUTOMA_SEGMENT_FAMILY` dissolving the bot's summands into the card
+families (mcToVp → resource, neuralInstance → conditional, cardVp/corpVp →
+fixed). **No opaque «Подсчёт бота» exists anywhere in the live UI.**
+Category stability is per-GAME: the six core categories always render
+(honest dim 0), moon/tracks/delta by table configuration, the penalty row
+appends only when real — an LB/RB switch morphs VALUES, never re-composes
+the list. Parity is spec-guarded against `buildConsoleEndgameVm` values
+(`tests/client/components/console/liveScoreModel.spec.ts`).
 
-## Dedup — the rail is the summary, the panel is the detail
+- Summary zone (`.con-infovp`): total → ONE segmented bar (one hue per
+  category, widths on the positive total) → the category legend.
+- Detail (`.con-infovpd`): total → category bars on the SHARED
+  max-category scale (the report's «what carried the game» rule) → the
+  sources inside each category → the explaining lists (human: the real
+  card rows via `buildVictoryPointsModel().cardGroups`; bot: the formula
+  facts — stock × rate, adjacency, icons × difficulty).
+- The bot's breakdown is REAL mid-game: `ServerModel` opens the VP gate for
+  `isMarsBot` seats (its score is table-public by the Automa rules; a
+  human opponent keeps the hidden-VP contract). Spec:
+  `tests/models/ServerModel.spec.ts`.
 
-Removed from the panel: the resources/production block, the tags block, the
-header TR/VP totals, the big VP hero numbers, the bot Economy M€ row. The ONE
-exception: a `Total` row renders in the VP block/detail ONLY while the rail
-masks the own score (`isSelf && shouldMaskOwnPassiveVp`) — otherwise the
-number's home is the rail's score cap. Kept (detail the rail cannot carry):
-VP breakdown, cards/actions/effects availability, extra card resources, the
-hotkey detail screens, the MarsBot sections.
+## «Экран бота» — the internals hub (R3)
 
-Human dashboard = three calm columns (`__cols`/`__col`, capped widths, spare
-workspace width stays as breathing room); the bot dashboard keeps the block
-grid (`__grid`, now width-capped).
+Everything explaining HOW the algorithm works: the corporation's RULES read
+(`.con-info__block--botcorp`, the ordinary premium face + difficulty), the
+decks + discard/reshuffle notes, the storage split + the 5→track rule, the
+M€→VP ladder (`mcPerVp` from the live breakdown) + the Hard/Brutal card-VP
+clause, and the two FOCUSABLE deep entries (`.con-botscr__entry`,
+`infoModeState.botScreenFocus`): «Планшет бота» (MarsBotTracks large + the
+teaching guide) and «Бонусные карты» (the open piles). A d-pad press at the
+ring's edge degrades to a plain scroll, so the sections below the entries
+stay reachable.
 
-## Seam identity — accent tokens
+## The MarsBot rail — the PARTICIPANT presentation (`marsBotRailModel.ts`)
 
-`ConsoleShell.conMainClasses` publishes `con-insp-<color>` on `.con-main`
-while open; a LESS `each(@players)` loop maps it to `--con-insp-accent`
-(-soft/-faint). Consumers: the rail's ring (`.con-main--info .con-res`
-box-shadow — functional state on box-shadow, perf-lite safe), the frame's
-left inset bar, the header underline. Accent drops at close START (the rail
-returns to neutral with the atomic context flip); fallbacks are cyan.
+Parity with the human geometry, not a technical panel:
+
+- economy rows: the M€ supply always; the corporation's own store when it
+  is a REAL resource (Ecoline/Ecotec plants, Philares/Spire science, the
+  M€ bank) — floaters are «Доп. ресурсы» now, cube markers are state and
+  never rows. `.con-res__rows--bot` RESERVES the six-row height, so МЕТКИ
+  never changes its vertical anchor across a seat switch.
+- МЕТКИ: the SAME tag matrix (`consoleAvailableTags` cells), counts from
+  the printed tracks — the track position IS the engine's tag count
+  (`AutomaTargeting.effectiveTagCount`); one track fills every of its tag
+  cells (POWER+JOVIAN share a number — that is the rule); a tag no track
+  serves reads «—» with `.con-tagmx__cell--na` (never a lying 0). The old
+  progress-bar «Треки бота» array lives on «Планшет бота» only.
 
 ## Motion
 
-- **Open/dismiss** — own `info-mode` branches in `surfaceMotionDirector`: the
-  frame unfolds from the rail seam (x −20·u, origin left) with the backdrop
-  fading alongside (never a dim pop), content cascades left→right
-  (`contentCascade('info-mode')`: header, then `__col`s / bot grid blocks);
-  dismiss returns into the seam with the backdrop fading out.
-- **LB/RB switch** — `inspectSwitchMotion.ts`: `[data-insp-slide]` zones
-  (identity, head-meta, dashboard/detail container) get a small directional
-  recompose matching the pressed bumper; `[data-insp-fade]` (the rail root)
-  answers with an opacity dip only — the rail is the anchor and never
-  travels. Rapid presses COALESCE: state lands on the final player per press,
-  each call kills the live tweens and restarts from live values.
-- **Close settle** — `playInspectedReturnMotion()` dips the rail once when it
-  was showing another seat.
-- Reduced motion: the director's generic fade covers open/dismiss; the switch
-  helpers snap (clear props, no travel).
-
-## The MarsBot rail (dedicated presentation)
-
-Inspecting the BOT seat swaps the rail's two zones to the Automa's REAL state
-(`marsBotRailModel.ts` — pure, unit-tested; the shell passes `automa` only
-while the workspace shows the bot):
-
-- the six human resource rows → the bot ECONOMY: the M€ supply (the bot
-  seat's real `megacredits`) and the floater stock once it holds any — **no
-  production chips**: a `+0` column would be a fake readout for a
-  participant that has no production;
-- the МЕТКИ matrix → the printed TAG TRACKS (`.con-tagmx--bot`): one row per
-  track with **every** mapped tag medal (POWER+JOVIAN, EARTH+CITY, the bio
-  track — never just the first tag), the position count and a progress fill
-  toward that track's OWN max (Venus = 12, not 18). Positions clamp
-  defensively; zero rows ride the matrix's dim language; the fill is
-  width/opacity only (perf-lite safe). Delta chips ride the same
-  AnimatedMetricValue families (`megacredits.stock`, `bottrack.<key>`).
-
-The workspace bot dashboard drops its «Экономика» and «Треки бота» summary
-blocks in exchange (the rail carries them now); the M€→VP conversion note
-moves under the VP block, and the printed-board detail (X) stays the deep
-reference. `ConsoleMarsBotSections` keeps decks / piles / shipping storage.
-
-## The played-cards block + the embedded «Разыграно» (X)
-
-Stage 2 (2026-07-29). The dashboard carries a UNIFIED «Разыгранные карты»
-summary block for EVERY participant: zone counts through the SAME
-`buildPlayedZones` grouping as the table (color-dot legend per family — the
-palette mirrors the table's zone captions), the bot reads its public
-`automa.playedPile` (`botTableauCards`) + the honest provenance note.
-
-**X is the ONE default details verb** for every seat — it opens
-`ConsolePlayedOverlay` EMBEDDED as the workspace detail `'played'`
-(a SHARED detail: it survives LB/RB — rail, header and table switch seats
-as one). The displaced readers moved to the sticks: **L3 = extras (human),
-R3 = the bot's printed board**; keyboard parity via `KeyC`/`KeyV` in
-`CONSOLE_KEY_BUTTON` (the sticks had NO keyboard binding before — a
-desktop-fallback player would have been locked out).
-
-The overlay adaptation (same component, both hosts):
-- `embedded` re-seats it inside the workspace frame (`--embedded`: no fixed
-  band, no own plate; the category view goes `position: absolute` over the
-  TABLE AREA — the workspace header and the rail stay visible around it;
-  the flights keep fixed viewport proxies — rect math is viewport-px in
-  both hosts);
-- `forcedColor` makes the seat CONTROLLED (the workspace's inspected
-  player); a forcedColor switch folds an open category (watcher), and the
-  internal LB/RB cycle is inert — the shell routes the bumpers globally at
-  TABLE level only (inside a category they are dead, matching standalone);
-- `automa` teaches BOTH hosts the bot seat (its tableau is empty — the pile
-  is the truth); the seat name renders через `participantDisplayName`
-  (the raw «MarsBot» leak in the RU UI is fixed), and the bot table carries
-  the provenance line under the head;
-- the embedded shell branch (`detail === 'played'`) forwards nav/A/X/B/
-  scroll to the table; B folds a category first (the overlay's own close
-  event returns to the dashboard); footCommands mirror `consolePlayedUi`.
-
-### Smart open + the fullscreen PROVENANCE plate (stage 2b)
-
-- **A one-card zone skips the grid.** `openCategory` opens the fullscreen
-  DIRECTLY when the zone holds exactly one card — lifted physically out of
-  its table slot (`slotZoomOrigin`) and returned into it on close. A grid
-  around a single tile was ceremony. Multi-card zones are unchanged.
-  ⚠️ Specs that exercise the category episode must use a MULTI-card zone
-  (two existing ones were on `active`/`corporation` and silently took the
-  new shortcut).
-- **Every fullscreen opened from «Разыграно» carries a provenance plate.**
-  `ConsoleZoomProvenance` (in `consoleCardZoom`) + `playedProvenance.ts`
-  (pure: `playedProvenanceByName` over the SAME `buildPlayedZones` grouping
-  the table renders from, `zoomProvenanceOver` maps it into the viewer's
-  index space). The plate leads the viewer bar: seat dot + localized name,
-  the verb («РАЗЫГРАНО» / «ВСКРЫТО» for the Automa — key `Flipped`), the
-  printed zone, and «N / M» inside that zone (omitted when the zone holds
-  one card). The seat's own colour runs through the plate's left edge
-  (`con-zoom-seat-<color>` → `--con-seat-accent`, the shared `@players`
-  loop). It is passed as a RESOLVER, so LB/RB browsing keeps it honest;
-  hosts: the table shortcut and `ConsolePlayedCategoryView`
-  (`provenanceByName` prop).
-- **«РАЗЫГРАНО» is NOT stage-parked while the fullscreen is up.** The
-  `body.con-zoom-open` suspend list (console.less) used to include
-  `.con-played`, so the table was `visibility: hidden` for the whole dialog
-  lifetime — and the class only drops in `onCardZoomClosed`, i.e. AFTER the
-  return flight. The card physically flew back into a VOID and the table
-  popped in a frame later. The table now stays on stage: the veil
-  (`.con-zoom-veil`, z 11890, dim-strong) already covers it, its `--lifted`
-  fade-out reveals the table gradually UNDER the returning card, and the
-  source slot is held empty by the motion director (`.con-zoom-hold`), so
-  there is never a double image. The hand dock / draft tray / journal keep
-  parking. Guard: `tests/e2e/console-played-zoom-return.spec.ts`.
-
-**Zone-swap beat:** the workspace's content zones (dashboard / played /
-details) swap through an out-in gsap beat (`detailZone*` hooks). The
-DASHBOARD is ONE persistent zone (`key="dash"`, the human/bot variants are
-inner templates) — an LB/RB seat switch patches instantly and can never
-queue zone transitions (rapid presses broke exactly this in the first cut;
-Vue also forbids duplicate keys across v-if branches, hence the wrapper).
-
-Opening the workspace closes a board-home «Разыграно» overlay first — the
-two hosts share the singleton `playedCategoryState` and must never coexist.
+- Open/dismiss — the `info-mode` surface-motion branches (unfold from the
+  rail seam, own dim, content cascade over `.con-info__head` +
+  `.con-info__col`).
+- Route swap — a DIRECTED out-in beat (`detailZone*` hooks): descending
+  rises from below, B sinks back; depth is read from `infoRouteDepth`.
+  A seat switch keeps the key (routes are semantic) → instant patch, the
+  beat is the `inspectSwitchMotion` slide; rapid presses coalesce.
+- Reduced motion: snaps (clear props), both axes.
 
 ## Command bar
 
-`footCommands` (published via `consolePanelUi`) now carries explicit drop
-priorities: Y «Закрыть» = 0 and LB/RB «Игроки» = 1 survive the narrow Deck
-bar; the detail hotkey hints (X/LT/RT, priorities 2–3) drop first — they stay
-discoverable on the blocks themselves. Known pre-existing issue (NOT part of
-this rework): the BOT set's long RU labels («РАЗЫГРАННЫЕ КАРТЫ»…) ellipsize on
-the standard bar — the fit model estimates widths from the English keys.
+PanelOwner `'infoMode'` via consolePanelUi; per-route sets in
+`ConsoleInfoMode.footCommands`. Summary: `LB/RB Игроки (1) · A Открыть
+(enabled by the ring) · X Разыграно (2) · [R3 Экран бота (3), bot] · Y
+Закрыть (0)`; depth 1: `B К обзору`; depth 2: `B Назад`; the played route
+keeps the table's own grammar. Y(0) and LB/RB(1) survive the Deck bar.
 
 ## Tests
 
-- `tests/client/components/console/infoModeState.spec.ts` — the
-  open/closing/settle lifecycle.
-- `tests/client/components/console/ConsoleResourcePanel.spec.ts` — the
-  inspected-seat VP masking matrix + the `data-insp-fade` anchor.
-- `tests/e2e/console-info-workspace.spec.ts` — a real human+MarsBot game per
-  display profile (standard / tv-4k / deck): seam geometry, rail↔panel sync
-  on LB/RB, rapid-press coalescing, dedup, detail navigation, close restore,
-  reduced motion; also the screenshot source
+- `tests/console/infoRoute.spec.ts` — the tree, capability, ring, clamps.
+- `tests/client/components/console/liveScoreModel.spec.ts` — Σ ≡ total,
+  the ceremony parity (human + bot), the bot fold, TR labels, penalties.
+- `tests/client/components/console/infoModeState.spec.ts` — lifecycle +
+  route reset on open/close.
+- `tests/client/components/console/marsBotRailModel.spec.ts` — economy
+  honesty, the matrix parity, «not tracked», the extras adapter, the
+  no-double-count invariant.
+- `tests/client/components/console/ConsoleResourcePanel.spec.ts` — the bot
+  rail markup (matrix, no production, reserved height, «—»).
+- `tests/models/ServerModel.spec.ts` — the bot VP gate.
+- `tests/e2e/console-info-workspace.spec.ts` — the full contract per
+  display profile (standard / tv-4k / deck): geometry, crumb, zone parity
+  (±2px), route preservation, the fallback, «Экран бота» depth walk, the
+  embedded table, restore, reduced motion; also the screenshot source
   (`screenshots/info-workspace/<preset>/`).

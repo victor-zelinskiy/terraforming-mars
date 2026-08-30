@@ -47,10 +47,14 @@
       </div>
 
       <!-- MARSBOT SEAT (Information Workspace inspects the bot): the human
-           economy does not exist for the Automa — the rows swap to its REAL
-           state (M€ supply; floaters once it holds any). No production chips:
-           a +0 column would be a fake readout for this participant. -->
-      <div v-if="botMode" class="con-res__rows">
+           economy does not exist for the Automa — the rows show only what it
+           REALLY accumulates (M€ supply; its corporation's own store when
+           that store is a real resource). No production chips: a +0 column
+           would be a fake readout for this participant. The `--bot` modifier
+           RESERVES the six-row height, so the МЕТКИ block below keeps the
+           exact vertical anchor it has on a human seat — the unfilled rows
+           are deliberate empty space, not a collapsed zone. -->
+      <div v-if="botMode" class="con-res__rows con-res__rows--bot">
         <div v-for="row in botEconomy" :key="row.key"
              class="con-res__row con-res__row--bot"
              :class="'con-res__row--' + row.key"
@@ -154,56 +158,25 @@
         </div>
       </div>
 
-      <!-- MARSBOT TRACKS — the Automa's tag progress IS its printed tracks
-           («метки вскрытых карт двигают трек»), so the МЕТКИ zone swaps to
-           one row per track: ALL of the track's mapped tags (POWER+JOVIAN,
-           EARTH+CITY, the bio track…), the position and a progress fill
-           toward that track's OWN max (Venus = 12). Same instrument family
-           as the tag matrix — shared head/medal/number language. -->
-      <section v-if="botMode" class="con-tagmx con-tagmx--bot" :aria-label="$t('MarsBot tracks')">
-        <div class="con-tagmx__head">
-          <span class="con-tagmx__title">{{ $t('MarsBot tracks') }}</span>
-          <span class="con-tagmx__rule" aria-hidden="true"></span>
-        </div>
-        <div class="con-tagmx__tracks">
-          <div v-for="t in botTracks" :key="t.key"
-               class="con-tagmx__trackrow"
-               :class="{'con-tagmx__trackrow--zero': t.position === 0}"
-               :data-bot-track="t.key"
-               :aria-label="trackAria(t)">
-            <span class="con-tagmx__trackmedals" :class="'con-tagmx__trackmedals--n' + t.tags.length">
-              <Tag v-for="tag in t.tags" :key="tag" class="con-tagmx__medal con-tagmx__medal--track" :tag="tag" size="big" type="secondary" />
-            </span>
-            <span class="con-tagmx__trackbar" aria-hidden="true">
-              <span class="con-tagmx__trackfill" :style="{width: t.fillPercent + '%'}"></span>
-            </span>
-            <span class="con-tagmx__numwrap con-tagmx__numwrap--track">
-              <span class="con-tagmx__num">{{ t.position }}</span>
-              <AnimatedMetricValue
-                v-if="epoch !== ''"
-                :value="t.position"
-                :metricKey="t.metricKey"
-                :scopeKey="player.color"
-                :epoch="epoch"
-                variant="tag" />
-            </span>
-          </div>
-        </div>
-      </section>
-      <!-- МЕТКИ — the premium tag matrix. The FULL set of tags available in
-           THIS game (server game.tags + the events counter, consoleTagMatrix),
-           fixed 3-column layout: a tag's cell NEVER moves — a count change
-           only flips the number and the zero-state class, so acquiring the
-           first tag of a type brightens a cell that was already there. -->
-      <section v-else-if="tagEntries.length > 0" class="con-tagmx" :aria-label="$t('Tags')">
+      <!-- МЕТКИ — the premium tag matrix, ONE instrument for every seat.
+           The FULL set of tags available in THIS game (server game.tags +
+           the events counter, consoleTagMatrix), fixed 3-column layout: a
+           tag's cell NEVER moves — a count change only flips the number and
+           the zero-state class. THE BOT SEAT fills the SAME cells from its
+           printed tracks — the track position IS the engine's tag count
+           (`AutomaTargeting.effectiveTagCount`), one position may serve
+           several cells (POWER+JOVIAN share a track), and a tag no track
+           maps (wild / no-tag) reads «—», never a lying 0. The internal
+           track presentation (progress, ✕ cells) lives on «Экран бота». -->
+      <section v-if="matrixEntries.length > 0" class="con-tagmx" :aria-label="$t('Tags')">
         <div class="con-tagmx__head">
           <span class="con-tagmx__title">{{ $t('Tags') }}</span>
           <span class="con-tagmx__rule" aria-hidden="true"></span>
         </div>
         <div class="con-tagmx__grid">
-          <div v-for="t in tagEntries" :key="t.tag"
+          <div v-for="t in matrixEntries" :key="t.tag"
                class="con-tagmx__cell"
-               :class="{'con-tagmx__cell--zero': t.count === 0}"
+               :class="{'con-tagmx__cell--zero': t.count === 0 && !t.na, 'con-tagmx__cell--na': t.na}"
                :data-tag-cell="t.tag"
                :aria-label="cellAria(t)">
             <!-- The medalwrap takes over the medal's flex role in the cell's
@@ -235,9 +208,9 @@
                 :scopeKey="player.color" />
             </span>
             <span class="con-tagmx__numwrap">
-              <span class="con-tagmx__num">{{ t.count }}</span>
+              <span class="con-tagmx__num">{{ t.na ? '—' : t.count }}</span>
               <AnimatedMetricValue
-                v-if="epoch !== ''"
+                v-if="epoch !== '' && !t.na"
                 :value="t.count"
                 :metricKey="'tag.' + t.tag"
                 :scopeKey="player.color"
@@ -315,7 +288,7 @@ import {Tag as CardTag} from '@/common/cards/Tag';
 import {CardResource} from '@/common/CardResource';
 import Tag from '@/client/components/Tag.vue';
 import {consoleTagEntries, ConsoleTagCell, ConsoleTagEntry, NO_TAG_CELL} from '@/client/components/console/consoleTagMatrix';
-import {marsBotRailEconomy, marsBotRailTracks, MarsBotRailEconomyRow, MarsBotRailTrack} from '@/client/components/console/marsBotRailModel';
+import {marsBotRailEconomy, marsBotTagEntries, MarsBotRailEconomyRow} from '@/client/components/console/marsBotRailModel';
 import AnimatedMetricValue from '@/client/components/feedback/AnimatedMetricValue.vue';
 import ConsoleVpBadge from '@/client/components/console/ConsoleVpBadge.vue';
 import PrivateScoreMask from '@/client/components/overview/PrivateScoreMask.vue';
@@ -514,8 +487,19 @@ export default defineComponent({
     botEconomy(): Array<MarsBotRailEconomyRow> {
       return this.automa !== undefined ? marsBotRailEconomy(this.player, this.automa) : [];
     },
-    botTracks(): Array<MarsBotRailTrack> {
-      return this.automa !== undefined ? marsBotRailTracks(this.automa) : [];
+    /**
+     * The МЕТКИ matrix for the DISPLAYED seat — ONE cell set for every
+     * participant (game.tags), so the block reads identically across an
+     * LB/RB switch. A human fills it from `tags.countAllTags`; the bot from
+     * its printed tracks (position = the engine's tag count); `na` marks a
+     * cell no bot track serves (wild / no-tag) — rendered as a dash.
+     */
+    matrixEntries(): Array<{tag: ConsoleTagCell, count: number, na: boolean}> {
+      if (this.automa !== undefined) {
+        return marsBotTagEntries(this.gameTags, this.automa)
+          .map((e) => ({tag: e.tag, count: e.count ?? 0, na: e.count === undefined}));
+      }
+      return this.tagEntries.map((e) => ({tag: e.tag, count: e.count, na: false}));
     },
     /**
      * Card-accumulated resources, in first-appearance order — the SAME
@@ -674,10 +658,12 @@ export default defineComponent({
     /**
      * The cell's couch-reader sentence. Every tag names itself through its own
      * i18n key; the no-tag counter is the ABSENCE of one, so it carries a
-     * spelled-out label instead («Карты без меток: 3»).
+     * spelled-out label instead («Карты без меток: 3»). A bot cell no track
+     * serves says so instead of lying a number.
      */
-    cellAria(entry: ConsoleTagEntry): string {
-      return this.$t(entry.tag === NO_TAG_CELL ? 'Cards with no tags' : entry.tag) + ': ' + entry.count;
+    cellAria(entry: {tag: ConsoleTagCell, count: number, na: boolean}): string {
+      const name = this.$t(entry.tag === NO_TAG_CELL ? 'Cards with no tags' : entry.tag);
+      return entry.na ? name + ': ' + this.$t('not tracked') : name + ': ' + entry.count;
     },
     /** The MC badge for a ДОП.РЕСУРСЫ chip, if its stock is legal tender. */
     auxMcBadge(resource: CardResource): RailMcBadge | undefined {
@@ -719,11 +705,6 @@ export default defineComponent({
       const sources = badge.sources.map((s) => translateText(s.card)).join(', ');
       return translateTextWithParams('Converted into VP by played cards, current rate: ${0}', [badge.text]) +
         ' · ' + translateTextWithParams('Sources: ${0}', [sources]);
-    },
-    /** Couch-reader aria for a bot track: every mapped tag + position/max. */
-    trackAria(track: MarsBotRailTrack): string {
-      const tags = track.tags.map((tag) => this.$t(tag)).join(' + ');
-      return `${tags}: ${track.position}/${track.maxPosition}`;
     },
     /** The transfer framework's landing anchor (normalized icon key). */
     auxAnchorKey(resource: CardResource): string {

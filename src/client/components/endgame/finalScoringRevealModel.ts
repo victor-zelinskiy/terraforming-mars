@@ -130,11 +130,18 @@ export type FinalScoringRevealModel = {
   generation: number;
 };
 
-type SegMeta = {key: string; group: RevealGroupKey; label: string; penalty: boolean; always?: boolean; value: (b: VictoryPointsBreakdown) => number};
+export type SegMeta = {key: string; group: RevealGroupKey; label: string; penalty: boolean; always?: boolean; value: (b: VictoryPointsBreakdown) => number};
 
 // Ordered for drama. TR is split into the SAME sub-parts (labels + accents) the
 // detailed VP report uses (`victoryPointsModel.trScale`) so the two never diverge.
-const SEGMENTS: ReadonlyArray<SegMeta> = [
+//
+// EXPORTED as the ONE segment table of the whole scoring system: each entry
+// pulls EXACTLY one field `VictoryPointsBreakdownBuilder` sums, so any
+// projection built over it (the reveal, the console ceremony, the LIVE
+// Information score — `liveScoreModel.ts`) inherits `Σ segments ≡ total`
+// by construction. A new server-side scoring source is ONE row here and
+// every consumer picks it up.
+export const FINAL_SCORING_SEGMENTS: ReadonlyArray<SegMeta> = [
   // "Base rating" = the clean starting rating + the TR Boost handicap. The
   // handicap is NOT a sibling sub-segment — it's surfaced as a sub-item INSIDE
   // the Base rating popup. (base = baseRating + handicap; never the old residual.)
@@ -230,7 +237,7 @@ export function buildFinalScoringRevealModel(model: EndgameModel, playerOrder: R
 
   // Flat reveal segments (only those that moved a score; TR base always kept).
   const segments: Array<FinalScoringRevealSegment> = [];
-  for (const meta of SEGMENTS) {
+  for (const meta of FINAL_SCORING_SEGMENTS) {
     const values: Record<string, number> = {};
     let anyNonZero = false;
     for (const p of model.players) {
