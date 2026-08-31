@@ -4,8 +4,9 @@
     // Compiler options are mostly for the sub-configurations
     "compilerOptions": {
         // FORK: lib raised to ES2023 (upstream keeps es2021 for old-browser caution).
-        // This fork's actual runtimes are Node 22 (server/tests), Electron 43 and
-        // current Chromium (the premium CSS already requires :has() — Chrome 105+),
+        // This fork's actual runtimes are Node 24 (server/tests, matching the Node
+        // that Electron bundles), Electron 44 and current Chromium (the premium
+        // CSS already requires :has() — Chrome 105+),
         // where every ES2022/ES2023 lib API (.at, Object.hasOwn, findLast, toSorted)
         // is long supported. `lib` only widens the TYPE surface — tsc never
         // polyfills lib methods, so the EMIT is unchanged. `target` deliberately

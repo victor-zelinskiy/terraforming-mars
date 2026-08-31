@@ -932,6 +932,18 @@ The Phase-0 analysis above is a frozen record and keeps its `43.0.0` references.
 lives in `package.json` → `devDependencies.electron` (exact, no caret). Each bump is logged here with what
 was checked, so the next upgrade starts from the previous audit instead of from scratch.
 
+**The whole repo's Node pins track that bundled Node.** Electron's Node *is* the desktop runtime — the
+embedded server runs as a `utilityProcess` inside it — so one Node major is pinned everywhere instead of
+letting the web-server lane drift: `engines.node`, `devDependencies.@types/node`, `.nvmrc`, the
+`node-version` of every CI job, and the `Dockerfile` base image. **A bump that moves Electron's Node major
+must move all of them in the same commit.**
+
+Aligned 2026-08-31 on **Node 24 «Krypton»** (Active LTS to 2028-04; Electron 44.0.0 bundles 24.18.1,
+44.1.0 bundles 24.19.0): `engines` `>=22.22.2 <23` → `>=24.18.1 <25`; `@types/node` `^25` → `^24` (both 25
+and 26 track **non-LTS** Node lines, and types ahead of the runtime turn a missing API into a production
+crash rather than a build error); 7 CI `node-version` pins and the `Dockerfile` base `22-alpine3.21` →
+`24-alpine3.21`. `.nvmrc` already read `v24`.
+
 | Date | Pin | Chromium | Node | V8 | Notes |
 | --- | --- | --- | --- | --- | --- |
 | 2026-08-25 | **44.0.0** | 152.0.7977.54 | 24.18.1 | 15.2.124.13 | See audit below |
