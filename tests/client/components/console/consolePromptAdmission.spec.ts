@@ -22,6 +22,7 @@ function idle(): AdmissionSignals {
     cardDiscard: false,
     presentation: false,
     announceGate: false,
+    stageGated: false,
     anyAnimation: false,
   };
 }
@@ -79,6 +80,41 @@ describe('consolePromptAdmission (the one prompt-surface admission gate)', () =>
       for (const [signal, block] of cases) {
         expect(promptAdmissionBlock('placement', {...idle(), [signal]: true}), signal).to.equal(block);
       }
+    });
+  });
+
+  describe('THE STAGE GATE: a prompt whose own step has not been reached', () => {
+    /*
+     * A Hydronetwork traversal resolves atomically on the server and PRESENTS as
+     * a walk, so a stage-7 «reuse a card action» reward puts its prompt on the
+     * wire while the marker is still on cell 5. This block is about OWNERSHIP,
+     * not timing — no amount of waiting for animations makes it fall.
+     */
+    it('holds every prompt-serving family, and reports itself as the reason', () => {
+      const s = {...idle(), stageGated: true};
+      for (const surface of SURFACES) {
+        if (surface === 'scene') {
+          continue; // the opening ceremony predates any traversal
+        }
+        expect(promptAdmissionBlock(surface, s), surface).to.equal('stage-gate');
+        expect(isPromptAdmitted(surface, s), surface).to.be.false;
+      }
+    });
+
+    it('OUTRANKS every timing block — the honest reason is the step, not the motion', () => {
+      const s = {
+        ...idle(), stageGated: true, revealOpen: true, cardArrival: true,
+        playedHero: true, presentation: true, anyAnimation: true,
+      };
+      expect(promptAdmissionBlock('host', s)).to.equal('stage-gate');
+      expect(promptAdmissionBlock('followUp', s)).to.equal('stage-gate');
+    });
+
+    it('a section is held by it too — waiting for less never means «not owned»', () => {
+      // `section` skips `card-arrival` on purpose (the hydro draw lands INSIDE
+      // a section pick); ownership is a different question and is not skipped.
+      expect(isPromptAdmitted('section', {...idle(), cardArrival: true})).to.be.true;
+      expect(isPromptAdmitted('section', {...idle(), stageGated: true})).to.be.false;
     });
   });
 

@@ -36,6 +36,7 @@ function quietSignals(over?: Partial<AdmissionSignals>): AdmissionSignals {
     cardDiscard: false,
     presentation: false,
     announceGate: false,
+    stageGated: false,
     anyAnimation: false,
     ...over,
   };

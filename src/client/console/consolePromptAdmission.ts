@@ -108,6 +108,20 @@ export type AdmissionBlock =
   | 'presentation'
   /** The mandatory ANNOUNCE gate holds this prompt closed until B. */
   | 'announce-gate'
+  /**
+   * THE STAGE GATE — this prompt belongs to a presentation STEP the flow has
+   * not reached yet.
+   *
+   * Every other block here is about TIMING («something is still moving»); this
+   * one is about OWNERSHIP («this surface's own stage does not exist yet»), and
+   * it is the only one whose answer does not become true merely by waiting for
+   * animations to finish. A Hydronetwork traversal resolves atomically on the
+   * server but presents as a walk, so a stage-7 «reuse a card action» reward
+   * puts its prompt on the wire while the marker is still on cell 5. Holding it
+   * for the exits alone opened it the moment stage 5 stopped moving — over
+   * stage 5's own scene. See `hydroStepAdmission`.
+   */
+  | 'stage-gate'
   /** ANY animation hold, including the 'notification-only' scopes. */
   | 'animation';
 
@@ -146,6 +160,11 @@ export type AdmissionSignals = {
   announceGate: boolean;
   /** `isAnimationHoldActive()` — every scope, including 'notification-only'. */
   anyAnimation: boolean;
+  /**
+   * The prompt is owned by a traversal step whose cell the marker has not
+   * settled on (`hydroStepQueuedFor`). Ownership, not timing — see the block.
+   */
+  stageGated: boolean;
 };
 
 /**
@@ -154,6 +173,11 @@ export type AdmissionSignals = {
  * looking at" first, the ambient holds last.
  */
 const BLOCK_ORDER: ReadonlyArray<AdmissionBlock> = [
+  // `stage-gate` leads: it is the only block that is about the prompt's OWN
+  // identity rather than about what else is on screen, so when it applies it is
+  // always the honest reason — and the ?gpDebug readout must say «stage 7 has
+  // not been reached» rather than «a card is still flying».
+  'stage-gate',
   'reveal', 'played-hero', 'tile-hero', 'card-arrival', 'board-bonus',
   'card-discard', 'presentation', 'announce-gate', 'animation',
 ];
@@ -169,6 +193,7 @@ function raised(block: AdmissionBlock, s: AdmissionSignals): boolean {
   case 'card-discard': return s.cardDiscard;
   case 'presentation': return s.presentation;
   case 'announce-gate': return s.announceGate;
+  case 'stage-gate': return s.stageGated;
   case 'animation': return s.anyAnimation;
   }
 }
@@ -193,23 +218,34 @@ function raised(block: AdmissionBlock, s: AdmissionSignals): boolean {
  */
 const POLICY: Record<PromptSurface, ReadonlySet<AdmissionBlock>> = {
   host: new Set<AdmissionBlock>([
+    'stage-gate',
     'reveal', 'played-hero', 'tile-hero', 'card-arrival', 'board-bonus',
     'card-discard', 'presentation', 'announce-gate',
   ]),
+  // `section` waits for less than the others by design (see above), but the
+  // stage gate is NOT a cinematic: a section standing up for a step that has
+  // not been reached is the same defect in a different surface.
   section: new Set<AdmissionBlock>([
+    'stage-gate',
     'reveal', 'played-hero', 'presentation', 'announce-gate',
   ]),
   standaloneModal: new Set<AdmissionBlock>([
+    'stage-gate',
     'reveal', 'played-hero', 'presentation', 'announce-gate', 'animation',
   ]),
+  // `scene` is the opening ceremony — it predates any traversal by
+  // construction, so the gate can never apply and is left out rather than
+  // stated as a term that is always false.
   scene: new Set<AdmissionBlock>([
     'reveal', 'presentation',
   ]),
   placement: new Set<AdmissionBlock>([
+    'stage-gate',
     'reveal', 'played-hero', 'tile-hero', 'card-arrival',
     'card-discard', 'presentation', 'announce-gate',
   ]),
   followUp: new Set<AdmissionBlock>([
+    'stage-gate',
     'reveal', 'played-hero', 'tile-hero', 'card-arrival', 'board-bonus',
     'card-discard', 'presentation',
   ]),

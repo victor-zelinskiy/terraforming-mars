@@ -5324,6 +5324,65 @@ html.console-mode body.placement-pending .board-outer-spaces > .board-space.boar
             inset: .55rem .7rem;
             z-index: 2;
         }
+        /* …and the SOURCE SEAT rides the same absolute frame: the immersive
+           pose dissolves the identity column, but the repeated action's card
+           is not identity — it is the causal answer to the very prompt on
+           stage, so it stays lit while everything else recedes. */
+        .con-hydro__embedsource { opacity: 1; }
+    }
+
+    /* (The zone is already `position: relative` — the embed-zone contract —
+       so it is the seat's positioning context for free: the seat is a static
+       child of it and the teleported surface is appended beside it, exactly
+       the start workspace's own structure.) */
+    /* ── THE SOURCE SEAT — the card whose action this stage repeats ────────
+       ABSOLUTE and vertically centred, so it costs the prompt no width: the
+       card row reserves it by MEASUREMENT on both sides (the shared
+       `[data-embed-source-slot]` contract), which is what makes overlap
+       inexpressible at any focus scale instead of merely unlikely. Never a
+       flex sibling — that narrows the step it is context for. */
+    &__embedsource {
+        position: absolute;
+        left: .4rem;
+        top: 50%;
+        transform: translateY(-50%);
+        z-index: 3;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        gap: .35rem;
+        max-width: calc(320px * 0.42 * var(--con-ui-scale, 1) + 1rem);
+        /* It is CONTEXT: it never takes focus and is in no selection, so it
+           must not read as a pressable object competing with the cards. */
+        pointer-events: auto;
+        cursor: pointer;
+        /* Materialises with its step (backwards, so the first painted frame is
+           already the entrance — never a v-if pop). */
+        animation: con-hydro-src-in calc(300ms * var(--motion-scale, 1)) ease backwards;
+    }
+    &__embedsource-cap {
+        font-size: .6rem;
+        font-weight: 700;
+        letter-spacing: .12em;
+        text-transform: uppercase;
+        color: fade(@con-cyan, 80%);
+        text-align: center;
+    }
+    &__embedsource-card {
+        position: relative;
+        width: calc(320px * 0.42 * var(--con-ui-scale, 1));
+        border-radius: .45rem;
+        box-shadow: 0 .7rem 1.6rem rgba(0, 0, 0, 0.45), 0 0 0 .06rem fade(@con-cyan, 30%);
+
+        > * { zoom: calc(0.42 * var(--con-ui-scale, 1)); }
+    }
+    /* WHICH branch is repeated — only for a card whose action is a choice. */
+    &__embedsource-branch {
+        max-width: 100%;
+        font-size: .62rem;
+        line-height: 1.15;
+        text-align: center;
+        color: fade(@con-text, 72%);
     }
     &__reqline {
         display: flex;
@@ -6801,6 +6860,10 @@ html.console-mode body.placement-pending .board-outer-spaces > .board-space.boar
     to { opacity: 0; }
 }
 /* The ceremony seat's ENTRY — one-shot, compositor-only (opacity/transform). */
+@keyframes con-hydro-src-in {
+    from { opacity: 0; transform: translate(-.6rem, -50%); }
+    to   { opacity: 1; transform: translate(0, -50%); }
+}
 @keyframes con-hydro-cere-in {
     from { opacity: 0; transform: translateY(.5rem); }
     to { opacity: 1; transform: translateY(0); }

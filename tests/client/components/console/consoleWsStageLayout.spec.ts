@@ -284,5 +284,67 @@ describe('wsStageLayout — one geometry for buy and reveal', () => {
       const l = wsStageLayout({availW: 3142, availH: 920, slotW: 320, slotH: 460, n: 2, ui: 2});
       expect(l.zoom * 460).to.be.greaterThan(0.6 * 920);
     });
+
+    /*
+     * ── THE SOURCE RAIL COSTS WIDTH, NEVER HEIGHT ─────────────────────────
+     *
+     * A host may stand a compact SOURCE card beside an embedded prompt (the
+     * Hydronetwork's repeated action). It is CONTEXT: the centre of the scene
+     * belongs to the prompt, so the seat's reserve rides `availW` — twice, so
+     * the centred group's margin can never be narrower than the seat — and the
+     * height budget is untouched. A seat that shrank the cards would recreate
+     * the very «маленькие thumbnails» defect it stands beside.
+     */
+    describe('a SOURCE RAIL beside the cards', () => {
+      // The seat's real box at 1080: a 320px card at zoom .42 ≈ 134px, plus the
+      // 18px clearance (`sourceSeatReservePx`), reserved on both sides.
+      const SEAT = 134 + 18;
+      const zone = {availW: 1571, availH: 460, slotW: 320, slotH: 460, ui: 1};
+      const withRail = {...zone, availW: zone.availW - SEAT * 2};
+
+      it('leaves 1–2 cards over 70% of the usable height', () => {
+        for (const n of [1, 2]) {
+          const l = wsStageLayout({...withRail, n});
+          expect(l.rows, `n=${n} single line`).to.eq(1);
+          expect(l.zoom * zone.slotH, `n=${n} hero height with the rail`)
+            .to.be.greaterThan(0.7 * zone.availH);
+        }
+      });
+
+      it('costs 1–2 cards NOTHING — the rail is width, the hero is height', () => {
+        for (const n of [1, 2]) {
+          const bare = wsStageLayout({...zone, n});
+          const railed = wsStageLayout({...withRail, n});
+          expect(railed.zoom, `n=${n} unchanged by the rail`).to.eq(bare.zoom);
+        }
+      });
+
+      it('keeps 3–4 cards in ONE row and off the seat entirely', () => {
+        for (const n of [3, 4]) {
+          const l = wsStageLayout({...withRail, n});
+          expect(l.rows, `n=${n} adapts as a row, not a stack`).to.eq(1);
+          const rowW = l.perRow * zone.slotW * l.zoom + (l.perRow - 1) * l.gapPx;
+          expect(rowW, `n=${n} clears the reserved band`).to.be.at.most(withRail.availW);
+        }
+      });
+
+      it('a LARGE batch still fits — it wraps/compacts, it never overflows', () => {
+        for (const n of [5, 6, 7, 8]) {
+          const l = wsStageLayout({...withRail, n});
+          const rowW = l.perRow * zone.slotW * l.zoom + (l.perRow - 1) * l.gapPx;
+          expect(rowW, `n=${n} width`).to.be.at.most(withRail.availW);
+          expect(l.rows * zone.slotH * l.zoom + (l.rows - 1) * l.rowGapPx, `n=${n} height`)
+            .to.be.at.most(zone.availH);
+        }
+      });
+
+      it('holds at 4K too (ui 2 — the seat scales with the rem layout)', () => {
+        const seat4k = SEAT * 2;
+        const l = wsStageLayout({
+          availW: 3142 - seat4k * 2, availH: 920, slotW: 320, slotH: 460, n: 2, ui: 2,
+        });
+        expect(l.zoom * 460).to.be.greaterThan(0.7 * 920);
+      });
+    });
   });
 });

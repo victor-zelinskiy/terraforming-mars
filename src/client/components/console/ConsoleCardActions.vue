@@ -323,7 +323,8 @@
                        'con-cardactions__tile--descend': descendKey === tile.key,
                      },
                    ]"
-                   :ref="focusKey === tile.key ? 'focused' : undefined">
+                   :ref="focusKey === tile.key ? 'focused' : undefined"
+                   :data-action-card="tile.cardName">
                 <!-- The «или» joint rides the shared edge with the sibling
                      button to the left, anchored to the CANVAS centre. -->
                 <div v-if="tile.joinLeft" class="con-cardactions__or con-cardactions__or--joint" aria-hidden="true">{{ $t('or') }}</div>

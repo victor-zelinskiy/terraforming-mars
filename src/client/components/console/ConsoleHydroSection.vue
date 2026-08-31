@@ -503,8 +503,49 @@
           <!-- The EMBED ZONE — the landed stage's own follow-up (the deck
                pick of pos 5, a repeated action's draw) teleports IN here and
                gets the whole remaining room. Rendered from the submit frame:
-               the target must exist before the teleport looks for it. -->
-          <div class="con-hydro__embed" data-embed-slot="hydro"></div>
+               the target must exist before the teleport looks for it.
+
+               It also STANDS THE SOURCE, exactly as the start workspace's zone
+               does: a step's source card is a static child of the zone, and the
+               teleported surface is appended beside it. -->
+          <div class="con-hydro__embed" data-embed-slot="hydro">
+            <!-- ── THE SOURCE SEAT — «почему эти карты у меня?» ───────────
+                 A stage whose reward REPEATS a card action stands that card
+                 beside the action's own prompt for the prompt's whole life, so
+                 the causality is on screen and not in the player's memory:
+                 «эти карты я получаю потому, что на этапе 7 повторяю Центр ИИ».
+
+                 It exists exactly while the traversal is parked ON that stage
+                 (`hydroActiveStepSourceCard`), so it materialises with the step
+                 — never before the marker gets there — and leaves with it.
+
+                 ABSOLUTE, so it costs the prompt no width: it is CONTEXT, and
+                 context must not shrink the thing it is context for. The card
+                 row reserves it by MEASUREMENT on both sides (the shared
+                 `[data-embed-source-slot]` contract the deck pick and the
+                 drawn reveal both honour), so the two can never overlap — in
+                 any phase, at any focus scale.
+
+                 It takes no focus and is in no selection: the ONE inspect verb
+                 is `L3 Источник` in the command bar, and it lifts THIS card out
+                 of THIS rect (`workspaceSourceZoomOrigin` resolves the slot and
+                 the zoom machinery holds it empty for the flight — never a
+                 second copy beside the original). -->
+            <div v-if="embedSourceCard !== undefined" class="con-hydro__embedsource"
+                 :data-zoom-slot="embedSourceCard"
+                 role="button" @click="inspectStepSource">
+              <!-- The EXISTING key (invariant 9: the English text IS the key —
+                   never coin a second one for a sentence that already has a
+                   translation). «ПОВТОР ДЕЙСТВИЯ» reads exactly right in caps. -->
+              <span class="con-hydro__embedsource-cap">{{ $t('Repeat action') }}</span>
+              <div class="con-hydro__embedsource-card" data-embed-source-slot>
+                <ConsoleCardFaceLite :name="embedSourceCard" :card="embedSourceModel" />
+              </div>
+              <span v-if="embedSourceBranch !== undefined" class="con-hydro__embedsource-branch">
+                {{ embedSourceBranch }}
+              </span>
+            </div>
+          </div>
         </div>
 
         <!-- ═══ RESULT — the read-hold payoff. The route and the actual price
@@ -849,9 +890,10 @@ import {Tag} from '@/common/cards/Tag';
 import {Resource} from '@/common/Resource';
 import {CardName} from '@/common/cards/CardName';
 import {CardModel} from '@/common/models/CardModel';
+import {actionPreviewMap} from '@/client/console/actionPreviewStore';
 import {PlayerViewModel} from '@/common/models/PlayerModel';
 import {DeltaTrackPreviewModel} from '@/common/models/DeltaTrackPreviewModel';
-import {$t, translateCardName, translateText, translateTextWithParams} from '@/client/directives/i18n';
+import {$t, translateCardName, translateMessage, translateText, translateTextWithParams} from '@/client/directives/i18n';
 import {iconClassFor} from '@/client/components/modalInputs/optionIcons';
 import {buildHydroModel, HydroModel, HydroStageVM, HydroTraversalStagePlan} from '@/client/components/hydronetwork/hydroNetworkModel';
 import {HYDRO_STAGES, HydroStage, hydroStageNeedsChoice} from '@/client/components/hydronetwork/hydroStages';
@@ -874,7 +916,9 @@ import {
   hydroWorkspacePhase, hydroWorkspaceRestorePlan, markHydroCeremonyPlayed, noteHydroDraftTouched, openHydroStep,
   resetHydroFlow, resolutionKindFor, setHydroCeremonyActive,
 } from '@/client/console/hydroFlow/consoleHydroFlow';
-import {hydroTraversalPending, noteHydroLandPresence} from '@/client/console/hydroMarker/consoleHydroMarker';
+import {
+  hydroActiveStepSourceCard, hydroTraversalPending, noteHydroLandPresence,
+} from '@/client/console/hydroMarker/consoleHydroMarker';
 import {buildHydroTargetModel, hydroPresentedTargetModel} from '@/client/console/hydroFlow/hydroTargetStep';
 import {
   HydroCeremonyHandle, armHydroSceneOrigin, hydroSceneCancelledHook, hydroSceneEnterHook,
@@ -1226,6 +1270,51 @@ export default defineComponent({
         return undefined;
       }
       return this.eligibleCards.find((c) => c.name === this.model.selectedCard)?.current;
+    },
+    /**
+     * ── THE ACTIVE STEP'S SOURCE CARD ─────────────────────────────────────
+     *
+     * The card whose action the stage the marker is STANDING ON repeats — the
+     * seat beside the copied action's own prompt. Identity comes from the
+     * traversal plan (a `CardName` the player themselves pre-selected), never
+     * from the prompt's text and never from «the last card we saw».
+     *
+     * Its whole lifetime is the step's: it appears when the marker settles on
+     * that cell (`parkedAt`) and leaves when the stop resolves — so it can
+     * neither precede the stage that owns it nor outlive it.
+     */
+    embedSourceCard(): CardName | undefined {
+      return this.flow.commit === undefined ? undefined : hydroActiveStepSourceCard();
+    },
+    /** The live model for the seat's face (cost chip / stored resources — the
+     *  «the two copies are identical» contract for the L3 lift). */
+    embedSourceModel(): CardModel | undefined {
+      const name = this.embedSourceCard;
+      return name === undefined ? undefined :
+        this.playerView.thisPlayer.tableau?.find((c) => c.name === name);
+    },
+    /**
+     * WHICH BRANCH is being repeated, when the card offers more than one — the
+     * seat must not imply «the action» for a card whose action is a choice.
+     * Named in the SAME language the composer uses (the branch's own label),
+     * never a second vocabulary; absent for a single-branch action, where the
+     * card face already says everything.
+     */
+    embedSourceBranch(): string | undefined {
+      const name = this.embedSourceCard;
+      const repeat = consoleHydroUi.repeatResult;
+      if (name === undefined || repeat === undefined || repeat.chosenCard !== name) {
+        return undefined;
+      }
+      const branches = actionPreviewMap().get(name)?.branches ?? [];
+      if (branches.length < 2) {
+        return undefined;
+      }
+      const title = branches[repeat.composed.branchIndex]?.title;
+      if (title === undefined) {
+        return undefined;
+      }
+      return typeof title === 'string' ? translateText(title) : translateMessage(title);
     },
     /** The COMPOSED stage-7 repeat pick, honoured only while its chosen card
      *  still matches the plan's card (single landing OR the traversal draft). */
@@ -1906,6 +1995,15 @@ export default defineComponent({
       // takes the frame the same way: the batch is the primary content while
       // it presents, the track and columns dissolve and return at the take.
       if (this.revealEmbedded && this.flow.commit !== undefined) {
+        return true;
+      }
+      // …AND A STAGE THAT REPEATS A CARD ACTION OWNS THE SCENE FROM ITS
+      // ARRIVAL, not from the moment its cards happen to mount. The source card
+      // materialises first (the calm beat that answers «почему это
+      // происходит?» before anything is asked), and it lives in the embed
+      // zone — which only has room once the columns have yielded. One pose for
+      // the whole step: the seat never re-seats when the prompt arrives.
+      if (this.embedSourceCard !== undefined) {
         return true;
       }
       return this.flowDeck.phase !== 'idle' &&
@@ -3436,6 +3534,29 @@ export default defineComponent({
      * depth entrance: a second, identical card materialising out of nowhere
      * while the first one sat in the source zone.
      */
+    /**
+     * L3 ON THE ACTIVE STEP'S SOURCE — the same shared choreography as every
+     * other `L3 Источник` in the console: the fullscreen card LIFTS OUT of the
+     * seat's own rect and flies back into it on close, with the slot held empty
+     * for the flight (never two copies of one card on screen), and the child
+     * prompt underneath is not unmounted — selection, cost and focus survive
+     * because nothing about it changed.
+     *
+     * Deliberately the SAME viewer, not a new fullscreen kind: the console has
+     * one inspect grammar and the source is not a special case of it.
+     */
+    inspectStepSource(): void {
+      const name = this.embedSourceCard;
+      if (name === undefined) {
+        return;
+      }
+      openConsoleCardZoom([this.embedSourceModel ?? {name} as CardModel], 0, undefined, undefined, {
+        statusLabel: 'Source',
+        origin: slotZoomOrigin(
+          () => this.$refs.rootEl as HTMLElement | undefined,
+          () => this.embedSourceCard ?? ''),
+      });
+    },
     inspectBonusSource(): void {
       if (this.advanceOffer === undefined) {
         return;

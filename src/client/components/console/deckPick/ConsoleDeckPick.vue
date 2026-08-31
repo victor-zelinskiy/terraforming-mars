@@ -141,7 +141,7 @@ import {consoleActionOf} from '@/client/console/composables/consoleActionModel';
 import type {ConsoleCommand} from '@/client/console/consoleCommandModel';
 import {setPanelCommands, clearPanelCommands} from '@/client/console/consolePanelUi';
 import {conUiScale} from '@/client/console/consoleLayoutProfile';
-import {wsStageLayout, wsStageLayoutStyle} from '@/client/console/consoleWsStageLayout';
+import {sourceSeatReservePx, wsStageLayout, wsStageLayoutStyle} from '@/client/console/consoleWsStageLayout';
 import {stepHandGrid} from '@/client/components/console/consoleHandGrid';
 import {nearestInDirection} from '@/client/console/consoleStartNav';
 import {handSelectPicksValid} from '@/client/components/console/consoleHandSelectModel';
@@ -715,12 +715,10 @@ export default defineComponent({
      * by construction — not a z-index, not an overlap the eye forgives.
      */
     sourceReservePx(): number {
-      if (typeof document === 'undefined') {
-        return 0;
-      }
-      const seat = document.querySelector<HTMLElement>('[data-embed-source-slot]');
-      const w = seat?.getBoundingClientRect().width ?? 0;
-      return w > 4 ? w + 18 * conUiScale() : 0;
+      // ONE definition, shared with the drawn reveal (`sourceSeatReservePx`):
+      // both stages present inside the same host zones, and two copies of this
+      // arithmetic is exactly how one of them ends up cropping.
+      return sourceSeatReservePx(conUiScale());
     },
     /**
      * The height the ROW may actually spend — the frame's inner box minus the

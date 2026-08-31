@@ -186,6 +186,40 @@ export function focusHeadroomPx(renderedSlotW: number, ui: number): number {
   return renderedSlotW * (WS_STAGE_FOCUS_SCALE - 1) / 2 + FOCUS_GLOW_PX * ui;
 }
 
+/** Breathing room between the source seat and the nearest card, in px @1×. */
+const SEAT_CLEARANCE_PX = 18;
+
+/**
+ * THE SOURCE SEAT'S SAFE ZONE, measured off the real seat — or 0 when no host
+ * is standing one.
+ *
+ * A host may park a compact SOURCE card at the left of its embed zone (the
+ * Hydronetwork's repeated action, the start workspace's play-from-hand step).
+ * The card group is CENTRED, so reserving this width on BOTH sides of the
+ * budget is what guarantees the group's margin can never be narrower than the
+ * seat: the two simply never occupy the same space, in any phase, at any focus
+ * scale. Not a z-index, not an overlap the eye forgives.
+ *
+ * ⚠️ MEASURED, never read from the custom property that declares the seat's
+ * width: `getPropertyValue('--x')` returns a `calc(...)` token UNRESOLVED, so
+ * `parseFloat` gives NaN and the reserve silently disappears. And never
+ * expressed as row `padding` either — the profile ladders re-declare that
+ * shorthand, which is how the inset vanished at 4K and the source card sat on
+ * top of the first revealed card.
+ *
+ * ONE definition, read by every stage that can host a seat: the deck pick and
+ * the drawn reveal both present inside the same zones, and two copies of this
+ * arithmetic is exactly how one of them ends up cropping.
+ */
+export function sourceSeatReservePx(ui: number): number {
+  if (typeof document === 'undefined') {
+    return 0;
+  }
+  const seat = document.querySelector<HTMLElement>('[data-embed-source-slot]');
+  const w = seat?.getBoundingClientRect().width ?? 0;
+  return w > 4 ? w + SEAT_CLEARANCE_PX * ui : 0;
+}
+
 /**
  * Solve one candidate row shape. Returns the zoom this shape can afford.
  *

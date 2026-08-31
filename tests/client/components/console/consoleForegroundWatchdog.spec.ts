@@ -38,6 +38,7 @@ function signals(partial: Partial<AdmissionSignals> = {}): AdmissionSignals {
     cardDiscard: false,
     presentation: false,
     announceGate: false,
+    stageGated: false,
     anyAnimation: false,
     ...partial,
   };

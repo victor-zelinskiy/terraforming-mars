@@ -786,6 +786,7 @@
                               :playerView="playerView"
                               :mode="revealOverlayMode"
                               :embedded="revealEmbedTarget !== undefined"
+                              :sourceSeat="revealSourceSeatStands"
                               @dismiss-result="onDismissRevealResult"
                               @result-detached="onWorkspaceResultDetached"
                               @drawn-complete="onEmbeddedDrawnComplete"
@@ -1611,7 +1612,8 @@ import ConsoleHydroSection from '@/client/components/console/ConsoleHydroSection
 import ConsoleHydroMarkerLayer from '@/client/components/console/hydroMarker/ConsoleHydroMarkerLayer.vue';
 import {
   armHydroMarker, armHydroMarkerTraversal, abortHydroMarker, isHydroMarkerActive, hydroMarkerState,
-  HydroMarkerLegPlan, hydroTraversalPaused, hydroTraversalPending, resumeHydroMarkerTraversal,
+  HydroMarkerLegPlan, hydroActiveStepSourceCard, hydroStepQueuedFor, hydroTraversalPaused,
+  hydroTraversalPending, resumeHydroMarkerTraversal,
 } from '@/client/console/hydroMarker/consoleHydroMarker';
 import {
   HydroResolutionKind, HydroTraversalSegmentRecord, advanceHydroCommitPhase, beginHydroCommit, hydroCeremonyOwed,
@@ -2931,6 +2933,9 @@ export default defineComponent({
         cardDiscard: this.cardDiscardTransaction.active,
         presentation: this.presentationHeld,
         announceGate: this.taskGateHeld,
+        // OWNERSHIP, not timing — the prompt belongs to a traversal step whose
+        // cell the marker has not settled on yet (see the block's own doc).
+        stageGated: this.hydroQueuedPromptForLaterStep,
         anyAnimation: isAnimationHoldActive(),
       };
     },
@@ -3084,6 +3089,8 @@ export default defineComponent({
       if (this.deckPickActive) {
         return true;
       }
+      // A stage-gated task needs no term here: `admits('host')` already refuses
+      // it (the `stage-gate` block), so `hostTask` is undefined for it.
       if (this.hostTask !== undefined && !this.consoleState.task.deferred) {
         return true;
       }
@@ -3098,11 +3105,71 @@ export default defineComponent({
       // the take. Without this term the traversal RESUMED over the repeat's
       // still-unpresented draw, finalized, and the result flip retracted the
       // zone the batch was about to embed in — a claimed reveal held forever.
+      //
+      // ⚠️ …BUT A BATCH THE TRAVERSAL ITSELF IS QUEUEING IS NOT A FOLLOW-UP OF
+      // THE CURRENT STOP — it is the CONTENT OF A STAGE THE MARKER HAS NOT
+      // REACHED, and counting it here is a deadlock: the walk that has to reach
+      // stage 7 was blocked by stage 7's own batch, so the only way to make
+      // progress was to present that batch over the stage-5 scene. That is
+      // exactly the frame in `20260831011413_1.jpg`. The gate (which is derived
+      // from the plan the shell itself armed) is what breaks the cycle: queued
+      // ⇒ invisible to this predicate ⇒ the traversal resumes ⇒ the marker
+      // arrives ⇒ the step activates ⇒ the batch stops being queued and
+      // presents, inside its own stage.
+      if (this.hydroQueuedRevealForLaterStep) {
+        return false;
+      }
       if (currentRevealEvent() !== undefined) {
         return true;
       }
       // A hosted step (a repeated trade's colony frame) still standing.
       return workspaceFrameHasNested('hydro');
+    },
+    /**
+     * ── THE STAGE-BOUND ACTIVATION GATE, read (hydroStepAdmission) ─────────
+     *
+     * A Hydronetwork traversal resolves on the SERVER atomically — one request
+     * walks every crossed stage — while it PRESENTS as a walk. The gap is real
+     * and by design, so the client owns the question the server cannot answer:
+     * «whose step is this surface?». A surface attributed to a card the standing
+     * plan promised to a stage the marker has NOT physically settled on is
+     * QUEUED: it may not present, may not take focus, and is not the current
+     * stop's live follow-up.
+     *
+     * Structural, never textual: the plan carries the pre-selected `CardName`
+     * (`HydroMarkerLegPlan.sourceCard`), the server attributes the batch
+     * (`CardDrawRevealSource {type:'card'}`) and the prompt (`choiceContext`)
+     * to the card that RAN, and those two names are what match.
+     */
+    hydroQueuedRevealForLaterStep(): boolean {
+      const ev = currentRevealEvent();
+      return ev !== undefined && hydroStepQueuedFor(ev.source);
+    },
+    /**
+     * …the same gate for a PROMPT the copied action raises (a target pick, a
+     * resource placement) — the generalization the contract asks for: the family
+     * is «what a copied card action produces», not «a draw».
+     *
+     * Read off the RAW `waitingFor`, never off `activeConsoleTask`: admission is
+     * what that computed is DERIVED from, so asking it here would be a cycle.
+     */
+    hydroQueuedPromptForLaterStep(): boolean {
+      const card = promptSourceView(this.playerView.waitingFor)?.card;
+      return card !== undefined && hydroStepQueuedFor(card);
+    },
+    /** The card whose action the ACTIVE traversal step repeats — the source
+     *  context the workspace stands beside the copied action's own prompt. */
+    hydroActiveStepSource(): CardName | undefined {
+      return hydroActiveStepSourceCard();
+    },
+    /**
+     * A HOST IS STANDING THE SOURCE CARD beside this reveal — the overlay then
+     * drops its own head chip (one sentence, one voice) and re-fits around the
+     * seat. Today the Hydronetwork's repeated action; any future host that
+     * stands a `[data-embed-source-slot]` joins this one predicate.
+     */
+    revealSourceSeatStands(): boolean {
+      return this.hydroRevealEmbedded && this.hydroActiveStepSource !== undefined;
     },
     /** The viewer's committed track position — the SERVER truth the flow's
      *  recovery net keys on (a degraded glide must not hang the commit). */
@@ -3876,6 +3943,15 @@ export default defineComponent({
           !(workspaceClaimsDrawReveal(ev.source) || workspaceClaimsColonyReveal(ev.source))) {
         return false;
       }
+      // THE ACTIVATION GATE OUTRANKS EVERY EXIT SIGNAL. The scene-exit barrier
+      // below asks «has the previous stage finished leaving?» — a question about
+      // MOTION. This one asks «does this batch's own stage exist yet?» — a
+      // question about the FLOW, and it is the one the screenshot defect
+      // answered wrongly: the stage-5 exits genuinely completed, so the barrier
+      // opened, and stage 7's cards mounted over a track still showing stage 5.
+      if (this.hydroQueuedRevealForLaterStep) {
+        return true;
+      }
       if (workspaceOutcomeState.embedSlot === '' || workspaceOutcomeBeatPending()) {
         return true;
       }
@@ -3950,7 +4026,8 @@ export default defineComponent({
         // real completions, and the presented latch keeps the hold
         // one-directional exactly as it does for the claimed path.
         const ev = currentRevealEvent();
-        if (ev !== undefined && !revealPresented(ev.id) && this.cardStageExitBusy) {
+        if (ev !== undefined && !revealPresented(ev.id) &&
+            (this.cardStageExitBusy || this.hydroQueuedRevealForLaterStep)) {
           return undefined;
         }
         return 'drawn';
@@ -12976,6 +13053,14 @@ export default defineComponent({
           transfers: s.transfers,
           stop: s.kind === 'deck-draw' ? 'deck-draw' : s.kind === 'repeat' ? 'repeat' : undefined,
           excluded: s.kind === 'excluded' ? true : undefined,
+          // THE STEP'S OWNERSHIP KEY. The pre-selected card is the invocation
+          // PLAN, and the plan is not the execution: the server resolves the
+          // whole traversal inside one request (the parked batch tail drains in
+          // the very response that answers the stage-5 deck pick), so the copied
+          // action's drawn batch is on the wire while the marker still stands
+          // two cells back. Naming the card here is what lets the admission gate
+          // hold that batch for the step that owes it — see `hydroStepAdmission`.
+          sourceCard: s.kind === 'repeat' ? s.selectedCard : undefined,
         })), this.thisPlayer.color);
       } else if (payload.kind === 'repeat') {
         // A SINGLE-STEP repeat is a ONE-LEG stop plan: the same barrier the
@@ -12988,6 +13073,7 @@ export default defineComponent({
           position: payload.toPosition,
           transfers: rewards,
           stop: 'repeat',
+          sourceCard: payload.selectedCard,
         }], this.thisPlayer.color);
       } else {
         armHydroMarker(payload.fromPosition, payload.toPosition, this.thisPlayer.color, rewards);

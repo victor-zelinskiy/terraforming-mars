@@ -1,11 +1,14 @@
 import {expect} from 'chai';
 import {watch} from 'vue';
 import {
-  abortHydroMarker, armHydroMarker, armHydroMarkerTraversal, detectHydroMarker, endHydroMarker,
-  hydroMarkerState, hydroTraversalPaused, hydroTraversalPending, hydroVisualTrackPosition,
-  isHydroMarkerActive, noteHydroLandPresence, registerHydroMarkerHandle, resetHydroMarker,
-  resumeHydroMarkerTraversal, runHydroMarker, seedHydroMarkerRewardHold, setHydroMarkerPhase,
+  abortHydroMarker, armHydroMarker, armHydroMarkerTraversal, detectHydroMarker, enableHydroStepTrace,
+  endHydroMarker, hydroActiveStepSourceCard, hydroMarkerState, hydroStepActivated, hydroStepOwnerFor,
+  hydroStepQueuedFor, hydroStepTrace, hydroTraversalPaused, hydroTraversalPending,
+  hydroVisualTrackPosition, isHydroMarkerActive, noteHydroLandPresence, registerHydroMarkerHandle,
+  resetHydroMarker, resumeHydroMarkerTraversal, runHydroMarker, seedHydroMarkerRewardHold,
+  setHydroMarkerPhase,
 } from '@/client/console/hydroMarker/consoleHydroMarker';
+import {CardName} from '@/common/cards/CardName';
 import {clearPanelRewardHold, panelRewardHold} from '@/client/console/resourceTransfer/consoleResourceTransfer';
 import {ResourceTransferSpec} from '@/client/console/resourceTransfer/resourceTransferModel';
 
@@ -191,6 +194,198 @@ describe('consoleHydroMarker', () => {
       } finally {
         stop();
       }
+    });
+
+    /*
+     * -- THE STAGE-BOUND EXECUTION CONTRACT (20260831011413_1.jpg) ---------
+     *
+     * The exact scenario: DP07 crosses 5 - 6 - 7. Stage 5 is a hidden-info deck
+     * stop; stage 7's reward REPEATS AI Central, whose action draws. The server
+     * resolves the whole traversal inside the request that answers the stage-5
+     * pick, so AI Central's batch is on the wire while the marker stands on 5.
+     *
+     * The animation driver here is fully DEFERRED - every leg's lock/release is
+     * served by hand - so each intermediate phase can be HELD and interrogated.
+     * A final-state assertion cannot see an ordering defect; that is the point.
+     */
+    describe('a FUTURE step may not activate before its own cell', () => {
+      /** A director that serves the queued lock/release only when asked. */
+      function manualDirector(): {beat: () => Promise<void>, stop: () => void} {
+        let pending: Array<() => void> = [];
+        const serve = () => registerHydroMarkerHandle({
+          lock: (onLand) => pending.push(onLand),
+          release: (onGone) => pending.push(onGone),
+          skip: () => {},
+        });
+        serve();
+        const stop = watch(() => hydroMarkerState.nonce, () => serve());
+        return {
+          /**
+           * Advance the flight by exactly ONE beat: yield a macrotask (so the
+           * previous beat's microtask continuations have queued their next
+           * callback), then serve whatever the director is holding. One call =
+           * one lock or one release, which is what makes every intermediate
+           * phase below a state the test can stand still in.
+           */
+          beat: async () => {
+            await new Promise((r) => setTimeout(r, 0));
+            const q = pending;
+            pending = [];
+            q.forEach((fn) => fn());
+          },
+          stop,
+        };
+      }
+
+      const SURGE = [
+        {position: 5, transfers: [], stop: 'deck-draw' as const},
+        {position: 6, transfers: []},
+        {position: 7, transfers: [], stop: 'repeat' as const, sourceCard: CardName.AI_CENTRAL},
+      ];
+
+      it('holds the copied action through EVERY intermediate phase, then admits it on arrival', async () => {
+        const d = manualDirector();
+        enableHydroStepTrace(true);
+        try {
+          hydroMarkerState.reducedMotion = true;
+          armHydroMarkerTraversal(4, SURGE, 'blue');
+          hydroMarkerState.reducedMotion = true;
+
+          // PHASE A: the move 4 -> 5 is in flight. The server's answer (with AI
+          // Central's batch already inside it) may land at any moment here.
+          expect(hydroStepQueuedFor(CardName.AI_CENTRAL), 'queued in flight').to.eq(true);
+          expect(hydroStepOwnerFor({type: 'card', cardName: CardName.AI_CENTRAL})).to.eq(7);
+          expect(hydroActiveStepSourceCard(), 'no source seat while walking').to.eq(undefined);
+
+          detectHydroMarker();
+          const gate = runHydroMarker();
+          await d.beat(); // LOCK on 5
+          await gate;
+          endHydroMarker();
+          await d.beat(); // the proxy RELEASES on 5 -> the step activates
+          await until(() => hydroTraversalPaused());
+
+          // PHASE B: parked ON the stage-5 stop. This is the screenshot's frame
+          // - the deck pick is answered, its cards are leaving, the marker is on
+          // 5. NOTHING of stage 7 may exist.
+          expect(hydroVisualTrackPosition()).to.eq(5);
+          expect(hydroStepActivated(5)).to.eq(true);
+          expect(hydroStepActivated(7), 'stage 7 has NOT arrived').to.eq(false);
+          expect(hydroStepQueuedFor(CardName.AI_CENTRAL), 'still queued on 5').to.eq(true);
+          expect(hydroActiveStepSourceCard(), 'the seat belongs to 7').to.eq(undefined);
+
+          // PHASE C: the stop resolved; the marker is walking 5 -> 6.
+          resumeHydroMarkerTraversal();
+          await until(() => hydroMarkerState.toPosition === 6);
+          expect(hydroStepQueuedFor(CardName.AI_CENTRAL), 'queued mid-walk').to.eq(true);
+
+          // PHASE D: LOCK on 6, then its release - the arrival. A stage-7
+          // reward is STILL not admissible: "the previous scene has left" is
+          // not "we are there", which is exactly what the old exit-only
+          // barrier conflated.
+          await d.beat(); // lock on 6
+          expect(hydroStepQueuedFor(CardName.AI_CENTRAL), 'queued mid-lock').to.eq(true);
+          await d.beat(); // release on 6 -> activation, then the 6 -> 7 leg
+          await until(() => hydroStepActivated(6));
+          expect(hydroStepQueuedFor(CardName.AI_CENTRAL), 'queued on 6').to.eq(true);
+
+          // PHASE E: the walk 6 -> 7, then the arrival.
+          await until(() => hydroMarkerState.toPosition === 7);
+          expect(hydroStepQueuedFor(CardName.AI_CENTRAL), 'queued approaching 7').to.eq(true);
+          await d.beat(); // lock on 7
+          expect(hydroStepQueuedFor(CardName.AI_CENTRAL), 'queued until it SETTLES').to.eq(true);
+          await d.beat(); // release on 7 -> arrivedAndSettled
+          await until(() => hydroStepActivated(7));
+
+          // PHASE F: ONLY NOW. The step owns the scene: its batch is admitted
+          // and its source card materialises.
+          expect(hydroStepQueuedFor(CardName.AI_CENTRAL), 'admitted at last').to.eq(false);
+          await until(() => hydroTraversalPaused());
+          expect(hydroActiveStepSourceCard()).to.eq(CardName.AI_CENTRAL);
+
+          // THE ORDERED TRACE. The contract is a statement about ORDER, so it is
+          // asserted as one - the partial order, in full.
+          const trace = hydroStepTrace();
+          const at = (e: string) => {
+            const i = trace.indexOf(e);
+            expect(i, e + ' in ' + JSON.stringify(trace)).to.be.greaterThan(-1);
+            return i;
+          };
+          expect(at('stage:5:arrivedAndSettled')).to.be.lessThan(at('stage:5:stopOpened'));
+          expect(at('stage:5:stopOpened')).to.be.lessThan(at('stage:5:presentationComplete'));
+          expect(at('stage:5:presentationComplete')).to.be.lessThan(at('move:5-6:start'));
+          expect(at('move:5-6:start')).to.be.lessThan(at('stage:6:arrivedAndSettled'));
+          expect(at('stage:6:arrivedAndSettled')).to.be.lessThan(at('move:6-7:start'));
+          expect(at('move:6-7:start')).to.be.lessThan(at('stage:7:arrivedAndSettled'));
+          expect(at('stage:7:arrivedAndSettled')).to.be.lessThan(at('stage:7:stopOpened'));
+        } finally {
+          enableHydroStepTrace(false);
+          d.stop();
+        }
+      });
+
+      it('activates each cell EXACTLY ONCE, and a fresh plan inherits nothing', async () => {
+        const stop = autoDirector();
+        try {
+          hydroMarkerState.reducedMotion = true;
+          armHydroMarkerTraversal(6, [
+            {position: 7, transfers: [], stop: 'repeat', sourceCard: CardName.AI_CENTRAL},
+          ], 'blue');
+          hydroMarkerState.reducedMotion = true;
+          detectHydroMarker();
+          await runHydroMarker();
+          endHydroMarker();
+          await until(() => hydroTraversalPaused());
+          expect(hydroStepActivated(7)).to.eq(true);
+          // A repeated resume is a no-op: the sequence is serial and the ledger
+          // is a Set, so a stale completion callback cannot re-activate a step.
+          resumeHydroMarkerTraversal();
+          resumeHydroMarkerTraversal();
+          await until(() => !hydroTraversalPending());
+
+          // A NEW plan repeating the SAME card owns nothing until it arrives.
+          armHydroMarkerTraversal(0, [
+            {position: 1, transfers: []},
+            {position: 3, transfers: [], stop: 'repeat', sourceCard: CardName.AI_CENTRAL},
+          ], 'blue');
+          expect(hydroStepActivated(7), 'the old activation is gone').to.eq(false);
+          expect(hydroStepQueuedFor(CardName.AI_CENTRAL), 'earned again').to.eq(true);
+        } finally {
+          stop();
+        }
+      });
+
+      it('an ABORT opens the gate - a dead plan may never hold a surface hostage', () => {
+        const stop = autoDirector();
+        try {
+          armHydroMarkerTraversal(4, SURGE, 'blue');
+          expect(hydroStepQueuedFor(CardName.AI_CENTRAL)).to.eq(true);
+          abortHydroMarker();
+          expect(hydroStepQueuedFor(CardName.AI_CENTRAL)).to.eq(false);
+          expect(hydroActiveStepSourceCard()).to.eq(undefined);
+        } finally {
+          stop();
+        }
+      });
+
+      it('REDUCED MOTION reaches the same order - the gate is not a duration', async () => {
+        const stop = autoDirector();
+        try {
+          hydroMarkerState.reducedMotion = true;
+          armHydroMarkerTraversal(4, SURGE, 'blue');
+          hydroMarkerState.reducedMotion = true;
+          detectHydroMarker();
+          await runHydroMarker();
+          endHydroMarker();
+          await until(() => hydroTraversalPaused());
+          expect(hydroStepQueuedFor(CardName.AI_CENTRAL), 'held with no animation').to.eq(true);
+          resumeHydroMarkerTraversal();
+          await until(() => hydroStepActivated(7));
+          expect(hydroStepQueuedFor(CardName.AI_CENTRAL)).to.eq(false);
+        } finally {
+          stop();
+        }
+      });
     });
 
     it('an EXCLUDED cell (the 2 VP crossing) is walked through — settle, no wave, the sequence continues', async () => {

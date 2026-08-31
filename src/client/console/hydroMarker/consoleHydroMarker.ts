@@ -30,8 +30,13 @@
  */
 
 import {reactive} from 'vue';
+import {CardName} from '@/common/cards/CardName';
+import {CardDrawRevealSource} from '@/common/models/CardDrawRevealModel';
 import {Color} from '@/common/Color';
 import {registerAnimationHoldSupplier} from '@/client/components/presentation/animationHold';
+import {
+  HydroStepLedger, hydroActiveStepSource, hydroStepOwnerPosition, hydroStepQueued, revealSourceCard,
+} from '@/client/console/hydroMarker/hydroStepAdmission';
 import {consoleReducedMotionActive} from '@/client/console/composables/useConsoleReducedMotion';
 import type {HydroMarkerDirectorHandle} from '@/client/console/hydroMarker/hydroMarkerDirector';
 import {arriveReadyMs, markerTimings, reducedMarkerTimings} from '@/client/console/hydroMarker/hydroMarkerModel';
@@ -80,6 +85,15 @@ type HydroMarkerState = {
    * position, which already holds the destination. −1 = no plan.
    */
   visualPosition: number;
+  /**
+   * THE CELL THE SEQUENCE IS PARKED ON — the step that currently OWNS the
+   * scene, or −1 while the marker is walking. Distinct from `visualPosition`
+   * (which keeps naming the last settled cell all through the next glide's
+   * charge frames): only a step that has opened its stop may present a child
+   * surface or show its source card. Written by `pauseTraversal`, cleared by
+   * the resume.
+   */
+  parkedAt: number;
 };
 
 export const hydroMarkerState = reactive<HydroMarkerState>({
@@ -95,6 +109,7 @@ export const hydroMarkerState = reactive<HydroMarkerState>({
   planLength: 0,
   planPaused: false,
   visualPosition: -1,
+  parkedAt: -1,
 });
 
 /**
@@ -110,6 +125,15 @@ export type HydroMarkerLegPlan = {
   transfers: ReadonlyArray<ResourceTransferSpec>;
   stop?: 'deck-draw' | 'repeat' | 'prompt';
   excluded?: boolean;
+  /**
+   * THE CARD THIS STEP REPEATS (a `repeat` stop's pre-selected pick). It is
+   * the step's OWNERSHIP KEY: the server attributes every surface the copied
+   * action raises to this same `CardName`, so the admission gate can tell «this
+   * batch belongs to a stage the marker has not reached» from «this batch is
+   * the current stop's own content» — structurally, never by prompt text.
+   * See `hydroStepAdmission`.
+   */
+  sourceCard?: CardName;
 };
 
 let handle: HydroMarkerDirectorHandle | undefined;
@@ -152,6 +176,92 @@ let planSeedFrom = 0;
 let planEpoch = 0;
 /** An interactive stop's own gains, flown as its CLOSING beat at resume. */
 let pendingResumeWave: {position: number, transfers: ReadonlyArray<ResourceTransferSpec>} | undefined;
+
+/*
+ * ── THE ACTIVATION LEDGER (the stage-bound execution contract) ─────────────
+ *
+ * `activatedSteps` is the set of cells whose leg has ARRIVED AND SETTLED. It is
+ * the ONE fact the admission gate reads (`hydroStepAdmission`), and it is
+ * written in exactly one place — the locked leg's handoff from the glide proxy
+ * to the real marker. Reactive, because the shell's presentation predicates are
+ * computeds: a `Set` mutated inside `reactive()` tracks its own membership, so
+ * an admission that flips when the marker lands re-renders on that landing and
+ * on nothing else.
+ *
+ * WHY A SET AND NOT `visualPosition`: activation only ever HARDENS. A step's
+ * own surfaces (its drawn batch, its follow-up) must keep presenting while the
+ * sequence walks on — a batch yanked off the scene because the marker moved is
+ * the same defect in the other direction.
+ */
+const activationLedger = reactive({
+  activated: new Set<number>(),
+  /** Bumped on every ledger write — the computeds' dependency handle. */
+  rev: 0,
+});
+
+/**
+ * THE ORDERED EVENT TRACE — opt-in, bounded, silent.
+ *
+ * The stage-bound contract is a statement about ORDER («the copied action's
+ * batch mounts strictly after the marker settled on its cell»), and order is
+ * exactly what a final-state assertion cannot see. Tests turn this on and read
+ * the sequence back; production never allocates (the recorder returns on a
+ * `false` flag) and nothing is ever logged.
+ */
+let traceOn = false;
+let trace: Array<string> = [];
+
+/**
+ * THE GATE'S OWN LIVENESS NET — a recovery, never a mechanism.
+ *
+ * The gate holds a future step's surfaces off screen, and its release is the
+ * walk's own progress: an activation, a stop opening, a stop resolving. That is
+ * a completion signal and not a timer, which is exactly right — but it means a
+ * sequence that STALLS (a killed tween whose `onComplete` never fires, a
+ * director that never registers) would hold a real, answerable batch invisible
+ * for the rest of the session. An invisible prompt is a soft-lock, and the one
+ * defect worse than showing a batch at the wrong moment is never showing it.
+ *
+ * So the plan carries a progress deadline: every real advance re-arms it, and
+ * only a plan that has stopped advancing altogether trips it — into the module's
+ * existing `abortHydroMarker`, which drops the plan, yields the visual cursor to
+ * the server's truth and opens the gate by construction (`planLegs` is what
+ * makes a source owned). Generous on purpose: it must never be reachable by a
+ * slow machine, only by a dead sequence.
+ */
+const PLAN_PROGRESS_MAX_MS = 30_000;
+let planProgressId = 0;
+
+function armPlanProgressNet(): void {
+  clearPlanProgressNet();
+  planProgressId = setTimeout(() => {
+    planProgressId = 0;
+    recordHydroStepEvent('traversal:stalled');
+    abortHydroMarker();
+  }, PLAN_PROGRESS_MAX_MS) as unknown as number;
+}
+
+function clearPlanProgressNet(): void {
+  if (planProgressId !== 0) {
+    clearTimeout(planProgressId);
+    planProgressId = 0;
+  }
+}
+
+export function enableHydroStepTrace(on: boolean): void {
+  traceOn = on;
+  trace = [];
+}
+
+export function hydroStepTrace(): ReadonlyArray<string> {
+  return trace;
+}
+
+export function recordHydroStepEvent(event: string): void {
+  if (traceOn) {
+    trace.push(event);
+  }
+}
 
 /*
  * ── THE PRESENTED TARGET CARD'S OWN LIFECYCLE (pos 9) ─────────────────────
@@ -298,10 +408,18 @@ export function armHydroMarkerTraversal(
   claimed = false;
   planLegs = legs;
   planEpoch++;
+  // A NEW PLAN OWNS NOTHING YET. The ledger is emptied here and nowhere else
+  // in the happy path: every step of this traversal must earn its activation
+  // by physically arriving, including one that repeats a card the PREVIOUS
+  // traversal already activated.
+  activationLedger.activated.clear();
+  activationLedger.rev++;
   hydroMarkerState.planCursor = 0;
   hydroMarkerState.planLength = legs.length;
   hydroMarkerState.planPaused = false;
+  hydroMarkerState.parkedAt = -1;
   hydroMarkerState.visualPosition = fromPosition;
+  recordHydroStepEvent(`move:${fromPosition}-${legs[0].position}:start`);
   const range = seedRangeFrom(0);
   pendingRewards = range.transfers;
   planSeedFrom = range.nextFrom;
@@ -314,6 +432,7 @@ export function armHydroMarkerTraversal(
   hydroMarkerState.reducedMotion = consoleReducedMotionActive();
   hydroMarkerState.nonce++;
   armSafetyId = setTimeout(() => abortHydroMarker(), 10000) as unknown as number;
+  armPlanProgressNet();
 }
 
 /** The transfers granted by ONE response, starting at leg `from`: everything
@@ -489,6 +608,15 @@ async function runTraversalLockedLeg(): Promise<void> {
   if (planEpoch !== epoch) {
     return;
   }
+  // ── ARRIVED AND SETTLED — the step's ACTIVATION, and the only place it is
+  //    written. Everything this cell's reward produces becomes admissible from
+  //    this line and not one frame earlier: the token has physically taken the
+  //    cell and the glide proxy has handed over. A cell can never be activated
+  //    twice (a Set), and the sequence is serial by construction.
+  activationLedger.activated.add(leg.position);
+  activationLedger.rev++;
+  armPlanProgressNet();
+  recordHydroStepEvent(`stage:${leg.position}:arrivedAndSettled`);
   if (leg.excluded === true) {
     // The marker physically crossed the cell; nothing flies, the workspace
     // names the exclusion. A short readable beat, pacing only.
@@ -504,7 +632,7 @@ async function runTraversalLockedLeg(): Promise<void> {
     // closing beat, played by the resume before the next cell.
     pendingResumeWave = leg.transfers.length > 0 ? {position: leg.position, transfers: leg.transfers} : undefined;
     hydroMarkerState.planCursor = cursor + 1;
-    pauseTraversal();
+    pauseTraversal(leg.position);
     return;
   }
   // THE CELL'S OWN PAYOUT PLAYS WITH THE CURSOR STILL ON THE CELL. The cursor
@@ -544,6 +672,7 @@ async function startNextLeg(): Promise<void> {
   claimed = true; // the transport gate belongs to the FIRST leg only
   hydroMarkerState.fromPosition = hydroMarkerState.visualPosition;
   hydroMarkerState.toPosition = leg.position;
+  recordHydroStepEvent(`move:${hydroMarkerState.visualPosition}-${leg.position}:start`);
   hydroMarkerState.phase = 'charge';
   hydroMarkerState.nonce++;
   await runHydroMarker();
@@ -556,10 +685,17 @@ async function startNextLeg(): Promise<void> {
 /** Park at an interactive stop: the input gate OPENS (the player must answer
  *  the stop), the plan stands (`traversalPending` keeps the flow's close gate
  *  honest), and the NEXT response's seed carries the following reward range. */
-function pauseTraversal(): void {
+function pauseTraversal(position: number): void {
   hydroMarkerState.planPaused = true;
+  // The parked cell is what the STOP owns: its own surfaces are admitted, and
+  // its source card is the one the workspace stands beside them.
+  hydroMarkerState.parkedAt = position;
   hydroMarkerState.active = false;
   hydroMarkerState.phase = 'idle';
+  // A parked plan is waiting on the PLAYER — and a player may take as long as
+  // they like. The net covers the sequence's own motion, never a decision.
+  clearPlanProgressNet();
+  recordHydroStepEvent(`stage:${position}:stopOpened`);
   const range = seedRangeFrom(planSeedFrom);
   pendingRewards = range.transfers;
   planSeedFrom = range.nextFrom;
@@ -578,6 +714,9 @@ export function resumeHydroMarkerTraversal(): void {
     return;
   }
   hydroMarkerState.planPaused = false;
+  armPlanProgressNet();
+  recordHydroStepEvent(`stage:${hydroMarkerState.parkedAt}:presentationComplete`);
+  hydroMarkerState.parkedAt = -1;
   const epoch = planEpoch;
   const wave = pendingResumeWave;
   pendingResumeWave = undefined;
@@ -606,7 +745,14 @@ function finalizeTraversal(): void {
   hydroMarkerState.planCursor = -1;
   hydroMarkerState.planLength = 0;
   hydroMarkerState.planPaused = false;
+  hydroMarkerState.parkedAt = -1;
   hydroMarkerState.visualPosition = -1;
+  clearPlanProgressNet();
+  recordHydroStepEvent('traversal:complete');
+  // ⚠️ THE LEDGER OUTLIVES THE PLAN, deliberately. `planLegs` is what makes a
+  // source «owned» at all, and it is cleared right here — so the gate falls
+  // open by construction the moment the walk ends, and a surface still on
+  // screen is never re-queued by its own plan finishing under it.
   planLegs = [];
   planSeedFrom = 0;
   pendingResumeWave = undefined;
@@ -660,6 +806,61 @@ export function hydroTraversalPending(): boolean {
   return hydroMarkerState.planCursor >= 0;
 }
 
+// ── THE ACTIVATION GATE, as the shell asks it ─────────────────────────────
+
+/** The ledger the pure decisions read (see `hydroStepAdmission`). */
+function stepLedger(): HydroStepLedger {
+  // `rev` is touched so a computed reading this tracks the Set's mutations
+  // (a `Set` inside `reactive()` tracks membership, but a caller that only
+  // ever asks `has()` for a MISSING key would otherwise not re-run on the add).
+  void activationLedger.rev;
+  return {
+    steps: planLegs,
+    activated: activationLedger.activated,
+    parkedAt: hydroMarkerState.parkedAt,
+  };
+}
+
+/**
+ * THE ONE PREDICATE THE SHELL ASKS: is this surface owned by a traversal step
+ * the marker has not physically reached? A queued surface may not present, may
+ * not take focus, and may not be counted as the current stop's live follow-up.
+ *
+ * Takes either the server's reveal source or a bare `CardName` (a prompt's
+ * `choiceContext` source), so the drawn batch, the target pick and the resource
+ * placement of one copied action are all judged by the same rule.
+ */
+export function hydroStepQueuedFor(
+  source: CardDrawRevealSource | CardName | undefined): boolean {
+  const card = typeof source === 'string' ? source as CardName :
+    revealSourceCard(source);
+  return hydroStepQueued(stepLedger(), card);
+}
+
+/** The cell that owes this surface, or −1 — the diagnostic form of the gate. */
+export function hydroStepOwnerFor(
+  source: CardDrawRevealSource | CardName | undefined): number {
+  const card = typeof source === 'string' ? source as CardName :
+    revealSourceCard(source);
+  return hydroStepOwnerPosition(stepLedger(), card);
+}
+
+/**
+ * THE SOURCE CARD OF THE ACTIVE STEP — the card whose action the stage the
+ * marker is standing on repeats. This is what the workspace shows beside the
+ * copied action's own prompt («ИСТОЧНИК · Центр ИИ»), and it exists exactly
+ * while that step owns the scene.
+ */
+export function hydroActiveStepSourceCard(): CardName | undefined {
+  return hydroActiveStepSource(stepLedger());
+}
+
+/** A step's cell has ARRIVED AND SETTLED — the activation ledger, read. */
+export function hydroStepActivated(position: number): boolean {
+  void activationLedger.rev;
+  return activationLedger.activated.has(position);
+}
+
 export function hydroTraversalPaused(): boolean {
   return hydroMarkerState.planPaused;
 }
@@ -702,7 +903,15 @@ export function abortHydroMarker(): void {
   hydroMarkerState.planCursor = -1;
   hydroMarkerState.planLength = 0;
   hydroMarkerState.planPaused = false;
+  hydroMarkerState.parkedAt = -1;
   hydroMarkerState.visualPosition = -1;
+  // The gate is OPEN after an abort by construction (`planLegs` is what makes a
+  // source owned), but the ledger is cleared too so a later plan cannot inherit
+  // an activation this one earned.
+  activationLedger.activated.clear();
+  activationLedger.rev++;
+  clearPlanProgressNet();
+  recordHydroStepEvent('traversal:abort');
   pendingRewards = [];
   rewardHoldSeeded = false;
   resolveLandExitWaiter();
@@ -717,6 +926,7 @@ export function abortHydroMarker(): void {
 export function resetHydroMarker(): void {
   clearArmSafety();
   clearPendingLockSafety();
+  clearPlanProgressNet();
   pendingLock = undefined;
   resolveLandExitWaiter();
   if (settleTimerId !== 0) {
@@ -743,5 +953,9 @@ export function resetHydroMarker(): void {
   hydroMarkerState.planCursor = -1;
   hydroMarkerState.planLength = 0;
   hydroMarkerState.planPaused = false;
+  hydroMarkerState.parkedAt = -1;
   hydroMarkerState.visualPosition = -1;
+  activationLedger.activated.clear();
+  activationLedger.rev++;
+  trace = [];
 }

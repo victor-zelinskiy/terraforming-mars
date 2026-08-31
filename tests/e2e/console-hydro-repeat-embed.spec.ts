@@ -20,10 +20,18 @@ import {
  *    the deck claim stands, so it presents EMBEDDED in the hydro zone
  *    (`.con-hydro__embed .con-reveal--embedded`), NEVER as a full-bleed band
  *    or the headless fullscreen viewer over the track;
- *  · the TRAVERSAL BARRIER holds: the marker does not advance past the stop
- *    while the reveal presents / the taken card flies — the first sample with
- *    the viewer's marker on cell ≥ 6 comes strictly AFTER the last sample
- *    with the embedded reveal on screen;
+ *  · THE STAGE-BOUND EXECUTION CONTRACT: the copied action's draw belongs to
+ *    stage 7, so NOTHING of it may exist while the marker is still on the
+ *    stage-5 stop. The first sample with the embedded reveal on screen comes
+ *    strictly AFTER the first sample with the viewer's marker on cell 7 — the
+ *    marker really walks 5 → 6 → 7 first. (This assertion used to run the other
+ *    way round, pinning the defect of `20260831011413_1.jpg` as the contract:
+ *    the batch presented over a track still lit at stage 5, and the traversal
+ *    could not resume because that very batch was counted as the stop's own
+ *    live follow-up.)
+ *  · the SOURCE CONTEXT: while the copied draw is up, the workspace stands the
+ *    repeated card («ПОВТОР ДЕЙСТВИЯ · Development Center») in its own seat,
+ *    out of the card row and out of the focus ring;
  *  · the flow ends on the per-stage result (7 rows), and the server totals
  *    agree: position 7, energy = 500 − 1 (own activation) − 7 (movement)
  *    − 1 (the repeat's own cost), hand +3 (keep-2 + the repeat's draw).
@@ -210,12 +218,14 @@ test.describe('Hydronetwork hosts the repeated action · fhd', () => {
         __seq?: number,
         __viewerCells?: Array<{i: number, cell: number}>,
         __reveals?: Array<{i: number, state: string}>,
+        __seats?: Array<{i: number, on: boolean}>,
         __doneSeq?: Array<number>,
         __probeStop?: () => void,
       };
       w.__seq = 0;
       w.__viewerCells = [];
       w.__reveals = [];
+      w.__seats = [];
       w.__doneSeq = [];
       const sample = () => {
         const i = ++(w.__seq as number);
@@ -242,6 +252,13 @@ test.describe('Hydronetwork hosts the repeated action · fhd', () => {
         const seen = w.__reveals!;
         if (seen.length === 0 || seen[seen.length - 1].state !== state) {
           seen.push({i, state});
+        }
+        const seatOn = document.querySelector('.con-hydro__embedsource') !== null;
+        const seats = w.__seats!;
+        if (seats.length === 0 || seats[seats.length - 1].on !== seatOn) {
+          if (seatOn) {
+            seats.push({i, on: seatOn});
+          }
         }
       };
       const mo = new MutationObserver(sample);
@@ -288,15 +305,48 @@ test.describe('Hydronetwork hosts the repeated action · fhd', () => {
     const hero = await page.evaluate(() => {
       const slot = document.querySelector('.con-reveal--embedded .con-cards__slot');
       const zone = document.querySelector('.con-hydro__embed');
+      const strip = document.querySelector('.con-reveal--embedded .con-reveal__strip');
+      const seat = document.querySelector('.con-hydro__embedsource');
+      const card = slot?.getBoundingClientRect();
+      const seatBox = seat?.getBoundingClientRect();
       return {
-        cardH: slot?.getBoundingClientRect().height ?? 0,
+        cardH: card?.height ?? 0,
+        cardLeft: card?.left ?? 0,
         zoneH: zone?.getBoundingClientRect().height ?? 0,
+        // THE USABLE PROMPT STAGE — the row the fit actually solves into, not
+        // the whole zone (the head is chrome the cards may not spend).
+        rowH: strip?.getBoundingClientRect().height ?? 0,
+        seatRight: seatBox === undefined ? 0 : seatBox.right,
+        seatOn: seatBox !== undefined,
+        // A NATIVE SCROLLBAR IS A BUG on a console stage — but the honest test
+        // is «is this element a SCROLL CONTAINER that overflows», not «does any
+        // node have more content than box» (a clipped card face legitimately
+        // does, and always did).
+        scrollers: Array.from(document.querySelectorAll('.con-reveal--embedded, .con-reveal--embedded *'))
+          .filter((el) => {
+            const o = getComputedStyle(el);
+            const scrollable = /(auto|scroll)/.test(o.overflowY + o.overflowX);
+            return scrollable && (el.scrollHeight - el.clientHeight > 2 ||
+              el.scrollWidth - el.clientWidth > 2);
+          })
+          .map((el) => `${el.className}`),
       };
     });
-    // P0.1b acceptance: the presented card SPENDS the zone (never a thumbnail
-    // in a huge empty scene — the 20260830201638 defect).
+    // ACCEPTANCE: the presented card SPENDS the usable stage — never a
+    // thumbnail in a huge empty scene, and never a compact ladder fallback.
+    expect(hero.cardH, `hero ${Math.round(hero.cardH)}px of ${Math.round(hero.rowH)}px row`)
+      .toBeGreaterThan(0.7 * hero.rowH);
     expect(hero.cardH, `hero ${Math.round(hero.cardH)}px of ${Math.round(hero.zoneH)}px zone`)
       .toBeGreaterThan(0.6 * hero.zoneH);
+    // …and the SOURCE SEAT stands beside it without touching it: the reserve is
+    // spatial, so no phase and no focus scale can make the two overlap.
+    expect(hero.seatOn, 'the repeated card stands as the source seat').toBe(true);
+    expect(hero.cardLeft, 'the cards clear the seat').toBeGreaterThan(hero.seatRight);
+    expect(hero.scrollers, `no scrolling container on a console stage (${JSON.stringify(hero.scrollers)})`)
+      .toEqual([]);
+    // The seat is CONTEXT: it is in no selection and takes no focus.
+    expect(await page.locator('.con-hydro__embedsource .con-cards__slot').count(),
+      'the source is not one of the drawn cards').toBe(0);
     await shoot(page, '04-embedded-reveal');
     // A — take every card of the embedded batch (one press per card; the
     // arrival gate may swallow an early press, so press until it clears).
@@ -311,9 +361,13 @@ test.describe('Hydronetwork hosts the repeated action · fhd', () => {
       const w = window as unknown as {
         __viewerCells?: Array<{i: number, cell: number}>,
         __reveals?: Array<{i: number, state: string}>,
+        __seats?: Array<{i: number, on: boolean}>,
         __doneSeq?: Array<number>,
       };
-      return {cells: w.__viewerCells ?? [], reveals: w.__reveals ?? [], doneSeq: w.__doneSeq ?? []};
+      return {
+        cells: w.__viewerCells ?? [], reveals: w.__reveals ?? [],
+        seats: w.__seats ?? [], doneSeq: w.__doneSeq ?? [],
+      };
     });
 
     // NEVER a full-bleed band, and never a HEADLESS PRESENTATION. The one
@@ -337,13 +391,25 @@ test.describe('Hydronetwork hosts the repeated action · fhd', () => {
     const embedded = probes.reveals.filter((r) => r.state === 'embedded');
     expect(embedded.length, 'the repeat\'s draw presented embedded').toBeGreaterThan(0);
 
-    // THE BARRIER: the marker reached cell 6 only AFTER the embedded reveal
-    // left the screen (the take + the dock landing released the stop).
-    const lastEmbeddedOn = Math.max(...embedded.map((r) => r.i));
-    const firstPastStop = probes.cells.find((c) => c.cell >= 6);
-    expect(firstPastStop, `the marker resumed to 6..7 (${JSON.stringify(probes.cells)})`).toBeDefined();
-    expect(firstPastStop!.i, 'the resume comes strictly after the embedded presentation')
-      .toBeGreaterThan(lastEmbeddedOn);
+    // ── THE STAGE-BOUND EXECUTION CONTRACT ────────────────────────────────
+    // The copied action's draw is stage 7's reward, and the server resolved it
+    // inside the response that answered the stage-5 pick. It may therefore not
+    // appear until the marker has physically walked 5 → 6 → 7 and settled.
+    const firstEmbeddedOn = Math.min(...embedded.map((r) => r.i));
+    const firstOn6 = probes.cells.find((c) => c.cell >= 6);
+    const firstOn7 = probes.cells.find((c) => c.cell >= 7);
+    expect(firstOn6, `the marker walked to 6 (${JSON.stringify(probes.cells)})`).toBeDefined();
+    expect(firstOn7, `the marker reached 7 (${JSON.stringify(probes.cells)})`).toBeDefined();
+    expect(firstOn6!.i, 'the marker leaves the stage-5 stop BEFORE stage 7 shows anything')
+      .toBeLessThan(firstEmbeddedOn);
+    expect(firstOn7!.i, 'the copied draw mounts only once cell 7 is reached')
+      .toBeLessThan(firstEmbeddedOn);
+    // …and so does the source seat: it materialises WITH its stage, not before.
+    const firstSeatOn = probes.seats.length > 0 ? probes.seats[0].i : Infinity;
+    expect(firstSeatOn, `the source seat appeared (${JSON.stringify(probes.seats)})`)
+      .toBeLessThan(Infinity);
+    expect(firstOn7!.i, 'the source card does not precede the stage that repeats it')
+      .toBeLessThanOrEqual(firstSeatOn);
 
     // The walk stayed ordered and complete: cells only ever move forward.
     for (let i = 1; i < probes.cells.length; i++) {

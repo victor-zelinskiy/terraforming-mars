@@ -467,7 +467,7 @@ import {GamepadIntent, NavDirection} from '@/client/gamepad/gamepadPollModel';
 import {consoleActionOf, ConsoleAction} from '@/client/console/composables/consoleActionModel';
 import {consoleReducedMotionActive} from '@/client/console/composables/useConsoleReducedMotion';
 import {conUiScale} from '@/client/console/consoleLayoutProfile';
-import {wsStageLayout, wsStageLayoutStyle} from '@/client/console/consoleWsStageLayout';
+import {sourceSeatReservePx, wsStageLayout, wsStageLayoutStyle} from '@/client/console/consoleWsStageLayout';
 import ConsoleWsStageHead from '@/client/components/console/foundation/ConsoleWsStageHead.vue';
 import ConsoleRevealVerdict from '@/client/components/console/foundation/ConsoleRevealVerdict.vue';
 import {focusKicker} from '@/client/console/consoleActionFlow';
@@ -546,6 +546,17 @@ export default defineComponent({
      * in the dock. Rect math is viewport-px in both hosts.
      */
     embedded: {type: Boolean, default: false},
+    /**
+     * THE HOST STANDS THE SOURCE CARD ITSELF, beside this stage.
+     *
+     * Two consequences, both about saying one thing once: the compact source
+     * CHIP in the head is suppressed (the card is already on stage and
+     * `L3 Источник` lifts THAT one — the same rule `ConsoleTaskHost` applies to
+     * its `dockedSource`), and the embedded fit re-runs when the seat comes or
+     * goes, because the seat is `position: absolute` and therefore changes
+     * neither the root's nor the row's box: no observer can see it.
+     */
+    sourceSeat: {type: Boolean, default: false},
   },
   emits: ['dismiss-result', 'discard-pick', 'drawn-complete', 'result-detached'],
   data() {
@@ -759,6 +770,12 @@ export default defineComponent({
     sourceChip(): SourceChip | undefined {
       const s = this.drawnSource;
       if (s === undefined) {
+        return undefined;
+      }
+      // The host already stands this card on stage — a chip repeating its name
+      // is the same sentence in a second voice, and the head is where the
+      // player looks for what is HAPPENING, not for what caused it.
+      if (this.sourceSeat && s.type === 'card') {
         return undefined;
       }
       if (s.type === 'card') {
@@ -1196,6 +1213,12 @@ export default defineComponent({
      * the real zone box); falling edge → tear it down and drop the solved
      * zoom, so a standalone presentation honestly reads its own ladder.
      */
+    // The seat is absolutely placed, so its arrival/departure moves no box any
+    // observer watches — the fit has to be told. (The reserve is measured off
+    // the DOM, so a `$nextTick` is what makes the read see the new state.)
+    sourceSeat() {
+      void this.$nextTick(() => this.scheduleEmbedFit());
+    },
     embedFitEligible(on: boolean) {
       if (on) {
         this.installEmbedFit();
@@ -1488,8 +1511,22 @@ export default defineComponent({
       // ones»). It shipped for one run and cropped the row at 1080 — the fit
       // solved 387 px of card into a 293 px budget it had itself replaced with
       // 460. The clamp here guards a degenerate measurement and nothing else.
+      // THE SOURCE SEAT'S SAFE ZONE — the same contract the deck pick honours,
+      // for the same reason: a host may stand a compact source card at the left
+      // of its zone (the Hydronetwork's repeated action, the start workspace's
+      // play-from-hand), the card group is CENTRED, and reserving the seat's
+      // width on BOTH sides is what guarantees the margin can never be narrower
+      // than the seat — spatial separation by construction, not a z-index and
+      // not an overlap the eye forgives.
+      //
+      // It rides `availW` and NOT `padXPx`: a virtual margin folded into the
+      // wrap cap makes the cap wider than the shape it caps (the deck pick's
+      // own 4 + 3 → 5 + 2 regression). And the height budget is untouched —
+      // the seat is BESIDE the cards, so it may not cost them a single pixel of
+      // the height they are the protagonists of.
+      const seatReserve = sourceSeatReservePx(ui);
       const layout = wsStageLayout({
-        availW: Math.max(1, availW - zoneExtraW),
+        availW: Math.max(1, availW - zoneExtraW - seatReserve * 2),
         availH: Math.max(1, availH - zoneExtraH),
         slotW, slotH, n, ui,
         rowGapPx: colGap + zoneCaptionH,
