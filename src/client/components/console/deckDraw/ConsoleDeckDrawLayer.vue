@@ -102,6 +102,7 @@ import {nomadMoveHolding} from '@/client/console/nomads/consoleNomadMove';
 import {isBoardCardBonusActive, boardCardBonusClaimsReveal, isBonusRevealStaged} from '@/client/console/boardCardBonus/consoleBoardCardBonus';
 import {colonyTradeClaimsReveal, isColonyTradeRevealStaged, isPresentedTradeReveal} from '@/client/console/colonyTrade/consoleColonyTrade';
 import {colonyResolutionUi, remoteColonyBonusHold} from '@/client/console/colonyTrade/colonyResolution';
+import {hydroStepQueuedFor} from '@/client/console/hydroMarker/consoleHydroMarker';
 import {markWorkspaceOutcomeArrivalDone, workspaceClaimOwnsArrival, workspaceClaimsColonyReveal, workspaceClaimsDrawReveal} from '@/client/console/consoleWorkspaceOutcome';
 import {
   DeckDrawTimings, DrawBeat, RectLike, deckCountAfter, deckDrawTimings, holdScale, holdSlots,
@@ -278,7 +279,22 @@ export default defineComponent({
       // the focus restore (its reveal slot is held empty; flying into an
       // unmounted surface would only degrade). Reactive — the restore
       // re-fires this computed. NEITHER is remembered: they are «not yet».
+      // …and a batch a HYDRONETWORK TRAVERSAL owes to a stage the marker has
+      // not physically reached waits for that stage, for the same reason and
+      // in the same slot. The server resolves a whole traversal inside ONE
+      // request (the parked tail drains in the response that answers the
+      // stage-5 deck pick), so a stage-7 «reuse a card action» reward puts its
+      // draw on the wire while the token is still two cells back — and this
+      // scene is the FIRST thing that reacts to a batch existing, well before
+      // any modal. Holding only the modal left the cards visibly peeling off
+      // the deck over the stage-5 scene, then vanishing, and the deal's own
+      // hold (`deckDrawHolds` → `cardArrivalBusy`) even blocked the walk that
+      // was supposed to reach stage 7 — so the wrong order was also the slow
+      // one. `waiting`, never `foreign`: the batch IS ours, just not yet, and
+      // the answer must be re-asked on arrival (a remembered verdict would
+      // mean the cards never get their deal at all).
       const waiting = remoteColonyBonusHold(this.playerView.waitingFor, e.source) ||
+        hydroStepQueuedFor(e.source) ||
         (colonyResolutionUi.discardStage && workspaceClaimsColonyReveal(e.source));
       const v = deckDrawVerdict({eventId: e.id, foreign, waiting});
       return v === undefined ? undefined : {v, e};

@@ -1535,6 +1535,14 @@ export default defineComponent({
       this.embedLayoutStyle = wsStageLayoutStyle(layout);
       Object.entries(this.embedLayoutStyle).forEach(([k, v]) => strip.style.setProperty(k, v));
       this.embedFitZoom = layout.zoom;
+      // THE ROW STATES ITS OWN SOLVE. Every past defect in this engine was
+      // diagnosed by guessing which INPUT was wrong, at the one resolution the
+      // guesser happened to be looking at; the inputs are what has to be
+      // readable. Costs one attribute write per fit.
+      strip.setAttribute('data-fit',
+        `z=${layout.zoom} w=${Math.round(availW)} h=${Math.round(availH)} ` +
+        `slot=${Math.round(slotW)}x${Math.round(slotH)} n=${n} ui=${ui} ` +
+        `seat=${Math.round(seatReserve)} rows=${layout.rows}x${layout.perRow}`);
       // THE FIT'S OWN INPUTS, on the row it solved. A cropped batch is always a
       // disagreement between what the engine measured and what the browser laid
       // out, and reading the result alone can never tell them apart — this is

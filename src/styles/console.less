@@ -787,6 +787,40 @@ html.console-native {
     width: 100%;
     max-width: none;
 }
+/* …AND THE HEIGHT HALF OF THE SAME SENTENCE, which was never stated.
+   The width is above; the height was left to `flex: 1` / `align-self: stretch`
+   on the reveal ROOT — and both of those do something only when the ZONE is a
+   flex container. It is not: `.con-hydro__embed` is `position: relative;
+   overflow: hidden`, a plain block (the START scene's zone works only because
+   it hand-writes `> :is(.con-reveal, .con-deckpick) { height: 100% }` of its
+   own). So the surface shrink-wrapped vertically, its frame was content-sized,
+   and the stage row's `flex: 1` flexed against ITS OWN CONTENT — a stable fixed
+   point at exactly one unzoomed card: the fit measured `availH === slotH`
+   (460 px, measured identically at 1080 and at 4K) and solved zoom ≈ 1. That is
+   why the received cards never used the free height at any resolution, and why
+   a card-vs-ROW assertion could never see it: the row WAS the card.
+
+   `height: 100%` against an INDEFINITE zone resolves to `auto` by spec, so a
+   content-sized zone is untouched by this. */
+.con-reveal--embedded.con-reveal {
+    height: 100%;
+    max-height: 100%;
+}
+.con-reveal--embedded.con-reveal .con-reveal__card {
+    flex: 1;
+    min-height: 0;
+}
+
+/* A FIT'S OWN CHAIN MAY NOT CONTAIN A SCROLL CONTAINER. The drawn body carries
+   `overflow-y: auto` for the standalone band; inside a workspace that is the
+   feedback loop the deck pick already documents — content overflows by a hair
+   → a scrollbar appears → `clientWidth` drops → the next solve is narrower →
+   it fits → the scrollbar goes → repeat. The engine guarantees the content
+   fits, so the honest backstop here is a clip (and the console has banned
+   scrollbars anyway). */
+.con-reveal--embedded.con-reveal .con-reveal__body--drawn {
+    overflow: hidden;
+}
 
 /* `:is()` takes the HIGHEST specificity of its arguments, so one rule here is
    still compound against every host's base class — adding a stage (the
@@ -22530,14 +22564,33 @@ body.con-start-ceremony {
         .con-scrollbars();
     }
     /* DRAWN: the source rail sits left, the received cards fill the rest —
-       centred so a small batch reads as a calm cluster, not a left-hug. */
+       centred so a small batch reads as a calm cluster, not a left-hug.
+
+       ⚠️ THE ROW MUST OWN THE HEIGHT, AND `align-items` HERE IS THE HEIGHT.
+       This body is a flex ROW, so `align-items: center` sized `__main` to its
+       CONTENT and centred it — which means the stage row's `flex: 1` inside it
+       was flexing against its own content. That is a stable fixed point at
+       exactly one unzoomed card: the fit measured `availH = 460 = slotH`,
+       solved `zoom ≈ 1`, the card rendered 460 tall, and the row stayed 460 —
+       identically at 1080 and at 4K, which is why the cards never used the
+       free space at any resolution and why a card-vs-ROW assertion could never
+       see it (the row WAS the card).
+
+       `stretch` is what makes the row's box the height the stage actually has.
+       The cards stay optically centred because the stage row centres them
+       inside itself (`align-items` / `align-content: center` on
+       `.con-ws-stage-row`), so nothing about the small-batch composition
+       changes — only the room it is composed in. */
     &__body--drawn {
-        align-items: center;
+        align-items: stretch;
         justify-content: center;
         gap: 1.5rem;
     }
     /* INFO PARITY: the source renders as the REAL premium element. */
     &__source {
+        /* CONTEXT keeps its own vertical centring — it must not grow into a
+           full-height column now that the body stretches (see `--drawn`). */
+        align-self: center;
         flex-shrink: 0;
         display: flex;
         flex-direction: column;

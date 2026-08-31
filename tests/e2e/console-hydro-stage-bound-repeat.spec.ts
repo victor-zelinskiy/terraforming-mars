@@ -60,9 +60,9 @@ function titleOf(prompt: Wire | undefined): string {
   return typeof t === 'string' ? t : String(t?.message ?? '');
 }
 
-async function shoot(page: Page, name: string): Promise<void> {
-  fs.mkdirSync(OUT, {recursive: true});
-  await page.screenshot({path: path.join(OUT, `${name}.png`)});
+async function shoot(page: Page, profile: string, name: string): Promise<void> {
+  fs.mkdirSync(path.join(OUT, profile), {recursive: true});
+  await page.screenshot({path: path.join(OUT, profile, `${name}.png`)});
 }
 
 /** Settle every intermediate prompt until the action menu stands. */
@@ -144,237 +144,287 @@ async function drainReveals(page: Page): Promise<void> {
   expect(await page.locator('.con-reveal').count(), 'every seeded reveal was taken').toBe(0);
 }
 
-test.describe('The Hydronetwork traversal is stage-bound · fhd', () => {
-  test.use({
-    viewport: {width: 1920, height: 1080},
-    deviceScaleFactor: 1,
-    screen: {width: 1920, height: 1080},
-  });
+/**
+ * BOTH PROFILES, always. A fit claim asserted at ONE resolution is a claim
+ * about one resolution: this scene fits at 1080 and rendered the cards at ~37 %
+ * of the band at 4K, where the TV profile's own ladders meet the shared engine.
+ */
+const PROFILES = [
+  {name: 'fhd', w: 1920, h: 1080},
+  {name: 'tv4k', w: 3840, h: 2160},
+] as const;
 
-  test('DP07 0→7: stage 5 answered → the marker WALKS 5→6→7 → only THEN «Центр ИИ» acts', async ({page, request}) => {
-    test.setTimeout(600_000);
-    const id = await createGameWithCards(request, ALL_CARDS, {config: CFG, seed: 0.47});
-    await seedGameOverApi(request, id, {cards: ALL_CARDS, corporation: 'ThorGate'});
-    for (const card of ALL_CARDS) {
-      await playCard(request, id, card);
-    }
-    await toActionMenu(request, id);
-    // USE BOTH blue actions — the stage-7 pool is the USED actions, so the
-    // picker offers two and the plan has to name one. Development Center is
-    // played (and used) FIRST, so it is the first eligible candidate: if the
-    // source were derived from «the first one» or «the last one looked at»
-    // rather than from the plan, this test would show the wrong card.
-    await activateCard(request, id, 'Development Center');
-    await toActionMenu(request, id);
-    await activateCard(request, id, 'AI Central');
-    await toActionMenu(request, id);
+for (const profile of PROFILES) {
+  test.describe(`The Hydronetwork traversal is stage-bound · ${profile.name}`, () => {
+    test.use({
+      viewport: {width: profile.w, height: profile.h},
+      deviceScaleFactor: 1,
+      screen: {width: profile.w, height: profile.h},
+    });
 
-    await openConsole(page, id, '');
-    await page.waitForSelector('.con-reveal', {timeout: 25_000});
-    await drainReveals(page);
-    await waitForBoardHome(page, 25);
+    test('DP07 0→7: stage 5 answered → the marker WALKS 5→6→7 → only THEN «Центр ИИ» acts', async ({page, request}) => {
+      test.setTimeout(600_000);
+      const id = await createGameWithCards(request, ALL_CARDS, {config: CFG, seed: 0.47});
+      await seedGameOverApi(request, id, {cards: ALL_CARDS, corporation: 'ThorGate'});
+      for (const card of ALL_CARDS) {
+        await playCard(request, id, card);
+      }
+      await toActionMenu(request, id);
+      // USE BOTH blue actions — the stage-7 pool is the USED actions, so the
+      // picker offers two and the plan has to name one. Development Center is
+      // played (and used) FIRST, so it is the first eligible candidate: if the
+      // source were derived from «the first one» or «the last one looked at»
+      // rather than from the plan, this test would show the wrong card.
+      await activateCard(request, id, 'Development Center');
+      await toActionMenu(request, id);
+      await activateCard(request, id, 'AI Central');
+      await toActionMenu(request, id);
 
-    // ── Open the Hydronetwork; RT jumps to the farthest legal stage (7 —
-    //    stage 8 needs a Jovian tag nobody played). ──
-    await press(page, 'Period', 1100);
-    await press(page, 'ArrowLeft', 1600);
-    await page.waitForSelector('.con-hydro', {timeout: 10_000});
-    await press(page, 'Period', 900); // RT — «К дальнему»
-    expect(await page.evaluate(() =>
-      document.querySelector('.con-hydro__stop--focused')?.getAttribute('data-hydro-stop') ?? ''),
-    'the farthest legal stage is 7').toBe('7');
+      await openConsole(page, id, '');
+      await page.waitForSelector('.con-reveal', {timeout: 25_000});
+      await drainReveals(page);
+      await waitForBoardHome(page, 25);
 
-    // ── THE RAIL: two crossed choices, then the stage-7 repeat pre-select. ──
-    await press(page, 'Enter', 900);
-    await page.waitForSelector('.con-hydro__layer--choice', {timeout: 8_000});
-    await press(page, 'Enter', 900);
-    await press(page, 'Enter', 900);
-    await page.waitForSelector('.con-hydro__layer--choice', {timeout: 8_000});
-    await press(page, 'ArrowRight', 450);
-    await press(page, 'Enter', 900);
+      // ── Open the Hydronetwork; RT jumps to the farthest legal stage (7 —
+      //    stage 8 needs a Jovian tag nobody played). ──
+      await press(page, 'Period', 1100);
+      await press(page, 'ArrowLeft', 1600);
+      await page.waitForSelector('.con-hydro', {timeout: 10_000});
+      await press(page, 'Period', 900); // RT — «К дальнему»
+      expect(await page.evaluate(() =>
+        document.querySelector('.con-hydro__stop--focused')?.getAttribute('data-hydro-stop') ?? ''),
+      'the farthest legal stage is 7').toBe('7');
 
-    // ── THE PICK: walk to AI CENTRAL by its structural identity, never by
-    //    position and never by the tile's translated text. ──
-    await press(page, 'Enter', 2500);
-    await page.waitForSelector('.con-cardactions', {timeout: 15_000});
-    const focusedCard = () => page.evaluate(() =>
-      document.querySelector('.con-cardactions__tile--focused')?.getAttribute('data-action-card') ?? '');
-    const offered = await page.evaluate(() => Array.from(
-      document.querySelectorAll('.con-cardactions__tile'))
-      .map((t) => t.getAttribute('data-action-card') ?? ''));
-    expect(offered, `both used actions are candidates (${JSON.stringify(offered)})`)
-      .toEqual(expect.arrayContaining(['Development Center', 'AI Central']));
-    for (let i = 0; i < 6 && await focusedCard() !== 'AI Central'; i++) {
+      // ── THE RAIL: two crossed choices, then the stage-7 repeat pre-select. ──
+      await press(page, 'Enter', 900);
+      await page.waitForSelector('.con-hydro__layer--choice', {timeout: 8_000});
+      await press(page, 'Enter', 900);
+      await press(page, 'Enter', 900);
+      await page.waitForSelector('.con-hydro__layer--choice', {timeout: 8_000});
       await press(page, 'ArrowRight', 450);
-    }
-    expect(await focusedCard(), 'the cursor holds AI Central').toBe('AI Central');
-    await shoot(page, '01-repeat-picker');
-    await press(page, 'Enter', 2000); // A — descend into AI Central
-    await press(page, 'Enter', 2500); // A — «Выбрать это действие»
-    await page.waitForSelector('.con-hydro', {timeout: 15_000});
-    await page.waitForTimeout(800);
+      await press(page, 'Enter', 900);
 
-    // ── ARM THE CENSUS. Every sample records, together: where the viewer's
-    //    marker stands, whether any stage-7 artifact is on screen, and what the
-    //    breadcrumb's stage segment says. Recording them TOGETHER is the point:
-    //    the defect is a CO-OCCURRENCE («cards from 7 while the marker is on
-    //    5»), and three independent timelines cannot prove its absence. ──
-    await page.evaluate(() => {
-      const w = window as unknown as {
+      // ── THE PICK: walk to AI CENTRAL by its structural identity, never by
+      //    position and never by the tile's translated text. ──
+      await press(page, 'Enter', 2500);
+      await page.waitForSelector('.con-cardactions', {timeout: 15_000});
+      const focusedCard = () => page.evaluate(() =>
+        document.querySelector('.con-cardactions__tile--focused')?.getAttribute('data-action-card') ?? '');
+      const offered = await page.evaluate(() => Array.from(
+        document.querySelectorAll('.con-cardactions__tile'))
+        .map((t) => t.getAttribute('data-action-card') ?? ''));
+      expect(offered, `both used actions are candidates (${JSON.stringify(offered)})`)
+        .toEqual(expect.arrayContaining(['Development Center', 'AI Central']));
+      for (let i = 0; i < 6 && await focusedCard() !== 'AI Central'; i++) {
+        await press(page, 'ArrowRight', 450);
+      }
+      expect(await focusedCard(), 'the cursor holds AI Central').toBe('AI Central');
+      await shoot(page, profile.name, '01-repeat-picker');
+      await press(page, 'Enter', 2000); // A — descend into AI Central
+      await press(page, 'Enter', 2500); // A — «Выбрать это действие»
+      await page.waitForSelector('.con-hydro', {timeout: 15_000});
+      await page.waitForTimeout(800);
+
+      // ── ARM THE CENSUS. Every sample records, together: where the viewer's
+      //    marker stands, whether any stage-7 artifact is on screen, and what the
+      //    breadcrumb's stage segment says. Recording them TOGETHER is the point:
+      //    the defect is a CO-OCCURRENCE («cards from 7 while the marker is on
+      //    5»), and three independent timelines cannot prove its absence. ──
+      await page.evaluate(() => {
+        const w = window as unknown as {
         __seq?: number, __census?: Array<Record<string, unknown>>, __stop?: () => void,
       };
-      w.__seq = 0;
-      w.__census = [];
-      const sample = () => {
-        const i = ++(w.__seq as number);
-        const viewer = document.querySelector('.con-hydro__stop-marker--viewer');
-        const cellAttr = viewer?.closest('[data-hydro-marker]')?.getAttribute('data-hydro-marker');
-        const seat = document.querySelector('.con-hydro__embedsource');
-        const row = {
-          cell: cellAttr === undefined || cellAttr === null ? -1 : Number(cellAttr),
-          reveal: document.querySelector('.con-hydro__embed .con-reveal--embedded') !== null,
-          anyReveal: document.querySelector('.con-reveal') !== null,
-          seat: seat !== null,
-          seatCard: seat?.getAttribute('data-zoom-slot') ?? '',
-          stage: (document.querySelector('.con-wshead__stage')?.textContent ?? '').trim(),
+        w.__seq = 0;
+        w.__census = [];
+        const sample = () => {
+          const i = ++(w.__seq as number);
+          const viewer = document.querySelector('.con-hydro__stop-marker--viewer');
+          const cellAttr = viewer?.closest('[data-hydro-marker]')?.getAttribute('data-hydro-marker');
+          const seat = document.querySelector('.con-hydro__embedsource');
+          const row = {
+            cell: cellAttr === undefined || cellAttr === null ? -1 : Number(cellAttr),
+            reveal: document.querySelector('.con-hydro__embed .con-reveal--embedded') !== null,
+            anyReveal: document.querySelector('.con-reveal') !== null,
+            // THE DEAL CINEMATIC — the FIRST thing that reacts to a batch
+            // existing, well before any modal.
+            deal: document.querySelector('.con-deckdraw') !== null,
+            seat: seat !== null,
+            seatCard: seat?.getAttribute('data-zoom-slot') ?? '',
+            stage: (document.querySelector('.con-wshead__stage')?.textContent ?? '').trim(),
+          };
+          const census = w.__census!;
+          const prev = census[census.length - 1];
+          if (prev === undefined || JSON.stringify(prev) !== JSON.stringify({...row, i: prev?.i})) {
+            census.push({...row, i});
+          }
         };
-        const census = w.__census!;
-        const prev = census[census.length - 1];
-        if (prev === undefined || JSON.stringify(prev) !== JSON.stringify({...row, i: prev?.i})) {
-          census.push({...row, i});
-        }
-      };
-      const mo = new MutationObserver(sample);
-      mo.observe(document.body, {childList: true, subtree: true, attributes: true});
-      const iv = setInterval(sample, 60);
-      w.__stop = () => {
-        mo.disconnect();
-        clearInterval(iv);
-      };
-    });
+        const mo = new MutationObserver(sample);
+        mo.observe(document.body, {childList: true, subtree: true, attributes: true});
+        const iv = setInterval(sample, 60);
+        w.__stop = () => {
+          mo.disconnect();
+          clearInterval(iv);
+        };
+      });
 
-    // ── COMMIT — one press. ──
-    await press(page, 'Enter', 1500);
+      // ── COMMIT — one press. ──
+      await press(page, 'Enter', 1500);
 
-    // ── THE STAGE-5 STOP: the four dealt cards, keep 2, RT confirms. ──
-    await page.waitForSelector('.con-deckpick[data-flow="choosing"]', {timeout: 60_000});
-    await press(page, 'Enter', 600);
-    for (let i = 0; i < 6 && await page.locator('.con-cards__slot--picked').count() < 2; i++) {
-      await press(page, 'ArrowRight', 450);
+      // ── THE STAGE-5 STOP: the four dealt cards, keep 2, RT confirms. ──
+      await page.waitForSelector('.con-deckpick[data-flow="choosing"]', {timeout: 60_000});
       await press(page, 'Enter', 600);
-    }
-    expect(await page.locator('.con-cards__slot--picked').count(), 'two picks held').toBe(2);
-    await shoot(page, '02-stage5-pick');
-    await press(page, 'Period', 1500); // RT — «Подтвердить»
+      for (let i = 0; i < 6 && await page.locator('.con-cards__slot--picked').count() < 2; i++) {
+        await press(page, 'ArrowRight', 450);
+        await press(page, 'Enter', 600);
+      }
+      expect(await page.locator('.con-cards__slot--picked').count(), 'two picks held').toBe(2);
+      await shoot(page, profile.name, '02-stage5-pick');
+      await press(page, 'Period', 1500); // RT — «Подтвердить»
 
-    // ── The copied action's own draw — which may only exist once cell 7 has
-    //    been reached. (`20260831011413_1.jpg` is this selector resolving with
-    //    the marker still on 5.) ──
-    await page.waitForSelector('.con-hydro__embed .con-reveal--embedded', {timeout: 90_000});
-    await page.waitForTimeout(1400);
+      // ── The copied action's own draw — which may only exist once cell 7 has
+      //    been reached. (`20260831011413_1.jpg` is this selector resolving with
+      //    the marker still on 5.) ──
+      await page.waitForSelector('.con-hydro__embed .con-reveal--embedded', {timeout: 90_000});
+      await page.waitForTimeout(1400);
 
-    await page.evaluate(() => (window as unknown as {__stop?: () => void}).__stop?.());
-    const census = await page.evaluate(() =>
-      (window as unknown as {__census?: Array<Record<string, unknown>>}).__census ?? []);
-    const dump = JSON.stringify(census);
+      await page.evaluate(() => (window as unknown as {__stop?: () => void}).__stop?.());
+      const census = await page.evaluate(() =>
+        (window as unknown as {__census?: Array<Record<string, unknown>>}).__census ?? []);
+      const dump = JSON.stringify(census);
 
-    // ① NOTHING OF STAGE 7 WHILE THE MARKER IS BEHIND IT. Every single sample
-    //    taken while the marker was on a cell below 7 must be free of the
-    //    copied action's artifacts — cards AND source card.
-    const early = census.filter((r) => (r.cell as number) >= 0 && (r.cell as number) < 7);
-    expect(early.length, `the census watched the marker below 7 (${dump})`).toBeGreaterThan(0);
-    for (const r of early) {
-      expect(r.reveal, `stage-7 cards at cell ${r.cell} (${dump})`).toBe(false);
-      expect(r.seat, `the source card at cell ${r.cell} (${dump})`).toBe(false);
-    }
+      // ① NOTHING OF STAGE 7 WHILE THE MARKER IS BEHIND IT. Every single sample
+      //    taken while the marker was on a cell below 7 must be free of the
+      //    copied action's artifacts — cards AND source card.
+      const early = census.filter((r) => (r.cell as number) >= 0 && (r.cell as number) < 7);
+      expect(early.length, `the census watched the marker below 7 (${dump})`).toBeGreaterThan(0);
+      for (const r of early) {
+        expect(r.reveal, `stage-7 cards at cell ${r.cell} (${dump})`).toBe(false);
+        expect(r.seat, `the source card at cell ${r.cell} (${dump})`).toBe(false);
+        // …and no DEAL either. This is the half the first fix missed: the cards
+        // were kept out of the modal but still peeled off the deck ON THE SPOT,
+        // and the deal's own hold (`deckDrawHolds` → `cardArrivalBusy`) even
+        // blocked the walk that was supposed to reach stage 7 — so the wrong
+        // order was also the slow one.
+        expect(r.deal, `the deck DEALT stage-7 cards at cell ${r.cell} (${dump})`).toBe(false);
+      }
 
-    // ② THE WALK REALLY HAPPENED — 5, then 6, then 7, forward only.
-    const cells = census.map((r) => r.cell as number).filter((c) => c >= 0);
-    expect(cells, `the marker stood on 5 (${dump})`).toContain(5);
-    expect(cells, `the marker crossed 6 (${dump})`).toContain(6);
-    expect(cells[cells.length - 1], `the marker finished on 7 (${dump})`).toBe(7);
-    for (let i = 1; i < cells.length; i++) {
-      expect(cells[i], `forward only (${cells.join(',')})`).toBeGreaterThanOrEqual(cells[i - 1]);
-    }
+      // ② THE WALK REALLY HAPPENED — 5, then 6, then 7, forward only.
+      const cells = census.map((r) => r.cell as number).filter((c) => c >= 0);
+      expect(cells, `the marker stood on 5 (${dump})`).toContain(5);
+      expect(cells, `the marker crossed 6 (${dump})`).toContain(6);
+      expect(cells[cells.length - 1], `the marker finished on 7 (${dump})`).toBe(7);
+      for (let i = 1; i < cells.length; i++) {
+        expect(cells[i], `forward only (${cells.join(',')})`).toBeGreaterThanOrEqual(cells[i - 1]);
+      }
 
-    // ③ SOURCE IDENTITY is the CHOSEN card — never the first eligible one.
-    const seated = census.filter((r) => r.seat === true);
-    expect(seated.length, `the source card materialised (${dump})`).toBeGreaterThan(0);
-    for (const r of seated) {
-      expect(r.seatCard, 'the seat shows the card the plan named').toBe('AI Central');
-      expect(r.cell, 'the source never precedes its own stage').toBe(7);
-    }
+      // …and the deal is not merely absent early — it PLAYS, on cell 7. A gate
+      // that killed the cinematic outright would satisfy every «not before»
+      // assertion above and lose the beat entirely.
+      const dealt = census.filter((r) => r.deal === true);
+      expect(dealt.length, `the copied draw played its deal cinematic (${dump})`).toBeGreaterThan(0);
+      for (const r of dealt) {
+        expect(r.cell, 'the deal belongs to stage 7').toBe(7);
+      }
 
-    // ④ THE CARDS ARE THE SCENE. Two cards, each spending the usable row, with
-    //    the seat beside them — not in their row, not in the focus ring.
-    const geom = await page.evaluate(() => {
-      const slots = Array.from(document.querySelectorAll('.con-reveal--embedded .con-cards__slot'));
-      const strip = document.querySelector('.con-reveal--embedded .con-reveal__strip');
-      const seat = document.querySelector('.con-hydro__embedsource');
-      return {
-        cards: slots.map((s) => {
-          const b = s.getBoundingClientRect();
-          return {h: b.height, left: b.left};
-        }),
-        rowH: strip?.getBoundingClientRect().height ?? 0,
-        seatRight: seat?.getBoundingClientRect().right ?? 0,
-        seatInRow: strip?.contains(seat ?? null) === true,
-        focusable: document.querySelectorAll('.con-hydro__embedsource .con-cards__slot--focused').length,
-      };
-    });
-    expect(geom.cards.length, 'AI Central drew two cards').toBe(2);
-    for (const c of geom.cards) {
-      expect(c.h, `card ${Math.round(c.h)}px of ${Math.round(geom.rowH)}px row`)
-        .toBeGreaterThan(0.7 * geom.rowH);
-      expect(c.left, 'every card clears the seat').toBeGreaterThan(geom.seatRight);
-    }
-    expect(geom.seatInRow, 'the source is not part of the drawn row').toBe(false);
-    expect(geom.focusable, 'the source never takes the focus ring').toBe(0);
-    await shoot(page, '03-stage7-copied-draw');
+      // ③ SOURCE IDENTITY is the CHOSEN card — never the first eligible one.
+      const seated = census.filter((r) => r.seat === true);
+      expect(seated.length, `the source card materialised (${dump})`).toBeGreaterThan(0);
+      for (const r of seated) {
+        expect(r.seatCard, 'the seat shows the card the plan named').toBe('AI Central');
+        expect(r.cell, 'the source never precedes its own stage').toBe(7);
+      }
 
-    // ⑤ L3 ИСТОЧНИК — the shared fullscreen, ONE copy, and a return that
-    //    replays nothing. (The seat is held EMPTY for the flight, which is what
-    //    makes «never two copies of one card» structural rather than lucky.)
-    const untakenBefore = await page.locator('.con-reveal--embedded .con-cards__slot').count();
-    await press(page, 'KeyC', 1200); // L3 — «Источник» (consoleActionModel: KeyC → stickL)
-    await page.waitForTimeout(1200);
-    const zoomed = await page.evaluate(() => ({
-      open: document.querySelector('dialog.con-zoom') !== null,
-      // The seat's own slot is emptied while the viewer holds the card.
-      seatHeld: document.querySelector('.con-hydro__embedsource .con-zoom-hold') !== null ||
+      // ④ THE CARDS ARE THE SCENE. Two cards, each spending the usable row, with
+      //    the seat beside them — not in their row, not in the focus ring.
+      const geom = await page.evaluate(() => {
+        const slots = Array.from(document.querySelectorAll('.con-reveal--embedded .con-cards__slot'));
+        const strip = document.querySelector('.con-reveal--embedded .con-reveal__strip');
+        const zone = document.querySelector('.con-hydro__embed');
+        const seat = document.querySelector('.con-hydro__embedsource');
+        return {
+          cards: slots.map((s) => {
+            const b = s.getBoundingClientRect();
+            return {h: Math.round(b.height), left: Math.round(b.left)};
+          }),
+          rowH: Math.round(strip?.getBoundingClientRect().height ?? 0),
+          // THE USABLE STAGE — the zone the prompt owns, head and foot included.
+          // The row can be small because it was GIVEN a small box; measuring the
+          // card against the row alone would call that a pass.
+          zoneH: Math.round(zone?.getBoundingClientRect().height ?? 0),
+          seatRight: Math.round(seat?.getBoundingClientRect().right ?? 0),
+          seatInRow: strip?.contains(seat ?? null) === true,
+          focusable: document.querySelectorAll('.con-hydro__embedsource .con-cards__slot--focused').length,
+          // The row's own solve — never guess which input was wrong.
+          fit: strip?.getAttribute('data-fit') ?? '(no fit)',
+          // …and THE WHOLE CHAIN between the zone and the row: a short row is
+          // usually a row that was GIVEN a short box, and a break anywhere in
+          // zone → root → frame → body → main → row looks identical from here.
+          chain: ['.con-reveal--embedded', '.con-reveal__card', '.con-reveal__body',
+            '.con-reveal__main', '.con-reveal__strip']
+            .map((sel) => `${sel.replace('.con-reveal', '')}=${Math.round(
+              document.querySelector(sel)?.getBoundingClientRect().height ?? -1)}`).join(' '),
+          uiScale: getComputedStyle(document.documentElement).getPropertyValue('--con-ui-scale').trim(),
+        };
+      });
+      const where = `fit[${geom.fit}] ui=${geom.uiScale} zone=${geom.zoneH} chain[${geom.chain}]`;
+      expect(geom.cards.length, 'AI Central drew two cards').toBe(2);
+      for (const c of geom.cards) {
+        expect(c.h, `card ${c.h}px vs row ${geom.rowH}px — ${where}`)
+          .toBeGreaterThan(0.7 * geom.rowH);
+        // …AND against the room the prompt actually owns. A card that fills a row
+        // which itself fills a third of the stage is still a thumbnail.
+        expect(c.h, `card ${c.h}px vs USABLE stage ${geom.zoneH}px — ${where}`)
+          .toBeGreaterThan(0.7 * geom.zoneH);
+        expect(c.left, `every card clears the seat — ${where}`).toBeGreaterThan(geom.seatRight);
+      }
+      expect(geom.seatInRow, 'the source is not part of the drawn row').toBe(false);
+      expect(geom.focusable, 'the source never takes the focus ring').toBe(0);
+      await shoot(page, profile.name, '03-stage7-copied-draw');
+
+      // ⑤ L3 ИСТОЧНИК — the shared fullscreen, ONE copy, and a return that
+      //    replays nothing. (The seat is held EMPTY for the flight, which is what
+      //    makes «never two copies of one card» structural rather than lucky.)
+      const untakenBefore = await page.locator('.con-reveal--embedded .con-cards__slot').count();
+      await press(page, 'KeyC', 1200); // L3 — «Источник» (consoleActionModel: KeyC → stickL)
+      await page.waitForTimeout(1200);
+      const zoomed = await page.evaluate(() => ({
+        open: document.querySelector('dialog.con-zoom') !== null,
+        // The seat's own slot is emptied while the viewer holds the card.
+        seatHeld: document.querySelector('.con-hydro__embedsource .con-zoom-hold') !== null ||
         (document.querySelector('.con-hydro__embedsource-card')?.getBoundingClientRect().height ?? 0) < 4,
-      stillEmbedded: document.querySelector('.con-hydro__embed .con-reveal--embedded') !== null,
-    }));
-    expect(zoomed.open, 'L3 opened the shared fullscreen viewer').toBe(true);
-    expect(zoomed.seatHeld, 'the source slot is held empty — never two copies').toBe(true);
-    expect(zoomed.stillEmbedded, 'the child prompt was never unmounted').toBe(true);
-    await shoot(page, '04-source-fullscreen');
+        stillEmbedded: document.querySelector('.con-hydro__embed .con-reveal--embedded') !== null,
+      }));
+      expect(zoomed.open, 'L3 opened the shared fullscreen viewer').toBe(true);
+      expect(zoomed.seatHeld, 'the source slot is held empty — never two copies').toBe(true);
+      expect(zoomed.stillEmbedded, 'the child prompt was never unmounted').toBe(true);
+      await shoot(page, profile.name, '04-source-fullscreen');
 
-    await press(page, 'Escape', 1400); // B — «ЗАКРЫТЬ» (consoleActionModel: Escape → back)
-    await page.waitForSelector('dialog.con-zoom', {state: 'detached', timeout: 15_000});
-    await page.waitForTimeout(900);
-    const after = await page.evaluate(() => ({
-      untaken: document.querySelectorAll('.con-reveal--embedded .con-cards__slot').length,
-      seat: document.querySelector('.con-hydro__embedsource')?.getAttribute('data-zoom-slot') ?? '',
-      seatCopies: document.querySelectorAll('.con-hydro__embedsource').length,
-      cell: Number(document.querySelector('.con-hydro__stop-marker--viewer')
-        ?.closest('[data-hydro-marker]')?.getAttribute('data-hydro-marker') ?? -1),
-    }));
-    expect(after.untaken, 'the same batch — nothing was re-dealt').toBe(untakenBefore);
-    expect(after.seat, 'the source came back to its seat').toBe('AI Central');
-    expect(after.seatCopies, 'exactly one seat').toBe(1);
-    expect(after.cell, 'the marker did not move for an inspection').toBe(7);
+      await press(page, 'Escape', 1400); // B — «ЗАКРЫТЬ» (consoleActionModel: Escape → back)
+      await page.waitForSelector('dialog.con-zoom', {state: 'detached', timeout: 15_000});
+      await page.waitForTimeout(900);
+      const after = await page.evaluate(() => ({
+        untaken: document.querySelectorAll('.con-reveal--embedded .con-cards__slot').length,
+        seat: document.querySelector('.con-hydro__embedsource')?.getAttribute('data-zoom-slot') ?? '',
+        seatCopies: document.querySelectorAll('.con-hydro__embedsource').length,
+        cell: Number(document.querySelector('.con-hydro__stop-marker--viewer')
+          ?.closest('[data-hydro-marker]')?.getAttribute('data-hydro-marker') ?? -1),
+      }));
+      expect(after.untaken, 'the same batch — nothing was re-dealt').toBe(untakenBefore);
+      expect(after.seat, 'the source came back to its seat').toBe('AI Central');
+      expect(after.seatCopies, 'exactly one seat').toBe(1);
+      expect(after.cell, 'the marker did not move for an inspection').toBe(7);
 
-    // ── Take the batch and let the flow finish: the traversal must still end
-    //    honestly (the gate holds nothing hostage). ──
-    for (let i = 0; i < 12 && await page.locator('.con-reveal--embedded').count() > 0; i++) {
-      await press(page, 'Enter', 900);
-    }
-    await page.waitForSelector('.con-hydro__result-stages', {timeout: 90_000});
-    expect(await page.locator('.con-hydro__result-stagerow').count(), 'seven stages, one row each').toBe(7);
-    await shoot(page, '05-result');
+      // ── Take the batch and let the flow finish: the traversal must still end
+      //    honestly (the gate holds nothing hostage). ──
+      for (let i = 0; i < 12 && await page.locator('.con-reveal--embedded').count() > 0; i++) {
+        await press(page, 'Enter', 900);
+      }
+      await page.waitForSelector('.con-hydro__result-stages', {timeout: 90_000});
+      expect(await page.locator('.con-hydro__result-stagerow').count(), 'seven stages, one row each').toBe(7);
+      await shoot(page, profile.name, '05-result');
 
-    const model = await fetchPlayerModel(request, id) as Wire;
-    expect(model.thisPlayer?.deltaProject?.position, 'the server agrees the marker is on 7').toBe(7);
+      const model = await fetchPlayerModel(request, id) as Wire;
+      expect(model.thisPlayer?.deltaProject?.position, 'the server agrees the marker is on 7').toBe(7);
+    });
   });
-});
+}
