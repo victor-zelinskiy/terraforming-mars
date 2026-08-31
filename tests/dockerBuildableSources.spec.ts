@@ -58,5 +58,11 @@ describe('Docker-buildable sources', () => {
     }
     expect(offenders, `these files import tests/ but ship in the Docker context:\n${offenders.join('\n')}`)
       .to.deep.equal([]);
-  });
+    // This guard is I/O-bound, not logic-bound: it stats and READS every
+    // .ts/.vue under src/ + scripts/ + electron/ (~2.7k files, ~2s). Mocha's
+    // 2000ms default left it a coin flip - it failed ~1 run in 5 on an IDLE
+    // machine and reliably under load, naming a random victim each time. The
+    // budget is generous on purpose: a real regression here is a MATCH in the
+    // scanned sources, never a slow walk.
+  }).timeout(30_000);
 });

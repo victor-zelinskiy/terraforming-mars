@@ -4,6 +4,9 @@ import * as path from 'path';
 import {
   COPIED_ACTION_STANCES, CopiedActionArtifact,
 } from '@/client/console/hydroMarker/hydroStepAdmission';
+import {
+  WORKSPACE_FRAME_KINDS, workspaceKindSpec,
+} from '@/client/console/consoleWorkspaceStack';
 
 /**
  * COPIED-ACTION STAGE GUARD — «the copied action waits for its stage» is a
@@ -78,6 +81,70 @@ describe('copied-action stage guard (every artifact declares its stance)', () =>
       const asks = key === 'prompt' ? src.includes('stage-gate') : src.includes(GATE);
       expect(asks, `${key}: ${file} asks the stage gate`).to.equal(true);
     }
+  });
+
+  /*
+   * ── A COPIED ACTION CAN WALK INTO ANOTHER WORKSPACE ───────────────────────
+   *
+   * Repeating «Титановая плавучая платформа» spends a floater to trade — so the
+   * copied action's follow-up is not a card batch or a target pick, it is the
+   * COLONIES SCREEN, opened as a step INSIDE the Hydronetwork. That path is
+   * meant to work without anybody having written it: the door asks
+   * `workspaceHostForStep()`, the guest teleports into the zone the host below
+   * published, and the crumb is derived from the stack. This pins the three
+   * registry facts that make it true, because each of them is a thing a NEW
+   * workspace could silently not do.
+   */
+  describe('a copied action that walks into ANOTHER workspace', () => {
+    it('every hostable workspace declares how it hosts — never a hand-written door', () => {
+      // `hosts` is what `workspaceHostForStep()` reads. A workspace that omits
+      // it can never receive a nested step, and the failure is silent: the
+      // prompt opens its own standalone screen over the flow that caused it.
+      for (const kind of WORKSPACE_FRAME_KINDS) {
+        const spec = workspaceKindSpec(kind);
+        expect(['always', 'inFlow', undefined], `${kind} declares its hosting`)
+          .to.include(spec.hosts);
+      }
+      // Anti-vacuous: the flows a copied action can run inside must host.
+      for (const kind of ['hydro', 'card-actions', 'hand'] as const) {
+        expect(workspaceKindSpec(kind).hosts, `${kind} hosts steps`).to.not.equal(undefined);
+      }
+    });
+
+    it('a host that can carry a step also publishes a ZONE for it', () => {
+      // The zone is what a nested frame teleports into; without it the guest
+      // renders NOWHERE, permanently (embed rule 4's gap made unbounded). The
+      // publication is a `setWorkspaceFrameSlot` call in the host's own file.
+      const HOST_FILES: Readonly<Record<string, string>> = {
+        'hydro': 'src/client/components/console/ConsoleHydroSection.vue',
+        'card-actions': 'src/client/components/console/ConsoleActionComposer.vue',
+        'hand': 'src/client/components/console/ConsoleHandSection.vue',
+        'colonies': 'src/client/components/console/ConsoleColoniesSection.vue',
+        'start': 'src/client/components/console/ConsoleStartScene.vue',
+        'standard-projects': 'src/client/components/console/ConsoleStdProjectsScreen.vue',
+      };
+      for (const [kind, file] of Object.entries(HOST_FILES)) {
+        const src = fs.readFileSync(path.join(ROOT, file), 'utf8');
+        expect(src.includes(`setWorkspaceFrameSlot('${kind}'`),
+          `${kind} publishes its step zone (${file})`).to.equal(true);
+      }
+    });
+
+    it('a host that carries a CARD publishes it — the guest never guesses', () => {
+      // `L3 Источник` inside a nested step asks its HOST which card the step is
+      // being done for. It used to be a ternary in the guest that carved out
+      // the one host it knew was different, and it was already wrong for a
+      // third: the Hydronetwork's crumb subject is a STAGE NAME, so the verb
+      // would have opened a zoom on a string that is not a card.
+      for (const [kind, file] of [
+        ['hydro', 'src/client/components/console/ConsoleHydroSection.vue'],
+        ['card-actions', 'src/client/components/console/ConsoleActionComposer.vue'],
+      ] as const) {
+        const src = fs.readFileSync(path.join(ROOT, file), 'utf8');
+        expect(src.includes(`setWorkspaceFrameSourceCard('${kind}'`),
+          `${kind} publishes the card its step is for (${file})`).to.equal(true);
+      }
+    });
   });
 
   it('the DEAL cinematic asks it as `waiting`, never as `foreign`', () => {

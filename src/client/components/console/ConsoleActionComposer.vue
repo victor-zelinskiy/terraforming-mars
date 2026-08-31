@@ -701,7 +701,7 @@ import ConsoleScrollArea from '@/client/components/console/foundation/ConsoleScr
 import ConsolePaymentPanel from '@/client/components/console/ConsolePaymentPanel.vue';
 import ConsoleCardFaceLite from '@/client/components/console/cardDeal/ConsoleCardFaceLite.vue';
 import {markWorkspaceOutcomeArrivalDone, markWorkspaceOutcomeArrivalFlown, markWorkspaceOutcomeBeatDone, setWorkspaceOutcomeSlot, workspaceOutcomeState} from '@/client/console/consoleWorkspaceOutcome';
-import {setWorkspaceFrameSlot, workspaceFrameHost} from '@/client/console/consoleWorkspaceStack';
+import {setWorkspaceFrameSlot, setWorkspaceFrameSourceCard, workspaceFrameHost} from '@/client/console/consoleWorkspaceStack';
 import {conUiScale} from '@/client/console/consoleLayoutProfile';
 import {actionCommitState, armActionCommit, commitKindForBranch, commitRewardSpecs, markActionCommitSettled} from '@/client/console/consoleActionCommit';
 import {ActionCommitMotionHandle, COMMIT_HANDOFF_AT_MS, pulseDeckPile, resolveActionCommitAnchors, resolveGainIconOrigins, runActionCommitMotion} from '@/client/console/consoleActionCommitMotion';
@@ -1991,6 +1991,12 @@ export default defineComponent({
       flush: 'post' as const,
       handler(on: boolean) {
         setWorkspaceFrameSlot('card-actions', on ? '[data-embed-slot="action-colonies"]' : '');
+        // …AND THE CARD THE STEP IS BEING DONE FOR. This host keeps its card in
+        // the outcome CLAIM rather than in the crumb subject (the composer owns
+        // the activation, not the browse frame), which is exactly why the
+        // guest used to carve out a special case for it. Published here, the
+        // guest asks one question of every host — see `workspaceStepSourceCard`.
+        setWorkspaceFrameSourceCard('card-actions', on ? this.entry.cardName : '');
       },
     },
     /**
@@ -2171,6 +2177,7 @@ export default defineComponent({
     // whole chain below it renders nowhere (embed rule 4's gap, permanent).
     if (this.colonyStepOn) {
       setWorkspaceFrameSlot('card-actions', '[data-embed-slot="action-colonies"]');
+      setWorkspaceFrameSourceCard('card-actions', this.entry.cardName);
     }
   },
   beforeUnmount() {
@@ -2190,6 +2197,7 @@ export default defineComponent({
     // Same for the colonies-step zone (embed rule 4, the retract half).
     if (this.colonyStepOn) {
       setWorkspaceFrameSlot('card-actions', '');
+      setWorkspaceFrameSourceCard('card-actions', '');
     }
     resetOutcomeOrigin();
     if (this.revealGainPopTimer !== undefined) {

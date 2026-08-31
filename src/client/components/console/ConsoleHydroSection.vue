@@ -968,7 +968,8 @@ import {conUiScale, consoleLayoutState} from '@/client/console/consoleLayoutProf
 import {motionMs} from '@/client/components/motion/motionTokens';
 import {cardResourceLandings} from '@/client/console/resourceTransfer/consoleResourceTransfer';
 import {
-  WorkspaceFrameKind, setWorkspaceFrameSlot, setWorkspaceFrameStage, setWorkspaceFrameSubject,
+  WorkspaceFrameKind, setWorkspaceFrameSlot, setWorkspaceFrameSourceCard,
+  setWorkspaceFrameStage, setWorkspaceFrameSubject,
   workspaceFrameEmblem, workspaceFrameHost, workspaceFrameRoot, workspaceStackCrumb,
 } from '@/client/console/consoleWorkspaceStack';
 import {setWorkspaceOutcomeSlot, workspaceOutcomeState} from '@/client/console/consoleWorkspaceOutcome';
@@ -3233,6 +3234,12 @@ export default defineComponent({
     syncFrameCrumb(): void {
       setWorkspaceFrameSubject('hydro', this.crumbSubject);
       setWorkspaceFrameStage('hydro', this.crumbStage);
+      // …AND THE CARD THIS STEP IS BEING DONE FOR. The crumb subject here is the
+      // STAGE NAME, so anything hosted inside this workspace — a repeated
+      // trade's colony pick, any future nested step — would otherwise have no
+      // way to name its cause, and the shared `L3 Источник` would point at a
+      // string that is not a card. The active repeat step already knows.
+      setWorkspaceFrameSourceCard('hydro', this.embedSourceCard ?? '');
     },
     publishEmbedZone(): void {
       setWorkspaceFrameSlot('hydro', HYDRO_EMBED_SLOT);

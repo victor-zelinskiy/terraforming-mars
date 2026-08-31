@@ -1453,6 +1453,7 @@ import {
   workspaceFrameStage,
   workspaceFrameAnchor,
   workspaceFrameHost,
+  workspaceStepSourceCard,
   workspaceFrameIsOverlay,
   workspaceFrameKnown,
   workspaceFrameKnownPhase,
@@ -5779,9 +5780,18 @@ export default defineComponent({
       if (host === undefined) {
         return undefined;
       }
-      const subject = host === 'card-actions' ?
-        workspaceOutcomeState.sourceCard : workspaceFrameSubject(host);
-      return subject === '' ? undefined : subject as CardName;
+      // ONE QUESTION, ANSWERED BY THE HOST. This used to be a ternary that
+      // carved out the single host it knew was different, which is a per-case
+      // `if` wearing the shape of a rule — and it was already wrong for a THIRD
+      // host: a Hydronetwork traversal's crumb subject is its STAGE NAME
+      // («Микробная фиксация»), so a colony step opened by a repeated action
+      // would have offered `L3 Источник` on a string that is not a card and the
+      // zoom would have opened on nothing. A host that carries a card publishes
+      // it (`setWorkspaceFrameSourceCard`); the fallback holds only while the
+      // subject really IS a card, so a host with none contributes nothing
+      // rather than a broken target. A new workspace joins by publishing.
+      const name = workspaceStepSourceCard(host, (n) => getCard(n as CardName) !== undefined);
+      return name === '' ? undefined : name as CardName;
     },
     /**
      * A live SelectColony that NO FRAME serves. The watcher heals it by

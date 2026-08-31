@@ -285,6 +285,16 @@ const WORKSPACE_KINDS: Record<WorkspaceFrameKind, WorkspaceKindSpec> = {
 export const WORKSPACE_FRAME_KINDS =
   Object.keys(WORKSPACE_KINDS) as ReadonlyArray<WorkspaceFrameKind>;
 
+/**
+ * The registry row of one workspace kind — READ-ONLY, for the guards that must
+ * check a declaration rather than a behaviour («does every hostable workspace
+ * say HOW it hosts?»). The table itself stays private: it is a declaration, not
+ * a thing to reach into at runtime.
+ */
+export function workspaceKindSpec(kind: WorkspaceFrameKind): Readonly<WorkspaceKindSpec> {
+  return WORKSPACE_KINDS[kind];
+}
+
 /** The DOM root a mounted frame of this kind renders (leak-detector probe). */
 export function workspaceFrameSelector(kind: WorkspaceFrameKind): string {
   return WORKSPACE_KINDS[kind].rootSelector;
@@ -385,11 +395,34 @@ export interface WorkspaceFrame {
    * teleport whose target does not exist yet drops its content on the floor.
    */
   slot: string;
+  /**
+   * THE CARD THIS FRAME'S STEP IS BEING DONE FOR — the answer to «почему я
+   * здесь?» for anything hosted INSIDE it, and the target of the console-wide
+   * `L3 Источник`.
+   *
+   * PUBLISHED BY THE HOST, never guessed by the guest. It used to be guessed:
+   * `colonyEmbedSourceCard` read `workspaceFrameSubject(host)` and carved out
+   * the one host it knew was different (`card-actions` keeps its card in the
+   * outcome claim, not in the crumb). That is a per-case `if` masquerading as a
+   * rule, and it was already wrong for a third host — a Hydronetwork traversal's
+   * subject is its STAGE NAME («Микробная фиксация»), so a colony step opened by
+   * a repeated action would have offered `L3 Источник` on a string that is not a
+   * card at all.
+   *
+   * A host that carries a card publishes it here; a host that carries none
+   * publishes nothing and the verb simply is not offered. A NEW workspace joins
+   * by publishing — there is no table to extend and nothing to remember.
+   *
+   * '' = this frame's step is not being done for a card.
+   */
+  sourceCard: string;
 }
 
 /** What `pushWorkspaceFrame` is given — `slot` is never an input, and a frame
  *  is EMBEDDED unless it says otherwise. */
-export type NewWorkspaceFrame = Omit<WorkspaceFrame, 'slot' | 'overlay'> & {overlay?: boolean};
+export type NewWorkspaceFrame =
+  Omit<WorkspaceFrame, 'slot' | 'overlay' | 'sourceCard'> &
+  {overlay?: boolean, sourceCard?: string};
 
 export const workspaceStackState = reactive({
   /** Outermost first. `frames[0]` is the workspace the player entered. */
@@ -853,6 +886,7 @@ export function pushWorkspaceFrame(frame: NewWorkspaceFrame): number {
   }
   workspaceStackState.frames.push({
     ...frame, serves: [...frame.serves], overlay: frame.overlay === true, slot: '',
+    sourceCard: frame.sourceCard ?? '',
   });
   return workspaceStackState.frames.length - 1;
 }
@@ -1049,6 +1083,39 @@ export function setWorkspaceFrameSubject(kind: WorkspaceFrameKind, subject: stri
   }
 }
 
+/** The host publishes the card its step is being done FOR (see the field). */
+export function setWorkspaceFrameSourceCard(kind: WorkspaceFrameKind, card: string): void {
+  const depth = workspaceFrameIndex(kind);
+  if (depth !== -1) {
+    workspaceStackState.frames[depth].sourceCard = card;
+  }
+}
+
+/**
+ * THE CARD A NESTED STEP IS BEING DONE FOR — asked by the step, answered by its
+ * HOST. One question, one answer, whatever the host is: that is what makes
+ * `L3 Источник` work the same in a colony step opened from the hand, from the
+ * action centre and from the Hydronetwork without any of them knowing about the
+ * others.
+ *
+ * The fallback is the crumb SUBJECT, and it is deliberately narrow: it holds
+ * only while the subject really is a card (every host that carries one puts it
+ * there), so a host whose subject is a stage name contributes nothing rather
+ * than a broken zoom target. A host with a card that does NOT live in its crumb
+ * publishes it explicitly.
+ */
+export function workspaceStepSourceCard(kind: WorkspaceFrameKind, isCard: (name: string) => boolean): string {
+  const depth = workspaceFrameIndex(kind);
+  if (depth === -1) {
+    return '';
+  }
+  const frame = workspaceStackState.frames[depth];
+  if (frame.sourceCard !== '') {
+    return frame.sourceCard;
+  }
+  return isCard(frame.subject) ? frame.subject : '';
+}
+
 /**
  * Move a frame across the commit boundary (or back, when the server refuses).
  *
@@ -1223,7 +1290,13 @@ export function workspacePresentDepth(seen: (selector: string) => boolean): numb
  */
 export const WORKSPACE_STACK_SCHEMA = 1;
 
-export type SerializedWorkspaceFrame = Omit<WorkspaceFrame, 'slot'>;
+/**
+ * `slot` and `sourceCard` are RUNTIME, not history: both are PUBLISHED BY THE
+ * HOST on mount, so a restore that carried them would be asserting a fact about
+ * a component that has not rendered yet. They come back as '' and the host
+ * fills them, exactly as it does on a first open.
+ */
+export type SerializedWorkspaceFrame = Omit<WorkspaceFrame, 'slot' | 'sourceCard'>;
 
 export type SerializedWorkspaceStack = {
   v: number,
@@ -1292,6 +1365,7 @@ export function hydrateWorkspaceStack(
       anchor: frame.anchor,
       overlay: frame.overlay,
       slot: '',
+      sourceCard: '',
     });
   }
   const depth = reconcileWorkspaceStack(isAnchorLive);
