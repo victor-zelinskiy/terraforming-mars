@@ -230,6 +230,28 @@ type WorkspaceKindSpec = {
    * reveal stays embedded exactly as before. This decides FRAMES only.
    */
   frameSteps?: 'embed' | 'scene',
+  /**
+   * DOES A PARKED CHAIN OF THIS KIND OWN A MODULE-LEVEL FLOW RECORD?
+   *
+   * The default is NO, and the console's documented law follows from it: a
+   * wheel open while something is parked is «посмотреть», never «вернуться» —
+   * the player gets the workspace's ordinary browse layer, read-only, and
+   * RESUME keeps exactly two doors (the board-home restore card and the
+   * notification CTA). `card-actions` and `standard-projects` earn that by
+   * RESETTING on a fresh open, so their second instance is genuinely fresh.
+   *
+   * The Hydronetwork cannot: its flow record is a LIVE TRAVERSAL parked at a
+   * stop, with a prompt the parked chain still owes — resetting it would throw
+   * away a move the server has already made. So a second instance beside its
+   * own park is not expressible, and it did not degrade gracefully: it adopted
+   * the committed record and rendered a workspace with no content, «Ⓐ
+   * Выполняется» as its only verb and B dead by phase.
+   *
+   * A kind that declares this routes a lateral open through the park's OWN
+   * door instead — which is also the only reading the press can have: you
+   * cannot be inside the same workspace twice.
+   */
+  parkOwnsFlow?: boolean,
 };
 
 const WORKSPACE_KINDS: Record<WorkspaceFrameKind, WorkspaceKindSpec> = {
@@ -274,6 +296,9 @@ const WORKSPACE_KINDS: Record<WorkspaceFrameKind, WorkspaceKindSpec> = {
     // its reward wave unplayed and its result unread. The track steps aside for
     // the placement and takes the screen back after it.
     yieldsToBoard: true,
+    // …AND ITS FLOW RECORD OUTLIVES ITS FRAME: a parked traversal cannot be
+    // reset, so a second instance beside the park is not expressible.
+    parkOwnsFlow: true,
     // …AND A NESTED FULL SCREEN GETS THE SCENE, not the leftovers under the
     // track. The reveal and the deck pick still embed (they are outcomes, not
     // frames) — this is only about a workspace standing inside this one.
@@ -959,6 +984,7 @@ export function pushWorkspaceFrame(frame: NewWorkspaceFrame): number {
     truncateWorkspaceStack(existing + 1);
     return existing;
   }
+  frameEpochs[frame.kind] = (frameEpochs[frame.kind] ?? 0) + 1;
   workspaceStackState.frames.push({
     ...frame,
     serves: [...frame.serves],
@@ -972,6 +998,30 @@ export function pushWorkspaceFrame(frame: NewWorkspaceFrame): number {
     sourceCard: frame.sourceCard ?? '',
   });
   return workspaceStackState.frames.length - 1;
+}
+
+/*
+ * ── FRAME IDENTITY ────────────────────────────────────────────────────────
+ *
+ * A counter per kind, bumped only when a frame is genuinely CREATED. Updating
+ * an existing frame in place (re-entering the same workspace), parking and
+ * restoring it, or standing it aside for the board all keep the SAME frame and
+ * therefore the same epoch — because in every one of those the player is still
+ * inside the instance they started.
+ *
+ * What it exists for: a workspace whose FLOW RECORD is module state outliving
+ * its frame (`parkOwnsFlow`). Such a record must be presented by the frame that
+ * MADE it and by no other — a later, unrelated frame that adopts it renders a
+ * committed workspace whose content lives somewhere else: no body, «Ⓐ
+ * Выполняется» as the only verb, B dead by phase. Stamping the record with the
+ * epoch turns «is this mine?» into an equality instead of a guess about timing.
+ */
+/** REACTIVE: a live computed («is this flow still mine?») reads it. */
+const frameEpochs = reactive<Partial<Record<WorkspaceFrameKind, number>>>({});
+
+/** The identity of the CURRENT frame of `kind` (0 = never created). */
+export function workspaceFrameEpoch(kind: WorkspaceFrameKind): number {
+  return frameEpochs[kind] ?? 0;
 }
 
 /** Does the frame BELOW `depth` hand the whole scene to what stands on it? */

@@ -1425,6 +1425,9 @@ import {
   closeWorkspaceSheet,
   discardWorkspacePark,
   collapseWorkspaceStack,
+  WORKSPACE_FRAME_KINDS,
+  workspaceHostYieldsScene,
+  workspaceKindSpec,
   yieldStackToBoard,
   resumeStackFromBoard,
   descendWorkspaceFrame,
@@ -2676,7 +2679,20 @@ export default defineComponent({
      * as an empty frame (`surfaceMotionDirector.isPickBridgeHidden`).
      */
     pickBridgeActive(): boolean {
-      return this.handPickActive || this.repeatPickActive;
+      // …AND A SCENE HANDOVER IS ONE TOO. A host that gives its whole scene to
+      // a nested full screen (`frameSteps: 'scene'`) is hidden exactly the way
+      // a pick bridge hides its composer: the flow is untouched, the state is
+      // untouched, the player is deeper inside the SAME workspace. Told
+      // otherwise the director plays a real leave — which poses the surface
+      // (`position: fixed`, `autoAlpha`) and leaves inline geometry behind —
+      // and the entrance heals only the outermost panel, so the track came back
+      // shifted and cropped with nothing to re-fit it. This is the ONE fact the
+      // director reads; the alternative is a second list of bridges to forget.
+      return this.handPickActive || this.repeatPickActive || this.sceneHandedOver;
+    },
+    /** Some host is handing its whole scene to a nested workspace right now. */
+    sceneHandedOver(): boolean {
+      return WORKSPACE_FRAME_KINDS.some((kind) => workspaceHostYieldsScene(kind));
     },
     /**
      * The corporations whose mandatory first action is live RIGHT NOW (>1 =
@@ -10741,10 +10757,9 @@ export default defineComponent({
         this.consoleState.colonyIndex = stepIndex(this.consoleState.colonyIndex, 0, this.coloniesForRail.length);
         break;
       case 'hydro':
-        this.deferShellTask();
         // The section's own mount decides RESUME vs FRESH (a still-fresh
         // draft re-seats; a stale one resets) — never a blanket reset here.
-        enterWorkspace('hydro');
+        this.enterOrRestoreWorkspace('hydro');
         break;
       default:
         break;
@@ -11192,6 +11207,32 @@ export default defineComponent({
       }
       this.openPlayCardFromHand(entry.card.name);
     },
+    /**
+     * ── A LATERAL OPEN OF A KIND WHOSE PARK OWNS ITS FLOW ─────────────────
+     *
+     * The console's law is «a wheel open is посмотреть, never вернуться»: a
+     * FRESH instance beside the park, read-only while a decision is owed, with
+     * RESUME keeping exactly two doors. A workspace earns that by being able to
+     * open genuinely fresh — `card-actions` and `standard-projects` reset.
+     *
+     * `parkOwnsFlow` marks the ones that cannot (see the registry): their flow
+     * record is module-level and still LIVE, so the second instance adopts it
+     * and stands a contentless twin — a committed workspace with no content,
+     * «Ⓐ Выполняется» as its only verb and B dead by phase. For those, and only
+     * those, the press routes through the park's own door: you cannot be inside
+     * the same workspace twice, so it can only mean «верни меня туда».
+     *
+     * Returns true when a FRESH instance was entered (the caller may seat its
+     * cursor); false when the park answered and the caller must not.
+     */
+    enterOrRestoreWorkspace(kind: WorkspaceFrameKind): boolean {
+      if (workspaceKindSpec(kind).parkOwnsFlow === true && this.restoreParkedWorkspace(kind)) {
+        return false;
+      }
+      this.deferShellTask();
+      enterWorkspace(kind);
+      return true;
+    },
     /** B: one calm step toward the console home (never destructive). */
     handleSectionBack(): void {
       // A running hand-reveal episode owns B: mid-open it REVERSES the same
@@ -11486,6 +11527,20 @@ export default defineComponent({
       // browse intent — the half-restored «ДЕЙСТВИЯ КАРТ › ПЛУТОН › ПЛУТОН ·
       // СБРОС КАРТЫ» screen. (`enterWorkspace` is lateral: the park is
       // untouched, and the next restore simply gives this browse visit way.)
+      // ⚠️ …EXCEPT WHEN THE PARK ALREADY OWNS THIS VERY KIND. You cannot be
+      // inside the same workspace twice, so «открой Гидросеть» from the wheel
+      // while the Hydronetwork's OWN chain is set aside can only mean «верни
+      // меня туда» — there is no second Hydronetwork to browse. A fresh lateral
+      // instance stood a CONTENTLESS TWIN of a workspace that is mid-flow (its
+      // traversal parked in module state, its prompt owed by the parked chain),
+      // and that screen is sealed: a committed frame with no content, «Ⓐ
+      // Выполняется» as its only verb, and B dead by phase. The park's own door
+      // is the honest answer, and it lands the player exactly where the decision
+      // is (the deepest frame — the colony they still owe an answer to).
+      if (workspaceKindSpec(sheet).parkOwnsFlow === true && this.restoreParkedWorkspace(sheet)) {
+        this.consoleState.quick = undefined;
+        return;
+      }
       const parkOwed = workspaceStackCollapsed();
       // Opening anything that is NOT the task's own surface defers the task;
       // opening the task's OWN surface un-defers it (back on the surface).

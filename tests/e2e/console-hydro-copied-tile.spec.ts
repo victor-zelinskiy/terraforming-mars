@@ -332,7 +332,13 @@ test.describe('a copied action walks onto the board · fhd', () => {
     //     контракты» two cells ahead. (Sampled from cell 1: at cell 0 the
     //     marker has not moved yet, so a planning sample is indistinguishable
     //     from the walk's first frame — and there the destination IS the focus.)
-    const walking = census.filter((r) => (r.cell as number) >= 1 && r.hydro === true);
+    // ⚠️ ONLY WHILE THE WALK IS RUNNING. Once it ends the track goes back to
+    // PLANNING, and a plan's open cell is its destination — after a 0→7 move
+    // that is stage 8, correctly. The walk is the span before the copy's own
+    // follow-up lights the board, so the census is cut there.
+    const firstLegal = census.findIndex((r) => (r.legal as number) > 0);
+    const walk = firstLegal === -1 ? census : census.slice(0, firstLegal);
+    const walking = walk.filter((r) => (r.cell as number) >= 1 && r.hydro === true);
     expect(walking.length, `the census watched the walk — ${dump}`).toBeGreaterThan(0);
     for (const r of walking) {
       expect(r.open, `the highlight ran ahead of the marker at cell ${r.cell} — ${dump}`)

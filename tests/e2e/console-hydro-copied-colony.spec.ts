@@ -224,10 +224,14 @@ test.describe('a copied action walks into the colonies · fhd', () => {
           // one box. `embedded` is now the REGRESSION.
           embedded: document.querySelector('.con-hydro__embed .con-colonies') !== null,
           ownBand: col !== null && col.classList.contains('con-ws'),
-          // …and the host stops being DRAWN while it does (mounted, mid-flow,
-          // simply not on screen — the nesting is stated in the header).
-          hydroShown: (document.querySelector('.con-hydro') as HTMLElement | null)
-            ?.getClientRects().length ?? 0,
+          // …and the host stops being DRAWN while it does — mounted, mid-flow,
+          // its BOX intact (that is the point: `visibility`, never `display`,
+          // so the returning layout has nothing to re-solve), simply not on
+          // screen. The nesting is stated in the header instead.
+          hydroShown: (() => {
+            const el = document.querySelector('.con-hydro');
+            return el !== null && getComputedStyle(el).visibility !== 'hidden' ? 1 : 0;
+          })(),
         };
         const c = w.__c;
         if (c === undefined) {
@@ -378,6 +382,35 @@ test.describe('a copied action walks into the colonies · fhd', () => {
     expect(withColonies[withColonies.length - 1]?.hydroShown,
       `and the scene is the guest's once it settles (${dump})`).toBe(0);
 
+    // (The host's own box UNDER the guest is deliberately not asserted here: a
+    //  surface that is not being drawn is not a meaningful measurement, and the
+    //  claim that matters — «it comes back whole» — is measured on the RETURN,
+    //  below, where the crop was actually reported.)
+
+    // DIAGNOSTIC: the host's own box and the chain it hangs off, stated where
+    // the probe can see it (a crop is always a disagreement about layout).
+    const hostDiag = await page.evaluate(() => {
+      const el = document.querySelector('.con-hydro') as HTMLElement | null;
+      if (el === null) {
+        return 'no host';
+      }
+      const chain: Array<Record<string, unknown>> = [];
+      let node: HTMLElement | null = el;
+      for (let i = 0; i < 4 && node !== null; i++) {
+        const cs = getComputedStyle(node);
+        const r = node.getBoundingClientRect();
+        chain.push({
+          cls: node.className.toString().slice(0, 48),
+          display: cs.display, visibility: cs.visibility, position: cs.position,
+          flex: cs.flex, w: Math.round(r.width), h: Math.round(r.height),
+          x: Math.round(r.left), transform: cs.transform.slice(0, 40),
+        });
+        node = node.parentElement;
+      }
+      return chain;
+    });
+    console.log(`[hostDiag] ${JSON.stringify(hostDiag)}`);
+
     // ③ ONE CONTINUOUS CRUMB, rooted at the workspace the player entered.
     const head = await page.evaluate(() => ({
       root: (document.querySelector('.con-wshead__root')?.textContent ?? '').trim(),
@@ -423,6 +456,55 @@ test.describe('a copied action walks into the colonies · fhd', () => {
     expect(wire.waitingFor?.copiedActionSource,
       'the server attributes the prompt to the copied card').toBe(LAUNCHPAD);
 
+    // ── ⑤b «THE PARK ALREADY OWNS THIS WORKSPACE.» Set the step aside (B =
+    //     «свернуть») and ask the WHEEL for the Hydronetwork again. You cannot
+    //     be inside the same workspace twice, so that press can only mean
+    //     «верни меня туда». Two things make it work, and BOTH are needed
+    //     because they cover different halves of the same failure: the door
+    //     routes through the park while the park is still there
+    //     (`parkOwnsFlow`), and a frame that ends up fresh anyway REFUSES to
+    //     adopt a flow record it did not make (`ownedByThisFrame`) instead of
+    //     rendering it — which used to be a sealed screen: a committed
+    //     workspace with no content, «Ⓐ Выполняется» as its only verb and B
+    //     dead by phase, recoverable only by reloading. ──
+    await press(page, 'Escape', 2200); // B — свернуть
+    await page.waitForTimeout(900);
+    expect(await page.locator('.con-colonies').count(), 'the step is set aside').toBe(0);
+    for (let attempt = 0; attempt < 4; attempt++) {
+      await press(page, 'Period', 1400);
+      await press(page, 'ArrowLeft', 1800);
+      if (await page.locator('.con-colonies, .con-hydro').count() > 0) {
+        break;
+      }
+    }
+    await page.waitForTimeout(1200);
+    const reopened = await page.evaluate(() => ({
+      colonies: document.querySelector('.con-colonies') !== null,
+      hydro: document.querySelector('.con-hydro') !== null,
+      // The sealed screen's signature: a committed track with an empty scene
+      // and a bar offering nothing but the absorbed beat.
+      bar: (document.querySelector('.con-cmdbar')?.textContent ?? '')
+        .replace(/\s+/g, ' ').trim().toLowerCase(),
+    }));
+    await shoot(page, '05-back-through-the-park');
+    // EITHER the decision itself is back (the park answered), OR the track is
+    // standing usable — never the sealed committed screen. The one thing that
+    // may not happen is a workspace whose only verb is the absorbed beat.
+    expect(reopened.bar, `no sealed screen — ${JSON.stringify(reopened)}`)
+      .not.toMatch(/^[^a-zа-я]*гидросеть марса\s*a?выполняется$/);
+    expect(reopened.colonies || reopened.hydro,
+      `something answerable is on screen — ${JSON.stringify(reopened)}`).toBe(true);
+    if (!reopened.colonies) {
+      // A fresh track, then: it must be a WORKING one — its own verbs, not a
+      // frozen commit. Walk back to the decision through the board card.
+      expect(reopened.bar, `the fresh track is usable — ${JSON.stringify(reopened)}`)
+        .toMatch(/этап|дальн|свернуть|назад|закрыть/);
+      await press(page, 'Escape', 1800);
+      await press(page, 'Enter', 2600); // A on the board-home restore card
+      await page.waitForTimeout(1500);
+    }
+    await page.waitForSelector('.con-colonies', {timeout: 60_000});
+
     // ── ⑥ THE RETURN. Answer the colony — the focus stage, then its confirm.
     //    The step is over, but the FLOW is not: the Hydronetwork owns what
     //    happens next (the resume, the stage's own reward wave, the result
@@ -435,8 +517,12 @@ test.describe('a copied action walks into the colonies · fhd', () => {
       };
       w.__r = [];
       const sample = () => {
+        const el = document.querySelector('.con-hydro');
         const row = {
-          hydro: document.querySelector('.con-hydro') !== null,
+          // SHOWN, not merely mounted: the host keeps its box under the guest
+          // (`visibility`, never `display`), so «is the track back» is a
+          // question about paint.
+          hydro: el !== null && getComputedStyle(el).visibility !== 'hidden',
           colonies: document.querySelector('.con-colonies') !== null,
           // The traversal's own payoff read — «Укрепление завершено».
           result: document.querySelector('.con-hydro__layer--result') !== null,
@@ -465,7 +551,7 @@ test.describe('a copied action walks into the colonies · fhd', () => {
       };
     });
     await press(page, 'Enter', 2600); // A — the colony's focus stage
-    await shoot(page, '05-colony-focus');
+    await shoot(page, '05b-colony-focus');
     await press(page, 'Enter', 3000); // A — the trade's own single confirm
     // …AND THE TRADE PAYS OUT INSIDE THE SAME FRAME. «Титановая шахта» arrives
     // as a card to TAKE, still under the Hydronetwork's crumb — the step is not
@@ -498,19 +584,32 @@ test.describe('a copied action walks into the colonies · fhd', () => {
     const rdump = JSON.stringify(back);
     await shoot(page, '06-after-the-trade');
 
-    // The guest LEFT and the host was standing when it did — the Hydronetwork
-    // is what the player comes back to, never a bare board with a colony
-    // screen having vanished off it.
-    const returned = back.filter((r) => r.hydro === true && r.colonies === false);
+    // …AND IT CAME BACK WHOLE. The crop was a layout theft, so the evidence is
+    // the box: the track's rail spans the band it always did.
+    const backBox = await page.evaluate(() => {
+      const el = document.querySelector('.con-hydro__rail');
+      const r = el?.getBoundingClientRect();
+      return r === undefined ? -1 : {w: Math.round(r.width), x: Math.round(r.left)};
+    });
+    if (typeof backBox !== 'number') {
+      expect(backBox.w, `the track came back whole (${JSON.stringify(backBox)})`)
+        .toBeGreaterThan(Math.round(1920 * 0.7));
+      expect(backBox.x, `and at its own left edge (${JSON.stringify(backBox)})`)
+        .toBeLessThan(Math.round(1920 * 0.25));
+    }
+
+    // THE TRACK TAKES THE SCREEN BACK AND FINISHES ITS OWN FLOW. The return is
+    // not «the guest vanished»: the Hydronetwork is shown again and plays its
+    // own payoff read — «Укрепление завершено» — which is the whole reason the
+    // step belonged to it rather than opening over it. (The guest's own leave
+    // legitimately overlaps that: it is a fixed band dissolving above a host
+    // that never moved, which is the point of the fixed band.)
+    const returned = back.filter((r) => r.hydro === true);
     expect(returned.length, `the Hydronetwork got the screen back — ${rdump}`).toBeGreaterThan(0);
     for (const r of returned) {
       expect(String(r.root).toLowerCase(), `and it is still the same flow — ${rdump}`)
         .toContain('гидросет');
     }
-    // …AND THE TRACK FINISHED ITS OWN FLOW THERE. The return is not «the guest
-    // vanished»: the Hydronetwork takes the screen back and plays its own
-    // payoff read — «Укрепление завершено» — which is the whole reason the
-    // step was hosted inside it rather than opened over it.
     expect(returned.some((r) => r.result === true),
       `the track played its own result after the trade — ${rdump}`).toBe(true);
     // …AND ONLY THEN LEFT. A finished flow LEAVES (it never folds back to its

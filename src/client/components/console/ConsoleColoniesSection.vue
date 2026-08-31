@@ -12,6 +12,12 @@
            'con-ws': !embedded,
            'con-colonies--embedded': embedded,
            'con-colonies--focus': focusState.open,
+           // OWNING THE SCENE of a host that handed it over: a FIXED band, so
+           // this screen never shares the flex row with the workspace it is
+           // standing inside. Two `flex: 1` siblings in `.con-main` split it —
+           // which is how the Hydronetwork came back cropped into half a band
+           // while this surface was still playing its leave.
+           'con-colonies--scene': sceneOverlay,
          },
        ]"
        :data-colony-mode="pick !== undefined ? 'pick' : 'browse'"
@@ -271,8 +277,8 @@ import {
 import {workspaceOutcomeState, setWorkspaceOutcomeSlot, workspaceOutcomeClaimed} from '@/client/console/consoleWorkspaceOutcome';
 import {
   setWorkspaceFrameSlot, setWorkspaceFrameStage, setWorkspaceFrameSubject,
-  workspaceFrameEmblem, workspaceFrameHost, workspaceFrameIndex, workspaceFrameParked,
-  workspaceFrameStage, workspaceStackCrumb, workspaceStackRootKind,
+  workspaceFrameEmblem, workspaceFrameHost, workspaceFrameIndex, workspaceFrameIsOverlay,
+  workspaceFrameParked, workspaceFrameStage, workspaceStackCrumb, workspaceStackRootKind,
 } from '@/client/console/consoleWorkspaceStack';
 import {colonyResolutionUi, revealIsOwnerBonus} from '@/client/console/colonyTrade/colonyResolution';
 import {cardDiscardColonyBonus} from '@/client/console/cardDiscard/consoleCardDiscard';
@@ -518,6 +524,10 @@ export default defineComponent({
      * same box before and after the step opened). At depth 0 this screen is its
      * own root and everything falls back to «КОЛОНИИ».
      */
+    /** This screen is standing OVER a workspace that handed it the scene. */
+    sceneOverlay(): boolean {
+      return !this.embedded && workspaceFrameIsOverlay('colonies');
+    },
     stackCrumb(): {root: string, subject?: {text: string}, stage?: string} | undefined {
       return workspaceFrameIndex('colonies') > 0 ? workspaceStackCrumb() : undefined;
     },
@@ -968,8 +978,18 @@ export default defineComponent({
       // what it holds is centred: that is what makes the overlap inexpressible
       // rather than merely unlikely, at any focus scale. The measurement is the
       // SHARED one (off the seat's real box), never a copy of its CSS width.
+      // ⚠️ ONLY WHEN TELEPORTED INTO A HOST'S ZONE. `sourceSeatReservePx` asks
+      // the DOCUMENT for a seat, so a surface that is NOT inside one would
+      // reserve room for somebody else's furniture — and since a host that
+      // hands the whole scene over keeps its box (`visibility`, not `display`),
+      // its seat still measures. Scoped to `embedded`, the question is only
+      // ever asked where the answer is about this surface's own room.
+      //
+      // …and the re-solve is gated on a WHOLE pixel of change: this branch
+      // returns without fitting, so a sub-pixel jitter would re-schedule
+      // forever and the fit would never land.
       const seat = this.embedded ? Math.round(sourceSeatReservePx(conUiScale())) : 0;
-      if (seat !== this.seatReservePx) {
+      if (Math.abs(seat - this.seatReservePx) >= 1) {
         this.seatReservePx = seat;
         // The padding it just published is what the room below is measured
         // against — solve on the next frame, against the narrowed box.

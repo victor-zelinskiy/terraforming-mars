@@ -32,6 +32,7 @@ import {reactive} from 'vue';
 import {CardName} from '@/common/cards/CardName';
 import type {WorkspacePhase, WorkspaceBackVerb} from '@/client/console/consoleWorkspaceFlow';
 import {backVerbFor} from '@/client/console/consoleWorkspaceFlow';
+import {workspaceFrameEpoch} from '@/client/console/consoleWorkspaceStack';
 import type {HydroDeltaLine} from '@/client/components/hydronetwork/hydroReward';
 import type {ResourceTransferSpec} from '@/client/console/resourceTransfer/resourceTransferModel';
 import {registerAnimationHoldSupplier} from '@/client/components/presentation/animationHold';
@@ -138,6 +139,18 @@ export const hydroFlowState = reactive<{
   /** The full-scene stage-7 repeat browser stands over the workspace. */
   repeatBridge: boolean;
   commit: HydroCommitRecord | undefined;
+  /**
+   * WHICH FRAME MADE THE COMMIT (`workspaceFrameEpoch('hydro')` at the press).
+   *
+   * This record is MODULE state and outlives its frame on purpose — the board
+   * takes the screen for a placement, the player parks the chain — and all of
+   * those come back to the SAME frame. A LATER, unrelated frame must not adopt
+   * it: it would render a committed workspace whose content is somewhere else,
+   * with «Ⓐ Выполняется» as its only verb and B dead by phase. Comparing the
+   * stamp answers «is this flow mine?» exactly, instead of inferring it from
+   * whether a park happened to survive.
+   */
+  frameEpoch: number;
   /** The view version (gameAge|undoCount) the pre-commit draft was composed
    *  against — a re-open only re-seats a draft the world has not moved under. */
   draftVersion: string;
@@ -156,6 +169,7 @@ export const hydroFlowState = reactive<{
   step: undefined,
   repeatBridge: false,
   commit: undefined,
+  frameEpoch: 0,
   draftVersion: '',
   ceremonyActive: false,
   ceremonyPlayed: false,
@@ -296,7 +310,25 @@ export function beginHydroCommit(rec: Omit<HydroCommitRecord, 'phase'>): void {
   hydroFlowState.step = undefined;
   hydroFlowState.repeatBridge = false;
   hydroFlowState.commit = {...rec, phase: 'moving'};
+  // WHOSE FLOW THIS IS. Taken at the press, when the frame that is making the
+  // move is by definition the live one.
+  hydroFlowState.frameEpoch = workspaceFrameEpoch('hydro');
   hydroFlowState.ceremonyPlayed = false;
+}
+
+/**
+ * IS THE STANDING FLOW RECORD THIS SCREEN'S OWN?
+ *
+ * False for an ORPHAN: a record whose frame is gone and whose content lives
+ * somewhere this instance cannot show — the case the player reaches by setting
+ * the step aside and then asking the wheel for the track again after the park
+ * was discarded. Presented anyway it is a sealed screen; the honest answer is
+ * that this frame has no flow, so it shows its ordinary track and refuses
+ * actions with the one reason it already has.
+ */
+export function hydroFlowIsOwnedByCurrentFrame(): boolean {
+  return hydroFlowState.commit === undefined ||
+    hydroFlowState.frameEpoch === workspaceFrameEpoch('hydro');
 }
 
 /** Forward-only — a stray signal can never resurrect a spent beat. */
@@ -324,6 +356,7 @@ export function resetHydroFlow(): void {
   hydroFlowState.step = undefined;
   hydroFlowState.repeatBridge = false;
   hydroFlowState.commit = undefined;
+  hydroFlowState.frameEpoch = 0;
   hydroFlowState.draftVersion = '';
   hydroFlowState.ceremonyActive = false;
   hydroFlowState.ceremonyPlayed = false;
@@ -400,9 +433,24 @@ export function hydroWorkspaceRestorePlan(input: {
   commit: HydroCommitRecord | undefined,
   claimHost: string | undefined,
   followUpInteractive: boolean,
+  /**
+   * Is the standing record THIS frame's own (`hydroFlowIsOwnedByCurrentFrame`)?
+   * A record whose frame is gone is an ORPHAN, and no evidence of liveness
+   * makes it presentable HERE: its content is somewhere this instance cannot
+   * show. Seated anyway it is a sealed screen — a committed workspace with no
+   * body, «Ⓐ Выполняется» as its only verb and B dead by phase, reachable by
+   * setting the step aside and then asking the wheel for the track again.
+   */
+  ownedByThisFrame: boolean,
 }): HydroRestorePlan {
   if (input.commit === undefined) {
     return 'none';
+  }
+  // OWNERSHIP OUTRANKS LIVENESS. A stale claim or a prompt owed by somebody
+  // else's chain both read as «live» and both belong to a flow this frame did
+  // not make — that pair is exactly what produced the sealed screen.
+  if (!input.ownedByThisFrame) {
+    return 'fold';
   }
   if (input.claimHost === 'hydro' || input.followUpInteractive) {
     return 'seat-commit';

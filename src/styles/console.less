@@ -4953,6 +4953,18 @@ html.console-mode body.placement-pending .board-outer-spaces > .board-space.boar
     font-family: @con-font;
     color: @con-text;
 
+    /* ── HANDED THE SCENE OVER ─────────────────────────────────────────────
+       A nested full screen is standing on this workspace (`frameSteps:
+       'scene'`). The track stops being DRAWN — and nothing else changes:
+       `visibility`, never `display`, because this surface is a flex child and
+       taking it out of the row is what let the returning layout be squeezed
+       and cropped. Its box, its fits and its marker anchors all survive, so
+       coming back is a repaint and not a re-solve. */
+    &--handed-over {
+        visibility: hidden;
+        pointer-events: none;
+    }
+
     /* HOSTED — the track is standing as a STEP of another workspace (a card's
        «Открыть Гидросеть»), so it lives inside that frame and takes its
        perimeter. Only the two edges the HEADER hangs off move: the right and
@@ -16560,6 +16572,22 @@ html.con-profile-large.console-mode .notifications-layer.notifications-layer--jo
         background: none;
         box-shadow: none;
     }
+    /* ── OWNING THE SCENE of a host that handed it over ────────────────────
+       A workspace screen inside `.con-main` is a FLEX CHILD, so two of them
+       standing at once split the row — which is exactly what happened on the
+       way back from a repeated «Летающая платформа»: this surface was still
+       playing its leave while the Hydronetwork returned, and the track came
+       back squeezed into half a band and cropped, with no re-fit coming.
+       A FIXED band takes this screen out of that row entirely (the same
+       `.con-ws-stage-band()` every other full screen uses), so the host keeps
+       its own geometry untouched for the whole visit. */
+    &--scene {
+        .con-ws-stage-band();
+        /* Above the host it is standing on (a `.con-main` child, below the
+           shade) and in the band family's own range — never over the wheel. */
+        z-index: 11482;
+    }
+
     /* Inside a host zone there is no viewport boundary to compensate. */
     &--embedded .con-colonies__rail { padding-right: .8rem; }
     /* …AND THE HOST'S SOURCE SEAT IS RESERVED AT THE ROOT (the surface owns

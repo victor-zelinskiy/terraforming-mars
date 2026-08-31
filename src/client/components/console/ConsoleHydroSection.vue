@@ -2,16 +2,29 @@
   <!-- A NESTED FULL SCREEN GETS THE SCENE (`frameSteps: 'scene'`): while a
        workspace stands inside this one — the colonies a repeated «Летающая
        платформа» opens — the track stops being DRAWN and the guest owns the
-       band. `v-show`, never `v-if`: the traversal is merely parked, its
-       directors and its marker layer are mid-flow, and the frame stays in the
-       stack so the guest's header still says whose flow this is. -->
-  <section v-show="!sceneHandedOver"
-           class="con-hydro con-ws"
+       band. The frame stays in the stack, so the guest's header still says
+       whose flow this is.
+
+       ⚠️ A CLASS, NOT `v-show`, and the difference is the whole bug it cost:
+       `display: none` takes this surface OUT OF LAYOUT, and a workspace screen
+       in `.con-main` is a FLEX CHILD — so on the way back it re-entered the row
+       beside the guest's still-running leave and was squeezed into half a band,
+       cropped, with no re-fit coming. `visibility` keeps the box: the geometry
+       never changes, there is nothing to re-solve, and the marker layer stays
+       measurable for the walk that is merely parked. (The guest is a FIXED band
+       while it owns the scene — `.con-colonies--scene` — so it never competes
+       for this room either. Both halves are needed: either alone still lets one
+       surface steal the other's width.) -->
+  <section class="con-hydro con-ws"
+           :class="{
+             'con-hydro--handed-over': sceneHandedOver,
+             'con-hydro--cere': ceremonyDim,
+             'con-hydro--hosted': crumbHost !== undefined,
+           }"
            ref="rootEl"
            role="region"
            :aria-label="$t('Mars Hydronetwork')"
-           :data-flow="flowKind"
-           :class="{'con-hydro--cere': ceremonyDim, 'con-hydro--hosted': crumbHost !== undefined}">
+           :data-flow="flowKind">
     <!-- ── THE WORKSPACE HEADER — the shared ConsoleWsHead: root «ГИДРОСЕТЬ
          МАРСА» + the live chips as the aux browse layer; a configuring or
          committed flow grows the crumb tail «› <этап> › <шаг>». The old
@@ -941,14 +954,15 @@ import {Message} from '@/common/logs/Message';
 import {fetchHydroPreview, hydroNetworkState, resetHydroPlan} from '@/client/components/hydronetwork/hydroNetworkState';
 import {consoleHydroUi} from '@/client/console/consoleHydroState';
 import type {ConsoleRepeatPickResult} from '@/client/console/consoleRepeatPick';
-import {hydroMarkerState} from '@/client/console/hydroMarker/consoleHydroMarker';
+import {hydroMarkerState, resetHydroMarker} from '@/client/console/hydroMarker/consoleHydroMarker';
 import {hydroRewardTransfers} from '@/client/console/hydroMarker/hydroRewardTransfers';
 import {GamepadIntent} from '@/client/gamepad/gamepadPollModel';
 import {consoleActionOf} from '@/client/console/composables/consoleActionModel';
 import {participantDisplayName} from '@/client/components/marsbot/marsBotDisplay';
 import {ConsoleCommand} from '@/client/console/consoleCommandModel';
 import {
-  HydroCommitRecord, HydroTraversalSegmentRecord, closeHydroStep, hydroDraftFresh, hydroFlowState,
+  HydroCommitRecord, HydroTraversalSegmentRecord, closeHydroStep, hydroDraftFresh,
+  hydroFlowIsOwnedByCurrentFrame, hydroFlowState,
   hydroWorkspacePhase, hydroWorkspaceRestorePlan, markHydroCeremonyPlayed, noteHydroDraftTouched, openHydroStep,
   resetHydroFlow, resolutionKindFor, setHydroCeremonyActive,
 } from '@/client/console/hydroFlow/consoleHydroFlow';
@@ -1508,7 +1522,54 @@ export default defineComponent({
     stageOfText(): string {
       return translateTextWithParams('Stage ${0} of ${1}', [String(this.model.selectedPosition), '11']);
     },
+    /**
+     * ── THE STOP IS PARKED AND ITS DECISION IS NOWHERE ON THIS SCREEN ──────
+     *
+     * `executing` exists for the window between OUR submit and the server's
+     * answer: input is absorbed so a double submit cannot exist. A traversal
+     * PARKED at a stop with a prompt standing and nothing of it rendered is the
+     * opposite state — the server has answered, it asked a QUESTION, and the
+     * question is somewhere else (set aside, or owed by a chain this instance
+     * is not part of). Presented as «Выполняется» that screen is sealed: no
+     * content, no verb, and B dead by phase — with no way out but a reload.
+     *
+     * It should be unreachable (a wheel open of a parked kind now routes
+     * through the park's own door instead of standing a contentless twin), and
+     * this is the net under it: the badge NAMES the wait and B becomes a real
+     * «свернуть», which is the door back to the board — where the restore card
+     * leads to the decision itself.
+     */
+    stalledAtStop(): boolean {
+      return this.hydroMarkerState.parkedAt >= 0 &&
+        !this.followUpLive &&
+        this.playerView.waitingFor !== undefined;
+    },
+    /**
+     * ── IS THE FLOW THIS SCREEN IS HOLDING ITS OWN? ────────────────────────
+     *
+     * The mount-time restore plan answers «what can this frame rebuild», and it
+     * is the right question — but only at a mount. THIS INSTANCE IS NEVER
+     * REMOUNTED across the round trip the player reported («свернуть» the step,
+     * then ask the wheel for the track again): the section is hidden and shown,
+     * not destroyed, so the decision was never re-asked and a stale commit
+     * stayed on screen as a SEALED workspace — no body, «Ⓐ Выполняется» as its
+     * only verb, B dead by phase, out only by reloading.
+     *
+     * Asked continuously here, and STRUCTURALLY: whose frame made this record
+     * (`hydroFlowIsOwnedByCurrentFrame`). Deliberately not «is anything of it
+     * alive» — liveness has timing windows (the beat between the commit press
+     * and the marker arming is legitimately empty), and a predicate that resets
+     * a flow in one of those would break the very commit it is guarding.
+     * Ownership has no window: a lateral re-entry makes a NEW frame, everything
+     * the flow itself does keeps the old one.
+     */
+    flowPresentable(): boolean {
+      return this.flow.commit === undefined || hydroFlowIsOwnedByCurrentFrame();
+    },
     stageBadge(): {kind: string; text: string} {
+      if (this.stalledAtStop) {
+        return {kind: 'todo', text: $t('Awaiting decision')};
+      }
       if (this.model.mode === 'plan') {
         const blocking = this.reasons.some((r) => r.blocking);
         if (this.model.canConfirm) {
@@ -1595,7 +1656,13 @@ export default defineComponent({
         return 'result';
       }
       if (zone === 'committing') {
-        return 'commit';
+        // …unless there is nothing of it to show — then this screen has no
+        // flow, and it says so by being its ordinary self (`flowPresentable`).
+        // Every action stays refused by `actionBlockedReason`'s one honest
+        // reason, and B closes normally, which is the whole point.
+        if (this.flowPresentable) {
+          return 'commit';
+        }
       }
       // The reward step is HOW the offer is answered, not a competing state:
       // it is opened by the offer's own confirm and submits the whole move as
@@ -2183,6 +2250,13 @@ export default defineComponent({
      * confirms with A, like every other refusal in this console.
      */
     backVerb(): WorkspaceBackVerb {
+      // A parked stop whose decision is not on this screen is NOT a beat in
+      // flight — see `stalledAtStop`. «Свернуть» is the honest verb: the flow
+      // is set aside, and the board-home restore card is the way to the
+      // decision itself.
+      if (this.stalledAtStop) {
+        return 'collapse';
+      }
       return backVerbWithOwedPrompt(hydroWorkspacePhase(this.followUpLive), this.ownsPrompt);
     },
     backLabel(): string | undefined {
@@ -3044,6 +3118,22 @@ export default defineComponent({
     // dip-and-rise under the change) instead of hard-swapping its rows —
     // `overwrite: 'auto'` makes a held d-pad read as one continuous shimmer,
     // never a pile of restarts.
+    /**
+     * A FLOW WITH NOTHING LEFT TO SHOW IS OVER. The scene already fell back to
+     * the browse layer (`flowPresentable`); dropping the record makes that the
+     * TRUTH rather than a rendering exception — the CTA, the back verb and the
+     * phase all follow from it, and the next advance starts clean.
+     */
+    flowPresentable: {
+      immediate: true,
+      handler(can: boolean): void {
+        if (!can && this.flow.commit !== undefined) {
+          resetHydroFlow();
+          resetHydroPlan();
+          consoleHydroUi.repeatResult = undefined;
+        }
+      },
+    },
     'model.selectedPosition'(next: number, prev: number | undefined): void {
       if (prev !== undefined && next !== prev && this.sceneKey === 'preview') {
         this.retunePanel();
@@ -3128,15 +3218,30 @@ export default defineComponent({
     holdCarriedAnchors(this.$refs.rootEl as HTMLElement | undefined);
     // RESUME ≠ FRESH-OPEN: decide ONCE, host-scoped, what this mount can
     // honestly rebuild (the actionWorkspaceRestorePlan idiom).
+    const owned = hydroFlowIsOwnedByCurrentFrame();
     const plan = hydroWorkspaceRestorePlan({
       commit: this.flow.commit,
       claimHost: workspaceOutcomeState.host,
       followUpInteractive: this.followUpLive,
+      ownedByThisFrame: owned,
     });
     if (plan === 'fold') {
       resetHydroFlow();
       resetHydroPlan();
       consoleHydroUi.repeatResult = undefined;
+      // …AND AN **ORPHANED** RECORD TAKES ITS PRESENTATION WITH IT. The
+      // traversal sequence is module state too: left parked at a stop nobody is
+      // going to resume, its marker keeps the cursor of a walk this screen will
+      // never show, so the track would read a position the server no longer has.
+      //
+      // ⚠️ ONLY for the orphan. The ORDINARY fold («the resolution finished
+      // while parked») is a mount that arrived a beat early — its sequence is
+      // still going to resume and play the stop's own result, and killing the
+      // marker there turned the board-placement return into a flow that ended
+      // silently on the track's planning layer.
+      if (!owned) {
+        resetHydroMarker();
+      }
     } else if (plan === 'none') {
       closeHydroStep();
       // THE REWARD CHOICE IS STEP-SCOPED, so a mount with no live step has

@@ -115,16 +115,24 @@ describe('consoleHydroFlow', () => {
   });
 
   it('the restore plan is host-scoped and honest', () => {
-    expect(hydroWorkspaceRestorePlan({commit: undefined, claimHost: undefined, followUpInteractive: false})).eq('none');
+    const mine = {ownedByThisFrame: true};
+    expect(hydroWorkspaceRestorePlan({commit: undefined, claimHost: undefined, followUpInteractive: false, ...mine})).eq('none');
     const c: HydroCommitRecord = {...commitRec({kind: 'deck-draw', toPosition: 5}), phase: 'resolving'};
-    expect(hydroWorkspaceRestorePlan({commit: c, claimHost: 'hydro', followUpInteractive: false}),
+    expect(hydroWorkspaceRestorePlan({commit: c, claimHost: 'hydro', followUpInteractive: false, ...mine}),
       'our claim → re-seat the commit scene').eq('seat-commit');
-    expect(hydroWorkspaceRestorePlan({commit: c, claimHost: undefined, followUpInteractive: true}),
+    expect(hydroWorkspaceRestorePlan({commit: c, claimHost: undefined, followUpInteractive: true, ...mine}),
       'a standing follow-up → re-seat').eq('seat-commit');
-    expect(hydroWorkspaceRestorePlan({commit: c, claimHost: 'card-actions', followUpInteractive: false}),
+    expect(hydroWorkspaceRestorePlan({commit: c, claimHost: 'card-actions', followUpInteractive: false, ...mine}),
       'a foreign claim is never adopted').eq('fold');
-    expect(hydroWorkspaceRestorePlan({commit: c, claimHost: undefined, followUpInteractive: false}),
+    expect(hydroWorkspaceRestorePlan({commit: c, claimHost: undefined, followUpInteractive: false, ...mine}),
       'nothing live under the record → fold honestly').eq('fold');
+    // …AND OWNERSHIP OUTRANKS EVERY SIGN OF LIFE. A record this frame did not
+    // make cannot be presented HERE whatever is standing: its content lives
+    // where the flow does. Adopted anyway (the wheel's lateral re-entry after
+    // the park was discarded) it renders a committed workspace with no body,
+    // «Ⓐ Выполняется» as its only verb and B dead by phase.
+    expect(hydroWorkspaceRestorePlan({commit: c, claimHost: 'hydro', followUpInteractive: true, ownedByThisFrame: false}),
+      'an ORPHANED record folds even with a claim AND a follow-up').eq('fold');
   });
 
   it('closeHydroStep folds one level and keeps the rest', () => {
