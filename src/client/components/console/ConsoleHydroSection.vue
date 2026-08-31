@@ -2903,6 +2903,16 @@ export default defineComponent({
         setWorkspaceFrameSubject('hydro', subject);
       },
     },
+    // …AND THE CARD THE STEP IS BEING DONE FOR, on its own edge. It rode the
+    // crumb watchers, and the crumb does not move when a repeat step opens — so
+    // a colony step hosted here came up with no `L3 Источник` at all, which is
+    // exactly the verb this publication exists to feed.
+    embedSourceCard: {
+      immediate: true,
+      handler(): void {
+        this.syncFrameCrumb();
+      },
+    },
     crumbStage: {
       immediate: true,
       handler(stage: string): void {

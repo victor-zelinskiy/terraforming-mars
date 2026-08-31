@@ -24,6 +24,17 @@ function stripTrailingDigits(name: string): string {
 function russianName(name: string): string {
   return RU[name] ?? RU[stripTrailingDigits(name)] ?? stripTrailingDigits(name);
 }
+// The «УСЛОВИЕ» line the console prints under the medal. Two offerings can carry distinct names and
+// still read as the same milestone once the player reads what they actually ask for — «Метрополист»
+// and «Поселенец» both said «Наибольшее количество городов» until the latter's translation regained
+// the «НЕ на Марсе» its rule always had.
+function russianDescription(name: MAName): string {
+  const spec = milestoneNames.includes(name as MilestoneName) ?
+    milestoneManifest.all[name as MilestoneName] :
+    awardManifest.all[name as AwardName];
+  const description: string = new spec.Factory().description;
+  return RU[description] ?? description;
+}
 // Normalize per the audit spec: trim, case-insensitive, ё == е, collapse whitespace.
 function normalizeRu(s: string): string {
   return s.trim().toLowerCase().replace(/ё/g, 'е').replace(/\s+/g, ' ');
@@ -104,6 +115,30 @@ describe('Milestone/Award random-pool de-duplication (vize1215 fork)', () => {
           `exclusion groups; rename one or group them`).to.equal(1);
         expect([...groups][0], `Russian name "${ruName}" is shared by ${members.join(', ')} but none are in an ` +
           `exclusion group; rename one or group them`).to.not.be.undefined;
+      }
+    });
+
+    it('no two pool candidates share a Russian DESCRIPTION unless they are in the same exclusion group', () => {
+      const [milestones, awards] = getCandidates(allExpansions({randomMA: RandomMAOptionType.ALL}));
+      const candidates: ReadonlyArray<MAName> = [...milestones, ...awards];
+
+      const byDescription = new Map<string, Array<MAName>>();
+      for (const name of candidates) {
+        const key = normalizeRu(russianDescription(name));
+        const list = byDescription.get(key) ?? [];
+        list.push(name);
+        byDescription.set(key, list);
+      }
+
+      for (const [description, members] of byDescription.entries()) {
+        if (members.length === 1) {
+          continue;
+        }
+        const groups = new Set(members.map((m) => randomExclusionGroup(m)));
+        expect(groups.size, `Russian condition "${description}" is shared by ${members.join(', ')} across ` +
+          `different exclusion groups; fix the translation or group them`).to.equal(1);
+        expect([...groups][0], `Russian condition "${description}" is shared by ${members.join(', ')} but none ` +
+          `are in an exclusion group; fix the translation or group them`).to.not.be.undefined;
       }
     });
 

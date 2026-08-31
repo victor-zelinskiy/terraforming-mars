@@ -939,13 +939,14 @@ letting the web-server lane drift: `engines.node`, `devDependencies.@types/node`
 must move all of them in the same commit.**
 
 Aligned 2026-08-31 on **Node 24 «Krypton»** (Active LTS to 2028-04; Electron 44.0.0 bundles 24.18.1,
-44.1.0 bundles 24.19.0): `engines` `>=22.22.2 <23` → `>=24.18.1 <25`; `@types/node` `^25` → `^24` (both 25
+44.1.0 bundles 24.19.0): `engines` `>=22.22.2 <23` → `>=24.18.1 <25` (raised to `>=24.19.0 <25` with the 44.1.0 bump); `@types/node` `^25` → `^24` (both 25
 and 26 track **non-LTS** Node lines, and types ahead of the runtime turn a missing API into a production
 crash rather than a build error); 7 CI `node-version` pins and the `Dockerfile` base `22-alpine3.21` →
 `24-alpine3.21`. `.nvmrc` already read `v24`.
 
 | Date | Pin | Chromium | Node | V8 | Notes |
 | --- | --- | --- | --- | --- | --- |
+| 2026-08-31 | **44.1.0** | 152.0.7977.65 | 24.19.0 | 15.2.124.18 | Patch release - no breaking changes; see below |
 | 2026-08-25 | **44.0.0** | 152.0.7977.54 | 24.18.1 | 15.2.124.13 | See audit below |
 | (prior) | 43.4.0 | 150.0.7871.224 | 24.18.1 | 15.0.245.28 | |
 

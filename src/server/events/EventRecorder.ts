@@ -32,6 +32,16 @@ type EventContext = {
   source: EventSource | undefined;
   playerColor: Color | undefined;
   kind: 'action' | 'effect' | 'copied' | 'source';
+  /**
+   * THE CARD BEING COPIED, on a `'copied'` scope.
+   *
+   * `source` is the COPIER (Project Inspection, Viron, the Delta Project); the
+   * card whose action is actually running was only ever in the emitted marker's
+   * `target`, i.e. in history rather than in the live scope. Anything that needs
+   * to ask «whose action is this, right now?» — and the console's stage gate
+   * does — had no way to find out.
+   */
+  copiedCard?: CardName;
   trigger: EventTrigger | undefined;
   triggerEmitted: boolean;
   // Whether this action/copied scope has already produced its header log
@@ -235,7 +245,7 @@ export class EventRecorder {
     if (ctx?.rootId === undefined) {
       marker.correlationId = marker.id;
     }
-    this.stack.push({rootId, parentId: marker.id, source, playerColor: player.color, kind: 'copied', trigger: undefined, triggerEmitted: true, rootLogEmitted: false, category: 'copied-action'});
+    this.stack.push({rootId, parentId: marker.id, source, playerColor: player.color, kind: 'copied', trigger: undefined, triggerEmitted: true, rootLogEmitted: false, category: 'copied-action', copiedCard: copiedCard.name});
   }
 
   /** Begin a passive-effect scope (lazy: nothing is emitted unless the hook acts). */
@@ -284,12 +294,43 @@ export class EventRecorder {
     this.record({type: 'tile-placed', player: player.color, impact: {tilesPlaced: 1}, space: space.id, tile, tags: ['terraforming']});
   }
 
-  /** Run `fn` (the copied card's action) wrapped in a copied-action scope. */
+  /**
+   * Run `fn` (the copied card's action) wrapped in a copied-action scope.
+   *
+   * ⚠️ THE SCOPE CLOSES WHEN `fn` RETURNS, and a copier that RETURNS its
+   * prompt hands it to the queue afterwards — so that first prompt is raised
+   * OUTSIDE the scope and `Player.setWaitingFor` cannot attribute it. A copier
+   * that wants the attribution to survive later input boundaries too must
+   * `player.defer(...)` INSIDE `fn` (the Hydronetwork's reuse does); for the
+   * ones that return, the result is stamped here so at least the copy's own
+   * first question always names the card it belongs to.
+   */
   public withCopiedAction<T>(player: IPlayer, corp: ICard, copiedCard: ICard, fn: () => T): T {
     const kind = corp.type === CardType.CORPORATION ? 'corporation' : 'card';
-    this.beginCopiedAction(player, {kind, card: corp.name, owner: player.color}, copiedCard);
+    return this.withCopiedActionFrom(player, {kind, card: corp.name, owner: player.color}, copiedCard, fn);
+  }
+
+  /**
+   * …and the same, for a copier that is NOT a card in anybody's tableau.
+   *
+   * The Hydronetwork's stage-7 reuse is a GLOBAL SUBSYSTEM action: the module's
+   * own card is never played, so requiring an `ICard` made the copy silently
+   * degrade to no scope at all — and with it went the `copiedActionSource` stamp
+   * every prompt of that copy depends on. It cost a green unit spec that had
+   * pushed the card into the tableau to make itself pass, and an e2e that read
+   * `stamp=undefined` off the wire to catch it.
+   */
+  public withCopiedActionFrom<T>(player: IPlayer, source: EventSource, copiedCard: ICard, fn: () => T): T {
+    this.beginCopiedAction(player, source, copiedCard);
     try {
-      return fn();
+      const out = fn();
+      const asInput = out as unknown as {type?: unknown, copiedActionSource?: CardName};
+      if (asInput !== undefined && asInput !== null &&
+          typeof asInput === 'object' && typeof asInput.type === 'string' &&
+          asInput.copiedActionSource === undefined) {
+        asInput.copiedActionSource = copiedCard.name;
+      }
+      return out;
     } finally {
       this.endScope();
     }
@@ -325,6 +366,34 @@ export class EventRecorder {
    *  TR gain to the card/corp/effect currently executing (for the score breakdown). */
   public currentSource(): EventSource | undefined {
     return this.current?.source;
+  }
+
+  /**
+   * THE CARD WHOSE ACTION IS BEING COPIED RIGHT NOW, if any.
+   *
+   * Walks OUTWARD from the top: a copied action routinely opens scopes of its
+   * own (a passive effect, a nested source), and the copy is then the parent —
+   * asking only `this.current` would answer «none» for exactly the prompts that
+   * are deepest inside it.
+   *
+   * This is what lets EVERY prompt a copied action raises name its card without
+   * a single card marking anything: `Player.setWaitingFor` stamps it, so a card
+   * that does not exist yet is covered the day it is written.
+   */
+  public currentCopiedCard(): CardName | undefined {
+    for (let i = this.stack.length - 1; i >= 0; i--) {
+      const ctx = this.stack[i];
+      if (ctx.kind === 'copied') {
+        return ctx.copiedCard;
+      }
+      // An ACTION scope below is a different action — the copy, if any, is not
+      // this prompt's. (An `effect` / `source` scope is transparent: it runs
+      // INSIDE whatever opened it.)
+      if (ctx.kind === 'action') {
+        return undefined;
+      }
+    }
+    return undefined;
   }
 
   public recordResourceDelta(player: IPlayer, resource: Resource | StandardResource, amount: number, production: boolean, from?: From, stealing?: boolean, after?: number): void {

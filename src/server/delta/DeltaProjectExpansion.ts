@@ -835,6 +835,45 @@ export class DeltaProjectExpansion {
     return {energy, steel};
   }
 
+  /**
+   * RUN A COPIED CARD ACTION inside the copied-action scope.
+   *
+   * ONE entry point for both doors (the declared pre-select and the runtime
+   * pick), so the journal marker and — load-bearing — the scope that attributes
+   * every prompt the copy raises cannot depend on which door was used.
+   */
+  private static runCopied(player: IPlayer, card: IActionCard & ICard) {
+    const events = player.game.events;
+    if (events === undefined) {
+      // No recorder: the copy still runs. Attribution degrades, rules do not.
+      return card.action(player);
+    }
+    // ⚠️ DEFER INSIDE THE SCOPE, never RETURN out of it.
+    //
+    // `withCopiedAction` closes its scope the moment `fn` returns, and the queue
+    // sets the returned input as `waitingFor` AFTER that — so a copy that hands
+    // its prompt back up produces a prompt raised outside its own scope, and the
+    // attribution is lost for the very first thing the copy asks. Deferring
+    // INSIDE captures the scope onto the deferred action (`DeferredActionsQueue`
+    // snapshots it at push time), the queue restores it around the run, and
+    // `setWaitingFor` therefore sees it — including for every prompt the copy
+    // raises LATER, since the captured context rides `waitingForContext` across
+    // each input boundary.
+    // ⚠️ THE COPIER HERE IS NOT A CARD IN THE TABLEAU. The Hydronetwork is a
+    // GLOBAL SUBSYSTEM action — the module's own card is never played — so
+    // looking it up in `player.tableau` found nothing, the scope was skipped and
+    // every prompt the copy raised went out unattributed. `withCopiedActionFrom`
+    // takes the source directly, which is what this door actually has.
+    events.withCopiedActionFrom(
+      player,
+      {kind: 'card', card: CardName.DELTA_PROJECT, owner: player.color},
+      card,
+      () => {
+        player.defer(card.action(player));
+      });
+    return undefined;
+  }
+
   /** @returns whether this stage PARKED a consumed repeat's nested responses —
    *  the traversal's stage-boundary cleanup drops what is still standing of
    *  them (an auto-resolved prompt's stray) before the next stage resolves.
@@ -958,7 +997,18 @@ export class DeltaProjectExpansion {
             parkBatchTail(player, answer.repeatResponses);
             parkedRepeat = true;
           }
-          player.defer(() => planned.action(player));
+          // THROUGH THE COPIED-ACTION SCOPE, like every other copier.
+          //
+          // «Проверка проекта», Viron and Robotic Workforce all run their copy
+          // inside `withCopiedAction`; this one did not, and that was not only a
+          // journal inconsistency. The scope is what the deferred queue captures
+          // and restores, so it is what `Player.setWaitingFor` reads to stamp
+          // `copiedActionSource` on EVERY prompt the copied action raises — the
+          // one thing that lets the console tell «this prompt belongs to stage 7»
+          // without any card marking itself. Without it a repeated action whose
+          // follow-up is a PROMPT (a colony trade, a target pick) was invisible
+          // to the stage gate and could open its screen mid-walk.
+          player.defer(() => DeltaProjectExpansion.runCopied(player, planned));
           break;
         }
         // The console pre-collects this pick (batch-submitted with the
@@ -971,7 +1021,9 @@ export class DeltaProjectExpansion {
           actionCards,
         ).andThen(([card]) => {
           player.game.log('${0} reused ${1} action via ${2}', (b) => b.player(player).card(card).cardName(CardName.DELTA_PROJECT));
-          return card.action(player);
+          // The RUNTIME pick reaches the same runner as the declared one — a
+          // copy is a copy whichever door chose the card.
+          return DeltaProjectExpansion.runCopied(player, card);
         }).markChoiceContext(systemChoice('system', 'Use a blue card action that has already been used this generation', 'effect-choice')));
       }
       break;

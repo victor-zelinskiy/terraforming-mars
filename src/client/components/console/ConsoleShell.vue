@@ -3155,6 +3155,17 @@ export default defineComponent({
      * what that computed is DERIVED from, so asking it here would be a cycle.
      */
     hydroQueuedPromptForLaterStep(): boolean {
+      // THE SERVER'S OWN STAMP FIRST. `copiedActionSource` is put on the prompt
+      // by `Player.setWaitingFor` from the live copied-action event scope, so it
+      // is present for EVERY prompt a copied action raises — including the ones
+      // no card ever marked, which is exactly the hole this closes: a repeated
+      // colony trade raises a bare `SelectColony` with no `choiceContext` at all,
+      // so the source-view read below saw nothing and the colonies screen was
+      // free to open while the marker was still walking.
+      const stamped = this.playerView.waitingFor?.copiedActionSource;
+      if (stamped !== undefined && hydroStepQueuedFor(stamped)) {
+        return true;
+      }
       const card = promptSourceView(this.playerView.waitingFor)?.card;
       return card !== undefined && hydroStepQueuedFor(card);
     },

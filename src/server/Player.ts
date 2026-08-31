@@ -2717,6 +2717,16 @@ export class Player implements IPlayer {
     this.waitingFor = input;
     this.waitingForCb = cb;
     this.waitingForContext = this.game?.events?.captureContext();
+    // ── WHOSE ACTION RAISED THIS? ─────────────────────────────────────────
+    // Every prompt the player is ever asked passes through here, and the event
+    // recorder already knows whether a COPIED action is running (the scope the
+    // deferred queue captures and restores). Stamping it here is what makes the
+    // attribution complete BY CONSTRUCTION: no card marks anything, so no card
+    // — including one written next year — can forget to.
+    // Never overwritten: an input that named its own copy source keeps it.
+    if (input.copiedActionSource === undefined) {
+      input.copiedActionSource = this.game?.events?.currentCopiedCard();
+    }
     this.game.inputsThisRound++;
   }
 

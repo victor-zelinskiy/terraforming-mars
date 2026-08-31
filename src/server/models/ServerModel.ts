@@ -478,6 +478,13 @@ export class Server {
     if (waitingFor.choiceContext !== undefined) {
       model.choiceContext = waitingFor.choiceContext;
     }
+    // The COPIED-ACTION source. Central decoration is right here — unlike the
+    // placement/discard markers, this one is stamped by `setWaitingFor` on the
+    // TOP-LEVEL input itself (that is the funnel it rides), so nesting cannot
+    // lose it.
+    if (waitingFor.copiedActionSource !== undefined) {
+      model.copiedActionSource = waitingFor.copiedActionSource;
+    }
     // NOTE: the PLACEMENT marker (`placementContext`) is deliberately NOT
     // decorated here either — same reason as the discard marker below: a
     // placement is routinely NESTED (convert plants, a task's own space

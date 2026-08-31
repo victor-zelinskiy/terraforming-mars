@@ -6,6 +6,7 @@ import {IPlayer} from './IPlayer';
 import {PlayerInputModel, StartGamePromptMeta, BonusActionPromptMeta, AwardFundingPromptMeta, ChoiceContext, ColonyBonusCollectMeta, DeckPickPromptMeta, DiscardPromptMeta, DraftPromptMeta, FinalGreeneryPromptMeta, PlacementContext, VenusBonusPromptMeta, SpendHeatPromptMeta} from '../common/models/PlayerInputModel';
 import {BotAttackPromptMeta} from '../common/models/BotAttackPromptModel';
 import {DeltaBonusPromptMeta} from '../common/models/DeltaBonusPromptModel';
+import {CardName} from '../common/cards/CardName';
 
 export interface PlayerInput {
     type: PlayerInputType;
@@ -24,6 +25,10 @@ export interface PlayerInput {
     // Explicit contextual-choice marker (see ChoiceContext). Routes the prompt to
     // the premium ContextualChoiceContent modal. Serialized in getWaitingFor.
     choiceContext?: ChoiceContext;
+    // THE CARD WHOSE ACTION IS BEING COPIED, when this prompt was raised inside
+    // a copied action. Stamped by `Player.setWaitingFor` from the live event
+    // scope — never by a card. Serialized in getWaitingFor.
+    copiedActionSource?: CardName;
     // Explicit placement cancellability marker (see PlacementContext). Drives the
     // PlacementBanner's "cancel"/honest-reason UI. Serialized in getWaitingFor.
     placementContext?: PlacementContext;
@@ -110,6 +115,20 @@ export abstract class BasePlayerInput<T> implements PlayerInput {
   public bonusActionPrompt: BonusActionPromptMeta | undefined;
   public awardFundingPrompt: AwardFundingPromptMeta | undefined;
   public choiceContext: ChoiceContext | undefined;
+  /**
+   * THE CARD WHOSE ACTION IS BEING COPIED, when this prompt was raised inside a
+   * copied action (Project Inspection, Viron, Robotic Workforce, the
+   * Hydronetwork's stage-7 reuse).
+   *
+   * Stamped by `Player.setWaitingFor` from the live event scope — NEVER by the
+   * card, which is the whole point: attribution that depends on every card
+   * remembering to mark itself is attribution that a new card silently lacks.
+   * Deliberately its own field rather than a synthesised `choiceContext`: this
+   * is a FACT about where the prompt came from, and `choiceContext` also drives
+   * how a prompt is PRESENTED, so writing one would re-route prompts that are
+   * rendering correctly today.
+   */
+  public copiedActionSource: CardName | undefined;
   public placementContext: PlacementContext | undefined;
   public venusBonusPrompt: VenusBonusPromptMeta | undefined;
   public spendHeatPrompt: SpendHeatPromptMeta | undefined;

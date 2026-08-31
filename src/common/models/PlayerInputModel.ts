@@ -408,6 +408,18 @@ export type BaseInputModel = {
   bonusActionPrompt?: BonusActionPromptMeta;
   awardFundingPrompt?: AwardFundingPromptMeta;
   choiceContext?: ChoiceContext;
+  /**
+   * THE CARD WHOSE ACTION IS BEING COPIED — present iff this prompt was raised
+   * inside a copied action (see `BasePlayerInput.copiedActionSource`). Server-
+   * stamped from the event scope, so it covers every card that can be copied,
+   * including ones not written yet.
+   *
+   * The console's stage-bound gate reads it: a Hydronetwork traversal resolves
+   * the whole path in ONE request, so a stage-7 reuse puts its prompts on the
+   * wire while the marker is still cells back, and «whose step is this?» cannot
+   * be answered from the prompt's own text or type.
+   */
+  copiedActionSource?: CardName;
   placementContext?: PlacementContext;
   venusBonusPrompt?: VenusBonusPromptMeta;
   spendHeatPrompt?: SpendHeatPromptMeta;
