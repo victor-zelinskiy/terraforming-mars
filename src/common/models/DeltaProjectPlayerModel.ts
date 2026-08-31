@@ -11,6 +11,20 @@ export type DeltaStop = {
   generation: number;
   /** Chosen reward alternative index for a choice stage (0/1); omitted otherwise. */
   choice?: number;
+  /**
+   * The marker CROSSED this stage instead of landing on it, and it PAID anyway
+   * — a traversal modifier was in play (Delta Surge, «Нагонная волна»).
+   *
+   * Without this the history had only two readings, «stopped here» and «not in
+   * the list», and a crossed-but-paid stage fell into the second: the track
+   * marked seven stages the player had just been paid for as «Прошёл мимо — без
+   * награды». The client cannot re-derive it — whether a modifier was in the
+   * tableau AT THE TIME is not in the view, and the card can leave.
+   *
+   * Absent = the historical landing (every save written before Delta Surge, and
+   * every ordinary advance since).
+   */
+  crossed?: true;
 };
 
 export type DeltaProjectPlayerModel = {

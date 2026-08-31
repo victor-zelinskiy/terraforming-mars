@@ -44,8 +44,19 @@ export type HydroStageVM = {
   isSelected: boolean;
   /** Viewer stopped here and took the reward. */
   rewardedByViewer: boolean;
+  /** Viewer went straight through this stage and was PAID anyway (a traversal
+   *  modifier). A reward taken, so it marks as one — with its own glyph,
+   *  because «I stopped for this» and «this was paid to me in passing» are
+   *  different facts and the track is the only place that says so. */
+  crossedByViewer: boolean;
   /** Viewer jumped over this rewarding stage (no reward). */
   skippedByViewer: boolean;
+  /**
+   * EVERY player this cell has something to say about — the viewer AND the
+   * opponents (the MarsBot included), each with their own status. The cell
+   * renders one small mark per entry, in the player's colour.
+   */
+  trail: ReadonlyArray<HydroStageTrailMark>;
   /** On the CURRENT plan: an intermediate stage whose reward will be skipped. */
   willSkipReward: boolean;
   /** On the CURRENT plan: a crossed stage whose reward WILL be granted (the
@@ -62,7 +73,34 @@ export type HydroStageVM = {
   missingTags: ReadonlyArray<string>;
 };
 
-export type HydroHistoryStatus = 'rewarded' | 'passed' | 'not-reached' | 'current';
+/**
+ * What happened to ONE player at ONE stage.
+ *
+ * `crossed` is the reading the track was missing: under a traversal modifier
+ * («Нагонная волна») a stage the marker went straight through PAYS, and with
+ * only «stopped» and «not in the list» to choose from it fell into the second —
+ * so the console marked seven stages the player had just been paid for as
+ * «Прошёл мимо — без награды». It is server-authoritative (`DeltaStop.crossed`):
+ * whether a modifier was in the tableau at the time is not something the client
+ * can re-derive, and the card can leave.
+ */
+export type HydroHistoryStatus =
+  /** Landed here and took the reward. */
+  | 'rewarded'
+  /** Went straight through — and was paid anyway (a traversal modifier). */
+  | 'crossed'
+  /** Went straight through with nothing (no modifier, or a declined reward). */
+  | 'passed'
+  | 'not-reached'
+  | 'current';
+
+/** One player's mark on a cell (see `HydroStageVm.trail`). */
+export type HydroStageTrailMark = {
+  color: Color;
+  isViewer: boolean;
+  isMarsBot: boolean;
+  status: Exclude<HydroHistoryStatus, 'not-reached'>;
+};
 
 export type HydroStageHistoryEntry = {
   color: Color;
@@ -254,12 +292,46 @@ function statusFor(player: HydroPlayerPos, position: number): {status: HydroHist
   }
   const stop = hasStopAt(player.stops, position);
   if (stop !== undefined) {
-    return {status: 'rewarded', choice: stop.choice, generation: stop.generation};
+    return {
+      status: stop.crossed === true ? 'crossed' : 'rewarded',
+      choice: stop.choice,
+      generation: stop.generation,
+    };
   }
   if (player.position >= position) {
     return {status: 'passed'};
   }
   return {status: 'not-reached'};
+}
+
+/**
+ * THE TRAIL — every player this cell has anything to say about, in seating
+ * order, with what happened to each.
+ *
+ * The track used to speak about the VIEWER ONLY: two flags on the cell
+ * (`rewardedByViewer` / `skippedByViewer`) and nothing else, so an opponent —
+ * and the MarsBot, which is the opponent in most of these games — left no trace
+ * at all on the stages it had walked through. Its marker dot showed where it
+ * stood and the track said nothing about where it had BEEN, which is exactly
+ * the half of «another player on the same track» that was missing.
+ *
+ * `not-reached` is deliberately absent: a cell nobody has reached says nothing
+ * about them, and a row of grey «not yet» marks is noise on every cell ahead.
+ */
+function trailFor(
+  players: ReadonlyArray<HydroPlayerPos>, position: number): Array<HydroStageTrailMark> {
+  const out: Array<HydroStageTrailMark> = [];
+  for (const p of players) {
+    const s = statusFor(p, position);
+    if (s.status === 'not-reached') {
+      continue;
+    }
+    out.push({
+      color: p.color, isViewer: p.isViewer, isMarsBot: p.isMarsBot, status: s.status,
+    });
+  }
+  // The viewer reads their own row first; everyone else keeps seating order.
+  return out.sort((a, b) => (a.isViewer === b.isViewer ? 0 : a.isViewer ? -1 : 1));
 }
 
 export function buildHydroModel(input: HydroModelInput): HydroModel {
@@ -348,8 +420,12 @@ export function buildHydroModel(input: HydroModelInput): HydroModel {
     // leaking into the walk. `skippedByViewer` clamps by construction
     // (`currentPosition` IS the presentation cursor here).
     const presenting = input.visualViewerPosition !== undefined && input.visualViewerPosition >= 0;
-    const rewardedByViewer = stop !== undefined && pos !== currentPosition &&
-      (!presenting || pos < currentPosition);
+    const reached = pos !== currentPosition && (!presenting || pos < currentPosition);
+    const rewardedByViewer = stop !== undefined && stop.crossed !== true && reached;
+    // PAID IN PASSING is a reward taken, not a stage missed — it just did not
+    // cost a stop. Same clamp as the landing mark: while the walk is still
+    // being presented, a cell the marker has not reached paints nothing.
+    const crossedByViewer = stop?.crossed === true && reached;
     const skippedByViewer = stop === undefined && currentPosition > pos && pos > 0;
 
     let state: HydroStageState;
@@ -381,7 +457,9 @@ export function buildHydroModel(input: HydroModelInput): HydroModel {
       occupiedByOther,
       isSelected: pos === selectedPosition,
       rewardedByViewer,
+      crossedByViewer,
       skippedByViewer,
+      trail: trailFor(input.players, pos),
       willSkipReward,
       routeRewarded,
       routeExcluded,

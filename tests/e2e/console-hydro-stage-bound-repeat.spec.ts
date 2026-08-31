@@ -132,16 +132,24 @@ async function activateCard(request: APIRequestContext, id: string, card: string
  * owning the pad.
  */
 async function drainReveals(page: Page): Promise<void> {
+  // ⚠️ A SINGLE-CARD REVEAL IS HEADLESS: the received card IS the reveal and it
+  // opens DIRECTLY in the fullscreen viewer, so `.con-reveal` renders nothing.
+  // Draining on that selector alone reported «clean» with the viewer still
+  // owning the pad, and the wheel presses that follow went into it — the spec
+  // then died in its own setup, and only for the deals where the seeded
+  // activation happened to draw ONE card.
+  const revealUp = async () => await page.locator('.con-reveal').count() > 0 ||
+    await page.locator('dialog.con-zoom').count() > 0;
   for (let round = 0; round < 8; round++) {
-    for (let i = 0; i < 12 && await page.locator('.con-reveal').count() > 0; i++) {
+    for (let i = 0; i < 12 && await revealUp(); i++) {
       await press(page, 'Enter', 800);
     }
     await page.waitForTimeout(2000);
-    if (await page.locator('.con-reveal').count() === 0) {
+    if (!await revealUp()) {
       return;
     }
   }
-  expect(await page.locator('.con-reveal').count(), 'every seeded reveal was taken').toBe(0);
+  expect(await revealUp(), 'every seeded reveal was taken').toBe(false);
 }
 
 /**
@@ -187,9 +195,18 @@ for (const profile of PROFILES) {
 
       // ── Open the Hydronetwork; RT jumps to the farthest legal stage (7 —
       //    stage 8 needs a Jovian tag nobody played). ──
-      await press(page, 'Period', 1100);
-      await press(page, 'ArrowLeft', 1600);
-      await page.waitForSelector('.con-hydro', {timeout: 10_000});
+      // THE WHEEL OPENS WHEN IT OPENS. A fixed pair of presses is a DURATION
+      // standing in for a state: on the heavier 4K profile the wheel was still
+      // arriving when the ArrowLeft landed, and the spec died in its own setup.
+      // Re-ask until the workspace is actually up, bounded.
+      for (let attempt = 0; attempt < 4; attempt++) {
+        await press(page, 'Period', 1400);
+        await press(page, 'ArrowLeft', 1800);
+        if (await page.locator('.con-hydro').count() > 0) {
+          break;
+        }
+      }
+      await page.waitForSelector('.con-hydro', {timeout: 20_000});
       await press(page, 'Period', 900); // RT — «К дальнему»
       expect(await page.evaluate(() =>
         document.querySelector('.con-hydro__stop--focused')?.getAttribute('data-hydro-stop') ?? ''),

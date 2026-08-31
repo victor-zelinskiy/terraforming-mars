@@ -73,6 +73,84 @@ export type HydroStepLedger = {
   parkedAt: number;
 };
 
+/**
+ * ── EVERY SERVER ARTIFACT A COPIED CARD ACTION CAN PRODUCE ────────────────
+ *
+ * A stage-7 «reuse a used blue card action» reward can repeat ANY action, and
+ * an action is not only a draw: «Поиск жизни» turns the top card over and shows
+ * a verdict, a trade action pays a colony, a placement drops a tile, a gain
+ * flies resources. Each of those has its own director, and each director arms
+ * off its own server artifact — so «the copied action waits for its stage» is a
+ * claim about a SET, not about the one case that was reported.
+ *
+ * The union is exhaustive and every member declares its STANCE. Two are
+ * legitimate:
+ *
+ *  · `gated` — the director reacts to the artifact directly, so it asks
+ *    `hydroStepQueuedFor` before it may act. The guard spec checks that the
+ *    named file really does.
+ *  · `by-construction` — the artifact cannot reach a director before the stage
+ *    is active, because the only route to it passes through something already
+ *    gated (a prompt) or through the traversal's own sequence.
+ *
+ * A new artifact family is a compile error here and a failing row in
+ * `tests/console/copiedActionStageGuard.spec.ts` — which is the point: the
+ * previous fix covered the drawn batch and the prompt, and the deck-check
+ * verdict («Поиск жизни», the exact card a player would think of next) was
+ * still free to paint its result two cells early.
+ */
+export type CopiedActionArtifact =
+  | 'drawn-batch'
+  | 'deck-check'
+  | 'prompt'
+  | 'colony-trade'
+  | 'tile-landing'
+  | 'reward-wave';
+
+export type CopiedActionStance = {
+  stance: 'gated' | 'by-construction';
+  /** For `gated`: the file whose ownership question must ask the gate. */
+  file?: string;
+  why: string;
+};
+
+export const COPIED_ACTION_STANCES: Readonly<Record<CopiedActionArtifact, CopiedActionStance>> = {
+  'drawn-batch': {
+    stance: 'gated',
+    file: 'src/client/components/console/deckDraw/ConsoleDeckDrawLayer.vue',
+    why: 'The deal cinematic is the FIRST thing that reacts to a batch existing, ' +
+      'well before any modal — it joins the reveal modal in waiting for the cell.',
+  },
+  'deck-check': {
+    stance: 'gated',
+    file: 'src/client/components/console/ConsoleShell.vue',
+    why: '`lastReveal.action` names the acting card, and the verdict stage reads it ' +
+      'straight off the view — nothing else stood between it and the screen.',
+  },
+  'prompt': {
+    stance: 'gated',
+    file: 'src/client/console/consolePromptAdmission.ts',
+    why: 'The `stage-gate` block, in every prompt-serving family.',
+  },
+  'colony-trade': {
+    stance: 'by-construction',
+    why: 'The console only ever plays a trade IT ARMED at the confirm press the player made ' +
+      'press, and that press answers a colony prompt — which is gated.',
+  },
+  'tile-landing': {
+    stance: 'by-construction',
+    why: 'A tile the player places follows a `SelectSpace` prompt (gated); a tile a ' +
+      'card places itself waits for a WATCHABLE board, and the workspace covering ' +
+      'the screen is exactly what it waits out.',
+  },
+  'reward-wave': {
+    stance: 'by-construction',
+    why: 'A repeated action pays its own gains through the traversal, as the stop ' +
+      'CLOSING beat (`pendingResumeWave`), so they are stage-bound by the sequence ' +
+      'that owns them rather than by a gate.',
+  },
+};
+
 /** The `CardName` a drawn batch is attributed to, or undefined. */
 export function revealSourceCard(source: CardDrawRevealSource | undefined): CardName | undefined {
   return source !== undefined && source.type === 'card' ? source.cardName : undefined;

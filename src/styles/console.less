@@ -5137,7 +5137,58 @@ html.console-mode body.placement-pending .board-outer-spaces > .board-space.boar
         font-size: .8rem;
         font-weight: 800;
         &--done { color: @con-hydro-mint; }
+        /* PAID IN PASSING — a reward taken, so it reads in the reward colour;
+           a notch quieter than the landing ✓ because the two are different
+           facts and the track is the only place that distinguishes them. */
+        &--crossed { color: fade(@con-hydro-mint, 78%); }
         &--skip { color: rgba(196, 216, 236, 0.65); }
+    }
+    /* ── THE TRAIL — one small mark per player who has reached this cell.
+       Sits under the cell's own row, above the marker berth, so a cell reads
+       top-to-bottom as «what this stage is · what it did for ME · who has been
+       here · who stands here now». Player colour carries identity (the console
+       has one colour language for that), the SHAPE carries the status: a solid
+       pip took the reward, a hollow one went through with nothing, a bar was
+       paid in passing. Never a colour-only distinction — the paint baseline
+       strips filters and a colour-blind reading has to survive. ── */
+    &__stop-trail {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: .22rem;
+        min-height: .42rem;
+        margin-top: .1rem;
+    }
+    &__trailmark {
+        width: .36rem;
+        height: .36rem;
+        border-radius: 49.95rem;
+        /* The VIEWER's own mark is a touch larger — their row is the one they
+           look for, and «which of these is me» must not need the colour key. */
+        &--viewer { width: .46rem; height: .46rem; }
+        /* Went through with nothing: smaller and dimmer, never a hollow ring —
+           `player_bg_color_*` sets a BACKGROUND and nothing else, so an outline
+           drawn in `currentColor` would come out in the inherited TEXT colour
+           and silently stop naming the player. */
+        &--passed {
+            width: .24rem;
+            height: .24rem;
+            opacity: .45;
+        }
+        /* Paid in passing: a BAR, not a pip — it reads as «kept moving». */
+        &--crossed {
+            width: .6rem;
+            border-radius: .1rem;
+            opacity: .85;
+        }
+        &--viewer&--crossed { width: .74rem; }
+        /* Standing here now: a bright ring around the pip, so the current cell
+           is legible without hunting for the marker berth. The ring is neutral
+           for the same reason the hollow one is gone — the PIP carries the
+           colour; the ring only says «now». */
+        &--current {
+            box-shadow: 0 0 0 .09rem rgba(8, 14, 22, 0.92), 0 0 0 .15rem rgba(232, 241, 251, 0.75);
+        }
     }
     /* The magnified stop's own content — laid out at its FINAL width from
        birth (no re-wrap while the cell opens under it) and crossfaded by the
@@ -22298,15 +22349,34 @@ body.con-start-ceremony {
            so the landing rect the deck flight was aimed at cannot move when
            «Вскрываем карту» yields to the breakdown. */
         .con-reveal__body--result {
-            flex: 0 1 auto;
+            /* ⚠️ THE BAND, NOT THE CONTENT. This was `flex: 0 1 auto` — the
+               composition sized itself and centred in whatever was left, which
+               is the same content fixed point the drawn body had: there was
+               nothing for a fit to measure, so the two cards rendered at their
+               constants and the stage read half empty exactly where it was
+               largest (measured 51 % of the zone at BOTH 1080 and 4K — the
+               tell-tale of a band that is never read). `flex: 1` gives the
+               solve a real budget; the cards still CENTRE inside it. */
+            flex: 1;
             align-self: center;
             width: 100%;
             min-height: 0;
             gap: 1rem;
             padding: .2rem 0;
 
-            .con-reveal__source { zoom: calc(0.82 * var(--con-ui-scale, 1)); }
-            .con-reveal__revealed { zoom: calc(1 * var(--con-ui-scale, 1)); }
+            /* The embedded step-down constants stay — a workspace column also
+               carries a breadcrumb and a status bar, so its tuning is genuinely
+               not the band's. They now COMPOSE the solved factor instead of
+               replacing it: this selector is (0,3,0) and silently out-ranked
+               the (0,1,0) rule the fit writes through, which is the same
+               «a more specific rule re-states a solved value and unsolves it»
+               trap the strip's gap already paid for. */
+            .con-reveal__source {
+                zoom: calc(0.82 * var(--con-ui-scale, 1) * var(--con-reveal-verdict-fit, 1));
+            }
+            .con-reveal__revealed {
+                zoom: calc(1 * var(--con-ui-scale, 1) * var(--con-reveal-verdict-fit, 1));
+            }
             .con-reveal__link-beam { width: 3.2rem; }
             .con-reveal__verdict-slot { width: 22rem; }
         }
@@ -22596,7 +22666,12 @@ body.con-start-ceremony {
         flex-direction: column;
         align-items: center;
         gap: .4rem;
-        zoom: calc(0.92 * var(--con-ui-scale, 1));
+        /* `--con-reveal-verdict-fit` is the SOLVED band factor (see
+           `verdictStageFit`). It COMPOSES with the authored constant rather
+           than replacing it: the constant is the standalone band's tuning and
+           the fit is the workspace zone's, and a host that never solves one
+           gets the historical size exactly (the default is 1). */
+        zoom: calc(0.92 * var(--con-ui-scale, 1) * var(--con-reveal-verdict-fit, 1));
         /* The card sits inside the motion-anchor wrapper now (the FLIP target
            of the composer → result handoff) — a descendant match, not `>`. */
         :is(.card-container, .pcard) { margin: 0; }
@@ -22680,7 +22755,7 @@ body.con-start-ceremony {
         align-self: center;
         border-radius: .6rem;
         padding: .4rem;
-        zoom: calc(1.08 * var(--con-ui-scale, 1));
+        zoom: calc(1.08 * var(--con-ui-scale, 1) * var(--con-reveal-verdict-fit, 1));
         > :is(.card-container, .pcard) { margin: 0; }
 
         &--met { box-shadow: 0 0 0 .1rem fade(@con-mint, 75%), 0 0 1.3rem fade(@con-mint, 20%); }
@@ -22755,6 +22830,11 @@ body.con-start-ceremony {
        so the revealed card's verdict GLOW is never clipped (the drawn mode's
        `overflow-y:auto` was the clip). */
     &__body--result {
+        /* The cards CENTRE inside the band (they are a row of different-sized
+           things, so `center` is right here) — but the band itself is the whole
+           zone: `.con-reveal__body` is already `flex: 1; min-height: 0`, and the
+           root/frame chain above it now carries the height (see «THE HEIGHT HALF
+           OF THE SAME SENTENCE»), so the solved fit has a real budget to spend. */
         align-items: center;
         justify-content: center;
         overflow: visible;

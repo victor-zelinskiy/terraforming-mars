@@ -3990,7 +3990,15 @@ export default defineComponent({
     resultRevealPresentation(): ResultRevealPresentation {
       const lr = this.playerView.lastReveal;
       return resultRevealPresentation({
-        present: lr !== undefined,
+        // …AND THE SAME STAGE GATE. A copied action is not only a draw: repeat
+        // «Поиск жизни» at stage 7 and the server turns a card over inside the
+        // response that answers the stage-5 pick, exactly as it draws — and
+        // `lastReveal` reaches this computed with nothing between it and the
+        // screen. `action` is the ACTING card, so the gate reads it directly.
+        // (The artifact families a copied action can produce, and the stance of
+        // each, are declared in `hydroStepAdmission.COPIED_ACTION_STANCES` and
+        // guarded by `tests/console/copiedActionStageGuard.spec.ts`.)
+        present: lr !== undefined && !hydroStepQueuedFor(lr.action),
         acknowledged: lr !== undefined && `${lr.action}|${lr.revealed.name}` === this.dismissedRevealKey,
         workspaceOwns: workspaceClaimsDeckCheck(lr?.action),
         // «ДЕЙСТВИЯ КАРТ» owns a verdict stage of its own (hero column + deck

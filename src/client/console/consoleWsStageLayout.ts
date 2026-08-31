@@ -186,6 +186,55 @@ export function focusHeadroomPx(renderedSlotW: number, ui: number): number {
   return renderedSlotW * (WS_STAGE_FOCUS_SCALE - 1) / 2 + FOCUS_GLOW_PX * ui;
 }
 
+/**
+ * ── THE VERDICT STAGE'S FIT (a row of DIFFERENT things) ───────────────────
+ *
+ * `wsStageLayout` solves N identical slots. The deck-check verdict is not that
+ * shape: it is `[source card] → [revealed card] [verdict panel]`, where the two
+ * CARDS scale and the connector and the text panel do not. So it gets its own
+ * one-number solve — and it needs one, because it had none: the two cards
+ * rendered at their authored constants (tuned for the standalone full-bleed
+ * band) and inside a workspace zone that is exactly half the room. Measured
+ * 460 px of a 908 px zone at 1080, 920 px of 1804 px at 4K — 51 % at both, so
+ * «Поиск жизни» read as a small cluster adrift in an empty stage precisely
+ * where the stage was largest.
+ *
+ * The result COMPOSES with the authored constants (it never replaces them —
+ * the same discipline as the reveal's per-count boost vs its host factor), so
+ * the standalone band is untouched by construction: it simply never solves one.
+ *
+ * BOTH DIRECTIONS. A starved band shrinks rather than crops (the engine's
+ * standing rule: small honest cards beat cropped ones), and the ceiling stops
+ * a huge band from turning a card into a poster.
+ */
+export type VerdictStageFitInput = {
+  /** The band's own content box (the caller has subtracted its padding). */
+  availW: number;
+  availH: number;
+  /** Natural width of the parts that SCALE (the two card slots), at factor 1. */
+  cardsW: number;
+  /** Natural width of the parts that do NOT (connector + verdict panel + gaps). */
+  fixedW: number;
+  /** Natural height of the tallest scaling part, at factor 1. */
+  natH: number;
+};
+
+const VERDICT_FIT_MIN = 0.6;
+const VERDICT_FIT_MAX = 1.9;
+
+export function verdictStageFit(o: VerdictStageFitInput): number {
+  if (o.natH <= 0 || o.cardsW <= 0) {
+    return 1;
+  }
+  const fH = o.availH / o.natH;
+  // The 2 % width margin is the shared engine's, for the same reason: a line
+  // solved to exactly the available width breaks on a sub-pixel disagreement.
+  const room = 0.98 * o.availW - o.fixedW;
+  const fW = room > 0 ? room / o.cardsW : VERDICT_FIT_MIN;
+  const f = Math.min(fH, fW, VERDICT_FIT_MAX);
+  return snapDown(Math.max(VERDICT_FIT_MIN, f), ZOOM_STEP);
+}
+
 /** Breathing room between the source seat and the nearest card, in px @1×. */
 const SEAT_CLEARANCE_PX = 18;
 

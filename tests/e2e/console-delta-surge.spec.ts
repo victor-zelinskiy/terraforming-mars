@@ -285,5 +285,46 @@ test.describe('Delta Surge — the ordered multi-reward traversal · fhd', () =>
     expect(result.excl, 'nothing excluded on this path').toBe(0);
     await page.evaluate(() => (window as unknown as {__probeStop?: () => void}).__probeStop?.());
     await shoot(page, '04-result');
+
+    // ── THE TRACK'S OWN HISTORY — a crossing that PAID is not a miss. ──────
+    //
+    // The stop list held landings only, so under the modifier the track marked
+    // every stage it had just paid the player for as «Прошёл мимо — без
+    // награды»: the ↷ glyph on four consecutive cells the player had, in the
+    // very same move, been given steel, heat production, M€ production and
+    // titanium production for.
+    // A finished flow LEAVES (it never folds back to its own browse layer), so
+    // the track is re-opened the way the player would: the wheel, then the
+    // Hydronetwork — the same route this spec used at the start.
+    await press(page, 'Enter', 1600); // A — end the result, back to the board
+    await waitForBoardHome(page, 25);
+    await press(page, 'Period', 1100);
+    await press(page, 'ArrowLeft', 1600);
+    await page.waitForSelector('.con-hydro__stop', {timeout: 20_000});
+    await page.waitForTimeout(900);
+    const marks = await page.evaluate(() => {
+      const out: Record<string, string> = {};
+      document.querySelectorAll('.con-hydro__stop').forEach((cell) => {
+        const pos = cell.getAttribute('data-hydro-stop') ?? '?';
+        const badge = cell.querySelector('.con-hydro__stop-badge');
+        out[pos] = badge === null ? '' :
+          badge.className.replace(/.*con-hydro__stop-badge--(\w+).*/, '$1');
+      });
+      return {
+        badges: out,
+        // …and the TRAIL: one mark per player who has been here. The viewer's
+        // own is the only one in a solo game, but the row is what makes the
+        // MarsBot readable as somebody moving along the same track.
+        trailCells: document.querySelectorAll('.con-hydro__stop-trail').length,
+        viewerMarks: document.querySelectorAll('.con-hydro__trailmark--viewer').length,
+      };
+    });
+    for (const pos of ['1', '2', '3', '4']) {
+      expect(marks.badges[pos], `stage ${pos} was PAID in passing (${JSON.stringify(marks.badges)})`)
+        .toBe('crossed');
+    }
+    expect(marks.trailCells, 'the reached cells carry a trail').toBeGreaterThanOrEqual(5);
+    expect(marks.viewerMarks, 'and the viewer is on it').toBeGreaterThanOrEqual(5);
+    await shoot(page, '05-track-history');
   });
 });

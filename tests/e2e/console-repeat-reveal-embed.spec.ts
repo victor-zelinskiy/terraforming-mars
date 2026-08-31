@@ -194,6 +194,55 @@ for (const profile of PROFILES) {
       });
       expect(fits.ok, `the verdict stage must fit its zone: ${fits.why}`).toBeTruthy();
 
+      // …AND IT MUST SPEND IT. «Fits» and «uses» are different claims, and only
+      // the first was ever asserted: the verdict is a row of NATURAL-size cards
+      // centred in whatever band it is given, so it reads as a small cluster
+      // adrift in an empty stage exactly when the stage is largest (4K).
+      const spend = await page.evaluate(() => {
+        const zone = document.querySelector('[data-embed-slot="hand-outcome"]');
+        const cards = Array.from(document.querySelectorAll(
+          '.con-reveal__body--result :is(.con-reveal__source, .con-reveal__revealed) .card-container, ' +
+          '.con-reveal__body--result :is(.con-reveal__source, .con-reveal__revealed) .pcard'));
+        const zh = zone?.getBoundingClientRect().height ?? 0;
+        const tallest = Math.max(0, ...cards.map((c) => c.getBoundingClientRect().height));
+        const z = zone?.getBoundingClientRect();
+        // NOTHING MAY BE CLIPPED, and «the body fits» does not say that: the
+        // body has `overflow: visible`, so its own rect stays inside the zone
+        // while its children hang out of it — which is exactly how an
+        // over-solved fit rendered both cards cut off at the bottom.
+        const parts = Array.from(document.querySelectorAll(
+          '.con-reveal__body--result > *'));
+        const spill = z === undefined ? -1 : parts.filter((el) => {
+          const r = el.getBoundingClientRect();
+          return r.height > 1 && (r.top < z.top - 1 || r.bottom > z.bottom + 1 ||
+            r.left < z.left - 1 || r.right > z.right + 1);
+        }).length;
+        return {
+          zh: Math.round(zh), tallest: Math.round(tallest), n: cards.length, spill,
+          // The VERDICT PANEL is content, not decoration — an over-solved row
+          // wrapped it onto a line with no height and it vanished entirely.
+          verdictPanel: document.querySelectorAll(
+            '.con-reveal__body--result .con-reveal__verdict-slot').length,
+          // The band states its own solve — read it, never guess the input.
+          fit: document.querySelector('.con-reveal__body--result')
+            ?.getAttribute('data-verdict-fit') ?? '(no fit)',
+        };
+      });
+      const pct = Math.round(100 * spend.tallest / Math.max(1, spend.zh));
+
+      console.log(`[${profile.tag}] verdict card ${spend.tallest}px of ${spend.zh}px zone ` +
+        `(${pct}%), cards=${spend.n}, ${spend.fit}`);
+      expect(spend.n, 'the source and the revealed card are both on stage').toBe(2);
+      expect(spend.spill, `nothing hangs out of the zone — ${spend.fit}`).toBe(0);
+      expect(spend.verdictPanel, `the verdict panel is still on stage — ${spend.fit}`).toBe(1);
+      // The band is a ROW of different things, so the cards cannot reach the
+      // 70 % a pure card grid does — the connector and the verdict panel are
+      // real content beside them. 60 % is the honest bar for this shape, and it
+      // is well clear of the 51 % the authored constants produced with no fit
+      // at all (measured identically at 1080 and at 4K, which is what proved
+      // the band was never being read).
+      expect(pct, `the verdict spends its band — ${spend.fit}`).toBeGreaterThan(60);
+
       // ── B IS DEAD on a terminal verdict (it would park the workspace and the
       //    server-side `lastReveal` would return as the legacy modal). ───────
       await press(page, 'Escape', 900);

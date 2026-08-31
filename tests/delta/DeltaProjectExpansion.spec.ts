@@ -19,6 +19,7 @@ import {VictoryPointsBreakdownBuilder} from '../../src/server/game/VictoryPoints
 import {Game} from '../../src/server/Game';
 import {cast} from '@/common/utils/utils';
 import {IPlayer} from '@/server/IPlayer';
+import {DeltaSurge} from '../../src/server/cards/delta/DeltaSurge';
 
 function playAllDeltaTrackTags(p: IPlayer) {
   p.playedCards.push(fakeCard({tags: DELTA_TRACK_TAGS.filter((t) => t !== undefined)}));
@@ -618,6 +619,63 @@ describe('DeltaProjectExpansion', () => {
       DeltaProjectExpansion.advance(player, 3); // jumps 0 → 3
       const stops = player.deltaProjectData!.stops!;
       expect(stops.map((s) => s.position)).deep.eq([3]);
+    });
+
+    /*
+     * …BUT A CROSSING THAT PAYS IS HISTORY TOO. Under a traversal modifier
+     * («Нагонная волна» / Delta Surge) every crossed stage pays, and the stop
+     * list was the ONLY record of «what happened at this stage» — so the client
+     * had two readings for three facts and marked every stage the player had
+     * just been paid for as «Прошёл мимо — без награды».
+     */
+    it('records a PAID crossing, marked as one, alongside the landing', () => {
+      player.playedCards.push(new DeltaSurge());
+      player.deltaProjectData!.position = 2;
+      player.energy = 2;
+      playAllDeltaTrackTags(player);
+      // 2 → 4: crosses stage 3 (+2 M€ production) and lands on 4. Both resolve
+      // instantly — a range with a CHOICE stage in it would block the deferred
+      // queue on its own prompt and the later stages would never run.
+      DeltaProjectExpansion.advance(player, 2);
+      runAllActions(game);
+
+      const stops = player.deltaProjectData!.stops!;
+      expect(stops.map((s) => s.position).sort((a, b) => a - b),
+        'the crossed stage AND the landing').deep.eq([3, 4]);
+      expect(stops.find((s) => s.position === 3)!.crossed, 'stage 3 was crossed').eq(true);
+      expect(stops.find((s) => s.position === 4)!.crossed,
+        'the destination is a LANDING, not a crossing').eq(undefined);
+    });
+
+    it('a WAIVED crossing records nothing — there the «no reward» reading is true', () => {
+      player.playedCards.push(new DeltaSurge());
+      player.deltaProjectData!.position = 5;
+      player.energy = 3;
+      playAllDeltaTrackTags(player);
+      // 5 → 8: crosses 6 (plants) and 7 («reuse a used blue action», consciously
+      // DECLINED) and lands on 8.
+      DeltaProjectExpansion.advance(player, 3, undefined, {waivedTargetPositions: [7]});
+      runAllActions(game);
+
+      const stops = player.deltaProjectData!.stops!;
+      expect(stops.some((s) => s.position === 7), 'the declined stage is not history').eq(false);
+      expect(stops.some((s) => s.position === 6 && s.crossed === true),
+        'but the stage that DID pay is').eq(true);
+    });
+
+    it('at most ONE record per position — the history relies on it', () => {
+      player.playedCards.push(new DeltaSurge());
+      player.deltaProjectData!.position = 2;
+      player.energy = 4;
+      playAllDeltaTrackTags(player);
+      DeltaProjectExpansion.advance(player, 2);
+      runAllActions(game);
+      player.deltaProjectData!.usedThisGeneration = false;
+      player.energy = 4;
+      DeltaProjectExpansion.advance(player, 2); // 4 → 6, crossing 5's draw
+      runAllActions(game);
+      const positions = player.deltaProjectData!.stops!.map((s) => s.position);
+      expect(positions.length, `no duplicates in ${positions.join(',')}`).eq(new Set(positions).size);
     });
   });
 

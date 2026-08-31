@@ -309,7 +309,17 @@ describe('DeltaSurge', () => {
       expect(player.tags.extraJovianTags).eq(1);
     });
 
-    it('a crossed choice is granted but never recorded as a STOP', () => {
+    /*
+     * ⚠️ THIS SPEC USED TO PIN THE DEFECT AS THE CONTRACT — it asserted that a
+     * crossed choice «is granted but never recorded as a STOP», and that was
+     * exactly what made the track lie: the stop list is the ONLY record of what
+     * happened at a stage, so a crossing that paid fell into the same bucket as
+     * one that did not and the console marked it «Прошёл мимо — без награды»
+     * over a reward the player had just been given. A crossing is history too —
+     * marked as a crossing, so «I stopped for this» and «this was paid to me in
+     * passing» stay two different facts.
+     */
+    it('a crossed choice is recorded as a CROSSING, with the answer it was given', () => {
       player.energy = 2;
       DeltaProjectExpansion.advance(player, 2);
       runAllActions(game);
@@ -319,12 +329,18 @@ describe('DeltaSurge', () => {
       dest.options[1].cb();
       expect(player.steel).eq(2);
       expect(player.production.heat).eq(1);
-      // History: ONE stop (the landing), carrying ITS choice; the crossed
-      // stage 1 left no stop and its answer was not written anywhere else.
+
       const stops = player.deltaProjectData!.stops!;
-      expect(stops).has.length(1);
-      expect(stops[0].position).eq(2);
-      expect(stops[0].choice).eq(1);
+      expect(stops).has.length(2);
+      const crossed = stops.find((st) => st.position === 1)!;
+      const landing = stops.find((st) => st.position === 2)!;
+      expect(crossed.crossed, 'stage 1 was crossed, and paid').eq(true);
+      // …and it carries ITS OWN answer: the choice the player made in passing
+      // used to be written nowhere at all, so the history could not say which
+      // alternative a crossed choice stage had taken.
+      expect(crossed.choice, 'the steel alternative, chosen in passing').eq(0);
+      expect(landing.crossed, 'the destination is a landing').eq(undefined);
+      expect(landing.choice, 'carrying its own choice, as always').eq(1);
     });
 
     it('the journal names the activation when crossed stages pay', () => {

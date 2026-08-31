@@ -69,9 +69,36 @@
             <span v-else-if="stop.vm.stage.vp !== undefined" class="con-hydro__stop-vp">{{ stop.vm.stage.vp }}<small>{{ $t('VP') }}</small></span>
             <span v-else class="con-hydro__stop-flag" aria-hidden="true">⚑</span>
             <span class="con-hydro__stop-num">{{ stop.position }}</span>
+            <!-- The VIEWER's own reading of this stage, in three states that
+                 are three different facts: ✓ stopped and took it · ⇢ went
+                 through and was PAID anyway (a traversal modifier) · ↷ went
+                 through with nothing. The middle one had no glyph at all, so
+                 «Нагонная волна» — whose whole point is that crossings pay —
+                 marked every stage it had just paid for as a miss. -->
             <span v-if="stop.vm.rewardedByViewer" class="con-hydro__stop-badge con-hydro__stop-badge--done" aria-hidden="true">✓</span>
+            <span v-else-if="stop.vm.crossedByViewer" class="con-hydro__stop-badge con-hydro__stop-badge--crossed" aria-hidden="true">⇢</span>
             <span v-else-if="stop.vm.skippedByViewer" class="con-hydro__stop-badge con-hydro__stop-badge--skip" aria-hidden="true">↷</span>
             <span v-else-if="stop.gradeGlyph !== ''" class="con-hydro__stop-badge con-hydro__stop-badge--grade" aria-hidden="true">{{ stop.gradeGlyph }}</span>
+          </div>
+          <!-- ── THE TRAIL — every player this cell has something to say
+               about, one small mark each, in their own colour.
+
+               The track spoke about the VIEWER only: an opponent left no trace
+               on the stages it had walked, and since the opponent is usually
+               the MarsBot, the bot read as a dot that teleports rather than as
+               somebody moving along the same track. The marks are the history
+               half of «another player on this track»; the marker row below is
+               the where-it-stands-now half. A cell nobody has reached renders
+               nothing (a row of grey «not yet» marks is noise on every cell
+               ahead of the field). -->
+          <div v-if="stop.vm.trail.length > 0" class="con-hydro__stop-trail" aria-hidden="true">
+            <span v-for="t in stop.vm.trail" :key="t.color"
+                  class="con-hydro__trailmark"
+                  :class="[
+                    'player_bg_color_' + t.color,
+                    'con-hydro__trailmark--' + t.status,
+                    {'con-hydro__trailmark--viewer': t.isViewer},
+                  ]"></span>
           </div>
           <!-- The magnified stop's own content CROSSFADES with the cell's
                growth (a bare v-if pop is the one thing this rail may never
@@ -1500,6 +1527,12 @@ export default defineComponent({
       if (vmStop.rewardedByViewer) {
         return {kind: 'built', text: $t('Took the reward')};
       }
+      // A CROSSING THAT PAID is not a miss — and this line is where the lie was
+      // loudest: the stage panel said «Прошёл мимо — без награды» about a reward
+      // the player had just been given.
+      if (vmStop.crossedByViewer) {
+        return {kind: 'built', text: $t('Reward granted in passing')};
+      }
       if (vmStop.skippedByViewer) {
         return {kind: 'passed', text: $t('Passed through — no reward')};
       }
@@ -1518,6 +1551,7 @@ export default defineComponent({
       switch (this.model.viewerStatusAtDetails) {
       case 'current': return $t('Here now');
       case 'rewarded': return $t('Took the reward');
+      case 'crossed': return $t('Reward granted in passing');
       case 'passed': return $t(this.startSelected ? 'Advanced through' : 'Passed through — no reward');
       default: return $t('Not reached yet');
       }

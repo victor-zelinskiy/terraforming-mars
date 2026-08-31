@@ -503,3 +503,100 @@ describe('buildHydroModel — the ordered resource plan', () => {
     expect(starved.canConfirm).eq(false);
   });
 });
+
+describe('the track HISTORY speaks about every player, and tells a paid crossing from a miss', () => {
+  /*
+   * THE BUG. Under a traversal modifier («Нагонная волна» / Delta Surge) a stage
+   * the marker goes straight THROUGH still pays. The stop list held only
+   * landings, so the model had two readings — «stopped here» and «not in the
+   * list» — and a crossed-but-paid stage fell into the second: the track marked
+   * seven stages the player had just been paid for as «Прошёл мимо — без
+   * награды». The fact is server-authoritative (`DeltaStop.crossed`), because
+   * whether a modifier was in the tableau AT THE TIME is not in the view and the
+   * card can leave.
+   */
+  function bot(overrides: Partial<HydroPlayerPos> = {}): HydroPlayerPos {
+    return {color: 'neutral', name: 'Bot', position: 0, isViewer: false, isMarsBot: true, stops: [], ...overrides};
+  }
+
+  it('a CROSSED-and-paid stage is a reward taken, never a miss', () => {
+    const m = buildHydroModel(input({
+      players: [viewer({
+        position: 7,
+        stops: [
+          {position: 7, generation: 3},                  // the landing
+          {position: 5, generation: 3, crossed: true},   // paid in passing
+        ],
+      })],
+      preview: fullPreview(3, {currentPosition: 7}),
+      selectedPosition: 5,
+    }));
+    expect(m.stages[5].crossedByViewer, 'stage 5 was paid in passing').to.eq(true);
+    expect(m.stages[5].skippedByViewer, 'and is NOT a miss').to.eq(false);
+    expect(m.stages[5].rewardedByViewer, 'nor a landing — the two are different facts').to.eq(false);
+    expect(m.viewerStatusAtDetails).to.eq('crossed');
+  });
+
+  it('a crossing with NO payment still reads as the miss it is', () => {
+    // No modifier: the marker went through and nothing was recorded.
+    const m = buildHydroModel(input({
+      players: [viewer({position: 7, stops: [{position: 7, generation: 3}]})],
+      preview: fullPreview(3, {currentPosition: 7}),
+      selectedPosition: 5,
+    }));
+    expect(m.stages[5].skippedByViewer).to.eq(true);
+    expect(m.stages[5].crossedByViewer).to.eq(false);
+    expect(m.viewerStatusAtDetails).to.eq('passed');
+  });
+
+  it('a LANDING is still a landing (old saves carry no `crossed` at all)', () => {
+    const m = buildHydroModel(input({
+      players: [viewer({position: 7, stops: [{position: 3, generation: 1}, {position: 7, generation: 3}]})],
+      preview: fullPreview(3, {currentPosition: 7}),
+      selectedPosition: 3,
+    }));
+    expect(m.stages[3].rewardedByViewer).to.eq(true);
+    expect(m.stages[3].crossedByViewer).to.eq(false);
+    expect(m.viewerStatusAtDetails).to.eq('rewarded');
+  });
+
+  it('THE TRAIL names every player who has been here — the MarsBot included', () => {
+    // The track used to speak about the viewer only, so the bot left no trace on
+    // the stages it had walked: a dot that teleports rather than somebody moving
+    // along the same track.
+    const m = buildHydroModel(input({
+      players: [
+        viewer({position: 6, stops: [{position: 6, generation: 2}, {position: 4, generation: 2, crossed: true}]}),
+        bot({position: 3}),
+      ],
+      preview: fullPreview(3, {currentPosition: 6}),
+    }));
+    const at = (pos: number) => m.stages[pos].trail.map((t) => `${t.color}:${t.status}`);
+    // Cell 2: both have gone past it — the viewer with nothing, the bot too.
+    expect(at(2)).to.deep.equal(['red:passed', 'neutral:passed']);
+    // Cell 3: the bot STANDS there; the viewer walked through.
+    expect(at(3)).to.deep.equal(['red:passed', 'neutral:current']);
+    // Cell 4: the viewer was PAID in passing; the bot has not reached it.
+    expect(at(4)).to.deep.equal(['red:crossed']);
+    // Cell 6: the viewer stands there.
+    expect(at(6)).to.deep.equal(['red:current']);
+  });
+
+  it('a cell NOBODY has reached carries no marks (never a row of «not yet»)', () => {
+    const m = buildHydroModel(input({
+      players: [viewer({position: 2}), bot({position: 1})],
+      preview: fullPreview(3, {currentPosition: 2}),
+    }));
+    expect(m.stages[9].trail).to.deep.equal([]);
+    expect(m.stages[2].trail.length, 'but a reached one does').to.be.greaterThan(0);
+  });
+
+  it('the VIEWER reads first in the trail, whatever the seating order', () => {
+    const m = buildHydroModel(input({
+      players: [bot({position: 4}), viewer({position: 4})],
+      preview: fullPreview(3, {currentPosition: 4}),
+    }));
+    expect(m.stages[4].trail[0].isViewer, 'the viewer leads').to.eq(true);
+    expect(m.stages[4].trail.length).to.eq(2);
+  });
+});

@@ -705,6 +705,23 @@ export class DeltaProjectExpansion {
             if (repeatParkStanding) {
               clearBatchTail(player);
             }
+            // A CROSSED STAGE THAT PAYS IS HISTORY TOO. The stop list was the
+            // only record of «what happened at this stage», and it held nothing
+            // but landings — so under the modifier the track marked every stage
+            // it had just paid the player for as «Прошёл мимо — без награды».
+            // Recorded on the same terms a landing is: the reward path was
+            // TAKEN (a fizzle for want of a candidate names itself in the log
+            // and reads the same way at a landing, so the two stay consistent);
+            // a stage the player consciously WAIVED records nothing, because
+            // there the «no reward» reading is the true one.
+            if (position !== newPos && !waived.has(position)) {
+              if (progress.stops === undefined) {
+                progress.stops = [];
+              }
+              if (!progress.stops.some((s) => s.position === position)) {
+                progress.stops.push({position, generation: game.generation, crossed: true});
+              }
+            }
             repeatParkStanding = DeltaProjectExpansion.resolveReward(
               player, position, waived.has(position), answersByPos.get(position));
             return undefined;

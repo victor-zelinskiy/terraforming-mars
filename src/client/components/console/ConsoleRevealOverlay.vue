@@ -467,7 +467,9 @@ import {GamepadIntent, NavDirection} from '@/client/gamepad/gamepadPollModel';
 import {consoleActionOf, ConsoleAction} from '@/client/console/composables/consoleActionModel';
 import {consoleReducedMotionActive} from '@/client/console/composables/useConsoleReducedMotion';
 import {conUiScale} from '@/client/console/consoleLayoutProfile';
-import {sourceSeatReservePx, wsStageLayout, wsStageLayoutStyle} from '@/client/console/consoleWsStageLayout';
+import {
+  sourceSeatReservePx, verdictStageFit, wsStageLayout, wsStageLayoutStyle,
+} from '@/client/console/consoleWsStageLayout';
 import ConsoleWsStageHead from '@/client/components/console/foundation/ConsoleWsStageHead.vue';
 import ConsoleRevealVerdict from '@/client/components/console/foundation/ConsoleRevealVerdict.vue';
 import {focusKicker} from '@/client/console/consoleActionFlow';
@@ -639,6 +641,11 @@ export default defineComponent({
       embedLayoutStyle: {} as Record<string, string>,
       embedFitRetries: 0,
       embedFitScheduled: false,
+      /** The solved verdict-band factor (0 = not measured yet). */
+      verdictFit: 0,
+      stopVerdictResize: undefined as (() => void) | undefined,
+      stopVerdictObs: undefined as (() => void) | undefined,
+      verdictSettleTimer: undefined as number | undefined,
       stopFitResize: undefined as (() => void) | undefined,
       stopFitObs: undefined as (() => void) | undefined,
       /** …and the ROW's own observer (attached on the first real measure —
@@ -663,6 +670,16 @@ export default defineComponent({
     /** The measured embedded fit applies — the watcher owns install/teardown. */
     embedFitEligible(): boolean {
       return this.embedded && this.mode === 'drawn';
+    },
+    /**
+     * …and the VERDICT stage has a fit of its own, on the same lifecycle. Its
+     * shape is a row of DIFFERENT things (see `verdictStageFit`), so it solves
+     * one factor rather than a slot layout — but the reason is identical: the
+     * authored constants are the standalone band's, and inside a workspace the
+     * zone is the room.
+     */
+    verdictFitEligible(): boolean {
+      return this.embedded && this.mode === 'result';
     },
     drawnSource(): CardDrawRevealSource | undefined {
       const source = this.drawnEvent?.source;
@@ -1219,11 +1236,27 @@ export default defineComponent({
     sourceSeat() {
       void this.$nextTick(() => this.scheduleEmbedFit());
     },
+    verdictFitEligible(on: boolean) {
+      if (on) {
+        this.installVerdictFit();
+      } else {
+        this.teardownVerdictFit();
+      }
+    },
+    // The verdict's own content arrives in beats (the card flies, then the
+    // panel resolves), and none of those moves the BAND — so the fit is
+    // re-asked on the stage it is drawn for.
+    resultStage() {
+      if (this.verdictFitEligible) {
+        void this.$nextTick(() => this.fitVerdictStage());
+      }
+    },
     embedFitEligible(on: boolean) {
       if (on) {
         this.installEmbedFit();
       } else {
         this.teardownEmbedFit();
+        this.teardownVerdictFit();
       }
     },
     // Single-card reveal: (re-)open the fullscreen whenever it should be
@@ -1293,6 +1326,9 @@ export default defineComponent({
     if (this.embedFitEligible) {
       this.installEmbedFit();
     }
+    if (this.verdictFitEligible) {
+      this.installVerdictFit();
+    }
   },
   beforeUnmount() {
     setRevealVeilSuppressed(false);
@@ -1348,6 +1384,99 @@ export default defineComponent({
         this.settleFitTimer = undefined;
       }
       this.embedFitZoom = 0;
+    },
+    /**
+     * INSTALL / TEARDOWN the verdict fit — the same protocol as the strip fit
+     * (a `$nextTick` first pass, a resize listener, an observer on the box that
+     * is actually measured, and a settle backstop for a growth that produced no
+     * observable resize).
+     */
+    installVerdictFit(): void {
+      if (this.stopVerdictResize !== undefined) {
+        return;
+      }
+      void this.$nextTick(() => this.fitVerdictStage());
+      this.stopVerdictResize = useEventListener(window, 'resize', () => this.fitVerdictStage());
+      const root = this.$refs.rootEl as HTMLElement | undefined;
+      if (root !== undefined && root !== null) {
+        this.stopVerdictObs = useResizeObserver(root, () => this.fitVerdictStage()).stop;
+      }
+      this.verdictSettleTimer = window.setTimeout(() => {
+        this.verdictSettleTimer = undefined;
+        this.fitVerdictStage();
+      }, motionMs(480));
+    },
+    teardownVerdictFit(): void {
+      this.stopVerdictResize?.();
+      this.stopVerdictResize = undefined;
+      this.stopVerdictObs?.();
+      this.stopVerdictObs = undefined;
+      if (this.verdictSettleTimer !== undefined) {
+        window.clearTimeout(this.verdictSettleTimer);
+        this.verdictSettleTimer = undefined;
+      }
+      this.verdictFit = 0;
+    },
+    /**
+     * SOLVE the verdict band's one factor. Probe protocol as everywhere else:
+     * force factor 1 with a direct style write, measure the natural boxes
+     * synchronously (no paint happens inside one JS turn), write the solved
+     * value back, and mirror it reactively so Vue's next patch cannot fight it.
+     */
+    fitVerdictStage(): void {
+      if (!this.embedded || this.mode !== 'result' || typeof window === 'undefined') {
+        return;
+      }
+      const root = this.$refs.rootEl as HTMLElement | undefined;
+      const body = root?.querySelector<HTMLElement>('.con-reveal__body--result');
+      if (root === undefined || root === null || body === null || body === undefined) {
+        return;
+      }
+      const scaling = Array.from(body.querySelectorAll<HTMLElement>(
+        ':scope > :is(.con-reveal__source, .con-reveal__revealed)'));
+      if (scaling.length === 0) {
+        return;
+      }
+      body.style.setProperty('--con-reveal-verdict-fit', '1');
+      const cs = window.getComputedStyle(body);
+      const padX = (parseFloat(cs.paddingLeft) || 0) + (parseFloat(cs.paddingRight) || 0);
+      const padY = (parseFloat(cs.paddingTop) || 0) + (parseFloat(cs.paddingBottom) || 0);
+      const gap = parseFloat(cs.columnGap) || parseFloat(cs.gap) || 0;
+      const availW = body.clientWidth - padX;
+      const availH = body.clientHeight - padY;
+      if (availW <= 0 || availH <= 0) {
+        body.style.removeProperty('--con-reveal-verdict-fit');
+        return;
+      }
+      // ⚠️ ONE COORDINATE SPACE, AND IT IS THE SCREEN'S. These slots carry a
+      // CSS `zoom`, and `offsetWidth`/`offsetHeight` report the element's own
+      // UNZOOMED box while `clientWidth`/`clientHeight` on the (unzoomed) band
+      // report screen pixels. Mixing them handed the solve a budget inflated by
+      // the whole `--con-ui-scale` factor: at 4K it solved `fH = 3.15` for a
+      // composition that actually needed 1.57, hit the ceiling instead, and
+      // rendered both cards clipped with the verdict panel pushed off the line.
+      // Every term below is a bounding rect — the space the budget is in.
+      let cardsW = 0;
+      let natH = 0;
+      for (const el of scaling) {
+        const r = el.getBoundingClientRect();
+        cardsW += r.width;
+        natH = Math.max(natH, r.height);
+      }
+      // Everything the factor does NOT scale still occupies the line.
+      let fixedW = gap * Math.max(0, body.children.length - 1);
+      for (const el of Array.from(body.children)) {
+        if (!scaling.includes(el as HTMLElement)) {
+          fixedW += (el as HTMLElement).getBoundingClientRect().width;
+        }
+      }
+      const f = verdictStageFit({availW, availH, cardsW, fixedW, natH});
+      this.verdictFit = f;
+      body.style.setProperty('--con-reveal-verdict-fit', f.toFixed(3));
+      // The band states its own solve — same reason the strip does.
+      body.setAttribute('data-verdict-fit',
+        `f=${f} w=${Math.round(availW)} h=${Math.round(availH)} ` +
+        `cards=${Math.round(cardsW)} fixed=${Math.round(fixedW)} nat=${Math.round(natH)}`);
     },
     /** rAF-coalesced embedded fit for resize bursts (mirrors the buy host). */
     scheduleEmbedFit(): void {
