@@ -206,6 +206,30 @@ type WorkspaceKindSpec = {
    * how the next one gets forgotten.
    */
   yieldsToBoard?: boolean,
+  /**
+   * HOW THIS HOST CARRIES A NESTED **WORKSPACE**.
+   *
+   * `hosts` says WHETHER a step may stand inside; this says WHERE. Two shapes,
+   * and the line between them is what the guest IS:
+   *
+   *  · `'embed'` (default) — the guest teleports into the host's own zone. Right
+   *    for an OUTCOME surface (a reveal, a deck pick, a task host): a card row
+   *    is a small thing beside the flow that produced it, and the host's frame
+   *    is the room.
+   *  · `'scene'` — a nested FULL SCREEN takes the scene outright (`overlay`),
+   *    and the nesting is stated where nesting belongs: in the HEADER. Right for
+   *    a host that is itself a full-height instrument. The Hydronetwork's track
+   *    strip occupies the top third of the workspace, so the colonies a repeated
+   *    «Летающая платформа» opens got the remainder — a whole colony screen
+   *    squeezed under a track it has nothing to do with, its own fit fighting
+   *    the host's. Handing over the scene is also simply FEWER MOVING PARTS: no
+   *    teleport, no zone, no seat reserve, no two fit engines in one box.
+   *
+   * OUTCOME surfaces are unaffected either way — they ride
+   * `workspaceOutcomeState.embedSlot`, not the frame stack, so a draw or a
+   * reveal stays embedded exactly as before. This decides FRAMES only.
+   */
+  frameSteps?: 'embed' | 'scene',
 };
 
 const WORKSPACE_KINDS: Record<WorkspaceFrameKind, WorkspaceKindSpec> = {
@@ -250,6 +274,10 @@ const WORKSPACE_KINDS: Record<WorkspaceFrameKind, WorkspaceKindSpec> = {
     // its reward wave unplayed and its result unread. The track steps aside for
     // the placement and takes the screen back after it.
     yieldsToBoard: true,
+    // …AND A NESTED FULL SCREEN GETS THE SCENE, not the leftovers under the
+    // track. The reveal and the deck pick still embed (they are outcomes, not
+    // frames) — this is only about a workspace standing inside this one.
+    frameSteps: 'scene',
     emblem: 'hydronetwork',
     wheelAnchor: 'hydro',
   },
@@ -586,6 +614,25 @@ export function workspaceFrameRenders(kind: WorkspaceFrameKind): boolean {
 }
 
 /**
+ * IS THIS HOST CURRENTLY HANDING THE SCENE OVER?
+ *
+ * True while a host that declares `frameSteps: 'scene'` has a nested frame
+ * standing on it. The host stays MOUNTED (its state, its module directors and
+ * its marker layer are mid-flow and must survive) and simply stops being drawn
+ * — `v-show`, never `v-if`: what the guest needs is the screen, not the host's
+ * destruction, and a remount here would tear down a traversal presentation that
+ * is merely parked.
+ *
+ * The nesting itself does not disappear with the pixels: the frame is still in
+ * the stack, so `workspaceStackCrumb()` still roots the guest's header at this
+ * workspace. That is the whole trade — the scene is the guest's, the HEADER is
+ * where the flow is stated.
+ */
+export function workspaceHostYieldsScene(kind: WorkspaceFrameKind): boolean {
+  return workspaceKindSpec(kind).frameSteps === 'scene' && workspaceFrameHasNested(kind);
+}
+
+/**
  * Is anything standing INSIDE this frame?
  *
  * THE ONE FORM OF «the chain is not over yet» — the shell carried five
@@ -908,15 +955,29 @@ export function pushWorkspaceFrame(frame: NewWorkspaceFrame): number {
     live.phase = frame.phase;
     live.serves = [...frame.serves];
     live.anchor = frame.anchor;
-    live.overlay = frame.overlay === true;
+    live.overlay = frame.overlay === true || hostHandsOverTheScene(existing);
     truncateWorkspaceStack(existing + 1);
     return existing;
   }
   workspaceStackState.frames.push({
-    ...frame, serves: [...frame.serves], overlay: frame.overlay === true, slot: '',
+    ...frame,
+    serves: [...frame.serves],
+    // THE HOST DECIDES WHERE ITS GUEST STANDS, not the call site. A host that
+    // declares `frameSteps: 'scene'` turns every nested frame into an overlay
+    // — one registry row instead of an `overlay: true` somebody has to remember
+    // at each of the doors that can push this step (and there are several:
+    // a prompt, a resume, a lateral visit).
+    overlay: frame.overlay === true || hostHandsOverTheScene(workspaceStackState.frames.length),
+    slot: '',
     sourceCard: frame.sourceCard ?? '',
   });
   return workspaceStackState.frames.length - 1;
+}
+
+/** Does the frame BELOW `depth` hand the whole scene to what stands on it? */
+function hostHandsOverTheScene(depth: number): boolean {
+  const host = depth > 0 ? workspaceStackState.frames[depth - 1] : undefined;
+  return host !== undefined && workspaceKindSpec(host.kind).frameSteps === 'scene';
 }
 
 /**

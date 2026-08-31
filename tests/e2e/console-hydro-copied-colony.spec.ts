@@ -39,13 +39,13 @@ import {LAUNCHPAD, focusTradeVariantTile} from './cardTradeDoor';
  *     with the trade variant chosen. (② above.)
  *  2. NOTHING of stage 7 while the marker is below it — the colonies screen
  *     included. Sampled continuously.
- *  3. The colonies arrive EMBEDDED in the Hydronetwork's own zone, never as a
- *     standalone screen over it, and never in their own band «for a frame»
- *     first (the anti-blink contract).
- *  4. The Hydronetwork gives the guest its WHOLE working area (the immersive
- *     pose): the colony grid, not a strip beside a live track.
- *  5. The crumb is ONE continuous line rooted at the Hydronetwork, and the
- *     guest draws no header of its own.
+ *  3. The colonies TAKE THE SCENE — their own band, the track not drawn behind
+ *     them. A whole colony screen squeezed into the room left under the track
+ *     was two fit engines fighting in one box; nesting is not a layout problem,
+ *     it is a HEADER statement.
+ *  4. …and they spend that scene (the grid, not a strip beside an instrument).
+ *  5. The crumb is ONE continuous line rooted at the Hydronetwork — drawn by
+ *     the GUEST's own header, because no host chrome is left on screen.
  *  6. …AND THE TRADE RETURNS HOME. Answering the colony hands the screen back
  *     to the Hydronetwork — the flow that copied the action is the flow that
  *     finishes it.
@@ -218,15 +218,16 @@ test.describe('a copied action walks into the colonies · fhd', () => {
         const row = {
           cell: cellAttr === undefined || cellAttr === null ? -1 : Number(cellAttr),
           colonies: col !== null,
-          // EMBEDDED = inside the Hydronetwork's own zone. A colonies screen
-          // that is up but NOT here is the standalone regression.
+          // A NESTED FULL SCREEN GETS THE SCENE, never a slot under the track:
+          // squeezed into the Hydronetwork's zone it was a whole colony screen
+          // beneath an instrument it has nothing to do with, two fit engines in
+          // one box. `embedded` is now the REGRESSION.
           embedded: document.querySelector('.con-hydro__embed .con-colonies') !== null,
-          // Its own band would mean it stood up as a screen of its own.
           ownBand: col !== null && col.classList.contains('con-ws'),
-          // …and the host must have YIELDED its working area: the immersive
-          // pose is what gives the guest the room (the identity/action columns
-          // and the commit line dissolve).
-          immersive: document.querySelector('.con-hydro__panel--immersive') !== null,
+          // …and the host stops being DRAWN while it does (mounted, mid-flow,
+          // simply not on screen — the nesting is stated in the header).
+          hydroShown: (document.querySelector('.con-hydro') as HTMLElement | null)
+            ?.getClientRects().length ?? 0,
         };
         const c = w.__c;
         if (c === undefined) {
@@ -337,7 +338,7 @@ test.describe('a copied action walks into the colonies · fhd', () => {
     await press(page, 'Period', 1500); // RT — «Подтвердить»
 
     // The colonies step is the copy's follow-up: it may only exist on cell 7.
-    await page.waitForSelector('.con-hydro__embed .con-colonies', {timeout: 180_000});
+    await page.waitForSelector('.con-colonies', {timeout: 180_000});
     await page.waitForTimeout(1200);
     await page.evaluate(() => (window as unknown as {__stop?: () => void}).__stop?.());
     const census = await page.evaluate(() =>
@@ -358,15 +359,24 @@ test.describe('a copied action walks into the colonies · fhd', () => {
       expect(r.colonies, `the colonies opened at cell ${r.cell} (${dump})`).toBe(false);
     }
 
-    // ② …AND IT NEVER STOOD IN ITS OWN BAND. A nested frame renders NOWHERE
-    //    until its host's zone exists; standing up standalone «for a frame» is
-    //    exactly the blink this contract removes.
-    for (const r of census.filter((x) => x.colonies === true)) {
-      expect(r.embedded, `the colonies are embedded in the track (${dump})`).toBe(true);
-      expect(r.ownBand, `and never in a band of their own (${dump})`).toBe(false);
+    // ② …AND WHEN IT DID, IT TOOK THE SCENE. Its own band, never a slot inside
+    //    the track's zone, and the track is not drawn behind it.
+    const withColonies = census.filter((x) => x.colonies === true);
+    for (const r of withColonies) {
+      expect(r.embedded, `the colonies are NOT squeezed into the track zone (${dump})`).toBe(false);
+      expect(r.ownBand, `they stand in their own band (${dump})`).toBe(true);
       expect(r.cell, 'on stage 7').toBe(7);
-      expect(r.immersive, `and the track yielded its working area (${dump})`).toBe(true);
     }
+    // …and the track handed the scene over. ⚠️ ONE sample of tolerance, named:
+    // the guest's mount and the host's hide are two DOM writes of the SAME Vue
+    // flush, so a MutationObserver — which samples mutations, not PAINTS — can
+    // legitimately catch the state between them. The eye never can. What the
+    // assertion is really about is the STEADY state, so the last word wins and
+    // a lingering track fails.
+    const bothDrawn = withColonies.filter((r) => r.hydroShown !== 0).length;
+    expect(bothDrawn, `the track lingers over the guest (${dump})`).toBeLessThanOrEqual(1);
+    expect(withColonies[withColonies.length - 1]?.hydroShown,
+      `and the scene is the guest's once it settles (${dump})`).toBe(0);
 
     // ③ ONE CONTINUOUS CRUMB, rooted at the workspace the player entered.
     const head = await page.evaluate(() => ({
@@ -376,13 +386,17 @@ test.describe('a copied action walks into the colonies · fhd', () => {
     }));
     expect(head.root.toLowerCase(), `the crumb is rooted at the track — ${head.full}`)
       .toContain('гидросет');
-    // ④ The guest drops its SHELL and nothing else: the host owns the crumb, so a
-    //    second header inside it would read as a modal that arrived.
-    expect(head.ownHeads, `the embedded screen draws no header of its own — ${head.full}`).toBe(0);
+    // …and it only ever GAINS a tail: the stage the flow is on is named, so the
+    // line reads as one flow going deeper rather than a screen that arrived.
+    expect(head.full.toLowerCase(), `the crumb names the step — ${head.full}`)
+      .toMatch(/колон|торг/);
+    // ④ …AND IT IS THE GUEST'S OWN HEADER THAT CARRIES THE NESTING. With the
+    //    scene handed over there is no host chrome left on screen, so the one
+    //    header standing has to be the colonies' — rooted at the flow above.
+    expect(head.ownHeads, `the screen draws the flow's header — ${head.full}`).toBe(1);
     const body = await page.evaluate(() => {
-      const zone = document.querySelector('.con-hydro__embed .con-colonies');
+      const zone = document.querySelector('.con-colonies');
       const zr = zone?.getBoundingClientRect();
-      const host = document.querySelector('.con-hydro__embed')?.getBoundingClientRect();
       return {
         // The screen's OWN body — its rail of colonies. Counted as «is the
         // screen really here», not «does it have N tiles».
@@ -391,16 +405,16 @@ test.describe('a copied action walks into the colonies · fhd', () => {
         mode: zone?.getAttribute('data-colony-mode') ?? '',
         text: (zone?.textContent ?? '').replace(/\s+/g, ' ').trim().slice(0, 120),
         bar: (document.querySelector('.con-cmdbar')?.textContent ?? '').toLowerCase(),
-        // ④b THE WHOLE WORKING AREA: the guest fills the zone it was given.
-        fill: zr !== undefined && host !== undefined && host.height > 0 ?
-          Math.round((zr.height / host.height) * 100) : -1,
+        // ④b THE WHOLE SCENE: the guest spends the band it now owns.
+        fill: zr !== undefined && window.innerHeight > 0 ?
+          Math.round((zr.height / window.innerHeight) * 100) : -1,
       };
     });
     expect(body.mode, `the screen is in its PICK mode, as on any prompt entry — ${body.text}`)
       .toBe('pick');
     expect(body.cells, `every colony is on the grid — ${body.text}`).toBeGreaterThan(2);
     expect(body.grid, 'and it is the ordinary grid, not a stand-in').toBe(true);
-    expect(body.fill, `the guest spends the host's whole zone (${body.fill}%)`).toBeGreaterThan(80);
+    expect(body.fill, `the guest spends the whole scene (${body.fill}% of the viewport)`).toBeGreaterThan(70);
     // ⑤ `L3 Источник` names the REPEATED CARD — the host publishes it, the guest
     //    no longer guesses (its crumb subject here is a STAGE NAME).
     expect(body.bar, `the source verb is offered — ${body.bar}`).toContain('источник');
@@ -459,7 +473,7 @@ test.describe('a copied action walks into the colonies · fhd', () => {
     // waited for the guest to detach without answering that would be waiting on
     // a screen it had left standing.
     for (let i = 0; i < 30; i++) {
-      const gone = await page.locator('.con-hydro__embed .con-colonies').count() === 0;
+      const gone = await page.locator('.con-colonies').count() === 0;
       if (gone) {
         break;
       }
@@ -467,7 +481,7 @@ test.describe('a copied action walks into the colonies · fhd', () => {
         (document.querySelector('.con-cmdbar')?.textContent ?? '').toUpperCase().includes('ВЗЯТЬ'));
       await press(page, takeable ? 'Enter' : 'Escape', takeable ? 1600 : 1200);
     }
-    await page.waitForSelector('.con-hydro__embed .con-colonies', {state: 'detached', timeout: 120_000});
+    await page.waitForSelector('.con-colonies', {state: 'detached', timeout: 120_000});
     // Let the flow finish on its own — the resume, the wave, the result, the
     // conclusion. Bounded: what is asserted is what was SEEN, never a timeout.
     for (let i = 0; i < 40; i++) {

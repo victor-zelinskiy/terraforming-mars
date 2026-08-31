@@ -173,8 +173,13 @@ test.describe('a copied action walks onto the board · fhd', () => {
       const sample = () => {
         const viewer = document.querySelector('.con-hydro__stop-marker--viewer');
         const cellAttr = viewer?.closest('[data-hydro-marker]')?.getAttribute('data-hydro-marker');
+        const openCell = document.querySelector('.con-hydro__stop--focused')
+          ?.getAttribute('data-hydro-stop');
         const row = {
           cell: cellAttr === undefined || cellAttr === null ? -1 : Number(cellAttr),
+          // THE OPEN CELL — the magnified one that names its stage and grows
+          // the connector stem. During a walk it must BE the marker's cell.
+          open: openCell === undefined || openCell === null ? -1 : Number(openCell),
           // The placement's own surface: the legal cells it lit.
           legal: document.querySelectorAll('.board-space--available').length,
           // …and whether the workspace is still standing over the board.
@@ -317,6 +322,21 @@ test.describe('a copied action walks onto the board · fhd', () => {
     expect(early.length, `the census watched the marker below 7 — ${dump}`).toBeGreaterThan(0);
     for (const r of early) {
       expect(r.legal, `the board offered ${r.legal} cells at stage ${r.cell} — ${dump}`).toBe(0);
+    }
+
+    // ②b THE HIGHLIGHT IS THE MARKER. While the walk runs, the magnified cell
+    //     — its stage name, its connector stem — is the one the sequence is
+    //     resolving, never the plan's destination. It shipped the other way:
+    //     the token stood on «Гидромоделирование» with its deck pick open
+    //     below while the highlight had already arrived on «Орбитальные
+    //     контракты» two cells ahead. (Sampled from cell 1: at cell 0 the
+    //     marker has not moved yet, so a planning sample is indistinguishable
+    //     from the walk's first frame — and there the destination IS the focus.)
+    const walking = census.filter((r) => (r.cell as number) >= 1 && r.hydro === true);
+    expect(walking.length, `the census watched the walk — ${dump}`).toBeGreaterThan(0);
+    for (const r of walking) {
+      expect(r.open, `the highlight ran ahead of the marker at cell ${r.cell} — ${dump}`)
+        .toBe(r.cell);
     }
 
     // ③ …AND THE TRACK TOOK THE SCREEN BACK to finish its own flow.

@@ -26,13 +26,20 @@
            memory, no conflict with the crumb, and the launching ship's pad
            stays live through the focus descent (the trade resolves INSIDE the
            Focus Stage now). ── -->
+      <!-- ⚠️ THE ROOT IS THE FLOW THE PLAYER ENTERED, not this screen's name.
+           A colonies frame at depth 0 IS «КОЛОНИИ»; one standing INSIDE another
+           workspace — a repeated «Летающая платформа» opening the colonies from
+           the Hydronetwork's stage 7 — is a STEP of that flow, and it takes the
+           whole scene (`frameSteps: 'scene'`), so the HEADER is the only place
+           left that can say so. Derived from the STACK, never from a list of
+           possible hosts. -->
       <ConsoleWsHead v-if="!embedded"
                      class="con-colonies__head"
-                     root="Colonies"
-                     emblem="colonies"
-                     wheelAnchor="trading"
-                     :subject="crumbSubject"
-                     :stage="crumbStage"
+                     :root="headRoot"
+                     :emblem="headEmblem"
+                     :wheelAnchor="headWheelAnchor"
+                     :subject="headSubject"
+                     :stage="headStage"
                      :committed="crumbCommitted">
         <!-- The aux browse layer: the pick-mode chip only (crossfades away
              past the descent — the crumb tail then names the mode). -->
@@ -264,7 +271,8 @@ import {
 import {workspaceOutcomeState, setWorkspaceOutcomeSlot, workspaceOutcomeClaimed} from '@/client/console/consoleWorkspaceOutcome';
 import {
   setWorkspaceFrameSlot, setWorkspaceFrameStage, setWorkspaceFrameSubject,
-  workspaceFrameHost, workspaceFrameParked, workspaceFrameStage,
+  workspaceFrameEmblem, workspaceFrameHost, workspaceFrameIndex, workspaceFrameParked,
+  workspaceFrameStage, workspaceStackCrumb, workspaceStackRootKind,
 } from '@/client/console/consoleWorkspaceStack';
 import {colonyResolutionUi, revealIsOwnerBonus} from '@/client/console/colonyTrade/colonyResolution';
 import {cardDiscardColonyBonus} from '@/client/console/cardDiscard/consoleCardDiscard';
@@ -500,6 +508,42 @@ export default defineComponent({
       return colonyFleetBerth.selector;
     },
     /** The pair handed up to a HOSTING workspace's breadcrumb (see the watcher). */
+    /**
+     * ── THE HEADER STATES THE FLOW, WHEREVER THIS SCREEN IS STANDING ──────
+     *
+     * Nested (depth > 0) but NOT teleported into a host's zone — the
+     * scene-handover shape — the crumb is the STACK's: root = the workspace the
+     * player entered, subject = the deepest carried object, emblem = the
+     * PARENT's identity symbol (it belongs to the parent anchor and must be the
+     * same box before and after the step opened). At depth 0 this screen is its
+     * own root and everything falls back to «КОЛОНИИ».
+     */
+    stackCrumb(): {root: string, subject?: {text: string}, stage?: string} | undefined {
+      return workspaceFrameIndex('colonies') > 0 ? workspaceStackCrumb() : undefined;
+    },
+    headRoot(): string {
+      return this.stackCrumb?.root ?? 'Colonies';
+    },
+    headEmblem(): string {
+      const rootKind = this.stackCrumb !== undefined ? workspaceStackRootKind() : undefined;
+      return (rootKind !== undefined ? workspaceFrameEmblem(rootKind).emblem : undefined) ?? 'colonies';
+    },
+    headWheelAnchor(): string {
+      const rootKind = this.stackCrumb !== undefined ? workspaceStackRootKind() : undefined;
+      return (rootKind !== undefined ? workspaceFrameEmblem(rootKind).wheelAnchor : undefined) ?? 'trading';
+    },
+    headStage(): string {
+      // Nested: the tail is the STACK's — which is this screen's own stage,
+      // published up by the watcher, and never regressing to '' (the flow's
+      // step has a name even when the browse layer does not).
+      return this.stackCrumb?.stage ?? this.crumbStage;
+    },
+    headSubject(): string {
+      // The host's own subject leads while this screen carries nothing yet
+      // («ГИДРОСЕТЬ МАРСА › МИКРОБНАЯ ФИКСАЦИЯ › ВЫБОР КОЛОНИИ»); once a colony
+      // is picked up, IT is the deepest carried object and the stack says so.
+      return this.stackCrumb?.subject?.text ?? this.crumbSubject;
+    },
     embeddedCrumb(): {embedded: boolean, subject: string, stage: string} {
       return {embedded: this.embedded, subject: this.crumbSubject, stage: this.crumbStage};
     },
@@ -763,7 +807,13 @@ export default defineComponent({
     embeddedCrumb: {
       immediate: true,
       handler(crumb: {embedded: boolean, subject: string, stage: string}) {
-        if (!crumb.embedded) {
+        // A NESTED FRAME HANDS ITS STAGE UP whether it is teleported into the
+        // host's zone or standing on the whole scene: both are steps of the
+        // flow below, and the crumb is derived from the STACK either way. Keyed
+        // on «am I nested», not on «am I embedded» — the second is a rendering
+        // detail and it silently stopped the tail from advancing the moment a
+        // host chose to hand the scene over instead of lending a zone.
+        if (!crumb.embedded && workspaceFrameIndex('colonies') <= 0) {
           return;
         }
         setWorkspaceFrameSubject('colonies', crumb.subject);

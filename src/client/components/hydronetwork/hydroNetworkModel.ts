@@ -164,6 +164,13 @@ export type HydroModel = {
   stages: ReadonlyArray<HydroStageVM>;
   currentPosition: number;
   selectedPosition: number;
+  /**
+   * THE CELL THAT IS OPEN — `selectedPosition`, except while a committed
+   * traversal is being PRESENTED, when it is the cell the walk is resolving.
+   * Two facts, deliberately two fields: one is the MOVE, the other is where the
+   * player is being shown to be, and they coincide only when nothing is moving.
+   */
+  focusPosition: number;
   /** 'plan' when a future target is selected; 'details' for current/passed. */
   mode: 'plan' | 'details';
   availableEnergy: number;
@@ -357,6 +364,26 @@ export function buildHydroModel(input: HydroModelInput): HydroModel {
     selectedPosition = currentPosition + maxSpend;
   }
 
+  /**
+   * ── THE OPEN CELL FOLLOWS THE MARKER, NOT THE PLAN ─────────────────────
+   *
+   * `selectedPosition` is the PLAN's destination and stays that: the route, the
+   * price, the commit record and every submit are statements about the whole
+   * move. But the MAGNIFIED cell — the one that opens, names its stage and
+   * grows the connector stem down into the scene — is where the player is being
+   * shown to be, and during a committed traversal that is the cell the sequence
+   * is resolving RIGHT NOW.
+   *
+   * Keyed on the presentation cursor, which `viewerPosition` already returns as
+   * `currentPosition` while a walk is running. Without it the two halves of one
+   * object disagreed for the whole walk: the token stood on «Гидромоделирование»
+   * with the stage-5 deck pick open below it, while the highlight, the stage
+   * name and the stem had already arrived on «Орбитальные контракты» two cells
+   * ahead — the interface having gone somewhere the player has not.
+   */
+  const presentingWalk = input.visualViewerPosition !== undefined && input.visualViewerPosition >= 0;
+  const focusPosition = presentingWalk ? currentPosition : selectedPosition;
+
   const mode: 'plan' | 'details' = selectedPosition > currentPosition ? 'plan' : 'details';
   const selectedSpend = mode === 'plan' ? selectedPosition - currentPosition : 0;
   const destination: DeltaTrackDestination | undefined =
@@ -453,7 +480,7 @@ export function buildHydroModel(input: HydroModelInput): HydroModel {
       state,
       markers,
       occupiedByOther,
-      isSelected: pos === selectedPosition,
+      isSelected: pos === focusPosition,
       rewardedByViewer,
       crossedByViewer,
       skippedByViewer,
@@ -658,6 +685,7 @@ export function buildHydroModel(input: HydroModelInput): HydroModel {
     stages,
     currentPosition,
     selectedPosition,
+    focusPosition,
     mode,
     availableEnergy,
     availableSteelSubstitute,
@@ -694,7 +722,7 @@ export function buildHydroModel(input: HydroModelInput): HydroModel {
     targetVisitors,
     detailsStage,
     detailsHistory,
-    focusRoster: rosterAt(input.players, selectedPosition),
+    focusRoster: rosterAt(input.players, focusPosition),
     viewerStatusAtDetails,
     viewerChoiceAtDetails,
   };

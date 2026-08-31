@@ -1,5 +1,12 @@
 <template>
-  <section class="con-hydro con-ws"
+  <!-- A NESTED FULL SCREEN GETS THE SCENE (`frameSteps: 'scene'`): while a
+       workspace stands inside this one — the colonies a repeated «Летающая
+       платформа» opens — the track stops being DRAWN and the guest owns the
+       band. `v-show`, never `v-if`: the traversal is merely parked, its
+       directors and its marker layer are mid-flow, and the frame stays in the
+       stack so the guest's header still says whose flow this is. -->
+  <section v-show="!sceneHandedOver"
+           class="con-hydro con-ws"
            ref="rootEl"
            role="region"
            :aria-label="$t('Mars Hydronetwork')"
@@ -972,7 +979,8 @@ import {cardResourceLandings} from '@/client/console/resourceTransfer/consoleRes
 import {
   WorkspaceFrameKind, setWorkspaceFrameSlot, setWorkspaceFrameSourceCard,
   setWorkspaceFrameStage, setWorkspaceFrameSubject,
-  workspaceFrameEmblem, workspaceFrameHost, workspaceFrameRoot, workspaceStackCrumb,
+  workspaceFrameEmblem, workspaceFrameHost, workspaceFrameRoot, workspaceHostYieldsScene,
+  workspaceStackCrumb,
 } from '@/client/console/consoleWorkspaceStack';
 import {setWorkspaceOutcomeSlot, workspaceOutcomeState} from '@/client/console/consoleWorkspaceOutcome';
 import {captureSurfaceDeparture, holdCarriedAnchors} from '@/client/console/surfaceMotion/surfaceMotionState';
@@ -1743,6 +1751,10 @@ export default defineComponent({
       return {position: c.toPosition, nameKey: c.stageNameKey};
     },
     /** The context column — see {@link HydroCtxView}. */
+    /** The whole scene belongs to a workspace standing inside this one. */
+    sceneHandedOver(): boolean {
+      return workspaceHostYieldsScene('hydro');
+    },
     /**
      * THE FOCUSED STAGE'S ROSTER, straight from the model — everyone with
      * something to say about the cell the cursor is on, viewer first. The
