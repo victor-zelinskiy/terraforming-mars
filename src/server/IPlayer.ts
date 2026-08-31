@@ -107,6 +107,26 @@ export type CardDrawReveal = {
    * See CardDrawRevealModel.tradeSegments.
    */
   tradeSegments?: Array<ColonyTradeRevealSegment>,
+  /**
+   * SEALED — this batch is CLOSED to further merging (server-only; never
+   * reaches the model).
+   *
+   * The same-trade merge exists so ONE trade is ONE reveal («one queue, one
+   * take, one acknowledgement»). It must not reach ACROSS a mandatory input:
+   * Pluto's owner bonus pays «draw 1, then discard 1» PER CUBE, and by the
+   * rules each colony resolves in FULL before the next is revealed — so the
+   * second cube's card may not appear beside the first while the player is
+   * still choosing what to throw away.
+   *
+   * Nothing but the client's acknowledgement used to separate them, and an ack
+   * is a fire-and-forget POST racing the discard answer: when it lost, the
+   * second card was APPENDED to a batch the client had already dismissed (a
+   * card drawn and never shown) or, worse, to one whose arrival cinematic was
+   * still in the air — the row re-flowed under the flying covers and they came
+   * down beside their slots. The seal makes the boundary structural instead of
+   * timing-dependent.
+   */
+  sealed?: boolean,
 }
 
 /**
@@ -486,6 +506,13 @@ export interface IPlayer {
    * when the search actually discarded something.
    */
   enqueueCardDrawReveal(cards: ReadonlyArray<IProjectCard>, source?: CardDrawRevealSource, sequence?: ReadonlyArray<RevealedCard>): void;
+  /**
+   * CLOSE the batch just queued to further merging (see `CardDrawReveal.sealed`).
+   * Called by a payout that owes the player a MANDATORY answer before the next
+   * draw of the same trade may be revealed. Idempotent; a no-op on an empty
+   * queue.
+   */
+  sealCardDrawReveal(): void;
   /** Remove a reveal batch (or all) once the player has taken the cards. Idempotent. */
   acknowledgeCardDrawReveals(id: number | 'all'): void;
   discardPlayedCard(card: IProjectCard): void;

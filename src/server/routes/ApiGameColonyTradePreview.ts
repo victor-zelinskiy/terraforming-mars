@@ -50,7 +50,11 @@ export class ApiGameColonyTradePreview extends Handler {
     }
     const colony = game.colonies.find((c) => c.name === colonyName);
     if (colony === undefined) {
-      responses.notFound(req, res, 'colony not found');
+      // NOT IN THE GAME = NOTHING TO PREVIEW, and that is an ordinary state, not
+      // an error: an add-a-tile catalog (Aridor's first action, Maria) offers
+      // colonies out of `discardedColonies`, which have no track, no cubes and
+      // no trade. See `responses.noPreview`.
+      responses.noPreview(res, 'colony not in the game');
       return;
     }
     responses.writeJson(res, ctx, buildColonyTradePreview(player, colony));

@@ -388,6 +388,14 @@ export default defineComponent({
     awaitingInput: {type: Boolean, default: false},
     /** Set = SelectColony pick mode (shell submits; this only renders states). */
     pick: {type: Object as PropType<ConsoleColonyPick | undefined>, default: undefined},
+    /**
+     * THE RAIL IS THE ADD-A-TILE CATALOG (Aridor's first action, Maria): the
+     * tiles on it are the game's UNUSED colonies, offered so one may be put
+     * into play. They are not in the game — no track, no cubes, no trade — so
+     * nothing server-scoped exists for them and none may be asked for.
+     * Everything else (including the Build-Colony pick) rails IN-GAME colonies.
+     */
+    catalog: {type: Boolean, default: false},
     players: {type: Array as PropType<ReadonlyArray<PublicPlayerModel>>, default: () => []},
     viewerColor: {type: String as PropType<Color | undefined>, default: undefined},
     tradeOffset: {type: Number, default: 0},
@@ -1232,7 +1240,11 @@ export default defineComponent({
       stage?.holdPresentation();
     },
     async loadFocusPreview(name: ColonyName): Promise<void> {
-      if (this.playerId === '') {
+      // A CATALOG TILE IS NOT IN THE GAME, so there is no trade to price: the
+      // stage reads it from the manifest exactly as it does while a preview is
+      // still on the wire. Asking anyway is a request the server can only
+      // decline — see the `catalog` prop.
+      if (this.playerId === '' || this.catalog) {
         return;
       }
       const preview = await fetchColonyTradePreview(this.playerId, name);

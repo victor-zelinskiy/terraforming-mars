@@ -1,6 +1,6 @@
 import {expect} from 'chai';
 import {
-  currentRevealEvent, drawnCardsState, isEventFullyTaken, markAllTaken,
+  currentRevealEvent, dismissEvent, drawnCardsState, isEventFullyTaken, markAllTaken,
   markCardTaken, markRevealPresented, reconcileDrawnCards, revealPresented,
   untakenNameMultiset,
 } from '@/client/components/drawnCards/drawnCardsState';
@@ -114,6 +114,30 @@ describe('drawnCards — the take lifecycle behind the reveal surface', () => {
     // The server dropping the batch is the latch's only end.
     reconcileDrawnCards([]);
     expect(revealPresented(1)).to.eq(false);
+  });
+
+  /**
+   * NO SILENT LOSS ACROSS A GROWING BATCH.
+   *
+   * `dismissed` is a CLIENT latch, set the instant the last card is taken so
+   * the modal closes before the server ack round-trips. A trade-tagged batch
+   * can legitimately GROW on the server (same-trade draws merge), and a batch
+   * that gained a card while wearing that latch would be a card drawn and
+   * never shown. Growth un-dismisses; the take progress rides along, so only
+   * the NEW card is owed. (The server additionally SEALS a batch whose payout
+   * owes a mandatory answer — this is the client's half of the same law.)
+   */
+  it('a batch that GREW comes back — a dismissed one included', () => {
+    twoCardBatch();
+    markAllTaken(1);
+    dismissEvent(1);
+    expect(currentRevealEvent(), 'a fully taken batch is off screen').to.eq(undefined);
+
+    reconcileDrawnCards([{id: 1, cards: [{name: A}, {name: B}, {name: CardName.MOSS}]} as never]);
+    const live = currentRevealEvent();
+    expect(live?.id, 'the appended card re-opens the batch').to.eq(1);
+    expect(live?.takenIndices.size, 'the earlier takes survive the append').to.eq(2);
+    expect(isEventFullyTaken(1)).to.eq(false);
   });
 
   it('a later batch presents on its own latch — the previous one says nothing about it', () => {

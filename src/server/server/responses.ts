@@ -28,6 +28,37 @@ export function notFound(req: Request, res: Response, err?: string): void {
   res.end();
 }
 
+/**
+ * NO PREVIEW FOR THAT SUBJECT — the read-only preview family's honest answer.
+ *
+ * Every preview route (`/api/action-preview`, `/api/card-play-preview`,
+ * `/api/corp-first-action-preview`, `/api/game/board-cell-preview`,
+ * `/api/game/colony-trade-preview`) is asked about a SUBJECT resolved against
+ * LIVE state: an action card in the tableau, a playable card, a corporation
+ * that still owes its first action, a board space, a colony in the game. That
+ * subject legitimately EXPIRES — the first action is submitted and drains
+ * `pendingInitialActions` in the same response that raises its follow-up
+ * prompt; an add-a-tile catalog (Aridor) offers colonies that are not in the
+ * game at all. A UI that prefetches against a state VERSION will therefore ask
+ * about an expired subject no matter how carefully it gates: the state can
+ * always move between the snapshot it read and the request landing.
+ *
+ * That is NOT an error. Answering it with `notFound` warn-logged every benign
+ * race on the server AND painted a red 404 in the client console, which buried
+ * the ones that mean something. 204 says «the request was fine, there is no
+ * preview for this subject right now»; the reason travels in `X-No-Preview`
+ * for debugging, and every consumer already degrades to manifest-only
+ * rendering on an absent preview.
+ *
+ * `notFound` stays for IDENTITY errors (unknown game, unknown player) — those
+ * are addressing bugs and must keep shouting.
+ */
+export function noPreview(res: Response, reason: string): void {
+  res.setHeader('X-No-Preview', reason);
+  res.writeHead(statusCode.noContent);
+  res.end();
+}
+
 export function setCookie(res: Response, key: string, value: string, lifetimeSeconds: number) {
   res.setHeader('Set-Cookie', `${key}=${value}; HttpOnly; Secure; SameSite=Strict; Max-Age=${lifetimeSeconds}; Path=/`);
 }

@@ -33,6 +33,7 @@ import {ActionPreview} from '@/common/models/ActionPreviewModel';
 import {PlayerViewModel} from '@/common/models/PlayerModel';
 import {paths} from '@/common/app/paths';
 import {apiUrl} from '@/client/utils/runtimeConfig';
+import {fetchPreview} from '@/client/utils/previewFetch';
 import {gameStateVersion} from '@/client/console/gameStateVersion';
 
 /** Stable focus this long → the card is being CONSIDERED, not riffled past. */
@@ -63,10 +64,7 @@ export function playPreviewUrl(playerId: string, cardName: string): string {
 }
 
 function defaultLoader(view: PlayerViewModel, cardName: string): Promise<ActionPreview | undefined> {
-  return fetch(playPreviewUrl(view.id, cardName))
-    .then((r) => (r.ok ? r.json() : undefined))
-    .then((p) => p as ActionPreview | undefined)
-    .catch(() => undefined);
+  return fetchPreview<ActionPreview>(playPreviewUrl(view.id, cardName));
 }
 
 function store(cardName: string, entry: CacheEntry): void {

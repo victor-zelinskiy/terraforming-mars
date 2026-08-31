@@ -40,6 +40,28 @@ export function firstActionOwed(view: PlayerViewModel): boolean {
 }
 
 /**
+ * THE CORPORATION CAN STILL BE PREVIEWED — the precondition of
+ * `/api/corp-first-action-preview`, read from the SAME ledger the route
+ * resolves against (`pendingInitialActions`), so the client asks exactly when
+ * the server can answer.
+ *
+ * THE LEDGER DRAINS ON SUBMIT, not when the action finishes: the option's
+ * `andThen` removes the corp inside the same response that raises whatever the
+ * action produced (Aridor's colony catalog, a placement, a draw). The briefing
+ * that asked is still mounted through all of that, and it re-asks on every
+ * `gameStateVersion` change — so without this gate the stage fired one preview
+ * request per state move for a corporation that had already spent its action,
+ * each answered «no preview» and each printed as a 404 in the client console.
+ *
+ * The state can still move between this check and the request landing (the
+ * gate narrows the window; it does not close it) — that residual race is what
+ * the server's 204 is for. What the gate removes is the SYSTEMATIC ask.
+ */
+export function firstActionPreviewable(view: PlayerViewModel, corp: CardName | undefined): boolean {
+  return corp !== undefined && (view.pendingInitialActions ?? []).includes(corp);
+}
+
+/**
  * THE PREVIOUS STAGE HAS NOT FINISHED — the viewer is still being asked
  * something that is not this stage's own move.
  *

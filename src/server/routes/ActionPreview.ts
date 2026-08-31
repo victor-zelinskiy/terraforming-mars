@@ -46,7 +46,8 @@ export class ActionPreview extends Handler {
       }
       const card = player.tableau.get(cardName as CardName);
       if (card === undefined || !isIActionCard(card)) {
-        responses.notFound(req, res, 'action card not found');
+        // Expired subject, not an error — see `responses.noPreview`.
+        responses.noPreview(res, 'action card not found');
         return;
       }
       responses.writeJson(res, ctx, actionPreview(player, card));

@@ -90,10 +90,22 @@ export function reconcileDrawnCards(reveals: ReadonlyArray<CardDrawRevealModel>)
       // too so the batch stays one consistent server snapshot. A trade-merged
       // batch can legitimately GROW here (a same-trade draw appended while it
       // is still pending) — the segments ride along.
+      // ⚠️ A BATCH THAT GREW HAS SOMETHING THE PLAYER HAS NOT SEEN. The server
+      // seals a batch whose payout owes a mandatory answer, so a cross-response
+      // append should no longer be reachable — but `dismissed` is a CLIENT
+      // latch set the instant the last card is taken, and a batch that gained a
+      // card while wearing it would be a card drawn and never shown («no silent
+      // loss»). Growth un-dismisses; the take progress rides along untouched
+      // (indices are stable under an append), so only the new card is owed.
+      const grew = r.cards.length > existing.cards.length;
       existing.cards = r.cards;
       existing.source = r.source;
       existing.sequence = r.sequence;
       existing.tradeSegments = r.tradeSegments;
+      if (grew && existing.dismissed) {
+        existing.dismissed = false;
+        existing.acking = false;
+      }
     }
   }
   // Deterministic FIFO (server ids are monotonic).

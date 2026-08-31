@@ -17,7 +17,8 @@ import {corpFirstActionPreview, previewableFirstActionCorp} from '../models/corp
  * The corporation is resolved from `player.pendingInitialActions` — the SAME
  * list the `corporationInitialAction` OrOptions is built from — so only a corp
  * the player still owes the action for can be previewed; anything else answers
- * `notFound`. It is the player's OWN corporation (the id check authorizes
+ * `noPreview` (204 — an expired subject is not an error). It is the player's
+ * OWN corporation (the id check authorizes
  * them) and the preview is read-only, so this leaks nothing.
  */
 export class CorpFirstActionPreview extends Handler {
@@ -51,7 +52,11 @@ export class CorpFirstActionPreview extends Handler {
       }
       const corp = previewableFirstActionCorp(player, corpName as CardName);
       if (corp === undefined) {
-        responses.notFound(req, res, 'pending first-action corporation not found');
+        // THE LEDGER DRAINS ON SUBMIT (`Player.takeAction`'s option removes the
+        // corp inside the same response that raises the action's own follow-up
+        // prompt), so the briefing that asked is still mounted while the corp is
+        // already spent. An ordinary state — see `responses.noPreview`.
+        responses.noPreview(res, 'corporation no longer owes its first action');
         return;
       }
       responses.writeJson(res, ctx, corpFirstActionPreview(player, corp));

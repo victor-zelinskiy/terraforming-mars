@@ -637,6 +637,15 @@ export default defineComponent({
        * yet (the ladder fallback renders one frame, then the fit lands).
        */
       embedFitZoom: 0,
+      /**
+       * WHICH BATCH the current solve belongs to ('' = none yet).
+       *
+       * The in-flight guard below may hold a SOLVED row still; it may never
+       * withhold the row's FIRST solve, or the scene that is about to aim at
+       * it measures the coarse fallback ladder instead of the layout the cards
+       * will actually land in.
+       */
+      fitSolvedKey: '',
       /** The solved layout as CSS custom properties (one writer, both hosts). */
       embedLayoutStyle: {} as Record<string, string>,
       embedFitRetries: 0,
@@ -1384,6 +1393,7 @@ export default defineComponent({
         this.settleFitTimer = undefined;
       }
       this.embedFitZoom = 0;
+      this.fitSolvedKey = '';
     },
     /**
      * INSTALL / TEARDOWN the verdict fit — the same protocol as the strip fit
@@ -1513,10 +1523,21 @@ export default defineComponent({
       // then a fresh solve) slides the row under the flight and a cover comes
       // down beside its slot. Defer to a short retry — bounded by the scene's
       // own lifecycle nets — and run the real fit when the cards are handed
-      // over. The mount-time fit is untouched (the scene only launches after
-      // it, off the very slots it solved).
-      if (colonyTradeState.cardScene === 'fly' || colonyTradeState.cardScene === 'ascend' ||
-          colonyTradeState.cardScene === 'frame') {
+      // over.
+      //
+      // ⚠️ …BUT ONLY A RE-SOLVE. The old guard's premise — «the mount-time fit
+      // is untouched, the scene only launches after it» — is FALSE for the
+      // path that matters: the trade claims its batch on a PRE-FLUSH watcher,
+      // so `cardScene` is already `'fly'` when this overlay mounts and the
+      // FIRST fit was deferred too. The strip then rendered at the coarse
+      // count-ladder fallback, the covers aimed at THOSE rects, and the real
+      // solve landed at the handoff — every card resized under the cards that
+      // had just come down on it («карты летят по странной траектории»). A row
+      // that has never been solved for this batch must be solved BEFORE
+      // anything aims at it; from then on the guard holds it still.
+      if (this.fitSolvedKey === this.revealKey &&
+          (colonyTradeState.cardScene === 'fly' || colonyTradeState.cardScene === 'ascend' ||
+            colonyTradeState.cardScene === 'frame')) {
         if (this.settleFitTimer === undefined) {
           this.settleFitTimer = window.setTimeout(() => {
             this.settleFitTimer = undefined;
@@ -1664,6 +1685,7 @@ export default defineComponent({
       this.embedLayoutStyle = wsStageLayoutStyle(layout);
       Object.entries(this.embedLayoutStyle).forEach(([k, v]) => strip.style.setProperty(k, v));
       this.embedFitZoom = layout.zoom;
+      this.fitSolvedKey = this.revealKey;
       // THE ROW STATES ITS OWN SOLVE. Every past defect in this engine was
       // diagnosed by guessing which INPUT was wrong, at the one resolution the
       // guesser happened to be looking at; the inputs are what has to be

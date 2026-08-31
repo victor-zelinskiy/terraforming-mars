@@ -112,6 +112,49 @@ describe('ColonyTradeManifest', () => {
     expect(pluto.trackPosition).eq(1); // reset target = 1 built colony
   });
 
+  /**
+   * TWO CUBES ON PLUTO — TWO BATCHES, WHATEVER THE CLIENT DOES.
+   *
+   * «Draw 1, then discard 1» is paid PER CUBE, and by the rules the next
+   * colony's card is not revealed until this one is finished. The separation
+   * used to rest entirely on the client's fire-and-forget acknowledgement
+   * winning a race with its own discard submit: lose it, and the second card
+   * was APPENDED to a batch the player had already dismissed (drawn, never
+   * shown) — or, worse, to one whose arrival cinematic was still airborne, so
+   * the row re-flowed under the flying covers.
+   *
+   * This spec deliberately NEVER acknowledges: the seal is what must hold.
+   */
+  it('two Pluto cubes: the second bonus opens its OWN batch (unacknowledged)', () => {
+    pluto.addColony(player);
+    pluto.addColony(player);
+    runAllActions(game); // the two BUILD bonus draws
+    player.acknowledgeCardDrawReveals('all');
+
+    pluto.trade(player);
+    runAllActions(game);
+
+    // Cycle 1: income + colony 1's bonus card, merged as before — and SEALED.
+    expect(player.cardDrawReveals).has.lengthOf(1);
+    const first = player.cardDrawReveals[0];
+    expect(first.tradeSegments?.map((s) => s.role)).deep.eq(['income', 'bonus']);
+    expect(first.sealed, 'the pending mandatory discard closes the batch').is.true;
+
+    const discard1 = cast(player.popWaitingFor(), SelectCard<IProjectCard>);
+    discard1.cb([discard1.cards[0]]);
+    runAllActions(game);
+
+    // Cycle 2 lands with cycle 1 STILL QUEUED (never acked): a NEW batch, and
+    // colony 1's cards are untouched.
+    expect(player.cardDrawReveals, 'colony 2 opens its own batch').has.lengthOf(2);
+    const second = player.cardDrawReveals[1];
+    expect(second.id).not.eq(first.id);
+    expect(second.cards).has.lengthOf(1);
+    expect(second.tradeSegments).deep.eq([{role: 'bonus', count: 1}]);
+    expect(first.cards.length, 'the first batch did not grow').eq(
+      (first.tradeSegments ?? []).reduce((n, s) => n + s.count, 0));
+  });
+
   it('resource colony (Triton): manifest carries the resolved resource grant', () => {
     const triton = new Triton();
     game.colonies.push(triton);

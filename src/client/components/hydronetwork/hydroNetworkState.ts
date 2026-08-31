@@ -4,6 +4,7 @@ import {CardName} from '@/common/cards/CardName';
 import {DeltaTrackPreviewModel} from '@/common/models/DeltaTrackPreviewModel';
 import {paths} from '@/common/app/paths';
 import {apiUrl} from '@/client/utils/runtimeConfig';
+import {fetchPreview} from '@/client/utils/previewFetch';
 
 /**
  * Module-level reactive state for the premium "Гидросеть" overlay. Lives outside
@@ -71,14 +72,13 @@ export function fetchHydroPreview(viewerId: string, color: Color, scope: string)
   const url = apiUrl(paths.API_GAME_DELTA_PREVIEW) +
     '?id=' + encodeURIComponent(viewerId) +
     '&color=' + encodeURIComponent(color);
-  fetch(url)
-    .then((r) => (r.ok ? r.json() : undefined))
-    .then((p) => {
-      if (p !== undefined) {
-        hydroNetworkState.preview = p as DeltaTrackPreviewModel;
-        hydroNetworkState.previewColor = color;
-        hydroNetworkState.previewScope = scope;
-      }
-    })
-    .catch(() => { /* best-effort: the track still renders from public positions */ });
+  // Best-effort by contract (`fetchPreview` never rejects): on an absent
+  // preview the track still renders from the public positions.
+  fetchPreview<DeltaTrackPreviewModel>(url).then((p) => {
+    if (p !== undefined) {
+      hydroNetworkState.preview = p;
+      hydroNetworkState.previewColor = color;
+      hydroNetworkState.previewScope = scope;
+    }
+  });
 }

@@ -983,7 +983,8 @@ import {
 } from '@/client/components/startGameFlow/startGameFlowState';
 import {
   firstActionActionable, firstActionAsk, firstActionBranch, firstActionDrawExpected,
-  firstActionOwed, firstActionStageCorp, startFlowOtherPromptStands, startWaitMate,
+  firstActionOwed, firstActionPreviewable, firstActionStageCorp, startFlowOtherPromptStands,
+  startWaitMate,
 } from '@/client/console/startFirstAction';
 import ActionEffectChip from '@/client/components/actions/ActionEffectChip.vue';
 import {skippedEffectViews} from '@/client/components/actions/skippedEffectView';
@@ -1037,6 +1038,7 @@ import {
 import {ActionEffect, ActionPreview} from '@/common/models/ActionPreviewModel';
 import {paths} from '@/common/app/paths';
 import {apiUrl} from '@/client/utils/runtimeConfig';
+import {fetchPreview} from '@/client/utils/previewFetch';
 import {cardsResponse} from '@/client/console/taskResponses';
 import {setConsoleStartCommands, resetConsoleStartUi, startSceneCommands, StartCommand} from '@/client/console/consoleStartUi';
 import {openConsoleCardZoom, slotZoomOrigin} from '@/client/console/consoleCardZoom';
@@ -6624,22 +6626,26 @@ export default defineComponent({
         this.firstActionPreviewsVersion = version;
         this.firstActionPreviews = new Map();
       }
-      if (this.firstActionPreviews.has(corp) || typeof fetch !== 'function') {
+      if (this.firstActionPreviews.has(corp)) {
+        return;
+      }
+      // ASK ONLY WHAT THE SERVER CAN ANSWER. The briefing keeps standing while
+      // the action it submitted resolves (the pick it produced, a placement),
+      // and it re-asks on every state move — but the corp left
+      // `pendingInitialActions` at the submit. See `firstActionPreviewable`.
+      if (!firstActionPreviewable(this.playerView, corp)) {
         return;
       }
       this.firstActionPreviews.set(corp, undefined);
       const url = apiUrl(paths.API_CORP_FIRST_ACTION_PREVIEW) +
         '?id=' + encodeURIComponent(this.playerView.id) + '&corp=' + encodeURIComponent(corp);
-      fetch(url)
-        .then((r) => (r.ok ? r.json() : undefined))
-        .then((p) => {
-          if (this.firstActionPreviewsVersion === version) {
-            this.firstActionPreviews.set(corp, p as ActionPreview | undefined);
-          }
-        })
-        .catch(() => {
-          // Degraded honestly: the stage still shows the ask + the CTA.
-        });
+      // Degraded honestly on an absent preview: the stage still shows the ask
+      // + the CTA.
+      fetchPreview<ActionPreview>(url).then((p) => {
+        if (this.firstActionPreviewsVersion === version) {
+          this.firstActionPreviews.set(corp, p);
+        }
+      });
     },
     /**
      * PERFORM THE FIRST ACTION (A on the standing stage) — submit the seated
@@ -6929,10 +6935,8 @@ export default defineComponent({
         this.rewardFetched.add(name);
         const url = apiUrl(paths.API_CARD_PLAY_PREVIEW) +
           '?id=' + encodeURIComponent(viewerId) + '&card=' + encodeURIComponent(name);
-        fetch(url)
-          .then((r) => (r.ok ? r.json() : undefined))
-          .then((p) => {
-            const preview = p as ActionPreview | undefined;
+        fetchPreview<ActionPreview>(url)
+          .then((preview) => {
             const branch = preview?.branches?.[0];
             if (branch === undefined) {
               return;
@@ -6960,8 +6964,9 @@ export default defineComponent({
             }
           })
           .catch(() => {
-            // A failed preview is not a game problem — the card just plays
-            // without the reward beat (its chips fire on the commit).
+            // `fetchPreview` never rejects — an absent preview simply arrives
+            // as `undefined` and the card plays without the reward beat (its
+            // chips fire on the commit). This guards the READING above.
           });
       }
     },

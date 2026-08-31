@@ -37,6 +37,31 @@ export function colonyGridLayout(count: number, catalogMode: boolean): ColonyGri
   }
 }
 
+/**
+ * THE RAIL IS THE ADD-A-TILE CATALOG — a pick-a-NEW-tile prompt (Aridor's
+ * first action, Maria) offers the game's UNUSED colonies (`discardedColonies`),
+ * so the tiles standing on the rail are NOT in the game.
+ *
+ * ONE derivation, because two consumers ask it and they must never disagree:
+ * WHICH colonies to rail (the prompt's own `coloniesModel` instead of
+ * `game.colonies`), and whether anything SERVER-SCOPED may be asked about them.
+ * Nothing may: a catalog tile has no track, no cubes and no trade, so the
+ * colony-trade preview can only decline — which is precisely how descending
+ * into one produced `GET /api/game/colony-trade-preview?…&colony=Ceres` → 404
+ * on the server and a red 404 in the client console.
+ *
+ * `isColonyTask` is «the shell's colony task is what put this rail up» — the
+ * same term `coloniesForRail` has always carried, kept because a colony grid
+ * standing for any OTHER reason (a trade, a plain visit) rails in-game colonies
+ * whatever a prompt elsewhere says.
+ */
+export function colonyRailIsCatalog(
+  purpose: 'selectExistingColony' | 'addNewColonyToGame' | undefined,
+  isColonyTask: boolean,
+): boolean {
+  return isColonyTask && purpose === 'addNewColonyToGame';
+}
+
 /** Columns per layout — drives both CSS and the d-pad 2D stepping. */
 export function colonyGridCols(layout: ColonyGridLayout, count: number): number {
   switch (layout) {

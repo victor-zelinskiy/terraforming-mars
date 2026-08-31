@@ -13,6 +13,7 @@ import {PlacementEffect} from '@/common/models/PlayerInputModel';
 import {CardName} from '@/common/cards/CardName';
 import {paths} from '@/common/app/paths';
 import {apiUrl} from '@/client/utils/runtimeConfig';
+import {fetchPreview} from '@/client/utils/previewFetch';
 
 /**
  * Module-level reactive store for the premium BoardInformation hover inspector.
@@ -149,18 +150,14 @@ function fetchInfo(spaceId: SpaceId, key: string, myToken: number): void {
     boardInfoState.loading = false;
     return;
   }
-  fetch(url)
-    .then((r) => (r.ok ? r.json() : undefined))
-    .then((info: BoardCellInfo | undefined) => {
+  fetchPreview<BoardCellInfo>(url)
+    .then((info) => {
       if (info !== undefined) {
         infoCache.set(key, info);
       }
       if (myToken === hoverToken && boardInfoState.spaceId === spaceId) {
         boardInfoState.info = info;
-        boardInfoState.loading = false;
       }
-    })
-    .catch(() => {
       if (myToken === hoverToken) {
         boardInfoState.loading = false;
       }
@@ -198,13 +195,11 @@ export function fetchBoardCellPreview(
   if (url === undefined || typeof fetch === 'undefined') {
     return Promise.resolve(undefined);
   }
-  return fetch(url)
-    .then((r) => (r.ok ? r.json() : undefined))
-    .then((preview: BoardPlacementPreview | undefined) => {
+  return fetchPreview<BoardPlacementPreview>(url)
+    .then((preview) => {
       if (preview !== undefined) {
         previewCache.set(key, preview);
       }
       return preview;
-    })
-    .catch(() => undefined);
+    });
 }

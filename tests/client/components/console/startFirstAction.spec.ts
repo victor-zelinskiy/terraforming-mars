@@ -1,10 +1,12 @@
 import {expect} from 'chai';
 import {
   firstActionActionable, firstActionAsk, firstActionBranch, firstActionDrawExpected,
-  firstActionOwed, firstActionStageCorp, startFlowOtherPromptStands, startWaitMate,
+  firstActionOwed, firstActionPreviewable, firstActionStageCorp, startFlowOtherPromptStands,
+  startWaitMate,
 } from '@/client/console/startFirstAction';
 import {ACTION_MENU_FIRST_TITLE} from '@/common/inputs/actionMenuTitles';
 import {PlayerViewModel} from '@/common/models/PlayerModel';
+import {CardName} from '@/common/cards/CardName';
 import {ActionPreview} from '@/common/models/ActionPreviewModel';
 import {LogMessageDataType} from '@/common/logs/LogMessageDataType';
 import {Phase} from '@/common/Phase';
@@ -170,5 +172,36 @@ describe('startFirstAction (the first-action stage model)', () => {
       ],
     });
     expect(startWaitMate(idleBot), 'nobody to name → the surface must stay silent').to.eq(undefined);
+  });
+
+  /**
+   * ASK ONLY WHAT THE SERVER CAN ANSWER.
+   *
+   * The briefing re-fetches the first-action preview on every game-state move,
+   * and it keeps standing while the action it submitted resolves — but the
+   * corporation left `pendingInitialActions` at the SUBMIT (the option's own
+   * `andThen`), inside the same response that raises whatever the action
+   * produced. Aridor's colony catalog made that window long and visible: one
+   * declined preview request per state move, each logged on the server and
+   * printed as a 404 in the client console.
+   *
+   * The predicate reads the SAME ledger the route resolves against — the live
+   * prompt is deliberately NOT a second door, because the prompt is exactly
+   * what still names a corporation whose ledger entry is already gone.
+   */
+  describe('firstActionPreviewable: the route’s own precondition', () => {
+    it('true while the corporation still owes its first action', () => {
+      expect(firstActionPreviewable(view({pending: ['Aridor']}), 'Aridor' as CardName)).to.be.true;
+    });
+
+    it('false once the ledger has drained — the submit, not the resolution', () => {
+      const submitted = view({pending: [], prompt: true, corps: [{name: 'Aridor', label: 'Add a colony tile'}]});
+      expect(firstActionPreviewable(submitted, 'Aridor' as CardName)).to.be.false;
+    });
+
+    it('false for no corporation at all, and on a model with no ledger field', () => {
+      expect(firstActionPreviewable(view({pending: ['Aridor']}), undefined)).to.be.false;
+      expect(firstActionPreviewable({} as unknown as PlayerViewModel, 'Aridor' as CardName)).to.be.false;
+    });
   });
 });

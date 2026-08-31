@@ -20,6 +20,10 @@ import {
   colonyResolutionLiveFor,
   colonyResolutionPhaseFor,
   colonyResolutionUi,
+  clearColonyBonusSequence,
+  colonyBonusSequence,
+  noteColonyBonusCycleWaitOver,
+  noticeColonyBonusSequence,
   noteColonyBonusEntryWaitOver,
   noticeColonyResolutionDiscard,
   remoteColonyBonusParksReveal,
@@ -42,6 +46,7 @@ const IDLE: ColonyResolutionSignals = {
   discardFlightMeta: undefined,
   entryColony: '',
   entryAwaiting: false,
+  cycleAwaiting: false,
   claimedByColonies: false,
 };
 
@@ -288,5 +293,65 @@ describe('colonyResolution', () => {
     expect(colonyResolutionUi.discarded).to.eq(2);
     resetColonyResolutionUi();
     expect(colonyResolutionUi.discarded).to.eq(0);
+  });
+});
+
+/**
+ * THE SEQUENCE — the seam BETWEEN two cycles of one multi-settlement payout.
+ *
+ * The reported break: the answered discard's marker is gone, its card has
+ * landed, and the next cycle's batch has not been reconciled yet — one flush in
+ * which EVERY authoritative term is false. That fired the resolution's falling
+ * edge, which clears the entry and releases the workspace's claim; the next
+ * batch then arrived to a viewer who by every predicate «has not walked in»,
+ * so `remoteColonyBonusPendingFor` held its presentation behind a mandatory
+ * announce that only renders on the board home — while the player was standing
+ * inside the colony workspace, looking at an empty frame with a card owed.
+ */
+describe('colonyResolution — the multi-cycle sequence', () => {
+  const meta = (index: number, total: number) => ({colonyName: 'Pluto', index, total, min: 1, max: 1});
+
+  beforeEach(() => clearColonyBonusSequence());
+  after(() => clearColonyBonusSequence());
+
+  it('a marker that is not the last keeps the resolution alive across the gap', () => {
+    noticeColonyBonusSequence(meta(1, 2) as never, true);
+    expect(colonyBonusSequence.awaiting, 'nothing is being waited for yet').to.eq(false);
+
+    // The gap: the marker is answered and nothing has arrived.
+    noticeColonyBonusSequence(undefined, false);
+    expect(colonyBonusSequence.awaiting).to.eq(true);
+    expect(colonyResolutionLiveFor({...IDLE, cycleAwaiting: true}),
+      'the resolution survives the seam').to.eq(true);
+  });
+
+  it('the LAST cycle owes nothing — the resolution ends normally', () => {
+    noticeColonyBonusSequence(meta(2, 2) as never, true);
+    noticeColonyBonusSequence(undefined, false);
+    expect(colonyBonusSequence.awaiting, 'the sequence is finished').to.eq(false);
+  });
+
+  it('evidence ENDS the wait — it can never become the resolution', () => {
+    noticeColonyBonusSequence(meta(1, 3) as never, true);
+    noticeColonyBonusSequence(undefined, false);
+    expect(colonyBonusSequence.awaiting).to.eq(true);
+    // the next cycle's batch lands
+    noticeColonyBonusSequence(undefined, true);
+    expect(colonyBonusSequence.awaiting).to.eq(false);
+  });
+
+  it('…and so does its bounded net, for a cycle that never comes', () => {
+    noticeColonyBonusSequence(meta(1, 2) as never, true);
+    noticeColonyBonusSequence(undefined, false);
+    noteColonyBonusCycleWaitOver();
+    expect(colonyBonusSequence.awaiting).to.eq(false);
+    expect(colonyResolutionLiveFor({...IDLE, cycleAwaiting: colonyBonusSequence.awaiting}),
+      'a bounded wait ends; a latch does not').to.eq(false);
+  });
+
+  it('a single-colony payout never arms it at all', () => {
+    noticeColonyBonusSequence(meta(1, 1) as never, true);
+    noticeColonyBonusSequence(undefined, false);
+    expect(colonyBonusSequence.awaiting).to.eq(false);
   });
 });

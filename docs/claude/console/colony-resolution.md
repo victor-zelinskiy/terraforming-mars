@@ -454,6 +454,177 @@ pause never reaches). Five fixes, one architecture:
      finished materializing, as the workspace's last animated word before
      `finishTrade` → the resolution's falling edge → the conclusion.
 
+## Iteration 12 — THE COMMITTED STAGE IS A RECEIPT, AND ITS BEATS TAKE TURNS (2026-09-01)
+
+Four reports, one shape: everything between «A Подтвердить» and the workspace
+leaving was written as *state that happens to be true*, not as an ORDER. Each
+fix below states an order and lets the surfaces obey it.
+
+### 1 · The configuration RE-DERIVED past its own commit
+
+`heldView` pinned `{mode, available, payment}` and let everything else read the
+LIVE props, on the assumption stated beside the held payment row: «past the
+commit the server takes the options away». That is true of the «Колонии» door
+and **false of every other one**. A CARD-ACTION trade («Летающая платформа» →
+Ио) is answered while the player still owns the action, so the very next
+response offers the NEXT trade: a fresh `OrOptions` (with the spent card now
+carrying «уже использовано в этом поколении»), a fresh preview, a fresh step
+list. Three live payment rows and a new «ИТОГ ТОРГОВЛИ» then stood over a marker
+still gliding home.
+
+The boundary now pins the SERVER'S OWN INPUTS too — `options`,
+`disabledOptions`, `preview`, `tradeOffset` — and every derivation of the
+working area reads the pinned trio (`presentedOptions` / `presentedDisabled` /
+`presentedPreview` / `presentedOffset`). Past the boundary the stage describes
+exactly one trade: the one that was made on it. Three consequences fall out of
+one flag (`configPinned`): the payment LIST goes empty (the single locked
+receipt row is the whole zone), `focusables` goes empty (a receipt has no cursor
+stops), and `canConfirm` is false (the bar advertised «Подтвердить» over a
+resolving trade, for a press `handleIntent` absorbs anyway).
+
+⚠️ **WHOEVER NOTICES THE BOUNDARY FIRST TAKES THE SNAPSHOT.** The ordinary pin
+runs at the shell's accept, through an OPTIONAL-CHAINED ref
+(`coloniesSection.$refs.focusStage?.holdPresentation()`), so a frame in which
+that ref is not resolved yet silently pins NOTHING — and the working area then
+re-derives from the live props for the whole resolution, i.e. exactly the defect
+the pin exists for (measured: 62 of 273 post-commit samples showing a three-row
+payment menu, ~1 run in 4). `pinConfig()` is therefore called from the stage's
+OWN commit latch too, which is the same fact from a side that cannot be missed.
+Deliberately only the CONFIG half — `presentedTargets` is a decision-time
+snapshot and re-taking it there would read the server's answer instead.
+
+…and the pinned config OUTLIVES `heldView`: the crumb and the mode should
+re-derive when the resolution ends, but the working area may not — the stage is
+still mounted for the conclusion's own beat, and re-deriving there is the same
+re-lit menu one frame later (`pinnedConfig`, cleared only by a new colony or a
+fresh mount).
+
+### 2 · The hand-back was a CROSS-FADE, so the glide launched inside it
+
+`cardlandReleased` flipped `--carding` off and `--leaving` on in the SAME flush:
+the card's 280 ms fade-out and the working area's 280 ms fade-in ran over each
+other, `stageBusy` fell on that same frame, and `WORKING_AREA_BACK_MS` later the
+marker set off — «карта продолжает висеть посреди экрана в момент анимации
+трека». The departure is now a BEAT of its own: `cardlandReleased` starts the
+leave pose (`translateY` + `scale`, `CARDLAND_LEAVE_MS`), the leave's end
+UNMOUNTS the card, and only that drops `--carding` (the room is empty when the
+interface returns) and `stageBusy` (the marker may finally move). `cardlandHolds`
+is therefore `cardlandVisible` — the hold ends when the card is GONE, not when it
+begins to go. ⚠️ `clearCardlandDwell` deliberately does NOT clear the leave
+timer: several paths clear the dwell and re-arm it without touching
+`cardlandReleased`, and killing a departure there strands the card with no edge
+left to restart it.
+
+### 3 · The destination row was never SOLVED before the covers aimed at it
+
+`fitEmbeddedStrip` defers a re-solve while covers fly — «a landing target must
+not move under a flying cover». Its premise was «the mount-time fit is
+untouched, the scene only launches after it», and that is false for the path
+that matters: the trade claims its batch on a PRE-FLUSH watcher, so `cardScene`
+is already `'fly'` when the overlay MOUNTS and the FIRST fit was deferred too.
+The strip rendered at the coarse count-ladder fallback, the covers aimed at
+THOSE rects, and the real solve landed at the handoff — every card resized under
+the cards that had just come down on it. The guard now holds a SOLVED row still
+(`fitSolvedKey === revealKey`) and never withholds a row's first solve.
+
+…and the aim itself was taken slot by slot: `Promise.all(keys.map(stableRect))`
+resolves each slot as soon as ITS OWN rect holds for two frames, so slot 1 could
+be measured before the fit had solved and slot 4 after — one flight aimed at two
+layouts. `waitForStandingSlots` measures the row as ONE object (every slot
+present, non-degenerate, and the same SET of rects across two consecutive
+frames), bounded by its own net.
+
+### 4 · One resolution, several cycles — and one shared scene context
+
+`ConsoleColonyTradeLayer`'s module `ctx` was only ever cleared on TEARDOWN, so a
+Pluto payout's second colony inherited the first cycle's live timelines and
+pending timers: a stale `setColonyTradeBeat('bonus')`, a stale `ascend` cue, a
+stale cell pulse firing inside the next cycle. Each cycle now starts from a
+clean context — **but the MARKER keeps its own** (`glideHandles` /
+`glideTimers`): the pre-trade ADVANCE leg is exactly the beat the covers wait
+out, and one shared list would let the cycle reset kill the glide whose
+`onLanded` releases the payout.
+
+### 5 · The two Pluto cycles were separated by a RACE (server)
+
+«Draw 1, then discard 1» is paid per cube, and by the rules the next colony's
+card is not revealed until this one is finished. Nothing enforced that: the
+same-trade reveal MERGE (one trade = one batch) reached across the mandatory
+discard, and the only thing separating the cycles was the client's
+fire-and-forget acknowledgement winning a race with its own discard submit. When
+it lost, colony 2's card was appended to a batch the client had already
+dismissed (drawn and never shown) — or, worse, to one whose arrival cinematic
+was still airborne, so the row re-flowed under the flying covers.
+
+`CardDrawReveal.sealed` makes the boundary structural: a payout that owes a
+MANDATORY answer calls `player.sealCardDrawReveal()` beside its own
+`DiscardCards` defer, and `enqueueCardDrawReveal` never merges into a sealed
+batch. Miranda's two plain draws still merge (nothing is owed between them). The
+client keeps the other half of the law as a net: `reconcileDrawnCards`
+UN-DISMISSES a batch that GREW, because `dismissed` is a client latch and a
+batch that gained a card while wearing it is a card drawn and never shown.
+
+### 6 · Four unbounded holds, and the one still open
+
+Chasing the second cycle of a two-settlement Pluto payout turned up a state the
+player cannot leave: the workspace standing, the room prepared and PUBLISHED,
+and no reveal anywhere —
+
+```
+roots ["con-colonies"] · browseYielded true · embedZone true
+slots ["colonies-reveal"] · crumb «КОЛОНИИ › ПЛУТОН › БОНУС ВЛАДЕЛЬЦА»
+```
+
+— with a mandatory discard owed for the second colony. Four candidate holders
+were found, and every one of them was a client-written wait with no bound. All
+four are now bounded, and each was a genuine defect on its own:
+
+1. **`colonyResolutionUi.discardStage`** was cleared by exactly ONE call site
+   (`handOffHandForDiscard` → `restoreColonyFocusAfterDiscard`), and that site
+   returns early when the section has already been projected away from the hand.
+   The flag then survived the whole resolution: browse yielded, outcome slot
+   deliberately empty, focus never re-opened. Released from a DERIVED fact
+   instead (`ConsoleShell.colonyDiscardStageStranded`: the hand step is gone, the
+   server is not asking, no card is leaving, no return is in flight).
+2. **The resolution's falling edge could fire in the GAP between two cycles** —
+   one flush in which every authoritative term is false. It cleared the entry
+   and released the claim, and the next batch then met a viewer who «had not
+   walked in», so `remoteColonyBonusPendingFor` parked it behind an announce
+   that only renders on the board home. Bridged by the server's own ordinal
+   (`colonyBonusSequence` — `index < total` means another cycle is owed),
+   bounded exactly as the entry is.
+3. **The scene-exit barrier** (`revealHeldForWorkspace`) was «completion signals
+   only — never a timeout» over `cardStageExitBusy`, every term of which is a
+   client motion flag. A missed completion withheld the next batch for the rest
+   of the session. Now bounded per batch (`REVEAL_EXIT_BARRIER_NET_MS`), with
+   the completion signals still the primary release.
+4. **rAF-driven measurement probes starve on a quiet compositor** — and a quiet
+   screen is exactly what these probes wait in. The deck-draw scene arms,
+   `deckDrawHolds()` withholds the reveal, the scene probes the deck's rect, and
+   the frame never comes: the surface stays unmounted until the 30 s whole-scene
+   abort. Every measurement loop now ticks through **`probeTick`** (rAF with a
+   50 ms timer fallback — the alignment when the compositor runs, no liveness
+   dependency when it does not), and the withholding window has its own short
+   net (`DEAL_START_SAFETY_MS`), because the whole-scene safety is the wrong
+   bound for something that hides a mandatory surface.
+
+⚠️ **The state above still reproduces at ~25–30 %** and none of the four is its
+cause. It is recorded as `test.fixme('the second cycle always presents inside
+the workspace')` in `console-pluto-two-colony-sequence.spec.ts`, with the full
+evidence and the next step: instrument the shell's `consoleRevealMode` decision
+directly — every DOM-visible term has been eliminated, so the answer is in which
+of `revealHeldForWorkspace` / `rawDrawnRevealPending` / `currentRevealEvent()`
+answers wrongly. The spec's own subject (each card arrives exactly ONCE) holds in
+every run and is asserted.
+
+**Guards.** `ColonyTradeManifest.spec.ts` § two Pluto cubes (never
+acknowledges — the seal is what must hold) · `drawnCardsTakeLifecycle.spec.ts` §
+a batch that GREW comes back · e2e `console-colony-trade-receipt.spec.ts` (both
+doors: the post-commit window sampled continuously — no re-lit list, no refused
+path, the receipt row present, the glide never over a standing card) · e2e
+`console-pluto-two-colony-sequence.spec.ts` (each card arrives exactly once
+across the whole two-cycle resolution; the probe's own liveness is asserted).
+
 ## The invariant
 
 From the trade confirm to the last owed follow-up, the COLONY WORKSPACE is the

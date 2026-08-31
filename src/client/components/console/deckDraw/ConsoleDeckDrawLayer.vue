@@ -102,6 +102,7 @@ import {nomadMoveHolding} from '@/client/console/nomads/consoleNomadMove';
 import {isBoardCardBonusActive, boardCardBonusClaimsReveal, isBonusRevealStaged} from '@/client/console/boardCardBonus/consoleBoardCardBonus';
 import {colonyTradeClaimsReveal, isColonyTradeRevealStaged, isPresentedTradeReveal} from '@/client/console/colonyTrade/consoleColonyTrade';
 import {colonyResolutionUi, remoteColonyBonusHold} from '@/client/console/colonyTrade/colonyResolution';
+import {probeTick} from '@/client/console/probeTick';
 import {hydroStepQueuedFor} from '@/client/console/hydroMarker/consoleHydroMarker';
 import {markWorkspaceOutcomeArrivalDone, workspaceClaimOwnsArrival, workspaceClaimsColonyReveal, workspaceClaimsDrawReveal} from '@/client/console/consoleWorkspaceOutcome';
 import {
@@ -148,12 +149,12 @@ function stableRect(resolve: () => HTMLElement | null): Promise<DOMRect | undefi
       }
       last = sig;
       if (tries < 40) {
-        requestAnimationFrame(poll);
+        probeTick(poll);
       } else {
         done(ok ? r : undefined);
       }
     };
-    requestAnimationFrame(poll);
+    probeTick(poll);
   });
 }
 

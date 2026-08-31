@@ -119,6 +119,82 @@ export function armColonyBonusEntry(colonyName: ColonyName, trader?: {color: Col
 export const COLONY_BONUS_ENTRY_WAIT_MS = 8000;
 
 /**
+ * THE SEQUENCE — «this payout owes another cycle», taken from the SERVER's own
+ * ordinal and held across the gap between them.
+ *
+ * A multi-settlement Pluto payout resolves one colony at a time, and between
+ * two cycles there is a window in which EVERY authoritative term is briefly
+ * false: the answered discard's marker is gone, its card has landed, the next
+ * cycle's batch has not been reconciled yet. One flush of that is enough to
+ * fire the resolution's FALLING edge — which clears the entry context, releases
+ * the outcome claim and shrinks the frame's serves. The next batch then arrives
+ * to a viewer who, by every predicate, «has not walked in»: `remoteColonyBonusPendingFor`
+ * holds its presentation behind the mandatory ANNOUNCE, and that door only
+ * renders on the board home — while the player is standing inside the colony
+ * workspace. Reproduced as an empty «КОЛОНИИ › ПЛУТОН › БОНУС ВЛАДЕЛЬЦА» frame
+ * with the second colony's card owed and no surface anywhere to answer it (1 in
+ * 5 runs of `console-pluto-two-colony-sequence`).
+ *
+ * The marker itself says the sequence is unfinished (`index < total`), so the
+ * gap is bridged by SERVER TRUTH remembered for exactly as long as it takes the
+ * next cycle to arrive. Like the entry, this is a client-written term and so it
+ * is BOUNDED: it releases the instant any authoritative evidence exists, and on
+ * a named net otherwise. A bounded wait ends; a latch does not.
+ */
+export const colonyBonusSequence = reactive({
+  colonyName: '' as string,
+  index: 0,
+  total: 0,
+  /** The NEXT cycle is owed and nothing of it has arrived yet. */
+  awaiting: false,
+});
+
+export const COLONY_BONUS_CYCLE_WAIT_MS = 8000;
+
+/**
+ * ONE WRITER, called on every response with the pending discard marker and
+ * with whether the resolution stands on its own evidence right now.
+ *
+ *  · a marker present  → remember it; nothing is being waited for;
+ *  · the marker gone, the remembered one was NOT the last, and no evidence
+ *    stands → the next cycle is owed (the shell arms the net);
+ *  · evidence back     → the wait is over, whatever it was.
+ */
+export function noticeColonyBonusSequence(
+  meta: ColonyBonusDiscardMeta | undefined,
+  evidence: boolean,
+): void {
+  if (meta !== undefined) {
+    colonyBonusSequence.colonyName = meta.colonyName;
+    colonyBonusSequence.index = Math.max(1, meta.index);
+    colonyBonusSequence.total = Math.max(1, meta.total);
+    colonyBonusSequence.awaiting = false;
+    return;
+  }
+  if (evidence) {
+    colonyBonusSequence.awaiting = false;
+    return;
+  }
+  if (colonyBonusSequence.colonyName !== '' &&
+      colonyBonusSequence.index < colonyBonusSequence.total) {
+    colonyBonusSequence.awaiting = true;
+  }
+}
+
+/** The bounded net fired (or the resolution ended) — stop waiting. */
+export function noteColonyBonusCycleWaitOver(): void {
+  colonyBonusSequence.awaiting = false;
+}
+
+/** Cleared with the resolution itself (its falling edge). */
+export function clearColonyBonusSequence(): void {
+  colonyBonusSequence.colonyName = '';
+  colonyBonusSequence.index = 0;
+  colonyBonusSequence.total = 0;
+  colonyBonusSequence.awaiting = false;
+}
+
+/**
  * The entry stops being what HOLDS the resolution up — evidence took over, or
  * the bounded wait expired. The context (colony + trader) stands until the
  * resolution itself ends.
@@ -289,6 +365,9 @@ export type ColonyResolutionSignals = {
   /** …and it is still WAITING for its payout — the ONLY state in which the
    *  entry holds the resolution up (see `colonyBonusEntry.awaiting`). */
   entryAwaiting: boolean,
+  /** The server's own ordinal says another CYCLE of this payout is owed, and
+   *  nothing of it has arrived yet (see `colonyBonusSequence`). Bounded. */
+  cycleAwaiting: boolean,
   /**
    * The COLONY WORKSPACE holds the outcome claim — the flow already has a
    * living owner surface. ⚠️ Load-bearing for the own/remote split: the trade
@@ -347,7 +426,12 @@ export function colonyResolutionLiveFor(s: ColonyResolutionSignals): boolean {
     // payout it was armed for. It may EXTEND the resolution across the gap
     // between the player's press and the first authoritative signal; it may
     // never BE the resolution (see `colonyBonusEntry.awaiting`).
-    s.entryAwaiting;
+    s.entryAwaiting ||
+    // …and the SEQUENCE, for the same reason at the other seam: the server's
+    // own ordinal says another cycle of THIS payout is coming, and the window
+    // where nothing of it has arrived yet is not the end of the resolution
+    // (see `colonyBonusSequence`). Bounded exactly as the entry is.
+    s.cycleAwaiting;
 }
 
 /**
@@ -496,6 +580,7 @@ export function remoteColonyBonusHold(
     discardFlightMeta: cardDiscardColonyBonus(),
     entryColony: colonyBonusEntry.colonyName,
     entryAwaiting: colonyBonusEntry.awaiting,
+    cycleAwaiting: colonyBonusSequence.awaiting,
     claimedByColonies: workspaceOutcomeState.host === 'colonies',
   }), source);
 }

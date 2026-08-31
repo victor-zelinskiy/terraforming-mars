@@ -141,10 +141,32 @@ let safetyTimer: ReturnType<typeof setTimeout> | undefined;
  */
 const SCENE_SAFETY_MS = 30_000;
 
+/**
+ * …AND A MUCH TIGHTER ONE ON THE PART THAT WITHHOLDS A SURFACE.
+ *
+ * `deckDrawHolds()` is true only in `search`/`settle`, i.e. from the arm until
+ * the first card physically leaves the pile — and while it is true the reveal
+ * overlay does not even MOUNT. The whole-scene safety is the wrong bound for
+ * that window: a scene that stalls BEFORE it deals (a probe waiting on a frame
+ * a quiet compositor never paints, an anchor that never lays out) hides a
+ * mandatory surface for thirty seconds, which reads as a dead screen, not as a
+ * cinematic. The deal either starts promptly or this scene has nothing to show.
+ */
+const DEAL_START_SAFETY_MS = 6_000;
+
 function clearSafety(): void {
   if (safetyTimer !== undefined) {
     clearTimeout(safetyTimer);
     safetyTimer = undefined;
+  }
+}
+
+let dealStartTimer: ReturnType<typeof setTimeout> | undefined;
+
+function clearDealStartSafety(): void {
+  if (dealStartTimer !== undefined) {
+    clearTimeout(dealStartTimer);
+    dealStartTimer = undefined;
   }
 }
 
@@ -229,6 +251,13 @@ export function armDeckDraw(eventId: number, opts: {hasDiscards: boolean, preDra
   // Bare setTimeout (NOT window.setTimeout): `window` isn't reliably the
   // global inside the mochapack test bundle (same as the draft tray).
   safetyTimer = setTimeout(() => abortDeckDraw(), SCENE_SAFETY_MS);
+  clearDealStartSafety();
+  dealStartTimer = setTimeout(() => {
+    dealStartTimer = undefined;
+    if (deckDrawState.active && !deckDrawState.dealing) {
+      abortDeckDraw();
+    }
+  }, DEAL_START_SAFETY_MS);
   return true;
 }
 
@@ -247,6 +276,8 @@ export function setDeckDrawPhase(phase: DeckDrawPhase): void {
 export function markDeckDrawDealing(): void {
   if (deckDrawState.active) {
     deckDrawState.dealing = true;
+    // Past the withholding window — the whole-scene safety guards the rest.
+    clearDealStartSafety();
   }
 }
 
@@ -352,6 +383,7 @@ export function endDeckDraw(): void {
     return;
   }
   clearSafety();
+  clearDealStartSafety();
   releaseDeckDisplay();
   deckDrawState.active = false;
   deckDrawState.dealing = false;
@@ -370,6 +402,7 @@ export function abortDeckDraw(): void {
     return;
   }
   clearSafety();
+  clearDealStartSafety();
   releaseDeckDisplay();
   const h = handle;
   handle = undefined;
@@ -390,6 +423,7 @@ export function abortDeckDraw(): void {
 /** Full reset (tests / game-switch boundary). */
 export function resetDeckDraw(): void {
   clearSafety();
+  clearDealStartSafety();
   releaseDeckDisplay();
   handle = undefined;
   zoomOriginResolver = undefined;

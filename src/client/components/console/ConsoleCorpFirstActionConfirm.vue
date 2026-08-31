@@ -111,6 +111,7 @@ import {Message} from '@/common/logs/Message';
 import {ActionPreview, ActionPreviewBranch, ActionEffect} from '@/common/models/ActionPreviewModel';
 import {paths} from '@/common/app/paths';
 import {apiUrl} from '@/client/utils/runtimeConfig';
+import {fetchPreview} from '@/client/utils/previewFetch';
 import {openConsoleCardZoom} from '@/client/console/consoleCardZoom';
 import {skippedEffectViews} from '@/client/components/actions/skippedEffectView';
 import {translateMessage, translateText, translateCardName} from '@/client/directives/i18n';
@@ -121,6 +122,7 @@ import {consoleTranslate} from '@/client/console/consoleTranslate';
 import {tileIconStyle} from '@/client/console/consoleTileIcon';
 import {gameStateVersion} from '@/client/console/gameStateVersion';
 import {startFlowCorpPrompt, corpActionOptionIndexFor} from '@/client/components/startGameFlow/startGameFlowState';
+import {firstActionPreviewable} from '@/client/console/startFirstAction';
 
 function textOf(v: string | Message | undefined): string {
   if (v === undefined) {
@@ -242,7 +244,7 @@ export default defineComponent({
       immediate: true,
       handler(name: CardName | undefined) {
         if (name !== undefined && !(name in this.previews)) {
-          this.fetchPreview(name);
+          this.loadPreview(name);
         }
       },
     },
@@ -268,7 +270,7 @@ export default defineComponent({
         // On the SEEDING pass the `currentName` watcher (declared above, also
         // immediate) has already asked — refetching here would double it.
         if (!seeding && name !== undefined) {
-          this.fetchPreview(name);
+          this.loadPreview(name);
         }
       },
     },
@@ -276,26 +278,31 @@ export default defineComponent({
   methods: {
     /** The «ДАЛЕЕ» row's inline tile pictogram (the same art as the card face). */
     tileIconStyle,
-    fetchPreview(name: CardName): void {
-      const url = apiUrl(paths.API_CORP_FIRST_ACTION_PREVIEW) +
-        '?id=' + encodeURIComponent(this.playerView.id) + '&corp=' + encodeURIComponent(name);
+    loadPreview(name: CardName): void {
       // The version at REQUEST time: an answer that lands after the state moved
       // is dropped rather than stored under the new version (the prewarm cache's
       // rule — a stale answer is never patched, it simply stops matching).
       const version = this.previewVersion;
-      fetch(url)
-        .then((r) => (r.ok ? r.json() : undefined))
-        .then((p) => {
-          if (this.previewsVersion === version) {
-            this.previews = {...this.previews, [name]: p as ActionPreview | undefined};
-          }
-        })
-        .catch(() => {
-          // Graceful: the modal still shows the ask + the confirm CTA.
-          if (this.previewsVersion === version) {
-            this.previews = {...this.previews, [name]: undefined};
-          }
-        });
+      // SETTLE, don't just skip. `loading` is `!(name in previews)`, so a name
+      // we decline to ask about must still be RECORDED as answered — «no
+      // preview» is the honest verdict (the modal shows the ask + the confirm
+      // CTA), while leaving the slot empty is a permanent «Загрузка…».
+      const settle = (preview: ActionPreview | undefined) => {
+        if (this.previewsVersion === version) {
+          this.previews = {...this.previews, [name]: preview};
+        }
+      };
+      // ASK ONLY WHAT THE SERVER CAN ANSWER — the corp must still owe its first
+      // action (`pendingInitialActions`, the ledger the route resolves
+      // against). It drains at the SUBMIT, while this modal is still mounted.
+      if (!firstActionPreviewable(this.playerView, name)) {
+        settle(undefined);
+        return;
+      }
+      const url = apiUrl(paths.API_CORP_FIRST_ACTION_PREVIEW) +
+        '?id=' + encodeURIComponent(this.playerView.id) + '&corp=' + encodeURIComponent(name);
+      // Graceful on an absent preview: the modal still shows the ask + the CTA.
+      fetchPreview<ActionPreview>(url).then(settle);
     },
     switchCorp(step: 1 | -1): void {
       const n = this.corpNames.length;

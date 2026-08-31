@@ -44,6 +44,23 @@ const SCANNED: ReadonlyArray<ReadonlyArray<string>> = [
 ];
 
 /**
+ * WHAT COUNTS AS TALKING TO THE SERVER. The bare `fetch(` — plus a file that
+ * imports the shared read-only preview helper (`src/client/utils/previewFetch.ts`),
+ * which is a round trip under another name. Scanning for the bare call alone
+ * made this guard silently SHRINK when a site moved onto the helper:
+ * `fetchPreview(` does not contain the substring `fetch(`, so both of the caches
+ * this guard names as its own reason to exist would have dropped out of the scan
+ * unnoticed. Detected by the IMPORT rather than by the call, because a surface
+ * may legitimately name a local method `fetchPreview()` of its own
+ * (`ConsoleHydroSection`) — that is not this helper and proves nothing.
+ */
+const PREVIEW_HELPER = /from '@\/client\/utils\/previewFetch'/;
+
+function talksToServer(source: string): boolean {
+  return source.includes('fetch(') || PREVIEW_HELPER.test(source);
+}
+
+/**
  * The sanctioned ways to be version-keyed: name the stamp, or go through a
  * cache that already does (the hand-play prewarm store).
  */
@@ -90,7 +107,7 @@ describe('server-derived caches are keyed by the game-state version', () => {
       walk(abs, files);
       for (const file of files) {
         const source = fs.readFileSync(file, 'utf8');
-        if (!source.includes('fetch(')) {
+        if (!talksToServer(source)) {
           continue;
         }
         const rel = path.relative(ROOT, file);
@@ -126,7 +143,7 @@ describe('server-derived caches are keyed by the game-state version', () => {
     const stale: Array<string> = [];
     for (const rel of NOT_A_CACHE.keys()) {
       const abs = path.join(ROOT, rel);
-      if (!fs.existsSync(abs) || !fs.readFileSync(abs, 'utf8').includes('fetch(')) {
+      if (!fs.existsSync(abs) || !talksToServer(fs.readFileSync(abs, 'utf8'))) {
         stale.push(rel);
       }
     }

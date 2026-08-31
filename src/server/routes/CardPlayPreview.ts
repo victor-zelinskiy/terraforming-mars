@@ -67,7 +67,8 @@ export class CardPlayPreview extends Handler {
       }
       const card = previewableCard(player, cardName as CardName);
       if (card === undefined) {
-        responses.notFound(req, res, 'playable card not found');
+        // Expired subject, not an error — see `responses.noPreview`.
+        responses.noPreview(res, 'playable card not found');
         return;
       }
       responses.writeJson(res, ctx, cardPlayPreview(player, card));

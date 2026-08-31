@@ -43,6 +43,7 @@ import ConsoleCardFaceLite from '@/client/components/console/cardDeal/ConsoleCar
 import {motionMs} from '@/client/components/motion/motionTokens';
 import {CARD_NATURAL_W} from '@/client/console/cardDeal/cardDealModel';
 import {presentationTarget} from '@/client/console/boardCardBonus/boardCardBonusModel';
+import {probeTick} from '@/client/console/probeTick';
 import {currentRevealEvent, DrawnCardEntry} from '@/client/components/drawnCards/drawnCardsState';
 import {preloadPremiumCardArt} from '@/client/cards/cardArt';
 import {
@@ -85,14 +86,71 @@ function stableRect(resolve: () => HTMLElement | null): Promise<DOMRect | undefi
       }
       last = sig;
       if (tries < 40) {
-        requestAnimationFrame(poll);
+        probeTick(poll);
       } else {
         done(ok ? r : undefined);
       }
     };
-    requestAnimationFrame(poll);
+    probeTick(poll);
   });
 }
+
+/**
+ * THE WHOLE DESTINATION ROW, MEASURED AT ONE INSTANT AND AT REST.
+ *
+ * ⚠️ Per-slot `stableRect` is not the same claim, and the difference shipped as
+ * «карты летят по странной траектории»: each slot resolved as soon as ITS OWN
+ * rect held for two frames, so slot 1 could be measured before the strip's fit
+ * had solved and slot 4 after — one flight aimed at two different layouts. The
+ * row is one object: every slot must exist, be non-degenerate, and hold the
+ * SAME set of rects across two consecutive frames before anything takes off.
+ * Bounded by its own net — a row that never settles degrades honestly rather
+ * than stranding the batch.
+ */
+function waitForStandingSlots(
+  resolve: () => Array<HTMLElement | null>,
+  deadlineMs: number,
+): Promise<Array<DOMRect> | undefined> {
+  return new Promise((done) => {
+    const start = performance.now();
+    let last = '';
+    const poll = () => {
+      if (!colonyTradeState.active) {
+        done(undefined);
+        return;
+      }
+      const els = resolve();
+      const rects: Array<DOMRect> = [];
+      for (const el of els) {
+        const r = el?.getBoundingClientRect();
+        if (r !== undefined && r.width > 2 && r.height > 2) {
+          rects.push(r);
+        }
+      }
+      if (rects.length === els.length) {
+        const sig = rects.map((r) => `${Math.round(r.left)},${Math.round(r.top)},${Math.round(r.width)}`).join('|');
+        if (sig === last || deadlineMs <= 0) {
+          done(rects);
+          return;
+        }
+        last = sig;
+      } else {
+        last = '';
+      }
+      if (performance.now() - start > deadlineMs) {
+        done(undefined);
+        return;
+      }
+      probeTick(poll);
+    };
+    poll();
+  });
+}
+
+/** How long the covers may wait for the reveal row to finish solving itself.
+ *  Generous enough for the fit's own settle pass, short enough that a row that
+ *  never stands degrades to the instant handoff instead of stranding a batch. */
+const SLOTS_STANDING_WAIT_MS = 1_400;
 
 function cssEscape(value: string): string {
   return typeof CSS !== 'undefined' && typeof CSS.escape === 'function' ? CSS.escape(value) : value.replace(/"/g, '\\"');
@@ -158,7 +216,7 @@ function waitForStandingTrack(
         done(undefined);
         return;
       }
-      requestAnimationFrame(poll);
+      probeTick(poll);
     };
     poll();
   });
@@ -193,18 +251,41 @@ function pickAnchor(selectors: ReadonlyArray<string>): HTMLElement | null {
   return fallback;
 }
 
-/* Non-reactive scene context — GSAP handles must never enter Vue reactivity. */
+/*
+ * Non-reactive scene context — GSAP handles must never enter Vue reactivity.
+ *
+ * ⚠️ TWO ACTORS, TWO LIFETIMES. The card covers belong to ONE payout cycle (a
+ * Pluto resolution plays one per colony) and must be reset between cycles; the
+ * white MARKER belongs to the transaction and legitimately runs while a cycle
+ * starts — the pre-trade ADVANCE leg is exactly the beat the covers wait out.
+ * One shared list would make the cycle reset kill the glide mid-flight, and its
+ * `onLanded` is what releases the payout: the leg would only ever end on its
+ * own safety net.
+ */
 type SceneCtx = {
+  /** The current cover cycle's timelines + timers (reset per batch). */
   handles: Array<TradeDirectorHandle>,
   timers: Array<ReturnType<typeof setTimeout>>,
+  /** The marker glide's own timeline + cell-pulse timers (transaction-lived). */
+  glideHandles: Array<TradeDirectorHandle>,
+  glideTimers: Array<ReturnType<typeof setTimeout>>,
 };
-const ctx: SceneCtx = {handles: [], timers: []};
+const ctx: SceneCtx = {handles: [], timers: [], glideHandles: [], glideTimers: []};
 
-function clearScene(): void {
+/** Reset the COVER cycle only — the marker keeps its own. */
+function clearCovers(): void {
   ctx.handles.forEach((h) => h.kill());
   ctx.handles = [];
   ctx.timers.forEach((t) => clearTimeout(t));
   ctx.timers = [];
+}
+
+function clearScene(): void {
+  clearCovers();
+  ctx.glideHandles.forEach((h) => h.kill());
+  ctx.glideHandles = [];
+  ctx.glideTimers.forEach((t) => clearTimeout(t));
+  ctx.glideTimers = [];
 }
 
 export default defineComponent({
@@ -329,6 +410,16 @@ export default defineComponent({
 
     /** The whole cover scene of ONE staged batch (multi or single card). */
     async runCoverScene(e: DrawnCardEntry): Promise<void> {
+      // ⚠️ ONE RESOLUTION PLAYS SEVERAL SCENES, AND THE CONTEXT IS MODULE-WIDE.
+      // A Pluto payout runs one cycle per colony, and every cycle used to
+      // inherit the previous one's live GSAP handles and pending timers —
+      // `clearScene` only ever ran on teardown (abort / transaction end). A
+      // stale `setColonyTradeBeat('bonus')`, a stale `ascend` cue or a stale
+      // cell pulse then fired INSIDE the next cycle, describing a wave that had
+      // already been paid. Each scene starts from a clean context; the
+      // transaction's own state (staged ids, phase) is untouched — and neither
+      // is the MARKER's, which may legitimately be mid-advance right now.
+      clearCovers();
       await this.waitForCause();
       if (!colonyTradeState.active || !isColonyTradeRevealStaged(e.id)) {
         return;
@@ -418,16 +509,18 @@ export default defineComponent({
         return;
       }
 
-      // Multi-card: the reveal is mounting VEILED — measure its real slots.
+      // Multi-card: the reveal is mounting VEILED — measure its real slots, as
+      // ONE row and only once it stands still (see `waitForStandingSlots`).
       const keys = e.cards.map((c, i) => `${c.name}#${i}`);
-      const targets = await Promise.all(keys.map((key) => stableRect(() => document.querySelector<HTMLElement>(
-        `.con-reveal [data-zoom-slot="${cssEscape(key)}"] :is(.card-container, .pcard)`,
-      ))));
+      const targets = await waitForStandingSlots(
+        () => keys.map((key) => document.querySelector<HTMLElement>(
+          `.con-reveal [data-zoom-slot="${cssEscape(key)}"] :is(.card-container, .pcard)`)),
+        colonyTradeState.reducedMotion ? 0 : motionMs(SLOTS_STANDING_WAIT_MS),
+      );
       if (!colonyTradeState.active || !isColonyTradeRevealStaged(e.id)) {
         return;
       }
-      const resolved = targets.filter((r): r is DOMRect => r !== undefined);
-      if (resolved.length !== keys.length) {
+      if (targets === undefined) {
         tradeLog('cover scene degraded — unmeasurable reveal slots');
         this.degradeToInstant();
         return;
@@ -566,6 +659,10 @@ export default defineComponent({
           ctx.timers.push(setTimeout(() => {
             this.covers = [];
             setColonyTradeCardScene('idle');
+            // The card is delivered — this payout's lift-off cue is spent, the
+            // same as on the multi path (a cue left standing would dissolve the
+            // stage the instant the NEXT cycle's zone opened).
+            clearColonyPayoutLiftOff();
           }, motionMs(320)));
         },
       }));
@@ -660,7 +757,7 @@ export default defineComponent({
         return;
       }
       const cellEls = plan.path.map((pos) => cellEl(pos));
-      ctx.handles.push(runColonyTrackGlide({
+      ctx.glideHandles.push(runColonyTrackGlide({
         marker,
         fromRect: fromRect as RectLike,
         cells: resolved as ReadonlyArray<RectLike>,
@@ -672,7 +769,7 @@ export default defineComponent({
           const cell = cellEls[i];
           if (cell !== null && cell !== undefined) {
             cell.classList.add('con-coltile__track-cell--sweep');
-            ctx.timers.push(setTimeout(() => cell.classList.remove('con-coltile__track-cell--sweep'), motionMs(360)));
+            ctx.glideTimers.push(setTimeout(() => cell.classList.remove('con-coltile__track-cell--sweep'), motionMs(360)));
           }
         },
         onLanded: () => {

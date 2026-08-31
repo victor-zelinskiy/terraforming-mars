@@ -76,8 +76,8 @@
             its cube is landing in the berth row right there — so the card
             takes the summary rail's column instead and both physical events
             stay visible at once. */
-         'con-colfocus--carding': cardlandHolds && intent !== 'build',
-         'con-colfocus--carding-rail': cardlandHolds && intent === 'build',
+         'con-colfocus--carding': cardlandVisible && intent !== 'build',
+         'con-colfocus--carding-rail': cardlandVisible && intent === 'build',
        }]"
        :data-colony-intent="intent"
        :style="fitNeedPx > 0 ? {'--colfocus-need': fitNeedPx + 'px'} : undefined">
@@ -483,7 +483,7 @@
                    so it keeps showing WHAT WAS CHOSEN. Blanking the zone here
                    left a hole under a flying reward and read as the screen
                    forgetting the decision the moment it was taken. -->
-              <div v-if="tradeConfigLive && heldPayment !== undefined && payEntries.length === 0"
+              <div v-if="tradeConfigLive && heldPayment !== undefined && visiblePayEntries.length === 0"
                    class="con-colfocus__payrow con-colfocus__payrow--chosen con-colfocus__payrow--locked">
                 <span class="con-colfocus__payrow-pick" aria-hidden="true">
                   <span class="con-colfocus__payrow-dot"></span>
@@ -945,6 +945,17 @@ const CARDLAND_READ_MS = 680;
  * short enough never to read as a stuck screen.
  */
 const CARDLAND_NET_MS = 2200;
+/**
+ * THE CARD'S DEPARTURE IS A BEAT, NOT A CROSSFADE. The presented scene used to
+ * flip `cardlandReleased` and, in the SAME flush, drop `--carding` — so the
+ * card's 280 ms fade-out and the working area's 280 ms fade-in ran over each
+ * other, and the closing glide launched into that overlap: «карта продолжает
+ * висеть посреди экрана в момент анимации трека». The stage now hands back in
+ * ORDER — the card leaves, THEN the interface materializes, THEN the marker
+ * moves — and this is how long the leave itself takes (paired with
+ * `.con-colfocus__cardland--leaving`, never re-stated in LESS).
+ */
+const CARDLAND_LEAVE_MS = 300;
 
 /** The stage's nested sub-screens. `mix` is the Delta Works COMPOSITION
  *  step — entered from the trade's own confirm, ONLY while the server model
@@ -952,6 +963,38 @@ const CARDLAND_NET_MS = 2200;
 type Sub = undefined | 'lanes' | 'track' | 'targets' | 'mix';
 type NoticeRow = {tone: 'warn' | 'info', iconClass: string, text: string};
 type Focusable = {zone: 'pay' | 'step', index: number};
+/**
+ * THE COMMIT-BOUNDARY SNAPSHOT — everything the working area PRESENTS while
+ * the move it describes is still resolving on this stage.
+ *
+ * ⚠️ IT PINS THE SERVER'S OWN INPUTS, not just the derived mode. The stage
+ * used to keep only `{mode, available, payment}` and re-derive the rest from
+ * the LIVE props, on the assumption stated beside the held payment row: «past
+ * the commit the server takes the options away». That assumption holds for the
+ * «Колонии» door and is FALSE for every other one — a card-action trade
+ * («Летающая платформа» → Ио) is answered while the player still owns the
+ * action, so the very next response offers the NEXT trade: a fresh
+ * `OrOptions` (with the spent card now carrying «уже использовано в этом
+ * поколении»), a fresh preview, a fresh step list. The configuration then
+ * RE-LIT under the reward it had just paid for — three live payment rows and a
+ * new «ИТОГ ТОРГОВЛИ» standing over a marker still gliding home.
+ *
+ * So the boundary pins the OPTIONS and the PREVIEW too, and every derivation
+ * of the working area reads the pinned pair (`presentedOptions` /
+ * `presentedPreview`). Past the commit the stage describes exactly one trade:
+ * the one that was made on it.
+ */
+type HeldView = {
+  mode: string,
+  available: boolean,
+  payment?: PayEntry,
+  options: ReadonlyArray<SelectOptionModel>,
+  disabledOptions: NonNullable<OrOptionsModel['disabledOptions']>,
+  preview: ColonyTradePreviewModel | undefined,
+  /** The pre-trade track offset the committed move was read at. */
+  tradeOffset: number,
+};
+
 type TrackCell = {
   index: number,
   quantity: number,
@@ -1033,6 +1076,8 @@ export default defineComponent({
        *  a card payout took the area over) and is receding. */
       cardlandReleased: false,
       cardlandDwell: undefined as number | undefined,
+      /** The departure's own timer — the card is unmounted when it lands. */
+      cardlandLeave: undefined as number | undefined,
       paymentCounts: {} as Partial<Record<SpendableResource, number>>,
       payFlashNonce: 0,
       tradeFleetState,
@@ -1074,7 +1119,20 @@ export default defineComponent({
        * the crumb «Осмотр» and swapped the verdict under a flying cube.
        * Released by the transaction's own falling edge, never a timer.
        */
-      heldView: undefined as {mode: string, available: boolean, payment?: PayEntry} | undefined,
+      heldView: undefined as HeldView | undefined,
+      /**
+       * …AND THE PART OF THAT SNAPSHOT THAT OUTLIVES IT.
+       *
+       * `heldView` is released on the transaction's FALLING edge — deliberately,
+       * because the crumb and the mode should re-derive once the resolution is
+       * over. The working area may NOT: the stage is still mounted for the
+       * conclusion's own beat, and re-deriving its options there is the same
+       * re-lit menu one frame later. What has been committed on this stage is
+       * committed for the stage's whole life (the `commitLatched` law, applied
+       * to the configuration), so this snapshot is cleared only by a new colony
+       * or a fresh mount.
+       */
+      pinnedConfig: undefined as HeldView | undefined,
     };
   },
   computed: {
@@ -1201,7 +1259,7 @@ export default defineComponent({
     /** The payment path the player actually chose, pinned at the commit —
      *  what the config zone keeps showing while the trade resolves. */
     heldPayment(): PayEntry | undefined {
-      return this.heldView?.payment;
+      return this.pinnedConfig?.payment;
     },
     /** The presentation mode the adaptive layout keys off. */
     presentMode(): string {
@@ -1256,8 +1314,13 @@ export default defineComponent({
     trackMax(): number {
       return this.metadata.trade.quantity.length - 1;
     },
+    /** The offset the stage PRESENTS — pinned past the commit, so the spent
+     *  «+N» of the move that was made is never replaced by the next one's. */
+    presentedOffset(): number {
+      return this.pinnedConfig !== undefined ? this.pinnedConfig.tradeOffset : this.tradeOffset;
+    },
     effectivePosition(): number {
-      const offset = this.colony.isActive ? this.tradeOffset : 0;
+      const offset = this.colony.isActive ? this.presentedOffset : 0;
       return effectiveTradePosition(this.presented, this.metadata, offset);
     },
     offsetSteps(): number {
@@ -1416,8 +1479,35 @@ export default defineComponent({
       }
       return translateText('Trade fleet currently here');
     },
+    /**
+     * THE CONFIGURATION IS PINNED — this stage is past its own commit and the
+     * working area is a RECEIPT, not a form. One flag, three sources (see
+     * `HeldView`): after the boundary the options, the disabled paths and the
+     * preview all come from the snapshot, so a NEXT trade offered in the very
+     * response that answered this one can never re-light the panel.
+     */
+    configPinned(): boolean {
+      return this.pinnedConfig !== undefined;
+    },
+    /** The «Pay trade fee» options the stage PRESENTS (pinned past commit). */
+    presentedOptions(): ReadonlyArray<SelectOptionModel> {
+      return this.pinnedConfig?.options ?? this.options;
+    },
+    /** …and the refused ones. */
+    presentedDisabled(): NonNullable<OrOptionsModel['disabledOptions']> {
+      return this.pinnedConfig?.disabledOptions ?? this.disabledOptions;
+    },
+    /**
+     * The trade/build preview the stage PRESENTS. Pinned past the commit, so
+     * the reward package, the step list and every «current → resulting» keep
+     * describing the move that was made here — never the next one the server
+     * has already offered.
+     */
+    presentedPreview(): ColonyTradePreviewModel | undefined {
+      return this.pinnedConfig !== undefined ? this.pinnedConfig.preview : this.preview;
+    },
     payEntries(): Array<PayEntry> {
-      return this.options.map((o) => {
+      return this.presentedOptions.map((o) => {
         const meta = o.metadata;
         const res = meta?.resource;
         return {
@@ -1428,7 +1518,7 @@ export default defineComponent({
       });
     },
     disabledEntries(): Array<{title: string, iconClass: string, reason: string}> {
-      return this.disabledOptions.map((d) => {
+      return this.presentedDisabled.map((d) => {
         const rec = d as {title?: string | Message, label?: string | Message, reason?: string | Message, metadata?: {icon?: string, resource?: {current: number}}};
         const current = rec.metadata?.resource?.current;
         const title = textOf(rec.title ?? rec.label);
@@ -1453,12 +1543,20 @@ export default defineComponent({
      * renumber it.
      */
     visiblePayEntries(): Array<PayEntry & {index: number}> {
+      // PAST THE COMMIT there is no list at all — the chosen path alone stands
+      // as the receipt (the held row below the loop). A menu of alternatives
+      // over a move that has already been made is an offer the player cannot
+      // take, and — when the server has already re-offered the trade — one
+      // whose numbers describe a DIFFERENT transaction.
+      if (this.configPinned) {
+        return [];
+      }
       const rows = this.payEntries.map((entry, index) => ({...entry, index}));
       return this.lockedPayIdx >= 0 ? rows.filter((r) => r.index === this.lockedPayIdx) : rows;
     },
     /** …and a REFUSED path is equally irrelevant once the fee is fixed. */
     visibleDisabledEntries(): Array<{title: string, iconClass: string, reason: string}> {
-      return this.lockedPayIdx >= 0 ? [] : this.disabledEntries;
+      return this.lockedPayIdx >= 0 || this.configPinned ? [] : this.disabledEntries;
     },
     /**
      * THE FEE IS FIXED — this trade was entered from a card's own action, so
@@ -1468,18 +1566,18 @@ export default defineComponent({
      * Resolved from the option's `metadata.card`, never its label.
      */
     lockedPayIdx(): number {
-      return lockedTradePaymentIndex(this.options, cardColonyTradeCard());
+      return lockedTradePaymentIndex(this.presentedOptions, cardColonyTradeCard());
     },
     isMcSelected(): boolean {
-      return this.options[this.payIdx]?.metadata?.icon === 'megacredits';
+      return this.presentedOptions[this.payIdx]?.metadata?.icon === 'megacredits';
     },
     /** The energy payment family is the chosen path (Delta Works mix applies). */
     isEnergySelected(): boolean {
-      return this.options[this.payIdx]?.metadata?.icon === 'energy';
+      return this.presentedOptions[this.payIdx]?.metadata?.icon === 'energy';
     },
     /** The live Delta Works mix of the energy fee, or undefined without one. */
     energyMixInfo(): ColonyTradePreviewModel['energyMix'] {
-      const mix = this.preview?.energyMix;
+      const mix = this.presentedPreview?.energyMix;
       if (mix === undefined || !this.isEnergySelected || !this.tradeConfigLive) {
         return undefined;
       }
@@ -1489,11 +1587,11 @@ export default defineComponent({
      *  Delta Works widens the family), regardless of which row is chosen:
      *  what puts the ⚡/🔩 pair on the family row BEFORE any selection. */
     energyMixLive(): boolean {
-      return this.tradeConfigLive && this.preview?.energyMix !== undefined;
+      return this.tradeConfigLive && this.presentedPreview?.energyMix !== undefined;
     },
     /** The energy family's own option index (metadata-keyed, never a title). */
     energyEntryIdx(): number {
-      return this.options.findIndex((o) => o.metadata?.icon === 'energy');
+      return this.presentedOptions.findIndex((o) => o.metadata?.icon === 'energy');
     },
     /** The EFFECTIVE steel share — THE canonical draft value: the dialed
      *  preference clamped by the ONE shared rule to the SERVER's own bounds
@@ -1546,9 +1644,9 @@ export default defineComponent({
     },
     steps(): Array<TradeStep> {
       if (this.tradeConfigLive) {
-        return tradeSteps(this.preview, this.isMcSelected, this.isEnergySelected);
+        return tradeSteps(this.presentedPreview, this.isMcSelected, this.isEnergySelected);
       }
-      return this.buildConfigLive ? buildSteps(this.preview) : [];
+      return this.buildConfigLive ? buildSteps(this.presentedPreview) : [];
     },
     stepKeys(): Array<string> {
       let target = 0;
@@ -1592,7 +1690,11 @@ export default defineComponent({
       });
     },
     focusables(): Array<Focusable> {
-      if (!this.configLive) {
+      // A RECEIPT HAS NO CURSOR STOPS. Past the commit the rows still render
+      // (the decision stays readable) but nothing on them can be pressed —
+      // the move is made, and a focus ring travelling over it would advertise
+      // an edit that does not exist.
+      if (!this.configLive || this.configPinned) {
         return [];
       }
       // A BUILD has no payment paths — only its decisions are cursor stops.
@@ -1617,7 +1719,7 @@ export default defineComponent({
     },
     trackOptions(): Array<{steps: number, position: number, quantity: number, title: string}> {
       const step = this.trackStep;
-      const current = this.preview?.track.current ?? 0;
+      const current = this.presentedPreview?.track.current ?? 0;
       if (step === undefined) {
         return [];
       }
@@ -1717,11 +1819,19 @@ export default defineComponent({
       // vanished from under its own reward.
       return this.presentedTargets.length > 0 && !this.workingAreaYielded;
     },
-    /** …and while it stands unreleased it BLOCKS the closing beat: the track
-     *  is drawn under it, and a marker gliding under a standing scene is the
-     *  same fault the payout pose already guards (`stageBusy`). */
+    /**
+     * …and while it is ON STAGE AT ALL it BLOCKS the closing beat: the track is
+     * drawn under it, and a marker gliding under a standing scene is the same
+     * fault the payout pose already guards (`stageBusy`).
+     *
+     * ⚠️ THE DEPARTURE COUNTS. This used to drop on `cardlandReleased`, i.e.
+     * on the frame the card only BEGAN to leave — so the working area faded
+     * back through the departing card and the glide started inside that
+     * crossfade. The hold ends when the card is GONE (its leave clears
+     * `presentedTargets`), which is what makes the hand-back a sequence.
+     */
     cardlandHolds(): boolean {
-      return this.cardlandVisible && !this.cardlandReleased;
+      return this.cardlandVisible;
     },
     /**
      * THE ONE «working area is busy» fact the conclusion waits on — the card
@@ -1748,8 +1858,8 @@ export default defineComponent({
         stepKeys: this.stepKeys,
         captures: this.captures,
         notices: this.tradeConfigLive ?
-          tradeNotices(this.preview) :
-          (this.buildConfigLive ? buildNotices(this.preview) : []),
+          tradeNotices(this.presentedPreview) :
+          (this.buildConfigLive ? buildNotices(this.presentedPreview) : []),
         resourceOf: (name) => getCard(name)?.resourceType,
         beforeOf: (name) => this.players
           .flatMap((p) => p.tableau)
@@ -1812,7 +1922,7 @@ export default defineComponent({
       return parts.join(' + ');
     },
     rewardPosition(): number {
-      const track = this.preview?.track;
+      const track = this.presentedPreview?.track;
       const chosen = this.captures['track'];
       if (typeof chosen === 'number') {
         const current = track?.current ?? this.colony.trackPosition;
@@ -1855,7 +1965,7 @@ export default defineComponent({
         }
         return parts;
       }
-      const meta = this.options[this.payIdx]?.metadata;
+      const meta = this.presentedOptions[this.payIdx]?.metadata;
       return meta?.icon !== undefined && meta.amount !== undefined ?
         // `resource` rides along: for a CARD-paid fee it is the ONLY source of
         // the before → after (the viewer's rail has no floaters on it).
@@ -1869,7 +1979,7 @@ export default defineComponent({
         rewardPosition: this.rewardPosition,
         payments: this.outcomePayments,
         ownColonyCount: this.ownColonyCount,
-        flatBonuses: this.preview?.flatBonuses,
+        flatBonuses: this.presentedPreview?.flatBonuses,
         stocks: player !== undefined ? {
           megacredits: player.megacredits,
           steel: player.steel,
@@ -1934,7 +2044,7 @@ export default defineComponent({
         return [];
       }
       const rows: Array<NoticeRow> = [];
-      const notices = this.tradeConfigLive ? tradeNotices(this.preview) : buildNotices(this.preview);
+      const notices = this.tradeConfigLive ? tradeNotices(this.presentedPreview) : buildNotices(this.presentedPreview);
       for (const notice of notices) {
         if (notice.kind === 'autoTarget') {
           rows.push({
@@ -1955,6 +2065,14 @@ export default defineComponent({
       return rows;
     },
     canConfirm(): boolean {
+      // A COMMITTED MOVE IS NOT CONFIRMABLE. `actionAvailable` is the LIVE
+      // prop, and a door that keeps the player's action (a card-action trade)
+      // is re-offered the trade in the very response that answered it — the
+      // command bar then advertised «Подтвердить» over a marker still gliding
+      // home, for a press `handleIntent` absorbs anyway.
+      if (this.configPinned) {
+        return false;
+      }
       if (!this.actionAvailable) {
         return false;
       }
@@ -2075,12 +2193,14 @@ export default defineComponent({
       this.payIdx = 0;
       this.focusIdx = 0;
       this.heldView = undefined;
+      this.pinnedConfig = undefined;
       this.commitLatched = false;
       this.heldContext = undefined;
       this.targetFocus = undefined;
       this.presentedTargets = [];
       this.cardlandReleased = false;
       this.clearCardlandDwell();
+      this.clearCardlandLeave();
       this.seedPaymentDefault();
       this.syncLockedPayment();
       this.publishStageName();
@@ -2095,6 +2215,20 @@ export default defineComponent({
       handler(now: boolean) {
         if (now) {
           this.commitLatched = true;
+          // ⚠️ WHOEVER NOTICES THE BOUNDARY FIRST TAKES THE SNAPSHOT. The
+          // ordinary pin runs at the shell's accept, through an OPTIONAL-CHAINED
+          // ref (`coloniesSection.$refs.focusStage?.holdPresentation()`), so a
+          // frame in which that ref is not resolved yet silently pins NOTHING —
+          // and the working area then re-derives from the live props for the
+          // whole resolution, which is the exact defect the pin exists for
+          // (measured: 62 of 273 post-commit samples showing a three-row payment
+          // menu). This is the same fact from the stage's own side, so it cannot
+          // be missed. Deliberately only the CONFIG half: the presented targets
+          // are a decision-time snapshot and re-taking them here would read the
+          // server's answer instead.
+          if (this.pinnedConfig === undefined) {
+            this.pinConfig();
+          }
         }
       },
     },
@@ -2174,6 +2308,23 @@ export default defineComponent({
      * recede and give the working area back. A read beat, not a gate: nothing
      * is being waited for.
      */
+    /**
+     * THE DEPARTURE. `cardlandReleased` starts the leave pose; when it has
+     * played the card is UNMOUNTED, and only that drops `--carding` (the
+     * working area returns to an empty room) and `stageBusy` (the marker may
+     * finally move). One writer for the whole hand-back order.
+     */
+    cardlandReleased(released: boolean) {
+      this.clearCardlandLeave();
+      if (!released || this.presentedTargets.length === 0) {
+        return;
+      }
+      this.cardlandLeave = window.setTimeout(() => {
+        this.cardlandLeave = undefined;
+        this.presentedTargets = [];
+        this.cardlandReleased = false;
+      }, motionMs(CARDLAND_LEAVE_MS));
+    },
     cardlandAllLanded(landed: boolean) {
       if (!landed || !this.cardlandVisible || this.cardlandReleased) {
         return;
@@ -2238,8 +2389,8 @@ export default defineComponent({
         if (this.presentedTargets.length === 0) {
           return;
         }
-        if (this.cardlandAllLanded) {
-          return; // the landed watcher owns the read beat
+        if (this.cardlandAllLanded || this.cardlandReleased) {
+          return; // the landed watcher (or the departure) owns the beat
         }
         if (!this.presentedTargets.some((t) => this.landedOf(t) > 0) && !this.chipsInFlight) {
           this.clearCardlandDwell();
@@ -2256,7 +2407,7 @@ export default defineComponent({
     },
     /** The scene's own presence, published for the SECTION's completion: the
      *  colony may not route home while a reward is still arriving on a card. */
-    cardlandHolds: {
+    cardlandVisible: {
       immediate: true,
       handler(live: boolean) {
         colonyResolutionUi.cardSceneLive = live;
@@ -2839,6 +2990,34 @@ export default defineComponent({
           playedTargetSourceCardName(owners)),
       });
     },
+    /**
+     * THE CONFIG HALF of the boundary snapshot — what the working area
+     * PRESENTS from here on. Two callers: the shell's accept (the ordinary
+     * path) and the stage's own commit latch (the one that cannot be missed).
+     */
+    pinConfig(): void {
+      const held: PayEntry | undefined = this.payEntries[this.payIdx];
+      const mix = this.energyMixInfo;
+      this.heldView = {
+        mode: this.presentMode,
+        available: this.presentAvailable,
+        payment: held === undefined ? undefined : {
+          ...held,
+          ...(mix !== undefined ?
+            {mix: {energy: Math.max(0, mix.cost - this.tradeSteelMix), steel: this.tradeSteelMix}} :
+            {}),
+        },
+        // …AND THE SERVER'S OWN INPUTS. Everything the working area derives
+        // comes from these two, so pinning them is what makes the whole zone
+        // stop describing the NEXT trade the moment this one is answered
+        // (see `HeldView`).
+        options: this.options.slice(),
+        disabledOptions: this.disabledOptions.slice(),
+        preview: this.preview,
+        tradeOffset: this.tradeOffset,
+      };
+      this.pinnedConfig = this.heldView;
+    },
     /** The presented-target helpers (the resolution scene). */
     landedOf(t: ColonyTradePresentedTarget): number {
       // ONE tally for every payout shape — the transfer framework's own
@@ -2855,6 +3034,15 @@ export default defineComponent({
       if (this.cardlandDwell !== undefined) {
         window.clearTimeout(this.cardlandDwell);
         this.cardlandDwell = undefined;
+      }
+    },
+    /** ⚠️ Separate from the dwell on purpose: several paths clear the dwell and
+     *  re-arm it without touching `cardlandReleased`, and killing a DEPARTURE
+     *  there would strand the card on stage with no edge left to restart it. */
+    clearCardlandLeave(): void {
+      if (this.cardlandLeave !== undefined) {
+        window.clearTimeout(this.cardlandLeave);
+        this.cardlandLeave = undefined;
       }
     },
     /**
@@ -2984,18 +3172,7 @@ export default defineComponent({
       // A mix fee pins the ACTUAL dialed composition into the held row — the
       // entry's own preview is the energy-first default and would misreport
       // a commit that spends steel.
-      const held: PayEntry | undefined = this.payEntries[this.payIdx];
-      const mix = this.energyMixInfo;
-      this.heldView = {
-        mode: this.presentMode,
-        available: this.presentAvailable,
-        payment: held === undefined ? undefined : {
-          ...held,
-          ...(mix !== undefined ?
-            {mix: {energy: Math.max(0, mix.cost - this.tradeSteelMix), steel: this.tradeSteelMix}} :
-            {}),
-        },
-      };
+      this.pinConfig();
       // THE PRESENTED TARGETS — snapshotted AT the boundary, like everything
       // else in the held view: the server's answer will rewrite the preview
       // and the tableau under the resolution, and the scene must keep showing
@@ -3003,6 +3180,7 @@ export default defineComponent({
       this.presentedTargets = this.cardDestinations.presented;
       this.cardlandReleased = false;
       this.clearCardlandDwell();
+      this.clearCardlandLeave();
     },
   },
   mounted() {
@@ -3038,6 +3216,7 @@ export default defineComponent({
       this.stageBackTimer = undefined;
     }
     this.clearCardlandDwell();
+    this.clearCardlandLeave();
     colonyResolutionUi.cardSceneLive = false;
     setColonyStageYielded(false);
   },

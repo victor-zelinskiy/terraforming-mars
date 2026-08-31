@@ -79,7 +79,9 @@ export class ApiGameBoardCellPreview extends Handler {
     try {
       space = game.board.getSpaceOrThrow(spaceId);
     } catch {
-      responses.notFound(req, res, 'space not found');
+      // A space id that is not on THIS board (a hover carried across a game
+      // switch) — expired subject, not an error. See `responses.noPreview`.
+      responses.noPreview(res, 'space not on this board');
       return;
     }
 

@@ -18303,7 +18303,10 @@ html.con-profile-large.console-mode .notifications-layer.notifications-layer--jo
         min-height: 0;
         pointer-events: none;
         opacity: 1;
-        transition: opacity calc(280ms * var(--motion-scale, 1)) ease;
+        transform: none;
+        transition:
+            opacity calc(280ms * var(--motion-scale, 1)) ease,
+            transform calc(300ms * var(--motion-scale, 1)) cubic-bezier(0.4, 0, 0.6, 1);
         /* The scene SURFACES (the family's outcome entry) — it used to pop at
            full opacity in the very flush the working area only BEGAN its
            fade, which read as a hard cut between two stages of one screen. */
@@ -18316,7 +18319,15 @@ html.con-profile-large.console-mode .notifications-layer.notifications-layer--jo
         &[data-cardland-count='2'] { --con-cardland-zoom: calc(.44 * var(--con-ui-scale, 1)); }
         &[data-cardland-count='3'] { --con-cardland-zoom: calc(.36 * var(--con-ui-scale, 1)); }
     }
-    &__cardland--leaving { opacity: 0; }
+    /* ── THE DEPARTURE — a beat of its own, never a crossfade with the
+       returning working area. The card steps BACK (away from the reader) and
+       thins out; only when it has finished is it unmounted, and only THEN does
+       `--carding` drop and the interface come home (CARDLAND_LEAVE_MS pairs
+       with this — the JS owns the order, the CSS owns the pose). ── */
+    &__cardland--leaving {
+        opacity: 0;
+        transform: translateY(-.45rem) scale(.94);
+    }
     /* THE RAIL VARIANT (a build): the card stands in the summary column, so
        the cube's landing in the berth row stays fully visible beside it. */
     &__cardland--rail {
@@ -18408,6 +18419,7 @@ html.con-profile-large.console-mode .notifications-layer.notifications-layer--jo
         &--carding &__main { transition: none; }
         &__landflash { animation: none; }
         &__cardland { transition: none; animation: none; }
+        &__cardland--leaving { transform: none; }
     }
 
     /* ═══════════════ RESULT — the right SUMMARY RAIL ═══════════════

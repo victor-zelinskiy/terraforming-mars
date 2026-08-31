@@ -35,6 +35,7 @@ import {ActionPreview} from '@/common/models/ActionPreviewModel';
 import {PlayerViewModel} from '@/common/models/PlayerModel';
 import {paths} from '@/common/app/paths';
 import {apiUrl} from '@/client/utils/runtimeConfig';
+import {fetchPreview} from '@/client/utils/previewFetch';
 import {buildActionEntries} from '@/client/components/actions/actionModel';
 import {findPerformActionCard} from '@/client/console/turnIntents';
 import {gameStateVersion} from '@/client/console/gameStateVersion';
@@ -90,24 +91,21 @@ function runPreviewFetch(job: PreviewFetchJob): void {
     }
     inflight.delete(job.cardName);
   };
-  fetch(job.url, controller !== undefined ? {signal: controller.signal} : undefined)
-    .then((r) => (r.ok ? r.json() : undefined))
+  // ONE ROAD FOR EVERY OUTCOME (`fetchPreview` never rejects): a preview, a
+  // 204 «no preview for that subject» (the card left the tableau), a failed
+  // request and an abort all arrive here as `undefined` — and all four end this
+  // entry's grace period identically. The key guard makes the abort case a
+  // no-op, since an abort only ever follows a key change.
+  fetchPreview<ActionPreview>(job.url, controller !== undefined ? {signal: controller.signal} : undefined)
     .then((p) => {
       done();
       if (actionPreviewStore.key === job.key) {
         if (p !== undefined) {
-          actionPreviewStore.previews[job.cardName] = p as ActionPreview;
+          actionPreviewStore.previews[job.cardName] = p;
           actionPreviewStore.versions[job.cardName] = job.key;
         } else {
           seedFallback(job.cardName, job.key);
         }
-      }
-      pumpPreviewFetches();
-    })
-    .catch(() => {
-      done();
-      if (actionPreviewStore.key === job.key) {
-        seedFallback(job.cardName, job.key);
       }
       pumpPreviewFetches();
     });

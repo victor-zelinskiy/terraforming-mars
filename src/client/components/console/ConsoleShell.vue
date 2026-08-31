@@ -241,6 +241,7 @@
                                 :myTurn="myTurn"
                                 :awaitingInput="awaitingInput"
                                 :pick="colonyPick"
+                                :catalog="colonyRailIsCatalog"
                                 :players="playerView.players"
                                 :viewerColor="thisPlayer.color"
                                 :dockedColony="tradeFleetState.dockedColonyName"
@@ -1503,8 +1504,11 @@ import {
   ColonyResolutionSignals, armColonyBonusEntry, clearColonyBonusEntry, colonyBonusCollectOf,
   colonyBonusDiscardOf,
   colonyBonusCardPickOf,
-  colonyBonusEntry, colonyResolutionColony, colonyResolutionEvidenceFor, colonyResolutionLiveFor,
-  colonyResolutionUi, noteColonyBonusEntryWaitOver,
+  COLONY_BONUS_CYCLE_WAIT_MS,
+  colonyBonusEntry, colonyBonusSequence, clearColonyBonusSequence, colonyResolutionColony,
+  colonyResolutionEvidenceFor, colonyResolutionLiveFor,
+  colonyResolutionUi, noteColonyBonusCycleWaitOver, noteColonyBonusEntryWaitOver,
+  noticeColonyBonusSequence,
   noticeColonyResolutionDiscard, remoteColonyBonusParksReveal, remoteColonyBonusPendingFor,
   resetColonyResolutionUi,
   setColonyDiscardStage,
@@ -1562,6 +1566,7 @@ import {CardType} from '@/common/cards/CardType';
 import {
   colonyGridCols, colonyGridLayout, colonyNavStep, consoleColoniesUi, resetConsoleColoniesUi,
   colonyFocusState, closeColonyFocus, openColonyFocus, resetColonyFocus, ColonyFocusIntent,
+  colonyRailIsCatalog as railIsCatalog,
 } from '@/client/console/consoleColoniesModel';
 import {armColonyFocusQuickExit} from '@/client/console/consoleColonyFocusMotion';
 import {consolePlayCardUi} from '@/client/console/consolePlayCardUi';
@@ -1792,6 +1797,13 @@ const MA_COMMIT_SAFETY_MS = 15_000;
 /** The hydro RESULT stage's read hold — long enough for the route + reward
  *  lines, skippable by A/B (both land in `finishHydroFlow`). */
 const HYDRO_RESULT_HOLD_MS = 2400;
+/**
+ * THE SCENE-EXIT BARRIER'S NAMED NET (see `revealHeldForWorkspace`). Long
+ * enough for the slowest honest exit this console plays (a take-all gather plus
+ * its dock flights), short enough that a missed completion reads as a beat that
+ * arrived a moment late rather than as a screen that stopped.
+ */
+const REVEAL_EXIT_BARRIER_NET_MS = 4000;
 
 /**
  * WHICH PROMPTS A CARD PLAY'S CLAIM ANSWERS FOR — the card questions its own
@@ -1978,6 +1990,10 @@ export default defineComponent({
       /** The remote colony-bonus ENTRY context (colonyResolution.ts) — in
        *  data() so the resolution computeds/watchers track it reliably. */
       bonusEntry: colonyBonusEntry,
+      /** …and the SEQUENCE context (colonyResolution.ts) — the server ordinal
+       *  that says another cycle of this payout is owed. Same reason: a module
+       *  reactive must be mirrored in `data()` to be tracked. */
+      bonusSequence: colonyBonusSequence,
       /**
        * THE POST-DISCARD RESTORE is owed: the hand has answered and is on its
        * way back to the dock, and the colony focus must re-expand from the
@@ -1999,6 +2015,11 @@ export default defineComponent({
       /** The armed entry's BOUNDED WAIT (COLONY_BONUS_ENTRY_WAIT_MS) — the net
        *  under «entered, and nothing ever arrived». */
       colonyEntryWaitTimer: undefined as number | undefined,
+      /** …and the SEQUENCE's own net (COLONY_BONUS_CYCLE_WAIT_MS). */
+      colonyCycleNetId: undefined as number | undefined,
+      /** The scene-exit barrier's net + the batch id it has released. */
+      revealExitBarrierNetId: undefined as number | undefined,
+      revealExitBarrierPassed: undefined as number | undefined,
       /** The hydronetwork marker-advance controller (the plan-reset watcher). */
       hydroMarkerState,
       /** The deck-pick flow, mirrored for reactivity (the traversal's resume
@@ -3991,8 +4012,20 @@ export default defineComponent({
       // exit-shaped completion signal). The `revealPresented` latch makes the
       // hold one-directional: a batch already ON the scene starts flights of
       // its own with every take, and those must never re-raise the barrier
-      // under it. Completion signals only — never a timeout.
-      return !revealPresented(ev.id) && this.cardStageExitBusy;
+      // under it.
+      //
+      // ⚠️ …AND IT IS BOUNDED (`revealExitBarrierPassed`). It used to be
+      // «completion signals only — never a timeout», and every term of
+      // `cardStageExitBusy` is a CLIENT-derived motion flag: a hand-delivery
+      // episode or a card-exit flight whose completion is missed withholds the
+      // NEXT batch for the rest of the session. Measured on the second cycle of
+      // a multi-settlement Pluto payout (1 in ~6 runs of
+      // `console-pluto-two-colony-sequence`): the claim live, the zone
+      // published, the browse yielded — and no reveal anywhere, i.e. «КОЛОНИИ ›
+      // ПЛУТОН › БОНУС ВЛАДЕЛЬЦА» over an empty frame with a mandatory card
+      // owed and no surface to answer it. A sequencer may reorder beats; it may
+      // never be the reason the game cannot go on.
+      return !revealPresented(ev.id) && this.exitBarrierHolds(ev.id);
     },
     /**
      * THE PREVIOUS CARD STAGE IS STILL LEAVING — the join every «may the next
@@ -4011,6 +4044,19 @@ export default defineComponent({
         this.handDeliveryState.flights.length > 0 ||
         isHandDeliveryActive() ||
         cardExitBusy();
+    },
+    /**
+     * WHICH BATCH THE SCENE-EXIT BARRIER IS WITHHOLDING RIGHT NOW (undefined =
+     * none). The net below rides this, so the wait is per batch: releasing one
+     * says nothing about the next, and a batch that has already been let
+     * through is never held again.
+     */
+    exitBarrierHeldBatch(): number | undefined {
+      const ev = currentRevealEvent();
+      if (ev === undefined || revealPresented(ev.id) || this.revealExitBarrierPassed === ev.id) {
+        return undefined;
+      }
+      return this.cardStageExitBusy ? ev.id : undefined;
     },
     /**
      * WHERE THE DECK-CHECK VERDICT PRESENTS — nowhere, the full-bleed band, or
@@ -4065,7 +4111,7 @@ export default defineComponent({
         // one-directional exactly as it does for the claimed path.
         const ev = currentRevealEvent();
         if (ev !== undefined && !revealPresented(ev.id) &&
-            (this.cardStageExitBusy || this.hydroQueuedRevealForLaterStep)) {
+            (this.exitBarrierHolds(ev.id) || this.hydroQueuedRevealForLaterStep)) {
           return undefined;
         }
         return 'drawn';
@@ -4448,13 +4494,23 @@ export default defineComponent({
       };
     },
     /**
-     * The rail source: pick-a-NEW-tile prompts (Aridor) list ONLY the offered
-     * tiles; everything else shows the in-game colonies (unpickable ones stay
-     * visible with the server reason — information parity).
+     * THE RAIL IS THE ADD-A-TILE CATALOG — a pick-a-NEW-tile prompt (Aridor's
+     * first action, Maria) offers the game's UNUSED colonies, so the tiles on
+     * the rail are NOT in the game. ONE derivation, because two consumers ask
+     * it: which colonies to rail, and whether anything server-scoped may be
+     * asked about them (nothing may — they have no track, no cubes, no trade).
+     */
+    colonyRailIsCatalog(): boolean {
+      return railIsCatalog(this.colonyModel?.purpose, this.shellTask?.kind === 'colony');
+    },
+    /**
+     * The rail source: the add-a-tile catalog lists ONLY the offered tiles;
+     * everything else shows the in-game colonies (unpickable ones stay visible
+     * with the server reason — information parity).
      */
     coloniesForRail(): ReadonlyArray<ColonyModel> {
       const model = this.colonyModel;
-      if (model !== undefined && this.shellTask?.kind === 'colony' && model.purpose === 'addNewColonyToGame') {
+      if (this.colonyRailIsCatalog && model !== undefined) {
         return model.coloniesModel;
       }
       return this.game.colonies;
@@ -5533,6 +5589,39 @@ export default defineComponent({
     //    lifecycle. Every signal is authoritative: the server's discard marker,
     //    the reveal batch's own source, the trade transaction that concludes
     //    only on the committed track reset, the running discard scene. ──────
+    /**
+     * THE FULL-STAGE DISCARD FLAG IS STRANDED — its room is hidden and nothing
+     * is left that could give it back.
+     *
+     * `colonyResolutionUi.discardStage` is a CLIENT latch, and the console has
+     * paid for that shape before (`colonyBonusEntry.awaiting`). While it is up
+     * the section's browse grid YIELDS and the outcome slot is deliberately
+     * EMPTY — the next cycle's batch parks, and the focus restore is what
+     * republishes both. Exactly ONE call site cleared it on the ordinary path
+     * (`handOffHandForDiscard` → `restoreColonyFocusAfterDiscard`), and that
+     * site can be skipped: it returns early when the section has already been
+     * projected away from the hand. The flag then survived the whole
+     * resolution, and the player was left looking at «КОЛОНИИ › ПЛУТОН › БОНУС
+     * ВЛАДЕЛЬЦА» over an EMPTY frame with the second colony's card owed and no
+     * surface anywhere to answer it — a soft-lock, since the only other
+     * release is the resolution's own falling edge, which that card is what
+     * holds open.
+     *
+     * So the release is a DERIVED fact instead of a call site: the hand step is
+     * gone, the server is not asking for a discard, no card is physically
+     * leaving, and no ordinary return is already in flight. Nothing here is
+     * client-written except the flag it ends.
+     */
+    colonyDiscardStageStranded(): boolean {
+      if (!colonyResolutionUi.discardStage || this.colonyFocusRestorePending) {
+        return false;
+      }
+      if (this.consoleState.section === 'hand' || workspaceFrameKnown('hand')) {
+        return false;
+      }
+      return colonyBonusDiscardOf(this.playerView.waitingFor) === undefined &&
+        cardDiscardColonyBonus() === undefined;
+    },
     colonyResolutionSignals(): ColonyResolutionSignals {
       return {
         discardMeta: colonyBonusDiscardOf(this.playerView.waitingFor),
@@ -5544,6 +5633,7 @@ export default defineComponent({
         discardFlightMeta: cardDiscardColonyBonus(),
         entryColony: this.bonusEntry.colonyName,
         entryAwaiting: this.bonusEntry.awaiting,
+        cycleAwaiting: this.bonusSequence.awaiting,
         claimedByColonies: workspaceOutcomeState.host === 'colonies',
       };
     },
@@ -5570,6 +5660,16 @@ export default defineComponent({
      */
     colonyResolutionEvidence(): boolean {
       return colonyResolutionEvidenceFor(this.colonyResolutionSignals);
+    },
+    /**
+     * The SEQUENCE writer's trigger — the two facts `noticeColonyBonusSequence`
+     * reads, as one key so the watcher fires exactly when either moves (and not
+     * on every unrelated recompute).
+     */
+    colonySequenceKey(): string {
+      const m = colonyBonusDiscardOf(this.playerView.waitingFor);
+      const marker = m === undefined ? '' : `${m.colonyName}#${m.index}/${m.total}`;
+      return `${marker}|${this.colonyResolutionEvidence ? 1 : 0}`;
     },
     /**
      * THE PLUTO CLOSE GATE: while true, the colony workspace is the flow's one
@@ -7561,6 +7661,51 @@ export default defineComponent({
      * because a resolution already running when this shell mounts — a reload
      * straight into one — has no rising edge left to give.)
      */
+    /**
+     * THE BARRIER'S NAMED NET. Completion signals stay the primary release —
+     * this only guarantees the wait ENDS (see `revealHeldForWorkspace`).
+     */
+    exitBarrierHeldBatch(id: number | undefined): void {
+      if (this.revealExitBarrierNetId !== undefined) {
+        window.clearTimeout(this.revealExitBarrierNetId);
+        this.revealExitBarrierNetId = undefined;
+      }
+      if (id === undefined) {
+        return;
+      }
+      this.revealExitBarrierNetId = window.setTimeout(() => {
+        this.revealExitBarrierNetId = undefined;
+        this.revealExitBarrierPassed = id;
+      }, REVEAL_EXIT_BARRIER_NET_MS);
+    },
+    /** ONE WRITER for the sequence context (see `colonyBonusSequence`). */
+    colonySequenceKey: {
+      immediate: true,
+      handler(): void {
+        noticeColonyBonusSequence(
+          colonyBonusDiscardOf(this.playerView.waitingFor), this.colonyResolutionEvidence);
+      },
+    },
+    /**
+     * THE SEQUENCE'S BOUNDED WAIT (`COLONY_BONUS_CYCLE_WAIT_MS`) — the same
+     * shape as the entry's, at the other seam: armed when the server's ordinal
+     * says another cycle is owed and nothing of it has arrived, cancelled by
+     * the evidence itself, and released on the net so it can never become the
+     * latch it exists to replace.
+     */
+    'bonusSequence.awaiting'(awaiting: boolean): void {
+      if (this.colonyCycleNetId !== undefined) {
+        window.clearTimeout(this.colonyCycleNetId);
+        this.colonyCycleNetId = undefined;
+      }
+      if (!awaiting) {
+        return;
+      }
+      this.colonyCycleNetId = window.setTimeout(() => {
+        this.colonyCycleNetId = undefined;
+        noteColonyBonusCycleWaitOver();
+      }, COLONY_BONUS_CYCLE_WAIT_MS);
+    },
     colonyResolutionEvidence: {
       immediate: true,
       handler(live: boolean): void {
@@ -7607,6 +7752,12 @@ export default defineComponent({
      * close gate the task demanded: nothing folds earlier — and the entry's
      * bounded wait above is what guarantees this edge can be REACHED at all.
      */
+    /** The stranded flag's own release — see `colonyDiscardStageStranded`. */
+    colonyDiscardStageStranded(stranded: boolean): void {
+      if (stranded) {
+        void this.restoreColonyFocusAfterDiscard();
+      }
+    },
     colonyResolutionLive(live: boolean, was: boolean): void {
       if (live && !was) {
         resetColonyResolutionUi(); // a fresh resolution starts a fresh receipt
@@ -7618,6 +7769,7 @@ export default defineComponent({
       }
       if (!live && was) {
         clearColonyBonusEntry();
+        clearColonyBonusSequence();
         setColonyDiscardStage(false);
         this.colonyFocusRestorePending = false;
         this.colonyBonusCollected = ''; // a new payout may repeat a cube key
@@ -9514,6 +9666,11 @@ export default defineComponent({
      *    workspace as a step (`hosts: 'inFlow'`), and the crumb reads
      *    «КОЛОНИИ › <колония> › СБРОС КАРТЫ». Never a second workspace root.
      */
+    /** Is the scene-exit barrier still withholding THIS batch? (bounded — see
+     *  `REVEAL_EXIT_BARRIER_NET_MS`). */
+    exitBarrierHolds(id: number): boolean {
+      return this.cardStageExitBusy && this.revealExitBarrierPassed !== id;
+    },
     openColonyBonusDiscard(meta: ColonyBonusDiscardMeta): void {
       if (!workspaceFrameMounted('colonies')) {
         this.enterColonyBonusStage(meta.colonyName);
@@ -10700,6 +10857,15 @@ export default defineComponent({
      */
     async handOffHandForDiscard(discarded: ReadonlySet<CardName>): Promise<void> {
       if (this.consoleState.section !== 'hand') {
+        // ⚠️ THE EARLY RETURN MUST NOT TAKE THE RELEASE WITH IT. This site is
+        // the ordinary end of a colony-bonus discard, and it also happens to be
+        // the only thing that used to hand the room back; a response that had
+        // already projected the section away therefore stranded the whole
+        // resolution (see `colonyDiscardStageStranded`, which is the standing
+        // guarantee — this is just the direct path).
+        if (colonyResolutionUi.discardStage) {
+          void this.restoreColonyFocusAfterDiscard();
+        }
         return;
       }
       // A COLONY-BONUS discard returns to the colony's focus — arm the

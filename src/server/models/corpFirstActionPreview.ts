@@ -32,7 +32,7 @@ import {effectsForBehavior, stepsForBehavior} from './actionPreview';
  * WHICH corporation may have its first action previewed right now: one the
  * player still OWES the action for (`pendingInitialActions` — the same list the
  * `corporationInitialAction` OrOptions is built from). Everything else →
- * undefined (the route answers notFound). Read-only.
+ * undefined (the route answers `noPreview`). Read-only.
  */
 export function previewableFirstActionCorp(player: IPlayer, name: CardName): ICorporationCard | undefined {
   return player.pendingInitialActions.find((corp) => corp.name === name);

@@ -2,6 +2,7 @@ import {expect} from 'chai';
 import {
   colonyGridLayout,
   colonyGridCols,
+  colonyRailIsCatalog,
   colonyNavStep,
   colonyFocusState,
   openColonyFocus,
@@ -40,6 +41,34 @@ describe('consoleColoniesModel — the COLONY WORKSPACE model', () => {
     it('columns drive both CSS and the 2D d-pad stepping', () => {
       expect(colonyGridCols('five', 5)).to.eq(3);
       expect(colonyGridCols('four', 4)).to.eq(2);
+    });
+  });
+
+  /**
+   * THE CATALOG IS NOT THE GAME'S COLONIES — and the one derivation that says
+   * so answers for BOTH consumers (which tiles to rail, and whether anything
+   * server-scoped may be asked about them).
+   *
+   * Aridor's first action offers the game's UNUSED colonies. Descending into
+   * one asked `/api/game/colony-trade-preview?colony=Ceres` for a colony that
+   * is not in the game: the server could only decline, so the request logged a
+   * 404 on both ends and the stage learned nothing it did not already have from
+   * the manifest.
+   */
+  describe('the add-a-tile catalog', () => {
+    it('a pick-a-NEW-tile prompt rails colonies that are NOT in the game', () => {
+      expect(colonyRailIsCatalog('addNewColonyToGame', true)).to.eq(true);
+    });
+
+    it('a Build-Colony pick rails IN-GAME colonies', () => {
+      expect(colonyRailIsCatalog('selectExistingColony', true)).to.eq(false);
+      expect(colonyRailIsCatalog(undefined, true)).to.eq(false);
+    });
+
+    it('a grid standing for any other reason is never a catalog', () => {
+      // A trade, or a plain visit: whatever a prompt elsewhere says, this rail
+      // shows the game's own colonies and their previews are askable.
+      expect(colonyRailIsCatalog('addNewColonyToGame', false)).to.eq(false);
     });
   });
 

@@ -1,5 +1,7 @@
 // HTTP Status Codes
 export const statusCode = {
+  /** 204: no content */
+  noContent: 204,
   /** 301: moved permanently */
   movedPermanently: 301,
   /** 302: found */

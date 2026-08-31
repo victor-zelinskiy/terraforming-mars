@@ -492,6 +492,12 @@ export abstract class Colony implements IColony {
       const seat = ordinal ?? {index: 1, total: 1};
       player.defer(() => {
         player.drawCard(1, {source: drawAndDiscardSource});
+        // ONE COLONY, ONE BATCH. The pair below blocks on the player's answer,
+        // and by the rules the NEXT cube's card is not revealed until this one
+        // is finished — so this batch is closed here rather than left to be
+        // separated by whenever the client's acknowledgement happens to land
+        // (see IPlayer.CardDrawReveal.sealed).
+        player.sealCardDrawReveal();
         player.game.defer(
           new DiscardCards(player, 1, 1, this.name + ' colony bonus. Select a card to discard', {
             source: {kind: 'colony'},

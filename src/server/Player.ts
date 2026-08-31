@@ -1588,10 +1588,16 @@ export class Player implements IPlayer {
     // area of the colony tile. An already-acknowledged batch is gone from the
     // queue, so a draw that resolves AFTER the player confirmed the earlier
     // cards (Pluto's draw→discard→draw pairing) honestly starts a new batch.
+    //
+    // ⚠️ …AND THAT SEPARATION IS NO LONGER LEFT TO THE ACK. A payout that owes
+    // a MANDATORY answer SEALS its batch (`sealCardDrawReveal`), so Pluto's
+    // next cube always opens a fresh one whether or not the client's ack won
+    // its race with the discard submit. See `CardDrawReveal.sealed`.
     const trade = source?.type === 'colony' ? source.trade : undefined;
     if (trade !== undefined && !discarded) {
       const last = this.cardDrawReveals[this.cardDrawReveals.length - 1];
       if (last !== undefined &&
+          last.sealed !== true &&
           last.source?.type === 'colony' &&
           last.source.trade?.tradeId === trade.tradeId &&
           last.tradeSegments !== undefined) {
@@ -1612,6 +1618,13 @@ export class Player implements IPlayer {
       sequence: discarded ? [...(sequence ?? [])] : undefined,
       tradeSegments: trade !== undefined && !discarded ? [{role: trade.role, count: cards.length}] : undefined,
     });
+  }
+
+  public sealCardDrawReveal(): void {
+    const last = this.cardDrawReveals[this.cardDrawReveals.length - 1];
+    if (last !== undefined) {
+      last.sealed = true;
+    }
   }
 
   public acknowledgeCardDrawReveals(id: number | 'all'): void {
