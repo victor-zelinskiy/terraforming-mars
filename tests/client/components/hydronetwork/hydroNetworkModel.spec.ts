@@ -560,43 +560,74 @@ describe('the track HISTORY speaks about every player, and tells a paid crossing
     expect(m.viewerStatusAtDetails).to.eq('rewarded');
   });
 
-  it('THE TRAIL names every player who has been here — the MarsBot included', () => {
-    // The track used to speak about the viewer only, so the bot left no trace on
-    // the stages it had walked: a dot that teleports rather than somebody moving
-    // along the same track.
-    const m = buildHydroModel(input({
-      players: [
-        viewer({position: 6, stops: [{position: 6, generation: 2}, {position: 4, generation: 2, crossed: true}]}),
-        bot({position: 3}),
-      ],
-      preview: fullPreview(3, {currentPosition: 6}),
-    }));
-    const at = (pos: number) => m.stages[pos].trail.map((t) => `${t.color}:${t.status}`);
-    // Cell 2: both have gone past it — the viewer with nothing, the bot too.
-    expect(at(2)).to.deep.equal(['red:passed', 'neutral:passed']);
-    // Cell 3: the bot STANDS there; the viewer walked through.
-    expect(at(3)).to.deep.equal(['red:passed', 'neutral:current']);
-    // Cell 4: the viewer was PAID in passing; the bot has not reached it.
-    expect(at(4)).to.deep.equal(['red:crossed']);
-    // Cell 6: the viewer stands there.
-    expect(at(6)).to.deep.equal(['red:current']);
-  });
+  /*
+   * ── THE FOCUSED STAGE'S ROSTER ──────────────────────────────────────────
+   *
+   * WHERE THIS READING LIVES IS PART OF THE CONTRACT. The track's cells carry
+   * exactly one thing about a player: their MARKER, one per player, in the one
+   * position that player stands in. What HAPPENED on a cell — who took its
+   * reward, who was paid for crossing it, who leapt over it, who is standing on
+   * it now — is read in the stage panel, for the cell the cursor is on.
+   *
+   * Painting per-player history marks onto the cells was tried and reverted:
+   * eleven cells × N players of coloured pips turns the track (whose one job is
+   * «where is everybody») into a chart, and it makes one player look like
+   * several tokens at once.
+   */
+  describe('the focused stage roster', () => {
+    it('names every player who has been here — the MarsBot included', () => {
+      // The track used to speak about the viewer only, so the bot left no trace
+      // on the stages it had walked: a dot that teleports rather than somebody
+      // moving along the same track.
+      const at = (pos: number) => buildHydroModel(input({
+        players: [
+          viewer({position: 6, stops: [{position: 6, generation: 2}, {position: 4, generation: 2, crossed: true}]}),
+          bot({position: 3}),
+        ],
+        preview: fullPreview(3, {currentPosition: 6}),
+        selectedPosition: pos,
+      })).focusRoster.map((t) => `${t.color}:${t.status}`);
+      // Cell 2: both have gone past it — the viewer with nothing, the bot too.
+      expect(at(2)).to.deep.equal(['red:passed', 'neutral:passed']);
+      // Cell 3: the bot STANDS there; the viewer walked through.
+      expect(at(3)).to.deep.equal(['red:passed', 'neutral:current']);
+      // Cell 4: the viewer was PAID in passing; the bot has not reached it.
+      expect(at(4)).to.deep.equal(['red:crossed']);
+      // Cell 6: the viewer stands there.
+      expect(at(6)).to.deep.equal(['red:current']);
+    });
 
-  it('a cell NOBODY has reached carries no marks (never a row of «not yet»)', () => {
-    const m = buildHydroModel(input({
-      players: [viewer({position: 2}), bot({position: 1})],
-      preview: fullPreview(3, {currentPosition: 2}),
-    }));
-    expect(m.stages[9].trail).to.deep.equal([]);
-    expect(m.stages[2].trail.length, 'but a reached one does').to.be.greaterThan(0);
-  });
+    it('a stage NOBODY has reached lists nobody (never a roster of «not yet»)', () => {
+      const rosterAt = (pos: number) => buildHydroModel(input({
+        players: [viewer({position: 2}), bot({position: 1})],
+        preview: fullPreview(3, {currentPosition: 2}),
+        selectedPosition: pos,
+      })).focusRoster;
+      expect(rosterAt(9)).to.deep.equal([]);
+      expect(rosterAt(2).length, 'but a reached one does').to.be.greaterThan(0);
+    });
 
-  it('the VIEWER reads first in the trail, whatever the seating order', () => {
-    const m = buildHydroModel(input({
-      players: [bot({position: 4}), viewer({position: 4})],
-      preview: fullPreview(3, {currentPosition: 4}),
-    }));
-    expect(m.stages[4].trail[0].isViewer, 'the viewer leads').to.eq(true);
-    expect(m.stages[4].trail.length).to.eq(2);
+    it('the VIEWER reads first, whatever the seating order', () => {
+      const m = buildHydroModel(input({
+        players: [bot({position: 4}), viewer({position: 4})],
+        preview: fullPreview(3, {currentPosition: 4}),
+        selectedPosition: 4,
+      }));
+      expect(m.focusRoster[0].isViewer, 'the viewer leads').to.eq(true);
+      expect(m.focusRoster.length).to.eq(2);
+    });
+
+    it('every player has EXACTLY ONE marker, in exactly ONE position', () => {
+      // The invariant the track itself must keep: a cell shows tokens, and a
+      // player is one token. (What made this look false was the history marks,
+      // which are gone — but the property is worth pinning, because the model
+      // is what the cells render.)
+      const m = buildHydroModel(input({
+        players: [viewer({position: 6, stops: [{position: 3, generation: 1}]}), bot({position: 3})],
+        preview: fullPreview(3, {currentPosition: 6}),
+      }));
+      const seats = m.stages.flatMap((st, pos) => st.markers.map((mk) => `${mk.color}@${pos}`));
+      expect(seats.sort()).to.deep.equal(['neutral@3', 'red@6']);
+    });
   });
 });

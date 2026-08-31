@@ -69,36 +69,15 @@
             <span v-else-if="stop.vm.stage.vp !== undefined" class="con-hydro__stop-vp">{{ stop.vm.stage.vp }}<small>{{ $t('VP') }}</small></span>
             <span v-else class="con-hydro__stop-flag" aria-hidden="true">⚑</span>
             <span class="con-hydro__stop-num">{{ stop.position }}</span>
-            <!-- The VIEWER's own reading of this stage, in three states that
-                 are three different facts: ✓ stopped and took it · ⇢ went
-                 through and was PAID anyway (a traversal modifier) · ↷ went
-                 through with nothing. The middle one had no glyph at all, so
-                 «Нагонная волна» — whose whole point is that crossings pay —
-                 marked every stage it had just paid for as a miss. -->
-            <span v-if="stop.vm.rewardedByViewer" class="con-hydro__stop-badge con-hydro__stop-badge--done" aria-hidden="true">✓</span>
-            <span v-else-if="stop.vm.crossedByViewer" class="con-hydro__stop-badge con-hydro__stop-badge--crossed" aria-hidden="true">⇢</span>
-            <span v-else-if="stop.vm.skippedByViewer" class="con-hydro__stop-badge con-hydro__stop-badge--skip" aria-hidden="true">↷</span>
-            <span v-else-if="stop.gradeGlyph !== ''" class="con-hydro__stop-badge con-hydro__stop-badge--grade" aria-hidden="true">{{ stop.gradeGlyph }}</span>
-          </div>
-          <!-- ── THE TRAIL — every player this cell has something to say
-               about, one small mark each, in their own colour.
-
-               The track spoke about the VIEWER only: an opponent left no trace
-               on the stages it had walked, and since the opponent is usually
-               the MarsBot, the bot read as a dot that teleports rather than as
-               somebody moving along the same track. The marks are the history
-               half of «another player on this track»; the marker row below is
-               the where-it-stands-now half. A cell nobody has reached renders
-               nothing (a row of grey «not yet» marks is noise on every cell
-               ahead of the field). -->
-          <div v-if="stop.vm.trail.length > 0" class="con-hydro__stop-trail" aria-hidden="true">
-            <span v-for="t in stop.vm.trail" :key="t.color"
-                  class="con-hydro__trailmark"
-                  :class="[
-                    'player_bg_color_' + t.color,
-                    'con-hydro__trailmark--' + t.status,
-                    {'con-hydro__trailmark--viewer': t.isViewer},
-                  ]"></span>
+            <!-- The stage's own GRADE, and nothing else. A cell carries what
+                 it IS plus the player markers below; what HAPPENED here — who
+                 took the reward, who was paid for crossing, who leapt over,
+                 who is standing on it now — is READING, and reading lives in
+                 the stage panel the cursor is already pointing at. Both the
+                 viewer's ✓/⇢/↷ badges and a per-player mark row were tried
+                 here and are the same mistake at two sizes: the track's one
+                 job is «where is everybody», and a chart is not that. -->
+            <span v-if="stop.gradeGlyph !== ''" class="con-hydro__stop-badge con-hydro__stop-badge--grade" aria-hidden="true">{{ stop.gradeGlyph }}</span>
           </div>
           <!-- The magnified stop's own content CROSSFADES with the cell's
                growth (a bare v-if pop is the one thing this rail may never
@@ -199,6 +178,29 @@
               <template v-if="ctxView.route.steel > 0">−{{ ctxView.route.steel }}<i class="con-hydro__chip-ico resource_icon resource_icon--steel" aria-hidden="true"></i></template>
             </span>
           </span>
+          <!-- ── THE FOCUSED STAGE'S ROSTER — «кто здесь и что здесь было».
+               The track itself carries only the player MARKERS (one per
+               player, in the one place that player stands); everything a cell
+               could say ABOUT a player is reading, and it belongs here, beside
+               the stage's own name, on the cell the cursor is pointing at.
+               Each row is one player: their colour, their name, what happened
+               to them here — and, for a reward actually taken, WHICH one.
+
+               Not in the SOURCE composition (`ctxView.kind === 'source'`):
+               there the column is the card that caused what is on stage, and a
+               track roster under it answers a question nobody asked. -->
+          <div v-if="ctxView.kind !== 'source' && focusRoster.length > 0" class="con-hydro__roster">
+            <span class="con-hydro__roster-cap">{{ $t('On this stage') }}</span>
+            <div v-for="r in focusRoster" :key="r.color" class="con-hydro__roster-row"
+                 :class="{'con-hydro__roster-row--viewer': r.isViewer}">
+              <span class="con-hydro__roster-dot" :class="'player_bg_color_' + r.color" aria-hidden="true"></span>
+              <span class="con-hydro__roster-name">{{ r.name }}</span>
+              <span class="con-hydro__roster-state" :class="'con-hydro__roster-state--' + r.status">
+                {{ $t(rosterStatusKey(r)) }}
+              </span>
+              <HydroReward v-if="rosterReward(r) !== undefined" :chips="rosterReward(r) ?? []" :compact="true" />
+            </div>
+          </div>
         </div>
 
         <!-- ═══ FLOW — the one transitioning zone. ═══ -->
@@ -922,8 +924,8 @@ import {PlayerViewModel} from '@/common/models/PlayerModel';
 import {DeltaTrackPreviewModel} from '@/common/models/DeltaTrackPreviewModel';
 import {$t, translateCardName, translateMessage, translateText, translateTextWithParams} from '@/client/directives/i18n';
 import {iconClassFor} from '@/client/components/modalInputs/optionIcons';
-import {buildHydroModel, HydroModel, HydroStageVM, HydroTraversalStagePlan} from '@/client/components/hydronetwork/hydroNetworkModel';
-import {HYDRO_STAGES, HydroStage, hydroStageNeedsChoice} from '@/client/components/hydronetwork/hydroStages';
+import {buildHydroModel, HydroModel, HydroStageHistoryEntry, HydroStageVM, HydroTraversalStagePlan} from '@/client/components/hydronetwork/hydroNetworkModel';
+import {HYDRO_STAGES, HydroStage, HydroRewardChip, hydroStageNeedsChoice} from '@/client/components/hydronetwork/hydroStages';
 import {buildRewardView, buildTraversalRewardViews, HydroDeltaLine, HydroPlayerSnapshot, HydroRewardView} from '@/client/components/hydronetwork/hydroReward';
 import {destinationAt, gradeDestination, HydroReason, hydroPlanReasons, hydroPrimaryBlocker, hydroReasonBlocker, hydroRuleBlocked, HydroStopGrade, HydroTurnState, hydroTurnStateOf} from '@/client/components/hydronetwork/hydroReasons';
 import {AvailabilityBlocker} from '@/common/availability/AvailabilityBlocker';
@@ -1741,6 +1743,16 @@ export default defineComponent({
       return {position: c.toPosition, nameKey: c.stageNameKey};
     },
     /** The context column — see {@link HydroCtxView}. */
+    /**
+     * THE FOCUSED STAGE'S ROSTER, straight from the model — everyone with
+     * something to say about the cell the cursor is on, viewer first. The
+     * MarsBot rides it like any other player: it is another marker on the same
+     * track, and a track that says nothing about where it has been reads as a
+     * dot that teleports.
+     */
+    focusRoster(): ReadonlyArray<HydroStageHistoryEntry> {
+      return this.model.focusRoster;
+    },
     ctxView(): HydroCtxView {
       const c = this.flow.commit;
       if (c !== undefined) {
@@ -3596,6 +3608,42 @@ export default defineComponent({
      * Deliberately the SAME viewer, not a new fullscreen kind: the console has
      * one inspect grammar and the source is not a special case of it.
      */
+    /**
+     * WHAT HAPPENED TO THIS PLAYER HERE, in their own terms.
+     *
+     * The MarsBot never takes a Delta reward (the reference card's rule), so a
+     * crossing of its is «Пройден», never a human's «Прошёл мимо» — the second
+     * would read as a miss the bot could have avoided.
+     */
+    rosterStatusKey(r: HydroStageHistoryEntry): string {
+      if (r.status === 'current') {
+        return 'Standing here';
+      }
+      if (r.status === 'rewarded') {
+        return 'Took the reward';
+      }
+      if (r.status === 'crossed') {
+        return 'Reward granted in passing';
+      }
+      return r.isMarsBot ? 'Advanced through' : 'Passed through — no reward';
+    },
+    /**
+     * WHICH reward this player actually got here — the stage's own chips, and
+     * for a two-option stage the option they CHOSE (`DeltaStop.choice`). A
+     * crossing pays too, so it names its reward the same way. Undefined when
+     * nothing was granted: «прошёл мимо» has no reward to name, and a stage
+     * with no reward at all (the VP steps) has none to show.
+     */
+    rosterReward(r: HydroStageHistoryEntry): ReadonlyArray<HydroRewardChip> | undefined {
+      if (r.status !== 'rewarded' && r.status !== 'crossed' && r.status !== 'current') {
+        return undefined;
+      }
+      const options = HYDRO_STAGES[this.model.selectedPosition]?.rewardOptions ?? [];
+      if (options.length === 0) {
+        return undefined;
+      }
+      return options[options.length > 1 ? (r.choice ?? 0) : 0];
+    },
     inspectStepSource(): void {
       const name = this.embedSourceCard;
       if (name === undefined) {

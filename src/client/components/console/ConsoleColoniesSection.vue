@@ -15,7 +15,7 @@
          },
        ]"
        :data-colony-mode="pick !== undefined ? 'pick' : 'browse'"
-       :style="{'--coltile-scale': String(tileScale)}">
+       :style="{'--coltile-scale': String(tileScale), '--con-colonies-seat': seatReservePx + 'px'}">
     <div class="con-colonies__frame">
       <!-- ── THE WORKSPACE HEADER — the shared ConsoleWsHead: root «КОЛОНИИ»
            + the fleet dock as the aux browse layer; descending into a colony
@@ -292,6 +292,10 @@ import {colonyTradeReason, ColonyTradeReason} from '@/client/console/colonyTrade
 import {AvailabilityBlocker} from '@/common/availability/AvailabilityBlocker';
 import {conUiScale} from '@/client/console/consoleLayoutProfile';
 import {cssLengthPx} from '@/client/console/cssUnits';
+// The ONE source-seat reserve — the same arithmetic the drawn reveal and the
+// deck pick honour, so a host's seat can never overlap whichever guest it
+// happens to be standing beside.
+import {sourceSeatReservePx} from '@/client/console/consoleWsStageLayout';
 import {translateText, translateTextWithParams} from '@/client/directives/i18n';
 import {GamepadIntent} from '@/client/gamepad/gamepadPollModel';
 import {
@@ -415,6 +419,11 @@ export default defineComponent({
       /** The fit-set grid max-width so the layout's column count holds. */
       gridMaxW: 0,
       fitRaf: undefined as number | undefined,
+      /** THE HOST'S SOURCE SEAT, reserved once for this whole surface — see
+       *  `fit()`. Written by the fit (the one thing that runs on mount, on
+       *  resize and on every zone change) and read straight into the root's
+       *  padding. */
+      seatReservePx: 0,
       /** VueUse stop-handles (auto-managed listeners; no raw addEventListener). */
       stopResize: undefined as (() => void) | undefined,
       stopResizeObs: undefined as (() => void) | undefined,
@@ -863,11 +872,58 @@ export default defineComponent({
      * max-width so the intended columns hold. Pure measure → no-op under JSDOM
      * (rects are 0), so the CSS base size is the graceful fallback.
      */
+    /**
+     * THE HOST'S SOURCE SEAT, RESERVED ONCE FOR THIS WHOLE SURFACE.
+     *
+     * A step hosted inside a workspace can stand BESIDE the card that caused it
+     * («ПОВТОР ДЕЙСТВИЯ · Летающая платформа» on the Hydronetwork's stage 7).
+     * The seat is `position: absolute` on purpose — context must not shrink the
+     * thing it is context for — which means a guest laid out against the raw
+     * zone simply renders UNDER it: the repeated trade drew its colony grid,
+     * and then its focus stage's whole left column, beneath the card that was
+     * explaining why it was being asked at all.
+     *
+     * Reserved as a PADDING on this surface's root, not inside one of its
+     * layouts: the colonies have two (the grid and the focus stage) and both
+     * were wrong. One reserve at the root is a property of the SURFACE, so a
+     * third layout inherits it, and the grid fit needs no arithmetic — it reads
+     * `clientWidth`, which the padding has already narrowed.
+     *
+     * BOTH sides, because what it contains is centred: that is what makes the
+     * overlap inexpressible rather than merely unlikely, at any focus scale.
+     * The measurement is the shared one (`sourceSeatReservePx`, off the seat's
+     * real box) — never a second copy of the seat's own CSS width.
+     */
     fit(): void {
       const scroll = this.$refs.scroll as HTMLElement | null | undefined;
       const root = this.$el as HTMLElement | null | undefined;
       const count = this.colonies.length;
       if (scroll === undefined || scroll === null || root === undefined || root === null || count === 0) {
+        return;
+      }
+      // ── THE HOST'S SOURCE SEAT IS NOT FREE WIDTH ────────────────────────
+      // A step hosted inside a workspace can stand BESIDE the card that caused
+      // it («ПОВТОР ДЕЙСТВИЯ · Летающая платформа» on the Hydronetwork's stage
+      // 7). The seat is `position: absolute` on purpose — context must not
+      // shrink the thing it is context for — so a guest laid out against the
+      // raw zone renders UNDER it: the repeated trade drew its colony grid, and
+      // then its focus stage's whole left column, beneath the very card that
+      // was explaining why it was being asked.
+      //
+      // Reserved as a PADDING on this surface's ROOT, not inside one of its
+      // layouts: the colonies have two (the grid and the focus stage) and both
+      // were wrong. At the root it is a property of the SURFACE, so a third
+      // layout inherits it and the arithmetic below needs no term — the
+      // `clientWidth` it reads has already been narrowed. BOTH sides, because
+      // what it holds is centred: that is what makes the overlap inexpressible
+      // rather than merely unlikely, at any focus scale. The measurement is the
+      // SHARED one (off the seat's real box), never a copy of its CSS width.
+      const seat = this.embedded ? Math.round(sourceSeatReservePx(conUiScale())) : 0;
+      if (seat !== this.seatReservePx) {
+        this.seatReservePx = seat;
+        // The padding it just published is what the room below is measured
+        // against — solve on the next frame, against the narrowed box.
+        this.scheduleFit();
         return;
       }
       const availW = scroll.clientWidth;
@@ -889,6 +945,10 @@ export default defineComponent({
       // vars via getComputedStyle, already in scaled px.
       const s = conUiScale();
       const slack = FIT_SLACK * s;
+      // (The host's SOURCE SEAT is already out of `availW`: it is reserved as
+      //  a padding on this surface's own root — see `seatReserveStyle` — so
+      //  `scroll.clientWidth` is the room that is really free. One reserve,
+      //  read by the grid and by the focus stage alike.)
       const scaleW = (availW - GRID_PAD_X * s - (cols - 1) * COL_GAP * s - slack) / (cols * baseW);
       const scaleH = (availH - GRID_PAD_Y * s - (rows - 1) * ROW_GAP * s) / (rows * baseH);
       const scale = Math.max(MIN_TILE_SCALE, Math.min(MAX_TILE_SCALE, Math.min(scaleW, scaleH)));

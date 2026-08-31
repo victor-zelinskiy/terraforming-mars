@@ -51,12 +51,6 @@ export type HydroStageVM = {
   crossedByViewer: boolean;
   /** Viewer jumped over this rewarding stage (no reward). */
   skippedByViewer: boolean;
-  /**
-   * EVERY player this cell has something to say about — the viewer AND the
-   * opponents (the MarsBot included), each with their own status. The cell
-   * renders one small mark per entry, in the player's colour.
-   */
-  trail: ReadonlyArray<HydroStageTrailMark>;
   /** On the CURRENT plan: an intermediate stage whose reward will be skipped. */
   willSkipReward: boolean;
   /** On the CURRENT plan: a crossed stage whose reward WILL be granted (the
@@ -93,14 +87,6 @@ export type HydroHistoryStatus =
   | 'passed'
   | 'not-reached'
   | 'current';
-
-/** One player's mark on a cell (see `HydroStageVm.trail`). */
-export type HydroStageTrailMark = {
-  color: Color;
-  isViewer: boolean;
-  isMarsBot: boolean;
-  status: Exclude<HydroHistoryStatus, 'not-reached'>;
-};
 
 export type HydroStageHistoryEntry = {
   color: Color;
@@ -247,6 +233,14 @@ export type HydroModel = {
   // ── Details mode ───────────────────────────────────────────────────────
   detailsStage: HydroStage | undefined;
   detailsHistory: ReadonlyArray<HydroStageHistoryEntry>;
+  /**
+   * THE FOCUSED STAGE'S ROSTER — the same reading as `detailsHistory` but for
+   * whichever cell the cursor is on, in EVERY mode. `detailsHistory` answers it
+   * only while the player is browsing the track with no plan; the console's
+   * stage panel needs it while a move is being planned too, because that is
+   * exactly when «кто здесь стоит» and «что я тут уже получил» decide the move.
+   */
+  focusRoster: ReadonlyArray<HydroStageHistoryEntry>;
   viewerStatusAtDetails: HydroHistoryStatus;
   viewerChoiceAtDetails: number | undefined;
 };
@@ -305,29 +299,33 @@ function statusFor(player: HydroPlayerPos, position: number): {status: HydroHist
 }
 
 /**
- * THE TRAIL — every player this cell has anything to say about, in seating
- * order, with what happened to each.
+ * THE FOCUSED STAGE'S ROSTER — everyone this ONE cell has something to say
+ * about, viewer first, with what happened to each.
  *
- * The track used to speak about the VIEWER ONLY: two flags on the cell
- * (`rewardedByViewer` / `skippedByViewer`) and nothing else, so an opponent —
- * and the MarsBot, which is the opponent in most of these games — left no trace
- * at all on the stages it had walked through. Its marker dot showed where it
- * stood and the track said nothing about where it had BEEN, which is exactly
- * the half of «another player on the same track» that was missing.
+ * WHERE IT BELONGS. The cells of the track carry exactly one thing: the
+ * PLAYER MARKERS — one per player, in the single position that player is
+ * actually standing in. Everything else about a cell (who took its reward, who
+ * was paid for crossing it, who leapt over it, who is standing on it right now)
+ * is READING, and reading belongs in the panel the player is already looking at
+ * when they focus the cell. Painting per-player history marks ON the cells was
+ * tried and is exactly the wrong shape: eleven cells × N players of small
+ * coloured dots turns the track — whose one job is «where is everybody» — into
+ * a chart, and it makes a single player look like several tokens at once.
  *
- * `not-reached` is deliberately absent: a cell nobody has reached says nothing
- * about them, and a row of grey «not yet» marks is noise on every cell ahead.
+ * `not-reached` is deliberately absent: a stage nobody has reached says nothing
+ * about them, and a roster of grey «not yet» rows is noise on every cell ahead.
  */
-function trailFor(
-  players: ReadonlyArray<HydroPlayerPos>, position: number): Array<HydroStageTrailMark> {
-  const out: Array<HydroStageTrailMark> = [];
+function rosterAt(
+  players: ReadonlyArray<HydroPlayerPos>, position: number): Array<HydroStageHistoryEntry> {
+  const out: Array<HydroStageHistoryEntry> = [];
   for (const p of players) {
     const s = statusFor(p, position);
     if (s.status === 'not-reached') {
       continue;
     }
     out.push({
-      color: p.color, isViewer: p.isViewer, isMarsBot: p.isMarsBot, status: s.status,
+      color: p.color, name: p.name, isViewer: p.isViewer, isMarsBot: p.isMarsBot,
+      status: s.status, choice: s.choice, generation: s.generation,
     });
   }
   // The viewer reads their own row first; everyone else keeps seating order.
@@ -459,7 +457,6 @@ export function buildHydroModel(input: HydroModelInput): HydroModel {
       rewardedByViewer,
       crossedByViewer,
       skippedByViewer,
-      trail: trailFor(input.players, pos),
       willSkipReward,
       routeRewarded,
       routeExcluded,
@@ -633,6 +630,9 @@ export function buildHydroModel(input: HydroModelInput): HydroModel {
     detailsStage = HYDRO_STAGES[selectedPosition];
     for (const p of input.players) {
       const s = statusFor(p, selectedPosition);
+      // ⚠️ The DESKTOP list keeps `not-reached` rows (it is a full roster of the
+      // table); the console's `focusRoster` drops them. Same statuses, two
+      // audiences — hence two lists over one `statusFor`, not two derivations.
       detailsHistory.push({color: p.color, name: p.name, isViewer: p.isViewer, isMarsBot: p.isMarsBot, status: s.status, choice: s.choice, generation: s.generation});
       if (p.isViewer) {
         viewerStatusAtDetails = s.status;
@@ -694,6 +694,7 @@ export function buildHydroModel(input: HydroModelInput): HydroModel {
     targetVisitors,
     detailsStage,
     detailsHistory,
+    focusRoster: rosterAt(input.players, selectedPosition),
     viewerStatusAtDetails,
     viewerChoiceAtDetails,
   };

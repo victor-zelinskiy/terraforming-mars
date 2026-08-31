@@ -314,6 +314,8 @@
                    'con-composer__branch--selected': selectedPos === item.pos,
                    'con-composer__branch--disabled': !branchAt(item.pos).available,
                  }"
+                 :data-branch-pos="item.pos"
+                 :data-branch-nav="branchNavKind(item.pos)"
                  :ref="isFocused(item) ? 'focusedEl' : undefined">
               <span v-if="selectedPos === item.pos" class="con-composer__branch-check" aria-hidden="true">◉</span>
               <span v-else class="con-composer__branch-check con-composer__branch-check--off" aria-hidden="true">○</span>
@@ -690,6 +692,8 @@ import {
   InlineDial,
   // The ONE «may a choice be seeded» rule — shared with the play composer.
   initialVariantSelection,
+  // A branch that LEADS somewhere instead of asking for something.
+  runtimeNavigationSteps,
 } from '@/client/console/consoleActionComposer';
 import {variablePartsForBranch, ConsoleVariableChip} from '@/client/console/consoleCardActions';
 import {buildOrItems, orItemResponse, ConsoleOrItem} from '@/client/console/consoleOrChoice';
@@ -1811,6 +1815,35 @@ export default defineComponent({
       const step = this.selectedBranch?.steps.find((s) => s.kind === 'colonyTrade');
       return step?.kind === 'colonyTrade' ? step.card : undefined;
     },
+    /**
+     * ── A PLAN DOES NOT WALK THROUGH DOORS ────────────────────────────────
+     *
+     * `colonyTrade` / `deltaAdvance` / `boardPlacement` are RUNTIME NAVIGATION
+     * (`consoleActionComposer.ts` § RUNTIME-NAVIGATION STEPS): the confirm
+     * hands the player to another surface and the real commit is there. That is
+     * the whole shape of the second door — and it exists only when this
+     * composer is ACTIVATING.
+     *
+     * In REPEAT-PICK mode it is composing a PLAN: no action is being taken, so
+     * there is no live trade to enter and no board to place on. Deferring is
+     * not a degradation — the server parks a repeat's composed responses and
+     * raises whatever the plan did not answer as its own follow-up, so the
+     * colony is asked for at the moment the copy actually runs, inside the
+     * workspace that copied it.
+     *
+     * Read by all three sites that would otherwise treat the door as a
+     * requirement: the commit gate's reason, the CTA verb, and `submit()`.
+     */
+    navigationDeferred(): boolean {
+      return this.repeatPickDisabled;
+    },
+    /** The door this confirm walks through, or none (plan / no such branch). */
+    tradeEntryDoor(): CardName | undefined {
+      return this.navigationDeferred ? undefined : this.tradeEntryCard;
+    },
+    deltaEntryDoor(): DeltaAdvanceOffer | undefined {
+      return this.navigationDeferred ? undefined : this.deltaEntryOffer;
+    },
     /** The live trade prompt this branch would enter (server-authoritative). */
     tradeEntryContext(): TradeColonyContext | undefined {
       return this.tradeEntryCard === undefined ?
@@ -1823,7 +1856,11 @@ export default defineComponent({
      * missing prompt entirely means the trade is not on the table at all.
      */
     tradeEntryBlockedReason(): string | undefined {
-      const card = this.tradeEntryCard;
+      // A DEFERRED door is not a requirement: there is nothing to be blocked
+      // ON. Asking the live `waitingFor` for a trade while planning a repeat
+      // is asking about a prompt that cannot exist yet, and its honest «no»
+      // then refused the plan's own confirm — the «Летающая платформа» dead end.
+      const card = this.tradeEntryDoor;
       if (card === undefined) {
         return undefined;
       }
@@ -1905,12 +1942,12 @@ export default defineComponent({
      * nothing to undo.
      */
     commitVerbKey(): string {
-      if (this.tradeEntryCard !== undefined) {
+      if (this.tradeEntryDoor !== undefined) {
         return 'Choose a colony';
       }
       // Nor does an advance branch: the destination, its requirements and its
       // reward are studied ON the track, and the one confirm is there.
-      return this.deltaEntryOffer !== undefined ? 'Open the Hydronetwork' : this.commitLabel;
+      return this.deltaEntryDoor !== undefined ? 'Open the Hydronetwork' : this.commitLabel;
     },
     ctaDockLabel(): string {
       if (!this.payExpanded) {
@@ -3456,6 +3493,18 @@ export default defineComponent({
       }
       this.sub = undefined;
     },
+    /**
+     * WHERE THIS BRANCH LEADS, if anywhere — the branch's own runtime-navigation
+     * step kind, published on the row.
+     *
+     * It is what the row IS, so it belongs on the row: a branch that ends on a
+     * colony reads differently from one that ends here, and until now the only
+     * evidence was a translated sentence. It also gives a driver (and a reader
+     * of the DOM) the structural handle the contract forbids taking from text.
+     */
+    branchNavKind(pos: number): string | undefined {
+      return runtimeNavigationSteps(this.branchAt(pos))[0]?.kind;
+    },
     inspectListItem(index: number): void {
       const item = this.listItems[index];
       if (item?.card === undefined) {
@@ -3491,15 +3540,15 @@ export default defineComponent({
       //    two entry points one action instead of two implementations.
       //    No commit ceremony either: the beat exists to fix the boundary
       //    «настраивал → активировал», and this press crosses no boundary.
-      if (this.tradeEntryCard !== undefined) {
-        this.$emit('colony-trade', {card: this.tradeEntryCard});
+      if (this.tradeEntryDoor !== undefined) {
+        this.$emit('colony-trade', {card: this.tradeEntryDoor});
         return;
       }
       // ── THE SAME DOOR, onto the Hydronetwork. Nothing is spent, nothing is
       //    marked used, nothing goes on the wire: the branch's runtime index
       //    travels with the offer so the workspace's own confirm can assemble
       //    the ONE batch that activates the card and makes the move together.
-      if (this.deltaEntryOffer !== undefined) {
+      if (this.deltaEntryDoor !== undefined) {
         this.$emit('delta-advance', {offer: this.deltaEntryOffer, branchIndex: branch.index});
         return;
       }

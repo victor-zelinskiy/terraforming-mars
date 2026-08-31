@@ -184,6 +184,28 @@ type WorkspaceKindSpec = {
    */
   emblem?: string,
   wheelAnchor?: string,
+  /**
+   * DOES THIS ROOT YIELD THE SCREEN TO THE BOARD AND COME BACK?
+   *
+   * A board placement needs the board, so every workspace gets out of its way —
+   * but «the board needs the screen» is not «this flow is over», and until now
+   * those were the same code (`goBoardHome`, which THROWS THE FRAMES AWAY).
+   * That is right for a flow whose last act IS the placement; it is wrong for a
+   * flow the placement happens INSIDE. A Hydronetwork stage-7 repeat that moves
+   * the Mars Nomads asks for its space in the middle of a traversal that still
+   * owes its own reward wave and result read: unwound there, the player's walk
+   * simply ended on the board — no return, no payoff, and nothing to go back to.
+   *
+   * A kind that declares this steps ASIDE instead (`yieldStackToBoard`): the
+   * frames are moved out of the live stack, so nothing renders over the board
+   * and nothing else can reach them, and they come back at the SAME depth when
+   * the board's business is done. Deliberately a REGISTRY row and not a check
+   * at the placement watcher — «which workspaces survive somebody else's
+   * business» is a property of the workspace, and the one that already had it
+   * (the start scene, via its phase anchor) proved that a per-case answer is
+   * how the next one gets forgotten.
+   */
+  yieldsToBoard?: boolean,
 };
 
 const WORKSPACE_KINDS: Record<WorkspaceFrameKind, WorkspaceKindSpec> = {
@@ -222,6 +244,12 @@ const WORKSPACE_KINDS: Record<WorkspaceFrameKind, WorkspaceKindSpec> = {
     // trade runs INSIDE this workspace). `inFlow`: at the browse layer there
     // is no flow for a follow-up to belong to.
     hosts: 'inFlow',
+    // A TRAVERSAL IS A SEQUENCE THE BOARD CAN INTERRUPT. The stage-7 repeat can
+    // copy an action whose target is a SPACE («Кочевники Марса»), and that
+    // question is answered on the board — with the walk still parked on cell 7,
+    // its reward wave unplayed and its result unread. The track steps aside for
+    // the placement and takes the screen back after it.
+    yieldsToBoard: true,
     emblem: 'hydronetwork',
     wheelAnchor: 'hydro',
   },
@@ -1146,6 +1174,66 @@ export function setWorkspaceFrameSlot(kind: WorkspaceFrameKind, selector: string
   }
 }
 
+/*
+ * ── YIELDED TO THE BOARD ──────────────────────────────────────────────────
+ *
+ * NOT a park. `parked` is the PLAYER's «свернуть»: they set a decision aside to
+ * go and look at something, it is reachable from the board-home restore card,
+ * and it is legitimately DISCARDED the moment the server asks for something
+ * else (a set-aside decision that no longer exists must not be restorable).
+ *
+ * This is the same flow, mid-step, with the step happening somewhere the
+ * workspace cannot draw — so all three of those are false for it: there is no
+ * restore card (the player is answering the very thing that took the screen),
+ * and the server asking for something else is precisely the EXPECTED state, not
+ * evidence of staleness. Keeping the frames in `parked` would have them thrown
+ * away by `discardWorkspacePark` on the placement's own prompt identity.
+ *
+ * Module-level and deliberately NOT serialized: a reload during a placement
+ * lands on the board with the server's prompt intact, which is the honest
+ * recovery — a resurrected mid-walk workspace would be a lie about a client
+ * sequence the server never knew about.
+ */
+const boardYielded: Array<WorkspaceFrame> = [];
+
+/**
+ * The board is taking the screen. If the root DECLARES that it yields (see
+ * `yieldsToBoard`), step aside and report `true`; otherwise report `false` and
+ * let the caller finish the flow the way it always has.
+ */
+export function yieldStackToBoard(): boolean {
+  if (boardYielded.length > 0) {
+    return true; // already aside — a second placement inside the same step
+  }
+  const root = workspaceStackState.frames[0];
+  if (root === undefined || workspaceKindSpec(root.kind).yieldsToBoard !== true) {
+    return false;
+  }
+  boardYielded.push(...workspaceStackState.frames.splice(0));
+  return true;
+}
+
+/** The board's business is over — take the screen back at the SAME depth. */
+export function resumeStackFromBoard(): boolean {
+  if (boardYielded.length === 0) {
+    return false;
+  }
+  const frames = boardYielded.splice(0);
+  for (const frame of frames) {
+    // The hosts are about to re-mount and must re-publish; a stale selector
+    // would teleport a surface into a detached node. (Same reason as
+    // `restoreWorkspaceStack` — one rule, stated at both doors.)
+    frame.slot = '';
+  }
+  workspaceStackState.frames.splice(0, workspaceStackState.frames.length, ...frames);
+  return true;
+}
+
+/** Is a flow currently standing aside for the board? */
+export function stackYieldedToBoard(): boolean {
+  return boardYielded.length > 0;
+}
+
 /** Park the whole stack (B past the commit boundary — «свернуть»). */
 export function collapseWorkspaceStack(): void {
   if (workspaceStackState.frames.length === 0) {
@@ -1204,6 +1292,7 @@ export function discardWorkspacePark(): void {
 export function resetWorkspaceStack(): void {
   workspaceStackState.frames.splice(0);
   workspaceStackState.parked.splice(0);
+  boardYielded.splice(0);
 }
 
 // ── invariant 2: the anchor reconciler ──────────────────────────────────────

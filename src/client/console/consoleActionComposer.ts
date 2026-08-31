@@ -227,6 +227,57 @@ export function canConfirm(
 }
 
 /** The first missing decision (the honest disabled-confirm reason). */
+// ── RUNTIME-NAVIGATION STEPS — doors, not fields ───────────────────────────
+
+/**
+ * Three of the preview's step kinds are not choices the composer can CAPTURE —
+ * they are DOORS its confirm walks through. `colonyTrade` hands the player to a
+ * colony, `deltaAdvance` to the Hydronetwork track, `boardPlacement` to the
+ * board. What each of them needs (which colony, which cell, which destination)
+ * does not exist as data at configure time; it exists as another surface, and
+ * the player answers it THERE.
+ *
+ * That is exactly right while the composer is ACTIVATING the action — the door
+ * IS the commit, and it is what makes B a real way back (nothing is spent until
+ * the surface behind the door confirms). It is impossible while the composer is
+ * PLANNING A REPEAT: nothing is being activated, so the server is offering no
+ * trade to walk into and no placement to make. «Летающая платформа» shipped
+ * exactly that dead end — its trade branch asked for a colony that could not
+ * exist, the commit gate refused itself with «Сейчас торговать нельзя», and the
+ * command bar offered only «X ОСМОТРЕТЬ · B ОТМЕНА».
+ *
+ * THE SERVER WAS ALREADY RIGHT. A repeat's composed responses are a PARKED
+ * TAIL (`DeltaProjectExpansion` § THE DECLARED ANSWER / `parkBatchTail`), and
+ * any prompt the plan did not answer surfaces as its OWN runtime follow-up. So
+ * a plan that captures the card and the BRANCH and stops there is complete: the
+ * colony is asked for when the action actually runs, inside the workspace that
+ * copied it. The fix is therefore not a trade special case — it is the general
+ * statement that a door is answered where it leads, and a PLAN does not walk
+ * through doors.
+ *
+ * Keyed on the STEP KIND, so a future runtime-navigation kind joins by being
+ * listed here and every planning surface inherits the behaviour.
+ */
+export const RUNTIME_NAVIGATION_STEP_KINDS = [
+  'colonyTrade', 'deltaAdvance', 'boardPlacement',
+] as const;
+
+export type RuntimeNavigationStepKind = typeof RUNTIME_NAVIGATION_STEP_KINDS[number];
+
+/** Does this step lead somewhere instead of asking for something? */
+export function isRuntimeNavigationStep(step: ActionPreviewStep): boolean {
+  return (RUNTIME_NAVIGATION_STEP_KINDS as ReadonlyArray<string>).includes(step.kind);
+}
+
+/**
+ * The runtime-navigation steps of a branch — what a PLANNING surface must
+ * defer, and what an ACTIVATING one turns into its door.
+ */
+export function runtimeNavigationSteps(
+  branch: ActionPreviewBranch | undefined): ReadonlyArray<ActionPreviewStep> {
+  return branch?.steps.filter(isRuntimeNavigationStep) ?? [];
+}
+
 export function firstMissingChoice(
   preview: ActionPreview | undefined,
   branch: ActionPreviewBranch | undefined,

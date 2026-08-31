@@ -1425,6 +1425,8 @@ import {
   closeWorkspaceSheet,
   discardWorkspacePark,
   collapseWorkspaceStack,
+  yieldStackToBoard,
+  resumeStackFromBoard,
   descendWorkspaceFrame,
   enterWorkspace,
   foldWorkspaceFrame,
@@ -8417,8 +8419,23 @@ export default defineComponent({
     // board-target step changes the active section, the frame persists).
     placementActive(now: boolean) {
       if (now) {
-        goBoardHome();
+        // THE BOARD NEEDS THE SCREEN — but that is not «this flow is over».
+        // A root that declares `yieldsToBoard` steps ASIDE and comes back at
+        // the same depth (`consoleWorkspaceStack` § YIELDED TO THE BOARD);
+        // everything else finishes the way it always has. The Hydronetwork is
+        // the case that made the difference visible: its stage-7 repeat can
+        // copy an action whose target is a SPACE, and unwinding the track there
+        // ended the player's walk on the board with its reward wave unplayed
+        // and its result unread.
+        if (!yieldStackToBoard()) {
+          goBoardHome();
+        }
         closeConsoleLayers();
+      } else {
+        // …and the board's business is done. A no-op unless this very placement
+        // is what took the screen — the player's own «свернуть» park is a
+        // different stack and is never touched here.
+        resumeStackFromBoard();
       }
       // P20: the R3 inspect-all toggle never outlives its placement.
       this.consoleState.freeRoam = false;

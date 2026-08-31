@@ -178,5 +178,7 @@
     "The start cell has no stage reward": "Стартовая клетка не имеет награды этапа",
     "The stage reward is not claimable": "Награда этого этапа недоступна",
     "No reached Hydronetwork stage offers a claimable reward": "Ни один достигнутый этап Гидросети не даёт доступной награды",
-    "Requires ${0} step(s) advanced on the Hydronetwork": "Требуется продвинуться по Гидросети на этапов: ${0}"
+    "Requires ${0} step(s) advanced on the Hydronetwork": "Требуется продвинуться по Гидросети на этапов: ${0}",
+    "On this stage": "На этом этапе",
+    "Standing here": "Стоит здесь"
 }
