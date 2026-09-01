@@ -244,14 +244,38 @@ export function viewerImpactOfChain(chain: ReadonlyArray<GameEvent>, viewer: Col
 }
 
 /**
- * The VIEWER's own impact inside one MarsBot turn, from the turn's typed script
- * (the snapshot-diffed `impact` steps carry every actual change; a blocked /
- * empty attack changes nothing and honestly yields a neutral impact — the
- * attack line still names it in the card's outcome summary).
+ * The VIEWER's own impact inside one MarsBot turn, from the turn's typed
+ * script. TWO carriers, both read — this is load-bearing for the ATOMIC
+ * presentation contract:
+ *
+ *  - `attack` steps, recorded AT the attack site. The end-of-turn snapshot
+ *    deliberately DROPS a change an attack step already narrated (the server's
+ *    `coveredByAttack` de-dup in AutomaTurnLog.finish), so for a bonus-card
+ *    attack the attack step is the ONLY carrier of the loss. Reading the
+ *    impact steps alone built the card NEUTRAL on its first frame — the red
+ *    hero then arrived through the visible-card refresh, which is exactly the
+ *    late-upgrade the atomic contract forbids.
+ *  - `impact` steps — the whole-turn NET per participant. The attack's own
+ *    contribution is BACKED OUT of the net before classifying, so the two
+ *    carriers can never double-count one loss, and a mixed result keeps both
+ *    directions (−5 plants to the attack, +2 from an unrelated payout).
+ *
+ * A blocked / empty attack (`removed === 0`) changes nothing and honestly
+ * yields a neutral impact — the attack line still names it in the summary.
+ * The composite 'cube' demand resolves later via the target's own pick, so it
+ * is never a loss at turn time.
  */
 export function viewerImpactOfBotTurn(turn: MarsBotTurn, viewer: Color | undefined, botColor: Color | undefined): ViewerImpactMeta {
   if (viewer === undefined) {
     return NEUTRAL_IMPACT;
+  }
+  /** Stock removed from the viewer by explicit attack steps, per resource. */
+  const attackLoss = new Map<string, number>();
+  for (const step of turn.steps) {
+    if (step.kind === 'attack' && step.attack.target === viewer &&
+        step.attack.removed > 0 && step.attack.resource !== 'cube') {
+      attackLoss.set(step.attack.resource, (attackLoss.get(step.attack.resource) ?? 0) + step.attack.removed);
+    }
   }
   const rawGains: Array<JournalImpactChip> = [];
   const rawLosses: Array<JournalImpactChip> = [];
@@ -261,7 +285,12 @@ export function viewerImpactOfBotTurn(turn: MarsBotTurn, viewer: Color | undefin
       continue;
     }
     for (const change of step.impact.changes) {
-      const delta = change.after - change.before;
+      let delta = change.after - change.before;
+      if (change.scope === 'stock' && change.resource !== 'tr') {
+        // The snapshot is the whole-turn net — remove the attack steps' share
+        // (they present as their own loss chips below).
+        delta += attackLoss.get(change.resource) ?? 0;
+      }
       if (delta === 0) {
         continue;
       }
@@ -277,6 +306,9 @@ export function viewerImpactOfBotTurn(turn: MarsBotTurn, viewer: Color | undefin
         rawGains.push(chip);
       }
     }
+  }
+  for (const [resource, removed] of attackLoss) {
+    rawLosses.push({icon: resource, text: `−${removed}`});
   }
   const gains = mergeNet(rawGains);
   const losses = mergeNet(rawLosses);

@@ -11,7 +11,6 @@ import {quickToastAllowed} from './notificationFeedPolicy';
 import {
   currentBlockReason,
   isNotificationDeliveryBlocked,
-  onForegroundBlocked,
   onForegroundFreed,
   registerFlowHoldSupplier,
 } from '@/client/components/presentation/presentationFlow';
@@ -54,6 +53,19 @@ type NotificationStore = {
   transient: Array<LiveNotification>;
   queue: Array<NotificationModel>;
   /**
+   * The PREPARATION stage — upstream of the FIFO queue. A root-event model
+   * whose causal chain the server reports as STILL OPEN (`openEventCorrelations`
+   * — pending deferred actions / a pending sub-prompt inside the action) waits
+   * here, keyed by correlationId, and is REBUILT from the fresh stream on every
+   * diff. It enters the queue only when the chain closes, so the first visible
+   * frame always carries the COMPLETE semantics (sign, hero, source) — the
+   * atomic-presentation contract. Not part of the FIFO: an event still being
+   * computed has no delivery position yet.
+   */
+  preparing: Map<number, NotificationModel>;
+  /** When each preparing entry started waiting (epoch ms) — the ceiling net. */
+  preparingSince: Map<number, number>;
+  /**
    * A turn-card id the player explicitly acknowledged — kept hidden until the
    * prompt CHANGES (a new id), so a re-asserted same-turn card doesn't reappear.
    */
@@ -94,6 +106,8 @@ export const notificationState = reactive<NotificationStore>({
   turn: undefined,
   transient: [],
   queue: [],
+  preparing: new Map<number, NotificationModel>(),
+  preparingSince: new Map<number, number>(),
   dismissedTurnId: undefined,
   seenRootIds: new Set<number>(),
   seenNegativeIds: new Set<number>(),
@@ -230,22 +244,86 @@ export function promoteFromQueue(): void {
   }
 }
 
-/**
- * Move every VISIBLE transient card back to the FRONT of the queue (order
- * preserved) — called when a blocking foreground item (result modal /
- * mandatory modal / theater) OPENS, so nothing floats over it and nothing is
- * lost: the cards re-present with a fresh lifetime once the blocker clears.
+/*
+ * ── THE DELIVERY GATE IS NOT A VISIBILITY GATE (the 2026-09-01 rework) ──────
+ *
+ * A presented notification is DELIVERED: from its first visible frame it may
+ * leave only by its own timer or the player's explicit B. The presentation
+ * blockers (a tile-placement animation, a reveal, the theater, a ceremony)
+ * gate exactly ONE transition — queued → presented — and never touch the
+ * already-active card.
+ *
+ * The old `holdVisibleTransient` (re-queue the visible cards when a blocker
+ * OPENS) violated that contract twice over: a player animation yanked an
+ * already-read card back behind «ДАЛЬШЕ +N», and — worse — the bot-turn card's
+ * own delivery TRIGGERS the bot's tile animation (`deliverBotTurnVisual`), so
+ * the very card explaining the tile evicted itself, then re-entered with a
+ * fresh entrance and a restarted TTL: the «two versions of one event» defect.
+ * It is deleted; the monotonic lifecycle (created → prepared → queued →
+ * presented → dismissed/expired) has no backward edges.
  */
-export function holdVisibleTransient(): void {
-  if (notificationState.transient.length === 0) {
+
+/** The forward-only lifecycle stages of a notification (documentation +
+ *  regression-spec vocabulary; the store fields ARE the stages). */
+export type NotificationLifecycleStage = 'preparing' | 'queued' | 'presented';
+
+// ── The PREPARATION stage (atomic presentation) ─────────────────────────────
+
+/**
+ * How long a model may wait in PREPARING before it is released anyway (warn).
+ * The open-correlation signal is server-authoritative, so a chain legitimately
+ * held open by a slow human pick can take a while — but a leak (a correlation
+ * that never closes) must not swallow the event forever. Mirrors the bounded-
+ * hold philosophy everywhere else in this console.
+ */
+export const PREPARING_MAX_MS = 90_000;
+
+/** Stash (or refresh) a model whose causal chain is still open. */
+export function stashPreparing(model: NotificationModel, now: number): void {
+  if (model.correlationId === undefined) {
     return;
   }
-  const held: Array<NotificationModel> = notificationState.transient.map((n) => {
-    const {expanded: _expanded, ...model} = n;
-    return model;
-  });
-  notificationState.transient = [];
-  notificationState.queue.unshift(...held);
+  notificationState.preparing.set(model.correlationId, model);
+  if (!notificationState.preparingSince.has(model.correlationId)) {
+    notificationState.preparingSince.set(model.correlationId, now);
+  }
+}
+
+/** Drop a preparing entry (the event was undone / superseded). */
+export function dropPreparing(correlationId: number): void {
+  notificationState.preparing.delete(correlationId);
+  notificationState.preparingSince.delete(correlationId);
+}
+
+/**
+ * Release every preparing model whose chain is NO LONGER open (or that hit
+ * the {@link PREPARING_MAX_MS} ceiling — warned, never silent). Returns the
+ * released models in first-held order; the caller pushes them through the
+ * ordinary presentation pipeline.
+ */
+export function takePreparedModels(openCorrelations: ReadonlySet<number>, now: number): Array<NotificationModel> {
+  const released: Array<NotificationModel> = [];
+  for (const [corrId, model] of notificationState.preparing) {
+    const since = notificationState.preparingSince.get(corrId) ?? now;
+    const overdue = now - since >= PREPARING_MAX_MS;
+    if (openCorrelations.has(corrId) && !overdue) {
+      continue;
+    }
+    if (overdue && openCorrelations.has(corrId)) {
+      console.warn(
+        `[notifications] correlation ${corrId} stayed open for over ${PREPARING_MAX_MS}ms — ` +
+        'releasing its prepared notification anyway (leaked open chain?)');
+    }
+    released.push(model);
+    notificationState.preparing.delete(corrId);
+    notificationState.preparingSince.delete(corrId);
+  }
+  return released;
+}
+
+/** The correlation ids currently held in preparation (diff rebuild input). */
+export function preparingIds(): Set<number> {
+  return new Set(notificationState.preparing.keys());
 }
 
 /** The queue backlog, for the pending indicator (count + critical accent). */
@@ -286,38 +364,26 @@ export function drainQueueToJournal(): void {
 /**
  * Push one transient (negative/normal/important/warning) card. De-duped by id.
  * Delivery is GATED by the presentation flow: while a blocking foreground item
- * is up, the card waits in the FIFO queue (never dropped). When the visible
- * slot is taken, a higher-priority card (e.g. a hostile loss the viewer
- * suffered) EVICTS the lowest-priority visible card to the front of the queue
- * rather than waiting behind it.
+ * is up, the card waits in the FIFO queue (never dropped).
+ *
+ * A PRESENTED card is never evicted — not even by a higher-priority arrival.
+ * The old eviction (a hostile loss shoved the visible ordinary card back into
+ * the queue, to re-present later with a fresh entrance and a fresh lifetime)
+ * was a backward edge in the lifecycle: the player watched a card they were
+ * reading vanish and return. Priority now acts ONLY inside the queue
+ * (`promoteFromQueue` picks the highest-priority waiter) — a critical card
+ * waits out at most one card's remaining lifetime, which the monotonic
+ * delivery contract deems the smaller cost.
  */
 export function pushTransient(model: NotificationModel): void {
   if (!settingAllows(model.kind) || !feedModeAllows(model) || knownId(model.id)) {
     return;
   }
-  if (isNotificationDeliveryBlocked()) {
+  if (isNotificationDeliveryBlocked() || notificationState.transient.length >= MAX_VISIBLE_TRANSIENT) {
     notificationState.queue.push(model);
     return;
   }
-  if (notificationState.transient.length < MAX_VISIBLE_TRANSIENT) {
-    notificationState.transient.push({...model, expanded: false});
-    return;
-  }
-  let worstIdx = -1;
-  let worstPriority = -Infinity;
-  notificationState.transient.forEach((n, i) => {
-    if (n.priority > worstPriority) {
-      worstPriority = n.priority;
-      worstIdx = i;
-    }
-  });
-  if (worstIdx !== -1 && model.priority < worstPriority) {
-    const evicted = notificationState.transient.splice(worstIdx, 1)[0];
-    notificationState.queue.unshift({...evicted});
-    notificationState.transient.push({...model, expanded: false});
-  } else {
-    notificationState.queue.push(model);
-  }
+  notificationState.transient.push({...model, expanded: false});
 }
 
 export function pushMany(models: ReadonlyArray<NotificationModel>): void {
@@ -423,6 +489,8 @@ export function setExpanded(id: string, expanded: boolean): void {
 export function clearTransient(): void {
   notificationState.transient = [];
   notificationState.queue = [];
+  notificationState.preparing = new Map<number, NotificationModel>();
+  notificationState.preparingSince = new Map<number, number>();
   notificationState.leaving = 0;
   queueBlockedSince = undefined;
   starvationWarned = false;
@@ -480,7 +548,10 @@ export function notificationFlowHoldSupplier(): boolean {
   return notificationState.transient.some((n) => n.holdsFlow === true);
 }
 registerFlowHoldSupplier(notificationFlowHoldSupplier);
-onForegroundBlocked(() => holdVisibleTransient());
+// Deliberately NO onForegroundBlocked subscription: a blocker opening gates
+// only the NEXT delivery (pushTransient / promoteFromQueue already ask
+// isNotificationDeliveryBlocked). The already-presented card stays — see the
+// delivery-gate contract above.
 onForegroundFreed(() => promoteFromQueue());
 
 /**
@@ -523,6 +594,8 @@ export function resetNotifications(): void {
   notificationState.dismissedTurnId = undefined;
   notificationState.transient = [];
   notificationState.queue = [];
+  notificationState.preparing = new Map<number, NotificationModel>();
+  notificationState.preparingSince = new Map<number, number>();
   notificationState.seenRootIds = new Set<number>();
   notificationState.seenNegativeIds = new Set<number>();
   notificationState.seenRevealIds = new Set<string>();

@@ -124,6 +124,23 @@ describe('notificationModel (pure)', () => {
       expect(models).to.have.length(0);
     });
 
+    it('REBUILDS a seen root named in rebuildIds — the PREPARING stage refresh', () => {
+      // The atomic gate holds an open-chain model in PREPARING; its id is
+      // already seen (the diff seeded it), so without rebuildIds it would
+      // never re-emit — and the released card would keep the half-story build.
+      const grown = [...chain,
+        event({id: 72, type: 'resource-changed', player: BLUE, correlationId: 7, source: {kind: 'card', card: CARD, owner: RED}, impact: {stock: {plants: -5}}}),
+      ];
+      const {models} = diffRootNotifications({
+        messages: [header], events: grown, seen: new Set([7]), rebuildIds: new Set([7]),
+        viewerColor: BLUE, generation: 1, createdAt: 1000,
+      });
+      expect(models).to.have.length(1);
+      // The rebuild carries the COMPLETE chain — the viewer loss included.
+      expect(models[0].sign).to.eq('negative');
+      expect(models[0].viewerImpact?.losses).to.deep.eq([{icon: 'plants', text: '−5'}]);
+    });
+
     it('shows a milestone highlight even when it is the viewer own (via category)', () => {
       // The server now stamps the root-action log with category 'milestone'
       // (no separate milestone-claimed GameEvent needed).

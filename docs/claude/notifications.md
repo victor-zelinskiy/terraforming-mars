@@ -1,6 +1,79 @@
 <!-- Reference material moved out of the root CLAUDE.md (2026-07-27 context-budget reorg).
      NOT auto-loaded. Read on demand when working on this subsystem. -->
 
+## ⭐⭐ ITERATION 3 (2026-09-01) — ATOMIC DELIVERY: the lifecycle is monotonic
+
+**The contract: `created → prepared → queued → presented → dismissed/expired`,
+with NO backward edges.** A presented card is DELIVERED — from its first
+visible frame it leaves only by its own timer or the player's explicit B.
+
+**1. The PREPARING stage (semantic completeness before frame one).** The server
+reports the causal chains that may STILL GROW — `GameModel.openEventCorrelations`
+(= rootIds captured by pending deferred actions + each player's pending prompt's
+scope; `Game.openEventCorrelations()`). A root-event model whose correlation is
+open waits in `notificationState.preparing` (rebuilt from the fresh stream on
+every diff via `diffRootNotifications`' `rebuildIds`), and enters the queue only
+when the chain closes — so the frame-one snapshot (sign, hero, importance, TTL,
+source) is final. Bounded by `PREPARING_MAX_MS` (90 s, warn — a leaked open
+chain must not swallow the event). The initial silent seed stashes nothing.
+`refreshVisibleImpacts` is GONE: its in-place upgrade of a VISIBLE card (band
+appears, sign flips, importance→critical, TTL re-arms) was the late-hero defect.
+Only QUEUED models may still enrich (`refreshQueuedImpacts` — the degraded-mode
+net for servers without the field; bot-turn cards excluded outright).
+
+**2. The BOT card is born final.** `viewerImpactOfBotTurn` reads the ATTACK
+steps too (the end-of-turn snapshot deliberately DROPS a change an attack step
+already narrated — the server's `coveredByAttack` de-dup — so for a bonus-card
+attack the attack step is the ONLY carrier of the loss; reading impacts alone
+built the card NEUTRAL and the hero arrived through the visible refresh). The
+attack share is BACKED OUT of the surviving snapshot net, so the two carriers
+never double-count and a mixed result keeps both directions. A loss-carrying
+turn card gets the hostile 13 s TTL AT BUILD and is EXEMPT from
+`trimBotTurnBacklog` (a loss is not «бот походил» noise); the victim's own
+summary line is dropped STRUCTURALLY (`step.attack.target === viewer`), and the
+card's headline («разыграл бонусную карту ‹X›») renders UNDER the band as the
+cause voice (`.con-notif__headline--cause`) — the one-shot bonus card leaves the
+game right after resolving, so that line is the player's only in-flow causal
+anchor. Server side, the bonus card's identity is fixed at the moment it ACTS:
+`EventSource {kind:'bonusCard'}` (wrapped around `resolveBonusCard`) + the fate
+lines name the card («MarsBot bonus card ${0} was destroyed…»; old keys stay for
+archived games). The turn's type label is the neutral «Turn finished» — the
+actor chip is the ONE identity statement.
+
+**3. The delivery gate is not a visibility gate.** Blockers
+(`notificationDeliveryBlocked` — animation / reveal / theater / ceremony) gate
+exactly ONE transition: queued → presented (`pushTransient` /
+`promoteFromQueue`). `holdVisibleTransient` + the `onForegroundBlocked`
+re-queue are DELETED: a player animation used to yank an already-read card
+behind «ДАЛЬШЕ +N», and — worse — the bot card's own delivery TRIGGERS the
+bot's tile animation (`deliverBotTurnVisual`), so the very card explaining the
+tile evicted itself and re-entered enriched with a fresh TTL: BOTH of the
+suspected «late hero / two versions» shapes came from this one edge. The
+PRIORITY EVICTION is gone for the same reason (presented → queued is a
+backward edge): priority now acts only inside the queue, at promotion.
+
+**4. TWO queue indicators, mutually exclusive by construction.**
+`.con-notifq` («ДАЛЬШЕ +N») is CONTEXTUAL: it renders only UNDER an active
+card (`transient.length > 0 && queue.length > 0`) and leaves with it. With NO
+active card the backlog signal is the top-bar `.con-status__evq` slot right
+after «ПКЛ.» (ConsoleStatusStrip): a RESERVED fixed-width slot (appearing is
+paint-only, never layout), the notification family's ◈ glyph + the ABSOLUTE
+count (9+ cap), neutral tone, a hairline divider from the generation block,
+one soft pulse on 0 → 1 (240 ms engage hysteresis kills promotion-frame
+flashes; release instant; reduced motion kills the pulse), then static — the
+counter swaps via the shared flip.
+
+Guards: the preparing/monotonic blocks in `notificationState.spec.ts`, the
+attack-step blocks in `notificationSemantics.spec.ts`, the atomic bonus-card
+build + hostile trim-exemption in `marsBotPresentation.spec.ts`, `rebuildIds`
+in `notificationModel.spec.ts`, `tests/events/openEventCorrelations.spec.ts` +
+`bonusCardAttackEvents.spec.ts` + `tests/automa/trackTagLabelLocalization.spec.ts`
+(server), and the frame-observed e2e
+`tests/e2e/console-notification-bonus-attack.spec.ts` (a LIVE B01 Meteor
+Shower run: sign frozen at mount, band from frame one, one episode per id, TTL
+armed once, indicators exclusive in every sampled frame, the card named, B
+final).
+
 ## ⭐ VIEWER-FIRST SEMANTICS (the 2026-09-01 rework) — the notification is about the VIEWER
 
 The top-right toast leads with **what changed for its recipient**, not with the initiator's
@@ -45,9 +118,9 @@ the old `g<corr>` + `neg<corr>` double is structurally impossible. Same for a pu
 riding a root chain: it folds INTO that card (`model.reveal`) and its key silences
 `diffRevealNotifications`. The standalone diffs stay as FALLBACKS for what a root card can't
 cover: a loss recorded AFTER the root was seen/dismissed, a loss inside the viewer's own
-suppressed action, a reveal outside a fresh root. A loss that lands while the root card is
-STILL VISIBLE upgrades it in place (`refreshVisibleImpacts`: band appears, sign flips,
-importance→critical, the TTL re-arms to the hostile 13 s, the id is marked covered).
+suppressed action, a reveal outside a fresh root. (Iteration 3 superseded the old
+visible-card upgrade: an open chain now waits in PREPARING and presents complete —
+see § ATOMIC DELIVERY above; a visible card's semantics are frozen.)
 `diffNegativeNotifications` also SKIPS `automa-turn` chains — the bot pipeline's own card
 leads with `viewerImpact` from the turn script (`buildBotTurnNotification`), so a bot attack
 is one card too. `coalesceBurst` merges ONLY sign-neutral normals — a personally-relevant
@@ -166,7 +239,7 @@ The bottom-bar journal can be collapsed — so the fork has a **NotificationCent
 
 **Typed event-VARIANT styling — a player tells the TYPE at a glance, before reading.** `kind` (action-required/your-turn/warning/important/normal) drives BEHAVIOUR (priority / TTL / persistence / channel); a SEPARATE `NotificationVariant` (`notificationTypes.ts`) drives the VISUAL — accent colour + glyph + header label. `notificationModel.rootVariant(header, chain)` maps a journal root event → variant via the server-stamped `category` (+ chain event types): `card-play`→`play-card` (cyan ◈), `card-action`/`corporation-action`/`ceo-action`/`copied-action`→`blue-action` (azure ⟳), `standard-project`→`standard-project` (steel ⬡), `colony`→`colony` (violet ◉), `milestone`→`milestone` (GOLD 🏆), `award`→`award` (medal-purple 🏅), a standalone effect-trigger root→`passive-effect` (teal ✦), else `event`. Turn/generation/pass/warning builders set their own variant. The card adds `notification-card--variant-<v>`; `notifications.less` keys the accent/glyph off it. **Milestones & awards are kind `important` (shown even for the viewer's OWN, never self-suppressed like ordinary actions) + a prestige look** (gold/medal rim + a ONE-SHOT calm celebration glow on arrival, never looping + a native trophy/medal glyph) — so when ANY player claims a milestone / funds an award the viewer gets a distinct premium card, NOT a "played a card" look. The rail tints to the actor colour only for the "what an opponent did" variants (`ACTOR_RAIL_VARIANTS`); prestige/system variants keep their variant accent. To add a new variant: add the enum member, a `rootVariant` case, a `.notification-card--variant-X { --notif-accent }` rule + a glyph case.
 
-**Hostile / NEGATIVE events — the viewer never silently loses something to another player.** A dedicated kind `negative` (priority just under your-turn, TTL 13 s, longer because a loss must not be missed) + the hostile variants `destroy` / `steal` / `production-reduction` / `production-transfer` (+ the Vermin `threat` / `vp-loss`). **100% client-derived from the VICTIM's `GameEvent`** — no server change for destroy/steal/transfer/reduction. `notificationModel.diffNegativeNotifications` scans the generation's events for ones where `e.player === viewerColor` AND there's a NEGATIVE impact AND `attackerOf(e)` (= `target.player` ?? a card/corp `source.owner` that ISN'T the viewer) — i.e. a cross-player attack, NOT a cost / own-spend / global event (those have no other-player attacker → skipped). It classifies from the single victim event: negative `impact.stock` + no `target.player` → **destroy**; + `target.player` → **steal** (the `stealing` flag set `target`); negative `impact.production` + no target → **production-reduction**; + target → **production-transfer** (shown as ONE linked event with a mirror `+X` gain chip for the attacker, never two independent rows). Grouped by `correlationId` (all the viewer's losses in one attacking action → one card), de-duped via a SEPARATE `notificationState.seenNegativeIds` (the loss lives inside the attacker's root action, which `diffRootNotifications` already saw). Only the **viewer-as-victim** gets a dedicated hostile card (the attacker/observer perspective is the ordinary root play-card card + its expanded breakdown — no spam); hostile cards show **even when the journal is open** (critical, like turn cards) and are **priority-aware** in `pushTransient` (a loss EVICTS a lower-priority visible card rather than queueing behind it). `NotificationCard` renders a hostile layout (`negative` meta): "Из-за <attacker chip> <source card chip>", a victim/attacker `−X → +X` flow for steal/transfer, a stock-vs-production marker («из запаса»/«доход»), and a `before → after` computed from the viewer's current `PublicPlayerModel` value (single-resource case). Styles + a calm ONE-SHOT impact glow + loss-pill flash in `notifications.less` (per-variant hostile accents: destroy red, reduction orange, steal purple, transfer cyan, vp-loss red-gold). **Vermin** is handled in TWO honest stages (its real rule: ≥10 animals on the card → −1 VP per city for EVERY player at SCORING, no mid-game VP events): the WARNING stage is the Vermin PLAY recognised by `CardName.VERMIN` on a `card-play` root → variant `threat` (amber, "potential VP loss"); the DAMAGE stage is a server signal — `Player.addResourceTo`'s Vermin hook, the moment `verminInEffect` flips false→true, roots a `'vp-pressure'` journal event (`category` added to `GameEvent.ts`) → client variant `vp-loss` (strong red-gold, shown to everyone incl. the owner). Forced-negative prompts (discard / pick-to-lose) already fire the persistent `action-required` card via the `waitingFor` path. Guarded by `notificationModel.spec.ts` (classification + Vermin variants) + `tests/events/verminJournal.spec.ts`. **Documented frontier:** observer-between-others hostile cards (folded into the root event today), the child-row-precise journal highlight (currently highlights the root group), and a hostile FLAVOUR on the forced-negative action-required card (needs a server "this prompt is hostile" marker).
+**Hostile / NEGATIVE events — the viewer never silently loses something to another player.** A dedicated kind `negative` (priority just under your-turn, TTL 13 s, longer because a loss must not be missed) + the hostile variants `destroy` / `steal` / `production-reduction` / `production-transfer` (+ the Vermin `threat` / `vp-loss`). **100% client-derived from the VICTIM's `GameEvent`** — no server change for destroy/steal/transfer/reduction. `notificationModel.diffNegativeNotifications` scans the generation's events for ones where `e.player === viewerColor` AND there's a NEGATIVE impact AND `attackerOf(e)` (= `target.player` ?? a card/corp `source.owner` that ISN'T the viewer) — i.e. a cross-player attack, NOT a cost / own-spend / global event (those have no other-player attacker → skipped). It classifies from the single victim event: negative `impact.stock` + no `target.player` → **destroy**; + `target.player` → **steal** (the `stealing` flag set `target`); negative `impact.production` + no target → **production-reduction**; + target → **production-transfer** (shown as ONE linked event with a mirror `+X` gain chip for the attacker, never two independent rows). Grouped by `correlationId` (all the viewer's losses in one attacking action → one card), de-duped via a SEPARATE `notificationState.seenNegativeIds` (the loss lives inside the attacker's root action, which `diffRootNotifications` already saw). Only the **viewer-as-victim** gets a dedicated hostile card (the attacker/observer perspective is the ordinary root play-card card + its expanded breakdown — no spam); hostile cards show **even when the journal is open** (critical, like turn cards) and are **priority-aware inside the QUEUE** (promotion picks them first; iteration 3 removed the old eviction of a visible card — presented is monotonic). `NotificationCard` renders a hostile layout (`negative` meta): "Из-за <attacker chip> <source card chip>", a victim/attacker `−X → +X` flow for steal/transfer, a stock-vs-production marker («из запаса»/«доход»), and a `before → after` computed from the viewer's current `PublicPlayerModel` value (single-resource case). Styles + a calm ONE-SHOT impact glow + loss-pill flash in `notifications.less` (per-variant hostile accents: destroy red, reduction orange, steal purple, transfer cyan, vp-loss red-gold). **Vermin** is handled in TWO honest stages (its real rule: ≥10 animals on the card → −1 VP per city for EVERY player at SCORING, no mid-game VP events): the WARNING stage is the Vermin PLAY recognised by `CardName.VERMIN` on a `card-play` root → variant `threat` (amber, "potential VP loss"); the DAMAGE stage is a server signal — `Player.addResourceTo`'s Vermin hook, the moment `verminInEffect` flips false→true, roots a `'vp-pressure'` journal event (`category` added to `GameEvent.ts`) → client variant `vp-loss` (strong red-gold, shown to everyone incl. the owner). Forced-negative prompts (discard / pick-to-lose) already fire the persistent `action-required` card via the `waitingFor` path. Guarded by `notificationModel.spec.ts` (classification + Vermin variants) + `tests/events/verminJournal.spec.ts`. **Documented frontier:** observer-between-others hostile cards (folded into the root event today), the child-row-precise journal highlight (currently highlights the root group), and a hostile FLAVOUR on the forced-negative action-required card (needs a server "this prompt is hostile" marker).
 
 **Server fix — milestones / awards are now journal ROOT events (the only server change this layer needed).** Claiming a milestone (`Player.claimMilestone`) and funding an award (`Game.fundAward`) used to emit BARE logs (no `correlationId`/`role`/`category`), so `diffRootNotifications` (which requires a `correlationId`) skipped them entirely — the flagship gap. Both are now wrapped in `events.beginAction(player, {kind:'milestone'|'award', name}, {category:'milestone'|'award'})` … `endScope()`, so the log becomes a root-action with a `correlationId` + the new `'milestone'`/`'award'` `JournalActionCategory` (added to `src/common/events/GameEvent.ts`). The premium journal groups them and the notification system surfaces them (detected by category — no separate `milestone-claimed`/`award-funded` GameEvent needed). Guarded by `tests/events/milestoneAwardJournal.spec.ts`. **Documented remaining frontier (lower priority):** production-phase per-player income, standalone tile / global-parameter board-accent variants, and wiring server input errors to `pushWarning` — these would each need the same "wrap in a root scope / add a mapper" treatment.
 

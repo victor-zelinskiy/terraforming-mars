@@ -179,7 +179,10 @@ function logRoleOf(message: LogMessage): MarsBotLogRole | undefined {
     return 'tie-flip';
   case '${0} flipped ${1} (cost ${2}) to pick a colony tile':
     return 'colony-pick-flip';
+  // …and the attributed form StockBase actually emits for a `from`-carrying
+  // deduct (a bonus-card attack's victim line) — same semantic, longer template.
   case '${0} lost ${1} ${2}':
+  case '${0} lost ${1} ${2} because of ${3}':
     return 'resource-loss';
   default:
     return undefined;

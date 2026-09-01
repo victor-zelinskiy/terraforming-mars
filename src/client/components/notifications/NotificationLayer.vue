@@ -52,10 +52,14 @@ Before changing it, check the console consumers in docs/DESKTOP_DEPRECATION_AUDI
       <!-- CONSOLE pending-queue TAIL: a quiet service chip riding UNDER the
            stack — visually bound to the surface whose backlog it counts,
            never a centre-stage banner competing with the event being read.
+           CONTEXTUAL by contract: it exists ONLY under an active card («after
+           the current one there are N more») and leaves WITH it — with no
+           active card the backlog signal is the top-bar event glyph instead
+           (ConsoleStatusStrip), never this chip floating alone in a corner.
            Informational only (the cards advance FIFO on their own); the
            critical accent marks a hostile loss / AI turn waiting. -->
       <Transition name="notification-pop">
-        <div v-if="consoleEnabled && pending.count > 0"
+        <div v-if="consoleEnabled && transient.length > 0 && pending.count > 0"
              class="con-notifq"
              :class="{'con-notifq--critical': pending.critical}"
              role="status"
@@ -99,7 +103,7 @@ import {GameEvent} from '@/common/events/GameEvent';
 import {PlayerViewModel, PublicPlayerModel} from '@/common/models/PlayerModel';
 import {PlayerInputModel} from '@/common/models/PlayerInputModel';
 import {journalState, openJournalToEvent} from '@/client/components/journal/journalState';
-import {NotificationCtaAction, NotificationModel, NOTIFICATION_TTL} from '@/client/components/notifications/notificationTypes';
+import {NotificationCtaAction, NotificationModel, NOTIFICATION_PRIORITY, NOTIFICATION_TTL} from '@/client/components/notifications/notificationTypes';
 import {
   diffRootNotifications,
   diffNegativeNotifications,
@@ -136,6 +140,10 @@ import {
   promoteFromQueue,
   noteNotificationLeaveStart,
   noteNotificationLeaveEnd,
+  stashPreparing,
+  dropPreparing,
+  takePreparedModels,
+  preparingIds,
 } from '@/client/components/notifications/notificationState';
 import {PendingQueueSummary} from '@/client/components/presentation/presentationPolicy';
 import {ensureBotPresentationLiveness, openBotTurnReviewByKey} from '@/client/components/marsbot/marsBotPresentation';
@@ -444,10 +452,18 @@ export default defineComponent({
       }
       this.lastDiffSignature = signature;
       const now = Date.now();
+      // The chains the server reports as STILL OPEN (pending deferred actions /
+      // a pending sub-prompt inside the action) — their notifications are not
+      // COMPLETE yet and must not present a half-story. Absent field (older
+      // payloads) degrades to "nothing is open".
+      const openCorrelations = new Set<number>(this.playerView.game.openEventCorrelations ?? []);
       const {models, encounteredIds, hostileCoveredIds, revealCoveredKeys} = diffRootNotifications({
         messages,
         events,
         seen: notificationState.seenRootIds,
+        // Models already held in PREPARING are rebuilt from the fresh stream
+        // each pass, so a released card always carries the complete chain.
+        rebuildIds: preparingIds(),
         viewerColor: this.viewerColor,
         generation,
         createdAt: now,
@@ -455,31 +471,58 @@ export default defineComponent({
       for (const corrId of encounteredIds) {
         notificationState.seenRootIds.add(corrId);
       }
+      // An UNDO can erase an event whose model waits in PREPARING — releasing
+      // its last-known build would present something that no longer happened.
+      // Same-generation absence from the stream ⇒ undone ⇒ forget it. (A
+      // PREVIOUS generation's entry is deliberately kept: the new generation's
+      // stream legitimately does not carry it, and it releases as last-known
+      // once its chain closes.)
+      const encounteredSet = new Set(encounteredIds);
+      for (const [corrId, held] of notificationState.preparing) {
+        if (held.generation === generation && !encounteredSet.has(corrId)) {
+          dropPreparing(corrId);
+        }
+      }
       // ONE ACTION → ONE CARD: a root card that already leads with the viewer's
       // loss / folds the chain's reveal COVERS those id spaces — seed them
       // BEFORE the standalone diffs run, so the same event can never present
-      // twice (the old root + neg<corr> / root + reveal doubles).
+      // twice (the old root + neg<corr> / root + reveal doubles). A model held
+      // in PREPARING covers too: its loss/reveal presents on the released card.
       for (const corrId of hostileCoveredIds) {
         notificationState.seenNegativeIds.add(corrId);
       }
       for (const key of revealCoveredKeys) {
         notificationState.seenRevealIds.add(key);
       }
-      // Refresh STILL-VISIBLE root cards whose chain GREW since they were first
-      // shown (e.g. an opponent's colony trade whose deferred reward — "add
-      // floaters to a card" — resolved a moment after the fee). Keeps the gain
-      // chip from being lost to a poll-timing race; updates in place, no
-      // re-animate.
-      //
-      // ⚠️ ORDER IS LOAD-BEARING: this runs BEFORE the standalone hostile diff.
-      // The refresh is the root stream's OTHER covering path — a visible card
-      // upgrading to the viewer's loss marks `seenNegativeIds` — and run after
-      // the diff it arrives one applyDiff too late: the SAME response's
-      // fallback pass has already minted `neg<corr>`, which then evicts the
-      // upgraded card into the queue and resurrects it after any dismiss (the
-      // «two cards over one action» this architecture exists to forbid —
-      // observed as the hostile toast surviving its own journal hand-off).
-      this.refreshVisibleImpacts(events);
+      const firstSeed = !notificationState.seeded;
+      // ── THE ATOMIC PRESENTATION GATE (created → prepared → queued) ────────
+      // A model whose chain is still open waits in PREPARING (rebuilt above on
+      // every pass); a closed chain releases with its final snapshot. Once a
+      // card is PRESENTED its semantics are FROZEN — the old in-place upgrade
+      // of a visible card (band appears, sign flips, TTL re-arms) is exactly
+      // the late-hero defect this stage removes. The initial silent seed
+      // stashes nothing: those events are old news and must never release.
+      const ready: Array<NotificationModel> = [];
+      if (!firstSeed) {
+        for (const model of models) {
+          const corrId = model.correlationId;
+          if (corrId !== undefined && openCorrelations.has(corrId)) {
+            stashPreparing(model, now);
+            continue;
+          }
+          if (corrId !== undefined) {
+            dropPreparing(corrId); // rebuilt this pass AND closed — this IS the release
+          }
+          ready.push(model);
+        }
+        // Entries not rebuilt this pass (undo / generation boundary) release
+        // with their last-known build once their chain closes; a leaked open
+        // chain releases at the bounded ceiling with a warn.
+        ready.push(...takePreparedModels(openCorrelations, now));
+      }
+      // Queued (not-yet-presented) root cards may still enrich freely — the
+      // degraded-mode net for servers without `openEventCorrelations`.
+      this.refreshQueuedImpacts(events);
       // Hostile losses the VIEWER suffered — the FALLBACK id space for losses a
       // root card could not cover (recorded after the root was seen AND its
       // card already left the screen, or inside the viewer's own suppressed
@@ -506,7 +549,6 @@ export default defineComponent({
       for (const key of reveal.encounteredIds) {
         notificationState.seenRevealIds.add(key);
       }
-      const firstSeed = !notificationState.seeded;
       notificationState.seeded = true;
       if (firstSeed) {
         return; // initial load / reconnect: seed silently, never spam
@@ -521,7 +563,7 @@ export default defineComponent({
       // MarsBot turn roots ('automa-turn') are excluded: the DEDICATED
       // turn-event pipeline (marsBotPresentation) builds their richer card
       // from the turn script itself — a generic root card would double-announce.
-      const presentable = coalesceBurst(models.filter((m) =>
+      const presentable = coalesceBurst(ready.filter((m) =>
         m.variant !== 'milestone' && m.variant !== 'award' && m.category !== 'automa-turn'));
       // The ORDINARY feed (incl. reveals — their cards live in the journal) is
       // suppressed while the journal is open. But a card carrying the viewer's
@@ -534,11 +576,23 @@ export default defineComponent({
       pushMany(neg.models);
     },
 
-    refreshVisibleImpacts(events: ReadonlyArray<GameEvent>): void {
+    /**
+     * Enrich QUEUED (not-yet-presented) root cards whose chain grew since they
+     * were built. A PRESENTED card is deliberately NOT touched — from its
+     * first visible frame the semantic snapshot (sign, hero, importance, TTL)
+     * is frozen; the atomic gate above holds an open chain in PREPARING so
+     * the frame-one snapshot is already complete. This queued pass is the
+     * degraded-mode net for servers without `openEventCorrelations`.
+     */
+    refreshQueuedImpacts(events: ReadonlyArray<GameEvent>): void {
       // Only the journal-derived root cards (they carry a `header` + correlationId);
       // negative / reveal / coalesced cards compute their pills differently.
-      for (const n of notificationState.transient) {
-        if (n.header === undefined || n.correlationId === undefined) {
+      // BOT-TURN cards are excluded outright: their semantics come from the
+      // COMPLETE typed turn script at build time — re-deriving them from the
+      // journal chain (whose loss events carry no attack attribution) is the
+      // very channel the late-hero defect arrived through.
+      for (const n of notificationState.queue) {
+        if (n.header === undefined || n.correlationId === undefined || n.botTurnKey !== undefined) {
           continue;
         }
         const next = recomputeRootImpact(events, n.correlationId, n.actor, this.viewerColor);
@@ -547,18 +601,17 @@ export default defineComponent({
           n.pillGroups = next.pillGroups.length > 0 ? next.pillGroups : undefined;
           n.detailCount = next.detailCount;
           n.childVMs = next.childVMs;
-          // A chain that GREW a viewer delta upgrades the visible card in
-          // place (the «для вас» band appears / gains chips) — and a loss
-          // that surfaced this way is COVERED: the standalone hostile diff
-          // must not raise a second card for the same action.
+          // A chain that grew a viewer delta upgrades the QUEUED model — it has
+          // not presented yet, so this is still preparation, not a visible
+          // mutation. A loss surfacing this way is COVERED: the standalone
+          // hostile diff must not raise a second card for the same action.
           if (next.viewerImpact.sign !== 'neutral') {
             n.viewerImpact = next.viewerImpact;
             n.sign = next.viewerImpact.sign;
             if (next.viewerImpact.losses.length > 0) {
+              n.kind = 'negative';
+              n.priority = NOTIFICATION_PRIORITY['negative'];
               n.importance = 'critical';
-              // A loss must not ride out the ordinary card's short lifetime —
-              // re-arm the hostile TTL (the inline duration change restarts
-              // the progress shrink, honestly showing the extended window).
               n.ttl = NOTIFICATION_TTL['negative'];
               notificationState.seenNegativeIds.add(n.correlationId);
             }

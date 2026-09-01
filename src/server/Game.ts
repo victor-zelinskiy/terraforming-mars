@@ -670,6 +670,25 @@ export class Game implements IGame, Logger {
     );
   }
 
+  /**
+   * The correlation roots of every causal chain that may STILL GROW: chains
+   * captured by pending deferred actions, plus each player's pending prompt's
+   * own scope (a sub-prompt mid-action extends its chain when answered).
+   * Served on the game model so the client's notification layer can hold an
+   * event in its PREPARED state until the chain is complete — the atomic
+   * "no half-story is ever presented" contract.
+   */
+  public openEventCorrelations(): Array<number> {
+    const out = this.deferredActions.openEventCorrelations();
+    for (const player of this.players) {
+      const rootId = player.openWaitingForCorrelation();
+      if (rootId !== undefined && !out.includes(rootId)) {
+        out.push(rootId);
+      }
+    }
+    return out;
+  }
+
   public marsIsTerraformed(): boolean {
     const oxygenMaxed = this.oxygenLevel >= constants.MAX_OXYGEN_LEVEL;
     const temperatureMaxed = this.temperature >= constants.MAX_TEMPERATURE;
@@ -1029,7 +1048,9 @@ export class Game implements IGame, Logger {
 
       try {
         const space = AresHazards.randomlyPlaceHazard(this, tileType, direction);
-        this.log('${0} placed at ${1}', (b) => b.tileType(tileType).space(space));
+        // The SPACE token is a «show on map» affordance — keep it detached
+        // from the sentence (see LogHelper.logBoardTileAction).
+        this.log('${0} appeared on the map · ${1}', (b) => b.tileType(tileType).space(space));
       } catch (e) {
         // #7734, the map is probably full.
         this.log('The map is full. No random hazard can be placed this generation.');

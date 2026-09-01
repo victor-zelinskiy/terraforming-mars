@@ -2714,6 +2714,16 @@ export class Player implements IPlayer {
     return this.waitingFor;
   }
 
+  /**
+   * The correlation root of the chain this player's PENDING prompt belongs to,
+   * if any — the prompt's captured scope means the chain may still grow when
+   * they answer (a sub-prompt mid-action, a deferred victim pick). Read by
+   * `Game.openEventCorrelations()` for the client's atomic-notification gate.
+   */
+  public openWaitingForCorrelation(): number | undefined {
+    return this.waitingFor === undefined ? undefined : this.waitingForContext?.rootId;
+  }
+
   public setWaitingFor(input: PlayerInput, cb: () => void = () => {}): void {
     if (this.waitingFor !== undefined) {
       const message = `Overwriting waitingFor ${this.waitingFor.type} with ${input?.type}`;

@@ -49,7 +49,7 @@
                      :committed="crumbCommitted">
         <!-- The aux browse layer: the pick-mode chip only (crossfades away
              past the descent — the crumb tail then names the mode). -->
-        <span v-if="pick !== undefined" class="con-colonies__mode-chip">{{ $t(pick.buttonLabel) }}</span>
+        <span v-if="pick !== undefined" class="con-colonies__mode-chip">{{ $t(pick.labelKey) }}</span>
         <template #trailing>
           <ConsoleColonyFleetBar :chips="fleetChips" :launchingColor="launchingFleetColor" />
         </template>
@@ -67,7 +67,7 @@
       </Teleport>
       <div v-else-if="embedded && (pick !== undefined || fleetBerth === '')" class="con-colonies__toolbar">
         <span v-if="pick !== undefined" class="con-colonies__mode-chip"
-              :class="{'con-colonies__mode-chip--held': focusState.open}">{{ $t(pick.buttonLabel) }}</span>
+              :class="{'con-colonies__mode-chip--held': focusState.open}">{{ $t(pick.labelKey) }}</span>
         <ConsoleColonyFleetBar class="con-colonies__toolbar-fleets" :chips="fleetChips" :launchingColor="launchingFleetColor" />
       </div>
 
@@ -168,7 +168,7 @@
             <!-- ── SELECT pick (setup remove / add-tile): verb + verdict. ── -->
             <template v-else>
               <span class="con-colonies__rail-arrow" aria-hidden="true">→</span>
-              <span class="con-colonies__rail-note">{{ $t(pick ? pick.buttonLabel : '') }}</span>
+              <span class="con-colonies__rail-note">{{ $t(pick ? pick.labelKey : '') }}</span>
               <span v-if="focusedStatus.kind === 'blocked'" class="con-colonies__rail-reason con-colonies__rail-reason--blocked">
                 <span aria-hidden="true">✕</span><span>{{ focusedStatus.text }}</span>
               </span>
@@ -225,7 +225,7 @@
                                    :actionAvailable="focusActionAvailable"
                                    :blockReason="focusBlockReason"
                                    :blockTone="focusBlockTone"
-                                   :pickLabel="pick !== undefined ? pick.buttonLabel : ''"
+                                   :pickLabel="pick !== undefined ? pick.labelKey : ''"
                                    :options="tradePaymentOptions"
                                    :disabledOptions="tradeDisabledPayments"
                                    :players="players"
@@ -328,8 +328,15 @@ export type ConsoleColonyPick = {
   selectable: ReadonlyArray<string>,
   /** Per-colony SERVER reason for the unpickable ones (translated). */
   reasons: Readonly<Record<string, string>>,
-  /** The server verb ('Build' / 'Select' …) shown on the A chip. */
+  /**
+   * The server verb — a MACHINE DISCRIMINATOR the trade orchestration keys on
+   * (the lowercase `'trade'` sentinel routes the premium launch). NEVER
+   * rendered: a sentinel is not copy, and `$t('trade')` leaked raw onto the
+   * CTA chip and the command bar («A TRADE»).
+   */
   buttonLabel: string,
+  /** The DISPLAY i18n key for the A chip / command bar («Trade» / «Build» / «Select»). */
+  labelKey: string,
 };
 
 /** The focus stage's confirm payload (forwarded verbatim to the shell). */

@@ -44,6 +44,14 @@ export type GameModel = {
   generation: number;
   globalsPerGeneration: ReadonlyArray<Partial<Record<GlobalParameter, number>>>,
   isSoloModeWin: boolean;
+  /**
+   * Correlation roots of causal chains that may STILL GROW (pending deferred
+   * actions / pending prompts captured inside an action's scope). The client's
+   * notification layer holds an event of such a chain in its PREPARED state
+   * until the chain closes — the atomic-presentation contract. Optional so an
+   * older server (or archived payloads) degrades to "present immediately".
+   */
+  openEventCorrelations?: ReadonlyArray<number>;
   lastSoloGeneration: number,
   milestones: ReadonlyArray<ClaimedMilestoneModel>;
   moon: MoonModel | undefined;

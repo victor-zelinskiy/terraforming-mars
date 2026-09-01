@@ -118,7 +118,7 @@ export const MarsBotPhilares: MarsBotCorp = {
         // raise oxygen (it is already maxed): the printed «and raises oxygen
         // 1 step» is an independent sentence and still tries on its own.
         game.increaseOxygenLevel(bot, 1);
-        game.log('${0} raised ${1} ${2} step(s) raised ${1} ${2} {step|steps}',
+        game.log('${0} raised ${1} ${2} {step|steps}',
           (b) => b.player(bot).globalParameter(GlobalParameter.OXYGEN).number(1));
       }
 

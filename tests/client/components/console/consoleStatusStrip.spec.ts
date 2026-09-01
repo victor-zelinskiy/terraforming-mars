@@ -155,3 +155,95 @@ describe('ConsoleStatusStrip generation label', () => {
     expect(gen.findAll('.con-status__gen-label').length).to.equal(1);
   });
 });
+
+// ── The GENERIC PENDING-EVENTS SIGNAL (iteration 3 — the top-bar slot) ───────
+// The reserved slot after «ПКЛ.»: speaks ONLY when prepared events wait with
+// NO active card (the contextual «ДАЛЬШЕ +N» owns the backlog under an active
+// card, so the two indicators are mutually exclusive by construction).
+import {notificationState, resetNotifications, pushTransient} from '@/client/components/notifications/notificationState';
+import {NOTIFICATION_PRIORITY} from '@/client/components/notifications/notificationTypes';
+
+function queuedModel(id: string) {
+  return {
+    id, kind: 'normal' as const, variant: 'event' as const,
+    priority: NOTIFICATION_PRIORITY['normal'], sign: 'neutral' as const,
+    importance: 'ambient' as const, typeLabelKey: 'Event', pills: [],
+    detailCount: 0, generation: 1, ttl: 6800, persistent: false, createdAt: 1,
+  };
+}
+
+describe('ConsoleStatusStrip pending-events signal (.con-status__evq)', () => {
+  beforeEach(() => {
+    resetNotifications();
+    notificationState.seeded = true;
+  });
+  afterEach(() => {
+    resetNotifications();
+  });
+
+  function mountEvq(engageMs = 5) {
+    return mount(ConsoleStatusStrip, {
+      global: {
+        ...globalConfig.global,
+        stubs: {AnimatedMetricValue: true, ConsoleFlipValue: true, ConsoleProjectDeck: true},
+      },
+      props: {playerView: view(), attentionPending: false, pendingEngageMs: engageMs},
+    });
+  }
+
+  it('the slot is ALWAYS reserved (layout never shifts) and silent when idle', () => {
+    const w = mountEvq();
+    const evq = w.find('.con-status__evq');
+    expect(evq.exists(), 'the reserved slot is always in the DOM').to.be.true;
+    expect(evq.classes()).to.not.include('con-status__evq--on');
+  });
+
+  it('speaks after the hysteresis when events wait with NO active card, with the absolute count', async () => {
+    const w = mountEvq(5);
+    notificationState.queue.push(queuedModel('q1'), queuedModel('q2'));
+    await w.vm.$nextTick();
+    // Raw state just rose — the hysteresis is still holding (no flash).
+    expect(w.find('.con-status__evq--on').exists()).to.be.false;
+    await sleep(25);
+    await w.vm.$nextTick();
+    expect(w.find('.con-status__evq--on').exists()).to.be.true;
+    // One soft pulse on the engage edge.
+    expect(w.find('.con-status__evq--pulse').exists()).to.be.true;
+  });
+
+  it('NEVER speaks while a card is active — the backlog belongs to «ДАЛЬШЕ +N»', async () => {
+    const w = mountEvq(5);
+    pushTransient(queuedModel('shown')); // presents (no blocker in this env)
+    notificationState.queue.push(queuedModel('q1'));
+    await sleep(25);
+    await w.vm.$nextTick();
+    expect(notificationState.transient.length, 'a card is active').to.be.greaterThan(0);
+    expect(w.find('.con-status__evq--on').exists()).to.be.false;
+  });
+
+  it('releases INSTANTLY when the queue empties or a card presents', async () => {
+    const w = mountEvq(5);
+    notificationState.queue.push(queuedModel('q1'));
+    await sleep(25);
+    await w.vm.$nextTick();
+    expect(w.find('.con-status__evq--on').exists()).to.be.true;
+    notificationState.queue.splice(0);
+    await w.vm.$nextTick();
+    expect(w.find('.con-status__evq--on').exists()).to.be.false;
+  });
+
+  it('caps the readable count at 9+', async () => {
+    const w = mountEvq(5);
+    for (let i = 0; i < 12; i++) {
+      notificationState.queue.push(queuedModel(`q${i}`));
+    }
+    await sleep(25);
+    await w.vm.$nextTick();
+    expect((w.vm as unknown as {pendingCountText: string}).pendingCountText).to.equal('9+');
+  });
+
+  it('the glyph is the notification diamond — never a card/deck metaphor', () => {
+    const w = mountEvq();
+    expect(w.find('.con-status__evq-glyph').text()).to.equal('◈');
+  });
+});

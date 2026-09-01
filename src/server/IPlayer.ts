@@ -550,6 +550,8 @@ export interface IPlayer {
   hasBonusAction(): boolean;
   process(input: InputResponse): void;
   getWaitingFor(): PlayerInput | undefined;
+  /** Correlation root of the chain the pending prompt belongs to (may still grow). */
+  openWaitingForCorrelation(): number | undefined;
   setWaitingFor(input: PlayerInput, cb?: () => void): void;
   setWaitingForSafely(input: PlayerInput, cb?: () => void): void;
   clearWaitingFor(): void;

@@ -143,9 +143,11 @@ describe('marsBotPresentation (notification-first turns)', () => {
       expect(model.priority).eq(BOT_TURN_PRIORITY);
       expect(model.holdsFlow).eq(true);
       expect(model.persistent).eq(false);
-      // The compact card auto-closes in 5 seconds (B closes instantly, X
-      // expands into the theater — which never auto-closes).
-      expect(model.ttl).eq(BOT_TURN_TTL);
+      // A turn that COST the viewer something lingers with the hostile TTL —
+      // armed at BUILD (the old path re-armed it on the visible card, which
+      // restarted the lifetime bar mid-read). A neutral turn keeps the short
+      // 5 s compact lifetime (asserted in the neutral test below).
+      expect(model.ttl).eq(13_000);
       expect(BOT_TURN_TTL).eq(5000);
       expect(model.header?.message).eq('${0} revealed ${1}');
       // The VIEWER's own loss LEADS the card as its viewer band (sign +
@@ -175,6 +177,8 @@ describe('marsBotPresentation (notification-first turns)', () => {
       expect(model.sign).eq('neutral');
       expect(model.importance).eq('ambient');
       expect(model.viewerImpact).eq(undefined);
+      // …and a neutral turn keeps the short compact lifetime.
+      expect(model.ttl).eq(BOT_TURN_TTL);
     });
 
     it('a summary line restating the VIEWER\'s own delta is dropped when the band leads (one fact, one voice)', () => {
@@ -206,15 +210,63 @@ describe('marsBotPresentation (notification-first turns)', () => {
       const model = buildBotTurnNotification(entry, {viewerColor: 'blue' as Color, createdAt: 5, autoExpand: false});
       // Header = the reveal line; the summary = the other key lines, in order.
       expect(model.header?.message).eq('${0} revealed ${1}');
+      // The attack ON THE VIEWER («removed plants») restates the band and is
+      // dropped STRUCTURALLY (step.attack.target === viewer) — whatever its
+      // message template looks like. The remaining key lines all fit the cap.
       expect(model.summaryLines?.map((l) => l.message)).deep.eq([
-        'placed a city', 'removed plants', 'failed action money',
+        'placed a city', 'failed action money', 'raised the temperature',
       ]);
       expect(model.summaryLines).lengthOf(BOT_TURN_SUMMARY_CAP);
-      // One line was cut by the cap — declared, never silent.
-      expect(model.summaryOverflow).eq(1);
+      expect(model.summaryOverflow).eq(undefined);
       // Internal automa bookkeeping (tags / track advances) is NOT in the
       // compact summary — it lives in the detailed inspect.
       expect(model.detailCount).eq(t.steps.length);
+    });
+
+    // ── THE P0 REGRESSION CASE (the destroyed bonus card, «−5 растений») ─────
+    it('a bonus-card attack builds ATOMICALLY: negative at frame one, victim line dropped, headline names the card', () => {
+      const playedLine = {message: '${0} played the bonus card ${1}', data: [
+        {type: 2 /* PLAYER */, value: 'red'}, {type: 0 /* STRING */, value: 'Meteor Shower'},
+      ]} as never;
+      const victimLine = {message: '${0} lost ${1} ${2} because of ${3}', data: [
+        {type: 2 /* PLAYER */, value: 'blue'}, {type: 1, value: '5'}, {type: 15, value: 'plants'}, {type: 2, value: 'red'},
+      ]} as never;
+      const fateLine = logLine('MarsBot bonus card ${0} was destroyed and removed from the game');
+      const t: MarsBotTurn = {
+        id: 3, generation: 2, correlationId: 41,
+        steps: [
+          {kind: 'reveal', card: {kind: 'bonus', id: 'B01' as never}, message: playedLine, resolution: {fate: 'destroyed'}},
+          // The loss lives ONLY here — the end-of-turn snapshot suppressed it
+          // (the server's coveredByAttack de-dup), which is exactly what made
+          // the old impact-only reading build this card NEUTRAL.
+          {kind: 'attack', attack: {target: 'blue' as never, resource: 'plants' as never, demanded: 5, removed: 5, before: 508, after: 503, outcome: 'hit'}, message: victimLine, cause: {kind: 'bonus'}},
+          {kind: 'log', message: fateLine, cause: {kind: 'bonus'}},
+          {kind: 'impact', impact: {target: 'red' as Color, targetIsBot: true, changes: [
+            {resource: 'megacredits' as never, scope: 'stock', before: 10, after: 12},
+          ]}},
+        ],
+      };
+      const [entry] = recordBotTurnsFromView(PREV, botView({lastTurn: t}));
+      const model = buildBotTurnNotification(entry, {viewerColor: 'blue' as Color, createdAt: 5, autoExpand: false});
+      // 1) The FIRST build already carries the full hostile semantics — no
+      //    later enrichment may ever change them (visible cards are frozen).
+      expect(model.sign).eq('negative');
+      expect(model.importance).eq('critical');
+      expect(model.viewerImpact?.losses).deep.eq([{icon: 'plants', text: '−5'}]);
+      expect(model.viewerImpact?.attacker).eq('red');
+      // 2) The headline IS the causal statement — it names the bonus card
+      //    (the STRING token survives the one-shot card leaving the game).
+      expect(model.header).eq(playedLine);
+      // 3) The victim's own line is dropped (the band owns that fact); the
+      //    card's FATE line stays — with the band leading, the story reads
+      //    hero → played card → destroyed.
+      const lines = (model.summaryLines ?? []).map((l) => l.message);
+      expect(lines).not.contains('${0} lost ${1} ${2} because of ${3}');
+      expect(lines).contains('MarsBot bonus card ${0} was destroyed and removed from the game');
+      // 4) One story, one card: the bot pipeline is the only producer for an
+      //    automa turn (diffNegativeNotifications skips automa chains), and
+      //    this model is complete at birth.
+      expect(model.id).eq('bot:red:2:3');
     });
 
     it('global-parameter before → after chips lead the pills (single fresh turn)', () => {
@@ -410,10 +462,16 @@ describe('marsBotPresentation (notification-first turns)', () => {
     });
   });
 
+  /** A turn that touches NOBODY but the bot — the trimmable «бот походил» noise. */
+  function neutralTurn(id: number): MarsBotTurn {
+    const t = turn(id);
+    return {...t, steps: t.steps.filter((s) => s.kind !== 'impact' || s.impact.targetIsBot)};
+  }
+
   describe('B on a bot-turn card collapses the whole AI-turn backlog', () => {
     it('acks, delivers every queued turn and commits — the player gets their prompt back', async () => {
       let committed = false;
-      const next = botView({turnHistory: [turn(1), turn(2), turn(3)], lastTurn: turn(3)});
+      const next = botView({turnHistory: [neutralTurn(1), neutralTurn(2), neutralTurn(3)], lastTurn: neutralTurn(3)});
       presentFreshBotTurns(PREV, next, {commitLatest: () => {
         committed = true;
       }});
@@ -432,6 +490,18 @@ describe('marsBotPresentation (notification-first turns)', () => {
       expect(notificationState.queue.filter((n) => n.botTurnKey !== undefined)).lengthOf(0);
       // Nothing is lost: every turn stays replayable from the journal.
       expect(archivedTurnByKey('red:1:3')).is.not.undefined;
+    });
+
+    it('a turn that COST the viewer something is NEVER trimmed unseen (hostile exempt)', async () => {
+      // Three loss-carrying turns: the cap would drain the middle one for
+      // neutral noise, but a loss is not noise — every hostile card keeps its
+      // place in the FIFO and presents. (The player's own explicit B still
+      // collapses everything — the test above.)
+      const next = botView({turnHistory: [turn(1), turn(2), turn(3)], lastTurn: turn(3)});
+      presentFreshBotTurns(PREV, next, {commitLatest: () => {}});
+      await nextTick();
+      expect(notificationState.transient.map((n) => n.botTurnKey)).deep.eq(['red:1:1']);
+      expect(notificationState.queue.map((n) => n.botTurnKey)).deep.eq(['red:1:2', 'red:1:3']);
     });
 
     it('leaves ORDINARY queued notifications alone — it is the AI-turn feed only', async () => {

@@ -167,6 +167,7 @@ export class Server {
       generation: game.getGeneration(),
       globalsPerGeneration: game.gameIsOver() ? game.globalsPerGeneration : [],
       isSoloModeWin: game.isSoloModeWin(),
+      openEventCorrelations: game.openEventCorrelations(),
       isTerraformed: game.marsIsTerraformed(),
       lastSoloGeneration: game.lastSoloGeneration(),
       milestones: this.getMilestones(game),

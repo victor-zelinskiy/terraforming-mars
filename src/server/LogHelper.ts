@@ -60,7 +60,11 @@ export class LogHelper {
       return;
     }
 
-    player.game.log('${0} ${1} ${2} at ${3}', (b) =>
+    // The SPACE token renders as a «show on map» AFFORDANCE, not a location
+    // word — so it may never sit where the sentence's grammatical object
+    // belongs («разместил тайл города в ПОКАЗАТЬ»). The middot detaches it:
+    // the sentence ends, the affordance follows.
+    player.game.log('${0} ${1} ${2} · ${3}', (b) =>
       b.player(player).string(action).string(description).space(space));
   }
 
@@ -75,11 +79,11 @@ export class LogHelper {
   }
 
   static logVenusIncrease(player: IPlayer, steps: number) {
-    player.game.log('${0} raised ${1} ${2} step(s) raised ${1} ${2} {step|steps}', (b) => b.player(player).globalParameter(GlobalParameter.VENUS).number(steps));
+    player.game.log('${0} raised ${1} ${2} {step|steps}', (b) => b.player(player).globalParameter(GlobalParameter.VENUS).number(steps));
   }
 
   static logTemperatureIncrease(player: IPlayer, steps: number) {
-    player.game.log('${0} raised ${1} ${2} step(s) raised ${1} ${2} {step|steps}', (b) => b.player(player).globalParameter(GlobalParameter.TEMPERATURE).number(steps));
+    player.game.log('${0} raised ${1} ${2} {step|steps}', (b) => b.player(player).globalParameter(GlobalParameter.TEMPERATURE).number(steps));
   }
 
   static logDrawnCards(player: IPlayer, cards: ReadonlyArray<ICard>, privateMessage: boolean = false) {

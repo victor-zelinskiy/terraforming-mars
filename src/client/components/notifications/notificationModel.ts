@@ -470,6 +470,13 @@ export type DiffInput = {
   messages: ReadonlyArray<LogMessage>;
   events: ReadonlyArray<GameEvent>;
   seen: ReadonlySet<number>;
+  /**
+   * Correlations currently held in the PREPARING stage — their models are
+   * REBUILT from the fresh stream even though their ids are already seen, so
+   * a released card always carries the latest (complete) chain. The caller
+   * decides hold-vs-release; this diff only rebuilds.
+   */
+  rebuildIds?: ReadonlySet<number>;
   viewerColor: Color;
   generation: number;
   createdAt: number;
@@ -512,7 +519,7 @@ export function diffRootNotifications(input: DiffInput): {
       continue; // system line / generation divider / legacy log — not a root event
     }
     encounteredIds.push(correlationId);
-    if (input.seen.has(correlationId)) {
+    if (input.seen.has(correlationId) && input.rebuildIds?.has(correlationId) !== true) {
       continue;
     }
     const header = node.kind === 'group' ? node.header : node.message;

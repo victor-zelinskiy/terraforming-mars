@@ -81,7 +81,7 @@ export function pushNearestBonus(game: IGame, thirdOption: 'ocean' | 'venus'): N
     // one the ladder chose.
     if (!AutomaCorporations.replacesParameterRaise(game, GlobalParameter.TEMPERATURE)) {
       game.increaseTemperature(bot, 2); // Clamped internally at completion.
-      game.log('${0} raised ${1} ${2} step(s) raised ${1} ${2} {step|steps}', (b) => b.player(bot).globalParameter(GlobalParameter.TEMPERATURE).number(2));
+      game.log('${0} raised ${1} ${2} {step|steps}', (b) => b.player(bot).globalParameter(GlobalParameter.TEMPERATURE).number(2));
     }
     return 'temperature';
   }
@@ -96,7 +96,7 @@ export function pushNearestBonus(game: IGame, thirdOption: 'ocean' | 'venus'): N
     // printed sentence of that card lists «place a greenery tile».
     if (!AutomaCorporations.replacesParameterRaise(game, GlobalParameter.OXYGEN)) {
       game.increaseOxygenLevel(bot, 1);
-      game.log('${0} raised ${1} ${2} step(s) raised ${1} ${2} {step|steps}', (b) => b.player(bot).globalParameter(GlobalParameter.OXYGEN).number(1));
+      game.log('${0} raised ${1} ${2} {step|steps}', (b) => b.player(bot).globalParameter(GlobalParameter.OXYGEN).number(1));
     }
     return 'oxygen';
   }
@@ -107,7 +107,7 @@ export function pushNearestBonus(game: IGame, thirdOption: 'ocean' | 'venus'): N
       AutomaTurnLog.setBonusBranch(game, {key: 'Venus near a bonus step'});
       if (!AutomaCorporations.replacesParameterRaise(game, GlobalParameter.VENUS)) {
         game.increaseVenusScaleLevel(bot, 2); // Clamped internally.
-        game.log('${0} raised ${1} ${2} step(s) raised ${1} ${2} {step|steps}', (b) => b.player(bot).globalParameter(GlobalParameter.VENUS).number(2));
+        game.log('${0} raised ${1} ${2} {step|steps}', (b) => b.player(bot).globalParameter(GlobalParameter.VENUS).number(2));
       }
       return 'venus';
     }

@@ -129,6 +129,25 @@
           <ConsoleFlipValue :value="game.generation" :accent="finalGeneration ? 'gold' : 'cyan'" />
         </span>
       </span>
+      <!-- GENERIC PENDING-EVENTS SIGNAL — the queue's presence when NO card is
+           active (events prepared, delivery held behind an animation / prompt
+           plaque). A RESERVED fixed-width slot: appearing may change paint
+           only, never layout. The glyph is the notification family's diamond
+           («◈» — the event voice), deliberately NOT a card/deck metaphor; the
+           count is the ABSOLUTE backlog (9+ cap), neutral tone — the content
+           is not delivered yet, so the signal carries no sign. One soft pulse
+           on 0 → 1 (reduced motion: none), a calm counter swap after. It can
+           never coexist with the contextual «ДАЛЬШЕ +N», which exists only
+           UNDER an active card. -->
+      <span class="con-status__evq"
+            :class="{'con-status__evq--on': pendingSignalShown, 'con-status__evq--pulse': pendingPulse}"
+            role="status"
+            :aria-label="pendingSignalShown ? $t('Pending events') : undefined"
+            aria-hidden="false">
+        <span class="con-status__evq-divider" aria-hidden="true"></span>
+        <span class="con-status__evq-glyph" aria-hidden="true">◈</span>
+        <span class="con-status__evq-count"><ConsoleFlipValue :value="pendingCountCapped" :text="pendingCountText" accent="cyan" /></span>
+      </span>
     </div>
   </div>
 </template>
@@ -156,6 +175,7 @@ import {ActionLabel} from '@/client/components/overview/ActionLabel';
 import {participantDisplayName} from '@/client/components/marsbot/marsBotDisplay';
 import {presentPlayerStatus, statusCounterText, StatusPresentation, StatusGlyph} from '@/client/components/overview/playerStatusPresenter';
 import {terraformingProgress, TerraformingProgress} from '@/client/components/gameProgress/terraformingProgress';
+import {notificationState} from '@/client/components/notifications/notificationState';
 import {finalGenerationActive, terraformingCelebrationState} from '@/client/components/gameProgress/terraformingCelebration';
 import {motionMs} from '@/client/components/motion/motionTokens';
 import {translateText} from '@/client/directives/i18n';
@@ -217,6 +237,10 @@ export default defineComponent({
     ghostParam: {type: String as PropType<'temperature' | 'oxygen' | 'oceans' | 'venus' | undefined>, default: undefined},
     /** Engagement debounce (ms). A prop so specs can shrink it. */
     attentionEngageMs: {type: Number, default: 1200},
+    /** The generic pending-events signal's engage hysteresis (ms) — a
+     *  promotion hand-over satisfies the raw state for one flush and must
+     *  not flash the slot. A prop so specs can shrink it. */
+    pendingEngageMs: {type: Number, default: 240},
   },
   data() {
     return {
@@ -229,6 +253,17 @@ export default defineComponent({
       /** One-shot terraforming-complete pulse on the Temp/O₂/Oceans group. */
       celebrating: false,
       celebrateTimer: undefined as number | undefined,
+      /**
+       * The generic pending-events signal, ENGAGED (short hysteresis). The raw
+       * state «no active card + non-empty queue» is true for one flush during
+       * an ordinary promotion — engaging it instantly would flash the slot for
+       * a frame every time a card hands over. Release is instant.
+       */
+      evqEngaged: false,
+      evqTimer: undefined as number | undefined,
+      /** One-shot soft pulse when the backlog appears (0 → 1+). */
+      pendingPulse: false,
+      pendingPulseTimer: undefined as number | undefined,
     };
   },
   computed: {
@@ -298,6 +333,27 @@ export default defineComponent({
     celebrationNonce(): number {
       return terraformingCelebrationState.celebrationNonce;
     },
+    /**
+     * RAW generic-signal state: prepared events wait in the FIFO and NO card
+     * is active (the contextual «ДАЛЬШЕ +N» exists only under an active card,
+     * so the two are mutually exclusive by construction). While a card IS
+     * active the backlog belongs to its own tail chip, not to the top bar.
+     */
+    pendingSignalRaw(): boolean {
+      return notificationState.transient.length === 0 && notificationState.queue.length > 0;
+    },
+    /** The signal as SHOWN (raw + engage hysteresis, instant release). */
+    pendingSignalShown(): boolean {
+      return this.evqEngaged && this.pendingSignalRaw;
+    },
+    /** Absolute backlog, capped for the compact slot. */
+    pendingCountCapped(): number {
+      return Math.min(notificationState.queue.length, 10);
+    },
+    pendingCountText(): string {
+      const n = notificationState.queue.length;
+      return n > 9 ? '9+' : String(n);
+    },
     terraAriaLabel(): string {
       return `${translateText('Terraforming progress')}: ${this.progress.percent}%`;
     },
@@ -334,6 +390,37 @@ export default defineComponent({
         }, motionMs(2600));
       }
     },
+    // The generic pending-events signal: engage after a short hysteresis (a
+    // promotion hand-over satisfies the raw state for one flush and must not
+    // flash the slot), release instantly. One soft pulse on the engage edge —
+    // after that the element stays calm and only the counter swaps.
+    pendingSignalRaw: {
+      immediate: true,
+      handler(raw: boolean): void {
+        if (raw) {
+          if (this.evqEngaged || this.evqTimer !== undefined) {
+            return;
+          }
+          this.evqTimer = window.setTimeout(() => {
+            this.evqTimer = undefined;
+            this.evqEngaged = true;
+            this.pendingPulse = true;
+            if (this.pendingPulseTimer !== undefined) {
+              window.clearTimeout(this.pendingPulseTimer);
+            }
+            this.pendingPulseTimer = window.setTimeout(() => {
+              this.pendingPulse = false;
+            }, motionMs(900));
+          }, this.pendingEngageMs);
+        } else {
+          if (this.evqTimer !== undefined) {
+            window.clearTimeout(this.evqTimer);
+            this.evqTimer = undefined;
+          }
+          this.evqEngaged = false;
+        }
+      },
+    },
     // One-shot pulse on the Temp/O₂/Oceans group when terraforming completes
     // LIVE (the shared nonce never re-fires on reload — the calm --complete
     // state carries the persistent look).
@@ -356,6 +443,12 @@ export default defineComponent({
     }
     if (this.attentionTimer !== undefined) {
       window.clearTimeout(this.attentionTimer);
+    }
+    if (this.evqTimer !== undefined) {
+      window.clearTimeout(this.evqTimer);
+    }
+    if (this.pendingPulseTimer !== undefined) {
+      window.clearTimeout(this.pendingPulseTimer);
     }
   },
   methods: {

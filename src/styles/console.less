@@ -1835,6 +1835,54 @@ html.console-native {
         color: @con-text-dim;
     }
 
+    /* GENERIC PENDING-EVENTS SIGNAL — the reserved system slot right after
+       «ПКЛ.». The width is RESERVED whether or not it speaks (appearing is a
+       paint change only — the top bar never re-flows for it); the hairline
+       divider keeps it from reading as one more global parameter. NEUTRAL by
+       contract (the queued content is undelivered, so the signal carries no
+       sign); the glyph is the notification family's diamond, deliberately
+       nothing like the deck stack beside it. Calm: one soft pulse on 0 → 1
+       (the --pulse one-shot), then static — the counter swaps via the shared
+       flip, the element itself never blinks. */
+    &__evq {
+        position: relative;
+        display: inline-flex;
+        align-items: baseline;
+        gap: .4rem;
+        width: 3.6rem;
+        flex: 0 0 auto;
+        opacity: 0;
+        visibility: hidden;
+        transition: opacity calc(180ms * var(--motion-scale, 1)) ease;
+
+        &--on {
+            opacity: 1;
+            visibility: visible;
+        }
+    }
+    &__evq-divider {
+        align-self: center;
+        width: .05rem;
+        height: .9rem;
+        background: fade(@con-cyan, 22%);
+        flex: 0 0 auto;
+    }
+    &__evq-glyph {
+        font-size: .95rem;
+        line-height: 1;
+        align-self: center;
+        color: fade(@con-cyan, 72%);
+    }
+    &__evq-count {
+        font-size: 1.05rem;
+        font-weight: 700;
+        font-variant-numeric: tabular-nums;
+        color: @con-text-dim;
+    }
+    &__evq--pulse &__evq-glyph {
+        animation: con-evq-pulse calc(860ms * var(--motion-scale, 1)) ease-out 1;
+    }
+
     &__players {
         display: flex;
         align-items: center;
@@ -2035,6 +2083,21 @@ html.console-native {
     .con-beacon-enter-active,
     .con-beacon-leave-active { transition: none; }
 }
+
+/* Generic pending-events signal: ONE soft pulse when the backlog appears
+   (0 → 1), transform/opacity only (paint baseline), then it rests. Reduced
+   motion kills the pulse outright — the appearing glyph is the whole cue. */
+@keyframes con-evq-pulse {
+    0% { transform: scale(1); opacity: .55; }
+    28% { transform: scale(1.22); opacity: 1; }
+    100% { transform: scale(1); opacity: 1; }
+}
+@media (prefers-reduced-motion: reduce) {
+    .con-status__evq--pulse .con-status__evq-glyph { animation: none; }
+    .con-status__evq { transition: none; }
+}
+html.con-reduced-motion .con-status__evq--pulse .con-status__evq-glyph { animation: none; }
+html.con-reduced-motion .con-status__evq { transition: none; }
 
 @keyframes con-turn-burst {
     0% { box-shadow: inset 0 0 0 .05rem fade(@con-mint, 75%), 0 0 0 rgba(88, 214, 166, 0); transform: scale(1); }
@@ -23865,6 +23928,20 @@ html.console-mode .notifications-layer {
         }
         line-height: 1.4;
     }
+    /* …and the SAME line demoted to the CAUSE voice when the viewer band
+       leads a bot-turn card («разыграл бонусную карту ‹Метеоритный дождь›»
+       under «▼ ВЫ ПОТЕРЯЛИ») — the played card's NAME must survive the
+       hostile layout (the one-shot bonus card leaves the game right after),
+       but as the secondary statement, never competing with the band. */
+    &__headline--cause {
+        .journal-text { font-size: .75rem; color: @con-text-dim; }
+        .journal-em { font-size: .78rem; color: fade(@con-text, 88%); }
+        .journal-token, .journal-chip, .journal-cardchip, .journal-card-chip {
+            font-size: .75rem;
+        }
+        line-height: 1.35;
+        opacity: .92;
+    }
 
     /* ── Compact OUTCOME lines (the AI-turn card): key log lines of the turn. ── */
     &__summary {
@@ -30681,6 +30758,11 @@ html.con-profile-handheld {
            it — a bare number read as ambiguous), just compact. The gold
            final-generation marker recolours the same element (colour only). */
         &__gen-label { font-size: .55rem; letter-spacing: .06rem; }
+        /* Pending-events signal: same reserved-slot contract, Deck-compact. */
+        &__evq { width: 2.6rem; gap: .3rem; }
+        &__evq-glyph { font-size: .75rem; }
+        &__evq-count { font-size: .8rem; }
+        &__evq-divider { height: .7rem; }
         &__intel { gap: .6rem; }
         &__intel-label { display: none; } /* icon + numbers suffice */
         &__intel-value { font-size: .8rem; b { font-size: .9rem; } }

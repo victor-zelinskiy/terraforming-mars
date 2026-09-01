@@ -28,7 +28,7 @@ import {ViewModel, PlayerViewModel} from '@/common/models/PlayerModel';
 import {MarsBotImpact, MarsBotTurnVisual} from '@/common/automa/MarsBotTurn';
 import {LogMessage} from '@/common/logs/LogMessage';
 import {LogMessageDataType} from '@/common/logs/LogMessageDataType';
-import {NotificationModel, NotificationPillGroup} from '@/client/components/notifications/notificationTypes';
+import {NotificationModel, NotificationPillGroup, NOTIFICATION_TTL} from '@/client/components/notifications/notificationTypes';
 import {affectedPlayersOfBotTurn} from '@/client/components/notifications/notificationFeedPolicy';
 import {viewerImpactOfBotTurn} from '@/client/components/notifications/notificationSemantics';
 import {notificationState, pushTransient, dismiss, notificationKnownId} from '@/client/components/notifications/notificationState';
@@ -192,6 +192,13 @@ function summaryLinesOf(entry: ArchivedBotTurn, headline: LogMessage | undefined
     if (message === undefined || message === headline) {
       continue;
     }
+    // STRUCTURAL drop first: an attack step whose typed target IS the viewer
+    // restates the band whatever its message template looks like («admin
+    // потерял 5 растений из-за Бот» under «▼ ВЫ ПОТЕРЯЛИ −5»). The token-
+    // position check below stays for plain log lines.
+    if (dropViewer !== undefined && step.kind === 'attack' && step.attack.target === dropViewer) {
+      continue;
+    }
     if (dropViewer !== undefined && leadingPlayerOf(message) === dropViewer) {
       continue;
     }
@@ -291,7 +298,9 @@ export function buildBotTurnNotification(entry: ArchivedBotTurn, opts: {viewerCo
     sign: viewerImpact.sign,
     importance: viewerImpact.losses.length > 0 ? 'critical' : (viewerInvolved || viewerImpact.gains.length > 0 ? 'notable' : 'ambient'),
     viewerImpact: viewerImpact.sign === 'neutral' ? undefined : viewerImpact,
-    typeLabelKey: 'MarsBot finished its turn',
+    // Neutral event voice — the actor chip beside it is the ONE identity
+    // statement («ХОД ЗАВЕРШЁН» + [● Бот], never «БОТ ЗАВЕРШИЛ ХОД» + «Бот»).
+    typeLabelKey: 'Turn finished',
     actor: botColor,
     // Structured feed-filter metadata from the turn's own typed script: the
     // players its attacks / snapshot-diffed impacts touch. A turn that only
@@ -311,7 +320,10 @@ export function buildBotTurnNotification(entry: ArchivedBotTurn, opts: {viewerCo
     detailCount: entry.turn.steps.length,
     ...(entry.correlationId !== undefined ? {correlationId: entry.correlationId} : {}),
     generation: entry.generation,
-    ttl: BOT_TURN_TTL,
+    // A turn that COST the viewer something lingers like every hostile card
+    // (13 s — a loss must not be missed); armed at BUILD, never re-armed on
+    // screen (the old visible upgrade restarted the lifetime bar mid-read).
+    ttl: viewerImpact.losses.length > 0 ? NOTIFICATION_TTL['negative'] : BOT_TURN_TTL,
     persistent: false,
     cta: {labelKey: 'Watch turn', action: 'expand-theater'},
     ...(entry.correlationId !== undefined ?
@@ -522,7 +534,13 @@ export const MAX_QUEUED_BOT_CARDS = 1;
  * Never touches ordinary notifications, and never the visible card.
  */
 function trimBotTurnBacklog(): void {
+  // A turn that COST the viewer something is never drained unseen: the cap
+  // exists to collapse «бот походил» noise, and a loss is not noise (the
+  // journal keeps it too, but the notification is the contract that the
+  // player is TOLD). Only sign-neutral turn cards are trimmable; the player's
+  // own explicit B (skipBotTurnPresentation) still collapses everything.
   const queued = notificationState.queue
+    .filter((n) => (n.viewerImpact?.losses.length ?? 0) === 0)
     .map((n) => n.botTurnKey)
     .filter((k): k is string => k !== undefined);
   // The cap counts cards waiting BEHIND the one being read. With nothing

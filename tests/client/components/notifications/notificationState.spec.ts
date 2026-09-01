@@ -12,7 +12,11 @@ import {
   toggleExpanded,
   clearTransient,
   resetNotifications,
-  holdVisibleTransient,
+  stashPreparing,
+  takePreparedModels,
+  preparingIds,
+  dropPreparing,
+  PREPARING_MAX_MS,
   acknowledgeFlowHoldingCards,
   drainQueueToJournal,
   pendingSummary,
@@ -82,12 +86,17 @@ describe('notificationState (lifecycle)', () => {
       expect(notificationState.queue).to.have.length(1);
     });
 
-    it('a higher-priority (negative) card EVICTS the visible normal one into the queue front', () => {
+    it('a higher-priority (negative) arrival NEVER evicts the visible card — it jumps the QUEUE instead', () => {
+      // The old eviction was a backward lifecycle edge (presented → queued):
+      // the card being read vanished and returned with a fresh entrance and a
+      // fresh lifetime. Presented is monotonic; priority acts inside the queue.
       pushMany([model('a'), model('b')]); // a visible, b queued
       pushTransient(model('hit', 'negative'));
+      expect(notificationState.transient.map((n) => n.id)).to.deep.eq(['a']);
+      dismiss('a');
+      // …and at the hand-over the hostile card outranks the earlier ordinary one.
       expect(notificationState.transient.map((n) => n.id)).to.deep.eq(['hit']);
-      // The evicted card waits at the FRONT (it re-presents first).
-      expect(notificationState.queue.map((n) => n.id)).to.deep.eq(['a', 'b']);
+      expect(notificationState.queue.map((n) => n.id)).to.deep.eq(['b']);
     });
 
     it('within the queue, promotion is priority-first, FIFO within a priority', () => {
@@ -148,11 +157,79 @@ describe('notificationState (lifecycle)', () => {
       botTurnReviewState.open = false;
     });
 
-    it('holdVisibleTransient re-queues the visible card at the FRONT (a blocker opened)', () => {
+    // ── THE DELIVERY GATE IS NOT A VISIBILITY GATE (2026-09 atomic rework) ──
+    // A presented card is DELIVERED: it leaves only by its own timer or the
+    // player's explicit close. Blockers gate exactly one transition —
+    // queued → presented. The old holdVisibleTransient (re-queue visible cards
+    // when a blocker opens) restarted TTLs, replayed entrances and — because
+    // the bot card's own delivery triggers the bot's tile animation — made the
+    // card evict ITSELF: the «two versions of one event» defect.
+    it('a blocker OPENING leaves the already-presented card visible (presented is monotonic)', async () => {
       pushMany([model('a'), model('b')]);
-      holdVisibleTransient();
+      expect(notificationState.transient.map((n) => n.id)).to.deep.eq(['a']);
+      // A silencing foreground (an animation / reveal / ceremony) opens.
+      revealResultState.active = true;
+      await nextTick();
+      // The active card STAYS; the queued one keeps waiting.
+      expect(notificationState.transient.map((n) => n.id)).to.deep.eq(['a']);
+      expect(notificationState.queue.map((n) => n.id)).to.deep.eq(['b']);
+      // A fresh event delivered during the blocker queues (delivery gate).
+      pushTransient(model('c'));
+      expect(notificationState.transient.map((n) => n.id)).to.deep.eq(['a']);
+      expect(notificationState.queue.map((n) => n.id)).to.deep.eq(['b', 'c']);
+      // The player closes the active card mid-blocker: it goes, and the NEXT
+      // one does NOT present until the blocker clears.
+      dismiss('a');
       expect(notificationState.transient).to.have.length(0);
-      expect(notificationState.queue.map((n) => n.id)).to.deep.eq(['a', 'b']);
+      expect(notificationState.queue.map((n) => n.id)).to.deep.eq(['b', 'c']);
+      dismissReveal();
+      await nextTick();
+      expect(notificationState.transient.map((n) => n.id)).to.deep.eq(['b']);
+    });
+
+    it('the visible card keeps its identity object across a blocker (no remount, no TTL restart)', async () => {
+      pushTransient(model('a'));
+      const live = notificationState.transient[0];
+      revealResultState.active = true;
+      await nextTick();
+      dismissReveal();
+      await nextTick();
+      // Same LiveNotification object — the card was never re-created, so its
+      // entrance cannot replay and its CSS lifetime cannot re-arm.
+      expect(notificationState.transient[0]).to.eq(live);
+    });
+  });
+
+  describe('the PREPARING stage (atomic presentation)', () => {
+    it('an open-correlation model waits in preparing, never in the queue', () => {
+      stashPreparing(model('g7', 'normal', {correlationId: 7}), 1000);
+      expect(notificationState.queue).to.have.length(0);
+      expect(notificationState.transient).to.have.length(0);
+      expect([...preparingIds()]).to.deep.eq([7]);
+    });
+
+    it('release happens exactly when the chain closes, with the LATEST rebuild', () => {
+      stashPreparing(model('g7', 'normal', {correlationId: 7}), 1000);
+      // A later diff rebuilt the model richer (the chain grew server-side).
+      stashPreparing(model('g7', 'negative', {correlationId: 7, sign: 'negative'}), 2000);
+      expect(takePreparedModels(new Set([7]), 3000)).to.have.length(0);
+      const released = takePreparedModels(new Set(), 4000);
+      expect(released).to.have.length(1);
+      expect(released[0].sign).to.eq('negative');
+      expect([...preparingIds()]).to.deep.eq([]);
+    });
+
+    it('a leaked open chain releases at the ceiling with a warn, never silently swallows', () => {
+      stashPreparing(model('g9', 'normal', {correlationId: 9}), 1000);
+      expect(takePreparedModels(new Set([9]), 1000 + PREPARING_MAX_MS - 1)).to.have.length(0);
+      const released = takePreparedModels(new Set([9]), 1000 + PREPARING_MAX_MS);
+      expect(released).to.have.length(1);
+    });
+
+    it('dropPreparing forgets an undone event', () => {
+      stashPreparing(model('g5', 'normal', {correlationId: 5}), 1000);
+      dropPreparing(5);
+      expect(takePreparedModels(new Set(), 9999)).to.have.length(0);
     });
   });
 

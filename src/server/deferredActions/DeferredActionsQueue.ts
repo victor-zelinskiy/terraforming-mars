@@ -18,6 +18,24 @@ export class DeferredActionsQueue {
     this.queue.push(action);
   }
 
+  /**
+   * The correlation roots of every PENDING deferred action — the chains that
+   * may still GROW when these actions run (each carries its captured event
+   * context by reference). This is what lets the client hold a notification
+   * in its PREPARED state until the causal chain is complete, instead of
+   * presenting a half-story and enriching it on screen.
+   */
+  public openEventCorrelations(): Array<number> {
+    const out: Array<number> = [];
+    for (const action of this.queue) {
+      const rootId = action.eventContext?.rootId;
+      if (rootId !== undefined && !out.includes(rootId)) {
+        out.push(rootId);
+      }
+    }
+    return out;
+  }
+
   public runAllFor(player: IPlayer, cb: () => void): void {
     let b: IDeferredAction | undefined;
     let j = -1;

@@ -1,6 +1,7 @@
 import * as constants from '../../common/constants';
 import {AutomaTerraformer} from './AutomaTerraformer';
 import {BonusCardId, MarsBotTrackRole} from '../../common/automa/AutomaTypes';
+import {bonusCardInfo} from '../../common/automa/BonusCardData';
 import {CardName} from '../../common/cards/CardName';
 import {CardResource} from '../../common/CardResource';
 import {GlobalParameter} from '../../common/GlobalParameter';
@@ -69,7 +70,7 @@ export function advanceFurthestMartianParameter(game: IGame): boolean {
     // because the action WAS taken, just converted.
     if (!AutomaCorporations.replacesParameterRaise(game, GlobalParameter.OXYGEN)) {
       game.increaseOxygenLevel(bot, 1);
-      game.log('${0} raised ${1} ${2} step(s) raised ${1} ${2} {step|steps}', (b) => b.player(bot).globalParameter(GlobalParameter.OXYGEN).number(1));
+      game.log('${0} raised ${1} ${2} {step|steps}', (b) => b.player(bot).globalParameter(GlobalParameter.OXYGEN).number(1));
     }
   } else if (oceansLeft === most) {
     AutomaTilePlacer.placeOcean(game); // …consulted inside the shared placer.
@@ -202,6 +203,18 @@ function deferCubeRemoval(game: IGame, attack: Extract<CubeAttack, {kind: 'remov
  * (B16) are routed by the controller regardless.
  */
 export function resolveBonusCard(game: IGame, id: BonusCardId): BonusCardOutcome {
+  // The SOURCE is fixed at the moment the card ACTS: every event the resolution
+  // records (the victim's plant loss, the bot's own gain) carries the bonus
+  // card's id — so the causal chain survives the one-shot card being destroyed
+  // and removed from the game right after. A chained fallback card (Corporate
+  // Competition drawing another bonus card) re-enters here and attributes its
+  // own effects to ITSELF (the nested withSource wins for its duration).
+  return game.events.withSource(
+    {kind: 'bonusCard', bonusCard: id, owner: marsBotOf(game).color},
+    () => resolveBonusCardEffect(game, id));
+}
+
+function resolveBonusCardEffect(game: IGame, id: BonusCardId): BonusCardOutcome {
   switch (id) {
   case BonusCardId.B01_METEOR_SHOWER: return meteorShower(game);
   case BonusCardId.B02_INVASIVE_SPECIES: return invasiveSpecies(game);
@@ -842,7 +855,7 @@ function governmentIntervention(game: IGame): BonusCardOutcome {
     if (game.getVenusScaleLevel() < constants.MAX_VENUS_SCALE &&
         !AutomaCorporations.replacesParameterRaise(game, GlobalParameter.VENUS)) {
       game.increaseVenusScaleLevel(bot, 1);
-      game.log('${0} raised ${1} ${2} step(s) raised ${1} ${2} {step|steps}', (b) => b.player(bot).globalParameter(GlobalParameter.VENUS).number(1));
+      game.log('${0} raised ${1} ${2} {step|steps}', (b) => b.player(bot).globalParameter(GlobalParameter.VENUS).number(1));
     }
     return 'discard';
   } finally {
@@ -868,7 +881,13 @@ export function routeBonusCard(game: IGame, id: BonusCardId, outcome: BonusCardO
     if (recurring !== -1) {
       automa.recurringBonusCards.splice(recurring, 1);
     }
-    game.log('MarsBot bonus card was destroyed and removed from the game');
+    // The fate line NAMES its card: a chained fallback card (Corporate
+    // Competition drawing a second bonus card) means «бонусная карта» alone is
+    // ambiguous, and the name is the last causal anchor a player sees after
+    // the one-shot card leaves the game. (The old nameless key stays in the
+    // locale files so archived games keep rendering.)
+    game.log('MarsBot bonus card ${0} was destroyed and removed from the game',
+      (b) => b.string(bonusCardInfo(id).name));
     return;
   }
   if (outcome === 'return-to-deck') {
@@ -876,7 +895,8 @@ export function routeBonusCard(game: IGame, id: BonusCardId, outcome: BonusCardO
     // live deck, shuffled, available again this game.
     automa.bonusDeck.push({kind: 'bonus', id});
     inplaceShuffle(automa.bonusDeck, game.rng);
-    game.log('MarsBot bonus card was shuffled back into its bonus deck');
+    game.log('MarsBot bonus card ${0} was shuffled back into its bonus deck',
+      (b) => b.string(bonusCardInfo(id).name));
     return;
   }
   if (automa.recurringBonusCards.includes(id)) {

@@ -106,9 +106,15 @@
            the head's actor chip, so a headline that opens with that same
            player token drops it («сыграл ‹Электростанция›» under the head,
            never «Бот» three times per card). When the viewer band leads,
-           the compact cause line above replaces the headline entirely. -->
-      <span v-else-if="notification.header !== undefined && impactBand === undefined"
-            class="con-notif__line con-notif__tokens con-notif__headline">
+           the compact cause line above replaces the headline — EXCEPT on the
+           bot-turn card, whose headline IS its cause («разыграл бонусную
+           карту ‹Метеоритный дождь›»): dropping it there erased the ONLY
+           statement of which card hit the viewer, since the one-shot bonus
+           card leaves the game right after resolving. Under the band it
+           renders as the secondary cause voice. -->
+      <span v-else-if="headlineVisible"
+            class="con-notif__line con-notif__tokens con-notif__headline"
+            :class="{'con-notif__headline--cause': headlineAsCause}">
         <JournalTokenRenderer
           v-for="(tok, i) in headerEntries"
           :key="i"
@@ -349,6 +355,23 @@ export default defineComponent({
     showCause(): boolean {
       return this.notification.variant !== 'bot-turn' &&
         (this.notification.actor !== undefined || this.impactBand?.sourceCard !== undefined);
+    },
+    /**
+     * The headline renders event-first (no band), and ALSO under the band on
+     * the bot-turn card — there it IS the cause statement (the played bonus /
+     * project card by name), which must survive the hostile layout: the
+     * one-shot bonus card leaves the game right after resolving, so this line
+     * is the player's only in-flow causal anchor.
+     */
+    headlineVisible(): boolean {
+      if (this.notification.header === undefined) {
+        return false;
+      }
+      return this.impactBand === undefined || this.notification.variant === 'bot-turn';
+    },
+    /** Bot-turn headline under a live band = the secondary cause voice. */
+    headlineAsCause(): boolean {
+      return this.impactBand !== undefined && this.notification.variant === 'bot-turn';
     },
     /** Context clusters stay for neutral events and under a positive band; a
      *  loss / mixed card drops them (the band + cause carry the story). */

@@ -1,3 +1,4 @@
+import {BonusCardId} from '../automa/AutomaTypes';
 import {CardName} from '../cards/CardName';
 import {Color} from '../Color';
 import {GlobalParameter} from '../GlobalParameter';
@@ -40,6 +41,13 @@ export type EventSource =
   | {kind: 'globalEvent'; name: GlobalEventName}
   | {kind: 'party'; name: PartyName}
   | {kind: 'globalParameter'; parameter: GlobalParameter}
+  /**
+   * A MarsBot BONUS CARD (Automa). Recorded at the moment the card RESOLVES,
+   * so the event stream keeps the causal source even after the one-shot card
+   * is destroyed and removed from the game — the id resolves to a name via the
+   * pure static `bonusCardInfo(id)` table, never via a live collection.
+   */
+  | {kind: 'bonusCard'; bonusCard: BonusCardId; owner?: Color}
   | {kind: 'production'}
   | {kind: 'spaceBonus'} // a hex's printed placement bonus ("cell bonus")
   | {kind: 'oceanBonus'} // M€ for placing adjacent to oceans
@@ -67,6 +75,8 @@ export function sourceKey(source: EventSource | undefined): string {
     return `${source.kind}:${source.name}`;
   case 'globalParameter':
     return `${source.kind}:${source.parameter}`;
+  case 'bonusCard':
+    return `${source.kind}:${source.bonusCard}`;
   default:
     return source.kind;
   }

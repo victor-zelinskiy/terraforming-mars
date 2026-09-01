@@ -118,6 +118,64 @@ describe('notificationSemantics (viewer-relative sign + importance)', () => {
       ]);
       expect(viewerImpactOfBotTurn(t, BLUE, RED).sign).to.eq('neutral');
     });
+
+    // ── THE P0 REGRESSION (the bonus-card attack) ────────────────────────────
+    // The server's end-of-turn snapshot SUPPRESSES a change an attack step
+    // already narrated (AutomaTurnLog `coveredByAttack`), so for a bonus-card
+    // attack the attack step is the ONLY carrier of the loss. Reading impacts
+    // alone built the card NEUTRAL on frame one and the red hero arrived via
+    // the (now removed) visible-card refresh — the late-upgrade defect.
+    it('an ATTACK step alone (impact suppressed by coveredByAttack) makes the sign negative AT BUILD', () => {
+      const t = turn([
+        {kind: 'reveal', card: {kind: 'bonus', id: 'B01' as never}},
+        {kind: 'attack', attack: {target: BLUE, resource: 'plants' as never, demanded: 5, removed: 5, before: 508, after: 503, outcome: 'hit'}},
+      ]);
+      const impact = viewerImpactOfBotTurn(t, BLUE, RED);
+      expect(impact.sign).to.eq('negative');
+      expect(impact.losses).to.deep.eq([{icon: 'plants', text: '−5'}]);
+      expect(impact.attacker).to.eq(RED);
+      expect(impact.scope).to.eq('stock');
+    });
+
+    it('attack + surviving impact NET never double-count one loss (the back-out)', () => {
+      // Attack −5 (10→5), then an unrelated +2 → the whole-turn snapshot is
+      // 10→7, which does NOT match the attack exactly, so it is NOT covered.
+      // The honest reading: −5 to the attack, +2 gained elsewhere (mixed) —
+      // never −5 −3 (double-counting) and never a silent net −3.
+      const t = turn([
+        {kind: 'attack', attack: {target: BLUE, resource: 'plants' as never, demanded: 5, removed: 5, before: 10, after: 5, outcome: 'hit'}},
+        {kind: 'impact', impact: {target: BLUE, targetIsBot: false, changes: [
+          {resource: 'plants' as never, scope: 'stock', before: 10, after: 7},
+        ]}},
+      ]);
+      const impact = viewerImpactOfBotTurn(t, BLUE, RED);
+      expect(impact.sign).to.eq('mixed');
+      expect(impact.losses).to.deep.eq([{icon: 'plants', text: '−5'}]);
+      expect(impact.gains).to.deep.eq([{icon: 'plants', text: '+2'}]);
+    });
+
+    it('two attacks whose combined span the snapshot keeps read once, not twice', () => {
+      // Two −5 attacks (10→5, 5→0): the whole-turn diff (10→0) matches
+      // neither exactly, so the snapshot change SURVIVES — the back-out must
+      // still yield exactly −10.
+      const t = turn([
+        {kind: 'attack', attack: {target: BLUE, resource: 'plants' as never, demanded: 5, removed: 5, before: 10, after: 5, outcome: 'hit'}},
+        {kind: 'attack', attack: {target: BLUE, resource: 'plants' as never, demanded: 5, removed: 5, before: 5, after: 0, outcome: 'hit'}},
+        {kind: 'impact', impact: {target: BLUE, targetIsBot: false, changes: [
+          {resource: 'plants' as never, scope: 'stock', before: 10, after: 0},
+        ]}},
+      ]);
+      const impact = viewerImpactOfBotTurn(t, BLUE, RED);
+      expect(impact.sign).to.eq('negative');
+      expect(impact.losses).to.deep.eq([{icon: 'plants', text: '−10'}]);
+    });
+
+    it('the composite cube demand (resolves later via the target pick) is not a loss at turn time', () => {
+      const t = turn([
+        {kind: 'attack', attack: {target: BLUE, resource: 'cube', demanded: 1, removed: 1, outcome: 'target-chooses'}},
+      ]);
+      expect(viewerImpactOfBotTurn(t, BLUE, RED).sign).to.eq('neutral');
+    });
   });
 
   describe('the two axes stay independent', () => {

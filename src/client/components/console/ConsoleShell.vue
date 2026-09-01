@@ -4477,10 +4477,15 @@ export default defineComponent({
         reasons[d.name] = typeof d.reason === 'string' ? translateText(d.reason) : translateMessage(d.reason);
       }
       const label = model.buttonLabel;
+      const buttonLabel = label !== undefined && label !== '' && !['Save', 'Confirm', 'Ok'].includes(label) ? label : 'Select';
       return {
         selectable: model.coloniesModel.map((c) => c.name),
         reasons,
-        buttonLabel: label !== undefined && label !== '' && !['Save', 'Confirm', 'Ok'].includes(label) ? label : 'Select',
+        buttonLabel,
+        // The DISPLAY key. `'trade'` is a machine sentinel (the trade
+        // orchestration below keys on it) — it maps to the real «Trade» i18n
+        // key here and is never rendered raw again.
+        labelKey: buttonLabel === 'trade' ? 'Trade' : buttonLabel,
       };
     },
     /**
@@ -6885,7 +6890,7 @@ export default defineComponent({
         }
         if (intent === 'pick') {
           return [
-            {control: 'confirm', label: this.colonyPick?.buttonLabel ?? 'Select', enabled: consoleColoniesUi.composerReady, highlight: consoleColoniesUi.composerReady},
+            {control: 'confirm', label: this.colonyPick?.labelKey ?? 'Select', enabled: consoleColoniesUi.composerReady, highlight: consoleColoniesUi.composerReady},
             {control: 'back', label: 'Back'},
           ];
         }
