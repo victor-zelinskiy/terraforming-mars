@@ -177,3 +177,78 @@ deferring — so the conflict risk buys nothing today.
 remaining fork-only spec files (mostly `console/composerRender.spec.ts` passing raw
 strings where `CardName` is required), then flip the `tsconfig.vue-tsc.json` include and
 the `types` block. Re-measure first — the number moves as specs churn.
+
+---
+
+## D. Upstream 2026-08-12 → 2026-09-01 — the items that need their own iteration
+
+Taken in that window (easy/medium, already landed): Preservation Program action-phase fix
+(`a3a8e2fe69`), ApiWaitingFor null id (`ea27ac2ccc`), Biobatteries wild tags
+(`e9e5692595`), IPTracker types (`8559110ae7`), final-greenery log notice (adapted from
+`dedea572d8`), Boom Town + its card-information adaptation (`be35960fc2`).
+
+**N/A — the bug is not ours:** `d5268f09c4` (FloaterUrbanism `source: 'all'` → `'self'`)
+fixes upstream's declarative form; our card is still bespoke and already reads only the
+player's own cards. `8115672eb7` (brace-expansion ReDoS) — we are already on 5.0.9 and
+`npm audit` reports 0 vulnerabilities.
+
+### D1. `9a5c278cc9` — `removeResourcesFromAnyCard` in the behavior DSL
+
+Adds the declarative counterpart to `addResourcesToAnyCard` and converts FloaterUrbanism,
+FloatingRefinery, Hospitals and others onto it. **Wanted eventually** — declarative cards
+are auto-covered by our preview / information / reason subsystems. **But it lands straight
+on the NO-AUTO-SELECT contract**: our `AddResource` type carries an explicit "there is
+deliberately no `autoSelect` here" note and our `Executor` defers `AddResourcesToCard` with
+`autoSelect: false`; the removal counterpart needs the same treatment plus
+`RemoveResourcesFromCard`'s own `autoselect: false`, and each converted card must lose its
+co-located hooks (same rule as §A). Do it as one focused iteration together with §A, not
+piecemeal.
+
+### D2. `a54b0ca56d` — centralize URL parameter parsing + route error handling
+
+41 files, 27 under `src/server`. Touches essentially every route, and our route layer is
+one of the most fork-diverged areas (premium endpoints, the 204 `noPreview` family, the
+Electron CORS allowlist). Genuinely good hygiene, but it is a route-layer refactor that
+must be re-validated against `previewNoPreview.spec.ts` and the CORS allowlist contract.
+
+### D3. `3226fd14e1` — split end-game logs into its own endpoint
+
+Server half is small; the client half is `GameEnd.vue` (frozen desktop). Adding it means
+the full new-endpoint checklist (path constant, requestProcessor, **Electron CORS
+allowlist**, route spec). Low payoff for us unless the console endgame surface starts
+fetching the full log.
+
+### D4. `81ca5a9915` — share `readBody` between post and put
+
+Pure DRY refactor. **Attempted: conflicts in all three route files**
+(`ApiCreateGame.ts`, `LoadGame.ts`, `PlayerInput.ts`) — our most-diverged routes, including
+the submit path. No functional benefit; not worth hand-merging those three.
+
+### D5. `f3b26d527c` — simplify Reds
+
+`RedsBonus01 extends Bonus` → `implements IBonus`. Style-only, in a file we have diverged.
+No rule change. Declined.
+
+### D6. Type-tightening cluster — `ed7d1f1122`, `f0b866d0b7`, `90a972e115`, `4702eaa12a`, `1b26fe6989`, `30b7c539ad`, `55fb2657d4`
+
+Makes `ViewModel.id`, `participantId`, `GameModel.spectatorId`, `ClaimedMilestone.claimable`
+non-optional and removes several enums. These ripple into every client surface that reads
+those models — and our console shell reads all of them. Cheap upstream, wide for us:
+take as one pass with a full `vue-tsc` + client-suite run, not commit by commit.
+
+### D7. Build/toolchain — `1e8c466b51` (bundler module resolution), `2c24d7071d` (es2021 → es2023), `7c6f6b066d` (mochapack → Vitest), `73cf9b65fd` (Orderings)
+
+Each is its own project. The Vitest migration in particular collides with a lot of
+fork-specific test infrastructure (`webpack.test.config.js` and its single-chunk
+requirement, `bundleSetup.ts` auto-unmount, the `run-tests.mjs` collected-count floors,
+the bundle-shared module-state rules in `.claude/rules/tests.md`). Do not start it
+casually.
+
+### D8. ⚠️ `871f3fd17e` — webpack 5.108.3 → 5.110.1 — DO NOT take blind
+
+We are pinned at **5.109.2 on purpose**: webpack 5.110 silently miscompiles the embedded
+bundle (namespace/new-codegen), and the symptom is a 500 only when serving to another
+host — invisible in a local run. 5.110.1 may or may not be the fix. Verify against the
+embedded-server path (`docs/EMBEDDED_SERVER.md`) on a second machine before bumping.
+Other bumps in that window (webpack-cli, markdown-it 15.0.1, uuid, css-loader,
+browserslist) are ordinary and can ride a normal dependency pass.
