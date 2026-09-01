@@ -421,7 +421,7 @@ function buildRootNotification(input: RootBuildInput): NotificationModel | undef
     negative: viewerLoss ? {
       attacker: impact?.attacker,
       sourceCard: impact?.sourceCard,
-      scope: (impact?.scope ?? 'stock') as NegativeScope,
+      scope: impact?.scope ?? 'stock',
       transfer: impact?.transfer === true,
       loss: viewerImpact.losses,
       gain: impact?.transfer === true ? viewerImpact.losses.map((c) => ({...c, text: c.text.replace('−', '+')})) : undefined,

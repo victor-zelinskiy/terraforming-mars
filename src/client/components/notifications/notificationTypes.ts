@@ -7,8 +7,9 @@ import {JournalActionCategory} from '@/common/events/GameEvent';
 import {JournalChildVM, JournalImpactChip} from '@/client/components/journal/journalEventChild';
 import {ImpactSign, NotificationImportance, ViewerImpactMeta} from './notificationSemantics';
 
-/** Where a hostile loss came from — the stock, future production, or VP score. */
-export type NegativeScope = 'stock' | 'production' | 'vp';
+/** Where a hostile loss came from — the stock, future production, the VP
+ *  score, or the Hydronetwork track position (Corporate Espionage). */
+export type NegativeScope = 'stock' | 'production' | 'vp' | 'track';
 
 /**
  * One OWNERSHIP CLUSTER of context deltas on a card — the answer to «whose

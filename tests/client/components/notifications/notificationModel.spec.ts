@@ -281,6 +281,21 @@ describe('notificationModel (pure)', () => {
       });
       expect(models[0].affects).to.deep.eq([]);
     });
+
+    it('a Hydronetwork push-back whose landing pays NOTHING still affects the pushed player', () => {
+      // Corporate Espionage, 1 → 0: the start cell has no stage reward, so the
+      // victim's ONLY event in the chain is `delta-position-changed` — a track
+      // position is personal state, never a board-level fact.
+      const header = rootHeader(RED, 23);
+      const chain = [
+        event({id: 230, type: 'action', player: RED, correlationId: 23, impact: {}}),
+        event({id: 231, type: 'delta-position-changed', player: BLUE, correlationId: 23, target: {player: RED}, source: {kind: 'card', card: CARD, owner: RED}, impact: {deltaPosition: {from: 1, to: 0, steps: -1}}}),
+      ];
+      const {models} = diffRootNotifications({
+        messages: [header], events: chain, seen: new Set(), viewerColor: BLUE, generation: 1, createdAt: 1,
+      });
+      expect(models[0].affects).to.deep.eq([BLUE, RED]);
+    });
   });
 
   describe('viewer-first semantics (the two axes + the viewer band)', () => {
@@ -310,6 +325,25 @@ describe('notificationModel (pure)', () => {
       expect(models[0].viewerImpact?.losses).to.deep.eq([]);
       // The cause names the action's own card.
       expect(models[0].viewerImpact?.sourceCard).to.eq(CARD);
+    });
+
+    it('a Hydronetwork retreat (attack) upgrades the root card hostile with the track scope', () => {
+      // Corporate Espionage end-to-end at the model level: the victim-viewer's
+      // ONE card is the root itself, hostile-upgraded — movement AND landing
+      // reward in the same band, the track chip leading, the attacker and the
+      // attacking card on the cause line.
+      const {models, hostileCoveredIds} = diffOne([
+        event({id: 40, type: 'action', player: RED, correlationId: 40, source: {kind: 'card', card: CARD}, impact: {}}),
+        event({id: 401, type: 'delta-position-changed', player: BLUE, correlationId: 40, target: {player: RED}, source: {kind: 'card', card: CARD, owner: RED}, impact: {deltaPosition: {from: 5, to: 4, steps: -1}}}),
+        event({id: 402, type: 'resource-changed', player: BLUE, correlationId: 40, impact: {stock: {titanium: 1}}}),
+      ], BLUE);
+      const model = models[0];
+      expect(model).to.include({id: 'g40', kind: 'negative', sign: 'mixed', importance: 'critical'});
+      expect(model.viewerImpact?.losses).to.deep.eq([{icon: '', text: '5 → 4'}]);
+      expect(model.viewerImpact?.gains).to.deep.eq([{icon: 'titanium', text: '+1'}]);
+      expect(model.viewerImpact).to.deep.include({attacker: RED, scope: 'track', sourceCard: CARD});
+      expect(model.negative?.scope).to.eq('track');
+      expect(hostileCoveredIds).to.deep.eq([40]);
     });
 
     it('a viewer LOSS upgrades the ROOT card itself — ONE hostile card, never two', () => {

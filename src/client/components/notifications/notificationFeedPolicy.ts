@@ -130,9 +130,12 @@ export function quickToastAllowed(
 
 /**
  * Does this impact represent a PERSONAL delta for the event's owner — their
- * stock / production / card resources / TR / cards / VP moved? Board-level
- * facts (global parameters, tiles) are deliberately NOT personal: strategic
- * importance is not direct involvement (the journal keeps the full story).
+ * stock / production / card resources / TR / cards / VP / track position
+ * moved? Board-level facts (global parameters, tiles) are deliberately NOT
+ * personal: strategic importance is not direct involvement (the journal keeps
+ * the full story). The Hydronetwork position IS personal: a push-back whose
+ * landing cell pays nothing (1 → 0) is a chain whose ONLY event for the victim
+ * is `delta-position-changed`, and they are unambiguously touched by it.
  */
 export function impactTouchesOwner(impact: EventImpact): boolean {
   const stockMoved = impact.stock !== undefined && Object.values(impact.stock).some((v) => v !== undefined && v !== 0);
@@ -143,7 +146,8 @@ export function impactTouchesOwner(impact: EventImpact): boolean {
     (impact.cardsDrawn !== undefined && impact.cardsDrawn !== 0) ||
     (impact.cardsDiscarded !== undefined && impact.cardsDiscarded !== 0) ||
     (impact.vp !== undefined && impact.vp !== 0) ||
-    (impact.megacreditsPaid !== undefined && impact.megacreditsPaid !== 0);
+    (impact.megacreditsPaid !== undefined && impact.megacreditsPaid !== 0) ||
+    (impact.deltaPosition !== undefined && impact.deltaPosition.steps !== 0);
 }
 
 /**
