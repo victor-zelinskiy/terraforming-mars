@@ -101,6 +101,7 @@
     "Gain 2 steel and raise oxygen": "Получите 2 стали и +1 кислород",
     "Gain 2 steel.": "Получите 2 стали.",
     "Gain 2 M€ for each project card in your hand.": "Получите 2 М€ за каждую карту проекта у вас в руке.",
+    "Place a city tile on an area with a steel or titanium placement bonus.": "Разместите город на зоне с бонусом стали или титана.",
     "Take 2 extra actions immediately, before your remaining preludes. They are additional to the two actions of your normal turn, so you cannot pass or end your turn during them.": "Немедленно выполните 2 дополнительных действия, до розыгрыша оставшихся прологов. Они не входят в два действия обычного хода, поэтому пас и завершение хода во время них недоступны.",
     "You choose when to receive the steel and the M€ — before or after the two actions. The M€ are counted from your hand at that moment.": "Вы сами выбираете, когда получить сталь и М€ — до или после двух действий. М€ считаются по руке на момент получения.",
     "Gain 2 TR.": "Получите 2 РТ.",
@@ -401,5 +402,6 @@
     "Requires that you have moved 4 steps on the Hydronetwork track.": "Требуется продвинуться на 4 этапа по треку Гидросети.",
     "Push another player 1 step back on the Hydronetwork — a player at a VP level cannot be pushed back": "Отодвиньте другого игрока на 1 деление назад по Гидросети — игрока на уровне ПО отодвинуть нельзя",
     "Advance 1 step on the Hydronetwork, ignoring up to 1 required tag": "Продвиньтесь на 1 деление по Гидросети — можно проигнорировать 1 требуемую метку",
-    "Each moved player receives the reward of the stage their marker lands on": "Каждый передвинутый игрок получает награду этапа, на котором оказалась его фишка"
+    "Each moved player receives the reward of the stage their marker lands on": "Каждый передвинутый игрок получает награду этапа, на котором оказалась его фишка",
+    "Your titanium is worth 1 M€ less.": "Ваш титан стоит на 1 M€ меньше."
 }

@@ -20,6 +20,15 @@ export class BoomTown extends PreludeCard {
       },
 
       metadata: {
+        infoText: [
+
+          {text: 'Your titanium is worth 1 M€ less.', tokens: ['titanium', 'megacredits']},
+
+          {text: 'Place a city tile on an area with a steel or titanium placement bonus.', tokens: ['city']},
+
+          {text: 'Increase your titanium production 2 steps.', tokens: ['production(titanium', 'production(']},
+
+        ],
         cardNumber: 'X80',
         renderData: CardRenderer.builder((b) => {
           b.titanium(1).equals().minus(Size.SMALL).megacredits(1).br;
