@@ -390,10 +390,12 @@
                       <span class="con-composer__row-impact">{{ espionageChosenTarget.fromPosition }} → {{ espionageChosenTarget.toPosition }}</span>
                       <span v-if="espionageChosenView !== undefined && espionageChosenView.skippedKey !== undefined" class="con-composer__esp-skip">↷ {{ $t(espionageChosenView.skippedKey) }}</span>
                       <template v-else-if="espionageChosenView !== undefined && espionageChosenView.chipOptions.length > 0">
-                        <template v-for="(opt, oi) in espionageChosenView.chipOptions" :key="oi">
-                          <span v-if="oi > 0" class="con-composer__esp-or">{{ $t('or') }}</span>
-                          <HydroReward :chips="opt" :compact="true" />
-                        </template>
+                        <span class="con-composer__esp-chips">
+                          <template v-for="(opt, oi) in espionageChosenView.chipOptions" :key="oi">
+                            <span v-if="oi > 0" class="con-composer__esp-or">{{ $t('or') }}</span>
+                            <HydroReward :chips="opt" :compact="true" />
+                          </template>
+                        </span>
                         <span v-if="espionageChosenView.isChoice" class="con-composer__esp-note">{{ $t('their own choice') }}</span>
                       </template>
                     </template>
@@ -410,12 +412,12 @@
                       {{ $t('Ignored tag') }}
                       <span class="resource-tag con-composer__esp-tag" :class="'tag-' + espionageProjection.owner.waivedTag" aria-hidden="true"></span>
                     </span>
-                    <template v-if="espionageOwnerView !== undefined && espionageOwnerView.chipOptions.length > 0">
+                    <span v-if="espionageOwnerView !== undefined && espionageOwnerView.chipOptions.length > 0" class="con-composer__esp-chips">
                       <template v-for="(opt, oi) in espionageOwnerView.chipOptions" :key="'own' + oi">
                         <span v-if="oi > 0" class="con-composer__esp-or">{{ $t('or') }}</span>
                         <HydroReward :chips="opt" :compact="true" />
                       </template>
-                    </template>
+                    </span>
                     <span v-else-if="espionageOwnerView !== undefined && espionageOwnerView.vpAmount !== undefined">{{ espionageOwnerView.vpAmount }} {{ $t('VP') }}</span>
                     <span v-for="mb in espionageProjection.owner.movementBonuses ?? []" :key="mb.card" class="con-composer__esp-extra">
                       +{{ mb.amount }} <i class="con-composer__row-impact-icon" :class="iconClass(mb.resource)" aria-hidden="true"></i> · {{ $t(mb.card) }}
@@ -585,6 +587,7 @@ import {buildOrItems, orItemResponse, buildTabbedTargets, ConsoleOrItem, Console
 import {
   enterDeltaEspionagePick, deltaEspionageStepResponse, deltaEspionageResponseOf,
 } from '@/client/console/hydroFlow/deltaEspionageEntry';
+import {enterDeltaRewardPick} from '@/client/console/hydroFlow/deltaRewardEntry';
 import type {DeltaEspionageProjectionModel} from '@/common/models/DeltaEspionageModel';
 import type {DeltaEspionageInputModel} from '@/common/models/PlayerInputModel';
 import type {DeltaEspionageResponse, DeltaStageAnswer, InputResponse} from '@/common/inputs/InputResponse';
@@ -2665,6 +2668,12 @@ export default defineComponent({
         this.openRepeatPick(row.choice);
       } else if (row.kind === 'step' && row.choice.input.type === 'deltaEspionage') {
         this.openEspionagePick(row.choice);
+      } else if (row.kind === 'step' && row.choice.id === 'esp-owner-choice') {
+        // The owner's own landing reward is chosen on the HYDRONETWORK — the
+        // same seamless descent the target pick makes, into the track's ONE
+        // stage-reward surface (never a bare option list about a stage the
+        // player cannot see).
+        this.openEspOwnerRewardPick(row.choice);
       } else if (row.kind === 'step' && this.choiceMode(row.choice) === 'handPick') {
         this.openHandPick(row.choice);
       } else if (row.kind === 'step' && this.choiceMode(row.choice) === 'playedTarget') {
@@ -2689,6 +2698,36 @@ export default defineComponent({
      * SERVER's projection, and the resolve captures the pick as the step's
      * wire response. B returns with the previous pick untouched.
      */
+    /**
+     * DESCEND into the Hydronetwork's stage-reward surface for the OWNER'S OWN
+     * landing choice (the DP08 pick reused in its advance-landing shape): the
+     * destination cell focused with the forward ghost, the stage's honest
+     * gains + options through the one shared block, A→choice→A resolves the
+     * draft back here as the ordinary or-capture. B keeps the previous answer.
+     */
+    openEspOwnerRewardPick(c: ComposerChoice): void {
+      const proj = this.espionageProjectionRaw;
+      if (proj === undefined || !proj.owner.legal || proj.owner.reward.kind !== 'choice') {
+        return;
+      }
+      const prior = this.captured[ESP_OWNER_CHOICE_INDEX] as {type?: string, index?: number} | undefined;
+      enterDeltaRewardPick({
+        source: this.cardName,
+        claimable: [proj.owner.toPosition],
+        advanceFrom: proj.owner.fromPosition,
+        prior: prior?.type === 'or' && typeof prior.index === 'number' ?
+          {position: proj.owner.toPosition, rewardChoice: prior.index} : undefined,
+      }, (draft) => {
+        if (draft.rewardChoice === undefined) {
+          return; // an unanswered choice cannot resolve (the scene's own gate)
+        }
+        const cur = this.allChoices.find((x) => x.id === c.id) ?? c;
+        this.picks[cur.id] = String(draft.rewardChoice);
+        this.captureFor(cur, {type: 'or', index: draft.rewardChoice, response: {type: 'option'}});
+        this.focusIdx = this.firstActionableIndex();
+        this.scrollFocused();
+      });
+    },
     openEspionagePick(c: ComposerChoice): void {
       const projection = (c.input as DeltaEspionageInputModel).projection;
       if (!projection.hasLegalTarget) {

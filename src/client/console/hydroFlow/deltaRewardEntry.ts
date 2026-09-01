@@ -57,6 +57,15 @@ export type DeltaRewardPickRequest = {
   claimable: ReadonlyArray<number>;
   /** A previous draft preserved for a «change» re-open. */
   prior?: DeltaRewardDraft;
+  /**
+   * When set, the pick chooses the landing reward of an IMPENDING advance
+   * (Corporate Espionage's mandatory own step): `claimable` holds the single
+   * DESTINATION stage, this is the position the marker will leave, and the
+   * scene presents the advance grammar (the forward ghost, «награда — после
+   * прибытия маркера») instead of the claim-in-place reading. Absent for the
+   * ordinary reached-stage claim (Dutch Mountains).
+   */
+  advanceFrom?: number;
 };
 
 export const deltaRewardPickState = reactive({

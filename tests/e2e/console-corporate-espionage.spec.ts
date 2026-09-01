@@ -145,17 +145,39 @@ function menuIndex(menu: Wire, match: (o: Wire) => boolean, label: string): numb
 }
 
 /** Walk the play composer's decision rows until the focused row is missing,
- *  open it, pick the FIRST option of the sub-list, and land back. */
-async function answerOwnerChoiceRow(page: Page): Promise<void> {
-  // The mandatory owner-landing row is marked `--missing`; A on it opens the
-  // premium option list; A on an option captures it and the cursor advances.
-  for (let i = 0; i < 14; i++) {
+ *  open it, and answer it. The OWNER-LANDING choice descends SEAMLESSLY into
+ *  the Hydronetwork's stage-reward surface (the DP08 pick in its
+ *  advance-landing shape) — the driver proves the descent: the reward-pick
+ *  layer with the forward ghost on the destination cell, A opens the stage's
+ *  own choice selector, A picks, A resolves back into the composer. */
+async function answerOwnerChoiceRow(page: Page, log?: {sawRewardPick?: boolean, sawGhost?: boolean, sawChoice?: boolean}): Promise<void> {
+  for (let i = 0; i < 24; i++) {
     const state = await page.evaluate(() => ({
       missingFocused: document.querySelector('.con-composer__row--focused.con-composer__row--missing') !== null,
-      subOpen: document.querySelector('.con-composer__opt') !== null,
       anyMissing: document.querySelector('.con-composer__row--missing') !== null,
-      ctaReady: document.querySelector('.con-composer__cta--ready') !== null,
+      rewardPick: document.querySelector('.con-hydro__layer--rewardpick') !== null,
+      fwdGhost: document.querySelector('.con-hydro__stop-ghost--fwd') !== null,
+      choiceOpen: document.querySelector('.con-hydro__layer--choice') !== null,
+      subOpen: document.querySelector('.con-composer__opt') !== null,
     }));
+    if (log !== undefined) {
+      if (state.rewardPick && log.sawRewardPick !== true) {
+        await shoot(page, 'owner-reward-pick');
+      }
+      if (state.choiceOpen && log.sawChoice !== true) {
+        await shoot(page, 'owner-reward-choice');
+      }
+      log.sawRewardPick = (log.sawRewardPick ?? false) || state.rewardPick;
+      log.sawGhost = (log.sawGhost ?? false) || (state.rewardPick && state.fwdGhost);
+      log.sawChoice = (log.sawChoice ?? false) || state.choiceOpen;
+    }
+    // The hydro descent's three beats, each one A: the stage's own choice
+    // selector picks the FOCUSED option; the reward-pick CTA opens the ask
+    // first and resolves the answered pick second.
+    if (state.choiceOpen || state.rewardPick) {
+      await key(page, 'Enter', 600);
+      continue;
+    }
     if (state.subOpen) {
       await key(page, 'Enter', 500);
       continue;
@@ -164,7 +186,7 @@ async function answerOwnerChoiceRow(page: Page): Promise<void> {
       return;
     }
     if (state.missingFocused) {
-      await key(page, 'Enter', 500);
+      await key(page, 'Enter', 700);
       continue;
     }
     await key(page, 'ArrowDown', 260);
@@ -190,7 +212,11 @@ async function openEspionageComposer(page: Page): Promise<void> {
     last = selected;
   }
   expect(await onTarget(), `hand cursor reached ${CARD}`).toBeGreaterThan(0);
-  await key(page, 'Enter', 700);
+  // Act → verify → retry: a press is legitimately swallowed while the hand
+  // stage is still transitioning (longer at the 4K profile).
+  for (let i = 0; i < 8 && await page.locator('.con-composer--play').count() === 0; i++) {
+    await key(page, 'Enter', 900);
+  }
   await expect(page.locator('.con-composer--play')).toBeVisible({timeout: 15_000});
   await page.waitForTimeout(900);
 }
@@ -246,6 +272,11 @@ test.describe('Corporate Espionage — the premium vertical slice', () => {
   test.use({viewport: {width: 1920, height: 1080}});
 
   test('SOLO: no legal target — named skip, owner pre-select, hydro execution, result', async ({page, request}) => {
+    // The 4K TV profile — the resource chips ride the px `hydro-reward`
+    // component through the ×ui-scale zoom idiom, and THIS is the resolution
+    // where a missed multiplier shipped half-size icons (the geometry claim
+    // below is a claim about this profile; the 2P test keeps 1080).
+    await page.setViewportSize({width: 3840, height: 2160});
     const cfg = soloGameConfig({
       expansions: {deltaProject: true},
       customProjectCards: [CARD],
@@ -266,9 +297,21 @@ test.describe('Corporate Espionage — the premium vertical slice', () => {
     // The owner's half of the summary (You: 0 → 1 + the waiver tag) stands.
     await expect(page.locator('.con-composer__esp-own')).toBeVisible();
     await expect(page.locator('.con-composer__esp-waiver')).toBeVisible();
+    // 4K: the owner-reward chips PAINT at the TV scale (22px body × ~2 via the
+    // ui-scale zoom) — a raw px chip reads ~22px here, the shipped defect.
+    const chipIcon = page.locator('.con-composer__esp-chips .hydro-reward__icon').first();
+    await expect(chipIcon).toBeVisible();
+    const iconBox = await chipIcon.boundingBox();
+    expect(iconBox?.width ?? 0, `owner chip icon scales on 4K (got ${iconBox?.width}px)`).toBeGreaterThan(38);
     await shoot(page, 'solo-composer');
 
-    await answerOwnerChoiceRow(page);
+    // The owner's landing choice descends into the HYDRONETWORK's stage-reward
+    // surface (never a bare option list) — the descent's beats are asserted.
+    const pickLog: {sawRewardPick?: boolean, sawGhost?: boolean, sawChoice?: boolean} = {};
+    await answerOwnerChoiceRow(page, pickLog);
+    expect(pickLog.sawRewardPick, 'the owner choice opened the Hydronetwork reward surface').toBeTruthy();
+    expect(pickLog.sawGhost, 'the destination cell carried the forward ghost').toBeTruthy();
+    expect(pickLog.sawChoice, 'the stage\'s own choice selector opened').toBeTruthy();
     await expect(page.locator('.con-composer__cta--ready')).toBeVisible({timeout: 10_000});
     await key(page, 'Enter', 400); // commit
 
@@ -395,6 +438,14 @@ test.describe('Corporate Espionage — the premium vertical slice', () => {
     await expect(row.locator('.con-hydro__route--back')).toBeVisible();
     expect(await page.locator('.con-hydro__stop-ghost').count(), 'ghost markers on the track').toBeGreaterThan(0);
     await shoot(page, 'target-selection');
+    // X — «Осмотреть»: the SOURCE card rises through the one fullscreen
+    // viewer over the standing pick; Escape returns to the same selection.
+    await key(page, 'KeyX', 1200);
+    await expect(page.locator('dialog.con-zoom[open]')).toHaveCount(1, {timeout: 8000});
+    await shoot(page, 'target-selection-inspect');
+    await key(page, 'Escape', 1000);
+    await expect(page.locator('dialog.con-zoom[open]')).toHaveCount(0);
+    await expect(page.locator('.con-hydro__layer--esppick')).toBeVisible();
     // A — pick the focused (first legal) candidate. Act → verify → retry:
     // a press can be legitimately swallowed while the surface settles.
     for (let i = 0; i < 8 && await page.locator('.con-hydro__layer--esppick').count() > 0; i++) {

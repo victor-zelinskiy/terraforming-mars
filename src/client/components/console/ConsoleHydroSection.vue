@@ -83,7 +83,8 @@
                      (!globallyActable && stop.vm.state !== 'current' && stop.vm.state !== 'completed'),
                  'con-hydro__stop--route-paid': stop.vm.routeRewarded,
                  'con-hydro__stop--route-excl': stop.vm.routeExcluded,
-                 'con-hydro__stop--esp-fwd': espionageOffer !== undefined && espOwner !== undefined && espOwner.legal && stop.position === espOwner.toPosition,
+                 'con-hydro__stop--esp-fwd': (espionageOffer !== undefined && espOwner !== undefined && espOwner.legal && stop.position === espOwner.toPosition) ||
+                   (rewardAdvanceFrom !== undefined && rewardClaimableSet.has(stop.position)),
                  'con-hydro__stop--esp-back': espionageOffer !== undefined && espionageFocusRow !== undefined && espionageFocusRow.target.legal && stop.position === espionageFocusRow.target.toPosition,
                },
              ]"
@@ -145,7 +146,7 @@
                  weight, an arrow naming the direction — never colour alone).
                  The owner's forward ghost is constant; the backward ghost
                  follows the FOCUSED candidate and moves with the cursor. -->
-            <template v-if="espionageOffer !== undefined">
+            <template v-if="espionageOffer !== undefined || rewardAdvanceFrom !== undefined">
               <span v-for="g in espionageGhostsAt(stop.position)" :key="'ghost' + g.color"
                     class="con-hydro__stop-marker con-hydro__stop-ghost"
                     :class="['player_bg_color_' + g.color, 'con-hydro__stop-ghost--' + g.dir]"
@@ -480,7 +481,21 @@
         <div v-else-if="sceneKey === 'reward-pick'" key="reward-pick" class="con-hydro__layer con-hydro__layer--rewardpick">
           <div class="con-hydro__panelbody">
             <div class="con-hydro__detailline" data-unfold-item>
-              <span class="con-hydro__detail-status">{{ $t('Choose the reward of your current stage or one you have passed. Your Hydronetwork position will not change.') }}</span>
+              <!-- Two honest readings, ONE surface: the claim-in-place family
+                   (Dutch Mountains — the position will not change) and the
+                   ADVANCE-LANDING family (Corporate Espionage — the reward is
+                   the destination's, granted after the marker arrives). -->
+              <span class="con-hydro__detail-status">{{ $t(rewardAdvanceFrom !== undefined ?
+                'Choose the reward of the stage you are advancing to' :
+                'Choose the reward of your current stage or one you have passed. Your Hydronetwork position will not change.') }}</span>
+            </div>
+            <div v-if="rewardAdvanceFrom !== undefined" class="con-hydro__espowner" data-unfold-item>
+              <span class="con-hydro__espowner-cap">{{ $t('Your own advance') }}</span>
+              <span class="con-hydro__route">
+                <span>{{ rewardAdvanceFrom }}</span>
+                <span aria-hidden="true">→</span>
+                <b>{{ rewardOffer?.claimable[0] }}</b>
+              </span>
             </div>
             <ConsoleHydroGains v-if="rewardFocusClaimable"
                                :view="rewardFocusView"
@@ -519,12 +534,12 @@
                 <span class="con-hydro__stop-tag resource-tag" :class="'tag-' + espOwner.waivedTag" aria-hidden="true"></span>
               </span>
               <span class="con-hydro__esprow-reward">
-                <template v-if="espOwnerView.chipOptions.length > 0">
+                <span v-if="espOwnerView.chipOptions.length > 0" class="con-hydro__esp-chips">
                   <template v-for="(opt, oi) in espOwnerView.chipOptions" :key="oi">
                     <span v-if="oi > 0" class="con-hydro__stop-or">{{ $t('or') }}</span>
                     <HydroReward :chips="opt" :compact="true" />
                   </template>
-                </template>
+                </span>
                 <span v-else-if="espOwnerView.vpAmount !== undefined" class="con-hydro__stage-vp">{{ espOwnerView.vpAmount }} {{ $t('VP') }}</span>
               </span>
             </div>
@@ -556,12 +571,12 @@
                   <template v-if="row.view.skippedKey !== undefined">
                     <span class="con-hydro__esprow-skip">↷ {{ $t(row.view.skippedKey) }}</span>
                   </template>
-                  <template v-else-if="row.view.chipOptions.length > 0">
+                  <span v-else-if="row.view.chipOptions.length > 0" class="con-hydro__esp-chips">
                     <template v-for="(opt, oi) in row.view.chipOptions" :key="oi">
                       <span v-if="oi > 0" class="con-hydro__stop-or">{{ $t('or') }}</span>
                       <HydroReward :chips="opt" :compact="true" />
                     </template>
-                  </template>
+                  </span>
                 </span>
               </div>
             </div>
@@ -600,10 +615,12 @@
               <span v-if="espCommitTargetView.skippedKey !== undefined" class="con-hydro__esprow-skip">↷ {{ $t(espCommitTargetView.skippedKey) }}</span>
               <template v-else-if="espCommitTargetView.chipOptions.length > 0">
                 <span class="con-hydro__espline-gets">{{ $t('receives') }}</span>
-                <template v-for="(opt, oi) in espCommitTargetView.chipOptions" :key="oi">
-                  <span v-if="oi > 0" class="con-hydro__stop-or">{{ $t('or') }}</span>
-                  <HydroReward :chips="opt" :compact="true" />
-                </template>
+                <span class="con-hydro__esp-chips">
+                  <template v-for="(opt, oi) in espCommitTargetView.chipOptions" :key="oi">
+                    <span v-if="oi > 0" class="con-hydro__stop-or">{{ $t('or') }}</span>
+                    <HydroReward :chips="opt" :compact="true" />
+                  </template>
+                </span>
               </template>
               <span v-if="espWaitingTarget" class="con-hydro__espline-wait">
                 {{ espWaitingCaption }}<i class="con-hydro__commit-spin" aria-hidden="true"></i>
@@ -747,10 +764,12 @@
                 <span v-if="espCommitTargetView.skippedKey !== undefined" class="con-hydro__esprow-skip">↷ {{ $t(espCommitTargetView.skippedKey) }}</span>
                 <template v-else-if="espCommitTargetView.chipOptions.length > 0">
                   <span class="con-hydro__espline-gets">{{ $t('received') }}</span>
-                  <template v-for="(opt, oi) in espCommitTargetView.chipOptions" :key="oi">
-                    <span v-if="oi > 0" class="con-hydro__stop-or">{{ $t('or') }}</span>
-                    <HydroReward :chips="opt" :compact="true" />
-                  </template>
+                  <span class="con-hydro__esp-chips">
+                    <template v-for="(opt, oi) in espCommitTargetView.chipOptions" :key="oi">
+                      <span v-if="oi > 0" class="con-hydro__stop-or">{{ $t('or') }}</span>
+                      <HydroReward :chips="opt" :compact="true" />
+                    </template>
+                  </span>
                 </template>
               </template>
               <span v-else class="con-hydro__esprow-skip">↷ {{ $t('The attack was skipped — no legal target') }}</span>
@@ -1460,6 +1479,10 @@ export default defineComponent({
         },
         plantTags: p.tags[Tag.PLANT] ?? 0,
         actionAvailable: this.actionAvailable,
+        // The reward pick must be able to FOCUS every claimable cell — the
+        // espionage owner's destination stands past the energy-priced spend.
+        focusReach: this.rewardOffer !== undefined ?
+          Math.max(0, Math.max(...this.rewardOffer.claimable) - (p.deltaProject?.position ?? 0)) : undefined,
       });
     },
     /** The traversal presentation's marker cursor (−1 = no plan running).
@@ -2001,10 +2024,19 @@ export default defineComponent({
     },
     /** Why the focused stage cannot be claimed — semantic, off the track
      *  configuration, never a number literal or a localized name. */
+    /** The pick is an ADVANCE-LANDING one (Corporate Espionage's own step) —
+     *  the destination cell is the single subject; every other stage reads
+     *  the one honest reason below instead of the claim-family verdicts. */
+    rewardAdvanceFrom(): number | undefined {
+      return this.rewardOffer?.advanceFrom;
+    },
     rewardFocusBlockKey(): string {
       const pos = this.model.selectedPosition;
       if (this.rewardFocusClaimable) {
         return '';
+      }
+      if (this.rewardAdvanceFrom !== undefined) {
+        return 'Only the destination stage reward can be chosen here';
       }
       const stage = HYDRO_STAGES[pos];
       if (stage === undefined || pos === 0) {
@@ -4149,10 +4181,15 @@ export default defineComponent({
       });
     },
     inspectBonusSource(): void {
-      if (this.advanceOffer === undefined) {
+      // The source of the STANDING surface: the advance offer's card, else the
+      // pick bridge's (the reward pick and the espionage pick both dock their
+      // source card in the ctx column — X must lift exactly that one; the old
+      // offer-only read left X dead on both pick scenes).
+      const source = this.advanceOffer?.source ?? this.rewardOffer?.source ?? this.espionageOffer?.source;
+      if (source === undefined) {
         return;
       }
-      openConsoleCardZoom([{name: this.advanceOffer.source} as CardModel], 0, undefined, undefined, {
+      openConsoleCardZoom([{name: source} as CardModel], 0, undefined, undefined, {
         statusLabel: 'Source',
         // The SHARED slot origin — the same one the hand, the reveal and the
         // action browser pass. It resolves the WRAPPER, which is what lets the
@@ -4160,7 +4197,7 @@ export default defineComponent({
         // than only zeroing the face and leaving its focus ring behind.
         origin: slotZoomOrigin(
           () => this.$refs.rootEl as HTMLElement | undefined,
-          () => this.advanceOffer?.source ?? ''),
+          () => source),
       });
     },
     /**
@@ -4853,6 +4890,13 @@ export default defineComponent({
     espionageGhostsAt(position: number): Array<{color: Color, dir: 'fwd' | 'back'}> {
       const offer = this.espionageOffer;
       if (offer === undefined) {
+        // The ADVANCE-LANDING reward pick keeps the same projection language:
+        // the viewer's forward ghost stands on the destination cell, so the
+        // move the reward belongs to stays physical through this stage too.
+        if (this.rewardAdvanceFrom !== undefined && this.viewerColor !== undefined &&
+            this.rewardClaimableSet.has(position)) {
+          return [{color: this.viewerColor, dir: 'fwd'}];
+        }
         return [];
       }
       const out: Array<{color: Color, dir: 'fwd' | 'back'}> = [];

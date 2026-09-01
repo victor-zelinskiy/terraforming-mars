@@ -5976,6 +5976,17 @@ html.console-mode body.placement-pending .board-outer-spaces > .board-space.boar
         gap: .35rem;
         margin-left: auto;
     }
+    /* The px-authored `hydro-reward` chips integrate through the ONE console
+       idiom — zoom × ui-scale on a chips-only wrapper (the same contract as
+       `__stop-reward` / `__gains-choice`). Internal metrics keep-px: rem
+       inside a zoomed subtree double-scales on TV. */
+    &__esp-chips {
+        display: inline-flex;
+        align-items: center;
+        flex-wrap: wrap;
+        gap: 6px; /* keep-px: inside the ×ui-scale zoom */
+        zoom: calc(1.05 * var(--con-ui-scale, 1));
+    }
     &__esprow-skip {
         font-size: .7rem;
         color: fade(@con-text-dim, 92%);
@@ -28591,8 +28602,17 @@ html.console-mode {
        the attack line (target · from → to · their reward / named skip) and
        the owner's own line beneath it («You: … », the waiver, the extras). */
     &__esp-skip { font-size: .72rem; color: fade(@con-text-dim, 95%); }
+    /* The chips-only wrapper carrying the px `hydro-reward` bodies through the
+       ui-scale (the section's `__esp-chips` twin; keep-px inside). */
+    &__esp-chips {
+        display: inline-flex;
+        align-items: center;
+        flex-wrap: wrap;
+        gap: 6px; /* keep-px: inside the ×ui-scale zoom */
+        zoom: var(--con-ui-scale, 1);
+    }
     &__esp-or {
-        font-size: .62rem;
+        font-size: 12px; /* keep-px: lives inside the ×ui-scale chips zoom */
         text-transform: uppercase;
         color: @con-text-dim;
     }

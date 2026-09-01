@@ -70,6 +70,18 @@ describe('buildHydroModel (iteration 2)', () => {
     expect(m.stepperMax).eq(3);
   });
 
+  it('focusReach lets a SELECTION overlay focus past the affordable spend (espionage owner reward)', () => {
+    // No preview at all (the play composer's context) → maxSpend 0: without
+    // the reach the destination cell (current+1) clamps back to the marker.
+    const clamped = buildHydroModel(input({preview: undefined, selectedPosition: 1}));
+    expect(clamped.selectedPosition).eq(0);
+    const reached = buildHydroModel(input({preview: undefined, selectedPosition: 1, focusReach: 1}));
+    expect(reached.selectedPosition).eq(1);
+    // The reach widens FOCUS only — nothing movement-legal appears with it.
+    expect(reached.maxSpend).eq(0);
+    expect(reached.canConfirm).eq(false);
+  });
+
   it('previews a distant stage beyond energy (click), confirm blocked', () => {
     const m = buildHydroModel(input({preview: fullPreview(2), selectedPosition: 7}));
     expect(m.mode).eq('plan');

@@ -134,6 +134,13 @@ export type HydroModelInput = {
   /** The viewer's plant-tag count — stage 6's deterministic gain. */
   plantTags?: number;
   actionAvailable: boolean;
+  /**
+   * Let the cursor reach this many cells PAST the affordable spend — a pure
+   * SELECTION overlay (the espionage owner's destination-reward pick) whose
+   * subject cell the energy-priced preview cannot justify. Never widens any
+   * movement legality; only the focus clamp reads it.
+   */
+  focusReach?: number;
 };
 
 /** A reward that needs a card pick before confirm. */
@@ -360,7 +367,11 @@ export function buildHydroModel(input: HydroModelInput): HydroModel {
   }
   selectedPosition = Math.max(0, Math.min(MAX_POS, selectedPosition));
   // A selected position beyond the reachable track collapses to the end.
-  if (selectedPosition > currentPosition + maxSpend) {
+  // `focusReach` widens the reach for a pure SELECTION overlay whose subject
+  // stands past the affordable spend (the espionage owner's DESTINATION cell —
+  // its advance is the card's, not the standard action's, so the energy-priced
+  // preview legitimately answers 0 while the cursor must still get there).
+  if (selectedPosition > currentPosition + Math.max(maxSpend, input.focusReach ?? 0)) {
     selectedPosition = currentPosition + maxSpend;
   }
 

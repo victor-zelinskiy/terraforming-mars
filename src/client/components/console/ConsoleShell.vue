@@ -10429,11 +10429,13 @@ export default defineComponent({
       if (handStageTransitioning()) {
         return true;
       }
-      // The ESPIONAGE TARGET PICK owns the pad while its bridge stands — the
-      // asking play composer waits HIDDEN underneath with its captures intact
-      // (the hand-pick precedent above; routed BEFORE the composer branch, or
-      // the invisible composer swallows every press).
-      if (isDeltaEspionagePickActive()) {
+      // A DELTA PICK BRIDGE owns the pad while it stands — the asking composer
+      // waits underneath with its captures intact (the hand-pick precedent;
+      // routed BEFORE the composer branch, or the covered composer swallows
+      // every press). Espionage target pick AND the stage-reward pick — the
+      // latter also opens from the PLAY composer now (the owner's landing
+      // choice), where `pendingPlayCard` would otherwise take the input.
+      if (isDeltaEspionagePickActive() || isDeltaRewardPickActive()) {
         const section = this.$refs.hydroSection as InstanceType<typeof ConsoleHydroSection> | undefined;
         section?.handleIntent(intent);
         return true;
