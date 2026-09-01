@@ -57,6 +57,18 @@ describe('effect summary coverage', () => {
       .to.have.length(0);
   });
 
+  it('the one DOWNWARD value modifier states its cost — it never borrows the «worth more» note', () => {
+    // Boom Town lowers titanium value, and `recordPaymentValueBonus` deliberately
+    // never tallies a negative modifier — so the summary must speak for itself
+    // instead of reusing the `paymentValueBonus` category framing.
+    const vm = getEffectSummary(emptyStat(CardName.BOOM_TOWN, false), {
+      sourceName: CardName.BOOM_TOWN,
+      sourceKind: 'card',
+    });
+    expect(vm.note).to.eq('Makes each of your titanium worth 1 M€ less on every payment — a permanent cost, not a tally.');
+    expect(vm.category).to.not.eq('paymentValueBonus');
+  });
+
   it('an empty effect always carries a thematic note (never a bare panel)', () => {
     for (const name of allScopeEffectCardNames()) {
       const card = getCard(name);

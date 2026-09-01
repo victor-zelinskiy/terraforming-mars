@@ -80,6 +80,21 @@ describe('startPreludeRisk (the order-aware verdict as words)', () => {
   });
 
   /**
+   * …and a final verdict from a card that declared NO `preludeNeeds` must not
+   * borrow either named heading. Boom Town wants a board cell with a
+   * steel/titanium bonus and Strategic Base Planning wants 3 M€ — «нет
+   * доступного проекта» would send the player to look at their hand, which is
+   * not where either blocker is.
+   */
+  it('a final verdict with no declared need stays general — it never claims the hand is the blocker', () => {
+    const risk = preludeRisk({state: 'noEffect'}, NAMED);
+    expect(risk?.tone).to.eq('final');
+    expect(risk?.title).to.eq('Nothing can meet its condition');
+    expect(risk?.title, 'the hand is not the blocker here').to.not.eq('No available project right now');
+    expect(risk?.body).to.contain('lose its effect');
+  });
+
+  /**
    * THE CORE INVARIANT: the verb of the committing press comes out of the same
    * call as the warning, and it always names the loss.
    */

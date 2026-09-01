@@ -64,7 +64,7 @@
     <!-- ── PROGRESS RAIL: all 12 stops, the selected one magnified. THE track
          is the workspace's permanent protagonist — every scene below keeps it
          standing. (Unchanged navigation: ←/→ stages, RT farthest.) ───────── -->
-    <div class="con-hydro__rail" role="list">
+    <div class="con-hydro__rail" role="list" ref="railEl">
       <template v-for="stop in stops" :key="stop.position">
         <span v-if="stop.position > 0" class="con-hydro__link" :class="'con-hydro__link--' + stop.linkKind" aria-hidden="true"></span>
         <div class="con-hydro__stop"
@@ -155,6 +155,20 @@
           </div>
         </div>
       </template>
+      <!-- THE MOVEMENT LINK — a quiet dashed arc from the marker's REAL cell
+           to its ghost destination, so a projection reads as «who moves
+           where» at a glance (the ghost alone made the player reconstruct
+           the direction from two tokens). One per projected move: the
+           owner's forward arc (mint), the focused candidate's backward arc
+           (amber). Measured off the real marker rows; static once drawn —
+           only a one-shot fade-in, nothing loops. -->
+      <svg v-if="ghostLinkPaths.length > 0" class="con-hydro__ghostlinks" aria-hidden="true">
+        <g v-for="p in ghostLinkPaths" :key="p.key"
+           class="con-hydro__ghostlink" :class="'con-hydro__ghostlink--' + p.dir">
+          <path class="con-hydro__ghostlink-path" :d="p.d" />
+          <polygon class="con-hydro__ghostlink-tip" :points="p.tip" />
+        </g>
+      </svg>
     </div>
 
     <!-- ── THE SCENE — the transformable lower zone. ONE STANDING FRAME whose
@@ -1347,6 +1361,14 @@ export default defineComponent({
       flow: hydroFlowState,
       hydroMarkerState,
       landings: cardResourceLandings,
+      /** The MOVEMENT LINK paths (measured off the real marker rows) — see
+       *  the rail's SVG overlay. Rebuilt on spec/layout changes; px values
+       *  live in the rail's own coordinate space, so they scale with it. */
+      ghostLinkPaths: [] as Array<{key: string, d: string, tip: string, dir: 'fwd' | 'back'}>,
+      /** The settle re-measure timer (the focused cell's growth re-lays the
+       *  rail out over the stopin transition). */
+      ghostLinkTimer: undefined as number | undefined,
+      ghostLinkRo: undefined as ResizeObserver | undefined,
       /**
        * The player's Delta Works mix PREFERENCE — the steel share they dialed
        * (bumpers). The EFFECTIVE steel is this clamped to the live
@@ -2029,6 +2051,39 @@ export default defineComponent({
      *  the one honest reason below instead of the claim-family verdicts. */
     rewardAdvanceFrom(): number | undefined {
       return this.rewardOffer?.advanceFrom;
+    },
+    /**
+     * The projected MOVES the rail links with a quiet arc — «кто куда идёт»
+     * readable at a glance, not reconstructed from two tokens: the espionage
+     * pick's owner (fwd, constant) + focused candidate (back, follows the
+     * cursor), and the advance-landing reward pick's own move. Empty on every
+     * other scene — nothing ambient, nothing during a real glide.
+     */
+    ghostLinks(): Array<{key: string, from: number, to: number, dir: 'fwd' | 'back'}> {
+      const out: Array<{key: string, from: number, to: number, dir: 'fwd' | 'back'}> = [];
+      const esp = this.espionageOffer;
+      if (esp !== undefined) {
+        const owner = esp.projection.owner;
+        if (owner.legal && owner.toPosition !== owner.fromPosition) {
+          out.push({key: 'own', from: owner.fromPosition, to: owner.toPosition, dir: 'fwd'});
+        }
+        const row = this.espionageFocusRow;
+        const rowTo = row?.target.toPosition;
+        if (row !== undefined && row.target.legal && rowTo !== undefined && rowTo !== row.target.fromPosition) {
+          out.push({key: 'tgt-' + row.target.color, from: row.target.fromPosition, to: rowTo, dir: 'back'});
+        }
+        return out;
+      }
+      const from = this.rewardAdvanceFrom;
+      const to = this.rewardOffer?.claimable[0];
+      if (from !== undefined && to !== undefined && to !== from) {
+        out.push({key: 'own', from, to, dir: 'fwd'});
+      }
+      return out;
+    },
+    /** The re-measure trigger: the links AND the rail's own layout inputs. */
+    ghostLinkSpec(): string {
+      return JSON.stringify([this.ghostLinks, this.model.selectedPosition, this.model.focusPosition]);
     },
     rewardFocusBlockKey(): string {
       const pos = this.model.selectedPosition;
@@ -3323,6 +3378,12 @@ export default defineComponent({
     viewerColor(): void {
       this.fetchPreview();
     },
+    /** The MOVEMENT LINK follows its spec AND the rail's layout: a focus walk
+     *  re-sizes the cells (the selected one magnifies), so the arc re-measures
+     *  on both — plus one settle pass after the stopin transition. */
+    ghostLinkSpec(): void {
+      this.scheduleGhostLinkMeasure();
+    },
     /**
      * A NEW offer seats the cursor on its CONFIRM and clears the in-flight
      * latch. Keyed on the offer's identity, so a second ocean's offer arriving
@@ -3665,6 +3726,15 @@ export default defineComponent({
     // branch resets the very field the offer needs seated.
     this.seatPlanOnOffer();
     this.seatRewardPick();
+    // The movement-link arcs: measured on mount (the pick scenes mount with
+    // their offer already standing — a change watcher has no edge to fire on)
+    // and re-measured whenever the rail's own box moves.
+    const rail = this.$refs.railEl as HTMLElement | undefined;
+    if (rail !== undefined && typeof ResizeObserver !== 'undefined') {
+      this.ghostLinkRo = new ResizeObserver(() => this.scheduleGhostLinkMeasure());
+      this.ghostLinkRo.observe(rail);
+    }
+    this.scheduleGhostLinkMeasure();
     this.seatEspionagePick();
     if (this.flow.step === 'target') {
       void this.$nextTick(() => this.seatTargetStep());
@@ -3685,6 +3755,12 @@ export default defineComponent({
     consoleHydroUi.commands = [];
     setWorkspaceFrameSubject('hydro', '');
     setWorkspaceFrameStage('hydro', '');
+    this.ghostLinkRo?.disconnect();
+    this.ghostLinkRo = undefined;
+    if (this.ghostLinkTimer !== undefined) {
+      window.clearTimeout(this.ghostLinkTimer);
+      this.ghostLinkTimer = undefined;
+    }
     // A leave that will never play (the whole section is going) must still
     // end the presence — a sequence awaiting the card's exit would hang.
     if (this.landReportedPosition >= 0) {
@@ -3696,6 +3772,88 @@ export default defineComponent({
     $t,
     fetchPreview(): void {
       fetchHydroPreview(this.playerView.id, this.viewerColor, this.cacheKey + ':' + this.viewerColor);
+    },
+    /** Rebuild the movement-link arcs on the NEXT laid-out frame, then once
+     *  more after the stopin transition settles (the focused cell grows and
+     *  re-flows the rail — a single early measure draws the arc to a cell
+     *  that is still moving). Bounded: one timer, no loop. */
+    scheduleGhostLinkMeasure(): void {
+      if (this.ghostLinkTimer !== undefined) {
+        window.clearTimeout(this.ghostLinkTimer);
+        this.ghostLinkTimer = undefined;
+      }
+      if (this.ghostLinks.length === 0) {
+        this.ghostLinkPaths = [];
+        return;
+      }
+      this.$nextTick(() => {
+        this.measureGhostLinks();
+        this.ghostLinkTimer = window.setTimeout(() => {
+          this.ghostLinkTimer = undefined;
+          this.measureGhostLinks();
+        }, motionMs(420));
+      });
+    },
+    /** MEASURED off the real marker rows (`[data-hydro-marker]`), in the
+     *  rail's own px space — the arc goes exactly from the cell the marker
+     *  stands in to the cell its ghost projects into, trimmed at both ends
+     *  so the tokens themselves stay unobscured. */
+    measureGhostLinks(): void {
+      const rail = this.$refs.railEl as HTMLElement | undefined;
+      if (rail === undefined || this.ghostLinks.length === 0) {
+        this.ghostLinkPaths = [];
+        return;
+      }
+      const railRect = rail.getBoundingClientRect();
+      if (railRect.width === 0) {
+        return; // hidden/unmeasured — keep whatever stands, the observer re-asks
+      }
+      const k = conUiScale();
+      const paths: Array<{key: string, d: string, tip: string, dir: 'fwd' | 'back'}> = [];
+      for (const link of this.ghostLinks) {
+        const fromEl = rail.querySelector(`[data-hydro-marker="${link.from}"]`);
+        const toEl = rail.querySelector(`[data-hydro-marker="${link.to}"]`);
+        if (fromEl === null || toEl === null) {
+          continue;
+        }
+        const a = fromEl.getBoundingClientRect();
+        const b = toEl.getBoundingClientRect();
+        const x1 = a.left + a.width / 2 - railRect.left;
+        const y1 = a.top + a.height / 2 - railRect.top;
+        const x2 = b.left + b.width / 2 - railRect.left;
+        const y2 = b.top + b.height / 2 - railRect.top;
+        if (Math.abs(x2 - x1) < 4) {
+          continue;
+        }
+        // A quiet arc lifted above the marker rows; both ends trimmed (de
+        // Casteljau sub-curve) so neither the real marker nor the ghost is
+        // painted over, and the head lands just short of the destination.
+        const lift = Math.min(36 * k, Math.max(14 * k, Math.abs(x2 - x1) * 0.13));
+        const cx = (x1 + x2) / 2;
+        const cy = Math.min(y1, y2) - lift;
+        const q = (t: number): [number, number] => [
+          (1 - t) * (1 - t) * x1 + 2 * (1 - t) * t * cx + t * t * x2,
+          (1 - t) * (1 - t) * y1 + 2 * (1 - t) * t * cy + t * t * y2,
+        ];
+        const t0 = 0.08;
+        const t1 = 0.9;
+        const [sx, sy] = q(t0);
+        const [ex, ey] = q(t1);
+        // The sub-curve's control point (the segment's own de Casteljau frame).
+        const scx = (1 - t0) * ((1 - t1) * x1 + t1 * cx) + t0 * ((1 - t1) * cx + t1 * x2);
+        const scy = (1 - t0) * ((1 - t1) * y1 + t1 * cy) + t0 * ((1 - t1) * cy + t1 * y2);
+        const d = `M ${sx.toFixed(1)} ${sy.toFixed(1)} Q ${scx.toFixed(1)} ${scy.toFixed(1)} ${ex.toFixed(1)} ${ey.toFixed(1)}`;
+        const ang = Math.atan2(ey - scy, ex - scx);
+        const len = 7.5 * k;
+        const wid = 4.2 * k;
+        const bx = ex - Math.cos(ang) * len;
+        const by = ey - Math.sin(ang) * len;
+        const nx = -Math.sin(ang) * wid;
+        const ny = Math.cos(ang) * wid;
+        const tip = `${ex.toFixed(1)},${ey.toFixed(1)} ${(bx + nx).toFixed(1)},${(by + ny).toFixed(1)} ${(bx - nx).toFixed(1)},${(by - ny).toFixed(1)}`;
+        paths.push({key: link.key, d, tip, dir: link.dir});
+      }
+      this.ghostLinkPaths = paths;
     },
     /** The pos-9 card's leave transition ENDED — release the sequence that
      *  awaits it (the cursor may move on; the next leg may start). */
@@ -4878,6 +5036,12 @@ export default defineComponent({
             hydroNetworkState.planPicks = {...hydroNetworkState.planPicks, [prior.position]: prior.selectedCard};
           } else {
             hydroNetworkState.selectedCard = prior.selectedCard;
+            // A re-open keeps the WHOLE standing repeat composition, not just
+            // the card — else resolving without recomposing degrades the
+            // draft to the bare answer and the nested inputs are lost.
+            if (prior.repeat !== undefined && prior.repeat.chosenCard === prior.selectedCard) {
+              consoleHydroUi.repeatResult = prior.repeat;
+            }
           }
         }
       }

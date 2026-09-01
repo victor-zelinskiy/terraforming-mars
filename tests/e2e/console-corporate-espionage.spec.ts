@@ -150,13 +150,14 @@ function menuIndex(menu: Wire, match: (o: Wire) => boolean, label: string): numb
  *  advance-landing shape) — the driver proves the descent: the reward-pick
  *  layer with the forward ghost on the destination cell, A opens the stage's
  *  own choice selector, A picks, A resolves back into the composer. */
-async function answerOwnerChoiceRow(page: Page, log?: {sawRewardPick?: boolean, sawGhost?: boolean, sawChoice?: boolean}): Promise<void> {
+async function answerOwnerChoiceRow(page: Page, log?: {sawRewardPick?: boolean, sawGhost?: boolean, sawChoice?: boolean, sawArc?: boolean}): Promise<void> {
   for (let i = 0; i < 24; i++) {
     const state = await page.evaluate(() => ({
       missingFocused: document.querySelector('.con-composer__row--focused.con-composer__row--missing') !== null,
       anyMissing: document.querySelector('.con-composer__row--missing') !== null,
       rewardPick: document.querySelector('.con-hydro__layer--rewardpick') !== null,
       fwdGhost: document.querySelector('.con-hydro__stop-ghost--fwd') !== null,
+      arc: document.querySelector('.con-hydro__ghostlink-path') !== null,
       choiceOpen: document.querySelector('.con-hydro__layer--choice') !== null,
       subOpen: document.querySelector('.con-composer__opt') !== null,
     }));
@@ -169,6 +170,7 @@ async function answerOwnerChoiceRow(page: Page, log?: {sawRewardPick?: boolean, 
       }
       log.sawRewardPick = (log.sawRewardPick ?? false) || state.rewardPick;
       log.sawGhost = (log.sawGhost ?? false) || (state.rewardPick && state.fwdGhost);
+      log.sawArc = (log.sawArc ?? false) || (state.rewardPick && state.arc);
       log.sawChoice = (log.sawChoice ?? false) || state.choiceOpen;
     }
     // The hydro descent's three beats, each one A: the stage's own choice
@@ -307,11 +309,12 @@ test.describe('Corporate Espionage — the premium vertical slice', () => {
 
     // The owner's landing choice descends into the HYDRONETWORK's stage-reward
     // surface (never a bare option list) — the descent's beats are asserted.
-    const pickLog: {sawRewardPick?: boolean, sawGhost?: boolean, sawChoice?: boolean} = {};
+    const pickLog: {sawRewardPick?: boolean, sawGhost?: boolean, sawChoice?: boolean, sawArc?: boolean} = {};
     await answerOwnerChoiceRow(page, pickLog);
     expect(pickLog.sawRewardPick, 'the owner choice opened the Hydronetwork reward surface').toBeTruthy();
     expect(pickLog.sawGhost, 'the destination cell carried the forward ghost').toBeTruthy();
     expect(pickLog.sawChoice, 'the stage\'s own choice selector opened').toBeTruthy();
+    expect(pickLog.sawArc, 'the movement arc linked the marker to its ghost').toBeTruthy();
     await expect(page.locator('.con-composer__cta--ready')).toBeVisible({timeout: 10_000});
     await key(page, 'Enter', 400); // commit
 
@@ -325,6 +328,134 @@ test.describe('Corporate Espionage — the premium vertical slice', () => {
     const model = await fetchPlayerModel(request, id) as Wire;
     expect(model.thisPlayer.deltaProject?.position).toBe(1);
     expect((model.cardsInHand ?? []).map((c: Wire) => c.name)).not.toContain(CARD);
+  });
+
+  test('SOLO stage-7: the owner repeat pre-select descends into the Hydronetwork, never over the composer', async ({page, request}) => {
+    test.setTimeout(600_000);
+    // The tag path to stage 7 (the delta spec's own list) + DP10. Tardigrades
+    // doubles as the used blue action stage 7 can repeat.
+    const SUPPORT = ['Solar Power', 'Development Manager', 'Space Station', 'Research', 'Adapted Lichen', 'Tardigrades'];
+    const cfg = soloGameConfig({
+      expansions: {deltaProject: true},
+      customProjectCards: [CARD, ...SUPPORT],
+      customCorporationsList: ['ThorGate'],
+      seed: 0.37,
+    });
+    const created = await request.post('/api/creategame', {data: cfg});
+    expect(created.ok(), 'create-game accepted').toBeTruthy();
+    const {players} = await created.json() as {players: Array<{id: string}>};
+    const id = players[0].id;
+    await seedGameOverApi(request, id, {cards: [CARD, ...SUPPORT], corporation: 'ThorGate'});
+
+    // ── API setup: the tags, the used action, the marker on 6. ──
+    for (const card of SUPPORT) {
+      await onMenu(request, id, (menu) => {
+        const at = menuIndex(menu, (o) => titleOf(o) === 'Play project card', 'Play project card');
+        const offered = ((menu.options ?? [])[at].cards ?? []).find((c: Wire) => c.name === card);
+        expect(offered, `${card} in hand`).toBeDefined();
+        return {type: 'or', index: at, response: {type: 'projectCard', card, payment: payMc(offered.calculatedCost ?? 12)}};
+      });
+    }
+    await onMenu(request, id, (menu) => {
+      const at = (menu.options ?? []).findIndex((o: Wire) =>
+        (o.cards ?? []).some((c: Wire) => c.name === 'Tardigrades') && titleOf(o) !== 'Play project card');
+      expect(at, 'the menu offers Tardigrades\' action').toBeGreaterThanOrEqual(0);
+      return {type: 'or', index: at, response: {type: 'card', cards: ['Tardigrades']}};
+    });
+    await onMenu(request, id, (menu) => ({
+      type: 'or',
+      index: menuIndex(menu, (o) => titleOf(o) === 'Advance on the Hydronetwork track', 'the standard advance'),
+      response: {type: 'option'},
+    }));
+    await waitPrompt(request, id, (p) => p?.type === 'deltaProject', 'the advance amount');
+    await sendPlayerInput(request, id, {type: 'deltaProject', amount: 6} as never);
+    await waitPrompt(request, id, isActionMenu, 'menu after the advance');
+    expect(((await fetchPlayerModel(request, id)) as Wire).thisPlayer.deltaProject?.position,
+      'the setup marker stands on 6').toBe(6);
+
+    // ── The console takes over: play DP10 at 6 → the owner lands on 7. ──
+    await openConsole(page, id);
+    await waitForBoardHome(page);
+    await openEspionageComposer(page);
+
+    // Drive the composer's mandatory rows. THE CONTRACT UNDER TEST: the
+    // repeat pre-select must descend into the HYDRONETWORK first (reward-pick
+    // scene + the movement arc), and only from INSIDE it reuse the track's
+    // own seamless hydro→repeat frame — the repeat selector may never be
+    // sighted before the reward-pick was (the «rendered over the composer»
+    // violation of the screenshot this test pins).
+    const log = {sawRewardPick: false, sawArc: false, sawSelector: false, orderViolated: false};
+    const hydroVisible = () => page.evaluate(() => {
+      const el = document.querySelector('.con-hydro') as HTMLElement | null;
+      return el !== null && getComputedStyle(el).display !== 'none' && el.getBoundingClientRect().width > 0;
+    });
+    for (let i = 0; i < 40; i++) {
+      const s = await page.evaluate(() => ({
+        esppick: document.querySelector('.con-hydro__layer--esppick') !== null,
+        rewardPick: document.querySelector('.con-hydro__layer--rewardpick') !== null,
+        arc: document.querySelector('.con-hydro__ghostlink-path') !== null,
+        selector: (() => {
+          const els = Array.from(document.querySelectorAll('.con-cardactions')) as Array<HTMLElement>;
+          return els.some((el) => getComputedStyle(el).display !== 'none' && el.getBoundingClientRect().width > 0);
+        })(),
+        missingFocused: document.querySelector('.con-composer__row--focused.con-composer__row--missing') !== null,
+        anyMissing: document.querySelector('.con-composer__row--missing') !== null,
+        ctaReady: document.querySelector('.con-composer__cta--ready') !== null,
+        composer: document.querySelector('.con-composer--play') !== null,
+      }));
+      log.sawRewardPick = log.sawRewardPick || s.rewardPick;
+      log.sawArc = log.sawArc || (s.rewardPick && s.arc);
+      if (s.selector && !log.sawSelector) {
+        log.sawSelector = true;
+        if (!log.sawRewardPick) {
+          log.orderViolated = true;
+        }
+        await shoot(page, 'stage7-repeat-selector');
+      }
+      if (s.rewardPick && !s.selector && log.sawRewardPick && !log.sawArc && s.arc) {
+        log.sawArc = true;
+      }
+      if (s.rewardPick && i > 0 && !log.sawSelector) {
+        await shoot(page, 'stage7-reward-pick');
+      }
+      // One A per beat: candidate pick → reward-pick CTA (opens the repeat
+      // frame) → the selector walk (pick → compose → confirm) → the CTA again
+      // (resolves) → the composer rows → the commit.
+      if (s.selector && !await hydroVisible()) {
+        await key(page, 'Enter', 1600);
+        continue;
+      }
+      if (s.esppick || s.rewardPick) {
+        await key(page, 'Enter', 1100);
+        continue;
+      }
+      if (s.missingFocused) {
+        await key(page, 'Enter', 900);
+        continue;
+      }
+      if (s.composer && !s.anyMissing && s.ctaReady) {
+        break;
+      }
+      if (s.composer && s.anyMissing) {
+        await key(page, 'ArrowDown', 280);
+        continue;
+      }
+      await page.waitForTimeout(400);
+    }
+    expect(log.sawRewardPick, 'the repeat pre-select descended into the Hydronetwork reward surface').toBeTruthy();
+    expect(log.sawArc, 'the movement arc stood on the track during the descent').toBeTruthy();
+    expect(log.sawSelector, 'the hydro\'s own repeat frame opened').toBeTruthy();
+    expect(log.orderViolated, 'the repeat selector was sighted BEFORE the hydro descent (the over-the-composer violation)').toBeFalsy();
+    await expect(page.locator('.con-composer__cta--ready')).toBeVisible({timeout: 10_000});
+    await shoot(page, 'stage7-composer-ready');
+    await key(page, 'Enter', 400); // commit
+
+    const exec = {glideColors: new Set<string>(), sawEspLine: false, sawResult: false};
+    await watchExecution(page, exec);
+    expect(exec.sawResult, 'the execution reached its result').toBeTruthy();
+    await expect.poll(async () =>
+      ((await fetchPlayerModel(request, id)) as Wire).thisPlayer.deltaProject?.position ?? 0,
+    {timeout: 20_000}).toBe(7);
   });
 
   test('TWO PLAYERS: target pick in the workspace, target marker first, both rewards', async ({page, request}) => {
@@ -437,6 +568,10 @@ test.describe('Corporate Espionage — the premium vertical slice', () => {
     await expect(row).toBeVisible();
     await expect(row.locator('.con-hydro__route--back')).toBeVisible();
     expect(await page.locator('.con-hydro__stop-ghost').count(), 'ghost markers on the track').toBeGreaterThan(0);
+    // …and the movement ARCS between the real markers and their ghosts — the
+    // premium «кто куда движется» reading (owner fwd + focused target back).
+    await expect.poll(async () => page.locator('.con-hydro__ghostlink-path').count(),
+      {timeout: 5_000}).toBeGreaterThan(0);
     await shoot(page, 'target-selection');
     // X — «Осмотреть»: the SOURCE card rises through the one fullscreen
     // viewer over the standing pick; Escape returns to the same selection.

@@ -5115,11 +5115,38 @@ html.console-mode body.placement-pending .board-outer-spaces > .board-space.boar
 
     /* ── Progress rail ───────────────────────────────────────────── */
     &__rail {
+        position: relative; /* the movement-link SVG overlay's coordinate space */
         display: flex;
         align-items: stretch;
         padding: .4rem .1rem .3rem;
         flex-shrink: 0;
     }
+    /* ── THE MOVEMENT LINK — a quiet dashed arc from a marker's real cell to
+       its projected destination (espionage picks + the advance-landing reward
+       pick). Non-interactive, above the cells, below any gliding proxy; the
+       only motion is a one-shot fade-in. Direction is the arrowhead + hue
+       (fwd mint / back amber) ON TOP of the words the panels already print —
+       never colour alone. ── */
+    &__ghostlinks {
+        position: absolute;
+        inset: 0;
+        width: 100%;
+        height: 100%;
+        pointer-events: none;
+        z-index: 3;
+        overflow: visible;
+        animation: con-hydro-ghostlink-in calc(260ms * var(--motion-scale, 1)) ease-out backwards;
+    }
+    &__ghostlink-path {
+        fill: none;
+        stroke-width: .11rem;
+        stroke-linecap: round;
+        stroke-dasharray: .06rem .38rem;
+    }
+    &__ghostlink--fwd .con-hydro__ghostlink-path { stroke: fade(@con-hydro-mint, 72%); }
+    &__ghostlink--back .con-hydro__ghostlink-path { stroke: fade(@con-amber, 78%); }
+    &__ghostlink--fwd .con-hydro__ghostlink-tip { fill: fade(@con-hydro-mint, 85%); }
+    &__ghostlink--back .con-hydro__ghostlink-tip { fill: fade(@con-amber, 88%); }
     &__link {
         flex: 1 1 .5rem;
         min-width: .3rem;
@@ -7290,6 +7317,10 @@ html.console-mode body.placement-pending .board-outer-spaces > .board-space.boar
     .hydro-reward__label { color: @con-text; }
 }
 
+@keyframes con-hydro-ghostlink-in {
+    from { opacity: 0; }
+    to { opacity: 1; }
+}
 @keyframes con-hydro-cta {
     0%, 100% { box-shadow: inset 0 0 0 .05rem fade(@con-hydro-mint, 75%), 0 0 .8rem fade(@con-hydro-mint, 14%); }
     50% { box-shadow: inset 0 0 0 .05rem fade(@con-hydro-mint, 90%), 0 0 1.3rem fade(@con-hydro-mint, 26%); }
