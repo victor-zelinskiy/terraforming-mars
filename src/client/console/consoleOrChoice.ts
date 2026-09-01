@@ -158,6 +158,20 @@ export function buildOrItems(model: OrOptionsModel): Array<ConsoleOrItem> {
   return out;
 }
 
+/**
+ * CAN A COMPOSER HOST THIS BRANCH'S OWN PICK?
+ *
+ * A nested-input option is a DOOR — but only into a shape the pick surfaces
+ * actually draw: a card list or a player list. Anything else (a bare
+ * `SelectAmount` sitting in an `OrOptions`, a future input) has no host, and a
+ * row that opened onto an EMPTY list would be a worse lie than one that says so
+ * out loud. Asked here rather than re-listed per composer, so a new hostable
+ * shape is enabled in one place.
+ */
+export function nestedPickHostable(item: ConsoleOrItem): boolean {
+  return item.nested === undefined || item.nested.type === 'card' || item.nested.type === 'player';
+}
+
 /** The response for a picked or-item: a leaf `{type:'option'}` or the nested one. */
 export function orItemResponse(item: ConsoleOrItem, nestedResponse?: unknown): unknown {
   const inner = item.nested !== undefined ? nestedResponse : {type: 'option' as const};

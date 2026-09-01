@@ -28708,6 +28708,10 @@ html.console-mode {
     }
     /* Nested-input indicator (an option that opens a target sub-pick). */
     &__opt-chevron { flex: 0 0 auto; font-size: 1rem; font-weight: 800; color: fade(@con-cyan, 70%); }
+    /* …worn at the row's END, where the answer marks live, when the chevron is
+       the row's LAST element (the action composer's or-list: a branch that opens
+       its own pick sits in the same slot the ✓ would occupy). */
+    &__opt-chevron--end { margin-left: auto; }
     &__opt-res {
         display: inline-flex; align-items: center; gap: .25rem;
         font-size: .75rem; font-weight: 700; color: #bfe6ff;

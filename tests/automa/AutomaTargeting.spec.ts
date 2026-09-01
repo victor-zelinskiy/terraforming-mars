@@ -23,7 +23,10 @@ import {TabbedTargetsStep} from '../../src/common/models/ActionPreviewModel';
 import {OrOptionsModel} from '../../src/common/models/PlayerInputModel';
 import {cast} from '../../src/common/utils/utils';
 import {fakeCard} from '../TestingUtils';
-import {testAutomaGame} from './AutomaTestGame';
+import {testAutomaGame, testAutomaMultiplayerGame} from './AutomaTestGame';
+import {SelectCard} from '../../src/server/inputs/SelectCard';
+import {Birds} from '../../src/server/cards/base/Birds';
+import {runAllActions} from '../TestingUtils';
 
 function optionTitles(input: OrOptions): Array<string> {
   return input.options.map((o) => typeof o.title === 'string' ? o.title : o.title.message);
@@ -262,6 +265,45 @@ describe('Automa targeting — CARD-resource removal from MarsBot (microbes/anim
     // The bot option carries the card-resource removal metadata (icon + player impact).
     const botOpt = or.options.find((o) => o.type === 'option' && o.metadata?.kind === 'resourceRemoval');
     expect(botOpt, 'bot removal option in the preview').is.not.undefined;
+  });
+
+  /**
+   * THE «ХИЩНИКИ» SHAPE — a bot AND an opponent card are both legal targets, so the
+   * picker is an `OrOptions` [the card `SelectCard`, the bot row]. The pre-collected
+   * response must replay against the LIVE prompt byte for byte, or the action
+   * confirm silently loses every card target the moment a bot joins the table.
+   */
+  it('Predators with BOTH an opponent card and the bot: the preview step IS the live prompt', () => {
+    const [game, humans, bot] = testAutomaMultiplayerGame(2);
+    const [human, opponent] = humans;
+    bot.megaCredits = 3;
+    const card = new Predators();
+    human.playedCards.push(card);
+    const birds = new Birds();
+    opponent.playedCards.push(birds);
+    opponent.addResourceTo(birds, 4);
+
+    const step = card.actionPreview(human).branches[0].steps[0];
+    expect(step.kind).eq('input');
+    const model = (step as {input: OrOptionsModel}).input;
+    expect(model.type).eq('or');
+    // The CARD branch is an option of its own — the console descends into it.
+    expect(model.options[0].type).eq('card');
+    expect(model.options[1].type).eq('option');
+    // …and the step NAMES what its −1 moves, so the picker can read «4 → 3».
+    expect((step as {amount?: number}).amount).eq(-1);
+    expect((step as {cardResource?: string}).cardResource).eq('animal');
+
+    // THE LIVE PROMPT, same shape, same order — and the pre-collected response
+    // («card branch, take from Birds») is accepted verbatim.
+    card.action(human);
+    const live = cast(game.deferredActions.pop()!.execute(), OrOptions);
+    expect(live.options[0]).instanceOf(SelectCard);
+    expect(live.options.length).eq(model.options.length);
+    live.process({type: 'or', index: 0, response: {type: 'card', cards: [birds.name]}}, human);
+    runAllActions(game);
+    expect(birds.resourceCount, 'the animal left the opponent card').eq(3);
+    expect(card.resourceCount, 'and landed on Predators').eq(1);
   });
 
   it('Virus preview: MarsBot is a player-target in the ANIMAL tab (its Miranda + M€ proxy)', () => {

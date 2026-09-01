@@ -877,7 +877,16 @@ export function removeAddCardResource(player: IPlayer, card: ActionCard, resourc
   // LEAVES the target); the +1 that lands on this card is constant across
   // candidates and is already stated as the effect below.
   const steps: ReadonlyArray<ActionPreviewStep> = model !== undefined ?
-    [{kind: 'input', input: model, amount: -1, vpBox: targetVictoryPoints(player, removal.previewTargetCards(), -1)}] :
+    [{
+      kind: 'input',
+      input: model,
+      amount: -1,
+      // `cardResource` NAMES what the -1 moves. Without it the picker's per-card
+      // reading falls back to a generic «resource» badge and the `4 → 3` impact
+      // is dropped entirely — on a removal that is the whole decision.
+      cardResource: cardResourceIcon(resource),
+      vpBox: targetVictoryPoints(player, removal.previewTargetCards(), -1),
+    }] :
     [];
   // The gain: the removed resource lands on THIS card (current → resulting). The
   // cost — which card it's taken from — is the picker step above.

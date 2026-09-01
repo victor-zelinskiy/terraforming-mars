@@ -268,8 +268,10 @@
                                  :bandHeight="playedTargetHeight"
                                  :lockedCard="playedTargetResults[sub.choiceId]?.cardName ?? ''" />
 
-        <!-- SUB-STATE: a premium pick list (card / player / or). -->
-        <template v-else-if="sub !== undefined && sub.kind === 'list'">
+        <!-- SUB-STATE: a premium pick list (card / player / or), and the SAME
+             list one level deeper when the chosen or-branch is itself an input
+             («выберите карту» inside a removal that also offers the bot). -->
+        <template v-else-if="sub !== undefined && (sub.kind === 'list' || sub.kind === 'orNested')">
           <div class="con-composer__sub-title">{{ subTitle }}</div>
           <div v-for="(item, i) in listItems" :key="item.key"
                class="con-composer__opt"
@@ -298,6 +300,8 @@
             <span v-if="item.selfHarm" class="con-composer__opt-warn">⚠ {{ $t('This is you') }}</span>
             <span v-if="item.disabled && item.reason !== ''" class="con-composer__opt-reason">✕ {{ item.reason }}</span>
             <span v-else-if="item.chosen" class="con-composer__opt-check" aria-hidden="true">✓</span>
+            <!-- A DOOR, not an answer: the branch opens a pick of its own. -->
+            <span v-else-if="item.nested" class="con-composer__opt-chevron con-composer__opt-chevron--end" aria-hidden="true">›</span>
           </div>
         </template>
 
@@ -672,7 +676,7 @@ import {Message} from '@/common/logs/Message';
 import {CardModel} from '@/common/models/CardModel';
 import {SpendableResource} from '@/common/inputs/Spendable';
 import {ActionPreview, ActionPreviewBranch, ActionEffect} from '@/common/models/ActionPreviewModel';
-import {DeltaStageRewardInputModel, SelectAmountModel, SelectCardModel, SelectPaymentModel, SelectPlayerModel, OrOptionsModel} from '@/common/models/PlayerInputModel';
+import {DeltaStageRewardInputModel, PlayerInputModel, SelectAmountModel, SelectCardModel, SelectPaymentModel, SelectPlayerModel, OrOptionsModel} from '@/common/models/PlayerInputModel';
 import {ActionEntry} from '@/client/components/actions/actionModel';
 import {ActionGroup, playerActionGroups} from '@/client/components/actions/actionExtraction';
 import {branchPositionsForNode, branchSetAvailability, branchTitleText, stripNodeOr} from '@/client/components/actions/actionBranchView';
@@ -696,7 +700,7 @@ import {
   runtimeNavigationSteps,
 } from '@/client/console/consoleActionComposer';
 import {variablePartsForBranch, ConsoleVariableChip} from '@/client/console/consoleCardActions';
-import {buildOrItems, orItemResponse, ConsoleOrItem} from '@/client/console/consoleOrChoice';
+import {buildOrItems, orItemResponse, nestedPickHostable, ConsoleOrItem} from '@/client/console/consoleOrChoice';
 import {paymentLanes, megacreditsAvailable, paymentCovers, paymentFromCounts, initialCounts, dialLaneCount, buildPaymentView, PaymentView, PaymentSourceRow, editableRows, quickAdjustRow} from '@/client/console/paymentPlan';
 import ActionEffectChip from '@/client/components/actions/ActionEffectChip.vue';
 import CardRenderEffectBoxComponent from '@/client/components/card/CardRenderEffectBoxComponent.vue';
@@ -797,6 +801,19 @@ type GroupNode = ActionGroup['nodes'][number];
 type Item = {id: string, kind: 'branch', pos: number} | {id: string, kind: 'choice', choice: ComposerChoice};
 type SubState =
   | {kind: 'list', choiceId: string, index: number}
+  /**
+   * ONE LEVEL DEEPER INSIDE AN OR-PICK — the chosen branch is not a leaf option
+   * but an INPUT of its own (a `SelectCard` / `SelectPlayer` sitting directly in
+   * the `OrOptions`), so answering it is a second, nested pick whose value nests
+   * into `{type:'or', index, response:<nested>}`.
+   *
+   * Until it existed the row was rendered DISABLED with «недоступно на этом
+   * экране»: the server offered a target and the screen refused to reach it.
+   * «Хищники» against a MarsBot is exactly that shape — [«выберите карту»,
+   * «удалить 1 Животное у Бот»] — so the card's whole point (take the animal
+   * from an OPPONENT) was unreachable while the bot row stayed pickable.
+   */
+  | {kind: 'orNested', choiceId: string, item: ConsoleOrItem, index: number}
   | {kind: 'payment', choiceId: string, index: number}
   /**
    * The EMBEDDED played-card target step — the same component and the same
@@ -804,7 +821,11 @@ type SubState =
    * «Разыграно» view's pick mode, which took the player OUT of the action
    * workspace to point at a card and gave them a full tableau to do it in.
    */
-  | {kind: 'playedTarget', choiceId: string, focus: PlayedTargetFocus, picked: ReadonlyArray<string>};
+  | {kind: 'playedTarget', choiceId: string, focus: PlayedTargetFocus, picked: ReadonlyArray<string>,
+     /** The step is answering an OR-BRANCH (`orItem`), not the choice itself —
+      *  the pick nests into that branch's or-response. Pointing at a card must
+      *  feel the same whether or not a bot row sits above it in the list. */
+     orItem?: ConsoleOrItem};
 
 type ListItem = {
   /** This row is the VIEWER, the move costs them, and another target existed. */
@@ -825,6 +846,9 @@ type ListItem = {
   warnings?: ReadonlyArray<string>,
   /** The source row of an or-option (its index IS the submitted response). */
   orItem?: ConsoleOrItem,
+  /** This row opens a pick of its own (a nested-input or-branch) — it is a
+   *  door, not an answer, so it draws the descent chevron. */
+  nested?: boolean,
 };
 
 /** A branch's premium formula view (static chips + variable ranges). */
@@ -971,6 +995,13 @@ export default defineComponent({
       picks: {} as Record<string, string>,
       /** Multi-select hand picks by choice id (display; the capture is the truth). */
       multiPicks: {} as Record<string, ReadonlyArray<string>>,
+      /** An or-choice ANSWERED through a nested branch: the branch that was
+       *  descended into + the value picked inside it (a card name / a player
+       *  colour). `picks` holds the option INDEX, which alone can only name the
+       *  question («выберите карту…»); this is what makes the collapsed row say
+       *  WHICH card, and what tells the embedded target step which input it is
+       *  still serving after it closed. */
+      orDescents: {} as Record<string, {item: ConsoleOrItem, pick: string}>,
       focusIdx: 0,
       /** Bumped when a refused commit redirects — the blocking row pulses once. */
       blockFlashNonce: 0,
@@ -1074,7 +1105,23 @@ export default defineComponent({
      *  to warm the model before the player presses A. (The CHOICE id, never the
      *  row's own key: the two are different vocabularies.) */
     playedTargetRowId(): string | undefined {
-      return this.allChoices.find((c: ComposerChoice) => this.isPlayedTargetChoice(c))?.id;
+      return this.allChoices.find((c: ComposerChoice) =>
+        this.isPlayedTargetChoice(c) ||
+        // …or an OR-choice whose nested branch was answered in that same step:
+        // the row it fills is the same row, so it earns the same summary
+        // (thumbnail + owner + impacts) instead of a bare option title.
+        (this.orDescents[c.id] !== undefined && this.playedTargetResults[c.id] !== undefined))?.id;
+    },
+    /**
+     * THE INPUT THE EMBEDDED STEP IS ACTUALLY SERVING — a choice's own
+     * `SelectCard`, or the `SelectCard` NESTED in the or-branch the player
+     * descended into (open now, or answered earlier). Everything that reads the
+     * step's candidates goes through here, so a nested descent can never render
+     * one set of cards and validate against another.
+     */
+    playedTargetInput(): SelectCardModel | undefined {
+      const choice = this.playedTargetChoice;
+      return choice === undefined ? undefined : this.playedTargetInputFor(choice);
     },
     /**
      * THE EMBEDDED SELECTOR'S MODEL — built only while the step is open (or
@@ -1083,10 +1130,10 @@ export default defineComponent({
      */
     playedTargetModel(): PlayedTargetModel | undefined {
       const choice = this.playedTargetChoice;
-      if (choice === undefined) {
+      const model = this.playedTargetInput;
+      if (choice === undefined || model === undefined) {
         return undefined;
       }
-      const model = choice.input as SelectCardModel;
       return buildPlayedTargetModel({
         candidates: model.cards,
         players: this.playerView.players,
@@ -1105,7 +1152,7 @@ export default defineComponent({
         // A NEGATIVE delta means the step takes FROM the chosen card, which is
         // what makes «your own card» a warning rather than the ordinary target.
         takesFromTarget: (choice.amount ?? 0) < 0,
-        preview: (name) => this.playedTargetPreview(choice, name),
+        preview: (name) => this.playedTargetPreview(choice, model, name),
         resourceContext: (_name, card) => this.playedTargetResourceContext(choice, card),
       });
     },
@@ -1529,11 +1576,11 @@ export default defineComponent({
             multi: sel.mode === 'multi' ? {
               count: sel.picked.length,
               valid: playedTargetPicksValid(sel),
-              verb: (this.playedTargetChoice?.input as SelectCardModel | undefined)?.buttonLabel || 'Select',
+              verb: this.playedTargetInput?.buttonLabel || 'Select',
             } : undefined,
           });
         }
-        return focusCommandRun({state: 'sub-list', cardList: this.subChoice?.input.type === 'card'});
+        return focusCommandRun({state: 'sub-list', cardList: this.subListIsCards});
       }
       const kind = this.focusedRowKind;
       const item = this.focusedItem;
@@ -1683,11 +1730,30 @@ export default defineComponent({
     },
     subTitle(): string {
       const c = this.subChoice;
+      if (this.sub?.kind === 'orNested') {
+        // The BRANCH's own ask («выберите карту, чтобы удалить 1 Животное»),
+        // not the or-pick's — the player has already answered that one.
+        const t = textOf(this.sub.item.nested?.title ?? this.sub.item.label);
+        return t !== '' ? t : (c !== undefined ? this.choiceTitle(c) : '');
+      }
       return c !== undefined ? this.choiceTitle(c) : '';
+    },
+    /** The open sub-list points at CARDS (an X press has something to inspect). */
+    subListIsCards(): boolean {
+      if (this.sub?.kind === 'orNested') {
+        return this.sub.item.nested?.type === 'card';
+      }
+      return this.subChoice?.input.type === 'card';
     },
     listItems(): ReadonlyArray<ListItem> {
       const c = this.subChoice;
-      if (this.sub === undefined || this.sub.kind !== 'list' || c === undefined) {
+      if (this.sub === undefined || c === undefined) {
+        return [];
+      }
+      if (this.sub.kind === 'orNested') {
+        return this.nestedListItems(c, this.sub.item);
+      }
+      if (this.sub.kind !== 'list') {
         return [];
       }
       if (c.input.type === 'card') {
@@ -1721,10 +1787,15 @@ export default defineComponent({
           label: textOf(it.label),
           resIcon: '', resCount: 0, impact: '',
           // A NESTED-input option (an OrOptions branch that is itself a
-          // SelectPlayer/SelectCard) has no host on this screen — it stays
-          // unpickable, but says WHY rather than claiming the rules forbid it.
-          disabled: it.disabled || it.nested !== undefined,
-          reason: it.nested !== undefined ? translateText('Not available on this screen') : textOf(it.reason),
+          // SelectCard/SelectPlayer) is a DOOR: A descends into its own pick and
+          // the answer nests into this branch's response. It used to render
+          // disabled with «недоступно на этом экране» — a screen refusing a
+          // target the server offered, which is how «Хищники» lost every card
+          // target the moment a MarsBot joined the game. A shape this screen
+          // genuinely cannot draw keeps that honest refusal.
+          disabled: it.disabled || !nestedPickHostable(it),
+          reason: !nestedPickHostable(it) ? translateText('Not available on this screen') : textOf(it.reason),
+          nested: it.nested !== undefined && nestedPickHostable(it),
           chosen: chosen === String(it.optionIndex),
           color: it.playerColor,
           chips: it.chips,
@@ -2391,6 +2462,7 @@ export default defineComponent({
       this.payCounts = {};
       this.picks = {};
       this.multiPicks = {};
+      this.orDescents = {};
       this.repeatResult = undefined;
       this.sub = undefined;
       this.focusIdx = 0;
@@ -2753,10 +2825,24 @@ export default defineComponent({
         return this.playerName(pick);
       }
       if (c.input.type === 'or') {
+        // A branch answered through a NESTED pick reads as its ANSWER — the
+        // option's own title is the question («выберите карту, чтобы удалить 1
+        // Животное»), and a row that restates the question looks unanswered.
+        const nestedPick = this.nestedAnswerOf(c);
+        if (nestedPick !== undefined) {
+          return nestedPick.input?.type === 'player' ? this.playerName(nestedPick.pick) : translateText(nestedPick.pick);
+        }
         const opt = (c.input as OrOptionsModel).options[Number(pick)];
         return opt !== undefined ? textOf(opt.title) : '';
       }
       return pick;
+    },
+    /** The value picked INSIDE the answered or-branch (with the input it came
+     *  from), or `undefined` when the branch answered was a plain option. */
+    nestedAnswerOf(c: ComposerChoice): {pick: string, input: PlayerInputModel | undefined} | undefined {
+      const answered = this.orDescents[c.id];
+      return answered !== undefined && this.picks[c.id] === String(answered.item.optionIndex) ?
+        {pick: answered.pick, input: answered.item.nested} : undefined;
     },
     chosenImpact(c: ComposerChoice): string {
       // Multi-select payout (generic revealGain metadata).
@@ -2770,6 +2856,14 @@ export default defineComponent({
       // the summary falls back to a bare resource name and the decision reads
       // as un-made again.
       if (c.input.type === 'or') {
+        // A nested CARD answer keeps the same `N → M` the bot row shows: the
+        // two branches of one removal must read in one vocabulary.
+        const nested = this.nestedAnswerOf(c);
+        if (nested?.input?.type === 'card' && c.amount !== undefined) {
+          const target = (nested.input as SelectCardModel).cards.find((cd) => cd.name === nested.pick);
+          const from = target?.resources ?? 0;
+          return target === undefined ? '' : `${from} → ${Math.max(0, from + c.amount)}`;
+        }
         const item = buildOrItems(c.input as OrOptionsModel)
           .find((it) => String(it.optionIndex) === this.picks[c.id]);
         const chip = item?.chips.find((e) => e.current !== undefined && e.resulting !== undefined);
@@ -3126,7 +3220,7 @@ export default defineComponent({
      * asked, and it gave them a whole tableau to find two legal targets in. The
      * step costs what the CHOICES cost.
      */
-    openPlayedTargetStep(c: ComposerChoice): void {
+    openPlayedTargetStep(c: ComposerChoice, orItem?: ConsoleOrItem): void {
       // Measure the band ONCE, before the step is visible, and measure it where
       // the layout is STRETCHED: the work column's width is the band's, and the
       // row above it is the only box here whose height the cards cannot move.
@@ -3139,36 +3233,40 @@ export default defineComponent({
       if (band !== null && band !== undefined) {
         this.playedTargetHeight = band.clientHeight;
       }
+      // OPEN FIRST, then seat the cursor. The model this step renders is a
+      // function of the sub-state itself (a nested descent serves the BRANCH's
+      // `SelectCard`, not the choice's own input), so asking for the owners
+      // before the state exists would answer for the wrong input — or, on the
+      // first descent into an or-branch, for no input at all. One builder, one
+      // source of truth; a step with nothing to point at closes again below.
+      this.sub = {kind: 'playedTarget', choiceId: c.id, focus: {ownerId: '', index: 0}, picked: [], orItem};
       const owners = this.playedTargetModel?.owners ?? [];
-      if (owners.length === 0) {
-        return;
-      }
       // Re-entry restores the previous answer: the cursor lands ON that card,
       // already target-locked (a multi ask brings its whole accumulation back,
       // pruned of anything that left the table since).
-      const selection = this.playedTargetSelectionFor(c);
-      const picked = selection.mode === 'multi' ?
+      const picked = this.playedTargetSelection.mode === 'multi' ?
         prunePlayedTargetPicks((this.multiPicks[c.id] ?? []) as ReadonlyArray<string>, owners) :
         [];
       const chosen = this.playedTargetResults[c.id];
-      const focus = findPlayedTargetFocus(chosen?.cardName ?? picked[0], owners) ??
-        reseatPlayedTargetFocus(undefined, owners);
+      const focus = owners.length === 0 ? undefined :
+        (findPlayedTargetFocus(chosen?.cardName ?? picked[0], owners) ?? reseatPlayedTargetFocus(undefined, owners));
       if (focus === undefined) {
+        this.sub = undefined;
         return;
       }
-      this.sub = {kind: 'playedTarget', choiceId: c.id, focus, picked};
+      this.sub = {kind: 'playedTarget', choiceId: c.id, focus, picked, orItem};
     },
     /** The step's ASK, read from the server's own prompt: one card, or the
      *  up-to-N the input declares. */
     playedTargetSelectionFor(c: ComposerChoice): PlayedTargetSelection {
-      const model = c.input as SelectCardModel;
-      const max = model.max ?? 1;
+      const model = this.playedTargetInputFor(c);
+      const max = model?.max ?? 1;
       if (max <= 1) {
         return {mode: 'single'};
       }
       return {
         mode: 'multi',
-        min: model.min ?? 0,
+        min: model?.min ?? 0,
         max,
         picked: this.sub?.kind === 'playedTarget' && this.sub.choiceId === c.id ?
           this.sub.picked :
@@ -3176,9 +3274,20 @@ export default defineComponent({
       };
     },
     /** The contextual preview for a candidate — the ONE shared builder. */
-    playedTargetPreview(choice: ComposerChoice, name: CardName) {
+    playedTargetPreview(choice: ComposerChoice, model: SelectCardModel, name: CardName) {
       const step = choice.scope === 'step' ? this.selectedBranch?.steps[choice.index] : undefined;
-      return playedTargetPreviewFor(step, choice.input as SelectCardModel, name, this.selectedBranch?.effects, this.selectedBranch?.vpBox);
+      return playedTargetPreviewFor(step, model, name, this.selectedBranch?.effects, this.selectedBranch?.vpBox);
+    },
+    /**
+     * The `SelectCard` a choice's embedded step is serving: the choice's own
+     * input, or the one NESTED in the or-branch being answered — open now
+     * (`sub.orItem`) or answered earlier (`orDescents`). A METHOD, because the
+     * summary row asks it for a choice that is not the open one.
+     */
+    playedTargetInputFor(c: ComposerChoice): SelectCardModel | undefined {
+      const open = this.sub?.kind === 'playedTarget' && this.sub.choiceId === c.id ? this.sub.orItem : undefined;
+      const input = (open ?? this.orDescents[c.id]?.item)?.nested ?? c.input;
+      return input.type === 'card' ? (input as SelectCardModel) : undefined;
     },
     playedTargetResourceContext(c: ComposerChoice, card: CardModel) {
       return playedTargetResourceFor(c.amount, c.cardResource, card);
@@ -3258,6 +3367,11 @@ export default defineComponent({
       }
       const cards = [...this.sub.picked] as Array<CardName>;
       this.multiPicks[choice.id] = cards;
+      const orItem = this.sub.orItem;
+      if (orItem !== undefined) {
+        this.answerNestedOr(choice, orItem, String(cards.length), {type: 'card', cards});
+        return;
+      }
       this.picks[choice.id] = String(cards.length);
       this.captureFor(choice, {type: 'card', cards});
       this.sub = undefined;
@@ -3279,7 +3393,13 @@ export default defineComponent({
         [choice.id]: playedTargetResultOf(candidate, owners, this.playedTargetVersion),
       };
       // The capture is the same shape every card pick uses — the rich result is
-      // presentation context, never a second source of truth.
+      // presentation context, never a second source of truth… and when the step
+      // is answering an OR-BRANCH, that same shape nests into the branch.
+      const orItem = this.sub.orItem;
+      if (orItem !== undefined) {
+        this.answerNestedOr(choice, orItem, candidate.cardName, {type: 'card', cards: [candidate.cardName]});
+        return;
+      }
       this.captureFor(choice, {type: 'card', cards: [candidate.cardName]});
       this.picks[choice.id] = candidate.cardName;
       this.sub = undefined;
@@ -3382,6 +3502,7 @@ export default defineComponent({
       this.capturedOption = undefined;
       this.picks = {};
       this.multiPicks = {};
+      this.orDescents = {};
       this.amounts = {};
       this.repeatResult = undefined;
       for (const c of this.branchChoiceList) {
@@ -3419,7 +3540,10 @@ export default defineComponent({
           this.cyclePlayedTargetOwner(action === 'prevSection' ? -1 : 1);
           return;
         case 'back':
-          this.sub = undefined;
+          // ONE LOGICAL LEVEL: a step that is answering an or-branch folds back
+          // to the branch list it opened from, never straight out to the
+          // decision column — the player would lose the pick they just made.
+          this.sub = sub.orItem !== undefined ? this.orListSub(sub.choiceId, sub.orItem) : undefined;
           this.scrollFocused();
           return;
         default:
@@ -3439,12 +3563,12 @@ export default defineComponent({
         this.pickListItem(sub.index);
         return;
       case 'inspect':
-        if (sub.kind === 'list') {
+        if (sub.kind === 'list' || sub.kind === 'orNested') {
           this.inspectListItem(sub.index);
         }
         return;
       case 'back':
-        this.sub = undefined;
+        this.sub = sub.kind === 'orNested' ? this.orListSub(sub.choiceId, sub.item) : undefined;
         return;
       case 'prevTab':
         // The trigger that expanded the block folds it back — a toggle, so the
@@ -3471,11 +3595,21 @@ export default defineComponent({
     pickListItem(index: number): void {
       const sub = this.sub;
       const c = this.subChoice;
-      if (sub === undefined || sub.kind !== 'list' || c === undefined) {
+      if (sub === undefined || (sub.kind !== 'list' && sub.kind !== 'orNested') || c === undefined) {
         return;
       }
       const item = this.listItems[index];
       if (item === undefined || item.disabled) {
+        return;
+      }
+      // ONE LEVEL DEEPER — the branch's own answer, nested into its or-response.
+      if (sub.kind === 'orNested') {
+        const nested = sub.item.nested;
+        if (nested?.type === 'card' && item.card !== undefined) {
+          this.answerNestedOr(c, sub.item, item.card.name, {type: 'card', cards: [item.card.name]});
+        } else if (nested?.type === 'player' && item.color !== undefined) {
+          this.answerNestedOr(c, sub.item, item.color, {type: 'player', player: item.color});
+        }
         return;
       }
       if (c.input.type === 'card' && item.card !== undefined) {
@@ -3485,13 +3619,87 @@ export default defineComponent({
         this.picks[c.id] = item.color;
         this.captureFor(c, {type: 'player', player: item.color});
       } else if (c.input.type === 'or' && item.orItem !== undefined) {
+        // A NESTED-input branch is not an answer — it is the next question.
+        if (item.orItem.nested !== undefined) {
+          this.descendOrBranch(c, item.orItem);
+          return;
+        }
         // `orItemResponse` — the shared byte-parity builder, not a hand-rolled
         // literal: the index it submits is the option's OWN index, so a list
         // that ever grows informational `disabledOptions` rows cannot shift it.
+        delete this.orDescents[c.id];
         this.picks[c.id] = String(item.orItem.optionIndex);
         this.captureFor(c, orItemResponse(item.orItem));
       }
       this.sub = undefined;
+    },
+    /**
+     * DESCEND into an or-branch that is itself an input.
+     *
+     * A nested card pick that lands ENTIRELY on played tableaux opens the SAME
+     * embedded target step a bare card pick opens: it is the same decision
+     * («у какой карты забрать животное»), and a bot option sitting above it in
+     * the list is no reason for pointing at a card to feel different. Anything
+     * else (a player pick, a hand pick) gets the flat premium list.
+     */
+    descendOrBranch(c: ComposerChoice, item: ConsoleOrItem): void {
+      const nested = item.nested;
+      if (nested?.type === 'card' &&
+          !isHandCardSelection(nested as SelectCardModel, this.handNamesSet) &&
+          isCardSelectionWithin(nested as SelectCardModel, this.playedNamesSet)) {
+        this.openPlayedTargetStep(c, item);
+        // …and a descent ALWAYS lands somewhere. The step closes itself when it
+        // finds nothing to point at, and dropping the player out of the pick
+        // entirely there would lose the branch list they were standing in.
+        if (this.sub?.kind === 'playedTarget') {
+          return;
+        }
+      }
+      this.sub = {kind: 'orNested', choiceId: c.id, item, index: 0};
+    },
+    /** The nested branch answered: ONE capture (`{type:'or', index, response}`),
+     *  and the branch + its value remembered so the collapsed row can say WHICH
+     *  card was chosen rather than repeating the question. */
+    answerNestedOr(c: ComposerChoice, item: ConsoleOrItem, pick: string, response: unknown): void {
+      this.orDescents = {...this.orDescents, [c.id]: {item, pick}};
+      this.picks[c.id] = String(item.optionIndex);
+      this.captureFor(c, orItemResponse(item, response));
+      this.sub = undefined;
+      this.scrollFocused();
+    },
+    /** B out of a nested descent → the OR LIST it came from (ONE logical level),
+     *  cursor on the branch row it opened. */
+    orListSub(choiceId: string, item: ConsoleOrItem): SubState | undefined {
+      const c = this.allChoices.find((x: ComposerChoice) => x.id === choiceId);
+      if (c === undefined || c.input.type !== 'or') {
+        return undefined;
+      }
+      const at = buildOrItems(c.input as OrOptionsModel).findIndex((it) => it.optionIndex === item.optionIndex);
+      return {kind: 'list', choiceId, index: Math.max(0, at)};
+    },
+    /** Candidate rows of a NESTED-input or-branch (its own `SelectCard` /
+     *  `SelectPlayer`), in the SAME premium vocabulary the flat lists use. */
+    nestedListItems(c: ComposerChoice, item: ConsoleOrItem): ReadonlyArray<ListItem> {
+      const nested = item.nested;
+      const answered = this.orDescents[c.id];
+      const chosen = answered?.item.optionIndex === item.optionIndex ? answered.pick : undefined;
+      if (nested?.type === 'card') {
+        const model = nested as SelectCardModel;
+        const items: Array<ListItem> = model.cards.map((card): ListItem => this.cardListItem(c, card, chosen === card.name, false));
+        for (const card of model.disabledCards ?? []) {
+          items.push(this.cardListItem(c, card, false, true));
+        }
+        return items;
+      }
+      if (nested?.type === 'player') {
+        const model = nested as SelectPlayerModel;
+        const items: Array<ListItem> = model.players.map((color): ListItem => this.playerListItem(model, color, chosen === color, false, undefined));
+        for (const d of model.disabledPlayers ?? []) {
+          items.push(this.playerListItem(model, d.color, false, true, d.reason));
+        }
+        return items;
+      }
+      return [];
     },
     /**
      * WHERE THIS BRANCH LEADS, if anywhere — the branch's own runtime-navigation
