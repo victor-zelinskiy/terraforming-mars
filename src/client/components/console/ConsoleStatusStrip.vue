@@ -129,24 +129,32 @@
           <ConsoleFlipValue :value="game.generation" :accent="finalGeneration ? 'gold' : 'cyan'" />
         </span>
       </span>
-      <!-- GENERIC PENDING-EVENTS SIGNAL — the queue's presence when NO card is
-           active (events prepared, delivery held behind an animation / prompt
-           plaque). A RESERVED fixed-width slot: appearing may change paint
-           only, never layout. The glyph is the notification family's diamond
-           («◈» — the event voice), deliberately NOT a card/deck metaphor; the
-           count is the ABSOLUTE backlog (9+ cap), neutral tone — the content
-           is not delivered yet, so the signal carries no sign. One soft pulse
-           on 0 → 1 (reduced motion: none), a calm counter swap after. It can
-           never coexist with the contextual «ДАЛЬШЕ +N», which exists only
-           UNDER an active card. -->
+      <!-- GENERIC PENDING-EVENTS SIGNAL — a PERMANENT compact HUD instrument
+           right after «ПКЛ.» (hairline-separated so it never reads as one
+           more global parameter). It ALWAYS renders the same three pieces —
+           divider · the notification family's «◈» diamond (deliberately NOT
+           a card/deck metaphor) · a fixed-width tabular count — so nothing
+           ever appears, disappears or moves: DORMANT is a low-contrast «0»,
+           WAITING raises contrast only (the --on modifier is paint-only).
+           A non-zero count is admitted only after the 500 ms DWELL: the
+           backlog must wait CONTINUOUSLY (no active card + queue non-empty +
+           delivery genuinely blocked) for the whole window, so a sub-500 ms
+           blocker never flashes a «1». Rapid enqueues coalesce into one calm
+           digit crossfade. Purely presentational — real delivery/FIFO never
+           waits on any of this. The contextual «ДАЛЬШЕ +N» owns the backlog
+           under an active card; this slot then rests at «0» by construction. -->
       <span class="con-status__evq"
-            :class="{'con-status__evq--on': pendingSignalShown, 'con-status__evq--pulse': pendingPulse}"
+            :class="{'con-status__evq--on': pendingSignalShown}"
             role="status"
             :aria-label="pendingSignalShown ? $t('Pending events') : undefined"
             aria-hidden="false">
         <span class="con-status__evq-divider" aria-hidden="true"></span>
         <span class="con-status__evq-glyph" aria-hidden="true">◈</span>
-        <span class="con-status__evq-count"><ConsoleFlipValue :value="pendingCountCapped" :text="pendingCountText" accent="cyan" /></span>
+        <span class="con-status__evq-count" aria-hidden="true">
+          <Transition name="con-evq-num">
+            <span :key="shownCountText" class="con-status__evq-num">{{ shownCountText }}</span>
+          </Transition>
+        </span>
       </span>
     </div>
   </div>
@@ -176,6 +184,7 @@ import {participantDisplayName} from '@/client/components/marsbot/marsBotDisplay
 import {presentPlayerStatus, statusCounterText, StatusPresentation, StatusGlyph} from '@/client/components/overview/playerStatusPresenter';
 import {terraformingProgress, TerraformingProgress} from '@/client/components/gameProgress/terraformingProgress';
 import {notificationState} from '@/client/components/notifications/notificationState';
+import {isNotificationDeliveryBlocked} from '@/client/components/presentation/presentationFlow';
 import {finalGenerationActive, terraformingCelebrationState} from '@/client/components/gameProgress/terraformingCelebration';
 import {motionMs} from '@/client/components/motion/motionTokens';
 import {translateText} from '@/client/directives/i18n';
@@ -237,10 +246,19 @@ export default defineComponent({
     ghostParam: {type: String as PropType<'temperature' | 'oxygen' | 'oceans' | 'venus' | undefined>, default: undefined},
     /** Engagement debounce (ms). A prop so specs can shrink it. */
     attentionEngageMs: {type: Number, default: 1200},
-    /** The generic pending-events signal's engage hysteresis (ms) — a
-     *  promotion hand-over satisfies the raw state for one flush and must
-     *  not flash the slot. A prop so specs can shrink it. */
-    pendingEngageMs: {type: Number, default: 240},
+    /**
+     * The DWELL window (ms) before a non-zero count may show: the backlog
+     * must wait CONTINUOUSLY for this long — a blocker that clears sooner, a
+     * card presenting, or the queue emptying cancels the timer and the slot
+     * never leaves its dormant «0». A prop so specs can shrink it.
+     */
+    pendingEngageMs: {type: Number, default: 500},
+    /**
+     * Rapid COUNT changes after engagement coalesce into one calm update
+     * inside this window (the truth stays exact — the fire reads the LIVE
+     * count). Dormant↔waiting edges apply immediately. A prop for specs.
+     */
+    pendingCoalesceMs: {type: Number, default: 120},
   },
   data() {
     return {
@@ -254,16 +272,18 @@ export default defineComponent({
       celebrating: false,
       celebrateTimer: undefined as number | undefined,
       /**
-       * The generic pending-events signal, ENGAGED (short hysteresis). The raw
-       * state «no active card + non-empty queue» is true for one flush during
-       * an ordinary promotion — engaging it instantly would flash the slot for
-       * a frame every time a card hands over. Release is instant.
+       * The generic pending-events signal, ENGAGED — the 500 ms dwell ran to
+       * completion with the raw state continuously true. The raw state is
+       * true for one flush during an ordinary promotion hand-over and for
+       * the whole life of a SHORT blocker; neither may reach the player's
+       * eye, so nothing shows until the dwell survives. Release is instant.
        */
       evqEngaged: false,
       evqTimer: undefined as number | undefined,
-      /** One-shot soft pulse when the backlog appears (0 → 1+). */
-      pendingPulse: false,
-      pendingPulseTimer: undefined as number | undefined,
+      /** The DISPLAYED count («0» dormant / «N» / «9+») — follows the live
+       *  queue through the coalescing window, never a stale number. */
+      shownCountText: '0',
+      evqCountTimer: undefined as number | undefined,
     };
   },
   computed: {
@@ -334,25 +354,32 @@ export default defineComponent({
       return terraformingCelebrationState.celebrationNonce;
     },
     /**
-     * RAW generic-signal state: prepared events wait in the FIFO and NO card
-     * is active (the contextual «ДАЛЬШЕ +N» exists only under an active card,
-     * so the two are mutually exclusive by construction). While a card IS
-     * active the backlog belongs to its own tail chip, not to the top bar.
+     * RAW generic-signal state: prepared events wait in the FIFO, NO card is
+     * active, and delivery is GENUINELY blocked (an animation / a reveal /
+     * the theater / a ceremony own the screen). All three, deliberately:
+     *  - with a card active the backlog belongs to «ДАЛЬШЕ +N» (mutual
+     *    exclusion by construction);
+     *  - with delivery open the next card presents in the same flush — that
+     *    transitional shape must never light the slot.
      */
     pendingSignalRaw(): boolean {
-      return notificationState.transient.length === 0 && notificationState.queue.length > 0;
+      return notificationState.transient.length === 0 &&
+        notificationState.queue.length > 0 &&
+        isNotificationDeliveryBlocked();
     },
-    /** The signal as SHOWN (raw + engage hysteresis, instant release). */
+    /** The signal as SHOWN — the dwell latch AND the live conditions (the
+     *  «re-check at expiry» of the contract is this conjunction). */
     pendingSignalShown(): boolean {
       return this.evqEngaged && this.pendingSignalRaw;
     },
-    /** Absolute backlog, capped for the compact slot. */
-    pendingCountCapped(): number {
-      return Math.min(notificationState.queue.length, 10);
-    },
+    /** Absolute live backlog, 9+ capped (the truth the display follows). */
     pendingCountText(): string {
       const n = notificationState.queue.length;
       return n > 9 ? '9+' : String(n);
+    },
+    /** What the slot SHOULD read right now — «0» whenever it is not shown. */
+    evqTarget(): string {
+      return this.pendingSignalShown ? this.pendingCountText : '0';
     },
     terraAriaLabel(): string {
       return `${translateText('Terraforming progress')}: ${this.progress.percent}%`;
@@ -390,10 +417,14 @@ export default defineComponent({
         }, motionMs(2600));
       }
     },
-    // The generic pending-events signal: engage after a short hysteresis (a
-    // promotion hand-over satisfies the raw state for one flush and must not
-    // flash the slot), release instantly. One soft pulse on the engage edge —
-    // after that the element stays calm and only the counter swaps.
+    // The generic pending-events signal — the 500 ms DWELL. A rising raw
+    // state arms the timer; ANY interruption (blocker cleared, delivery
+    // started, a card presented, the queue emptied) cancels it on the falling
+    // edge, so «continuously waiting» is literal. The timer firing sets the
+    // latch only — whether anything SHOWS is re-derived from the LIVE raw
+    // state (`pendingSignalShown = engaged && raw`), which is the «re-check
+    // every condition at expiry» step by construction. Purely visual: the
+    // real queue/delivery never waits on any of this.
     pendingSignalRaw: {
       immediate: true,
       handler(raw: boolean): void {
@@ -404,13 +435,6 @@ export default defineComponent({
           this.evqTimer = window.setTimeout(() => {
             this.evqTimer = undefined;
             this.evqEngaged = true;
-            this.pendingPulse = true;
-            if (this.pendingPulseTimer !== undefined) {
-              window.clearTimeout(this.pendingPulseTimer);
-            }
-            this.pendingPulseTimer = window.setTimeout(() => {
-              this.pendingPulse = false;
-            }, motionMs(900));
           }, this.pendingEngageMs);
         } else {
           if (this.evqTimer !== undefined) {
@@ -419,6 +443,35 @@ export default defineComponent({
           }
           this.evqEngaged = false;
         }
+      },
+    },
+    // The DISPLAYED count follows the target with a short coalescing window:
+    // dormant↔waiting edges apply IMMEDIATELY (the dwell already filtered the
+    // noise — engagement must show the real number at once, and the return to
+    // «0» must not lag the card that took over), while N→M churn inside the
+    // waiting state batches into one calm crossfade. The fire reads the LIVE
+    // target, so the digit shown is always the current truth.
+    evqTarget: {
+      immediate: true,
+      handler(target: string): void {
+        if (target === this.shownCountText) {
+          return;
+        }
+        if (target === '0' || this.shownCountText === '0') {
+          if (this.evqCountTimer !== undefined) {
+            window.clearTimeout(this.evqCountTimer);
+            this.evqCountTimer = undefined;
+          }
+          this.shownCountText = target;
+          return;
+        }
+        if (this.evqCountTimer !== undefined) {
+          return; // the pending fire reads the live target — nothing to re-arm
+        }
+        this.evqCountTimer = window.setTimeout(() => {
+          this.evqCountTimer = undefined;
+          this.shownCountText = this.evqTarget;
+        }, this.pendingCoalesceMs);
       },
     },
     // One-shot pulse on the Temp/O₂/Oceans group when terraforming completes
@@ -447,8 +500,8 @@ export default defineComponent({
     if (this.evqTimer !== undefined) {
       window.clearTimeout(this.evqTimer);
     }
-    if (this.pendingPulseTimer !== undefined) {
-      window.clearTimeout(this.pendingPulseTimer);
+    if (this.evqCountTimer !== undefined) {
+      window.clearTimeout(this.evqCountTimer);
     }
   },
   methods: {

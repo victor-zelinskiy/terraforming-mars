@@ -1835,52 +1835,57 @@ html.console-native {
         color: @con-text-dim;
     }
 
-    /* GENERIC PENDING-EVENTS SIGNAL — the reserved system slot right after
-       «ПКЛ.». The width is RESERVED whether or not it speaks (appearing is a
-       paint change only — the top bar never re-flows for it); the hairline
-       divider keeps it from reading as one more global parameter. NEUTRAL by
-       contract (the queued content is undelivered, so the signal carries no
-       sign); the glyph is the notification family's diamond, deliberately
-       nothing like the deck stack beside it. Calm: one soft pulse on 0 → 1
-       (the --pulse one-shot), then static — the counter swaps via the shared
-       flip, the element itself never blinks. */
+    /* GENERIC PENDING-EVENTS SIGNAL — the PERMANENT compact instrument right
+       after «ПКЛ.». Always the same three pieces (hairline divider · «◈» ·
+       a fixed-width tabular count), so nothing ever appears, disappears or
+       moves — the top bar cannot shift a pixel for it. DORMANT = the same
+       markup at low contrast reading «0»; WAITING (--on) raises contrast
+       ONLY. The width is the minimal stable box: divider + glyph + «9+» +
+       breathing room, identical for 0 / 1 / 9 / 9+ (tabular numerals + a
+       fixed count cell). NEUTRAL by contract (undelivered content carries no
+       sign); the diamond is the notification family's voice, deliberately
+       nothing like the deck stack beside it. No pulse, no blink, no scale —
+       the only motion is a short digit crossfade and the contrast ease. */
     &__evq {
         position: relative;
         display: inline-flex;
         align-items: baseline;
-        gap: .4rem;
-        width: 3.6rem;
+        gap: .3rem;
+        width: 2.7rem;
         flex: 0 0 auto;
-        opacity: 0;
-        visibility: hidden;
-        transition: opacity calc(180ms * var(--motion-scale, 1)) ease;
-
-        &--on {
-            opacity: 1;
-            visibility: visible;
-        }
     }
     &__evq-divider {
         align-self: center;
         width: .05rem;
-        height: .9rem;
-        background: fade(@con-cyan, 22%);
+        height: .8rem;
+        background: fade(@con-cyan, 16%);
         flex: 0 0 auto;
+        transition: background-color calc(180ms * var(--motion-scale, 1)) ease;
     }
     &__evq-glyph {
-        font-size: .95rem;
+        font-size: .85rem;
         line-height: 1;
         align-self: center;
-        color: fade(@con-cyan, 72%);
+        color: fade(@con-text-dim, 45%);
+        transition: color calc(180ms * var(--motion-scale, 1)) ease;
     }
     &__evq-count {
-        font-size: 1.05rem;
+        display: grid;
+        justify-items: start;
+        width: 1.15rem;
+        font-size: .95rem;
         font-weight: 700;
         font-variant-numeric: tabular-nums;
-        color: @con-text-dim;
+        color: fade(@con-text-dim, 48%);
+        transition: color calc(180ms * var(--motion-scale, 1)) ease;
     }
-    &__evq--pulse &__evq-glyph {
-        animation: con-evq-pulse calc(860ms * var(--motion-scale, 1)) ease-out 1;
+    &__evq-num {
+        grid-area: ~"1 / 1";
+    }
+    &__evq--on {
+        .con-status__evq-glyph { color: fade(@con-cyan, 82%); }
+        .con-status__evq-count { color: fade(@con-text, 94%); }
+        .con-status__evq-divider { background: fade(@con-cyan, 26%); }
     }
 
     &__players {
@@ -2084,20 +2089,32 @@ html.console-native {
     .con-beacon-leave-active { transition: none; }
 }
 
-/* Generic pending-events signal: ONE soft pulse when the backlog appears
-   (0 → 1), transform/opacity only (paint baseline), then it rests. Reduced
-   motion kills the pulse outright — the appearing glyph is the whole cue. */
-@keyframes con-evq-pulse {
-    0% { transform: scale(1); opacity: .55; }
-    28% { transform: scale(1.22); opacity: 1; }
-    100% { transform: scale(1); opacity: 1; }
+/* Generic pending-events signal: the ONLY motion is a short digit crossfade
+   (two layers in one grid cell — never mode="out-in", which empties the slot)
+   plus the dormant↔waiting contrast ease. No pulse, no scale, no container
+   entrance. Reduced motion: every change is INSTANT, still zero reflow. */
+.con-evq-num-enter-active,
+.con-evq-num-leave-active {
+    transition: opacity calc(140ms * var(--motion-scale, 1)) ease;
+}
+.con-evq-num-enter-from,
+.con-evq-num-leave-to {
+    opacity: 0;
 }
 @media (prefers-reduced-motion: reduce) {
-    .con-status__evq--pulse .con-status__evq-glyph { animation: none; }
-    .con-status__evq { transition: none; }
+    .con-evq-num-enter-active,
+    .con-evq-num-leave-active { transition: none; }
+    .con-status__evq-glyph,
+    .con-status__evq-count,
+    .con-status__evq-divider { transition: none; }
 }
-html.con-reduced-motion .con-status__evq--pulse .con-status__evq-glyph { animation: none; }
-html.con-reduced-motion .con-status__evq { transition: none; }
+html.con-reduced-motion {
+    .con-evq-num-enter-active,
+    .con-evq-num-leave-active { transition: none; }
+    .con-status__evq-glyph,
+    .con-status__evq-count,
+    .con-status__evq-divider { transition: none; }
+}
 
 @keyframes con-turn-burst {
     0% { box-shadow: inset 0 0 0 .05rem fade(@con-mint, 75%), 0 0 0 rgba(88, 214, 166, 0); transform: scale(1); }
@@ -30973,11 +30990,11 @@ html.con-profile-handheld {
            it — a bare number read as ambiguous), just compact. The gold
            final-generation marker recolours the same element (colour only). */
         &__gen-label { font-size: .55rem; letter-spacing: .06rem; }
-        /* Pending-events signal: same reserved-slot contract, Deck-compact. */
-        &__evq { width: 2.6rem; gap: .3rem; }
-        &__evq-glyph { font-size: .75rem; }
-        &__evq-count { font-size: .8rem; }
-        &__evq-divider { height: .7rem; }
+        /* Pending-events signal: same permanent-slot contract, Deck-compact. */
+        &__evq { width: 2.15rem; gap: .25rem; }
+        &__evq-glyph { font-size: .7rem; }
+        &__evq-count { font-size: .75rem; width: .9rem; }
+        &__evq-divider { height: .65rem; }
         &__intel { gap: .6rem; }
         &__intel-label { display: none; } /* icon + numbers suffice */
         &__intel-value { font-size: .8rem; b { font-size: .9rem; } }

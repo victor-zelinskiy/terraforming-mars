@@ -53,6 +53,10 @@ type Sample = {
   cards: Array<CardSample>,
   tailVisible: boolean,
   evqVisible: boolean,
+  /** Rounded boxes of the permanent top-bar slot + the «ПКЛ.» block — the
+   *  «bar never shifts a pixel» polish claim, sampled every frame. */
+  evqRect: string,
+  genRect: string,
 };
 
 async function shoot(page: Page, name: string): Promise<void> {
@@ -113,11 +117,21 @@ async function armAuditor(page: Page): Promise<void> {
           leaving: el.classList.contains('notification-pop-leave-active'),
         };
       });
+      const rectOf = (sel: string): string => {
+        const el = document.querySelector(sel);
+        if (el === null) {
+          return 'absent';
+        }
+        const r = el.getBoundingClientRect();
+        return `${Math.round(r.left)},${Math.round(r.top)},${Math.round(r.width)},${Math.round(r.height)}`;
+      };
       w.__notifSamples!.push({
         t: Date.now(),
         cards,
         tailVisible: visible(document.querySelector('.con-notifq')),
         evqVisible: visible(document.querySelector('.con-status__evq--on')),
+        evqRect: rectOf('.con-status__evq'),
+        genRect: rectOf('.con-status__gen'),
       });
       if (w.__notifSamples!.length > 20_000) {
         w.__notifSamples!.splice(0, 5_000);
@@ -159,12 +173,20 @@ async function hostileCardSampled(page: Page): Promise<boolean> {
  * real player's own road.
  */
 async function passUntilHostileCard(page: Page): Promise<boolean> {
+  let waitingShotTaken = false;
   for (let round = 0; round < 10; round++) {
     // Watch the feed for a while — the bot's run presents card by card.
     const watchUntil = Date.now() + 22_000;
     while (Date.now() < watchUntil) {
       if (await hostileCardLive(page)) {
         return true;
+      }
+      // Best-effort visual record of the WAITING slot (needs a ≥500 ms
+      // blocked backlog with no card — a bot run's tile animation window).
+      if (!waitingShotTaken &&
+          await page.locator('.con-status__evq--on').count() > 0) {
+        waitingShotTaken = true;
+        await shoot(page, '00-evq-waiting');
       }
       await page.screenshot({clip: {x: 0, y: 0, width: 8, height: 8}}).catch(() => {});
       await page.waitForTimeout(300);
@@ -288,6 +310,49 @@ test.describe('bonus-card attack — atomic notification lifecycle', () => {
         expect(active, 'the top-bar signal coexisted with an active card').toBe(false);
       }
       expect(frame.tailVisible && frame.evqVisible, 'both indicators in one frame').toBe(false);
+    }
+
+    // ── The permanent slot NEVER moves the top bar — not by one pixel ─────
+    // The evq slot holds ONE box across every sampled frame of the whole run
+    // (dormant, waiting, transitions — all of it). The «ПКЛ.» block beside it
+    // may transiently WIDEN leftward while its value flip-swaps (the
+    // pre-existing premium announcement, out of this polish's scope) — what
+    // it may never do is displace its neighbours: its right edge and vertical
+    // band are pinned.
+    const evqRects = new Set(samples.map((f) => f.evqRect));
+    expect([...evqRects], 'the pending-events slot moved/resized').toHaveLength(1);
+    expect(samples[0].evqRect).not.toBe('absent');
+    const genEdges = new Set(samples.map((f) => {
+      if (f.genRect === 'absent') {
+        return 'absent';
+      }
+      const [left, top, width, height] = f.genRect.split(',').map(Number);
+      return `${left + width},${top},${height}`;
+    }));
+    expect([...genEdges], 'the «ПКЛ.» block displaced its neighbours').toHaveLength(1);
+    const evqWaitingFrames = samples.filter((f) => f.evqVisible).length;
+    console.log(`[notif-bonus] evq slot box: ${samples[0].evqRect}; waiting frames sampled: ${evqWaitingFrames}/${samples.length}`);
+
+    // ── Best-effort WAITING visual: the turn review is a real ≥500 ms
+    //    blocker — opening it from the live card (X-hold) dismisses the card,
+    //    and a queued follow-up then waits blocked with nothing active: the
+    //    exact dormant → waiting transition of the permanent top-bar slot.
+    //    Purely opportunistic (needs a backlog at this moment) — the DOM
+    //    specs carry the deterministic proof; this only records the pixels.
+    if (await hostileCardLive(page) &&
+        await page.locator('.con-notifq').count() > 0) {
+      await page.keyboard.down('KeyX');
+      await page.waitForTimeout(1_000);
+      await page.keyboard.up('KeyX');
+      if (await page.locator('.mbr').count() > 0) {
+        const lit = await page.waitForSelector('.con-status__evq--on', {timeout: 2_500}).catch(() => null);
+        await settle(page, 400);
+        if (lit !== null) {
+          await shoot(page, '03-evq-waiting');
+        }
+        await page.keyboard.press('Escape'); // close the review
+        await settle(page, 900);
+      }
     }
 
     // ── It leaves exactly once and never returns ──────────────────────────

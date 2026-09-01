@@ -156,12 +156,17 @@ describe('ConsoleStatusStrip generation label', () => {
   });
 });
 
-// ── The GENERIC PENDING-EVENTS SIGNAL (iteration 3 — the top-bar slot) ───────
-// The reserved slot after «ПКЛ.»: speaks ONLY when prepared events wait with
-// NO active card (the contextual «ДАЛЬШЕ +N» owns the backlog under an active
-// card, so the two indicators are mutually exclusive by construction).
+
+// ── The GENERIC PENDING-EVENTS SIGNAL (the permanent top-bar slot) ───────────
+// A PERMANENT compact instrument after «ПКЛ.»: dormant low-contrast «0» at
+// all times, the waiting contrast + the real count ONLY after the backlog has
+// waited CONTINUOUSLY through the 500 ms dwell (no active card + non-empty
+// queue + delivery genuinely blocked). Purely presentational — the real
+// delivery/FIFO never waits on it.
 import {notificationState, resetNotifications, pushTransient} from '@/client/components/notifications/notificationState';
 import {NOTIFICATION_PRIORITY} from '@/client/components/notifications/notificationTypes';
+import {revealResultState, dismissReveal} from '@/client/components/actions/revealResultState';
+import {resetPresentationLeases} from '@/client/components/presentation/presentationFlow';
 
 function queuedModel(id: string) {
   return {
@@ -175,75 +180,157 @@ function queuedModel(id: string) {
 describe('ConsoleStatusStrip pending-events signal (.con-status__evq)', () => {
   beforeEach(() => {
     resetNotifications();
+    resetPresentationLeases();
+    dismissReveal();
     notificationState.seeded = true;
   });
   afterEach(() => {
+    dismissReveal();
     resetNotifications();
   });
 
-  function mountEvq(engageMs = 5) {
+  function mountEvq(dwellMs = 20, coalesceMs = 20) {
     return mount(ConsoleStatusStrip, {
       global: {
         ...globalConfig.global,
         stubs: {AnimatedMetricValue: true, ConsoleFlipValue: true, ConsoleProjectDeck: true},
       },
-      props: {playerView: view(), attentionPending: false, pendingEngageMs: engageMs},
+      props: {playerView: view(), attentionPending: false, pendingEngageMs: dwellMs, pendingCoalesceMs: coalesceMs},
     });
   }
 
-  it('the slot is ALWAYS reserved (layout never shifts) and silent when idle', () => {
+  function countText(w: ReturnType<typeof mountEvq>): string {
+    return w.find('.con-status__evq-count').text().trim();
+  }
+
+  it('the slot is PERMANENT: dormant «0» with the glyph, never hidden, never resized', () => {
     const w = mountEvq();
     const evq = w.find('.con-status__evq');
-    expect(evq.exists(), 'the reserved slot is always in the DOM').to.be.true;
+    expect(evq.exists(), 'the slot is always in the DOM').to.be.true;
     expect(evq.classes()).to.not.include('con-status__evq--on');
+    expect(countText(w)).to.equal('0');
+    expect(w.find('.con-status__evq-glyph').text()).to.equal('◈');
   });
 
-  it('speaks after the hysteresis when events wait with NO active card, with the absolute count', async () => {
-    const w = mountEvq(5);
+  it('a backlog that waits out the FULL dwell (blocked, no active card) shows the real count', async () => {
+    const w = mountEvq(20);
+    revealResultState.active = true; // delivery genuinely blocked
     notificationState.queue.push(queuedModel('q1'), queuedModel('q2'));
     await w.vm.$nextTick();
-    // Raw state just rose — the hysteresis is still holding (no flash).
+    // Inside the dwell: still dormant «0».
     expect(w.find('.con-status__evq--on').exists()).to.be.false;
-    await sleep(25);
+    expect(countText(w)).to.equal('0');
+    await sleep(45);
     await w.vm.$nextTick();
     expect(w.find('.con-status__evq--on').exists()).to.be.true;
-    // One soft pulse on the engage edge.
-    expect(w.find('.con-status__evq--pulse').exists()).to.be.true;
+    // Engagement shows the ACTUAL count at once — never a 0→1→2 replay.
+    expect(countText(w)).to.equal('2');
   });
 
-  it('NEVER speaks while a card is active — the backlog belongs to «ДАЛЬШЕ +N»', async () => {
-    const w = mountEvq(5);
-    pushTransient(queuedModel('shown')); // presents (no blocker in this env)
+  it('a blocker shorter than the dwell NEVER lights the slot (the timer is cancelled)', async () => {
+    const w = mountEvq(60);
+    revealResultState.active = true;
     notificationState.queue.push(queuedModel('q1'));
-    await sleep(25);
+    await w.vm.$nextTick();
+    await sleep(15);
+    // The blocker clears BEFORE the dwell expires — the raw state falls
+    // (promoteFromQueue presents the card on the freed broadcast).
+    dismissReveal();
+    await w.vm.$nextTick();
+    await sleep(90);
+    await w.vm.$nextTick();
+    expect(w.find('.con-status__evq--on').exists(), 'no post-hoc flash after the boundary').to.be.false;
+    expect(countText(w)).to.equal('0');
+    // …and the delivery itself was never delayed by the visual dwell.
+    expect(notificationState.transient.map((n) => n.id)).to.deep.eq(['q1']);
+  });
+
+  it('the dwell expiry RE-CHECKS the live conditions — a queue that emptied stays dormant', async () => {
+    const w = mountEvq(25);
+    revealResultState.active = true;
+    notificationState.queue.push(queuedModel('q1'));
+    await w.vm.$nextTick();
+    // The event leaves the queue before the dwell fires (drained elsewhere).
+    notificationState.queue.splice(0);
+    await w.vm.$nextTick();
+    await sleep(50);
+    await w.vm.$nextTick();
+    expect(w.find('.con-status__evq--on').exists()).to.be.false;
+    expect(countText(w)).to.equal('0');
+  });
+
+  it('while a card is ACTIVE the slot rests at «0» — the backlog belongs to «ДАЛЬШЕ +N»', async () => {
+    const w = mountEvq(15);
+    pushTransient(queuedModel('shown')); // presents (delivery open at this point)
+    revealResultState.active = true; // a blocker rises AFTER the card is up
+    notificationState.queue.push(queuedModel('q1'));
+    await sleep(40);
     await w.vm.$nextTick();
     expect(notificationState.transient.length, 'a card is active').to.be.greaterThan(0);
     expect(w.find('.con-status__evq--on').exists()).to.be.false;
+    expect(countText(w)).to.equal('0');
   });
 
-  it('releases INSTANTLY when the queue empties or a card presents', async () => {
-    const w = mountEvq(5);
+  it('rapid enqueues COALESCE: one calm update to the latest truth, never 1→2→3 churn', async () => {
+    const w = mountEvq(15, 40);
+    revealResultState.active = true;
     notificationState.queue.push(queuedModel('q1'));
-    await sleep(25);
+    await sleep(35);
+    await w.vm.$nextTick();
+    expect(countText(w)).to.equal('1');
+    // Two more land in quick succession — the display holds, then jumps once.
+    notificationState.queue.push(queuedModel('q2'));
+    await w.vm.$nextTick();
+    notificationState.queue.push(queuedModel('q3'));
+    await w.vm.$nextTick();
+    expect(countText(w), 'inside the coalescing window the digit holds').to.equal('1');
+    await sleep(60);
+    await w.vm.$nextTick();
+    expect(countText(w)).to.equal('3');
+  });
+
+  it('delivery resuming returns the slot to dormant «0» IMMEDIATELY (no coalesce lag)', async () => {
+    const w = mountEvq(15, 500);
+    revealResultState.active = true;
+    notificationState.queue.push(queuedModel('q1'));
+    await sleep(35);
     await w.vm.$nextTick();
     expect(w.find('.con-status__evq--on').exists()).to.be.true;
-    notificationState.queue.splice(0);
+    dismissReveal(); // freed → the card presents in the same broadcast
     await w.vm.$nextTick();
     expect(w.find('.con-status__evq--on').exists()).to.be.false;
+    expect(countText(w), 'the return to dormant never waits on the coalescing window').to.equal('0');
+    expect(notificationState.transient.map((n) => n.id)).to.deep.eq(['q1']);
   });
 
-  it('caps the readable count at 9+', async () => {
-    const w = mountEvq(5);
+  it('caps the readable count at 9+ (fixed cell, tabular — no width change)', async () => {
+    const w = mountEvq(15);
+    revealResultState.active = true;
     for (let i = 0; i < 12; i++) {
       notificationState.queue.push(queuedModel(`q${i}`));
     }
-    await sleep(25);
+    await sleep(35);
     await w.vm.$nextTick();
+    expect(countText(w)).to.equal('9+');
     expect((w.vm as unknown as {pendingCountText: string}).pendingCountText).to.equal('9+');
   });
 
   it('the glyph is the notification diamond — never a card/deck metaphor', () => {
     const w = mountEvq();
     expect(w.find('.con-status__evq-glyph').text()).to.equal('◈');
+  });
+
+  it('the visual layer never mutates the queue or delays FIFO (read-only by construction)', async () => {
+    const w = mountEvq(500); // a dwell far longer than the test
+    revealResultState.active = true;
+    notificationState.queue.push(queuedModel('q1'), queuedModel('q2'));
+    await w.vm.$nextTick();
+    dismissReveal();
+    await w.vm.$nextTick();
+    // The queue promoted on the freed broadcast — with the dwell still armed
+    // and the slot silent: the indicator observed, it never gated.
+    expect(notificationState.transient.map((n) => n.id)).to.deep.eq(['q1']);
+    expect(notificationState.queue.map((n) => n.id)).to.deep.eq(['q2']);
+    expect(w.find('.con-status__evq--on').exists()).to.be.false;
   });
 });

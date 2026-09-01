@@ -56,12 +56,24 @@ backward edge): priority now acts only inside the queue, at promotion.
 `.con-notifq` («ДАЛЬШЕ +N») is CONTEXTUAL: it renders only UNDER an active
 card (`transient.length > 0 && queue.length > 0`) and leaves with it. With NO
 active card the backlog signal is the top-bar `.con-status__evq` slot right
-after «ПКЛ.» (ConsoleStatusStrip): a RESERVED fixed-width slot (appearing is
-paint-only, never layout), the notification family's ◈ glyph + the ABSOLUTE
-count (9+ cap), neutral tone, a hairline divider from the generation block,
-one soft pulse on 0 → 1 (240 ms engage hysteresis kills promotion-frame
-flashes; release instant; reduced motion kills the pulse), then static — the
-counter swaps via the shared flip.
+after «ПКЛ.» (ConsoleStatusStrip) — a PERMANENT compact HUD instrument
+(polish iteration): the same three pieces always render (hairline divider ·
+the ◈ event glyph · a fixed-width tabular count cell), so nothing ever
+appears, disappears or moves — DORMANT is a low-contrast «0», WAITING
+(`--on`) raises contrast only (paint, zero layout). A non-zero count is
+admitted only through the **500 ms DWELL** (`pendingEngageMs`): the raw state
+(«no active card + non-empty queue + `isNotificationDeliveryBlocked()`») must
+hold CONTINUOUSLY — any interruption cancels the timer, and the expiry
+re-checks the live conditions (`shown = engagedLatch && raw`), so a sub-500 ms
+blocker never flashes a «1». Engagement shows the ACTUAL count at once;
+subsequent churn coalesces in `pendingCoalesceMs` (120 ms) into one calm
+digit crossfade (two grid layers — never `mode="out-in"`); the return to
+dormant «0» is immediate. NO pulse/scale/blink; reduced motion drops the
+crossfade and the contrast ease (instant, still zero reflow). Purely
+presentational — real delivery/FIFO never waits on any of it. Guards: the
+evq describe in `consoleStatusStrip.spec.ts` (dwell, cancellation, re-check,
+coalescing, active-card rest, 9+, read-only) + the e2e's per-frame rect
+assertion (the slot and the «ПКЛ.» block hold ONE box across the whole run).
 
 Guards: the preparing/monotonic blocks in `notificationState.spec.ts`, the
 attack-step blocks in `notificationSemantics.spec.ts`, the atomic bonus-card
