@@ -1,4 +1,5 @@
 import {Resource} from '../../common/Resource';
+import {bonusCardInfo} from '../../common/automa/BonusCardData';
 import {MarsBotBonusFate} from '../../common/automa/MarsBotTurn';
 import {IGame} from '../IGame';
 import {IPlayer} from '../IPlayer';
@@ -111,7 +112,10 @@ export class AutomaController {
       AutomaResolver.resolveProjectCard(game, card);
       automa.playedPile.push(entry.name);
     } else {
-      game.log('${0} played a bonus card', (b) => b.player(bot));
+      // The bonus card is NAMED — «разыграл бонусную карту» with no name made
+      // the turn's headline an empty statement (the card is public the moment
+      // it is flipped; its name is an i18n key like every automa string).
+      game.log('${0} played the bonus card ${1}', (b) => b.player(bot).string(bonusCardInfo(entry.id).name));
       AutomaTurnLog.note(game, {kind: 'reveal', card: entry}, {consumeLog: true});
       // Phase B: the bonus card's effect steps are attributed to the 'bonus'
       // cause (a colony trade re-attributes to 'colony' internally); the card's

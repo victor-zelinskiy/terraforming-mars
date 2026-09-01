@@ -30,6 +30,6 @@ export class AutomaTerraformer {
     }
     const bot = marsBotOf(game);
     game.increaseTemperature(bot, 1);
-    game.log('${0} raised ${1} ${2} step(s)', (b) => b.player(bot).globalParameter(GlobalParameter.TEMPERATURE).number(1));
+    game.log('${0} raised ${1} ${2} step(s) raised ${1} ${2} {step|steps}', (b) => b.player(bot).globalParameter(GlobalParameter.TEMPERATURE).number(1));
   }
 }

@@ -69,7 +69,7 @@ export function advanceFurthestMartianParameter(game: IGame): boolean {
     // because the action WAS taken, just converted.
     if (!AutomaCorporations.replacesParameterRaise(game, GlobalParameter.OXYGEN)) {
       game.increaseOxygenLevel(bot, 1);
-      game.log('${0} raised ${1} ${2} step(s)', (b) => b.player(bot).globalParameter(GlobalParameter.OXYGEN).number(1));
+      game.log('${0} raised ${1} ${2} step(s) raised ${1} ${2} {step|steps}', (b) => b.player(bot).globalParameter(GlobalParameter.OXYGEN).number(1));
     }
   } else if (oceansLeft === most) {
     AutomaTilePlacer.placeOcean(game); // …consulted inside the shared placer.
@@ -842,7 +842,7 @@ function governmentIntervention(game: IGame): BonusCardOutcome {
     if (game.getVenusScaleLevel() < constants.MAX_VENUS_SCALE &&
         !AutomaCorporations.replacesParameterRaise(game, GlobalParameter.VENUS)) {
       game.increaseVenusScaleLevel(bot, 1);
-      game.log('${0} raised ${1} ${2} step(s)', (b) => b.player(bot).globalParameter(GlobalParameter.VENUS).number(1));
+      game.log('${0} raised ${1} ${2} step(s) raised ${1} ${2} {step|steps}', (b) => b.player(bot).globalParameter(GlobalParameter.VENUS).number(1));
     }
     return 'discard';
   } finally {

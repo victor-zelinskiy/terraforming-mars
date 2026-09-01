@@ -49,11 +49,28 @@ Before changing it, check the console consumers in docs/DESKTOP_DEPRECATION_AUDI
           @cta-secondary="onSecondaryCta" />
       </TransitionGroup>
 
+      <!-- CONSOLE pending-queue TAIL: a quiet service chip riding UNDER the
+           stack — visually bound to the surface whose backlog it counts,
+           never a centre-stage banner competing with the event being read.
+           Informational only (the cards advance FIFO on their own); the
+           critical accent marks a hostile loss / AI turn waiting. -->
+      <Transition name="notification-pop">
+        <div v-if="consoleEnabled && pending.count > 0"
+             class="con-notifq"
+             :class="{'con-notifq--critical': pending.critical}"
+             role="status"
+             :aria-label="$t('Pending events')">
+          <span class="con-notifq__dot" aria-hidden="true"></span>
+          <span v-i18n>Next up</span>
+          <span class="con-notifq__count">+{{ pending.count }}</span>
+        </div>
+      </Transition>
+
       <!-- Pending-queue indicator: a quiet clickable pill under the feed —
            events are waiting their FIFO turn behind the active foreground
            item. Click → open the journal (the canonical event center); the
            queued ordinary cards are dropped there, critical ones stay.
-           Desktop only — the console shell shows its own banner-band chip. -->
+           Desktop only — the console feed shows the tail chip above. -->
       <Transition name="notification-pop">
         <button v-if="!consoleEnabled && pending.count > 0"
                 class="notif-pending"
@@ -92,7 +109,6 @@ import {
   buildTurnNotification,
   buildGenerationNotification,
   buildPassNotification,
-  buildScaleBonusClaimNotification,
   buildTerraformingCompleteNotification,
 } from '@/client/components/notifications/notificationModel';
 import {
@@ -102,7 +118,6 @@ import {
 } from '@/client/components/gameProgress/terraformingCelebration';
 import {resetStartSetupReveal} from '@/client/components/startGameFlow/startSetupRevealState';
 import {observeMaCeremony, resetMaCeremony} from '@/client/components/ma/maCeremonyState';
-import {scaleBonusRewardKey} from '@/client/components/board/scaleBonusZones';
 import {isPlayerPanelVisible} from '@/client/components/overview/turnHandoffState';
 import {openRevealViewer} from '@/client/components/notifications/revealViewerState';
 import {startRealtimePoller} from '@/client/components/realtime/realtimePoller';
@@ -288,9 +303,11 @@ export default defineComponent({
       }
       // 2) Generation / pass highlights (from the public game model).
       this.handleGenerationAndPass(now);
-      // 2b) Scale-bonus claims (a player took a premium reward zone).
-      this.handleScaleBonusClaims(now);
-      // 2c) Terraforming completed (Temperature + Oxygen + Oceans first maxed).
+      // 2b) Terraforming completed (Temperature + Oxygen + Oceans first maxed).
+      // (The old standalone scale-bonus toast is GONE: a claim rides the
+      // claiming action's own correlation — the server logs it inside the live
+      // scope — so it presents as part of that action's/turn's story, never as
+      // a detached late announcement with the zone's imperative rule text.)
       this.handleTerraformingComplete(now);
       // 2d) Milestone/award post-confirm ceremony — fires ONLY when the fresh
       // view proves the viewer's OWN armed claim/fund resolved (both shells
@@ -306,25 +323,6 @@ export default defineComponent({
       if (version !== this.lastFetchVersion) {
         this.lastFetchVersion = version;
         void this.fetchAndDiff();
-      }
-    },
-
-    // Surface a dedicated card when a player claims a global-parameter SCALE
-    // bonus. Diffed from the public game model (like passes) + seeded silently
-    // on first load. The viewer's OWN claims are skipped (their action already
-    // notifies); World-Government (neutral) claims belong to no one, so no card.
-    handleScaleBonusClaims(now: number): void {
-      const claims = this.playerView.game.scaleBonusClaims ?? {};
-      const canToast = notificationState.seeded && !this.journalOpen && notificationState.settings.showImportant;
-      for (const [key, color] of Object.entries(claims)) {
-        if (notificationState.seenScaleClaims.has(key)) {
-          continue;
-        }
-        notificationState.seenScaleClaims.add(key);
-        if (!canToast || color === 'neutral' || color === this.viewerColor) {
-          continue;
-        }
-        pushTransient(buildScaleBonusClaimNotification(color, scaleBonusRewardKey(key), key, this.generation, now));
       }
     },
 
@@ -467,9 +465,25 @@ export default defineComponent({
       for (const key of revealCoveredKeys) {
         notificationState.seenRevealIds.add(key);
       }
+      // Refresh STILL-VISIBLE root cards whose chain GREW since they were first
+      // shown (e.g. an opponent's colony trade whose deferred reward — "add
+      // floaters to a card" — resolved a moment after the fee). Keeps the gain
+      // chip from being lost to a poll-timing race; updates in place, no
+      // re-animate.
+      //
+      // ⚠️ ORDER IS LOAD-BEARING: this runs BEFORE the standalone hostile diff.
+      // The refresh is the root stream's OTHER covering path — a visible card
+      // upgrading to the viewer's loss marks `seenNegativeIds` — and run after
+      // the diff it arrives one applyDiff too late: the SAME response's
+      // fallback pass has already minted `neg<corr>`, which then evicts the
+      // upgraded card into the queue and resurrects it after any dismiss (the
+      // «two cards over one action» this architecture exists to forbid —
+      // observed as the hostile toast surviving its own journal hand-off).
+      this.refreshVisibleImpacts(events);
       // Hostile losses the VIEWER suffered — the FALLBACK id space for losses a
-      // root card could not cover (recorded after the root was seen, or inside
-      // the viewer's own suppressed action).
+      // root card could not cover (recorded after the root was seen AND its
+      // card already left the screen, or inside the viewer's own suppressed
+      // action).
       const neg = diffNegativeNotifications({
         events,
         seen: notificationState.seenNegativeIds,
@@ -492,11 +506,6 @@ export default defineComponent({
       for (const key of reveal.encounteredIds) {
         notificationState.seenRevealIds.add(key);
       }
-      // Refresh STILL-VISIBLE root cards whose chain GREW since they were first
-      // shown (e.g. an opponent's colony trade whose deferred reward — "add
-      // floaters to a card" — resolved a moment after the fee). Keeps the gain
-      // chip from being lost to a poll-timing race; updates in place, no re-animate.
-      this.refreshVisibleImpacts(events);
       const firstSeed = !notificationState.seeded;
       notificationState.seeded = true;
       if (firstSeed) {
@@ -535,6 +544,7 @@ export default defineComponent({
         const next = recomputeRootImpact(events, n.correlationId, n.actor, this.viewerColor);
         if (next.childVMs.length !== (n.childVMs?.length ?? 0)) {
           n.pills = next.pills;
+          n.pillGroups = next.pillGroups.length > 0 ? next.pillGroups : undefined;
           n.detailCount = next.detailCount;
           n.childVMs = next.childVMs;
           // A chain that GREW a viewer delta upgrades the visible card in

@@ -27,7 +27,8 @@ import {Color} from '@/common/Color';
 import {ViewModel, PlayerViewModel} from '@/common/models/PlayerModel';
 import {MarsBotImpact, MarsBotTurnVisual} from '@/common/automa/MarsBotTurn';
 import {LogMessage} from '@/common/logs/LogMessage';
-import {NotificationModel} from '@/client/components/notifications/notificationTypes';
+import {LogMessageDataType} from '@/common/logs/LogMessageDataType';
+import {NotificationModel, NotificationPillGroup} from '@/client/components/notifications/notificationTypes';
 import {affectedPlayersOfBotTurn} from '@/client/components/notifications/notificationFeedPolicy';
 import {viewerImpactOfBotTurn} from '@/client/components/notifications/notificationSemantics';
 import {notificationState, pushTransient, dismiss, notificationKnownId} from '@/client/components/notifications/notificationState';
@@ -157,14 +158,28 @@ function headlineOf(entry: ArchivedBotTurn): LogMessage | undefined {
   return firstLog?.kind === 'log' ? firstLog.message : undefined;
 }
 
+/** The line's LEADING player token, if any (structural — never the text). */
+function leadingPlayerOf(message: LogMessage): Color | undefined {
+  const first = message.data[0];
+  if (first !== undefined && first.type === LogMessageDataType.PLAYER && message.message.startsWith('${0}')) {
+    return first.value as Color;
+  }
+  return undefined;
+}
+
 /**
  * The compact OUTCOME lines: the turn's own key log lines — placements,
  * parameter raises, milestone claims, attack losses, failed-action money —
  * in script order, minus the headline (never duplicated). Internal automa
  * bookkeeping (tag processing, track advances) is deliberately NOT here —
  * that detail belongs to the inspect, not the toast.
+ *
+ * `dropViewer`: when the card LEADS with the viewer band, a line that opens
+ * with the VIEWER's own player token restates what the band already said
+ * («admin получил 1 тепло…» under «▲ ВЫ ПОЛУЧИЛИ +1») — one fact, one voice:
+ * the band + its cause line own it; the full line stays in the inspect.
  */
-function summaryLinesOf(entry: ArchivedBotTurn, headline: LogMessage | undefined): {lines: Array<LogMessage>, overflow: number} {
+function summaryLinesOf(entry: ArchivedBotTurn, headline: LogMessage | undefined, dropViewer?: Color): {lines: Array<LogMessage>, overflow: number} {
   const all: Array<LogMessage> = [];
   for (const step of entry.turn.steps) {
     // 'hazard' is in: the Ares-hazard consequence must be visible on the
@@ -174,9 +189,13 @@ function summaryLinesOf(entry: ArchivedBotTurn, headline: LogMessage | undefined
       continue;
     }
     const message = step.message;
-    if (message !== undefined && message !== headline) {
-      all.push(message);
+    if (message === undefined || message === headline) {
+      continue;
     }
+    if (dropViewer !== undefined && leadingPlayerOf(message) === dropViewer) {
+      continue;
+    }
+    all.push(message);
   }
   return {
     lines: all.slice(0, BOT_TURN_SUMMARY_CAP),
@@ -244,14 +263,26 @@ export function botTurnNotificationId(key: string): string {
 /** Build the compact turn-event notification for one archived bot turn. */
 export function buildBotTurnNotification(entry: ArchivedBotTurn, opts: {viewerColor?: Color, createdAt: number, autoExpand: boolean, paramChips?: ReadonlyArray<JournalImpactChip>}): NotificationModel {
   const header = headlineOf(entry);
-  const summary = summaryLinesOf(entry, header);
   // The VIEWER's own changes from the typed script — the card LEADS with them
   // («Вы потеряли…»); the bot's story is the context below. An attack on the
   // viewer makes the card critical whatever else the turn did.
   const botColor = entry.botColor === '' ? undefined : entry.botColor;
   const viewerImpact = viewerImpactOfBotTurn(entry.turn, opts.viewerColor, botColor);
+  // With the band leading, a summary line that restates the viewer's own
+  // delta is dropped (one fact, one voice — the inspect keeps the full log).
+  const summary = summaryLinesOf(entry, header,
+    viewerImpact.sign === 'neutral' ? undefined : opts.viewerColor);
   const affects = affectedPlayersOfBotTurn(entry.turn);
   const viewerInvolved = opts.viewerColor !== undefined && affects.includes(opts.viewerColor);
+  // OWNERSHIP clusters: the planet's own outcome (global parameters,
+  // before → after) apart from the BOT's own resource changes — a bot gain
+  // under the viewer band must never read as one more viewer reward.
+  const planetChips = paramChipsOfVisual(entry.turn.visual) ?? opts.paramChips ?? [];
+  const actorChips = summaryPills(entry);
+  const pillGroups: Array<NotificationPillGroup> = [
+    ...(planetChips.length > 0 ? [{scope: 'planet' as const, chips: planetChips}] : []),
+    ...(actorChips.length > 0 ? [{scope: 'actor' as const, chips: actorChips}] : []),
+  ];
   return {
     id: botTurnNotificationId(entry.key),
     kind: 'important',
@@ -272,8 +303,11 @@ export function buildBotTurnNotification(entry: ArchivedBotTurn, opts: {viewerCo
     ...(summary.overflow > 0 ? {summaryOverflow: summary.overflow} : {}),
     // Global-parameter before → after first (the planet-level outcome; exact
     // per-turn from the script's own footprint, the view diff as fallback),
-    // then the bot's own headline resource deltas.
-    pills: [...(paramChipsOfVisual(entry.turn.visual) ?? opts.paramChips ?? []), ...summaryPills(entry)],
+    // then the bot's own headline resource deltas. The flat list stays for the
+    // burst summary / legacy shells; the console card renders the labelled
+    // `pillGroups` clusters.
+    pills: [...planetChips, ...actorChips],
+    pillGroups: pillGroups.length > 0 ? pillGroups : undefined,
     detailCount: entry.turn.steps.length,
     ...(entry.correlationId !== undefined ? {correlationId: entry.correlationId} : {}),
     generation: entry.generation,

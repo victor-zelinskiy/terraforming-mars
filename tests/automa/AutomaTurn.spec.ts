@@ -54,7 +54,7 @@ describe('AutomaController — MarsBot turn', () => {
     expect(human.plants).eq(0);
     expect(automa.destroyedBonusCards).contains(BonusCardId.B01_METEOR_SHOWER);
     expect(automa.revealedCard).is.undefined;
-    expect(game.gameLog.some((m) => m.message.includes('played a bonus card'))).is.true;
+    expect(game.gameLog.some((m) => m.message.includes('played the bonus card'))).is.true;
   });
 
   it('alternates: human acts, bot resolves exactly one card, human acts again', () => {

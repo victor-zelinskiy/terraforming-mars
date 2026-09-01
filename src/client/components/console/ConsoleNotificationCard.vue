@@ -26,10 +26,14 @@
 
       <!-- ── THE VIEWER BAND — what changed FOR YOU, first and loudest. ──
            The sign is stated three ways at once (label + glyph + tone), so
-           positive / negative / mixed never rely on colour alone. Losses
-           lead (a loss must not be missed), the transfer arrow names who
+           positive / negative / mixed never rely on colour alone. The
+           composition is ADAPTIVE: one delta shares the label's line as a
+           single confident statement (icon + resource name + value); several
+           deltas wrap under it. Losses lead, the transfer arrow names who
            took it, gains follow. -->
-      <div v-if="impactBand !== undefined" class="con-notif__you" :class="'con-notif__you--' + notification.sign">
+      <div v-if="impactBand !== undefined"
+           class="con-notif__you"
+           :class="['con-notif__you--' + notification.sign, {'con-notif__you--dense': bandDense}]">
         <span class="con-notif__you-sign">
           <span class="con-notif__you-glyph" aria-hidden="true">{{ signGlyph }}</span>
           <span v-i18n>{{ signLabel }}</span>
@@ -39,8 +43,8 @@
                 class="con-notif__chip con-notif__chip--neg con-notif__chip--big"
                 :class="{'con-notif__chip--prod': chip.production === true}">
             <span v-if="iconClass(chip.icon) !== ''" class="con-notif__chip-icon" :class="iconClass(chip.icon)" aria-hidden="true"></span>
-            <span>{{ chip.text }}</span>
-            <span v-if="chipUnit(chip) !== undefined" class="con-notif__chip-unit" v-i18n>{{ chipUnit(chip) }}</span>
+            <span v-if="bandUnit(chip) !== undefined" class="con-notif__chip-unit" v-i18n>{{ bandUnit(chip) }}</span>
+            <span class="con-notif__chip-value">{{ chip.text }}</span>
           </span>
           <template v-if="impactBand.transfer === true && impactBand.attacker !== undefined">
             <span class="con-notif__arrow" aria-hidden="true">→</span>
@@ -53,8 +57,8 @@
                 class="con-notif__chip con-notif__chip--pos con-notif__chip--big"
                 :class="{'con-notif__chip--prod': chip.production === true}">
             <span v-if="iconClass(chip.icon) !== ''" class="con-notif__chip-icon" :class="iconClass(chip.icon)" aria-hidden="true"></span>
-            <span>{{ chip.text }}</span>
-            <span v-if="chipUnit(chip) !== undefined" class="con-notif__chip-unit" v-i18n>{{ chipUnit(chip) }}</span>
+            <span v-if="bandUnit(chip) !== undefined" class="con-notif__chip-unit" v-i18n>{{ bandUnit(chip) }}</span>
+            <span class="con-notif__chip-value">{{ chip.text }}</span>
           </span>
         </span>
         <!-- The honest readout of a single-resource loss: scope + before → after. -->
@@ -97,13 +101,14 @@
       </template>
 
       <!-- Journal-derived headline (play / milestone / award / …) — the
-           SAME token renderer as the journal (info parity); restyled to the
-           console type scale and rendered INERT (a toast is information,
-           never a click target). When the viewer band leads, the headline is
-           replaced by the compact cause line above (the initiator is the
-           reason, not the story). -->
+           SAME token renderer as the journal (info parity), restyled to the
+           console type scale and rendered INERT. The initiator is ALREADY
+           the head's actor chip, so a headline that opens with that same
+           player token drops it («сыграл ‹Электростанция›» under the head,
+           never «Бот» three times per card). When the viewer band leads,
+           the compact cause line above replaces the headline entirely. -->
       <span v-else-if="notification.header !== undefined && impactBand === undefined"
-            class="con-notif__line con-notif__tokens">
+            class="con-notif__line con-notif__tokens con-notif__headline">
         <JournalTokenRenderer
           v-for="(tok, i) in headerEntries"
           :key="i"
@@ -130,7 +135,9 @@
 
       <!-- Compact OUTCOME lines (the AI-turn card): the turn's own key log
            lines — placements / parameter raises / losses / failed-action
-           money. Rendered INERT; the full script is the X-hold review. -->
+           money — with the bot's own leading name STRIPPED (the head already
+           states the actor once; a name per line is a log, not a story).
+           Rendered INERT; the full script is the X-hold review. -->
       <ul v-if="notification.summaryLines !== undefined" class="con-notif__summary">
         <li v-for="(line, i) in notification.summaryLines" :key="i" class="con-notif__summary-line">
           <span class="con-notif__summary-tick" aria-hidden="true"></span>
@@ -144,22 +151,32 @@
         </li>
         <li v-if="notification.summaryOverflow !== undefined" class="con-notif__summary-line con-notif__summary-line--more">
           <span class="con-notif__summary-tick" aria-hidden="true"></span>
-          <span>+{{ notification.summaryOverflow }}&nbsp;<span v-i18n>events</span></span>
+          <span>{{ overflowLabel }}</span>
         </li>
       </ul>
     </div>
 
-    <!-- CONTEXT pills — the action's own outcome. Suppressed for a loss /
+    <!-- CONTEXT clusters — the action's own outcome SPLIT BY OWNER, so a chip
+         can never masquerade as the viewer's reward: the planet's globals,
+         the initiator's changes, a third player's. Suppressed for a loss /
          mixed card (the band + cause carry the story; the journal has the
-         ledger), kept for neutral events and under a positive band. -->
-    <div v-if="showContextPills" class="con-notif__pills">
-      <span v-for="(chip, i) in notification.pills"
-            :key="i"
-            class="con-notif__chip"
-            :class="chipClass(chip)">
-        <span v-if="iconClass(chip.icon) !== ''" class="con-notif__chip-icon" :class="iconClass(chip.icon)" aria-hidden="true"></span>
-        <span>{{ chip.text }}</span>
-        <span v-if="chipUnit(chip) !== undefined" class="con-notif__chip-unit" v-i18n>{{ chipUnit(chip) }}</span>
+         ledger). Falls back to the flat pills for models without groups
+         (burst summaries). -->
+    <div v-if="showContext && pillClusters.length > 0" class="con-notif__clusters">
+      <span v-for="(cluster, ci) in pillClusters" :key="ci" class="con-notif__cluster">
+        <span class="con-notif__cluster-tag" :class="'con-notif__cluster-tag--' + cluster.scope">
+          <span v-if="cluster.scope === 'others' && cluster.owner !== undefined"
+                class="con-notif__dot" :class="'player_bg_color_' + cluster.owner" aria-hidden="true"></span>
+          <span v-i18n>{{ clusterLabel(cluster) }}</span>
+        </span>
+        <span v-for="(chip, i) in cluster.chips"
+              :key="i"
+              class="con-notif__chip"
+              :class="chipClass(chip)">
+          <span v-if="iconClass(chip.icon) !== ''" class="con-notif__chip-icon" :class="iconClass(chip.icon)" aria-hidden="true"></span>
+          <span v-if="chipUnit(chip) !== undefined" class="con-notif__chip-unit" v-i18n>{{ chipUnit(chip) }}</span>
+          <span>{{ chip.text }}</span>
+        </span>
       </span>
     </div>
 
@@ -208,10 +225,16 @@
  * INFORMATION HIERARCHY (the viewer-first contract):
  *  1. the VIEWER BAND — «Вы получили / Вы потеряли …», the viewer's own typed
  *     deltas, sign stated by label + glyph + tone (never colour alone);
+ *     ADAPTIVE density — one delta reads as a single confident statement;
  *  2. the CAUSE line — who did it, with what card (secondary voice);
  *  3. the event's own story (headline tokens / reveal line / outcome lines) —
- *     the primary voice ONLY when nothing personal happened;
- *  4. context pills + the journal (X-hold) for the full causal chain.
+ *     the primary voice ONLY when nothing personal happened. THE ACTOR IS
+ *     STATED ONCE (the head's chip): a headline / outcome line that opens
+ *     with that same player token renders without it;
+ *  4. OWNERSHIP clusters (`pillGroups`) — the planet's globals, the actor's
+ *     own changes, third players — each under a compact scope tag, so no chip
+ *     can read as the viewer's reward;
+ *  5. the journal / turn review (X-hold) for the full causal chain.
  *
  * The two semantic AXES render as independent channels: `sign` drives the
  * band's identity, `importance` drives the card's chrome grade
@@ -225,10 +248,11 @@
  * accent vocabulary for both shells).
  */
 import {defineComponent, PropType} from 'vue';
-import {Log} from '@/common/logs/Log';
-import {translateMessage} from '@/client/directives/i18n';
+import {translateMessage, translateTextWithParams} from '@/client/directives/i18n';
+import {parseLocalizedLog} from '@/client/components/journal/logLocalization';
 import {LogMessage} from '@/common/logs/LogMessage';
 import {LogMessageData} from '@/common/logs/LogMessageData';
+import {LogMessageDataType} from '@/common/logs/LogMessageDataType';
 import {Color} from '@/common/Color';
 import {displayNameForColor} from '@/client/components/marsbot/marsBotDisplay';
 import {PublicPlayerModel} from '@/common/models/PlayerModel';
@@ -238,7 +262,7 @@ import JournalTokenRenderer from '@/client/components/journal/JournalTokenRender
 import GamepadGlyph from '@/client/components/gamepad/GamepadGlyph.vue';
 import {NOTIF_HOLD_MS, notifHoldState} from '@/client/console/consoleNotifHold';
 import {ViewerImpactMeta} from '@/client/components/notifications/notificationSemantics';
-import {LiveNotification, NotificationVariant} from '@/client/components/notifications/notificationTypes';
+import {LiveNotification, NotificationPillGroup, NotificationVariant} from '@/client/components/notifications/notificationTypes';
 
 // icon-key → PublicPlayerModel field (the viewer's before → after readout
 // for a single-resource loss).
@@ -248,6 +272,14 @@ const STOCK_FIELD: Readonly<Record<string, string>> = {
 const PROD_FIELD: Readonly<Record<string, string>> = {
   megacredits: 'megacreditProduction', steel: 'steelProduction', titanium: 'titaniumProduction',
   plants: 'plantProduction', energy: 'energyProduction', heat: 'heatProduction',
+};
+// The spoken UNIT of a band chip — the resource's NAME beside its icon, so the
+// hero statement reads «ТЕПЛО +1», not a lone glyph in a large frame. Standard
+// resources + the sprite-less pseudo-icons; card resources keep icon-only (the
+// sprite is unambiguous and their names decline).
+const UNIT_LABEL: Readonly<Record<string, string>> = {
+  megacredits: 'M€', steel: 'Steel', titanium: 'Titanium', plants: 'plants',
+  energy: 'Energy', heat: 'Heat', cards: 'cards', tr: 'TR', vp: 'VP',
 };
 // "What an opponent did" variants tint the rail in the actor colour;
 // prestige / system variants keep the variant accent (same rule as desktop).
@@ -272,6 +304,14 @@ export default defineComponent({
         return undefined;
       }
       return impact;
+    },
+    /** ONE delta → the label and the statement share a line (no empty frame). */
+    bandDense(): boolean {
+      const band = this.impactBand;
+      if (band === undefined) {
+        return false;
+      }
+      return band.losses.length + band.gains.length === 1 && band.transfer !== true;
     },
     prestige(): boolean {
       return this.notification.variant === 'milestone' || this.notification.variant === 'award';
@@ -310,13 +350,22 @@ export default defineComponent({
       return this.notification.variant !== 'bot-turn' &&
         (this.notification.actor !== undefined || this.impactBand?.sourceCard !== undefined);
     },
-    /** Context pills stay for neutral events and under a positive band; a loss /
-     *  mixed card drops them (the band + cause carry the story). */
-    showContextPills(): boolean {
-      if (this.notification.pills.length === 0) {
-        return false;
-      }
+    /** Context clusters stay for neutral events and under a positive band; a
+     *  loss / mixed card drops them (the band + cause carry the story). */
+    showContext(): boolean {
       return this.notification.sign === 'neutral' || this.notification.sign === 'positive';
+    },
+    /** The ownership clusters — structured when the producer split them, else
+     *  the flat pills degrade to ONE actor-scoped cluster (burst summaries). */
+    pillClusters(): ReadonlyArray<NotificationPillGroup> {
+      const groups = this.notification.pillGroups;
+      if (groups !== undefined && groups.length > 0) {
+        return groups;
+      }
+      if (this.notification.pills.length === 0) {
+        return [];
+      }
+      return [{scope: 'actor', chips: this.notification.pills}];
     },
     scopeLabel(): string {
       return this.impactBand?.scope === 'production' ? 'from production' : 'from stock';
@@ -331,6 +380,11 @@ export default defineComponent({
       case 'shown': return 'shown';
       default: return 'revealed';
       }
+    },
+    /** The honest «and N more» tail of a capped outcome list, plural-correct. */
+    overflowLabel(): string {
+      const n = this.notification.summaryOverflow ?? 0;
+      return translateTextWithParams('+${0} more {event|events}', [String(n)]);
     },
     beforeAfter(): string | undefined {
       const band = this.impactBand;
@@ -365,7 +419,7 @@ export default defineComponent({
       if (h === undefined) {
         return [];
       }
-      return Log.parse({message: this.$t(h.message), data: h.data});
+      return this.withoutLeadingActor(parseLocalizedLog(h));
     },
     /** The prompt as text — a plain string or a tokenised `Message`. */
     promptText(): string {
@@ -435,13 +489,48 @@ export default defineComponent({
     iconClass(icon: string): string {
       return iconClassFor(icon);
     },
-    /** Sprite-less chips speak their unit as text (VP has no inline icon). */
+    /** The chip's spoken unit — the resource name beside its icon (band chips
+     *  always; context chips only where the icon alone is mute — vp). */
     chipUnit(chip: JournalImpactChip): string | undefined {
-      return chip.icon === 'vp' ? 'VP' : undefined;
+      if (chip.icon === 'vp') {
+        return 'VP';
+      }
+      return undefined;
     },
-    // One compact outcome line (summaryLines) → journal tokens.
+    /** The BAND chip's unit — spoken for every standard resource. */
+    bandUnit(chip: JournalImpactChip): string | undefined {
+      return UNIT_LABEL[chip.icon];
+    },
+    /** The compact scope tag of an ownership cluster. */
+    clusterLabel(cluster: NotificationPillGroup): string {
+      switch (cluster.scope) {
+      case 'planet': return 'Mars';
+      case 'others': return cluster.owner !== undefined ? displayNameForColor(this.players, cluster.owner) : 'Others';
+      default: return this.actorName !== '' ? this.actorName : 'Player';
+      }
+    },
+    /**
+     * Drop the line's LEADING actor token when it repeats the head's actor
+     * chip (the same compaction the journal's grouped rows use) — the card
+     * states the initiator ONCE; every line after that reads as what happened.
+     */
+    withoutLeadingActor(tokens: ReadonlyArray<string | LogMessageData>): ReadonlyArray<string | LogMessageData> {
+      const actor = this.notification.actor;
+      const first = tokens[0];
+      if (actor === undefined || first === undefined || typeof first === 'string' ||
+        first.type !== LogMessageDataType.PLAYER || first.value !== actor) {
+        return tokens;
+      }
+      const rest = [...tokens.slice(1)];
+      if (typeof rest[0] === 'string') {
+        rest[0] = (rest[0] as string).replace(/^\s+/, '');
+      }
+      return rest;
+    },
+    // One compact outcome line (summaryLines) → localized journal tokens,
+    // minus the redundant leading actor.
     lineEntries(line: LogMessage): ReadonlyArray<string | LogMessageData> {
-      return Log.parse({message: this.$t(line.message), data: line.data});
+      return this.withoutLeadingActor(parseLocalizedLog(line));
     },
     chipClass(chip: JournalImpactChip): Record<string, boolean> {
       const plain = chip.production !== true && chip.saved !== true && chip.neutral !== true;

@@ -23554,12 +23554,19 @@ html.console-mode .notifications-layer {
     padding: .55rem .75rem .6rem 1rem;
     border-radius: .55rem;
     overflow: hidden;
+    /* The EVENT LAYER's material: effectively OPAQUE plate glass (a dark
+       metal-blue laminate + a faint accent sheen). The right rail's trophy
+       gallery used to bleed straight through a 0.92-alpha card and compete
+       with the text — an event surface must read on its own ground. Depth
+       comes from the shadow + hairline, never from see-through. */
     background:
-        linear-gradient(160deg, fade(@con-cyan, 5%), transparent 45%),
-        linear-gradient(200deg, rgba(16, 24, 36, 0.97), rgba(8, 13, 21, 0.95));
+        linear-gradient(160deg, fade(@con-cyan, 6%), transparent 45%),
+        linear-gradient(200deg, rgba(19, 27, 40, 0.99), rgba(9, 14, 22, 0.985));
     box-shadow:
-        inset 0 0 0 .05rem rgba(120, 150, 180, 0.24),
-        0 .6rem 1.6rem rgba(0, 0, 0, 0.55);
+        inset 0 0 0 .05rem rgba(126, 156, 186, 0.28),
+        inset 0 .05rem 0 rgba(190, 215, 240, 0.07),
+        0 .7rem 1.8rem rgba(0, 0, 0, 0.62),
+        0 .15rem .45rem rgba(0, 0, 0, 0.45);
     font-family: @con-font;
     color: @con-text;
     pointer-events: none; /* an information surface, never a click target */
@@ -23712,13 +23719,14 @@ html.console-mode .notifications-layer {
         display: inline-flex;
         align-items: center;
         gap: .3rem;
-        font-size: .575rem;
+        font-size: .6rem;
         font-weight: 800;
-        letter-spacing: .1rem;
+        letter-spacing: .105rem;
         text-transform: uppercase;
+        white-space: nowrap;
     }
     &__you-glyph {
-        font-size: .625rem;
+        font-size: .65rem;
         line-height: 1;
     }
     &__you-chips {
@@ -23727,28 +23735,82 @@ html.console-mode .notifications-layer {
         flex-wrap: wrap;
         gap: .35rem;
     }
-    &__chip--big {
-        font-size: .875rem;
-        padding: .15rem .55rem;
-        gap: .3rem;
+    /* ONE delta → ONE confident statement: the sign label and the chip share
+       the line (label left, the statement flush right), so a single «+1»
+       never floats in a large empty frame. The scope/before→after readout
+       keeps its own quiet second line. */
+    &__you--dense {
+        display: grid;
+        grid-template-columns: auto 1fr;
+        align-items: center;
+        column-gap: .6rem;
+        row-gap: .25rem;
 
-        .con-notif__chip-icon { width: 1.05rem; height: 1.05rem; }
+        .con-notif__you-chips { justify-content: flex-end; }
+        .con-notif__scope { grid-column: 1 / -1; justify-content: flex-end; }
+    }
+    /* The band's chips are the card's LOUDEST material: icon + spoken unit +
+       a large tabular value (the number is the message — it outweighs the
+       unit, and both outweigh everything below). */
+    &__chip--big {
+        font-size: .9rem;
+        padding: .2rem .6rem;
+        gap: .35rem;
+
+        .con-notif__chip-icon { width: 1.15rem; height: 1.15rem; }
     }
     &__chip-unit {
-        font-size: .625rem;
+        font-size: .6rem;
         font-weight: 800;
-        letter-spacing: .04rem;
-        opacity: 0.85;
+        letter-spacing: .07rem;
+        text-transform: uppercase;
+        opacity: 0.82;
+        align-self: center;
+    }
+    &__chip-value {
+        font-size: 1.05rem;
+        font-weight: 800;
+        line-height: 1;
+        font-variant-numeric: tabular-nums;
     }
     &__revealline { margin-top: .1rem; }
 
-    /* Impact chips (pills + the hostile flow reuse one look). */
-    &__pills {
+    /* ── OWNERSHIP clusters — «чьи это чипы»: a compact scope tag (МАРС /
+       the initiator's name / a third player) opens each group, so a bot's
+       own +1 M€ can never read as one more viewer reward. The tag is the
+       quietest voice on the card; the chips keep their tones. ── */
+    &__clusters {
         display: flex;
+        flex-direction: column;
+        align-items: flex-start;
+        gap: .3rem;
+        margin-top: .4rem;
+    }
+    &__cluster {
+        display: inline-flex;
+        align-items: center;
         flex-wrap: wrap;
         gap: .3rem;
-        margin-top: .35rem;
     }
+    &__cluster-tag {
+        display: inline-flex;
+        align-items: center;
+        gap: .25rem;
+        padding: .08rem .4rem .08rem .3rem;
+        border-left: .125rem solid rgba(150, 175, 205, 0.4);
+        font-size: .55rem;
+        font-weight: 800;
+        letter-spacing: .08rem;
+        text-transform: uppercase;
+        color: fade(#c4d8ec, 62%);
+        white-space: nowrap;
+
+        .con-notif__dot { width: .4rem; height: .4rem; }
+    }
+    &__cluster-tag--planet { border-left-color: fade(@con-cyan, 55%); }
+    &__cluster-tag--others { border-left-color: rgba(196, 216, 236, 0.5); }
+
+    /* Impact chips (band + clusters reuse one look). */
     &__chip {
         display: inline-flex;
         align-items: center;
@@ -23793,6 +23855,16 @@ html.console-mode .notifications-layer {
            (`__line` is flex-wrap), so a long name gets its own full row. */
         .journal-chip__label { max-width: 14.5rem; }
     }
+    /* The EVENT-FIRST primary line (a neutral card's own story) — the card's
+       loudest voice when no viewer band leads: a step up from the context
+       type scale, with the card chips riding the same measure. */
+    &__headline {
+        .journal-text, .journal-em { font-size: .875rem; }
+        .journal-token, .journal-chip, .journal-cardchip, .journal-card-chip {
+            font-size: .825rem;
+        }
+        line-height: 1.4;
+    }
 
     /* ── Compact OUTCOME lines (the AI-turn card): key log lines of the turn. ── */
     &__summary {
@@ -23807,9 +23879,9 @@ html.console-mode .notifications-layer {
         display: flex;
         align-items: baseline;
         gap: .4rem;
-        font-size: .725rem;
-        line-height: 1.4;
-        color: fade(#d6e8f4, 90%);
+        font-size: .75rem;
+        line-height: 1.45;
+        color: fade(#cfe2f2, 84%);
     }
     &__summary-tick {
         flex: 0 0 auto;
@@ -23899,18 +23971,24 @@ html.console-mode .notifications-layer {
     }
     &--imp-notable {
         box-shadow:
-            inset 0 0 0 .05rem rgba(160, 195, 230, 0.4),
-            0 .6rem 1.6rem rgba(0, 0, 0, 0.55);
+            inset 0 0 0 .05rem rgba(164, 198, 232, 0.44),
+            inset 0 .05rem 0 rgba(190, 215, 240, 0.09),
+            0 .7rem 1.8rem rgba(0, 0, 0, 0.62),
+            0 .15rem .45rem rgba(0, 0, 0, 0.45);
     }
     &--imp-critical {
         box-shadow:
-            inset 0 0 0 .075rem rgba(205, 225, 248, 0.5),
-            0 .7rem 1.8rem rgba(0, 0, 0, 0.6);
+            inset 0 0 0 .075rem rgba(208, 228, 250, 0.55),
+            inset 0 .05rem 0 rgba(200, 224, 246, 0.12),
+            0 .8rem 2rem rgba(0, 0, 0, 0.66),
+            0 .15rem .5rem rgba(0, 0, 0, 0.5);
     }
     &--imp-attention {
         box-shadow:
-            inset 0 0 0 .075rem fade(@con-amber, 55%),
-            0 .7rem 1.8rem rgba(0, 0, 0, 0.6);
+            inset 0 0 0 .075rem fade(@con-amber, 58%),
+            inset 0 .05rem 0 fade(@con-amber, 14%),
+            0 .8rem 2rem rgba(0, 0, 0, 0.66),
+            0 .15rem .5rem rgba(0, 0, 0, 0.5);
     }
     &--imp-critical .con-notif__rail,
     &--imp-attention .con-notif__rail {
@@ -26329,24 +26407,50 @@ body.con-start-barshold .con-status {
    prompt card (.con-mandatory) — one premium surface whose CTA relabels by
    state. Its two-level copy sub-elements moved there with it.) */
 
-/* PRESENTATION FLOW: the quiet pending-events chip — notifications waiting
-   their FIFO turn behind the active foreground item. Informational only;
-   the journal (View) is the event center. Critical accent when the queue
-   holds a hostile loss / an AI turn. Sits BELOW the mandatory prompt card's
-   band so the two never overlap. */
-.con-banner--events {
-    top: calc(var(--con-hud-h, 2.7rem) + 4.55rem);
+/* PRESENTATION FLOW: the pending-queue TAIL — a quiet service chip riding
+   UNDER the notification stack (same top-right column), never a centre-stage
+   banner: the count is secondary information about the surface it hangs off,
+   and it must not compete with the event being read. Right-aligned to the
+   cards; the critical accent (a hostile loss / an AI turn waiting) warms the
+   dot and the ring, nothing more. Non-interactive, like the cards. */
+.con-notifq {
+    align-self: flex-end;
+    display: inline-flex;
+    align-items: center;
+    gap: .35rem;
+    margin-top: .1rem;
+    padding: .18rem .55rem;
+    border-radius: 49.95rem;
+    background: linear-gradient(200deg, rgba(17, 25, 37, 0.97), rgba(10, 15, 24, 0.96));
+    box-shadow:
+        inset 0 0 0 .05rem rgba(126, 156, 186, 0.26),
+        0 .3rem .9rem rgba(0, 0, 0, 0.5);
+    font-family: @con-font;
+    font-size: .575rem;
+    font-weight: 700;
+    letter-spacing: .08rem;
+    text-transform: uppercase;
+    color: @con-text-dim;
+    pointer-events: none;
 
-    .con-banner__count {
-        font-weight: 700;
-        color: fade(#ffffff, 92%);
+    &__dot {
+        width: .35rem;
+        height: .35rem;
+        border-radius: 50%;
+        background: fade(@con-cyan, 85%);
     }
-}
-.con-banner--events-critical {
-    box-shadow: inset 0 0 0 .05rem fade(@con-amber, 55%), 0 .4rem 1.2rem rgba(0, 0, 0, 0.4), 0 0 .7rem fade(@con-amber, 12%);
-    .con-banner__pulse {
-        background: @con-amber;
-        box-shadow: 0 0 .5rem fade(@con-amber, 85%);
+    &__count {
+        font-size: .675rem;
+        font-weight: 800;
+        font-variant-numeric: tabular-nums;
+        color: fade(#e8f1fb, 92%);
+    }
+    &--critical {
+        box-shadow:
+            inset 0 0 0 .05rem fade(@con-amber, 52%),
+            0 .3rem .9rem rgba(0, 0, 0, 0.5);
+
+        .con-notifq__dot { background: @con-amber; }
     }
 }
 
@@ -26355,7 +26459,11 @@ body.con-start-barshold .con-status {
    live in the command bar only). Also the leak detector's serving-surface
    marker while mandatory task surfaces hold off. */
 .con-notif--holding {
-    box-shadow: inset 0 0 0 .05rem fade(@con-cyan, 45%), 0 .5rem 1.3rem rgba(0, 0, 0, 0.45);
+    box-shadow:
+        inset 0 0 0 .05rem fade(@con-cyan, 46%),
+        inset 0 .05rem 0 rgba(190, 215, 240, 0.08),
+        0 .7rem 1.8rem rgba(0, 0, 0, 0.62),
+        0 .15rem .45rem rgba(0, 0, 0, 0.45);
 }
 
 /* ── MANDATORY ANNOUNCEMENT (consoleMandatoryGate) ────────────────────

@@ -28,18 +28,11 @@
          prompt card below — one premium surface, its CTA relabels by state
          (Открыть / Вернуться к решению). No second visual style. -->
 
-    <!-- PRESENTATION FLOW: the quiet pending-queue chip — events are waiting
-         their FIFO turn behind the active foreground item. Informational
-         (same banner-band placement as the deferred chip); the journal (View)
-         is the event center. Gains the critical accent when the queue holds a
-         gameplay-critical item. -->
-    <transition name="con-plate">
-      <div v-if="pendingEvents.count > 0" class="con-banner con-banner--events" :class="{'con-banner--events-critical': pendingEvents.critical}">
-        <span class="con-banner__pulse" aria-hidden="true"></span>
-        <span>{{ $t('Pending events') }}</span>
-        <span class="con-banner__count">+{{ pendingEvents.count }}</span>
-      </div>
-    </transition>
+    <!-- (The centre-stage «СОБЫТИЯ В ОЧЕРЕДИ» banner is GONE: the pending
+         count is secondary service information and must not out-shout the
+         event it queues behind. It now renders as a quiet tail UNDER the
+         notification stack itself — see NotificationLayer's console queue
+         chip — visually bound to the surface whose backlog it describes.) -->
 
     <!-- MANDATORY ANNOUNCEMENT (consoleMandatoryGate): a mandatory ACTION (corp
          first action / forced hand pick / off-turn reaction / a must-open
@@ -1330,8 +1323,7 @@ import {botTurnReviewState, closeBotTurnReview, setBotReviewPeek} from '@/client
 import {openBotTurnReviewByKey, skipBotTurnPresentation, stepBotTurnReview} from '@/client/components/marsbot/marsBotPresentation';
 import {acquireForegroundLease, isMandatoryPromptsHeld} from '@/client/components/presentation/presentationFlow';
 import {isAnimationHoldActive} from '@/client/components/presentation/animationHold';
-import {PendingQueueSummary} from '@/client/components/presentation/presentationPolicy';
-import {notificationState, notificationsSettled, pendingSummary, dismiss as dismissNotification} from '@/client/components/notifications/notificationState';
+import {notificationState, notificationsSettled, dismiss as dismissNotification} from '@/client/components/notifications/notificationState';
 import {beginNotifHold, cancelNotifHold, consumeNotifHoldRelease, resetNotifHold} from '@/client/console/consoleNotifHold';
 import {LiveNotification} from '@/client/components/notifications/notificationTypes';
 import {displayNameForColor, participantDisplayName} from '@/client/components/marsbot/marsBotDisplay';
@@ -2613,10 +2605,6 @@ export default defineComponent({
     topNotification(): LiveNotification | undefined {
       const feed = notificationState.transient;
       return feed.length > 0 ? feed[feed.length - 1] : undefined;
-    },
-    /** The pending-queue backlog (the banner-band chip). */
-    pendingEvents(): PendingQueueSummary {
-      return pendingSummary();
     },
     /**
      * The mode the reveal overlay is ACTUALLY mounted with, or undefined when it

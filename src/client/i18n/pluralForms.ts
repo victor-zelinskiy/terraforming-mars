@@ -72,19 +72,30 @@ function nearestNumberBefore(text: string, at: number): number | undefined {
 /**
  * Resolve every plural group in an already-substituted string.
  *
- * A group with NO number anywhere to its left keeps its first variant — the
- * honest degrade (the translator's `one` form), never the raw `{a|b|c}`.
+ * A group with NO number anywhere to its left agrees with `fallbackNumber`
+ * when the caller supplies one — the TOKEN-RENDER path (journal / notification
+ * lines) substitutes a numeric token BETWEEN text fragments, so the number a
+ * group agrees with often lives in the PRECEDING entry, not in this fragment.
+ * With no number anywhere it keeps its first variant — the honest degrade
+ * (the translator's `one` form), never the raw `{a|b|c}`.
  */
-export function resolvePluralGroups(text: string, lang: string): string {
+export function resolvePluralGroups(text: string, lang: string, fallbackNumber?: number): string {
   if (!text.includes('|') || !text.includes('{')) {
     return text;
   }
   return text.replace(GROUP_RE, (_whole, body: string, offset: number) => {
-    const n = nearestNumberBefore(text, offset);
+    const n = nearestNumberBefore(text, offset) ?? fallbackNumber;
     const variants = body.split('|');
     if (n === undefined) {
       return pickVariant(variants, 'one');
     }
     return pickVariant(variants, pluralForm(n, lang));
   });
+}
+
+/** The LAST number in a text fragment, if any — what a group in a LATER
+ *  fragment of the same tokenised line agrees with. */
+export function trailingNumberOf(text: string): number | undefined {
+  const m = text.match(/(\d+)(?!.*\d)/s);
+  return m === null ? undefined : Number(m[1]);
 }

@@ -325,8 +325,8 @@ describe('AutomaDeltaProject — Solo Delta Project reference card', () => {
     expect(root, 'delta-project root log').is.not.undefined;
     expect(root!.correlationId).is.a('number');
     const grouped = game.gameLog.filter((m) => m.correlationId === root!.correlationId).map((m) => m.message);
-    expect(grouped).contains('${0} consumed ${1} Power increment(s) for the Hydronetwork');
-    expect(grouped).contains('${0} advanced ${1} row(s) on the Hydronetwork, reaching ${2}');
+    expect(grouped).contains('${0} spent ${1} Energy-track {increment|increments} on the Hydronetwork');
+    expect(grouped).contains('${0} advanced ${1} {row|rows} on the Hydronetwork and reached ${2}');
     // The guide-only "no reward" implementation detail is NOT journaled.
     expect(grouped).not.contains('${0} does not receive the Hydronetwork reward (MarsBot gains only the final VP)');
     const ev = game.events.events.find((e) =>

@@ -194,9 +194,9 @@ export class AutomaDeltaProject {
       // does; its traversed rows must honestly read as «passed» in the
       // history panel.
       commitDeltaMovement(bot, steps, {kind: 'automa'}, () => {
-        game.log('${0} consumed ${1} Power increment(s) for the Hydronetwork', (b) =>
+        game.log('${0} spent ${1} Energy-track {increment|increments} on the Hydronetwork', (b) =>
           b.player(bot).number(steps));
-        game.log('${0} advanced ${1} row(s) on the Hydronetwork, reaching ${2}', (b) =>
+        game.log('${0} advanced ${1} {row|rows} on the Hydronetwork and reached ${2}', (b) =>
           b.player(bot).number(steps).string(stageName));
 
         if (newPos === VP2_POSITION) {

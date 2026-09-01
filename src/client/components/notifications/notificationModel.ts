@@ -10,7 +10,7 @@ import {buildJournalView} from '@/client/components/journal/journalView';
 import {buildEventChildren, impactChips, JournalChildVM, JournalImpactChip} from '@/client/components/journal/journalEventChild';
 import {affectedPlayersOfChain} from './notificationFeedPolicy';
 import {importanceForRoot, viewerImpactOfChain, ViewerImpactMeta} from './notificationSemantics';
-import {NotificationKind, NotificationVariant, NotificationModel, NegativeScope, NOTIFICATION_PRIORITY, NOTIFICATION_TTL, COALESCE_THRESHOLD} from './notificationTypes';
+import {NotificationKind, NotificationVariant, NotificationModel, NotificationPillGroup, NegativeScope, NOTIFICATION_PRIORITY, NOTIFICATION_TTL, COALESCE_THRESHOLD} from './notificationTypes';
 
 /**
  * PURE notification mappers — turn the structured journal stream + the client's
@@ -188,7 +188,14 @@ export function mergeChips(chips: ReadonlyArray<JournalImpactChip>): Array<Journ
     if (m === undefined || m.sum === 0) {
       continue;
     }
-    out.push({icon: m.icon, text: m.saved === true ? `−${Math.abs(m.sum)}` : signed(m.sum), production: m.production, saved: m.saved});
+    out.push({
+      icon: m.icon,
+      text: m.saved === true ? `−${Math.abs(m.sum)}` : signed(m.sum),
+      // Conditional spread — an `undefined`-valued key is not the same object
+      // as an absent key (deep-equality, JSON round-trips).
+      ...(m.production === true ? {production: true} : {}),
+      ...(m.saved === true ? {saved: true} : {}),
+    });
   }
   return out;
 }
@@ -217,6 +224,65 @@ function chipRank(chip: JournalImpactChip): number {
 }
 
 /**
+ * Split the CONTEXT rows into OWNERSHIP clusters — the structured answer to
+ * «whose chips are these?». The viewer's rows are excluded by the CALLER
+ * (they lead the card as the band); what remains is:
+ *  - `planet`  — global-parameter rows / rows of purely neutral readouts
+ *                (board outcomes, nobody's reward);
+ *  - `others`  — rows credited to a player other than the actor (`vm.player`
+ *                is set exactly then — see `buildEventChildren`);
+ *  - `actor`   — everything else (the initiator's own costs and gains).
+ * Cluster order: planet → actor → others (board fact, then the initiator's
+ * story, then third parties). Chips merge to the net WITHIN a cluster and
+ * keep the gains-first ranking.
+ */
+export function contextPillGroups(vms: ReadonlyArray<JournalChildVM>, maxPerGroup = 4): Array<NotificationPillGroup> {
+  const planet: Array<JournalImpactChip> = [];
+  const actor: Array<JournalImpactChip> = [];
+  const othersByOwner = new Map<Color, Array<JournalImpactChip>>();
+  const ownerOrder: Array<Color> = [];
+  for (const vm of vms) {
+    if (vm.chips.length === 0) {
+      continue;
+    }
+    const allNeutral = vm.chips.every((c) => c.neutral === true);
+    if (vm.bucket === 'globalParameter' || allNeutral) {
+      planet.push(...vm.chips);
+      continue;
+    }
+    if (vm.player !== undefined) {
+      const arr = othersByOwner.get(vm.player);
+      if (arr === undefined) {
+        othersByOwner.set(vm.player, [...vm.chips]);
+        ownerOrder.push(vm.player);
+      } else {
+        arr.push(...vm.chips);
+      }
+      continue;
+    }
+    actor.push(...vm.chips);
+  }
+  const pack = (chips: Array<JournalImpactChip>): Array<JournalImpactChip> =>
+    mergeChips(chips).sort((a, b) => chipRank(a) - chipRank(b)).slice(0, maxPerGroup);
+  const groups: Array<NotificationPillGroup> = [];
+  const packedPlanet = pack(planet);
+  if (packedPlanet.length > 0) {
+    groups.push({scope: 'planet', chips: packedPlanet});
+  }
+  const packedActor = pack(actor);
+  if (packedActor.length > 0) {
+    groups.push({scope: 'actor', chips: packedActor});
+  }
+  for (const owner of ownerOrder) {
+    const packed = pack(othersByOwner.get(owner) ?? []);
+    if (packed.length > 0) {
+      groups.push({scope: 'others', owner, chips: packed});
+    }
+  }
+  return groups;
+}
+
+/**
  * Reduce a chain's breakdown rows to the headline pills (top few merged net
  * deltas) + the count of breakdown rows behind "+N details".
  */
@@ -242,7 +308,7 @@ export function recomputeRootImpact(
   correlationId: number,
   actor: Color | undefined,
   viewerColor?: Color,
-): {pills: Array<JournalImpactChip>; detailCount: number; childVMs: Array<JournalChildVM>; viewerImpact: ViewerImpactMeta} {
+): {pills: Array<JournalImpactChip>; pillGroups: Array<NotificationPillGroup>; detailCount: number; childVMs: Array<JournalChildVM>; viewerImpact: ViewerImpactMeta} {
   const chain = events.filter((e) => e.correlationId === correlationId);
   const childVMs = buildEventChildren(chain, correlationId, actor);
   const viewerImpact = viewerImpactOfChain(chain, viewerColor, actor);
@@ -253,7 +319,7 @@ export function recomputeRootImpact(
     ...viewerImpact,
     sourceCard: viewerImpact.sourceCard ?? rootSourceCard(chain, correlationId),
   };
-  return {pills, detailCount: childVMs.length, childVMs, viewerImpact: withSource};
+  return {pills, pillGroups: contextPillGroups(contextVms), detailCount: childVMs.length, childVMs, viewerImpact: withSource};
 }
 
 // ── Root-event notification ─────────────────────────────────────────────────
@@ -323,6 +389,9 @@ function buildRootNotification(input: RootBuildInput): NotificationModel | undef
   const contextVms = viewerImpact.sign === 'neutral' ? vms :
     vms.filter((vm) => vm.player !== viewerColor);
   const {pills} = summarizeImpact(contextVms);
+  // …and the same context SPLIT BY OWNER (planet / actor / third players), so
+  // a chip can never masquerade as the viewer's reward.
+  const pillGroups = contextPillGroups(contextVms);
   const sourceCard = rootSourceCard(chain, input.correlationId);
   const importance = importanceForRoot({
     viewerLoss,
@@ -365,6 +434,7 @@ function buildRootNotification(input: RootBuildInput): NotificationModel | undef
     header,
     childVMs: vms,
     pills,
+    pillGroups: pillGroups.length > 0 ? pillGroups : undefined,
     detailCount: vms.length,
     correlationId: input.correlationId,
     generation: input.generation,
@@ -926,27 +996,9 @@ export function buildPassNotification(actor: Color, generation: number, createdA
   };
 }
 
-/**
- * A player claimed a global-parameter SCALE bonus (a premium reward zone on the
- * Venus/Oxygen/Temperature track). `rewardKey` is the bonus's reward i18n key
- * (shown as the body); `claimKey` (`<scale>-<step>`) makes the id stable.
- */
-export function buildScaleBonusClaimNotification(actor: Color, rewardKey: string, claimKey: string, generation: number, createdAt: number): NotificationModel {
-  return {
-    id: `scaleclaim:${claimKey}`,
-    kind: 'important',
-    variant: 'event',
-    priority: NOTIFICATION_PRIORITY['important'],
-    sign: 'neutral',
-    importance: 'notable',
-    typeLabelKey: 'Claimed a scale bonus',
-    actor,
-    pills: [],
-    detailCount: 0,
-    bodyKey: rewardKey,
-    generation,
-    ttl: NOTIFICATION_TTL['important'],
-    persistent: false,
-    createdAt,
-  };
-}
+// (The standalone scale-bonus claim toast is GONE — a claim is logged inside
+// the claiming action's own scope, so it rides that action's correlation and
+// presents as part of the root/bot-turn card's story. The old builder diffed
+// public game state, arrived late, spoke the zone's imperative rule text and
+// — for MarsBot — misstated the reward outright: the bot takes +2 M€, never
+// heat production. The board's claimed-zone marker stays the persistent record.)

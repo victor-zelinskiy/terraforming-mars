@@ -287,6 +287,6 @@ export class AutomaResolver {
     }
     const bot = marsBotOf(game);
     game.increaseVenusScaleLevel(bot, 1);
-    game.log('${0} raised ${1} ${2} step(s)', (b) => b.player(bot).globalParameter(GlobalParameter.VENUS).number(1));
+    game.log('${0} raised ${1} ${2} step(s) raised ${1} ${2} {step|steps}', (b) => b.player(bot).globalParameter(GlobalParameter.VENUS).number(1));
   }
 }

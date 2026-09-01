@@ -68,6 +68,8 @@
     "Player passed": "Игрок спасовал",
     "Multiple events": "Несколько событий",
     "Pending events": "События в очереди",
+    "+${0} more {event|events}": "+${0} {событие|события|событий}",
+    "Next up": "Дальше",
     "events": "событий",
     "Problem": "Проблема",
     "Show in journal": "Показать в журнале",

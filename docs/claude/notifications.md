@@ -64,6 +64,84 @@ whichever it has («Зажать X Журнал» / «Осмотреть ход�
 `affects` metadata is untouched — the personal filter behaves byte-identically, with fewer
 cards. Console TV overrides in `console_tv.less` §16 (band label at the type floor).
 
+## ⭐ ITERATION 2 (2026-09-01) — one premium system for EVERY family
+
+**ONE ACTOR STATEMENT.** The initiator lives in the head's actor chip and
+NOWHERE else: the headline and every bot outcome line render through
+`withoutLeadingActor` (the same compaction `JournalGroup.childTokens` uses), so
+«Бот» / a player's name never re-opens a line. A summary line that RESTATES the
+viewer's own delta while the band leads is dropped at BUILD time
+(`summaryLinesOf(…, dropViewer)` — one fact, one voice; the inspect keeps the
+full log).
+
+**OWNERSHIP CLUSTERS (`NotificationModel.pillGroups`).** Context deltas are
+split by owner at the producer: `planet` (global parameters / neutral
+readouts) · `actor` (the initiator's own changes) · `others` (a third player,
+named). The card renders each cluster under a compact scope tag
+(`.con-notif__cluster-tag` — МАРС / the actor's name / the player's name+dot),
+so a bot's own +1 M€ can never masquerade as the viewer's reward. The viewer's
+deltas are NEVER clustered — they are the band by construction. Root cards:
+`contextPillGroups(contextVms)`; bot cards: planet=`turn.visual` params,
+actor=the bot's own impact chips. The flat `pills` stays for burst summaries.
+
+**ADAPTIVE HERO.** One delta → the band is a single confident statement (grid:
+sign label left, `[icon] UNIT +N` flush right — `.con-notif__you--dense`; the
+unit is SPOKEN via `UNIT_LABEL`, «ТЕПЛО +1», so a lone chip never floats in an
+empty frame); several deltas wrap under the label as before. `__chip-value` is
+the card's largest number (tabular).
+
+**PLURAL GROUPS CROSS TOKEN BOUNDARIES.** `logLocalization.ts` is the ONE
+localisation seam for token-rendered lines (`parseLocalizedLog` = translate +
+`Log.parse` + `resolveEntriesPluralGroups`, which carries the nearest preceding
+NUMBER over fragment seams — `b.number` emits a separate RAW_STRING token).
+Wired into the console card, `JournalGroup`, `JournalEntry` and
+`BotReviewLineContent`; the whole-string path (`translateMessage`) already
+resolved groups. Server templates were renamed onto group form («${0} raised
+${1} ${2} {step|steps}», the Hydronetwork spent/advanced pair, the colony
+storage line, «${0} played the bonus card ${1}» — now NAMED) with proper RU
+three-form values; the old keys stay in the locale files so archived games
+keep rendering. «1 ряд(а)» / «шаг(ов)» / «ед. карт» are no longer expressible
+on any tokenised line. The capped-list tail is plural-correct too
+(«+${0} more {event|events}»).
+
+**THE SCALE-BONUS TOAST IS DELETED — the claim is a beat of its action.**
+`Game.claimScaleBonus` logs inside the LIVE action scope (verified by spec: the
+claim line shares the crossing action's correlationId with the reward it
+granted) and carries the parameter as a RESOURCE token (icon chip), so the
+journal group / bot-turn script owns the whole story. The old client channel
+(`handleScaleBonusClaims` diffing `game.scaleBonusClaims`, `seenScaleClaims`,
+`buildScaleBonusClaimNotification`) is gone — it had no correlation, no
+inspect, arrived after the turn's story, spoke the zone's imperative rule text
+(«Повысьте производство тепла на 1») and, for MarsBot, misstated the reward
+outright (the bot takes +2 M€, never heat production — automa p.9). The
+board's claimed-zone marker remains the persistent record. **The class rule:**
+a notification channel may not diff public game state for something an action
+CAUSED — if it has a causing action, it rides that action's correlation.
+
+**THE QUEUE COUNTER IS A TAIL, NOT A BANNER.** The centre-stage
+`.con-banner--events` chip is deleted; the pending count renders as
+`.con-notifq` — a quiet right-aligned service chip UNDER the toast stack
+(«ДАЛЬШЕ +N», critical accent = warmer dot/ring only), visually bound to the
+surface whose backlog it describes. FIFO semantics untouched
+(`pendingSummary`).
+
+**MATERIAL + TYPE.** The card is effectively opaque plate glass (laminate
+gradient ≥0.985 alpha + top hairline + double drop shadow) — the right rail no
+longer bleeds through the text. Importance grades restate the full material
+stack with a stronger ring; `__headline` is the event-first primary voice (a
+step above context type); summary lines are the secondary voice. The journal
+chip's px label cap is re-capped in rem inside the card (TV truncation fix).
+
+Guards: `logLocalization.spec.ts` (cross-token plurals), the ownership-cluster
+blocks in `notificationModel.spec.ts` / `marsBotPresentation.spec.ts` (incl.
+the viewer-line drop), `ScaleBonusClaims.spec.ts` (the claim's correlation +
+RESOURCE token), and the e2e pair `console-notification-semantics.spec.ts`
+(the actor-stated-once headline) + `console-notification-premium-bot.spec.ts`
+(a LIVE bot turn: no line re-opens with the actor, clusters label the chips,
+the centre banner does not exist, no «(s)»-compromise survives).
+
+---
+
 Guards: `notificationSemantics.spec.ts` (pure axes), the viewer-first blocks in
 `notificationModel.spec.ts` (band, hostile merge, reveal fold, burst opt-out, automa skip),
 `marsBotPresentation.spec.ts` (bot band), and the e2e

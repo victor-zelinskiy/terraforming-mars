@@ -1499,18 +1499,24 @@ export class Game implements IGame, Logger {
   // Record who took a global-parameter scale bonus the first time its threshold
   // is crossed. The colour is the player's, or 'neutral' when it's passed during
   // World Government terraforming (SOLAR phase) and reaches no one. Logs the
-  // claim so the journal + the premium scale-bonus notification surface it.
+  // claim INSIDE the actor's live action scope, so it rides the same
+  // correlation as the action that crossed the threshold (the journal group /
+  // the bot-turn script) — the claim is a beat of that action's story, never a
+  // detached announcement. The parameter is a RESOURCE token (icon chip), not
+  // an untranslatable raw string.
   private claimScaleBonus(player: IPlayer, scale: 'venus' | 'oxygen' | 'temperature', step: number): void {
     const key = `${scale}-${step}`;
     if (this.scaleBonusClaims.has(key)) {
       return;
     }
+    const parameter = scale === 'venus' ? GlobalParameter.VENUS :
+      scale === 'oxygen' ? GlobalParameter.OXYGEN : GlobalParameter.TEMPERATURE;
     const government = this.phase === Phase.SOLAR;
     this.scaleBonusClaims.set(key, government ? 'neutral' : player.color);
     if (government) {
-      this.log('A ${0} scale bonus was claimed via World Government', (b) => b.string(scale));
+      this.log('The ${0} scale bonus was passed by World Government terraforming', (b) => b.globalParameter(parameter));
     } else {
-      this.log('${0} claimed a ${1} scale bonus', (b) => b.player(player).string(scale));
+      this.log('${0} claimed the ${1} scale bonus', (b) => b.player(player).globalParameter(parameter));
     }
   }
 

@@ -379,6 +379,33 @@ describe('notificationModel (pure)', () => {
       expect(standalone.models).to.have.length(0);
     });
 
+    it('context chips split into OWNERSHIP clusters — planet / actor / third player, viewer never among them', () => {
+      const YELLOW: Color = 'yellow';
+      const {models} = diffRootNotifications({
+        messages: [rootHeader(RED, 40)],
+        events: [
+          event({id: 40, type: 'action', player: RED, correlationId: 40, source: {kind: 'card', card: CARD}, impact: {}}),
+          // The actor's own gain, a global-parameter step, a third player's
+          // gain and the VIEWER's own gain — four different owners.
+          event({id: 401, type: 'resource-changed', player: RED, correlationId: 40, impact: {stock: {energy: 2}}}),
+          event({id: 402, type: 'global-parameter-changed', player: RED, correlationId: 40, source: {kind: 'globalParameter', parameter: 'oxygen' as never}, impact: {globalParameter: {parameter: 'oxygen' as never, steps: 1}}}),
+          event({id: 403, type: 'cards-drawn', player: YELLOW, correlationId: 40, impact: {cardsDrawn: 1}}),
+          event({id: 404, type: 'cards-drawn', player: BLUE, correlationId: 40, impact: {cardsDrawn: 2}}),
+        ],
+        seen: new Set(), viewerColor: BLUE, generation: 1, createdAt: 1,
+      });
+      const groups = models[0].pillGroups ?? [];
+      expect(groups.map((g) => g.scope)).to.deep.eq(['planet', 'actor', 'others']);
+      expect(groups[0].chips[0].icon).to.eq('oxygen');
+      expect(groups[1].chips).to.deep.eq([{icon: 'energy', text: '+2'}]);
+      expect(groups[2].owner).to.eq(YELLOW);
+      expect(groups[2].chips).to.deep.eq([{icon: 'cards', text: '+1'}]);
+      // The viewer's +2 cards lead the card as the band — never a cluster.
+      expect(models[0].viewerImpact?.gains).to.deep.eq([{icon: 'cards', text: '+2'}]);
+      const everyChip = groups.flatMap((g) => g.chips.map((c) => `${g.scope}:${c.icon}${c.text}`));
+      expect(everyChip.some((c) => c.includes('cards+2')), 'viewer delta not among the clusters').to.eq(false);
+    });
+
     it('diffNegative SKIPS automa-turn chains — the bot card owns that presentation', () => {
       const events = [
         event({id: 50, type: 'action', player: RED, correlationId: 50, category: 'automa-turn', impact: {}}),

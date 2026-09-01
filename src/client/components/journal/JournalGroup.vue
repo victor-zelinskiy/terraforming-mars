@@ -73,7 +73,7 @@ import {Color} from '@/common/Color';
 import {LogMessage} from '@/common/logs/LogMessage';
 import {LogMessageData} from '@/common/logs/LogMessageData';
 import {LogMessageDataType} from '@/common/logs/LogMessageDataType';
-import {Log} from '@/common/logs/Log';
+import {parseLocalizedLog} from '@/client/components/journal/logLocalization';
 import {JournalActionCategory, GameEvent} from '@/common/events/GameEvent';
 import {PublicPlayerModel} from '@/common/models/PlayerModel';
 import JournalTokenRenderer from '@/client/components/journal/JournalTokenRenderer.vue';
@@ -204,7 +204,9 @@ export default defineComponent({
       }
     },
     parse(message: LogMessage): ReadonlyArray<string | LogMessageData> {
-      return Log.parse({message: this.$t(message.message), data: message.data});
+      // The shared seam: translate + parse + resolve plural groups across
+      // token boundaries («2 {деления}» with the number in its own token).
+      return parseLocalizedLog(message);
     },
     // Compact a child for its grouped context: when the row's leading actor is
     // the SAME player as the root action, drop that chip (and the now-leading

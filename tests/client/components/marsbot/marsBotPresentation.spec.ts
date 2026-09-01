@@ -157,6 +157,9 @@ describe('marsBotPresentation (notification-first turns)', () => {
       expect(model.viewerImpact?.attacker).eq('red');
       expect(model.viewerImpact?.scope).eq('stock');
       expect(model.pills).deep.eq([{icon: 'megacredits', text: '+5'}]);
+      // …and the same context as an OWNERSHIP cluster: the bot's own gain is
+      // labelled the ACTOR's, so it can never read as one more viewer reward.
+      expect(model.pillGroups).deep.eq([{scope: 'actor', chips: [{icon: 'megacredits', text: '+5'}]}]);
       expect(model.cta).deep.eq({labelKey: 'Watch turn', action: 'expand-theater'});
       expect(model.secondaryCta).deep.eq({labelKey: 'To journal', action: 'open-journal'});
       expect(model.correlationId).eq(9);
@@ -172,6 +175,22 @@ describe('marsBotPresentation (notification-first turns)', () => {
       expect(model.sign).eq('neutral');
       expect(model.importance).eq('ambient');
       expect(model.viewerImpact).eq(undefined);
+    });
+
+    it('a summary line restating the VIEWER\'s own delta is dropped when the band leads (one fact, one voice)', () => {
+      const viewerLine = {message: '${0} gained 1 heat', data: [{type: 2 /* PLAYER */, value: 'blue'}]} as never;
+      const botLine = {message: '${0} placed a city', data: [{type: 2 /* PLAYER */, value: 'red'}]} as never;
+      const t = turn(1, {extraSteps: [
+        {kind: 'log', message: viewerLine},
+        {kind: 'log', message: botLine},
+      ]});
+      const [entry] = recordBotTurnsFromView(PREV, botView({lastTurn: t}));
+      const model = buildBotTurnNotification(entry, {viewerColor: 'blue' as Color, createdAt: 5, autoExpand: false});
+      expect(model.viewerImpact, 'the band leads').is.not.eq(undefined);
+      const lines = (model.summaryLines ?? []).map((l) => l.message);
+      expect(lines).not.contains('${0} gained 1 heat');
+      // The bot's own line stays — only the band's restatement is folded.
+      expect(lines).contains('${0} placed a city');
     });
 
     it('carries the turn\'s key log lines as OUTCOME summary — header never duplicated, cap honest', () => {

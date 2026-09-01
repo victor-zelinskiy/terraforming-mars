@@ -299,7 +299,7 @@ export class AutomaTargeting {
       regressed++;
     }
     if (regressed > 0) {
-      game.log('${0} track for ${1} production regressed ${2} step(s)', (b) =>
+      game.log('${0} track for ${1} production regressed ${2} step(s) track for ${1} production regressed ${2} {step|steps}', (b) =>
         b.player(marsBotOf(game)).string(resource).number(regressed));
     }
   }

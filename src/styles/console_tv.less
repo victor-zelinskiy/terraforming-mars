@@ -1118,6 +1118,13 @@ html.con-profile-tv {
             .con-notif__chip-icon { width: 1.45rem; height: 1.45rem; }
         }
         &__chip-unit { font-size: 0.8rem; }
+        &__chip-value { font-size: 1.3rem; }
+        /* The event-first primary line + the ownership scope tags. */
+        &__headline {
+            .journal-text, .journal-em { font-size: 1.1rem; }
+            .journal-token, .journal-chip, .journal-cardchip, .journal-card-chip { font-size: 1.05rem; }
+        }
+        &__cluster-tag { font-size: var(--con-t-floor); }
         /* The bot-turn card carries the turn's outcome — the summary lines,
            impact chips and the on-card X/B contract read from the couch. */
         &__summary-line { font-size: 0.95rem; }
@@ -1129,6 +1136,11 @@ html.con-profile-tv {
         &__action { font-size: var(--con-t-caption); }
         &__ba { font-size: 0.95rem; }
         &__who { font-size: 0.95rem; }
+    }
+    .con-notifq {
+        font-size: var(--con-t-floor);
+
+        &__count { font-size: 0.9rem; }
     }
 
     /* ═══ 17 · CONFIRM / NOTICE / SYSTEM / GUARD / QUIT ═══════════ */

@@ -11,6 +11,23 @@ import {ImpactSign, NotificationImportance, ViewerImpactMeta} from './notificati
 export type NegativeScope = 'stock' | 'production' | 'vp';
 
 /**
+ * One OWNERSHIP CLUSTER of context deltas on a card — the answer to «whose
+ * chips are these?» that the flat pill row could not give (a bot's own +1 M€
+ * under the viewer band read as one more reward for the viewer):
+ *  - `planet` — global parameters / board-level outcomes (nobody's reward);
+ *  - `actor`  — the event's initiator (their costs and gains);
+ *  - `others` — a third player, named by `owner`.
+ * The VIEWER's own deltas never appear in a cluster — they are the
+ * `viewerImpact` band by construction.
+ */
+export type NotificationPillGroup = {
+  scope: 'planet' | 'actor' | 'others';
+  /** The named player of an `others` cluster. */
+  owner?: Color;
+  chips: ReadonlyArray<JournalImpactChip>;
+};
+
+/**
  * Structured payload for a HOSTILE notification — a cross-player loss the viewer
  * suffered. Carries enough to answer "who / what / from where / destroyed or
  * moved" WITHOUT parsing text. Built from the victim's `GameEvent`(s).
@@ -203,6 +220,15 @@ export type NotificationModel = {
   childVMs?: ReadonlyArray<JournalChildVM>;
   /** Compact headline impact pills (merged net deltas, top few). */
   pills: ReadonlyArray<JournalImpactChip>;
+  /**
+   * The same context deltas SPLIT BY OWNER — so a chip can never masquerade as
+   * the viewer's reward: `planet` = global parameters / board-level facts,
+   * `actor` = the initiator's own changes, `others` = a third player's (named
+   * by `owner`). The viewer's own deltas are NEVER here — they lead the card
+   * as `viewerImpact`. When present the card renders these labelled clusters
+   * instead of the flat `pills` (kept for the burst summary / legacy shells).
+   */
+  pillGroups?: ReadonlyArray<NotificationPillGroup>;
   /** Number of breakdown rows available behind "+N details". */
   detailCount: number;
   /** The journal root-event id, for "open in journal" + highlight. */

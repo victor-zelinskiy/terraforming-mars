@@ -75,11 +75,11 @@ export class LogHelper {
   }
 
   static logVenusIncrease(player: IPlayer, steps: number) {
-    player.game.log('${0} raised ${1} ${2} step(s)', (b) => b.player(player).globalParameter(GlobalParameter.VENUS).number(steps));
+    player.game.log('${0} raised ${1} ${2} step(s) raised ${1} ${2} {step|steps}', (b) => b.player(player).globalParameter(GlobalParameter.VENUS).number(steps));
   }
 
   static logTemperatureIncrease(player: IPlayer, steps: number) {
-    player.game.log('${0} raised ${1} ${2} step(s)', (b) => b.player(player).globalParameter(GlobalParameter.TEMPERATURE).number(steps));
+    player.game.log('${0} raised ${1} ${2} step(s) raised ${1} ${2} {step|steps}', (b) => b.player(player).globalParameter(GlobalParameter.TEMPERATURE).number(steps));
   }
 
   static logDrawnCards(player: IPlayer, cards: ReadonlyArray<ICard>, privateMessage: boolean = false) {

@@ -74,7 +74,7 @@ export class AutomaColonies {
     }
 
     automa.shippingStorage[colonyName] = (automa.shippingStorage[colonyName] ?? 0) + count;
-    game.log('${0} gained ${1} resource(s) in its ${2} storage area', (b) =>
+    game.log('${0} added ${1} {resource|resources} to the ${2} storage area', (b) =>
       b.player(marsBotOf(game)).number(count).colony(AutomaColonies.colonyOrThrow(game, colonyName)));
 
     if (area.exchangeTag === undefined) {

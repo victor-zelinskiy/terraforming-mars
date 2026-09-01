@@ -73,7 +73,7 @@ import {defineComponent, PropType} from 'vue';
 import {PublicPlayerModel} from '@/common/models/PlayerModel';
 import {LogMessage} from '@/common/logs/LogMessage';
 import {LogMessageData} from '@/common/logs/LogMessageData';
-import {Log} from '@/common/logs/Log';
+import {parseLocalizedLog} from '@/client/components/journal/logLocalization';
 import {Color} from '@/common/Color';
 import {TrackAction} from '@/common/automa/AutomaTypes';
 import {MarsBotAttack} from '@/common/automa/MarsBotTurn';
@@ -122,7 +122,8 @@ export default defineComponent({
       if (message === undefined) {
         return [];
       }
-      return Log.parse({message: this.$t(message.message), data: message.data});
+      // The shared seam — plural groups resolve across token boundaries.
+      return [...parseLocalizedLog(message)];
     },
     targetName(color: Color): string {
       const player = this.players.find((p) => p.color === color);

@@ -64,8 +64,6 @@ type NotificationStore = {
   seenNegativeIds: Set<number>;
   /** String keys of public card reveals already surfaced (separate id space). */
   seenRevealIds: Set<string>;
-  /** `<scale>-<step>` keys of scale-bonus claims already surfaced. */
-  seenScaleClaims: Set<string>;
   /** Whether the initial seed (no-spam-on-load) has run. */
   seeded: boolean;
   /** Last generation observed — drives the "new generation" highlight. */
@@ -100,7 +98,6 @@ export const notificationState = reactive<NotificationStore>({
   seenRootIds: new Set<number>(),
   seenNegativeIds: new Set<number>(),
   seenRevealIds: new Set<string>(),
-  seenScaleClaims: new Set<string>(),
   seeded: false,
   lastGeneration: undefined,
   passedSeen: new Set<string>(),
@@ -529,7 +526,6 @@ export function resetNotifications(): void {
   notificationState.seenRootIds = new Set<number>();
   notificationState.seenNegativeIds = new Set<number>();
   notificationState.seenRevealIds = new Set<string>();
-  notificationState.seenScaleClaims = new Set<string>();
   notificationState.seeded = false;
   notificationState.lastGeneration = undefined;
   notificationState.passedSeen = new Set<string>();

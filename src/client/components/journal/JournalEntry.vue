@@ -28,7 +28,7 @@ import {defineComponent} from 'vue';
 import {LogMessage} from '@/common/logs/LogMessage';
 import {LogMessageData} from '@/common/logs/LogMessageData';
 import {LogMessageType} from '@/common/logs/LogMessageType';
-import {Log} from '@/common/logs/Log';
+import {parseLocalizedLog} from '@/client/components/journal/logLocalization';
 import {PublicPlayerModel} from '@/common/models/PlayerModel';
 import JournalTokenRenderer from '@/client/components/journal/JournalTokenRenderer.vue';
 
@@ -74,11 +74,9 @@ export default defineComponent({
       return this.message.playerId !== undefined;
     },
     entries(): ReadonlyArray<string | LogMessageData> {
-      const e = {
-        message: this.$t(this.message.message),
-        data: this.message.data,
-      };
-      return Log.parse(e);
+      // The shared seam: translate + parse + resolve plural groups across
+      // token boundaries («2 {деления}» with the number in its own token).
+      return parseLocalizedLog(this.message);
     },
     when(): string {
       const d = new Date(this.message.timestamp);

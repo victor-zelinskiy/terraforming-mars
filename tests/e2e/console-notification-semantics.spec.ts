@@ -131,6 +131,30 @@ async function armToastProbe(page: Page): Promise<void> {
     mo.observe(document.body, {childList: true, subtree: true, attributes: true, attributeFilter: ['data-notif-id', 'class']});
     w.__toastTimer = window.setInterval(sample, 120);
     sample();
+    // PRESENCE TIMELINE — per-id appear/vanish transitions with timestamps,
+    // so «the dismiss never ran» and «the card came BACK» stop looking alike.
+    const w2 = window as unknown as {__toastTimeline?: Array<{t: number, id: string, present: boolean}>};
+    const timeline: Array<{t: number, id: string, present: boolean}> = [];
+    w2.__toastTimeline = timeline;
+    const present = new Map<string, boolean>();
+    const t0 = Date.now();
+    window.setInterval(() => {
+      const now = new Set(Array.from(document.querySelectorAll('.con-notif'))
+        .map((el) => (el as HTMLElement).dataset.notifId ?? '')
+        .filter((id) => id !== ''));
+      for (const id of now) {
+        if (present.get(id) !== true) {
+          present.set(id, true);
+          timeline.push({t: Date.now() - t0, id, present: true});
+        }
+      }
+      for (const [id, was] of present) {
+        if (was && !now.has(id)) {
+          present.set(id, false);
+          timeline.push({t: Date.now() - t0, id, present: false});
+        }
+      }
+    }, 80);
   });
 }
 
@@ -212,6 +236,11 @@ for (const profile of PROFILES) {
       // The two axes render as classes; the actor chip names the initiator.
       await expect(ambientCard).toHaveClass(/con-notif--imp-ambient/);
       await expect(page.locator('.con-notif__actor').first()).toContainText('Rival');
+      // The actor is stated ONCE (the head chip): the headline drops its own
+      // leading player token («сыграл ‹Электростанция›», never «Rival сыграл…»).
+      const headlineText = (await page.locator('.con-notif__headline').innerText()).trim();
+      expect(headlineText.startsWith('Rival'), `headline repeats the actor: «${headlineText}»`).toBe(false);
+      expect(headlineText.length, 'the headline still tells the story').toBeGreaterThan(0);
       // No viewer band — nothing personal happened.
       expect(await page.locator('.con-notif__you').count(), 'no «для вас» band on a bystander event').toBe(0);
 
@@ -261,8 +290,13 @@ for (const profile of PROFILES) {
       await page.locator('.con-journal').waitFor({timeout: 10_000});
       await settle(page, 600);
       await shoot(page, `${profile.tag}-03-hold-x-journal`);
-      expect(await page.locator('.con-notif--sign-negative').count(),
-        'the toast hands over to the journal').toBe(0);
+      const lingering = await page.evaluate(() =>
+        Array.from(document.querySelectorAll('.con-notif--sign-negative'))
+          .map((el) => `${(el as HTMLElement).dataset.notifId}·${(el as HTMLElement).className}`));
+      const timeline = await page.evaluate(() =>
+        (window as unknown as {__toastTimeline?: Array<unknown>}).__toastTimeline ?? []);
+      expect(lingering.length,
+        `the toast hands over to the journal (lingering: ${JSON.stringify(lingering)}; timeline: ${JSON.stringify(timeline)})`).toBe(0);
       await page.keyboard.press('Escape');
       await settle(page, 800);
 
