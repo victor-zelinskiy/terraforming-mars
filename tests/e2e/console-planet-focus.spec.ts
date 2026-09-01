@@ -113,56 +113,51 @@ async function focusStdProject(page: Page, title: RegExp): Promise<boolean> {
  * ZERO-HEIGHT box (every arc child is absolute), so Playwright's
  * `toBeVisible` can never pass on it — probe the computed style instead.
  */
-type DockPose = {compact: boolean, raised: boolean, scale: number, opacity: number, cls: string, hdScale: string};
+type DockPose = {compact: boolean, raised: boolean, bodyW: number, veil: number, cls: string};
 
 /**
- * The hand dock's live POSE: which of the three classes is on, and the
- * whole-pack transform the CSS resolved for it. `scale` is read off the
- * computed matrix — the pose contract is "one uniform shrink", so the
- * matrix's `a` component IS the pose.
- *
- * The pack is read THROUGH the dock (`dock.querySelector`), never as a second
- * top-level query: the two must describe ONE physical object, or a pose
- * failure reports a class list and a transform that belong to different
- * elements. `cls` + `hdScale` (the resolved `--hd-scale` custom property the
- * pose rules actually set — `console.less` `&--compact` / `&--raised`) ride
- * along so a mismatch names its own cause instead of "expected 1, got 0.7".
+ * The hand dock's live POSE, measured off the PAINTED witnesses: the pose
+ * classes on the chassis, the middle docked BODY's on-screen width (the
+ * bodies layer owns the card geometry since the single-owner rework — the
+ * pack anchor itself is deliberately untransformed, so reading its matrix
+ * would witness nothing), and the tuck veil's resolved ::after opacity (the
+ * compact pose's light-loss channel; `filter` is stripped console-wide, so
+ * this pseudo IS the whole dim).
  */
 function dockPose(page: Page): Promise<DockPose> {
   return page.evaluate(() => {
     const dock = document.querySelector('.con-handdock');
-    const pack = dock?.querySelector('.con-handdock__pack') ?? null;
-    if (dock === null || pack === null) {
-      return {compact: false, raised: false, scale: 0, opacity: 0, cls: 'no dock', hdScale: ''};
+    const backs = Array.from(document.querySelectorAll<HTMLElement>('[data-hand-dock-card][data-hand-body-mode="docked"]'));
+    const mid = backs[Math.floor(backs.length / 2)];
+    if (dock === null || mid === undefined) {
+      return {compact: false, raised: false, bodyW: 0, veil: 0, cls: 'no dock / no docked bodies'};
     }
-    const cs = getComputedStyle(pack as HTMLElement);
-    const m = new DOMMatrixReadOnly(cs.transform === 'none' ? '' : cs.transform);
+    const face = mid.querySelector<HTMLElement>('.con-deal-proxy__back') ?? mid;
     return {
       compact: dock.classList.contains('con-handdock--compact'),
       raised: dock.classList.contains('con-handdock--raised'),
-      scale: Math.round(m.a * 1000) / 1000,
-      opacity: Number(cs.opacity),
+      bodyW: Math.round(mid.getBoundingClientRect().width * 10) / 10,
+      veil: Math.round(Number(getComputedStyle(face, '::after').opacity) * 100) / 100,
       cls: dock.className,
-      hdScale: cs.getPropertyValue('--hd-scale').trim(),
     };
   });
 }
 
 /**
- * Wait until the pack's pose transition has actually SETTLED (two equal
+ * Wait until the pack's pose ride has actually SETTLED (three equal
  * samples), then report it. A fixed sleep read the eased tail (0.994) and
  * turned an exact-pose assertion into a flake.
  */
 async function settledDockPose(page: Page): Promise<DockPose> {
   // Poll until the pack STOPS moving — three consecutive equal samples, and
   // never fewer than two rounds (a single pair can both land before the
-  // transition's first frame and read the OLD pose as "settled").
+  // ride's first frame and read the OLD pose as "settled").
   let last = await dockPose(page);
   let stable = 0;
   for (let i = 0; i < 30; i++) {
     await page.waitForTimeout(120);
     const now = await dockPose(page);
-    stable = now.scale === last.scale && now.opacity === last.opacity ? stable + 1 : 0;
+    stable = now.bodyW === last.bodyW && now.veil === last.veil ? stable + 1 : 0;
     last = now;
     if (stable >= 3) {
       break;
@@ -201,7 +196,10 @@ test.describe('console planet focus · main-grid placement stage', () => {
     //    `startSceneMounted && !placementActive` (`ConsoleShell.vue:2393`),
     //    so during the very board placement it goes on to assert, the scene
     //    is GUARANTEED mounted-and-hidden.
-    await bootIntoGame(page, request, {config: GAME_CONFIG});
+    // `buy` keeps a real hand in the dock: the pose witnesses below read the
+    // PAINTED bodies (the single-owner rework left nothing else to read),
+    // and an empty pack has no body to witness a pose with.
+    await bootIntoGame(page, request, {config: GAME_CONFIG, buy: 6});
 
     // ── overview baseline ─────────────────────────────────────────────
     const board = page.locator('.con-board');
@@ -211,10 +209,11 @@ test.describe('console planet focus · main-grid placement stage', () => {
     expect(arcsBefore.display, 'no arc band on the overview board').not.toBe('none');
     expect(arcsBefore.opacity).toBe('1');
     const oceansBefore = await hudOceans(page);
-    // POSE 1 — the dock's default: full-size pack, no pose class.
-    const poseHome = await dockPose(page);
+    // POSE 1 — the dock's default: full-size pack, no pose class, no veil.
+    const poseHome = await settledDockPose(page);
     expect(poseHome.compact || poseHome.raised, 'the dock starts in a pose').toBe(false);
-    expect(poseHome.scale).toBe(1);
+    expect(poseHome.bodyW, 'no docked body to witness the pose').toBeGreaterThan(0);
+    expect(poseHome.veil, 'the rest pose carries no tuck veil').toBe(0);
     await shoot(page, '01-board-home');
 
     // LT wheel → Standard Projects → «Аквифер»: an OCEAN placement — the
@@ -246,12 +245,13 @@ test.describe('console planet focus · main-grid placement stage', () => {
     // POSE 2 — the hand steps back so it stops competing with the planet.
     const poseFocus = await settledDockPose(page);
     expect(poseFocus.compact, 'the dock did not take its compact pose').toBe(true);
-    // ~30% more compact — and NEVER so small it reads as gone (the first
-    // cut buried the pack behind the tray, which is not a pose, it's a
-    // disappearance). Both bounds are the contract.
-    expect(poseFocus.scale, 'the compact pack is not visibly smaller').toBeLessThan(0.8);
-    expect(poseFocus.scale, 'the compact pack shrank out of sight').toBeGreaterThan(0.62);
-    expect(poseFocus.opacity).toBeLessThan(1);
+    // The tuck is a SINK + a light scale step (~0.9) + the veil — the card
+    // rhythm must survive nearly intact (a hard shrink reads as a rebuilt
+    // interface), and the pose must still be plainly a pose, not identity.
+    const focusRatio = poseFocus.bodyW / poseHome.bodyW;
+    expect(focusRatio, `the compact pack is not visibly stepped back (w ${poseFocus.bodyW} vs ${poseHome.bodyW})`).toBeLessThan(0.96);
+    expect(focusRatio, 'the compact pack shrank too hard — the tuck carries the pose, not the scale').toBeGreaterThan(0.8);
+    expect(poseFocus.veil, 'the tuck veil did not engage').toBeGreaterThan(0.2);
     await shoot(page, '02-placement-focus');
 
     // POSE 3 over POSE 2 — the RT wheel is legal on an expanded planet: the
@@ -259,17 +259,19 @@ test.describe('console planet focus · main-grid placement stage', () => {
     // and closing the wheel must return it to compact, not to default.
     await key(page, 'Period', 500);
     const poseWheel = await settledDockPose(page);
-    const wheelStory = `pose ${JSON.stringify(poseWheel)}`;
+    const wheelStory = `pose ${JSON.stringify(poseWheel)} vs home ${poseHome.bodyW}`;
     expect(poseWheel.raised, `RT did not raise the dock over the focused board — ${wheelStory}`).toBe(true);
     expect(poseWheel.compact, `raised and compact are mutually exclusive — ${wheelStory}`).toBe(false);
-    expect(poseWheel.scale, `the raised pack is not at full size — ${wheelStory}`).toBe(1);
-    expect(poseWheel.opacity, wheelStory).toBe(1);
+    // Full size again (the middle card carries at most a whisker of fan
+    // tilt, so its rect width may exceed home by a hair — never shrink).
+    expect(poseWheel.bodyW / poseHome.bodyW, `the raised pack is not at full size — ${wheelStory}`).toBeGreaterThan(0.98);
+    expect(poseWheel.veil, wheelStory).toBe(0);
     await shoot(page, '02b-wheel-over-focus');
     await key(page, 'Period', 500); // the same trigger closes it
     const poseBack = await settledDockPose(page);
     expect(poseBack.compact, 'closing the wheel did not return the compact pose').toBe(true);
-    expect(poseBack.scale).toBeLessThan(0.8);
-    expect(poseBack.scale).toBeGreaterThan(0.62);
+    expect(poseBack.bodyW / poseHome.bodyW).toBeLessThan(0.96);
+    expect(poseBack.bodyW / poseHome.bodyW).toBeGreaterThan(0.8);
 
     // ── place: the hero + rewards play on the enlarged stage ──────────
     await key(page, 'Enter', 600);
@@ -430,7 +432,8 @@ test.describe('console planet focus · main-grid placement stage', () => {
     // …and the hand returns to POSE 1 with the rest of the interface.
     const poseAfter = await settledDockPose(page);
     expect(poseAfter.compact, 'the dock stayed tucked after the exit').toBe(false);
-    expect(poseAfter.scale).toBe(1);
+    expect(poseAfter.bodyW / poseHome.bodyW, 'the pack did not return to full size').toBeGreaterThan(0.98);
+    expect(poseAfter.veil, 'the tuck veil outlived the pose').toBe(0);
     const scaleAfter = await boardScale(page);
     expect(Math.abs(scaleAfter - scaleBefore), 'the overview fit did not return')
       .toBeLessThan(scaleBefore * 0.06);

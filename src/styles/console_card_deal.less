@@ -673,6 +673,56 @@ dialog.con-zoom {
     box-shadow: inset 0 0 0 .05rem rgba(140, 170, 200, 0.26);
 }
 
+/* ── the docked pack's MATERIAL (pose iteration) ──────────────────────
+   Two cheap compositor-friendly light channels, both opacity-only:
+
+   1. CONTACT SHADOW — the left-edge occlusion the old per-card dock backs
+      always had (each card softly shadows the one beneath, so the packed
+      gold edges read as a physical stack, not a flat comb of stripes).
+      Lives on a ::before UNDER the card art, and only while the body is
+      DOCKED: a card seized by a flight lets its stack-contact shadow fade
+      as it lifts, and regains it on touchdown — a transition, never a
+      handoff pop. Deep-thickness cards skip it (the old rule: dozens of
+      blurred shadows for cards that read as one thickness).
+      Authored against the NATURAL 320×460 box (the transform scales it
+      down to the old dock look, ~-6px/2px/11px at pack scale). */
+.con-handbody::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    border-radius: 22px;
+    box-shadow: -1.5rem .5rem 2.6rem rgba(0, 0, 0, 0.58);
+    opacity: 0;
+    transition: opacity calc(240ms * var(--motion-scale, 1)) ease;
+    pointer-events: none;
+}
+.con-handbody[data-hand-body-mode="docked"]:not(.con-handbody--deep)::before {
+    opacity: 1;
+}
+/* 2. THE TUCK'S LIGHT LOSS — a docked card seated deep in the tray catches
+      less light: a dark veil over whichever face shows, fading in on the
+      slow settle's own clock and lifting quickly as the hand rises. This
+      is what turns the compact crown from a bright gold comb (a standing
+      band of visual noise over the board) into a quiet brass silhouette —
+      the count line below keeps full voice. Opacity-only; the veil sits on
+      the flat FACE planes (never on the preserve-3d flip — grouping). */
+.con-handbody .con-deal-proxy__face::after,
+.con-handbody .con-deal-proxy__back::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    border-radius: 22px;
+    background: rgb(5, 9, 15);
+    opacity: 0;
+    transition: opacity calc(280ms * var(--motion-scale, 1)) ease;
+    pointer-events: none;
+}
+.con-handbody--tucked .con-deal-proxy__face::after,
+.con-handbody--tucked .con-deal-proxy__back::after {
+    opacity: .42;
+    transition-duration: calc(560ms * var(--motion-scale, 1));
+}
+
 /* ── HAND INTAKE — "cards physically arrive in the player's hand" ─────
    (handDeliveryDirector.ts / ConsoleHandDeliveryLayer.vue). Face→back flip
    proxies depart whatever surface released the cards (the start-ceremony

@@ -29,36 +29,12 @@
     <!-- 0 cards: nothing here — the empty pack + the «0» counter already
          say "no cards" (no placeholder frame; a dashed ghost read as a
          broken/awaiting slot). -->
-    <!-- move-class="con-hd-still" — THE PACK IS NOT A FLOW LIST, so it must
-         never run Vue's FLIP `-move`. Every back here shares the SAME box
-         (`position: absolute; left: 0; bottom: 0`); their entire on-screen
-         placement is their OWN transform (`--hd-dx/--hd-dy/--hd-tilt` × the
-         pose knobs), and a re-spread is already animated by the card's own
-         `transition: transform` — the "single interpolation of the same
-         transform knobs" this component is built on. FLIP exists for
-         elements that move because document FLOW moved them, so here a
-         non-zero delta can only ever be (a) a duplicate of an animation CSS
-         already owns — while STOMPING the transform grammar with a bare
-         `translate()` for its whole duration (tilt, spread and pop drop out)
-         — or (b) an artifact: `TransitionGroup` records positions with
-         `getBoundingClientRect()` INSIDE its render function, i.e. in the
-         middle of the parent's patch, where the shell can be transiently
-         mid-layout. That is not theoretical: a teleported `--embed` surface
-         standing in `.con-root`'s flex column for one flush squeezed
-         `.con-main` and lifted the whole footer ~493px, the dock rode up
-         with it, and the pack inherited that delta as a real, painted
-         340 ms slide back from the CENTRE OF THE SCREEN. Pointing
-         `move-class` at a class that declares `transition: none` makes
-         Vue's `hasCSSTransform` probe answer false, so `onUpdated` returns
-         BEFORE it measures anything: the pack's geometry is CSS-only, by
-         construction, and no layout an unrelated surface passes through can
-         reach it. (It is also cheaper: no 2N `getBoundingClientRect` and no
-         forced reflow per dock update.) Enter/leave are untouched. -->
     <!-- SINGLE-OWNER REWORK: the pack's card backs are NOT rendered here
          any more — the hand BODIES layer owns every card element for its
          whole life (handBodies.ts). This box stays as the pack's GEOMETRY
          ANCHOR: the layer measures its bottom-centre to place the docked
-         pose, so LESS and JS can never disagree about where the tray is. -->
+         pose (the box itself is deliberately untransformed — pose-invariant,
+         so LESS and JS can never disagree about where the tray is). -->
     <div class="con-handdock__pack" aria-hidden="true"></div>
 
     <!-- The tray PLATE (paints in front of the card bottoms — the pack sits
@@ -250,11 +226,10 @@ export default defineComponent({
     compact: {type: Boolean, default: false},
     /**
      * THE INTAKE ACCENT LEASE IS LIVE — cards are physically arriving or
-     * gathering. The pose SNAPS instead of riding its 340ms transition:
-     * every back is HELD invisible until its proxy's touchdown, so the ride
-     * buys nothing — and it is exactly what the gather's landing measure
-     * raced (targets taken mid-ride landed the whole hand in the miniature
-     * pose, and the backs then materialized full-size in one frame).
+     * gathering. The shell already answers it by forcing the FULL pose
+     * (`handDockCompact` yields to the accent); this class is the chassis
+     * witness of that state (and the `--receiving` dockcover exception's
+     * sibling) — the card geometry itself rides the bodies layer.
      */
     intake: {type: Boolean, default: false},
     /**

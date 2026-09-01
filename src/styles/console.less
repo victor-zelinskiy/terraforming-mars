@@ -14362,27 +14362,14 @@ html.con-profile-large.console-mode .notifications-layer.notifications-layer--jo
     bottom: 0;
     width: calc(var(--con-hd-bay, 16rem) - 1.6rem);
     height: calc(var(--hd-card-h, 4.4rem) + 1.5rem);
-    /* Pack presentation knobs (the three poses retune them).
-       PER-CARD: spread / lift / fan. WHOLE-PACK: scale / sink / fade —
-       these live on `.con-handdock__pack` so the compact pose is ONE
-       uniform shrink of one physical object (never a per-card resize:
-       animating width/height is banned, and a partial shrink would change
-       the fan's read). */
+    /* Card-box knobs (the root height and the profile blocks read them).
+       The pack POSES (rest / compact / raised) live in JS since the
+       single-owner bodies rework — handBodies.ts POSE_KNOBS +
+       packProfileTuning place every card analytically, and the chassis
+       carries NO pose vars/transforms: two sources for one geometry is
+       exactly how LESS and the layer would start to disagree. */
     --hd-card-w: 3.15rem;
     --hd-card-h: 4.4rem;
-    --hd-spread: 1;
-    --hd-lift: 0rem;
-    --hd-fan: 0;
-    --hd-scale: 1;
-    --hd-sink: 0rem;
-    --hd-fade: 1;
-    /* The compact pose's shrink: ~30% smaller, and only a HAIR deeper into
-       the plate. The pack must stay plainly VISIBLE — it steps back from
-       the planet, it does not leave (a .6 shrink + a .5rem sink buried it
-       behind the tray, which is not "compact", it's gone). Profiles retune
-       — a Deck pack is small to begin with. */
-    --hd-compact-scale: .7;
-    --hd-compact-sink: .12rem;
     /* WELDED IN: the dock is a fixed part of the bar — it never dims,
        shrinks or slides with the shell's states (only the PACK animates:
        hover / the RT wheel raise / card enter-leave). */
@@ -14433,73 +14420,21 @@ html.con-profile-large.console-mode .notifications-layer.notifications-layer--jo
            dock's own plate (z11705, in front of the card bottoms) and the
            full-bleed cinematic layers (reveal/zoom/endgame). A busy screen is
            answered by the COMPACT POSE, never by re-layering (the presence
-           contract — hand-dock-presence.md). Card children keep their own
-           inline z (3+i), stacked WITHIN this pack. */
+           contract — hand-dock-presence.md). */
         z-index: 11704;
-        /* The WHOLE-PACK pose (compact / default). Origin = the tray axis,
-           so a shrink seats the pack DEEPER into the plate instead of
-           drifting — the cards read as tucked away, not as a smaller
-           picture. Safe as a stacking context: the z-index above already
-           made this element one, so the cards' inline z still stacks
-           WITHIN the pack exactly as before. Flight anchors read
-           `getBoundingClientRect`, which is post-transform — an intake
-           lands on the card where it VISUALLY is in every pose. */
-        transform: translateY(var(--hd-sink, 0rem)) scale(var(--hd-scale, 1));
-        transform-origin: 50% 100%;
-        opacity: var(--hd-fade, 1);
-        transition:
-            transform calc(460ms * var(--motion-scale, 1)) @con-ease-standard,
-            opacity calc(460ms * var(--motion-scale, 1)) @con-ease-standard;
+        /* THE MEASURED ANCHOR IS POSE-INVARIANT — deliberately NO transform
+           and NO transition here. The bodies layer measures this box's
+           bottom-centre for the analytic pose and for every intake target;
+           the old translateY(sink)/scale pose echo moved the measured
+           bottom WITH the pose, double-counting the sink against the
+           analytic pose's own (a 2px lie at the old .12rem sink, a ~19px
+           mis-aim at the tuck depth compact has now). The pose paints on
+           the CARDS (handBodies.ts) and nowhere else. */
     }
-    &__card {
-        position: absolute;
-        left: 0;
-        bottom: 0;
-        width: var(--hd-card-w);
-        height: var(--hd-card-h);
-        border-radius: .22rem;
-    }
-    /* One card-back silhouette — the SAME approved back texture the
-       project deck uses (never a CSS redraw). Left-edge shadow separates
-       it from the card underneath — at a dense 20-card hand that shadowed
-       sliver IS the readable edge. `--hd-dy` carries the subtle symmetric
-       arc (outer cards a couple px lower) + the overflow sink. */
-    &__card {
-        background: url('./assets/resources/card.webp') center / cover no-repeat;
-        box-shadow:
-            inset 0 0 0 .05rem rgba(165, 195, 225, 0.34),
-            -0.3rem .12rem .55rem rgba(0, 0, 0, 0.55);
-        transform:
-            translateX(calc(-50% + var(--hd-dx, 0rem) * var(--hd-spread, 1)))
-            translateY(calc(var(--hd-pop, 0rem) - var(--hd-lift, 0rem) + var(--hd-dy, 0rem)))
-            rotate(calc(var(--hd-tilt, 0deg) * var(--hd-fan, 0)));
-        transition:
-            transform calc(340ms * var(--motion-scale, 1)) @con-ease-standard,
-            opacity calc(260ms * var(--motion-scale, 1)) ease;
-    }
-    /* INTAKE: the pose RIDES — deliberately. An earlier iteration snapped
-       the pack/card transitions to opacity-only here so the gather's
-       landing measure would not race a moving target, and that snap was
-       itself the reported fan break: any pose change during an intake
-       (fan → straight, compact → full) applied in ONE FRAME. The moving
-       target is instead answered where it belongs — the flights' own
-       final-approach retarget (handRevealDirector reads the LIVE berth at
-       72% / in the cancel glide), so the pack may keep its physical
-       460/340ms rides through every intake. */
-    /* A dense-thickness card (beyond the 20 distinct positions): a REAL
-       card, cheaply drawn — no blur shadow (dozens of those would cost),
-       slightly dimmed so the readable layer above owns the light. */
-    &__card--deep {
-        box-shadow: inset 0 0 0 .05rem rgba(140, 170, 200, 0.26);
-        filter: brightness(0.78);
-    }
-    /* Starting-cards DELIVERY hold: a card still flying from the deck —
-       hidden but LAID OUT (its slot rect is what the flying proxy targets),
-       released (materializes via the base opacity transition) on touchdown. */
-    &__card--held {
-        visibility: hidden;
-    }
-    /* (0 cards: no placeholder — the empty pack + the «0» counter say it.) */
+    /* (The per-card `__card` rules are GONE with the single-owner bodies
+       rework — the hand's physical cards are `.con-handbody` elements on
+       the reveal layer, styled in console_card_deal.less. The dock hosts
+       chassis + the empty pack anchor only.) */
 
     /* ── the tray PLATE (in front of the card bottoms) ───────────── */
     &__plate {
@@ -14875,77 +14810,27 @@ html.con-profile-large.console-mode .notifications-layer.notifications-layer--jo
             pointer-events: auto;
         }
     }
-    /* The hand overlay (or a reveal flight) owns SOME cards ("in the
-       player's hand"): those backs are held invisible the same frame their
-       proxies stand over them — instant, no transition (the proxies ARE
-       the cards); the chassis, status line and counter stay exactly where
-       they are. PER-CARD (not the whole pack): a card outside the active
-       tag filter keeps its back physically in the tray while the hand is
-       open (the shell derives the set — see `dockLiftedNames`). */
-    &__card--lifted {
-        visibility: hidden;
-    }
-    /* POSE 2 — COMPACT: Planet Focus took the screen, so the hand steps
-       back. The pack shrinks toward the tray axis and settles a little
-       deeper into the plate, keeping its exact fan geometry (one uniform
-       scale — the same object, further away) and losing a touch of light.
-       The CHASSIS is untouched: «КАРТЫ N/M» stays fully readable, because
-       what the player still needs here is the COUNT, not the silhouette.
-       Mutually exclusive with `--raised` by construction (the component
-       resolves the pair), so this can never fight the pose below. */
-    &--compact {
-        --hd-scale: var(--hd-compact-scale, .6);
-        --hd-sink: var(--hd-compact-sink, .5rem);
-        --hd-fade: .82;
-    }
-    /* POSE 3 — RAISED: the pack rises + opens a notch, on hover AND while
-       the RT wheel is open (its centre «КАРТЫ» slot is the entry to the
-       hand — the dock below answers on the same axis). Reachable from
-       EITHER of the other two poses: opening the wheel over an expanded
-       planet is legal, and this pose explicitly restores the whole-pack
-       knobs, so compact → raised interpolates the same transform back to
-       full size instead of snapping. */
-    /* `--posehold`: the OPEN transition's pose LATCH. The press drops
-       `raised`/`:hover` and mounts the album in one flush, and the pack's
-       340 ms ride toward rest then runs while the mount storm blocks
-       paints — so the FIRST painted frame after the press showed the pack
-       already part-way to rest/compact: «веер одним кадром стал другим».
-       The shell latches this class in the SAME task as the press (no var
-       changes ⇒ no transition fires), the fan keeps painting the exact
-       pose the player pressed on, and it releases only when the backs are
-       already hidden under their just-spawned proxies. */
+    /* THE POSE CLASSES are chassis WITNESSES + the plate's light response
+       only — the pack geometry they used to retune lives in the bodies
+       layer (handBodies.ts POSE_KNOBS; the shell derives ONE pose and both
+       the class and the layer prop read it, so they can never disagree).
+       COMPACT keeps no chassis rule at all: «КАРТЫ N/M» stays untouched —
+       what the player still needs from a stepped-back hand is the COUNT. */
+    /* RAISED (the RT wheel is out / the pointer rests on the live dock):
+       the tray answers the rising pack with a soft inner light. */
     &--raised,
-    &--posehold,
     &--live:hover,
     &--live:focus-visible {
-        --hd-spread: 1.12;
-        --hd-lift: .45rem;
-        --hd-fan: 1;
-        --hd-scale: 1;
-        --hd-sink: 0rem;
-        --hd-fade: 1;
-
         .con-handdock__plate-face {
             box-shadow: inset 0 .05rem .8rem fade(@con-cyan, 14%);
         }
     }
-    /* A card just LANDED (hand intake): the pack breathes open a touch and
-       the plate glows — "the hand accepts the card". Rides the cards' own
-       340ms transform transition; the class drops after ~240ms so the
-       spread eases back on its own. */
+    /* A card just LANDED (hand intake): the plate glows — "the hand
+       accepts the card" (the pack's own spread-breath rides the layer's
+       re-seat of the grown hand). */
     &--receiving {
-        --hd-spread: 1.05;
-
         .con-handdock__plate-face {
             box-shadow: inset 0 .05rem .9rem fade(@con-cyan, 20%);
-        }
-    }
-    /* Reduced motion: the POSES still apply (they carry meaning — the hand
-       is stepping back / standing ready), only their travel stops. */
-    @media (prefers-reduced-motion: reduce) {
-        .con-handdock__pack,
-        .con-handdock__card {
-            transition: none;
         }
     }
     /* The playable mint hairline along the plate's top edge. */
@@ -14977,34 +14862,9 @@ html.con-profile-large.console-mode .notifications-layer.notifications-layer--jo
    moments the whole table steps back, and the reveal's own card flights must
    fly ABOVE the pack they are landing into. The dock stays mounted and
    returns the instant they release. */
-/* Pack enter/leave (a card joins / leaves the hand): rise out of / sink
-   into the tray. `--hd-pop` folds into the card's own transform, so the
-   x-placement never snaps. */
-.con-hd-enter-from,
-.con-hd-leave-to {
-    --hd-pop: 1.15rem;
-    opacity: 0;
-}
-.con-hd-enter-active,
-.con-hd-leave-active {
-    transition:
-        transform calc(340ms * var(--motion-scale, 1)) @con-ease-standard,
-        opacity calc(260ms * var(--motion-scale, 1)) ease;
-}
-/* THE PACK'S «MOVE» CLASS — deliberately a NO-OP (see ConsoleHandDock.vue's
-   `move-class`). Vue decides whether a transition-group runs its FLIP by
-   cloning a child, adding this class and asking whether the result transitions
-   `transform`; `transition: none` answers no, and `onUpdated` then returns
-   before it measures a single rect. The pack must be measured by NOBODY: its
-   cards all share one box and are placed purely by their own transform, so a
-   FLIP delta is never information — only a re-statement of an animation the
-   card already owns, or a transient layout leaking in as a painted jump.
-   TWO classes on purpose: `.con-handdock__card` declares `transition: transform`
-   at (0,1,0), so a single-class rule here would tie and lose on source order —
-   the exact silent failure mode `.con-composer__stage&__stage` records. */
-.con-handdock__pack .con-hd-still {
-    transition: none;
-}
+/* (The per-card pack enter/leave transitions and the `con-hd-still` FLIP
+   no-op left with the per-card dock DOM: a card joining or leaving the
+   hand is the bodies layer's arrival pop / the flight episodes' motion.) */
 
 /* The hand section's chrome rise (header / verdict bar) — the panels
    follow the cards, never precede them. */
@@ -15022,9 +14882,6 @@ html.con-profile-large.console-mode .notifications-layer.notifications-layer--jo
 }
 
 @media (prefers-reduced-motion: reduce) {
-    .con-handdock__card,
-    .con-hd-enter-active,
-    .con-hd-leave-active { transition: none; }
     .con-handdock__num { animation: none; transition: none; }
     .con-hand__head,
     .con-hand__verdictbar { animation: none; }
@@ -30846,13 +30703,9 @@ html.con-profile-handheld {
     .con-handdock {
         --hd-card-w: 2.6rem;
         --hd-card-h: 3.65rem;
-        --hd-spread: .84;
-        /* The Deck pack is already small and its footer band is tight —
-           the compact pose tucks LESS here (the standard shrink on top of
-           a .84 spread would read as a smudge). The idea survives; the
-           amount adapts. */
-        --hd-compact-scale: .78;
-        --hd-compact-sink: .08rem;
+        /* (The Deck pack's tighter spread + shallower compact tuck live in
+           handBodies.ts packProfileTuning('handheld') — the JS pose is the
+           one source; the chassis only re-sizes its own box here.) */
         width: calc(var(--con-hd-bay, 12.4rem) - 1.2rem);
         height: calc(var(--hd-card-h) + 1.2rem);
 

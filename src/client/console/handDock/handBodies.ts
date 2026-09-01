@@ -115,14 +115,23 @@ export function resetHandBodies(): void {
 
 /* ── the analytic docked pose ───────────────────────────────────────── */
 
-/** Pack-level pose knobs (ported from the old `--hd-*` CSS vars). The
- *  handheld profile keeps its tighter base spread; `raised` opens the fan
- *  (tilts on) and lifts the pack — the «на готове» pose the flight departs
- *  from and returns into. */
-const POSE_KNOBS: Record<PackPose, {spread: number, lift: number, fan: number, scale: number, sink: number}> = {
-  rest: {spread: 1, lift: 0, fan: 0, scale: 1, sink: 0},
-  compact: {spread: 1, lift: 0, fan: 0, scale: 0.7, sink: 0.12},
-  raised: {spread: 1.12, lift: 0.45, fan: 1, scale: 1, sink: 0},
+/** Pack-level pose knobs — the ONE source of the three poses' geometry (the
+ *  chassis CSS carries no pose transform any more). The handheld profile
+ *  keeps its tighter base spread; `raised` opens the fan (tilts on) and
+ *  lifts the pack — the «на готове» pose the flight departs from and
+ *  returns into.
+ *
+ *  COMPACT is a TUCK, not a shrink: the dominant carrier is the SINK (the
+ *  pack settles into the tray behind the plate until only a tidy crown of
+ *  card tops shows), scale drops only a little (perspective — «further
+ *  away»), and the fan's arc FLATTENS so the crown reads as cards seated in
+ *  a holder, not as a fan cut off by the plate. The old 0.7 shrink changed
+ *  the gold-edge rhythm by 30% in one move — the single loudest part of the
+ *  «интерфейс перестроился» read. */
+const POSE_KNOBS: Record<PackPose, {spread: number, lift: number, fan: number, scale: number, sink: number, flat: number}> = {
+  rest: {spread: 1, lift: 0, fan: 0, scale: 1, sink: 0, flat: 0},
+  compact: {spread: 1, lift: 0, fan: 0, scale: 0.9, sink: 0.96, flat: 1},
+  raised: {spread: 1.12, lift: 0.45, fan: 1, scale: 1, sink: 0, flat: 0},
 };
 
 export type PackAnchor = {
@@ -140,12 +149,15 @@ export type PackAnchor = {
   compactSink: number,
 };
 
-/** Read the profile-tuned constants (mirrors the old CSS profile blocks). */
+/** Read the profile-tuned constants (mirrors the old CSS profile blocks).
+ *  Compact numbers per profile: the SINK is tuned so the crown of card tops
+ *  peeking over the plate stays a calm, readable strip (~0.7rem base) — the
+ *  handheld plate is much shorter, so its pack tucks less deep. */
 export function packProfileTuning(profile: string): {cardW: number, cardH: number, baseSpread: number, compactScale: number, compactSink: number} {
   if (profile === 'handheld') {
-    return {cardW: 2.6, cardH: 3.65, baseSpread: 0.84, compactScale: 0.78, compactSink: 0.08};
+    return {cardW: 2.6, cardH: 3.65, baseSpread: 0.84, compactScale: 0.9, compactSink: 0.7};
   }
-  return {cardW: HAND_DOCK_CARD_W_REM, cardH: HAND_DOCK_CARD_H_REM, baseSpread: 1, compactScale: 0.7, compactSink: 0.12};
+  return {cardW: HAND_DOCK_CARD_W_REM, cardH: HAND_DOCK_CARD_H_REM, baseSpread: 1, compactScale: 0.9, compactSink: 0.96};
 }
 
 /**
@@ -165,8 +177,10 @@ export function dockedBodyPose(i: number, n: number, pose: PackPose, a: PackAnch
   const h = a.cardH * a.remPx;
   // Pre-scale placement (pack coordinates): centre-x from dx·spread, the
   // card's BOTTOM on the tray axis, shifted by arc dy and the raised lift.
+  // `flat` irons the arc out (compact): the crown of tops over the plate
+  // reads as one level line — cards seated in a holder, not a clipped fan.
   const cx0 = a.ax + slot.dx * spread * a.remPx;
-  const by0 = a.ay + (slot.dy - k.lift) * a.remPx;
+  const by0 = a.ay + (slot.dy * (1 - k.flat) - k.lift) * a.remPx;
   const cy0 = by0 - h / 2;
   // The pack scales about its bottom-centre (ax, ay), then sinks.
   const cx = a.ax + (cx0 - a.ax) * packScale;
@@ -190,6 +204,69 @@ export function dockedBodyPose(i: number, n: number, pose: PackPose, a: PackAnch
 /** The natural box height the layer sizes a body to (constant card aspect). */
 export function bodyNaturalH(a: PackAnchor): number {
   return CARD_NATURAL_W * (a.cardH / a.cardW);
+}
+
+/* ── the pose-transition CHOREOGRAPHY (pure — the layer executes it) ── */
+
+/**
+ * One pose transition's motion character. All cards ride ONE duration and
+ * ONE ease (the pack is one physical object changing posture — per-card
+ * physics would read as the fan falling apart); `staggerMaxMs` is the only
+ * per-card differentiation: a small CENTRE-OUT extra delay that lets the
+ * raised fan «open» instead of translating as a rigid plate.
+ */
+export type PoseRide = {
+  durationMs: number,
+  ease: string,
+  delayMs: number,
+  staggerMaxMs: number,
+};
+
+/**
+ * The transition table — SEMANTIC priorities, not one shared tween:
+ *
+ *  - «→ compact» is the LOWEST-attention move in the console: a surface took
+ *    the screen and the hand quietly settles into the tray behind it. Long,
+ *    sine-in-out (velocity peaks mid-way at a sub-perceptual ~1px/frame),
+ *    never a stagger — the player busy with the new surface should not
+ *    consciously notice it happened. The old shared 340ms power2.out put
+ *    its ~560px/s velocity burst on the FIRST frame, which is exactly what
+ *    yanked the eye to the bottom of the screen.
+ *
+ *  - «→ raised» answers the RT wheel. The wheel itself is mechanical and
+ *    immediate (120ms) and must stay the primary object; the hand is its
+ *    echo — it starts a beat later (past the wheel's own entry), rises on a
+ *    soft in-out, and opens centre-out. Functional state is instant either
+ *    way; only the posture is deferred.
+ *
+ *  - «→ rest» is a calm return, slightly quicker out of compact (the hand
+ *    is becoming relevant again) than out of raised (the wheel is gone in
+ *    95ms; the hand settling after it is a quiet tail, not a follow-focus).
+ */
+export function poseRideSpec(from: PackPose, to: PackPose): PoseRide {
+  if (to === 'compact') {
+    return {durationMs: from === 'raised' ? 560 : 640, ease: 'sine.inOut', delayMs: 0, staggerMaxMs: 0};
+  }
+  if (to === 'raised') {
+    return {durationMs: 420, ease: 'power1.inOut', delayMs: from === 'compact' ? 40 : 60, staggerMaxMs: 40};
+  }
+  return {durationMs: from === 'compact' ? 480 : 420, ease: 'sine.inOut', delayMs: 0, staggerMaxMs: 0};
+}
+
+/**
+ * Scale a ride's duration to the travel actually REMAINING (interrupted /
+ * reversed transitions restart from the current visual position — see the
+ * layer's applyDockedPoses): a reversal caught at 10% of the way must not
+ * spend the full budget crawling 2px, and equally must not snap. The sqrt
+ * keeps short remainders a little slower than proportional (gentler catch),
+ * the floor guarantees a soft landing even for a hair's travel.
+ */
+export function rideDurationForRemainder(base: number, remainingPx: number, fullPx: number): number {
+  if (!(fullPx > 0) || !(remainingPx >= 0)) {
+    return base;
+  }
+  const frac = Math.min(1, remainingPx / fullPx);
+  return Math.round(base * Math.max(0.4, Math.sqrt(frac)));
 }
 
 /* ── the layer's pose ORACLE (the director's analytic target source) ── */

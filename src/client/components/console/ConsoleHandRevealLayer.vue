@@ -25,6 +25,7 @@
          :class="{
            'con-handbody--held': heldSet.has(c.name),
            'con-handbody--deep': deepSet.has(c.name),
+           'con-handbody--tucked': pose === 'compact' && modeOf(c.name) === 'docked',
          }"
          :style="{zIndex: 3 + i, width: naturalW + 'px', height: naturalH + 'px'}"
          :data-hand-dock-card="c.name"
@@ -55,8 +56,8 @@ import {gsap} from 'gsap';
 import {CardModel} from '@/common/models/CardModel';
 import {handRevealState, RevealVisual} from '@/client/console/handDock/handRevealState';
 import {
-  BodyPose, PackAnchor, PackPose, bodyNaturalH, dockedBodyPose, handBodiesState, handBodyEl, handBodyMode,
-  packProfileTuning, registerHandBody, setHandBodiesOracle, ensureHandBodyFaces,
+  BodyPose, PackAnchor, PackPose, PoseRide, bodyNaturalH, dockedBodyPose, handBodiesState, handBodyEl, handBodyMode,
+  packProfileTuning, poseRideSpec, registerHandBody, rideDurationForRemainder, setHandBodiesOracle, ensureHandBodyFaces,
 } from '@/client/console/handDock/handBodies';
 import {consoleReducedMotionActive} from '@/client/console/composables/useConsoleReducedMotion';
 import {dockFaceRotation, handDockPresentation} from '@/client/console/handDock/handDockPresentation';
@@ -127,22 +128,25 @@ export default defineComponent({
       const r = Math.max(0, window.innerWidth - c.right);
       return {clipPath: `inset(0px ${r.toFixed(1)}px 0px ${l.toFixed(1)}px)`};
     },
-    /** One string that changes whenever the DOCKED composition must re-pose. */
-    poseEpoch(): string {
-      return `${this.cards.map((c) => c.name).join('|')}::${this.pose}::${this.layout.profile}::${this.layout.uiScale}`;
+    /** One string that changes whenever the docked COMPOSITION must re-seat
+     *  (cards joined/left/reordered, the profile or scale flipped). The PACK
+     *  POSE is deliberately NOT part of it — a pose change is a different
+     *  event with its own choreography (see the `pose` watcher). */
+    compositionEpoch(): string {
+      return `${this.cards.map((c) => c.name).join('|')}::${this.layout.profile}::${this.layout.uiScale}`;
     },
   },
   watch: {
-    poseEpoch() {
+    compositionEpoch() {
       // Face-up presentation: every card in the pack shows its face, so a
       // newly arrived card needs one mounted (cheap, render-once, cached).
       if (this.dockPresentation.faceUp) {
         ensureHandBodyFaces(this.cards.map((c) => c.name));
       }
-      // The pose RIDE exists for the STANDING pack only. During an episode
+      // The re-seat exists for the STANDING pack only. During an episode
       // the director owns every body: the flight departs from the live
-      // painted pose and the finalize reconciles — while the ride's 340ms
-      // tween lives on the GLOBAL gsap ticker, which the album's mount
+      // painted pose and the finalize reconciles — while a ride tween
+      // lives on the GLOBAL gsap ticker, which the album's mount
       // storm starves; its catch-up then lands the whole raised→rest delta
       // in ONE frame (the handheld probe's 15px dockjump at the open).
       if (this.handRevealState.phase !== 'docked') {
@@ -150,6 +154,21 @@ export default defineComponent({
       }
       // The patch (new bodies mount / order changes) lands first.
       void this.$nextTick().then(() => this.applyDockedPoses(true));
+    },
+    /**
+     * The pack POSE changed (rest ↔ compact ↔ raised) — ride the pair's own
+     * choreography (poseRideSpec: «→ compact» is a long quiet settle, «→
+     * raised» a soft delayed rise behind the wheel's pop, returns are calm).
+     * Synchronous on purpose: no DOM mounts are pending for a pure pose
+     * flip, and the ride must start from the exact frame the player acted.
+     * An interrupted ride restarts from the current visual position with a
+     * distance-scaled duration (no snap, no syrup — see applyDockedPoses).
+     */
+    pose(now: PackPose, was: PackPose) {
+      if (this.handRevealState.phase !== 'docked') {
+        return;
+      }
+      this.applyDockedPoses(true, {spec: poseRideSpec(was, now), from: was});
     },
     // The dock-presentation toggle («Рубашкой» ↔ «Лицом»): the standing fan
     // turns over in place — one 3D flip of every docked card. Faces mount
@@ -250,12 +269,26 @@ export default defineComponent({
       return dockedBodyPose(idx, this.cards.length, this.pose as PackPose, a);
     },
     /**
-     * Seat every DOCKED body on its analytic pose. `animate` rides the
-     * pack's own 340ms pose language (rest↔compact↔raised, re-spreads on
-     * count changes); a fresh body (no transform yet) always SEATS
-     * instantly and pops in from the tray — never slides in from (0,0).
+     * Seat every DOCKED body on its analytic pose.
+     *
+     * Two animated languages, chosen by the CAUSE:
+     *  - `ride` set (a pure pose flip — rest↔compact↔raised): the pair's own
+     *    choreography from poseRideSpec. One duration + one ease for the
+     *    whole pack (one object changing posture); the only per-card
+     *    differentiation is the CENTRE-OUT stagger delay of the raised
+     *    open. The duration is scaled to the travel actually REMAINING
+     *    (rideDurationForRemainder), so a reversal caught mid-way continues
+     *    from the current visual position at a natural speed — never a
+     *    snap, never a full-budget crawl over 2px.
+     *  - no `ride` (composition re-spread / episode-end reconcile): the
+     *    legacy 340ms power2.out response — a reaction to an event (a card
+     *    landed, a flight let go), not a posture change.
+     *
+     * A fresh body (no transform yet) always SEATS instantly and pops in
+     * from the tray — never slides in from (0,0). Reduced motion: the poses
+     * still apply (they carry meaning), only their travel stops.
      */
-    applyDockedPoses(animate: boolean): void {
+    applyDockedPoses(animate: boolean, ride?: {spec: PoseRide, from: PackPose}): void {
       const a = this.anchor();
       if (a === undefined) {
         // The dock chassis may mount a beat after this layer — retry on a
@@ -264,12 +297,18 @@ export default defineComponent({
         // depend on one arriving).
         if (this.anchorRetries < 60) {
           this.anchorRetries++;
-          window.setTimeout(() => this.applyDockedPoses(animate), 60);
+          window.setTimeout(() => this.applyDockedPoses(animate, ride), 60);
         }
         return;
       }
       this.anchorRetries = 0;
       const n = this.cards.length;
+      const reduced = consoleReducedMotionActive();
+      const mid = (n - 1) / 2;
+      type Seat = {el: HTMLElement, flip: HTMLElement | null, pose: BodyPose, fresh: boolean, norm: number};
+      const seats: Array<Seat> = [];
+      let maxRemaining = 0;
+      let maxCanonical = 0;
       this.cards.forEach((c, i) => {
         if (handBodyMode(c.name) !== 'docked') {
           return;
@@ -280,26 +319,46 @@ export default defineComponent({
         }
         const pose = dockedBodyPose(i, n, this.pose as PackPose, a);
         const fresh = el.style.transform === '';
+        if (!fresh && ride !== undefined) {
+          // Current travel left: transform cache reads, no layout flush.
+          const cx = Number(gsap.getProperty(el, 'x'));
+          const cy = Number(gsap.getProperty(el, 'y'));
+          maxRemaining = Math.max(maxRemaining, Math.hypot(pose.x - cx, pose.y - cy));
+          const fromPose = dockedBodyPose(i, n, ride.from, a);
+          maxCanonical = Math.max(maxCanonical, Math.hypot(pose.x - fromPose.x, pose.y - fromPose.y));
+        }
+        seats.push({
+          el, pose, fresh,
+          flip: el.querySelector<HTMLElement>('.con-deal-proxy__flip'),
+          norm: mid === 0 ? 0 : Math.abs(i - mid) / mid,
+        });
+      });
+      const baseMs = ride === undefined ? 340 :
+        rideDurationForRemainder(ride.spec.durationMs, maxRemaining, maxCanonical);
+      const durS = motionMs(baseMs) / 1000;
+      const ease = ride === undefined ? 'power2.out' : ride.spec.ease;
+      seats.forEach(({el, flip, pose, fresh, norm}) => {
         gsap.killTweensOf(el);
         // A DOCKED card rests in the chosen presentation («Рубашкой» /
         // «Лицом») — fresh seats state it, and re-poses self-heal any
         // residue an interrupted episode left (the close already turns
         // every card on approach, so this is normally a no-op).
-        const flip = el.querySelector<HTMLElement>('.con-deal-proxy__flip');
-        if (fresh || !animate) {
+        if (fresh || !animate || reduced) {
           gsap.set(el, {...pose, autoAlpha: 1});
           if (flip !== null) {
             gsap.set(flip, {rotationY: dockFaceRotation()});
           }
-          if (fresh && animate) {
+          if (fresh && animate && !reduced) {
             // The arrival pop: rise out of the tray (the old con-hd-enter).
             gsap.from(el, {y: `+=${1.15 * a.remPx}`, autoAlpha: 0, duration: motionMs(300) / 1000, ease: 'power2.out'});
           }
           return;
         }
-        gsap.to(el, {...pose, autoAlpha: 1, duration: motionMs(340) / 1000, ease: 'power2.out', overwrite: 'auto'});
+        const delayS = ride === undefined ? 0 :
+          motionMs(ride.spec.delayMs + norm * ride.spec.staggerMaxMs) / 1000;
+        gsap.to(el, {...pose, autoAlpha: 1, duration: durS, ease, delay: delayS, overwrite: 'auto'});
         if (flip !== null) {
-          gsap.to(flip, {rotationY: dockFaceRotation(), duration: motionMs(340) / 1000, ease: 'power2.inOut', overwrite: 'auto'});
+          gsap.to(flip, {rotationY: dockFaceRotation(), duration: durS, ease: 'power2.inOut', delay: delayS, overwrite: 'auto'});
         }
       });
     },

@@ -42,7 +42,10 @@ describe('animationHold (the critical-animation registry)', () => {
   });
 
   it('a manual hold counts, blocks delivery, holds mandatory surfaces; release is idempotent', () => {
-    expect(isAnimationHoldActive()).eq(false);
+    // The message NAMES the leak: a red run here is almost always another
+    // spec's module state tripping a module-scope supplier — the label says
+    // which flow, instead of a bare «expected true to equal false».
+    expect(isAnimationHoldActive(), `stray holds at entry: ${activeAnimationHoldLabels().join(', ')}`).eq(false);
     const hold = beginAnimationHold('spec-beat');
     expect(animationHoldCount()).eq(1);
     expect(blockingAnimationHoldCount()).eq(1);
@@ -63,9 +66,9 @@ describe('animationHold (the critical-animation registry)', () => {
   it('a notification-only hold blocks delivery but never holds mandatory surfaces', () => {
     const hold = beginAnimationHold('spec-deal', {scope: 'notification-only'});
     expect(animationHoldCount()).eq(1);
-    expect(blockingAnimationHoldCount()).eq(0);
+    expect(blockingAnimationHoldCount(), `stray blocking holds: ${activeAnimationHoldLabels().join(', ')}`).eq(0);
     expect(isNotificationDeliveryBlocked()).eq(true);
-    expect(isMandatoryPromptsHeld()).eq(false);
+    expect(isMandatoryPromptsHeld(), `mandatory held by: ${activeAnimationHoldLabels().join(', ')}`).eq(false);
     hold.release();
   });
 
