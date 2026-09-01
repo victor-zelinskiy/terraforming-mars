@@ -5856,6 +5856,33 @@ html.console-mode body.placement-pending .board-outer-spaces > .board-space.boar
         font-size: .75rem;
         font-weight: 800;
     }
+    /* «ДОПОЛНИТЕЛЬНО» — the movement's PASSIVE half, a SECONDARY GROUP
+       inside the one outcome block. It is separated by a hairline and a dimmer
+       label, never by a panel of its own: the stage reward stays THE result and
+       this reads as an addition to it. It sits on its own line so a long source
+       name can never re-flow the primary deltas. */
+    &__gains-extra {
+        display: flex;
+        align-items: center;
+        gap: .5rem .9rem;
+        flex-wrap: wrap;
+        flex-basis: 100%;
+        padding-top: .45rem;
+        border-top: .05rem solid fade(@con-hydro-aqua, 16%);
+    }
+    &__section-label--extra { color: fade(@con-text-dim, 95%); }
+    &__extra {
+        display: inline-flex;
+        align-items: center;
+        gap: .5rem;
+    }
+    /* The SOURCE, by name: a gain whose cause is invisible reads as a bug. */
+    &__extra-src {
+        font-size: .75rem;
+        font-weight: 700;
+        color: fade(@con-text, 88%);
+        letter-spacing: .01rem;
+    }
     &__delta-note { font-size: .675rem; color: @con-text-dim; }
     /* A ZERO delta is a neutral fact, never a green gain (e.g. pos 6 with
        no plant tags: «6 → 6 · Без изменений»). */
@@ -23665,17 +23692,17 @@ html.console-mode .notifications-layer {
 .con-notif {
     --notif-accent: @con-cyan; /* fallback; variants override */
     position: relative;
-    width: 19rem;
+    width: 20rem;
     max-width: 92vw;
-    padding: .5rem .7rem .6rem .9rem;
-    border-radius: .5rem;
+    padding: .55rem .75rem .6rem 1rem;
+    border-radius: .55rem;
     overflow: hidden;
     background:
-        linear-gradient(160deg, fade(@con-cyan, 4%), transparent 45%),
-        rgba(9, 15, 23, 0.92);
+        linear-gradient(160deg, fade(@con-cyan, 5%), transparent 45%),
+        linear-gradient(200deg, rgba(16, 24, 36, 0.97), rgba(8, 13, 21, 0.95));
     box-shadow:
-        inset 0 0 0 .05rem rgba(120, 150, 180, 0.22),
-        0 .5rem 1.4rem rgba(0, 0, 0, 0.5);
+        inset 0 0 0 .05rem rgba(120, 150, 180, 0.24),
+        0 .6rem 1.6rem rgba(0, 0, 0, 0.55);
     font-family: @con-font;
     color: @con-text;
     pointer-events: none; /* an information surface, never a click target */
@@ -23685,7 +23712,7 @@ html.console-mode .notifications-layer {
         left: 0;
         top: 0;
         bottom: 0;
-        width: .2rem;
+        width: .225rem;
         background: var(--notif-accent);
         opacity: 0.9;
     }
@@ -23693,19 +23720,22 @@ html.console-mode .notifications-layer {
         display: flex;
         align-items: center;
         gap: .4rem;
-        margin-bottom: .2rem;
+        margin-bottom: .25rem;
     }
     &__glyph {
         color: var(--notif-accent);
-        font-size: .8rem;
+        font-size: .85rem;
         line-height: 1;
     }
     &__type {
         font-size: .625rem;
         font-weight: 700;
-        letter-spacing: .08rem;
+        letter-spacing: .085rem;
         text-transform: uppercase;
-        color: fade(#cfe2f2, 75%);
+        color: fade(#cfe2f2, 78%);
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
     }
     &__actor {
         display: inline-flex;
@@ -23759,26 +23789,12 @@ html.console-mode .notifications-layer {
         font-size: .65rem;
         color: @con-text-dim;
     }
-    &__hint {
-        display: inline-flex;
-        align-items: center;
-        gap: .35rem;
-        font-size: .675rem;
-        color: @con-text-dim;
-    }
-
-    /* Hostile flow: You −X → attacker +X, then scope + before → after. */
+    /* The cause line («Из-за …») + the transfer tail (→ attacker) of the band. */
     &__cause {
         display: inline-flex;
         align-items: center;
         flex-wrap: wrap;
         gap: .35rem;
-    }
-    &__flow {
-        display: inline-flex;
-        align-items: center;
-        flex-wrap: wrap;
-        gap: .5rem;
     }
     &__side {
         display: inline-flex;
@@ -23798,6 +23814,76 @@ html.console-mode .notifications-layer {
         font-variant-numeric: tabular-nums;
         color: #ffd9d4;
     }
+
+    /* ── THE VIEWER BAND — «что изменилось ДЛЯ ВАС», the card's loudest zone.
+       The sign is a THREE-channel statement (label + glyph + tone): positive
+       mint, negative red, mixed amber — never colour alone. The band is a
+       framed plate so it reads as the primary layer even in peripheral
+       vision; the initiator's story sits under it in the quiet voice. ── */
+    &__you {
+        display: flex;
+        flex-direction: column;
+        gap: .3rem;
+        margin: .1rem 0 .05rem;
+        padding: .45rem .6rem .5rem;
+        border-radius: .45rem;
+        background: linear-gradient(155deg, rgba(24, 34, 48, 0.72), rgba(12, 19, 29, 0.6));
+        box-shadow: inset 0 0 0 .05rem rgba(150, 175, 205, 0.24);
+    }
+    &__you--positive {
+        background: linear-gradient(155deg, fade(@con-mint, 13%), rgba(12, 22, 20, 0.62) 62%);
+        box-shadow:
+            inset 0 0 0 .05rem fade(@con-mint, 40%),
+            inset .175rem 0 0 fade(@con-mint, 75%);
+        .con-notif__you-sign { color: #a8f4d4; }
+    }
+    &__you--negative {
+        background: linear-gradient(155deg, fade(@con-red, 15%), rgba(26, 13, 13, 0.66) 62%);
+        box-shadow:
+            inset 0 0 0 .05rem fade(@con-red, 46%),
+            inset .175rem 0 0 fade(@con-red, 80%);
+        .con-notif__you-sign { color: #ffc9c2; }
+    }
+    &__you--mixed {
+        background: linear-gradient(155deg, fade(@con-amber, 13%), rgba(26, 20, 11, 0.62) 62%);
+        box-shadow:
+            inset 0 0 0 .05rem fade(@con-amber, 42%),
+            inset .175rem 0 0 fade(@con-amber, 75%);
+        .con-notif__you-sign { color: #ffe6ae; }
+    }
+    &__you-sign {
+        display: inline-flex;
+        align-items: center;
+        gap: .3rem;
+        font-size: .575rem;
+        font-weight: 800;
+        letter-spacing: .1rem;
+        text-transform: uppercase;
+    }
+    &__you-glyph {
+        font-size: .625rem;
+        line-height: 1;
+    }
+    &__you-chips {
+        display: inline-flex;
+        align-items: center;
+        flex-wrap: wrap;
+        gap: .35rem;
+    }
+    &__chip--big {
+        font-size: .875rem;
+        padding: .15rem .55rem;
+        gap: .3rem;
+
+        .con-notif__chip-icon { width: 1.05rem; height: 1.05rem; }
+    }
+    &__chip-unit {
+        font-size: .625rem;
+        font-weight: 800;
+        letter-spacing: .04rem;
+        opacity: 0.85;
+    }
+    &__revealline { margin-top: .1rem; }
 
     /* Impact chips (pills + the hostile flow reuse one look). */
     &__pills {
@@ -23843,6 +23929,12 @@ html.console-mode .notifications-layer {
         .journal-token, .journal-chip, .journal-cardchip, .journal-card-chip {
             font-size: .75rem;
         }
+        /* The desktop journal caps a chip label at a PX width — inside the
+           rem-scaled console card that cap lands mid-name on the TV profile
+           («Электроста…» with half the card free). Re-cap in rem so the name
+           rides the profile scale; the line wraps the whole chip when needed
+           (`__line` is flex-wrap), so a long name gets its own full row. */
+        .journal-chip__label { max-width: 14.5rem; }
     }
 
     /* ── Compact OUTCOME lines (the AI-turn card): key log lines of the turn. ── */
@@ -23939,15 +24031,68 @@ html.console-mode .notifications-layer {
         animation-fill-mode: forwards;
     }
 
-    /* Prestige (milestone / award): a gold ceremony rim + one-shot glow. */
+    /* ── IMPORTANCE GRADE (.con-notif--imp-*) — the second semantic axis,
+       independent of the sign. Ambient keeps the calm base chrome; notable
+       brightens the rim; critical/attention widen the rail, strengthen the
+       rim and announce the ARRIVAL once with a paint-baseline-safe wash
+       (opacity only — filter/text-shadow never render in console). ── */
+    &--imp-ambient {
+        .con-notif__type { color: fade(#cfe2f2, 62%); }
+        .con-notif__glyph { opacity: 0.8; }
+    }
+    &--imp-notable {
+        box-shadow:
+            inset 0 0 0 .05rem rgba(160, 195, 230, 0.4),
+            0 .6rem 1.6rem rgba(0, 0, 0, 0.55);
+    }
+    &--imp-critical {
+        box-shadow:
+            inset 0 0 0 .075rem rgba(205, 225, 248, 0.5),
+            0 .7rem 1.8rem rgba(0, 0, 0, 0.6);
+    }
+    &--imp-attention {
+        box-shadow:
+            inset 0 0 0 .075rem fade(@con-amber, 55%),
+            0 .7rem 1.8rem rgba(0, 0, 0, 0.6);
+    }
+    &--imp-critical .con-notif__rail,
+    &--imp-attention .con-notif__rail {
+        width: .3rem;
+        opacity: 1;
+    }
+    &--imp-critical::after {
+        content: '';
+        position: absolute;
+        inset: 0;
+        border-radius: inherit;
+        pointer-events: none;
+        background: linear-gradient(160deg, rgba(255, 255, 255, 0.2), rgba(255, 255, 255, 0.04) 40%, transparent 70%);
+        opacity: 0;
+        animation: con-notif-arrive-wash calc(1100ms * var(--motion-scale, 1)) ease-out 1;
+    }
+
+    /* Prestige (milestone / award): a gold ceremony rim + one-shot shimmer.
+       Wins the cascade over the importance rims (richer, rarer chrome). */
     &--prestige {
         box-shadow:
             inset 0 0 0 .075rem fade(#e8c268, 65%),
             0 .5rem 1.4rem rgba(0, 0, 0, 0.5),
             0 0 1.1rem fade(#e8c268, 18%);
-        animation: con-notif-prestige calc(1600ms * var(--motion-scale, 1)) ease-out 1;
 
         .con-notif__type { color: #ffe9b8; }
+
+        /* One-shot arrival shimmer — paint-baseline-safe (the old
+           filter:brightness keyframes never rendered in console at all). */
+        &::after {
+            content: '';
+            position: absolute;
+            inset: 0;
+            border-radius: inherit;
+            pointer-events: none;
+            background: linear-gradient(150deg, fade(#ffe9b8, 30%), fade(#e8c268, 8%) 45%, transparent 70%);
+            opacity: 0;
+            animation: con-notif-arrive-wash calc(1600ms * var(--motion-scale, 1)) ease-out 1;
+        }
     }
 
     /* Lifetime shrink (reuses the global notif-progress keyframes). */
@@ -23967,9 +24112,12 @@ html.console-mode .notifications-layer {
     }
 }
 
-@keyframes con-notif-prestige {
-    0% { filter: brightness(1.35) saturate(1.2); }
-    100% { filter: none; }
+/* The one-shot ARRIVAL wash (critical importance / prestige) — announces the
+   card once, then calm. Opacity-only by design: paint-baseline-safe AND
+   compositor-friendly. */
+@keyframes con-notif-arrive-wash {
+    0% { opacity: 1; }
+    100% { opacity: 0; }
 }
 @keyframes con-notif-hold-fill {
     from { transform: scaleX(0); }
@@ -23981,7 +24129,8 @@ html.console-mode .notifications-layer {
     animation-play-state: paused;
 }
 @media (prefers-reduced-motion: reduce) {
-    .con-notif--prestige { animation: none; }
+    .con-notif--prestige::after,
+    .con-notif--imp-critical::after { animation: none; }
     /* The hold fill is FUNCTIONAL feedback (input progress, not decoration):
        keep the exact timing, swap the sweep for a calm in-place brighten. */
     .con-notif__action-fill { animation-name: con-notif-hold-fill-rm; }

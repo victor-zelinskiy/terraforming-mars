@@ -9,6 +9,7 @@ import {ACTION_MENU_TITLES} from '@/common/inputs/actionMenuTitles';
 import {buildJournalView} from '@/client/components/journal/journalView';
 import {buildEventChildren, impactChips, JournalChildVM, JournalImpactChip} from '@/client/components/journal/journalEventChild';
 import {affectedPlayersOfChain} from './notificationFeedPolicy';
+import {importanceForRoot, viewerImpactOfChain, ViewerImpactMeta} from './notificationSemantics';
 import {NotificationKind, NotificationVariant, NotificationModel, NegativeScope, NOTIFICATION_PRIORITY, NOTIFICATION_TTL, COALESCE_THRESHOLD} from './notificationTypes';
 
 /**
@@ -240,11 +241,19 @@ export function recomputeRootImpact(
   events: ReadonlyArray<GameEvent>,
   correlationId: number,
   actor: Color | undefined,
-): {pills: Array<JournalImpactChip>; detailCount: number; childVMs: Array<JournalChildVM>} {
+  viewerColor?: Color,
+): {pills: Array<JournalImpactChip>; detailCount: number; childVMs: Array<JournalChildVM>; viewerImpact: ViewerImpactMeta} {
   const chain = events.filter((e) => e.correlationId === correlationId);
   const childVMs = buildEventChildren(chain, correlationId, actor);
-  const {pills, detailCount} = summarizeImpact(childVMs);
-  return {pills, detailCount, childVMs};
+  const viewerImpact = viewerImpactOfChain(chain, viewerColor, actor);
+  const contextVms = viewerImpact.sign === 'neutral' ? childVMs :
+    childVMs.filter((vm) => vm.player !== viewerColor);
+  const {pills} = summarizeImpact(contextVms);
+  const withSource: ViewerImpactMeta = viewerImpact.sign === 'neutral' ? viewerImpact : {
+    ...viewerImpact,
+    sourceCard: viewerImpact.sourceCard ?? rootSourceCard(chain, correlationId),
+  };
+  return {pills, detailCount: childVMs.length, childVMs, viewerImpact: withSource};
 }
 
 // ── Root-event notification ─────────────────────────────────────────────────
@@ -254,21 +263,40 @@ type RootBuildInput = {
   header: LogMessage;
   children: ReadonlyArray<LogMessage>;
   chain: ReadonlyArray<GameEvent>;
+  /** Reveal marker of a message in THIS chain (folds the reveal into the card). */
+  reveal?: LogMessage;
   viewerColor: Color;
   generation: number;
   createdAt: number;
 };
 
+/** The CARD heading a chain (its root action's card / corp / std project). */
+function rootSourceCard(chain: ReadonlyArray<GameEvent>, correlationId: number): CardName | undefined {
+  const root = chain.find((e) => e.id === correlationId);
+  const s = root?.source;
+  if (s !== undefined && (s.kind === 'card' || s.kind === 'corporation' || s.kind === 'standardProject')) {
+    return s.card;
+  }
+  return undefined;
+}
+
 /**
  * Build the notification for ONE journal root event, or `undefined` when it
  * should be SUPPRESSED (the viewer's OWN ordinary action — they just did it).
  * Milestone / award highlights are shown regardless of actor.
+ *
+ * VIEWER-FIRST: the model carries the viewer's OWN deltas (`viewerImpact`) as
+ * the primary layer whenever another player's action touched them — a loss the
+ * viewer suffered upgrades the SAME card to the hostile kind (`negative`)
+ * instead of spawning a second card beside the action's own one (the old
+ * root + `neg<corr>` double). The initiator's story stays as the cause line +
+ * context pills; the full chain lives in the journal.
  */
 function buildRootNotification(input: RootBuildInput): NotificationModel | undefined {
   const {header, chain, viewerColor} = input;
   const actor = rootActor(header, chain);
   const variant = rootVariant(header, chain);
-  const kind = variantKind(variant);
+  let kind = variantKind(variant);
 
   // Suppress the viewer's own ordinary actions — no self-spam for a card you
   // just played. Highlights / threats / VP-pressure are worth a card even when
@@ -277,14 +305,58 @@ function buildRootNotification(input: RootBuildInput): NotificationModel | undef
     return undefined;
   }
 
+  // The viewer's own typed deltas inside this chain (empty when they ARE the
+  // actor — an own highlight presents action-first, not "you paid 8 M€").
+  const viewerImpact = viewerImpactOfChain(chain, viewerColor, actor);
+  const viewerLoss = viewerImpact.losses.length > 0;
+  // A cross-player loss upgrades the card to the hostile behaviour family:
+  // priority just under the turn prompts, the longer TTL, exempt from the
+  // personal feed filter, shown even while the journal is open.
+  if (viewerLoss && kind === 'normal') {
+    kind = 'negative';
+  }
+
   const vms = buildEventChildren(chain, input.correlationId, actor);
-  const {pills, detailCount} = summarizeImpact(vms);
+  // Context pills: the ACTION's own outcome. When the card leads with the
+  // viewer band, the viewer's rows move INTO the band — repeating them below
+  // as anonymous pills would read as a second, unrelated change.
+  const contextVms = viewerImpact.sign === 'neutral' ? vms :
+    vms.filter((vm) => vm.player !== viewerColor);
+  const {pills} = summarizeImpact(contextVms);
+  const sourceCard = rootSourceCard(chain, input.correlationId);
+  const importance = importanceForRoot({
+    viewerLoss,
+    viewerGain: viewerImpact.gains.length > 0,
+    prestige: variant === 'milestone' || variant === 'award',
+    threat: variant === 'threat' || variant === 'planetary-event',
+    vpPressure: variant === 'vp-loss',
+  });
+
+  const impact: ViewerImpactMeta | undefined = viewerImpact.sign === 'neutral' ? undefined : {
+    ...viewerImpact,
+    // The action's own card is the honest cause when the loss event carried
+    // no source of its own (the root card is what the player recognises).
+    sourceCard: viewerImpact.sourceCard ?? sourceCard,
+  };
 
   return {
     id: `g${input.correlationId}`,
     kind,
     variant,
     priority: NOTIFICATION_PRIORITY[kind],
+    sign: viewerImpact.sign,
+    importance,
+    viewerImpact: impact,
+    // The legacy hostile meta rides along for the frozen desktop card — the
+    // console shell reads `viewerImpact` only.
+    negative: viewerLoss ? {
+      attacker: impact?.attacker,
+      sourceCard: impact?.sourceCard,
+      scope: (impact?.scope ?? 'stock') as NegativeScope,
+      transfer: impact?.transfer === true,
+      loss: viewerImpact.losses,
+      gain: impact?.transfer === true ? viewerImpact.losses.map((c) => ({...c, text: c.text.replace('−', '+')})) : undefined,
+    } : undefined,
     typeLabelKey: variantTypeLabel(variant, header.category),
     category: header.category,
     actor,
@@ -293,7 +365,7 @@ function buildRootNotification(input: RootBuildInput): NotificationModel | undef
     header,
     childVMs: vms,
     pills,
-    detailCount,
+    detailCount: vms.length,
     correlationId: input.correlationId,
     generation: input.generation,
     ttl: NOTIFICATION_TTL[kind],
@@ -301,6 +373,13 @@ function buildRootNotification(input: RootBuildInput): NotificationModel | undef
     cta: {labelKey: 'To journal', action: 'open-journal'},
     createdAt: input.createdAt,
     effectCard: variant === 'passive-effect' ? effectSourceCard(chain, input.correlationId) : undefined,
+    reveal: input.reveal?.reveal !== undefined ? {
+      origin: input.reveal.reveal.origin,
+      result: input.reveal.reveal.result,
+      source: input.reveal.reveal.source,
+      actor,
+      cards: revealedCardNames(input.reveal),
+    } : undefined,
   };
 }
 
@@ -331,11 +410,32 @@ export type DiffInput = {
  * `correlationId`s. Returns the NEW notification models to show (own ordinary
  * actions filtered out) AND every correlationId encountered (the caller seeds
  * its seen-set with ALL of them, so suppressed events never pop later).
+ *
+ * ONE ACTION → ONE CARD: a chain that carries a viewer loss emits ONE hostile-
+ * upgraded card (`hostileCoveredIds` — the caller seeds the negative seen-set
+ * so the standalone hostile diff never doubles it), and a chain that carries a
+ * public reveal folds the reveal INTO its card (`revealCoveredKeys` — same
+ * contract for the standalone reveal diff). The standalone diffs stay as
+ * fallbacks for what a root card cannot cover (a loss that recorded after the
+ * root was seen; a reveal outside a correlation chain).
  */
-export function diffRootNotifications(input: DiffInput): {models: Array<NotificationModel>; encounteredIds: Array<number>} {
+export function diffRootNotifications(input: DiffInput): {
+  models: Array<NotificationModel>;
+  encounteredIds: Array<number>;
+  hostileCoveredIds: Array<number>;
+  revealCoveredKeys: Array<string>;
+} {
   const byCorr = eventsByCorrelation(input.events);
+  const revealByCorr = new Map<number, LogMessage>();
+  for (const m of input.messages) {
+    if (m.reveal !== undefined && m.correlationId !== undefined && !revealByCorr.has(m.correlationId)) {
+      revealByCorr.set(m.correlationId, m);
+    }
+  }
   const models: Array<NotificationModel> = [];
   const encounteredIds: Array<number> = [];
+  const hostileCoveredIds: Array<number> = [];
+  const revealCoveredKeys: Array<string> = [];
   for (const node of buildJournalView(input.messages)) {
     const correlationId = node.kind === 'group' ? node.correlationId : node.message.correlationId;
     if (correlationId === undefined) {
@@ -350,26 +450,36 @@ export function diffRootNotifications(input: DiffInput): {models: Array<Notifica
     const model = buildRootNotification({
       correlationId, header, children,
       chain: byCorr.get(correlationId) ?? [],
+      reveal: revealByCorr.get(correlationId),
       viewerColor: input.viewerColor,
       generation: input.generation,
       createdAt: input.createdAt,
     });
     if (model !== undefined) {
       models.push(model);
+      if (model.viewerImpact !== undefined && model.viewerImpact.losses.length > 0) {
+        hostileCoveredIds.push(correlationId);
+      }
+      const revealMsg = revealByCorr.get(correlationId);
+      if (model.reveal !== undefined && revealMsg !== undefined) {
+        revealCoveredKeys.push(revealKeyOf(revealMsg, input.generation));
+      }
     }
   }
-  return {models, encounteredIds};
+  return {models, encounteredIds, hostileCoveredIds, revealCoveredKeys};
 }
 
 /**
  * Burst control: when a single diff yields more than {@link COALESCE_THRESHOLD}
  * fresh ORDINARY events (an opponent ran a whole turn while we were idle),
  * collapse the normal ones into ONE per-actor summary card. Highlights
- * (important) always stay individual.
+ * (important) always stay individual — and so does ANY card whose sign is not
+ * neutral for the viewer: a personal gain/loss must never be swallowed into an
+ * anonymous «События: N» summary.
  */
 export function coalesceBurst(models: ReadonlyArray<NotificationModel>): Array<NotificationModel> {
-  const normal = models.filter((m) => m.kind === 'normal');
-  const rest = models.filter((m) => m.kind !== 'normal');
+  const normal = models.filter((m) => m.kind === 'normal' && m.sign === 'neutral');
+  const rest = models.filter((m) => m.kind !== 'normal' || m.sign !== 'neutral');
   if (normal.length <= COALESCE_THRESHOLD) {
     return [...models];
   }
@@ -410,6 +520,16 @@ export function coalesceBurst(models: ReadonlyArray<NotificationModel>): Array<N
       id: `gsum:${last.generation}:${key}:${last.correlationId}`,
       variant: 'event',
       typeLabelKey: 'Multiple events',
+      // A summary only ever merges sign-neutral ambient cards — restate both
+      // axes AND the per-event payloads so a spread field can never smuggle a
+      // member's semantics in (a folded reveal line on «События: N» would
+      // attribute one member's reveal to the whole burst).
+      sign: 'neutral',
+      importance: 'ambient',
+      viewerImpact: undefined,
+      negative: undefined,
+      reveal: undefined,
+      effectCard: undefined,
       header: undefined,
       childVMs: undefined,
       affects,
@@ -463,6 +583,8 @@ export function buildTurnNotification(
       kind: 'your-turn',
       variant: 'your-turn',
       priority: NOTIFICATION_PRIORITY['your-turn'],
+      sign: 'neutral',
+      importance: 'attention',
       typeLabelKey: 'Your turn',
       pills: [],
       detailCount: 0,
@@ -486,6 +608,8 @@ export function buildTurnNotification(
     kind: 'action-required',
     variant: 'action-required',
     priority: NOTIFICATION_PRIORITY['action-required'],
+    sign: 'neutral',
+    importance: 'attention',
     typeLabelKey: 'Action required',
     pills: [],
     detailCount: 0,
@@ -516,6 +640,8 @@ export function buildGenerationNotification(generation: number, createdAt: numbe
     kind: 'important',
     variant: 'generation',
     priority: NOTIFICATION_PRIORITY['important'],
+    sign: 'neutral',
+    importance: 'notable',
     typeLabelKey: 'New generation',
     pills: [],
     detailCount: 0,
@@ -546,6 +672,8 @@ export function buildTerraformingCompleteNotification(generation: number, finalG
     kind: 'important',
     variant: 'terraforming-complete',
     priority: NOTIFICATION_PRIORITY['important'],
+    sign: 'neutral',
+    importance: 'critical',
     typeLabelKey: 'Terraforming complete',
     bodyKey: finalGeneration ? 'This is the final generation' : 'Temperature, oxygen and oceans are complete',
     pills: [],
@@ -619,11 +747,14 @@ function buildNegativeNotification(correlationId: number, negs: ReadonlyArray<Ga
     kind: 'negative',
     variant,
     priority: NOTIFICATION_PRIORITY['negative'],
+    sign: 'negative',
+    importance: 'critical',
+    viewerImpact: {sign: 'negative', gains: [], losses: loss, attacker, sourceCard, transfer, scope: scope === 'production' ? 'production' : 'stock'},
     typeLabelKey: variantTypeLabel(variant, undefined),
     actor: attacker,
     // Exempt by kind (the viewer IS the victim); the list states it anyway.
     affects: [viewer],
-    pills: loss,
+    pills: [],
     detailCount: 0,
     correlationId,
     generation,
@@ -641,6 +772,16 @@ function buildNegativeNotification(correlationId: number, negs: ReadonlyArray<Ga
  * all of the viewer's losses in that action merged). Built ENTIRELY from the
  * structured victim events — never from text. Returns every encountered id so
  * the caller can seed the seen-set (no spam on load).
+ *
+ * This is the FALLBACK path — the primary presentation of a loss is the root
+ * card itself (the hostile-upgraded model `diffRootNotifications` builds, whose
+ * correlationId the layer seeds into the negative seen-set). What remains here:
+ * a loss that RECORDED after its root card was already seen/dismissed (a
+ * deferred victim pick), and a loss inside the viewer's OWN suppressed action.
+ *
+ * MarsBot turns are EXCLUDED: the bot pipeline presents its own turn card,
+ * which leads with the viewer's typed impact — a second hostile card for the
+ * same attack would double one event (the old bot-attack duplicate).
  */
 export function diffNegativeNotifications(input: {
   events: ReadonlyArray<GameEvent>;
@@ -656,6 +797,10 @@ export function diffNegativeNotifications(input: {
     const negs = chain.filter((e) => isViewerVictimEvent(e, input.viewerColor));
     if (negs.length === 0) {
       continue;
+    }
+    const root = chain.find((e) => e.id === correlationId);
+    if (root?.category === 'automa-turn') {
+      continue; // the bot turn card owns this presentation (never re-encountered either)
     }
     encounteredIds.push(correlationId);
     if (input.seen.has(correlationId)) {
@@ -690,6 +835,12 @@ function revealedCardNames(m: LogMessage): Array<CardName> {
   return names;
 }
 
+/** The stable de-dup key of one reveal-marked log line (shared by the root
+ *  fold and the standalone diff — the two id spaces must agree byte-for-byte). */
+export function revealKeyOf(m: LogMessage, generation: number): string {
+  return `reveal:${m.correlationId ?? 'x'}:${generation}:${revealedCardNames(m).join('|')}`;
+}
+
 /**
  * Detect PUBLIC card reveals / shows (the server-stamped `reveal` marker) and
  * emit an info notification for players OTHER than the actor (the actor already
@@ -697,6 +848,10 @@ function revealedCardNames(m: LogMessage): Array<CardName> {
  * read from the public log tokens — no text parsing. De-duped by a string key
  * (a SEPARATE id space from the numeric root ids). Returns every encountered key
  * so the caller can seed the seen-set (no spam on load).
+ *
+ * FALLBACK path: a reveal riding a live root chain presents ON that chain's
+ * card (`diffRootNotifications` folds it in and reports the covered key); this
+ * diff covers reveals outside a fresh root card only.
  */
 export function diffRevealNotifications(input: {
   messages: ReadonlyArray<LogMessage>;
@@ -717,7 +872,7 @@ export function diffRevealNotifications(input: {
       continue;
     }
     const actor = firstPlayerColor(m);
-    const key = `reveal:${m.correlationId ?? 'x'}:${input.generation}:${cards.join('|')}`;
+    const key = revealKeyOf(m, input.generation);
     encounteredIds.push(key);
     if (input.seen.has(key)) {
       continue;
@@ -732,6 +887,8 @@ export function diffRevealNotifications(input: {
       kind,
       variant,
       priority: NOTIFICATION_PRIORITY[kind],
+      sign: 'neutral',
+      importance: meta.origin === 'hand' ? 'notable' : 'ambient',
       typeLabelKey: meta.origin === 'hand' ? 'Cards shown' : (cards.length > 1 ? 'Cards revealed' : 'Card revealed'),
       actor,
       pills: [],
@@ -755,6 +912,8 @@ export function buildPassNotification(actor: Color, generation: number, createdA
     kind: 'important',
     variant: 'pass',
     priority: NOTIFICATION_PRIORITY['important'],
+    sign: 'neutral',
+    importance: 'ambient',
     typeLabelKey: 'Player passed',
     actor,
     pills: [],
@@ -778,6 +937,8 @@ export function buildScaleBonusClaimNotification(actor: Color, rewardKey: string
     kind: 'important',
     variant: 'event',
     priority: NOTIFICATION_PRIORITY['important'],
+    sign: 'neutral',
+    importance: 'notable',
     typeLabelKey: 'Claimed a scale bonus',
     actor,
     pills: [],

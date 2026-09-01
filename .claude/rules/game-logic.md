@@ -30,6 +30,9 @@ Per module, grep for `length === 1` / `length > 1` near `addResourceTo` / `remov
 ## No silent loss — a skipped effect must NAME itself
 When an effect can't apply (no eligible card, no target), suppress the misleading gain chip and emit a warning that names WHICH effect was skipped: `skipped: {label, effect?}` built via `actionPreviews.warningNote(...)` / `targetStepOrWarning(...)` with a label from the shared `SKIPPED_LABEL` set — never a hand-rolled `{kind:'note', noteKind:'warning'}` literal and never a bare "no valid target". Omit `effect` when no single magnitude is honest (an either/or attack).
 
+## A HOOK THAT ANSWERS IS NOT A HOOK THAT ACTS
+Where a rule must be read TWICE — once to promise (a preview) and once to pay (the commit) — the card's hook returns WHAT IS OWED and grants nothing. `ICard.deltaMovementBonus` is the reference: `delta/deltaMovement.ts` is its single caller and both the commit and the planning projection ask that same function, so a promise and a payout cannot diverge and an effect that cannot mutate cannot re-trigger the event that called it. The other half of the same contract is that the EVENT has one commit point: `commitDeltaMovement` is the only writer of a Hydronetwork position (source-level guard: `tests/delta/deltaMovement.spec.ts`), which is what makes «any player moved» true for MarsBot without a single `if (bot)`. Full write-up: `docs/claude/delta-movement-contract.md`.
+
 ## Reasons name ONE blocker
 A validation reason must name one concrete blocker — never an "X or Y" combination the player has to guess between. Check conditions in order and return the specific reason. A GENUINE disjunction ("Need 1 M€ OR an asteroid" — either enables the action) keeps its "or".
 

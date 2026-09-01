@@ -82,7 +82,7 @@ import {GameEvent} from '@/common/events/GameEvent';
 import {PlayerViewModel, PublicPlayerModel} from '@/common/models/PlayerModel';
 import {PlayerInputModel} from '@/common/models/PlayerInputModel';
 import {journalState, openJournalToEvent} from '@/client/components/journal/journalState';
-import {NotificationCtaAction, NotificationModel} from '@/client/components/notifications/notificationTypes';
+import {NotificationCtaAction, NotificationModel, NOTIFICATION_TTL} from '@/client/components/notifications/notificationTypes';
 import {
   diffRootNotifications,
   diffNegativeNotifications,
@@ -446,7 +446,7 @@ export default defineComponent({
       }
       this.lastDiffSignature = signature;
       const now = Date.now();
-      const {models, encounteredIds} = diffRootNotifications({
+      const {models, encounteredIds, hostileCoveredIds, revealCoveredKeys} = diffRootNotifications({
         messages,
         events,
         seen: notificationState.seenRootIds,
@@ -457,8 +457,19 @@ export default defineComponent({
       for (const corrId of encounteredIds) {
         notificationState.seenRootIds.add(corrId);
       }
-      // Hostile losses the VIEWER suffered — a SEPARATE id space (a victim loss
-      // lives inside the attacker's root action, which root-diff already saw).
+      // ONE ACTION → ONE CARD: a root card that already leads with the viewer's
+      // loss / folds the chain's reveal COVERS those id spaces — seed them
+      // BEFORE the standalone diffs run, so the same event can never present
+      // twice (the old root + neg<corr> / root + reveal doubles).
+      for (const corrId of hostileCoveredIds) {
+        notificationState.seenNegativeIds.add(corrId);
+      }
+      for (const key of revealCoveredKeys) {
+        notificationState.seenRevealIds.add(key);
+      }
+      // Hostile losses the VIEWER suffered — the FALLBACK id space for losses a
+      // root card could not cover (recorded after the root was seen, or inside
+      // the viewer's own suppressed action).
       const neg = diffNegativeNotifications({
         events,
         seen: notificationState.seenNegativeIds,
@@ -469,7 +480,8 @@ export default defineComponent({
       for (const corrId of neg.encounteredIds) {
         notificationState.seenNegativeIds.add(corrId);
       }
-      // Public card reveals / shows by OTHER players (the names are public).
+      // Public card reveals / shows by OTHER players (the names are public) —
+      // the fallback for reveals outside a fresh root card.
       const reveal = diffRevealNotifications({
         messages,
         seen: notificationState.seenRevealIds,
@@ -490,22 +502,24 @@ export default defineComponent({
       if (firstSeed) {
         return; // initial load / reconnect: seed silently, never spam
       }
+      // Milestone/award announcements are the MA CEREMONY's job now — the
+      // actor gets the centre-stage beat, everyone else the unobtrusive
+      // remote beat naming WHO took WHAT (maCeremonyState diffs the public
+      // game model, which flips exactly once per slot, so the announcement
+      // can never be silently lost). Pushing the prestige card too would
+      // double-announce; the journal record is untouched.
+      //
+      // MarsBot turn roots ('automa-turn') are excluded: the DEDICATED
+      // turn-event pipeline (marsBotPresentation) builds their richer card
+      // from the turn script itself — a generic root card would double-announce.
+      const presentable = coalesceBurst(models.filter((m) =>
+        m.variant !== 'milestone' && m.variant !== 'award' && m.category !== 'automa-turn'));
       // The ORDINARY feed (incl. reveals — their cards live in the journal) is
-      // suppressed while the journal is open. But a HOSTILE loss the viewer
-      // suffered is critical — surface it regardless, like a turn card.
+      // suppressed while the journal is open. But a card carrying the viewer's
+      // OWN loss (the hostile-upgraded kind) is critical — surface it
+      // regardless, like a turn card.
+      pushMany(this.journalOpen ? presentable.filter((m) => m.kind === 'negative') : presentable);
       if (!this.journalOpen) {
-        // Milestone/award announcements are the MA CEREMONY's job now — the
-        // actor gets the centre-stage beat, everyone else the unobtrusive
-        // remote beat naming WHO took WHAT (maCeremonyState diffs the public
-        // game model, which flips exactly once per slot, so the announcement
-        // can never be silently lost). Pushing the prestige card too would
-        // double-announce; the journal record is untouched.
-        //
-        // MarsBot turn roots ('automa-turn') are excluded: the DEDICATED
-        // turn-event pipeline (marsBotPresentation) builds their richer card
-        // from the turn script itself — a generic root card would double-announce.
-        pushMany(coalesceBurst(models.filter((m) =>
-          m.variant !== 'milestone' && m.variant !== 'award' && m.category !== 'automa-turn')));
         pushMany(reveal.models);
       }
       pushMany(neg.models);
@@ -518,11 +532,27 @@ export default defineComponent({
         if (n.header === undefined || n.correlationId === undefined) {
           continue;
         }
-        const next = recomputeRootImpact(events, n.correlationId, n.actor);
+        const next = recomputeRootImpact(events, n.correlationId, n.actor, this.viewerColor);
         if (next.childVMs.length !== (n.childVMs?.length ?? 0)) {
           n.pills = next.pills;
           n.detailCount = next.detailCount;
           n.childVMs = next.childVMs;
+          // A chain that GREW a viewer delta upgrades the visible card in
+          // place (the «для вас» band appears / gains chips) — and a loss
+          // that surfaced this way is COVERED: the standalone hostile diff
+          // must not raise a second card for the same action.
+          if (next.viewerImpact.sign !== 'neutral') {
+            n.viewerImpact = next.viewerImpact;
+            n.sign = next.viewerImpact.sign;
+            if (next.viewerImpact.losses.length > 0) {
+              n.importance = 'critical';
+              // A loss must not ride out the ordinary card's short lifetime —
+              // re-arm the hostile TTL (the inline duration change restarts
+              // the progress shrink, honestly showing the extended window).
+              n.ttl = NOTIFICATION_TTL['negative'];
+              notificationState.seenNegativeIds.add(n.correlationId);
+            }
+          }
         }
       }
     },

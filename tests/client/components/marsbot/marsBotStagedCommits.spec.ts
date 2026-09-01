@@ -126,6 +126,13 @@ describe('marsBotStagedCommits (the staged FIFO visual timeline)', () => {
   afterEach(() => {
     closeBotTurnReview();
     resetBotStaging();
+    // Module state is BUNDLE-SHARED in mochapack: the LAST test's leftovers
+    // walk out of this file. A flow-holding bot-turn card left visible keeps
+    // `notificationFlowHoldSupplier` true, so `isMandatoryPromptsHeld()` reads
+    // true in EVERY later spec (animationHold's release assertions failed on
+    // exactly this whenever no intermediate spec happened to reset the store).
+    resetNotifications();
+    resetPresentationLeases();
   });
 
   it('a batch of bot turns is NOT committed on arrival — no tiles/params/prompt from the future', async () => {

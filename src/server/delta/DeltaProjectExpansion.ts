@@ -1,7 +1,7 @@
 import {IGame} from '../IGame';
 import {IPlayer} from '../IPlayer';
 import {DeltaProjectPlayerModel} from '../../common/models/DeltaProjectPlayerModel';
-import {DeltaTrackDestination, DeltaTrackPreviewModel, DeltaTraversalStep} from '../../common/models/DeltaTrackPreviewModel';
+import {DeltaMovementBonusProjection, DeltaTrackDestination, DeltaTrackPreviewModel, DeltaTraversalStep} from '../../common/models/DeltaTrackPreviewModel';
 import {Priority} from '../deferredActions/Priority';
 import {declaredActionCost, deltaAdvancePlanVerdict} from './deltaAdvancePlan';
 import {Units} from '../../common/Units';
@@ -24,6 +24,7 @@ import {UnplayableReason} from '../../common/cards/UnplayableReason';
 import {notEnoughEnergy, ruleReason} from '../cards/actionReasons';
 import {DeltaStageAnswer} from '../../common/inputs/InputResponse';
 import {clearBatchTail, parkBatchTail} from '../inputs/deferredInputBatch';
+import {DeltaMovementCause, commitDeltaMovement, plannedDeltaMovement, resolveDeltaMovementBonuses} from './deltaMovement';
 
 /**
  * The ordered tags for each track position (1-indexed).
@@ -88,6 +89,13 @@ export type AdvanceOptions = {
    * grants no waiver and always charges 1).
    */
   energyToll?: number;
+  /**
+   * The CARD that granted this move — carried into the movement fact's `cause`
+   * (`deltaMovement.ts`), so the journal and the presentation can name what
+   * started it. Absent ⇒ the standard once-per-generation action every player
+   * has. It is provenance ONLY: no rule, price or reward may branch on it.
+   */
+  source?: CardName;
 };
 
 /**
@@ -101,7 +109,7 @@ export type AdvanceOptions = {
  * because that limit is not a term of `advance` at all: it lives in
  * `Player.getActions`' own option callback, which this move never goes through.
  */
-export const DP04_ADVANCE: AdvanceOptions = {maxSteps: 1, free: true, energyToll: 1};
+export const DP04_ADVANCE: AdvanceOptions = {maxSteps: 1, free: true, energyToll: 1, source: CardName.STORM_SURGE_BARRIER};
 
 export class DeltaProjectExpansion {
   private constructor() {}
@@ -127,6 +135,50 @@ export class DeltaProjectExpansion {
     if (stop !== undefined) {
       stop.choice = choice;
     }
+  }
+
+  /**
+   * THE MOVE'S PROVENANCE, in the movement fact's own vocabulary. The standard
+   * once-per-generation action carries no `source`; every card-granted move
+   * names its card (Dynamic Ocean Barrier, Storm Surge Barrier).
+   */
+  private static movementCause(options?: AdvanceOptions): DeltaMovementCause {
+    return options?.source !== undefined ? {kind: 'card', card: options.source} : {kind: 'standard'};
+  }
+
+  /**
+   * THE PASSIVE MOVEMENT BONUSES `player` WOULD BE OWED by moving to
+   * `toPosition` — the SERVER-AUTHORED half of the planning preview.
+   *
+   * Same reader as the payout (`resolveDeltaMovementBonuses` over the very
+   * same `deltaMovementBonus` hooks), asked with a movement that has not
+   * happened yet (`plannedDeltaMovement` — nothing is written). So the row the
+   * player reads before confirming and the heat that arrives after cannot
+   * disagree, and the client never has to look for a card in a tableau or
+   * multiply a step count of its own.
+   *
+   * Restricted to the VIEWER's own tableau on purpose: this is «what will I
+   * get», not a table-wide ledger. Amounts of the same resource are summed
+   * into one `before → after` reading per card (a second copy of an
+   * equivalent effect is its own row, named by its own card).
+   */
+  public static projectedMovementBonuses(player: IPlayer, toPosition: number, options?: AdvanceOptions): ReadonlyArray<DeltaMovementBonusProjection> {
+    const from = player.deltaProjectData?.position;
+    if (from === undefined || toPosition <= from) {
+      return [];
+    }
+    const movement = plannedDeltaMovement(player, toPosition, DeltaProjectExpansion.movementCause(options));
+    const out: Array<DeltaMovementBonusProjection> = [];
+    // The running stock the projection reads: two bonuses paying the same
+    // resource thread their before → after, exactly as the commit would.
+    const running = new Map<Resource, number>();
+    for (const bonus of resolveDeltaMovementBonuses([player], movement)) {
+      const before = running.get(bonus.resource) ?? player.stock.get(bonus.resource);
+      const after = before + bonus.amount;
+      running.set(bonus.resource, after);
+      out.push({card: bonus.card, resource: bonus.resource, amount: bonus.amount, before, after});
+    }
+    return out;
   }
 
   /**
@@ -309,6 +361,7 @@ export class DeltaProjectExpansion {
         DeltaProjectExpansion.hasOtherPlayerAtPosition(game, VP2_POSITION, player);
       const legal = tagInfo.missingTags.length === 0 && !occupied;
       const affordable = steps <= budget;
+      const movementBonuses = DeltaProjectExpansion.projectedMovementBonuses(player, position);
       if (legal && affordable) {
         maxLegalSteps = steps;
       }
@@ -325,6 +378,10 @@ export class DeltaProjectExpansion {
         missingTags: tagInfo.missingTags,
         ...(traversalModifier !== undefined ?
           {traversal: DeltaProjectExpansion.traversalSteps(player, currentPos, position)} : {}),
+        // The PASSIVE half of this destination's outcome (Social Heating's
+        // heat), authored by the same hooks the commit pays out. Absent when
+        // nothing is owed — the historical payload is untouched.
+        ...(movementBonuses.length > 0 ? {movementBonuses} : {}),
       });
     }
 
@@ -600,54 +657,51 @@ export class DeltaProjectExpansion {
         // the card so the journal/event stream names the modifier.
         player.stock.deduct(Resource.STEEL, payment.steel, {log: false, from: {card: CardName.DELTA_WORKS}});
       }
-      progress.position = newPos;
-      // Record the landing for the per-stage history panel (a choice stage's
-      // chosen reward is filled in by the deferred OrOptions callback below).
-      if (progress.stops === undefined) {
-        progress.stops = [];
-      }
-      progress.stops.push({position: newPos, generation: game.generation});
+      // THE ONE COMMIT POINT for a position change on this track
+      // (`deltaMovement.ts` — shared with the Solo Delta Project resolution, so
+      // a human move and a bot move publish the SAME fact). It writes the
+      // position, runs this move's own journal voice below, and then publishes
+      // the movement to every rule that reacts to one — the mover's own
+      // `onDeltaTrackAdvance` (Development Manager) and every player's
+      // `deltaMovementBonus` (Social Heating), in that order.
+      //
+      // Published AFTER the position is committed and BEFORE the landing
+      // reward resolves, so a movement-triggered gain always precedes a
+      // reward-triggered one (the pos-3 reward is itself a +2 M€-production
+      // change) — the journal order mirrors the real resolution order.
+      commitDeltaMovement(player, steps, DeltaProjectExpansion.movementCause(options), () => {
+        // Record the landing for the per-stage history panel (a choice stage's
+        // chosen reward is filled in by the deferred OrOptions callback below).
+        if (progress.stops === undefined) {
+          progress.stops = [];
+        }
+        progress.stops.push({position: newPos, generation: game.generation});
 
-      // The log names the ACTUAL mix spent — never «N energy» over steel.
-      if (payment.steel === 0) {
-        game.log('${0} directed ${1} energy into the Hydronetwork, reaching ${2}', (b) =>
-          b.player(player).number(steps).string(stageName));
-      } else if (payment.energy === 0) {
-        game.log('${0} directed ${1} steel into the Hydronetwork, reaching ${2}', (b) =>
-          b.player(player).number(payment.steel).string(stageName));
-      } else {
-        game.log('${0} directed ${1} energy and ${2} steel into the Hydronetwork, reaching ${3}', (b) =>
-          b.player(player).number(payment.energy).number(payment.steel).string(stageName));
-      }
-
-      if (newPos === VP2_POSITION) {
-        game.log('${0} claimed the ${1} position on the Hydronetwork (2 VP at game end)', (b) =>
-          b.player(player).string(stageName));
-      } else if (newPos === VP5_POSITION) {
-        if (jumpedOverVp2) {
-          game.log('${0} leapt past the occupied 2 VP position to reach ${1} on the Hydronetwork (5 VP at game end)', (b) =>
-            b.player(player).string(stageName));
+        // The log names the ACTUAL mix spent — never «N energy» over steel.
+        if (payment.steel === 0) {
+          game.log('${0} directed ${1} energy into the Hydronetwork, reaching ${2}', (b) =>
+            b.player(player).number(steps).string(stageName));
+        } else if (payment.energy === 0) {
+          game.log('${0} directed ${1} steel into the Hydronetwork, reaching ${2}', (b) =>
+            b.player(player).number(payment.steel).string(stageName));
         } else {
-          game.log('${0} claimed the ${1} position on the Hydronetwork (5 VP at game end)', (b) =>
-            b.player(player).string(stageName));
+          game.log('${0} directed ${1} energy and ${2} steel into the Hydronetwork, reaching ${3}', (b) =>
+            b.player(player).number(payment.energy).number(payment.steel).string(stageName));
         }
-      }
 
-      // ONE committed advance = ONE semantic movement event for the mover's own
-      // passive cards (Development Manager listens for `steps >= 2`). Fired
-      // after the position is committed and BEFORE the landing reward resolves,
-      // so a movement-triggered gain always precedes a reward-triggered one
-      // (the pos-3 reward is itself a +2 M€-production change) — the journal
-      // order mirrors the real resolution order. Mirrors the dispatch shape of
-      // `Production.add` (tableau of the affected player only, wrapped in a
-      // lazy effect scope so an inert hook records nothing).
-      for (const card of player.tableau) {
-        if (card.onDeltaTrackAdvance === undefined) {
-          continue;
+        if (newPos === VP2_POSITION) {
+          game.log('${0} claimed the ${1} position on the Hydronetwork (2 VP at game end)', (b) =>
+            b.player(player).string(stageName));
+        } else if (newPos === VP5_POSITION) {
+          if (jumpedOverVp2) {
+            game.log('${0} leapt past the occupied 2 VP position to reach ${1} on the Hydronetwork (5 VP at game end)', (b) =>
+              b.player(player).string(stageName));
+          } else {
+            game.log('${0} claimed the ${1} position on the Hydronetwork (5 VP at game end)', (b) =>
+              b.player(player).string(stageName));
+          }
         }
-        game.events.withEffect(player, card, 'delta-advance',
-          () => card.onDeltaTrackAdvance?.(player, steps));
-      }
+      });
 
       // THE ORDERED REWARD RESOLUTION — the one plan builder the preview also
       // reads. The waives compose: the legacy landing-only flag plus the

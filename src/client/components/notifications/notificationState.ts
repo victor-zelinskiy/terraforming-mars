@@ -366,6 +366,8 @@ export function pushWarning(text: string): void {
     kind: 'warning',
     variant: 'warning',
     priority: NOTIFICATION_PRIORITY['warning'],
+    sign: 'neutral',
+    importance: 'attention',
     typeLabelKey: 'Problem',
     prompt: text,
     pills: [],

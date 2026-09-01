@@ -34,6 +34,7 @@ import type {WorkspacePhase, WorkspaceBackVerb} from '@/client/console/consoleWo
 import {backVerbFor} from '@/client/console/consoleWorkspaceFlow';
 import {workspaceFrameEpoch} from '@/client/console/consoleWorkspaceStack';
 import type {HydroDeltaLine} from '@/client/components/hydronetwork/hydroReward';
+import type {DeltaMovementBonusProjection} from '@/common/models/DeltaTrackPreviewModel';
 import type {ResourceTransferSpec} from '@/client/console/resourceTransfer/resourceTransferModel';
 import {registerAnimationHoldSupplier} from '@/client/components/presentation/animationHold';
 
@@ -120,6 +121,15 @@ export type HydroCommitRecord = {
   rewardLines: ReadonlyArray<HydroDeltaLine>;
   /** VP granted by the landed stage (10 → 2, 11 → 5), if any. */
   vp: number | undefined;
+  /**
+   * THE MOVE'S PASSIVE HALF, frozen at the submit — what a tableau card of the
+   * player's own pays them for MOVING (Social Heating's heat), exactly as the
+   * plan panel promised it. Server-authored
+   * (`DeltaTrackDestination.movementBonuses` / `DeltaAdvanceOffer`), carried
+   * unchanged: the result states the same numbers the CTA did. Absent for
+   * every move that owes none, which is every historical one.
+   */
+  movementBonuses?: ReadonlyArray<DeltaMovementBonusProjection>;
   /** The landed stage name key — the result stage names its source. */
   stageNameKey: string;
   /**

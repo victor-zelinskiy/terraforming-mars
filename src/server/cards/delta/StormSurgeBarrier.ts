@@ -196,6 +196,10 @@ export class StormSurgeBarrier extends Card implements IProjectCard {
    */
   private advanceOffer(player: IPlayer): DeltaAdvanceOffer {
     const from = player.deltaProjectData?.position ?? 0;
+    // The PASSIVE half of the move's outcome (Social Heating's heat), from the
+    // same hooks the commit pays out — the workspace states it beside the
+    // stage reward exactly as it does for a standard advance.
+    const movementBonuses = DeltaProjectExpansion.projectedMovementBonuses(player, from + 1, DP04_ADVANCE);
     return {
       source: this.name,
       steps: 1,
@@ -205,6 +209,7 @@ export class StormSurgeBarrier extends Card implements IProjectCard {
       // This card buys a STEP, never a requirement — a missing path tag stops
       // it exactly as it stops the standard action.
       waivesTag: false,
+      ...(movementBonuses.length > 0 ? {movementBonuses} : {}),
     };
   }
 

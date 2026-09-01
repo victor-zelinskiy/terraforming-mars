@@ -3,8 +3,11 @@
            :class="[
              'notification-card--variant-' + notification.variant,
              'con-notif--' + notification.kind,
+             'con-notif--sign-' + notification.sign,
+             'con-notif--imp-' + notification.importance,
              {'con-notif--prestige': prestige, 'con-notif--holding': notification.holdsFlow === true, 'con-notif--hold-active': holdActive},
            ]"
+           :data-notif-id="notification.id"
            role="status"
            :aria-label="$t(notification.typeLabelKey)">
     <span class="con-notif__rail" :class="railColorClass" aria-hidden="true"></span>
@@ -21,65 +24,66 @@
     <div class="con-notif__body">
       <div v-if="metaLine !== undefined" class="con-notif__meta">{{ metaLine }}</div>
 
-      <!-- HOSTILE loss the viewer suffered — the essentials render DIRECTLY
-           (no expand step on a console toast): cause, the −X → +X flow,
-           stock-vs-production, before → after. -->
-      <template v-if="negative !== undefined">
-        <div class="con-notif__cause">
-          <span class="con-notif__dim" v-i18n>Caused by</span>
-          <span v-if="negative.attacker !== undefined" class="con-notif__actor">
-            <span class="con-notif__dot" :class="'player_bg_color_' + negative.attacker" aria-hidden="true"></span>
-            <span>{{ attackerName }}</span>
+      <!-- ── THE VIEWER BAND — what changed FOR YOU, first and loudest. ──
+           The sign is stated three ways at once (label + glyph + tone), so
+           positive / negative / mixed never rely on colour alone. Losses
+           lead (a loss must not be missed), the transfer arrow names who
+           took it, gains follow. -->
+      <div v-if="impactBand !== undefined" class="con-notif__you" :class="'con-notif__you--' + notification.sign">
+        <span class="con-notif__you-sign">
+          <span class="con-notif__you-glyph" aria-hidden="true">{{ signGlyph }}</span>
+          <span v-i18n>{{ signLabel }}</span>
+        </span>
+        <span class="con-notif__you-chips">
+          <span v-for="(chip, i) in impactBand.losses" :key="'l' + i"
+                class="con-notif__chip con-notif__chip--neg con-notif__chip--big"
+                :class="{'con-notif__chip--prod': chip.production === true}">
+            <span v-if="iconClass(chip.icon) !== ''" class="con-notif__chip-icon" :class="iconClass(chip.icon)" aria-hidden="true"></span>
+            <span>{{ chip.text }}</span>
+            <span v-if="chipUnit(chip) !== undefined" class="con-notif__chip-unit" v-i18n>{{ chipUnit(chip) }}</span>
           </span>
-          <b v-if="negative.sourceCard !== undefined" class="con-notif__card">{{ $t(negative.sourceCard) }}</b>
-        </div>
-        <div class="con-notif__flow">
-          <span class="con-notif__side">
-            <span class="con-notif__who" v-i18n>You</span>
-            <span v-for="(chip, i) in negative.loss" :key="'l' + i"
-                  class="con-notif__chip con-notif__chip--neg"
-                  :class="{'con-notif__chip--prod': chip.production === true}">
-              <span class="con-notif__chip-icon" :class="iconClass(chip.icon)" aria-hidden="true"></span>
-              <span>{{ chip.text }}</span>
-            </span>
-          </span>
-          <template v-if="negative.transfer && negative.gain !== undefined">
+          <template v-if="impactBand.transfer === true && impactBand.attacker !== undefined">
             <span class="con-notif__arrow" aria-hidden="true">→</span>
             <span class="con-notif__side">
+              <span class="con-notif__dot" :class="'player_bg_color_' + impactBand.attacker" aria-hidden="true"></span>
               <span class="con-notif__who">{{ attackerName }}</span>
-              <span v-for="(chip, i) in negative.gain" :key="'g' + i"
-                    class="con-notif__chip con-notif__chip--pos"
-                    :class="{'con-notif__chip--prod': chip.production === true}">
-                <span class="con-notif__chip-icon" :class="iconClass(chip.icon)" aria-hidden="true"></span>
-                <span>{{ chip.text }}</span>
-              </span>
             </span>
           </template>
-        </div>
-        <div class="con-notif__scope">
+          <span v-for="(chip, i) in impactBand.gains" :key="'g' + i"
+                class="con-notif__chip con-notif__chip--pos con-notif__chip--big"
+                :class="{'con-notif__chip--prod': chip.production === true}">
+            <span v-if="iconClass(chip.icon) !== ''" class="con-notif__chip-icon" :class="iconClass(chip.icon)" aria-hidden="true"></span>
+            <span>{{ chip.text }}</span>
+            <span v-if="chipUnit(chip) !== undefined" class="con-notif__chip-unit" v-i18n>{{ chipUnit(chip) }}</span>
+          </span>
+        </span>
+        <!-- The honest readout of a single-resource loss: scope + before → after. -->
+        <div v-if="impactBand.losses.length > 0" class="con-notif__scope">
           <span class="con-notif__dim" v-i18n>{{ scopeLabel }}</span>
           <span v-if="beforeAfter !== undefined" class="con-notif__ba">{{ beforeAfter }}</span>
         </div>
-      </template>
+      </div>
 
-      <!-- Public card REVEAL / SHOW — the card names live in the journal as
-           chips, so the console toast carries the summary + the ONE
-           pad-operable path there ([View] Журнал). -->
-      <template v-else-if="notification.reveal !== undefined">
-        <div class="con-notif__line">
-          <span class="con-notif__dim" v-i18n>{{ revealVerb }}</span>
-          <b v-if="notification.reveal.cards.length === 1" class="con-notif__card">{{ $t(notification.reveal.cards[0]) }}</b>
-          <span v-else class="con-notif__strong">{{ notification.reveal.cards.length }}&nbsp;<span v-i18n>cards</span></span>
-          <span v-if="notification.reveal.origin === 'deck'" class="con-notif__result" v-i18n>{{ revealResultLabel }}</span>
-        </div>
-        <div class="con-notif__hint" aria-hidden="true">
-          <GamepadGlyph control="view" /><span v-i18n>Log</span>
-        </div>
-      </template>
+      <!-- ── THE CAUSE LINE — who did it, with what (secondary voice). ──
+           Only when the viewer band leads: the initiator is the reason, not
+           the story. The bot card keeps its own headline instead. -->
+      <div v-if="impactBand !== undefined && showCause" class="con-notif__cause">
+        <span class="con-notif__dim" v-i18n>Caused by</span>
+        <span v-if="notification.actor !== undefined" class="con-notif__actor">
+          <span class="con-notif__dot" :class="'player_bg_color_' + notification.actor" aria-hidden="true"></span>
+          <span>{{ actorName }}</span>
+        </span>
+        <!-- WHOSE card it is decides how the line reads. An attack names the
+             ATTACKER's card right after them; a passive payout names one of the
+             VIEWER's own, and without the «Источник» qualifier the same
+             position would claim the opponent holds it. -->
+        <span v-if="impactBand.ownSource === true" class="con-notif__dim" v-i18n>Source</span>
+        <b v-if="impactBand.sourceCard !== undefined" class="con-notif__card">{{ $t(impactBand.sourceCard) }}</b>
+      </div>
 
       <!-- Passive effect fired — the source card by NAME (details live in
            the ЭФФЕКТЫ overlay / journal; a console toast hosts no popover). -->
-      <template v-else-if="notification.variant === 'passive-effect' && notification.effectCard !== undefined">
+      <template v-if="impactBand === undefined && notification.variant === 'passive-effect' && notification.effectCard !== undefined">
         <div class="con-notif__line">
           <b class="con-notif__card">{{ $t(notification.effectCard) }}</b>
         </div>
@@ -95,8 +99,11 @@
       <!-- Journal-derived headline (play / milestone / award / …) — the
            SAME token renderer as the journal (info parity); restyled to the
            console type scale and rendered INERT (a toast is information,
-           never a click target). -->
-      <span v-else-if="notification.header !== undefined" class="con-notif__line con-notif__tokens">
+           never a click target). When the viewer band leads, the headline is
+           replaced by the compact cause line above (the initiator is the
+           reason, not the story). -->
+      <span v-else-if="notification.header !== undefined && impactBand === undefined"
+            class="con-notif__line con-notif__tokens">
         <JournalTokenRenderer
           v-for="(tok, i) in headerEntries"
           :key="i"
@@ -108,16 +115,22 @@
       <span v-else-if="notification.bodyKey !== undefined" class="con-notif__line" v-i18n>{{ notification.bodyKey }}</span>
 
       <!-- Plain PROMPT text (`pushWarning` and every other model whose whole
-           content is the prompt). Console-native never rendered this field, so
-           a warning arrived as a card with a «ПРОБЛЕМА» header, a close hint
-           and NOTHING between them — a toast that says only that something
-           happened is worse than no toast. -->
+           content is the prompt). -->
       <span v-else-if="promptText !== ''" class="con-notif__line">{{ promptText }}</span>
+
+      <!-- Public card REVEAL / SHOW — the consequence line (folded into the
+           action's own card when the reveal rode a root chain; the whole
+           story for a standalone reveal card). -->
+      <div v-if="notification.reveal !== undefined" class="con-notif__line con-notif__revealline">
+        <span class="con-notif__dim" v-i18n>{{ revealVerb }}</span>
+        <b v-if="notification.reveal.cards.length === 1" class="con-notif__card">{{ $t(notification.reveal.cards[0]) }}</b>
+        <span v-else class="con-notif__strong">{{ notification.reveal.cards.length }}&nbsp;<span v-i18n>cards</span></span>
+        <span v-if="notification.reveal.origin === 'deck'" class="con-notif__result" v-i18n>{{ revealResultLabel }}</span>
+      </div>
 
       <!-- Compact OUTCOME lines (the AI-turn card): the turn's own key log
            lines — placements / parameter raises / losses / failed-action
-           money. Rendered INERT (a console toast is information); the full
-           script is X = «Осмотреть». -->
+           money. Rendered INERT; the full script is the X-hold review. -->
       <ul v-if="notification.summaryLines !== undefined" class="con-notif__summary">
         <li v-for="(line, i) in notification.summaryLines" :key="i" class="con-notif__summary-line">
           <span class="con-notif__summary-tick" aria-hidden="true"></span>
@@ -136,14 +149,17 @@
       </ul>
     </div>
 
-    <!-- Net impact pills (hidden for hostile cards — the flow shows them). -->
-    <div v-if="notification.pills.length > 0 && negative === undefined" class="con-notif__pills">
+    <!-- CONTEXT pills — the action's own outcome. Suppressed for a loss /
+         mixed card (the band + cause carry the story; the journal has the
+         ledger), kept for neutral events and under a positive band. -->
+    <div v-if="showContextPills" class="con-notif__pills">
       <span v-for="(chip, i) in notification.pills"
             :key="i"
             class="con-notif__chip"
             :class="chipClass(chip)">
-        <span class="con-notif__chip-icon" :class="iconClass(chip.icon)" aria-hidden="true"></span>
+        <span v-if="iconClass(chip.icon) !== ''" class="con-notif__chip-icon" :class="iconClass(chip.icon)" aria-hidden="true"></span>
         <span>{{ chip.text }}</span>
+        <span v-if="chipUnit(chip) !== undefined" class="con-notif__chip-unit" v-i18n>{{ chipUnit(chip) }}</span>
       </span>
     </div>
 
@@ -162,7 +178,7 @@
         <span v-if="holdActive" class="con-notif__action-fill" :style="{animationDuration: holdMs + 'ms'}"></span>
         <span class="con-notif__action-hold" v-i18n>Hold</span>
         <GamepadGlyph control="secondary" />
-        <span v-i18n>Watch turn</span>
+        <span v-i18n>{{ detailLabel }}</span>
       </span>
       <!-- «B Закрыть» — a visible toast OVERRIDES B wherever it shows (the
            shell consumes the press and closes the card; the screen's own
@@ -185,23 +201,28 @@
 
 <script lang="ts">
 /**
- * CONSOLE transient notification card (P16) — the console-native
- * PRESENTATION of the same NotificationModel the desktop card renders.
- * One brain (NotificationLayer / notificationState / notificationModel,
- * TTLs, suppression, diffing) — two shells, mirroring ConsoleShell vs
- * PlayerHome. Deliberate differences from the desktop card:
- *  - NON-INTERACTIVE (pointer-events none): no ✕ / expand / CTA buttons a
- *    pad can't reach and a couch player can't hover — the journal (View)
- *    is the detail surface; reveal toasts advertise exactly that.
- *  - The PAD CONTRACT lives ON the card (.con-notif__actions), never in the
- *    command bar (which keeps the screen's contract): the DETAIL action
- *    (press-and-HOLD X, the fill mirrors consoleNotifHold's timer) first,
- *    then the global «B Закрыть».
- *  - The HOSTILE essentials (attacker, source card, −X → +X flow,
- *    stock/production, before → after) render DIRECTLY — no expand step.
- *  - The variant ACCENT is inherited from the standalone
- *    `.notification-card--variant-*` rules (one accent vocabulary for
- *    both shells — they can never diverge); all CHROME is `con-notif`.
+ * CONSOLE transient notification card — the console-native presentation of
+ * the shared NotificationModel (one brain: NotificationLayer /
+ * notificationState / notificationModel; TTLs, suppression, diffing).
+ *
+ * INFORMATION HIERARCHY (the viewer-first contract):
+ *  1. the VIEWER BAND — «Вы получили / Вы потеряли …», the viewer's own typed
+ *     deltas, sign stated by label + glyph + tone (never colour alone);
+ *  2. the CAUSE line — who did it, with what card (secondary voice);
+ *  3. the event's own story (headline tokens / reveal line / outcome lines) —
+ *     the primary voice ONLY when nothing personal happened;
+ *  4. context pills + the journal (X-hold) for the full causal chain.
+ *
+ * The two semantic AXES render as independent channels: `sign` drives the
+ * band's identity, `importance` drives the card's chrome grade
+ * (`.con-notif--imp-*`: ambient / notable / critical / attention).
+ *
+ * Deliberate console properties (unchanged): NON-INTERACTIVE
+ * (pointer-events none) — the pad contract lives ON the card
+ * (`.con-notif__actions`): press-and-HOLD X = the detail action (bot-turn
+ * review, or the journal AT this event), B = close. The variant ACCENT is
+ * inherited from the standalone `.notification-card--variant-*` rules (one
+ * accent vocabulary for both shells).
  */
 import {defineComponent, PropType} from 'vue';
 import {Log} from '@/common/logs/Log';
@@ -216,10 +237,11 @@ import {JournalImpactChip} from '@/client/components/journal/journalEventChild';
 import JournalTokenRenderer from '@/client/components/journal/JournalTokenRenderer.vue';
 import GamepadGlyph from '@/client/components/gamepad/GamepadGlyph.vue';
 import {NOTIF_HOLD_MS, notifHoldState} from '@/client/console/consoleNotifHold';
-import {LiveNotification, NotificationVariant, NegativeMeta} from '@/client/components/notifications/notificationTypes';
+import {ViewerImpactMeta} from '@/client/components/notifications/notificationSemantics';
+import {LiveNotification, NotificationVariant} from '@/client/components/notifications/notificationTypes';
 
-// Mirrors the desktop card: icon-key → PublicPlayerModel field (the victim's
-// before → after readout for a single-resource loss).
+// icon-key → PublicPlayerModel field (the viewer's before → after readout
+// for a single-resource loss).
 const STOCK_FIELD: Readonly<Record<string, string>> = {
   megacredits: 'megacredits', steel: 'steel', titanium: 'titanium', plants: 'plants', energy: 'energy', heat: 'heat',
 };
@@ -243,8 +265,13 @@ export default defineComponent({
   },
   emits: ['dismiss'],
   computed: {
-    negative(): NegativeMeta | undefined {
-      return this.notification.negative;
+    /** The viewer band — present exactly when something personal happened. */
+    impactBand(): ViewerImpactMeta | undefined {
+      const impact = this.notification.viewerImpact;
+      if (impact === undefined || impact.sign === 'neutral') {
+        return undefined;
+      }
+      return impact;
     },
     prestige(): boolean {
       return this.notification.variant === 'milestone' || this.notification.variant === 'award';
@@ -257,14 +284,42 @@ export default defineComponent({
       return displayNameForColor(this.players, a);
     },
     attackerName(): string {
-      const a = this.notification.negative?.attacker;
+      const a = this.impactBand?.attacker;
       if (a === undefined) {
         return '';
       }
       return displayNameForColor(this.players, a);
     },
+    /** The sign, spoken (i18n keys — a channel colour can never carry alone). */
+    signLabel(): string {
+      switch (this.notification.sign) {
+      case 'positive': return 'You gained';
+      case 'negative': return 'You lost';
+      default: return 'For you';
+      }
+    },
+    signGlyph(): string {
+      switch (this.notification.sign) {
+      case 'positive': return '▲';
+      case 'negative': return '▼';
+      default: return '⇄';
+      }
+    },
+    /** The cause line — for journal-rooted cards; the bot card has its own headline. */
+    showCause(): boolean {
+      return this.notification.variant !== 'bot-turn' &&
+        (this.notification.actor !== undefined || this.impactBand?.sourceCard !== undefined);
+    },
+    /** Context pills stay for neutral events and under a positive band; a loss /
+     *  mixed card drops them (the band + cause carry the story). */
+    showContextPills(): boolean {
+      if (this.notification.pills.length === 0) {
+        return false;
+      }
+      return this.notification.sign === 'neutral' || this.notification.sign === 'positive';
+    },
     scopeLabel(): string {
-      return this.notification.negative?.scope === 'production' ? 'from production' : 'from stock';
+      return this.impactBand?.scope === 'production' ? 'from production' : 'from stock';
     },
     revealVerb(): string {
       return this.notification.reveal?.origin === 'hand' ? 'showed from hand' : 'revealed from deck';
@@ -278,12 +333,12 @@ export default defineComponent({
       }
     },
     beforeAfter(): string | undefined {
-      const neg = this.notification.negative;
-      if (neg === undefined || neg.loss.length !== 1 || this.viewerColor === undefined) {
+      const band = this.impactBand;
+      if (band === undefined || band.losses.length !== 1 || this.viewerColor === undefined) {
         return undefined;
       }
-      const chip = neg.loss[0];
-      const field = (neg.scope === 'production' ? PROD_FIELD : STOCK_FIELD)[chip.icon];
+      const chip = band.losses[0];
+      const field = (band.scope === 'production' ? PROD_FIELD : STOCK_FIELD)[chip.icon];
       if (field === undefined) {
         return undefined;
       }
@@ -356,9 +411,17 @@ export default defineComponent({
     showProgress(): boolean {
       return !this.notification.persistent && this.notification.ttl > 0;
     },
-    /** The toast's DETAIL action (today only the AI-turn card's review). */
+    /** The toast's DETAIL action: the AI-turn review, or the journal AT this
+     *  event (any card carrying a correlationId — the full causal chain). */
     hasDetailAction(): boolean {
-      return this.notification.holdsFlow === true && this.notification.botTurnKey !== undefined;
+      if (this.notification.holdsFlow === true && this.notification.botTurnKey !== undefined) {
+        return true;
+      }
+      return this.notification.correlationId !== undefined;
+    },
+    detailLabel(): string {
+      return this.notification.holdsFlow === true && this.notification.botTurnKey !== undefined ?
+        'Watch turn' : 'Log';
     },
     /** The X-hold on THIS card is filling (shell-tracked, module-reactive). */
     holdActive(): boolean {
@@ -371,6 +434,10 @@ export default defineComponent({
   methods: {
     iconClass(icon: string): string {
       return iconClassFor(icon);
+    },
+    /** Sprite-less chips speak their unit as text (VP has no inline icon). */
+    chipUnit(chip: JournalImpactChip): string | undefined {
+      return chip.icon === 'vp' ? 'VP' : undefined;
     },
     // One compact outcome line (summaryLines) → journal tokens.
     lineEntries(line: LogMessage): ReadonlyArray<string | LogMessageData> {

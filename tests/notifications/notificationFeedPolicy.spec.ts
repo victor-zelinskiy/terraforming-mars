@@ -27,6 +27,8 @@ function model(extra: Partial<NotificationModel> & {kind: NotificationKind; vari
   return {
     id: 'x',
     priority: NOTIFICATION_PRIORITY[extra.kind],
+    sign: 'neutral',
+    importance: 'ambient',
     typeLabelKey: 'Event',
     pills: [],
     detailCount: 0,

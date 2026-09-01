@@ -5,6 +5,7 @@ import {LogMessage} from '@/common/logs/LogMessage';
 import {RevealOrigin, RevealResult} from '@/common/logs/RevealLogMeta';
 import {JournalActionCategory} from '@/common/events/GameEvent';
 import {JournalChildVM, JournalImpactChip} from '@/client/components/journal/journalEventChild';
+import {ImpactSign, NotificationImportance, ViewerImpactMeta} from './notificationSemantics';
 
 /** Where a hostile loss came from — the stock, future production, or VP score. */
 export type NegativeScope = 'stock' | 'production' | 'vp';
@@ -148,6 +149,27 @@ export type NotificationModel = {
   /** The fine-grained event type — drives the accent / glyph / header visual. */
   variant: NotificationVariant;
   priority: number;
+
+  // ── The two SEMANTIC AXES (viewer-relative; see notificationSemantics.ts) ──
+  /**
+   * Positive / negative / neutral / mixed — FOR THE VIEWER of this card, never
+   * for the actor or the action "in general". Producers derive it from typed
+   * event data; the card renders it as its own channel (label + glyph + tone),
+   * never colour alone.
+   */
+  sign: ImpactSign;
+  /**
+   * Informational weight — independent of the sign (a positive event is not
+   * automatically important; a negative one not automatically critical).
+   * Drives the card's visual grade (chrome weight, rim, entrance emphasis).
+   */
+  importance: NotificationImportance;
+  /**
+   * The viewer's own deltas — what the card LEADS with when the sign is not
+   * neutral ("Вы получили… / Вы потеряли…"), with the initiator demoted to the
+   * cause line. Absent ⇒ the event itself is the story (event-first layout).
+   */
+  viewerImpact?: ViewerImpactMeta;
 
   /** i18n key for the small type label in the header ("Card played", "Your turn"…). */
   typeLabelKey: string;

@@ -1118,25 +1118,34 @@ body:has(.hand-board-overlay .hand-sale-strip) {
 }
 
 // ── Enter / leave / move transitions ─────────────────────────────────────────
+// Honour the ONE motion system: durations ride the shared --motion-scale so
+// the calm/standard/swift presets govern the feed like everything else.
+// ENTER: a short slide-in from the screen edge with a settle (arrivals read as
+// "delivered", never as a pop-in). LEAVE: a quicker, quieter slide-out; the
+// leaving card is taken out of flow so a successor never jumps.
 .notification-pop-enter-from {
     opacity: 0;
-    transform: translateX(26px) scale(0.96);
+    transform: translateX(30px) scale(0.97);
 }
 .notification-pop-enter-active {
-    transition: opacity 0.28s ease, transform 0.34s cubic-bezier(0.22, 1, 0.36, 1);
+    transition:
+        opacity calc(260ms * var(--motion-scale, 1)) ease,
+        transform calc(360ms * var(--motion-scale, 1)) cubic-bezier(0.22, 1, 0.36, 1);
 }
 .notification-pop-leave-to {
     opacity: 0;
-    transform: translateX(26px) scale(0.96);
+    transform: translateX(26px) scale(0.97);
 }
 .notification-pop-leave-active {
-    transition: opacity 0.22s ease, transform 0.26s ease;
+    transition:
+        opacity calc(200ms * var(--motion-scale, 1)) ease,
+        transform calc(240ms * var(--motion-scale, 1)) ease;
     // Take the leaving card out of flow so siblings slide up smoothly via -move.
     position: absolute;
     width: 100%;
 }
 .notification-pop-move {
-    transition: transform 0.3s cubic-bezier(0.22, 1, 0.36, 1);
+    transition: transform calc(300ms * var(--motion-scale, 1)) cubic-bezier(0.22, 1, 0.36, 1);
 }
 
 // ── Detail expand / collapse ─────────────────────────────────────────────────

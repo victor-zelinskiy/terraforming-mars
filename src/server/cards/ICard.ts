@@ -28,6 +28,7 @@ import {SerializedCard} from '../SerializedCard';
 import {UndergroundResourceToken} from '../../common/underworld/UndergroundResourceToken';
 import {BoardFact} from '../../common/boards/BoardInformationFacts';
 import {PlacementPreviewContext} from '../boards/PlacementPreviewContext';
+import {DeltaMovement, DeltaMovementBonus} from '../delta/deltaMovement';
 import {AdjacencyBonus} from '../ares/AdjacencyBonus';
 
 /*
@@ -251,6 +252,30 @@ export interface ICard {
    * @param steps the number of logical steps this single move advanced.
    */
   onDeltaTrackAdvance?(player: IPlayer, steps: number): void;
+  /**
+   * WHAT THIS CARD OWES ITS OWNER because ANY player — the owner, another
+   * human, or MarsBot — actually completed one movement on the Delta Project
+   * («Гидросеть») track (Social Heating).
+   *
+   * PURE, AND THAT IS THE POINT. The hook ANSWERS «what is owed»; it never
+   * grants, logs, defers or moves anything. `deltaMovement.ts` is the single
+   * caller, and it calls this for BOTH readers:
+   *  - the COMMIT, which pays the answer out inside the movement's own event
+   *    scope (so the journal reads «⟨card⟩ → +N ⟨resource⟩» under the move
+   *    that caused it), and
+   *  - the PLANNING PROJECTION, which promises the same answer for a move
+   *    that has not happened yet.
+   * One function, two readers ⇒ a promise and a payout cannot diverge; and an
+   * effect that cannot mutate cannot re-trigger the movement that called it.
+   *
+   * `movement.steps` is the ACTUAL committed distance (`to - from`), never a
+   * request — a capped move pays for the cells actually crossed. Return
+   * `undefined` (or a non-positive amount) when nothing is owed.
+   *
+   * @param cardOwner the player holding THIS card — the beneficiary.
+   * @param movement the committed (or projected) movement fact.
+   */
+  deltaMovementBonus?(cardOwner: IPlayer, movement: DeltaMovement): DeltaMovementBonus | undefined;
   /**
    * While this card sits in the moving player's tableau, ONE committed
    * multi-step advance on the Delta Project («Гидросеть») track grants the

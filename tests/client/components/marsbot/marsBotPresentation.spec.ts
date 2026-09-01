@@ -148,8 +148,15 @@ describe('marsBotPresentation (notification-first turns)', () => {
       expect(model.ttl).eq(BOT_TURN_TTL);
       expect(BOT_TURN_TTL).eq(5000);
       expect(model.header?.message).eq('${0} revealed ${1}');
-      // The VIEWER's own loss leads the pills.
-      expect(model.pills).deep.eq([{icon: 'plants', text: '−2'}]);
+      // The VIEWER's own loss LEADS the card as its viewer band (sign +
+      // importance are the two independent axes); the pills keep the bot's
+      // own context so the loss is never repeated as an anonymous chip.
+      expect(model.sign).eq('negative');
+      expect(model.importance).eq('critical');
+      expect(model.viewerImpact?.losses).deep.eq([{icon: 'plants', text: '−2'}]);
+      expect(model.viewerImpact?.attacker).eq('red');
+      expect(model.viewerImpact?.scope).eq('stock');
+      expect(model.pills).deep.eq([{icon: 'megacredits', text: '+5'}]);
       expect(model.cta).deep.eq({labelKey: 'Watch turn', action: 'expand-theater'});
       expect(model.secondaryCta).deep.eq({labelKey: 'To journal', action: 'open-journal'});
       expect(model.correlationId).eq(9);
@@ -162,6 +169,9 @@ describe('marsBotPresentation (notification-first turns)', () => {
       const [entry] = recordBotTurnsFromView(PREV, botView({lastTurn: t}));
       const model = buildBotTurnNotification(entry, {viewerColor: 'blue' as Color, createdAt: 5, autoExpand: false});
       expect(model.pills).deep.eq([{icon: 'megacredits', text: '+5'}]);
+      expect(model.sign).eq('neutral');
+      expect(model.importance).eq('ambient');
+      expect(model.viewerImpact).eq(undefined);
     });
 
     it('carries the turn\'s key log lines as OUTCOME summary — header never duplicated, cap honest', () => {
@@ -201,8 +211,9 @@ describe('marsBotPresentation (notification-first turns)', () => {
         {icon: 'temperature', text: '-30°→-28°', neutral: true},
         {icon: 'ocean', text: '2→3', neutral: true},
       ]);
-      // The viewer's own loss still follows.
-      expect(card.pills.some((c) => c.icon === 'plants' && c.text === '−2')).eq(true);
+      // The viewer's own loss leads the card as its band, never as a pill.
+      expect(card.viewerImpact?.losses).deep.eq([{icon: 'plants', text: '−2'}]);
+      expect(card.pills.some((c) => c.icon === 'plants')).eq(false);
     });
   });
 

@@ -103,7 +103,7 @@ describe('consoleForegroundWatchdog', () => {
       noteAdmissionSignals(signals());
       notificationState.queue.push({
         id: 'q1', kind: 'normal', variant: 'event', priority: NOTIFICATION_PRIORITY['normal'],
-        typeLabelKey: 'Problem', prompt: 'x', pills: [], detailCount: 0, generation: 1,
+        sign: 'neutral', importance: 'ambient', typeLabelKey: 'Problem', prompt: 'x', pills: [], detailCount: 0, generation: 1,
         ttl: 1000, persistent: false, createdAt: 0,
       });
       expect(tick(STALL_CONFIRM_TICKS, {surfaceRendered: false, promptLive: false})).eq(1);
@@ -189,7 +189,7 @@ describe('consoleForegroundWatchdog', () => {
     function queueOne(id: string): void {
       notificationState.queue.push({
         id, kind: 'normal', variant: 'event', priority: NOTIFICATION_PRIORITY['normal'],
-        typeLabelKey: 'Problem', prompt: 'x', pills: [], detailCount: 0, generation: 1,
+        sign: 'neutral', importance: 'ambient', typeLabelKey: 'Problem', prompt: 'x', pills: [], detailCount: 0, generation: 1,
         ttl: 1000, persistent: false, createdAt: 0,
       });
     }

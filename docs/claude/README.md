@@ -24,6 +24,7 @@ Nothing was thrown away: every character of the old file is either in `CLAUDE.md
 | `marsbot-corporations.md` | the MarsBot corporation CONTRACT (RB-B): the registry/data/behavior split, the selection gate, track cubes, corp-owned recurring cards (B23), the Ecoline plant-attack FAQ, the `.pcard` face, corp stats |
 | `terraforming-progress-hud.md` | touching the terraforming % HUD or the completion ceremony |
 | `energy-heat-conversion.md` | touching the end-of-generation energy→heat transition |
+| `delta-movement-contract.md` | anything that reacts to, projects or performs a position change on the Hydronet­work track — the ONE position writer (`commitDeltaMovement`), the pure `deltaMovementBonus` hook that the commit and the planning preview both read, why MarsBot is not a special case, and the «ДОПОЛНИТЕЛЬНО» reading/flight contract |
 | `modal-inputs-and-metadata-contract.md` | routing a new modal input type or attaching per-card option metadata |
 | `action-prompt-audit.md` | writing or editing a card `action()` / `actionPreview()` / `cardPlayPreview()` — the pre-collect contract, the six leftover-prompt classes it broke (incl. **CLASS 6: a triggered effect asked BEFORE the card's own input, which used to throw the pre-selected answer away**) and the guards that now enforce it |
 | `premium-tooltips.md` | the full tooltip rationale + adopter list |

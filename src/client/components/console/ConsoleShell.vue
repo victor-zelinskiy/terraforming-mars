@@ -1652,7 +1652,9 @@ import {abortDeckDraw, deckDrawDealing, deckDrawHolds, isDeckDrawActive} from '@
 import ConsolePatentSaleLayer from '@/client/components/console/patentSale/ConsolePatentSaleLayer.vue';
 import {abortPatentSale, armPatentSale, isPatentSaleActive, patentSaleState} from '@/client/console/patentSale/consolePatentSale';
 import ConsoleResourceTransferLayer from '@/client/components/console/resourceTransfer/ConsoleResourceTransferLayer.vue';
-import {ResourceTransferSpec} from '@/client/console/resourceTransfer/resourceTransferModel';
+import {ResourceTransferSpec, mergeTransferSpecs} from '@/client/console/resourceTransfer/resourceTransferModel';
+import type {DeltaMovementBonusProjection} from '@/common/models/DeltaTrackPreviewModel';
+import {movementBonusTransfers, withMovementBonusOnLastLeg} from '@/client/console/hydroFlow/hydroMovementBonus';
 import {abortResourceTransfers, runResourceTransfers, beginPanelRewardHold, releasePanelRewardHold, clearPanelRewardHold, panelRewardHold, resetCardResourceLandings} from '@/client/console/resourceTransfer/consoleResourceTransfer';
 import {ActionCommitPlan, abortConsoleActionCommit, actionCommitHolding, commitRewardSpecs, consumeActionCommitPlan, releaseActionCommit} from '@/client/console/consoleActionCommit';
 import {abortActionCommitMotion} from '@/client/console/consoleActionCommitMotion';
@@ -1737,7 +1739,7 @@ import {PlayerInputModel} from '@/common/models/PlayerInputModel';
 import {translateMessage, translateText, translateTextWithParams} from '@/client/directives/i18n';
 import {boardInfoState, configureBoardInfo, fetchBoardCellPreview} from '@/client/components/board/boardInfoState';
 import {BoardPlacementPreview} from '@/common/boards/BoardInformationFacts';
-import {journalState} from '@/client/components/journal/journalState';
+import {journalState, openJournalToEvent} from '@/client/components/journal/journalState';
 import {motionMs} from '@/client/components/motion/motionTokens';
 import {actionLabelForPlayer, liveWaitingSignal} from '@/client/components/overview/playerLabels';
 import ConsoleMandatoryAnnounce from '@/client/components/console/ConsoleMandatoryAnnounce.vue';
@@ -10000,9 +10002,22 @@ export default defineComponent({
           }
           return true;
         }
+        // The DETAIL action (press-and-HOLD X): the flow-holding AI-turn card
+        // opens its «Разбор хода» review; ANY card carrying a journal root
+        // (correlationId) opens the journal AT that event — the full causal
+        // chain behind the toast, matching the «Hold X Журнал» hint the card
+        // renders. Same availability policy as the View toggle (board home
+        // only, never over a live placement) — refusals speak, never no-op.
         const detailKey = topCard.holdsFlow === true ? topCard.botTurnKey : undefined;
-        if (detailKey !== undefined && action === 'inspect' && !this.notifTapReplay) {
-          beginNotifHold(topCard.id, () => openBotTurnReviewByKey(detailKey));
+        const detailCorrelation = detailKey === undefined ? topCard.correlationId : undefined;
+        if ((detailKey !== undefined || detailCorrelation !== undefined) && action === 'inspect' && !this.notifTapReplay) {
+          beginNotifHold(topCard.id, () => {
+            if (detailKey !== undefined) {
+              openBotTurnReviewByKey(detailKey);
+              return;
+            }
+            this.openJournalToNotification(topCard);
+          });
           return true;
         }
       }
@@ -11584,6 +11599,27 @@ export default defineComponent({
         this.closeColonyInspect();
       }
     },
+    // A toast's X-HOLD detail: the journal AT the toast's own root event (the
+    // full causal chain). Same availability policy as the View toggle — the
+    // journal only opens from the board home and never over a live placement;
+    // a refusal names itself instead of silently eating the hold.
+    openJournalToNotification(card: LiveNotification): void {
+      if (card.correlationId === undefined) {
+        return;
+      }
+      if (this.placementActive) {
+        this.showNotice('Finish your current action first');
+        return;
+      }
+      if (this.consoleState.section !== 'board') {
+        this.showNotice('The journal is available from the main board');
+        return;
+      }
+      openJournalToEvent(card.correlationId, card.generation);
+      // The journal now tells the story — the toast's job is done. (The
+      // journal-open watcher drops the queued ordinary cards the same way.)
+      dismissNotification(card.id);
+    },
     // ── «Разыграно» — the played-cards tableau (X, board home only) ──────
     openPlayedOverlay(): void {
       // Board-home-only by the caller's guards; mutually exclusive with the
@@ -13031,6 +13067,7 @@ export default defineComponent({
       fromPosition?: number, toPosition?: number, spend?: number,
       rewards?: ReadonlyArray<ResourceTransferSpec>,
       resultLines?: ReadonlyArray<HydroDeltaLine>, vp?: number, stageNameKey?: string,
+      movementBonuses?: ReadonlyArray<DeltaMovementBonusProjection>,
       sourceCard?: CardName,
       targetBefore?: number,
     }): void {
@@ -13082,6 +13119,7 @@ export default defineComponent({
           composedRepeat: payload.repeat !== undefined,
           targetBefore: payload.targetBefore,
           rewardLines: payload.resultLines ?? [],
+          movementBonuses: payload.movementBonuses,
           vp: payload.vp,
           stageNameKey: payload.stageNameKey ?? '',
           rewards: payload.rewards ?? [],
@@ -13143,6 +13181,7 @@ export default defineComponent({
       fromPosition: number, toPosition: number, spend: number,
       rewards?: ReadonlyArray<ResourceTransferSpec>,
       resultLines?: ReadonlyArray<HydroDeltaLine>, vp?: number, stageNameKey?: string,
+      movementBonuses?: ReadonlyArray<DeltaMovementBonusProjection>,
       sourceCard?: CardName,
       targetBefore?: number,
     }): void {
@@ -13194,6 +13233,7 @@ export default defineComponent({
         composedRepeat: payload.repeat !== undefined,
         targetBefore: payload.targetBefore,
         rewardLines: payload.resultLines ?? [],
+        movementBonuses: payload.movementBonuses,
         vp: payload.vp,
         stageNameKey: payload.stageNameKey ?? '',
         rewards: payload.rewards ?? [],
@@ -13233,6 +13273,10 @@ export default defineComponent({
       composedRepeat: boolean, targetBefore: number | undefined,
       rewardLines: ReadonlyArray<HydroDeltaLine>, vp: number | undefined, stageNameKey: string,
       rewards: ReadonlyArray<ResourceTransferSpec>,
+      /** The move's PASSIVE half (Social Heating's heat) — server-authored,
+       *  frozen with the rest of the result. Its wave rides the MARKER's own
+       *  arrival at the destination, because the movement is what earned it. */
+      movementBonuses?: ReadonlyArray<DeltaMovementBonusProjection>,
       sourceCard?: CardName, skippedCount?: number,
       serves?: ReadonlyArray<TaskKind>, claimDraw?: number,
       /** WIDER SERVICE for the one claim: a traversal whose deck stop is
@@ -13271,8 +13315,18 @@ export default defineComponent({
         payload.traversal;
       // A single-step repeat's rewards are the ACTION's own specs — the
       // one-leg stop plan below flies them as its closing wave.
-      const rewards = payload.kind === 'repeat' && repeatSpecs.length > 0 ?
+      const baseRewards = payload.kind === 'repeat' && repeatSpecs.length > 0 ?
         repeatSpecs : (payload.rewards ?? []);
+      // THE MOVEMENT'S OWN WAVE. A passive movement bonus (Social Heating's
+      // heat) is caused by the MARKER TRAVELLING, not by the landed stage — so
+      // it joins the arrival wave of the DESTINATION instead of opening a scene
+      // of its own: nothing is paid before the token has moved, a long
+      // traversal delivers ONE aggregate at its end rather than a chip per
+      // crossed cell, and the source is named in the result rows the plan panel
+      // already promised.
+      const movementSpecs = movementBonusTransfers(payload.movementBonuses);
+      const rewards = movementSpecs.length > 0 ?
+        mergeTransferSpecs([...baseRewards, ...movementSpecs]) : baseRewards;
       beginHydroCommit({
         kind: payload.kind,
         fromPosition: payload.fromPosition,
@@ -13285,6 +13339,7 @@ export default defineComponent({
         composedRepeat: payload.composedRepeat,
         targetBefore: payload.targetBefore,
         rewardLines: payload.rewardLines,
+        movementBonuses: payload.movementBonuses,
         vp: payload.vp,
         stageNameKey: payload.stageNameKey,
         // The context column keeps the granting card / the omission count
@@ -13315,7 +13370,7 @@ export default defineComponent({
       // the whole ordered leg plan instead: single-cell hops, per-cell waves,
       // interactive stops — one sequence, the same gate on its first leg.
       if (traversal !== undefined && traversal.length > 0) {
-        armHydroMarkerTraversal(payload.fromPosition, traversal.map((s): HydroMarkerLegPlan => ({
+        armHydroMarkerTraversal(payload.fromPosition, withMovementBonusOnLastLeg(traversal.map((s): HydroMarkerLegPlan => ({
           position: s.position,
           transfers: s.transfers,
           stop: s.kind === 'deck-draw' ? 'deck-draw' : s.kind === 'repeat' ? 'repeat' : undefined,
@@ -13328,7 +13383,7 @@ export default defineComponent({
           // two cells back. Naming the card here is what lets the admission gate
           // hold that batch for the step that owes it — see `hydroStepAdmission`.
           sourceCard: s.kind === 'repeat' ? s.selectedCard : undefined,
-        })), this.thisPlayer.color);
+        })), payload.movementBonuses), this.thisPlayer.color);
       } else if (payload.kind === 'repeat') {
         // A SINGLE-STEP repeat is a ONE-LEG stop plan: the same barrier the
         // traversal uses — the marker locks on the stage, the action's whole
@@ -13358,6 +13413,7 @@ export default defineComponent({
       repeat?: ConsoleRepeatPickResult, fromPosition: number, toPosition: number,
       rewards?: ReadonlyArray<ResourceTransferSpec>,
       resultLines?: ReadonlyArray<HydroDeltaLine>, vp?: number,
+      movementBonuses?: ReadonlyArray<DeltaMovementBonusProjection>,
       stageNameKey?: string, kind?: HydroResolutionKind,
       skippedCount?: number, targetBefore?: number,
       /** The MULTI-REWARD traversal (Delta Surge): ordered batch answers,
@@ -13520,6 +13576,7 @@ export default defineComponent({
           payload.traversalAnswers?.some((a) => a.repeat !== undefined) === true,
         targetBefore: payload.targetBefore,
         rewardLines: payload.resultLines ?? [],
+        movementBonuses: payload.movementBonuses,
         vp: payload.vp,
         stageNameKey: payload.stageNameKey ?? '',
         rewards: payload.rewards ?? [],

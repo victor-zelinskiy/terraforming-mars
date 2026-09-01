@@ -1,5 +1,79 @@
 <!-- Reference material moved out of the root CLAUDE.md (2026-07-27 context-budget reorg).
-     NOT auto-loaded. Read on demand when working on this subsystem. Verbatim, unedited. -->
+     NOT auto-loaded. Read on demand when working on this subsystem. -->
+
+## ⭐ VIEWER-FIRST SEMANTICS (the 2026-09-01 rework) — the notification is about the VIEWER
+
+The top-right toast leads with **what changed for its recipient**, not with the initiator's
+chronology. Two INDEPENDENT semantic axes ride every `NotificationModel` (required fields —
+a producer cannot compile without deciding both):
+
+- **`sign: 'positive'|'negative'|'neutral'|'mixed'`** — viewer-relative, derived from TYPED
+  event data only (`notificationSemantics.ts`), never from text. A mixed result is stated as
+  BOTH lists (losses + gains) — deltas merge to the net WITHIN a direction, never across
+  (netting a −2/+2 pair to silence would hide the attack; the task's mixed-result rule).
+- **`importance: 'ambient'|'notable'|'critical'|'attention'`** — informational weight,
+  deliberately decoupled from the sign: an opponent's big engine play stays `ambient` for a
+  bystander; a viewer loss is `critical` whatever its size; a viewer gain / milestone /
+  threat is `notable`; the turn prompts and warnings are `attention`.
+
+**The pure core is `notificationSemantics.ts`**: `viewerImpactOfChain(chain, viewer, actor)`
+(the viewer's own deltas inside a correlation chain — empty when viewer IS the actor, so own
+actions never grow a "you paid 8" band), `viewerImpactOfBotTurn(turn, viewer, botColor)`
+(from the typed turn script), `importanceForRoot(...)`, `signOf(...)`. The result is
+`NotificationModel.viewerImpact: ViewerImpactMeta` — {sign, gains, losses, attacker,
+sourceCard (+`ownSource` when it is the VIEWER's card that paid them), transfer, scope}.
+
+**The console card (`ConsoleNotificationCard.vue`) renders the hierarchy**:
+1. the **VIEWER BAND** (`.con-notif__you--<sign>`) — «▲ ВЫ ПОЛУЧИЛИ / ▼ ВЫ ПОТЕРЯЛИ / ⇄ ДЛЯ
+   ВАС» label + glyph + tone (three channels — never colour alone), big delta chips (losses
+   first), the transfer «→ attacker» tail, the honest scope + `before → after` line;
+2. the **cause line** — «Из-за <actor> <card>» (the initiator is the reason, not the story);
+3. the event's own voice (headline tokens / reveal line / bot outcome lines) — PRIMARY only
+   when nothing personal happened (sign neutral ⇒ the old event-first layout);
+4. context pills = the action's own outcome EXCLUDING the viewer's rows (they live in the
+   band; shown for neutral/positive cards, dropped for a loss — the band + journal carry it).
+The card also carries `.con-notif--sign-<sign>` + `.con-notif--imp-<importance>` (chrome
+grades: ambient calm → notable rim → critical wide rail + one-shot opacity-only arrival wash
+— the old `filter:brightness` prestige keyframes NEVER rendered under the console paint
+baseline and were replaced the same way) and `data-notif-id` (the model id, for probes).
+
+**ONE ACTION → ONE CARD (the de-dup contract).** `diffRootNotifications` now returns
+`hostileCoveredIds` + `revealCoveredKeys` beside the models: a chain carrying a viewer loss
+emits ONE hostile-upgraded root card (kind `negative`, priority/TTL/exemptions unchanged
+machinery) and the layer seeds `seenNegativeIds` BEFORE the standalone hostile diff runs —
+the old `g<corr>` + `neg<corr>` double is structurally impossible. Same for a public reveal
+riding a root chain: it folds INTO that card (`model.reveal`) and its key silences
+`diffRevealNotifications`. The standalone diffs stay as FALLBACKS for what a root card can't
+cover: a loss recorded AFTER the root was seen/dismissed, a loss inside the viewer's own
+suppressed action, a reveal outside a fresh root. A loss that lands while the root card is
+STILL VISIBLE upgrades it in place (`refreshVisibleImpacts`: band appears, sign flips,
+importance→critical, the TTL re-arms to the hostile 13 s, the id is marked covered).
+`diffNegativeNotifications` also SKIPS `automa-turn` chains — the bot pipeline's own card
+leads with `viewerImpact` from the turn script (`buildBotTurnNotification`), so a bot attack
+is one card too. `coalesceBurst` merges ONLY sign-neutral normals — a personally-relevant
+card is never swallowed into «События: N» (the summary restates sign neutral / imp ambient).
+
+**The pad DETAIL contract widened**: press-and-HOLD X on ANY toast with a `correlationId`
+opens the journal AT that event (`ConsoleShell.openJournalToNotification` — same guards as
+the View toggle: board home only, never over a placement, refusals speak) and dismisses the
+toast; the bot-turn card keeps its «Осмотреть ход» hold. The card's footer advertises
+whichever it has («Зажать X Журнал» / «Осмотреть ход» + «B Закрыть»).
+
+**Feed-mode semantics unchanged**: the hostile-upgraded root card is exempt via kind
+`negative` (like the old standalone card), shows even with the journal open, and the
+`affects` metadata is untouched — the personal filter behaves byte-identically, with fewer
+cards. Console TV overrides in `console_tv.less` §16 (band label at the type floor).
+
+Guards: `notificationSemantics.spec.ts` (pure axes), the viewer-first blocks in
+`notificationModel.spec.ts` (band, hostile merge, reveal fold, burst opt-out, automa skip),
+`marsBotPresentation.spec.ts` (bot band), and the e2e
+`tests/e2e/console-notification-semantics.spec.ts` — a REAL two-seat game (the rival driven
+over the API), at 720p AND 4K: ambient card → TTL dismissal → an Energy-Tapping attack →
+ONE `g…` hostile card with the band/cause/scope, the X-hold → journal handoff, and a
+MutationObserver audit that no `neg…` twin ever appeared. Screenshots land in
+`screenshots/notification-semantics/`.
+
+---
 
 ## Premium notification system (the live game-feedback layer)
 

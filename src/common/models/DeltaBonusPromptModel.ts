@@ -1,4 +1,5 @@
 import {CardName} from '../cards/CardName';
+import type {DeltaMovementBonusProjection} from './DeltaTrackPreviewModel';
 
 /**
  * A CARD-GRANTED BONUS MOVE on the Delta Project («Гидросеть») track — the
@@ -49,6 +50,14 @@ export type DeltaAdvanceOffer = {
    * move the player can already make is never sold to them.
    */
   waivesTag: boolean;
+  /**
+   * PASSIVE bonuses the move would pay the mover on top of the landing
+   * stage's reward (Social Heating's heat) — the SAME server-authored
+   * projection the planning preview carries per destination
+   * (`DeltaTrackDestination.movementBonuses`), so a bonus move and a standard
+   * one promise the outcome in one vocabulary. Absent when nothing is owed.
+   */
+  movementBonuses?: ReadonlyArray<DeltaMovementBonusProjection>;
 };
 
 /**

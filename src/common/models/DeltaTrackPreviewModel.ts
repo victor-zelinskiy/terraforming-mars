@@ -1,6 +1,36 @@
 import {Tag} from '../cards/Tag';
 import {CardName} from '../cards/CardName';
+import {Resource} from '../Resource';
 import {Units} from '../Units';
+
+/**
+ * ONE passive movement bonus the viewer WOULD be paid for making a move — the
+ * SERVER's own projection, not a hint the client may re-derive.
+ *
+ * A card may pay its owner for movement on this track whoever moved (Social
+ * Heating: heat per actual step). When the viewer plans their OWN move, that
+ * payment is part of the outcome and belongs beside the stage reward — so the
+ * server states it here, per destination, as a finished reading: which card
+ * owes it, what and how much, and the resulting «sejchas → stanet».
+ *
+ * AUTHORITATIVE AND SINGLE-SOURCED. `DeltaProjectExpansion.projectedMovementBonuses`
+ * builds this by asking the very `deltaMovementBonus` hooks the COMMIT pays
+ * out (`deltaMovement.ts`), with the actual, already-legality-checked step
+ * count of that destination. The client never searches a tableau for a card
+ * and never multiplies a planned step count — a promise the CTA makes here is
+ * the payout by construction.
+ */
+export type DeltaMovementBonusProjection = {
+  /** The card that owes it — the row's source, inspectable by name. */
+  card: CardName;
+  resource: Resource;
+  /** Always > 0. */
+  amount: number;
+  /** The viewer's stock of `resource` before the move … */
+  before: number;
+  /** … and after it (two bonuses of one resource thread their readings). */
+  after: number;
+};
 
 /**
  * One reachable destination on the Delta Project ("Гидросеть") track, relative to
@@ -38,6 +68,13 @@ export type DeltaTrackDestination = {
    *  present only while a traversal modifier (Delta Surge) is live. See
    *  {@link DeltaTraversalStep}. */
   traversal?: ReadonlyArray<DeltaTraversalStep>;
+  /**
+   * PASSIVE bonuses this move would pay the viewer on top of the stage
+   * reward(s) — server-authored, one entry per owed card. Absent when nothing
+   * is owed, so the historical payload stays byte-identical for a table with
+   * no such card in play. See {@link DeltaMovementBonusProjection}.
+   */
+  movementBonuses?: ReadonlyArray<DeltaMovementBonusProjection>;
 };
 
 /**

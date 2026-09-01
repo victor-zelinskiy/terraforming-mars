@@ -7,6 +7,13 @@ import {OrOptions} from '../inputs/OrOptions';
 import {SelectOption} from '../inputs/SelectOption';
 import {AdvanceOptions, DeltaProjectExpansion} from '../delta/DeltaProjectExpansion';
 import {namedCardEffect} from '../inputs/choiceContext';
+import type {DeltaMovementBonusProjection} from '../../common/models/DeltaTrackPreviewModel';
+
+/** Spread helper: omit the field entirely when nothing is owed, so the
+ *  historical prompt payload stays byte-identical. */
+function movementBonusesOf(bonuses: ReadonlyArray<DeltaMovementBonusProjection>) {
+  return bonuses.length > 0 ? {movementBonuses: bonuses} : {};
+}
 
 /** A free one-step bonus move: the card pays for it, the stock does not. */
 const FREE: AdvanceOptions = {maxSteps: 1, free: true};
@@ -79,7 +86,7 @@ export class BonusDeltaAdvance extends DeferredAction {
         // validation, rewards, choices, the repeat-blue-action pick, the
         // journal scope. `advance` re-validates against these very options and
         // charges the toll atomically inside its own event scope.
-        DeltaProjectExpansion.advance(player, 1, options);
+        DeltaProjectExpansion.advance(player, 1, {...options, source: this.source.name});
         return undefined;
       });
     const skip = new SelectOption('Skip the bonus step', 'Skip').andThen(() => undefined);
@@ -94,6 +101,11 @@ export class BonusDeltaAdvance extends DeferredAction {
         toPosition: from + 1,
         energyCost: options.energyToll ?? 0,
         waivesTag: options.tagWaiver === true,
+        // The PASSIVE half of this move's outcome (Social Heating's heat),
+        // projected by the same hooks the commit pays out — so the workspace
+        // states it beside the stage reward here exactly as it does for the
+        // player's own planned advance. Absent when nothing is owed.
+        ...movementBonusesOf(DeltaProjectExpansion.projectedMovementBonuses(player, from + 1, options)),
         advanceIndex: 0,
         skipIndex: 1,
       })

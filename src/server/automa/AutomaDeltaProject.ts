@@ -9,6 +9,7 @@ import {
   VP2_POSITION,
   VP5_POSITION,
 } from '../delta/DeltaProjectExpansion';
+import {commitDeltaMovement} from '../delta/deltaMovement';
 import {marsBotOf} from './AutomaUtil';
 
 /** Hard cap from the Solo Delta Project reference card: at most 4 rows per resolution. */
@@ -180,28 +181,37 @@ export class AutomaDeltaProject {
     game.events.beginAction(bot, {kind: 'card', card: CardName.DELTA_PROJECT, owner: bot.color}, {category: 'delta-project'});
     try {
       automa.deltaPowerConsumed += steps;
-      progress.position = newPos;
-      // NO stop is recorded: a DeltaStop means "stopped AND received the
-      // reward", and the bot never receives rewards — its traversed rows must
-      // honestly read as "passed" in the history panel.
+      // THE SHARED COMMIT POINT — the same one the human advance uses
+      // (`deltaMovement.ts`). The bot's marker moves through the one ledger, so
+      // the movement fact it publishes is indistinguishable from a human's:
+      // a card that pays its owner for «any player» moving (Social Heating)
+      // is paid by a bot move without knowing a bot exists, and without this
+      // file mentioning such a card.
+      //
+      // What stays the bot's OWN: its power price, its journal voice, and the
+      // rule that it takes NO row reward — NO stop is recorded, because a
+      // DeltaStop means «stopped AND received the reward» and the bot never
+      // does; its traversed rows must honestly read as «passed» in the
+      // history panel.
+      commitDeltaMovement(bot, steps, {kind: 'automa'}, () => {
+        game.log('${0} consumed ${1} Power increment(s) for the Hydronetwork', (b) =>
+          b.player(bot).number(steps));
+        game.log('${0} advanced ${1} row(s) on the Hydronetwork, reaching ${2}', (b) =>
+          b.player(bot).number(steps).string(stageName));
 
-      game.log('${0} consumed ${1} Power increment(s) for the Hydronetwork', (b) =>
-        b.player(bot).number(steps));
-      game.log('${0} advanced ${1} row(s) on the Hydronetwork, reaching ${2}', (b) =>
-        b.player(bot).number(steps).string(stageName));
-
-      if (newPos === VP2_POSITION) {
-        game.log('${0} claimed the ${1} position on the Hydronetwork (2 VP at game end)', (b) =>
-          b.player(bot).string(stageName));
-      } else if (newPos === VP5_POSITION) {
-        if (jumpedOverVp2) {
-          game.log('${0} leapt past the occupied 2 VP position to reach ${1} on the Hydronetwork (5 VP at game end)', (b) =>
+        if (newPos === VP2_POSITION) {
+          game.log('${0} claimed the ${1} position on the Hydronetwork (2 VP at game end)', (b) =>
             b.player(bot).string(stageName));
-        } else {
-          game.log('${0} claimed the ${1} position on the Hydronetwork (5 VP at game end)', (b) =>
-            b.player(bot).string(stageName));
+        } else if (newPos === VP5_POSITION) {
+          if (jumpedOverVp2) {
+            game.log('${0} leapt past the occupied 2 VP position to reach ${1} on the Hydronetwork (5 VP at game end)', (b) =>
+              b.player(bot).string(stageName));
+          } else {
+            game.log('${0} claimed the ${1} position on the Hydronetwork (5 VP at game end)', (b) =>
+              b.player(bot).string(stageName));
+          }
         }
-      }
+      });
       // Landing on a reward row (1-9): the bot takes NO row reward (reference
       // card). This is an IMPLEMENTATION detail — it belongs ONLY to the MarsBot
       // guide (marsBotGuide.ts), NOT the journal, so no "does not receive the

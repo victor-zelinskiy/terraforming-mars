@@ -13,6 +13,9 @@ import {calculateVictoryPoints} from '../../src/server/game/calculateVictoryPoin
 import {Server} from '../../src/server/models/ServerModel';
 import {OrOptions} from '../../src/server/inputs/OrOptions';
 import {cast} from '../../src/common/utils/utils';
+import {SocialHeating} from '../../src/server/cards/delta/SocialHeating';
+import {AutomaTurnLog} from '../../src/server/automa/AutomaTurnLog';
+import {LogMessageDataType} from '../../src/common/logs/LogMessageDataType';
 import {testAutomaGame} from './AutomaTestGame';
 
 /**
@@ -374,6 +377,90 @@ describe('AutomaDeltaProject — Solo Delta Project reference card', () => {
     game.playerIsFinishedTakingActions();
     expect(bot.deltaProjectData!.position).eq(2);
     expect(game.automa!.deltaPowerConsumed).eq(2);
+  });
+
+  /**
+   * THE BOT IS NOT A SPECIAL CASE. Its resolution goes through the SAME
+   * position-write ledger the human advance uses (`delta/deltaMovement.ts`), so
+   * a card that pays its owner for «any player» moving is paid by a bot move
+   * — without the automa code knowing such a card exists.
+   */
+  describe('the bot move publishes the shared movement fact', () => {
+    it('a human owner of Social Heating is paid for the bot’s actual rows', () => {
+      const heating = new SocialHeating();
+      human.playedCards.push(heating);
+      progressAllTagTracks(game);
+      setPower(game, 3);
+      resolve(game);
+      expect(bot.deltaProjectData!.position).eq(3);
+      expect(human.heat).eq(3);
+    });
+
+    it('pays for the rows actually taken when the bot’s budget caps the move', () => {
+      const heating = new SocialHeating();
+      human.playedCards.push(heating);
+      progressAllTagTracks(game);
+      // Power for 4 rows, but the row-3 tag track is not progressed → 2 rows.
+      setPower(game, 4);
+      game.automa!.board.tracks[THARSIS_TRACK.EARTH].position = 0;
+      resolve(game);
+      const rows = bot.deltaProjectData!.position;
+      expect(rows).eq(2);
+      expect(human.heat).eq(rows);
+    });
+
+    it('an ineligible generation moves nothing and pays nothing', () => {
+      human.playedCards.push(new SocialHeating());
+      resolve(game);
+      expect(bot.deltaProjectData!.position).eq(0);
+      expect(human.heat).eq(0);
+    });
+
+    it('the gain is recorded against the OWNER, sourced to the card, inside the bot’s own chain', () => {
+      human.playedCards.push(new SocialHeating());
+      progressAllTagTracks(game);
+      setPower(game, 2);
+      resolve(game);
+      const gain = game.events.events.find((e) =>
+        e.source?.kind === 'card' && e.source.card === CardName.SOCIAL_HEATING && (e.impact.stock?.heat ?? 0) !== 0);
+      expect(gain).is.not.undefined;
+      expect(gain!.player).eq(human.color);
+      expect(gain!.impact.stock!.heat).eq(2);
+      const move = game.events.events.find((e) => e.type === 'action' && e.source?.kind === 'card' && e.source.card === CardName.DELTA_PROJECT);
+      expect(gain!.correlationId).eq(move!.correlationId);
+    });
+
+    it('the turn script carries the payout line, so the theater names the source', () => {
+      human.playedCards.push(new SocialHeating());
+      progressAllTagTracks(game);
+      setPower(game, 2);
+      // Recorded exactly as a human turn is: the public log line the payout
+      // emits is captured by the turn recording, attributed to the delta
+      // cause — no bot-specific notification path, no second bus.
+      AutomaTurnLog.begin(game);
+      AutomaTurnLog.setCause(game, {kind: 'delta'});
+      resolve(game);
+      AutomaTurnLog.setCause(game, undefined);
+      AutomaTurnLog.finish(game);
+      const turn = game.automa!.lastTurn;
+      const cards = (turn?.steps ?? []).flatMap((step) =>
+        'message' in step && step.message !== undefined ?
+          step.message.data.filter((d) => d.type === LogMessageDataType.CARD).map((d) => d.value) : []);
+      expect(cards, 'the payout line must be in the turn script').to.contain(CardName.SOCIAL_HEATING);
+      // …and the human's heat is in the turn's own «results» impact step, which
+      // is what makes the bot-turn card lead with «Вы получили +2 тепла».
+      const impact = (turn?.steps ?? []).find((s) => s.kind === 'impact' && s.impact.target === human.color);
+      expect(impact, 'the human must appear in the turn results').is.not.undefined;
+    });
+
+    it('the bot itself owning the effect is state-correct too', () => {
+      bot.playedCards.push(new SocialHeating());
+      progressAllTagTracks(game);
+      setPower(game, 2);
+      resolve(game);
+      expect(bot.heat).eq(2);
+      expect(human.heat).eq(0);
+    });
   });
 
   it('a non-delta automa game is untouched', () => {

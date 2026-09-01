@@ -215,9 +215,9 @@ describe('notificationModel (pure)', () => {
       expect(out[0].typeLabelKey).to.eq('Multiple events');
     });
 
-    it('a summary card carries the UNION of its members affects lists', () => {
-      // One member of the burst personally touched BLUE — the merged card must
-      // keep saying so, or the personal feed mode would drop the whole burst.
+    it('a personally-relevant card is NEVER swallowed into a burst summary', () => {
+      // One member of the burst personally touched BLUE (sign positive) — it
+      // stays an individual card; only the sign-neutral members merge.
       const withViewerGain = diffRootNotifications({
         messages: [rootHeader(RED, 5)],
         events: [
@@ -226,9 +226,16 @@ describe('notificationModel (pure)', () => {
         ],
         seen: new Set(), viewerColor: BLUE, generation: 1, createdAt: 1000,
       }).models[0];
-      const out = coalesceBurst([normalModel(1), normalModel(2), normalModel(3), withViewerGain]);
-      expect(out).to.have.length(1);
-      expect(out[0].affects).to.deep.eq([RED, BLUE]);
+      expect(withViewerGain.sign).to.eq('positive');
+      const out = coalesceBurst([normalModel(1), normalModel(2), normalModel(3), normalModel(4), withViewerGain]);
+      expect(out).to.have.length(2);
+      const summary = out.find((m) => m.groupCount !== undefined);
+      expect(summary?.groupCount).to.eq(4);
+      expect(summary?.sign).to.eq('neutral');
+      expect(summary?.importance).to.eq('ambient');
+      const personal = out.find((m) => m.groupCount === undefined);
+      expect(personal?.id).to.eq('g5');
+      expect(personal?.viewerImpact?.gains).to.deep.eq([{icon: 'cards', text: '+1'}]);
     });
   });
 
@@ -256,6 +263,130 @@ describe('notificationModel (pure)', () => {
         messages: [header], events: chain, seen: new Set(), viewerColor: BLUE, generation: 1, createdAt: 1,
       });
       expect(models[0].affects).to.deep.eq([]);
+    });
+  });
+
+  describe('viewer-first semantics (the two axes + the viewer band)', () => {
+    function diffOne(events: Array<GameEvent>, viewer: Color, corr = 40) {
+      return diffRootNotifications({
+        messages: [rootHeader(RED, corr)], events, seen: new Set(), viewerColor: viewer, generation: 1, createdAt: 1,
+      });
+    }
+
+    it('an opponent action touching nobody is neutral + ambient (no band)', () => {
+      const {models} = diffOne([
+        event({id: 400, type: 'action', player: RED, correlationId: 40, impact: {}}),
+        event({id: 401, type: 'resource-changed', player: RED, correlationId: 40, impact: {stock: {energy: 2}}}),
+      ], BLUE);
+      expect(models[0]).to.include({sign: 'neutral', importance: 'ambient', kind: 'normal'});
+      expect(models[0].viewerImpact).to.eq(undefined);
+    });
+
+    it('a viewer GAIN inside an opponent chain → sign positive, notable, band chips', () => {
+      const {models} = diffOne([
+        // The root action event's id IS the correlationId (the chain key).
+        event({id: 40, type: 'action', player: RED, correlationId: 40, source: {kind: 'card', card: CARD}, impact: {}}),
+        event({id: 401, type: 'cards-drawn', player: BLUE, correlationId: 40, impact: {cardsDrawn: 2}}),
+      ], BLUE);
+      expect(models[0]).to.include({sign: 'positive', importance: 'notable', kind: 'normal'});
+      expect(models[0].viewerImpact?.gains).to.deep.eq([{icon: 'cards', text: '+2'}]);
+      expect(models[0].viewerImpact?.losses).to.deep.eq([]);
+      // The cause names the action's own card.
+      expect(models[0].viewerImpact?.sourceCard).to.eq(CARD);
+    });
+
+    it('a viewer LOSS upgrades the ROOT card itself — ONE hostile card, never two', () => {
+      const first = diffOne([
+        event({id: 400, type: 'action', player: RED, correlationId: 40, source: {kind: 'card', card: CARD}, impact: {}}),
+        event({id: 401, type: 'resource-changed', player: BLUE, correlationId: 40, target: {player: RED}, source: {kind: 'card', card: CARD, owner: RED}, impact: {stock: {titanium: -2}}}),
+      ], BLUE);
+      const model = first.models[0];
+      expect(model).to.include({id: 'g40', kind: 'negative', sign: 'negative', importance: 'critical'});
+      expect(model.viewerImpact?.losses).to.deep.eq([{icon: 'titanium', text: '−2'}]);
+      expect(model.viewerImpact).to.deep.include({attacker: RED, transfer: true, scope: 'stock', sourceCard: CARD});
+      // The root card COVERS the hostile id space — seeding it means the
+      // standalone hostile diff can never double the same action.
+      expect(first.hostileCoveredIds).to.deep.eq([40]);
+      const neg = diffNegativeNotifications({
+        events: [
+          event({id: 401, type: 'resource-changed', player: BLUE, correlationId: 40, target: {player: RED}, source: {kind: 'card', card: CARD, owner: RED}, impact: {stock: {titanium: -2}}}),
+        ],
+        seen: new Set(first.hostileCoveredIds), viewerColor: BLUE, generation: 1, createdAt: 1,
+      });
+      expect(neg.models).to.have.length(0);
+    });
+
+    it('a MIXED chain (viewer gain + viewer loss) → sign mixed, critical, both lists', () => {
+      const {models} = diffOne([
+        event({id: 400, type: 'action', player: RED, correlationId: 40, impact: {}}),
+        event({id: 401, type: 'resource-changed', player: BLUE, correlationId: 40, source: {kind: 'card', card: CARD, owner: RED}, impact: {stock: {plants: -3}}}),
+        event({id: 402, type: 'cards-drawn', player: BLUE, correlationId: 40, impact: {cardsDrawn: 1}}),
+      ], BLUE);
+      expect(models[0]).to.include({sign: 'mixed', importance: 'critical', kind: 'negative'});
+      expect(models[0].viewerImpact?.losses).to.deep.eq([{icon: 'plants', text: '−3'}]);
+      expect(models[0].viewerImpact?.gains).to.deep.eq([{icon: 'cards', text: '+1'}]);
+    });
+
+    it('context pills EXCLUDE the viewer rows once the band leads', () => {
+      const {models} = diffOne([
+        event({id: 400, type: 'action', player: RED, correlationId: 40, impact: {}}),
+        event({id: 401, type: 'resource-changed', player: RED, correlationId: 40, impact: {stock: {energy: 2}}}),
+        event({id: 402, type: 'cards-drawn', player: BLUE, correlationId: 40, impact: {cardsDrawn: 1}}),
+      ], BLUE);
+      // The viewer's +1 card lives in the band; the pills keep the actor's +2 energy.
+      expect(models[0].pills.map((p) => p.icon)).to.deep.eq(['energy']);
+      expect(models[0].viewerImpact?.gains).to.deep.eq([{icon: 'cards', text: '+1'}]);
+      // The full breakdown (details / journal parity) still counts every row.
+      expect(models[0].detailCount).to.eq(2);
+    });
+
+    it('the viewer own action never grows a band (no self-notifications)', () => {
+      const header = rootHeader(RED, 41, 'milestone');
+      const {models} = diffRootNotifications({
+        messages: [header],
+        events: [
+          event({id: 410, type: 'action', player: RED, correlationId: 41, source: {kind: 'milestone', name: 'Terraformer' as never}, impact: {}}),
+          event({id: 411, type: 'resource-changed', player: RED, correlationId: 41, source: {kind: 'payment'}, impact: {stock: {megacredits: -8}}}),
+        ],
+        seen: new Set(), viewerColor: RED, generation: 1, createdAt: 1,
+      });
+      // The own milestone presents action-first: no «you lost 8 M€» band.
+      expect(models[0].sign).to.eq('neutral');
+      expect(models[0].viewerImpact).to.eq(undefined);
+    });
+
+    it('a reveal riding a root chain FOLDS into that card (one card + covered key)', () => {
+      const header = rootHeader(RED, 42, 'card-action');
+      const revealed = new LogMessage(LogMessageType.DEFAULT, '${0} revealed ${1}', [
+        {type: LogMessageDataType.PLAYER, value: RED},
+        {type: LogMessageDataType.CARD, value: CARD},
+      ]);
+      revealed.correlationId = 42;
+      revealed.reveal = {origin: 'deck', result: 'discarded'};
+      const res = diffRootNotifications({
+        messages: [header, revealed],
+        events: [event({id: 420, type: 'action', player: RED, correlationId: 42, impact: {}})],
+        seen: new Set(), viewerColor: BLUE, generation: 1, createdAt: 1,
+      });
+      expect(res.models).to.have.length(1);
+      expect(res.models[0].reveal).to.deep.include({origin: 'deck', result: 'discarded'});
+      expect(res.models[0].reveal?.cards).to.deep.eq([CARD]);
+      expect(res.revealCoveredKeys).to.have.length(1);
+      // Seeding the covered key silences the standalone reveal diff for it.
+      const standalone = diffRevealNotifications({
+        messages: [revealed], seen: new Set(res.revealCoveredKeys), viewerColor: BLUE, generation: 1, createdAt: 1,
+      });
+      expect(standalone.models).to.have.length(0);
+    });
+
+    it('diffNegative SKIPS automa-turn chains — the bot card owns that presentation', () => {
+      const events = [
+        event({id: 50, type: 'action', player: RED, correlationId: 50, category: 'automa-turn', impact: {}}),
+        event({id: 51, type: 'resource-changed', player: BLUE, correlationId: 50, source: {kind: 'card', card: CARD, owner: RED}, impact: {stock: {plants: -2}}}),
+      ];
+      const res = diffNegativeNotifications({events, seen: new Set(), viewerColor: BLUE, generation: 1, createdAt: 1});
+      expect(res.models).to.have.length(0);
+      expect(res.encounteredIds).to.have.length(0);
     });
   });
 

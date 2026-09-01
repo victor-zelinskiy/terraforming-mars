@@ -8,6 +8,7 @@ import {DevelopmentManager} from './DevelopmentManager';
 import {DeltaWorks} from './DeltaWorks';
 import {DeltaSurge} from './DeltaSurge';
 import {DutchMountains} from './DutchMountains';
+import {SocialHeating} from './SocialHeating';
 
 /**
  * THE DELTA PROJECT («Гидросеть») CARD MANIFEST.
@@ -36,6 +37,7 @@ export const DELTA_PROJECT_CARD_MANIFEST = new ModuleManifest({
     [CardName.DELTA_WORKS]: {Factory: DeltaWorks, compatibility: 'colonies'},
     [CardName.DELTA_SURGE]: {Factory: DeltaSurge},
     [CardName.DUTCH_MOUNTAINS]: {Factory: DutchMountains},
+    [CardName.SOCIAL_HEATING]: {Factory: SocialHeating},
   },
   preludeCards: {
     // NEVER DEALT. The Delta Project is a global subsystem every player shares

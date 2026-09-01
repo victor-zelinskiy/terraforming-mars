@@ -33,6 +33,8 @@ function model(id: string, kind: NotificationKind = 'normal', extra: Partial<Not
     kind,
     variant: 'event',
     priority: NOTIFICATION_PRIORITY[kind],
+    sign: 'neutral',
+    importance: 'ambient',
     typeLabelKey: 'Event',
     pills: [],
     detailCount: 0,

@@ -29,6 +29,7 @@ import {MarsBotImpact, MarsBotTurnVisual} from '@/common/automa/MarsBotTurn';
 import {LogMessage} from '@/common/logs/LogMessage';
 import {NotificationModel} from '@/client/components/notifications/notificationTypes';
 import {affectedPlayersOfBotTurn} from '@/client/components/notifications/notificationFeedPolicy';
+import {viewerImpactOfBotTurn} from '@/client/components/notifications/notificationSemantics';
 import {notificationState, pushTransient, dismiss, notificationKnownId} from '@/client/components/notifications/notificationState';
 import {JournalImpactChip} from '@/client/components/journal/journalEventChild';
 import {botTurnReviewState, flashBotReviewEdge, openBotTurnReview} from './botTurnReviewState';
@@ -130,21 +131,15 @@ function chipsOfImpact(impact: MarsBotImpact, limit: number): Array<JournalImpac
 }
 
 /**
- * Headline impact pills: the VIEWER's own changes first (the thing they must
- * not miss), else the bot's own headline changes. Capped — the theater has
- * the full breakdown.
+ * Headline CONTEXT pills: the bot's OWN headline changes. The viewer's own
+ * changes are NOT here any more — they lead the card as its `viewerImpact`
+ * band (the thing the player must not miss), so repeating them below as
+ * anonymous pills would read as a second, unrelated change.
  */
-function summaryPills(entry: ArchivedBotTurn, viewerColor: Color | undefined): Array<JournalImpactChip> {
+function summaryPills(entry: ArchivedBotTurn): Array<JournalImpactChip> {
   const impacts = entry.turn.steps
     .filter((s): s is Extract<typeof s, {kind: 'impact'}> => s.kind === 'impact')
     .map((s) => s.impact);
-  const viewer = viewerColor !== undefined ? impacts.find((i) => i.target === viewerColor) : undefined;
-  if (viewer !== undefined) {
-    const chips = chipsOfImpact(viewer, 4);
-    if (chips.length > 0) {
-      return chips;
-    }
-  }
   const own = impacts.find((i) => i.targetIsBot);
   return own !== undefined ? chipsOfImpact(own, 3) : [];
 }
@@ -250,25 +245,35 @@ export function botTurnNotificationId(key: string): string {
 export function buildBotTurnNotification(entry: ArchivedBotTurn, opts: {viewerColor?: Color, createdAt: number, autoExpand: boolean, paramChips?: ReadonlyArray<JournalImpactChip>}): NotificationModel {
   const header = headlineOf(entry);
   const summary = summaryLinesOf(entry, header);
+  // The VIEWER's own changes from the typed script — the card LEADS with them
+  // («Вы потеряли…»); the bot's story is the context below. An attack on the
+  // viewer makes the card critical whatever else the turn did.
+  const botColor = entry.botColor === '' ? undefined : entry.botColor;
+  const viewerImpact = viewerImpactOfBotTurn(entry.turn, opts.viewerColor, botColor);
+  const affects = affectedPlayersOfBotTurn(entry.turn);
+  const viewerInvolved = opts.viewerColor !== undefined && affects.includes(opts.viewerColor);
   return {
     id: botTurnNotificationId(entry.key),
     kind: 'important',
     variant: 'bot-turn',
     priority: BOT_TURN_PRIORITY,
+    sign: viewerImpact.sign,
+    importance: viewerImpact.losses.length > 0 ? 'critical' : (viewerInvolved || viewerImpact.gains.length > 0 ? 'notable' : 'ambient'),
+    viewerImpact: viewerImpact.sign === 'neutral' ? undefined : viewerImpact,
     typeLabelKey: 'MarsBot finished its turn',
-    actor: entry.botColor === '' ? undefined : entry.botColor,
+    actor: botColor,
     // Structured feed-filter metadata from the turn's own typed script: the
     // players its attacks / snapshot-diffed impacts touch. A turn that only
     // advanced the bot itself carries an empty list — «бот походил» is exactly
     // the noise the personal feed mode exists to hide.
-    affects: affectedPlayersOfBotTurn(entry.turn),
+    affects,
     ...(header !== undefined ? {header} : {}),
     ...(summary.lines.length > 0 ? {summaryLines: summary.lines} : {}),
     ...(summary.overflow > 0 ? {summaryOverflow: summary.overflow} : {}),
     // Global-parameter before → after first (the planet-level outcome; exact
     // per-turn from the script's own footprint, the view diff as fallback),
-    // then the viewer's own / the bot's headline resource deltas.
-    pills: [...(paramChipsOfVisual(entry.turn.visual) ?? opts.paramChips ?? []), ...summaryPills(entry, opts.viewerColor)],
+    // then the bot's own headline resource deltas.
+    pills: [...(paramChipsOfVisual(entry.turn.visual) ?? opts.paramChips ?? []), ...summaryPills(entry)],
     detailCount: entry.turn.steps.length,
     ...(entry.correlationId !== undefined ? {correlationId: entry.correlationId} : {}),
     generation: entry.generation,

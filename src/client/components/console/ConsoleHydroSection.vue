@@ -281,6 +281,7 @@
                    the stage's own home for that question.) -->
               <ConsoleHydroGains :view="rewardView"
                                  :options="model.targetNeedsChoice && rewardChoice === undefined ? selectedStage.rewardOptions : undefined"
+                                 :extras="movementBonuses"
                                  data-unfold-item />
 
               <!-- ═══ THE PRICE LINE — Configure states WHAT the advance
@@ -428,6 +429,7 @@
                 <ConsoleHydroGains v-if="bonusGainPresent"
                                    :view="bonusRewardView"
                                    :options="bonusNeedsReward && rewardChoice === undefined ? bonusRewardOptions : undefined"
+                                   :extras="movementBonuses"
                                    :compact="true"
                                    data-unfold-item />
                 <!-- WHAT IT COSTS — the plan panel's own payment line (the
@@ -660,6 +662,24 @@
                    loss»): the result states which effect was declined. -->
               <span v-else-if="commitRec.waivedTarget === true" class="con-hydro__result-note">
                 ↷ {{ $t(waivedNoteKey) }}
+              </span>
+            </div>
+            <!-- «ДОПОЛНИТЕЛЬНО», frozen — the SAME rows the plan panel
+                 promised before the confirm, in the same language, now stating
+                 what arrived. The source card is named here too: the heat that
+                 just flew into the rail came from the MOVEMENT, not from the
+                 landed stage, and the result may not leave that unsaid. -->
+            <div v-if="(commitRec.movementBonuses ?? []).length > 0" class="con-hydro__gains-extra">
+              <span class="con-hydro__section-label con-hydro__section-label--extra">{{ $t('Additionally') }}</span>
+              <span v-for="(b, i) in commitRec.movementBonuses" :key="i" class="con-hydro__extra">
+                <b class="con-hydro__extra-src">{{ $t(b.card) }}</b>
+                <span class="con-hydro__delta">
+                  <span class="con-hydro__delta-ico">
+                    <span class="con-hydro__delta-img" :class="extraIconClass(b)" aria-hidden="true"></span>
+                  </span>
+                  <span class="con-hydro__beforeafter"><b>{{ b.before }}</b> <span aria-hidden="true">→</span> <b class="con-hydro__after">{{ b.after }}</b></span>
+                  <span class="con-hydro__plus">+{{ b.amount }}</span>
+                </span>
               </span>
             </div>
             <!-- The standing track rule, restated where it applied: stages
@@ -987,6 +1007,7 @@ import {reasonParams} from '@/client/cards/tagLabel';
 import {DeltaOfferOrigin, HYDRO_PRIMARY_KEY, HydroNextInteraction, hydroAdvanceCopy, hydroNextInteraction, hydroZoneState} from '@/client/console/hydroFlow/hydroBonusOffer';
 import type {DeltaRewardDraft, DeltaRewardPickRequest} from '@/client/console/hydroFlow/deltaRewardEntry';
 import type {DeltaAdvanceOffer, DeltaBonusPromptMeta} from '@/common/models/DeltaBonusPromptModel';
+import type {DeltaMovementBonusProjection} from '@/common/models/DeltaTrackPreviewModel';
 import {conUiScale, consoleLayoutState} from '@/client/console/consoleLayoutProfile';
 import {motionMs} from '@/client/components/motion/motionTokens';
 import {cardResourceLandings} from '@/client/console/resourceTransfer/consoleResourceTransfer';
@@ -1386,6 +1407,32 @@ export default defineComponent({
       const group = playerActionGroups([{name: r.chosenCard} as CardModel])[0];
       const node = group?.nodes[r.nodeIndex] ?? group?.nodes[0];
       return node !== undefined ? stripNodeOr(node) : undefined;
+    },
+    /**
+     * THE MOVEMENT'S PASSIVE HALF — «ДОПОЛНИТЕЛЬНО», server-authored.
+     *
+     * A card of the player's own may pay them for MOVING (Social Heating's
+     * heat). The amount, the before → after and the source card are all the
+     * SERVER's (`DeltaProjectExpansion.projectedMovementBonuses`, asked with
+     * the very hooks the commit pays out) — this only chooses WHICH move is
+     * being read:
+     *  - an OFFER on the table (a card's bonus move, DP03/DP04) describes that
+     *    move, whatever the plan stepper happens to sit on;
+     *  - otherwise the selected destination of the plan, and only in `plan`
+     *    mode — browsing a passed stage plans no movement and promises none.
+     * A reward-only claim (Dutch Mountains) has no destination at all, so it
+     * lands here as an empty list by construction rather than by a special
+     * case: nothing moves, nothing is owed.
+     */
+    movementBonuses(): ReadonlyArray<DeltaMovementBonusProjection> {
+      const offer = this.advanceOffer;
+      if (offer !== undefined) {
+        return offer.movementBonuses ?? [];
+      }
+      if (this.model.mode !== 'plan') {
+        return [];
+      }
+      return this.model.destination?.movementBonuses ?? [];
     },
     rewardView(): HydroRewardView {
       // A traversal's «Вы получите» is the COMBINED, snapshot-threaded view
@@ -2010,6 +2057,9 @@ export default defineComponent({
     bonusGainPresent(): boolean {
       if (this.bonusNeedsReward) {
         return true; // the two alternatives are the statement
+      }
+      if (this.movementBonuses.length > 0) {
+        return true; // the move itself pays, even where the landing does not
       }
       const v = this.bonusRewardView;
       return v.lines.length > 0 || v.rawChips.length > 0 || v.vp !== undefined;
@@ -3426,6 +3476,10 @@ export default defineComponent({
       }
       return l.resource !== undefined ? iconClassFor(l.resource) : '';
     },
+    /** A passive movement bonus's icon — always a standard resource pool. */
+    extraIconClass(b: DeltaMovementBonusProjection): string {
+      return iconClassFor(b.resource);
+    },
     /** A committed traversal segment's presentation state — the strip's chips
      *  follow the sequence's own cursor (done / current / pending). */
     travSegState(seg: HydroTraversalSegmentRecord): 'done' | 'current' | 'pending' {
@@ -3935,6 +3989,10 @@ export default defineComponent({
         rewards: hydroRewardTransfers(view),
         resultLines: view.lines,
         vp: view.vp,
+        // The move's PASSIVE half, frozen with the rest of the result: the
+        // rows the plan promised are the rows the result states, and their
+        // wave rides the marker's own arrival.
+        movementBonuses: this.movementBonuses,
         stageNameKey: HYDRO_STAGES[offer.toPosition]?.nameKey ?? '',
         // The GRANTING CARD — the context column keeps showing it through the
         // commit and the result, so the origin never blinks away mid-flow.
@@ -3996,6 +4054,10 @@ export default defineComponent({
         rewards: hydroRewardTransfers(view),
         resultLines: view.lines,
         vp: view.vp,
+        // The move's PASSIVE half, frozen with the rest of the result: the
+        // rows the plan promised are the rows the result states, and their
+        // wave rides the marker's own arrival.
+        movementBonuses: this.movementBonuses,
         stageNameKey: HYDRO_STAGES[offer.toPosition]?.nameKey ?? '',
         sourceCard: offer.source,
         targetBefore: this.selectedAnimalCurrent,
@@ -4030,6 +4092,7 @@ export default defineComponent({
           rewards: [],
           resultLines: t.lines,
           vp: t.vp,
+          movementBonuses: this.movementBonuses,
           stageNameKey: this.model.targetStage?.nameKey ?? '',
           kind: t.destinationKind,
           skippedCount: 0,
@@ -4059,6 +4122,7 @@ export default defineComponent({
         // commit and would describe the NEXT advance).
         resultLines: this.rewardView.lines,
         vp: this.rewardView.vp,
+        movementBonuses: this.movementBonuses,
         stageNameKey: this.model.targetStage?.nameKey ?? '',
         kind: resolutionKindFor(this.model.selectedPosition, {
           composedRepeat: repeat !== undefined,

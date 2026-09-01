@@ -1102,12 +1102,22 @@ html.con-profile-tv {
 
     /* ═══ 16 · NOTIFICATIONS ══════════════════════════════════════ */
     .con-notif {
-        width: 23rem;
+        width: 24rem;
 
         &__type { font-size: var(--con-t-floor); }
         &__actor { font-size: 0.95rem; }
         &__body { font-size: 1.05rem; }
         &__tokens .journal-text { font-size: 0.95rem; }
+        /* The VIEWER BAND is the card's loudest zone — its sign label and the
+           big delta chips must read from the couch before anything else. */
+        &__you-sign { font-size: var(--con-t-floor); }
+        &__you-glyph { font-size: 0.8rem; }
+        &__chip--big {
+            font-size: 1.15rem;
+
+            .con-notif__chip-icon { width: 1.45rem; height: 1.45rem; }
+        }
+        &__chip-unit { font-size: 0.8rem; }
         /* The bot-turn card carries the turn's outcome — the summary lines,
            impact chips and the on-card X/B contract read from the couch. */
         &__summary-line { font-size: 0.95rem; }
@@ -1116,8 +1126,9 @@ html.con-profile-tv {
         &__chip-icon { width: 1.2rem; height: 1.2rem; }
         &__meta, &__result { font-size: var(--con-t-floor); }
         &__dim { font-size: var(--con-t-caption); }
-        &__hint { font-size: var(--con-t-caption); }
         &__action { font-size: var(--con-t-caption); }
+        &__ba { font-size: 0.95rem; }
+        &__who { font-size: 0.95rem; }
     }
 
     /* ═══ 17 · CONFIRM / NOTICE / SYSTEM / GUARD / QUIT ═══════════ */
