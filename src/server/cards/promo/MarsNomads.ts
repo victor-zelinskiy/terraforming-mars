@@ -186,7 +186,15 @@ export class MarsNomads extends Card implements IActionCard {
 
         // Trigger onTilePlaced callbacks even though no actual tile is placed.
         // Note: all onTilePlaced callbacks must handle space.tile being undefined.
-        player.game.triggerForAllCards((p, c) => c.onTilePlaced?.(p, player, space, BoardType.MARS));
+        // Wrapped per hook owner like Game's own tile fan-out — a foreign
+        // owner's payout (Pets, Rover Construction, …) must record as THEIR
+        // effect, never as Mars Nomads' own gain.
+        player.game.triggerForAllCards((p, c) => {
+          if (c.onTilePlaced === undefined) {
+            return;
+          }
+          player.game.events.withEffect(p, c, 'tile-placed', () => c.onTilePlaced?.(p, player, space, BoardType.MARS));
+        });
 
         return undefined;
       });

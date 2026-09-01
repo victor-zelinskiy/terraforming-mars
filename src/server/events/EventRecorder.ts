@@ -460,9 +460,18 @@ export class EventRecorder {
       return;
     }
     const source = fromToEventSource(from, player.color);
-    if (source === undefined && !this.hasContext()) {
+    // A cross-player card-resource LOSS is always an attack the victim must be
+    // told about — never dropped even when the active scope was lost across an
+    // input boundary (mirrors recordResourceDelta's crossPlayerAttack rescue).
+    const crossPlayerAttack = amount < 0 && isFromPlayer(from) && from.player.color !== player.color;
+    if (source === undefined && !this.hasContext() && !crossPlayerAttack) {
       return;
     }
+    // Deliberately NO `target` here: in this pipeline `target.player` means
+    // «the resource MOVED to that player» (steal/transfer semantics), which a
+    // destroy-style removal is not. In the ordinary in-scope case the
+    // attacker is attributable via the chain's source; the rescue only keeps
+    // the loss RECORDED when the scope was lost.
     this.record({
       type: 'card-resource-changed',
       source, player: player.color,

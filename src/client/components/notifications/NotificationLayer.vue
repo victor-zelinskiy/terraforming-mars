@@ -566,10 +566,14 @@ export default defineComponent({
       const presentable = coalesceBurst(ready.filter((m) =>
         m.variant !== 'milestone' && m.variant !== 'award' && m.category !== 'automa-turn'));
       // The ORDINARY feed (incl. reveals — their cards live in the journal) is
-      // suppressed while the journal is open. But a card carrying the viewer's
-      // OWN loss (the hostile-upgraded kind) is critical — surface it
-      // regardless, like a turn card.
-      pushMany(this.journalOpen ? presentable.filter((m) => m.kind === 'negative') : presentable);
+      // suppressed while the journal is open. But a card whose SIGN is
+      // personal — the viewer lost OR GAINED something to another player's
+      // action — surfaces regardless, like a turn card: «игрок обязан узнать,
+      // что чужой ход дал или отнял у него что-то», and an open drawer must
+      // not turn a personal delta into something to be discovered by reading.
+      pushMany(this.journalOpen ?
+        presentable.filter((m) => m.kind === 'negative' || m.sign !== 'neutral') :
+        presentable);
       if (!this.journalOpen) {
         pushMany(reveal.models);
       }

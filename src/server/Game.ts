@@ -1171,6 +1171,29 @@ export class Game implements IGame, Logger {
     this.worldGovernmentTerraforming();
   }
 
+  /**
+   * Run one World Government Terraforming resolution inside its own action
+   * scope. WITHOUT it every WGT consequence was recorded scope-less: a viewer
+   * GAIN (the Ares owner benefit of a WGT ocean, a passive payout like Arctic
+   * Algae) was DROPPED by the recorder outright (no source, no context, not a
+   * cross-player attack), its log line stayed an ungrouped orphan, and the
+   * notification pipeline could never deliver it — the player silently earned
+   * money nobody told them about. The WGT header line is logged FIRST so the
+   * root actor is always the ACTING player (an adjacency payout line leading
+   * the group would attribute the whole card to its recipient and
+   * self-suppress it on their own screen).
+   */
+  private wgtAct(player: IPlayer, logHeader: () => void, act: () => void): undefined {
+    this.events.beginAction(player, {kind: 'system'}, {category: 'solar-phase'});
+    try {
+      logHeader();
+      act();
+    } finally {
+      this.events.endScope();
+    }
+    return undefined;
+  }
+
   public worldGovernmentTerraformingInput(player: IPlayer): OrOptions {
     const orOptions = new OrOptions()
       .setTitle('Select action for World Government Terraforming')
@@ -1179,42 +1202,34 @@ export class Game implements IGame, Logger {
       orOptions.options.push(
         new SelectOption('Increase temperature', 'Increase')
           .annotate(GlobalParameter.TEMPERATURE)
-          .andThen(() => {
-            this.increaseTemperature(player, 1);
-            this.log('${0} acted as World Government and raised ${1}', (b) => b.player(player).globalParameter(GlobalParameter.TEMPERATURE));
-            return undefined;
-          }),
+          .andThen(() => this.wgtAct(player,
+            () => this.log('${0} acted as World Government and raised ${1}', (b) => b.player(player).globalParameter(GlobalParameter.TEMPERATURE)),
+            () => this.increaseTemperature(player, 1))),
       );
     }
     if (this.getOxygenLevel() < constants.MAX_OXYGEN_LEVEL) {
       orOptions.options.push(
         new SelectOption('Increase oxygen', 'Increase')
           .annotate(GlobalParameter.OXYGEN)
-          .andThen(() => {
-            this.increaseOxygenLevel(player, 1);
-            this.log('${0} acted as World Government and raised ${1}', (b) => b.player(player).globalParameter(GlobalParameter.OXYGEN));
-            return undefined;
-          }),
+          .andThen(() => this.wgtAct(player,
+            () => this.log('${0} acted as World Government and raised ${1}', (b) => b.player(player).globalParameter(GlobalParameter.OXYGEN)),
+            () => this.increaseOxygenLevel(player, 1))),
       );
     }
     if (this.canAddOcean()) {
       orOptions.options.push(
         createMarsSelectSpace(player, 'Add an ocean', this.board.getAvailableSpacesForOcean(player), {placementType: 'ocean'})
           .annotate(GlobalParameter.OCEANS)
-          .andThen((space) => {
-            this.addOcean(player, space);
-            this.log('${0} acted as World Government and placed ${1}', (b) => b.player(player).globalParameter(GlobalParameter.OCEANS));
-            return undefined;
-          }),
+          .andThen((space) => this.wgtAct(player,
+            () => this.log('${0} acted as World Government and placed ${1}', (b) => b.player(player).globalParameter(GlobalParameter.OCEANS)),
+            () => this.addOcean(player, space))),
       );
     }
     if (this.getVenusScaleLevel() < constants.MAX_VENUS_SCALE && this.gameOptions.venusNextExtension) {
       orOptions.options.push(
-        new SelectOption('Increase Venus scale', 'Increase').andThen(() => {
-          this.increaseVenusScaleLevel(player, 1);
-          this.log('${0} acted as World Government and raised ${1}', (b) => b.player(player).globalParameter(GlobalParameter.VENUS));
-          return undefined;
-        }),
+        new SelectOption('Increase Venus scale', 'Increase').andThen(() => this.wgtAct(player,
+          () => this.log('${0} acted as World Government and raised ${1}', (b) => b.player(player).globalParameter(GlobalParameter.VENUS)),
+          () => this.increaseVenusScaleLevel(player, 1))),
       );
     }
 

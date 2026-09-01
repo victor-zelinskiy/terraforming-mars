@@ -57,6 +57,7 @@ function categoryTypeLabel(category: JournalActionCategory | undefined): string 
   case 'standard-project': return 'Standard project';
   case 'colony': return 'Colony';
   case 'copied-action': return 'Copied action';
+  case 'solar-phase': return 'Solar phase';
   default: return 'Event';
   }
 }

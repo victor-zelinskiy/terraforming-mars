@@ -41,7 +41,12 @@ export class MonsInsurance extends CorporationCard implements ICorporationCard {
 
   public override bespokePlay(player: IPlayer) {
     for (const p of player.opponents) {
-      p.production.add(Resource.MEGACREDITS, -2, {log: true});
+      // `from` is load-bearing: it is what makes this a recorded cross-player
+      // ATTACK (the victim's client builds the hostile «you lost income» card
+      // from that event). Without it — and outside a scope — the recorder
+      // dropped the delta entirely and the victims were never told. Mirrors
+      // Recession, the sibling everyone-loses-production card.
+      p.production.add(Resource.MEGACREDITS, -2, {log: true, from: {player}});
     }
     player.game.monsInsuranceOwner = player;
     return undefined;

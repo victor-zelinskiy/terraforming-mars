@@ -86,6 +86,61 @@ Shower run: sign frozen at mount, band from frame one, one episode per id, TTL
 armed once, indicators exclusive in every sampled frame, the card named, B
 final).
 
+## ⭐⭐ CROSS-PLAYER DELIVERY AUDIT (2026-09-01) — the viewer HEARS about every foreign action that touches them
+
+**The contract:** any change to the VIEWER's state caused by ANOTHER player's
+action must produce a typed event INSIDE that action's correlation — that is
+the one and only thing that lets the pipeline lead a card with «вы получили /
+вы потеряли». The recorder DROPS a delta with no source, no live scope and no
+cross-player `from` (gains have NO rescue at all), so **every action door must
+open a scope and every cross-player mutation must carry `from` or run inside
+one**. The corpus vehicle is `tests/notifications/crossPlayerDeliveryAudit.spec.ts`
+(REAL doors → real events → the client's own `diffRootNotifications` → the
+band): S1 the reported Ares owner benefit (card-play placement, incl. the
+open-correlation hold mid-prompt), S2 foreign-city passive payouts (Rover
+Construction M€ + Pets animal, `ownSource`), S3 the plants-conversion door,
+S4 a deferred victim pick (one hostile story, no `neg…` twin), S5-S7 the
+holes fixed by this audit.
+
+**Holes found & fixed (all were SILENT — no event, nothing to deliver):**
+- **WGT / solar phase had NO scope** (`Game.worldGovernmentTerraformingInput`)
+  — a WGT ocean's Ares owner benefit and any passive payout it triggered were
+  dropped outright, their logs ungrouped orphans. Now every branch runs in
+  `wgtAct` (category `'solar-phase'`, header logged FIRST so the root actor is
+  the acting player — a payout line leading the group would self-suppress the
+  card on its recipient's own screen).
+- **`playCorporationCard` had NO scope** — the corp's deferred `play()`
+  captured nothing, so Mons Insurance's −2 M€ production on every opponent
+  produced NO event (compounded by a missing `from`, now also fixed — mirrors
+  Recession). Scoped as category `'card-play'`; the scope ends BEFORE
+  `playerIsFinishedWithResearchPhase` (the game's phase progression must not
+  fold into one corp's correlation).
+- **The FINAL greenery had NO scope** (`takeActionForFinalGreenery`) — the
+  end-of-game Ares neighbour income vanished. Scoped per placement as the
+  conversion (`standard-project` / CONVERT_PLANTS); ends before the deferred
+  drain (the next placement is its own action).
+- **Deimos' colony bonus wrote `stock.megacredits +=` directly** — the last
+  cross-player field-write bypass; now `stock.add` (recorded + logged).
+- **`GiveColonyBonus` cube #2..n lost the chain** — `Player.process` runs the
+  continuation OUTSIDE the prompt's context by design, so the recursion now
+  restores its own `eventContext` around `giveColonyBonus`.
+- **Structural wrappers:** `onIncreaseTerraformRatingByAnyPlayer` and Mars
+  Nomads' `onTilePlaced` fan-outs now run per-owner `withEffect` (like Game's
+  tile fan-out) — a foreign owner's payout records as THEIR effect, never the
+  actor's own gain; `recordCardResourceDelta` gained the crossPlayerAttack
+  rescue (+`from: removingPlayer` at `removeResourceFrom`; deliberately NO
+  `target` — that field means «moved to», steal semantics).
+- **Layer gates:** an open journal / `drainQueueToJournal` no longer swallow
+  PERSONAL-sign cards — a gain presents like a loss does (`sign !== 'neutral'`
+  is journal-exempt).
+
+**Documented frontier (no premium-scope card hits these today):**
+`discardCardFromHand` emits no event (cross-player only via community's
+Hygiea); `Player.ts` defer-outside-withEffect for hooks that RETURN an input;
+the delta `onNonCardTagAddedByAnyPlayer` fan-out is unwrapped (its one
+implementor passes `from`); the Ares owner payout inherits the placer's card
+as `source` (attribution, not delivery — the band and cause line are correct).
+
 ## ⭐ VIEWER-FIRST SEMANTICS (the 2026-09-01 rework) — the notification is about the VIEWER
 
 The top-right toast leads with **what changed for its recipient**, not with the initiator's

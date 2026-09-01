@@ -585,7 +585,12 @@ export abstract class Colony implements IColony {
       break;
 
     case ColonyBenefit.GAIN_MC_PER_HAZARD_TILE:
-      player.stock.megacredits += game.board.getHazards().length;
+      // Through stock.add, never a direct field write: this benefit is paid to
+      // EVERY colony owner when ANYONE trades here (Deimos), so bypassing the
+      // recorder made a foreign player's income invisible to the journal and
+      // the notification pipeline. The surrounding giveBonus withSource scope
+      // attributes it to the colony.
+      player.stock.add(Resource.MEGACREDITS, game.board.getHazards().length, {log: true});
       break;
 
     case ColonyBenefit.GAIN_TR:

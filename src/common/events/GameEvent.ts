@@ -87,6 +87,7 @@ export type JournalActionCategory =
   | 'delta-project' // an advance on the Delta Project ("Гидросеть") track
   | 'vp-pressure' // a VP-pressure effect activated (Vermin reached 10 animals)
   | 'planetary-event' // an Ares planetary event (hazards appear / intensify / recede)
+  | 'solar-phase' // a World Government Terraforming action (the solar phase)
   | 'automa-turn'; // one whole MarsBot (Automa) turn — groups the bot's turn in the journal
 
 /**

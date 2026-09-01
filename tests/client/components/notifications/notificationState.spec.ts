@@ -278,15 +278,19 @@ describe('notificationState (lifecycle)', () => {
       dismissReveal();
     });
 
-    it('drainQueueToJournal drops ordinary cards, KEEPS hostile + flow-holding ones', () => {
+    it('drainQueueToJournal drops ordinary cards, KEEPS hostile + flow-holding + PERSONAL-sign ones', () => {
       revealResultState.active = true; // everything queues
       pushMany([
         model('a'), model('gen', 'important'),
         model('loss', 'negative'),
         model('bot', 'important', {holdsFlow: true}),
+        // A viewer GAIN from another player's action (the Ares owner benefit
+        // class) — a personal delta must present, never be silently drained
+        // into «go read the journal».
+        model('gain', 'normal', {sign: 'positive'}),
       ]);
       drainQueueToJournal();
-      expect(notificationState.queue.map((n) => n.id)).to.deep.eq(['loss', 'bot']);
+      expect(notificationState.queue.map((n) => n.id)).to.deep.eq(['loss', 'bot', 'gain']);
       dismissReveal();
     });
   });

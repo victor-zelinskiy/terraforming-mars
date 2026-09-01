@@ -82,7 +82,20 @@ export class GiveColonyBonus extends DeferredAction {
       // recipient of every cube, so it is inline by construction.
       const input = this.colony.giveColonyBonus(player, true, ordinal, this.player);
       if (input !== undefined) {
-        player.setWaitingFor(input, () => this.giveColonyBonus(player));
+        // The continuation must RESTORE this delivery's own captured scope:
+        // `Player.process` deliberately runs `waitingForCb` OUTSIDE the
+        // prompt's context (a continuation usually drives the rest of the
+        // turn), so cube #2..n of a multi-colony payout would otherwise
+        // resolve scope-less — its events minting orphan correlations
+        // detached from the trade the player is watching.
+        player.setWaitingFor(input, () => {
+          const events = player.game?.events;
+          if (events !== undefined) {
+            events.runWithContext(this.eventContext, () => this.giveColonyBonus(player));
+          } else {
+            this.giveColonyBonus(player);
+          }
+        });
         // The drain is pausing on this recipient's prompt — the same realtime
         // blind spot as DeferredActionsQueue.run: without an invalidation an
         // off-turn recipient learns about the prompt only on the long poll.

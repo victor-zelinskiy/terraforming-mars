@@ -495,7 +495,19 @@ export class Player implements IPlayer {
       this.game?.events?.recordTrDelta(this, steps, opts.from);
       for (const cardOwner of this.game.playersInGenerationOrder) {
         for (const card of cardOwner.tableau) {
-          card.onIncreaseTerraformRatingByAnyPlayer?.(cardOwner, this, steps);
+          if (card.onIncreaseTerraformRatingByAnyPlayer === undefined) {
+            continue;
+          }
+          // Wrapped like every sibling any-player fan-out (Game's tile hooks):
+          // a foreign OWNER's payout must record as THEIR effect inside this
+          // action's chain, never as the actor's own gain — that is what lets
+          // the owner's client lead with «вы получили» and name the source.
+          const events = this.game?.events;
+          if (events !== undefined) {
+            events.withEffect(cardOwner, card, 'tr-increase', () => card.onIncreaseTerraformRatingByAnyPlayer?.(cardOwner, this, steps));
+          } else {
+            card.onIncreaseTerraformRatingByAnyPlayer(cardOwner, this, steps);
+          }
         }
       }
     };
@@ -722,7 +734,12 @@ export class Player implements IPlayer {
             .card(card));
       }
 
-      this.game?.events?.recordCardResourceDelta(this, card, -amountRemoved);
+      // `from` carries the ATTACKER on a foreign removal — the rescue that
+      // keeps a cross-player card-resource theft (Predators, Virus, Air Raid)
+      // recorded even if the action scope was lost across an input boundary,
+      // mirroring recordResourceDelta's crossPlayerAttack exception.
+      this.game?.events?.recordCardResourceDelta(this, card, -amountRemoved,
+        removingPlayer !== undefined && removingPlayer !== this ? {player: removingPlayer} : undefined);
 
       // Lawsuit hook
       if (removingPlayer !== undefined && removingPlayer !== this && this.removingPlayers.includes(removingPlayer.id) === false) {
@@ -1419,6 +1436,32 @@ export class Player implements IPlayer {
     const setupBaseline = !this.game.gameOptions.testMode ?
       this.captureStartingSetupBaseline() : undefined;
 
+    // The corp play is an ACTION like any card play — without this scope the
+    // corp's own deferred `play()` (line below) captured NO context, so every
+    // on-play consequence recorded scope-less: a cross-player effect with no
+    // `from` (Mons Insurance's −2 M€ production on every opponent) produced NO
+    // event at all — the victims' clients had nothing to deliver. The scope
+    // ends BEFORE `playerIsFinishedWithResearchPhase` (the game's own phase
+    // progression must never fold into one corp's correlation).
+    const events = this.game?.events;
+    events?.beginAction(this, {kind: 'corporation', card: corporationCard.name, owner: this.color}, {category: 'card-play'});
+    try {
+      this.playCorporationCardScoped(corporationCard, additionalCorp, setupBaseline, options);
+    } finally {
+      events?.endScope();
+    }
+
+    if (!additionalCorp) {
+      this.game.playerIsFinishedWithResearchPhase(this);
+    }
+  }
+
+  private playCorporationCardScoped(
+    corporationCard: ICorporationCard,
+    additionalCorp: boolean,
+    setupBaseline: ReturnType<Player['captureStartingSetupBaseline']> | undefined,
+    options?: {deferCardPayment?: boolean},
+  ): void {
     this.playedCards.push(corporationCard);
 
     // TEST MODE plays with a full stock of everything so any card is
@@ -1502,10 +1545,6 @@ export class Player implements IPlayer {
     }
 
     this.onCardPlayed(corporationCard);
-
-    if (!additionalCorp) {
-      this.game.playerIsFinishedWithResearchPhase(this);
-    }
   }
 
   /**
@@ -1839,10 +1878,23 @@ export class Player implements IPlayer {
           this.game.board.getAvailableSpacesForGreenery(this),
           {placementType: 'greenery'})
           .andThen((space) => {
-            // Do not raise oxygen or award TR for final greenery placements
-            this.game.addGreenery(this, space, false);
-            this.stock.deduct(Resource.PLANTS, this.plantsNeededForGreenery);
-            this.recordGreeneryDiscount();
+            // Root the analytics chain at the conversion, like the in-game
+            // plants conversion does. Scope-less, an adjacency payout to a
+            // NEIGHBOUR (the Ares owner benefit) was DROPPED by the recorder
+            // outright (a foreign gain with no source and no context), so the
+            // end-of-game income never existed for the journal or the event
+            // stream. The scope closes BEFORE the deferred drain below — the
+            // next placement is its own action.
+            const events = this.game?.events;
+            events?.beginAction(this, {kind: 'standardProject', card: CardName.CONVERT_PLANTS}, {category: 'standard-project'});
+            try {
+              // Do not raise oxygen or award TR for final greenery placements
+              this.game.addGreenery(this, space, false);
+              this.stock.deduct(Resource.PLANTS, this.plantsNeededForGreenery);
+              this.recordGreeneryDiscount();
+            } finally {
+              events?.endScope();
+            }
 
             // Resolve Philares deferred actions and maybe place another greenery
             resolveFinalGreeneryDeferredActions();

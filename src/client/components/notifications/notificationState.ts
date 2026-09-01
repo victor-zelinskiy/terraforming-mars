@@ -354,11 +354,13 @@ export function acknowledgeFlowHoldingCards(): void {
  * The player opened the journal (the canonical event center) — the queued
  * ordinary cards are already fully visible there, so drop them instead of
  * replaying stale toasts afterwards. Gameplay-critical items are KEPT: hostile
- * losses and flow-holding AI-turn cards still present after the journal closes.
+ * losses, flow-holding AI-turn cards AND any card whose sign is PERSONAL for
+ * the viewer (a gain from another player's action) — a personal delta must
+ * present, not be something to be discovered by reading the feed.
  */
 export function drainQueueToJournal(): void {
   notificationState.queue = notificationState.queue.filter(
-    (n) => n.kind === 'negative' || n.holdsFlow === true);
+    (n) => n.kind === 'negative' || n.holdsFlow === true || n.sign !== 'neutral');
 }
 
 /**
