@@ -44,7 +44,7 @@
          never restart, only the tail advances. A hydro frame that IS the root
          reads exactly as before. -->
     <ConsoleWsHead class="con-hydro__head"
-                   :class="{'con-hydro__head--ghost': crumbHost !== undefined}"
+                   :class="{'con-hydro__head--ghost': crumbHost !== undefined && !hostHeadHidden}"
                    :root="crumbRoot"
                    :emblem="crumbEmblem.emblem"
                    :wheelAnchor="crumbEmblem.wheelAnchor"
@@ -78,9 +78,13 @@
                  'con-hydro__stop--vp': stop.vm.stage.vp !== undefined,
                  'con-hydro__stop--dimmed': rewardOffer !== undefined ?
                    !rewardClaimableSet.has(stop.position) :
-                   (!globallyActable && stop.vm.state !== 'current' && stop.vm.state !== 'completed'),
+                   espionageOffer !== undefined ?
+                     !espionageLitCells.has(stop.position) :
+                     (!globallyActable && stop.vm.state !== 'current' && stop.vm.state !== 'completed'),
                  'con-hydro__stop--route-paid': stop.vm.routeRewarded,
                  'con-hydro__stop--route-excl': stop.vm.routeExcluded,
+                 'con-hydro__stop--esp-fwd': espionageOffer !== undefined && espOwner !== undefined && espOwner.legal && stop.position === espOwner.toPosition,
+                 'con-hydro__stop--esp-back': espionageOffer !== undefined && espionageFocusRow !== undefined && espionageFocusRow.target.legal && stop.position === espionageFocusRow.target.toPosition,
                },
              ]"
              @click="onStopClick(stop.position)">
@@ -125,16 +129,28 @@
                real marker materializes in the same rect. -->
           <div class="con-hydro__stop-markers" :data-hydro-marker="stop.position">
             <span v-for="m in stop.vm.markers" :key="m.color"
-                  v-show="!(m.isViewer && markerGliding && stop.position === markerFrom)"
+                  v-show="!(markerGliding && m.color === hydroMarkerState.color && stop.position === markerFrom)"
                   class="con-hydro__stop-marker"
                   :class="[
                     'player_bg_color_' + m.color,
                     {
                       'con-hydro__stop-marker--viewer': m.isViewer,
-                      'con-hydro__stop-marker--settle': m.isViewer && stop.position === markerSettled,
+                      'con-hydro__stop-marker--settle': m.color === hydroMarkerState.color && stop.position === markerSettled,
                     },
                   ]"
                   aria-hidden="true"></span>
+            <!-- ESPIONAGE GHOSTS — the projection made physical: a translucent
+                 destination token + its direction arrow, visually distinct
+                 from a real marker by construction (dashed ring, no fill
+                 weight, an arrow naming the direction — never colour alone).
+                 The owner's forward ghost is constant; the backward ghost
+                 follows the FOCUSED candidate and moves with the cursor. -->
+            <template v-if="espionageOffer !== undefined">
+              <span v-for="g in espionageGhostsAt(stop.position)" :key="'ghost' + g.color"
+                    class="con-hydro__stop-marker con-hydro__stop-ghost"
+                    :class="['player_bg_color_' + g.color, 'con-hydro__stop-ghost--' + g.dir]"
+                    aria-hidden="true"><i class="con-hydro__stop-ghost-arrow">{{ g.dir === 'back' ? '‹' : '›' }}</i></span>
+            </template>
           </div>
         </div>
       </template>
@@ -476,6 +492,82 @@
           </div>
         </div>
 
+        <!-- ═══ ESPIONAGE TARGET PICK (Corporate Espionage) — a projection +
+             selection surface. The track above carries the proof (real
+             markers + the two ghost destinations); this zone carries the
+             OWNER's own advance (constant) and the candidate rows (premium
+             single-choice tiles — name, marker, `from → to`, the SERVER's
+             own resulting reward, protected/blocked reason). Focus retunes
+             the ghosts; A on a legal row RETURNS the pick to the composer;
+             nothing here moves a marker or grants a thing. ═══ -->
+        <div v-else-if="sceneKey === 'espionage-pick'" key="espionage-pick" class="con-hydro__layer con-hydro__layer--esppick">
+          <div class="con-hydro__panelbody">
+            <div class="con-hydro__detailline" data-unfold-item>
+              <span class="con-hydro__detail-status">{{ $t(espionageHasLegal ? 'Choose a player to push back on the Hydronetwork' : 'No player can be pushed back — the attack will be skipped') }}</span>
+            </div>
+            <!-- The owner's own MANDATORY advance — always visible, never a
+                 competing focus target: the projection's other half. -->
+            <div v-if="espOwner !== undefined" class="con-hydro__espowner" data-unfold-item>
+              <span class="con-hydro__espowner-cap">{{ $t('Your own advance') }}</span>
+              <span class="con-hydro__route">
+                <span>{{ espOwner.fromPosition }}</span>
+                <span aria-hidden="true">→</span>
+                <b>{{ espOwner.toPosition }}</b>
+              </span>
+              <span v-if="espOwner.waivedTag !== undefined" class="con-hydro__espwaiver">
+                <span>{{ $t('Ignored tag') }}</span>
+                <span class="con-hydro__stop-tag resource-tag" :class="'tag-' + espOwner.waivedTag" aria-hidden="true"></span>
+              </span>
+              <span class="con-hydro__esprow-reward">
+                <template v-if="espOwnerView.chipOptions.length > 0">
+                  <template v-for="(opt, oi) in espOwnerView.chipOptions" :key="oi">
+                    <span v-if="oi > 0" class="con-hydro__stop-or">{{ $t('or') }}</span>
+                    <HydroReward :chips="opt" :compact="true" />
+                  </template>
+                </template>
+                <span v-else-if="espOwnerView.vpAmount !== undefined" class="con-hydro__stage-vp">{{ espOwnerView.vpAmount }} {{ $t('VP') }}</span>
+              </span>
+            </div>
+            <!-- The candidates — a console-native single-choice list. -->
+            <div class="con-hydro__esprows" data-unfold-item role="listbox">
+              <div v-for="(row, i) in espionageRows" :key="row.target.color"
+                   class="con-hydro__esprow"
+                   role="option"
+                   :aria-selected="espionageSelectedColor === row.target.color"
+                   :class="{
+                     'con-hydro__esprow--focused': i === espionageFocusIdx,
+                     'con-hydro__esprow--selected': espionageSelectedColor === row.target.color,
+                     'con-hydro__esprow--blocked': !row.target.legal,
+                   }"
+                   @click="onEspionageRowClick(i)">
+                <!-- The single-choice state — a RESERVED column, never over text. -->
+                <span class="con-hydro__esprow-state" aria-hidden="true">
+                  <i v-if="espionageSelectedColor === row.target.color" class="con-hydro__esprow-check">✓</i>
+                </span>
+                <span class="con-hydro__roster-dot" :class="'player_bg_color_' + row.target.color" aria-hidden="true"></span>
+                <span class="con-hydro__esprow-name">{{ row.name }}</span>
+                <span v-if="row.target.legal" class="con-hydro__route con-hydro__route--back">
+                  <span>{{ row.target.fromPosition }}</span>
+                  <span aria-hidden="true">→</span>
+                  <b>{{ row.target.toPosition }}</b>
+                </span>
+                <span v-else class="con-hydro__esprow-block">{{ $t(row.blockKey) }}</span>
+                <span v-if="row.target.legal" class="con-hydro__esprow-reward">
+                  <template v-if="row.view.skippedKey !== undefined">
+                    <span class="con-hydro__esprow-skip">↷ {{ $t(row.view.skippedKey) }}</span>
+                  </template>
+                  <template v-else-if="row.view.chipOptions.length > 0">
+                    <template v-for="(opt, oi) in row.view.chipOptions" :key="oi">
+                      <span v-if="oi > 0" class="con-hydro__stop-or">{{ $t('or') }}</span>
+                      <HydroReward :chips="opt" :compact="true" />
+                    </template>
+                  </template>
+                </span>
+              </div>
+            </div>
+          </div>
+        </div>
+
         <!-- ═══ COMMIT — the marker is travelling / the landed stage pays.
              The route and the price live in the context column (frozen off
              the record); this zone narrates the BEAT and hosts the landed
@@ -487,7 +579,37 @@
                an ambiguous system symbol, deliberately absent. -->
           <div class="con-hydro__commitline" data-unfold-item>
             <b class="con-hydro__commit-stage">{{ $t(commitStageText) }}</b>
-            <span class="con-hydro__commit-caption">{{ $t(commitCaption) }}<i v-if="!followUpLive" class="con-hydro__commit-spin" aria-hidden="true"></i></span>
+            <span class="con-hydro__commit-caption">{{ $t(commitCaption) }}<i v-if="!followUpLive && !espWaitingTarget" class="con-hydro__commit-spin" aria-hidden="true"></i></span>
+          </div>
+
+          <!-- THE ESPIONAGE PREFIX (Corporate Espionage) — the attack half's
+               COMPACT COMMIT: who fell back, their exact transition, and what
+               THEY receive (or the named void). Never their full ceremony —
+               and never hidden either: «both players receive the bonus» must
+               read on the actor's own screen. While the target's landing owes
+               THEIR decision the line carries the calm waiting state. -->
+          <div v-if="espCommit !== undefined" class="con-hydro__espline" data-unfold-item>
+            <template v-if="espCommit.target !== undefined">
+              <span class="con-hydro__roster-dot" :class="'player_bg_color_' + espCommit.target.color" aria-hidden="true"></span>
+              <span class="con-hydro__espline-name">{{ espCommitTargetName }}</span>
+              <span class="con-hydro__route con-hydro__route--back">
+                <span>{{ espCommit.target.from }}</span>
+                <span aria-hidden="true">→</span>
+                <b>{{ espCommit.target.to }}</b>
+              </span>
+              <span v-if="espCommitTargetView.skippedKey !== undefined" class="con-hydro__esprow-skip">↷ {{ $t(espCommitTargetView.skippedKey) }}</span>
+              <template v-else-if="espCommitTargetView.chipOptions.length > 0">
+                <span class="con-hydro__espline-gets">{{ $t('receives') }}</span>
+                <template v-for="(opt, oi) in espCommitTargetView.chipOptions" :key="oi">
+                  <span v-if="oi > 0" class="con-hydro__stop-or">{{ $t('or') }}</span>
+                  <HydroReward :chips="opt" :compact="true" />
+                </template>
+              </template>
+              <span v-if="espWaitingTarget" class="con-hydro__espline-wait">
+                {{ espWaitingCaption }}<i class="con-hydro__commit-spin" aria-hidden="true"></i>
+              </span>
+            </template>
+            <span v-else class="con-hydro__esprow-skip">↷ {{ $t('No player can be pushed back — the attack will be skipped') }}</span>
           </div>
 
           <!-- THE TRAVERSAL STRIP — the committed plan's stages in path order,
@@ -609,6 +731,33 @@
               <span class="con-hydro__bonus-tick" aria-hidden="true">✓</span>
               <b>{{ $t('Reinforcement complete') }}</b>
               <span class="con-hydro__result-stage">{{ $t(commitRec.stageNameKey) }}</span>
+            </div>
+            <!-- THE ESPIONAGE SUMMARY's attack half — the committed outcome,
+                 restating exactly what the setup promised: who fell back,
+                 their transition, their reward (or the named void / skip). -->
+            <div v-if="espCommit !== undefined" class="con-hydro__espline con-hydro__espline--result">
+              <template v-if="espCommit.target !== undefined">
+                <span class="con-hydro__roster-dot" :class="'player_bg_color_' + espCommit.target.color" aria-hidden="true"></span>
+                <span class="con-hydro__espline-name">{{ espCommitTargetName }}</span>
+                <span class="con-hydro__route con-hydro__route--back">
+                  <span>{{ espCommit.target.from }}</span>
+                  <span aria-hidden="true">→</span>
+                  <b>{{ espCommit.target.to }}</b>
+                </span>
+                <span v-if="espCommitTargetView.skippedKey !== undefined" class="con-hydro__esprow-skip">↷ {{ $t(espCommitTargetView.skippedKey) }}</span>
+                <template v-else-if="espCommitTargetView.chipOptions.length > 0">
+                  <span class="con-hydro__espline-gets">{{ $t('received') }}</span>
+                  <template v-for="(opt, oi) in espCommitTargetView.chipOptions" :key="oi">
+                    <span v-if="oi > 0" class="con-hydro__stop-or">{{ $t('or') }}</span>
+                    <HydroReward :chips="opt" :compact="true" />
+                  </template>
+                </template>
+              </template>
+              <span v-else class="con-hydro__esprow-skip">↷ {{ $t('The attack was skipped — no legal target') }}</span>
+              <span v-if="espCommit.waivedTag !== undefined" class="con-hydro__espwaiver">
+                <span>{{ $t('Ignored tag') }}</span>
+                <span class="con-hydro__stop-tag resource-tag" :class="'tag-' + espCommit.waivedTag" aria-hidden="true"></span>
+              </span>
             </div>
             <!-- A TRAVERSAL's result reads PER STAGE, in path order: each stop's
                  own deltas under its name, the excluded 2 VP named, a declined
@@ -987,7 +1136,7 @@ import {
   resetHydroFlow, resolutionKindFor, setHydroCeremonyActive,
 } from '@/client/console/hydroFlow/consoleHydroFlow';
 import {
-  hydroActiveStepSourceCard, hydroTraversalPending, noteHydroLandPresence,
+  hydroActiveStepSourceCard, hydroParkedForeignStop, hydroTraversalPending, noteHydroLandPresence,
 } from '@/client/console/hydroMarker/consoleHydroMarker';
 import {buildHydroTargetModel, hydroPresentedTargetModel} from '@/client/console/hydroFlow/hydroTargetStep';
 import {
@@ -1006,6 +1155,9 @@ import {getCard} from '@/client/cards/ClientCardManifest';
 import {reasonParams} from '@/client/cards/tagLabel';
 import {DeltaOfferOrigin, HYDRO_PRIMARY_KEY, HydroNextInteraction, hydroAdvanceCopy, hydroNextInteraction, hydroZoneState} from '@/client/console/hydroFlow/hydroBonusOffer';
 import type {DeltaRewardDraft, DeltaRewardPickRequest} from '@/client/console/hydroFlow/deltaRewardEntry';
+import type {DeltaEspionagePickRequest} from '@/client/console/hydroFlow/deltaEspionageEntry';
+import type {DeltaEspionageTargetProjection} from '@/common/models/DeltaEspionageModel';
+import {espionageOutcomeView, EspionageOutcomeView} from '@/client/console/hydroFlow/espionageOutcomeView';
 import type {DeltaAdvanceOffer, DeltaBonusPromptMeta} from '@/common/models/DeltaBonusPromptModel';
 import type {DeltaMovementBonusProjection} from '@/common/models/DeltaTrackPreviewModel';
 import {conUiScale, consoleLayoutState} from '@/client/console/consoleLayoutProfile';
@@ -1048,7 +1200,18 @@ type RailStop = {
 
 type GroupNode = ActionGroup['nodes'][number];
 
-type SceneKey = 'preview' | 'choice' | 'target' | 'payment' | 'bonus' | 'reward-pick' | 'commit' | 'result';
+type SceneKey = 'preview' | 'choice' | 'target' | 'payment' | 'bonus' | 'reward-pick' | 'espionage-pick' | 'commit' | 'result';
+
+/** One espionage candidate row — the projection's entry joined with the
+ *  player's display identity and the shared outcome reading. */
+type EspionageRow = {
+  target: DeltaEspionageTargetProjection;
+  name: string;
+  isBot: boolean;
+  view: EspionageOutcomeView;
+  /** Why the row cannot be confirmed (an i18n key) — blocked rows only. */
+  blockKey: string;
+};
 
 /** The scene cursor's stops. Rail decisions are DATA-driven nodes
  *  (`rail:<id>` — see `hydroDecisionRail.ts`); the rest are the scenes' own
@@ -1137,8 +1300,25 @@ export default defineComponent({
      * `claimable` is the SERVER's list (the input model's) — never re-derived.
      */
     rewardOffer: {type: Object as PropType<DeltaRewardPickRequest>, default: undefined},
+    /**
+     * THE ESPIONAGE TARGET PICK (Corporate Espionage): the workspace is a
+     * projection + selection surface — every candidate with the SERVER's own
+     * `from → to` and resulting reward, the owner's own advance beside them,
+     * ghost markers on the track for both. The resolve RETURNS the chosen
+     * target to the asking play composer; nothing moves, nothing submits.
+     * The projection is the server's ({@link DeltaEspionagePickRequest}).
+     */
+    espionageOffer: {type: Object as PropType<DeltaEspionagePickRequest>, default: undefined},
+    /**
+     * The HOST frame's own header is OFF SCREEN (the hand section yields its
+     * flex row while a hydro frame stands over it — the espionage flows), so
+     * the ghost contract inverts: THIS head draws the stack's crumb itself.
+     * Same text either way — `headSubject`/`crumbRoot` already read the
+     * STACK — only which DOM node paints it changes.
+     */
+    hostHeadHidden: {type: Boolean, default: false},
   },
-  emits: ['close', 'confirm', 'pick', 'notice', 'collapse', 'result-done', 'bonus-answer', 'card-advance', 'inspect-source', 'reward-picked'],
+  emits: ['close', 'confirm', 'pick', 'notice', 'collapse', 'result-done', 'bonus-answer', 'card-advance', 'inspect-source', 'reward-picked', 'espionage-picked'],
   setup() {
     const {reduced} = useConsoleReducedMotion();
     return {reducedMotion: reduced};
@@ -1225,6 +1405,10 @@ export default defineComponent({
       /** The cell whose presented card's PRESENCE this instance reported —
        *  the leave handshake (`onLandCardLeft`) releases exactly it. */
       landReportedPosition: -1,
+      /** The espionage selector's CURSOR — an index into `espionageRows`
+       *  (blocked rows are focusable so their reason stays readable). Focus
+       *  alone changes the track's ghost projection and nothing else. */
+      espionageFocusIdx: 0,
     };
   },
   computed: {
@@ -1733,6 +1917,11 @@ export default defineComponent({
       if (this.rewardOffer !== undefined) {
         return 'reward-pick';
       }
+      // The ESPIONAGE TARGET PICK: the same pure-selection precedence as the
+      // reward pick — it outranks browse for as long as its bridge stands.
+      if (this.espionageOffer !== undefined) {
+        return 'espionage-pick';
+      }
       if (zone === 'bonus-offer') {
         return 'bonus';
       }
@@ -1750,6 +1939,9 @@ export default defineComponent({
       case 'payment': return 'payment';
       case 'bonus': return 'bonus';
       case 'reward-pick': return 'reward-pick';
+      // The espionage pick confirms on the ROW (A on a candidate returns to
+      // the composer), so its action column stands as composed air.
+      case 'espionage-pick':
       case 'commit':
       case 'target': return 'quiet';
       default: return 'result';
@@ -1841,6 +2033,94 @@ export default defineComponent({
       default: return ask.answered ? 'Target card selected' : 'Choose a card to receive the animals';
       }
     },
+    // ── the ESPIONAGE TARGET PICK (Corporate Espionage, DP10) ─────────────
+    /** Every opponent as a row — legal and blocked alike (a protected player
+     *  is SHOWN with the reason, never hidden), in the projection's seating
+     *  order. Identity comes from the live player list (the one display-name
+     *  resolver — the bot reads «Бот» through it like everywhere else). */
+    espionageRows(): ReadonlyArray<EspionageRow> {
+      const offer = this.espionageOffer;
+      if (offer === undefined) {
+        return [];
+      }
+      const players = new Map(this.playerView.players.map((p) => [p.color, p]));
+      return offer.projection.targets.map((target) => {
+        const p = players.get(target.color);
+        return {
+          target,
+          name: p !== undefined ? participantDisplayName(p) : String(target.color),
+          isBot: p?.isMarsBot === true,
+          view: espionageOutcomeView(target.reward, target.rewardSkipped),
+          blockKey: target.blocked === 'vp-protected' ?
+            'Protected: already at a VP level' :
+            target.blocked === 'track-start' ? 'Cannot be pushed below the track start' : '',
+        };
+      });
+    },
+    espionageFocusRow(): EspionageRow | undefined {
+      return this.espionageRows[this.espionageFocusIdx];
+    },
+    /** The SAVED target (the composer's capture) — the ✓ state, distinct from
+     *  the cursor. Focus alone never changes it. */
+    espionageSelectedColor(): Color | undefined {
+      return this.espionageOffer?.prior;
+    },
+    espOwner(): DeltaEspionagePickRequest['projection']['owner'] | undefined {
+      return this.espionageOffer?.projection.owner;
+    },
+    espOwnerView(): EspionageOutcomeView {
+      return espionageOutcomeView(this.espOwner?.reward);
+    },
+    espionageHasLegal(): boolean {
+      return this.espionageOffer?.projection.hasLegalTarget === true;
+    },
+    /** The track cells the espionage projection involves (for the mode's
+     *  focused dimming): the owner's from/to and the focused candidate's
+     *  from/to. Everything else recedes so the two moves read at a glance. */
+    espionageLitCells(): Set<number> {
+      const out = new Set<number>();
+      const owner = this.espOwner;
+      if (owner !== undefined) {
+        out.add(owner.fromPosition);
+        if (owner.legal) {
+          out.add(owner.toPosition);
+        }
+      }
+      const row = this.espionageFocusRow;
+      if (row !== undefined) {
+        out.add(row.target.fromPosition);
+        if (row.target.legal && row.target.toPosition !== undefined) {
+          out.add(row.target.toPosition);
+        }
+      }
+      return out;
+    },
+    /** The COMMITTED espionage record (the execution/result scenes' source). */
+    espCommit(): HydroCommitRecord['espionage'] {
+      return this.flow.commit?.espionage;
+    },
+    espCommitTargetName(): string {
+      const t = this.espCommit?.target;
+      if (t === undefined) {
+        return '';
+      }
+      const p = this.playerView.players.find((pl) => pl.color === t.color);
+      return p !== undefined ? participantDisplayName(p) : String(t.color);
+    },
+    espCommitTargetView(): EspionageOutcomeView {
+      const t = this.espCommit?.target;
+      return espionageOutcomeView(t?.reward, t?.rewardSkipped);
+    },
+    /** The flow is parked on the TARGET's own interactive landing — the calm
+     *  waiting state (never a spinner pretending the game is computing). */
+    espWaitingTarget(): boolean {
+      void this.hydroMarkerState.planPaused;
+      void this.hydroMarkerState.parkedAt;
+      return this.espCommit?.target?.interactive === true && hydroParkedForeignStop();
+    },
+    espWaitingCaption(): string {
+      return translateTextWithParams('Waiting for ${0} to decide', [this.espCommitTargetName]);
+    },
     /**
      * THE PRESENTATION CURSOR'S STAGE of a committed move — the ONE post-commit
      * stage derivation every identity surface reads (the ctx column, the crumb
@@ -1923,6 +2203,20 @@ export default defineComponent({
         return {
           kind: 'source', source: this.rewardOffer.source,
           badge: {kind: 'offer', text: $t('Reward selection')},
+        };
+      }
+      // The ESPIONAGE PICK: the played card is the identity; the OWNER's own
+      // mandatory advance is the one route this mode carries (free — the
+      // card's printed cost is the price, already paid in the composer). The
+      // focused candidate's transition lives on their row, never here.
+      if (this.espionageOffer !== undefined) {
+        const owner = this.espionageOffer.projection.owner;
+        return {
+          kind: 'source', source: this.espionageOffer.source,
+          badge: {kind: 'offer', text: $t('Target selection')},
+          route: owner.legal ?
+            {from: owner.fromPosition, to: owner.toPosition, energy: 0, steel: 0, free: true} :
+            undefined,
         };
       }
       const s = this.selectedStage;
@@ -2565,6 +2859,10 @@ export default defineComponent({
         default: return this.flow.repeatBridge ? 'Repeat action' : 'Reward selection';
         }
       }
+      // The espionage pick's own tail — the same one-word grammar.
+      if (this.espionageOffer !== undefined && this.flow.commit === undefined) {
+        return 'Target selection';
+      }
       const c = this.flow.commit;
       if (c !== undefined) {
         if (c.phase === 'result') {
@@ -2885,6 +3183,16 @@ export default defineComponent({
           {control: 'back', label: 'Back to the action'},
         ];
       }
+      // ESPIONAGE TARGET PICK: the candidate walk, ONE confirm whose state
+      // follows the focused row's legality, the source inspect, the way back.
+      if (this.sceneKey === 'espionage-pick') {
+        return [
+          {control: 'dpadU', control2: 'dpadD', label: 'Candidates', priority: 2},
+          {control: 'confirm', label: 'Select the target', enabled: this.espionageFocusRow?.target.legal === true},
+          {control: 'secondary', label: 'Inspect'},
+          {control: 'back', label: 'Back to the play'},
+        ];
+      }
       if (this.sceneKey === 'bonus') {
         // THE THREE VERBS OF A DECISION SURFACE, and nothing else:
         //   A — confirm what the cursor is on (its label FOLLOWS the cursor);
@@ -3036,6 +3344,17 @@ export default defineComponent({
       immediate: true,
       handler(cmds: ReadonlyArray<ConsoleCommand>): void {
         consoleHydroUi.commands = [...cmds];
+      },
+    },
+    /** A NEW espionage pick (or a re-open) seats the cursor on the saved
+     *  target / first legal candidate — data only, DOM-free, so the immediate
+     *  setup call is safe. */
+    espionageOffer: {
+      immediate: true,
+      handler(now: DeltaEspionagePickRequest | undefined): void {
+        if (now !== undefined) {
+          this.seatEspionagePick();
+        }
       },
     },
     draftFingerprint(): void {
@@ -3274,6 +3593,7 @@ export default defineComponent({
       claimHost: workspaceOutcomeState.host,
       followUpInteractive: this.followUpLive,
       ownedByThisFrame: owned,
+      espionageExecution: this.flow.commit?.espionage !== undefined,
     });
     if (plan === 'fold') {
       resetHydroFlow();
@@ -3313,6 +3633,7 @@ export default defineComponent({
     // branch resets the very field the offer needs seated.
     this.seatPlanOnOffer();
     this.seatRewardPick();
+    this.seatEspionagePick();
     if (this.flow.step === 'target') {
       void this.$nextTick(() => this.seatTargetStep());
     }
@@ -4525,6 +4846,62 @@ export default defineComponent({
       }
       this.sceneFocus = 'track';
     },
+    // ── the ESPIONAGE TARGET PICK (Corporate Espionage) ────────────────────
+    /** The ghost tokens ONE cell shows: the owner's forward destination
+     *  (constant) and the FOCUSED candidate's backward destination (follows
+     *  the cursor). Direction is named by the arrow, never colour alone. */
+    espionageGhostsAt(position: number): Array<{color: Color, dir: 'fwd' | 'back'}> {
+      const offer = this.espionageOffer;
+      if (offer === undefined) {
+        return [];
+      }
+      const out: Array<{color: Color, dir: 'fwd' | 'back'}> = [];
+      const owner = offer.projection.owner;
+      if (owner.legal && owner.toPosition === position) {
+        out.push({color: owner.color, dir: 'fwd'});
+      }
+      const row = this.espionageFocusRow;
+      if (row !== undefined && row.target.legal && row.target.toPosition === position) {
+        out.push({color: row.target.color, dir: 'back'});
+      }
+      return out;
+    },
+    /** A mouse press on a row: focus it; a second press confirms (the same
+     *  two-beat contract the d-pad walk + A gives). */
+    onEspionageRowClick(index: number): void {
+      if (this.espionageFocusIdx !== index) {
+        this.espionageFocusIdx = index;
+        return;
+      }
+      this.confirmEspionageRow(index);
+    },
+    /** A on a candidate: a LEGAL row returns the pick to the composer; a
+     *  blocked row refuses OUT LOUD with its own reason. */
+    confirmEspionageRow(index: number): void {
+      const row = this.espionageRows[index];
+      if (row === undefined) {
+        return;
+      }
+      if (!row.target.legal) {
+        this.$emit('notice', $t(row.blockKey !== '' ? row.blockKey : 'That player cannot be pushed back'));
+        return;
+      }
+      this.$emit('espionage-picked', {target: row.target.color});
+    },
+    /** Seat the cursor: the SAVED target on a re-open, else the first LEGAL
+     *  candidate (the mandatory pick is the first thing the cursor offers). */
+    seatEspionagePick(): void {
+      const offer = this.espionageOffer;
+      if (offer === undefined) {
+        return;
+      }
+      const rows = this.espionageRows;
+      const priorIdx = offer.prior !== undefined ?
+        rows.findIndex((r) => r.target.color === offer.prior) : -1;
+      const firstLegal = rows.findIndex((r) => r.target.legal);
+      this.espionageFocusIdx = priorIdx >= 0 ? priorIdx : Math.max(0, firstLegal);
+      this.sceneFocus = 'track';
+    },
     // ── the CEREMONY (pos 10/11) ───────────────────────────────────────────
     /**
      * The culmination starts ONLY on the marker's physical arrival at the
@@ -4731,6 +5108,38 @@ export default defineComponent({
         switch (consoleActionOf(intent)) {
         case 'primary':
           this.onRewardPickPrimary();
+          return;
+        case 'inspect':
+          this.inspectBonusSource();
+          return;
+        case 'back':
+          this.$emit('close');
+          return;
+        default:
+          return;
+        }
+      }
+      // ESPIONAGE TARGET PICK — ↑/↓ walks the candidate rows (blocked rows
+      // stay focusable so their reason reads), the focus retunes the track's
+      // ghost projection, A on a LEGAL row confirms the target and RETURNS to
+      // the composer, a blocked row refuses out loud, B returns unchanged,
+      // X inspects the source card over the standing scene.
+      if (this.sceneKey === 'espionage-pick') {
+        if (intent.kind === 'nav') {
+          const n = this.espionageRows.length;
+          if (n === 0) {
+            return;
+          }
+          if (intent.dir === 'down') {
+            this.espionageFocusIdx = Math.min(n - 1, this.espionageFocusIdx + 1);
+          } else if (intent.dir === 'up') {
+            this.espionageFocusIdx = Math.max(0, this.espionageFocusIdx - 1);
+          }
+          return;
+        }
+        switch (consoleActionOf(intent)) {
+        case 'primary':
+          this.confirmEspionageRow(this.espionageFocusIdx);
           return;
         case 'inspect':
           this.inspectBonusSource();

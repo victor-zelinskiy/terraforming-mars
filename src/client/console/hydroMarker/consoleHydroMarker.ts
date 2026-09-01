@@ -134,6 +134,21 @@ export type HydroMarkerLegPlan = {
    * See `hydroStepAdmission`.
    */
   sourceCard?: CardName;
+  /**
+   * ── THE MULTI-ACTOR EXTENSION (Corporate Espionage) ─────────────────────
+   * A leg that moves ANOTHER PLAYER's marker: `color` is that token's own
+   * colour (absent = the plan's base colour, the viewer), `fromOverride` its
+   * real departure cell (a foreign token does not start where the viewer's
+   * visual cursor stands), and `foreign` keeps the leg out of everything that
+   * belongs to the VIEWER's walk — the visual cursor, the activation ledger.
+   * `beatMs` is a readable HANDOFF dwell after the leg settles (the pause
+   * between the target's retreat and the owner's advance — short, never a
+   * dramatic hold).
+   */
+  color?: Color;
+  fromOverride?: number;
+  foreign?: true;
+  beatMs?: number;
 };
 
 let handle: HydroMarkerDirectorHandle | undefined;
@@ -168,6 +183,9 @@ let rewardHoldSeeded = false;
 /** The traversal plan's legs (module-level: render state is the reactive
  *  cursor above; the legs themselves never change once armed). */
 let planLegs: ReadonlyArray<HydroMarkerLegPlan> = [];
+/** The plan's base gliding-token colour (the viewer) — a leg's own `color`
+ *  overrides it for exactly that leg (a foreign marker's hop). */
+let planBaseColor: Color | '' = '';
 /** The next leg index whose rewards have NOT been seeded into the panel hold
  *  yet — ranges split at hidden-information stops (their rewards arrive in
  *  the response that answers them). */
@@ -407,6 +425,7 @@ export function armHydroMarkerTraversal(
   clearArmSafety();
   claimed = false;
   planLegs = legs;
+  planBaseColor = color;
   planEpoch++;
   // A NEW PLAN OWNS NOTHING YET. The ledger is emptied here and nowhere else
   // in the happy path: every step of this traversal must earn its activation
@@ -419,16 +438,17 @@ export function armHydroMarkerTraversal(
   hydroMarkerState.planPaused = false;
   hydroMarkerState.parkedAt = -1;
   hydroMarkerState.visualPosition = fromPosition;
-  recordHydroStepEvent(`move:${fromPosition}-${legs[0].position}:start`);
+  const firstFrom = legs[0].fromOverride ?? fromPosition;
+  recordHydroStepEvent(`move:${firstFrom}-${legs[0].position}:start`);
   const range = seedRangeFrom(0);
   pendingRewards = range.transfers;
   planSeedFrom = range.nextFrom;
   rewardHoldSeeded = false;
   hydroMarkerState.active = true;
   hydroMarkerState.phase = 'charge';
-  hydroMarkerState.fromPosition = fromPosition;
+  hydroMarkerState.fromPosition = firstFrom;
   hydroMarkerState.toPosition = legs[0].position;
-  hydroMarkerState.color = color;
+  hydroMarkerState.color = legs[0].color ?? color;
   hydroMarkerState.reducedMotion = consoleReducedMotionActive();
   hydroMarkerState.nonce++;
   armSafetyId = setTimeout(() => abortHydroMarker(), 10000) as unknown as number;
@@ -442,7 +462,11 @@ function seedRangeFrom(from: number): {transfers: Array<ResourceTransferSpec>, n
   const transfers: Array<ResourceTransferSpec> = [];
   for (let i = from; i < planLegs.length; i++) {
     transfers.push(...planLegs[i].transfers);
-    if (planLegs[i].stop === 'deck-draw') {
+    // A `prompt` stop splits the range for the same reason a deck stop does:
+    // everything past it is granted only by the response that ANSWERS it (an
+    // espionage target's own decision) — a hold seeded earlier would describe
+    // rewards the server has not committed.
+    if (planLegs[i].stop === 'deck-draw' || planLegs[i].stop === 'prompt') {
       return {transfers, nextFrom: i + 1};
     }
   }
@@ -602,7 +626,13 @@ async function runTraversalLockedLeg(): Promise<void> {
     return;
   }
   // The real marker takes the cell BEFORE the proxy fades — a true handoff.
-  hydroMarkerState.visualPosition = leg.position;
+  // A FOREIGN leg (another player's marker) never moves the VIEWER's visual
+  // cursor: their token's landing is the server view's own truth (already
+  // applied under the release), while the viewer's marker stays parked where
+  // the plan's base cursor holds it.
+  if (leg.foreign !== true) {
+    hydroMarkerState.visualPosition = leg.position;
+  }
   markLegSettled(leg.position);
   await releaseProxy();
   if (planEpoch !== epoch) {
@@ -612,11 +642,22 @@ async function runTraversalLockedLeg(): Promise<void> {
   //    written. Everything this cell's reward produces becomes admissible from
   //    this line and not one frame earlier: the token has physically taken the
   //    cell and the glide proxy has handed over. A cell can never be activated
-  //    twice (a Set), and the sequence is serial by construction.
-  activationLedger.activated.add(leg.position);
-  activationLedger.rev++;
+  //    twice (a Set), and the sequence is serial by construction. A FOREIGN
+  //    leg activates nothing — the ledger describes the VIEWER's walk.
+  if (leg.foreign !== true) {
+    activationLedger.activated.add(leg.position);
+    activationLedger.rev++;
+  }
   armPlanProgressNet();
   recordHydroStepEvent(`stage:${leg.position}:arrivedAndSettled`);
+  // The READABLE HANDOFF between two actors' moves — a short beat, pacing
+  // only, after the leg has fully settled.
+  if (leg.beatMs !== undefined && leg.beatMs > 0) {
+    await delay(motionMs(leg.beatMs));
+    if (planEpoch !== epoch) {
+      return;
+    }
+  }
   if (leg.excluded === true) {
     // The marker physically crossed the cell; nothing flies, the workspace
     // names the exclusion. A short readable beat, pacing only.
@@ -670,9 +711,10 @@ async function startNextLeg(): Promise<void> {
     return;
   }
   claimed = true; // the transport gate belongs to the FIRST leg only
-  hydroMarkerState.fromPosition = hydroMarkerState.visualPosition;
+  hydroMarkerState.fromPosition = leg.fromOverride ?? hydroMarkerState.visualPosition;
   hydroMarkerState.toPosition = leg.position;
-  recordHydroStepEvent(`move:${hydroMarkerState.visualPosition}-${leg.position}:start`);
+  hydroMarkerState.color = leg.color ?? planBaseColor;
+  recordHydroStepEvent(`move:${hydroMarkerState.fromPosition}-${leg.position}:start`);
   hydroMarkerState.phase = 'charge';
   hydroMarkerState.nonce++;
   await runHydroMarker();
@@ -760,6 +802,7 @@ function finalizeTraversal(): void {
   rewardHoldSeeded = false;
   // Belt-and-braces: any hold a degraded leg left snaps to truth now.
   clearPanelRewardHold();
+  planBaseColor = '';
 }
 
 function markLegSettled(position: number): void {
@@ -865,6 +908,20 @@ export function hydroTraversalPaused(): boolean {
   return hydroMarkerState.planPaused;
 }
 
+/**
+ * THE PLAN IS PARKED ON A FOREIGN ACTOR'S PROMPT STOP (Corporate Espionage:
+ * the target's own interactive landing reward) — the actor's flow waits for a
+ * decision that is not theirs, and the shell resumes it on the SERVER's own
+ * evidence (the owner's committed position), never a timeout.
+ */
+export function hydroParkedForeignStop(): boolean {
+  if (!hydroMarkerState.planPaused) {
+    return false;
+  }
+  const parked = planLegs.find((l) => l.position === hydroMarkerState.parkedAt);
+  return parked?.foreign === true && parked.stop === 'prompt';
+}
+
 /** The presentation's own marker cursor (−1 = no plan → server truth). */
 export function hydroVisualTrackPosition(): number {
   return hydroMarkerState.planCursor >= 0 ? hydroMarkerState.visualPosition : -1;
@@ -898,6 +955,7 @@ export function abortHydroMarker(): void {
   // renders the real position again — the recovery-net semantics).
   planEpoch++;
   planLegs = [];
+  planBaseColor = '';
   planSeedFrom = 0;
   pendingResumeWave = undefined;
   hydroMarkerState.planCursor = -1;
@@ -940,6 +998,7 @@ export function resetHydroMarker(): void {
   rewardHoldSeeded = false;
   planEpoch++;
   planLegs = [];
+  planBaseColor = '';
   planSeedFrom = 0;
   pendingResumeWave = undefined;
   hydroMarkerState.active = false;

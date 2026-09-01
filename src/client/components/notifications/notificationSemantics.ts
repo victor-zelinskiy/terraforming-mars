@@ -38,8 +38,9 @@ export type ImpactSign = 'positive' | 'negative' | 'neutral' | 'mixed';
  */
 export type NotificationImportance = 'ambient' | 'notable' | 'critical' | 'attention';
 
-/** Where a viewer loss came from — the stock, future production, or VP score. */
-export type ViewerImpactScope = 'stock' | 'production' | 'vp';
+/** Where a viewer loss came from — the stock, future production, the VP
+ *  score, or the Hydronetwork track position (Corporate Espionage). */
+export type ViewerImpactScope = 'stock' | 'production' | 'vp' | 'track';
 
 /**
  * Everything the card needs to lead with "what changed FOR YOU": the viewer's
@@ -197,9 +198,24 @@ export function viewerImpactOfChain(chain: ReadonlyArray<GameEvent>, viewer: Col
   let transfer = false;
   let production = false;
   let vp = false;
+  // Track retreats bypass `mergeNet` (their text is a POSITION reading, not a
+  // summable amount) and lead the losses.
+  const trackLosses: Array<JournalImpactChip> = [];
   for (const e of chain) {
     if (e.player !== viewer) {
       continue;
+    }
+    // A BACKWARD Hydronetwork move of the viewer's marker (Corporate
+    // Espionage) — the canonical `delta-position-changed` fact. A loss row
+    // of its own: the positions ARE the reading («1 → 0»), the scope line
+    // names the track, and the attacker classifies exactly like a stock
+    // steal. A forward move needs no row here (the mover is the actor, and
+    // an actor's own chain never reaches this function).
+    const dp = e.impact.deltaPosition;
+    if (dp !== undefined && dp.steps < 0) {
+      trackLosses.push({icon: '', text: `${dp.from} → ${dp.to}`});
+      attacker = attacker ?? attackerOf(e, viewer);
+      lossSource = lossSource ?? e;
     }
     const chips = [...impactChips(e.impact), ...extraViewerChips(e.impact)];
     for (const c of chips) {
@@ -225,12 +241,12 @@ export function viewerImpactOfChain(chain: ReadonlyArray<GameEvent>, viewer: Col
     }
   }
   const gains = mergeNet(rawGains);
-  const losses = mergeNet(rawLosses);
+  const losses = [...trackLosses, ...mergeNet(rawLosses)];
   if (gains.length === 0 && losses.length === 0) {
     return NEUTRAL_IMPACT;
   }
   const scope: ViewerImpactScope | undefined =
-    losses.length === 0 ? undefined : (vp ? 'vp' : (production ? 'production' : 'stock'));
+    losses.length === 0 ? undefined : (trackLosses.length > 0 ? 'track' : (vp ? 'vp' : (production ? 'production' : 'stock')));
   return {
     sign: signOf(gains, losses),
     gains,

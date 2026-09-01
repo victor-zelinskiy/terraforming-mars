@@ -3,6 +3,7 @@ import {ColonyModel} from './ColonyModel';
 import type {ActionEffect, VictoryPointsDelta} from './ActionPreviewModel';
 import type {BotAttackPromptMeta} from './BotAttackPromptModel';
 import type {DeltaBonusPromptMeta} from './DeltaBonusPromptModel';
+import type {DeltaEspionageProjectionModel} from './DeltaEspionageModel';
 import type {TargetImpact, TargetImpactChange} from './TargetImpactModel';
 import {CardName} from '../cards/CardName';
 import {ColonyName} from '../colonies/ColonyName';
@@ -796,6 +797,15 @@ export type DeltaStageRewardInputModel = BaseInputModel & {
   claimable: ReadonlyArray<number>;
 }
 
+/** Corporate Espionage (DP10): the whole play's server-authored projection —
+ *  the target candidates with their exact `from → to` and resulting rewards,
+ *  and the owner's own mandatory advance. The client renders and validates
+ *  against THIS, never a re-derivation. See {@link DeltaEspionageProjectionModel}. */
+export type DeltaEspionageInputModel = BaseInputModel & {
+  type: 'deltaEspionage';
+  projection: DeltaEspionageProjectionModel;
+}
+
 export type SelectDelegateModel = BaseInputModel & {
   type: 'delegate';
   players: Array<ColorWithNeutral>;
@@ -863,4 +873,5 @@ export type PlayerInputModel =
   SelectResourcesModel |
   SelectClaimedUndergroundTokenModel |
   DeltaProjectInputModel |
-  DeltaStageRewardInputModel;
+  DeltaStageRewardInputModel |
+  DeltaEspionageInputModel;

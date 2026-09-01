@@ -246,5 +246,6 @@
     "Select how to spend ${0} heat": "Выберите, как потратить тепло (${0})",
     "Select a resource to gain 1 unit of production": "Выберите ресурс, чтобы увеличить его производство на 1",
     "Gain 1 energy per ocean-side tile": "Получить 1 энергию за приморский тайл",
-    "Spend 1 energy and advance on the Hydronetwork": "Потратить 1 энергию и продвинуться по Гидросети"
+    "Spend 1 energy and advance on the Hydronetwork": "Потратить 1 энергию и продвинуться по Гидросети",
+    "Choose a player to push back on the Hydronetwork": "Выберите игрока, которого отодвинуть назад по Гидросети"
 }

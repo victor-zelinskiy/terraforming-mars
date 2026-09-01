@@ -33,6 +33,7 @@ export type GameEventType =
   | 'cards-drawn'
   | 'card-revealed' // a PUBLIC reveal / show / search (counts only, never names)
   | 'tile-placed'
+  | 'delta-position-changed' // ONE committed Hydronetwork move (signed steps; both directions)
   | 'vp-granted'
   // High-level game milestones:
   | 'milestone-claimed'

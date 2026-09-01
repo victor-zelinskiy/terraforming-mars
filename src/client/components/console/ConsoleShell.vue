@@ -178,7 +178,14 @@
            one input path, one set of captures — never a second copy and
            never a picker standing in for the player's real hand. -->
       <Teleport :to="handEmbedTarget ?? 'body'" :disabled="handEmbedTarget === undefined">
+      <!-- v-show (NOT v-if) while a HYDRO frame stands over the hand (the
+           espionage target pick / execution): the two sections are flex
+           siblings of ONE row, so the covered hand yields the row — with its
+           captures, its teleported composer and its state intact for the
+           return. No motion transition wraps this tag, so the flip is a
+           plain repaint, never a leave/enter pair. -->
       <ConsoleHandSection v-if="workspaceFrameRenders('hand')"
+                          v-show="!handCoveredByHydro"
                           ref="handSection"
                           :embedded="handEmbedTarget !== undefined"
                           :entries="handEntries"
@@ -275,6 +282,8 @@
                              :ownsPrompt="hydroBonusOfferRaw !== undefined"
                              :cardOffer="hydroCardOffer"
                              :rewardOffer="hydroRewardOffer"
+                             :espionageOffer="hydroEspionageOffer"
+                             :hostHeadHidden="handCoveredByHydro"
                              @bonus-answer="submitHydroBonus($event)"
                              @card-advance="submitHydroCardAdvance($event)"
                              @pick="openHydroRepeatPick"
@@ -283,6 +292,7 @@
                              @collapse="collapseWorkspace()"
                              @result-done="finishHydroFlow()"
                              @reward-picked="onHydroRewardPicked($event)"
+                             @espionage-picked="onHydroEspionagePicked($event)"
                              @close="onHydroClose()" />
       </transition>
 
@@ -1616,12 +1626,12 @@ import ConsoleHydroMarkerLayer from '@/client/components/console/hydroMarker/Con
 import {
   armHydroMarker, armHydroMarkerTraversal, abortHydroMarker, isHydroMarkerActive, hydroMarkerState,
   HydroMarkerLegPlan, hydroActiveStepSourceCard, hydroStepQueuedFor, hydroTraversalPaused,
-  hydroTraversalPending, resumeHydroMarkerTraversal,
+  hydroTraversalPending, resumeHydroMarkerTraversal, hydroParkedForeignStop,
 } from '@/client/console/hydroMarker/consoleHydroMarker';
 import {
   HydroResolutionKind, HydroTraversalSegmentRecord, advanceHydroCommitPhase, beginHydroCommit, hydroCeremonyOwed,
   hydroFlowState, hydroResolutionBusyOf, hydroWorkspacePhase, isHydroCeremonyActive, resetHydroFlow,
-  resolutionKindFor, setHydroRepeatBridge,
+  resolutionKindFor, rollbackHydroCommit, setHydroRepeatBridge,
 } from '@/client/console/hydroFlow/consoleHydroFlow';
 import {bonusDiscardOwnsBatch, bonusDiscardStep, BonusDiscardStep} from '@/client/console/colonyTrade/colonyBonusDiscardStep';
 import {drawnRevealCommandRun} from '@/client/console/consoleRevealCommands';
@@ -1662,6 +1672,11 @@ import {SpaceBonus} from '@/common/boards/SpaceBonus';
 import ConsoleJournalPanel from '@/client/components/console/ConsoleJournalPanel.vue';
 import {hydroNetworkState, resetHydroPlan} from '@/client/components/hydronetwork/hydroNetworkState';
 import type {HydroDeltaLine} from '@/client/components/hydronetwork/hydroReward';
+import {buildRewardView, HydroPlayerSnapshot} from '@/client/components/hydronetwork/hydroReward';
+import {Tag} from '@/common/cards/Tag';
+import {hydroRewardTransfers} from '@/client/console/hydroMarker/hydroRewardTransfers';
+import type {DeltaEspionageProjectionModel} from '@/common/models/DeltaEspionageModel';
+import type {DeltaStageAnswer} from '@/common/inputs/InputResponse';
 import {consoleHydroUi, resetConsoleHydroUi} from '@/client/console/consoleHydroState';
 import {consoleJournalUi} from '@/client/console/consoleJournalState';
 import {getCard} from '@/client/cards/ClientCardManifest';
@@ -1691,6 +1706,12 @@ import {
   DeltaRewardDraft, DeltaRewardPickRequest, cancelDeltaRewardPick, deltaRewardPickState,
   isDeltaRewardPickActive, resetDeltaRewardPick, resolveDeltaRewardPick,
 } from '@/client/console/hydroFlow/deltaRewardEntry';
+import {
+  DeltaEspionageDraft, DeltaEspionagePickRequest, cancelDeltaEspionagePick, deltaEspionagePickState,
+  deltaEspionageStepResponse, enterDeltaEspionagePick,
+  isDeltaEspionagePickActive, resetDeltaEspionagePick, resolveDeltaEspionagePick,
+} from '@/client/console/hydroFlow/deltaEspionageEntry';
+import type {DeltaEspionageInputModel} from '@/common/models/PlayerInputModel';
 import {consoleRepeatPickUi, resetConsoleRepeatPickUi} from '@/client/console/consoleRepeatPickUi';
 import {conUiScale, consoleLayoutState} from '@/client/console/consoleLayoutProfile';
 import {albumSpecFor} from '@/client/components/console/consoleHandAlbum';
@@ -2706,6 +2727,16 @@ export default defineComponent({
       return WORKSPACE_FRAME_KINDS.some((kind) => workspaceHostYieldsScene(kind));
     },
     /**
+     * A HYDRO frame stands OVER the hand (the espionage target pick / the
+     * espionage execution). The two sections are flex siblings of one
+     * `.con-main` row — rendered together they split it in half — so the
+     * covered hand yields the row for exactly as long as the cover stands.
+     */
+    handCoveredByHydro(): boolean {
+      const hand = workspaceFrameIndex('hand');
+      return hand !== -1 && workspaceFrameIndex('hydro') > hand;
+    },
+    /**
      * The corporations whose mandatory first action is live RIGHT NOW (>1 =
      * Merger's second corp). Empty when the prompt isn't up / is deferred.
      */
@@ -3259,6 +3290,10 @@ export default defineComponent({
      */
     hydroTraversalResumeReady(): boolean {
       return hydroTraversalPaused() &&
+        // A FOREIGN prompt stop (the espionage target's own decision) waits
+        // for the SERVER's evidence, never for the local screen going quiet —
+        // its resume is the owner-position watcher's, and it alone.
+        !hydroParkedForeignStop() &&
         this.hydroFlow.commit !== undefined &&
         !this.hydroFollowUpLive &&
         !this.cardArrivalBusy &&
@@ -5775,6 +5810,32 @@ export default defineComponent({
     hydroRewardOffer(): DeltaRewardPickRequest | undefined {
       return deltaRewardPickState.active ? deltaRewardPickState.request : undefined;
     },
+    /** The ESPIONAGE target-pick bridge (Corporate Espionage) — the request
+     *  the hydro section presents in target-selection mode. */
+    hydroEspionageOffer(): DeltaEspionagePickRequest | undefined {
+      return deltaEspionagePickState.active ? deltaEspionagePickState.request : undefined;
+    },
+    /** The STANDALONE espionage ask (a refused/stale batch answer, a
+     *  reconnect) — the raw top-level prompt, structural off its own type. */
+    espionagePromptRaw(): DeltaEspionageInputModel | undefined {
+      const wf = this.playerView.waitingFor;
+      return wf?.type === 'deltaEspionage' ? wf as DeltaEspionageInputModel : undefined;
+    },
+    /** The door's own edge: the ask stands and nothing serves it yet. A
+     *  STANDING espionage commit beside the ask means the server REFUSED the
+     *  batch answer (stale target) while the presentation was already armed —
+     *  the handler rolls that presentation back before opening the door. */
+    espionagePromptDoorSignal(): boolean {
+      if (this.espionagePromptRaw === undefined || isDeltaEspionagePickActive()) {
+        return false;
+      }
+      // Openable now: no hydro presentation stands — or the one standing is
+      // the espionage's OWN refused optimistic execution (rolled back by the
+      // handler). An unrelated live flow keeps the door shut until it ends,
+      // and the commit's fall re-evaluates this computed.
+      return this.hydroFlow.commit?.espionage !== undefined ||
+        (this.hydroFlow.commit === undefined && !isHydroMarkerActive());
+    },
     /** The bridge's frame is alive (a PARKED one included) — the falling edge
      *  cancels the pick so the composer never waits on a dead bridge. */
     hydroRewardFrameLive(): boolean {
@@ -7999,6 +8060,9 @@ export default defineComponent({
       if (!live && isDeltaRewardPickActive()) {
         cancelDeltaRewardPick();
       }
+      if (!live && isDeltaEspionagePickActive()) {
+        cancelDeltaEspionagePick();
+      }
     },
     // THE RECOVERY NET: the SERVER phase drives the flow when the glide
     // degraded (an expired arm on a slow answer never fires the marker's own
@@ -8006,7 +8070,17 @@ export default defineComponent({
     // record still says `moving` → advance; visuals fast-forward honestly.
     hydroViewerTrackPosition(pos: number) {
       const c = this.hydroFlow.commit;
-      if (c !== undefined && c.phase === 'moving' && pos === c.toPosition && !isHydroMarkerActive()) {
+      // THE ESPIONAGE BARRIER RELEASES ON SERVER EVIDENCE: the flow parked on
+      // the TARGET's own interactive landing, and the one fact that proves
+      // their decision resolved is the OWNER's committed advance arriving in
+      // a later response. The resume then plays the owner's leg in full —
+      // glide, wave, ceremony — exactly as if the answer had been instant.
+      if (c !== undefined && pos === c.toPosition && hydroParkedForeignStop()) {
+        resumeHydroMarkerTraversal();
+        return;
+      }
+      if (c !== undefined && c.phase === 'moving' && pos === c.toPosition &&
+          !isHydroMarkerActive() && !hydroTraversalPending()) {
         advanceHydroCommitPhase('resolving');
         if (workspaceOutcomeClaimed() && workspaceOutcomeState.host === 'hydro') {
           markWorkspaceOutcomeBeatDone();
@@ -8675,6 +8749,51 @@ export default defineComponent({
      */
     hydroBonusDoorSignal(): void {
       this.syncHydroBonusDoor();
+    },
+    /**
+     * THE STANDALONE ESPIONAGE DOOR (a refused/stale batch answer, a
+     * reconnect): the ask is served by the SAME workspace pick the composer
+     * uses — mandatory (B refuses out loud; there is no composer to cancel
+     * back to), the resolve submits the one wire answer directly. With NO
+     * legal target the pick auto-answers: the no-target response is the only
+     * legal answer (the server validates it), and an empty selector must
+     * never open.
+     */
+    espionagePromptDoorSignal: {
+      immediate: true,
+      handler(open: boolean): void {
+        if (!open) {
+          return;
+        }
+        const raw = this.espionagePromptRaw;
+        if (raw === undefined) {
+          return;
+        }
+        // A REFUSED batch answer with the presentation already armed: the
+        // server kept the ask (nothing moved), so the client's optimistic
+        // execution rolls back CLEANLY — the marker plan dies, the commit
+        // record falls, the frame's phase returns to configure — and the ask
+        // is then served fresh. Never a half-played choreography over a
+        // world that did not move.
+        if (this.hydroFlow.commit?.espionage !== undefined) {
+          abortHydroMarker();
+          rollbackHydroCommit();
+        }
+        const projection = raw.projection;
+        if (!projection.hasLegalTarget) {
+          submitInput(deltaEspionageStepResponse(projection, undefined) as InputResponse);
+          return;
+        }
+        this.deferShellTask();
+        enterDeltaEspionagePick({
+          source: projection.source,
+          projection,
+          mandatory: true,
+        }, (draft) => {
+          submitInput(deltaEspionageStepResponse(projection, draft.target) as InputResponse);
+        });
+        setWorkspaceFrameServes('hydro', ['choice']);
+      },
     },
     startExcursionQuietNow(now: boolean): void {
       if (now && boardExcursionActive()) {
@@ -10308,6 +10427,15 @@ export default defineComponent({
       // cannot see. On the way back the same gate stops a second A from
       // re-descending into a card that is still flying home to its slot.
       if (handStageTransitioning()) {
+        return true;
+      }
+      // The ESPIONAGE TARGET PICK owns the pad while its bridge stands — the
+      // asking play composer waits HIDDEN underneath with its captures intact
+      // (the hand-pick precedent above; routed BEFORE the composer branch, or
+      // the invisible composer swallows every press).
+      if (isDeltaEspionagePickActive()) {
+        const section = this.$refs.hydroSection as InstanceType<typeof ConsoleHydroSection> | undefined;
+        section?.handleIntent(intent);
         return true;
       }
       // T8: the native play-card confirm owns input while open.
@@ -12199,7 +12327,7 @@ export default defineComponent({
         this.departingTimer = undefined;
       }
     },
-    onPlayCardConfirmNative(payload: {branchIndex: number, preResponses: ReadonlyArray<unknown>, optionResponse: unknown, stepResponses: ReadonlyArray<unknown>, payment: Payment, rewards?: ReadonlyArray<ResourceTransferSpec>, draws?: number, repeat?: ConsoleRepeatPickResult}): void {
+    onPlayCardConfirmNative(payload: {branchIndex: number, preResponses: ReadonlyArray<unknown>, optionResponse: unknown, stepResponses: ReadonlyArray<unknown>, payment: Payment, rewards?: ReadonlyArray<ResourceTransferSpec>, draws?: number, repeat?: ConsoleRepeatPickResult, espionage?: {projection: DeltaEspionageProjectionModel, target?: Color, ownerAnswer?: DeltaStageAnswer}}): void {
       const action = this.playAction;
       const pending = this.pendingPlayCard;
       if (pending === undefined || action === undefined) {
@@ -12229,6 +12357,20 @@ export default defineComponent({
         // composed responses → `[play, {card:chosen}, ...composed]`.
         repeat: payload.repeat,
       });
+      // CORPORATE ESPIONAGE (DP10): the commit does not land on the table —
+      // it DESCENDS into the Hydronetwork workspace's execution mode (the
+      // task's own re-entry), where the target's retreat, their reward, the
+      // owner's advance and the result summary play in the printed order.
+      // The played-hero scene and the play-outcome claim are deliberately
+      // NOT armed: the hydro flow owns the whole presentation (the card's
+      // physical presence is the ctx source dock; the owner's stage-5 draw
+      // is the hydro claim's).
+      if (payload.espionage !== undefined) {
+        this.beginEspionageExecution(payload.espionage);
+        setWorkspaceFramePhase('hand', 'executing');
+        this.submitBatch(batch);
+        return;
+      }
       // ProjectInspection ENTERS through card PLAY, so it EXITS like a card
       // play — never into the Action Center (that surface is the Viron entry
       // point). The event card runs its played-hero scene FIRST (same as any
@@ -13395,6 +13537,158 @@ export default defineComponent({
       }
       this.syncHydroFramePhase();
     },
+    /**
+     * THE ESPIONAGE EXECUTION (Corporate Espionage, DP10) — the commit's
+     * re-entry into the Hydronetwork workspace, now in execution mode. One
+     * multi-actor marker plan carries the printed order: the TARGET's marker
+     * physically retreats first (their own colour, their own cells), their
+     * landing commits (a compact line — or the flow PARKS on their
+     * interactive decision and resumes on the server's own evidence), and
+     * only then the OWNER's marker advances with the full existing landing
+     * presentation — reward waves, the embedded deck pick, the composed
+     * repeat, the terminal VP ceremony, the result summary.
+     *
+     * Armed BEFORE the submit (the transport gate holds the view on the
+     * first leg — the standard hydro contract), off the SERVER's projection
+     * and nothing else.
+     */
+    beginEspionageExecution(espionage: {projection: DeltaEspionageProjectionModel, target?: Color, ownerAnswer?: DeltaStageAnswer}): void {
+      const proj = espionage.projection;
+      const owner = proj.owner;
+      const targetEntry = espionage.target !== undefined ?
+        proj.targets.find((t) => t.color === espionage.target) : undefined;
+      // The workspace descends over the play setup — the same overlay door
+      // the target pick used, now committed from birth.
+      pushWorkspaceFrame({
+        kind: 'hydro', subject: '', stage: 'Execution', phase: 'executing',
+        serves: [], anchor: {type: 'always'}, overlay: true,
+      });
+
+      const ownerAnswer = espionage.ownerAnswer;
+      const ownerStage = HYDRO_STAGES[owner.toPosition];
+      const p = this.playerView.thisPlayer;
+      const snapshot: HydroPlayerSnapshot = {
+        steel: p.steel, plants: p.plants, titanium: p.titanium, energy: p.energy, heat: p.heat, megacredits: p.megacredits,
+        prod: {
+          megacredits: p.megacreditProduction, steel: p.steelProduction, titanium: p.titaniumProduction,
+          plants: p.plantProduction, energy: p.energyProduction, heat: p.heatProduction,
+        },
+        plantTags: p.tags[Tag.PLANT] ?? 0,
+        jovianTags: p.tags[Tag.JOVIAN] ?? 0,
+      };
+      const animalTarget = owner.reward.kind === 'card-resource' ? ownerAnswer?.selectedCard : undefined;
+      const animalCurrent = animalTarget !== undefined ?
+        (p.tableau.find((c) => c.name === animalTarget)?.resources ?? 0) : undefined;
+      // The owner's landing through the ONE reward view every arrival renders
+      // — same lines, same chips, same follow-up vocabulary.
+      const view = buildRewardView({
+        stage: ownerStage, snapshot,
+        rewardChoice: ownerAnswer?.rewardChoice,
+        animalTargetCurrent: animalCurrent,
+        animalTargetCardName: animalTarget,
+      });
+      const composedRepeat = (ownerAnswer?.repeatResponses?.length ?? 0) > 0;
+      const kind = resolutionKindFor(owner.toPosition, {composedRepeat, selectedCard: ownerAnswer?.selectedCard});
+      // Does the TARGET's landing owe THEIR OWN decision? Structural, off the
+      // projection: a choice stage, a draw, a live repeat or animal pick. A
+      // void clause (the bot's Solo rule) is never interactive.
+      const tr = targetEntry?.reward;
+      const targetInteractive = targetEntry !== undefined && targetEntry.rewardSkipped === undefined && tr !== undefined &&
+        (tr.kind === 'choice' || tr.kind === 'draw' ||
+          (tr.kind === 'repeat-action' && tr.candidates > 0) ||
+          (tr.kind === 'card-resource' && tr.candidates > 0));
+
+      beginHydroCommit({
+        kind,
+        fromPosition: owner.fromPosition,
+        toPosition: owner.toPosition,
+        spend: 0,
+        spendSteel: 0,
+        rewardChoice: ownerAnswer?.rewardChoice,
+        selectedCard: ownerAnswer?.selectedCard,
+        composedRepeat,
+        targetBefore: animalCurrent,
+        rewardLines: view.lines,
+        movementBonuses: owner.movementBonuses,
+        vp: ownerStage?.vp,
+        stageNameKey: ownerStage?.nameKey ?? '',
+        sourceCard: CardName.CORPORATE_ESPIONAGE,
+        espionage: {
+          ...(targetEntry !== undefined && targetEntry.toPosition !== undefined ? {
+            target: {
+              color: targetEntry.color,
+              from: targetEntry.fromPosition,
+              to: targetEntry.toPosition,
+              ...(targetEntry.reward !== undefined ? {reward: targetEntry.reward} : {}),
+              ...(targetEntry.rewardSkipped !== undefined ? {rewardSkipped: targetEntry.rewardSkipped} : {}),
+              ...(targetInteractive ? {interactive: true} : {}),
+            },
+          } : {}),
+          ...(owner.waivedTag !== undefined ? {waivedTag: owner.waivedTag} : {}),
+        },
+      });
+      // The owner's landing follow-ups present INSIDE this workspace — the
+      // same serves/claims the standard advance raises for the same stage.
+      const plan = ownerStage !== undefined ? hydroBonusAdvancePlan(ownerStage) : undefined;
+      if (plan !== undefined && plan.serves.length > 0) {
+        setWorkspaceFrameServes('hydro', plan.serves);
+      }
+      if (plan?.claimsDraw === true) {
+        claimWorkspaceOutcome('hydro', CardName.DELTA_PROJECT, ['draw', 'pick'], 0, plan.drawCount, 'card');
+      } else if (kind === 'repeat' && composedRepeat && ownerAnswer?.selectedCard !== undefined) {
+        // The composed repeat's outcome kinds, derived from its cached
+        // preview branch (the hydro traversal's exact derivation).
+        const repeatPick = consoleHydroUi.repeatResult;
+        if (repeatPick !== undefined && repeatPick.chosenCard === ownerAnswer.selectedCard) {
+          const branch = actionPreviewMap().get(repeatPick.chosenCard)?.branches[repeatPick.composed.branchIndex];
+          const kinds: Array<WorkspaceOutcomeKind> = [];
+          let expected = 0;
+          for (const e of branch?.effects ?? []) {
+            if (e.direction === 'gain' && e.icon === 'cards') {
+              expected += Math.max(1, Math.round(e.amount));
+            }
+          }
+          if (branch?.reveal !== undefined) {
+            kinds.push('deck-check');
+          }
+          if (expected > 0) {
+            kinds.push('draw', 'pick');
+          }
+          if (kinds.length > 0) {
+            claimWorkspaceOutcome('hydro', CardName.DELTA_PROJECT, kinds, 0, expected, 'chain');
+          }
+        }
+      }
+      if (kind === 'card-resource') {
+        resetCardResourceLandings();
+      }
+
+      // THE MULTI-ACTOR PLAN: the target's retreat leg first (their colour,
+      // their cells, a readable handoff beat — or a prompt park when their
+      // landing owes them a decision), then the owner's advance with the
+      // landing's own stop semantics.
+      const legs: Array<HydroMarkerLegPlan> = [];
+      if (targetEntry !== undefined && targetEntry.toPosition !== undefined) {
+        legs.push({
+          position: targetEntry.toPosition,
+          fromOverride: targetEntry.fromPosition,
+          color: targetEntry.color,
+          foreign: true,
+          transfers: [],
+          ...(targetInteractive ? {stop: 'prompt' as const} : {beatMs: 700}),
+        });
+      }
+      legs.push({
+        position: owner.toPosition,
+        fromOverride: owner.fromPosition,
+        transfers: hydroRewardTransfers(view),
+        ...(kind === 'deck-draw' ? {stop: 'deck-draw' as const} : {}),
+        ...(kind === 'repeat' ? {stop: 'repeat' as const, sourceCard: ownerAnswer?.selectedCard} : {}),
+      });
+      armHydroMarkerTraversal(owner.fromPosition,
+        withMovementBonusOnLastLeg(legs, owner.movementBonuses), this.thisPlayer.color);
+      this.syncHydroFramePhase();
+    },
     submitHydroAdvance(payload: {
       spend: number,
       /** The Delta Works steel share of the price (energy is the remainder). */
@@ -13589,12 +13883,26 @@ export default defineComponent({
     onHydroRewardPicked(draft: DeltaRewardDraft): void {
       resolveDeltaRewardPick(draft);
     },
+    onHydroEspionagePicked(draft: DeltaEspionageDraft): void {
+      resolveDeltaEspionagePick(draft);
+    },
     /** B / close from the hydro section: a live reward-pick bridge returns to
      *  the composer with the old draft kept; every other provenance keeps the
      *  ordinary lateral leave. */
     onHydroClose(): void {
       if (isDeltaRewardPickActive()) {
         cancelDeltaRewardPick();
+        return;
+      }
+      if (isDeltaEspionagePickActive()) {
+        // The standalone-prompt door is a MANDATORY server demand with no
+        // composer beneath — B refuses out loud instead of cancelling into
+        // a stranded prompt.
+        if (deltaEspionagePickState.request?.mandatory === true) {
+          this.showNotice('The target selection is required');
+          return;
+        }
+        cancelDeltaEspionagePick();
         return;
       }
       leaveWorkspace();
@@ -15808,6 +16116,7 @@ export default defineComponent({
     resetConsoleRepeatPick(); // same for a repeat-action pick + its command store
     resetConsoleRepeatPickUi();
     resetDeltaRewardPick(); // …and the stage-reward pick bridge (Dutch Mountains)
+    resetDeltaEspionagePick(); // …and the espionage target-pick bridge (DP10)
     // A composer's TABLEAU pick is module state too — fold it (cancel) so a
     // game switch never carries a live pick / dead callbacks across sessions.
     resetCategoryDirector();

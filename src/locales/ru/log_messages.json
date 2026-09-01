@@ -369,5 +369,9 @@
     "${0} had no usable action to repeat — the Hydronetwork reward is skipped": "${0} не имеет подходящего действия для повтора — награда Гидросети пропущена",
     "${0} declined to add animals from the Hydronetwork": "${0} отказался от животных от Гидросети",
     "${0} grants the reward of every stage crossed on the Hydronetwork": "${0}: каждый пересечённый этап Гидросети приносит награду",
-    "${0} crossed the 2 VP stage — its reward is claimed only by stopping there": "${0} пересёк этап «2 ПО» — его награду получают, только остановившись на нём"
+    "${0} crossed the 2 VP stage — its reward is claimed only by stopping there": "${0} пересёк этап «2 ПО» — его награду получают, только остановившись на нём",
+    "${0} pushed ${1} back on the Hydronetwork to ${2} via ${3}": "${0} отодвинул ${1} назад по Гидросети до этапа «${2}» с помощью ${3}",
+    "${0} takes no Hydronetwork stage reward (Bot rules)": "${0} не получает награду этапа Гидросети (правила Бота)",
+    "${0} found no player to push back on the Hydronetwork — the attack of ${1} is skipped": "${0} не нашёл, кого отодвинуть назад по Гидросети — атака ${1} пропущена",
+    "${0} could no longer advance on the Hydronetwork — the advance of ${1} is skipped": "${0} больше не может продвинуться по Гидросети — продвижение от ${1} пропущено"
 }

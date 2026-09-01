@@ -196,6 +196,13 @@ export function playChoiceMode(
   if (c.kind === 'amount' || c.kind === 'player' || c.kind === 'or' || c.kind === 'spendHeat') {
     return 'inline';
   }
+  // The espionage ask (Corporate Espionage): an INLINE pre-select whose
+  // picker is the Hydronetwork workspace's target-selection bridge — never a
+  // follow-up (the target is mandatory before the CTA, and the projection is
+  // exactly what the setup screen exists to show).
+  if (c.input.type === 'deltaEspionage') {
+    return 'inline';
+  }
   return 'followup';
 }
 

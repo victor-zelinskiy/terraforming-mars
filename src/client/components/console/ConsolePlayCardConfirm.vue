@@ -374,6 +374,54 @@
                     </span>
                   </div>
                 </template>
+                <!-- THE ESPIONAGE TARGET (Corporate Espionage) — the pick row
+                     whose picker is the Hydronetwork workspace itself. The
+                     resolved state is the SETUP SUMMARY's attack half: who,
+                     their exact `from → to`, and what THEY will receive (or
+                     the named skip); the owner's half renders right under it,
+                     so the whole causally-ordered outcome reads before the
+                     CTA. «Изменить» = A re-opens the same projection mode. -->
+                <template v-else-if="row.choice.input.type === 'deltaEspionage'">
+                  <div class="con-composer__row-label">{{ $t('Target of the attack') }}</div>
+                  <div class="con-composer__row-value">
+                    <template v-if="espionageCapture !== undefined && espionageChosenTarget !== undefined">
+                      <span class="con-composer__target-dot" :class="'player_bg_color_' + espionageChosenTarget.color" aria-hidden="true"></span>
+                      <span>{{ espionageTargetName }}</span>
+                      <span class="con-composer__row-impact">{{ espionageChosenTarget.fromPosition }} → {{ espionageChosenTarget.toPosition }}</span>
+                      <span v-if="espionageChosenView !== undefined && espionageChosenView.skippedKey !== undefined" class="con-composer__esp-skip">↷ {{ $t(espionageChosenView.skippedKey) }}</span>
+                      <template v-else-if="espionageChosenView !== undefined && espionageChosenView.chipOptions.length > 0">
+                        <template v-for="(opt, oi) in espionageChosenView.chipOptions" :key="oi">
+                          <span v-if="oi > 0" class="con-composer__esp-or">{{ $t('or') }}</span>
+                          <HydroReward :chips="opt" :compact="true" />
+                        </template>
+                        <span v-if="espionageChosenView.isChoice" class="con-composer__esp-note">{{ $t('their own choice') }}</span>
+                      </template>
+                    </template>
+                    <template v-else-if="espionageCapture !== undefined">
+                      <span class="con-composer__esp-skip">↷ {{ $t('No player can be pushed back — the attack will be skipped') }}</span>
+                    </template>
+                    <span v-else class="con-composer__row-empty">{{ $t('Choose a player to push back on the Hydronetwork') }}…</span>
+                  </div>
+                  <!-- The OWNER'S half of the summary — «Вы получите» for the
+                       mandatory own advance, the waiver named when consumed. -->
+                  <div v-if="espionageProjection !== undefined" class="con-composer__row-note con-composer__esp-own">
+                    <span>{{ $t('You') }}: {{ espionageProjection.owner.fromPosition }} → {{ espionageProjection.owner.toPosition }}</span>
+                    <span v-if="espionageProjection.owner.waivedTag !== undefined" class="con-composer__esp-waiver">
+                      {{ $t('Ignored tag') }}
+                      <span class="resource-tag con-composer__esp-tag" :class="'tag-' + espionageProjection.owner.waivedTag" aria-hidden="true"></span>
+                    </span>
+                    <template v-if="espionageOwnerView !== undefined && espionageOwnerView.chipOptions.length > 0">
+                      <template v-for="(opt, oi) in espionageOwnerView.chipOptions" :key="'own' + oi">
+                        <span v-if="oi > 0" class="con-composer__esp-or">{{ $t('or') }}</span>
+                        <HydroReward :chips="opt" :compact="true" />
+                      </template>
+                    </template>
+                    <span v-else-if="espionageOwnerView !== undefined && espionageOwnerView.vpAmount !== undefined">{{ espionageOwnerView.vpAmount }} {{ $t('VP') }}</span>
+                    <span v-for="mb in espionageProjection.owner.movementBonuses ?? []" :key="mb.card" class="con-composer__esp-extra">
+                      +{{ mb.amount }} <i class="con-composer__row-impact-icon" :class="iconClass(mb.resource)" aria-hidden="true"></i> · {{ $t(mb.card) }}
+                    </span>
+                  </div>
+                </template>
                 <template v-else>
                   <div class="con-composer__row-label">{{ choiceTitle(row.choice) }}</div>
                   <div class="con-composer__row-value">
@@ -534,6 +582,15 @@ import {
   orderedPreResponses, orderedStepResponses, tabbedStepsOf,
 } from '@/client/console/consoleActionComposer';
 import {buildOrItems, orItemResponse, buildTabbedTargets, ConsoleOrItem, ConsoleTabbedTarget, TabbedCardOwner} from '@/client/console/consoleOrChoice';
+import {
+  enterDeltaEspionagePick, deltaEspionageStepResponse, deltaEspionageResponseOf,
+} from '@/client/console/hydroFlow/deltaEspionageEntry';
+import type {DeltaEspionageProjectionModel} from '@/common/models/DeltaEspionageModel';
+import type {DeltaEspionageInputModel} from '@/common/models/PlayerInputModel';
+import type {DeltaEspionageResponse, DeltaStageAnswer, InputResponse} from '@/common/inputs/InputResponse';
+import {espionageOutcomeView} from '@/client/console/hydroFlow/espionageOutcomeView';
+import {repeatComposedResponses} from '@/client/console/consoleHydroAdvance';
+import HydroReward from '@/client/components/hydronetwork/HydroReward.vue';
 import {TabbedTargetsStep} from '@/common/models/ActionPreviewModel';
 import {
   playComposerFootHints, FootHint, PlayFocusKind,
@@ -665,9 +722,43 @@ function textOf(v: string | Message | undefined): string {
 // hand-section pick / «Разыграно» tableau pick / honest follow-up) — see
 // consolePlayCardComposer.ts.
 
+/** Synthetic-step capture indices for the espionage owner's landing asks —
+ *  far past any real branch step, so a capture can never collide with one,
+ *  and `orderedStepResponses` (which walks the branch's own steps) never
+ *  emits them into the batch: they FOLD into the espionage response. */
+const ESP_OWNER_CHOICE_INDEX = 901;
+const ESP_OWNER_REPEAT_INDEX = 902;
+const ESP_OWNER_ANIMAL_INDEX = 903;
+
+/**
+ * A choice-stage alternative → the SERVER's exact option key (the very
+ * strings `DeltaProjectExpansion.resolveReward`'s own OrOptions prints, so
+ * every locale already translates them). The option INDEX is the wire
+ * answer; the title is presentation only — a projection shape this map does
+ * not know falls back to a structural line rather than a wrong promise.
+ */
+function espOwnerOptionTitle(o: {resource: string, amount: number, production?: true}): string {
+  if (o.production === true) {
+    if (o.resource === 'energy' && o.amount === 1) {
+      return 'Increase energy production 1 step';
+    }
+    if (o.resource === 'heat' && o.amount === 1) {
+      return 'Increase heat production 1 step';
+    }
+    return `Increase ${o.resource} production ${o.amount} step`;
+  }
+  if (o.resource === 'steel' && o.amount === 2) {
+    return 'Gain 2 steel';
+  }
+  if (o.resource === 'plants' && o.amount === 2) {
+    return 'Gain 2 plants';
+  }
+  return `Gain ${o.amount} ${o.resource}`;
+}
+
 export default defineComponent({
   name: 'ConsolePlayCardConfirm',
-  components: {Card, ConsoleScrollArea, GamepadGlyph, ActionEffectChip, ConsolePaymentPanel, CardRenderEffectBoxComponent, CardRenderData, ConsolePlayedTargetStep, ConsolePlayedTargetLink, ConsolePlayedReceivingStage, ConsoleAmountOperation},
+  components: {Card, ConsoleScrollArea, GamepadGlyph, ActionEffectChip, ConsolePaymentPanel, CardRenderEffectBoxComponent, CardRenderData, ConsolePlayedTargetStep, ConsolePlayedTargetLink, ConsolePlayedReceivingStage, ConsoleAmountOperation, HydroReward},
   directives: {stripActionPrefix},
   props: {
     playerView: {type: Object as PropType<PlayerViewModel>, required: true},
@@ -911,7 +1002,140 @@ export default defineComponent({
       return out;
     },
     allChoices(): ReadonlyArray<ComposerChoice> {
-      return [...preChoices(this.preview), ...branchChoices(this.selectedBranch)];
+      return [...preChoices(this.preview), ...branchChoices(this.selectedBranch), ...this.espOwnerChoices];
+    },
+    // ── the ESPIONAGE ask (Corporate Espionage, DP10) ─────────────────────
+    /** The play's espionage step, when the card carries one. */
+    espionageChoice(): ComposerChoice | undefined {
+      return this.allChoices.find((c) => c.input.type === 'deltaEspionage');
+    },
+    /** THE server-authored projection — every espionage row/summary reads this
+     *  one payload; nothing is re-derived from a cell number. */
+    espionageProjection(): DeltaEspionageProjectionModel | undefined {
+      const c = this.espionageChoice;
+      return c === undefined ? undefined : (c.input as DeltaEspionageInputModel).projection;
+    },
+    /** The captured espionage response — the ONE source of the chosen target
+     *  (the summary row and the re-open's prior both read it back). */
+    espionageCapture(): DeltaEspionageResponse | undefined {
+      const c = this.espionageChoice;
+      return c === undefined ? undefined : deltaEspionageResponseOf(this.captured[c.index]);
+    },
+    /** The chosen target's projection entry (for the summary row). */
+    espionageChosenTarget() {
+      const target = this.espionageCapture?.target;
+      if (target === undefined) {
+        return undefined;
+      }
+      return this.espionageProjection?.targets.find((t) => t.color === target);
+    },
+    espionageChosenView() {
+      const t = this.espionageChosenTarget;
+      return t === undefined ? undefined : espionageOutcomeView(t.reward, t.rewardSkipped);
+    },
+    espionageTargetName(): string {
+      const t = this.espionageChosenTarget;
+      return t === undefined ? '' : displayNameForColor(this.playerView.players, t.color);
+    },
+    espionageOwnerView() {
+      const proj = this.espionageProjection;
+      return proj === undefined ? undefined : espionageOutcomeView(proj.owner.reward);
+    },
+    /**
+     * The OWNER'S OWN landing asks as ORDINARY composer choices, synthesized
+     * from the projection so the whole established machinery (rows, subs,
+     * captures, the commit gate) serves them with no special cases:
+     *  - a CHOICE stage (1/2) → an `or` choice over the server's exact
+     *    alternative keys (the same strings its own OrOptions prints);
+     *  - the repeat stage (7) → a `repeatAction` card choice (the premium
+     *    repeat browser composes the nested inputs);
+     *  - the animal stage (9) → a `card` choice over the tableau candidates
+     *    (the embedded played-target step).
+     * Indices live far past any real branch step, so the captures can never
+     * collide — and `orderedStepResponses` naturally never emits them into
+     * the batch (they FOLD into the espionage response at submit).
+     */
+    espOwnerChoices(): ReadonlyArray<ComposerChoice> {
+      const proj = this.espionageProjectionRaw;
+      if (proj === undefined || !proj.owner.legal) {
+        return [];
+      }
+      const reward = proj.owner.reward;
+      if (reward.kind === 'choice') {
+        const orModel: OrOptionsModel = {
+          title: 'Choose your Hydronetwork reward',
+          buttonLabel: 'Confirm',
+          type: 'or',
+          options: reward.options.map((o) => ({
+            title: espOwnerOptionTitle(o),
+            buttonLabel: 'Select',
+            type: 'option' as const,
+          })),
+        };
+        return [{id: 'esp-owner-choice', scope: 'step', index: ESP_OWNER_CHOICE_INDEX, kind: 'or', input: orModel}];
+      }
+      if (reward.kind === 'repeat-action' && (reward.candidateCards?.length ?? 0) > 0) {
+        const model: SelectCardModel = {
+          title: 'Use a blue card action that has already been used this generation',
+          buttonLabel: 'Take action',
+          type: 'card',
+          cards: (reward.candidateCards ?? []).map((name) => ({name} as CardModel)),
+          max: 1, min: 1, showOnlyInLearnerMode: false, selectBlueCardAction: true, showOwner: false, showSelectAll: false,
+        };
+        return [{id: 'esp-owner-repeat', scope: 'step', index: ESP_OWNER_REPEAT_INDEX, kind: 'card', input: model, repeatAction: true}];
+      }
+      if (reward.kind === 'card-resource' && (reward.candidateCards?.length ?? 0) > 0) {
+        const byName = new Map(this.playerView.thisPlayer.tableau.map((c) => [c.name, c]));
+        const model: SelectCardModel = {
+          title: 'Select card to add 2 animals',
+          buttonLabel: 'Select',
+          type: 'card',
+          cards: (reward.candidateCards ?? []).map((name) => byName.get(name) ?? ({name} as CardModel)),
+          max: 1, min: 1, showOnlyInLearnerMode: false, selectBlueCardAction: false, showOwner: false, showSelectAll: false,
+        };
+        return [{id: 'esp-owner-animal', scope: 'step', index: ESP_OWNER_ANIMAL_INDEX, kind: 'card', input: model, amount: 2, cardResource: 'animal'}];
+      }
+      return [];
+    },
+    /** The projection read WITHOUT the synthesized rows — `espOwnerChoices`
+     *  may not read a computed that includes itself (`allChoices`). */
+    espionageProjectionRaw(): DeltaEspionageProjectionModel | undefined {
+      const steps = [...(this.preview?.preSteps ?? []), ...(this.selectedBranch?.steps ?? [])];
+      for (const s of steps) {
+        if (s.kind === 'input' && s.input.type === 'deltaEspionage') {
+          return (s.input as DeltaEspionageInputModel).projection;
+        }
+      }
+      return undefined;
+    },
+    /** The owner's landing answer, folded from the synthetic rows' captures —
+     *  rides INSIDE the espionage response, never as its own batch entry. */
+    espionageOwnerAnswer(): DeltaStageAnswer | undefined {
+      const proj = this.espionageProjectionRaw;
+      if (proj === undefined || !proj.owner.legal) {
+        return undefined;
+      }
+      const position = proj.owner.toPosition;
+      const reward = proj.owner.reward;
+      if (reward.kind === 'choice') {
+        const captured = this.captured[ESP_OWNER_CHOICE_INDEX] as {type?: string, index?: number} | undefined;
+        return captured?.type === 'or' && typeof captured.index === 'number' ?
+          {position, rewardChoice: captured.index} : undefined;
+      }
+      if (reward.kind === 'repeat-action' && this.repeatResult !== undefined && this.espOwnerChoices.some((c) => c.id === 'esp-owner-repeat')) {
+        const composed = repeatComposedResponses(this.repeatResult.composed) as ReadonlyArray<InputResponse>;
+        return {
+          position,
+          selectedCard: this.repeatResult.chosenCard,
+          ...(composed.length > 0 ? {repeatResponses: composed} : {}),
+        };
+      }
+      if (reward.kind === 'card-resource') {
+        const captured = this.captured[ESP_OWNER_ANIMAL_INDEX] as {type?: string, cards?: ReadonlyArray<CardName>} | undefined;
+        return captured?.type === 'card' && captured.cards !== undefined && captured.cards.length > 0 ?
+          {position, selectedCard: captured.cards[0]} : undefined;
+      }
+      return undefined;
     },
     // (The old multi-card-branch follow-up carve-out is GONE: merge slots
     // host as ONE multi tableau pick, dedupe steps as sequential picks.)
@@ -1408,6 +1632,11 @@ export default defineComponent({
       if (row.kind === 'tabbed' || row.kind === 'repeat') {
         return true;
       }
+      if (row.kind === 'step' && row.choice.input.type === 'deltaEspionage') {
+        // The system-resolved no-target outcome is not re-openable — there is
+        // nothing to change, and the verb must not promise otherwise.
+        return (row.choice.input as DeltaEspionageInputModel).projection.hasLegalTarget;
+      }
       return row.kind === 'step' &&
         (row.choice.kind === 'card' || row.choice.kind === 'player' || row.choice.kind === 'or');
     },
@@ -1532,6 +1761,25 @@ export default defineComponent({
     },
   },
   watch: {
+    /**
+     * The SYSTEM OUTCOME of an espionage play with NO legal target: the pick
+     * is captured as the explicit no-target response the moment the
+     * projection says so — an empty selector must never open, the row reads
+     * «атака пропущена», and the CTA stays reachable. A projection WITH a
+     * legal target never auto-captures (the pick is mandatory and conscious).
+     */
+    espionageProjectionRaw: {
+      immediate: true,
+      handler(proj: DeltaEspionageProjectionModel | undefined): void {
+        if (proj === undefined || proj.hasLegalTarget) {
+          return;
+        }
+        const c = this.espionageChoice;
+        if (c !== undefined && this.captured[c.index] === undefined) {
+          this.captureFor(c, deltaEspionageStepResponse(proj, undefined, this.espionageOwnerAnswer));
+        }
+      },
+    },
     cardName: {
       immediate: true,
       handler() {
@@ -1766,6 +2014,9 @@ export default defineComponent({
       }
       if (row.kind === 'variant') {
         return 'Choose an option';
+      }
+      if (row.kind === 'step' && row.choice.input.type === 'deltaEspionage') {
+        return 'Choose a player';
       }
       switch (row.kind === 'step' ? row.choice.kind : undefined) {
       case 'card': return 'Choose a card';
@@ -2412,6 +2663,8 @@ export default defineComponent({
     openRow(row: PlayRow): void {
       if (row.kind === 'repeat') {
         this.openRepeatPick(row.choice);
+      } else if (row.kind === 'step' && row.choice.input.type === 'deltaEspionage') {
+        this.openEspionagePick(row.choice);
       } else if (row.kind === 'step' && this.choiceMode(row.choice) === 'handPick') {
         this.openHandPick(row.choice);
       } else if (row.kind === 'step' && this.choiceMode(row.choice) === 'playedTarget') {
@@ -2429,6 +2682,31 @@ export default defineComponent({
      * lands back here and rides the play submit as `repeat`. The composer stays
      * MOUNTED (v-show hidden) so this callback survives (mirrors the hand pick).
      */
+    /**
+     * DESCEND into the Hydronetwork workspace's espionage target-selection
+     * mode (the DP08 reward-pick bridge idiom): the composer waits underneath
+     * with its captures intact, the section presents every candidate off the
+     * SERVER's projection, and the resolve captures the pick as the step's
+     * wire response. B returns with the previous pick untouched.
+     */
+    openEspionagePick(c: ComposerChoice): void {
+      const projection = (c.input as DeltaEspionageInputModel).projection;
+      if (!projection.hasLegalTarget) {
+        // The system outcome «Нет доступной цели» — an empty selector must
+        // never open (there is nothing to choose); the row already reads it.
+        return;
+      }
+      enterDeltaEspionagePick({
+        source: this.cardName,
+        projection,
+        prior: this.espionageCapture?.target,
+      }, (draft) => {
+        const cur = this.allChoices.find((x) => x.id === c.id) ?? c;
+        this.captureFor(cur, deltaEspionageStepResponse(projection, draft.target, this.espionageOwnerAnswer));
+        this.focusIdx = this.firstActionableIndex();
+        this.scrollFocused();
+      });
+    },
     openRepeatPick(c: ComposerChoice): void {
       const model = c.input as SelectCardModel;
       const disabled = (model.disabledCards ?? []).map((d) => ({
@@ -3023,11 +3301,20 @@ export default defineComponent({
       }
       this.submitting = true;
       const payment: Payment = paymentFromCounts(this.cost, this.payLanes, this.payCounts, this.megacreditsOnHand);
+      // The espionage response is ASSEMBLED at the commit: the captured target
+      // plus the owner's landing answer folded from the synthetic rows — the
+      // one wire entry; the synthetic rows themselves never reach the batch.
+      let captured = this.captured;
+      const esp = this.espionageChoice;
+      if (esp !== undefined) {
+        const projection = (esp.input as DeltaEspionageInputModel).projection;
+        captured = {...captured, [esp.index]: deltaEspionageStepResponse(projection, this.espionageCapture?.target, this.espionageOwnerAnswer)};
+      }
       this.$emit('confirm', {
         branchIndex: b.index,
         preResponses: this.preview !== undefined ? orderedPreResponses(this.preview, this.capturedPre) : [],
         optionResponse: this.capturedOption,
-        stepResponses: orderedStepResponses(b, this.captured),
+        stepResponses: orderedStepResponses(b, captured),
         payment,
         // The IMMEDIATE resource gains of this play (stock / production /
         // card-resources with their pre-selected hosts), extracted from the
@@ -3049,7 +3336,18 @@ export default defineComponent({
         // ProjectInspection: the chosen already-used action + its composed
         // responses (+ nodeIndex / reveal for the in-frame reveal handoff),
         // appended after the play as `[play, {card}, ...composed]`.
-        repeat: this.repeatResult,
+        // NEVER for the espionage owner's repeat — that one rides INSIDE the
+        // espionage response (`ownerAnswer.repeatResponses`), consumed by the
+        // server's own reward resolution at the owner's landing.
+        repeat: esp !== undefined ? undefined : this.repeatResult,
+        // CORPORATE ESPIONAGE: the shell's execution choreography (the hydro
+        // re-entry, the two-actor marker plan) reads the SAME projection +
+        // picks the batch carries — one derivation, promise = presentation.
+        espionage: esp !== undefined ? {
+          projection: (esp.input as DeltaEspionageInputModel).projection,
+          target: this.espionageCapture?.target,
+          ownerAnswer: this.espionageOwnerAnswer,
+        } : undefined,
       });
     },
     scrollFocused(): void {

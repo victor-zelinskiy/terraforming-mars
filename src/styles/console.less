@@ -5298,6 +5298,42 @@ html.console-mode body.placement-pending .board-outer-spaces > .board-space.boar
            marker in here — the handoff from the flown proxy to the board. */
         &--settle { animation: con-hydromarker-settle calc(680ms * var(--motion-scale, 1)) @con-ease-enter; }
     }
+    /* ── ESPIONAGE GHOSTS — a PROJECTED destination token, structurally
+       distinct from a real marker: hollow (the player colour survives as the
+       ring), dashed outline, semi-transparent, and an ARROW naming the
+       direction (never colour alone). Forward = the owner's own advance;
+       backward = the focused candidate's retreat. ── */
+    &__stop-ghost {
+        position: relative;
+        opacity: .78;
+        /* Hollow: the fill recedes, the colour lives on the ring. */
+        background-clip: content-box;
+        padding: .08rem;
+        box-shadow: 0 0 0 .09rem fade(#dfeaf4, 65%);
+        outline: .06rem dashed fade(#dfeaf4, 75%);
+        outline-offset: .08rem;
+    }
+    &__stop-ghost-arrow {
+        position: absolute;
+        top: 50%;
+        transform: translateY(-52%);
+        font-style: normal;
+        font-weight: 800;
+        font-size: 12px; /* keep-px: inside the rail's own scale */
+        color: #eaf4fd;
+        text-align: center;
+        width: 100%;
+    }
+    &__stop-ghost--fwd .con-hydro__stop-ghost-arrow { color: @con-hydro-mint; }
+    &__stop-ghost--back .con-hydro__stop-ghost-arrow { color: @con-amber; }
+    /* The two projected destination CELLS — direction-coded rings on the
+       cells themselves (the ghosts carry the token reading). */
+    &__stop--esp-fwd {
+        box-shadow: inset 0 0 0 .07rem fade(@con-hydro-mint, 62%);
+    }
+    &__stop--esp-back {
+        box-shadow: inset 0 0 0 .07rem fade(@con-amber, 62%);
+    }
 
     /* ── The stop-content crossfade. ENTER surfaces a beat AFTER the cell
        has mostly opened (the box first, then what it holds); LEAVE detaches
@@ -5817,6 +5853,151 @@ html.console-mode body.placement-pending .board-outer-spaces > .board-space.boar
         &--current { color: @con-hydro-aqua; }
         &--rewarded { color: @con-hydro-mint; }
         &--crossed { color: fade(@con-hydro-mint, 78%); }
+    }
+
+    /* ── ESPIONAGE TARGET PICK (Corporate Espionage) ─────────────────────────
+       The owner's own advance line (constant context) + the candidate rows:
+       large focusable single-choice tiles — reserved state column (the ✓ never
+       sits over text), the player dot, the `from → to`, the SERVER's reward
+       chips or the named block/void. Focus (cyan ring) and the SAVED pick
+       (mint plate + ✓) are different states by the console-wide contract. */
+    &__espowner {
+        display: flex;
+        align-items: center;
+        flex-wrap: wrap;
+        gap: .55rem;
+        padding: .45rem .7rem;
+        border-radius: .45rem;
+        background: rgba(12, 20, 30, 0.55);
+        box-shadow: inset 0 0 0 .05rem fade(@con-hydro-mint, 30%);
+    }
+    &__espowner-cap {
+        font-size: .7rem;
+        letter-spacing: .14em;
+        text-transform: uppercase;
+        color: fade(@con-hydro-mint, 88%);
+        font-weight: 700;
+    }
+    &__espwaiver {
+        display: inline-flex;
+        align-items: center;
+        gap: .3rem;
+        font-size: .68rem;
+        color: @con-amber;
+        .resource-tag,
+        .con-hydro__stop-tag {
+            width: 1.15rem;
+            height: 1.15rem;
+            background-size: contain;
+            background-position: center;
+            background-repeat: no-repeat;
+            border-radius: 50%;
+        }
+    }
+    &__esprows {
+        display: flex;
+        flex-direction: column;
+        gap: .4rem;
+        min-height: 0;
+    }
+    &__esprow {
+        display: flex;
+        align-items: center;
+        flex-wrap: wrap;
+        gap: .55rem;
+        padding: .5rem .7rem;
+        border-radius: .5rem;
+        background: rgba(12, 20, 30, 0.6);
+        box-shadow: inset 0 0 0 .05rem rgba(120, 150, 180, 0.22);
+        cursor: pointer;
+        /* The focus ring changes PAINT only — the row's box is constant. */
+        &--focused {
+            box-shadow: inset 0 0 0 .09rem fade(@con-cyan, 85%), 0 0 .7rem fade(@con-cyan, 18%);
+        }
+        &--selected {
+            background: fade(@con-hydro-mint, 9%);
+            box-shadow: inset 0 0 0 .06rem fade(@con-hydro-mint, 60%);
+        }
+        &--selected&--focused {
+            background: fade(@con-hydro-mint, 9%);
+            box-shadow: inset 0 0 0 .06rem fade(@con-hydro-mint, 60%), 0 0 0 .09rem fade(@con-cyan, 85%);
+        }
+        &--blocked {
+            cursor: default;
+            .con-hydro__esprow-name { color: fade(@con-text-dim, 85%); }
+        }
+    }
+    /* The single-choice state column — RESERVED width, never over text. */
+    &__esprow-state {
+        flex: 0 0 1.1rem;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+    }
+    &__esprow-check {
+        font-style: normal;
+        font-weight: 800;
+        color: @con-hydro-mint;
+    }
+    &__esprow-name {
+        font-weight: 700;
+        color: @con-text;
+        min-width: 0;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+        max-width: 14rem;
+    }
+    &__esprow-block {
+        font-size: .7rem;
+        color: fade(@con-amber, 88%);
+    }
+    &__esprow-reward {
+        display: inline-flex;
+        align-items: center;
+        flex-wrap: wrap;
+        gap: .35rem;
+        margin-left: auto;
+    }
+    &__esprow-skip {
+        font-size: .7rem;
+        color: fade(@con-text-dim, 92%);
+    }
+    /* The backward transition reads amber — direction is words + arrows +
+       hue, never hue alone (the row also prints the numbers). */
+    &__route--back b { color: @con-amber; }
+
+    /* ── The espionage EXECUTION line (commit + result): the attack half's
+       compact commit — dot · name · from → to · «получает» chips / the named
+       void · the calm waiting state while the target decides. ── */
+    &__espline {
+        display: flex;
+        align-items: center;
+        flex-wrap: wrap;
+        gap: .5rem;
+        padding: .45rem .7rem;
+        border-radius: .45rem;
+        background: rgba(12, 20, 30, 0.55);
+        box-shadow: inset 0 0 0 .05rem fade(@con-amber, 30%);
+        &--result { box-shadow: inset 0 0 0 .05rem rgba(120, 150, 180, 0.22); }
+    }
+    /* Inside the centred result column the line takes the COLUMN's width and
+       wraps inside it — a content-sized box would widen the whole centred
+       block past the flow zone and clip at both edges. */
+    &__espline--result { align-self: stretch; }
+    &__espline-name { font-weight: 700; color: @con-text; }
+    &__espline-gets {
+        font-size: .68rem;
+        text-transform: uppercase;
+        letter-spacing: .1em;
+        color: @con-text-dim;
+    }
+    &__espline-wait {
+        display: inline-flex;
+        align-items: center;
+        gap: .4rem;
+        font-size: .72rem;
+        color: fade(@con-amber, 92%);
     }
 
     /* Requirements chips (inline in the req line). */
@@ -28389,6 +28570,40 @@ html.console-mode {
     &__row-impact { font-size: .8rem; font-weight: 600; color: #8ff0c4; font-variant-numeric: tabular-nums; display: inline-flex; align-items: center; gap: .25rem; }
     &__row-impact-icon { width: .95rem; height: .95rem; display: inline-block; background-size: contain !important; background-repeat: no-repeat; background-position: center; }
     &__row-note { font-size: .75rem; color: @con-text-dim; }
+    /* ── ESPIONAGE (DP10) — the setup summary's two halves in the step row:
+       the attack line (target · from → to · their reward / named skip) and
+       the owner's own line beneath it («You: … », the waiver, the extras). */
+    &__esp-skip { font-size: .72rem; color: fade(@con-text-dim, 95%); }
+    &__esp-or {
+        font-size: .62rem;
+        text-transform: uppercase;
+        color: @con-text-dim;
+    }
+    &__esp-note { font-size: .68rem; color: @con-text-dim; font-style: italic; }
+    &__esp-own {
+        display: inline-flex;
+        align-items: center;
+        flex-wrap: wrap;
+        gap: .45rem;
+        margin-top: .25rem;
+    }
+    &__esp-waiver {
+        display: inline-flex;
+        align-items: center;
+        gap: .25rem;
+        color: @con-amber;
+        font-size: .7rem;
+    }
+    &__esp-tag {
+        width: 1.05rem;
+        height: 1.05rem;
+        background-size: contain;
+        background-position: center;
+        background-repeat: no-repeat;
+        border-radius: 50%;
+        display: inline-block;
+    }
+    &__esp-extra { font-size: .72rem; color: @con-text-dim; display: inline-flex; align-items: center; gap: .2rem; }
     /* The claimed stage's «Вы получите» inside the step row (DP08): the
        shared hydro gains block, spaced as a quiet sub-line of the row —
        the label the block already carries is the section voice. */

@@ -90,6 +90,31 @@ describe('notificationSemantics (viewer-relative sign + importance)', () => {
       ]);
       expect(impact.scope).to.eq('vp');
     });
+
+    it('a BACKWARD Hydronetwork move is a track-scoped loss whose text is the position reading', () => {
+      // Corporate Espionage: the canonical `delta-position-changed` fact — the
+      // attacker rides `target.player`/`source.owner`, the chip is «from → to»
+      // (never a summable amount), and it must LEAD the losses without being
+      // netted against stock chips.
+      const chain = [
+        event({id: 1, type: 'delta-position-changed', player: BLUE, correlationId: 1, target: {player: RED}, source: {kind: 'card', card: CARD, owner: RED}, impact: {deltaPosition: {from: 1, to: 0, steps: -1}}}),
+        event({id: 2, type: 'resource-changed', player: BLUE, correlationId: 1, impact: {stock: {titanium: 1}}}),
+      ];
+      const impact = viewerImpactOfChain(chain, BLUE, RED);
+      expect(impact.sign).to.eq('mixed');
+      expect(impact.losses).to.deep.eq([{icon: '', text: '1 → 0'}]);
+      expect(impact.gains).to.deep.eq([{icon: 'titanium', text: '+1'}]);
+      expect(impact.scope).to.eq('track');
+      expect(impact.attacker).to.eq(RED);
+      expect(impact.sourceCard).to.eq(CARD);
+    });
+
+    it('a FORWARD delta move of the viewer inside a foreign chain grows no loss row', () => {
+      const chain = [
+        event({id: 1, type: 'delta-position-changed', player: BLUE, correlationId: 1, impact: {deltaPosition: {from: 1, to: 2, steps: 1}}}),
+      ];
+      expect(viewerImpactOfChain(chain, BLUE, RED).sign).to.eq('neutral');
+    });
   });
 
   describe('viewerImpactOfBotTurn', () => {

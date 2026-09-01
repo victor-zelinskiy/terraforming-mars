@@ -49,6 +49,13 @@ function classifyStep(step: ActionPreviewStep, branch: ActionPreviewBranch, hand
   if (t === 'amount' || t === 'player') {
     return 'inline';
   }
+  // The espionage ask (Corporate Espionage) is PRE-COLLECTED via the
+  // Hydronetwork workspace's target-selection bridge (`deltaEspionageEntry`) —
+  // the chosen target + the owner's landing answer are captured before the
+  // play submits, exactly like the repeat pick above.
+  if (t === 'deltaEspionage') {
+    return 'inline';
+  }
   if (t === 'card') {
     // A repeat-action pick (ProjectInspection) is PRE-COLLECTED via the ДЕЙСТВИЯ
     // КАРТ surface in repeat mode (`consoleRepeatPick`) — the chosen action + its

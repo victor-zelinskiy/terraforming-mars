@@ -1,6 +1,6 @@
 import {CardName} from '../cards/CardName';
 import {ColonyName} from '../colonies/ColonyName';
-import {ColorWithNeutral} from '../Color';
+import {Color, ColorWithNeutral} from '../Color';
 import {GlobalEventName} from '../turmoil/globalEvents/GlobalEventName';
 import {PartyName} from '../turmoil/PartyName';
 import {PolicyId} from '../turmoil/Types';
@@ -314,6 +314,40 @@ export function isDeltaProjectInputResponse(response: InputResponse): response i
   return keys.includes('amount') && keys.every((k) => allowed.includes(k));
 }
 
+/**
+ * Corporate Espionage (DP10): the chosen target and the owner's pre-answered
+ * landing ask. `target` is REQUIRED exactly when the projection offered a
+ * legal target and FORBIDDEN when it offered none — a mismatch against the
+ * live projection refuses out loud (no silent retarget, no silent skip).
+ * The `expected*From` positions pin the client's rendered prognosis: a
+ * commit whose live positions moved refuses instead of resolving a move the
+ * player never saw.
+ */
+export interface DeltaEspionageResponse {
+  type: 'deltaEspionage',
+  /** The attacked player. Absent ⇔ the projection had no legal target. */
+  target?: Color;
+  /** The target's position the client rendered (`from` of the shown `from → to`). */
+  expectedTargetFrom?: number;
+  /** The owner's position the client rendered. */
+  expectedOwnerFrom?: number;
+  /**
+   * The owner's pre-answered ask of THEIR OWN landing stage (the same
+   * invocation-plan shape every Hydronetwork door carries; its position must
+   * equal the owner's destination). Never carries the target's choices —
+   * those belong to the target.
+   */
+  ownerAnswer?: DeltaStageAnswer;
+}
+
+export function isDeltaEspionageResponse(response: InputResponse): response is DeltaEspionageResponse {
+  if (response.type !== 'deltaEspionage') {
+    return false;
+  }
+  const allowed = ['type', 'target', 'expectedTargetFrom', 'expectedOwnerFrom', 'ownerAnswer'];
+  return Object.keys(response).every((k) => allowed.includes(k));
+}
+
 export type InputResponse =
   AndOptionsResponse |
   CancelResponse |
@@ -321,6 +355,7 @@ export type InputResponse =
   SelectInitialCardsResponse |
   SelectAmountResponse |
   DeltaProjectInputResponse |
+  DeltaEspionageResponse |
   DeltaStageRewardResponse |
   SelectCardResponse |
   SelectColonyResponse |

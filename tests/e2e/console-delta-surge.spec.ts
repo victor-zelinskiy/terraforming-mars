@@ -302,29 +302,25 @@ test.describe('Delta Surge — the ordered multi-reward traversal · fhd', () =>
     await press(page, 'ArrowLeft', 1600);
     await page.waitForSelector('.con-hydro__stop', {timeout: 20_000});
     await page.waitForTimeout(900);
-    const marks = await page.evaluate(() => {
-      const out: Record<string, string> = {};
-      document.querySelectorAll('.con-hydro__stop').forEach((cell) => {
-        const pos = cell.getAttribute('data-hydro-stop') ?? '?';
-        const badge = cell.querySelector('.con-hydro__stop-badge');
-        out[pos] = badge === null ? '' :
-          badge.className.replace(/.*con-hydro__stop-badge--(\w+).*/, '$1');
-      });
-      return {
-        badges: out,
-        // …and the TRAIL: one mark per player who has been here. The viewer's
-        // own is the only one in a solo game, but the row is what makes the
-        // MarsBot readable as somebody moving along the same track.
-        trailCells: document.querySelectorAll('.con-hydro__stop-trail').length,
-        viewerMarks: document.querySelectorAll('.con-hydro__trailmark--viewer').length,
-      };
-    });
-    for (const pos of ['1', '2', '3', '4']) {
-      expect(marks.badges[pos], `stage ${pos} was PAID in passing (${JSON.stringify(marks.badges)})`)
-        .toBe('crossed');
+    // THE CURRENT TRACK-HISTORY CONTRACT (the cells carry only the player
+    // markers; «who and what happened here» is READING and lives in the
+    // focused stage's ROSTER — the per-cell ✓/⇢/↷ badges and the trail row
+    // were tried on the rail and deliberately removed): walk the cursor onto
+    // a stage the traversal PAID IN PASSING and read the roster's own
+    // «crossed» status for the viewer.
+    let sawCrossed = false;
+    for (let i = 0; i < 8 && !sawCrossed; i++) {
+      const s = await page.evaluate(() => ({
+        selected: document.querySelector('.con-hydro__stop--focused')?.getAttribute('data-hydro-stop') ?? '',
+        crossed: document.querySelector('.con-hydro__roster-row--viewer .con-hydro__roster-state--crossed') !== null,
+      }));
+      if (s.crossed && ['1', '2', '3', '4'].includes(s.selected)) {
+        sawCrossed = true;
+        break;
+      }
+      await press(page, s.selected === '1' ? 'ArrowRight' : 'ArrowLeft', 900);
     }
-    expect(marks.trailCells, 'the reached cells carry a trail').toBeGreaterThanOrEqual(5);
-    expect(marks.viewerMarks, 'and the viewer is on it').toBeGreaterThanOrEqual(5);
+    expect(sawCrossed, 'a stage paid in passing reads «crossed» in the viewer\'s roster row').toBeTruthy();
     await shoot(page, '05-track-history');
   });
 });

@@ -24,7 +24,8 @@ import {UnplayableReason} from '../../common/cards/UnplayableReason';
 import {notEnoughEnergy, ruleReason} from '../cards/actionReasons';
 import {DeltaStageAnswer} from '../../common/inputs/InputResponse';
 import {clearBatchTail, parkBatchTail} from '../inputs/deferredInputBatch';
-import {DeltaMovementCause, commitDeltaMovement, plannedDeltaMovement, resolveDeltaMovementBonuses} from './deltaMovement';
+import {DeltaMovementCause, commitDeltaMovement, commitDeltaRetreat, plannedDeltaMovement, resolveDeltaMovementBonuses} from './deltaMovement';
+import {DeltaEspionageBlockedReason, DeltaStageOutcomeProjection} from '../../common/models/DeltaEspionageModel';
 
 /**
  * The ordered tags for each track position (1-indexed).
@@ -111,6 +112,16 @@ export type AdvanceOptions = {
  */
 export const DP04_ADVANCE: AdvanceOptions = {maxSteps: 1, free: true, energyToll: 1, source: CardName.STORM_SURGE_BARRIER};
 
+/**
+ * THE DP10 CONTEXT — Corporate Espionage's own mandatory one-step advance:
+ * `free` + NO toll (the card's whole price is its printed cost) +
+ * `tagWaiver` («You may ignore 1 required tag» — the same waiver Dynamic
+ * Ocean Barrier sells, applied through the same shared evaluator: consumed
+ * only when actually needed, never covering a deficit of two, never leaking
+ * into a later move).
+ */
+export const DP10_ADVANCE: AdvanceOptions = {maxSteps: 1, free: true, tagWaiver: true, source: CardName.CORPORATE_ESPIONAGE};
+
 export class DeltaProjectExpansion {
   private constructor() {}
 
@@ -125,15 +136,23 @@ export class DeltaProjectExpansion {
   // (positions 1/2). POSITIONAL: only a stop at that very position takes the
   // record — a stage CROSSED under Delta Surge grants the same choice but is
   // not a stop (the marker never stood there), so its answer must not be
-  // written onto the destination's history. Positions only ever increase, so
-  // at most one stop per position exists. A REWARD-ONLY grant (Dutch
+  // written onto the destination's history. A REWARD-ONLY grant (Dutch
   // Mountains) never calls this at all (`resolveReward`'s `recordStop`):
   // re-claiming a stage the player once stopped on must never rewrite that
-  // stop's historical choice.
+  // stop's historical choice. The LATEST stop at the position takes the
+  // record: a backward move (Corporate Espionage) can land a player on a
+  // stage they once stopped on, and that NEW landing's choice must never
+  // rewrite the historical one.
   private static recordStopChoice(player: IPlayer, position: number, choice: number): void {
-    const stop = player.deltaProjectData?.stops?.find((s) => s.position === position);
-    if (stop !== undefined) {
-      stop.choice = choice;
+    const stops = player.deltaProjectData?.stops;
+    if (stops === undefined) {
+      return;
+    }
+    for (let i = stops.length - 1; i >= 0; i--) {
+      if (stops[i].position === position) {
+        stops[i].choice = choice;
+        return;
+      }
     }
   }
 
@@ -840,6 +859,167 @@ export class DeltaProjectExpansion {
     player.game.log('${0} claimed the ${1} stage reward of the Hydronetwork via ${2}', (b) =>
       b.player(player).string(stageName).cardName(opts.source));
     DeltaProjectExpansion.resolveReward(player, position, false, opts.answer, false);
+  }
+
+  /**
+   * DOES THIS PLAYER TAKE HYDRONETWORK STAGE REWARDS AT ALL? — the ONE gate
+   * both the espionage projection and the retreat resolution read, so the
+   * promise and the payout cannot diverge.
+   *
+   * MarsBot resolves the track by the Solo Delta Project reference card,
+   * which grants it NO row reward ever (no resources, production, cards or
+   * the Jovian tag — see `AutomaDeltaProject`'s class doc); it scores only
+   * the terminal 2/5 VP. This is the bot's OWN standing rule for this track,
+   * not a card's special case: a card that lands the bot on a stage simply
+   * finds the compensation clause void, and must SAY so (the projection's
+   * `rewardSkipped: 'automa-rules'`) rather than show a reward that never
+   * arrives. It is also load-bearing: the bot never answers a prompt, so a
+   * choice-stage reward deferred onto it would deadlock the game.
+   */
+  public static takesStageRewards(player: IPlayer): boolean {
+    return player.isMarsBot !== true;
+  }
+
+  /**
+   * WHY `target` CANNOT BE PUSHED BACK one step — the ONE eligibility verdict
+   * the espionage projection and the retreat commit share. `undefined` ⇔ the
+   * retreat is legal.
+   *
+   *  - `vp-protected` — the printed «unless they are already at the VP
+   *    level»: positions 10/11 are out of reach.
+   *  - `track-start` — the hard lower bound: a marker on position 0 cannot
+   *    actually move back, and a zero-step «move» is not a movement (so it
+   *    would pay no landing reward either — the honest answer is that the
+   *    player is not a target at all).
+   */
+  public static retreatBlockedReason(target: IPlayer): DeltaEspionageBlockedReason | undefined {
+    const position = target.deltaProjectData?.position ?? 0;
+    if (position >= VP2_POSITION) {
+      return 'vp-protected';
+    }
+    if (position <= 0) {
+      return 'track-start';
+    }
+    return undefined;
+  }
+
+  /**
+   * WHAT LANDING ON `position` PAYS `player` — the PURE projection mirror of
+   * {@link resolveReward}, kept deliberately tiny and co-maintained with that
+   * switch (a reward change there is a change here, one diff; the sibling of
+   * `deltaAdvancePlan.guaranteedStockGainAt`, which mirrors only the
+   * deterministic stock half). Per SUBJECT: a stage whose reward depends on
+   * the player's own tags/tableau states THAT player's numbers, so the
+   * espionage target selector can promise the target's exact outcome.
+   * MUST NOT mutate game state.
+   */
+  public static stageOutcomeProjection(player: IPlayer, position: number): DeltaStageOutcomeProjection {
+    if (position === VP2_POSITION) {
+      return {kind: 'vp', amount: 2};
+    }
+    if (position === VP5_POSITION) {
+      return {kind: 'vp', amount: 5};
+    }
+    switch (DELTA_TRACK_TAGS[position]) {
+    case Tag.BUILDING:
+      return {kind: 'choice', options: [
+        {resource: Resource.STEEL, amount: 2},
+        {resource: Resource.PLANTS, amount: 2},
+      ]};
+    case Tag.POWER:
+      return {kind: 'choice', options: [
+        {resource: Resource.ENERGY, amount: 1, production: true},
+        {resource: Resource.HEAT, amount: 1, production: true},
+      ]};
+    case Tag.EARTH:
+      return {kind: 'production', resource: Resource.MEGACREDITS, amount: 2};
+    case Tag.SPACE:
+      return {kind: 'production', resource: Resource.TITANIUM, amount: 1};
+    case Tag.SCIENCE:
+      return {kind: 'draw', look: 4, keep: 2};
+    case Tag.PLANT:
+      return {kind: 'stock', resource: Resource.PLANTS, amount: player.tags.count(Tag.PLANT)};
+    case Tag.MICROBE: {
+      const cards = DeltaProjectExpansion.getUsedActionCards(player).map((c) => c.name);
+      return {kind: 'repeat-action', candidates: cards.length,
+        ...(cards.length > 0 ? {candidateCards: cards} : {})};
+    }
+    case Tag.JOVIAN:
+      return {kind: 'jovian-tag', alreadyClaimed: player.deltaProjectData?.jovianBonus === true};
+    case Tag.ANIMAL: {
+      const cards = new AddResourcesToCard(player, CardResource.ANIMAL, {count: 2}).getCards().map((c) => c.name);
+      return {kind: 'card-resource', resource: CardResource.ANIMAL, amount: 2, candidates: cards.length,
+        ...(cards.length > 0 ? {candidateCards: cards} : {})};
+    }
+    default:
+      return {kind: 'none'};
+    }
+  }
+
+  /**
+   * THE BACKWARD-MOVE ENTRY POINT (Corporate Espionage's attack): push
+   * `target` EXACTLY ONE step back and grant them their resulting stage's
+   * ordinary reward — the retreat twin of {@link advance}, built from the
+   * same primitives:
+   *
+   *  - eligibility is re-validated HERE, at commit, against the live position
+   *    ({@link retreatBlockedReason}) — a crafted/stale target throws before
+   *    anything mutates;
+   *  - the position write goes through the ONE ledger
+   *    (`commitDeltaRetreat`), which publishes the canonical movement fact —
+   *    so the journal, the notification layer and any future reactive rule
+   *    see a retreat exactly as they see an advance, and the «advance» hooks
+   *    (Social Heating, Development Manager) correctly see nothing;
+   *  - the landing reward is THE resolver every arrival uses
+   *    ({@link resolveReward}), asked ON THE TARGET — its choices are the
+   *    target's own prompts, never the attacker's. A stop is recorded on the
+   *    same terms a landing records one (the reward was actually taken);
+   *  - a player who takes no stage rewards ({@link takesStageRewards} —
+   *    MarsBot's Solo Delta Project rule) still retreats, and the void
+   *    compensation clause is NAMED in the log, never silently dropped.
+   *
+   * Runs inside the caller's own event scope (the card play's action chain),
+   * so the target's movement and reward land in one causal record.
+   */
+  public static retreat(target: IPlayer, opts: {source: CardName, by: IPlayer}): void {
+    const blocked = DeltaProjectExpansion.retreatBlockedReason(target);
+    if (blocked !== undefined) {
+      throw new Error(`${target.color} cannot be pushed back on the Hydronetwork (${blocked})`);
+    }
+    const game = target.game;
+    const takesReward = DeltaProjectExpansion.takesStageRewards(target);
+    const movement = commitDeltaRetreat(target, 1, {kind: 'card-attack', card: opts.source, by: opts.by.color}, (m) => {
+      // The landing is a REAL stop of the target's marker — recorded on the
+      // same terms an advance records one («stopped AND received the
+      // reward»), so the per-stage history stays honest. The bot records no
+      // stops on this track at all (it takes no reward — the record would
+      // claim one).
+      if (takesReward) {
+        const progress = DeltaProjectExpansion.getProgress(target);
+        if (progress.stops === undefined) {
+          progress.stops = [];
+        }
+        progress.stops.push({position: m.to, generation: game.generation});
+      }
+      const stageName = DELTA_STAGE_NAMES[m.to] ?? '';
+      game.log('${0} pushed ${1} back on the Hydronetwork to ${2} via ${3}', (b) =>
+        b.player(opts.by).player(target).string(stageName).cardName(opts.source));
+    });
+    if (movement === undefined) {
+      // Unreachable given the eligibility check above — stated as a throw so
+      // a future track re-shape cannot turn it into a silent no-op.
+      throw new Error(`${target.color} did not actually move back on the Hydronetwork`);
+    }
+    // «Both players receive the bonus associated with their resulting
+    // levels» — the target's half, resolved by the ONE arrival resolver so a
+    // pushed-back landing and an advanced landing cannot diverge. The
+    // reward's own choices defer ON THE TARGET (their prompts, their
+    // decisions); the attacker's flow holds at its barrier until they run.
+    if (!takesReward) {
+      game.log('${0} takes no Hydronetwork stage reward (Bot rules)', (b) => b.player(target));
+      return;
+    }
+    DeltaProjectExpansion.resolveReward(target, movement.to);
   }
 
   /**

@@ -249,6 +249,15 @@ export function consoleTaskSummary(
         sourceCard: source,
         returnKey: 'Return to the decision',
       };
+    case 'espionage':
+      // The standalone Corporate Espionage ask — served by the same workspace
+      // through the espionage pick door.
+      return {
+        kickerKey: 'Mars Hydronetwork',
+        ask: ask(wf, 'Target selection'),
+        sourceCard: source,
+        returnKey: 'Return to the decision',
+      };
     case 'confirm':
       return {kickerKey: 'Confirmation', ask: ask(wf, 'Confirm the action'), sourceCard: source, returnKey: 'Return to the decision'};
     case 'contextual':

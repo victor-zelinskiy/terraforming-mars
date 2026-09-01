@@ -1,4 +1,5 @@
 import {CardName} from '../../common/cards/CardName';
+import {Color} from '../../common/Color';
 import {Resource} from '../../common/Resource';
 import {DELTA_STAGE_NAMES} from '../../common/delta/deltaStages';
 import {IPlayer} from '../IPlayer';
@@ -46,10 +47,22 @@ import {ICard} from '../cards/ICard';
  * ═══ IDENTITY ═══
  *
  * {@link DeltaMovement.key} is unique BY CONSTRUCTION and needs no stored
- * counter: track positions only ever increase, so one player can never commit
- * the same `from → to` twice in a game. Ordering and idempotency of everything
- * the fact causes ride the EventRecorder's correlation chain, which the caller
- * has already opened — this module invents no second identity scheme.
+ * counter: a FORWARD `from → to` cannot repeat between retreats, and a
+ * RETREAT key (the one move class that can repeat a pair — retreat →
+ * re-advance → retreat) carries the event stream's monotonic ordinal.
+ * Ordering and idempotency of everything the fact causes ride the
+ * EventRecorder's correlation chain, which the caller has already opened —
+ * this module invents no second identity scheme.
+ *
+ * ═══ BACKWARD MOVEMENT (Corporate Espionage) ═══
+ *
+ * {@link commitDeltaRetreat} is the retreat twin: same module (the one-writer
+ * guard keeps holding), same fact shape with `steps` SIGNED negative and
+ * `direction: 'backward'`. The advance hooks (`onDeltaTrackAdvance`) and the
+ * movement bonuses (`deltaMovementBonus` — every such card prints «advances»)
+ * are never asked for one; the canonical `delta-position-changed` event is
+ * published for BOTH directions, so a future backward-reactive rule reads the
+ * fact instead of inventing a pipeline.
  */
 
 /** The end of the track — the same table the stage names come from. */
@@ -65,7 +78,14 @@ export type DeltaMovementCause =
   /** A card granted the move (Dynamic Ocean Barrier, Storm Surge Barrier, …). */
   | {kind: 'card', card: CardName}
   /** The Solo Delta Project reference-card resolution (MarsBot). */
-  | {kind: 'automa'};
+  | {kind: 'automa'}
+  /**
+   * An OPPONENT's card moved this player's marker BACKWARD (Corporate
+   * Espionage). `by` is the acting player — provenance for the journal and
+   * the victim's notification; the MOVER (the fact's `player`) stays the one
+   * whose marker moved, exactly as for every other cause.
+   */
+  | {kind: 'card-attack', card: CardName, by: Color};
 
 export type DeltaMovement = {
   /** The player whose marker moved — human or bot, no distinction is drawn. */
@@ -74,13 +94,29 @@ export type DeltaMovement = {
   readonly from: number;
   /** Track position it stands on now. */
   readonly to: number;
-  /** ACTUAL cells crossed (`to - from`), always ≥ 1. THE rule input. */
+  /**
+   * ACTUAL cells crossed, SIGNED (`to - from`): ≥ 1 for an advance, ≤ −1 for
+   * a retreat. THE rule input. Every historical advance hook reads it as the
+   * positive step count and guards `steps <= 0` — which is exactly what keeps
+   * «advance» rules (Social Heating's heat, Development Manager's threshold)
+   * silent on a backward move without any of them naming one.
+   */
   readonly steps: number;
-  /** What the caller asked for. Context only — never a reward input. */
+  /** What the caller asked for (signed like `steps`). Context only — never a
+   *  reward input. */
   readonly requested: number;
+  /** Derived from the sign of `steps` — stated explicitly so a consumer of
+   *  the serialized fact never re-derives arithmetic. */
+  readonly direction: 'forward' | 'backward';
   readonly cause: DeltaMovementCause;
   readonly generation: number;
-  /** Unique by construction: positions only increase. See the module doc. */
+  /**
+   * Diagnostic identity. For a FORWARD move `<color>:<from>-><to>` is unique
+   * by construction (positions only increase between retreats); a RETREAT can
+   * legitimately repeat a from→to pair, so its key carries the event stream's
+   * monotonic ordinal. Idempotency of everything a fact causes rides the
+   * EventRecorder's correlation chain either way — see the module doc.
+   */
   readonly key: string;
 };
 
@@ -149,9 +185,68 @@ export function commitDeltaMovement(
     to,
     steps: to - from,
     requested,
+    direction: 'forward',
     cause,
     generation: player.game.generation,
     key: `${player.color}:${String(from)}->${String(to)}`,
+  };
+  journal?.(movement);
+  publishDeltaMovement(movement);
+  return movement;
+}
+
+/**
+ * THE ONE COMMIT POINT FOR A BACKWARD MOVE (Corporate Espionage's attack) —
+ * the retreat twin of {@link commitDeltaMovement}, in the same module so the
+ * source-level «one writer of a track position» guard keeps holding by
+ * construction.
+ *
+ * `requested` is the POSITIVE number of cells to move back; the committed
+ * fact carries it signed (`steps = to - from ≤ −1`). The move floors at the
+ * track start: a request from position 0 commits nothing and publishes
+ * nothing (the same «zero is not a movement» rule the advance has), so a
+ * caller must have already refused such a target out loud.
+ *
+ * WHAT A RETREAT DOES NOT DO, on purpose:
+ *  - it never asks the VP-slot occupancy question (a backward move can only
+ *    land on positions 0..8 — VP-protected players are not retreatable at
+ *    all, which is the CALLER's eligibility rule, checked before this);
+ *  - it never fires `onDeltaTrackAdvance` (an advance hook is about
+ *    advancing) and never owes `deltaMovementBonus` payouts — the shared
+ *    reader refuses non-positive steps, which is the printed reading of
+ *    every such card today («advances on the Hydronetwork track»);
+ *  - it grants no stage reward itself — landing rewards are the caller's
+ *    rule (`DeltaProjectExpansion.retreat`), exactly as `advance` owns them
+ *    for the forward move.
+ */
+export function commitDeltaRetreat(
+  player: IPlayer,
+  requested: number,
+  cause: DeltaMovementCause,
+  journal?: (movement: DeltaMovement) => void,
+): DeltaMovement | undefined {
+  if (!Number.isFinite(requested) || requested <= 0) {
+    return undefined;
+  }
+  const progress = progressOf(player);
+  const from = progress.position;
+  const to = Math.max(0, from - requested);
+  if (to === from) {
+    return undefined;
+  }
+  progress.position = to;
+  const movement: DeltaMovement = {
+    player,
+    from,
+    to,
+    steps: to - from,
+    requested: -requested,
+    direction: 'backward',
+    cause,
+    generation: player.game.generation,
+    // A retreat can repeat a from→to pair (retreat → re-advance → retreat),
+    // so its diagnostic key rides the event stream's monotonic ordinal.
+    key: `${player.color}:${String(from)}->${String(to)}#e${String(player.game.events.events.length)}`,
   };
   journal?.(movement);
   publishDeltaMovement(movement);
@@ -175,12 +270,21 @@ export function commitDeltaMovement(
 function publishDeltaMovement(movement: DeltaMovement): void {
   const player = movement.player;
   const game = player.game;
-  for (const card of player.tableau) {
-    if (card.onDeltaTrackAdvance === undefined) {
-      continue;
+  // The CANONICAL machine-readable movement fact, first — before any hook it
+  // triggers, so the event stream's order mirrors causality. One event per
+  // committed move, forward and backward alike; the notification layer and a
+  // future journal read positions off THIS, never off a localized log line.
+  game.events.recordDeltaPositionChange(player, movement);
+  if (movement.steps > 0) {
+    // The ADVANCE hooks — about advancing by name and by meaning, so a
+    // backward move never reaches them.
+    for (const card of player.tableau) {
+      if (card.onDeltaTrackAdvance === undefined) {
+        continue;
+      }
+      game.events.withEffect(player, card, 'delta-advance',
+        () => card.onDeltaTrackAdvance?.(player, movement.steps));
     }
-    game.events.withEffect(player, card, 'delta-advance',
-      () => card.onDeltaTrackAdvance?.(player, movement.steps));
   }
   for (const bonus of resolveDeltaMovementBonuses(game.players, movement)) {
     const owner = bonus.beneficiary;
@@ -248,6 +352,7 @@ export function plannedDeltaMovement(
     to,
     steps: to - from,
     requested: to - from,
+    direction: 'forward',
     cause,
     generation: player.game.generation,
     key: `${player.color}:${String(from)}->${String(to)}`,

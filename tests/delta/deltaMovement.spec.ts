@@ -6,7 +6,7 @@ import {Resource} from '../../src/common/Resource';
 import {Tag} from '../../src/common/cards/Tag';
 import {DELTA_STAGE_NAMES} from '../../src/common/delta/deltaStages';
 import {DELTA_TRACK_TAGS, DeltaProjectExpansion} from '../../src/server/delta/DeltaProjectExpansion';
-import {commitDeltaMovement, plannedDeltaMovement, resolveDeltaMovementBonuses} from '../../src/server/delta/deltaMovement';
+import {commitDeltaMovement, commitDeltaRetreat, plannedDeltaMovement, resolveDeltaMovementBonuses} from '../../src/server/delta/deltaMovement';
 import {SocialHeating} from '../../src/server/cards/delta/SocialHeating';
 import {DevelopmentManager} from '../../src/server/cards/delta/DevelopmentManager';
 import {IGame} from '../../src/server/IGame';
@@ -168,6 +168,68 @@ describe('the Delta Project movement ledger', () => {
       commitDeltaMovement(player, 2, {kind: 'standard'});
       expect(player.megaCredits).to.eq(2); // Development Manager: 2+ steps
       expect(player.heat).to.eq(2); // Social Heating: 1 per step
+    });
+  });
+
+  describe('the retreat twin (Corporate Espionage)', () => {
+    let game: IGame;
+    let player: TestPlayer;
+    let opponent: TestPlayer;
+
+    beforeEach(() => {
+      [game, player, opponent] = testGame(2, {deltaProjectExpansion: true});
+    });
+
+    it('commits a signed backward fact with the attacker in its cause', () => {
+      player.deltaProjectData!.position = 4;
+      const movement = commitDeltaRetreat(player, 1, {kind: 'card-attack', card: CardName.CORPORATE_ESPIONAGE, by: opponent.color})!;
+      expect(movement.from).to.eq(4);
+      expect(movement.to).to.eq(3);
+      expect(movement.steps).to.eq(-1);
+      expect(movement.requested).to.eq(-1);
+      expect(movement.direction).to.eq('backward');
+      expect(player.deltaProjectData!.position).to.eq(3);
+    });
+
+    it('floors at the track start: no write, no publication', () => {
+      const before = game.events.events.length;
+      expect(commitDeltaRetreat(player, 1, {kind: 'card-attack', card: CardName.CORPORATE_ESPIONAGE, by: opponent.color})).is.undefined;
+      expect(player.deltaProjectData!.position).to.eq(0);
+      expect(game.events.events.length).to.eq(before);
+    });
+
+    it('never fires the advance hooks and never owes movement bonuses', () => {
+      player.deltaProjectData!.position = 4;
+      player.playedCards.push(new SocialHeating());
+      const hook: Array<number> = [];
+      player.playedCards.push(fakeCard({onDeltaTrackAdvance: (_p, steps) => {
+        hook.push(steps);
+      }}));
+      commitDeltaRetreat(player, 1, {kind: 'card-attack', card: CardName.CORPORATE_ESPIONAGE, by: opponent.color});
+      expect(hook).to.deep.eq([]);
+      expect(player.heat).to.eq(0);
+    });
+
+    it('two identical retreats carry distinct keys (the re-advance loop)', () => {
+      player.deltaProjectData!.position = 4;
+      const first = commitDeltaRetreat(player, 1, {kind: 'card-attack', card: CardName.CORPORATE_ESPIONAGE, by: opponent.color})!;
+      commitDeltaMovement(player, 1, {kind: 'standard'});
+      const second = commitDeltaRetreat(player, 1, {kind: 'card-attack', card: CardName.CORPORATE_ESPIONAGE, by: opponent.color})!;
+      expect(first.key).to.not.eq(second.key);
+    });
+
+    it('both directions publish the canonical delta-position-changed fact', () => {
+      player.deltaProjectData!.position = 4;
+      commitDeltaRetreat(player, 1, {kind: 'card-attack', card: CardName.CORPORATE_ESPIONAGE, by: opponent.color});
+      commitDeltaMovement(player, 2, {kind: 'standard'});
+      const facts = game.events.events.filter((e) => e.type === 'delta-position-changed');
+      expect(facts).lengthOf(2);
+      expect(facts[0].impact.deltaPosition).to.deep.eq({from: 4, to: 3, steps: -1});
+      expect(facts[0].player).to.eq(player.color);
+      expect(facts[0].target).to.deep.eq({player: opponent.color});
+      expect(facts[0].tags).to.include('attack');
+      expect(facts[1].impact.deltaPosition).to.deep.eq({from: 3, to: 5, steps: 2});
+      expect(facts[1].source).to.deep.eq({kind: 'card', card: CardName.DELTA_PROJECT, owner: player.color});
     });
   });
 

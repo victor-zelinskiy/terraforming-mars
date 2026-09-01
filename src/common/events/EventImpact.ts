@@ -93,6 +93,16 @@ export type EventImpact = {
    */
   reveal?: {origin: RevealOrigin; result: RevealResult; count: number; found?: boolean};
   /**
+   * ONE committed movement on the Delta Project («Гидросеть») track — the
+   * canonical machine-readable position fact (`delta-position-changed`).
+   * `steps` is SIGNED (`to - from`): negative = the marker was pushed BACK
+   * (Corporate Espionage). The mover is the event's `player`; for an attack
+   * the acting player rides `target.player` + `source.owner`. Emitted by the
+   * movement ledger for every commit, so the victim's notification and a
+   * future journal read positions off THIS — never off a localized log line.
+   */
+  deltaPosition?: {from: number; to: number; steps: number};
+  /**
    * Before/after snapshot of the SINGLE resource a stock / production delta moved —
    * captured AT the event from live state (`before = after − amount`), so a loss can
    * read "plants 506 → 504" not just "−2". Only the affected resource; attached by the

@@ -30,6 +30,9 @@
  */
 import {reactive} from 'vue';
 import {CardName} from '@/common/cards/CardName';
+import type {Color} from '@/common/Color';
+import type {Tag} from '@/common/cards/Tag';
+import type {DeltaStageOutcomeProjection} from '@/common/models/DeltaEspionageModel';
 import type {WorkspacePhase, WorkspaceBackVerb} from '@/client/console/consoleWorkspaceFlow';
 import {backVerbFor} from '@/client/console/consoleWorkspaceFlow';
 import {workspaceFrameEpoch} from '@/client/console/consoleWorkspaceStack';
@@ -141,6 +144,31 @@ export type HydroCommitRecord = {
   /** The tableau card whose effect granted the crossed rewards — presented as
    *  the move's secondary MODIFIER (inspectable), never as its source. */
   modifierCard?: CardName;
+  /**
+   * THE ESPIONAGE PREFIX (Corporate Espionage, DP10): the attacked player's
+   * committed retreat, resolved and presented STRICTLY BEFORE the owner's own
+   * advance the rest of this record describes. Frozen off the server's
+   * projection at submit — the commit scene's target line, the waiting
+   * caption and the result's attack half all read THIS, never live state.
+   */
+  espionage?: {
+    /** The attacked player (absent ⇔ the attack half was a NAMED skip). */
+    target?: {
+      color: Color;
+      from: number;
+      to: number;
+      /** The reward THEY receive at the resulting stage (server-projected). */
+      reward?: DeltaStageOutcomeProjection;
+      /** The compensation clause is void for this player (MarsBot's Solo
+       *  Delta Project rule) — named, never silent. */
+      rewardSkipped?: 'automa-rules';
+      /** The reward belongs to the target's own decision — the flow parks
+       *  after their retreat and the actor sees a calm waiting state. */
+      interactive?: boolean;
+    };
+    /** The owner's consumed tag waiver — the result names it. */
+    waivedTag?: Tag;
+  };
 };
 
 export const hydroFlowState = reactive<{
@@ -452,6 +480,14 @@ export function hydroWorkspaceRestorePlan(input: {
    * setting the step aside and then asking the wheel for the track again.
    */
   ownedByThisFrame: boolean,
+  /**
+   * The record is an ESPIONAGE EXECUTION (Corporate Espionage): its frame is
+   * pushed AT the commit, so this very mount is the presentation's first
+   * frame — a commit with no claim and no follow-up yet, which the ordinary
+   * heuristic below would mistake for a finished resolution and fold. An
+   * OWNED espionage record therefore always seats.
+   */
+  espionageExecution?: boolean,
 }): HydroRestorePlan {
   if (input.commit === undefined) {
     return 'none';
@@ -462,7 +498,7 @@ export function hydroWorkspaceRestorePlan(input: {
   if (!input.ownedByThisFrame) {
     return 'fold';
   }
-  if (input.claimHost === 'hydro' || input.followUpInteractive) {
+  if (input.claimHost === 'hydro' || input.followUpInteractive || input.espionageExecution === true) {
     return 'seat-commit';
   }
   return 'fold';

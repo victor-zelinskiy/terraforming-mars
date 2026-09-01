@@ -391,6 +391,9 @@ export default defineComponent({
       return [{scope: 'actor', chips: this.notification.pills}];
     },
     scopeLabel(): string {
+      if (this.impactBand?.scope === 'track') {
+        return 'on the Hydronetwork';
+      }
       return this.impactBand?.scope === 'production' ? 'from production' : 'from stock';
     },
     revealVerb(): string {

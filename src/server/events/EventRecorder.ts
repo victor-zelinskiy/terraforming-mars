@@ -15,9 +15,14 @@ import {fromToEventSource} from './fromToEventSource';
 import {IPlayer} from '../IPlayer';
 import {ICard} from '../cards/ICard';
 import {CardType} from '../../common/cards/CardType';
+import type {DeltaMovementCause} from '../delta/deltaMovement';
 
 // Minimal structural view of the game (avoids a circular Game import).
 type GameClock = {generation: number; phase: Phase};
+
+// Type-only view of the ledger's cause union (the import above is erased at
+// compile time, so the recorder gains no runtime dependency on the module).
+type DeltaMovementCauseLike = DeltaMovementCause;
 
 /**
  * A live correlation scope. NOT serialized. Captured by reference at
@@ -475,6 +480,32 @@ export class EventRecorder {
       return;
     }
     this.record({type: 'tr-changed', source, player: player.color, impact: {tr: steps}, tags: ['terraforming']});
+  }
+
+  /**
+   * ONE committed movement on the Delta Project («Гидросеть») track — the
+   * canonical machine-readable movement fact, emitted by the movement ledger
+   * (`delta/deltaMovement.ts`) for BOTH directions. `steps` is SIGNED
+   * (negative = a retreat). The mover is the event's `player`; for a
+   * `card-attack` cause the ATTACKER rides `target.player` + `source.owner`,
+   * so the victim's notification and a future journal read the whole story
+   * structurally — never from a localized log line.
+   */
+  public recordDeltaPositionChange(player: IPlayer, movement: {from: number, to: number, steps: number, cause: DeltaMovementCauseLike}): void {
+    const cause = movement.cause;
+    const source: EventSource =
+      cause.kind === 'card' ? {kind: 'card', card: cause.card, owner: player.color} :
+        cause.kind === 'card-attack' ? {kind: 'card', card: cause.card, owner: cause.by} :
+          {kind: 'card', card: CardName.DELTA_PROJECT, owner: player.color};
+    this.record({
+      type: 'delta-position-changed',
+      source,
+      player: player.color,
+      target: cause.kind === 'card-attack' ? {player: cause.by} : undefined,
+      impact: {deltaPosition: {from: movement.from, to: movement.to, steps: movement.steps}},
+      tags: cause.kind === 'card-attack' ? ['attack'] : undefined,
+      visibility: 'journal',
+    });
   }
 
   public recordCardsDrawn(player: IPlayer, count: number, from?: From): void {

@@ -34,8 +34,11 @@ export type ConsoleTask =
    * It has a DEDICATED workspace (the track itself), so it is never a modal:
    * the flavor exists so `taskServedByHost` can decline it structurally, off
    * the server's own `deltaBonusPrompt` marker, rather than by a title.
+   * `espionage` — the standalone Corporate Espionage ask (a batch divergence /
+   * reconnect): the SAME dedicated workspace serves it through the espionage
+   * pick door; structural off the input's own `deltaEspionage` type.
    */
-  | {kind: 'choice', flavor: 'generic' | 'contextual' | 'wgt' | 'confirm' | 'deltaBonus'}
+  | {kind: 'choice', flavor: 'generic' | 'contextual' | 'wgt' | 'confirm' | 'deltaBonus' | 'espionage'}
   /** FREE award funding (Vitor's start action) — served by the premium
    *  awards MA screen in free-sponsorship mode, NOT the generic task host
    *  (the desktop routes it to AwardsOverlay for the same reason). */
@@ -512,6 +515,11 @@ export function taskFor(view: PlayerViewModel): ConsoleTask | undefined {
     // by the composer's batch; standalone = a divergence. The amount family
     // serves it as a numbered pick over the claimable positions.
     return {kind: 'amount', flavor: 'delta'};
+  case 'deltaEspionage':
+    // Corporate Espionage's standalone ask (a refused/stale batch answer, a
+    // reconnect): the Hydronetwork workspace serves it through the espionage
+    // pick door — never a modal, never the host.
+    return {kind: 'choice', flavor: 'espionage'};
   case 'resource':
     return {kind: 'resource'};
   case 'resources':
@@ -658,7 +666,7 @@ export function taskServedByHost(view: PlayerViewModel): ConsoleTask | undefined
     // A dedicated workspace serves it — the host must NOT raise a modal beside
     // it. (Rendering both is exactly what shipped: the contextual-choice modal
     // over a live Hydronetwork zone, one offer, two surfaces.)
-    if (task.flavor === 'deltaBonus') {
+    if (task.flavor === 'deltaBonus' || task.flavor === 'espionage') {
       return undefined;
     }
     if (wf?.type === 'option') {

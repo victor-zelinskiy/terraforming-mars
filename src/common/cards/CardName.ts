@@ -1065,6 +1065,7 @@ export enum CardName {
   DELTA_SURGE = 'Delta Surge',
   DUTCH_MOUNTAINS = 'Dutch Mountains',
   SOCIAL_HEATING = 'Social Heating',
+  CORPORATE_ESPIONAGE = 'Corporate Espionage',
 
   // Underworld Standard Projects
   EXCAVATE_STANDARD_PROJECT = 'Excavate:SP',

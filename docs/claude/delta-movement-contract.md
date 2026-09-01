@@ -72,6 +72,18 @@ A promise and a payout therefore cannot diverge, and an effect that cannot mutat
 - **The viewer's own move:** no self-notification — `diffRootNotifications` suppresses the viewer's own ordinary actions, and the bonus was already shown in the plan panel and again in the result.
 - **A bot move:** rides the bot turn's own FIFO entry. The payout's public log line is captured into the turn script (so the theater names the source card) and the heat appears in the turn's «results» impact step, which is what makes the bot-turn card lead with the viewer's gain.
 
+## BACKWARD MOVEMENT (Corporate Espionage, DP10)
+
+**`commitDeltaRetreat(player, requested, cause, journal?)`** is the retreat twin, in the SAME module (the one-writer guard keeps holding by construction). The fact it publishes is the same `DeltaMovement` shape with **`steps` SIGNED negative** (`to − from`), `direction: 'backward'`, and a `cause` of the new kind `{kind: 'card-attack', card, by}` (`by` = the acting player; the fact's `player` stays the MOVED one). Rules it deliberately does NOT touch:
+
+- the **advance hooks never fire for a retreat** (`onDeltaTrackAdvance` is about advancing; the bonus reader `resolveDeltaMovementBonuses` refuses non-positive steps — every printed movement card says «advances», so Social Heating pays nothing for a push-back);
+- it floors at the track start (a zero-step «move» writes and publishes nothing — the CALLER must have refused such a target out loud);
+- landing rewards are the caller's rule: **`DeltaProjectExpansion.retreat(target, {source, by})`** is the one entry point (eligibility = `retreatBlockedReason` — «vp-protected» / «track-start», the same verdict the projection shows; the landing reward = the ONE arrival resolver, ON the target; a player whose standing rule voids stage rewards — MarsBot's Solo Delta Project reading, `takesStageRewards` — still retreats, with the void clause NAMED).
+
+**Both directions now publish the canonical `delta-position-changed` GameEvent** (`EventRecorder.recordDeltaPositionChange`: mover, `impact.deltaPosition {from,to,steps}` signed, the attacker on `target.player`/`source.owner`, tag `attack` for a card-attack) — the notification layer and any future journal read positions off THIS, never off a localized log line.
+
+A retreat key can legitimately repeat a `from→to` pair (retreat → re-advance → retreat), so it carries the event stream's monotonic ordinal; forward keys stay unique by construction.
+
 ## ADDING THE NEXT MOVEMENT-REACTIVE CARD
 
 1. Implement `deltaMovementBonus` in the card file (co-located — invariant 8). Return `undefined` when nothing is owed. **Do not mutate.**

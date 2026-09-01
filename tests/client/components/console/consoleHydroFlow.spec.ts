@@ -133,6 +133,14 @@ describe('consoleHydroFlow', () => {
     // «Ⓐ Выполняется» as its only verb and B dead by phase.
     expect(hydroWorkspaceRestorePlan({commit: c, claimHost: 'hydro', followUpInteractive: true, ownedByThisFrame: false}),
       'an ORPHANED record folds even with a claim AND a follow-up').eq('fold');
+    // THE ESPIONAGE EXECUTION (Corporate Espionage): its frame is pushed AT
+    // the commit, so the section's very mount is the presentation's first
+    // frame — no claim and no follow-up exist yet, and the ordinary «nothing
+    // live → fold» reading would reset the flow it is about to present.
+    expect(hydroWorkspaceRestorePlan({commit: c, claimHost: undefined, followUpInteractive: false, espionageExecution: true, ...mine}),
+      'an OWNED espionage execution always seats').eq('seat-commit');
+    expect(hydroWorkspaceRestorePlan({commit: c, claimHost: undefined, followUpInteractive: false, espionageExecution: true, ownedByThisFrame: false}),
+      '…but ownership still outranks it').eq('fold');
   });
 
   it('closeHydroStep folds one level and keeps the rest', () => {

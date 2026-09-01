@@ -20,4 +20,5 @@ export type PlayerInputType =
     'resources' |
     'claimedUndergroundToken' |
     'deltaProject' |
-    'deltaStageReward';
+    'deltaStageReward' |
+    'deltaEspionage';
