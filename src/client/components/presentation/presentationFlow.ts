@@ -20,8 +20,8 @@
  *
  * Occupancy sources:
  *   - DERIVED module states (imported): the drawn-cards result modal, the
- *     reveal-result overlay, the MarsBot theater. These are leaf modules that
- *     never import this one.
+ *     read-only revealed-cards viewer, the MarsBot theater. These are leaf
+ *     modules that never import this one.
  *   - LEASES registered by mounted surfaces (`acquireForegroundLease`):
  *     MandatoryInputModal / DraftFlowOverlay / StartGameFlowOverlay /
  *     ConsoleShell's task surfaces. A lease is held only while the surface is
@@ -41,9 +41,9 @@
  * queue drains the moment the blocker clears and re-queues visible cards the
  * moment one opens. No component needs to know who else exists.
  */
-import {computed, reactive, watch} from 'vue';
-import {hasVisibleReveal} from '@/client/components/drawnCards/drawnCardsState';
-import {revealResultState} from '@/client/components/actions/revealResultState';
+import {computed, reactive, shallowRef, watch} from 'vue';
+import {CardDrawRevealSource} from '@/common/models/CardDrawRevealModel';
+import {hasPresentableReveal} from '@/client/components/drawnCards/drawnCardsState';
 import {revealViewerState} from '@/client/components/notifications/revealViewerState';
 import {botTurnReviewState} from '@/client/components/marsbot/botTurnReviewState';
 import {animationHoldCount, blockingAnimationHoldCount} from '@/client/components/presentation/animationHold';
@@ -110,20 +110,88 @@ export function registerFlowHoldSupplier(fn: () => boolean): void {
   flowHoldSupplier = fn;
 }
 
+/*
+ * ── THE REVEAL PARK EXEMPTION ────────────────────────────────────────────────
+ *
+ * `result-modal` means «the outcome of the player's own action is ON SCREEN»,
+ * and its drawn-batch half used to be `hasVisibleReveal()` — «a batch EXISTS».
+ * The two differ in exactly one state, and that state was a real deadlock: a
+ * foreign colony trade's owner bonus arrives PARKED behind the mandatory
+ * announcement (`remoteColonyBonusParksReveal` — the plate is the door, and the
+ * player's own press is what releases the park), so the batch is deliberately
+ * presented NOWHERE. Counted here anyway, it silenced the feed; the queued
+ * trade toasts kept `notificationsSettled()` false — and that is the very
+ * condition the announcement's FIRST presentation waits for. The batch waited
+ * for the door, the door waited for the feed, the feed waited for the batch;
+ * only the foreground watchdog (or a reload) got out, as the production report
+ * `[console-foreground-watchdog] … expired result-modal` («Экран завис»).
+ *
+ * So the drawn half counts only PRESENTABLE batches, and «is this batch
+ * parked?» is INJECTED: the verdict needs `waitingFor`'s colony markers plus
+ * the colony-flow module states — console domain this shared module must not
+ * import. The shell registers the SAME pending + parks pair its own
+ * `rawDrawnRevealPending` reads, so the silence and the surface can never
+ * disagree about which batch is parked. The slot is a shallowRef on purpose:
+ * registration happens at shell mount, AFTER a reload-mid-park's first
+ * evaluation, and swapping a plain `let` would leave every computed cached on
+ * the default until some unrelated dependency moved. Default: nothing is
+ * parked — every batch counts, the historical behaviour (and the one every
+ * non-console context wants).
+ */
+export type RevealParkSupplier = (source: CardDrawRevealSource | undefined) => boolean;
+
+const NOTHING_PARKED: RevealParkSupplier = () => false;
+
+const revealParkSupplier = shallowRef<RevealParkSupplier>(NOTHING_PARKED);
+
+/** Register the console's park verdict. Returns the restore fn (idempotent —
+ *  a later registration is never clobbered by an earlier restore). */
+export function registerRevealParkSupplier(fn: RevealParkSupplier): () => void {
+  revealParkSupplier.value = fn;
+  return () => {
+    if (revealParkSupplier.value === fn) {
+      revealParkSupplier.value = NOTHING_PARKED;
+    }
+  };
+}
+
 /** The RAW occupancy of the derived signals, before the staleness mask. */
 function rawSignal(signal: StaleForegroundSignal): boolean {
   switch (signal) {
   // Every FULL-BLEED reveal shape, so this signal alone can silence the feed:
-  // the drawn-cards batch, the ✓/✗ result, and the read-only revealed-cards
-  // viewer. The viewer used to be carried by the console's `mandatory-choice`
-  // lease alone — which no longer silences anything, so a toast would have
-  // floated over a fullscreen surface the moment the lease stopped speaking
-  // for it. A derived signal is also strictly better here: it is true for
-  // desktop and console alike, and the watchdog can expire it.
-  case 'result-modal': return hasVisibleReveal() || revealResultState.active || revealViewerState.open;
+  // the PRESENTABLE drawn-cards batch (see the park exemption above) and the
+  // read-only revealed-cards viewer. The viewer used to be carried by the
+  // console's `mandatory-choice` lease alone — which no longer silences
+  // anything, so a toast would have floated over a fullscreen surface the
+  // moment the lease stopped speaking for it. A derived signal is also
+  // strictly better here: it is true for desktop and console alike, and the
+  // watchdog can expire it.
+  case 'result-modal': return hasPresentableReveal(revealParkSupplier.value) || revealViewerState.open;
   case 'turn-theater': return botTurnReviewState.open;
   case 'flow-hold': return flowHoldSupplier();
   }
+}
+
+/**
+ * The reporting label of a derived signal. `result-modal` is an OR of two
+ * independent surfaces, and the watchdog's recovery warn is often the ONE
+ * artifact a production freeze leaves behind — a bare `result-modal` in it
+ * cost a whole deduction pass to attribute (a stuck drawn batch vs the
+ * viewer), so the label names the live member(s). Reporting only: the
+ * staleness-mask key stays the plain signal.
+ */
+function signalLabel(signal: StaleForegroundSignal): string {
+  if (signal !== 'result-modal') {
+    return signal;
+  }
+  const parts: Array<string> = [];
+  if (hasPresentableReveal(revealParkSupplier.value)) {
+    parts.push('drawn');
+  }
+  if (revealViewerState.open) {
+    parts.push('viewer');
+  }
+  return parts.length === 0 ? signal : `result-modal[${parts.join('+')}]`;
 }
 
 /** The current occupancy snapshot (reads only reactive sources). */
@@ -178,7 +246,7 @@ export function expireForegroundHolds(): ReadonlyArray<string> {
   }
   for (const signal of ['result-modal', 'turn-theater', 'flow-hold'] as ReadonlyArray<StaleForegroundSignal>) {
     if (liveSignal(signal, rawSignal(signal))) {
-      expired.push(signal);
+      expired.push(signalLabel(signal));
       staleSignals.add(signal);
     }
   }
@@ -195,7 +263,7 @@ export function foregroundHoldLabels(): ReadonlyArray<string> {
   }
   for (const signal of ['result-modal', 'turn-theater', 'flow-hold'] as ReadonlyArray<StaleForegroundSignal>) {
     if (liveSignal(signal, rawSignal(signal))) {
-      labels.push(signal);
+      labels.push(signalLabel(signal));
     }
   }
   return labels;
@@ -279,4 +347,5 @@ export function resetPresentationLeases(): void {
   staleLeaseCounts['mandatory-choice'] = 0;
   staleLeaseCounts['ceremony'] = 0;
   staleSignals.clear();
+  revealParkSupplier.value = NOTHING_PARKED;
 }

@@ -26,7 +26,7 @@ import {
 } from '@/client/components/notifications/notificationState';
 import {setNotificationFeedMode} from '@/client/components/notifications/notificationFeedMode';
 import {resetPresentationLeases, acquireForegroundLease} from '@/client/components/presentation/presentationFlow';
-import {revealResultState, dismissReveal} from '@/client/components/actions/revealResultState';
+import {closeRevealViewer, revealViewerState} from '@/client/components/notifications/revealViewerState';
 import {botTurnReviewState, resetBotTurnReview} from '@/client/components/marsbot/botTurnReviewState';
 import {drawnCardsState} from '@/client/components/drawnCards/drawnCardsState';
 import {setBotAckViewer, resetBotTurnAckForTesting} from '@/client/components/marsbot/botTurnAck';
@@ -56,7 +56,7 @@ describe('notificationState (lifecycle)', () => {
     // Presentation flow: no blocking foreground — delivery is open.
     resetPresentationLeases();
     resetBotTurnReview();
-    dismissReveal();
+    closeRevealViewer();
     drawnCardsState.events = [];
     notificationState.seeded = true;
   });
@@ -118,7 +118,7 @@ describe('notificationState (lifecycle)', () => {
 
   describe('presentation-flow delivery gate', () => {
     it('a blocking foreground (result modal) sends fresh cards to the queue — never on top', () => {
-      revealResultState.active = true;
+      revealViewerState.open = true;
       pushTransient(model('a'));
       expect(notificationState.transient).to.have.length(0);
       expect(notificationState.queue.map((n) => n.id)).to.deep.eq(['a']);
@@ -168,7 +168,7 @@ describe('notificationState (lifecycle)', () => {
       pushMany([model('a'), model('b')]);
       expect(notificationState.transient.map((n) => n.id)).to.deep.eq(['a']);
       // A silencing foreground (an animation / reveal / ceremony) opens.
-      revealResultState.active = true;
+      revealViewerState.open = true;
       await nextTick();
       // The active card STAYS; the queued one keeps waiting.
       expect(notificationState.transient.map((n) => n.id)).to.deep.eq(['a']);
@@ -182,7 +182,7 @@ describe('notificationState (lifecycle)', () => {
       dismiss('a');
       expect(notificationState.transient).to.have.length(0);
       expect(notificationState.queue.map((n) => n.id)).to.deep.eq(['b', 'c']);
-      dismissReveal();
+      closeRevealViewer();
       await nextTick();
       expect(notificationState.transient.map((n) => n.id)).to.deep.eq(['b']);
     });
@@ -190,9 +190,9 @@ describe('notificationState (lifecycle)', () => {
     it('the visible card keeps its identity object across a blocker (no remount, no TTL restart)', async () => {
       pushTransient(model('a'));
       const live = notificationState.transient[0];
-      revealResultState.active = true;
+      revealViewerState.open = true;
       await nextTick();
-      dismissReveal();
+      closeRevealViewer();
       await nextTick();
       // Same LiveNotification object — the card was never re-created, so its
       // entrance cannot replay and its CSS lifetime cannot re-arm.
@@ -271,15 +271,15 @@ describe('notificationState (lifecycle)', () => {
       // A blocked flow-holding AI-turn card waits in the queue → critical.
       // Silenced by a REVEAL (something that owns the screen): a mandatory
       // lease no longer queues anything, and the card would simply present.
-      revealResultState.active = true;
+      revealViewerState.open = true;
       pushTransient(model('bot', 'important', {holdsFlow: true}));
       expect(pendingSummary().count).to.eq(3);
       expect(pendingSummary().critical).to.eq(true);
-      dismissReveal();
+      closeRevealViewer();
     });
 
     it('drainQueueToJournal drops ordinary cards, KEEPS hostile + flow-holding + PERSONAL-sign ones', () => {
-      revealResultState.active = true; // everything queues
+      revealViewerState.open = true; // everything queues
       pushMany([
         model('a'), model('gen', 'important'),
         model('loss', 'negative'),
@@ -291,7 +291,7 @@ describe('notificationState (lifecycle)', () => {
       ]);
       drainQueueToJournal();
       expect(notificationState.queue.map((n) => n.id)).to.deep.eq(['loss', 'bot', 'gain']);
-      dismissReveal();
+      closeRevealViewer();
     });
   });
 

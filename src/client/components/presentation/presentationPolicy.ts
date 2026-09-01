@@ -13,8 +13,10 @@
  *    task host). Blocks notification delivery; itself WAITS behind an active
  *    flow-holding item (the AI-turn card / theater) — bounded, never forever.
  *  - 'result-modal'              — the outcome of the player's OWN action
- *    ("Получены карты", the reveal ✓/✗ overlay). Blocks theater auto-open and
- *    notification delivery until closed.
+ *    ("Получены карты", the read-only revealed-cards viewer). Blocks theater
+ *    auto-open and notification delivery until closed. Counts only what will
+ *    actually PRESENT: a batch parked behind the colony-bonus announcement is
+ *    exempt (presentationFlow's REVEAL PARK EXEMPTION).
  *  - 'turn-theater'              — the expanded MarsBot turn replay. Explicitly
  *    user-opened (or auto-opened in 'theater' mode) — while open, mandatory
  *    surfaces and new notification delivery wait.
@@ -52,7 +54,7 @@ export type PresentationBlockReason =
 
 /** A snapshot of the occupancy signals (pure input for the policy functions). */
 export type PresentationFlags = {
-  /** A result modal ("Получены карты" / reveal result) is on screen. */
+  /** A result modal ("Получены карты" / the revealed-cards viewer) is on screen. */
   resultModalOpen: boolean;
   /** ≥1 'mandatory-choice' lease is held by a visible mandatory surface. */
   mandatoryLeases: number;

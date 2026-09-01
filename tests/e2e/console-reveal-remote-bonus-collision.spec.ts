@@ -193,6 +193,18 @@ async function snapshot(page: Page) {
 test('a remote colony bonus WAITS for the reveal the player is standing in', async ({page, request}) => {
   test.setTimeout(240_000);
   const playerId = await createGame(request);
+  // THE WATCHDOG IS THE NET, NOT A PARTICIPANT. The parked delivery must reach
+  // the player through its own announcement — never because the stalled-
+  // foreground watchdog expired a claim to unblock it (the «Экран завис»
+  // deadlock: the parked batch counted as a live result-modal, silenced the
+  // feed, and the announcement's first presentation waits for exactly that
+  // feed to settle). Collect its recoveries across the WHOLE run.
+  const watchdogRecoveries: Array<string> = [];
+  page.on('console', (msg) => {
+    if (msg.text().includes('[console-foreground-watchdog]')) {
+      watchdogRecoveries.push(msg.text());
+    }
+  });
   await page.goto(`/player?id=${playerId}&console=1`);
   await page.waitForSelector('.con-root, .con-start__frame', {timeout: 45_000});
   await page.waitForSelector('.con-load', {state: 'detached'}).catch(() => {});
@@ -265,4 +277,11 @@ test('a remote colony bonus WAITS for the reveal the player is standing in', asy
   const opened = await snapshot(page);
   console.log('── collision, delivery open ──', JSON.stringify(opened));
   expect(opened.entry, 'the delivery opened without arming its entry').toBe('Pluto');
+
+  // …and the whole passage — the collision standing, the take, the announced
+  // delivery, the entry — happened without a single watchdog recovery: every
+  // hold along the way was backed by a real surface.
+  expect(watchdogRecoveries,
+    `the foreground watchdog had to rescue the flow:\n${watchdogRecoveries.join('\n')}`)
+    .toHaveLength(0);
 });

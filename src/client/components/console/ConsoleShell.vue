@@ -1331,7 +1331,7 @@ import ConsoleTerraformingCeremony from '@/client/components/console/ConsoleTerr
 import ConsoleBotTurnReview from '@/client/components/console/ConsoleBotTurnReview.vue';
 import {botTurnReviewState, closeBotTurnReview, setBotReviewPeek} from '@/client/components/marsbot/botTurnReviewState';
 import {openBotTurnReviewByKey, skipBotTurnPresentation, stepBotTurnReview} from '@/client/components/marsbot/marsBotPresentation';
-import {acquireForegroundLease, isMandatoryPromptsHeld} from '@/client/components/presentation/presentationFlow';
+import {acquireForegroundLease, isMandatoryPromptsHeld, registerRevealParkSupplier} from '@/client/components/presentation/presentationFlow';
 import {isAnimationHoldActive} from '@/client/components/presentation/animationHold';
 import {notificationState, notificationsSettled, dismiss as dismissNotification} from '@/client/components/notifications/notificationState';
 import {beginNotifHold, cancelNotifHold, consumeNotifHoldRelease, resetNotifHold} from '@/client/console/consoleNotifHold';
@@ -2128,6 +2128,8 @@ export default defineComponent({
       offIntent: undefined as (() => void) | undefined,
       /** Release fn of the held 'mandatory-choice' presentation lease. */
       releasePresentationLease: undefined as (() => void) | undefined,
+      /** Restore fn of the injected reveal-park supplier (see mounted()). */
+      releaseRevealParkSupplier: undefined as (() => void) | undefined,
     };
   },
   computed: {
@@ -16093,6 +16095,17 @@ export default defineComponent({
     // workspace from.
     this.syncHydroBonusDoor();
     startConsoleLeakDetector(() => this.playerView);
+    // THE PARK MUST NOT SILENCE THE FEED (the «Экран завис» deadlock). A
+    // foreign colony bonus's batch is deliberately presented NOWHERE until the
+    // player opens its announcement — and the announcement's own FIRST
+    // presentation waits for the notification feed to settle. Counted as a
+    // live result-modal, the parked batch silenced the very feed its door was
+    // waiting for, and only the foreground watchdog got out (`expired
+    // result-modal`). The shell owns the park verdict, so it injects it: the
+    // SAME pending + parks pair `rawDrawnRevealPending` reads, never a second
+    // derivation — the silence and the surface cannot disagree about the batch.
+    this.releaseRevealParkSupplier = registerRevealParkSupplier(
+      (source) => remoteColonyBonusParksReveal(this.remoteColonyBonusPending, source));
     // T6: the notification CTAs go through the typed notificationBus;
     // PlayerHome's listeners don't exist in console — the shell answers them.
     (this as unknown as {__notifOff: Array<() => void>}).__notifOff = [
@@ -16153,6 +16166,10 @@ export default defineComponent({
     }
     this.releasePresentationLease?.();
     this.releasePresentationLease = undefined;
+    // Restore the default reveal-park supplier: a dead shell's closure reads
+    // computeds whose effects are stopped at unmount.
+    this.releaseRevealParkSupplier?.();
+    this.releaseRevealParkSupplier = undefined;
     this.consoleState.shellMounted = false;
     resetMandatoryGate(); // never carry an acknowledgment across games/sessions
     setMandatoryGateHeld(false); // shell gone → clear the held mirror (the watcher won't fire on unmount)

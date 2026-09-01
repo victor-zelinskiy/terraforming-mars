@@ -23,7 +23,7 @@ import {notificationState, resetNotifications, setNotificationViewer, dismiss} f
 import {setNotificationFeedMode} from '@/client/components/notifications/notificationFeedMode';
 import {setBotAckViewer, resetBotTurnAckForTesting} from '@/client/components/marsbot/botTurnAck';
 import {resetPresentationLeases} from '@/client/components/presentation/presentationFlow';
-import {revealResultState, dismissReveal} from '@/client/components/actions/revealResultState';
+import {closeRevealViewer, revealViewerState} from '@/client/components/notifications/revealViewerState';
 import {drawnCardsState} from '@/client/components/drawnCards/drawnCardsState';
 
 /**
@@ -117,7 +117,7 @@ describe('marsBotStagedCommits (the staged FIFO visual timeline)', () => {
     resetBotTurnReview();
     resetNotifications();
     resetPresentationLeases();
-    dismissReveal();
+    closeRevealViewer();
     drawnCardsState.events = [];
     setMarsBotPresentationMode('notification');
     notificationState.seeded = true;
@@ -240,7 +240,7 @@ describe('marsBotStagedCommits (the staged FIFO visual timeline)', () => {
      * player their own next prompt. What must still hold is ORDER: turn 1's
      * footprint before turn 2's, and the authoritative commit last.
      */
-    revealResultState.active = true; // a result modal owns the screen
+    revealViewerState.open = true; // a result modal owns the screen
     await nextTick();
     const presented = makeView();
     const t1 = turnWithVisual(1, {spaceId: '03'});
@@ -251,7 +251,7 @@ describe('marsBotStagedCommits (the staged FIFO visual timeline)', () => {
     expect(spaceOf(presented, '03').tileType, 'no card has presented yet').is.undefined;
     expect(committed).eq(0);
 
-    dismissReveal();
+    closeRevealViewer();
     await nextTick(); // card 1 delivered
     expect(spaceOf(presented, '03').tileType).eq(TileType.CITY);
     expect(spaceOf(presented, '05').tileType).is.undefined;

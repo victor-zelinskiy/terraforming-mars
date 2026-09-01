@@ -165,7 +165,7 @@ describe('ConsoleStatusStrip generation label', () => {
 // delivery/FIFO never waits on it.
 import {notificationState, resetNotifications, pushTransient} from '@/client/components/notifications/notificationState';
 import {NOTIFICATION_PRIORITY} from '@/client/components/notifications/notificationTypes';
-import {revealResultState, dismissReveal} from '@/client/components/actions/revealResultState';
+import {closeRevealViewer, revealViewerState} from '@/client/components/notifications/revealViewerState';
 import {resetPresentationLeases} from '@/client/components/presentation/presentationFlow';
 
 function queuedModel(id: string) {
@@ -181,11 +181,11 @@ describe('ConsoleStatusStrip pending-events signal (.con-status__evq)', () => {
   beforeEach(() => {
     resetNotifications();
     resetPresentationLeases();
-    dismissReveal();
+    closeRevealViewer();
     notificationState.seeded = true;
   });
   afterEach(() => {
-    dismissReveal();
+    closeRevealViewer();
     resetNotifications();
   });
 
@@ -214,7 +214,7 @@ describe('ConsoleStatusStrip pending-events signal (.con-status__evq)', () => {
 
   it('a backlog that waits out the FULL dwell (blocked, no active card) shows the real count', async () => {
     const w = mountEvq(20);
-    revealResultState.active = true; // delivery genuinely blocked
+    revealViewerState.open = true; // delivery genuinely blocked
     notificationState.queue.push(queuedModel('q1'), queuedModel('q2'));
     await w.vm.$nextTick();
     // Inside the dwell: still dormant «0».
@@ -229,13 +229,13 @@ describe('ConsoleStatusStrip pending-events signal (.con-status__evq)', () => {
 
   it('a blocker shorter than the dwell NEVER lights the slot (the timer is cancelled)', async () => {
     const w = mountEvq(60);
-    revealResultState.active = true;
+    revealViewerState.open = true;
     notificationState.queue.push(queuedModel('q1'));
     await w.vm.$nextTick();
     await sleep(15);
     // The blocker clears BEFORE the dwell expires — the raw state falls
     // (promoteFromQueue presents the card on the freed broadcast).
-    dismissReveal();
+    closeRevealViewer();
     await w.vm.$nextTick();
     await sleep(90);
     await w.vm.$nextTick();
@@ -247,7 +247,7 @@ describe('ConsoleStatusStrip pending-events signal (.con-status__evq)', () => {
 
   it('the dwell expiry RE-CHECKS the live conditions — a queue that emptied stays dormant', async () => {
     const w = mountEvq(25);
-    revealResultState.active = true;
+    revealViewerState.open = true;
     notificationState.queue.push(queuedModel('q1'));
     await w.vm.$nextTick();
     // The event leaves the queue before the dwell fires (drained elsewhere).
@@ -262,7 +262,7 @@ describe('ConsoleStatusStrip pending-events signal (.con-status__evq)', () => {
   it('while a card is ACTIVE the slot rests at «0» — the backlog belongs to «ДАЛЬШЕ +N»', async () => {
     const w = mountEvq(15);
     pushTransient(queuedModel('shown')); // presents (delivery open at this point)
-    revealResultState.active = true; // a blocker rises AFTER the card is up
+    revealViewerState.open = true; // a blocker rises AFTER the card is up
     notificationState.queue.push(queuedModel('q1'));
     await sleep(40);
     await w.vm.$nextTick();
@@ -273,7 +273,7 @@ describe('ConsoleStatusStrip pending-events signal (.con-status__evq)', () => {
 
   it('rapid enqueues COALESCE: one calm update to the latest truth, never 1→2→3 churn', async () => {
     const w = mountEvq(15, 40);
-    revealResultState.active = true;
+    revealViewerState.open = true;
     notificationState.queue.push(queuedModel('q1'));
     await sleep(35);
     await w.vm.$nextTick();
@@ -291,12 +291,12 @@ describe('ConsoleStatusStrip pending-events signal (.con-status__evq)', () => {
 
   it('delivery resuming returns the slot to dormant «0» IMMEDIATELY (no coalesce lag)', async () => {
     const w = mountEvq(15, 500);
-    revealResultState.active = true;
+    revealViewerState.open = true;
     notificationState.queue.push(queuedModel('q1'));
     await sleep(35);
     await w.vm.$nextTick();
     expect(w.find('.con-status__evq--on').exists()).to.be.true;
-    dismissReveal(); // freed → the card presents in the same broadcast
+    closeRevealViewer(); // freed → the card presents in the same broadcast
     await w.vm.$nextTick();
     expect(w.find('.con-status__evq--on').exists()).to.be.false;
     expect(countText(w), 'the return to dormant never waits on the coalescing window').to.equal('0');
@@ -305,7 +305,7 @@ describe('ConsoleStatusStrip pending-events signal (.con-status__evq)', () => {
 
   it('caps the readable count at 9+ (fixed cell, tabular — no width change)', async () => {
     const w = mountEvq(15);
-    revealResultState.active = true;
+    revealViewerState.open = true;
     for (let i = 0; i < 12; i++) {
       notificationState.queue.push(queuedModel(`q${i}`));
     }
@@ -322,10 +322,10 @@ describe('ConsoleStatusStrip pending-events signal (.con-status__evq)', () => {
 
   it('the visual layer never mutates the queue or delays FIFO (read-only by construction)', async () => {
     const w = mountEvq(500); // a dwell far longer than the test
-    revealResultState.active = true;
+    revealViewerState.open = true;
     notificationState.queue.push(queuedModel('q1'), queuedModel('q2'));
     await w.vm.$nextTick();
-    dismissReveal();
+    closeRevealViewer();
     await w.vm.$nextTick();
     // The queue promoted on the freed broadcast — with the dwell still armed
     // and the slot silent: the indicator observed, it never gated.

@@ -137,13 +137,21 @@ function untakenCount(e: DrawnCardEntry): number {
 }
 
 /**
- * True while at least one non-dismissed batch exists — drives the modal's
- * visibility (App-level v-if). Goes false the instant the last batch is
- * dismissed (full take / take-all), closing the modal without waiting for the
- * server ack, so the player never sees an empty card tray.
+ * True while ≥1 non-dismissed batch exists that the given filter does NOT mark
+ * as PARKED — the «a reveal owns the screen» half of the presentation flow's
+ * `result-modal` occupancy. It goes false the instant the last batch is
+ * dismissed (full take / take-all), before the server ack round-trip.
+ *
+ * The filter exists for exactly one state: a batch parked behind the mandatory
+ * colony-bonus announcement is deliberately presented NOWHERE until the
+ * player's own press, so it must not count — counted, it silenced the very
+ * notification feed its announcement was waiting out (the «Экран завис»
+ * deadlock the foreground watchdog kept recovering). See presentationFlow's
+ * REVEAL PARK EXEMPTION. (The unfiltered form, historically
+ * `hasVisibleReveal()`, is `hasPresentableReveal(() => false)`.)
  */
-export function hasVisibleReveal(): boolean {
-  return drawnCardsState.events.some((e) => !e.dismissed);
+export function hasPresentableReveal(parked: (source: CardDrawRevealSource | undefined) => boolean): boolean {
+  return drawnCardsState.events.some((e) => !e.dismissed && !parked(e.source));
 }
 
 /**

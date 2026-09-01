@@ -37,7 +37,7 @@ import {isBotStagingActive, resetBotStaging} from '@/client/components/marsbot/m
 import {botTurnReviewState, closeBotTurnReview, resetBotTurnReview} from '@/client/components/marsbot/botTurnReviewState';
 import {dismiss, notificationState, resetNotifications, acknowledgeFlowHoldingCards, notificationFlowHoldSupplier} from '@/client/components/notifications/notificationState';
 import {isMandatoryPromptsHeld, registerFlowHoldSupplier, resetPresentationLeases} from '@/client/components/presentation/presentationFlow';
-import {revealResultState, dismissReveal} from '@/client/components/actions/revealResultState';
+import {closeRevealViewer, revealViewerState} from '@/client/components/notifications/revealViewerState';
 import {drawnCardsState} from '@/client/components/drawnCards/drawnCardsState';
 
 function logLine(message: string): never {
@@ -102,7 +102,7 @@ describe('marsBotPresentation (notification-first turns)', () => {
     resetBotTurnReview();
     resetNotifications();
     resetPresentationLeases();
-    dismissReveal();
+    closeRevealViewer();
     drawnCardsState.events = [];
     setMarsBotPresentationMode('notification');
     notificationState.seeded = true;
@@ -298,14 +298,14 @@ describe('marsBotPresentation (notification-first turns)', () => {
     });
 
     it('Case A: a result modal is open → the turn card WAITS in the queue, presents on close', async () => {
-      revealResultState.active = true;
+      revealViewerState.open = true;
       await nextTick(); // the blocked transition is observed
       presentFreshBotTurns(PREV, botView({lastTurn: turn(1)}));
       expect(notificationState.transient).lengthOf(0);
       expect(notificationState.queue.map((n) => n.id)).deep.eq(['bot:red:1:1']);
       expect(isMandatoryPromptsHeld()).eq(false); // queued ≠ holding
 
-      dismissReveal();
+      closeRevealViewer();
       await nextTick(); // the freed transition drains the queue
       expect(notificationState.transient.map((n) => n.id)).deep.eq(['bot:red:1:1']);
       expect(isMandatoryPromptsHeld()).eq(true);
@@ -601,14 +601,14 @@ describe('marsBotPresentation (notification-first turns)', () => {
     it('theater mode: the card AUTO-EXPANDS the moment it is DELIVERED (gates still respected)', async () => {
       setMarsBotPresentationMode('theater');
       try {
-        revealResultState.active = true; // result modal open — even auto-theater waits
+        revealViewerState.open = true; // result modal open — even auto-theater waits
         await nextTick(); // the blocked transition is observed
         presentFreshBotTurns(PREV, botView({lastTurn: turn(1)}));
         await nextTick();
         expect(botTurnReviewState.open).eq(false);
         expect(notificationState.queue).lengthOf(1);
 
-        dismissReveal();
+        closeRevealViewer();
         await nextTick(); // delivered…
         await nextTick(); // …and auto-expanded by the watcher
         expect(botTurnReviewState.open).eq(true);

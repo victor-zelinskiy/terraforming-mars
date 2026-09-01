@@ -78,7 +78,7 @@ Format: `module` — console importer.
 | `feedback/energyConversionTransition` | `ConsoleResourcePanel` |
 | `gameProgress/terraformingCelebration` | `ConsoleTerraformingCeremony` |
 | `desktop/desktopUpdateState`, `steamShortcutState` | `ConsoleMainMenu`, `consoleKeyBridge`, `consoleLayoutProfile`, `runtimeMode` |
-| `handCards/sellPatentsState`, `handSelectState`, `handPlayState`, `standardProjectPlayState` · `awards/awardFundingState` · `placementLockState` · `playedCards/playedCardsPickState` · `actions/revealResultState` · `draftWaitState` · `initialDraft/initialDraftSharedState` | **transitively** via `ConsoleShell → WaitingFor.vue` |
+| `handCards/sellPatentsState`, `handSelectState`, `handPlayState`, `standardProjectPlayState` · `awards/awardFundingState` · `placementLockState` · `playedCards/playedCardsPickState` · `draftWaitState` · `initialDraft/initialDraftSharedState` | **transitively** via `ConsoleShell → WaitingFor.vue` |
 
 ### Pure models & extraction (the reusable brain — invest freely)
 | Module | Console importer |
