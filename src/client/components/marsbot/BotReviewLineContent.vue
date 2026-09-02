@@ -131,7 +131,11 @@ export default defineComponent({
     },
     attackIcons(attack: MarsBotAttack): Array<string> {
       if (attack.resource === 'cube') {
-        return ['card-resource card-resource-animal', 'card-resource card-resource-microbe'];
+        // The composite demand draws BOTH sprites — it is genuinely "an animal
+        // OR a microbe" until one is gone. A resolved cube says which.
+        return attack.cardResource !== undefined ?
+          [iconClassFor(attack.cardResource)] :
+          ['card-resource card-resource-animal', 'card-resource card-resource-microbe'];
       }
       return [iconClassFor(attack.resource)];
     },

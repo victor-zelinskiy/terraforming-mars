@@ -1,10 +1,13 @@
 import {CardName} from '../cards/CardName';
+import {CardResource} from '../CardResource';
 import {Color} from '../Color';
 import {Resource} from '../Resource';
 import {Tag} from '../cards/Tag';
 import {TileType} from '../TileType';
 import {SpaceId} from '../Types';
 import {LogMessage} from '../logs/LogMessage';
+import {EventSource} from '../events/EventSource';
+import {EventTrigger} from '../events/GameEvent';
 import {BonusCardId, TrackAction} from './AutomaTypes';
 
 /**
@@ -111,10 +114,33 @@ export type MarsBotImpactChange = {
   after: number;
 };
 
+/**
+ * WHY one slice of a participant's turn changes happened — the typed origin
+ * joined from the turn's recorded event chain at `finish()` time (the events
+ * carry `EventSource` + the effect trigger; the snapshot diff alone cannot say
+ * WHY). One cause = one engine piece: the recipient's own corporation that
+ * paid out (Tharsis Republic on the bot's city), a colony bonus, a bonus
+ * card's direct effect. `changes` are the SIGNED per-resource deltas this
+ * cause contributed — what lets the client keep a multi-source total honest.
+ */
+export type MarsBotImpactCause = {
+  source: EventSource;
+  /** What fired a passive source (the effect-triggered parent's trigger). */
+  trigger?: EventTrigger;
+  changes: ReadonlyArray<{resource: Resource | 'tr'; scope: 'stock' | 'production'; amount: number}>;
+};
+
 export type MarsBotImpact = {
   target: Color;
   targetIsBot: boolean;
   changes: ReadonlyArray<MarsBotImpactChange>;
+  /**
+   * Per-source attribution of a NON-BOT participant's changes (the viewer's
+   * «почему»), joined from the turn's event chain. Absent for the bot's own
+   * impact (its story is the script itself) and on turns recorded before this
+   * field existed — the client then falls back to the turn's revealed card.
+   */
+  causes?: ReadonlyArray<MarsBotImpactCause>;
 };
 
 /**
@@ -123,7 +149,9 @@ export type MarsBotImpact = {
  *  - 'nothing-to-lose' — the target simply had nothing of the kind;
  *  - 'protected' — an effect (Protected Habitats) blocked the removal;
  *  - 'target-chooses' — the loss resolves via the TARGET's own follow-up pick
- *    (Invasive Species' highest-scoring cube), so no amount is known yet.
+ *    (Invasive Species' highest-scoring cube with SEVERAL equal-rate holders),
+ *    so no amount is known yet. A single candidate is no choice at all: the
+ *    bot takes it on the spot and the step is an ordinary 'hit'.
  */
 export type MarsBotAttackOutcome = 'hit' | 'nothing-to-lose' | 'protected' | 'target-chooses';
 
@@ -144,11 +172,22 @@ export type MarsBotAttack = {
    */
   target?: Color;
   resource: Resource | 'cube';
+  /**
+   * WHICH cube actually left, for a resolved `resource: 'cube'` attack. The
+   * composite demand names two resource types, so an unresolved one can only
+   * draw both sprites — once a cube is gone the presentation must show the ONE
+   * that went. Absent for every non-cube attack and for a cube demand still
+   * waiting on its target's pick.
+   */
+  cardResource?: CardResource;
   /** The printed demand ("loses up to N"). */
   demanded: number;
   /** What actually left the target's stock right now (0 when blocked / deferred). */
   removed: number;
-  /** Stock before/after — omitted when the loss resolves later ('target-chooses'). */
+  /**
+   * Stock before/after — the CARD's own cube count for a resolved 'cube'
+   * attack. Omitted when the loss resolves later ('target-chooses').
+   */
   before?: number;
   after?: number;
   outcome: MarsBotAttackOutcome;

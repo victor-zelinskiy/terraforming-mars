@@ -9,7 +9,7 @@ import {ACTION_MENU_TITLES} from '@/common/inputs/actionMenuTitles';
 import {buildJournalView} from '@/client/components/journal/journalView';
 import {buildEventChildren, impactChips, JournalChildVM, JournalImpactChip} from '@/client/components/journal/journalEventChild';
 import {affectedPlayersOfChain} from './notificationFeedPolicy';
-import {importanceForRoot, viewerImpactOfChain, ViewerImpactMeta} from './notificationSemantics';
+import {importanceForRoot, lossCausesOf, viewerImpactOfChain, ViewerImpactMeta} from './notificationSemantics';
 import {NotificationKind, NotificationVariant, NotificationModel, NotificationPillGroup, NegativeScope, NOTIFICATION_PRIORITY, NOTIFICATION_TTL, COALESCE_THRESHOLD} from './notificationTypes';
 
 /**
@@ -807,7 +807,7 @@ function isViewerVictimEvent(e: GameEvent, viewer: Color): boolean {
   return attackerOf(e, viewer) !== undefined;
 }
 
-function buildNegativeNotification(correlationId: number, negs: ReadonlyArray<GameEvent>, viewer: Color, generation: number, createdAt: number): NotificationModel {
+function buildNegativeNotification(correlationId: number, chain: ReadonlyArray<GameEvent>, negs: ReadonlyArray<GameEvent>, viewer: Color, generation: number, createdAt: number): NotificationModel {
   const anyProduction = negs.some((e) => negativeChips(e).some((c) => c.production === true));
   const scope: NegativeScope = anyProduction ? 'production' : 'stock';
   // The resource MOVED to the attacker (a steal / production transfer) when the
@@ -827,7 +827,11 @@ function buildNegativeNotification(correlationId: number, negs: ReadonlyArray<Ga
     priority: NOTIFICATION_PRIORITY['negative'],
     sign: 'negative',
     importance: 'critical',
-    viewerImpact: {sign: 'negative', gains: [], losses: loss, attacker, sourceCard, transfer, scope: scope === 'production' ? 'production' : 'stock'},
+    viewerImpact: {
+      sign: 'negative', gains: [], losses: loss, attacker, sourceCard, transfer,
+      scope: scope === 'production' ? 'production' : 'stock',
+      causes: lossCausesOf(chain, negs, viewer),
+    },
     typeLabelKey: variantTypeLabel(variant, undefined),
     actor: attacker,
     // Exempt by kind (the viewer IS the victim); the list states it anyway.
@@ -884,7 +888,7 @@ export function diffNegativeNotifications(input: {
     if (input.seen.has(correlationId)) {
       continue;
     }
-    models.push(buildNegativeNotification(correlationId, negs, input.viewerColor, input.generation, input.createdAt));
+    models.push(buildNegativeNotification(correlationId, chain, negs, input.viewerColor, input.generation, input.createdAt));
   }
   return {models, encounteredIds};
 }

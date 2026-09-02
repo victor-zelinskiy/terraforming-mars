@@ -68,21 +68,31 @@
         </div>
       </div>
 
-      <!-- ── THE CAUSE LINE — who did it, with what (secondary voice). ──
-           Only when the viewer band leads: the initiator is the reason, not
-           the story. The bot card keeps its own headline instead. -->
-      <div v-if="impactBand !== undefined && showCause" class="con-notif__cause">
-        <span class="con-notif__dim" v-i18n>Caused by</span>
-        <span v-if="notification.actor !== undefined" class="con-notif__actor">
-          <span class="con-notif__dot" :class="'player_bg_color_' + notification.actor" aria-hidden="true"></span>
-          <span>{{ actorName }}</span>
-        </span>
-        <!-- WHOSE card it is decides how the line reads. An attack names the
-             ATTACKER's card right after them; a passive payout names one of the
-             VIEWER's own, and without the «Источник» qualifier the same
-             position would claim the opponent holds it. -->
-        <span v-if="impactBand.ownSource === true" class="con-notif__dim" v-i18n>Source</span>
-        <b v-if="impactBand.sourceCard !== undefined" class="con-notif__card">{{ $t(impactBand.sourceCard) }}</b>
+      <!-- ── THE «ПОЧЕМУ»-ZONE — the typed cause of the band, ONE grammar for
+           every family (gain / loss / attack / placement bonus / passive
+           payout): a stable «ИСТОЧНИК» anchor, the concrete origin as the
+           accent voice, the trigger as a quiet tail. Hangs directly off the
+           band (the sign-tinted left rail states the association), so the
+           player always knows where the answer lives. Several causes each
+           carry their own delta chips — a multi-source total never claims one
+           origin for everything. The initiator is NOT restated here — the
+           head's actor chip is the one identity statement. -->
+      <div v-if="impactBand !== undefined && causeLines.length > 0"
+           class="con-notif__why"
+           :class="'con-notif__why--' + notification.sign">
+        <div v-for="(line, i) in causeLines" :key="i" class="con-notif__cause">
+          <span v-if="line.chips !== undefined && line.chips.length > 0" class="con-notif__cause-chips">
+            <span v-for="(chip, j) in line.chips" :key="j"
+                  class="con-notif__chip con-notif__chip--mini" :class="chipClass(chip)">
+              <span v-if="iconClass(chip.icon) !== ''" class="con-notif__chip-icon" :class="iconClass(chip.icon)" aria-hidden="true"></span>
+              <span>{{ chip.text }}</span>
+            </span>
+          </span>
+          <span class="con-notif__cause-label" v-i18n>{{ line.labelKey }}</span>
+          <b class="con-notif__card">{{ $t(line.nameKey) }}</b>
+          <span v-if="line.detailKey !== undefined" class="con-notif__cause-detail">{{ $t(line.detailKey) }}</span>
+          <span v-if="line.triggerKey !== undefined" class="con-notif__cause-trigger">{{ triggerText(line) }}</span>
+        </div>
       </div>
 
       <!-- Passive effect fired — the source card by NAME (details live in
@@ -268,6 +278,7 @@ import JournalTokenRenderer from '@/client/components/journal/JournalTokenRender
 import GamepadGlyph from '@/client/components/gamepad/GamepadGlyph.vue';
 import {NOTIF_HOLD_MS, notifHoldState} from '@/client/console/consoleNotifHold';
 import {ViewerImpactMeta} from '@/client/components/notifications/notificationSemantics';
+import {causeLinesOf, NotificationCauseLine} from '@/client/components/notifications/notificationCauseView';
 import {LiveNotification, NotificationPillGroup, NotificationVariant} from '@/client/components/notifications/notificationTypes';
 
 // icon-key → PublicPlayerModel field (the viewer's before → after readout
@@ -360,23 +371,33 @@ export default defineComponent({
       default: return '⇄';
       }
     },
-    /** The cause line — for journal-rooted cards; the bot card has its own headline. */
-    showCause(): boolean {
-      return this.notification.variant !== 'bot-turn' &&
-        (this.notification.actor !== undefined || this.impactBand?.sourceCard !== undefined);
+    /**
+     * The «почему»-zone lines — the typed causes of the band, mapped by the
+     * pure `causeLinesOf`. Always present when the band is (guarded by the
+     * corpus spec); an empty result under a live band is a producer defect —
+     * surfaced as a dev diagnostic in `mounted()`, never masked by a
+     * placeholder.
+     */
+    causeLines(): ReadonlyArray<NotificationCauseLine> {
+      const band = this.impactBand;
+      return band === undefined ? [] : causeLinesOf(band);
     },
     /**
-     * The headline renders event-first (no band), and ALSO under the band on
-     * the bot-turn card — there it IS the cause statement (the played bonus /
-     * project card by name), which must survive the hostile layout: the
-     * one-shot bonus card leaves the game right after resolving, so this line
-     * is the player's only in-flow causal anchor.
+     * The headline renders event-first (no band). Under a live band the
+     * «почему»-zone is the cause voice for EVERY family — the bot-turn card
+     * included (its zone names the very bonus / project card the old
+     * headline-as-cause carried, one grammar with the root cards). The
+     * headline returns only if the zone could not be built (an old save's
+     * script with no attribution and no reveal step).
      */
     headlineVisible(): boolean {
       if (this.notification.header === undefined) {
         return false;
       }
-      return this.impactBand === undefined || this.notification.variant === 'bot-turn';
+      if (this.impactBand === undefined) {
+        return true;
+      }
+      return this.notification.variant === 'bot-turn' && this.causeLines.length === 0;
     },
     /** Bot-turn headline under a live band = the secondary cause voice. */
     headlineAsCause(): boolean {
@@ -520,9 +541,28 @@ export default defineComponent({
       return NOTIF_HOLD_MS;
     },
   },
+  mounted() {
+    // A live band with NO nameable cause is a producer defect (an event that
+    // recorded with no source anywhere in its chain). Never masked by a
+    // placeholder — say it where a developer looks.
+    if (this.impactBand !== undefined && this.causeLines.length === 0) {
+      console.warn(`[notifications] band with no nameable cause: ${this.notification.id}`,
+        JSON.stringify(this.impactBand.causes));
+    }
+  },
   methods: {
     iconClass(icon: string): string {
       return iconClassFor(icon);
+    },
+    /** The trigger tail, translated (`${0}` carries a localized name). */
+    triggerText(line: NotificationCauseLine): string {
+      if (line.triggerKey === undefined) {
+        return '';
+      }
+      if (line.triggerParamKey !== undefined) {
+        return translateTextWithParams(line.triggerKey, [this.$t(line.triggerParamKey)]);
+      }
+      return this.$t(line.triggerKey);
     },
     /** The chip's spoken unit — the resource name beside its icon (band chips
      *  always; context chips only where the icon alone is mute — vp). */

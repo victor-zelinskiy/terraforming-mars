@@ -31,6 +31,7 @@ import {AndOptions} from '../../src/server/inputs/AndOptions';
 import {Luna} from '../../src/server/colonies/Luna';
 import {ColonyBenefit} from '../../src/common/colonies/ColonyBenefit';
 import {viewerImpactOfBotTurn} from '../../src/client/components/notifications/notificationSemantics';
+import {causeLinesOf} from '../../src/client/components/notifications/notificationCauseView';
 import {testAutomaGame} from '../automa/AutomaTestGame';
 import {AutomaController} from '../../src/server/automa/AutomaController';
 import {ModularFloodgates} from '../../src/server/cards/delta/ModularFloodgates';
@@ -80,6 +81,18 @@ function bandOf(models: ReadonlyArray<NotificationModel>, correlationId: number)
   const model = models.find((m) => m.correlationId === correlationId);
   expect(model, `a notification model exists for correlation ${correlationId} ` +
     `(built models: ${models.map((m) => `${m.id}/${m.variant}`).join(', ') || 'none'})`).is.not.undefined;
+  // ⭐ THE «ПОЧЕМУ» GUARANTEE, corpus-wide: every personal band this audit
+  // delivers must carry at least one typed cause AND that cause must render a
+  // NAMEABLE line (never an internal kind, never an empty zone). A scenario
+  // that trips this has produced a gain/loss the player cannot explain.
+  const impact = model!.viewerImpact;
+  if (impact !== undefined && impact.sign !== 'neutral') {
+    expect(impact.causes.length,
+      `the band for correlation ${correlationId} carries typed causes`).greaterThan(0);
+    const lines = causeLinesOf(impact);
+    expect(lines.length,
+      `every band renders a nameable «Источник» line (causes: ${JSON.stringify(impact.causes)})`).greaterThan(0);
+  }
   return model!;
 }
 
@@ -136,6 +149,9 @@ describe('cross-player delivery audit (the viewer hears about foreign actions)',
     expect(model.sign, 'the owner reads it as a personal gain').eq('positive');
     expect(model.importance).eq('notable');
     expect(model.viewerImpact?.gains).deep.eq([{icon: 'megacredits', text: '+1'}]);
+    // The «почему»: the owner-benefit event inherits the placer's card as its
+    // source — the cause names the card whose placement paid the viewer.
+    expect(model.viewerImpact?.causes[0].origin).deep.include({kind: 'card', card: CardName.DOMED_CRATER});
     expect(model.affects, 'the personal feed mode keeps it').contains(owner.color);
     // The builder's own view of the same action carries NO viewer band (it is
     // their own move — self-suppressed as an ordinary action).
@@ -174,6 +190,21 @@ describe('cross-player delivery audit (the viewer hears about foreign actions)',
     // The cause names one of the viewer's OWN earning cards (the «Источник» line).
     expect(model.viewerImpact?.ownSource, 'the source is the viewer\'s own card').eq(true);
     expect(model.viewerImpact?.sourceCard).is.not.undefined;
+    // TWO engine pieces paid the viewer → TWO cause groups, each owning its own
+    // chips (a multi-source total never claims one origin for everything), and
+    // each names the VIEWER's own card plus the trigger that fired it.
+    const causes = model.viewerImpact?.causes ?? [];
+    expect(causes.map((c) => 'card' in c.origin ? c.origin.card : undefined))
+      .has.members([CardName.ROVER_CONSTRUCTION, CardName.PETS]);
+    for (const cause of causes) {
+      expect(cause.own, 'both are the viewer\'s own cards').eq(true);
+      expect(cause.trigger, 'the city placement is the trigger').eq('tile-placed');
+      expect(cause.triggerTile, 'the ONE placed tile names itself').eq(TileType.CITY);
+    }
+    const roverCause = causes.find((c) => 'card' in c.origin && c.origin.card === CardName.ROVER_CONSTRUCTION);
+    expect(roverCause?.gains).deep.eq([{icon: 'megacredits', text: '+2'}]);
+    const petsCause = causes.find((c) => 'card' in c.origin && c.origin.card === CardName.PETS);
+    expect(petsCause?.gains).deep.eq([{icon: 'Animal', text: '+1'}]);
   });
 
   it('S3 — the SECOND reported door: a greenery via the plants CONVERSION next to the owner Ares tile', () => {
@@ -363,6 +394,14 @@ describe('cross-player delivery audit (the viewer hears about foreign actions)',
     expect(model.sign).eq('positive');
     expect(model.importance).eq('notable');
     expect(model.viewerImpact?.gains).deep.eq([{icon: 'megacredits', text: '+1', production: true}]);
+    // The full causal chain, typed: source = the OWNER's Tharsis Republic
+    // (own), trigger = the placed city. Actor stays the builder — the three
+    // roles never substitute for one another.
+    const cause = model.viewerImpact?.causes[0];
+    expect(cause?.origin).deep.include({card: CardName.THARSIS_REPUBLIC});
+    expect(cause?.own, 'the corp is the VIEWER\'s, not the actor\'s').eq(true);
+    expect(cause?.trigger).eq('tile-placed');
+    expect(cause?.triggerTile).eq(TileType.CITY);
     expect(model.affects).contains(owner.color);
     // No band on the actor's own card, and no hostile twin anywhere.
     expect(deliveredModels(game, builder.color).find((m) => m.correlationId === rootId)?.viewerImpact).is.undefined;
@@ -416,6 +455,24 @@ describe('cross-player delivery audit (the viewer hears about foreign actions)',
     const impact = viewerImpactOfBotTurn(turn, human.color, bot.color);
     expect(impact.sign).eq('positive');
     expect(impact.gains).deep.eq([{icon: 'megacredits', text: '+1', production: true}]);
+    // The «почему» rides the SCRIPT itself (born final — no event fetch at
+    // presentation time): finish() joined the turn's chain onto the impact
+    // step, so the band names the human's own Tharsis + the city trigger.
+    const scriptCauses = (humanImpact as Extract<typeof humanImpact, {kind: 'impact'}>).impact.causes ?? [];
+    expect(scriptCauses.map((c) => 'card' in c.source ? c.source.card : undefined))
+      .contains(CardName.THARSIS_REPUBLIC);
+    const cause = impact.causes[0];
+    expect(cause?.origin).deep.include({card: CardName.THARSIS_REPUBLIC});
+    expect(cause?.own).eq(true);
+    expect(cause?.trigger).eq('tile-placed');
+    expect(cause?.triggerTile, 'the ONE placed city names the trigger').eq(TileType.CITY);
+    expect(causeLinesOf(impact).length, 'the zone renders').greaterThan(0);
+    // SAVE/RELOAD: the attribution is part of the ARCHIVED script — a
+    // reconnect rebuilds the same «почему» without touching live state.
+    const restored = Game.deserialize(JSON.parse(JSON.stringify(g.serialize())));
+    const restoredImpact = restored.automa!.turnHistory[0].steps.find((s) =>
+      s.kind === 'impact' && s.impact.target === human.color && !s.impact.targetIsBot);
+    expect(restoredImpact, 'the script impact round-trips, causes included').deep.eq(humanImpact);
 
     // The event ALSO exists in the automa-turn chain (journal truth)…
     const root = g.events.events.find((e) => e.type === 'action' && e.category === 'automa-turn');

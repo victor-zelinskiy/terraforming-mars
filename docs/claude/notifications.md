@@ -1,6 +1,76 @@
 <!-- Reference material moved out of the root CLAUDE.md (2026-07-27 context-budget reorg).
      NOT auto-loaded. Read on demand when working on this subsystem. -->
 
+## ⭐⭐ THE «ПОЧЕМУ»-LAYER (2026-09-02) — every band answers WHY, typed end to end
+
+**The contract:** every green/red band («Вы получили / Вы потеряли») carries
+`ViewerImpactMeta.causes` — a REQUIRED, non-empty (for a non-neutral sign)
+list of typed cause groups, each `{origin, own?, trigger?, triggerTile?,
+triggerCard?, gains, losses}`. `origin` REUSES the server's own `EventSource`
+union (card / corporation / spaceBonus / oceanBonus / colony+benefit /
+bonusCard / milestone / award / globalParameter / …) plus ONE client fallback
+`{kind:'action', category?}` — the root action itself, whose category names
+the rule (solar phase, planetary event). The renderer never guesses from
+text, never reads live game state, and never invents a cause.
+
+**Where the causes come from (nothing new is recorded — the events already
+knew):**
+- **Root chains** — `viewerImpactOfChain` groups every viewer chip by the
+  recording event's `source`, else the nearest `effect-triggered` ancestor's
+  (walk `parentId`; that ancestor also donates `trigger` — only when its
+  source IS the cause's source), else the chain ROOT's source, else the root
+  category. `triggerTile` = the chain's ONE `tile-placed` event (ambiguous ⇒
+  generic tail); `triggerCard` = the root card for `card-played*` triggers.
+  `own` = the source card/corp belongs to the viewer (Tharsis' owner reads
+  «ВАША КОРПОРАЦИЯ Tharsis Republic · за размещение города» while the actor
+  chip stays the builder — source, trigger and actor never substitute).
+- **Bot turns** — `AutomaTurnLog.finish()` JOINS the turn's event chain
+  (sliced by the correlationId captured at `begin()`) back onto each non-bot
+  participant's snapshot diff: `MarsBotImpact.causes` (per-source SIGNED
+  per-resource sums, effect triggers included). The card stays BORN FINAL —
+  no event fetch at presentation time; `viewerImpactOfBotTurn` converts the
+  script causes and adds ONE residual group for whatever share of the band's
+  totals the attribution didn't cover (a cube attack, an old save), keyed on
+  the turn's REVEALED card (`botTurnFallbackOrigin`). The causes ride
+  `turnHistory` and round-trip serialization (S10 asserts byte-equality).
+- **The standalone hostile fallback** (`buildNegativeNotification`) builds
+  its causes through the SAME `lossCausesOf` derivation — the two hostile
+  presentations cannot disagree.
+
+**Rendering — ONE grammar, one place (`notificationCauseView.ts`, pure):**
+`causeLinesOf(meta)` → `[{labelKey, nameKey, detailKey?, triggerKey?,
+triggerParamKey?, chips?}]`. The console card renders them as the
+`.con-notif__why` zone hanging DIRECTLY off the band (a sign-tinted left rail
+states the association geometrically): the stable dim anchor («ИСТОЧНИК» /
+«ВАША КАРТА» / «ВАША КОРПОРАЦИЯ»), the accent name (card / «Бонус клетки» /
+«Торговый доход · Европа» / the bonus card), the quiet trigger tail («за
+размещение города» — the three base tiles are complete phrases for clean RU
+declension, special tiles ride `for placing: ${0}`). SEVERAL causes each
+carry their own delta chips (`__chip--mini`) — a multi-source total never
+claims one origin. The actor stays in the head chip ONLY (the old «Из-за
+actor card» line is gone); the bot card's headline-as-cause special case is
+gone too — under a live band the zone IS the cause voice for every family,
+and the headline returns only when the zone could not be built (old saves).
+
+**The guarantee is structural, never a placeholder:** `causes` is a REQUIRED
+field (a producer cannot compile without deciding it); the mapper is
+EXHAUSTIVE over `EventSource['kind']` and `EventTrigger` (a `never` guard + a
+`Record` — a new kind/trigger fails the compile); an unattributable origin
+('system' with no category) yields NO line + a `console.warn` in the card's
+`mounted()` — «Игровой эффект»-style masking is forbidden. The corpus proof:
+`crossPlayerDeliveryAudit.spec.ts`'s `bandOf` asserts, for EVERY scenario
+S1–S21, that a non-neutral band carries causes AND that `causeLinesOf`
+renders ≥1 nameable line; `notificationCauseView.spec.ts` is the render-side
+worklist (every origin family → a real i18n key). Grep-verified RU keys for
+every label/trigger phrase live in `ru/ui.json`.
+
+**Known attribution shapes (correct, documented):** the Ares owner benefit
+inherits the PLACER's card as its source (the cause names the card whose
+placement paid you); a WGT payout answers with the root category («Солнечная
+фаза»); colony income splits by `benefit` («Торговый доход» / «Бонус
+колонии» · colony name). The production phase records no events and shows no
+notifications (pre-existing frontier — nothing causeless is shown).
+
 ## ⭐⭐ ITERATION 3 (2026-09-01) — ATOMIC DELIVERY: the lifecycle is monotonic
 
 **The contract: `created → prepared → queued → presented → dismissed/expired`,

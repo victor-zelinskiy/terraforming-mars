@@ -86,7 +86,7 @@ function payMc(amount: number): Wire {
   return {
     megacredits: amount, steel: 0, titanium: 0, heat: 0, plants: 0, microbes: 0,
     floaters: 0, lunaArchivesScience: 0, spireScience: 0, seeds: 0, auroraiData: 0,
-    graphene: 0, kuiperAsteroids: 0, corruption: 0,
+    graphene: 0, kuiperAsteroids: 0, corruption: 0, floodgateSteel: 0,
   };
 }
 
@@ -426,7 +426,8 @@ test.describe('Social Heating — another player’s movement · fhd', () => {
       return {
         sign: Array.from(el.classList).find((c) => c.startsWith('con-notif--sign-')) ?? '',
         band: norm((el.querySelector('.con-notif__you') as HTMLElement | null)?.innerText),
-        cause: norm((el.querySelector('.con-notif__cause') as HTMLElement | null)?.innerText),
+        head: norm((el.querySelector('.con-notif__head') as HTMLElement | null)?.innerText),
+        cause: norm((el.querySelector('.con-notif__why') as HTMLElement | null)?.innerText),
         // A notification may never capture a screen.
         modal: document.querySelector('.con-hydro, .con-task') !== null,
       };
@@ -434,8 +435,11 @@ test.describe('Social Heating — another player’s movement · fhd', () => {
     expect(told, 'no notification card reached the owner').toBeDefined();
     expect(told!.sign, 'the card reads as a POSITIVE change for the viewer').toBe('con-notif--sign-positive');
     expect(told!.band, 'the RESULT leads').toContain('+1');
-    expect(told!.cause, 'the CAUSE names the mover…').toContain('Mover');
-    expect(told!.cause, '…and the SOURCE is the owner’s own card').toContain('Социальное отопление');
+    // The actor is stated ONCE — the head's chip; the «почему»-zone names the
+    // owner's OWN earning card under the stable «ИСТОЧНИК» anchor.
+    expect(told!.head, 'the initiator lives in the head chip').toContain('Mover');
+    expect(told!.cause, 'the SOURCE is the owner’s own card').toContain('Социальное отопление');
+    expect(told!.cause, 'the ownership anchor states WHOSE card it is').toMatch(/ВАША КАРТА|Your card/i);
     expect(told!.modal, 'nothing captured the owner’s screen').toBe(false);
     await shoot(page, '05-other-player-notification');
   });

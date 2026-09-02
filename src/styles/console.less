@@ -24540,12 +24540,55 @@ html.console-mode .notifications-layer {
         font-size: .65rem;
         color: @con-text-dim;
     }
-    /* The cause line («Из-за …») + the transfer tail (→ attacker) of the band. */
+    /* ── THE «ПОЧЕМУ»-ZONE — the band's cause layer, one stable place. ──
+       Hangs directly OFF the band: the sign-tinted left rail visually binds
+       every cause line to the green/red plate above it, so «which outcome is
+       this the reason for» is stated by geometry, not by reading. One line
+       per cause; a multi-cause card prefixes each line with its own delta
+       chips (the honest breakdown of a shared total). The quietest voice on
+       the card after the cluster tags — the WHAT above always wins. */
+    &__why {
+        display: flex;
+        flex-direction: column;
+        align-items: flex-start;
+        gap: .18rem;
+        margin: -.02rem 0 .05rem .35rem;
+        padding: .12rem 0 .1rem .5rem;
+        border-left: .125rem solid rgba(150, 175, 205, 0.35);
+    }
+    &__why--positive { border-left-color: fade(@con-mint, 55%); }
+    &__why--negative { border-left-color: fade(@con-red, 60%); }
+    &__why--mixed { border-left-color: fade(@con-amber, 55%); }
+    /* One cause line: [chips] ИСТОЧНИК <Name> · detail · trigger tail. */
     &__cause {
         display: inline-flex;
         align-items: center;
         flex-wrap: wrap;
         gap: .35rem;
+    }
+    &__cause-label {
+        font-size: .55rem;
+        font-weight: 800;
+        letter-spacing: .09rem;
+        text-transform: uppercase;
+        color: fade(#c4d8ec, 58%);
+        white-space: nowrap;
+    }
+    &__cause-detail,
+    &__cause-trigger {
+        color: @con-text-dim;
+        font-size: .7rem;
+    }
+    &__cause-chips {
+        display: inline-flex;
+        align-items: center;
+        gap: .25rem;
+    }
+    &__chip--mini {
+        font-size: .625rem;
+        padding: .05rem .35rem;
+
+        .con-notif__chip-icon { width: .75rem; height: .75rem; }
     }
     &__side {
         display: inline-flex;
@@ -30159,7 +30202,16 @@ html.console-mode {
         color: #ffd79a;
     }
     &__railarrow { flex-shrink: 0; color: fade(@con-cyan, 55%); font-size: .9rem; }
-    &__railimpacts { display: inline-flex; align-items: center; gap: .35rem; min-width: 0; flex-wrap: nowrap; }
+    /* NEVER SHRINKS, and the card name (`__railcard`, `flex-shrink: 1` +
+       ellipsis) is what gives way instead. The reading IS the payload — the
+       `current → resulting` this fork refuses to let a player confirm a target
+       without — while the name is an identity that ellipsizes honestly. Left to
+       the default `flex-shrink: 1` the two shrank in proportion, and since the
+       chips themselves are `flex-shrink: 0; white-space: nowrap` the container
+       lost width its content could not: «БАКТЕРИЯ, ПЕРЕРАБАТЫВАЮЩАЯ… →
+       Ресурсы 3 —» — the resulting value cut off at the panel edge, with the
+       rail's own `overflow: hidden` hiding the evidence. */
+    &__railimpacts { display: inline-flex; align-items: center; gap: .35rem; flex: 0 0 auto; flex-wrap: nowrap; }
     /* The `2 → 3` reading. Same COMPACT family as the hero chip: it must sit on
        ONE line beside the chosen card's name without the resource sprite
        deciding that line's height. */

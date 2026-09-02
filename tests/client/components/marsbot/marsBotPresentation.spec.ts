@@ -168,6 +168,47 @@ describe('marsBotPresentation (notification-first turns)', () => {
       expect(model.botTurnKey).eq('red:1:1');
     });
 
+    it('DELIVERS a cube the bot took outright — the card IS the presentation of that loss', () => {
+      // B02 Invasive Species with a single candidate: no prompt is raised, so
+      // this card is the whole moment. It must lead RED on its FIRST frame
+      // (the atomic contract), name the cube that actually left rather than
+      // the demand's animal+microbe pair, and — because a resource chip cannot
+      // say WHICH card lost it — keep the removal's own log line, which the
+      // structural viewer-drop would otherwise fold away.
+      const removal = {
+        message: '${0} removed ${1} resource(s) from ${2}\'s ${3}',
+        data: [{type: 2 /* PLAYER */, value: 'red'}],
+      } as never;
+      const t: MarsBotTurn = {
+        id: 1,
+        generation: 1,
+        steps: [
+          {kind: 'reveal', card: {kind: 'bonus', id: 'B02' as never}, message: logLine('${0} revealed ${1}')},
+          {kind: 'attack', attack: {
+            target: 'blue' as Color, resource: 'cube', cardResource: 'Microbe' as never,
+            demanded: 1, removed: 1, before: 2, after: 1, outcome: 'hit',
+          }},
+          {kind: 'log', message: removal},
+          {kind: 'impact', impact: {target: 'red' as Color, targetIsBot: true, changes: [
+            {resource: 'megacredits' as never, scope: 'stock', before: 0, after: 5},
+          ]}},
+        ],
+      };
+      const [entry] = recordBotTurnsFromView(PREV, botView({lastTurn: t}));
+      const model = buildBotTurnNotification(entry, {viewerColor: 'blue' as Color, createdAt: 5, autoExpand: false});
+      expect(model.sign).eq('negative');
+      expect(model.importance, 'a viewer loss must not be missed').eq('critical');
+      expect(model.ttl, '…and lingers with the hostile lifetime').eq(13_000);
+      expect(model.viewerImpact?.losses).deep.eq([{icon: 'Microbe', text: '−1'}]);
+      expect(model.viewerImpact?.attacker).eq('red');
+      // The line that names the CARD survives: it is not a restatement of the
+      // band (the chip says how much, only this says off WHAT).
+      expect((model.summaryLines ?? []).map((l) => l.message))
+        .contains('${0} removed ${1} resource(s) from ${2}\'s ${3}');
+      // The seat is in `affects`, so the personal feed mode shows the card.
+      expect(model.affects).contains('blue');
+    });
+
     it('falls back to the bot\'s own impact pills when the viewer was untouched', () => {
       const t: MarsBotTurn = {...turn(1), steps: turn(1).steps.filter((s) =>
         s.kind !== 'impact' || s.impact.targetIsBot)};

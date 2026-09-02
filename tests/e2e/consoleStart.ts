@@ -12,6 +12,7 @@ import {APIRequestContext, Locator, Page, expect} from '@playwright/test';
  * contract in full; `SelectInitialCards.ts` is the same shape.
  */
 import {isActionMenuTitle} from '../../src/common/inputs/actionMenuTitles';
+import {SPENDABLE_RESOURCES} from '../../src/common/inputs/Spendable';
 import {
   SELECT_CEO_TITLE, SELECT_CORPORATION_TITLE, SELECT_PRELUDE_TITLE, SELECT_PROJECTS_TITLE,
 } from '../../src/common/inputs/SelectInitialCards';
@@ -1258,12 +1259,18 @@ type WirePlayerModel = {
 /** A response body for `player/input`, kept loose for the same reason. */
 type WireResponse = Record<string, unknown> & {type: string};
 
-/** The zero payment — every `SpendableResource` at 0 (`Payment.EMPTY`). */
-const NO_PAYMENT: Readonly<Record<string, number>> = {
-  heat: 0, megacredits: 0, steel: 0, titanium: 0, plants: 0, microbes: 0,
-  floaters: 0, lunaArchivesScience: 0, spireScience: 0, seeds: 0,
-  auroraiData: 0, graphene: 0, kuiperAsteroids: 0,
-};
+/**
+ * The zero payment — every `SpendableResource` at 0 (`Payment.EMPTY`).
+ *
+ * DERIVED FROM THE SERVER'S OWN LIST, never hand-listed: `isPayment` demands a
+ * numeric field for EVERY entry of `SPENDABLE_RESOURCES` and rejects the whole
+ * input otherwise (400 «payment is not a valid type»). A hand-written copy is
+ * therefore correct only until the next spendable resource ships — DP11's
+ * `floodgateSteel` broke every one of them at once, and the failure surfaces as
+ * a driver error deep inside an unrelated spec.
+ */
+export const NO_PAYMENT: Readonly<Record<string, number>> =
+  Object.fromEntries(SPENDABLE_RESOURCES.map((key) => [key, 0]));
 
 /** A prompt's title as a plain string ('' for a `Message` — see the note above). */
 function promptTitle(prompt: WirePrompt): string {

@@ -1,7 +1,7 @@
 import {test, expect, APIRequestContext, Page} from '@playwright/test';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
-import {fetchPlayerModel, openConsole, seedGameOverApi, sendPlayerInput, soloGameConfig} from './consoleStart';
+import {NO_PAYMENT, fetchPlayerModel, openConsole, seedGameOverApi, sendPlayerInput, soloGameConfig} from './consoleStart';
 
 /**
  * THE BOT ATTACK, END TO END — the bot plays Invasive Species, the player is
@@ -19,10 +19,10 @@ import {fetchPlayerModel, openConsole, seedGameOverApi, sendPlayerInput, soloGam
  * file deliberately asserts only what those cannot see.
  *
  * THE SCENARIO IS REAL, not injected. `customBonusCards` (the automa twin of
- * the existing `customProjectCards` dev seam) puts Invasive Species at the top
- * of MarsBot's bonus deck, so it enters the STARTING action deck and fires
- * within the bot's first few turns; the human's own microbe card is played and
- * fed through the ordinary action menu. Every request below is the one the real
+ * the existing `customProjectCards` dev seam) seats Invasive Species near the
+ * top of MarsBot's bonus deck, so it reaches the action deck within the first
+ * couple of generations; the human's own microbe cards are played and stocked
+ * through the ordinary action menu. Every request below is the one the real
  * client makes.
  */
 
@@ -30,33 +30,54 @@ import {fetchPlayerModel, openConsole, seedGameOverApi, sendPlayerInput, soloGam
 const SHOTS = path.resolve('screenshots', 'bot-attack');
 
 /**
- * A cheap microbe card with an action that stocks ITSELF — 4 M€, no requirement.
+ * TWO candidates, because that is the only composition this modal still has.
  *
- * ONE candidate on purpose. The attack offers only the HIGHEST-scoring holders,
- * so a genuine two-card choice needs two cards of the SAME cube rate, both
- * stocked — and the cheap self-stocking cards do not pair up that way (Ants'
- * action takes a microbe OFF another card, i.e. it would eat the very cube this
- * scenario is built on). The tie case is covered deterministically by the server
- * spec («EVERY tied leader is offered»); what only a live run can settle is the
- * single-target COMPOSITION, which is also the reported one.
+ * A lone candidate is no choice at all: the bot takes that cube during its own
+ * turn and the loss is presented (the bot-turn card's red band + the journal
+ * line), never asked about. The demand becomes a QUESTION only when the victim
+ * holds several cards of the SAME cube rate — so the scenario needs a real tie.
+ *
+ * Both cards score NOTHING per cube (no `resourcesHere` victory points), which
+ * makes them rate-0 equals; both are base-game and requirement-free, so the
+ * pair is reachable in generation 1. Nitrite Reducing Bacteria enters play
+ * already holding 3 microbes; Regolith Eaters needs one activation, and its
+ * first one is prompt-free (the «spend 2» branch is not executable at 0, so the
+ * card's `or` auto-selects «add 1 microbe»).
  */
-const TARDIGRADES = 'Tardigrades';
+const NITRITE = 'Nitrite Reducing Bacteria'; // 11 M€, enters with 3 microbes
+const REGOLITH = 'Regolith Eaters'; //          13 M€, one action to stock
+const CUBE_CARDS = [NITRITE, REGOLITH];
 
+/** The one that has to be ACTIVATED before it holds a cube (see above). */
+const NEEDS_ACTION = REGOLITH;
+
+/**
+ * A rich corporation, NAMED: the pair costs 24 M€ to play and the bot flips its
+ * bonus card within its first few turns, so «afford both in generation 1» is
+ * part of the scenario rather than a happy accident of the deal.
+ */
+const CORPORATION = 'CrediCor';
+
+/**
+ * B02 is the SECOND bonus card on purpose. Setup lifts only the deck's TOP card
+ * into the STARTING action deck (and shuffles it among 3 projects), so `['B02']`
+ * alone gives it a 1-in-4 chance of being the bot's very first flip — before the
+ * human has taken a single action. That was survivable while the scenario needed
+ * one stocked card; a TIE needs two, and two cards cannot both hold a cube
+ * within the two actions of one turn. With B03 on top, B02 waits in the bonus
+ * deck and joins the action deck at the generation-2 Research Phase — by which
+ * time the pair has been played and stocked with room to spare.
+ */
 const CONFIG = soloGameConfig({
   automa: {difficulty: 'normal'},
-  customBonusCards: ['B02'],
-  customProjectCards: [TARDIGRADES],
+  customBonusCards: ['B03', 'B02'],
+  customProjectCards: CUBE_CARDS,
+  customCorporationsList: [CORPORATION],
 });
 
 type Wire = {type: string, title?: unknown, options?: Array<Wire>, cards?: Array<{name: string, calculatedCost?: number}>,
   botAttackPrompt?: unknown, min?: number, buttonLabel?: string};
 type Model = {waitingFor?: Wire, game: {phase: string, generation: number}};
-
-const NO_PAYMENT = {
-  heat: 0, megacredits: 0, steel: 0, titanium: 0, plants: 0, microbes: 0,
-  floaters: 0, lunaArchivesScience: 0, spireScience: 0, seeds: 0,
-  auroraiData: 0, graphene: 0, kuiperAsteroids: 0,
-};
 
 /** The action menu's branch INDEX for a structurally identified option. */
 function branchIndex(menu: Wire, match: (o: Wire) => boolean): number {
@@ -75,15 +96,29 @@ async function awaitPrompt(request: APIRequestContext, id: string, maxMs = 60_00
   return model;
 }
 
+/** How this drive is meant to end — the ONE thing the two scenarios differ in. */
+type Arrival = {
+  /** Cards to play out of hand, in whatever order the menu offers them. */
+  play: ReadonlyArray<string>;
+  /** The card to ACTIVATE, once ever (see `NEEDS_ACTION`). */
+  activate?: string;
+  /** True when the scenario the spec came for has arrived. */
+  done: (model: Model) => boolean;
+  /** What to say if it never does. */
+  never: string;
+};
+
 /**
- * Drive the game over the API until MarsBot raises its attack.
+ * Drive the game over the API until the scenario arrives.
  *
- * The plan per generation: play the two microbe cards while they are still in
- * hand, stock one of each with its own action, then pass. Everything else the
- * game asks (the research buy, a stray effect) takes its own minimum.
+ * The plan: play the microbe cards while they are still in hand, activate the
+ * one that enters empty (ONCE — a second activation would be a real `or` and
+ * this drive is not what should be answering it), then pass. Everything else
+ * the game asks (the research buy, a stray effect) takes its own minimum.
  */
-async function playUntilAttack(request: APIRequestContext, id: string): Promise<Model> {
+async function playUntilArrival(request: APIRequestContext, id: string, plan: Arrival): Promise<Model> {
   const played = new Set<string>();
+  /** Deliberately NOT cleared per generation — one cube is all a tie needs. */
   const stocked = new Set<string>();
   const trace: Array<string> = [];
   /** Is this `or` the per-turn ACTION MENU, or an effect asking something? */
@@ -94,11 +129,11 @@ async function playUntilAttack(request: APIRequestContext, id: string): Promise<
     const wf = model.waitingFor;
     trace.push(`g${model.game?.generation}/${model.game?.phase}:${wf?.type ?? 'none'}` +
       (wf?.type === 'or' ? `[${(wf.options ?? []).map((o) => o.type).join(',')}]` : ''));
-    expect(wf, `the table never came back (phase ${model.game?.phase}) — ${trace.join(' ')}`).toBeDefined();
-    if (wf === undefined) {
+    if (plan.done(model)) {
       return model;
     }
-    if (wf.botAttackPrompt !== undefined) {
+    expect(wf, `the table never came back (phase ${model.game?.phase}) — ${trace.join(' ')}`).toBeDefined();
+    if (wf === undefined) {
       return model;
     }
     // The research buy — take nothing, the hand is already stocked.
@@ -133,7 +168,7 @@ async function playUntilAttack(request: APIRequestContext, id: string): Promise<
     // ── the ACTION MENU ────────────────────────────────────────────────
     const playIdx = branchIndex(wf, (o) => o.type === 'projectCard');
     const playable = (wf.options?.[playIdx]?.cards ?? []).filter((c) => !played.has(c.name));
-    const wanted = playable.find((c) => c.name === TARDIGRADES);
+    const wanted = playable.find((c) => plan.play.includes(c.name));
     if (playIdx >= 0 && wanted !== undefined) {
       played.add(wanted.name);
       await sendPlayerInput(request, id, {
@@ -143,9 +178,9 @@ async function playUntilAttack(request: APIRequestContext, id: string): Promise<
       continue;
     }
     const actionIdx = branchIndex(wf, (o) => o.type === 'card' && (o as {selectBlueCardAction?: boolean}).selectBlueCardAction === true);
-    // ONLY the self-stocking card's action — see the note on TARDIGRADES.
+    // ONLY the card the plan names, and only ONCE — see `NEEDS_ACTION`.
     const action = (wf.options?.[actionIdx]?.cards ?? [])
-      .find((c) => c.name === TARDIGRADES && !stocked.has(c.name));
+      .find((c) => c.name === plan.activate && !stocked.has(c.name));
     if (actionIdx >= 0 && action !== undefined) {
       stocked.add(action.name);
       await sendPlayerInput(request, id, {
@@ -159,10 +194,9 @@ async function playUntilAttack(request: APIRequestContext, id: string): Promise<
     const passIdx = branchIndex(wf, (o) => o.type === 'option' && o.buttonLabel === 'Pass');
     expect(passIdx, `the action menu offered no pass: ${JSON.stringify((wf.options ?? []).map((o) => o.type))}`)
       .toBeGreaterThanOrEqual(0);
-    stocked.clear(); // a new generation re-arms every card action
     await sendPlayerInput(request, id, {type: 'or', index: passIdx, response: {type: 'option'}});
   }
-  expect(false, `the bot never played Invasive Species — ${trace.join(' ')}`).toBeTruthy();
+  expect(false, `${plan.never} — ${trace.join(' ')}`).toBeTruthy();
   return await fetchPlayerModel(request, id) as unknown as Model;
 }
 
@@ -198,8 +232,21 @@ async function panelBox(page: Page) {
       return b.width > 0 && b.height > 0 &&
         (b.left < r.left - 1 || b.right > r.right + 1 || b.top < r.top - 1 || b.bottom > r.bottom + 1);
     }).map((el) => el.className);
+    // A USER-SCROLLABLE box is the defect. `overflow-x: hidden` cannot be
+    // scrolled at all — it is the console's truncation idiom, and it is honest
+    // exactly when it SAYS it truncated (`text-overflow: ellipsis`). Without
+    // that split the rail's own card name — which declares the ellipsis and is
+    // designed to give way so the `current → resulting` reading always fits —
+    // reads as a scroller the moment a long localisation lands in it.
     const scrollers = Array.from(document.querySelectorAll<HTMLElement>('.con-botattack *'))
-      .filter((el) => el.scrollWidth > el.clientWidth + 1 && getComputedStyle(el).overflowX !== 'visible')
+      .filter((el) => {
+        if (el.scrollWidth <= el.clientWidth + 1) {
+          return false;
+        }
+        const s = getComputedStyle(el);
+        return s.overflowX === 'auto' || s.overflowX === 'scroll' ||
+          (s.overflowX === 'hidden' && !s.textOverflow.startsWith('ellipsis'));
+      })
       .map((el) => el.className);
     const cs = getComputedStyle(panel);
     return {
@@ -224,9 +271,18 @@ test.describe('MarsBot attack — the compact mandatory modal', () => {
     const {players} = await created.json();
     const id = players[0].id;
 
-    await seedGameOverApi(request, id, {cards: [TARDIGRADES], buy: 1});
-    const attacked = await playUntilAttack(request, id);
+    await seedGameOverApi(request, id, {cards: CUBE_CARDS, buy: 2, corporation: CORPORATION});
+    const attacked = await playUntilArrival(request, id, {
+      play: CUBE_CARDS,
+      activate: NEEDS_ACTION,
+      done: (m) => m.waitingFor?.botAttackPrompt !== undefined,
+      never: 'the bot never raised the attack as a CHOICE',
+    });
     expect(attacked.waitingFor?.botAttackPrompt, 'the attack context reached the wire').toBeDefined();
+    // A demand with one candidate is answered by the SERVER (the bot simply
+    // takes the cube) — reaching the modal at all means the tie is real.
+    expect((attacked.waitingFor?.cards ?? []).length,
+      'the scenario produced a genuine choice, not an «ОК»').toBeGreaterThan(1);
 
     await openConsole(page, id);
 
@@ -310,7 +366,12 @@ test.describe('MarsBot attack — the compact mandatory modal', () => {
     expect(box, 'the panel is on screen').toBeDefined();
     expect(box!.opacity, 'the panel actually PAINTS').toBeGreaterThan(0.9);
     expect(box!.visibility, '…and is not left hidden by a killed tween').toBe('visible');
-    expect(box!.w / box!.vw, 'the modal does not compete with a workspace').toBeLessThan(0.55);
+    // The panel is CONTENT-SIZED, so its width is a function of the candidate
+    // count — and two candidates is this surface's smallest real composition
+    // now that a lone one is answered by the server. The claim is «a dialog
+    // with board on both sides», not a fixed fraction: a workspace takes the
+    // WHOLE band (~0.75 of the viewport here, rail to rail).
+    expect(box!.w / box!.vw, 'the modal does not compete with a workspace').toBeLessThan(0.65);
     expect(box!.h / box!.vh, '…nor claim the height of one').toBeLessThan(0.85);
     expect(box!.overflowing, `content sticking out of the panel: ${box!.overflowing.join(' | ')}`).toEqual([]);
     expect(box!.scrollers, `a horizontal scroller appeared: ${box!.scrollers.join(' | ')}`).toEqual([]);
@@ -338,7 +399,7 @@ test.describe('MarsBot attack — the compact mandatory modal', () => {
 
     // ── (6) A SELECTS — and the preview reads было → станет ────────────
     const targets = await page.locator('.con-botattack [data-ptsel-cell]').count();
-    expect(targets, 'the real scenario produced at least one candidate').toBeGreaterThan(0);
+    expect(targets, 'the real scenario produced a choice of candidates').toBeGreaterThan(1);
     await page.keyboard.press('Enter');
     await settle(page, 600);
     await page.waitForSelector('.con-botattack .con-ptsel__slot--locked', {timeout: 10_000});
@@ -349,15 +410,15 @@ test.describe('MarsBot attack — the compact mandatory modal', () => {
       label: (document.querySelector('.con-botattack__cta-label')?.textContent ?? '').trim(),
       rail: (document.querySelector('.con-botattack .con-ptsel__railimpacts')?.textContent ?? '')
         .replace(/\s+/g, ' ').trim(),
-      // …and the rail no longer opens with the card's own name + an arrow (the
-      // «ТИХОХОДКИ → Ресурсы на этой карте 1 → 0» debug reading).
+      // …and with SEVERAL candidates the rail leads with the card's own name —
+      // it is what says WHICH one is being read.
       railCards: document.querySelectorAll('.con-botattack .con-ptsel__railcard').length,
     }));
     expect(chosen.ready, 'the commit is now live').toBe(1);
     expect(chosen.focused, 'and the cursor moved onto it').toBe(1);
     expect(chosen.label, 'the confirm names the ACT, never «выбрать»').toContain('Удалить');
     expect(chosen.rail, 'the current → resulting reading is on screen').toContain('→');
-    expect(chosen.railCards, 'the single target does not restate its own name').toBe(0);
+    expect(chosen.railCards, 'the rail names WHICH candidate is under the cursor').toBe(1);
 
     await shoot(page, '02-target-chosen');
     // The box did not move when the choice was made (a commit row that grows
@@ -373,3 +434,4 @@ test.describe('MarsBot attack — the compact mandatory modal', () => {
     expect(after.waitingFor?.botAttackPrompt, 'the demand is answered and gone').toBeUndefined();
   });
 });
+

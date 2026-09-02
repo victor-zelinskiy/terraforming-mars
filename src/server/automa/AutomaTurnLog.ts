@@ -4,7 +4,9 @@ import {Resource} from '../../common/Resource';
 import {TileType} from '../../common/TileType';
 import {SpaceId} from '../../common/Types';
 import {BonusCardId} from '../../common/automa/AutomaTypes';
-import {MarsBotBonusFate, MarsBotBonusResolution, MarsBotImpactChange, MarsBotLogRole, MarsBotParamChange, MarsBotStepCause, MarsBotTurn, MarsBotTurnMarker, MarsBotTurnStep, MarsBotTurnTile, MarsBotTurnVisual} from '../../common/automa/MarsBotTurn';
+import {GameEvent} from '../../common/events/GameEvent';
+import {sourceKey} from '../../common/events/EventSource';
+import {MarsBotBonusFate, MarsBotBonusResolution, MarsBotImpactCause, MarsBotImpactChange, MarsBotLogRole, MarsBotParamChange, MarsBotStepCause, MarsBotTurn, MarsBotTurnMarker, MarsBotTurnStep, MarsBotTurnTile, MarsBotTurnVisual} from '../../common/automa/MarsBotTurn';
 import {IGame} from '../IGame';
 import {IPlayer} from '../IPlayer';
 
@@ -151,6 +153,98 @@ function boardVisualOf(before: BoardSnapshot, game: IGame): MarsBotTurnVisual | 
     visual.venusScaleLevel = venusScaleLevel;
   }
   return Object.keys(visual).length > 0 ? visual : undefined;
+}
+
+/**
+ * Join the turn's recorded EVENT CHAIN back onto one participant's snapshot
+ * diff: per-source attribution of WHY their resources moved. The snapshot can
+ * only say WHAT changed; the events (recorded at the mutation chokepoints)
+ * carry the typed `EventSource` and — for a passive payout — the
+ * `effect-triggered` parent's trigger. One cause per engine piece, first
+ * occurrence order, SIGNED per-resource sums (so a multi-source total stays
+ * honest downstream). Returns undefined when nothing attributable was found —
+ * the client then falls back to the turn's revealed card.
+ */
+function impactCausesOf(events: ReadonlyArray<GameEvent>, player: Color): ReadonlyArray<MarsBotImpactCause> | undefined {
+  const byId = new Map<number, GameEvent>();
+  for (const e of events) {
+    byId.set(e.id, e);
+  }
+  /** The nearest `effect-triggered` ancestor — the WHY of a passive payout. */
+  const effectAncestorOf = (e: GameEvent): GameEvent | undefined => {
+    let cursor: GameEvent | undefined = e;
+    for (let depth = 0; cursor !== undefined && depth < 8; depth++) {
+      if (cursor.type === 'effect-triggered') {
+        return cursor;
+      }
+      cursor = cursor.parentId === undefined ? undefined : byId.get(cursor.parentId);
+    }
+    return undefined;
+  };
+  const order: Array<string> = [];
+  const byKey = new Map<string, {cause: {source: MarsBotImpactCause['source']; trigger?: MarsBotImpactCause['trigger']}; sums: Map<string, number>}>();
+  for (const e of events) {
+    if (e.player !== player || e.type === 'effect-triggered') {
+      continue;
+    }
+    const marker = effectAncestorOf(e);
+    const source = e.source ?? marker?.source;
+    if (source === undefined || source.kind === 'payment') {
+      continue; // unattributable here — the residual falls back downstream
+    }
+    // The trigger belongs to the cause only when the cause IS that effect's
+    // own source — a bonus-card delta nested under an unrelated marker must
+    // not inherit the marker's trigger.
+    const trigger = marker !== undefined && sourceKey(marker.source) === sourceKey(source) ? marker.trigger : undefined;
+    const deltas: Array<{resource: Resource | 'tr'; scope: 'stock' | 'production'; amount: number}> = [];
+    for (const resource of RESOURCES) {
+      const stock = e.impact.stock?.[resource];
+      if (stock !== undefined && stock !== 0) {
+        deltas.push({resource, scope: 'stock', amount: stock});
+      }
+      const production = e.impact.production?.[resource];
+      if (production !== undefined && production !== 0) {
+        deltas.push({resource, scope: 'production', amount: production});
+      }
+    }
+    if (e.impact.tr !== undefined && e.impact.tr !== 0) {
+      deltas.push({resource: 'tr', scope: 'stock', amount: e.impact.tr});
+    }
+    if (deltas.length === 0) {
+      continue;
+    }
+    const benefit = source.kind === 'colony' ? source.benefit : undefined;
+    const key = `${sourceKey(source)}#${benefit ?? ''}#${trigger ?? ''}`;
+    let entry = byKey.get(key);
+    if (entry === undefined) {
+      entry = {cause: {source, ...(trigger !== undefined ? {trigger} : {})}, sums: new Map()};
+      byKey.set(key, entry);
+      order.push(key);
+    }
+    for (const d of deltas) {
+      const sumKey = `${d.resource}|${d.scope}`;
+      entry.sums.set(sumKey, (entry.sums.get(sumKey) ?? 0) + d.amount);
+    }
+  }
+  const causes: Array<MarsBotImpactCause> = [];
+  for (const key of order) {
+    const entry = byKey.get(key);
+    if (entry === undefined) {
+      continue;
+    }
+    const changes: Array<{resource: Resource | 'tr'; scope: 'stock' | 'production'; amount: number}> = [];
+    for (const [sumKey, amount] of entry.sums) {
+      if (amount === 0) {
+        continue; // a wash (gained and lost back) is not a cause worth naming
+      }
+      const [resource, scope] = sumKey.split('|') as [Resource | 'tr', 'stock' | 'production'];
+      changes.push({resource, scope, amount});
+    }
+    if (changes.length > 0) {
+      causes.push({...entry.cause, changes});
+    }
+  }
+  return causes.length > 0 ? causes : undefined;
 }
 
 function diffOf(before: PlayerSnapshot, player: IPlayer): Array<MarsBotImpactChange> {
@@ -344,15 +438,29 @@ export class AutomaTurnLog {
       change.scope === 'stock' && attacks.some((s) =>
         s.attack.target === target && s.attack.resource === change.resource &&
         s.attack.before === change.before && s.attack.after === change.after);
+    // The event chain of THIS turn — the WHY behind each participant's diff.
+    // finish() runs outside the recorder's scope, so the chain is read back by
+    // the correlationId captured at begin().
+    const turnEvents = recording.correlationId === undefined ? [] :
+      game.events.events.filter((e) => e.correlationId === recording.correlationId);
     // The "turn results" section: one impact step per participant the turn
     // actually touched — the bot's own gains first, then its targets.
     const impacts = recording.snapshots
       .map((snapshot) => {
         const player = game.players.find((p) => p.color === snapshot.color);
-        return player === undefined ? undefined : {
+        if (player === undefined) {
+          return undefined;
+        }
+        // Per-source attribution for the humans the turn touched — the bot's
+        // own impact needs none (its story IS the script). Deliberately NOT
+        // filtered by coveredByAttack: the attack's own delta keeps its cause
+        // too, so the viewer's whole loss stays answerable.
+        const causes = snapshot.isBot ? undefined : impactCausesOf(turnEvents, snapshot.color);
+        return {
           target: snapshot.color,
           targetIsBot: snapshot.isBot,
           changes: diffOf(snapshot, player).filter((c) => !coveredByAttack(snapshot.color, c)),
+          ...(causes !== undefined ? {causes} : {}),
         };
       })
       .filter((impact): impact is NonNullable<typeof impact> => impact !== undefined && impact.changes.length > 0)

@@ -172,8 +172,10 @@ function applyImpact(view: ViewModel, impact: MarsBotImpact): void {
 }
 
 function applyAttack(view: ViewModel, attack: MarsBotAttack): void {
-  // Only a concrete stock loss on a REAL target carries numbers
-  // ('target-chooses' resolves later; 'nothing-to-lose' has no target at all).
+  // Only a concrete STOCK loss on a REAL target carries numbers here
+  // ('target-chooses' resolves later; 'nothing-to-lose' has no target at all;
+  // a 'cube' lives on a card, not in the player model — the authoritative
+  // commit at the end of the staging window is what moves it).
   if (attack.target !== undefined && attack.after !== undefined && attack.resource !== 'cube') {
     setValue(view, attack.target, attack.resource, 'stock', attack.after);
   }

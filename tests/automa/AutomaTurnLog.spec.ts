@@ -2,6 +2,7 @@ import {expect} from 'chai';
 import {CardName} from '../../src/common/cards/CardName';
 import {Tag} from '../../src/common/cards/Tag';
 import {TileType} from '../../src/common/TileType';
+import {CardResource} from '../../src/common/CardResource';
 import {BonusCardId} from '../../src/common/automa/AutomaTypes';
 import type {MarsBotTurnStep} from '../../src/common/automa/MarsBotTurn';
 import {AutomaState} from '../../src/server/automa/AutomaState';
@@ -9,6 +10,7 @@ import {AutomaTurnLog} from '../../src/server/automa/AutomaTurnLog';
 import {IGame} from '../../src/server/IGame';
 import {Server} from '../../src/server/models/ServerModel';
 import {Birds} from '../../src/server/cards/base/Birds';
+import {Fish} from '../../src/server/cards/base/Fish';
 import {ProtectedHabitats} from '../../src/server/cards/base/ProtectedHabitats';
 import {TestPlayer} from '../TestPlayer';
 import {addOcean, setTemperature} from '../TestingUtils';
@@ -216,13 +218,39 @@ describe('AutomaTurnLog — the typed turn script', () => {
     expect(attack!.message?.message).to.include('plants are protected');
   });
 
-  it('a deferred cube attack announces the target with "target-chooses"', () => {
+  it('a cube attack with ONE candidate records the resolved hit, and names the cube that left', () => {
     const [game, human] = testAutomaGame();
     const automa = game.automa!;
     startActionPhase(game, human);
     const birds = new Birds();
     birds.resourceCount = 2;
     human.playedCards.push(birds);
+    automa.actionDeck = [{kind: 'bonus', id: BonusCardId.B02_INVASIVE_SPECIES}];
+    humanEndsTurn(game, human);
+
+    const attack = automa.lastTurn!.steps
+      .find((s): s is Extract<MarsBotTurnStep, {kind: 'attack'}> => s.kind === 'attack');
+    expect(attack).is.not.undefined;
+    expect(attack!.attack).deep.eq({
+      target: human.color, resource: 'cube', cardResource: CardResource.ANIMAL,
+      demanded: 1, removed: 1, before: 2, after: 1, outcome: 'hit',
+    });
+    // The removal's own log line is NOT consumed into the step: the chip says
+    // how much left, only this line says WHICH CARD it left.
+    const named = automa.lastTurn!.steps.some((s) =>
+      s.kind === 'log' && s.message.data.some((d) => d.value === CardName.BIRDS));
+    expect(named, 'the review names the card the cube came off').is.true;
+  });
+
+  it('a cube attack with TIED candidates announces the target with "target-chooses"', () => {
+    const [game, human] = testAutomaGame();
+    const automa = game.automa!;
+    startActionPhase(game, human);
+    const birds = new Birds(); // 1 VP per animal
+    birds.resourceCount = 2;
+    const fish = new Fish(); // 1 VP per animal — the same rate
+    fish.resourceCount = 4;
+    human.playedCards.push(birds, fish);
     automa.actionDeck = [{kind: 'bonus', id: BonusCardId.B02_INVASIVE_SPECIES}];
     humanEndsTurn(game, human);
 

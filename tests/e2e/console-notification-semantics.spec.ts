@@ -66,7 +66,7 @@ function tableConfig() {
 const ZERO_PAY: Readonly<Record<string, number>> = {
   heat: 0, megacredits: 0, steel: 0, titanium: 0, plants: 0, microbes: 0,
   floaters: 0, lunaArchivesScience: 0, spireScience: 0, seeds: 0,
-  auroraiData: 0, graphene: 0, kuiperAsteroids: 0,
+  auroraiData: 0, graphene: 0, kuiperAsteroids: 0, floodgateSteel: 0,
 };
 
 async function shoot(page: Page, name: string): Promise<void> {
@@ -276,8 +276,11 @@ for (const profile of PROFILES) {
       const band = page.locator('.con-notif__you');
       await expect(band).toHaveClass(/con-notif__you--negative/);
       await expect(band.locator('.con-notif__you-sign')).toContainText(/Вы потеряли|You lost/i);
-      const cause = page.locator('.con-notif__cause');
-      await expect(cause).toContainText('Rival');
+      // The actor is stated ONCE — the head's chip names the attacker; the
+      // «почему»-zone names the attacking card under the «ИСТОЧНИК» anchor.
+      await expect(hostile.locator('.con-notif__head')).toContainText('Rival');
+      const cause = page.locator('.con-notif__why');
+      await expect(cause).toContainText(/ИСТОЧНИК|Source/i);
       // The attack card's own name (its RU translation) closes the cause line.
       await expect(cause).toContainText(/Отвод от линии электропередач|Energy Tapping/);
 

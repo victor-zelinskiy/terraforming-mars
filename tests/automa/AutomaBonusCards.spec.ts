@@ -9,6 +9,7 @@ import {SelectCard} from '../../src/server/inputs/SelectCard';
 import {resolveBonusCard, routeBonusCard} from '../../src/server/automa/AutomaBonusCards';
 import {THARSIS_TRACK} from '../../src/server/automa/boards/TharsisMarsBot';
 import {Birds} from '../../src/server/cards/base/Birds';
+import {Fish} from '../../src/server/cards/base/Fish';
 import {Pets} from '../../src/server/cards/base/Pets';
 import {Tardigrades} from '../../src/server/cards/base/Tardigrades';
 import {ProtectedHabitats} from '../../src/server/cards/base/ProtectedHabitats';
@@ -52,7 +53,7 @@ describe('Automa bonus cards', () => {
   });
 
   describe('B02 Invasive Species', () => {
-    it('base game: MarsBot gains 5 M€; the human picks the highest-scoring cube to remove', () => {
+    it('base game: MarsBot gains 5 M€ and takes the highest-scoring cube — no prompt when it is the only one', () => {
       const [game, human, bot] = testAutomaGame();
       const birds = new Birds(); // 1 VP per animal.
       birds.resourceCount = 2;
@@ -64,12 +65,30 @@ describe('Automa bonus cards', () => {
       expect(bot.megaCredits).eq(5);
 
       runAllActions(game);
-      const prompt = cast(human.popWaitingFor(), SelectCard);
-      // Only the top-rate cube (Birds, 1 VP) is offered.
-      expect(prompt.cards.map((c) => c.name)).deep.eq([CardName.BIRDS]);
-      prompt.process({type: 'card', cards: [CardName.BIRDS]});
+      // Only the top-rate cube (Birds, 1 VP) can be taken, so there is nothing
+      // to decide — the bot takes it and the loss is presented, not asked about.
+      expect(human.getWaitingFor()).is.undefined;
       expect(birds.resourceCount).eq(1);
       expect(tardigrades.resourceCount).eq(3);
+    });
+
+    it('several tied leaders IS a choice — the victim picks which cube leaves', () => {
+      const [game, human] = testAutomaGame();
+      const birds = new Birds(); // 1 VP per animal.
+      birds.resourceCount = 2;
+      const fish = new Fish(); // 1 VP per animal — the same rate.
+      fish.resourceCount = 5;
+      human.playedCards.push(birds, fish);
+
+      resolve(game, BonusCardId.B02_INVASIVE_SPECIES);
+      runAllActions(game);
+
+      const prompt = cast(human.popWaitingFor(), SelectCard);
+      expect(prompt.cards.map((c) => c.name)).deep.eq([CardName.BIRDS, CardName.FISH]);
+      expect(birds.resourceCount, 'nothing leaves before the answer').eq(2);
+      prompt.process({type: 'card', cards: [CardName.FISH]});
+      expect(birds.resourceCount).eq(2);
+      expect(fish.resourceCount).eq(4);
     });
 
     it('with Venus Next (or Colonies): 2 M€ and 1 floater instead of 5 M€', () => {
@@ -109,10 +128,7 @@ describe('Automa bonus cards', () => {
       resolve(game, BonusCardId.B02_INVASIVE_SPECIES);
       runAllActions(game);
       // Pets outranks Tardigrades by cube VP rate, but its cubes are protected —
-      // the pick falls to the best REMOVABLE holder.
-      const prompt = cast(human.popWaitingFor(), SelectCard);
-      expect(prompt.cards.map((c) => c.name)).deep.eq([CardName.TARDIGRADES]);
-      prompt.process({type: 'card', cards: [CardName.TARDIGRADES]});
+      // the hit falls to the best REMOVABLE holder.
       expect(pets.resourceCount).eq(4);
       expect(tardigrades.resourceCount).eq(2);
     });

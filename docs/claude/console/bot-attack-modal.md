@@ -33,6 +33,42 @@ pick, and every gap above follows from that single fact: the router had nothing
 to route on, the surface had nothing to explain with, and the preview had
 nothing to compute from.
 
+## When this surface exists at all — a lone candidate is NO choice
+
+**The modal rises only when the victim genuinely has something to decide.**
+`selectHighestScoringCubeAttack` narrows the demand to the tied top-rate holders
+of ONE victim, and that set is very often a single card. Asking about it put a
+mandatory announcement, a chip, a press to open, a target selection and a commit
+press in front of a player whose only possible answer was «ОК» — a speed bump
+wearing the clothes of a decision.
+
+So `resolveCubeRemoval` (`AutomaBonusCards.ts`) forks on `targets.length`:
+
+* **one candidate** — the bot takes that cube DURING ITS OWN TURN
+  (`removeResourceFrom(..., {removingPlayer: bot})`, so the LawSuit hook and the
+  cross-player event rescue are unchanged). The turn script records a resolved
+  `attack` step (`outcome: 'hit'`, `removed: 1`, `before`/`after`, plus the new
+  `cardResource` naming WHICH cube left);
+* **several tied candidates** — unchanged: `outcome: 'target-chooses'`, the
+  deferred `SelectCard`, this whole surface.
+
+**This is not a hole in cross-cutting invariant 3.** That rule protects a player
+from CONFIRMING a target they could not see — it is about the player's own
+choices. Here the player chooses nothing; the loss is delivered, and delivery is
+the notification system's job:
+
+| carrier | what it says |
+| --- | --- |
+| the bot-turn notification | the viewer's own red band «▼ ВЫ ПОТЕРЯЛИ [🦠] −1» — `viewerImpactOfBotTurn` reads the attack step's `cardResource`, so the card is `critical`/negative on its FIRST frame (the atomic-delivery contract) |
+| its summary line | «Бот убрал 1 ресурс с карты «Птицы» игрока …» — the removal's own log line, deliberately NOT consumed into the attack step, because a resource chip cannot name the CARD |
+| «Разбор хода» | the attack line, now with the specific animal/microbe sprite instead of the demand's pair |
+| the journal | unchanged — the full record it always kept |
+
+⚠️ The bot-turn card is the ONLY hostile presentation here: `diffNegativeNotifications`
+skips any chain rooted in `automa-turn` precisely so one attack never produces
+two cards. A future cube attack that resolves OUTSIDE a bot turn would take the
+ordinary negative-notification path instead.
+
 ## The marker — `botAttackPrompt`
 
 `BotAttackPromptMeta` is the whole meaning of the moment, as data:
@@ -263,6 +299,15 @@ request can never seat a card the game has no rules for. It is what makes the
 e2e above a real scenario rather than an injected one — and what makes any
 future bot effect reachable for its own probe.
 
+⚠️ Only the deck's **TOP** card joins the STARTING action deck, shuffled among
+3 projects — so a single-entry list has a 1-in-4 chance of firing before the
+human has taken one action. Seat a filler ahead of the subject
+(`customBonusCards: ['B03', 'B02']`) when the scenario needs setup time: the
+subject then waits in the bonus deck and joins the action deck at the next
+Research Phase (`AutomaResearch.finishActionDeck`). The e2e needs exactly that —
+a TIE cannot be built inside one turn's two actions, since only one base card
+enters play already holding cubes.
+
 ## Adding the next MarsBot attack
 
 1. Build the context with `cardResourceAttackPrompt(...)` (or a sibling builder
@@ -276,8 +321,7 @@ future bot effect reachable for its own probe.
 * **«КАРТЫ 0/1» in the footer** is the HAND DOCK's own readout —
   `playableCount / count`, i.e. «0 of the 1 card in your hand can be played
   right now». It is not a target-picker page indicator and not a zero-index
-  bug; this modal renders no pager at all (with one candidate the shared step
-  shows neither an owner bar nor a count).
+  bug; this modal renders no pager at all.
 * **`L3 Источник`** was retired here only. Every other post-commit stage keeps
   it — the console-wide grammar (`X` = the current object, `L3` = the source)
   applies wherever the source is off screen.

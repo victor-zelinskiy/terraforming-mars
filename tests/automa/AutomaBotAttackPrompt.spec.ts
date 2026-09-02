@@ -6,9 +6,12 @@ import {IGame} from '../../src/server/IGame';
 import {SelectCard} from '../../src/server/inputs/SelectCard';
 import {SelectCardModel} from '../../src/common/models/PlayerInputModel';
 import {resolveBonusCard, routeBonusCard} from '../../src/server/automa/AutomaBonusCards';
+import {IPlayer} from '../../src/server/IPlayer';
 import {Birds} from '../../src/server/cards/base/Birds';
 import {Fish} from '../../src/server/cards/base/Fish';
+import {Herbivores} from '../../src/server/cards/base/Herbivores';
 import {Pets} from '../../src/server/cards/base/Pets';
+import {SmallAnimals} from '../../src/server/cards/base/SmallAnimals';
 import {Tardigrades} from '../../src/server/cards/base/Tardigrades';
 import {cast} from '../../src/common/utils/utils';
 import {runAllActions} from '../TestingUtils';
@@ -22,18 +25,34 @@ import {testAutomaGame} from './AutomaTestGame';
  * the bot's cards, what leaves, and the exact per-candidate consequence
  * (resources, the CARD's own points, the player's total). Everything the client
  * used to have to recover by parsing an English sentence.
+ *
+ * EVERY scenario here stocks at least TWO tied leaders on purpose: the prompt
+ * exists to settle a CHOICE, and a lone candidate is no choice — the bot takes
+ * that cube on the spot and the loss is presented instead (guarded by «a SINGLE
+ * candidate is taken outright» below).
  */
 
 function resolve(game: IGame, id: BonusCardId) {
   routeBonusCard(game, id, resolveBonusCard(game, id));
 }
 
+/**
+ * Two animal cards of the SAME cube rate (1 VP per animal) — the smallest real
+ * choice B02 can raise, and the shape every prompt spec below needs.
+ */
+function tiedAnimalCards(human: IPlayer, birdCubes: number, fishCubes: number): [Birds, Fish] {
+  const birds = new Birds(); // 1 VP per animal
+  birds.resourceCount = birdCubes;
+  const fish = new Fish(); // 1 VP per animal — the same rate
+  fish.resourceCount = fishCubes;
+  human.playedCards.push(birds, fish);
+  return [birds, fish];
+}
+
 describe('MarsBot attack prompt context', () => {
   it('B02 Invasive Species marks its pick with the attacker, the SOURCE CARD and the effect', () => {
     const [game, human, bot] = testAutomaGame();
-    const birds = new Birds();
-    birds.resourceCount = 2;
-    human.playedCards.push(birds);
+    tiedAnimalCards(human, 2, 5);
 
     resolve(game, BonusCardId.B02_INVASIVE_SPECIES);
     runAllActions(game);
@@ -53,9 +72,7 @@ describe('MarsBot attack prompt context', () => {
 
   it('the TITLE no longer smuggles the source card name in brackets', () => {
     const [game, human] = testAutomaGame();
-    const birds = new Birds();
-    birds.resourceCount = 1;
-    human.playedCards.push(birds);
+    tiedAnimalCards(human, 1, 1);
 
     resolve(game, BonusCardId.B02_INVASIVE_SPECIES);
     runAllActions(game);
@@ -68,9 +85,7 @@ describe('MarsBot attack prompt context', () => {
 
   it('the marker SERIALIZES onto the model (the client never reads the input object)', () => {
     const [game, human] = testAutomaGame();
-    const birds = new Birds();
-    birds.resourceCount = 2;
-    human.playedCards.push(birds);
+    tiedAnimalCards(human, 2, 5);
 
     resolve(game, BonusCardId.B02_INVASIVE_SPECIES);
     runAllActions(game);
@@ -78,7 +93,7 @@ describe('MarsBot attack prompt context', () => {
     const prompt = cast(human.getWaitingFor(), SelectCard);
     const model: SelectCardModel = prompt.toModel(human);
     expect(model.botAttackPrompt?.source).deep.eq({kind: 'bonusCard', bonusCard: BonusCardId.B02_INVASIVE_SPECIES});
-    expect(model.botAttackPrompt?.targets.map((t) => t.card)).deep.eq([CardName.BIRDS]);
+    expect(model.botAttackPrompt?.targets.map((t) => t.card)).deep.eq([CardName.BIRDS, CardName.FISH]);
     // …and it survives RE-serialization, which is what a reconnect does: the
     // client asks for the player view again and the same live prompt is
     // re-modelled. A marker that only rode the first response would leave a
@@ -89,9 +104,7 @@ describe('MarsBot attack prompt context', () => {
   describe('the per-candidate preview', () => {
     it('states resources before → after, and the CARD victory points that move', () => {
       const [game, human] = testAutomaGame();
-      const birds = new Birds(); // 1 VP per animal.
-      birds.resourceCount = 2;
-      human.playedCards.push(birds);
+      tiedAnimalCards(human, 2, 5);
 
       resolve(game, BonusCardId.B02_INVASIVE_SPECIES);
       runAllActions(game);
@@ -106,34 +119,34 @@ describe('MarsBot attack prompt context', () => {
 
     it('a NON-LINEAR formula is evaluated by the card\'s own rule, not by «1 cube = 1 VP»', () => {
       const [game, human] = testAutomaGame();
-      // Pets: 1 VP per TWO animals, and its own resources are protected — so it
-      // is the tie-break rate that matters. Tardigrades: 1 VP per FOUR microbes.
+      // All three score 1 VP per TWO animals (rate 0.5) — but Pets' resources
+      // are protected, so the choice is between the other two.
       const pets = new Pets();
       pets.resourceCount = 4;
-      const tardigrades = new Tardigrades();
-      tardigrades.resourceCount = 3;
-      human.playedCards.push(pets, tardigrades);
+      const smallAnimals = new SmallAnimals();
+      smallAnimals.resourceCount = 3;
+      const herbivores = new Herbivores();
+      herbivores.resourceCount = 3;
+      human.playedCards.push(pets, smallAnimals, herbivores);
 
       resolve(game, BonusCardId.B02_INVASIVE_SPECIES);
       runAllActions(game);
 
       const meta = cast(human.popWaitingFor(), SelectCard).botAttackPrompt;
-      // Pets is protected, so Tardigrades is the only candidate: 3 → 2 microbes
-      // is 0 → 0 VP. The reading is PRESENT (the card does score from microbes)
-      // and STATIC — silence there would read as «this card scores nothing».
-      expect(meta?.targets).lengthOf(1);
-      expect(meta?.targets[0].card).eq(CardName.TARDIGRADES);
+      // 3 → 2 animals is 1 → 1 VP: the removal lands INSIDE the same bracket.
+      // The reading is PRESENT (the card does score from animals) and STATIC —
+      // silence there would read as «this card scores nothing».
+      expect(meta?.targets.map((t) => t.card))
+        .deep.eq([CardName.SMALL_ANIMALS, CardName.HERBIVORES]);
       expect(meta?.targets[0].resources).deep.eq({before: 3, after: 2});
-      expect(meta?.targets[0].victoryPoints).deep.eq({before: 0, after: 0});
+      expect(meta?.targets[0].victoryPoints).deep.eq({before: 1, after: 1});
       // …and a removal that costs nothing must NOT claim a score change.
       expect(meta?.targets[0].score).to.be.undefined;
     });
 
     it('the TOTAL score is a DIFFERENT figure from the card\'s own points, and only when it moves', () => {
       const [game, human] = testAutomaGame();
-      const birds = new Birds();
-      birds.resourceCount = 3;
-      human.playedCards.push(birds);
+      tiedAnimalCards(human, 3, 5);
 
       resolve(game, BonusCardId.B02_INVASIVE_SPECIES);
       runAllActions(game);
@@ -151,11 +164,7 @@ describe('MarsBot attack prompt context', () => {
 
     it('EVERY tied leader is offered, each with its own reading', () => {
       const [game, human] = testAutomaGame();
-      const birds = new Birds(); // 1 VP per animal
-      birds.resourceCount = 2;
-      const fish = new Fish(); // 1 VP per animal — the same rate
-      fish.resourceCount = 5;
-      human.playedCards.push(birds, fish);
+      tiedAnimalCards(human, 2, 5);
 
       resolve(game, BonusCardId.B02_INVASIVE_SPECIES);
       runAllActions(game);
@@ -171,9 +180,7 @@ describe('MarsBot attack prompt context', () => {
 
     it('is READ-ONLY — building it removes nothing', () => {
       const [game, human] = testAutomaGame();
-      const birds = new Birds();
-      birds.resourceCount = 2;
-      human.playedCards.push(birds);
+      const [birds, fish] = tiedAnimalCards(human, 2, 5);
       const scoreBefore = human.getVictoryPoints().total;
 
       resolve(game, BonusCardId.B02_INVASIVE_SPECIES);
@@ -182,32 +189,34 @@ describe('MarsBot attack prompt context', () => {
       prompt.toModel(human); // …and serializing it changes nothing either
 
       expect(birds.resourceCount, 'the cube is still on the card').eq(2);
+      expect(fish.resourceCount).eq(5);
       expect(human.getVictoryPoints().total).eq(scoreBefore);
     });
   });
 
   describe('server authority', () => {
-    it('the pick is OFFERED even with a single candidate (no auto-select)', () => {
-      const [game, human] = testAutomaGame();
+    it('a SINGLE candidate is taken outright — the prompt exists for a CHOICE, not for an «OK»', () => {
+      const [game, human, bot] = testAutomaGame();
       const birds = new Birds();
-      birds.resourceCount = 1;
+      birds.resourceCount = 2;
       human.playedCards.push(birds);
 
       resolve(game, BonusCardId.B02_INVASIVE_SPECIES);
       runAllActions(game);
 
-      const prompt = cast(human.popWaitingFor(), SelectCard);
-      expect(prompt.cards.map((c) => c.name)).deep.eq([CardName.BIRDS]);
-      expect(birds.resourceCount, 'nothing left before the answer').eq(1);
+      expect(human.getWaitingFor(), 'no modal for a decision that does not exist').is.undefined;
+      expect(birds.resourceCount, 'the bot took the only cube it could').eq(1);
+      // …and it is still the BOT's removal, so the LawSuit hook sees an attacker.
+      expect(human.removingPlayers).contains(bot.id);
     });
 
     it('REFUSES a target the rules never offered', () => {
       const [game, human] = testAutomaGame();
-      const birds = new Birds(); // 1 VP per animal — the only legal target
-      birds.resourceCount = 2;
+      // Two tied leaders raise the real choice; the lower-rate card is not in it.
+      tiedAnimalCards(human, 2, 5);
       const tardigrades = new Tardigrades(); // a lower cube rate
       tardigrades.resourceCount = 4;
-      human.playedCards.push(birds, tardigrades);
+      human.playedCards.push(tardigrades);
 
       resolve(game, BonusCardId.B02_INVASIVE_SPECIES);
       runAllActions(game);
@@ -215,14 +224,11 @@ describe('MarsBot attack prompt context', () => {
       const prompt = cast(human.popWaitingFor(), SelectCard);
       expect(() => prompt.process({type: 'card', cards: [CardName.TARDIGRADES]})).to.throw();
       expect(tardigrades.resourceCount, 'the refused target is untouched').eq(4);
-      expect(birds.resourceCount).eq(2);
     });
 
     it('the answer is what removes the cube — and it is attributed to the bot', () => {
-      const [game, human] = testAutomaGame();
-      const birds = new Birds();
-      birds.resourceCount = 2;
-      human.playedCards.push(birds);
+      const [game, human, bot] = testAutomaGame();
+      const [birds, fish] = tiedAnimalCards(human, 2, 5);
 
       resolve(game, BonusCardId.B02_INVASIVE_SPECIES);
       runAllActions(game);
@@ -231,6 +237,8 @@ describe('MarsBot attack prompt context', () => {
       expect(birds.resourceCount).eq(2);
       prompt.process({type: 'card', cards: [CardName.BIRDS]});
       expect(birds.resourceCount).eq(1);
+      expect(fish.resourceCount, 'only the answered card loses a cube').eq(5);
+      expect(human.removingPlayers).contains(bot.id);
     });
   });
 

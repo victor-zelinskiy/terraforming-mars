@@ -157,19 +157,41 @@ function selectHighestScoringCubeAttack(game: IGame): CubeAttack {
 }
 
 /**
- * Announce the cube attack and hand the victim their pick. The cube leaves via
- * the victim's own follow-up answer, after this turn commits.
+ * Resolve the cube attack: with ONE candidate the bot simply takes it, with
+ * several the victim picks which one leaves (via a follow-up, after this turn
+ * commits).
  */
-function deferCubeRemoval(game: IGame, attack: Extract<CubeAttack, {kind: 'removable'}>, bonusCard: BonusCardId): void {
+function resolveCubeRemoval(game: IGame, attack: Extract<CubeAttack, {kind: 'removable'}>, bonusCard: BonusCardId): void {
   const bot = marsBotOf(game);
   const {victim, targets} = attack;
+  if (targets.length === 1) {
+    // ONE candidate ⇒ there is no decision to take, only a loss to deliver.
+    // The no-auto-select rule exists so a player never CONFIRMS a target they
+    // could not see; it does not apply to a hostile effect the player does not
+    // choose at all — a modal whose only move is «ОК» is a speed bump, not a
+    // choice. The loss is presented instead: the bot-turn notification carries
+    // it as the viewer's own red band (`viewerImpactOfBotTurn` reads this very
+    // step), the review shows the attack chip, and the removal's own log line
+    // — deliberately NOT consumed into the step — names the CARD the cube left,
+    // which a resource chip alone cannot say.
+    const card = targets[0];
+    const before = card.resourceCount;
+    AutomaTurnLog.note(game, {kind: 'attack', attack: {
+      target: victim.color, resource: 'cube', cardResource: card.resourceType, demanded: 1, removed: 1,
+      before, after: before - 1, outcome: 'hit',
+    }});
+    // `removingPlayer` attributes the cube loss to the bot (LawSuit hook) and
+    // is the `from` that rescues the victim's event across the turn boundary.
+    victim.removeResourceFrom(card, 1, {log: true, removingPlayer: bot});
+    return;
+  }
   // The attack is announced NOW (target + demand); the actual cube leaves
   // via the target's own follow-up pick, after this turn commits.
   AutomaTurnLog.note(game, {kind: 'attack', attack: {
     target: victim.color, resource: 'cube', demanded: 1, removed: 0, outcome: 'target-chooses',
   }});
-  // The pick is shown even for a single candidate (the fork's no-auto-select
-  // rule): the victim confirms WHICH cube leaves.
+  // Several equal-rate candidates ⇒ a real choice, so the victim confirms
+  // WHICH cube leaves.
   //
   // The prompt carries its whole meaning STRUCTURALLY (`markBotAttackPrompt`):
   // who attacked, which of the bot's cards did it, what leaves and what each
@@ -318,7 +340,7 @@ function invasiveSpecies(game: IGame): BonusCardOutcome {
 
   const attack = selectHighestScoringCubeAttack(game);
   if (attack.kind === 'removable') {
-    deferCubeRemoval(game, attack, BonusCardId.B02_INVASIVE_SPECIES);
+    resolveCubeRemoval(game, attack, BonusCardId.B02_INVASIVE_SPECIES);
   } else if (attack.kind === 'protected') {
     // Cubes exist, but Protected Habitats / a per-card protection blocks every
     // removal (official FAQ). The card still resolves (M€ above) and discards.
@@ -718,7 +740,7 @@ function tryAwardHelper(game: IGame, awardName: string): boolean {
     if (attack.kind !== 'removable') {
       return false;
     }
-    deferCubeRemoval(game, attack, mapCorporateCompetition(game));
+    resolveCubeRemoval(game, attack, mapCorporateCompetition(game));
     return true;
   }
   case 'Contractor': return advanceRole('building');

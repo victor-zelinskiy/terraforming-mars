@@ -1,6 +1,7 @@
 import {expect} from 'chai';
 import {BonusCardId} from '../../src/common/automa/AutomaTypes';
 import {CardName} from '../../src/common/cards/CardName';
+import {CardResource} from '../../src/common/CardResource';
 import {ColonyName} from '../../src/common/colonies/ColonyName';
 import {Phase} from '../../src/common/Phase';
 import {Resource} from '../../src/common/Resource';
@@ -25,6 +26,27 @@ function resolve(game: IGame, id: BonusCardId) {
   const outcome = resolveBonusCard(game, id);
   routeBonusCard(game, id, outcome);
   return outcome;
+}
+
+/** Animal + microbe cubes a player is holding across their whole tableau. */
+function cubeTotal(player: TestPlayer): number {
+  let total = 0;
+  for (const card of player.tableau) {
+    if (card.resourceType === CardResource.ANIMAL || card.resourceType === CardResource.MICROBE) {
+      total += card.resourceCount;
+    }
+  }
+  return total;
+}
+
+/**
+ * WHO B02's cube demand landed on: the seat being ASKED which cube leaves, or —
+ * where the seat holds a single candidate, which is no choice at all — the seat
+ * that has already lost one. ONE detector, so how many equal-rate cards a
+ * scenario happens to stock never decides how the victim is found.
+ */
+function cubeVictims(humans: ReadonlyArray<TestPlayer>, before: ReadonlyArray<number>): Array<TestPlayer> {
+  return humans.filter((h, i) => h.getWaitingFor() !== undefined || cubeTotal(h) < before[i]);
 }
 
 /** Every human passes, then the game loop runs (the bot flips until it passes). */
@@ -119,7 +141,7 @@ describe('Automa multiplayer (mode B)', () => {
       expect(h1.plants).eq(4);
     });
 
-    it('B02 targets the owner of the globally best cube; only that owner is prompted', () => {
+    it('B02 targets the owner of the globally best cube; the other human is untouched', () => {
       const [game, [h1, h2], bot] = testAutomaMultiplayerGame(2);
       const tardigrades = new Tardigrades(); // rate 0.25
       tardigrades.resourceCount = 3;
@@ -129,27 +151,49 @@ describe('Automa multiplayer (mode B)', () => {
       h2.playedCards.push(birds);
       resolve(game, BonusCardId.B02_INVASIVE_SPECIES);
       runAllActions(game);
+      // Birds is h2's only top-rate card, so the bot takes that cube outright.
+      expect(h1.getWaitingFor()).is.undefined;
+      expect(h2.getWaitingFor()).is.undefined;
+      expect(birds.resourceCount).eq(1);
+      expect(tardigrades.resourceCount).eq(3);
+      expect(h2.removingPlayers).contains(bot.id);
+      expect(h1.removingPlayers, 'the bystander was never attacked').is.empty;
+    });
+
+    it('B02: the victim ANSWERS when they hold several equal-rate cards', () => {
+      const [game, [h1, h2], bot] = testAutomaMultiplayerGame(2);
+      const tardigrades = new Tardigrades(); // rate 0.25 — not in the running
+      tardigrades.resourceCount = 3;
+      h1.playedCards.push(tardigrades);
+      const birds = new Birds(); // rate 1
+      birds.resourceCount = 2;
+      const fish = new Fish(); // rate 1 — h2 has a real choice to make
+      fish.resourceCount = 4;
+      h2.playedCards.push(birds, fish);
+      resolve(game, BonusCardId.B02_INVASIVE_SPECIES);
+      runAllActions(game);
       expect(h1.getWaitingFor()).is.undefined;
       const prompt = cast(h2.popWaitingFor(), SelectCard);
-      expect(prompt.cards.map((c) => c.name)).deep.eq([CardName.BIRDS]);
+      expect(prompt.cards.map((c) => c.name)).deep.eq([CardName.BIRDS, CardName.FISH]);
       prompt.process({type: 'card', cards: [CardName.BIRDS]});
       expect(birds.resourceCount).eq(1);
       expect(tardigrades.resourceCount).eq(3);
       expect(h2.removingPlayers).contains(bot.id);
     });
 
-    it('B02: an equal-rate tie prompts exactly ONE owner (random, equal weight per player)', () => {
-      const [game, [h1, h2]] = testAutomaMultiplayerGame(2);
+    it('B02: an equal-rate tie hits exactly ONE owner (random, equal weight per player)', () => {
+      const [game, humans] = testAutomaMultiplayerGame(2);
+      const [h1, h2] = humans;
       const birds1 = new Birds(); // rate 1
       birds1.resourceCount = 1;
       h1.playedCards.push(birds1);
       const birds2 = new Birds(); // rate 1 — a cross-player tie.
       birds2.resourceCount = 2;
       h2.playedCards.push(birds2);
+      const before = humans.map(cubeTotal);
       resolve(game, BonusCardId.B02_INVASIVE_SPECIES);
       runAllActions(game);
-      const prompted = [h1, h2].filter((h) => h.getWaitingFor() !== undefined);
-      expect(prompted).has.length(1);
+      expect(cubeVictims(humans, before)).has.length(1);
     });
 
     it('B02: protection on the best owner moves the attack to the other human', () => {
@@ -163,8 +207,9 @@ describe('Automa multiplayer (mode B)', () => {
       resolve(game, BonusCardId.B02_INVASIVE_SPECIES);
       runAllActions(game);
       expect(h2.getWaitingFor()).is.undefined;
-      const prompt = cast(h1.popWaitingFor(), SelectCard);
-      expect(prompt.cards.map((c) => c.name)).deep.eq([CardName.TARDIGRADES]);
+      expect(h1.getWaitingFor(), 'one candidate is no choice').is.undefined;
+      expect(tardigrades.resourceCount, 'the unprotected holder took the hit').eq(2);
+      expect(birds.resourceCount, 'the protected cubes stay').eq(2);
     });
   });
 
@@ -206,11 +251,14 @@ describe('Automa multiplayer (mode B)', () => {
         const lone = new Birds(); // rate 1 — a cross-player tie.
         lone.resourceCount = 1;
         h2.playedCards.push(lone);
+        const before = humans.map(cubeTotal);
         resolve(game, BonusCardId.B02_INVASIVE_SPECIES);
         runAllActions(game);
-        const prompted = humans.filter((h) => h.getWaitingFor() !== undefined);
-        expect(prompted, 'exactly one owner answers').has.length(1);
-        hits.set(prompted[0].color, (hits.get(prompted[0].color) ?? 0) + 1);
+        // h1 is ASKED (three tied cards), h2 simply LOSES its lone cube — the
+        // detector reads both, so the roll is what the spread measures.
+        const victims = cubeVictims(humans, before);
+        expect(victims, 'exactly one owner is hit').has.length(1);
+        hits.set(victims[0].color, (hits.get(victims[0].color) ?? 0) + 1);
       }
       const many = hits.get('blue') ?? 0;
       const one = hits.get('red') ?? 0;

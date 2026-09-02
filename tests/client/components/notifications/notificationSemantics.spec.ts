@@ -1,7 +1,9 @@
 import {expect} from 'chai';
 import {Color} from '@/common/Color';
 import {CardName} from '@/common/cards/CardName';
+import {CardResource} from '@/common/CardResource';
 import {Phase} from '@/common/Phase';
+import {TileType} from '@/common/TileType';
 import {GameEvent} from '@/common/events/GameEvent';
 import {EventImpact} from '@/common/events/EventImpact';
 import {MarsBotTurn} from '@/common/automa/MarsBotTurn';
@@ -221,9 +223,165 @@ describe('notificationSemantics (viewer-relative sign + importance)', () => {
 
     it('the composite cube demand (resolves later via the target pick) is not a loss at turn time', () => {
       const t = turn([
-        {kind: 'attack', attack: {target: BLUE, resource: 'cube', demanded: 1, removed: 1, outcome: 'target-chooses'}},
+        {kind: 'attack', attack: {target: BLUE, resource: 'cube', demanded: 1, removed: 0, outcome: 'target-chooses'}},
       ]);
       expect(viewerImpactOfBotTurn(t, BLUE, RED).sign).to.eq('neutral');
+    });
+
+    it('a cube the bot took OUTRIGHT is a loss, and its chip names the cube that left', () => {
+      // A single candidate is no choice, so the bot removes it during its own
+      // turn — the card must lead RED on its first frame (the atomic contract),
+      // and the chip carries the real sprite, not the demand's animal+microbe.
+      const t = turn([
+        {kind: 'attack', attack: {
+          target: BLUE, resource: 'cube', cardResource: CardResource.ANIMAL,
+          demanded: 1, removed: 1, before: 2, after: 1, outcome: 'hit',
+        }},
+      ]);
+      const impact = viewerImpactOfBotTurn(t, BLUE, RED);
+      expect(impact.sign).to.eq('negative');
+      expect(impact.losses).to.deep.eq([{icon: CardResource.ANIMAL, text: '−1'}]);
+      expect(impact.attacker).to.eq(RED);
+    });
+  });
+
+  describe('cause groups (the «почему» layer)', () => {
+    it('a placement bonus names ITSELF — never the actor, never an anonymous gain', () => {
+      const chain = [
+        event({id: 1, type: 'action', player: RED, correlationId: 1, source: {kind: 'card', card: CARD, owner: RED}, impact: {}}),
+        event({id: 2, type: 'resource-changed', player: BLUE, correlationId: 1, source: {kind: 'spaceBonus'}, impact: {stock: {steel: 2}}}),
+      ];
+      const impact = viewerImpactOfChain(chain, BLUE, RED);
+      expect(impact.causes).has.length(1);
+      expect(impact.causes[0].origin).deep.eq({kind: 'spaceBonus'});
+      expect(impact.causes[0].gains).deep.eq([{icon: 'steel', text: '+2'}]);
+    });
+
+    it('a passive payout carries source + own + trigger + the placed tile — the full causal chain, typed', () => {
+      const chain = [
+        event({id: 1, type: 'action', player: RED, correlationId: 1, source: {kind: 'card', card: CardName.DOMED_CRATER, owner: RED}, impact: {}}),
+        event({id: 2, type: 'tile-placed', player: RED, correlationId: 1, tile: TileType.CITY, impact: {tilesPlaced: 1}}),
+        event({id: 3, type: 'effect-triggered', player: BLUE, correlationId: 1, parentId: 1, trigger: 'tile-placed', source: {kind: 'corporation', card: CardName.THARSIS_REPUBLIC, owner: BLUE}, impact: {}}),
+        event({id: 4, type: 'production-changed', player: BLUE, correlationId: 1, parentId: 3, source: {kind: 'corporation', card: CardName.THARSIS_REPUBLIC, owner: BLUE}, impact: {production: {megacredits: 1}}}),
+      ];
+      const impact = viewerImpactOfChain(chain, BLUE, RED);
+      expect(impact.causes).has.length(1);
+      const cause = impact.causes[0];
+      expect(cause.origin).deep.include({kind: 'corporation', card: CardName.THARSIS_REPUBLIC});
+      expect(cause.own, 'the corp is the VIEWER\'s own').eq(true);
+      expect(cause.trigger).eq('tile-placed');
+      expect(cause.triggerTile, 'the one placed tile names the trigger').eq(TileType.CITY);
+    });
+
+    it('a source-less delta falls back to the chain ROOT (the acting card) — never to nothing', () => {
+      const chain = [
+        event({id: 1, type: 'action', player: RED, correlationId: 1, source: {kind: 'card', card: CARD, owner: RED}, impact: {}}),
+        event({id: 2, type: 'cards-drawn', player: BLUE, correlationId: 1, impact: {cardsDrawn: 1}}),
+      ];
+      const impact = viewerImpactOfChain(chain, BLUE, RED);
+      expect(impact.causes[0].origin).deep.include({kind: 'card', card: CARD});
+      expect(impact.causes[0].own).is.undefined;
+    });
+
+    it('a system-sourced chain answers with the root action CATEGORY (solar phase), never «system»', () => {
+      const chain = [
+        event({id: 1, type: 'action', player: RED, correlationId: 1, category: 'solar-phase', source: {kind: 'system'}, impact: {}}),
+        event({id: 2, type: 'resource-changed', player: BLUE, correlationId: 1, source: {kind: 'system'}, impact: {stock: {megacredits: 1}}}),
+      ];
+      const impact = viewerImpactOfChain(chain, BLUE, RED);
+      expect(impact.causes[0].origin).deep.eq({kind: 'action', category: 'solar-phase'});
+    });
+
+    it('SEVERAL sources keep their own chips, and a loss-carrying cause leads', () => {
+      const chain = [
+        event({id: 1, type: 'action', player: RED, correlationId: 1, source: {kind: 'card', card: CARD, owner: RED}, impact: {}}),
+        event({id: 2, type: 'resource-changed', player: BLUE, correlationId: 1, source: {kind: 'spaceBonus'}, impact: {stock: {plants: 1}}}),
+        event({id: 3, type: 'resource-changed', player: BLUE, correlationId: 1, source: {kind: 'card', card: CARD, owner: RED}, impact: {stock: {plants: -3}}}),
+      ];
+      const impact = viewerImpactOfChain(chain, BLUE, RED);
+      expect(impact.sign).eq('mixed');
+      expect(impact.causes).has.length(2);
+      expect(impact.causes[0].losses, 'the attack cause leads').deep.eq([{icon: 'plants', text: '−3'}]);
+      expect(impact.causes[0].origin).deep.include({card: CARD});
+      expect(impact.causes[1].origin).deep.eq({kind: 'spaceBonus'});
+      expect(impact.causes[1].gains).deep.eq([{icon: 'plants', text: '+1'}]);
+    });
+
+    it('a cause keeps BOTH directions, like the band (merge within a direction, never across)', () => {
+      const chain = [
+        event({id: 1, type: 'resource-changed', player: BLUE, correlationId: 1, source: {kind: 'spaceBonus'}, impact: {stock: {heat: 2}}}),
+        event({id: 2, type: 'resource-changed', player: BLUE, correlationId: 1, source: {kind: 'spaceBonus'}, impact: {stock: {heat: -2}}}),
+        event({id: 3, type: 'resource-changed', player: BLUE, correlationId: 1, source: {kind: 'oceanBonus'}, impact: {stock: {megacredits: 2}}}),
+      ];
+      const impact = viewerImpactOfChain(chain, BLUE, RED);
+      expect(impact.causes).has.length(2);
+      const space = impact.causes.find((c) => c.origin.kind === 'spaceBonus');
+      expect(space?.gains).deep.eq([{icon: 'heat', text: '+2'}]);
+      expect(space?.losses, 'the loss is stated, never netted away').deep.eq([{icon: 'heat', text: '−2'}]);
+    });
+
+    it('bot turn: the script\'s server-attributed causes ride into the meta', () => {
+      const t: MarsBotTurn = {id: 1, generation: 2, steps: [
+        {kind: 'impact', impact: {
+          target: BLUE, targetIsBot: false,
+          changes: [{resource: 'megacredits' as never, scope: 'production', before: 0, after: 1}],
+          causes: [{
+            source: {kind: 'corporation', card: CardName.THARSIS_REPUBLIC, owner: BLUE},
+            trigger: 'tile-placed',
+            changes: [{resource: 'megacredits' as never, scope: 'production', amount: 1}],
+          }],
+        }},
+      ]};
+      const impact = viewerImpactOfBotTurn(t, BLUE, RED);
+      expect(impact.causes).has.length(1);
+      expect(impact.causes[0].origin).deep.include({card: CardName.THARSIS_REPUBLIC});
+      expect(impact.causes[0].own).eq(true);
+      expect(impact.causes[0].trigger).eq('tile-placed');
+    });
+
+    it('bot turn: the RESIDUAL the attribution did not cover keys on the revealed card (the cube attack)', () => {
+      const t: MarsBotTurn = {id: 1, generation: 2, steps: [
+        {kind: 'reveal', card: {kind: 'bonus', id: 'B02' as never}},
+        {kind: 'attack', attack: {
+          target: BLUE, resource: 'cube', cardResource: CardResource.ANIMAL,
+          demanded: 1, removed: 1, before: 2, after: 1, outcome: 'hit',
+        }},
+      ]};
+      const impact = viewerImpactOfBotTurn(t, BLUE, RED);
+      expect(impact.causes).has.length(1);
+      expect(impact.causes[0].origin).deep.eq({kind: 'bonusCard', bonusCard: 'B02'});
+      expect(impact.causes[0].losses).deep.eq([{icon: CardResource.ANIMAL, text: '−1'}]);
+    });
+
+    it('bot turn: attribution + residual never double-claim — the groups add up to the band', () => {
+      const t: MarsBotTurn = {id: 1, generation: 2, steps: [
+        {kind: 'reveal', card: {kind: 'project', name: CARD}},
+        {kind: 'impact', impact: {
+          target: BLUE, targetIsBot: false,
+          changes: [{resource: 'megacredits' as never, scope: 'stock', before: 0, after: 5}],
+          causes: [{
+            source: {kind: 'colony', name: 'Luna' as never, benefit: 'colonyBonus'},
+            changes: [{resource: 'megacredits' as never, scope: 'stock', amount: 2}],
+          }],
+        }},
+      ]};
+      const impact = viewerImpactOfBotTurn(t, BLUE, RED);
+      expect(impact.gains).deep.eq([{icon: 'megacredits', text: '+5'}]);
+      expect(impact.causes).has.length(2);
+      expect(impact.causes[0].gains).deep.eq([{icon: 'megacredits', text: '+2'}]);
+      expect(impact.causes[1].origin).deep.eq({kind: 'card', card: CARD});
+      expect(impact.causes[1].gains, 'the residual is the exact remainder').deep.eq([{icon: 'megacredits', text: '+3'}]);
+    });
+
+    it('a neutral impact carries NO causes; a non-neutral one always carries at least one', () => {
+      expect(viewerImpactOfChain([], BLUE, RED).causes).deep.eq([]);
+      const chain = [
+        event({id: 1, type: 'resource-changed', player: BLUE, correlationId: 1, impact: {stock: {heat: 1}}}),
+      ];
+      // No source anywhere — even then the fallback names the ACTION.
+      const impact = viewerImpactOfChain(chain, BLUE, RED);
+      expect(impact.sign).eq('positive');
+      expect(impact.causes.length).greaterThan(0);
     });
   });
 

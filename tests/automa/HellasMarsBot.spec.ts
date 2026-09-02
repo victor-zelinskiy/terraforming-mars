@@ -23,6 +23,7 @@ import {AutomaTilePlacer} from '../../src/server/automa/AutomaTilePlacer';
 import {HELLAS_SOUTH_POLE_REBATE} from '../../src/server/automa/AutomaPlacementBonus';
 import {resolveBonusCard, routeBonusCard} from '../../src/server/automa/AutomaBonusCards';
 import {Birds} from '../../src/server/cards/base/Birds';
+import {Fish} from '../../src/server/cards/base/Fish';
 import {Tardigrades} from '../../src/server/cards/base/Tardigrades';
 import {Algae} from '../../src/server/cards/base/Algae';
 import {BigAsteroid} from '../../src/server/cards/base/BigAsteroid';
@@ -486,11 +487,31 @@ describe('HELLAS + MarsBot — B09 Corporate Competition', () => {
     expect(bot.megaCredits, 'the action resolved, so the 5 M€ was paid').eq(1);
 
     runAllActions(game);
+    // Birds is the only card at the top rate, so there is nothing for the
+    // human to decide — the helper takes that cube on the spot.
+    expect(human.getWaitingFor()).is.undefined;
+    expect(birds.resourceCount).eq(1);
+    expect(tardigrades.resourceCount).eq(3);
+  });
+
+  it('Eccentric with tied leaders hands the human the pick', () => {
+    const [game, human, bot] = hellasGame();
+    const birds = new Birds(); // 1 VP per animal
+    birds.resourceCount = 2;
+    const fish = new Fish(); // 1 VP per animal — the same rate
+    fish.resourceCount = 4;
+    human.playedCards.push(birds, fish);
+    fund(game, human, 'Excentric');
+    bot.megaCredits = 6;
+    resolve(game, BonusCardId.B09_CORPORATE_COMPETITION_HELLAS);
+
+    runAllActions(game);
     const selectCard = cast(human.popWaitingFor(), SelectCard);
-    expect(selectCard.cards.map((c) => c.name), 'only the highest-scoring card is offered')
-      .deep.eq([CardName.BIRDS]);
+    expect(selectCard.cards.map((c) => c.name), 'both tied leaders are offered')
+      .deep.eq([CardName.BIRDS, CardName.FISH]);
     selectCard.process({type: 'card', cards: [CardName.BIRDS]});
     expect(birds.resourceCount).eq(1);
+    expect(fish.resourceCount).eq(4);
   });
 
   it('Eccentric with nothing to remove is impossible — no payment, the fallback card runs', () => {

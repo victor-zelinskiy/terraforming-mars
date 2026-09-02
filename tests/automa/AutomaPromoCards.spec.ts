@@ -13,6 +13,7 @@ import {LawSuit} from '../../src/server/cards/promo/LawSuit';
 import {StJosephOfCupertinoMission} from '../../src/server/cards/promo/StJosephOfCupertinoMission';
 import {TollStation} from '../../src/server/cards/base/TollStation';
 import {Birds} from '../../src/server/cards/base/Birds';
+import {Fish} from '../../src/server/cards/base/Fish';
 import {cast} from '../../src/common/utils/utils';
 import {addCity, runAllActions} from '../TestingUtils';
 import {testAutomaGame} from './AutomaTestGame';
@@ -34,11 +35,24 @@ describe('Automa promo cards (FAQ p.11)', () => {
       expect(new LawSuit().canPlay(human)).is.true;
     });
 
-    it('B02 Invasive Species cube removal attributes the bot', () => {
+    it('B02 Invasive Species cube removal attributes the bot — taken outright', () => {
       const [game, human, bot] = testAutomaGame();
       const birds = new Birds();
       birds.resourceCount = 1;
       human.playedCards.push(birds);
+      resolve(game, BonusCardId.B02_INVASIVE_SPECIES);
+      runAllActions(game);
+      expect(birds.resourceCount, 'the only candidate needs no prompt').eq(0);
+      expect(human.removingPlayers).contains(bot.id);
+    });
+
+    it('B02 Invasive Species cube removal attributes the bot — answered by the victim', () => {
+      const [game, human, bot] = testAutomaGame();
+      const birds = new Birds(); // 1 VP per animal
+      birds.resourceCount = 1;
+      const fish = new Fish(); // 1 VP per animal — a genuine tie, so the victim picks
+      fish.resourceCount = 1;
+      human.playedCards.push(birds, fish);
       resolve(game, BonusCardId.B02_INVASIVE_SPECIES);
       runAllActions(game);
       const prompt = cast(human.popWaitingFor(), SelectCard);
