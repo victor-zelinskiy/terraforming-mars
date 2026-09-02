@@ -62,6 +62,7 @@
     "Play this one first": "Сначала этот",
     "Nothing to repeat yet": "Сейчас нечего повторять",
     "No available project right now": "Сейчас нет доступного проекта",
+    "Nothing can meet its condition": "Условие карты уже не выполнить",
     "Play ${0} first. Playing this prelude now will play the card with no effect.": "Сначала разыграйте «${0}». Если разыграть этот пролог сейчас, карта будет разыграна без эффекта.",
     "Play any of your other preludes first. Playing this one now will play the card with no effect.": "Сначала разыграйте любой другой пролог. Если разыграть этот сейчас, карта будет разыграна без эффекта.",
     "${0} may add cards to your hand. Play it first to keep this effect usable.": "«${0}» может добавить карты в руку. Разыграйте его первым, чтобы сохранить возможность использовать этот эффект.",

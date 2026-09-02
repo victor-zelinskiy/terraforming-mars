@@ -15,7 +15,7 @@
  * rules); nothing here reads game state or re-derives a rule.
  */
 import {CardName} from '@/common/cards/CardName';
-import {PreludeOutlook} from '@/common/cards/PreludeOutlook';
+import {PreludeNeed, PreludeOutlook} from '@/common/cards/PreludeOutlook';
 
 /**
  * How loudly the situation should read. Not a severity ladder — `guaranteed` is
@@ -47,6 +47,16 @@ export type PreludeRisk = {
 export const PRELUDE_RISK_HOLD_LABEL = 'Play with no effect';
 export const PRELUDE_RISK_PRESS_LABEL = 'Play anyway';
 
+/** The heading of a FINAL verdict — one per declared `need`, plus the honest
+ *  general one for a card that declared none. i18n keys. */
+function preludeNoEffectTitle(need: PreludeNeed | undefined): string {
+  switch (need) {
+  case 'playedPrelude': return 'Nothing to repeat yet';
+  case 'playableCard': return 'No available project right now';
+  default: return 'Nothing can meet its condition';
+  }
+}
+
 /**
  * The verdict → what the player reads and what the button says.
  *
@@ -74,10 +84,17 @@ export function preludeRisk(
     // Nothing left can change this. The heading still names WHAT is missing
     // (the player is looking at a card, not at an error), and the body is the
     // one honest sentence: playing it costs the effect.
+    //
+    // A `noEffect` with NO declared `need` is the third case, and it must not
+    // borrow either named one: a card that never claimed the ORDER could save
+    // it is blocked by something the table cannot produce (Boom Town wants a
+    // board cell with a steel/titanium bonus, Strategic Base Planning wants
+    // 3 M€) — «нет доступного проекта» would point the player at their hand,
+    // which is not where the blocker is.
     return {
       tone: 'final',
       badge: 'Effect will not happen',
-      title: outlook.need === 'playedPrelude' ? 'Nothing to repeat yet' : 'No available project right now',
+      title: preludeNoEffectTitle(outlook.need),
       body: outlook.need === 'playableCard' ?
         'None of your projects is a legal target right now. Playing this prelude will lose its effect.' :
         'Nothing left to play can create what this effect needs. Playing this prelude will lose its effect.',

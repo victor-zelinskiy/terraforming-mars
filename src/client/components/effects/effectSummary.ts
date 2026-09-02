@@ -387,6 +387,11 @@ const EFFECT_SUMMARY_NOTES: Partial<Record<CardName, string>> = {
   [CardName.SUPERCAPACITORS]: 'Lets you convert all your energy into heat — a conversion you choose to use.',
   [CardName.NEPTUNIAN_POWER_CONSULTANTS]: 'Rewards M€ whenever an ocean is placed — its gains are listed above when they fire.',
   [CardName.INVENTRIX]: 'Eases your temperature, oxygen, ocean and Venus requirements by ±2 — a rule bonus, not a tally.',
+  // The ONE value modifier that points DOWN. `PAYMENT_VALUE_MODIFIER_CARDS` (and
+  // its "worth more" category note) would read as a benefit, and the recorded
+  // `paymentValueBonus` stat deliberately never counts a negative modifier — so
+  // this card states the cost in its own words instead of borrowing that framing.
+  [CardName.BOOM_TOWN]: 'Makes each of your titanium worth 1 M€ less on every payment — a permanent cost, not a tally.',
 };
 
 function reorder(lines: Array<EffectSummaryLine>, category: EffectCategory): Array<EffectSummaryLine> {

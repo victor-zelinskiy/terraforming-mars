@@ -25,6 +25,20 @@ describe('effectExtraction', () => {
     expect(entries[0].isCorporation).to.eq(false);
   });
 
+  it('detects a PRELUDE passive effect (Boom Town titanium devaluation)', () => {
+    // A prelude carries an ongoing rule as readily as a blue card. This one is
+    // also the only value modifier pointing DOWN, so it is the case where a
+    // «worth more» framing would have been a lie.
+    expect(cardHasPassiveEffect(CardName.BOOM_TOWN)).to.eq(true);
+    expect(allScopeEffectCardNames()).to.include(CardName.BOOM_TOWN);
+    const entries = playerEffects([model(CardName.BOOM_TOWN)]);
+    expect(entries).to.have.length(1);
+    expect(entries[0].effectNode).to.not.eq(undefined);
+    expect(entries[0].description).to.eq('Effect: Your titanium is worth 1 M€ less.');
+    // The CAUSE is a held standard resource → a passive value rule, not a trigger.
+    expect(entries[0].signature.valueModifier).to.eq(true);
+  });
+
   it('excludes action-only blue cards (no passive effect node)', () => {
     expect(cardHasPassiveEffect(CardName.ANTS)).to.eq(false);
     expect(playerEffects([model(CardName.ANTS)])).to.have.length(0);

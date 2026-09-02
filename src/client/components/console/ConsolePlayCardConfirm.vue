@@ -587,7 +587,7 @@ import {buildOrItems, orItemResponse, buildTabbedTargets, ConsoleOrItem, Console
 import {
   enterDeltaEspionagePick, deltaEspionageStepResponse, deltaEspionageResponseOf,
 } from '@/client/console/hydroFlow/deltaEspionageEntry';
-import {enterDeltaRewardPick} from '@/client/console/hydroFlow/deltaRewardEntry';
+import {enterDeltaRewardPick, type DeltaRewardDraft} from '@/client/console/hydroFlow/deltaRewardEntry';
 import type {DeltaEspionageProjectionModel} from '@/common/models/DeltaEspionageModel';
 import type {DeltaEspionageInputModel} from '@/common/models/PlayerInputModel';
 import type {DeltaEspionageResponse, DeltaStageAnswer, InputResponse} from '@/common/inputs/InputResponse';
@@ -2664,16 +2664,25 @@ export default defineComponent({
      *  the hand or tableau pick). An amount / spend-heat row adjusts inline,
      *  so opening it is a no-op. */
     openRow(row: PlayRow): void {
+      // EVERY owner pre-select of the espionage advance (the landing choice,
+      // the stage-7 repeat, the stage-9 animal target) descends into the
+      // HYDRONETWORK first — the same seamless descent the target pick makes.
+      // The player sees THE MOVE the pick belongs to (from → to, the ghost,
+      // the arrow) and answers inside the track's own stage surface, which is
+      // what makes «почему я сейчас это выбираю» readable; the stage then
+      // reuses the workspace's existing seamless steps (the choice selector,
+      // the embedded target grid, the hydro→repeat frame handoff). A repeat
+      // browser raised STRAIGHT over the play composer was the contract
+      // violation this replaced.
+      if ((row.kind === 'repeat' || row.kind === 'step') &&
+          (row.choice.id === 'esp-owner-choice' || row.choice.id === 'esp-owner-repeat' || row.choice.id === 'esp-owner-animal')) {
+        this.openEspOwnerRewardPick(row.choice);
+        return;
+      }
       if (row.kind === 'repeat') {
         this.openRepeatPick(row.choice);
       } else if (row.kind === 'step' && row.choice.input.type === 'deltaEspionage') {
         this.openEspionagePick(row.choice);
-      } else if (row.kind === 'step' && row.choice.id === 'esp-owner-choice') {
-        // The owner's own landing reward is chosen on the HYDRONETWORK — the
-        // same seamless descent the target pick makes, into the track's ONE
-        // stage-reward surface (never a bare option list about a stage the
-        // player cannot see).
-        this.openEspOwnerRewardPick(row.choice);
       } else if (row.kind === 'step' && this.choiceMode(row.choice) === 'handPick') {
         this.openHandPick(row.choice);
       } else if (row.kind === 'step' && this.choiceMode(row.choice) === 'playedTarget') {
@@ -2707,23 +2716,61 @@ export default defineComponent({
      */
     openEspOwnerRewardPick(c: ComposerChoice): void {
       const proj = this.espionageProjectionRaw;
-      if (proj === undefined || !proj.owner.legal || proj.owner.reward.kind !== 'choice') {
+      if (proj === undefined || !proj.owner.legal) {
         return;
       }
-      const prior = this.captured[ESP_OWNER_CHOICE_INDEX] as {type?: string, index?: number} | undefined;
+      const kind = proj.owner.reward.kind;
+      if (kind !== 'choice' && kind !== 'repeat-action' && kind !== 'card-resource') {
+        return;
+      }
+      const pos = proj.owner.toPosition;
+      // The prior draft per ask family — a «change» re-open restores the
+      // standing answer (the reward-pick seat re-seeds the per-position
+      // drafts and the repeat composition from it).
+      let prior: DeltaRewardDraft | undefined;
+      if (kind === 'choice') {
+        const cap = this.captured[ESP_OWNER_CHOICE_INDEX] as {type?: string, index?: number} | undefined;
+        if (cap?.type === 'or' && typeof cap.index === 'number') {
+          prior = {position: pos, rewardChoice: cap.index};
+        }
+      } else if (kind === 'repeat-action') {
+        if (this.repeatResult !== undefined) {
+          prior = {position: pos, selectedCard: this.repeatResult.chosenCard, repeat: this.repeatResult};
+        }
+      } else {
+        const cap = this.captured[ESP_OWNER_ANIMAL_INDEX] as {type?: string, cards?: ReadonlyArray<CardName>} | undefined;
+        if (cap?.type === 'card' && cap.cards !== undefined && cap.cards.length > 0) {
+          prior = {position: pos, selectedCard: cap.cards[0]};
+        }
+      }
       enterDeltaRewardPick({
         source: this.cardName,
-        claimable: [proj.owner.toPosition],
+        claimable: [pos],
         advanceFrom: proj.owner.fromPosition,
-        prior: prior?.type === 'or' && typeof prior.index === 'number' ?
-          {position: proj.owner.toPosition, rewardChoice: prior.index} : undefined,
+        prior,
       }, (draft) => {
-        if (draft.rewardChoice === undefined) {
-          return; // an unanswered choice cannot resolve (the scene's own gate)
-        }
         const cur = this.allChoices.find((x) => x.id === c.id) ?? c;
-        this.picks[cur.id] = String(draft.rewardChoice);
-        this.captureFor(cur, {type: 'or', index: draft.rewardChoice, response: {type: 'option'}});
+        if (kind === 'choice') {
+          if (draft.rewardChoice === undefined) {
+            return; // an unanswered ask cannot resolve (the scene's own gate)
+          }
+          this.picks[cur.id] = String(draft.rewardChoice);
+          this.captureFor(cur, {type: 'or', index: draft.rewardChoice, response: {type: 'option'}});
+        } else if (kind === 'repeat-action') {
+          // The hydro flow's own repeat frame composed the pick; a re-open
+          // that resolved without recomposing keeps the standing result.
+          if (draft.repeat !== undefined && draft.repeat.chosenCard === draft.selectedCard) {
+            this.repeatResult = draft.repeat;
+          } else if (draft.selectedCard === undefined || this.repeatResult?.chosenCard !== draft.selectedCard) {
+            return;
+          }
+        } else {
+          if (draft.selectedCard === undefined) {
+            return;
+          }
+          this.picks[cur.id] = draft.selectedCard;
+          this.captureFor(cur, {type: 'card', cards: [draft.selectedCard]});
+        }
         this.focusIdx = this.firstActionableIndex();
         this.scrollFocused();
       });

@@ -5285,11 +5285,38 @@ each(@players, {
 
     /* ── Progress rail ───────────────────────────────────────────── */
     &__rail {
+        position: relative; /* the movement-link SVG overlay's coordinate space */
         display: flex;
         align-items: stretch;
         padding: .4rem .1rem .3rem;
         flex-shrink: 0;
     }
+    /* ── THE MOVEMENT LINK — a quiet dashed arc from a marker's real cell to
+       its projected destination (espionage picks + the advance-landing reward
+       pick). Non-interactive, above the cells, below any gliding proxy; the
+       only motion is a one-shot fade-in. Direction is the arrowhead + hue
+       (fwd mint / back amber) ON TOP of the words the panels already print —
+       never colour alone. ── */
+    &__ghostlinks {
+        position: absolute;
+        inset: 0;
+        width: 100%;
+        height: 100%;
+        pointer-events: none;
+        z-index: 3;
+        overflow: visible;
+        animation: con-hydro-ghostlink-in calc(260ms * var(--motion-scale, 1)) ease-out backwards;
+    }
+    &__ghostlink-path {
+        fill: none;
+        stroke-width: .11rem;
+        stroke-linecap: round;
+        stroke-dasharray: .06rem .38rem;
+    }
+    &__ghostlink--fwd .con-hydro__ghostlink-path { stroke: fade(@con-hydro-mint, 72%); }
+    &__ghostlink--back .con-hydro__ghostlink-path { stroke: fade(@con-amber, 78%); }
+    &__ghostlink--fwd .con-hydro__ghostlink-tip { fill: fade(@con-hydro-mint, 85%); }
+    &__ghostlink--back .con-hydro__ghostlink-tip { fill: fade(@con-amber, 88%); }
     &__link {
         flex: 1 1 .5rem;
         min-width: .3rem;
@@ -7460,6 +7487,10 @@ each(@players, {
     .hydro-reward__label { color: @con-text; }
 }
 
+@keyframes con-hydro-ghostlink-in {
+    from { opacity: 0; }
+    to { opacity: 1; }
+}
 @keyframes con-hydro-cta {
     0%, 100% { box-shadow: inset 0 0 0 .05rem fade(@con-hydro-mint, 75%), 0 0 .8rem fade(@con-hydro-mint, 14%); }
     50% { box-shadow: inset 0 0 0 .05rem fade(@con-hydro-mint, 90%), 0 0 1.3rem fade(@con-hydro-mint, 26%); }
@@ -10523,13 +10554,53 @@ html.console-mode {
            strongest signals fought for one border, and whichever lost simply
            vanished. */
 
-        /* Actionable NOW (milestone) — the GROUND lifts toward mint; the
-           loud part of the state lives on the emblem (actring/spark) and in
-           the metric's «ДОСТУПНО». Never the ring channel. */
+        /* THE SHELF LIGHT — availability's own edge, structurally nothing
+           like the focus ring: a full-width light-line + soft bloom the
+           tile STANDS ON, never an outline. Always present and
+           opacity-driven — the state can rise and fall while the workspace
+           is open, and a mounted/unmounted element would pop instead of
+           fading. Light only: it may tint, it may not carry text. */
+        &::before {
+            content: '';
+            position: absolute;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            height: 1.5rem;
+            background-image:
+                linear-gradient(90deg, transparent, fade(#f6e8c6, 60%) 14%, fade(#f6e8c6, 60%) 86%, transparent),
+                linear-gradient(0deg, fade(@strat-gold, 15%), transparent 82%);
+            background-size: 100% .12rem, 100% 100%;
+            background-position: bottom, bottom;
+            background-repeat: no-repeat;
+            opacity: 0;
+            transition: opacity calc(260ms * var(--motion-scale, 1)) ease;
+            pointer-events: none;
+        }
+
+        /* Actionable NOW (milestone) — the whole tile becomes ONE LIT
+           OBJECT in the activation family (gold-white = «offered this
+           frame», the strategy rail's own word): a warm-shifted ground lit
+           from the emblem's pedestal, plus the shelf light below. The
+           state lives at TILE scale on purpose — the emblem-scale optics
+           (rim + crystal) are gold on gold medal art, camouflaged at couch
+           distance, while the ground is the one layer no emblem competes
+           with; warm-vs-cool is also what keeps the state apart from the
+           cyan focus ring at the periphery. Never the ring channel. */
         &--go {
             background:
-                linear-gradient(100deg, fade(@con-mint, 13%), transparent 46%),
-                linear-gradient(165deg, rgba(23, 40, 46, 0.96), rgba(13, 24, 29, 0.96));
+                radial-gradient(56% 130% at 15% 58%, fade(@strat-gold, 13%), transparent 70%),
+                linear-gradient(165deg, rgba(34, 35, 30, 0.96), rgba(21, 22, 18, 0.96));
+
+            /* The KINDLE — one-shot, on the shelf's own birth (workspace
+               open / category arrive / a live rising edge): a calm rise of
+               the light into place. Opacity/transform only; `backwards`
+               (never `both`) so the standing state is the RULE's — the
+               falling edge exits through the transition above. */
+            &::before {
+                opacity: 1;
+                animation: con-ma-go-kindle calc(420ms * var(--motion-scale, 1)) @con-ease-standard backwards;
+            }
         }
         &--taken {
             background: linear-gradient(165deg, rgba(17, 25, 36, 0.95), rgba(11, 16, 24, 0.95));
@@ -10568,7 +10639,10 @@ html.console-mode {
             .con-ma__readymark svg path { animation: strat-activate-check calc(360ms * var(--motion-scale, 1)) ease-out both calc(120ms * var(--motion-scale, 1)); }
         }
     }
-    /* State rail on the card's left edge (mint = act now / owner colour). */
+    /* State rail on the card's left edge — the OWNER's colour only. The
+       old mint «act now» rail moved to the bottom shelf light (the card's
+       own `::before`): three states, three geometries — left colour bar =
+       whose, bottom warm shelf = claimable, ring = cursor. */
     &__rail {
         position: absolute;
         left: 0;
@@ -10576,10 +10650,6 @@ html.console-mode {
         bottom: 0;
         width: .25rem;
 
-        &--go {
-            background: linear-gradient(180deg, fade(@con-mint, 90%), fade(@con-mint, 45%));
-            box-shadow: 0 0 .5rem fade(@con-mint, 35%);
-        }
         &--owner {
             box-shadow: 0 0 .4rem rgba(0, 0, 0, 0.4);
         }
@@ -10680,6 +10750,18 @@ html.console-mode {
     }
     &__card--go &__actring { opacity: 1; }
     &__card--go &__spark { opacity: 0.85; }
+    /* The pedestal joins the state: the cool ambient radial turns into the
+       activation's own warm light, so the whole stage square — the largest
+       zone the emblem does not cover — reads «lit» at a glance. Paint only
+       (the descend FLIP measures the box, never the pixels). */
+    &__card--go &__stage {
+        background:
+            radial-gradient(circle at 50% 58%, fade(@strat-gold, 18%), transparent 66%),
+            rgba(16, 14, 9, 0.6);
+        box-shadow:
+            inset 0 0 0 .05rem fade(#f6e8c6, 26%),
+            inset 0 -.6rem 1.1rem rgba(0, 0, 0, 0.4);
+    }
 
     /* ── the SPONSOR SOCKET (awards, funded) — the trophy rail's provenance
        grammar at tile scale: the funder's enamel cube in a gold socket at
@@ -11240,6 +11322,12 @@ html.console-mode {
 @keyframes con-ma-arrive-r {
     from { opacity: 0.25; transform: translateX(1.1rem); }
     to { opacity: 1; transform: none; }
+}
+/* The availability shelf's one-shot kindle (`from` only — the implicit end
+   is the rule's own standing state, so the animation can never disagree
+   with the style it hands back to). */
+@keyframes con-ma-go-kindle {
+    from { opacity: 0; transform: translateY(38%); }
 }
 
 /* ── THE MA STATUS RAIL — the ONE projected-transaction line of the

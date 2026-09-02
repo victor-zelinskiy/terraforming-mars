@@ -23,6 +23,7 @@ import {MarsNomads} from '../../src/server/cards/promo/MarsNomads';
 import {GreatDamPromo} from '../../src/server/cards/promo/GreatDamPromo';
 import {SolarFarm} from '../../src/server/cards/ares/SolarFarm';
 import {LavaTubeSettlement} from '../../src/server/cards/prelude/LavaTubeSettlement';
+import {BoomTown} from '../../src/server/cards/promo/BoomTown';
 import {MinorityRefuge} from '../../src/server/cards/colonies/MinorityRefuge';
 import {PioneerSettlement} from '../../src/server/cards/colonies/PioneerSettlement';
 
@@ -67,6 +68,8 @@ describe('cardPlayPreview — a placement carries its tile identity', () => {
     ['Immigrant City', new ImmigrantCity(), TileType.CITY],
     ['Urbanized Area', new UrbanizedArea(), TileType.CITY],
     ['Lava Tube Settlement', new LavaTubeSettlement(), TileType.CITY],
+    // A PRELUDE previews through the same path (the console start scene fetches it).
+    ['Boom Town', new BoomTown(), TileType.CITY],
     ['Flooding', new Flooding(), TileType.OCEAN],
     // Declarative `behavior.tile` / `behavior.ocean` — the walker path.
     ['Capital', new Capital(), TileType.CAPITAL],
@@ -134,6 +137,7 @@ describe('cardPlayPreview — a placement carries its tile identity', () => {
     ['Urbanized Area', new UrbanizedArea(), 'next to at least 2 other cities'],
     ['Lava Tube Settlement', new LavaTubeSettlement(), 'on a volcanic area'],
     ['Mining Rights', new MiningRights(), 'on a steel or titanium bonus area'],
+    ['Boom Town', new BoomTown(), 'on a steel or titanium bonus area'],
   ];
   for (const [name, card, constraint] of CONSTRAINED) {
     it(`${name} keeps its placement restriction ("${constraint}")`, () => {

@@ -96,10 +96,11 @@
                    radial pedestal, contain (NEVER cropped). It is also the
                    FLIP twin of the focus stage's hero pedestal: the emblem
                    physically continues into the detail state. A claimable
-                   milestone carries the ACTIVATION OPTICS on the emblem itself
-                   (the strategy rail's gold-white «can act now» light — rim +
-                   bottom crystal; the availability signal lives HERE, never on
-                   the focus ring's channel). A funded award mounts the
+                   milestone lights the WHOLE TILE in the warm activation
+                   family (`--go` ground + pedestal + bottom shelf light) and
+                   keeps the strategy rail's gold-white optics on the emblem
+                   (rim + bottom crystal) — the availability signal never
+                   borrows the focus ring's channel. A funded award mounts the
                    SPONSOR'S cube in a gold socket at the ribbon corner. -->
               <div class="con-ma__stage" aria-hidden="true">
                 <div class="con-ma__art" :style="{backgroundImage: `url(assets/ma/${artSlug(it)}.png)`}"></div>
@@ -477,8 +478,9 @@ export default defineComponent({
       if (it.takenBy !== undefined) {
         return 'con-ma__rail--owner player_bg_color_' + it.takenBy.color;
       }
-      // P29: the mint "act now" rail is milestone-only (see the card class).
-      return it.available && it.kind === 'milestone' ? 'con-ma__rail--go' : '';
+      // The left edge speaks OWNER colour only; availability's edge is the
+      // card's own bottom shelf light (CSS `--go` — see console.less).
+      return '';
     },
     /** Milestone metric tones: gold-white «offered now» over green «met». */
     metricClass(it: ConsoleMaItem): string {
