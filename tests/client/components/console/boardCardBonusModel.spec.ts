@@ -1,7 +1,8 @@
 import {expect} from 'chai';
 import {
-  bonusSceneTimings, coverLiftRise, fanDelayMs, gatherPoint, multiSceneBudgetMs,
-  presentationTarget, reducedBonusSceneTimings, singleSceneBudgetMs,
+  bonusSceneTimings, concurrentBonusSceneTimings, coverLiftRise, fanDelayMs, gatherPoint,
+  multiSceneBudgetMs, presentationTarget, reducedBonusSceneTimings, singleSceneBudgetMs,
+  CONCURRENT_SINGLE_FLIGHT_STRETCH,
 } from '@/client/console/boardCardBonus/boardCardBonusModel';
 
 describe('boardCardBonusModel', () => {
@@ -35,6 +36,23 @@ describe('boardCardBonusModel', () => {
     expect(t.hoverLoopMs).to.eq(0);
     expect(multiSceneBudgetMs(3, t)).to.be.lessThan(multiSceneBudgetMs(3, full));
     expect(singleSceneBudgetMs(t)).to.be.lessThan(singleSceneBudgetMs(full));
+  });
+
+  it('the CONCURRENT flight stretches ONLY the single leg — same beats otherwise', () => {
+    // A cover flying at the same time as the placement's resource chips
+    // takes a calmer, slightly longer road; the chips (paced quicker on
+    // their side) land first. Everything else — the multi legs (which wait
+    // the payout out and never overlap chips), the flip beat, the handoff —
+    // is the SAME language.
+    const base = bonusSceneTimings();
+    const t = concurrentBonusSceneTimings(base);
+    expect(t.singleFlightMs).to.eq(Math.round(base.singleFlightMs * CONCURRENT_SINGLE_FLIGHT_STRETCH));
+    expect(t.singleFlightMs).to.be.greaterThan(base.singleFlightMs);
+    // A gentle evolution, never a different animation.
+    expect(CONCURRENT_SINGLE_FLIGHT_STRETCH).to.be.greaterThan(1).and.at.most(1.6);
+    const {singleFlightMs: _a, ...restConcurrent} = t;
+    const {singleFlightMs: _b, ...restBase} = base;
+    expect(restConcurrent).to.deep.eq(restBase);
   });
 
   it('fan launches are staggered deterministically', () => {

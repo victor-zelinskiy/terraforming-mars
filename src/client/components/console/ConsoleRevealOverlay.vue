@@ -507,6 +507,7 @@ import {setRevealVeilSuppressed} from '@/client/console/surfaceMotion/surfaceMot
 import {
   DrawnRevealPresentationCtx, drawnRevealDetached, drawnRevealHeadless, drawnRevealViewerOpens,
 } from '@/client/console/consoleRevealPresentation';
+import {rewardPayoutSettling} from '@/client/console/rewardPayoutQuiet';
 
 /** The scene phases during which the reveal frame stays fully veiled. */
 const BONUS_PRE_FRAME_PHASES: ReadonlySet<string> = new Set(['lift', 'hover', 'gather', 'fan']);
@@ -946,8 +947,18 @@ export default defineComponent({
       // computed — so a claim that lands AFTER an open flips this back to false
       // and the watcher stops re-opening. That is the whole reason the check
       // lives in the shared decision rather than being duplicated here.
+      //
+      // …and the fullscreen may NEVER open over a resource payout still in
+      // the air (the same placement's chips, absorb tails included). The
+      // scene-side gate (`bonusHoldingSingleZoom` + the layer's signal-driven
+      // release) already sequences the ordinary path; this is the OPENER's
+      // own reading of the ONE settling predicate, so no scene-lifecycle
+      // edge (an abort that pre-set `zoomEntryReady`, a scene that died
+      // early) can slip the viewer over a flying chip. Bounded transitively:
+      // every settling term is a scene state with its own safety net.
       return drawnRevealViewerOpens(this.revealPresentationCtx) &&
         consoleCardZoom.card === undefined &&
+        !rewardPayoutSettling() &&
         !bonusHoldingSingleZoom(this.drawnEvent?.id) &&
         !deckDrawHoldingSingleZoom(this.drawnEvent?.id) &&
         !colonyTradeHoldingSingleZoom(this.drawnEvent?.id);

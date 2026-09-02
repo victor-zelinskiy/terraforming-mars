@@ -12,10 +12,14 @@ import {
   abortTilePlacement,
   isTilePlacementActive,
   tilePlacementHolding,
+  tilePlacementRewardsSettling,
   tilePlacementState,
   seedTilePlacementRewardHold,
+  tileRewardTransferPace,
 } from '@/client/console/tilePlacement/consoleTilePlacement';
 import {panelRewardHold, heldStock} from '@/client/console/resourceTransfer/consoleResourceTransfer';
+import {TRANSFER_CONCURRENT_PACE} from '@/client/console/resourceTransfer/resourceTransferModel';
+import {armBoardCardBonus, resetBoardCardBonus} from '@/client/console/boardCardBonus/consoleBoardCardBonus';
 import {AresAdjacencyGrantModel} from '@/common/models/AresAdjacencyGrantModel';
 import {Resource} from '@/common/Resource';
 import {resetAresGrantClaims} from '@/client/console/tilePlacement/aresAdjacencyFlights';
@@ -491,5 +495,56 @@ describe('consoleTilePlacement (the animation transaction)', () => {
     expect(heldStock('steel')).to.eq(0);
     await endTilePlacement();
     expect(isTilePlacementActive()).to.be.false;
+  });
+});
+
+/**
+ * The CONCURRENT-PAYOUT contract with the board card-bonus scene: one
+ * placement that pays a card AND resources runs both animations in parallel
+ * — the chips slightly quicker, the card calmer — and the card's covering
+ * surfaces wait for the payout. These are the tile scene's two halves of it.
+ */
+describe('consoleTilePlacement × board card-bonus (concurrent payout)', () => {
+  afterEach(async () => {
+    resetBoardCardBonus();
+    abortTilePlacement();
+    resetAresGrantClaims();
+    await settle(5);
+  });
+
+  it('the wave tempo quickens ONLY while the card cover is also in flight', () => {
+    expect(tileRewardTransferPace()).to.eq(1);
+    armBoardCardBonus({kind: 'board-cell', spaceId: '05'});
+    expect(tileRewardTransferPace()).to.eq(TRANSFER_CONCURRENT_PACE);
+    resetBoardCardBonus();
+    expect(tileRewardTransferPace()).to.eq(1);
+  });
+
+  it('rewards settle from detect (owed) through the beat, and a card-only cell never settles', async () => {
+    expect(tilePlacementRewardsSettling()).to.be.false;
+    armTilePlacement({spaceId: '05'});
+    expect(tilePlacementRewardsSettling()).to.be.false; // nothing owed yet
+    const prev = [space('05', {bonus: [SpaceBonus.STEEL]})];
+    const next = [space('05', {bonus: [SpaceBonus.STEEL], tileType: TileType.CITY, color: 'red'})];
+    detectTilePlacement(prev, next);
+    // The printed steel is OWED — captured at detect, not yet flown: a
+    // single-card cover launching NOW must take the calmer concurrent road.
+    expect(tilePlacementRewardsSettling()).to.be.true;
+    await runTilePlacement(prev, next);
+    seedTilePlacementRewardHold();
+    expect(tilePlacementRewardsSettling()).to.be.true;
+    await endTilePlacement(); // degrades under JSDOM — releases everything
+    expect(tilePlacementRewardsSettling()).to.be.false;
+    await settle(5);
+
+    // A card-only cell (DRAW_CARD prints no resource chip) never reads as a
+    // concurrent resource payout — the lone cover keeps the standard tempo.
+    armTilePlacement({spaceId: '06'});
+    const p2 = [space('06', {bonus: [SpaceBonus.DRAW_CARD]})];
+    const n2 = [space('06', {bonus: [SpaceBonus.DRAW_CARD], tileType: TileType.GREENERY, color: 'red'})];
+    detectTilePlacement(p2, n2);
+    expect(tilePlacementRewardsSettling()).to.be.false;
+    await runTilePlacement(p2, n2);
+    await endTilePlacement();
   });
 });

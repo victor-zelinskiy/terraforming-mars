@@ -45,12 +45,15 @@ import {
   setBoardCardBonusPhase, stageBoardCardBonusReveal, BoardCardBonusAbortMode,
 } from '@/client/console/boardCardBonus/consoleBoardCardBonus';
 import {
-  bonusSceneTimings, gatherPoint, presentationTarget, reducedBonusSceneTimings,
-  BonusSceneTimings, RectLike,
+  bonusSceneTimings, concurrentBonusSceneTimings, gatherPoint, presentationTarget,
+  reducedBonusSceneTimings, BonusSceneTimings, RectLike,
 } from '@/client/console/boardCardBonus/boardCardBonusModel';
 import {clearColonyPayoutLiftOff, markColonyPayoutLiftOff} from '@/client/console/colonyTrade/colonyResolution';
 import {tilePlacementHolding} from '@/client/console/tilePlacement/consoleTilePlacement';
 import {nomadMoveHolding} from '@/client/console/nomads/consoleNomadMove';
+import {concurrentResourcePayout, waitRewardPayoutQuiet} from '@/client/console/rewardPayoutQuiet';
+import {consoleCardZoom} from '@/client/console/consoleCardZoom';
+import {probeTick} from '@/client/console/probeTick';
 import {
   runBonusAbortVisual, runBonusCoverLift, runBonusFanOut, runBonusHandoff,
   runBonusSingleFlight, BonusCoverHandle, BonusSceneHandle,
@@ -72,6 +75,15 @@ const VENUS_MARKER_SEL = '[data-arc-marker="venus-8"] .bonus-zone__icon';
  * non-placement pick): recall the cover honestly.
  */
 const NO_REVEAL_GRACE_MS = 1600;
+
+/**
+ * SINGLE-card: how long the arrived cover waits for the fullscreen viewer to
+ * actually TAKE OVER (its FLIP resolves the standing proxy as its physical
+ * origin at open) before the scene lets go anyway. The open normally lands
+ * within a flush or two of the zoom release; a batch the viewer declines (an
+ * edge claim, a parked overlay) must still free the input gate promptly.
+ */
+const ZOOM_TAKEOVER_MAX_MS = 2500;
 
 /** Read a fresh, stable rect (bounded rAF double-probe — layout settled). */
 function stableRect(resolve: () => HTMLElement | null): Promise<DOMRect | undefined> {
@@ -173,7 +185,13 @@ export default defineComponent({
       // Restricted Area:ares — or a cell draw whose submit-time arm never
       // fired) lifts its cover off that hex. It WAITS for the tile-placement
       // hero AND the nomad-move hop: the cause (the landing + its reward
-      // beats) finishes before the cell's card answer rises.
+      // beats) finishes before the cell's card answer rises. Deliberately
+      // the OVERLAY PARK's own terms and no more (never a transfers term):
+      // the arm must land in the SAME reactive flush that releases the
+      // reveal park, or the un-parked overlay auto-opens the batch before
+      // any scene claims it. Residual chip absorb tails overlap only the
+      // cover's LIFT at the cell — the covering surfaces themselves are
+      // sequenced by the scene's own payout-quiet waits.
       if (e.source?.type === 'tile' && e.source.spaceId !== undefined &&
           !tilePlacementHolding() && !nomadMoveHolding()) {
         return e;
@@ -429,7 +447,13 @@ export default defineComponent({
         return;
       }
       this.noticeColonyLiftOff();
-      const t = this.timings();
+      // A CONCURRENT payout (the same placement's printed / ocean / Ares
+      // chips are flying or still owed): the cover takes the calmer,
+      // slightly longer flight — the chips (paced quicker on their side)
+      // stay ahead and land first. A card flying alone keeps the standard
+      // tempo. Same arc, same easing, same flip either way.
+      const t = concurrentResourcePayout() ?
+        concurrentBonusSceneTimings(this.timings()) : this.timings();
       const reduced = consoleReducedMotionActive();
       ctx.sceneHandle = runBonusSingleFlight({
         proxy,
@@ -442,30 +466,88 @@ export default defineComponent({
         reduced,
         onArrived: () => {
           setBoardCardBonusPhase('frame');
-          // Release the held fullscreen auto-open: the viewer opens with a
-          // PHYSICAL origin resolving to this proxy — the existing zoom
-          // FLIP lifts the real card out of the scene (and `con-zoom-hold`
-          // hides the proxy the frame the flight starts).
-          markBonusZoomEntryReady();
-          if (reduced) {
-            // The reduced zoom open is a bare fade (no slot hold) — fade
-            // the proxy ourselves so the card never doubles.
-            gsap.to(proxy, {autoAlpha: 0, duration: motionMs(140) / 1000, ease: 'power1.out'});
-          }
-          // END the scene once the fullscreen viewer has TAKEN OVER (the FLIP
-          // has captured this proxy as its physical source — a few frames). The
-          // TAKE belongs to the viewer now, so the input gate must NOT stay
-          // locked through it (that swallowed the «A Взять» press). Short window
-          // = the fly-in still can't be taken prematurely; cleanup follows.
-          ctx.timers.push(setTimeout(() => this.finishScene(), motionMs(reduced ? 120 : 300)));
+          void this.releaseSingleTakeover(e.id, proxy, reduced);
         },
       });
     },
+    /**
+     * The ARRIVED single cover's HANDOFF, sequenced on real signals — never
+     * a bare post-arrival timer (which destroyed the standing card while the
+     * reveal was still parked behind the placement's resource payout, and
+     * the viewer then rose from nothing with a textual entrance):
+     *  1. the payout QUIETS (reward beats done, every chip landed and
+     *     absorbed) — the fullscreen may not open over money in the air;
+     *  2. the held auto-open is released — the viewer opens off the standing
+     *     cover (a PHYSICAL origin: `openSingleCardFullscreen` resolves it
+     *     only while the scene is still ACTIVE, so the scene must outlive
+     *     this moment);
+     *  3. the scene ends a short beat AFTER the viewer's FLIP has captured
+     *     the proxy — the TAKE belongs to the viewer, so the input gate must
+     *     not stay locked through it (that swallowed the «A Взять» press).
+     * Every wait is bounded; each exits the moment the scene dies (abort /
+     * a superseding arm), whose own visual then owns the cleanup.
+     */
+    async releaseSingleTakeover(eventId: number, proxy: HTMLElement, reduced: boolean): Promise<void> {
+      const alive = () =>
+        boardCardBonusState.active && boardCardBonusState.stagedEventId === eventId;
+      await waitRewardPayoutQuiet({alive});
+      if (!alive()) {
+        return;
+      }
+      // Release the held fullscreen auto-open: the viewer opens with a
+      // PHYSICAL origin resolving to this proxy — the existing zoom FLIP
+      // lifts the real card out of the scene (and `con-zoom-hold` hides
+      // the proxy the frame the flight starts).
+      markBonusZoomEntryReady();
+      if (reduced) {
+        // The reduced zoom open is a bare fade (no slot hold) — fade the
+        // proxy ourselves so the card never doubles.
+        gsap.to(proxy, {autoAlpha: 0, duration: motionMs(140) / 1000, ease: 'power1.out'});
+        ctx.timers.push(setTimeout(() => this.finishScene(), motionMs(120)));
+        return;
+      }
+      await this.waitZoomTakeover(alive);
+      if (!alive()) {
+        return;
+      }
+      ctx.timers.push(setTimeout(() => this.finishScene(), motionMs(300)));
+    },
+    /** The fullscreen viewer has TAKEN OVER (it is open — its FLIP resolved
+     *  the standing proxy at that instant). Bounded: a viewer that never
+     *  opens (an edge claim, a still-parked overlay) frees the scene anyway. */
+    waitZoomTakeover(alive: () => boolean): Promise<void> {
+      const started = Date.now();
+      return new Promise((done) => {
+        const poll = () => {
+          if (!alive() || consoleCardZoom.card !== undefined ||
+              Date.now() - started >= ZOOM_TAKEOVER_MAX_MS) {
+            done();
+            return;
+          }
+          probeTick(poll);
+        };
+        poll();
+      });
+    },
     async startMulti(e: DrawnCardEntry): Promise<void> {
-      setBoardCardBonusPhase('gather');
       this.sceneCards = e.cards.map((c) => c.name);
       this.sceneNonce++;
       await this.$nextTick();
+      // The reveal space cannot exist while the placement's payout still
+      // owns the screen (the overlay is PARKED behind the hero's holds, so
+      // its slots are unmeasurable — the old 40-frame poll expired into
+      // `degradeToInstant`, vanishing the covers mid-scene). The cover keeps
+      // its honest HOVER over the cell while the chips fly — phase stays
+      // 'hover', so Planet Focus holds the field stage and the overlay stays
+      // veiled — and the gather/fan take over the moment the payout settles.
+      // Bounded; exits with the scene, whose abort visual owns the cleanup.
+      await waitRewardPayoutQuiet({
+        alive: () => boardCardBonusState.active && boardCardBonusState.stagedEventId === e.id,
+      });
+      if (!boardCardBonusState.active || boardCardBonusState.stagedEventId !== e.id) {
+        return;
+      }
+      setBoardCardBonusPhase('gather');
       const keys = e.cards.map((c, i) => `${c.name}#${i}`);
       const targets = await Promise.all(keys.map((key) => stableRect(() => document.querySelector<HTMLElement>(
         `.con-reveal [data-zoom-slot="${cssEscape(key)}"] :is(.card-container, .pcard)`,

@@ -68,6 +68,24 @@ export function transferFlightBudgetMs(): number {
   return TRANSFER_POP_MS + TRANSFER_ARC_MS + TRANSFER_SETTLE_MS;
 }
 
+/**
+ * The CONCURRENT wave tempo: a wave flying at the same time as a card cover
+ * (a placement that pays a card AND resources) runs slightly quicker, so the
+ * chips stay ahead of the calmer card and land first — never a different
+ * trajectory or easing, only the same flight a touch brisker. Scales every
+ * duration of a run (pop/arc/settle, stagger, absorb).
+ */
+export const TRANSFER_CONCURRENT_PACE = 0.85;
+
+/** Normalize a run's `pace`: absent → the standard tempo; a stray value is
+ *  clamped to a sane band (a pace can quicken, never freeze or teleport). */
+export function clampTransferPace(pace: number | undefined): number {
+  if (pace === undefined || !Number.isFinite(pace)) {
+    return 1;
+  }
+  return Math.min(1, Math.max(0.5, pace));
+}
+
 const STANDARD_RESOURCES: ReadonlySet<string> =
   new Set(['megacredits', 'steel', 'titanium', 'plants', 'energy', 'heat']);
 

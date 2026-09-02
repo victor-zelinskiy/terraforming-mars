@@ -100,6 +100,9 @@ export type OceanBeatOpts = {
   /** The live rect of the hex that was placed on / moved onto. */
   tileRect: TileRect,
   uiScale: number,
+  /** Wave tempo (≤1 = quicker — the caller's concurrent-payout decision);
+   *  paces the coin cascade AND the chips together. Default 1. */
+  pace?: number,
   /** Is the CALLING transaction still alive? (an abort must strand nothing). */
   alive: () => boolean,
   /** Release the aggregated panel hold — called EXACTLY once, however the
@@ -149,8 +152,10 @@ export async function runOceanAdjacencyBeat(opts: OceanBeatOpts): Promise<void> 
 
   // The cascade uses the framework's OWN per-index wave stagger, so each coin
   // finishes forming exactly as its chip is born on it — for any ocean count,
-  // and compressing automatically when several oceans pay at once.
-  const delays = coins.map((_, i) => motionMs(transferWaveDelayMs(i, coins.length)));
+  // and compressing automatically when several oceans pay at once. The
+  // caller's pace rides both halves (coins + chips) so they stay one event.
+  const pace = opts.pace ?? 1;
+  const delays = coins.map((_, i) => Math.round(motionMs(transferWaveDelayMs(i, coins.length)) * pace));
   playOceanActivation(els.pulses, {
     delays,
     shores: coins.map((c) => c.shore),
@@ -177,6 +182,7 @@ export async function runOceanAdjacencyBeat(opts: OceanBeatOpts): Promise<void> 
     origins: coins.map((c) => c.at),
     source: {point: {x: opts.tileRect.x + opts.tileRect.w / 2, y: opts.tileRect.y + opts.tileRect.h / 2}},
     arrival: 'auto',
+    pace,
     // ONE aggregated release, only once EVERY coin of this bonus has landed.
     // (`onArrive` can legitimately fire more than once per spec — the wave's
     // safety net re-releases everything — hence the guard inside `release`.)

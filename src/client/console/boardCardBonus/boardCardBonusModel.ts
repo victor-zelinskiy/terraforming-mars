@@ -89,6 +89,22 @@ export function reducedBonusSceneTimings(): BonusSceneTimings {
   };
 }
 
+/**
+ * The CONCURRENT single-flight stretch: when the same placement's resource
+ * chips are still flying, the cover takes the calmer, slightly longer road
+ * to the presentation point — the chips (paced quicker on their side) land
+ * first, and the covering fullscreen never opens over money in the air.
+ * Same arc, same easing, same flip beat — only the flight breathes longer.
+ */
+export const CONCURRENT_SINGLE_FLIGHT_STRETCH = 1.3;
+
+/** The single-flight timings of a cover flying CONCURRENTLY with a resource
+ *  payout. Only the flight itself stretches — the multi legs never overlap
+ *  chips (the fan waits the payout out), and the handoff beats stay shared. */
+export function concurrentBonusSceneTimings(t: BonusSceneTimings): BonusSceneTimings {
+  return {...t, singleFlightMs: Math.round(t.singleFlightMs * CONCURRENT_SINGLE_FLIGHT_STRETCH)};
+}
+
 /** Launch offset of cover i's fan leg (deterministic — no Math.random). */
 export function fanDelayMs(index: number, t: BonusSceneTimings): number {
   return index * t.fanStaggerMs;

@@ -4,7 +4,7 @@ import {ActionEffect, ActionPreviewStep} from '@/common/models/ActionPreviewMode
 import {
   mergeTransferSpecs, transferWaveDelayMs, transferArcPlan, transferArcPoint,
   transferChipScaleAt, sourceSpawnPoint, cardResourceKey, extractPlayRewards,
-  ResourceTransferSpec,
+  clampTransferPace, ResourceTransferSpec, TRANSFER_CONCURRENT_PACE,
 } from '@/client/console/resourceTransfer/resourceTransferModel';
 
 describe('resourceTransferModel (pure math of the shared resource-transfer language)', () => {
@@ -35,6 +35,17 @@ describe('resourceTransferModel (pure math of the shared resource-transfer langu
     for (let i = 1; i < 8; i++) {
       expect(transferWaveDelayMs(i, 8)).to.be.greaterThan(transferWaveDelayMs(i - 1, 8));
     }
+  });
+
+  it('the concurrent pace is a mild quickening, and stray values are clamped sane', () => {
+    // The card-concurrency tempo: brisker, never a different animation.
+    expect(TRANSFER_CONCURRENT_PACE).to.be.greaterThan(0.7).and.lessThan(1);
+    expect(clampTransferPace(undefined)).to.eq(1);
+    expect(clampTransferPace(TRANSFER_CONCURRENT_PACE)).to.eq(TRANSFER_CONCURRENT_PACE);
+    // A pace can quicken, never freeze or teleport the wave.
+    expect(clampTransferPace(0)).to.eq(0.5);
+    expect(clampTransferPace(3)).to.eq(1);
+    expect(clampTransferPace(Number.NaN)).to.eq(1);
   });
 
   it('the arc starts at the source, ends on the target, and lifts through an apex', () => {

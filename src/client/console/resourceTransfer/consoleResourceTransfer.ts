@@ -41,7 +41,7 @@ import {restingRectOf} from '@/client/console/cardFlight/landingRect';
 import {
   ResourceTransferSpec, TransferPoint, TransferRect,
   transferFlightBudgetMs, transferWaveDelayMs, sourceSpawnPoint, cardResourceKey,
-  TRANSFER_BEAT_MS,
+  TRANSFER_BEAT_MS, clampTransferPace,
 } from '@/client/console/resourceTransfer/resourceTransferModel';
 import {
   TransferStagePiece, runTransferFlight, settleTransferChip, killTransferPiece,
@@ -256,6 +256,14 @@ export type ResourceTransferRun = {
    * the touchdown).
    */
   arrival: 'auto' | 'hold';
+  /**
+   * Wave tempo relative to the standard language (clamped to [0.5, 1];
+   * default 1). A wave flying CONCURRENTLY with a card cover (a placement
+   * that pays a card AND resources) passes `TRANSFER_CONCURRENT_PACE` so
+   * the chips stay ahead of the calmer card — same arcs, same easing, only
+   * every duration (stagger, pop/arc/settle, absorb) a touch quicker.
+   */
+  pace?: number;
   /** Fired at each transfer's TOUCHDOWN (release the hold / free a gate). */
   onArrive?: (spec: ResourceTransferSpec) => void;
 };
@@ -330,13 +338,14 @@ export async function runResourceTransfers(run: ResourceTransferRun): Promise<vo
 
   resourceTransferState.runActive = true;
   resourceTransferState.nonce++;
+  const pace = clampTransferPace(run.pace);
   const entries = flights.map((f, i) => ({
     id: ++flightSeq,
     spec: f.spec,
     to: f.to,
     from: f.origin ?? run.source.point ??
       sourceSpawnPoint(sourceRect ?? {x: 0, y: 0, w: 0, h: 0}, i, flights.length),
-    delayMs: motionMs(transferWaveDelayMs(i, flights.length)),
+    delayMs: Math.round(motionMs(transferWaveDelayMs(i, flights.length)) * pace),
     index: i,
   }));
   resourceTransferState.flights = [...resourceTransferState.flights, ...entries.map((e) => ({id: e.id, spec: e.spec}))];
@@ -345,8 +354,8 @@ export async function runResourceTransfers(run: ResourceTransferRun): Promise<vo
     await nextTick(); // the layer mounts the chips
 
     const uiScale = conUiScale();
-    const waveBudget = motionMs(transferFlightBudgetMs()) +
-      motionMs(transferWaveDelayMs(entries.length - 1, entries.length)) + 2200;
+    const waveBudget = motionMs(transferFlightBudgetMs()) * pace +
+      motionMs(transferWaveDelayMs(entries.length - 1, entries.length)) * pace + 2200;
     let safetyFired = false;
     const safety = window.setTimeout(() => {
       // rAF stall / lost stage — release everything, never wedge the caller.
@@ -377,6 +386,7 @@ export async function runResourceTransfers(run: ResourceTransferRun): Promise<vo
         delayMs: e.delayMs,
         uiScale,
         hold: run.arrival === 'hold',
+        pace,
       });
       const touched = handles.touched.then(() => {
         // THE CONTACT BEAT, in one place: the tally a card-standing host reads

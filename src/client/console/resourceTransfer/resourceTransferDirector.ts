@@ -32,12 +32,15 @@ export type TransferFlightOpts = {
   to: TransferPoint;
   /** Position in the wave — drives the deterministic arc-lift separation. */
   index: number;
-  /** Launch delay within the wave (already motion-scaled). */
+  /** Launch delay within the wave (already motion-scaled AND paced). */
   delayMs: number;
   uiScale: number;
   /** `true` → the chip RESTS on the destination after touchdown (the sale);
    *  `false` → contact beat + absorb right after arrival (the reward wave). */
   hold: boolean;
+  /** Wave tempo (already clamped by the run, ≤1 = quicker) — scales the
+   *  flight's own durations, never its arc or easing. Default 1. */
+  pace?: number;
 };
 
 export type TransferFlightHandles = {
@@ -73,9 +76,10 @@ export function runTransferFlight(piece: TransferStagePiece, opts: TransferFligh
   const plan = transferArcPlan(opts.from, opts.to, transferLiftBias(opts.index));
   const startTilt = (opts.index % 2 === 0 ? -1 : 1) * 7;
   const settlePx = Math.max(2, Math.round(2.5 * opts.uiScale));
-  const popMs = motionMs(TRANSFER_POP_MS);
-  const arcMs = motionMs(TRANSFER_ARC_MS);
-  const settleMs = motionMs(TRANSFER_SETTLE_MS);
+  const pace = opts.pace ?? 1;
+  const popMs = motionMs(TRANSFER_POP_MS) * pace;
+  const arcMs = motionMs(TRANSFER_ARC_MS) * pace;
+  const settleMs = motionMs(TRANSFER_SETTLE_MS) * pace;
 
   gsap.set(chip, {
     x: opts.from.x - w / 2,
@@ -117,7 +121,7 @@ export function runTransferFlight(piece: TransferStagePiece, opts: TransferFligh
     if (opts.hold) {
       return 'landed' as const;
     }
-    return absorbChip(piece, opts.to, motionMs(TRANSFER_BEAT_MS)).then(() => 'done' as const);
+    return absorbChip(piece, opts.to, motionMs(TRANSFER_BEAT_MS) * pace).then(() => 'done' as const);
   });
 
   return {touched, finished};

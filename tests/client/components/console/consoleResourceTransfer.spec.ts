@@ -74,6 +74,24 @@ describe('consoleResourceTransfer (run lifecycle + the panel reward hold)', () =
       expect(resourceTransferState.flights).to.deep.eq([]);
     });
 
+    it('a PACED run (the card-concurrency tempo) changes no delivery semantics', async () => {
+      const arrived: Array<string> = [];
+      await runResourceTransfers({
+        specs: [
+          {channel: 'stock', resource: 'steel', amount: 1},
+          {channel: 'stock', resource: 'megacredits', amount: 2},
+        ],
+        source: {selectors: ['.does-not-exist']},
+        arrival: 'auto',
+        pace: 0.85,
+        onArrive: (spec) => arrived.push(`${spec.channel}:${spec.resource}`),
+      });
+      // Pace scales durations only — every reward still arrives, in order.
+      expect(arrived).to.deep.eq(['stock:steel', 'stock:megacredits']);
+      expect(resourceTransferState.flights).to.deep.eq([]);
+      expect(resourceTransferState.runActive).to.be.false;
+    });
+
     it('an explicit source point without panel anchors still releases all', async () => {
       const arrived: Array<string> = [];
       await runResourceTransfers({

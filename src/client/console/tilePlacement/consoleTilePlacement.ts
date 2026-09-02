@@ -104,7 +104,10 @@ import {
 import {
   runResourceTransfers, abortResourceTransfers, beginPanelRewardHold, releasePanelRewardHold, clearPanelRewardHold,
 } from '@/client/console/resourceTransfer/consoleResourceTransfer';
-import {TransferPoint, transferWaveDelayMs} from '@/client/console/resourceTransfer/resourceTransferModel';
+import {
+  TransferPoint, transferWaveDelayMs, TRANSFER_CONCURRENT_PACE,
+} from '@/client/console/resourceTransfer/resourceTransferModel';
+import {isBoardCardBonusActive} from '@/client/console/boardCardBonus/consoleBoardCardBonus';
 import {snapPlanetFocusSettled} from '@/client/console/planetFocus';
 
 export type BonusProxy = {
@@ -244,6 +247,34 @@ export function tilePlacementHolding(): boolean {
 // The flight + the post-commit reward beat hold the presentation; releases
 // the instant the phase drops on end/abort (the scene's completion signal).
 registerAnimationHoldSupplier('tile-placement', tilePlacementHolding);
+
+/**
+ * Resource rewards of the LIVE placement are still OWED or PAYING OUT —
+ * captured at detect, not yet flown (`pending*`), or the reward beat itself
+ * is running (`rewarding`). The card-bonus scene reads this (via
+ * `rewardPayoutQuiet.concurrentResourcePayout`) to tell "this cover flies
+ * CONCURRENTLY with chips" apart from a plain card-only landing — the broad
+ * `tilePlacementHolding()` is true through every landing and would slow a
+ * card that flies alone.
+ */
+export function tilePlacementRewardsSettling(): boolean {
+  return tilePlacementState.active && (
+    tilePlacementState.phase === 'rewarding' ||
+    pendingBonuses.length > 0 || pendingOceanBonus !== undefined || pendingAresFlights.length > 0);
+}
+
+/**
+ * The wave tempo of THIS placement's resource payouts. While the placed
+ * cell's card-bonus cover is ALSO in flight (the board-card-bonus scene is
+ * live — armed at this very submit), the chips run slightly quicker: the
+ * resources stay ahead of the calmer card and land first, so the card's
+ * covering surfaces never open over money still in the air (the concurrency
+ * contract). A placement with no card keeps the standard tempo — same arcs,
+ * same easing, same language either way.
+ */
+export function tileRewardTransferPace(): number {
+  return isBoardCardBonusActive() ? TRANSFER_CONCURRENT_PACE : 1;
+}
 
 // ── the lifecycle ───────────────────────────────────────────────────────────
 
@@ -665,6 +696,7 @@ async function runPrintedBonusBeat(bonuses: ReadonlyArray<PlacementBonus>): Prom
     source: {point: hexRect !== undefined ?
       {x: hexRect.x + hexRect.w / 2, y: hexRect.y + hexRect.h / 2} : undefined},
     arrival: 'auto',
+    pace: tileRewardTransferPace(),
     onArrive: (spec) => releasePanelRewardHold(spec),
   });
 }
@@ -687,6 +719,7 @@ async function runOceanBonusBeat(bonus: OceanAdjacencyBonusModel): Promise<void>
     bonus,
     tileRect,
     uiScale: conUiScale(),
+    pace: tileRewardTransferPace(),
     alive: () => tilePlacementState.active,
     // ONE aggregated release: the counter moves after the money has physically
     // arrived and announces «+2/+4/+6 M€» once — the individual sources are
@@ -721,8 +754,10 @@ async function runAresAdjacencyBeat(flights: ReadonlyArray<AresAdjacencyFlight>)
     return;
   }
   // One wave stagger for pulses AND chips — index-aligned per FLIGHT, so a
-  // tile's wake and its chip always share a launch beat.
-  const delays = flights.map((_, i) => motionMs(transferWaveDelayMs(i, flights.length)));
+  // tile's wake and its chip always share a launch beat (both sides carry
+  // the same concurrent pace, or the wakes would outlive their chips).
+  const pace = tileRewardTransferPace();
+  const delays = flights.map((_, i) => Math.round(motionMs(transferWaveDelayMs(i, flights.length)) * pace));
   const lift = Math.round(OCEAN_COIN_LIFT_PX * ui);
   const wakes: Array<AresSourceWake> = [];
   const pulseDelays: Array<number> = [];
@@ -759,7 +794,7 @@ async function runAresAdjacencyBeat(flights: ReadonlyArray<AresAdjacencyFlight>)
       drifts: wakes.map((w) => w.drift),
       pulseMs: motionMs(OCEAN_PULSE_MS),
     });
-    await wait(motionMs(ARES_WAVE_LEAD_MS));
+    await wait(Math.round(motionMs(ARES_WAVE_LEAD_MS) * pace));
     if (!tilePlacementState.active) {
       tilePlacementState.aresSources = [];
       releaseAll();
@@ -771,6 +806,7 @@ async function runAresAdjacencyBeat(flights: ReadonlyArray<AresAdjacencyFlight>)
     origins,
     source: {point: {x: tileRect.x + tileRect.w / 2, y: tileRect.y + tileRect.h / 2}},
     arrival: 'auto',
+    pace,
     onArrive: (spec) => releasePanelRewardHold(spec),
   });
   tilePlacementState.aresSources = [];
