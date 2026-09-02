@@ -34,7 +34,7 @@ import {InputResponse, SelectInitialCardsResponse} from '@/common/inputs/InputRe
 import * as titles from '@/common/inputs/SelectInitialCards';
 import {actionLabelForPlayer, liveWaitingSignal} from '@/client/components/overview/playerLabels';
 import {presentPlayerStatus, StatusPresentation} from '@/client/components/overview/playerStatusPresenter';
-import {resetStartTransition, startTransitionActive} from '@/client/console/startStageDirector';
+import {inputLocked, resetStartTransition, startTransitionActive, StartTransitionPhase} from '@/client/console/startStageDirector';
 
 export type StartWizardStepId = 'corp' | 'prelude' | 'ceo' | 'projects';
 
@@ -236,6 +236,35 @@ export function clearDockDrift(id?: string): void {
 export function startFlowBusy(): boolean {
   return startTransitionActive() ||
     (consoleStartState.flow !== 'idle' && consoleStartState.flow !== 'deploying');
+}
+
+/**
+ * THE STATUS RAIL'S FOCUS COMMIT — may the rail publish CARD-SPECIFIC payload
+ * (the focused card's name, its availability, its pick state)?
+ *
+ * The rail is a SIBLING of the step pane, so neither the pane's entrance hold
+ * nor the deal's slot hold ever covered it — and `focusedCard` is live the
+ * instant `stepIdx` flips, three phases before the new surface is allowed to
+ * paint. That is the «появилось → исчезло → появилось» flash: the commit
+ * frame showed the next step's first card at full strength, the deal hold
+ * then faded it out, and the real reveal brought the same name back.
+ *
+ * The boundary is therefore the SAME two facts the rest of the scene already
+ * lives by, never a timer:
+ *  · the stage transition has reached its settle (`inputLocked` releases on
+ *    'stabilizing-focus' — the phase whose name IS «the entrance settled»,
+ *    and the phase in which selection input reopens, so the rail speaks
+ *    exactly when the player may act on what it says);
+ *  · the deal cinematic is not holding the cards (a rail naming a card whose
+ *    slot is still `.con-deal-hold`-invisible names a card that is not there).
+ *
+ * Everything card-specific derives from ONE gated source (`railCard`), so the
+ * name, the availability and the pick state publish and retract as one
+ * atomic value — partial payloads are unrepresentable. Non-card parts of the
+ * rail (the funds chip, the step counter) are deliberately NOT gated.
+ */
+export function startRailCommitted(input: {dealActive: boolean, transitionPhase: StartTransitionPhase}): boolean {
+  return !input.dealActive && !inputLocked(input.transitionPhase);
 }
 
 /** Keep the Game Start Workspace mounted across prompt gaps (the shell reads

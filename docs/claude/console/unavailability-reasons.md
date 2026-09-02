@@ -35,8 +35,12 @@ Guards: the `requirement attainability` block in `tests/models/unplayableReasons
 
 Every console surface that talks about a card's availability builds a `CardAvailabilityView`
 through `buildCardAvailability(input, context)` and renders it with
-`ConsoleCardAvailabilityPanel` (`variant="compact"` — the draft workspace's two-row status block;
-`variant="panel"` — the fullscreen viewer's «ДОСТУПНОСТЬ» aside ABOVE «ПРАВИЛА»). Contexts:
+`ConsoleCardAvailabilityPanel` (`variant="compact"` — the two-row status block of the draft
+workspace and the start wizard's rail; `variant="line"` — a NAME-LESS one-liner embedded inside a
+host's own verdict/status bar (the hand's sale/discard modes, the deck pick's foot: the host names
+the card and owns the selection state, the line adds only verdict + primary reason and renders
+NOTHING without a view); `variant="panel"` — the fullscreen viewer's «ДОСТУПНОСТЬ» aside ABOVE
+«ПРАВИЛА»). Contexts:
 
 - **`'draft'`** (evaluation for later): only `requirement: true` reasons speak; `unattainable` →
   the red «Требование уже не выполнить», otherwise the amber «Требование пока не выполнено»;
@@ -46,15 +50,56 @@ through `buildCardAvailability(input, context)` and renders it with
   amber note at the END of the list, and becomes the amber headline only when it is the ONLY thing
   in the way. The window flag is the SHELL's (`handTurnWindowClosed`), never re-derived.
 
-The fullscreen viewer receives the context as an EXPLICIT opt-in
-(`consoleCardZoom.availability`, set at open time by the draft workspace zones, the task host's
-buy/draft picks and the hand's play browse) — a discard pick, the patent sale, a played-table
-browse or a resource-target viewer passes nothing and the panel cannot appear there. Parity is
-structural: the hand verdict bar renders the first rows of the SAME view the fullscreen panel
-shows (`ConsoleHandSection.playAvailability` / `ConsoleShell.zoomAvailabilityView`).
+### WHERE availability speaks is ONE policy (2026-09-02)
 
-Guards: `tests/client/components/console/cardAvailability.spec.ts`,
-`consoleCardAvailabilityPanel.spec.ts`.
+«Does this context show availability at all, and in which voice?» is a property of the
+SELECTION'S SEMANTICS, decided once in **`availabilityContextFor(intent)`**
+(`cardAvailability.ts`), never per call site. The product rule for an unlisted context:
+availability speaks exactly when the CURRENT player is deciding the fate of an UNPLAYED card of
+their own and «will I still get to play this?» informs that choice.
+
+- **For-later decisions → `'draft'`:** `start-pick`, `draft-pick`, `research-buy`, `deck-keep`
+  («оставь K из N» — ConsoleDeckPick), `drafted-review` (own mid-draft shelf/popover),
+  `hand-sell` (patent sale) and `hand-give` (discard / reveal / place-under). A sale/give-up is
+  the same question from the other side — «what still has practical value?» — so it deliberately
+  speaks the requirement voice, never the play voice's red «нельзя разыграть» (which would read
+  as an error of the CURRENT action) and never money/turn facts.
+- **Play-now decisions → `'play'`:** `hand-play`, `project-play` (the degenerate `projectCard`
+  pick→pay prompt — its candidates are usually playable, so the panel stays silent there).
+- **Informational contexts → `undefined`, listed EXPLICITLY** so the exclusion is a documented
+  decision: `played-browse`, `opponent-card`, `journal-link`, `endgame-review`, `reveal-view`
+  (a draw/verdict/discard-pile reveal with no choice), `source-inspect` («L3 Источник»),
+  `target-pick`, `bot-review`. **The safe default is silence**: an unknown intent (and an absent
+  one) maps to `undefined` — never a player-specific verdict painted where nobody is deciding.
+
+The fullscreen viewer receives the resolved context as an EXPLICIT opt-in
+(`consoleCardZoom.availability`, set at open time through the policy) and builds its panel with
+the pure **`buildZoomAvailability`** — the ONE builder, which also enforces three safety rules:
+a non-card zoom entry (an Automa bonus plate — no `unplayableReasons`) never grows a panel; in
+the play voice the LIVE hand offer wins over the reasons (a prompt-carried discount); and the
+hand-flavoured turn note attaches ONLY to a card the viewer's own hand carries.
+`repointConsoleCardZoom` (the reveal's received ⇄ source swap) CLEARS the context — a re-point
+shows a different card, and a reveal is never an evaluation context.
+
+**Availability never touches prompt eligibility.** In the sale/discard/deck-keep pickers the
+prompt's own candidacy (`disabled`/`reasonsFor`), the selection state and the pick limits stay the
+authoritative layers; the availability line is informational beside them — it never gates a pick,
+never restyles the prompt's reason, never intercepts input. Parity is structural: the hand verdict
+bar renders rows of the SAME view the fullscreen panel shows
+(`ConsoleHandSection.playAvailability` / `evaluationAvailability` /
+`ConsoleShell.zoomAvailabilityView`).
+
+Server data feeding it: `cardsInHand` / `cardDrawReveals` / `draftedCards` (all
+`unplayableReasons: true` in `ServerModel`), and `SelectCard.config.showUnplayableReasons` — set
+by `Draft.ts`, `SelectInitialCards` and **every** `ChooseCards` prompt (buy AND keep, 2026-09-02:
+the keep-some pick is the same for-later decision). The subject player is always the player the
+model/prompt is built FOR — a drafted/dealt card is evaluated against the decider even before it
+formally joins their hand.
+
+Guards: `tests/client/components/console/cardAvailability.spec.ts` (incl. the policy table, the
+safe default and the zoom builder), `consoleCardAvailabilityPanel.spec.ts` (all three densities),
+`tests/deferredActions/ChooseCards.spec.ts` (keep-mode reasons),
+`tests/models/ServerModel.spec.ts` (draftedCards reasons).
 
 ### …and the GAME'S FIRST card decision — the start wizard's buy step (2026-08-19)
 
@@ -83,6 +128,45 @@ Guards: the `project requirement reasons` block in `tests/inputs/SelectInitialCa
 the `start-hand availability` block in `tests/client/components/console/consoleStartState.spec.ts`,
 and `tests/e2e/console-start-availability.spec.ts` (a production-sized deal — never test-mode —
 measuring that the reserved rail actually fits its block and that the grid stays out of scroll).
+
+### The status rail publishes only past the FOCUS COMMIT (2026-09-02)
+
+The prelude → projects hop used to flash: the next step's entries and the default focus index land
+at the director's commit phase, THREE phases before the new surface may paint, and the rail — a
+SIBLING of the step pane, covered by neither the pane's entrance hold nor the deal's slot hold —
+published the first project's name in that very frame, faded it out under the deal (the `--held`
+opacity was a 150 ms TRANSITION, so the commit frame painted at ~full strength), and brought the
+same name back after the deal: «появилось → исчезло → появилось». On the no-deal re-entries (LT
+back, a consumed deal key, reduced motion) the rail simply named a card that was not on screen for
+the whole transition span.
+
+The fix is a LIFECYCLE, never a delay/debounce/fade:
+
+- **`startRailCommitted({dealActive, transitionPhase})`** (`consoleStartState.ts`, pure) — the
+  rail may publish card-specific payload only when the stage transition has settled
+  (`!inputLocked(phase)` — releases on `'stabilizing-focus'`, the same beat that reopens selection
+  input, so the rail reacts INSTANTLY to every ordinary d-pad move) AND the deal cinematic is not
+  holding the cards.
+- **One gated source:** every card-specific rail node (name, availability block, pick-state line,
+  the coloured kind modifier) derives from `ConsoleStartScene.railCard`
+  (`railCommitted ? focusedCard : undefined`), so the payload publishes and retracts ATOMICALLY —
+  a name without availability, or a stale predecessor, is unrepresentable. Non-card rail parts
+  (funds chip, header counter) are deliberately NOT gated.
+- **The hold lands instantly:** `.con-start__status-inner--held` sets `transition: none` — the
+  base 150 ms opacity transition is the RELEASE fade only.
+- The two-row availability RESERVE (`--avail`, per-step) stays live through the hold — height is
+  layout, not payload, and must settle before the reveal.
+
+The sibling rails were already structurally sound and are the models this follows: the draft
+workspace freezes its SOURCE until the same statement that arms its hold
+(`presentedPacketFrozen` + `beatActive`), the deck pick's bar mounts already-held, and the hand
+album arms motion only after the first settled paint (`pageMotionLive`).
+
+Guards: the `startRailCommitted` block in `consoleStartState.spec.ts` (every input-locked phase
+holds, deal holds, release edges) and `tests/e2e/console-start-rail-commit.spec.ts` — a
+MutationObserver+interval probe (never rAF) armed BEFORE the advance press, asserting lifecycle
+ORDER: no readable card name over held slots, exactly one off→on publish edge, and every readable
+sample naming the one committed card.
 
 ### A requirement is printed ONCE (the fullscreen de-duplication)
 

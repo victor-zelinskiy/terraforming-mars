@@ -47,6 +47,23 @@ describe('ChooseCards', () => {
     ]);
   });
 
+  // The availability contract: EVERY ChooseCards selection (the paying buy
+  // AND the keep-some pick) carries the structured unplayableReasons — the
+  // console's «оставь K из N» surface speaks the same requirement voice as
+  // the research buy, so a keep prompt without reasons is a regression.
+  it('keep-mode selection carries unplayableReasons', () => {
+    const lakeMarineris = newProjectCard(CardName.LAKE_MARINERIS)!; // requires 0°C
+    const selectCard = cast(
+      new ChooseCards(player, [lakeMarineris, ioMiningIndustries], {keepMax: 1}).execute(),
+      SelectCard<IProjectCard>,
+    );
+    expect(selectCard.config.showUnplayableReasons).is.true;
+
+    const model = selectCard.toModel(player);
+    const lake = model.cards.find((card) => card.name === CardName.LAKE_MARINERIS)!;
+    expect((lake.unplayableReasons ?? []).some((r) => r.requirement === true)).is.true;
+  });
+
   it('logBoughtCards logs bought cards publicly by name', () => {
     const game = player.game;
     game.gameLog = [];

@@ -1,5 +1,5 @@
 import {expect} from 'chai';
-import {buildCardAvailability} from '@/client/console/cardAvailability';
+import {availabilityContextFor, buildCardAvailability, buildZoomAvailability, CardEvaluationIntent} from '@/client/console/cardAvailability';
 import {UnplayableReason} from '@/common/cards/UnplayableReason';
 
 // Server-shaped fixtures (the exact objects `unplayableReasons.ts` emits).
@@ -148,5 +148,94 @@ describe('cardAvailability — the ONE availability presentation model', () => {
     expect(a).to.deep.eq(b);
     expect(a.primary).to.eq(a.reasons[0]);
     expect(a.extraCount).to.eq(a.reasons.length - 1);
+  });
+});
+
+describe('availabilityContextFor — the ONE applicability policy', () => {
+  it('for-later DECISION intents speak the requirement (draft) voice', () => {
+    const forLater: Array<CardEvaluationIntent> = [
+      'start-pick', 'draft-pick', 'research-buy', 'deck-keep',
+      'drafted-review', 'hand-sell', 'hand-give',
+    ];
+    for (const intent of forLater) {
+      expect(availabilityContextFor(intent), intent).to.eq('draft');
+    }
+  });
+
+  it('play-now DECISION intents speak the full-blocker (play) voice', () => {
+    expect(availabilityContextFor('hand-play')).to.eq('play');
+    expect(availabilityContextFor('project-play')).to.eq('play');
+  });
+
+  it('INFORMATIONAL intents are explicitly silent — history, foreigners, sources, reveals', () => {
+    const informational: Array<CardEvaluationIntent> = [
+      'played-browse', 'opponent-card', 'journal-link', 'endgame-review',
+      'reveal-view', 'source-inspect', 'target-pick', 'bot-review',
+    ];
+    for (const intent of informational) {
+      expect(availabilityContextFor(intent), intent).to.eq(undefined);
+    }
+  });
+
+  it('an UNKNOWN / absent context is silent — the safe default is never a verdict', () => {
+    expect(availabilityContextFor(undefined)).to.eq(undefined);
+    // A future intent string nobody classified must fall to silence, not to a guess.
+    expect(availabilityContextFor('some-new-surface' as CardEvaluationIntent)).to.eq(undefined);
+  });
+});
+
+describe('buildZoomAvailability — the fullscreen viewer\'s one gated builder', () => {
+  it('no context → nothing, whatever the card carries', () => {
+    expect(buildZoomAvailability({context: undefined, card: {name: 'X', unplayableReasons: [TEMP_MIN]}})).to.eq(undefined);
+  });
+
+  it('no card → nothing (a viewer between cards publishes no verdict)', () => {
+    expect(buildZoomAvailability({context: 'draft', card: undefined})).to.eq(undefined);
+  });
+
+  it('a non-card zoom entry (no reasons field) never grows a panel — not even a turn note', () => {
+    // An Automa bonus plate reaches the viewer as a name-only entry: the play
+    // voice must not paint the hand-flavoured turn note onto it (the note is
+    // reserved for cards the viewer\'s own hand carries).
+    expect(buildZoomAvailability({
+      context: 'play', card: {name: 'bonus-entry'}, handEntry: undefined, turnReason: NOT_YOUR_TURN,
+    })).to.eq(undefined);
+  });
+
+  it('play: the live hand offer WINS over stale reasons (a prompt-carried discount)', () => {
+    expect(buildZoomAvailability({
+      context: 'play',
+      card: {name: 'X', unplayableReasons: [MONEY]},
+      handEntry: {playable: true},
+    })).to.eq(undefined);
+  });
+
+  it('play: a hand-carried blocked card gets the same view the verdict bar builds', () => {
+    const zoom = buildZoomAvailability({
+      context: 'play',
+      card: {name: 'X', unplayableReasons: [TEMP_MIN, MONEY]},
+      handEntry: {playable: false},
+      turnReason: NOT_YOUR_TURN,
+    })!;
+    const rail = buildCardAvailability({reasons: [TEMP_MIN, MONEY], turnReason: NOT_YOUR_TURN}, 'play')!;
+    expect(zoom).to.deep.eq(rail);
+  });
+
+  it('draft: the requirement voice over the card\'s own reasons — hand facts never leak in', () => {
+    const zoom = buildZoomAvailability({
+      context: 'draft',
+      card: {name: 'X', unplayableReasons: [TEMP_MIN, MONEY]},
+      // Even with a hand entry and a closed window, the draft voice stays
+      // requirement-only — selling/keeping is never about the current turn.
+      handEntry: {playable: false},
+      turnReason: NOT_YOUR_TURN,
+    })!;
+    expect(zoom).to.deep.eq(buildCardAvailability({reasons: [TEMP_MIN, MONEY]}, 'draft')!);
+    expect(zoom.reasons.every((r) => r.type !== 'turn')).is.true;
+  });
+
+  it('a card with no relevant requirement produces NO view — no empty frame to render', () => {
+    expect(buildZoomAvailability({context: 'draft', card: {name: 'X', unplayableReasons: [MONEY]}})).to.eq(undefined);
+    expect(buildZoomAvailability({context: 'draft', card: {name: 'X'}})).to.eq(undefined);
   });
 });

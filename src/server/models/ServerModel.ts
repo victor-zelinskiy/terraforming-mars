@@ -207,7 +207,11 @@ export class Server {
       dealtPreludeCards: cardsToModel(player, player.dealtPreludeCards),
       dealtCeoCards: cardsToModel(player, player.dealtCeoCards),
       dealtProjectCards: cardsToModel(player, player.dealtProjectCards),
-      draftedCards: cardsToModel(player, player.draftedCards, {showCalculatedCost: true}),
+      // `unplayableReasons` too: the drafted shelf is the viewer's OWN
+      // mid-draft evaluation surface (the workspace's inspect zone and the
+      // wait popover browse it in the draft voice) — same options as the
+      // packet the pick prompt serializes, so the two can never disagree.
+      draftedCards: cardsToModel(player, player.draftedCards, {showCalculatedCost: true, unplayableReasons: true}),
       game: this.getGameModel(player.game),
       id: player.id,
       runId: runId,

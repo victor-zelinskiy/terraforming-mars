@@ -193,6 +193,22 @@ describe('ServerModel', () => {
     expect(fromOpponent[0].unplayableReasons).is.undefined;
   });
 
+  // The drafted shelf is the viewer's OWN mid-draft evaluation surface: the
+  // console's inspect zone and the wait popover speak the requirement voice
+  // over it, so `draftedCards` must carry the structured reasons — with the
+  // same subject-player evaluation the hand gets.
+  it('serializes draftedCards with unplayableReasons for the viewer', () => {
+    [game, player] = testGame(1);
+    const lakeMarineris = newProjectCard(CardName.LAKE_MARINERIS)!; // requires 0°C
+    player.draftedCards.push(lakeMarineris);
+
+    const model = Server.getPlayerModel(player);
+    expect(model.draftedCards).has.length(1);
+    const drafted = model.draftedCards[0];
+    expect(drafted.name).eq(CardName.LAKE_MARINERIS);
+    expect((drafted.unplayableReasons ?? []).some((r) => r.requirement === true)).is.true;
+  });
+
   // The console rail's passive MC-value badges read the standing payment
   // grants OFF THE PUBLIC MODEL (no active prompt) — the model must mirror
   // the exact engine flags Player.payingAmount charges by, for every seat.

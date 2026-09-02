@@ -393,6 +393,11 @@ export function repointConsoleCardZoom(card: ZoomCard, opts: {receive?: ConsoleZ
   consoleCardZoom.receive = opts.receive;
   consoleCardZoom.swap = opts.swap;
   consoleCardZoom.statusLabel = opts.statusLabel;
+  // The availability context is the OPENER's verdict about the card it
+  // opened; a re-point shows a DIFFERENT card (received ⇄ source), so a
+  // carried-over context would paint the previous card's viewing intent onto
+  // the new one. A reveal is never an evaluation context — always cleared.
+  consoleCardZoom.availability = undefined;
 }
 
 export function closeConsoleCardZoom(): void {

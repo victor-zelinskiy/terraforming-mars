@@ -22420,6 +22420,12 @@ body.con-start-ceremony {
         &--held {
             opacity: 0;
             pointer-events: none;
+            /* The hold lands INSTANTLY — the base transition above is for the
+               RELEASE fade only. A transitioned hold painted the NEXT stage's
+               card name at ~full strength on the commit frame and faded it
+               out over 150 ms: the «появилось → исчезло → появилось» flash
+               the focus-commit contract (`startRailCommitted`) removes. */
+            transition: none;
         }
     }
     &__statusrail--avail {
@@ -32745,10 +32751,11 @@ html.con-profile-large {
 }
 
 /* ═══ CARD AVAILABILITY (ConsoleCardAvailabilityPanel) ═══════════════════
-   ONE voice for «насколько эта карта доступна в ТЕКУЩЕЙ партии», in two
-   densities: `--compact` (the draft workspace's status block) and `--panel`
-   (the fullscreen aside below «ПРАВИЛА» — this game's state, deliberately a
-   SEPARATE box from the card's permanent rules). Semantics come from
+   ONE voice for «насколько эта карта доступна в ТЕКУЩЕЙ партии», in three
+   densities: `--compact` (the draft/start status block), `--line` (a name-less
+   one-liner inside a host's own verdict bar) and `--panel` (the fullscreen
+   aside below «ПРАВИЛА» — this game's state, deliberately a SEPARATE box from
+   the card's permanent rules). Semantics come from
    console/cardAvailability.ts; this file only paints the four states:
      --pending  draft: not met YET (amber — evaluative, calm)
      --missed   draft: provably lost forever (red — decisive)
@@ -32813,6 +32820,27 @@ html.con-profile-large {
         text-align: center;
         text-wrap: balance;
     }
+
+    /* ── LINE: a name-less one-liner INSIDE a host's own status/verdict bar
+       (hand sale/discard, deck-pick foot). The host's bar owns the height and
+       the ellipsis; this register is one inline run of chips beside the host's
+       own verdict — it may never become a second bar. ── */
+    &--line {
+        display: inline-flex;
+        align-items: baseline;
+        gap: .7rem;
+        min-width: 0;
+        overflow: hidden;
+    }
+    &--line &__status { font-size: .88rem; }
+    &--line &__text {
+        .con-read-text(470);
+        font-size: calc(var(--con-t-read-sm) * var(--con-read-scale, 1));
+        line-height: 1.4;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+    }
     &__more {
         flex-shrink: 0;
         align-self: center;
@@ -32831,16 +32859,20 @@ html.con-profile-large {
        detail line a calmer tint of the same family. ── */
     &--pending &__status,
     &--pending &__verdict { color: @con-amber; }
-    &--pending&--compact &__text { color: fade(@con-amber, 88%); }
+    &--pending&--compact &__text,
+    &--pending&--line &__text { color: fade(@con-amber, 88%); }
     &--missed &__status,
     &--missed &__verdict,
     &--blocked &__status,
     &--blocked &__verdict { color: #ffc9c4; }
     &--missed&--compact &__text,
-    &--blocked&--compact &__text { color: fade(#ffc9c4, 90%); }
+    &--missed&--line &__text,
+    &--blocked&--compact &__text,
+    &--blocked&--line &__text { color: fade(#ffc9c4, 90%); }
     &--waiting &__status,
     &--waiting &__verdict { color: #ffe6b0; }
-    &--waiting&--compact &__text { color: fade(#ffe6b0, 88%); }
+    &--waiting&--compact &__text,
+    &--waiting&--line &__text { color: fade(#ffe6b0, 88%); }
 
     /* ── PANEL: the fullscreen aside — the SAME reading-surface material as
        .con-zoom-rules; the only chromatic additions are the thin side marker

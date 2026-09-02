@@ -27,6 +27,30 @@ function panel(props: Record<string, unknown>) {
   return mount(ConsoleCardAvailabilityPanel as any, {...globalConfig, props});
 }
 
+describe('ConsoleCardAvailabilityPanel — one view, three densities', () => {
+  it('LINE: verdict + primary reason on one run, NO name (the host names the card)', () => {
+    const w = panel({view: view([TEMP_MIN]), variant: 'line'});
+    expect(w.find('.con-cardavail__name').exists(), 'the host\'s bar already names the card').to.eq(false);
+    expect(w.find('.con-cardavail__title').text()).to.eq('Requirement not met yet');
+    expect(w.find('.con-cardavail__icon').text()).to.eq('◈');
+    expect(w.find('.con-cardavail__text').text()).to.contain('Requires 0°C · Now: -22°C');
+    expect(w.classes()).to.contain('con-cardavail--line');
+    expect(w.classes()).to.contain('con-cardavail--pending');
+  });
+
+  it('LINE: no view renders NOTHING at all — no empty chip in the host\'s row', () => {
+    const w = panel({variant: 'line'});
+    expect(w.find('.con-cardavail').exists()).to.eq(false);
+  });
+
+  it('LINE: the «+N more» chip keeps the compact honesty (one reason shown)', () => {
+    const w = panel({view: view([TEMP_MAX_MISSED, TAGS]), variant: 'line'});
+    expect(w.findAll('.con-cardavail__text')).to.have.length(1);
+    expect(w.find('.con-cardavail__more').text()).to.eq('+1 more');
+    expect(w.classes()).to.contain('con-cardavail--missed');
+  });
+});
+
 describe('ConsoleCardAvailabilityPanel — one view, two densities', () => {
   it('COMPACT: name + loud status on row one, the comparison line on row two', () => {
     const w = panel({view: view([TEMP_MIN]), variant: 'compact', cardTitle: 'Lake Marineris'});

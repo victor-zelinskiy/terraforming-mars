@@ -821,14 +821,21 @@
              class="con-start__statusrail"
              :class="[statusRailClass, {'con-start__statusrail--avail': railShowsAvailability}]">
           <!-- The rail's HEIGHT is reserved for the whole card step; only its
-               CONTENT is hidden while the deal cinematic runs (--held: opacity,
-               never an unmount) — so the card area never resizes / jumps when
-               the rail's text appears. The inner is PERSISTENT: a d-pad move
+               CONTENT is hidden until the FOCUS COMMIT (--held: opacity, never
+               an unmount) — so the card area never resizes / jumps when the
+               rail's text appears. The hold covers the WHOLE uncommitted
+               window (`railCommitted` = stage transition settled + deal not
+               holding), and it lands INSTANTLY (no fade-out — see the CSS):
+               the commit frame of a stage change must never paint the next
+               step's card name, not even for one transition tick. Content
+               itself derives from the gated `railCard`, so name+availability+
+               state publish atomically at the commit and the release fade
+               reveals the right payload. The inner is PERSISTENT: a d-pad move
                only re-keys the NAME (a one-shot settle) — the state chip
                («Выберите ещё N») patches in place and never blinks (the old
                wholesale keyed out-in faded the whole rail on every move). -->
           <div class="con-start__status-inner"
-               :class="{'con-start__status-inner--held': deal.state.active}">
+               :class="{'con-start__status-inner--held': !railCommitted}">
             <!-- THE FOCUSED CARD'S AVAILABILITY — the SAME block the draft
                  workspace pins under its spread (ConsoleCardAvailabilityPanel,
                  compact) built by the SAME shared model in the SAME DRAFT
@@ -843,12 +850,12 @@
                  when the focus moves onto a card that has something to say. -->
             <ConsoleCardAvailabilityPanel v-if="railShowsAvailability"
                                           class="con-start__status-avail"
-                                          :key="focusedCard ? focusedCard.name : 'none'"
+                                          :key="railCard ? railCard.name : 'none'"
                                           variant="compact"
                                           :view="focusedAvailability"
-                                          :cardTitle="focusedCard ? $t(focusedCard.name) : undefined"/>
+                                          :cardTitle="railCard ? $t(railCard.name) : undefined"/>
             <span v-else class="con-start__status-name"
-                  :key="focusedCard ? focusedCard.name : 'none'">{{ focusedCard ? $t(focusedCard.name) : '' }}</span>
+                  :key="railCard ? railCard.name : 'none'">{{ railCard ? $t(railCard.name) : '' }}</span>
             <span v-if="statusRailText !== ''" class="con-start__status-state"
                   :key="'st' + blockedNudge">{{ statusRailText }}</span>
             <!-- The ONE quick summary (workspace status-rail grammar): the
@@ -959,7 +966,7 @@ import {
   driftDockPile, ensureStartWizard, holdStartScene, initialCardsInputOf, initialCardsSignature,
   markStartDeploymentBegun, startAwaitingOthers, startDeploymentBegun,
   picksForStep, releaseStartScene, StartCrewMate, StartCrumb, StartDockPileModel, startFlowBusy,
-  StartLaunchState, StartParticipant, startDockPiles, startJourneyItems, startLaunchState,
+  StartLaunchState, StartParticipant, startDockPiles, startJourneyItems, startLaunchState, startRailCommitted,
   sponsorCrumb, startCardAvailability, startParticipants, StartWizardStep, stepComplete,
   stepShowsAvailability, wizardCrumb, wizardSteps,
 } from '@/client/console/consoleStartState';
@@ -1050,7 +1057,7 @@ import {motionMs} from '@/client/components/motion/motionTokens';
 import {holdForGsapAnimation} from '@/client/components/presentation/animationHold';
 import ConsoleCardDealLayer from '@/client/components/console/cardDeal/ConsoleCardDealLayer.vue';
 import ConsoleCardAvailabilityPanel from '@/client/components/console/ConsoleCardAvailabilityPanel.vue';
-import {CardAvailabilityView} from '@/client/console/cardAvailability';
+import {availabilityContextFor, CardAvailabilityView} from '@/client/console/cardAvailability';
 
 
 function textOf(v: string | Message | undefined): string {
@@ -2766,9 +2773,29 @@ export default defineComponent({
     focusedCard(): CardModel | undefined {
       return this.stepEntries[this.focusIdx];
     },
-    /** The focused card's availability, DRAFT voice (see the module). */
+    /**
+     * THE FOCUS COMMIT (see `startRailCommitted`): card-specific rail payload
+     * may publish only when the stage transition has settled AND the deal
+     * cinematic is not holding the cards. Before that the rail knows no card.
+     */
+    railCommitted(): boolean {
+      return startRailCommitted({
+        dealActive: this.deal.state.active,
+        transitionPhase: this.transition.phase,
+      });
+    },
+    /**
+     * The ONE gated source of the rail's card-specific payload. Name,
+     * availability and pick state all derive from it, so they publish and
+     * retract as one atomic value — a name without availability (or a stale
+     * card surviving into the next stage) is unrepresentable.
+     */
+    railCard(): CardModel | undefined {
+      return this.railCommitted ? this.focusedCard : undefined;
+    },
+    /** The COMMITTED card's availability, DRAFT voice (see the module). */
     focusedAvailability(): CardAvailabilityView | undefined {
-      return startCardAvailability(this.focusedCard);
+      return startCardAvailability(this.railCard);
     },
     /** Does THIS step reserve the rail's two-row availability zone? */
     railShowsAvailability(): boolean {
@@ -2973,7 +3000,9 @@ export default defineComponent({
      *  focused card's own state + a short hint. */
     statusRailKind(): 'picked' | 'unaffordable' | 'limit' | 'hint' {
       const step = this.currentStep;
-      const card = this.focusedCard;
+      // The COMMITTED card only: before the focus commit the rail knows no
+      // card, so its state line stays the neutral step hint.
+      const card = this.railCard;
       if (step === undefined || card === undefined) {
         return 'hint';
       }
@@ -2988,11 +3017,11 @@ export default defineComponent({
       }
       return 'hint';
     },
-    /** The rail's kind modifier — applied only while the deal is idle, so the
-     *  height-reserving empty rail during the cinematic stays neutral (no
-     *  coloured border) until its content fades in. */
+    /** The rail's kind modifier — applied only past the focus commit, so the
+     *  height-reserving empty rail during the cinematic / stage transition
+     *  stays neutral (no coloured border) until its content fades in. */
     statusRailClass(): string {
-      return this.deal.state.active ? '' : 'con-start__statusrail--' + this.statusRailKind;
+      return this.railCommitted ? 'con-start__statusrail--' + this.statusRailKind : '';
     },
     statusRailText(): string {
       switch (this.statusRailKind) {
@@ -3496,10 +3525,11 @@ export default defineComponent({
     railShowsAvailability() {
       void this.$nextTick(() => this.fitCardStrip());
     },
-    /** The pinned status rail is v-if'd off DURING the deal cinematic, so the
-     *  body is taller then; when the deal ends the rail appears and the body
-     *  shrinks by the rail height — re-fit so the (freed-height) cards fit the
-     *  now-shorter body instead of overflowing its internal scroll. */
+    /** The deal's end releases the rail's content hold (`railCommitted`) and
+     *  settles the slots — re-fit once so the strip's measure is taken on the
+     *  stable post-cinematic layout. (The rail itself is height-reserved for
+     *  the whole step — `--held` hides CONTENT only, never the box — so this
+     *  is a settle re-measure, not a size change.) */
     'deal.state.active'(active: boolean) {
       if (!active) {
         void this.$nextTick(() => this.fitCardStrip());
@@ -4854,7 +4884,7 @@ export default defineComponent({
           openConsoleCardZoom(this.stepEntries, this.focusIdx, {
             isSelected: (name) => this.isPickedHere(name),
             toggle: (name) => this.togglePickByName(name),
-          }, undefined, {origin, availability: 'draft'});
+          }, undefined, {origin, availability: availabilityContextFor('start-pick')});
           return;
         }
         // The summary: X reviews the WHOLE chosen setup fullscreen, OPENING on
@@ -4863,7 +4893,7 @@ export default defineComponent({
         if (this.currentStep === undefined && this.summaryCards.length > 0) {
           openConsoleCardZoom(this.summaryCards, this.focusIdx, undefined, undefined, {
             origin: this.zoomOriginFor(this.summaryCards.map((c) => c.name), true),
-            availability: 'draft',
+            availability: availabilityContextFor('start-pick'),
           });
         }
         return;

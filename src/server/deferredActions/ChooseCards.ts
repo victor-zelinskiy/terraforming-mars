@@ -84,11 +84,15 @@ export class ChooseCards extends DeferredAction {
     // paying AND at least one card is affordable (max === 0 → "You cannot afford
     // any cards", no buy UI).
     const buyMode = options.paying === true && max > 0;
-    // The PAYING selection additionally carries each card's structured
-    // "can't be played right now" reasons (the canonical engine): the buy is
-    // never blocked by them, but the player deserves the heads-up before
-    // spending M€ on a card whose requirements aren't met yet.
-    const showUnplayableReasons = options.paying === true;
+    // EVERY selection here carries each card's structured "can't be played
+    // right now" reasons (the canonical engine) — the buy AND the keep-some
+    // pick alike. Neither is ever blocked by them, but both are the same
+    // decision («which of these do I want FOR LATER?»), and the player
+    // deserves the heads-up — before spending M€ on a card whose requirements
+    // aren't met yet, and before keeping one whose max-requirement the game
+    // has already provably passed. The client's draft voice filters to the
+    // requirement reasons on its own.
+    const showUnplayableReasons = true;
     return new SelectCard(msg, button, cards, {max, min, played: !options.paying, buyMode, showUnplayableReasons})
       // THE STRUCTURAL "these are a temporary reveal" SIGNAL. Attached here and
       // nowhere else: every producer of this prompt in the game — the behavior

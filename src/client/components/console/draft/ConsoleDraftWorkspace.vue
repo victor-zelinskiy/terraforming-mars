@@ -343,7 +343,7 @@ import {
 } from '@/client/console/draft/consoleDraftFlow';
 import {draftCommands, setConsoleDraftCommands, resetConsoleDraftUi, DraftCommandState} from '@/client/console/draft/consoleDraftUi';
 import {displayNameForColor} from '@/client/components/marsbot/marsBotDisplay';
-import {buildCardAvailability, CardAvailabilityView} from '@/client/console/cardAvailability';
+import {availabilityContextFor, buildCardAvailability, CardAvailabilityView} from '@/client/console/cardAvailability';
 import ConsoleCardAvailabilityPanel from '@/client/components/console/ConsoleCardAvailabilityPanel.vue';
 import {Phase} from '@/common/Phase';
 
@@ -1586,13 +1586,18 @@ export default defineComponent({
           this.focusIdx = i;
         },
       );
+      // The availability voice comes from the ONE policy (cardAvailability):
+      // pick and buy are their own intents, the collected shelf is the
+      // viewer's own mid-draft review — all evaluate FOR LATER.
+      const availability = availabilityContextFor(
+        this.zone === 'buy' ? 'research-buy' : this.zone === 'inspect' ? 'drafted-review' : 'draft-pick');
       if (this.zone === 'pick' && !this.multiKeep) {
         // The pick: A in the viewer COMMITS the card (the action bridge).
         openConsoleCardZoom(cards, this.focusIdx, undefined, {
           labelFor: () => 'Take',
           reasonsFor: () => [],
           execute: (name) => this.commitSinglePick(name as CardName),
-        }, {origin, availability: 'draft'});
+        }, {origin, availability});
         return;
       }
       if (this.zone === 'pick' || this.zone === 'buy') {
@@ -1600,11 +1605,11 @@ export default defineComponent({
         openConsoleCardZoom(cards, this.focusIdx, {
           isSelected: (name) => this.isPicked(name as CardName),
           toggle: (name) => this.togglePick(name as CardName, max),
-        }, undefined, {origin, availability: 'draft'});
+        }, undefined, {origin, availability});
         return;
       }
       // INSPECT: read-only — no bridge, nothing here may mutate anything.
-      openConsoleCardZoom(cards, this.focusIdx, undefined, undefined, {origin, availability: 'draft'});
+      openConsoleCardZoom(cards, this.focusIdx, undefined, undefined, {origin, availability});
     },
     // ── geometry ────────────────────────────────────────────────────────
     /** ONE fit for the active zone's row: the shared workspace stage solver

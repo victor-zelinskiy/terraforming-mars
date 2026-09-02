@@ -632,6 +632,7 @@ import {
   projectCardPaymentPrompt,
 } from '@/client/console/paymentPlan';
 import {openConsoleCardZoom, slotZoomOrigin} from '@/client/console/consoleCardZoom';
+import {availabilityContextFor} from '@/client/console/cardAvailability';
 import {applyDiscardExit, ExitSource, runHeroPick} from '@/client/console/cardDeal/cardExitDirector';
 import {discardOpenCards} from '@/client/console/cardDiscard/discardOpenCard';
 import {runHandIntake} from '@/client/console/handDock/handDeliveryDirector';
@@ -2211,10 +2212,12 @@ export default defineComponent({
       );
       // A card-EVALUATION context (a draft pick / the research or reveal BUY —
       // both structural: the router's mode / the game phase) opts the viewer
-      // into the availability panel in the DRAFT voice («пока не выполнено» /
-      // «уже не выполнить»). A plain select/discard/target pick passes nothing:
-      // current playability is irrelevant to that decision.
-      const availability = this.isBuyMode || this.isDraftPick ? 'draft' as const : undefined;
+      // into the availability panel via the ONE policy («пока не выполнено» /
+      // «уже не выполнить»). A plain select/target pick maps to 'target-pick':
+      // current playability is irrelevant to that decision, and the policy's
+      // safe default keeps the panel away.
+      const availability = availabilityContextFor(
+        this.isBuyMode ? 'research-buy' : this.isDraftPick ? 'draft-pick' : 'target-pick');
       if (this.singlePick) {
         // PICK phase: A in the viewer COMMITS the card (the ACTION bridge —
         // executes AFTER the viewer closes, never a toggle) — parity with the
@@ -2240,7 +2243,10 @@ export default defineComponent({
      *  Opened from the count chip (no card tiles on screen) → TEXTUAL. */
     openDraftedViewer(): void {
       if (this.draftedCards.length > 0) {
-        openConsoleCardZoom([...this.draftedCards], 0, undefined, undefined, {origin: {kind: 'textual'}});
+        // The viewer's OWN mid-draft cards are still being evaluated for
+        // later ('drafted-review' → draft voice).
+        openConsoleCardZoom([...this.draftedCards], 0, undefined, undefined,
+          {origin: {kind: 'textual'}, availability: availabilityContextFor('drafted-review')});
       }
     },
     /**
@@ -3149,7 +3155,10 @@ export default defineComponent({
         },
       );
       // A in the viewer carries the candidate into the PAY stage — the same
-      // ACTION bridge the card browser's pick phase uses.
+      // ACTION bridge the card browser's pick phase uses. This IS a play-now
+      // decision ('project-play'): usually every candidate is playable and
+      // the panel stays silent, but a candidate the server sent with reasons
+      // gets the honest play-voice verdict.
       openConsoleCardZoom(cards, this.focusIdx, undefined, {
         labelFor: (name) => (this.pcEntries.find((e) => e.card.name === name)?.disabled ? undefined : 'Select'),
         reasonsFor: (name) => {
@@ -3163,7 +3172,7 @@ export default defineComponent({
             this.pcSelectFocused();
           }
         },
-      }, {origin});
+      }, {origin, availability: availabilityContextFor('project-play')});
     },
     /** T9: back from a nested step to the branch list (nothing submitted). */
     exitNested(): void {

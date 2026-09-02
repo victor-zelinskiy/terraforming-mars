@@ -5,8 +5,9 @@ import {
   startFlowBusy, startLaunchState, startParticipants, startSceneHeld, stepComplete, wizardCrumb,
   wizardSteps, startJourneyItems, deploymentJourneyItems, startDockPiles,
   startAwaitingOthers, startCorporationPlayed, startDeferredSummary, startDeploymentBegun,
-  markStartDeploymentBegun, startCardAvailability, stepShowsAvailability,
+  markStartDeploymentBegun, startCardAvailability, startRailCommitted, stepShowsAvailability,
 } from '@/client/console/consoleStartState';
+import {FORWARD_PHASES, StartTransitionPhase} from '@/client/console/startStageDirector';
 import {SelectInitialCardsModel} from '@/common/models/PlayerInputModel';
 import {PlayerViewModel} from '@/common/models/PlayerModel';
 import {CardName} from '@/common/cards/CardName';
@@ -623,5 +624,48 @@ describe('consoleStartState (start-hand availability)', () => {
     expect(stepShowsAvailability([card(CardName.BIRDS), card(CardName.FISH)])).is.false;
     expect(stepShowsAvailability([card(CardName.ANTS, [money])]), 'money is not a requirement').is.false;
     expect(stepShowsAvailability([])).is.false;
+  });
+});
+
+/**
+ * THE STATUS RAIL'S FOCUS COMMIT. Card-specific rail payload (name +
+ * availability + pick state) may publish only when the stage transition has
+ * settled AND the deal cinematic is not holding the cards — the exact
+ * boundary that removes the «появилось → исчезло → появилось» flash on the
+ * prelude → projects hop (the rail is a sibling of the step pane, so no pane
+ * hold ever covered it).
+ */
+describe('consoleStartState (startRailCommitted — the rail focus commit)', () => {
+  const committed = (dealActive: boolean, transitionPhase: StartTransitionPhase) =>
+    startRailCommitted({dealActive, transitionPhase});
+
+  it('idle scene, no deal → committed (the rail reacts to every ordinary d-pad move at once)', () => {
+    expect(committed(false, 'idle')).is.true;
+  });
+
+  it('the deal cinematic HOLDS the rail — a card still under `.con-deal-hold` has no name here', () => {
+    expect(committed(true, 'idle')).is.false;
+  });
+
+  it('EVERY input-locked transition phase holds the rail — including the commit frame, deal or not', () => {
+    // The flash's exact window: `stepIdx` flips in 'committing-stage', three
+    // phases before the new surface may paint — and the no-deal re-entry
+    // (LT back, reduced motion) has no deal to hide behind at all.
+    for (const phase of FORWARD_PHASES) {
+      if (phase === 'stabilizing-focus') {
+        continue;
+      }
+      expect(committed(false, phase), phase).is.false;
+    }
+  });
+
+  it('releases on the SETTLE phase — the same beat that reopens selection input', () => {
+    // 'stabilizing-focus' is «the entrance settled»: the surface is revealed,
+    // focus is real, the player may act — so the rail speaks immediately
+    // (never a debounce, never a timer past this point).
+    expect(committed(false, 'stabilizing-focus')).is.true;
+    // …unless the deal is still dealing (the projects step): then the deal's
+    // own end is the release edge.
+    expect(committed(true, 'stabilizing-focus')).is.false;
   });
 });

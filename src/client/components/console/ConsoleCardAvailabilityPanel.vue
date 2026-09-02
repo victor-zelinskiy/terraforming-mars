@@ -1,5 +1,6 @@
 <template>
-  <div class="con-cardavail"
+  <div v-if="variant !== 'line' || view !== undefined"
+       class="con-cardavail"
        :class="['con-cardavail--' + variant, 'con-cardavail--' + severityClass, {'con-cardavail--closing': closing}]"
        :data-severity="severityClass">
     <!-- COMPACT: the draft/buy status block — two readable rows, never a
@@ -25,6 +26,20 @@
         <span class="con-cardavail__text">{{ view.primary.text }}</span>
         <span v-if="view.extraCount > 0" class="con-cardavail__more">{{ moreLabel }}</span>
       </div>
+    </template>
+    <!-- LINE: a name-less one-liner for embedding INSIDE an existing status /
+         verdict bar (the hand's sale/discard modes, the deck pick's foot):
+         the HOST already names the card and owns the bar's authoritative
+         selection state — this register only adds the verdict + the primary
+         reason beside them, and renders NOTHING at all without a view (no
+         empty chip, no phantom gap in the host's flex row). -->
+    <template v-else-if="variant === 'line'">
+      <span class="con-cardavail__status">
+        <span class="con-cardavail__icon" aria-hidden="true">{{ view.icon }}</span>
+        <span class="con-cardavail__title">{{ view.title }}</span>
+      </span>
+      <span v-if="view.primary !== undefined" class="con-cardavail__text">{{ view.primary.text }}</span>
+      <span v-if="view.extraCount > 0" class="con-cardavail__more">{{ moreLabel }}</span>
     </template>
     <!-- PANEL: the fullscreen aside under «ПРАВИЛА» — the same glass and
          reading voice as the rules panel, but about THIS game rather than the
@@ -59,17 +74,21 @@
 <script lang="ts">
 /**
  * ConsoleCardAvailabilityPanel — the ONE presentation of "how available is
- * this card in the current game", in two densities:
+ * this card in the current game", in three densities:
  *
  *   variant="compact" — the two-row status block under a card spread (the
- *     draft workspace's pick/buy stages);
+ *     draft workspace's pick/buy stages, the start wizard's rail);
+ *   variant="line"   — a name-less one-liner embedded in a HOST's own
+ *     status/verdict bar (the hand's sale/discard modes, the deck pick's
+ *     foot) — the host names the card and owns the selection state;
  *   variant="panel"  — the fullscreen viewer's aside below «ПРАВИЛА».
  *
  * `view` is OPTIONAL for the compact density: «nothing to say» is a real
  * state of a status zone that always names the focused card, and it must be
  * the same markup — a second, hand-rolled name span is exactly how the two
- * states ended up at two different type sizes. The panel density renders
- * nothing without a view (its hosts already gate on it).
+ * states ended up at two different type sizes. The line and panel densities
+ * render nothing without a view (a hosted one-liner must never leave an
+ * empty chip in the host's row).
  *
  * Both render the SAME `CardAvailabilityView` built by
  * `console/cardAvailability.ts`, so a reason shown compactly and the full
@@ -93,7 +112,7 @@ export default defineComponent({
   props: {
     /** `undefined` = nothing to say (compact: the name alone; panel: nothing). */
     view: {type: Object as PropType<CardAvailabilityView>, default: undefined},
-    variant: {type: String as PropType<'compact' | 'panel'>, default: 'panel'},
+    variant: {type: String as PropType<'compact' | 'line' | 'panel'>, default: 'panel'},
     /** Compact only: the card name leading the status row. */
     cardTitle: {type: String, default: undefined},
     /** Panel only: the zoom close flight began — hide instantly (never lag the card). */

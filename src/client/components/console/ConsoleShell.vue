@@ -1599,7 +1599,7 @@ import ConsoleCardRulesPanel from '@/client/components/console/ConsoleCardRulesP
 import {cardHasRules} from '@/client/components/console/consoleCardRules';
 import ConsoleInspectSide from '@/client/components/console/ConsoleInspectSide.vue';
 import ConsoleCardAvailabilityPanel from '@/client/components/console/ConsoleCardAvailabilityPanel.vue';
-import {buildCardAvailability, CardAvailabilityView} from '@/client/console/cardAvailability';
+import {availabilityContextFor, buildZoomAvailability, CardAvailabilityView} from '@/client/console/cardAvailability';
 import Card from '@/client/components/card/CardFace.vue';
 import {ZoomCard, bonusZoomEntry, isMarsBotCorpZoom} from '@/client/components/card/cardZoomTypes';
 import {CardAnnotation} from '@/client/components/cardAnnotations/annotationModel';
@@ -7495,29 +7495,23 @@ export default defineComponent({
      */
     zoomAvailabilityView(): CardAvailabilityView | undefined {
       const z = this.consoleCardZoom;
-      if (z.availability === undefined || z.card === undefined) {
-        return undefined;
-      }
-      const card = z.card as CardModel;
-      if (z.availability === 'play') {
-        const entry = this.handEntries.find((e) => e.card.name === card.name);
-        // The live offer already accepts it — simply playable, nothing to say.
-        // (The offer can be WIDER than `unplayableReasons` — a prompt-carried
-        // discount — so the offer wins, mirroring the hand grid.)
-        if (entry?.playable === true) {
-          return undefined;
-        }
-        // The turn note joins ONLY when the WINDOW is closed (opponent's turn
-        // or an owed decision) — on the player's own open window a blocked
-        // card is purely a card problem. Never re-derived: the shell's one
-        // soft reason, the same string (and the same window flag) the hand
-        // verdict bar reads, so the two lists match row for row.
-        return buildCardAvailability({
-          reasons: card.unplayableReasons,
-          turnReason: this.handTurnWindowClosed ? this.handSoftReason : undefined,
-        }, 'play');
-      }
-      return buildCardAvailability({reasons: card.unplayableReasons}, 'draft');
+      const card = z.card;
+      // The PURE builder (cardAvailability.buildZoomAvailability) owns every
+      // decision: no context / no card → nothing; a non-card zoom entry (an
+      // Automa bonus plate carries no `unplayableReasons`) → nothing; in the
+      // play voice the live hand offer wins over the reasons (the offer can be
+      // WIDER — a prompt-carried discount), and the turn note is attached ONLY
+      // for a card the viewer's own hand carries — the shell's one soft
+      // reason, the same string (and the same window flag) the hand verdict
+      // bar reads, so the two lists match row for row.
+      const handEntry = card === undefined ? undefined :
+        this.handEntries.find((e) => e.card.name === card.name);
+      return buildZoomAvailability({
+        context: z.availability,
+        card: card as CardModel | undefined,
+        handEntry,
+        turnReason: this.handTurnWindowClosed ? this.handSoftReason : undefined,
+      });
     },
     /** The zoomed card's name typed as a CardName for the rules panel — only
      *  read behind `zoomHasRules`, which is true solely for real project cards
@@ -10490,8 +10484,11 @@ export default defineComponent({
       // drafted-cards viewer; every other button falls through to the board.
       if (this.draftWaitActive && this.draftTrayMounted && action === 'inspect' && this.draftedCards.length > 0) {
         // The pre-game POPOVER path only (the workspace's wait offers the LT
-        // sub-stage instead). Opened from the count chip → TEXTUAL.
-        openConsoleCardZoom([...this.draftedCards], 0, undefined, undefined, {origin: {kind: 'textual'}});
+        // sub-stage instead). Opened from the count chip → TEXTUAL. The
+        // viewer's OWN mid-draft cards are still being evaluated for later
+        // ('drafted-review' → draft voice — same as the workspace's inspect).
+        openConsoleCardZoom([...this.draftedCards], 0, undefined, undefined,
+          {origin: {kind: 'textual'}, availability: availabilityContextFor('drafted-review')});
         return true;
       }
       // CTS T6: a reveal overlay owns input while visible (drawn cards
@@ -15747,10 +15744,15 @@ export default defineComponent({
       }
       const origin = this.handZoomOrigin();
       if (this.consoleState.sale.active) {
+        // The SALE is a decision about an unplayed own card, so the viewer
+        // speaks availability in the requirement voice ('hand-sell' → draft):
+        // «what can I still play?» is exactly what prices a patent. The sale's
+        // own selection state stays the authoritative layer — availability
+        // never gates the pick.
         openConsoleCardZoom(this.handEntries.map((e) => e.card), this.consoleState.handIndex, {
           isSelected: (name: CardName) => this.consoleState.sale.selected.includes(name),
           toggle: (name: CardName) => this.toggleSalePick(name),
-        }, undefined, {origin});
+        }, undefined, {origin, availability: availabilityContextFor('hand-sell')});
         return;
       }
       // Hand SELECT (server task OR client composer pick): fullscreen A
@@ -15760,6 +15762,12 @@ export default defineComponent({
       if (this.handSelectUiActive) {
         const verb = this.handSelectVerb;
         const selectable = (name: CardName) => this.handSelectSelectableNames.includes(name);
+        // Giving a hand card up (discard / reveal / place-under) is the same
+        // future-value question as the sale ('hand-give' → draft voice): the
+        // player deserves to see which card they can still hope to play before
+        // parting with one. The prompt's own candidacy (`reasonsFor` /
+        // `selectable`) stays a separate, authoritative layer.
+        const giveAvailability = availabilityContextFor('hand-give');
         if (this.handSelectSingle) {
           openConsoleCardZoom(this.handEntries.map((e) => e.card), this.consoleState.handIndex, undefined, {
             labelFor: (name: CardName) => (selectable(name) ? verb : undefined),
@@ -15768,7 +15776,7 @@ export default defineComponent({
               return !selectable(name) && r !== undefined && r !== '' ? [r] : [];
             },
             execute: (name: CardName) => this.handSelectExecuteSingle(name),
-          }, {origin});
+          }, {origin, availability: giveAvailability});
         } else {
           openConsoleCardZoom(this.handEntries.map((e) => e.card), this.consoleState.handIndex, {
             isSelected: (name: CardName) => this.handSelectPicked.includes(name),
@@ -15777,7 +15785,7 @@ export default defineComponent({
                 this.toggleHandSelectPick(name);
               }
             },
-          }, undefined, {origin});
+          }, undefined, {origin, availability: giveAvailability});
         }
         return;
       }
@@ -15791,7 +15799,7 @@ export default defineComponent({
         // «Разыграть» opens the play-confirm composer, which shows THIS card
         // — the fullscreen card flies INTO its slot there, not back to the hand.
         handoffTarget: () => '.con-composer--play [data-zoom-handoff="play-card"]',
-      }, {origin, availability: 'play'});
+      }, {origin, availability: availabilityContextFor('hand-play')});
     },
     /** Translated «why not» lines for a hand card (mirrors the hand
      *  section's info panel — same server-structured reasons, same shared

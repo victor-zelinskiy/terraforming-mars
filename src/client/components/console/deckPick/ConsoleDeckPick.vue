@@ -76,6 +76,14 @@
           <div class="con-cards__verdict-inner">
             <span v-if="!committed" class="con-cards__verdict-name" :key="focusedName">{{ focusedName === '' ? '' : $t(focusedName) }}</span>
             <span class="con-cards__verdict" :class="statusToneClass">{{ statusText }}</span>
+            <!-- The focused card's FUTURE value in the shared draft voice —
+                 informational beside the pick progress, never a gate (see
+                 `focusedAvailability`). The shared one-line register, so the
+                 wording/colours are the fullscreen panel's own. -->
+            <ConsoleCardAvailabilityPanel v-if="focusedAvailability !== undefined"
+                                          variant="line"
+                                          class="con-deckpick__avail"
+                                          :view="focusedAvailability"/>
           </div>
         </div>
       </div>
@@ -150,6 +158,8 @@ import {holdDeckDisplay, releaseDeckDisplay} from '@/client/console/consoleDeckD
 import {runHandIntake, handDockReachable} from '@/client/console/handDock/handDeliveryDirector';
 import {applyDiscardExit} from '@/client/console/cardDeal/cardExitDirector';
 import {openConsoleCardZoom, slotZoomOrigin} from '@/client/console/consoleCardZoom';
+import {availabilityContextFor, buildCardAvailability, CardAvailabilityView} from '@/client/console/cardAvailability';
+import ConsoleCardAvailabilityPanel from '@/client/components/console/ConsoleCardAvailabilityPanel.vue';
 import {promptSourceView, PromptSourceView} from '@/client/console/promptSource';
 import {cardsResponse} from '@/client/console/taskResponses';
 import {markWorkspaceOutcomeArrivalDone, setWorkspaceOutcomePhase, workspaceOutcomeArrivalFlown, workspaceSourceZoomOrigin} from '@/client/console/consoleWorkspaceOutcome';
@@ -185,7 +195,7 @@ export default defineComponent({
   // `console-source-dock` is registered GLOBALLY (main.ts) — deliberately not a
   // local import: it renders the real premium card face, and that import chain
   // zeroes this file's mochapack spec.
-  components: {Card, ConsoleWsHead, ConsoleWsStageHead},
+  components: {Card, ConsoleCardAvailabilityPanel, ConsoleWsHead, ConsoleWsStageHead},
   props: {
     playerView: {type: Object as PropType<PlayerViewModel>, required: true},
     /** Teleported into a host workspace's zone → no shell of its own. */
@@ -283,6 +293,32 @@ export default defineComponent({
     },
     focusedName(): string {
       return this.entries[this.focusIdx]?.name ?? '';
+    },
+    /** The LIVE server model for one candidate — the strip renders name-only
+     *  synthetics, but reasons/cost live on the prompt's own cards. `undefined`
+     *  past the commit (the prompt has moved on — nothing is being decided). */
+    liveModelFor(): (name: string) => CardModel | undefined {
+      const cards = this.model?.cards;
+      return (name) => cards?.find((c) => c.name === name);
+    },
+    /**
+     * The focused card's availability — the SHARED model in the keep voice
+     * ('deck-keep' → draft): «оставь K из N» is the same «for later» decision
+     * as a draft pick, and the player deserves the amber/red requirement
+     * trajectory before choosing which cards die. Informational only: it
+     * never gates a pick, and it goes quiet the moment the player may no
+     * longer act (arriving cards / past the commit — the same window the
+     * name line already respects).
+     */
+    focusedAvailability(): CardAvailabilityView | undefined {
+      if (!this.interactive || this.committed || this.focusedName === '') {
+        return undefined;
+      }
+      const context = availabilityContextFor('deck-keep');
+      if (context === undefined) {
+        return undefined;
+      }
+      return buildCardAvailability({reasons: this.liveModelFor(this.focusedName)?.unplayableReasons}, context);
     },
     sourceView(): PromptSourceView | undefined {
       return this.frozen !== undefined ? this.frozen.source : promptSourceView(this.model);
@@ -848,7 +884,10 @@ export default defineComponent({
       }
     },
     inspectFocused(): void {
-      const cards = this.entries.map((e) => ({name: e.name} as CardModel));
+      // The FULL live models where the prompt still carries them (reasons for
+      // the availability panel; the frozen post-commit browse degrades to the
+      // name synthetics honestly — nothing is being decided there).
+      const cards = this.entries.map((e) => this.liveModelFor(e.name) ?? ({name: e.name} as CardModel));
       if (cards.length === 0) {
         return;
       }
@@ -862,6 +901,8 @@ export default defineComponent({
           (i) => {
             this.focusIdx = i;
           }),
+        // «Оставь K из N» is a for-later decision — the keep voice.
+        availability: availabilityContextFor('deck-keep'),
       });
     },
     /**

@@ -259,3 +259,136 @@ export function buildCardAvailability(
   }
   return undefined;
 }
+
+// ── THE APPLICABILITY POLICY ────────────────────────────────────────────────
+//
+// «Where does availability speak at all?» used to be answered per call site
+// (`isBuyMode || isDraftPick ? 'draft' : undefined`, a literal at the next one,
+// nothing at the third) — which is how the patent sale and the deck pick ended
+// up silent while carrying the exact decision this system exists for. The
+// answer is a property of the SELECTION'S SEMANTICS, so it lives here, once.
+//
+// The product rule (the one honest test for an unlisted context): availability
+// speaks exactly when the CURRENT player is deciding the fate of an UNPLAYED
+// card of their own and «will I still get to play this?» informs that choice.
+
+/**
+ * The semantic intent of a card-viewing / card-selection context. DECISION
+ * intents (the player decides an unplayed own card's fate) map to a voice;
+ * INFORMATIONAL intents (history, other players, sources, reveals without a
+ * choice) are listed explicitly so the exclusion is a documented decision —
+ * they, and anything unknown, map to «say nothing».
+ */
+export type CardEvaluationIntent =
+  // ── decision: the card is taken/kept FOR LATER — requirement voice ──
+  /** The start-of-game project buy. */
+  | 'start-pick'
+  /** A between-generations draft pick. */
+  | 'draft-pick'
+  /** The research-phase buy (and any paying reveal). */
+  | 'research-buy'
+  /** «Посмотри N карт колоды, оставь K» (ConsoleDeckPick keep mode). */
+  | 'deck-keep'
+  /** Reviewing one's OWN already-drafted cards mid-draft. */
+  | 'drafted-review'
+  /** Selling a hand card (patent sale) — what still has practical value? */
+  | 'hand-sell'
+  /** Giving a hand card up (discard / reveal / place-under effects). */
+  | 'hand-give'
+  // ── decision: the card is being played NOW — full-blocker voice ──
+  /** The hand's play browse. */
+  | 'hand-play'
+  /** A server prompt offering to play a project card right now. */
+  | 'project-play'
+  // ── informational: availability must NOT appear ──
+  /** A played card (own or foreign) — requirements are history. */
+  | 'played-browse'
+  /** Another player's card, wherever met. */
+  | 'opponent-card'
+  /** A journal / log / history / theater card link. */
+  | 'journal-link'
+  /** Endgame / score review. */
+  | 'endgame-review'
+  /** A reveal with no choice (draw cinematic, Search-for-Life verdict, discard pile). */
+  | 'reveal-view'
+  /** The source card of an effect / draw («L3 Источник»). */
+  | 'source-inspect'
+  /** A resource/effect TARGET pick over played cards. */
+  | 'target-pick'
+  /** MarsBot turn review / bot cards. */
+  | 'bot-review';
+
+/**
+ * The ONE mapping intent → availability voice. `undefined` in, or any intent
+ * that is not a listed DECISION, answers `undefined` — the safe default for an
+ * unrecognized or ambiguous context is silence, never a player-specific
+ * verdict painted where nobody is deciding anything.
+ */
+export function availabilityContextFor(intent: CardEvaluationIntent | undefined): CardAvailabilityContext | undefined {
+  switch (intent) {
+  // Taken FOR LATER (a sale/give-up is the same question from the other
+  // side: «what will I still get to play?») — printed requirements only.
+  case 'start-pick':
+  case 'draft-pick':
+  case 'research-buy':
+  case 'deck-keep':
+  case 'drafted-review':
+  case 'hand-sell':
+  case 'hand-give':
+    return 'draft';
+  // Played NOW — every real blocker speaks.
+  case 'hand-play':
+  case 'project-play':
+    return 'play';
+  default:
+    return undefined;
+  }
+}
+
+// ── THE FULLSCREEN VIEW — one pure builder for the zoom's panel ─────────────
+
+export type ZoomAvailabilityInput = {
+  /** The opener's explicit context (`consoleCardZoom.availability`). */
+  context: CardAvailabilityContext | undefined,
+  /**
+   * The zoomed entry. Reasons are only ever read off a real `CardModel`; a
+   * non-card zoom entry (an Automa bonus plate) simply carries none and the
+   * builder answers `undefined` — never a panel over a non-card.
+   */
+  card: {name: string, unplayableReasons?: ReadonlyArray<UnplayableReason>} | undefined,
+  /**
+   * The live hand offer for this card, when the viewer's OWN hand carries it.
+   * Play voice only: a playable offer wins over `unplayableReasons` (the offer
+   * can be WIDER — a prompt-carried discount), mirroring the hand grid.
+   */
+  handEntry?: {playable?: boolean} | undefined,
+  /**
+   * The shell's one action-window reason (play voice). Attached ONLY when the
+   * card IS a hand entry — the note is a statement about playing from the
+   * viewer's hand, and painted onto any other card it would be a lie.
+   */
+  turnReason?: string,
+};
+
+/**
+ * The fullscreen viewer's availability view. Pure — the same
+ * `buildCardAvailability` the compact status rails call, over the same
+ * inputs, so the fullscreen and a rail can never show two different verdicts
+ * for one card.
+ */
+export function buildZoomAvailability(input: ZoomAvailabilityInput): CardAvailabilityView | undefined {
+  const {context, card} = input;
+  if (context === undefined || card === undefined) {
+    return undefined;
+  }
+  if (context === 'play') {
+    if (input.handEntry?.playable === true) {
+      return undefined;
+    }
+    return buildCardAvailability({
+      reasons: card.unplayableReasons,
+      turnReason: input.handEntry !== undefined ? input.turnReason : undefined,
+    }, 'play');
+  }
+  return buildCardAvailability({reasons: card.unplayableReasons}, 'draft');
+}

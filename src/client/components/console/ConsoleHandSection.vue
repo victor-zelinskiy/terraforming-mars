@@ -316,6 +316,17 @@
         <span class="con-cards__verdict con-cards__verdict--blocked"><span aria-hidden="true">✕</span> {{ $t('Unplayable now') }}</span>
         <span v-for="r in playReasonRows" :key="r.key" class="con-hand__reason con-hand__reason--bar" :class="'con-hand__reason--' + r.type">{{ r.text }}</span>
       </template>
+      <!-- GIVE-UP modes (sale / select) additionally speak the card's FUTURE
+           value in the shared draft voice — «what can I still play?» is what
+           prices a card being sold or discarded. INFORMATIONAL only: the
+           selection verdict above stays the authoritative layer, this line
+           never gates a pick and never re-styles the prompt's own reason.
+           The one-liner is the shared availability register (variant="line"),
+           so its wording/colours can never drift from the fullscreen panel. -->
+      <ConsoleCardAvailabilityPanel v-if="evaluationAvailability !== undefined"
+                                    variant="line"
+                                    class="con-hand__evalavail"
+                                    :view="evaluationAvailability"/>
       <!-- Filtered count lives HERE (compact, right-aligned) — never in the
            header, so the header height can't jump when the filter changes. -->
       <span v-if="filteredCountText !== ''" class="con-hand__shown">{{ filteredCountText }}</span>
@@ -423,7 +434,8 @@ import {
 import {CardModel} from '@/common/models/CardModel';
 import {CardName} from '@/common/cards/CardName';
 import {translateText, translateTextWithParams} from '@/client/directives/i18n';
-import {buildCardAvailability, CardAvailabilityView, CardAvailabilityReasonView} from '@/client/console/cardAvailability';
+import {availabilityContextFor, buildCardAvailability, CardAvailabilityView, CardAvailabilityReasonView} from '@/client/console/cardAvailability';
+import ConsoleCardAvailabilityPanel from '@/client/components/console/ConsoleCardAvailabilityPanel.vue';
 import {consoleState} from '@/client/console/consoleRouter';
 import {shortBlockerLabel, HandNavDir} from '@/client/components/console/consoleHandGrid';
 import {
@@ -535,7 +547,7 @@ type AlbumCell = {e: ConsoleHandEntry, gi: number};
 
 export default defineComponent({
   name: 'ConsoleHandSection',
-  components: {Card, ConsoleWsHead},
+  components: {Card, ConsoleCardAvailabilityPanel, ConsoleWsHead},
   props: {
     entries: {type: Array as PropType<ReadonlyArray<ConsoleHandEntry>>, required: true},
     index: {type: Number, required: true},
@@ -719,6 +731,25 @@ export default defineComponent({
     /** The verdict bar's visible rows (compact: the top of the shared list). */
     playReasonRows(): ReadonlyArray<CardAvailabilityReasonView> {
       return (this.playAvailability?.reasons ?? []).slice(0, 2);
+    },
+    /**
+     * The focused card's availability for the GIVE-UP modes (sale / select) —
+     * the shared model in the requirement voice ('hand-sell' / 'hand-give' →
+     * draft): the decision is «part with this card or keep it», so only the
+     * printed requirements' trajectory speaks (amber «пока не выполнено», red
+     * «уже не выполнить»), never money, never the current turn. Purely
+     * informational — the prompt's own candidacy and the sale's selection
+     * state stay the authoritative layers above.
+     */
+    evaluationAvailability(): CardAvailabilityView | undefined {
+      if (this.selected === undefined || (!this.saleActive && !this.selectActive)) {
+        return undefined;
+      }
+      const context = availabilityContextFor(this.saleActive ? 'hand-sell' : 'hand-give');
+      if (context === undefined) {
+        return undefined;
+      }
+      return buildCardAvailability({reasons: this.selected.unplayableReasons}, context);
     },
     // ── mandatory hand SELECT (discard / reveal / place) ──────────────────
     selectActive(): boolean {
