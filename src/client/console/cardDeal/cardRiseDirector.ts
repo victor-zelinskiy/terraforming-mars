@@ -4,18 +4,26 @@
  *
  * The drafted pile physically BECOMES the research row:
  *
- *  A. ARRIVAL   — the auto-passed last card(s) fly from the dealer's deck
- *                 into their tray slot, flipping back→face ("the neighbour
- *                 passed you the final card").
- *  B. SET BEAT  — the completed pile acknowledges itself (the tray pulses,
- *                 the label flips to «НАБОР СОБРАН») and holds a readable
- *                 beat.
- *  C. LIFT-OFF  — proxies materialize over every pile card (the real tray
- *                 slots empty underneath in the same breath) and the whole
- *                 group comes off the table, staggered.
- *  D. FLIGHTS   — each card arcs DOWN into its research-row slot, GROWING
- *                 from pile scale to row scale, left → right.
- *  E. FRAME     — the buy modal's chrome materializes AROUND the landed
+ *  A. ARRIVAL   — the auto-passed last card(s) glide in from the RECEIVE
+ *                 LANE (the neighbour who passed them — the same physical
+ *                 origin every passed packet enters from), flipping
+ *                 back→face, and brake softly into their shelf seat.
+ *  B. SET BEAT  — the completed pile acknowledges itself (the label flips
+ *                 to «НАБОР СОБРАН», the shelf ring warms once) and holds
+ *                 a readable beat.
+ *  C→D. THE PEEL — proxies materialize over every pile card (the real tray
+ *                 slots empty underneath in the same breath) and the pile
+ *                 un-stacks from its TOP — the RIGHT end, the newest card —
+ *                 into the row's right end, right → left. The direction is
+ *                 GEOMETRY, not taste: every flight then crosses only EMPTY
+ *                 slots. A left→right fill sent each card sliding across
+ *                 its already-landed neighbours at row altitude (the
+ *                 measured «налезают друг на друга»), and no z-order makes
+ *                 that read clean. Each card's small lift blends straight
+ *                 into its own carry (never group-lift → hover → launch),
+ *                 landings are cadenced, and the eye ends on the LEFT card
+ *                 — exactly where the cursor will stand.
+ *  E. FRAME     — the buy modal's chrome materializes AROUND the landing
  *                 row (onFrameReveal — the host releases its table-beat).
  *  F. HANDOFF   — the proxies dissolve into the real interactive cards.
  *
@@ -41,13 +49,20 @@ export type RunRiseArgs = {
   targets: ReadonlyArray<DealTargetRect>,
   /** Where each card RISES FROM — the tray slot rects (same order). */
   sources: ReadonlyArray<DealTargetRect>,
-  /** Indices of cards that ARRIVE first (deck → tray, flipping). */
+  /** Indices of cards that ARRIVE first (lane → tray, flipping). */
   arrivals: ReadonlyArray<number>,
-  /** The deck stack element (shown only when something arrives). */
+  /**
+   * The physical origin an ARRIVING card enters from — the receive-side
+   * lane (the neighbour who passed it). The deck anchor is only the
+   * fallback: a deck popping in over the HUD to deal a card the NEIGHBOUR
+   * passed was the old, wrong story.
+   */
+  arrivalOrigin?: {x: number, y: number},
+  /** The deck stack element — zeroed on skip only; the rise never shows it. */
   deck: HTMLElement | null,
   deckAnchor: {x: number, y: number},
   timings: RiseTimings,
-  /** An arrival landed on the tray (reveal its tray slot + pulse). */
+  /** An arrival landed on the tray (reveal its tray slot + settle accent). */
   onArrivalLanded: (index: number) => void,
   /** The full set is on the tray — the «НАБОР СОБРАН» beat. */
   onSetComplete: () => void,
@@ -62,7 +77,7 @@ export type RunRiseArgs = {
 };
 
 export function runCardRiseTimeline(args: RunRiseArgs): DealHandle {
-  const {proxies, targets, sources, arrivals, deck, deckAnchor, timings, onReveal, onDone} = args;
+  const {proxies, targets, sources, arrivals, deck, timings, onReveal, onDone} = args;
   const s = (baseMs: number) => motionMs(baseMs) / 1000;
 
   const revealed = new Set<number>();
@@ -107,6 +122,19 @@ export function runCardRiseTimeline(args: RunRiseArgs): DealHandle {
   };
 
   const scaleOf = (rect: DealTargetRect) => rect.width / CARD_NATURAL_W;
+  const ui = conUiScale();
+  const arrivalOrigin = args.arrivalOrigin ?? args.deckAnchor;
+
+  // THE PEEL ORDER — rightmost target first (see the header). Computed up
+  // front so the setup pass can assign draw order: the earlier a card
+  // departs, the further along (larger, nearer the viewer) it is whenever a
+  // trailing neighbour brushes past — it must paint on top.
+  const peelRank = new Map<number, number>();
+  proxies
+    .map((_, i) => i)
+    .filter((i) => targets[i] !== undefined && sources[i] !== undefined)
+    .sort((a, b) => targets[b].left - targets[a].left)
+    .forEach((i, k) => peelRank.set(i, k));
 
   // Geometry is SET once per proxy: natural width, height from the TARGET
   // aspect (source and target are the same card frame — identical ratio).
@@ -118,22 +146,19 @@ export function runCardRiseTimeline(args: RunRiseArgs): DealHandle {
     }
     const naturalH = target.height / scaleOf(target);
     const arriving = arrivalSet.has(i);
-    // Match the rem-authored deck stack's size on the TV profile.
-    const deckScale = DECK_SCALE * conUiScale();
+    // An arriving card enters at the shared deal scale (the passed-packet
+    // grammar), centred on the lane point.
+    const deckScale = DECK_SCALE * ui;
     gsap.set(proxy, {
       width: CARD_NATURAL_W,
       height: naturalH,
-      x: arriving ? deckAnchor.x - (CARD_NATURAL_W * deckScale) / 2 : source.left,
-      y: arriving ? deckAnchor.y : source.top,
+      x: arriving ? arrivalOrigin.x - (CARD_NATURAL_W * deckScale) / 2 : source.left,
+      y: arriving ? arrivalOrigin.y - (naturalH * deckScale) / 2 : source.top,
       scale: arriving ? deckScale : scaleOf(source),
       rotation: 0,
       autoAlpha: 0,
       transformOrigin: 'top left',
-      // DEPTH READS AS PROGRESS: the leading card (largest mid-flight —
-      // nearest the viewer) paints OVER its trailing, still-small
-      // followers. DOM order gave the OPPOSITE (a far small card covering
-      // a near large one) — the whole clump read as sliding paper.
-      zIndex: proxies.length - i,
+      zIndex: proxies.length - (peelRank.get(i) ?? i),
     });
     const flip = proxy.querySelector<HTMLElement>('.con-deal-proxy__flip');
     if (flip !== null) {
@@ -141,40 +166,42 @@ export function runCardRiseTimeline(args: RunRiseArgs): DealHandle {
     }
   });
 
-  // ── A. Arrivals: deck rise → carry into the tray, flipping ───────────
-  const ui = conUiScale();
+  // ── A. Arrivals: the neighbour's card glides in from the lane, flipping,
+  //      and brakes softly into its seat (deceleration belongs to arrivals —
+  //      one power2.out clock, distance-scaled duration, no deck sprite). ──
   let arrivalsEnd = 0;
   if (arrivals.length > 0) {
-    if (deck !== null) {
-      gsap.set(deck, {x: deckAnchor.x, y: deckAnchor.y + 18, xPercent: -50, autoAlpha: 0});
-      tl.to(deck, {y: deckAnchor.y, autoAlpha: 1, duration: s(140), ease: 'power2.out'}, 0);
-    }
     arrivals.forEach((index, k) => {
       const proxy = proxies[index];
       const source = sources[index];
       if (proxy === undefined || source === undefined) {
         return;
       }
-      const at = s(140) + k * s(timings.arrivalStaggerMs);
-      const flight = s(timings.arrivalFlightMs);
-      tl.set(proxy, {autoAlpha: 1}, at);
-      // The same ONE-clock carry as every tabletop flight (no per-axis ease
-      // salad, no back.out balloon at the landing) — centre-true, with a
-      // light bank into the travel direction.
+      const naturalH = source.height / scaleOf(source);
       const deckScale = DECK_SCALE * ui;
-      const from = {x: deckAnchor.x - (CARD_NATURAL_W * deckScale) / 2, y: deckAnchor.y, scale: deckScale};
+      const from = {
+        x: arrivalOrigin.x - (CARD_NATURAL_W * deckScale) / 2,
+        y: arrivalOrigin.y - (naturalH * deckScale) / 2,
+        scale: deckScale,
+      };
       const to = {x: source.left, y: source.top, scale: scaleOf(source)};
       const dist = Math.hypot(to.x - from.x, to.y - from.y);
+      const flight = s(timings.arrivalFlightMs) * Math.max(0.72, Math.min(1.15, 0.6 + dist / (1500 * ui)));
+      // A short anticipation beat: the stage settles, THEN the neighbour's
+      // card slides in — an instant entry read as popping out of the edge.
+      const at = s(120) + k * s(timings.arrivalStaggerMs);
+      tl.set(proxy, {autoAlpha: 1}, at);
       addCardCarry(tl, at, proxy, {
-        naturalH: source.height / scaleOf(source),
+        naturalH,
         from, to,
         duration: flight,
-        sag: Math.min(dist * 0.06, 44 * ui),
+        sag: Math.min(dist * 0.05, 36 * ui),
         tilt: Math.max(-1.6, Math.min(1.6, (to.x - from.x) / (500 * ui))),
+        ease: 'power2.out',
       });
       const flip = proxy.querySelector<HTMLElement>('.con-deal-proxy__flip');
       if (flip !== null) {
-        tl.to(flip, {rotationY: 0, duration: flight * 0.55, ease: 'power2.inOut'}, at + flight * 0.08);
+        tl.to(flip, {rotationY: 0, duration: flight * 0.5, ease: 'power2.inOut'}, at + flight * 0.06);
       }
       // No-dip handoff: the real tray mini-card SNAPS visible under the
       // still-opaque proxy at touchdown (the slot has no opacity transition),
@@ -183,9 +210,6 @@ export function runCardRiseTimeline(args: RunRiseArgs): DealHandle {
       tl.to(proxy, {autoAlpha: 0, duration: s(120), ease: 'power1.out'}, at + flight + 0.001);
       arrivalsEnd = Math.max(arrivalsEnd, at + flight);
     });
-    if (deck !== null) {
-      tl.to(deck, {y: deckAnchor.y + 22, autoAlpha: 0, duration: s(160), ease: 'power2.in'}, arrivalsEnd * 0.7);
-    }
     arrivalsEnd += s(timings.arrivalSettleMs);
   }
 
@@ -193,57 +217,58 @@ export function runCardRiseTimeline(args: RunRiseArgs): DealHandle {
   tl.call(() => args.onSetComplete(), undefined, arrivalsEnd);
   const liftStart = arrivalsEnd + s(timings.pulseMs) + s(timings.setHoldMs);
 
-  // ── C→D. Lift-off + flights into the research row ────────────────────
+  // ── C→D. The peel: proxies stand over the pile (the tray empties in the
+  //      same breath), then the pile un-stacks right → left. Each card's
+  //      own lift blends into its own carry — one gesture per card, never
+  //      group-lift → hover → launch (the dead air the measured clump had).
   tl.call(() => {
-    // Proxies materialize over the pile; the tray empties in the same
-    // breath (Vue-managed holds — the patch lands under opaque proxies).
     proxies.forEach((proxy) => gsap.set(proxy, {autoAlpha: 1}));
     args.onLiftOff();
   }, undefined, liftStart);
 
-  // The LANDINGS are the events (the planCardArrival lesson): left → right,
-  // one readable touchdown at a time — a card owed an earlier landing simply
-  // spends less time in the air, and launches stay a quick cascade. The gap
-  // is generous (×2 stagger): the shelf packs the cards tight, so a denser
-  // schedule kept four airborne bodies overlapping into one clump.
+  // The LANDINGS are the events (the planCardArrival lesson): one readable
+  // touchdown at a time. A card owed a later landing simply LAUNCHES later
+  // (its lift rides its own carry), so nothing hovers waiting for its slot.
   const landGap = s(timings.flightStaggerMs * 2);
-  let prevLand = 0;
+  const liftDur = s(timings.liftMs);
+  let prevLand = liftStart;
   let firstLand = Number.POSITIVE_INFINITY;
   let lastLand = liftStart;
-  proxies.forEach((proxy, i) => {
+  const byPeelOrder = [...peelRank.entries()].sort((a, b) => a[1] - b[1]);
+  byPeelOrder.forEach(([i, k]) => {
+    const proxy = proxies[i];
     const target = targets[i];
     const source = sources[i];
-    if (target === undefined || source === undefined) {
+    if (proxy === undefined || target === undefined || source === undefined) {
       return;
     }
-    const liftAt = liftStart + i * s(timings.liftStaggerMs);
-    // A calm group lift — no per-card tilt jitter (the wobble read): the
-    // bank into the travel direction belongs to the carry itself.
-    tl.to(proxy, {y: `-=${10 * ui}`, scale: `*=1.02`, duration: s(timings.liftMs), ease: 'power2.out'}, liftAt);
     const sF = scaleOf(source) * 1.02;
     const sT = scaleOf(target);
+    const naturalH = target.height / sT;
     const from = {x: source.left, y: source.top - 10 * ui, scale: sF};
     const to = {x: target.left, y: target.top, scale: sT};
     const dist = Math.hypot(
       (to.x + (CARD_NATURAL_W * sT) / 2) - (from.x + (CARD_NATURAL_W * sF) / 2),
-      (to.y + (target.height / sT) * sT / 2) - (from.y + (target.height / sT) * sF / 2));
+      (to.y + naturalH * sT / 2) - (from.y + naturalH * sF / 2));
     const dur = s(timings.flightMs) * Math.max(0.78, Math.min(1.18, 0.66 + dist / (1500 * ui)));
-    // The carry starts as the lift eases out — one gesture, never
-    // lift → full stop → launch.
-    const minAt = liftAt + s(timings.liftMs) * 0.8;
-    const land = Math.max(minAt + dur, prevLand + landGap);
+    // First peel launches right after the set beat; each later card lands
+    // one cadence step after its leader — and its whole gesture (lift +
+    // carry) is scheduled back from ITS OWN landing.
+    const land = Math.max(liftStart + liftDur * 0.8 + dur, prevLand + landGap);
     prevLand = land;
     firstLand = Math.min(firstLand, land);
     lastLand = Math.max(lastLand, land);
-    addCardCarry(tl, land - dur, proxy, {
-      naturalH: target.height / sT,
+    const carryAt = land - dur;
+    const liftAt = carryAt - liftDur * 0.8;
+    tl.to(proxy, {y: `-=${10 * ui}`, scale: '*=1.02', duration: liftDur, ease: 'power2.out'}, liftAt);
+    addCardCarry(tl, carryAt, proxy, {
+      naturalH,
       from, to,
       duration: dur,
-      // Divergent arcs: each later card lobs a step higher, so the group
-      // FANS APART vertically mid-flight instead of stacking — launched
-      // from a tightly-packed shelf, equal arcs kept them overlapping for
-      // most of the travel.
-      sag: Math.min(dist * 0.05, 40 * ui) + i * 14 * ui,
+      // A small per-order spread keeps consecutive arcs from tracing one
+      // line; no divergent fan is needed — the peel never crosses a landed
+      // card by construction.
+      sag: Math.min(dist * 0.05, 40 * ui) + k * 6 * ui,
       tilt: Math.max(-2, Math.min(2,
         ((to.x + (CARD_NATURAL_W * sT) / 2) - (from.x + (CARD_NATURAL_W * sF) / 2)) / (420 * ui))),
     });
@@ -263,7 +288,7 @@ export function runCardRiseTimeline(args: RunRiseArgs): DealHandle {
   // ── E. The frame materializes AS the first card touches down — the
   // chrome grows around an arriving row, not after a finished one. ──────
   const frameAt = Number.isFinite(firstLand) ?
-    Math.max(liftStart + s(timings.liftMs), firstLand - s(70)) : liftStart + s(timings.liftMs);
+    Math.max(liftStart + liftDur, firstLand - s(70)) : liftStart + liftDur;
   tl.call(revealFrameOnce, undefined, frameAt);
   // The timeline's own tail covers the last proxy's fade — completion can
   // never race a still-fading handoff.

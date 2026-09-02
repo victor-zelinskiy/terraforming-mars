@@ -45,8 +45,11 @@ import {runCardRiseTimeline} from '@/client/console/cardDeal/cardRiseDirector';
 export type RiseLaunchExtras = {
   /** Tray slot rects per card (same order as slotCards). */
   sources: ReadonlyArray<DealTargetRect>,
-  /** Indices of cards that ARRIVE first (deck → tray, flipping). */
+  /** Indices of cards that ARRIVE first (lane → tray, flipping). */
   arrivals: ReadonlyArray<number>,
+  /** The receive-lane point an arriving card enters from (the neighbour
+   *  who passed it) — the deck anchor is only the fallback. */
+  arrivalOrigin?: {x: number, y: number},
   /** An arrival landed on the tray (reveal its tray slot + pulse). */
   onArrivalLanded: (index: number) => void,
   /** The full set is on the tray — the «НАБОР СОБРАН» beat. */
@@ -231,6 +234,7 @@ export function createCardDealSequence() {
           targets,
           sources: rise.sources,
           arrivals: rise.arrivals,
+          arrivalOrigin: rise.arrivalOrigin,
           deck,
           deckAnchor,
           timings: riseTimings(keys.length),

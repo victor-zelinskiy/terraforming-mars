@@ -1,7 +1,7 @@
 import {expect} from 'chai';
 import {
   CARD_NATURAL_W, DECK_SCALE, dealTimings, dealTotalMs, flightPlan, HANDOFF_AT, REVEAL_AT,
-  riseFlightDelayMs, riseTimings, riseTotalMs,
+  riseTimings, riseTotalMs,
 } from '@/client/console/cardDeal/cardDealModel';
 import {resetCardDealMemory, shouldRunDealOnce} from '@/client/console/cardDeal/cardDealMemory';
 
@@ -50,7 +50,9 @@ describe('cardDealModel — the research rise', () => {
   it('keeps the flagship scene rich but bounded (~2s standard draft)', () => {
     // 4 drafted cards, 1 auto-passed arrival — the standard generation draft.
     const t = riseTimings(4);
-    expect(riseTotalMs(4, 1, t)).to.be.within(1600, 2600);
+    // The budget is the SAFETY ceiling (worst-case stretched flights); the
+    // played scene lands well under it — lane-close arrivals fly ~0.72×.
+    expect(riseTotalMs(4, 1, t)).to.be.within(1600, 2900);
     // No arrivals (already reconciled) → strictly shorter.
     expect(riseTotalMs(4, 0, t)).to.be.lessThan(riseTotalMs(4, 1, t));
     expect(riseTotalMs(0, 0, t)).to.eq(0);
@@ -63,13 +65,14 @@ describe('cardDealModel — the research rise', () => {
     expect(wide.flightStaggerMs).to.be.lessThan(narrow.flightStaggerMs);
   });
 
-  it('flights launch strictly after their own lift settles, left to right', () => {
+  it('the peel budget covers per-card lift + cadenced landings', () => {
+    // The director schedules each card's gesture back from its own landing
+    // (lift blends into carry; touchdowns ≥ 2×flightStagger apart) — the
+    // budget must dominate the worst case: one lift, one stretched flight,
+    // and a full landing cadence for the rest of the set.
     const t = riseTimings(4);
-    for (let i = 0; i < 4; i++) {
-      const liftEnd = i * t.liftStaggerMs + t.liftMs;
-      expect(riseFlightDelayMs(i, t)).to.be.at.least(liftEnd);
-    }
-    expect(riseFlightDelayMs(1, t) - riseFlightDelayMs(0, t)).to.eq(t.flightStaggerMs);
+    const flights = t.liftMs + t.flightMs * 1.18 + 3 * t.flightStaggerMs * 2;
+    expect(riseTotalMs(4, 0, t)).to.be.at.least(flights + t.pulseMs + t.setHoldMs);
   });
 });
 

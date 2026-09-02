@@ -3266,8 +3266,23 @@ html.con-reduced-motion {
             padding-bottom: .2rem;
         }
         &--pending .con-draftws__shelf-row { display: none; }
-        &--pulse .con-draftws__shelf-row {
-            animation: con-tray-pulse calc(260ms * var(--motion-scale, 1)) ease-out;
+        /* SET-COMPLETE is a WARM RING, not a shake. The old whole-row scale
+           pulse fired ~100ms after the auto-passed card's touchdown — every
+           settled card jolted at exactly the landing, which is what read as
+           the card «ударяется о ряд». The plate's rim warms once instead
+           (opacity-only overlay — one-shot feedback, compositor-friendly);
+           the landed card keeps its own seat-settle accent. */
+        &::after {
+            content: '';
+            position: absolute;
+            inset: 0;
+            border-radius: .6rem;
+            pointer-events: none;
+            box-shadow: inset 0 0 0 .07rem fade(@con-mint, 60%), 0 0 1.3rem fade(@con-mint, 20%);
+            opacity: 0;
+        }
+        &--pulse::after {
+            animation: con-draftws-setglow calc(640ms * var(--motion-scale, 1)) ease-out;
         }
     }
     /* The shelf's own leave: a calm fade, SYNCHRONIZED with the rise handoff
@@ -3336,6 +3351,16 @@ html.con-reduced-motion {
     &__shelf-slot--landed {
         animation: con-tray-land calc(260ms * var(--motion-scale, 1)) @con-ease-standard;
     }
+    /* A seat whose card is still INBOUND (the neighbour's auto-passed
+       arrival): paints as a prepared seat — same visual as __shelf-seat —
+       with its real card held invisible until the touchdown SNAPS it in
+       (no transition: the no-dip handoff, the proxy fades on top). */
+    &__shelf-slot--awaiting {
+        box-shadow: inset 0 0 0 .05rem rgba(122, 168, 214, 0.2);
+        background: rgba(12, 20, 30, 0.4);
+
+        :is(.card-container, .pcard) { opacity: 0 !important; }
+    }
     &__shelf-seat {
         width: 3.9rem;
         height: 5.5rem;
@@ -3378,6 +3403,13 @@ html.con-reduced-motion {
 @keyframes con-draftws-num {
     0% { transform: translateY(-0.25rem); opacity: 0.4; }
     100% { transform: translateY(0); opacity: 1; }
+}
+/* The set-complete acknowledgement: the collection's rim warms and lets go
+   (one-shot; the static shadow stays the resting frame — opacity only). */
+@keyframes con-draftws-setglow {
+    0% { opacity: 0; }
+    28% { opacity: 1; }
+    100% { opacity: 0; }
 }
 
 /* ── STAGE CROSSFADE — zones are absolute twins of one zone, so a stage

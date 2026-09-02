@@ -152,18 +152,27 @@
           <div class="con-draftws__cards">
             <div class="con-draftws__row" :style="buyRowStyle" ref="buyRow"
                  :class="{'con-draftws__row--departing': buyDeparting}">
+              <!-- PAST THE COMMIT THE SELECTION CHROME IS STATE, NOT CSS:
+                   the focused/picked classes are STRIPPED the moment the
+                   completion beat starts. The old approach (keep the class,
+                   suppress its paint via `__row--departing`) lost the
+                   cascade to the TV profile's couch-ring re-statement
+                   (html.con-profile-tv .con-cards__slot--focused out-
+                   specifies it) — a bare cyan ring stood over the emptied
+                   stage for the whole exit. A class that is not there
+                   cannot be re-lit by any profile ladder. -->
               <div v-for="(entry, i) in buyEntries" :key="entry.key"
                    class="con-cards__slot con-draftws__slot"
                    :data-zoom-slot="entry.name"
                    :data-draft-buy-slot="entry.name"
                    :class="{
-                     'con-cards__slot--focused': zone === 'buy' && focusIdx === i && !beatActive,
-                     'con-cards__slot--picked': isPicked(entry.name),
-                     'con-cards__slot--dim': pickLimitReached && !isPicked(entry.name),
+                     'con-cards__slot--focused': zone === 'buy' && focusIdx === i && !beatActive && !buyDeparting,
+                     'con-cards__slot--picked': isPicked(entry.name) && !buyDeparting,
+                     'con-cards__slot--dim': pickLimitReached && !isPicked(entry.name) && !buyDeparting,
                      'con-deal-hold': deal.isHeld(entry.key),
                    }">
                 <Card :card="entry.card" :key="entry.name" lightweight />
-                <span v-if="isPicked(entry.name)" class="con-cards__pickband" aria-hidden="true">✓ {{ $t('Card selected') }}</span>
+                <span v-if="isPicked(entry.name) && !buyDeparting" class="con-cards__pickband" aria-hidden="true">✓ {{ $t('Card selected') }}</span>
               </div>
             </div>
           </div>
@@ -233,7 +242,10 @@
            stage and ABOVE the shelf overlay: it explains the card the player
            is looking at, so it may never be covered by the collection, nor
            float over the cards. ─────────── -->
-      <div class="con-draftws__statusbar" :class="{'con-draftws__statusbar--held': beatActive}">
+      <!-- Held through the commit's completion too: a status line naming the
+           focused card floated alone over the emptied stage while the
+           unbought cards tumbled out. -->
+      <div class="con-draftws__statusbar" :class="{'con-draftws__statusbar--held': beatActive || buyDeparting}">
         <!-- ONE block in BOTH states. A met requirement set is the DEFAULT and
              says nothing beyond the card's name (a status that fires on every
              card is noise, and the positive state has no reader) — but the
@@ -272,17 +284,29 @@
            }">
         <div class="con-draftws__shelf-head">
           <span class="con-draftws__shelf-label">{{ $t(setComplete ? 'Draft set complete' : 'Drafted') }}</span>
-          <span class="con-draftws__shelf-count">{{ collectedEntries.length }}<template v-if="pickTotal > 0"> / {{ pickTotal }}</template></span>
+          <!-- LANDED cards only: the frozen scene set includes the still-
+               inbound auto-passed card, and «4/4» over three visible cards
+               was a small lie for the whole arrival flight. -->
+          <span class="con-draftws__shelf-count">{{ shelfLandedCount }}<template v-if="pickTotal > 0"> / {{ pickTotal }}</template></span>
           <span v-if="canInspectCollected && !inspecting" class="con-draftws__shelf-hint">
             <GamepadGlyph control="triggerL" /><span>{{ $t('Inspect') }}</span>
           </span>
         </div>
         <div class="con-draftws__shelf-row">
+          <!-- A seat whose card is still INBOUND (the auto-passed arrival)
+               paints as a prepared SEAT, not as an invisible box: the rack
+               keeps stating how far the draft runs while the neighbour's
+               card is on its way. The plain hold (a pick's own flight, the
+               peel's lift-off) stays a bare empty slot as before. -->
           <div v-for="(entry, idx) in collectedEntries" :key="entry.name + '-' + idx"
                class="con-draftws__shelf-slot"
                :style="{zIndex: idx + 1}"
                :data-tray-slot="entry.name"
-               :class="{'con-deal-hold': shelfHeld(entry.name), 'con-draftws__shelf-slot--landed': shelfJustLanded[entry.name] === true}">
+               :class="{
+                 'con-deal-hold': shelfHeld(entry.name) && !shelfAwaitingArrival(entry.name),
+                 'con-draftws__shelf-slot--awaiting': shelfAwaitingArrival(entry.name),
+                 'con-draftws__shelf-slot--landed': shelfJustLanded[entry.name] === true,
+               }">
             <Card :card="entry.card" :key="entry.name" lightweight />
           </div>
           <!-- Prepared empty seats up to the known total: the shelf states how
@@ -408,6 +432,8 @@ export default defineComponent({
        *  may take the stage while the intake still flies to the dock. */
       discardsSettled: false,
       discardTimer: undefined as number | undefined,
+      /** Guards the exit promise's settle against a torn-down frame. */
+      discardWaitNonce: 0,
       /** The zero-buy path's completion gate (no intake flight to ride). */
       completionFlightsTimer: undefined as number | undefined,
       /** The pick stage's FROZEN presentation while the pass exit reads —
@@ -545,6 +571,14 @@ export default defineComponent({
     },
     emptySeats(): number {
       return Math.max(0, this.pickTotal - this.collectedEntries.length);
+    },
+    /** Cards physically ON the shelf — the honest count while the auto-
+     *  passed arrival is still inbound (the frozen scene set already lists
+     *  it, but the player must never read «4/4» over three cards). */
+    shelfLandedCount(): number {
+      const awaiting = this.collectedEntries
+        .filter((e) => this.shelfAwaitingArrival(e.name)).length;
+      return this.collectedEntries.length - awaiting;
     },
     /** The rack can only be DRAWN once its size is known — the server states
      *  it with the first draft marker, so this is false for at most the gap
@@ -689,7 +723,12 @@ export default defineComponent({
     },
     /** The bar contract facts (published to `consoleDraftUi` by a watcher). */
     commandState(): DraftCommandState {
-      const zone: DraftCommandState['zone'] = this.zone === 'pay' ? 'buy' : this.zone;
+      // Past the commit the bar is EMPTY (the 'done' contract): the frozen
+      // buy row still paints while the exit reads, but «A Выбрать / RT
+      // Пропустить» over departing cards promised verbs that no longer
+      // exist (input is consumed for the whole completion window).
+      const zone: DraftCommandState['zone'] = draftWorkspaceState.completion !== 'none' ?
+        'done' : (this.zone === 'pay' ? 'buy' : this.zone);
       return {
         beatActive: this.beatActive,
         zone,
@@ -805,10 +844,12 @@ export default defineComponent({
       this.shelfPulsing = false;
       void this.$nextTick(() => {
         this.shelfPulsing = true;
+        // Covers the set-complete ring warm (con-draftws-setglow, ~640ms) —
+        // dropping the class mid-animation cuts the glow's release.
         this.shelfPulseTimer = window.setTimeout(() => {
           this.shelfPulsing = false;
           this.shelfPulseTimer = undefined;
-        }, consoleMotionMs(280));
+        }, consoleMotionMs(680));
       });
     },
     /** A touchdown settles ITS OWN seat (never the whole row). */
@@ -906,6 +947,7 @@ export default defineComponent({
     if (this.discardTimer !== undefined) {
       window.clearTimeout(this.discardTimer);
     }
+    this.discardWaitNonce++; // a late exit promise may not touch a dead frame
     if (this.completionFlightsTimer !== undefined) {
       window.clearTimeout(this.completionFlightsTimer);
     }
@@ -933,6 +975,13 @@ export default defineComponent({
         return;
       }
       if (this.passingActive || this.inspectFlightActive) {
+        return;
+      }
+      // Past the commit boundary the workspace is a receipt playing out —
+      // nothing here accepts input (a repeat RT could re-submit into a
+      // prompt that has already moved on; A would mutate a frozen set).
+      // The window is short and the frame releases itself.
+      if (draftWorkspaceState.completion !== 'none') {
         return;
       }
       if (intent.kind === 'nav') {
@@ -1343,9 +1392,17 @@ export default defineComponent({
         }
       }
       beginRiseScene();
+      // The auto-passed card enters from the RECEIVE lane — the same
+      // physical origin every passed packet deals in from. The old deck
+      // origin told the wrong story (a deck popping in over the HUD for a
+      // card the NEIGHBOUR handed over).
+      const lane = (this.receiveSide === 'left' ? this.$refs.laneLeft : this.$refs.laneRight) as HTMLElement | undefined;
+      const laneRect = lane?.getBoundingClientRect?.();
       return {
         sources,
         arrivals,
+        arrivalOrigin: laneRect !== undefined ?
+          {x: laneRect.left + laneRect.width / 2, y: laneRect.top + laneRect.height / 2} : undefined,
         onArrivalLanded: (i) => {
           const name = cards[i];
           if (name !== undefined) {
@@ -1378,19 +1435,34 @@ export default defineComponent({
       this.discardsSettled = false;
       beginDraftCompletion();
       // The unbought cards drift out (the discard side), visibly secondary;
-      // once their exit has READ, the terminal plate takes the stage — in
-      // parallel with the bought cards' flight to the dock, never after it.
-      applyDiscardExit(
+      // the terminal plate takes the stage the moment their exit has
+      // ACTUALLY ENDED — the settle rides applyDiscardExit's own joined
+      // animationend, never a parallel wall-clock guess (the old 880ms
+      // timer left ~350ms of bare stage between the last fade and the
+      // plate). The nonce guards a torn-down / re-entered frame.
+      const settleToken = ++this.discardWaitNonce;
+      const exit = applyDiscardExit(
         rest.map((e) => this.slotCardEl(e.name)).filter((el): el is HTMLElement => el !== null),
         {delayMs: 160},
       );
       if (this.discardTimer !== undefined) {
         window.clearTimeout(this.discardTimer);
-      }
-      this.discardTimer = window.setTimeout(() => {
         this.discardTimer = undefined;
-        this.discardsSettled = true;
-      }, consoleMotionMs(rest.length > 0 ? 880 : 200));
+      }
+      if (rest.length > 0) {
+        void exit.then(() => {
+          if (this.discardWaitNonce === settleToken && draftWorkspaceState.completion !== 'none') {
+            this.discardsSettled = true;
+          }
+        });
+      } else {
+        // Everything was bought — a short beat while the intake proxies
+        // stand over their sources, then the receipt.
+        this.discardTimer = window.setTimeout(() => {
+          this.discardTimer = undefined;
+          this.discardsSettled = true;
+        }, consoleMotionMs(200));
+      }
       if (bought.length === 0) {
         this.submitCards([]);
         // No intake flight to ride on this path — the gate is the discard
@@ -1568,6 +1640,14 @@ export default defineComponent({
         return true;
       }
       return isTraySlotHeld(name);
+    },
+    /** The seat is waiting for the neighbour's auto-passed card (the rise's
+     *  arrival leg) — it paints as a prepared SEAT while the card is in the
+     *  air. Bounded by `setComplete`: past the set beat the same card's
+     *  hold belongs to the peel's lift-off and must read as a bare slot. */
+    shelfAwaitingArrival(name: CardName): boolean {
+      return draftTrayState.sceneArrivals.includes(name) &&
+        !draftTrayState.setComplete && isTraySlotHeld(name);
     },
     // ── fullscreen inspect (X) ──────────────────────────────────────────
     zoomFocused(): void {

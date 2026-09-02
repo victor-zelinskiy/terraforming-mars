@@ -106,31 +106,32 @@ export const REDUCED_REVEAL_STEP_MS = 30;
 
 /* ── The RESEARCH RISE — the draft→research phase transition scene ──────
  * The drafted pile physically becomes the research row: the auto-passed
- * last card(s) ARRIVE into the tray (deck → tray slot, flipping), the
- * completed set pulses once, then the whole pile LIFTS OFF and each card
+ * last card(s) ARRIVE into the tray (receive lane → tray slot, flipping),
+ * the completed set acknowledges itself, then the pile PEELS from its top
+ * (right → left — every flight crosses only empty slots) and each card
  * flies into its research-row slot; the modal frame materializes AROUND
- * the landed cards, and only then do the proxies dissolve into the real
- * interactive cards. Pure numbers here — the director resolves through
- * motionMs(); reduced motion never reaches it (sequence short-circuits).
+ * the landing row, and the proxies dissolve into the real interactive
+ * cards. Pure numbers here — the director resolves through motionMs();
+ * reduced motion never reaches it (sequence short-circuits).
  */
 export type RiseTimings = {
-  /** One arriving card's deck → tray-slot flight (back→face flip). */
+  /** One arriving card's lane → tray-slot flight (back→face flip). */
   arrivalFlightMs: number,
   /** Stagger between several arrivals (rare — usually exactly one). */
   arrivalStaggerMs: number,
-  /** Settle beat after the last arrival lands, before the pulse. */
+  /** Settle beat after the last arrival lands, before the set beat. */
   arrivalSettleMs: number,
-  /** The «set complete» pulse of the whole pile. */
+  /** The «set complete» acknowledgement (label flip + shelf-ring warm). */
   pulseMs: number,
-  /** Readable hold after the pulse — the player registers the full set. */
+  /** Readable hold after the acknowledgement, before the peel. */
   setHoldMs: number,
-  /** Group lift-off: the pile comes off the table (staggered). */
+  /** One card's small pre-launch lift (blends into its own carry). */
   liftMs: number,
-  liftStaggerMs: number,
   /** One card's flight tray → research-row slot (grows to row scale). */
   flightMs: number,
+  /** Landing cadence base (touchdowns are ≥ 2× this apart). */
   flightStaggerMs: number,
-  /** Frame/backdrop materialization around the landed row. */
+  /** Frame/backdrop materialization around the landing row. */
   frameMs: number,
   /** Proxy → real card crossfade after the frame is up. */
   handoffMs: number,
@@ -140,13 +141,12 @@ export type RiseTimings = {
 export function riseTimings(cardCount: number): RiseTimings {
   const wide = cardCount > 6;
   return {
-    arrivalFlightMs: 420,
+    arrivalFlightMs: 460,
     arrivalStaggerMs: 90,
-    arrivalSettleMs: 100,
+    arrivalSettleMs: 180,
     pulseMs: 220,
     setHoldMs: 200,
     liftMs: 160,
-    liftStaggerMs: 40,
     flightMs: wide ? 380 : 430,
     flightStaggerMs: wide ? 55 : 75,
     frameMs: 240,
@@ -154,14 +154,9 @@ export function riseTimings(cardCount: number): RiseTimings {
   };
 }
 
-/** Launch offset of card i's tray→row flight, from the lift-off start. */
-export function riseFlightDelayMs(index: number, t: RiseTimings): number {
-  return t.liftMs + index * t.flightStaggerMs;
-}
-
 /**
  * Total BASE duration of the rise scene (safety-timeout budget). The
- * director schedules LANDINGS (left → right, ≥ 2×flightStagger apart;
+ * director schedules LANDINGS (right → left, ≥ 2×flightStagger apart;
  * per-card travel stretches up to ×1.2 of flightMs) — this bounds that
  * schedule from above.
  */
@@ -170,7 +165,7 @@ export function riseTotalMs(cardCount: number, arrivals: number, t: RiseTimings)
     return 0;
   }
   const arrival = arrivals > 0 ?
-    t.arrivalFlightMs + (arrivals - 1) * t.arrivalStaggerMs + t.arrivalSettleMs : 0;
+    t.arrivalFlightMs * 1.15 + (arrivals - 1) * t.arrivalStaggerMs + t.arrivalSettleMs : 0;
   const set = t.pulseMs + t.setHoldMs;
   const flights = t.liftMs + t.flightMs * 1.2 + (cardCount - 1) * t.flightStaggerMs * 2;
   return arrival + set + flights + t.frameMs + t.handoffMs;

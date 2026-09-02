@@ -50,6 +50,13 @@ export type CarryArgs = {
   tilt?: number,
   /** Live destination re-read past RETARGET_AT (top-left + width). */
   retarget?: () => {left: number, top: number, width: number} | undefined,
+  /**
+   * The one clock's ease (default power2.inOut — the symmetric tabletop
+   * carry). An ARRIVAL from off-stage reads softer on `power2.out`: it
+   * enters at speed and spends the whole second half braking into the
+   * seat — deceleration belongs to arrivals, acceleration to exits.
+   */
+  ease?: string,
 };
 
 /** Where the live re-read happens (fraction of the carry). */
@@ -82,7 +89,7 @@ export function addCardCarry(tl: gsap.core.Timeline, position: number, el: HTMLE
   tl.to(drive, {
     q: 1,
     duration,
-    ease: 'power2.inOut',
+    ease: args.ease ?? 'power2.inOut',
     onUpdate: () => {
       const p = drive.q;
       const inv = 1 - p;
