@@ -107,12 +107,11 @@ describe('infoRoute — the Information workspace route model', () => {
   });
 
   // ── the summary focus ring ────────────────────────────────────────────
-  it('the ring: shared zones focus for everyone; the human-only pair only for humans; «Карты» never (no route)', () => {
+  it('the ring: shared zones focus for everyone; the human-only pair only for humans', () => {
     for (const kind of KINDS) {
       expect(infoZoneFocusable('vp', kind), 'the score zone is the ring\'s anchor').to.be.true;
       expect(infoZoneFocusable('played', kind)).to.be.true;
       expect(infoZoneFocusable('extras', kind)).to.be.true;
-      expect(infoZoneFocusable('cards', kind), 'a zone with no detail route advertises no dead A').to.be.false;
     }
     expect(infoZoneFocusable('actions', 'human')).to.be.true;
     expect(infoZoneFocusable('actions', 'bot'), 'an absent zone cannot be focused').to.be.false;
@@ -147,7 +146,15 @@ describe('infoRoute — the Information workspace route model', () => {
     expect(infoZoneForRoute('extras')).to.eq('extras');
     expect(infoZoneForRoute('botScreen'), 'the bot hub has no summary zone of its own').to.be.undefined;
     expect(infoZoneRoute('vp')).to.eq('vp');
-    expect(infoZoneRoute('cards'), '«Карты» is a pure readout').to.be.undefined;
+  });
+
+  // ── the «Карты» zone is GONE — the hand dock represents the hand ──────
+  it('no summary zone without a route exists — the hand lives in the dock (dockInspection)', () => {
+    for (const column of INFO_SUMMARY_COLUMNS) {
+      for (const zone of column) {
+        expect(infoZoneRoute(zone), `${zone} must open a detail route — a pure-readout zone is a dead A`).to.not.be.undefined;
+      }
+    }
   });
 
   // ── the bot hub's own ring ────────────────────────────────────────────

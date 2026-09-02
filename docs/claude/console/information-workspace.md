@@ -77,19 +77,29 @@ zones sit at the same coordinates (e2e-guarded ±2px):
 | --- | --- | --- |
 | `vp` (col 1) | the premium live score | the SAME zone — no bot variant |
 | `played` (col 2) | tableau counts (`buildPlayedZones`) | `playedPile` counts **+ the corporation** (parity: a human corp is in its tableau) |
-| `cards` (col 2) | «Можно разыграть / В руке» | «Колода действий / Колода бонусов» — the shared card-potential abstraction; deck MECHANICS live on «Экран бота» |
 | `extras` (col 3) | resources on cards | floaters + shipping storage BY TYPE (`marsBotExtraGroups`) |
 | `actions`/`effects` (col 3, after extras) | present | HIDDEN — absence never shifts the shared zones |
 | `botdoor` (col 3) | — | the R3 door to «Экран бота» |
 
+**The old «КАРТЫ» readout zone is GONE (hand-dock integration, 2026-09):
+the HAND DOCK is the ONE physical representation of the inspected seat's
+hand** for the workspace's whole lifetime — the real pack + «КАРТЫ n/m» for
+the viewer, a read-only closed fan + the exact public count for another
+human (`cardsInHandNbr`), the SAME fan over the bot's action deck
+(`actionDeckSize` — the deck it plays from and, empty, passes on). The
+bonus deck stays on «Экран бота», where the deck MECHANICS live. Contract:
+`hand-dock-presence.md` § THE INSPECTION CONTEXT; model:
+`handDock/dockInspection.ts`.
+
 The summary is a FOCUS RING (`infoModeState.summaryFocus`, d-pad +
 `infoZoneNavigate` — column-aware, clamping): A opens the focused zone's
-route; a zone with no route («Карты») and an absent zone are not focusable,
-so a dead A is unexpressible. B from a detail lands the ring on the zone it
-was entered from. The A-glyph rides the FOCUSED zone only; the per-zone
-shortcut glyphs (X/L3/LT/RT/R3) are static — those work regardless of
-focus. No separate bot corp zone, no «Треки бота» panel, no bot deck tiles
-on the summary — all of it moved to «Экран бота».
+route; every zone opens one (a pure-readout zone would advertise a dead A
+and is forbidden — `infoRoute.spec.ts` pins it); an absent zone is not
+focusable. B from a detail lands the ring on the zone it was entered from.
+The A-glyph rides the FOCUSED zone only; the per-zone shortcut glyphs
+(X/L3/LT/RT/R3) are static — those work regardless of focus. No separate
+bot corp zone, no «Треки бота» panel, no bot deck tiles on the summary —
+all of it moved to «Экран бота».
 
 ## The LIVE SCORE (`liveScoreModel.ts`) — one system with the finale
 
@@ -241,6 +251,12 @@ keeps the table's own grammar. Y(0) and LB/RB(1) survive the Deck bar.
 
 - `tests/console/infoRoute.spec.ts` — the tree (vp subtree included),
   capability, ring, clamps.
+- `tests/console/dockInspection.spec.ts` — the dock's inspection seat:
+  source selection (self / human / bot / legacy corpless), the fan cap +
+  exact count, the compact-pose geometry parity.
+- `tests/client/components/console/consoleHandDockInspection.spec.ts` —
+  the dock's guest presentation: read-only by construction, the bay's
+  three-state priority, privacy shape of the DOM, a11y count.
 - `tests/client/components/console/liveScoreModel.spec.ts` — Σ ≡ total,
   the ceremony parity (human + bot), the bot fold, TR labels, penalties.
 - `tests/client/components/console/scoreExplorerModel.spec.ts` — the

@@ -87,6 +87,44 @@ z-index» model — this is a deliberate contract REVERSAL.)*
    The dock stays mounted and is back the instant they release. (The zoom's
    old `visibility: hidden` on the dock is removed — the veil dimming it IS
    the presentation.)
+6. **THE INSPECTION CONTEXT (the Information Workspace, 2026-09): while Y
+   inspects a seat, the dock IS that seat's hand.** One pure model decides
+   the seat (`handDock/dockInspection.ts`): the viewer's own seat →
+   `undefined` (the ordinary dock — real pack, real «КАРТЫ n/m», the accent
+   only); another human → a read-only CLOSED FAN + the exact public
+   `cardsInHandNbr`; the MarsBot → the SAME fan over its ACTION DECK
+   (`actionDeckSize` — the deck it plays from and, empty, passes on; never
+   a parallel counter). Mechanics, each load-bearing:
+   - **The fan is NOT hand bodies.** Sleeves render inside the dock chassis
+     (`.con-handdock__insp`, z11704 — behind the plate like the own pack),
+     derived from ONE integer, posed with the COMPACT knobs
+     (`inspectionFan` reuses `handDockPlan` + `packProfileTuning`), capped
+     at `INSPECTION_FAN_MAX` while the counter stays exact. No faces, no
+     names, no `data-hand-dock-card`, no flights — privacy and the
+     single-owner pack contract both hold by construction.
+   - **The own pack rides to the `away` pose** (`PackPose` 'away' — the
+     tuck taken all the way: compactSink + the card's own height, so
+     nothing peeks; same quiet sine settle family, `poseRideSpec`). Two
+     crowns in one tray would be two hands claiming one object. Gated on
+     the SAME predicate as the fan (`ConsoleShell.dockInspection`), so
+     they can never disagree about who owns the tray.
+   - **The intake accent OUTRANKS the guest** (cards physically arriving
+     to the OWN hand): `dockInspection` returns `undefined` while the
+     lease is live — the landing must be seen and measured; the guest fan
+     returns when the lease expires.
+   - **Read-only by construction**: the guest dock never emits `open`, the
+     `--live`/`--hot` own-hand affordances go dark, the album spine yields
+     the bay to the guest readout and returns untouched on close (the page
+     lives in `consoleState.handIndex`, which inspection never writes).
+   - **The accent is the shared `con-insp-<color>` root tokens** (the rail
+     ring + the workspace seam + the dock's `--insp` plate response — one
+     composition, one source: `infoModeState.playerColor`). The counter
+     joins the LB/RB beat via `data-insp-fade` (the rail's own value dip —
+     the dock is an anchor and never translates).
+   Guards: `tests/console/dockInspection.spec.ts`,
+   `tests/client/components/console/consoleHandDockInspection.spec.ts`,
+   the away-pose block in `handBodiesPose.spec.ts`, and the dock asserts in
+   `tests/e2e/console-info-workspace.spec.ts`.
 
 ## Why the reversal
 

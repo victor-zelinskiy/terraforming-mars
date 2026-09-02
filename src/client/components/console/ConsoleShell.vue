@@ -1184,6 +1184,8 @@
                        :transit="handRevealTransit"
                        :deliveryHeld="dockHeld"
                        :album="handDockAlbum"
+                       :inspecting="infoModeState.open"
+                       :inspection="dockInspection"
                        @mouseenter="dockHover = true"
                        @mouseleave="dockHover = false"
                        @open="onHandDockOpen"
@@ -1534,6 +1536,7 @@ import {
   beginDockIntakeAccent, dockIntakeAccentActive, resetDockIntakeAccent,
 } from '@/client/console/handDock/consoleDockAccent';
 import {handDeliveryState} from '@/client/console/handDock/handDeliveryState';
+import {DockInspectionView, buildDockInspectionView, dockInspectionFor} from '@/client/console/handDock/dockInspection';
 import {isHandDeliveryActive, resetHandDelivery} from '@/client/console/handDock/handDeliveryDirector';
 import {
   finishInstant, holdHandBodiesForAlbum, isHandRevealEpisodeRunning, resetHandReveal, reverseHandReveal,
@@ -2313,11 +2316,38 @@ export default defineComponent({
      * 340ms tween — and because the flight seizes the bodies wherever this
      * pose left them, the pose can never snap under the player's eyes.
      */
-    handPackPose(): 'rest' | 'compact' | 'raised' {
+    handPackPose(): 'rest' | 'compact' | 'raised' | 'away' {
+      // THE INSPECTION HANDOVER: a FOREIGN seat's closed fan stands in the
+      // tray (dockInspection), so the own pack is put away entirely — two
+      // crowns in one holder would be two hands claiming one physical
+      // object. Gated on the same predicate as the fan itself (the intake
+      // accent included), so the two can never disagree about who owns the
+      // tray; the wheel/hover raise is unreachable here by construction
+      // (Info Mode owns the pad and `handDockInteractive` is false).
+      if (this.dockInspection !== undefined) {
+        return 'away';
+      }
       if (this.consoleState.quick === 'actions' || (this.dockHover && this.handDockInteractive)) {
         return 'raised';
       }
       return this.handDockCompact ? 'compact' : 'rest';
+    },
+    /**
+     * THE DOCK'S INSPECTION SEAT — while the Information Workspace inspects
+     * ANOTHER participant, the dock softly becomes that seat's hand: a
+     * read-only closed fan + the exact public count (a human's
+     * `cardsInHandNbr`, the bot's `actionDeckSize` — the deck it plays from
+     * and, empty, passes on). `undefined` = the ordinary own dock: the mode
+     * is closed, the viewer inspects THEMSELVES, or the intake accent is
+     * live (cards physically arriving to the OWN hand outrank the guest
+     * presentation — the presence contract's one absolute).
+     */
+    dockInspection(): DockInspectionView | undefined {
+      if (!this.infoModeState.open || this.dockIntakeAccent) {
+        return undefined;
+      }
+      const seat = dockInspectionFor(this.thisPlayer.color, this.inspectedPlayer, this.playerView.game.automa);
+      return seat === undefined ? undefined : buildDockInspectionView(seat, consoleLayoutState.profile);
     },
     /**
      * THE ALBUM IS NOT ON SCREEN — the workspace has DESCENDED into a stage, so
@@ -6246,7 +6276,7 @@ export default defineComponent({
         (f) => f.kind !== 'endgame' || this.endgameStageUp);
     },
     conRootClasses(): Record<string, boolean> {
-      return {
+      const classes: Record<string, boolean> = {
         'con-root--rail-replaced': this.workspaceScreenUp ||
           this.journalPanelVisible ||
           this.contextOverlayMode !== undefined,
@@ -6277,9 +6307,20 @@ export default defineComponent({
         // (the reported «на workspace карты поднимаются выше дока»).
         'con-root--footer-behind': this.dockBehindWorkspace,
       };
+      // The inspected player's ACCENT tokens (--con-insp-accent*) — consumed
+      // by the rail ring, the workspace seam AND the hand dock's inspection
+      // accent (the dock lives in the footer, which is why the class rides
+      // the ROOT: the custom properties inherit into all three). Follows
+      // `open` (not the closing tail): everything returns to its neutral
+      // chrome the moment the context comes home; the fading workspace
+      // falls back to cyan.
+      if (this.infoModeState.open) {
+        classes[`con-insp-${this.railPlayer.color}`] = true;
+      }
+      return classes;
     },
     conMainClasses(): Record<string, boolean> {
-      const classes: Record<string, boolean> = {
+      return {
         'con-main--journal': this.journalPanelVisible,
         'con-main--hand': this.consoleState.section === 'hand',
         'con-main--info': this.infoWorkspaceUp,
@@ -6288,14 +6329,6 @@ export default defineComponent({
         // drops the stacking trap for the whole family, holding through
         // leave transitions automatically.)
       };
-      // The inspected player's ACCENT tokens (--con-insp-accent*) — consumed
-      // by the rail ring and the workspace seam. Follows `open` (not the
-      // closing tail): the rail returns to its neutral chrome the moment the
-      // context comes home; the fading workspace falls back to cyan.
-      if (this.infoModeState.open) {
-        classes[`con-insp-${this.railPlayer.color}`] = true;
-      }
-      return classes;
     },
     // ── the RT / LT quick selectors (P27 — direct-input command layers) ──
     quickEntries(): Array<QuickEntry> {

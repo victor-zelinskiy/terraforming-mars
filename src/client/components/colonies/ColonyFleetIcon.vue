@@ -1,25 +1,21 @@
 <template>
   <!--
-    Premium trade-fleet SHIP — the per-player freighter used by BOTH the
-    console colonies surfaces AND the desktop colonies overlay / tiles /
-    detail / card, AND the flying proxy of the console trade-launch
-    cinematic. One set of paths; the player colour rides inheritable CSS
-    custom props set by the `fleet-hue--<color>` class (colony_fleet.less).
-    The PRESENTATION (size / placement / backing) is owned by each host
-    context — this is the ship primitive + its states.
+    Trade-fleet SHIP — the per-player vessel mark used by the console
+    colonies surfaces, the desktop colonies overlay / tiles / detail /
+    card, AND the flying proxy of the console trade-launch cinematic.
 
-    DESIGN CONTRACT (the premium rework): every tone of the vessel is
-    EXPLICIT — SVG gradients + dedicated shade/light paths — because the
-    console paint baseline strips CSS `filter` permanently, so a ship whose
-    depth relied on drop-shadows/brightness rendered as a flat arcade
-    sprite there (the reported «дешевая аркада»). The hull is neutral
-    titanium; the player colour is a LIVERY (nose cap, wings, tail band),
-    the way real vessels carry an operator's colours — identifiable at a
-    glance, never a toy-coloured blob.
+    DESIGN (the minimalist pass): a faceted STEALTH DART — one clean
+    geometric silhouette, two dark-glass facets for dimension, a hairline
+    edge, and the player colour reduced to a LIVERY of three restrained
+    marks (the keel line, the two wingtip edges, the engine slit). No
+    cockpit windows, no cargo latches, no beacon dots — a premium glyph,
+    not an illustrated toy. Every tone is EXPLICIT (flat fills + one plume
+    gradient): the console paint baseline strips CSS `filter` permanently,
+    so the mark must carry its own depth.
 
-    Gradients are declared per instance with unique ids (many ships stand
-    on one screen; `url(#…)` must never resolve into a hidden sibling).
-    States (CSS-driven): `free` lights the warm idle exhaust; `mode` 'hero'
+    The plume gradient is declared per instance with a unique id (many
+    ships stand on one screen; `url(#…)` resolves document-wide).
+    States (CSS-driven): `free` lights the resting exhaust; `mode` 'hero'
     is the flight proxy's higher-presence pass; `state` drives the launch
     charge / in-flight thrust / docked settle.
   -->
@@ -32,100 +28,38 @@
        ]"
        viewBox="0 0 32 32" aria-hidden="true" focusable="false">
     <defs>
-      <!-- Titanium hull: lit from the upper-left, falling to a cool belly. -->
-      <linearGradient :id="uid + '-hull'" x1="0.22" y1="0" x2="0.78" y2="1">
-        <stop offset="0" class="cfi-stop-hull-hi" />
-        <stop offset="0.52" class="cfi-stop-hull-mid" />
-        <stop offset="1" class="cfi-stop-hull-lo" />
-      </linearGradient>
-      <!-- Livery: the player colour with its own top-light → shade fall. -->
-      <linearGradient :id="uid + '-livery'" x1="0.3" y1="0" x2="0.7" y2="1">
-        <stop offset="0" class="cfi-stop-livery-hi" />
-        <stop offset="1" class="cfi-stop-livery-lo" />
-      </linearGradient>
-      <!-- Engine plume: white-hot core falling into the owner glow. -->
+      <!-- Engine jet: white-hot core falling into the owner glow. -->
       <linearGradient :id="uid + '-plume'" x1="0.5" y1="0" x2="0.5" y2="1">
         <stop offset="0" class="cfi-stop-plume-core" />
-        <stop offset="0.45" class="cfi-stop-plume-mid" />
+        <stop offset="0.4" class="cfi-stop-plume-mid" />
         <stop offset="1" class="cfi-stop-plume-tip" />
       </linearGradient>
     </defs>
 
-    <!-- Engine thrust plume (launch / in-flight) — behind the hull. -->
+    <!-- Engine jet (launch / in-flight) — a slim blade, behind the hull. -->
     <path class="cfi-thrust" :fill="'url(#' + uid + '-plume)'"
-      d="M13.1 24.6 C13.6 27.8 14.7 30.4 16 31.6 C17.3 30.4 18.4 27.8 18.9 24.6
-         C17.9 25.3 14.1 25.3 13.1 24.6 Z" />
-    <!-- Idle exhaust — the "free fleet" resting flame (softer, shorter). -->
+      d="M14.7 23.2 L16 30.8 L17.3 23.2 Z" />
+    <!-- Resting exhaust — the "free fleet" idle (shorter, softer). -->
     <path class="cfi-flame" :fill="'url(#' + uid + '-plume)'"
-      d="M13.9 24.4 C14.3 26.4 15.1 28.1 16 28.9 C16.9 28.1 17.7 26.4 18.1 24.4
-         C17.2 25.0 14.8 25.0 13.9 24.4 Z" />
+      d="M15.0 23.0 L16 27.6 L17.0 23.0 Z" />
 
-    <!-- Swept WINGS — player livery over a darker structural underlay. -->
-    <path class="cfi-wing-under"
-      d="M11.9 12.6 L4.6 21.8 L5.6 23.0 L11.9 20.4 Z
-         M20.1 12.6 L27.4 21.8 L26.4 23.0 L20.1 20.4 Z" />
-    <path class="cfi-wing" :fill="'url(#' + uid + '-livery)'"
-      d="M11.9 13.6 L5.6 21.6 L6.3 22.4 L11.9 19.9 Z
-         M20.1 13.6 L26.4 21.6 L25.7 22.4 L20.1 19.9 Z" />
-    <!-- Wingtip beacons (static riding lights — part of the livery). -->
-    <circle class="cfi-beacon" cx="5.6" cy="21.9" r="0.75" />
-    <circle class="cfi-beacon" cx="26.4" cy="21.9" r="0.75" />
+    <!-- HULL — a chevron dart in two dark-glass facets (the one tone split
+         that gives the mark dimension without illustration). -->
+    <path class="cfi-facet-l" d="M16 2.2 L8.6 25.2 L16 21.4 Z" />
+    <path class="cfi-facet-r" d="M16 2.2 L23.4 25.2 L16 21.4 Z" />
 
-    <!-- HULL — an elongated freighter fuselage (titanium gradient). -->
-    <path class="cfi-hull" :fill="'url(#' + uid + '-hull)'"
-      d="M16 1.6 C18.6 3.6 20.3 7.2 20.3 11.4 L20.3 21.6
-         C20.3 23.4 19.5 24.6 18.2 24.9 L13.8 24.9
-         C12.5 24.6 11.7 23.4 11.7 21.6 L11.7 11.4
-         C11.7 7.2 13.4 3.6 16 1.6 Z" />
-    <!-- Belly shade — the hull's own right-side falloff (explicit, not a
-         CSS filter): what keeps the vessel volumetric on the console. -->
-    <path class="cfi-hull-shade"
-      d="M18.1 3.4 C19.5 5.5 20.3 8.3 20.3 11.4 L20.3 21.6
-         C20.3 23.4 19.5 24.6 18.2 24.9 L16.6 24.9
-         C17.7 23.9 18.3 22.4 18.3 20.6 L18.3 9.6
-         C18.3 7.2 18.2 5.1 18.1 3.4 Z" />
-    <!-- Rim light — the lit port edge (a thin explicit highlight). -->
-    <path class="cfi-rim"
-      d="M15.4 2.4 C13.6 4.4 12.5 7.6 12.5 11.4 L12.5 21.4
-         C12.5 22.4 12.8 23.3 13.4 23.9 L13.0 24.0
-         C12.2 23.4 11.7 22.4 11.7 21.6 L11.7 11.4
-         C11.7 7.4 13.2 4.0 15.4 2.4 Z" />
+    <!-- LIVERY — the player colour as three restrained marks. -->
+    <!-- The keel line, nose → engine. -->
+    <path class="cfi-keel" d="M16 4.6 L16.62 19.9 L16 21.0 L15.38 19.9 Z" />
+    <!-- The wingtip trailing edges. -->
+    <path class="cfi-tip" d="M9.55 22.25 L8.6 25.2 L11.4 23.75 Z" />
+    <path class="cfi-tip" d="M22.45 22.25 L23.4 25.2 L20.6 23.75 Z" />
+    <!-- The engine slit in the tail notch. -->
+    <path class="cfi-slit" d="M14.85 22.05 L16 22.75 L17.15 22.05 L16 21.55 Z" />
 
-    <!-- NOSE CAP — the livery's leading mark. -->
-    <path class="cfi-nose" :fill="'url(#' + uid + '-livery)'"
-      d="M16 1.6 C17.3 2.6 18.4 4.1 19.2 6.0 L12.8 6.0
-         C13.6 4.1 14.7 2.6 16 1.6 Z" />
-
-    <!-- COCKPIT — inset glass with a fixed sheen arc. -->
-    <path class="cfi-glass"
-      d="M13.4 8.2 C14.1 7.6 17.9 7.6 18.6 8.2
-         C18.9 9.4 18.9 10.8 18.6 12.0 C17.9 12.6 14.1 12.6 13.4 12.0
-         C13.1 10.8 13.1 9.4 13.4 8.2 Z" />
-    <path class="cfi-glass-sheen"
-      d="M13.8 8.5 C14.9 8.0 16.4 7.9 17.6 8.2 C16.7 9.0 14.9 9.3 13.7 9.2
-         C13.7 9.0 13.75 8.7 13.8 8.5 Z" />
-
-    <!-- CARGO BAND — the freighter's mid-hull livery stripe + latches. -->
-    <rect class="cfi-band" :fill="'url(#' + uid + '-livery)'" x="11.7" y="14.2" width="8.6" height="2.6" />
-    <rect class="cfi-band-shade" x="11.7" y="16.1" width="8.6" height="0.7" />
-    <rect class="cfi-latch" x="13.3" y="14.8" width="1.3" height="1.3" rx="0.25" />
-    <rect class="cfi-latch" x="15.35" y="14.8" width="1.3" height="1.3" rx="0.25" />
-    <rect class="cfi-latch" x="17.4" y="14.8" width="1.3" height="1.3" rx="0.25" />
-
-    <!-- ENGINE BLOCK — dark thruster housing + three nozzles. -->
-    <path class="cfi-engine"
-      d="M12.6 22.6 L19.4 22.6 L19.0 24.9 L13.0 24.9 Z" />
-    <rect class="cfi-nozzle" x="13.4" y="23.3" width="1.5" height="1.1" rx="0.3" />
-    <rect class="cfi-nozzle" x="15.25" y="23.3" width="1.5" height="1.1" rx="0.3" />
-    <rect class="cfi-nozzle" x="17.1" y="23.3" width="1.5" height="1.1" rx="0.3" />
-
-    <!-- OUTLINE — one crisp dark rim so the vessel separates from any
-         backdrop (planet art, dark plates) without a drop-shadow. -->
-    <path class="cfi-outline" fill="none"
-      d="M16 1.6 C18.6 3.6 20.3 7.2 20.3 11.4 L20.3 21.6
-         C20.3 23.4 19.5 24.6 18.2 24.9 L13.8 24.9
-         C12.5 24.6 11.7 23.4 11.7 21.6 L11.7 11.4
-         C11.7 7.2 13.4 3.6 16 1.6 Z" />
+    <!-- EDGE — one hairline so the dark hull separates from any backdrop. -->
+    <path class="cfi-edge" fill="none"
+      d="M16 2.2 L23.4 25.2 L16 21.4 L8.6 25.2 Z" />
   </svg>
 </template>
 

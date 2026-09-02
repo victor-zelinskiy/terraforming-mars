@@ -187,20 +187,21 @@ export function infoRouteStage(route: InfoRouteId): string {
  * participant; the human-only pair renders after them and its absence (bot)
  * leaves the shared geometry untouched.
  */
-export type InfoZoneId = 'vp' | 'played' | 'cards' | 'extras' | 'actions' | 'effects';
+export type InfoZoneId = 'vp' | 'played' | 'extras' | 'actions' | 'effects';
 
-/** The summary layout: columns of zones, read left → right, top → bottom. */
+/** The summary layout: columns of zones, read left → right, top → bottom.
+ *  (The old «Карты» readout zone is GONE — the HAND DOCK is the inspected
+ *  seat's one physical hand representation for the workspace's lifetime.) */
 export const INFO_SUMMARY_COLUMNS: ReadonlyArray<ReadonlyArray<InfoZoneId>> = [
   ['vp'],
-  ['played', 'cards'],
+  ['played'],
   ['extras', 'actions', 'effects'],
 ];
 
-/** The detail route a zone opens, if any («Карты» is a pure readout). */
+/** The detail route a zone opens, if any. */
 const ZONE_ROUTE: Record<InfoZoneId, InfoRouteId | undefined> = {
   vp: 'vp',
   played: 'played',
-  cards: undefined,
   extras: 'extras',
   actions: 'actions',
   effects: 'effects',
@@ -224,9 +225,9 @@ export function infoZonePresent(zone: InfoZoneId, kind: InfoParticipantKind): bo
 
 /**
  * May the FOCUS RING stand on this zone? Present + enterable: a zone with
- * no detail route («Карты») carries its whole content on the summary, so
- * a cursor on it would advertise an A that does nothing — forbidden by the
- * command-bar honesty rule. An absent zone is not focusable by definition.
+ * no detail route carries its whole content on the summary, so a cursor on
+ * it would advertise an A that does nothing — forbidden by the command-bar
+ * honesty rule. An absent zone is not focusable by definition.
  */
 export function infoZoneFocusable(zone: InfoZoneId, kind: InfoParticipantKind): boolean {
   const route = ZONE_ROUTE[zone];

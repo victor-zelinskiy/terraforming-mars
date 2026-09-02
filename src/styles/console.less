@@ -3724,12 +3724,14 @@ html.con-profile-handheld .con-terracere {
 }
 
 /* The inspected player's ACCENT tokens — the shell publishes
-   `con-insp-<color>` on .con-main next to `--info`; both sides of the
-   rail↔workspace seam consume them (the rail ring above, the frame's left
-   edge + header underline in .con-info). */
+   `con-insp-<color>` on .con-root next to `--info` (root, not `.con-main`:
+   the HAND DOCK lives in the footer and is the third consumer). Every side
+   of the rail↔workspace↔dock composition reads the same custom properties
+   by inheritance: the rail ring, the frame's left edge + header underline
+   in .con-info, and the dock's inspection accent (`--insp`). */
 each(@players, {
     @c: ~"player_@{value}";
-    .con-main.con-insp-@{value} {
+    .con-root.con-insp-@{value} {
         --con-insp-accent: @@c;
         --con-insp-accent-soft: fade(@@c, 55%);
         --con-insp-accent-faint: fade(@@c, 18%);
@@ -15756,6 +15758,109 @@ html.con-profile-large.console-mode .notifications-layer.notifications-layer--jo
         height: .1rem;
         background: linear-gradient(90deg, transparent, fade(@con-mint, 55%), transparent);
     }
+
+    /* ── THE INSPECTION CONTEXT (the Information Workspace, Y) ──────────
+       While the workspace inspects a seat the dock is BOUND to it: the
+       tray answers with the inspected player's accent — the same
+       `--con-insp-accent-*` tokens the rail ring and the workspace seam
+       consume (published as `con-insp-<color>` on `.con-root`), so the
+       header, the rail and the dock read as ONE composition. A quiet base
+       response: an accent hairline where the playable mint one lives (the
+       same grammar — a coloured statement on the plate's top edge) plus a
+       soft inner tint. Never a glow loop, never a pulse. */
+    &--insp .con-handdock__plate-face {
+        box-shadow: inset 0 .05rem .8rem var(--con-insp-accent-faint, fade(@con-cyan, 14%));
+    }
+    &--insp .con-handdock__plate-face::before {
+        content: '';
+        position: absolute;
+        top: 0;
+        left: 16%;
+        right: 16%;
+        height: .1rem;
+        background: linear-gradient(90deg, transparent, var(--con-insp-accent-soft, fade(@con-cyan, 45%)), transparent);
+    }
+
+    /* THE INSPECTION FAN — a foreign seat's closed hand standing in the
+       tray (the own pack rides to its `away` pose underneath). Sleeves are
+       pure card backs derived from ONE integer: no faces, no names, no
+       order — nothing to leak on any frame. Geometry (box / offsets /
+       sink / scale) arrives inline from dockInspection.ts in rem; this
+       block paints material only. Sits between the wings (11703) and the
+       plate (11705): the sleeve bottoms sink INTO the tray exactly like
+       the own pack's. */
+    &__insp {
+        position: absolute;
+        left: 0;
+        right: 0;
+        bottom: .45rem; /* the pack anchor's own tray axis */
+        height: 0;
+        z-index: 11704;
+        pointer-events: none;
+        /* NO standing transition here: the whole-unit motion lives on the
+           enter/leave classes below (a permanent transform ease would smear
+           any future scripted write on this node frame by frame). */
+    }
+    &__insp-sleeve {
+        position: absolute;
+        left: 50%;
+        bottom: 0;
+        transform-origin: 50% 100%;
+        border-radius: .18rem;
+        overflow: hidden;
+        /* Re-spread on a count change: surviving sleeves glide to their new
+           slots; a joining/leaving sleeve fades at the fan's edge. */
+        transition: transform calc(240ms * var(--motion-scale, 1)) ease;
+        animation: con-hdinsp-sleeve-in calc(280ms * var(--motion-scale, 1)) ease backwards;
+        box-shadow: 0 .1rem .3rem rgba(0, 0, 0, 0.45);
+
+        .con-card-back {
+            position: absolute;
+            inset: 0;
+            width: auto;
+            height: auto;
+        }
+    }
+    /* The dense-thickness band (past the readable edges) — depth, dimmed
+       (opacity on the art, never a filter — the paint baseline). */
+    &__insp-sleeve--deep {
+        box-shadow: none;
+
+        .con-card-back { opacity: .55; }
+    }
+    /* The inspected count digit stays NEUTRAL (the own total's ink): a raw
+       player color as text dies on the dark plate for the dark seats
+       (red/black), and the seat binding is already carried by the accent
+       hairline + tint — color may never be the only carrier anyway. */
+}
+
+/* The fan's whole-unit entry/leave (self ⇄ foreign seat): rise out of the
+   tray / settle back into it — the same vocabulary as the own pack's
+   arrival pop. CSS transitions are interruption-safe by construction:
+   rapid LB/RB reversals retarget mid-travel, nothing queues. The transition
+   lives on THESE classes only — the standing node carries none (the seat
+   beat's gsap slide must not be smeared by a permanent transform ease). */
+.con-hdinsp-enter-active,
+.con-hdinsp-leave-active {
+    transition: transform calc(320ms * var(--motion-scale, 1)) ease,
+        opacity calc(320ms * var(--motion-scale, 1)) ease;
+}
+.con-hdinsp-enter-active {
+    /* A short beat AFTER the own crown has started its away-settle, so the
+       two hands never interpenetrate in the visible crown zone. */
+    transition-delay: calc(220ms * var(--motion-scale, 1));
+}
+.con-hdinsp-enter-from,
+.con-hdinsp-leave-to {
+    transform: translateY(1.2rem);
+    opacity: 0;
+}
+/* A sleeve joining mid-inspection (the count grew): opacity only — a
+   transform animation here would override the inline slot placement
+   (fill-mode traps) and fly the sleeve in from a wrong origin. */
+@keyframes con-hdinsp-sleeve-in {
+    from { opacity: 0; }
+    to { opacity: 1; }
 }
 
 /* ── THE DOCK IS ONE WELDED UNIT, ALWAYS ON TOP OF THE LADDER ────────────────

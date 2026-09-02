@@ -57,6 +57,46 @@ describe('handBodies pose model', () => {
     });
   });
 
+  describe('the AWAY pose — the tuck taken all the way (the dock\'s inspection handover)', () => {
+    it('sinks the whole card behind the plate: the top ends below the tray axis on every profile', () => {
+      for (const profile of ['base', 'handheld']) {
+        const a: PackAnchor = {ax: 960, ay: 1071, remPx: 20, ...packProfileTuning(profile)};
+        const n = 13;
+        for (const i of [0, 6, 12]) {
+          // `y` is the box's TOP-LEFT: past the tray axis (`ay`) the WHOLE
+          // card is below the line the plate covers from — nothing peeks.
+          const away = dockedBodyPose(i, n, 'away', a);
+          expect(away.y, `${profile} card ${i} top clears the tray axis`).to.be.greaterThan(a.ay);
+        }
+      }
+    });
+
+    it('keeps the compact pose\'s x-geometry — the guest fan can stand in the exact same tray', () => {
+      const n = 9;
+      for (const i of [0, 4, 8]) {
+        const tuck = dockedBodyPose(i, n, 'compact', anchor);
+        const away = dockedBodyPose(i, n, 'away', anchor);
+        expect(away.x, `card ${i} x parity with compact`).to.be.closeTo(tuck.x, 0.01);
+        expect(away.scale).to.be.closeTo(tuck.scale, 0.001);
+        expect(away.rotation).to.eq(0);
+        // The away sink is exactly one card height past compact.
+        expect(away.y - tuck.y).to.be.closeTo(anchor.cardH * anchor.remPx, 0.01);
+      }
+    });
+
+    it('«→ away» is a quiet settle; the return home is the ordinary tucked rise', () => {
+      for (const from of ['rest', 'compact', 'raised'] as const) {
+        const ride = poseRideSpec(from, 'away');
+        expect(ride.ease, `${from}→away`).to.match(/inOut/);
+        expect(ride.delayMs).to.eq(0);
+        expect(ride.staggerMaxMs).to.eq(0);
+        expect(ride.durationMs).to.be.gte(520);
+      }
+      expect(poseRideSpec('away', 'rest').durationMs).to.eq(poseRideSpec('compact', 'rest').durationMs);
+      expect(poseRideSpec('away', 'compact').ease).to.match(/inOut/);
+    });
+  });
+
   describe('the RAISED pose', () => {
     it('lifts, spreads and fans — and keeps full card size', () => {
       const n = 13;
@@ -95,7 +135,7 @@ describe('handBodies pose model', () => {
     });
 
     it('every ease is an in-out — no transition may put its velocity peak on frame one', () => {
-      const poses = ['rest', 'compact', 'raised'] as const;
+      const poses = ['rest', 'compact', 'raised', 'away'] as const;
       for (const from of poses) {
         for (const to of poses) {
           if (from === to) {

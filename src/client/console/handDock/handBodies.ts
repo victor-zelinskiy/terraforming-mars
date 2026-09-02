@@ -36,7 +36,7 @@ import {CARD_NATURAL_W} from '@/client/console/cardDeal/cardDealModel';
 
 export type HandBodyMode = 'docked' | 'flying' | 'shelf' | 'packet';
 
-export type PackPose = 'rest' | 'compact' | 'raised';
+export type PackPose = 'rest' | 'compact' | 'raised' | 'away';
 
 /** One body's pose in viewport px for a top-left-origin natural-width box:
  *  translate(x,y) rotate(rotation) scale(scale) — the flight chassis' own
@@ -132,6 +132,15 @@ const POSE_KNOBS: Record<PackPose, {spread: number, lift: number, fan: number, s
   rest: {spread: 1, lift: 0, fan: 0, scale: 1, sink: 0, flat: 0},
   compact: {spread: 1, lift: 0, fan: 0, scale: 0.9, sink: 0.96, flat: 1},
   raised: {spread: 1.12, lift: 0.45, fan: 1, scale: 1, sink: 0, flat: 0},
+  /* AWAY — the tuck taken all the way: the pack settles PAST the crown line
+   * until nothing of it shows (the hand is put away INTO the tray). Exists
+   * for the dock's INSPECTION context (the Information Workspace standing
+   * another seat's closed fan in this very tray — two crowns in one holder
+   * would be two hands claiming one physical object). The sink is profile-
+   * derived in `dockedBodyPose` (compactSink + the card's own height), so
+   * the crown that peeked ~0.7rem in compact is fully behind the plate on
+   * every profile; this row carries the shared shape only. */
+  away: {spread: 1, lift: 0, fan: 0, scale: 0.9, sink: 0.96, flat: 1},
 };
 
 export type PackAnchor = {
@@ -171,8 +180,12 @@ export function dockedBodyPose(i: number, n: number, pose: PackPose, a: PackAnch
   const slot = plan.slots[Math.max(0, Math.min(n - 1, i))] ?? {dx: 0, dy: 0, tilt: 0, deep: false};
   const k = POSE_KNOBS[pose];
   const spread = k.spread === 1 ? a.baseSpread : k.spread;
-  const packScale = pose === 'compact' ? a.compactScale : k.scale;
-  const sink = (pose === 'compact' ? a.compactSink : k.sink) * a.remPx;
+  // compact + away share the tucked geometry; away additionally sinks the
+  // whole card height, so the compact crown disappears behind the plate.
+  const tucked = pose === 'compact' || pose === 'away';
+  const packScale = tucked ? a.compactScale : k.scale;
+  const sink = (pose === 'away' ? a.compactSink + a.cardH :
+    tucked ? a.compactSink : k.sink) * a.remPx;
   const w = a.cardW * a.remPx;
   const h = a.cardH * a.remPx;
   // Pre-scale placement (pack coordinates): centre-x from dx·spread, the
@@ -244,13 +257,23 @@ export type PoseRide = {
  *    95ms; the hand settling after it is a quiet tail, not a follow-focus).
  */
 export function poseRideSpec(from: PackPose, to: PackPose): PoseRide {
+  // «→ away» is the quietest move of all — the hand is put away so another
+  // seat's fan can take the tray (the dock's inspection context). Same
+  // sine-in-out settle as «→ compact», a touch longer (the travel is the
+  // whole card height); rideDurationForRemainder keeps the short
+  // compact→away leg from crawling.
+  if (to === 'away') {
+    return {durationMs: 620, ease: 'sine.inOut', delayMs: 0, staggerMaxMs: 0};
+  }
   if (to === 'compact') {
     return {durationMs: from === 'raised' ? 560 : 640, ease: 'sine.inOut', delayMs: 0, staggerMaxMs: 0};
   }
   if (to === 'raised') {
     return {durationMs: 420, ease: 'power1.inOut', delayMs: from === 'compact' ? 40 : 60, staggerMaxMs: 40};
   }
-  return {durationMs: from === 'compact' ? 480 : 420, ease: 'sine.inOut', delayMs: 0, staggerMaxMs: 0};
+  // «→ rest»: coming home out of any tuck (compact or the full away) is the
+  // slightly quicker «the hand is relevant again» return.
+  return {durationMs: from === 'compact' || from === 'away' ? 480 : 420, ease: 'sine.inOut', delayMs: 0, staggerMaxMs: 0};
 }
 
 /**

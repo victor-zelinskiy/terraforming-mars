@@ -12,9 +12,9 @@
  *              size pop on the very first frame);
  *   TRANSIT  — one bézier arc on one clock. The nose BANKS INTO the heading
  *              over the first ~12% (it used to snap to the tangent on frame
- *              one), the hull grows toward the viewer mid-flight, and the
- *              engines lay a fading LIGHT TRAIL along the real path — the
- *              travel has mass and a wake, not a sprite sliding;
+ *              one) and the hull grows toward the viewer mid-flight — the
+ *              travel carries mass through attitude and scale alone (a puff
+ *              trail shipped once and was cut: it read as debris, not wake);
  *   FLARE    — over the last ~22% the ship pitches back upright (a lander's
  *              flare), so the approach hover holds nose-up over the berth —
  *              the dock no longer spins the hull half a turn in place;
@@ -26,14 +26,13 @@
  *
  * Contracts (mirror the deal/exit directors): transform/opacity only (the
  * ship element geometry is fixed — GSAP moves a composite layer); durations
- * through motionMs(); `skip()` is idempotent and always tears down (trail
- * puffs included); a safety guarantees `dock`'s callback fires even if rAF
- * stalls; reduced motion runs a short straight hop with no arc/trail.
+ * through motionMs(); `skip()` is idempotent and always tears down; a safety
+ * guarantees `dock`'s callback fires even if rAF stalls; reduced motion runs
+ * a short straight hop with no arc.
  */
 
 import {gsap} from 'gsap';
 import {motionMs} from '@/client/components/motion/motionTokens';
-import {conUiScale} from '@/client/console/consoleLayoutProfile';
 import {
   approachReadyMs, arcHeadingDeg, FleetTimings, fleetTimings, launchArcControl, Point, reducedFleetTimings,
 } from '@/client/console/colonyFleet/tradeFleetModel';
@@ -60,9 +59,6 @@ export type RunFleetArgs = {
   from: DOMRect,
   /** Berth rect (the target colony's dock slot) — screen coords. */
   to: DOMRect,
-  /** The trader's colour class token (`fleet-hue--<color>`) — the trail
-   *  puffs read their glow from it. Empty = neutral glow. */
-  hueClass: string,
   reduced: boolean,
   /** Phase → controller (injected to keep the graph acyclic). */
   onPhase: (phase: FleetPhaseName) => void,
@@ -81,7 +77,6 @@ export function runTradeFleetFlight(args: RunFleetArgs): TradeFleetDirectorHandl
   const {ship, reduced} = args;
   const t: FleetTimings = reduced ? reducedFleetTimings() : fleetTimings();
   const s = (baseMs: number) => motionMs(baseMs) / 1000;
-  const ui = conUiScale();
 
   const from = centre(args.from);
   const to = centre(args.to);
@@ -116,39 +111,6 @@ export function runTradeFleetFlight(args: RunFleetArgs): TradeFleetDirectorHandl
   setAt(from, 0, startScale);
   gsap.set(ship, {autoAlpha: 1});
 
-  // ── The engine TRAIL (a wake of fading owner-glow puffs laid along the
-  // real path). Spawned by travelled DISTANCE, owned by this flight,
-  // disposed on every exit path. Transform/opacity only.
-  const layerEl = ship.parentElement;
-  const puffs: Array<HTMLElement> = [];
-  const disposePuffs = () => {
-    for (const p of puffs) {
-      gsap.killTweensOf(p);
-      p.remove();
-    }
-    puffs.length = 0;
-  };
-  const spawnPuff = (x: number, y: number, size: number) => {
-    if (layerEl === null || puffs.length > 36) {
-      return;
-    }
-    const puff = document.createElement('div');
-    puff.className = `con-fleet-puff ${args.hueClass}`.trim();
-    layerEl.appendChild(puff);
-    puffs.push(puff);
-    gsap.set(puff, {x: x - size / 2, y: y - size / 2, width: size, height: size, scale: 0.5, autoAlpha: 0.5});
-    gsap.to(puff, {
-      scale: 2.1, autoAlpha: 0, duration: s(640), ease: 'power1.out',
-      onComplete: () => {
-        const at = puffs.indexOf(puff);
-        if (at !== -1) {
-          puffs.splice(at, 1);
-        }
-        puff.remove();
-      },
-    });
-  };
-
   const tl = gsap.timeline();
 
   // IGNITION — a squat as the engines charge, then the rise begins. The
@@ -160,18 +122,14 @@ export function runTradeFleetFlight(args: RunFleetArgs): TradeFleetDirectorHandl
   }
   tl.call(() => args.onPhase('transit'), undefined, s(t.chargeMs));
 
-  // TRANSIT — one bézier on one clock; heading, scale and the trail all
-  // derive from the same progress:
+  // TRANSIT — one bézier on one clock; heading and scale derive from the
+  // same progress:
   //  · the nose BANKS IN over the first 12% (rotation 0 on the pad → the
   //    live tangent) and FLARES OUT over the last 22% (tangent → upright),
   //    so neither end of the flight snaps an angle;
   //  · scale rides a sine hump from the honest start size to a mid-flight
-  //    peak and down to the approach size;
-  //  · a puff drops every ~30px of REAL travel — the wake follows the arc.
+  //    peak and down to the approach size.
   const prog = {p: 0};
-  let trailAccum = 0;
-  let lastX = from.x;
-  let lastY = from.y;
   tl.to(prog, {
     p: 1,
     duration: s(t.liftMs + t.transitMs),
@@ -186,20 +144,6 @@ export function runTradeFleetFlight(args: RunFleetArgs): TradeFleetDirectorHandl
       const base = startScale + (approachScale - startScale) * p;
       const scale = reduced ? startScale : base + (peakScale - base) * Math.sin(p * Math.PI);
       setAt({x, y}, rot, scale);
-      if (!reduced) {
-        trailAccum += Math.hypot(x - lastX, y - lastY);
-        if (trailAccum > 24 * ui) {
-          trailAccum = 0;
-          // The wake leaves the ENGINES: offset from the centre along the
-          // hull's own "down", at the current attitude and size.
-          const rad = (rot * Math.PI) / 180;
-          const ex = x - Math.sin(rad) * halfH * 0.8 * scale;
-          const ey = y + Math.cos(rad) * halfH * 0.8 * scale;
-          spawnPuff(ex, ey, Math.max(10, 14 * ui * scale));
-        }
-      }
-      lastX = x;
-      lastY = y;
     },
   }, s(t.chargeMs));
 
@@ -279,7 +223,6 @@ export function runTradeFleetFlight(args: RunFleetArgs): TradeFleetDirectorHandl
     release: (onGone: () => void) => {
       clearSafety();
       if (killed) {
-        disposePuffs();
         onGone();
         return;
       }
@@ -289,7 +232,6 @@ export function runTradeFleetFlight(args: RunFleetArgs): TradeFleetDirectorHandl
       const finish = () => {
         if (!released) {
           released = true;
-          disposePuffs();
           onGone();
         }
       };
@@ -302,7 +244,6 @@ export function runTradeFleetFlight(args: RunFleetArgs): TradeFleetDirectorHandl
       tl.kill();
       gsap.killTweensOf(ship);
       gsap.set(ship, {autoAlpha: 0});
-      disposePuffs();
       const cb = dockCb;
       dockCb = undefined;
       cb?.();

@@ -109,7 +109,9 @@ for (const preset of PRESETS) {
       // boot, which is identical at every size.
       test.setTimeout(480_000);
 
-      await bootIntoGame(page, request, {config: GAME_CONFIG, query: preset.profileQuery});
+      // buy: 4 — the viewer must HOLD cards, or the dock-handover assertions
+      // below (the own pack riding to `away` under a guest fan) are vacuous.
+      await bootIntoGame(page, request, {config: GAME_CONFIG, query: preset.profileQuery, buy: 4});
 
       // ── 1 · Open the workspace (retry through a lingering cinematic).
       // The deal is not reproducible: the bot may still be presenting its
@@ -155,13 +157,25 @@ for (const preset of PRESETS) {
       await expect(workspace.locator('.con-info__layout')).toHaveCount(1);
       await expect(workspace.locator('.con-info__zone--vp.con-info__zone--focused')).toHaveCount(1);
       await expect(workspace.locator('.con-infovp__bar')).toHaveCount(1);
+      // THE «КАРТЫ» READOUT IS GONE — the HAND DOCK is the one hand
+      // representation (hand-dock integration): no zone, no duplicated
+      // counters anywhere in the panel.
+      await expect(workspace.locator('[data-zone="cards"]')).toHaveCount(0);
+
+      // THE DOCK ON THE OWN SEAT: bound to the inspected player (accent
+      // witness), but still the REAL dock — no guest fan, the own
+      // «КАРТЫ n/m» ratio intact.
+      const dock = page.locator('.con-handdock');
+      await expect(dock).toHaveClass(/con-handdock--insp/);
+      await expect(dock).not.toHaveClass(/con-handdock--guest/);
+      await expect(page.locator('.con-handdock__insp')).toHaveCount(0);
+      await expect(page.locator('.con-handdock__status .con-handdock__sep')).toHaveCount(1);
 
       // PARITY BASELINE: capture the shared zones' boxes on the human seat.
       const zoneBox = async (zone: string) =>
         await workspace.locator(`[data-zone="${zone}"]`).boundingBox();
       const humanVp = await zoneBox('vp');
       const humanPlayed = await zoneBox('played');
-      const humanCards = await zoneBox('cards');
       const humanExtras = await zoneBox('extras');
       await expect(workspace.locator('[data-zone="actions"]')).toHaveCount(1);
       await expect(workspace.locator('[data-zone="effects"]')).toHaveCount(1);
@@ -177,14 +191,45 @@ for (const preset of PRESETS) {
       await expect(page.locator('.con-res .con-tagmx__grid')).toHaveCount(1);
       await expect(page.locator('.con-res .con-tagmx__trackrow')).toHaveCount(0);
       await expect(page.locator('.con-res .con-res__rows--bot')).toHaveCount(1);
+
+      // THE DOCK BECOMES THE INSPECTED SEAT'S HAND (hand-dock integration):
+      // a read-only closed fan of sleeves + the bot's exact action-deck
+      // count — internally consistent (sleeves = min(count, cap)), with no
+      // card identity anywhere in the guest DOM, and the viewer's own
+      // docked pack put away past the tray line.
+      await expect(dock).toHaveClass(/con-handdock--guest/);
+      const guestFan = page.locator('.con-handdock__insp');
+      await expect(guestFan).toHaveCount(1);
+      const countText = (await page.locator('.con-handdock__status--insp .con-handdock__num').textContent() ?? '').trim();
+      expect(countText).toMatch(/^\d+$/);
+      const guestCount = Number(countText);
+      const sleeves = await page.locator('.con-handdock__insp-sleeve').count();
+      expect(sleeves, 'sleeves = min(count, visual cap)').toBe(Math.min(guestCount, 24));
+      expect(guestCount, 'a live bot mid-game holds action cards').toBeGreaterThan(0);
+      // No playable half for a guest (playability is the viewer's own fact).
+      await expect(page.locator('.con-handdock__status--insp .con-handdock__sep')).toHaveCount(0);
+      // Privacy: the fan carries no faces, no names, no hand-body anchors.
+      await expect(guestFan.locator('.pcard')).toHaveCount(0);
+      await expect(guestFan.locator('[data-hand-dock-card]')).toHaveCount(0);
+      expect(((await guestFan.textContent()) ?? '').trim()).toBe('');
+      // The OWN pack is away: every docked body's top sits below the plate's
+      // top line (the away pose sinks the whole card past the tray axis).
+      await page.waitForTimeout(900); // the away ride settles (620ms + slack)
+      const plateTop = (await page.locator('.con-handdock__plate').boundingBox())?.y ?? 0;
+      const bodyTops: Array<number> = await page.$$eval(
+        '.con-handbody[data-hand-body-mode="docked"]',
+        (els) => els.map((e) => e.getBoundingClientRect().top));
+      expect(bodyTops.length, 'the boot bought cards — the handover assert must not be vacuous').toBeGreaterThan(0);
+      for (const top of bodyTops) {
+        expect(top, 'an own docked card may not peek over the tray under a guest fan').toBeGreaterThan(plateTop - 2);
+      }
       // THE SHARED ZONES SIT AT THE SAME COORDINATES (±2px):
       const botVp = await zoneBox('vp');
       const botPlayed = await zoneBox('played');
-      const botCards = await zoneBox('cards');
       const botExtras = await zoneBox('extras');
       for (const [label, a, b] of [
         ['vp', humanVp, botVp], ['played', humanPlayed, botPlayed],
-        ['cards', humanCards, botCards], ['extras', humanExtras, botExtras],
+        ['extras', humanExtras, botExtras],
       ] as const) {
         expect(a && b, `${label} exists on both seats`).toBeTruthy();
         if (a && b) {
@@ -295,6 +340,12 @@ for (const preset of PRESETS) {
       await expect(page.locator('.con-res .con-res__prod')).toHaveCount(6);
       await expect(page.locator('.con-res .con-tagmx__grid')).toHaveCount(1);
       await expect(page.locator('.con-res .con-res__rows--bot')).toHaveCount(0);
+      // …and the DOCK comes home in the same breath: the guest fan leaves,
+      // the accent releases, the own «КАРТЫ n/m» ratio stands again.
+      await expect(dock).not.toHaveClass(/con-handdock--guest/);
+      await expect(dock).not.toHaveClass(/con-handdock--insp/);
+      await expect(page.locator('.con-handdock__insp')).toHaveCount(0);
+      await expect(page.locator('.con-handdock__status .con-handdock__sep')).toHaveCount(1);
       await shoot(page, preset, '08-closed-restored');
 
       // ── 9 · The board-home «Разыграно» (X): the SAME table serves the

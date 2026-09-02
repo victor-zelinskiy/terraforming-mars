@@ -89,21 +89,6 @@
         height: 3.2rem;
     }
 }
-/* The engine WAKE — fading owner-glow puffs the director lays along the
-   real flight path (spawned by travelled distance, disposed with the
-   flight). Pure radial-gradient + transform/opacity — paint-baseline-safe. */
-.con-fleet-puff {
-    position: fixed;
-    top: 0;
-    left: 0;
-    border-radius: 50%;
-    opacity: 0;
-    pointer-events: none;
-    background: radial-gradient(circle,
-        rgba(255, 255, 255, 0.55) 0%,
-        var(--fleet-glow, rgba(160, 200, 255, 0.5)) 34%,
-        transparent 72%);
-}
 
 /* ── LAUNCH state — the surface hands the screen to the flight ─
    The COLONY FOCUS STAGE has already FOLDED back into the traded tile at
@@ -186,5 +171,4 @@
     .con-coltile__planet-berth--docking .con-coltile__planet,
     .con-coltile--just-docked .con-coltile__dock,
     .con-colfocus__orbit--just-docked { animation: none; }
-    .con-fleet-puff { display: none; }
 }

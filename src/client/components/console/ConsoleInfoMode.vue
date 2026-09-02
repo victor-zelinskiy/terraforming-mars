@@ -53,7 +53,7 @@
 
       <!-- ── THE PARTICIPANT SUMMARY — ONE canonical layout for EVERY
            participant. The SHARED zones sit at the same coordinates for a
-           human and the bot (VP · played · cards · extras); the human-only
+           human and the bot (VP · played · extras); the human-only
            pair (actions / effects) renders AFTER them and its absence never
            shifts the shared geometry. The zones are a focus ring: d-pad
            moves, A opens the focused zone's route. -->
@@ -103,7 +103,12 @@
           </section>
         </div>
 
-        <!-- Col 2 — the card story: what was PLAYED, what remains to play. -->
+        <!-- Col 2 — the card story: what was PLAYED. What remains to play is
+             NOT a panel any more — the HAND DOCK below IS the inspected
+             seat's hand for the workspace's whole lifetime (the closed fan +
+             exact count for another human / the bot's action deck, the real
+             pack for the viewer) — one physical representation, never a
+             duplicated readout. -->
         <div class="con-info__col">
           <section class="con-info__zone con-info__zone--played"
                    :class="zoneStateClass('played')" data-zone="played">
@@ -120,20 +125,6 @@
               </div>
             </template>
             <div v-else class="con-info__empty">{{ $t('No cards played yet') }}</div>
-          </section>
-
-          <!-- «КАРТЫ» — the shared abstraction: how much card potential is
-               left. A human reads their hand; the bot reads its decks (the
-               deck MECHANICS live on «Экран бота», never here). A pure
-               readout — everything it knows is already on this face. -->
-          <section class="con-info__zone con-info__zone--cards" data-zone="cards">
-            <h3 class="con-info__block-title">{{ $t('Cards') }}</h3>
-            <div class="con-info__stat-lines">
-              <div v-for="row in cardRows" :key="row.key" class="con-info__stat-line">
-                <span>{{ $t(row.label) }}</span><b :class="{'con-info__mint': row.mint}">{{ row.value }}</b>
-              </div>
-            </div>
-            <div v-if="!isSelf && !viewedIsBot" class="con-info__note">{{ $t('Hand contents are hidden') }}</div>
           </section>
         </div>
 
@@ -351,7 +342,7 @@ import {iconClassFor} from '@/client/components/modalInputs/optionIcons';
 import {playerActionSourceCount, cardHasAction} from '@/client/components/actions/actionExtraction';
 import {playerEffects, playerEffectGroups, EffectGroup} from '@/client/components/effects/effectExtraction';
 import {buildLiveScoreModel, LiveScoreModel} from '@/client/console/liveScoreModel';
-import {findPerformActionCard, findPlayProjectCardAction} from '@/client/console/turnIntents';
+import {findPerformActionCard} from '@/client/console/turnIntents';
 import {infoModeState} from '@/client/console/infoModeState';
 import {
   infoRouteDepth,
@@ -550,22 +541,11 @@ export default defineComponent({
         .filter((r) => r.count > 0);
       return {total: rows.reduce((n, r) => n + r.count, 0), rows};
     },
-    /** «КАРТЫ» — the shared card-potential readout, honestly adapted. */
-    cardRows(): Array<{key: string, label: string, value: number, mint: boolean}> {
-      if (this.viewedIsBot && this.botAutoma !== undefined) {
-        return [
-          {key: 'action-deck', label: 'Action deck', value: this.botAutoma.actionDeckSize, mint: true},
-          {key: 'bonus-deck', label: 'Bonus deck', value: this.botAutoma.bonusDeckSize, mint: false},
-        ];
-      }
-      if (this.isSelf) {
-        return [
-          {key: 'playable', label: 'Playable now', value: this.cardsPlayable, mint: true},
-          {key: 'in-hand', label: 'In hand', value: this.cardsTotal, mint: false},
-        ];
-      }
-      return [{key: 'in-hand', label: 'In hand', value: this.cardsTotal, mint: false}];
-    },
+    /* («КАРТЫ» — the old shared card-potential readout — is GONE: the HAND
+       DOCK is the one physical representation of the inspected seat's hand
+       (dockInspection.ts — the closed fan + exact public count for another
+       human, the action deck for the bot, the real pack for the viewer).
+       The bonus deck stays on «Экран бота», where the deck MECHANICS live.) */
     /** Extra card resources aggregated by type (public — tableaus only). */
     extraGroups(): Array<{key: string, label: string, iconClass: string, total: number, cards: Array<{card: CardModel, amount: number}>}> {
       const byType = new Map<string, {label: string, total: number, cards: Array<{card: CardModel, amount: number}>}>();
@@ -607,20 +587,6 @@ export default defineComponent({
         return this.botExtraGroups.map((g) => ({key: g.key, iconClass: `con-info__exicon ${g.iconClass}`, total: g.total}));
       }
       return this.extraGroups.map((g) => ({key: g.key, iconClass: g.iconClass, total: g.total}));
-    },
-    cardsPlayable(): number {
-      if (!this.isSelf) {
-        return 0;
-      }
-      const play = findPlayProjectCardAction(this.playerView.waitingFor);
-      return (play?.input.cards ?? []).filter((c) => c.isDisabled !== true).length;
-    },
-    cardsTotal(): number {
-      if (this.isSelf) {
-        return this.playerView.cardsInHand.length + (this.playerView.thisPlayer.selfReplicatingRobotsCards ?? []).length;
-      }
-      // Opponent: the PUBLIC hand count only — contents stay hidden.
-      return this.viewed.cardsInHandNbr;
     },
     actionsAvailable(): number {
       return this.viewed.availableBlueCardActionCount;

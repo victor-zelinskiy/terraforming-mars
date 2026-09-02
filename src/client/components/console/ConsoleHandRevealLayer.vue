@@ -25,7 +25,7 @@
          :class="{
            'con-handbody--held': heldSet.has(c.name),
            'con-handbody--deep': deepSet.has(c.name),
-           'con-handbody--tucked': pose === 'compact' && modeOf(c.name) === 'docked',
+           'con-handbody--tucked': (pose === 'compact' || pose === 'away') && modeOf(c.name) === 'docked',
          }"
          :style="{zIndex: 3 + i, width: naturalW + 'px', height: naturalH + 'px'}"
          :data-hand-dock-card="c.name"

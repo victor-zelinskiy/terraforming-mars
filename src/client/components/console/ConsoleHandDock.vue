@@ -1,13 +1,15 @@
 <template>
   <div class="con-handdock"
        :class="{
-         'con-handdock--live': interactive,
+         'con-handdock--live': interactive && inspection === undefined,
          'con-handdock--raised': raised,
          'con-handdock--compact': compact && !raised,
          'con-handdock--empty': plan.empty,
-         'con-handdock--hot': playableCount > 0,
+         'con-handdock--hot': playableCount > 0 && inspection === undefined,
          'con-handdock--receiving': receiving,
          'con-handdock--intake': intake,
+         'con-handdock--insp': inspecting,
+         'con-handdock--guest': inspection !== undefined,
        }"
        role="button"
        tabindex="-1"
@@ -37,6 +39,35 @@
          so LESS and JS can never disagree about where the tray is). -->
     <div class="con-handdock__pack" aria-hidden="true"></div>
 
+    <!-- THE INSPECTION FAN (the Information Workspace inspecting ANOTHER
+         seat): a read-only closed fan of sleeves standing in the SAME tray
+         the viewer's own tucked pack occupies — the own pack rides to its
+         `away` pose (handBodies) and the guest hand takes the holder, so
+         the context switch reads as one physical object changing owner.
+         NOT hand bodies: these sleeves are derived from ONE integer (the
+         seat's public count / the bot's action-deck size), participate in
+         no flight, anchor no measure, and can never express a face, a name
+         or an order — privacy by construction. The single-owner pack
+         contract (handDockAnchorContract) is untouched: `__pack` stays the
+         empty geometry anchor, and no element here is a hand body. -->
+    <transition name="con-hdinsp">
+      <!-- Deliberately NO data-insp-* marker on the fan: its own enter/leave
+           transitions own its opacity (a gsap dip caught mid-leave would
+           fight them), and a seat switch between two foreign hands already
+           reads through the sleeves' re-spread + the counter's dip. -->
+      <div v-if="inspection !== undefined"
+           class="con-handdock__insp"
+           aria-hidden="true">
+        <span v-for="(s, i) in inspection.fan.slots"
+              :key="i"
+              class="con-handdock__insp-sleeve"
+              :class="{'con-handdock__insp-sleeve--deep': s.deep}"
+              :style="sleeveStyle(s, i)">
+          <span class="con-card-back"></span>
+        </span>
+      </div>
+    </transition>
+
     <!-- The tray PLATE (paints in front of the card bottoms — the pack sits
          IN the tray, not on top of the footer) + the STATUS line:
          «КАРТЫ playable/total» in the etched-kicker voice, HUD ratio
@@ -65,7 +96,21 @@
            On an actual page change the side chip of the turn's direction
            fires once (`--fired-*`, `pageFlash`) — the instrument answers
            the same beat the edge gate pulses on. -->
-      <span v-if="album !== undefined"
+      <!-- THE INSPECTION READOUT — the bay's third state: while the dock
+           represents ANOTHER seat, the centre carries that seat's exact
+           public count (one number, no playable half — playability is the
+           viewer's own private fact). Same absolutely-centred group, same
+           re-keyed digit animation; `data-insp-fade` joins the workspace's
+           LB/RB recompose beat with the rail's own value dip (the dock is
+           an anchor — it answers, never travels). -->
+      <span v-if="inspection !== undefined" class="con-handdock__status con-handdock__status--insp" data-insp-fade>
+        <span class="con-handdock__status-label">{{ $t('Cards') }}</span>
+        <span class="con-handdock__ratio">
+          <span :key="'i' + inspection.count"
+                class="con-handdock__num con-handdock__num--total con-handdock__num--insp">{{ inspection.count }}</span>
+        </span>
+      </span>
+      <span v-else-if="album !== undefined"
             class="con-handdock__pager"
             :class="{
               'con-handdock__pager--single': album.pages <= 1,
@@ -164,10 +209,19 @@
  * semantics — the mint first digit IS the playable accent). Future
  * receive-animations land on the per-card `data-hand-dock-card` anchors —
  * keep them stable.
+ *
+ * THE INSPECTION CONTEXT (`inspecting` / `inspection`): while the
+ * Information Workspace (Y) is open the dock is bound to the INSPECTED
+ * seat — the accent recolours to that player, and for a foreign seat the
+ * tray carries a read-only closed fan + the seat's exact public count
+ * (dockInspection.ts) while the own pack rides to its `away` pose. The fan
+ * sleeves are NOT hand bodies (derived from one integer, no flights, no
+ * anchors — privacy by construction).
  */
 import {defineComponent, PropType} from 'vue';
 import {CardModel} from '@/common/models/CardModel';
 import {handDockPlan, HandDockPlan} from '@/client/console/consoleHandDock';
+import {DockInspectionView, InspectionFanSlot} from '@/client/console/handDock/dockInspection';
 import {motionMs} from '@/client/components/motion/motionTokens';
 import {translateText} from '@/client/directives/i18n';
 import AnimatedMetricValue from '@/client/components/feedback/AnimatedMetricValue.vue';
@@ -251,6 +305,23 @@ export default defineComponent({
      * a card PHYSICALLY lands in the dock.
      */
     deliveryHeld: {type: Array as PropType<ReadonlyArray<string>>, default: () => []},
+    /**
+     * THE INFORMATION WORKSPACE IS OPEN — the dock is bound to the inspected
+     * seat (the `--insp` accent, recolouring through the `con-insp-<color>`
+     * root tokens the rail and the workspace seam already share). For the
+     * viewer's OWN seat this is the only change; a FOREIGN seat additionally
+     * carries `inspection`.
+     */
+    inspecting: {type: Boolean, default: false},
+    /**
+     * A FOREIGN seat's presentation (another human / the MarsBot): the
+     * closed fan + the exact public count replace the own pack and the
+     * «КАРТЫ n/m» counter; the dock is READ-ONLY for its duration (the
+     * click affordance and the `--hot` playable accent are own-hand facts
+     * and go dark). `undefined` = the ordinary own-hand dock — including
+     * while inspecting the viewer's own seat.
+     */
+    inspection: {type: Object as PropType<DockInspectionView | undefined>, default: undefined},
   },
   emits: ['open', 'page'],
   data() {
@@ -291,7 +362,10 @@ export default defineComponent({
       return handDockPlan(this.cards.length);
     },
     ariaLabel(): string {
-      return `${translateText('Cards in hand')}: ${this.count}`;
+      // A foreign seat: state the INSPECTED count, never the viewer's own —
+      // a screen reader must not read a number the screen does not show.
+      const shown = this.inspection !== undefined ? this.inspection.count : this.count;
+      return `${translateText('Cards in hand')}: ${shown}`;
     },
     /** The continuous progress fill (many-page albums). */
     progressStyle(): Record<string, string> {
@@ -344,9 +418,29 @@ export default defineComponent({
   },
   methods: {
     onClick(): void {
-      if (this.interactive) {
+      // Read-only by construction while a foreign seat stands in the dock —
+      // «open the hand» is an own-hand verb and may never fire on a guest.
+      if (this.interactive && this.inspection === undefined) {
         this.$emit('open');
       }
+    },
+    /**
+     * One inspection sleeve's box + placement (all rem — the profile scale
+     * rides the root font-size). The transform mirrors the compact pose's
+     * own math: pre-compacted x offsets, a uniform sink below the tray axis
+     * and the pack scale about each sleeve's bottom centre.
+     */
+    sleeveStyle(s: InspectionFanSlot, i: number): Record<string, string> {
+      const f = this.inspection?.fan;
+      if (f === undefined) {
+        return {}; // unreachable — the fan renders only under a live inspection
+      }
+      return {
+        width: `${f.cardWRem}rem`,
+        height: `${f.cardHRem}rem`,
+        zIndex: String(3 + i),
+        transform: `translateX(-50%) translate(${s.xRem}rem, ${f.sinkRem}rem) scale(${f.scale})`,
+      };
     },
     /** A pager side clicked — the shell turns the album page. A muted side
      *  still swallows the click (the edge is felt, nothing else happens). */

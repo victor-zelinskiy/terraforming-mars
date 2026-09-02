@@ -1,26 +1,23 @@
 <template>
   <!--
-    Trade-fleet LAUNCH PAD — a compact premium SVG platform each fleet berths
-    on in the console colonies header. A dark docking cradle with a raised
-    deck + landing lights; `occupied` lights the owner-hue glow (a fleet sits
-    here), an EMPTY pad (its fleet is out trading / spent) stays dim — the
-    slot never collapses, so a launched fleet leaves a clean empty pad with
-    no reflow. Colour rides the `fleet-hue--<color>` custom props like the
-    ship. Presentation (size) is owned by the host; this is the pad primitive.
+    Trade-fleet LAUNCH PAD — the berth a fleet sits on in the console
+    colonies header. The minimalist pass: a low dark plate with ONE
+    luminous deck line (lit in the owner hue while a fleet berths on it)
+    and two quiet edge ticks — a modern landing marker, not an illustrated
+    platform. An EMPTY pad (its fleet is out trading / spent) keeps the
+    plate + a dim deck line, and its slot never collapses — a launched
+    fleet leaves a clean vacant berth with no reflow. Colour rides the
+    `fleet-hue--<color>` custom props like the ship.
   -->
   <svg class="colony-fleet-pad"
        :class="['fleet-hue--' + color, {'colony-fleet-pad--occupied': occupied}]"
        viewBox="0 0 34 16" aria-hidden="true" focusable="false">
-    <!-- Cradle base (perspective trapezoid). -->
-    <path class="cfp-base" d="M5 10.5 L29 10.5 L32 15.4 L2 15.4 Z" />
-    <!-- Raised deck bar the ship rests on. -->
-    <rect class="cfp-deck" x="6.5" y="8.9" width="21" height="2.4" rx="1.1" />
-    <!-- Landing lights along the deck. -->
-    <circle class="cfp-light" cx="10" cy="10.1" r="0.95" />
-    <circle class="cfp-light" cx="17" cy="10.1" r="0.95" />
-    <circle class="cfp-light" cx="24" cy="10.1" r="0.95" />
-    <!-- Guide struts. -->
-    <path class="cfp-strut" d="M6.5 8.9 L4.4 15.4 M27.5 8.9 L29.6 15.4" />
+    <!-- The plate (a shallow perspective slab). -->
+    <path class="cfp-base" d="M6 9.6 L28 9.6 L31 15.2 L3 15.2 Z" />
+    <!-- The deck line the ship rests on (the one light of the pad). -->
+    <rect class="cfp-deck" x="7.5" y="8.6" width="19" height="1.5" rx="0.75" />
+    <!-- Quiet edge ticks. -->
+    <path class="cfp-tick" d="M5.2 11.6 L4.4 13.2 M28.8 11.6 L29.6 13.2" />
   </svg>
 </template>
 
@@ -30,7 +27,7 @@ import {Color} from '@/common/Color';
 
 /**
  * Stateless per-fleet launch pad. `color` = the owning player's colour (the
- * occupied-glow hue), `occupied` = a fleet currently berths here (lights on).
+ * occupied deck-line hue), `occupied` = a fleet currently berths here.
  */
 export default defineComponent({
   name: 'ColonyFleetPad',

@@ -115,7 +115,6 @@ export default defineComponent({
         ship,
         from,
         to,
-        hueClass: tradeFleetState.color !== '' ? `fleet-hue--${tradeFleetState.color}` : '',
         reduced: tradeFleetState.reducedMotion,
         onPhase: (phase: FleetPhaseName) => setTradeFleetPhase(phase),
       });
