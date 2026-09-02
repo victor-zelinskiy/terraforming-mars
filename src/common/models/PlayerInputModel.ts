@@ -3,6 +3,7 @@ import {ColonyModel} from './ColonyModel';
 import type {ActionEffect, VictoryPointsDelta} from './ActionPreviewModel';
 import type {BotAttackPromptMeta} from './BotAttackPromptModel';
 import type {DeltaBonusPromptMeta} from './DeltaBonusPromptModel';
+import type {DeltaBlockadeProjectionModel} from './DeltaBlockadeModel';
 import type {DeltaEspionageProjectionModel} from './DeltaEspionageModel';
 import type {TargetImpact, TargetImpactChange} from './TargetImpactModel';
 import {CardName} from '../cards/CardName';
@@ -553,6 +554,7 @@ export type SelectProjectCardToPlayModel = BaseInputModel & {
   kuiperAsteroids: number;
   auroraiData: number;
   spireScience: number;
+  floodgateSteel: number;
 }
 
 export type SelectCardModel = BaseInputModel & {
@@ -604,6 +606,7 @@ export type SelectPaymentModel = BaseInputModel & {
   floaters: number,
   microbes: number,
   graphene: number,
+  floodgateSteel: number,
 }
 
 export type SelectPlayerModel = BaseInputModel & {
@@ -806,6 +809,16 @@ export type DeltaEspionageInputModel = BaseInputModel & {
   projection: DeltaEspionageProjectionModel;
 }
 
+/** Modular Floodgates (DP11), variant B: the deployment's server-authored
+ *  projection — every candidate with their live position, the cell the
+ *  blockade would occupy, and each refusal named. The client renders and
+ *  validates against THIS, never a re-derivation.
+ *  See {@link DeltaBlockadeProjectionModel}. */
+export type DeltaBlockadeInputModel = BaseInputModel & {
+  type: 'deltaBlockade';
+  projection: DeltaBlockadeProjectionModel;
+}
+
 export type SelectDelegateModel = BaseInputModel & {
   type: 'delegate';
   players: Array<ColorWithNeutral>;
@@ -874,4 +887,5 @@ export type PlayerInputModel =
   SelectClaimedUndergroundTokenModel |
   DeltaProjectInputModel |
   DeltaStageRewardInputModel |
-  DeltaEspionageInputModel;
+  DeltaEspionageInputModel |
+  DeltaBlockadeInputModel;

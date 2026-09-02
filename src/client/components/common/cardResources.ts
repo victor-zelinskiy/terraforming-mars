@@ -27,4 +27,8 @@ export const cardResourceCSS = {
   [CardResource.JOURNALISM]: 'card-resource-journalism',
   [CardResource.SUPPLY_CHAIN]: 'card-resource-supply-chain',
   [CardResource.DIRECTOR]: 'card-resource-director',
+  // Modular Floodgates (DP11): stored steel IS steel — the existing legacy
+  // steel sprite class (cards_v2.less) already paints it; the premium face
+  // resolves `assets/resources/steel.png` by name with no mapping at all.
+  [CardResource.STEEL]: 'card-resource-steel',
 } satisfies Record<CardResource, string>;

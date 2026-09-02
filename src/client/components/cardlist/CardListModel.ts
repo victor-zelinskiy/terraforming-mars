@@ -165,6 +165,7 @@ export function hashToModel(windowLocationHash: string): CardListModel {
       [CardResource.JOURNALISM]: true,
       [CardResource.ACTIVIST]: true,
       [CardResource.SUPPLY_CHAIN]: true,
+      [CardResource.STEEL]: true,
     },
     searchIndex: SearchIndex.create(),
     namesOnly: true,

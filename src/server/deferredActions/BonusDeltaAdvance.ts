@@ -5,7 +5,8 @@ import {DeferredAction} from './DeferredAction';
 import {Priority} from './Priority';
 import {OrOptions} from '../inputs/OrOptions';
 import {SelectOption} from '../inputs/SelectOption';
-import {AdvanceOptions, DeltaProjectExpansion} from '../delta/DeltaProjectExpansion';
+import {AdvanceOptions, DeltaProjectExpansion, MAX_TRACK_POSITION} from '../delta/DeltaProjectExpansion';
+import {activeDeltaBlockade} from '../delta/deltaMovement';
 import {namedCardEffect} from '../inputs/choiceContext';
 import type {DeltaMovementBonusProjection} from '../../common/models/DeltaTrackPreviewModel';
 
@@ -72,6 +73,17 @@ export class BonusDeltaAdvance extends DeferredAction {
   public execute(): PlayerInput | undefined {
     const options = this.offer();
     if (options === undefined) {
+      // A move that is impossible by the player's OWN state (tags, energy,
+      // the end of the track) drops quietly — the standing contract of this
+      // offer. A move stopped by an OPPONENT's blockade is different: the
+      // suppressed effect names itself (no silent loss), so the owner learns
+      // their ocean's bonus step was taken from them and by what.
+      const blockade = activeDeltaBlockade(this.player);
+      if (blockade !== undefined && this.player.deltaProjectData !== undefined &&
+          this.player.deltaProjectData.position < MAX_TRACK_POSITION) {
+        this.player.game.log('${0} could not take the bonus Hydronetwork step of ${1} — blocked by ${2} until the next generation', (b) =>
+          b.player(this.player).card(this.source).cardName(blockade.card));
+      }
       return undefined;
     }
     const player = this.player;

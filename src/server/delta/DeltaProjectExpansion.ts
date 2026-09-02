@@ -24,7 +24,9 @@ import {UnplayableReason} from '../../common/cards/UnplayableReason';
 import {notEnoughEnergy, ruleReason} from '../cards/actionReasons';
 import {DeltaStageAnswer} from '../../common/inputs/InputResponse';
 import {clearBatchTail, parkBatchTail} from '../inputs/deferredInputBatch';
-import {DeltaMovementCause, commitDeltaMovement, commitDeltaRetreat, plannedDeltaMovement, resolveDeltaMovementBonuses} from './deltaMovement';
+import {DeltaMovementCause, activeDeltaBlockade, commitDeltaMovement, commitDeltaRetreat, plannedDeltaMovement, resolveDeltaMovementBonuses} from './deltaMovement';
+import {DeltaBlockadeTargetBlockedReason} from '../../common/models/DeltaBlockadeModel';
+import {DeltaBlockade} from '../../common/models/DeltaProjectPlayerModel';
 import {DeltaEspionageBlockedReason, DeltaStageOutcomeProjection} from '../../common/models/DeltaEspionageModel';
 
 /**
@@ -354,9 +356,12 @@ export class DeltaProjectExpansion {
     const currentPos = progress.position;
     const energy = player.energy;
     // Delta Works: steel pays 1:1 for the STANDARD advance, so the budget the
-    // preview grades affordability against is energy + the live substitute.
+    // preview grades affordability against is energy + the live substitutes —
+    // stock steel and Modular Floodgates card steel each stated as its OWN
+    // pool (separate sources, separately chosen; never one merged number).
     const steelSubstitute = DeltaWorks.steelSubstituteAvailable(player);
-    const budget = energy + steelSubstitute;
+    const floodgateSubstitute = DeltaWorks.floodgateSteelSubstituteAvailable(player);
+    const budget = energy + steelSubstitute + floodgateSubstitute;
     // The preview covers the WHOLE remaining track (not just affordable steps) so
     // the player can click any distant stage to study it; the budget only gates
     // the stepper bound + the confirm.
@@ -423,14 +428,22 @@ export class DeltaProjectExpansion {
     }
     const animalTargetCards = new AddResourcesToCard(player, CardResource.ANIMAL, {count: 2}).getCards().map((c) => c.name);
 
+    // A standing blockade rules out EVERY forward move: the per-destination
+    // legality above stays informational (the player can still study a stage),
+    // but nothing is confirmable — the same verdict `getValidAdvanceSteps`
+    // gives, restated so the plan panel's reasons and the CTA agree.
+    const blockade = activeDeltaBlockade(player);
+
     return {
       currentPosition: currentPos,
       availableEnergy: energy,
       availableSteelSubstitute: steelSubstitute,
       ...(steelSubstitute > 0 ? {steelSubstituteCard: CardName.DELTA_WORKS} : {}),
+      ...(floodgateSubstitute > 0 ? {availableFloodgateSteelSubstitute: floodgateSubstitute} : {}),
+      ...(blockade !== undefined ? {blockade} : {}),
       usedThisGeneration: progress.usedThisGeneration === true,
       atEndOfTrack: currentPos >= MAX_TRACK_POSITION,
-      maxLegalSteps,
+      maxLegalSteps: blockade !== undefined ? 0 : maxLegalSteps,
       maxEnergySteps: Math.max(0, Math.min(budget, MAX_TRACK_POSITION - currentPos)),
       maxPreviewSteps,
       destinations,
@@ -456,6 +469,16 @@ export class DeltaProjectExpansion {
       return [];
     }
 
+    // A STANDING BLOCKADE (Modular Floodgates) forbids EVERY forward move,
+    // whatever pays for it or grants it — the standard action, DP03's bonus
+    // step, DP04's card action, DP10's own advance and any future context all
+    // ask this one function, so the single check here closes them all. The
+    // movement ledger (`commitDeltaMovement`) holds the same line as the
+    // last-resort hard gate.
+    if (activeDeltaBlockade(player) !== undefined) {
+      return [];
+    }
+
     const result: number[] = [];
     // A bonus move is bounded by what the CARD grants, not by the stock: it
     // pays no per-step energy, so the player's energy must not shorten it.
@@ -464,7 +487,9 @@ export class DeltaProjectExpansion {
     // toll stays energy-only, so the substitute never widens it.
     const budget = options?.free === true ?
       (options.maxSteps ?? MAX_TRACK_POSITION) :
-      Math.min(player.energy + DeltaWorks.steelSubstituteAvailable(player), options?.maxSteps ?? MAX_TRACK_POSITION);
+      Math.min(
+        player.energy + DeltaWorks.steelSubstituteAvailable(player) + DeltaWorks.floodgateSteelSubstituteAvailable(player),
+        options?.maxSteps ?? MAX_TRACK_POSITION);
     const maxByEnergy = Math.min(budget, MAX_TRACK_POSITION - currentPos);
 
     for (let steps = 1; steps <= maxByEnergy; steps++) {
@@ -513,6 +538,12 @@ export class DeltaProjectExpansion {
     }
     if (progress.position >= MAX_TRACK_POSITION) {
       return ruleReason('You have reached the end of the Hydronetwork track.');
+    }
+    // A standing blockade outranks every economic shortfall: the move is
+    // forbidden by a RULE, and telling the player about energy or tags while
+    // it stands would send them shopping for a fix that cannot help.
+    if (activeDeltaBlockade(player) !== undefined) {
+      return DeltaProjectExpansion.blockadeReason();
     }
     // The price of the move: the whole-move toll when the card pays per move,
     // else the standard action's 1 energy per step.
@@ -600,11 +631,15 @@ export class DeltaProjectExpansion {
     answers?: ReadonlyArray<DeltaStageAnswer>,
     /**
      * The STANDARD advance's chosen payment mix (Delta Works: 1 steel = 1
-     * energy). Must total `steps`; steel > 0 requires the card in the tableau.
-     * Absent = the energy-first default (energy, then steel for the deficit
-     * only). Ignored for `free` bonus contexts — their toll is energy-only.
+     * energy). Must total `steps`; steel > 0 requires the card in the tableau,
+     * and `cardSteel` (Modular Floodgates' stored steel, the same 1:1
+     * substitution from its own source) additionally requires that card to
+     * hold the resources. Absent = the energy-first default (energy, then
+     * stock steel for the deficit only — card steel is a PROTECTED source and
+     * is never auto-taken: a default that would need it throws instead).
+     * Ignored for `free` bonus contexts — their toll is energy-only.
      */
-    payment?: {energy: number, steel: number},
+    payment?: {energy: number, steel: number, cardSteel?: number},
   }): void {
     // Re-validated against the SAME option set the offer was computed with —
     // the authoritative check happens HERE, at commit, never at prompt time.
@@ -676,6 +711,18 @@ export class DeltaProjectExpansion {
         // the card so the journal/event stream names the modifier.
         player.stock.deduct(Resource.STEEL, payment.steel, {log: false, from: {card: CardName.DELTA_WORKS}});
       }
+      if (payment.cardSteel > 0) {
+        // Modular Floodgates steel leaves the CARD it is stored on — the one
+        // deduction point for that source (`removeResourceFrom` records the
+        // card-resource delta; the log lines below state the honest mix).
+        const floodgates = player.playedCards.get(CardName.MODULAR_FLOODGATES);
+        if (floodgates === undefined || floodgates.resourceCount < payment.cardSteel) {
+          // Unreachable after resolveAdvancePayment — stated as a throw so a
+          // future re-order cannot turn it into a silent stock deduction.
+          throw new Error('Not enough steel on Modular Floodgates for the Hydronetwork advance');
+        }
+        player.removeResourceFrom(floodgates, payment.cardSteel, {log: false});
+      }
       // THE ONE COMMIT POINT for a position change on this track
       // (`deltaMovement.ts` — shared with the Solo Delta Project resolution, so
       // a human move and a bot move publish the SAME fact). It writes the
@@ -697,15 +744,21 @@ export class DeltaProjectExpansion {
         progress.stops.push({position: newPos, generation: game.generation});
 
         // The log names the ACTUAL mix spent — never «N energy» over steel.
-        if (payment.steel === 0) {
+        const steelTotal = payment.steel + payment.cardSteel;
+        if (steelTotal === 0) {
           game.log('${0} directed ${1} energy into the Hydronetwork, reaching ${2}', (b) =>
             b.player(player).number(steps).string(stageName));
         } else if (payment.energy === 0) {
           game.log('${0} directed ${1} steel into the Hydronetwork, reaching ${2}', (b) =>
-            b.player(player).number(payment.steel).string(stageName));
+            b.player(player).number(steelTotal).string(stageName));
         } else {
           game.log('${0} directed ${1} energy and ${2} steel into the Hydronetwork, reaching ${3}', (b) =>
-            b.player(player).number(payment.energy).number(payment.steel).string(stageName));
+            b.player(player).number(payment.energy).number(steelTotal).string(stageName));
+        }
+        // A protected source spent is a named fact, never folded into a total.
+        if (payment.cardSteel > 0) {
+          game.log('${0} of the steel came from ${1}', (b) =>
+            b.number(payment.cardSteel).cardName(CardName.MODULAR_FLOODGATES));
         }
 
         if (newPos === VP2_POSITION) {
@@ -904,6 +957,123 @@ export class DeltaProjectExpansion {
   }
 
   /**
+   * THE STANDING MODULAR FLOODGATES BLOCKADE against `player`, or `undefined`.
+   * Thin delegate to the movement ledger's own gate ({@link activeDeltaBlockade}
+   * in `deltaMovement.ts`) so «is this player blocked» has exactly one
+   * definition — active ⇔ the record names the current generation.
+   */
+  public static activeBlockade(player: IPlayer): DeltaBlockade | undefined {
+    return activeDeltaBlockade(player);
+  }
+
+  /**
+   * The ONE refusal wording every advance surface states for a standing
+   * blockade — the card-level `UnplayableReason` voice. The RICH payload (who
+   * deployed it, the source card, the expiry) is not squeezed in here: it
+   * rides the player model itself (`deltaProjectData.blockade` reaches every
+   * viewer), so the workspaces name the attacker and offer the inspection
+   * from structured state, never from a parsed string.
+   */
+  public static blockadeReason(): UnplayableReason {
+    return ruleReason('Hydronetwork advancement is blocked by Modular Floodgates until the next generation');
+  }
+
+  /**
+   * WHY `target` CANNOT RECEIVE A BLOCKADE in front of their marker — the ONE
+   * eligibility verdict the projection and the commit share (`undefined` ⇔
+   * legal), the sibling of {@link retreatBlockedReason}:
+   *
+   *  - `track-end` — a marker on the last cell has no forward movement left
+   *    to block (the honest answer is that they are not a target at all);
+   *  - `vp-protected` — the printed «excluding the VP steps»: the blockade
+   *    stands on the cell in FRONT of the marker, and that cell may not be a
+   *    VP terminal (positions 9 and 10 are therefore protected);
+   *  - `already-blocked` — an equivalent blockade is already active this
+   *    generation; a second module creates no rule-valid new effect.
+   *
+   * Self-targeting is unexpressible: the owner is never listed by the
+   * projection, exactly as for the espionage attack.
+   */
+  public static blockadeTargetBlockedReason(target: IPlayer): DeltaBlockadeTargetBlockedReason | undefined {
+    const position = target.deltaProjectData?.position ?? 0;
+    if (position >= MAX_TRACK_POSITION) {
+      return 'track-end';
+    }
+    const ahead = position + 1;
+    if (ahead === VP2_POSITION || ahead === VP5_POSITION) {
+      return 'vp-protected';
+    }
+    if (activeDeltaBlockade(target) !== undefined) {
+      return 'already-blocked';
+    }
+    return undefined;
+  }
+
+  /**
+   * THE ONE COMMIT POINT FOR A BLOCKADE (Modular Floodgates, DP11): write the
+   * player-targeted status, state it in the journal, and publish the canonical
+   * machine-readable fact (`delta-blockade-changed`) the notification layer
+   * and any future journal read — never a localized log line.
+   *
+   * Eligibility is re-validated HERE, against the live position — a
+   * crafted/stale target throws before anything mutates. The steel that pays
+   * for the module is the CALLER's own cost (removed from the source card
+   * before this runs); this function owns only the domain status.
+   *
+   * The status is PLAYER-TARGETED, never cell-bound: a legal backward move
+   * (Corporate Espionage) keeps it attached, and the client renders it at the
+   * target's CURRENT position. It expires exactly once at the start of the
+   * next generation ({@link expireBlockades}).
+   */
+  public static placeBlockade(target: IPlayer, opts: {source: CardName, by: IPlayer}): void {
+    const blocked = DeltaProjectExpansion.blockadeTargetBlockedReason(target);
+    if (blocked !== undefined) {
+      throw new Error(`${target.color} cannot receive a Hydronetwork blockade (${blocked})`);
+    }
+    if (target === opts.by) {
+      throw new Error('A Hydronetwork blockade cannot target its own deployer');
+    }
+    const game = target.game;
+    const progress = DeltaProjectExpansion.getProgress(target);
+    progress.blockade = {by: opts.by.color, card: opts.source, generation: game.generation};
+    game.log('${0} deployed ${1} in front of ${2} on the Hydronetwork — their advancement is blocked until the next generation', (b) =>
+      b.player(opts.by).cardName(opts.source).player(target));
+    game.events.recordDeltaBlockade(target, {phase: 'placed', by: opts.by.color, card: opts.source, untilGeneration: game.generation + 1});
+  }
+
+  /**
+   * THE ONE EXPIRATION POINT, called from `Game.startGeneration` right after
+   * the generation increments — NOT from `runProductionPhase`, which MarsBot
+   * deliberately skips (a blockade against the bot must expire on the same
+   * boundary a human's does). Exactly-once by construction: the record is
+   * removed, so a second call finds nothing; and a save reloaded ON the
+   * boundary is safe either way, because {@link activeBlockade} already
+   * answers `undefined` for a stale record — this cleanup is bookkeeping and
+   * the journal's expiration fact, never the rule itself.
+   *
+   * The steel that became the module is NOT returned (the printed rule:
+   * «Remove the blockade», not «recover the steel»). Deliberately quiet: a
+   * journal-visible fact and a log line, never a notification — the player
+   * reads the freed track the next time they look.
+   */
+  public static expireBlockades(game: IGame): void {
+    for (const player of game.players) {
+      const progress = player.deltaProjectData;
+      const blockade = progress?.blockade;
+      if (progress === undefined || blockade === undefined) {
+        continue;
+      }
+      if (blockade.generation >= game.generation) {
+        continue;
+      }
+      delete progress.blockade;
+      game.log('The ${0} blockade in front of ${1} on the Hydronetwork is removed — their advancement is free again', (b) =>
+        b.cardName(blockade.card).player(player));
+      game.events.recordDeltaBlockade(player, {phase: 'expired', by: blockade.by, card: blockade.card, untilGeneration: blockade.generation + 1});
+    }
+  }
+
+  /**
    * WHAT LANDING ON `position` PAYS `player` — the PURE projection mirror of
    * {@link resolveReward}, kept deliberately tiny and co-maintained with that
    * switch (a reward change there is a change here, one diff; the sibling of
@@ -1036,37 +1206,46 @@ export class DeltaProjectExpansion {
     player: IPlayer,
     steps: number,
     options: AdvanceOptions | undefined,
-    requested: {energy: number, steel: number} | undefined,
-  ): {energy: number, steel: number} {
+    requested: {energy: number, steel: number, cardSteel?: number} | undefined,
+  ): {energy: number, steel: number, cardSteel: number} {
     if (options?.free === true) {
-      return {energy: options.energyToll ?? 0, steel: 0};
+      return {energy: options.energyToll ?? 0, steel: 0, cardSteel: 0};
     }
     const substitute = DeltaWorks.steelSubstituteAvailable(player);
+    const floodgateSubstitute = DeltaWorks.floodgateSteelSubstituteAvailable(player);
     if (requested !== undefined) {
       const {energy, steel} = requested;
-      if (!Number.isInteger(energy) || !Number.isInteger(steel) || energy < 0 || steel < 0) {
+      const cardSteel = requested.cardSteel ?? 0;
+      if (!Number.isInteger(energy) || !Number.isInteger(steel) || !Number.isInteger(cardSteel) ||
+          energy < 0 || steel < 0 || cardSteel < 0) {
         throw new Error('Invalid Hydronetwork payment: amounts must be non-negative integers');
       }
-      if (energy + steel !== steps) {
-        throw new Error(`Invalid Hydronetwork payment: ${String(energy)} energy + ${String(steel)} steel does not equal ${String(steps)} step(s)`);
+      if (energy + steel + cardSteel !== steps) {
+        throw new Error(`Invalid Hydronetwork payment: ${String(energy)} energy + ${String(steel)} steel + ${String(cardSteel)} card steel does not equal ${String(steps)} step(s)`);
       }
-      if (steel > 0 && substitute === 0) {
+      if ((steel > 0 || cardSteel > 0) && !player.tableau.has(CardName.DELTA_WORKS)) {
         throw new Error('Steel cannot pay for Hydronetwork steps without Delta Works');
       }
       if (steel > substitute) {
         throw new Error('Not enough steel for the Hydronetwork advance');
       }
+      if (cardSteel > floodgateSubstitute) {
+        throw new Error('Not enough steel on Modular Floodgates for the Hydronetwork advance');
+      }
       if (energy > player.energy) {
         throw new Error('Not enough energy for the Hydronetwork advance');
       }
-      return requested;
+      return {energy, steel, cardSteel};
     }
+    // The default mix NEVER touches Modular Floodgates: card steel is a
+    // protected source the player commits explicitly, so a legacy/absent mix
+    // that would need it refuses instead of quietly draining the card.
     const steel = Math.min(Math.max(0, steps - player.energy), substitute);
     const energy = steps - steel;
     if (energy > player.energy) {
       throw new Error('Not enough energy for the Hydronetwork advance');
     }
-    return {energy, steel};
+    return {energy, steel, cardSteel: 0};
   }
 
   /**
@@ -1269,9 +1448,16 @@ export class DeltaProjectExpansion {
         progress.jovianBonus = true;
         player.tags.extraJovianTags++;
         player.triggerOnNonCardTagAdded(Tag.JOVIAN);
+        // Wrapped per hook owner like the engine's own fan-outs (Game's tile
+        // fan-out, AutomaHumanTagReactions' tag fan-out): a foreign owner's
+        // payout (Saturn Systems' +1 M€ production) must record as THEIR
+        // effect, never fold anonymously into the actor's own chain.
         for (const p of player.game.playersInGenerationOrder) {
           for (const card of p.tableau) {
-            card.onNonCardTagAddedByAnyPlayer?.(p, Tag.JOVIAN);
+            if (card.onNonCardTagAddedByAnyPlayer === undefined) {
+              continue;
+            }
+            player.game.events.withEffect(p, card, 'tag-added', () => card.onNonCardTagAddedByAnyPlayer?.(p, Tag.JOVIAN));
           }
         }
         player.game.log('${0} gained a Jovian tag from the Hydronetwork', (b) => b.player(player));

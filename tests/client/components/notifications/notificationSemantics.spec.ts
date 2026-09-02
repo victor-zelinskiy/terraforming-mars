@@ -109,6 +109,30 @@ describe('notificationSemantics (viewer-relative sign + importance)', () => {
       expect(impact.sourceCard).to.eq(CARD);
     });
 
+    it('a Modular Floodgates BLOCKADE placed against the viewer is a track-scoped worded loss naming the deployer', () => {
+      // The canonical `delta-blockade-changed` fact: no number moved — the
+      // loss is the standing ban itself, carried by the worded chip unit
+      // (`hydro-blockade`), scope 'track', the deployer as the attacker.
+      const chain = [
+        event({id: 1, type: 'delta-blockade-changed', player: BLUE, correlationId: 1, target: {player: RED}, source: {kind: 'card', card: CARD, owner: RED}, impact: {deltaBlockade: {phase: 'placed', untilGeneration: 4}}}),
+      ];
+      const impact = viewerImpactOfChain(chain, BLUE, RED);
+      expect(impact.sign).to.eq('negative');
+      expect(impact.losses).to.deep.eq([{icon: 'hydro-blockade', text: ''}]);
+      expect(impact.scope).to.eq('track');
+      expect(impact.attacker).to.eq(RED);
+      expect(impact.sourceCard).to.eq(CARD);
+    });
+
+    it('a blockade EXPIRATION is a quiet journal fact — never a band', () => {
+      const chain = [
+        event({id: 1, type: 'delta-blockade-changed', player: BLUE, correlationId: 1, source: {kind: 'card', card: CARD, owner: RED}, impact: {deltaBlockade: {phase: 'expired', untilGeneration: 4}}}),
+      ];
+      const impact = viewerImpactOfChain(chain, BLUE, RED);
+      expect(impact.sign).to.eq('neutral');
+      expect(impact.losses).to.deep.eq([]);
+    });
+
     it('a FORWARD delta move of the viewer inside a foreign chain grows no loss row', () => {
       const chain = [
         event({id: 1, type: 'delta-position-changed', player: BLUE, correlationId: 1, impact: {deltaPosition: {from: 1, to: 2, steps: 1}}}),

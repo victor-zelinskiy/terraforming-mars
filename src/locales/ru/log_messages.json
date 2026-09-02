@@ -373,5 +373,10 @@
     "${0} pushed ${1} back on the Hydronetwork to ${2} via ${3}": "${0} отодвинул ${1} назад по Гидросети до этапа «${2}» с помощью ${3}",
     "${0} takes no Hydronetwork stage reward (Bot rules)": "${0} не получает награду этапа Гидросети (правила Бота)",
     "${0} found no player to push back on the Hydronetwork — the attack of ${1} is skipped": "${0} не нашёл, кого отодвинуть назад по Гидросети — атака ${1} пропущена",
-    "${0} could no longer advance on the Hydronetwork — the advance of ${1} is skipped": "${0} больше не может продвинуться по Гидросети — продвижение от ${1} пропущено"
+    "${0} could no longer advance on the Hydronetwork — the advance of ${1} is skipped": "${0} больше не может продвинуться по Гидросети — продвижение от ${1} пропущено",
+    "${0} deployed ${1} in front of ${2} on the Hydronetwork — their advancement is blocked until the next generation": "${0} развернул ${1} перед фишкой ${2} на Гидросети — его продвижение заблокировано до начала следующего поколения",
+    "The ${0} blockade in front of ${1} on the Hydronetwork is removed — their advancement is free again": "Блокада ${0} перед фишкой ${1} на Гидросети снята — продвижение снова свободно",
+    "${0} could not advance on the Hydronetwork — blocked by ${1} until the next generation": "${0} не смог продвинуться по Гидросети — заблокирован ${1} до следующего поколения",
+    "${0} could not take the bonus Hydronetwork step of ${1} — blocked by ${2} until the next generation": "${0} не смог сделать бонусный шаг по Гидросети от ${1} — заблокирован ${2} до следующего поколения",
+    "${0} of the steel came from ${1}": "${0} стали — с карты ${1}"
 }

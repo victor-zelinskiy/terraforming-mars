@@ -233,6 +233,16 @@ export interface DeltaProjectInputResponse {
    */
   steel?: number;
   /**
+   * Modular Floodgates steel spent 1:1 in place of energy for this advance —
+   * the same Delta Works substitution the `steel` share rides, drawn from the
+   * CARD's own stored resources instead of the player's stock. Its own field
+   * because it is its own SOURCE: the server deducts it from the card, never
+   * from `player.steel`, and the console offers it as a separate, explicitly
+   * chosen dial (a protected source is never auto-mixed). Omitted (never 0)
+   * when unused — historical wire shapes stay byte-identical.
+   */
+  cardSteel?: number;
+  /**
    * PER-POSITION conscious declines of target-bearing stage rewards along a
    * multi-reward traversal (Delta Surge — one path can hold BOTH the position
    * 7 repeat and the position 9 animals, each answered or declined on its
@@ -309,7 +319,7 @@ export function isDeltaProjectInputResponse(response: InputResponse): response i
   }
   // `amount` is required; the optional fields compose freely (each is
   // omitted when meaningless, so the historical shapes stay byte-identical).
-  const allowed = ['type', 'amount', 'waiveReward', 'steel', 'waivedSteps', 'plannedActions', 'plannedChoices', 'answers'];
+  const allowed = ['type', 'amount', 'waiveReward', 'steel', 'cardSteel', 'waivedSteps', 'plannedActions', 'plannedChoices', 'answers'];
   const keys = Object.keys(response);
   return keys.includes('amount') && keys.every((k) => allowed.includes(k));
 }
@@ -348,6 +358,30 @@ export function isDeltaEspionageResponse(response: InputResponse): response is D
   return Object.keys(response).every((k) => allowed.includes(k));
 }
 
+/**
+ * Modular Floodgates (DP11), variant B: which opponent receives the blockade.
+ * `target` is REQUIRED (the variant does not exist without a legal target —
+ * unlike DP10 there is no owner half to fall back to). `expectedTargetFrom`
+ * pins the client's rendered prognosis: a commit whose live position moved
+ * refuses instead of blocking a marker the player never saw there.
+ */
+export interface DeltaBlockadeResponse {
+  type: 'deltaBlockade',
+  /** The blocked player. */
+  target: Color;
+  /** The target's position the client rendered (the blockade lands at +1). */
+  expectedTargetFrom?: number;
+}
+
+export function isDeltaBlockadeResponse(response: InputResponse): response is DeltaBlockadeResponse {
+  if (response.type !== 'deltaBlockade') {
+    return false;
+  }
+  const allowed = ['type', 'target', 'expectedTargetFrom'];
+  const keys = Object.keys(response);
+  return keys.includes('target') && keys.every((k) => allowed.includes(k));
+}
+
 export type InputResponse =
   AndOptionsResponse |
   CancelResponse |
@@ -356,6 +390,7 @@ export type InputResponse =
   SelectAmountResponse |
   DeltaProjectInputResponse |
   DeltaEspionageResponse |
+  DeltaBlockadeResponse |
   DeltaStageRewardResponse |
   SelectCardResponse |
   SelectColonyResponse |

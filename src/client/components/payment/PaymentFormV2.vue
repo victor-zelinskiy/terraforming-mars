@@ -93,6 +93,7 @@ const DEFAULT_DESCRIPTIONS: Record<SpendableResource, string> = {
   lunaArchivesScience: 'Science',
   microbes: 'Microbes',
   plants: 'Plants',
+  floodgateSteel: 'Modular Floodgates',
 };
 
 type DataModel = {

@@ -25,6 +25,12 @@ export type MarsBotTurnRecording = {
   /** Board-visible state around the whole turn — diffed into `turn.visual`. */
   boardSnapshot: BoardSnapshot;
   /**
+   * The turn's 'automa-turn' correlation root, captured at `begin()` while the
+   * journal scope is live. `finish()` runs AFTER the turn's deferred payouts
+   * drain — outside the scope — so it can no longer read the recorder's stack.
+   */
+  correlationId?: number;
+  /**
    * Phase B: the WHY the resolver is currently attributing steps to (which tag
    * / the bonus effect / a colony trade / the Delta advance). Stamped onto the
    * typed steps + the public log lines flushed under it, so the review groups
@@ -225,6 +231,9 @@ export class AutomaTurnLog {
       snapshots: game.players.map(snapshotOf),
       // Board-visible snapshot (tiles + global params) → `turn.visual`.
       boardSnapshot: boardSnapshotOf(game),
+      // The 'automa-turn' scope is live HERE (begin runs inside it); finish()
+      // runs after the deferred drain, outside it — capture the root id now.
+      correlationId: game.events.captureContext()?.rootId,
       currentCause: undefined,
     };
   }
@@ -354,7 +363,9 @@ export class AutomaTurnLog {
     // The whole turn resolves inside the 'automa-turn' journal scope opened by
     // AutomaController — its root id is the journal group of this turn. Stamp
     // it onto the script so notification / theater / journal share ONE key.
-    const correlationId = game.events.captureContext()?.rootId;
+    // (Captured at begin(): finish() now runs after the deferred drain, when
+    // the scope is already closed.)
+    const correlationId = recording.correlationId;
     const visual = boardVisualOf(recording.boardSnapshot, game);
     const turn: MarsBotTurn = {
       id: automa.turnCounter,

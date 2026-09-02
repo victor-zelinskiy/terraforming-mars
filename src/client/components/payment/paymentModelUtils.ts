@@ -42,6 +42,11 @@ export const GENERIC_PAYMENT_ORDER: ReadonlyArray<SpendableResource> = [
   'kuiperAsteroids',
   'spireScience',
   'graphene',
+  // Modular Floodgates stored steel — LAST among the alternates on purpose:
+  // it is a strategically protected source (`initialCounts` never seeds it;
+  // the player raises the dial explicitly), so the default allocation must
+  // exhaust every ordinary source before the panel even reaches it.
+  'floodgateSteel',
   'megacredits',
 ];
 
@@ -164,6 +169,7 @@ export function buildStandardProjectPaymentModel(
     floaters: available.floaters,
     microbes: available.microbes,
     graphene: available.graphene,
+    floodgateSteel: available.floodgateSteel,
   };
 }
 

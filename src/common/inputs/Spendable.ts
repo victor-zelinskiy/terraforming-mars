@@ -37,6 +37,12 @@ export const SPENDABLE_CARD_RESOURCES = [
   'graphene',
   // Asteroids is a Kuiper Cooperative resource that pays for aquifer and asteroid standard projects.
   'kuiperAsteroids',
+  // Steel physically stored on Modular Floodgates (DP11) — «can be used as a
+  // steel resource and counts as on your player board»: spendable wherever
+  // ordinary steel is (building tags), at the player's live steel value, but
+  // deducted from the CARD, never from `player.steel`. The console treats it
+  // as a strategically protected source: it never auto-allocates.
+  'floodgateSteel',
 ] as const;
 
 export const SPENDABLE_RESOURCES = [...SPENDABLE_STANDARD_RESOURCES, ...SPENDABLE_CARD_RESOURCES] as const;
@@ -57,4 +63,5 @@ export const CARD_FOR_SPENDABLE_RESOURCE = {
   auroraiData: CardName.AURORAI,
   graphene: CardName.CARBON_NANOSYSTEMS,
   kuiperAsteroids: CardName.KUIPER_COOPERATIVE,
+  floodgateSteel: CardName.MODULAR_FLOODGATES,
 } satisfies Record<SpendableCardResource, CardName>;

@@ -39,6 +39,10 @@ export const DEFAULT_PAYMENT_VALUES = {
   auroraiData: DATA_VALUE,
   graphene: GRAPHENE_VALUE,
   kuiperAsteroids: 1,
+  // Modular Floodgates steel IS steel — same default value, and the live
+  // rate follows the player's steel value (Advanced Alloys and friends)
+  // exactly as ordinary steel does (`Player.payingAmount`).
+  floodgateSteel: 2,
 } satisfies Record<SpendableResource, number>;
 
 export namespace Payment {
@@ -56,6 +60,7 @@ export namespace Payment {
     auroraiData: 0,
     graphene: 0,
     kuiperAsteroids: 0,
+    floodgateSteel: 0,
   } as const;
 
   export function of(payment: Partial<Payment>) : Payment {
@@ -72,6 +77,7 @@ export namespace Payment {
       titanium: payment.titanium ?? 0,
       graphene: payment.graphene ?? 0,
       kuiperAsteroids: payment.kuiperAsteroids ?? 0,
+      floodgateSteel: payment.floodgateSteel ?? 0,
       plants: payment.plants ?? 0,
     };
   }

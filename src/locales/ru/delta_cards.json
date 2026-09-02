@@ -18,5 +18,8 @@
     "Social Heating": "Социальное отопление",
     "Effect: Any time any player advances on the Hydronetwork track, gain 1 heat per step they took.": "Эффект: каждый раз, когда любой игрок продвигается по треку Гидросети, получите 1 тепло за каждое пройденное им деление.",
     "Corporate Espionage": "Корпоративный шпионаж",
+    "Modular Floodgates": "Модульные гидрозатворы",
+    "Action: Add 1 steel to this card. It can be used as a steel resource and counts as on your player board.": "Действие: добавьте 1 сталь на эту карту. Её можно использовать как ресурс стали — она считается лежащей на вашем планшете.",
+    "Action: Remove 1 steel from this card to place a blockade in front of another player's marker on the Hydronetwork track, excluding the VP steps, blocking their advancement for this generation. Remove the blockade at the start of the next generation.": "Действие: снимите 1 сталь с этой карты и установите блокаду перед фишкой другого игрока на треке Гидросети, кроме делений ПО, — его продвижение в этом поколении заблокировано. Блокада снимается в начале следующего поколения.",
     "Reduce another player's Hydronetwork track by 1 step (unless they are already at the VP level). Increase your Hydronetwork track by 1 step. You may ignore 1 required tag. Both players receive the bonus associated with their resulting levels.": "Отодвиньте другого игрока на 1 деление назад по треку Гидросети (если он ещё не на уровне ПО). Продвиньтесь сами на 1 деление по треку Гидросети — можете проигнорировать 1 требуемую метку. Оба игрока получают награду этапа, на котором окажется их фишка."
 }

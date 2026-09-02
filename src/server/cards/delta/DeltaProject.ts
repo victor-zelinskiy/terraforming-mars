@@ -54,6 +54,12 @@ export class DeltaProject extends PreludeCard implements IActionCard {
     if (progress.position >= MAX_TRACK_POSITION) {
       return ruleReason('You have reached the end of the Hydronetwork track.');
     }
+    // A standing blockade (Modular Floodgates) outranks the economic gates:
+    // the advance is rule-blocked whatever the player buys or plays, and the
+    // wording is the ONE shared refusal every advance surface states.
+    if (DeltaProjectExpansion.activeBlockade(player) !== undefined) {
+      return DeltaProjectExpansion.blockadeReason();
+    }
     if (player.energy === 0) {
       return notEnoughEnergy();
     }

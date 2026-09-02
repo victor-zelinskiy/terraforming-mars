@@ -84,6 +84,36 @@ A promise and a payout therefore cannot diverge, and an effect that cannot mutat
 
 A retreat key can legitimately repeat a `from→to` pair (retreat → re-advance → retreat), so it carries the event stream's monotonic ordinal; forward keys stay unique by construction.
 
+## THE BLOCKADE (Modular Floodgates, DP11)
+
+**`activeDeltaBlockade(player)`** (same module) is the ONE definition of «may
+this marker advance at all»: a player-targeted record on
+`deltaProjectData.blockade` (`{by, card, generation}`), active ⇔ it names the
+CURRENT generation. Every legality surface asks it — the human
+`getValidAdvanceSteps` (which closes the standard action, DP03, DP04, DP07's
+multi-step and DP10's own advance in one line), the bot twin
+(`AutomaDeltaProject.getValidAdvanceSteps` + a NAMED prevented line in
+`resolve`), the refusal builders (`bonusAdvanceUnavailableReason`,
+`DeltaProject.actionUnavailableReason` → the shared
+`DeltaProjectExpansion.blockadeReason()`), the preview
+(`DeltaTrackPreviewModel.blockade`, `maxLegalSteps: 0`) — and
+**`commitDeltaMovement` enforces it as the last-resort hard gate** (a caller
+that skipped its pre-check throws; it can never move a blocked marker). A
+RETREAT is deliberately not gated: the blockade blocks ADVANCEMENT, and the
+status stays attached to the PLAYER across a legal backward move. Reward-only
+grants (`grantStageReward`, DP08) never touch it.
+
+Placement: `DeltaProjectExpansion.placeBlockade(target, {source, by})` —
+eligibility `blockadeTargetBlockedReason` (`track-end` / `vp-protected` — the
+gate cell may not be a VP terminal, so positions 9/10 are protected /
+`already-blocked`), the journal line, and the canonical
+`delta-blockade-changed` event (victim = `player`, deployer = `target.player`
++ `source.owner`, tag `attack` — the notification layer reads THIS).
+Expiration: `expireBlockades(game)` from `Game.startGeneration` (NOT
+`runProductionPhase`, which MarsBot skips), exactly once, steel not returned;
+the generation-scoped `activeDeltaBlockade` keeps even an un-swept record
+inert, so a reload on the boundary cannot resurrect one.
+
 ## ADDING THE NEXT MOVEMENT-REACTIVE CARD
 
 1. Implement `deltaMovementBonus` in the card file (co-located — invariant 8). Return `undefined` when nothing is owed. **Do not mutate.**

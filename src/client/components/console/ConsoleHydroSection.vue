@@ -80,7 +80,9 @@
                    !rewardClaimableSet.has(stop.position) :
                    espionageOffer !== undefined ?
                      !espionageLitCells.has(stop.position) :
-                     (!globallyActable && stop.vm.state !== 'current' && stop.vm.state !== 'completed'),
+                     (blockadeOffer !== undefined || blockadeExecution !== undefined) ?
+                       !blockadeLitCells.has(stop.position) :
+                       (!globallyActable && stop.vm.state !== 'current' && stop.vm.state !== 'completed'),
                  'con-hydro__stop--route-paid': stop.vm.routeRewarded,
                  'con-hydro__stop--route-excl': stop.vm.routeExcluded,
                  'con-hydro__stop--esp-fwd': (espionageOffer !== undefined && espOwner !== undefined && espOwner.legal && stop.position === espOwner.toPosition) ||
@@ -89,6 +91,25 @@
                },
              ]"
              @click="onStopClick(stop.position)">
+          <!-- THE BLOCKADE GATE (Modular Floodgates) — a standing steel
+               module on the cell's ENTRY EDGE: it interrupts the path INTO
+               this cell, in front of the blocked player's marker, carrying
+               that player's colour band (never colour alone — the lock glyph
+               names the meaning). Absolutely positioned: presence never
+               re-flows the cell. `active` is the calm ambient state read off
+               the live player models; `ghost` follows the pick's cursor. -->
+          <transition-group name="con-hydro-gatein">
+            <span v-for="(gate, gi) in blockadeGatesAt(stop.position)" :key="'gate-' + gate.target"
+                  class="con-hydro__gate"
+                  :class="['con-hydro__gate--' + gate.state]"
+                  :style="gi > 0 ? {marginLeft: (gi * 0.85) + 'rem'} : undefined"
+                  :data-hydro-gate="gate.state === 'active' ? gate.target : undefined"
+                  aria-hidden="true">
+              <i class="con-hydro__gate-bar"></i>
+              <i class="con-hydro__gate-band" :class="'player_bg_color_' + gate.target"></i>
+              <i class="con-hydro__gate-lock">⌸</i>
+            </span>
+          </transition-group>
           <div class="con-hydro__stop-req">
             <span v-if="stop.vm.stage.tag !== undefined" class="con-hydro__stop-tag resource-tag" :class="'tag-' + stop.vm.stage.tag" aria-hidden="true"></span>
             <span v-else-if="stop.vm.stage.vp !== undefined" class="con-hydro__stop-vp">{{ stop.vm.stage.vp }}<small>{{ $t('VP') }}</small></span>
@@ -593,6 +614,88 @@
                   </span>
                 </span>
               </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- ═══ BLOCKADE TARGET PICK (Modular Floodgates) — a projection +
+             selection surface. The track above carries the proof (real
+             markers + the focused candidate's GHOST GATE on the cell in
+             front of their marker); this zone carries the candidate rows
+             (premium single-choice tiles — name, marker, current position,
+             the outcome «advancement will be blocked», protected/blocked
+             reason) and the deployment's own terms (1 steel off the card,
+             until the next generation). Focus retunes the ghost; A on a
+             legal row RETURNS the pick to the composer; nothing here spends
+             a steel or writes a status. ═══ -->
+        <div v-else-if="sceneKey === 'blockade-pick'" key="blockade-pick" class="con-hydro__layer con-hydro__layer--blockpick">
+          <div class="con-hydro__panelbody">
+            <div class="con-hydro__detailline" data-unfold-item>
+              <span class="con-hydro__detail-status">{{ $t('Choose a player to block on the Hydronetwork') }}</span>
+            </div>
+            <!-- The deployment's constant terms — the cost off the CARD and
+                 the duration, stated once, never per row. -->
+            <div class="con-hydro__espowner" data-unfold-item>
+              <span class="con-hydro__espowner-cap">{{ $t('Blockade') }}</span>
+              <span class="con-hydro__route">
+                <span>−1</span>
+                <i class="con-hydro__chip-ico resource_icon resource_icon--steel" aria-hidden="true"></i>
+                <span class="con-hydro__espwaiver">{{ $t(blockadeSourceName) }}</span>
+              </span>
+              <span class="con-hydro__esprow-skip">{{ $t('Until the start of the next generation') }}</span>
+            </div>
+            <!-- The candidates — a console-native single-choice list. -->
+            <div class="con-hydro__esprows" data-unfold-item role="listbox">
+              <div v-for="(row, i) in blockadeRows" :key="row.target.color"
+                   class="con-hydro__esprow"
+                   role="option"
+                   :aria-selected="blockadeSelectedColor === row.target.color"
+                   :class="{
+                     'con-hydro__esprow--focused': i === blockadeFocusIdx,
+                     'con-hydro__esprow--selected': blockadeSelectedColor === row.target.color,
+                     'con-hydro__esprow--blocked': !row.target.legal,
+                   }"
+                   @click="onBlockadeRowClick(i)">
+                <span class="con-hydro__esprow-state" aria-hidden="true">
+                  <i v-if="blockadeSelectedColor === row.target.color" class="con-hydro__esprow-check">✓</i>
+                </span>
+                <span class="con-hydro__roster-dot" :class="'player_bg_color_' + row.target.color" aria-hidden="true"></span>
+                <span class="con-hydro__esprow-name">{{ row.name }}</span>
+                <span class="con-hydro__route">
+                  <span>{{ $t('Standing here') }}</span>
+                  <b>{{ row.target.position }}</b>
+                </span>
+                <span v-if="!row.target.legal" class="con-hydro__esprow-block">{{ $t(row.blockKey) }}</span>
+                <span v-else class="con-hydro__esprow-reward">
+                  <span class="con-hydro__esprow-skip">⌸ {{ $t('Advancement will be blocked') }}</span>
+                </span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- ═══ BLOCKADE EXECUTION (Modular Floodgates, committed) — the
+             track is the protagonist and the fresh gate its one event: it
+             ASSEMBLES in front of the target's marker (the gate element's
+             own entry transition — driven by the applied response, so a
+             reload mounts it standing and replays nothing) and the scene
+             settles into the ambient state the rest of the generation
+             keeps. This zone is the compact RECEIPT: target · effect ·
+             duration · the spent module. ═══ -->
+        <div v-else-if="sceneKey === 'blockade-exec'" key="blockade-exec" class="con-hydro__layer con-hydro__layer--blockexec">
+          <div class="con-hydro__panelbody">
+            <div class="con-hydro__commitline" data-unfold-item>
+              <b class="con-hydro__commit-stage">{{ $t('Blockade deployed') }}</b>
+            </div>
+            <div class="con-hydro__espline con-hydro__espline--result" data-unfold-item>
+              <span class="con-hydro__roster-dot" :class="'player_bg_color_' + blockadeExecution!.target" aria-hidden="true"></span>
+              <span class="con-hydro__espline-name">{{ blockadeExecTargetName }}</span>
+              <span class="con-hydro__esprow-skip">⌸ {{ $t('Advancement blocked until the next generation') }}</span>
+              <span class="con-hydro__route">
+                <span>−1</span>
+                <i class="con-hydro__chip-ico resource_icon resource_icon--steel" aria-hidden="true"></i>
+                <span class="con-hydro__espwaiver">{{ $t(blockadeExecution!.source) }}</span>
+              </span>
             </div>
           </div>
         </div>
@@ -1189,7 +1292,9 @@ import {reasonParams} from '@/client/cards/tagLabel';
 import {DeltaOfferOrigin, HYDRO_PRIMARY_KEY, HydroNextInteraction, hydroAdvanceCopy, hydroNextInteraction, hydroZoneState} from '@/client/console/hydroFlow/hydroBonusOffer';
 import type {DeltaRewardDraft, DeltaRewardPickRequest} from '@/client/console/hydroFlow/deltaRewardEntry';
 import type {DeltaEspionagePickRequest} from '@/client/console/hydroFlow/deltaEspionageEntry';
+import type {DeltaBlockadePickRequest} from '@/client/console/hydroFlow/deltaBlockadeEntry';
 import type {DeltaEspionageTargetProjection} from '@/common/models/DeltaEspionageModel';
+import type {DeltaBlockadeTargetProjection} from '@/common/models/DeltaBlockadeModel';
 import {espionageOutcomeView, EspionageOutcomeView} from '@/client/console/hydroFlow/espionageOutcomeView';
 import type {DeltaAdvanceOffer, DeltaBonusPromptMeta} from '@/common/models/DeltaBonusPromptModel';
 import type {DeltaMovementBonusProjection} from '@/common/models/DeltaTrackPreviewModel';
@@ -1233,7 +1338,7 @@ type RailStop = {
 
 type GroupNode = ActionGroup['nodes'][number];
 
-type SceneKey = 'preview' | 'choice' | 'target' | 'payment' | 'bonus' | 'reward-pick' | 'espionage-pick' | 'commit' | 'result';
+type SceneKey = 'preview' | 'choice' | 'target' | 'payment' | 'bonus' | 'reward-pick' | 'espionage-pick' | 'blockade-pick' | 'blockade-exec' | 'commit' | 'result';
 
 /** One espionage candidate row — the projection's entry joined with the
  *  player's display identity and the shared outcome reading. */
@@ -1244,6 +1349,25 @@ type EspionageRow = {
   view: EspionageOutcomeView;
   /** Why the row cannot be confirmed (an i18n key) — blocked rows only. */
   blockKey: string;
+};
+
+/** One BLOCKADE candidate row (Modular Floodgates, DP11) — the projection's
+ *  entry joined with the player's display identity. No outcome view: a
+ *  blockade grants nothing — the row's reading is the standing ban itself. */
+type BlockadeRow = {
+  target: DeltaBlockadeTargetProjection;
+  name: string;
+  isBot: boolean;
+  /** Why the row cannot be confirmed (an i18n key) — blocked rows only. */
+  blockKey: string;
+};
+
+/** One BLOCKADE GATE one rail cell shows — the persistent standing state
+ *  (`active`) and the pick's cursor-following preview (`ghost`). */
+type BlockadeGate = {
+  /** The BLOCKED player (the gate carries their colour accent). */
+  target: Color;
+  state: 'active' | 'ghost';
 };
 
 /** The scene cursor's stops. Rail decisions are DATA-driven nodes
@@ -1342,6 +1466,11 @@ export default defineComponent({
      * The projection is the server's ({@link DeltaEspionagePickRequest}).
      */
     espionageOffer: {type: Object as PropType<DeltaEspionagePickRequest>, default: undefined},
+    blockadeOffer: {type: Object as PropType<DeltaBlockadePickRequest>, default: undefined},
+    /** The committed DEPLOY's execution view: the fresh gate assembles on the
+     *  track (its entry transition — the element enters with the applied
+     *  response) and the scene settles into the ambient standing state. */
+    blockadeExecution: {type: Object as PropType<{target: Color, source: CardName}>, default: undefined},
     /**
      * The HOST frame's own header is OFF SCREEN (the hand section yields its
      * flex row while a hydro frame stands over it — the espionage flows), so
@@ -1351,7 +1480,7 @@ export default defineComponent({
      */
     hostHeadHidden: {type: Boolean, default: false},
   },
-  emits: ['close', 'confirm', 'pick', 'notice', 'collapse', 'result-done', 'bonus-answer', 'card-advance', 'inspect-source', 'reward-picked', 'espionage-picked'],
+  emits: ['close', 'confirm', 'pick', 'notice', 'collapse', 'result-done', 'bonus-answer', 'card-advance', 'inspect-source', 'reward-picked', 'espionage-picked', 'blockade-picked'],
   setup() {
     const {reduced} = useConsoleReducedMotion();
     return {reducedMotion: reduced};
@@ -1446,6 +1575,9 @@ export default defineComponent({
       /** The cell whose presented card's PRESENCE this instance reported —
        *  the leave handshake (`onLandCardLeft`) releases exactly it. */
       landReportedPosition: -1,
+      /** The blockade selector's CURSOR — an index into `blockadeRows`
+       *  (the same focus/selection split the espionage pick keeps). */
+      blockadeFocusIdx: 0,
       /** The espionage selector's CURSOR — an index into `espionageRows`
        *  (blocked rows are focusable so their reason stays readable). Focus
        *  alone changes the track's ghost projection and nothing else. */
@@ -1685,6 +1817,7 @@ export default defineComponent({
         turnState: this.turnState,
         rewardChoice: this.rewardChoice,
         occupantName: this.occupantName,
+        blockadeByName: this.blockadeByName,
       });
       // A TRAVERSAL's asks live on the RAIL (one decision per stop, drafted
       // per position) — the single-flow to-do gates read the wrong drafts and
@@ -1967,6 +2100,15 @@ export default defineComponent({
       if (this.espionageOffer !== undefined) {
         return 'espionage-pick';
       }
+      // The BLOCKADE TARGET PICK (Modular Floodgates): the same contract.
+      if (this.blockadeOffer !== undefined) {
+        return 'blockade-pick';
+      }
+      // The committed DEPLOY's execution view — the track is the protagonist,
+      // the fresh gate its one event.
+      if (this.blockadeExecution !== undefined) {
+        return 'blockade-exec';
+      }
       if (zone === 'bonus-offer') {
         return 'bonus';
       }
@@ -1984,9 +2126,11 @@ export default defineComponent({
       case 'payment': return 'payment';
       case 'bonus': return 'bonus';
       case 'reward-pick': return 'reward-pick';
-      // The espionage pick confirms on the ROW (A on a candidate returns to
-      // the composer), so its action column stands as composed air.
+      // The espionage/blockade picks confirm on the ROW (A on a candidate
+      // returns to the composer), so their action column stands as composed air.
       case 'espionage-pick':
+      case 'blockade-pick':
+      case 'blockade-exec':
       case 'commit':
       case 'target': return 'quiet';
       default: return 'result';
@@ -2161,6 +2305,104 @@ export default defineComponent({
     espionageHasLegal(): boolean {
       return this.espionageOffer?.projection.hasLegalTarget === true;
     },
+    // ── the BLOCKADE TARGET PICK (Modular Floodgates, DP11) ───────────────
+    /** Every opponent as a row — legal and blocked alike (a protected player
+     *  is SHOWN with the reason, never hidden), in the projection's seating
+     *  order; identity through the one display-name resolver (the bot reads
+     *  «Бот» like everywhere else). */
+    blockadeRows(): ReadonlyArray<BlockadeRow> {
+      const offer = this.blockadeOffer;
+      if (offer === undefined) {
+        return [];
+      }
+      const players = new Map(this.playerView.players.map((p) => [p.color, p]));
+      return offer.projection.targets.map((target) => {
+        const p = players.get(target.color);
+        return {
+          target,
+          name: p !== undefined ? participantDisplayName(p) : String(target.color),
+          isBot: p?.isMarsBot === true,
+          blockKey: target.blocked === 'vp-protected' ?
+            'Protected: the next cell is a VP step' :
+            target.blocked === 'track-end' ?
+              'At the end of the track — nothing to block' :
+              target.blocked === 'already-blocked' ? 'Already blocked this generation' : '',
+        };
+      });
+    },
+    blockadeFocusRow(): BlockadeRow | undefined {
+      return this.blockadeRows[this.blockadeFocusIdx];
+    },
+    /** The execution receipt's target name — the one display-name resolver. */
+    blockadeExecTargetName(): string {
+      const target = this.blockadeExecution?.target;
+      if (target === undefined) {
+        return '';
+      }
+      const p = this.playerView.players.find((x) => x.color === target);
+      return p !== undefined ? participantDisplayName(p) : String(target);
+    },
+    /** The deployer of the VIEWER's own standing blockade (the plan reason's
+     *  `${0}` slot) — resolved through the one display-name resolver. */
+    blockadeByName(): string | undefined {
+      const by = this.preview?.blockade?.by;
+      if (by === undefined) {
+        return undefined;
+      }
+      const p = this.playerView.players.find((x) => x.color === by);
+      return p !== undefined ? participantDisplayName(p) : String(by);
+    },
+    /** The SAVED target (the composer's capture) — the ✓ state, distinct from
+     *  the cursor. Focus alone never changes it. */
+    blockadeSelectedColor(): Color | undefined {
+      return this.blockadeOffer?.prior;
+    },
+    /** The source card's display name for the terms line. */
+    blockadeSourceName(): string {
+      return this.blockadeOffer?.source ?? '';
+    },
+    /** The track cells the blockade projection involves (the mode's focused
+     *  dimming): every candidate's own cell, plus the focused candidate's
+     *  GATE cell — the two cells the decision is actually about. */
+    blockadeLitCells(): Set<number> {
+      const out = new Set<number>();
+      // The execution receipt spotlights ONE relation: the blocked marker's
+      // cell and the gate cell in front of it.
+      const exec = this.blockadeExecution;
+      if (exec !== undefined) {
+        const p = this.playerView.players.find((x) => x.color === exec.target);
+        const pos = p?.deltaProject?.position ?? 0;
+        out.add(pos);
+        out.add(pos + 1);
+        return out;
+      }
+      for (const row of this.blockadeRows) {
+        out.add(row.target.position);
+      }
+      const focus = this.blockadeFocusRow;
+      if (focus !== undefined && focus.target.legal && focus.target.blockadePosition !== undefined) {
+        out.add(focus.target.blockadePosition);
+      }
+      return out;
+    },
+    /**
+     * THE STANDING BLOCKADES on the table — read off the LIVE player models
+     * (`deltaProject.blockade` reaches every viewer), active this generation
+     * only: the persistent gate follows the blocked PLAYER's current cell
+     * (`position + 1`), so a legal backward move re-seats it with the marker.
+     */
+    activeBlockadeGates(): ReadonlyArray<{target: Color, position: number}> {
+      const generation = this.playerView.game.generation;
+      const out: Array<{target: Color, position: number}> = [];
+      for (const p of this.playerView.players) {
+        const blockade = p.deltaProject?.blockade;
+        if (blockade === undefined || blockade.generation !== generation) {
+          continue;
+        }
+        out.push({target: p.color, position: (p.deltaProject?.position ?? 0) + 1});
+      }
+      return out;
+    },
     /** The track cells the espionage projection involves (for the mode's
      *  focused dimming): the owner's from/to and the focused candidate's
      *  from/to. Everything else recedes so the two moves read at a glance. */
@@ -2304,6 +2546,21 @@ export default defineComponent({
           route: owner.legal ?
             {from: owner.fromPosition, to: owner.toPosition, energy: 0, steel: 0, free: true} :
             undefined,
+        };
+      }
+      // The BLOCKADE PICK: the acting card is the identity, and — like the
+      // reward pick — deliberately NO route: this mode presents no movement.
+      if (this.blockadeOffer !== undefined) {
+        return {
+          kind: 'source', source: this.blockadeOffer.source,
+          badge: {kind: 'offer', text: $t('Target selection')},
+        };
+      }
+      // The DEPLOY's execution receipt: the acting card, committed.
+      if (this.blockadeExecution !== undefined) {
+        return {
+          kind: 'source', source: this.blockadeExecution.source,
+          badge: {kind: 'built', text: $t('Completed')},
         };
       }
       const s = this.selectedStage;
@@ -2946,9 +3203,13 @@ export default defineComponent({
         default: return this.flow.repeatBridge ? 'Repeat action' : 'Reward selection';
         }
       }
-      // The espionage pick's own tail — the same one-word grammar.
-      if (this.espionageOffer !== undefined && this.flow.commit === undefined) {
+      // The espionage/blockade picks' own tail — the same one-word grammar.
+      if ((this.espionageOffer !== undefined || this.blockadeOffer !== undefined) && this.flow.commit === undefined) {
         return 'Target selection';
+      }
+      // The deploy's execution receipt.
+      if (this.blockadeExecution !== undefined && this.flow.commit === undefined) {
+        return 'Deployment';
       }
       const c = this.flow.commit;
       if (c !== undefined) {
@@ -3280,6 +3541,22 @@ export default defineComponent({
           {control: 'back', label: 'Back to the play'},
         ];
       }
+      // BLOCKADE TARGET PICK: the same four verbs, the ACTION's way back.
+      if (this.sceneKey === 'blockade-pick') {
+        return [
+          {control: 'dpadU', control2: 'dpadD', label: 'Candidates', priority: 2},
+          {control: 'confirm', label: 'Select the target', enabled: this.blockadeFocusRow?.target.legal === true},
+          {control: 'secondary', label: 'Inspect'},
+          {control: 'back', label: 'Back to the action'},
+        ];
+      }
+      // BLOCKADE EXECUTION: one verb — the receipt is read and the flow leaves.
+      if (this.sceneKey === 'blockade-exec') {
+        return [
+          {control: 'confirm', label: 'Done'},
+          {control: 'secondary', label: 'Inspect'},
+        ];
+      }
       if (this.sceneKey === 'bonus') {
         // THE THREE VERBS OF A DECISION SURFACE, and nothing else:
         //   A — confirm what the cursor is on (its label FOLLOWS the cursor);
@@ -3447,6 +3724,15 @@ export default defineComponent({
       handler(now: DeltaEspionagePickRequest | undefined): void {
         if (now !== undefined) {
           this.seatEspionagePick();
+        }
+      },
+    },
+    /** A NEW blockade pick (or a re-open) seats the cursor the same way. */
+    blockadeOffer: {
+      immediate: true,
+      handler(now: DeltaBlockadePickRequest | undefined): void {
+        if (now !== undefined) {
+          this.seatBlockadePick();
         }
       },
     },
@@ -4343,7 +4629,8 @@ export default defineComponent({
       // pick bridge's (the reward pick and the espionage pick both dock their
       // source card in the ctx column — X must lift exactly that one; the old
       // offer-only read left X dead on both pick scenes).
-      const source = this.advanceOffer?.source ?? this.rewardOffer?.source ?? this.espionageOffer?.source;
+      const source = this.advanceOffer?.source ?? this.rewardOffer?.source ??
+        this.espionageOffer?.source ?? this.blockadeOffer?.source ?? this.blockadeExecution?.source;
       if (source === undefined) {
         return;
       }
@@ -5096,6 +5383,61 @@ export default defineComponent({
       }
       this.$emit('espionage-picked', {target: row.target.color});
     },
+    // ── the BLOCKADE TARGET PICK (Modular Floodgates) ─────────────────────
+    /** The gates ONE rail cell shows: every ACTIVE blockade whose blocked
+     *  player currently stands one cell before it, plus the pick's GHOST on
+     *  the focused candidate's gate cell. A ghost never doubles an active
+     *  gate (the projection already refuses an already-blocked target). */
+    blockadeGatesAt(position: number): Array<BlockadeGate> {
+      const out: Array<BlockadeGate> = [];
+      for (const gate of this.activeBlockadeGates) {
+        if (gate.position === position) {
+          out.push({target: gate.target, state: 'active'});
+        }
+      }
+      const row = this.blockadeFocusRow;
+      if (this.blockadeOffer !== undefined && row !== undefined &&
+          row.target.legal && row.target.blockadePosition === position) {
+        out.push({target: row.target.color, state: 'ghost'});
+      }
+      return out;
+    },
+    /** A mouse press on a row: focus it; a second press confirms (the same
+     *  two-beat contract the d-pad walk + A gives). */
+    onBlockadeRowClick(index: number): void {
+      if (this.blockadeFocusIdx !== index) {
+        this.blockadeFocusIdx = index;
+        return;
+      }
+      this.confirmBlockadeRow(index);
+    },
+    /** A on a candidate: a LEGAL row returns the pick to the composer; a
+     *  blocked row refuses OUT LOUD with its own reason. */
+    confirmBlockadeRow(index: number): void {
+      const row = this.blockadeRows[index];
+      if (row === undefined) {
+        return;
+      }
+      if (!row.target.legal) {
+        this.$emit('notice', $t(row.blockKey !== '' ? row.blockKey : 'That player cannot be blocked'));
+        return;
+      }
+      this.$emit('blockade-picked', {target: row.target.color});
+    },
+    /** Seat the cursor: the SAVED target on a re-open, else the first LEGAL
+     *  candidate (the mandatory pick is the first thing the cursor offers). */
+    seatBlockadePick(): void {
+      const offer = this.blockadeOffer;
+      if (offer === undefined) {
+        return;
+      }
+      const rows = this.blockadeRows;
+      const priorIdx = offer.prior !== undefined ?
+        rows.findIndex((r) => r.target.color === offer.prior) : -1;
+      const firstLegal = rows.findIndex((r) => r.target.legal);
+      this.blockadeFocusIdx = priorIdx >= 0 ? priorIdx : Math.max(0, firstLegal);
+      this.sceneFocus = 'track';
+    },
     /** Seat the cursor: the SAVED target on a re-open, else the first LEGAL
      *  candidate (the mandatory pick is the first thing the cursor offers). */
     seatEspionagePick(): void {
@@ -5354,6 +5696,57 @@ export default defineComponent({
           return;
         case 'back':
           this.$emit('close');
+          return;
+        default:
+          return;
+        }
+      }
+      // BLOCKADE TARGET PICK — the same contract as the espionage pick:
+      // ↑/↓ walks the candidates (blocked rows stay focusable so their
+      // reason reads), focus retunes the GHOST GATE on the track, A on a
+      // LEGAL row confirms and RETURNS to the composer, B returns unchanged,
+      // X inspects the source card over the standing scene.
+      if (this.sceneKey === 'blockade-pick') {
+        if (intent.kind === 'nav') {
+          const n = this.blockadeRows.length;
+          if (n === 0) {
+            return;
+          }
+          if (intent.dir === 'down') {
+            this.blockadeFocusIdx = Math.min(n - 1, this.blockadeFocusIdx + 1);
+          } else if (intent.dir === 'up') {
+            this.blockadeFocusIdx = Math.max(0, this.blockadeFocusIdx - 1);
+          }
+          return;
+        }
+        switch (consoleActionOf(intent)) {
+        case 'primary':
+          this.confirmBlockadeRow(this.blockadeFocusIdx);
+          return;
+        case 'inspect':
+          this.inspectBonusSource();
+          return;
+        case 'back':
+          this.$emit('close');
+          return;
+        default:
+          return;
+        }
+      }
+      // BLOCKADE EXECUTION — one verb (the receipt is read), X inspects the
+      // source card, A and B both leave: past the commit boundary there is
+      // nothing to unwind.
+      if (this.sceneKey === 'blockade-exec') {
+        if (intent.kind === 'nav') {
+          return;
+        }
+        switch (consoleActionOf(intent)) {
+        case 'primary':
+        case 'back':
+          this.$emit('close');
+          return;
+        case 'inspect':
+          this.inspectBonusSource();
           return;
         default:
           return;

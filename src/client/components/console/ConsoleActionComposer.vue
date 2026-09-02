@@ -495,6 +495,23 @@
                                    :compact="true" />
                 <div class="con-composer__row-note">{{ $t('Your Hydronetwork position will not change.') }}</div>
               </template>
+              <!-- The BLOCKADE TARGET slot (Modular Floodgates): empty → a
+                   prompt to walk the track; filled → who is blocked and for
+                   how long, with the change affordance under the cursor.
+                   Structural off the input's own type. -->
+              <template v-else-if="item.choice.input.type === 'deltaBlockade'">
+                <div class="con-composer__row-label">{{ $t('Blockade target') }}</div>
+                <div v-if="blockadeSummary(item.choice) !== ''" class="con-composer__row-value">
+                  <span>{{ blockadeSummary(item.choice) }}</span>
+                  <span class="con-composer__target-change" :class="{'con-composer__target-change--on': isFocused(item)}">
+                    <GamepadGlyph control="confirm" />
+                    <span>{{ $t('Change selection') }}</span>
+                  </span>
+                </div>
+                <div v-else class="con-composer__row-value">
+                  <span class="con-composer__row-empty">{{ $t('Choose a player to block on the Hydronetwork') }}…</span>
+                </div>
+              </template>
               <!-- The PLAN's LANDING pre-select (a deferred deltaAdvance door
                    whose destination stage asks a choice): empty → a prompt to
                    walk the track; filled → the landed stage + its pick. The
@@ -699,7 +716,7 @@ import {Message} from '@/common/logs/Message';
 import {CardModel} from '@/common/models/CardModel';
 import {SpendableResource} from '@/common/inputs/Spendable';
 import {ActionPreview, ActionPreviewBranch, ActionEffect} from '@/common/models/ActionPreviewModel';
-import {DeltaStageRewardInputModel, PlayerInputModel, SelectAmountModel, SelectCardModel, SelectPaymentModel, SelectPlayerModel, OrOptionsModel} from '@/common/models/PlayerInputModel';
+import {DeltaBlockadeInputModel, DeltaStageRewardInputModel, PlayerInputModel, SelectAmountModel, SelectCardModel, SelectPaymentModel, SelectPlayerModel, OrOptionsModel} from '@/common/models/PlayerInputModel';
 import {ActionEntry} from '@/client/components/actions/actionModel';
 import {ActionGroup, playerActionGroups} from '@/client/components/actions/actionExtraction';
 import {branchPositionsForNode, branchSetAvailability, branchTitleText, stripNodeOr} from '@/client/components/actions/actionBranchView';
@@ -782,6 +799,7 @@ import {
   deltaRewardStepResponse, enterDeltaRewardPick,
 } from '@/client/console/hydroFlow/deltaRewardEntry';
 import {deltaAdvancePlanDraftOf, deltaAdvancePlanResponse} from '@/client/console/hydroFlow/deltaAdvanceEntry';
+import {deltaBlockadeResponseOf, deltaBlockadeStepResponse, enterDeltaBlockadePick} from '@/client/console/hydroFlow/deltaBlockadeEntry';
 import {HYDRO_STAGES} from '@/client/components/hydronetwork/hydroStages';
 import type {HydroRewardView} from '@/client/components/hydronetwork/hydroReward';
 import ConsoleHydroGains from '@/client/components/console/hydroFlow/ConsoleHydroGains.vue';
@@ -3118,6 +3136,14 @@ export default defineComponent({
         this.openStageRewardPick(c);
         return;
       }
+      // A Hydronetwork BLOCKADE target (Modular Floodgates, DP11) → the REAL
+      // track as the selection surface: candidates at their live positions,
+      // the ghost gate following the cursor. Structural, off the input's own
+      // type — never a card name.
+      if (c.input.type === 'deltaBlockade') {
+        this.openBlockadePick(c);
+        return;
+      }
       // A PLAN's landing pre-select (a deferred deltaAdvance door whose
       // destination asks a choice) → the SAME track surface, in its
       // advance-landing form: the player sees the move (from → to, the
@@ -3196,6 +3222,36 @@ export default defineComponent({
         this.focusIdx = this.ctaIndex;
         this.scrollFocused();
       });
+    },
+    /**
+     * Hand the blockade target pick to the Hydronetwork workspace in
+     * blockade-selection mode (the pick bridge idiom: this composer stays
+     * mounted underneath with its captures intact; the resolve captures the
+     * step's wire response and re-locates the choice by ID — the preview may
+     * have refreshed during the round trip). B keeps the previous answer.
+     */
+    openBlockadePick(c: ComposerChoice): void {
+      const model = c.input as DeltaBlockadeInputModel;
+      enterDeltaBlockadePick({
+        source: this.entry.cardName,
+        projection: model.projection,
+        prior: deltaBlockadeResponseOf(this.captured[c.index])?.target,
+      }, (draft) => {
+        const cur = this.allChoices.find((x) => x.id === c.id) ?? c;
+        this.captureFor(cur, deltaBlockadeStepResponse(model.projection, draft.target));
+        this.focusIdx = this.ctaIndex;
+        this.scrollFocused();
+      });
+    },
+    /** The captured blockade target, summarized for its row: who is blocked
+     *  and for how long — the summary the CTA's promise is read against. */
+    blockadeSummary(c: ComposerChoice): string {
+      const target = deltaBlockadeResponseOf(this.captured[c.index])?.target;
+      if (target === undefined) {
+        return '';
+      }
+      const name = displayNameForColor(this.playerView.players, target);
+      return `${name} — ${translateText('Advancement will be blocked')} · ${translateText('Until the start of the next generation')}`;
     },
     /**
      * DESCEND into the Hydronetwork's stage-reward surface for a PLAN's

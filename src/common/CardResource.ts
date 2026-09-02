@@ -26,6 +26,11 @@ export enum CardResource {
   // Fan cards
   RESOURCE_CUBE = 'Resource cube',
   DATA = 'Data',
+  // Delta Project (Modular Floodgates, DP11): PHYSICAL steel cubes stored on
+  // the card. «It can be used as a steel resource and counts as on your player
+  // board» — the spendable half lives in the payment layer (`floodgateSteel`
+  // in Spendable.ts), never as a silent merge into `player.steel`.
+  STEEL = 'Steel',
 
   // Moon
   SYNDICATE_FLEET = 'Syndicate Fleet',

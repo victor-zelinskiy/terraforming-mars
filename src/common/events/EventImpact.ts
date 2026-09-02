@@ -103,6 +103,15 @@ export type EventImpact = {
    */
   deltaPosition?: {from: number; to: number; steps: number};
   /**
+   * A Modular Floodgates blockade fact (`delta-blockade-changed`): the
+   * event's `player` is the BLOCKED one; for `phase: 'placed'` the deployer
+   * rides `target.player` + `source.owner` (the attack grammar every
+   * cross-player event uses). `untilGeneration` names the boundary the
+   * blockade is removed at (the start of that generation). `'expired'` is
+   * the quiet journal fact of that removal — never a notification.
+   */
+  deltaBlockade?: {phase: 'placed' | 'expired'; untilGeneration: number};
+  /**
    * Before/after snapshot of the SINGLE resource a stock / production delta moved —
    * captured AT the event from live state (`before = after − amount`), so a loss can
    * read "plants 506 → 504" not just "−2". Only the affected resource; attached by the

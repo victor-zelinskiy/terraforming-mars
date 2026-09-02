@@ -1067,6 +1067,7 @@ export enum CardName {
   DUTCH_MOUNTAINS = 'Dutch Mountains',
   SOCIAL_HEATING = 'Social Heating',
   CORPORATE_ESPIONAGE = 'Corporate Espionage',
+  MODULAR_FLOODGATES = 'Modular Floodgates',
 
   // Underworld Standard Projects
   EXCAVATE_STANDARD_PROJECT = 'Excavate:SP',

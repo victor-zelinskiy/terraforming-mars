@@ -147,7 +147,10 @@ export function impactTouchesOwner(impact: EventImpact): boolean {
     (impact.cardsDiscarded !== undefined && impact.cardsDiscarded !== 0) ||
     (impact.vp !== undefined && impact.vp !== 0) ||
     (impact.megacreditsPaid !== undefined && impact.megacreditsPaid !== 0) ||
-    (impact.deltaPosition !== undefined && impact.deltaPosition.steps !== 0);
+    (impact.deltaPosition !== undefined && impact.deltaPosition.steps !== 0) ||
+    // A Modular Floodgates blockade PLACED against the owner is personal by
+    // definition (the quiet 'expired' phase is a journal fact, not a touch).
+    (impact.deltaBlockade !== undefined && impact.deltaBlockade.phase === 'placed');
 }
 
 /**

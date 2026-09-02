@@ -2,6 +2,7 @@ import {Tag} from '../cards/Tag';
 import {CardName} from '../cards/CardName';
 import {Resource} from '../Resource';
 import {Units} from '../Units';
+import {DeltaBlockade} from './DeltaProjectPlayerModel';
 
 /**
  * ONE passive movement bonus the viewer WOULD be paid for making a move — the
@@ -119,6 +120,22 @@ export type DeltaTrackPreviewModel = {
   /** The card granting the steel substitution (its source badge) — present iff
    *  `availableSteelSubstitute > 0`. */
   steelSubstituteCard?: CardName;
+  /**
+   * Modular Floodgates steel usable 1:1 in place of energy under the SAME
+   * Delta Works substitution — its OWN pool beside `availableSteelSubstitute`
+   * (deducted from the card, chosen explicitly, never auto-mixed). Present
+   * iff > 0; the source card is Modular Floodgates by construction.
+   */
+  availableFloodgateSteelSubstitute?: number;
+  /**
+   * A MODULAR FLOODGATES blockade standing against the VIEWER: every forward
+   * move is rule-blocked for this generation, whatever pays for or grants it.
+   * When present, `maxLegalSteps` is 0 and nothing is confirmable — the
+   * per-destination `legal` flags stay informational (studying a stage is not
+   * an advance). Same shape as the player model's own record, so the plan
+   * panel names the deployer and the source card from structured state.
+   */
+  blockade?: DeltaBlockade;
   usedThisGeneration: boolean;
   atEndOfTrack: boolean;
   /** Highest legal AND affordable step count (best confirmable move). Drives the default spend. */

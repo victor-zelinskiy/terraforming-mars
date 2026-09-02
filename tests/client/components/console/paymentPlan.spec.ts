@@ -67,6 +67,54 @@ describe('paymentPlan (T3 native payment math)', () => {
     expect(lanes.find((l) => l.unit === 'heat')?.reserved).to.eq(false);
   });
 
+  /**
+   * FLOODGATE STEEL (Modular Floodgates, DP11) — a PROTECTED source: it is
+   * spendable exactly where ordinary steel is, at the live steel value, but
+   * the opening mix NEVER seeds it — the player raises the dial explicitly.
+   */
+  describe('floodgateSteel — the protected card-backed steel source', () => {
+    const owner = () => player({
+      steel: 1,
+      tableau: [{name: CardName.MODULAR_FLOODGATES, resources: 3}],
+    });
+
+    it('is a lane exactly where steel is, at the live steel value, labeled by its source card', () => {
+      const lanes = paymentLanes(prompt(10, {steel: true, floodgateSteel: true}), owner());
+      const lane = lanes.find((l) => l.unit === 'floodgateSteel');
+      expect(lane).to.deep.include({rate: 2, available: 3});
+      // The value modifier reaches it exactly as it reaches ordinary steel.
+      const modified = paymentLanes(prompt(10, {steel: true, floodgateSteel: true}), player({
+        steelValue: 3, tableau: [{name: CardName.MODULAR_FLOODGATES, resources: 3}],
+      }));
+      expect(modified.find((l) => l.unit === 'floodgateSteel')?.rate).to.eq(3);
+      // The project-card option mirror admits it on the building tag only.
+      expect(projectCardPaymentOptions([Tag.BUILDING], {}, undefined).floodgateSteel).to.eq(true);
+      expect(projectCardPaymentOptions([Tag.SPACE], {}, undefined).floodgateSteel).to.eq(false);
+      // The row speaks the STEEL sprite and the CARD's name.
+      expect(paymentUnitIcon('floodgateSteel')).to.eq('steel');
+    });
+
+    it('the opening mix NEVER seeds it — every ordinary source first, the deficit stays honest', () => {
+      // Cost 12; the player owns 1 steel (2), 20 M€: the default spends those
+      // and leaves the protected lane at 0 even though it could pay.
+      const lanes = paymentLanes(prompt(12, {steel: true, floodgateSteel: true}), owner());
+      const counts = initialCounts(12, lanes, 4);
+      expect(counts.floodgateSteel).to.eq(0);
+      // …even when ONLY the protected source could complete the payment: the
+      // seed still refuses to touch it (the status reads «short» until the
+      // player raises the dial themselves).
+      const poor = player({steel: 0, megacredits: 0, tableau: [{name: CardName.MODULAR_FLOODGATES, resources: 3}]});
+      const poorLanes = paymentLanes(prompt(6, {steel: true, floodgateSteel: true}), poor);
+      const poorCounts = initialCounts(6, poorLanes, 0);
+      expect(poorCounts.floodgateSteel).to.eq(0);
+      expect(paymentCovers(6, poorLanes, poorCounts, 0)).to.eq(false);
+      // An EXPLICIT dial pays in full — the wire carries the source's own key.
+      const dialed = {...poorCounts, floodgateSteel: 3};
+      expect(paymentCovers(6, poorLanes, dialed, 0)).to.eq(true);
+      expect(paymentFromCounts(6, poorLanes, dialed, 0).floodgateSteel).to.eq(3);
+    });
+  });
+
   it('laneCap: never more of one unit than covers the whole cost', () => {
     const steel: PaymentLane = {unit: 'steel', rate: 2, available: 10, reserved: false};
     expect(laneCap(7, steel, [steel], {})).to.eq(4); // ceil(7/2)

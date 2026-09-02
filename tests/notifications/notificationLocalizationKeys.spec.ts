@@ -33,6 +33,10 @@ const REQUIRED_RU_KEYS: ReadonlyArray<string> = [
   '${0} appeared on the map · ${1}',
   // The queue indicators' shared aria.
   'Pending events',
+  // The Modular Floodgates blockade band (DP11): hostile register + the
+  // worded loss unit (no number moved — the ban is the loss).
+  'Against you',
+  'Advancement blocked until the next generation',
 ];
 
 /** Keys whose ENGLISH form is deliberately the universal value (the make:json

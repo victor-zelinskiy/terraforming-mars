@@ -9,7 +9,7 @@ import {
   VP2_POSITION,
   VP5_POSITION,
 } from '../delta/DeltaProjectExpansion';
-import {commitDeltaMovement} from '../delta/deltaMovement';
+import {activeDeltaBlockade, commitDeltaMovement} from '../delta/deltaMovement';
 import {marsBotOf} from './AutomaUtil';
 
 /** Hard cap from the Solo Delta Project reference card: at most 4 rows per resolution. */
@@ -112,6 +112,14 @@ export class AutomaDeltaProject {
     if (currentPos >= MAX_TRACK_POSITION) {
       return [];
     }
+    // The bot obeys the SAME blockade rule a human does (Modular Floodgates —
+    // the one player-targeted advancement ban): its legality twin answers []
+    // exactly as `DeltaProjectExpansion.getValidAdvanceSteps` does, and the
+    // movement ledger's hard gate backs both. No bot-shaped special case: the
+    // check reads the same domain status off the same player record.
+    if (activeDeltaBlockade(bot) !== undefined) {
+      return [];
+    }
 
     const maxByPower = Math.min(
       AutomaDeltaProject.availablePower(game),
@@ -159,6 +167,24 @@ export class AutomaDeltaProject {
     const bot = marsBotOf(game);
     const progress = bot.deltaProjectData;
     if (progress === undefined) {
+      return;
+    }
+    // A PREVENTED resolution is NAMED, never a silent skip: an ordinary
+    // ineligible generation (no power, an unprogressed tag track) is the
+    // bot's own state and stays quiet by the standing contract, but a
+    // blockade is an opponent's attack landing — the turn theater must say
+    // that the Increase was stopped and by what. Logged inside the same
+    // delta-project scope a real advance opens, so the line joins the bot
+    // turn's single journal group and its presentation picks it up.
+    const blockade = activeDeltaBlockade(bot);
+    if (blockade !== undefined) {
+      game.events.beginAction(bot, {kind: 'card', card: CardName.DELTA_PROJECT, owner: bot.color}, {category: 'delta-project'});
+      try {
+        game.log('${0} could not advance on the Hydronetwork — blocked by ${1} until the next generation', (b) =>
+          b.player(bot).cardName(blockade.card));
+      } finally {
+        game.events.endScope();
+      }
       return;
     }
     const valid = AutomaDeltaProject.getValidAdvanceSteps(game);

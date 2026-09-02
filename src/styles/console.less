@@ -6290,6 +6290,90 @@ each(@players, {
        hue, never hue alone (the row also prints the numbers). */
     &__route--back b { color: @con-amber; }
 
+    /* ── THE BLOCKADE GATE (Modular Floodgates, DP11) — a standing steel
+       module on a cell's ENTRY EDGE. Engineering, not war: a slim vertical
+       floodgate bar straddling the seam the path enters through, carrying
+       the BLOCKED player's colour band at its head (never colour alone —
+       the ⌸ lock glyph names the meaning) over a machined steel gradient.
+       ABSOLUTE: presence never re-flows the cell; the ambient state is
+       CALM (no loops — one-shot entry/leave transitions only). ── */
+    &__gate {
+        position: absolute;
+        left: -.42rem; /* straddles the inter-cell link seam */
+        top: 6%;
+        bottom: 6%;
+        width: .72rem;
+        z-index: 3;
+        display: flex;
+        flex-direction: column;
+        align-items: stretch;
+        pointer-events: none;
+    }
+    &__gate-bar {
+        position: absolute;
+        inset: 0;
+        border-radius: .3rem;
+        /* Machined steel: vertical plate + two riveted seams. */
+        background:
+            linear-gradient(180deg, rgba(210, 220, 232, 0.95) 0%, rgba(140, 152, 168, 0.95) 18%,
+              rgba(96, 108, 124, 0.95) 50%, rgba(140, 152, 168, 0.95) 82%, rgba(200, 210, 224, 0.95) 100%);
+        box-shadow:
+            inset 0 0 0 .05rem rgba(30, 40, 52, 0.85),
+            inset .12rem 0 0 rgba(255, 255, 255, 0.28),
+            inset -.12rem 0 0 rgba(10, 16, 24, 0.5),
+            0 0 .5rem rgba(8, 14, 22, 0.6);
+    }
+    /* The OWNERSHIP band — the blocked player's colour, a machined cap at
+       the gate's head (the same player_bg_color_* language as the markers). */
+    &__gate-band {
+        position: absolute;
+        top: -.12rem;
+        left: -.08rem;
+        right: -.08rem;
+        height: .5rem;
+        border-radius: .25rem;
+        box-shadow: inset 0 0 0 .05rem rgba(10, 16, 24, 0.7), 0 0 .35rem rgba(8, 14, 22, 0.5);
+    }
+    &__gate-lock {
+        position: absolute;
+        top: 50%;
+        left: 50%;
+        transform: translate(-50%, -50%);
+        font-style: normal;
+        font-size: .62rem;
+        font-weight: 800;
+        color: rgba(16, 24, 34, 0.9);
+        text-align: center;
+    }
+    /* The pick's CURSOR-FOLLOWING preview: translucent, dashed — a decision
+       being weighed, never mistakable for a standing module. */
+    &__gate--ghost {
+        opacity: .62;
+        .con-hydro__gate-bar {
+            background: rgba(150, 165, 182, 0.28);
+            box-shadow: inset 0 0 0 .09rem fade(@con-cyan, 70%);
+        }
+        .con-hydro__gate-lock { color: fade(@con-cyan, 90%); }
+    }
+    /* One-shot entry (the assembly settle) and leave (the expiration
+       retract): transform/opacity only, compositor-friendly, no loops. */
+    .con-hydro-gatein-enter-active {
+        transition: opacity calc(320ms * var(--motion-scale, 1)) ease-out,
+            transform calc(320ms * var(--motion-scale, 1)) cubic-bezier(0.22, 1, 0.36, 1);
+    }
+    .con-hydro-gatein-leave-active {
+        transition: opacity calc(420ms * var(--motion-scale, 1)) ease-in,
+            transform calc(420ms * var(--motion-scale, 1)) ease-in;
+    }
+    .con-hydro-gatein-enter-from {
+        opacity: 0;
+        transform: translateY(-18%) scaleY(0.4);
+    }
+    .con-hydro-gatein-leave-to {
+        opacity: 0;
+        transform: translateY(10%) scaleY(0.55);
+    }
+
     /* ── The espionage EXECUTION line (commit + result): the attack half's
        compact commit — dot · name · from → to · «получает» chips / the named
        void · the calm waiting state while the target decides. ── */

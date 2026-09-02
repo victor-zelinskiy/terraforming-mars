@@ -34,6 +34,7 @@ export type GameEventType =
   | 'card-revealed' // a PUBLIC reveal / show / search (counts only, never names)
   | 'tile-placed'
   | 'delta-position-changed' // ONE committed Hydronetwork move (signed steps; both directions)
+  | 'delta-blockade-changed' // a Modular Floodgates blockade placed against / expired for a player
   | 'vp-granted'
   // High-level game milestones:
   | 'milestone-claimed'

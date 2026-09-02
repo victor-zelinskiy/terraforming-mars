@@ -68,7 +68,9 @@ function isStandardUnit(unit: string): unit is keyof Units {
  * payment editor would charge by; never duplicate this table.
  */
 export function rateFor(unit: SpendableResource, player: PublicPlayerModel, options: Partial<PaymentOptions>): number {
-  if (unit === 'steel') {
+  if (unit === 'steel' || unit === 'floodgateSteel') {
+    // Modular Floodgates steel IS steel — the same live value, modifiers
+    // (Advanced Alloys and friends) included, mirroring Player.payingAmount.
     return player.steelValue;
   }
   if (unit === 'titanium') {
@@ -145,6 +147,9 @@ export function projectCardPaymentOptions(
     lunaArchivesScience: tags.includes(Tag.MOON),
     seeds: tags.includes(Tag.PLANT),
     graphene: tags.includes(Tag.SPACE) || tags.includes(Tag.CITY),
+    // Modular Floodgates steel is usable EXACTLY where ordinary steel is —
+    // the same condition, mirroring Player.paymentOptionsForCard.
+    floodgateSteel: tags.includes(Tag.BUILDING) || lastResort,
   };
 }
 
@@ -315,11 +320,17 @@ export function initialCounts(
   for (const lane of lanes) {
     ledger[lane.unit] = {available: lane.available, rate: lane.rate, reserved: lane.reserved};
   }
-  const order: Array<SpendableResource> = [...lanes.map((l) => l.unit), 'megacredits'];
+  // A PROTECTED source is never seeded: Modular Floodgates steel exists to be
+  // deployed as a blockade, so the opening mix spends every ordinary source
+  // first and leaves this lane at 0 — the player raises it EXPLICITLY (the
+  // status honestly reads «short» until they do). Excluding it from the
+  // allocation ORDER is the whole mechanism (`NON_GREEDY_UNITS` would still
+  // spend the minimum).
+  const order: Array<SpendableResource> = [...lanes.map((l) => l.unit).filter((u) => u !== 'floodgateSteel'), 'megacredits'];
   const payment = computeDefaultPayment(cost, order, ledger, false);
   const counts: Partial<Record<SpendableResource, number>> = {};
   for (const lane of lanes) {
-    counts[lane.unit] = payment[lane.unit];
+    counts[lane.unit] = lane.unit === 'floodgateSteel' ? 0 : payment[lane.unit];
   }
   return counts;
 }
@@ -353,6 +364,10 @@ const PAY_UNIT_LABELS: Readonly<Record<string, string>> = {
   microbes: 'Microbes', floaters: 'Floaters', seeds: 'Seeds',
   auroraiData: 'Data', graphene: 'Graphene', kuiperAsteroids: 'Asteroids', spireScience: 'Science',
   lunaArchivesScience: 'Science', corruption: 'Corruption',
+  // The row NAMES its source card — steel stored ON Modular Floodgates is a
+  // different pool from the player-board lane above it, and the label is what
+  // keeps the two from ever reading as one number.
+  floodgateSteel: 'Modular Floodgates',
 };
 
 export function paymentUnitLabel(unit: string): string {
@@ -377,6 +392,9 @@ const PAY_UNIT_ICONS: Readonly<Record<string, string>> = {
   kuiperAsteroids: 'asteroid',
   spireScience: 'science',
   lunaArchivesScience: 'science',
+  // The stored steel IS steel — the standard sprite carries the resource;
+  // the row label carries the source card.
+  floodgateSteel: 'steel',
 };
 
 export function paymentUnitIcon(unit: string): string {

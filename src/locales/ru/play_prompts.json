@@ -247,5 +247,12 @@
     "Select a resource to gain 1 unit of production": "Выберите ресурс, чтобы увеличить его производство на 1",
     "Gain 1 energy per ocean-side tile": "Получить 1 энергию за приморский тайл",
     "Spend 1 energy and advance on the Hydronetwork": "Потратить 1 энергию и продвинуться по Гидросети",
-    "Choose a player to push back on the Hydronetwork": "Выберите игрока, которого отодвинуть назад по Гидросети"
+    "Choose a player to push back on the Hydronetwork": "Выберите игрока, которого отодвинуть назад по Гидросети",
+    "Choose a player to block on the Hydronetwork": "Выберите игрока, которого заблокировать на Гидросети",
+    "Add 1 steel to this card": "Добавить 1 сталь на эту карту",
+    "Add steel": "Добавить сталь",
+    "Deploy a blockade on the Hydronetwork": "Развернуть блокаду на Гидросети",
+    "Deploy": "Развернуть",
+    "No opponent can receive a Hydronetwork blockade right now": "Сейчас ни один соперник не может получить блокаду Гидросети",
+    "Hydronetwork advancement is blocked by Modular Floodgates until the next generation": "Продвижение по Гидросети заблокировано картой «Модульные гидрозатворы» до следующего поколения"
 }

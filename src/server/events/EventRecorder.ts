@@ -406,14 +406,16 @@ export class EventRecorder {
       return;
     }
     const source = fromToEventSource(from, player.color);
-    // A cross-player LOSS inflicted via another player's `from` is always an
-    // attack the VICTIM must be told about (the "you were attacked" red card).
-    // Never drop it as loose bookkeeping even if the active scope was lost across
-    // an input boundary (e.g. a deferred attack resolved after a SelectPlayer) —
-    // the `target` below still attributes the attacker.
-    const crossPlayerAttack = amount < 0 && isFromPlayer(from) && from.player.color !== player.color;
+    // A cross-player delta carrying another player's `from` is never loose
+    // bookkeeping — a LOSS is an attack the VICTIM must be told about (the
+    // "you were attacked" red card), and a GAIN handed over by a foreign
+    // player is a payout its recipient must hear too. Never drop either even
+    // if the active scope was lost across an input boundary (e.g. a deferred
+    // attack resolved after a SelectPlayer) — for a steal the `target` below
+    // still attributes the attacker.
+    const crossPlayerTouch = isFromPlayer(from) && from.player.color !== player.color;
     // Loose internal bookkeeping (no source, no active action/effect) is not analytics-meaningful.
-    if (source === undefined && !this.hasContext() && !crossPlayerAttack) {
+    if (source === undefined && !this.hasContext() && !crossPlayerTouch) {
       return;
     }
     const impact: EventImpact = production ?
@@ -460,11 +462,12 @@ export class EventRecorder {
       return;
     }
     const source = fromToEventSource(from, player.color);
-    // A cross-player card-resource LOSS is always an attack the victim must be
-    // told about — never dropped even when the active scope was lost across an
-    // input boundary (mirrors recordResourceDelta's crossPlayerAttack rescue).
-    const crossPlayerAttack = amount < 0 && isFromPlayer(from) && from.player.color !== player.color;
-    if (source === undefined && !this.hasContext() && !crossPlayerAttack) {
+    // A cross-player card-resource delta carrying a foreign `from` is never
+    // dropped, whatever its sign — mirrors recordResourceDelta's
+    // crossPlayerTouch rescue (a loss is an attack the victim must hear; a
+    // gain a foreign player handed over must reach its recipient too).
+    const crossPlayerTouch = isFromPlayer(from) && from.player.color !== player.color;
+    if (source === undefined && !this.hasContext() && !crossPlayerTouch) {
       return;
     }
     // Deliberately NO `target` here: in this pipeline `target.player` means
@@ -513,6 +516,27 @@ export class EventRecorder {
       target: cause.kind === 'card-attack' ? {player: cause.by} : undefined,
       impact: {deltaPosition: {from: movement.from, to: movement.to, steps: movement.steps}},
       tags: cause.kind === 'card-attack' ? ['attack'] : undefined,
+      visibility: 'journal',
+    });
+  }
+
+  /**
+   * The canonical MODULAR FLOODGATES blockade fact (`delta-blockade-changed`).
+   * Grammar mirrors {@link recordDeltaPositionChange}: the event's `player` is
+   * the BLOCKED one; for a placement the deployer is the attacker
+   * (`target.player` + `source.owner`, tag `attack`) — which is what routes
+   * the victim's targeted negative notification with no card-specific wiring.
+   * An expiration is the same fact in its quiet phase: journal-visible,
+   * never an attack, never a notification.
+   */
+  public recordDeltaBlockade(player: IPlayer, opts: {phase: 'placed' | 'expired', by: Color, card: CardName, untilGeneration: number}): void {
+    this.record({
+      type: 'delta-blockade-changed',
+      source: {kind: 'card', card: opts.card, owner: opts.by},
+      player: player.color,
+      target: opts.phase === 'placed' ? {player: opts.by} : undefined,
+      impact: {deltaBlockade: {phase: opts.phase, untilGeneration: opts.untilGeneration}},
+      tags: opts.phase === 'placed' ? ['attack'] : undefined,
       visibility: 'journal',
     });
   }

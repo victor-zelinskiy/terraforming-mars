@@ -73,6 +73,7 @@ export abstract class SelectCardToPlay<T extends IProjectCard | IStandardProject
       kuiperAsteroids: player.getSpendable('kuiperAsteroids'),
       auroraiData: player.getSpendable('auroraiData'),
       spireScience: player.getSpendable('spireScience'),
+      floodgateSteel: player.getSpendable('floodgateSteel'),
     };
   }
 

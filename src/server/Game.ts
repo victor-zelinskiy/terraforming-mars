@@ -8,6 +8,7 @@ import {AutomaGameEnd} from './automa/AutomaGameEnd';
 import {AutomaResearch} from './automa/AutomaResearch';
 import {AutomaSetup} from './automa/AutomaSetup';
 import {marsBotOf} from './automa/AutomaUtil';
+import {DeltaProjectExpansion} from './delta/DeltaProjectExpansion';
 import {AutomaState} from './automa/AutomaState';
 import {AutomaTilePlacer} from './automa/AutomaTilePlacer';
 import {botCoveredIconMegacredits} from './automa/AutomaPlacementBonus';
@@ -1152,6 +1153,14 @@ export class Game implements IGame, Logger {
 
     this.log('Generation ${0}', (b) => b.forNewGeneration().number(this.generation));
     this.setNextFirstPlayer();
+
+    // Modular Floodgates blockades expire at the START of the new generation
+    // (the printed rule). HERE and not in `runProductionPhase`, which MarsBot
+    // deliberately skips — a blockade against the bot must fall on the same
+    // boundary a human's does. Exactly once: the record is removed.
+    if (this.gameOptions.deltaProjectExpansion) {
+      DeltaProjectExpansion.expireBlockades(this);
+    }
 
     this.players.forEach((player) => {
       player.hasIncreasedTerraformRatingThisGeneration = false;

@@ -284,8 +284,11 @@ const PROD_FIELD: Readonly<Record<string, string>> = {
 // resources + the sprite-less pseudo-icons; card resources keep icon-only (the
 // sprite is unambiguous and their names decline).
 const UNIT_LABEL: Readonly<Record<string, string>> = {
-  megacredits: 'M€', steel: 'Steel', titanium: 'Titanium', plants: 'plants',
-  energy: 'Energy', heat: 'Heat', cards: 'cards', tr: 'TR', vp: 'VP',
+  'megacredits': 'M€', 'steel': 'Steel', 'titanium': 'Titanium', 'plants': 'plants',
+  'energy': 'Energy', 'heat': 'Heat', 'cards': 'cards', 'tr': 'TR', 'vp': 'VP',
+  // The Modular Floodgates blockade band: no number moved — the loss IS the
+  // standing ban, so the unit speaks the whole phrase (duration included).
+  'hydro-blockade': 'Advancement blocked until the next generation',
 };
 // "What an opponent did" variants tint the rail in the actor colour;
 // prestige / system variants keep the variant accent (same rule as desktop).
@@ -338,6 +341,12 @@ export default defineComponent({
     },
     /** The sign, spoken (i18n keys — a channel colour can never carry alone). */
     signLabel(): string {
+      // A standing ban (the Modular Floodgates blockade) is not a spent
+      // amount — «You lost: advancement blocked» misreads, so the band leads
+      // with the hostile register instead.
+      if (this.impactBand?.losses.some((c) => c.icon === 'hydro-blockade') === true) {
+        return 'Against you';
+      }
       switch (this.notification.sign) {
       case 'positive': return 'You gained';
       case 'negative': return 'You lost';

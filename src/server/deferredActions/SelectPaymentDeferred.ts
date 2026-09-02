@@ -56,7 +56,9 @@ export class SelectPaymentDeferred extends DeferredAction<Payment> {
     if (this.player.canUseHeatAsMegaCredits && this.player.availableHeat() > 0) {
       return false;
     }
-    if (this.options.canUseSteel && this.player.steel > 0) {
+    // Floodgate steel IS steel («counts as on your player board»), so a bill
+    // that accepts steel accepts it too — one condition, never a second flag.
+    if (this.options.canUseSteel && (this.player.steel > 0 || this.player.getSpendable('floodgateSteel') > 0)) {
       return false;
     }
     if ((this.options.canUseTitanium || this.player.canUseTitaniumAsMegacredits) && this.player.titanium > 0) {
@@ -110,6 +112,7 @@ export class SelectPaymentDeferred extends DeferredAction<Payment> {
         lunaTradeFederationTitanium: this.player.canUseTitaniumAsMegacredits,
         kuiperAsteroids: this.options.canUseAsteroids || false,
         graphene: this.options.canUseGraphene || false,
+        floodgateSteel: this.options.canUseSteel || false,
       }, this.options.reserveUnits);
     return this.options.cause === undefined ?
       select :

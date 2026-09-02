@@ -86,6 +86,71 @@ Shower run: sign frozen at mount, band from frame one, one episode per id, TTL
 armed once, indicators exclusive in every sampled frame, the card named, B
 final).
 
+## ⭐⭐ CROSS-PLAYER COMPLETENESS (2026-09-02) — the Tharsis gap, the bot-script seam, and the coverage guard
+
+**The reported defect:** a foreign city raised the Tharsis Republic owner's M€
+production and the owner heard NOTHING. Root cause (bot actor — the fork's
+primary mode): Tharsis' `onTilePlaced` DEFERS its payout (`GainProduction`),
+and `AutomaTurnLog.finish()` used to close the turn script BEFORE the deferred
+queue drained — the mutation was real and evented (the deferred action carries
+the captured `automa-turn` context), but the whole-turn snapshot diff ran too
+early, so the change was ABSENT from the script's impact steps, and the bot
+turn card (the SINGLE presentation owner for `automa-turn` chains — the
+generic root pipeline deliberately skips them) never told its owner. The gain
+then fell in the SEAM between two turns: the next turn's `begin()` re-snapshots
+AFTER the drain, so no turn ever carried it. The human-actor path was already
+delivered end to end (S8 proves it).
+
+**The fix (`AutomaController.takeTurn`):** the queue drains BEFORE the script
+closes — `finish()` runs when the drain empties, or immediately at an INPUT
+boundary (a victim's pick pauses the drain; that interactive tail is narrated
+by its own attack step announced at defer time, and `turnRecording` is
+transient by construction so it must not survive the request). `begin()` now
+captures the turn's correlationId (finish runs outside the scope). Bonus
+repairs for free: an attack RESOLVED during the drain now lands its
+`note()`/logs in the script (they used to no-op after finish), and colony
+payouts of a bot trade (B19/B20 → `GiveColonyBonus`) reach the script's impact
+steps. Specs: S10 (deferred payout reaches the script + single-owner
+presentation), S18 (sync + deferred payouts merge into ONE impact step).
+
+**Recorder hardening:** the loose-bookkeeping drop rescue is now
+SIGN-AGNOSTIC — `crossPlayerTouch` (a foreign player's `from`, either
+direction) keeps the delta recorded even with no scope; previously only
+losses were rescued and a cross-player GAIN with an explicit foreign `from`
+could vanish. The Hydronetwork's Jovian-tag fan-out
+(`onNonCardTagAddedByAnyPlayer`) now wraps per owner in `withEffect` like
+every sibling fan-out.
+
+**THE COVERAGE GUARD — `tests/notifications/crossPlayerCoverageGuard.spec.ts`.**
+The machine-checked completeness proof (the thing that makes «100% of sources
+classified» a spec, not a claim). Three legs: (1) the chokepoint invariant —
+delivery is a property of the recorder chokepoints + scoped doors, never of a
+card author remembering an API; (2) the delivery scenarios — one per
+cross-player MECHANISM FAMILY (S1–S20 in `crossPlayerDeliveryAudit.spec.ts`);
+(3) the enumeration — every card of the premium 8-module scope (520 sources)
+is classified structurally (reactive any-player hooks / cross-player behavior
+fields / attack-API tokens in the class's own source) or via an audited
+MANUAL map; a card that merely LOOKS at the table (`.opponents`,
+`game.players`, `SelectPlayer`, `giveColonyBonus`, …) without a recognized
+family FAILS the guard until classified. Non-card doors ride a compile-time
+exhaustive `Record<JournalActionCategory, …>`; automa sources ride
+`Record<BonusCardId, …>` + `Record<MarsBotCorpId, …>` — a new door / bonus
+card / bot corporation cannot compile without a classification decision.
+Families: reactive-owner-payout · production-attack · stock-attack ·
+stock-steal · card-resource-attack · table-payout · card-draw-payout ·
+track-attack.
+
+**Scenario index (crossPlayerDeliveryAudit.spec.ts):** S1–S7 (2026-09-01
+audit) · S8 Tharsis human actor (deferred production) · S9 Tharsis self
+(policy intact) · S10 bot city → script + one presentation owner · S11 floor
+no-op silent + honest partial · S12 sequential order · S13 multi-recipient
+isolation · S14 steal (attacker named, transfer) · S15 blue-action door +
+card-resource attack · S16 colony trade payout · S17 opponents' card draw ·
+S18 bot multi-change turn · S19 save/reload round-trip · S20 undo leaves
+nothing stale (client half: notificationState.spec «dropPreparing forgets an
+undone event»; prompt-open queueing: notificationState.spec blocking-foreground
+specs — delivery waits, never drops).
+
 ## ⭐⭐ CROSS-PLAYER DELIVERY AUDIT (2026-09-01) — the viewer HEARS about every foreign action that touches them
 
 **The contract:** any change to the VIEWER's state caused by ANOTHER player's
@@ -137,9 +202,14 @@ holes fixed by this audit.
 **Documented frontier (no premium-scope card hits these today):**
 `discardCardFromHand` emits no event (cross-player only via community's
 Hygiea); `Player.ts` defer-outside-withEffect for hooks that RETURN an input;
-the delta `onNonCardTagAddedByAnyPlayer` fan-out is unwrapped (its one
-implementor passes `from`); the Ares owner payout inherits the placer's card
-as `source` (attribution, not delivery — the band and cause line are correct).
+the Ares owner payout inherits the placer's card as `source` (attribution,
+not delivery — the band and cause line are correct); the MOON `onTilePlaced`
+fan-out and all `onIdentificationByAnyPlayer` sites are BARE (moon/underworld
+— out of premium scope, widen with the expansion checklist); Law Suit's
+tableau transfer (`suedPlayer.playedCards.push`) is not evented — the victim's
+notification rides the recorded M€ steal of the same chain.
+(2026-09-02: the delta `onNonCardTagAddedByAnyPlayer` fan-out is now WRAPPED;
+the recorder rescue is sign-agnostic — see § CROSS-PLAYER COMPLETENESS above.)
 
 ## ⭐ VIEWER-FIRST SEMANTICS (the 2026-09-01 rework) — the notification is about the VIEWER
 

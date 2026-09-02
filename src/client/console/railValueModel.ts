@@ -119,6 +119,8 @@ const CONTEXT_FOR_CARD_UNIT: Record<SpendableCardResource, RailMcContext> = {
   auroraiData: 'standard-project',
   graphene: 'city-or-space',
   kuiperAsteroids: 'aquifer-asteroid',
+  // Modular Floodgates steel pays exactly where ordinary steel does.
+  floodgateSteel: 'building',
 };
 
 function badgeOf(facts: Array<RailMcUnitFact>): RailMcBadge {

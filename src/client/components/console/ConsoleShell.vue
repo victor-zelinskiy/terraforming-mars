@@ -286,6 +286,8 @@
                              :cardOffer="hydroCardOffer"
                              :rewardOffer="hydroRewardOffer"
                              :espionageOffer="hydroEspionageOffer"
+                             :blockadeOffer="hydroBlockadeOffer"
+                             :blockadeExecution="hydroBlockadeExecution"
                              :hostHeadHidden="handCoveredByHydro"
                              @bonus-answer="submitHydroBonus($event)"
                              @card-advance="submitHydroCardAdvance($event)"
@@ -296,6 +298,7 @@
                              @result-done="finishHydroFlow()"
                              @reward-picked="onHydroRewardPicked($event)"
                              @espionage-picked="onHydroEspionagePicked($event)"
+                             @blockade-picked="onHydroBlockadePicked($event)"
                              @close="onHydroClose()" />
       </transition>
 
@@ -1724,6 +1727,14 @@ import {
   isDeltaEspionagePickActive, resetDeltaEspionagePick, resolveDeltaEspionagePick,
 } from '@/client/console/hydroFlow/deltaEspionageEntry';
 import type {DeltaEspionageInputModel} from '@/common/models/PlayerInputModel';
+import {
+  DeltaBlockadeDraft, DeltaBlockadePickRequest, armBlockadeExecution, beginBlockadeExecution,
+  blockadeExecutionState, cancelDeltaBlockadePick, consumeBlockadeExecution, deltaBlockadePickState,
+  deltaBlockadeResponseOf, deltaBlockadeStepResponse, endBlockadeExecution, enterDeltaBlockadePick,
+  isBlockadeExecutionActive, isDeltaBlockadePickActive,
+  resetBlockadeExecution, resetDeltaBlockadePick, resolveDeltaBlockadePick,
+} from '@/client/console/hydroFlow/deltaBlockadeEntry';
+import type {DeltaBlockadeInputModel} from '@/common/models/PlayerInputModel';
 import {consoleRepeatPickUi, resetConsoleRepeatPickUi} from '@/client/console/consoleRepeatPickUi';
 import {conUiScale, consoleLayoutState} from '@/client/console/consoleLayoutProfile';
 import {albumSpecFor} from '@/client/components/console/consoleHandAlbum';
@@ -5841,6 +5852,32 @@ export default defineComponent({
     hydroEspionageOffer(): DeltaEspionagePickRequest | undefined {
       return deltaEspionagePickState.active ? deltaEspionagePickState.request : undefined;
     },
+    /** The BLOCKADE target-pick bridge (Modular Floodgates, DP11) — the
+     *  request the hydro section presents in blockade-selection mode. */
+    hydroBlockadeOffer(): DeltaBlockadePickRequest | undefined {
+      return deltaBlockadePickState.active ? deltaBlockadePickState.request : undefined;
+    },
+    /** The committed DEPLOY's execution surface — the track as the scene the
+     *  fresh gate assembles on (see deltaBlockadeEntry's execution half). */
+    hydroBlockadeExecution(): {target: Color, source: CardName} | undefined {
+      const s = blockadeExecutionState;
+      return s.active && s.target !== undefined && s.source !== undefined ?
+        {target: s.target, source: s.source} : undefined;
+    },
+    /** The STANDALONE blockade ask (a refused/stale batch answer, a
+     *  reconnect) — the raw top-level prompt, structural off its own type. */
+    blockadePromptRaw(): DeltaBlockadeInputModel | undefined {
+      const wf = this.playerView.waitingFor;
+      return wf?.type === 'deltaBlockade' ? wf as DeltaBlockadeInputModel : undefined;
+    },
+    /** The door's own edge: the ask stands and nothing serves it yet (the
+     *  espionage-door contract — an unrelated live flow keeps it shut). */
+    blockadePromptDoorSignal(): boolean {
+      if (this.blockadePromptRaw === undefined || isDeltaBlockadePickActive()) {
+        return false;
+      }
+      return this.hydroFlow.commit === undefined && !isHydroMarkerActive();
+    },
     /** The STANDALONE espionage ask (a refused/stale batch answer, a
      *  reconnect) — the raw top-level prompt, structural off its own type. */
     espionagePromptRaw(): DeltaEspionageInputModel | undefined {
@@ -8900,6 +8937,36 @@ export default defineComponent({
         setWorkspaceFrameServes('hydro', ['choice']);
       },
     },
+    /**
+     * THE STANDALONE BLOCKADE DOOR (Modular Floodgates — a refused/stale
+     * batch answer, a reconnect): the ask is served by the SAME workspace
+     * pick the composer uses — mandatory (B refuses out loud; there is no
+     * composer to cancel back to), the resolve submits the one wire answer
+     * directly. Unlike the espionage ask there is no no-target fallback:
+     * the input only ever stands with a legal target.
+     */
+    blockadePromptDoorSignal: {
+      immediate: true,
+      handler(open: boolean): void {
+        if (!open) {
+          return;
+        }
+        const raw = this.blockadePromptRaw;
+        if (raw === undefined) {
+          return;
+        }
+        const projection = raw.projection;
+        this.deferShellTask();
+        enterDeltaBlockadePick({
+          source: projection.source,
+          projection,
+          mandatory: true,
+        }, (draft) => {
+          submitInput(deltaBlockadeStepResponse(projection, draft.target) as InputResponse);
+        });
+        setWorkspaceFrameServes('hydro', ['choice']);
+      },
+    },
     startExcursionQuietNow(now: boolean): void {
       if (now && boardExcursionActive()) {
         this.scheduleStartExcursionRelease();
@@ -9342,6 +9409,19 @@ export default defineComponent({
                 // outlives the surface that produced it.
                 if (commitPlan !== undefined) {
                   this.runCommitRewardWave(commitPlan);
+                }
+                // A committed DEPLOY (Modular Floodgates variant B) does not
+                // dismiss to the board: the Hydronetwork opens as the
+                // execution surface OVER the committed stage (the fresh gate
+                // assembles in front of the target's marker), and «Готово»
+                // resumes the ordinary conclusion. One-shot, armed at the
+                // submit — every other commit takes the ordinary dismissal.
+                const deploy = consumeBlockadeExecution();
+                if (deploy !== undefined) {
+                  clearAwaitingHandoff();
+                  releaseActionCommit();
+                  beginBlockadeExecution(deploy.target, deploy.source);
+                  return;
                 }
                 // Capture the departing composer UNCONDITIONALLY — the incoming
                 // surface consumes it only when the pair is phase-linked
@@ -10520,7 +10600,8 @@ export default defineComponent({
       // choice) AND from a REPEAT-mode composer (a plan's landing pre-select),
       // so it must outrank BOTH `pendingPlayCard` and `repeatPickActive`: the
       // deepest descent owns the pad.
-      if (isDeltaEspionagePickActive() || isDeltaRewardPickActive()) {
+      if (isDeltaEspionagePickActive() || isDeltaRewardPickActive() || isDeltaBlockadePickActive() ||
+          isBlockadeExecutionActive()) {
         const section = this.$refs.hydroSection as InstanceType<typeof ConsoleHydroSection> | undefined;
         section?.handleIntent(intent);
         return true;
@@ -12308,6 +12389,17 @@ export default defineComponent({
     // It owns the whole flow (list · inspector · composer) and builds the
     // byte-identical activation batch itself; the shell only POSTs + closes.
     onCardActionsSubmitBatch(responses: ReadonlyArray<unknown>): void {
+      // A DEPLOY (Modular Floodgates variant B) in the batch: remember whom,
+      // so the flow's completion opens the Hydronetwork execution surface
+      // instead of concluding to the board. A refused batch never completes,
+      // so the arm simply expires.
+      for (const r of responses) {
+        const blockade = deltaBlockadeResponseOf(r);
+        if (blockade !== undefined) {
+          armBlockadeExecution(blockade.target, CardName.MODULAR_FLOODGATES);
+          break;
+        }
+      }
       // AWAITING HANDOFF (surface motion): the composer's batch is COMMITTED.
       // The center + composer HOLD the stage until the server's answer picks
       // the next scene — closing them here used to blank the board for the
@@ -14049,6 +14141,9 @@ export default defineComponent({
     onHydroEspionagePicked(draft: DeltaEspionageDraft): void {
       resolveDeltaEspionagePick(draft);
     },
+    onHydroBlockadePicked(draft: DeltaBlockadeDraft): void {
+      resolveDeltaBlockadePick(draft);
+    },
     /** B / close from the hydro section: a live reward-pick bridge returns to
      *  the composer with the old draft kept; every other provenance keeps the
      *  ordinary lateral leave. */
@@ -14066,6 +14161,25 @@ export default defineComponent({
           return;
         }
         cancelDeltaEspionagePick();
+        return;
+      }
+      if (isDeltaBlockadePickActive()) {
+        // The standalone-prompt door is a MANDATORY server demand with no
+        // composer beneath — B refuses out loud instead of cancelling into
+        // a stranded prompt.
+        if (deltaBlockadePickState.request?.mandatory === true) {
+          this.showNotice('The target selection is required');
+          return;
+        }
+        cancelDeltaBlockadePick();
+        return;
+      }
+      // The DEPLOY execution surface ends here (A «Готово» and B alike): the
+      // blockade is committed server state — the held card-actions conclusion
+      // resumes and the flow leaves.
+      if (isBlockadeExecutionActive()) {
+        endBlockadeExecution();
+        this.concludeWorkspaceFlow('card-actions');
         return;
       }
       leaveWorkspace();
@@ -14664,6 +14778,14 @@ export default defineComponent({
      * see the rest of the console, so the ending is decided here.
      */
     onCardActionsFlowComplete(): void {
+      // A committed DEPLOY does not conclude to the board: the Hydronetwork
+      // opens as the execution surface (the fresh gate assembles in front of
+      // the target's marker), and «Готово» resumes this very conclusion.
+      const deploy = consumeBlockadeExecution();
+      if (deploy !== undefined) {
+        beginBlockadeExecution(deploy.target, deploy.source);
+        return;
+      }
       this.concludeWorkspaceFlow('card-actions');
     },
     /**
@@ -16291,6 +16413,8 @@ export default defineComponent({
     resetConsoleRepeatPickUi();
     resetDeltaRewardPick(); // …and the stage-reward pick bridge (Dutch Mountains)
     resetDeltaEspionagePick(); // …and the espionage target-pick bridge (DP10)
+    resetDeltaBlockadePick(); // …and the blockade target-pick bridge (DP11)
+    resetBlockadeExecution(); // …and its execution surface
     // A composer's TABLEAU pick is module state too — fold it (cancel) so a
     // game switch never carries a live pick / dead callbacks across sessions.
     resetCategoryDirector();

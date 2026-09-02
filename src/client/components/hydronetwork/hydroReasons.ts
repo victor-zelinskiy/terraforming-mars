@@ -26,6 +26,7 @@ import {
 export type HydroReasonKind =
   | 'loading'
   | 'end-of-track'
+  | 'blockade'
   | 'used-this-generation'
   | 'not-your-turn'
   | 'finish-current-action'
@@ -67,6 +68,7 @@ const REASON_BLOCKER_CODE: Readonly<Record<HydroReasonKind, BlockerCode>> = {
   'choose-bonus': 'EXECUTION_GATE',
   'choose-card': 'EXECUTION_GATE',
   'end-of-track': 'DOMAIN',
+  'blockade': 'DOMAIN',
   'used-this-generation': 'DOMAIN',
   'unavailable': 'DOMAIN',
   'missing-tag': 'DOMAIN',
@@ -166,6 +168,8 @@ export type HydroReasonsInput = {
   rewardChoice: number | undefined;
   /** Name of the player occupying the selected VP slot (when known). */
   occupantName?: string;
+  /** Name of the player who deployed the standing blockade (when known). */
+  blockadeByName?: string;
 };
 
 /**
@@ -180,6 +184,22 @@ export function hydroPlanReasons(input: HydroReasonsInput): ReadonlyArray<HydroR
   }
   if (model.atEndOfTrack) {
     return [{kind: 'end-of-track', textKey: 'You have reached the end of the Hydronetwork track.', blocking: true}];
+  }
+  // A STANDING MODULAR FLOODGATES BLOCKADE (server-authored on the preview):
+  // every forward move is rule-blocked, whatever pays for it — nothing else
+  // matters until the next generation, and the deployer's name fills the
+  // slot so the reason reads as the attack it is. Visually distinct from an
+  // economic shortfall by its own kind; the persistent gate on the track and
+  // its inspection carry the rest.
+  if (preview.blockade !== undefined) {
+    return [{
+      kind: 'blockade',
+      textKey: input.blockadeByName !== undefined && input.blockadeByName !== '' ?
+        'Blocked by ${0}: Modular Floodgates — until the next generation' :
+        'Hydronetwork advancement is blocked by Modular Floodgates until the next generation',
+      ...(input.blockadeByName !== undefined && input.blockadeByName !== '' ? {params: [input.blockadeByName]} : {}),
+      blocking: true,
+    }];
   }
   if (model.usedThisGeneration) {
     // The whole-generation gate — nothing else matters until the next one.

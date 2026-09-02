@@ -151,6 +151,34 @@ function progressOf(player: IPlayer) {
 }
 
 /**
+ * THE STANDING BLOCKADE AGAINST `player` — a Modular Floodgates (DP11) module
+ * deployed in front of their marker this generation, or `undefined`.
+ *
+ * Lives HERE, beside the one commit point it gates, because «may this marker
+ * advance at all» is the ledger's own question: every legality surface
+ * (`getValidAdvanceSteps`, the bot twin, the refusal builders, the previews)
+ * asks THIS function, and {@link commitDeltaMovement} enforces it as the
+ * last-resort hard gate — so a mover that skipped its own pre-check (a future
+ * card, a crafted request, a replay) still cannot advance a blocked marker.
+ *
+ * ACTIVE ⇔ the record names the CURRENT generation. A record from an earlier
+ * generation is inert even before the start-of-generation cleanup removes it
+ * (`DeltaProjectExpansion.expireBlockades`) — expiration is a boundary fact,
+ * never a race with the cleanup's own timing.
+ *
+ * A RETREAT is deliberately not gated: the blockade blocks ADVANCEMENT (the
+ * printed rule), and a backward push (Corporate Espionage) stays legal —
+ * the blockade then keeps standing against the player at their new position.
+ */
+export function activeDeltaBlockade(player: IPlayer) {
+  const blockade = player.deltaProjectData?.blockade;
+  if (blockade === undefined || blockade.generation !== player.game.generation) {
+    return undefined;
+  }
+  return blockade;
+}
+
+/**
  * THE ONE COMMIT POINT. Writes the new position, hands the caller its own
  * journal voice, then publishes the fact.
  *
@@ -171,6 +199,16 @@ export function commitDeltaMovement(
 ): DeltaMovement | undefined {
   if (!Number.isFinite(requested) || requested <= 0) {
     return undefined;
+  }
+  // THE HARD BLOCKADE GATE. Every legality surface already answers «no» for a
+  // blocked player ({@link activeDeltaBlockade} via `getValidAdvanceSteps`,
+  // the bot twin, the refusal builders) — this is the last resort at the one
+  // point every advance must pass, so a caller that skipped its own pre-check
+  // can never move a blocked marker. A THROW, not a silent no-op: reaching
+  // here means a pipeline upstream lied about legality, and that must shout.
+  const blockade = activeDeltaBlockade(player);
+  if (blockade !== undefined) {
+    throw new Error(`${player.color} cannot advance on the Hydronetwork: blocked by ${blockade.card} until the next generation`);
   }
   const progress = progressOf(player);
   const from = progress.position;

@@ -52,7 +52,34 @@ export class AutomaController {
     if (passed) {
       game.playerHasPassed(bot);
     }
-    game.playerIsFinishedTakingActions();
+    /*
+     * THE SCRIPT CLOSES AFTER THE TURN'S OWN DEFERRED PAYOUTS DRAIN. A hook a
+     * bot placement fires on a HUMAN card routinely defers its payout (Tharsis
+     * Republic's GainProduction, a colony bonus, an attack resolution): the
+     * mutation then lands AFTER the turn body, and a script finished before the
+     * drain diffs its whole-turn snapshots too early — the human's change is
+     * real, evented (the deferred action carries the captured 'automa-turn'
+     * context), yet ABSENT from the impact steps, and the bot turn card (which
+     * owns presentation for automa-turn chains) never tells its owner. So the
+     * queue drains FIRST; `finish()` runs when it empties — or immediately at an
+     * INPUT boundary (a victim's pick pauses the drain; that interactive tail is
+     * already narrated by its own attack step, and the recording must not
+     * survive the request — it is transient by construction). The drain itself
+     * is the same one `playerIsFinishedTakingActions` used to run before
+     * advancing; only the script's closing moved.
+     */
+    let finished = false;
+    const finishTurn = () => {
+      if (!finished) {
+        finished = true;
+        AutomaTurnLog.finish(game);
+      }
+    };
+    game.deferredActions.runAll(() => {
+      finishTurn();
+      game.playerIsFinishedTakingActions();
+    });
+    finishTurn();
   }
 
   /** Resolve the turn body inside the journal scope. Returns true when the bot passed. */
@@ -79,8 +106,7 @@ export class AutomaController {
     if (automa.actionDeck.length === 0) {
       game.log('${0} passed', (b) => b.player(bot));
       AutomaTurnLog.note(game, {kind: 'pass'}, {consumeLog: true});
-      AutomaTurnLog.finish(game);
-      return true;
+      return true; // takeTurn closes the script after the deferred drain
     }
 
     const entry = automa.actionDeck.shift();
@@ -131,8 +157,7 @@ export class AutomaController {
     }
 
     automa.revealedCard = undefined;
-    AutomaTurnLog.finish(game);
-    return false;
+    return false; // takeTurn closes the script after the deferred drain
   }
 
   /**

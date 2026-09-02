@@ -1,3 +1,6 @@
+import {CardName} from '../cards/CardName';
+import {Color} from '../Color';
+
 /**
  * One landing on the Delta Project ("Гидросеть") track — a position the player
  * STOPPED on (and so received its reward), with the generation it happened and,
@@ -27,6 +30,29 @@ export type DeltaStop = {
   crossed?: true;
 };
 
+/**
+ * A MODULAR FLOODGATES (DP11) blockade standing against THIS player: their
+ * forward Hydronetwork advancement is blocked for the generation it was
+ * deployed in, whatever the movement's source (the standard action, a card
+ * bonus move, the MarsBot resolution). PLAYER-TARGETED domain state, never a
+ * property of one track cell — a legal backward move keeps it attached.
+ *
+ * Rides `deltaProjectData`, so it serializes, reconnects and reaches every
+ * viewer with the ordinary player model (a blockade is public table state).
+ * ACTIVE ⇔ `generation === game.generation`; the record is removed exactly
+ * once at the start of the next generation (`DeltaProjectExpansion.
+ * expireBlockades`), and a stale record is inert by construction — a reload
+ * ON the boundary can never resurrect an expired blockade.
+ */
+export type DeltaBlockade = {
+  /** The player who deployed it (provenance + the victim's notification). */
+  by: Color;
+  /** The source card (inspection + every blocked-reason surface). */
+  card: CardName;
+  /** The generation the blockade is active in. */
+  generation: number;
+};
+
 export type DeltaProjectPlayerModel = {
   position: number;
   jovianBonus: boolean;
@@ -38,4 +64,7 @@ export type DeltaProjectPlayerModel = {
   // Landing history (positions the player stopped on + reward choice), oldest
   // first. Drives the per-stage history panel. Optional for old saves.
   stops?: Array<DeltaStop>;
+  // An active Modular Floodgates blockade against this player. Optional for
+  // every save written before DP11 existed.
+  blockade?: DeltaBlockade;
 }

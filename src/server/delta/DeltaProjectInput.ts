@@ -41,6 +41,13 @@ export class DeltaProjectInput extends BasePlayerInput<number> {
   public steelSpent = 0;
 
   /**
+   * Modular Floodgates steel spent 1:1 in place of energy — its own SOURCE
+   * beside {@link steelSpent} (deducted from the card, never the stock), same
+   * by-reference contract. 0 = unused (the legacy wire omits the field).
+   */
+  public cardSteelSpent = 0;
+
+  /**
    * PER-POSITION conscious declines of target-bearing stage rewards along a
    * multi-reward traversal (Delta Surge) — same by-reference contract as
    * {@link waiveReward}: set from the wire BEFORE the callback, read by the
@@ -103,6 +110,10 @@ export class DeltaProjectInput extends BasePlayerInput<number> {
     if (!Number.isInteger(steel) || steel < 0 || steel > input.amount) {
       throw new InputError('Steel share must be an integer between 0 and the step count');
     }
+    const cardSteel = input.cardSteel ?? 0;
+    if (!Number.isInteger(cardSteel) || cardSteel < 0 || steel + cardSteel > input.amount) {
+      throw new InputError('The steel shares must be integers totalling at most the step count');
+    }
     const waivedSteps = input.waivedSteps ?? [];
     if (!Array.isArray(waivedSteps) ||
         waivedSteps.some((p) => !Number.isInteger(p) || p < 0 || p > 11)) {
@@ -128,6 +139,7 @@ export class DeltaProjectInput extends BasePlayerInput<number> {
     }
     this.waiveReward = input.waiveReward === true;
     this.steelSpent = steel;
+    this.cardSteelSpent = cardSteel;
     this.waivedSteps = waivedSteps;
     this.plannedActions = plannedActions;
     this.plannedChoices = plannedChoices;

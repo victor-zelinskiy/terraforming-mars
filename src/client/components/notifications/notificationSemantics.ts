@@ -217,6 +217,18 @@ export function viewerImpactOfChain(chain: ReadonlyArray<GameEvent>, viewer: Col
       attacker = attacker ?? attackerOf(e, viewer);
       lossSource = lossSource ?? e;
     }
+    // A MODULAR FLOODGATES blockade DEPLOYED against the viewer — the
+    // canonical `delta-blockade-changed` fact. No number moved: the loss is
+    // the standing ban itself, so the chip is a WORDED unit (the card's
+    // UNIT_LABEL carries the phrase + duration) and the attacker classifies
+    // exactly like a track retreat. The quiet 'expired' phase is a journal
+    // fact, never a band.
+    const db = e.impact.deltaBlockade;
+    if (db !== undefined && db.phase === 'placed') {
+      trackLosses.push({icon: 'hydro-blockade', text: ''});
+      attacker = attacker ?? attackerOf(e, viewer);
+      lossSource = lossSource ?? e;
+    }
     const chips = [...impactChips(e.impact), ...extraViewerChips(e.impact)];
     for (const c of chips) {
       if (c.saved === true || c.neutral === true) {

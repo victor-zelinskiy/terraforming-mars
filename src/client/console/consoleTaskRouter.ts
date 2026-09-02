@@ -520,6 +520,11 @@ export function taskFor(view: PlayerViewModel): ConsoleTask | undefined {
     // reconnect): the Hydronetwork workspace serves it through the espionage
     // pick door — never a modal, never the host.
     return {kind: 'choice', flavor: 'espionage'};
+  case 'deltaBlockade':
+    // Modular Floodgates' standalone target ask — the SAME dedicated
+    // workspace serves it through the blockade pick door (the espionage
+    // contract); structural off the input's own type.
+    return {kind: 'choice', flavor: 'espionage'};
   case 'resource':
     return {kind: 'resource'};
   case 'resources':

@@ -71,6 +71,7 @@ export const PaymentWidgetMixin = defineComponent({
     getResourceRate(unit: SpendableResource): number {
       switch (unit) {
       case 'steel':
+      case 'floodgateSteel':
         return this.playerView.thisPlayer.steelValue;
       case 'titanium':
         return this.getTitaniumResourceRate();
@@ -104,6 +105,7 @@ export const PaymentWidgetMixin = defineComponent({
         auroraiData: spendable.auroraiData,
         graphene: spendable.graphene,
         kuiperAsteroids: spendable.kuiperAsteroids,
+        floodgateSteel: spendable.floodgateSteel,
       };
 
       // Stratospheric Birds requires discarding one floater from any card.

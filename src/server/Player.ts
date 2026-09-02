@@ -1055,6 +1055,10 @@ export class Player implements IPlayer {
       auroraiData: card.type === CardType.STANDARD_PROJECT,
       graphene: card.tags.includes(Tag.CITY) || card.tags.includes(Tag.SPACE),
       kuiperAsteroids: card.name === CardName.AQUIFER_STANDARD_PROJECT || card.name === CardName.ASTEROID_STANDARD_PROJECT,
+      // Modular Floodgates steel IS steel («counts as on your player board»),
+      // so it is usable EXACTLY where ordinary steel is — same condition, by
+      // reference to the line above, never a second reading of the rule.
+      floodgateSteel: this.lastCardPlayed === CardName.LAST_RESORT_INGENUITY || card.tags.includes(Tag.BUILDING),
     };
   }
 
@@ -1148,6 +1152,9 @@ export class Player implements IPlayer {
     removeResourcesOnCard(CardName.SOYLENT_SEEDLING_SYSTEMS, payment.seeds, DEFAULT_PAYMENT_VALUES.seeds);
     removeResourcesOnCard(CardName.AURORAI, payment.auroraiData, DEFAULT_PAYMENT_VALUES.auroraiData);
     removeResourcesOnCard(CardName.KUIPER_COOPERATIVE, payment.kuiperAsteroids, DEFAULT_PAYMENT_VALUES.kuiperAsteroids);
+    // Floodgate steel pays at the player's LIVE steel value (Advanced Alloys
+    // and friends), exactly as ordinary steel does — never the flat default.
+    removeResourcesOnCard(CardName.MODULAR_FLOODGATES, payment.floodgateSteel, this.getSteelValue());
 
     this.recordPaymentValueBonus(payment);
 
@@ -2023,6 +2030,7 @@ export class Player implements IPlayer {
       auroraiData: this.getSpendable('auroraiData'),
       graphene: this.getSpendable('graphene'),
       kuiperAsteroids: this.getSpendable('kuiperAsteroids'),
+      floodgateSteel: this.getSpendable('floodgateSteel'),
     };
   }
 
@@ -2048,6 +2056,8 @@ export class Player implements IPlayer {
       ...DEFAULT_PAYMENT_VALUES,
       steel: this.getSteelValue(),
       titanium: this.getTitaniumValue(),
+      // Floodgate steel IS steel: the same live value, modifiers included.
+      floodgateSteel: this.getSteelValue(),
     };
 
     const usable: {[key in SpendableResource]: boolean} = {
@@ -2064,6 +2074,7 @@ export class Player implements IPlayer {
       auroraiData: options?.auroraiData ?? false,
       graphene: options?.graphene ?? false,
       kuiperAsteroids: options?.kuiperAsteroids ?? false,
+      floodgateSteel: options?.floodgateSteel ?? false,
     };
 
     // HOOK: Luna Trade Federation
@@ -2590,7 +2601,11 @@ export class Player implements IPlayer {
               plannedActions: input.plannedActions,
               plannedChoices: input.plannedChoices,
               answers: input.answers,
-              payment: {energy: amount - input.steelSpent, steel: input.steelSpent},
+              payment: {
+                energy: amount - input.steelSpent - input.cardSteelSpent,
+                steel: input.steelSpent,
+                cardSteel: input.cardSteelSpent,
+              },
             });
             if (this.deltaProjectData !== undefined) {
               this.deltaProjectData.usedThisGeneration = true;

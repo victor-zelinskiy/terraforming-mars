@@ -89,6 +89,42 @@ describe('hydroPlanReasons', () => {
     expect(rs.map((r) => r.kind)).deep.eq(['end-of-track']);
   });
 
+  it('a standing Modular Floodgates blockade is the SINGLE reason, names the deployer, and outranks economics', () => {
+    const preview = fullPreview(0, {
+      blockade: {by: 'green', card: CardName.MODULAR_FLOODGATES, generation: 3},
+      maxLegalSteps: 0,
+    });
+    const input = modelInput({preview, selectedPosition: 3});
+    const model = buildHydroModel(input);
+    const rs = hydroPlanReasons({
+      model, preview, actionAvailable: false, turnState: 'action-menu',
+      rewardChoice: undefined, blockadeByName: 'Зелёный',
+    });
+    expect(rs.map((r) => r.kind)).deep.eq(['blockade']);
+    expect(rs[0].blocking).eq(true);
+    expect(rs[0].textKey).to.match(/Blocked by \$\{0\}/);
+    expect(rs[0].params).deep.eq(['Зелёный']);
+    // A rule blockade is a DOMAIN block — visually distinct from a turn gate,
+    // and it excludes the advance from every potential count.
+    expect(hydroRuleBlocked(rs)).eq(true);
+  });
+
+  it('the blockade reason degrades to the plain wording when the deployer is unknown', () => {
+    const preview = fullPreview(2, {
+      blockade: {by: 'green', card: CardName.MODULAR_FLOODGATES, generation: 3},
+      maxLegalSteps: 0,
+    });
+    const input = modelInput({preview, selectedPosition: 1});
+    const model = buildHydroModel(input);
+    const rs = hydroPlanReasons({
+      model, preview, actionAvailable: false, turnState: 'action-menu',
+      rewardChoice: undefined,
+    });
+    expect(rs.map((r) => r.kind)).deep.eq(['blockade']);
+    expect(rs[0].textKey).to.match(/blocked by Modular Floodgates until the next generation/);
+    expect(rs[0].params).eq(undefined);
+  });
+
   it('used-this-generation supersedes everything else', () => {
     const rs = reasonsFor({preview: fullPreview(0, {usedThisGeneration: true}), actionAvailable: false, selectedPosition: 5});
     expect(rs.map((r) => r.kind)).deep.eq(['used-this-generation']);

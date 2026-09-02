@@ -39,6 +39,7 @@ export class SelectPayment extends BasePlayerInput<Payment> {
       floaters: player.getSpendable('floaters'),
       microbes: player.getSpendable('microbes'),
       graphene: player.getSpendable('graphene'),
+      floodgateSteel: player.getSpendable('floodgateSteel'),
     };
   }
 
