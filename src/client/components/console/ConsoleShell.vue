@@ -1648,7 +1648,8 @@ import {ResultRevealPresentation, resultRevealPresentation} from '@/client/conso
 import {claimPlayOutcome, isPlayOutcomeHost, playLandingShowing} from '@/client/console/played/consolePlayOutcomeClaim';
 import {noteBonusGainRows, resetBonusGainReward} from '@/client/console/startBonusGain';
 import ConsoleBoardCardBonusLayer from '@/client/components/console/boardCardBonus/ConsoleBoardCardBonusLayer.vue';
-import {armBoardCardBonus, abortBoardCardBonus, boardCardBonusState, isBoardCardBonusActive, isBoardCardBonusFieldPhase} from '@/client/console/boardCardBonus/consoleBoardCardBonus';
+import {armBoardCardBonus, abortBoardCardBonus, boardCardBonusClaimsReveal, boardCardBonusState, isBoardCardBonusActive, isBoardCardBonusFieldPhase} from '@/client/console/boardCardBonus/consoleBoardCardBonus';
+import {applyOutcomeAdoption, outcomeAdoptionHost, resolveOutcomeAdoption, OutcomeAdoptionDecision} from '@/client/console/consoleOutcomeAdoption';
 import {
   planetFocusState, enterPlanetFocus, beginPlanetFocusExit, playPlanetFocusScaleBeat,
   planetFocusBeatAllowed, qualifiesForPlanetFocus, captureGlobalParams,
@@ -1708,7 +1709,7 @@ import {WheelArmEvent, WheelInputState, initialWheelInput, reduceWheel} from '@/
 import {wheelControlState} from '@/client/console/quickWheel/wheelControlMode';
 import {wheelHandoffSpecFor, CONFIRM_HANDOFF} from '@/client/console/quickWheel/wheelHandoffModel';
 import {pulseWheelAnchors} from '@/client/console/quickWheel/wheelPulse';
-import {actionPreviewMap, ensureActionPreviews, resetActionPreviews} from '@/client/console/actionPreviewStore';
+import {actionPreviewMap, branchOutcomeClaimPlan, ensureActionPreviews, previewBranchByIndex, resetActionPreviews} from '@/client/console/actionPreviewStore';
 import {gameStateVersion} from '@/client/console/gameStateVersion';
 import BarButtonIcon from '@/client/components/overview/BarButtonIcon.vue';
 import {resolveAwaiting, AWAITING_SAFETY_MS} from '@/client/console/surfaceMotion/surfaceMotionModel';
@@ -4090,6 +4091,38 @@ export default defineComponent({
       return !revealPresented(ev.id) && this.exitBarrierHolds(ev.id);
     },
     /**
+     * THE ADOPTION VERDICT for the pending drawn batch (`consoleOutcomeAdoption`
+     * — the net under the claim system): re-home a claim whose host frame is
+     * gone, late-claim an unowned batch for the workspace the player is inside,
+     * release an orphan nobody can host. Pure over the shell's own signals;
+     * applied by the `outcomeAdoptionDecision` watcher post-flush.
+     */
+    outcomeAdoptionDecision(): OutcomeAdoptionDecision {
+      const ev = currentRevealEvent();
+      const source = ev?.source;
+      const claimHost = workspaceOutcomeState.host;
+      return resolveOutcomeAdoption({
+        pending: ev !== undefined && this.rawDrawnRevealPending,
+        source,
+        claimLive: workspaceOutcomeClaimed(),
+        claimHost,
+        claimHostKnown: claimHost !== undefined && workspaceFrameKnown(claimHost),
+        claimMatchesBatch: workspaceClaimsDrawReveal(source) || workspaceClaimsColonyReveal(source),
+        boardSceneOwns: boardCardBonusClaimsReveal(source),
+        tradeSceneOwns: colonyTradeClaimsReveal(source),
+        adoptionHost: outcomeAdoptionHost(),
+      });
+    },
+    /**
+     * The batch is about to be adopted — hold its presentation for the one
+     * flush the post-watcher needs, so the standalone band never mounts for a
+     * frame and then teleports (the modal-then-embed flash). Falls by itself:
+     * the applied claim/re-home/release makes the decision resolve to 'none'.
+     */
+    outcomeAdoptionPending(): boolean {
+      return this.outcomeAdoptionDecision.kind !== 'none';
+    },
+    /**
      * THE PREVIOUS CARD STAGE IS STILL LEAVING — the join every «may the next
      * batch take the scene?» question reads. Terms are COMPLETION-shaped
      * module facts, each ending on its own real finish:
@@ -4173,7 +4206,11 @@ export default defineComponent({
         // one-directional exactly as it does for the claimed path.
         const ev = currentRevealEvent();
         if (ev !== undefined && !revealPresented(ev.id) &&
-            (this.exitBarrierHolds(ev.id) || this.hydroQueuedRevealForLaterStep)) {
+            (this.exitBarrierHolds(ev.id) || this.hydroQueuedRevealForLaterStep ||
+             // …and a batch the ADOPTION net is about to claim/re-home holds
+             // for that one flush — never the standalone band for a frame and
+             // an embedded stage the next (see `outcomeAdoptionPending`).
+             this.outcomeAdoptionPending)) {
           return undefined;
         }
         return 'drawn';
@@ -5049,6 +5086,20 @@ export default defineComponent({
      * re-evaluate on its own, so nothing has to remember to re-check the root.
      */
     startFrameLive(): boolean {
+      // A FOREIGN WORKSPACE'S OUTCOME IS STILL PRESENTING — the start must not
+      // return YET. `enterWorkspace('start')` truncates the stack, and during
+      // a bonus-action window («Фора» building a colony on Pluto) the response
+      // that drains the ledger is the very one that carries the payout: the
+      // re-entry destroyed the colonies frame under its live claim, the claim
+      // stood with an empty zone until its 20 s backstop, and the batch then
+      // rose as the standalone «Получены карты» band over the start workspace.
+      // The claim's own release (the take, the reconciler, its backstop) is
+      // what re-fires this computed — the hold is bounded by construction.
+      if (!workspaceFrameKnown('start') && workspaceOutcomeState.host !== undefined &&
+          workspaceOutcomeState.host !== 'start' && workspaceOutcomeState.sourceCard !== '' &&
+          workspaceFrameKnown(workspaceOutcomeState.host)) {
+        return false;
+      }
       if (this.startSceneServes || workspaceFrameHasNested('start')) {
         return true;
       }
@@ -5649,7 +5700,13 @@ export default defineComponent({
      * on the CLAIM instead — the one fact that says «this flow is still ours».
      */
     colonyPayoutIncoming(): boolean {
+      // The HOST term is load-bearing since the claim predicate lost its host
+      // pin: a colony claim RE-HOMED to another live workspace (the adoption
+      // net) still answers for its batch, but it is that workspace's stage now
+      // — dragging the player back into the colonies section for it would be
+      // the exact «yanked to another screen» this family exists to prevent.
       return this.rawDrawnRevealPending &&
+        workspaceOutcomeState.host === 'colonies' &&
         workspaceClaimsColonyReveal(currentRevealEvent()?.source);
     },
     // ── THE COLONY RESOLUTION (colonyResolution.ts) — the Pluto flow's ONE
@@ -7803,6 +7860,24 @@ export default defineComponent({
       if (incoming) {
         this.bringColoniesHome();
       }
+    },
+    /**
+     * THE ADOPTION NET APPLIES ITSELF. POST-flush on purpose: the decision can
+     * only become non-'none' when the stack / claim / batch state settles, and
+     * the application (a claim write, a re-home, a release) must land after the
+     * frame that raised it has rendered — the presentation hold
+     * (`outcomeAdoptionPending`) covers exactly this one-flush gap. Applying is
+     * idempotent: the write makes the decision resolve back to 'none'.
+     */
+    outcomeAdoptionDecision: {
+      // IMMEDIATE: a decision already standing at mount (a reload into a
+      // pending batch with a restored stack) has no change edge left to fire
+      // on — unapplied, the presentation hold above it would stand forever.
+      immediate: true,
+      flush: 'post',
+      handler(decision: OutcomeAdoptionDecision): void {
+        applyOutcomeAdoption(decision);
+      },
     },
     /**
      * THE ENTRY'S WAIT IS OVER THE MOMENT THE PAYOUT IS REAL. From here on the
@@ -13694,7 +13769,7 @@ export default defineComponent({
           consoleHydroUi.repeatResult : undefined);
       const repeatSpecs = repeatPick !== undefined ?
         commitRewardSpecs(repeatPick.chosenCard,
-          actionPreviewMap().get(repeatPick.chosenCard)?.branches[repeatPick.composed.branchIndex],
+          previewBranchByIndex(actionPreviewMap().get(repeatPick.chosenCard), repeatPick.composed.branchIndex),
           {...repeatPick.composed.stepResponses}) :
         [];
       const traversal = payload.traversal !== undefined && repeatSpecs.length > 0 ?
@@ -13892,22 +13967,10 @@ export default defineComponent({
         // preview branch (the hydro traversal's exact derivation).
         const repeatPick = consoleHydroUi.repeatResult;
         if (repeatPick !== undefined && repeatPick.chosenCard === ownerAnswer.selectedCard) {
-          const branch = actionPreviewMap().get(repeatPick.chosenCard)?.branches[repeatPick.composed.branchIndex];
-          const kinds: Array<WorkspaceOutcomeKind> = [];
-          let expected = 0;
-          for (const e of branch?.effects ?? []) {
-            if (e.direction === 'gain' && e.icon === 'cards') {
-              expected += Math.max(1, Math.round(e.amount));
-            }
-          }
-          if (branch?.reveal !== undefined) {
-            kinds.push('deck-check');
-          }
-          if (expected > 0) {
-            kinds.push('draw', 'pick');
-          }
+          const {kinds, expectedCards} = branchOutcomeClaimPlan(
+            actionPreviewMap().get(repeatPick.chosenCard), repeatPick.composed.branchIndex);
           if (kinds.length > 0) {
-            claimWorkspaceOutcome('hydro', CardName.DELTA_PROJECT, kinds, 0, expected, 'chain');
+            claimWorkspaceOutcome('hydro', CardName.DELTA_PROJECT, kinds, 0, expectedCards, 'chain');
           }
         }
       }
@@ -13991,21 +14054,13 @@ export default defineComponent({
         const hasDeck = payload.traversal.some((s) => s.kind === 'deck-draw');
         const seg = payload.traversal.find((s) => s.kind === 'repeat');
         const repeat = consoleHydroUi.repeatResult;
-        const repeatKinds: Array<WorkspaceOutcomeKind> = [];
+        let repeatKinds: ReadonlyArray<WorkspaceOutcomeKind> = [];
         let repeatExpected = 0;
         if (seg !== undefined && repeat !== undefined && repeat.chosenCard === seg.selectedCard) {
-          const branch = actionPreviewMap().get(repeat.chosenCard)?.branches[repeat.composed.branchIndex];
-          for (const e of branch?.effects ?? []) {
-            if (e.direction === 'gain' && e.icon === 'cards') {
-              repeatExpected += Math.max(1, Math.round(e.amount));
-            }
-          }
-          if (branch?.reveal !== undefined) {
-            repeatKinds.push('deck-check');
-          }
-          if (repeatExpected > 0) {
-            repeatKinds.push('draw', 'pick');
-          }
+          const plan = branchOutcomeClaimPlan(
+            actionPreviewMap().get(repeat.chosenCard), repeat.composed.branchIndex);
+          repeatKinds = plan.kinds;
+          repeatExpected = plan.expectedCards;
         }
         if (hasDeck) {
           claimDraw = 4;
@@ -14052,26 +14107,14 @@ export default defineComponent({
       } else if (kind === 'repeat' && payload.repeat !== undefined) {
         // The repeated action's own draws/picks/VERDICT embed exactly like a
         // direct activation's would — kinds derived from its cached preview
-        // branch (structural, never a card table); a cache miss degrades
-        // standalone. `deck-check` is here for the same reason the other two
-        // are: the copy is this workspace's move, so what it turns over is this
-        // workspace's result — «ГИДРОСЕТЬ › ПОИСКИ ЖИЗНИ › РЕЗУЛЬТАТ ВСКРЫТИЯ»,
-        // not a full-bleed modal over the track that produced it.
-        const branch = actionPreviewMap().get(payload.repeat.chosenCard)
-          ?.branches[payload.repeat.composed.branchIndex];
-        let expectedCards = 0;
-        for (const e of branch?.effects ?? []) {
-          if (e.direction === 'gain' && e.icon === 'cards') {
-            expectedCards += Math.max(1, Math.round(e.amount));
-          }
-        }
-        const kinds: Array<WorkspaceOutcomeKind> = [];
-        if (branch?.reveal !== undefined) {
-          kinds.push('deck-check');
-        }
-        if (expectedCards > 0) {
-          kinds.push('draw', 'pick');
-        }
+        // branch (structural, never a card table); a cache miss degrades to
+        // the ADOPTION net (`consoleOutcomeAdoption`). `deck-check` is here
+        // for the same reason the other two are: the copy is this workspace's
+        // move, so what it turns over is this workspace's result — «ГИДРОСЕТЬ ›
+        // ПОИСКИ ЖИЗНИ › РЕЗУЛЬТАТ ВСКРЫТИЯ», not a full-bleed modal over the
+        // track that produced it.
+        const {kinds, expectedCards} = branchOutcomeClaimPlan(
+          actionPreviewMap().get(payload.repeat.chosenCard), payload.repeat.composed.branchIndex);
         if (kinds.length > 0) {
           // SCOPE 'chain': the server attributes a copied action's effects to
           // the scope that RAN it (the Delta Project advance), not to the

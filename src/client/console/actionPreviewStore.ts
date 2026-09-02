@@ -248,6 +248,56 @@ export function ensureActionPreviews(playerView: PlayerViewModel): void {
   pumpPreviewFetches();
 }
 
+/**
+ * The preview branch a RUNTIME OrOptions index names.
+ *
+ * `ActionPreviewBranch.index` is the server's runtime OR-index over the
+ * FILTERED behavior list, and `-1` for a single-action card — a KEY, never an
+ * array position. Subscripting `branches[branchIndex]` reads the wrong branch
+ * whenever an unavailable branch shifts the numbering, and reads NOTHING for
+ * every single-action card (`[-1]`) — which is exactly how a stage-7 copy of
+ * «Центр ИИ» armed no outcome claim and its draw escaped to the standalone
+ * band. One resolver, so no call site can subscript again (guarded by
+ * `tests/console/previewBranchLookupGuard.spec.ts`).
+ */
+export function previewBranchByIndex(
+  preview: ActionPreview | undefined, branchIndex: number,
+): ActionPreview['branches'][number] | undefined {
+  return preview?.branches.find((b) => b.index === branchIndex);
+}
+
+/**
+ * WHAT A CONFIRMED BRANCH'S OUTCOME CLAIM SHOULD ADMIT — the ONE structural
+ * derivation every claim site uses (kinds off the branch preview, never a card
+ * table): `reveal` present → a deck-check verdict; a `cards` GAIN effect → the
+ * action puts cards in play (drawn batch or a buy/keep pick — the server
+ * decides, so the claim admits both). `expectedCards` is the preview's
+ * server-computed amount, sizing the prepared arrival.
+ *
+ * This block used to be copy-pasted at five claim sites (three hydro doors,
+ * the delta reward entry, the action composer's confirm), each addressing the
+ * branch by subscript — one recipe, one lookup, so they can no longer drift.
+ */
+export function branchOutcomeClaimPlan(
+  preview: ActionPreview | undefined, branchIndex: number,
+): {kinds: Array<'deck-check' | 'draw' | 'pick'>, expectedCards: number} {
+  const branch = previewBranchByIndex(preview, branchIndex);
+  const kinds: Array<'deck-check' | 'draw' | 'pick'> = [];
+  let expectedCards = 0;
+  for (const e of branch?.effects ?? []) {
+    if (e.direction === 'gain' && e.icon === 'cards') {
+      expectedCards += Math.max(1, Math.round(e.amount));
+    }
+  }
+  if (branch?.reveal !== undefined) {
+    kinds.push('deck-check');
+  }
+  if (expectedCards > 0) {
+    kinds.push('draw', 'pick');
+  }
+  return {kinds, expectedCards};
+}
+
 /** The cached previews as the Map the pure model consumes. */
 export function actionPreviewMap(): Map<CardName, ActionPreview> {
   const m = new Map<CardName, ActionPreview>();

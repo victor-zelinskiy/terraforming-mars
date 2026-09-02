@@ -5,6 +5,7 @@ paths:
   - "src/server/behavior/**"
   - "src/server/deferredActions/**"
   - "src/common/cards/**"
+  - "src/server/tools/cardInfo/**"
   - "tests/cards/**"
 ---
 
@@ -37,12 +38,13 @@ Where a rule must be read TWICE — once to promise (a preview) and once to pay 
 A validation reason must name one concrete blocker — never an "X or Y" combination the player has to guess between. Check conditions in order and return the specific reason. A GENUINE disjunction ("Need 1 M€ OR an asteroid" — either enables the action) keeps its "or".
 
 ## `metadata.infoText` (structured card text)
-EN-only keys (the text IS the i18n key), **ONE block per bonus** (never a run-on paragraph). Two hard, guard-enforced rules:
+EN-only keys (the text IS the i18n key), **ONE block per bonus** (never a run-on paragraph). Three hard, guard-enforced rules:
 1. **No sequencing connective words** («then» / «afterwards» / «finally» / ordinal-less «firstly») — order carries sequence.
 2. **Block order = RENDER reading order = real EXECUTION order.** Behavior-derived blocks auto-sort; authored `infoText` you order yourself. If the card's render is out of execution order, fix the RENDER.
+3. **The requirement LINE must state the same rule as the requirement CHIP.** Both derive from the same `CardRequirementDescriptor`, so the prose must carry the descriptor's `max` («at most», never «at least»), its magnitude, its `all` scope and its subject noun — a `max` phrased as a minimum tells the player the OPPOSITE of the chip beside it (Pioneer Settlement, Geological Survey). Every countable branch of `requirementBlock` phrases the comparator through `comparator(max)`. Guard: `tests/cards/requirementProse.spec.ts` (EN and RU).
 The generator must not drop a `behavior` sub-field (placement restrictions, adjacency bonus, counts). A VP block carries ONLY the VP rule; a block about the card's own tile must tether to it via `tokens`. Metadata riding a constructor-param default needs `: CardMetadata`.
 
 ## Guard tests ARE the worklist
-`npm run make:cards` regenerates `metadata.information` + `src/genfiles/cardInfoAudit.json` (`needsCuration` / `seededRunOn` / `missingTranslations` must all be 0). Coverage specs fail WITH the exact card list: `cardPlayPreviewCoverage`, `actionReasonCoverage`, `actionUnavailableReasons`, `cardInformation`, `effectExtraction`, `actionExtraction`, `choiceContext`, `premiumCardViewModel`, `premiumCardIcons`.
+`npm run make:cards` regenerates `metadata.information` + `src/genfiles/cardInfoAudit.json` (`needsCuration` / `seededRunOn` / `missingTranslations` must all be 0). Coverage specs fail WITH the exact card list: `cardPlayPreviewCoverage`, `actionReasonCoverage`, `actionUnavailableReasons`, `cardInformation`, `requirementProse`, `effectExtraction`, `actionExtraction`, `choiceContext`, `premiumCardViewModel`, `premiumCardIcons`.
 
 **Widening scope to a new expansion → follow `docs/claude/expansion-adaptation-checklist.md` (the master to-do: which SCOPE constants to widen, per-subsystem work, per-module gotchas, done-criteria).**

@@ -33,7 +33,7 @@ import {repeatComposedResponses} from '@/client/console/consoleHydroAdvance';
 import {HYDRO_STAGES} from '@/client/components/hydronetwork/hydroStages';
 import {buildRewardView, HydroPlayerSnapshot, HydroRewardView} from '@/client/components/hydronetwork/hydroReward';
 import {hydroRewardTransfers} from '@/client/console/hydroMarker/hydroRewardTransfers';
-import {actionPreviewMap} from '@/client/console/actionPreviewStore';
+import {actionPreviewMap, branchOutcomeClaimPlan} from '@/client/console/actionPreviewStore';
 import {resetHydroPlan} from '@/client/components/hydronetwork/hydroNetworkState';
 import {resetHydroFlow} from '@/client/console/hydroFlow/consoleHydroFlow';
 import {consoleHydroUi} from '@/client/console/consoleHydroState';
@@ -221,20 +221,11 @@ export function deltaRewardClaimPlan(draft: DeltaRewardDraft): {
   }
   if (stage.followUp === 'reuse-action' && draft.repeat !== undefined &&
       draft.repeat.chosenCard === draft.selectedCard) {
-    const branch = actionPreviewMap().get(draft.repeat.chosenCard)?.branches[draft.repeat.composed.branchIndex];
-    const kinds: Array<WorkspaceOutcomeKind> = [];
-    let expectedCards = 0;
-    for (const e of branch?.effects ?? []) {
-      if (e.direction === 'gain' && e.icon === 'cards') {
-        expectedCards += Math.max(1, Math.round(e.amount));
-      }
-    }
-    if (branch?.reveal !== undefined) {
-      kinds.push('deck-check');
-    }
-    if (expectedCards > 0) {
-      kinds.push('draw', 'pick');
-    }
+    // The ONE structural derivation + the ONE by-`index` branch lookup — a
+    // subscript here read `branches[-1]` for every single-action card and
+    // armed no claim at all (the «Центр ИИ» standalone-band defect).
+    const {kinds, expectedCards} = branchOutcomeClaimPlan(
+      actionPreviewMap().get(draft.repeat.chosenCard), draft.repeat.composed.branchIndex);
     return kinds.length > 0 ? {kinds, expectedCards, scope: 'chain'} : undefined;
   }
   return undefined;

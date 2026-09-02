@@ -412,9 +412,21 @@ describe('consoleWorkspaceOutcome — the EMBEDDED claim', () => {
       expect(workspaceClaimsDrawReveal(colonySource('Pluto'))).to.eq(false);
     });
 
-    it('another workspace\'s claim never answers for the colonies', () => {
-      claimWorkspaceOutcome('card-actions', AI_CENTRAL, ['draw']);
-      expect(workspaceClaimsColonyReveal(colonySource(AI_CENTRAL))).to.eq(false);
+    /**
+     * THE HOST PIN IS GONE (contract change, 2026-09-02). The claim's key is
+     * the NAME MATCH plus the claim's own narrowness — the host is only WHERE
+     * it presents, and that can lawfully move: a Pluto build made during a
+     * start-flow bonus action has its colonies frame truncated by the start
+     * workspace's return in the very response carrying the payout, and the
+     * claim re-homes to the start's zone (`consoleOutcomeAdoption`). Pinned to
+     * `host === 'colonies'`, the re-homed claim stopped answering for its own
+     * batch and the payout rose as the standalone «Получены карты» band over
+     * the workspace that owned it.
+     */
+    it('a colony claim answers for its batch from ANY host it presents in — the name is the key', () => {
+      claimWorkspaceOutcome('start', 'Pluto', ['draw']);
+      expect(workspaceClaimsColonyReveal(colonySource('Pluto'))).to.eq(true);
+      expect(workspaceClaimsColonyReveal(colonySource('Luna'))).to.eq(false);
     });
   });
 

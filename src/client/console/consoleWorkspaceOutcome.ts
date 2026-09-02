@@ -636,17 +636,24 @@ export function workspaceClaimsDrawReveal(source: CardDrawRevealSource | undefin
 }
 
 /**
- * Does the COLONY WORKSPACE own this COLONY-sourced batch? The colony
- * analogue of `workspaceClaimsDrawReveal`: a trade the player confirmed in
- * the colonies section claims its own drawn payout (Pluto), keyed on the
- * server's own `CardDrawRevealSource {type:'colony', colonyName}` — an
- * OPPONENT's trade granting the viewer a colony bonus stays with the
- * standalone presenters (the claim only exists between the section's own
- * confirm and its outcome).
+ * Does an open workspace own this COLONY-sourced batch? The colony analogue
+ * of `workspaceClaimsDrawReveal`: a trade or a build the player confirmed
+ * claims its own drawn payout (Pluto), keyed on the server's own
+ * `CardDrawRevealSource {type:'colony', colonyName}` — an OPPONENT's trade
+ * granting the viewer a colony bonus stays with the standalone presenters
+ * (the claim only exists between the player's own confirm and its outcome).
+ *
+ * DELIBERATELY NOT PINNED to `host === 'colonies'`. The claim's key is the
+ * NAME MATCH plus the claim's own narrowness, and the host is where it
+ * PRESENTS — which can lawfully move: a Pluto build made during a start-flow
+ * bonus action has its colonies frame truncated by the start workspace's
+ * return in the very response that carries the payout, and the claim then
+ * re-homes to the start's own zone (`consoleOutcomeAdoption`). Pinned, the
+ * re-homed claim stopped answering for its own batch and the payout rose as
+ * the standalone «Получены карты» band over the workspace that owned it.
  */
 export function workspaceClaimsColonyReveal(source: CardDrawRevealSource | undefined): boolean {
-  return workspaceOutcomeState.host === 'colonies' &&
-    workspaceOutcomeAdmits('draw') &&
+  return workspaceOutcomeAdmits('draw') &&
     source?.type === 'colony' &&
     source.colonyName === workspaceOutcomeState.sourceCard;
 }

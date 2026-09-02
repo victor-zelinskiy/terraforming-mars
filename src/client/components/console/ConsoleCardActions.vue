@@ -495,7 +495,7 @@ import {CardModel} from '@/common/models/CardModel';
 import {CardResource} from '@/common/CardResource';
 import {ActionPreview} from '@/common/models/ActionPreviewModel';
 import type {ICardRenderEffect} from '@/common/cards/render/Types';
-import {actionPreviewFingerprint, actionPreviewMap, ensureActionPreviews} from '@/client/console/actionPreviewStore';
+import {actionPreviewFingerprint, actionPreviewMap, branchOutcomeClaimPlan, ensureActionPreviews, previewBranchByIndex} from '@/client/console/actionPreviewStore';
 import {gameStateVersion} from '@/client/console/gameStateVersion';
 import {EffectOverlayStat} from '@/common/events/aggregate';
 import {paths} from '@/common/app/paths';
@@ -2101,7 +2101,7 @@ export default defineComponent({
       // Viron action) via the bridge; the source draws the button + owns the
       // FINAL submit. Nothing is submitted here.
       if (this.repeat) {
-        const branch = (this.composerPreview?.branches ?? []).find((b) => b.index === payload.branchIndex);
+        const branch = previewBranchByIndex(this.composerPreview, payload.branchIndex);
         resolveConsoleRepeatPick({
           chosenCard: comp.cardName,
           nodeIndex: comp.nodeIndex,
@@ -2157,27 +2157,18 @@ export default defineComponent({
       //     so the claim admits BOTH and the arriving artifact picks the zone.
       // The claim is raised SYNCHRONOUSLY, before the response can land, so no
       // standalone presenter can grab the artifact for even one frame.
-      const branch = (this.composerPreview?.branches ?? []).find((b) => b.index === payload.branchIndex);
+      const branch = previewBranchByIndex(this.composerPreview, payload.branchIndex);
       if (payload.repeat === undefined) {
-        const kinds: Array<WorkspaceOutcomeKind> = [];
-        if (branch?.reveal !== undefined) {
-          kinds.push('deck-check');
-        }
-        // HOW MANY cards, from the same structural place the kind came from.
-        // The batch arrival has to know the count BEFORE the first frame (N
-        // cards leave the pile, N slots are prepared), and on a slow server the
-        // answer simply is not back yet — the preview's server-computed `cards`
-        // amount is the only honest source at submit time. When the answer does
-        // beat the launch (the usual case) the real batch overrides it.
-        let expectedCards = 0;
-        for (const e of branch?.effects ?? []) {
-          if (e.direction === 'gain' && e.icon === 'cards') {
-            expectedCards += Math.max(1, Math.round(e.amount));
-          }
-        }
-        if (expectedCards > 0) {
-          kinds.push('draw', 'pick');
-        }
+        // HOW MANY cards + which kinds, from the ONE structural derivation
+        // (`branchOutcomeClaimPlan`). The batch arrival has to know the count
+        // BEFORE the first frame (N cards leave the pile, N slots are
+        // prepared), and on a slow server the answer simply is not back yet —
+        // the preview's server-computed `cards` amount is the only honest
+        // source at submit time. When the answer does beat the launch (the
+        // usual case) the real batch overrides it.
+        const plan = branchOutcomeClaimPlan(this.composerPreview, payload.branchIndex);
+        const kinds: Array<WorkspaceOutcomeKind> = [...plan.kinds];
+        let expectedCards = plan.expectedCards;
         // A CLAIMED HYDRONETWORK STAGE REWARD (Dutch Mountains) sends back
         // whatever THAT stage's resolution raises — the stage-5 keep-pick
         // batch, a composed repeat's draws / deck-check verdict — and it must
