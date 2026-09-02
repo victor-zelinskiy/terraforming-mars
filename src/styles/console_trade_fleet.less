@@ -73,16 +73,36 @@
     position: fixed;
     top: 0;
     left: 0;
-    width: 2.3rem;
-    height: 2.3rem;
+    /* The hero vessel's box: mid-flight the director grows it to ~this size
+       (peakScale ≈ 1) — the ship is the focal object of the launch, never a
+       gnat crossing the screen. Both ENDS of the flight stay honest: the
+       director measures the pad ship (startScale) and the berth (dockScale)
+       off this box, so a bigger box never pops either handoff. */
+    width: 3.2rem;
+    height: 3.2rem;
     opacity: 0; /* the director reveals via autoAlpha once positioned */
     pointer-events: none;
     will-change: transform, opacity; /* scoped: the ship exists only mid-flight */
 
     .colony-fleet-icon {
-        width: 2.3rem;
-        height: 2.3rem;
+        width: 3.2rem;
+        height: 3.2rem;
     }
+}
+/* The engine WAKE — fading owner-glow puffs the director lays along the
+   real flight path (spawned by travelled distance, disposed with the
+   flight). Pure radial-gradient + transform/opacity — paint-baseline-safe. */
+.con-fleet-puff {
+    position: fixed;
+    top: 0;
+    left: 0;
+    border-radius: 50%;
+    opacity: 0;
+    pointer-events: none;
+    background: radial-gradient(circle,
+        rgba(255, 255, 255, 0.55) 0%,
+        var(--fleet-glow, rgba(160, 200, 255, 0.5)) 34%,
+        transparent 72%);
 }
 
 /* ── LAUNCH state — the surface hands the screen to the flight ─
@@ -149,11 +169,22 @@
     100% { transform: translateY(0) scale(1); }
 }
 
+/* The FOCUS STAGE's orbital berth acknowledges the arrival (one-shot ring
+   flare in the owner hue — the trade resolves on the stage, so the stage
+   is where the seat is confirmed). */
+@keyframes con-colfocus-dock-ack {
+    0% { box-shadow: inset 0 0 0 .08rem var(--fleet-fill, fade(@con-cyan, 60%)), 0 0 0 .12rem var(--fleet-glow, fade(@con-cyan, 40%)), 0 0 .4rem var(--fleet-glow, fade(@con-cyan, 30%)); }
+    40% { box-shadow: inset 0 0 0 .1rem var(--fleet-fill, fade(@con-cyan, 70%)), 0 0 0 .22rem var(--fleet-glow, fade(@con-cyan, 30%)), 0 0 1.1rem .3rem var(--fleet-glow, fade(@con-cyan, 45%)); }
+    100% { box-shadow: inset 0 0 0 .08rem var(--fleet-fill, fade(@con-cyan, 60%)), 0 0 .8rem var(--fleet-glow, fade(@con-cyan, 25%)); }
+}
+
 /* ── Reduced motion: short/static — the path (sent → arrived → docked)
    still reads, no arc/trail/loops. ─────────────────────────────────── */
 @media (prefers-reduced-motion: reduce) {
     .con-colfocus--launching .con-colfocus__surface { transition-duration: 1ms; }
     .con-colonies__fleetdock.con-fleet-launching .con-colonies__fleetship[data-fleet-launch]::after { animation: none; }
     .con-coltile__planet-berth--docking .con-coltile__planet,
-    .con-coltile--just-docked .con-coltile__dock { animation: none; }
+    .con-coltile--just-docked .con-coltile__dock,
+    .con-colfocus__orbit--just-docked { animation: none; }
+    .con-fleet-puff { display: none; }
 }

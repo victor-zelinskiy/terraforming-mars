@@ -17969,6 +17969,11 @@ html.con-profile-large.console-mode .notifications-layer.notifications-layer--jo
 
         .colony-fleet-icon { width: 1.9rem; height: 1.9rem; }
         &--occupied { box-shadow: inset 0 0 0 .08rem var(--fleet-fill, fade(@con-cyan, 60%)), 0 0 .8rem var(--fleet-glow, fade(@con-cyan, 25%)); }
+        /* Arrival acknowledgment: the berth ring flares once as the flown
+           proxy hands off to the real docked ship (one-shot, owner-hue). */
+        &--just-docked {
+            animation: con-colfocus-dock-ack calc(700ms * var(--motion-scale, 1)) ease-out;
+        }
     }
     &__state {
         padding: .14rem .6rem;

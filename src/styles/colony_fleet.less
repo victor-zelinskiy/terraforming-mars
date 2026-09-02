@@ -1,13 +1,20 @@
 /* ── Shared trade-fleet SHIP (ColonyFleetIcon) ───────────────────────── *
- * The premium per-player shuttle used by BOTH the console colonies surfaces
- * AND the desktop colonies overlay / tiles / detail / card — it replaced the
- * legacy raster fleet sprite everywhere — AND is the flying proxy of the
- * console trade-launch cinematic. `fleet-hue--<color>` sets inheritable
- * custom props (bright, legible on dark backgrounds), consumed by the ship
- * paths (and, in the console tile, the planet-berth ring). This file is ONLY
- * the ship primitive + palette + states; each host owns its own PRESENTATION
- * (size / placement / backing). Transform/opacity/glow only — no heavy
- * filters, no layout animation (Steam-Deck-safe). */
+ * The premium per-player freighter used by BOTH the console colonies
+ * surfaces AND the desktop colonies overlay / tiles / detail / card — AND
+ * the flying proxy of the console trade-launch cinematic.
+ *
+ * EVERY tone of the vessel is EXPLICIT (SVG gradients + dedicated shade /
+ * rim paths, coloured here): the console paint baseline strips CSS
+ * `filter` permanently, so depth that rode drop-shadow/brightness filters
+ * never painted there and the ship read as a flat arcade sprite. The only
+ * `filter` left below is the desktop-nicety drop-shadow (dead-by-design in
+ * console, harmless elsewhere).
+ *
+ * `fleet-hue--<color>` sets inheritable custom props consumed by the
+ * livery/plume stops (and, in the console tile, the planet-berth ring).
+ * This file is ONLY the ship primitive + palette + states; each host owns
+ * its own PRESENTATION (size / placement / backing). Transform/opacity
+ * only — no layout animation (Steam-Deck-safe). */
 .colony-fleet-icon {
     width: 26px;
     height: 26px;
@@ -15,79 +22,101 @@
     display: inline-block;
     vertical-align: middle;
     overflow: visible;
-    filter: drop-shadow(0 1px 2px rgba(0, 0, 0, 0.55)) drop-shadow(0 0 3px var(--fleet-glow, transparent));
+    /* Desktop-only nicety (console strips filters by design). */
+    filter: drop-shadow(0 1px 2px rgba(0, 0, 0, 0.55));
 
-    .cfi-hull {
-        fill: var(--fleet-fill, #cfd8e0);
-        stroke: rgba(0, 0, 0, 0.5);
-        stroke-width: 0.7;
+    /* ── Titanium hull gradient stops ── */
+    .cfi-stop-hull-hi { stop-color: #e9eff6; }
+    .cfi-stop-hull-mid { stop-color: #a9b6c3; }
+    .cfi-stop-hull-lo { stop-color: #5f6c7b; }
+    /* ── Player livery stops (derived from the one hue prop) ── */
+    .cfi-stop-livery-hi { stop-color: color-mix(in srgb, var(--fleet-fill, #4d97ff) 78%, #ffffff); }
+    .cfi-stop-livery-lo { stop-color: color-mix(in srgb, var(--fleet-fill, #4d97ff) 74%, #06101c); }
+    /* ── Engine plume stops: white-hot core → owner glow → dissolve ── */
+    .cfi-stop-plume-core { stop-color: #ffffff; }
+    .cfi-stop-plume-mid { stop-color: var(--fleet-accent, #ffe6b0); }
+    .cfi-stop-plume-tip { stop-color: var(--fleet-glow, rgba(255, 200, 120, 0.4)); stop-opacity: 0; }
+
+    /* ── Structural parts (explicit tones — no filters anywhere) ── */
+    .cfi-wing-under { fill: #27303b; }
+    .cfi-beacon { fill: var(--fleet-accent, #ffffff); opacity: 0.9; }
+    .cfi-hull-shade { fill: rgba(10, 16, 24, 0.30); }
+    .cfi-rim { fill: rgba(255, 255, 255, 0.38); }
+    .cfi-glass {
+        fill: #0b1826;
+        stroke: rgba(165, 205, 240, 0.55);
+        stroke-width: 0.45;
+    }
+    .cfi-glass-sheen { fill: rgba(195, 228, 255, 0.42); }
+    .cfi-band-shade { fill: rgba(8, 12, 18, 0.35); }
+    .cfi-latch { fill: rgba(12, 18, 26, 0.6); }
+    .cfi-engine { fill: #242c36; }
+    .cfi-nozzle {
+        fill: #0d141c;
+        stroke: rgba(150, 175, 205, 0.4);
+        stroke-width: 0.3;
+    }
+    .cfi-outline {
+        stroke: rgba(5, 9, 15, 0.72);
+        stroke-width: 0.8;
         stroke-linejoin: round;
     }
-    .cfi-fin {
-        fill: var(--fleet-fill, #cfd8e0);
-        filter: brightness(0.66);
-    }
-    .cfi-sheen { fill: rgba(255, 255, 255, 0.5); }
-    .cfi-accent { fill: var(--fleet-accent, #ffffff); }
-    /* Cockpit glass — a cool inset lens, reads as depth on any hull hue. */
-    .cfi-glass {
-        fill: #0a1622;
-        stroke: var(--fleet-accent, #ffffff);
-        stroke-width: 0.9;
-    }
-    .cfi-flame { fill: #ffce7a; opacity: 0; }
+
+    /* Exhaust states: hidden until a state lights them. */
+    .cfi-flame { opacity: 0; }
     .cfi-thrust {
-        fill: var(--fleet-accent, #ffe6b0);
         opacity: 0;
-        transform-origin: 50% 22%;
+        transform-origin: 50% 24%;
     }
     &--free .cfi-flame { opacity: 0.92; }
 }
 
-/* Hero presentation (the flight proxy / a launch beat): a touch more presence
-   — a stronger glow + a hair more contrast so the ship reads as the important
-   object in motion, never a bumped-up icon soup. */
+/* Hero presentation (the flight proxy): a touch more presence — the wingtip
+   beacons brighten and the port rim reads harder, so the ship stands out as
+   the important object in motion. Explicit paints only (console-safe). */
 .colony-fleet-icon--hero {
-    filter: drop-shadow(0 2px 4px rgba(0, 0, 0, 0.6)) drop-shadow(0 0 8px var(--fleet-glow, transparent));
-    .cfi-hull { stroke-width: 0.55; }
-    .cfi-accent { filter: brightness(1.12); }
+    filter: drop-shadow(0 2px 4px rgba(0, 0, 0, 0.6));
+    .cfi-rim { fill: rgba(255, 255, 255, 0.5); }
+    .cfi-beacon { opacity: 1; }
+    .cfi-outline { stroke-width: 0.9; }
 }
 
 /* ── States (launch cinematic) — all compositor-friendly ─────────────── */
-/* ARMED: the chosen fleet focuses — a calm confirmation glow (no motion). */
+/* ARMED: the chosen fleet focuses — the idle exhaust wakes (no motion). */
 .colony-fleet-icon--armed {
-    filter: drop-shadow(0 1px 2px rgba(0, 0, 0, 0.55)) drop-shadow(0 0 7px var(--fleet-glow, transparent));
     .cfi-flame { opacity: 0.95; }
 }
-/* LAUNCH: engines charge — the thrust plume ignites + a short pre-lift pulse. */
+/* LAUNCH: engines charge — the plume ignites and breathes up to full. */
 .colony-fleet-icon--launch {
     .cfi-flame { opacity: 0; }
     .cfi-thrust {
         opacity: 1;
-        animation: cfi-charge calc(260ms * var(--motion-scale, 1)) ease-in-out infinite alternate;
+        animation: cfi-charge calc(340ms * var(--motion-scale, 1)) ease-in-out infinite alternate;
     }
 }
-/* IN-FLIGHT: sustained thrust (the plume streams; the director owns travel). */
+/* IN-FLIGHT: sustained thrust — a long, calm plume breath (the old 220ms
+   alternate read as a nervous flicker; the stream is a slow engine, not a
+   sputter). The director owns all travel. */
 .colony-fleet-icon--flight {
     .cfi-flame { opacity: 0; }
     .cfi-thrust {
         opacity: 1;
-        animation: cfi-thrust-stream calc(220ms * var(--motion-scale, 1)) ease-in-out infinite alternate;
+        animation: cfi-thrust-stream calc(460ms * var(--motion-scale, 1)) ease-in-out infinite alternate;
     }
 }
-/* DOCKED: engines cut, the ship settles — no exhaust, a brief owner-hue seat. */
+/* DOCKED: engines cut, the ship settles — no exhaust. */
 .colony-fleet-icon--docked {
     .cfi-flame { opacity: 0; }
     .cfi-thrust { opacity: 0; }
 }
 
 @keyframes cfi-charge {
-    from { transform: scaleY(0.7); opacity: 0.7; }
-    to { transform: scaleY(1.18); opacity: 1; }
+    from { transform: scaleY(0.55); opacity: 0.75; }
+    to { transform: scaleY(1.12); opacity: 1; }
 }
 @keyframes cfi-thrust-stream {
-    from { transform: scaleY(0.92); opacity: 0.85; }
-    to { transform: scaleY(1.28); opacity: 1; }
+    from { transform: scaleY(1.0); opacity: 0.9; }
+    to { transform: scaleY(1.22); opacity: 1; }
 }
 @media (prefers-reduced-motion: reduce) {
     .colony-fleet-icon--launch .cfi-thrust,
@@ -97,16 +126,15 @@
 /* ── Trade-fleet LAUNCH PAD (ColonyFleetPad) — the berth a fleet sits on ─
    A dark docking cradle; `--occupied` lights the owner-hue deck + lights,
    an empty pad stays dim (its slot never collapses → no reflow when a
-   fleet launches). Colour via the same `fleet-hue--<color>` props. */
+   fleet launches). Colour via the same `fleet-hue--<color>` props.
+   Explicit tones (the console strips filters — see the header). */
 .colony-fleet-pad {
     width: 34px;
     height: 16px;
     flex: 0 0 auto;
     display: block;
     overflow: visible;
-    /* A soft base shadow so the platform reads as a solid structure on the
-       dark header, never a faint outline lost in the background. */
-    filter: drop-shadow(0 1px 1px rgba(0, 0, 0, 0.5));
+    filter: drop-shadow(0 1px 1px rgba(0, 0, 0, 0.5)); /* desktop nicety */
 
     /* EMPTY pad — a clearly-lit docking cradle (a fleet is OUT), never an
        almost-invisible dark shape: a legible deck, crisp rim + landing lights. */
@@ -125,11 +153,10 @@
 
     &--occupied {
         .cfp-deck {
-            fill: var(--fleet-fill, #3a4a5c);
-            filter: brightness(0.62) saturate(0.95);
+            fill: color-mix(in srgb, var(--fleet-fill, #3a4a5c) 55%, #101a26);
             stroke: var(--fleet-accent, rgba(255, 255, 255, 0.4));
         }
-        .cfp-light { fill: var(--fleet-accent, #fff); filter: drop-shadow(0 0 2px var(--fleet-glow)); }
+        .cfp-light { fill: var(--fleet-accent, #fff); }
     }
 }
 

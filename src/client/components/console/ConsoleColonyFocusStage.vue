@@ -110,7 +110,10 @@
                  dock; the directors prefer the stage's match). -->
             <span class="con-colfocus__orbit"
                   :data-fleet-berth="colony.name"
-                  :class="colony.visitor !== undefined ? ['con-colfocus__orbit--occupied', 'fleet-hue--' + colony.visitor] : []"
+                  :class="[
+                    colony.visitor !== undefined ? ['con-colfocus__orbit--occupied', 'fleet-hue--' + colony.visitor] : [],
+                    {'con-colfocus__orbit--just-docked': fleetJustDockedHere},
+                  ]"
                   aria-hidden="true">
               <ColonyFleetIcon v-if="colony.visitor !== undefined" :color="colony.visitor" />
             </span>
@@ -1138,6 +1141,12 @@ export default defineComponent({
   computed: {
     colonyName(): ColonyName {
       return this.colony.name as ColonyName;
+    },
+    /** The flown proxy just handed off to the REAL docked ship on this
+     *  stage's orbital berth — the one-shot arrival acknowledgment ring
+     *  (the tile's `justDocked` seat glow, spoken on the stage). */
+    fleetJustDockedHere(): boolean {
+      return this.tradeFleetState.dockedColonyName === this.colony.name;
     },
     /** The action is RESOLVING on this stage (fleet flying / rewards landing
      *  / marker gliding / the BUILD cube seating) — chrome inert, anchors

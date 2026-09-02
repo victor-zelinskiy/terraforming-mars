@@ -33,14 +33,16 @@ export type FleetTimings = {
   ackMs: number,
 };
 
-/** Standard pacing — a rich but bounded ~1.4s launch (before any pending). */
+/** Standard pacing — a rich but bounded ~1.7s launch (before any pending):
+ *  the ignition squat + nose bank + landing flare each need a readable beat,
+ *  and the whole flight still ends inside two seconds. */
 export function fleetTimings(): FleetTimings {
   return {
-    chargeMs: 240,
+    chargeMs: 300,
     liftMs: 200,
-    transitMs: 620,
+    transitMs: 680,
     approachMinMs: 160,
-    dockMs: 220,
+    dockMs: 260,
     ackMs: 280,
   };
 }

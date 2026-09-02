@@ -4,25 +4,36 @@
  * over the app-level `ConsoleTradeFleetLayer` (mounted in ConsoleShell, so a
  * flight survives the composer closing beneath it).
  *
- * Phases (see tradeFleetModel for the pure timings/trajectory):
- *   CHARGE   — the ship sits over the composer launch anchor, engines ignite;
- *   LIFT     — it comes off the composer toward the grid;
- *   TRANSIT  — a confident bézier arc to the target berth (nose along heading,
- *              a short engine trail);
- *   APPROACH — hovers just off the berth, PENDING (holds until the server
- *              confirms — `dock()` is what releases it);
- *   DOCK     — the final snap into the berth + the colony acknowledgment glow;
- *              `onDock` resolves the WaitingFor gate.
+ * THE CHOREOGRAPHY (the premium rework — each beat answers a defect the
+ * arcade version shipped):
+ *   IGNITION — the ship squats on its pad (engines charge) and rises at the
+ *              PAD SHIP'S OWN SIZE (startScale is measured from the launch
+ *              rect — the proxy used to spawn ~1.7× its pad ship, a visible
+ *              size pop on the very first frame);
+ *   TRANSIT  — one bézier arc on one clock. The nose BANKS INTO the heading
+ *              over the first ~12% (it used to snap to the tangent on frame
+ *              one), the hull grows toward the viewer mid-flight, and the
+ *              engines lay a fading LIGHT TRAIL along the real path — the
+ *              travel has mass and a wake, not a sprite sliding;
+ *   FLARE    — over the last ~22% the ship pitches back upright (a lander's
+ *              flare), so the approach hover holds nose-up over the berth —
+ *              the dock no longer spins the hull half a turn in place;
+ *   APPROACH — slow station-keeping (a ±3px drift on a 1.2s breath + a tiny
+ *              attitude sway — the old 220ms yoyo bob read as jitter),
+ *              PENDING until the server confirms (`dock()` releases);
+ *   DOCK     — the final descent onto the berth, PIXEL-PERFECT (position +
+ *              size + angle of the real docked ship), then the colony ack.
  *
  * Contracts (mirror the deal/exit directors): transform/opacity only (the
  * ship element geometry is fixed — GSAP moves a composite layer); durations
- * through motionMs(); `skip()` is idempotent and always tears down; a safety
- * guarantees `dock`'s callback fires even if rAF stalls; reduced motion runs
- * a short straight hop with no arc/trail (the sequence still reads).
+ * through motionMs(); `skip()` is idempotent and always tears down (trail
+ * puffs included); a safety guarantees `dock`'s callback fires even if rAF
+ * stalls; reduced motion runs a short straight hop with no arc/trail.
  */
 
 import {gsap} from 'gsap';
 import {motionMs} from '@/client/components/motion/motionTokens';
+import {conUiScale} from '@/client/console/consoleLayoutProfile';
 import {
   approachReadyMs, arcHeadingDeg, FleetTimings, fleetTimings, launchArcControl, Point, reducedFleetTimings,
 } from '@/client/console/colonyFleet/tradeFleetModel';
@@ -45,10 +56,13 @@ export type TradeFleetDirectorHandle = {
 export type RunFleetArgs = {
   /** The flying ship element (positioned by the director). */
   ship: HTMLElement,
-  /** Launch rect (the composer fleet anchor) — screen coords. */
+  /** Launch rect (the fleet pad's ship slot) — screen coords. */
   from: DOMRect,
-  /** Berth rect (the target colony tile) — screen coords. */
+  /** Berth rect (the target colony's dock slot) — screen coords. */
   to: DOMRect,
+  /** The trader's colour class token (`fleet-hue--<color>`) — the trail
+   *  puffs read their glow from it. Empty = neutral glow. */
+  hueClass: string,
   reduced: boolean,
   /** Phase → controller (injected to keep the graph acyclic). */
   onPhase: (phase: FleetPhaseName) => void,
@@ -58,15 +72,21 @@ function centre(r: DOMRect): Point {
   return {x: r.left + r.width / 2, y: r.top + r.height / 2};
 }
 
+const smoothstep = (a: number, b: number, x: number): number => {
+  const t = Math.max(0, Math.min(1, (x - a) / (b - a)));
+  return t * t * (3 - 2 * t);
+};
+
 export function runTradeFleetFlight(args: RunFleetArgs): TradeFleetDirectorHandle {
   const {ship, reduced} = args;
   const t: FleetTimings = reduced ? reducedFleetTimings() : fleetTimings();
   const s = (baseMs: number) => motionMs(baseMs) / 1000;
+  const ui = conUiScale();
 
   const from = centre(args.from);
   const to = centre(args.to);
   const ctrl = launchArcControl(from, to);
-  // The launch now starts from the TOP fleet dock, so the arc's "up" bow can
+  // The launch starts from the TOP fleet dock, so the arc's "up" bow can
   // push the apex above the viewport — clamp it on-screen so the ship never
   // clips out the top on its climb (the layer is `overflow: clip`).
   ctrl.y = Math.max(ctrl.y, 16);
@@ -77,26 +97,81 @@ export function runTradeFleetFlight(args: RunFleetArgs): TradeFleetDirectorHandl
   let approachReached = false;
 
   // The ship is centred on its own box; position by its centre.
-  const half = ship.offsetWidth / 2 || 20;
-  const halfH = ship.offsetHeight / 2 || 20;
+  const shipW = ship.offsetWidth || 46;
+  const half = shipW / 2;
+  const halfH = (ship.offsetHeight || 46) / 2;
   const setAt = (p: Point, rotation: number, scale: number) => {
     gsap.set(ship, {x: p.x - half, y: p.y - halfH, rotation, scale, transformOrigin: '50% 50%'});
   };
 
-  setAt(from, 0, reduced ? 1 : 0.9);
+  // HONEST SIZES. The proxy takes off at the PAD SHIP'S size and lands at
+  // the BERTH ship's size — both measured, so neither end of the flight can
+  // pop. Mid-flight it grows toward the viewer (presence), then settles
+  // toward the approach size on the descent.
+  const startScale = reduced ? 0.6 : Math.max(0.3, Math.min(1.2, args.from.width / shipW));
+  const dockScale = args.to.width > 8 ? args.to.width / shipW : startScale;
+  const peakScale = reduced ? startScale : Math.max(startScale * 1.6, 1.0);
+  const approachScale = reduced ? dockScale : Math.max(dockScale * 1.5, startScale);
+
+  setAt(from, 0, startScale);
   gsap.set(ship, {autoAlpha: 1});
+
+  // ── The engine TRAIL (a wake of fading owner-glow puffs laid along the
+  // real path). Spawned by travelled DISTANCE, owned by this flight,
+  // disposed on every exit path. Transform/opacity only.
+  const layerEl = ship.parentElement;
+  const puffs: Array<HTMLElement> = [];
+  const disposePuffs = () => {
+    for (const p of puffs) {
+      gsap.killTweensOf(p);
+      p.remove();
+    }
+    puffs.length = 0;
+  };
+  const spawnPuff = (x: number, y: number, size: number) => {
+    if (layerEl === null || puffs.length > 36) {
+      return;
+    }
+    const puff = document.createElement('div');
+    puff.className = `con-fleet-puff ${args.hueClass}`.trim();
+    layerEl.appendChild(puff);
+    puffs.push(puff);
+    gsap.set(puff, {x: x - size / 2, y: y - size / 2, width: size, height: size, scale: 0.5, autoAlpha: 0.5});
+    gsap.to(puff, {
+      scale: 2.1, autoAlpha: 0, duration: s(640), ease: 'power1.out',
+      onComplete: () => {
+        const at = puffs.indexOf(puff);
+        if (at !== -1) {
+          puffs.splice(at, 1);
+        }
+        puff.remove();
+      },
+    });
+  };
 
   const tl = gsap.timeline();
 
-  // CHARGE + LIFT — engines ignite, the ship comes off the composer.
+  // IGNITION — a squat as the engines charge, then the rise begins. The
+  // plume itself is the icon's CSS `launch` state (the controller phase).
   args.onPhase('launch');
-  tl.to(ship, {scale: reduced ? 1 : 1.06, duration: s(t.chargeMs), ease: 'power2.out'}, 0);
+  if (!reduced) {
+    tl.to(ship, {scale: startScale * 0.93, duration: s(t.chargeMs * 0.4), ease: 'power2.in'}, 0);
+    tl.to(ship, {scale: startScale * 1.05, duration: s(t.chargeMs * 0.6), ease: 'power2.out'}, s(t.chargeMs * 0.4));
+  }
   tl.call(() => args.onPhase('transit'), undefined, s(t.chargeMs));
 
-  // TRANSIT — the arc. Drive a 0..1 proxy and place the ship on the bézier so
-  // the nose follows the heading (compositor-friendly: one tween of an object).
+  // TRANSIT — one bézier on one clock; heading, scale and the trail all
+  // derive from the same progress:
+  //  · the nose BANKS IN over the first 12% (rotation 0 on the pad → the
+  //    live tangent) and FLARES OUT over the last 22% (tangent → upright),
+  //    so neither end of the flight snaps an angle;
+  //  · scale rides a sine hump from the honest start size to a mid-flight
+  //    peak and down to the approach size;
+  //  · a puff drops every ~30px of REAL travel — the wake follows the arc.
   const prog = {p: 0};
-  const flightScale = reduced ? 1 : 1.14;
+  let trailAccum = 0;
+  let lastX = from.x;
+  let lastY = from.y;
   tl.to(prog, {
     p: 1,
     duration: s(t.liftMs + t.transitMs),
@@ -106,14 +181,29 @@ export function runTradeFleetFlight(args: RunFleetArgs): TradeFleetDirectorHandl
       const mt = 1 - p;
       const x = mt * mt * from.x + 2 * mt * p * ctrl.x + p * p * to.x;
       const y = mt * mt * from.y + 2 * mt * p * ctrl.y + p * p * to.y;
-      const rot = reduced ? 0 : arcHeadingDeg(from, ctrl, to, p);
-      // Ease the scale up on the climb, back down onto the berth.
-      const scale = reduced ? 1 : 0.9 + (flightScale - 0.9) * Math.sin(p * Math.PI);
+      const heading = reduced ? 0 : arcHeadingDeg(from, ctrl, to, p);
+      const rot = reduced ? 0 : heading * smoothstep(0, 0.12, p) * (1 - smoothstep(0.78, 1, p));
+      const base = startScale + (approachScale - startScale) * p;
+      const scale = reduced ? startScale : base + (peakScale - base) * Math.sin(p * Math.PI);
       setAt({x, y}, rot, scale);
+      if (!reduced) {
+        trailAccum += Math.hypot(x - lastX, y - lastY);
+        if (trailAccum > 24 * ui) {
+          trailAccum = 0;
+          // The wake leaves the ENGINES: offset from the centre along the
+          // hull's own "down", at the current attitude and size.
+          const rad = (rot * Math.PI) / 180;
+          const ex = x - Math.sin(rad) * halfH * 0.8 * scale;
+          const ey = y + Math.cos(rad) * halfH * 0.8 * scale;
+          spawnPuff(ex, ey, Math.max(10, 14 * ui * scale));
+        }
+      }
+      lastX = x;
+      lastY = y;
     },
   }, s(t.chargeMs));
 
-  // APPROACH — hover just off the berth (pending), until `dock()` releases.
+  // APPROACH — station-keeping over the berth (pending until `dock()`).
   const approachAt = s(t.chargeMs) + s(t.liftMs + t.transitMs);
   tl.call(() => {
     approachReached = true;
@@ -121,28 +211,23 @@ export function runTradeFleetFlight(args: RunFleetArgs): TradeFleetDirectorHandl
     tryDock();
   }, undefined, approachAt);
 
-  // A gentle idle bob while pending (paused-friendly; killed at dock).
+  // A slow drift + a tiny attitude sway — a vessel holding position, never
+  // the old 220ms bob (which read as jitter). Killed at dock.
   if (!reduced) {
-    tl.to(ship, {y: '+=4', duration: s(220), yoyo: true, repeat: -1, ease: 'sine.inOut'}, approachAt);
+    tl.to(ship, {y: '+=3', duration: s(1150), yoyo: true, repeat: -1, ease: 'sine.inOut'}, approachAt);
+    tl.to(ship, {rotation: 1.4, duration: s(1450), yoyo: true, repeat: -1, ease: 'sine.inOut'}, approachAt);
   }
-
-  // PIXEL-PERFECT dock scale: the proxy (its own box) shrinks so its VISUAL
-  // size equals the berth slot's real rect — the same size the docked ship
-  // renders at. Combined with centring on the slot centre + rotation 0, the
-  // landed proxy occupies the IDENTICAL rect the real ship will, so the fade
-  // is a true crossfade (never a centre-of-planet detour + reappear).
-  const dockScale = args.to.width > 8 ? args.to.width / (ship.offsetWidth || 46) : (reduced ? 0.5 : 0.46);
 
   function finishDock(): void {
     if (docked || killed) {
       return;
     }
     docked = true;
-    gsap.killTweensOf(ship); // stop the idle bob
+    gsap.killTweensOf(ship); // stop the station-keeping
     args.onPhase('dock');
-    // Settle EXACTLY onto the final ship slot (position + size + angle), a
-    // clean ease (no overshoot — the last frame must be pixel-perfect). On
-    // landing, resolve the gate: the caller commits, the REAL docked ship
+    // The final descent: settle EXACTLY onto the ship slot (position + size
+    // + angle), a clean decelerating ease — the last frame is pixel-perfect.
+    // On landing, resolve the gate: the caller commits, the REAL docked ship
     // materializes in this exact rect UNDER the still-visible proxy, and only
     // then does `release()` crossfade the proxy out.
     const land = gsap.timeline({
@@ -155,7 +240,7 @@ export function runTradeFleetFlight(args: RunFleetArgs): TradeFleetDirectorHandl
     });
     land.to(ship, {
       x: to.x - half, y: to.y - halfH, rotation: 0, scale: dockScale,
-      duration: s(t.dockMs), ease: 'power2.out',
+      duration: s(t.dockMs), ease: 'power3.out',
     });
   }
 
@@ -194,6 +279,7 @@ export function runTradeFleetFlight(args: RunFleetArgs): TradeFleetDirectorHandl
     release: (onGone: () => void) => {
       clearSafety();
       if (killed) {
+        disposePuffs();
         onGone();
         return;
       }
@@ -203,6 +289,7 @@ export function runTradeFleetFlight(args: RunFleetArgs): TradeFleetDirectorHandl
       const finish = () => {
         if (!released) {
           released = true;
+          disposePuffs();
           onGone();
         }
       };
@@ -215,6 +302,7 @@ export function runTradeFleetFlight(args: RunFleetArgs): TradeFleetDirectorHandl
       tl.kill();
       gsap.killTweensOf(ship);
       gsap.set(ship, {autoAlpha: 0});
+      disposePuffs();
       const cb = dockCb;
       dockCb = undefined;
       cb?.();
