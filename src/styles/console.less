@@ -4984,33 +4984,96 @@ each(@players, {
 @keyframes con-avail-in {
     from { opacity: 0; transform: scale(0.84); }
 }
-/* ADJACENCY HINTS — the calm on-field tie between the focused cell and the
-   neighbours that make its price true: paying oceans (cool inner tint) and
-   taxing hazards (warm-red). Interior washes only, no motion loop — the
-   exact arithmetic stays the dossier's job. */
-.con-board--placing .board-space.con-adj-ocean::after,
-.con-board--placing .board-space.con-adj-hazard::after {
+/* ══ PLACEMENT RELATION MARKS — the on-field tie between the focused cell
+   and every cell that PARTICIPATES in the placement's outcome. Driven by
+   the server preview (`BoardFact.spaces` → placementRelations.ts), never a
+   client heuristic — a cell lights because a fact names it, so the field
+   and the dossier agree by construction.
+
+   The grammar is FORM + colour, never colour alone:
+    - gains (ocean income / scored greens / Ares rewards) are an interior
+      WASH biased toward the shared edge with the focused cell
+      (`--rel-x/--rel-y` set per cell) — the neighbour answers on its
+      facing side, which is what reads as a spatial tie;
+    - a PENALTY additionally draws a thin dashed inner contour — the
+      warning register survives desaturation by structure;
+    - a board-wide planetary EVENT is the quietest voice: a faint pale rim,
+      no wash (context, not adjacency).
+   One-shot entry fade only, no loops; washes rest at .85 while aiming and
+   turn STANDING (full) past the lock — nothing replays on the lock edge
+   (the classes never change there). */
+.con-board--placing .board-space.con-rel::after {
     content: '';
     position: absolute;
     inset: 0;
     pointer-events: none;
     z-index: 4;
-    animation: con-adj-in calc(220ms * var(--motion-scale, 1)) ease-out backwards;
+    opacity: 0.85;
+    animation: con-rel-in calc(240ms * var(--motion-scale, 1)) ease-out backwards;
 }
-.con-board--placing .board-space.con-adj-ocean::after {
-    background: radial-gradient(62% 56% at 50% 50%, fade(@con-cyan, 26%), fade(@con-cyan, 0%) 74%);
+.con-board--placing .board-space.con-rel--ocean::after {
+    background:
+        url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 46 51' preserveAspectRatio='none'><polygon points='23,3.2 42.5,14.4 42.5,36.6 23,47.8 3.5,36.6 3.5,14.4' fill='none' stroke='%238CC8F2' stroke-opacity='0.72' stroke-width='1.5' stroke-linejoin='round'/></svg>") center/100% 100% no-repeat,
+        radial-gradient(64% 58% at var(--rel-x, 50%) var(--rel-y, 50%), fade(@con-cyan, 38%), fade(@con-cyan, 0%) 74%);
 }
-.con-board--placing .board-space.con-adj-hazard::after {
-    background: radial-gradient(62% 56% at 50% 50%, fade(@con-red, 22%), fade(@con-red, 0%) 74%);
+.con-board--placing .board-space.con-rel--score::after {
+    background:
+        url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 46 51' preserveAspectRatio='none'><polygon points='23,3.2 42.5,14.4 42.5,36.6 23,47.8 3.5,36.6 3.5,14.4' fill='none' stroke='%23A8E87C' stroke-opacity='0.72' stroke-width='1.5' stroke-linejoin='round'/></svg>") center/100% 100% no-repeat,
+        radial-gradient(64% 58% at var(--rel-x, 50%) var(--rel-y, 50%), fade(@con-plants, 34%), fade(@con-plants, 0%) 74%);
 }
-@keyframes con-adj-in {
+.con-board--placing .board-space.con-rel--reward::after {
+    background:
+        url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 46 51' preserveAspectRatio='none'><polygon points='23,3.2 42.5,14.4 42.5,36.6 23,47.8 3.5,36.6 3.5,14.4' fill='none' stroke='%23F5DCA0' stroke-opacity='0.7' stroke-width='1.5' stroke-linejoin='round'/></svg>") center/100% 100% no-repeat,
+        radial-gradient(64% 58% at var(--rel-x, 50%) var(--rel-y, 50%), fade(@con-action-gold, 32%), fade(@con-action-gold, 0%) 74%);
+}
+.con-board--placing .board-space.con-rel--penalty::after {
+    background:
+        url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 46 51' preserveAspectRatio='none'><polygon points='23,3.2 42.5,14.4 42.5,36.6 23,47.8 3.5,36.6 3.5,14.4' fill='none' stroke='%23FF8A7E' stroke-opacity='0.85' stroke-width='1.7' stroke-linejoin='round' stroke-dasharray='5 3'/></svg>") center/100% 100% no-repeat,
+        radial-gradient(64% 58% at var(--rel-x, 50%) var(--rel-y, 50%), fade(@con-red, 34%), fade(@con-red, 0%) 76%);
+}
+.con-board--placing .board-space.con-rel--event::after {
+    background: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 46 51' preserveAspectRatio='none'><polygon points='23,3 42.7,14.3 42.7,36.7 23,48 3.3,36.7 3.3,14.3' fill='none' stroke='%23E8F1FB' stroke-opacity='0.4' stroke-width='0.9' stroke-linejoin='round'/></svg>") center/100% 100% no-repeat;
+    opacity: 0.7;
+}
+/* A far participant (a planetary event two thirds of the map away) keeps a
+   centred, quieter voice — never louder than a true neighbour. */
+.con-board--placing .board-space.con-rel--far::after {
+    opacity: 0.55;
+}
+/* Past the LOCK the ties are STANDING: the decision is fixed, so the
+   evidence firms up while everything unrelated recedes. Same paint, one
+   quiet opacity step — no restart, no motion. */
+.con-board--locked .board-space.con-rel::after {
+    opacity: 1;
+}
+.con-board--locked .board-space.con-rel--far::after {
+    opacity: 0.7;
+}
+@keyframes con-rel-in {
     from { opacity: 0; }
 }
-/* The focused cell's own printed bonuses acknowledge the attention — a
-   1.5px seat-lift, transform-only (the paint baseline strips filters). */
+/* The focused cell's own printed bonuses are the FOREGROUND of the choice —
+   they lift off the surface (transform-only) and each icon's grounding disc
+   deepens into an honest contact shadow, so the incoming ghost reads as
+   sliding UNDER the reward, never over it (the same story the landing hero
+   tells). The lock lifts them a touch further: tile material below, reward
+   floating above. */
 .con-board--placing .board-space.con-cell-sel .board-space-bonuses {
-    transform: translateY(-1.5px); /* keep-px: board px-space */
-    transition: transform calc(160ms * var(--motion-scale, 1)) ease;
+    transform: translateY(-2px); /* keep-px: board px-space */
+    transition: transform calc(180ms * var(--motion-scale, 1)) @con-ease-settle;
+}
+.con-board--locked .board-space.con-cell-sel .board-space-bonuses {
+    transform: translateY(-2.5px); /* keep-px: board px-space */
+}
+.con-board--placing .board-space.con-cell-sel .board-space-bonus::before {
+    background: radial-gradient(
+        ellipse at center,
+        rgba(24, 12, 5, 0.56) 0%,
+        rgba(24, 12, 5, 0.26) 52%,
+        transparent 78%);
+    box-shadow:
+        inset 0 0 0 0.7px rgba(255, 224, 164, 0.34), /* keep-px */
+        0 1.5px 2.5px rgba(4, 6, 10, 0.38); /* keep-px: contact shadow */
 }
 
 /* ══ THE PLACEMENT RETICLE (`ConsoleBoardCursor`) ═══════════════════════
@@ -5045,21 +5108,40 @@ each(@players, {
     border-radius: 50%;
     background: radial-gradient(50% 50% at 50% 50%, rgba(4, 6, 10, 0.5), transparent 72%);
     opacity: 0;
-    transition: opacity calc(200ms * var(--motion-scale, 1)) ease;
+    transform: scale(1);
+    transition:
+        opacity calc(200ms * var(--motion-scale, 1)) ease,
+        transform calc(200ms * var(--motion-scale, 1)) ease;
 }
 .con-bcur--legal .con-bcur__shadow { opacity: 0.32; }
 .con-bcur--locked .con-bcur__shadow,
 .con-bcur--committing .con-bcur__shadow { opacity: 0.55; }
-/* The PROJECTION — the real board tile art, translucent and slightly
-   lifted while aiming; the LOCK sits it down into the hex. */
+/* Mid-glide the object is AIRBORNE: the shadow lightens and pulls in — the
+   same physical language the landing hero speaks, one size smaller. */
+.con-bcur--travel .con-bcur__shadow {
+    opacity: 0.14;
+    transform: scale(0.8);
+}
+/* The PROJECTION — the tile about to land. While AIMING it is deliberately
+   a QUIET silhouette (the ring already owns «where», so a second full-
+   strength metal frame inside the focus contour is exactly the visual
+   contest the bonus icons kept losing); the LOCK is what turns it MATERIAL:
+   full shell, contact, weight. */
 .con-bcur__ghost {
     position: absolute;
     inset: 0;
-    opacity: 0.5;
+    opacity: 0.34;
     transform: translateY(-2px) scale(0.94); /* keep-px: board px-space */
     transition:
         opacity calc(180ms * var(--motion-scale, 1)) ease,
         transform calc(220ms * var(--motion-scale, 1)) cubic-bezier(0.3, 0.7, 0.35, 1);
+}
+/* Airborne between hexes: lighter and higher, so a fast d-pad run reads as
+   ONE object flying the route (the settle timer keeps this pose up for the
+   whole run and lands it once, on the final cell). */
+.con-bcur--travel .con-bcur__ghost {
+    opacity: 0.2;
+    transform: translateY(-4.5px) scale(0.88); /* keep-px: board px-space */
 }
 .con-bcur--locked .con-bcur__ghost,
 .con-bcur--committing .con-bcur__ghost {
@@ -5071,6 +5153,22 @@ each(@players, {
     position: absolute;
     inset: 0;
     display: block;
+}
+/* The BONUS QUIET ZONE — the ghost's art is masked down under the cell's
+   measured bonus cluster (vars set per cell by the cursor), so no line or
+   texture of the projection ever crosses the reward the player is weighing.
+   Static per cell — set at landing, never animated (mask changes repaint,
+   so they must not ride any transition). The ownership cube stays unmasked:
+   it is information, not texture. */
+.con-bcur__ghost--masked .con-bcur__art {
+    -webkit-mask-image: radial-gradient(
+        ellipse var(--bcur-mask-rx, 14px) var(--bcur-mask-ry, 10px)
+        at var(--bcur-mask-x, 23px) var(--bcur-mask-y, 33px),
+        rgba(0, 0, 0, 0.16) 0 55%, rgba(0, 0, 0, 0.62) 92%, #000 135%);
+    mask-image: radial-gradient(
+        ellipse var(--bcur-mask-rx, 14px) var(--bcur-mask-ry, 10px)
+        at var(--bcur-mask-x, 23px) var(--bcur-mask-y, 33px),
+        rgba(0, 0, 0, 0.16) 0 55%, rgba(0, 0, 0, 0.62) 92%, #000 135%);
 }
 /* The ownership marker rides the projection at its real seat (the cube's
    own board pose: right 7 / bottom 14, size ~12 — board.less). */
@@ -27883,6 +27981,7 @@ html.console-mode {
 @media (prefers-reduced-motion: reduce) {
     .con-banner__pulse,
     .board-space.con-cell-sel::after,
+    .board-space.con-rel::after,
     .con-bcur--legal .con-bcur__ring::after {
         animation: none;
     }

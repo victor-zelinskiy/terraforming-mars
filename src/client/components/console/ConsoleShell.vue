@@ -120,6 +120,7 @@
                            :playerView="playerView"
                            :placementActive="placementActive"
                            :placementShape="placementShape"
+                           :cellPreview="selectedCellPreview"
                            :inspecting="consoleState.inspecting" />
       <!-- The right STRATEGY RAIL — the Milestones/Awards premium HUD, the
            LEFT rail's geometric twin (same width token). Always the board

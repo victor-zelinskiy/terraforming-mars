@@ -29,6 +29,7 @@ import {
   ZonePlayerProtection,
 } from '../../common/boards/BoardInformationFacts';
 import {Color} from '../../common/Color';
+import {SpaceId} from '../../common/Types';
 
 /**
  * BoardInformationEngine — the read-only fact collector behind the premium
@@ -472,7 +473,7 @@ function countBonuses(bonuses: ReadonlyArray<SpaceBonus>): ReadonlyArray<[SpaceB
 // ---------------------------------------------------------------------------
 
 function oceanAdjacencyFact(player: IPlayer, space: Space): BoardFact | undefined {
-  const {oceans, megacredits} = player.game.board.oceanAdjacencyBonus(player, space);
+  const {oceans, megacredits, spaceIds} = player.game.board.oceanAdjacencyBonus(player, space);
   if (megacredits <= 0) {
     return undefined;
   }
@@ -492,6 +493,8 @@ function oceanAdjacencyFact(player: IPlayer, space: Space): BoardFact | undefine
       {description: 'Adjacent oceans: ${0} × ${1} M€', params: [String(oceans), String(player.oceanBonus)]} :
       {}),
     delta: {icon: 'megacredits', amount: megacredits, direction: 'gain'},
+    // The paying neighbours, from the SAME call that priced them.
+    spaces: spaceIds,
   };
 }
 
@@ -578,7 +581,7 @@ function oceanPlanetaryEventFacts(player: IPlayer, resultingOceans: number): Arr
   const out: Array<BoardFact> = [];
 
   if (AresHazards.wouldFire(hazardData.removeDustStormsOceanCount, resultingOceans)) {
-    const cleared = AresHazards.spacesToClearDustStorms(game).length;
+    const cleared = AresHazards.spacesToClearDustStorms(game);
     out.push({
       id: 'ares-event-dust-storms-recede',
       category: 'hazard-cleanup',
@@ -588,7 +591,9 @@ function oceanPlanetaryEventFacts(player: IPlayer, resultingOceans: number): Arr
       title: 'Planetary event: dust storms recede',
       // The TR is granted whether or not any storm is actually on the board, so
       // the count is a detail of the event, never its precondition.
-      ...(cleared > 0 ? {description: 'Clears every dust storm · ${0} on the board', params: [String(cleared)]} : {}),
+      ...(cleared.length > 0 ? {description: 'Clears every dust storm · ${0} on the board', params: [String(cleared.length)]} : {}),
+      // The very tiles the event wipes — from the same filter the mutator walks.
+      ...(cleared.length > 0 ? {spaces: cleared.map((s) => s.id)} : {}),
     });
     // Reuses the solar-phase waiver: WGT crosses thresholds without paying TR.
     out.push(...terraformRatingFact(player, 'ares-event-dust-storms-tr', 1));
@@ -631,8 +636,8 @@ function intensifyEventFact(
   if (!fires) {
     return [];
   }
-  const affected = AresHazards.spacesToMakeSevere(player.game, from).length;
-  if (affected === 0) {
+  const affected = AresHazards.spacesToMakeSevere(player.game, from);
+  if (affected.length === 0) {
     return [];
   }
   return [{
@@ -643,7 +648,9 @@ function intensifyEventFact(
     recipient: {kind: 'neutral'},
     title,
     description: 'Becomes severe: ${0} · building next to one then costs −2',
-    params: [String(affected)],
+    params: [String(affected.length)],
+    // The hazards the event upgrades — from the same filter the mutator walks.
+    spaces: affected.map((s) => s.id),
   }];
 }
 
@@ -778,8 +785,8 @@ function existingTileScoringFacts(player: IPlayer, space: Space): Array<BoardFac
     out.push(vpFact('score-greenery', 'city-greenery-scoring', 'Greenery scores at game end', recipientFor(player, ownerColor), 0, 1, '+1 VP at game end for its owner.'));
   }
   if (Board.isCitySpace(space) && ownerColor !== undefined) {
-    const greeneries = board.getAdjacentSpaces(space).filter(Board.isGreenerySpace).length;
-    out.push(cityScoringFact('score-city', recipientFor(player, ownerColor), greeneries, false));
+    const greeneries = board.getAdjacentSpaces(space).filter(Board.isGreenerySpace);
+    out.push(cityScoringFact('score-city', recipientFor(player, ownerColor), greeneries.length, false, greeneries.map((s) => s.id)));
   }
   // Special-tile own scoring — shown SEPARATELY from (and in addition to) the
   // city-greenery rule above. Capital ALSO counts as a city, so it gets BOTH.
@@ -819,30 +826,35 @@ function specialTileAdjacencyVpFacts(
   idPrefix: 'score' | 'place'): Array<BoardFact> {
   const future = idPrefix === 'place';
   if (tileType === TileType.CAPITAL) {
-    const oceans = board.getAdjacentSpaces(space).filter(Board.isOceanSpace).length;
-    return [adjacencyVpFact(`${idPrefix}-capital`, recipient, oceans,
+    const oceans = board.getAdjacentSpaces(space).filter(Board.isOceanSpace);
+    return [adjacencyVpFact(`${idPrefix}-capital`, recipient, oceans.length,
       future ? 'Capital will score for adjacent oceans' : 'Capital scores for adjacent oceans',
       future ?
         'Scores +1 VP per adjacent ocean at game end (including oceans placed next to it later).' :
         'Scores +1 VP per adjacent ocean at game end.',
-      'No adjacent oceans yet.')];
+      'No adjacent oceans yet.',
+      oceans.map((s) => s.id))];
   }
   if (tileType === TileType.COMMERCIAL_DISTRICT) {
-    const cities = board.getAdjacentSpaces(space).filter(Board.isCitySpace).length;
-    return [adjacencyVpFact(`${idPrefix}-commercial`, recipient, cities,
+    const cities = board.getAdjacentSpaces(space).filter(Board.isCitySpace);
+    return [adjacencyVpFact(`${idPrefix}-commercial`, recipient, cities.length,
       future ? 'Commercial District will score for adjacent cities' : 'Commercial District scores for adjacent cities',
       future ?
         'Scores +1 VP per adjacent city at game end (any player\'s, including cities placed next to it later).' :
         'Scores +1 VP per adjacent city at game end.',
-      'No adjacent cities yet.')];
+      'No adjacent cities yet.',
+      cities.map((s) => s.id))];
   }
   return [];
 }
 
-/** A generic "+N VP per adjacent X" endgame fact (no +0 badge when the count is 0). */
-function adjacencyVpFact(id: string, recipient: BoardFactRecipient, count: number, title: string, descWith: string, descNone: string): BoardFact {
+/** A generic "+N VP per adjacent X" endgame fact (no +0 badge when the count is 0).
+ *  `spaces` — the qualifying neighbours (attached only with the badge, so a
+ *  zero-count line never lights cells). */
+function adjacencyVpFact(id: string, recipient: BoardFactRecipient, count: number, title: string, descWith: string, descNone: string, spaces?: ReadonlyArray<SpaceId>): BoardFact {
   if (count > 0) {
-    return vpFact(id, 'future-scoring', title, recipient, 0, count, descWith);
+    const fact = vpFact(id, 'future-scoring', title, recipient, 0, count, descWith);
+    return spaces !== undefined && spaces.length > 0 ? {...fact, spaces} : fact;
   }
   return {id, category: 'future-scoring', timing: 'endgame', severity: 'info', recipient, title, description: descNone};
 }
@@ -852,13 +864,14 @@ function adjacencyVpFact(id: string, recipient: BoardFactRecipient, count: numbe
  * `+N VP` endgame badge; with NONE it shows an honest count line — NEVER a "+0 VP"
  * reward chip (which reads as a null bonus).
  */
-function cityScoringFact(id: string, recipient: BoardFactRecipient, greeneries: number, future: boolean): BoardFact {
+function cityScoringFact(id: string, recipient: BoardFactRecipient, greeneries: number, future: boolean, spaces?: ReadonlyArray<SpaceId>): BoardFact {
   const title = future ? 'City will score for adjacent greeneries' : 'City scores for adjacent greeneries';
   if (greeneries > 0) {
-    return vpFact(id, 'city-greenery-scoring', title, recipient, 0, greeneries,
+    const fact = vpFact(id, 'city-greenery-scoring', title, recipient, 0, greeneries,
       future ?
         'Scores +1 VP per adjacent greenery at game end (and any placed next to it later).' :
         'Scores +1 VP per adjacent greenery at game end.');
+    return spaces !== undefined && spaces.length > 0 ? {...fact, spaces} : fact;
   }
   return {
     id,
@@ -892,8 +905,8 @@ function placementScoringFacts(player: IPlayer, space: Space, ctx: PlacementPrev
   // the hover shows for an already-placed one.
   out.push(...specialTileAdjacencyVpFacts(board, space, ctx.tileType, {kind: 'current-player'}, 'place'));
   if (countsAsCity) {
-    const greeneries = board.getAdjacentSpaces(space).filter(Board.isGreenerySpace).length;
-    out.push(cityScoringFact('place-city', {kind: 'current-player'}, greeneries, true));
+    const greeneries = board.getAdjacentSpaces(space).filter(Board.isGreenerySpace);
+    out.push(cityScoringFact('place-city', {kind: 'current-player'}, greeneries.length, true, greeneries.map((s) => s.id)));
   }
   if (countsAsGreenery) {
     // The greenery itself scores +1 VP for the placing player. NO description:
@@ -909,12 +922,15 @@ function placementScoringFacts(player: IPlayer, space: Space, ctx: PlacementPrev
       if (Board.isCitySpace(adj)) {
         const ownerColor = adj.player?.color ?? adj.coOwner?.color;
         if (ownerColor !== undefined && ownerColor !== 'neutral') {
-          out.push(vpFact(
-            `place-greenery-city-${adj.id}`,
-            'city-greenery-scoring',
-            'Adjacent city scores at game end',
-            recipientFor(player, ownerColor),
-            0, 1));
+          out.push({
+            ...vpFact(
+              `place-greenery-city-${adj.id}`,
+              'city-greenery-scoring',
+              'Adjacent city scores at game end',
+              recipientFor(player, ownerColor),
+              0, 1),
+            spaces: [adj.id],
+          });
         }
       }
     }
@@ -1267,6 +1283,7 @@ function aresAdjacencyFacts(player: IPlayer, space: Space): Array<BoardFact> {
         title: 'Adjacent tile bonus',
         delta: d.delta,
         source: src,
+        spaces: [adj.id],
       });
     }
 
@@ -1282,6 +1299,7 @@ function aresAdjacencyFacts(player: IPlayer, space: Space): Array<BoardFact> {
         title: 'Tile owner gains M€',
         delta: {icon: 'megacredits', amount: ownerBonus, direction: 'gain'},
         source: src,
+        spaces: [adj.id],
       });
     }
   }
@@ -1500,7 +1518,7 @@ function aresCostsApply(player: IPlayer): boolean {
   return player.game.gameOptions.aresExtension === true && !AresHandler.placementCostsWaived(player.game);
 }
 
-type McCostFactor = {id: string, kind: 'cleanup' | 'adjacency' | 'base', amount: number, cardName?: string};
+type McCostFactor = {id: string, kind: 'cleanup' | 'adjacency' | 'base', amount: number, cardName?: string, spaceId?: SpaceId};
 
 /**
  * Decompose the M€ placement cost into its explainable factors — hazard cleanup
@@ -1526,7 +1544,7 @@ function megacreditCostFactors(player: IPlayer, space: Space, total: number): Re
       const cardName = adj.tile?.card !== undefined ?
         baseCardName(adj.tile.card) :
         (adj.tile !== undefined ? tileTypeToString[adj.tile.tileType] : undefined);
-      factors.push({id: `mc-adj-${adj.id}`, kind: 'adjacency', amount: adjCost, cardName});
+      factors.push({id: `mc-adj-${adj.id}`, kind: 'adjacency', amount: adjCost, cardName, spaceId: adj.id});
     }
   }
   const accounted = factors.reduce((sum, f) => sum + f.amount, 0);
@@ -1570,6 +1588,7 @@ function megacreditCostFacts(player: IPlayer, space: Space, total: number, categ
       description: f?.kind === 'adjacency' ? 'Adjacency cost' : undefined,
       delta: {icon: 'megacredits', amount: total, direction: 'cost'},
       source: {type: 'map-rule', label: 'Placement cost'},
+      ...(f?.spaceId !== undefined ? {spaces: [f.spaceId]} : {}),
     }];
   }
   const out: Array<BoardFact> = [{
@@ -1593,6 +1612,7 @@ function megacreditCostFacts(player: IPlayer, space: Space, total: number, categ
       title: mcFactorTitle(f),
       description: f.kind === 'adjacency' ? 'Adjacency cost' : undefined,
       delta: {icon: 'megacredits', amount: f.amount, direction: 'cost'},
+      ...(f.spaceId !== undefined ? {spaces: [f.spaceId]} : {}),
     });
   }
   return out;
@@ -1660,6 +1680,10 @@ function placementCostFacts(player: IPlayer, space: Space, tileType: TileType | 
       // resource sprite that would be honest here.
       delta: {icon: '', amount: info.production, direction: 'cost'},
       source: {type: 'map-rule', label: 'Hazard adjacency'},
+      // The taxing neighbours. The penalty exists ⇔ hazards touch this cell
+      // (`SpaceCosts.hazardAdjacency` counts exactly the adjacent hazard
+      // tiles), so the same adjacency read names them.
+      spaces: player.game.board.getAdjacentSpaces(space).filter(isHazard).map((s) => s.id),
     });
   }
   if (!info.affordable && info.deficit > 0) {

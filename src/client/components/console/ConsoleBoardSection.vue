@@ -17,7 +17,8 @@
         :legal="selectedAvailable"
         :phase="placementFlowState.phase"
         :tileArtClass="cursorArtClass"
-        :cubeColor="cursorCubeColor" />
+        :cubeColor="cursorCubeColor"
+        :bonusZone="cursorBonusZone" />
     </Teleport>
     <!-- Cell details live in the shell-level ConsoleContextPanel (feedback
          iteration 2) — this component owns the STAGE + selection only. -->
@@ -60,8 +61,11 @@ import {cssLengthPx} from '@/client/console/cssUnits';
 import {placementFlowState} from '@/client/console/tilePlacement/placementFlow';
 import {tilePlacementState} from '@/client/console/tilePlacement/consoleTilePlacement';
 import {PlacementShape, swatchForKind} from '@/client/console/placementDossier';
+import {relationsFromPreview} from '@/client/console/placementRelations';
+import {BoardPlacementPreview} from '@/common/boards/BoardInformationFacts';
 import {tileCssClassOf} from '@/client/components/board/BoardSpaceTile.vue';
-import {HAZARD_TILES, TileType} from '@/common/TileType';
+import {TileType} from '@/common/TileType';
+import type {BonusZone} from '@/client/components/console/ConsoleBoardCursor.vue';
 
 const SELECT_CLASS = 'con-cell-sel';
 /** P27: the focused global-parameter TRACK marker (inspection mode). */
@@ -77,10 +81,19 @@ const MARKER_CLASS = 'con-marker-sel';
  * map name, so a rematch onto another board can never read a stale entry.
  */
 const cellPosCache = new Map<string, {x: number, y: number}>();
-/** Cells currently carrying a placement adjacency-hint class. */
-const adjacencyMarked = new Set<HTMLElement>();
-const ADJ_OCEAN_CLASS = 'con-adj-ocean';
-const ADJ_HAZARD_CLASS = 'con-adj-hazard';
+/**
+ * Cells currently carrying a placement RELATION mark (`con-rel con-rel--*`) —
+ * remembered so a step/exit strips exactly what was applied. Value = the tone
+ * class, so clearing never has to enumerate the vocabulary.
+ */
+const relationMarked = new Map<HTMLElement, string>();
+/**
+ * The focused cell's printed-bonus cluster in CELL-LOCAL board px (union of
+ * its `.board-space-bonus` boxes) — measured once per (map, cell): the icons
+ * are absolutely positioned by static per-id margins, so the cluster never
+ * moves for the life of a map. Drives the reticle's ghost «quiet zone» mask.
+ */
+const bonusZoneCache = new Map<string, BonusZone | null>();
 
 /** A navigable target: a board CELL or a track MARKER (inspection only). */
 type BoardCandidate = {kind: 'cell' | 'marker', id: string, el: HTMLElement, rect: NavRect};
@@ -229,6 +242,13 @@ export default defineComponent({
     /** WHAT this placement puts down (the shell's one prompt resolver) —
      *  drives the reticle's tile projection. */
     placementShape: {type: Object as PropType<PlacementShape | undefined>, default: undefined},
+    /**
+     * The focused cell's placement preview — the SAME object the dossier
+     * renders (the shell fetches it once), so the on-field relation marks and
+     * the panel's arithmetic can never disagree. Undefined while none is
+     * loaded / the cell is illegal.
+     */
+    cellPreview: {type: Object as PropType<BoardPlacementPreview | undefined>, default: undefined},
     /** P27: BOARD INSPECTION MODE (L3) — strict row/column cell traversal. */
     inspecting: {type: Boolean, default: false},
   },
@@ -331,6 +351,9 @@ export default defineComponent({
       /** P27b: the vertical-run COLUMN anchor (set on horizontal moves /
        *  landings; keeps an up/down run in ONE visual hex column). */
       colAnchor: undefined as number | undefined,
+      /** The focused cell's bonus cluster (cell-local board px) — feeds the
+       *  reticle's ghost quiet-zone mask; undefined = no printed bonuses. */
+      cursorBonusZone: undefined as BonusZone | undefined,
     };
   },
   computed: {
@@ -480,10 +503,12 @@ export default defineComponent({
           // ResizeObserver's word; a framing that is already current is a
           // no-op (the key matches).
           this.scheduleFit();
-          this.updateAdjacencyHints();
+          this.applyRelationMarks();
+          this.updateBonusZone();
         });
       } else {
-        this.clearAdjacencyHints();
+        this.clearRelationMarks();
+        this.cursorBonusZone = undefined;
       }
     },
     selectedSpaceId: {
@@ -493,8 +518,23 @@ export default defineComponent({
         if (now !== undefined) {
           hoverBoardCell(now as SpaceId);
         }
-        this.updateAdjacencyHints();
+        // A step clears the PREVIOUS cell's relation marks in the same press —
+        // the new cell's marks arrive with its preview (the watcher below), so
+        // a fast d-pad run never trails highlights and never lights a cell
+        // the player has already left.
+        this.clearRelationMarks();
+        this.applyRelationMarks();
+        this.updateBonusZone();
       },
+    },
+    /**
+     * The RELATION layer follows the focused cell's preview — the same server
+     * answer the dossier explains. Async by nature (the shell fetches it), so
+     * the apply is guarded by the preview's own `space`: a stale answer for a
+     * cell the cursor already left marks nothing.
+     */
+    cellPreview() {
+      this.applyRelationMarks();
     },
     /**
      * PLANET FOCUS phases (planetFocus.ts) → framing. Enter/active apply
@@ -1045,51 +1085,114 @@ export default defineComponent({
       return root?.querySelector<HTMLElement>(`[data_space_id="${spaceId}"]`) ?? undefined;
     },
     /**
-     * PLACEMENT ADJACENCY HINTS — the calm on-field tie between the focused
-     * cell and the neighbours that make its price/reward true: adjacent
-     * OCEANS (each pays the flat placement income) and adjacent HAZARDS
-     * (what the toll in the dossier is about). Geometry is the intrinsic
-     * position cache (pure math after warm-up — no layout reads per step);
-     * the tile identity comes from the authoritative view model, never from
-     * DOM classes. Deliberately only the two always-true adjacencies — the
-     * exact arithmetic stays the dossier's job.
+     * PLACEMENT RELATION MARKS — the on-field tie between the focused cell and
+     * every cell that participates in the placement's outcome: paying oceans,
+     * scored greeneries/cities, taxing hazards, Ares reward tiles, the hazards
+     * a planetary event rewrites. DRIVEN BY THE PREVIEW, never re-derived: the
+     * server names the participating cells on each spatial fact
+     * (`BoardFact.spaces`), `relationsFromPreview` classifies them, and the
+     * dossier renders the same facts — so field and panel agree by
+     * construction. Geometry (the directional bias of each wash toward the
+     * focused cell) is the intrinsic position cache — no layout reads per
+     * step.
      */
-    updateAdjacencyHints(): void {
-      this.clearAdjacencyHints();
-      if (!this.placementActive || !this.selectedAvailable) {
-        return;
-      }
+    applyRelationMarks(): void {
+      this.clearRelationMarks();
+      const preview = this.cellPreview;
       const id = this.cursorSpaceId;
-      const centre = this.cellIntrinsicCentre(id);
-      if (id === undefined || centre === undefined) {
+      // The stale-async guard: a preview is only ever applied to ITS OWN cell.
+      if (!this.placementActive || !this.selectedAvailable ||
+          preview === undefined || id === undefined || preview.space !== id) {
         return;
       }
-      const reach = 46 * 1.5; /* keep-px: board px-space — one hex pitch */
-      for (const space of this.playerView.game.spaces ?? []) {
-        if (space.id === id || space.tileType === undefined) {
+      const centre = this.cellIntrinsicCentre(id);
+      const adjacentReach = 46 * 1.5; /* keep-px: board px-space — one hex pitch */
+      for (const rel of relationsFromPreview(preview)) {
+        const el = this.cellEl(rel.spaceId);
+        if (el === undefined) {
           continue;
         }
-        const isOcean = space.tileType === TileType.OCEAN;
-        const isHazard = HAZARD_TILES.has(space.tileType);
-        if (!isOcean && !isHazard) {
-          continue;
-        }
-        const c = this.cellIntrinsicCentre(space.id);
-        if (c === undefined || Math.hypot(c.x - centre.x, c.y - centre.y) > reach) {
-          continue;
-        }
-        const el = this.cellEl(space.id);
-        if (el !== undefined) {
-          el.classList.add(isOcean ? ADJ_OCEAN_CLASS : ADJ_HAZARD_CLASS);
-          adjacencyMarked.add(el);
+        const cls = `con-rel--${rel.tone}`;
+        el.classList.add('con-rel', cls);
+        relationMarked.set(el, cls);
+        // Bias the wash toward the SHARED EDGE with the focused cell — the
+        // neighbour answers on its facing side, which is what reads as a
+        // spatial tie rather than a lit cell. A far cell (a board-wide
+        // planetary event) keeps a centred, quieter wash.
+        const c = this.cellIntrinsicCentre(rel.spaceId);
+        if (centre !== undefined && c !== undefined) {
+          const dx = centre.x - c.x;
+          const dy = centre.y - c.y;
+          const dist = Math.hypot(dx, dy);
+          if (dist > 0 && dist <= adjacentReach) {
+            el.style.setProperty('--rel-x', `${(50 + (dx / dist) * 22).toFixed(1)}%`);
+            el.style.setProperty('--rel-y', `${(50 + (dy / dist) * 22).toFixed(1)}%`);
+          } else {
+            el.classList.add('con-rel--far');
+          }
         }
       }
     },
-    clearAdjacencyHints(): void {
-      for (const el of adjacencyMarked) {
-        el.classList.remove(ADJ_OCEAN_CLASS, ADJ_HAZARD_CLASS);
+    clearRelationMarks(): void {
+      for (const [el, cls] of relationMarked) {
+        el.classList.remove('con-rel', cls, 'con-rel--far');
+        el.style.removeProperty('--rel-x');
+        el.style.removeProperty('--rel-y');
       }
-      adjacencyMarked.clear();
+      relationMarked.clear();
+    },
+    /**
+     * The focused cell's printed-bonus cluster, measured once per (map, cell)
+     * through the same rect-division the position cache rides — feeds the
+     * ghost's quiet-zone mask so the projection never paints over the very
+     * reward the player is weighing. `null` in the cache = measured, none.
+     */
+    updateBonusZone(): void {
+      if (!this.placementActive) {
+        this.cursorBonusZone = undefined;
+        return;
+      }
+      const id = this.cursorSpaceId;
+      const host = this.cursorHost;
+      if (id === undefined || host === undefined) {
+        this.cursorBonusZone = undefined;
+        return;
+      }
+      const key = `${this.playerView.game.gameOptions?.boardName ?? ''}|${id}`;
+      let zone = bonusZoneCache.get(key);
+      if (zone === undefined) {
+        zone = null;
+        const cell = this.cellEl(id);
+        const hr = host.getBoundingClientRect();
+        if (cell !== undefined && hr.width >= 40) {
+          const scale = hr.width / BOARD_CONT_W;
+          const cr = cell.getBoundingClientRect();
+          let left = Infinity;
+          let top = Infinity;
+          let right = -Infinity;
+          let bottom = -Infinity;
+          for (const icon of cell.querySelectorAll<HTMLElement>('.board-space-bonus')) {
+            const r = icon.getBoundingClientRect();
+            if (r.width <= 0 || r.height <= 0) {
+              continue;
+            }
+            left = Math.min(left, r.left);
+            top = Math.min(top, r.top);
+            right = Math.max(right, r.right);
+            bottom = Math.max(bottom, r.bottom);
+          }
+          if (Number.isFinite(left)) {
+            zone = {
+              cx: ((left + right) / 2 - cr.left) / scale,
+              cy: ((top + bottom) / 2 - cr.top) / scale,
+              w: (right - left) / scale,
+              h: (bottom - top) / scale,
+            };
+          }
+          bonusZoneCache.set(key, zone);
+        }
+      }
+      this.cursorBonusZone = zone ?? undefined;
     },
     /** A cell's intrinsic centre (board px), through the same cached measure
      *  the reticle rides. */
@@ -1354,7 +1457,7 @@ export default defineComponent({
     }
   },
   beforeUnmount() {
-    this.clearAdjacencyHints();
+    this.clearRelationMarks();
     if (this.lateVerifyTimer !== 0) {
       window.clearTimeout(this.lateVerifyTimer);
     }

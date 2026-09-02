@@ -117,12 +117,47 @@ both loops are 0%/100%-symmetric).
   `ConsoleBoardInput.playAvailabilityWave`); the classes are STRIPPED after
   playing — the board is `v-show`n and a display flip replays any standing
   CSS animation (the known trap).
-- **Adjacency hints** (`ConsoleBoardSection.updateAdjacencyHints`): adjacent
-  OCEANS get a cool interior wash, adjacent HAZARDS a warm-red one — the two
-  always-true adjacencies only; tile identity from the view model, geometry
-  from the intrinsic position cache (no per-step layout reads). The exact
-  arithmetic stays the dossier's job.
-- The focused cell's printed bonus icons take a 1.5 px seat-lift.
+- **Relation marks** (`ConsoleBoardSection.applyRelationMarks` over the pure
+  `placementRelations.ts`): every cell that PARTICIPATES in the focused
+  placement lights — paying oceans, the greeneries a city will score / the
+  cities an adjacent greenery feeds, taxing hazards, Ares reward tiles, the
+  hazards a planetary event rewrites. **Driven by the same server preview the
+  dossier renders**: the engine names the participating cells on each spatial
+  fact (`BoardFact.spaces`, filled from the very rule call that computed the
+  fact's numbers — `oceanAdjacencyBonus` returns them, the scoring/cost/Ares
+  walks contribute theirs), so field and panel cannot diverge; there is no
+  client-side re-derivation. Five tones, form + colour (never colour alone):
+  `ocean` (cool contour+wash) · `score` (green) · `reward` (soft gold) ·
+  `penalty` (dashed warm-red contour — wins every conflict; a cost may never
+  be masked) · `event` (faint pale rim, the quietest voice). Each wash is
+  BIASED toward the shared edge with the focused cell (`--rel-x/--rel-y` from
+  the intrinsic position cache — no per-step layout reads); a far participant
+  gets `con-rel--far` and stays quieter than any true neighbour. A d-pad step
+  strips the previous cell's marks in the same press; the new cell's marks
+  arrive WITH its preview (async, guarded by `preview.space`), so a fast run
+  never trails highlights and intermediate cells never light at all — the
+  compact form for free. Past the LOCK the marks turn STANDING (a quiet
+  opacity step, no restart). Guards: `placementRelations.spec.ts` (tone
+  precedence), `boardFactSpaces.spec.ts` (server: facts name their cells),
+  e2e `console-placement-relations.spec.ts` (field count == dossier count,
+  no stale marks, lock keeps them, cancel strips all).
+- **The ghost yields to the reward** — the visual-hierarchy contract inside
+  one hex. While AIMING the projection is a quiet silhouette (opacity .34):
+  the mint ring already owns «where», so the ghost only says «what», and a
+  second full-strength metal frame inside the focus contour is exactly what
+  the bonus icons kept losing to. The cell's measured bonus cluster
+  (`updateBonusZone` — union of `.board-space-bonus` rects, cached per
+  map|cell) becomes the ghost's QUIET-ZONE mask (`--bcur-mask-*` →
+  `.con-bcur__ghost--masked`, static per cell, never animated), so no line of
+  the projection crosses an icon; the ownership cube stays unmasked. The LOCK
+  is what turns the ghost MATERIAL (opacity .88, scale 1, deeper shadow) —
+  the icons stay above it via the mask + their own lift. TRAVEL is a pose:
+  while the reticle glides the ghost lifts and lightens
+  (`.con-bcur--travel`, a re-armed settle timer ≈ travel+45 ms, so a held
+  d-pad keeps it airborne for the whole run and lands ONCE, on the final
+  cell; reduced motion never enters the pose).
+- The focused cell's printed bonus icons take a 2 px seat-lift (2.5 px past
+  the lock) and their grounding discs deepen into a contact shadow.
 - The baseline hex contour gained an ~8 % interior well (board.less) — cells
   read as surveyed basins, separating the field from the terrain.
 

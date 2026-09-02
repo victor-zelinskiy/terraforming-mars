@@ -117,6 +117,16 @@ export type BoardFact = {
   // them via `v-i18n` so the number is localized + substituted, not baked.
   params?: ReadonlyArray<string>;
   source?: BoardFactSource;
+  /**
+   * The BOARD CELLS that make this fact true — the adjacent oceans paying the
+   * M€, the greeneries a city will score, the hazards behind a production
+   * penalty, the tiles a planetary event rewrites. Filled ONLY where a fact is
+   * genuinely spatial, always from the same rule source that computed the
+   * fact's own numbers (never a parallel re-derivation), so a UI that lights
+   * these cells can never disagree with the fact it explains. Absent = the
+   * fact is about the placement cell itself / not spatial.
+   */
+  spaces?: ReadonlyArray<SpaceId>;
   delta?: BoardFactDelta;
   vp?: {from: number, to: number};
   /**
