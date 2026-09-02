@@ -1,7 +1,7 @@
 import {test, expect, Page, APIRequestContext} from '@playwright/test';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
-import {bootIntoGame, press, soloGameConfig} from './consoleStart';
+import {bootIntoGame, forceSwiftPlacement, press, soloGameConfig} from './consoleStart';
 import {TileType} from '@/common/TileType';
 
 /**
@@ -389,6 +389,7 @@ test.describe('Mars Nomads — the two flows, visually', () => {
   test('first landing grants nothing; the move hops, collects and restores', async ({page, request}) => {
     test.setTimeout(420_000);
 
+    await forceSwiftPlacement(page); // a landing-scene capture, not a confirm-flow spec
     const playerId = await bootIntoGame(page, request, {
       config: soloGameConfig({
         expansions: {promo: true},
@@ -531,6 +532,7 @@ test.describe('Mars Nomads — the two flows, visually', () => {
   test('a camp that hops next to water is paid by that water — with the coins', async ({page, request}) => {
     test.setTimeout(420_000);
 
+    await forceSwiftPlacement(page); // a landing-scene capture, not a confirm-flow spec
     const playerId = await bootIntoGame(page, request, {
       config: soloGameConfig({
         expansions: {promo: true},

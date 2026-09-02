@@ -1,6 +1,6 @@
 import {test, expect} from '@playwright/test';
 import {
-  pickCards, payStartPurchase, playQueueCard, press, queueCards, submitSummary,
+  pickCards, payStartPurchase, placeTile, playQueueCard, press, queueCards, submitSummary,
   visibleSurfaces, waitQueueIdle, walkToSummary,
 } from './consoleStart';
 
@@ -129,11 +129,10 @@ test.describe('start deployment · a tile-placing prelude', () => {
     // construction once this one is played, and a completely dead pad still
     // read as success. Server truth is the only honest witness.
     for (let ocean = 0; ocean < 2; ocean++) {
-      await press(page, 'Enter', 2500);
-      if (await page.locator('.con-context__task-kicker').count() > 0) {
-        await press(page, 'ArrowRight', 600);
-        await press(page, 'Enter', 2500);
-      }
+      // placeTile drives the DEFAULT two-phase confirm (lock → confirm) and
+      // walks off an illegal seed on its own.
+      await placeTile(page);
+      await page.waitForTimeout(1500);
     }
     await expect.poll(async () => {
       const v = await (await request.get(`/api/player?id=${id}`)).json() as {game: {oceans: number}};

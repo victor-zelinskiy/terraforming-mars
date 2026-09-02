@@ -357,7 +357,12 @@
 	pointer-events: none;
 	z-index: 1;
 	mix-blend-mode: @grid-blend;
-	background: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 46 51' preserveAspectRatio='none'><defs><linearGradient id='gc' x1='0' y1='0' x2='0' y2='1'><stop offset='0%25' stop-color='@{grid-core-top-c}' stop-opacity='@{grid-core-top-o}'/><stop offset='100%25' stop-color='@{grid-core-bot-c}' stop-opacity='@{grid-core-bot-o}'/></linearGradient></defs><polygon points='23,1 44.5,13.3 44.5,37.7 23,50 1.5,37.7 1.5,13.3' fill='none' stroke='@{grid-casing}' stroke-width='2.2' stroke-linejoin='round'/><polygon points='23,1 44.5,13.3 44.5,37.7 23,50 1.5,37.7 1.5,13.3' fill='none' stroke='url(%23gc)' stroke-width='0.85' stroke-linejoin='round'/></svg>") center/100% 100% no-repeat;
+	// The faint interior WELL (fill on the casing polygon, ~8%): each cell
+	// reads as a shallow surveyed basin rather than bare terrain between
+	// lines — what separates the FIELD from the planet at couch distance.
+	// Kept far below "filled with content"; the cased two-tone line above
+	// it is untouched.
+	background: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 46 51' preserveAspectRatio='none'><defs><linearGradient id='gc' x1='0' y1='0' x2='0' y2='1'><stop offset='0%25' stop-color='@{grid-core-top-c}' stop-opacity='@{grid-core-top-o}'/><stop offset='100%25' stop-color='@{grid-core-bot-c}' stop-opacity='@{grid-core-bot-o}'/></linearGradient></defs><polygon points='23,1 44.5,13.3 44.5,37.7 23,50 1.5,37.7 1.5,13.3' fill='rgb(16,9,5)' fill-opacity='0.08' stroke='@{grid-casing}' stroke-width='2.2' stroke-linejoin='round'/><polygon points='23,1 44.5,13.3 44.5,37.7 23,50 1.5,37.7 1.5,13.3' fill='none' stroke='url(%23gc)' stroke-width='0.85' stroke-linejoin='round'/></svg>") center/100% 100% no-repeat;
 	transition: background 180ms ease, filter 180ms ease, opacity 180ms ease;
 }
 

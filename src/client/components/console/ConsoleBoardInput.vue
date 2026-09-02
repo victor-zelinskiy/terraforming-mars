@@ -68,6 +68,15 @@ import {fetchBoardCellPreview} from '@/client/components/board/boardInfoState';
 import {BoardPlacementPreview} from '@/common/boards/BoardInformationFacts';
 import {armTilePlacement} from '@/client/console/tilePlacement/consoleTilePlacement';
 import {armNomadMove} from '@/client/console/nomads/consoleNomadMove';
+import {
+  beginPlacementCommit,
+  lockPlacementCell,
+  placementCommitReady,
+  placementFlowState,
+  registerPlacementRearm,
+} from '@/client/console/tilePlacement/placementFlow';
+import {consoleState} from '@/client/console/consoleRouter';
+import {consoleMotionMs} from '@/client/console/composables/useConsoleReducedMotion';
 
 /**
  * Marker attribute on cells we annotated with an illegal-reason tooltip.
@@ -84,6 +93,10 @@ type DataModel = {
   spaces: Set<SpaceId>;
   selectedTile: HTMLElement | undefined,
   spaceId: SpaceId | undefined;
+  /** The placement-rearm hook's unregister (placementFlow). */
+  unregisterRearm: (() => void) | undefined;
+  /** Strips the one-shot availability entry wave once it has played. */
+  waveTimer: number;
   // Premium placement-reason popover state (replaces the native `title`).
   hoverReasons: ReadonlyArray<UnplayableReason>;
   hoverAnchor: DOMRect | undefined;
@@ -119,6 +132,8 @@ export default defineComponent({
       spaces: new Set(this.playerinput.spaces),
       selectedTile: undefined,
       spaceId: undefined,
+      unregisterRearm: undefined,
+      waveTimer: 0,
       hoverReasons: [],
       hoverAnchor: undefined,
       hoverSpaceId: undefined,
@@ -159,16 +174,59 @@ export default defineComponent({
     },
     animateSpaces(tiles: Array<Element>) {
       let highlighted = 0;
+      const lit: Array<HTMLElement> = [];
       tiles.forEach((tile: Element) => {
         const spaceId = tile.getAttribute('data_space_id') as SpaceId;
         if (spaceId !== null && this.spaces.has(spaceId)) {
           this.animateSpace(tile, true);
+          lit.push(tile as HTMLElement);
           highlighted++;
         }
       });
       // BRD-3: mirror "`.board-space--available` now exists" into the reactive
       // store so hover handlers don't DOM-query on every mouseover.
       setPlacementHighlightActive(highlighted > 0);
+      this.playAvailabilityWave(lit);
+    },
+    /**
+     * The AVAILABILITY WAVE — a one-shot presentation of the legal set: each
+     * cell's contour blooms in on a short radial stagger from the group's
+     * own centre, then rests calm (the resting look is the static contour —
+     * no ambient pulse). The classes are STRIPPED once played, because the
+     * board is `v-show`n and a display flip would replay every CSS animation
+     * still declared on it (the known v-show restart trap).
+     */
+    playAvailabilityWave(lit: ReadonlyArray<HTMLElement>) {
+      if (this.waveTimer !== 0 || lit.length === 0 || typeof window === 'undefined') {
+        return;
+      }
+      const rects = lit.map((el) => el.getBoundingClientRect());
+      const cx = rects.reduce((s, r) => s + r.left + r.width / 2, 0) / rects.length;
+      const cy = rects.reduce((s, r) => s + r.top + r.height / 2, 0) / rects.length;
+      let maxDist = 1;
+      const dists = rects.map((r) => {
+        const d = Math.hypot(r.left + r.width / 2 - cx, r.top + r.height / 2 - cy);
+        maxDist = Math.max(maxDist, d);
+        return d;
+      });
+      lit.forEach((el, i) => {
+        el.style.setProperty('--con-wave-d', `${Math.round((dists[i] / maxDist) * 220)}ms`);
+        el.classList.add('con-avail-in');
+      });
+      this.waveTimer = window.setTimeout(() => {
+        this.waveTimer = 0;
+        this.clearAvailabilityWave();
+      }, consoleMotionMs(560));
+    },
+    clearAvailabilityWave() {
+      if (this.waveTimer !== 0) {
+        window.clearTimeout(this.waveTimer);
+        this.waveTimer = 0;
+      }
+      document.querySelectorAll('.con-avail-in').forEach((el) => {
+        el.classList.remove('con-avail-in');
+        (el as HTMLElement).style.removeProperty('--con-wave-d');
+      });
     },
     /**
      * Mark every cell the server reported as off-limits for this placement
@@ -302,6 +360,12 @@ export default defineComponent({
         throw new Error('unexpected, space has no id');
       }
       this.spaceId = spaceId;
+      // THE POINT OF NO RETURN — every placement source (pad, mouse, the
+      // legacy dialog) funnels through here, so this is where the flow
+      // enters `committing`: board input is absorbed until the server
+      // answers, and a refusal rolls back to the locked phase + re-arms
+      // the wiring this method just tore down.
+      beginPlacementCommit(spaceId);
       this.selectedTile.classList.add('board-space--selected');
       this.saveData();
     },
@@ -334,7 +398,53 @@ export default defineComponent({
     hideDialog(hide: boolean) {
       PreferencesManager.INSTANCE.set('hide_tile_confirmation', hide);
     },
+    /**
+     * (Re)attach the whole board wiring: availability highlight + illegal
+     * marks + per-cell click handlers. Runs at mount and again on a refused
+     * commit's rollback (`registerPlacementRearm`) — `disableAnimation` and
+     * re-adding an `onclick` are both idempotent, so a double call is safe.
+     */
+    wireBoard() {
+      this.disableAnimation();
+      const tiles = this.getSelectableSpaces();
+      this.animateSpaces(tiles);
+      this.applyIllegalTooltips(tiles);
+      for (let i = 0, length = tiles.length; i < length; i++) {
+        const tile = tiles[i];
+        const spaceId = tile.getAttribute('data_space_id') as SpaceId;
+
+        if (spaceId === null || this.spaces.has(spaceId) === false) {
+          continue;
+        }
+
+        tile.onclick = () => this.onTileSelected(tile);
+      }
+    },
     onTileSelected(tile: HTMLElement) {
+      // TWO-PHASE CONFIRM (the console default, placementFlow.ts): the pad
+      // path locks in the shell BEFORE ever clicking, so a click landing
+      // here is either the pad's verified COMMIT (locked + released +
+      // dwelled — re-checked here, the last gate) or a MOUSE press: a mouse
+      // click on the locked cell confirms, on any other legal cell it moves
+      // the lock — the same two-decision shape as the pad, one setting.
+      if (placementFlowState.twoStep) {
+        const spaceId = tile.getAttribute('data_space_id') as SpaceId | null;
+        if (spaceId === null || placementFlowState.phase === 'committing') {
+          return;
+        }
+        const isCommit = placementFlowState.phase === 'locked' &&
+          placementFlowState.lockedSpaceId === spaceId && placementCommitReady();
+        if (!isCommit) {
+          consoleState.boardSpaceId = spaceId;
+          lockPlacementCell(spaceId);
+          return;
+        }
+        this.selectedTile = tile;
+        this.disableAnimation();
+        this.clearHover();
+        this.confirmPlacement();
+        return;
+      }
       this.selectedTile = tile;
       this.disableAnimation();
       this.clearHover();
@@ -407,20 +517,11 @@ export default defineComponent({
     // card had done anything. What the cell is worth is the dossier panel's
     // job; the removal itself is a beat of the placement scene, which is the
     // one owner of `placementRenderState.hiddenTiles` now.
-    this.disableAnimation();
-    const tiles = this.getSelectableSpaces();
-    this.animateSpaces(tiles);
-    this.applyIllegalTooltips(tiles);
-    for (let i = 0, length = tiles.length; i < length; i++) {
-      const tile = tiles[i];
-      const spaceId = tile.getAttribute('data_space_id') as SpaceId;
-
-      if (spaceId === null || this.spaces.has(spaceId) === false) {
-        continue;
-      }
-
-      tile.onclick = () => this.onTileSelected(tile);
-    }
+    this.wireBoard();
+    // A REFUSED commit re-arms this very wiring (confirmPlacement tears the
+    // per-cell handlers down before posting; without the hook a server «нет»
+    // left the whole board click-dead for the rest of the prompt).
+    this.unregisterRearm = registerPlacementRearm(() => this.wireBoard());
     // Delegated hover for the premium reason popover; clear it on scroll so a
     // stale anchor never floats over the wrong cell.
     document.addEventListener('mouseover', this.onBoardMouseOver);
@@ -434,6 +535,9 @@ export default defineComponent({
   // Safe to run on every unmount because `disableAnimation` is idempotent
   // and clearing `onclick` on an already-cleared tile is a no-op.
   beforeUnmount() {
+    this.unregisterRearm?.();
+    this.unregisterRearm = undefined;
+    this.clearAvailabilityWave();
     this.disableAnimation();
     const tiles = this.getSelectableSpaces();
     for (const tile of tiles) {

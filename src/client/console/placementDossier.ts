@@ -177,8 +177,10 @@ export function placementIdentity(opts: {
   };
 }
 
-/** A kind-only prompt (no tileType) still knows which ordinary art lands. */
-function swatchForKind(kind: BoardPlacementKind | undefined): TileType | undefined {
+/** A kind-only prompt (no tileType) still knows which ordinary art lands.
+ *  Exported: the board reticle projects the SAME resolution (a convert-plants
+ *  greenery arrives as `placementType: 'greenery'` with no tileType). */
+export function swatchForKind(kind: BoardPlacementKind | undefined): TileType | undefined {
   switch (kind) {
   case 'greenery': return TileType.GREENERY;
   case 'city': return TileType.CITY;

@@ -51,16 +51,18 @@
 
       <!-- ── THE FOCUSED CELL: one fixed line; the refusal expands below
            without a jump (grid-rows well), so legal ↔ illegal never shifts
-           the identity above it. -->
+           the identity above it. The LOCKED phase re-registers the same bar
+           (amber, «выбрано») — a paint-only change, zero geometry. -->
       <div class="con-context__cell">
         <div class="con-context__cellbar"
-             :class="selectedLegal ? 'con-context__cellbar--ok' : 'con-context__cellbar--no'">
-          <span class="con-context__cell-mark" aria-hidden="true">{{ selectedLegal ? '◆' : '✕' }}</span>
+             :class="cellbarClass">
+          <span class="con-context__cell-mark" aria-hidden="true">{{ selectedLegal ? (cellLocked ? '◈' : '◆') : '✕' }}</span>
           <span class="con-context__cell-name">{{ cellHeader !== '' ? cellHeader : $t('Board cell') }}</span>
           <!-- «Без штрафа» is ONE quiet word on the cell line, not a section:
                a whole «ЭФФЕКТ КЛЕТКИ» block whose entire content was the
                absence of an effect spent a head + a row on a non-event. -->
-          <span v-if="noToll" class="con-context__cell-tail">· {{ $t('No extra cost') }}</span>
+          <span v-if="cellLocked" class="con-context__cell-tail con-context__cell-tail--locked">· {{ $t(flowPhase === 'committing' ? 'Placing' : 'Cell selected') }}</span>
+          <span v-else-if="noToll" class="con-context__cell-tail">· {{ $t('No extra cost') }}</span>
         </div>
         <div class="con-context__reason-well"
              :class="{'con-context__reason-well--open': !selectedLegal}"
@@ -300,6 +302,9 @@ export default defineComponent({
     aresTiles: {type: Boolean, default: false},
     selectedLegal: {type: Boolean, default: false},
     illegalReason: {type: String, default: ''},
+    /** The two-phase placement flow's phase — the cell bar's locked accent
+     *  (paint-only; the bar renders no controller prompt, per contract). */
+    flowPhase: {type: String as PropType<'navigate' | 'locked' | 'committing'>, default: 'navigate'},
     /** P20: the R3 inspect-all toggle is on (labels + the mode chip). */
     inspectAll: {type: Boolean, default: false},
     /** WHO asked for this placement — normalized by the shared model. */
@@ -315,6 +320,16 @@ export default defineComponent({
     /** The source CARD, when there is one — what L3 opens fullscreen. */
     sourceCard(): CardName | undefined {
       return this.sourceView?.inspectable === true ? this.sourceView.card : undefined;
+    },
+    /** The cell is LOCKED (or its commit is on the wire) — amber register. */
+    cellLocked(): boolean {
+      return this.selectedLegal && this.flowPhase !== 'navigate';
+    },
+    cellbarClass(): string {
+      if (!this.selectedLegal) {
+        return 'con-context__cellbar--no';
+      }
+      return this.cellLocked ? 'con-context__cellbar--locked' : 'con-context__cellbar--ok';
     },
     /** WHAT LANDS — the pure identity (title / swatch / demoted sentence). */
     identity(): PlacementIdentity {

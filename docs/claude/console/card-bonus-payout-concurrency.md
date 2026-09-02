@@ -69,6 +69,16 @@ scene.** Concretely:
    holding predicate, so a card flying alone is never slowed by a plain
    landing.
 
+5. **The OPENER reads the predicate too** (`singleCardNeedsFullscreen` adds
+   `!rewardPayoutSettling()`): the scene-side release sequences the ordinary
+   path, but the invariant «the fullscreen never opens over money in the air»
+   must hold against every scene-lifecycle edge (an abort that pre-set
+   `zoomEntryReady`, a scene that died early, a load stall reordering
+   flushes) — so the auto-open itself refuses while the payout settles. It is
+   the SAME one predicate at a second consumer, never a private paraphrase;
+   bounded transitively because every settling term is a scene state with its
+   own safety net.
+
 ## Load-bearing boundaries
 
 - **The SELF-ARM gate keeps exactly the overlay park's own terms**

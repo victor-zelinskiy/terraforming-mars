@@ -49,6 +49,7 @@ import {
 } from '@/client/gamepad/glyphSets';
 import {BUTTON_LAYOUT_CHOICES, BUTTON_LAYOUT_LABELS, buttonLayoutState, setButtonLayout} from '@/client/gamepad/buttonLayout';
 import {WHEEL_CONTROL_CHOICES, WHEEL_CONTROL_LABELS, setWheelControlMode, wheelControlState} from '@/client/console/quickWheel/wheelControlMode';
+import {placementFlowState, setPlacementTwoStep} from '@/client/console/tilePlacement/placementFlow';
 import {privateScoreState, setPrivateScore} from '@/client/components/overview/privateScoreState';
 import {
   type MotionFpsCap,
@@ -83,6 +84,7 @@ export type ConsoleSettingsCategoryId =
 
 export type ConsoleSettingId =
   'shell' | 'display' | 'textScale' | 'albumLayout' | 'dockCards' | 'notifications' | 'controller' | 'buttons' | 'wheelControl' |
+  'placeConfirm' |
   'motionSpeed' | 'motionRate' | 'fxLite' | 'reduceMotion' | 'privateScore' | 'gameServer' | 'lanVisible';
 
 /** One dialable preference: a ring of options plus where we are in it. */
@@ -321,6 +323,17 @@ function controlsCategory(): ConsoleSettingsCategory {
       WHEEL_CONTROL_CHOICES, wheelControlState.mode,
       (v) => translateText(WHEEL_CONTROL_LABELS[v]),
       (v) => setWheelControlMode(v),
+    ),
+    // The tile-placement confirm (placementFlow.ts). Two presses is the
+    // recommended console default: a placement is the one everyday action no
+    // undo can honestly unwind, and a single press on a couch pad misfires.
+    toggleRow(
+      'placeConfirm', 'Tile placement',
+      placementFlowState.twoStep ?
+        'First press selects the cell, a second press confirms the placement' :
+        'One press places the tile immediately',
+      placementFlowState.twoStep, ['Single press', 'Two presses'],
+      (v) => setPlacementTwoStep(v),
     ),
   ];
   return {id: 'controls', label: 'Controls', glyph: '◎', minor: false, rows, readout: []};

@@ -129,6 +129,7 @@ import {
   runTilePlacement,
   seedTilePlacementRewardHold,
 } from '@/client/console/tilePlacement/consoleTilePlacement';
+import {rollbackPlacementCommit} from '@/client/console/tilePlacement/placementFlow';
 import {
   abortNomadMove,
   detectNomadMove,
@@ -1067,6 +1068,10 @@ function abortAllConsoleTransactions(): void {
   // …and the tile-placement hero: no tile flies, no bonus is collected.
   transportHolds.tilePlacementHero = false;
   abortTilePlacement();
+  // …and the two-phase placement flow: the refused commit returns the player
+  // to their LOCKED cell (context intact) and re-arms the board wiring the
+  // submit funnel tore down. No-op unless a placement commit was in flight.
+  rollbackPlacementCommit();
   // …and the nomad move: the camp never lifts off, nothing is collected.
   transportHolds.nomadMove = false;
   abortNomadMove();

@@ -119,6 +119,7 @@
                            ref="boardSection"
                            :playerView="playerView"
                            :placementActive="placementActive"
+                           :placementShape="placementShape"
                            :inspecting="consoleState.inspecting" />
       <!-- The right STRATEGY RAIL — the Milestones/Awards premium HUD, the
            LEFT rail's geometric twin (same width token). Always the board
@@ -150,6 +151,7 @@
                              :aresTiles="game.gameOptions.expansions.ares === true"
                              :selectedLegal="selectedCellLegal"
                              :illegalReason="selectedCellIllegalReason"
+                             :flowPhase="placementFlowState.phase"
                              :inspectAll="consoleState.freeRoam"
                              :sourceView="placementSourceView"
                              :trackInfo="trackInfo"
@@ -1663,6 +1665,15 @@ import {abortActionCommitMotion} from '@/client/console/consoleActionCommitMotio
 import ConsoleTilePlacementLayer from '@/client/components/console/tilePlacement/ConsoleTilePlacementLayer.vue';
 import ConsoleNomadMoveLayer from '@/client/components/console/nomads/ConsoleNomadMoveLayer.vue';
 import {abortTilePlacement, tilePlacementHolding, tilePlacementState} from '@/client/console/tilePlacement/consoleTilePlacement';
+import {
+  enterPlacementFlow,
+  lockPlacementCell,
+  placementCommitReady,
+  placementFlowState,
+  placementPressAllowed,
+  resetPlacementFlow,
+  unlockPlacementCell,
+} from '@/client/console/tilePlacement/placementFlow';
 import {abortRemotePlacements} from '@/client/console/tilePlacement/consoleRemotePlacement';
 import {abortOceanBeat} from '@/client/console/tilePlacement/oceanAdjacencyBeat';
 import {abortNomadMove, nomadMoveState, nomadMoveHolding} from '@/client/console/nomads/consoleNomadMove';
@@ -1962,6 +1973,7 @@ export default defineComponent({
        *  never fire (the hydro black-screen bug). */
       cardDiscardTransaction,
       tilePlacementState,
+      placementFlowState,
       nomadMoveState,
       /** Planet Focus (main-grid placement): phases + held global params. */
       planetFocusState,
@@ -6019,6 +6031,10 @@ export default defineComponent({
     hydroCacheKey(): string {
       return gameStateVersion(this.playerView);
     },
+    /** The placement flow's world-moved signal (see its watcher). */
+    placementWorldVersion(): string {
+      return gameStateVersion(this.playerView);
+    },
     // ── the console-native journal (View — board home only) ────────────
     /** The journal surface renders (it replaces the right info panel). */
     journalPanelVisible(): boolean {
@@ -7170,9 +7186,30 @@ export default defineComponent({
         // board's highlighted cells already teach navigation) drops first,
         // never a verb with no other home. «Источник» is deliberately the
         // short label here: «Осмотреть источник» was what the 4K fit dropped.
+        const flowPhase = this.placementFlowState.phase;
+        // A COMMIT ON THE WIRE: one calm status, no live verbs — every press
+        // is absorbed by the flow anyway, and the bar must say so.
+        if (flowPhase === 'committing') {
+          return [
+            {control: 'confirm', label: 'Placing the tile', enabled: false},
+          ];
+        }
+        // THE LOCKED PHASE: the bar relabels to the second half of the
+        // decision — A confirms THE choice, B steps back to cell choice.
+        // The whole-flow cancel stays one more B away (back hierarchy).
+        if (flowPhase === 'locked') {
+          return [
+            {control: 'confirm', label: 'Confirm placement', enabled: true, highlight: true},
+            {control: 'back', label: 'Change cell'},
+            ...(this.placementSourceCard !== undefined ?
+              [{control: 'stickL' as GlyphControl, label: 'Source', priority: 1}] : []),
+          ];
+        }
         const cmds: Array<ConsoleCommand> = [
           {control: 'dpad', label: 'Navigate'},
-          {control: 'confirm', label: 'Place here', enabled: this.selectedCellLegal,
+          {control: 'confirm',
+            label: this.placementFlowState.twoStep ? 'Select cell' : 'Place here',
+            enabled: this.selectedCellLegal,
             highlight: this.selectedCellLegal},
           // L3 — the SOURCE card fullscreen, the same verb it carries on every
           // other surface in the shell. It replaced «next available cell», a
@@ -8683,6 +8720,48 @@ export default defineComponent({
       this.consoleState.inspecting = false;
       this.consoleState.scaleInspecting = false;
       this.consoleState.trackMarker = undefined;
+      // The two-phase confirm flow: a fresh placement starts at NAVIGATE
+      // (arming the entry hold-gate when the opening press is still down);
+      // leaving placement clears every transient phase.
+      if (now) {
+        enterPlacementFlow();
+      } else {
+        resetPlacementFlow();
+      }
+    },
+    /**
+     * THE WORLD MOVED under a standing placement (the server's own change
+     * counters — the same pair every cache keys on). Three honest cases:
+     *  - a commit succeeded straight into a CHAINED second placement (no
+     *    cinematic hold flipped `placementActive` off) — the new prompt is a
+     *    new decision, the flow returns to navigation;
+     *  - an off-turn update landed while the player holds a LOCK — the lock
+     *    survives only if its cell is still a legal landing spot (an
+     *    opponent's concurrent ocean can occupy it);
+     *  - anything else — no phase to protect, nothing to do.
+     * A REFUSED commit never changes the version, so the rollback path
+     * (`rollbackPlacementCommit` in the transport's abort battery) stays the
+     * one owner of that transition.
+     */
+    placementWorldVersion(): void {
+      const phase = this.placementFlowState.phase;
+      if (!this.placementActive || phase === 'navigate') {
+        return;
+      }
+      if (phase === 'committing') {
+        resetPlacementFlow();
+        return;
+      }
+      void this.$nextTick(() => {
+        if (this.placementFlowState.phase !== 'locked') {
+          return;
+        }
+        const id = this.placementFlowState.lockedSpaceId;
+        const el = id !== undefined ? document.querySelector(`[data_space_id="${id}"]`) : null;
+        if (el === null || !el.classList.contains('board-space--available')) {
+          unlockPlacementCell();
+        }
+      });
     },
     /**
      * PLANET FOCUS driver. Rising edge: the board becomes the stage (arcs
@@ -11437,6 +11516,18 @@ export default defineComponent({
           this.showNotice(translateTextWithParams('Press ${0} to inspect the board', [activeGlyphSet().stickL.label]));
           return;
         }
+        if (this.placementActive) {
+          // A commit on the wire keeps the reticle where the decision was
+          // made; a d-pad step out of the LOCKED phase releases the lock
+          // and moves in the same press — no dead input, and the release
+          // is visible (the lock pose lets go before the glide).
+          if (this.placementFlowState.phase === 'committing') {
+            return;
+          }
+          if (this.placementFlowState.phase === 'locked') {
+            unlockPlacementCell();
+          }
+        }
         board?.move(dir);
         return;
       }
@@ -11465,13 +11556,44 @@ export default defineComponent({
       if (this.consoleState.section === 'board') {
         const board = this.$refs.boardSection as InstanceType<typeof ConsoleBoardSection> | undefined;
         if (this.placementActive) {
+          const flow = this.placementFlowState;
+          // A commit already on the wire absorbs every further press — a
+          // double submit is impossible by construction, not by luck.
+          if (flow.phase === 'committing') {
+            return;
+          }
+          // The press that OPENED this mode is still physically held — it
+          // may never place a tile (both modes).
+          if (!placementPressAllowed()) {
+            return;
+          }
+          const targetId = this.consoleState.boardSpaceId;
+          if (targetId === undefined) {
+            return;
+          }
+          if (!this.selectedCellLegal) {
+            this.showNotice('Cannot place here');
+            return;
+          }
+          // TWO-PHASE CONFIRM (the console default): the first press LOCKS
+          // the cell — pure presentation, nothing is submitted, no event
+          // exists yet. The second, separately-released press commits.
+          if (flow.twoStep && flow.phase === 'navigate') {
+            lockPlacementCell(targetId as SpaceId);
+            return;
+          }
+          if (flow.twoStep && flow.phase === 'locked') {
+            // The gate: the locking press must have been RELEASED and the
+            // lock must have stood its minimum dwell — a held button, a
+            // bounce or a reflex double-tap all land here and do nothing.
+            if (flow.lockedSpaceId !== targetId || !placementCommitReady()) {
+              return;
+            }
+          }
           // Card-bonus cell: ARM the lift BEFORE activating — the click
           // submits synchronously through the headless SelectSpace, and the
           // cover must separate at submit time (never after the response).
-          const targetId = this.consoleState.boardSpaceId;
-          if (targetId !== undefined) {
-            this.armBoardBonusIfCardCell(targetId, this.placementSpaceModel?.placementEffect);
-          }
+          this.armBoardBonusIfCardCell(targetId, this.placementSpaceModel?.placementEffect);
           if (board?.activate() !== true) {
             this.showNotice('Cannot place here');
             // Nothing was submitted — recall the armed cover instantly.
@@ -11652,6 +11774,17 @@ export default defineComponent({
         return;
       }
       if (this.placementActive) {
+        // The back hierarchy is one level at a time: a commit in flight
+        // absorbs B (it cannot be recalled off the wire); the LOCKED phase
+        // steps back to navigation with zero gameplay consequence; only the
+        // navigation level reaches the whole-flow cancel.
+        if (this.placementFlowState.phase === 'committing') {
+          return;
+        }
+        if (this.placementFlowState.phase === 'locked') {
+          unlockPlacementCell();
+          return;
+        }
         if (this.placementCancellable) {
           this.cancelPlacement();
         } else {

@@ -23,7 +23,7 @@
 import {expect, test, Page, APIRequestContext} from '@playwright/test';
 import * as fs from 'fs';
 import * as path from 'path';
-import {bootIntoGame, soloGameConfig, press} from './consoleStart';
+import {bootIntoGame, forceSwiftPlacement, soloGameConfig, press} from './consoleStart';
 
 const OUT = path.resolve('screenshots', 'tile-replacement');
 
@@ -146,6 +146,7 @@ test.describe('a tile that REPLACES one of yours is placed, not swapped', () => 
 
   test('Kaguya Tech: the greenery LEAVES, its bonus surfaces, the city LANDS', async ({page, request}) => {
     page.on('pageerror', (e) => console.log('[pageerror]', e.message));
+    await forceSwiftPlacement(page); // the removal cinematic is the subject; click = commit
     await bootIntoGame(page, request, {config: CONFIG, cards: [KAGUYA, ...FILLER], buy: 3});
 
     const greenery = await growAGreenery(page);

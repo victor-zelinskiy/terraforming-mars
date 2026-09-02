@@ -6,6 +6,19 @@
     <div class="con-board__stage" ref="stage">
       <GameBoardView :game="game" :players="playerView.players" :tileView="tileView" @toggleTileView="cycleTileView" />
     </div>
+    <!-- THE PLACEMENT RETICLE — teleported INSIDE `.board-cont` so it is
+         positioned in intrinsic board px and rides the planet's scale/pan
+         transform for free. One persistent element that GLIDES between
+         hexes; the hero scene taking the cell is what retires it. -->
+    <Teleport v-if="cursorHost !== undefined" :to="cursorHost">
+      <ConsoleBoardCursor
+        v-if="cursorVisible && cursorPos !== undefined"
+        :x="cursorPos.x" :y="cursorPos.y"
+        :legal="selectedAvailable"
+        :phase="placementFlowState.phase"
+        :tileArtClass="cursorArtClass"
+        :cubeColor="cursorCubeColor" />
+    </Teleport>
     <!-- Cell details live in the shell-level ConsoleContextPanel (feedback
          iteration 2) — this component owns the STAGE + selection only. -->
   </div>
@@ -30,6 +43,7 @@
  */
 import {defineComponent, PropType} from 'vue';
 import GameBoardView from '@/client/components/GameBoardView.vue';
+import ConsoleBoardCursor from '@/client/components/console/ConsoleBoardCursor.vue';
 import {PlayerViewModel} from '@/common/models/PlayerModel';
 import {GameModel} from '@/common/models/GameModel';
 import {SpaceId} from '@/common/Types';
@@ -43,10 +57,30 @@ import {
 } from '@/client/console/planetFocus';
 import {consoleMotionMs} from '@/client/console/composables/useConsoleReducedMotion';
 import {cssLengthPx} from '@/client/console/cssUnits';
+import {placementFlowState} from '@/client/console/tilePlacement/placementFlow';
+import {tilePlacementState} from '@/client/console/tilePlacement/consoleTilePlacement';
+import {PlacementShape, swatchForKind} from '@/client/console/placementDossier';
+import {tileCssClassOf} from '@/client/components/board/BoardSpaceTile.vue';
+import {HAZARD_TILES, TileType} from '@/common/TileType';
 
 const SELECT_CLASS = 'con-cell-sel';
 /** P27: the focused global-parameter TRACK marker (inspection mode). */
 const MARKER_CLASS = 'con-marker-sel';
+
+/**
+ * Intrinsic board-px coordinates per cell — measured ONCE per (map, cell):
+ * every hex is absolutely positioned by a static per-id margin, so its
+ * intrinsic position never changes for the life of a map. Measured through
+ * rect division (cell rect vs `.board-cont` rect / the live scale), which
+ * cancels the planet transform exactly — a mid-tween measurement is still
+ * correct. Module-level: the section is a singleton and the key carries the
+ * map name, so a rematch onto another board can never read a stale entry.
+ */
+const cellPosCache = new Map<string, {x: number, y: number}>();
+/** Cells currently carrying a placement adjacency-hint class. */
+const adjacencyMarked = new Set<HTMLElement>();
+const ADJ_OCEAN_CLASS = 'con-adj-ocean';
+const ADJ_HAZARD_CLASS = 'con-adj-hazard';
 
 /** A navigable target: a board CELL or a track MARKER (inspection only). */
 type BoardCandidate = {kind: 'cell' | 'marker', id: string, el: HTMLElement, rect: NavRect};
@@ -188,10 +222,13 @@ const LATE_VERIFY_MAX = 4;
 
 export default defineComponent({
   name: 'ConsoleBoardSection',
-  components: {GameBoardView},
+  components: {GameBoardView, ConsoleBoardCursor},
   props: {
     playerView: {type: Object as PropType<PlayerViewModel>, required: true},
     placementActive: {type: Boolean, required: true},
+    /** WHAT this placement puts down (the shell's one prompt resolver) —
+     *  drives the reticle's tile projection. */
+    placementShape: {type: Object as PropType<PlacementShape | undefined>, default: undefined},
     /** P27: BOARD INSPECTION MODE (L3) — strict row/column cell traversal. */
     inspecting: {type: Boolean, default: false},
   },
@@ -199,6 +236,11 @@ export default defineComponent({
     return {
       consoleState,
       planetFocusState,
+      placementFlowState,
+      tilePlacementState,
+      /** The reticle's teleport target (`.board-cont`) — resolved once at
+       *  mount; the board never remounts (the console update model). */
+      cursorHost: undefined as HTMLElement | undefined,
       tileView: 'show' as TileView,
       stageObserver: undefined as ResizeObserver | undefined,
       fitRaf: 0,
@@ -322,6 +364,10 @@ export default defineComponent({
       return {
         'con-board--live': this.placementActive || this.inspecting,
         'con-board--inspecting': this.inspecting && !this.placementActive,
+        // Placement flow poses (placementFlow.ts): the LOCK recedes every
+        // other legal cell so the chosen one dominates without contest.
+        'con-board--placing': this.placementActive,
+        'con-board--locked': this.placementActive && this.placementFlowState.phase !== 'navigate',
         'con-board--pfocus': phase === 'entering' || phase === 'active' || phase === 'exit-prep',
         'con-board--pfocus-anim': phase === 'entering' || phase === 'exit-prep' || phase === 'exiting',
         'con-board--pfocus-settled': phase === 'active',
@@ -344,6 +390,82 @@ export default defineComponent({
       const el = this.cellEl(this.selectedSpaceId);
       return el !== undefined && el.classList.contains('board-space--available');
     },
+    /**
+     * The reticle exists for the whole placement and only the placement —
+     * the moment the hero SCENE owns the cell (detect verified the server's
+     * word and the flight/departure begins) the projection yields: the
+     * arriving physical tile is the object now. `armed` (submit on the
+     * wire, nothing visual yet) keeps the committing pose — that IS the
+     * pending feedback.
+     */
+    cursorVisible(): boolean {
+      if (!this.placementActive || this.selectedSpaceId === undefined) {
+        return false;
+      }
+      const scene = this.tilePlacementState;
+      if (scene.active && scene.phase !== 'armed' && scene.phase !== 'failed') {
+        return false;
+      }
+      return true;
+    },
+    /** The reticle's anchor cell: the LOCK freezes it on the locked cell. */
+    cursorSpaceId(): string | undefined {
+      const flow = this.placementFlowState;
+      if (flow.phase !== 'navigate' && flow.lockedSpaceId !== undefined) {
+        return flow.lockedSpaceId;
+      }
+      return this.selectedSpaceId;
+    },
+    cursorPos(): {x: number, y: number} | undefined {
+      const id = this.cursorSpaceId;
+      const host = this.cursorHost;
+      if (id === undefined || host === undefined) {
+        return undefined;
+      }
+      const key = `${this.playerView.game.gameOptions?.boardName ?? ''}|${id}`;
+      const hit = cellPosCache.get(key);
+      if (hit !== undefined) {
+        return hit;
+      }
+      const el = this.cellEl(id);
+      if (el === undefined) {
+        return undefined;
+      }
+      const hr = host.getBoundingClientRect();
+      if (hr.width < 40) {
+        return undefined; // board hidden — nothing to place the reticle on
+      }
+      const scale = hr.width / BOARD_CONT_W;
+      const r = el.getBoundingClientRect();
+      const pos = {x: (r.left - hr.left) / scale, y: (r.top - hr.top) / scale};
+      cellPosCache.set(key, pos);
+      return pos;
+    },
+    /** The projected tile's real board art ('' = a marker pick, ring only).
+     *  Same resolution as the dossier's swatch: an explicit tileType wins,
+     *  else the ordinary art of the placement KIND (convert plants arrives
+     *  as `placementType: 'greenery'` with no tileType). */
+    cursorArtClass(): string {
+      const shape = this.placementShape;
+      if (shape === undefined || shape.placementEffect === 'marker' || shape.placementEffect === 'bonus-only') {
+        return '';
+      }
+      const tt = shape.tileType ?? swatchForKind(shape.placementType);
+      if (tt === undefined) {
+        return '';
+      }
+      const suffix = tileCssClassOf(tt, this.playerView.game.gameOptions?.expansions?.ares === true);
+      return suffix === '' ? '' : 'board-space-tile--' + suffix;
+    },
+    /** The ownership marker on the projection — every owned tile seats one;
+     *  an ocean is neutral and never does (resolved tile, kind-only included). */
+    cursorCubeColor(): string | undefined {
+      const tt = this.placementShape?.tileType ?? swatchForKind(this.placementShape?.placementType);
+      if (this.cursorArtClass === '' || tt === TileType.OCEAN) {
+        return undefined;
+      }
+      return this.playerView.thisPlayer?.color;
+    },
   },
   watch: {
     // Entering placement re-seats the selection on a LEGAL cell near the
@@ -358,7 +480,10 @@ export default defineComponent({
           // ResizeObserver's word; a framing that is already current is a
           // no-op (the key matches).
           this.scheduleFit();
+          this.updateAdjacencyHints();
         });
+      } else {
+        this.clearAdjacencyHints();
       }
     },
     selectedSpaceId: {
@@ -368,6 +493,7 @@ export default defineComponent({
         if (now !== undefined) {
           hoverBoardCell(now as SpaceId);
         }
+        this.updateAdjacencyHints();
       },
     },
     /**
@@ -918,6 +1044,78 @@ export default defineComponent({
       const root = this.$refs.root as HTMLElement | undefined;
       return root?.querySelector<HTMLElement>(`[data_space_id="${spaceId}"]`) ?? undefined;
     },
+    /**
+     * PLACEMENT ADJACENCY HINTS — the calm on-field tie between the focused
+     * cell and the neighbours that make its price/reward true: adjacent
+     * OCEANS (each pays the flat placement income) and adjacent HAZARDS
+     * (what the toll in the dossier is about). Geometry is the intrinsic
+     * position cache (pure math after warm-up — no layout reads per step);
+     * the tile identity comes from the authoritative view model, never from
+     * DOM classes. Deliberately only the two always-true adjacencies — the
+     * exact arithmetic stays the dossier's job.
+     */
+    updateAdjacencyHints(): void {
+      this.clearAdjacencyHints();
+      if (!this.placementActive || !this.selectedAvailable) {
+        return;
+      }
+      const id = this.cursorSpaceId;
+      const centre = this.cellIntrinsicCentre(id);
+      if (id === undefined || centre === undefined) {
+        return;
+      }
+      const reach = 46 * 1.5; /* keep-px: board px-space — one hex pitch */
+      for (const space of this.playerView.game.spaces ?? []) {
+        if (space.id === id || space.tileType === undefined) {
+          continue;
+        }
+        const isOcean = space.tileType === TileType.OCEAN;
+        const isHazard = HAZARD_TILES.has(space.tileType);
+        if (!isOcean && !isHazard) {
+          continue;
+        }
+        const c = this.cellIntrinsicCentre(space.id);
+        if (c === undefined || Math.hypot(c.x - centre.x, c.y - centre.y) > reach) {
+          continue;
+        }
+        const el = this.cellEl(space.id);
+        if (el !== undefined) {
+          el.classList.add(isOcean ? ADJ_OCEAN_CLASS : ADJ_HAZARD_CLASS);
+          adjacencyMarked.add(el);
+        }
+      }
+    },
+    clearAdjacencyHints(): void {
+      for (const el of adjacencyMarked) {
+        el.classList.remove(ADJ_OCEAN_CLASS, ADJ_HAZARD_CLASS);
+      }
+      adjacencyMarked.clear();
+    },
+    /** A cell's intrinsic centre (board px), through the same cached measure
+     *  the reticle rides. */
+    cellIntrinsicCentre(spaceId: string | undefined): {x: number, y: number} | undefined {
+      const host = this.cursorHost;
+      if (spaceId === undefined || host === undefined) {
+        return undefined;
+      }
+      const key = `${this.playerView.game.gameOptions?.boardName ?? ''}|${spaceId}`;
+      let pos = cellPosCache.get(key);
+      if (pos === undefined) {
+        const el = this.cellEl(spaceId);
+        if (el === undefined) {
+          return undefined;
+        }
+        const hr = host.getBoundingClientRect();
+        if (hr.width < 40) {
+          return undefined;
+        }
+        const scale = hr.width / BOARD_CONT_W;
+        const r = el.getBoundingClientRect();
+        pos = {x: (r.left - hr.left) / scale, y: (r.top - hr.top) / scale};
+        cellPosCache.set(key, pos);
+      }
+      return {x: pos.x + 23, y: pos.y + 25.5}; /* keep-px: half a 46×51 hex */
+    },
     applySpotlight(before: string | undefined, now: string | undefined): void {
       this.cellEl(before)?.classList.remove(SELECT_CLASS);
       const el = this.cellEl(now);
@@ -1138,6 +1336,10 @@ export default defineComponent({
     } catch (err) {
       // storage unavailable — nothing to clean
     }
+    // The reticle's home — Board.vue's root, which never remounts for the
+    // session (the console update model), so resolving it once is safe.
+    const stageEl = this.$refs.stage as HTMLElement | undefined;
+    this.cursorHost = stageEl?.querySelector<HTMLElement>('.board-cont') ?? undefined;
     if (this.selectedSpaceId === undefined) {
       this.seed(this.placementActive);
     } else {
@@ -1152,6 +1354,7 @@ export default defineComponent({
     }
   },
   beforeUnmount() {
+    this.clearAdjacencyHints();
     if (this.lateVerifyTimer !== 0) {
       window.clearTimeout(this.lateVerifyTimer);
     }

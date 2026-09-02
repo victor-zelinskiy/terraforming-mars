@@ -743,10 +743,32 @@ export async function playQueueCard(page: Page, card: string, maxPresses = 4): P
 }
 
 /**
+ * Force the historical SINGLE-PRESS placement commit for a spec whose
+ * subject is a landing scene / a timing measurement, not the confirm flow
+ * (the two-phase confirm is the product default and has its own spec).
+ * Must run BEFORE the boot navigation — the flow reads the stored
+ * preference at module load.
+ */
+export async function forceSwiftPlacement(page: Page): Promise<void> {
+  await page.addInitScript(() => {
+    try {
+      window.localStorage.setItem('tm_place_confirm', '0');
+    } catch (err) {
+      // storage unavailable — the spec will drive the default flow instead
+    }
+  });
+}
+
+/**
  * Place a pending tile: the seeded cursor is often on a LEGAL cell, but not
  * always («Нельзя разместить здесь» — the panel says so and A is refused),
  * so this walks the board until a press actually resolves the placement.
  * Returns false when there is nothing to place.
+ *
+ * TWO-PHASE CONFIRM (the console default): the first Enter LOCKS the cell,
+ * the second — after the lock's minimum dwell — commits. The pair below
+ * drives BOTH modes: in single-press mode the first Enter already commits
+ * and the second lands after `placementActive` fell (a no-op board press).
  */
 export async function placeTile(page: Page, maxTries = 24): Promise<boolean> {
   const kicker = page.locator('.con-context__task-kicker');
@@ -755,10 +777,16 @@ export async function placeTile(page: Page, maxTries = 24): Promise<boolean> {
   }
   const dirs = ['ArrowRight', 'ArrowDown', 'ArrowLeft', 'ArrowUp', 'ArrowRight', 'ArrowUp'];
   for (let i = 0; i < maxTries && await kicker.count() > 0; i++) {
-    await press(page, 'Enter', 1100);
+    await press(page, 'Enter', 600); // lock (or the whole commit in swift mode)
     if (await kicker.count() === 0) {
       return true;
     }
+    await press(page, 'Enter', 1100); // confirm — past the lock dwell
+    if (await kicker.count() === 0) {
+      return true;
+    }
+    // Neither press resolved it — the cursor stands on an illegal cell (a
+    // lock never engaged); walk one step and try again.
     await press(page, dirs[i % dirs.length], 350);
   }
   return await kicker.count() === 0;

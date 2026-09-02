@@ -5,6 +5,7 @@ import {buttonLayoutState, setButtonLayout} from '@/client/gamepad/buttonLayout'
 import {privateScoreState, setPrivateScore} from '@/client/components/overview/privateScoreState';
 import {readingScaleState, setConsoleReadingScale} from '@/client/console/consoleReadingScale';
 import {DesktopAppModeInfo, DesktopLanState} from '@/client/components/desktop/desktopUpdateState';
+import {placementFlowState, setPlacementTwoStep} from '@/client/console/tilePlacement/placementFlow';
 
 /**
  * The settings MODEL — the grouping + the option rings the settings console
@@ -147,5 +148,18 @@ describe('consoleSettingsModel', () => {
     const cats = buildConsoleSettings({context: 'game', desktopVersion: '9.9.9-test'});
     const connection = cats.find((c) => c.id === 'diagnostics')?.readout.find((g) => g.label === 'Server link');
     expect(connection?.rows.find((r) => r.label === 'Client version')?.value).to.eq('9.9.9-test');
+  });
+
+  it('the tile-placement confirm lives in CONTROLS in both contexts and drives the flow pref', () => {
+    for (const context of ['menu', 'game'] as const) {
+      const controls = buildConsoleSettings({context}).find((c) => c.id === 'controls');
+      expect(controls?.rows.map((r) => r.id), context).to.include('placeConfirm');
+    }
+    const row = buildConsoleSettings({context: 'game'})
+      .flatMap((c) => c.rows).find((r) => r.id === 'placeConfirm');
+    expect(placementFlowState.twoStep).to.eq(true); // the recommended default
+    row?.step(1);
+    expect(placementFlowState.twoStep).to.eq(false);
+    setPlacementTwoStep(true);
   });
 });

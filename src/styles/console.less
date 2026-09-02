@@ -1570,6 +1570,8 @@ html.console-native {
            and opacity TRANSITIONS are unaffected by this property at all. */
         .con-board--live .board-space.con-cell-sel::after,
         .con-board--inspecting .board-space.con-cell-sel::after,
+        .con-bcur__ring::after,
+        .con-bcur__lockring,
         .arc-marker.con-marker-sel::after,
         .board-space .board-log-highlight.highlight,
         .bonus-zone--available.bonus-zone--final .bonus-zone__halo {
@@ -4944,8 +4946,11 @@ each(@players, {
 
 /* Selected-cell SPOTLIGHT (object-level, TV-readable — not a 1px ring).
    P27: paints ONLY while the board is LIVE (inspection / placement) — on
-   the calm board home no cell reads as focused. */
-.con-board--live .board-space.con-cell-sel::after {
+   the calm board home no cell reads as focused.
+   PLACEMENT is carved out: there the focus indicator is the physical
+   RETICLE (`.con-bcur` below), one element that travels between hexes —
+   the class itself stays applied (probes and hover sync read it). */
+.con-board--live:not(.con-board--placing) .board-space.con-cell-sel::after {
     content: '';
     position: absolute;
     inset: -6px; /* keep-px: board px-space */
@@ -4955,22 +4960,187 @@ each(@players, {
     z-index: 30;
     animation: con-cell-active calc(1500ms * var(--motion-scale, 1)) ease-in-out infinite;
 }
-/* During placement the ACTIVE marker reads legal (mint, dominant over the
-   calm amber availables) vs off-limits (red, the inspect state). */
-body.placement-pending .con-board--live .board-space.con-cell-sel:not(.board-space--available)::after,
-html.console-mode .con-board--live .board-space.con-cell-sel--illegal::after {
-    background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 46 51' preserveAspectRatio='none'><polygon points='23,1 44.5,13.3 44.5,37.7 23,50 1.5,37.7 1.5,13.3' fill='rgba(255,106,94,0.10)' stroke='%23FF6A5E' stroke-width='2.6' stroke-linejoin='round'/><polygon points='23,5 41.4,15.4 41.4,35.6 23,46 4.6,35.6 4.6,15.4' fill='none' stroke='%23FFC9C4' stroke-opacity='0.5' stroke-width='0.8' stroke-linejoin='round'/></svg>");
-    filter: drop-shadow(0 0 .4rem fade(@con-red, 65%)) drop-shadow(0 0 .1rem fade(@con-red, 80%));
+/* While placing, the AVAILABLE outlines calm down a notch so the reticle
+   dominates at a glance (never a wall of equal amber); past the LOCK they
+   recede further — the chosen cell is the only loud object on the field. */
+.con-board--placing .board > .board-space.board-space--available:not(.con-cell-sel)::before,
+.con-board--placing .board-outer-spaces > .board-space.board-space--available:not(.con-cell-sel)::before {
+    opacity: 0.66;
+    transition: opacity calc(220ms * var(--motion-scale, 1)) ease;
 }
-body.placement-pending .con-board--live .board-space.con-cell-sel.board-space--available::after {
-    background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 46 51' preserveAspectRatio='none'><polygon points='23,1 44.5,13.3 44.5,37.7 23,50 1.5,37.7 1.5,13.3' fill='rgba(108,240,172,0.14)' stroke='%236CF0AC' stroke-width='2.8' stroke-linejoin='round'/><polygon points='23,5 41.4,15.4 41.4,35.6 23,46 4.6,35.6 4.6,15.4' fill='none' stroke='%23D7FFE9' stroke-opacity='0.55' stroke-width='0.8' stroke-linejoin='round'/></svg>");
-    filter: drop-shadow(0 0 .55rem fade(@con-mint, 85%)) drop-shadow(0 0 .15rem fade(@con-mint, 95%));
+.con-board--locked .board > .board-space.board-space--available:not(.con-cell-sel)::before,
+.con-board--locked .board-outer-spaces > .board-space.board-space--available:not(.con-cell-sel)::before {
+    opacity: 0.34;
 }
-/* P20: while placing, the AVAILABLE outlines calm down a notch so the
-   active mint marker dominates at a glance (never a wall of equal amber). */
-html.console-mode body.placement-pending .board > .board-space.board-space--available:not(.con-cell-sel)::before,
-html.console-mode body.placement-pending .board-outer-spaces > .board-space.board-space--available:not(.con-cell-sel)::before {
+/* THE AVAILABILITY WAVE — a one-shot presentation of the legal set when a
+   placement opens: each contour blooms in on a short radial stagger from
+   the group's centre (per-cell delay set by ConsoleBoardInput), then rests
+   calm. One-shot by contract — the class is stripped after playing, so a
+   v-show round trip can never replay it. */
+.con-board--placing .board-space.board-space--available.con-avail-in::before {
+    animation: con-avail-in calc(300ms * var(--motion-scale, 1)) cubic-bezier(0.22, 0.61, 0.36, 1) backwards;
+    animation-delay: calc(var(--con-wave-d, 0ms) * var(--motion-scale, 1));
+}
+@keyframes con-avail-in {
+    from { opacity: 0; transform: scale(0.84); }
+}
+/* ADJACENCY HINTS — the calm on-field tie between the focused cell and the
+   neighbours that make its price true: paying oceans (cool inner tint) and
+   taxing hazards (warm-red). Interior washes only, no motion loop — the
+   exact arithmetic stays the dossier's job. */
+.con-board--placing .board-space.con-adj-ocean::after,
+.con-board--placing .board-space.con-adj-hazard::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+    z-index: 4;
+    animation: con-adj-in calc(220ms * var(--motion-scale, 1)) ease-out backwards;
+}
+.con-board--placing .board-space.con-adj-ocean::after {
+    background: radial-gradient(62% 56% at 50% 50%, fade(@con-cyan, 26%), fade(@con-cyan, 0%) 74%);
+}
+.con-board--placing .board-space.con-adj-hazard::after {
+    background: radial-gradient(62% 56% at 50% 50%, fade(@con-red, 22%), fade(@con-red, 0%) 74%);
+}
+@keyframes con-adj-in {
+    from { opacity: 0; }
+}
+/* The focused cell's own printed bonuses acknowledge the attention — a
+   1.5px seat-lift, transform-only (the paint baseline strips filters). */
+.con-board--placing .board-space.con-cell-sel .board-space-bonuses {
+    transform: translateY(-1.5px); /* keep-px: board px-space */
+    transition: transform calc(160ms * var(--motion-scale, 1)) ease;
+}
+
+/* ══ THE PLACEMENT RETICLE (`ConsoleBoardCursor`) ═══════════════════════
+   One persistent element inside `.board-cont` that TRAVELS between hexes
+   (retargetable transform transition — holding a direction redirects the
+   glide, nothing queues) and carries the PROJECTION of the tile about to
+   be placed. All lengths are board px (keep-px: board px-space) — the
+   planet's own scale transform carries them to every profile.
+   Poses: legal (mint, projection hovers) → locked (amber, projection
+   settles into the hex) → committing (the quiet pending breath). */
+.con-bcur {
+    position: absolute;
+    left: 0;
+    top: 0;
+    z-index: 35;
+    pointer-events: none;
+    /* The TRAVEL — one short, soft glide; a new target retargets it
+       mid-flight (CSS transitions retarget natively), so a held d-pad
+       (repeat ≈130ms) always tracks the newest cell with no queue. */
+    transition: transform calc(120ms * var(--motion-scale, 1)) cubic-bezier(0.22, 0.61, 0.36, 1);
+    will-change: transform;
+}
+/* The ground contact — an honest little shadow that deepens as the
+   projection settles (the same language the hero flight speaks). */
+.con-bcur__shadow {
+    position: absolute;
+    left: 50%;
+    top: 62%;
+    width: 40px; /* keep-px: board px-space */
+    height: 15px; /* keep-px: board px-space */
+    margin: -7px 0 0 -20px; /* keep-px: board px-space */
+    border-radius: 50%;
+    background: radial-gradient(50% 50% at 50% 50%, rgba(4, 6, 10, 0.5), transparent 72%);
+    opacity: 0;
+    transition: opacity calc(200ms * var(--motion-scale, 1)) ease;
+}
+.con-bcur--legal .con-bcur__shadow { opacity: 0.32; }
+.con-bcur--locked .con-bcur__shadow,
+.con-bcur--committing .con-bcur__shadow { opacity: 0.55; }
+/* The PROJECTION — the real board tile art, translucent and slightly
+   lifted while aiming; the LOCK sits it down into the hex. */
+.con-bcur__ghost {
+    position: absolute;
+    inset: 0;
+    opacity: 0.5;
+    transform: translateY(-2px) scale(0.94); /* keep-px: board px-space */
+    transition:
+        opacity calc(180ms * var(--motion-scale, 1)) ease,
+        transform calc(220ms * var(--motion-scale, 1)) cubic-bezier(0.3, 0.7, 0.35, 1);
+}
+.con-bcur--locked .con-bcur__ghost,
+.con-bcur--committing .con-bcur__ghost {
+    opacity: 0.88;
+    transform: translateY(0) scale(1);
+}
+.con-bcur--blocked .con-bcur__ghost { opacity: 0; }
+.con-bcur__art {
+    position: absolute;
+    inset: 0;
+    display: block;
+}
+/* The ownership marker rides the projection at its real seat (the cube's
+   own board pose: right 7 / bottom 14, size ~12 — board.less). */
+.con-bcur__cube {
+    position: absolute;
+    right: 8px; /* keep-px: board px-space */
+    bottom: 15px; /* keep-px: board px-space */
+    width: 9px; /* keep-px: board px-space */
+    height: 9px; /* keep-px: board px-space */
+    border-radius: 2px; /* keep-px: board px-space */
     opacity: 0.72;
+    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.55), inset 0 0 0 1px rgba(255, 255, 255, 0.28); /* keep-px */
+    transition: opacity calc(180ms * var(--motion-scale, 1)) ease;
+}
+.con-bcur--locked .con-bcur__cube,
+.con-bcur--committing .con-bcur__cube { opacity: 0.95; }
+/* The RING — the reticle's own hex contour. Mint while aiming at a legal
+   cell; muted red on an off-limits one (inspect-all); it recedes past the
+   lock, where the amber lockring takes over. */
+.con-bcur__ring {
+    position: absolute;
+    inset: -5px; /* keep-px: board px-space */
+    background: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 46 51' preserveAspectRatio='none'><polygon points='23,1 44.5,13.3 44.5,37.7 23,50 1.5,37.7 1.5,13.3' fill='rgba(108,240,172,0.13)' stroke='%236CF0AC' stroke-width='2.6' stroke-linejoin='round'/><polygon points='23,5 41.4,15.4 41.4,35.6 23,46 4.6,35.6 4.6,15.4' fill='none' stroke='%23D7FFE9' stroke-opacity='0.55' stroke-width='0.8' stroke-linejoin='round'/></svg>") center/100% 100% no-repeat;
+    transition: opacity calc(180ms * var(--motion-scale, 1)) ease;
+}
+/* The ambient breath — compositor-only by contract (an ::after overlay
+   with a delta stroke, base opacity 0; the ring itself never animates
+   paint). Registered in the fx-lite / reduced-motion stop-lists. */
+.con-bcur__ring::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 46 51' preserveAspectRatio='none'><polygon points='23,1 44.5,13.3 44.5,37.7 23,50 1.5,37.7 1.5,13.3' fill='none' stroke='%23EAFFF4' stroke-width='1.2' stroke-linejoin='round'/></svg>") center/100% 100% no-repeat;
+    opacity: 0;
+}
+.con-bcur--legal .con-bcur__ring::after {
+    animation: con-bcur-breathe calc(1600ms * var(--motion-scale, 1)) ease-in-out infinite;
+}
+.con-bcur--blocked .con-bcur__ring {
+    background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 46 51' preserveAspectRatio='none'><polygon points='23,1 44.5,13.3 44.5,37.7 23,50 1.5,37.7 1.5,13.3' fill='rgba(255,106,94,0.10)' stroke='%23FF6A5E' stroke-width='2.4' stroke-linejoin='round'/><polygon points='23,5 41.4,15.4 41.4,35.6 23,46 4.6,35.6 4.6,15.4' fill='none' stroke='%23FFC9C4' stroke-opacity='0.5' stroke-width='0.8' stroke-linejoin='round'/></svg>");
+}
+.con-bcur--locked .con-bcur__ring,
+.con-bcur--committing .con-bcur__ring { opacity: 0.22; }
+/* The LOCKRING — the commit boundary's own amber, converging onto the hex
+   in one shot as the choice fixes; a quiet breath while the commit is on
+   the wire (the pending feedback, no new surface). */
+.con-bcur__lockring {
+    position: absolute;
+    inset: -5px; /* keep-px: board px-space */
+    background: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 46 51' preserveAspectRatio='none'><polygon points='23,1 44.5,13.3 44.5,37.7 23,50 1.5,37.7 1.5,13.3' fill='rgba(242,193,78,0.10)' stroke='%23F2C14E' stroke-width='2.8' stroke-linejoin='round'/><polygon points='23,5 41.4,15.4 41.4,35.6 23,46 4.6,35.6 4.6,15.4' fill='none' stroke='%23FFE9BE' stroke-opacity='0.6' stroke-width='0.9' stroke-linejoin='round'/></svg>") center/100% 100% no-repeat;
+    opacity: 0;
+}
+.con-bcur--locked .con-bcur__lockring {
+    animation: con-bcur-lock calc(240ms * var(--motion-scale, 1)) cubic-bezier(0.2, 0.8, 0.3, 1) forwards;
+}
+.con-bcur--committing .con-bcur__lockring {
+    opacity: 1;
+    animation: con-bcur-commit calc(900ms * var(--motion-scale, 1)) ease-in-out infinite;
+}
+@keyframes con-bcur-breathe {
+    0%, 100% { opacity: 0; }
+    50% { opacity: 0.5; }
+}
+@keyframes con-bcur-lock {
+    from { opacity: 0; transform: scale(1.26); }
+    to { opacity: 1; transform: scale(1); }
+}
+@keyframes con-bcur-commit {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.55; }
 }
 
 /* P27: BOARD INSPECTION MODE — a distinct AMBER "scanner" hex, never
@@ -9535,6 +9705,16 @@ html.console-mode {
 
             .con-context__cell-mark { color: @con-red; }
         }
+        /* The LOCKED phase — the same bar in the amber commit-boundary
+           register (paint only, zero geometry; the verbs stay in the ONE
+           command bar). */
+        &--locked {
+            background: fade(@con-amber, 10%);
+            box-shadow: inset 0 0 0 .05rem fade(@con-amber, 50%);
+            color: #f4e6c8;
+
+            .con-context__cell-mark { color: @con-amber; }
+        }
     }
     &__cell-mark {
         font-size: .68rem;
@@ -9552,6 +9732,12 @@ html.console-mode {
         flex: 0 0 auto;
         color: fade(@con-text-dim, 72%);
         letter-spacing: .04rem;
+
+        /* «· выбрано» — the locked phase's status word (never a verb). */
+        &--locked {
+            color: @con-amber;
+            font-weight: 600;
+        }
     }
     /* The refusal opens under the bar on a grid-rows well (0fr→1fr).
        ⚠️ NOT ANIMATED — per-cell navigation may not move the panel's
@@ -27455,8 +27641,14 @@ html.console-mode {
 /* ── Reduced motion ──────────────────────────────────────────────── */
 @media (prefers-reduced-motion: reduce) {
     .con-banner__pulse,
-    .board-space.con-cell-sel::after {
+    .board-space.con-cell-sel::after,
+    .con-bcur--legal .con-bcur__ring::after {
         animation: none;
+    }
+    /* The reticle keeps its (short, functional) travel but snaps its poses. */
+    .con-bcur__ghost,
+    .con-bcur__shadow {
+        transition-duration: 1ms;
     }
     /* The surface-motion shade snaps (no lingering dim fades). */
     .con-shade {
