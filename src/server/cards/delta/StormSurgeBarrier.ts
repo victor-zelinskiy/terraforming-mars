@@ -209,6 +209,12 @@ export class StormSurgeBarrier extends Card implements IProjectCard {
       // This card buys a STEP, never a requirement — a missing path tag stops
       // it exactly as it stops the standard action.
       waivesTag: false,
+      // WHAT THE DESTINATION PAYS — the same per-subject projection the
+      // espionage flow authored. A repeat PLAN (Viron / stage 7) cannot walk
+      // through the workspace door, so this is what tells it whether the
+      // landing asks a pre-selectable choice — answered by descending into
+      // the Hydronetwork's reward-pick, never by a detached prompt.
+      landing: DeltaProjectExpansion.stageOutcomeProjection(player, from + 1),
       ...(movementBonuses.length > 0 ? {movementBonuses} : {}),
     };
   }

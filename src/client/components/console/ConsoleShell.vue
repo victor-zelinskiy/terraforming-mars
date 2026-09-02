@@ -273,7 +273,7 @@
              the pick bridge so neither surface plays a leave/enter pair —
              the workspace's OWN handoff phrase carries the transition. -->
         <ConsoleHydroSection v-if="workspaceFrameRenders('hydro')"
-                             v-show="!pickBridgeActive"
+                             v-show="!pickBridgeActive || deltaRewardPickOut"
                              data-motion-surface="section"
                              ref="hydroSection"
                              :playerView="playerView"
@@ -2736,6 +2736,17 @@ export default defineComponent({
       // shifted and cropped with nothing to re-fit it. This is the ONE fact the
       // director reads; the alternative is a second list of bridges to forget.
       return this.handPickActive || this.repeatPickActive || this.sceneHandedOver;
+    },
+    /**
+     * The stage-reward pick is OUT (reactive read of the bridge state). While
+     * it stands the hydro section must SHOW even though a pick bridge is
+     * active: a REPEAT-mode composer's landing pre-select opens the track
+     * OVER the repeat browser (the deepest descent owns the screen), and the
+     * generic «hide hydro behind a pick bridge» v-show would blank the very
+     * surface the player just descended into.
+     */
+    deltaRewardPickOut(): boolean {
+      return deltaRewardPickState.active;
     },
     /** Some host is handing its whole scene to a nested workspace right now. */
     sceneHandedOver(): boolean {
@@ -6577,9 +6588,11 @@ export default defineComponent({
       }
       // ...and the REPEAT-ACTION pick (ProjInsp / Viron / Hydronetwork stage 7):
       // the ДЕЙСТВИЯ КАРТ repeat surface owns the screen — never the hidden
-      // source composer / the hydro section underneath.
+      // source composer / the hydro section underneath. EXCEPT while a plan's
+      // landing pre-select stands OVER it (the reward-pick descent): the
+      // deepest surface names the bar, one voice with the crumb's tail.
       if (this.repeatPickActive) {
-        return 'Repeat action';
+        return isDeltaRewardPickActive() ? 'Reward selection' : 'Repeat action';
       }
       if (this.pendingPlayCard !== undefined) {
         // Inside the hand workspace the bar names the STAGE, not the surface —
@@ -6867,6 +6880,16 @@ export default defineComponent({
           {control: 'secondary', label: 'Confirm'},
           {control: 'back', label: this.pendingClientPayment !== undefined ? 'Cancel' : 'Minimize'},
         ])];
+      }
+      // The STAGE-REWARD pick owns the pad wherever it was opened from (the
+      // action composer, the play composer's espionage owner rows, a repeat
+      // browser's landing pre-select) — the bar mirrors the pad precedence
+      // and reads the SAME store the section branch does, or it advertises
+      // the covered composer's verbs over the track the player is driving.
+      if (isDeltaRewardPickActive()) {
+        return consoleHydroUi.commands.length > 0 ?
+          [...consoleHydroUi.commands] :
+          [{control: 'confirm', label: 'Select'}, {control: 'back', label: 'Back'}];
       }
       // The REPEAT-ACTION pick surface owns the pad (the source composers are
       // hidden): it publishes its live contract (the grid «Выбрать» or the
@@ -10489,6 +10512,19 @@ export default defineComponent({
         host?.handleIntent(intent);
         return true;
       }
+      // A DELTA PICK BRIDGE owns the pad while it stands — the asking composer
+      // waits underneath with its captures intact (the hand-pick precedent;
+      // routed BEFORE the composer branch, or the covered composer swallows
+      // every press). Espionage target pick AND the stage-reward pick — the
+      // latter opens from the PLAY composer (the espionage owner's landing
+      // choice) AND from a REPEAT-mode composer (a plan's landing pre-select),
+      // so it must outrank BOTH `pendingPlayCard` and `repeatPickActive`: the
+      // deepest descent owns the pad.
+      if (isDeltaEspionagePickActive() || isDeltaRewardPickActive()) {
+        const section = this.$refs.hydroSection as InstanceType<typeof ConsoleHydroSection> | undefined;
+        section?.handleIntent(intent);
+        return true;
+      }
       // REPEAT-ACTION PICK (source composer → ДЕЙСТВИЯ КАРТ bridge): the pick
       // surface owns the pad while it is out — the hidden source composers
       // (v-show) must not swallow input. Routed BEFORE every composer branch.
@@ -10509,17 +10545,6 @@ export default defineComponent({
       // cannot see. On the way back the same gate stops a second A from
       // re-descending into a card that is still flying home to its slot.
       if (handStageTransitioning()) {
-        return true;
-      }
-      // A DELTA PICK BRIDGE owns the pad while it stands — the asking composer
-      // waits underneath with its captures intact (the hand-pick precedent;
-      // routed BEFORE the composer branch, or the covered composer swallows
-      // every press). Espionage target pick AND the stage-reward pick — the
-      // latter also opens from the PLAY composer now (the owner's landing
-      // choice), where `pendingPlayCard` would otherwise take the input.
-      if (isDeltaEspionagePickActive() || isDeltaRewardPickActive()) {
-        const section = this.$refs.hydroSection as InstanceType<typeof ConsoleHydroSection> | undefined;
-        section?.handleIntent(intent);
         return true;
       }
       // T8: the native play-card confirm owns input while open.

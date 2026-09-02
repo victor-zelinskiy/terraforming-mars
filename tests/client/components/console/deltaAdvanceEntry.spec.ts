@@ -4,6 +4,7 @@ import type {DeltaAdvanceOffer} from '@/common/models/DeltaBonusPromptModel';
 import {
   beginCardDeltaAdvance, cardDeltaAdvanceCard, cardDeltaAdvanceOffer,
   clearCardDeltaAdvance, deltaAdvanceEntryState, deltaAdvancePrefix,
+  deltaAdvancePlanDraftOf, deltaAdvancePlanResponse,
 } from '@/client/console/hydroFlow/deltaAdvanceEntry';
 import {hydroAdvanceBatch, hydroAdvanceResponses} from '@/client/console/consoleHydroAdvance';
 import {hydroAdvanceCopy, hydroBonusCopy} from '@/client/console/hydroFlow/hydroBonusOffer';
@@ -127,6 +128,36 @@ describe('the card-entry Hydronetwork move (Storm Surge Barrier)', () => {
       // price — so the step count is passed explicitly, never read off `spend`.
       const batch = hydroAdvanceBatch(prefix(), 1, {spend: 5, rewardChoice: undefined});
       expect(batch[batch.length - 1]).to.deep.eq({type: 'deltaProject', amount: 1});
+    });
+  });
+
+  describe('the plan\'s own answer (a repeat plan\'s landing pre-select)', () => {
+    it('folds a reward CHOICE into the move step\'s invocation plan', () => {
+      expect(deltaAdvancePlanResponse(offer(), {position: 3, rewardChoice: 1})).to.deep.eq(
+        {type: 'deltaProject', amount: 1, answers: [{position: 3, rewardChoice: 1}]});
+    });
+
+    it('folds a picked TARGET card the same way', () => {
+      expect(deltaAdvancePlanResponse(offer(), {position: 3, selectedCard: CardName.PETS})).to.deep.eq(
+        {type: 'deltaProject', amount: 1, answers: [{position: 3, selectedCard: CardName.PETS}]});
+    });
+
+    it('the answer\'s position is the OFFER\'s destination, never the draft\'s', () => {
+      // The draft is the pick surface's record; the wire address is the move.
+      const r = deltaAdvancePlanResponse(offer({toPosition: 5}), {position: 3, rewardChoice: 0});
+      expect(r?.answers?.[0].position).to.eq(5);
+    });
+
+    it('an unanswered draft resolves to NOTHING — never an empty answer on the wire', () => {
+      expect(deltaAdvancePlanResponse(offer(), {position: 3})).is.undefined;
+    });
+
+    it('reads the capture back as the draft (one source of truth for the row + re-open)', () => {
+      const response = deltaAdvancePlanResponse(offer(), {position: 3, rewardChoice: 1});
+      expect(deltaAdvancePlanDraftOf(response)).to.deep.eq(
+        {position: 3, rewardChoice: 1, selectedCard: undefined});
+      expect(deltaAdvancePlanDraftOf(undefined)).is.undefined;
+      expect(deltaAdvancePlanDraftOf({type: 'deltaProject', amount: 1})).is.undefined;
     });
   });
 

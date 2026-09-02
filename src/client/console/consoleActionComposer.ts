@@ -46,6 +46,7 @@ import {
   SelectPaymentModel,
   SelectPlayerModel,
 } from '@/common/models/PlayerInputModel';
+import type {DeltaAdvanceOffer} from '@/common/models/DeltaBonusPromptModel';
 
 // ── The choice model ─────────────────────────────────────────────────────────
 
@@ -66,6 +67,13 @@ export type ComposerChoice = {
   cardResource?: string;
   /** The step's candidates are USED ACTIONS to perform again (Viron). */
   repeatAction?: boolean;
+  /**
+   * A PLAN's landing-reward pre-select (a deferred `deltaAdvance` door whose
+   * destination stage asks a choice): opening this row descends into the
+   * Hydronetwork's reward-pick — the player answers ON the track, never on a
+   * detached list. Carries the branch's own offer.
+   */
+  deltaLanding?: DeltaAdvanceOffer;
   /** MULTI-select metadata (Public Plans "reveal any number") — the hand-pick
    *  surface shows the count label + the live per-card payout. */
   multiSelect?: {countLabel: string | Message, revealGain?: {resource: string, amount: number}};
@@ -402,11 +410,14 @@ export function orderedStepResponses(
  * a choice: the branch's offer fully determines the move (a card grants a
  * FIXED step count — Storm Surge Barrier spends 1 energy for exactly 1 step),
  * so raising it as a follow-up would ask the player a question with one legal
- * answer, through the divergence stepper. The plan answers `{deltaProject,
- * amount}` in place; the LANDED stage's own asks (rewards, targets) still
- * surface natively, exactly like every other repeat follow-up. `colonyTrade` /
- * `boardPlacement` stay deferred — their answers (which colony, which cell)
- * genuinely do not exist at plan time.
+ * answer, through the divergence stepper. A destination stage that asks a
+ * PRE-SELECTABLE choice is answered through the Hydronetwork's reward-pick
+ * (see {@link planLandingChoice}) and lands here as the step's CAPTURE — a
+ * full `{deltaProject, amount, answers}` response, which wins over the bare
+ * amount. Everything else the landing raises (a stage-5 draw's hidden cards,
+ * a stage-7 nested repeat) still surfaces natively, exactly like every other
+ * repeat follow-up. `colonyTrade` / `boardPlacement` stay deferred — their
+ * answers (which colony, which cell) genuinely do not exist at plan time.
  */
 export function plannedStepResponses(
   branch: ActionPreviewBranch,
@@ -417,10 +428,76 @@ export function plannedStepResponses(
     if ((step.kind === 'input' || step.kind === 'tabbedTargets') && steps[i] !== undefined) {
       out.push(steps[i]);
     } else if (step.kind === 'deltaAdvance') {
-      out.push({type: 'deltaProject' as const, amount: step.offer.steps});
+      out.push(steps[i] ?? {type: 'deltaProject' as const, amount: step.offer.steps});
     }
   });
   return out;
+}
+
+/**
+ * THE LANDING'S OWN ASK, when a plan must answer it — the SERVER's projection
+ * of what the destination stage pays (`offer.landing`), classified into the
+ * two shapes the reward-pick can pre-select for the owner:
+ *
+ *  - `choice` (stages 1/2) — always answerable;
+ *  - `card-resource` (stage 9) — only with a live candidate (0 candidates is
+ *    the honest fizzle: nothing to pick, the server names the skip itself).
+ *
+ * Deliberately NOT pre-selected: `draw` (the stage-5 cards are hidden
+ * information, asked at the stop) and `repeat-action` (the plan is already
+ * composed INSIDE the repeat-pick bridge, which is a singleton — the nested
+ * pick is the server's own next prompt, the established nested-repeat
+ * contract). Everything else asks nothing.
+ */
+export function planLandingAsk(offer: DeltaAdvanceOffer): 'choice' | 'target' | undefined {
+  const landing = offer.landing;
+  if (landing === undefined) {
+    return undefined;
+  }
+  if (landing.kind === 'choice') {
+    return 'choice';
+  }
+  if (landing.kind === 'card-resource' && landing.candidates > 0) {
+    return 'target';
+  }
+  return undefined;
+}
+
+/**
+ * The SYNTHETIC choice row a plan draws for a deferred `deltaAdvance` door
+ * whose destination asks something (see {@link planLandingAsk}): the player
+ * must see the TRACK before answering — opening the row descends into the
+ * Hydronetwork's reward-pick in its advance-landing form (the Corporate
+ * Espionage owner-pick precedent), and the resolved draft is captured at the
+ * step's own index as the full `{deltaProject, amount, answers}` response.
+ * Appended by the composer in plan mode only; `branchChoices` itself stays
+ * door-free (the direct activation walks through the workspace instead).
+ */
+export function planLandingChoice(branch: ActionPreviewBranch | undefined): ComposerChoice | undefined {
+  if (branch === undefined) {
+    return undefined;
+  }
+  for (let i = 0; i < branch.steps.length; i++) {
+    const step = branch.steps[i];
+    if (step.kind !== 'deltaAdvance') {
+      continue;
+    }
+    const ask = planLandingAsk(step.offer);
+    if (ask === undefined) {
+      return undefined;
+    }
+    return {
+      id: `step#${i}`,
+      scope: 'step',
+      index: i,
+      kind: ask === 'choice' ? 'or' : 'card',
+      // A display shell only — the row never opens an inline sub-list (the
+      // composer routes a `deltaLanding` row to the hydro descent first).
+      input: {type: 'option', title: 'Destination stage reward'} as PlayerInputModel,
+      deltaLanding: step.offer,
+    };
+  }
+  return undefined;
 }
 
 /** The pre-collectable `tabbedTargets` steps of a branch, with their step index. */

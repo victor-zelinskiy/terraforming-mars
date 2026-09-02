@@ -495,6 +495,29 @@
                                    :compact="true" />
                 <div class="con-composer__row-note">{{ $t('Your Hydronetwork position will not change.') }}</div>
               </template>
+              <!-- The PLAN's LANDING pre-select (a deferred deltaAdvance door
+                   whose destination stage asks a choice): empty → a prompt to
+                   walk the track; filled → the landed stage + its pick. The
+                   answer is only ever given ON the track (the reward-pick in
+                   its advance-landing form) — the player sees the move the
+                   choice belongs to before choosing. -->
+              <template v-else-if="item.choice.deltaLanding !== undefined">
+                <div class="con-composer__row-label">{{ $t('Destination stage reward') }}</div>
+                <div v-if="deltaLandingSummary(item.choice) !== ''" class="con-composer__row-value">
+                  <span>{{ deltaLandingSummary(item.choice) }}</span>
+                  <span class="con-composer__target-change" :class="{'con-composer__target-change--on': isFocused(item)}">
+                    <GamepadGlyph control="confirm" />
+                    <span>{{ $t('Change selection') }}</span>
+                  </span>
+                </div>
+                <div v-else class="con-composer__row-value">
+                  <span class="con-composer__row-empty">{{ $t('Choose a stage reward on the Hydronetwork') }}…</span>
+                </div>
+                <ConsoleHydroGains v-if="deltaLandingPreview(item.choice) !== undefined"
+                                   class="con-composer__stagegains"
+                                   :view="deltaLandingPreview(item.choice)!"
+                                   :compact="true" />
+              </template>
               <template v-else>
                 <div class="con-composer__row-label">{{ choiceTitle(item.choice) }}</div>
                 <div class="con-composer__row-value">
@@ -693,6 +716,7 @@ import {
   orderedPreResponses,
   orderedStepResponses,
   plannedStepResponses,
+  planLandingChoice,
   focusFreeDialId,
   InlineDial,
   // The ONE «may a choice be seeded» rule — shared with the play composer.
@@ -710,7 +734,7 @@ import ConsoleScrollArea from '@/client/components/console/foundation/ConsoleScr
 import ConsolePaymentPanel from '@/client/components/console/ConsolePaymentPanel.vue';
 import ConsoleCardFaceLite from '@/client/components/console/cardDeal/ConsoleCardFaceLite.vue';
 import {markWorkspaceOutcomeArrivalDone, markWorkspaceOutcomeArrivalFlown, markWorkspaceOutcomeBeatDone, setWorkspaceOutcomeSlot, workspaceOutcomeState} from '@/client/console/consoleWorkspaceOutcome';
-import {setWorkspaceFrameSlot, setWorkspaceFrameSourceCard, workspaceFrameHost} from '@/client/console/consoleWorkspaceStack';
+import {setWorkspaceFrameSlot, setWorkspaceFrameSourceCard, workspaceFrameHost, workspaceFrameKnown} from '@/client/console/consoleWorkspaceStack';
 import {conUiScale} from '@/client/console/consoleLayoutProfile';
 import {actionCommitState, armActionCommit, commitKindForBranch, commitRewardSpecs, markActionCommitSettled} from '@/client/console/consoleActionCommit';
 import {ActionCommitMotionHandle, COMMIT_HANDOFF_AT_MS, pulseDeckPile, resolveActionCommitAnchors, resolveGainIconOrigins, runActionCommitMotion} from '@/client/console/consoleActionCommitMotion';
@@ -757,6 +781,7 @@ import {
   DeltaRewardDraft, deltaRewardCommitSpecs, deltaRewardDraftOf, deltaRewardPreviewView,
   deltaRewardStepResponse, enterDeltaRewardPick,
 } from '@/client/console/hydroFlow/deltaRewardEntry';
+import {deltaAdvancePlanDraftOf, deltaAdvancePlanResponse} from '@/client/console/hydroFlow/deltaAdvanceEntry';
 import {HYDRO_STAGES} from '@/client/components/hydronetwork/hydroStages';
 import type {HydroRewardView} from '@/client/components/hydronetwork/hydroReward';
 import ConsoleHydroGains from '@/client/components/console/hydroFlow/ConsoleHydroGains.vue';
@@ -1213,7 +1238,25 @@ export default defineComponent({
       return preChoices(this.preview);
     },
     branchChoiceList(): ReadonlyArray<ComposerChoice> {
-      return branchChoices(this.selectedBranch);
+      const out = [...branchChoices(this.selectedBranch)];
+      // A PLAN whose deferred deltaAdvance door lands on an ASKING stage draws
+      // the landing pre-select as a row of its own — answered by descending
+      // into the Hydronetwork's reward-pick (the player must SEE the track
+      // before choosing, the Corporate Espionage owner-pick precedent). Never
+      // inside a standing hydro flow: the workspace-stack law forbids a second
+      // hydro entry, and the reward-pick's open would reset the OUTER plan —
+      // there the landing ask stays the server's own next prompt.
+      if (this.navigationDeferred && !workspaceFrameKnown('hydro')) {
+        const landing = planLandingChoice(this.selectedBranch);
+        if (landing !== undefined) {
+          out.push(landing);
+        }
+      }
+      return out;
+    },
+    /** The plan's landing pre-select row, when this branch draws one. */
+    deltaLandingChoice(): ComposerChoice | undefined {
+      return this.branchChoiceList.find((c) => c.deltaLanding !== undefined);
     },
     allChoices(): ReadonlyArray<ComposerChoice> {
       return [...this.preChoiceList, ...this.branchChoiceList];
@@ -1349,6 +1392,10 @@ export default defineComponent({
       if (!this.repeatPickDisabled && this.repeatChoice !== undefined && this.repeatResult === undefined) {
         return false;
       }
+      // A plan's landing pre-select must be answered ON the track first.
+      if (this.deltaLandingChoice !== undefined && this.choiceMissing(this.deltaLandingChoice)) {
+        return false;
+      }
       if (!this.preChoiceList.every((c) => this.capturedPre[c.index] !== undefined)) {
         return false;
       }
@@ -1403,6 +1450,9 @@ export default defineComponent({
       }
       if (!this.repeatPickDisabled && this.repeatChoice !== undefined && this.repeatResult === undefined) {
         return translateText('Choose an action to repeat');
+      }
+      if (this.deltaLandingChoice !== undefined && this.choiceMissing(this.deltaLandingChoice)) {
+        return translateText('Choose a stage reward on the Hydronetwork');
       }
       if (this.selectedBranch === undefined && this.needBranchRow) {
         return translateText('Choose an option');
@@ -3068,6 +3118,14 @@ export default defineComponent({
         this.openStageRewardPick(c);
         return;
       }
+      // A PLAN's landing pre-select (a deferred deltaAdvance door whose
+      // destination asks a choice) → the SAME track surface, in its
+      // advance-landing form: the player sees the move (from → to, the
+      // forward ghost) and answers ON the stage it belongs to.
+      if (c.deltaLanding !== undefined) {
+        this.openDeltaLandingPick(c);
+        return;
+      }
       // A hand-card pick (Self-Replicating Robots' link branch: every candidate
       // — eligible AND greyed-with-reason — is a card in hand) routes to the
       // HAND SECTION's premium pick mode; a PLAYED-CARD pick descends into the
@@ -3138,6 +3196,63 @@ export default defineComponent({
         this.focusIdx = this.ctaIndex;
         this.scrollFocused();
       });
+    },
+    /**
+     * DESCEND into the Hydronetwork's stage-reward surface for a PLAN's
+     * landing choice (the reward-pick in its advance-landing shape — the
+     * Corporate Espionage owner-pick precedent): the destination cell focused
+     * with the forward ghost, «ВАШЕ ПРОДВИЖЕНИЕ from → to», the stage's honest
+     * gains + options through the one shared block. The resolved draft is
+     * captured at the deltaAdvance step's own index as the FULL
+     * `{deltaProject, amount, answers}` response — which is what the plan's
+     * batch then carries (`plannedStepResponses` prefers the capture).
+     * B keeps the previous answer.
+     */
+    openDeltaLandingPick(c: ComposerChoice): void {
+      const offer = c.deltaLanding;
+      if (offer === undefined) {
+        return;
+      }
+      enterDeltaRewardPick({
+        source: this.entry.cardName,
+        claimable: [offer.toPosition],
+        advanceFrom: offer.fromPosition,
+        prior: deltaAdvancePlanDraftOf(this.captured[c.index]),
+      }, (draft) => {
+        const response = deltaAdvancePlanResponse(offer, draft);
+        if (response === undefined) {
+          return; // an unanswered ask cannot resolve (the scene's own gate)
+        }
+        const cur = this.allChoices.find((x) => x.id === c.id) ?? c;
+        this.captureFor(cur, response);
+        this.focusIdx = this.ctaIndex;
+        this.scrollFocused();
+      });
+    },
+    /** The captured landing pick, summarized for its row (stage + the pick). */
+    deltaLandingSummary(c: ComposerChoice): string {
+      const draft = deltaAdvancePlanDraftOf(this.captured[c.index]);
+      if (draft === undefined) {
+        return '';
+      }
+      const stage = HYDRO_STAGES[draft.position];
+      const parts: Array<string> = [
+        translateTextWithParams('Stage ${0}', [String(draft.position)]) +
+          (stage !== undefined ? ' · ' + translateText(stage.nameKey) : ''),
+      ];
+      if (draft.selectedCard !== undefined) {
+        parts.push(translateCardName(draft.selectedCard));
+      }
+      return parts.join(' — ');
+    },
+    /** The landing stage's EXACT outcome for the picked answer — the ONE hydro
+     *  reward view every landing renders (server-authored lines). */
+    deltaLandingPreview(c: ComposerChoice): HydroRewardView | undefined {
+      const draft = deltaAdvancePlanDraftOf(this.captured[c.index]);
+      if (draft === undefined) {
+        return undefined;
+      }
+      return deltaRewardPreviewView(draft, this.playerView);
     },
     /** The claimed stage's EXACT outcome for the row — the shared hydro
      *  reward view over the LIVE snapshot (a stage change re-derives it on

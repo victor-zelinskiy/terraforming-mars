@@ -301,7 +301,23 @@ describe('StormSurgeBarrier', () => {
         toPosition: 1,
         energyCost: 1,
         waivesTag: false,
+        // The destination's own projection — what tells a repeat PLAN the
+        // landing asks a choice, answered through the Hydronetwork's
+        // reward-pick (never a detached prompt).
+        landing: {kind: 'choice', options: [
+          {resource: Resource.STEEL, amount: 2},
+          {resource: Resource.PLANTS, amount: 2},
+        ]},
       });
+    });
+
+    it('the landing projection follows the marker (per-position, per-subject)', () => {
+      player.stock.add(Resource.ENERGY, 1);
+      grantPathTags(player, 8);
+      player.deltaProjectData!.position = 7;
+      const step = advanceBranch().steps.find((s) => s.kind === 'deltaAdvance');
+      expect(step?.kind === 'deltaAdvance' && step.offer.landing).to.deep.eq(
+        {kind: 'jovian-tag', alreadyClaimed: false});
     });
 
     it('is refused with 0 energy — while the ENERGY mode stays available', () => {
@@ -414,6 +430,16 @@ describe('StormSurgeBarrier', () => {
       expect(player.energy).to.eq(0);
       expect(player.deltaProjectData?.position).to.eq(0);
       expect(player.deltaProjectData?.usedThisGeneration).is.not.true;
+    });
+
+    it('consumes a PRE-ANSWERED landing choice — no prompt is raised (the plan\'s track pre-select)', () => {
+      const input = advanceInput(card, player);
+      input.process({type: 'deltaProject', amount: 1, answers: [{position: 1, rewardChoice: 1}]});
+      runAllActions(game);
+      expect(player.deltaProjectData?.position).to.eq(1);
+      expect(player.plants, 'the picked alternative (2 plants) applied').to.eq(2);
+      expect(player.steel).to.eq(0);
+      expect(player.getWaitingFor(), 'the choice was answered on the track').to.eq(undefined);
     });
 
     it('resolves the landed stage reward through the standard pipeline', () => {

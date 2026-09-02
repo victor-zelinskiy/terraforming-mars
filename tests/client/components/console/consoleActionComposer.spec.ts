@@ -14,6 +14,8 @@ import {
   orderedPreResponses,
   orderedStepResponses,
   plannedStepResponses,
+  planLandingAsk,
+  planLandingChoice,
   tabbedStepsOf,
   soleInlineDial,
   focusFreeDialId,
@@ -253,6 +255,16 @@ describe('consoleActionComposer', () => {
       expect(plannedStepResponses(b, {})).to.deep.eq([]);
     });
 
+    it('a CAPTURED landing answer wins over the bare amount (the track pre-select rode home)', () => {
+      const offer = {
+        source: 'X' as CardName,
+        steps: 1, fromPosition: 0, toPosition: 1, energyCost: 1, waivesTag: false,
+      };
+      const b = branch({steps: [{kind: 'deltaAdvance', offer}]});
+      const captured = {type: 'deltaProject', amount: 1, answers: [{position: 1, rewardChoice: 1}]};
+      expect(plannedStepResponses(b, {0: captured})).to.deep.eq([captured]);
+    });
+
     it('pre responses keep preSteps order', () => {
       const p = preview([branch({})], [
         {kind: 'spendHeat', input: {type: 'and'} as PlayerInputModel},
@@ -260,6 +272,52 @@ describe('consoleActionComposer', () => {
       ]);
       const out = orderedPreResponses(p, {1: {second: true}, 0: {first: true}});
       expect(out).to.deep.eq([{first: true}, {second: true}]);
+    });
+  });
+
+  describe('the plan\'s landing pre-select (a deferred deltaAdvance door)', () => {
+    function offerWith(landing: unknown) {
+      return {
+        source: 'Storm Surge Barrier' as CardName,
+        steps: 1, fromPosition: 0, toPosition: 1, energyCost: 1, waivesTag: false,
+        landing,
+      } as never;
+    }
+
+    it('a CHOICE landing asks (stages 1/2 — answered on the track)', () => {
+      expect(planLandingAsk(offerWith({kind: 'choice', options: []}))).to.eq('choice');
+    });
+
+    it('a TARGET landing asks only with a live candidate', () => {
+      expect(planLandingAsk(offerWith({kind: 'card-resource', resource: 'animals', amount: 2, candidates: 1}))).to.eq('target');
+      expect(planLandingAsk(offerWith({kind: 'card-resource', resource: 'animals', amount: 2, candidates: 0}))).is.undefined;
+    });
+
+    it('draw / repeat-action / deterministic landings ask NOTHING here', () => {
+      // The stage-5 cards are hidden information (asked at the stop); the
+      // stage-7 nested pick is the server's own next prompt (the repeat-pick
+      // bridge is a singleton and the plan already composes inside it).
+      expect(planLandingAsk(offerWith({kind: 'draw', look: 4, keep: 2}))).is.undefined;
+      expect(planLandingAsk(offerWith({kind: 'repeat-action', candidates: 2}))).is.undefined;
+      expect(planLandingAsk(offerWith({kind: 'jovian-tag', alreadyClaimed: false}))).is.undefined;
+      expect(planLandingAsk(offerWith(undefined))).is.undefined;
+    });
+
+    it('synthesizes the row AT the deltaAdvance step\'s own index (the capture address)', () => {
+      const b = branch({steps: [
+        {kind: 'note', noteKind: 'generic'},
+        {kind: 'deltaAdvance', offer: offerWith({kind: 'choice', options: []})},
+      ]});
+      const c = planLandingChoice(b);
+      expect(c).is.not.undefined;
+      expect(c).to.include({id: 'step#1', scope: 'step', index: 1, kind: 'or'});
+      expect(c?.deltaLanding).is.not.undefined;
+    });
+
+    it('synthesizes NOTHING for a quiet landing', () => {
+      const b = branch({steps: [{kind: 'deltaAdvance', offer: offerWith({kind: 'production', resource: 'titanium', amount: 1})}]});
+      expect(planLandingChoice(b)).is.undefined;
+      expect(planLandingChoice(undefined)).is.undefined;
     });
   });
 

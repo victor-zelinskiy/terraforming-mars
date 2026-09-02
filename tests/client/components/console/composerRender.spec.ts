@@ -2,6 +2,7 @@ import {mount} from '@vue/test-utils';
 import {globalConfig} from '../getLocalVue';
 import {expect} from 'chai';
 import ConsoleActionComposer from '@/client/components/console/ConsoleActionComposer.vue';
+import {deltaRewardPickState, resolveDeltaRewardPick, resetDeltaRewardPick} from '@/client/console/hydroFlow/deltaRewardEntry';
 
 // Stub the gamepad glyphs (footer decoration) — the test is about the premium
 // RENDER of branch options + inputs, not the glyph chips.
@@ -219,6 +220,56 @@ describe('ConsoleActionComposer — premium render', () => {
     expect((emitted![0][0] as any).stepResponses).to.deep.eq([{type: 'deltaProject', amount: 1}]);
     expect(w.emitted('delta-advance')).to.eq(undefined);
     w.unmount();
+  });
+
+  it('a landing that ASKS descends into the Hydronetwork reward-pick — the answer is given ON the track', async () => {
+    // Storm Surge Barrier's move lands on a CHOICE stage: the plan may not
+    // answer it blind. The row demands the descent (confirm held), the pick
+    // opens the REAL track surface in its advance-landing form, and the
+    // resolved draft rides the confirm as the move step's invocation plan.
+    const preview = stormSurgePreview();
+    (preview.branches[0].steps[0] as any).offer.landing =
+      {kind: 'choice', options: [{resource: 'steel', amount: 2}, {resource: 'plants', amount: 2}]};
+    // The filled row renders the ONE hydro reward view, which reads the live
+    // snapshot (tags + productions) — the minimal stub must carry them.
+    const view = {
+      ...PLAYER_VIEW,
+      thisPlayer: {
+        ...PLAYER_VIEW.thisPlayer, tags: {},
+        megacreditProduction: 0, steelProduction: 0, titaniumProduction: 0,
+        plantProduction: 0, energyProduction: 0, heatProduction: 0,
+      },
+    };
+    const w = mount(ConsoleActionComposer, {
+      ...globalConfig,
+      global: {...globalConfig.global, stubs: {GamepadGlyph: GlyphStub}},
+      props: {playerView: view, entry: entryFor('Storm Surge Barrier'), preview, nodeIndex: 0, repeatPickDisabled: true},
+    });
+    try {
+      // The unanswered landing holds the confirm and draws its own row.
+      expect((w.vm as any).canConfirm).to.eq(false);
+      expect(w.text()).to.contain('Destination stage reward');
+      expect(w.text()).to.contain('Choose a stage reward on the Hydronetwork');
+      // Opening the row enters the reward-pick bridge in advance-landing form:
+      // the DESTINATION stage only, addressed from the move's own offer.
+      const row = (w.vm as any).deltaLandingChoice;
+      (w.vm as any).openChoice(row);
+      expect(deltaRewardPickState.active).to.eq(true);
+      expect(deltaRewardPickState.request).to.deep.include({advanceFrom: 5, claimable: [6]});
+      // The track resolves the pick → the capture is the FULL move response.
+      resolveDeltaRewardPick({position: 6, rewardChoice: 1});
+      await w.vm.$nextTick();
+      expect((w.vm as any).canConfirm).to.eq(true);
+      (w.vm as any).submit();
+      const emitted = w.emitted('confirm');
+      expect(emitted).to.have.length(1);
+      expect((emitted![0][0] as any).stepResponses).to.deep.eq([
+        {type: 'deltaProject', amount: 1, answers: [{position: 6, rewardChoice: 1}]},
+      ]);
+    } finally {
+      resetDeltaRewardPick();
+      w.unmount();
+    }
   });
 
   it('…while a DIRECT activation still walks through the door (control case)', () => {

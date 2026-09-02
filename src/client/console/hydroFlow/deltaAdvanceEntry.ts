@@ -36,6 +36,8 @@
 import {reactive} from 'vue';
 import {CardName} from '@/common/cards/CardName';
 import type {DeltaAdvanceOffer} from '@/common/models/DeltaBonusPromptModel';
+import type {DeltaProjectInputResponse, DeltaStageAnswer} from '@/common/inputs/InputResponse';
+import type {DeltaRewardDraft} from '@/client/console/hydroFlow/deltaRewardEntry';
 import {buildActionBatch} from '@/client/console/consoleActionComposer';
 
 export type DeltaAdvanceEntryState = {
@@ -87,6 +89,49 @@ export function cardDeltaAdvanceOffer(): DeltaAdvanceOffer | undefined {
  * `PlayerInputBatch.reconcileBatchResponse` owns the remaining wrap/no-wrap
  * ambiguity, as it does for every other card).
  */
+/**
+ * THE PLAN'S ANSWER TO ITS OWN DOOR — the move step's full wire response for a
+ * REPEAT PLAN whose destination-stage choice was composed through the
+ * Hydronetwork's reward-pick (the seamless descent — the player answered ON
+ * the track). The draft's pick rides `answers` in the same invocation-plan
+ * shape the workspace door's batch carries, so the server consumes it with
+ * the very closures the landing's own prompt would run — one road, both
+ * provenances. `undefined` when the draft answered nothing (the scene's own
+ * gate refuses an empty resolve; an unanswered ask must stay a missing
+ * requirement, never an empty answer on the wire).
+ */
+export function deltaAdvancePlanResponse(
+  offer: DeltaAdvanceOffer, draft: DeltaRewardDraft,
+): DeltaProjectInputResponse | undefined {
+  const answer: DeltaStageAnswer = {position: offer.toPosition};
+  if (draft.rewardChoice !== undefined) {
+    answer.rewardChoice = draft.rewardChoice;
+  } else if (draft.selectedCard !== undefined) {
+    answer.selectedCard = draft.selectedCard;
+  } else {
+    return undefined;
+  }
+  return {type: 'deltaProject', amount: offer.steps, answers: [answer]};
+}
+
+/** The captured plan response, read back as the pick's draft (the row summary
+ *  and the re-open's `prior` — the capture is the one source of truth). */
+export function deltaAdvancePlanDraftOf(response: unknown): DeltaRewardDraft | undefined {
+  const r = response as DeltaProjectInputResponse | undefined;
+  if (r === undefined || r.type !== 'deltaProject') {
+    return undefined;
+  }
+  const answer = r.answers?.[0];
+  if (answer === undefined) {
+    return undefined;
+  }
+  return {
+    position: answer.position,
+    rewardChoice: answer.rewardChoice,
+    selectedCard: answer.selectedCard,
+  };
+}
+
 export function deltaAdvancePrefix(
   performPath: ReadonlyArray<number>,
   card: CardName,

@@ -1,5 +1,6 @@
 import {CardName} from '../cards/CardName';
 import type {DeltaMovementBonusProjection} from './DeltaTrackPreviewModel';
+import type {DeltaStageOutcomeProjection} from './DeltaEspionageModel';
 
 /**
  * A CARD-GRANTED BONUS MOVE on the Delta Project («Гидросеть») track — the
@@ -58,6 +59,17 @@ export type DeltaAdvanceOffer = {
    * one promise the outcome in one vocabulary. Absent when nothing is owed.
    */
   movementBonuses?: ReadonlyArray<DeltaMovementBonusProjection>;
+  /**
+   * WHAT LANDING ON `toPosition` PAYS this player — the same per-subject
+   * server projection the espionage flow authored
+   * (`DeltaProjectExpansion.stageOutcomeProjection`). A PLANNING surface that
+   * cannot walk through the workspace door (a repeat plan) reads this to know
+   * whether the destination asks a pre-selectable choice — and then descends
+   * into the Hydronetwork's reward-pick to answer it ON the track, never as a
+   * detached prompt. Absent on older offers; the workspace door needs none of
+   * it (the track presents the stage itself).
+   */
+  landing?: DeltaStageOutcomeProjection;
 };
 
 /**

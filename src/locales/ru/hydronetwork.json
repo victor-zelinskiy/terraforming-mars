@@ -169,6 +169,7 @@
     "Choose the reward of your current stage or one you have passed. Your Hydronetwork position will not change.": "Выберите награду текущего или уже пройденного этапа. Позиция на Гидросети не изменится.",
     "Choose a stage reward on the Hydronetwork": "Выберите награду этапа на Гидросети",
     "Choose the reward of the stage you are advancing to": "Выберите награду этапа, на который вы продвигаетесь",
+    "Destination stage reward": "Награда этапа назначения",
     "Only the destination stage reward can be chosen here": "Здесь можно выбрать только награду этапа назначения",
     "Your Hydronetwork position will not change.": "Позиция на Гидросети не изменится.",
     "Stage ${0}": "Этап ${0}",
