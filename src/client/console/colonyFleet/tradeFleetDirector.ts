@@ -114,11 +114,14 @@ export function runTradeFleetFlight(args: RunFleetArgs): TradeFleetDirectorHandl
   const tl = gsap.timeline();
 
   // IGNITION — a squat as the engines charge, then the rise begins. The
-  // plume itself is the icon's CSS `launch` state (the controller phase).
+  // recover ends at the EXACT scale the transit drive starts from
+  // (`liftScale`) — the old 1.05 → 1.0 seam popped 5% on the liftoff frame.
+  // The plume itself is the icon's CSS `launch` state (the controller phase).
+  const liftScale = reduced ? startScale : startScale * 1.02;
   args.onPhase('launch');
   if (!reduced) {
     tl.to(ship, {scale: startScale * 0.93, duration: s(t.chargeMs * 0.4), ease: 'power2.in'}, 0);
-    tl.to(ship, {scale: startScale * 1.05, duration: s(t.chargeMs * 0.6), ease: 'power2.out'}, s(t.chargeMs * 0.4));
+    tl.to(ship, {scale: liftScale, duration: s(t.chargeMs * 0.6), ease: 'power2.out'}, s(t.chargeMs * 0.4));
   }
   tl.call(() => args.onPhase('transit'), undefined, s(t.chargeMs));
 
@@ -127,8 +130,10 @@ export function runTradeFleetFlight(args: RunFleetArgs): TradeFleetDirectorHandl
   //  · the nose BANKS IN over the first 12% (rotation 0 on the pad → the
   //    live tangent) and FLARES OUT over the last 22% (tangent → upright),
   //    so neither end of the flight snaps an angle;
-  //  · scale rides a sine hump from the honest start size to a mid-flight
-  //    peak and down to the approach size.
+  //  · scale rides a sin² hump from the lift size to a mid-flight peak and
+  //    down to the approach size — sin² has ZERO slope at both ends, so the
+  //    hull arrives with no residual growth/shrink (a plain sin(πp) is at
+  //    its fastest shrink on the very arrival frame — a visible hard stop).
   const prog = {p: 0};
   tl.to(prog, {
     p: 1,
@@ -141,8 +146,9 @@ export function runTradeFleetFlight(args: RunFleetArgs): TradeFleetDirectorHandl
       const y = mt * mt * from.y + 2 * mt * p * ctrl.y + p * p * to.y;
       const heading = reduced ? 0 : arcHeadingDeg(from, ctrl, to, p);
       const rot = reduced ? 0 : heading * smoothstep(0, 0.12, p) * (1 - smoothstep(0.78, 1, p));
-      const base = startScale + (approachScale - startScale) * p;
-      const scale = reduced ? startScale : base + (peakScale - base) * Math.sin(p * Math.PI);
+      const hump = Math.sin(p * Math.PI);
+      const base = liftScale + (approachScale - liftScale) * p;
+      const scale = reduced ? startScale : base + (peakScale - base) * hump * hump;
       setAt({x, y}, rot, scale);
     },
   }, s(t.chargeMs));
@@ -159,7 +165,7 @@ export function runTradeFleetFlight(args: RunFleetArgs): TradeFleetDirectorHandl
   // the old 220ms bob (which read as jitter). Killed at dock.
   if (!reduced) {
     tl.to(ship, {y: '+=3', duration: s(1150), yoyo: true, repeat: -1, ease: 'sine.inOut'}, approachAt);
-    tl.to(ship, {rotation: 1.4, duration: s(1450), yoyo: true, repeat: -1, ease: 'sine.inOut'}, approachAt);
+    tl.to(ship, {rotation: 1.0, duration: s(1450), yoyo: true, repeat: -1, ease: 'sine.inOut'}, approachAt);
   }
 
   function finishDock(): void {
@@ -170,10 +176,12 @@ export function runTradeFleetFlight(args: RunFleetArgs): TradeFleetDirectorHandl
     gsap.killTweensOf(ship); // stop the station-keeping
     args.onPhase('dock');
     // The final descent: settle EXACTLY onto the ship slot (position + size
-    // + angle), a clean decelerating ease — the last frame is pixel-perfect.
-    // On landing, resolve the gate: the caller commits, the REAL docked ship
-    // materializes in this exact rect UNDER the still-visible proxy, and only
-    // then does `release()` crossfade the proxy out.
+    // + angle) on ONE symmetric ease — it leaves the hover gently and
+    // arrives gently (the old 260ms power3.out read as a snap), and the
+    // last frame is pixel-perfect (no overshoot by construction). On
+    // landing, resolve the gate: the caller commits, the REAL docked ship
+    // materializes in this exact rect UNDER the still-visible proxy, and
+    // only then does `release()` crossfade the proxy out.
     const land = gsap.timeline({
       onComplete: () => {
         args.onPhase('ack');
@@ -184,7 +192,7 @@ export function runTradeFleetFlight(args: RunFleetArgs): TradeFleetDirectorHandl
     });
     land.to(ship, {
       x: to.x - half, y: to.y - halfH, rotation: 0, scale: dockScale,
-      duration: s(t.dockMs), ease: 'power3.out',
+      duration: s(t.dockMs), ease: 'power2.inOut',
     });
   }
 

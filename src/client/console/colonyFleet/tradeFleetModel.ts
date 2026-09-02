@@ -40,9 +40,9 @@ export function fleetTimings(): FleetTimings {
   return {
     chargeMs: 300,
     liftMs: 200,
-    transitMs: 680,
+    transitMs: 720,
     approachMinMs: 160,
-    dockMs: 260,
+    dockMs: 320,
     ackMs: 280,
   };
 }
