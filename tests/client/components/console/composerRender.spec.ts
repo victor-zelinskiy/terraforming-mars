@@ -191,6 +191,50 @@ describe('ConsoleActionComposer — premium render', () => {
     w.unmount();
   });
 
+  // ── A deltaAdvance branch inside the repeat pick (Storm Surge Barrier) ───
+
+  function stormSurgePreview() {
+    return {
+      card: 'Storm Surge Barrier', isCorporation: false, kind: 'bespoke',
+      branches: [{
+        index: 1, title: 'Spend 1 energy and advance on the Hydronetwork', available: true, renderKeys: [],
+        effects: [{direction: 'cost', icon: 'energy', amount: 1, current: 3, resulting: 2}],
+        steps: [{kind: 'deltaAdvance', offer: {
+          source: 'Storm Surge Barrier', steps: 1, fromPosition: 5, toPosition: 6, energyCost: 1, waivesTag: false,
+        }}],
+      }],
+    };
+  }
+
+  it('a repeat PLAN answers the forced deltaAdvance door itself — the confirm carries {deltaProject, amount}, no follow-up stepper', () => {
+    const w = mount(ConsoleActionComposer, {
+      ...globalConfig,
+      global: {...globalConfig.global, stubs: {GamepadGlyph: GlyphStub}},
+      props: {playerView: PLAYER_VIEW, entry: entryFor('Storm Surge Barrier'), preview: stormSurgePreview(), nodeIndex: 0, repeatPickDisabled: true},
+    });
+    expect((w.vm as any).canConfirm).to.eq(true);
+    (w.vm as any).submit();
+    const emitted = w.emitted('confirm');
+    expect(emitted, 'a deferred door confirms the plan, it does not navigate').to.have.length(1);
+    expect((emitted![0][0] as any).stepResponses).to.deep.eq([{type: 'deltaProject', amount: 1}]);
+    expect(w.emitted('delta-advance')).to.eq(undefined);
+    w.unmount();
+  });
+
+  it('…while a DIRECT activation still walks through the door (control case)', () => {
+    const w = mount(ConsoleActionComposer, {
+      ...globalConfig,
+      global: {...globalConfig.global, stubs: {GamepadGlyph: GlyphStub}},
+      props: {playerView: PLAYER_VIEW, entry: entryFor('Storm Surge Barrier'), preview: stormSurgePreview(), nodeIndex: 0},
+    });
+    (w.vm as any).submit();
+    expect(w.emitted('confirm')).to.eq(undefined);
+    const door = w.emitted('delta-advance');
+    expect(door).to.have.length(1);
+    expect((door![0][0] as any).offer.toPosition).to.eq(6);
+    w.unmount();
+  });
+
   // ── The ACTION FOCUS stage (the in-frame recompose iteration) ────────────
 
   it('renders as the IN-FRAME stage: hero card slot (FLIP anchor + zoom slot) and NO modal header', () => {

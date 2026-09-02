@@ -396,6 +396,33 @@ export function orderedStepResponses(
   return out;
 }
 
+/**
+ * Step responses of a REPEAT PLAN (`navigationDeferred`) — the captured steps
+ * PLUS the one door a plan can answer itself. A deferred `deltaAdvance` is not
+ * a choice: the branch's offer fully determines the move (a card grants a
+ * FIXED step count — Storm Surge Barrier spends 1 energy for exactly 1 step),
+ * so raising it as a follow-up would ask the player a question with one legal
+ * answer, through the divergence stepper. The plan answers `{deltaProject,
+ * amount}` in place; the LANDED stage's own asks (rewards, targets) still
+ * surface natively, exactly like every other repeat follow-up. `colonyTrade` /
+ * `boardPlacement` stay deferred — their answers (which colony, which cell)
+ * genuinely do not exist at plan time.
+ */
+export function plannedStepResponses(
+  branch: ActionPreviewBranch,
+  steps: Readonly<Record<number, unknown>>,
+): Array<unknown> {
+  const out: Array<unknown> = [];
+  branch.steps.forEach((step, i) => {
+    if ((step.kind === 'input' || step.kind === 'tabbedTargets') && steps[i] !== undefined) {
+      out.push(steps[i]);
+    } else if (step.kind === 'deltaAdvance') {
+      out.push({type: 'deltaProject' as const, amount: step.offer.steps});
+    }
+  });
+  return out;
+}
+
 /** The pre-collectable `tabbedTargets` steps of a branch, with their step index. */
 export function tabbedStepsOf(branch: ActionPreviewBranch | undefined): Array<{index: number, step: TabbedTargetsStep}> {
   const out: Array<{index: number, step: TabbedTargetsStep}> = [];

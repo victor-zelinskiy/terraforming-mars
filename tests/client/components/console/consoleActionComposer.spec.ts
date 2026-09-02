@@ -13,6 +13,7 @@ import {
   spendHeatValid,
   orderedPreResponses,
   orderedStepResponses,
+  plannedStepResponses,
   tabbedStepsOf,
   soleInlineDial,
   focusFreeDialId,
@@ -215,6 +216,41 @@ describe('consoleActionComposer', () => {
       expect(out).to.have.length(1);
       expect(out[0].index).to.eq(1);
       expect(out[0].step).to.eq(tabbed);
+    });
+
+    it('a PLAN answers its forced deltaAdvance door itself (Storm Surge Barrier via Viron)', () => {
+      const offer = {
+        source: 'Storm Surge Barrier' as CardName,
+        steps: 1, fromPosition: 5, toPosition: 6, energyCost: 1, waivesTag: false,
+      };
+      const b = branch({steps: [{kind: 'deltaAdvance', offer}]});
+      // The captured steps are empty — the move is not a choice, the plan
+      // still emits the one legal `{deltaProject, amount}` answer, so the
+      // copy raises no divergence stepper follow-up.
+      expect(plannedStepResponses(b, {})).to.deep.eq([{type: 'deltaProject', amount: 1}]);
+    });
+
+    it('a plan keeps captured steps in order AROUND the delta answer', () => {
+      const offer = {
+        source: 'X' as CardName,
+        steps: 1, fromPosition: 0, toPosition: 1, energyCost: 1, waivesTag: false,
+      };
+      const b = branch({steps: [
+        {kind: 'input', input: AMOUNT_INPUT},
+        {kind: 'deltaAdvance', offer},
+      ]});
+      expect(plannedStepResponses(b, {0: {type: 'amount', amount: 2}})).to.deep.eq([
+        {type: 'amount', amount: 2},
+        {type: 'deltaProject', amount: 1},
+      ]);
+    });
+
+    it('colonyTrade / boardPlacement stay deferred — their answers do not exist at plan time', () => {
+      const b = branch({steps: [
+        {kind: 'colonyTrade', card: 'Jet Stream Microscrappers' as CardName},
+        {kind: 'boardPlacement', placementType: 'ocean'},
+      ]});
+      expect(plannedStepResponses(b, {})).to.deep.eq([]);
     });
 
     it('pre responses keep preSteps order', () => {

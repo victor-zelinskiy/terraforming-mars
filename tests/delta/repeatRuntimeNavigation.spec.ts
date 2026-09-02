@@ -3,6 +3,7 @@ import {CardName} from '../../src/common/cards/CardName';
 import {DELTA_TRACK_TAGS, DeltaProjectExpansion} from '../../src/server/delta/DeltaProjectExpansion';
 import {TitanFloatingLaunchPad} from '../../src/server/cards/colonies/TitanFloatingLaunchPad';
 import {MarsNomads} from '../../src/server/cards/promo/MarsNomads';
+import {StormSurgeBarrier} from '../../src/server/cards/delta/StormSurgeBarrier';
 import {testGame} from '../TestGame';
 import {fakeCard, runAllActions} from '../TestingUtils';
 import {cast} from '../../src/common/utils/utils';
@@ -99,6 +100,37 @@ describe('a repeat plan defers its runtime-navigation step', () => {
     const space = cast(player.getWaitingFor(), SelectSpace);
     expect(space.copiedActionSource, 'the copy owns the placement').to.eq(nomads.name);
     expect(space.spaces.length, 'and it offers real destinations').to.be.greaterThan(0);
+  });
+
+  it('«Штормовой барьер»: the plan\'s {deltaProject, amount} answer commits the copied move in the SAME drain — no divergence stepper', () => {
+    // The advance branch is a deltaAdvance DOOR with exactly one legal answer
+    // (1 step for 1 energy), so the plan answers it itself. With no ocean
+    // beside a tile of the player's, the copy collapses to that lone branch
+    // (no `or` wrapper) and the parked tail must land straight on the
+    // DeltaProjectInput — the frozen «0 – 0» stepper of the unanswered copy.
+    const barrier = new StormSurgeBarrier();
+    player.playedCards.push(barrier);
+    player.actionsThisGeneration.add(barrier.name);
+    reachStage(6);
+    player.energy = 2; // 1 for the stage-7 advance + the copy's own toll of 1.
+
+    DeltaProjectExpansion.advance(player, 1, undefined, {
+      answers: [{
+        position: 7,
+        selectedCard: barrier.name,
+        repeatResponses: [{type: 'deltaProject', amount: 1}],
+      }],
+    });
+    runAllActions(game);
+    drainBatchTail(player);
+    runAllActions(game);
+
+    // The copied move is COMMITTED: marker on 8, the toll charged, the
+    // Jovian stage's reward granted — and nothing is left asking.
+    expect(player.deltaProjectData!.position, 'the copy advanced 7 → 8').to.eq(8);
+    expect(player.energy, 'the copy\'s energy toll was charged').to.eq(0);
+    expect(player.deltaProjectData!.jovianBonus, 'stage 8 paid its reward').to.eq(true);
+    expect(player.getWaitingFor(), 'no follow-up stepper stands').to.eq(undefined);
   });
 
   it('a plan that answers NOTHING still reaches the branch prompt', () => {

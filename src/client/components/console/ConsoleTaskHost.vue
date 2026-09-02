@@ -1164,25 +1164,35 @@ export default defineComponent({
       }));
     },
     // ── amount ───────────────────────────────────────────────────────
-    amountMin(): number {
+    /**
+     * The delta family's DISCRETE legal values, sorted — the server's own
+     * lists (`validSteps` / `claimable`), which are SPARSE when a blocked
+     * position splits them (e.g. `[1, 3]`). The dial snaps along this list
+     * instead of counting integers, so every value it shows is submittable.
+     * `undefined` for the plain min/max amount.
+     */
+    amountValidValues(): ReadonlyArray<number> | undefined {
+      if (this.wf?.type === 'deltaProject') {
+        return [...(this.wf as PlayerInputModel & {type: 'deltaProject'}).validSteps].sort((a, b) => a - b);
+      }
       if (this.wf?.type === 'deltaStageReward') {
-        const c = (this.wf as PlayerInputModel & {type: 'deltaStageReward'}).claimable;
-        return c.length > 0 ? Math.min(...c) : 0;
+        return [...(this.wf as PlayerInputModel & {type: 'deltaStageReward'}).claimable].sort((a, b) => a - b);
+      }
+      return undefined;
+    },
+    amountMin(): number {
+      const values = this.amountValidValues;
+      if (values !== undefined) {
+        return values[0] ?? 0;
       }
       return this.wf?.type === 'amount' ? (this.wf as PlayerInputModel & {type: 'amount'}).min : 0;
     },
     amountMax(): number {
-      if (this.wf?.type === 'amount') {
-        return (this.wf as PlayerInputModel & {type: 'amount'}).max;
+      const values = this.amountValidValues;
+      if (values !== undefined) {
+        return values[values.length - 1] ?? 0;
       }
-      if (this.wf?.type === 'deltaProject') {
-        return (this.wf as PlayerInputModel & {type: 'deltaProject', max?: number}).max ?? 0;
-      }
-      if (this.wf?.type === 'deltaStageReward') {
-        const c = (this.wf as PlayerInputModel & {type: 'deltaStageReward'}).claimable;
-        return c.length > 0 ? Math.max(...c) : 0;
-      }
-      return 0;
+      return this.wf?.type === 'amount' ? (this.wf as PlayerInputModel & {type: 'amount'}).max : 0;
     },
     amountIconClass(): string {
       const icon = this.wf?.type === 'amount' ? (this.wf as PlayerInputModel & {type: 'amount', icon?: string}).icon : 'energy';
@@ -2018,7 +2028,9 @@ export default defineComponent({
       const init = amountModel !== undefined ?
         (amountModel.conversion !== undefined ? amountModel.min :
           (amountModel.maxByDefault ? this.amountMax : this.amountMin)) :
-        this.amountMax;
+        // The Hydronetwork move stepper opens at the SAFE floor — the fewest
+        // legal steps to buy; spending more energy is a deliberate dial-up.
+        (this.wf?.type === 'deltaProject' ? this.amountMin : this.amountMax);
       this.value = init;
     },
     /** The shell routes every intent here while the host is active. */
@@ -2773,6 +2785,15 @@ export default defineComponent({
         return;
       }
       if (this.activeTask.kind === 'amount') {
+        const values = this.amountValidValues;
+        if (values !== undefined && values.length > 0) {
+          // Snap along the discrete list — it can be sparse, so a step must
+          // land on the NEXT legal value, never between two.
+          this.value = step > 0 ?
+            (values.find((v) => v > this.value) ?? values[values.length - 1]) :
+            ([...values].reverse().find((v) => v < this.value) ?? values[0]);
+          return;
+        }
         this.value = Math.min(this.amountMax, Math.max(this.amountMin, this.value + step));
         return;
       }

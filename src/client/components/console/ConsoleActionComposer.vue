@@ -692,6 +692,7 @@ import {
   spendHeatValid,
   orderedPreResponses,
   orderedStepResponses,
+  plannedStepResponses,
   focusFreeDialId,
   InlineDial,
   // The ONE «may a choice be seeded» rule — shared with the play composer.
@@ -3816,7 +3817,11 @@ export default defineComponent({
         // The repeat step (Viron) is NEVER a plain captured step — it rides the
         // `repeat` payload (the chosen action + its own composed responses). A
         // read-only NESTED slot never composed one — the server asks next.
-        stepResponses: orderedStepResponses(branch, this.captured),
+        // A PLAN answers its forced deltaAdvance door itself (the offer fully
+        // determines the move), so the copy raises no divergence stepper.
+        stepResponses: this.navigationDeferred ?
+          plannedStepResponses(branch, this.captured) :
+          orderedStepResponses(branch, this.captured),
         repeat: this.repeatPickDisabled ? undefined : this.repeatResult,
         // The captured stage-reward claim WITH its composed repeat (the wire
         // response cannot carry the composition back out) — the confirm's
