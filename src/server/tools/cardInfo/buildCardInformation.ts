@@ -155,9 +155,23 @@ function enCount(n: number, one: string, many: string): string {
   return `${n} ${n === 1 ? one : many}`;
 }
 
+/**
+ * The comparator the requirements BAR draws (`≥` / `≤`), as prose. Every
+ * countable requirement goes through it — a `max` descriptor phrased «at
+ * least» states the OPPOSITE rule to the graphic beside it. Pioneer
+ * Settlement («Первое поселение») shipped exactly that: its bar drew «⩽ 1
+ * colony» while its rule text read «Требуется не менее 1 колонии», and
+ * Geological Survey did the same with «5 or fewer greeneries».
+ * Guard: `tests/cards/requirementProse.spec.ts`.
+ */
+function comparator(max: boolean): string {
+  return max ? 'at most' : 'at least';
+}
+
 function requirementBlock(descriptor: CardRequirementDescriptor, dup: number, notes: Array<string>): CardInfoBlock | undefined {
   const type = requirementType(descriptor);
   const max = descriptor.max === true;
+  const cmp = comparator(max);
   const suffix = descriptor.all === true ? ' (any player).' : '.';
   let en: string;
   let qualifier = '';
@@ -165,40 +179,40 @@ function requirementBlock(descriptor: CardRequirementDescriptor, dup: number, no
   switch (type) {
   case RequirementType.OXYGEN: {
     const v = descriptor.oxygen ?? 0;
-    en = max ? `Requires an oxygen level of at most ${v}%.` : `Requires an oxygen level of at least ${v}%.`;
+    en = `Requires an oxygen level of ${cmp} ${v}%.`;
     break;
   }
   case RequirementType.TEMPERATURE: {
     const v = descriptor.temperature ?? 0;
-    en = max ? `Requires a temperature of at most ${v}°C.` : `Requires a temperature of at least ${v}°C.`;
+    en = `Requires a temperature of ${cmp} ${v}°C.`;
     break;
   }
   case RequirementType.VENUS: {
     const v = descriptor.venus ?? 0;
-    en = max ? `Requires Venus terraforming of at most ${v}%.` : `Requires Venus terraforming of at least ${v}%.`;
+    en = `Requires Venus terraforming of ${cmp} ${v}%.`;
     break;
   }
   case RequirementType.TR: {
     const v = descriptor.tr ?? 0;
-    en = max ? `Requires a terraform rating of at most ${v}.` : `Requires a terraform rating of at least ${v}.`;
+    en = `Requires a terraform rating of ${cmp} ${v}.`;
     break;
   }
   case RequirementType.OCEANS: {
     const n = descriptor.oceans ?? descriptor.count ?? 1;
-    en = `${max ? 'Requires at most' : 'Requires at least'} ${enCount(n, 'ocean tile', 'ocean tiles')}${suffix}`;
+    en = `Requires ${cmp} ${enCount(n, 'ocean tile', 'ocean tiles')}${suffix}`;
     break;
   }
   case RequirementType.TAG: {
     const tag = descriptor.tag as Tag;
     const n = descriptor.count ?? 1;
-    en = `Requires at least ${enCount(n, `${tag} tag`, `${tag} tags`)}${suffix}`;
+    en = `Requires ${cmp} ${enCount(n, `${tag} tag`, `${tag} tags`)}${suffix}`;
     qualifier = `:${tag}`;
     break;
   }
   case RequirementType.PRODUCTION: {
     const res = descriptor.production as Resource;
     const n = descriptor.count ?? 1;
-    en = `Requires ${EN_RESOURCE[res][1]} production of at least ${n}.`;
+    en = `Requires ${EN_RESOURCE[res][1]} production of ${cmp} ${n}.`;
     qualifier = `:${res}`;
     break;
   }
@@ -206,30 +220,30 @@ function requirementBlock(descriptor: CardRequirementDescriptor, dup: number, no
     const n = descriptor.cities ?? descriptor.count ?? 1;
     if (descriptor.nextTo === true) {
       notes.push('requirement-nextTo: verify wording');
-      en = `Requires at least ${enCount(n, 'city tile', 'city tiles')} adjacent${suffix}`;
+      en = `Requires ${cmp} ${enCount(n, 'city tile', 'city tiles')} adjacent${suffix}`;
     } else {
-      en = `Requires at least ${enCount(n, 'city tile', 'city tiles')}${suffix}`;
+      en = `Requires ${cmp} ${enCount(n, 'city tile', 'city tiles')}${suffix}`;
     }
     break;
   }
   case RequirementType.GREENERIES: {
     const n = descriptor.greeneries ?? descriptor.count ?? 1;
-    en = `Requires at least ${enCount(n, 'greenery tile', 'greenery tiles')}${suffix}`;
+    en = `Requires ${cmp} ${enCount(n, 'greenery tile', 'greenery tiles')}${suffix}`;
     break;
   }
   case RequirementType.COLONIES: {
     const n = descriptor.colonies ?? descriptor.count ?? 1;
-    en = `Requires at least ${enCount(n, 'colony', 'colonies')}${suffix}`;
+    en = `Requires ${cmp} ${enCount(n, 'colony', 'colonies')}${suffix}`;
     break;
   }
   case RequirementType.FLOATERS: {
     const n = descriptor.floaters ?? descriptor.count ?? 1;
-    en = `Requires at least ${enCount(n, 'floater', 'floaters')}.`;
+    en = `Requires ${cmp} ${enCount(n, 'floater', 'floaters')}.`;
     break;
   }
   case RequirementType.RESOURCE_TYPES: {
     const n = descriptor.resourceTypes ?? descriptor.count ?? 1;
-    en = `Requires at least ${enCount(n, 'resource type', 'resource types')}.`;
+    en = `Requires ${cmp} ${enCount(n, 'resource type', 'resource types')}.`;
     break;
   }
   case RequirementType.REMOVED_PLANTS: {
@@ -238,7 +252,9 @@ function requirementBlock(descriptor: CardRequirementDescriptor, dup: number, no
   }
   case RequirementType.DELTA_POSITION: {
     const n = descriptor.deltaPosition ?? descriptor.count ?? 1;
-    en = `Requires that you have moved ${enCount(n, 'step', 'steps')} on the Hydronetwork track.`;
+    en = max ?
+      `Requires that you have moved no more than ${enCount(n, 'step', 'steps')} on the Hydronetwork track.` :
+      `Requires that you have moved ${enCount(n, 'step', 'steps')} on the Hydronetwork track.`;
     break;
   }
   default:

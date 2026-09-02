@@ -1244,7 +1244,7 @@ import {Tag} from '@/common/cards/Tag';
 import {Resource} from '@/common/Resource';
 import {CardName} from '@/common/cards/CardName';
 import {CardModel} from '@/common/models/CardModel';
-import {actionPreviewMap} from '@/client/console/actionPreviewStore';
+import {actionPreviewMap, previewBranchByIndex} from '@/client/console/actionPreviewStore';
 import {PlayerViewModel} from '@/common/models/PlayerModel';
 import {DeltaTrackPreviewModel} from '@/common/models/DeltaTrackPreviewModel';
 import {$t, translateCardName, translateMessage, translateText, translateTextWithParams} from '@/client/directives/i18n';
@@ -1740,11 +1740,14 @@ export default defineComponent({
       if (name === undefined || repeat === undefined || repeat.chosenCard !== name) {
         return undefined;
       }
-      const branches = actionPreviewMap().get(name)?.branches ?? [];
-      if (branches.length < 2) {
+      const preview = actionPreviewMap().get(name);
+      if ((preview?.branches.length ?? 0) < 2) {
         return undefined;
       }
-      const title = branches[repeat.composed.branchIndex]?.title;
+      // By `index`, never a subscript: `branchIndex` is the server's runtime
+      // OR-index, and an unavailable earlier branch shifts it off the array
+      // position (same defect family as the claim sites).
+      const title = previewBranchByIndex(preview, repeat.composed.branchIndex)?.title;
       if (title === undefined) {
         return undefined;
       }
