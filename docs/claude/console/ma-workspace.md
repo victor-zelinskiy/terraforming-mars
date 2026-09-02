@@ -16,8 +16,9 @@ structural asserts + screenshots); unit: the race-tier matrix in
 **TWO CHANNELS, NEVER ONE.** Focus answers «where is the controller» and owns
 the tile's RING (`box-shadow` — cyan, semantic-blind, identical on every
 tile). Availability answers «what can I take right now» and owns the tile's
-GROUND (mint wash), the EMBLEM's activation optics and the metric's word —
-so the two states coexist on one tile by construction. The old compound rule
+MATERIAL — the warm activation ground + pedestal light + the bottom SHELF
+light (below), the EMBLEM's activation optics and the metric's word — so the
+two states coexist on one tile by construction. The old compound rule
 (`--focused--go` repainting the ring mint) made the two strongest signals
 fight for one border; whichever lost simply vanished. ⚠ A KIND SCOPE that
 re-states the card's base `box-shadow` (the awards' warm hairline) raises
@@ -25,12 +26,25 @@ specificity past the bare `--focused` rule — the focus ring and hover must be
 RE-ASSERTED inside that scope, or FHD/Deck lose the ring while the
 profile-scoped TV rule keeps it (shipped once, caught by screenshot).
 
-**The availability language is the STRATEGY RAIL's, verbatim** (one grammar in
-both places): GREEN = the requirement is met (drawn ✓ stroke, value, meter,
+**The availability language is the STRATEGY RAIL's** (one grammar in both
+places): GREEN = the requirement is met (drawn ✓ stroke, value, meter,
 mint metric rim — «yours, waiting» when it is not your turn), GOLD-WHITE =
 the action is offered THIS frame (`.con-ma__actring` rim + bottom `__spark`
 crystal on the emblem + «ДОСТУПНО» in the metric's fixed-height foot + the
-`--now` metric rim), PLAYER COLOUR = owner/sponsor only. The workspace rim is
+`--now` metric rim), PLAYER COLOUR = owner/sponsor only. **At tile scale the
+offered state is a MATERIAL, not a detail** (the TV-legibility iteration
+after P33): the P33 mint ground wash read as one more cool highlight beside
+the cyan focus ring, and the emblem-scale gold optics are gold on gold medal
+art — camouflaged at couch distance. `--go` now turns the whole tile into
+one lit object of the activation family: a warm-shifted ground lit from the
+pedestal, the pedestal's own radial gone warm, and the bottom SHELF LIGHT
+(`.con-ma__card::before` — a full-width light-line + bloom the tile stands
+on; opacity-driven so a live state flip fades instead of popping, with a
+one-shot 420 ms KINDLE on its birth: workspace open, category arrive, live
+rise). Warm-vs-cool is what separates state from cursor at the periphery;
+the old left mint rail is gone — the left edge speaks owner colour only
+(three states, three geometries: left bar = whose, bottom shelf = claimable,
+ring = cursor). The workspace rim is
 STATIC (the peripheral HUD keeps the breathing — a decision surface the
 player is already reading does not blink). The one-shot availability REVEAL
 (`--arriving`, the rail's own `strat-activate-*` keyframes) plays only on a

@@ -229,6 +229,11 @@ test.describe('console MA workspace · browse state matrix (4K TV)', () => {
     expect(await goCard.count(), 'the available tile is not the focused one').toBe(1);
     expect(await goCard.locator('.con-ma__actring').evaluate((el) => Number(getComputedStyle(el).opacity)),
       'the gold-white activation rim burns without focus').toBeGreaterThan(0.9);
+    expect(await goCard.evaluate((el) => Number(getComputedStyle(el, '::before').opacity)),
+      'the shelf light burns without focus').toBeGreaterThan(0.9);
+    expect(await page.locator('.con-ma__card--focused:not(.con-ma__card--go)')
+      .evaluate((el) => Number(getComputedStyle(el, '::before').opacity)),
+    'focus alone lights no shelf — the two layers stay apart').toBeLessThan(0.1);
     expect((await goCard.locator('.con-ma__avail').innerText()).trim().length,
       'the «ДОСТУПНО» word stands without focus').toBeGreaterThan(0);
     expect(await barText(page), 'a non-actionable focus advertises the reading verb')
@@ -242,6 +247,8 @@ test.describe('console MA workspace · browse state matrix (4K TV)', () => {
     expect(await goFocused.count(), 'focus and availability share one tile').toBe(1);
     expect(await goFocused.locator('.con-ma__actring').evaluate((el) => Number(getComputedStyle(el).opacity)),
       'focus must not eat the availability light').toBeGreaterThan(0.9);
+    expect(await goFocused.evaluate((el) => Number(getComputedStyle(el, '::before').opacity)),
+      'focus must not eat the shelf light either').toBeGreaterThan(0.9);
     expect(await goFocused.evaluate((el) => getComputedStyle(el).boxShadow !== 'none'),
       'the cyan focus ring stands beside the state').toBeTruthy();
     expect(await barText(page), 'an available milestone advertises the intent verb')
