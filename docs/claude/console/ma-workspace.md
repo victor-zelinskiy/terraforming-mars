@@ -1,6 +1,8 @@
 # The MILESTONES/AWARDS workspace — one flow, one emblem
 
-**Status: SHIPPED 2026-08-12; browse-grammar iteration (P33) 2026-08-26.**
+**Status: SHIPPED 2026-08-12; browse-grammar iteration (P33) 2026-08-26;
+material-continuity iteration 2026-09-02 (light-vs-atmosphere + the descend
+carries the material).**
 The console «Награды»/«Достижения» screens are a full North-Star workspace:
 `Overview → Hero Detail → Commit → Ceremony inside the workspace → Settle →
 Close`. The old `ConsoleMaConfirm` modal is GONE from the console-native flow
@@ -52,6 +54,44 @@ LIVE rising edge (seed-then-diff in the component; mount/category switch
 seed silently). Milestone-only, by the P29 decision: a fundable award is a
 normal economy action — its accent is the DOOR's (the header tray's next
 slot arms gold, `__slot--next`), never a per-row glow.
+
+**LIGHT vs ATMOSPHERE — why the offered milestone may share the awards'
+warm hue and still never be mistaken for them.** The awards' identity is a
+DARK warm *atmosphere*: podium dusk on every tile equally, no light source.
+The offered state is a *lit object*: a full step BRIGHTER ground than the
+award base can ever be, a visible light source (the pedestal radial) and
+the structural shelf light it stands on — lightness + structure carry the
+distinction, never hue alone. The shared warm note is deliberate (both are
+the console's «gold-white = offered» activation family at the root), the
+separation is material.
+
+**THE DESCEND CARRIES THE MATERIAL (the continuity contract, 2026-09-02).**
+The detail surface must be the SAME temperature as the tile it unfolds
+from — the cool-blue `.con-mafocus` opening out of a warm tile read as one
+screen replacing another, and the FLIP-carried pedestal literally changed
+material at frame 0 of the carry. Two mechanisms, one per axis:
+- **State (milestone offered)** — `.con-mafocus--go`, computed in the stage
+  (`warmGo`: `kind === 'milestone' && (available || phase !== 'detail')`),
+  i.e. LATCHED through commit and ceremony (the coronation is this light
+  consummated; a refusal returns to `detail` and the layers fade with the
+  live `available`). The material is OPACITY-DRIVEN layers, always present
+  (`__surface::before` warm ground + key light, `__stage::before` the warm
+  pedestal twin, `__decision::before` the shelf light + a transitionable
+  warm shift of the decision band's flat colours) — a background swap
+  cannot fade, and the state can fall live. The `__grid`/`__decision` are
+  `position: relative` so content paints above the z0 surface layer. The
+  state badge's `--go` chip speaks the metric's gold-white `--now` recipe,
+  never mint (mint = «met»). The boundary `__edge` stays cool chrome, like
+  the tile's own hairline — availability never borrows a frame channel.
+- **Identity (award)** — the `--award` scope is the full podium atmosphere
+  one density level deeper (surface/edge/pedestal/plates/you/rows/decision
+  in the `.con-ma--awards` recipes; the viewer's race row rings WHITE, the
+  awards' own «me» language). Static: atmosphere is identity, never a
+  state.
+A blocked milestone descends cool → cool (no activation material) — the
+third continuous pairing. Guard: `console-ma-states.spec.ts` (blocked = no
+`--go` + dark layer; offered = all three layers ≥ .9 opacity + `--go`
+through the ceremony; award detail surface carries the warm recipe).
 
 **TWO SIBLING IDENTITIES.** Milestones = PROGRESS AND THRESHOLD: the family's
 cool cyan/mint axis, progress instruments (meter → drawn ✓ → «ДОСТУПНО»),

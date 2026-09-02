@@ -9,6 +9,7 @@
          'con-mafocus--committing': phase === 'committing',
          'con-mafocus--cere': ceremonyUp,
          'con-mafocus--avail': available && phase === 'detail',
+         'con-mafocus--go': warmGo,
        }]">
     <div class="con-mafocus__surface" data-unfold-surface>
       <span class="con-mafocus__edge" data-unfold-edge aria-hidden="true"></span>
@@ -226,6 +227,19 @@ export default defineComponent({
     },
     ceremonyUp(): boolean {
       return this.phase === 'ceremony' || this.phase === 'closing';
+    },
+    /**
+     * THE ACTIVATION MATERIAL of the stage (milestone only — the P29/P33
+     * decision keeps the loud «offered» state a milestone semantic): the
+     * warm lit ground/pedestal/shelf the browse tile's `--go` carries,
+     * continued one level deeper so the descend never changes the object's
+     * temperature. LATCHED past the commit press (`phase !== 'detail'`) —
+     * the ceremony is this light consummated, and a surface that cooled the
+     * instant A landed read as a scene swap; a refusal returns to `detail`
+     * and the layers FADE with the live `available` (opacity-driven CSS).
+     */
+    warmGo(): boolean {
+      return this.kind === 'milestone' && (this.available || this.phase !== 'detail');
     },
     /** What the stage renders: LIVE pre-commit, PINNED past the commit. */
     displayView(): MaConfirmView {

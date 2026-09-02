@@ -10586,11 +10586,19 @@ html.console-mode {
            (rim + crystal) are gold on gold medal art, camouflaged at couch
            distance, while the ground is the one layer no emblem competes
            with; warm-vs-cool is also what keeps the state apart from the
-           cyan focus ring at the periphery. Never the ring channel. */
+           cyan focus ring at the periphery. Never the ring channel.
+
+           LIGHT, not ATMOSPHERE: the awards screen's whole identity is a
+           DARK warm ground (podium dusk, no light source, on every tile
+           equally) — so the offered state must be separated from it by
+           LIGHTNESS and structure, never by hue alone. The lit tile sits a
+           full step brighter than the award base can ever be, carries a
+           visible light source (the pedestal radial) and stands on the
+           shelf light below — three things the atmosphere never has. */
         &--go {
             background:
-                radial-gradient(56% 130% at 15% 58%, fade(@strat-gold, 13%), transparent 70%),
-                linear-gradient(165deg, rgba(34, 35, 30, 0.96), rgba(21, 22, 18, 0.96));
+                radial-gradient(56% 130% at 15% 58%, fade(@strat-gold, 15%), transparent 70%),
+                linear-gradient(165deg, rgba(42, 42, 34, 0.96), rgba(26, 27, 21, 0.96));
 
             /* The KINDLE — one-shot, on the shelf's own birth (workspace
                open / category arrive / a live rising edge): a calm rise of
@@ -11442,6 +11450,27 @@ html.console-mode {
             radial-gradient(90% 70% at 18% 12%, fade(@con-cyan, 7%), transparent 60%),
             linear-gradient(165deg, rgba(16, 25, 38, 0.985), rgba(9, 15, 24, 0.985));
         box-shadow: 0 1rem 3rem rgba(0, 0, 0, 0.55);
+
+        /* THE ACTIVATION MATERIAL, one level deeper — the browse tile's warm
+           lit ground (`.con-ma__card--go`) continued onto the stage surface,
+           so the unfold opens a warm panel OUT OF a warm tile instead of
+           replacing it with a cool one (the shipped «подмена поверхности»).
+           Opacity-driven and always present, like the tile's shelf: the
+           state can fall live (a raced-away claim) and a background swap
+           cannot fade. The grid/decision are positioned above it. */
+        &::before {
+            content: '';
+            position: absolute;
+            inset: 0;
+            z-index: 0;
+            border-radius: inherit;
+            background:
+                radial-gradient(58% 44% at 20% 24%, fade(@strat-gold, 10%), transparent 68%),
+                linear-gradient(165deg, rgba(33, 31, 24, 0.94), rgba(19, 18, 13, 0.94));
+            opacity: 0;
+            transition: opacity calc(300ms * var(--motion-scale, 1)) ease;
+            pointer-events: none;
+        }
     }
     /* The BOUNDARY is its own element: the entrance forms it LAST, an abort
        restores it (never painted before its beat). */
@@ -11463,6 +11492,9 @@ html.console-mode {
        quadrant and the rest of the panel was empty), while `--mafocus-*`
        tokens carry the couch pass instead of per-element overrides. */
     &__grid {
+        /* Positioned: the exhibition paints ABOVE the surface's activation
+           layer (`__surface::before`), which sits at z0 underneath. */
+        position: relative;
         flex: 1;
         min-height: 0;
         display: flex;
@@ -11500,6 +11532,29 @@ html.console-mode {
             inset 0 -.9rem 1.6rem rgba(0, 0, 0, 0.4),
             0 .8rem 2.4rem rgba(0, 0, 0, 0.45);
 
+        /* The pedestal's ACTIVATION layer — the material twin of the browse
+           tile's warm `--go` pedestal. The FLIP carries this very box out of
+           the pressed card, so the carried emblem must land on the SAME
+           material it took off from: a pedestal that changed temperature at
+           frame 0 of the carry was the most visible break of «one physical
+           object». Paint only (the FLIP measures the box, never pixels);
+           opacity-driven for live rising/falling edges. */
+        &::before {
+            content: '';
+            position: absolute;
+            inset: 0;
+            border-radius: inherit;
+            background:
+                radial-gradient(circle at 50% 58%, fade(@strat-gold, 18%), transparent 66%),
+                rgba(16, 14, 9, 0.62);
+            box-shadow:
+                inset 0 0 0 .05rem fade(#f6e8c6, 26%),
+                inset 0 -.9rem 1.6rem rgba(0, 0, 0, 0.4);
+            opacity: 0;
+            transition: opacity calc(300ms * var(--motion-scale, 1)) ease;
+            pointer-events: none;
+        }
+
         &::after {
             content: '';
             position: absolute;
@@ -11531,12 +11586,77 @@ html.console-mode {
         z-index: 2;
     }
     &--avail &__actring { opacity: 1; }
-    /* The award identity: warm hairlines on the plates, the leader's crown
-       in the race — the same podium instruments the overview speaks. */
+    /* THE OFFERED MILESTONE, one level deeper (`--go`, latched through the
+       commit and the ceremony — the coronation is this light consummated,
+       and a surface that cooled the instant A landed read as a scene swap):
+       the tile's lit layers rise at stage scale — warm ground + key light
+       on the surface, the warm pedestal under the carried emblem, the warm
+       decision band standing on the shelf light. The boundary `__edge`
+       stays the frame's cool chrome, exactly like the tile's own hairline:
+       availability never borrows a frame channel. */
+    &--go &__surface::before { opacity: 1; }
+    &--go &__stage::before { opacity: 1; }
+    &--go &__decision {
+        border-top-color: fade(@strat-gold, 22%);
+        background-color: rgba(17, 15, 10, 0.7);
+
+        &::before { opacity: 1; }
+    }
+    /* THE AWARD IDENTITY — the podium ATMOSPHERE the whole awards screen
+       stands in, carried one level deeper (the tile the stage unfolds from
+       is warm; a cool-blue surface forming over it read as a different
+       screen arriving). Static and kind-scoped: atmosphere is IDENTITY,
+       never a state — and deliberately DARK warm, so the milestone's lit
+       `--go` (a step brighter, with a light source and a shelf) can never
+       be mistaken for it. Same recipes as `.con-ma--awards`' tile scope,
+       one density level deeper. */
+    &--award &__surface {
+        background:
+            radial-gradient(90% 70% at 18% 12%, rgba(255, 205, 120, 0.07), transparent 60%),
+            linear-gradient(165deg, rgba(26, 23, 18, 0.985), rgba(15, 13, 10, 0.985));
+    }
+    &--award &__edge {
+        box-shadow:
+            inset 0 0 0 .075rem rgba(196, 174, 132, 0.4),
+            inset 0 .05rem 0 rgba(255, 255, 255, 0.06);
+    }
+    &--award &__stage {
+        background:
+            radial-gradient(circle at 50% 58%, rgba(255, 205, 120, 0.10), transparent 66%),
+            rgba(15, 12, 8, 0.66);
+        box-shadow:
+            inset 0 0 0 .05rem rgba(196, 170, 120, 0.24),
+            inset 0 -.9rem 1.6rem rgba(0, 0, 0, 0.4),
+            0 .8rem 2.4rem rgba(0, 0, 0, 0.45);
+    }
     &--award &__plate {
+        background: linear-gradient(165deg, rgba(38, 34, 26, 0.6), rgba(24, 21, 16, 0.6));
         box-shadow:
             inset 0 0 0 .05rem rgba(196, 174, 132, 0.2),
             inset 0 .05rem 0 rgba(255, 255, 255, 0.04);
+    }
+    &--award &__you {
+        background: rgba(20, 17, 12, 0.72);
+        box-shadow: inset 0 0 0 .05rem rgba(196, 174, 132, 0.2);
+    }
+    &--award &__truth { border-top-color: fade(@strat-gold, 16%); }
+    &--award &__row {
+        background: rgba(18, 15, 11, 0.6);
+        box-shadow: inset 0 0 0 .05rem rgba(196, 174, 132, 0.14);
+
+        /* The viewer's row speaks the awards' own «me» language (the white
+           ring of the cassette cube), never the cool axis's cyan. */
+        &--viewer {
+            background: rgba(30, 25, 18, 0.85);
+            box-shadow: inset 0 0 0 .075rem rgba(232, 241, 250, 0.45);
+        }
+    }
+    &--award &__row-bar i {
+        background: linear-gradient(90deg, fade(@strat-gold, 50%), fade(@strat-gold, 80%));
+    }
+    &--award &__decision {
+        border-top-color: fade(@strat-gold, 18%);
+        background: rgba(13, 11, 8, 0.7);
     }
     &__row-crown {
         display: block;
@@ -11593,10 +11713,14 @@ html.console-mode {
         box-shadow: inset 0 0 0 .075rem rgba(150, 175, 205, 0.35);
         color: @con-text-dim;
 
+        /* «Offered NOW» speaks gold-white here too — the metric's `--now`
+           recipe verbatim (mint stays the word for «met»: the tile said
+           «ДОСТУПНО» in gold-white, and a badge that answered in mint
+           changed the state's language mid-descend). */
         &--go {
-            background: fade(@con-mint, 12%);
-            box-shadow: inset 0 0 0 .075rem fade(@con-mint, 70%);
-            color: #d7ffe9;
+            background: rgba(14, 19, 22, 0.8);
+            box-shadow: inset 0 0 0 .075rem rgba(246, 232, 198, 0.6), 0 0 .9rem fade(@strat-gold, 22%);
+            color: #f2e3bd;
         }
         &--mine {
             background: fade(@con-mint, 10%);
@@ -11837,6 +11961,10 @@ html.console-mode {
        fixed by the rail, so the commit's own line replaces the chips in
        place — no layout shift between projection, pending and refusal. */
     &__decision {
+        /* Positioned above the surface's activation layer; flat colours on
+           purpose — background-color/border-color are transitionable, so the
+           warm shift of the offered state can rise and fall smoothly. */
+        position: relative;
         flex-shrink: 0;
         display: flex;
         align-items: center;
@@ -11844,6 +11972,31 @@ html.console-mode {
         padding: .35rem 1.6rem;
         border-top: .05rem solid fade(@con-cyan, 16%);
         background: rgba(8, 13, 21, 0.7);
+        transition:
+            background-color calc(300ms * var(--motion-scale, 1)) ease,
+            border-top-color calc(300ms * var(--motion-scale, 1)) ease;
+
+        /* THE SHELF LIGHT at stage scale — availability's own edge on the
+           surface's REAL bottom (the tile's signature, carried with the
+           object: line + bloom, light only, never an outline and never
+           text). Same opacity discipline as the tile's. */
+        &::before {
+            content: '';
+            position: absolute;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            height: 1.5rem;
+            background-image:
+                linear-gradient(90deg, transparent, fade(#f6e8c6, 55%) 14%, fade(#f6e8c6, 55%) 86%, transparent),
+                linear-gradient(0deg, fade(@strat-gold, 13%), transparent 82%);
+            background-size: 100% .12rem, 100% 100%;
+            background-position: bottom, bottom;
+            background-repeat: no-repeat;
+            opacity: 0;
+            transition: opacity calc(300ms * var(--motion-scale, 1)) ease;
+            pointer-events: none;
+        }
     }
     /* The COMMIT's own line (pending / refusal) — it stands where the rail
        stood, at the same height. */

@@ -297,6 +297,21 @@ test.describe('console MA workspace · browse state matrix (4K TV)', () => {
       await shoot(page, '31-awards-funded-focused');
     }
     console.log('[ma-states] funded award:', funded, JSON.stringify(awardStates));
+
+    // CONTINUITY (awards door): the detail surface carries the podium
+    // ATMOSPHERE the whole screen stands in — the warm tile must open into
+    // a warm stage, never into the cool-blue axis (the shipped break).
+    const anyAwardIdx = awardStates.findIndex((s) => !s.taken);
+    if (anyAwardIdx >= 0) {
+      await focusCardAt(page, anyAwardIdx);
+      await press(page, 'Enter', 1500);
+      await page.waitForSelector('.con-mafocus--award', {timeout: 6_000});
+      expect(await page.locator('.con-mafocus__surface').evaluate(
+        (el) => getComputedStyle(el).backgroundImage.includes('255, 205, 120')),
+      'the award detail surface stands in the warm podium atmosphere').toBe(true);
+      await shoot(page, '32-awards-detail-atmosphere');
+      await press(page, 'Escape', 1300);
+    }
     await press(page, 'KeyQ', 1500);
 
     // ── 6 · detail stages: blocked, then available → commit → ceremony ─────
@@ -306,6 +321,12 @@ test.describe('console MA workspace · browse state matrix (4K TV)', () => {
       await focusCardAt(page, blockedIdx);
       await press(page, 'Enter', 1500);
       await page.waitForSelector('.con-mafocus', {timeout: 6_000});
+      // A blocked milestone descends COOL → COOL: no activation material.
+      expect(await page.locator('.con-mafocus--go').count(),
+        'a blocked milestone never warms the stage').toBe(0);
+      expect(await page.locator('.con-mafocus__surface').evaluate(
+        (el) => Number(getComputedStyle(el, '::before').opacity)),
+      'the activation layer stays dark on a blocked item').toBeLessThan(0.1);
       await shoot(page, '40-detail-blocked');
       await press(page, 'Escape', 1300);
     }
@@ -314,6 +335,21 @@ test.describe('console MA workspace · browse state matrix (4K TV)', () => {
     await focusCardAt(page, claimIdx);
     await press(page, 'Enter', 1500);
     await page.waitForSelector('.con-mafocus', {timeout: 6_000});
+    // CONTINUITY (the core criterion): the lit tile OPENS into a lit stage —
+    // the activation material rides the surface, the carried pedestal (the
+    // FLIP twin must match the tile's warm pedestal from frame 0) and the
+    // decision band's shelf light; the badge answers in the same gold-white.
+    expect(await page.locator('.con-mafocus--go').count(),
+      'the offered milestone carries the activation material into the stage').toBe(1);
+    expect(await page.locator('.con-mafocus__surface').evaluate(
+      (el) => Number(getComputedStyle(el, '::before').opacity)),
+    'the warm ground burns on the opened surface').toBeGreaterThan(0.9);
+    expect(await page.locator('.con-mafocus__stage').evaluate(
+      (el) => Number(getComputedStyle(el, '::before').opacity)),
+    'the carried pedestal lands on the same warm material').toBeGreaterThan(0.9);
+    expect(await page.locator('.con-mafocus__decision').evaluate(
+      (el) => Number(getComputedStyle(el, '::before').opacity)),
+    'the stage stands on the shelf light').toBeGreaterThan(0.9);
     await shoot(page, '41-detail-available');
 
     await page.keyboard.press('Enter'); // the commit (past the 400ms ARM)
@@ -322,6 +358,11 @@ test.describe('console MA workspace · browse state matrix (4K TV)', () => {
 
     // The ceremony is GSAP-driven: pump BeginFrame while it plays.
     await page.waitForSelector('.con-mafocus__cere', {timeout: 15_000});
+    // The activation material is LATCHED past the commit: the coronation
+    // plays on the warm stage — a surface that cooled at the press was the
+    // shipped «scene swap» read.
+    expect(await page.locator('.con-mafocus--go').count(),
+      'the warm material holds through the ceremony').toBe(1);
     await shoot(page, '43-ceremony');
     for (let i = 0; i < 60 && await page.locator('.con-ma').count() > 0; i++) {
       await page.screenshot({clip: {x: 0, y: 0, width: 8, height: 8}}).catch(() => {});
