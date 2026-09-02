@@ -71,13 +71,19 @@ export function flightPlan(index: number, timings: DealTimings): DealFlight {
   };
 }
 
-/** Total BASE duration of the whole sequence (safety-timeout budget). */
+/**
+ * Total BASE duration of the whole sequence (safety-timeout budget). The
+ * director distance-scales each flight up to ×1.2 and stretches a card's
+ * air time to keep touchdowns ≥ staggerMs apart (launch spacing equals the
+ * cadence, so the chain adds at most one stretched flight over the last
+ * launch) — ×1.25 dominates that schedule.
+ */
 export function dealTotalMs(cardCount: number, timings: DealTimings): number {
   if (cardCount <= 0) {
     return 0;
   }
   const lastLaunch = flightPlan(cardCount - 1, timings).delayMs;
-  return lastLaunch + timings.flightMs + Math.max(timings.handoffMs, timings.deckExitMs);
+  return lastLaunch + timings.flightMs * 1.25 + Math.max(timings.handoffMs, timings.deckExitMs);
 }
 
 /**

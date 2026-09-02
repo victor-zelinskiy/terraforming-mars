@@ -347,6 +347,7 @@ import {conUiScale} from '@/client/console/consoleLayoutProfile';
 import {wsStageLayout, wsStageLayoutStyle} from '@/client/console/consoleWsStageLayout';
 import {openConsoleCardZoom, slotZoomOrigin} from '@/client/console/consoleCardZoom';
 import {createCardDealSequence, RiseLaunchExtras} from '@/client/console/cardDeal/cardDealSequence';
+import {CARD_NATURAL_W} from '@/client/console/cardDeal/cardDealModel';
 import {DealTargetRect} from '@/client/console/cardDeal/cardDealDirector';
 import {shouldRunDealOnce} from '@/client/console/cardDeal/cardDealMemory';
 import {
@@ -1308,19 +1309,53 @@ export default defineComponent({
         return;
       }
       this.fitStage();
-      const slotCards = Array.from(strip.querySelectorAll<HTMLElement>(':scope > .con-cards__slot > :is(.card-container, .pcard)'));
+      // Per-slot DESCENDANT resolve: the pick row's card lives inside the
+      // physical flip wrapper (__slot-flip > __slot-face), so the old
+      // direct-child query returned ZERO cards — deal.launch bailed on the
+      // count mismatch and the whole packet materialized in one frame (the
+      // reported «карты просто появляются»; the cinematic had been silently
+      // dead since the flip wrapper landed).
+      const slotCards = this.rowSlotCards(strip);
       // ROUND 1 deals off the real HUD deck; a PASSED packet enters from the
       // side the neighbor sits on — the lane anchor is its physical origin.
       const firstPacket = this.playerView.draftedCards.length === 0 && draftTrayState.pending.length === 0;
       const lane = this.receiveSide === 'left' ? this.$refs.laneLeft : this.$refs.laneRight;
+      if (firstPacket) {
+        // The cards come off the REAL pile: no synthetic stack sprite over
+        // the HUD (the pile is its own deck visual), and the proxies leave
+        // at the pile's honest on-screen scale — «взять карту с той колоды
+        // и поднести к себе», not a full-size card popping out of a corner.
+        const pile = document.querySelector<HTMLElement>('.con-deckstack__pile');
+        const pileRect = pile?.getBoundingClientRect();
+        this.deal.launch({
+          slotCards,
+          proxies: layer.proxyEls(),
+          deck: null,
+          originEl: pile,
+          originScale: pileRect !== undefined && pileRect.width > 4 ? pileRect.width / CARD_NATURAL_W : undefined,
+        });
+        return;
+      }
+      // The lane is a dimensionless anchor span — hand its POINT over
+      // explicitly (the sequence's originEl rect guard rightly rejects a
+      // 2px element, and the fallback dealt the neighbour's packet from
+      // the synthetic bottom-centre dealer while the wait stage had just
+      // named the side it comes from).
+      const laneRect = (lane as HTMLElement | undefined)?.getBoundingClientRect?.();
       this.deal.launch({
         slotCards,
         proxies: layer.proxyEls(),
         deck: layer.deckEl(),
-        originEl: firstPacket ?
-          document.querySelector<HTMLElement>('.con-deckstack__pile') :
-          (lane as HTMLElement | undefined) ?? null,
+        originPoint: laneRect !== undefined ?
+          {x: laneRect.left + laneRect.width / 2, y: laneRect.top + laneRect.height / 2} : undefined,
       });
+    },
+    /** The row's real card elements, one per slot, wrapper-agnostic (the
+     *  pick row nests its card inside the flip body; the buy row does not). */
+    rowSlotCards(strip: HTMLElement): Array<HTMLElement> {
+      return Array.from(strip.querySelectorAll<HTMLElement>(':scope > .con-cards__slot'))
+        .map((slot) => slot.querySelector<HTMLElement>(':is(.card-container, .pcard)'))
+        .filter((el): el is HTMLElement => el !== null);
     },
     // ── the buy chapter ─────────────────────────────────────────────────
     prepareBuyArrival(): void {
@@ -1359,7 +1394,7 @@ export default defineComponent({
         return;
       }
       this.fitStage();
-      const slotCards = Array.from(strip.querySelectorAll<HTMLElement>(':scope > .con-cards__slot > :is(.card-container, .pcard)'));
+      const slotCards = this.rowSlotCards(strip);
       this.deal.launch({
         slotCards,
         proxies: layer.proxyEls(),

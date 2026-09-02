@@ -28,6 +28,7 @@
 
 import {reactive} from 'vue';
 import {CardName} from '@/common/cards/CardName';
+import {preloadPremiumCardArt} from '@/client/cards/cardArt';
 import {restingRectOf} from '@/client/console/cardFlight/landingRect';
 import {AnimationHold, beginAnimationHold} from '@/client/components/presentation/animationHold';
 import {consoleReducedMotionActive, REDUCED_MOTION_CAP_MS} from '@/client/console/composables/useConsoleReducedMotion';
@@ -82,6 +83,22 @@ export type DealLaunchArgs = {
    * it. Absent / unmeasurable → the synthetic dealer, unchanged.
    */
   originEl?: HTMLElement | null,
+  /**
+   * An explicit origin POINT (viewport coords) — wins over `originEl`.
+   * For the draft's pass lanes: the lane is a dimensionless anchor span
+   * (~2px), so the `originEl` rect guard below rightly rejects it — and
+   * the neighbour's packet then dealt from the synthetic bottom-centre
+   * dealer while the wait stage had just named the SIDE it comes from.
+   */
+  originPoint?: {x: number, y: number},
+  /**
+   * The origin's honest ON-SCREEN card scale (rect width / CARD_NATURAL_W).
+   * Pass it when the origin is a real pile shown WITHOUT the synthetic
+   * stack sprite (deck: null): the cards then leave at the pile's own size
+   * and grow in flight — «взять карту с той колоды», never a full-size
+   * card popping out of a small object. Absent → the shared deal scale.
+   */
+  originScale?: number,
   /** When present, run the RESEARCH RISE instead of the deck deal. */
   rise?: RiseLaunchExtras,
 };
@@ -170,6 +187,13 @@ export function createCardDealSequence() {
       state.active = true;
       state.cards = [...cardNames];
       state.nonce++;
+      // Warm the art at ARM time (fetch + decode — the FaceLite parity
+      // contract): the launch is ≥300ms away, so by the first flight both
+      // the flying face and the landed card paint instantly. Without it a
+      // freshly-dealt card flew with a blank middle and the real card
+      // finished loading its art on the table (seen at 12fps as a bare
+      // frame with only the header populated).
+      preloadPremiumCardArt(cardNames);
       presentationHold?.release();
       presentationHold = beginAnimationHold('card-deal', {scope: 'notification-only'});
       return true;
@@ -224,9 +248,10 @@ export function createCardDealSequence() {
       // top card). Measured here, at launch, so a scrolled / rescaled HUD can
       // never be dealt from a stale rect; a degenerate rect falls back.
       const originRect = args.originEl?.getBoundingClientRect();
-      const deckAnchor = originRect !== undefined && originRect.width > 4 ?
-        {x: originRect.left + originRect.width / 2, y: originRect.top + originRect.height / 2} :
-        {x: layerW / 2, y: layerH - 200};
+      const deckAnchor = args.originPoint ??
+        (originRect !== undefined && originRect.width > 4 ?
+          {x: originRect.left + originRect.width / 2, y: originRect.top + originRect.height / 2} :
+          {x: layerW / 2, y: layerH - 200});
       const rise = args.rise;
       if (rise !== undefined && rise.sources.length === targets.length) {
         handle = runCardRiseTimeline({
@@ -252,6 +277,7 @@ export function createCardDealSequence() {
         targets,
         deck,
         deckAnchor,
+        originScale: args.originScale,
         timings: dealTimings(keys.length),
         onReveal,
         onDone: finish,
