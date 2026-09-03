@@ -296,7 +296,6 @@ test('Колонии door: the target is a nested step, B keeps the pick, the re
   await press(page, 'ArrowRight', 500);
   step = await readStep(page);
   expect(step.focusedCard, 'the cursor moved to the neighbour').not.toBe(first);
-  const second = step.focusedCard;
   await press(page, 'Escape', 900);
   expect(await page.locator('.con-colfocus__targetstage').count(), 'B folds the step').toBe(0);
   let row = await targetRowText(page);

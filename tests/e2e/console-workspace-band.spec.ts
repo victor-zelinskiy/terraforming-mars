@@ -85,16 +85,30 @@ async function appears(page: Page, sel: string, ms = 4000): Promise<boolean> {
     .then(() => true).catch(() => false);
 }
 
+/** An on-screen box, or null when the member is absent / display: none. */
+type BandBox = {l: number, r: number, t: number, b: number} | null;
+
 /** The band + rail geometry a workspace surface must satisfy. */
 type BandProbe = {
   hasMarker: boolean,
   bandLeft: number,
+  bandRight: number,
+  bandTop: number,
+  bandBottom: number,
+  /** The four hull members' boxes (the central-opening contract). */
+  strat: BandBox,
+  stratDrawn: boolean,
+  railReplaced: boolean,
+  strip: BandBox,
+  cmdbar: BandBox,
+  shade: BandBox,
+  shadeOn: boolean,
+  shadeFullBleed: boolean,
   railRight: number,
   railZ: string,
   railHostZ: string,
   auxHidden: boolean,
   auxZ: number,
-  bandRight: number,
   viewportW: number,
   panelOverflow: number,
 };

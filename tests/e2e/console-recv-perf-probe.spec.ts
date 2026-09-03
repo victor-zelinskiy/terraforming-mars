@@ -255,22 +255,6 @@ function metricsDelta(a: CdpMetrics, b: CdpMetrics): CdpMetrics {
   return out;
 }
 
-/** DOM census of the scene (docked beat). */
-async function sceneCensus(page: Page): Promise<Record<string, number>> {
-  return await page.evaluate(() => {
-    const recv = document.querySelector('.con-recv');
-    const q = (sel: string) => recv === null ? 0 : recv.querySelectorAll(sel).length;
-    return {
-      totalNodes: recv === null ? 0 : recv.querySelectorAll('*').length,
-      pcards: q('.pcard'),
-      imgs: q('img'),
-      minis: q('.con-recv__mini'),
-      strips: q('[data-recv-strip]'),
-      docNodes: document.querySelectorAll('*').length,
-    };
-  });
-}
-
 /**
  * RECV_PERF_NOSHOT=1 — a PURE-VIDEO pass: every screenshot (including the
  * 8×8 BeginFrame pump) is suppressed. The Playwright recorder muxes GRAY

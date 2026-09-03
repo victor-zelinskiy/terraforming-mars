@@ -1,5 +1,5 @@
 import {expect, test} from '@playwright/test';
-import {bootToBoard, corporationsExcluding, soloGameConfig, visibleSurfaces} from './consoleStart';
+import {openBotBoardDetail, bootToBoard, corporationsExcluding, soloGameConfig, visibleSurfaces} from './consoleStart';
 
 /**
  * ARIDOR (C30) — the first corporation whose cube COLOUR carries no rule: «a
@@ -53,7 +53,7 @@ test.describe('console: a MarsBot corporation whose colours share one meaning', 
     await expect(corpLine).toContainText(/aridor/i);
 
     // The printed BOARD detail (R3 — the bot seat's own reader).
-    await key(page, 'KeyV', 1400);
+    await openBotBoardDetail(page);
     const tracks = page.locator('.mb-tracks');
     await expect(tracks).toBeVisible();
 

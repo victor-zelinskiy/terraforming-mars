@@ -1,5 +1,5 @@
 import {expect, test} from '@playwright/test';
-import {bootToBoard, corporationsExcluding, soloGameConfig, visibleSurfaces} from './consoleStart';
+import {openBotBoardDetail, bootToBoard, corporationsExcluding, soloGameConfig, visibleSurfaces} from './consoleStart';
 
 /**
  * MANUTECH (C29) — its SETUP box puts a black cube «above the #5 and #12
@@ -53,7 +53,7 @@ test.describe('console: MarsBot corporation marked columns', () => {
     await expect(corpLine).toContainText(/manutech/i);
 
     // The printed BOARD detail (R3 — the bot seat's own reader).
-    await key(page, 'KeyV', 1400);
+    await openBotBoardDetail(page);
     const tracks = page.locator('.mb-tracks');
     await expect(tracks).toBeVisible();
 

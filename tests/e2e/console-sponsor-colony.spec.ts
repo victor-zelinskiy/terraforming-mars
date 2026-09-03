@@ -49,6 +49,11 @@ function cfg(seed: number) {
     // Four colony tiles exactly → no solo setup-removal step in the way.
     customColoniesList: ['Luna', 'Triton', 'Callisto', 'Ceres'],
     customPreludes: ['Eccentric Sponsor', 'Metals Company', 'Supplier', 'Business Empire'],
+    // GUARANTEED, never fished for: cards-on-top (the dev mechanism every
+    // createGameWithCards seeder uses) puts the project in the wizard's deal.
+    // The old 40-random-creates loop was ~4 %/attempt and shrank further with
+    // every deck the fork adds — it exhausted itself on a live server.
+    customProjectCards: ['Trading Colony'],
     requiresMoonTrackCompletion: false, requiresVenusTrackCompletion: false,
     moonStandardProjectVariant: false, moonStandardProjectVariant1: false,
     altVenusBoard: false, escapeVelocity: undefined, twoCorpsVariant: false, customCeos: [],

@@ -10,7 +10,11 @@
         "vue-shims.d.ts"
     ],
     // E2E specs use @playwright/test (its own runner/types) and are compiled by
-    // Playwright, not by the Mocha/tsc test build.
+    // Playwright, not by the Mocha/tsc test build. They are TYPE-CHECKED by
+    // their own noEmit config (tests/e2e/tsconfig.json), chained into
+    // `npm run build:test` — Playwright transpiles without checking, so
+    // without that gate the e2e tree rots silently (the floodgateSteel
+    // payment-literal rot went unnoticed until the specs were RUN).
     "exclude": [
         "e2e"
     ]

@@ -95,19 +95,6 @@ async function createGame(request: APIRequestContext): Promise<string> {
 }
 
 
-async function key(page: Page, k: string, wait = 600): Promise<void> {
-  await page.keyboard.press(k);
-  await page.waitForTimeout(wait);
-}
-
-async function removalPickLive(page: Page): Promise<boolean> {
-  if (await page.locator('.con-colonies').count() === 0) {
-    return false;
-  }
-  const text = (await page.locator('.con-colonies__summary').textContent().catch(() => '')) ?? '';
-  return text.includes('УБРАТЬ КОЛОНИЮ');
-}
-
 /**
  * Walk the whole game opening until the action phase is live. The payout is
  * injected only AFTERWARDS: during the start wizard the hand dock has no real

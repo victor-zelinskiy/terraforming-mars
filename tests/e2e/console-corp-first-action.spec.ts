@@ -158,7 +158,6 @@ test.describe('console corp first action — the start workspace stage', () => {
 
     // ── A performs the action: the workspace yields to the city placement.
     await key(page, 'Enter', 1800);
-    const placement = page.locator('.con-context__task-kicker');
     // ⚠️ EVERY `.con-context` read here is BOUNDED. The config leaves
     // Playwright's actionTimeout at its default 0 (unlimited), so an
     // `innerText()` against a panel that has UNMOUNTED auto-waits until the

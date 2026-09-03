@@ -1,5 +1,5 @@
 import {expect, test} from '@playwright/test';
-import {bootToBoard, corporationsExcluding, soloGameConfig, visibleSurfaces} from './consoleStart';
+import {openBotBoardDetail, bootToBoard, corporationsExcluding, soloGameConfig, visibleSurfaces} from './consoleStart';
 
 /**
  * POSEIDON (C33) — the first corporation whose Setup box puts something on the
@@ -60,7 +60,7 @@ test.describe('console: a MarsBot corporation that settles at setup', () => {
     await expect(corpLine).toContainText(/poseidon/i);
 
     // The bot mat: exactly ONE track has moved, and it is the topmost.
-    await key(page, 'KeyV', 1400);
+    await openBotBoardDetail(page);
     const tracks = page.locator('.mb-tracks');
     await expect(tracks).toBeVisible();
     const positions = await tracks.locator('.mb-track__pos').evaluateAll(

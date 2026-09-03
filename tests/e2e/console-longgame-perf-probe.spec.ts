@@ -32,7 +32,7 @@
  *   LONGGAME_PERF=1 LONGGAME_PERF_LABEL=baseline BASE_URL=http://localhost:8123 \
  *     npx playwright test tests/e2e/console-longgame-perf-probe.spec.ts --workers=1
  */
-import {expect, test, Page, CDPSession, APIRequestContext} from '@playwright/test';
+import {expect, test, Page, CDPSession} from '@playwright/test';
 import * as fs from 'fs';
 import * as path from 'path';
 

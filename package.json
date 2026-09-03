@@ -1,6 +1,6 @@
 {
   "name": "terraforming-mars",
-  "version": "1.2.669",
+  "version": "1.2.670",
   "description": "Terraforming Mars Game",
   "engines": {
     "node": ">=24.19.0 <25"
@@ -83,7 +83,7 @@
     "build": "npm run make:static && npm run build:server && npm run build:client",
     "build:client": "npm run make:cards && cross-env NODE_ENV=production webpack",
     "build:server": "tsc --build src/tsconfig.json && tsc-alias -p src/tsconfig.json",
-    "build:test": "tsc --build tests/tsconfig.json",
+    "build:test": "tsc --build tests/tsconfig.json && tsc -p tests/e2e/tsconfig.json",
     "build:tests": "npm run build:test",
     "clean": "rimraf ./build/ ./build-desktop/ ./src/genfiles/",
     "push": "node scripts/sync-push.mjs",

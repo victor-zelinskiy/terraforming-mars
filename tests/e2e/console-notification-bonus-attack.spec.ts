@@ -36,9 +36,6 @@ const CONFIG = soloGameConfig({
   customProjectCards: [CHEAP_CARD],
 });
 
-type Wire = {type: string, options?: Array<Wire>, cards?: Array<{name: string}>, min?: number, buttonLabel?: string};
-type Model = {waitingFor?: Wire, game: {phase: string, generation: number}};
-
 type CardSample = {
   id: string,
   sign: string,
@@ -81,8 +78,10 @@ async function settle(page: Page, ms: number): Promise<void> {
  */
 async function armAuditor(page: Page): Promise<void> {
   await page.evaluate(() => {
+    // The OUTER Sample (module scope) applies — a narrower local
+    // redeclaration silently dropped `evqRect`/`genRect` from the type while
+    // the sampler kept collecting them.
     const w = window as unknown as {__notifSamples?: Array<Sample>};
-    type Sample = {t: number, cards: Array<unknown>, tailVisible: boolean, evqVisible: boolean};
     w.__notifSamples = [];
     const visible = (el: Element | null): boolean => {
       if (el === null) {

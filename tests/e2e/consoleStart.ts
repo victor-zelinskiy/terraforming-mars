@@ -1243,7 +1243,7 @@ type WirePrompt = {
   amount?: number,
   count?: number,
   options?: Array<WirePrompt>,
-  cards?: Array<{name: string}>,
+  cards?: Array<{name: string, calculatedCost?: number}>,
   spaces?: Array<string>,
   players?: Array<string>,
   coloniesModel?: Array<{name: string}>,
@@ -1254,6 +1254,9 @@ type WirePrompt = {
 type WirePlayerModel = {
   waitingFor?: WirePrompt,
   game: {phase: string},
+  /** The viewer's own half of the model — specs narrow it with a local cast
+   *  (`model.thisPlayer as {steel?: number}`), so it stays `unknown` here. */
+  thisPlayer?: unknown,
 };
 
 /** A response body for `player/input`, kept loose for the same reason. */
@@ -1551,6 +1554,25 @@ export async function openConsole(page: Page, playerId: string, query = ''): Pro
   // still races the warm-up's top-layer surface. The veil's unmount is the
   // structural boundary between "painted" and "ready for the spec to drive".
   await page.waitForSelector('.boot-loader', {state: 'detached', timeout: 150_000});
+}
+
+/**
+ * Open the MarsBot PRINTED-BOARD detail (`.mb-tracks`) from Info Mode with
+ * the BOT seat on stage.
+ *
+ * The Information rework made the bot board a ROUTE, not a verb: R3 opens
+ * the «Экран бота» hub (`infoRoute 'botScreen'`), whose focus ring starts on
+ * «Планшет бота» (`[data-bot-entry="botBoard"]`), and A descends into the
+ * board detail. The ten bot-corp probes each pressed the pre-rework single
+ * R3 and rotted together — one driver, so the NEXT route change is one edit.
+ */
+export async function openBotBoardDetail(page: Page): Promise<void> {
+  await page.keyboard.press('KeyV'); // R3 → the «Экран бота» hub
+  await page.locator('[data-bot-entry="botBoard"]').waitFor({state: 'visible', timeout: 15_000});
+  await page.waitForTimeout(700); // the hub's entrance settles under the cursor
+  await page.keyboard.press('Enter'); // A on the default focus → «Планшет бота»
+  await page.locator('.mb-tracks').waitFor({state: 'visible', timeout: 15_000});
+  await page.waitForTimeout(700); // the detail's own entrance settles
 }
 
 /**

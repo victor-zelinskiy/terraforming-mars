@@ -1,5 +1,5 @@
 import {expect, test} from '@playwright/test';
-import {bootToBoard, soloGameConfig, visibleSurfaces} from './consoleStart';
+import {openBotBoardDetail, bootToBoard, soloGameConfig, visibleSurfaces} from './consoleStart';
 
 /**
  * KUIPER COOPERATIVE (C41) — six cubes, all on the space track: three white
@@ -45,7 +45,7 @@ test.describe('console: the MarsBot corporation whose whole game is one mined tr
     await expect(corpLine).toContainText(/kuiper/i);
 
     // The bot's printed MAT (R3): six cubes on ONE track, three of each colour.
-    await key(page, 'KeyV', 1400);
+    await openBotBoardDetail(page);
     const tracks = page.locator('.mb-tracks');
     await expect(tracks).toBeVisible();
     // The legend paints its own swatches, so count only the ones ON the grid.

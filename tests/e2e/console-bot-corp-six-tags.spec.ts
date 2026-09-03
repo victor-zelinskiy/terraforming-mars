@@ -1,5 +1,5 @@
 import {expect, test} from '@playwright/test';
-import {bootToBoard, corporationsExcluding, soloGameConfig, visibleSurfaces} from './consoleStart';
+import {openBotBoardDetail, bootToBoard, corporationsExcluding, soloGameConfig, visibleSurfaces} from './consoleStart';
 
 /**
  * POLYPHEMOS (C32) — SIX printed starting tags, the most of any implemented
@@ -49,7 +49,7 @@ test.describe('console: a MarsBot corporation with six starting tags', () => {
     await expect(corpLine).toContainText(/polyphemos/i);
 
     // The printed BOARD detail (R3 — the bot seat's own reader).
-    await key(page, 'KeyV', 1400);
+    await openBotBoardDetail(page);
     const tracks = page.locator('.mb-tracks');
     await expect(tracks).toBeVisible();
 

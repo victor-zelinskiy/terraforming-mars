@@ -1,5 +1,5 @@
 import {expect, test} from '@playwright/test';
-import {bootToBoard, soloGameConfig, visibleSurfaces} from './consoleStart';
+import {openBotBoardDetail, bootToBoard, soloGameConfig, visibleSurfaces} from './consoleStart';
 
 /**
  * PALLADIN SHIPPING (C43) — twelve cubes on TWO tracks: six white on space,
@@ -46,7 +46,7 @@ test.describe('console: the MarsBot corporation that needs both halves of a ship
     await expect(corpLine).toContainText(/palladin/i);
 
     // The bot's printed MAT (R3): twelve cubes over TWO tracks.
-    await key(page, 'KeyV', 1400);
+    await openBotBoardDetail(page);
     const tracks = page.locator('.mb-tracks');
     await expect(tracks).toBeVisible();
     const cubes = tracks.locator('.mb-track .mb-cell__cube');

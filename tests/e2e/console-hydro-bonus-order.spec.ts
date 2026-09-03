@@ -405,8 +405,10 @@ test.describe('the bonus offer never stands over the cards the placement drew', 
     // frame-by-frame, because the end states of a FLIP and of a second card
     // fading in are identical — only the middle tells them apart.
     await page.evaluate(() => {
+      // The OUTER CardSample (module scope) applies — a narrower local
+      // redeclaration silently dropped `apart`/`where` from the type while the
+      // sampler kept collecting them.
       const w = window as unknown as {__cardFrames?: Array<CardSample>, __cardStop?: () => void};
-      type CardSample = {t: number, visible: number, zoom: boolean};
       const out: Array<CardSample> = [];
       const t0 = performance.now();
       /**

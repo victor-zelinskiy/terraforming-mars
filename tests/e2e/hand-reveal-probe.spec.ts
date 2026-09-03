@@ -85,11 +85,6 @@ async function shoot(page: Page, name: string): Promise<void> {
   await page.screenshot({path: path.join(OUT, `${name}.png`)});
 }
 
-async function key(page: Page, code: string, settleMs = 450): Promise<void> {
-  await page.keyboard.press(code);
-  await page.waitForTimeout(settleMs);
-}
-
 /**
  * Boot a REAL game with `buyProjects` cards already in hand — the subject of
  * this probe is the dock ↔ hand transition, so the whole pregame is the

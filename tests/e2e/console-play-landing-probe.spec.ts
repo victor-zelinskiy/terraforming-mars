@@ -369,7 +369,7 @@ async function bootGame(page: Page, request: APIRequestContext, withPreludes = f
           await page.waitForFunction(() => {
             const rail = document.querySelector<HTMLElement>('.con-jrail--presentation-complete');
             const terminal = rail?.querySelector<HTMLElement>('.con-jrail__view--terminal');
-            if (rail === null || terminal === null) {
+            if (!rail || !terminal) {
               return false;
             }
             /* Compare rendered boxes, not `rem` against the document root:

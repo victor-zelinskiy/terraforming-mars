@@ -20,7 +20,7 @@
  *   the replacement FLIES in (the ordinary landing proxy);
  *   and only then is the city on the board.
  */
-import {expect, test, Page, APIRequestContext} from '@playwright/test';
+import {expect, test, Page} from '@playwright/test';
 import * as fs from 'fs';
 import * as path from 'path';
 import {bootIntoGame, forceSwiftPlacement, soloGameConfig, press} from './consoleStart';

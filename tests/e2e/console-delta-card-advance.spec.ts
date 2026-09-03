@@ -170,7 +170,6 @@ type Readout = {
   declineUp: boolean,
   backLabel: string,
   routeText: string,
-  composerCrumbStage: string,
   composerUp: boolean,
   composerCta: string,
   /** Which workspace owns the DRAWN header — it must not change on the walk. */

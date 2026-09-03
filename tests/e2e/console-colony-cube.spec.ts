@@ -197,7 +197,6 @@ async function buildAndVerify(page: Page, tag: string): Promise<string> {
     await key(page, 'ArrowRight', 500);
   }
   expect(testAttr, `no buildable colony tile — walked ${seen.join(', ')}`).not.toBe('');
-  const colonyName = testAttr.replace('con-colony-', '');
   await shoot(page, `${tag}-11-pick-mode`);
 
   const slotCubes = page.locator(`[data-test="${testAttr}"] [data-colony-build-slot] .player-cube`);

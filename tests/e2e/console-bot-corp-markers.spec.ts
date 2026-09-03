@@ -1,5 +1,5 @@
 import {expect, test} from '@playwright/test';
-import {bootToBoard, soloGameConfig, visibleSurfaces} from './consoleStart';
+import {openBotBoardDetail, bootToBoard, soloGameConfig, visibleSurfaces} from './consoleStart';
 
 /**
  * INTERPLANETARY CINEMATICS (C04) — its SETUP box replaces the TRACKERS of
@@ -48,7 +48,7 @@ test.describe('console: MarsBot corporation white trackers', () => {
     await expect(corpLine).toContainText(/interplanetary cinematics/i);
 
     // The printed BOARD detail (R3 — the bot seat's own reader).
-    await key(page, 'KeyV', 1400);
+    await openBotBoardDetail(page);
     const tracks = page.locator('.mb-tracks');
     await expect(tracks).toBeVisible();
 

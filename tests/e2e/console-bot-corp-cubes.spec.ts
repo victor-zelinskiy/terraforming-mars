@@ -1,5 +1,5 @@
 import {expect, test} from '@playwright/test';
-import {bootToBoard, soloGameConfig, visibleSurfaces} from './consoleStart';
+import {openBotBoardDetail, bootToBoard, soloGameConfig, visibleSurfaces} from './consoleStart';
 
 /**
  * HELION (C03) — the first MarsBot corporation that seeds CUBES on the bot's
@@ -48,7 +48,7 @@ test.describe('console: MarsBot corporation cubes on the tracks', () => {
 
     // The printed BOARD detail (R3 — the bot seat's own reader) with the
     // corporation cubes on its tracks.
-    await key(page, 'KeyV', 1400);
+    await openBotBoardDetail(page);
     const tracks = page.locator('.mb-tracks');
     await expect(tracks).toBeVisible();
 

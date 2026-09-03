@@ -199,48 +199,6 @@ async function drainNonMenu(request: APIRequestContext, seats: ReadonlyArray<str
   }
 }
 
-/**
- * Bring the turn round to `pid` WITH at least `money`: drain research,
- * pass every other seat that holds a menu, and let the generations turn
- * until the seat is both on the clock and able to pay. Waiting passively
- * cannot work — a table where everyone has passed only moves when its
- * prompts are answered.
- */
-async function driveTurnTo(
-  request: APIRequestContext,
-  seats: ReadonlyArray<string>,
-  pid: string,
-  money = 0,
-  maxRounds = 80,
-): Promise<void> {
-  for (let round = 0; round < maxRounds; round++) {
-    await drainNonMenu(request, seats);
-    const mine = await fetchPlayerModel(request, pid);
-    const wf: Wire = mine.waitingFor;
-    if (wf !== undefined && isActionMenuTitle(typeof wf.title === 'string' ? wf.title : undefined) &&
-        ((mine as Wire).thisPlayer?.megacredits ?? 0) >= money) {
-      return;
-    }
-    for (const other of seats) {
-      if (other === pid) {
-        continue;
-      }
-      const m = await fetchPlayerModel(request, other);
-      const owf: Wire = m.waitingFor;
-      if (owf !== undefined && isActionMenuTitle(typeof owf.title === 'string' ? owf.title : undefined)) {
-        await passGeneration(request, other);
-      }
-    }
-    // The seat itself may hold the clock but still be too poor — pass and
-    // let the next generation's income arrive.
-    if (wf !== undefined && isActionMenuTitle(typeof wf.title === 'string' ? wf.title : undefined)) {
-      await passGeneration(request, pid);
-    }
-    await new Promise((r) => setTimeout(r, 200));
-  }
-  throw new Error(`the turn never came round to ${pid} with ${money} M€`);
-}
-
 /** Wait until THIS seat's action menu is live and return it. */
 async function awaitMyMenu(request: APIRequestContext, pid: string, maxMs = 60_000): Promise<Wire> {
   const started = Date.now();

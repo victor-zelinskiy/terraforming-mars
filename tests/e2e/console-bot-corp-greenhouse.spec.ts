@@ -1,5 +1,5 @@
 import {expect, test} from '@playwright/test';
-import {bootToBoard, soloGameConfig, visibleSurfaces} from './consoleStart';
+import {openBotBoardDetail, bootToBoard, soloGameConfig, visibleSurfaces} from './consoleStart';
 
 /**
  * ECOTEC (C40) — a greenhouse on the corporation card: every plant, microbe or
@@ -49,7 +49,7 @@ test.describe('console: the MarsBot corporation that grows plants on its own car
     await expect(corpLine).toContainText(/ecotec/i);
 
     // The bot's printed MAT (R3) — the white marker the setup box installed.
-    await key(page, 'KeyV', 1400);
+    await openBotBoardDetail(page);
     const tracks = page.locator('.mb-tracks');
     await expect(tracks).toBeVisible();
     await expect(tracks.locator('.mb-track--whitemarker'),

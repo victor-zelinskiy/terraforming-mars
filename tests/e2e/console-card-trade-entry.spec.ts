@@ -61,7 +61,7 @@ type Readout = {
 async function readout(page: Page): Promise<Readout> {
   return page.evaluate(() => {
     const head = document.querySelector('.con-cardactions__head');
-    const text = (root: Element | null, sel: string): string =>
+    const text = (root: Document | Element | null, sel: string): string =>
       (root?.querySelector(sel) as HTMLElement | null)?.innerText.trim() ?? '';
     return {
       crumbSubject: text(head, '.con-wshead__subject'),
