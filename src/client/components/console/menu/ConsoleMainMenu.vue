@@ -371,6 +371,7 @@ import ConsoleOptionsPanel from '@/client/components/console/menu/ConsoleOptions
 import ConsoleAdminRollback from '@/client/components/console/menu/ConsoleAdminRollback.vue';
 import ConsolePlaygroundHub from '@/client/components/console/menu/ConsolePlaygroundHub.vue';
 import {isAdminName} from '@/common/utils/adminName';
+import {apiEndpointIsLocal} from '@/client/utils/runtimeConfig';
 import {identityState, ensureIdentityLoaded} from '@/client/components/mainMenu/identity/identityState';
 import {ensureProfilesLoaded} from '@/client/components/mainMenu/profilesState';
 import {prefillIdentityFromSteam} from '@/client/components/mainMenu/identity/steamIdentity';
@@ -442,6 +443,14 @@ export default defineComponent({
     },
     isAdmin(): boolean {
       return isAdminName(this.identityName);
+    },
+    /**
+     * The game-rollback tool: every player when the menu talks to THIS
+     * machine's server (local mode — the server enforces the same rule as a
+     * loopback gate), plus the ADMIN_NAME dev door from anywhere.
+     */
+    rollbackAvailable(): boolean {
+      return this.isAdmin || apiEndpointIsLocal();
     },
     /** Unfinished games on THIS device's server. */
     games(): ReadonlyArray<JoinableGameSummary> {
@@ -622,9 +631,12 @@ export default defineComponent({
       items.push({id: 'games', labelKey: 'My games', subText: $t('Continue or join your unfinished games'), glyph: '⧉', badge: this.games.filter((g) => g.you !== undefined).length});
       items.push({id: 'profile', labelKey: 'Player profile', subText: this.identityName !== '' ? this.identityName : $t('Set your name'), glyph: '◉', badge: 0});
       items.push({id: 'options', labelKey: 'Options', subText: $t('Interface and display settings'), glyph: '⚙', badge: 0});
-      // Dev-only tools — visible ONLY to the ADMIN_NAME identity.
-      if (this.isAdmin) {
+      // Rollback: every player in local mode (games on this device); the
+      // overlay carries the local-only note. Playground stays ADMIN_NAME-only.
+      if (this.rollbackAvailable) {
         items.push({id: 'admin', labelKey: 'Game rollback', subText: $t('Roll a game back to an earlier save'), glyph: '⟲', badge: 0});
+      }
+      if (this.isAdmin) {
         items.push({id: 'playground', labelKey: 'Playground', subText: $t('Visual dev stands of the interface'), glyph: '❏', badge: 0});
       }
       // Windows desktop, shortcut not yet added → an explicit "Add to Steam" plate (shared

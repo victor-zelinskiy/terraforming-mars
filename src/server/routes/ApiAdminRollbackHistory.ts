@@ -5,8 +5,7 @@ import {Request} from '../Request';
 import {Response} from '../Response';
 import {Database} from '../database/Database';
 import {isGameId} from '../../common/Types';
-import {isAdminName} from '../../common/utils/adminName';
-import {serializedSaveEntry} from '../models/adminRollback';
+import {rollbackAuthorized, serializedSaveEntry} from '../models/adminRollback';
 import {AdminRollbackHistory, AdminRollbackSave} from '../../common/models/AdminRollbackModel';
 
 /**
@@ -15,7 +14,8 @@ import {AdminRollbackHistory, AdminRollbackSave} from '../../common/models/Admin
  * Returns the full save history of one game — one {@link AdminRollbackSave} per
  * persisted save (its generation + phase), ascending by save id. The client
  * derives the generation quick-picks (first save of each generation) and the
- * save slider from this. Name-gated on ADMIN_NAME.
+ * save slider from this. Gated by {@link rollbackAuthorized} (loopback
+ * connection, or the ADMIN_NAME dev door).
  *
  * COST: reads + parses every save version once. That is O(saves) full JSON
  * parses; acceptable for a manually-triggered dev tool on one selected game.
@@ -27,7 +27,7 @@ export class ApiAdminRollbackHistory extends Handler {
   }
 
   public override async get(req: Request, res: Response, ctx: Context): Promise<void> {
-    if (!isAdminName(ctx.url.searchParams.get('name'))) {
+    if (!rollbackAuthorized(ctx.ip, ctx.url.searchParams.get('name'))) {
       responses.notAuthorized(req, res);
       return;
     }

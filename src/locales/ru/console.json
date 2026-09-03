@@ -624,6 +624,7 @@
     "Shown": "Показаны",
     "Game rollback": "Откат партий",
     "Roll a game back to an earlier save": "Откатить партию к раннему сейву",
+    "Local games only — games hosted on this device.": "Только локальные партии — созданные на этом устройстве.",
     "Could not load games": "Не удалось загрузить партии",
     "No games on this server.": "На сервере нет партий.",
     "Could not load game history": "Не удалось загрузить историю партии",

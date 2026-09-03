@@ -5,8 +5,7 @@ import {Request} from '../Request';
 import {Response} from '../Response';
 import {Database} from '../database/Database';
 import {isGameId} from '../../common/Types';
-import {isAdminName} from '../../common/utils/adminName';
-import {savesToDelete} from '../models/adminRollback';
+import {rollbackAuthorized, savesToDelete} from '../models/adminRollback';
 import {AdminRollbackResult} from '../../common/models/AdminRollbackModel';
 import {CampaignManager} from '../campaign/CampaignManager';
 
@@ -19,7 +18,8 @@ import {CampaignManager} from '../campaign/CampaignManager';
  *
  * The delete count is derived from the persisted save-id set ({@link savesToDelete}),
  * NOT `GameLoader.restoreGameAt` (whose count is off-by-one for an idle game).
- * Name-gated on ADMIN_NAME.
+ * Gated by {@link rollbackAuthorized} (loopback connection, or the ADMIN_NAME
+ * dev door).
  */
 export class ApiAdminRollback extends Handler {
   public static readonly INSTANCE = new ApiAdminRollback();
@@ -28,7 +28,7 @@ export class ApiAdminRollback extends Handler {
   }
 
   public override async post(req: Request, res: Response, ctx: Context): Promise<void> {
-    if (!isAdminName(ctx.url.searchParams.get('name'))) {
+    if (!rollbackAuthorized(ctx.ip, ctx.url.searchParams.get('name'))) {
       responses.notAuthorized(req, res);
       return;
     }

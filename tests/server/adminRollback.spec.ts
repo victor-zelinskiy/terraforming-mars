@@ -1,6 +1,6 @@
 import {expect} from 'chai';
 import {testGame} from '../TestGame';
-import {buildAdminGameSummary, savesToDelete, serializedSaveEntry} from '../../src/server/models/adminRollback';
+import {buildAdminGameSummary, rollbackAuthorized, savesToDelete, serializedSaveEntry} from '../../src/server/models/adminRollback';
 import {SerializedGame} from '../../src/server/SerializedGame';
 import {Phase} from '../../src/common/Phase';
 
@@ -33,6 +33,26 @@ describe('server/models/adminRollback', () => {
     it('projects generation + phase for a save', () => {
       const serialized = {generation: 7, phase: Phase.PRODUCTION} as SerializedGame;
       expect(serializedSaveEntry(serialized, 42)).to.deep.eq({saveId: 42, generation: 7, phase: Phase.PRODUCTION});
+    });
+  });
+
+  describe('rollbackAuthorized', () => {
+    it('admits any name over a loopback connection (local games belong to the machine owner)', () => {
+      // ctx.ip socket form is `!address!` (getIPAddress).
+      for (const ip of ['!127.0.0.1!', '!::1!', '!::ffff:127.0.0.1!']) {
+        expect(rollbackAuthorized(ip, 'Виктор'), ip).to.eq(true);
+        expect(rollbackAuthorized(ip, null), ip + ' no name').to.eq(true);
+      }
+    });
+
+    it('refuses a non-admin LAN guest', () => {
+      expect(rollbackAuthorized('!192.168.0.42!', 'Виктор')).to.eq(false);
+      expect(rollbackAuthorized('!10.0.0.5!', null)).to.eq(false);
+    });
+
+    it('keeps the ADMIN_NAME dev door from anywhere', () => {
+      expect(rollbackAuthorized('!192.168.0.42!', 'admin')).to.eq(true);
+      expect(rollbackAuthorized('!192.168.0.42!', '  Admin ')).to.eq(true);
     });
   });
 

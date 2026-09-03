@@ -89,6 +89,24 @@ export function apiUrl(path: string): string {
   return base.replace(/\/$/, '') + '/' + path.replace(/^\//, '');
 }
 
+/**
+ * Whether the API endpoint the app talks to lives on THIS machine (loopback):
+ * the Electron host mode (embedded server at 127.0.0.1) or a browser opened
+ * against localhost. Gates the local-only tools (game rollback): «my machine's
+ * games» is a property of the CONNECTION, mirroring the server's isLoopbackIp
+ * gate — a LAN guest's browser (a remote hostname) answers false.
+ */
+export function apiEndpointIsLocal(): boolean {
+  const base = apiBaseUrl();
+  try {
+    const hostname = base === '' ? window.location.hostname : new URL(base).hostname;
+    const bare = hostname.toLowerCase().replace(/^\[|\]$/g, '');
+    return bare === 'localhost' || bare === '::1' || bare.startsWith('127.');
+  } catch {
+    return false;
+  }
+}
+
 /** ws(s):// origin (no trailing slash). Pinned per game → override → derived from location. */
 export function wsBaseUrl(): string {
   const pinned = pinnedEndpoint();

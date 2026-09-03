@@ -2,6 +2,7 @@
   <div class="cm-overlay" role="dialog" :aria-label="$t('Game rollback')">
     <div class="cm-overlay__card cm-overlay__card--wide">
       <div class="cm-overlay__title">{{ $t('Game rollback') }}</div>
+      <div class="cm-admin__scope">{{ $t('Local games only — games hosted on this device.') }}</div>
 
       <!-- ── LIST: pick a game ─────────────────────────────────────────── -->
       <template v-if="view === 'list'">
@@ -116,8 +117,11 @@
 
 <script lang="ts">
 /**
- * CONSOLE-NATIVE ADMIN GAME-ROLLBACK — a dev-only main-menu plate (visible only
- * to the ADMIN_NAME identity). Two views:
+ * CONSOLE-NATIVE GAME-ROLLBACK — a main-menu plate for LOCAL games. Visible to
+ * every player when the menu talks to this machine's own server (plus the
+ * ADMIN_NAME dev door from anywhere); the server enforces the same rule as a
+ * loopback gate (`rollbackAuthorized`). The scope note under the title says the
+ * one limit out loud: only games hosted on this device. Two views:
  *
  *  - LIST: every game with its FRESH generation (server reads the authoritative
  *    instance, so a game whose generation advanced shows the real value). A =
@@ -169,7 +173,8 @@ export default defineComponent({
   name: 'ConsoleAdminRollback',
   components: {GamepadGlyph, ConsoleScrollArea},
   props: {
-    /** The admin's display name — carried on every request (server soft-gates). */
+    /** The player's display name — carried on every request (the server admits
+     *  a loopback connection regardless of it, or the ADMIN_NAME identity). */
     name: {type: String, required: true},
   },
   emits: ['close'],

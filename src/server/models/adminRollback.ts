@@ -1,6 +1,23 @@
 import {IGame} from '../IGame';
 import {SerializedGame} from '../SerializedGame';
 import {AdminRollbackGameSummary, AdminRollbackSave} from '../../common/models/AdminRollbackModel';
+import {isAdminName} from '../../common/utils/adminName';
+import {isLoopbackIp} from '../routes/ApiLocalGameDelete';
+
+/**
+ * May this request use the game-rollback tool?
+ *
+ * Two doors, either suffices:
+ *  - a LOOPBACK connection — the machine's owner rolling back games hosted on
+ *    their own device (the same connection-is-the-authorization model as
+ *    {@link isLoopbackIp}'s home, ApiLocalGameDelete: a LAN guest must not be
+ *    able to rewind the host's games, while the host owns them like files);
+ *  - the ADMIN_NAME soft identity — the pre-existing dev door, usable from a
+ *    remote browser against a dev server.
+ */
+export function rollbackAuthorized(ip: string, name: string | null | undefined): boolean {
+  return isLoopbackIp(ip) || isAdminName(name);
+}
 
 /**
  * Build an {@link AdminRollbackGameSummary} from the AUTHORITATIVE in-memory

@@ -9,12 +9,14 @@ import {
 } from '@/common/models/AdminRollbackModel';
 
 /**
- * Module-reactive state for the dev-only admin game-rollback tool (the console
+ * Module-reactive state for the local game-rollback tool (the console
  * main-menu «Откат партий» plate → ConsoleAdminRollback.vue). Module-level so it
  * survives the overlay's `v-if` mount/unmount, mirroring lobbyState.
  *
- * All calls carry the admin's display `name` — the server soft-gates on
- * ADMIN_NAME (see src/common/utils/adminName.ts).
+ * All calls carry the player's display `name` — the server admits a LOOPBACK
+ * connection regardless of the name (local games belong to the machine's
+ * owner), or the ADMIN_NAME identity from anywhere (`rollbackAuthorized` in
+ * src/server/models/adminRollback.ts).
  */
 type AdminRollbackState = {
   games: ReadonlyArray<AdminRollbackGameSummary>;
