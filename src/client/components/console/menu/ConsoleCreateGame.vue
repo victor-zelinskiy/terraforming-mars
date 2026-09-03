@@ -3,6 +3,34 @@
     <div class="cm-menu__bg" aria-hidden="true"></div>
     <div class="cm-menu__vignette" aria-hidden="true"></div>
 
+    <!-- ── Stage 0: the session mode («Отдельная партия» / «Кампания») ── -->
+    <template v-if="ui.stage === 'mode'">
+      <header class="cm-create__head">
+        <div class="cm-create__kicker">{{ $t('Create new game') }}</div>
+        <div class="cm-create__identity">
+          <span class="cm-identity__cube" :class="identityCubeClass" aria-hidden="true"></span>
+          <span class="cm-create__identity-name">{{ identityName }}</span>
+        </div>
+      </header>
+      <div class="cm-mode">
+        <button
+          v-for="(opt, i) in modeOptions"
+          :key="opt.id"
+          type="button"
+          class="cm-mode__tile"
+          :class="{'cm-mode__tile--cursor': ui.modeCursor === i, 'cm-mode__tile--campaign': opt.id === 'campaign'}"
+          @click="pickMode(i)"
+        >
+          <div class="cm-mode__label">{{ $t(opt.labelKey) }}</div>
+          <div class="cm-mode__desc">{{ $t(opt.descKey) }}</div>
+          <div v-if="opt.id === 'campaign'" class="cm-mode__route" aria-hidden="true">
+            <span v-for="n in 4" :key="n" class="cm-mode__dot" :class="{'cm-mode__dot--final': n === 4}"></span>
+          </div>
+        </button>
+      </div>
+    </template>
+
+    <template v-else>
     <header class="cm-create__head">
       <div class="cm-create__kicker">{{ $t('Create new game') }}</div>
       <div class="cm-tabs">
@@ -54,6 +82,16 @@
           @hover="setCursor('expansions', $event)"
           @activate="activateExpansions($event)"
         />
+        <!-- Campaign: no manual map pick — the route briefing replaces the deck. -->
+        <div v-else-if="isCampaign" class="cm-routebrief" :class="{'cm-routebrief--cursor': true}">
+          <div class="cm-routebrief__ghost" aria-hidden="true">
+            <PremiumMapFingerprint :random="true" variant="card" />
+          </div>
+          <div class="cm-routebrief__title" v-i18n>Mission route</div>
+          <div class="cm-routebrief__body" v-i18n>Four unique boards are generated when the campaign is assembled. The route never changes afterwards.</div>
+          <div class="cm-routebrief__note" v-if="botSeated" v-i18n>With the MarsBot seated, the route draws only from the boards it supports.</div>
+          <div class="cm-routebrief__note" v-i18n>Corporations merge between missions; Merger itself is excluded from the campaign prelude pool.</div>
+        </div>
         <ConsoleMapDeck
           v-else
           :rows="maps"
@@ -111,6 +149,7 @@
       @confirm="doLaunch"
       @cancel="closeOverlay"
     />
+    </template>
 
     <ConsoleCommandBar :context="commandContext" :commands="commands" />
   </div>
@@ -140,8 +179,10 @@ import {consoleActionOf} from '@/client/console/composables/consoleActionModel';
 import {useConsoleNativeSurface} from '@/client/console/composables/consoleNativeSurface';
 import ConsoleScrollArea from '@/client/components/console/foundation/ConsoleScrollArea.vue';
 import {
-  CREATE_DECKS,
   CreateDeckId,
+  SESSION_MODE_OPTIONS,
+  SessionModeOption,
+  createDecks,
   CrewRow,
   ExpansionRow,
   MapRow,
@@ -172,12 +213,17 @@ import {
 } from '@/client/console/menu/consoleCreateModel';
 import {
   applyCreatorIdentity,
+  botSeatedInState,
   clearSavedCreateGameState,
   createGameState,
+  isCampaignMode,
   resetCreateGameState,
   restoreCreateGameState,
+  setSessionMode,
 } from '@/client/components/create/premium/createGameState';
 import {submitPremiumCreateGame} from '@/client/components/create/premium/submitCreateGame';
+import {submitPremiumCreateCampaign} from '@/client/components/create/premium/submitCampaign';
+import PremiumMapFingerprint from '@/client/components/create/premium/PremiumMapFingerprint.vue';
 import {identityState, ensureIdentityLoaded, setIdentity} from '@/client/components/mainMenu/identity/identityState';
 import {ensureProfilesLoaded} from '@/client/components/mainMenu/profilesState';
 import {prefillIdentityFromSteam} from '@/client/components/mainMenu/identity/steamIdentity';
@@ -212,6 +258,7 @@ export default defineComponent({
     ConsoleTypePicker,
     ConsoleLaunchConfirm,
     ConsoleDevCardPicker,
+    PremiumMapFingerprint,
   },
   setup() {
     // Foundation: page-level overflow lock while this screen owns the viewport.
@@ -229,7 +276,16 @@ export default defineComponent({
   },
   computed: {
     decks() {
-      return CREATE_DECKS;
+      return createDecks();
+    },
+    modeOptions(): ReadonlyArray<SessionModeOption> {
+      return SESSION_MODE_OPTIONS;
+    },
+    isCampaign(): boolean {
+      return isCampaignMode();
+    },
+    botSeated(): boolean {
+      return botSeatedInState();
     },
     crew(): ReadonlyArray<CrewRow> {
       return crewRows();
@@ -291,6 +347,9 @@ export default defineComponent({
       return overlay?.kind === 'confirm' && (overlay.id === 'remove-human' || overlay.id === 'unseat-bot' || overlay.id === 'reset');
     },
     commandContext(): string {
+      if (this.ui.stage === 'mode') {
+        return 'Create new game';
+      }
       const overlay = this.ui.overlay;
       if (overlay?.kind === 'typePicker') {
         return 'Add participant';
@@ -310,6 +369,13 @@ export default defineComponent({
       return 'Create new game';
     },
     commands(): ReadonlyArray<ConsoleCommand> {
+      if (this.ui.stage === 'mode') {
+        return [
+          {control: 'dpadH', label: 'Choose'},
+          {control: 'confirm', label: 'Select'},
+          {control: 'back', label: 'Main menu'},
+        ];
+      }
       const overlay = this.ui.overlay;
       if (overlay?.kind === 'typePicker') {
         return [
@@ -353,8 +419,8 @@ export default defineComponent({
       if (this.removeHintVisible) {
         cmds.push({control: 'inspect', label: 'Remove'});
       }
-      cmds.push({control: 'secondary', label: this.ready ? 'Launch the party' : 'Go to the first issue', highlight: this.ready});
-      cmds.push({control: 'back', label: 'Main menu'});
+      cmds.push({control: 'secondary', label: this.ready ? (this.isCampaign ? 'Assemble the campaign' : 'Launch the party') : 'Go to the first issue', highlight: this.ready});
+      cmds.push({control: 'back', label: 'Game mode'});
       return cmds;
     },
     deckVerb(): {label: string, enabled: boolean} {
@@ -376,6 +442,9 @@ export default defineComponent({
       case 'expansions':
         return {label: 'Toggle', enabled: true};
       case 'map': {
+        if (this.isCampaign) {
+          return {label: 'The route is generated at assembly', enabled: false};
+        }
         const row = this.maps[this.ui.cursor.map];
         return {label: 'Select map', enabled: row !== undefined && !row.selected};
       }
@@ -427,6 +496,21 @@ export default defineComponent({
       // Foundation: presses resolve to SEMANTIC actions (X = launch — the
       // create screen's advertised verb; no raw button names).
       const action = consoleActionOf(intent, {secondary: 'launch'});
+      // ── Stage 0: the session-mode pick ──
+      if (this.ui.stage === 'mode') {
+        if (intent.kind === 'nav' && (intent.dir === 'left' || intent.dir === 'right')) {
+          const max = this.modeOptions.length - 1;
+          this.ui.modeCursor = intent.dir === 'right' ?
+            Math.min(max, this.ui.modeCursor + 1) : Math.max(0, this.ui.modeCursor - 1);
+          return true;
+        }
+        if (action === 'primary') {
+          this.pickMode(this.ui.modeCursor);
+        } else if (action === 'back') {
+          vueRoot(this).navigateInApp('/');
+        }
+        return true;
+      }
       const overlay = this.ui.overlay;
       if (overlay?.kind === 'devCards') {
         // The picker owns the pad completely (X = inspect there, not launch).
@@ -507,11 +591,23 @@ export default defineComponent({
         this.ui.overlay = {kind: 'confirm', id: 'reset', cursor: 0};
         return true;
       case 'back':
-        vueRoot(this).navigateInApp('/');
+        // One logical level: decks → the mode stage → the main menu.
+        this.ui.stage = 'mode';
         return true;
       default:
         return true;
       }
+    },
+    /** Stage 0 pick: apply the session mode and enter the decks. */
+    pickMode(i: number): void {
+      const opt = this.modeOptions[i];
+      if (opt === undefined) {
+        return;
+      }
+      this.ui.modeCursor = i;
+      setSessionMode(opt.id);
+      clampCreateCursors();
+      this.ui.stage = 'decks';
     },
     // ── Deck actions ───────────────────────────────────────────────────
     setDeck(deck: CreateDeckId): void {
@@ -589,6 +685,9 @@ export default defineComponent({
       }
     },
     activateMap(i: number): void {
+      if (this.isCampaign) {
+        return; // The route is generated — there is nothing to select.
+      }
       this.setCursor('map', i);
       const row = this.maps[i];
       if (row !== undefined) {
@@ -711,7 +810,11 @@ export default defineComponent({
       if (this.identityState.identity === undefined && slot0 !== undefined && slot0.name.trim() !== '') {
         setIdentity(slot0.name.trim(), slot0.color);
       }
-      void submitPremiumCreateGame();
+      if (this.isCampaign) {
+        void submitPremiumCreateCampaign();
+      } else {
+        void submitPremiumCreateGame();
+      }
     },
     // ── Shake feedback ─────────────────────────────────────────────────
     shakeRowFor(deck: CreateDeckId): number {

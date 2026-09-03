@@ -157,6 +157,13 @@ export interface IPlayer {
 
   // Used only during set-up
   pickedCorporationCard?: ICorporationCard;
+  /** Campaign mode: immutable campaign seat index (undefined in ordinary games). */
+  campaignSeat?: number;
+  /** Campaign mode: PRIVATE carried project cards («Наследие проектов»). */
+  campaignCarriedCards?: Array<CardName>;
+  campaignCarriedGranted: boolean;
+  /** Initial-cards selection completed (campaign-final has no corp pick to infer from). */
+  initialCardSelectionDone: boolean;
 
   // Terraforming Rating
   hasIncreasedTerraformRatingThisGeneration: boolean;
@@ -504,7 +511,7 @@ export interface IPlayer {
    * explicit follow-up prompt instead of an immediate deduction — used ONLY
    * by the start screen's deferred play (Game.playCorporationInput).
    */
-  playCorporationCard(corporationCard: ICorporationCard, options?: {deferCardPayment?: boolean}): void;
+  playCorporationCard(corporationCard: ICorporationCard, options?: {deferCardPayment?: boolean, holdResearchRelease?: boolean}): void;
   drawCard(count?: number, options?: DrawOptions): void;
   drawCardKeepSome(count: number, options: AllOptions): void;
   /**

@@ -25,6 +25,7 @@ import type {DifficultyLevel, MarsBotCorpId} from '@/common/automa/AutomaTypes';
 import type {MarsBotCorpStats} from '@/common/automa/MarsBotCorpData';
 import type {EndgameFact} from '@/common/events/endgameFacts';
 import {CardVictoryPointsDetail, CardVictoryPointsKind, VictoryPointsBreakdown} from '@/common/game/VictoryPointsBreakdown';
+import {compareFinalScores} from '@/common/game/scoreComparator';
 import {
   EndgameInsightView,
   TimelineStats,
@@ -109,7 +110,8 @@ export type EndgameModelOptions = {
 };
 
 // The major VP families compared across players ("who won what").
-export type EndgameCategoryKey = 'tr' | 'cards' | 'board' | 'mca' | 'moon' | 'tracks';
+// 'titles' = campaign Title Points — present ONLY on a final campaign mission.
+export type EndgameCategoryKey = 'tr' | 'cards' | 'board' | 'mca' | 'moon' | 'tracks' | 'titles';
 
 export type EndgameCategory = {
   key: EndgameCategoryKey;
@@ -226,6 +228,7 @@ const CATEGORY_LABEL: Record<EndgameCategoryKey, string> = {
   mca: 'Milestones & awards',
   moon: 'Moon',
   tracks: 'Planetary tracks',
+  titles: 'Titles',
 };
 const CATEGORY_ACCENT: Record<EndgameCategoryKey, string> = {
   tr: 'tr-cards',
@@ -234,6 +237,7 @@ const CATEGORY_ACCENT: Record<EndgameCategoryKey, string> = {
   mca: 'milestones',
   moon: 'moon',
   tracks: 'tracks',
+  titles: 'titles',
 };
 
 const PARAMETER_META: ReadonlyArray<{key: GlobalParameter; label: string; accent: string}> = [
@@ -268,6 +272,8 @@ function categoryValue(b: VictoryPointsBreakdown, key: EndgameCategoryKey): numb
   case 'mca': return b.milestones + b.awards;
   case 'moon': return b.moonHabitats + b.moonMines + b.moonRoads;
   case 'tracks': return b.planetaryTracks;
+  // Campaign Title Points (a final campaign mission only — absent elsewhere).
+  case 'titles': return b.titles ?? 0;
   }
 }
 
@@ -290,13 +296,12 @@ function leadersOf(values: Record<string, number>): {max: number; leaders: Array
 }
 
 // Tiebreak mirrors the legacy game-end: higher total wins, then higher M€.
+// The ordering itself lives in src/common/game/scoreComparator.ts so the
+// server-side campaign standings can never disagree with this ranking.
 function compareScores(a: EndgamePlayerInput, b: EndgamePlayerInput): number {
-  const at = a.breakdown.total;
-  const bt = b.breakdown.total;
-  if (at !== bt) {
-    return bt - at;
-  }
-  return b.megacredits - a.megacredits;
+  return compareFinalScores(
+    {total: a.breakdown.total, megaCredits: a.megacredits},
+    {total: b.breakdown.total, megaCredits: b.megacredits});
 }
 
 function topCardsOf(details: ReadonlyArray<CardVictoryPointsDetail>): {top: Array<EndgameTopCard>; penalties: Array<EndgameTopCard>} {
@@ -404,6 +409,12 @@ export function buildEndgameModel(inputs: ReadonlyArray<EndgamePlayerInput>, opt
   }
   if (opts.hasPathfinders) {
     allCategoryKeys.push('tracks');
+  }
+  // Campaign Title Points: joined when ANY seat carries the (final-mission
+  // only) field — the verdict/matrix layer must never mis-attribute a
+  // title-driven win to a card family.
+  if (ranked.some((p) => p.breakdown.titles !== undefined)) {
+    allCategoryKeys.push('titles');
   }
   for (const key of allCategoryKeys) {
     const anyNonZero = ranked.some((p) => categoryValue(p.breakdown, key) !== 0);

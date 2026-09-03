@@ -1,8 +1,9 @@
 import {GameIdLedger, IDatabase} from './IDatabase';
 import {IGame, Score} from '../IGame';
 import {GameOptions} from '../game/GameOptions';
-import {GameId, isGameId, ParticipantId} from '../../common/Types';
+import {CampaignId, GameId, isCampaignId, isGameId, ParticipantId} from '../../common/Types';
 import {SerializedGame} from '../SerializedGame';
+import {SerializedCampaign} from '../campaign/Campaign';
 import {Dirent, existsSync, mkdirSync, readdirSync, readFileSync, unlinkSync, writeFileSync} from 'fs';
 import {rename, writeFile} from 'fs/promises';
 import {Session, SessionId} from '../auth/Session';
@@ -23,6 +24,7 @@ export class LocalFilesystem implements IDatabase {
   private readonly historyFolder: string;
   private readonly completedFolder: string;
   private readonly sessionsFolder: string;
+  private readonly campaignsFolder: string;
   public static quiet: boolean = false;
 
   /**
@@ -36,11 +38,12 @@ export class LocalFilesystem implements IDatabase {
     this.historyFolder = path.resolve(dbFolder, 'history');
     this.completedFolder = path.resolve(dbFolder, 'completed');
     this.sessionsFolder = path.resolve(dbFolder, 'sessions');
+    this.campaignsFolder = path.resolve(dbFolder, 'campaigns');
   }
 
   public initialize(): Promise<void> {
     console.log(`Starting local database at ${this.dbFolder}`);
-    const dirs = [this.dbFolder, this.historyFolder, this.completedFolder, this.sessionsFolder];
+    const dirs = [this.dbFolder, this.historyFolder, this.completedFolder, this.sessionsFolder, this.campaignsFolder];
     for (const folder of dirs) {
       if (!existsSync(folder)) {
         // recursive: the embedded desktop server roots the db under a fresh
@@ -69,6 +72,10 @@ export class LocalFilesystem implements IDatabase {
 
   private sessionFilename(sessionId: SessionId) {
     return path.resolve(this.sessionsFolder, `${sessionId}.json`);
+  }
+
+  private campaignFilename(campaignId: CampaignId, extension: string = 'json') {
+    return path.resolve(this.campaignsFolder, `${campaignId}.${extension}`);
   }
 
   saveGame(game: IGame): Promise<void> {
@@ -399,5 +406,63 @@ export class LocalFilesystem implements IDatabase {
 
   private deleteVersion(gameId: GameId, version: number) {
     unlinkSync(this.historyFilename(gameId, version));
+  }
+
+  /**
+   * Campaign mode. Writes ride the ONE `pendingWrites` chain (so they never
+   * interleave with saves and the fixed temp names cannot collide) and are
+   * AWAITED — a campaign mutation is acknowledged only once it is on disk
+   * (write-through, unlike a game save). Reads flush the chain first, the
+   * backend's standing rule.
+   */
+  public async saveCampaign(campaign: SerializedCampaign): Promise<void> {
+    const text = JSON.stringify(campaign, null, 2);
+    let failure: unknown;
+    this.pendingWrites = this.pendingWrites
+      .then(() => this.writeAtomic(
+        this.campaignFilename(campaign.id),
+        this.campaignFilename(campaign.id, 'tmp'),
+        text))
+      .catch((err) => {
+        failure = err;
+      });
+    await this.pendingWrites;
+    if (failure !== undefined) {
+      throw new Error(`Could not save campaign ${campaign.id}: ${String(failure)}`);
+    }
+  }
+
+  public async getCampaign(campaignId: CampaignId): Promise<SerializedCampaign | undefined> {
+    await this.flushPendingWrites();
+    const filename = this.campaignFilename(campaignId);
+    if (!existsSync(filename)) {
+      return undefined;
+    }
+    const text = readFileSync(filename);
+    return JSON.parse(text.toString());
+  }
+
+  public async getCampaignIds(): Promise<Array<CampaignId>> {
+    await this.flushPendingWrites();
+    const ids: Array<CampaignId> = [];
+    const entries = readdirSync(this.campaignsFolder, {withFileTypes: true});
+    for (const dirent of entries) {
+      if (!dirent.isFile()) {
+        continue;
+      }
+      const match = dirent.name.match(/(.*)\.json$/);
+      if (match !== null && isCampaignId(match[1])) {
+        ids.push(match[1]);
+      }
+    }
+    return ids;
+  }
+
+  public async deleteCampaign(campaignId: CampaignId): Promise<void> {
+    await this.flushPendingWrites();
+    const filename = this.campaignFilename(campaignId);
+    if (existsSync(filename)) {
+      unlinkSync(filename);
+    }
   }
 }

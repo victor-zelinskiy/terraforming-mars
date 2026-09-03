@@ -28,6 +28,15 @@ export type MapMode = 'random-all' | 'specific';
 /** 'marsbot' = a solo game against the official Automa (one human seat). */
 export type GameMode = 'multiplayer' | 'marsbot';
 
+/**
+ * The creator's TOP-LEVEL product axis: an ordinary «Отдельная партия» vs a
+ * 4-mission «Кампания». Orthogonal to `gameMode`, which stays a roster fact
+ * (whether the bot is seated). A campaign reuses the same crew/rules/
+ * expansions decks; the map deck is replaced by the route briefing (the four
+ * boards are generated server-side).
+ */
+export type SessionMode = 'single' | 'campaign';
+
 /** One player slot in the create screen. Names are the temporary identity key. */
 export type PremiumPlayerSlot = {
   slot: number;
@@ -61,6 +70,7 @@ export type GuaranteedPickList = 'corporations' | 'preludes' | 'projects';
 export type GuaranteedCardPicks = Record<GuaranteedPickList, Array<CardName>>;
 
 export type PremiumCreateGameState = {
+  sessionMode: SessionMode;
   gameMode: GameMode;
   botDifficulty: DifficultyLevel;
   /**
@@ -115,6 +125,7 @@ export function defaultPremiumState(): PremiumCreateGameState {
     players.push(makeSlot(i, PLAYER_COLORS[i]));
   }
   return {
+    sessionMode: 'single',
     gameMode: 'multiplayer',
     botDifficulty: 'normal',
     seatMarsBot: false,
@@ -497,6 +508,21 @@ export function hasDuplicateColors(): boolean {
   return new Set(colors).size !== colors.length;
 }
 
+/**
+ * Campaign seat-count blocker (approved D1 tables cover 2–5 participants; the
+ * bot counts as one). '' when the roster fits.
+ */
+export function campaignRosterBlocker(config: PremiumCreateGameState = createGameState.config): string {
+  if (config.sessionMode !== 'campaign') {
+    return '';
+  }
+  const total = config.players.length + (botSeatedInState() ? 1 : 0);
+  if (total > 5) {
+    return 'A campaign seats up to five participants (the MarsBot counts as one)';
+  }
+  return '';
+}
+
 /** True when the configuration is valid enough to create the game. */
 export function canCreateGame(): boolean {
   const players = createGameState.config.players;
@@ -506,6 +532,9 @@ export function canCreateGame(): boolean {
     }
   }
   if (hasDuplicateColors()) {
+    return false;
+  }
+  if (campaignRosterBlocker() !== '') {
     return false;
   }
   // MarsBot mode: the shared compatibility rules must be clean — the server
@@ -527,6 +556,10 @@ export function firstBlocker(): string {
   }
   if (hasDuplicateColors()) {
     return 'A colour is already used by another player';
+  }
+  const campaignBlocker = campaignRosterBlocker();
+  if (campaignBlocker !== '') {
+    return campaignBlocker;
   }
   const conflicts = stateAutomaConflicts();
   if (conflicts.length > 0) {
@@ -630,6 +663,7 @@ function sanitizePremiumState(saved: JSONObject): PremiumCreateGameState {
     players.splice(HUMANS_WITH_BOT_MAX);
   }
   return {
+    sessionMode: saved.sessionMode === 'campaign' ? 'campaign' : 'single',
     gameMode,
     botDifficulty,
     seatMarsBot,
@@ -640,6 +674,16 @@ function sanitizePremiumState(saved: JSONObject): PremiumCreateGameState {
     rules,
     guaranteedCards: sanitizeGuaranteedCards(saved.guaranteedCards),
   };
+}
+
+/** Switch the top-level session mode (single game ⇄ campaign). */
+export function setSessionMode(mode: SessionMode): void {
+  createGameState.config.sessionMode = mode;
+  createGameState.error = '';
+}
+
+export function isCampaignMode(config: PremiumCreateGameState = createGameState.config): boolean {
+  return config.sessionMode === 'campaign';
 }
 
 /** Cap per list — a dev typo can't grow the saved blob without bound. */

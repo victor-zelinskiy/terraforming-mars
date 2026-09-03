@@ -2,8 +2,9 @@ import pg from 'pg';
 import {IDatabase} from './IDatabase';
 import {IGame, Score} from '../IGame';
 import {GameOptions} from '../game/GameOptions';
-import {GameId, ParticipantId, isGameId, safeCast} from '../../common/Types';
+import {CampaignId, GameId, ParticipantId, isGameId, safeCast} from '../../common/Types';
 import {SerializedGame} from '../SerializedGame';
+import {SerializedCampaign} from '../campaign/Campaign';
 import {daysAgoToSeconds, stringToBoolean, stringToNumber} from './utils';
 import {GameIdLedger} from './IDatabase';
 import {Session, SessionId} from '../auth/Session';
@@ -14,7 +15,7 @@ import {compressToBrotli, decompressFromBrotli} from './compression';
 
 type StoredSerializedGame = Omit<SerializedGame, 'gameOptions' | 'gameLog'> & {logLength: number};
 
-export const POSTGRESQL_TABLES = ['game', 'games', 'game_results', 'participants', 'completed_game', 'session'] as const;
+export const POSTGRESQL_TABLES = ['game', 'games', 'game_results', 'participants', 'completed_game', 'session', 'campaign'] as const;
 
 const POSTGRES_TRIM_COUNT = stringToNumber(process.env.POSTGRES_TRIM_COUNT, 10);
 const DB_COMPRESS_ON_WRITE = stringToBoolean(process.env.DB_COMPRESS_ON_WRITE, false);
@@ -98,6 +99,13 @@ export class PostgreSQL implements IDatabase {
       data varchar not null,
       expiration_time timestamp not null,
       PRIMARY KEY (session_id));
+
+    /* Campaign mode: one JSON blob per campaign, upserted whole. */
+    CREATE TABLE IF NOT EXISTS campaign(
+      campaign_id varchar not null,
+      campaign text not null,
+      created_time timestamp default now() not null,
+      PRIMARY KEY (campaign_id));
 
     CREATE INDEX IF NOT EXISTS games_i1 on games(save_id);
     CREATE INDEX IF NOT EXISTS games_i2 on games(created_time);
@@ -266,10 +274,11 @@ export class PostgreSQL implements IDatabase {
   }
 
   // Purge unfinished games older than MAX_GAME_DAYS days. If this environment variable is absent, it uses the default of 10 days.
-  async purgeUnfinishedGames(maxGameDays: string | undefined = process.env.MAX_GAME_DAYS): Promise<Array<GameId>> {
+  async purgeUnfinishedGames(maxGameDays: string | undefined = process.env.MAX_GAME_DAYS, protectedGameIds: ReadonlyArray<GameId> = []): Promise<Array<GameId>> {
     const dateToSeconds = daysAgoToSeconds(maxGameDays, 10);
     const selectResult = await this.client.query('SELECT game_id FROM game WHERE created_time < to_timestamp($1) AND status = \'running\'', [dateToSeconds]);
-    let gameIds = selectResult.rows.map((row) => row.game_id);
+    const protectedSet = new Set(protectedGameIds);
+    let gameIds = selectResult.rows.map((row) => row.game_id).filter((id) => !protectedSet.has(id));
     if (gameIds.length > 1000) {
       console.log('Truncated purge to 1000 games.');
       gameIds = gameIds.slice(0, 1000);
@@ -510,5 +519,29 @@ export class PostgreSQL implements IDatabase {
         expirationTimeMillis: row.expiration_time.getTime(),
       };
     });
+  }
+
+  public async saveCampaign(campaign: SerializedCampaign): Promise<void> {
+    const json = JSON.stringify(campaign);
+    await this.client.query(
+      'INSERT INTO campaign (campaign_id, campaign) VALUES ($1, $2) ON CONFLICT (campaign_id) DO UPDATE SET campaign = $2',
+      [campaign.id, json]);
+  }
+
+  public async getCampaign(campaignId: CampaignId): Promise<SerializedCampaign | undefined> {
+    const res = await this.client.query('SELECT campaign FROM campaign WHERE campaign_id = $1', [campaignId]);
+    if (res.rows.length === 0) {
+      return undefined;
+    }
+    return JSON.parse(res.rows[0].campaign);
+  }
+
+  public async getCampaignIds(): Promise<Array<CampaignId>> {
+    const res = await this.client.query('SELECT campaign_id FROM campaign');
+    return res.rows.map((row) => row.campaign_id);
+  }
+
+  public async deleteCampaign(campaignId: CampaignId): Promise<void> {
+    await this.client.query('DELETE FROM campaign WHERE campaign_id = $1', [campaignId]);
   }
 }

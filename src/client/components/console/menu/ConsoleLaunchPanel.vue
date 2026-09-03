@@ -3,7 +3,7 @@
     <span class="cm-launch__corner cm-launch__corner--tl" aria-hidden="true"></span>
     <span class="cm-launch__corner cm-launch__corner--tr" aria-hidden="true"></span>
 
-    <h2 class="cm-launch__title">{{ $t('Launch briefing') }}</h2>
+    <h2 class="cm-launch__title">{{ $t(campaign ? 'Campaign briefing' : 'Launch briefing') }}</h2>
 
     <ConsoleScrollArea class="cm-launch__scroll" :fill="true" content-class="cm-launch__body">
       <!-- Crew summary -->
@@ -21,14 +21,14 @@
         </div>
       </div>
 
-      <!-- Map -->
+      <!-- Map / campaign route -->
       <div class="cm-launch__block">
-        <div class="cm-launch__label">{{ $t('Map') }}</div>
+        <div class="cm-launch__label">{{ $t(campaign ? 'Mission route' : 'Map') }}</div>
         <div class="cm-launch__map">
           <span class="cm-launch__map-thumb" aria-hidden="true">
-            <premium-map-fingerprint :map-id="mapBoardId" :random="mapRandom" :accent="mapAccent" variant="card" />
+            <premium-map-fingerprint :map-id="campaign ? undefined : mapBoardId" :random="campaign || mapRandom" :accent="mapAccent" variant="card" />
           </span>
-          <span class="cm-launch__map-name">{{ $t(mapLabel) }}</span>
+          <span class="cm-launch__map-name">{{ $t(campaign ? '4 unique boards, generated at assembly' : mapLabel) }}</span>
         </div>
       </div>
 
@@ -64,7 +64,7 @@
         </template>
         <div v-else class="cm-launch__status cm-launch__status--ready">
           <span class="cm-launch__status-dot" aria-hidden="true"></span>
-          <span>{{ $t('Ready to launch') }}</span>
+          <span>{{ $t(campaign ? 'Ready to assemble the campaign' : 'Ready to launch') }}</span>
         </div>
         <div v-if="error !== ''" class="cm-launch__error">{{ $t(error) }}</div>
         <div v-if="restored" class="cm-launch__restored">
@@ -76,7 +76,7 @@
 
     <button type="button" class="cm-launch__cta" :class="{'cm-launch__cta--ready': ready}" @click="$emit('launch')">
       <GamepadGlyph control="secondary" />
-      <span>{{ $t(ready ? 'Launch the party' : 'Go to the first issue') }}</span>
+      <span>{{ $t(ready ? (campaign ? 'Assemble the campaign' : 'Launch the party') : 'Go to the first issue') }}</span>
     </button>
   </aside>
 </template>
@@ -91,7 +91,7 @@
  */
 import {defineComponent} from 'vue';
 import {Color} from '@/common/Color';
-import {createGameState, visiblePremiumRules} from '@/client/components/create/premium/createGameState';
+import {createGameState, isCampaignMode, visiblePremiumRules} from '@/client/components/create/premium/createGameState';
 import {
   LaunchIssue,
   botSeated,
@@ -118,6 +118,9 @@ export default defineComponent({
   components: {ConsoleScrollArea, GamepadGlyph, PremiumMapFingerprint},
   emits: ['launch'],
   computed: {
+    campaign(): boolean {
+      return isCampaignMode();
+    },
     humanChips(): ReadonlyArray<{index: number, name: string, color: Color}> {
       return createGameState.config.players.map((p, index) => ({index, name: p.name.trim(), color: p.color}));
     },

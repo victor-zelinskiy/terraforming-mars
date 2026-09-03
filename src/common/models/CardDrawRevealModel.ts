@@ -63,6 +63,10 @@ export type CardDrawRevealSource =
    */
   | {type: 'tile', spaceId?: SpaceId}
   | {type: 'globalParameter', parameter: GlobalParameter}
+  /** Campaign «Наследие проектов»: cards carried from the previous mission,
+   *  granted FREE with the base corporation play. No workspace claim matches
+   *  it, so it presents as its own reveal — clearly carried, never bought. */
+  | {type: 'campaign'}
   | {type: 'other'};
 
 /**

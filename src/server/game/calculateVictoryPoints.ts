@@ -6,6 +6,7 @@ import {Board} from '../boards/Board';
 import {MoonExpansion} from '../moon/MoonExpansion';
 import {PathfindersExpansion} from '../pathfinders/PathfindersExpansion';
 import {DeltaProjectExpansion} from '../delta/DeltaProjectExpansion';
+import {calculateCampaignTitleVictoryPoints} from '../campaign/CampaignMissionSetup';
 import {Turmoil} from '../turmoil/Turmoil';
 import {VictoryPointsBreakdownBuilder} from './VictoryPointsBreakdownBuilder';
 import {FundedAward} from '../awards/FundedAward';
@@ -270,6 +271,11 @@ export function calculateVictoryPoints(player: IPlayer) {
   MoonExpansion.calculateVictoryPoints(player, builder);
   PathfindersExpansion.calculateVictoryPoints(player, builder);
   DeltaProjectExpansion.calculateVictoryPoints(player, builder);
+  // Campaign «Титулы»: on the FINAL mission the accumulated Title Points are a
+  // real VP category from generation 1 (approved D8 — they are public campaign
+  // facts). Absent everywhere else: the hook writes nothing for ordinary games
+  // and missions 1–3, keeping their wire shape untouched.
+  calculateCampaignTitleVictoryPoints(player, builder);
 
   // Underworld Score Bribing
   if (player.game.gameOptions.underworldExpansion === true) {

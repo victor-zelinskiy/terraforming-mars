@@ -78,6 +78,8 @@ export type LiveScoreOptions = {
   hasMoon: boolean;
   hasPathfinders: boolean;
   hasDelta: boolean;
+  /** FINAL campaign mission: «Титулы» is a real category from generation 1. */
+  hasTitles?: boolean;
 };
 
 /** Category keys that exist for every game (honest 0 when unscored). */
@@ -92,6 +94,9 @@ function categoryPresent(key: ConsoleEndgameCategoryKey, value: number, opts: Li
   case 'moon': return opts.hasMoon || value !== 0;
   case 'tracks': return opts.hasPathfinders || value !== 0;
   case 'delta': return opts.hasDelta || value !== 0;
+  // Configuration-derived like delta: present for the whole FINAL campaign
+  // mission (honest 0 included), never anywhere else.
+  case 'titles': return opts.hasTitles === true || value !== 0;
   // Penalties append at the END when real — a conditional row there never
   // shifts the stable categories above it.
   case 'penalty': return value !== 0;

@@ -90,7 +90,8 @@
             @mousemove="gamesCursor = i"
           >
             <div class="cm-game__head">
-              <span class="cm-game__name">{{ g.name }}</span>
+              <span class="cm-game__name">{{ g.campaign !== undefined ? g.campaign.name : g.name }}</span>
+              <span v-if="g.campaign !== undefined" class="cm-game__campaign">{{ $t('Campaign') }} · {{ campaignMissionChip(g) }}</span>
               <span v-if="isNewGame(g)" class="cm-game__new">{{ $t('New') }}</span>
               <span v-if="yourTurn(g)" class="cm-game__turn">{{ $t('Your turn') }}</span>
               <span v-else-if="!joinable(g)" class="cm-game__note">{{ $t(g.ambiguous ? 'Several players share your name here' : 'No seat with your name') }}</span>
@@ -394,7 +395,7 @@ import {getPreferences} from '@/client/utils/PreferencesManager';
 import {desktopBridge, startMenuUpdateWatch, stopMenuUpdateWatch} from '@/client/components/desktop/desktopUpdateState';
 import {addToSteam, dismissSteamPrompt, initSteamShortcut, steamButtonVisible, steamPromptVisible, steamShortcutState} from '@/client/components/desktop/steamShortcutState';
 import raw_settings from '@/genfiles/settings.json';
-import {$t} from '@/client/directives/i18n';
+import {$t, translateTextWithParams} from '@/client/directives/i18n';
 
 type MenuItemId = 'continue' | 'create' | 'games' | 'profile' | 'options' | 'admin' | 'playground' | 'steam' | 'quit';
 type MenuItem = {id: MenuItemId, labelKey: string, subText: string, glyph: string, badge: number};
@@ -450,9 +451,35 @@ export default defineComponent({
     finishedGames(): ReadonlyArray<JoinableGameSummary> {
       return this.lobbyState.archive;
     },
-    /** The rows of the SHOWN slice that live on this server. */
+    /**
+     * The rows of the SHOWN slice that live on this server. Campaign missions
+     * sharing one campaign COLLAPSE into a single campaign row (its front
+     * door is the Campaign Map, not any one mission) — «Мои партии» must not
+     * read as four unrelated games. A host running an older build sends no
+     * `campaign` field; such rows stay ungrouped (partial-data tolerance).
+     */
     localRows(): ReadonlyArray<JoinableGameSummary> {
-      return this.gamesTab === 'finished' ? this.finishedGames : this.games;
+      const rows = this.gamesTab === 'finished' ? this.finishedGames : this.games;
+      const seen = new Set<string>();
+      const out: Array<JoinableGameSummary> = [];
+      for (const g of rows) {
+        const cid = g.campaign?.id;
+        if (cid === undefined) {
+          out.push(g);
+          continue;
+        }
+        if (seen.has(cid)) {
+          continue;
+        }
+        seen.add(cid);
+        // The representative is the LIVE mission when one exists, else the
+        // furthest mission (the chronicle's door).
+        const members = rows.filter((r) => r.campaign?.id === cid);
+        const live = members.find((r) => r.finished !== true);
+        const furthest = members.reduce((a, b) => ((b.campaign?.slot ?? 0) > (a.campaign?.slot ?? 0) ? b : a));
+        out.push(live ?? furthest);
+      }
+      return out;
     },
     /** LAN hosts publish their UNFINISHED games only — the archive is local. */
     visibleLanRows(): ReadonlyArray<LobbyRow> {
@@ -1082,7 +1109,19 @@ export default defineComponent({
         publishLanName(name);
       }
     },
+    campaignMissionChip(g: JoinableGameSummary): string {
+      const c = g.campaign;
+      if (c === undefined) {
+        return '';
+      }
+      return translateTextWithParams('Mission ${0} of ${1}', [String(c.slot + 1), String(c.count)]);
+    },
     joinable(g: JoinableGameSummary): boolean {
+      // A campaign row opens the Campaign Map, which resolves the seat by
+      // name itself — the row is enterable even without a per-game seat link.
+      if (g.campaign !== undefined) {
+        return true;
+      }
       return g.you !== undefined;
     },
     /**
@@ -1204,6 +1243,13 @@ export default defineComponent({
      * rather than «подготовка экспедиции».
      */
     openLocalGame(g: JoinableGameSummary): void {
+      // A CAMPAIGN row opens the Campaign Map — the campaign's front door
+      // (the active mission is one press away from there). Not recorded as
+      // the CONTINUE memory: that stays the concrete game.
+      if (g.campaign !== undefined) {
+        navigateWithCurtain(paths.CAMPAIGN + '?id=' + encodeURIComponent(g.campaign.id), 'sync');
+        return;
+      }
       const you = g.you;
       if (you === undefined) {
         return;

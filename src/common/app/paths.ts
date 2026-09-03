@@ -19,6 +19,18 @@ export const paths = {
   // next paced bot turn — never authoritative. See BotTurnScheduler.
   API_GAME_BOT_TURN_ACK: 'api/game/bot-turn-ack',
   API_GAMES: 'api/games',
+  // Campaign mode (docs/CAMPAIGN_MODE_ARCHITECTURE.md): the campaign document
+  // API. GET model / POST creator actions; create is durably idempotent
+  // (client key → deterministic CampaignId); launch is creator-only and
+  // idempotent; carryover is bearer-authenticated by the source-mission
+  // PlayerId; dev is the ADMIN_NAME-gated fast-forward.
+  API_CAMPAIGN: 'api/campaign',
+  API_CAMPAIGN_CREATE: 'api/campaign/create',
+  API_CAMPAIGN_LAUNCH: 'api/campaign/launch',
+  API_CAMPAIGN_CARRYOVER: 'api/campaign/carryover',
+  API_CAMPAIGN_DEV: 'api/campaign/dev',
+  // The campaign map app screen (App.vue route; served as the SPA shell).
+  CAMPAIGN: 'campaign',
   // Dev-only admin game-rollback tool (console main-menu plate, name-gated on
   // ADMIN_NAME). Lists games with their FRESH generation, a game's save history,
   // and performs a rollback to a chosen save. CORS-eligible (the tool runs in the

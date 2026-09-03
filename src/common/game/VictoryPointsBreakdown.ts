@@ -155,6 +155,14 @@ export type VictoryPointsBreakdown = {
   // Delta Project ("Гидросеть") end-game VP (2 for slot 10, 5 for slot 11).
   // Shown under the "Достижения и награды" bar in the premium score report.
   deltaProject: number;
+  /**
+   * Campaign «Титулы»: accumulated Title Points converted to VP — present
+   * ONLY on the FINAL mission of a campaign. OPTIONAL by design: ordinary
+   * games and missions 1–3 keep their exact wire shape (no empty category).
+   */
+  titles?: number;
+  /** Provenance of `titles` (which title, which mission). Present with it. */
+  detailsTitles?: ReadonlyArray<{title: string, missionSlot: number, points: number}>;
   victoryPoints: number;
   /** MarsBot-only scoring parts. Absent for human players and ordinary games. */
   automa?: AutomaVictoryPoints;

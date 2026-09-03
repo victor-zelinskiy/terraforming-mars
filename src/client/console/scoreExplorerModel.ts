@@ -207,6 +207,22 @@ function tileLedger(cat: LiveScoreCategory, b: VictoryPointsBreakdown, ctx: Scor
       chain([{key: 'pos', label: 'Position ${0} → ${1} VP', params: [ctx.deltaPosition, cat.value]}]) :
       (ctx.deltaPosition !== undefined && ctx.deltaPosition > 0 ?
         chain([{key: 'pos', label: 'Track position: ${0}', params: [ctx.deltaPosition]}]) : EMPTY_LEDGER);
+  case 'titles': {
+    // Campaign «Титулы» — a CHAIN of earned titles (deliberately NOT the
+    // honours' medallion shape: Titles keep their own visual language). Every
+    // piece names the title; provenance (which mission) lives in level 2.
+    const details = b.detailsTitles ?? [];
+    if (details.length === 0) {
+      return cat.value !== 0 ?
+        chain([{key: 'sum', label: 'Title Points: ${0}', params: [cat.value]}]) :
+        {kind: 'empty', empty: {key: 'zero', label: 'No titles earned'}};
+    }
+    return chainOf(details.map((d, i): LedgerPiece => ({
+      key: `title:${i}`,
+      label: TITLE_FACT_LABEL[d.title] ?? d.title,
+      value: d.points,
+    })));
+  }
   case 'moon':
   case 'tracks':
   case 'penalty': {
@@ -217,6 +233,37 @@ function tileLedger(cat: LiveScoreCategory, b: VictoryPointsBreakdown, ctx: Scor
   default:
     return EMPTY_LEDGER;
   }
+}
+
+/** Campaign title display keys (grep-checked: reuse the shared labels). */
+const TITLE_FACT_LABEL: Record<string, string> = {
+  governor: 'Governor',
+  administrator: 'Administrator',
+  prefect: 'Prefect',
+};
+
+/** Per-title mission provenance keys (one per title — params carry the mission number). */
+const TITLE_MISSION_LABEL: Record<string, string> = {
+  governor: 'Governor (mission ${0})',
+  administrator: 'Administrator (mission ${0})',
+  prefect: 'Prefect (mission ${0})',
+};
+
+/**
+ * «Титулы» level 2 — WHICH titles from WHICH missions built the sum
+ * (the InfoPanel detail contract of the final campaign mission).
+ */
+export function buildTitleFacts(b: VictoryPointsBreakdown): CategoryFactsModel {
+  const details = b.detailsTitles ?? [];
+  return {
+    rows: details.map((d, i): ScoreFactRow => ({
+      key: `title:${i}`,
+      label: TITLE_MISSION_LABEL[d.title] ?? d.title,
+      params: [d.missionSlot + 1],
+      value: d.points,
+    })),
+    emptyKey: 'No titles earned',
+  };
 }
 
 /**

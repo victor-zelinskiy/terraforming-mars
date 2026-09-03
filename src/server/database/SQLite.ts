@@ -5,8 +5,9 @@ import BetterSqlite3 = require('better-sqlite3');
 import {GameIdLedger, IDatabase} from './IDatabase';
 import {IGame, Score} from '../IGame';
 import {GameOptions} from '../game/GameOptions';
-import {GameId, ParticipantId} from '../../common/Types';
+import {CampaignId, GameId, ParticipantId} from '../../common/Types';
 import {SerializedGame} from '../SerializedGame';
+import {SerializedCampaign} from '../campaign/Campaign';
 import {daysAgoToSeconds} from './utils';
 import {MultiMap} from 'mnemonist';
 import {Session, SessionId} from '../auth/Session';
@@ -56,6 +57,15 @@ export class SQLite implements IDatabase {
         data varchar not null,
         expiration_time timestamp not null,
         PRIMARY KEY (session_id)
+      )`);
+
+    // Campaign mode: one JSON blob per campaign, upserted whole (§2.5).
+    await this.asyncRun(
+      `CREATE TABLE IF NOT EXISTS campaign(
+        campaign_id varchar not null,
+        campaign text not null,
+        created_time timestamp not null default (strftime('%s', 'now')),
+        PRIMARY KEY (campaign_id)
       )`);
   }
 
@@ -139,12 +149,13 @@ export class SQLite implements IDatabase {
   }
 
 
-  async purgeUnfinishedGames(maxGameDays: string | undefined = process.env.MAX_GAME_DAYS): Promise<Array<GameId>> {
+  async purgeUnfinishedGames(maxGameDays: string | undefined = process.env.MAX_GAME_DAYS, protectedGameIds: ReadonlyArray<GameId> = []): Promise<Array<GameId>> {
     // Purge unfinished games older than MAX_GAME_DAYS days. If this .env variable is not present, unfinished games will not be purged.
     if (maxGameDays !== undefined) {
       const dateToSeconds = daysAgoToSeconds(maxGameDays, 0);
       const selectResult = await this.asyncAll('SELECT DISTINCT game_id game_id FROM games WHERE created_time < ? and status = \'running\'', [dateToSeconds]);
-      let gameIds = selectResult.map((row) => row.game_id);
+      const protectedSet = new Set(protectedGameIds);
+      let gameIds = selectResult.map((row) => row.game_id).filter((id) => !protectedSet.has(id));
       if (gameIds.length > 1000) {
         console.log('Truncated purge to 1000 games.');
         gameIds = gameIds.slice(0, 1000);
@@ -285,6 +296,30 @@ export class SQLite implements IDatabase {
         expirationTimeMillis: row.expiration_time * 1000,
       };
     });
+  }
+
+  public async saveCampaign(campaign: SerializedCampaign): Promise<void> {
+    const json = JSON.stringify(campaign);
+    await this.asyncRun(
+      'INSERT INTO campaign (campaign_id, campaign) VALUES (?, ?) ON CONFLICT (campaign_id) DO UPDATE SET campaign = ?',
+      [campaign.id, json, json]);
+  }
+
+  public async getCampaign(campaignId: CampaignId): Promise<SerializedCampaign | undefined> {
+    const row = await this.asyncGet('SELECT campaign FROM campaign WHERE campaign_id = ?', [campaignId]);
+    if (row === undefined) {
+      return undefined;
+    }
+    return JSON.parse(row.campaign);
+  }
+
+  public async getCampaignIds(): Promise<Array<CampaignId>> {
+    const rows = await this.asyncAll('SELECT campaign_id FROM campaign', []);
+    return rows.map((row) => row.campaign_id);
+  }
+
+  public async deleteCampaign(campaignId: CampaignId): Promise<void> {
+    await this.asyncRun('DELETE FROM campaign WHERE campaign_id = ?', [campaignId]);
   }
 
   protected asyncRun(sql: string, params?: any): Promise<BetterSqlite3.RunResult> {

@@ -360,7 +360,17 @@ export class GameLoader implements IGameLoader {
 
   public async maintenance() {
     const database = Database.getInstance();
-    const purgedGames = await database.purgeUnfinishedGames();
+    // Campaign mode (D11): missions of an unfinished campaign are exempt from
+    // the age purge — a long interlude must not eat the active mission.
+    // Lazily required (CampaignManager → Game → GameLoader would cycle).
+    let protectedIds: ReadonlyArray<GameId> = [];
+    try {
+      const {CampaignManager} = require('../campaign/CampaignManager');
+      protectedIds = await CampaignManager.getInstance().protectedGameIds();
+    } catch (err) {
+      // Fail open: purge proceeds without exemptions rather than crashing.
+    }
+    const purgedGames = await database.purgeUnfinishedGames(undefined, protectedIds);
     this.purgedGames.push(...purgedGames);
     for (const gameId of purgedGames) {
       LobbyIndex.getInstance().drop(gameId);

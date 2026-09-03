@@ -27,6 +27,10 @@ const FAKE_DATABASE: IDatabase = {
   createSession: () => Promise.resolve(),
   deleteSession: () => Promise.resolve(),
   getSessions: () => Promise.resolve([]),
+  saveCampaign: () => Promise.resolve(),
+  getCampaign: () => Promise.resolve(undefined),
+  getCampaignIds: () => Promise.resolve([]),
+  deleteCampaign: () => Promise.resolve(),
 };
 
 let databaseUnderTest: IDatabase = FAKE_DATABASE;

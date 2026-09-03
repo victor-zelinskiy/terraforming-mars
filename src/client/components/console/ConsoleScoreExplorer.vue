@@ -312,6 +312,7 @@ import {
   buildHydroFacts,
   buildMilestoneCollection,
   buildPenaltyFacts,
+  buildTitleFacts,
   buildScoreOverview,
   buildTrProvenance,
   CardGroupTableModel,
@@ -419,6 +420,7 @@ export default defineComponent({
         hasMoon: game.moon !== undefined,
         hasPathfinders: game.pathfinders !== undefined,
         hasDelta: game.gameOptions.expansions.deltaProject === true,
+        hasTitles: game.gameOptions.campaign?.final === true,
       });
     },
     explorerCtx(): ScoreExplorerContext {
@@ -537,6 +539,7 @@ export default defineComponent({
       case 'city': return buildCityFacts(b.detailsCities);
       case 'greenery': return buildGreeneryFacts(b);
       case 'delta': return buildHydroFacts(b, this.explorerCtx);
+      case 'titles': return buildTitleFacts(b);
       case 'penalty': return buildPenaltyFacts(b);
       default: {
         const cat = this.liveScore.categories.find((c) => c.key === this.renderCategoryKey);

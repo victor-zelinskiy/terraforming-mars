@@ -814,6 +814,7 @@ export class Server {
 
   public static getGameOptionsAsModel(options: GameOptions): GameOptionsModel {
     return {
+      campaign: options.campaign,
       altVenusBoard: options.altVenusBoard,
       aresExtremeVariant: options.aresExtremeVariant,
       boardName: options.boardName,

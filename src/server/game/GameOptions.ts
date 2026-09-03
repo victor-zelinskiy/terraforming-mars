@@ -9,6 +9,11 @@ import {AgendaStyle} from '../../common/turmoil/Types';
 import {Expansion} from '../../common/cards/GameModule';
 import {EscapeVelocityOptions} from '../../common/game/NewGameConfig';
 import {AutomaOptions, BonusCardId} from '../../common/automa/AutomaTypes';
+import {CampaignGameContract} from '../../common/campaign/CampaignGameContract';
+
+// The PUBLIC campaign mission contract (see the common file for the privacy
+// contract) — re-exported so server code keeps one import path.
+export {CampaignGameContract, CampaignGrant} from '../../common/campaign/CampaignGameContract';
 
 export type GameOptions = {
   boardName: BoardName;
@@ -102,6 +107,12 @@ export type GameOptions = {
    * `game.automa`. Undefined ⇒ ordinary game, zero behavior change.
    */
   automa?: AutomaOptions;
+  /**
+   * Present ⇒ this game is one mission of a campaign
+   * (docs/CAMPAIGN_MODE_ARCHITECTURE.md). Undefined ⇒ ordinary game, zero
+   * behavior change. Built exclusively by CampaignManager.
+   */
+  campaign?: CampaignGameContract;
 }
 
 export const DEFAULT_GAME_OPTIONS: GameOptions = {
@@ -179,4 +190,5 @@ export const DEFAULT_GAME_OPTIONS: GameOptions = {
   venusNextExtension: false,
   twoCorpsVariant: false,
   automa: undefined,
+  campaign: undefined,
 };

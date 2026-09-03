@@ -532,12 +532,36 @@ export type StartJourneyItem = {
   state: 'completed' | 'current' | 'available' | 'locked',
 };
 
-const JOURNEY_LABEL: Record<StartWizardStepId, string> = {
+const JOURNEY_LABEL_BASE: Record<StartWizardStepId, string> = {
   corp: 'Corporation',
   prelude: 'Preludes',
   ceo: 'CEO',
   projects: 'Projects',
 };
+
+/**
+ * Campaign mode: the corporation stage relabels — «Слияние» while a NEW
+ * corporation joins the lineage (missions 2–3), «Штаб» when the final
+ * mission deploys the accumulated trio with no pick. Set by the start scene
+ * from the mission contract; undefined in ordinary games.
+ */
+let startCampaignCorpStage: 'merge' | 'hq' | undefined;
+
+export function setStartCampaignCorpStage(stage: 'merge' | 'hq' | undefined): void {
+  startCampaignCorpStage = stage;
+}
+
+export function startCorpStageLabel(): string {
+  switch (startCampaignCorpStage) {
+  case 'merge': return 'Merger stage';
+  case 'hq': return 'Headquarters';
+  default: return 'Corporation';
+  }
+}
+
+function journeyLabelOf(id: StartWizardStepId): string {
+  return id === 'corp' ? startCorpStageLabel() : JOURNEY_LABEL_BASE[id];
+}
 
 /**
  * The PREPARATION journey (tabs mode): completed steps are revisitable, the
@@ -564,7 +588,7 @@ export function startJourneyItems(
       // A future step is reachable only when every step BEFORE it is done.
       state = steps.slice(0, i).every((p) => stepComplete(p, picks)) ? 'available' : 'locked';
     }
-    return {id: s.id, label: JOURNEY_LABEL[s.id], state};
+    return {id: s.id, label: journeyLabelOf(s.id), state};
   });
   const allDone = steps.every((s) => stepComplete(s, picks));
   const projectsIndex = steps.findIndex((step) => step.id === 'projects');
@@ -587,7 +611,7 @@ export function committedStartJourneyItems(
   stepIds: ReadonlyArray<StartWizardStepId>,
 ): ReadonlyArray<StartJourneyItem> {
   return [
-    ...stepIds.map((id) => ({id, label: JOURNEY_LABEL[id], state: 'completed' as const})),
+    ...stepIds.map((id) => ({id, label: journeyLabelOf(id), state: 'completed' as const})),
     {id: 'summary', label: 'Summary', state: 'completed' as const},
   ];
 }
@@ -623,7 +647,7 @@ export function deploymentJourneyItems(signals: {
 }): ReadonlyArray<StartJourneyItem> {
   const items: Array<StartJourneyItem> = [];
   const corpState = signals.corpPending ? 'current' : 'completed';
-  items.push({id: 'corp', label: 'Corporation', state: corpState});
+  items.push({id: 'corp', label: startCorpStageLabel(), state: corpState});
   if (signals.boughtCards) {
     items.push({
       id: 'pay',
@@ -704,7 +728,7 @@ export function wizardCrumb(stepId: StartWizardStepId | undefined): StartCrumb {
     return {subject: 'Summary', stage: ''};
   }
   return {
-    subject: STEP_SUBJECT[stepId],
+    subject: stepId === 'corp' ? startCorpStageLabel() : STEP_SUBJECT[stepId],
     stage: stepId === 'projects' ? 'Purchase' : 'Selection',
   };
 }
@@ -748,7 +772,7 @@ export function deploymentCrumb(signals: {
     return {subject: 'Projects', stage: 'Purchase'};
   }
   if (signals.corpPending || signals.corpPick) {
-    return {subject: 'Corporation', stage: 'Playing'};
+    return {subject: startCorpStageLabel(), stage: 'Playing'};
   }
   // NESTED: the mandatory first action spent as bonus action #1. The WINDOW
   // keeps the subject (it is the flow the player is in) and only the tail
@@ -843,7 +867,7 @@ export function startDockPiles(
     const backs = Math.max(0, targetBacks + (drift[s.id] ?? 0));
     return {
       id: s.id,
-      label: JOURNEY_LABEL[s.id],
+      label: journeyLabelOf(s.id),
       count: onSummary ? picksN : backs,
       backs,
       collected,

@@ -2,7 +2,7 @@ import {Color} from '../../common/Color';
 import {Expansion, EXPANSIONS} from '../../common/cards/GameModule';
 import {BoardName} from '../../common/boards/BoardName';
 import {Phase} from '../../common/Phase';
-import {GameId, PlayerId} from '../../common/Types';
+import {CampaignId, GameId, PlayerId} from '../../common/Types';
 import {IGame} from '../IGame';
 import {IGameLoader} from '../database/IGameLoader';
 import {Database} from '../database/Database';
@@ -67,7 +67,18 @@ export type LobbyRecord = {
   seats: ReadonlyArray<LobbySeat>;
   activePlayerColor: Color;
   finished: boolean;
+  /** Campaign mode: present when the game is one mission of a campaign —
+   *  «Мои партии» groups mission rows into ONE campaign row on it. */
+  campaign?: {id: CampaignId, name: string, slot: number, count: number, final: boolean};
 };
+
+function campaignOf(gameOptions: {campaign?: {campaignId: CampaignId, campaignName: string, missionSlot: number, missionCount: number, final: boolean}}): LobbyRecord['campaign'] {
+  const c = gameOptions.campaign;
+  if (c === undefined) {
+    return undefined;
+  }
+  return {id: c.campaignId, name: c.campaignName, slot: c.missionSlot, count: c.missionCount, final: c.final};
+}
 
 function seatsOf(
   players: ReadonlyArray<{id: PlayerId, name: string, color: Color}>,
@@ -97,6 +108,7 @@ export function lobbyRecordFromGame(game: IGame): LobbyRecord {
     seats: seatsOf(game.playersInGenerationOrder),
     activePlayerColor: game.activePlayer.color,
     finished: game.phase === Phase.END,
+    campaign: campaignOf(game.gameOptions),
   };
 }
 
@@ -125,6 +137,7 @@ export function lobbyRecordFromSerialized(d: SerializedGame): LobbyRecord {
     seats: seatsOf(inGenerationOrder),
     activePlayerColor: active?.color ?? inGenerationOrder[0]?.color ?? players[0]?.color ?? ('neutral' as Color),
     finished: d.phase === Phase.END,
+    campaign: campaignOf(d.gameOptions),
   };
 }
 

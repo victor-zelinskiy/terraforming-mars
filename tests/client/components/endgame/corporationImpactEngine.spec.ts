@@ -9,7 +9,7 @@ import {CardName} from '@/common/cards/CardName';
 // Iteration 17 — the per-corporation impact engine. ALWAYS one readout per in-scope corp
 // (§5), tiered + placed by how fully the corporation was realised (§7/§8/§19/§20).
 
-const ZERO_CATS: Record<EndgameCategoryKey, number> = {tr: 0, cards: 0, board: 0, mca: 0, moon: 0, tracks: 0};
+const ZERO_CATS: Record<EndgameCategoryKey, number> = {tr: 0, cards: 0, board: 0, mca: 0, moon: 0, tracks: 0, titles: 0};
 
 function pl(color: Color, name: string, total: number, corporations: ReadonlyArray<string>,
   opts: {isWinner?: boolean; megacredits?: number; categories?: Partial<Record<EndgameCategoryKey, number>>} = {}): EndgamePlayerScore {

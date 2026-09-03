@@ -44,7 +44,7 @@ import {
 
 export type ConsoleEndgameCategoryKey =
   | 'tr' | 'milestones' | 'awards' | 'greenery' | 'city'
-  | 'moon' | 'tracks' | 'delta' | 'cards' | 'penalty';
+  | 'moon' | 'tracks' | 'delta' | 'titles' | 'cards' | 'penalty';
 
 /** One sub-step of a two-level category (a TR source / a card family). */
 export type ConsoleEndgameSub = {
@@ -147,6 +147,11 @@ export const SCORE_CATEGORY_TABLE: ReadonlyArray<CategoryMeta> = [
   // they are remapped into the card families below, never shown as their own
   // category (the whole point of the normalisation).
   {key: 'cards', label: 'Cards', legend: 'Cards', penalty: false, groups: ['cards', 'automa']},
+  // Campaign «Титулы» — accumulated Title Points, a REAL category on a FINAL
+  // campaign mission only (its reveal segment is absent everywhere else, and
+  // zero-valued categories drop out of the ceremony). Revealed after every
+  // in-game source: the campaign's own meter lands last among the positives.
+  {key: 'titles', label: 'Titles', legend: 'Titles', penalty: false, groups: ['titles']},
   {key: 'penalty', label: 'Penalties', legend: 'Penalties', penalty: true, groups: ['penalty']},
 ];
 

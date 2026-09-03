@@ -13,6 +13,7 @@ function baseState(): PremiumCreateGameState {
     selectedExpansions[e.id] = true;
   }
   return {
+    sessionMode: 'single',
     gameMode: 'multiplayer',
     botDifficulty: 'normal',
     seatMarsBot: false,

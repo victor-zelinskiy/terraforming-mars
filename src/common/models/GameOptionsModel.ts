@@ -4,8 +4,11 @@ import {AgendaStyle} from '../turmoil/Types';
 import {CardName} from '../cards/CardName';
 import {Expansion} from '../cards/GameModule';
 import {EscapeVelocityOptions} from '../game/NewGameConfig';
+import {CampaignGameContract} from '../campaign/CampaignGameContract';
 
 export type GameOptionsModel = {
+  /** Campaign mode: the PUBLIC mission contract (absent in ordinary games). */
+  campaign?: CampaignGameContract,
   aresExtremeVariant: boolean,
   altVenusBoard: boolean,
   boardName: BoardName,

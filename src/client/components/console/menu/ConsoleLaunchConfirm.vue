@@ -1,8 +1,9 @@
 <template>
-  <div class="cm-overlay cm-overlay--launch" role="dialog" :aria-label="$t('Launch the party')">
+  <div class="cm-overlay cm-overlay--launch" role="dialog" :aria-label="$t(campaign ? 'Assemble the campaign' : 'Launch the party')">
     <div class="cm-overlay__card cm-overlay__card--launch">
       <div class="cm-launchc__kicker">{{ $t('Mission control') }}</div>
-      <div class="cm-launchc__title">{{ $t('Launch the party') }}</div>
+      <div class="cm-launchc__title">{{ $t(campaign ? 'Assemble the campaign' : 'Launch the party') }}</div>
+      <div v-if="campaign" class="cm-launchc__note" v-i18n>The roster, rules and expansions freeze for all four missions; the route of four unique boards is generated once.</div>
 
       <div class="cm-launchc__grid">
         <div class="cm-launchc__block">
@@ -19,12 +20,12 @@
           </div>
         </div>
         <div class="cm-launchc__block">
-          <div class="cm-launch__label">{{ $t('Map') }}</div>
+          <div class="cm-launch__label">{{ $t(campaign ? 'Mission route' : 'Map') }}</div>
           <div class="cm-launch__map">
             <span class="cm-launch__map-thumb" aria-hidden="true">
-              <premium-map-fingerprint :map-id="mapBoardId" :random="mapRandom" :accent="mapAccent" variant="card" />
+              <premium-map-fingerprint :map-id="campaign ? undefined : mapBoardId" :random="campaign || mapRandom" :accent="mapAccent" variant="card" />
             </span>
-            <span class="cm-launch__map-name">{{ $t(mapLabel) }}</span>
+            <span class="cm-launch__map-name">{{ $t(campaign ? '4 unique boards, generated at assembly' : mapLabel) }}</span>
           </div>
         </div>
         <div class="cm-launchc__block">
@@ -40,11 +41,11 @@
 
       <div v-if="creating" class="cm-launchc__creating">
         <span class="cm-launchc__spinner" aria-hidden="true"></span>
-        <span>{{ $t('Creating the game') }}…</span>
+        <span>{{ $t(campaign ? 'Assembling the campaign' : 'Creating the game') }}…</span>
       </div>
       <div v-else class="cm-confirm__pad">
         <button type="button" class="cm-confirm__btn cm-confirm__btn--launch" @click="$emit('confirm')">
-          <GamepadGlyph control="confirm" /><span>{{ $t('Launch') }}</span>
+          <GamepadGlyph control="confirm" /><span>{{ $t(campaign ? 'Assemble' : 'Launch') }}</span>
         </button>
         <button type="button" class="cm-confirm__btn" @click="$emit('cancel')">
           <GamepadGlyph control="back" /><span>{{ $t('Cancel') }}</span>
@@ -64,7 +65,7 @@
  */
 import {defineComponent} from 'vue';
 import {Color} from '@/common/Color';
-import {createGameState} from '@/client/components/create/premium/createGameState';
+import {createGameState, isCampaignMode} from '@/client/components/create/premium/createGameState';
 import {botSeated, selectedMapKey} from '@/client/console/menu/consoleCreateModel';
 import {
   PREMIUM_EXPANSIONS,
@@ -83,6 +84,9 @@ export default defineComponent({
   components: {PremiumMapFingerprint, GamepadGlyph},
   emits: ['confirm', 'cancel'],
   computed: {
+    campaign(): boolean {
+      return isCampaignMode();
+    },
     humanChips(): ReadonlyArray<{index: number, name: string, color: Color}> {
       return createGameState.config.players.map((p, index) => ({index, name: p.name.trim(), color: p.color}));
     },

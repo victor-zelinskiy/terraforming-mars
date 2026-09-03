@@ -34,7 +34,7 @@
     rises in console mode.
   -->
   <div class="con-endgame" role="region" :aria-label="$t('Final scoring')"
-       :class="{'con-endgame--noanim': noanim, 'con-endgame--ovopen': overviewParked, ['con-endgame--' + ui.phase]: true}">
+       :class="{'con-endgame--noanim': noanim, 'con-endgame--ovopen': overviewParked || campaignScene !== undefined, ['con-endgame--' + ui.phase]: true}">
     <div class="con-eg" :class="'con-eg--n' + densityN">
       <header class="con-eg__head">
         <!-- A fixed-height slot + layered crossfade: the title swap
@@ -171,6 +171,42 @@
             </transition>
           </div>
         </transition>
+        <!-- ── CAMPAIGN «ТИТУЛЫ» — the ceremony's campaign coda (missions 1–3):
+             titles ascend Prefect → Administrator → Governor (the Governor is
+             the climax), each with its Title Points; the comeback M€ of the
+             NEXT mission is a separate line — a seat can have one without a
+             title. Final mission: the champion beat instead. Data is the
+             SERVER'S committed result (campaignState), never a client guess. -->
+        <transition name="con-eg-fade">
+          <div v-if="campaignCodaVisible" class="con-eg-titles" :class="{'con-eg-titles--animate': campaignCodaAnimated}">
+            <div class="con-eg-titles__kicker" v-i18n>{{ campaignContract !== undefined && campaignContract.final ? 'Campaign champion' : 'Titles' }}</div>
+            <div class="con-eg-titles__rows">
+              <div v-for="(row, i) in campaignTitleRows" :key="'t' + row.seat + row.title"
+                   class="con-eg-titles__row" :class="'con-eg-titles__row--' + row.title" :style="{'--egt-i': i}">
+                <img class="con-eg-titles__emblem" :src="titleArtUrl(row.title)" :alt="$t(row.label)" draggable="false" />
+                <span class="con-eg-titles__cube" :class="'player_bg_color_' + row.color" aria-hidden="true"></span>
+                <span class="con-eg-titles__name">{{ row.name }}</span>
+                <span class="con-eg-titles__tlabel">{{ $t(row.label) }}<template v-if="row.shared"> · <span v-i18n>shared place</span></template></span>
+                <span class="con-eg-titles__tp">+{{ row.titlePoints }} <span v-i18n>TP</span></span>
+                <span v-if="row.bonus > 0" class="con-eg-titles__bonus">{{ nextMissionBonusText(row.bonus) }}</span>
+              </div>
+              <div v-for="row in campaignBonusOnlyRows" :key="'b' + row.seat"
+                   class="con-eg-titles__row con-eg-titles__row--bonus" :style="{'--egt-i': campaignTitleRows.length}">
+                <span class="con-eg-titles__emblem con-eg-titles__emblem--none" aria-hidden="true"></span>
+                <span class="con-eg-titles__cube" :class="'player_bg_color_' + row.color" aria-hidden="true"></span>
+                <span class="con-eg-titles__name">{{ row.name }}</span>
+                <span class="con-eg-titles__bonus">{{ nextMissionBonusText(row.bonus) }}</span>
+              </div>
+              <div v-for="seat in campaignChampionRows" :key="'c' + seat.seat" class="con-eg-titles__row con-eg-titles__row--champion">
+                <img class="con-eg-titles__emblem" :src="titleArtUrl('governor')" :alt="$t('Campaign champion')" draggable="false" />
+                <span class="con-eg-titles__cube" :class="'player_bg_color_' + seat.color" aria-hidden="true"></span>
+                <span class="con-eg-titles__name">{{ seat.name }}</span>
+                <span class="con-eg-titles__tlabel" v-i18n>Campaign champion</span>
+              </div>
+            </div>
+            <div v-if="campaignResultPending" class="con-eg-titles__pending" v-i18n>Committing the mission result…</div>
+          </div>
+        </transition>
         <div class="con-eg__final">
           <transition name="con-eg-fade">
             <div v-if="zoneNote !== undefined && ui.winnerShown" class="con-eg__wnote">{{ $t(zoneNote) }}</div>
@@ -202,6 +238,27 @@
                             :player-view="playerView"
                             :model="model"
                             :eg-vm="vm" />
+
+    <!-- ── CAMPAIGN SCENES — internal scenes of this same workspace (the
+         overview pattern): the scoring stage parks under them and returns on
+         B. Never a modal, never a trip through the main menu. -->
+    <div v-if="campaignScene === 'map'" class="con-eg-campaign-scene">
+      <ConsoleCampaignMap ref="campaignMap" :embedded="true" @close="closeCampaignScene" />
+    </div>
+    <div v-else-if="campaignScene === 'carryover'" class="con-eg-campaign-scene con-eg-campaign-scene--carry">
+      <ConsoleCarryoverPicker
+        ref="carryPicker"
+        :embedded="false"
+        :eligible="carryEligible"
+        :selected="carryDraft"
+        :confirmed="carryConfirmed && !carryDirty"
+        :submitting="campaign.submittingCarryover"
+        :error="campaign.error"
+        @toggle="toggleCarry($event)"
+        @confirm="confirmCarry"
+        @back="closeCampaignScene"
+      />
+    </div>
   </div>
 </template>
 
@@ -246,6 +303,20 @@ import {
   consoleOverviewUi, openEndgameOverview, OVERVIEW_MS,
 } from '@/client/console/endgame/consoleOverviewState';
 import ConsoleEndgameOverview from '@/client/components/console/ConsoleEndgameOverview.vue';
+// Campaign mode: the mission coda («Титулы» / champion), the carryover scene
+// and the embedded Campaign Map (docs/CAMPAIGN_MODE_ARCHITECTURE.md §5.3).
+import {CardName} from '@/common/cards/CardName';
+import {isPlayerId} from '@/common/Types';
+import {TitleName} from '@/common/campaign/CampaignTypes';
+import {CampaignGameContract} from '@/common/campaign/CampaignGameContract';
+import {MissionResultModel} from '@/common/campaign/CampaignModel';
+import {
+  campaignState, openCampaign, setCampaignViewerName, startCampaignWatch, stopCampaignWatch, submitCampaignCarryover,
+} from '@/client/console/campaign/campaignState';
+import {TITLE_LABEL, titleArtUrl} from '@/client/console/campaign/titleArt';
+import ConsoleCampaignMap from '@/client/components/console/campaign/ConsoleCampaignMap.vue';
+import ConsoleCarryoverPicker from '@/client/components/console/campaign/ConsoleCarryoverPicker.vue';
+import {$t, translateTextWithParams} from '@/client/directives/i18n';
 
 type PostGameAction = {
   id: string,
@@ -257,7 +328,7 @@ type PostGameAction = {
 
 export default defineComponent({
   name: 'ConsoleEndgameWorkspace',
-  components: {ConsoleEndgameOverview},
+  components: {ConsoleEndgameOverview, ConsoleCampaignMap, ConsoleCarryoverPicker},
   props: {
     playerView: {type: Object as PropType<ViewModel>, required: true},
   },
@@ -282,6 +353,12 @@ export default defineComponent({
       /** Resolved label font size, px (the plan's glyph-width estimate). */
       labelFontPx: 14,
       totalEls: {} as Record<string, HTMLElement | undefined>,
+      /** Campaign scenes — internal, the overview pattern (park + return). */
+      campaignScene: undefined as undefined | 'map' | 'carryover',
+      /** The coda animates only when the ceremony itself played live. */
+      campaignCodaAnimated: false,
+      carryDraft: [] as Array<CardName>,
+      carryDirty: false,
     };
   },
   computed: {
@@ -295,6 +372,92 @@ export default defineComponent({
      *  it live so the two layers crossfade — never a blank frame). */
     overviewParked(): boolean {
       return this.ov.phase === 'entering' || this.ov.phase === 'open';
+    },
+    // ── Campaign mode (docs/CAMPAIGN_MODE_ARCHITECTURE.md §5.3, §7) ──────
+    campaign() {
+      return campaignState;
+    },
+    campaignContract(): CampaignGameContract | undefined {
+      return this.playerView.game.gameOptions.campaign;
+    },
+    campaignResult(): MissionResultModel | undefined {
+      const contract = this.campaignContract;
+      if (contract === undefined) {
+        return undefined;
+      }
+      return campaignState.model?.missions[contract.missionSlot]?.result;
+    },
+    campaignResultPending(): boolean {
+      return this.campaignContract !== undefined && this.campaignResult === undefined;
+    },
+    campaignCodaVisible(): boolean {
+      return this.campaignContract !== undefined &&
+        this.ui.phase === 'actions' && !this.overviewParked && this.campaignScene === undefined && !this.ui.collapsed;
+    },
+    campaignSeatName(): (seat: number) => {name: string, color: Color} {
+      return (seat: number) => {
+        const s = campaignState.model?.seats.find((x) => x.seat === seat);
+        return {name: s?.name ?? '', color: (s?.color ?? 'neutral') as Color};
+      };
+    },
+    /** Titles ASCENDING (Prefect → Administrator → Governor — the climax last). */
+    campaignTitleRows(): ReadonlyArray<{seat: number, title: TitleName, label: string, name: string, color: Color, titlePoints: number, bonus: number, shared: boolean}> {
+      const result = this.campaignResult;
+      if (result === undefined || this.campaignContract?.final === true) {
+        return [];
+      }
+      return [...result.titles]
+        .sort((a, b) => a.titlePoints - b.titlePoints)
+        .map((t) => {
+          const who = this.campaignSeatName(t.seat);
+          const standing = result.standings.find((s) => s.seat === t.seat);
+          return {
+            seat: t.seat,
+            title: t.title,
+            label: TITLE_LABEL[t.title],
+            name: who.name,
+            color: who.color,
+            titlePoints: t.titlePoints,
+            bonus: result.bonuses.find((b) => b.seat === t.seat)?.megaCredits ?? 0,
+            shared: (standing?.tiedWith.length ?? 0) > 0,
+          };
+        });
+    },
+    /** Comeback M€ without a title — a separate consequence, shown separately. */
+    campaignBonusOnlyRows(): ReadonlyArray<{seat: number, name: string, color: Color, bonus: number}> {
+      const result = this.campaignResult;
+      if (result === undefined || this.campaignContract?.final === true) {
+        return [];
+      }
+      const titled = new Set(result.titles.map((t) => t.seat));
+      return result.bonuses.filter((b) => !titled.has(b.seat)).map((b) => {
+        const who = this.campaignSeatName(b.seat);
+        return {seat: b.seat, name: who.name, color: who.color, bonus: b.megaCredits};
+      });
+    },
+    campaignChampionRows(): ReadonlyArray<{seat: number, name: string, color: Color}> {
+      const result = this.campaignResult;
+      if (result === undefined || this.campaignContract?.final !== true) {
+        return [];
+      }
+      return (result.championSeats ?? []).map((seat) => ({seat, ...this.campaignSeatName(seat)}));
+    },
+    /** The viewer's carryover door data (owner-only wire fields). */
+    carryEligible(): ReadonlyArray<CardName> {
+      return campaignState.model?.carryover?.yourEligible ?? [];
+    },
+    carryConfirmed(): boolean {
+      const you = campaignState.model?.you?.seat;
+      if (you === undefined) {
+        return false;
+      }
+      return campaignState.model?.carryover?.bySeat.find((s) => s.seat === you)?.status === 'confirmed';
+    },
+    viewerHasCarryDoor(): boolean {
+      const you = campaignState.model?.you?.seat;
+      return you !== undefined &&
+        campaignState.model?.phase === 'interlude' &&
+        campaignState.model?.carryover?.bySeat.some((s) => s.seat === you) === true;
     },
     /** ONE endgame model for the ceremony AND the overview. The facts feed
      *  only the insight/episode engines — every scoring number is identical
@@ -385,6 +548,26 @@ export default defineComponent({
      *  last. */
     actions(): Array<PostGameAction> {
       const out: Array<PostGameAction> = [];
+      // Campaign mission verbs lead: the campaign owns the continuation.
+      // Missions 1–3 additionally SUPPRESS the rematch machinery — a rematch
+      // would fork a mission into an unlinked game; the final keeps it (an
+      // ordinary new single game with the same roster).
+      const contract = this.campaignContract;
+      if (contract !== undefined) {
+        if (!contract.final && this.viewerHasCarryDoor) {
+          out.push({
+            id: 'campaign-carry',
+            label: 'Project legacy',
+            note: $t(this.carryConfirmed ? 'selection confirmed' : 'selection pending'),
+            run: () => this.openCarryScene(),
+          });
+        }
+        out.push({
+          id: 'campaign-map',
+          label: contract.final ? 'Campaign chronicle' : 'Campaign map',
+          run: () => this.openCampaignScene(),
+        });
+      }
       out.push({
         id: 'overview',
         label: 'Game overview',
@@ -394,7 +577,7 @@ export default defineComponent({
         // desktop EndgameResultsOverlay stays desktop-only.
         run: () => this.beginOverviewCommit(),
       });
-      const rematch = rematchState.model;
+      const rematch = contract !== undefined && !contract.final ? undefined : rematchState.model;
       const busy = rematchState.submitting;
       const viewerId = this.playerView.id;
       if (rematch !== undefined && rematch.viewerIsPlayer && viewerId !== undefined) {
@@ -463,6 +646,23 @@ export default defineComponent({
         // Publishing it from here put one verb over every screen the player
         // walked to and hid what that screen could actually do.
         return [];
+      }
+      if (this.campaignScene === 'map') {
+        return [
+          {control: 'dpad', label: 'Navigate'},
+          {control: 'confirm', label: 'Confirm'},
+          {control: 'secondary', label: 'Mission dossier'},
+          {control: 'inspect', label: 'Campaign dossier'},
+          {control: 'back', label: 'Game results', priority: 5},
+        ];
+      }
+      if (this.campaignScene === 'carryover') {
+        return [
+          {control: 'dpadH', label: 'Choose'},
+          {control: 'confirm', label: 'Take / return'},
+          {control: 'secondary', label: this.carryDraft.length === 0 ? 'Continue without cards' : 'Keep the selection', highlight: true, priority: 0},
+          {control: 'back', label: 'Game results', priority: 5},
+        ];
       }
       if (this.overviewParked) {
         // The overview scene: its own level's verbs, nothing inherited.
@@ -546,6 +746,16 @@ export default defineComponent({
     // One fetch per load, shared with the desktop host — the facts enrich the
     // overview's insight layer; every scoring number is complete without them.
     requestEndgameFacts(this.playerView.id);
+    // Campaign mission: bind the campaign store to THIS game's viewer (the
+    // seat name, not the menu identity) and keep it fresh — the coda and the
+    // map scene render the SERVER's committed result, never a client guess.
+    const contract = this.campaignContract;
+    if (contract !== undefined) {
+      setCampaignViewerName(this.playerView.thisPlayer?.name);
+      this.campaignCodaAnimated = ceremonyShouldPlay();
+      void openCampaign(contract.campaignId);
+      startCampaignWatch();
+    }
     if (ceremonyShouldPlay()) {
       this.startCeremony();
     } else {
@@ -562,6 +772,10 @@ export default defineComponent({
   beforeUnmount() {
     this.teardown();
     clearPanelCommands('endgame');
+    if (this.campaignContract !== undefined) {
+      stopCampaignWatch();
+      setCampaignViewerName(undefined);
+    }
   },
   methods: {
     rowBy(color: Color): ConsoleEndgameRow {
@@ -842,6 +1056,48 @@ export default defineComponent({
         });
       });
     },
+    // ── campaign scenes ───────────────────────────────────────────────────
+    titleArtUrl,
+    nextMissionBonusText(bonus: number): string {
+      return translateTextWithParams('Next mission: +${0} M€', [String(bonus)]);
+    },
+    /** Explicit A on «Карта кампании» — the ceremony → map handoff (D9). */
+    openCampaignScene(): void {
+      this.campaignScene = 'map';
+    },
+    openCarryScene(): void {
+      this.carryDraft = [...(campaignState.model?.carryover?.yourCards ?? [])];
+      this.carryDirty = false;
+      this.campaignScene = 'carryover';
+    },
+    closeCampaignScene(): void {
+      // B never silently confirms or discards: the server keeps whatever was
+      // last CONFIRMED; the local draft simply closes.
+      this.campaignScene = undefined;
+      this.carryDirty = false;
+    },
+    toggleCarry(name: CardName): void {
+      const idx = this.carryDraft.indexOf(name);
+      if (idx >= 0) {
+        this.carryDraft.splice(idx, 1);
+      } else if (this.carryDraft.length < 2) {
+        this.carryDraft.push(name);
+      }
+      this.carryDirty = true;
+    },
+    async confirmCarry(): Promise<void> {
+      // The bearer credential is THIS mission's own seat — this game IS the
+      // carryover's source mission.
+      const playerId = this.playerView.id;
+      if (playerId === undefined || !isPlayerId(playerId)) {
+        return;
+      }
+      const ok = await submitCampaignCarryover(playerId, this.carryDraft);
+      if (ok) {
+        this.carryDirty = false;
+        this.campaignScene = undefined;
+      }
+    },
     // ── input (delegated by the shell) ────────────────────────────────────
     handleIntent(intent: GamepadIntent): void {
       // ⚠ COLLAPSED, THIS IS NOT CALLED AT ALL. The shell routes on
@@ -859,6 +1115,15 @@ export default defineComponent({
       // the scoring scene the player is returning to.
       if (this.overviewParked) {
         (this.$refs.overview as InstanceType<typeof ConsoleEndgameOverview> | undefined)?.handleIntent(intent);
+        return;
+      }
+      // CAMPAIGN SCENES own the pad while they stand (the same law).
+      if (this.campaignScene === 'map') {
+        (this.$refs.campaignMap as {handleIntent?: (i: GamepadIntent) => boolean} | undefined)?.handleIntent?.(intent);
+        return;
+      }
+      if (this.campaignScene === 'carryover') {
+        (this.$refs.carryPicker as {handleIntent?: (i: GamepadIntent) => boolean} | undefined)?.handleIntent?.(intent);
         return;
       }
       if (intent.kind === 'nav') {

@@ -2,14 +2,16 @@ import {IGame, Score} from '../../src/server/IGame';
 import {GameOptions} from '../../src/server/game/GameOptions';
 import {SerializedGame} from '../../src/server/SerializedGame';
 import {GameIdLedger, IDatabase} from '../../src/server/database/IDatabase';
-import {GameId, ParticipantId} from '../../src/common/Types';
+import {CampaignId, GameId, ParticipantId} from '../../src/common/Types';
 import {Session, SessionId} from '../../src/server/auth/Session';
+import {SerializedCampaign} from '../../src/server/campaign/Campaign';
 import {Clock} from '../../src/common/Timer';
 
 export class InMemoryDatabase implements IDatabase {
   public games: Map<GameId, Array<SerializedGame | undefined>> = new Map();
   protected completedGames: Map<GameId, Date> = new Map();
   protected sessions: Map<SessionId, Session> = new Map();
+  public campaigns: Map<CampaignId, SerializedCampaign> = new Map();
   private clock: Clock;
 
   constructor(clock: Clock = new Clock()) {
@@ -143,5 +145,21 @@ export class InMemoryDatabase implements IDatabase {
   getSessions(): Promise<Array<Session>> {
     const now = this.clock.now();
     return Promise.resolve(Array.from(this.sessions.values()).filter((e) => e.expirationTimeMillis > now));
+  }
+  saveCampaign(campaign: SerializedCampaign): Promise<void> {
+    // Deep copy: the store must not alias the caller's live document.
+    this.campaigns.set(campaign.id, JSON.parse(JSON.stringify(campaign)));
+    return Promise.resolve();
+  }
+  getCampaign(campaignId: CampaignId): Promise<SerializedCampaign | undefined> {
+    const stored = this.campaigns.get(campaignId);
+    return Promise.resolve(stored === undefined ? undefined : JSON.parse(JSON.stringify(stored)));
+  }
+  getCampaignIds(): Promise<Array<CampaignId>> {
+    return Promise.resolve(Array.from(this.campaigns.keys()));
+  }
+  deleteCampaign(campaignId: CampaignId): Promise<void> {
+    this.campaigns.delete(campaignId);
+    return Promise.resolve();
   }
 }

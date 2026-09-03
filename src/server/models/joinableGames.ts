@@ -54,6 +54,7 @@ export function joinableSummaryFromRecord(
     finished: record.finished,
     you: ambiguous ? undefined : {id: matches[0].id, color: matches[0].color},
     ambiguous,
+    campaign: record.campaign,
   };
 }
 

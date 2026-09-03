@@ -10,6 +10,7 @@ import {InputError} from './InputError';
 import {OptionsInput} from './OptionsPlayerInput';
 import {InputResponse, isSelectInitialCardsResponse} from '../../common/inputs/InputResponse';
 import {PlayerInput} from '../PlayerInput';
+import {campaignSelectionSkipsCorpStep, campaignStartingBudget} from '../campaign/CampaignMissionSetup';
 
 type Inputs = {
   corp: PlayerInput | undefined,
@@ -30,25 +31,29 @@ export class SelectInitialCards extends OptionsInput<undefined> {
     this.options.push(input);
   }
 
-  constructor(private player: IPlayer, cb: (corporation: ICorporationCard) => undefined) {
+  constructor(private player: IPlayer, cb: (corporation: ICorporationCard | undefined) => undefined) {
     super('initialCards', '', []);
     const game = player.game;
-    let corporation: ICorporationCard;
+    let corporation: ICorporationCard | undefined = undefined;
     this.title = ' ';
     this.buttonLabel = 'Start';
 
-
-    this.push('corp',
-      new SelectCard<ICorporationCard>(
-        titles.SELECT_CORPORATION_TITLE, undefined, player.dealtCorporationCards, {min: 1, max: 1}).andThen(
-        (cards) => {
-          if (cards.length !== 1) {
-            throw new InputError('Only select 1 corporation card');
-          }
-          corporation = cards[0];
-          return undefined;
-        }),
-    );
+    // A FINAL campaign mission deals no corporations — the player deploys the
+    // accumulated lineage instead («Штаб»), so the corp step is omitted
+    // entirely. Every other step (preludes / CEOs / projects) is untouched.
+    if (!campaignSelectionSkipsCorpStep(player)) {
+      this.push('corp',
+        new SelectCard<ICorporationCard>(
+          titles.SELECT_CORPORATION_TITLE, undefined, player.dealtCorporationCards, {min: 1, max: 1}).andThen(
+          (cards) => {
+            if (cards.length !== 1) {
+              throw new InputError('Only select 1 corporation card');
+            }
+            corporation = cards[0];
+            return undefined;
+          }),
+      );
+    }
 
     // Give each player Merger in this variant
     if (game.gameOptions.twoCorpsVariant) {
@@ -112,15 +117,23 @@ export class SelectInitialCards extends OptionsInput<undefined> {
     });
   }
 
-  private completed(corporation: ICorporationCard) {
+  private completed(corporation: ICorporationCard | undefined) {
     const player = this.player;
     const game = player.game;
-    // Check for negative M€
-    const cardCost = corporation.cardCost !== undefined ? corporation.cardCost : player.cardCost;
+    // Check for negative M€. A campaign human's budget is the WHOLE starting
+    // stack the corp-play sequence will actually grant (every lineage corp's
+    // starting M€ + the new pick's + the comeback bonus), and the card cost
+    // stacks the way `playCorporationCardScoped` stacks it — the check must
+    // never promise a purchase the deployment cannot afford, nor forbid one
+    // it can.
+    const campaign = game.gameOptions.campaign !== undefined && player.campaignSeat !== undefined;
+    const budget = campaign ? campaignStartingBudget(player, corporation) : undefined;
+    const cardCost = budget !== undefined ? budget.cardCost :
+      (corporation?.cardCost !== undefined ? corporation.cardCost : player.cardCost);
     const availableMegaCredits = game.gameOptions.testMode ?
       constants.TEST_MODE_STARTING_RESOURCE_COUNT :
-      corporation.startingMegaCredits;
-    if (corporation.name !== CardName.BEGINNER_CORPORATION && player.cardsInHand.length * cardCost > availableMegaCredits) {
+      (budget !== undefined ? budget.megaCredits : (corporation?.startingMegaCredits ?? 0));
+    if (corporation?.name !== CardName.BEGINNER_CORPORATION && player.cardsInHand.length * cardCost > availableMegaCredits) {
       player.cardsInHand = [];
       player.preludeCardsInHand = [];
       throw new InputError('Too many cards selected');
@@ -133,7 +146,7 @@ export class SelectInitialCards extends OptionsInput<undefined> {
     }
 
     for (const card of player.dealtCorporationCards) {
-      if (card.name !== corporation.name) {
+      if (card.name !== corporation?.name) {
         game.corporationDeck.discard(card);
       }
     }

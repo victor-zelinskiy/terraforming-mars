@@ -1,5 +1,5 @@
 import {Color} from '../Color';
-import {GameId, PlayerId} from '../Types';
+import {CampaignId, GameId, PlayerId} from '../Types';
 import {Phase} from '../Phase';
 import {BoardName} from '../boards/BoardName';
 import {Expansion} from '../cards/GameModule';
@@ -64,6 +64,13 @@ export type JoinableGameSummary = {
    * UI shows an ambiguity state instead of an auto-join link.
    */
   ambiguous: boolean;
+  /**
+   * Campaign mode: present when this game is one MISSION of a campaign.
+   * «Мои партии» collapses mission rows sharing `campaign.id` into one
+   * campaign row whose front door is the Campaign Map. Absent on a host
+   * running an older server build — grouping must tolerate partial data.
+   */
+  campaign?: {id: CampaignId, name: string, slot: number, count: number, final: boolean};
 };
 
 export type PlayerColorOverrideStatus =

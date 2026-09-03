@@ -1,7 +1,7 @@
 import {Tag} from '../../common/cards/Tag';
 import {AutomaVictoryPoints, CardVictoryPointsKind, CardVpMechanics, CityVpDetail, TerraformRatingBreakdown, VictoryPointsBreakdown} from '../../common/game/VictoryPointsBreakdown';
 
-export type VictoryPoints = 'terraformRating' | 'milestones' | 'awards' | 'greenery' | 'city' | 'escapeVelocity' | 'moon habitat' | 'moon mine' | 'moon road' | 'planetary tracks' | 'deltaProject' | 'victoryPoints';
+export type VictoryPoints = 'terraformRating' | 'milestones' | 'awards' | 'greenery' | 'city' | 'escapeVelocity' | 'moon habitat' | 'moon mine' | 'moon road' | 'planetary tracks' | 'deltaProject' | 'titles' | 'victoryPoints';
 
 type Mutable<T> = {
   [K in keyof T]: T[K] extends ReadonlyArray<infer T> ? T[] : T[K];
@@ -49,6 +49,8 @@ export class VictoryPointsBreakdownBuilder {
     this.points.total += this.points.moonRoads;
     this.points.total += this.points.planetaryTracks;
     this.points.total += this.points.deltaProject;
+    // Campaign «Титулы» — optional: present only on a final campaign mission.
+    this.points.total += this.points.titles ?? 0;
     this.points.total += this.points.victoryPoints;
     if (this.points.automa !== undefined) {
       this.points.total += this.points.automa.mcToVp;
@@ -74,6 +76,13 @@ export class VictoryPointsBreakdownBuilder {
   // total is still accumulated through `setVictoryPoints('city', …)`.
   public setCityDetails(entries: Array<CityVpDetail>) {
     this.points.detailsCities = entries;
+  }
+
+  // Campaign «Титулы» provenance rows (which title, which mission) behind the
+  // `titles` total. Display-only — the total is accumulated through
+  // `setVictoryPoints('titles', …)`.
+  public setTitleDetails(entries: Array<{title: string, missionSlot: number, points: number}>) {
+    this.points.detailsTitles = entries;
   }
 
   public setVictoryPoints(key: VictoryPoints, points: number, message?: string, messageArgs?: Array<string>, kind?: CardVictoryPointsKind, mechanics?: CardVpMechanics) {
@@ -128,6 +137,11 @@ export class VictoryPointsBreakdownBuilder {
       break;
     case 'deltaProject':
       this.points.deltaProject += points;
+      break;
+    case 'titles':
+      // Lazily materialized: the field stays ABSENT in every non-campaign
+      // breakdown, so the ordinary wire shape never changes.
+      this.points.titles = (this.points.titles ?? 0) + points;
       break;
     default:
       console.warn('Unknown victory point constraint ' + key);

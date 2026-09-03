@@ -23,6 +23,11 @@ import {ApiGameColonyTradePreview} from '../routes/ApiGameColonyTradePreview';
 import {ApiGameRematch} from '../routes/ApiGameRematch';
 import {ApiBotTurnAck} from '../routes/ApiBotTurnAck';
 import {ApiGames} from '../routes/ApiGames';
+import {ApiCampaign} from '../routes/ApiCampaign';
+import {ApiCampaignCreate} from '../routes/ApiCampaignCreate';
+import {ApiCampaignLaunch} from '../routes/ApiCampaignLaunch';
+import {ApiCampaignCarryover} from '../routes/ApiCampaignCarryover';
+import {ApiCampaignDev} from '../routes/ApiCampaignDev';
 import {ApiAdminRollbackGames} from '../routes/ApiAdminRollbackGames';
 import {ApiAdminRollbackHistory} from '../routes/ApiAdminRollbackHistory';
 import {ApiAdminRollback} from '../routes/ApiAdminRollback';
@@ -106,6 +111,12 @@ const handlers: Map<string, IHandler> = new Map(
     [paths.API_GAME_REMATCH, ApiGameRematch.INSTANCE],
     [paths.API_GAME_BOT_TURN_ACK, ApiBotTurnAck.INSTANCE],
     [paths.API_GAMES, ApiGames.INSTANCE],
+    [paths.API_CAMPAIGN, ApiCampaign.INSTANCE],
+    [paths.API_CAMPAIGN_CREATE, ApiCampaignCreate.INSTANCE],
+    [paths.API_CAMPAIGN_LAUNCH, ApiCampaignLaunch.INSTANCE],
+    [paths.API_CAMPAIGN_CARRYOVER, ApiCampaignCarryover.INSTANCE],
+    [paths.API_CAMPAIGN_DEV, ApiCampaignDev.INSTANCE],
+    [paths.CAMPAIGN, ServeApp.INSTANCE],
     [paths.API_ADMIN_ROLLBACK_GAMES, ApiAdminRollbackGames.INSTANCE],
     [paths.API_ADMIN_ROLLBACK_HISTORY, ApiAdminRollbackHistory.INSTANCE],
     [paths.API_ADMIN_ROLLBACK, ApiAdminRollback.INSTANCE],

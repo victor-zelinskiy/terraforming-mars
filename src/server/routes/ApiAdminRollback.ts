@@ -8,6 +8,7 @@ import {isGameId} from '../../common/Types';
 import {isAdminName} from '../../common/utils/adminName';
 import {savesToDelete} from '../models/adminRollback';
 import {AdminRollbackResult} from '../../common/models/AdminRollbackModel';
+import {CampaignManager} from '../campaign/CampaignManager';
 
 /**
  * POST /api/admin/rollback?id=<gameId>&saveId=<n>&name=<displayName>
@@ -61,8 +62,25 @@ export class ApiAdminRollback extends Handler {
       }
 
       const deletes = savesToDelete(saveIds, targetSaveId);
+
+      // Campaign guard: rolling a mission back across its END boundary would
+      // desync a committed campaign result. Refused once the NEXT mission
+      // consumed it; otherwise the commit is revoked so the campaign rewinds
+      // with the game (and recommits fresh if the game re-reaches END).
+      const campaignMission = before.gameOptions.campaign !== undefined;
+      if (campaignMission && deletes > 0) {
+        const guard = await CampaignManager.getInstance().rollbackGuard(before);
+        if (!guard.allowed) {
+          responses.badRequest(req, res, guard.reason ?? 'campaign result already consumed');
+          return;
+        }
+      }
+
       if (deletes > 0) {
         await db.deleteGameNbrSaves(gameId, deletes);
+        if (campaignMission) {
+          await CampaignManager.getInstance().revokeMissionResult(gameId, before.gameOptions.campaign?.campaignId);
+        }
       }
 
       // Force a reload from the database (now truncated to the target save),

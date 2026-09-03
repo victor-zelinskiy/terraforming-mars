@@ -65,6 +65,12 @@
       <console-create-game
         v-else-if="screen === 'premium-create-game'"
       ></console-create-game>
+      <!-- Campaign mode: the standalone Campaign Map screen (route маршрут +
+           interlude + chronicle). The same component is embedded as a scene of
+           the endgame workspace between missions. -->
+      <console-campaign-map
+        v-else-if="screen === 'campaign'"
+      ></console-campaign-map>
       <start-screen v-else-if="screen === 'start-screen'"></start-screen>
       <load-game-form v-else-if="screen === 'load'"></load-game-form>
       <game-home
@@ -257,6 +263,7 @@ const StartScreen = defineAsyncComponent(() => import(/* webpackChunkName: "star
 // the ONLY menu / create screens since desktop-removal wave 3.
 const ConsoleMainMenu = defineAsyncComponent(() => import(/* webpackChunkName: "console-menu" */ '@/client/components/console/menu/ConsoleMainMenu.vue'));
 const ConsoleCreateGame = defineAsyncComponent(() => import(/* webpackChunkName: "console-menu" */ '@/client/components/console/menu/ConsoleCreateGame.vue'));
+const ConsoleCampaignMap = defineAsyncComponent(() => import(/* webpackChunkName: "console-menu" */ '@/client/components/console/campaign/ConsoleCampaignMap.vue'));
 import AppBootLoader from '@/client/components/boot/AppBootLoader.vue';
 import {bootWarmupState, shouldRunBootWarmup, beginBootWarmup} from '@/client/components/boot/bootWarmupState';
 import RematchLayer from '@/client/components/rematch/RematchLayer.vue';
@@ -336,6 +343,7 @@ import dialogPolyfill from 'dialog-polyfill';
 import {setDocumentTitle} from '../utils/documentTitle';
 
 type Screen = 'admin' |
+            'campaign' |
             'cards' |
             'empty' |
             'game-home' |
@@ -416,6 +424,7 @@ export default defineComponent({
   components: {
     'console-main-menu': ConsoleMainMenu,
     'console-create-game': ConsoleCreateGame,
+    'console-campaign-map': ConsoleCampaignMap,
     'start-screen': StartScreen,
     'load-game-form': LoadGameForm,
     'game-home': GameHome,
@@ -852,6 +861,10 @@ export default defineComponent({
         app.screen = 'premium-create-game';
       } else if (currentPathname === paths.NEW_GAME_PREMIUM) {
         app.screen = 'premium-create-game';
+      } else if (currentPathname === paths.CAMPAIGN) {
+        // Campaign mode: the Campaign Map — a console-native pre-game shell
+        // (also embedded as an endgame scene inside ConsoleShell).
+        app.screen = 'campaign';
       } else if (currentPathname === paths.LOAD) {
         app.screen = 'load';
       } else if (currentPathname === paths.CARDS) {

@@ -83,6 +83,8 @@ const NOT_A_CACHE = new Map<string, string>([
     'admin save history — about the game RECORD, not about what the viewer may do'],
   [path.join('src', 'client', 'components', 'console', 'menu', 'ConsoleMainMenu.vue'),
     'a one-shot delete POST outside any game view'],
+  [path.join('src', 'client', 'console', 'campaign', 'campaignState.ts'),
+    'the campaign document carries its own monotonic rev (stale responses are refused by it); it holds no per-game verdict'],
 ]);
 
 function walk(dir: string, out: Array<string>): void {

@@ -4,7 +4,8 @@ import {Context} from './IHandler';
 import {Database} from '../database/Database';
 import {BoardName} from '../../common/boards/BoardName';
 import {RandomBoardOption} from '../../common/boards/RandomBoardOption';
-import {RandomBoardContext, boardOptions as resolveBoardOptions, isRandomBoardOption} from '../boards/randomBoard';
+import {RandomBoardContext, boardOptions as resolveBoardOptions} from '../boards/randomBoard';
+import {gameOptionsFromNewGameConfig} from '../game/newGameConfigToOptions';
 import {Cloner} from '../database/Cloner';
 import {Game} from '../Game';
 import {GameOptions} from '../game/GameOptions';
@@ -109,70 +110,10 @@ export class ApiCreateGame extends Handler {
           const boards = ApiCreateGame.boardOptions(requestedBoard, {automa: gameReq.automa !== undefined});
           gameReq.board = boards[Math.floor(Math.random() * boards.length)];
 
-          const gameOptions: GameOptions = {
-            altVenusBoard: gameReq.altVenusBoard,
-            aresExtension: gameReq.expansions.ares,
-            aresHazards: true, // Not a runtime option.
-            aresExtremeVariant: gameReq.aresExtremeVariant,
-            bannedCards: gameReq.bannedCards,
-            boardName: gameReq.board,
-            // Remember a RANDOM board request so a rematch re-rolls it (boardName
-            // above is already a concrete board); undefined for an explicit pick.
-            randomBoardOption: isRandomBoardOption(requestedBoard) ? requestedBoard : undefined,
-            // Remember "random first player" so a rematch re-randomizes it too (the
-            // form already resolved it into a concrete `first` flag).
-            randomFirstPlayer: gameReq.randomFirstPlayer === true,
-            ceoExtension: gameReq.expansions.ceo,
-            clonedGamedId: gameReq.clonedGamedId,
-            coloniesExtension: gameReq.expansions.colonies,
-            communityCardsOption: gameReq.expansions.community,
-            expansions: gameReq.expansions,
-            ceosDraftVariant: gameReq.ceosDraftVariant,
-            corporateEra: gameReq.expansions.corpera,
-            customCeos: gameReq.customCeos,
-            customColoniesList: gameReq.customColoniesList,
-            customCorporationsList: gameReq.customCorporationsList,
-            customPreludes: gameReq.customPreludes,
-            customProjectCards: gameReq.customProjectCards ?? [],
-            customBonusCards: gameReq.customBonusCards ?? [],
-            draftVariant: gameReq.draftVariant,
-            escapeVelocity: gameReq.escapeVelocity,
-            fastModeOption: gameReq.fastModeOption,
-            testMode: gameReq.testMode ?? false,
-            includedCards: gameReq.includedCards,
-            includeFanMA: gameReq.includeFanMA,
-            initialDraftVariant: gameReq.initialDraft,
-            modularMA: gameReq.modularMA,
-            moonExpansion: gameReq.expansions.moon,
-            moonStandardProjectVariant: gameReq.moonStandardProjectVariant,
-            moonStandardProjectVariant1: gameReq.moonStandardProjectVariant1,
-            pathfindersExpansion: gameReq.expansions.pathfinders,
-            politicalAgendasExtension: gameReq.politicalAgendasExtension,
-            prelude2Expansion: gameReq.expansions.prelude2,
-            preludeDraftVariant: gameReq.preludeDraftVariant,
-            preludeExtension: gameReq.expansions.prelude,
-            promoCardsOption: gameReq.expansions.promo,
-            randomMA: gameReq.randomMA,
-            removeNegativeGlobalEventsOption: gameReq.removeNegativeGlobalEventsOption,
-            requiresMoonTrackCompletion: gameReq.requiresMoonTrackCompletion,
-            requiresVenusTrackCompletion: gameReq.requiresVenusTrackCompletion,
-            showOtherPlayersVP: gameReq.showOtherPlayersVP,
-            showTimers: gameReq.showTimers,
-            shuffleMapOption: gameReq.shuffleMapOption,
-            solarPhaseOption: gameReq.solarPhaseOption,
-            soloTR: gameReq.soloTR,
-            startingCeos: gameReq.startingCeos,
-            startingCorporations: gameReq.startingCorporations,
-            startingPreludes: gameReq.startingPreludes,
-            starWarsExpansion: gameReq.expansions.starwars,
-            turmoilExtension: gameReq.expansions.turmoil,
-            twoCorpsVariant: gameReq.twoCorpsVariant,
-            underworldExpansion: gameReq.expansions.underworld,
-            deltaProjectExpansion: gameReq.expansions.deltaProject,
-            undoOption: gameReq.undoOption,
-            venusNextExtension: gameReq.expansions.venus,
-            automa: gameReq.automa,
-          };
+          // The full option mapping lives in newGameConfigToOptions so campaign
+          // mission creation derives options through the SAME code path. It
+          // never maps `campaign` — a client cannot forge a mission contract.
+          const gameOptions: GameOptions = gameOptionsFromNewGameConfig(gameReq, requestedBoard);
 
           let game: IGame;
           if (gameOptions.clonedGamedId !== undefined && !gameOptions.clonedGamedId.startsWith('#')) {

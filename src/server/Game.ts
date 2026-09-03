@@ -20,6 +20,7 @@ import {ColonyDealer} from './colonies/ColonyDealer';
 import {IColony} from './colonies/IColony';
 import {Color} from '../common/Color';
 import {ICorporationCard, isICorporationCard} from './cards/corporation/ICorporationCard';
+import {campaignCorporationQueue, campaignSelectionSkipsCorpStep, expectedCorporationCount, initialSelectionDoneOf, playCampaignCorporations, reserveCarriedProjectCards} from './campaign/CampaignMissionSetup';
 import {Database} from './database/Database';
 import {FundedAward, serializeFundedAwards, deserializeFundedAwards} from './awards/FundedAward';
 import {IAward} from './awards/IAward';
@@ -382,6 +383,14 @@ export class Game implements IGame, Logger {
     const ceoDeck = new CeoDeck(gameCards.getCeoCards(), [], rng);
     ceoDeck.shuffle(gameOptions.customCeos);
 
+    // Campaign carryover reservation («Наследие проектов»): each carried
+    // project card leaves the deck BEFORE any deal — the single instance
+    // enters the game only through the owner's hand at base-corp play, so a
+    // second copy can never be dealt, drawn or reshuffled in.
+    if (gameOptions.campaign !== undefined) {
+      reserveCarriedProjectCards(projectDeck, players);
+    }
+
     const activePlayer = firstPlayer.id;
 
     const tags = new Set<Tag>();
@@ -512,7 +521,12 @@ export class Game implements IGame, Logger {
         gameOptions.preludeDraftVariant ||
         gameOptions.underworldExpansion ||
         gameOptions.moonExpansion) {
-        player.dealtCorporationCards.push(...corporationDeck.drawN(game, gameOptions.startingCorporations));
+        // A FINAL campaign mission deals NO corporations — the player deploys
+        // the accumulated lineage instead («Штаб»). Preludes/CEOs/projects
+        // below are deliberately untouched.
+        if (!campaignSelectionSkipsCorpStep(player)) {
+          player.dealtCorporationCards.push(...corporationDeck.drawN(game, gameOptions.startingCorporations));
+        }
         if (gameOptions.initialDraftVariant === false) {
           const projectCardsToDeal = gameOptions.testMode ? constants.TEST_MODE_PROJECT_CARDS_DEALT_PER_PLAYER : 10;
           player.dealtProjectCards.push(...projectDeck.drawN(game, projectCardsToDeal));
@@ -825,25 +839,37 @@ export class Game implements IGame, Logger {
     return this.claimedMilestones.length >= constants.MAX_MILESTONES;
   }
 
-  private playerHasPickedCorporationCard(player: IPlayer, corporationCard: ICorporationCard): void {
+  private playerHasPickedCorporationCard(player: IPlayer, corporationCard: ICorporationCard | undefined): void {
     // TODO(kberg): I think we can get rid of this weird validation at a later time.
     player.pickedCorporationCard = corporationCard;
+    // A FINAL campaign mission has no corporation step («Штаб» plays the
+    // accumulated lineage), so completion is tracked by its own persisted
+    // flag — `initialSelectionDoneOf` reads either signal.
+    player.initialCardSelectionDone = true;
     // MarsBot never picks a corporation (out of the POC scope) — waiting on it
     // here would deadlock the start of the game after the human's pick.
-    if (this.players.every((p) => p.isMarsBot || p.pickedCorporationCard !== undefined)) {
+    if (this.players.every((p) => p.isMarsBot || initialSelectionDoneOf(p))) {
       for (const somePlayer of this.playersInGenerationOrder) {
         if (somePlayer.isMarsBot) {
           continue;
         }
-        if (somePlayer.pickedCorporationCard === undefined) {
+        const campaignHuman = this.gameOptions.campaign !== undefined && somePlayer.campaignSeat !== undefined;
+        if (somePlayer.pickedCorporationCard === undefined && !campaignHuman) {
           throw new Error(`pickedCorporationCard is not defined for ${somePlayer.id}`);
         }
         // A player with NO dealt corporations never CHOSE one — the beginner
         // corporation is assigned at game creation, before any start screen
         // exists (same discriminator gotoInitialResearchPhase prompts on).
         // There is nothing for them to press, so it plays immediately.
-        if (somePlayer.dealtCorporationCards.length === 0) {
+        // A campaign human is NEVER on this path: even the corp-less final
+        // mission keeps the explicit deployment press («Штаб»).
+        if (somePlayer.dealtCorporationCards.length === 0 && !campaignHuman && somePlayer.pickedCorporationCard !== undefined) {
           somePlayer.playCorporationCard(somePlayer.pickedCorporationCard);
+        } else if (campaignHuman && campaignCorporationQueue(somePlayer).length === 0) {
+          // Degenerate campaign seat with nothing to play (no lineage, no
+          // pick) — cannot occur in a well-formed campaign, but must never
+          // deadlock the research barrier if it does.
+          this.playerIsFinishedWithResearchPhase(somePlayer);
         } else {
           // DEFERRED corporation play: the corporation is NOT played (no
           // tableau entry, no starting M€, no card payment, no effects)
@@ -866,6 +892,24 @@ export class Game implements IGame, Logger {
    * chosen-but-unplayed window survives a reload (see gotoInitialResearchPhase).
    */
   private playCorporationInput(player: IPlayer): PlayerInput {
+    // Campaign missions play a SEQUENCE: the lineage in acquisition order,
+    // then the freshly picked corporation (missions 2–3; the final mission
+    // has no new pick — «Штаб»). One press runs the whole ordered sequence;
+    // the prompt's subject is the first still-unplayed corporation, so a
+    // reload mid-sequence resumes from exactly where it stopped.
+    if (this.gameOptions.campaign !== undefined && player.campaignSeat !== undefined) {
+      const queue = campaignCorporationQueue(player);
+      if (queue.length === 0) {
+        throw new Error(`no campaign corporations left to play for ${player.id}`);
+      }
+      return new SelectCard<ICorporationCard>(
+        'Play your corporation', 'Play', [queue[0]], {min: 1, max: 1})
+        .markStartGamePrompt({kind: 'corporationPlay'})
+        .andThen(() => {
+          playCampaignCorporations(player, {deferCardPayment: true});
+          return undefined;
+        });
+    }
     const picked = player.pickedCorporationCard;
     if (picked === undefined) {
       throw new Error(`pickedCorporationCard is not defined for ${player.id}`);
@@ -882,7 +926,7 @@ export class Game implements IGame, Logger {
   }
 
   private selectInitialCards(player: IPlayer): PlayerInput {
-    return new SelectInitialCards(player, (corporation: ICorporationCard) => {
+    return new SelectInitialCards(player, (corporation: ICorporationCard | undefined) => {
       this.playerHasPickedCorporationCard(player, corporation);
       return undefined;
     });
@@ -930,16 +974,20 @@ export class Game implements IGame, Logger {
     this.save();
 
     for (const player of this.players) {
+      const campaignHuman = this.gameOptions.campaign !== undefined && !player.isMarsBot && player.campaignSeat !== undefined;
       // No dealt corporations = no start-screen pick (beginner assignment /
-      // MarsBot): nothing to prompt, nothing to recover.
-      if (player.dealtCorporationCards.length === 0) {
+      // MarsBot): nothing to prompt, nothing to recover. EXCEPT a campaign
+      // human — the corp-less FINAL mission still owes the selection screen
+      // (preludes/projects) and the «Штаб» deployment press.
+      if (player.dealtCorporationCards.length === 0 && !campaignHuman) {
         continue;
       }
-      if (player.pickedCorporationCard === undefined) {
+      if (!initialSelectionDoneOf(player)) {
         player.setWaitingFor(this.selectInitialCards(player));
-      } else if (player.playedCards.filter(isICorporationCard).length === 0) {
-        // Reload recovery: the corporation was CHOSEN but not yet PLAYED
-        // (the deferred corporationPlay window) — re-issue the play prompt.
+      } else if (player.playedCards.filter(isICorporationCard).length < expectedCorporationCount(player)) {
+        // Reload recovery: chosen but not (fully) PLAYED — re-issue the play
+        // prompt. For a campaign this also resumes a lineage sequence that
+        // stopped mid-way (the queue skips corps already in the tableau).
         player.setWaitingFor(this.playCorporationInput(player));
       } else {
         // Reload recovery for a PARTIAL multiplayer state: this player already
@@ -1427,6 +1475,21 @@ export class Game implements IGame, Logger {
     const gameLoader = GameLoader.getInstance();
     await gameLoader.saveGame(this);
     gameLoader.completeGame(this);
+
+    // Campaign mission commit: standings/titles/bonuses snapshot into the
+    // campaign document (idempotent — a re-entry returns the stored result).
+    // Lazily required: CampaignManager → Game.newInstance would cycle at
+    // module load. A failure here self-heals via the lazy reconciliation in
+    // CampaignManager (an END-phase mission with an uncommitted slot commits
+    // on the next campaign read).
+    if (this.gameOptions.campaign !== undefined) {
+      try {
+        const {CampaignManager} = require('./campaign/CampaignManager');
+        await CampaignManager.getInstance().commitMissionResult(this);
+      } catch (err) {
+        console.error('Campaign mission commit failed for', this.id, err);
+      }
+    }
   }
 
   // Part of final greenery placement.
@@ -2359,7 +2422,7 @@ export class Game implements IGame, Logger {
     // already-started game back to gotoInitialResearchPhase() on reload, which
     // prompts nobody (the human already picked) — a RESEARCH-phase deadlock with
     // no waitingFor (both chips read «ГОТОВ»). Guard on human corp-pickers only.
-    if (game.generation === 1 && players.some((p) => p.isMarsBot !== true && p.playedCards.filter(isICorporationCard).length === 0)) {
+    if (game.generation === 1 && players.some((p) => p.isMarsBot !== true && p.playedCards.filter(isICorporationCard).length < expectedCorporationCount(p))) {
       if (game.phase === Phase.INITIALDRAFTING) {
         switch (game.initialDraftIteration) {
         case 1:

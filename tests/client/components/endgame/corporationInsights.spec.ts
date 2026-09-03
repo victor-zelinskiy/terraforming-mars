@@ -11,7 +11,7 @@ import {CardName} from '@/common/cards/CardName';
 // candidate (engine / start / underused / merger), and `player_profile_only` impacts
 // carry NO card (the player arc shows their readout instead).
 
-const ZERO_CATS: Record<EndgameCategoryKey, number> = {tr: 0, cards: 0, board: 0, mca: 0, moon: 0, tracks: 0};
+const ZERO_CATS: Record<EndgameCategoryKey, number> = {tr: 0, cards: 0, board: 0, mca: 0, moon: 0, tracks: 0, titles: 0};
 
 function pl(color: Color, name: string, total: number, corporations: ReadonlyArray<string>,
   opts: {megacredits?: number; categories?: Partial<Record<EndgameCategoryKey, number>>} = {}): EndgamePlayerScore {

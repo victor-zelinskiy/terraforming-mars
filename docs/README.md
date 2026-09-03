@@ -44,6 +44,9 @@ files here are the deeper dives it points at.
 - [ZOOM_BUG_HANDOFF.md](ZOOM_BUG_HANDOFF.md) — zoom-rendering bug investigation notes.
 - [DIAGNOSTIC_CLEANUP.md](DIAGNOSTIC_CLEANUP.md) — diagnostics/cleanup notes.
 
+## Game modes
+- [CAMPAIGN_MODE_ARCHITECTURE.md](CAMPAIGN_MODE_ARCHITECTURE.md) — **IMPLEMENTED v1**: the 4-mission Campaign mode («Кампания») — the server-authoritative Campaign entity (first cross-game object: persistence ×3 backends, durable create-idempotency, idempotent launch/commit, rollback guards, purge exemption), the corporation-lineage merge on the `playCorporationCard` additional-corp path («Слияние»/«Штаб»), the 0–2 project-card carryover («Наследие проектов», private + reservation-safe), Titles/TP/bonus-M€ tables, the `titles` VP category via the delta precedent, the Campaign Map (standalone screen + endgame scene), «Мои партии» grouping, the dev fast-forward. Approved decisions D1–D12 + the v1 residuals are recorded in the header.
+
 ## Desktop client / transport (Electron, WebSocket)
 - [ELECTRON_MIGRATION_PLAN.md](ELECTRON_MIGRATION_PLAN.md) — phased Electron desktop-client roadmap.
 - [WEBSOCKET_MIGRATION_PLAN.md](WEBSOCKET_MIGRATION_PLAN.md) — realtime transport migration plan.

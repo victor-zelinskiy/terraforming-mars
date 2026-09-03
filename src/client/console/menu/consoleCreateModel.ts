@@ -39,11 +39,14 @@ import {
   SlotNameIssue,
   TR_BOOST_MAX,
   TR_BOOST_MIN,
+  SessionMode,
   adminUnlocked,
   automaBlockerText,
   botSeatedInState,
+  campaignRosterBlocker,
   createGameState,
   hasDuplicateColors,
+  isCampaignMode,
   removePlayerSlot,
   setGameMode,
   setPlayerCount,
@@ -74,6 +77,40 @@ export const CREATE_DECKS: ReadonlyArray<CreateDeckMeta> = [
   {id: 'rules', labelKey: 'Game rules'},
   {id: 'expansions', labelKey: 'Expansions'},
   {id: 'map', labelKey: 'Map'},
+];
+
+/**
+ * The decks for the ACTIVE session mode: a campaign replaces the manual map
+ * pick with the route briefing (four boards are generated server-side). Ids
+ * stay the same, so the LB/RB ring, cursors and jump-to-issue all keep
+ * working unchanged.
+ */
+export function createDecks(): ReadonlyArray<CreateDeckMeta> {
+  if (!isCampaignMode()) {
+    return CREATE_DECKS;
+  }
+  return CREATE_DECKS.map((d) => d.id === 'map' ? {id: 'map' as const, labelKey: 'Mission route'} : d);
+}
+
+// ── The session-mode stage (stage 0 of the creator) ─────────────────────────
+
+export type SessionModeOption = {
+  id: SessionMode,
+  labelKey: string,
+  descKey: string,
+};
+
+export const SESSION_MODE_OPTIONS: ReadonlyArray<SessionModeOption> = [
+  {
+    id: 'single',
+    labelKey: 'Single game',
+    descKey: 'One ordinary party — set up the players, map and rules.',
+  },
+  {
+    id: 'campaign',
+    labelKey: 'Campaign',
+    descKey: 'Four linked missions on one generated route: corporations merge, titles accumulate, the finale crowns the champion.',
+  },
 ];
 
 export function cycleCreateDeck(current: CreateDeckId, step: 1 | -1): CreateDeckId {
@@ -456,6 +493,10 @@ export function launchIssues(): ReadonlyArray<LaunchIssue> {
   if (hasDuplicateColors()) {
     issues.push({id: 'colors', textKey: 'A colour is already used by another player', target: {deck: 'crew', row: 0}});
   }
+  const campaignBlocker = campaignRosterBlocker();
+  if (campaignBlocker !== '') {
+    issues.push({id: 'campaign-roster', textKey: campaignBlocker, target: {deck: 'crew', row: 0}});
+  }
   for (const conflict of stateAutomaConflicts()) {
     issues.push({id: `automa:${conflict.key}`, textKey: automaBlockerText(conflict.key), target: automaConflictTarget(conflict.key)});
   }
@@ -497,6 +538,9 @@ export type CreateOverlay =
   | {kind: 'launch'};
 
 export const consoleCreateUi = reactive<{
+  /** Stage 0 = the session-mode pick («Отдельная партия» / «Кампания»); then the decks. */
+  stage: 'mode' | 'decks',
+  modeCursor: number,
   deck: CreateDeckId,
   cursor: Record<CreateDeckId, number>,
   overlay: CreateOverlay | undefined,
@@ -505,6 +549,8 @@ export const consoleCreateUi = reactive<{
   /** "Restored your last settings" chip (View = reset). */
   restored: boolean,
 }>({
+  stage: 'mode',
+  modeCursor: 0,
   deck: 'crew',
   cursor: {crew: 0, rules: 0, expansions: 0, map: 0},
   overlay: undefined,
@@ -513,6 +559,11 @@ export const consoleCreateUi = reactive<{
 });
 
 export function resetConsoleCreateUi(): void {
+  consoleCreateUi.stage = 'mode';
+  consoleCreateUi.modeCursor = SESSION_MODE_OPTIONS.findIndex((o) => o.id === createGameState.config.sessionMode);
+  if (consoleCreateUi.modeCursor < 0) {
+    consoleCreateUi.modeCursor = 0;
+  }
   consoleCreateUi.deck = 'crew';
   consoleCreateUi.cursor = {crew: 0, rules: 0, expansions: 0, map: 0};
   consoleCreateUi.overlay = undefined;
@@ -525,7 +576,8 @@ export function deckRowCount(deck: CreateDeckId): number {
   case 'crew': return crewRows().length;
   case 'rules': return rulesDeckRows().length;
   case 'expansions': return expansionRows().length;
-  case 'map': return mapRows().length;
+  // Campaign: the map deck is the single route-briefing row.
+  case 'map': return isCampaignMode() ? 1 : mapRows().length;
   }
 }
 

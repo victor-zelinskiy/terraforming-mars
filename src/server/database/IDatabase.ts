@@ -1,7 +1,8 @@
 import {IGame, Score} from '../IGame';
 import {GameOptions} from '../game/GameOptions';
-import {GameId, ParticipantId} from '../../common/Types';
+import {CampaignId, GameId, ParticipantId} from '../../common/Types';
 import {SerializedGame} from '../SerializedGame';
+import {SerializedCampaign} from '../campaign/Campaign';
 import {Session, SessionId} from '../auth/Session';
 
 export type GameIdLedger = {gameId: GameId, participantIds: Array<ParticipantId>}
@@ -123,9 +124,12 @@ export interface IDatabase {
      * * In Sqlite, it doesn't purge
      * * This whole method is ignored in LocalFilesystem.
      *
+     * `protectedGameIds` (campaign mode, D11): games that must NOT be purged —
+     * the missions of every unfinished/unabandoned campaign.
+     *
      * Returns a list of purged Game IDs.
      */
-    purgeUnfinishedGames(maxGameDays?: string): Promise<Array<GameId>>;
+    purgeUnfinishedGames(maxGameDays?: string, protectedGameIds?: ReadonlyArray<GameId>): Promise<Array<GameId>>;
 
     /**
      * A maintenance task that compresses completed games.
@@ -145,4 +149,15 @@ export interface IDatabase {
     createSession(session: Session): Promise<void>;
     deleteSession(sessionId: SessionId): Promise<void>;
     getSessions(): Promise<Array<Session>>;
+
+    /**
+     * Campaign mode (docs/CAMPAIGN_MODE_ARCHITECTURE.md §2.5): the campaign
+     * document store — one small JSON blob per campaign, upserted whole.
+     * Follows the `session` table precedent (the other non-game entity).
+     */
+    saveCampaign(campaign: SerializedCampaign): Promise<void>;
+    /** Resolves to `undefined` when the campaign does not exist (never throws for a miss). */
+    getCampaign(campaignId: CampaignId): Promise<SerializedCampaign | undefined>;
+    getCampaignIds(): Promise<Array<CampaignId>>;
+    deleteCampaign(campaignId: CampaignId): Promise<void>;
 }

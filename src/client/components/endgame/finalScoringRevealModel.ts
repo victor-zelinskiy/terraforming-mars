@@ -77,7 +77,7 @@ export function cardKindTotal(b: VictoryPointsBreakdown, kind: CardVictoryPoints
 // The top-level scoring GROUPS shown as pills + lane chips.
 export type RevealGroupKey =
   | 'tr' | 'greenery' | 'city' | 'cards'
-  | 'milestones' | 'awards' | 'automa' | 'moon' | 'tracks' | 'delta' | 'penalty';
+  | 'milestones' | 'awards' | 'automa' | 'moon' | 'tracks' | 'delta' | 'titles' | 'penalty';
 
 export type FinalScoringRevealSegment = {
   // Unique colour/identity key — drives the `.fsr-cat--<key>` accent. For TR
@@ -176,6 +176,10 @@ export const FINAL_SCORING_SEGMENTS: ReadonlyArray<SegMeta> = [
   {key: 'moon', group: 'moon', label: 'Moon', penalty: false, value: (b) => b.moonHabitats + b.moonMines + b.moonRoads},
   {key: 'tracks', group: 'tracks', label: 'Planetary tracks', penalty: false, value: (b) => b.planetaryTracks},
   {key: 'delta', group: 'delta', label: 'Hydronetwork', penalty: false, value: (b) => b.deltaProject},
+  // Campaign «Титулы» — accumulated Title Points, present ONLY on a final
+  // campaign mission (the optional field stays absent everywhere else, so the
+  // segment drops out of ordinary games and missions 1–3 by construction).
+  {key: 'titles', group: 'titles', label: 'Titles', penalty: false, value: (b) => b.titles ?? 0},
   // Penalties (all negative) — a dedicated subtractive group, revealed last.
   {key: 'penalty-cards', group: 'penalty', label: 'Card penalties', penalty: true, value: (b) => cardKindTotal(b, 'penalty')},
   {key: 'penalty-ev', group: 'penalty', label: 'Escape Velocity', penalty: true, value: (b) => b.escapeVelocity},
@@ -192,10 +196,11 @@ const GROUP_META: Record<RevealGroupKey, {label: string; accent: string; descrip
   moon: {label: 'Moon', accent: 'moon', description: 'Lunar habitats, mines and roads'},
   tracks: {label: 'Planetary tracks', accent: 'tracks', description: 'Planetary track positions'},
   delta: {label: 'Hydronetwork', accent: 'delta', description: 'Hydronetwork end-game VP'},
+  titles: {label: 'Titles', accent: 'titles', description: 'Title Points earned across the campaign'},
   penalty: {label: 'Penalties', accent: 'penalty', description: 'Negative VP — penalties and adjustments'},
 };
 
-const GROUP_ORDER: ReadonlyArray<RevealGroupKey> = ['tr', 'greenery', 'city', 'cards', 'milestones', 'awards', 'automa', 'moon', 'tracks', 'delta', 'penalty'];
+const GROUP_ORDER: ReadonlyArray<RevealGroupKey> = ['tr', 'greenery', 'city', 'cards', 'milestones', 'awards', 'automa', 'moon', 'tracks', 'delta', 'titles', 'penalty'];
 
 /**
  * Build the reveal model from the already-built endgame model.

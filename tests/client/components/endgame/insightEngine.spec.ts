@@ -36,7 +36,7 @@ function score(color: Color, name: string, opts: {
   penaltyCards?: Array<{cardName: string; victoryPoint: number}>;
 } = {}): EndgamePlayerScore {
   const categories: Record<EndgameCategoryKey, number> =
-    {tr: 20, cards: 0, board: 0, mca: 0, moon: 0, tracks: 0, ...(opts.categories ?? {})};
+    {tr: 20, cards: 0, board: 0, mca: 0, moon: 0, tracks: 0, titles: 0, ...(opts.categories ?? {})} as Record<EndgameCategoryKey, number>;
   return {
     color,
     name,

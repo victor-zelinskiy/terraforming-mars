@@ -13,8 +13,8 @@ describe('SelectInitialCards', () => {
   let corp: ICorporationCard | undefined = undefined;
   let selectInitialCards: SelectInitialCards;
 
-  function cb(corporation: ICorporationCard) {
-    corp = corporation;
+  function cb(corporation: ICorporationCard | undefined) {
+    corp = corporation!;
     return undefined;
   }
 

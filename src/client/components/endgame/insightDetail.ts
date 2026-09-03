@@ -425,6 +425,7 @@ function styleEvidence(ctx: InsightContext, color: Color, style: string, p: Endg
 const CATEGORY_LABEL_KEY: Record<EndgameCategoryKey, string> = {
   tr: 'Terraform rating', cards: 'Cards', board: 'Cities & greenery',
   mca: 'Milestones & awards', moon: 'Moon', tracks: 'Planetary tracks',
+  titles: 'Titles',
 };
 
 /** Whether the style verdict rests on thin evidence (honest caveat in the popover). */

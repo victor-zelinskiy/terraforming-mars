@@ -967,7 +967,7 @@ import {ConsoleTask} from '@/client/console/consoleTaskRouter';
 import {
   buildInitialCardsResponse, clearDockDrift, committedStartJourneyItems, consoleStartState, deploymentCrumb, deploymentJourneyItems,
   driftDockPile, ensureStartWizard, holdStartScene, initialCardsInputOf, initialCardsSignature,
-  markStartDeploymentBegun, startAwaitingOthers, startDeploymentBegun,
+  markStartDeploymentBegun, setStartCampaignCorpStage, startAwaitingOthers, startDeploymentBegun,
   picksForStep, releaseStartScene, StartCrewMate, StartCrumb, StartDockPileModel, startFlowBusy,
   StartLaunchState, StartParticipant, startDockPiles, startJourneyItems, startLaunchState, startRailCommitted,
   sponsorCrumb, startCardAvailability, startParticipants, StartWizardStep, stepComplete,
@@ -3998,6 +3998,12 @@ export default defineComponent({
     },
   },
   mounted() {
+    // Campaign mode: the corporation stage relabels — «Слияние» while a new
+    // corporation joins the lineage (missions 2–3), «Штаб» for the final
+    // mission's no-pick deployment of the accumulated trio. Read from the
+    // mission contract; undefined (the ordinary label) everywhere else.
+    const contract = this.playerView.game.gameOptions.campaign;
+    setStartCampaignCorpStage(contract === undefined ? undefined : (contract.final ? 'hq' : (contract.missionSlot > 0 ? 'merge' : undefined)));
     // THE «ФОРА» GAINS THIS WORKSPACE CAME BACK TO PAY. The window's
     // auto-resolve is seeded by the transport while this scene does not exist
     // (the bonus turn owns the whole screen), so its edge is THIS mount and no

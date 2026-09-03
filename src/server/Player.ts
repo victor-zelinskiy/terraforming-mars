@@ -55,6 +55,7 @@ import {Turmoil} from './turmoil/Turmoil';
 import {PathfindersExpansion} from './pathfinders/PathfindersExpansion';
 import {AutomaCorporations} from './automa/corps/AutomaCorporations';
 import {ColoniesHandler} from './colonies/ColoniesHandler';
+import {campaignBonusMegaCredits, grantCarriedProjectCards} from './campaign/CampaignMissionSetup';
 import {MonsInsurance} from './cards/promo/MonsInsurance';
 import {InputResponse} from '../common/inputs/InputResponse';
 import {Tags} from './player/Tags';
@@ -155,6 +156,25 @@ export class Player implements IPlayer {
 
   // Used only during set-up
   public pickedCorporationCard?: ICorporationCard;
+  /**
+   * Campaign mode (docs/CAMPAIGN_MODE_ARCHITECTURE.md): the immutable campaign
+   * seat index of this player — THE identity key for grants/lineage/titles.
+   * Set at mission creation by CampaignManager; undefined in ordinary games.
+   */
+  public campaignSeat?: number;
+  /**
+   * Campaign mode: project cards carried from the previous mission («Наследие
+   * проектов»). PRIVATE — never exposed through shared wire models. Granted to
+   * the hand exactly once, with the base corporation play (free of charge).
+   */
+  public campaignCarriedCards?: Array<CardName>;
+  public campaignCarriedGranted: boolean = false;
+  /**
+   * The initial-cards selection completed. Ordinary games infer this from
+   * `pickedCorporationCard`, but a FINAL campaign mission has no corporation
+   * step, so completion needs its own persisted fact. Set for every game.
+   */
+  public initialCardSelectionDone: boolean = false;
 
   // Terraforming Rating
   public terraformRating: number = 20;
@@ -1436,7 +1456,7 @@ export class Player implements IPlayer {
       });
   }
 
-  public playCorporationCard(corporationCard: ICorporationCard, options?: {deferCardPayment?: boolean}): void {
+  public playCorporationCard(corporationCard: ICorporationCard, options?: {deferCardPayment?: boolean, holdResearchRelease?: boolean}): void {
     const additionalCorp = this.playedCards.corporations().length > 0;
 
     // Snapshot the pre-corp baseline for the premium start-of-game reveal — the
@@ -1465,7 +1485,17 @@ export class Player implements IPlayer {
     }
 
     if (!additionalCorp) {
-      this.game.playerIsFinishedWithResearchPhase(this);
+      // Campaign carryover: the carried project cards join the hand exactly
+      // once, AFTER the starting-hand purchase accounting inside the scoped
+      // play (they are free — never counted into cardsBought). No-op outside
+      // campaigns and on re-entry (serialized granted flag).
+      grantCarriedProjectCards(this);
+      // A campaign lineage plays SEVERAL corporations in one sequence — the
+      // caller holds the research release until the last one so the deferred
+      // queue (all corp effects + the base card payment) drains once, in order.
+      if (options?.holdResearchRelease !== true) {
+        this.game.playerIsFinishedWithResearchPhase(this);
+      }
     }
   }
 
@@ -1491,6 +1521,19 @@ export class Player implements IPlayer {
 
     // Update starting MC
     this.megaCredits += corporationCard.startingMegaCredits;
+    // Campaign comeback bonus (docs/CAMPAIGN_MODE_ARCHITECTURE.md §7.5): a
+    // one-shot M€ grant earned by the previous mission's placement, applied
+    // together with the BASE corporation's starting M€ — before the starting
+    // hand purchase, so it participates in affordability. The base corp plays
+    // exactly once per game, which is what makes this exactly-once. 0 outside
+    // campaigns and for mission 1.
+    if (!additionalCorp) {
+      const campaignBonus = campaignBonusMegaCredits(this);
+      if (campaignBonus > 0) {
+        this.megaCredits += campaignBonus;
+        this.game.log('${0} received a campaign bonus of ${1} M€', (b) => b.player(this).number(campaignBonus));
+      }
+    }
     // Update card cost. A corporation REPLACES the base price (Merger can stack
     // a second one), so it writes the base; per-card modifiers are derived on
     // top of it by the `cardCost` getter.
@@ -2867,6 +2910,11 @@ export class Player implements IPlayer {
       user: this.user,
       // Used only during set-up
       pickedCorporationCard: this.pickedCorporationCard?.name,
+      // Campaign mode (absent in ordinary games)
+      campaignSeat: this.campaignSeat,
+      campaignCarriedCards: this.campaignCarriedCards,
+      campaignCarriedGranted: this.campaignCarriedGranted === true ? true : undefined,
+      initialCardSelectionDone: this.initialCardSelectionDone === true ? true : undefined,
       // Terraforming Rating
       terraformRating: this.terraformRating,
       hasIncreasedTerraformRatingThisGeneration: this.hasIncreasedTerraformRatingThisGeneration,
@@ -3038,6 +3086,11 @@ export class Player implements IPlayer {
     if (d.pickedCorporationCard !== undefined) {
       player.pickedCorporationCard = newCorporationCard(d.pickedCorporationCard);
     }
+    // Campaign mode — absent in ordinary saves.
+    player.campaignSeat = d.campaignSeat;
+    player.campaignCarriedCards = d.campaignCarriedCards;
+    player.campaignCarriedGranted = d.campaignCarriedGranted ?? false;
+    player.initialCardSelectionDone = d.initialCardSelectionDone ?? false;
 
     player.pendingInitialActions = corporationCardsFromJSON(d.pendingInitialActions ?? []);
     player.dealtCorporationCards = corporationCardsFromJSON(d.dealtCorporationCards);

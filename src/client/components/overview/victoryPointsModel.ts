@@ -227,6 +227,22 @@ export function buildVictoryPointsModel(b: VictoryPointsBreakdown, opts: Victory
       {key: 'tracks.all', accent: 'tracks', label: 'Planetary tracks', value: b.planetaryTracks},
     ]));
   }
+  // Campaign «Титулы» — deliberately its OWN top-level scale, never folded
+  // into the honours bar: the brief separates Titles from Milestones/Awards
+  // in model AND visual language. Present only when the (final-mission-only)
+  // field exists.
+  if (b.titles !== undefined) {
+    const titleLabel: Record<string, string> = {governor: 'Governor', administrator: 'Administrator', prefect: 'Prefect'};
+    scales.push(makeScale('titles', 'Titles', 'titles',
+      (b.detailsTitles !== undefined && b.detailsTitles.length > 0) ?
+        b.detailsTitles.map((d, i) => ({
+          key: `titles.${i}`,
+          accent: 'titles',
+          label: titleLabel[d.title] ?? d.title,
+          value: d.points,
+        })) :
+        [{key: 'titles.all', accent: 'titles', label: 'Titles', value: b.titles}]));
+  }
   if (opts.hasEscapeVelocity && b.escapeVelocity !== 0) {
     scales.push(makeScale('ev', 'Escape Velocity', 'penalty', [
       {key: 'ev.penalty', accent: 'penalty', label: 'Escape Velocity', value: b.escapeVelocity, penalty: true},

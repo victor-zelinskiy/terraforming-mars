@@ -73,7 +73,7 @@ describe('premium create — settings persistence', () => {
 
     expect(saved).is.not.undefined;
     expect(Object.keys(saved!).sort()).deep.eq(
-      ['botDifficulty', 'gameMode', 'guaranteedCards', 'mapId', 'mapMode', 'players', 'rules', 'seatMarsBot', 'selectedExpansions'].sort());
+      ['botDifficulty', 'gameMode', 'guaranteedCards', 'mapId', 'mapMode', 'players', 'rules', 'seatMarsBot', 'selectedExpansions', 'sessionMode'].sort());
     expect(saved).to.not.have.property('creating');
     expect(saved).to.not.have.property('error');
     expect(saved).to.not.have.property('mapPickerOpen');

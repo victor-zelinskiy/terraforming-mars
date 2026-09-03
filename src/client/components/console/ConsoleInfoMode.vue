@@ -496,6 +496,7 @@ export default defineComponent({
         hasMoon: game.moon !== undefined,
         hasPathfinders: game.pathfinders !== undefined,
         hasDelta: game.gameOptions.expansions.deltaProject === true,
+        hasTitles: game.gameOptions.campaign?.final === true,
       });
     },
     /** The summary bar's positive segments (a penalty subtracts — it is

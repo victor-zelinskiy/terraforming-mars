@@ -75,6 +75,14 @@ export interface SerializedPlayer extends DeprecatedFields{
   oceanBonus: number;
   pendingInitialActions: Array<CardName> | undefined;
   pickedCorporationCard: CardName | undefined;
+  /** Campaign mode: immutable campaign seat index. Absent in ordinary saves. */
+  campaignSeat?: number;
+  /** Campaign mode: PRIVATE carried project cards. Absent in ordinary saves. */
+  campaignCarriedCards?: Array<CardName>;
+  /** Campaign mode: carried cards already granted to the hand. Absent → false. */
+  campaignCarriedGranted?: boolean;
+  /** Initial-cards selection completed (needed by the corp-less final mission). Absent → false. */
+  initialCardSelectionDone?: boolean;
   plantProduction: number;
   plants: number;
   plantsNeededForGreenery: number;

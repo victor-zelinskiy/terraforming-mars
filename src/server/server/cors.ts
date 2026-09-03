@@ -84,6 +84,14 @@ const CORS_PATHS: ReadonlySet<string> = new Set<string>([
   paths.API_ADMIN_ROLLBACK_GAMES,
   paths.API_ADMIN_ROLLBACK_HISTORY,
   paths.API_ADMIN_ROLLBACK,
+  // Campaign mode: the campaign map + creation run in the console shell
+  // (desktop app://bundle origin), same trust model as create/joinable. The
+  // dev fast-forward rides the ADMIN_NAME gate like the rollback tool.
+  paths.API_CAMPAIGN,
+  paths.API_CAMPAIGN_CREATE,
+  paths.API_CAMPAIGN_LAUNCH,
+  paths.API_CAMPAIGN_CARRYOVER,
+  paths.API_CAMPAIGN_DEV,
 ]);
 
 /** Whether a pathname (no leading slash) is in the desktop CORS surface. */

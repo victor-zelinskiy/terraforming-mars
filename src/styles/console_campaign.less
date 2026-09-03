@@ -1,0 +1,912 @@
+/* ============================================================================
+   CAMPAIGN MODE («Кампания») — the Campaign Map screen + the carryover picker.
+   docs/CAMPAIGN_MODE_ARCHITECTURE.md §4–§5.
+
+   Conventions (console rules): rem @ 20px logical; motion in transform/opacity
+   only; cursor/selection state via box-shadow + color (the paint baseline
+   strips filter/text-shadow); no native scrollbars; states never color-only.
+   ========================================================================== */
+
+.cmap {
+  position: fixed;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  color: #dbe4ee;
+  font-family: @con-font;
+  z-index: 100;
+  overflow: hidden;
+
+  &__load {
+    margin: auto;
+    font-size: 1.2rem;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: #93a5ba;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 1rem;
+
+    &--error { color: #e0a48b; }
+  }
+
+  &__retry {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.5rem 1.1rem;
+    border: 1px solid rgba(154, 176, 202, 0.45);
+    border-radius: 0.45rem;
+    background: rgba(18, 26, 38, 0.85);
+    color: #dbe4ee;
+    font: inherit;
+    cursor: pointer;
+  }
+
+  /* ── Header ─────────────────────────────────────────────────────────── */
+  &__head {
+    position: relative;
+    padding: 1.4rem 3rem 0.6rem;
+    display: flex;
+    align-items: baseline;
+    gap: 1.4rem;
+  }
+  &__kicker {
+    font-size: 0.85rem;
+    letter-spacing: 0.32em;
+    text-transform: uppercase;
+    color: #8fa2b8;
+  }
+  &__title {
+    font-size: 1.6rem;
+    font-weight: 600;
+    letter-spacing: 0.04em;
+    color: #f2e9d8;
+  }
+  &__progress {
+    margin-left: auto;
+    display: flex;
+    align-items: center;
+    gap: 0.8rem;
+    font-size: 1rem;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: #a8b8cc;
+  }
+  &__chip {
+    padding: 0.15rem 0.6rem;
+    border-radius: 0.35rem;
+    border: 1px solid rgba(154, 176, 202, 0.4);
+    font-size: 0.8rem;
+
+    &--muted { color: #8494a8; }
+  }
+
+  /* ── The route stage ────────────────────────────────────────────────── */
+  &__stage {
+    position: relative;
+    flex: 1 1 auto;
+    min-height: 0;
+    display: flex;
+    align-items: center;
+    padding: 0 3rem;
+  }
+  &__lane {
+    position: absolute;
+    left: 6rem;
+    right: 6rem;
+    top: 50%;
+    height: 0.15rem;
+    /* Ahead of the party: dashed (state never color-only). */
+    background: repeating-linear-gradient(90deg,
+      rgba(148, 168, 192, 0.45) 0 0.6rem,
+      transparent 0.6rem 1.2rem);
+    border-radius: 0.1rem;
+  }
+  &__lane-fill {
+    position: absolute;
+    left: 0;
+    top: 0;
+    bottom: 0;
+    background: linear-gradient(90deg, rgba(214, 178, 106, 0.9), rgba(240, 208, 130, 0.95));
+    border-radius: 0.1rem;
+    transition: width calc(700ms * var(--motion-scale, 1)) cubic-bezier(0.22, 0.61, 0.36, 1);
+  }
+  &__route {
+    position: relative;
+    display: flex;
+    justify-content: space-between;
+    align-items: stretch;
+    width: 100%;
+    gap: 1.6rem;
+  }
+  &__node {
+    position: relative;
+    flex: 1 1 0;
+    min-width: 0;
+    display: flex;
+    justify-content: center;
+  }
+
+  /* The party marker: the seats' cubes clustered on the current node. */
+  &__party {
+    position: absolute;
+    top: -1.5rem;
+    left: 50%;
+    transform: translateX(-50%);
+    display: flex;
+    gap: 0.25rem;
+    z-index: 2;
+  }
+  &__party-cube {
+    width: 0.85rem;
+    height: 0.85rem;
+    border-radius: 0.18rem;
+    box-shadow: 0 0.1rem 0.3rem rgba(0, 0, 0, 0.55), inset 0 0 0 1px rgba(255, 255, 255, 0.25);
+  }
+
+  &__card {
+    position: relative;
+    width: min(15.5rem, 100%);
+    padding: 0.9rem 0.9rem 0.8rem;
+    border-radius: 0.6rem;
+    border: 1px solid rgba(120, 140, 165, 0.35);
+    background: linear-gradient(180deg, rgba(20, 28, 40, 0.92), rgba(13, 19, 29, 0.95));
+    color: inherit;
+    font: inherit;
+    text-align: center;
+    cursor: pointer;
+    transition:
+      transform calc(180ms * var(--motion-scale, 1)) cubic-bezier(0.22, 0.61, 0.36, 1),
+      box-shadow calc(180ms * var(--motion-scale, 1)) ease;
+
+    /* completed: calm material (plate text carries the state too) */
+    &--done {
+      border-color: rgba(120, 150, 128, 0.45);
+      background: linear-gradient(180deg, rgba(19, 27, 32, 0.9), rgba(12, 18, 23, 0.94));
+    }
+    /* current: elevated, brightest border material */
+    &--current {
+      transform: scale(1.05);
+      border-color: rgba(240, 208, 130, 0.8);
+      box-shadow: 0 0.6rem 1.6rem rgba(0, 0, 0, 0.5), 0 0 0 1px rgba(240, 208, 130, 0.35);
+      z-index: 1;
+    }
+    /* future: veiled + smaller (board still named — the route is public) */
+    &--future {
+      transform: scale(0.94);
+      border-color: rgba(100, 116, 136, 0.3);
+      opacity: 0.72;
+    }
+    /* the finale reads as a destination, never a competing CTA */
+    &--final {
+      border-width: 2px;
+    }
+    &--cursor {
+      box-shadow: 0 0 0 2px rgba(120, 200, 255, 0.85), 0 0.6rem 1.6rem rgba(0, 0, 0, 0.5);
+    }
+    &--current.cmap__card--cursor {
+      box-shadow: 0 0 0 2px rgba(120, 200, 255, 0.85), 0 0 0 4px rgba(240, 208, 130, 0.3), 0 0.6rem 1.6rem rgba(0, 0, 0, 0.5);
+    }
+  }
+
+  &__final-banner {
+    position: absolute;
+    top: -0.8rem;
+    left: 50%;
+    transform: translateX(-50%);
+    padding: 0.1rem 0.7rem;
+    border-radius: 0.3rem;
+    border: 1px solid rgba(216, 178, 106, 0.7);
+    background: rgba(30, 24, 14, 0.95);
+    color: #ecd39a;
+    font-size: 0.75rem;
+    letter-spacing: 0.3em;
+    text-transform: uppercase;
+  }
+
+  &__map {
+    display: flex;
+    justify-content: center;
+    pointer-events: none;
+  }
+  &__board-name {
+    margin-top: 0.4rem;
+    font-size: 1.05rem;
+    font-weight: 600;
+    letter-spacing: 0.06em;
+    color: #e8eef6;
+  }
+  &__state {
+    margin-top: 0.2rem;
+    font-size: 0.78rem;
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+    color: #93a5ba;
+
+    &--committed { color: #9fc3a4; }
+    &--active { color: #e8c884; }
+    &--ready { color: #a9d5ef; }
+  }
+
+  &__results {
+    margin-top: 0.55rem;
+    display: flex;
+    flex-direction: column;
+    gap: 0.22rem;
+    text-align: left;
+  }
+  &__result-row {
+    display: flex;
+    align-items: center;
+    gap: 0.4rem;
+    font-size: 0.82rem;
+    color: #b9c6d6;
+    min-width: 0;
+  }
+  &__result-place {
+    width: 1rem;
+    text-align: right;
+    color: #8fa2b8;
+    flex: 0 0 auto;
+  }
+  &__result-cube {
+    width: 0.6rem;
+    height: 0.6rem;
+    border-radius: 0.12rem;
+    flex: 0 0 auto;
+    box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.2);
+  }
+  &__result-name {
+    flex: 1 1 auto;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  &__result-title {
+    width: 1.35rem;
+    height: 1.35rem;
+    object-fit: contain;
+    flex: 0 0 auto;
+  }
+
+  &__blocked {
+    margin-top: 0.45rem;
+    padding: 0.3rem 0.5rem;
+    border-radius: 0.3rem;
+    border: 1px solid rgba(224, 164, 139, 0.5);
+    color: #e0a48b;
+    font-size: 0.78rem;
+  }
+
+  /* ── The progression rail ───────────────────────────────────────────── */
+  &__rail {
+    flex: 0 0 auto;
+    padding: 0.4rem 3rem 3.4rem;
+    display: flex;
+    flex-direction: column;
+    gap: 0.3rem;
+  }
+  &__seat {
+    display: flex;
+    align-items: center;
+    gap: 0.7rem;
+    padding: 0.4rem 0.8rem;
+    border-radius: 0.45rem;
+    border: 1px solid transparent;
+    font-size: 0.95rem;
+    cursor: pointer;
+
+    &--cursor {
+      border-color: rgba(120, 200, 255, 0.7);
+      box-shadow: 0 0 0 1px rgba(120, 200, 255, 0.35);
+      background: rgba(20, 30, 44, 0.75);
+    }
+    &--champion {
+      border-color: rgba(240, 208, 130, 0.55);
+      background: rgba(30, 26, 16, 0.7);
+    }
+  }
+  &__seat-cube {
+    width: 0.8rem;
+    height: 0.8rem;
+    border-radius: 0.16rem;
+    flex: 0 0 auto;
+    box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.22);
+  }
+  &__seat-name {
+    min-width: 11rem;
+    color: #e8eef6;
+    display: flex;
+    align-items: baseline;
+    gap: 0.5rem;
+  }
+  &__seat-you {
+    font-size: 0.72rem;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: #a9d5ef;
+  }
+  &__seat-bot {
+    font-size: 0.72rem;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: #c9a2e8;
+  }
+  &__seat-titles {
+    display: flex;
+    gap: 0.25rem;
+    min-width: 5.4rem;
+  }
+  &__seat-title {
+    width: 1.5rem;
+    height: 1.5rem;
+    object-fit: contain;
+  }
+  &__seat-tp {
+    min-width: 4.6rem;
+    color: #ecd39a;
+    letter-spacing: 0.06em;
+  }
+  &__seat-bonus {
+    color: #9fc3a4;
+    letter-spacing: 0.04em;
+  }
+  &__seat-carry {
+    color: #a9d5ef;
+    font-size: 0.85rem;
+
+    &--pending { color: #e8c884; }
+  }
+  &__seat-crown {
+    margin-left: auto;
+    color: #ecd39a;
+    letter-spacing: 0.2em;
+    text-transform: uppercase;
+    font-size: 0.8rem;
+  }
+  &__inline-error {
+    margin-top: 0.4rem;
+    color: #e0a48b;
+    font-size: 0.85rem;
+  }
+
+  /* ── Dossiers ───────────────────────────────────────────────────────── */
+  &__dossier {
+    min-width: 30rem;
+    max-width: 44rem;
+
+    &--wide { min-width: 38rem; }
+  }
+  &__dossier-sub {
+    margin-left: 0.8rem;
+    font-size: 0.8rem;
+    letter-spacing: 0.2em;
+    text-transform: uppercase;
+    color: #8fa2b8;
+  }
+  &__dossier-body {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+    padding-top: 0.6rem;
+  }
+  &__dossier-row {
+    display: flex;
+    align-items: center;
+    gap: 0.6rem;
+    font-size: 1rem;
+  }
+  &__dossier-name {
+    flex: 1 1 auto;
+    color: #e8eef6;
+    display: flex;
+    align-items: baseline;
+    gap: 0.6rem;
+  }
+  &__dossier-tied {
+    font-size: 0.75rem;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: #a9d5ef;
+  }
+  &__dossier-score { color: #b9c6d6; }
+  &__dossier-title {
+    width: 2.2rem;
+    height: 2.2rem;
+    object-fit: contain;
+  }
+  &__dossier-gens {
+    margin-top: 0.4rem;
+    font-size: 0.85rem;
+    color: #8fa2b8;
+  }
+  &__dossier-brief { color: #b9c6d6; }
+
+  &__lineage {
+    display: flex;
+    flex-direction: column;
+    gap: 0.25rem;
+    padding: 0.4rem 0;
+    border-bottom: 1px solid rgba(120, 140, 165, 0.18);
+
+    &:last-child { border-bottom: none; }
+  }
+  &__lineage-head {
+    display: flex;
+    align-items: center;
+    gap: 0.6rem;
+  }
+  &__lineage-corps {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.4rem 1rem;
+    padding-left: 1.4rem;
+    color: #cdd8e4;
+    font-size: 0.9rem;
+  }
+  &__lineage-corp {
+    display: inline-flex;
+    align-items: baseline;
+    gap: 0.35rem;
+  }
+  &__lineage-ord {
+    font-size: 0.72rem;
+    color: #8fa2b8;
+  }
+  &__lineage-none {
+    color: #8fa2b8;
+    font-size: 0.85rem;
+  }
+
+  /* ── Generation reveal (played once, CSS-only, transform/opacity) ───── */
+  &--reveal &__node {
+    opacity: 0;
+    transform: translateY(0.8rem) scale(0.96);
+    animation: cmap-node-reveal calc(460ms * var(--motion-scale, 1)) cubic-bezier(0.16, 1, 0.3, 1) forwards;
+    animation-delay: var(--cmap-reveal-delay, 0ms);
+  }
+  &--reveal &__lane-fill {
+    transition-delay: calc(1600ms * var(--motion-scale, 1));
+  }
+}
+
+@keyframes cmap-node-reveal {
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+/* ── The carryover picker («Наследие проектов») ──────────────────────── */
+.con-carry {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.8rem;
+  padding: 1.4rem 2rem;
+
+  &__kicker {
+    font-size: 1rem;
+    letter-spacing: 0.3em;
+    text-transform: uppercase;
+    color: #ecd39a;
+  }
+  &__lede {
+    max-width: 34rem;
+    text-align: center;
+    color: #b9c6d6;
+    font-size: 0.95rem;
+    line-height: 1.5;
+  }
+
+  &__slots {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+  }
+  &__slot {
+    width: 8.2rem;
+    height: 11.6rem;
+    border-radius: 0.5rem;
+    border: 1px dashed rgba(214, 178, 106, 0.5);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    overflow: hidden;
+
+    &--filled {
+      border-style: solid;
+      border-color: rgba(240, 208, 130, 0.75);
+      box-shadow: 0 0 0 1px rgba(240, 208, 130, 0.25);
+    }
+
+    :is(.card-container, .pcard) {
+      margin: 0;
+      zoom: ~"calc(0.5 * var(--con-ui-scale, 1))";
+    }
+  }
+  &__slot-empty {
+    width: 2.4rem;
+    height: 2.4rem;
+    border-radius: 50%;
+    border: 1px dashed rgba(154, 176, 202, 0.4);
+  }
+  &__counter {
+    display: flex;
+    flex-direction: column;
+    gap: 0.2rem;
+    min-width: 10rem;
+  }
+  &__counter-num {
+    font-size: 1.5rem;
+    color: #f2e9d8;
+    letter-spacing: 0.1em;
+  }
+  &__counter-note {
+    font-size: 0.8rem;
+    color: #8fa2b8;
+  }
+
+  &__row {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
+    gap: 0.7rem;
+    max-width: 62rem;
+  }
+  &__card {
+    position: relative;
+    padding: 0.25rem;
+    border: none;
+    border-radius: 0.45rem;
+    background: transparent;
+    cursor: pointer;
+    transition: transform calc(160ms * var(--motion-scale, 1)) cubic-bezier(0.22, 0.61, 0.36, 1);
+
+    :is(.card-container, .pcard) {
+      margin: 0;
+      zoom: ~"calc(0.55 * var(--con-ui-scale, 1))";
+    }
+
+    &--cursor {
+      box-shadow: 0 0 0 2px rgba(120, 200, 255, 0.85);
+    }
+    &--picked {
+      transform: translateY(-0.4rem);
+      box-shadow: 0 0 0 2px rgba(159, 195, 164, 0.8);
+    }
+    &--picked&--cursor {
+      box-shadow: 0 0 0 2px rgba(159, 195, 164, 0.8), 0 0 0 4px rgba(120, 200, 255, 0.5);
+    }
+    &--dimmed { opacity: 0.55; }
+    &--unavailable { opacity: 0.45; }
+  }
+  &__pick-mark {
+    position: absolute;
+    top: 0.35rem;
+    right: 0.35rem;
+    width: 1.4rem;
+    height: 1.4rem;
+    border-radius: 50%;
+    background: rgba(38, 66, 44, 0.95);
+    color: #b9e2bd;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 0.9rem;
+    box-shadow: 0 0 0 1px rgba(159, 195, 164, 0.7);
+  }
+  &__unavail {
+    position: absolute;
+    left: 0.3rem;
+    right: 0.3rem;
+    bottom: 0.4rem;
+    padding: 0.15rem 0.3rem;
+    border-radius: 0.25rem;
+    background: rgba(48, 26, 18, 0.92);
+    color: #e0a48b;
+    font-size: 0.68rem;
+    text-align: center;
+  }
+  &__empty {
+    color: #8fa2b8;
+    font-size: 0.95rem;
+    padding: 1.2rem 0;
+  }
+  &__status {
+    min-height: 1.4rem;
+    font-size: 0.85rem;
+  }
+  &__status-ok { color: #9fc3a4; }
+  &__status-err { color: #e0a48b; }
+}
+
+/* The map hosts the picker as a centered overlay card. */
+.cmap__carry-overlay {
+  position: fixed;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(6, 9, 14, 0.78);
+  z-index: 120;
+}
+
+/* ── The creator's stage 0: the session-mode pick ────────────────────── */
+.cm-mode {
+  flex: 1 1 auto;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 2rem;
+  padding: 0 3rem 3.4rem;
+
+  &__tile {
+    width: min(24rem, 42%);
+    min-height: 13rem;
+    padding: 1.6rem 1.8rem;
+    border-radius: 0.7rem;
+    border: 1px solid rgba(120, 140, 165, 0.4);
+    background: linear-gradient(180deg, rgba(20, 28, 40, 0.92), rgba(13, 19, 29, 0.95));
+    color: #dbe4ee;
+    font: inherit;
+    text-align: left;
+    cursor: pointer;
+    display: flex;
+    flex-direction: column;
+    gap: 0.8rem;
+    transition:
+      transform calc(180ms * var(--motion-scale, 1)) cubic-bezier(0.22, 0.61, 0.36, 1),
+      box-shadow calc(180ms * var(--motion-scale, 1)) ease;
+
+    &--cursor {
+      transform: translateY(-0.3rem);
+      box-shadow: 0 0 0 2px rgba(120, 200, 255, 0.85), 0 0.8rem 2rem rgba(0, 0, 0, 0.5);
+      border-color: rgba(120, 200, 255, 0.5);
+    }
+    &--campaign.cm-mode__tile--cursor {
+      border-color: rgba(240, 208, 130, 0.6);
+    }
+  }
+  &__label {
+    font-size: 1.5rem;
+    font-weight: 600;
+    letter-spacing: 0.06em;
+    color: #f2e9d8;
+  }
+  &__desc {
+    font-size: 0.95rem;
+    line-height: 1.5;
+    color: #a8b8cc;
+  }
+  &__route {
+    margin-top: auto;
+    display: flex;
+    align-items: center;
+    gap: 0.6rem;
+  }
+  &__dot {
+    width: 0.7rem;
+    height: 0.7rem;
+    border-radius: 50%;
+    background: rgba(214, 178, 106, 0.7);
+    position: relative;
+
+    &::after {
+      content: '';
+      position: absolute;
+      left: 100%;
+      top: 50%;
+      width: 0.6rem;
+      height: 1px;
+      background: rgba(154, 176, 202, 0.5);
+    }
+    &--final {
+      width: 0.95rem;
+      height: 0.95rem;
+      box-shadow: 0 0 0 2px rgba(240, 208, 130, 0.45);
+
+      &::after { content: none; }
+    }
+  }
+}
+
+/* ── The campaign route briefing (replaces the map deck) ─────────────── */
+.cm-routebrief {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0.7rem;
+  height: 100%;
+  padding: 1rem 2rem;
+  text-align: center;
+
+  &__ghost { opacity: 0.85; }
+  &__title {
+    font-size: 1.2rem;
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+    color: #ecd39a;
+  }
+  &__body,
+  &__note {
+    max-width: 30rem;
+    color: #a8b8cc;
+    font-size: 0.95rem;
+    line-height: 1.5;
+  }
+  &__note { color: #8fa2b8; font-size: 0.85rem; }
+}
+
+/* «Мои партии»: the campaign row chip. */
+.cm-game__campaign {
+  padding: 0.1rem 0.5rem;
+  border-radius: 0.3rem;
+  border: 1px solid rgba(214, 178, 106, 0.55);
+  color: #ecd39a;
+  font-size: 0.72rem;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
+.cm-launchc__note {
+  margin: 0.3rem 0 0.6rem;
+  max-width: 34rem;
+  color: #a8b8cc;
+  font-size: 0.9rem;
+  line-height: 1.45;
+}
+
+/* ── The endgame campaign coda («Титулы» / champion) ─────────────────── */
+.con-eg-titles {
+  margin: 0.6rem auto 0.4rem;
+  max-width: 46rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+
+  &__kicker {
+    font-size: 0.85rem;
+    letter-spacing: 0.3em;
+    text-transform: uppercase;
+    color: #ecd39a;
+    text-align: center;
+  }
+  &__rows {
+    display: flex;
+    flex-direction: column;
+    gap: 0.3rem;
+  }
+  &__row {
+    display: flex;
+    align-items: center;
+    gap: 0.7rem;
+    padding: 0.3rem 0.8rem;
+    border-radius: 0.45rem;
+    border: 1px solid rgba(120, 140, 165, 0.28);
+    background: rgba(16, 23, 33, 0.85);
+
+    /* Weight ascends with the title: Prefect restrained → Governor climactic. */
+    &--prefect { border-color: rgba(150, 120, 95, 0.5); }
+    &--administrator { border-color: rgba(170, 180, 195, 0.55); }
+    &--governor {
+      border-color: rgba(240, 208, 130, 0.7);
+      box-shadow: 0 0 0 1px rgba(240, 208, 130, 0.25);
+      background: rgba(26, 22, 13, 0.88);
+    }
+    &--champion {
+      border-color: rgba(240, 208, 130, 0.85);
+      box-shadow: 0 0 0 2px rgba(240, 208, 130, 0.3);
+      background: rgba(30, 25, 14, 0.92);
+    }
+  }
+  &__emblem {
+    width: 2.4rem;
+    height: 2.4rem;
+    object-fit: contain;
+    flex: 0 0 auto;
+
+    &--none { visibility: hidden; }
+  }
+  .con-eg-titles__row--governor &__emblem,
+  .con-eg-titles__row--champion &__emblem {
+    width: 3rem;
+    height: 3rem;
+  }
+  &__cube {
+    width: 0.75rem;
+    height: 0.75rem;
+    border-radius: 0.15rem;
+    flex: 0 0 auto;
+    box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.22);
+  }
+  &__name {
+    min-width: 9rem;
+    color: #e8eef6;
+    font-weight: 600;
+  }
+  &__tlabel {
+    color: #cdd8e4;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    font-size: 0.82rem;
+  }
+  &__tp {
+    margin-left: auto;
+    color: #ecd39a;
+    letter-spacing: 0.06em;
+  }
+  &__bonus {
+    color: #9fc3a4;
+    font-size: 0.85rem;
+  }
+  &__row--bonus &__bonus { margin-left: auto; }
+  &__pending {
+    text-align: center;
+    color: #8fa2b8;
+    font-size: 0.85rem;
+  }
+
+  /* Ascending reveal — transform/opacity only; suppressed when settled. */
+  &--animate &__row {
+    opacity: 0;
+    transform: translateY(0.5rem);
+    animation: con-eg-title-rise calc(420ms * var(--motion-scale, 1)) cubic-bezier(0.16, 1, 0.3, 1) forwards;
+    animation-delay: calc(200ms + var(--egt-i, 0) * 340ms * var(--motion-scale, 1));
+  }
+}
+
+@keyframes con-eg-title-rise {
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* Campaign scenes inside the endgame workspace (the overview pattern). */
+.con-eg-campaign-scene {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  background: rgba(8, 12, 18, 0.96);
+  z-index: 2;
+
+  .cmap--embedded {
+    position: relative;
+    inset: auto;
+    flex: 1 1 auto;
+    min-height: 0;
+    z-index: auto;
+  }
+
+  &--carry {
+    align-items: center;
+    justify-content: center;
+  }
+}
+
+/* Reduced motion: every episode resolves instantly, same end states. */
+@media (prefers-reduced-motion: reduce) {
+  .cmap--reveal .cmap__node {
+    animation: none;
+    opacity: 1;
+    transform: none;
+  }
+  .con-eg-titles--animate .con-eg-titles__row {
+    animation: none;
+    opacity: 1;
+    transform: none;
+  }
+  .cmap__lane-fill,
+  .cmap__card,
+  .cm-mode__tile,
+  .con-carry__card {
+    transition: none;
+  }
+}

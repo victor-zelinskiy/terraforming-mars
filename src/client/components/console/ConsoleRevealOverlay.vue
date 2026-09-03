@@ -824,6 +824,11 @@ export default defineComponent({
       if (s.type === 'globalParameter' && s.parameter === 'venus') {
         return {name: translateText('Venus scale bonus'), inspectable: false};
       }
+      if (s.type === 'campaign') {
+        // «Наследие проектов» — carried, never bought; the price of PLAYING
+        // them stays normal (the chip must not imply otherwise).
+        return {name: translateText('Carried from the previous mission'), inspectable: false};
+      }
       return undefined;
     },
     /**
