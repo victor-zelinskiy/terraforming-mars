@@ -1540,7 +1540,7 @@ import {
 } from '@/client/console/handDock/consoleDockAccent';
 import {handDeliveryState} from '@/client/console/handDock/handDeliveryState';
 import {DockInspectionView, buildDockInspectionView, dockInspectionFor} from '@/client/console/handDock/dockInspection';
-import {isHandDeliveryActive, resetHandDelivery} from '@/client/console/handDock/handDeliveryDirector';
+import {isHandDeliveryActive, refuteWithheldIntake, resetHandDelivery} from '@/client/console/handDock/handDeliveryDirector';
 import {
   finishInstant, holdHandBodiesForAlbum, isHandRevealEpisodeRunning, resetHandReveal, reverseHandReveal,
   runHandCloseEpisode, runHandFilterEpisode, runHandOpenEpisode, runningHandRevealKind, setHandRevealHooks,
@@ -1553,7 +1553,9 @@ import {
 } from '@/client/console/cardDeal/consoleDraftTray';
 import ConsoleDraftWorkspace from '@/client/components/console/draft/ConsoleDraftWorkspace.vue';
 import {
-  betweenGenDraftLive, draftCompletionHolding, draftMandatoryFlowBeat, observeDraftWorkspace, resetDraftWorkspace,
+  DRAFT_DEFAULT_SERVES, DRAFT_PAYMENT_SERVES,
+  betweenGenDraftLive, draftCompletionHolding, draftMandatoryFlowBeat, draftPaymentPending,
+  observeDraftWorkspace, resetDraftWorkspace,
 } from '@/client/console/draft/consoleDraftFlow';
 import {consoleDraftUi} from '@/client/console/draft/consoleDraftUi';
 import {Phase} from '@/common/Phase';
@@ -3748,6 +3750,20 @@ export default defineComponent({
     draftWorkspaceMounted(): boolean {
       return workspaceFrameRenders('draft');
     },
+    /**
+     * The draft frame's runtime-earned `payment` serve (DRAFT_PAYMENT_SERVES —
+     * the colony-resolution pattern): while the post-buy payment stands, the
+     * draft workspace IS the surface serving it, and the leak detector /
+     * foreground watchdog must count its rendered root as the DOM evidence.
+     * The signal folds the frame's DEPTH in so a frame stood up AFTER the
+     * prompt arrived (a reload straight into the Helion payment: announce →
+     * A → enterWorkspace) still re-fires the idempotent handler — a bare
+     * boolean watcher cannot fire true→true (the hydroBonusDoorSignal
+     * precedent).
+     */
+    draftPaymentServeSignal(): string {
+      return [draftPaymentPending(this.playerView), workspaceFrameIndex('draft')].join('|');
+    },
     /** Phase.END — the post-game scoring workspace's whole anchor. */
     endgameFrameLive(): boolean {
       return this.playerView.game.phase === Phase.END;
@@ -3983,9 +3999,14 @@ export default defineComponent({
       // The DRAFT's post-buy payment (Helion heat / steel — the plain M€ case
       // auto-resolves server-side): pick-then-pay is ONE decision, so the
       // second half teleports into the workspace's pay slot instead of rising
-      // as its own band over the flow it belongs to.
+      // as its own band over the flow it belongs to. Keyed on the FRAME and
+      // the phase, deliberately NOT on `draftCompletionHolding()`: the
+      // completion latch is a client-side beat that a reload never replays
+      // (and the done-beat used to expire it mid-payment) — the workspace's
+      // pay slot answers the same predicate (`draftPaymentPending`), so the
+      // two can never disagree about where the panel stands.
       if (this.hostTask?.kind === 'payment' && workspaceFrameMounted('draft') &&
-          this.playerView.game.phase === Phase.RESEARCH && draftCompletionHolding()) {
+          draftPaymentPending(this.playerView)) {
         return '.con-draftws [data-draft-pay-slot]';
       }
       // The STD-PROJECT's alt-resource payment (a CLIENT prompt — the plain
@@ -8691,6 +8712,19 @@ export default defineComponent({
         }
       },
     },
+    // The runtime `payment` grant/revoke for the draft frame — idempotent,
+    // re-fired on both the prompt edge and the frame's own (re)creation
+    // (see draftPaymentServeSignal).
+    draftPaymentServeSignal: {
+      immediate: true,
+      handler(): void {
+        if (!workspaceFrameMounted('draft')) {
+          return;
+        }
+        setWorkspaceFrameServes('draft',
+          draftPaymentPending(this.playerView) ? DRAFT_PAYMENT_SERVES : DRAFT_DEFAULT_SERVES);
+      },
+    },
     startFrameLive: {
       immediate: true,
       handler(live: boolean): void {
@@ -9664,6 +9698,14 @@ export default defineComponent({
         // The draft WORKSPACE's own latches (pick total / pass direction /
         // hydration cue) — beside the tray observer, same pre-flush timing.
         observeDraftWorkspace(oldView, newView);
+        // A `payment` answer while flown cards are absent from the hand means
+        // the server WITHHELD them behind that payment (the research buy /
+        // reveal buy under Helion or Luna Trade Federation): tell the intake
+        // NOW, so its target polls degrade at once instead of standing as a
+        // stale `cardArrival` claim over the very prompt that releases the
+        // cards — the deadlock the foreground watchdog reported as «Экран
+        // завис» at the end of every Helion draft.
+        refuteWithheldIntake(newView);
         // Colony-trade transaction: observe EVERY commit path. The staged
         // bot pipeline (a trade that ends the turn carries the bot's turns)
         // and a poll after a lost response bypass the transport's gated detect;

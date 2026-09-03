@@ -60,6 +60,14 @@ describe('consoleWorkspaceOutcome — the EMBEDDED claim', () => {
     expect(workspaceClaimsDrawReveal({type: 'globalParameter', parameter: 'venus'} as CardDrawRevealSource)).to.eq(false);
   });
 
+  it('CAMPAIGN «Наследие»: the campaign-sourced reveal belongs to the open claim (only the legacy press emits it)', () => {
+    // Not claimed → the standalone presenter keeps it (reload fallback).
+    expect(workspaceClaimsDrawReveal({type: 'campaign'})).to.eq(false);
+    // The legacy press claims synchronously → the batch presents embedded.
+    claimWorkspaceOutcome('start', 'Project legacy', ['draw', 'pick', 'effect'], 0, 2, 'chain');
+    expect(workspaceClaimsDrawReveal({type: 'campaign'})).to.eq(true);
+  });
+
   /**
    * AN UNATTRIBUTED DRAW IS THE OPEN WORKSPACE'S (contract change, 2026-08-14).
    *

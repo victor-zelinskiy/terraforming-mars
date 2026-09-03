@@ -3,6 +3,7 @@ import {Phase} from '@/common/Phase';
 import {PlayerViewModel} from '@/common/models/PlayerModel';
 import {CardName} from '@/common/cards/CardName';
 import {
+  DRAFT_DEFAULT_SERVES, DRAFT_PAYMENT_SERVES, draftPaymentPending,
   betweenGenDraftLive, draftStageOf, draftPickInput, draftBuyInput, draftPacketKey,
   draftJourneyPhases, draftCrumb, draftCompactContext, draftFlowPresentation,
   requirementHeadsUp, observeDraftWorkspace, draftWorkspaceState, resetDraftWorkspace,
@@ -117,6 +118,53 @@ describe('consoleDraftFlow', () => {
     expect(draftMandatoryFlowBeat(view({phase: Phase.RESEARCH, needsToResearch: false}))).is.undefined;
     expect(draftMandatoryFlowBeat(view({draftVariant: false}))).is.undefined;
     expect(draftMandatoryFlowBeat(view({phase: Phase.RESEARCH, generation: 1}))).is.undefined;
+  });
+
+  /**
+   * The POST-BUY PAYMENT (Helion heat / Luna titanium) is a STAGE of the
+   * flow. Structural: in phase RESEARCH the only `payment` a drafting player
+   * can face is the research buy's — and the server withholds the bought
+   * cards behind it, so the flow is not over (`needsToResearch` stays true).
+   * Deliberately FREE of the client's completion latch: a reload mid-payment
+   * must still land in the pay stage.
+   */
+  it('the post-buy payment is a stage of the flow, reload included', () => {
+    const payment = {type: 'payment'};
+    expect(draftPaymentPending(view({phase: Phase.RESEARCH, waitingFor: payment}))).is.true;
+    // The flow itself is still alive through the payment window.
+    expect(betweenGenDraftLive(view({phase: Phase.RESEARCH, waitingFor: payment}))).is.true;
+    // Never outside RESEARCH, never for another prompt shape.
+    expect(draftPaymentPending(view({phase: Phase.DRAFTING, waitingFor: payment}))).is.false;
+    expect(draftPaymentPending(view({phase: Phase.ACTION, waitingFor: payment}))).is.false;
+    expect(draftPaymentPending(view({phase: Phase.RESEARCH, waitingFor: buyPrompt([CardName.FISH])}))).is.false;
+    expect(draftPaymentPending(view({phase: Phase.RESEARCH, waitingFor: undefined}))).is.false;
+  });
+
+  it('the pay stage never reads «готово» — the tail only moves forward', () => {
+    // While the payment stands, the client's own completion beats may already
+    // be 'done' (the refuted intake resolves fast) — but the purchase is NOT
+    // paid for: the crumb says «Оплата», the rail keeps the purchase current,
+    // and the presentation stays expanded. ПОКУПКА → ОПЛАТА → ГОТОВО.
+    expect(draftCrumb({stage: 'idle', inspecting: false, completion: 'done', paying: true}))
+      .deep.eq({subject: 'Purchase', stage: 'Payment', committed: true});
+    expect(draftCrumb({stage: 'idle', inspecting: false, completion: 'done'}))
+      .deep.eq({subject: 'Purchase', stage: 'Ready', committed: true});
+    const paying = draftJourneyPhases({total: 4, picked: 4, stage: 'idle', completion: 'done', paying: true});
+    expect(paying[1].state).eq('current');
+    expect(paying[1].items[0].state).eq('current');
+    const paid = draftJourneyPhases({total: 4, picked: 4, stage: 'idle', completion: 'done'});
+    expect(paid[1].state).eq('completed');
+    expect(draftFlowPresentation({completion: 'done', inspecting: false, paying: true})).eq('expanded');
+    expect(draftFlowPresentation({completion: 'done', inspecting: false})).eq('complete');
+  });
+
+  it('the runtime serves grant is the defaults plus `payment`, nothing dropped', () => {
+    // The leak detector / foreground watchdog derive the draft's serving
+    // surface from the frame's serves — the grant must EXTEND the defaults
+    // (dropping cardSelect would strand the buy prompt it still serves).
+    expect(DRAFT_PAYMENT_SERVES).to.include.members([...DRAFT_DEFAULT_SERVES]);
+    expect(DRAFT_PAYMENT_SERVES).to.include('payment');
+    expect(DRAFT_DEFAULT_SERVES).to.not.include('payment');
   });
 
   it('packet identity folds the card names (rounds reuse one prompt identity)', () => {

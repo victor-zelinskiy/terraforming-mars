@@ -363,14 +363,13 @@ import {
   draftPacketKey, draftJourneyPhases, draftFlowPresentation, draftCompactContext,
   draftCrumb, draftNeighbor, draftCollectedNames,
   beginDraftCompletion, markDraftCompletionFlightsDone, finishDraftCompletion,
-  draftPicksKey, rememberDraftPicks, recallDraftPicks,
+  draftPicksKey, rememberDraftPicks, recallDraftPicks, draftPaymentPending,
   DraftStage, DraftJourneyInput,
 } from '@/client/console/draft/consoleDraftFlow';
 import {draftCommands, setConsoleDraftCommands, resetConsoleDraftUi, DraftCommandState} from '@/client/console/draft/consoleDraftUi';
 import {displayNameForColor} from '@/client/components/marsbot/marsBotDisplay';
 import {availabilityContextFor, buildCardAvailability, CardAvailabilityView} from '@/client/console/cardAvailability';
 import ConsoleCardAvailabilityPanel from '@/client/components/console/ConsoleCardAvailabilityPanel.vue';
-import {Phase} from '@/common/Phase';
 
 type CardEntry = {name: CardName, key: string, card: CardModel};
 
@@ -516,11 +515,12 @@ export default defineComponent({
     stageShelved(): boolean {
       return this.zone === 'pick' || this.zone === 'wait' || this.zone === 'inspect';
     },
-    /** The post-buy SelectPayment (Helion heat / steel) — embedded, phase-scoped. */
+    /** The post-buy SelectPayment (Helion heat / Luna titanium) — embedded.
+     *  The pure derivation is deliberately FREE of the `completion` latch: a
+     *  reload mid-payment arrives with `completion === 'none'` and must still
+     *  land in the pay stage (see draftPaymentPending's contract). */
     paymentPending(): boolean {
-      return this.playerView.game.phase === Phase.RESEARCH &&
-        this.playerView.waitingFor?.type === 'payment' &&
-        draftWorkspaceState.completion !== 'none';
+      return draftPaymentPending(this.playerView);
     },
     pickInput() {
       return draftPickInput(this.playerView);
@@ -636,13 +636,14 @@ export default defineComponent({
         picked: this.pickedCount,
         stage: this.stage,
         completion: draftWorkspaceState.completion,
+        paying: this.paymentPending,
       };
     },
     journeyPhases() {
       return draftJourneyPhases(this.journeyInput);
     },
     flowPresentation() {
-      return draftFlowPresentation({completion: draftWorkspaceState.completion, inspecting: this.inspecting});
+      return draftFlowPresentation({completion: draftWorkspaceState.completion, inspecting: this.inspecting, paying: this.paymentPending});
     },
     /** The purchase is committed and its cards are leaving/gone: the row's
      *  selection chrome (focus ring, pick band) must leave WITH the cards —
@@ -655,7 +656,7 @@ export default defineComponent({
       return draftCompactContext(this.journeyInput);
     },
     crumb() {
-      return draftCrumb({stage: this.stage, inspecting: this.inspecting, completion: draftWorkspaceState.completion});
+      return draftCrumb({stage: this.stage, inspecting: this.inspecting, completion: draftWorkspaceState.completion, paying: this.paymentPending});
     },
     // ── the pass readouts ─────────────────────────────────────────────
     giveSide(): 'left' | 'right' {
@@ -727,9 +728,13 @@ export default defineComponent({
       // Past the commit the bar is EMPTY (the 'done' contract): the frozen
       // buy row still paints while the exit reads, but «A Выбрать / RT
       // Пропустить» over departing cards promised verbs that no longer
-      // exist (input is consumed for the whole completion window).
-      const zone: DraftCommandState['zone'] = draftWorkspaceState.completion !== 'none' ?
-        'done' : (this.zone === 'pay' ? 'buy' : this.zone);
+      // exist (input is consumed for the whole completion window). The PAY
+      // stage is empty for the same reason whatever the completion latch says
+      // (a reload lands there with completion === 'none'): the embedded
+      // payment panel owns the pad and publishes its own verbs.
+      const zone: DraftCommandState['zone'] =
+        draftWorkspaceState.completion !== 'none' || this.zone === 'pay' ?
+          'done' : this.zone;
       return {
         beatActive: this.beatActive,
         zone,
@@ -821,6 +826,15 @@ export default defineComponent({
       }
       if (next === 'done') {
         this.armDoneBeat();
+      }
+      // Leaving the terminal beat (the post-buy PAYMENT arrived mid-read, or
+      // the LT inspect) DISARMS it: a done-timer left ticking would finish the
+      // completion UNDER the payment stage — `paymentPending`'s own guard in
+      // the tick is the belt, this is the braces, and the beat re-arms with
+      // its full read window when the zone returns to 'done'.
+      if (prev === 'done' && this.doneTimer !== undefined) {
+        window.clearTimeout(this.doneTimer);
+        this.doneTimer = undefined;
       }
       if (next === 'inspect' || prev === 'inspect') {
         this.focusIdx = 0;
@@ -1533,7 +1547,14 @@ export default defineComponent({
       const started = Date.now();
       const tick = () => {
         this.doneTimer = undefined;
-        if (draftWorkspaceState.completion === 'done' || Date.now() - started > 9000) {
+        // NEVER finish while the post-buy payment stands: the completion latch
+        // is what keeps the frame's whole pay stage alive, and finishing it
+        // mid-payment tore the embedded panel out into a standalone band over
+        // a workspace posing as «ожидание». The payment is a stage of this
+        // flow — the terminal beat reads AFTER it (the 9 s ceiling included:
+        // a player thinking about their heat is not a stall).
+        if (!this.paymentPending &&
+            (draftWorkspaceState.completion === 'done' || Date.now() - started > 9000)) {
           finishDraftCompletion();
           return;
         }

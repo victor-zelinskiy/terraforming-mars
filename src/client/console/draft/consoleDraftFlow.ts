@@ -33,6 +33,7 @@ import {UnplayableReason} from '@/common/cards/UnplayableReason';
 // Type-only on purpose: this module stays Vue-free at runtime (the fast
 // server-runner spec), and the gate's reactive store must not be dragged in.
 import type {MandatoryFlowBeat} from '@/client/console/consoleMandatoryGate';
+import type {TaskKind} from '@/client/console/consoleTaskRouter';
 
 // ── journey types (structural twins of ConsoleJourneyRail's exports — no
 //    .vue import so this module stays pure and server-runner-testable) ──────
@@ -117,6 +118,40 @@ export function betweenGenDraftLive(view: PlayerViewModel): boolean {
   // answered (covers the Underworld swap choice standing before the buy).
   return view.game.phase === Phase.RESEARCH && view.thisPlayer.needsToResearch === true;
 }
+
+/**
+ * The POST-BUY PAYMENT is a STAGE of the draft flow (Helion heat / Luna Trade
+ * Federation titanium — `ChooseCards` defers `SelectPaymentDeferred`, and the
+ * plain M€ case auto-resolves server-side without a prompt). STRUCTURAL, not
+ * title-based: in phase RESEARCH the only `payment` prompt a drafting player
+ * can face is the research buy's, and the server WITHHOLDS the bought cards
+ * behind it (`keep()` runs in the deferred's `andThen`), so the flow is not
+ * over until it is answered — `needsToResearch` stays true for the same
+ * reason.
+ *
+ * Deliberately free of the client's `completion` latch: a reload lands here
+ * with `completion === 'none'` and must still enter the pay stage instead of
+ * posing as «ожидание» beside an unhosted payment band.
+ */
+export function draftPaymentPending(view: PlayerViewModel): boolean {
+  return view.game.phase === Phase.RESEARCH && view.waitingFor?.type === 'payment';
+}
+
+/** The registry defaults (the frame's serves outside the payment window). */
+export const DRAFT_DEFAULT_SERVES: ReadonlyArray<TaskKind> = ['cardSelect', 'draftWait'];
+
+/**
+ * The runtime-EARNED serves for the span of the post-buy payment — the
+ * colony-resolution pattern (`COLONY_RESOLUTION_SERVES`). `payment` is NOT a
+ * registry default on purpose: the prompt stays HOST-served (the one
+ * ConsoleTaskHost instance teleports into the workspace's pay slot), and the
+ * grant only states the honest fact the leak detector / foreground watchdog
+ * need — while the payment stands, the DRAFT WORKSPACE is the surface serving
+ * it, so its rendered root is the DOM evidence that the screen is not stuck.
+ * Without it the watchdog saw «claimed + nothing rendered + a live prompt»
+ * over a perfectly working pay stage and announced «Экран завис».
+ */
+export const DRAFT_PAYMENT_SERVES: ReadonlyArray<TaskKind> = [...DRAFT_DEFAULT_SERVES, 'payment'];
 
 /**
  * The draft's PENDING MANDATORY ACTION descriptor (consoleMandatoryGate's flow
@@ -222,6 +257,10 @@ export type DraftJourneyInput = {
   stage: DraftStage,
   /** The purchase commit state ('flights' = cards leaving, 'done' = terminal). */
   completion: 'none' | 'flights' | 'done',
+  /** The post-buy payment stands (Helion) — the purchase is NOT done yet:
+   *  the flow rail may not check off a purchase the server has not been paid
+   *  for, however far the client's own completion beats have run. */
+  paying?: boolean,
 };
 
 /**
@@ -248,7 +287,7 @@ export function draftJourneyPhases(input: DraftJourneyInput): ReadonlyArray<Draf
     items.push({id: `pick-${i + 1}`, label: '', state});
   }
 
-  const done = input.completion === 'done';
+  const done = input.completion === 'done' && input.paying !== true;
   return [
     {
       id: 'picks', ordinal: '01', label: 'Card selection', mode: 'progress',
@@ -259,13 +298,16 @@ export function draftJourneyPhases(input: DraftJourneyInput): ReadonlyArray<Draf
       id: 'purchase', ordinal: '02', label: 'Purchase', mode: 'progress',
       state: done ? 'completed' : (buyLive ? 'current' : 'locked'),
       // ONE terminal node: the endpoint ring the whole flow runs toward.
-      items: [{id: 'ready', label: 'Ready', state: done ? 'completed' : (input.completion === 'flights' ? 'current' : 'locked')}],
+      items: [{id: 'ready', label: 'Ready', state: done ? 'completed' : (input.completion !== 'none' ? 'current' : 'locked')}],
     },
   ];
 }
 
-export function draftFlowPresentation(input: {completion: 'none' | 'flights' | 'done', inspecting: boolean}): DraftPresentation {
-  if (input.completion === 'done') {
+export function draftFlowPresentation(input: {completion: 'none' | 'flights' | 'done', inspecting: boolean, paying?: boolean}): DraftPresentation {
+  // Never «complete» under a standing payment: the client's completion beats
+  // can finish (the refuted intake resolves fast) while the server still
+  // holds the purchase behind the SelectPayment.
+  if (input.completion === 'done' && input.paying !== true) {
     return 'complete';
   }
   return input.inspecting ? 'compact' : 'expanded';
@@ -289,9 +331,15 @@ export type DraftCrumb = {subject: string, stage: string, committed: boolean};
  * `… › ОТОБРАННЫЕ › ОСМОТР` (LT) → `… › ПОКУПКА › ГОТОВО`.
  * `committed` = the tail describes a move that cannot be unmade (amber).
  */
-export function draftCrumb(input: {stage: DraftStage, inspecting: boolean, completion: 'none' | 'flights' | 'done'}): DraftCrumb {
+export function draftCrumb(input: {stage: DraftStage, inspecting: boolean, completion: 'none' | 'flights' | 'done', paying?: boolean}): DraftCrumb {
   if (input.inspecting) {
     return {subject: 'Drafted', stage: 'Inspection', committed: false};
+  }
+  // The tail only ever moves FORWARD: ПОКУПКА → ОПЛАТА → ГОТОВО. Before this
+  // branch the pay stage read «ГОТОВО» — a purchase declared finished before
+  // the server had been paid for it.
+  if (input.paying === true) {
+    return {subject: 'Purchase', stage: 'Payment', committed: true};
   }
   if (input.completion !== 'none') {
     return {subject: 'Purchase', stage: 'Ready', committed: true};
