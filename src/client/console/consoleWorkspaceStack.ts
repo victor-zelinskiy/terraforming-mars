@@ -755,6 +755,20 @@ export function frameServing(kind: TaskKind): WorkspaceFrame | undefined {
 }
 
 /**
+ * Does the PARKED chain serve this prompt kind? The question `discardWorkspacePark`'s
+ * caller has to ask FIRST: the discard fires on «the server asked for something
+ * else», and a prompt the park itself serves is not something else — it is the
+ * parked flow's own next step (the pick a claimed draw promised, the payment of
+ * a pick-then-pay). Discarding there threw the player's set-aside decision away
+ * at the exact moment it became answerable, orphaned the claim whose host lived
+ * in the park (`workspaceFrameKnown` went false → the adoption net released it),
+ * and the prompt then rose as a standalone band with no way back to the flow.
+ */
+export function parkServes(kind: TaskKind): boolean {
+  return workspaceStackState.parked.some((f) => f.serves.includes(kind));
+}
+
+/**
  * WHERE A FOLLOW-UP BELONGS — the deepest frame that may host a step of its own
  * flow right now, or `undefined` when the follow-up is a screen of its own.
  *

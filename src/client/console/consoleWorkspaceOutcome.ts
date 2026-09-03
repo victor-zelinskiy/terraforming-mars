@@ -35,6 +35,7 @@ import {reactive} from 'vue';
 import {CardDrawRevealSource} from '@/common/models/CardDrawRevealModel';
 import type {ZoomOrigin} from '@/client/console/consoleCardZoom';
 import type {WorkspaceFrameKind} from '@/client/console/consoleWorkspaceStack';
+import {workspaceFrameKnown} from '@/client/console/consoleWorkspaceStack';
 
 /**
  * Which workspace holds the claim. A closed union on purpose: every host needs
@@ -549,6 +550,51 @@ export function rehomeWorkspaceOutcome(host: WorkspaceOutcomeHost, slot: string)
   workspaceOutcomeState.embedSlot = slot;
 }
 
+/*
+ * ── THE SERVING PROBE — the guard under every release ───────────────────────
+ *
+ * THE ONE INVARIANT THIS MODULE OWES THE PLAYER: a claim that is SERVING —
+ * answering for a live prompt or a pending batch the server is still holding —
+ * may not be released out from under them. Releasing it mid-decision is the
+ * whole regression class this guard exists for: the claim falls → the embedded
+ * surface loses its suppression of the standalone presenters → the prompt the
+ * player was answering re-opens as a full-bleed modal, and the workspace —
+ * having lost its `live-outcome` conclusion hold — folds under them.
+ *
+ * Eighteen call sites release this claim, each deriving its own safety from a
+ * different subset of transient flags (an admission-gated computed, a falling
+ * edge, a wall clock). The guard inverts that: the RELEASE FUNNEL refuses, and
+ * a caller's mis-derivation degrades to a no-op instead of a catastrophe.
+ *
+ * The probe is INJECTED (the evidence — the raw `waitingFor`, the unconsumed
+ * server reveals — lives in the shell), and it must read RAW server facts,
+ * never admission-gated computeds: a presentation hold making «held» look like
+ * «gone» is precisely the blink this guard absorbs.
+ *
+ * TWO deliberate bounds keep the refusal from trading one bug for a worse one:
+ *  · the guard holds only while the claim's HOST FRAME IS STILL KNOWN (live or
+ *    parked). A host genuinely gone has no zone coming back, so refusing there
+ *    would strand the prompt NOWHERE (the claim suppresses the standalone
+ *    band) — the modal is the honest degrade for a truly dead host;
+ *  · a refusal RE-ARMS the 20 s safety, so a claim whose serving later ends
+ *    with nobody left to release it is still cleaned up — the net keeps
+ *    re-checking instead of dying with its first refusal.
+ */
+let servingProbe: (() => boolean) | undefined;
+
+/** The shell registers the one probe; tests inject their own. `undefined`
+ *  disarms the guard (releases behave as before registration). */
+export function setWorkspaceOutcomeServingProbe(probe: (() => boolean) | undefined): void {
+  servingProbe = probe;
+}
+
+/** Is the live claim SERVING right now — a live prompt of a claimed kind, or a
+ *  pending batch it answers for? False with no claim or no registered probe. */
+export function workspaceOutcomeServing(): boolean {
+  return workspaceOutcomeState.sourceCard !== '' &&
+    servingProbe !== undefined && servingProbe();
+}
+
 /**
  * DIAGNOSTIC — WHO performed the LAST release, for the e2e lifecycle probes
  * (`__conColonyDiag`). A wrong release is a one-frame event that took three
@@ -557,8 +603,30 @@ export function rehomeWorkspaceOutcome(host: WorkspaceOutcomeHost, slot: string)
  */
 export let lastOutcomeReleaseStack = '';
 
-/** Drop the claim (the stage folded, the outcome was acknowledged, unmount). */
-export function releaseWorkspaceOutcome(reason = 'unspecified'): void {
+/** DIAGNOSTIC — the last release the guard REFUSED (kept separate from
+ *  `lastOutcomeReleaseStack` so probes asserting on performed releases keep
+ *  reading performed releases). */
+export let lastOutcomeReleaseRefusal = '';
+
+/**
+ * Drop the claim (the stage folded, the outcome was acknowledged, unmount).
+ *
+ * GUARDED (see the serving probe above): a claim serving a live prompt/batch
+ * whose host frame still stands is NOT released — the call returns `false`
+ * and the caller's flow must treat the claim as still owned. `force` is
+ * reserved for the ANSWERING paths — the take of the last card and the full
+ * reset — where the artifact being consumed is itself the licence.
+ */
+export function releaseWorkspaceOutcome(reason = 'unspecified', opts?: {force?: boolean}): boolean {
+  if (opts?.force !== true && workspaceOutcomeServing() &&
+      workspaceOutcomeState.host !== undefined && workspaceFrameKnown(workspaceOutcomeState.host)) {
+    lastOutcomeReleaseRefusal = `refused:${reason} @${typeof performance !== 'undefined' ? Math.round(performance.now()) : 0}`;
+    // The net re-arms: if the serving ends with nobody left to release the
+    // claim, the safety re-checks — and is itself refused for as long as the
+    // player is genuinely still being asked.
+    armSafety();
+    return false;
+  }
   lastOutcomeReleaseStack = `${reason} @${typeof performance !== 'undefined' ? Math.round(performance.now()) : 0}`;
   clearSafety();
   clearBeat();
@@ -576,6 +644,7 @@ export function releaseWorkspaceOutcome(reason = 'unspecified'): void {
   workspaceOutcomeState.stage = 'idle';
   workspaceOutcomeState.embedSlot = '';
   workspaceOutcomeState.phaseKey = '';
+  return true;
 }
 
 /** Is ANY workspace holding a claim right now? */
@@ -709,9 +778,9 @@ export function workspaceClaimsEffect(): boolean {
   return workspaceOutcomeAdmits('effect');
 }
 
-/** Full reset (game switch / test cleanup). */
+/** Full reset (game switch / test cleanup). Forced: nothing survives it. */
 export function resetWorkspaceOutcome(): void {
-  releaseWorkspaceOutcome();
+  releaseWorkspaceOutcome('reset', {force: true});
 }
 
 /**

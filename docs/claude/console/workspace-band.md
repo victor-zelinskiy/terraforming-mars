@@ -207,6 +207,61 @@ OR-ветки, `-1` у одноветочной карты; теперь ОДИ�
 свой результат (ограничено жизнью клейма по построению). Спеки:
 `consoleOutcomeAdoption.spec.ts`, `consoleWorkspaceOutcome.spec.ts`.
 
+### ⚠️⚠️ THE RELEASE FUNNEL — клейм, ОБСЛУЖИВАЮЩИЙ живой промпт, не отпускается (2026-09-04)
+
+Регрессия класса «embedded-промпт посреди выбора слетает в модалку, workspace
+закрывается сам» имела ОДНУ структурную причину: клейм отпускали ~18
+независимых акторов, каждый выводил «безопасно ли» из своего подмножества
+ТРАНЗИЕНТНЫХ флагов — admission-гейтованных computed (`deckPickActive` мигает
+false на любом `host`-блоке: presentation-холд бот-хода, announce-gate,
+card-arrival), falling-edge'ей, wall-clock'ов и однофлашевых провалов
+`workspaceFrameKnown`. Падение клейма каскадно: `live-outcome`-холд исчезает →
+conclusion даёт dismiss → workspace сворачивается, промпт теряет подавление
+standalone-презентеров и переоткрывается модалкой.
+
+Инверсия: **воронка release сама отказывает** (`releaseWorkspaceOutcome` в
+`consoleWorkspaceOutcome.ts`), и ошибка любого вызывающего деградирует в no-op:
+
+- **Serving probe** (инжектируется шеллом, `setWorkspaceOutcomeServingProbe`):
+  клейм «обслуживает» = живой СЫРОЙ промпт клеймленного вида
+  (`workspaceOutcomePromptServed` — raw `taskFor` ∈ {deckSelect, cardSelect,
+  payment} при `pick`, структурный effect-decision, НЕподтверждённый вердикт)
+  ∨ живой батч (`workspaceOutcomeBatchServed` — `rawDrawnRevealPending` ∨
+  серверные `cardDrawReveals`). **Только сырые факты — никогда гейтованные
+  computed**: это play-host-закон «читай сырой промпт, а не „гейт что-то
+  держит"», заявленный один раз для всех хостов.
+- Отказ ТОЛЬКО пока хост-фрейм known (live ∨ park): у мёртвого хоста зона не
+  вернётся, отказ = strand (клейм давит standalone-полосу) — модалка там
+  честная деградация. Отказ перевзводит 20-с safety (сеть перепроверяет, а не
+  умирает с первым отказом) и пишется в `lastOutcomeReleaseRefusal`.
+- `force` — лицензия ТОЛЬКО отвечающих путей: take последней карты
+  (`drawn-complete`/`result-detached`) и полный reset. Ack вердикта
+  (`reveal-result-ack`) намеренно БЕЗ force: chain-клейм этапа-7 может ещё
+  быть должен pick — отказ оставляет клейм на этот leg, fold гейтуется на
+  успехе release.
+
+Смежные законы той же волны:
+
+- **Adoption-решения применяются после ОДНОГО устоявшегося флаша**
+  (`sameAdoptionDecision` + `$nextTick`-подтверждение в вотчере шелла) —
+  однофлашевый провал `workspaceFrameKnown` больше не двигает и не убивает
+  живой клейм; `outcomeAdoptionPending` держит презентацию весь confirm-тик.
+  Serving-клейм не orphan-release'ится и в самой сети (`claimServesLivePrompt`
+  → 'none'); rehome разрешён (клейм переживает переезд — кейс Плутона).
+- **`hydroFollowUpLive` несёт ownership-терм** (`host === 'hydro' &&
+  workspaceOutcomePromptServed` — только prompt-половина: батч, queued для
+  поздней стадии, обязан остаться невидимым, см. queued-deadlock) — flow
+  больше не уходит в `result` под открытым pick'ом; `finishHydroFlow`
+  перепроверяет serving и ретраится на своём же холде; `hydroBonusReturn` не
+  делает `goBoardHome` под живым hydro-клеймом.
+- **`discardWorkspacePark` не выбрасывает парк, который сам обслуживает НОВЫЙ
+  промпт** (`parkServes(kind)` в стеке): смена prompt-identity — рутина
+  середины цепочки (pick после добора, payment после pick), «сервер спросил
+  другое» ≠ «спросил следующий шаг этой же цепочки».
+
+Спеки: `consoleWorkspaceOutcome.spec.ts` § the RELEASE FUNNEL,
+`consoleOutcomeAdoption.spec.ts` (serving-термы + stability).
+
 **Анимации не дублируются.** Кинематика колоды не адаптировалась:
 `ConsoleDeckDrawLayer` ищет цели как `.con-reveal [data-zoom-slot]` по всему
 документу, а эти слоты ВНУТРИ workspace — карты физически летят из HUD-колоды

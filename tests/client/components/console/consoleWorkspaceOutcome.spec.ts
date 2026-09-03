@@ -10,6 +10,7 @@ import {
   releaseWorkspaceOutcome,
   resetWorkspaceOutcome,
   retainWorkspaceOutcomeForNextBatch,
+  setWorkspaceOutcomeServingProbe,
   setWorkspaceOutcomeSlot,
   workspaceClaimsColonyReveal,
   workspaceClaimsDeckCheck,
@@ -20,8 +21,10 @@ import {
   workspaceOutcomeArrivalPending,
   workspaceOutcomeBeatPending,
   workspaceOutcomeClaimed,
+  workspaceOutcomeServing,
   workspaceOutcomeState,
 } from '@/client/console/consoleWorkspaceOutcome';
+import {enterWorkspace, resetWorkspaceStack} from '@/client/console/consoleWorkspaceStack';
 import {CardName} from '@/common/cards/CardName';
 import {CardDrawRevealSource} from '@/common/models/CardDrawRevealModel';
 
@@ -454,6 +457,79 @@ describe('consoleWorkspaceOutcome — the EMBEDDED claim', () => {
 
     it('with NO live claim it is a no-op (never resurrects a released lease)', () => {
       retainWorkspaceOutcomeForNextBatch(3);
+      expect(workspaceOutcomeClaimed()).to.eq(false);
+    });
+  });
+
+  /**
+   * THE RELEASE FUNNEL — the one invariant this module owes the player:
+   * a claim SERVING a live prompt/batch, whose host frame still stands, may
+   * not be released out from under them. Eighteen call sites release this
+   * claim, each deriving its own safety from a different subset of transient
+   * flags; the funnel inverts that — a caller's mis-derivation degrades to a
+   * refused no-op instead of «the workspace closes itself mid-pick and the
+   * prompt falls to the standalone modal» (the 2026-09-04 regression class).
+   */
+  describe('the RELEASE FUNNEL (the serving-probe guard)', () => {
+    // The probe and the stack are BUNDLE-SHARED module state: a leaked probe
+    // would guard every later spec's releases with this spec's answers.
+    afterEach(() => {
+      setWorkspaceOutcomeServingProbe(undefined);
+      resetWorkspaceStack();
+    });
+
+    it('with no registered probe the guard is disarmed — releases behave exactly as before', () => {
+      claimWorkspaceOutcome('hydro', AI_CENTRAL, ['draw', 'pick']);
+      enterWorkspace('hydro');
+      expect(releaseWorkspaceOutcome('any-reason')).to.eq(true);
+      expect(workspaceOutcomeClaimed()).to.eq(false);
+    });
+
+    it('REFUSES a release while the claim serves and its host frame stands — the claim survives the caller\'s mistake', () => {
+      claimWorkspaceOutcome('hydro', AI_CENTRAL, ['draw', 'pick']);
+      enterWorkspace('hydro');
+      setWorkspaceOutcomeServingProbe(() => true);
+      expect(workspaceOutcomeServing()).to.eq(true);
+      expect(releaseWorkspaceOutcome('hydro-pick-done')).to.eq(false);
+      expect(workspaceOutcomeClaimed(), 'the claim outlives the blink').to.eq(true);
+      expect(workspaceOutcomeState.host).to.eq('hydro');
+      expect(workspaceClaimsPick(), 'the prompt is still routed to the workspace').to.eq(true);
+    });
+
+    it('a host frame GONE from both stacks lets the release through — the modal is the honest degrade for a dead host', () => {
+      claimWorkspaceOutcome('hydro', AI_CENTRAL, ['draw', 'pick']);
+      setWorkspaceOutcomeServingProbe(() => true);
+      // No hydro frame anywhere: refusing would strand the prompt NOWHERE
+      // (the claim suppresses the standalone presenters).
+      expect(releaseWorkspaceOutcome('adoption-no-host')).to.eq(true);
+      expect(workspaceOutcomeClaimed()).to.eq(false);
+    });
+
+    it('FORCE is the answering paths\' licence — the take releases whatever the probe says', () => {
+      claimWorkspaceOutcome('hydro', AI_CENTRAL, ['draw', 'pick']);
+      enterWorkspace('hydro');
+      setWorkspaceOutcomeServingProbe(() => true);
+      expect(releaseWorkspaceOutcome('drawn-complete', {force: true})).to.eq(true);
+      expect(workspaceOutcomeClaimed()).to.eq(false);
+    });
+
+    it('a serving claim cannot be wiped by a later EMPTY claim in the same chain', () => {
+      claimWorkspaceOutcome('hydro', AI_CENTRAL, ['draw', 'pick']);
+      enterWorkspace('hydro');
+      setWorkspaceOutcomeServingProbe(() => true);
+      claimWorkspaceOutcome('hydro', RESTRICTED, []);
+      expect(workspaceOutcomeClaimed(), 'the standing claim survives').to.eq(true);
+      expect(workspaceOutcomeState.sourceCard).to.eq(AI_CENTRAL);
+    });
+
+    it('once the serving ends the same release goes through — a refusal is a wait, never a wedge', () => {
+      claimWorkspaceOutcome('hydro', AI_CENTRAL, ['draw', 'pick']);
+      enterWorkspace('hydro');
+      let serving = true;
+      setWorkspaceOutcomeServingProbe(() => serving);
+      expect(releaseWorkspaceOutcome('reconcile')).to.eq(false);
+      serving = false;
+      expect(releaseWorkspaceOutcome('reconcile')).to.eq(true);
       expect(workspaceOutcomeClaimed()).to.eq(false);
     });
   });

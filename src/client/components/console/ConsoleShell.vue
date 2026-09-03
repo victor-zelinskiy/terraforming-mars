@@ -1479,6 +1479,7 @@ import {
   workspaceFrameRoot,
   workspaceFrameTarget,
   workspaceHostForStep,
+  parkServes,
   workspaceStackCollapsed,
   workspaceStackCrumb,
   workspaceStackState,
@@ -1646,7 +1647,7 @@ import {
 } from '@/client/console/hydroFlow/consoleHydroFlow';
 import {bonusDiscardOwnsBatch, bonusDiscardStep, BonusDiscardStep} from '@/client/console/colonyTrade/colonyBonusDiscardStep';
 import {drawnRevealCommandRun} from '@/client/console/consoleRevealCommands';
-import {workspaceClaimsDrawReveal, workspaceClaimsColonyReveal, workspaceClaimsDeckCheck, workspaceClaimsEffect, workspaceClaimsPick, workspaceOutcomeClaimed, workspaceOutcomeBeatPending, claimWorkspaceOutcome, lastOutcomeReleaseStack, markWorkspaceOutcomeAnswerIn, markWorkspaceOutcomeArrivalDone, markWorkspaceOutcomeBeatDone, markWorkspaceOutcomePresenting, outcomeHostConcludesFlow, releaseWorkspaceOutcome, resetWorkspaceOutcome, retainWorkspaceOutcomeForNextBatch, setWorkspaceOutcomePhase, workspaceOutcomeState} from '@/client/console/consoleWorkspaceOutcome';
+import {workspaceClaimsDrawReveal, workspaceClaimsColonyReveal, workspaceClaimsDeckCheck, workspaceClaimsEffect, workspaceClaimsPick, workspaceOutcomeClaimed, workspaceOutcomeBeatPending, claimWorkspaceOutcome, lastOutcomeReleaseStack, markWorkspaceOutcomeAnswerIn, markWorkspaceOutcomeArrivalDone, markWorkspaceOutcomeBeatDone, markWorkspaceOutcomePresenting, outcomeHostConcludesFlow, releaseWorkspaceOutcome, resetWorkspaceOutcome, retainWorkspaceOutcomeForNextBatch, setWorkspaceOutcomePhase, setWorkspaceOutcomeServingProbe, workspaceOutcomeState} from '@/client/console/consoleWorkspaceOutcome';
 import {cardExitBusy} from '@/client/console/cardDeal/cardExitDirector';
 import type {WorkspaceOutcomeKind, WorkspaceOutcomeScope} from '@/client/console/consoleWorkspaceOutcome';
 import {ResultRevealPresentation, resultRevealPresentation} from '@/client/console/consoleRevealPresentation';
@@ -1654,7 +1655,7 @@ import {claimPlayOutcome, isPlayOutcomeHost, playLandingShowing} from '@/client/
 import {noteBonusGainRows, resetBonusGainReward} from '@/client/console/startBonusGain';
 import ConsoleBoardCardBonusLayer from '@/client/components/console/boardCardBonus/ConsoleBoardCardBonusLayer.vue';
 import {armBoardCardBonus, abortBoardCardBonus, boardCardBonusClaimsReveal, boardCardBonusState, isBoardCardBonusActive, isBoardCardBonusFieldPhase} from '@/client/console/boardCardBonus/consoleBoardCardBonus';
-import {applyOutcomeAdoption, outcomeAdoptionHost, resolveOutcomeAdoption, OutcomeAdoptionDecision} from '@/client/console/consoleOutcomeAdoption';
+import {applyOutcomeAdoption, outcomeAdoptionHost, resolveOutcomeAdoption, sameAdoptionDecision, OutcomeAdoptionDecision} from '@/client/console/consoleOutcomeAdoption';
 import {
   planetFocusState, enterPlanetFocus, beginPlanetFocusExit, playPlanetFocusScaleBeat,
   planetFocusBeatAllowed, qualifiesForPlanetFocus, captureGlobalParams,
@@ -3220,6 +3221,19 @@ export default defineComponent({
       if (this.deckPickActive) {
         return true;
       }
+      // THE OWNERSHIP FACT, read RAW. `deckPickActive` above is an
+      // admission-gated rendering predicate: any `host` block (a bot-turn
+      // presentation hold, an announce gate, a card-arrival flight, a foreign
+      // reveal) blinks it false while the pick prompt is still unanswered —
+      // and that blink used to read as «the follow-up is over», walk the flow
+      // to its result stage and close the workspace under an open pick, the
+      // prompt then falling to the standalone band. A prompt the claim serves
+      // IS the advance's own chain, whatever the gates are doing this frame
+      // (deliberately the PROMPT half only: a batch QUEUED for a later stage
+      // must stay invisible here — see the queued-reveal deadlock below).
+      if (workspaceOutcomeState.host === 'hydro' && this.workspaceOutcomePromptServed) {
+        return true;
+      }
       // A stage-gated task needs no term here: `admits('host')` already refuses
       // it (the `stage-gate` block), so `hostTask` is undefined for it.
       if (this.hostTask !== undefined && !this.consoleState.task.deferred) {
@@ -4122,6 +4136,71 @@ export default defineComponent({
       // never be the reason the game cannot go on.
       return !revealPresented(ev.id) && this.exitBarrierHolds(ev.id);
     },
+    // ── THE SERVING PROBE — «is the claim answering for something LIVE?» ──
+    /**
+     * THE CLAIM IS SERVING A PROMPT: the raw `waitingFor` names a question of a
+     * kind the claim admits. Read off RAW facts ONLY — the router's task, the
+     * server's own `lastReveal`, the structural effect decision — never an
+     * admission-gated computed (`hostTask`, `deckPickActive`, `hydroFollowUpLive`):
+     * a presentation hold, an announce gate or a card-arrival flight makes every
+     * gated read blink false mid-decision, and that blink is exactly what used
+     * to release the claim and fold the workspace under an open pick.
+     *
+     * This is the play-host law («read the RAW prompt, never "the gate is
+     * holding something"», the reconciler's own doc) stated once, for every
+     * host, and registered as the release funnel's guard
+     * (`setWorkspaceOutcomeServingProbe`).
+     */
+    workspaceOutcomePromptServed(): boolean {
+      if (!workspaceOutcomeClaimed()) {
+        return false;
+      }
+      // A follow-up card question of the claimed activation: the pick this
+      // press raised, and the payment that finishes it (pick-then-pay is one
+      // decision). Same kind set the reconciler's play arm reads.
+      const task = taskFor(this.playerView);
+      if (task !== undefined && workspaceClaimsPick() &&
+          PLAY_CLAIMED_TASK_KINDS.has(task.kind)) {
+        return true;
+      }
+      // The optional effect the press woke up — structural on both sides.
+      if (this.effectDecisionBelongsToWorkspace) {
+        return true;
+      }
+      // An UNACKNOWLEDGED deck-check verdict the claim owns: `lastReveal` is
+      // server state until the player's next input, and the «ОК» sets the
+      // dismissal marker BEFORE releasing — so an acked verdict stops serving
+      // in the same synchronous turn its release is asked in.
+      const lr = this.playerView.lastReveal;
+      if (lr !== undefined && workspaceClaimsDeckCheck(lr.action) &&
+          `${lr.action}|${lr.revealed.name}` !== this.dismissedRevealKey) {
+        return true;
+      }
+      return false;
+    },
+    /**
+     * THE CLAIM IS SERVING A BATCH: cards the server drew for the viewer that
+     * they have not finished taking. Both witnesses on purpose — the client's
+     * pending flag blinks false by design during the deal / closing beats,
+     * while the server's own unconsumed reveal queue is race-proof evidence
+     * available a full cinematic before the client can render anything.
+     */
+    workspaceOutcomeBatchServed(): boolean {
+      if (!workspaceOutcomeClaimed()) {
+        return false;
+      }
+      if (!this.rawDrawnRevealPending && this.playerView.cardDrawReveals.length === 0) {
+        return false;
+      }
+      const source = currentRevealEvent()?.source;
+      return workspaceClaimsDrawReveal(source) || workspaceClaimsColonyReveal(source);
+    },
+    /** The funnel's registered probe: serving = a live prompt OR a live batch.
+     *  (The take paths release with `force` — the consumed artifact is the
+     *  licence — so this never wedges a finished flow open.) */
+    workspaceOutcomeServingNow(): boolean {
+      return this.workspaceOutcomePromptServed || this.workspaceOutcomeBatchServed;
+    },
     /**
      * THE ADOPTION VERDICT for the pending drawn batch (`consoleOutcomeAdoption`
      * — the net under the claim system): re-home a claim whose host frame is
@@ -4143,6 +4222,7 @@ export default defineComponent({
         boardSceneOwns: boardCardBonusClaimsReveal(source),
         tradeSceneOwns: colonyTradeClaimsReveal(source),
         adoptionHost: outcomeAdoptionHost(),
+        claimServesLivePrompt: this.workspaceOutcomePromptServed,
       });
     },
     /**
@@ -7911,7 +7991,23 @@ export default defineComponent({
       immediate: true,
       flush: 'post',
       handler(decision: OutcomeAdoptionDecision): void {
-        applyOutcomeAdoption(decision);
+        if (decision.kind === 'none') {
+          return;
+        }
+        // ONE SETTLED FLUSH OF AGREEMENT before anything destructive. The
+        // decision reads the stack mid-transition, and a one-flush
+        // `workspaceFrameKnown` gap (a frame popped and re-pushed inside one
+        // navigation, a park racing a truncation, the immediate first call
+        // running before the restore paths) must never move or kill a live
+        // claim. The presentation hold (`outcomeAdoptionPending`) rides the
+        // computed, so the batch stays held through the confirm tick — never
+        // the standalone band for a frame and an embedded stage the next.
+        void this.$nextTick(() => {
+          const confirmed = this.outcomeAdoptionDecision;
+          if (sameAdoptionDecision(confirmed, decision)) {
+            applyOutcomeAdoption(confirmed);
+          }
+        });
       },
     },
     /**
@@ -8307,10 +8403,17 @@ export default defineComponent({
     // still-standing leg plan are the race-proof witnesses. The claim then
     // ends where every drawn batch ends: at the take (`drawn-complete` /
     // `result-detached`), or with the flow (`hydro-flow-complete`).
+    // ⚠⚠⚠ And this falling edge is an ADMISSION-GATED blink, not «answered»:
+    // `deckPickActive` rests on `admits('host')` before the submit, so any
+    // host block (a presentation hold, an announce gate, a card arrival)
+    // drops it while the pick prompt still stands in `waitingFor`. The RAW
+    // serving fact is the discriminator — and the release funnel refuses the
+    // call anyway, so this term is the honest predicate, not the protection.
     deckPickActive(active: boolean) {
       if (!active && !this.consoleState.task.deferred &&
           workspaceOutcomeState.host === 'hydro' &&
           this.hydroFlow.commit !== undefined &&
+          !this.workspaceOutcomePromptServed &&
           !this.rawDrawnRevealPending &&
           this.playerView.cardDrawReveals.length === 0 &&
           !deckDrawHolds() &&
@@ -9366,7 +9469,12 @@ export default defineComponent({
       // no admission gate can make «held» look like «gone». Without this the
       // claim was released mid-pick, the flow concluded under the player, and
       // the card their discard bought arrived over an empty board.
-      if (this.effectDecisionBelongsToWorkspace) {
+      //
+      // GENERALIZED to every prompt the claim serves (`workspaceOutcomePromptServed`
+      // — the pick, the payment, the effect, the unacked verdict): «the zone is
+      // empty this flush» is a rendering fact, «the server is still asking us»
+      // is the ownership fact, and only the second one may end a claim.
+      if (this.workspaceOutcomePromptServed) {
         return;
       }
       void this.$nextTick(() => {
@@ -9636,7 +9744,21 @@ export default defineComponent({
           // …and a flow the player set aside is STALE the moment the server
           // asks for something else: restoring it would put them back inside a
           // decision that no longer exists.
-          discardWorkspacePark();
+          //
+          // ⚠️ …UNLESS THE PARK ITSELF SERVES THE NEW PROMPT. The discard fires
+          // on the ARRIVAL of a prompt, and a mid-chain flow changes prompts
+          // repeatedly — the pick a claimed draw promised, the payment of a
+          // pick-then-pay — so «something else» must mean «not this chain's
+          // own next step». Discarding there threw the set-aside decision away
+          // at the exact moment it became answerable, left the claim's host in
+          // neither stack (the adoption net then orphan-released it), and the
+          // prompt rose as a standalone band with no way back.
+          {
+            const nextTask = taskFor(this.playerView);
+            if (nextTask === undefined || !parkServes(nextTask.kind)) {
+              discardWorkspacePark();
+            }
+          }
           // THE INVARIANT: `parked` non-empty ⇒ `deferred`. A phase-anchored
           // root SURVIVES that discard (the opening is not a flow — it IS the
           // phase), and `deferred` is the flag every way back is gated on:
@@ -13522,6 +13644,14 @@ export default defineComponent({
           workspaceFrameHasNested('hydro') || this.hydroFollowUpLive) {
         return; // the move is still resolving — its own ending will come here
       }
+      // …and a LIVE HYDRO CLAIM is the move still resolving even with the
+      // flow record already reset (`hydroFollowUpLive` short-circuits false
+      // on `commit === undefined`): its outcome — a pick, a batch — still
+      // needs this workspace's zone. `goBoardHome` here popped the frame
+      // under it and the prompt fell to the standalone band.
+      if (workspaceOutcomeState.host === 'hydro' && workspaceOutcomeClaimed()) {
+        return;
+      }
       this.hydroBonusBorrowed = false;
       setWorkspaceFrameServes('hydro', []);
       goBoardHome();
@@ -14260,6 +14390,21 @@ export default defineComponent({
       if (this.hydroFlow.commit === undefined) {
         return;
       }
+      // A FLOW IS NOT OVER WHILE ITS CLAIM IS STILL SERVING — the same
+      // «nothing inside is still owed» law every guarded conclusion asks.
+      // The `hydroFollowUpLive` ownership term keeps the flow out of the
+      // result stage while a prompt stands, so reaching here mid-serve means
+      // a signal blinked: retry on the result hold's own cadence instead of
+      // tearing the workspace out from under an open decision (the release
+      // funnel would refuse the claim's end, but `goBoardHome` below would
+      // still destroy the frame — the prompt's zone — with the claim alive).
+      if (workspaceOutcomeState.host === 'hydro' && this.workspaceOutcomeServingNow) {
+        this.hydroResultTimer = window.setTimeout(() => {
+          this.hydroResultTimer = undefined;
+          this.finishHydroFlow();
+        }, motionMs(HYDRO_RESULT_HOLD_MS));
+        return;
+      }
       if (workspaceOutcomeState.host === 'hydro') {
         releaseWorkspaceOutcome('hydro-flow-complete');
       }
@@ -14670,7 +14815,11 @@ export default defineComponent({
         retainWorkspaceOutcomeForNextBatch(next?.cards.length ?? 0);
         return;
       }
-      releaseWorkspaceOutcome('drawn-complete');
+      // FORCED: the last card's take IS the answer — the artifact being
+      // consumed is the one licence to end a serving claim (an unforced call
+      // here would be refused while `rawDrawnRevealPending` covers the
+      // dismissal tick, orphaning the claim until its backstop).
+      releaseWorkspaceOutcome('drawn-complete', {force: true});
       this.foldWorkspaceAfterResult(host);
     },
     /**
@@ -14883,7 +15032,9 @@ export default defineComponent({
         this.handEffectStageOn();
         return;
       }
-      releaseWorkspaceOutcome('result-detached');
+      // FORCED — same licence as `drawn-complete`: the result's detach is the
+      // take, and the batch's own tail must not refuse it.
+      releaseWorkspaceOutcome('result-detached', {force: true});
       this.foldWorkspaceAfterResult(host);
     },
     /**
@@ -15380,8 +15531,14 @@ export default defineComponent({
       }
       const host = workspaceOutcomeState.host;
       if (host !== undefined && host !== 'card-actions' && workspaceClaimsDeckCheck(lr?.action)) {
-        releaseWorkspaceOutcome('reveal-result-ack');
-        this.foldWorkspaceAfterResult(host);
+        // The dismissal marker above is set FIRST, so an acked verdict has
+        // already stopped serving — the funnel refuses only when the SAME
+        // claim still owes something else (a `chain` claim's follow-up pick
+        // riding the same press): then the claim stays for that leg and the
+        // workspace must NOT fold out from under it.
+        if (releaseWorkspaceOutcome('reveal-result-ack')) {
+          this.foldWorkspaceAfterResult(host);
+        }
       }
     },
     /** «ОК» on the IN-FRAME reveal phase (the Action Focus stage): mark the
@@ -16363,6 +16520,12 @@ export default defineComponent({
     },
   },
   mounted() {
+    // THE RELEASE FUNNEL'S GUARD (consoleWorkspaceOutcome): a claim serving a
+    // live prompt/batch whose host frame still stands cannot be released out
+    // from under the player. The evidence lives in the shell (the raw
+    // `waitingFor`, the server's unconsumed reveals), so the shell registers
+    // the one probe; the module refuses on its own.
+    setWorkspaceOutcomeServingProbe(() => this.workspaceOutcomeServingNow);
     // READ-ONLY e2e/diagnostics probe: the nested-continuation state in one
     // snapshot (the e2e specs dump it on a failure instead of guessing from
     // pixels). Never used by product code.
@@ -16611,6 +16774,9 @@ export default defineComponent({
     // A workspace outcome claim SUPPRESSES standalone presenters, so an
     // orphaned one is worse than a leak: a drawn batch in the next game would
     // be routed to a workspace that no longer exists and never be shown.
+    // (The probe goes first — a dead shell's computeds must never guard the
+    // next game's releases; the reset itself is forced either way.)
+    setWorkspaceOutcomeServingProbe(undefined);
     resetWorkspaceOutcome();
     resetDeckPick(); // never carry a live draw-and-select commit across games
     // …and never carry a PANEL HOLD across games: the «Фора» beat holds the

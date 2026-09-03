@@ -137,6 +137,16 @@ export type OutcomeAdoptionCtx = {
   tradeSceneOwns: boolean;
   /** `outcomeAdoptionHost()`. */
   adoptionHost: WorkspaceOutcomeHost | undefined;
+  /**
+   * The live claim is SERVING A PROMPT right now (`workspaceOutcomePromptServed`
+   * — the raw `waitingFor` names a kind the claim admits). A prompt cannot be
+   * degraded to a standalone card band the way a batch can: releasing its claim
+   * mid-decision re-opens the very question the player is answering as a
+   * full-bleed modal and folds the workspace under them. So a serving claim is
+   * never orphan-RELEASED here — it either re-homes (the claim survives, the
+   * prompt follows it) or waits for its host to settle.
+   */
+  claimServesLivePrompt: boolean;
 };
 
 /** The pure decision. See the module header for the law it implements. */
@@ -150,6 +160,15 @@ export function resolveOutcomeAdoption(ctx: OutcomeAdoptionCtx): OutcomeAdoption
     }
     if (ctx.adoptionHost !== undefined) {
       return {kind: 'rehome', host: ctx.adoptionHost};
+    }
+    // A claim SERVING A LIVE PROMPT is never orphan-released (see the ctx
+    // field's doc): with nobody to re-home to, the honest answer is to WAIT —
+    // the host-unknown state is either a one-flush transition (the frame is
+    // back next flush) or the prompt's own answering will end the serving,
+    // at which point this same decision resolves to 'release' and the batch
+    // presents standalone as designed.
+    if (ctx.claimServesLivePrompt) {
+      return {kind: 'none'};
     }
     return {kind: 'release'};
   }
@@ -170,6 +189,27 @@ export function resolveOutcomeAdoption(ctx: OutcomeAdoptionCtx): OutcomeAdoption
     return {kind: 'none'};
   }
   return {kind: 'claim', host: ctx.adoptionHost, sourceCard: name};
+}
+
+/**
+ * ARE TWO ADOPTION VERDICTS THE SAME DECISION? The applier's stability check:
+ * a destructive decision (a re-home, a release, a late claim) is applied only
+ * when the SAME verdict stands across two settled flushes — a one-flush
+ * `workspaceFrameKnown` gap (a frame popped and re-pushed inside one
+ * transition, a park racing a truncation) must never move or kill a live
+ * claim. Pure so the spec can pin it.
+ */
+export function sameAdoptionDecision(a: OutcomeAdoptionDecision, b: OutcomeAdoptionDecision): boolean {
+  if (a.kind !== b.kind) {
+    return false;
+  }
+  if (a.kind === 'rehome' && b.kind === 'rehome') {
+    return a.host === b.host;
+  }
+  if (a.kind === 'claim' && b.kind === 'claim') {
+    return a.host === b.host && a.sourceCard === b.sourceCard;
+  }
+  return true;
 }
 
 /**

@@ -5,6 +5,7 @@ import {
   applyOutcomeAdoption,
   outcomeAdoptionHost,
   resolveOutcomeAdoption,
+  sameAdoptionDecision,
 } from '@/client/console/consoleOutcomeAdoption';
 import {
   claimWorkspaceOutcome,
@@ -36,6 +37,7 @@ function ctx(partial: Partial<OutcomeAdoptionCtx>): OutcomeAdoptionCtx {
     boardSceneOwns: false,
     tradeSceneOwns: false,
     adoptionHost: undefined,
+    claimServesLivePrompt: false,
     ...partial,
   };
 }
@@ -72,6 +74,27 @@ describe('consoleOutcomeAdoption — the net under the claim system', () => {
       expect(resolveOutcomeAdoption(ctx({
         claimLive: true, claimMatchesBatch: true, claimHost: 'colonies', claimHostKnown: false,
       })).kind).to.eq('release');
+    });
+
+    it('…but a claim SERVING A LIVE PROMPT is never orphan-released — it waits (\'none\') for its host or its answer', () => {
+      // The regression class of 2026-09-04: a one-flush `workspaceFrameKnown`
+      // gap (or a flow that tore its own frame) resolved to 'release' while
+      // the player was mid-pick — the claim fell, the embedded prompt lost its
+      // suppression of the standalone presenters and re-opened as a full-bleed
+      // modal, and the workspace concluded under the player. A prompt cannot
+      // degrade to a standalone card band the way a batch can.
+      expect(resolveOutcomeAdoption(ctx({
+        claimLive: true, claimMatchesBatch: true, claimHost: 'hydro', claimHostKnown: false,
+        claimServesLivePrompt: true,
+      })).kind).to.eq('none');
+    });
+
+    it('a serving claim whose host frame is gone still RE-HOMES when a live workspace can take it', () => {
+      expect(resolveOutcomeAdoption(ctx({
+        source: PLUTO_SOURCE,
+        claimLive: true, claimMatchesBatch: true, claimHost: 'colonies', claimHostKnown: false,
+        claimServesLivePrompt: true, adoptionHost: 'start',
+      }))).to.deep.eq({kind: 'rehome', host: 'start'});
     });
 
     it('an UNOWNED viewer batch over an open workspace gets the late claim, keyed on its own source name', () => {
@@ -171,6 +194,24 @@ describe('consoleOutcomeAdoption — the net under the claim system', () => {
       applyOutcomeAdoption({kind: 'none'});
       expect(workspaceOutcomeState.host).to.eq(before.host);
       expect(workspaceOutcomeState.sourceCard).to.eq(before.sourceCard);
+    });
+  });
+
+  describe('sameAdoptionDecision — the applier\'s stability check', () => {
+    it('matches decisions by kind and identity, so a one-flush gap never applies a stale verdict', () => {
+      expect(sameAdoptionDecision({kind: 'none'}, {kind: 'none'})).to.eq(true);
+      expect(sameAdoptionDecision({kind: 'release'}, {kind: 'release'})).to.eq(true);
+      expect(sameAdoptionDecision({kind: 'release'}, {kind: 'none'})).to.eq(false);
+      expect(sameAdoptionDecision(
+        {kind: 'rehome', host: 'start'}, {kind: 'rehome', host: 'start'})).to.eq(true);
+      expect(sameAdoptionDecision(
+        {kind: 'rehome', host: 'start'}, {kind: 'rehome', host: 'hand'})).to.eq(false);
+      expect(sameAdoptionDecision(
+        {kind: 'claim', host: 'start', sourceCard: 'Pluto'},
+        {kind: 'claim', host: 'start', sourceCard: 'Pluto'})).to.eq(true);
+      expect(sameAdoptionDecision(
+        {kind: 'claim', host: 'start', sourceCard: 'Pluto'},
+        {kind: 'claim', host: 'start', sourceCard: 'Io'})).to.eq(false);
     });
   });
 });
