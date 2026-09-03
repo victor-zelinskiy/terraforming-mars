@@ -184,6 +184,7 @@
     "${0} cannot trade with ${1} because there is no colony they may visit.": "${0} не может торговать с ${1}: нет доступной для посещения колонии.",
     "${0} cannot turn ${1} face down to gain 3 TR because of unaffordable Reds policy cost": "${0} не может перевернуть ${1} рубашкой вверх ради 3 РТ из-за неоплачиваемой политики Красных",
     "${0} chose not to fund any award": "${0} решил не спонсировать награду",
+    "${0} chose where ${1} must place an ocean": "${0} выбрал, где ${1} разместит океан",
     "${0} claimed ${1}": "${0} застолбил ${1}",
     "${0} claimed ${1} at ${2}": "${0} застолбил ${1} в ${2}",
     "${0} converted ${1} units of energy to heat": "${0} преобразовал ${1} ед. энергии в тепло",

@@ -6,6 +6,7 @@ import {Space} from '../boards/Space';
 import {CardName} from '../../common/cards/CardName';
 import {Message} from '../../common/logs/Message';
 import {createMarsSelectSpace} from '../boards/marsSelectSpaceHelper';
+import {AutomaTilePlacer} from '../automa/AutomaTilePlacer';
 import {PlacementIllegalReason} from '../../common/inputs/PlacementIllegalReason';
 import {PlacementContext} from '../../common/models/PlayerInputModel';
 import {TileType} from '../../common/TileType';
@@ -57,6 +58,23 @@ export class PlaceOceanTile extends DeferredAction<Space | undefined> {
       availableSpaces = this.player.game.board.getAvailableSpacesForType(this.player, on);
       title = this.options?.title ?? this.getTitle(on);
       placementType = on;
+    }
+
+    // MarsBot cannot answer a SelectSpace (Icy Impactors: «first player chooses
+    // where you must place it» with the bot as first player froze the game on
+    // this prompt). The bot picks via its standard placement tiebreakers and
+    // the ocean lands for the credited player in the same response.
+    if (this.player.isMarsBot) {
+      if (availableSpaces.length === 0) {
+        this.player.defer(this.cb(undefined));
+        return undefined;
+      }
+      const space = AutomaTilePlacer.breakTie(this.player.game, availableSpaces);
+      this.player.game.log('${0} chose where ${1} must place an ocean', (b) =>
+        b.player(this.player).player(this.creditedPlayer));
+      this.creditedPlayer.game.addOcean(this.creditedPlayer, space);
+      this.creditedPlayer.defer(this.cb(space));
+      return undefined;
     }
 
     return createMarsSelectSpace(this.player, title, availableSpaces, {

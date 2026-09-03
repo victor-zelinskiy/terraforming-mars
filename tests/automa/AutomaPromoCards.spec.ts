@@ -8,7 +8,9 @@ import {SelectSpace} from '../../src/server/inputs/SelectSpace';
 import {resolveBonusCard, routeBonusCard} from '../../src/server/automa/AutomaBonusCards';
 import {THARSIS_TRACK} from '../../src/server/automa/boards/TharsisMarsBot';
 import {calculateVictoryPoints} from '../../src/server/game/calculateVictoryPoints';
+import {Game} from '../../src/server/Game';
 import {AsteroidDeflectionSystem} from '../../src/server/cards/promo/AsteroidDeflectionSystem';
+import {IcyImpactors} from '../../src/server/cards/promo/IcyImpactors';
 import {LawSuit} from '../../src/server/cards/promo/LawSuit';
 import {StJosephOfCupertinoMission} from '../../src/server/cards/promo/StJosephOfCupertinoMission';
 import {TollStation} from '../../src/server/cards/base/TollStation';
@@ -148,5 +150,28 @@ describe('Automa promo cards (FAQ p.11)', () => {
     human.playedCards.push(new AsteroidDeflectionSystem());
     expect(resolve(game, BonusCardId.B01_METEOR_SHOWER)).eq('destroy');
     expect(human.plants).eq(7);
+  });
+
+  describe('Icy Impactors vs MarsBot', () => {
+    it('bot as first player picks the ocean space itself — never a prompt, the game does not hang', () => {
+      const [game, human, bot] = testAutomaGame();
+      (game as Game).first = bot;
+      const card = new IcyImpactors();
+      card.resourceCount = 1;
+      human.playedCards.push(card);
+      const tr = human.terraformRating;
+
+      // Only the place-ocean branch is affordable (< 10 M€), so action()
+      // auto-runs the single option and defers PlaceOceanTile(game.first).
+      human.megaCredits = 0;
+      card.action(human);
+      runAllActions(game);
+
+      expect(card.resourceCount).eq(0);
+      expect(game.board.getOceanSpaces()).has.length(1);
+      expect(human.terraformRating).eq(tr + 1);
+      expect(human.getWaitingFor(), 'no leftover prompt for the human').is.undefined;
+      expect(bot.getWaitingFor(), 'the bot must never hold a SelectSpace').is.undefined;
+    });
   });
 });
