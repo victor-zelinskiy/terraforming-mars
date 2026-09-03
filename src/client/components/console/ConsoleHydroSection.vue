@@ -667,6 +667,12 @@
                 </span>
                 <span v-if="!row.target.legal" class="con-hydro__esprow-block">{{ $t(row.blockKey) }}</span>
                 <span v-else class="con-hydro__esprow-reward">
+                  <!-- The honest-value WARNING: their once-per-generation
+                       standard advance is already spent, so the blockade's
+                       most visible denial is already denied — the player
+                       weighs the module knowingly (card moves and the bot's
+                       Increase stay closed either way). -->
+                  <span v-if="row.target.standardMoveSpent === true" class="con-hydro__esprow-spent">⚠ {{ $t('Has already used their standard advance this generation') }}</span>
                   <span class="con-hydro__esprow-skip">⌸ {{ $t('Advancement will be blocked') }}</span>
                 </span>
               </div>

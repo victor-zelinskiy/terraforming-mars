@@ -411,11 +411,15 @@ export default defineComponent({
       }
       return result;
     },
-    /** Live resource socket; only with a live model (printed faces stay pristine). */
+    /**
+     * The resource socket — rendered for EVERY face whose card CAN hold
+     * resources (`resourceType` in the manifest), live model or not (amount
+     * defaults 0). The zone is part of the card's PHYSICAL anatomy: gating it
+     * on a live count made the mechanics rows re-center between hosts (the
+     * `--pcard-res-safe` reserve came and went), so the same card's graphics
+     * jumped depending on where it was drawn.
+     */
     resourceInfo(): {type: CardResource, amount: number, iconUrl?: string} | undefined {
-      if (this.card === undefined && this.robotCard === undefined) {
-        return undefined;
-      }
       if (this.robotCard !== undefined) {
         return {
           type: CardResource.RESOURCE_CUBE,

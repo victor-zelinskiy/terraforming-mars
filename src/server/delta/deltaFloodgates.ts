@@ -34,12 +34,16 @@ export function buildBlockadeProjection(player: IPlayer, card: ICard): DeltaBloc
       continue;
     }
     const position = opponent.deltaProjectData?.position ?? 0;
+    // The honest-value warning: their once-per-generation standard advance is
+    // already gone, so the most visible thing a blockade denies is denied
+    // already (card moves and the bot's Increase stay closed either way).
+    const spent = opponent.deltaProjectData?.usedThisGeneration === true;
     const blocked = DeltaProjectExpansion.blockadeTargetBlockedReason(opponent);
     if (blocked !== undefined) {
-      targets.push({color: opponent.color, position, legal: false, blocked});
+      targets.push({color: opponent.color, position, legal: false, blocked, ...(spent ? {standardMoveSpent: true} : {})});
       continue;
     }
-    targets.push({color: opponent.color, position, blockadePosition: position + 1, legal: true});
+    targets.push({color: opponent.color, position, blockadePosition: position + 1, legal: true, ...(spent ? {standardMoveSpent: true} : {})});
   }
 
   return {

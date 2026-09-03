@@ -1640,19 +1640,27 @@
    effect — Tycho Magnetics, Robinson, UNMI, Factorum…) is not a plate-label
    row: the wide first box fills line 1, and the short second one then hangs off
    the LEFT edge under it, reading as a misplaced fragment. Such a row stays
-   centred; the asymmetric corner reserve above still holds, so the guarantee
-   the plate rule buys is not given back. */
+   centred — and a CENTRED row must be centred on the CARD, so its insets go
+   back to the SYMMETRIC max-reserve (centering inside the asymmetric box
+   shifted Modular Floodgates' deploy row 30px right of the card axis). The
+   corner guarantee is not given back: the symmetric inset is ≥ each corner's
+   own reserve by construction. */
 .pcard__lower .pcard-mech-group:last-child:has(.pcard-plate):has(> * + *) {
   justify-content: center;
+  padding-left: ~"max(var(--pcard-vp-safe, 0px), var(--pcard-res-safe, 0px))";
+  padding-right: ~"max(var(--pcard-vp-safe, 0px), var(--pcard-res-safe, 0px))";
 }
 /* …and a plate INSIDE AN EFFECT is not a plate-label row at all. An effect is a
    self-contained «cause : result» statement (Dynamic Ocean Barrier draws
    «[океан] : ГИДРОСЕТЬ»), and its plate is a short NOUN rather than the wide
    label the rescue above exists for — measured 79px of content in a 147px box,
    so flex-start had nothing to rescue and simply parked the whole statement
-   against the left edge with half the row empty beside it. */
+   against the left edge with half the row empty beside it. Centred ⇒ the
+   symmetric max-reserve again, for the same card-axis reason. */
 .pcard__lower .pcard-mech-group:last-child:has(.pcard-plate):has(.pcard-effect) {
   justify-content: center;
+  padding-left: ~"max(var(--pcard-vp-safe, 0px), var(--pcard-res-safe, 0px))";
+  padding-right: ~"max(var(--pcard-vp-safe, 0px), var(--pcard-res-safe, 0px))";
 }
 /* content rows paint above the engraved corner stamp (see .pcard__exp) */
 .pcard__lower .pcard-mech-group { position: relative; z-index: 1; }

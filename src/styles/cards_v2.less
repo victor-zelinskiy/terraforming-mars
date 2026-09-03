@@ -2590,10 +2590,14 @@ each(@parties, {
 
 
 // resources.less also has a variable called resource_types.
+// `steel` (Modular Floodgates' stored steel, CardResource.STEEL): the legacy
+// `.card-resource-steel` background exists only SCOPED under `.card-container`
+// (line ~1508), so hosts outside a card face (the ДОП. РЕСУРСЫ satellite)
+// rendered an empty box — this global entry is what paints them.
 @card_resource_types: microbe, animal, science, floater, fighter, camp,
   asteroid, disease, preservation, data, syndicate-fleet, cube,
   venusian-habitat, specialized-robot, seed, orbital, agenda, graphene, hydroelectric-resource,
-  clone-trooper, director, tool, ware, activist, journalism, supply-chain;
+  clone-trooper, director, tool, ware, activist, journalism, supply-chain, steel;
 each(@card_resource_types, {
   .card-resource-@{value} {
     background-image: url("./assets/resources/@{value}.png");

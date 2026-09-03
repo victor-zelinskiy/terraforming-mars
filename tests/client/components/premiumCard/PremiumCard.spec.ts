@@ -154,6 +154,22 @@ describe('PremiumCard', () => {
     expect(wrapper.classes()).to.not.include('pcard--interactive');
   });
 
+  it('a resource-capable card renders its capsule EVEN WITHOUT a live model (the zone is card anatomy — no host-dependent layout jump)', () => {
+    // Same card, two hosts: name-only (a deck viewer, the hand album's static
+    // face) and a live model. The capsule — and with it the `--pcard-res-safe`
+    // reserve the mechanics rows centre against — must exist in BOTH, or the
+    // card's graphics re-centre depending on where it is drawn.
+    const printed = mount(PremiumCard, {props: {name: CardName.PREDATORS, inert: true}});
+    expect(printed.find('.pcard__res').exists()).to.eq(true);
+    expect(printed.find('.pcard__res-count').text()).to.eq('0');
+    expect(printed.classes()).to.include('pcard--has-res');
+    const live = mount(PremiumCard, {props: {card: model(CardName.PREDATORS, {resources: 2})}});
+    expect(live.find('.pcard__res-count').text()).to.eq('2');
+    expect(live.classes()).to.include('pcard--has-res');
+    printed.unmount();
+    live.unmount();
+  });
+
   it('VP-only card renders without a mechanics panel', () => {
     const wrapper = mount(PremiumCard, {props: {card: model(CardName.DUST_SEALS)}});
     expect(wrapper.find('.pcard__mech').exists()).to.eq(false);

@@ -6373,6 +6373,13 @@ each(@players, {
         font-size: .7rem;
         color: fade(@con-text-dim, 92%);
     }
+    /* The blockade pick's honest-value warning (the target's standard advance
+       is already spent) — the calm amber register, glyph + words, never
+       colour alone. */
+    &__esprow-spent {
+        font-size: .7rem;
+        color: fade(@con-amber, 90%);
+    }
     /* The backward transition reads amber — direction is words + arrows +
        hue, never hue alone (the row also prints the numbers). */
     &__route--back b { color: @con-amber; }

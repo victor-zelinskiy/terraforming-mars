@@ -38,6 +38,14 @@ export type DeltaBlockadeTargetProjection = {
   blockadePosition?: number;
   legal: boolean;
   blocked?: DeltaBlockadeTargetBlockedReason;
+  /**
+   * The target has ALREADY SPENT their once-per-generation standard advance —
+   * an honest-value WARNING for the selector (the blockade still closes every
+   * card-granted move and the bot's Increase, but the ordinary move it most
+   * visibly denies is already gone this generation). Server-authored off the
+   * same `usedThisGeneration` flag the action gate reads; absent = false.
+   */
+  standardMoveSpent?: boolean;
 };
 
 export type DeltaBlockadeProjectionModel = {

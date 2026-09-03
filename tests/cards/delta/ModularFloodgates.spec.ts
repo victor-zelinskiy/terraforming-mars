@@ -166,6 +166,15 @@ describe('ModularFloodgates', () => {
       const projection = buildBlockadeProjection(player, card);
       expect(projection.targets[0]).to.include({legal: true, position: 3, blockadePosition: 4});
     });
+
+    it('a target whose standard advance is already spent is WARNED, never hidden or blocked', () => {
+      opponent.deltaProjectData!.usedThisGeneration = true;
+      const projection = buildBlockadeProjection(player, card);
+      expect(projection.targets[0]).to.include({legal: true, standardMoveSpent: true});
+      // …and the flag is absent (not false) for a fresh target — the
+      // historical payload stays byte-identical.
+      expect('standardMoveSpent' in projection.targets[1]).is.false;
+    });
   });
 
   describe('the input — loud validation, never corrective', () => {
