@@ -520,6 +520,7 @@ async function runPrintedBonusBeat(bonuses: ReadonlyArray<PlacementBonus>): Prom
     source: {point: destHexRect !== undefined ?
       {x: destHexRect.x + destHexRect.w / 2, y: destHexRect.y + destHexRect.h / 2} : undefined},
     arrival: 'auto',
+    fromBoard: true,
     onArrive: (spec) => releasePanelRewardHold(spec),
   });
   // ⚠ NO belt-and-braces `clearPanelRewardHold()` here: the OCEAN payout's

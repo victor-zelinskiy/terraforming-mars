@@ -183,6 +183,7 @@ export async function runOceanAdjacencyBeat(opts: OceanBeatOpts): Promise<void> 
     source: {point: {x: opts.tileRect.x + opts.tileRect.w / 2, y: opts.tileRect.y + opts.tileRect.h / 2}},
     arrival: 'auto',
     pace,
+    fromBoard: true,
     // ONE aggregated release, only once EVERY coin of this bonus has landed.
     // (`onArrive` can legitimately fire more than once per spec — the wave's
     // safety net re-releases everything — hence the guard inside `release`.)

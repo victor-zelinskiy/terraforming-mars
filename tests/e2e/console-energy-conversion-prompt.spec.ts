@@ -1,6 +1,5 @@
 import {test, expect} from '@playwright/test';
-import {
-  createGameWithCards, fetchPlayerModel, openConsole, press, seedGameOverApi, sendPlayerInput,
+import {NO_PAYMENT, createGameWithCards, fetchPlayerModel, openConsole, press, seedGameOverApi, sendPlayerInput,
   soloGameConfig,
 } from './consoleStart';
 
@@ -26,12 +25,6 @@ import {
  */
 
 test.use({viewport: {width: 1920, height: 1080}});
-
-const NO_PAYMENT = {
-  heat: 0, megacredits: 0, steel: 0, titanium: 0, plants: 0, microbes: 0,
-  floaters: 0, lunaArchivesScience: 0, spireScience: 0, seeds: 0,
-  auroraiData: 0, graphene: 0, kuiperAsteroids: 0,
-};
 
 test('Supercapacitors: premium conversion prompt → rail handoff → next prompt after', async ({page, request}) => {
   test.setTimeout(300_000);

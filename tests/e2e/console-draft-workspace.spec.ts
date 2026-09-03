@@ -1,7 +1,7 @@
 import {test, expect, Page, APIRequestContext} from '@playwright/test';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
-import {fillPicks, press, sendPlayerInput, submitSummary, summaryVisible, walkToSummary} from './consoleStart';
+import {NO_PAYMENT, fillPicks, press, sendPlayerInput, submitSummary, summaryVisible, walkToSummary} from './consoleStart';
 
 /**
  * THE DRAFT WORKSPACE («ДРАФТ») — the between-generations draft + research
@@ -99,11 +99,7 @@ function roadAnswer(prompt: WirePrompt): Record<string, unknown> {
   case 'card':
     return {type: 'card', cards: (prompt.cards ?? []).slice(0, Math.max(prompt.min ?? 1, 1)).map((c) => c.name)};
   case 'payment':
-    return {type: 'payment', payment: {
-      heat: 0, megacredits: prompt.amount ?? 0, steel: 0, titanium: 0, plants: 0, microbes: 0,
-      floaters: 0, lunaArchivesScience: 0, spireScience: 0, seeds: 0,
-      auroraiData: 0, graphene: 0, kuiperAsteroids: 0,
-    }};
+    return {type: 'payment', payment: {...NO_PAYMENT, megacredits: prompt.amount ?? 0}};
   default:
     throw new Error(`road: unhandled prompt type ${prompt.type}`);
   }

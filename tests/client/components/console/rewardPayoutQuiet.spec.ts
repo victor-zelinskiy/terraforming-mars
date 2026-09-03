@@ -1,12 +1,17 @@
 import {expect} from 'chai';
 import {
-  concurrentResourcePayout, rewardPayoutSettling, waitRewardPayoutQuiet,
+  boardSceneSettling, concurrentResourcePayout, rewardPayoutSettling,
+  waitBoardSceneQuiet, waitRewardPayoutQuiet,
 } from '@/client/console/rewardPayoutQuiet';
-import {resourceTransferState} from '@/client/console/resourceTransfer/consoleResourceTransfer';
+import {
+  boardSourcedTransferActive, resourceTransferState,
+} from '@/client/console/resourceTransfer/consoleResourceTransfer';
 import {
   abortTilePlacement, tilePlacementState,
 } from '@/client/console/tilePlacement/consoleTilePlacement';
+import {remotePlacementState} from '@/client/console/tilePlacement/consoleRemotePlacement';
 import {nomadMoveState} from '@/client/console/nomads/consoleNomadMove';
+import {boardCardBonusState} from '@/client/console/boardCardBonus/consoleBoardCardBonus';
 
 function settle(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
@@ -26,6 +31,9 @@ describe('rewardPayoutQuiet (card ↔ resource payout coordination)', () => {
     abortTilePlacement();
     nomadMoveState.active = false;
     nomadMoveState.phase = 'idle';
+    nomadMoveState.remoteActive = false;
+    remotePlacementState.active = false;
+    boardCardBonusState.active = false;
     await settle(5); // the tile abort lowers 'failed' → 'idle' on nextTick
   });
 
@@ -40,7 +48,7 @@ describe('rewardPayoutQuiet (card ↔ resource payout coordination)', () => {
     expect(concurrentResourcePayout()).to.be.true;
     resourceTransferState.runActive = false;
     // The absorb tail: the wave resolved but a chip is still dissolving.
-    resourceTransferState.flights = [{id: 1, spec: {channel: 'stock', resource: 'steel', amount: 1}}];
+    resourceTransferState.flights = [{id: 1, spec: {channel: 'stock', resource: 'steel', amount: 1}, fromBoard: false}];
     expect(rewardPayoutSettling()).to.be.true;
     resourceTransferState.flights = [];
     expect(rewardPayoutSettling()).to.be.false;
@@ -98,5 +106,87 @@ describe('rewardPayoutQuiet (card ↔ resource payout coordination)', () => {
     const elapsed = Date.now() - before;
     expect(elapsed).to.be.at.least(50);
     expect(elapsed).to.be.lessThan(400);
+  });
+
+  /**
+   * The AUTOMATIC-transition gate: a workspace that opens with no press
+   * behind it (the endgame auto-open, a yielded stack's return) waits out
+   * the WHOLE board scene — own and remote alike — so it can never stand up
+   * under a still-flying board animation.
+   */
+  describe('boardSceneSettling (the automatic-transition gate)', () => {
+    it('quiet by default, and it includes the whole payout chain', () => {
+      expect(boardSceneSettling()).to.be.false;
+      resourceTransferState.runActive = true;
+      expect(boardSceneSettling()).to.be.true;
+    });
+
+    it('a REMOTE tile landing settles the board scene', () => {
+      remotePlacementState.active = true;
+      expect(boardSceneSettling()).to.be.true;
+      remotePlacementState.active = false;
+      expect(boardSceneSettling()).to.be.false;
+    });
+
+    it('a REMOTE nomad hop settles the board scene', () => {
+      nomadMoveState.remoteActive = true;
+      expect(boardSceneSettling()).to.be.true;
+    });
+
+    it('the placed cell\'s card-bonus lift settles the board scene', () => {
+      boardCardBonusState.active = true;
+      expect(boardSceneSettling()).to.be.true;
+    });
+
+    it('a landed tile with rewards still OWED settles past the hero\'s own phases', () => {
+      tilePlacementState.active = true;
+      tilePlacementState.phase = 'rewarding';
+      expect(boardSceneSettling()).to.be.true;
+    });
+
+    it('waitBoardSceneQuiet resolves at once on a quiet board', async () => {
+      const before = Date.now();
+      await waitBoardSceneQuiet();
+      expect(Date.now() - before).to.be.lessThan(60);
+    });
+
+    it('waitBoardSceneQuiet pends on a remote scene and resolves when it clears', async () => {
+      remotePlacementState.active = true;
+      let resolved = false;
+      const wait = waitBoardSceneQuiet().then(() => {
+        resolved = true;
+      });
+      await settle(80);
+      expect(resolved).to.be.false;
+      remotePlacementState.active = false;
+      await wait;
+      expect(resolved).to.be.true;
+    });
+
+    it('a superseded transition is never held on a foreign scene (alive gate)', async () => {
+      boardCardBonusState.active = true;
+      const before = Date.now();
+      await waitBoardSceneQuiet({alive: () => false});
+      expect(Date.now() - before).to.be.lessThan(60);
+    });
+  });
+
+  /**
+   * The layer's demotion witness: `con-flight-to-board` rides ONLY a
+   * board-sourced wave, so a workspace-sourced wave (a played card's
+   * rewards) keeps flying over the panel whose story it is.
+   */
+  describe('boardSourcedTransferActive (the layer demotion witness)', () => {
+    it('false for a workspace-sourced wave, true while a board chip is on stage', () => {
+      resourceTransferState.flights = [{id: 1, spec: {channel: 'stock', resource: 'steel', amount: 1}, fromBoard: false}];
+      expect(boardSourcedTransferActive()).to.be.false;
+      resourceTransferState.flights = [
+        ...resourceTransferState.flights,
+        {id: 2, spec: {channel: 'stock', resource: 'plants', amount: 2}, fromBoard: true},
+      ];
+      expect(boardSourcedTransferActive()).to.be.true;
+      resourceTransferState.flights = resourceTransferState.flights.filter((f) => f.id !== 2);
+      expect(boardSourcedTransferActive()).to.be.false;
+    });
   });
 });

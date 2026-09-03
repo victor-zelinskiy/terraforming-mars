@@ -1676,14 +1676,44 @@ html.console-native {
        flying on top (the old, merely-cosmetic behaviour) instead of having
        its arrival buried.
 
-       Today exactly ONE layer qualifies. Of the console flights, the rest
-       land on the rail (`.con-transfer`), the «Разыграно» table
-       (`.con-played-hero`), the footer dock (`.con-handdelivery-layer`), a
-       reveal modal (`.con-deckdraw`, `.con-bonusfly-layer`,
-       `.con-coltrade-layer`), the task host (`.con-deal-layer`), the hand
-       grid (`.con-handreveal-layer`) or their own tray (`.con-discard`,
+       Two layers land on the board outright (`.con-tileplace`,
+       `.con-nomadmove` — the marker is static on their roots). Of the rest,
+       the flights land on the «Разыграно» table (`.con-played-hero`), the
+       footer dock (`.con-handdelivery-layer`), a reveal modal
+       (`.con-deckdraw`, `.con-bonusfly-layer`, `.con-coltrade-layer`), the
+       task host (`.con-deal-layer`), the hand grid
+       (`.con-handreveal-layer`) or their own tray (`.con-discard`,
        `.con-sale-hero`) — every one of those targets stays lit, so demoting
-       them broke the arrival outright. */
+       them broke the arrival outright.
+
+       ONE refinement to the axis: a flight whose SOURCE is the board also
+       demotes, even when it lands on the always-lit rail. A board-cell's
+       printed-bonus wave (`.con-transfer`, `fromBoard` runs only — the
+       layer binds the marker per wave) is the board's own story: its birth
+       point is covered by the panel, so flying bright over the workspace
+       reads as chips materializing out of the UI. Demoted, it plays out as
+       a dimmed background event — the rail counter still ticks at the
+       touchdown (the panel reward hold is z-blind), which is the same
+       treatment the remote tile already gets. A wave born ON a workspace
+       surface (a played card's rewards, the sale payout, an action commit)
+       keeps flying on top — its source is the lit panel itself. */
+    .con-flight-to-board {
+        z-index: 11444;
+    }
+}
+
+/* ── …AND UNDER THE ENDGAME SCENE, WHICH CARRIES NO `.con-ws` MARKER ─────
+   The scoring scene is a full-bleed cinematic (deliberately outside the
+   workspace-band family), so the presence bridge never raises `--ws-open`
+   for it — and the game's LAST board scene (the final greenery's hero +
+   reward wave, a remote landing that outlives the boundary) flew undimmed
+   OVER the finale. Same demotion, keyed on the scene's own root flag; the
+   flag drops on «Свернуть» together with the HUD policy, so the post-game
+   board inspection keeps its flights fully lit. (The gate in
+   `rewardPayoutQuiet.waitBoardSceneQuiet` makes this window rare — the
+   endgame auto-open waits the board scene out; this is the net under it
+   for a flight that starts late or outlives the cap.) */
+.con-root--endgame {
     .con-flight-to-board {
         z-index: 11444;
     }

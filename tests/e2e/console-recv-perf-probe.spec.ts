@@ -32,6 +32,7 @@
 import {expect, test, Page, APIRequestContext, CDPSession} from '@playwright/test';
 import * as fs from 'fs';
 import * as path from 'path';
+import {NO_PAYMENT} from './consoleStart';
 
 const RUN = process.env.RECV_PERF === '1';
 const LABEL = process.env.RECV_PERF_LABEL ?? 'run';
@@ -48,11 +49,7 @@ const ACTIVES = [
 const AUTOMATED = ['Acquired Company', 'Cartel', 'Mine', 'Solar Wind Power', 'Giant Space Mirror'];
 const EVENTS = ['Investment Loan', 'Bribed Committee'];
 
-const EMPTY_PAYMENT = {
-  heat: 0, megacredits: 0, steel: 0, titanium: 0, plants: 0, microbes: 0,
-  floaters: 0, lunaArchivesScience: 0, spireScience: 0, seeds: 0,
-  auroraiData: 0, graphene: 0, kuiperAsteroids: 0,
-};
+const EMPTY_PAYMENT = {...NO_PAYMENT};
 
 function gameConfig(projects: ReadonlyArray<string>) {
   return {

@@ -136,7 +136,7 @@ describe('consoleResourceTransfer (run lifecycle + the panel reward hold)', () =
 
         // A wave starts: runActive true (this is the term that short-circuits).
         resourceTransferState.runActive = true;
-        resourceTransferState.flights = [{id: 1, spec: {channel: 'stock', resource: 'megacredits', amount: 1}}];
+        resourceTransferState.flights = [{id: 1, spec: {channel: 'stock', resource: 'megacredits', amount: 1}, fromBoard: false}];
         await nextTick();
         expect(observed[observed.length - 1]).to.be.true;
 

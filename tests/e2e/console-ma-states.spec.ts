@@ -1,8 +1,7 @@
 import {test, expect, Page, APIRequestContext} from '@playwright/test';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
-import {
-  bootIntoGame, fetchPlayerModel, press, sendPlayerInput, soloGameConfig,
+import {NO_PAYMENT, bootIntoGame, fetchPlayerModel, press, sendPlayerInput, soloGameConfig,
   waitForBoardHome,
 } from './consoleStart';
 import {isActionMenuTitle} from '../../src/common/inputs/actionMenuTitles';
@@ -33,11 +32,7 @@ const OUT = path.resolve('screenshots', 'ma-states');
 
 type Wire = any;
 
-const NO_PAY: Readonly<Record<string, number>> = {
-  heat: 0, megacredits: 0, steel: 0, titanium: 0, plants: 0, microbes: 0,
-  floaters: 0, lunaArchivesScience: 0, spireScience: 0, seeds: 0,
-  auroraiData: 0, graphene: 0, kuiperAsteroids: 0,
-};
+const NO_PAY: Readonly<Record<string, number>> = {...NO_PAYMENT};
 
 async function shoot(page: Page, name: string): Promise<void> {
   fs.mkdirSync(OUT, {recursive: true});

@@ -465,6 +465,7 @@ async function runRemoteAresIncomeBeat(ev: RemoteEvent, tileRect: TileRect, ui: 
     origins,
     source: {point: {x: tileRect.x + tileRect.w / 2, y: tileRect.y + tileRect.h / 2}},
     arrival: 'auto',
+    fromBoard: true,
     onArrive: (spec) => releasePanelRewardHold(spec),
   });
   remotePlacementState.aresSources = [];

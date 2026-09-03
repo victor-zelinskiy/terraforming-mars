@@ -50,6 +50,10 @@ import {
 export type TransferFlight = {
   id: number,
   spec: ResourceTransferSpec,
+  /** The run that launched this chip declared its source is the MARS BOARD
+   *  (`ResourceTransferRun.fromBoard`) — the layer reads it to recede with
+   *  the board under an open workspace. */
+  fromBoard: boolean,
 };
 
 export const resourceTransferState = reactive({
@@ -266,6 +270,18 @@ export type ResourceTransferRun = {
   pace?: number;
   /** Fired at each transfer's TOUCHDOWN (release the hold / free a gate). */
   onArrive?: (spec: ResourceTransferSpec) => void;
+  /**
+   * The wave's visual SOURCE is the MARS BOARD (a cell's printed bonus, an
+   * Ares/ocean adjacency payout, a nomad stage reward, a remote landing's
+   * income). Board-sourced chips belong to the board's own story: while a
+   * workspace covers the board, the flight layer recedes with it
+   * (`con-flight-to-board` — see the z ladder in console.less) instead of
+   * flying bright over the panel; the touchdown ticks, the panel-hold
+   * releases and the delta chips are untouched. A wave born on a workspace
+   * surface (a played card, the sale terminal, an action commit) leaves
+   * this unset and keeps flying on top — its source is the lit panel.
+   */
+  fromBoard?: boolean;
 };
 
 let flightSeq = 0;
@@ -274,6 +290,13 @@ let heldChips: Array<{id: number, at: TransferPoint}> = [];
 
 export function isResourceTransferActive(): boolean {
   return resourceTransferState.runActive || resourceTransferState.flights.length > 0;
+}
+
+/** A BOARD-sourced chip is on stage (flying or absorbing) — the layer carries
+ *  `con-flight-to-board` for exactly that span, so an open workspace covers
+ *  the wave instead of being overflown by it. */
+export function boardSourcedTransferActive(): boolean {
+  return resourceTransferState.flights.some((f) => f.fromBoard);
 }
 
 // Chips in flight hold the presentation. Today every wave runs nested inside
@@ -348,7 +371,8 @@ export async function runResourceTransfers(run: ResourceTransferRun): Promise<vo
     delayMs: Math.round(motionMs(transferWaveDelayMs(i, flights.length)) * pace),
     index: i,
   }));
-  resourceTransferState.flights = [...resourceTransferState.flights, ...entries.map((e) => ({id: e.id, spec: e.spec}))];
+  resourceTransferState.flights = [...resourceTransferState.flights,
+    ...entries.map((e) => ({id: e.id, spec: e.spec, fromBoard: run.fromBoard === true}))];
   trail(runId, 'run:flights', {arrival: run.arrival, ids: entries.map((e) => e.id)});
   try {
     await nextTick(); // the layer mounts the chips

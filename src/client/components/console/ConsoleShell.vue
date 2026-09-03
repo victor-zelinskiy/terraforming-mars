@@ -1428,6 +1428,7 @@ import ConsoleStartScene from '@/client/components/console/ConsoleStartScene.vue
 import ConsoleEndgameWorkspace from '@/client/components/console/ConsoleEndgameWorkspace.vue';
 import {consoleEndgameUi, noteConsoleEndgameLivePhase, resetConsoleEndgame} from '@/client/console/endgame/consoleEndgameState';
 import {sealLiveGameSurfaces} from '@/client/console/endgame/consoleEndgameSeal';
+import {boardSceneSettling, waitBoardSceneQuiet} from '@/client/console/rewardPayoutQuiet';
 import ConsoleRevealOverlay, {ConsoleRevealMode} from '@/client/components/console/ConsoleRevealOverlay.vue';
 import ConsolePlayCardConfirm from '@/client/components/console/ConsolePlayCardConfirm.vue';
 import type {ConsoleHandStage} from '@/client/components/console/ConsoleHandSection.vue';
@@ -1441,6 +1442,7 @@ import {
   workspaceKindSpec,
   yieldStackToBoard,
   resumeStackFromBoard,
+  stackYieldedToBoard,
   descendWorkspaceFrame,
   enterWorkspace,
   foldWorkspaceFrame,
@@ -8621,26 +8623,16 @@ export default defineComponent({
      * more: an open action wheel became a lid welded over the finale. ONE
      * named seal closes the live game down (`sealLiveGameSurfaces` + the two
      * surfaces this component owns itself) BEFORE the frame stands up, so the
-     * post-game always starts from a screen somebody chose.
+     * post-game always starts from a screen somebody chose. Both halves live
+     * in `openEndgameWorkspaceOverQuietBoard`, which additionally waits out
+     * the board's own final animation before standing the frame up.
      */
     endgameFrameLive: {
       immediate: true,
       handler(live: boolean): void {
         if (live) {
           if (!workspaceFrameKnown('endgame')) {
-            sealLiveGameSurfaces();
-            // The two surfaces this component owns as its OWN state (the seal
-            // can only reach module-reactive ones).
-            this.playedOpen = false;
-            this.journalColonyInspect = undefined;
-            this.dockHover = false;
-            // …and the HAND'S PRESENTATION. `handBodyCards` empties the layer
-            // on the same frame, so an album that was open (bodies in
-            // `shelf`/`packet`, an episode mid-timeline) would leave the pack
-            // stuck in a foreign mode with no elements left to reconcile it.
-            // Same call the sale-cancel / game-switch paths make.
-            resetHandReveal();
-            enterWorkspace('endgame', {anchor: {type: 'phase', phase: 'end'}});
+            this.openEndgameWorkspaceOverQuietBoard();
           }
         } else {
           if (workspaceFrameKnown('endgame')) {
@@ -8873,8 +8865,10 @@ export default defineComponent({
       } else {
         // …and the board's business is done. A no-op unless this very placement
         // is what took the screen — the player's own «свернуть» park is a
-        // different stack and is never touched here.
-        resumeStackFromBoard();
+        // different stack and is never touched here. The return itself is an
+        // AUTOMATIC transition, so it waits out the placement's own
+        // post-commit story first (see the method).
+        this.resumeYieldedStackOverQuietBoard();
       }
       // P20: the R3 inspect-all toggle never outlives its placement.
       this.consoleState.freeRoam = false;
@@ -14891,6 +14885,79 @@ export default defineComponent({
       }
       releaseWorkspaceOutcome('result-detached');
       this.foldWorkspaceAfterResult(host);
+    },
+    /**
+     * THE END BOUNDARY WAITS FOR THE BOARD'S OWN STORY TO FINISH. Phase.END
+     * rides the same response as the resolution of the game's last move, and
+     * the board's post-commit half (the tile hero, the reward wave, the
+     * cell's card-bonus lift, a remote landing) runs AFTER the view applies —
+     * so sealing + `enterWorkspace('endgame')` on the raw rising edge stood
+     * the finale up UNDER a still-flying board scene (the flight layers live
+     * at z 11620–11670, the scoring scene at 11480). An automatic transition
+     * has no press of the player's to honour, so it waits: the final
+     * placement lands on a board the player can see, THEN the scoring scene
+     * opens. The gate is animation flags ONLY (each self-bounded by its
+     * owning module's safety ceiling) plus the shared cap — a stalled flight
+     * costs seconds, never the finale — and the synchronous fast path keeps
+     * a quiet board (and every reload into an ended game) byte-identical to
+     * the old edge. The conditions are re-checked at the wait's resolution:
+     * an undo can drop Phase.END mid-wait, and a second edge may have opened
+     * the frame already.
+     */
+    openEndgameWorkspaceOverQuietBoard(): void {
+      const open = () => {
+        if (!this.endgameFrameLive || workspaceFrameKnown('endgame')) {
+          return;
+        }
+        sealLiveGameSurfaces();
+        // The two surfaces this component owns as its OWN state (the seal
+        // can only reach module-reactive ones).
+        this.playedOpen = false;
+        this.journalColonyInspect = undefined;
+        this.dockHover = false;
+        // …and the HAND'S PRESENTATION. `handBodyCards` empties the layer
+        // on the same frame, so an album that was open (bodies in
+        // `shelf`/`packet`, an episode mid-timeline) would leave the pack
+        // stuck in a foreign mode with no elements left to reconcile it.
+        // Same call the sale-cancel / game-switch paths make.
+        resetHandReveal();
+        enterWorkspace('endgame', {anchor: {type: 'phase', phase: 'end'}});
+      };
+      if (!boardSceneSettling()) {
+        open();
+        return;
+      }
+      void waitBoardSceneQuiet({alive: () => this.endgameFrameLive}).then(open);
+    },
+    /**
+     * A YIELDED STACK RETURNS ONLY OVER A QUIET BOARD. `placementActive`
+     * falls the moment the space prompt resolves — but the placement's own
+     * post-commit story (the tile hero, the printed-bonus wave, the Ares
+     * payouts, the cell's card-bonus lift) plays AFTER that, on the very
+     * board the workspace stood aside FOR. Resumed on the raw falling edge,
+     * the track took the screen back UNDER its own placement's still-flying
+     * rewards. Same gate as the endgame open; the synchronous fast path
+     * keeps every non-cinematic resolution (and every existing flow) on the
+     * old timing. A CHAINED second placement re-arms the yield (its rising
+     * edge), so a pending wait stands down (`alive`) and the next falling
+     * edge schedules its own return.
+     */
+    resumeYieldedStackOverQuietBoard(): void {
+      if (!stackYieldedToBoard()) {
+        return;
+      }
+      if (!boardSceneSettling()) {
+        resumeStackFromBoard();
+        return;
+      }
+      void waitBoardSceneQuiet({
+        alive: () => stackYieldedToBoard() && !this.placementActive,
+      }).then(() => {
+        if (!stackYieldedToBoard() || this.placementActive) {
+          return;
+        }
+        resumeStackFromBoard();
+      });
     },
     /**
      * The ACTION COMMIT's reward wave: the resources the activated mechanic

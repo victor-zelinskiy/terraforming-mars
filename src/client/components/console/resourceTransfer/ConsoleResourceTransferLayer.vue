@@ -16,7 +16,14 @@
     Every chip carries its amount — «+1» included — in a contrast-managed
     plate that reads on any resource colour at TV distance.
   -->
-  <div v-if="resourceTransferState.flights.length > 0" class="con-transfer" aria-hidden="true">
+  <!-- `con-flight-to-board` rides ONLY a board-sourced wave (a cell's printed
+       bonus, an Ares/ocean payout, a nomad reward, a remote landing's income):
+       under an open workspace / the endgame scene such a wave recedes with
+       the board it was born on (see the z ladder in console.less) — while a
+       workspace-sourced wave (a played card, the sale, an action commit)
+       keeps flying over the panel whose story it is. -->
+  <div v-if="resourceTransferState.flights.length > 0" class="con-transfer"
+       :class="{'con-flight-to-board': boardSourced}" aria-hidden="true">
     <template v-for="f in resourceTransferState.flights" :key="f.id">
       <div class="con-transfer__chip"
            :class="chipClass(f.spec)"
@@ -47,6 +54,13 @@ export default defineComponent({
       chipEls: new Map<number, HTMLElement>(),
       beatEls: new Map<number, HTMLElement>(),
     };
+  },
+  computed: {
+    /** Any live chip of a board-sourced run — the whole layer recedes for the
+     *  span (concurrent mixed waves are rare and the demotion is cosmetic). */
+    boardSourced(): boolean {
+      return this.resourceTransferState.flights.some((f) => f.fromBoard);
+    },
   },
   methods: {
     isMegacredits(spec: ResourceTransferSpec): boolean {

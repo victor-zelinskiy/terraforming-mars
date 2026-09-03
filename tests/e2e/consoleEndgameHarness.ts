@@ -20,6 +20,7 @@
 import * as fs from 'fs';
 import {expect, Page, APIRequestContext} from '@playwright/test';
 import {openConsole, soloGameConfig, CORP_WITH_FIRST_ACTION} from './consoleStart';
+import {SPENDABLE_RESOURCES} from '../../src/common/inputs/Spendable';
 
 export type WirePrompt = {
   type: string,
@@ -42,11 +43,12 @@ export type WireModel = {
   players: Array<{color: string, name: string, victoryPointsBreakdown?: {total: number}}>,
 };
 
-export const NO_PAYMENT: Readonly<Record<string, number>> = {
-  heat: 0, megacredits: 0, steel: 0, titanium: 0, plants: 0, microbes: 0,
-  floaters: 0, lunaArchivesScience: 0, spireScience: 0, seeds: 0,
-  auroraiData: 0, graphene: 0, kuiperAsteroids: 0,
-};
+// DERIVED, never a literal (the consoleStart.ts rule): `isPayment` demands a
+// numeric field for EVERY entry of SPENDABLE_RESOURCES, so a hand-written map
+// silently rots the day the game grows a spendable (floodgateSteel did exactly
+// that — «payment is not a valid type», 400, on every drive of this harness).
+export const NO_PAYMENT: Readonly<Record<string, number>> =
+  Object.fromEntries(SPENDABLE_RESOURCES.map((key) => [key, 0]));
 
 export function titleOf(prompt: WirePrompt | undefined): string {
   if (prompt === undefined) {

@@ -697,6 +697,7 @@ async function runPrintedBonusBeat(bonuses: ReadonlyArray<PlacementBonus>): Prom
       {x: hexRect.x + hexRect.w / 2, y: hexRect.y + hexRect.h / 2} : undefined},
     arrival: 'auto',
     pace: tileRewardTransferPace(),
+    fromBoard: true,
     onArrive: (spec) => releasePanelRewardHold(spec),
   });
 }
@@ -807,6 +808,7 @@ async function runAresAdjacencyBeat(flights: ReadonlyArray<AresAdjacencyFlight>)
     source: {point: {x: tileRect.x + tileRect.w / 2, y: tileRect.y + tileRect.h / 2}},
     arrival: 'auto',
     pace,
+    fromBoard: true,
     onArrive: (spec) => releasePanelRewardHold(spec),
   });
   tilePlacementState.aresSources = [];

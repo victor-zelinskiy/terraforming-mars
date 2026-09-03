@@ -1,7 +1,7 @@
 import {test, expect, APIRequestContext, Page} from '@playwright/test';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
-import {fetchPlayerModel, openConsole, seedGameOverApi, sendPlayerInput, waitForBoardHome} from './consoleStart';
+import {NO_PAYMENT, fetchPlayerModel, openConsole, seedGameOverApi, sendPlayerInput, waitForBoardHome} from './consoleStart';
 
 /**
  * THE «ПОЧЕМУ»-ZONE — the flagship regression of the provenance iteration:
@@ -82,11 +82,7 @@ type WireMenu = {
   },
 };
 
-const ZERO_PAY: Readonly<Record<string, number>> = {
-  heat: 0, megacredits: 0, steel: 0, titanium: 0, plants: 0, microbes: 0,
-  floaters: 0, lunaArchivesScience: 0, spireScience: 0, seeds: 0,
-  auroraiData: 0, graphene: 0, kuiperAsteroids: 0, floodgateSteel: 0,
-};
+const ZERO_PAY: Readonly<Record<string, number>> = {...NO_PAYMENT};
 
 function optionTitle(o: {title?: string | {message: string}}): string {
   return typeof o.title === 'string' ? o.title : (o.title?.message ?? '');

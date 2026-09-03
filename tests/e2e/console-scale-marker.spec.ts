@@ -1,6 +1,5 @@
 import {test, expect, APIRequestContext, Page} from '@playwright/test';
-import {
-  createGameWithCards, fetchPlayerModel, openConsole, seedGameOverApi, sendPlayerInput,
+import {NO_PAYMENT, createGameWithCards, fetchPlayerModel, openConsole, seedGameOverApi, sendPlayerInput,
   soloGameConfig, waitForBoardHome,
 } from './consoleStart';
 
@@ -35,11 +34,7 @@ import {
 type Wire = Record<string, any>;
 
 function payMc(amount: number): Wire {
-  return {
-    megacredits: amount, steel: 0, titanium: 0, heat: 0, plants: 0, microbes: 0,
-    floaters: 0, lunaArchivesScience: 0, spireScience: 0, seeds: 0, auroraiData: 0,
-    graphene: 0, kuiperAsteroids: 0, corruption: 0,
-  };
+  return {...NO_PAYMENT, megacredits: amount};
 }
 
 /** Run the Aquifer standard project once, placing on the first offered space. */

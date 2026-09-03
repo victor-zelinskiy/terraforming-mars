@@ -2,7 +2,7 @@ import {test, expect, Page, APIRequestContext} from '@playwright/test';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
 import {
-  createGameWithCards, fetchPlayerModel, openConsole, placeTile, press, seedGameOverApi,
+  createGameWithCards, fetchPlayerModel, NO_PAYMENT, openConsole, placeTile, press, seedGameOverApi,
   sendPlayerInput, soloGameConfig, waitForBoardHome,
 } from './consoleStart';
 
@@ -89,12 +89,11 @@ async function toActionMenu(request: APIRequestContext, id: string): Promise<Wir
   return {};
 }
 
+// DERIVED, never a literal (the consoleStart.ts rule): `isPayment` demands a
+// field for EVERY spendable, so a hand-written map rots the day the game
+// grows one (floodgateSteel — «payment is not a valid type», 400).
 function payMc(amount: number): Wire {
-  return {
-    megacredits: amount, steel: 0, titanium: 0, heat: 0, plants: 0, microbes: 0,
-    floaters: 0, lunaArchivesScience: 0, spireScience: 0, seeds: 0, auroraiData: 0,
-    graphene: 0, kuiperAsteroids: 0, corruption: 0,
-  };
+  return {...NO_PAYMENT, megacredits: amount};
 }
 
 async function playCard(request: APIRequestContext, id: string, card: string): Promise<void> {

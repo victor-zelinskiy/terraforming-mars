@@ -1,8 +1,7 @@
 import {test, expect, Page, APIRequestContext} from '@playwright/test';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
-import {
-  CORP_WITH_FIRST_ACTION, fetchPlayerModel, openConsole, press,
+import {NO_PAYMENT, CORP_WITH_FIRST_ACTION, fetchPlayerModel, openConsole, press,
   seedGameOverApi, sendPlayerInput, soloGameConfig, waitForBoardHome,
 } from './consoleStart';
 import {isActionMenuTitle} from '../../src/common/inputs/actionMenuTitles';
@@ -43,11 +42,7 @@ const OUT = path.resolve('screenshots', 'strategy-rail');
 /** Loose wire shape — JSON off the HTTP response (the seeder's own idiom). */
 type Wire = any;
 
-const NO_PAY: Readonly<Record<string, number>> = {
-  heat: 0, megacredits: 0, steel: 0, titanium: 0, plants: 0, microbes: 0,
-  floaters: 0, lunaArchivesScience: 0, spireScience: 0, seeds: 0,
-  auroraiData: 0, graphene: 0, kuiperAsteroids: 0,
-};
+const NO_PAY: Readonly<Record<string, number>> = {...NO_PAYMENT};
 
 async function shoot(page: Page, name: string): Promise<void> {
   fs.mkdirSync(OUT, {recursive: true});
