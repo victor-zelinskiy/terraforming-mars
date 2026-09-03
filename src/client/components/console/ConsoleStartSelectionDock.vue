@@ -1,5 +1,5 @@
 <template>
-  <div v-if="piles.length > 0" class="con-startdock" aria-hidden="true">
+  <div v-if="piles.length > 0 || lineage.length > 0" class="con-startdock">
     <!--
       THE SELECTION DOCK — the Game Start Workspace's preparation shelf: the
       decisions ALREADY MADE on earlier steps lie here as compact face-down
@@ -17,10 +17,11 @@
       played cards): everything here is still reversible — a prepared stack
       on the table's edge, waiting for the summary to open it.
     -->
-    <span class="con-startdock__title">{{ $t('Prepared') }}</span>
+    <span class="con-startdock__title" aria-hidden="true">{{ $t('Prepared') }}</span>
     <div v-for="pile in piles"
          :key="pile.id"
          class="con-startdock__pile"
+         aria-hidden="true"
          :class="{
            'con-startdock__pile--empty': pile.backs === 0,
            'con-startdock__pile--waiting': !pile.collected,
@@ -49,11 +50,40 @@
         <b class="con-startdock__count" :key="pile.count">{{ pile.count }}</b>
       </div>
     </div>
+
+    <!-- CAMPAIGN missions 2–3: «НАСЛЕДИЕ» — the corporations already acquired
+         (the established lineage the new pick will merge into). A separate
+         premium-captioned block AFTER every pile, in the SAME shelf row — it
+         costs the candidate strip zero space. Face-up compact tiles; a click
+         (and LT on the corp step) opens the fullscreen read. -->
+    <div v-if="lineage.length > 0" class="con-startdock__legacy">
+      <span class="con-startdock__legacy-divider" aria-hidden="true"></span>
+      <div class="con-startdock__legacy-body">
+        <div class="con-startdock__legacy-head">
+          <span class="con-startdock__legacy-cap">{{ $t('Legacy') }}</span>
+          <span v-if="lineageHint" class="con-startdock__legacy-hint">
+            <GamepadGlyph control="triggerL" />
+          </span>
+        </div>
+        <div class="con-startdock__legacy-row">
+          <button v-for="name in lineage" :key="name" type="button"
+                  class="con-startdock__legacy-card"
+                  :data-zoom-slot="name"
+                  :aria-label="$t(name)"
+                  @click.capture.stop="$emit('inspect-lineage', name)">
+            <Card :card="{name}" :key="name" lightweight />
+          </button>
+        </div>
+      </div>
+    </div>
   </div>
 </template>
 
 <script lang="ts">
 import {defineComponent, PropType} from 'vue';
+import Card from '@/client/components/card/CardFace.vue';
+import GamepadGlyph from '@/client/components/gamepad/GamepadGlyph.vue';
+import {CardName} from '@/common/cards/CardName';
 
 export type StartDockPile = {
   id: string,
@@ -71,9 +101,15 @@ export type StartDockPile = {
 
 export default defineComponent({
   name: 'ConsoleStartSelectionDock',
+  components: {Card, GamepadGlyph},
   props: {
     piles: {type: Array as PropType<ReadonlyArray<StartDockPile>>, required: true},
+    /** CAMPAIGN: the established corporation lineage («Наследие» block). */
+    lineage: {type: Array as PropType<ReadonlyArray<CardName>>, required: false, default: () => []},
+    /** Show the LT-inspect glyph (only where the trigger actually opens it). */
+    lineageHint: {type: Boolean, required: false, default: false},
   },
+  emits: ['inspect-lineage'],
   methods: {
     /** The pile's cards are laid out elsewhere (the summary tiles) — only
      *  the informational label · count trace remains, no physical backs. */

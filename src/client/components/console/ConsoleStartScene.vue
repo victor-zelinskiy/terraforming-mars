@@ -141,28 +141,6 @@
                 </div>
               </div>
 
-              <!-- CAMPAIGN missions 2–3: the CURRENT corporations (the
-                   established lineage) stand beside the pick — the player is
-                   choosing what will MERGE INTO them. LT (free on this step:
-                   there is no previous step) opens the fullscreen read with
-                   the physical lift out of these very tiles and LB/RB
-                   switching between them — the draft's between-generation
-                   inspection idiom. -->
-              <div v-if="st.id === 'corp' && lineageShelf.length > 0" class="con-start__lineage">
-                <div class="con-start__lineage-head">
-                  <span class="con-start__lineage-cap">{{ $t('Current corporations') }}</span>
-                  <span class="con-start__lineage-hint">
-                    <GamepadGlyph control="triggerL" /><span>{{ $t('Inspect') }}</span>
-                  </span>
-                </div>
-                <div class="con-start__lineage-row">
-                  <div v-for="name in lineageShelf" :key="name" class="con-start__lineage-card"
-                       :data-zoom-slot="railPos === si ? name : undefined"
-                       @click="openLineageInspect(name)">
-                    <Card :card="{name}" :key="name" lightweight />
-                  </div>
-                </div>
-              </div>
             </div>
           </div>
         </div>
@@ -933,7 +911,15 @@
              The frame's LAST child: its seat above the command bar is the
              same on every step INCLUDING the summary (see the status rail
              above — that one is the part allowed to come and go). -->
-        <ConsoleStartSelectionDock v-if="prepSurfaceLive" :piles="dockPileView" />
+        <!-- CAMPAIGN missions 2–3: the acquired corporations ride the SAME
+             shelf row as the prepared piles — a separate «НАСЛЕДИЕ» block
+             after every pile type, costing the candidate strip zero space.
+             LT (free on the corp step — it has no previous step) opens the
+             fullscreen read lifting out of these very tiles. -->
+        <ConsoleStartSelectionDock v-if="prepSurfaceLive" :piles="dockPileView"
+                                   :lineage="lineageDock"
+                                   :lineage-hint="lineageShelf.length > 0"
+                                   @inspect-lineage="openLineageInspect($event)" />
 
         <!-- The command contract lives in the shell's command bar ONLY
              (footHints → setConsoleStartCommands). The old inline footer
@@ -3262,13 +3248,16 @@ export default defineComponent({
     legacyChapterExists(): boolean {
       return this.legacyPrompt !== undefined || this.legacyArrivalLive || this.state.legacySeen;
     },
-    /** The lineage shelf on the CORP wizard step (campaign missions 2–3):
-     *  what the picked corporation will merge into. Context, never a pick. */
+    /** The «НАСЛЕДИЕ» dock block (campaign missions 2–3): the acquired
+     *  corporations, visible through the WHOLE preparation. Context, never
+     *  a pick — a click opens the fullscreen read from its tile. */
+    lineageDock(): ReadonlyArray<CardName> {
+      return this.mode === 'wizard' && this.mergeChapterExists ? this.campaignLineage : [];
+    },
+    /** …and the LT door to it exists only on the CORP step, where the
+     *  trigger is free (no previous step to walk back to). */
     lineageShelf(): ReadonlyArray<CardName> {
-      if (this.mode !== 'wizard' || this.currentStep?.id !== 'corp' || !this.mergeChapterExists) {
-        return [];
-      }
-      return this.campaignLineage;
+      return this.currentStep?.id === 'corp' ? this.lineageDock : [];
     },
     /**
      * The bought project cards (the ceremony's held + payment-grid set). The
@@ -5059,7 +5048,7 @@ export default defineComponent({
      *  read-only, lifting out of the shelf tiles, LB/RB switching between
      *  them (the draft's between-generation inspection idiom). */
     openLineageInspect(name?: CardName): void {
-      const names = this.lineageShelf;
+      const names = this.lineageDock;
       if (names.length === 0) {
         return;
       }
@@ -6248,10 +6237,13 @@ export default defineComponent({
         }
         return;
       }
-      // CAMPAIGN «Наследие»: the press grants the carried cards — their own
-      // reveal then deals them into the hand dock (identities were private
-      // until this very press).
+      // CAMPAIGN «Наследие»: the press grants the carried cards. The reveal
+      // is CLAIMED for this workspace in the same press (the workspace-flow
+      // principle: everything the press sets off presents INSIDE the start
+      // flow — «СТАРТ ПАРТИИ › НАСЛЕДИЕ ПРОЕКТОВ › ДОБОР КАРТ», never a
+      // standalone modal), and the take deals them into the hand dock.
       if (item.kind === 'legacy') {
+        claimPlayOutcome('Project legacy', this.legacyPrompt?.cards ?? 0);
         this.$emit('submit', {type: 'option'});
         return;
       }

@@ -338,8 +338,14 @@ export class CampaignManager {
         }
       }
       campaign.phase = 'missionActive';
-      await this.save(campaign);
+      // The loader learns the game BEFORE the campaign pointer publishes:
+      // the moment `save` lands, every other seat's map model names the new
+      // gameId/playerIds — a player pressing «Присоединиться» right behind
+      // the creator's launch must find `/api/player` already able to serve
+      // it (registering after the save was a real 404 window: «Не удалось
+      // загрузить данные партии» on the second seat's join).
       await GameLoader.getInstance().add(game);
+      await this.save(campaign);
       return {campaign, gameId: game.id, yourPlayerId: slot.playerIds[viewerSeat.seat]};
     } finally {
       this.launching.delete(id);

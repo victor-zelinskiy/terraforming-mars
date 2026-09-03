@@ -25610,52 +25610,9 @@ body.con-start-barshold .con-status {
         color: @con-text-dim;
         letter-spacing: .02em;
     }
-    /* CAMPAIGN missions 2–3: the CURRENT corporations shelf on the corp
-       wizard step — compact context under the candidate strip (what the
-       pick will merge into); LT lifts them into the fullscreen read. */
-    &__lineage {
-        align-self: center;
-        display: flex;
-        flex-direction: column;
-        align-items: center;
-        gap: .4rem;
-        margin-top: .6rem;
-        padding: .5rem .9rem .6rem;
-        border-radius: .7rem;
-        background: rgba(14, 22, 33, 0.5);
-        box-shadow: inset 0 0 0 .05rem rgba(214, 178, 106, 0.22);
-    }
-    &__lineage-head {
-        display: flex;
-        align-items: center;
-        gap: .9rem;
-    }
-    &__lineage-cap {
-        font-size: .72rem;
-        color: #ecd39a;
-        letter-spacing: .18em;
-        text-transform: uppercase;
-        font-weight: 700;
-    }
-    &__lineage-hint {
-        display: inline-flex;
-        align-items: center;
-        gap: .3rem;
-        font-size: .7rem;
-        color: @con-text-dim;
-    }
-    &__lineage-row {
-        display: flex;
-        gap: .5rem;
-    }
-    &__lineage-card {
-        position: relative;
-        cursor: pointer;
-        > :is(.card-container, .pcard) {
-            margin: 0;
-            zoom: calc(0.3 * var(--con-ui-scale, 1));
-        }
-    }
+    /* (The campaign lineage moved into the Selection Dock's «НАСЛЕДИЕ»
+       block — see .con-startdock__legacy — so it costs the candidate strip
+       zero space.) */
     &__buycard {
         display: flex;
         > :is(.card-container, .pcard) {
@@ -27534,6 +27491,61 @@ body.con-start-barshold .con-status {
         font-size: .85rem;
         color: #eaf4ff;
         animation: con-recv-tick calc(320ms * var(--motion-scale, 1)) ease;
+    }
+    /* CAMPAIGN «НАСЛЕДИЕ» — the acquired corporations, a separate premium-
+       captioned block at the END of the same shelf row. Tile height matches
+       the piles' stacks (the shelf stays one calm line); the gold voice is
+       the campaign's own accent, distinct from the cyan «ПОДГОТОВЛЕНО». */
+    &__legacy {
+        display: inline-flex;
+        align-items: center;
+        gap: .8rem;
+        margin-left: .2rem;
+    }
+    &__legacy-divider {
+        width: .05rem;
+        height: 2.6rem;
+        background: rgba(214, 178, 106, 0.28);
+    }
+    &__legacy-body {
+        display: flex;
+        align-items: center;
+        gap: .55rem;
+    }
+    &__legacy-head {
+        display: flex;
+        flex-direction: column;
+        align-items: flex-start;
+        gap: .2rem;
+    }
+    &__legacy-cap {
+        font-size: .66rem;
+        font-weight: 700;
+        letter-spacing: .16em;
+        text-transform: uppercase;
+        color: #ecd39a;
+    }
+    &__legacy-hint { display: inline-flex; opacity: .8; }
+    &__legacy-row {
+        display: flex;
+        align-items: center;
+        gap: .35rem;
+    }
+    &__legacy-card {
+        position: relative;
+        padding: 0;
+        border: none;
+        background: transparent;
+        cursor: pointer;
+        border-radius: .25rem;
+        box-shadow: 0 .12rem .3rem rgba(0, 0, 0, 0.5), 0 0 0 .04rem rgba(214, 178, 106, 0.3);
+        overflow: hidden;
+        /* A pcard is 320px wide (~445 tall): match the piles' 3.2rem stack
+           height → zoom ≈ 64px/445 at ui-scale 1. */
+        > :is(.card-container, .pcard) {
+            margin: 0;
+            zoom: ~"calc(0.145 * var(--con-ui-scale, 1))";
+        }
     }
 }
 .con-startdock-layer {
