@@ -472,14 +472,19 @@ describe('CampaignManager', () => {
     }
 
     // Drive the merge deployment: Alice picks a new corp and buys 2 cards.
-    alice.pickedCorporationCard = alice.dealtCorporationCards[0];
+    // The pick is PINNED (a random dealt corp can legitimately open a real
+    // payment-choice prompt for the merge fee — Luna Trade Federation's
+    // titanium — and this test drives the plain M€ path).
+    const {runCampaignDeploymentChain} = await import('../../src/server/campaign/CampaignMissionSetup');
+    const {newCorporationCard} = await import('../../src/server/createCard');
+    const picked = newCorporationCard(CardName.THORGATE)!;
+    alice.pickedCorporationCard = picked;
     alice.cardsInHand.push(...alice.dealtProjectCards.slice(0, 2));
-    const picked = alice.pickedCorporationCard!;
     const before = alice.megaCredits;
     expect(before).eq(0);
-    const {runCampaignDeploymentChain} = await import('../../src/server/campaign/CampaignMissionSetup');
     runCampaignDeploymentChain(alice, {deferCardPayment: false});
-    // The chain is STAGED: answer the merge press, then the legacy press.
+    // The chain is STAGED: answer the merge press (which also charges the
+    // Merger-rule 42 M€ fee), then the legacy press.
     alice.process({type: 'card', cards: [picked.name]});
     alice.process({type: 'option'});
 
@@ -487,8 +492,9 @@ describe('CampaignManager', () => {
     const corps = alice.playedCards.filter((c) => c.type === 'corporation').map((c) => c.name);
     expect(corps[0]).eq(CardName.CREDICOR);
     expect(corps[1]).eq(picked.name);
-    // Budget: CrediCor 57 + comeback 5 + the pick's own starting M€ − 2×cost.
-    expect(alice.megaCredits).eq(57 + 5 + (picked.startingMegaCredits) - 2 * alice.cardCost);
+    // Budget: CrediCor 57 + comeback 5 + the pick's starting M€ − 2×cost − the merge fee.
+    expect(alice.megaCredits).eq(57 + 5 + (picked.startingMegaCredits) - 2 * alice.cardCost - 42);
+    expect(alice.campaignMergeFeePaid).is.true;
     // The carried card arrived FREE (2 bought + 1 carried) with its reveal queued.
     expect(alice.cardsInHand.map((c) => c.name)).includes(CardName.ACQUIRED_COMPANY);
     expect(alice.cardsInHand).has.length(3);

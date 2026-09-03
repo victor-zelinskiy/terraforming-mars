@@ -1011,7 +1011,7 @@ import {consoleActionOf, ConsoleAction, ConsoleActionOverrides} from '@/client/c
 import {consoleReducedMotionActive} from '@/client/console/composables/useConsoleReducedMotion';
 import {ConsoleTask} from '@/client/console/consoleTaskRouter';
 import {
-  buildInitialCardsResponse, clearDockDrift, committedStartJourneyItems, consoleStartState, deploymentCrumb, deploymentJourneyItems,
+  buildInitialCardsResponse, campaignWizardExtra, clearDockDrift, committedStartJourneyItems, consoleStartState, deploymentCrumb, deploymentJourneyItems,
   driftDockPile, ensureStartWizard, holdStartScene, initialCardsInputOf, initialCardsSignature,
   markStartDeploymentBegun, setStartCampaignCorpStage, startAwaitingOthers, startDeploymentBegun,
   picksForStep, releaseStartScene, StartCrewMate, StartCrumb, StartDockPileModel, startFlowBusy,
@@ -1650,7 +1650,7 @@ export default defineComponent({
       // CAMPAIGN: the merge press + its hero/effects are their OWN chapter,
       // told apart from the base deployment by the effect card NOT being part
       // of the established lineage (the merged corp is the fresh pick).
-      if (this.corpMergePrompt !== undefined ||
+      if (this.corpMergePrompt !== undefined || this.mergeFeeStands ||
           (effectOpen && sourceType === CardType.CORPORATION && this.mergeChapterExists &&
            this.flowEffectCard !== undefined && !this.campaignLineage.includes(this.flowEffectCard))) {
         return 'merge';
@@ -1877,7 +1877,7 @@ export default defineComponent({
     /** The EXPANDED STARTUP STATUS PREVIEW (the summary's status panel — the
      *  visible source the commit transforms into the real HUD). */
     preview(): StartStatusPreview | undefined {
-      return buildStartStatusPreview(this.picks);
+      return buildStartStatusPreview(this.picks, this.campaignExtra);
     },
     /** An embedded follow-up (the shared reveal) is presenting in THIS
      *  workspace's zone — the queue yields visual priority, never unmounts. */
@@ -2775,10 +2775,11 @@ export default defineComponent({
       }
       // CAMPAIGN: the merge press — the fresh pick stands in the queue with
       // its own verb; the press plays it «поверх» the established lineage
-      // (the hero lands onto the corporation family's stack in «Разыграно»).
+      // (the hero lands onto the corporation family's stack in «Разыграно»)
+      // AND charges the Merger-rule fee — the badge states it up front.
       const merge = this.corpMergeCard;
       if (merge !== undefined) {
-        out.push({name: merge.name, kind: 'corp', verb: 'Merge', dimmed: false, dealIdx: -1});
+        out.push({name: merge.name, kind: 'corp', verb: 'Merge', badge: 'Pay 42 M€.', dimmed: false, dealIdx: -1});
       }
       this.candidateCards.forEach((c, i) => {
         const disabled = c.isDisabled === true;
@@ -3086,7 +3087,7 @@ export default defineComponent({
       if (this.isPickedHere(card.name)) {
         return false;
       }
-      return (startingMegacredits(corp, this.state.projects.length + 1) ?? 0) < 0;
+      return (this.wizardRemaining(this.state.projects.length + 1) ?? 0) < 0;
     },
     /** The pinned status rail's LOCAL state for the focused card. Never the
      *  global «N из M» progress (that lives in the header counter) — only the
@@ -3156,8 +3157,26 @@ export default defineComponent({
       const b = this.budget;
       return b === undefined ? 0 : b.start + b.preludes;
     },
+    /** CAMPAIGN: the lineage's money contribution (starting M€ + bonus −
+     *  the merge fee, and the stacked card-cost delta) — the client mirror of
+     *  the server's `campaignStartingBudget`. Zeros in ordinary games. */
+    campaignExtra(): {megaCredits: number, cardCostDelta: number, mergeFee: number} {
+      return campaignWizardExtra(this.playerView);
+    },
     cardCost(): number {
-      return cardCostForCorp(this.state.corp);
+      return cardCostForCorp(this.state.corp) + this.campaignExtra.cardCostDelta;
+    },
+    /** The wizard funds after `buys` purchases — ONE formula for the budget,
+     *  the per-card gate and the pick guard (campaign-aware). */
+    wizardRemaining(): (buys: number) => number | undefined {
+      return (buys: number) => {
+        const corp = this.state.corp;
+        const base = startingMegacredits(corp, 0);
+        if (corp === undefined || base === undefined) {
+          return undefined;
+        }
+        return base + this.campaignExtra.megaCredits - buys * this.cardCost;
+      };
     },
     budget(): {start: number, buys: number, cardCost: number, remaining: number, preludes: number} | undefined {
       const corp = this.state.corp;
@@ -3166,10 +3185,10 @@ export default defineComponent({
       }
       const buys = this.state.projects.length;
       return {
-        start: startingMegacredits(corp, 0) ?? 0,
+        start: (startingMegacredits(corp, 0) ?? 0) + this.campaignExtra.megaCredits,
         buys,
         cardCost: this.cardCost,
-        remaining: startingMegacredits(corp, buys) ?? 0,
+        remaining: this.wizardRemaining(buys) ?? 0,
         preludes: afterPreludes(corp, this.state.preludes, buys),
       };
     },
@@ -3226,6 +3245,17 @@ export default defineComponent({
     /** The carried cards' arrival (the `{type:'campaign'}` reveal) is live. */
     legacyArrivalLive(): boolean {
       return currentRevealEvent()?.source?.type === 'campaign';
+    },
+    /** The merge FEE's own payment prompt stands (a lineage with an alt
+     *  payment path — Helion's heat, Luna Trade Federation's titanium —
+     *  gets a real payment choice): the merge chapter is still the player's
+     *  place. Bounded structurally: ≥2 corporations (the pick is merged),
+     *  no prelude touched yet (the fee resolves before the prelude stage). */
+    mergeFeeStands(): boolean {
+      return this.mode === 'ceremony' && this.mergeChapterExists &&
+        this.wf?.type === 'payment' &&
+        corporationCardNames(this.playerView).length >= 2 &&
+        this.playedPreludes.length === 0;
     },
     /** The legacy chapter joins the rail when it becomes KNOWN (the count is
      *  private until the prompt) and never leaves it (`legacySeen`). */
@@ -6040,7 +6070,7 @@ export default defineComponent({
       // PROJECTS: no budget for one more card — a NORMAL limit, blocked here so
       // the buy can never go negative; the rail says «Недостаточно средств…».
       if (step.id === 'projects' && this.state.corp !== undefined &&
-          (startingMegacredits(this.state.corp, this.picksHere.length + 1) ?? 0) < 0) {
+          (this.wizardRemaining(this.picksHere.length + 1) ?? 0) < 0) {
         this.blockedNudge++;
         return;
       }

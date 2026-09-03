@@ -33,18 +33,23 @@ export type StartStatusPreview = {
   preludeCount: number,
 };
 
+/** CAMPAIGN missions 2–3: the lineage's contribution to the wizard money
+ *  (see `campaignWizardExtra` — the client mirror of the server budget). */
+export type CampaignPreviewExtra = {megaCredits: number, cardCostDelta: number, mergeFee: number};
+
+const NO_EXTRA: CampaignPreviewExtra = {megaCredits: 0, cardCostDelta: 0, mergeFee: 0};
+
 /** Build the preview from the current picks. Undefined until a corporation
  *  is chosen (there is no start state to preview without an identity). */
-export function buildStartStatusPreview(picks: InitialCardsPicks): StartStatusPreview | undefined {
+export function buildStartStatusPreview(picks: InitialCardsPicks, extra: CampaignPreviewExtra = NO_EXTRA): StartStatusPreview | undefined {
   const corp = picks.corp;
   if (corp === undefined) {
     return undefined;
   }
   const buys = picks.projects.length;
-  const start = startingMegacredits(corp, 0) ?? 0;
-  const remainingAfterBuys = startingMegacredits(corp, buys) ?? 0;
+  const start = (startingMegacredits(corp, 0) ?? 0) + extra.megaCredits;
+  const cardCost = cardCostForCorp(corp) + extra.cardCostDelta;
   const preludeDelta = afterPreludes(corp, picks.preludes, buys);
-  const cardCost = cardCostForCorp(corp);
   return {
     corp,
     start,
@@ -52,7 +57,7 @@ export function buildStartStatusPreview(picks: InitialCardsPicks): StartStatusPr
     cardCost,
     projectsCost: buys * cardCost,
     preludeDelta,
-    remaining: remainingAfterBuys + preludeDelta,
+    remaining: start - buys * cardCost + preludeDelta,
     handSize: buys,
     preludeCount: picks.preludes.length,
   };

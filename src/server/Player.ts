@@ -170,6 +170,13 @@ export class Player implements IPlayer {
   public campaignCarriedCards?: Array<CardName>;
   public campaignCarriedGranted: boolean = false;
   /**
+   * Campaign mode: the merge fee (the Merger prelude's «Then pay 42 M€»,
+   * missions 2–3) has been charged. Serialized because the fee is a deferred
+   * beat of the merge press and the deferred queue never survives a reload —
+   * this flag is what lets recovery re-raise an unpaid fee exactly once.
+   */
+  public campaignMergeFeePaid: boolean = false;
+  /**
    * The initial-cards selection completed. Ordinary games infer this from
    * `pickedCorporationCard`, but a FINAL campaign mission has no corporation
    * step, so completion needs its own persisted fact. Set for every game.
@@ -2912,6 +2919,7 @@ export class Player implements IPlayer {
       campaignSeat: this.campaignSeat,
       campaignCarriedCards: this.campaignCarriedCards,
       campaignCarriedGranted: this.campaignCarriedGranted === true ? true : undefined,
+      campaignMergeFeePaid: this.campaignMergeFeePaid === true ? true : undefined,
       initialCardSelectionDone: this.initialCardSelectionDone === true ? true : undefined,
       // Terraforming Rating
       terraformRating: this.terraformRating,
@@ -3088,6 +3096,7 @@ export class Player implements IPlayer {
     player.campaignSeat = d.campaignSeat;
     player.campaignCarriedCards = d.campaignCarriedCards;
     player.campaignCarriedGranted = d.campaignCarriedGranted ?? false;
+    player.campaignMergeFeePaid = d.campaignMergeFeePaid ?? false;
     player.initialCardSelectionDone = d.initialCardSelectionDone ?? false;
 
     player.pendingInitialActions = corporationCardsFromJSON(d.pendingInitialActions ?? []);

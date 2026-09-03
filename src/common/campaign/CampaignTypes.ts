@@ -16,6 +16,12 @@ export const CAMPAIGN_MISSION_COUNT = 4;
 export const CAMPAIGN_GENERATOR_VERSION = 1;
 /** Max project cards a human seat may carry into the next mission. */
 export const CARRYOVER_MAX_CARDS = 2;
+/**
+ * The campaign merge follows the Merger prelude's own rule («Then pay
+ * 42 M€») — just without the card. MIRRORS `Merger.mergerCost` (a server
+ * card file the client cannot import); a guard spec pins the two together.
+ */
+export const CAMPAIGN_MERGE_COST = 42;
 
 export type CampaignPhase =
   | 'generated'     // route exists, mission 1 not launched

@@ -162,6 +162,8 @@ export interface IPlayer {
   /** Campaign mode: PRIVATE carried project cards («Наследие проектов»). */
   campaignCarriedCards?: Array<CardName>;
   campaignCarriedGranted: boolean;
+  /** Campaign: the merge fee (Merger's «Then pay 42 M€») has been charged. */
+  campaignMergeFeePaid: boolean;
   /** Initial-cards selection completed (campaign-final has no corp pick to infer from). */
   initialCardSelectionDone: boolean;
 

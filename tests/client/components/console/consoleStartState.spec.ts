@@ -3,7 +3,7 @@ import {
   buildInitialCardsResponse, clearDockDrift, committedStartJourneyItems, consoleStartState, deploymentCrumb, driftDockPile,
   ensureStartWizard, holdStartScene, initialCardsSignature, picksForStep, releaseStartScene,
   startFlowBusy, startLaunchState, startParticipants, startSceneHeld, stepComplete, wizardCrumb,
-  wizardSteps, startJourneyItems, deploymentJourneyItems, startDockPiles,
+  wizardSteps, startJourneyItems, deploymentJourneyItems, startDockPiles, campaignWizardExtra,
   startAwaitingOthers, startCorporationPlayed, startDeferredSummary, startDeploymentBegun,
   markStartDeploymentBegun, startCardAvailability, startRailCommitted, stepShowsAvailability,
 } from '@/client/console/consoleStartState';
@@ -57,6 +57,30 @@ describe('consoleStartState (T5 wizard logic)', () => {
     expect(steps.map((s) => s.id)).to.deep.eq(['corp', 'prelude', 'ceo', 'projects']);
     const noPrelude = wizardSteps(input(false));
     expect(noPrelude.map((s) => s.id)).to.deep.eq(['corp', 'projects']);
+  });
+
+  it('campaignWizardExtra mirrors the server budget: lineage M€ + bonus − the merge fee', () => {
+    const viewOf = (campaign: unknown) => ({
+      thisPlayer: {color: 'red'},
+      game: {gameOptions: {campaign}},
+    } as unknown as PlayerViewModel);
+
+    // Ordinary game: zeros — the wizard money stays byte-identical.
+    expect(campaignWizardExtra(viewOf(undefined))).to.deep.eq({megaCredits: 0, cardCostDelta: 0, mergeFee: 0});
+
+    // Mission 2: CrediCor lineage (57) + comeback 5 − the Merger-rule 42.
+    const mission2 = {
+      final: false, missionSlot: 1,
+      grants: [{seat: 0, color: 'red', bonusMegaCredits: 5, corporations: [CardName.CREDICOR], titlePoints: []}],
+    };
+    expect(campaignWizardExtra(viewOf(mission2))).to.deep.eq({megaCredits: 57 + 5 - 42, cardCostDelta: 0, mergeFee: 42});
+
+    // Mission 1 (empty lineage): zeros — the pick is the base, no merge.
+    const mission1 = {
+      final: false, missionSlot: 0,
+      grants: [{seat: 0, color: 'red', bonusMegaCredits: 0, corporations: [], titlePoints: []}],
+    };
+    expect(campaignWizardExtra(viewOf(mission1))).to.deep.eq({megaCredits: 0, cardCostDelta: 0, mergeFee: 0});
   });
 
   it('stepComplete honors the SERVER min/max per step', () => {

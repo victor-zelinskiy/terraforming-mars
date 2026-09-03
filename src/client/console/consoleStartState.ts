@@ -23,12 +23,15 @@
  */
 
 import {reactive} from 'vue';
+import * as constants from '@/common/constants';
+import {CAMPAIGN_MERGE_COST} from '@/common/campaign/CampaignTypes';
 import {CardName} from '@/common/cards/CardName';
 import {Color} from '@/common/Color';
 import {Message} from '@/common/logs/Message';
 import {PlayerInputModel, SelectCardModel, SelectInitialCardsModel} from '@/common/models/PlayerInputModel';
 import {CardModel} from '@/common/models/CardModel';
 import {buildCardAvailability, CardAvailabilityView} from '@/client/console/cardAvailability';
+import {getCard} from '@/client/cards/ClientCardManifest';
 import {PlayerViewModel} from '@/common/models/PlayerModel';
 import {InputResponse, SelectInitialCardsResponse} from '@/common/inputs/InputResponse';
 import * as titles from '@/common/inputs/SelectInitialCards';
@@ -555,6 +558,34 @@ let startCampaignCorpStage: 'merge' | 'hq' | undefined;
 
 export function setStartCampaignCorpStage(stage: 'merge' | 'hq' | undefined): void {
   startCampaignCorpStage = stage;
+}
+
+/**
+ * CAMPAIGN missions 2–3: what the deployment grants BEYOND the pick — every
+ * lineage corporation's starting M€ + the comeback bonus − the merge fee
+ * (the pick merges by the Merger prelude's own rule: «Then pay 42 M€») —
+ * plus the per-card cost delta the lineage stacks (Polyphemos & co). The
+ * client mirror of the server's `campaignStartingBudget`, so the wizard's
+ * money preview and its purchase gate speak the numbers the deployment will
+ * actually land on. Zeros everywhere outside a campaign lineage.
+ */
+export function campaignWizardExtra(view: PlayerViewModel): {megaCredits: number, cardCostDelta: number, mergeFee: number} {
+  const contract = view.game.gameOptions.campaign;
+  const grant = contract?.grants.find((g) => g.color === view.thisPlayer.color);
+  if (contract === undefined || grant === undefined || grant.corporations.length === 0) {
+    return {megaCredits: 0, cardCostDelta: 0, mergeFee: 0};
+  }
+  let megaCredits = grant.bonusMegaCredits;
+  let cardCostDelta = 0;
+  for (const name of grant.corporations) {
+    const corp = getCard(name);
+    megaCredits += corp?.startingMegaCredits ?? 0;
+    if (corp?.cardCost !== undefined) {
+      cardCostDelta += corp.cardCost - constants.CARD_COST;
+    }
+  }
+  const mergeFee = contract.final ? 0 : CAMPAIGN_MERGE_COST;
+  return {megaCredits: megaCredits - mergeFee, cardCostDelta, mergeFee};
 }
 
 export function startCorpStageLabel(): string {

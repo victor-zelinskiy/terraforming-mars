@@ -19,6 +19,8 @@ import {PlayerInput} from '../PlayerInput';
 import {Priority} from '../deferredActions/Priority';
 import {SelectCard} from '../inputs/SelectCard';
 import {SelectOption} from '../inputs/SelectOption';
+import {SelectPaymentDeferred} from '../deferredActions/SelectPaymentDeferred';
+import {Merger} from '../cards/promo/Merger';
 import {message} from '../logs/MessageBuilder';
 
 export function campaignContractOf(game: IGame): CampaignGameContract | undefined {
@@ -185,6 +187,13 @@ export function runCampaignDeploymentChain(player: IPlayer, options?: {deferCard
  * «СЛИЯНИЕ» — the deliberate merge press (marker `corporationMerge`).
  * Idempotent: answered-then-reloaded re-entries find the pick already in the
  * tableau and dissolve into nothing.
+ *
+ * The merge follows the MERGER PRELUDE'S OWN RULE, just without the card:
+ * play the corporation (gaining its starting M€ / effects), THEN pay 42 M€ —
+ * the same `Merger.mergerCost` through the same `SelectPaymentDeferred`, so
+ * the fee is its own visible payment press right at this stage. Affordability
+ * is guaranteed by the selection-time budget (`campaignStartingBudget`
+ * subtracts the fee before the hand purchase is allowed).
  */
 export function campaignMergeInput(player: IPlayer): PlayerInput | undefined {
   const picked = campaignMergePending(player);
@@ -196,8 +205,29 @@ export function campaignMergeInput(player: IPlayer): PlayerInput | undefined {
     .markStartGamePrompt({kind: 'corporationMerge'})
     .andThen(() => {
       player.playCorporationCard(picked, {holdResearchRelease: true});
+      deferMergePayment(player);
       return undefined;
     });
+}
+
+/** The Merger-rule fee — deferred AFTER the merged corp's own effects (both
+ *  ride Priority.DEFAULT, in defer order), BEFORE the legacy stage (which
+ *  sits at BACK_OF_THE_LINE). The serialized `campaignMergeFeePaid` flag is
+ *  what survives a reload landing between the merge answer and the payment
+ *  (the deferred queue itself is never serialized). */
+function deferMergePayment(player: IPlayer): void {
+  player.game.defer(new SelectPaymentDeferred(player, Merger.mergerCost, {title: 'Select how to pay for Merger'}))
+    .andThen(() => {
+      player.campaignMergeFeePaid = true;
+    });
+}
+
+/** The merge fee is still owed: the pick is merged, the 42 M€ are not paid. */
+export function campaignMergeFeePending(player: IPlayer): boolean {
+  const picked = player.pickedCorporationCard;
+  return picked !== undefined && campaignLineageOf(player).length > 0 &&
+    playedCorporationNames(player).has(picked.name) &&
+    player.campaignMergeFeePaid !== true;
 }
 
 /**
@@ -259,10 +289,30 @@ export function campaignSetupResumeInput(player: IPlayer): PlayerInput | undefin
       .markStartGamePrompt({kind: 'corporationMerge'})
       .andThen(() => {
         player.playCorporationCard(merge, {holdResearchRelease: true});
+        deferMergePayment(player);
         deferCampaignLegacy(player);
         player.game.playerIsFinishedWithResearchPhase(player);
         return undefined;
       });
+  }
+  if (campaignMergeFeePending(player)) {
+    // Reload landed between the merge answer and its fee (the deferred queue
+    // is not serialized). The recovery keeps the merge stage's ONE client
+    // shape: the same marked SelectCard — its press now only completes the
+    // merge (charges the fee through the real payment deferred, then the
+    // tail of the chain). The corp is NOT replayed (already on the tableau).
+    const merged = player.pickedCorporationCard;
+    if (merged !== undefined) {
+      return new SelectCard<ICorporationCard>(
+        'Merge the new corporation', 'Merge', [merged], {min: 1, max: 1})
+        .markStartGamePrompt({kind: 'corporationMerge'})
+        .andThen(() => {
+          deferMergePayment(player);
+          deferCampaignLegacy(player);
+          player.game.playerIsFinishedWithResearchPhase(player);
+          return undefined;
+        });
+    }
   }
   const legacyCount = campaignLegacyPending(player);
   if (legacyCount > 0) {
@@ -305,6 +355,12 @@ export function campaignStartingBudget(player: IPlayer, newCorporation: ICorpora
     if (corp.cardCost !== undefined) {
       cardCost += corp.cardCost - constants.CARD_COST;
     }
+  }
+  // Missions 2–3: the new pick merges by the Merger prelude's own rule —
+  // «Then pay 42 M€». The fee participates in affordability, so the hand
+  // purchase can never promise money the merge press will owe.
+  if (newCorporation !== undefined && campaignLineageOf(player).length > 0) {
+    megaCredits -= Merger.mergerCost;
   }
   return {megaCredits, cardCost: Math.max(cardCost, 0)};
 }

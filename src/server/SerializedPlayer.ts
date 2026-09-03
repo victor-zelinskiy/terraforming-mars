@@ -81,6 +81,7 @@ export interface SerializedPlayer extends DeprecatedFields{
   campaignCarriedCards?: Array<CardName>;
   /** Campaign mode: carried cards already granted to the hand. Absent → false. */
   campaignCarriedGranted?: boolean;
+  campaignMergeFeePaid?: boolean;
   /** Initial-cards selection completed (needed by the corp-less final mission). Absent → false. */
   initialCardSelectionDone?: boolean;
   plantProduction: number;

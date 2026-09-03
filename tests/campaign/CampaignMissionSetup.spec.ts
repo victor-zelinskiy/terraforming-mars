@@ -16,6 +16,8 @@ import {
   runCampaignDeploymentChain,
 } from '../../src/server/campaign/CampaignMissionSetup';
 import {computeMissionStandings} from '../../src/server/campaign/missionStandings';
+import {Merger} from '../../src/server/cards/promo/Merger';
+import {CAMPAIGN_MERGE_COST} from '../../src/common/campaign/CampaignTypes';
 import {SelectInitialCards} from '../../src/server/inputs/SelectInitialCards';
 import {IGame} from '../../src/server/IGame';
 
@@ -88,10 +90,13 @@ describe('CampaignMissionSetup', () => {
     expect((p1.getWaitingFor() as any).startGamePrompt?.kind).eq('corporationMerge');
     expect((game as any).researchedPlayers.has(p1.id)).is.false;
 
-    // Stage 2 — the merge press plays the pick on top of the base.
+    // Stage 2 — the merge press plays the pick on top of the base AND charges
+    // the Merger-rule fee (42 M€, auto-paid in the same drain when only M€
+    // can pay — the whole point of «списывание тут же»).
     p1.process({type: 'card', cards: [CardName.THORGATE]});
     expect(p1.playedCards.filter(isICorporationCard).map((c) => c.name)).deep.eq([CardName.CREDICOR, CardName.THORGATE]);
-    expect(p1.megaCredits).eq(57 + 5 + 48 - 6);
+    expect(p1.megaCredits).eq(57 + 5 + 48 - 6 - 42);
+    expect(p1.campaignMergeFeePaid).is.true;
     // The carried card has NOT arrived yet — the legacy stage owns it.
     expect(p1.cardsInHand).has.length(2);
     expect((p1.getWaitingFor() as any).startGamePrompt?.kind).eq('campaignLegacy');
@@ -136,8 +141,15 @@ describe('CampaignMissionSetup', () => {
     expect((merge as any)?.startGamePrompt?.kind).eq('corporationMerge');
     expect(cast(merge, SelectCard<ICorporationCard>).cards[0].name).eq(CardName.THORGATE);
 
-    // Merge played, crash: the LEGACY press is what's owed.
+    // Merge played but the FEE not yet charged (a reload can land exactly
+    // there — the payment is a deferred beat): the recovery re-raises the
+    // merge stage, whose press now only completes it (charges the 42 M€).
     p1.playCorporationCard(newCorporationCard(CardName.THORGATE)!, {holdResearchRelease: true});
+    const fee = campaignSetupResumeInput(p1);
+    expect((fee as any)?.startGamePrompt?.kind).eq('corporationMerge');
+
+    // Fee charged: the LEGACY press is what's owed.
+    p1.campaignMergeFeePaid = true;
     const legacy = campaignSetupResumeInput(p1);
     expect((legacy as any)?.startGamePrompt?.kind).eq('campaignLegacy');
     expect((legacy as any)?.startGamePrompt?.legacy?.cards).eq(1);
@@ -147,12 +159,16 @@ describe('CampaignMissionSetup', () => {
     expect(campaignSetupResumeInput(p1)).is.undefined;
   });
 
-  it('campaignStartingBudget matches what the deployment actually grants', () => {
+  it('campaignStartingBudget matches what the deployment actually grants (incl. the merge fee)', () => {
     const {p1} = newMissionGame(missionOptions());
     const picked = newCorporationCard(CardName.THORGATE)!;
     const budget = campaignStartingBudget(p1, picked);
-    expect(budget.megaCredits).eq(57 + 5 + 48);
+    expect(budget.megaCredits).eq(57 + 5 + 48 - 42);
     expect(budget.cardCost).eq(3);
+  });
+
+  it('the merge fee IS the Merger prelude\'s own cost — the common mirror may never drift', () => {
+    expect(CAMPAIGN_MERGE_COST).eq(Merger.mergerCost);
   });
 
   it('final mission: no corporations dealt, the selection has no corp step, «Штаб» plays the whole lineage', () => {
