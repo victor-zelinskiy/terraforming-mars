@@ -288,7 +288,7 @@ export async function pickCards(page: Page, cards: ReadonlyArray<string>, maxMov
  * Bounded, and never an assertion: whatever the walk then finds is what gets
  * returned, and the caller is the one that reports it.
  */
-async function waitStepDealSettled(page: Page, maxMs = 15_000): Promise<void> {
+export async function waitStepDealSettled(page: Page, maxMs = 15_000): Promise<void> {
   await page.waitForFunction(() =>
     document.querySelector('.con-cards__slot--focused[data-zoom-slot]') !== null &&
     document.querySelectorAll('.con-cards__slot[data-zoom-slot].con-deal-hold').length === 0,

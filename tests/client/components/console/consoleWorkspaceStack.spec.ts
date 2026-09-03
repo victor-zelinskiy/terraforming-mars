@@ -18,6 +18,7 @@ import {
   restoreWorkspaceStack,
   serializeWorkspaceStack,
   setWorkspaceFramePhase,
+  setWorkspaceFrameServes,
   setWorkspaceFrameSlot,
   setWorkspaceFrameStage,
   stackServes,
@@ -914,6 +915,31 @@ describe('consoleWorkspaceStack — the ONE depth model of a workspace', () => {
     expect(workspaceSurfacesFor('projectCard')).to.have.members(
       [workspaceFrameSelector('hand'), workspaceFrameSelector('standard-projects')]);
     expect(workspaceSurfacesFor('awardFunding')).to.deep.eq([workspaceFrameSelector('awards')]);
-    expect(workspaceSurfacesFor('payment'), 'no workspace claims it').to.deep.eq([]);
+    expect(workspaceSurfacesFor('payment'), 'no registry default claims it').to.deep.eq([]);
+  });
+
+  /*
+   * THE RUNTIME-EARNED `payment` SERVE (the Helion post-buy window). The draft
+   * frame earns it for the span of the SelectPayment its pay slot embeds, so
+   * the detector / foreground watchdog count the rendered workspace as the
+   * prompt's serving surface — without it the watchdog saw «claimed + nothing
+   * rendered + a live prompt» over a working pay stage and announced «Экран
+   * завис». Revoking restores the registry default, so an idle draft can never
+   * mask an unrelated stranded payment.
+   */
+  it('a live frame earns `payment` for the span of the grant, park included', () => {
+    enterWorkspace('draft', {anchor: {type: 'phase', phase: 'draft'}});
+    expect(workspaceSurfacesFor('payment')).to.deep.eq([]);
+    setWorkspaceFrameServes('draft', ['cardSelect', 'draftWait', 'payment']);
+    expect(workspaceSurfacesFor('payment')).to.deep.eq([workspaceFrameSelector('draft')]);
+    expect(stackServes('payment')).is.true;
+    // «Свернуть» keeps the earned serve: the parked chain is still the
+    // prompt's home (that is what keeps the deferred window out of the guard).
+    collapseWorkspaceStack();
+    expect(workspaceSurfacesFor('payment')).to.deep.eq([workspaceFrameSelector('draft')]);
+    restoreWorkspaceStack();
+    // The revoke (the payment answered) drops it back to the defaults.
+    setWorkspaceFrameServes('draft', ['cardSelect', 'draftWait']);
+    expect(workspaceSurfacesFor('payment')).to.deep.eq([]);
   });
 });

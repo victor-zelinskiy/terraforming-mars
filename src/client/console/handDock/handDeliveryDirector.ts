@@ -50,6 +50,7 @@
 import {nextTick, reactive} from 'vue';
 import {gsap} from 'gsap';
 import {CardName} from '@/common/cards/CardName';
+import type {PlayerViewModel} from '@/common/models/PlayerModel';
 import {motionMs} from '@/client/components/motion/motionTokens';
 import {beginDockIntakeAccent} from '@/client/console/handDock/consoleDockAccent';
 import {conUiScale} from '@/client/console/consoleLayoutProfile';
@@ -139,6 +140,45 @@ export type HandIntakeOptions = {
 const runs = reactive({active: 0});
 /** Bumped by resetHandDelivery — in-progress runs abort at their next gate. */
 let gen = 0;
+
+/**
+ * Targets the SERVER has REFUTED for now — flown cards it turned out to be
+ * WITHHOLDING behind a follow-up prompt. The canonical shape is the research
+ * buy under Helion (or Luna Trade Federation): the buy submits at lift-off,
+ * but `ChooseCards` grants the bought cards only in `SelectPaymentDeferred`'s
+ * `andThen`, so the answer is a `payment` prompt and `cardsInHand` does NOT
+ * grow. Left alone, each flight would poll its dock pose for the full
+ * `POLL_FRAMES` budget — a stale `cardArrival` admission claim GATING the
+ * very payment prompt that releases the cards (a deadlock the foreground
+ * watchdog then "cures" with «Экран завис»). A refuted target skips the poll
+ * and degrades to the honest quiet fade at once.
+ */
+const refutedTargets = new Set<string>();
+
+/** Is this name's arrival refuted (exported for the specs)? */
+export function intakeTargetRefuted(name: CardName): boolean {
+  return refutedTargets.has(name as string);
+}
+
+/**
+ * Called on EVERY applied player view (the shell's playerView observer).
+ * STRUCTURAL, never a title: a `payment` question standing while a flown
+ * card is absent from `cardsInHand` PROVES the server is withholding that
+ * card behind the payment — the server asks one thing at a time, so the
+ * card cannot arrive until the payment is answered. A card already granted
+ * (in the hand) keeps its flight: the pose it polls for exists.
+ */
+export function refuteWithheldIntake(view: PlayerViewModel): void {
+  if (view.waitingFor?.type !== 'payment' || handDeliveryState.inFlight.length === 0) {
+    return;
+  }
+  const inHand = new Set<string>(view.cardsInHand.map((c) => c.name as string));
+  for (const name of handDeliveryState.inFlight) {
+    if (!inHand.has(name as string)) {
+      refutedTargets.add(name as string);
+    }
+  }
+}
 
 /** True while ANY intake flight is running — the notification hold. */
 export function isHandDeliveryActive(): boolean {
@@ -284,6 +324,13 @@ function stableTargetPose(name: CardName, seqFromEnd: number, isAborted: () => b
         done(undefined);
         return;
       }
+      // The server refuted this arrival (withheld behind a follow-up payment):
+      // waiting out the budget would only stand as a stale card-arrival claim
+      // over the prompt that releases the card — degrade NOW, honestly.
+      if (refutedTargets.has(name as string)) {
+        done(undefined);
+        return;
+      }
       const oracle = handBodiesOracle();
       if (oracle !== undefined) {
         const p = oracle.poseForCopy(name as string, seqFromEnd);
@@ -407,6 +454,10 @@ async function runHandIntakeInner(entries: ReadonlyArray<HandIntakeEntry>, opts?
   if (opts?.commitAt !== 'staged') {
     runCommit();
   }
+  // A NEW intake of a name is a fresh promise — an earlier refutation (the
+  // card was withheld behind a payment that has since been answered) must
+  // not condemn this flight before it even asks.
+  names.forEach((n) => refutedTargets.delete(n as string));
   handDeliveryState.inFlight = [...handDeliveryState.inFlight, ...names];
   const myGen = gen;
   const landed = entries.map(() => false);
@@ -953,6 +1004,7 @@ export function resetHandDelivery(): void {
   runs.active = 0;
   phase = 'idle';
   deliveryKey = '';
+  refutedTargets.clear();
   handDeliveryState.held = [];
   handDeliveryState.inFlight = [];
   handDeliveryState.flights.forEach((f) => {

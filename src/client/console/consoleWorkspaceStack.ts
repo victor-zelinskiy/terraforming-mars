@@ -315,6 +315,11 @@ const WORKSPACE_KINDS: Record<WorkspaceFrameKind, WorkspaceKindSpec> = {
   // The DRAFT workspace — a PHASE-anchored root like 'start': it IS the
   // between-generations sequence (picks → waits → research buy → done) and
   // projects onto neither navigation axis (the board stays its backdrop).
+  // (`payment` is EARNED at runtime for the span of the post-buy SelectPayment
+  // — Helion heat / Luna titanium; the shell's draftPaymentServeSignal watcher
+  // sets DRAFT_PAYMENT_SERVES — so the frame's rendered root is the honest
+  // serving surface for the payment it embeds, while the registry default
+  // keeps an idle draft from masking an unrelated stranded payment.)
   'draft': {
     root: 'Draft', rootSelector: '.con-draftws',
     serves: ['cardSelect', 'draftWait'],
