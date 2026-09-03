@@ -15,6 +15,11 @@ import {IGame} from '../IGame';
 import {IPlayer} from '../IPlayer';
 import {ProjectDeck} from '../cards/Deck';
 import {VictoryPointsBreakdownBuilder} from '../game/VictoryPointsBreakdownBuilder';
+import {PlayerInput} from '../PlayerInput';
+import {Priority} from '../deferredActions/Priority';
+import {SelectCard} from '../inputs/SelectCard';
+import {SelectOption} from '../inputs/SelectOption';
+import {message} from '../logs/MessageBuilder';
 
 export function campaignContractOf(game: IGame): CampaignGameContract | undefined {
   return game.gameOptions.campaign;
@@ -99,22 +104,180 @@ export function campaignCorporationQueue(player: IPlayer): Array<ICorporationCar
   return queue;
 }
 
+/** The still-unplayed LINEAGE part of the queue (the established company). */
+function unplayedLineage(player: IPlayer): Array<ICorporationCard> {
+  const played = playedCorporationNames(player);
+  const out: Array<ICorporationCard> = [];
+  for (const name of campaignLineageOf(player)) {
+    if (played.has(name)) {
+      continue;
+    }
+    const corp = newCorporationCard(name);
+    if (corp === undefined) {
+      throw new Error(`Campaign lineage corporation ${name} cannot be instantiated`);
+    }
+    out.push(corp);
+  }
+  return out;
+}
+
+/** The freshly PICKED corporation, when it still owes its merge press. */
+export function campaignMergePending(player: IPlayer): ICorporationCard | undefined {
+  const picked = player.pickedCorporationCard;
+  if (picked === undefined || playedCorporationNames(player).has(picked.name)) {
+    return undefined;
+  }
+  // Mission 1 has no lineage: the pick IS the base — no merge stage exists.
+  return campaignLineageOf(player).length > 0 ? picked : undefined;
+}
+
+/** Carried cards that still owe their «Наследие» press. */
+export function campaignLegacyPending(player: IPlayer): number {
+  if (player.campaignCarriedGranted === true) {
+    return 0;
+  }
+  return (player.campaignCarriedCards ?? []).length;
+}
+
 /**
- * Plays the whole campaign corporation sequence in acquisition order.
- * The research-phase release is HELD until the last corporation so the
- * deferred queue (each corp's own effects + the base corp's card payment)
- * drains once, in order — never mid-lineage.
+ * THE CAMPAIGN DEPLOYMENT CHAIN — stage 1 of the corp play press.
+ *
+ * The deployment is a SEQUENCE of deliberate presses, never one press that
+ * silently does everything (the player must SEE what happens in what order):
+ *   1. «КОРПОРАЦИЯ» — this press: the established company deploys (the whole
+ *      lineage, base first; mission 1: the picked corp IS the base). The base
+ *      buys the starting hand; its payment is its own deferred beat.
+ *   2. «СЛИЯНИЕ» (missions 2–3) — a deferred prompt of its own
+ *      (`corporationMerge`): the NEW corporation is played ON TOP, its
+ *      starting M€ / effects applying at THAT press.
+ *   3. «НАСЛЕДИЕ» (when cards were carried) — a deferred prompt of its own
+ *      (`campaignLegacy`), queued BACK_OF_THE_LINE so the merge's own effects
+ *      resolve first: the carried cards join the hand and deal to the dock.
+ * The ONE research release at the end drains the whole chain in order and
+ * completes the barrier only after the last stage is answered.
  */
-export function playCampaignCorporations(player: IPlayer, options?: {deferCardPayment?: boolean}): void {
-  const queue = campaignCorporationQueue(player);
-  for (const corp of queue) {
+export function runCampaignDeploymentChain(player: IPlayer, options?: {deferCardPayment?: boolean}): void {
+  const lineage = unplayedLineage(player);
+  for (const corp of lineage) {
     const isBase = player.playedCards.filter(isICorporationCard).length === 0;
     player.playCorporationCard(corp, {
       deferCardPayment: isBase ? options?.deferCardPayment : false,
       holdResearchRelease: true,
     });
   }
+  const picked = player.pickedCorporationCard;
+  if (picked !== undefined && !playedCorporationNames(player).has(picked.name)) {
+    if (campaignLineageOf(player).length === 0) {
+      // Mission 1: the pick IS the base — the ordinary single-corp deployment.
+      player.playCorporationCard(picked, {
+        deferCardPayment: options?.deferCardPayment,
+        holdResearchRelease: true,
+      });
+    } else {
+      player.defer(() => campaignMergeInput(player));
+    }
+  }
+  deferCampaignLegacy(player);
   player.game.playerIsFinishedWithResearchPhase(player);
+}
+
+/**
+ * «СЛИЯНИЕ» — the deliberate merge press (marker `corporationMerge`).
+ * Idempotent: answered-then-reloaded re-entries find the pick already in the
+ * tableau and dissolve into nothing.
+ */
+export function campaignMergeInput(player: IPlayer): PlayerInput | undefined {
+  const picked = campaignMergePending(player);
+  if (picked === undefined) {
+    return undefined;
+  }
+  return new SelectCard<ICorporationCard>(
+    'Merge the new corporation', 'Merge', [picked], {min: 1, max: 1})
+    .markStartGamePrompt({kind: 'corporationMerge'})
+    .andThen(() => {
+      player.playCorporationCard(picked, {holdResearchRelease: true});
+      return undefined;
+    });
+}
+
+/**
+ * «НАСЛЕДИЕ» — the deliberate carried-cards press (marker `campaignLegacy`).
+ * Its own deployment stage AFTER the starting-hand purchase: the press grants
+ * the cards (free) and their reveal deals them into the hand dock.
+ */
+export function campaignLegacyInput(player: IPlayer): PlayerInput | undefined {
+  const count = campaignLegacyPending(player);
+  if (count === 0) {
+    return undefined;
+  }
+  return new SelectOption(
+    message('Receive ${0} project cards carried from the previous mission', (b) => b.number(count)),
+    'Receive')
+    .markStartGamePrompt({kind: 'campaignLegacy', legacy: {cards: count}})
+    .andThen(() => {
+      grantCarriedProjectCards(player);
+      return undefined;
+    });
+}
+
+function deferCampaignLegacy(player: IPlayer): void {
+  if (campaignLegacyPending(player) > 0) {
+    // BACK_OF_THE_LINE: the merge press defers the picked corp's own effects
+    // at answer time — the legacy stage must come after them, never between.
+    player.defer(() => campaignLegacyInput(player), Priority.BACK_OF_THE_LINE);
+  }
+}
+
+/**
+ * Reload recovery: WHICH deployment press is still owed. The deferred chain
+ * is not serialized, so a reload mid-deployment reconstructs the next stage
+ * from the tableau + the serialized carried/granted state. Undefined = the
+ * whole chain is done.
+ */
+export function campaignSetupResumeInput(player: IPlayer): PlayerInput | undefined {
+  const lineage = unplayedLineage(player);
+  const picked = player.pickedCorporationCard;
+  const baseOwed = lineage.length > 0 ||
+    (picked !== undefined && campaignLineageOf(player).length === 0 && !playedCorporationNames(player).has(picked.name));
+  if (baseOwed) {
+    const subject = lineage[0] ?? picked;
+    if (subject === undefined) {
+      return undefined;
+    }
+    return new SelectCard<ICorporationCard>(
+      'Play your corporation', 'Play', [subject], {min: 1, max: 1})
+      .markStartGamePrompt({kind: 'corporationPlay'})
+      .andThen(() => {
+        runCampaignDeploymentChain(player, {deferCardPayment: true});
+        return undefined;
+      });
+  }
+  const merge = campaignMergePending(player);
+  if (merge !== undefined) {
+    return new SelectCard<ICorporationCard>(
+      'Merge the new corporation', 'Merge', [merge], {min: 1, max: 1})
+      .markStartGamePrompt({kind: 'corporationMerge'})
+      .andThen(() => {
+        player.playCorporationCard(merge, {holdResearchRelease: true});
+        deferCampaignLegacy(player);
+        player.game.playerIsFinishedWithResearchPhase(player);
+        return undefined;
+      });
+  }
+  const legacyCount = campaignLegacyPending(player);
+  if (legacyCount > 0) {
+    // Recovery re-enters OUTSIDE a drain — the release rides the answer.
+    return new SelectOption(
+      message('Receive ${0} project cards carried from the previous mission', (b) => b.number(legacyCount)),
+      'Receive')
+      .markStartGamePrompt({kind: 'campaignLegacy', legacy: {cards: legacyCount}})
+      .andThen(() => {
+        grantCarriedProjectCards(player);
+        player.game.playerIsFinishedWithResearchPhase(player);
+        return undefined;
+      });
+  }
+  return undefined;
 }
 
 /**

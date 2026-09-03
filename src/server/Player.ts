@@ -55,7 +55,7 @@ import {Turmoil} from './turmoil/Turmoil';
 import {PathfindersExpansion} from './pathfinders/PathfindersExpansion';
 import {AutomaCorporations} from './automa/corps/AutomaCorporations';
 import {ColoniesHandler} from './colonies/ColoniesHandler';
-import {campaignBonusMegaCredits, grantCarriedProjectCards} from './campaign/CampaignMissionSetup';
+import {campaignBonusMegaCredits} from './campaign/CampaignMissionSetup';
 import {MonsInsurance} from './cards/promo/MonsInsurance';
 import {InputResponse} from '../common/inputs/InputResponse';
 import {Tags} from './player/Tags';
@@ -1485,11 +1485,9 @@ export class Player implements IPlayer {
     }
 
     if (!additionalCorp) {
-      // Campaign carryover: the carried project cards join the hand exactly
-      // once, AFTER the starting-hand purchase accounting inside the scoped
-      // play (they are free — never counted into cardsBought). No-op outside
-      // campaigns and on re-entry (serialized granted flag).
-      grantCarriedProjectCards(this);
+      // (Campaign carried cards are NOT granted here: «Наследие» is its own
+      // deployment stage — a deliberate `campaignLegacy` press after the
+      // starting-hand purchase; see runCampaignDeploymentChain.)
       // A campaign lineage plays SEVERAL corporations in one sequence — the
       // caller holds the research release until the last one so the deferred
       // queue (all corp effects + the base card payment) drains once, in order.

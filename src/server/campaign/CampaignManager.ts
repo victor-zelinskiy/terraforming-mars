@@ -514,7 +514,10 @@ export class CampaignManager {
       campaign.carryover = undefined;
     } else {
       // Record the terminal hands (SERVER-PRIVATE) and open the carryover
-      // window: an empty hand auto-confirms with zero cards.
+      // window. EVERY human starts 'pending' — the confirmation doubles as
+      // the READINESS regime: the next mission launches only when every
+      // human has explicitly confirmed (an empty hand confirms «готов» with
+      // zero cards, but the press is still theirs to make).
       slot.finalHands = {};
       const bySeat: Record<number, CarryoverSeatState> = {};
       for (const player of game.players) {
@@ -524,7 +527,7 @@ export class CampaignManager {
         }
         const hand = player.cardsInHand.map((c) => c.name);
         slot.finalHands[seat] = hand;
-        bySeat[seat] = {status: hand.length === 0 ? 'confirmed' : 'pending', cards: [], consumed: false};
+        bySeat[seat] = {status: 'pending', cards: [], consumed: false};
       }
       campaign.carryover = {sourceSlot: slot.slot, bySeat};
       campaign.pointer = slot.slot + 1;

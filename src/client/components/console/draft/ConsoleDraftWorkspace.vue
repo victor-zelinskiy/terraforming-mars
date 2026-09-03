@@ -327,7 +327,6 @@
 <script lang="ts">
 import {defineComponent, PropType} from 'vue';
 import {useResizeObserver} from '@vueuse/core';
-import {gsap} from 'gsap';
 import Card from '@/client/components/card/CardFace.vue';
 import GamepadGlyph from '@/client/components/gamepad/GamepadGlyph.vue';
 import ConsoleWsHead from '@/client/components/console/foundation/ConsoleWsHead.vue';
@@ -343,6 +342,7 @@ import {cardsResponse} from '@/client/console/taskResponses';
 import {megacreditsAvailable} from '@/client/console/paymentPlan';
 import {motionMs} from '@/client/components/motion/motionTokens';
 import {consoleMotionMs, consoleReducedMotionActive} from '@/client/console/composables/useConsoleReducedMotion';
+import {CloneFlightHandle, flyCardClones, measureCardRects} from '@/client/console/cardFlight/cloneFlights';
 import {conUiScale} from '@/client/console/consoleLayoutProfile';
 import {wsStageLayout, wsStageLayoutStyle} from '@/client/console/consoleWsStageLayout';
 import {openConsoleCardZoom, slotZoomOrigin} from '@/client/console/consoleCardZoom';
@@ -422,7 +422,7 @@ export default defineComponent({
       /** Seats already re-filled by the RETURN flight (per-card landings). */
       shelfReturned: [] as Array<CardName>,
       inspectFlightTimer: undefined as number | undefined,
-      cloneLayer: undefined as HTMLElement | undefined,
+      cloneFlight: undefined as CloneFlightHandle | undefined,
       /** The collection has handed its cards to the purchase row (lift-off):
        *  the shelf dissolves and never returns for the rest of the flow. */
       shelfRetired: false,
@@ -1811,115 +1811,29 @@ export default defineComponent({
       return fin === null ? 0 : fin.offsetHeight + 12 * conUiScale();
     },
     // ── the clone-proxy flights (the LT spread/collect) ─────────────────
-    /** Rects for every name, or undefined when ANY is unmeasurable — a
-     *  half-measured convoy teleports half its cards, so it never flies. */
+    // The engine lives in the SHARED `cardFlight/cloneFlights.ts` (the
+    // carryover picker is its second client) — this surface contributes only
+    // its source-node resolution and its layer class.
     measureRects(names: ReadonlyArray<CardName>, elOf: (n: CardName) => HTMLElement | null): Map<CardName, DOMRect> | undefined {
-      const out = new Map<CardName, DOMRect>();
-      for (const name of names) {
-        const el = elOf(name);
-        const r = el?.getBoundingClientRect();
-        if (r === undefined || r.width < 8 || r.height < 8) {
-          return undefined;
-        }
-        out.set(name, r);
-      }
-      return out;
+      return measureCardRects(names, elOf);
     },
-    /**
-     * Fly pixel-true CLONES of the real card nodes rect→rect (the deployment
-     * summary's clone trick: effective zoom = rect / offsetWidth, so the copy
-     * is the same printed face at the same size). Transform-only; every card
-     * lands on its own cadence; the batch owns and disposes ITS proxies.
-     */
     flyClones(
       names: ReadonlyArray<CardName>,
       from: Map<CardName, DOMRect>,
       to: Map<CardName, DOMRect>,
       hooks: {onLand: (name: CardName) => void, onDone: () => void},
     ): void {
-      // The flight stage is mounted by the BODY, never inside the workspace:
-      // `position: fixed` resolves against ANY ancestor that establishes a
-      // containing block (a transform / an entrance animation / a `zoom`),
-      // and the workspace has all three at various moments.
-      const layer = document.createElement('div');
-      layer.className = 'con-draftws-flights';
-      layer.style.cssText = 'position:fixed;inset:0;z-index:11640;pointer-events:none;overflow:clip;';
-      document.body.appendChild(layer);
-      this.cloneLayer = layer;
-      let landed = 0;
-      const total = names.length;
-      const finishOne = (name: CardName) => {
-        hooks.onLand(name);
-        landed++;
-        if (landed >= total) {
-          // Handoff: reveal happened per-card; the layer leaves next frame.
-          requestAnimationFrame(() => hooks.onDone());
-        }
-      };
-      names.forEach((name, i) => {
-        const src = this.shelfCardEl(name) ?? this.inspectCardEl(name);
-        const f = from.get(name);
-        const t = to.get(name);
-        if (src === null || f === undefined || t === undefined) {
-          finishOne(name);
-          return;
-        }
-        const clone = src.cloneNode(true) as HTMLElement;
-        // The source sits under an ancestor `zoom`; the clone reproduces the
-        // RENDERED size via its own zoom = rect / natural (iteration-6 trick).
-        //
-        // ⚠️ `zoom` SCALES THE COORDINATE SYSTEM of the element it is on, and
-        // that includes a `position: fixed` element's own left/top. Setting
-        // `left: 0` and then translating by `rect / z` looked right on paper
-        // and shipped the "cards fly in from the top-left" bug: the layer's
-        // own transform/containing block was fine, but any rounding in `z`
-        // multiplied the offset. So the clone is PLACED with left/top IN ITS
-        // OWN ZOOMED SPACE and never translated for placement — the tween
-        // moves it by a DELTA from that seat, which no zoom factor can skew.
-        const natural = src.offsetWidth || 1;
-        const z = f.width / natural;
-        clone.style.cssText = `position:fixed;left:${(f.left / z).toFixed(2)}px;top:${(f.top / z).toFixed(2)}px;` +
-          `margin:0;zoom:${z.toFixed(4)};transform-origin:top left;will-change:transform;`;
-        // De-identify: a clone must never be found by slot/zoom resolvers.
-        clone.removeAttribute('data-zoom-slot');
-        for (const el of Array.from(clone.querySelectorAll('[data-zoom-slot], [data-tray-slot], [data-inspect-slot], [data-hand-dock-card]'))) {
-          el.removeAttribute('data-zoom-slot');
-          el.removeAttribute('data-tray-slot');
-          el.removeAttribute('data-inspect-slot');
-          el.removeAttribute('data-hand-dock-card');
-        }
-        layer.appendChild(clone);
-        // Movement is a DELTA in the clone's own zoomed space (see above):
-        // it starts exactly on its source seat, at scale 1, and travels to
-        // the destination's seat — same physical card, one gesture.
-        const scale = t.width / f.width;
-        gsap.set(clone, {x: 0, y: 0, scale: 1});
-        // Through the motion scale like every flight (this was the one
-        // hand-triggered gesture `?motion=` did not touch), and the stagger
-        // spaced to the LANDING-cadence floor — 65ms apart the touchdowns
-        // shared a blink and the spread read as one flash.
-        const dur = consoleMotionMs(460) / 1000;
-        const at = i * (consoleMotionMs(96) / 1000);
-        const tl = gsap.timeline({delay: at});
-        tl.to(clone, {x: (t.left - f.left) / z, duration: dur, ease: 'power2.inOut'}, 0);
-        tl.to(clone, {y: (t.top - f.top) / z, duration: dur, ease: 'power3.out'}, 0);
-        tl.to(clone, {scale, duration: dur, ease: 'power2.inOut'}, 0);
-        // Touchdown: the real slot materializes UNDER the clone; the clone
-        // leaves on the next frame (never a crossfade of identical twins).
-        const settle = () => {
-          finishOne(name);
-          requestAnimationFrame(() => clone.remove());
-        };
-        tl.eventCallback('onComplete', settle);
-        tl.eventCallback('onInterrupt', settle);
+      this.cloneFlight = flyCardClones({
+        names, from, to,
+        layerClass: 'con-draftws-flights',
+        sourceEl: (name) => this.shelfCardEl(name) ?? this.inspectCardEl(name),
+        onLand: hooks.onLand,
+        onDone: hooks.onDone,
       });
-      if (total === 0) {
-        hooks.onDone();
-      }
     },
     disposeClones(): void {
-      this.cloneLayer?.remove();
-      this.cloneLayer = undefined;
+      this.cloneFlight?.dispose();
+      this.cloneFlight = undefined;
     },
     shelfCardEl(name: CardName): HTMLElement | null {
       const slot = this.resolveShelfSlot(name);

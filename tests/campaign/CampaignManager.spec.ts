@@ -477,8 +477,11 @@ describe('CampaignManager', () => {
     const picked = alice.pickedCorporationCard!;
     const before = alice.megaCredits;
     expect(before).eq(0);
-    const {playCampaignCorporations} = await import('../../src/server/campaign/CampaignMissionSetup');
-    playCampaignCorporations(alice, {deferCardPayment: false});
+    const {runCampaignDeploymentChain} = await import('../../src/server/campaign/CampaignMissionSetup');
+    runCampaignDeploymentChain(alice, {deferCardPayment: false});
+    // The chain is STAGED: answer the merge press, then the legacy press.
+    alice.process({type: 'card', cards: [picked.name]});
+    alice.process({type: 'option'});
 
     // Order: the lineage base FIRST, the new pick second («в порядке получения»).
     const corps = alice.playedCards.filter((c) => c.type === 'corporation').map((c) => c.name);

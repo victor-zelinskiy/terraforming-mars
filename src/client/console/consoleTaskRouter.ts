@@ -115,7 +115,8 @@ export type ConsoleTask =
   | {kind: 'botAttack'}
   | {kind: 'composite'}
   | {kind: 'initialDraft'}
-  | {kind: 'startSequence', prompt: 'corporationPlay' | 'corporationPay' | 'corporationSelection' | 'preludeSelection'}
+  | {kind: 'startSequence', prompt: 'corporationPlay' | 'corporationPay' | 'corporationSelection' | 'preludeSelection'
+      | 'corporationMerge' | 'campaignLegacy'}
   /**
    * The corporation's MANDATORY FIRST ACTION ('Take first action of X') —
    * it arrives on the player's own FIRST TURN (after the opponent moved).

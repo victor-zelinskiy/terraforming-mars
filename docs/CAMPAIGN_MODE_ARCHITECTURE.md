@@ -903,8 +903,14 @@ snapshot per corp (:1539) → journal line → `maybeActivateColonies` → behav
 | Mission | Selection stage | Corp play stage (research-phase end) |
 | --- | --- | --- |
 | 1 | standard (`SelectInitialCards`, corp step untouched: deal `startingCorporations`, pick 1) | pick plays as base corp (buys hand) — unchanged |
-| 2, 3 | **standard step, re-labeled «СЛИЯНИЕ»** — still deal N, pick exactly 1 (min:1/max:1 untouched!). The dealt pool excludes all lineage corps + Merger + bot's corp original (§6.5) | server auto-plays the lineage **in acquisition order first** (lineage[0] = base, buys hand; lineage[1] additional), then the new pick as an additional corp — «корпорации применяются строго в порядке получения» |
-| 4 | **corp step omitted** (new `SelectInitialCards` option; preludes/CEOs/projects steps untouched — prologues are never cut) | server auto-plays lineage[0..2]; lineage[0] base, [1] and [2] additional. A dedicated premium reveal presents the 3-corp combo (§6.7) |
+| 2, 3 | **standard step** — still deal N, pick exactly 1 (min:1/max:1 untouched!). The dealt pool excludes all lineage corps + Merger + bot's corp original (§6.5). The console corp step additionally shows the lineage as a «Текущие корпорации» shelf (LT = fullscreen read) | **STAGED deployment chain** (`runCampaignDeploymentChain`, amended 2026-09-03): press 1 «КОРПОРАЦИЯ» plays the lineage in acquisition order (lineage[0] = base, buys hand); press 2 «ОПЛАТА» (when cards were bought); press 3 «СЛИЯНИЕ» (marker `corporationMerge`) plays the new pick ON TOP — its starting M€/effects apply at THIS press; press 4 «НАСЛЕДИЕ» (marker `campaignLegacy`, `Priority.BACK_OF_THE_LINE` so the merge's own effects resolve first) grants the carried cards, whose `{type:'campaign'}` reveal deals them into the hand dock. One research release drains the chain; reload recovery = `campaignSetupResumeInput` (reconstructs the owed stage from the tableau + serialized flags) |
+| 4 | **corp step omitted** (new `SelectInitialCards` option; preludes/CEOs/projects steps untouched — prologues are never cut) | server plays lineage[0..2] in the ONE «Штаб» press; the «НАСЛЕДИЕ» press still follows when cards were carried from mission 3 |
+
+Readiness amendment (2026-09-03): `commitMissionResult` marks EVERY human seat's
+carryover `'pending'` — an empty hand no longer auto-confirms. The confirmation press
+doubles as the READINESS regime: the next mission can launch only when every human has
+explicitly confirmed (empty hand → «Подтвердить готовность к следующей миссии», the
+same picker door). `devCommit` fixtures stay auto-confirmed.
 
 Key consequence: **`pickedCorporationCard` stays singular** — the player never picks more
 than one NEW corp per mission, so `SelectInitialCards`'s corp step, the console start

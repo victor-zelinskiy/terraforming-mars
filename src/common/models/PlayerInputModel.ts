@@ -47,12 +47,23 @@ import {ClaimedToken} from '../underworld/UnderworldPlayerData';
  *               Valley Trust) — rendered as a distinct "choose one" block;
  *      'copy' = pick one ALREADY-PLAYED prelude to copy (Double Down) — the
  *               source must stay in the grid (nothing is drawn or discarded).
+ *  - corporationMerge: CAMPAIGN missions 2–3 — the deliberate «Слияние»
+ *    press: the freshly picked corporation is played ON TOP of the already
+ *    deployed company (its own starting M€ / effects apply at THIS press,
+ *    never silently inside the base deployment).
+ *  - campaignLegacy: CAMPAIGN missions 2–4 — receive the project cards
+ *    carried from the previous mission («Наследие проектов»), a deployment
+ *    stage of its own AFTER the starting-hand purchase. `legacy` carries the
+ *    count for the CTA (structural — the client never parses the title).
  */
 export type StartGamePromptMeta = {
-  kind: 'corporationPlay' | 'corporationPay' | 'corporationInitialAction' | 'corporationSelection' | 'preludeSelection';
+  kind: 'corporationPlay' | 'corporationPay' | 'corporationInitialAction' | 'corporationSelection' | 'preludeSelection'
+    | 'corporationMerge' | 'campaignLegacy';
   preludeMode?: 'hand' | 'draw' | 'copy';
   /** corporationPay: exactly what answering this prompt deducts. */
   payment?: {megacredits: number, cards: number};
+  /** campaignLegacy: how many carried cards this press receives. */
+  legacy?: {cards: number};
 }
 
 /**

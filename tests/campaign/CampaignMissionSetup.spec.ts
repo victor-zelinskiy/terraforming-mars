@@ -11,8 +11,9 @@ import {
   campaignCorporationQueue,
   campaignStartingBudget,
   expectedCorporationCount,
+  campaignSetupResumeInput,
   grantCarriedProjectCards,
-  playCampaignCorporations,
+  runCampaignDeploymentChain,
 } from '../../src/server/campaign/CampaignMissionSetup';
 import {computeMissionStandings} from '../../src/server/campaign/missionStandings';
 import {SelectInitialCards} from '../../src/server/inputs/SelectInitialCards';
@@ -69,29 +70,44 @@ describe('CampaignMissionSetup', () => {
     expect(expectedCorporationCount(m4.p1)).eq(3);
   });
 
-  it('the corp-play sequence: lineage first, then the pick; bonus M€ and carried cards exactly once', () => {
+  it('the deployment chain is STAGED: lineage, then the merge press, then the legacy press', () => {
     const {game, p1} = newMissionGame(missionOptions(), [CARRIED]);
     p1.pickedCorporationCard = newCorporationCard(CardName.THORGATE)!;
     // Two bought starting cards (the affordability the deployment must honor).
     p1.cardsInHand.push(...p1.dealtProjectCards.slice(0, 2));
 
-    playCampaignCorporations(p1, {deferCardPayment: false});
+    runCampaignDeploymentChain(p1, {deferCardPayment: false});
 
-    const corps = p1.playedCards.filter(isICorporationCard).map((c) => c.name);
-    expect(corps).deep.eq([CardName.CREDICOR, CardName.THORGATE]);
-    // Credicor 57 + campaign bonus 5 + Thorgate 48 − 2×3 M€ hand purchase.
+    // Stage 1 — only the lineage base is on the tableau; the merge is OWED
+    // as its own deliberate press, never bundled into the same beat.
+    expect(p1.playedCards.filter(isICorporationCard).map((c) => c.name)).deep.eq([CardName.CREDICOR]);
+    // Credicor 57 + campaign bonus 5 − 2×3 M€ hand purchase.
+    expect(p1.megaCredits).eq(57 + 5 - 6);
+    const merge = cast(p1.getWaitingFor(), SelectCard<ICorporationCard>);
+    expect(merge.cards.map((c) => c.name)).deep.eq([CardName.THORGATE]);
+    expect((p1.getWaitingFor() as any).startGamePrompt?.kind).eq('corporationMerge');
+    expect((game as any).researchedPlayers.has(p1.id)).is.false;
+
+    // Stage 2 — the merge press plays the pick on top of the base.
+    p1.process({type: 'card', cards: [CardName.THORGATE]});
+    expect(p1.playedCards.filter(isICorporationCard).map((c) => c.name)).deep.eq([CardName.CREDICOR, CardName.THORGATE]);
     expect(p1.megaCredits).eq(57 + 5 + 48 - 6);
-    // Carried card joined the hand FREE and was never charged as bought:
-    // 2 bought + 1 carried.
+    // The carried card has NOT arrived yet — the legacy stage owns it.
+    expect(p1.cardsInHand).has.length(2);
+    expect((p1.getWaitingFor() as any).startGamePrompt?.kind).eq('campaignLegacy');
+    expect((p1.getWaitingFor() as any).startGamePrompt?.legacy?.cards).eq(1);
+
+    // Stage 3 — the legacy press: the carried card joins the hand FREE.
+    p1.process({type: 'option'});
     expect(p1.cardsInHand.map((c) => c.name)).includes(CARRIED);
     expect(p1.cardsInHand).has.length(3);
     expect(p1.campaignCarriedGranted).is.true;
     // Exactly once: a re-grant is a no-op.
     grantCarriedProjectCards(p1);
     expect(p1.cardsInHand).has.length(3);
-    // The queue is empty after the full sequence (idempotent by tableau).
+    // The queue is empty after the full chain (idempotent by tableau).
     expect(campaignCorporationQueue(p1)).is.empty;
-    // The base corp released the player into the research barrier.
+    // Only the LAST stage released the player into the research barrier.
     expect((game as any).researchedPlayers.has(p1.id)).is.true;
   });
 
@@ -103,6 +119,32 @@ describe('CampaignMissionSetup', () => {
     p1.playCorporationCard(newCorporationCard(CardName.CREDICOR)!, {holdResearchRelease: true});
     const queue = campaignCorporationQueue(p1);
     expect(queue.map((c) => c.name)).deep.eq([CardName.THORGATE]);
+  });
+
+  it('reload recovery reconstructs the exact owed STAGE (base → merge → legacy → done)', () => {
+    const {p1} = newMissionGame(missionOptions(), [CARRIED]);
+    p1.pickedCorporationCard = newCorporationCard(CardName.THORGATE)!;
+
+    // Fresh mission 2: the BASE press is owed first.
+    const base = campaignSetupResumeInput(p1);
+    expect((base as any)?.startGamePrompt?.kind).eq('corporationPlay');
+    expect(cast(base, SelectCard<ICorporationCard>).cards[0].name).eq(CardName.CREDICOR);
+
+    // Base played, crash: the MERGE press is what's owed.
+    p1.playCorporationCard(newCorporationCard(CardName.CREDICOR)!, {holdResearchRelease: true});
+    const merge = campaignSetupResumeInput(p1);
+    expect((merge as any)?.startGamePrompt?.kind).eq('corporationMerge');
+    expect(cast(merge, SelectCard<ICorporationCard>).cards[0].name).eq(CardName.THORGATE);
+
+    // Merge played, crash: the LEGACY press is what's owed.
+    p1.playCorporationCard(newCorporationCard(CardName.THORGATE)!, {holdResearchRelease: true});
+    const legacy = campaignSetupResumeInput(p1);
+    expect((legacy as any)?.startGamePrompt?.kind).eq('campaignLegacy');
+    expect((legacy as any)?.startGamePrompt?.legacy?.cards).eq(1);
+
+    // Cards granted: the chain is done — nothing left to resume.
+    grantCarriedProjectCards(p1);
+    expect(campaignSetupResumeInput(p1)).is.undefined;
   });
 
   it('campaignStartingBudget matches what the deployment actually grants', () => {
@@ -133,8 +175,9 @@ describe('CampaignMissionSetup', () => {
     const waiting = cast(p1.getWaitingFor(), SelectCard<ICorporationCard>);
     expect(waiting.cards[0].name).eq(CardName.CREDICOR);
 
-    // The press runs the whole ordered sequence.
-    playCampaignCorporations(p1, {deferCardPayment: false});
+    // The press runs the whole ordered lineage — there is no new pick on the
+    // final mission, so no merge stage and (without carried cards) no legacy.
+    runCampaignDeploymentChain(p1, {deferCardPayment: false});
     const corps = p1.playedCards.filter(isICorporationCard).map((c) => c.name);
     expect(corps).deep.eq(lineage);
     // All three starting M€ stacks (D4): 57 + 48 + 23, plus the 5 M€ bonus.

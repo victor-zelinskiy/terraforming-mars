@@ -83,6 +83,21 @@
                :data-eg-row="color" :style="{'--eg-i': i}">
             <div v-if="rowRibbon(color) !== undefined" class="con-eg__ribbon"
                  :class="{'con-eg__ribbon--defeat': soloDefeat}">{{ $t(rowRibbon(color)!) }}</div>
+            <!-- CAMPAIGN TITLE — a compact mark ON the holder's own row (the
+                 ribbon's idiom, the row's other shoulder). The row is where a
+                 player reads their result, so the title marks it there; the
+                 full story (TP ledger, comeback M€, per-mission provenance)
+                 stays on the campaign map. Data is the SERVER'S committed
+                 result (campaignState), never a client guess. -->
+            <div v-if="rowTitleBadge(color) !== undefined" class="con-eg__title"
+                 :class="['con-eg__title--' + rowTitleBadge(color)!.kind,
+                          {'con-eg__title--animate': campaignCodaAnimated}]"
+                 :style="{'--egb-i': rowTitleBadge(color)!.order}">
+              <img class="con-eg__title-emblem" :src="titleArtUrl(rowTitleBadge(color)!.art)"
+                   :alt="$t(rowTitleBadge(color)!.label)" draggable="false" />
+              <span class="con-eg__title-label">{{ $t(rowTitleBadge(color)!.label) }}</span>
+              <span v-if="rowTitleBadge(color)!.tp > 0" class="con-eg__title-tp">+{{ rowTitleBadge(color)!.tp }} <span v-i18n>TP</span></span>
+            </div>
             <div class="con-eg__place" aria-hidden="true">
               <span v-if="ui.placesShown" class="con-eg__place-num">{{ rowBy(color).place }}</span>
               <span v-else class="con-eg__place-dot"></span>
@@ -169,42 +184,6 @@
                 </span>
               </div>
             </transition>
-          </div>
-        </transition>
-        <!-- ── CAMPAIGN «ТИТУЛЫ» — the ceremony's campaign coda (missions 1–3):
-             titles ascend Prefect → Administrator → Governor (the Governor is
-             the climax), each with its Title Points; the comeback M€ of the
-             NEXT mission is a separate line — a seat can have one without a
-             title. Final mission: the champion beat instead. Data is the
-             SERVER'S committed result (campaignState), never a client guess. -->
-        <transition name="con-eg-fade">
-          <div v-if="campaignCodaVisible" class="con-eg-titles" :class="{'con-eg-titles--animate': campaignCodaAnimated}">
-            <div class="con-eg-titles__kicker" v-i18n>{{ campaignContract !== undefined && campaignContract.final ? 'Campaign champion' : 'Titles' }}</div>
-            <div class="con-eg-titles__rows">
-              <div v-for="(row, i) in campaignTitleRows" :key="'t' + row.seat + row.title"
-                   class="con-eg-titles__row" :class="'con-eg-titles__row--' + row.title" :style="{'--egt-i': i}">
-                <img class="con-eg-titles__emblem" :src="titleArtUrl(row.title)" :alt="$t(row.label)" draggable="false" />
-                <span class="con-eg-titles__cube" :class="'player_bg_color_' + row.color" aria-hidden="true"></span>
-                <span class="con-eg-titles__name">{{ row.name }}</span>
-                <span class="con-eg-titles__tlabel">{{ $t(row.label) }}<template v-if="row.shared"> · <span v-i18n>shared place</span></template></span>
-                <span class="con-eg-titles__tp">+{{ row.titlePoints }} <span v-i18n>TP</span></span>
-                <span v-if="row.bonus > 0" class="con-eg-titles__bonus">{{ nextMissionBonusText(row.bonus) }}</span>
-              </div>
-              <div v-for="row in campaignBonusOnlyRows" :key="'b' + row.seat"
-                   class="con-eg-titles__row con-eg-titles__row--bonus" :style="{'--egt-i': campaignTitleRows.length}">
-                <span class="con-eg-titles__emblem con-eg-titles__emblem--none" aria-hidden="true"></span>
-                <span class="con-eg-titles__cube" :class="'player_bg_color_' + row.color" aria-hidden="true"></span>
-                <span class="con-eg-titles__name">{{ row.name }}</span>
-                <span class="con-eg-titles__bonus">{{ nextMissionBonusText(row.bonus) }}</span>
-              </div>
-              <div v-for="seat in campaignChampionRows" :key="'c' + seat.seat" class="con-eg-titles__row con-eg-titles__row--champion">
-                <img class="con-eg-titles__emblem" :src="titleArtUrl('governor')" :alt="$t('Campaign champion')" draggable="false" />
-                <span class="con-eg-titles__cube" :class="'player_bg_color_' + seat.color" aria-hidden="true"></span>
-                <span class="con-eg-titles__name">{{ seat.name }}</span>
-                <span class="con-eg-titles__tlabel" v-i18n>Campaign champion</span>
-              </div>
-            </div>
-            <div v-if="campaignResultPending" class="con-eg-titles__pending" v-i18n>Committing the mission result…</div>
           </div>
         </transition>
         <div class="con-eg__final">
@@ -316,7 +295,7 @@ import {
 import {TITLE_LABEL, titleArtUrl} from '@/client/console/campaign/titleArt';
 import ConsoleCampaignMap from '@/client/components/console/campaign/ConsoleCampaignMap.vue';
 import ConsoleCarryoverPicker from '@/client/components/console/campaign/ConsoleCarryoverPicker.vue';
-import {$t, translateTextWithParams} from '@/client/directives/i18n';
+import {$t} from '@/client/directives/i18n';
 
 type PostGameAction = {
   id: string,
@@ -387,12 +366,24 @@ export default defineComponent({
       }
       return campaignState.model?.missions[contract.missionSlot]?.result;
     },
-    campaignResultPending(): boolean {
-      return this.campaignContract !== undefined && this.campaignResult === undefined;
-    },
-    campaignCodaVisible(): boolean {
-      return this.campaignContract !== undefined &&
-        this.ui.phase === 'actions' && !this.overviewParked && this.campaignScene === undefined && !this.ui.collapsed;
+    /**
+     * The per-row TITLE BADGE map (Color → badge). One badge per row: on the
+     * final mission the champion mark outranks (title POINTS are already the
+     * scoring bar's own «Титулы» category there); missions 1–3 mark the title.
+     * A seat with only a comeback bonus gets no row mark — that consequence
+     * belongs to the NEXT mission and reads on the campaign map's seat rail.
+     */
+    campaignRowBadges(): Partial<Record<Color, {kind: string, art: TitleName, label: string, tp: number, order: number}>> {
+      const out: Partial<Record<Color, {kind: string, art: TitleName, label: string, tp: number, order: number}>> = {};
+      for (const seat of this.campaignChampionRows) {
+        out[seat.color] = {kind: 'champion', art: 'governor', label: 'Campaign champion', tp: 0, order: 0};
+      }
+      this.campaignTitleRows.forEach((row, i) => {
+        if (out[row.color] === undefined) {
+          out[row.color] = {kind: row.title, art: row.title, label: row.label, tp: row.titlePoints, order: i};
+        }
+      });
+      return out;
     },
     campaignSeatName(): (seat: number) => {name: string, color: Color} {
       return (seat: number) => {
@@ -422,18 +413,6 @@ export default defineComponent({
             shared: (standing?.tiedWith.length ?? 0) > 0,
           };
         });
-    },
-    /** Comeback M€ without a title — a separate consequence, shown separately. */
-    campaignBonusOnlyRows(): ReadonlyArray<{seat: number, name: string, color: Color, bonus: number}> {
-      const result = this.campaignResult;
-      if (result === undefined || this.campaignContract?.final === true) {
-        return [];
-      }
-      const titled = new Set(result.titles.map((t) => t.seat));
-      return result.bonuses.filter((b) => !titled.has(b.seat)).map((b) => {
-        const who = this.campaignSeatName(b.seat);
-        return {seat: b.seat, name: who.name, color: who.color, bonus: b.megaCredits};
-      });
     },
     campaignChampionRows(): ReadonlyArray<{seat: number, name: string, color: Color}> {
       const result = this.campaignResult;
@@ -922,6 +901,15 @@ export default defineComponent({
       }
       return this.vm.winners.includes(color) ? 'Winner' : undefined;
     },
+    /** The campaign TITLE badge for this row — only once the winner is shown
+     *  (the titles are a consequence of the standings, so they may never mark
+     *  a row before the ranking that earned them has been revealed). */
+    rowTitleBadge(color: Color): {kind: string, art: TitleName, label: string, tp: number, order: number} | undefined {
+      if (!this.ui.winnerShown) {
+        return undefined;
+      }
+      return this.campaignRowBadges[color];
+    },
     tieChipVisible(color: Color): boolean {
       if (this.vm.tieBreak === undefined || !(this.vm.tieBreak.contenders.includes(color))) {
         return false;
@@ -1058,9 +1046,6 @@ export default defineComponent({
     },
     // ── campaign scenes ───────────────────────────────────────────────────
     titleArtUrl,
-    nextMissionBonusText(bonus: number): string {
-      return translateTextWithParams('Next mission: +${0} M€', [String(bonus)]);
-    },
     /** Explicit A on «Карта кампании» — the ceremony → map handoff (D9). */
     openCampaignScene(): void {
       this.campaignScene = 'map';

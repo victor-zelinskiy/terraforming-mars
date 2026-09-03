@@ -197,6 +197,34 @@ export function startFlowCorpPlayPrompt(view: PlayerViewModel | undefined): Sele
 }
 
 /**
+ * The campaign 'merge the new corporation' prompt (marker kind
+ * `corporationMerge`): missions 2–3 play the freshly picked corporation as a
+ * SEPARATE deliberate press ON TOP of the established lineage — its own
+ * deployment stage, never bundled into the base corporation's play.
+ */
+export function startFlowMergePrompt(view: PlayerViewModel | undefined): SelectCardModel | undefined {
+  if (view === undefined) {
+    return undefined;
+  }
+  const wf = view.waitingFor;
+  if (wf === undefined || wf.type !== 'card') {
+    return undefined;
+  }
+  return wf.startGamePrompt?.kind === 'corporationMerge' ? wf : undefined;
+}
+
+/**
+ * The campaign 'receive your carried project cards' prompt (marker kind
+ * `campaignLegacy`): the «Наследие проектов» deployment stage. The marker
+ * carries how many cards this press receives — the cards themselves stay
+ * private until the press (they arrive as a `{type:'campaign'}` reveal).
+ */
+export function startFlowLegacyPrompt(view: PlayerViewModel | undefined): {cards: number} | undefined {
+  const marker = view?.waitingFor?.startGamePrompt;
+  return marker?.kind === 'campaignLegacy' ? (marker.legacy ?? {cards: 0}) : undefined;
+}
+
+/**
  * The DEFERRED 'pay for the project cards you bought' prompt (marker kind
  * `corporationPay`). Offered ONLY when cards were actually bought; the
  * marker carries the exact cost, so the CTA names it without parsing text.
@@ -534,6 +562,9 @@ export function startFlowHasFocusedSubAction(view: PlayerViewModel | undefined):
     return false;
   }
   if (startFlowCorpSelectPrompt(view) !== undefined) {
+    return false;
+  }
+  if (startFlowMergePrompt(view) !== undefined || startFlowLegacyPrompt(view) !== undefined) {
     return false;
   }
   if (ACTION_MENU_TITLES.has(titleText(wf.title))) {

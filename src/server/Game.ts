@@ -20,7 +20,7 @@ import {ColonyDealer} from './colonies/ColonyDealer';
 import {IColony} from './colonies/IColony';
 import {Color} from '../common/Color';
 import {ICorporationCard, isICorporationCard} from './cards/corporation/ICorporationCard';
-import {campaignCorporationQueue, campaignSelectionSkipsCorpStep, expectedCorporationCount, initialSelectionDoneOf, playCampaignCorporations, reserveCarriedProjectCards} from './campaign/CampaignMissionSetup';
+import {campaignCorporationQueue, campaignLegacyPending, campaignSelectionSkipsCorpStep, campaignSetupResumeInput, expectedCorporationCount, initialSelectionDoneOf, reserveCarriedProjectCards} from './campaign/CampaignMissionSetup';
 import {Database} from './database/Database';
 import {FundedAward, serializeFundedAwards, deserializeFundedAwards} from './awards/FundedAward';
 import {IAward} from './awards/IAward';
@@ -892,23 +892,18 @@ export class Game implements IGame, Logger {
    * chosen-but-unplayed window survives a reload (see gotoInitialResearchPhase).
    */
   private playCorporationInput(player: IPlayer): PlayerInput {
-    // Campaign missions play a SEQUENCE: the lineage in acquisition order,
-    // then the freshly picked corporation (missions 2–3; the final mission
-    // has no new pick — «Штаб»). One press runs the whole ordered sequence;
-    // the prompt's subject is the first still-unplayed corporation, so a
-    // reload mid-sequence resumes from exactly where it stopped.
+    // Campaign missions deploy in STAGES, each its own deliberate press:
+    // «КОРПОРАЦИЯ» (the established lineage; mission 1: the pick is the base)
+    // → «СЛИЯНИЕ» (the new pick on top, missions 2–3) → «НАСЛЕДИЕ» (the
+    // carried cards). The resume resolver reconstructs the NEXT owed stage
+    // from serialized state, so a reload lands exactly where the chain
+    // stopped (the deferred queue itself is never serialized).
     if (this.gameOptions.campaign !== undefined && player.campaignSeat !== undefined) {
-      const queue = campaignCorporationQueue(player);
-      if (queue.length === 0) {
-        throw new Error(`no campaign corporations left to play for ${player.id}`);
+      const input = campaignSetupResumeInput(player);
+      if (input === undefined) {
+        throw new Error(`no campaign deployment stage left for ${player.id}`);
       }
-      return new SelectCard<ICorporationCard>(
-        'Play your corporation', 'Play', [queue[0]], {min: 1, max: 1})
-        .markStartGamePrompt({kind: 'corporationPlay'})
-        .andThen(() => {
-          playCampaignCorporations(player, {deferCardPayment: true});
-          return undefined;
-        });
+      return input;
     }
     const picked = player.pickedCorporationCard;
     if (picked === undefined) {
@@ -984,10 +979,11 @@ export class Game implements IGame, Logger {
       }
       if (!initialSelectionDoneOf(player)) {
         player.setWaitingFor(this.selectInitialCards(player));
-      } else if (player.playedCards.filter(isICorporationCard).length < expectedCorporationCount(player)) {
-        // Reload recovery: chosen but not (fully) PLAYED — re-issue the play
-        // prompt. For a campaign this also resumes a lineage sequence that
-        // stopped mid-way (the queue skips corps already in the tableau).
+      } else if (player.playedCards.filter(isICorporationCard).length < expectedCorporationCount(player) ||
+          (campaignHuman && campaignLegacyPending(player) > 0)) {
+        // Reload recovery: chosen but not (fully) DEPLOYED — re-issue the owed
+        // stage. For a campaign this resumes the exact stage the chain stopped
+        // at (base lineage / the merge press / the carried-cards press).
         player.setWaitingFor(this.playCorporationInput(player));
       } else {
         // Reload recovery for a PARTIAL multiplayer state: this player already
@@ -2422,7 +2418,8 @@ export class Game implements IGame, Logger {
     // already-started game back to gotoInitialResearchPhase() on reload, which
     // prompts nobody (the human already picked) — a RESEARCH-phase deadlock with
     // no waitingFor (both chips read «ГОТОВ»). Guard on human corp-pickers only.
-    if (game.generation === 1 && players.some((p) => p.isMarsBot !== true && p.playedCards.filter(isICorporationCard).length < expectedCorporationCount(p))) {
+    if (game.generation === 1 && players.some((p) => p.isMarsBot !== true &&
+        (p.playedCards.filter(isICorporationCard).length < expectedCorporationCount(p) || campaignLegacyPending(p) > 0))) {
       if (game.phase === Phase.INITIALDRAFTING) {
         switch (game.initialDraftIteration) {
         case 1:

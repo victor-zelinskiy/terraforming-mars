@@ -68,6 +68,9 @@ const FIXTURES: Array<{row: string, wf: any, hand?: Array<string>, srr?: Array<s
   {row: '22b start: deferred corporation play', wf: {type: 'card', title: 'Play your corporation', cards: [], startGamePrompt: {kind: 'corporationPlay'}}, expect: {kind: 'startSequence', prompt: 'corporationPlay'}},
   {row: '22b start: prelude selection', wf: {type: 'card', title: 'Select prelude card to play', cards: [], startGamePrompt: {kind: 'preludeSelection', preludeMode: 'hand'}}, expect: {kind: 'startSequence', prompt: 'preludeSelection'}},
   {row: '22c start: merger corp selection', wf: {type: 'card', title: 'Select corporation', cards: [], startGamePrompt: {kind: 'corporationSelection'}}, expect: {kind: 'startSequence', prompt: 'corporationSelection'}},
+  // The campaign deployment stages — each its own deliberate press.
+  {row: '22d campaign: merge press', wf: {type: 'card', title: 'Merge the new corporation', cards: [], startGamePrompt: {kind: 'corporationMerge'}}, expect: {kind: 'startSequence', prompt: 'corporationMerge'}},
+  {row: '22e campaign: legacy press', wf: {type: 'option', title: 'Receive 2 project cards carried from the previous mission', startGamePrompt: {kind: 'campaignLegacy', legacy: {cards: 2}}}, expect: {kind: 'startSequence', prompt: 'campaignLegacy'}},
   {row: '23 and composite', wf: {type: 'and', title: 'Choose both', options: []}, expect: {kind: 'composite'}},
   {row: '24 ares global', wf: {type: 'aresGlobalParameters', title: 'Shift'}, expect: {kind: 'aresGlobal'}},
   // The MARKER outranks the type: the Venus bonus arrives as an `and` for the

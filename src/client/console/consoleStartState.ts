@@ -175,6 +175,11 @@ export const consoleStartState = reactive({
    *  visible (completed) after the bonuses are spent, so the rail never
    *  shortens a chapter the player actually walked. */
   bonusActionSeen: false,
+  /** CAMPAIGN «Наследие проектов»: the chapter has been seen this game — how
+   *  many cards were carried is private until its prompt, so the chapter joins
+   *  the journey when it becomes known and must never leave it (the rail may
+   *  not shrink a chapter the player walked). */
+  legacySeen: false,
 });
 
 /** Reset picks when the prompt identity (player / deal) changes. */
@@ -208,6 +213,7 @@ export function ensureStartWizard(
   consoleStartState.firstActionSeen = false;
   consoleStartState.bonusAct = {stage: 'idle', source: undefined, corpDone: false};
   consoleStartState.bonusActionSeen = false;
+  consoleStartState.legacySeen = false;
   resetStartTransition();
 }
 
@@ -629,6 +635,15 @@ export function deploymentJourneyItems(signals: {
   corpPending: boolean,
   payPending: boolean,
   boughtCards: boolean,
+  /** Campaign missions 2–3: the freshly picked corporation merges ON TOP of
+   *  the established lineage — its own chapter between the payment and the
+   *  preludes (the order the server's deferred chain actually runs). */
+  hasMerge?: boolean,
+  mergePending?: boolean,
+  /** Campaign «Наследие проектов»: the carried cards arrive by their own
+   *  deliberate press, after the merge's effects. */
+  hasLegacy?: boolean,
+  legacyPending?: boolean,
   preludesLeft: number,
   hasPreludes: boolean,
   /** A prelude granted BONUS ACTIONS (Head Start) — the deployment gains one
@@ -655,7 +670,23 @@ export function deploymentJourneyItems(signals: {
       state: signals.corpPending ? 'locked' : (signals.payPending ? 'current' : 'completed'),
     });
   }
-  const beforePreludes = signals.corpPending || signals.payPending;
+  const beforeMerge = signals.corpPending || signals.payPending;
+  if (signals.hasMerge === true) {
+    items.push({
+      id: 'merge',
+      label: 'Merger stage',
+      state: beforeMerge ? 'locked' : (signals.mergePending === true ? 'current' : 'completed'),
+    });
+  }
+  const beforeLegacy = beforeMerge || (signals.hasMerge === true && signals.mergePending === true);
+  if (signals.hasLegacy === true) {
+    items.push({
+      id: 'legacy',
+      label: 'Project legacy',
+      state: beforeLegacy ? 'locked' : (signals.legacyPending === true ? 'current' : 'completed'),
+    });
+  }
+  const beforePreludes = beforeLegacy || (signals.hasLegacy === true && signals.legacyPending === true);
   if (signals.hasPreludes) {
     items.push({
       id: 'preludes',
@@ -751,6 +782,10 @@ export function deploymentCrumb(signals: {
   corpPending: boolean,
   payPending: boolean,
   corpPick: boolean,
+  /** Campaign missions 2–3: the merge press owns the tail. */
+  mergePending?: boolean,
+  /** Campaign «Наследие»: the carried-cards press owns the tail. */
+  legacyPending?: boolean,
   /** The mandatory first-action stage owns the tail (preludes resolved). */
   firstAction?: boolean,
   /** The bonus-action stage owns the tail (a prelude granted extra actions). */
@@ -773,6 +808,15 @@ export function deploymentCrumb(signals: {
   }
   if (signals.corpPending || signals.corpPick) {
     return {subject: startCorpStageLabel(), stage: 'Playing'};
+  }
+  // CAMPAIGN: the merge press — the subject IS the stage's whole meaning
+  // («СТАРТ ПАРТИИ › СЛИЯНИЕ › РОЗЫГРЫШ»); the legacy press names its own
+  // chapter with a receiving tail («… › НАСЛЕДИЕ ПРОЕКТОВ › ПОЛУЧЕНИЕ»).
+  if (signals.mergePending === true) {
+    return {subject: 'Merger stage', stage: 'Playing'};
+  }
+  if (signals.legacyPending === true) {
+    return {subject: 'Project legacy', stage: 'Receiving'};
   }
   // NESTED: the mandatory first action spent as bonus action #1. The WINDOW
   // keeps the subject (it is the flow the player is in) and only the tail

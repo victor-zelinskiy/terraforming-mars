@@ -437,6 +437,77 @@
     color: rgba(196, 216, 236, 0.85);
 }
 
+/* The CAMPAIGN TITLE badge — the ribbon's idiom on the row's other shoulder:
+ * a small tab standing on the top edge, right side, absolute (zero layout
+ * impact — the row grid keeps one child per column, always). Weight ascends
+ * with the title (Prefect bronze → Governor/champion gold); the emblem PNGs
+ * are complete material renders and are never tinted. Details (TP ledger,
+ * comeback M€, provenance) live on the campaign map, not here. */
+.con-eg__title {
+    position: absolute;
+    top: 0;
+    right: calc(var(--eg-total-w) + 1.4rem);
+    transform: translateY(-52%);
+    display: flex;
+    align-items: center;
+    gap: 0.4rem;
+    padding: 0.1rem 0.55rem 0.1rem 0.3rem;
+    border-radius: 0.3rem;
+    border: 0.05rem solid rgba(170, 180, 195, 0.5);
+    background: linear-gradient(180deg, #1a2028 0%, #10151c 100%);
+    box-shadow: 0 0.15rem 0.6rem rgba(0, 0, 0, 0.5);
+    z-index: 3;
+}
+.con-eg__title--prefect { border-color: rgba(150, 120, 95, 0.6); }
+.con-eg__title--administrator { border-color: rgba(170, 180, 195, 0.6); }
+.con-eg__title--governor,
+.con-eg__title--champion {
+    border-color: rgba(240, 208, 130, 0.7);
+    background: linear-gradient(180deg, #2a2214 0%, #191307 100%);
+    box-shadow: 0 0 0 0.05rem rgba(240, 208, 130, 0.25), 0 0.15rem 0.6rem rgba(0, 0, 0, 0.5);
+}
+.con-eg__title-emblem {
+    width: 1.5rem;
+    height: 1.5rem;
+    object-fit: contain;
+    flex: 0 0 auto;
+}
+.con-eg__title-label {
+    font-family: @con-font;
+    font-size: 0.72rem;
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+    color: #cdd8e4;
+    white-space: nowrap;
+}
+.con-eg__title--governor .con-eg__title-label,
+.con-eg__title--champion .con-eg__title-label {
+    color: @sem-prestige;
+}
+.con-eg__title-tp {
+    font-size: 0.72rem;
+    color: #ecd39a;
+    letter-spacing: 0.06em;
+    white-space: nowrap;
+}
+/* Ascending reveal after the winner beat — transform/opacity only; the
+ * settled path (reload / replay off) mounts without the animation class. */
+.con-eg__title--animate {
+    opacity: 0;
+    animation: con-eg-title-in calc(420ms * var(--motion-scale, 1)) @con-ease-enter forwards;
+    animation-delay: calc(260ms + var(--egb-i, 0) * 300ms * var(--motion-scale, 1));
+}
+@keyframes con-eg-title-in {
+    from { opacity: 0; transform: translateY(-20%); }
+    to { opacity: 1; transform: translateY(-52%); }
+}
+@media (prefers-reduced-motion: reduce) {
+    .con-eg__title--animate {
+        animation: none;
+        opacity: 1;
+    }
+}
+
 .con-eg__place {
     display: flex;
     align-items: center;

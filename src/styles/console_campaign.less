@@ -574,16 +574,30 @@
     &--cursor {
       box-shadow: 0 0 0 2px rgba(120, 200, 255, 0.85);
     }
-    &--picked {
-      transform: translateY(-0.4rem);
-      box-shadow: 0 0 0 2px rgba(159, 195, 164, 0.8);
+    /* AWAY — the card physically lives in its slot (one visual owner): the
+       socket keeps its exact box (visibility, never display — the return
+       flight aims at this rect) and reads as an empty seat. */
+    &--away {
+      :is(.card-container, .pcard) { visibility: hidden; }
+      &::after {
+        content: '';
+        position: absolute;
+        inset: 0.25rem;
+        border: 1px dashed rgba(154, 176, 202, 0.45);
+        border-radius: 0.45rem;
+        pointer-events: none;
+      }
     }
-    &--picked&--cursor {
-      box-shadow: 0 0 0 2px rgba(159, 195, 164, 0.8), 0 0 0 4px rgba(120, 200, 255, 0.5);
+    &--away&--cursor {
+      box-shadow: 0 0 0 2px rgba(120, 200, 255, 0.85);
+      &::after { border-color: rgba(120, 200, 255, 0.6); }
     }
     &--dimmed { opacity: 0.55; }
     &--unavailable { opacity: 0.45; }
   }
+  /* A slot awaiting its inbound flight withholds the real face — touchdown
+     is what reveals it (never a crossfade of identical twins). */
+  &__slot--inbound :is(.card-container, .pcard) { visibility: hidden; }
   &__pick-mark {
     position: absolute;
     top: 0.35rem;
@@ -762,112 +776,6 @@
   line-height: 1.45;
 }
 
-/* ── The endgame campaign coda («Титулы» / champion) ─────────────────── */
-.con-eg-titles {
-  margin: 0.6rem auto 0.4rem;
-  max-width: 46rem;
-  display: flex;
-  flex-direction: column;
-  gap: 0.4rem;
-
-  &__kicker {
-    font-size: 0.85rem;
-    letter-spacing: 0.3em;
-    text-transform: uppercase;
-    color: #ecd39a;
-    text-align: center;
-  }
-  &__rows {
-    display: flex;
-    flex-direction: column;
-    gap: 0.3rem;
-  }
-  &__row {
-    display: flex;
-    align-items: center;
-    gap: 0.7rem;
-    padding: 0.3rem 0.8rem;
-    border-radius: 0.45rem;
-    border: 1px solid rgba(120, 140, 165, 0.28);
-    background: rgba(16, 23, 33, 0.85);
-
-    /* Weight ascends with the title: Prefect restrained → Governor climactic. */
-    &--prefect { border-color: rgba(150, 120, 95, 0.5); }
-    &--administrator { border-color: rgba(170, 180, 195, 0.55); }
-    &--governor {
-      border-color: rgba(240, 208, 130, 0.7);
-      box-shadow: 0 0 0 1px rgba(240, 208, 130, 0.25);
-      background: rgba(26, 22, 13, 0.88);
-    }
-    &--champion {
-      border-color: rgba(240, 208, 130, 0.85);
-      box-shadow: 0 0 0 2px rgba(240, 208, 130, 0.3);
-      background: rgba(30, 25, 14, 0.92);
-    }
-  }
-  &__emblem {
-    width: 2.4rem;
-    height: 2.4rem;
-    object-fit: contain;
-    flex: 0 0 auto;
-
-    &--none { visibility: hidden; }
-  }
-  .con-eg-titles__row--governor &__emblem,
-  .con-eg-titles__row--champion &__emblem {
-    width: 3rem;
-    height: 3rem;
-  }
-  &__cube {
-    width: 0.75rem;
-    height: 0.75rem;
-    border-radius: 0.15rem;
-    flex: 0 0 auto;
-    box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.22);
-  }
-  &__name {
-    min-width: 9rem;
-    color: #e8eef6;
-    font-weight: 600;
-  }
-  &__tlabel {
-    color: #cdd8e4;
-    letter-spacing: 0.08em;
-    text-transform: uppercase;
-    font-size: 0.82rem;
-  }
-  &__tp {
-    margin-left: auto;
-    color: #ecd39a;
-    letter-spacing: 0.06em;
-  }
-  &__bonus {
-    color: #9fc3a4;
-    font-size: 0.85rem;
-  }
-  &__row--bonus &__bonus { margin-left: auto; }
-  &__pending {
-    text-align: center;
-    color: #8fa2b8;
-    font-size: 0.85rem;
-  }
-
-  /* Ascending reveal — transform/opacity only; suppressed when settled. */
-  &--animate &__row {
-    opacity: 0;
-    transform: translateY(0.5rem);
-    animation: con-eg-title-rise calc(420ms * var(--motion-scale, 1)) cubic-bezier(0.16, 1, 0.3, 1) forwards;
-    animation-delay: calc(200ms + var(--egt-i, 0) * 340ms * var(--motion-scale, 1));
-  }
-}
-
-@keyframes con-eg-title-rise {
-  to {
-    opacity: 1;
-    transform: translateY(0);
-  }
-}
-
 /* Campaign scenes inside the endgame workspace (the overview pattern). */
 .con-eg-campaign-scene {
   position: absolute;
@@ -894,11 +802,6 @@
 /* Reduced motion: every episode resolves instantly, same end states. */
 @media (prefers-reduced-motion: reduce) {
   .cmap--reveal .cmap__node {
-    animation: none;
-    opacity: 1;
-    transform: none;
-  }
-  .con-eg-titles--animate .con-eg-titles__row {
     animation: none;
     opacity: 1;
     transform: none;

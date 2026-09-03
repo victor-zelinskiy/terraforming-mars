@@ -161,7 +161,11 @@ export function buildCampaignMapVm(model: CampaignModel): CampaignMapVm {
     // The viewer's own unresolved carryover outranks the launch/wait line —
     // it is the one thing THEY can do to move the campaign.
     if (yourCarry !== undefined && yourCarry.status === 'pending') {
-      cta = {kind: 'carryover', label: 'Choose projects to carry over'};
+      // READINESS: every human confirms explicitly — an empty hand confirms
+      // «готов» with zero cards, and the door must name that honestly.
+      cta = (model.carryover?.yourEligible ?? []).length === 0 ?
+        {kind: 'carryover', label: 'Confirm readiness for the next mission'} :
+        {kind: 'carryover', label: 'Choose projects to carry over'};
     } else if (isCreator) {
       cta = {
         kind: 'launch',

@@ -232,6 +232,38 @@ describe('consoleStartState (T5 summary launch readout)', () => {
       expect(items[3].state).to.eq('locked');
     });
 
+    it('CAMPAIGN chapters: merge and legacy sit between the payment and the preludes, in press order', () => {
+      // Mission 2: base played, payment done, the merge press stands.
+      const merging = deploymentJourneyItems({
+        corpPending: false, payPending: false, boughtCards: true,
+        hasMerge: true, mergePending: true, hasLegacy: true, legacyPending: false,
+        preludesLeft: 1, hasPreludes: true,
+      });
+      expect(merging.map((i) => i.id)).to.deep.eq(['corp', 'pay', 'merge', 'legacy', 'preludes', 'ready']);
+      expect(merging[2].state, 'the merge press is CURRENT').to.eq('current');
+      expect(merging[3].state, 'the legacy waits behind the merge').to.eq('locked');
+      expect(merging[4].state, 'preludes wait behind both').to.eq('locked');
+
+      // Merge answered → the legacy press is CURRENT, preludes still locked.
+      const receiving = deploymentJourneyItems({
+        corpPending: false, payPending: false, boughtCards: true,
+        hasMerge: true, mergePending: false, hasLegacy: true, legacyPending: true,
+        preludesLeft: 1, hasPreludes: true,
+      });
+      expect(receiving[2].state).to.eq('completed');
+      expect(receiving[3].state).to.eq('current');
+      expect(receiving[4].state).to.eq('locked');
+
+      // Both answered → the preludes chapter opens as usual.
+      const done = deploymentJourneyItems({
+        corpPending: false, payPending: false, boughtCards: true,
+        hasMerge: true, mergePending: false, hasLegacy: true, legacyPending: false,
+        preludesLeft: 1, hasPreludes: true,
+      });
+      expect(done[3].state).to.eq('completed');
+      expect(done[4].state).to.eq('current');
+    });
+
     it('EVERY middle deployment stage is conditional — absent when its work is absent', () => {
       // No bought projects → no payment stage; no first action → no stage.
       const bare = deploymentJourneyItems({
