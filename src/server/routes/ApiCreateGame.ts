@@ -4,7 +4,7 @@ import {Context} from './IHandler';
 import {Database} from '../database/Database';
 import {BoardName} from '../../common/boards/BoardName';
 import {RandomBoardOption} from '../../common/boards/RandomBoardOption';
-import {boardOptions as resolveBoardOptions, isRandomBoardOption} from '../boards/randomBoard';
+import {RandomBoardContext, boardOptions as resolveBoardOptions, isRandomBoardOption} from '../boards/randomBoard';
 import {Cloner} from '../database/Cloner';
 import {Game} from '../Game';
 import {GameOptions} from '../game/GameOptions';
@@ -62,8 +62,8 @@ export class ApiCreateGame extends Handler {
   // Board-pool resolution lives in `../boards/randomBoard` so the rematch flow
   // can re-roll a random board exactly the way the create form does. This static
   // is kept (delegating) because tests reference it.
-  public static boardOptions(board: RandomBoardOption | BoardName): Array<BoardName> {
-    return resolveBoardOptions(board);
+  public static boardOptions(board: RandomBoardOption | BoardName, context: RandomBoardContext = {}): Array<BoardName> {
+    return resolveBoardOptions(board, context);
   }
 
   // TODO(kberg): much of this code can be moved outside of handler, and that
@@ -103,7 +103,10 @@ export class ApiCreateGame extends Handler {
           }
 
           const requestedBoard = gameReq.board;
-          const boards = ApiCreateGame.boardOptions(requestedBoard);
+          // A MarsBot game rolls only from the boards the bot has an adaptation
+          // for — an unrestricted roll could land on a board the automa
+          // validation rejects and 500 the whole creation.
+          const boards = ApiCreateGame.boardOptions(requestedBoard, {automa: gameReq.automa !== undefined});
           gameReq.board = boards[Math.floor(Math.random() * boards.length)];
 
           const gameOptions: GameOptions = {

@@ -215,13 +215,16 @@ test('the merged payout closes with its MANDATORY discard step', async ({page, r
   await expect(page.locator('.con-reveal__bonus-zone--active .con-reveal__bonus-cover')).toHaveCount(0);
 
   // 3 · THE PAYOUT CANNOT BE CLOSED BEFORE ITS CARDS ARE TAKEN.
-  //     Embedded, the ONE status bar carries whatever the player owes NEXT: with
-  //     cards still untaken that is the TAKE, named for the focused card — the
-  //     discard step is not offered at all yet, so there is nothing to lock.
+  //     Embedded, the ONE status bar states the FOCUSED CARD (name + factual
+  //     availability — the shared card-status register); the TAKE verb lives in
+  //     the one bottom command bar («A Взять»), never as a second local chip.
+  //     With cards still untaken the discard step is not offered at all yet,
+  //     so there is nothing to lock and «сброса» must not read anywhere here.
   //     (The standalone band states the same thing the other way round, with a
   //     locked CTA + «Сначала заберите…» — one host, one voice, never both.)
-  await expect(closer).toContainText(/Взять/i);
-  await expect(closer).not.toContainText(/сброса/i);
+  await expect(page.locator('.con-reveal__namebar .con-cards__verdict-name')).toBeVisible();
+  await expect(page.locator('.con-cmdbar')).toContainText(/Взять/i);
+  expect(await closer.count(), 'no closing verb while the take is owed').toBe(0);
 
   // 4 · THE ZONE'S FOOTPRINT IS FIXED across the take — the card leaves an EMPTY
   //     SOCKET of exactly its size, «so nothing resizes or shifts»

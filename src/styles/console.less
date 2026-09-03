@@ -1045,11 +1045,18 @@ html.console-native {
     gap: .6rem;
 }
 /* HELD: the line keeps its reserved row while the batch is still arriving —
-   only its content hides. Promising «A Взять <карта>» over a slot the card has
-   not reached yet is the input race the arrival gate exists to remove. */
+   only its content hides. Publishing a name + a verdict for a slot the card
+   has not reached yet is the input race the arrival gate exists to remove. */
 .con-reveal__namebar--held > * {
     opacity: 0;
     transition: opacity calc(160ms * var(--motion-scale, 1)) ease;
+}
+/* The drawn reveal's availability line (the shared one-row register) — the
+   flex member that yields width inside the fixed chassis; its own register
+   ellipsizes, so the row can never grow or wrap. */
+.con-reveal__avail {
+    min-width: 0;
+    flex: 0 1 auto;
 }
 
 /* The plate's SOURCE TETHER — the quiet accent segment on the card-facing

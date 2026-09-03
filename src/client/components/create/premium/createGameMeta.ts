@@ -99,7 +99,7 @@ export function botDifficultyMeta(id: DifficultyLevel): BotDifficultyMeta {
 }
 
 /** The module set the MarsBot POC officially covers (info-panel copy). */
-export const BOT_SUPPORTED_MODULES_KEY = 'MarsBot supports the Tharsis and Hellas maps with Corporate Era, Prelude, Venus Next, Colonies and Hydronetworks. Conflicting options are highlighted below.';
+export const BOT_SUPPORTED_MODULES_KEY = 'MarsBot supports five adapted maps (or a random one) with Corporate Era, Prelude, Venus Next, Colonies and Hydronetworks. Conflicting options are highlighted below.';
 
 // ── Rules ───────────────────────────────────────────────────────────────────
 export type PremiumRuleId =

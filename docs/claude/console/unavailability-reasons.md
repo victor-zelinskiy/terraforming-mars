@@ -61,17 +61,25 @@ their own and «will I still get to play this?» informs that choice.
 
 - **For-later decisions → `'draft'`:** `start-pick`, `draft-pick`, `research-buy`, `deck-keep`
   («оставь K из N» — ConsoleDeckPick), `drafted-review` (own mid-draft shelf/popover),
-  `hand-sell` (patent sale) and `hand-give` (discard / reveal / place-under). A sale/give-up is
-  the same question from the other side — «what still has practical value?» — so it deliberately
-  speaks the requirement voice, never the play voice's red «нельзя разыграть» (which would read
-  as an error of the CURRENT action) and never money/turn facts.
+  `hand-sell` (patent sale), `hand-give` (discard / reveal / place-under) and **`draw-take`
+  (2026-09-03: the «Получены карты» reveal — standalone, embedded, the single-card headless
+  fullscreen, the multi-card X-zoom and the L3 swap back to the received card)**. A drawn card is
+  the viewer's own future project arriving into the hand — the decision the reveal hosts is
+  exactly «will I ever get to play this?». A sale/give-up is the same question from the other
+  side — «what still has practical value?» — so this whole family deliberately speaks the
+  requirement voice, never the play voice's red «нельзя разыграть» (which would read as an error
+  of the CURRENT action) and never money/turn facts.
 - **Play-now decisions → `'play'`:** `hand-play`, `project-play` (the degenerate `projectCard`
   pick→pay prompt — its candidates are usually playable, so the panel stays silent there).
 - **Informational contexts → `undefined`, listed EXPLICITLY** so the exclusion is a documented
   decision: `played-browse`, `opponent-card`, `journal-link`, `endgame-review`, `reveal-view`
-  (a draw/verdict/discard-pile reveal with no choice), `source-inspect` («L3 Источник»),
-  `target-pick`, `bot-review`. **The safe default is silence**: an unknown intent (and an absent
-  one) maps to `undefined` — never a player-specific verdict painted where nobody is deciding.
+  (the reveals that are NOT `draw-take`: a deck-check verdict — «Поиск жизни» and family, where
+  the revealed card is only an input of the effect; the conditional search's DISCARD pile;
+  another player's public reveal), `source-inspect` («L3 Источник»), `target-pick`,
+  `bot-review`. The `draw-take` / `reveal-view` split is by the CARD'S FATE in the flow, never
+  by the surface's name: taken into the viewer's hand → decision; checked/discarded/foreign →
+  information. **The safe default is silence**: an unknown intent (and an absent one) maps to
+  `undefined` — never a player-specific verdict painted where nobody is deciding.
 
 The fullscreen viewer receives the resolved context as an EXPLICIT opt-in
 (`consoleCardZoom.availability`, set at open time through the policy) and builds its panel with
@@ -79,8 +87,23 @@ the pure **`buildZoomAvailability`** — the ONE builder, which also enforces th
 a non-card zoom entry (an Automa bonus plate — no `unplayableReasons`) never grows a panel; in
 the play voice the LIVE hand offer wins over the reasons (a prompt-carried discount); and the
 hand-flavoured turn note attaches ONLY to a card the viewer's own hand carries.
-`repointConsoleCardZoom` (the reveal's received ⇄ source swap) CLEARS the context — a re-point
-shows a different card, and a reveal is never an evaluation context.
+`repointConsoleCardZoom` (the reveal's received ⇄ source swap) takes the context PER REPOINT:
+the swap back to the RECEIVED card re-attaches the `draw-take` voice, the swap to the SOURCE
+passes nothing (an informational inspect stays silent) — a carried-over context would paint the
+previous card's viewing intent onto a different card.
+
+**The drawn reveal's own STATUS RAIL** (`.con-reveal__namebar`, both hosts — the standalone
+modal and the embedded workspace stage) renders the shared line register beside the focused
+card's name: `ConsoleCardAvailabilityPanel` (`variant="line"`) over the same view. It carries NO
+take verb — the one bottom command bar owns «A Взять» (the local per-card `.con-start__slot-a`
+pill and the namebar's verb chip were duplicates and are deleted); the rail's content stays
+held (`--held`) through the embedded arrival gate AND a standalone deal cinematic
+(`revealSceneStaged`), so a verdict is never published for a card still airborne. The subject
+player is the batch OWNER by construction: `cardDrawReveals` lives only on the owner's own
+PlayerViewModel and its cards are serialized with `unplayableReasons` (the same evaluator, the
+same modifiers — Inventrix, Adaptation Technology, temporary bonuses — as the hand). Guard:
+`tests/models/cardDrawRevealAvailability.spec.ts`, e2e
+`tests/e2e/console-reveal-availability.spec.ts`.
 
 **Availability never touches prompt eligibility.** In the sale/discard/deck-keep pickers the
 prompt's own candidacy (`disabled`/`reasonsFor`), the selection state and the pick limits stay the

@@ -303,6 +303,15 @@ export type CardEvaluationIntent =
   | 'hand-sell'
   /** Giving a hand card up (discard / reveal / place-under effects). */
   | 'hand-give'
+  /**
+   * TAKING DRAWN CARDS — the «Получены карты» reveal (standalone, embedded,
+   * and its single-card fullscreen shape). The cards are the viewer's own
+   * future projects arriving into the hand, browsed and taken one by one, so
+   * «will I ever get to play this?» is exactly the decision the reveal
+   * hosts. NOT `reveal-view`: that intent is the informational family (a
+   * deck-check verdict, a discard pile, another player's public reveal).
+   */
+  | 'draw-take'
   // ── decision: the card is being played NOW — full-blocker voice ──
   /** The hand's play browse. */
   | 'hand-play'
@@ -343,6 +352,7 @@ export function availabilityContextFor(intent: CardEvaluationIntent | undefined)
   case 'drafted-review':
   case 'hand-sell':
   case 'hand-give':
+  case 'draw-take':
     return 'draft';
   // Played NOW — every real blocker speaks.
   case 'hand-play':

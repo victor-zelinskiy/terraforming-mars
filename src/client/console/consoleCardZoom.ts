@@ -386,7 +386,7 @@ export function navigateConsoleCardZoom(card: ZoomCard, index: number): void {
  * still peeks the pile while viewing the source); `select`/`action`/
  * `contextLabel` stay cleared (a reveal is never a selection/action context).
  */
-export function repointConsoleCardZoom(card: ZoomCard, opts: {receive?: ConsoleZoomReceive, swap?: ConsoleZoomSwap, statusLabel?: string}): void {
+export function repointConsoleCardZoom(card: ZoomCard, opts: {receive?: ConsoleZoomReceive, swap?: ConsoleZoomSwap, statusLabel?: string, availability?: ConsoleZoomAvailabilityContext}): void {
   consoleCardZoom.card = card;
   consoleCardZoom.cards = [card];
   consoleCardZoom.index = 0;
@@ -395,9 +395,11 @@ export function repointConsoleCardZoom(card: ZoomCard, opts: {receive?: ConsoleZ
   consoleCardZoom.statusLabel = opts.statusLabel;
   // The availability context is the OPENER's verdict about the card it
   // opened; a re-point shows a DIFFERENT card (received ⇄ source), so a
-  // carried-over context would paint the previous card's viewing intent onto
-  // the new one. A reveal is never an evaluation context — always cleared.
-  consoleCardZoom.availability = undefined;
+  // carried-over context would silently paint the previous card's viewing
+  // intent onto the new one. The caller RE-STATES it per repoint: the swap
+  // back to the RECEIVED card re-attaches the draw voice, the swap to the
+  // SOURCE (an informational inspect) passes nothing and stays silent.
+  consoleCardZoom.availability = opts.availability;
 }
 
 export function closeConsoleCardZoom(): void {

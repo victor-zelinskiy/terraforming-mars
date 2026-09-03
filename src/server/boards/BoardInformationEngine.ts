@@ -134,12 +134,19 @@ export function boardCellPreview(
   // A cleared cell's tile is removed first → treat as an empty cell (grant the
   // bonus), NOT a covering placement (which suppresses it).
   const covering = Board.hasRealTile(space) && !cleared;
-  const ctx = previewContext(kind, options?.tileType, cleared, covering, options?.placementEffect);
+  // A HAZARD tile also keeps the printed bonuses covered: `Game.addTile`
+  // computes `coveringExistingTile` from `space.tile !== undefined`, and Mars
+  // Nomads' own move treats a hazard cell the same way — so the preview must
+  // not promise a bonus either commit path skips. Distinct from `covering`,
+  // which mirrors the placed tile's `covers` field (a removed hazard never
+  // sets it) — the flag the survey-family hooks read.
+  const bonusesCovered = space.tile !== undefined && !cleared;
+  const ctx = previewContext(kind, options?.tileType, cleared, covering, bonusesCovered, options?.placementEffect);
 
   const facts: Array<BoardFact> = [];
-  facts.push(...placementCostFacts(player, space, ctx.tileType));
+  facts.push(...placementCostFacts(player, space, ctx));
   if (ctx.grantsPlacementBonus) {
-    facts.push(...printedBonusFacts(space, covering));
+    facts.push(...printedBonusFacts(space, ctx.bonusesCovered));
   }
   facts.push(...placementEffectFacts(player, ctx));
   // Adjacency-dependent facts (ocean M€ + city-greenery scoring) apply ONLY on
@@ -165,9 +172,15 @@ export function boardCellPreview(
   facts.push(...tileTriggerFacts(player, space, ctx));
   facts.push(...arcadianCommunityFact(player, space, covering, ctx));
   facts.push(...milestoneAwardFacts(player, space, ctx));
-  const deflection = deflectionPlacementFact(player, space);
-  if (deflection !== undefined) {
-    facts.push(deflection);
+  // Deflection-zone protection is a function of the player's OWNED TILES
+  // (`Board.spaceOwnedBy`) — a camp/claim marker neither activates nor breaks
+  // it, so a marker pick outside the zone must not threaten «disables your
+  // protection».
+  if (ctx.placesTile) {
+    const deflection = deflectionPlacementFact(player, space);
+    if (deflection !== undefined) {
+      facts.push(deflection);
+    }
   }
   // A remove-and-replace placement ignores the cell's placement-restriction rules
   // (it places "regardless of placement rules"), so don't surface volcanic /
@@ -405,7 +418,11 @@ function specialZoneFacts(
 
 function printedBonusFacts(space: Space, covering: boolean): Array<BoardFact> {
   if (covering) {
-    return [rule('cover-no-bonus', 'placement-effect', 'No placement bonus', 'Placing over an existing tile does not grant the printed cell bonuses.', 'neutral')];
+    // Only worth a line when the cell actually prints a bonus the cover
+    // suppresses — «no bonus» on a bonus-less cell is a non-event.
+    return hasPrintedBonus(space) ?
+      [rule('cover-no-bonus', 'placement-effect', 'No placement bonus', 'Placing over an existing tile does not grant the printed cell bonuses.', 'neutral')] :
+      [];
   }
   const out: Array<BoardFact> = [];
   for (const [bonus, count] of countBonuses(space.bonus)) {
@@ -948,6 +965,7 @@ function previewContext(
   tileType: TileType | undefined,
   cleared: boolean,
   covering: boolean,
+  bonusesCovered: boolean,
   placementEffect: PlacementEffect = 'tile'): PlacementPreviewContext {
   const placesTile = placementEffect === 'tile';
   const tile = placesTile ? placedTileType(kind, tileType) : undefined;
@@ -956,11 +974,13 @@ function previewContext(
     tileType: tile,
     cleared,
     covering,
+    bonusesCovered,
     countsAsCity: tile !== undefined && CITY_TILES.has(tile),
     countsAsOcean: tile !== undefined && OCEAN_TILES.has(tile),
     countsAsGreenery: tile !== undefined && GREENERY_TILES.has(tile),
     placesTile,
     grantsPlacementBonus: placementEffect !== 'marker',
+    firesTileTriggers: placementEffect !== 'marker',
   };
 }
 
@@ -1004,7 +1024,9 @@ function sourceCardFacts(
     return [];
   }
   return [
-    ...placedTileAdjacencyFacts(player, card),
+    // «Your tile will grant/impose …» presumes a tile lands — a marker prompt
+    // sourced by a card with a tile adjacency declaration must not say it.
+    ...(ctx.placesTile ? placedTileAdjacencyFacts(player, card) : []),
     ...(card.placementPreview?.(player, space, ctx) ?? []),
   ];
 }
@@ -1074,6 +1096,13 @@ function placedTileAdjacencyFacts(player: IPlayer, card: ICard): Array<BoardFact
  * Facts addressed to another player are classified into "Other players receive".
  */
 function tileTriggerFacts(player: IPlayer, space: Space, ctx: PlacementPreviewContext): Array<BoardFact> {
+  // A pure marker never runs the `onTilePlaced` fan-out (Land Claim / an
+  // Arcadian marker / the nomads' first landing commit without it), so no
+  // trigger may be promised — a survey card's «extra resource from the
+  // placement bonus» was leaking onto claim cells through this walk.
+  if (!ctx.firesTileTriggers) {
+    return [];
+  }
   const out: Array<BoardFact> = [];
   for (const owner of player.game.playersInGenerationOrder) {
     for (const card of owner.tableau) {
@@ -1527,13 +1556,14 @@ type McCostFactor = {id: string, kind: 'cleanup' | 'adjacency' | 'base', amount:
  * TOTAL is authoritative (`placementCostInfo`); `base` is the reconciling remainder,
  * so the factors always sum to the total. Generic: works for ANY adjacency-cost tile.
  */
-function megacreditCostFactors(player: IPlayer, space: Space, total: number): ReadonlyArray<McCostFactor> {
+function megacreditCostFactors(player: IPlayer, space: Space, total: number, placesTile: boolean): ReadonlyArray<McCostFactor> {
   const board = player.game.board;
   const factors: Array<McCostFactor> = [];
   // Both factor kinds are ARES costs — attribute neither when Ares isn't
-  // charging (module off / solar phase), else the remainder-based `base` would
-  // mislabel an ordinary printed cell cost as "Cleanup cost".
-  const ares = aresCostsApply(player);
+  // charging (module off / solar phase / no tile lands), else the
+  // remainder-based `base` would mislabel an ordinary printed cell cost as
+  // "Cleanup cost".
+  const ares = placesTile && aresCostsApply(player);
   const cleanupSteps = ares ? HAZARD_STEPS[hazardSeverity(space.tile?.tileType)] : 0;
   if (cleanupSteps > 0) {
     factors.push({id: 'mc-cleanup', kind: 'cleanup', amount: cleanupSteps * HAZARD_MEGACREDITS_PER_STEP});
@@ -1570,11 +1600,11 @@ function mcFactorTitle(f: McCostFactor): string {
  * EXPLAINED, not silently shown. `category` lets the same breakdown render in the
  * placement-preview cost section OR the hover hazard section.
  */
-function megacreditCostFacts(player: IPlayer, space: Space, total: number, category: BoardFact['category'], affordable: boolean): Array<BoardFact> {
+function megacreditCostFacts(player: IPlayer, space: Space, total: number, category: BoardFact['category'], affordable: boolean, placesTile = true): Array<BoardFact> {
   if (total <= 0) {
     return [];
   }
-  const factors = megacreditCostFactors(player, space, total);
+  const factors = megacreditCostFactors(player, space, total, placesTile);
   const headSeverity = affordable ? 'warning' : 'danger';
   if (factors.length <= 1) {
     const f = factors[0];
@@ -1652,15 +1682,30 @@ function hazardAdjacencyBreakdown(
 }
 
 /**
- * `tileType` is what makes the cost HONEST: the hazard-adjacency production
+ * `ctx.tileType` is what makes the cost HONEST: the hazard-adjacency production
  * penalty is waived for an OCEAN tile and for Athena's owner, exactly as
  * `Game.addTile` will charge it (both read the shared
  * `AresHandler.subjectToHazardAdjacency` predicate).
+ *
+ * `ctx.placesTile` is the other half of the same honesty: every one of the Ares
+ * placement costs — hazard cleanup, the adjacency M€ surcharge, the
+ * hazard-adjacency production penalty — is charged by `Game.addTile` and ONLY
+ * by it. A pick that lands no tile (a Mars Nomads camp move, a claim marker)
+ * never reaches that code, so promising «Reduce production −1» for a camp
+ * moving next to a hazard was a debt the commit never collects. What a
+ * bonus-collecting pick still pays is the map's own PAY-TO-USE bonus price
+ * (`grantSpaceBonuses` defers it), which `placementCostInfo` keeps on the bill;
+ * a pure marker (`grantsPlacementBonus: false`) charges nothing at all — and a
+ * bonus-only pick onto a hazard-covered cell collects no bonuses either, so it
+ * owes no bonus price.
  */
-function placementCostFacts(player: IPlayer, space: Space, tileType: TileType | undefined): Array<BoardFact> {
-  const info = player.game.board.placementCostInfo(player, space, {tileType});
+function placementCostFacts(player: IPlayer, space: Space, ctx: PlacementPreviewContext): Array<BoardFact> {
+  if (!ctx.placesTile && (!ctx.grantsPlacementBonus || ctx.bonusesCovered)) {
+    return [];
+  }
+  const info = player.game.board.placementCostInfo(player, space, {tileType: ctx.tileType, placesTile: ctx.placesTile});
   const out: Array<BoardFact> = [];
-  out.push(...megacreditCostFacts(player, space, info.megacredits, 'placement-cost', info.affordable));
+  out.push(...megacreditCostFacts(player, space, info.megacredits, 'placement-cost', info.affordable, ctx.placesTile));
   if (info.production > 0) {
     // A FORCED negative: placing next to a hazard makes you reduce production.
     // The TOTAL rides the same premium chip every gain on this panel uses (red,

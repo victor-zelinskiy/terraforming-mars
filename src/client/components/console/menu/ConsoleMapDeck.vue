@@ -29,7 +29,7 @@
       <span v-if="cursorRow !== undefined && cursorRow.conflict" class="cm-row__issue">{{ $t(boardBlocker) }}</span>
       <template v-else-if="cursorRow !== undefined">
         <span class="cm-maps__detail-name">{{ $t(cursorRow.meta.labelKey) }}</span>
-        <span class="cm-maps__detail-desc">{{ $t(cursorRow.meta.descKey) }}</span>
+        <span class="cm-maps__detail-desc">{{ $t(descKeyFor(cursorRow)) }}</span>
       </template>
     </div>
   </div>
@@ -45,7 +45,7 @@
  */
 import {defineComponent, PropType} from 'vue';
 import {MapRow} from '@/client/console/menu/consoleCreateModel';
-import {automaBlockerText} from '@/client/components/create/premium/createGameState';
+import {automaBlockerText, botSeatedInState} from '@/client/components/create/premium/createGameState';
 import PremiumMapFingerprint from '@/client/components/create/premium/PremiumMapFingerprint.vue';
 import {PremiumMapMeta} from '@/client/components/create/premium/createGameMeta';
 import {BoardName} from '@/common/boards/BoardName';
@@ -80,6 +80,14 @@ export default defineComponent({
   methods: {
     boardId(meta: PremiumMapMeta): BoardName | undefined {
       return meta.random ? undefined : meta.id as BoardName;
+    },
+    descKeyFor(row: MapRow): string {
+      // With MarsBot seated the random pool narrows to the boards the bot has
+      // an adaptation for — say so instead of the generic rotation line.
+      if (row.meta.id === 'random-all' && botSeatedInState()) {
+        return 'One of the maps adapted for MarsBot will be chosen at game start.';
+      }
+      return row.meta.descKey;
     },
   },
 });

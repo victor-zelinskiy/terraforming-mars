@@ -1,4 +1,5 @@
 import {BoardName} from '../boards/BoardName';
+import {RandomBoardOption} from '../boards/RandomBoardOption';
 
 /**
  * The ONE source of truth for "which game options can be combined with
@@ -43,6 +44,7 @@ export type AutomaConflict = {
 
 /** The option subset the MarsBot POC compatibility rules read (normalized). */
 export type AutomaCompatibilityInput = {
+  /** A concrete board, or a still-unresolved random request (`RandomBoardOption`). */
   boardName: string;
   turmoil: boolean;
   prelude2: boolean;
@@ -110,7 +112,14 @@ function supportedBoardList(): string {
 const RULES: ReadonlyArray<Rule> = [
   {
     key: 'board',
-    test: (o) => !AUTOMA_SUPPORTED_BOARDS.includes(o.boardName as BoardName),
+    // A RANDOM board request is never a conflict: the server resolves it from
+    // the MarsBot-supported pool (src/server/boards/randomBoard.ts), so the
+    // concrete board an automa game actually gets is always supported. The
+    // server-side guard only ever sees resolved boards; this branch matters
+    // for the client's pre-submit check.
+    test: (o) => o.boardName !== RandomBoardOption.ALL &&
+      o.boardName !== RandomBoardOption.OFFICIAL &&
+      !AUTOMA_SUPPORTED_BOARDS.includes(o.boardName as BoardName),
     reason: (o) => `the ${o.boardName} board yet — MarsBot covers ${supportedBoardList()}`,
   },
   // Unsupported expansions / modules.

@@ -235,7 +235,7 @@ async function createRematchGame(game: IGame, loader: IGameLoader): Promise<IGam
   // is already a concrete board). An explicit board is kept as-is. Preserve the
   // randomBoardOption so subsequent rematches keep re-rolling.
   if (gameOptions.randomBoardOption !== undefined) {
-    gameOptions.boardName = chooseBoard(gameOptions.randomBoardOption);
+    gameOptions.boardName = chooseBoard(gameOptions.randomBoardOption, {automa: gameOptions.automa !== undefined});
   }
   const seed = Math.random();
   const newGame = Game.newInstance(newGameId, players, firstPlayer, spectatorId, gameOptions, seed);

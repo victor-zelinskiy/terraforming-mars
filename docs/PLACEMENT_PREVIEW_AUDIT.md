@@ -85,11 +85,11 @@ The board has three shapes of "choose a cell" prompt, and only one of them place
 prompt now declares which (`SelectSpace.placementEffect`, default `'tile'`), so the preview stops
 inferring it:
 
-| Shape | Cards | Cell bonus granted? | Tile placed? |
-| --- | --- | --- | --- |
-| `'tile'` | everything else | yes | yes |
-| `'bonus-only'` | **Mars Nomads** — the camp MOVES | yes | **no** |
-| `'marker'` | **Land Claim**, **Arcadian Communities** marker, Mars Nomads' initial seating | **no** | no |
+| Shape | Cards | Cell bonus granted? | Tile placed? | `onTilePlaced` fan-out? |
+| --- | --- | --- | --- | --- |
+| `'tile'` | everything else | yes | yes | yes |
+| `'bonus-only'` | **Mars Nomads** — the camp MOVES | yes | **no** | **yes** (with `space.tile === undefined`) |
+| `'marker'` | **Land Claim**, **Arcadian Communities** marker, Mars Nomads' initial seating, **St. Joseph of Cupertino Mission**'s cathedral | **no** | no | **no** |
 
 **The Mars Nomads case is a tabletop rule, not an implementation detail.** The card's own source
 records the ruling (BGG 3154812): *"Mining Guild and Philares cannot take advantage of it"* and
@@ -108,14 +108,74 @@ bonus and nothing else (no Ares adjacency, no endgame VP, no milestone/award cou
 trigger), and Land Claim / an Arcadian marker preview nothing at all instead of offering the cell
 bonus they never grant.
 
+## E-bis. The COST side of the same declaration (2026-09-03 iteration)
+
+The 2026-09-03 pass (opened by a screenshot: a Mars Nomads camp move focused next to an Ares
+hazard, and the panel read «ЭФФЕКТ КЛЕТКИ · Снизить производство −1») audited every fact family in
+`boardCellPreview` against what each commit path actually charges/grants. Root cause: section E
+gated the GAIN families on `ctx.placesTile`/`ctx.grantsPlacementBonus`, but `placementCostFacts`
+was still called unconditionally — and every cost it prices (hazard cleanup M€, the
+hazard-adjacency production penalty, Nuclear-Zone-style adjacency surcharges, the affordability
+deficit) is charged by `Game.addTile` and ONLY by it. Since the on-field relation highlight is
+driven by the same facts' `spaces`, the panel's false «−1 production» also lit the hazard as a
+triggering source.
+
+What the declaration now decides, each mirrored from the real commit path:
+
+| Fact family | `'tile'` | `'bonus-only'` | `'marker'` | Commit source of truth |
+| --- | --- | --- | --- | --- |
+| Ares placement costs (cleanup M€ / production penalty / adjacency M€ / deficit) | yes | **no** | no | `Game.addTile` → `AresHandler.payAdjacencyAndHazardCosts` |
+| Map PAY-TO-USE bonus price (Hellas ocean 6 M€, Vastitas temperature…) | yes (in `spaceCosts`) | **yes** (`placementCostInfo({placesTile:false})` keeps it; affordability = `canAffordPlacementBonuses`) | no | `grantSpaceBonuses` defers the payment |
+| Printed cell bonus on a HAZARD-covered cell | **no** (`bonusesCovered`) | **no** | no | `addTile`'s `coveringExistingTile = space.tile !== undefined`; Mars Nomads' own `hasHazardTile` branch |
+| Hazard-cleanup TR | yes | **no** | no | `addTile` only |
+| `onTilePlaced` trigger facts (`tilePlacedPreview`) | yes | yes (hooks self-gate on ctx) | **no** (`firesTileTriggers`) | Mars Nomads' action runs the fan-out; Land Claim/markers never do |
+| Deflection-zone impact | yes | **no** | no | protection is a function of OWNED TILES |
+| «Your tile will grant an adjacency bonus» (source card's own declaration) | yes | no | no | needs a tile to land |
+
+`PlacementPreviewContext` grew two fields for this: **`bonusesCovered`** («the commit will skip the
+printed bonuses» — any tile INCLUDING a hazard; distinct from `covering`, which mirrors the placed
+tile's `covers` field, the thing the survey-family hooks test) and **`firesTileTriggers`**
+(`placementEffect !== 'marker'`). Note the deliberate corner kept CONSISTENT with upstream: the
+survey cards' `grantsBonusNow` reads `space.tile?.covers`, which a REMOVED hazard never sets, so
+the commit pays the survey extra even on a hazard-covered cell where the placement bonus itself is
+suppressed — the preview mirrors that commit (via `ctx.covering`, not `bonusesCovered`), so the two
+cannot disagree even where the upstream rule is debatable.
+
+Guard: `tests/boards/placementEffectConsistency.spec.ts` — drives PREVIEW and the REAL COMMIT over
+the same board geometry for every row above (camp-next-to-hazard, tile-next-to-hazard, mixed
+severities, Athena's waiver, hazard-covered destinations for both effects, survey triggers for
+bonus-only vs marker, deflection, read-only purity).
+
+### Entry-point matrix (every Mars-board «pick a space», audited 2026-09-03)
+
+`createMarsSelectSpace` is the only path that can declare `placementEffect`; a bare
+`new SelectSpace` cannot. In-scope prompts all declare correctly: the four `'marker'`/`'bonus-only'`
+sites (Mars Nomads ×2, Land Claim, Arcadian Communities) plus St. Joseph's cathedral move (declared
+`'marker'` this pass), and every real tile placement threads `tileType`/`sourceCard` per section A.
+Prompts with NO `placementType` (Desperate Measures, Eris, `RemoveOceanTile`, the WGT
+hazard-removal) never request a preview, so they promise nothing false — the panel shows neutral
+cell info only.
+
 ## F. Frontier (known, not fixed)
 
 1. **Multi-tile cards** (`ocean: {count: 2}` — Great Aquifer, Ice Asteroid, Lake Marineris, Giant
    Ice Asteroid) preview each placement independently; the panel does not say "this is the first of
    two". The prompt title already does.
-2. **St. Joseph's cathedral / Desperate Measures** open a `SelectSpace` with no `placementType`, so
-   the client never requests a preview for them at all. Section E's marker declaration would apply
-   the moment either grows one.
+2. **Desperate Measures** (and the other removal/selection prompts) open a `SelectSpace` with no
+   `placementType`, so the client never requests a preview for them at all. St. Joseph's cathedral
+   now declares `'marker'` (2026-09-03), which also stops the client arming a tile-flight hero for
+   a marker move.
+2-bis. **Pathfinders' Survey Mission and Gagarin Mobile Base** (out of premium scope) are
+   bonus-collecting picks still declared/defaulted `'tile'` — Survey Mission passes
+   `placementType: 'land'`, so with Pathfinders enabled its dossier promises Ares adjacency,
+   milestone progress and endgame VP its commit (claim + `grantSpaceBonuses` + ONLY Mining Guild's
+   trigger, no ocean-adjacency M€) never grants. They cannot simply declare `'bonus-only'`: the
+   client routes that effect into the Mars-Nomads move choreography (`armNomadMove`), and their
+   grant scope differs from the nomads' (`grantSpaceBonuses` — printed only — vs
+   `grantPlacementBonuses` — printed + ocean M€), so adapting them is expansion-checklist work:
+   client marker/landing support + either a finer effect vocabulary or per-card `placementPreview`
+   hooks. The underworld identify/excavate/claim prompts are the same frontier class (no
+   `placementType` today, so no active lie). See `docs/claude/expansion-adaptation-checklist.md`.
 3. **Herbivores' VP.** Its `victoryPoints: {resourcesHere, per: 2}` means one animal is worth half a
    VP; stating a 0-or-1 delta would require re-implementing the `per: 2` rule locally, so the
    animal gain is previewed and the VP is not.

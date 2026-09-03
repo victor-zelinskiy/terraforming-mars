@@ -227,9 +227,11 @@ let multiplayerSnapshot: {
  *
  * MarsBot mode keeps exactly ONE human seat (the creator — the bot itself is
  * seated by the server) and applies the POC PRESET: the fork's default lineup
- * includes options the Automa doesn't cover yet (random M&A, shuffled tiles,
- * random board), so entering the mode starts from
- * the clean supported set instead of a wall of conflict highlights. Options
+ * includes options the Automa doesn't cover yet (random M&A, shuffled tiles),
+ * so entering the mode starts from
+ * the clean supported set instead of a wall of conflict highlights. A RANDOM
+ * map is kept — the server rolls it from the MarsBot-supported pool; only an
+ * explicit unsupported map is pinned back to Tharsis. Options
  * the USER toggles afterwards are never silently reverted — they highlight as
  * conflicts and block creation with a reason. Switching back restores the
  * multiplayer setup from a snapshot.
@@ -301,8 +303,9 @@ export const HUMANS_WITH_BOT_MAX = 4;
 /**
  * Seat / unseat MarsBot in the ORDINARY multiplayer party (mode B, §12 Q14).
  * Seating applies the same conflict preset `setGameMode('marsbot')` applies
- * (drop random M&A / shuffled tiles / a random map — the genuinely
- * incompatible options) and caps the roster at 4 humans. Unseating changes
+ * (drop random M&A / shuffled tiles — the genuinely incompatible options;
+ * a random map stays and rolls from the supported pool) and caps the roster
+ * at 4 humans. Unseating changes
  * nothing else — the player re-enables options themselves.
  */
 export function setSeatMarsBot(on: boolean): void {
@@ -461,7 +464,7 @@ export function stateAutomaConflictKeys(): ReadonlySet<string> {
  * The generic fallback covers keys the premium form can't normally produce.
  */
 const AUTOMA_BLOCKER_TEXT: Partial<Record<string, string>> = {
-  'board': 'MarsBot plays on the Tharsis and Hellas maps only for now',
+  'board': 'MarsBot has no adaptation for this map yet — pick a supported one or a random option',
   'rule:randomMilestonesAwards': 'MarsBot uses the printed milestones and awards',
   'rule:randomBoardTiles': 'MarsBot needs the printed board layout',
 };

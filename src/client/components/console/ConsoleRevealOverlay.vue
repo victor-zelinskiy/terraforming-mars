@@ -166,11 +166,10 @@
                     <span class="con-reveal__takenmark-check">✓</span>
                     <span class="con-reveal__takenmark-text">{{ $t('Taken') }}</span>
                   </div>
-                  <!-- EMBEDDED: no per-card command pill — the ONE bottom bar
-                       owns every verb (the same rule as the buy status line). -->
-                  <div v-if="!entry.taken && focusIdx === entry.pos && !embedded" class="con-start__slot-a">
-                    <GamepadGlyph control="confirm" /><span>{{ $t('Take card') }}</span>
-                  </div>
+                  <!-- NO per-card command pill in EITHER host: the ONE bottom
+                       command bar owns every verb (it already reads «A Взять»),
+                       and the status rail below names the focused card + its
+                       factual availability. A local A-chip was a duplicate. -->
                 </div>
                 <!--
                   ONE ZONE PER COLONY. By the rules each colony resolves
@@ -205,9 +204,8 @@
                        :class="{'con-cards__slot--focused': focusIdx === activeBonusEntry.pos}"
                        :ref="focusIdx === activeBonusEntry.pos ? 'focusedCardSlot' : undefined">
                     <Card :card="activeBonusEntry.card" :key="activeBonusEntry.card.name" lightweight />
-                    <div v-if="focusIdx === activeBonusEntry.pos && !embedded" class="con-start__slot-a">
-                      <GamepadGlyph control="confirm" /><span>{{ $t('Take card') }}</span>
-                    </div>
+                    <!-- (No in-zone A-chip: the one command bar owns the verb,
+                         the status rail below names the card + its status.) -->
                   </div>
 
                   <!-- FUTURE: a face-down placeholder — an honest "one more
@@ -253,23 +251,30 @@
                   </span>
                 </div>
               </transition-group>
-              <!-- EMBEDDED contextual footer — the focused card's name + the
-                   ONE take verb, the buy status line's voice. The verb chip is
-                   deliberate (user-mandated): with several cards it names
-                   exactly which card A takes; the name re-keys with focus. -->
-              <!-- ALWAYS IN LAYOUT once embedded: the bar reserves its fixed
-                   row from the first frame, so the fit engine measures the
-                   true stage chrome and the arrival's end can never reflow the
-                   row. While the batch is still landing only its CONTENT hides
-                   (opacity — never promise a card that has not arrived). -->
-              <div v-if="embedded" class="con-reveal__namebar con-ws-stage-status"
-                   :class="{'con-reveal__namebar--held': arrivalPending ||
+              <!-- THE STATUS RAIL of the drawn reveal (BOTH hosts) — the focused
+                   card's name + its FACTUAL availability in the shared one-row
+                   register (`ConsoleCardAvailabilityPanel` line — the same view
+                   the draft/start/hand rails and the fullscreen panel build, so
+                   a drawn card can never disagree with itself across surfaces).
+                   NO take verb here: the ONE bottom command bar owns every verb
+                   («A Взять» already reads there), the rail states WHAT the
+                   card is and WHERE its requirement stands. -->
+              <!-- ALWAYS IN LAYOUT: the bar reserves its fixed one-row chassis
+                   (`con-ws-stage-status`) from the first frame, so the fit
+                   engine measures the true stage chrome and the arrival's end
+                   can never reflow the row. While the batch is still landing —
+                   or a standalone deal cinematic still owns the cards — only
+                   its CONTENT hides (opacity — never publish a verdict for a
+                   card that has not arrived). -->
+              <div class="con-reveal__namebar con-ws-stage-status"
+                   :class="{'con-reveal__namebar--held': arrivalPending || revealSceneStaged ||
                             (drawnUntaken[focusIdx] === undefined && discardStep === undefined)}">
                 <template v-if="drawnUntaken[focusIdx] !== undefined">
                   <span class="con-cards__verdict-name" :key="drawnUntaken[focusIdx].card.name">{{ $t(drawnUntaken[focusIdx].card.name) }}</span>
-                  <span class="con-cards__verdict con-cards__verdict--ok">
-                    <GamepadGlyph control="confirm" /><span>{{ $t('Take card') }}</span>
-                  </span>
+                  <ConsoleCardAvailabilityPanel v-if="drawnAvailability !== undefined"
+                                                variant="line"
+                                                class="con-reveal__avail"
+                                                :view="drawnAvailability"/>
                 </template>
                 <!-- The payout's CLOSING STEP lives in the ONE status bar when
                      embedded (never an in-zone button): the same row that
@@ -472,6 +477,8 @@ import {
 } from '@/client/console/consoleWsStageLayout';
 import ConsoleWsStageHead from '@/client/components/console/foundation/ConsoleWsStageHead.vue';
 import ConsoleRevealVerdict from '@/client/components/console/foundation/ConsoleRevealVerdict.vue';
+import ConsoleCardAvailabilityPanel from '@/client/components/console/ConsoleCardAvailabilityPanel.vue';
+import {availabilityContextFor, buildCardAvailability, CardAvailabilityView} from '@/client/console/cardAvailability';
 import {focusKicker} from '@/client/console/consoleActionFlow';
 import {setWorkspaceOutcomePhase, workspaceClaimsColonyReveal, workspaceClaimsDrawReveal, workspaceOutcomeArrivalPending, workspaceOutcomeState, workspaceSourceZoomOrigin} from '@/client/console/consoleWorkspaceOutcome';
 import {useEventListener, useResizeObserver} from '@vueuse/core';
@@ -531,7 +538,7 @@ type StripEntry = {card: CardModel, index: number, pos: number};
 
 export default defineComponent({
   name: 'ConsoleRevealOverlay',
-  components: {Card, ConsoleCardFaceLite, ConsoleWsStageHead, ConsoleRevealVerdict, GamepadGlyph},
+  components: {Card, ConsoleCardAvailabilityPanel, ConsoleCardFaceLite, ConsoleWsStageHead, ConsoleRevealVerdict, GamepadGlyph},
   props: {
     playerView: {type: Object as PropType<PlayerViewModel>, required: true},
     mode: {type: String as PropType<ConsoleRevealMode>, required: true},
@@ -1105,6 +1112,38 @@ export default defineComponent({
      */
     arrivalPending(): boolean {
       return this.embedded && this.mode === 'drawn' && workspaceOutcomeArrivalPending();
+    },
+    /**
+     * A STANDALONE deal cinematic still owns this batch's cards (the deck-draw
+     * scene, the board card-bonus lift, the colony-trade payout) — the status
+     * rail holds its content: publishing a name + a verdict for a card still
+     * airborne is the same promise the embedded `arrivalPending` gate removes.
+     * Each term is `Active && Staged(this batch)`, so the hold releases the
+     * moment the scene lets go — never a latch.
+     */
+    revealSceneStaged(): boolean {
+      const id = this.drawnEvent?.id;
+      return (isDeckDrawActive() && isDeckDrawStaged(id)) ||
+        (isBoardCardBonusActive() && isBonusRevealStaged(id)) ||
+        (isColonyTradeActive() && isColonyTradeRevealStaged(id));
+    },
+    /**
+     * The FOCUSED drawn card's factual availability — the SHARED model in the
+     * draw-take voice (a drawn card is taken FOR LATER, so only printed
+     * requirements speak: amber «пока не выполнено» / red «уже не выполнить»).
+     * The reasons ride the server's own reveal model (`cardDrawReveals` cards
+     * are serialized with `unplayableReasons` for the batch OWNER — the same
+     * evaluator, the same requirement modifiers as the hand), so the subject
+     * player is the recipient by construction. `undefined` = nothing to say —
+     * the rail keeps the name alone.
+     */
+    drawnAvailability(): CardAvailabilityView | undefined {
+      const ctx = availabilityContextFor('draw-take');
+      const entry = this.drawnUntaken[this.focusIdx];
+      if (ctx === undefined || this.mode !== 'drawn' || entry === undefined) {
+        return undefined;
+      }
+      return buildCardAvailability({reasons: entry.card.unplayableReasons}, ctx);
     },
     /** The count class the tv profile keys its per-count boost / gap off. */
     stripCountClass(): string {
@@ -1950,6 +1989,10 @@ export default defineComponent({
           takeAllLabel: list.length > 1 ? 'Take all cards' : undefined,
           takeAll: list.length > 1 ? () => this.takeAllFromZoom() : undefined,
         },
+        // The drawn card is the viewer's own future project — the fullscreen
+        // speaks the SAME factual availability the rail below compacts (the
+        // one policy: draw-take → the draft voice).
+        availability: availabilityContextFor('draw-take'),
         origin: this.zoomOriginFor((i) => {
           const e = this.drawnUntaken[i];
           return e !== undefined ? `${e.card.name}#${e.index}` : '';
@@ -2050,6 +2093,10 @@ export default defineComponent({
         receive: this.singleReceiveBridge(),
         swap: this.singleSwapBridge('received'),
         sourceInfo: this.singleSourceInfo(),
+        // The received card is evaluated FOR LATER even here: the headless
+        // single-card reveal IS the fullscreen, so the availability panel is
+        // its only chance to state the requirement's factual standing.
+        availability: availabilityContextFor('draw-take'),
         // R3 peeks the conditional-search discard pile — the fullscreen twin of
         // the multi-card modal's R3 (the headless single-card presentation had
         // no way in). Only wired when the search actually discarded something.
@@ -2122,6 +2169,10 @@ export default defineComponent({
         receive: this.singleReceiveBridge(),
         swap: this.singleSwapBridge('received'),
         statusLabel: 'Received card',
+        // The swap back to the RECEIVED card re-attaches the draw voice (the
+        // swap to the SOURCE deliberately passes nothing — an informational
+        // inspect stays silent).
+        availability: availabilityContextFor('draw-take'),
       });
     },
     /**

@@ -20,8 +20,21 @@ export type PlacementPreviewContext = {
   tileType?: TileType;
   /** A remove-and-replace placement — the cell's current tile is cleared first. */
   cleared: boolean;
-  /** The placement covers an existing REAL tile (so no printed cell bonus). */
+  /**
+   * The placement covers an existing REAL tile. This mirrors the placed tile's
+   * `covers` field, which is what the survey-family hooks test (`grantsBonusNow`
+   * reads `space.tile?.covers`) — a hazard tile is REMOVED, never recorded as
+   * covered, so it does not set this flag. For «does the commit suppress the
+   * printed cell bonus» read {@link bonusesCovered} instead.
+   */
   covering: boolean;
+  /**
+   * The commit will SKIP the cell's printed bonuses: mirrors `Game.addTile`'s
+   * `coveringExistingTile` (`space.tile !== undefined` — a hazard counts; the
+   * Ares rulebook says a hazard tile covers the area's printed bonuses) and the
+   * identical branch in Mars Nomads' own move. Broader than {@link covering}.
+   */
+  bonusesCovered: boolean;
   countsAsCity: boolean;
   countsAsOcean: boolean;
   countsAsGreenery: boolean;
@@ -43,4 +56,12 @@ export type PlacementPreviewContext = {
    * them with no tile, while Land Claim places nothing AND grants nothing.
    */
   grantsPlacementBonus: boolean;
+  /**
+   * Whether the commit runs the `onTilePlaced` fan-out at all. A tile placement
+   * does (`Game.addTile`), and so does a Mars Nomads camp move (its action
+   * fires every hook with `space.tile === undefined` — the hooks self-gate);
+   * a pure marker (`'marker'`: Land Claim, an Arcadian marker, the nomads'
+   * first landing) fires nothing, so no trigger fact may be promised for it.
+   */
+  firesTileTriggers: boolean;
 };

@@ -253,9 +253,13 @@ for (const profile of PROFILES) {
       // pickline). The badge is the SHARED entity both stages use.
       expect(await page.locator('.con-ws-stage-badge').count(), 'no count badge for ONE card').toBe(0);
       expect(await page.locator('.con-start__slot-a').count(), 'no on-card command pill').toBe(0);
-      // The status line: focused card's name + the ONE take verb.
+      // The status line names the focused card — and carries NO take verb:
+      // the ONE bottom command bar already reads «A Взять», and the rail's
+      // second voice is the card's factual availability (rendered only when
+      // the card has something to answer for — this batch may not).
       await expect(page.locator('.con-reveal__namebar .con-cards__verdict-name')).toBeVisible();
-      await expect(page.locator('.con-reveal__namebar .con-cards__verdict--ok')).toBeVisible();
+      expect(await page.locator('.con-reveal__namebar .con-cards__verdict--ok').count(),
+        'no duplicated take verb in the status rail').toBe(0);
       // HERO size — the same weight the buy stage gives its card (fhd: an
       // unscaled 320px face; anything under ~300 is the old 0.79 ladder).
       const slotBox = await page.locator('.con-reveal--embedded .con-cards__slot').first().boundingBox();

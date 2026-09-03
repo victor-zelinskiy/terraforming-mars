@@ -234,20 +234,36 @@ export class MarsBoard extends Board {
    * `AresHandler.subjectToHazardAdjacency` predicate, so the preview cannot
    * promise a cost the commit path waives. Omitted → the charged default.
    * The solar phase (WGT places for free) waives the Ares costs wholesale.
+   *
+   * `options.placesTile: false` — the pick puts down NO tile (a Mars Nomads camp
+   * move, `placementEffect: 'bonus-only'`), so every cost `Game.addTile` charges
+   * — hazard cleanup, adjacency M€ surcharges, the hazard-adjacency production
+   * penalty — is simply never on the bill. What such a pick still pays is what
+   * `grantSpaceBonuses` will defer: the map's own PAY-TO-USE bonus transactions
+   * (Hellas ocean 6 M€, Vastitas temperature 3 M€ …), i.e. the `spaceCosts`
+   * override — affordability then follows `canAffordPlacementBonuses`, the same
+   * predicate the bonus-granting cards filter their destinations with.
    */
   public placementCostInfo(player: IPlayer, space: Space, options?: {
-    canAffordOptions?: CanAffordOptions, tileType?: TileType,
+    canAffordOptions?: CanAffordOptions, tileType?: TileType, placesTile?: boolean,
   }): {
     megacredits: number, production: number, tr: SpaceCosts['tr'], affordable: boolean, deficit: number,
     hazardAdjacency?: SpaceCosts['hazardAdjacency'],
   } {
     const canAffordOptions = options?.canAffordOptions;
-    const aresCostsApply = player.game.gameOptions.aresExtension && !AresHandler.placementCostsWaived(player.game);
+    const placesTile = options?.placesTile !== false;
+    // No tile → the Ares placement costs never apply; the spaceCosts override
+    // (the bonus's own price) survives via `computeAdditionalCosts(…, false)`.
+    const aresCostsApply = placesTile &&
+      player.game.gameOptions.aresExtension && !AresHandler.placementCostsWaived(player.game);
     const costs = this.computeAdditionalCosts(space, aresCostsApply, canAffordOptions?.bonusMultiplier, {
       subjectToHazardAdjacency: AresHandler.subjectToHazardAdjacency(player, options?.tileType),
     });
-    const affordable = this.canAfford(player, space, canAffordOptions);
-    const deficit = affordable ? 0 : this.placementMegacreditDeficit(player, space, 'cannot-afford', canAffordOptions);
+    const affordable = placesTile ?
+      this.canAfford(player, space, canAffordOptions) :
+      MarsBoard.canAffordPlacementBonuses(player, space);
+    const deficit = affordable ? 0 :
+      this.placementMegacreditDeficit(player, space, placesTile ? 'cannot-afford' : 'cannot-afford-bonus', canAffordOptions);
     return {
       megacredits: costs.megacredits, production: costs.production, tr: costs.tr, affordable, deficit,
       hazardAdjacency: costs.hazardAdjacency,

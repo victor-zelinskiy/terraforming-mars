@@ -1,5 +1,6 @@
 import {expect} from 'chai';
 import {BoardName} from '@/common/boards/BoardName';
+import {RandomBoardOption} from '@/common/boards/RandomBoardOption';
 import {
   HUMANS_WITH_BOT_MAX,
   canCreateGame,
@@ -99,6 +100,31 @@ describe('premium create — MarsBot mode', () => {
       setGameMode('multiplayer');
       expect(createGameState.config.seatMarsBot).is.false;
     });
+  });
+
+  it('a RANDOM map is supported in marsbot mode — the server rolls from the adapted pool', () => {
+    setGameMode('marsbot');
+    setSlotName(0, 'Astronaut');
+    createGameState.config.mapMode = 'random-all';
+    expect(stateAutomaConflictKeys().has('board')).is.false;
+    expect(canCreateGame()).is.true;
+    // The payload sends the random request as-is; ApiCreateGame narrows the pool.
+    const payload = buildCreateGamePayloadFromPremiumState(createGameState.config);
+    expect(payload.board).eq(RandomBoardOption.ALL);
+  });
+
+  it('entering marsbot mode keeps a random map (the preset only pins explicit unsupported ones)', () => {
+    createGameState.config.mapMode = 'random-all';
+    setGameMode('marsbot');
+    expect(createGameState.config.mapMode).eq('random-all');
+    expect(stateAutomaConflicts()).is.empty;
+
+    setGameMode('multiplayer');
+    createGameState.config.mapMode = 'specific';
+    createGameState.config.mapId = BoardName.AMAZONIS;
+    setGameMode('marsbot');
+    expect(createGameState.config.mapMode).eq('specific');
+    expect(createGameState.config.mapId).eq(BoardName.THARSIS);
   });
 
   it('a map without a MarsBot board conflicts in marsbot mode', () => {

@@ -1,5 +1,6 @@
 import {expect} from 'chai';
 import {BoardName} from '../../src/common/boards/BoardName';
+import {RandomBoardOption} from '../../src/common/boards/RandomBoardOption';
 import {AutomaCompatibilityInput, automaConflicts, conflictFor} from '../../src/common/automa/automaCompatibility';
 
 function cleanInput(): AutomaCompatibilityInput {
@@ -43,6 +44,15 @@ describe('automaCompatibility — the shared UI/server conflict rules', () => {
 
   it('Terra Cimmeria NOVA is supported — its own MarsBot board, reference card and B12', () => {
     expect(automaConflicts({...cleanInput(), boardName: BoardName.TERRA_CIMMERIA_NOVA})).is.empty;
+  });
+
+  it('a RANDOM board request is never a conflict — the server rolls it from the supported pool', () => {
+    // src/server/boards/randomBoard.ts narrows the pool to
+    // AUTOMA_SUPPORTED_BOARDS for automa games, so the resolved board is
+    // always one the bot covers. This branch is what lets the create UI keep
+    // «случайная карта» selectable with MarsBot seated.
+    expect(automaConflicts({...cleanInput(), boardName: RandomBoardOption.ALL})).is.empty;
+    expect(automaConflicts({...cleanInput(), boardName: RandomBoardOption.OFFICIAL})).is.empty;
   });
 
   it('…but the fork\'s OLDER Terra Cimmeria is a different map, and is not', () => {

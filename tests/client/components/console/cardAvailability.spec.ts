@@ -198,11 +198,19 @@ describe('availabilityContextFor — the ONE applicability policy', () => {
   it('for-later DECISION intents speak the requirement (draft) voice', () => {
     const forLater: Array<CardEvaluationIntent> = [
       'start-pick', 'draft-pick', 'research-buy', 'deck-keep',
-      'drafted-review', 'hand-sell', 'hand-give',
+      'drafted-review', 'hand-sell', 'hand-give', 'draw-take',
     ];
     for (const intent of forLater) {
       expect(availabilityContextFor(intent), intent).to.eq('draft');
     }
+  });
+
+  it('draw-take (the «Получены карты» reveal) and reveal-view (informational reveals) are DIFFERENT intents', () => {
+    // The drawn batch is the viewer's own future projects arriving into the
+    // hand — a decision; a deck-check verdict / discard pile / another
+    // player's public reveal is information. The two must never share a fate.
+    expect(availabilityContextFor('draw-take')).to.eq('draft');
+    expect(availabilityContextFor('reveal-view')).to.eq(undefined);
   });
 
   it('play-now DECISION intents speak the full-blocker (play) voice', () => {
