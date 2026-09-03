@@ -32,7 +32,7 @@
 import {UnplayableReason, UnplayableReasonType} from '@/common/cards/UnplayableReason';
 import {blockerForReason} from '@/common/availability/AvailabilityBlocker';
 import {translateText, translateTextWithParams} from '@/client/directives/i18n';
-import {reasonUnit, unplayableReasonLine} from '@/client/components/handCards/unplayableReasonFormat';
+import {reasonUnit, unplayableReasonCompact, unplayableReasonLine} from '@/client/components/handCards/unplayableReasonFormat';
 
 export type CardAvailabilityContext = 'draft' | 'play';
 
@@ -56,6 +56,13 @@ export interface CardAvailabilityReasonView {
   type: UnplayableReasonType;
   /** The full translated line, e.g. «Требуется температура 0°C · Сейчас: -22°C». */
   text: string;
+  /**
+   * The COMPACT one-row form for the fixed-height status rails («Метки 1/3»,
+   * «Кислород 2/9%») — the SAME semantic fact as `text`, second presentation
+   * (`unplayableReasonCompact`). Falls back to `text` for reasons with no
+   * counter shape. The fullscreen panel keeps `text`; a rail renders this.
+   */
+  compact: string;
   /** This individual reason's own voice (a turn note stays amber under a red headline). */
   severity: CardAvailabilitySeverity;
   tone: CardAvailabilityTone;
@@ -141,6 +148,7 @@ function reasonView(r: UnplayableReason, severity: CardAvailabilitySeverity): Ca
     key: reasonKey(r),
     type: r.type,
     text: unplayableReasonLine(r),
+    compact: unplayableReasonCompact(r),
     severity,
     tone: TONES[severity],
   };
@@ -243,7 +251,7 @@ export function buildCardAvailability(
   const turnNotes: Array<CardAvailabilityReasonView> = dedupe([
     ...gates.map((r) => reasonView(r, 'waiting')),
     ...(input.turnReason !== undefined && input.turnReason !== '' ?
-      [{key: `turn|${input.turnReason}`, type: 'turn' as const, text: translateText(input.turnReason), severity: 'waiting' as const, tone: TONES.waiting}] :
+      [{key: `turn|${input.turnReason}`, type: 'turn' as const, text: translateText(input.turnReason), compact: translateText(input.turnReason), severity: 'waiting' as const, tone: TONES.waiting}] :
       []),
   ]);
   if (domain.length > 0) {

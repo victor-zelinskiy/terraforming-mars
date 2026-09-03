@@ -279,6 +279,30 @@ function startEpisodeDriver(ep: Episode): void {
 /* ── seize / release ────────────────────────────────────────────────── */
 
 /**
+ * THE CHIP'S CARD-SPACE ZOOM CONTEXT. The blocker chip on a flying body is
+ * the same object as the album slot's `.con-hand__chip`, and both obey ONE
+ * law: `zoom: <emphasis> / var(--con-hand-zoom)` (0.99 base / 1.2 TV), which
+ * pins the chip's SCREEN size at the resting slot while letting it ride the
+ * card's own transform as one composition mid-flight. The slot gets
+ * `--con-hand-zoom` from the album page; a body lives outside that context,
+ * so the director stamps the equivalent value — the ALBUM-side rect's
+ * implied card zoom (`target.width / naturalW`; in every episode `target`
+ * is the card's album home: the page slot or the packet anchor). Unset, the
+ * chip fell back to the 0.66 default and rendered up to ~3× too big for the
+ * whole animation on a TV showcase page — the oversized-plate bug.
+ *
+ * `undefined` = the rect is a degenerate placeholder (the filter episode's
+ * `{width: 1}` fallbacks) — leave no stamp, the CSS default applies.
+ */
+export function revealChipHandZoom(targetWidth: number, naturalW: number): number | undefined {
+  if (!(naturalW > 0)) {
+    return undefined;
+  }
+  const zoom = targetWidth / naturalW;
+  return zoom > 0.05 ? zoom : undefined;
+}
+
+/**
  * SEIZE the bodies for an episode: mark them flying (adds the probes'
  * `data-reveal-card`), mount faces for the page cards, stamp the flight
  * visuals, and stop any layer pose tween so the timeline owns the element
@@ -303,6 +327,16 @@ function seizeBodies(pairs: ReadonlyArray<RevealPair>): Array<HTMLElement | unde
     if (el !== undefined) {
       gsap.killTweensOf(el);
       setHandBodyMode(p.name as string, 'flying');
+      // The chip's zoom context (see revealChipHandZoom): the album-side
+      // card zoom this pair's target implies, so the blocker chip rides the
+      // card at the resting slot's exact relative size — never the 0.66
+      // fallback that inflated it for the length of the animation.
+      const chipZoom = revealChipHandZoom(p.target.width, naturalWOf(el));
+      if (chipZoom === undefined) {
+        el.style.removeProperty('--con-hand-zoom');
+      } else {
+        el.style.setProperty('--con-hand-zoom', String(chipZoom));
+      }
     }
     return el;
   });

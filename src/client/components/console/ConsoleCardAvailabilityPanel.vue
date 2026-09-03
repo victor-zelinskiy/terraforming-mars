@@ -3,10 +3,13 @@
        class="con-cardavail"
        :class="['con-cardavail--' + variant, 'con-cardavail--' + severityClass, {'con-cardavail--closing': closing}]"
        :data-severity="severityClass">
-    <!-- COMPACT: the draft/buy status block — two readable rows, never a
-         micro-caption. Row 1 = the card's name + the loud status; row 2 = the
-         concrete requirement-vs-now comparison (+ a «+N ещё» chip when more
-         reasons wait in the fullscreen view).
+    <!-- COMPACT: the draft/buy status ROW — ONE line by the card-status
+         contract (the host reserves `--con-cardstatus-h` and CLIPS): the
+         card's name, the loud status, the COMPACT counter form of the primary
+         reason («Метки 1/3» — never the full sentence, which is fullscreen's
+         voice), and the honest «+N ещё» chip. The row's height must never
+         follow the content — a second line here is the layout-shift bug this
+         contract exists to forbid.
          With NOTHING to say the block still stands and still carries the NAME
          (`--clear`): a met requirement set is the norm, and the name is the
          one thing the status zone always states. It is the SAME element in
@@ -15,30 +18,27 @@
          document's inherited px size (tiny on a 4K TV) beside a 1.18rem
          name the moment a card had a verdict. -->
     <template v-if="variant === 'compact'">
-      <div class="con-cardavail__head">
-        <span v-if="cardTitle !== undefined" class="con-cardavail__name">{{ cardTitle }}</span>
-        <span v-if="view !== undefined" class="con-cardavail__status">
-          <span class="con-cardavail__icon" aria-hidden="true">{{ view.icon }}</span>
-          <span class="con-cardavail__title">{{ view.title }}</span>
-        </span>
-      </div>
-      <div v-if="view !== undefined && view.primary !== undefined" class="con-cardavail__line">
-        <span class="con-cardavail__text">{{ view.primary.text }}</span>
-        <span v-if="view.extraCount > 0" class="con-cardavail__more">{{ moreLabel }}</span>
-      </div>
+      <span v-if="cardTitle !== undefined" class="con-cardavail__name">{{ cardTitle }}</span>
+      <span v-if="view !== undefined" class="con-cardavail__status">
+        <span class="con-cardavail__icon" aria-hidden="true">{{ view.icon }}</span>
+        <span class="con-cardavail__title">{{ view.title }}</span>
+      </span>
+      <span v-if="view !== undefined && view.primary !== undefined" class="con-cardavail__text">{{ view.primary.compact }}</span>
+      <span v-if="view !== undefined && view.extraCount > 0" class="con-cardavail__more">{{ moreLabel }}</span>
     </template>
     <!-- LINE: a name-less one-liner for embedding INSIDE an existing status /
          verdict bar (the hand's sale/discard modes, the deck pick's foot):
          the HOST already names the card and owns the bar's authoritative
          selection state — this register only adds the verdict + the primary
-         reason beside them, and renders NOTHING at all without a view (no
-         empty chip, no phantom gap in the host's flex row). -->
+         reason (in the same COMPACT counter form the status rails speak)
+         beside them, and renders NOTHING at all without a view (no empty
+         chip, no phantom gap in the host's flex row). -->
     <template v-else-if="variant === 'line'">
       <span class="con-cardavail__status">
         <span class="con-cardavail__icon" aria-hidden="true">{{ view.icon }}</span>
         <span class="con-cardavail__title">{{ view.title }}</span>
       </span>
-      <span v-if="view.primary !== undefined" class="con-cardavail__text">{{ view.primary.text }}</span>
+      <span v-if="view.primary !== undefined" class="con-cardavail__text">{{ view.primary.compact }}</span>
       <span v-if="view.extraCount > 0" class="con-cardavail__more">{{ moreLabel }}</span>
     </template>
     <!-- PANEL: the fullscreen aside under «ПРАВИЛА» — the same glass and
@@ -76,12 +76,16 @@
  * ConsoleCardAvailabilityPanel — the ONE presentation of "how available is
  * this card in the current game", in three densities:
  *
- *   variant="compact" — the two-row status block under a card spread (the
- *     draft workspace's pick/buy stages, the start wizard's rail);
+ *   variant="compact" — the ONE-ROW status block under a card spread (the
+ *     draft workspace's pick/buy stages, the start wizard's rail): name +
+ *     status + the COMPACT counter reason. Fixed-height by the card-status
+ *     contract — the host reserves `--con-cardstatus-h`, the row never grows;
  *   variant="line"   — a name-less one-liner embedded in a HOST's own
  *     status/verdict bar (the hand's sale/discard modes, the deck pick's
  *     foot) — the host names the card and owns the selection state;
- *   variant="panel"  — the fullscreen viewer's aside below «ПРАВИЛА».
+ *   variant="panel"  — the fullscreen viewer's aside below «ПРАВИЛА» — the
+ *     one density that speaks the FULL reason lines (`text` + modifiers);
+ *     the rails speak `compact` (unplayableReasonCompact) instead.
  *
  * `view` is OPTIONAL for the compact density: «nothing to say» is a real
  * state of a status zone that always names the focused card, and it must be

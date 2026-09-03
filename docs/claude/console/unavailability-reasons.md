@@ -35,12 +35,13 @@ Guards: the `requirement attainability` block in `tests/models/unplayableReasons
 
 Every console surface that talks about a card's availability builds a `CardAvailabilityView`
 through `buildCardAvailability(input, context)` and renders it with
-`ConsoleCardAvailabilityPanel` (`variant="compact"` — the two-row status block of the draft
-workspace and the start wizard's rail; `variant="line"` — a NAME-LESS one-liner embedded inside a
-host's own verdict/status bar (the hand's sale/discard modes, the deck pick's foot: the host names
-the card and owns the selection state, the line adds only verdict + primary reason and renders
-NOTHING without a view); `variant="panel"` — the fullscreen viewer's «ДОСТУПНОСТЬ» aside ABOVE
-«ПРАВИЛА»). Contexts:
+`ConsoleCardAvailabilityPanel` (`variant="compact"` — the ONE-ROW status block of the draft
+workspace and the start wizard's rail: name + status + the compact counter reason;
+`variant="line"` — a NAME-LESS one-liner embedded inside a host's own verdict/status bar (the
+hand's sale/discard modes, the deck pick's foot: the host names the card and owns the selection
+state, the line adds only verdict + compact primary reason and renders NOTHING without a view);
+`variant="panel"` — the fullscreen viewer's «ДОСТУПНОСТЬ» aside ABOVE «ПРАВИЛА», the ONE density
+that speaks the full reason sentences + the modifier notes). Contexts:
 
 - **`'draft'`** (evaluation for later): only `requirement: true` reasons speak; `unattainable` →
   the red «Требование уже не выполнить», otherwise the amber «Требование пока не выполнено»;
@@ -119,10 +120,21 @@ system, not a second one:
   spread, carrying the card NAME itself so the rail never states it twice, and X opens the
   fullscreen viewer with `availability: 'draft'` (the summary review carries the reasons across on
   its synthetic models, so a bought card keeps its verdict).
-- **The reserve is per STEP, never per card** (`.con-start__statusrail--avail` →
-  `--con-start-rail-avail-h`, the draft's 4.3 / 5.6rem couch pair): the rail clips, and a height
-  that changed with the focus would resize the card grid under the player's hands. A step nothing
-  speaks for keeps the compact one-row rail and gives the pixels back to the cards.
+- **The rail is ONE FIXED ROW in every state — the card-status contract (2026-09-03).** Every
+  card-selection / card-browsing status rail (the start wizard's rail, the draft workspace's
+  status bar, the hand's verdict bar) reserves EXACTLY `--con-cardstatus-h` (2.6rem base / 3rem
+  TV / 2rem Deck — profiles override the TOKEN, never a surface): fixed `height`, never
+  `min-height`, overflow hidden, no wrap. The taller per-step «avail» reserve
+  (`--con-start-rail-avail-h`, the 4.3/5.6rem two-row zone) is DELETED — it let a long RU reason
+  fold the rail to two lines and re-lay the whole card scene out (the reported start-buy jump).
+  What made one row possible is the COMPACT REASON FORM: `unplayableReasonCompact()`
+  (`unplayableReasonFormat.ts`) renders the same semantic fact as a counter — «Метки 1/3»,
+  «Кислород 2/9%», «Температура −10/≤−14°C» (a max requirement marks its bound `≤`, at the
+  EFFECTIVE value when modifiers stretch it); reasons with no counter shape (money, placement,
+  targets, party situations) fall back to the full line, which is short. Every
+  `CardAvailabilityReasonView` carries BOTH `text` (fullscreen) and `compact` (rails) — one
+  model, two lengths; `stepShowsAvailability` only picks which CONTENT stands on the rail, never
+  a different box. Guard: `tests/console/cardStatusContract.spec.ts` (stylesheet lock-step).
 
 Guards: the `project requirement reasons` block in `tests/inputs/SelectInitialCards.spec.ts`,
 the `start-hand availability` block in `tests/client/components/console/consoleStartState.spec.ts`,
@@ -154,8 +166,8 @@ The fix is a LIFECYCLE, never a delay/debounce/fade:
   (funds chip, header counter) are deliberately NOT gated.
 - **The hold lands instantly:** `.con-start__status-inner--held` sets `transition: none` — the
   base 150 ms opacity transition is the RELEASE fade only.
-- The two-row availability RESERVE (`--avail`, per-step) stays live through the hold — height is
-  layout, not payload, and must settle before the reveal.
+- The rail's height is a constant (`--con-cardstatus-h`, the card-status contract) — layout never
+  rides the payload, so the hold and release are pure opacity.
 
 The sibling rails were already structurally sound and are the models this follows: the draft
 workspace freezes its SOURCE until the same statement that arms its hold

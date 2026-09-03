@@ -427,11 +427,13 @@ export function startCardAvailability(card: CardModel | undefined): CardAvailabi
 }
 
 /**
- * Does this step reserve the status rail's TWO-ROW availability zone?
+ * Does this step's rail carry the shared availability BLOCK (vs the bare
+ * card-name row)? A CONTENT decision only — the rail's height is the one
+ * fixed card-status token in both states, so nothing above it can move.
  *
- * Asked of the WHOLE step, never of the focused card: the reserve must not
- * change as the focus moves, or the card grid above would resize under the
- * player's hands (the draft's status rail reserves for exactly that reason).
+ * Asked of the WHOLE step, never of the focused card: the presentation must
+ * not flicker between the two registers as the focus moves (the draft's
+ * status rail settled on the same rule).
  * And it is asked THROUGH the shared model rather than through a hand-rolled
  * reason filter, so the reserve and the block can never disagree about what
  * «has something to say» means. A step whose cards are all within reach — or

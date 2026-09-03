@@ -64,6 +64,10 @@ html.con-profile-tv {
        token. */
     --con-hud-h: 2.3rem;
     --con-hud-gap: .35rem;
+    /* THE CARD-STATUS ROW (shared token — see console.less): the couch
+       height of every card-selection status rail (start / draft / hand).
+       ONE line at TV chrome sizes (1.18rem name + 1.05rem status). */
+    --con-cardstatus-h: 3rem;
     /* Couch type scale (logical px / 20). */
     --con-t-hero: 2.2rem;      /* 44 — key numeric readouts */
     --con-t-title: 1.8rem;     /* 36 — screen/panel titles */
@@ -535,6 +539,11 @@ html.con-profile-tv {
            at a glance without shouting). */
         &__chip { zoom: ~"calc(1.2 / var(--con-hand-zoom, 0.66))"; }
     }
+    /* The flying body's chip twin follows the SAME couch law (the director
+       stamps `--con-hand-zoom` per body — see revealChipHandZoom); the two
+       must move in lock-step or the chip pops at the handoff. Guarded by
+       tests/console/handChipZoomParity.spec.ts. */
+    .con-deal-proxy__chip { zoom: ~"calc(1.2 / var(--con-hand-zoom, 0.66))"; }
 
     /* ═══ 8 · CARD BROWSER / PICK STRIPS / FULLSCREEN VIEWER ══════ */
     .con-cards {
@@ -611,7 +620,7 @@ html.con-profile-tv {
        no profile cap here, or the measured band is silently overruled.) */
     /* CARD AVAILABILITY at couch distance: the chrome (name / status /
        verdict) speaks at HUD size; the detail lines already ride the reading
-       tokens. The draft status zone grows with them. */
+       tokens. The status rails stay ONE row inside --con-cardstatus-h. */
     .con-cardavail {
         &__name { font-size: 1.18rem; }
         &__status { font-size: 1.05rem; }
@@ -621,7 +630,7 @@ html.con-profile-tv {
         &--panel .con-cardavail__verdict { font-size: 1.18rem; padding: .7rem 1.1rem .55rem; }
         &--panel .con-cardavail__list { padding: .6rem 1.1rem 0; }
     }
-    .con-draftws { --con-draftws-status-h: 5.6rem; }
+    /* (.con-draftws' status height rides the shared --con-cardstatus-h.) */
     /* Viewer chrome: the counter is a first-class HUD readout; the action
        strip speaks at command-bar size. */
     .card-zoom-counter {
@@ -1245,11 +1254,9 @@ html.con-profile-tv {
         &__title { font-size: 1.6rem; }
         &__kicker { font-size: var(--con-t-secondary); }
         &__verdict-name { font-size: 1.15rem; }
-        /* Pinned status rail — couch-legible name + state chip. */
-        --con-start-rail-h: 3rem;
-        /* …and the two-row availability zone at the SAME couch height the
-           draft workspace's status block uses (--con-draftws-status-h). */
-        --con-start-rail-avail-h: 5.6rem;
+        /* Pinned status rail — couch-legible name + state chip. Its height
+           is the shared card-status token (--con-cardstatus-h, profile
+           root): ONE row in every state, never a taller «avail» variant. */
         &__statusrail { padding: 0 1.2rem; }
         &__status-name { font-size: 1.15rem; }
         &__status-state { font-size: var(--con-t-secondary); padding: .22rem .85rem; }

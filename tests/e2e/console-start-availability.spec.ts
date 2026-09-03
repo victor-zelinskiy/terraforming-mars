@@ -55,20 +55,22 @@ async function railReadout(page: Page) {
   return await page.evaluate(() => {
     const rail = document.querySelector<HTMLElement>('.con-start__statusrail');
     const block = document.querySelector<HTMLElement>('.con-start__statusrail .con-cardavail');
-    const line = block?.querySelector<HTMLElement>('.con-cardavail__line');
     const body = document.querySelector<HTMLElement>('.con-start__body--cards');
+    // The card scene's LAYOUT anchor: the strip container (a slot's own rect
+    // moves with the focus-scale transform, so it cannot witness stability).
+    const firstCard = document.querySelector<HTMLElement>('.con-start__body--cards .con-cards__strip');
     const box = (el: HTMLElement | null | undefined) => (el === null || el === undefined) ? undefined : (() => {
       const r = el.getBoundingClientRect();
       return {top: Math.round(r.top), bottom: Math.round(r.bottom), height: Math.round(r.height)};
     })();
     return {
-      reserved: rail?.classList.contains('con-start__statusrail--avail') ?? false,
       severity: block?.getAttribute('data-severity') ?? '',
       name: (block?.querySelector<HTMLElement>('.con-cardavail__name')?.innerText ?? '').trim(),
       status: (block?.querySelector<HTMLElement>('.con-cardavail__status')?.innerText ?? '').replace(/\s+/g, ' ').trim(),
-      reason: (line?.innerText ?? '').replace(/\s+/g, ' ').trim(),
+      reason: (block?.querySelector<HTMLElement>('.con-cardavail__text')?.innerText ?? '').replace(/\s+/g, ' ').trim(),
       rail: box(rail),
       block: box(block),
+      cardTop: box(firstCard)?.top,
       bodyOverflow: body === null ? 0 : body.scrollHeight - body.clientHeight,
     };
   });
@@ -139,16 +141,41 @@ for (const preset of PRESETS) {
     await shoot(page, preset.tag, 'projects-rail');
     // The card is bought for LATER, so the verdict is the amber PENDING one —
     // never the play voice's red «нельзя разыграть», never a money line.
-    expect(rail.reserved, `the step reserved the two-row availability zone — ${JSON.stringify(rail)}`).toBeTruthy();
     expect(rail.severity, 'pending, not missed: 0 °C is still reachable').toBe('pending');
     expect(rail.name.length, 'the block carries the focused card name').toBeGreaterThan(0);
     expect(rail.status.length, 'the loud status stands beside it').toBeGreaterThan(0);
-    expect(rail.reason, 'the requirement-vs-now line is the second row').toMatch(/-?\d/);
-    // 1. The rail CLIPS — the block must fit inside it, whole.
+    // The COMPACT counter form on the rail — a current/bound fraction, never
+    // the full «Требуется … · Сейчас: …» sentence (that is fullscreen's).
+    expect(rail.reason, 'the compact requirement counter is on the row').toMatch(/-?\d+\s*\/\s*≤?\s*-?\d/);
+    expect(rail.reason, 'the full-sentence separator never reaches the rail').not.toContain('·');
+    // 1. The rail CLIPS — the block must fit inside it, whole (one row).
     expect(rail.block!.top, 'the block starts inside the rail').toBeGreaterThanOrEqual(rail.rail!.top - 1);
     expect(rail.block!.bottom, 'the reason line is not clipped away').toBeLessThanOrEqual(rail.rail!.bottom + 1);
-    // 2. …and the height it took did not push the grid into a scroll.
-    expect(rail.bodyOverflow, 'the card grid still fits the shortened body').toBeLessThanOrEqual(2);
+    // 2. …and the rail did not push the grid into a scroll.
+    expect(rail.bodyOverflow, 'the card grid fits the body').toBeLessThanOrEqual(2);
+
+    // 3. THE LAYOUT INVARIANT: the rail's box and the card scene's anchor do
+    //    not move by a single visible step when the focus leaves the
+    //    requirement card for one with nothing to say (and back). The rail
+    //    is a FIXED-height row (`--con-cardstatus-h`) in both states.
+    // The ring clamps at a wall (never wraps): step right, and if the focus
+    // did not move, step left instead — either neighbor witnesses the box.
+    await press(page, 'ArrowRight', 700);
+    const stepBack = (await focusedCard(page)) === CARD ? 'ArrowRight' : 'ArrowLeft';
+    if (stepBack === 'ArrowRight') {
+      await press(page, 'ArrowLeft', 700);
+    }
+    await forceFrame(page);
+    const other = await railReadout(page);
+    await press(page, stepBack, 700);
+    await forceFrame(page);
+    const back = await railReadout(page);
+    for (const [tag, r] of [['neighbor', other], ['back', back]] as const) {
+      expect(r.rail!.top, `${tag}: the rail's top never moves`).toBe(rail.rail!.top);
+      expect(r.rail!.height, `${tag}: the rail's height never changes`).toBe(rail.rail!.height);
+      expect(r.cardTop, `${tag}: the card scene never shifts`).toBe(rail.cardTop);
+    }
+    expect(back.severity, 'the verdict returned with the focus').toBe('pending');
 
     // The fullscreen viewer speaks the same voice, one level deeper.
     const zoom = page.locator('dialog.con-zoom[open]');

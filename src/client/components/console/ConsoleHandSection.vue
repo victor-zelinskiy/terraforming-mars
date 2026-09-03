@@ -310,11 +310,13 @@
       </template>
       <!-- Real rule blockers: the SHARED cardAvailability view (the same one
            the fullscreen panel renders) — its ordered, de-duped rows, first
-           two here, the full list in the fullscreen. A turn note that joins
-           them keeps its own amber voice under the red verdict. -->
+           two here IN THE COMPACT COUNTER FORM («Метки 1/3» — the bar is one
+           fixed-height row by the card-status contract; the full sentences
+           live in the fullscreen panel). A turn note that joins them keeps
+           its own amber voice under the red verdict. -->
       <template v-else>
         <span class="con-cards__verdict con-cards__verdict--blocked"><span aria-hidden="true">✕</span> {{ $t('Unplayable now') }}</span>
-        <span v-for="r in playReasonRows" :key="r.key" class="con-hand__reason con-hand__reason--bar" :class="'con-hand__reason--' + r.type">{{ r.text }}</span>
+        <span v-for="r in playReasonRows" :key="r.key" class="con-hand__reason con-hand__reason--bar" :class="'con-hand__reason--' + r.type">{{ r.compact }}</span>
       </template>
       <!-- GIVE-UP modes (sale / select) additionally speak the card's FUTURE
            value in the shared draft voice — «what can I still play?» is what

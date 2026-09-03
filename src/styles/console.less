@@ -437,6 +437,21 @@ html.console-native {
        rail height. */
     --con-band-top: calc(var(--con-hud-h) + var(--con-hud-gap));
     --con-band-bottom: calc(var(--con-hud-h) + var(--con-hud-gap));
+    /* ═══ THE CARD-STATUS ROW — one height for every card-selection /
+       card-browsing status rail ═══
+       The start wizard's rail, the draft workspace's status bar and the
+       hand's verdict bar (browse / sale / discard) all reserve EXACTLY this
+       box: fixed `height` (never `min-height`), border-box, overflow hidden,
+       ONE ellipsizing line. Content may NEVER grow it — a long reason speaks
+       the COMPACT counter form (`unplayableReasonCompact`, «Метки 1/3»), the
+       full sentence belongs to the fullscreen panel. A second line here is
+       the layout-shift bug this token exists to forbid: the rail resizing on
+       a d-pad move re-fits the whole card scene above it. Profiles override
+       the TOKEN, never a per-surface height. (The embedded workspace stage
+       chassis `.con-ws-stage-status` keeps its own tighter fixed row — it is
+       a fit-engine input inside a measured band, already one-line by the
+       same kind of contract.) */
+    --con-cardstatus-h: 2.6rem;
 }
 
 .con-root {
@@ -2768,12 +2783,13 @@ html.con-reduced-motion {
     z-index: 11480;
     display: flex;
     flex-direction: column;
-    /* The status block's reserved height — head row + a two-line reading
-       body for the longest RU requirement comparison (never clipped, never
-       reflowing the stage). The SHELF's absolute bottom rides the same token,
-       so the collection and the verdict can never drift apart. TV bumps it
-       with the reading tokens (console_tv.less). */
-    --con-draftws-status-h: 4.3rem;
+    /* The status block's reserved height — the SHARED card-status row (one
+       line: name + status + compact counter; the full sentence is the
+       fullscreen panel's voice). Never clipped, never reflowing the stage.
+       The SHELF's absolute bottom rides the same token, so the collection
+       and the verdict can never drift apart. Profiles override the shared
+       token, never this alias. */
+    --con-draftws-status-h: var(--con-cardstatus-h, 2.6rem);
     /* THE STAGE SURFACE (perimeter shell) — see .con-stage-surface().
        VISUAL-STAGE inset right: the gallery is the largest visual object of
        the whole flow — the freed width goes straight into the card fit.
@@ -3184,16 +3200,16 @@ html.con-reduced-motion {
         font-weight: 700;
     }
 
-    /* ── STATUS RAIL: the focused card's availability block (reserved TWO-ROW
+    /* ── STATUS RAIL: the focused card's availability block (reserved ONE-ROW
        zone — the stage above never reflows when the verdict changes; sized by
-       --con-draftws-status-h, declared on the root beside the shelf coupling,
-       so the shelf's absolute bottom and this row can never drift apart).
+       --con-draftws-status-h = the shared card-status token, declared on the
+       root beside the shelf coupling, so the shelf's absolute bottom and this
+       row can never drift apart).
        The block itself is the shared ConsoleCardAvailabilityPanel (compact):
-       name + loud status on the first row, the requirement-vs-now comparison
-       in the reading voice on the second — a TV-readable body, never the old
-       one micro-caption line. It stands for EVERY focused card; with nothing
-       to say it is the name alone (`--clear`), never a second element with a
-       typography of its own. ── */
+       name + loud status + the compact counter reason on ONE line — the full
+       requirement sentence belongs to the fullscreen panel. It stands for
+       EVERY focused card; with nothing to say it is the name alone
+       (`--clear`), never a second element with a typography of its own. ── */
     &__statusbar {
         flex-shrink: 0;
         position: relative;
@@ -8898,16 +8914,14 @@ html.console-mode {
         white-space: nowrap;
         pointer-events: none;
     }
-    /* The focused-card INFO BAR reserves the reason-chip row height so that
-       switching focus between a playable card (no reason) and a blocked one
-       (name + verdict + «why not» chip) NEVER changes the bar height — a
-       height change would re-fit the card grid and shift every card
-       (player feedback). The reason chip below is compact enough to sit in
-       one row with the verdict, so the reserve holds. The `.con-cards`
-       twin sets min-height LATER in the file at equal specificity, so the
-       reserve rides the combined selector to win the cascade. */
+    /* The focused-card INFO BAR rides the SHARED fixed card-status height
+       (the `.con-cards__verdictbar` base rule), so switching focus between a
+       playable card (no reason) and a blocked one (name + verdict + «why
+       not» chip) can NEVER change the bar height — a height change would
+       re-fit the card grid and shift every card (player feedback). The
+       reason chips speak the compact counter form and ellipsize; nothing
+       may wrap (the base bar is nowrap + overflow hidden). */
     &__verdictbar.con-cards__verdictbar {
-        min-height: 2.7rem;
         /* TWO-LEVEL SAFE AREA: text claws the content-safe difference back
            while the frame rides the stage inset. Combined selector ON
            PURPOSE — the `.con-cards__verdictbar` base declares a `padding`
@@ -8982,12 +8996,20 @@ html.console-mode {
         font-size: 1rem;
         line-height: 1.4;
 
-        /* Inside the verdict bar: a compact chip that fits the reserved
-           bar height in ONE row (never taller than the verdict chip). */
+        /* Inside the verdict bar: a compact chip that fits the FIXED
+           card-status row in ONE line (never taller than the verdict chip,
+           never a second line — the bar clips, so a wrap would be cut).
+           The chip carries the compact counter form; under width pressure
+           it ellipsizes rather than grows. */
         &--bar {
             padding: .18rem .55rem;
             font-size: .85rem;
             line-height: 1.2;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            min-width: 0;
+            flex: 0 1 auto;
         }
 
         &--megacredits { border-left-color: @con-amber; }
@@ -21681,26 +21703,32 @@ html.con-scale-focus-oceans .global-numbers-oceans {
         display: flex;
         align-items: center;
         justify-content: center;
-        flex-wrap: wrap;
+        /* ONE ROW BY CONTRACT (the card-status height below is FIXED and the
+           bar clips): a wrapped second line would be silently cut, so the
+           content nowraps and ellipsizes instead (__verdict-inner and the
+           hand's own chips are all nowrap). */
+        flex-wrap: nowrap;
         gap: .6rem;
         margin-top: .1rem;
         padding: .4rem .6rem;
         border-radius: .5rem;
+        overflow: hidden;
         /* Match the colonies-screen panel opacity (`@con-glass`, alpha .92) so
            the reason rail reads as solid chrome, not a transparent film. */
         background: @con-glass;
         box-shadow: inset 0 0 0 .05rem rgba(120, 150, 180, 0.14);
-        /* RESERVED ROW HEIGHT (the `.con-hand__verdictbar` twin at ~4005 does
-           the same for the hand dock, and for the same reason): the bar's
-           height is measured by `modalChromeHeight()` and the frame is
-           vertically centred, so ANY height change re-fits / shifts the whole
-           card row. The reserve is sized ABOVE the natural one-row height at
-           every profile, so the bar keeps one constant height whether the
-           focused card is pickable, blocked with a reason, or not yet focused
-           at all (`__verdict-inner` is v-if'd). The chips themselves can no
-           longer wrap (see --blocked / __verdict-inner), so nothing can grow
-           past it. */
-        min-height: 2.6rem;
+        /* THE CARD-STATUS ROW (shared token — see html.console-native): a
+           FIXED height, never a min. The bar's height is measured by
+           `modalChromeHeight()` and the frame is vertically centred, so ANY
+           height change re-fits / shifts the whole card row — which is why
+           content may never grow it: the bar keeps one constant height
+           whether the focused card is pickable, blocked with a reason, or
+           not yet focused at all (`__verdict-inner` is v-if'd). Long reasons
+           speak the compact counter form; the full sentence is fullscreen's.
+           (The embedded `.con-ws-stage-status` chassis overrides this with
+           its own tighter fixed row — same contract, measured band.) */
+        height: var(--con-cardstatus-h, 2.6rem);
+        min-height: 0;
     }
     &__verdictbar--held > .con-cards__verdict-inner {
         opacity: 0;
@@ -22529,13 +22557,12 @@ body.con-start-ceremony {
        card area never shifts when the rail's message swaps. Shows the focused
        card's LOCAL state only (name + one state chip); the global «N из M»
        counter lives in the header. */
-    --con-start-rail-h: 2.6rem;
-    /* …and the TWO-ROW height when the rail carries the shared availability
-       block (the same reserved zone the draft workspace pins under its spread
-       — see --con-draftws-status-h). Reserved for the WHOLE step, so moving
-       the focus onto a card with an unmet requirement never resizes the grid
-       above it. */
-    --con-start-rail-avail-h: 4.3rem;
+    /* ONE height in EVERY state — the shared card-status token (see
+       `--con-cardstatus-h` on html.console-native). The availability block
+       is a one-row register now (name + status + compact counter), so there
+       is no taller «avail» variant: the rail can never resize the grid
+       above it, whatever the focused card has to say. */
+    --con-start-rail-h: var(--con-cardstatus-h, 2.6rem);
     &__statusrail {
         box-sizing: border-box;
         flex-shrink: 0;
@@ -22570,14 +22597,11 @@ body.con-start-ceremony {
             transition: none;
         }
     }
-    &__statusrail--avail {
-        height: var(--con-start-rail-avail-h);
-    }
     /* The availability block takes the rail's free width (the state chip and
-       the funds chip keep their right-edge seats); its own two-row grammar,
+       the funds chip keep their right-edge seats); its one-row grammar,
        tone palette and typography come from .con-cardavail — this host only
        gives it a box. The card's name lives INSIDE it, so `__status-name`
-       above is the one-row rail's element and this one is never both. */
+       above is the bare-name rail's element and this one is never both. */
     &__status-avail {
         flex: 1 1 auto;
         min-width: 0;
@@ -31770,6 +31794,11 @@ html.con-profile-handheld {
        stages at once (they carry the same chassis class). */
     .con-ws-stage-status { height: 2.2rem; }
 
+    /* THE CARD-STATUS ROW at Deck density (the ONE token — start rail, draft
+       status bar and the hand's verdict bar all follow; see the base
+       declaration on html.console-native). */
+    --con-cardstatus-h: 2rem;
+
     /* Effect-chip system: keep the pre-token compact weight on the Deck
        (the surfaces used .75–.8rem chips before the tokens unified them). */
     --con-chip-fs: 0.75rem;
@@ -32198,16 +32227,19 @@ html.con-profile-handheld {
         &__empty-glyph { font-size: 1.7rem; }
         &__empty-text { font-size: .85rem; }
     }
+    /* The flying body's chip twin follows the Deck density of `.con-hand__chip`
+       above (lock-step — tests/console/cardStatusContract.spec.ts): without
+       it the proxy chip flew at the base .75rem over a slot chip resting at
+       .65rem, a ~10% pop at every handoff. */
+    .con-deal-proxy__chip { font-size: .65rem; }
 
     /* ── 8/12 · the shared card browser (task host + start scene) ── */
     .con-cards {
         gap: .4rem;
 
-        /* min-height = the RESERVE at handheld metrics (chip .65rem + .2rem×2
-           padding inside .3rem×2 bar padding ≈ 1.9rem) — it must stay ABOVE
-           the natural one-row height or the bar changes height when the
-           verdict content mounts. See the base rule's comment. */
-        &__verdictbar { min-height: 2rem; padding: .3rem .5rem; gap: .4rem; }
+        /* The bar's height is the shared card-status token (2rem on the Deck
+           — the profile override above); only the density is tuned here. */
+        &__verdictbar { padding: .3rem .5rem; gap: .4rem; }
         &__verdict-name { font-size: .75rem; max-width: 12rem; }
         &__verdict { font-size: .65rem; padding: .2rem .55rem; }
         /* P17 clip-safe at handheld densities: top headroom covers the
@@ -32311,10 +32343,8 @@ html.con-profile-handheld {
         /* Handheld vertical budget (800px): every chrome pixel saved here
            goes straight into the fit engine's card zoom. */
         --con-start-verdict-h: 2.1rem;
-        --con-start-rail-h: 2rem;
-        /* The two-row availability rail trims with the rest of the chrome —
-           the block's own reading line already rides the reading tokens. */
-        --con-start-rail-avail-h: 3.4rem;
+        /* (--con-start-rail-h rides the shared --con-cardstatus-h token —
+           the Deck override sits on the profile root.) */
         &__statusrail { margin-top: .3rem; padding: 0 .6rem; border-radius: .45rem; }
         &__status-name { font-size: .75rem; }
         &__status-state { font-size: .65rem; padding: .12rem .5rem; }
@@ -32960,23 +32990,20 @@ html.con-profile-large {
 .con-cardavail {
     min-width: 0;
 
-    /* ── COMPACT: two readable rows under the card spread. ── */
+    /* ── COMPACT: ONE row under the card spread (the card-status contract —
+       the HOST reserves `--con-cardstatus-h` and clips; this row never
+       wraps, never grows). The NAME is the one flexible member: it takes a
+       controlled ellipsis under pressure while the status and the compact
+       counter reason stay whole — the hierarchy the contract orders. ── */
     &--compact {
         display: flex;
-        flex-direction: column;
         align-items: center;
         justify-content: center;
-        gap: .3rem;
+        gap: 1rem;
+        white-space: nowrap;
+        overflow: hidden;
         /* A readable MEASURE, never a line across the whole screen. */
         max-width: min(64rem, 94%);
-    }
-    &--compact &__head {
-        display: flex;
-        align-items: baseline;
-        justify-content: center;
-        gap: 1rem;
-        min-width: 0;
-        max-width: 100%;
     }
     &__name {
         font-weight: 800;
@@ -32987,6 +33014,9 @@ html.con-profile-large {
         white-space: nowrap;
         overflow: hidden;
         text-overflow: ellipsis;
+        /* The one member allowed to yield width (controlled ellipsis). */
+        flex: 0 1 auto;
+        min-width: 6rem;
     }
     &__status {
         display: inline-flex;
@@ -32997,22 +33027,19 @@ html.con-profile-large {
         text-transform: uppercase;
         font-size: .92rem;
         white-space: nowrap;
+        flex-shrink: 0;
     }
     &__icon { line-height: 1; }
-    &--compact &__line {
-        display: flex;
-        align-items: baseline;
-        justify-content: center;
-        gap: .7rem;
-        min-width: 0;
-        max-width: 100%;
-    }
     &--compact &__text {
         .con-read-text(470);
         font-size: calc(var(--con-t-read-sm) * var(--con-read-scale, 1));
         line-height: 1.4;
-        text-align: center;
-        text-wrap: balance;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        /* The counter form is short by construction — it yields only after
+           the name has given everything it can. */
+        flex: 0 1 auto;
     }
 
     /* ── LINE: a name-less one-liner INSIDE a host's own status/verdict bar

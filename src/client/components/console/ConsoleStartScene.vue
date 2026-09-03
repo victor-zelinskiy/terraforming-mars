@@ -819,7 +819,7 @@
 
         <div v-if="mode === 'wizard' && currentStep !== undefined"
              class="con-start__statusrail"
-             :class="[statusRailClass, {'con-start__statusrail--avail': railShowsAvailability}]">
+             :class="statusRailClass">
           <!-- The rail's HEIGHT is reserved for the whole card step; only its
                CONTENT is hidden until the FOCUS COMMIT (--held: opacity, never
                an unmount) — so the card area never resizes / jumps when the
@@ -845,9 +845,12 @@
                  where the server could prove it. Money says nothing here (the
                  funds chip on the right is the economy's one voice).
                  It carries the card's NAME itself, so the rail never states it
-                 twice; the zone is reserved for the WHOLE step (see
-                 `stepShowsAvailability` in consoleStartState) — the cards must not resize
-                 when the focus moves onto a card that has something to say. -->
+                 twice. ONE ROW at the rail's one fixed height (the shared
+                 card-status token): the reason speaks the compact counter
+                 form («Метки 1/3»), the full sentence lives in fullscreen —
+                 so the rail can never resize the cards above it, whatever
+                 the focused card has to say (`stepShowsAvailability` only
+                 picks which CONTENT stands here, never a different box). -->
             <ConsoleCardAvailabilityPanel v-if="railShowsAvailability"
                                           class="con-start__status-avail"
                                           :key="railCard ? railCard.name : 'none'"
@@ -3517,11 +3520,11 @@ export default defineComponent({
     wizardGrid() {
       void this.$nextTick(() => this.fitCardStrip());
     },
-    /** The availability rail is a TALLER rail — the body shrinks by the
-     *  difference. Watched (not merely folded into the step change) because
-     *  the reasons ride the SERVER model: a step already on screen when the
-     *  first poll lands would otherwise keep a fit measured against the
-     *  one-row rail and overflow into the body's internal scroll. */
+    /** The rail's height is FIXED (the shared card-status token — the
+     *  availability block is one row now), so this watch is only a settle
+     *  re-measure kept for safety: the reasons ride the SERVER model and can
+     *  land after the step is already on screen. A re-fit against the same
+     *  geometry is a no-op by construction. */
     railShowsAvailability() {
       void this.$nextTick(() => this.fitCardStrip());
     },

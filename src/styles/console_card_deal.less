@@ -102,9 +102,17 @@
     filter: grayscale(0.5) brightness(0.64);
 }
 /* The compact blocker chip — the visual twin of `.con-hand__chip` (same
-   plate / type / placement), sized via the per-proxy `--reveal-chip-zoom`
-   (0.99 × natural / slot width — set by the director) so it renders at the
-   EXACT on-screen size the slot's counter-zoomed chip has at the handoff. */
+   plate / type / placement), and the SAME counter-zoom law: 0.99 divided by
+   the card zoom (`--con-hand-zoom`, stamped per body by the director from
+   the pair's album-side rect — see revealChipHandZoom). At the handoff this
+   is byte-identical to the slot chip's screen size; mid-flight the chip
+   rides the body's transform as ONE composition with the card, keeping a
+   constant chip-to-card ratio through every frame. (The old
+   `--reveal-chip-zoom` var was never set — the chip fell back to zoom 1
+   inside a natural-size card and rendered up to ~3× too big for the whole
+   animation on a TV showcase page.) Change in lock-step with
+   `.con-hand__chip` (console.less) and the TV pair (console_tv.less) —
+   guarded by tests/console/handChipZoomParity.spec.ts. */
 .con-deal-proxy__chip {
     position: absolute;
     left: 50%;
@@ -122,7 +130,7 @@
     white-space: normal;
     text-align: center;
     line-height: 1.18;
-    zoom: var(--reveal-chip-zoom, 1);
+    zoom: ~"calc(0.99 / var(--con-hand-zoom, 0.66))";
     pointer-events: none;
 }
 

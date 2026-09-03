@@ -28,12 +28,13 @@ function panel(props: Record<string, unknown>) {
 }
 
 describe('ConsoleCardAvailabilityPanel — one view, three densities', () => {
-  it('LINE: verdict + primary reason on one run, NO name (the host names the card)', () => {
+  it('LINE: verdict + COMPACT primary reason on one run, NO name (the host names the card)', () => {
     const w = panel({view: view([TEMP_MIN]), variant: 'line'});
     expect(w.find('.con-cardavail__name').exists(), 'the host\'s bar already names the card').to.eq(false);
     expect(w.find('.con-cardavail__title').text()).to.eq('Requirement not met yet');
     expect(w.find('.con-cardavail__icon').text()).to.eq('◈');
-    expect(w.find('.con-cardavail__text').text()).to.contain('Requires 0°C · Now: -22°C');
+    // The counter form — never the full sentence (that is fullscreen's voice).
+    expect(w.find('.con-cardavail__text').text()).to.eq('Temperature -22/0°C');
     expect(w.classes()).to.contain('con-cardavail--line');
     expect(w.classes()).to.contain('con-cardavail--pending');
   });
@@ -52,12 +53,15 @@ describe('ConsoleCardAvailabilityPanel — one view, three densities', () => {
 });
 
 describe('ConsoleCardAvailabilityPanel — one view, two densities', () => {
-  it('COMPACT: name + loud status on row one, the comparison line on row two', () => {
+  it('COMPACT: ONE row — name + loud status + the compact counter reason (never the full sentence)', () => {
     const w = panel({view: view([TEMP_MIN]), variant: 'compact', cardTitle: 'Lake Marineris'});
     expect(w.find('.con-cardavail__name').text()).to.eq('Lake Marineris');
     expect(w.find('.con-cardavail__title').text()).to.eq('Requirement not met yet');
     expect(w.find('.con-cardavail__icon').text()).to.eq('◈');
-    expect(w.find('.con-cardavail__line').text()).to.contain('Requires 0°C · Now: -22°C');
+    expect(w.find('.con-cardavail__text').text()).to.eq('Temperature -22/0°C');
+    // The two-row chassis is GONE — the card-status contract is one line.
+    expect(w.find('.con-cardavail__head').exists(), 'no head row wrapper').to.eq(false);
+    expect(w.find('.con-cardavail__line').exists(), 'no second-line wrapper').to.eq(false);
     expect(w.classes()).to.contain('con-cardavail--pending');
     expect(w.attributes('data-severity')).to.eq('pending');
   });
@@ -80,10 +84,11 @@ describe('ConsoleCardAvailabilityPanel — one view, two densities', () => {
     expect(w.find('.con-cardavail__box').exists()).to.eq(false);
   });
 
-  it('COMPACT: shows the PRIMARY reason and an honest «+N more» chip, never the whole list', () => {
+  it('COMPACT: shows the PRIMARY reason (compact form) and an honest «+N more» chip, never the whole list', () => {
     const w = panel({view: view([TEMP_MAX_MISSED, TAGS]), variant: 'compact', cardTitle: 'X'});
-    // The decisive missed reason leads; the pending tag reason waits behind the chip.
-    expect(w.find('.con-cardavail__line').text()).to.contain('Requires -18°C or colder');
+    // The decisive missed reason leads (as the compact counter, at the
+    // EFFECTIVE bound); the pending tag reason waits behind the chip.
+    expect(w.find('.con-cardavail__text').text()).to.eq('Temperature -10/≤-14°C');
     expect(w.find('.con-cardavail__more').text()).to.eq('+1 more');
     expect(w.findAll('.con-cardavail__text')).to.have.length(1);
     expect(w.classes()).to.contain('con-cardavail--missed');

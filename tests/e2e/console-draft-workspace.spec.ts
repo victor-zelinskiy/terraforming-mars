@@ -345,7 +345,7 @@ test.describe('draft workspace · the between-generations flow', () => {
       const severity = el.getAttribute('data-severity') ?? '';
       return severity === 'clear' ? undefined : {
         severity,
-        line: (el.querySelector('.con-cardavail__line .con-cardavail__text') as HTMLElement | null)?.innerText?.replace(/\s+/g, ' ') ?? '',
+        line: (el.querySelector('.con-cardavail__text') as HTMLElement | null)?.innerText?.replace(/\s+/g, ' ') ?? '',
       };
     });
     // The name is the one thing the zone ALWAYS states, in both states.
@@ -365,7 +365,11 @@ test.describe('draft workspace · the between-generations flow', () => {
     if (compactAvail !== undefined) {
       expect(panelAvail, 'the fullscreen shows the availability panel for a flagged card').toBeTruthy();
       expect(panelAvail?.severity, 'same severity in both densities').toBe(compactAvail.severity);
-      expect(panelAvail?.first, 'same primary reason in both densities').toBe(compactAvail.line);
+      // ONE model, TWO lengths: the rail speaks the compact counter form
+      // («Метки 1/3»), the fullscreen keeps the full sentence — both must
+      // exist; byte-equality is exactly what the card-status contract broke.
+      expect(compactAvail.line.length, 'the rail states a compact reason').toBeGreaterThan(0);
+      expect((panelAvail?.first ?? '').length, 'the fullscreen states the detailed reason').toBeGreaterThan(0);
     } else {
       expect(panelAvail, 'no status → no panel (never an empty container)').toBeUndefined();
     }

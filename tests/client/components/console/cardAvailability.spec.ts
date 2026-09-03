@@ -140,6 +140,49 @@ describe('cardAvailability — the ONE availability presentation model', () => {
     expect(v.coveredRequirementIds).to.deep.eq([]);
   });
 
+  // ── the COMPACT (status-rail) form — one semantic model, two lengths ────
+  it('every reason carries the compact counter form beside the full line', () => {
+    const v = buildCardAvailability({reasons: [TAGS, TEMP_MIN, OXYGEN_KEYED]}, 'draft')!;
+    const byType = new Map(v.reasons.map((r) => [r.type + '|' + r.key, r]));
+    expect(v.reasons.find((r) => r.type === 'tag')?.compact).to.eq('Tags 1/3');
+    expect(v.reasons.find((r) => r.key.includes('°C'))?.compact).to.eq('Temperature -22/0°C');
+    expect(v.reasons.find((r) => r.key.includes('oxygen'))?.compact).to.eq('Oxygen 0/9%');
+    expect(byType.size).to.eq(v.reasons.length);
+    // The full sentence is untouched — the fullscreen panel's voice.
+    expect(v.reasons.find((r) => r.type === 'tag')?.text).to.eq('Requires 3 tag(s) · Now: 1');
+  });
+
+  it('compact: a MAX requirement marks its bound «≤», at the EFFECTIVE value when modifiers stretch it', () => {
+    const v = buildCardAvailability({reasons: [TEMP_MAX_MISSED]}, 'draft')!;
+    // effectiveCount -14 is what the game must actually reach — the printed
+    // -18 and the modifier note stay a fullscreen concern.
+    expect(v.primary?.compact).to.eq('Temperature -10/≤-14°C');
+    const oceansMax: UnplayableReason = {
+      type: 'globalParameter', globalParameter: 'oceans', requirement: true,
+      message: 'Requires ${0} ocean(s) or fewer', params: ['3'], current: 5,
+    };
+    expect(buildCardAvailability({reasons: [oceansMax]}, 'draft')!.primary?.compact).to.eq('Oceans 5/≤3');
+  });
+
+  it('compact: counted requirements label through the template map (TR / hydro / cities)', () => {
+    const tr: UnplayableReason = {type: 'tr', requirement: true, message: 'Requires a terraform rating of ${0}', params: ['25'], current: 20};
+    const hydro: UnplayableReason = {type: 'count', requirement: true, message: 'Requires ${0} step(s) advanced on the Hydronetwork', params: ['4'], current: 1};
+    const cities: UnplayableReason = {type: 'count', requirement: true, message: 'Requires ${0} city tile(s)', params: ['2'], current: 0};
+    const v = buildCardAvailability({reasons: [tr, hydro, cities]}, 'draft')!;
+    expect(v.reasons.map((r) => r.compact)).to.deep.eq(['TR 20/25', 'Hydronetwork 1/4', 'Cities 0/2']);
+  });
+
+  it('compact: a reason with no counter shape falls back to the FULL line (short already)', () => {
+    const v = buildCardAvailability({reasons: [MONEY, TARGET], turnReason: NOT_YOUR_TURN}, 'play')!;
+    expect(v.reasons.find((r) => r.type === 'megacredits')?.compact).to.eq('Need 4 more M€');
+    expect(v.reasons.find((r) => r.type === 'target')?.compact).to.eq('No valid target available');
+    expect(v.reasons.find((r) => r.type === 'turn')?.compact).to.eq(NOT_YOUR_TURN);
+    // A count message OUTSIDE the label map (a frontier type) also falls back.
+    const corruption: UnplayableReason = {type: 'count', requirement: true, message: 'Requires ${0} corruption', params: ['2'], current: 0};
+    expect(buildCardAvailability({reasons: [corruption]}, 'draft')!.primary?.compact)
+      .to.eq('Requires 2 corruption · Now: 0');
+  });
+
   // ── parity ──────────────────────────────────────────────────────────────
   it('compact and fullscreen read the SAME view: primary is the first list row, deterministically', () => {
     const input = {reasons: [TAGS, TEMP_MAX_MISSED, MONEY], turnReason: NOT_YOUR_TURN};
