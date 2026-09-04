@@ -44,7 +44,7 @@ import {Phase} from '@/common/Phase';
 import {paths} from '@/common/app/paths';
 import {statusCode} from '@/common/http/statusCode';
 import {InputResponse} from '@/common/inputs/InputResponse';
-import {INVALID_RUN_ID, AppErrorResponse} from '@/common/app/AppErrorId';
+import {INVALID_RUN_ID, STALE_PROMPT, AppErrorResponse} from '@/common/app/AppErrorId';
 import {Color} from '@/common/Color';
 import {Message} from '@/common/logs/Message';
 import {gameDocumentTitle} from '@/client/utils/documentTitle';
@@ -387,7 +387,10 @@ export function submitInput(out: InputResponse): void {
     {
       method: 'POST',
       headers: {'Content-Type': 'application/json'},
-      body: JSON.stringify({runId: currentView().runId, ...out}),
+      // `promptId` = the DISPLAYED prompt's identity stamp: the server refuses
+      // the submit (STALE_PROMPT) when its live prompt is a different one — an
+      // answer must never be applied to a prompt the player was not looking at.
+      body: JSON.stringify({runId: currentView().runId, promptId: currentWaitingFor()?.promptId, ...out}),
     },
     wgtSubmit);
 }
@@ -406,7 +409,9 @@ export function submitBatch(responses: ReadonlyArray<InputResponse>): void {
     {
       method: 'POST',
       headers: {'Content-Type': 'application/json'},
-      body: JSON.stringify({runId: currentView().runId, responses}),
+      // Same identity stamp as submitInput — the batch's head answers the
+      // displayed prompt, so the whole batch rides or falls with its identity.
+      body: JSON.stringify({runId: currentView().runId, promptId: currentWaitingFor()?.promptId, responses}),
     },
     false);
 }
@@ -999,6 +1004,19 @@ function fetchPlayerInput(url: string, options: RequestInit, wgtSubmit: boolean)
         let cb = () => {};
         if (resp.id === INVALID_RUN_ID) {
           cb = () => setTimeout(() => window.location.reload(), 100);
+        }
+        if (resp.id === STALE_PROMPT) {
+          /*
+           * The submit answered a prompt the server has since REPLACED (a
+           * reloaded game rebuilt its action menu, an undo, a bot turn). The
+           * poll chain deliberately never refreshes while the viewer shows a
+           * prompt («mid-input»), so WITHOUT this forced refetch the stale
+           * view stands forever and every retry fails the same way — the
+           * original unrecoverable form of this bug. Refresh NOW, not in the
+           * alert's OK callback: the healing must not depend on the player
+           * pressing anything.
+           */
+          r.updatePlayer();
         }
         showAlert('Error with input', resp.message, cb);
       } else {

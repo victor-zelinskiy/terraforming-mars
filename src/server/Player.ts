@@ -136,10 +136,28 @@ const DEFAULT_GLOBAL_PARAMETER_STEPS = {
   [GlobalParameter.MOON_LOGISTIC_RATE]: 0,
 } as const;
 
+/**
+ * Process-lifetime prompt serial feed (see Player.waitingForSerial): every
+ * prompt ever set in this server process gets a unique, monotonically
+ * increasing id, so a REBUILT prompt (game reload, undo restore) can never
+ * be mistaken for the one a client captured earlier.
+ */
+let nextWaitingForSerial = 0;
+
 export class Player implements IPlayer {
   public readonly id: PlayerId;
   protected waitingFor?: PlayerInput;
   protected waitingForCb?: () => void;
+  /**
+   * Identity serial of the current prompt (see IPlayer.waitingForSerial).
+   * Fed from a PROCESS-LIFETIME counter, never a per-player one: a game
+   * reloaded after cache eviction constructs fresh Player instances, and a
+   * per-instance counter restarting at 0 could collide with the serial a
+   * client captured before the reload — exactly the divergence this guards.
+   * Transient (not serialized); a server restart is covered by the runId gate,
+   * which is validated before this is.
+   */
+  public waitingForSerial: number = 0;
   // Analytics correlation scope captured when the prompt was set, restored when
   // the response is processed — so an effect resolved across a player-input
   // boundary (e.g. picking a space → tile placed → a passive fires) stays in the
@@ -2805,6 +2823,7 @@ export class Player implements IPlayer {
     const waitingFor = this.waitingFor;
     const waitingForCb = this.waitingForCb;
     const waitingForContext = this.waitingForContext;
+    const waitingForSerial = this.waitingForSerial;
     this.waitingFor = undefined;
     this.waitingForCb = undefined;
     this.waitingForContext = undefined;
@@ -2823,6 +2842,10 @@ export class Player implements IPlayer {
       waitingForCb();
     } catch (err) {
       this.setWaitingFor(waitingFor, waitingForCb);
+      // A REFUSED submit restores the SAME logical prompt — keep its identity,
+      // or the client's stamp (still the one on screen) would fail the next,
+      // corrected retry as «stale».
+      this.waitingForSerial = waitingForSerial;
       this.waitingForContext = waitingForContext;
       throw err;
     }
@@ -2856,6 +2879,9 @@ export class Player implements IPlayer {
       this.timer.start();
     }
     this.waitingFor = input;
+    // A NEW prompt gets a NEW identity — the stamp the client echoes back on
+    // submit, validated in the input routes (STALE_PROMPT on mismatch).
+    this.waitingForSerial = ++nextWaitingForSerial;
     this.waitingForCb = cb;
     this.waitingForContext = this.game?.events?.captureContext();
     // ── WHOSE ACTION RAISED THIS? ─────────────────────────────────────────

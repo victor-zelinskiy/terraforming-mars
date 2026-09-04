@@ -29,9 +29,22 @@ export class AutomaGameEnd {
     const bot = marsBotOf(game);
     for (const track of automa.board.tracks) {
       if (track.peek() === 'greenery' && !track.regressedPositions.has(track.position + 1)) {
-        track.advance();
-        game.log('${0} advances a track for a final greenery', (b) => b.player(bot));
-        AutomaTilePlacer.placeGreenery(game);
+        // Each advance+placement is ONE scoped action — the placement's
+        // passive fan-out (a human's Mining Guild / Rover Construction /
+        // Arctic Algae) runs UNDER it, so its payout keeps a correlation chain
+        // and reaches its owner as a notification. Unscoped, the tile landed
+        // through Game.addTile's unscoped-door tripwire («tile placed by
+        // MarsBot with NO live event scope», field report 2026-09-05) and the
+        // beneficiary's chain orphaned — the client then held its prepared
+        // notification until the 90 s leak release.
+        game.events.beginAction(bot, undefined, {category: 'automa-turn'});
+        try {
+          track.advance();
+          game.log('${0} advances a track for a final greenery', (b) => b.player(bot));
+          AutomaTilePlacer.placeGreenery(game);
+        } finally {
+          game.events.endScope();
+        }
       }
     }
   }

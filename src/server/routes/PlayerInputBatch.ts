@@ -14,6 +14,7 @@ import {InputError} from '../inputs/InputError';
 import {isIProjectCard} from '../cards/IProjectCard';
 import {AppErrorResponse, INVALID_RUN_ID} from '../../common/app/AppErrorId';
 import {replayBatch} from '../inputs/deferredInputBatch';
+import {validatePromptId} from './promptStaleness';
 
 /**
  * Submits an ORDERED ARRAY of input responses in one request — the mechanism
@@ -89,6 +90,10 @@ export class PlayerInputBatch extends Handler {
         try {
           const entity = JSON.parse(body);
           validateRunId(entity);
+          // The prompt identity gate (see promptStaleness.ts): the batch's
+          // HEAD answers the standing prompt, so the whole batch is refused
+          // when that prompt is no longer the one the client composed against.
+          validatePromptId(entity, player);
           const inputResponses: ReadonlyArray<InputResponse> = Array.isArray(entity.responses) ? entity.responses : [];
           replayBatch(player, inputResponses);
           responses.writeJson(res, ctx, Server.getPlayerModel(player));

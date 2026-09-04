@@ -569,6 +569,16 @@ export interface IPlayer {
   hasBonusAction(): boolean;
   process(input: InputResponse): void;
   getWaitingFor(): PlayerInput | undefined;
+  /**
+   * The identity serial of the CURRENT prompt — bumped on every
+   * `setWaitingFor` from a process-lifetime counter (a rebuilt prompt after a
+   * game reload gets a NEW serial by construction). Serialized to the client
+   * as `promptId` and validated on every submit: an answer stamped with a
+   * different serial was prepared against a prompt the server no longer holds
+   * and is refused with `STALE_PROMPT` instead of being applied to whatever
+   * stands now. A refused submit keeps its serial (same logical prompt).
+   */
+  waitingForSerial: number;
   /** Correlation root of the chain the pending prompt belongs to (may still grow). */
   openWaitingForCorrelation(): number | undefined;
   setWaitingFor(input: PlayerInput, cb?: () => void): void;

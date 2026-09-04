@@ -2,6 +2,7 @@ import {expect} from 'chai';
 import {TileType} from '../../src/common/TileType';
 import {IGame} from '../../src/server/IGame';
 import {AutomaGameEnd} from '../../src/server/automa/AutomaGameEnd';
+import {RoverConstruction} from '../../src/server/cards/base/RoverConstruction';
 import {THARSIS_TRACK} from '../../src/server/automa/boards/TharsisMarsBot';
 import {setOxygenLevel} from '../TestingUtils';
 import {TestPlayer} from '../TestPlayer';
@@ -78,6 +79,31 @@ describe('Automa game end', () => {
       AutomaGameEnd.placeFinalGreeneries(game);
       expect(game.board.spaces.filter((s) => s.tile?.tileType === TileType.GREENERY && s.player?.id === bot.id)).is.empty;
       expect(track.position).eq(7); // The tracker did not move either.
+    });
+
+    it('each final greenery lands inside a live event scope (the unscoped-door tripwire stays quiet)', () => {
+      // Field report 2026-09-05: with a human onTilePlaced card in play
+      // (Mining Guild), the bot's final greeneries hit Game.addTile's
+      // unscoped-door tripwire and the passive payout's chain orphaned —
+      // the owner's notification was silently withheld until the 90 s leak
+      // release. THROW_STATE_ERRORS promotes that warn to a throw, so this
+      // spec fails loudly if the scope is ever dropped again.
+      const [game, human, bot] = testAutomaGame();
+      setOxygenLevel(game, 14);
+      human.playedCards.push(new RoverConstruction());
+      game.automa!.board.tracks[THARSIS_TRACK.BIO].position = 2;
+      const saved = process.env.THROW_STATE_ERRORS;
+      process.env.THROW_STATE_ERRORS = '1';
+      try {
+        expect(() => AutomaGameEnd.placeFinalGreeneries(game)).to.not.throw();
+      } finally {
+        if (saved === undefined) {
+          delete process.env.THROW_STATE_ERRORS;
+        } else {
+          process.env.THROW_STATE_ERRORS = saved;
+        }
+      }
+      expect(game.board.spaces.some((s) => s.tile?.tileType === TileType.GREENERY && s.player?.id === bot.id)).is.true;
     });
 
     it('the whole final-greenery phase runs in the bot\'s slot without any prompt', () => {

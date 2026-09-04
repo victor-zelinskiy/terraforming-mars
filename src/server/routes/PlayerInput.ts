@@ -16,6 +16,7 @@ import {InputError} from '../inputs/InputError';
 import {isIProjectCard} from '../cards/IProjectCard';
 import {AppErrorResponse, INVALID_RUN_ID} from '../../common/app/AppErrorId';
 import {drainBatchTail} from '../inputs/deferredInputBatch';
+import {validatePromptId} from './promptStaleness';
 
 export class PlayerInput extends Handler {
   public static readonly INSTANCE = new PlayerInput();
@@ -100,6 +101,10 @@ export class PlayerInput extends Handler {
         try {
           const entity = JSON.parse(body);
           validateRunId(entity);
+          // The prompt identity gate (see promptStaleness.ts): an answer
+          // stamped for a prompt the server has since replaced is refused
+          // BEFORE it can be applied to whatever stands now.
+          validatePromptId(entity, player);
           if (this.isWaitingForUndo(player, entity)) {
             await this.performUndo(req, res, ctx, player);
           } else {

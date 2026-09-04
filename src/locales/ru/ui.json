@@ -1,4 +1,5 @@
 {
+    "The game state has changed. Your last action was not applied — please try again.": "Состояние игры изменилось. Последнее действие не было применено — попробуйте ещё раз.",
     "Preparing the game": "Подготовка игры",
     "Initializing renderer…": "Инициализация рендера…",
     "Warming up shaders…": "Прогрев шейдеров…",

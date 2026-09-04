@@ -417,6 +417,19 @@ export type BaseInputModel = {
   title: string | Message;
   warning?: string | Message;
   buttonLabel: string;
+  /**
+   * THE PROMPT'S IDENTITY STAMP — a server-side serial assigned every time a
+   * prompt is set (`Player.setWaitingFor`), serialized on the TOP-LEVEL
+   * waitingFor model only. The client echoes it with every submit
+   * (`/player/input`, `/player/input-batch`) and the server refuses a
+   * mismatch with `STALE_PROMPT` — so an answer prepared against a prompt the
+   * server has since REPLACED (a game reloaded after cache eviction rebuilds
+   * its action menu, an undo, a bot's paced turn) can never be applied to a
+   * different prompt than the one the player saw. Without it the failure mode
+   * was a confusing `InputError` at best («Unknown card name Atmoscoop») and a
+   * silently wrong OR-branch execution at worst.
+   */
+  promptId?: number;
   // When true the input is optional: the client should keep polling rather than
   // block on it (draft re-pick). See PlayerInput.optional.
   optional?: boolean;

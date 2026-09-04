@@ -472,6 +472,11 @@ export class Server {
     // TODO(kberg): in theory this should be in all the other toModel calls.
     const model = waitingFor.toModel(player);
     model.warning = waitingFor.warning;
+    // The prompt's IDENTITY STAMP (top-level only): echoed back by the client
+    // on every submit and validated in the input routes, so an answer prepared
+    // against a prompt the server has since replaced (game reload, undo, bot
+    // turn) is refused as STALE_PROMPT instead of applied to the wrong prompt.
+    model.promptId = player.waitingForSerial;
     // Start-of-game-flow marker (corp initial action / prelude selection) — set
     // centrally so any input type carries it without touching per-type toModel.
     if (waitingFor.startGamePrompt !== undefined) {
