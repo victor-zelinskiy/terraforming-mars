@@ -31,54 +31,62 @@
         <ConsoleScrollArea v-else ref="scroll" class="cm-gamelist-scroll">
           <div class="cm-gamelist">
             <button
-              v-for="(c, i) in rows"
-              :key="c.id"
+              v-for="(r, i) in rows"
+              :key="r.summary.id"
               type="button"
               class="cm-game cm-camp"
-              :class="{'cm-game--cursor': i === ui.cursor, 'cm-camp--archived': isArchived(c)}"
+              :class="{
+                'cm-game--cursor': i === ui.cursor,
+                'cm-camp--archived': isArchived(r.summary),
+                'cm-game--disabled': r.stale,
+                'cm-game--lan': r.hostLabel !== '',
+              }"
               @click="openAt(i)"
               @mousemove="ui.cursor = i"
             >
               <div class="cm-game__head">
-                <span class="cm-camp__fp" aria-hidden="true"><PremiumMapFingerprint :mapId="c.currentBoard" variant="thumb" /></span>
-                <span class="cm-game__name">{{ c.name }}</span>
-                <span class="cm-game__campaign">{{ $t('Campaign') }} · {{ progressLabel(c) }}</span>
-                <span v-if="actionRequired(c)" class="cm-game__turn">{{ $t(stateLabel(c)) }}</span>
+                <span class="cm-camp__fp" aria-hidden="true"><PremiumMapFingerprint :mapId="r.summary.currentBoard" variant="thumb" /></span>
+                <span class="cm-game__name">{{ r.summary.name }}</span>
+                <span class="cm-game__campaign">{{ $t('Campaign') }} · {{ progressLabel(r.summary) }}</span>
+                <!-- A LAN campaign names its couch — the same language as game rows. -->
+                <span v-if="r.hostLabel !== ''" class="cm-game__lanhost">{{ r.hostLabel }}</span>
+                <span v-if="r.stale" class="cm-game__note">{{ $t('not responding') }}</span>
+                <span v-else-if="actionRequired(r.summary)" class="cm-game__turn">{{ $t(stateLabel(r.summary)) }}</span>
                 <span
                   v-else
                   class="cm-camp__state"
-                  :class="{'cm-camp__state--abandoned': c.state === 'abandoned', 'cm-camp__state--blocked': c.state === 'blocked', 'cm-camp__state--ready': c.state === 'launchReady'}"
-                >{{ $t(stateLabel(c)) }}</span>
+                  :class="{'cm-camp__state--abandoned': r.summary.state === 'abandoned', 'cm-camp__state--blocked': r.summary.state === 'blocked', 'cm-camp__state--ready': r.summary.state === 'launchReady'}"
+                >{{ $t(stateLabel(r.summary)) }}</span>
               </div>
 
               <!-- The route rail: 1/4 → 4/4, done / current / future. -->
               <div class="cm-camp__rail" aria-hidden="true">
-                <span v-for="(m, k) in slotMarks(c)" :key="k" class="cm-camp__seg" :class="'cm-camp__seg--' + m"></span>
+                <span v-for="(m, k) in slotMarks(r.summary)" :key="k" class="cm-camp__seg" :class="'cm-camp__seg--' + m"></span>
               </div>
-              <div v-if="c.state === 'blocked' && c.blockedReason !== undefined" class="cm-camp__reason">{{ $t(c.blockedReason) }}</div>
+              <div v-if="r.summary.state === 'blocked' && r.summary.blockedReason !== undefined" class="cm-camp__reason">{{ $t(r.summary.blockedReason) }}</div>
 
               <div class="cm-game__crew">
                 <span
-                  v-for="s in c.seats"
+                  v-for="s in r.summary.seats"
                   :key="s.seat"
                   class="cm-game__player"
-                  :class="{'cm-game__player--you': s.seat === c.you.seat}"
+                  :class="{'cm-game__player--you': s.seat === r.summary.you.seat}"
                 >
                   <span class="cm-game__pcube" :class="'player_bg_color_' + s.color" aria-hidden="true"></span>
                   <span class="cm-game__pname">{{ s.name }}</span>
-                  <span v-if="isChampion(c, s.seat)" class="cm-camp__crown" aria-hidden="true">♛</span>
-                  <span v-if="s.seat === c.you.seat" class="cm-game__ptag">{{ $t('You') }}</span>
+                  <span v-if="isChampion(r.summary, s.seat)" class="cm-camp__crown" aria-hidden="true">♛</span>
+                  <span v-if="s.seat === r.summary.you.seat" class="cm-game__ptag">{{ $t('You') }}</span>
                 </span>
               </div>
 
               <div class="cm-game__foot">
                 <span class="cm-game__meta">
-                  <span class="cm-game__age">{{ updatedAgo(c) }}</span>
+                  <span class="cm-game__age">{{ updatedAgo(r.summary) }}</span>
                   <span class="cm-game__dot" aria-hidden="true">·</span>
-                  <span>{{ boardLabel(c) }}</span>
-                  <template v-if="c.yourTitlePoints > 0">
+                  <span>{{ boardLabel(r.summary) }}</span>
+                  <template v-if="r.summary.yourTitlePoints > 0">
                     <span class="cm-game__dot" aria-hidden="true">·</span>
-                    <span class="cm-camp__tp">{{ titlePointsLabel(c) }}</span>
+                    <span class="cm-camp__tp">{{ titlePointsLabel(r.summary) }}</span>
                   </template>
                 </span>
               </div>
@@ -93,12 +101,12 @@
       <div class="cm-overlay__card">
         <div class="cm-overlay__title">{{ $t('Delete this campaign?') }}</div>
         <div class="cm-overlay__body">
-          <b>{{ confirmRow.name }}</b> — <template v-if="isArchived(confirmRow)">{{ $t(stateLabel(confirmRow)) }}</template><template v-else>{{ progressLabel(confirmRow) }}</template>
+          <b>{{ confirmRow.summary.name }}</b> — <template v-if="isArchived(confirmRow.summary)">{{ $t(stateLabel(confirmRow.summary)) }}</template><template v-else>{{ progressLabel(confirmRow.summary) }}</template>
         </div>
         <!-- An ACTIVE campaign gets the louder warning — calm, not hysterical. -->
-        <div v-if="!isArchived(confirmRow)" class="cm-overlay__body cm-camp__warn">{{ $t('This campaign is still in progress.') }}</div>
+        <div v-if="!isArchived(confirmRow.summary)" class="cm-overlay__body cm-camp__warn">{{ $t('This campaign is still in progress.') }}</div>
         <div class="cm-overlay__body">
-          {{ missionGamesLine(confirmRow) }}
+          {{ missionGamesLine(confirmRow.summary) }}
           {{ $t('The campaign, its route and all of its mission games will be permanently deleted.') }}
           {{ $t('Progress, results and titles will be lost. This cannot be undone.') }}
         </div>
@@ -123,10 +131,15 @@
  * by the menu, `@close` back out).
  *
  * One row = ONE campaign (missions never appear as rows here — «Мои партии»
- * is the per-mission door). A opens the existing Campaign Map; X (creator
- * only) starts the cascade-delete confirm; L3 toggles active/completed; RT is
- * the manual refresh. UI state (tab / cursor / confirm) lives in the module
- * store `campaignsState`, so the menu's command bar reads it reactively and a
+ * is the per-mission door), across EVERY source: the app's own server plus
+ * the LAN hosts the lobby model has verified (a guest sees the campaign they
+ * were seated into on another couch, marked with its host's name). A opens
+ * the existing Campaign Map — a LAN row first PINS its campaign id to the
+ * host's endpoint, so the map, its poll and the carryover submit all land on
+ * the right server. X (creator only — the server decides again) starts the
+ * cascade-delete confirm; L3 toggles active/completed; RT is the manual
+ * refresh. UI state (tab / cursor / confirm) lives in the module store
+ * `campaignsState`, so the menu's command bar reads it reactively and a
  * return from the map restores the exact tab + row.
  */
 import {defineComponent} from 'vue';
@@ -139,16 +152,17 @@ import ConsoleScrollArea from '@/client/components/console/foundation/ConsoleScr
 import GamepadGlyph from '@/client/components/gamepad/GamepadGlyph.vue';
 import PremiumMapFingerprint from '@/client/components/create/premium/PremiumMapFingerprint.vue';
 import {identityState} from '@/client/components/mainMenu/identity/identityState';
-import {refreshLobby} from '@/client/components/mainMenu/lobbyState';
+import {lobbyState, refreshLobby} from '@/client/components/mainMenu/lobbyState';
 import {lobbyAge, lobbyAgeLabel} from '@/client/components/mainMenu/lobbyAge';
 import {mapLabelKey} from '@/client/components/create/premium/createGameMeta';
 import {navigateWithCurtain} from '@/client/console/loadingScreenState';
 import {
   campaignsState, refreshCampaigns, startCampaignsWatch, stopCampaignsWatch,
-  deleteCampaignCascade, rememberCampaignsReturn,
+  deleteCampaignCascade, pinCampaignRow,
 } from '@/client/console/campaign/campaignsState';
 import {
-  CampaignsTab, visibleCampaignRows, activeCampaignCount, completedCampaignCount,
+  CampaignsTab, CampaignSourceRow, visibleCampaignSourceRows,
+  activeCampaignRowCount, completedCampaignRowCount,
   campaignActionRequired, campaignStateLabelKey, campaignProgress, campaignSlotMarks,
   isArchivedCampaign, CampaignSlotMark,
 } from '@/client/console/campaign/campaignListModel';
@@ -162,6 +176,7 @@ export default defineComponent({
     return {
       ui: campaignsState,
       identityState,
+      lobbyState,
     };
   },
   computed: {
@@ -178,14 +193,14 @@ export default defineComponent({
       return this.ui.status === 'error';
     },
     /** The shown slice, sorted (the one list the cursor walks). */
-    rows(): ReadonlyArray<CampaignSummaryModel> {
-      return visibleCampaignRows(this.ui.rows, this.ui.tab);
+    rows(): ReadonlyArray<CampaignSourceRow> {
+      return visibleCampaignSourceRows(this.ui.rows, this.ui.tab);
     },
     tabs(): ReadonlyArray<{id: CampaignsTab, label: string, count: number | undefined}> {
       const loaded = this.ui.status === 'ok';
       return [
-        {id: 'active', label: 'Active campaigns', count: loaded ? activeCampaignCount(this.ui.rows) : undefined},
-        {id: 'completed', label: 'Completed campaigns', count: loaded ? completedCampaignCount(this.ui.rows) : undefined},
+        {id: 'active', label: 'Active campaigns', count: loaded ? activeCampaignRowCount(this.ui.rows) : undefined},
+        {id: 'completed', label: 'Completed campaigns', count: loaded ? completedCampaignRowCount(this.ui.rows) : undefined},
       ];
     },
     emptyKey(): string {
@@ -193,16 +208,16 @@ export default defineComponent({
         'You have no completed campaigns yet.' :
         'You have no active campaigns yet. Assemble one in the New game screen.';
     },
-    confirmRow(): CampaignSummaryModel | undefined {
+    confirmRow(): CampaignSourceRow | undefined {
       const id = this.ui.confirmId;
       if (id === undefined) {
         return undefined;
       }
-      return this.ui.rows.find((c) => c.id === id);
+      return this.ui.rows.find((r) => r.summary.id === id);
     },
     /** Key of the CURRENT slice — the focus-restore watcher re-runs on it. */
     rowsKey(): string {
-      return this.ui.status + '|' + this.ui.tab + '|' + this.rows.map((c) => c.id).join(',');
+      return this.ui.status + '|' + this.ui.tab + '|' + this.rows.map((r) => r.summary.id).join(',');
     },
   },
   watch: {
@@ -239,7 +254,7 @@ export default defineComponent({
         return;
       }
       this.ui.pendingFocusId = undefined;
-      const idx = this.rows.findIndex((c) => c.id === id);
+      const idx = this.rows.findIndex((r) => r.summary.id === id);
       if (idx >= 0) {
         this.ui.cursor = idx;
       }
@@ -267,6 +282,10 @@ export default defineComponent({
         return true;
       }
       if (intent.kind === 'press' && intent.button === 'triggerR') {
+        // RT re-asks every source in one sweep — the lobby first (it owns the
+        // LAN endpoints), then the campaigns fetch rides its completion; the
+        // direct call covers the local half immediately.
+        void refreshLobby();
         void refreshCampaigns();
         return true;
       }
@@ -302,23 +321,25 @@ export default defineComponent({
       this.ui.deleteError = '';
       this.keepCursorVisible();
     },
-    /** A — the existing Campaign Map is THE door; missions live one press deeper. */
+    /** A — the existing Campaign Map is THE door; missions live one press deeper.
+     *  A LAN row pins its campaign id to the host's endpoint first, so every
+     *  request the map makes lands on the server the campaign lives on. */
     openAt(i: number): void {
       this.ui.cursor = i;
-      const c = this.rows[i];
-      if (c === undefined) {
-        return;
+      const row = this.rows[i];
+      if (row === undefined || row.stale) {
+        return; // A quiet host's row stays listed but is not entered.
       }
-      rememberCampaignsReturn(c.id);
-      navigateWithCurtain(paths.CAMPAIGN + '?id=' + encodeURIComponent(c.id), 'sync');
+      pinCampaignRow(row);
+      navigateWithCurtain(paths.CAMPAIGN + '?id=' + encodeURIComponent(row.summary.id), 'sync');
     },
     requestDelete(): void {
-      const c = this.rows[this.ui.cursor];
-      if (c === undefined || !c.isCreator) {
+      const row = this.rows[this.ui.cursor];
+      if (row === undefined || !row.summary.isCreator || row.stale) {
         return; // The bar already shows the verb disabled for a non-creator.
       }
       this.ui.deleteError = '';
-      this.ui.confirmId = c.id;
+      this.ui.confirmId = row.summary.id;
     },
     cancelConfirm(): void {
       this.ui.confirmId = undefined;
@@ -365,8 +386,9 @@ export default defineComponent({
     boardLabel(c: CampaignSummaryModel): string {
       return $t(mapLabelKey(c.currentBoard));
     },
+    /** Reads the lobby's ONE shared clock, so ages tick live like game rows. */
     updatedAgo(c: CampaignSummaryModel): string {
-      return lobbyAgeLabel(lobbyAge(c.lastActivityMs, Date.now()));
+      return lobbyAgeLabel(lobbyAge(c.lastActivityMs, this.lobbyState.nowMs));
     },
     titlePointsLabel(c: CampaignSummaryModel): string {
       return translateTextWithParams('Title Points: ${0}', [String(c.yourTitlePoints)]);

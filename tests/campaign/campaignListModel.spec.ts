@@ -3,6 +3,7 @@ import {
   visibleCampaignRows, sortActiveCampaigns, campaignActionRequired,
   campaignStateLabelKey, campaignProgress, campaignSlotMarks,
   isArchivedCampaign, activeCampaignCount, completedCampaignCount,
+  mergeCampaignSources, visibleCampaignSourceRows, CampaignSourceSlice,
 } from '../../src/client/console/campaign/campaignListModel';
 import {CampaignSummaryModel, CampaignViewerState} from '../../src/common/campaign/CampaignSummary';
 import {CampaignPhase} from '../../src/common/campaign/CampaignTypes';
@@ -97,5 +98,51 @@ describe('campaignListModel', () => {
     expect(campaignSlotMarks(summary({pointer: 1, phase: 'missionActive'}))).deep.eq(['done', 'current', 'future', 'future']);
     expect(campaignSlotMarks(summary({phase: 'finished'}))).deep.eq(['done', 'done', 'done', 'done']);
     expect(campaignSlotMarks(summary({phase: 'abandoned', completedMissions: 2, pointer: 2}))).deep.eq(['done', 'done', 'future', 'future']);
+  });
+
+  // ── Multi-source (LAN) ─────────────────────────────────────────────────────
+
+  const ENDPOINT = {apiBase: 'http://192.168.1.7:17325', wsBase: 'ws://192.168.1.7:17325'};
+
+  function slice(overrides: Partial<CampaignSourceSlice>): CampaignSourceSlice {
+    return {sourceId: 'lan:x', hostLabel: 'КУШЕТКА', endpoint: ENDPOINT, stale: false, summaries: [], ...overrides};
+  }
+
+  it('merges sources into one row set: local wins the dedup, LAN rows carry host + endpoint', () => {
+    const shared = summary({});
+    const hostOnly = summary({});
+    const rows = mergeCampaignSources([
+      slice({summaries: [shared, hostOnly]}),
+      slice({sourceId: 'local', hostLabel: '', endpoint: undefined, summaries: [shared]}),
+    ]);
+    expect(rows).has.length(2);
+    const localRow = rows.find((r) => r.summary.id === shared.id)!;
+    expect(localRow.sourceId).eq('local');
+    expect(localRow.endpoint).eq(undefined);
+    expect(localRow.hostLabel).eq('');
+    const lanRow = rows.find((r) => r.summary.id === hostOnly.id)!;
+    expect(lanRow.sourceId).eq('lan:x');
+    expect(lanRow.hostLabel).eq('КУШЕТКА');
+    expect(lanRow.endpoint).deep.eq(ENDPOINT);
+  });
+
+  it('a stale source marks its rows stale; a fresh one does not', () => {
+    const rows = mergeCampaignSources([
+      slice({sourceId: 'lan:dead', stale: true, summaries: [summary({})]}),
+      slice({sourceId: 'lan:live', stale: false, summaries: [summary({})]}),
+    ]);
+    expect(rows.find((r) => r.sourceId === 'lan:dead')!.stale).is.true;
+    expect(rows.find((r) => r.sourceId === 'lan:live')!.stale).is.false;
+  });
+
+  it('source rows sort by the SAME rules as summaries (one order, wherever a campaign lives)', () => {
+    const turn = summary({phase: 'missionActive', state: 'yourTurn', lastActivityMs: 5});
+    const calm = summary({state: 'waitingLaunch', isCreator: false, lastActivityMs: 9000});
+    const rows = mergeCampaignSources([
+      slice({summaries: [calm]}),
+      slice({sourceId: 'local', hostLabel: '', endpoint: undefined, summaries: [turn]}),
+    ]);
+    const visible = visibleCampaignSourceRows(rows, 'active');
+    expect(visible.map((r) => r.summary.state)).deep.eq(['yourTurn', 'waitingLaunch']);
   });
 });

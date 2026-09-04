@@ -1,11 +1,62 @@
 // «Мои кампании» — the PURE list view-model (no Vue, no DOM; spec'd under the
 // server runner like campaignMapModel). One campaign = one row; the split,
-// the sort and every label key are decided here so the component and the
-// menu's command bar read the same answers.
+// the sort, the multi-source merge and every label key are decided here so
+// the component and the menu's command bar read the same answers.
+//
+// MULTI-SOURCE (LAN, host-as-server): the list is fed by the app's OWN server
+// plus every LAN host the lobby model has verified — a guest sees the
+// campaign they were seated into on another couch. A row therefore names its
+// SOURCE (host label + endpoint, what entering the map pins to) and its
+// liveness (`stale` mirrors the lobby source's status — campaigns never run
+// their own probing engine).
 
 import {CampaignSummaryModel, CampaignViewerState} from '../../../common/campaign/CampaignSummary';
+import {ServerEndpoint} from '../../utils/serverEndpoints';
 
 export type CampaignsTab = 'active' | 'completed';
+
+/** One list row: a campaign summary + the server it lives on. */
+export type CampaignSourceRow = {
+  summary: CampaignSummaryModel;
+  /** 'local' or the lobby's LAN source id. */
+  sourceId: string;
+  /** '' for the local server; the host's advertised name for a LAN row. */
+  hostLabel: string;
+  /** Present for LAN rows — what entering the map pins the campaign id to. */
+  endpoint?: ServerEndpoint;
+  /** The row's server has stopped answering (shown, marked, not enterable). */
+  stale: boolean;
+};
+
+export type CampaignSourceSlice = {
+  sourceId: string;
+  hostLabel: string;
+  endpoint?: ServerEndpoint;
+  stale: boolean;
+  summaries: ReadonlyArray<CampaignSummaryModel>;
+};
+
+/**
+ * Merge the per-source answers into ONE row set. Dedup by campaign id — a
+ * campaign lives in exactly one server's database, but a stale mDNS record or
+ * a manual host pointing at ourselves can echo it: the LOCAL copy wins, then
+ * the first LAN source in lobby order.
+ */
+export function mergeCampaignSources(slices: ReadonlyArray<CampaignSourceSlice>): Array<CampaignSourceRow> {
+  const out: Array<CampaignSourceRow> = [];
+  const seen = new Set<string>();
+  const ordered = [...slices].sort((a, b) => (a.sourceId === 'local' ? 0 : 1) - (b.sourceId === 'local' ? 0 : 1));
+  for (const slice of ordered) {
+    for (const summary of slice.summaries) {
+      if (seen.has(summary.id)) {
+        continue;
+      }
+      seen.add(summary.id);
+      out.push({summary, sourceId: slice.sourceId, hostLabel: slice.hostLabel, endpoint: slice.endpoint, stale: slice.stale});
+    }
+  }
+  return out;
+}
 
 export type CampaignSlotMark = 'done' | 'current' | 'future';
 
@@ -56,12 +107,28 @@ export function visibleCampaignRows(rows: ReadonlyArray<CampaignSummaryModel>, t
   return tab === 'completed' ? sortCompletedCampaigns(slice) : sortActiveCampaigns(slice);
 }
 
+/** The shown SOURCE-row slice — same order rules, applied to the summaries. */
+export function visibleCampaignSourceRows(rows: ReadonlyArray<CampaignSourceRow>, tab: CampaignsTab): Array<CampaignSourceRow> {
+  const bySummary = new Map(rows.map((r) => [r.summary.id, r]));
+  return visibleCampaignRows(rows.map((r) => r.summary), tab)
+    .map((c) => bySummary.get(c.id))
+    .filter((r): r is CampaignSourceRow => r !== undefined);
+}
+
 export function activeCampaignCount(rows: ReadonlyArray<CampaignSummaryModel>): number {
   return rows.filter((c) => !isArchivedCampaign(c)).length;
 }
 
 export function completedCampaignCount(rows: ReadonlyArray<CampaignSummaryModel>): number {
   return rows.filter((c) => isArchivedCampaign(c)).length;
+}
+
+export function activeCampaignRowCount(rows: ReadonlyArray<CampaignSourceRow>): number {
+  return activeCampaignCount(rows.map((r) => r.summary));
+}
+
+export function completedCampaignRowCount(rows: ReadonlyArray<CampaignSourceRow>): number {
+  return completedCampaignCount(rows.map((r) => r.summary));
 }
 
 /** English i18n key for the row's leading viewer-state. */

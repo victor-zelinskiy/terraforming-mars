@@ -150,6 +150,38 @@ test.describe('my campaigns list', () => {
     expect(gone.status()).toBe(404);
   });
 
+  test('LAN plumbing: a PINNED campaign map routes to its server and propagates the pin into the mission', async ({page, request}) => {
+    const {id} = await createCampaign(request);
+    await seedIdentity(page, 'Alice');
+    // Simulate the LAN entry: the campaign id pinned to an ABSOLUTE endpoint
+    // (this very server — same origin, so the browser permits it; the routing
+    // seam under test is identical to a real LAN host's address).
+    await page.addInitScript((cid) => {
+      window.localStorage.setItem('tm_server_endpoints', JSON.stringify({
+        [cid]: {apiBase: 'http://localhost:8080', wsBase: 'ws://localhost:8080', at: Date.now()},
+      }));
+    }, id);
+    await page.goto(`${BASE}/campaign?id=${id}`);
+    // The map loaded its model THROUGH the pin (a broken pin would 404 here).
+    await page.waitForSelector('.cmap__card', {timeout: 20_000});
+    await page.waitForTimeout(600);
+    // Launch through the map (A → confirm → A).
+    await press(page, 'Enter', 500);
+    await Promise.all([
+      page.waitForURL(/player\?id=p/, {timeout: 30_000}),
+      press(page, 'Enter', 500),
+    ]);
+    // The mission's participant id inherited the SAME endpoint — without it a
+    // LAN guest's player page would ask their local server and 404.
+    const pid = new URL(page.url()).searchParams.get('id')!;
+    const pins = await page.evaluate(() =>
+      JSON.parse(window.localStorage.getItem('tm_server_endpoints') ?? '{}') as Record<string, {apiBase: string}>);
+    expect(pins[pid]?.apiBase).toBe('http://localhost:8080');
+    // And the mission game really lives on that server.
+    const model = await request.get(`http://localhost:8080/api/player?id=${pid}`);
+    expect(model.ok()).toBeTruthy();
+  });
+
   // Fit sweep: FHD / TV 4K / Steam Deck — the list stays inside its card and
   // the document never grows a horizontal overflow (a geometry claim asserted
   // at ONE resolution is a claim about one resolution).

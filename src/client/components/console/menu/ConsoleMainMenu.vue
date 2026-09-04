@@ -166,7 +166,8 @@
               @mousemove="gamesCursor = localRows.length + k"
             >
               <div class="cm-game__head">
-                <span class="cm-game__name">{{ row.game.name }}</span>
+                <span class="cm-game__name">{{ row.game.campaign !== undefined ? row.game.campaign.name : row.game.name }}</span>
+                <span v-if="row.game.campaign !== undefined" class="cm-game__campaign">{{ $t('Campaign') }} · {{ campaignMissionChip(row.game) }}</span>
                 <span v-if="isNewGame(row.game)" class="cm-game__new">{{ $t('New') }}</span>
                 <span class="cm-game__lanhost">{{ row.hostName }}</span>
                 <span v-if="row.stale" class="cm-game__note">{{ $t('not responding') }}</span>
@@ -413,7 +414,7 @@ import {addToSteam, dismissSteamPrompt, initSteamShortcut, steamButtonVisible, s
 import raw_settings from '@/genfiles/settings.json';
 import {$t, translateTextWithParams} from '@/client/directives/i18n';
 import {campaignsState, refreshCampaigns, takeCampaignsReturn} from '@/client/console/campaign/campaignsState';
-import {activeCampaignCount, campaignActionRequired, visibleCampaignRows} from '@/client/console/campaign/campaignListModel';
+import {activeCampaignRowCount, campaignActionRequired, visibleCampaignSourceRows} from '@/client/console/campaign/campaignListModel';
 
 type MenuItemId = 'continue' | 'create' | 'games' | 'campaigns' | 'profile' | 'options' | 'admin' | 'playground' | 'steam' | 'quit';
 type MenuItem = {id: MenuItemId, labelKey: string, subText: string, glyph: string, badge: number};
@@ -510,9 +511,33 @@ export default defineComponent({
       }
       return out;
     },
-    /** LAN hosts publish their UNFINISHED games only — the archive is local. */
+    /** LAN hosts publish their UNFINISHED games only — the archive is local.
+     *  Campaign missions collapse into ONE campaign row here too (same rule
+     *  as local rows): the campaign's front door is its map, never any one
+     *  mission — usually only the LIVE mission is published anyway. */
     visibleLanRows(): ReadonlyArray<LobbyRow> {
-      return this.gamesTab === 'finished' ? [] : this.lobbyState.lanRows;
+      if (this.gamesTab === 'finished') {
+        return [];
+      }
+      const rows = this.lobbyState.lanRows;
+      const seen = new Set<string>();
+      const out: Array<LobbyRow> = [];
+      for (const row of rows) {
+        const cid = row.game.campaign?.id;
+        if (cid === undefined) {
+          out.push(row);
+          continue;
+        }
+        if (seen.has(cid)) {
+          continue;
+        }
+        seen.add(cid);
+        const members = rows.filter((r) => r.game.campaign?.id === cid);
+        const live = members.find((r) => r.game.finished !== true);
+        const furthest = members.reduce((a, b) => ((b.game.campaign?.slot ?? 0) > (a.game.campaign?.slot ?? 0) ? b : a));
+        out.push(live ?? furthest);
+      }
+      return out;
     },
     /**
      * Cursor range of the games overlay: local rows, then LAN rows, then the
@@ -623,7 +648,7 @@ export default defineComponent({
     },
     /** Unfinished campaigns of the active identity (the menu plate's badge). */
     campaignsBadge(): number {
-      return this.campaignsState.status === 'ok' ? activeCampaignCount(this.campaignsState.rows) : 0;
+      return this.campaignsState.status === 'ok' ? activeCampaignRowCount(this.campaignsState.rows) : 0;
     },
     continueItem(): JoinableGameSummary | undefined {
       const mine = this.games.filter((g) => g.you !== undefined);
@@ -764,17 +789,18 @@ export default defineComponent({
             {control: 'back', label: 'Cancel'},
           ];
         }
-        const rows = visibleCampaignRows(this.campaignsState.rows, this.campaignsState.tab);
+        const rows = visibleCampaignSourceRows(this.campaignsState.rows, this.campaignsState.tab);
         const row = rows[this.campaignsState.cursor];
         const archive = this.campaignsState.tab === 'completed';
         // Deliberately NO «Y · Удалить всё» here: a bulk cascade over every
-        // campaign is not a verb this screen offers.
+        // campaign is not a verb this screen offers. A quiet host's row stays
+        // listed but is not enterable (the same rule as LAN game rows).
         return [
           {control: 'dpad', label: 'Navigate'},
-          {control: 'confirm', label: 'Campaign map', enabled: row !== undefined, highlight: row !== undefined && campaignActionRequired(row)},
+          {control: 'confirm', label: 'Campaign map', enabled: row !== undefined && !row.stale, highlight: row !== undefined && !row.stale && campaignActionRequired(row.summary)},
           {control: 'stickL', label: archive ? 'Active campaigns' : 'Completed campaigns'},
           {control: 'triggerR', label: 'Refresh', enabled: !this.campaignsState.refreshing},
-          {control: 'secondary', label: 'Delete', enabled: row !== undefined && row.isCreator},
+          {control: 'secondary', label: 'Delete', enabled: row !== undefined && row.summary.isCreator && !row.stale},
           {control: 'back', label: 'Back'},
         ];
       }
@@ -905,6 +931,9 @@ export default defineComponent({
       this.campaignsState.confirmId = undefined;
       this.campaignsState.deleteError = '';
       this.overlay = 'campaigns';
+      // The campaigns screen consumes the lobby model (LAN sources) — see
+      // the activateAt('campaigns') branch.
+      void openLobbyList();
     }
     // The badge on the plate needs the list before the screen is ever opened.
     void refreshCampaigns();
@@ -1147,6 +1176,12 @@ export default defineComponent({
         this.campaignsState.cursor = 0;
         this.campaignsState.confirmId = undefined;
         this.campaignsState.deleteError = '';
+        // The campaigns list is a LOBBY-CONSUMING screen (LAN campaigns ride
+        // the lobby's verified sources/endpoints/channels) — opening it opens
+        // the lobby model, exactly like «Мои партии» does. Its completion
+        // stamps `lastRefreshAt`, whose watcher re-asks the campaigns with
+        // the LAN endpoints resolved.
+        void openLobbyList();
         // Entering the screen is a refresh — the panel's mounted() re-asks too,
         // but the press must never depend on the panel being the one to ask.
         void refreshCampaigns();
@@ -1390,12 +1425,23 @@ export default defineComponent({
         }
         return;
       }
-      // A LAN row: pin the seat to the HOST's server first — from then on every
-      // request and the WebSocket for this game go to that host (§6). A row whose
-      // host has stopped answering is kept on screen (it exists) but not entered:
-      // the navigation would land on a curtain that never lifts.
+      // A LAN row: pin the session to the HOST's server first — from then on
+      // every request and the WebSocket go to that host (§6). A row whose
+      // host has stopped answering is kept on screen (it exists) but not
+      // entered: the navigation would land on a curtain that never lifts.
       const row = this.visibleLanRows[i - this.localRows.length];
-      if (row !== undefined && !row.stale && row.endpoint !== undefined && row.game.you !== undefined) {
+      if (row === undefined || row.stale || row.endpoint === undefined) {
+        return;
+      }
+      // A CAMPAIGN row opens the Campaign Map on the HOST's server — the
+      // campaign id is pinned the same way a seat is, and the map's own page
+      // (`/campaign?id=c…`) resolves the pin for its model/poll/carryover.
+      if (row.game.campaign !== undefined) {
+        pinServerEndpoint(row.game.campaign.id, row.endpoint);
+        navigateWithCurtain(paths.CAMPAIGN + '?id=' + encodeURIComponent(row.game.campaign.id), 'sync');
+        return;
+      }
+      if (row.game.you !== undefined) {
         pinServerEndpoint(row.game.you.id, row.endpoint);
         recordLastGameEntered(row.game.id);
         navigateWithCurtain(paths.PLAYER + '?id=' + encodeURIComponent(row.game.you.id), 'expedition');

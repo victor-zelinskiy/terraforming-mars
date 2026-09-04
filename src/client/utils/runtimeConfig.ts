@@ -66,6 +66,17 @@ function pinnedEndpoint(): ServerEndpoint | undefined {
   return pid === undefined ? undefined : pinnedServerEndpoint(pid);
 }
 
+/**
+ * The endpoint THIS page's API calls are pinned to, if any (LAN host-as-server:
+ * a campaign map opened from a LAN row, a mission joined on another couch).
+ * `undefined` = the app's own default server. What a navigation that must stay
+ * on the SAME server propagates: a campaign map entering its mission pins the
+ * mission's participant id to this endpoint before navigating.
+ */
+export function currentServerEndpoint(): ServerEndpoint | undefined {
+  return pinnedEndpoint();
+}
+
 /** Base for HTTP API URLs. '' (relative, same origin) unless a host overrides. */
 export function apiBaseUrl(): string {
   const pinned = pinnedEndpoint();

@@ -231,6 +231,8 @@ import {useConsoleNativeSurface} from '@/client/console/composables/consoleNativ
 import {consoleReducedMotionActive} from '@/client/console/composables/useConsoleReducedMotion';
 import {navigateWithCurtain} from '@/client/console/loadingScreenState';
 import {recordLastGameEntered} from '@/client/components/mainMenu/lastGameState';
+import {currentServerEndpoint} from '@/client/utils/runtimeConfig';
+import {pinServerEndpoint} from '@/client/utils/serverEndpoints';
 import ConsoleCommandBar, {ConsoleCommand} from '@/client/components/console/ConsoleCommandBar.vue';
 import GamepadGlyph from '@/client/components/gamepad/GamepadGlyph.vue';
 import PremiumMapFingerprint from '@/client/components/create/premium/PremiumMapFingerprint.vue';
@@ -578,12 +580,14 @@ export default defineComponent({
         return;
       }
       if (m.state === 'active' && m.yourPlayerId !== undefined) {
+        this.propagateServerPin(m.yourPlayerId);
         recordLastGameEntered(m.gameId ?? '');
         navigateWithCurtain(paths.PLAYER + '?id=' + encodeURIComponent(m.yourPlayerId), 'expedition');
         return;
       }
       if (m.state === 'committed' && m.yourPlayerId !== undefined) {
         // Open the settled mission endgame (the archive re-entry semantics).
+        this.propagateServerPin(m.yourPlayerId);
         navigateWithCurtain(paths.PLAYER + '?id=' + encodeURIComponent(m.yourPlayerId), 'sync');
         return;
       }
@@ -639,8 +643,23 @@ export default defineComponent({
       const result = await launchCampaignMission();
       this.overlay = undefined;
       if (result?.yourPlayerId !== undefined) {
+        this.propagateServerPin(result.yourPlayerId);
         recordLastGameEntered(result.gameId);
         navigateWithCurtain(paths.PLAYER + '?id=' + encodeURIComponent(result.yourPlayerId), 'expedition');
+      }
+    },
+    /**
+     * LAN (host-as-server): when THIS page's API calls are pinned to another
+     * machine's server (the map was opened from a LAN campaign row, or the
+     * embedded endgame scene of a LAN-joined mission), a mission entered from
+     * here lives on that SAME server — pin its participant id before
+     * navigating, or the player page would ask the local server and 404.
+     * A no-op on the app's own server.
+     */
+    propagateServerPin(participantId: string): void {
+      const endpoint = currentServerEndpoint();
+      if (endpoint !== undefined) {
+        pinServerEndpoint(participantId, endpoint);
       }
     },
   },
