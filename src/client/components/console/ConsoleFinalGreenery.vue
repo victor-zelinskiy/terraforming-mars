@@ -124,6 +124,17 @@ export default defineComponent({
     },
   },
   watch: {
+    /**
+     * A fresh prompt re-arms submission — the ConsoleTaskHost contract
+     * (`playerView` there; the live prompt's identity here, which changes
+     * with every applied response). A `submitting` latched across a response
+     * boundary is a visible surface that swallows every A — the exact defect
+     * ConsoleEffectDecision shipped for chained effect decisions.
+     */
+    prompt() {
+      this.submitting = false;
+      this.armed = false;
+    },
     footCommands: {
       immediate: true,
       deep: true,

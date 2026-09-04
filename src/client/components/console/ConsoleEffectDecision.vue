@@ -187,6 +187,35 @@ export default defineComponent({
     },
   },
   watch: {
+    /**
+     * Every server response (root identity always changes) re-arms submission —
+     * the same contract ConsoleTaskHost carries, and this screen was the one
+     * decision surface without it. Two effect decisions routinely follow EACH
+     * OTHER in one chain with nothing between them («Конференция на Олимпе»
+     * answers the science tag, its «положить жетон» branch draws nothing, and
+     * «Марсианский университет» asks in the very next response), so this
+     * component never unmounts between the prompts — and a `submitting`
+     * latched by the first answer then swallowed EVERY A on the second
+     * decision: a visible «Сбросить карту» that answered nothing. `armed`
+     * falls with it, so the fresh prompt never paints a pressed row.
+     */
+    playerView() {
+      this.submitting = false;
+      this.armed = false;
+    },
+    /**
+     * A genuinely NEW decision must not inherit the previous one's cursor.
+     * The shell already resets the MODULE memory (`resetDecisionFocus` on its
+     * `effectDecisionKey` watcher — a parent's watcher, so it runs first in
+     * the flush), but this instance seeds its own `focusIdx` only in
+     * `mounted()` — and in a chained pair of decisions it never remounts, so
+     * the second prompt opened with the first one's cursor (an ArrowDown
+     * spent on «Олимп» landed the university's fresh question on its decline).
+     */
+    panelKey() {
+      const remembered = effectDecisionState.focusIdx;
+      this.focusIdx = remembered < this.vm.actions.length ? remembered : 0;
+    },
     footCommands: {
       immediate: true,
       deep: true,
