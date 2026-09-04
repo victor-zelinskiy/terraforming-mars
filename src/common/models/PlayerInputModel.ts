@@ -51,6 +51,10 @@ import {ClaimedToken} from '../underworld/UnderworldPlayerData';
  *    press: the freshly picked corporation is played ON TOP of the already
  *    deployed company (its own starting M€ / effects apply at THIS press,
  *    never silently inside the base deployment).
+ *  - campaignBonus: CAMPAIGN — receive the comeback bonus M€ earned by the
+ *    previous mission's placement. Its own press, right after the BASE
+ *    corporation's resources and before any merge. `bonus` carries the
+ *    amount (structural — the client never parses the title).
  *  - campaignLegacy: CAMPAIGN missions 2–4 — receive the project cards
  *    carried from the previous mission («Наследие проектов»), a deployment
  *    stage of its own AFTER the starting-hand purchase. `legacy` carries the
@@ -58,10 +62,12 @@ import {ClaimedToken} from '../underworld/UnderworldPlayerData';
  */
 export type StartGamePromptMeta = {
   kind: 'corporationPlay' | 'corporationPay' | 'corporationInitialAction' | 'corporationSelection' | 'preludeSelection'
-    | 'corporationMerge' | 'campaignLegacy';
+    | 'corporationMerge' | 'campaignBonus' | 'campaignLegacy';
   preludeMode?: 'hand' | 'draw' | 'copy';
   /** corporationPay: exactly what answering this prompt deducts. */
   payment?: {megacredits: number, cards: number};
+  /** campaignBonus: how many M€ this press receives. */
+  bonus?: {megaCredits: number};
   /** campaignLegacy: how many carried cards this press receives. */
   legacy?: {cards: number};
 }

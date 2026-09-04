@@ -483,8 +483,10 @@ describe('CampaignManager', () => {
     const before = alice.megaCredits;
     expect(before).eq(0);
     runCampaignDeploymentChain(alice, {deferCardPayment: false});
-    // The chain is STAGED: answer the merge press (which also charges the
-    // Merger-rule 42 M€ fee), then the legacy press.
+    // The chain is STAGED in the canonical order: the bonus press, then the
+    // merge press (which also charges the Merger-rule 42 M€ fee), then the
+    // legacy press.
+    alice.process({type: 'option'});
     alice.process({type: 'card', cards: [picked.name]});
     alice.process({type: 'option'});
 
@@ -494,12 +496,16 @@ describe('CampaignManager', () => {
     expect(corps[1]).eq(picked.name);
     // Budget: CrediCor 57 + comeback 5 + the pick's starting M€ − 2×cost − the merge fee.
     expect(alice.megaCredits).eq(57 + 5 + (picked.startingMegaCredits) - 2 * alice.cardCost - 42);
-    expect(alice.campaignMergeFeePaid).is.true;
+    expect(alice.campaignMergeFeesPaid).eq(1);
+    expect(alice.campaignBonusGranted).is.true;
     // The carried card arrived FREE (2 bought + 1 carried) with its reveal queued.
     expect(alice.cardsInHand.map((c) => c.name)).includes(CardName.ACQUIRED_COMPANY);
     expect(alice.cardsInHand).has.length(3);
     expect(alice.campaignCarriedGranted).is.true;
-    expect(alice.cardDrawReveals.some((r) => r.source?.type === 'campaign')).is.true;
+    // NO reveal batch for the carried cards: the owner already sees them
+    // face-up in the deployment queue, and the press flies them into the
+    // hand dock exactly like the bought projects.
+    expect(alice.cardDrawReveals.some((r) => r.source?.type === 'campaign')).is.false;
   });
 
   it('finalHands never leak into any wire model', async () => {

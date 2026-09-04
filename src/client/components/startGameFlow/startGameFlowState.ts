@@ -214,10 +214,20 @@ export function startFlowMergePrompt(view: PlayerViewModel | undefined): SelectC
 }
 
 /**
+ * The campaign 'receive the comeback bonus' prompt (marker kind
+ * `campaignBonus`): its own deployment press right after the BASE
+ * corporation's resources — the marker carries the amount.
+ */
+export function startFlowBonusPrompt(view: PlayerViewModel | undefined): {megaCredits: number} | undefined {
+  const marker = view?.waitingFor?.startGamePrompt;
+  return marker?.kind === 'campaignBonus' ? (marker.bonus ?? {megaCredits: 0}) : undefined;
+}
+
+/**
  * The campaign 'receive your carried project cards' prompt (marker kind
  * `campaignLegacy`): the «Наследие проектов» deployment stage. The marker
- * carries how many cards this press receives — the cards themselves stay
- * private until the press (they arrive as a `{type:'campaign'}` reveal).
+ * carries the count; the OWNER's own view also carries the faces
+ * (`campaignCarriedCards`), rendered exactly like the bought projects.
  */
 export function startFlowLegacyPrompt(view: PlayerViewModel | undefined): {cards: number} | undefined {
   const marker = view?.waitingFor?.startGamePrompt;
@@ -564,7 +574,8 @@ export function startFlowHasFocusedSubAction(view: PlayerViewModel | undefined):
   if (startFlowCorpSelectPrompt(view) !== undefined) {
     return false;
   }
-  if (startFlowMergePrompt(view) !== undefined || startFlowLegacyPrompt(view) !== undefined) {
+  if (startFlowMergePrompt(view) !== undefined || startFlowLegacyPrompt(view) !== undefined ||
+      startFlowBonusPrompt(view) !== undefined) {
     return false;
   }
   if (ACTION_MENU_TITLES.has(titleText(wf.title))) {

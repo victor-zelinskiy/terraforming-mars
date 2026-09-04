@@ -584,7 +584,10 @@ export function campaignWizardExtra(view: PlayerViewModel): {megaCredits: number
       cardCostDelta += corp.cardCost - constants.CARD_COST;
     }
   }
-  const mergeFee = contract.final ? 0 : CAMPAIGN_MERGE_COST;
+  // ONE fee per ADDITIONAL corporation, EVERY mission (missions 3–4 pay for
+  // corp №3 again): lineage[1..] + the fresh pick (absent on the final).
+  const additional = (grant.corporations.length - 1) + (contract.final ? 0 : 1);
+  const mergeFee = additional * CAMPAIGN_MERGE_COST;
   return {megaCredits: megaCredits - mergeFee, cardCostDelta, mergeFee};
 }
 
@@ -666,9 +669,13 @@ export function deploymentJourneyItems(signals: {
   corpPending: boolean,
   payPending: boolean,
   boughtCards: boolean,
-  /** Campaign missions 2–3: the freshly picked corporation merges ON TOP of
-   *  the established lineage — its own chapter between the payment and the
-   *  preludes (the order the server's deferred chain actually runs). */
+  /** Campaign: the comeback-bonus press — its own chapter right after the
+   *  base corporation (its M€ arrive visibly, never inside another beat). */
+  hasBonus?: boolean,
+  bonusPending?: boolean,
+  /** Campaign: the additional corporations merge ON TOP of the base — their
+   *  own chapter between the bonus and the payment (the order the server's
+   *  deferred chain actually runs; missions 3–4 merge twice). */
   hasMerge?: boolean,
   mergePending?: boolean,
   /** Campaign «Наследие проектов»: the carried cards arrive by their own
@@ -694,14 +701,20 @@ export function deploymentJourneyItems(signals: {
   const items: Array<StartJourneyItem> = [];
   const corpState = signals.corpPending ? 'current' : 'completed';
   items.push({id: 'corp', label: startCorpStageLabel(), state: corpState});
-  if (signals.boughtCards) {
+  // CAMPAIGN: the comeback bonus arrives straight after the base's own
+  // resources — its own visible chapter.
+  if (signals.hasBonus === true) {
     items.push({
-      id: 'pay',
-      label: 'Projects',
-      state: signals.corpPending ? 'locked' : (signals.payPending ? 'current' : 'completed'),
+      id: 'bonus',
+      label: 'Campaign bonus',
+      state: signals.corpPending ? 'locked' : (signals.bonusPending === true ? 'current' : 'completed'),
     });
   }
-  const beforeMerge = signals.corpPending || signals.payPending;
+  const beforeMerge = signals.corpPending || (signals.hasBonus === true && signals.bonusPending === true);
+  // CAMPAIGN: the merges come next — every additional corporation (its
+  // capital, effects and the Merger-rule fee) joins BEFORE any bill arrives:
+  // the hand was budgeted against the whole merged stack, so the payment may
+  // only be asked of the assembled capital.
   if (signals.hasMerge === true) {
     items.push({
       id: 'merge',
@@ -709,7 +722,15 @@ export function deploymentJourneyItems(signals: {
       state: beforeMerge ? 'locked' : (signals.mergePending === true ? 'current' : 'completed'),
     });
   }
-  const beforeLegacy = beforeMerge || (signals.hasMerge === true && signals.mergePending === true);
+  const beforePay = beforeMerge || (signals.hasMerge === true && signals.mergePending === true);
+  if (signals.boughtCards) {
+    items.push({
+      id: 'pay',
+      label: 'Projects',
+      state: beforePay ? 'locked' : (signals.payPending ? 'current' : 'completed'),
+    });
+  }
+  const beforeLegacy = beforePay || signals.payPending;
   if (signals.hasLegacy === true) {
     items.push({
       id: 'legacy',
@@ -813,7 +834,9 @@ export function deploymentCrumb(signals: {
   corpPending: boolean,
   payPending: boolean,
   corpPick: boolean,
-  /** Campaign missions 2–3: the merge press owns the tail. */
+  /** Campaign: the comeback-bonus press owns the tail. */
+  bonusPending?: boolean,
+  /** Campaign: a merge press owns the tail. */
   mergePending?: boolean,
   /** Campaign «Наследие»: the carried-cards press owns the tail. */
   legacyPending?: boolean,
@@ -840,9 +863,12 @@ export function deploymentCrumb(signals: {
   if (signals.corpPending || signals.corpPick) {
     return {subject: startCorpStageLabel(), stage: 'Playing'};
   }
-  // CAMPAIGN: the merge press — the subject IS the stage's whole meaning
-  // («СТАРТ ПАРТИИ › СЛИЯНИЕ › РОЗЫГРЫШ»); the legacy press names its own
-  // chapter with a receiving tail («… › НАСЛЕДИЕ ПРОЕКТОВ › ПОЛУЧЕНИЕ»).
+  // CAMPAIGN: the bonus/merge presses — the subject IS the stage's whole
+  // meaning («СТАРТ ПАРТИИ › БОНУС КАМПАНИИ › ПОЛУЧЕНИЕ», «… › СЛИЯНИЕ ›
+  // РОЗЫГРЫШ»); the legacy press names its own chapter the same way.
+  if (signals.bonusPending === true) {
+    return {subject: 'Campaign bonus', stage: 'Receiving'};
+  }
   if (signals.mergePending === true) {
     return {subject: 'Merger stage', stage: 'Playing'};
   }

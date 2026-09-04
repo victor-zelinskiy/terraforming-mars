@@ -33,6 +33,7 @@ import {CardName} from '../../common/cards/CardName';
 import {AwardScorer} from '../awards/AwardScorer';
 import {SpaceId} from '../../common/Types';
 import {cardsToModel, coloniesToModel} from './ModelUtils';
+import {newProjectCard} from '../createCard';
 import {runId} from '../utils/server-ids';
 import {toName} from '../../common/utils/utils';
 import {MAX_AWARDS, MAX_MILESTONES, MAX_TEMPERATURE} from '../../common/constants';
@@ -216,6 +217,17 @@ export class Server {
       id: player.id,
       runId: runId,
       pickedCorporationCard: player.pickedCorporationCard ? cardsToModel(player, [player.pickedCorporationCard]) : [],
+      // CAMPAIGN, self-only (this whole model IS the owner's view): the
+      // project cards carried from the previous mission — the «Наследие»
+      // stage renders them FACE UP exactly like the bought projects, from the
+      // first deployment frame. Identities stay private to everyone else (the
+      // shared models never carry this). Undefined outside campaigns.
+      campaignCarriedCards: player.campaignCarriedCards !== undefined && player.campaignCarriedCards.length > 0 ?
+        cardsToModel(player, player.campaignCarriedCards.flatMap((name) => {
+          const card = newProjectCard(name);
+          return card === undefined ? [] : [card];
+        })) :
+        undefined,
       preludeCardsInHand: cardsToModel(player, player.preludeCardsInHand),
       pendingInitialActions: player.pendingInitialActions.map((c) => c.name),
       thisPlayer: thisPlayer,

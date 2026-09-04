@@ -186,6 +186,11 @@ export interface PlayerViewModel extends ViewModel {
   id: PlayerId;
   ceoCardsInHand: ReadonlyArray<CardModel>;
   pickedCorporationCard: ReadonlyArray<CardModel>; // Why Array?
+  // CAMPAIGN, self-only: the project cards carried from the previous mission
+  // («Наследие проектов») — face-up in the OWNER's own deployment queue from
+  // the first frame. Never present on shared/other-player models; undefined
+  // outside campaigns (the ordinary wire shape is untouched).
+  campaignCarriedCards?: ReadonlyArray<CardModel>;
   preludeCardsInHand: ReadonlyArray<CardModel>;
   // Corporations whose MANDATORY first action this player still owes (server's
   // `pendingInitialActions`, projected to names). Self-only — corp identity is

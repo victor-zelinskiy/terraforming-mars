@@ -25593,23 +25593,54 @@ body.con-start-barshold .con-status {
         gap: .45rem;
         flex-wrap: wrap;
     }
-    /* CAMPAIGN «НАСЛЕДИЕ ПРОЕКТОВ» — the same buy-row chassis, FACE-DOWN
-       cards (identities are private until the press's own reveal). The back
-       is sized to read as the buycards' sibling (a buycard is a pcard at
-       zoom .34 ≈ 5.4×7.5rem). */
-    &__legacyback {
-        width: 5.4rem;
-        height: 7.5rem;
-        .con-card-back {
-            border-radius: .45rem;
-            box-shadow: 0 .3rem .9rem rgba(0, 0, 0, 0.4), inset 0 0 0 .05rem rgba(140, 170, 200, 0.22);
-        }
+    /* CAMPAIGN «НАСЛЕДИЕ ПРОЕКТОВ» — the exact buy-row chassis, FACE-UP
+       cards; a gold seam tells the free carried set from the paid one. */
+    &__legacy {
+        box-shadow: inset 0 0 0 .05rem rgba(214, 178, 106, 0.28);
+    }
+    &__legacy--awaiting {
+        opacity: .62;
     }
     &__legacy-note {
         font-size: .68rem;
         color: @con-text-dim;
         letter-spacing: .02em;
     }
+    /* CAMPAIGN «БОНУС КАМПАНИИ» — the pre-laid comeback-M€ plate in the
+       deployment row: calm while awaiting, ringed when its press is live. */
+    &__bonusplate {
+        align-self: center;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        gap: .35rem;
+        padding: .8rem 1.1rem;
+        border-radius: .7rem;
+        background: rgba(14, 22, 33, 0.55);
+        box-shadow: inset 0 0 0 .05rem rgba(214, 178, 106, 0.28);
+        transition: box-shadow calc(160ms * var(--motion-scale, 1)) ease, opacity calc(160ms * var(--motion-scale, 1)) ease;
+        &--awaiting { opacity: .62; }
+        &--focused {
+            opacity: 1;
+            box-shadow: inset 0 0 0 .1rem @con-mint, 0 0 1.2rem fade(@con-mint, 28%);
+        }
+    }
+    &__bonusplate-cap {
+        font-size: .66rem;
+        font-weight: 700;
+        letter-spacing: .16em;
+        text-transform: uppercase;
+        color: #ecd39a;
+    }
+    &__bonusplate-amount {
+        display: inline-flex;
+        align-items: center;
+        gap: .25rem;
+        font-size: 1.3rem;
+        font-weight: 700;
+        color: #f2e9d8;
+    }
+    .con-start__slot-a--inline { position: static; transform: none; }
     /* (The campaign lineage moved into the Selection Dock's «НАСЛЕДИЕ»
        block — see .con-startdock__legacy — so it costs the candidate strip
        zero space.) */

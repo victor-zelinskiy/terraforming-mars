@@ -162,8 +162,11 @@ export interface IPlayer {
   /** Campaign mode: PRIVATE carried project cards («Наследие проектов»). */
   campaignCarriedCards?: Array<CardName>;
   campaignCarriedGranted: boolean;
-  /** Campaign: the merge fee (Merger's «Then pay 42 M€») has been charged. */
-  campaignMergeFeePaid: boolean;
+  /** Campaign: how many merge fees (Merger's «Then pay 42 M€», one per
+   *  additional corporation) have been charged this mission. */
+  campaignMergeFeesPaid: number;
+  /** Campaign: the comeback-bonus press has been answered. */
+  campaignBonusGranted: boolean;
   /** Initial-cards selection completed (campaign-final has no corp pick to infer from). */
   initialCardSelectionDone: boolean;
 
@@ -513,7 +516,7 @@ export interface IPlayer {
    * explicit follow-up prompt instead of an immediate deduction — used ONLY
    * by the start screen's deferred play (Game.playCorporationInput).
    */
-  playCorporationCard(corporationCard: ICorporationCard, options?: {deferCardPayment?: boolean, holdResearchRelease?: boolean}): void;
+  playCorporationCard(corporationCard: ICorporationCard, options?: {deferCardPayment?: boolean, holdResearchRelease?: boolean, cardPaymentPriority?: Priority}): void;
   drawCard(count?: number, options?: DrawOptions): void;
   drawCardKeepSome(count: number, options: AllOptions): void;
   /**

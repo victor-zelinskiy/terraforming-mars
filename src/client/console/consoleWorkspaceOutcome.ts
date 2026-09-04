@@ -694,14 +694,6 @@ export function workspaceClaimsDrawReveal(source: CardDrawRevealSource | undefin
   if (source === undefined) {
     return true;
   }
-  // CAMPAIGN «Наследие проектов»: the carried-cards reveal is BY CONSTRUCTION
-  // the start deployment's own legacy press — nothing else ever emits the
-  // `campaign` source, so an open claim that admits draws owns it (the press
-  // claims synchronously, exactly like a card play). Without this the batch
-  // rose as the standalone full-bleed reveal over the start workspace.
-  if (source.type === 'campaign') {
-    return true;
-  }
   if (source.type !== 'card') {
     return false;
   }

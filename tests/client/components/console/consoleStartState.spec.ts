@@ -75,6 +75,14 @@ describe('consoleStartState (T5 wizard logic)', () => {
     };
     expect(campaignWizardExtra(viewOf(mission2))).to.deep.eq({megaCredits: 57 + 5 - 42, cardCostDelta: 0, mergeFee: 42});
 
+    // Mission 3 (2-corp lineage + the pick): TWO additional corps → 2×42 —
+    // the wizard money must carry ALL the fees the deployment will charge.
+    const mission3 = {
+      final: false, missionSlot: 2,
+      grants: [{seat: 0, color: 'red', bonusMegaCredits: 10, corporations: [CardName.CREDICOR, CardName.THORGATE], titlePoints: []}],
+    };
+    expect(campaignWizardExtra(viewOf(mission3))).to.deep.eq({megaCredits: 57 + 48 + 10 - 2 * 42, cardCostDelta: 0, mergeFee: 2 * 42});
+
     // Mission 1 (empty lineage): zeros — the pick is the base, no merge.
     const mission1 = {
       final: false, missionSlot: 0,
@@ -256,36 +264,63 @@ describe('consoleStartState (T5 summary launch readout)', () => {
       expect(items[3].state).to.eq('locked');
     });
 
-    it('CAMPAIGN chapters: merge and legacy sit between the payment and the preludes, in press order', () => {
-      // Mission 2: base played, payment done, the merge press stands.
-      const merging = deploymentJourneyItems({
+    it('CAMPAIGN chapters: corp → BONUS → MERGE → payment → legacy, in the canonical press order', () => {
+      // Base played, the bonus press stands; everything else WAITS behind it.
+      const bonusing = deploymentJourneyItems({
         corpPending: false, payPending: false, boughtCards: true,
-        hasMerge: true, mergePending: true, hasLegacy: true, legacyPending: false,
-        preludesLeft: 1, hasPreludes: true,
-      });
-      expect(merging.map((i) => i.id)).to.deep.eq(['corp', 'pay', 'merge', 'legacy', 'preludes', 'ready']);
-      expect(merging[2].state, 'the merge press is CURRENT').to.eq('current');
-      expect(merging[3].state, 'the legacy waits behind the merge').to.eq('locked');
-      expect(merging[4].state, 'preludes wait behind both').to.eq('locked');
-
-      // Merge answered → the legacy press is CURRENT, preludes still locked.
-      const receiving = deploymentJourneyItems({
-        corpPending: false, payPending: false, boughtCards: true,
-        hasMerge: true, mergePending: false, hasLegacy: true, legacyPending: true,
-        preludesLeft: 1, hasPreludes: true,
-      });
-      expect(receiving[2].state).to.eq('completed');
-      expect(receiving[3].state).to.eq('current');
-      expect(receiving[4].state).to.eq('locked');
-
-      // Both answered → the preludes chapter opens as usual.
-      const done = deploymentJourneyItems({
-        corpPending: false, payPending: false, boughtCards: true,
+        hasBonus: true, bonusPending: true,
         hasMerge: true, mergePending: false, hasLegacy: true, legacyPending: false,
         preludesLeft: 1, hasPreludes: true,
       });
-      expect(done[3].state).to.eq('completed');
-      expect(done[4].state).to.eq('current');
+      expect(bonusing.map((i) => i.id)).to.deep.eq(['corp', 'bonus', 'merge', 'pay', 'legacy', 'preludes', 'ready']);
+      expect(bonusing[1].state, 'the bonus press is CURRENT').to.eq('current');
+      expect(bonusing[2].state, 'the merge waits behind the bonus').to.eq('locked');
+      expect(bonusing[3].state, 'the payment waits behind the merge').to.eq('locked');
+
+      // Bonus taken → the merge press is CURRENT; the payment still waits
+      // (the hand was budgeted against the whole merged stack).
+      const merging = deploymentJourneyItems({
+        corpPending: false, payPending: false, boughtCards: true,
+        hasBonus: true, bonusPending: false,
+        hasMerge: true, mergePending: true, hasLegacy: true, legacyPending: false,
+        preludesLeft: 1, hasPreludes: true,
+      });
+      expect(merging[1].state).to.eq('completed');
+      expect(merging[2].state, 'the merge press is CURRENT').to.eq('current');
+      expect(merging[3].state, 'the payment waits behind the merge').to.eq('locked');
+      expect(merging[4].state, 'the legacy waits behind both').to.eq('locked');
+
+      // Merge answered → the payment is the current press.
+      const paying = deploymentJourneyItems({
+        corpPending: false, payPending: true, boughtCards: true,
+        hasBonus: true, bonusPending: false,
+        hasMerge: true, mergePending: false, hasLegacy: true, legacyPending: false,
+        preludesLeft: 1, hasPreludes: true,
+      });
+      expect(paying[2].state).to.eq('completed');
+      expect(paying[3].state).to.eq('current');
+      expect(paying[4].state).to.eq('locked');
+
+      // Paid → the legacy press is CURRENT, preludes still locked.
+      const receiving = deploymentJourneyItems({
+        corpPending: false, payPending: false, boughtCards: true,
+        hasBonus: true, bonusPending: false,
+        hasMerge: true, mergePending: false, hasLegacy: true, legacyPending: true,
+        preludesLeft: 1, hasPreludes: true,
+      });
+      expect(receiving[3].state).to.eq('completed');
+      expect(receiving[4].state).to.eq('current');
+      expect(receiving[5].state).to.eq('locked');
+
+      // Everything answered → the preludes chapter opens as usual.
+      const done = deploymentJourneyItems({
+        corpPending: false, payPending: false, boughtCards: true,
+        hasBonus: true, bonusPending: false,
+        hasMerge: true, mergePending: false, hasLegacy: true, legacyPending: false,
+        preludesLeft: 1, hasPreludes: true,
+      });
+      expect(done[4].state).to.eq('completed');
+      expect(done[5].state).to.eq('current');
     });
 
     it('EVERY middle deployment stage is conditional — absent when its work is absent', () => {

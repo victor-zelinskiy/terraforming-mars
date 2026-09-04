@@ -20,7 +20,7 @@ import {ColonyDealer} from './colonies/ColonyDealer';
 import {IColony} from './colonies/IColony';
 import {Color} from '../common/Color';
 import {ICorporationCard, isICorporationCard} from './cards/corporation/ICorporationCard';
-import {campaignCorporationQueue, campaignLegacyPending, campaignMergeFeePending, campaignSelectionSkipsCorpStep, campaignSetupResumeInput, expectedCorporationCount, initialSelectionDoneOf, reserveCarriedProjectCards} from './campaign/CampaignMissionSetup';
+import {campaignCorporationQueue, campaignSelectionSkipsCorpStep, campaignSetupExtrasOwed, campaignSetupResumeInput, expectedCorporationCount, initialSelectionDoneOf, reserveCarriedProjectCards} from './campaign/CampaignMissionSetup';
 import {Database} from './database/Database';
 import {FundedAward, serializeFundedAwards, deserializeFundedAwards} from './awards/FundedAward';
 import {IAward} from './awards/IAward';
@@ -980,7 +980,7 @@ export class Game implements IGame, Logger {
       if (!initialSelectionDoneOf(player)) {
         player.setWaitingFor(this.selectInitialCards(player));
       } else if (player.playedCards.filter(isICorporationCard).length < expectedCorporationCount(player) ||
-          (campaignHuman && (campaignLegacyPending(player) > 0 || campaignMergeFeePending(player)))) {
+          campaignSetupExtrasOwed(player)) {
         // Reload recovery: chosen but not (fully) DEPLOYED — re-issue the owed
         // stage. For a campaign this resumes the exact stage the chain stopped
         // at (base lineage / the merge press / the carried-cards press).
@@ -2420,7 +2420,7 @@ export class Game implements IGame, Logger {
     // no waitingFor (both chips read «ГОТОВ»). Guard on human corp-pickers only.
     if (game.generation === 1 && players.some((p) => p.isMarsBot !== true &&
         (p.playedCards.filter(isICorporationCard).length < expectedCorporationCount(p) ||
-         campaignLegacyPending(p) > 0 || campaignMergeFeePending(p)))) {
+         campaignSetupExtrasOwed(p)))) {
       if (game.phase === Phase.INITIALDRAFTING) {
         switch (game.initialDraftIteration) {
         case 1:

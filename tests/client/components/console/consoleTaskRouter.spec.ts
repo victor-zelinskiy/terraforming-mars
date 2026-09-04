@@ -70,6 +70,7 @@ const FIXTURES: Array<{row: string, wf: any, hand?: Array<string>, srr?: Array<s
   {row: '22c start: merger corp selection', wf: {type: 'card', title: 'Select corporation', cards: [], startGamePrompt: {kind: 'corporationSelection'}}, expect: {kind: 'startSequence', prompt: 'corporationSelection'}},
   // The campaign deployment stages — each its own deliberate press.
   {row: '22d campaign: merge press', wf: {type: 'card', title: 'Merge the new corporation', cards: [], startGamePrompt: {kind: 'corporationMerge'}}, expect: {kind: 'startSequence', prompt: 'corporationMerge'}},
+  {row: '22d2 campaign: bonus press', wf: {type: 'option', title: 'Receive the campaign bonus of 5 M€', startGamePrompt: {kind: 'campaignBonus', bonus: {megaCredits: 5}}}, expect: {kind: 'startSequence', prompt: 'campaignBonus'}},
   {row: '22e campaign: legacy press', wf: {type: 'option', title: 'Receive 2 project cards carried from the previous mission', startGamePrompt: {kind: 'campaignLegacy', legacy: {cards: 2}}}, expect: {kind: 'startSequence', prompt: 'campaignLegacy'}},
   {row: '23 and composite', wf: {type: 'and', title: 'Choose both', options: []}, expect: {kind: 'composite'}},
   {row: '24 ares global', wf: {type: 'aresGlobalParameters', title: 'Shift'}, expect: {kind: 'aresGlobal'}},

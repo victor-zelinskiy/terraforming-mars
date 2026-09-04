@@ -60,12 +60,9 @@ describe('consoleWorkspaceOutcome — the EMBEDDED claim', () => {
     expect(workspaceClaimsDrawReveal({type: 'globalParameter', parameter: 'venus'} as CardDrawRevealSource)).to.eq(false);
   });
 
-  it('CAMPAIGN «Наследие»: the campaign-sourced reveal belongs to the open claim (only the legacy press emits it)', () => {
-    // Not claimed → the standalone presenter keeps it (reload fallback).
-    expect(workspaceClaimsDrawReveal({type: 'campaign'})).to.eq(false);
-    // The legacy press claims synchronously → the batch presents embedded.
+  it('a campaign-sourced reveal is never claimed (the legacy row flies its cards itself — no reveal batch exists)', () => {
     claimWorkspaceOutcome('start', 'Project legacy', ['draw', 'pick', 'effect'], 0, 2, 'chain');
-    expect(workspaceClaimsDrawReveal({type: 'campaign'})).to.eq(true);
+    expect(workspaceClaimsDrawReveal({type: 'campaign'})).to.eq(false);
   });
 
   /**

@@ -55,7 +55,6 @@ import {Turmoil} from './turmoil/Turmoil';
 import {PathfindersExpansion} from './pathfinders/PathfindersExpansion';
 import {AutomaCorporations} from './automa/corps/AutomaCorporations';
 import {ColoniesHandler} from './colonies/ColoniesHandler';
-import {campaignBonusMegaCredits} from './campaign/CampaignMissionSetup';
 import {MonsInsurance} from './cards/promo/MonsInsurance';
 import {InputResponse} from '../common/inputs/InputResponse';
 import {Tags} from './player/Tags';
@@ -170,12 +169,15 @@ export class Player implements IPlayer {
   public campaignCarriedCards?: Array<CardName>;
   public campaignCarriedGranted: boolean = false;
   /**
-   * Campaign mode: the merge fee (the Merger prelude's «Then pay 42 M€»,
-   * missions 2–3) has been charged. Serialized because the fee is a deferred
-   * beat of the merge press and the deferred queue never survives a reload —
-   * this flag is what lets recovery re-raise an unpaid fee exactly once.
+   * Campaign mode: HOW MANY merge fees (the Merger prelude's «Then pay
+   * 42 M€» — one per ADDITIONAL corporation, every mission) have been
+   * charged. Serialized because a fee is a deferred beat of its merge press
+   * and the deferred queue never survives a reload — the counter lets
+   * recovery re-raise exactly the unpaid ones.
    */
-  public campaignMergeFeePaid: boolean = false;
+  public campaignMergeFeesPaid: number = 0;
+  /** Campaign mode: the comeback bonus press has been answered (exactly-once). */
+  public campaignBonusGranted: boolean = false;
   /**
    * The initial-cards selection completed. Ordinary games infer this from
    * `pickedCorporationCard`, but a FINAL campaign mission has no corporation
@@ -1463,7 +1465,7 @@ export class Player implements IPlayer {
       });
   }
 
-  public playCorporationCard(corporationCard: ICorporationCard, options?: {deferCardPayment?: boolean, holdResearchRelease?: boolean}): void {
+  public playCorporationCard(corporationCard: ICorporationCard, options?: {deferCardPayment?: boolean, holdResearchRelease?: boolean, cardPaymentPriority?: Priority}): void {
     const additionalCorp = this.playedCards.corporations().length > 0;
 
     // Snapshot the pre-corp baseline for the premium start-of-game reveal — the
@@ -1508,7 +1510,7 @@ export class Player implements IPlayer {
     corporationCard: ICorporationCard,
     additionalCorp: boolean,
     setupBaseline: ReturnType<Player['captureStartingSetupBaseline']> | undefined,
-    options?: {deferCardPayment?: boolean},
+    options?: {deferCardPayment?: boolean, cardPaymentPriority?: Priority},
   ): void {
     this.playedCards.push(corporationCard);
 
@@ -1526,19 +1528,9 @@ export class Player implements IPlayer {
 
     // Update starting MC
     this.megaCredits += corporationCard.startingMegaCredits;
-    // Campaign comeback bonus (docs/CAMPAIGN_MODE_ARCHITECTURE.md §7.5): a
-    // one-shot M€ grant earned by the previous mission's placement, applied
-    // together with the BASE corporation's starting M€ — before the starting
-    // hand purchase, so it participates in affordability. The base corp plays
-    // exactly once per game, which is what makes this exactly-once. 0 outside
-    // campaigns and for mission 1.
-    if (!additionalCorp) {
-      const campaignBonus = campaignBonusMegaCredits(this);
-      if (campaignBonus > 0) {
-        this.megaCredits += campaignBonus;
-        this.game.log('${0} received a campaign bonus of ${1} M€', (b) => b.player(this).number(campaignBonus));
-      }
-    }
+    // (The campaign comeback bonus is NOT granted here anymore: «Бонус
+    // кампании» is its own deployment press right after the base — see
+    // runCampaignDeploymentChain / grantCampaignBonus.)
     // Update card cost. A corporation REPLACES the base price (Merger can stack
     // a second one), so it writes the base; per-card modifiers are derived on
     // top of it by the `cardCost` getter.
@@ -1576,7 +1568,12 @@ export class Player implements IPlayer {
       // ONLY the deferred-play path opts in (Game.playCorporationInput) —
       // every direct caller (Merger's 2nd corp, the assigned beginner corp,
       // test mode) keeps the immediate, synchronous deduction.
-      this.defer(() => this.payForBoughtCardsInput(cardsBought, megacreditsPaid, payForBoughtCards));
+      // `cardPaymentPriority` (campaign deployment only): the merge stage —
+      // the new corporation, its effects and its 42 M€ fee — resolves BEFORE
+      // the hand payment, so the bill arrives once the WHOLE starting capital
+      // it was budgeted against has assembled (a poor base corporation could
+      // otherwise be asked to pay a hand the merged funds were meant to cover).
+      this.defer(() => this.payForBoughtCardsInput(cardsBought, megacreditsPaid, payForBoughtCards), options?.cardPaymentPriority);
     } else {
       payForBoughtCards();
     }
@@ -2919,7 +2916,8 @@ export class Player implements IPlayer {
       campaignSeat: this.campaignSeat,
       campaignCarriedCards: this.campaignCarriedCards,
       campaignCarriedGranted: this.campaignCarriedGranted === true ? true : undefined,
-      campaignMergeFeePaid: this.campaignMergeFeePaid === true ? true : undefined,
+      campaignMergeFeesPaid: this.campaignMergeFeesPaid > 0 ? this.campaignMergeFeesPaid : undefined,
+      campaignBonusGranted: this.campaignBonusGranted === true ? true : undefined,
       initialCardSelectionDone: this.initialCardSelectionDone === true ? true : undefined,
       // Terraforming Rating
       terraformRating: this.terraformRating,
@@ -3096,7 +3094,8 @@ export class Player implements IPlayer {
     player.campaignSeat = d.campaignSeat;
     player.campaignCarriedCards = d.campaignCarriedCards;
     player.campaignCarriedGranted = d.campaignCarriedGranted ?? false;
-    player.campaignMergeFeePaid = d.campaignMergeFeePaid ?? false;
+    player.campaignMergeFeesPaid = d.campaignMergeFeesPaid ?? 0;
+    player.campaignBonusGranted = d.campaignBonusGranted ?? false;
     player.initialCardSelectionDone = d.initialCardSelectionDone ?? false;
 
     player.pendingInitialActions = corporationCardsFromJSON(d.pendingInitialActions ?? []);

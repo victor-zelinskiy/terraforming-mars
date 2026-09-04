@@ -385,7 +385,7 @@
                 <transition-group name="con-start-shift" tag="div" class="con-start__queue-row">
                   <div v-for="entry in queueCards" :key="entry.name"
                        class="con-start__qcard con-start__deal"
-                       :style="{order: entry.kind === 'prelude' ? 3 : 1}"
+                       :style="{order: entry.kind === 'prelude' ? 5 : 1}"
                        :class="{
                          'con-start__qcard--focused': isFocused(entry.kind, entry.name),
                          'con-start__qcard--armed': riskStage !== undefined && riskArmed === entry.name,
@@ -414,11 +414,29 @@
                     </div>
                   </div>
 
+                  <!-- CAMPAIGN «БОНУС КАМПАНИИ» — pre-laid from the first
+                       frame in its activation slot (right after the base
+                       corporation), dimmed until its press; the press flies
+                       the M€ chip into the rail (launchBonusFlight). -->
+                  <div v-if="bonusPlateShown" key="#bonus" class="con-start__bonusplate"
+                       :style="{order: 2}"
+                       data-campaign-bonus
+                       :class="{
+                         'con-start__bonusplate--focused': isFocused('bonus', BONUS_KEY),
+                         'con-start__bonusplate--awaiting': bonusPrompt === undefined,
+                       }">
+                    <span class="con-start__bonusplate-cap">{{ $t('Campaign bonus') }}</span>
+                    <span class="con-start__bonusplate-amount">+{{ campaignBonusAmount }}<i class="resource_icon resource_icon--megacredits con-start__mc" aria-hidden="true"></i></span>
+                    <div v-if="isFocused('bonus', BONUS_KEY)" class="con-start__slot-a con-start__slot-a--inline">
+                      <GamepadGlyph control="confirm" /><span>{{ $t('Receive') }}</span>
+                    </div>
+                  </div>
+
                   <!-- The BOUGHT PROJECTS — part of the queue until the payment
                        resolves them into the hand (they keep their pay-grid
                        identity: runHandDelivery measures [data-pay-card]). -->
                   <div v-if="payProjects.length > 0" key="#buy" class="con-start__buy"
-                       :style="{order: 2}"
+                       :style="{order: 3}"
                        :class="{
                          'con-start__buy--focused': isFocused('pay', PAY_KEY),
                          'con-start__buy--chromehold': buyChrome === 'hold',
@@ -442,21 +460,26 @@
                   </div>
 
                   <!-- CAMPAIGN «НАСЛЕДИЕ ПРОЕКТОВ» — the carried cards, FACE
-                       DOWN until the press (their identities are the owner's
-                       own reveal): the press deals them into the hand dock
-                       through the standard drawn-cards cinematic. Same buy-row
-                       chassis as the bought projects — one queue language. -->
-                  <div v-if="legacyPrompt !== undefined" key="#legacy" class="con-start__buy con-start__legacy"
+                       UP, pre-laid from the first frame in the SAME chassis
+                       as the bought projects (one queue language): dimmed
+                       until their press, then flown into the hand dock by
+                       the exact same delivery flight — the only difference
+                       from the purchase is that nothing is deducted. -->
+                  <div v-if="legacyRowShown" key="#legacy" class="con-start__buy con-start__legacy"
                        :style="{order: 4}"
-                       :class="{'con-start__buy--focused': isFocused('legacy', LEGACY_KEY)}">
-                    <div class="con-start__buy-row">
-                      <div v-for="i in legacyPrompt.cards" :key="'legacy' + i"
-                           class="con-start__buycard con-start__legacyback">
-                        <div class="con-card-back"></div>
+                       :class="{
+                         'con-start__buy--focused': isFocused('legacy', LEGACY_KEY),
+                         'con-start__legacy--awaiting': legacyPrompt === undefined,
+                       }">
+                    <div class="con-start__buy-row" ref="legacyGrid">
+                      <div v-for="card in legacyRowCards" :key="card.name"
+                           class="con-start__buycard"
+                           :data-legacy-card="card.name">
+                        <Card :card="card" :key="card.name" lightweight />
                       </div>
                     </div>
                     <div class="con-start__buy-meta">
-                      <span class="con-start__buy-cap">{{ $t('Carried cards') }} · <b>{{ legacyPrompt.cards }}</b></span>
+                      <span class="con-start__buy-cap">{{ $t('Legacy') }} · <b>{{ legacyRowCards.length }}</b></span>
                       <span class="con-start__buy-amount con-start__legacy-note">{{ $t('Carried from the previous mission') }}</span>
                       <div v-if="isFocused('legacy', LEGACY_KEY)" class="con-start__slot-a">
                         <GamepadGlyph control="confirm" /><span>{{ $t('Receive') }}</span>
@@ -1020,7 +1043,7 @@ import {
 import {PreludeOutlook} from '@/common/cards/PreludeOutlook';
 import {
   corpActionOptionIndexFor, corporationCardNames, PreludeEntry, preludeEntries, recordDrawChoice,
-  startFlowCorpPayPrompt, startFlowCorpPlayPrompt, startFlowCorpPrompt, startFlowCorpSelectPrompt,
+  startFlowBonusPrompt, startFlowCorpPayPrompt, startFlowCorpPlayPrompt, startFlowCorpPrompt, startFlowCorpSelectPrompt,
   startFlowLegacyPrompt, startFlowMergePrompt,
   startFlowPreludeCopyPrompt, startFlowPreludeDrawPrompt, startFlowPreludePrompt,
 } from '@/client/components/startGameFlow/startGameFlowState';
@@ -1104,7 +1127,7 @@ function textOf(v: string | Message | undefined): string {
 }
 
 
-type Focusable = {kind: 'corp' | 'prelude' | 'candidate' | 'pay' | 'legacy', name: CardName, disabled: boolean};
+type Focusable = {kind: 'corp' | 'prelude' | 'candidate' | 'pay' | 'bonus' | 'legacy', name: CardName, disabled: boolean};
 
 /** One physical slot of the deployment queue. */
 type QueueEntry = {
@@ -1123,9 +1146,11 @@ type QueueEntry = {
 /** The card-payment beat's synthetic focus key (it is not a card). */
 const PAY_KEY = '#pay' as CardName;
 
-/** The campaign carried-cards beat's synthetic focus key (the cards are
- *  face-down — identities stay private until the press's own reveal). */
+/** The campaign carried-cards beat's synthetic focus key. */
 const LEGACY_KEY = '#legacy' as CardName;
+
+/** The campaign comeback-bonus beat's synthetic focus key. */
+const BONUS_KEY = '#bonus' as CardName;
 
 /**
  * The initial-setup input remap: STEP navigation lives on LT / RT (the
@@ -1251,6 +1276,7 @@ export default defineComponent({
       warnedCorpPrompt: false,
       PAY_KEY,
       LEGACY_KEY,
+      BONUS_KEY,
       /** The deal cinematic lifecycle (holds slots, flies proxies, skips). */
       deal: createCardDealSequence(),
       dealLaunchTimer: undefined as number | undefined,
@@ -1540,6 +1566,7 @@ export default defineComponent({
         embedSubject: this.embedSubject,
         corpPending: this.deploymentFlowStage === 'corp',
         payPending: this.deploymentFlowStage === 'pay',
+        bonusPending: this.deploymentFlowStage === 'bonus',
         mergePending: this.deploymentFlowStage === 'merge',
         legacyPending: this.deploymentFlowStage === 'legacy',
         corpPick: this.corpCandidatePick,
@@ -1608,7 +1635,7 @@ export default defineComponent({
     /** The deployment stage stays on its source until every effect/child/card
      *  motion has returned. This is presentation over existing live signals,
      *  not a second progress latch. */
-    deploymentFlowStage(): 'corp' | 'pay' | 'merge' | 'legacy' | 'preludes' | 'bonusAction' | 'firstAction' | 'ready' {
+    deploymentFlowStage(): 'corp' | 'bonus' | 'pay' | 'merge' | 'legacy' | 'preludes' | 'bonusAction' | 'firstAction' | 'ready' {
       // THE BONUS-ACTION STAGE outranks every other: its actions are taken
       // «immediately», ahead of the player's remaining preludes, and while the
       // player is out on the BOARD spending them the deployment must not tell
@@ -1633,12 +1660,16 @@ export default defineComponent({
         this.effectReturnPending || workspaceFrameHasNested('start') || this.yielded ||
         currentRevealEvent() !== undefined;
       const sourceType = this.flowEffectCard === undefined ? undefined : getCard(this.flowEffectCard)?.type;
-      // CAMPAIGN: the merge press + its hero/effects are their OWN chapter,
-      // told apart from the base deployment by the effect card NOT being part
-      // of the established lineage (the merged corp is the fresh pick).
+      // CAMPAIGN: the bonus press — its own chapter right after the base.
+      if (this.bonusPrompt !== undefined) {
+        return 'bonus';
+      }
+      // CAMPAIGN: a merge press + its hero/effects are their OWN chapter,
+      // told apart from the base deployment by the effect card being one of
+      // the ADDITIONAL corporations (never lineage[0] / the mission-1 pick).
       if (this.corpMergePrompt !== undefined || this.mergeFeeStands ||
-          (effectOpen && sourceType === CardType.CORPORATION && this.mergeChapterExists &&
-           this.flowEffectCard !== undefined && !this.campaignLineage.includes(this.flowEffectCard))) {
+          (effectOpen && sourceType === CardType.CORPORATION &&
+           this.flowEffectCard !== undefined && this.campaignAdditionalNames.includes(this.flowEffectCard))) {
         return 'merge';
       }
       if (this.corpPlayPrompt !== undefined || this.corpCandidatePick ||
@@ -1648,7 +1679,7 @@ export default defineComponent({
       if (this.projectDeliveryPending) {
         return 'pay';
       }
-      // CAMPAIGN «Наследие»: the carried-cards press and their arrival.
+      // CAMPAIGN «Наследие»: the carried-cards press and their dock flight.
       if (this.legacyPrompt !== undefined || this.legacyArrivalLive) {
         return 'legacy';
       }
@@ -1677,6 +1708,8 @@ export default defineComponent({
         return deploymentJourneyItems({
           corpPending: false,
           payPending: false,
+          hasBonus: this.campaignBonusAmount > 0,
+          bonusPending: false,
           hasMerge: this.mergeChapterExists,
           mergePending: false,
           hasLegacy: this.state.legacySeen,
@@ -1696,14 +1729,17 @@ export default defineComponent({
         const future: Array<JourneyItem> = [
           {id: 'corp', label: 'Corporation', state: 'locked'},
         ];
-        if (this.state.projects.length > 0) {
-          future.push({id: 'pay', label: 'Projects', state: 'locked'});
+        // The campaign chapters are declared by the contract + the owner's
+        // own wire fields, so the deployment starts with the shape it will
+        // keep — bonus, then every merge, straight after the corporation.
+        if (this.campaignBonusAmount > 0) {
+          future.push({id: 'bonus', label: 'Campaign bonus', state: 'locked'});
         }
-        // The campaign merge is declared by the contract, so the deployment
-        // starts with the shape it will keep (the legacy chapter cannot be —
-        // its count is private until its own prompt — so it joins later).
         if (this.mergeChapterExists) {
           future.push({id: 'merge', label: 'Merger stage', state: 'locked'});
+        }
+        if (this.state.projects.length > 0) {
+          future.push({id: 'pay', label: 'Projects', state: 'locked'});
         }
         if (this.state.preludes.length > 0) {
           future.push({id: 'preludes', label: 'Preludes', state: 'locked'});
@@ -1726,9 +1762,11 @@ export default defineComponent({
       return deploymentJourneyItems({
         corpPending: this.deploymentFlowStage === 'corp',
         payPending: this.deploymentFlowStage === 'pay',
-        // CAMPAIGN chapters: the merge is declared by the contract from the
-        // first frame; the legacy joins when its (private) count becomes
-        // known and stays (`legacySeen`).
+        // CAMPAIGN chapters: bonus / merges / legacy are all declared by the
+        // contract + the owner's own wire fields from the first frame — the
+        // rail starts with the shape it will keep.
+        hasBonus: this.campaignBonusAmount > 0,
+        bonusPending: this.deploymentFlowStage === 'bonus',
         hasMerge: this.mergeChapterExists,
         mergePending: this.deploymentFlowStage === 'merge',
         hasLegacy: this.legacyChapterExists,
@@ -2759,13 +2797,21 @@ export default defineComponent({
       if (corp !== undefined) {
         out.push({name: corp.name, kind: 'corp', verb: 'Play now', dimmed: false, dealIdx: -1});
       }
-      // CAMPAIGN: the merge press — the fresh pick stands in the queue with
-      // its own verb; the press plays it «поверх» the established lineage
-      // (the hero lands onto the corporation family's stack in «Разыграно»)
-      // AND charges the Merger-rule fee — the badge states it up front.
-      const merge = this.corpMergeCard;
-      if (merge !== undefined) {
-        out.push({name: merge.name, kind: 'corp', verb: 'Merge', badge: 'Pay 42 M€.', dimmed: false, dealIdx: -1});
+      // CAMPAIGN: EVERY additional corporation stands PRE-LAID in the queue
+      // from the first frame, in its activation order — dimmed until its own
+      // merge press, active with «Слить» when its prompt arrives. Each wears
+      // the Merger-rule fee badge up front; a merged corp leaves for
+      // «Разыграно» via the hero flight (its tableau commit drops the entry).
+      const activeMerge = this.corpMergeCard?.name;
+      for (const name of this.campaignAdditionalUnplayed) {
+        const active = name === activeMerge;
+        out.push({
+          name, kind: 'corp',
+          verb: active ? 'Merge' : undefined,
+          badge: 'Pay 42 M€.',
+          dimmed: !active,
+          dealIdx: -1,
+        });
       }
       this.candidateCards.forEach((c, i) => {
         const disabled = c.isDisabled === true;
@@ -3223,14 +3269,74 @@ export default defineComponent({
       const color = this.playerView.thisPlayer.color;
       return contract?.grants.find((g) => g.color === color)?.corporations ?? [];
     },
-    /** The merge chapter exists for every human of campaign missions 2–3. */
-    mergeChapterExists(): boolean {
+    /**
+     * The ADDITIONAL corporations of this mission, in deployment order:
+     * lineage[1..] (missions 3–4 re-merge the whole company), then the fresh
+     * pick (missions 2–3). Each merges by its own press and pays the fee.
+     */
+    campaignAdditionalNames(): ReadonlyArray<CardName> {
       const contract = this.playerView.game.gameOptions.campaign;
-      return contract !== undefined && !contract.final && contract.missionSlot > 0;
+      const lineage = this.campaignLineage;
+      if (contract === undefined || lineage.length === 0) {
+        return []; // ordinary game / mission 1 (the pick is the base)
+      }
+      const out: Array<CardName> = [...lineage.slice(1)];
+      if (!contract.final) {
+        for (const c of this.playerView.pickedCorporationCard) {
+          out.push(c.name);
+        }
+      }
+      return out;
     },
-    /** The carried cards' arrival (the `{type:'campaign'}` reveal) is live. */
+    /** The merge chapter exists whenever an additional corporation does. */
+    mergeChapterExists(): boolean {
+      return this.campaignAdditionalNames.length > 0;
+    },
+    /** Additional corps not yet on the tableau — the PRE-LAID merge queue
+     *  (each stands in the deployment row from the first frame, dimmed until
+     *  its own press). */
+    campaignAdditionalUnplayed(): ReadonlyArray<CardName> {
+      const onTable = new Set(this.playerView.thisPlayer.tableau.map((c) => c.name));
+      return this.campaignAdditionalNames.filter((n) => !onTable.has(n));
+    },
+    /** The comeback bonus this seat is owed (0 = no chapter). */
+    campaignBonusAmount(): number {
+      const contract = this.playerView.game.gameOptions.campaign;
+      const grant = contract?.grants.find((g) => g.color === this.playerView.thisPlayer.color);
+      return grant?.bonusMegaCredits ?? 0;
+    },
+    /** The live «Бонус кампании» press (marker `campaignBonus`). */
+    bonusPrompt(): {megaCredits: number} | undefined {
+      return this.mode === 'ceremony' ? startFlowBonusPrompt(this.playerView) : undefined;
+    },
+    /** The bonus plate stands PRE-LAID from the first ceremony frame and
+     *  leaves when its press has been answered (the chip flew to the rail). */
+    bonusPlateShown(): boolean {
+      return this.mode === 'ceremony' && this.campaignBonusAmount > 0 &&
+        (this.bonusPrompt !== undefined || this.corpPlayPrompt !== undefined);
+    },
+    /** The carried cards, FACE UP (owner-only wire field) — the «НАСЛЕДИЕ»
+     *  row renders them exactly like the bought projects. */
+    legacyRowCards(): ReadonlyArray<CardModel> {
+      return this.playerView.campaignCarriedCards ?? [];
+    },
+    /** The carried cards have already joined the hand (the press happened). */
+    legacyGranted(): boolean {
+      const carried = this.legacyRowCards;
+      if (carried.length === 0) {
+        return true;
+      }
+      const hand = new Set(this.playerView.cardsInHand.map((c) => c.name));
+      return carried.every((c) => hand.has(c.name));
+    },
+    /** The legacy row stands PRE-LAID until its cards leave for the dock. */
+    legacyRowShown(): boolean {
+      return this.mode === 'ceremony' && this.legacyRowCards.length > 0 && !this.legacyGranted;
+    },
+    /** The carried cards' delivery flight into the dock is still running. */
     legacyArrivalLive(): boolean {
-      return currentRevealEvent()?.source?.type === 'campaign';
+      const names = new Set([...handDeliveryState.held, ...handDeliveryState.inFlight]);
+      return this.legacyRowCards.some((c) => names.has(c.name));
     },
     /** The merge FEE's own payment prompt stands (a lineage with an alt
      *  payment path — Helion's heat, Luna Trade Federation's titanium —
@@ -3243,10 +3349,12 @@ export default defineComponent({
         corporationCardNames(this.playerView).length >= 2 &&
         this.playedPreludes.length === 0;
     },
-    /** The legacy chapter joins the rail when it becomes KNOWN (the count is
-     *  private until the prompt) and never leaves it (`legacySeen`). */
+    /** The legacy chapter is KNOWN from the first frame (the owner's own
+     *  wire field carries the carried cards) and never leaves the rail once
+     *  seen (`legacySeen`). */
     legacyChapterExists(): boolean {
-      return this.legacyPrompt !== undefined || this.legacyArrivalLive || this.state.legacySeen;
+      return this.legacyRowCards.length > 0 || this.legacyPrompt !== undefined ||
+        this.legacyArrivalLive || this.state.legacySeen;
     },
     /** The «НАСЛЕДИЕ» dock block (campaign missions 2–3): the acquired
      *  corporations, visible through the WHOLE preparation. Context, never
@@ -3276,6 +3384,15 @@ export default defineComponent({
       }
       return this.playerView.cardsInHand.map((c) => c.name);
     },
+    /** The purchase (corp play / the merge stage / the pay press) is still
+     *  ahead of or at the player — the bought cards' pre-payment window.
+     *  The MERGE stage is part of it now: the pay press comes AFTER the
+     *  merge, and the purchase row must stand continuously through it. */
+    prePaymentStage(): boolean {
+      return this.corpPlayPrompt !== undefined || this.bonusPrompt !== undefined ||
+        this.corpMergePrompt !== undefined || this.mergeFeeStands ||
+        this.campaignAdditionalUnplayed.length > 0 || this.corpPayCost !== undefined;
+    },
     /** The bought projects standing in the QUEUE's purchase row — from the
      *  first deployment frame until the payment resolves them into the hand
      *  (they are withheld from the dock the whole time; the pay confirm is
@@ -3284,7 +3401,7 @@ export default defineComponent({
       if (this.mode !== 'ceremony') {
         return [];
       }
-      return this.corpPlayPrompt !== undefined || this.corpPayCost !== undefined ? this.ceremonyBoughtNames : [];
+      return this.prePaymentStage ? this.ceremonyBoughtNames : [];
     },
     /** A balanced column count for the compact pay grid (rows stay even —
      *  never a lone orphan on a second row). */
@@ -3308,7 +3425,10 @@ export default defineComponent({
       if (this.mode !== 'ceremony' || this.ceremonyBoughtNames.length === 0) {
         return '';
       }
-      if (this.corpPlayPrompt === undefined && this.corpPayCost === undefined) {
+      // The whole pre-payment window (corp play → merge stage → pay press):
+      // the bought cards stay withheld from the dock through the MERGE too —
+      // dropping the hold there would fly them in before they were paid for.
+      if (!this.prePaymentStage) {
         return '';
       }
       return deliveryHoldKey(this.ceremonyBoughtNames);
@@ -3461,12 +3581,17 @@ export default defineComponent({
         out.push({kind: 'pay', name: PAY_KEY, disabled: false});
         return out;
       }
-      // CAMPAIGN: the merge press is the whole decision of its beat…
+      // CAMPAIGN: the bonus press is the whole decision of its beat…
+      if (this.bonusPrompt !== undefined) {
+        out.push({kind: 'bonus', name: BONUS_KEY, disabled: false});
+        return out;
+      }
+      // …as is each merge press…
       if (this.corpMergePrompt !== undefined && this.corpMergeCard !== undefined) {
         out.push({kind: 'corp', name: this.corpMergeCard.name, disabled: false});
         return out;
       }
-      // …and so is the carried-cards press («Наследие проектов»).
+      // …and the carried-cards press («Наследие проектов»).
       if (this.legacyPrompt !== undefined) {
         out.push({kind: 'legacy', name: LEGACY_KEY, disabled: false});
         return out;
@@ -6237,13 +6362,20 @@ export default defineComponent({
         }
         return;
       }
-      // CAMPAIGN «Наследие»: the press grants the carried cards. The reveal
-      // is CLAIMED for this workspace in the same press (the workspace-flow
-      // principle: everything the press sets off presents INSIDE the start
-      // flow — «СТАРТ ПАРТИИ › НАСЛЕДИЕ ПРОЕКТОВ › ДОБОР КАРТ», never a
-      // standalone modal), and the take deals them into the hand dock.
+      // CAMPAIGN «Бонус кампании»: the press takes the comeback M€ — the chip
+      // physically flies from the plate into the rail's M€ counter (the
+      // shared resource-transfer language, delta chip on touchdown).
+      if (item.kind === 'bonus') {
+        this.launchBonusFlight();
+        this.$emit('submit', {type: 'option'});
+        return;
+      }
+      // CAMPAIGN «Наследие»: the press grants the carried cards — measured
+      // from their FACE-UP row and flown into the hand dock EXACTLY like the
+      // bought projects (one premium language; the only difference is that
+      // nothing is deducted).
       if (item.kind === 'legacy') {
-        claimPlayOutcome('Project legacy', this.legacyPrompt?.cards ?? 0);
+        this.launchLegacyDelivery();
         this.$emit('submit', {type: 'option'});
         return;
       }
@@ -7095,6 +7227,51 @@ export default defineComponent({
         }
       }
       runHandDelivery(names, rects);
+    },
+    /**
+     * The «НАСЛЕДИЕ» delivery — the mirror of `launchStartCardsDelivery`:
+     * capture the carried cards' FACE-UP rects from their queue row NOW (the
+     * row unmounts as the grant resolves), arm the dock hold (the cards join
+     * `cardsInHand` only at the response and must not materialize in the
+     * dock), then fly them the same lift → flip → arc into the hand dock.
+     */
+    launchLegacyDelivery(): void {
+      const names = this.legacyRowCards.map((c) => c.name);
+      if (names.length === 0) {
+        return;
+      }
+      armDeliveryHold(deliveryHoldKey(names), names);
+      const grid = this.$refs.legacyGrid as HTMLElement | undefined;
+      const rects = new Map<CardName, DOMRect>();
+      if (grid !== undefined && grid !== null) {
+        for (const el of grid.querySelectorAll<HTMLElement>('[data-legacy-card]')) {
+          const name = el.getAttribute('data-legacy-card') as CardName | null;
+          const card = el.querySelector<HTMLElement>(':is(.card-container, .pcard)') ?? el;
+          const r = card.getBoundingClientRect();
+          if (name !== null && r.width > 4) {
+            rects.set(name, r);
+          }
+        }
+      }
+      runHandDelivery(names, rects);
+    },
+    /**
+     * The «БОНУС КАМПАНИИ» flight — the shared resource-transfer language:
+     * an M€ chip emerges from the plate, arcs into the player rail and lands
+     * with the counter's own delta tick. Fired at the press (the amount is
+     * the marker's own — never guessed); reduced motion resolves instantly
+     * inside the framework.
+     */
+    launchBonusFlight(): void {
+      const amount = this.bonusPrompt?.megaCredits ?? this.campaignBonusAmount;
+      if (amount <= 0) {
+        return;
+      }
+      void runResourceTransfers({
+        specs: [{channel: 'stock', resource: 'megacredits', amount}],
+        source: {selectors: ['[data-campaign-bonus]']},
+        arrival: 'auto',
+      });
     },
     /** Arm the played-card hero for a START-SCENE press: the card lifts out
      *  of its scene slot (never the play composer), carrying the prelude's
