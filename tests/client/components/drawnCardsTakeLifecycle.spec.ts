@@ -2,7 +2,7 @@ import {expect} from 'chai';
 import {
   currentRevealEvent, dismissEvent, drawnCardsState, isEventFullyTaken, markAllTaken,
   markCardTaken, markRevealPresented, reconcileDrawnCards, revealPresented,
-  untakenNameMultiset,
+  serverRevealConsumed, untakenNameMultiset,
 } from '@/client/components/drawnCards/drawnCardsState';
 import {CardName} from '@/common/cards/CardName';
 
@@ -138,6 +138,32 @@ describe('drawnCards — the take lifecycle behind the reveal surface', () => {
     expect(live?.id, 'the appended card re-opens the batch').to.eq(1);
     expect(live?.takenIndices.size, 'the earlier takes survive the append').to.eq(2);
     expect(isEventFullyTaken(1)).to.eq(false);
+  });
+
+  /**
+   * THE SERVING PROBE'S SERVER WITNESS ENDS AT CONSUMPTION.
+   *
+   * The ack is fire-and-forget (its response is deliberately not applied), so
+   * the applied `playerView.cardDrawReveals` keeps listing a finished batch
+   * until the next poll/input. `serverRevealConsumed` is what keeps that echo
+   * from reading as «still serving»: without it the release funnel refused the
+   * colony resolution's own closing release, the claim wedged `presenting`,
+   * the browse grid stayed yielded (the reported EMPTY colony list after B)
+   * and the workspace only concluded when the 20 s claim safety met a fresh
+   * view. Three edges pinned: unseen = owed, dismissed = consumed, growth
+   * re-opens.
+   */
+  it('serverRevealConsumed: a dismissed batch is consumed; unseen and re-grown ones are owed', () => {
+    expect(serverRevealConsumed(9), 'a batch the store never saw stays OUTSTANDING').to.eq(false);
+    twoCardBatch();
+    expect(serverRevealConsumed(1), 'a live batch is owed').to.eq(false);
+    markAllTaken(1);
+    expect(serverRevealConsumed(1), 'fully taken but not dismissed — closing beats still own it').to.eq(false);
+    dismissEvent(1);
+    expect(serverRevealConsumed(1), 'dismissed = consumed, however long the ack echo lingers').to.eq(true);
+    // Growth un-dismisses (no silent loss) — the batch counts again at once.
+    reconcileDrawnCards([{id: 1, cards: [{name: A}, {name: B}, {name: CardName.MOSS}]} as never]);
+    expect(serverRevealConsumed(1), 'a re-opened batch is owed again').to.eq(false);
   });
 
   it('a later batch presents on its own latch — the previous one says nothing about it', () => {

@@ -84,6 +84,19 @@
             </button>
           </div>
         </div>
+
+        <!-- ── The interlude waiting room: an honest standing state, never a
+             dead screen. Ready non-hosts see the auto-join promise (armed —
+             the launch push enters the mission for them); the host waiting
+             on the crew sees the named blocker. Floats on the stage's lower
+             edge (absolute — the route cards keep their box). -->
+        <div v-if="waitPlate !== undefined" class="cmap__waitroom" :class="{'cmap__waitroom--ready': waitPlate.ready}">
+          <span class="cmap__waitroom-pulse" aria-hidden="true"></span>
+          <div class="cmap__waitroom-text">
+            <div class="cmap__waitroom-title" v-i18n>{{ waitPlate.title }}</div>
+            <div class="cmap__waitroom-note" v-i18n>{{ waitPlate.note }}</div>
+          </div>
+        </div>
       </div>
 
       <!-- ── The progression rail: seats, titles, TP, bonuses, carryover ── -->
@@ -248,6 +261,7 @@ import {
   submitCampaignCarryover,
 } from '@/client/console/campaign/campaignState';
 import {CampaignMapVm, buildCampaignMapVm} from '@/client/console/campaign/campaignMapModel';
+import {campaignMapUi, resetCampaignMapUi} from '@/client/console/campaign/campaignMapUi';
 import {TITLE_LABEL, titleArtUrl} from '@/client/console/campaign/titleArt';
 import {marsBotCorpInfo} from '@/common/automa/MarsBotCorpData';
 import {$t, translateTextWithParams} from '@/client/directives/i18n';
@@ -283,6 +297,21 @@ export default defineComponent({
       /** Local carryover draft — seeded from the server selection on open. */
       carryDraft: [] as Array<CardName>,
       carryDirty: false,
+      /**
+       * The interlude flow's mandatory step opens ITSELF once per visit —
+       * arriving with an unresolved carryover door lands the player straight
+       * in the picker (skippable inside; B returns to the map and the CTA
+       * re-opens it). The latch keeps a deliberate B honest.
+       */
+      carryAutoOpened: false,
+      /**
+       * AUTO-JOIN armed: the viewer reached the READY waiting state on this
+       * surface. When the current slot flips to `active` with a seat link
+       * (the launch push), the client enters the mission by itself.
+       */
+      autoJoinArmed: false,
+      /** A join navigation is in flight — absorbs duplicates. */
+      joining: false,
       offPad: undefined as (() => void) | undefined,
     };
   },
@@ -336,11 +365,10 @@ export default defineComponent({
         return [{control: 'confirm', label: 'Retry'}, {control: 'back', label: 'Main menu'}];
       }
       if (this.overlay?.kind === 'carryover') {
-        const picker = this.$refs.carryPicker as {confirmLabel?: string} | undefined;
         return [
           {control: 'dpadH', label: 'Choose'},
           {control: 'confirm', label: 'Take / return'},
-          {control: 'secondary', label: picker?.confirmLabel ?? 'Confirm selection', highlight: true},
+          {control: 'secondary', label: this.carryConfirmLabel, highlight: true},
           {control: 'back', label: 'Close'},
         ];
       }
@@ -379,14 +407,101 @@ export default defineComponent({
       }
       if (m.state === 'ready' && m.isCurrent) {
         if (vm.cta.kind === 'carryover') {
-          return {label: 'Choose projects to carry over', enabled: true};
+          return {label: vm.cta.label, enabled: true};
         }
         if (vm.cta.kind === 'launch') {
           return {label: 'Launch the mission', enabled: vm.cta.enabled};
         }
-        return {label: 'Waiting for the campaign creator to launch the mission', enabled: false};
+        if (vm.cta.kind === 'waiting') {
+          return {label: vm.cta.label, enabled: false};
+        }
       }
       return {label: 'Mission dossier', enabled: true};
+    },
+    /** The interlude's mandatory step is due: the viewer's own carryover door
+     *  is the campaign's next move. */
+    carryStepDue(): boolean {
+      return this.vm?.cta.kind === 'carryover';
+    },
+    /** The confirm verb of the carryover step (English i18n key, no params). */
+    carryConfirmLabel(): string {
+      if ((this.vm?.yourEligibleCards ?? []).length === 0) {
+        return 'Confirm readiness';
+      }
+      return this.carryDraft.length === 0 ? 'Continue without cards' : 'Keep the selection';
+    },
+    /** The current slot's live seat link — what the auto-join watches for. */
+    activeSeatLink(): {playerId: string, gameId?: string} | undefined {
+      const vm = this.vm;
+      const current = vm?.missions[vm.currentSlot];
+      if (current?.state === 'active' && current.yourPlayerId !== undefined) {
+        return {playerId: current.yourPlayerId, gameId: current.gameId};
+      }
+      return undefined;
+    },
+    /** The standing interlude plate (no overlay open): ready / crew-wait / joining. */
+    waitPlate(): {title: string, note: string, ready: boolean} | undefined {
+      const vm = this.vm;
+      if (vm === undefined || this.overlay !== undefined) {
+        return undefined;
+      }
+      if (this.joining) {
+        return {title: 'Mission launched', note: 'Entering the mission…', ready: true};
+      }
+      if (vm.readyWaiting) {
+        return {title: 'You are ready', note: 'The mission starts automatically when the host launches it.', ready: true};
+      }
+      if (vm.isCreator && vm.cta.kind === 'launch' && !vm.cta.enabled && vm.cta.reason !== undefined) {
+        return {title: 'Waiting for the crew', note: vm.cta.reason, ready: false};
+      }
+      return undefined;
+    },
+  },
+  watch: {
+    // The mandatory interlude step opens itself once per visit — the flow's
+    // entry IS the carryover picker, not a map to hunt a button on.
+    'carryStepDue': {
+      immediate: true,
+      handler(due: boolean): void {
+        if (due && !this.carryAutoOpened && this.overlay === undefined && !this.revealPlaying) {
+          this.carryAutoOpened = true;
+          this.openCarryover();
+        }
+      },
+    },
+    // Reaching the READY waiting state arms the auto-join. Never disarmed by
+    // the state flipping (the launch flips it in the same model change the
+    // seat link arrives in) — only by leaving the surface.
+    'vm.readyWaiting': {
+      immediate: true,
+      handler(ready: boolean | undefined): void {
+        if (ready === true) {
+          this.autoJoinArmed = true;
+        }
+      },
+    },
+    // THE AUTO-JOIN: the launch push flips the current slot to `active` with
+    // the viewer's own seat link — a ready participant enters by itself. The
+    // TRANSITION is what fires (a map opened onto an already-active mission
+    // offers the explicit join verb instead).
+    activeSeatLink(link: {playerId: string, gameId?: string} | undefined): void {
+      if (link !== undefined && this.autoJoinArmed && !this.joining) {
+        this.enterMission(link.playerId, link.gameId);
+      }
+    },
+    // The embedded host reads the map's overlay + confirm verb through the
+    // module mirror (a host cannot reactively read a child's $refs).
+    'overlay': {
+      immediate: true,
+      handler(overlay: MapOverlay | undefined): void {
+        campaignMapUi.overlay = overlay?.kind;
+      },
+    },
+    'carryConfirmLabel': {
+      immediate: true,
+      handler(label: string): void {
+        campaignMapUi.carryConfirmLabel = label;
+      },
     },
   },
   async mounted() {
@@ -421,6 +536,7 @@ export default defineComponent({
   },
   beforeUnmount() {
     this.offPad?.();
+    resetCampaignMapUi();
     if (!this.embedded) {
       stopCampaignWatch();
     }
@@ -580,9 +696,7 @@ export default defineComponent({
         return;
       }
       if (m.state === 'active' && m.yourPlayerId !== undefined) {
-        this.propagateServerPin(m.yourPlayerId);
-        recordLastGameEntered(m.gameId ?? '');
-        navigateWithCurtain(paths.PLAYER + '?id=' + encodeURIComponent(m.yourPlayerId), 'expedition');
+        this.enterMission(m.yourPlayerId, m.gameId);
         return;
       }
       if (m.state === 'committed' && m.yourPlayerId !== undefined) {
@@ -636,16 +750,33 @@ export default defineComponent({
       if (ok) {
         this.carryDirty = false;
         this.overlay = undefined;
+        // ONE FLOW: the confirmation was the readiness press. The host whose
+        // crew is already ready continues straight into the launch confirm;
+        // everyone else lands in the waiting room (auto-join armed by the
+        // readyWaiting watcher). Focus returns to the current mission.
+        this.cursor = {zone: 'route', index: this.vm?.currentSlot ?? this.cursor.index};
+        const next = this.vm;
+        if (next !== undefined && next.isCreator && next.cta.kind === 'launch' && next.cta.enabled) {
+          this.overlay = {kind: 'launch'};
+        }
       }
+    },
+    /** Enter a live mission (manual A or the armed auto-join) — pin, record, curtain. */
+    enterMission(playerId: string, gameId?: string): void {
+      if (this.joining) {
+        return;
+      }
+      this.joining = true;
+      this.propagateServerPin(playerId);
+      recordLastGameEntered(gameId ?? '');
+      navigateWithCurtain(paths.PLAYER + '?id=' + encodeURIComponent(playerId), 'expedition');
     },
     // ── Launch ───────────────────────────────────────────────────────────
     async doLaunch(): Promise<void> {
       const result = await launchCampaignMission();
       this.overlay = undefined;
       if (result?.yourPlayerId !== undefined) {
-        this.propagateServerPin(result.yourPlayerId);
-        recordLastGameEntered(result.gameId);
-        navigateWithCurtain(paths.PLAYER + '?id=' + encodeURIComponent(result.yourPlayerId), 'expedition');
+        this.enterMission(result.yourPlayerId, result.gameId);
       }
     },
     /**

@@ -377,6 +377,17 @@ test('Pluto TRADE: the payout presents inside the colony workspace, never as a b
   expect(end.markerSeen, 'the track reset never played after the payout was collected').toBeTruthy();
   expect(end.glideOverReveal, 'the reset glided while a card was still owed').toBeFalsy();
   expect(end.glideOverBlankStage, 'the reset glided over a HIDDEN track (the payout pose was still up)').toBeFalsy();
+
+  // ── THE FLOW LEAVES. A finished committed flow closes its workspace by
+  //    itself (workspace-flow-conclusion) — within seconds of the settle,
+  //    never on the 20 s claim safety. The wedge this pins: the ack's
+  //    response is deliberately not applied, so the view kept listing the
+  //    consumed batch, the release funnel refused `resolution-end` against
+  //    that echo, the claim sat `presenting` (browse yielded EMPTY — the
+  //    reported blank colony list after B) and the workspace never concluded.
+  await expect(page.locator('.con-colonies'), 'the colony workspace did not conclude after the resolution')
+    .toHaveCount(0, {timeout: 12_000});
+  await shoot(page, '04c-concluded');
 });
 
 test('Pluto BUILD: the draw presents inside the colony workspace, never as a band', async ({page, request}) => {
@@ -665,4 +676,151 @@ test('Pluto DISCARD parked: gather on collapse, plain browse on a visit, clean r
   await page.waitForTimeout(3200);
   await expect(page.locator('.con-colonies'), 'the workspace never closed after the resolution')
     .toHaveCount(0, {timeout: 20_000});
+});
+
+/**
+ * THE FACING PROBE — «карта стояла рубашкой в альбоме» (reported on the Pluto
+ * discard with the LARGE album layout: the first card of the hand stood
+ * back-side-out for a couple of seconds and then turned normal).
+ *
+ * The album's physical model lays EVERY card face-up (rev 15): a body that
+ * has come to REST somewhere inside the album area may never keep showing its
+ * back. Backs in motion are legal (the dock's «Рубашкой» presentation means
+ * every open flight STARTS as a back and turns mid-flight), and the docked
+ * pack at the tray is legally backs — so the violation is precisely «standing
+ * still, in the album area, back toward the player, for longer than a turn
+ * could take».
+ *
+ * The sampler is MutationObserver-free `setInterval` polling (never rAF — a
+ * quiet headless compositor stops rAF exactly when this bug fires), with
+ * per-read timestamps.
+ */
+test('Pluto DISCARD, LARGE album: no card ever STANDS back-side-out in the album', async ({page, request}) => {
+  test.setTimeout(480_000);
+  await page.addInitScript(() => {
+    window.localStorage.setItem('tm_console_album', 'large');
+  });
+  // THE SLOW RIG (hunt mode, opt-in): the reported flake is a paint race, and
+  // paint races live on loaded machines — an unthrottled dev box out-paints
+  // them. `FACING_RIG=throttle` runs the same probe at 4× CPU throttling on
+  // the 4K couch profile (bigger mount storm, the player's real rig shape).
+  const slowRig = process.env.FACING_RIG === 'throttle';
+  if (slowRig) {
+    await page.setViewportSize({width: 3840, height: 2160});
+    const cdp = await page.context().newCDPSession(page);
+    await cdp.send('Emulation.setCPUThrottlingRate', {rate: 4});
+  }
+  // A REAL hand: several pages of the large album (4/page), so the discard
+  // opens with page packets on both sides — the player's actual shape.
+  await bootSeededGame(page, request, await createGame(request), {buy: 6, keepColony: 'Pluto'});
+  await page.waitForTimeout(1500);
+
+  // ── 1 · Reach the payout (the test-3 route, condensed): build, then trade.
+  await press(page, 'Comma', 1200);
+  await press(page, 'Enter', 1400);
+  const focusedName = async () => (await page.locator('.con-stdp__card--focused .con-stdp__name').textContent().catch(() => '')) ?? '';
+  const walk = ['ArrowDown', 'ArrowRight', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'ArrowUp'];
+  for (let i = 0; i < 18 && !/колони/i.test(await focusedName()); i++) {
+    await press(page, walk[i % walk.length], 300);
+  }
+  await press(page, 'Enter', 1800);
+  await page.waitForSelector('.con-colonies', {timeout: 15_000});
+  await openColoniesAndFocus(page, 'Pluto');
+  await press(page, 'Enter', 2000);
+  await press(page, 'Enter', 2600); // A = build confirm
+  for (let i = 0; i < 4 && await page.locator('.con-reveal').count() > 0; i++) {
+    await press(page, 'Enter', 2400);
+  }
+  await page.waitForTimeout(2500);
+  await openColoniesAndFocus(page, 'Pluto');
+  await press(page, 'Enter', 2000);
+
+  // ── 2 · Arm the facing sampler BEFORE anything can open the hand. ────────
+  type FacingViolation = {name: string, mode: string, ms: number, x: number, y: number, m11: number};
+  type FacingRec = {samples: number, violations: Array<FacingViolation>};
+  await page.evaluate(() => {
+    const rec: FacingRec = {samples: 0, violations: []};
+    (window as unknown as {__facing?: FacingRec}).__facing = rec;
+    const standing = new Map<string, {x: number, y: number, backSince?: number}>();
+    const judge = (key: string, el: HTMLElement, mode: string, suspiciousWhen: (m11: number, r: DOMRect) => boolean) => {
+      const now = performance.now();
+      const flip = el.querySelector<HTMLElement>('.con-deal-proxy__flip') ?? el;
+      const r = el.getBoundingClientRect();
+      const cs = getComputedStyle(el);
+      const visible = Number(cs.opacity || '1') > 0.5 && cs.visibility !== 'hidden' && r.width > 40;
+      // m11 < 0 ⇔ the back faces the viewer (rotationY past 90°).
+      let m11 = 1;
+      const t = getComputedStyle(flip).transform;
+      const m = t !== 'none' ? t.match(/matrix(?:3d)?\(([^)]+)\)/) : null;
+      if (m !== null) {
+        m11 = Number(m[1].split(',')[0]);
+      }
+      const suspicious = visible && suspiciousWhen(m11, r);
+      const prev = standing.get(key);
+      const moved = prev === undefined || Math.abs(prev.x - r.left) > 2 || Math.abs(prev.y - r.top) > 2;
+      const backSince = suspicious && !moved ? (prev?.backSince ?? now) : undefined;
+      standing.set(key, {x: r.left, y: r.top, backSince});
+      if (backSince !== undefined && now - backSince > 600) {
+        const existing = rec.violations.find((v) => v.name === key);
+        if (existing === undefined) {
+          rec.violations.push({name: key, mode, ms: Math.round(now - backSince), x: Math.round(r.left), y: Math.round(r.top), m11: Math.round(m11 * 100) / 100});
+        } else {
+          existing.ms = Math.round(now - backSince);
+        }
+      }
+    };
+    const tick = () => {
+      rec.samples++;
+      document.querySelectorAll<HTMLElement>('.con-handbody').forEach((el) => {
+        const name = el.getAttribute('data-hand-dock-card') ?? '';
+        const mode = el.getAttribute('data-hand-body-mode') ?? '';
+        if (name === '') {
+          return;
+        }
+        // The ALBUM AREA: well above the dock tray. The docked pack at the
+        // tray is legally backs; a «docked» body standing high in the album
+        // is the missed-seize class and counts.
+        judge(`body:${name}`, el, mode, (m11, r) =>
+          m11 < -0.5 && r.top < window.innerHeight * 0.6 && (mode === 'flying' || mode === 'docked'));
+      });
+      // …and the DELIVERY PROXIES. An intake flight rides the GLOBAL gsap
+      // ticker, which the album's mount storm can starve — a proxy frozen
+      // mid-carry shows the back it turned to for the dock («Рубашкой») and
+      // reads exactly as «карта в руке стоит рубашкой». A proxy standing
+      // still ANYWHERE for >600 ms is a stalled flight, back or not — but
+      // the back is what the player reported, so it is what is recorded.
+      document.querySelectorAll<HTMLElement>('[data-delivery-card]').forEach((el) => {
+        const name = el.getAttribute('data-delivery-card') ?? '';
+        judge(`proxy:${name}`, el, 'delivery', (m11) => m11 < -0.5);
+      });
+      window.setTimeout(tick, 90);
+    };
+    tick();
+  });
+
+  // ── 3 · Trade → take the payout → the embedded discard opens the album.
+  //    The take cadence is deliberately QUICK: a player presses the closer
+  //    right behind the last take, so the album's mount storm lands while the
+  //    taken card's intake proxy is still mid-carry — exactly the overlap the
+  //    reported back-side stall needs. Swallowed presses (mid-flip, by
+  //    design) are covered by the retry loop.
+  await page.keyboard.press('KeyX');
+  await page.waitForSelector('.con-reveal .con-cards__slot--focused', {timeout: 30_000});
+  const embeddedHand = page.locator('.con-colonies .con-hand.con-hand--embedded');
+  for (let i = 0; i < 30 && await embeddedHand.count() === 0; i++) {
+    await press(page, 'Enter', 850);
+  }
+  await expect(embeddedHand, 'the mandatory discard did not open embedded').toBeVisible({timeout: 12_000});
+  await page.waitForTimeout(2600); // the open episode + a standing read
+  await shoot(page, '17-large-album-discard');
+
+  // ── 4 · Discard and let the return leg play under the same sampler. ─────
+  await press(page, 'Enter', 3200);
+  await page.waitForTimeout(3200);
+
+  const facing = await page.evaluate(() => (window as unknown as {__facing?: FacingRec}).__facing);
+  console.log('── facing probe ──', JSON.stringify(facing));
+  expect(facing !== undefined && facing.samples > 30, `the facing sampler barely ran (${facing?.samples ?? 0} samples)`).toBeTruthy();
+  expect(facing?.violations ?? [{name: 'sampler-missing', mode: '', ms: 0, x: 0, y: 0, m11: 0}],
+    'a card STOOD back-side-out inside the album').toEqual([]);
 });

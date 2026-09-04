@@ -1,6 +1,6 @@
 import prometheus from 'prom-client';
 import {GameId} from '@/common/Types';
-import {ServerMessage, gameStateInvalidated, lobbyInvalidated} from '@/common/realtime/Protocol';
+import {ServerMessage, campaignInvalidated, gameStateInvalidated, lobbyInvalidated} from '@/common/realtime/Protocol';
 
 /**
  * Realtime game rooms.
@@ -31,6 +31,8 @@ export interface RealtimeSubscriber {
   participantId: string | undefined;
   /** True while this connection is in the server-wide LOBBY room. */
   inLobby?: boolean;
+  /** Set while this connection sits in a CAMPAIGN room (one at a time). */
+  campaignId?: string;
   send(message: ServerMessage): void;
 }
 
@@ -76,6 +78,16 @@ const metrics = {
     help: 'Total lobby invalidations broadcast to at least one subscriber',
     registers: [prometheus.register],
   }),
+  campaignSubscribers: new prometheus.Gauge({
+    name: 'realtime_campaign_subscribers',
+    help: 'Number of realtime connections subscribed to a campaign room',
+    registers: [prometheus.register],
+  }),
+  campaignInvalidations: new prometheus.Counter({
+    name: 'realtime_campaign_invalidations_total',
+    help: 'Total campaign invalidations broadcast to at least one subscriber',
+    registers: [prometheus.register],
+  }),
 };
 
 /** Safe default until a resolver is configured: reject every subscription. */
@@ -91,6 +103,13 @@ export class RealtimeHub {
    * membership grants no access to any game (see `SubscribeLobbyMessage`).
    */
   private readonly lobby = new Set<RealtimeSubscriber>();
+  /**
+   * CAMPAIGN rooms — `campaignId -> subscribers`. Anonymous like the lobby
+   * (the broadcast is a bare revision cursor; the model stays name-scoped
+   * behind `api/campaign`), but keyed: an interlude's «готов → авто-заход»
+   * only concerns the one campaign's participants.
+   */
+  private readonly campaignRooms = new Map<string, Set<RealtimeSubscriber>>();
   private resolver: SubscriptionResolver = rejectAllResolver;
 
   public static getInstance(): RealtimeHub {
@@ -139,7 +158,69 @@ export class RealtimeHub {
   public handleDisconnect(subscriber: RealtimeSubscriber): void {
     this.removeFromRoom(subscriber);
     this.unsubscribeLobby(subscriber);
+    this.unsubscribeCampaign(subscriber);
     this.updateMetrics();
+  }
+
+  /** Join a campaign room (one per connection — a re-subscribe moves it). Idempotent. */
+  public subscribeCampaign(subscriber: RealtimeSubscriber, campaignId: string): void {
+    if (subscriber.campaignId !== undefined && subscriber.campaignId !== campaignId) {
+      this.unsubscribeCampaign(subscriber);
+    }
+    subscriber.campaignId = campaignId;
+    let room = this.campaignRooms.get(campaignId);
+    if (room === undefined) {
+      room = new Set<RealtimeSubscriber>();
+      this.campaignRooms.set(campaignId, room);
+    }
+    room.add(subscriber);
+    this.updateCampaignMetrics();
+  }
+
+  public unsubscribeCampaign(subscriber: RealtimeSubscriber): void {
+    const campaignId = subscriber.campaignId;
+    if (campaignId === undefined) {
+      return;
+    }
+    subscriber.campaignId = undefined;
+    const room = this.campaignRooms.get(campaignId);
+    if (room !== undefined) {
+      room.delete(subscriber);
+      if (room.size === 0) {
+        this.campaignRooms.delete(campaignId);
+      }
+    }
+    this.updateCampaignMetrics();
+  }
+
+  /**
+   * Broadcast "the campaign document changed" to its room. The payload is the
+   * document's own revision — never the model, which stays name-scoped behind
+   * `api/campaign`. No-op on an empty room.
+   */
+  public invalidateCampaign(campaignId: string, rev: number): number {
+    const room = this.campaignRooms.get(campaignId);
+    if (room === undefined || room.size === 0) {
+      return 0;
+    }
+    const message = campaignInvalidated(campaignId, rev);
+    for (const subscriber of room) {
+      subscriber.send(message);
+    }
+    metrics.campaignInvalidations.inc();
+    return room.size;
+  }
+
+  public campaignRoomSize(campaignId: string): number {
+    return this.campaignRooms.get(campaignId)?.size ?? 0;
+  }
+
+  private updateCampaignMetrics(): void {
+    let subscribers = 0;
+    for (const room of this.campaignRooms.values()) {
+      subscribers += room.size;
+    }
+    metrics.campaignSubscribers.set(subscribers);
   }
 
   /** Join the server-wide lobby room. Idempotent. */

@@ -134,11 +134,15 @@ export class CampaignManager {
     }
   }
 
-  /** Best-effort realtime nudge: invalidate cached mission games so their
-   *  subscribers refresh. The campaign map additionally polls (5 s active). */
+  /** Best-effort realtime nudge: the campaign's OWN room hears the new
+   *  revision (the map/interlude push channel — what makes «готов →
+   *  авто-заход» immediate), and cached mission games are invalidated so
+   *  their subscribers refresh. The campaign map still polls as the bounded
+   *  fallback. */
   private notify(campaign: SerializedCampaign): void {
     try {
       const {RealtimeHub} = require('../server/realtime/RealtimeHub');
+      RealtimeHub.getInstance().invalidateCampaign(campaign.id, campaign.rev);
       const loader = GameLoader.getInstance();
       for (const slot of campaign.missions) {
         if (slot.gameId === undefined) {
@@ -1043,6 +1047,13 @@ export class CampaignManager {
     lineages?: Record<number, Array<CardName>>,
     /** seat → carried project cards, pre-confirmed (missions 2–4 testable). */
     carryover?: Record<number, Array<CardName>>,
+    /**
+     * Leave every human seat's carryover PENDING (the real
+     * `commitMissionResult` regime) with `carryover` as the recorded
+     * terminal hand — makes the interlude readiness flow (mandatory step →
+     * confirm → launch gate → auto-join) testable without playing a mission.
+     */
+    carryoverPending?: boolean,
   }): Promise<SerializedCampaign> {
     const campaign = await this.load(id);
     if (campaign === undefined) {
@@ -1112,7 +1123,9 @@ export class CampaignManager {
       for (const seat of humanSeats) {
         const carried = fixture?.carryover?.[seat] ?? [];
         slot.finalHands[seat] = [...carried];
-        bySeat[seat] = {status: 'confirmed', cards: [...carried], consumed: false};
+        bySeat[seat] = fixture?.carryoverPending === true ?
+          {status: 'pending', cards: [], consumed: false} :
+          {status: 'confirmed', cards: [...carried], consumed: false};
       }
       campaign.carryover = {sourceSlot: slot.slot, bySeat};
       campaign.pointer = slot.slot + 1;

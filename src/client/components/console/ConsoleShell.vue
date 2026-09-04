@@ -1615,7 +1615,7 @@ import {marsBotCorpAnnotations} from '@/client/components/marsbot/marsBotCorpRul
 import {consoleCardZoom, openConsoleCardZoom, navigateConsoleCardZoom, closeConsoleCardZoom, setConsoleZoomInspectTab, slotZoomOrigin, ZoomOrigin, ConsoleZoomProvenance} from '@/client/console/consoleCardZoom';
 import {beginZoomOpen, cancelZoomOpen, playZoomOpenFlight, zoomOpenSourceRect, playZoomClose, playZoomDepart, playZoomHandoff, playZoomSwap, retargetZoomHold, releaseZoomMotion} from '@/client/console/consoleZoomMotion';
 import {consoleReducedMotionActive} from '@/client/console/composables/useConsoleReducedMotion';
-import {currentRevealEvent, drawnCardsState, markRevealPresented, revealPresented, untakenNameMultiset} from '@/client/components/drawnCards/drawnCardsState';
+import {currentRevealEvent, drawnCardsState, markRevealPresented, revealPresented, serverRevealConsumed, untakenNameMultiset} from '@/client/components/drawnCards/drawnCardsState';
 import {energyConversionState} from '@/client/components/feedback/energyConversionTransition';
 import {revealViewerState} from '@/client/components/notifications/revealViewerState';
 import {ConsoleTask, TaskKind, taskFor, taskMinimizable, taskServedByHost, shellTaskOnSurface, followUpStepStage, NATIVE_COMPOSITE_KINDS, SCENE_KINDS, SECTION_SERVED_KINDS, SHELL_SECTION_KINDS, corpFirstActionInStartFlow} from '@/client/console/consoleTaskRouter';
@@ -2060,6 +2060,17 @@ export default defineComponent({
       /** The colony-bonus cube this workspace already answered by itself (the
        *  auto-collect's one-shot dedupe — see `colonyBonusAutoCollect`). */
       colonyBonusCollected: '',
+      /**
+       * THE RESOLUTION ENDED, BUT ITS CLOSING RELEASE WAS REFUSED — the
+       * release funnel judged the claim still serving (a stale view echo, a
+       * mid-flush blink). The INTENT «resolution over ⇒ the claim goes» is
+       * not a one-shot: it stands until it is executed on the serving
+       * probe's own falling edge, or invalidated by the resolution rising
+       * again. Without it the claim sat wedged `presenting` until the 20 s
+       * claim safety met a fresh view — a browse grid yielded EMPTY and a
+       * workspace that never concluded, for the length of a poll cycle.
+       */
+      colonyResolutionReleaseOwed: false,
       /** The armed entry's BOUNDED WAIT (COLONY_BONUS_ENTRY_WAIT_MS) — the net
        *  under «entered, and nothing ever arrived». */
       colonyEntryWaitTimer: undefined as number | undefined,
@@ -4210,7 +4221,18 @@ export default defineComponent({
       if (!workspaceOutcomeClaimed()) {
         return false;
       }
-      if (!this.rawDrawnRevealPending && this.playerView.cardDrawReveals.length === 0) {
+      // The server witness counts only batches the viewer has NOT consumed.
+      // The ack is fire-and-forget and deliberately does not apply its
+      // response, so the applied view lists a fully-taken batch until the
+      // next poll/input — a stale echo, not evidence of anything owed. Read
+      // raw, it wedged the colony workspace shut: the resolution's own
+      // closing release was refused against a payout that was over (see
+      // `serverRevealConsumed`). A batch the store has not reconciled yet is
+      // still outstanding by construction, and a PARKED batch (a remote
+      // bonus behind its announce — subtracted from `rawDrawnRevealPending`
+      // upstream) stays outstanding too: it is undismissed.
+      const serverOutstanding = this.playerView.cardDrawReveals.some((r) => !serverRevealConsumed(r.id));
+      if (!this.rawDrawnRevealPending && !serverOutstanding) {
         return false;
       }
       const source = currentRevealEvent()?.source;
@@ -8138,6 +8160,7 @@ export default defineComponent({
     colonyResolutionLive(live: boolean, was: boolean): void {
       if (live && !was) {
         resetColonyResolutionUi(); // a fresh resolution starts a fresh receipt
+        this.colonyResolutionReleaseOwed = false; // a new resolution owns the claim again
         if (workspaceFrameMounted('colonies')) {
           setWorkspaceFramePhase('colonies', 'committed');
           setWorkspaceFrameServes('colonies', COLONY_RESOLUTION_SERVES);
@@ -8151,7 +8174,12 @@ export default defineComponent({
         this.colonyFocusRestorePending = false;
         this.colonyBonusCollected = ''; // a new payout may repeat a cube key
         if (workspaceOutcomeState.host === 'colonies') {
-          releaseWorkspaceOutcome('resolution-end');
+          // The funnel may refuse (a stale-view echo of an already-consumed
+          // batch, a mid-flush blink). The intent stands: the serving probe's
+          // own falling edge re-executes it (`workspaceOutcomeServingNow`
+          // watcher), so the close is bounded by the evidence's lifetime,
+          // never by the 20 s claim safety.
+          this.colonyResolutionReleaseOwed = !releaseWorkspaceOutcome('resolution-end');
         }
         if (workspaceFrameMounted('colonies')) {
           setWorkspaceFrameServes('colonies', ['colony']);
@@ -8159,6 +8187,24 @@ export default defineComponent({
             setWorkspaceFramePhase('colonies', this.colonyFocus.open ? 'configure' : 'browse');
           }
         }
+      }
+    },
+    /**
+     * THE DEFERRED CLOSING RELEASE (see `colonyResolutionReleaseOwed`). The
+     * funnel refused the resolution-end release while its evidence still
+     * stood; the evidence falling is exactly the moment the refusal's reason
+     * is gone, so the owed release executes HERE — re-checked against the
+     * live state (the resolution may have legitimately risen again, another
+     * flow may have claimed) so a stale intent can never release a claim
+     * that has moved on.
+     */
+    workspaceOutcomeServingNow(serving: boolean): void {
+      if (serving || !this.colonyResolutionReleaseOwed) {
+        return;
+      }
+      this.colonyResolutionReleaseOwed = false;
+      if (workspaceOutcomeState.host === 'colonies' && !this.colonyResolutionLive) {
+        releaseWorkspaceOutcome('resolution-end-deferred');
       }
     },
     /**

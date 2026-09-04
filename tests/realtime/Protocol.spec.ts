@@ -2,13 +2,18 @@ import {expect} from 'chai';
 import {
   ClientMessageType,
   REALTIME_PROTOCOL_VERSION,
+  CampaignInvalidatedMessage,
+  CampaignSubscribedMessage,
   GameStateInvalidatedMessage,
   ResumeGameMessage,
   ServerErrorMessage,
   ServerHelloMessage,
   ServerMessageType,
+  SubscribeCampaignMessage,
   SubscribeGameMessage,
   SubscribedMessage,
+  campaignInvalidated,
+  campaignSubscribed,
   clientHello,
   clientPing,
   gameStateInvalidated,
@@ -19,8 +24,10 @@ import {
   serverError,
   serverHello,
   serverPong,
+  subscribeCampaign,
   subscribeGame,
   subscribed,
+  unsubscribeCampaign,
   unsubscribeGame,
 } from '../../src/common/realtime/Protocol';
 
@@ -118,6 +125,35 @@ describe('realtime/Protocol', () => {
 
   it('rejects an invalidation missing gameId', () => {
     expect(parseServerMessage(JSON.stringify({type: ServerMessageType.INVALIDATED, protocolVersion: 1, ts: 1, gameAge: 1, undoCount: 0}))).to.be.undefined;
+  });
+
+  it('round-trips campaign subscribe / unsubscribe / subscribed / invalidated', () => {
+    const sub = parseClientMessage(serializeMessage(subscribeCampaign('c-abc', 4))) as SubscribeCampaignMessage | undefined;
+    expect(sub?.type).to.eq(ClientMessageType.SUBSCRIBE_CAMPAIGN);
+    expect(sub?.campaignId).to.eq('c-abc');
+    expect(sub?.lastRev).to.eq(4);
+
+    const subNoRev = parseClientMessage(serializeMessage(subscribeCampaign('c-abc'))) as SubscribeCampaignMessage;
+    expect(subNoRev.lastRev).to.be.undefined;
+
+    const unsub = parseClientMessage(serializeMessage(unsubscribeCampaign()));
+    expect(unsub?.type).to.eq(ClientMessageType.UNSUBSCRIBE_CAMPAIGN);
+
+    const ack = parseServerMessage(serializeMessage(campaignSubscribed('c-abc', 9))) as CampaignSubscribedMessage | undefined;
+    expect(ack?.type).to.eq(ServerMessageType.CAMPAIGN_SUBSCRIBED);
+    expect(ack?.rev).to.eq(9);
+
+    const inv = parseServerMessage(serializeMessage(campaignInvalidated('c-abc', 10))) as CampaignInvalidatedMessage | undefined;
+    expect(inv?.type).to.eq(ServerMessageType.CAMPAIGN_INVALIDATED);
+    expect(inv).to.include({campaignId: 'c-abc', rev: 10});
+  });
+
+  it('rejects malformed campaign messages', () => {
+    expect(parseClientMessage(JSON.stringify({type: ClientMessageType.SUBSCRIBE_CAMPAIGN, protocolVersion: 1, ts: 1}))).to.be.undefined;
+    expect(parseClientMessage(JSON.stringify({type: ClientMessageType.SUBSCRIBE_CAMPAIGN, protocolVersion: 1, ts: 1, campaignId: ''}))).to.be.undefined;
+    expect(parseClientMessage(JSON.stringify({type: ClientMessageType.SUBSCRIBE_CAMPAIGN, protocolVersion: 1, ts: 1, campaignId: 'c-1', lastRev: 'x'}))).to.be.undefined;
+    expect(parseServerMessage(JSON.stringify({type: ServerMessageType.CAMPAIGN_INVALIDATED, protocolVersion: 1, ts: 1, campaignId: 'c-1'}))).to.be.undefined;
+    expect(parseServerMessage(JSON.stringify({type: ServerMessageType.CAMPAIGN_SUBSCRIBED, protocolVersion: 1, ts: 1, rev: 3}))).to.be.undefined;
   });
 
   it('round-trips a resume and rejects missing cursor fields', () => {

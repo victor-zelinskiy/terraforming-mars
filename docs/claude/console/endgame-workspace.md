@@ -155,6 +155,16 @@ the Governor emblem is never the champion mark — the plate is
 mission (`tests/e2e/console-campaign-endgame.spec.ts` — dev fast-forward ×3
 with single-corp lineages, mission 4 played through the shared harness).
 
+**Missions 1–3 have ONE continuation CTA** (2026-09-04): the actions list
+leads with a single «Следующая миссия» (`campaign-next`, honest status
+note; a live mission is entered directly). It opens the ONE campaign scene
+— the map — which opens the mandatory carryover step ITSELF and then
+stands as the launch / ready-waiting stage (auto-join armed for a ready
+non-host). The workspace's own carryover scene is DELETED; while the map
+scene stands, `footCommands` mirrors its overlay through `campaignMapUi`.
+Full contract: `docs/CAMPAIGN_MODE_ARCHITECTURE.md` (header, «Interlude
+ONE-FLOW»).
+
 **The WINNER IS THE ROW** — a hero treatment of the first row (gold rim +
 wash, the «ПОБЕДИТЕЛЬ» ribbon standing on the row's top edge, gold place
 numeral and total with a one-shot crown pulse), never a duplicate plate

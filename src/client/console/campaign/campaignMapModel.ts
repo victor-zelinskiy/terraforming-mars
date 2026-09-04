@@ -55,7 +55,7 @@ export type CmapRailRow = {
 export type CmapCta =
   | {kind: 'launch', label: string, missionSlot: number, enabled: boolean, reason?: string}
   | {kind: 'join', label: string, playerId: PlayerId}
-  | {kind: 'waiting', label: string}
+  | {kind: 'waiting', label: string, ready?: boolean}
   | {kind: 'carryover', label: string}
   | {kind: 'chronicle', label: string}
   | {kind: 'none'};
@@ -72,6 +72,13 @@ export type CampaignMapVm = {
   youSeat?: number;
   isCreator: boolean;
   cta: CmapCta;
+  /**
+   * The viewer stands READY in the interlude waiting room: their carryover is
+   * confirmed and the launch is somebody else's press. The surface renders
+   * the waiting plate and ARMS the auto-join — when the current slot flips to
+   * `active` with a seat link, the client enters the mission by itself.
+   */
+  readyWaiting: boolean;
   /** The viewer's own carryover door (interlude, unconsumed). */
   carryoverOpen: boolean;
   carryoverConfirmed: boolean;
@@ -174,10 +181,17 @@ export function buildCampaignMapVm(model: CampaignModel): CampaignMapVm {
         enabled: model.canLaunch,
         reason: model.launchBlockers[0],
       };
+    } else if (yourCarry?.status === 'confirmed') {
+      // READY: the confirmation was the readiness press — the waiting room
+      // now promises the auto-join, honestly.
+      cta = {kind: 'waiting', label: 'You are ready — the mission starts when the host launches it', ready: true};
     } else {
       cta = {kind: 'waiting', label: 'Waiting for the campaign creator to launch the mission'};
     }
   }
+
+  const readyWaiting = current?.state === 'ready' && !isCreator &&
+    youSeat !== undefined && yourCarry?.status === 'confirmed';
 
   return {
     name: model.name,
@@ -190,6 +204,7 @@ export function buildCampaignMapVm(model: CampaignModel): CampaignMapVm {
     youSeat,
     isCreator,
     cta,
+    readyWaiting,
     carryoverOpen: yourCarry !== undefined && !isCarryLocked(model),
     carryoverConfirmed: yourCarry?.status === 'confirmed',
     yourCarryCards: model.carryover?.yourCards ?? [],

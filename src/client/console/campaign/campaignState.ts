@@ -13,7 +13,8 @@ import {paths} from '@/common/app/paths';
 import {CampaignId, PlayerId} from '@/common/Types';
 import {CardName} from '@/common/cards/CardName';
 import {CampaignModel} from '@/common/campaign/CampaignModel';
-import {apiUrl} from '@/client/utils/runtimeConfig';
+import {apiUrl, wsBaseUrl} from '@/client/utils/runtimeConfig';
+import {CampaignChannelHandle, campaignChannelHealthy, openCampaignChannel} from '@/client/console/campaign/campaignChannel';
 import {ensureIdentityLoaded, identityState} from '@/client/components/mainMenu/identity/identityState';
 
 export type CampaignLoadStatus = 'idle' | 'loading' | 'ok' | 'error';
@@ -70,6 +71,10 @@ export async function openCampaign(id: CampaignId): Promise<void> {
     campaignState.model = undefined;
     campaignState.status = 'idle';
     campaignState.error = '';
+    if (watching) {
+      // A live watch follows the re-bind onto the new campaign's room.
+      ensureChannel();
+    }
   }
   await refreshCampaign();
 }
@@ -101,23 +106,85 @@ export async function refreshCampaign(): Promise<void> {
   }
 }
 
+// ── The push channel (primary) + the bounded poll (fallback) ────────────────
+//
+// PUSH FIRST, POLL AS A FLOOR — the lobby/transport shape. The campaign's own
+// WS room (`campaignChannel`) broadcasts the document's revision on every
+// mutation; while it is healthy the poll stretches to the long interval, and
+// against an older server (no room) it degrades to exactly the old cadence.
+
+let channelHandle: CampaignChannelHandle | undefined;
+let channelKey: string | undefined;
+
+function ensureChannel(): void {
+  const id = campaignState.id;
+  if (id === undefined) {
+    closeChannel();
+    return;
+  }
+  const wsBase = wsBaseUrl();
+  const key = wsBase + '::' + id;
+  if (channelKey === key && channelHandle !== undefined) {
+    return;
+  }
+  closeChannel();
+  channelKey = key;
+  channelHandle = openCampaignChannel(wsBase, id, () => {
+    // The push says «newer rev exists» — the guarded fetch is the authority.
+    void refreshCampaign();
+  }, () => rearmPoll(0));
+}
+
+function closeChannel(): void {
+  channelHandle?.close();
+  channelHandle = undefined;
+  channelKey = undefined;
+}
+
+function channelHealthy(): boolean {
+  const id = campaignState.id;
+  return id !== undefined && campaignChannelHealthy(wsBaseUrl(), id);
+}
+
+function pollDelayMs(): number {
+  if (channelHealthy()) {
+    // The channel carries every change; the poll is a safety floor only.
+    return 30_000;
+  }
+  const phase = campaignState.model?.phase;
+  const busy = phase === 'missionActive' || phase === 'interlude' || phase === 'generated';
+  return busy ? 5_000 : 30_000;
+}
+
+let watching = false;
+
+function rearmPoll(delayMs?: number): void {
+  if (!watching) {
+    return;
+  }
+  if (pollTimer !== undefined) {
+    window.clearTimeout(pollTimer);
+  }
+  pollTimer = window.setTimeout(() => {
+    void refreshCampaign().finally(() => rearmPoll());
+  }, delayMs ?? pollDelayMs());
+}
+
 /**
- * Bounded poll floor while the screen is open: 5 s while a mission is active
- * or the interlude is waiting on others, 30 s otherwise (the lobby cadence).
+ * Watch the bound campaign while a surface is open: subscribe its push
+ * channel and keep the bounded poll floor (5 s busy / 30 s quiet; 30 s flat
+ * while the channel is healthy).
  */
 export function startCampaignWatch(): void {
   stopCampaignWatch();
-  const tick = () => {
-    void refreshCampaign().finally(() => {
-      const phase = campaignState.model?.phase;
-      const busy = phase === 'missionActive' || phase === 'interlude' || phase === 'generated';
-      pollTimer = window.setTimeout(tick, busy ? 5_000 : 30_000);
-    });
-  };
-  pollTimer = window.setTimeout(tick, 5_000);
+  watching = true;
+  ensureChannel();
+  rearmPoll();
 }
 
 export function stopCampaignWatch(): void {
+  watching = false;
+  closeChannel();
   if (pollTimer !== undefined) {
     window.clearTimeout(pollTimer);
     pollTimer = undefined;

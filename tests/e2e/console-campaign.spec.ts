@@ -1,6 +1,6 @@
 import {expect, test} from '@playwright/test';
 import {press} from './consoleStart';
-import {createCampaign, devCommit, openMapAs, CAMPAIGN_BASE as BASE} from './campaignFixtures';
+import {campaignModelAs, createCampaign, devCommit, launchMission, openMapAs, CAMPAIGN_BASE as BASE} from './campaignFixtures';
 
 /**
  * CAMPAIGN MODE — the Campaign Map screen + lifecycle
@@ -90,6 +90,45 @@ test.describe('campaign map', () => {
     await expect(page.locator('.cmap__card--done')).toHaveCount(4);
     // Reload lands SETTLED — the generation reveal never replays.
     expect(await page.locator('.cmap--reveal').count()).toBe(0);
+  });
+
+  test('interlude ONE FLOW: the mandatory step opens itself, confirm = ready, the host launch auto-joins', async ({page, request}) => {
+    test.setTimeout(120_000);
+    // A REAL mission 1 (launch records the per-seat playerIds the carryover
+    // route authenticates against), then the dev commit leaves every human
+    // seat PENDING — the true post-mission readiness regime.
+    const {id} = await createCampaign(request);
+    await launchMission(request, id);
+    await devCommit(request, id, [0, 1], {carryoverPending: true});
+
+    // Bruno (non-host) opens the campaign: the carryover step opens ITSELF —
+    // the interlude's entry is the mandatory step, not a button hunt.
+    await openMapAs(page, id, 'Bruno');
+    await page.waitForSelector('.con-carry', {timeout: 20_000});
+    // Empty recorded hand → the honest empty state; X = confirm readiness.
+    await expect(page.locator('.con-carry__empty')).toBeVisible();
+    await press(page, 'KeyX', 800);
+
+    // The step concludes into the READY waiting room (auto-join armed).
+    await page.waitForSelector('.cmap__waitroom--ready', {timeout: 20_000});
+
+    // Alice (host) confirms her readiness and launches — over the API, the
+    // out-of-band second-participant path.
+    const aliceModel = await campaignModelAs(request, id, 'Alice');
+    const alicePid = aliceModel.missions[0].yourPlayerId!;
+    const confirmRes = await request.post(`${BASE}/api/campaign/carryover?id=${id}`, {
+      data: {playerId: alicePid, cards: []},
+    });
+    expect(confirmRes.ok(), await confirmRes.text()).toBeTruthy();
+    const launched = await launchMission(request, id);
+
+    // Bruno's page ENTERS THE MISSION BY ITSELF (campaign push → refresh →
+    // auto-join; the bounded poll is the fallback road to the same place).
+    await page.waitForURL(/player\?id=p/, {timeout: 45_000});
+    const brunoModel = await campaignModelAs(request, id, 'Bruno');
+    const brunoPid = brunoModel.missions[1].yourPlayerId!;
+    expect(page.url()).toContain(brunoPid);
+    expect(brunoPid).not.toBe(launched.yourPlayerId);
   });
 
   test('a non-creator sees the waiting state, never the launch CTA', async ({page, request}) => {

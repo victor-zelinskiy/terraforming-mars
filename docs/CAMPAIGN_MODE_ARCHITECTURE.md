@@ -76,6 +76,40 @@
 > `consoleCampaignsList.spec.ts`, the pin-propagation e2e in
 > `console-campaigns-list.spec.ts`.
 >
+> **Interlude ONE-FLOW + campaign realtime room (2026-09-04):** the
+> mission→mission transition is ONE continuation flow behind ONE CTA.
+> Endgame actions (missions 1–3) offer a single **«Следующая миссия»**
+> (`campaign-next`) with an honest status note (choose legacy / ready /
+> ready to launch / mission started — enter; a live mission is entered
+> directly); it opens the ONE campaign scene — the map — which **opens the
+> mandatory carryover step itself** (`carryStepDue` watcher, once per visit;
+> skippable inside: «Continue without cards» / empty hand → «Confirm
+> readiness») and then stands as the launch / ready-waiting stage. The
+> endgame's own carryover scene is DELETED (the picker has one host — the
+> map; the embedded host's command bar mirrors the map's overlay through
+> `campaignMapUi.ts`, since `$refs` reads are not reactive). Confirmation IS
+> readiness (unchanged server regime); after it the host with a ready crew
+> falls straight into the launch confirm, a non-host lands in the WAITING
+> ROOM (`.cmap__waitroom`, `vm.readyWaiting`) with the **auto-join armed**:
+> when the current slot flips to `active` with a seat link, the map enters
+> the mission by itself (`activeSeatLink` transition watcher; arming is the
+> readyWaiting rising edge, so a map opened onto an already-active mission
+> keeps the explicit join verb). The push that makes this immediate is the
+> DEDICATED CAMPAIGN ROOM (§2.10's deferral is closed): additive protocol
+> messages `SUBSCRIBE_CAMPAIGN{campaignId,lastRev?}` / `CAMPAIGN_SUBSCRIBED`
+> / `CAMPAIGN_INVALIDATED{rev}` (no version bump — an older peer answers
+> ERROR and the client degrades to the old poll), campaign rooms in
+> `RealtimeHub` (anonymous like the lobby: the payload is a rev cursor, the
+> model stays name-scoped behind REST), broadcast from `CampaignManager.save`,
+> client channel `campaignChannel.ts` (lobbyChannel shape, pooled per
+> server+campaign) wired into `campaignState.startCampaignWatch` — push
+> first, the poll a bounded fallback (30 s healthy / 5 s busy otherwise).
+> Dev: `devCommit` fixture gained `carryoverPending: true` (the real
+> pending regime, testable without playing a mission). E2E: the interlude
+> one-flow test in `console-campaign.spec.ts` (real launch → pending
+> interlude → self-opening step → readiness → API-side host launch →
+> the non-host page auto-joins).
+>
 > **Champion ceremony (2026-09-04):** the §7.7 champion beat is now a REAL
 > DIRECTOR BEAT — the final mission's endgame ceremony appends a mandatory
 > ~5s `champion` phase after `winner` (pause → seal «КАМПАНИЯ ЗАВЕРШЕНА» →

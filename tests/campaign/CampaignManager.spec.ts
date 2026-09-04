@@ -413,6 +413,29 @@ describe('CampaignManager', () => {
     expect(loaded.phase).eq('abandoned');
   });
 
+  it('every persisted mutation broadcasts to the campaign realtime room', async () => {
+    const campaign = await manager.createCampaign(key(), campaignTestConfig());
+    const {RealtimeHub} = await import('../../src/server/server/realtime/RealtimeHub');
+    const hub = RealtimeHub.getInstance();
+    const sent: Array<{type: string, campaignId?: string, rev?: number}> = [];
+    const fake = {
+      id: 999_001,
+      gameId: undefined,
+      participantId: undefined,
+      send: (m: {type: string}) => sent.push(m as {type: string, campaignId?: string, rev?: number}),
+    };
+    hub.subscribeCampaign(fake, campaign.id);
+    try {
+      await manager.abandon(campaign.id, 'Alice');
+      const loaded = (await manager.load(campaign.id))!;
+      const inv = sent.find((m) => m.type === 'CAMPAIGN_INVALIDATED');
+      expect(inv, 'the campaign room heard the mutation').is.not.undefined;
+      expect(inv).deep.include({campaignId: campaign.id, rev: loaded.rev});
+    } finally {
+      hub.handleDisconnect(fake);
+    }
+  });
+
   it('the model hides other seats\' carried card identities (privacy)', async () => {
     const campaign = await manager.createCampaign(key(), campaignTestConfig());
     const {gameId} = await manager.launchMission(campaign.id, 'Alice');

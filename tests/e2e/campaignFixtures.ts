@@ -84,7 +84,7 @@ export async function devCommit(
   request: APIRequestContext,
   id: string,
   placements: number[],
-  fixture: {lineages?: Record<number, Array<string>>, carryover?: Record<number, Array<string>>} = {},
+  fixture: {lineages?: Record<number, Array<string>>, carryover?: Record<number, Array<string>>, carryoverPending?: boolean} = {},
 ): Promise<void> {
   const res = await request.post(`${CAMPAIGN_BASE}/api/campaign/dev?name=admin`, {
     data: {campaignId: id, placements, ...fixture},

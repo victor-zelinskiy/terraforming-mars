@@ -28,6 +28,8 @@ export const ClientMessageType = {
   UNSUBSCRIBE: 'UNSUBSCRIBE_GAME',
   SUBSCRIBE_LOBBY: 'SUBSCRIBE_LOBBY',
   UNSUBSCRIBE_LOBBY: 'UNSUBSCRIBE_LOBBY',
+  SUBSCRIBE_CAMPAIGN: 'SUBSCRIBE_CAMPAIGN',
+  UNSUBSCRIBE_CAMPAIGN: 'UNSUBSCRIBE_CAMPAIGN',
 } as const;
 export type ClientMessageType = typeof ClientMessageType[keyof typeof ClientMessageType];
 
@@ -40,6 +42,8 @@ export const ServerMessageType = {
   INVALIDATED: 'GAME_STATE_INVALIDATED',
   LOBBY_SUBSCRIBED: 'LOBBY_SUBSCRIBED',
   LOBBY_INVALIDATED: 'LOBBY_INVALIDATED',
+  CAMPAIGN_SUBSCRIBED: 'CAMPAIGN_SUBSCRIBED',
+  CAMPAIGN_INVALIDATED: 'CAMPAIGN_INVALIDATED',
 } as const;
 export type ServerMessageType = typeof ServerMessageType[keyof typeof ServerMessageType];
 
@@ -114,6 +118,29 @@ export interface UnsubscribeLobbyMessage extends BaseMessage {
   type: typeof ClientMessageType.UNSUBSCRIBE_LOBBY;
 }
 
+/**
+ * Join a CAMPAIGN room: "tell me when this campaign document changes"
+ * (carryover confirmations, mission launches, result commits).
+ *
+ * Anonymous like the lobby room and for the same reason: the broadcast is a
+ * bare revision cursor, never state — the campaign model itself stays
+ * name-scoped behind `GET api/campaign`. A subscriber learns nothing it could
+ * not learn by polling that route; the channel only removes the WAITING
+ * (which is what makes the interlude's «готов → авто-заход» flow immediate).
+ *
+ * `lastRev` mirrors the lobby's `lastRevision`: a reconnect naming an older
+ * revision is answered with an invalidation immediately.
+ */
+export interface SubscribeCampaignMessage extends BaseMessage {
+  type: typeof ClientMessageType.SUBSCRIBE_CAMPAIGN;
+  campaignId: string;
+  lastRev?: number;
+}
+
+export interface UnsubscribeCampaignMessage extends BaseMessage {
+  type: typeof ClientMessageType.UNSUBSCRIBE_CAMPAIGN;
+}
+
 export type ClientMessage =
   | ClientHelloMessage
   | ClientPingMessage
@@ -121,7 +148,9 @@ export type ClientMessage =
   | ResumeGameMessage
   | UnsubscribeGameMessage
   | SubscribeLobbyMessage
-  | UnsubscribeLobbyMessage;
+  | UnsubscribeLobbyMessage
+  | SubscribeCampaignMessage
+  | UnsubscribeCampaignMessage;
 
 // ---- Server -> Client -------------------------------------------------------
 
@@ -198,6 +227,26 @@ export interface LobbyInvalidatedMessage extends BaseMessage {
   revision: number;
 }
 
+/** Ack of a campaign subscription, carrying the document's current revision. */
+export interface CampaignSubscribedMessage extends BaseMessage {
+  type: typeof ServerMessageType.CAMPAIGN_SUBSCRIBED;
+  campaignId: string;
+  rev: number;
+}
+
+/**
+ * "The campaign document changed - re-fetch the model." A SIGNAL, never the
+ * data: the authoritative model is still fetched over REST (`api/campaign`),
+ * which is what keeps it name-scoped while the WS room stays anonymous. `rev`
+ * is the document's own monotonic revision — a client only uses it to tell a
+ * genuinely newer state from a duplicate.
+ */
+export interface CampaignInvalidatedMessage extends BaseMessage {
+  type: typeof ServerMessageType.CAMPAIGN_INVALIDATED;
+  campaignId: string;
+  rev: number;
+}
+
 export type ServerMessage =
   | ServerHelloMessage
   | ServerPongMessage
@@ -206,7 +255,9 @@ export type ServerMessage =
   | SubscribedMessage
   | GameStateInvalidatedMessage
   | LobbySubscribedMessage
-  | LobbyInvalidatedMessage;
+  | LobbyInvalidatedMessage
+  | CampaignSubscribedMessage
+  | CampaignInvalidatedMessage;
 
 // ---- Builders ---------------------------------------------------------------
 
@@ -250,6 +301,18 @@ export function unsubscribeLobby(correlationId?: string, now: number = Date.now(
   return {...envelope(now, correlationId), type: ClientMessageType.UNSUBSCRIBE_LOBBY};
 }
 
+export function subscribeCampaign(campaignId: string, lastRev?: number, correlationId?: string, now: number = Date.now()): SubscribeCampaignMessage {
+  const message: SubscribeCampaignMessage = {...envelope(now, correlationId), type: ClientMessageType.SUBSCRIBE_CAMPAIGN, campaignId};
+  if (lastRev !== undefined) {
+    message.lastRev = lastRev;
+  }
+  return message;
+}
+
+export function unsubscribeCampaign(correlationId?: string, now: number = Date.now()): UnsubscribeCampaignMessage {
+  return {...envelope(now, correlationId), type: ClientMessageType.UNSUBSCRIBE_CAMPAIGN};
+}
+
 export function serverHello(serverVersion: string, serverBuildVersion?: string, correlationId?: string, now: number = Date.now()): ServerHelloMessage {
   return {...envelope(now, correlationId), type: ServerMessageType.HELLO, serverVersion, serverBuildVersion};
 }
@@ -276,6 +339,14 @@ export function lobbySubscribed(revision: number, correlationId?: string, now: n
 
 export function lobbyInvalidated(revision: number, now: number = Date.now()): LobbyInvalidatedMessage {
   return {...envelope(now), type: ServerMessageType.LOBBY_INVALIDATED, revision};
+}
+
+export function campaignSubscribed(campaignId: string, rev: number, correlationId?: string, now: number = Date.now()): CampaignSubscribedMessage {
+  return {...envelope(now, correlationId), type: ServerMessageType.CAMPAIGN_SUBSCRIBED, campaignId, rev};
+}
+
+export function campaignInvalidated(campaignId: string, rev: number, now: number = Date.now()): CampaignInvalidatedMessage {
+  return {...envelope(now), type: ServerMessageType.CAMPAIGN_INVALIDATED, campaignId, rev};
 }
 
 export function gameStateInvalidated(gameId: string, gameAge: number, undoCount: number, phase?: string, now: number = Date.now()): GameStateInvalidatedMessage {
@@ -340,6 +411,16 @@ export function parseClientMessage(raw: string): ClientMessage | undefined {
     return parsed as unknown as SubscribeLobbyMessage;
   case ClientMessageType.UNSUBSCRIBE_LOBBY:
     return parsed as unknown as UnsubscribeLobbyMessage;
+  case ClientMessageType.SUBSCRIBE_CAMPAIGN:
+    if (typeof parsed.campaignId !== 'string' || parsed.campaignId === '') {
+      return undefined;
+    }
+    if (parsed.lastRev !== undefined && typeof parsed.lastRev !== 'number') {
+      return undefined;
+    }
+    return parsed as unknown as SubscribeCampaignMessage;
+  case ClientMessageType.UNSUBSCRIBE_CAMPAIGN:
+    return parsed as unknown as UnsubscribeCampaignMessage;
   default:
     return undefined;
   }
@@ -376,6 +457,10 @@ export function parseServerMessage(raw: string): ServerMessage | undefined {
     return typeof parsed.revision === 'number' ? (parsed as unknown as LobbySubscribedMessage) : undefined;
   case ServerMessageType.LOBBY_INVALIDATED:
     return typeof parsed.revision === 'number' ? (parsed as unknown as LobbyInvalidatedMessage) : undefined;
+  case ServerMessageType.CAMPAIGN_SUBSCRIBED:
+    return (typeof parsed.campaignId === 'string' && typeof parsed.rev === 'number') ? (parsed as unknown as CampaignSubscribedMessage) : undefined;
+  case ServerMessageType.CAMPAIGN_INVALIDATED:
+    return (typeof parsed.campaignId === 'string' && typeof parsed.rev === 'number') ? (parsed as unknown as CampaignInvalidatedMessage) : undefined;
   default:
     return undefined;
   }

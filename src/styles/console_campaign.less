@@ -373,6 +373,50 @@
     font-size: 0.85rem;
   }
 
+  /* ── The interlude waiting room — a standing state plate floating on the
+     route stage's lower edge (absolute: the route cards keep their box; at
+     a tight viewport it stands OVER their dim lower rim, solid-backed and
+     above them). The pulse is compositor-only (opacity keyframe; the paint
+     baseline strips filter/text-shadow). */
+  &__waitroom {
+    position: absolute;
+    left: 50%;
+    bottom: 0.5rem;
+    transform: translateX(-50%);
+    z-index: 3;
+    display: flex;
+    align-items: center;
+    gap: 0.9rem;
+    max-width: 42rem;
+    padding: 0.7rem 1.4rem;
+    border: 1px solid rgba(154, 176, 202, 0.35);
+    border-radius: 0.5rem;
+    background: rgba(16, 24, 36, 0.94);
+
+    &--ready { border-color: rgba(126, 200, 227, 0.5); }
+  }
+  &__waitroom-pulse {
+    width: 0.55rem;
+    height: 0.55rem;
+    border-radius: 50%;
+    background: #e8c884;
+    animation: cmap-wait-pulse calc(1600ms * var(--motion-scale, 1)) ease-in-out infinite;
+
+    .cmap__waitroom--ready & { background: #7ec8e3; }
+  }
+  &__waitroom-title {
+    font-size: 0.95rem;
+    font-weight: 600;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: #dbe4ee;
+  }
+  &__waitroom-note {
+    margin-top: 0.15rem;
+    font-size: 0.85rem;
+    color: #93a5ba;
+  }
+
   /* ── Dossiers ───────────────────────────────────────────────────────── */
   &__dossier {
     min-width: 30rem;
@@ -478,6 +522,14 @@
     opacity: 1;
     transform: translateY(0) scale(1);
   }
+}
+
+/* The waiting-room dot breath — compositor-only (opacity), 0%/100%-symmetric
+   so reduced motion's «loops play once» rests on the static cue; joined to
+   the fx-lite stop-list in console_fx_lite.less. */
+@keyframes cmap-wait-pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.35; }
 }
 
 /* ── The carryover picker («Наследие проектов») ──────────────────────── */

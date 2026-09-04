@@ -14,8 +14,11 @@ import {
   REALTIME_PROTOCOL_VERSION,
   ResumeGameMessage,
   ServerMessage,
+  SubscribeCampaignMessage,
   SubscribeGameMessage,
   SubscribeLobbyMessage,
+  campaignInvalidated,
+  campaignSubscribed,
   gameStateInvalidated,
   lobbyInvalidated,
   lobbySubscribed,
@@ -27,6 +30,7 @@ import {
   serverPong,
   subscribed,
 } from '@/common/realtime/Protocol';
+import {isCampaignId} from '@/common/Types';
 import {LobbyIndex} from '@/server/models/lobbyIndex';
 
 /**
@@ -90,6 +94,8 @@ class RealtimeConnection {
   public gameId: GameId | undefined = undefined;
   /** True while this connection sits in the server-wide lobby room. */
   public inLobby = false;
+  /** Set while this connection sits in a campaign room. */
+  public campaignId: string | undefined = undefined;
   public helloReceived = false;
   /** Heartbeat liveness flag, reset on every ws-level pong. */
   public isAlive = true;
@@ -277,6 +283,56 @@ export class RealtimeServer {
       this.hub.unsubscribeLobby(conn);
       vlog(`[realtime] lobby unsubscribe #${conn.id}`);
       break;
+    case ClientMessageType.SUBSCRIBE_CAMPAIGN:
+      void this.handleSubscribeCampaign(conn, message);
+      break;
+    case ClientMessageType.UNSUBSCRIBE_CAMPAIGN:
+      this.hub.unsubscribeCampaign(conn);
+      vlog(`[realtime] campaign unsubscribe #${conn.id}`);
+      break;
+    }
+  }
+
+  /**
+   * Join a CAMPAIGN room and ack with the document's current revision.
+   *
+   * Anonymous like the lobby room (see `SubscribeCampaignMessage` — the
+   * broadcast is a bare revision cursor; the model stays name-scoped behind
+   * REST), but the campaign must EXIST: an unknown id is answered with an
+   * ERROR, which is also what an older server answers for the whole message
+   * type — the client channel degrades to polling either way. A client that
+   * names a `lastRev` older than the document's is answered with an
+   * invalidation right away (the lobby's reconnect re-sync semantics).
+   */
+  private async handleSubscribeCampaign(conn: RealtimeConnection, message: SubscribeCampaignMessage): Promise<void> {
+    if (typeof message.campaignId !== 'string' || !isCampaignId(message.campaignId)) {
+      this.send(conn, serverError('invalid-campaign', 'Missing or malformed campaign id.', message.correlationId));
+      return;
+    }
+    let rev: number | undefined;
+    try {
+      // Lazy require — the realtime gateway must stay a leaf of the campaign
+      // domain (CampaignManager already lazy-requires the hub for broadcasts).
+      const {CampaignManager} = require('@/server/campaign/CampaignManager');
+      const campaign = await CampaignManager.getInstance().load(message.campaignId);
+      rev = campaign?.rev;
+    } catch (err) {
+      rev = undefined;
+    }
+    if (conn.ws.readyState !== WebSocket.OPEN) {
+      this.hub.unsubscribeCampaign(conn);
+      return;
+    }
+    if (rev === undefined) {
+      console.warn(`[realtime] campaign subscribe rejected #${conn.id} campaign=${message.campaignId}`);
+      this.send(conn, serverError('subscribe-rejected', 'Unknown campaign.', message.correlationId));
+      return;
+    }
+    this.hub.subscribeCampaign(conn, message.campaignId);
+    vlog(`[realtime] campaign subscribe #${conn.id} campaign=${message.campaignId} rev=${rev} last=${message.lastRev ?? '(none)'}`);
+    this.send(conn, campaignSubscribed(message.campaignId, rev, message.correlationId));
+    if (message.lastRev !== undefined && message.lastRev !== rev) {
+      this.send(conn, campaignInvalidated(message.campaignId, rev));
     }
   }
 

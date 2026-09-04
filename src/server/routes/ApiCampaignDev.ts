@@ -32,7 +32,7 @@ export class ApiCampaignDev extends Handler {
     }
     const body = await readRequestBody(req);
     try {
-      const parsed = JSON.parse(body) as {campaignId?: string, placements?: Array<number>, lineages?: Record<number, Array<CardName>>, carryover?: Record<number, Array<CardName>>};
+      const parsed = JSON.parse(body) as {campaignId?: string, placements?: Array<number>, lineages?: Record<number, Array<CardName>>, carryover?: Record<number, Array<CardName>>, carryoverPending?: boolean};
       if (typeof parsed.campaignId !== 'string' || !isCampaignId(parsed.campaignId)) {
         responses.badRequest(req, res, 'invalid campaign id');
         return;
@@ -43,7 +43,7 @@ export class ApiCampaignDev extends Handler {
       }
       const manager = CampaignManager.getInstance();
       const campaign = await manager.devCommit(parsed.campaignId, parsed.placements,
-        {lineages: parsed.lineages, carryover: parsed.carryover});
+        {lineages: parsed.lineages, carryover: parsed.carryover, carryoverPending: parsed.carryoverPending === true});
       responses.writeJson(res, ctx, manager.getModel(campaign, undefined));
     } catch (err) {
       responses.badRequest(req, res, err instanceof Error ? err.message : 'invalid request');

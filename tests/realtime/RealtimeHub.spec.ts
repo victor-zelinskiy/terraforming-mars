@@ -78,6 +78,54 @@ describe('realtime/RealtimeHub', () => {
     expect(hub.roomSize(G1)).to.eq(1);
   });
 
+  // ── Campaign rooms ─────────────────────────────────────────────────────
+
+  it('campaign room: subscribe, broadcast the revision, keyed isolation', () => {
+    const hub = RealtimeHub.newInstanceForTesting(resolver);
+    const a = subscriber(1);
+    const b = subscriber(2);
+    const c = subscriber(3);
+    hub.subscribeCampaign(a, 'c-alpha');
+    hub.subscribeCampaign(b, 'c-alpha');
+    hub.subscribeCampaign(c, 'c-beta');
+    expect(hub.campaignRoomSize('c-alpha')).to.eq(2);
+
+    const notified = hub.invalidateCampaign('c-alpha', 7);
+    expect(notified).to.eq(2);
+    expect(a.sent).to.have.length(1);
+    expect(a.sent[0]).to.include({type: ServerMessageType.CAMPAIGN_INVALIDATED, campaignId: 'c-alpha', rev: 7});
+    // The other campaign's room hears nothing.
+    expect(c.sent).to.have.length(0);
+  });
+
+  it('campaign room: an empty room is a no-op broadcast', () => {
+    const hub = RealtimeHub.newInstanceForTesting(resolver);
+    expect(hub.invalidateCampaign('c-none', 1)).to.eq(0);
+  });
+
+  it('campaign room: re-subscribe moves the connection between rooms', () => {
+    const hub = RealtimeHub.newInstanceForTesting(resolver);
+    const a = subscriber(1);
+    hub.subscribeCampaign(a, 'c-alpha');
+    hub.subscribeCampaign(a, 'c-beta');
+    expect(hub.campaignRoomSize('c-alpha')).to.eq(0);
+    expect(hub.campaignRoomSize('c-beta')).to.eq(1);
+    expect(a.campaignId).to.eq('c-beta');
+  });
+
+  it('campaign room: disconnect leaves it alongside the game/lobby rooms', async () => {
+    const hub = RealtimeHub.newInstanceForTesting(resolver);
+    const a = subscriber(1);
+    await hub.subscribe(a, 'p-1');
+    hub.subscribeLobby(a);
+    hub.subscribeCampaign(a, 'c-alpha');
+    hub.handleDisconnect(a);
+    expect(hub.roomSize(G1)).to.eq(0);
+    expect(hub.lobbySize()).to.eq(0);
+    expect(hub.campaignRoomSize('c-alpha')).to.eq(0);
+    expect(a.campaignId).to.be.undefined;
+  });
+
   it('moves a subscriber that re-subscribes to a different game', async () => {
     const hub = RealtimeHub.newInstanceForTesting(resolver);
     const a = subscriber(1);

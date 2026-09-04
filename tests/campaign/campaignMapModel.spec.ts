@@ -93,6 +93,55 @@ describe('campaignMapModel', () => {
     expect(bruno.carry).deep.eq({status: 'confirmed', count: 2});
   });
 
+  it('interlude: a confirmed non-creator stands READY — waiting CTA with the auto-join promise', () => {
+    const model = baseModel({
+      you: {seat: 1},
+      phase: 'interlude',
+      pointer: 1,
+      canLaunch: false,
+      launchBlockers: ['Waiting for the project carryover selections'],
+      carryover: {
+        sourceSlot: 0,
+        bySeat: [
+          {seat: 0, status: 'pending', count: 0},
+          {seat: 1, status: 'confirmed', count: 1},
+        ],
+        yourCards: [CardName.ANTS],
+        yourEligible: [CardName.ANTS, CardName.ALGAE],
+      },
+    });
+    (model.missions[0] as any).state = 'committed';
+    (model.missions[1] as any).state = 'ready';
+    const vm = buildCampaignMapVm(model);
+    expect(vm.cta.kind).eq('waiting');
+    expect((vm.cta as {ready?: boolean}).ready).is.true;
+    expect(vm.readyWaiting).is.true;
+    // The creator in the same state is NOT a waiting-room case — they own the launch.
+    const creator = buildCampaignMapVm({...model, you: {seat: 0}} as CampaignModel);
+    expect(creator.readyWaiting).is.false;
+  });
+
+  it('interlude: an unconfirmed non-creator is not READY yet (their door outranks waiting)', () => {
+    const model = baseModel({
+      you: {seat: 1},
+      phase: 'interlude',
+      pointer: 1,
+      canLaunch: false,
+      launchBlockers: [],
+      carryover: {
+        sourceSlot: 0,
+        bySeat: [{seat: 1, status: 'pending', count: 0}],
+        yourCards: [],
+        yourEligible: [],
+      },
+    });
+    (model.missions[0] as any).state = 'committed';
+    (model.missions[1] as any).state = 'ready';
+    const vm = buildCampaignMapVm(model);
+    expect(vm.cta.kind).eq('carryover');
+    expect(vm.readyWaiting).is.false;
+  });
+
   it('titles/TP/bonuses project onto the rail; shared places surface in results', () => {
     const model = baseModel({
       phase: 'interlude',

@@ -234,6 +234,29 @@ export function revealPresented(id: number): boolean {
 }
 
 /**
+ * A server-listed reveal id the client has FULLY CONSUMED: the batch is in the
+ * store and stands `dismissed` (every card taken / take-all — the ack may
+ * still be on the wire). The workspace-outcome SERVING PROBE reads this:
+ * `playerView.cardDrawReveals` is race-proof evidence that a batch is OWED
+ * only until the player has consumed it — the ack deliberately does not apply
+ * its response, so the applied view keeps listing a finished batch until the
+ * next poll/input arrives. Read raw, that echo answered «still serving» for a
+ * payout that was over, and the release funnel then refused the colony
+ * resolution's own closing release: the claim wedged `presenting`, the browse
+ * grid stayed yielded (the reported EMPTY colony list after B), and the
+ * workspace never concluded until the 20 s claim safety met a fresh view.
+ *
+ * A batch the store has never seen stays OUTSTANDING by construction
+ * (`undefined` → false): pre-reconcile, «unseen» genuinely means «owed».
+ * Growth un-dismisses (see `reconcileDrawnCards`), so a re-opened batch
+ * counts again the same instant it owes a card.
+ */
+export function serverRevealConsumed(id: number): boolean {
+  const e = drawnCardsState.events.find((ev) => ev.id === id);
+  return e !== undefined && e.dismissed;
+}
+
+/**
  * Mark a fully-taken batch dismissed so the modal closes immediately, before
  * the server ack round-trip. The entry stays in the store (so reconcile can
  * preserve the flag against a mid-ack poll) until the ack response removes it.

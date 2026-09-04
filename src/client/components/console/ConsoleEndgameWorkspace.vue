@@ -260,25 +260,13 @@
                             :model="model"
                             :eg-vm="vm" />
 
-    <!-- ── CAMPAIGN SCENES — internal scenes of this same workspace (the
-         overview pattern): the scoring stage parks under them and returns on
-         B. Never a modal, never a trip through the main menu. -->
+    <!-- ── CAMPAIGN SCENE — an internal scene of this same workspace (the
+         overview pattern): the scoring stage parks under it and returns on
+         B. Never a modal, never a trip through the main menu. ONE scene:
+         the map IS the interlude flow — it opens the mandatory carryover
+         step itself, then stands as the launch / ready-waiting stage. -->
     <div v-if="campaignScene === 'map'" class="con-eg-campaign-scene">
       <ConsoleCampaignMap ref="campaignMap" :embedded="true" @close="closeCampaignScene" />
-    </div>
-    <div v-else-if="campaignScene === 'carryover'" class="con-eg-campaign-scene con-eg-campaign-scene--carry">
-      <ConsoleCarryoverPicker
-        ref="carryPicker"
-        :embedded="false"
-        :eligible="carryEligible"
-        :selected="carryDraft"
-        :confirmed="carryConfirmed && !carryDirty"
-        :submitting="campaign.submittingCarryover"
-        :error="campaign.error"
-        @toggle="toggleCarry($event)"
-        @confirm="confirmCarry"
-        @back="closeCampaignScene"
-      />
     </div>
   </div>
 </template>
@@ -324,19 +312,22 @@ import {
   consoleOverviewUi, openEndgameOverview, OVERVIEW_MS,
 } from '@/client/console/endgame/consoleOverviewState';
 import ConsoleEndgameOverview from '@/client/components/console/ConsoleEndgameOverview.vue';
-// Campaign mode: the mission coda («Титулы» / champion), the carryover scene
-// and the embedded Campaign Map (docs/CAMPAIGN_MODE_ARCHITECTURE.md §5.3).
-import {CardName} from '@/common/cards/CardName';
-import {isPlayerId} from '@/common/Types';
+// Campaign mode: the mission coda («Титулы» / champion) and the embedded
+// Campaign Map — «Следующая миссия» is ONE flow inside the map scene
+// (mandatory carryover step → launch / ready-waiting with auto-join).
 import {TitleName} from '@/common/campaign/CampaignTypes';
 import {CampaignGameContract} from '@/common/campaign/CampaignGameContract';
 import {MissionResultModel} from '@/common/campaign/CampaignModel';
 import {
-  campaignState, openCampaign, setCampaignViewerName, startCampaignWatch, stopCampaignWatch, submitCampaignCarryover,
+  campaignState, openCampaign, setCampaignViewerName, startCampaignWatch, stopCampaignWatch,
 } from '@/client/console/campaign/campaignState';
+import {campaignMapUi} from '@/client/console/campaign/campaignMapUi';
 import {TITLE_LABEL, titleArtUrl} from '@/client/console/campaign/titleArt';
+import {recordLastGameEntered} from '@/client/components/mainMenu/lastGameState';
+import {currentServerEndpoint} from '@/client/utils/runtimeConfig';
+import {pinServerEndpoint} from '@/client/utils/serverEndpoints';
+import {paths} from '@/common/app/paths';
 import ConsoleCampaignMap from '@/client/components/console/campaign/ConsoleCampaignMap.vue';
-import ConsoleCarryoverPicker from '@/client/components/console/campaign/ConsoleCarryoverPicker.vue';
 import {$t} from '@/client/directives/i18n';
 
 type PostGameAction = {
@@ -349,7 +340,7 @@ type PostGameAction = {
 
 export default defineComponent({
   name: 'ConsoleEndgameWorkspace',
-  components: {ConsoleEndgameOverview, ConsoleCampaignMap, ConsoleCarryoverPicker},
+  components: {ConsoleEndgameOverview, ConsoleCampaignMap},
   props: {
     playerView: {type: Object as PropType<ViewModel>, required: true},
   },
@@ -374,12 +365,11 @@ export default defineComponent({
       /** Resolved label font size, px (the plan's glyph-width estimate). */
       labelFontPx: 14,
       totalEls: {} as Record<string, HTMLElement | undefined>,
-      /** Campaign scenes — internal, the overview pattern (park + return). */
-      campaignScene: undefined as undefined | 'map' | 'carryover',
+      /** The campaign scene — internal, the overview pattern (park + return).
+       *  ONE scene: the map hosts the whole interlude flow itself. */
+      campaignScene: undefined as undefined | 'map',
       /** The coda animates only when the ceremony itself played live. */
       campaignCodaAnimated: false,
-      carryDraft: [] as Array<CardName>,
-      carryDirty: false,
     };
   },
   computed: {
@@ -395,9 +385,6 @@ export default defineComponent({
       return this.ov.phase === 'entering' || this.ov.phase === 'open';
     },
     // ── Campaign mode (docs/CAMPAIGN_MODE_ARCHITECTURE.md §5.3, §7) ──────
-    campaign() {
-      return campaignState;
-    },
     campaignContract(): CampaignGameContract | undefined {
       return this.playerView.game.gameOptions.campaign;
     },
@@ -456,10 +443,6 @@ export default defineComponent({
           };
         });
     },
-    /** The viewer's carryover door data (owner-only wire fields). */
-    carryEligible(): ReadonlyArray<CardName> {
-      return campaignState.model?.carryover?.yourEligible ?? [];
-    },
     carryConfirmed(): boolean {
       const you = campaignState.model?.you?.seat;
       if (you === undefined) {
@@ -472,6 +455,35 @@ export default defineComponent({
       return you !== undefined &&
         campaignState.model?.phase === 'interlude' &&
         campaignState.model?.carryover?.bySeat.some((s) => s.seat === you) === true;
+    },
+    /** The current slot's live seat link — «Следующая миссия» enters directly. */
+    campaignNextLink(): {playerId: string, gameId?: string} | undefined {
+      const model = campaignState.model;
+      const current = model?.missions[model.pointer];
+      if (current?.state === 'active' && current.yourPlayerId !== undefined) {
+        return {playerId: current.yourPlayerId, gameId: current.gameId};
+      }
+      return undefined;
+    },
+    /** The honest status line under the one CTA (pre-rendered, never a key). */
+    campaignNextNote(): string | undefined {
+      const model = campaignState.model;
+      if (model === undefined) {
+        return undefined;
+      }
+      if (this.campaignNextLink !== undefined) {
+        return $t('mission started — enter');
+      }
+      if (this.viewerHasCarryDoor && !this.carryConfirmed) {
+        return $t('choose the project legacy');
+      }
+      if (model.you?.seat === 0) {
+        return $t(model.canLaunch ? 'ready to launch' : 'waiting for the crew');
+      }
+      if (this.carryConfirmed) {
+        return $t('you are ready — waiting for the launch');
+      }
+      return undefined;
     },
     /** ONE endgame model for the ceremony AND the overview. The facts feed
      *  only the insight/episode engines — every scoring number is identical
@@ -595,19 +607,25 @@ export default defineComponent({
       // ordinary new single game with the same roster).
       const contract = this.campaignContract;
       if (contract !== undefined) {
-        if (!contract.final && this.viewerHasCarryDoor) {
+        if (contract.final) {
           out.push({
-            id: 'campaign-carry',
-            label: 'Project legacy',
-            note: $t(this.carryConfirmed ? 'selection confirmed' : 'selection pending'),
-            run: () => this.openCarryScene(),
+            id: 'campaign-map',
+            label: 'Campaign chronicle',
+            run: () => this.openCampaignScene(),
+          });
+        } else {
+          // ONE CTA — «Следующая миссия». It opens the map scene, which IS
+          // the interlude flow: the mandatory carryover step opens itself,
+          // the confirmation doubles as readiness, the host gets the launch
+          // press and a ready non-host waits with the auto-join armed. When
+          // the mission is already live, the same press enters it directly.
+          out.push({
+            id: 'campaign-next',
+            label: 'Next mission',
+            note: this.campaignNextNote,
+            run: () => this.runCampaignNext(),
           });
         }
-        out.push({
-          id: 'campaign-map',
-          label: contract.final ? 'Campaign chronicle' : 'Campaign map',
-          run: () => this.openCampaignScene(),
-        });
       }
       out.push({
         id: 'overview',
@@ -695,19 +713,30 @@ export default defineComponent({
         return [];
       }
       if (this.campaignScene === 'map') {
+        // The map's own stage (overlay/step) decides the verbs; the host bar
+        // mirrors it through campaignMapUi (a $refs read is not reactive).
+        if (campaignMapUi.overlay === 'carryover') {
+          return [
+            {control: 'dpadH', label: 'Choose'},
+            {control: 'confirm', label: 'Take / return'},
+            {control: 'secondary', label: campaignMapUi.carryConfirmLabel, highlight: true, priority: 0},
+            {control: 'back', label: 'Close', priority: 5},
+          ];
+        }
+        if (campaignMapUi.overlay === 'launch') {
+          return [
+            {control: 'confirm', label: 'Launch', highlight: true},
+            {control: 'back', label: 'Cancel', priority: 5},
+          ];
+        }
+        if (campaignMapUi.overlay !== undefined) {
+          return [{control: 'back', label: 'Close', priority: 5}];
+        }
         return [
           {control: 'dpad', label: 'Navigate'},
           {control: 'confirm', label: 'Confirm'},
           {control: 'secondary', label: 'Mission dossier'},
           {control: 'inspect', label: 'Campaign dossier'},
-          {control: 'back', label: 'Game results', priority: 5},
-        ];
-      }
-      if (this.campaignScene === 'carryover') {
-        return [
-          {control: 'dpadH', label: 'Choose'},
-          {control: 'confirm', label: 'Take / return'},
-          {control: 'secondary', label: this.carryDraft.length === 0 ? 'Continue without cards' : 'Keep the selection', highlight: true, priority: 0},
           {control: 'back', label: 'Game results', priority: 5},
         ];
       }
@@ -1174,44 +1203,35 @@ export default defineComponent({
         });
       });
     },
-    // ── campaign scenes ───────────────────────────────────────────────────
+    // ── the campaign scene ────────────────────────────────────────────────
     titleArtUrl,
-    /** Explicit A on «Карта кампании» — the ceremony → map handoff (D9). */
+    /** Explicit A on «Хроника кампании» / the map door (D9). */
     openCampaignScene(): void {
       this.campaignScene = 'map';
     },
-    openCarryScene(): void {
-      this.carryDraft = [...(campaignState.model?.carryover?.yourCards ?? [])];
-      this.carryDirty = false;
-      this.campaignScene = 'carryover';
+    /**
+     * «СЛЕДУЮЩАЯ МИССИЯ» — the one continuation press. A live mission is
+     * entered directly (the launch already happened); otherwise the map scene
+     * opens and runs the interlude flow (carryover step → launch / waiting).
+     */
+    runCampaignNext(): void {
+      const link = this.campaignNextLink;
+      if (link !== undefined) {
+        const endpoint = currentServerEndpoint();
+        if (endpoint !== undefined) {
+          // LAN guest: the mission lives on the SAME pinned server.
+          pinServerEndpoint(link.playerId, endpoint);
+        }
+        recordLastGameEntered(link.gameId ?? '');
+        navigateWithCurtain(paths.PLAYER + '?id=' + encodeURIComponent(link.playerId), 'expedition');
+        return;
+      }
+      this.openCampaignScene();
     },
     closeCampaignScene(): void {
       // B never silently confirms or discards: the server keeps whatever was
-      // last CONFIRMED; the local draft simply closes.
+      // last CONFIRMED (the map's own picker state closes with the scene).
       this.campaignScene = undefined;
-      this.carryDirty = false;
-    },
-    toggleCarry(name: CardName): void {
-      const idx = this.carryDraft.indexOf(name);
-      if (idx >= 0) {
-        this.carryDraft.splice(idx, 1);
-      } else if (this.carryDraft.length < 2) {
-        this.carryDraft.push(name);
-      }
-      this.carryDirty = true;
-    },
-    async confirmCarry(): Promise<void> {
-      // The bearer credential is THIS mission's own seat — this game IS the
-      // carryover's source mission.
-      const playerId = this.playerView.id;
-      if (playerId === undefined || !isPlayerId(playerId)) {
-        return;
-      }
-      const ok = await submitCampaignCarryover(playerId, this.carryDraft);
-      if (ok) {
-        this.carryDirty = false;
-        this.campaignScene = undefined;
-      }
     },
     // ── input (delegated by the shell) ────────────────────────────────────
     handleIntent(intent: GamepadIntent): void {
@@ -1232,13 +1252,9 @@ export default defineComponent({
         (this.$refs.overview as InstanceType<typeof ConsoleEndgameOverview> | undefined)?.handleIntent(intent);
         return;
       }
-      // CAMPAIGN SCENES own the pad while they stand (the same law).
+      // THE CAMPAIGN SCENE owns the pad while it stands (the same law).
       if (this.campaignScene === 'map') {
         (this.$refs.campaignMap as {handleIntent?: (i: GamepadIntent) => boolean} | undefined)?.handleIntent?.(intent);
-        return;
-      }
-      if (this.campaignScene === 'carryover') {
-        (this.$refs.carryPicker as {handleIntent?: (i: GamepadIntent) => boolean} | undefined)?.handleIntent?.(intent);
         return;
       }
       // THE MANDATORY CHAMPION CEREMONY absorbs the whole pad: no skip (X),
