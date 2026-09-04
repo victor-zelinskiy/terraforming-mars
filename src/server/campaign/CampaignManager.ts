@@ -372,12 +372,33 @@ export class CampaignManager {
       banned.add(marsBotCorpInfo(campaign.progression.botCorporation).original);
     }
 
+    // ⚠️ THE CUSTOM/DEV LISTS CAN RESURRECT A BANNED CARD: GameCards applies
+    // `filterBannedCards` FIRST and `addCustomCards` (customCorporationsList /
+    // customPreludes / customCeos / includedCards / customProjectCards)
+    // AFTERWARDS, instantiating any name missing from the pool. The campaign's
+    // frozen settings legitimately carry mission-1 dev lists, and by mission 2
+    // one of those names can be somebody's LINEAGE corporation (or Merger, or
+    // the bot's twin) — physically ONE card that must never re-enter a deck.
+    // Sanitize every list against the mission's exclusions. CARRIED project
+    // names deliberately STAY in the project lists: a carried card must exist
+    // in the pool exactly once (a module-off card can only enter via
+    // `includedCards`) so `reserveCarriedProjectCards` can pull that single
+    // physical copy out BEFORE any deal — the dev «guarantee» then finds
+    // nothing to lift (`Deck.putOnTop` only rearranges, never instantiates)
+    // and the carryover keeps absolute priority.
+    const stripBanned = (names: ReadonlyArray<CardName> | undefined): Array<CardName> =>
+      (names ?? []).filter((n) => !banned.has(n));
     const missionConfig: NewGameConfig = {
       ...settings,
       board: slot.board,
       seed: Math.random(),
       clonedGamedId: undefined,
       bannedCards: [...banned],
+      customCorporationsList: stripBanned(settings.customCorporationsList),
+      customPreludes: stripBanned(settings.customPreludes),
+      customCeos: stripBanned(settings.customCeos),
+      customProjectCards: stripBanned(settings.customProjectCards),
+      includedCards: stripBanned(settings.includedCards),
     };
     const gameOptions = gameOptionsFromNewGameConfig(missionConfig, slot.board);
     if (gameOptions.automa !== undefined && campaign.progression.botCorporation !== undefined) {

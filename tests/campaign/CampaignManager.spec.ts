@@ -508,6 +508,52 @@ describe('CampaignManager', () => {
     expect(alice.cardDrawReveals.some((r) => r.source?.type === 'campaign')).is.false;
   });
 
+  it('PHYSICALITY: dev/custom lists can NEVER resurrect a lineage corp, Merger or duplicate a carried card', async () => {
+    // The frozen settings deliberately carry HOSTILE dev lists: the corp that
+    // will become Alice's lineage is «guaranteed», Merger is force-included in
+    // the prelude list, and the card Alice will carry is both «included» and
+    // «guaranteed». Every one of them must lose to the campaign's exclusions.
+    const campaign = await manager.createCampaign(key(), campaignTestConfig({
+      customCorporationsList: [CardName.CREDICOR],
+      customPreludes: [CardName.MERGER],
+      includedCards: [CardName.ACQUIRED_COMPANY],
+      customProjectCards: [CardName.ACQUIRED_COMPANY],
+    } as Partial<NewGameConfig>));
+    await manager.devCommit(campaign.id, [0, 1], {
+      lineages: {0: [CardName.CREDICOR], 1: [CardName.HELION]},
+      carryover: {0: [CardName.ACQUIRED_COMPANY]},
+    });
+    const {gameId} = await manager.launchMission(campaign.id, 'Alice');
+    const game = (await GameLoader.getInstance().getGame(gameId))!;
+
+    // The lineage corporations exist ONLY as the deployment's own instances:
+    // never in the corporation deck, never in anyone's deal.
+    const corpPool = [
+      ...game.corporationDeck.drawPile.map((c) => c.name),
+      ...game.corporationDeck.discardPile.map((c) => c.name),
+      ...game.players.flatMap((p) => p.dealtCorporationCards.map((c) => c.name)),
+    ];
+    expect(corpPool).not.includes(CardName.CREDICOR);
+    expect(corpPool).not.includes(CardName.HELION);
+    // Merger stays out of the prelude pool even when force-listed.
+    const preludePool = [
+      ...game.preludeDeck.drawPile.map((c) => c.name),
+      ...game.players.flatMap((p) => p.dealtPreludeCards.map((c) => c.name)),
+    ];
+    expect(preludePool).not.includes(CardName.MERGER);
+    // The carried card is physically ONE: reserved out of the project deck
+    // before any deal — the «guarantee» found nothing to lift — and it will
+    // enter the game exactly once, through the owner's «Наследие» press.
+    const projectPool = [
+      ...game.projectDeck.drawPile.map((c) => c.name),
+      ...game.projectDeck.discardPile.map((c) => c.name),
+      ...game.players.flatMap((p) => p.dealtProjectCards.map((c) => c.name)),
+    ];
+    expect(projectPool).not.includes(CardName.ACQUIRED_COMPANY);
+    const alice = game.players.find((p) => p.name === 'Alice')!;
+    expect(alice.campaignCarriedCards).deep.eq([CardName.ACQUIRED_COMPANY]);
+  });
+
   it('finalHands never leak into any wire model', async () => {
     const campaign = await manager.createCampaign(key(), campaignTestConfig());
     const {gameId} = await manager.launchMission(campaign.id, 'Alice');
