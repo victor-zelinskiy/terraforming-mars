@@ -45,9 +45,52 @@
 > campaign conformance case, `tests/client/components/consoleCampaignsList.spec.ts`,
 > e2e `tests/e2e/console-campaigns-list.spec.ts` (incl. the FHD/4K/Deck fit sweep).
 >
+> **LAN (host-as-server) campaigns (2026-09-04):** a guest sees everything the
+> owner sees; only management stays creator-scoped (server-enforced). The list
+> is MULTI-SOURCE the lobby way: `campaignsState` fetches `api/campaigns` from
+> the app's own server plus every LAN source the LOBBY model verified — the
+> campaigns screen deliberately runs NO probing engine (it opens the lobby list
+> like «Мои партии», so `lobbyState` owns endpoints, WS push channels, host
+> staleness and departure; campaign rows mirror the source status). Rows are
+> `CampaignSourceRow` (summary + sourceId/hostLabel/endpoint/stale, merged and
+> deduped local-first in `mergeCampaignSources`). Entering a LAN campaign PINS
+> its campaign id to the host endpoint (`pinCampaignRow` →
+> `serverEndpoints.pinServerEndpoint`) — `runtimeConfig` resolves the pin by
+> the map page's own `?id=`, which transparently routes the model fetch, the
+> poll, the carryover submit and the launch to the host; the map PROPAGATES
+> the pin onto mission participant ids before navigating
+> (`ConsoleCampaignMap.propagateServerPin` ← `currentServerEndpoint()`), so
+> joining/reviewing a mission from a pinned (or embedded LAN endgame) map
+> lands on the right server. «Мои партии» LAN rows: campaign missions collapse
+> into one campaign row (chip + host name) whose A pins + opens the map. The
+> cascade delete routes to the row's endpoint. A quiet host's rows stay,
+> marked «не отвечает», not enterable. CORS: `api/campaigns` +
+> `api/campaign/delete` are in `CORS_PATHS` (the desktop guest's app://bundle
+> origin — the same road every LAN game call already takes). ⚠ Store rule
+> learned here: `campaignsState.rows` and `status` must land in ONE reactive
+> flush (a watcher keyed on both — the return-focus restore — fires on «ok»
+> beside yesterday's rows otherwise). Verified live with two servers
+> (guest :8080 ↔ host :8091, `TM_DESKTOP_ALLOWED_ORIGINS`): guest map render,
+> non-creator projection, poll pickup of the host's launch, pin propagation
+> into the mission. Tests: LAN cases in `campaignListModel.spec.ts` +
+> `consoleCampaignsList.spec.ts`, the pin-propagation e2e in
+> `console-campaigns-list.spec.ts`.
+>
+> **Champion ceremony (2026-09-04):** the §7.7 champion beat is now a REAL
+> DIRECTOR BEAT — the final mission's endgame ceremony appends a mandatory
+> ~5s `champion` phase after `winner` (pause → seal «КАМПАНИЯ ЗАВЕРШЕНА» →
+> rim sweep → plate «ЧЕМПИОН КАМПАНИИ» + mission pips → VP fix → hold) on the
+> same GSAP timeline; `finalizeCeremony` carries its terminal state (skip /
+> reload land settled with the campaign header+plate+keel), input is absorbed
+> and the command bar empties for its length, ties share the plates equally,
+> and the Governor-art champion badge is GONE (the plate is the champion
+> mark; Governor stays a per-mission title). Files: `consoleEndgame{Model,
+> Script,State,Director}.ts`, `ConsoleEndgameWorkspace.vue`,
+> `console_endgame.less`; specs `consoleEndgameCeremony.spec.ts`, e2e
+> `tests/e2e/console-campaign-endgame.spec.ts` (a REAL played final mission).
+>
 > Known v1 residuals (deliberate, listed in the implementation report): the map's
-> generation reveal is a CSS cascade (no connector-draw ceremony yet); the Titles
-> coda is a settled post-winner stage, not a director beat; «Штаб» reuses the start
+> generation reveal is a CSS cascade (no connector-draw ceremony yet); «Штаб» reuses the start
 > scene's sequential corp reveals under its own label (no bespoke trio screen); the
 > bot receives no bonus M€ (its application point does not exist — the honesty rule
 > of D5); titles are journaled in campaign surfaces + the next mission's bonus log

@@ -930,6 +930,190 @@
 .con-eg-rise-enter-from { opacity: 0; transform: translateY(0.5rem); }
 .con-eg-rise-leave-to { opacity: 0; }
 
+/* ═══ THE CAMPAIGN CHAMPION ceremony (final mission only) ══════════
+ * A motion/decorative LAYER over the settled scoreboard: the layout of
+ * the results never re-flows — every mark is absolute (the ribbon's own
+ * idiom), the recession is opacity, the sweep is transform. The phase
+ * class `.con-endgame--champion` exists only while the beat runs; the
+ * SETTLED campaign state is carried by persistent classes/elements
+ * (champion frame, plate, keel) whose resting look needs no animation. */
+
+/* The surroundings recede while the campaign speaks — readable, never
+ * gone; they return with the phase class (the same transitions). */
+.con-eg__rail,
+.con-eg__caption,
+.con-eg__meta {
+    transition: opacity calc(560ms * var(--motion-scale, 1)) ease;
+}
+.con-endgame--champion {
+    .con-eg__rail,
+    .con-eg__caption,
+    .con-eg__meta { opacity: 0.35; }
+    /* Half a tone deeper than the ordinary rest state — still readable. */
+    .con-eg__row--rest { opacity: 0.55; }
+}
+
+/* The champion FRAME — the winner gold, deepened: a state, not an effect
+ * (rides the row's existing border/box-shadow transitions and stays on
+ * the settled screen). */
+.con-eg__row--champion {
+    border-color: rgba(255, 222, 138, 0.72);
+    box-shadow:
+        0 0 0 0.12rem rgba(255, 222, 138, 0.38),
+        0 0.5rem 2rem rgba(0, 0, 0, 0.55),
+        0 0 3rem rgba(255, 206, 118, 0.16);
+}
+
+/* The RIM SWEEP — one travelling light bar clipped to the champion row's
+ * own frame. Transient (live ceremony only) and it ENDS at opacity 0, so
+ * its unmount at settle is invisible by construction. */
+.con-eg__champ-rim {
+    position: absolute;
+    inset: 0;
+    border-radius: 0.55rem;
+    overflow: hidden;
+    pointer-events: none;
+    z-index: 2;
+}
+.con-eg__champ-rim-bar {
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    left: 0;
+    width: 26%;
+    background: linear-gradient(100deg,
+        transparent 0%,
+        rgba(255, 226, 150, 0.20) 42%,
+        rgba(255, 244, 214, 0.34) 50%,
+        rgba(255, 226, 150, 0.20) 58%,
+        transparent 100%);
+    opacity: 0;
+    transform: translateX(-120%);
+    animation: con-eg-champ-sweep calc(950ms * var(--motion-scale, 1)) @con-ease-standard forwards;
+    animation-delay: calc(60ms * var(--motion-scale, 1));
+}
+@keyframes con-eg-champ-sweep {
+    0% { transform: translateX(-120%); opacity: 0; }
+    12% { opacity: 1; }
+    88% { opacity: 1; }
+    100% { transform: translateX(460%); opacity: 0; }
+}
+
+/* The CHAMPION PLATE — «ЧЕМПИОН КАМПАНИИ» on the ribbon's own anchor
+ * (the row's top-left shoulder): the ribbon fades, the plate unfolds in
+ * its place. Absolute — zero layout impact at any density. The player's
+ * own color lives INSIDE the fixed geometry (the swatch), tying the
+ * ceremonial gold to the champion's identity. */
+.con-eg__champline {
+    position: absolute;
+    top: 0;
+    left: calc(var(--eg-place-w) + 1.4rem);
+    transform: translateY(-52%);
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.16rem 0.8rem 0.16rem 0.55rem;
+    border-radius: 0.3rem;
+    border: 0.05rem solid rgba(255, 222, 138, 0.75);
+    background: linear-gradient(180deg, #332a12 0%, #1c1505 100%);
+    font-family: @con-font;
+    font-size: 0.74rem;
+    letter-spacing: 0.24em;
+    text-transform: uppercase;
+    color: @sem-prestige;
+    box-shadow:
+        0 0 0 0.05rem rgba(255, 222, 138, 0.28),
+        0 0.15rem 0.7rem rgba(0, 0, 0, 0.55);
+    z-index: 3;
+}
+.con-eg__champline-swatch {
+    flex: 0 0 auto;
+    width: 0.62rem;
+    height: 0.62rem;
+    border-radius: 50%;
+    box-shadow: 0 0 0 0.06rem rgba(255, 236, 180, 0.65);
+}
+.con-eg__champline-label {
+    white-space: nowrap;
+}
+/* The four-mission motif — one pip per mission, fixed geometry inside
+ * the plate (the full route story belongs to the campaign map). */
+.con-eg__champline-pips {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.24rem;
+    margin-left: 0.15rem;
+}
+.con-eg__champline-pip {
+    width: 0.34rem;
+    height: 0.34rem;
+    border-radius: 50%;
+    background: rgba(255, 226, 150, 0.9);
+    box-shadow: 0 0 0.3rem rgba(255, 206, 118, 0.5);
+}
+/* Live entrance only (`--animate` = this load actually PLAYED the
+ * ceremony): the plate unfolds, the pips light one per mission. The
+ * settled path (reload / archive re-entry) mounts everything at rest. */
+.con-eg__champline--animate {
+    animation: con-eg-champline-in calc(460ms * var(--motion-scale, 1)) @con-ease-enter backwards;
+}
+.con-eg__champline--animate .con-eg__champline-pip {
+    animation: con-eg-champ-pip-in calc(260ms * var(--motion-scale, 1)) @con-ease-enter backwards;
+    animation-delay: calc((320ms + var(--pip-i, 0) * 170ms) * var(--motion-scale, 1));
+}
+@keyframes con-eg-champline-in {
+    from { opacity: 0; transform: translateY(-20%) scale(0.96); }
+    to { opacity: 1; transform: translateY(-52%) scale(1); }
+}
+@keyframes con-eg-champ-pip-in {
+    from { opacity: 0; transform: scale(0.4); }
+    to { opacity: 1; transform: scale(1); }
+}
+
+/* The champion KEEL — the FIX beat's persistent witness: a thin gold bar
+ * under the final total. Absolute inside the total cell (which anchors
+ * it and the fix ping), zero layout impact. */
+.con-eg__total {
+    position: relative;
+}
+.con-eg__champ-keel {
+    position: absolute;
+    left: 0;
+    right: 0;
+    bottom: -0.42rem;
+    height: 0.14rem;
+    border-radius: 0.07rem;
+    background: linear-gradient(90deg,
+        rgba(255, 222, 138, 0) 0%,
+        rgba(255, 222, 138, 0.85) 18%,
+        rgba(255, 236, 180, 0.95) 50%,
+        rgba(255, 222, 138, 0.85) 82%,
+        rgba(255, 222, 138, 0) 100%);
+}
+.con-eg__champ-keel--animate {
+    animation: con-eg-champ-keel-in calc(520ms * var(--motion-scale, 1)) @con-ease-standard backwards;
+}
+@keyframes con-eg-champ-keel-in {
+    from { transform: scaleX(0); opacity: 0; }
+    to { transform: scaleX(1); opacity: 1; }
+}
+
+/* The zone note SLOT (campaign finale only) — the header idiom: fixed
+ * height, layered keyed crossfade («Совместная победа» → «Чемпионы
+ * кампании» without a blank beat or a reflow). */
+.con-eg__wnote-slot {
+    position: relative;
+    height: 1.15rem;
+    align-self: stretch;
+}
+.con-eg__wnote-slot .con-eg__wnote {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
 /* ── Density ladders (profiles) ──────────────────────────────────── */
 html.con-profile-handheld {
     .con-eg { max-width: 100%; padding: 0.6rem 0.8rem 0.4rem; }
@@ -973,4 +1157,14 @@ html.con-profile-handheld {
     .con-eg__subseg { transition-duration: 120ms; }
     .con-eg__reclaim { transition-duration: 120ms; }
     .con-eg__chip { transition-duration: 120ms; }
+    /* The champion ceremony's SEMANTIC version: the header still turns, the
+     * plate and its pips still appear (instantly), the keel still fixes the
+     * result — only the travel is gone (no sweep, no unfold). */
+    .con-eg__champline--animate,
+    .con-eg__champline--animate .con-eg__champline-pip,
+    .con-eg__champ-keel--animate {
+        animation-duration: 1ms !important;
+        animation-delay: 0ms !important;
+    }
+    .con-eg__champ-rim-bar { animation: none; }
 }

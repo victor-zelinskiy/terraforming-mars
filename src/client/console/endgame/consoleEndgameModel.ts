@@ -91,6 +91,15 @@ export type ConsoleEndgameRow = {
   isWinner: boolean;
 };
 
+/** The FINAL campaign mission fact — present exactly when this game is the
+ *  campaign's last mission. The ceremony reads it to append the CHAMPION beat
+ *  (the endgame winner IS the campaign champion: Title Points already scored
+ *  as the ordinary «titles» category, so no second ranking ever exists). */
+export type ConsoleEndgameCampaignFinale = {
+  /** How many missions the campaign ran (the champion plate's pip motif). */
+  missionCount: number;
+};
+
 export type ConsoleEndgameVm = {
   /** Rows in NEUTRAL seating order — ranking is a ceremony STAGE, not a given. */
   rows: ReadonlyArray<ConsoleEndgameRow>;
@@ -109,6 +118,8 @@ export type ConsoleEndgameVm = {
   /** MarsBot won ON THE CLOCK — overrides the score comparison entirely. */
   automaClockWin: boolean;
   generation: number;
+  /** Present ⇔ this is the campaign's FINAL mission (the champion ceremony). */
+  campaignFinale: ConsoleEndgameCampaignFinale | undefined;
 };
 
 // ── category tables ────────────────────────────────────────────────────────
@@ -225,6 +236,10 @@ export const TR_SUB_LABEL: Readonly<Record<string, string>> = {
 export type ConsoleEndgameVmOptions = {
   /** Colors of MarsBot seats (from `PublicPlayerModel.isMarsBot`). */
   botColors?: ReadonlyArray<Color>;
+  /** The campaign's FINAL mission (from the server's `gameOptions.campaign`
+   *  contract — never a client guess). Absent for ordinary games and for
+   *  campaign missions 1..N-1, which must see zero ceremony changes. */
+  campaignFinale?: ConsoleEndgameCampaignFinale;
 };
 
 /**
@@ -334,6 +349,7 @@ export function buildConsoleEndgameVm(
     soloWin: model.soloWin,
     automaClockWin: model.automaClockWin,
     generation: reveal.generation,
+    campaignFinale: options?.campaignFinale,
   };
 }
 

@@ -32,10 +32,15 @@ import {resetConsoleOverview} from '@/client/console/endgame/consoleOverviewStat
  * The ceremony state machine. `executing`-style transient beats are timeline
  * territory; these are the OBSERVABLE stages the template renders.
  *
- *   idle → entering → scoring → settling → ranking → [tiebreak] → winner → actions
+ *   idle → entering → scoring → settling → ranking → [tiebreak] → winner →
+ *   [champion] → actions
  *
- * `actions` is the SETTLED terminal state — fully interactive, restored on
- * re-entry, reached instantly by skip/reload.
+ * `champion` exists ONLY on a campaign's final mission (vm.campaignFinale):
+ * the mandatory champion ceremony — the workspace publishes no commands and
+ * absorbs every press for its ~5s, so it can never be skipped, collapsed or
+ * broken by mashing (the animation-hold supplier already covers it as a
+ * pre-`actions` stage). `actions` is the SETTLED terminal state — fully
+ * interactive, restored on re-entry, reached instantly by skip/reload.
  */
 export type CeremonyPhase =
   | 'idle'
@@ -45,7 +50,12 @@ export type CeremonyPhase =
   | 'ranking'
   | 'tiebreak'
   | 'winner'
+  | 'champion'
   | 'actions';
+
+/** Where inside the champion beat the ceremony stands (0 while the fixed
+ *  result holds still; each step is a MEANING — see consoleEndgameScript). */
+export type ChampionStage = 0 | 1 | 2 | 3 | 4;
 
 /** The inner stage of the active category's four-part phrase. */
 export type CeremonyBeatStage = '' | 'focus' | 'grow' | 'settle';
@@ -83,6 +93,13 @@ export const consoleEndgameUi = reactive({
   /** Tie-break stage: 0 announce · 1 values · 2 resolved. */
   tieStage: 0,
   winnerShown: false,
+  /** Champion beat stage: 0 pause · 1 seal (header) · 2 sweep (row frame) ·
+   *  3 plate («ЧЕМПИОН КАМПАНИИ» + mission pips) · 4 fix (the VP accent). */
+  championStage: 0 as ChampionStage,
+  /** TERMINAL campaign-final fact: the settled screen keeps the champion
+   *  state («Кампания завершена» header, the champion plate) — set by the
+   *  natural ending, skip AND reload alike (finalizeCeremony). */
+  championShown: false,
   actionsOn: false,
 
   /** Post-game action list focus (survives the overlay round-trip). */
@@ -129,6 +146,8 @@ export function resetCeremonyProgress(): void {
   s.placesShown = false;
   s.tieStage = 0;
   s.winnerShown = false;
+  s.championStage = 0;
+  s.championShown = false;
   s.actionsOn = false;
   s.actionsFocus = 0;
 }
@@ -177,6 +196,11 @@ export function finalizeCeremony(vm: ConsoleEndgameVm): void {
   s.placesShown = true;
   s.tieStage = vm.tieBreak !== undefined ? 2 : 0;
   s.winnerShown = true;
+  // The campaign finale's terminal state exists exactly once too: the header
+  // stays «Кампания завершена», the plate stays «Чемпион кампании» — for the
+  // natural ending, the scoring skip and a reload into the ended game alike.
+  s.championStage = vm.campaignFinale !== undefined ? 4 : 0;
+  s.championShown = vm.campaignFinale !== undefined;
   s.actionsOn = true;
   s.actionsFocus = 0;
   s.ceremonyPlayed = true;

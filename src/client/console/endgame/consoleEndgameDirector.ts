@@ -40,6 +40,9 @@ export type CeremonyHooks = {
   onWinnerFx: () => void,
   /** The live count-up sink — a DIRECT DOM write, one integer per frame. */
   onCount: (color: string, value: number) => void,
+  /** The champion FIX accent (a quiet ping on each champion total) — fired
+   *  once at the champion beat's fix window. Campaign finale only. */
+  onChampionFx?: () => void,
 };
 
 export type CeremonyHandle = {
@@ -265,6 +268,40 @@ export function runEndgameCeremony(vm: ConsoleEndgameVm, hooks: CeremonyHooks): 
         hooks.onWinnerFx();
       }, [], at);
       at += sec(beat.ms);
+      break;
+
+    case 'champion':
+      // The MANDATORY campaign-champion ceremony (final mission only). One
+      // beat, five windows — each advances a reactive stage the template's
+      // CSS narrates. Entering the phase is what locks the pad (the
+      // workspace absorbs every press while `phase === 'champion'`) and what
+      // separates the count from the crowning (the root's phase class dims
+      // the surroundings). The PAUSE window deliberately changes nothing
+      // else: the result stands fixed, still, before the campaign speaks.
+      tl.call(() => {
+        s.phase = 'champion';
+        s.championStage = 0;
+      }, [], at);
+      at += sec(beat.pauseMs);
+      tl.call(() => {
+        s.championStage = 1; // seal — «ИТОГИ ПАРТИИ» → «КАМПАНИЯ ЗАВЕРШЕНА»
+      }, [], at);
+      at += sec(beat.sealMs);
+      tl.call(() => {
+        s.championStage = 2; // sweep — light runs the champion row's frame
+      }, [], at);
+      at += sec(beat.sweepMs);
+      tl.call(() => {
+        s.championStage = 3; // plate — «ПОБЕДИТЕЛЬ» → «ЧЕМПИОН КАМПАНИИ»
+      }, [], at);
+      at += sec(beat.plateMs);
+      tl.call(() => {
+        s.championStage = 4; // fix — the final VP total's fixation accent
+        hooks.onChampionFx?.();
+      }, [], at);
+      at += sec(beat.fixMs);
+      // The reading hold — deliberately empty stillness before the actions.
+      at += sec(beat.holdMs);
       break;
 
     case 'actions':

@@ -115,6 +115,46 @@ the natural ending, reload-into-END and the safety net all land there;
 player off the board). The animation-hold supplier (`endgame-ceremony`)
 reads the reactive phase AND releases while collapsed.
 
+### The CAMPAIGN CHAMPION beat (final mission only)
+
+`vm.campaignFinale` (from the server's `gameOptions.campaign` contract:
+`final === true`) appends ONE `champion` beat between `winner` and `actions` —
+the mandatory campaign coronation, on the SAME timeline (pause/resume, skip,
+safety net and idempotency inherited). Five windows (~5s base), each a
+reactive `championStage` the CSS narrates: **pause** (the result stands
+fixed; `.con-endgame--champion` recedes the rail/caption/meta and deepens the
+rest-rows' step-back) → **seal** (the header slot crossfades «ИТОГИ ПАРТИИ» →
+«КАМПАНИЯ ЗАВЕРШЕНА») → **sweep** (a one-shot light bar runs the champion
+row's own frame; the row gains the persistent `--champion` deepened gold) →
+**plate** (the «ПОБЕДИТЕЛЬ» ribbon fades while `.con-eg__champline` unfolds
+on the same anchor: «ЧЕМПИОН КАМПАНИИ» + the player-color swatch + one pip
+per mission lighting in sequence) → **fix** (a gold ping + a GSAP scale pulse
+on the final total — deliberately NOT a CSS animation swap, which would
+restart the winner crown pulse when the phase class drops — and the
+persistent gold KEEL mounts under the number) → a reading hold.
+
+Rules the beat obeys: it is a DECORATIVE LAYER — every mark is absolute, the
+row grid never re-flows (e2e-pinned rect-equality across the whole act). It
+CANNOT be skipped: `handleIntent` absorbs the whole pad and `footCommands`
+returns `[]` while `phase === 'champion'` (no stale hints, mash-proof); the
+animation-hold supplier already covers it as a pre-`actions` phase, and the
+director's safety net / unmount finalize keep the lock bounded.
+`finalizeCeremony` carries the TERMINAL campaign state (`championStage: 4`,
+`championShown`) so the scoring skip, a reload into the ended campaign and
+the natural ending all land on the same settled screen: header «Кампания
+завершена», plates, keels, full row readability, actions focused on
+«Хроника кампании» (the campaign-map door leads the list). «Повторить
+подсчёт» resets the marks and replays the full act. Ties share the
+championship: every `vm.winners` row gets an EQUAL plate/frame/keel (the
+zone note turns «Чемпионы кампании» in its fixed-height slot); the MarsBot
+rides the same path (no bot branch exists). Reduced motion keeps the
+SEMANTIC act (header turn, instant plate+pips, keel) with no travel.
+Missions 1–3 and ordinary games see zero changes (no beat is emitted), and
+the Governor emblem is never the champion mark — the plate is
+(`campaignRowBadges` carries per-mission titles only). E2E: a REAL final
+mission (`tests/e2e/console-campaign-endgame.spec.ts` — dev fast-forward ×3
+with single-corp lineages, mission 4 played through the shared harness).
+
 **The WINNER IS THE ROW** — a hero treatment of the first row (gold rim +
 wash, the «ПОБЕДИТЕЛЬ» ribbon standing on the row's top edge, gold place
 numeral and total with a one-shot crown pulse), never a duplicate plate

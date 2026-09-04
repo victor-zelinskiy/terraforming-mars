@@ -54,6 +54,20 @@ export const CEREMONY_MS = {
   tieResolve: 480,
   /** The winner beat (row hero + burst) before the actions arrive. */
   winner: 1500,
+  /** ── THE CAMPAIGN CHAMPION beat (final mission only) — five windows of ONE
+   *  beat, ~5s total: the mission's winner reveal has landed, and the four-
+   *  mission arc now closes over it. Every window is a MEANING, not a timing:
+   *  pause (the result is fixed; the interface separates the count from the
+   *  crowning) → seal («ИТОГИ ПАРТИИ» → «КАМПАНИЯ ЗАВЕРШЕНА») → sweep (light
+   *  runs the champion row's own frame) → plate («ПОБЕДИТЕЛЬ» becomes
+   *  «ЧЕМПИОН КАМПАНИИ», the mission pips light in sequence) → fix (the final
+   *  VP total's one strong, restrained fixation) → hold (read the result). */
+  championPause: 620,
+  championSeal: 850,
+  championSweep: 1000,
+  championPlate: 1050,
+  championFix: 700,
+  championHold: 1250,
   /** The action list materializes. */
   actionsIn: 360,
 } as const;
@@ -69,6 +83,7 @@ export type CeremonyBeat =
   | {kind: 'tiebreak', announceMs: number, valuesMs: number, resolveMs: number}
   | {kind: 'winnerHold', ms: number}
   | {kind: 'winner', ms: number}
+  | {kind: 'champion', pauseMs: number, sealMs: number, sweepMs: number, plateMs: number, fixMs: number, holdMs: number}
   | {kind: 'actions', ms: number};
 
 /** The full beat list for this game's VM — the director plays it verbatim. */
@@ -98,6 +113,21 @@ export function ceremonyBeats(vm: ConsoleEndgameVm): Array<CeremonyBeat> {
   }
   beats.push({kind: 'winnerHold', ms: CEREMONY_MS.winnerHold});
   beats.push({kind: 'winner', ms: CEREMONY_MS.winner});
+  if (vm.campaignFinale !== undefined) {
+    // The campaign's own finale — ONLY on the last mission, and only after
+    // the full ordinary sequence (every category incl. «Титулы» settled, the
+    // ranking FLIPped, the tie-break resolved, the winner revealed). The
+    // endgame winner IS the campaign champion: no second ranking, ever.
+    beats.push({
+      kind: 'champion',
+      pauseMs: CEREMONY_MS.championPause,
+      sealMs: CEREMONY_MS.championSeal,
+      sweepMs: CEREMONY_MS.championSweep,
+      plateMs: CEREMONY_MS.championPlate,
+      fixMs: CEREMONY_MS.championFix,
+      holdMs: CEREMONY_MS.championHold,
+    });
+  }
   beats.push({kind: 'actions', ms: CEREMONY_MS.actionsIn});
   return beats;
 }
@@ -108,6 +138,7 @@ export function beatLengthMs(beat: CeremonyBeat): number {
   case 'category': return beat.focusMs + beat.growMs + beat.settleMs + beat.pauseMs;
   case 'ranking': return beat.ms + beat.placesMs;
   case 'tiebreak': return beat.announceMs + beat.valuesMs + beat.resolveMs;
+  case 'champion': return beat.pauseMs + beat.sealMs + beat.sweepMs + beat.plateMs + beat.fixMs + beat.holdMs;
   default: return beat.ms;
   }
 }

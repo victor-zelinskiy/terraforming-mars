@@ -81,8 +81,35 @@
           <div v-for="(color, i) in rowOrder" :key="color"
                class="con-eg__row" :class="rowClass(color)"
                :data-eg-row="color" :style="{'--eg-i': i}">
-            <div v-if="rowRibbon(color) !== undefined" class="con-eg__ribbon"
-                 :class="{'con-eg__ribbon--defeat': soloDefeat}">{{ $t(rowRibbon(color)!) }}</div>
+            <!-- The «ПОБЕДИТЕЛЬ» ribbon and the «ЧЕМПИОН КАМПАНИИ» plate are
+                 ONE anchor (the row's top-left shoulder): on the campaign's
+                 final mission the ribbon RELEASES (fade) while the plate
+                 unfolds in its place — a transformation, never a swap. Both
+                 absolute: zero layout impact at any density, ever. -->
+            <transition name="con-eg-fade">
+              <div v-if="rowRibbon(color) !== undefined" class="con-eg__ribbon"
+                   :class="{'con-eg__ribbon--defeat': soloDefeat}">{{ $t(rowRibbon(color)!) }}</div>
+            </transition>
+            <div v-if="championPlateFor(color)" class="con-eg__champline"
+                 :class="{'con-eg__champline--animate': campaignCodaAnimated}">
+              <!-- The ceremonial gold carries the CHAMPION's own color inside
+                   its fixed geometry — the one sanctioned player linkage. -->
+              <span class="con-eg__champline-swatch" :class="'player_bg_color_' + color" aria-hidden="true"></span>
+              <span class="con-eg__champline-label">{{ $t('Campaign champion') }}</span>
+              <!-- The four-mission motif: one pip per mission, lighting in
+                   sequence — the arc that this row just closed. Fixed
+                   geometry inside the plate; the full route story stays on
+                   the campaign map. -->
+              <span class="con-eg__champline-pips" aria-hidden="true">
+                <span v-for="p in missionPipCount" :key="p" class="con-eg__champline-pip" :style="{'--pip-i': p - 1}"></span>
+              </span>
+            </div>
+            <!-- The RIM SWEEP — a transient light running the champion row's
+                 own frame (live ceremony only; it ends invisible, so its
+                 unmount at settle can never pop). -->
+            <div v-if="championSweepFor(color)" class="con-eg__champ-rim" aria-hidden="true">
+              <span class="con-eg__champ-rim-bar"></span>
+            </div>
             <!-- CAMPAIGN TITLE — a compact mark ON the holder's own row (the
                  ribbon's idiom, the row's other shoulder). The row is where a
                  player reads their result, so the title marks it there; the
@@ -161,6 +188,12 @@
                    directly (a reactive write per frame re-lays the row). -->
               <span class="con-eg__total-num" :data-eg-total="color">0</span>
               <span class="con-eg__total-cap">{{ $t('VP') }}</span>
+              <!-- The champion KEEL — the fixation's persistent witness: a
+                   thin gold bar under the final total, mounted at the FIX
+                   window and kept by the settled screen (absolute — zero
+                   layout impact; reduced motion still gets its appearance). -->
+              <span v-if="championFixFor(color)" class="con-eg__champ-keel"
+                    :class="{'con-eg__champ-keel--animate': campaignCodaAnimated}" aria-hidden="true"></span>
             </div>
           </div>
         </div>
@@ -187,7 +220,16 @@
           </div>
         </transition>
         <div class="con-eg__final">
-          <transition name="con-eg-fade">
+          <!-- On the campaign finale the note TRANSFORMS mid-scene («Совместная
+               победа» → «Чемпионы кампании»), so it needs the header's own
+               idiom: a fixed-height slot + layered keyed crossfade. Ordinary
+               games keep the original markup byte for byte. -->
+          <div v-if="campaignFinal" class="con-eg__wnote-slot">
+            <transition name="con-eg-xfade">
+              <div v-if="zoneNote !== undefined && ui.winnerShown" :key="zoneNote" class="con-eg__wnote">{{ $t(zoneNote) }}</div>
+            </transition>
+          </div>
+          <transition v-else name="con-eg-fade">
             <div v-if="zoneNote !== undefined && ui.winnerShown" class="con-eg__wnote">{{ $t(zoneNote) }}</div>
           </transition>
           <transition name="con-eg-rise">
@@ -367,17 +409,17 @@ export default defineComponent({
       return campaignState.model?.missions[contract.missionSlot]?.result;
     },
     /**
-     * The per-row TITLE BADGE map (Color → badge). One badge per row: on the
-     * final mission the champion mark outranks (title POINTS are already the
-     * scoring bar's own «Титулы» category there); missions 1–3 mark the title.
-     * A seat with only a comeback bonus gets no row mark — that consequence
-     * belongs to the NEXT mission and reads on the campaign map's seat rail.
+     * The per-row TITLE BADGE map (Color → badge) — MISSIONS 1–3 only: the
+     * mission's title marks the holder's row. The final mission carries NO
+     * title badges (title POINTS are already the scoring bar's own «Титулы»
+     * category there) and the champion mark is the ceremony's own plate on
+     * the winner row — never a Governor-art badge (Governor stays a separate
+     * per-mission title, not the champion's emblem). A seat with only a
+     * comeback bonus gets no row mark — that consequence belongs to the NEXT
+     * mission and reads on the campaign map's seat rail.
      */
     campaignRowBadges(): Partial<Record<Color, {kind: string, art: TitleName, label: string, tp: number, order: number}>> {
       const out: Partial<Record<Color, {kind: string, art: TitleName, label: string, tp: number, order: number}>> = {};
-      for (const seat of this.campaignChampionRows) {
-        out[seat.color] = {kind: 'champion', art: 'governor', label: 'Campaign champion', tp: 0, order: 0};
-      }
       this.campaignTitleRows.forEach((row, i) => {
         if (out[row.color] === undefined) {
           out[row.color] = {kind: row.title, art: row.title, label: row.label, tp: row.titlePoints, order: i};
@@ -414,13 +456,6 @@ export default defineComponent({
           };
         });
     },
-    campaignChampionRows(): ReadonlyArray<{seat: number, name: string, color: Color}> {
-      const result = this.campaignResult;
-      if (result === undefined || this.campaignContract?.final !== true) {
-        return [];
-      }
-      return (result.championSeats ?? []).map((seat) => ({seat, ...this.campaignSeatName(seat)}));
-    },
     /** The viewer's carryover door data (owner-only wire fields). */
     carryEligible(): ReadonlyArray<CardName> {
       return campaignState.model?.carryover?.yourEligible ?? [];
@@ -446,13 +481,37 @@ export default defineComponent({
     },
     vm(): ConsoleEndgameVm {
       const order = this.playerView.players.map((p) => p.color);
-      return buildConsoleEndgameVm(this.model, order, {botColors: botColorsFromView(this.playerView)});
+      const contract = this.campaignContract;
+      return buildConsoleEndgameVm(this.model, order, {
+        botColors: botColorsFromView(this.playerView),
+        // The FINAL campaign mission fact rides the server's own contract —
+        // it is what appends the champion beat to the ceremony script.
+        ...(contract !== undefined && contract.final ?
+          {campaignFinale: {missionCount: contract.missionCount}} : {}),
+      });
+    },
+    campaignFinal(): boolean {
+      return this.vm.campaignFinale !== undefined;
+    },
+    /** The champion plate stands from the champion beat's PLATE window on —
+     *  and forever after (finalize keeps stage 4 on the settled screen). */
+    championPlateOn(): boolean {
+      return this.ui.championStage >= 3;
+    },
+    missionPipCount(): number {
+      return this.vm.campaignFinale?.missionCount ?? 0;
     },
     densityN(): number {
       return Math.min(Math.max(this.vm.rows.length, 2), 5);
     },
     headTitle(): string {
-      return this.ui.phase === 'actions' ? 'Game results' : 'Final scoring';
+      // The campaign finale's header arc: «ФИНАЛЬНЫЙ ПОДСЧЁТ» → (the result
+      // fixes) «ИТОГИ ПАРТИИ» → (the seal window) «КАМПАНИЯ ЗАВЕРШЕНА», which
+      // the settled screen then keeps. Ordinary games never see the third.
+      if (this.ui.championStage >= 1 || this.ui.championShown) {
+        return 'Campaign complete';
+      }
+      return this.ui.phase === 'actions' || this.ui.phase === 'champion' ? 'Game results' : 'Final scoring';
     },
     rowOrder(): ReadonlyArray<Color> {
       return this.ui.ranked ? this.vm.rankedColors : this.vm.rows.map((r) => r.color);
@@ -515,7 +574,10 @@ export default defineComponent({
         return 'Won on the clock — the final generation was reached';
       }
       if (this.sharedWin) {
-        return 'Shared victory';
+        // A FULL tie on the campaign finale shares the championship — the
+        // note announces the plural the moment the plates transform. Every
+        // tied row carries its own equal plate; no «main» champion exists.
+        return this.championPlateOn ? 'Campaign champions' : 'Shared victory';
       }
       return undefined;
     },
@@ -624,6 +686,12 @@ export default defineComponent({
         // BOARD HOME run, the one level where it is actually the next step.
         // Publishing it from here put one verb over every screen the player
         // walked to and hid what that screen could actually do.
+        return [];
+      }
+      if (this.ui.phase === 'champion') {
+        // THE MANDATORY CHAMPION CEREMONY: no commands at all. Every hint
+        // here would advertise a press the scene deliberately absorbs — and
+        // a controller bar must never promise what it will not honour.
         return [];
       }
       if (this.campaignScene === 'map') {
@@ -885,6 +953,10 @@ export default defineComponent({
       const contender = this.ui.phase === 'tiebreak' && (this.vm.tieBreak?.contenders.includes(color) ?? false);
       return {
         'con-eg__row--winner': winner,
+        // The champion FRAME deepens the winner gold from the sweep window on
+        // and stays on the settled screen — the campaign's status is a state,
+        // not an effect. Every tied champion row carries it equally.
+        'con-eg__row--champion': this.ui.championStage >= 2 && this.vm.winners.includes(color),
         'con-eg__row--solo-defeat': this.soloDefeat && this.ui.winnerShown,
         // The rest of the table steps back HALF a tone — readable, never grey noise.
         'con-eg__row--rest': this.ui.winnerShown && !winner && this.vm.winners.length > 0,
@@ -899,7 +971,27 @@ export default defineComponent({
       if (this.vm.mode === 'solo') {
         return this.vm.soloWin ? 'Victory' : 'Defeat';
       }
-      return this.vm.winners.includes(color) ? 'Winner' : undefined;
+      if (!this.vm.winners.includes(color)) {
+        return undefined;
+      }
+      // On the campaign finale the ribbon yields to the champion plate at the
+      // plate window (the ribbon's fade + the plate's unfold share the anchor
+      // — one transformation). Before that window it reads «ПОБЕДИТЕЛЬ»: the
+      // mission is won first, the campaign crowns second.
+      return this.championPlateOn ? undefined : 'Winner';
+    },
+    /** The champion plate — every row that shares first place, equally. */
+    championPlateFor(color: Color): boolean {
+      return this.championPlateOn && this.vm.winners.includes(color);
+    },
+    /** The rim sweep — transient, live champion ceremony only (its unmount
+     *  at settle is invisible: the bar's one-shot run ends at opacity 0). */
+    championSweepFor(color: Color): boolean {
+      return this.ui.phase === 'champion' && this.ui.championStage >= 2 && this.vm.winners.includes(color);
+    },
+    /** The final VP fixation accent (the champion beat's FIX window). */
+    championFixFor(color: Color): boolean {
+      return this.ui.championStage >= 4 && this.vm.winners.includes(color);
     },
     /** The campaign TITLE badge for this row — only once the winner is shown
      *  (the titles are a consequence of the standings, so they may never mark
@@ -931,10 +1023,14 @@ export default defineComponent({
       this.teardown();
       resetCeremonyProgress();
       consoleEndgameUi.ceremonyPlayed = true;
+      // A live run (first play AND every explicit replay) animates its coda
+      // marks; the settled-reload path never sets this.
+      this.campaignCodaAnimated = true;
       this.handle = runEndgameCeremony(this.vm, {
         onRankFlip: () => this.performRankFlip(),
         onWinnerFx: () => this.fireWinnerFx(),
         onCount: (color, value) => this.writeTotal(color, value),
+        onChampionFx: () => this.fireChampionFx(),
       });
     },
     replayCeremony(): void {
@@ -1026,6 +1122,40 @@ export default defineComponent({
         });
       });
     },
+    /** The champion FIX accent — one strong, restrained beat on every champion
+     *  total, EQUAL across a shared championship (no «main» champion): a gold
+     *  ping + a single GSAP scale pulse on the number (deliberately not a CSS
+     *  class — swapping the number's `animation` would restart the winner
+     *  crown pulse when the phase class drops). Reduced motion keeps only the
+     *  keel's semantic appearance (the fx module spawns nothing, the pulse is
+     *  skipped). Tweens register with the director's cleanup, so an unmount
+     *  or safety-net finalize can never strand a half-scaled number. */
+    fireChampionFx(): void {
+      void this.$nextTick(() => {
+        const rowsEl = this.$refs.rowsEl as HTMLElement | undefined;
+        for (const color of this.vm.winners) {
+          const host = rowsEl?.querySelector<HTMLElement>(`[data-eg-row="${color}"] .con-eg__total`);
+          if (host !== null && host !== undefined) {
+            this.bursts.push(playCeremonyBurst({
+              host, accent: 'gold', reduced: this.reduced, intensity: 'ping',
+            }));
+          }
+          if (this.reduced) {
+            continue;
+          }
+          const num = rowsEl?.querySelector<HTMLElement>(`[data-eg-row="${color}"] .con-eg__total-num`);
+          if (num !== null && num !== undefined) {
+            const tween = gsap.fromTo(num,
+              {scale: 1},
+              {scale: 1.14, duration: consoleMotionMs(260) / 1000, ease: 'power2.out', yoyo: true, repeat: 1, clearProps: 'transform'});
+            this.handle?.addCleanup(() => {
+              tween.kill();
+              gsap.set(num, {clearProps: 'transform'});
+            });
+          }
+        }
+      });
+    },
     /** The winner burst — full on the first winner row, a quiet ping on
      *  co-winners (one main focus, even in a shared victory). */
     fireWinnerFx(): void {
@@ -1109,6 +1239,15 @@ export default defineComponent({
       }
       if (this.campaignScene === 'carryover') {
         (this.$refs.carryPicker as {handleIntent?: (i: GamepadIntent) => boolean} | undefined)?.handleIntent?.(intent);
+        return;
+      }
+      // THE MANDATORY CHAMPION CEREMONY absorbs the whole pad: no skip (X),
+      // no collapse (B), no confirm (A), no navigation — mashing lands on
+      // nothing and can never break the sequence. Control returns atomically
+      // when the director reaches `actions`; if anything goes wrong first,
+      // the director's safety net / unmount finalize there anyway, so the
+      // lock is bounded by construction.
+      if (this.ui.phase === 'champion') {
         return;
       }
       if (intent.kind === 'nav') {

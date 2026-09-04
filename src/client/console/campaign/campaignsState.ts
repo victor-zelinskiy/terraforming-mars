@@ -83,11 +83,12 @@ function campaignsQuery(name: string): string {
   return `?name=${encodeURIComponent(name)}`;
 }
 
-async function refreshLocalCampaigns(name: string): Promise<void> {
+type LocalOutcome = 'ok' | 'failed' | 'stale';
+
+/** Fetch + store the LOCAL slice. Writes NO screen state — status and rows
+ *  must move in ONE reactive flush (see the tail of {@link refreshCampaigns}). */
+async function refreshLocalCampaigns(name: string): Promise<LocalOutcome> {
   const seq = nextSeq(LOCAL_SOURCE_ID);
-  if (campaignsState.status === 'idle' || campaignsState.loadedForName !== name) {
-    campaignsState.status = 'loading';
-  }
   try {
     const res = await fetch(apiUrl(paths.API_CAMPAIGNS) + campaignsQuery(name));
     if (!res.ok) {
@@ -95,21 +96,12 @@ async function refreshLocalCampaigns(name: string): Promise<void> {
     }
     const summaries = await res.json() as Array<CampaignSummaryModel>;
     if (seqs.get(LOCAL_SOURCE_ID) !== seq) {
-      return;
+      return 'stale';
     }
     sourceRows.set(LOCAL_SOURCE_ID, {hostLabel: '', endpoint: undefined, summaries: Array.isArray(summaries) ? summaries : []});
-    campaignsState.status = 'ok';
-    campaignsState.loadedForName = name;
+    return 'ok';
   } catch (err) {
-    if (seqs.get(LOCAL_SOURCE_ID) !== seq) {
-      return;
-    }
-    // The lobby rule: rows survive a failed refresh; only STATUS may flip,
-    // and only when there is nothing to show for this identity.
-    if (campaignsState.status !== 'ok' || campaignsState.loadedForName !== name) {
-      sourceRows.delete(LOCAL_SOURCE_ID);
-      campaignsState.status = 'error';
-    }
+    return seqs.get(LOCAL_SOURCE_ID) !== seq ? 'stale' : 'failed';
   }
 }
 
@@ -200,6 +192,9 @@ export async function refreshCampaigns(): Promise<void> {
   }
   inFlight = true;
   campaignsState.refreshing = true;
+  if (campaignsState.status === 'idle' || campaignsState.loadedForName !== name) {
+    campaignsState.status = 'loading';
+  }
   try {
     // LAN endpoints come from the lobby model (verified there); a source the
     // lobby has not resolved yet is simply asked on the next trigger — the
@@ -207,11 +202,28 @@ export async function refreshCampaigns(): Promise<void> {
     const lan = lobbyState.sources
       .filter((s) => s.kind === 'lan' && s.endpoint !== undefined)
       .map((s) => ({id: s.id, label: s.label, endpoint: s.endpoint as ServerEndpoint}));
-    await Promise.all([
+    const [localOutcome] = await Promise.all([
       refreshLocalCampaigns(name),
       ...lan.map((s) => refreshLanCampaigns(s.id, s.label, s.endpoint, name)),
     ]);
-    rebuildRows();
+    // ⚠ ONE synchronous block: rows and status must land in the SAME reactive
+    // flush. Split across an await, a watcher keyed on both (the return-focus
+    // restore) fires on «ok» beside YESTERDAY's rows and consumes its one shot
+    // against a list the fresh campaign is not in yet — a determinstic miss,
+    // not a race.
+    if (localOutcome === 'ok') {
+      rebuildRows();
+      campaignsState.status = 'ok';
+      campaignsState.loadedForName = name;
+    } else if (localOutcome === 'failed' && (campaignsState.status !== 'ok' || campaignsState.loadedForName !== name)) {
+      // The lobby rule: rows survive a failed refresh; only STATUS may flip,
+      // and only when there is nothing to show for this identity.
+      sourceRows.delete(LOCAL_SOURCE_ID);
+      rebuildRows();
+      campaignsState.status = 'error';
+    } else {
+      rebuildRows(); // The LAN halves may still have moved.
+    }
   } finally {
     campaignsState.refreshing = false;
     inFlight = false;

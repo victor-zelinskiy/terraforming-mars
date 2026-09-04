@@ -156,10 +156,15 @@ test.describe('my campaigns list', () => {
     // Simulate the LAN entry: the campaign id pinned to an ABSOLUTE endpoint
     // (this very server — same origin, so the browser permits it; the routing
     // seam under test is identical to a real LAN host's address).
+    // ⚠ An init script re-runs on EVERY document — seed WITHOUT overwriting,
+    // or the player page's re-run wipes the pin the map just propagated.
     await page.addInitScript((cid) => {
-      window.localStorage.setItem('tm_server_endpoints', JSON.stringify({
-        [cid]: {apiBase: 'http://localhost:8080', wsBase: 'ws://localhost:8080', at: Date.now()},
-      }));
+      const raw = window.localStorage.getItem('tm_server_endpoints');
+      const map = raw !== null ? JSON.parse(raw) as Record<string, unknown> : {};
+      if (map[cid] === undefined) {
+        map[cid] = {apiBase: 'http://localhost:8080', wsBase: 'ws://localhost:8080', at: Date.now()};
+        window.localStorage.setItem('tm_server_endpoints', JSON.stringify(map));
+      }
     }, id);
     await page.goto(`${BASE}/campaign?id=${id}`);
     // The map loaded its model THROUGH the pin (a broken pin would 404 here).

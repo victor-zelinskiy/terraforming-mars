@@ -59,10 +59,13 @@ export function campaignConfig(overrides: Record<string, unknown> = {}) {
   };
 }
 
-export async function createCampaign(request: APIRequestContext): Promise<{id: string, name: string}> {
+export async function createCampaign(
+  request: APIRequestContext,
+  configOverrides: Record<string, unknown> = {},
+): Promise<{id: string, name: string}> {
   const key = `e2e-${Date.now()}-${Math.floor(Math.random() * 1e9)}`;
   const res = await request.post(`${CAMPAIGN_BASE}/api/campaign/create`, {
-    data: {key, name: 'Alice', config: campaignConfig()},
+    data: {key, name: 'Alice', config: campaignConfig(configOverrides)},
   });
   expect(res.ok(), await res.text()).toBeTruthy();
   const model = await res.json();
@@ -70,17 +73,30 @@ export async function createCampaign(request: APIRequestContext): Promise<{id: s
   return {id: model.id, name: model.name};
 }
 
-export async function launchMission(request: APIRequestContext, id: string): Promise<{gameId: string}> {
+export async function launchMission(request: APIRequestContext, id: string): Promise<{gameId: string, yourPlayerId?: string}> {
   const res = await request.post(`${CAMPAIGN_BASE}/api/campaign/launch?id=${id}&name=Alice`);
   expect(res.ok(), await res.text()).toBeTruthy();
-  return {gameId: (await res.json()).gameId};
+  const body = await res.json();
+  return {gameId: body.gameId, yourPlayerId: body.yourPlayerId};
 }
 
-export async function devCommit(request: APIRequestContext, id: string, placements: number[]): Promise<void> {
+export async function devCommit(
+  request: APIRequestContext,
+  id: string,
+  placements: number[],
+  fixture: {lineages?: Record<number, Array<string>>, carryover?: Record<number, Array<string>>} = {},
+): Promise<void> {
   const res = await request.post(`${CAMPAIGN_BASE}/api/campaign/dev?name=admin`, {
-    data: {campaignId: id, placements},
+    data: {campaignId: id, placements, ...fixture},
   });
   expect(res.ok(), await res.text()).toBeTruthy();
+}
+
+/** The viewer-scoped campaign model (per-seat fields like `yourPlayerId`). */
+export async function campaignModelAs(request: APIRequestContext, id: string, name: string): Promise<{missions: Array<{gameId?: string, yourPlayerId?: string}>}> {
+  const res = await request.get(`${CAMPAIGN_BASE}/api/campaign?id=${id}&name=${encodeURIComponent(name)}`);
+  expect(res.ok(), await res.text()).toBeTruthy();
+  return res.json();
 }
 
 /** Seed the local identity BEFORE the first navigation of this page. */

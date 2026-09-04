@@ -1,7 +1,7 @@
 import {expect} from 'chai';
 import {buildEndgameModel, EndgamePlayerInput} from '@/client/components/endgame/endgameModel';
-import {buildConsoleEndgameVm, ConsoleEndgameVm} from '@/client/console/endgame/consoleEndgameModel';
-import {ceremonyBeats, ceremonyTotalMs, CEREMONY_MS} from '@/client/console/endgame/consoleEndgameScript';
+import {buildConsoleEndgameVm, ConsoleEndgameVm, ConsoleEndgameVmOptions} from '@/client/console/endgame/consoleEndgameModel';
+import {beatLengthMs, ceremonyBeats, ceremonyTotalMs, CEREMONY_MS} from '@/client/console/endgame/consoleEndgameScript';
 import {
   consoleEndgameUi, ceremonyShouldPlay, finalizeCeremony, noteConsoleEndgameLivePhase,
   resetCeremonyProgress, resetConsoleEndgame,
@@ -37,10 +37,16 @@ function player(color: Color, name: string, b: Partial<VictoryPointsBreakdown>, 
   return {color, name, corporations: [], megacredits: 0, breakdown: breakdown(b), vpByGeneration: [], globalSteps: {}, ...extra};
 }
 
-function vmOf(inputs: ReadonlyArray<EndgamePlayerInput>): ConsoleEndgameVm {
+function vmOf(inputs: ReadonlyArray<EndgamePlayerInput>, options: ConsoleEndgameVmOptions = {}): ConsoleEndgameVm {
   const model = buildEndgameModel(inputs, {hasMoon: false, hasPathfinders: false, hasVenus: false, generation: 10});
-  return buildConsoleEndgameVm(model, inputs.map((p) => p.color), {});
+  return buildConsoleEndgameVm(model, inputs.map((p) => p.color), options);
 }
+
+/** The same rich table, played as the CAMPAIGN'S FINAL MISSION. */
+const finaleVm = () => vmOf([
+  player('red', 'A', {terraformRating: 33, greenery: 4, milestones: 5}),
+  player('blue', 'B', {terraformRating: 25, greenery: 1}),
+], {campaignFinale: {missionCount: 4}});
 
 const richVm = () => vmOf([
   player('red', 'A', {
@@ -131,6 +137,40 @@ describe('consoleEndgameScript', () => {
     expect(beats).to.deep.eq(['enter', 'category', 'preRank', 'ranking', 'winnerHold', 'winner', 'actions']);
   });
 
+  it('the CHAMPION beat exists exactly on the campaign finale — after the winner, before the actions', () => {
+    // Ordinary games and campaign missions 1–3 (no campaignFinale on the VM)
+    // must see ZERO ceremony changes — no champion beat at all.
+    expect(ceremonyBeats(richVm()).map((b) => b.kind)).to.not.include('champion');
+    const beats = ceremonyBeats(finaleVm()).map((b) => b.kind);
+    const championAt = beats.indexOf('champion');
+    expect(championAt).to.be.greaterThan(-1);
+    // The champion ceremony starts only once the FULL ordinary sequence is
+    // done: every category settled, ranking flipped, the winner revealed.
+    expect(beats[championAt - 1]).to.eq('winner');
+    expect(beats[championAt + 1]).to.eq('actions');
+    expect(beats.filter((k) => k === 'champion').length).to.eq(1);
+  });
+
+  it('a full tie on the finale still resolves BEFORE the champion beat (tiebreak → winner → champion)', () => {
+    const tiedFinale = vmOf([
+      player('red', 'A', {terraformRating: 30}, {megacredits: 8}),
+      player('blue', 'B', {terraformRating: 30}, {megacredits: 20}),
+    ], {campaignFinale: {missionCount: 4}});
+    const beats = ceremonyBeats(tiedFinale).map((b) => b.kind);
+    expect(beats.indexOf('tiebreak')).to.be.lessThan(beats.indexOf('winner'));
+    expect(beats.indexOf('winner')).to.be.lessThan(beats.indexOf('champion'));
+  });
+
+  it('the champion ceremony is a compact mandatory act (~4–6s), not a screensaver', () => {
+    const beats = ceremonyBeats(finaleVm());
+    const champion = beats.find((b) => b.kind === 'champion');
+    expect(champion).to.not.eq(undefined);
+    // The brief: roughly 4–6 seconds after the ordinary count settles.
+    expect(beatLengthMs(champion!)).to.be.within(4_000, 6_500);
+    // …and it never stretches the whole act out of its sanity bound.
+    expect(ceremonyTotalMs(beats)).to.be.lessThan(30_000);
+  });
+
   it('a MAIN category is a readable four-part phrase (the brief\'s windows)', () => {
     // preparation/focus ~160–260 · movement ~550–850 · settle ~180–300 ·
     // pause ~220–380 — the whole phrase stays a compact, readable event.
@@ -192,6 +232,43 @@ describe('consoleEndgameState', () => {
     expect(consoleEndgameUi.skipSeq).to.eq(seq + 1);
     expect(consoleEndgameUi.phase).to.eq('actions');
     expect(consoleEndgameUi.displayTotals['red']).to.eq(vm.rows[0].finalTotal);
+  });
+
+  it('finalize carries the CHAMPION terminal state exactly for the campaign finale', () => {
+    // Skip, reload-into-END and the natural ending all land here: on the
+    // finale the settled screen must KEEP the campaign state («Кампания
+    // завершена» header, the champion plate, the keel) — and an ordinary
+    // game must never gain a trace of it.
+    finalizeCeremony(finaleVm());
+    expect(consoleEndgameUi.championStage).to.eq(4);
+    expect(consoleEndgameUi.championShown).to.eq(true);
+    // The focus lands on the FIRST verb — on the finale that is the campaign
+    // map door («Хроника кампании»), the logical next step.
+    expect(consoleEndgameUi.actionsFocus).to.eq(0);
+    resetConsoleEndgame();
+    finalizeCeremony(richVm());
+    expect(consoleEndgameUi.championStage).to.eq(0);
+    expect(consoleEndgameUi.championShown).to.eq(false);
+  });
+
+  it('«Повторить подсчёт» replays the champion ceremony too — reset wipes the champion marks', () => {
+    finalizeCeremony(finaleVm());
+    resetCeremonyProgress(); // the explicit replay's first move
+    expect(consoleEndgameUi.championStage).to.eq(0);
+    expect(consoleEndgameUi.championShown).to.eq(false);
+    expect(consoleEndgameUi.phase).to.eq('idle');
+  });
+
+  it('a full FINALE tie shares the championship: finalize resolves both the tie-break and the champion state', () => {
+    const tiedFinale = vmOf([
+      player('red', 'A', {terraformRating: 30}, {megacredits: 20}),
+      player('blue', 'B', {terraformRating: 30}, {megacredits: 20}),
+    ], {campaignFinale: {missionCount: 4}});
+    // Equal totals AND equal M€ — a genuinely shared victory, never an index pick.
+    expect(tiedFinale.winners.length).to.eq(2);
+    finalizeCeremony(tiedFinale);
+    expect(consoleEndgameUi.championShown).to.eq(true);
+    expect(consoleEndgameUi.championStage).to.eq(4);
   });
 
   it('finalize resolves the tie-break stage exactly when the VM carries one', () => {
