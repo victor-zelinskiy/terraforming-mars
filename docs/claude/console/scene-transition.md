@@ -70,6 +70,35 @@ never under the curtain), the curtain plays `.con-load-fade-leave-active`
 deliberately instant (it must be opaque on the frame it is raised — the
 double-rAF navigation counts on that).
 
+## Live-hardware fixes (Steam Machine, 2026-09-04)
+
+Three defects only a real couch run exposed, all fixed at the source:
+
+1. **The phantom «Восстановить полноэкранный режим» plate.**
+   `requestConsoleFullscreen()` used to enter **DOM** fullscreen even inside
+   the Electron shell (on top of native window fullscreen). DOM fullscreen
+   dies at every navigation BY SPEC → the boot flags read «fullscreen lost»
+   → the curtain showed the restore plate → its retry re-entered DOM
+   fullscreen → every transition repeated the loop. Now: the native shell
+   (`supportsNativeFullscreen()`) is a strict no-op there, and BOTH sides of
+   the FS handoff (`navigateWithCurtain` writer, `consumeBootFlags` reader)
+   are browser-only. The restore prompt can no longer exist in the shell.
+2. **The curtain re-composing small → big at boot.** Under gamescope the
+   fresh window's dimensions are TRANSIENT for the first beats; an immediate
+   heuristic recompute painted scale 1, and the settled recompute visibly
+   re-scaled the curtain. `consoleLayoutProfile` now persists the last
+   SETTLED `{profile, uiScale}` (`tm_console_profile_seed`), paints the
+   first frame from it synchronously, holds ordinary recomputes for the
+   settle window (`seedGuardUntil`, 1.4 s) and confirms with one forced
+   recompute at 1.5 s. A user override keeps its profile but still seeds its
+   SCALE (a forced tv pick had the same jump). Display genuinely changed
+   between sessions → corrected once, usually under the curtain.
+3. **The phantom «Контроллер отключён» toast at game entry.** A Chromium /
+   Steam-Input DEVICE SWAP (focus change, the reload settling) arrives as
+   disconnect+connect on the same slot within milliseconds. The toast is
+   debounced (`PAD_LOSS_TOAST_MS` = 1.5 s): it speaks only if the pad count
+   has not recovered — a real unplug still toasts, a swap never does.
+
 ## Input
 
 `sceneTransitionInputLocked()` is consulted centrally in

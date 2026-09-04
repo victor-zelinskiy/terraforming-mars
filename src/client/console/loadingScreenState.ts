@@ -45,6 +45,7 @@
 import {reactive} from 'vue';
 import {motionMs} from '@/client/components/motion/motionTokens';
 import {probeTick} from '@/client/console/probeTick';
+import {supportsNativeFullscreen} from '@/client/console/runtimeMode';
 
 const BOOT_FLAG = 'tm_boot_curtain';
 const FS_FLAG = 'tm_fs_restore';
@@ -433,7 +434,12 @@ export function navigateWithCurtain(url: string, stage: LoadingStage = 'expediti
   beginLoading(stage, context, t0);
   try {
     sessionStorage.setItem(BOOT_FLAG, JSON.stringify({stage, context: loadingScreenState.context, t0}));
-    if (typeof document !== 'undefined' && document.fullscreenElement !== null) {
+    // The restore handoff is BROWSER-ONLY by design: the native shell's
+    // window fullscreen survives the reload, so flagging it there only
+    // produced a phantom «restore fullscreen» plate on every transition
+    // (DOM fullscreen state never survives a navigation BY SPEC).
+    if (!supportsNativeFullscreen() &&
+        typeof document !== 'undefined' && document.fullscreenElement !== null) {
       sessionStorage.setItem(FS_FLAG, '1');
     }
   } catch {
@@ -461,7 +467,10 @@ export function consumeBootFlags(): BootFlags | undefined {
     const fs = sessionStorage.getItem(FS_FLAG);
     sessionStorage.removeItem(BOOT_FLAG);
     sessionStorage.removeItem(FS_FLAG);
-    if (fs === '1' && typeof document !== 'undefined' && document.fullscreenElement === null) {
+    // Belt to the writer-side gate above: inside the native shell the window
+    // fullscreen is intact — never raise the restore prompt there.
+    if (fs === '1' && !supportsNativeFullscreen() &&
+        typeof document !== 'undefined' && document.fullscreenElement === null) {
       loadingScreenState.fullscreenLost = true;
     }
     if (raw === null) {

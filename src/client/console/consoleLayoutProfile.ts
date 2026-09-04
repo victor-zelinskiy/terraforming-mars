@@ -50,6 +50,15 @@ import {desktopBridge} from '@/client/components/desktop/desktopUpdateState';
 export type ConsoleLayoutProfile = 'handheld' | 'standard' | 'large' | 'tv';
 
 const STORAGE_KEY = 'tm_console_profile';
+/** The last RESOLVED profile+scale — the first-paint seed of the next page.
+ *  The game boundary is a full reload, and under gamescope/compositor
+ *  churn the fresh window's dimensions are TRANSIENT for the first beats:
+ *  an immediate heuristic recompute read a not-yet-fullscreen viewport,
+ *  painted the boot curtain at scale 1, and the settled recompute then
+ *  visibly re-composed it («графика загрузки скачет по скейлу»). The seed
+ *  paints the first frame with the LAST session's settled answer; the
+ *  heuristic confirms (or corrects) it once the window has settled. */
+const SEED_KEY = 'tm_console_profile_seed';
 const PROFILES: ReadonlyArray<ConsoleLayoutProfile> = ['handheld', 'standard', 'large', 'tv'];
 
 /** The settings ring for the display picker: 'auto' + every profile, in
@@ -240,7 +249,44 @@ function syncDisplayCssVars(): void {
   html.classList.add(`con-profile-${consoleLayoutState.profile}`);
 }
 
-function recompute(): void {
+type ProfileSeed = {profile: ConsoleLayoutProfile, uiScale: number};
+
+function readProfileSeed(): ProfileSeed | undefined {
+  try {
+    const raw = window.localStorage.getItem(SEED_KEY);
+    if (raw === null) {
+      return undefined;
+    }
+    const parsed = JSON.parse(raw) as ProfileSeed;
+    if (!PROFILES.includes(parsed.profile) || typeof parsed.uiScale !== 'number' || !Number.isFinite(parsed.uiScale)) {
+      return undefined;
+    }
+    return {profile: parsed.profile, uiScale: Math.min(TV_SCALE_MAX, Math.max(TV_SCALE_MIN, parsed.uiScale))};
+  } catch {
+    return undefined;
+  }
+}
+
+function writeProfileSeed(): void {
+  try {
+    window.localStorage.setItem(SEED_KEY, JSON.stringify({
+      profile: consoleLayoutState.profile,
+      uiScale: consoleLayoutState.uiScale,
+    }));
+  } catch {
+    // localStorage unavailable — the next boot just recomputes immediately.
+  }
+}
+
+/** While a first-paint SEED is standing, ordinary recomputes are deferred —
+ *  the window is still settling and a transient reading would visibly
+ *  re-compose the boot curtain (small → big → …). The settle pass forces. */
+let seedGuardUntil = 0;
+
+function recompute(force = false): void {
+  if (!force && Date.now() < seedGuardUntil) {
+    return;
+  }
   const w = window.innerWidth;
   const h = window.innerHeight;
   if (!consoleLayoutState.forced) {
@@ -250,6 +296,7 @@ function recompute(): void {
   }
   consoleLayoutState.uiScale = consoleLayoutState.profile === 'tv' ? computeTvUiScale(w, h) : 1;
   syncDisplayCssVars();
+  writeProfileSeed();
 }
 
 /** The current console UI scale for JS geometry (fit-engine ceilings,
@@ -281,7 +328,7 @@ export function setConsoleProfileOverride(profile: ConsoleLayoutProfile | 'auto'
     consoleLayoutState.reason = `override: user picked '${profile}'`;
   }
   if (typeof window !== 'undefined') {
-    recompute();
+    recompute(true); // an explicit user pick outranks the boot settle guard
     logDecision();
   }
 }
@@ -356,7 +403,29 @@ export function installConsoleLayoutProfile(): void {
     consoleLayoutState.reason = `override: '${override}' (tm_console_profile / ?consoleProfile=)`;
   }
   fetchElectronDisplayInfo();
-  recompute();
+  // FIRST PAINT FROM THE SEED: the last session's settled answer, applied
+  // synchronously so the boot curtain never re-composes mid-cover; the
+  // recompute runs once the window has settled (forced) and corrects
+  // honestly if the display genuinely changed between sessions. A user
+  // OVERRIDE keeps its profile, but its SCALE still needs the seed — a tv
+  // pick recomputed against a transient not-yet-fullscreen window was the
+  // same visible small→big jump.
+  const seed = readProfileSeed();
+  if (seed !== undefined && (!consoleLayoutState.forced || seed.profile === consoleLayoutState.profile)) {
+    if (!consoleLayoutState.forced) {
+      consoleLayoutState.profile = seed.profile;
+      consoleLayoutState.reason = `seed: last settled '${seed.profile}' ×${seed.uiScale} (recompute after the window settles)`;
+    }
+    consoleLayoutState.uiScale = seed.uiScale;
+    syncDisplayCssVars();
+    seedGuardUntil = Date.now() + 1400;
+    window.setTimeout(() => {
+      recompute(true);
+      logDecision();
+    }, 1500);
+  } else {
+    recompute();
+  }
   logDecision();
   window.addEventListener('resize', () => {
     if (rafPending) {

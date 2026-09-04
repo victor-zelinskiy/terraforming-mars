@@ -14,6 +14,7 @@
  */
 
 import {reactive} from 'vue';
+import {supportsNativeFullscreen} from '@/client/console/runtimeMode';
 
 const STORAGE_KEY = 'tm_console_mode';
 
@@ -102,6 +103,16 @@ function retryOnTrustedGesture(): void {
 }
 
 export function requestConsoleFullscreen(): void {
+  // The NATIVE shell owns its window: Electron is fullscreen at the WINDOW
+  // level and that survives every game-boundary reload. Entering DOM
+  // fullscreen ON TOP of it is what used to feed the «Восстановить
+  // полноэкранный режим» loop: the DOM state dies at every navigation BY
+  // SPEC, the boot flags then read «fullscreen was lost», the curtain shows
+  // the restore plate, its retry re-enters DOM fullscreen — and the next
+  // transition repeats the whole cycle. In the shell this is a strict no-op.
+  if (supportsNativeFullscreen()) {
+    return;
+  }
   if (typeof document === 'undefined' || document.fullscreenElement !== null) {
     return;
   }
