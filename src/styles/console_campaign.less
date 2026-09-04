@@ -92,6 +92,23 @@
     align-items: center;
     padding: 0 3rem;
   }
+
+  /* THE CARRY STEP'S RELEASE — while the mandatory step stands, the map's
+     own content lets go IN PLACE (dim + a slight settle, transform/opacity
+     only): the step reads as one level deeper, not as a modal that arrived. */
+  &__head,
+  &__route,
+  &__rail {
+    transition:
+      opacity calc(280ms * var(--motion-scale, 1)) ease,
+      transform calc(280ms * var(--motion-scale, 1)) cubic-bezier(0.22, 0.61, 0.36, 1);
+  }
+  &--carry-open &__head,
+  &--carry-open &__route,
+  &--carry-open &__rail {
+    opacity: 0.3;
+    transform: scale(0.982);
+  }
   &__lane {
     position: absolute;
     left: 6rem;
@@ -188,6 +205,19 @@
     }
     &--current.cmap__card--cursor {
       box-shadow: 0 0 0 2px rgba(120, 200, 255, 0.85), 0 0 0 4px rgba(240, 208, 130, 0.3), 0 0.6rem 1.6rem rgba(0, 0, 0, 0.5);
+    }
+    /* THE WAITING FOCUS — entering the waiting stage grows the next mission
+       card into the composition's hero (a calm 480 ms swell, transform-only)
+       so the transition into «ожидание» reads as an arrival at the mission,
+       not as a frozen browse screen. */
+    &--waitfocus {
+      transform: scale(1.09);
+      border-color: rgba(240, 208, 130, 0.95);
+      box-shadow: 0 0.9rem 2.2rem rgba(0, 0, 0, 0.55), 0 0 0 1px rgba(240, 208, 130, 0.5);
+      transition-duration: calc(480ms * var(--motion-scale, 1));
+    }
+    &--waitfocus.cmap__card--cursor {
+      box-shadow: 0 0 0 2px rgba(120, 200, 255, 0.85), 0 0.9rem 2.2rem rgba(0, 0, 0, 0.55), 0 0 0 4px rgba(240, 208, 130, 0.35);
     }
   }
 
@@ -373,48 +403,69 @@
     font-size: 0.85rem;
   }
 
-  /* ── The interlude waiting room — a standing state plate floating on the
-     route stage's lower edge (absolute: the route cards keep their box; at
-     a tight viewport it stands OVER their dim lower rim, solid-backed and
-     above them). The pulse is compositor-only (opacity keyframe; the paint
-     baseline strips filter/text-shadow). */
-  &__waitroom {
-    position: absolute;
-    left: 50%;
-    bottom: 0.5rem;
-    transform: translateX(-50%);
-    z-index: 3;
+  /* ── The interlude WAIT STRIP — heads the PLAYER ZONE (never a floating
+     plate): a WORKING spinner (the reduced-motion allowlist keeps
+     [class*="spin"] looping — a frozen wait indicator reads as a hang),
+     the state line, and the screen's own promise («вход отсюда»). The
+     per-seat readiness chips live on the seat rows right below it. Enters
+     with a one-shot rise. */
+  &__wait-strip {
     display: flex;
-    align-items: center;
-    gap: 0.9rem;
-    max-width: 42rem;
-    padding: 0.7rem 1.4rem;
-    border: 1px solid rgba(154, 176, 202, 0.35);
-    border-radius: 0.5rem;
-    background: rgba(16, 24, 36, 0.94);
-
-    &--ready { border-color: rgba(126, 200, 227, 0.5); }
+    align-items: baseline;
+    gap: 0.7rem;
+    padding: 0 0 0.55rem;
+    margin-bottom: 0.3rem;
+    border-bottom: 1px solid rgba(154, 176, 202, 0.22);
+    animation: cmap-wait-rise calc(320ms * var(--motion-scale, 1)) cubic-bezier(0.22, 0.61, 0.36, 1) backwards;
   }
-  &__waitroom-pulse {
-    width: 0.55rem;
-    height: 0.55rem;
+  /* The working spinner — transform-only loop; the 'spin' substring keeps
+     it on the reduced-motion allowlist (information, not decoration). */
+  &__wait-spin {
+    flex: 0 0 auto;
+    align-self: center;
+    width: 1rem;
+    height: 1rem;
     border-radius: 50%;
-    background: #e8c884;
-    animation: cmap-wait-pulse calc(1600ms * var(--motion-scale, 1)) ease-in-out infinite;
+    border: 0.13rem solid rgba(154, 176, 202, 0.3);
+    border-top-color: #e8c884;
+    animation: cmap-wait-spin 900ms linear infinite;
 
-    .cmap__waitroom--ready & { background: #7ec8e3; }
+    .cmap__wait-strip--ready & { border-top-color: #7ec8e3; }
   }
-  &__waitroom-title {
-    font-size: 0.95rem;
+  &__wait-title {
+    font-size: 0.92rem;
     font-weight: 600;
     letter-spacing: 0.14em;
     text-transform: uppercase;
     color: #dbe4ee;
+
+    .cmap__wait-strip--ready & { color: #cde9f5; }
   }
-  &__waitroom-note {
-    margin-top: 0.15rem;
+  &__wait-note {
     font-size: 0.85rem;
     color: #93a5ba;
+  }
+  /* The per-seat READINESS chip — state by text + colour + border, on the
+     row every viewer already reads. */
+  &__seat-status {
+    flex: 0 0 auto;
+    margin-left: auto;
+    padding: 0.1rem 0.55rem;
+    border-radius: 0.3rem;
+    border: 1px solid rgba(232, 200, 132, 0.45);
+    font-size: 0.72rem;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: #e8c884;
+
+    &--ready {
+      color: #9fc3a4;
+      border-color: rgba(159, 195, 164, 0.45);
+    }
+    &--launching {
+      color: #a9d5ef;
+      border-color: rgba(169, 213, 239, 0.45);
+    }
   }
 
   /* ── Dossiers ───────────────────────────────────────────────────────── */
@@ -524,60 +575,112 @@
   }
 }
 
-/* The waiting-room dot breath — compositor-only (opacity), 0%/100%-symmetric
-   so reduced motion's «loops play once» rests on the static cue; joined to
-   the fx-lite stop-list in console_fx_lite.less. */
-@keyframes cmap-wait-pulse {
-  0%, 100% { opacity: 1; }
-  50% { opacity: 0.35; }
+/* The waiting spinner — a WORKING indicator (transform-only): reduced
+   motion's allowlist keeps [class*="spin"] looping, fx-lite leaves working
+   indicators untouched by its own charter. */
+@keyframes cmap-wait-spin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+@keyframes cmap-wait-rise {
+  from { opacity: 0; transform: translateY(0.4rem); }
+  to { opacity: 1; transform: none; }
 }
 
-/* ── The carryover picker («Наследие проектов») ──────────────────────── */
+/* ── The carryover picker («Наследие проектов») — a WORKSPACE-STEP STAGE ──
+   Full central stage over its own shade (never a floating card): head →
+   the keep-slots hero band → the terminal hand fitted by the shared stage
+   engine (`consoleWsStageLayout` publishes --con-cards-zoom / gaps / the
+   wrap cap onto the row) → one reserved status line. The entrance is a
+   one-shot cascade (shade → stage → slots/cards staggered via --i), all
+   transform/opacity, `backwards` fill so the pre-delay frame is already
+   the entry's first frame. */
 .con-carry {
+  position: absolute;
+  inset: 0;
   display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 0.8rem;
-  padding: 1.4rem 2rem;
+  align-items: stretch;
+  justify-content: center;
 
+  &__shade {
+    position: absolute;
+    inset: 0;
+    background: rgba(5, 8, 13, 0.84);
+    animation: con-carry-shade-in calc(240ms * var(--motion-scale, 1)) ease backwards;
+  }
+  &__stage {
+    position: relative;
+    flex: 1 1 auto;
+    min-height: 0;
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 0.9rem;
+    /* The bottom inset clears the host's command bar — the status line is
+       the stage's last voice and may never sink under the bar. */
+    padding: 1.5rem 3rem 3.4rem;
+    animation: con-carry-stage-in calc(300ms * var(--motion-scale, 1)) cubic-bezier(0.22, 0.61, 0.36, 1) backwards;
+  }
+
+  &__head {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 0.35rem;
+    animation: con-carry-in calc(260ms * var(--motion-scale, 1)) cubic-bezier(0.22, 0.61, 0.36, 1) backwards;
+    animation-delay: calc(60ms * var(--motion-scale, 1));
+  }
   &__kicker {
-    font-size: 1rem;
-    letter-spacing: 0.3em;
+    font-size: 1.05rem;
+    letter-spacing: 0.32em;
     text-transform: uppercase;
     color: #ecd39a;
   }
   &__lede {
-    max-width: 34rem;
+    max-width: 42rem;
     text-align: center;
     color: #b9c6d6;
-    font-size: 0.95rem;
-    line-height: 1.5;
+    font-size: 0.9rem;
+    line-height: 1.45;
   }
 
+  /* The keep band: two reserved slots + the counter, the stage's hero row. */
+  &__keep {
+    display: flex;
+    align-items: center;
+    gap: 1.6rem;
+  }
   &__slots {
     display: flex;
     align-items: center;
-    gap: 1rem;
+    gap: 1.1rem;
   }
+  /* The slot box and the card zoom are ONE pair: the .pcard is 320×460 at
+     zoom 1, so 0.6 → 192×276 px (9.6×13.8 rem @20px) inside a 10×14.2 rem
+     frame. Changing one without the other crops the kept card. */
   &__slot {
-    width: 8.2rem;
-    height: 11.6rem;
-    border-radius: 0.5rem;
+    width: 10rem;
+    height: 14.2rem;
+    border-radius: 0.55rem;
     border: 1px dashed rgba(214, 178, 106, 0.5);
+    background: rgba(14, 20, 30, 0.55);
     display: flex;
     align-items: center;
     justify-content: center;
     overflow: hidden;
+    animation: con-carry-in calc(260ms * var(--motion-scale, 1)) cubic-bezier(0.22, 0.61, 0.36, 1) backwards;
+    animation-delay: ~"calc((110ms + var(--i, 0) * 60ms) * var(--motion-scale, 1))";
 
     &--filled {
       border-style: solid;
       border-color: rgba(240, 208, 130, 0.75);
-      box-shadow: 0 0 0 1px rgba(240, 208, 130, 0.25);
+      box-shadow: 0 0 0 1px rgba(240, 208, 130, 0.25), 0 0.5rem 1.4rem rgba(0, 0, 0, 0.45);
     }
 
     :is(.card-container, .pcard) {
       margin: 0;
-      zoom: ~"calc(0.5 * var(--con-ui-scale, 1))";
+      zoom: ~"calc(0.6 * var(--con-ui-scale, 1))";
     }
   }
   &__slot-empty {
@@ -591,9 +694,11 @@
     flex-direction: column;
     gap: 0.2rem;
     min-width: 10rem;
+    animation: con-carry-in calc(260ms * var(--motion-scale, 1)) cubic-bezier(0.22, 0.61, 0.36, 1) backwards;
+    animation-delay: calc(220ms * var(--motion-scale, 1));
   }
   &__counter-num {
-    font-size: 1.5rem;
+    font-size: 1.6rem;
     color: #f2e9d8;
     letter-spacing: 0.1em;
   }
@@ -602,12 +707,24 @@
     color: #8fa2b8;
   }
 
+  /* The terminal hand — the fitted grid. The row takes the REST of the
+     stage; the engine owns zoom, gaps and the wrap cap (its outputs land
+     as inline custom properties on this very element). */
   &__row {
+    flex: 1 1 auto;
+    min-height: 0;
+    width: 100%;
+    max-width: var(--con-ws-stage-rowmax, 100%);
+    margin: 0 auto;
     display: flex;
     flex-wrap: wrap;
     justify-content: center;
-    gap: 0.7rem;
-    max-width: 62rem;
+    align-content: center;
+    align-items: center;
+    column-gap: var(--con-ws-stage-gap, 0.9rem);
+    row-gap: var(--con-ws-stage-rowgap, 0.9rem);
+    padding: 0.4rem 0;
+    overflow: hidden;
   }
   &__card {
     position: relative;
@@ -617,14 +734,20 @@
     background: transparent;
     cursor: pointer;
     transition: transform calc(160ms * var(--motion-scale, 1)) cubic-bezier(0.22, 0.61, 0.36, 1);
+    animation: con-carry-in calc(240ms * var(--motion-scale, 1)) cubic-bezier(0.22, 0.61, 0.36, 1) backwards;
+    animation-delay: ~"calc((160ms + min(var(--i, 0) * 26ms, 420ms)) * var(--motion-scale, 1))";
 
     :is(.card-container, .pcard) {
       margin: 0;
-      zoom: ~"calc(0.55 * var(--con-ui-scale, 1))";
+      zoom: var(--con-cards-zoom, 1);
     }
 
+    /* The focused card pops by exactly the reserve the engine bought
+       (WS_STAGE_FOCUS_SCALE) — the ring never grows over a neighbour. */
     &--cursor {
-      box-shadow: 0 0 0 2px rgba(120, 200, 255, 0.85);
+      transform: scale(var(--con-ws-focus-scale, 1.045));
+      z-index: 2;
+      box-shadow: 0 0 0 2px rgba(120, 200, 255, 0.85), 0 0.5rem 1.3rem rgba(0, 0, 0, 0.45);
     }
     /* AWAY — the card physically lives in its slot (one visual owner): the
        socket keeps its exact box (visibility, never display — the return
@@ -650,21 +773,6 @@
   /* A slot awaiting its inbound flight withholds the real face — touchdown
      is what reveals it (never a crossfade of identical twins). */
   &__slot--inbound :is(.card-container, .pcard) { visibility: hidden; }
-  &__pick-mark {
-    position: absolute;
-    top: 0.35rem;
-    right: 0.35rem;
-    width: 1.4rem;
-    height: 1.4rem;
-    border-radius: 50%;
-    background: rgba(38, 66, 44, 0.95);
-    color: #b9e2bd;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    font-size: 0.9rem;
-    box-shadow: 0 0 0 1px rgba(159, 195, 164, 0.7);
-  }
   &__unavail {
     position: absolute;
     left: 0.3rem;
@@ -678,27 +786,83 @@
     text-align: center;
   }
   &__empty {
+    flex: 1 1 auto;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 0.5rem;
     color: #8fa2b8;
     font-size: 0.95rem;
-    padding: 1.2rem 0;
+    animation: con-carry-in calc(260ms * var(--motion-scale, 1)) cubic-bezier(0.22, 0.61, 0.36, 1) backwards;
+    animation-delay: calc(180ms * var(--motion-scale, 1));
   }
+  &__empty-mark {
+    width: 3.4rem;
+    height: 3.4rem;
+    border-radius: 50%;
+    border: 1px dashed rgba(154, 176, 202, 0.4);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1.4rem;
+    color: #6f8098;
+  }
+  &__empty-text {
+    max-width: 30rem;
+    text-align: center;
+    line-height: 1.5;
+  }
+  /* One reserved line — the armed warning, the confirmation state or an
+     error land here without moving the stage. */
   &__status {
-    min-height: 1.4rem;
-    font-size: 0.85rem;
+    min-height: 1.5rem;
+    font-size: 0.9rem;
+    text-align: center;
   }
   &__status-ok { color: #9fc3a4; }
   &__status-err { color: #e0a48b; }
+  &__status-warn {
+    color: #e8c884;
+    font-weight: 600;
+    letter-spacing: 0.04em;
+  }
 }
 
-/* The map hosts the picker as a centered overlay card. */
+@keyframes con-carry-shade-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+@keyframes con-carry-stage-in {
+  from { opacity: 0; transform: translateY(0.7rem) scale(0.988); }
+  to { opacity: 1; transform: none; }
+}
+@keyframes con-carry-in {
+  from { opacity: 0; transform: translateY(0.5rem) scale(0.97); }
+  to { opacity: 1; transform: none; }
+}
+
+/* The map hosts the picker as its central stage — the wrapper is pure
+   position (the picker brings its own shade); the LEAVE is the map's
+   Vue transition (the enter is the picker's internal cascade). */
 .cmap__carry-overlay {
   position: fixed;
   inset: 0;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  background: rgba(6, 9, 14, 0.78);
   z-index: 120;
+}
+.cm-carry-leave-active {
+  transition: opacity calc(170ms * var(--motion-scale, 1)) ease;
+
+  .con-carry__stage {
+    transition: transform calc(170ms * var(--motion-scale, 1)) cubic-bezier(0.22, 0.61, 0.36, 1);
+  }
+}
+.cm-carry-leave-to {
+  opacity: 0;
+
+  .con-carry__stage {
+    transform: translateY(0.5rem) scale(0.99);
+  }
 }
 
 /* ── The creator's stage 0: the session-mode pick ────────────────────── */

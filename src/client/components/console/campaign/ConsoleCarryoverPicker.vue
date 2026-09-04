@@ -1,79 +1,107 @@
 <template>
   <!--
-    «НАСЛЕДИЕ ПРОЕКТОВ» — the project carryover selection (0–2 cards of the
-    viewer's terminal hand travel into the next mission). HOST-AGNOSTIC: the
-    standalone Campaign Map hosts it as an overlay; the endgame workspace
-    hosts it as a scene (`embedded` strips the shell). One instance, one
-    input path (the host routes intents into `handleIntent`).
+    «НАСЛЕДИЕ ПРОЕКТОВ» — the interlude's mandatory step: 0–2 cards of the
+    viewer's terminal hand travel into the next mission. A WORKSPACE-STEP
+    STAGE, not a floating modal: its own shade, a full central stage, the
+    two keep-slots as a hero row, and the terminal hand fitted by the ONE
+    shared stage geometry engine (`consoleWsStageLayout` — the same brain
+    every in-game card stage solves with), so the cards take the room the
+    screen actually has and read at couch distance.
+
+    HOSTED ONLY BY THE CAMPAIGN MAP (standalone screen + the endgame's
+    embedded map scene). Input arrives via `handleIntent`; the verbs render
+    in the host's ONE command bar.
+
+    EXPLICIT «БЕЗ ПЕРЕНОСА»: with eligible cards on the table, a zero-card
+    confirm must be ARMED first — the first press turns the status line into
+    a named warning and relabels the verb; only the second press confirms.
+    An accidental X can no longer ship a player into the next mission with
+    no legacy. An EMPTY hand needs no arming (there is nothing to miss) —
+    its confirm is the plain readiness press.
 
     PHYSICALITY: a card has ONE visual owner. A pick physically flies the
     card out of its hand socket into the reserved slot (the socket stays,
     empty — «taken from the hand»); a return flies it back. The flights are
-    clone-proxy flights (`cloneFlights.ts` — the draft workspace's engine),
-    and the toggle itself never waits on them: a failed measurement degrades
-    to the instant swap, never to a lost press.
+    clone-proxy flights (`cloneFlights.ts`), and the toggle itself never
+    waits on them: a failed measurement degrades to the instant swap, never
+    to a lost press.
 
     PRIVACY: this surface only ever receives the VIEWER's own cards — the
     wire model never carries anyone else's.
   -->
   <div class="con-carry" :class="{'con-carry--embedded': embedded}" role="dialog" :aria-label="$t('Project legacy')">
-    <div v-if="!embedded" class="con-carry__kicker" v-i18n>Project legacy</div>
-    <div class="con-carry__lede" v-i18n>Keep up to two project cards from your hand — they travel into the next mission, free of charge.</div>
-
-    <!-- The two reserved slots: filled by picks, in pick order. -->
-    <div class="con-carry__slots">
-      <div
-        v-for="slotIndex in [0, 1]"
-        :key="slotIndex"
-        class="con-carry__slot"
-        :class="{
-          'con-carry__slot--filled': selected[slotIndex] !== undefined,
-          'con-carry__slot--inbound': hiddenSlots.includes(slotIndex),
-        }"
-        :data-carry-slot="slotIndex"
-      >
-        <Card
-          v-if="selected[slotIndex] !== undefined"
-          :card="cardModelOf(selected[slotIndex])"
-          :key="selected[slotIndex]"
-          :lightweight="true"
-          :inert="true"
-        />
-        <div v-else class="con-carry__slot-empty" aria-hidden="true"></div>
+    <div class="con-carry__shade" aria-hidden="true"></div>
+    <div class="con-carry__stage">
+      <div class="con-carry__head">
+        <div class="con-carry__kicker" v-i18n>Project legacy</div>
+        <div class="con-carry__lede" v-i18n>Keep up to two project cards from your hand — they travel into the next mission, free of charge.</div>
       </div>
-      <div class="con-carry__counter">
-        <span class="con-carry__counter-num">{{ selected.length }}/2</span>
-        <span class="con-carry__counter-note" v-i18n>{{ counterNote }}</span>
+
+      <!-- The keep row: two reserved slots (filled by picks, in pick order)
+           + the counter. The hero band of the stage. -->
+      <div class="con-carry__keep">
+        <div class="con-carry__slots">
+          <div
+            v-for="slotIndex in [0, 1]"
+            :key="slotIndex"
+            class="con-carry__slot"
+            :class="{
+              'con-carry__slot--filled': selected[slotIndex] !== undefined,
+              'con-carry__slot--inbound': hiddenSlots.includes(slotIndex),
+            }"
+            :data-carry-slot="slotIndex"
+            :style="{'--i': slotIndex}"
+          >
+            <Card
+              v-if="selected[slotIndex] !== undefined"
+              :card="cardModelOf(selected[slotIndex])"
+              :key="selected[slotIndex]"
+              :lightweight="true"
+              :inert="true"
+            />
+            <div v-else class="con-carry__slot-empty" aria-hidden="true"></div>
+          </div>
+        </div>
+        <div class="con-carry__counter">
+          <span class="con-carry__counter-num">{{ selected.length }}/2</span>
+          <span class="con-carry__counter-note" v-i18n>{{ counterNote }}</span>
+        </div>
       </div>
-    </div>
 
-    <!-- The eligible hand row (the recorded terminal hand). A picked card's
-         SOCKET stays in the row, empty — the card itself lives in its slot
-         (one visual owner); A on the empty socket takes it back. -->
-    <div v-if="eligible.length > 0" class="con-carry__row" ref="row">
-      <button
-        v-for="(name, i) in eligible"
-        :key="name + ':' + i"
-        type="button"
-        class="con-carry__card"
-        :class="{
-          'con-carry__card--cursor': cursor === i,
-          'con-carry__card--away': rowAway(i),
-          'con-carry__card--dimmed': !rowAway(i) && selected.length >= 2,
-          'con-carry__card--unavailable': unavailable.includes(name),
-        }"
-        :data-carry-card="name + ':' + i"
-        @click="onCardClick(i)"
-      >
-        <Card :card="cardModelOf(name)" :lightweight="true" :inert="true" />
-        <div v-if="unavailable.includes(name) && !rowAway(i)" class="con-carry__unavail" v-i18n>Unavailable in this build</div>
-      </button>
-    </div>
-    <div v-else class="con-carry__empty" v-i18n>No cards remained in your hand — the selection completes with nothing to carry.</div>
+      <!-- The eligible hand (the recorded terminal hand), fitted to the
+           room by the shared stage engine. A picked card's SOCKET stays in
+           the grid, empty — the card itself lives in its slot (one visual
+           owner); A on the empty socket takes it back. -->
+      <div v-if="eligible.length > 0" class="con-carry__row" ref="row" :style="rowStyle">
+        <button
+          v-for="(name, i) in eligible"
+          :key="name + ':' + i"
+          type="button"
+          class="con-carry__card"
+          :class="{
+            'con-carry__card--cursor': cursor === i,
+            'con-carry__card--away': rowAway(i),
+            'con-carry__card--dimmed': !rowAway(i) && selected.length >= 2,
+            'con-carry__card--unavailable': unavailable.includes(name),
+          }"
+          :data-carry-card="name + ':' + i"
+          :style="{'--i': i}"
+          @click="onCardClick(i)"
+        >
+          <Card :card="cardModelOf(name)" :lightweight="true" :inert="true" />
+          <div v-if="unavailable.includes(name) && !rowAway(i)" class="con-carry__unavail" v-i18n>Unavailable in this build</div>
+        </button>
+      </div>
+      <div v-else class="con-carry__empty">
+        <div class="con-carry__empty-mark" aria-hidden="true">—</div>
+        <div class="con-carry__empty-text" v-i18n>No cards remained in your hand — the selection completes with nothing to carry.</div>
+      </div>
 
-    <div class="con-carry__status">
-      <span v-if="confirmed" class="con-carry__status-ok" v-i18n>Selection confirmed — it can be revised until the next mission launches.</span>
-      <span v-else-if="error !== ''" class="con-carry__status-err">{{ $t(error) }}</span>
+      <div class="con-carry__status">
+        <span v-if="armed" class="con-carry__status-warn" v-i18n>Nothing is selected — press again to continue WITHOUT a legacy.</span>
+        <span v-else-if="confirmed" class="con-carry__status-ok" v-i18n>Selection confirmed — it can be revised until the next mission launches.</span>
+        <span v-else-if="error !== ''" class="con-carry__status-err">{{ $t(error) }}</span>
+      </div>
     </div>
   </div>
 </template>
@@ -87,10 +115,14 @@ import {GamepadIntent} from '@/client/gamepad/gamepadPollModel';
 import {consoleActionOf} from '@/client/console/composables/consoleActionModel';
 import {getCard} from '@/client/cards/ClientCardManifest';
 import {CloneFlightHandle, flyCardClones} from '@/client/console/cardFlight/cloneFlights';
+import {wsStageLayout, wsStageLayoutStyle} from '@/client/console/consoleWsStageLayout';
+import {conUiScale} from '@/client/console/consoleLayoutProfile';
 
 function esc(v: string): string {
   return typeof CSS !== 'undefined' && typeof CSS.escape === 'function' ? CSS.escape(v) : v.replace(/"/g, '\\"');
 }
+
+const FIT_RETRIES = 6;
 
 export default defineComponent({
   name: 'ConsoleCarryoverPicker',
@@ -105,10 +137,17 @@ export default defineComponent({
     error: {type: String, required: false, default: ''},
     embedded: {type: Boolean, required: false, default: false},
   },
-  emits: ['toggle', 'confirm', 'back'],
+  emits: ['toggle', 'confirm', 'back', 'armChange'],
   data() {
     return {
       cursor: 0,
+      /**
+       * The ARMED zero-carry confirm: with eligible cards present, the first
+       * X only raises the warning; the second X is the confirmation. Any
+       * other input (nav, toggle, B) disarms — the guard exists precisely
+       * against the accidental press.
+       */
+      armed: false,
       /** Row indices whose face is withheld beyond the pick state (a return
        *  flight is inbound — the socket may not re-materialize early). */
       awayLocal: [] as Array<number>,
@@ -116,9 +155,24 @@ export default defineComponent({
        *  touchdown is what reveals the real card, never a crossfade). */
       hiddenSlots: [] as Array<number>,
       flights: [] as Array<CloneFlightHandle>,
+      /** The solved stage grid (the shared `--con-cards-zoom` contract). */
+      rowStyle: {} as Record<string, string>,
+      fitRetries: 0,
+      resizeObserver: undefined as ResizeObserver | undefined,
     };
   },
+  mounted() {
+    this.scheduleFit();
+    const stage = this.$el?.querySelector?.('.con-carry__stage') as HTMLElement | null | undefined;
+    if (stage !== null && stage !== undefined && typeof ResizeObserver !== 'undefined') {
+      // The HOST's box, never the row's own (an engine may not read its own
+      // output — the deck-pick circularity).
+      this.resizeObserver = new ResizeObserver(() => this.scheduleFit());
+      this.resizeObserver.observe(stage);
+    }
+  },
   beforeUnmount() {
+    this.resizeObserver?.disconnect();
     for (const f of this.flights) {
       f.dispose();
     }
@@ -134,7 +188,23 @@ export default defineComponent({
     },
     /** English i18n KEY for the host's command bar (no params — bars don't interpolate). */
     confirmLabel(): string {
-      return this.selected.length === 0 ? 'Continue without cards' : 'Keep the selection';
+      if (this.eligible.length === 0) {
+        return 'Confirm readiness';
+      }
+      if (this.selected.length > 0) {
+        return 'Keep the selection';
+      }
+      return this.armed ? 'Yes — continue without cards' : 'Continue without cards';
+    },
+  },
+  watch: {
+    // The fit is per hand (a revise re-opens with the same hand, but stay
+    // honest against any change) and armed state disarms on selection moves.
+    'eligible.length': function(): void {
+      this.scheduleFit();
+    },
+    'selected.length': function(): void {
+      this.disarm();
     },
   },
   methods: {
@@ -148,10 +218,56 @@ export default defineComponent({
     rowAway(i: number): boolean {
       return this.isPicked(i) || this.awayLocal.includes(i);
     },
+    disarm(): void {
+      if (this.armed) {
+        this.armed = false;
+        this.$emit('armChange', false);
+      }
+    },
     onCardClick(i: number): void {
       this.cursor = i;
       this.toggleAt(i);
     },
+    // ── FIT — the shared stage engine over this stage's own box ──────────
+    scheduleFit(): void {
+      this.fitRetries = 0;
+      void this.$nextTick(() => this.fitRow());
+    },
+    fitRow(): void {
+      const row = this.$refs.row as HTMLElement | null | undefined;
+      if (row === null || row === undefined || this.eligible.length === 0) {
+        return;
+      }
+      // Reset the engine's own outputs before measuring (an engine never
+      // reads its own output — the deck-pick rule).
+      row.style.setProperty('--con-cards-zoom', '1');
+      row.style.setProperty('--con-ws-stage-rowmax', '100%');
+      const probe = row.children[0] as HTMLElement | undefined;
+      const slotW = probe?.offsetWidth ?? 0;
+      const slotH = probe?.offsetHeight ?? 0;
+      if (slotW <= 0 || slotH <= 0) {
+        if (this.fitRetries < FIT_RETRIES) {
+          this.fitRetries++;
+          requestAnimationFrame(() => this.fitRow());
+        }
+        return;
+      }
+      this.fitRetries = 0;
+      const cs = window.getComputedStyle(row);
+      const padX = (parseFloat(cs.paddingLeft) || 0) + (parseFloat(cs.paddingRight) || 0);
+      const padY = (parseFloat(cs.paddingTop) || 0) + (parseFloat(cs.paddingBottom) || 0);
+      const ui = conUiScale();
+      // The BUDGET is the stage's remaining room: the stage is a strict flex
+      // column whose row is the only flexing part, so the row's parent-given
+      // box (clientHeight before our zoom re-applies) is what there is.
+      const layout = wsStageLayout({
+        availW: row.clientWidth - padX,
+        availH: Math.max(160 * ui, row.clientHeight - padY),
+        slotW, slotH, n: this.eligible.length, ui, padXPx: padX,
+      });
+      this.rowStyle = wsStageLayoutStyle(layout);
+    },
+    // ── toggling + flights ───────────────────────────────────────────────
     rowCardNode(i: number): HTMLElement | null {
       const root = this.$el as HTMLElement | undefined;
       if (root === undefined || typeof root.querySelector !== 'function') {
@@ -172,6 +288,7 @@ export default defineComponent({
       if (name === undefined || this.submitting) {
         return;
       }
+      this.disarm();
       if (this.unavailable.includes(name) && !this.selected.includes(name)) {
         return; // A vanished card may be dropped, never re-picked.
       }
@@ -253,11 +370,8 @@ export default defineComponent({
         return true;
       }
       if (intent.kind === 'nav') {
-        if (intent.dir === 'left' && this.cursor > 0) {
-          this.cursor--;
-        } else if (intent.dir === 'right' && this.cursor < this.eligible.length - 1) {
-          this.cursor++;
-        }
+        this.disarm();
+        this.moveCursor(intent.dir);
         return true;
       }
       const action = consoleActionOf(intent, {});
@@ -266,16 +380,49 @@ export default defineComponent({
         this.toggleAt(this.cursor);
         return true;
       case 'inspect':
-        // X = confirm the selection (0 cards included — an explicit «дальше без карт»).
+        // X = confirm. A ZERO-card confirm over a real hand must be ARMED:
+        // the first press raises the named warning, the second confirms —
+        // «продолжить без наследия» can never be one accidental press.
+        if (this.selected.length === 0 && this.eligible.length > 0 && !this.armed) {
+          this.armed = true;
+          this.$emit('armChange', true);
+          return true;
+        }
         this.$emit('confirm');
         return true;
       case 'back':
-        // B never silently confirms or discards — the host decides what
-        // «back» means (close the overlay; the selection stays as submitted).
+        // An armed warning is its own level: B disarms first. Otherwise the
+        // host decides what «back» means (close the step; the selection
+        // stays as last CONFIRMED on the server).
+        if (this.armed) {
+          this.disarm();
+          return true;
+        }
         this.$emit('back');
         return true;
       default:
         return true;
+      }
+    },
+    /** The grid cursor follows the SOLVED row shape (per-row from the fit). */
+    moveCursor(dir: 'up' | 'down' | 'left' | 'right'): void {
+      const n = this.eligible.length;
+      if (n === 0) {
+        return;
+      }
+      const perRow = Math.max(1, parseInt(this.rowStyle['--con-ws-stage-per-row'] ?? '') || n);
+      let next = this.cursor;
+      if (dir === 'left') {
+        next = this.cursor - 1;
+      } else if (dir === 'right') {
+        next = this.cursor + 1;
+      } else if (dir === 'up') {
+        next = this.cursor - perRow;
+      } else if (dir === 'down') {
+        next = this.cursor + perRow;
+      }
+      if (next >= 0 && next < n) {
+        this.cursor = next;
       }
     },
   },

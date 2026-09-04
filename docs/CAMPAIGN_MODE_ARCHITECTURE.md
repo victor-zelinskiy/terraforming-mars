@@ -90,7 +90,7 @@
 > `campaignMapUi.ts`, since `$refs` reads are not reactive). Confirmation IS
 > readiness (unchanged server regime); after it the host with a ready crew
 > falls straight into the launch confirm, a non-host lands in the WAITING
-> ROOM (`.cmap__waitroom`, `vm.readyWaiting`) with the **auto-join armed**:
+> STATE (`vm.readyWaiting`) with the **auto-join armed**:
 > when the current slot flips to `active` with a seat link, the map enters
 > the mission by itself (`activeSeatLink` transition watcher; arming is the
 > readyWaiting rising edge, so a map opened onto an already-active mission
@@ -109,6 +109,38 @@
 > one-flow test in `console-campaign.spec.ts` (real launch → pending
 > interlude → self-opening step → readiness → API-side host launch →
 > the non-host page auto-joins).
+>
+> **Interlude iteration 2 (2026-09-04):** ① the launch gate is spec-PROVEN
+> at the server (`launchMission` throws the blocker and creates NO game
+> while any human is pending; one confirm is not enough — the gate is
+> every human; `doLaunch` keeps a client belt) and the accidental
+> zero-carry hole is closed: with eligible cards on the table a 0-card X
+> must be ARMED — the first press raises the named amber warning and
+> relabels the verb («Да — продолжить без карт»), the second confirms;
+> any nav/toggle/B disarms (empty hand stays a plain readiness press).
+> ② The carryover picker is a WORKSPACE-STEP STAGE, not a modal: its own
+> shade, the map's content RELEASES in place under it
+> (`.cmap--carry-open` — dim + settle), an entrance cascade (shade →
+> stage → slots/cards staggered by `--i`, one-shot, `backwards` fill),
+> a short fold on leave (`cm-carry` transition); the terminal hand is
+> fitted by the ONE shared stage engine (`wsStageLayout` — reset outputs
+> → probe offsetWidth → solve; publishes `--con-cards-zoom`/gaps/wrap
+> cap), a 2-D cursor follows the solved `per-row`, the focused card pops
+> by exactly the engine's reserved focus scale, and the keep-slots are a
+> hero band whose box matches the slot zoom by contract (.pcard 320×460
+> · zoom 0.6 · 10×14.2 rem — change one, change both). ③ The WAITING
+> STATE lives IN THE PLAYER ZONE, never a floating plate: the readiness
+> chips (`CmapRailRow.readiness` — `ready/choosing/launching`, humans
+> only, the creator flips to «запускает миссию…» when everyone is ready)
+> sit on the rail's own seat rows, and the WAIT STRIP heads the rail
+> (`.cmap__wait-strip`: a WORKING spinner — the reduced-motion allowlist
+> keeps `[class*="spin"]` looping — plus the screen's standing promise).
+> The next-mission card swells (`--waitfocus`, calm 480 ms). **THE
+> FIXATION CONTRACT**: the auto-join watcher lives in the mounted map and
+> only there — a ready player standing on this screen is entered from
+> here the moment the host launches (the strip says so out loud: «вход
+> отсюда»), while a player who walked elsewhere is NEVER yanked — they
+> get the explicit join verb wherever they are.
 >
 > **Champion ceremony (2026-09-04):** the §7.7 champion beat is now a REAL
 > DIRECTOR BEAT — the final mission's endgame ceremony appends a mandatory

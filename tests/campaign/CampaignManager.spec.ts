@@ -304,6 +304,38 @@ describe('CampaignManager', () => {
     expect(grant.bonusMegaCredits).eq(5);
   });
 
+  it('BLOCKER: launchMission itself REFUSES while any human is pending — no game is created', async () => {
+    // The gate must live in the launch, not only in the UI's `canLaunch`:
+    // «даже если хост нажимает, партия не создаётся, пока все не выбрали».
+    const campaign = await manager.createCampaign(key(), campaignTestConfig());
+    const {gameId} = await manager.launchMission(campaign.id, 'Alice');
+    const game = (await GameLoader.getInstance().getGame(gameId))!;
+    await manager.commitMissionResult(game);
+    let loaded = (await manager.load(campaign.id))!;
+    // The real regime: EVERY human is pending after a real commit (an empty
+    // hand does not auto-confirm — the confirmation IS the readiness press).
+    expect(Object.values(loaded.carryover!.bySeat).every((s) => s.status === 'pending')).is.true;
+
+    const failureOf = (p: Promise<unknown>) => p.then(() => undefined, (e) => e as Error);
+    let refusal = await failureOf(manager.launchMission(campaign.id, 'Alice'));
+    expect(refusal?.message).eq('Waiting for the project carryover selections');
+    loaded = (await manager.load(campaign.id))!;
+    expect(loaded.missions[1].gameId, 'no mission game may exist').is.undefined;
+    expect(loaded.phase).eq('interlude');
+
+    // One seat confirming is not enough — the gate is EVERY human.
+    const alicePid = loaded.missions[0].playerIds![0];
+    await manager.submitCarryover(campaign.id, alicePid, []);
+    refusal = await failureOf(manager.launchMission(campaign.id, 'Alice'));
+    expect(refusal?.message).eq('Waiting for the project carryover selections');
+
+    // The last confirmation opens the gate.
+    const brunoPid = loaded.missions[0].playerIds![1];
+    await manager.submitCarryover(campaign.id, brunoPid, []);
+    const launched = await manager.launchMission(campaign.id, 'Alice');
+    expect(launched.gameId).is.not.undefined;
+  });
+
   it('devCommit fast-forwards the pointer with table-driven titles', async () => {
     const campaign = await manager.createCampaign(key(), campaignTestConfig());
     await manager.devCommit(campaign.id, [1, 0]);

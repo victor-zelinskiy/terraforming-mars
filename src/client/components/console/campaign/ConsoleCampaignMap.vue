@@ -1,5 +1,5 @@
 <template>
-  <div class="cmap" :class="{'cmap--reveal': revealPlaying, 'cmap--chronicle': vm !== undefined && vm.phase === 'finished', 'cmap--embedded': embedded}">
+  <div class="cmap" :class="{'cmap--reveal': revealPlaying, 'cmap--chronicle': vm !== undefined && vm.phase === 'finished', 'cmap--embedded': embedded, 'cmap--carry-open': overlay?.kind === 'carryover'}">
     <template v-if="!embedded">
       <div class="cm-menu__bg" aria-hidden="true"></div>
       <div class="cm-menu__vignette" aria-hidden="true"></div>
@@ -53,6 +53,7 @@
                 'cmap__card--current': m.isCurrent,
                 'cmap__card--future': m.state === 'locked',
                 'cmap__card--final': m.final,
+                'cmap__card--waitfocus': m.isCurrent && waitStrip !== undefined,
               }"
               @click="onRouteClick(m.slot)"
             >
@@ -85,22 +86,21 @@
           </div>
         </div>
 
-        <!-- ── The interlude waiting room: an honest standing state, never a
-             dead screen. Ready non-hosts see the auto-join promise (armed —
-             the launch push enters the mission for them); the host waiting
-             on the crew sees the named blocker. Floats on the stage's lower
-             edge (absolute — the route cards keep their box). -->
-        <div v-if="waitPlate !== undefined" class="cmap__waitroom" :class="{'cmap__waitroom--ready': waitPlate.ready}">
-          <span class="cmap__waitroom-pulse" aria-hidden="true"></span>
-          <div class="cmap__waitroom-text">
-            <div class="cmap__waitroom-title" v-i18n>{{ waitPlate.title }}</div>
-            <div class="cmap__waitroom-note" v-i18n>{{ waitPlate.note }}</div>
-          </div>
-        </div>
       </div>
 
-      <!-- ── The progression rail: seats, titles, TP, bonuses, carryover ── -->
+      <!-- ── The progression rail: seats, titles, TP, bonuses, carryover ──
+           …and during the interlude it IS the waiting zone: the per-seat
+           readiness chips live on these very rows (everyone tracks who is
+           ready in the one player zone they already read), and the WAIT
+           STRIP above them states the screen's own promise — the ready
+           player is FIXED here, and the auto-join into the next mission
+           happens from this screen only. -->
       <div class="cmap__rail">
+        <div v-if="waitStrip !== undefined" class="cmap__wait-strip" :class="{'cmap__wait-strip--ready': waitStrip.ready}">
+          <span class="cmap__wait-spin" aria-hidden="true"></span>
+          <span class="cmap__wait-title" v-i18n>{{ waitStrip.title }}</span>
+          <span class="cmap__wait-note" v-i18n>{{ waitStrip.note }}</span>
+        </div>
         <div
           v-for="(row, i) in vm.rail"
           :key="row.seat"
@@ -125,9 +125,16 @@
           </span>
           <span class="cmap__seat-tp">{{ tpText(row.titlePoints) }}</span>
           <span v-if="row.pendingBonus > 0" class="cmap__seat-bonus">+{{ row.pendingBonus }} M€</span>
-          <span v-if="row.carry !== undefined" class="cmap__seat-carry" :class="{'cmap__seat-carry--pending': row.carry.status === 'pending'}">
-            <template v-if="row.carry.status === 'pending'"><span v-i18n>choosing projects…</span></template>
-            <template v-else>{{ carryText(row.carry.count) }}</template>
+          <span v-if="row.carry !== undefined && row.carry.status === 'confirmed'" class="cmap__seat-carry">
+            {{ carryText(row.carry.count) }}
+          </span>
+          <!-- The readiness chip — the interlude's «кто готов» lives on the
+               seat row itself; the pending text folds into the chip. -->
+          <span v-if="row.readiness !== undefined" class="cmap__seat-status" :class="`cmap__seat-status--${row.readiness}`">
+            <span v-i18n>{{ waitStatusLabel(row.readiness) }}</span>
+          </span>
+          <span v-else-if="row.carry !== undefined && row.carry.status === 'pending'" class="cmap__seat-carry cmap__seat-carry--pending">
+            <span v-i18n>choosing projects…</span>
           </span>
           <span v-if="row.isChampion" class="cmap__seat-crown" v-i18n>Campaign champion</span>
         </div>
@@ -182,19 +189,26 @@
         </div>
       </div>
 
-      <ConsoleCarryoverPicker
-        v-if="overlay?.kind === 'carryover'"
-        ref="carryPicker"
-        class="cm-overlay cmap__carry-overlay"
-        :eligible="vm.yourEligibleCards"
-        :selected="carryDraft"
-        :confirmed="vm.carryoverConfirmed && !carryDirty"
-        :submitting="state.submittingCarryover"
-        :error="state.error"
-        @toggle="toggleCarry($event)"
-        @confirm="confirmCarry"
-        @back="closeOverlay"
-      />
+      <!-- The mandatory carryover STEP — the map's central stage one level
+           deeper (the map's own content releases in place under it); the
+           ENTER is the picker's internal cascade, the LEAVE is this
+           transition's short fold. -->
+      <Transition name="cm-carry">
+        <ConsoleCarryoverPicker
+          v-if="overlay?.kind === 'carryover'"
+          ref="carryPicker"
+          class="cmap__carry-overlay"
+          :eligible="vm.yourEligibleCards"
+          :selected="carryDraft"
+          :confirmed="vm.carryoverConfirmed && !carryDirty"
+          :submitting="state.submittingCarryover"
+          :error="state.error"
+          @toggle="toggleCarry($event)"
+          @confirm="confirmCarry"
+          @back="closeOverlay"
+          @arm-change="carryArmed = $event"
+        />
+      </Transition>
 
       <div v-if="overlay?.kind === 'launch'" class="cm-overlay" role="dialog" :aria-label="$t('Launch the mission')">
         <div class="cm-overlay__card">
@@ -297,6 +311,8 @@ export default defineComponent({
       /** Local carryover draft — seeded from the server selection on open. */
       carryDraft: [] as Array<CardName>,
       carryDirty: false,
+      /** The picker's ARMED zero-carry confirm (mirrored up for the bar). */
+      carryArmed: false,
       /**
        * The interlude flow's mandatory step opens ITSELF once per visit —
        * arriving with an unresolved carryover door lands the player straight
@@ -366,7 +382,7 @@ export default defineComponent({
       }
       if (this.overlay?.kind === 'carryover') {
         return [
-          {control: 'dpadH', label: 'Choose'},
+          {control: 'dpad', label: 'Choose'},
           {control: 'confirm', label: 'Take / return'},
           {control: 'secondary', label: this.carryConfirmLabel, highlight: true},
           {control: 'back', label: 'Close'},
@@ -428,7 +444,11 @@ export default defineComponent({
       if ((this.vm?.yourEligibleCards ?? []).length === 0) {
         return 'Confirm readiness';
       }
-      return this.carryDraft.length === 0 ? 'Continue without cards' : 'Keep the selection';
+      if (this.carryDraft.length > 0) {
+        return 'Keep the selection';
+      }
+      // The ARMED zero-carry confirm: the verb itself names the second press.
+      return this.carryArmed ? 'Yes — continue without cards' : 'Continue without cards';
     },
     /** The current slot's live seat link — what the auto-join watches for. */
     activeSeatLink(): {playerId: string, gameId?: string} | undefined {
@@ -439,8 +459,14 @@ export default defineComponent({
       }
       return undefined;
     },
-    /** The standing interlude plate (no overlay open): ready / crew-wait / joining. */
-    waitPlate(): {title: string, note: string, ready: boolean} | undefined {
+    /**
+     * The WAIT STRIP heading the player zone (no overlay open): the screen's
+     * own standing promise — ready / crew-wait / joining. The ready line
+     * names the FIXATION contract out loud: the auto-join happens from THIS
+     * screen (the armed watcher lives here and only here — a player who
+     * walked elsewhere is never yanked; they get the explicit join verb).
+     */
+    waitStrip(): {title: string, note: string, ready: boolean} | undefined {
       const vm = this.vm;
       if (vm === undefined || this.overlay !== undefined) {
         return undefined;
@@ -448,11 +474,22 @@ export default defineComponent({
       if (this.joining) {
         return {title: 'Mission launched', note: 'Entering the mission…', ready: true};
       }
-      if (vm.readyWaiting) {
-        return {title: 'You are ready', note: 'The mission starts automatically when the host launches it.', ready: true};
+      // The strip stands for the WHOLE open readiness round — every viewer
+      // reads their own next move on it, not only the ready ones.
+      const roundOpen = vm.rail.some((r) => r.readiness !== undefined);
+      if (!roundOpen) {
+        return undefined;
       }
-      if (vm.isCreator && vm.cta.kind === 'launch' && !vm.cta.enabled && vm.cta.reason !== undefined) {
-        return {title: 'Waiting for the crew', note: vm.cta.reason, ready: false};
+      if (vm.readyWaiting) {
+        return {title: 'You are ready', note: 'Stay on this screen — the mission opens from here the moment the host launches it.', ready: true};
+      }
+      if (vm.cta.kind === 'carryover') {
+        return {title: 'Waiting for the crew', note: 'Confirm your readiness — the campaign waits for every player.', ready: false};
+      }
+      if (vm.isCreator && vm.cta.kind === 'launch') {
+        return vm.cta.enabled ?
+          {title: 'The crew is ready', note: 'Launch the mission when you are ready.', ready: true} :
+          {title: 'Waiting for the crew', note: vm.cta.reason ?? '', ready: false};
       }
       return undefined;
     },
@@ -568,6 +605,14 @@ export default defineComponent({
     carryText(count: number): string {
       return translateTextWithParams('carrying ${0}', [String(count)]);
     },
+    /** The roster chip's English i18n key per status. */
+    waitStatusLabel(status: 'ready' | 'choosing' | 'launching'): string {
+      switch (status) {
+      case 'ready': return 'is ready';
+      case 'launching': return 'launching the mission…';
+      default: return 'choosing projects…';
+      }
+    },
     lineageOf(seat: number): ReadonlyArray<CardName> {
       return this.state.model?.progression.lineages[seat] ?? [];
     },
@@ -582,6 +627,7 @@ export default defineComponent({
       // server keeps whatever was last CONFIRMED.
       this.overlay = undefined;
       this.carryDirty = false;
+      this.carryArmed = false;
     },
     // ── Input routing ────────────────────────────────────────────────────
     onIntent(intent: GamepadIntent): boolean {
@@ -724,6 +770,7 @@ export default defineComponent({
     openCarryover(): void {
       this.carryDraft = [...(this.vm?.yourCarryCards ?? [])];
       this.carryDirty = false;
+      this.carryArmed = false;
       this.overlay = {kind: 'carryover'};
     },
     toggleCarry(name: CardName): void {
@@ -749,6 +796,7 @@ export default defineComponent({
       const ok = await submitCampaignCarryover(playerId, this.carryDraft);
       if (ok) {
         this.carryDirty = false;
+        this.carryArmed = false;
         this.overlay = undefined;
         // ONE FLOW: the confirmation was the readiness press. The host whose
         // crew is already ready continues straight into the launch confirm;
@@ -773,6 +821,13 @@ export default defineComponent({
     },
     // ── Launch ───────────────────────────────────────────────────────────
     async doLaunch(): Promise<void> {
+      // Belt to the server's own gate: the confirm overlay only opens on an
+      // enabled CTA, but the model can move between the press and this call.
+      const cta = this.vm?.cta;
+      if (cta?.kind === 'launch' && !cta.enabled) {
+        this.overlay = undefined;
+        return;
+      }
       const result = await launchCampaignMission();
       this.overlay = undefined;
       if (result?.yourPlayerId !== undefined) {

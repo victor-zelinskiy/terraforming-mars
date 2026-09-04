@@ -116,9 +116,28 @@ describe('campaignMapModel', () => {
     expect(vm.cta.kind).eq('waiting');
     expect((vm.cta as {ready?: boolean}).ready).is.true;
     expect(vm.readyWaiting).is.true;
+    // READINESS lives on the RAIL rows (the one player zone) — humans only,
+    // the bot carries no chip.
+    expect(vm.rail.map((r) => ({seat: r.seat, readiness: r.readiness}))).deep.eq([
+      {seat: 0, readiness: 'choosing'},
+      {seat: 1, readiness: 'ready'},
+      {seat: 2, readiness: undefined},
+    ]);
     // The creator in the same state is NOT a waiting-room case — they own the launch.
     const creator = buildCampaignMapVm({...model, you: {seat: 0}} as CampaignModel);
     expect(creator.readyWaiting).is.false;
+    // Everyone confirmed → the creator's chip flips to «запускает миссию».
+    const allReady = buildCampaignMapVm({
+      ...model,
+      carryover: {
+        ...model.carryover!,
+        bySeat: [
+          {seat: 0, status: 'confirmed', count: 0},
+          {seat: 1, status: 'confirmed', count: 1},
+        ],
+      },
+    } as CampaignModel);
+    expect(allReady.rail.find((r) => r.seat === 0)?.readiness).eq('launching');
   });
 
   it('interlude: an unconfirmed non-creator is not READY yet (their door outranks waiting)', () => {

@@ -717,7 +717,7 @@ export default defineComponent({
         // mirrors it through campaignMapUi (a $refs read is not reactive).
         if (campaignMapUi.overlay === 'carryover') {
           return [
-            {control: 'dpadH', label: 'Choose'},
+            {control: 'dpad', label: 'Choose'},
             {control: 'confirm', label: 'Take / return'},
             {control: 'secondary', label: campaignMapUi.carryConfirmLabel, highlight: true, priority: 0},
             {control: 'back', label: 'Close', priority: 5},

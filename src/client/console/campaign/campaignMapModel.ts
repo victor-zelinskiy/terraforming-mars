@@ -49,6 +49,14 @@ export type CmapRailRow = {
   pendingBonus: number;
   /** Interlude only: this seat's carryover status line. */
   carry?: {status: 'pending' | 'confirmed', count: number};
+  /**
+   * The interlude READINESS chip — rendered on this very row while the
+   * current slot is `ready` and a carryover round is open, so «кто готов и
+   * кого ждём» is tracked in the ONE player zone every viewer already
+   * reads (never a separate roster panel). Humans only; the creator's chip
+   * flips to `launching` once everyone is ready.
+   */
+  readiness?: 'ready' | 'choosing' | 'launching';
   isChampion: boolean;
 };
 
@@ -59,6 +67,7 @@ export type CmapCta =
   | {kind: 'carryover', label: string}
   | {kind: 'chronicle', label: string}
   | {kind: 'none'};
+
 
 export type CampaignMapVm = {
   name: string;
@@ -136,23 +145,34 @@ export function buildCampaignMapVm(model: CampaignModel): CampaignMapVm {
 
   const carry = model.carryover;
   const yourCarry = youSeat !== undefined ? carry?.bySeat.find((s) => s.seat === youSeat) : undefined;
-  const rail: Array<CmapRailRow> = model.seats.map((seat) => ({
-    seat: seat.seat,
-    color: seat.color,
-    name: seat.name,
-    isBot: seat.kind === 'bot',
-    isYou: seat.seat === youSeat,
-    titles: model.progression.titles.filter((t) => t.seat === seat.seat)
-      .map((t) => ({title: t.title, missionSlot: t.missionSlot})),
-    titlePoints: model.progression.titlePoints[seat.seat] ?? 0,
-    pendingBonus: model.progression.pendingBonuses[seat.seat] ?? 0,
-    carry: seat.kind === 'human' && model.phase === 'interlude' ?
-      (() => {
-        const entry = carry?.bySeat.find((s) => s.seat === seat.seat);
-        return entry === undefined ? undefined : {status: entry.status, count: entry.count};
-      })() : undefined,
-    isChampion: championSeats.includes(seat.seat),
-  }));
+  // The READINESS round is open: current slot ready, interlude, carryover live.
+  const currentMission = model.missions[model.pointer];
+  const readinessOpen = currentMission?.state === 'ready' &&
+    model.phase === 'interlude' && carry !== undefined;
+  const allReady = carry !== undefined && carry.bySeat.every((s) => s.status === 'confirmed');
+  const rail: Array<CmapRailRow> = model.seats.map((seat) => {
+    const entry = carry?.bySeat.find((s) => s.seat === seat.seat);
+    let readiness: CmapRailRow['readiness'];
+    if (readinessOpen && seat.kind === 'human' && entry !== undefined) {
+      readiness = entry.status === 'confirmed' ?
+        (seat.seat === 0 && allReady ? 'launching' : 'ready') : 'choosing';
+    }
+    return {
+      seat: seat.seat,
+      color: seat.color,
+      name: seat.name,
+      isBot: seat.kind === 'bot',
+      isYou: seat.seat === youSeat,
+      titles: model.progression.titles.filter((t) => t.seat === seat.seat)
+        .map((t) => ({title: t.title, missionSlot: t.missionSlot})),
+      titlePoints: model.progression.titlePoints[seat.seat] ?? 0,
+      pendingBonus: model.progression.pendingBonuses[seat.seat] ?? 0,
+      carry: seat.kind === 'human' && model.phase === 'interlude' && entry !== undefined ?
+        {status: entry.status, count: entry.count} : undefined,
+      readiness,
+      isChampion: championSeats.includes(seat.seat),
+    };
+  });
 
   const current = missions[model.pointer];
   let cta: CmapCta = {kind: 'none'};

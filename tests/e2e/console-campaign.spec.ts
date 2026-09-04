@@ -96,21 +96,36 @@ test.describe('campaign map', () => {
     test.setTimeout(120_000);
     // A REAL mission 1 (launch records the per-seat playerIds the carryover
     // route authenticates against), then the dev commit leaves every human
-    // seat PENDING — the true post-mission readiness regime.
+    // seat PENDING — the true post-mission readiness regime. Bruno's recorded
+    // terminal hand carries two cards, so his step exercises the fitted grid
+    // AND the armed zero-carry confirm.
     const {id} = await createCampaign(request);
     await launchMission(request, id);
-    await devCommit(request, id, [0, 1], {carryoverPending: true});
+    await devCommit(request, id, [0, 1], {
+      carryoverPending: true,
+      carryover: {0: [], 1: ['Ants', 'Algae']},
+    });
 
     // Bruno (non-host) opens the campaign: the carryover step opens ITSELF —
     // the interlude's entry is the mandatory step, not a button hunt.
     await openMapAs(page, id, 'Bruno');
     await page.waitForSelector('.con-carry', {timeout: 20_000});
-    // Empty recorded hand → the honest empty state; X = confirm readiness.
-    await expect(page.locator('.con-carry__empty')).toBeVisible();
+    await expect(page.locator('.con-carry__card')).toHaveCount(2);
+
+    // THE BLOCKER GUARD, client half: a ZERO-card confirm over a real hand
+    // must be ARMED — the first X raises the named warning and does NOT
+    // confirm; only the second X does.
+    await press(page, 'KeyX', 600);
+    await expect(page.locator('.con-carry__status-warn')).toBeVisible();
+    await expect(page.locator('.con-carry')).toBeVisible();
     await press(page, 'KeyX', 800);
 
-    // The step concludes into the READY waiting room (auto-join armed).
-    await page.waitForSelector('.cmap__waitroom--ready', {timeout: 20_000});
+    // The step concludes into the READY waiting state (auto-join armed):
+    // the WAIT STRIP heads the player zone and the readiness chips sit on
+    // the seat rows themselves — Bruno ready, Alice choosing.
+    await page.waitForSelector('.cmap__wait-strip--ready', {timeout: 20_000});
+    await expect(page.locator('.cmap__seat-status--ready')).toHaveCount(1);
+    await expect(page.locator('.cmap__seat-status--choosing')).toHaveCount(1);
 
     // Alice (host) confirms her readiness and launches — over the API, the
     // out-of-band second-participant path.
