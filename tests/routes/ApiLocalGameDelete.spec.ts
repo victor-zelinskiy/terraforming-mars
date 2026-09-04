@@ -1,6 +1,7 @@
 import {expect} from 'chai';
 import {ApiLocalGameDelete, isLoopbackIp} from '../../src/server/routes/ApiLocalGameDelete';
 import {RealtimeHub, GameInvalidation} from '../../src/server/server/realtime/RealtimeHub';
+import {CampaignGameContract} from '../../src/server/game/GameOptions';
 import {Game} from '../../src/server/Game';
 import {TestPlayer} from '../TestPlayer';
 import {MockResponse} from './HttpMocks';
@@ -104,6 +105,41 @@ describe('ApiLocalGameDelete', () => {
     expect(JSON.parse(res.content).deleted).to.have.members(['game-a', 'game-b', 'game-c']);
     expect(await scaffolding.ctx.gameLoader.getIds()).has.length(0);
     expect(invalidations.map((i) => i.gameId)).to.have.members(['game-a', 'game-b', 'game-c']);
+  });
+
+  it('refuses to delete a campaign mission alone (the campaign owns its games)', async () => {
+    scaffolding.ctx.ip = '!127.0.0.1!';
+    const game = addGame('game-mission');
+    (game.gameOptions as {campaign?: CampaignGameContract}).campaign = {
+      campaignId: 'c0123456789ab', campaignName: 'Test', missionSlot: 0, missionCount: 4, final: false, grants: [],
+    };
+    scaffolding.url = '/api/local-game-delete?id=game-mission';
+    scaffolding.req.method = 'POST';
+    await ApiLocalGameDelete.INSTANCE.processRequest(scaffolding.req, res, scaffolding.ctx);
+    expect(res.statusCode).eq(422);
+    expect(res.content).contains('part of a campaign');
+    const ids = await scaffolding.ctx.gameLoader.getIds();
+    expect(ids.map((e) => e.gameId)).to.include('game-mission');
+  });
+
+  it('all=1 SKIPS campaign missions — a bulk delete never cascades into campaigns', async () => {
+    scaffolding.ctx.ip = '!127.0.0.1!';
+    addGame('game-plain');
+    const mission = addGame('game-mission-2');
+    (mission.gameOptions as {campaign?: CampaignGameContract}).campaign = {
+      campaignId: 'c0123456789ab', campaignName: 'Test', missionSlot: 1, missionCount: 4, final: false, grants: [],
+    };
+    scaffolding.url = '/api/local-game-delete?all=1';
+    scaffolding.req.method = 'POST';
+    await ApiLocalGameDelete.INSTANCE.processRequest(scaffolding.req, res, scaffolding.ctx);
+    expect(res.statusCode).eq(200);
+    const body = JSON.parse(res.content) as {deleted: Array<string>, skippedCampaignGames: Array<string>};
+    expect(body.deleted).to.include('game-plain');
+    expect(body.deleted).to.not.include('game-mission-2');
+    expect(body.skippedCampaignGames).to.include('game-mission-2');
+    const ids = (await scaffolding.ctx.gameLoader.getIds()).map((e) => e.gameId);
+    expect(ids).to.include('game-mission-2');
+    expect(ids).to.not.include('game-plain');
   });
 
   it('isLoopbackIp recognizes every loopback form and nothing else', () => {

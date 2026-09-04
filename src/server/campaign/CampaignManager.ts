@@ -38,6 +38,9 @@ import {
 } from '../../common/campaign/CampaignTypes';
 import {FINAL_MISSION_AWARDS_TITLES, TITLE_TABLE, bonusForPlace, titleForPlace} from '../../common/campaign/campaignConfig';
 import {CampaignCarryoverModel, CampaignMissionModel, CampaignModel, MissionResultModel} from '../../common/campaign/CampaignModel';
+import {CampaignSummaryModel, CampaignViewerState} from '../../common/campaign/CampaignSummary';
+import {Color} from '../../common/Color';
+import {isAdminName} from '../../common/utils/adminName';
 import {Phase} from '../../common/Phase';
 import {boardOptions} from '../boards/randomBoard';
 import {newProjectCard} from '../createCard';
@@ -50,6 +53,7 @@ import {gameOptionsFromNewGameConfig} from '../game/newGameConfigToOptions';
 import {CampaignGameContract, CampaignGrant} from '../game/GameOptions';
 import {IGame} from '../IGame';
 import {IPlayer} from '../IPlayer';
+import {LobbyIndex} from '../models/lobbyIndex';
 import {Player} from '../Player';
 import {generateRandomId} from '../utils/server-ids';
 import {CarryoverSeatState, SerializedCampaign, SerializedMissionSlot} from './Campaign';
@@ -86,6 +90,10 @@ export class CampaignManager {
   public async load(id: CampaignId): Promise<SerializedCampaign | undefined> {
     const cached = this.cache.get(id);
     if (cached !== undefined) {
+      if (cached.deletingAtMs !== undefined) {
+        await this.resumeDeletion(cached);
+        return undefined;
+      }
       await this.reconcile(cached);
       return cached;
     }
@@ -95,6 +103,12 @@ export class CampaignManager {
         return undefined;
       }
       this.cache.set(id, stored);
+      if (stored.deletingAtMs !== undefined) {
+        // Crash-recovery: a tombstoned campaign resumes its cascade on the
+        // very next read and is invisible to the reader either way.
+        await this.resumeDeletion(stored);
+        return undefined;
+      }
       await this.reconcile(stored);
       return stored;
     } catch (err) {
@@ -107,6 +121,17 @@ export class CampaignManager {
     this.cache.set(campaign.id, campaign);
     await Database.getInstance().saveCampaign(campaign);
     this.notify(campaign);
+    this.touchLobby();
+  }
+
+  /** Campaign mutations bump the LOBBY revision, so lobby subscribers (the
+   *  «Мои кампании» list included) learn of the change by push, not by poll. */
+  private touchLobby(): void {
+    try {
+      LobbyIndex.getInstance().touch();
+    } catch (err) {
+      // Realtime is an accelerator, never a dependency.
+    }
   }
 
   /** Best-effort realtime nudge: invalidate cached mission games so their
@@ -478,6 +503,9 @@ export class CampaignManager {
       console.error('Campaign not found for mission commit:', contract.campaignId, game.id);
       return;
     }
+    if (campaign.deletingAtMs !== undefined) {
+      return; // A dying campaign accepts no new results.
+    }
     const slot = campaign.missions[contract.missionSlot];
     if (slot === undefined || slot.gameId !== game.id) {
       return; // Stale or foreign game — never commits.
@@ -642,6 +670,9 @@ export class CampaignManager {
       candidates.push(...this.cache.values());
     }
     for (const campaign of candidates) {
+      if (campaign.deletingAtMs !== undefined) {
+        continue;
+      }
       const slot = campaign.missions.find((m) => m.gameId === gameId);
       if (slot === undefined || slot.result === undefined) {
         continue;
@@ -764,7 +795,8 @@ export class CampaignManager {
       const campaignIds = await Database.getInstance().getCampaignIds();
       for (const cid of campaignIds) {
         const campaign = await this.loadWithoutReconcile(cid);
-        if (campaign === undefined || campaign.phase === 'finished' || campaign.phase === 'abandoned') {
+        if (campaign === undefined || campaign.phase === 'finished' || campaign.phase === 'abandoned' ||
+            campaign.deletingAtMs !== undefined) {
           continue;
         }
         for (const slot of campaign.missions) {
@@ -777,6 +809,226 @@ export class CampaignManager {
       // Fail open: purging proceeds without exemptions rather than crashing.
     }
     return ids;
+  }
+
+  // ------------------------------------------------------ list («Мои кампании») --
+
+  /**
+   * The participant-scoped campaign list: one SAFE summary per campaign the
+   * viewer (by normalized name — the campaign identity model) holds a seat in.
+   * `activeColorByGame` is optional live-turn context (the lobby index's
+   * `activePlayerColor` per unfinished game) — without it «ваш ход» simply
+   * degrades to «миссия идёт». Deterministic base order: newest activity
+   * first, id as the tiebreak (the client re-sorts by action priority).
+   */
+  public async listSummaries(viewerName: string, activeColorByGame?: ReadonlyMap<GameId, Color>): Promise<Array<CampaignSummaryModel>> {
+    const out: Array<CampaignSummaryModel> = [];
+    if (viewerName === undefined || normalizePlayerName(viewerName) === '') {
+      return out;
+    }
+    let ids: Array<CampaignId>;
+    try {
+      ids = await Database.getInstance().getCampaignIds();
+    } catch (err) {
+      return out;
+    }
+    for (const id of ids) {
+      // `load` reconciles a crashed commit and RESUMES a crashed deletion —
+      // a tombstoned campaign therefore never reaches the list.
+      const campaign = await this.load(id);
+      if (campaign === undefined) {
+        continue;
+      }
+      const summary = this.summaryOf(campaign, viewerName, activeColorByGame);
+      if (summary !== undefined) {
+        out.push(summary);
+      }
+    }
+    out.sort((a, b) => (b.lastActivityMs - a.lastActivityMs) || a.id.localeCompare(b.id));
+    return out;
+  }
+
+  /** One campaign's summary for one viewer; `undefined` for a non-participant. */
+  public summaryOf(campaign: SerializedCampaign, viewerName: string, activeColorByGame?: ReadonlyMap<GameId, Color>): CampaignSummaryModel | undefined {
+    const viewerSeat = this.seatOf(campaign, viewerName);
+    if (viewerSeat === undefined) {
+      return undefined;
+    }
+    const completed = campaign.missions.filter((m) => m.result !== undefined);
+    const lastActivityMs = completed.reduce((max, m) => Math.max(max, m.result?.committedAtMs ?? 0), campaign.createdTimeMs);
+    const currentSlot = campaign.missions[Math.min(campaign.pointer, campaign.missions.length - 1)];
+    const missionGameId = campaign.phase === 'missionActive' ? currentSlot?.gameId : undefined;
+    const {state, blockedReason} = this.viewerStateOf(campaign, viewerSeat, activeColorByGame);
+    return {
+      id: campaign.id,
+      rev: campaign.rev,
+      name: campaign.name,
+      createdTimeMs: campaign.createdTimeMs,
+      lastActivityMs,
+      phase: campaign.phase,
+      pointer: campaign.pointer,
+      missionCount: campaign.missions.length,
+      completedMissions: completed.length,
+      missionGamesCount: campaign.missions.filter((m) => m.gameId !== undefined).length,
+      currentBoard: currentSlot.board,
+      seats: campaign.seats,
+      you: {seat: viewerSeat.seat},
+      isCreator: viewerSeat.seat === 0,
+      state,
+      blockedReason,
+      missionGameId,
+      championSeats: campaign.championSeats,
+      yourTitlePoints: campaign.progression.titles
+        .filter((t) => t.seat === viewerSeat.seat)
+        .reduce((sum, t) => sum + t.titlePoints, 0),
+    };
+  }
+
+  /** Priority-resolved viewer state: the viewer's own required action first. */
+  private viewerStateOf(campaign: SerializedCampaign, viewerSeat: CampaignSeat, activeColorByGame?: ReadonlyMap<GameId, Color>): {state: CampaignViewerState, blockedReason?: string} {
+    if (campaign.phase === 'abandoned') {
+      return {state: 'abandoned'};
+    }
+    if (campaign.phase === 'finished') {
+      return {state: 'finished'};
+    }
+    if (campaign.phase === 'missionActive') {
+      const gameId = campaign.missions[campaign.pointer]?.gameId;
+      const activeColor = gameId !== undefined ? activeColorByGame?.get(gameId) : undefined;
+      return {state: activeColor !== undefined && activeColor === viewerSeat.color ? 'yourTurn' : 'missionActive'};
+    }
+    // generated | interlude — the launch window.
+    const carryover = campaign.carryover;
+    if (carryover !== undefined && campaign.phase === 'interlude') {
+      const own = carryover.bySeat[viewerSeat.seat];
+      if (own !== undefined && own.status !== 'confirmed') {
+        return {state: 'chooseCarryover'};
+      }
+    }
+    const blockers = this.launchBlockersOf(campaign)
+      .filter((b) => b !== 'Waiting for the project carryover selections');
+    if (blockers.length > 0) {
+      return {state: 'blocked', blockedReason: blockers[0]};
+    }
+    if (carryover !== undefined && campaign.phase === 'interlude' &&
+        Object.values(carryover.bySeat).some((s) => s.status !== 'confirmed')) {
+      return {state: 'waitingOthers'};
+    }
+    return {state: viewerSeat.seat === 0 ? 'launchReady' : 'waitingLaunch'};
+  }
+
+  // --------------------------------------------------------- cascade delete --
+
+  /**
+   * CREATOR-ONLY cascade delete: the campaign document AND every mission game
+   * it verifiably owns. Ordering makes a crash recoverable in every window:
+   *   1. the tombstone (`deletingAtMs`) persists BEFORE the first game dies —
+   *      from that moment the campaign is invisible and immutable, and any
+   *      later read resumes the cascade;
+   *   2. each mission game is deleted through the ONE canonical path
+   *      (`GameLoader.deleteGame`: cache, purge guard, lobby index, database —
+   *      saves, participants, results, completion records) — only after its
+   *      OWN `gameOptions.campaign.campaignId` names this campaign. A missing
+   *      game is logged and skipped (idempotent repeats); a foreign id in a
+   *      corrupted document is NEVER deleted;
+   *   3. the campaign document goes last — if any owned game failed to delete
+   *      the tombstone survives and the next attempt converges.
+   * Repeat calls (double-press, retry after crash, other replicas) are safe:
+   * an already-tombstoned campaign just resumes; a fully deleted one answers
+   * success with nothing to do.
+   */
+  public async deleteCampaign(id: CampaignId, viewerName: string): Promise<{deletedGames: Array<GameId>}> {
+    const campaign = await this.loadWithoutReconcile(id);
+    if (campaign === undefined) {
+      return {deletedGames: []}; // Idempotent: already gone.
+    }
+    if (campaign.deletingAtMs === undefined) {
+      const seat = this.seatOf(campaign, viewerName);
+      if ((seat === undefined || seat.seat !== 0) && !isAdminName(viewerName)) {
+        throw new Error('Only the campaign creator can delete the campaign');
+      }
+      campaign.deletingAtMs = Date.now();
+      await this.save(campaign);
+    }
+    // An already-tombstoned campaign resumes without re-authorizing: the
+    // authorization was consumed when the tombstone was written.
+    return await this.runDeletionCascade(campaign);
+  }
+
+  private async resumeDeletion(campaign: SerializedCampaign): Promise<void> {
+    try {
+      await this.runDeletionCascade(campaign);
+    } catch (err) {
+      console.error('campaign-delete: resume failed for', campaign.id, err);
+    }
+  }
+
+  private async runDeletionCascade(campaign: SerializedCampaign): Promise<{deletedGames: Array<GameId>}> {
+    const deletedGames: Array<GameId> = [];
+    const failures: Array<GameId> = [];
+    const loader = GameLoader.getInstance();
+    for (const slot of campaign.missions) {
+      const gameId = slot.gameId;
+      if (gameId === undefined) {
+        continue;
+      }
+      try {
+        // Ownership is verified on the SERIALIZED form — readable even when a
+        // full deserialize would fail, so a corrupt-but-ours save still dies.
+        let serialized;
+        try {
+          serialized = await Database.getInstance().getGame(gameId);
+        } catch (err) {
+          serialized = undefined;
+        }
+        if (serialized === undefined) {
+          // Nothing verifiable on disk. A provably-ours RESIDENT instance is
+          // still evicted; anything else is diagnostic, never a deletion.
+          const resident = loader.peek(gameId);
+          if (resident !== undefined && resident.gameOptions.campaign?.campaignId === campaign.id) {
+            const invalidation = {gameId, gameAge: resident.gameAge + 1, undoCount: resident.undoCount, phase: resident.phase};
+            await loader.deleteGame(gameId);
+            this.invalidateDeletedGame(invalidation);
+            deletedGames.push(gameId);
+          } else {
+            console.warn(`campaign-delete: mission game ${gameId} of ${campaign.id} not found — continuing`);
+          }
+          continue;
+        }
+        if (serialized.gameOptions?.campaign?.campaignId !== campaign.id) {
+          console.error(`campaign-delete: mission slot of ${campaign.id} names foreign game ${gameId} — NOT deleted`);
+          continue;
+        }
+        const invalidation = {gameId, gameAge: (serialized.gameAge ?? 0) + 1, undoCount: serialized.undoCount ?? 0, phase: serialized.phase};
+        await loader.deleteGame(gameId);
+        this.invalidateDeletedGame(invalidation);
+        deletedGames.push(gameId);
+      } catch (err) {
+        console.error(`campaign-delete: failed to delete mission game ${gameId} of ${campaign.id}`, err);
+        failures.push(gameId);
+      }
+    }
+    if (failures.length > 0) {
+      // The tombstone survives — a retry (explicit or the next read) resumes.
+      // Deleting the document now would orphan the failed games as ordinary
+      // ones, which is the one outcome the ordering exists to prevent.
+      throw new Error('Campaign deletion is incomplete. Please try again.');
+    }
+    await Database.getInstance().deleteCampaign(campaign.id);
+    this.cache.delete(campaign.id);
+    this.touchLobby();
+    return {deletedGames};
+  }
+
+  /** Wake every subscriber of a just-deleted mission game (their refetch then
+   *  404s and the client leaves cleanly instead of waiting out a poll). */
+  private invalidateDeletedGame(invalidation: {gameId: GameId, gameAge: number, undoCount: number, phase: Phase}): void {
+    try {
+      const {RealtimeHub} = require('../server/realtime/RealtimeHub');
+      RealtimeHub.getInstance().invalidate(invalidation);
+    } catch (err) {
+      // Realtime is an accelerator, never a dependency.
+    }
   }
 
   // ---------------------------------------------------------- dev tooling --

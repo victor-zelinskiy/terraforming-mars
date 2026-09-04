@@ -229,18 +229,29 @@
     </div>
 
     <!-- ── Local-game deletion confirm (host mode; stacked over the games list) ── -->
-    <div v-if="overlay === 'games' && gamesConfirm !== undefined" class="cm-overlay" role="alertdialog" :aria-label="$t(gamesConfirm.kind === 'all' ? 'Delete all local games?' : 'Delete this game?')">
+    <div v-if="overlay === 'games' && gamesConfirm !== undefined" class="cm-overlay" role="alertdialog" :aria-label="$t(gamesConfirmTitle)">
       <div class="cm-overlay__card">
-        <div class="cm-overlay__title">{{ $t(gamesConfirm.kind === 'all' ? 'Delete all local games?' : 'Delete this game?') }}</div>
+        <div class="cm-overlay__title">{{ $t(gamesConfirmTitle) }}</div>
         <div class="cm-overlay__body">
           <template v-if="gamesConfirm.kind === 'one'">
             <b>{{ gamesConfirm.game.name }}</b> — {{ $t('The game and its whole history will be permanently deleted.') }}
           </template>
-          <template v-else>{{ $t('Every game stored on this device will be permanently deleted, including games of other profiles.') }}</template>
+          <!-- A CAMPAIGN MISSION is never deleted alone (the server refuses it
+               too): the honest answer is the campaign's own front door. -->
+          <template v-else-if="gamesConfirm.kind === 'campaign'">
+            <b>{{ gamesConfirm.game.campaign !== undefined ? gamesConfirm.game.campaign.name : gamesConfirm.game.name }}</b> — {{ $t('Open the campaign to manage or delete it as a whole.') }}
+          </template>
+          <template v-else>
+            {{ $t('Every game stored on this device will be permanently deleted, including games of other profiles.') }}
+            {{ $t('Campaign missions are not affected — a campaign is deleted from the My campaigns screen.') }}
+          </template>
         </div>
         <div v-if="gamesError" class="cm-gamelist__empty cm-gamelist__empty--error">{{ $t('Could not delete the game') }}</div>
         <div class="cm-confirm__pad">
-          <button type="button" class="cm-confirm__btn cm-confirm__btn--danger" :disabled="gamesDeleting" @click="executeGamesDelete">
+          <button v-if="gamesConfirm.kind === 'campaign'" type="button" class="cm-confirm__btn" @click="openCampaignFromConfirm">
+            <GamepadGlyph control="confirm" /><span>{{ $t('Open the campaign') }}</span>
+          </button>
+          <button v-else type="button" class="cm-confirm__btn cm-confirm__btn--danger" :disabled="gamesDeleting" @click="executeGamesDelete">
             <GamepadGlyph control="confirm" /><span>{{ $t('Delete') }}</span>
           </button>
           <button type="button" class="cm-confirm__btn" @click="gamesConfirm = undefined">
@@ -249,6 +260,9 @@
         </div>
       </div>
     </div>
+
+    <!-- ── My campaigns (one row per campaign; A = the Campaign Map) ────── -->
+    <ConsoleCampaignsList v-if="overlay === 'campaigns'" ref="campaigns" @close="closeOverlay" />
 
     <!-- Manual LAN host entry (the on-screen keyboard owns every intent). -->
     <ConsoleVirtualKeyboard
@@ -363,6 +377,7 @@ import {useConsoleNativeSurface} from '@/client/console/composables/consoleNativ
 import ConsoleScrollArea from '@/client/components/console/foundation/ConsoleScrollArea.vue';
 import ConsoleCommandBar, {ConsoleCommand} from '@/client/components/console/ConsoleCommandBar.vue';
 import GamepadGlyph from '@/client/components/gamepad/GamepadGlyph.vue';
+import ConsoleCampaignsList from '@/client/components/console/menu/ConsoleCampaignsList.vue';
 import ConsoleProfileEditor from '@/client/components/console/menu/ConsoleProfileEditor.vue';
 import ConsoleProfilesEditor from '@/client/components/console/menu/ConsoleProfilesEditor.vue';
 import ConsoleFriendsEditor from '@/client/components/console/menu/ConsoleFriendsEditor.vue';
@@ -397,14 +412,16 @@ import {desktopBridge, startMenuUpdateWatch, stopMenuUpdateWatch} from '@/client
 import {addToSteam, dismissSteamPrompt, initSteamShortcut, steamButtonVisible, steamPromptVisible, steamShortcutState} from '@/client/components/desktop/steamShortcutState';
 import raw_settings from '@/genfiles/settings.json';
 import {$t, translateTextWithParams} from '@/client/directives/i18n';
+import {campaignsState, refreshCampaigns, takeCampaignsReturn} from '@/client/console/campaign/campaignsState';
+import {activeCampaignCount, campaignActionRequired, visibleCampaignRows} from '@/client/console/campaign/campaignListModel';
 
-type MenuItemId = 'continue' | 'create' | 'games' | 'profile' | 'options' | 'admin' | 'playground' | 'steam' | 'quit';
+type MenuItemId = 'continue' | 'create' | 'games' | 'campaigns' | 'profile' | 'options' | 'admin' | 'playground' | 'steam' | 'quit';
 type MenuItem = {id: MenuItemId, labelKey: string, subText: string, glyph: string, badge: number};
-type MenuOverlay = 'games' | 'profile' | 'profiles' | 'friends' | 'language' | 'options' | 'admin' | 'playground' | 'quit' | 'steam' | undefined;
+type MenuOverlay = 'games' | 'campaigns' | 'profile' | 'profiles' | 'friends' | 'language' | 'options' | 'admin' | 'playground' | 'quit' | 'steam' | undefined;
 
 export default defineComponent({
   name: 'ConsoleMainMenu',
-  components: {ConsoleCommandBar, ConsoleScrollArea, GamepadGlyph, ConsoleVirtualKeyboard, ConsoleProfileEditor, ConsoleProfilesEditor, ConsoleFriendsEditor, ConsoleLanguagePicker, ConsoleOptionsPanel, ConsoleAdminRollback, ConsolePlaygroundHub},
+  components: {ConsoleCommandBar, ConsoleScrollArea, GamepadGlyph, ConsoleVirtualKeyboard, ConsoleCampaignsList, ConsoleProfileEditor, ConsoleProfilesEditor, ConsoleFriendsEditor, ConsoleLanguagePicker, ConsoleOptionsPanel, ConsoleAdminRollback, ConsolePlaygroundHub},
   setup() {
     // Foundation: page-level overflow lock while this screen owns the viewport.
     useConsoleNativeSurface();
@@ -422,8 +439,11 @@ export default defineComponent({
       desktopVersion: '',
       steamState: steamShortcutState,
       // Host-as-server: local-game deletion (X = one, Y = all; both confirmed).
+      // 'campaign' is the REDIRECT shape: a mission is never deleted alone —
+      // the dialog leads to the campaign's own front door instead.
       appModeEffective: undefined as 'host' | 'remote' | undefined,
-      gamesConfirm: undefined as undefined | {kind: 'one', game: JoinableGameSummary} | {kind: 'all'},
+      gamesConfirm: undefined as undefined | {kind: 'one', game: JoinableGameSummary} | {kind: 'campaign', game: JoinableGameSummary} | {kind: 'all'},
+      campaignsState,
       gamesDeleting: false,
       gamesError: false,
       // Manual LAN host entry (the multicast-blocked fallback).
@@ -591,6 +611,20 @@ export default defineComponent({
     hasLocalGames(): boolean {
       return this.games.length > 0 || this.finishedGames.length > 0;
     },
+    gamesConfirmTitle(): string {
+      const confirm = this.gamesConfirm;
+      if (confirm === undefined) {
+        return '';
+      }
+      if (confirm.kind === 'all') {
+        return 'Delete all local games?';
+      }
+      return confirm.kind === 'campaign' ? 'This game is part of a campaign' : 'Delete this game?';
+    },
+    /** Unfinished campaigns of the active identity (the menu plate's badge). */
+    campaignsBadge(): number {
+      return this.campaignsState.status === 'ok' ? activeCampaignCount(this.campaignsState.rows) : 0;
+    },
     continueItem(): JoinableGameSummary | undefined {
       const mine = this.games.filter((g) => g.you !== undefined);
       if (mine.length === 0) {
@@ -629,6 +663,7 @@ export default defineComponent({
       }
       items.push({id: 'create', labelKey: 'New game', subText: $t('Set up the players, map and rules of the party'), glyph: '◈', badge: 0});
       items.push({id: 'games', labelKey: 'My games', subText: $t('Continue or join your unfinished games'), glyph: '⧉', badge: this.games.filter((g) => g.you !== undefined).length});
+      items.push({id: 'campaigns', labelKey: 'My campaigns', subText: $t('Continue a campaign or open the route map'), glyph: '⚑', badge: this.campaignsBadge});
       items.push({id: 'profile', labelKey: 'Player profile', subText: this.identityName !== '' ? this.identityName : $t('Set your name'), glyph: '◉', badge: 0});
       items.push({id: 'options', labelKey: 'Options', subText: $t('Interface and display settings'), glyph: '⚙', badge: 0});
       // Rollback: every player in local mode (games on this device); the
@@ -653,6 +688,9 @@ export default defineComponent({
     commandContext(): string {
       if (this.overlay === 'games') {
         return 'My games';
+      }
+      if (this.overlay === 'campaigns') {
+        return 'My campaigns';
       }
       if (this.overlay === 'profile') {
         return 'Player profile';
@@ -684,7 +722,7 @@ export default defineComponent({
       if (this.overlay === 'games') {
         if (this.gamesConfirm !== undefined) {
           return [
-            {control: 'confirm', label: 'Delete'},
+            {control: 'confirm', label: this.gamesConfirm.kind === 'campaign' ? 'Open the campaign' : 'Delete'},
             {control: 'back', label: 'Cancel'},
           ];
         }
@@ -718,6 +756,27 @@ export default defineComponent({
         }
         bar.push({control: 'back', label: 'Back'});
         return bar;
+      }
+      if (this.overlay === 'campaigns') {
+        if (this.campaignsState.confirmId !== undefined) {
+          return [
+            {control: 'confirm', label: 'Delete', enabled: !this.campaignsState.deleting},
+            {control: 'back', label: 'Cancel'},
+          ];
+        }
+        const rows = visibleCampaignRows(this.campaignsState.rows, this.campaignsState.tab);
+        const row = rows[this.campaignsState.cursor];
+        const archive = this.campaignsState.tab === 'completed';
+        // Deliberately NO «Y · Удалить всё» here: a bulk cascade over every
+        // campaign is not a verb this screen offers.
+        return [
+          {control: 'dpad', label: 'Navigate'},
+          {control: 'confirm', label: 'Campaign map', enabled: row !== undefined, highlight: row !== undefined && campaignActionRequired(row)},
+          {control: 'stickL', label: archive ? 'Active campaigns' : 'Completed campaigns'},
+          {control: 'triggerR', label: 'Refresh', enabled: !this.campaignsState.refreshing},
+          {control: 'secondary', label: 'Delete', enabled: row !== undefined && row.isCreator},
+          {control: 'back', label: 'Back'},
+        ];
       }
       // No 'options' branch: the settings console owns its own foot bar and the
       // menu's is hidden while it is open (see the template).
@@ -813,6 +872,17 @@ export default defineComponent({
       if (name !== '') {
         publishLanName(name);
       }
+      // The campaigns list is name-scoped the same way.
+      void refreshCampaigns();
+    },
+    /**
+     * Campaign realtime rides the LOBBY channel (a campaign mutation bumps the
+     * lobby revision server-side), and every lobby trigger funnels into
+     * `refreshLobby`, which stamps `lastRefreshAt` — so re-asking the campaign
+     * list here covers push, poll, focus and the manual RT alike.
+     */
+    'lobbyState.lastRefreshAt'() {
+      void refreshCampaigns();
     },
     // The Steam state loads async (getSteamState). When it arrives, show the first-run prompt
     // if it's warranted (Windows first launch, not added, not dismissed) and nothing else is open.
@@ -825,6 +895,19 @@ export default defineComponent({
   mounted() {
     setDocumentTitle('Terraforming Mars');
     ensureIdentityLoaded();
+    // Return from the Campaign Map: reopen «Мои кампании» on the same tab and
+    // focus the same row (the map entry was a full navigation, so the overlay
+    // state did not survive on its own).
+    const campaignsReturn = takeCampaignsReturn();
+    if (campaignsReturn !== undefined) {
+      this.campaignsState.tab = campaignsReturn.tab;
+      this.campaignsState.pendingFocusId = campaignsReturn.id;
+      this.campaignsState.confirmId = undefined;
+      this.campaignsState.deleteError = '';
+      this.overlay = 'campaigns';
+    }
+    // The badge on the plate needs the list before the screen is ever opened.
+    void refreshCampaigns();
     // First launch with no saved name (Steam Deck / Steam Machine): prefill from the Steam display
     // name so the greeting + creator seat aren't empty. Reactive — the menu updates when it lands.
     void prefillIdentityFromSteam();
@@ -917,6 +1000,10 @@ export default defineComponent({
         const hub = this.$refs.playground as {handleIntent?: (intent: GamepadIntent) => boolean} | undefined;
         return hub?.handleIntent?.(intent) ?? true;
       }
+      if (this.overlay === 'campaigns') {
+        const panel = this.$refs.campaigns as {handleIntent?: (intent: GamepadIntent) => boolean} | undefined;
+        return panel?.handleIntent?.(intent) ?? true;
+      }
       if (this.overlay === 'games') {
         // The on-screen keyboard owns every intent while an address is typed.
         if (this.lanEntry) {
@@ -932,7 +1019,11 @@ export default defineComponent({
         // The deletion confirm swallows everything but confirm/cancel.
         if (this.gamesConfirm !== undefined) {
           if (action === 'primary') {
-            void this.executeGamesDelete();
+            if (this.gamesConfirm.kind === 'campaign') {
+              this.openCampaignFromConfirm();
+            } else {
+              void this.executeGamesDelete();
+            }
           } else if (action === 'back') {
             this.gamesConfirm = undefined;
             this.gamesError = false;
@@ -1050,6 +1141,16 @@ export default defineComponent({
           void loadLobbyArchive();
         }
         break;
+      case 'campaigns':
+        this.overlay = 'campaigns';
+        this.campaignsState.tab = 'active';
+        this.campaignsState.cursor = 0;
+        this.campaignsState.confirmId = undefined;
+        this.campaignsState.deleteError = '';
+        // Entering the screen is a refresh — the panel's mounted() re-asks too,
+        // but the press must never depend on the panel being the one to ask.
+        void refreshCampaigns();
+        break;
       case 'profile':
         this.openProfile();
         break;
@@ -1110,6 +1211,8 @@ export default defineComponent({
       menuPadState.textEntry = false;
       this.gamesConfirm = undefined;
       this.gamesError = false;
+      this.campaignsState.confirmId = undefined;
+      this.campaignsState.deleteError = '';
       this.lanEntry = false;
       this.lanIssue = '';
       closeLobbyList();
@@ -1298,7 +1401,9 @@ export default defineComponent({
         navigateWithCurtain(paths.PLAYER + '?id=' + encodeURIComponent(row.game.you.id), 'expedition');
       }
     },
-    /** X on a LOCAL row (host mode) — ask before deleting that one game. */
+    /** X on a LOCAL row (host mode) — ask before deleting that one game.
+     *  A CAMPAIGN row never offers the single delete: the dialog redirects to
+     *  the campaign itself (the server refuses a lone mission delete anyway). */
     requestDeleteAt(i: number): void {
       if (!this.canDeleteLocal || i >= this.localRows.length) {
         return;
@@ -1307,8 +1412,17 @@ export default defineComponent({
       if (g !== undefined) {
         this.gamesCursor = i;
         this.gamesError = false;
-        this.gamesConfirm = {kind: 'one', game: g};
+        this.gamesConfirm = g.campaign !== undefined ? {kind: 'campaign', game: g} : {kind: 'one', game: g};
       }
+    },
+    /** The campaign-mission dialog's one verb: the campaign's own front door. */
+    openCampaignFromConfirm(): void {
+      const confirm = this.gamesConfirm;
+      if (confirm === undefined || confirm.kind !== 'campaign') {
+        return;
+      }
+      this.gamesConfirm = undefined;
+      this.openLocalGame(confirm.game);
     },
     /** Y (host mode) — ask before wiping the whole local library. */
     requestDeleteAll(): void {
@@ -1319,7 +1433,7 @@ export default defineComponent({
     },
     async executeGamesDelete(): Promise<void> {
       const confirm = this.gamesConfirm;
-      if (confirm === undefined || this.gamesDeleting) {
+      if (confirm === undefined || confirm.kind === 'campaign' || this.gamesDeleting) {
         return;
       }
       this.gamesDeleting = true;

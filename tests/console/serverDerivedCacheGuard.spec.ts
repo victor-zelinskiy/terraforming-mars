@@ -85,6 +85,8 @@ const NOT_A_CACHE = new Map<string, string>([
     'a one-shot delete POST outside any game view'],
   [path.join('src', 'client', 'console', 'campaign', 'campaignState.ts'),
     'the campaign document carries its own monotonic rev (stale responses are refused by it); it holds no per-game verdict'],
+  [path.join('src', 'client', 'console', 'campaign', 'campaignsState.ts'),
+    'the «Мои кампании» lobby list — server-sorted summaries outside any game view, refreshed wholesale (rows carry the campaign rev); it holds no per-game verdict'],
 ]);
 
 function walk(dir: string, out: Array<string>): void {

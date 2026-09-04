@@ -29,6 +29,11 @@ export const paths = {
   API_CAMPAIGN_LAUNCH: 'api/campaign/launch',
   API_CAMPAIGN_CARRYOVER: 'api/campaign/carryover',
   API_CAMPAIGN_DEV: 'api/campaign/dev',
+  // «Мои кампании»: the participant-scoped campaign list (one safe summary
+  // per campaign the named viewer holds a seat in), and the creator-only
+  // CASCADE delete (campaign document + every mission game it owns).
+  API_CAMPAIGNS: 'api/campaigns',
+  API_CAMPAIGN_DELETE: 'api/campaign/delete',
   // The campaign map app screen (App.vue route; served as the SPA shell).
   CAMPAIGN: 'campaign',
   // Dev-only admin game-rollback tool (console main-menu plate, name-gated on

@@ -7,7 +7,8 @@ import {Game} from '../../src/server/Game';
 import {TestPlayer} from '../TestPlayer';
 import {restoreTestDatabase, setTestDatabase} from '../testing/setup';
 import {testGame} from '../TestGame';
-import {GameId, ParticipantId} from '../../src/common/Types';
+import {CampaignId, GameId, ParticipantId} from '../../src/common/Types';
+import {SerializedCampaign} from '../../src/server/campaign/Campaign';
 import {statusCode} from '../../src/common/http/statusCode';
 import {cast} from '@/common/utils/utils';
 import {SelectInitialCards} from '../../src/server/inputs/SelectInitialCards';
@@ -437,6 +438,37 @@ export function describeDatabaseSuite<T extends ITestDatabase>(dtor: DatabaseTes
       await db.deleteGame(game.id);
 
       expect(await db.getGameIds()).does.not.contain(game.id);
+    });
+
+    it('campaign save / get / list / delete (the cascade-delete substrate)', async () => {
+      const campaign: SerializedCampaign = {
+        version: 1,
+        id: 'c0123456789ab' as CampaignId,
+        rev: 3,
+        name: 'Suite Campaign',
+        createdTimeMs: 1234,
+        seats: [],
+        settings: {} as SerializedCampaign['settings'],
+        generator: {seed: 0.5, version: 1, pool: []},
+        missions: [],
+        pointer: 0,
+        phase: 'generated',
+        progression: {lineages: {}, titles: []},
+      };
+      expect(await db.getCampaign(campaign.id)).is.undefined;
+      await db.saveCampaign(campaign);
+      expect(await db.getCampaignIds()).contains(campaign.id);
+      const stored = await db.getCampaign(campaign.id);
+      expect(stored?.rev).eq(3);
+      expect(stored?.name).eq('Suite Campaign');
+      // The deletion tombstone must round-trip (crash recovery reads it back).
+      await db.saveCampaign({...campaign, rev: 4, deletingAtMs: 777});
+      expect((await db.getCampaign(campaign.id))?.deletingAtMs).eq(777);
+      await db.deleteCampaign(campaign.id);
+      expect(await db.getCampaign(campaign.id)).is.undefined;
+      expect(await db.getCampaignIds()).does.not.contain(campaign.id);
+      // Idempotent: deleting a deleted campaign is a no-op, never a throw.
+      await db.deleteCampaign(campaign.id);
     });
 
     if (dtor.omit?.sessions !== true) {

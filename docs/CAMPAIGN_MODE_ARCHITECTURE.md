@@ -19,6 +19,32 @@
 > model/titles scoring), `tests/routes/ApiCampaign.spec.ts`, e2e
 > `tests/e2e/console-campaign.spec.ts`; full server+client suites green.
 >
+> **«Мои кампании» (2026-09-04):** a standalone main-menu screen — one row per
+> campaign, `GET api/campaigns?name=` (participant-scoped
+> `CampaignSummaryModel`, `src/common/campaign/CampaignSummary.ts` — the
+> privacy boundary: no card identities / finalHands / PlayerIds; live-turn
+> context from the LobbyIndex snapshot), L3 active↔completed (abandoned is
+> archived with its own «Прервана» register), A → the existing Campaign Map
+> (`sessionStorage tm_campaigns_return` restores tab+row on B), X → creator-only
+> CASCADE delete (`POST api/campaign/delete?id=&name=` →
+> `CampaignManager.deleteCampaign`): persisted tombstone `deletingAtMs` FIRST,
+> then each mission game through the canonical `GameLoader.deleteGame` only
+> after its own `gameOptions.campaign.campaignId` verifies ownership (missing
+> game → logged+skipped; foreign id in a corrupted document → never deleted),
+> campaign document LAST; `CampaignManager.load()` resumes a tombstoned cascade,
+> so a crash converges on «fully deleted». Campaign mutations bump the LOBBY
+> revision (`LobbyIndex.touch()`), so the list rides the lobby push channel.
+> Mission games are PROTECTED from lone deletion: `ApiLocalGameDelete` answers
+> 422 (and `all=1` skips them into `skippedCampaignGames`), `ApiGameDelete`
+> refuses on the serialized marker, «Мои партии»'s X on a campaign row
+> redirects to the campaign's own door. Client: `campaignsState.ts` (store) +
+> `campaignListModel.ts` (pure vm) + `ConsoleCampaignsList.vue` (menu overlay
+> panel). Tests:
+> `tests/campaign/{campaignSummaries,CampaignDelete,campaignListModel}.spec.ts`,
+> `tests/routes/{ApiCampaigns,ApiCampaignDelete}.spec.ts`, the databaseSuite
+> campaign conformance case, `tests/client/components/consoleCampaignsList.spec.ts`,
+> e2e `tests/e2e/console-campaigns-list.spec.ts` (incl. the FHD/4K/Deck fit sweep).
+>
 > Known v1 residuals (deliberate, listed in the implementation report): the map's
 > generation reveal is a CSS cascade (no connector-draw ceremony yet); the Titles
 > coda is a settled post-winner stage, not a director beat; «Штаб» reuses the start

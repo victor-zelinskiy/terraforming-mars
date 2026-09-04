@@ -4,6 +4,7 @@ import {Context} from './IHandler';
 import {isGameId} from '../../common/Types';
 import {Request} from '../Request';
 import {Response} from '../Response';
+import {Database} from '../database/Database';
 
 /**
  * Permanently deletes a game from the database.
@@ -26,6 +27,16 @@ export class ApiGameDelete extends Handler {
     }
     if (!isGameId(gameId)) {
       responses.badRequest(req, res, 'invalid game id');
+      return;
+    }
+
+    // CAMPAIGN PROTECTION: a mission game is deleted only through the
+    // campaign's own cascade (api/campaign/delete) — deleting one mission
+    // alone corrupts the campaign document for the whole group. Verified on
+    // the serialized form, so even an unloadable mission save stays guarded.
+    const serialized = await Database.getInstance().getGame(gameId).catch(() => undefined);
+    if (serialized?.gameOptions?.campaign !== undefined) {
+      responses.badRequest(req, res, 'This game is part of a campaign — delete the campaign instead');
       return;
     }
 

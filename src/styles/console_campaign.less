@@ -768,6 +768,81 @@
   white-space: nowrap;
 }
 
+/* ═══ «МОИ КАМПАНИИ» — the campaign list rows (the .cm-game chassis, one
+   register heavier: a campaign is a level of navigation above one party).
+   State lives in colour/weight/box-shadow — console strips filter/text-shadow. */
+.cm-camp {
+  border-color: rgba(214, 178, 106, 0.28);
+
+  &--archived {
+    border-color: rgba(140, 152, 170, 0.28);
+  }
+
+  /* The current world's fingerprint — a compact identity mark, never a map. */
+  &__fp {
+    flex: 0 0 auto;
+    display: inline-flex;
+    align-items: center;
+    width: 2.1rem;
+
+    .map-fp {
+      width: 100%;
+    }
+  }
+
+  /* Calm state accent (non-action states; the action ones reuse .cm-game__turn). */
+  &__state {
+    margin-left: auto;
+    color: #a8b8cc;
+    font-size: 0.72rem;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    white-space: nowrap;
+
+    &--ready { color: #9fe0c0; }
+    &--blocked { color: rgb(240, 168, 80); }
+    &--abandoned { color: #c9a0a0; }
+  }
+
+  /* The route rail: 1/4 → 4/4 as four quiet segments. */
+  &__rail {
+    display: flex;
+    gap: 0.25rem;
+    margin: 0.3rem 0 0.1rem;
+  }
+  &__seg {
+    flex: 1 1 0;
+    height: 0.22rem;
+    border-radius: 0.12rem;
+    background: rgba(140, 152, 170, 0.22);
+
+    &--done { background: rgba(214, 178, 106, 0.75); }
+    &--current {
+      background: rgba(120, 210, 235, 0.85);
+      box-shadow: 0 0 0 1px rgba(120, 210, 235, 0.35);
+    }
+  }
+
+  &__reason {
+    margin-top: 0.15rem;
+    color: rgb(240, 168, 80);
+    font-size: 0.78rem;
+  }
+
+  &__crown {
+    color: #ecd39a;
+    font-size: 0.8rem;
+    line-height: 1;
+  }
+
+  &__tp { color: #ecd39a; }
+}
+
+/* The delete confirm's stronger line for a still-running campaign. */
+.cm-camp__warn {
+  color: rgb(240, 168, 80);
+}
+
 .cm-launchc__note {
   margin: 0.3rem 0 0.6rem;
   max-width: 34rem;

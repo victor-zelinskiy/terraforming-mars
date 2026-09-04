@@ -143,10 +143,12 @@ describe('server/cors', () => {
   it('scopes eligibility to the game-runtime + create/join surface', () => {
     for (const p of [paths.API_PLAYER, paths.PLAYER_INPUT, paths.API_WAITING_FOR, paths.API_CREATEGAME, paths.API_GAMES_JOINABLE, paths.API_GAME_REMATCH,
       paths.API_GAME_BOT_TURN_ACK, paths.API_GAME_COLONY_TRADE_PREVIEW, paths.API_CORP_FIRST_ACTION_PREVIEW,
-      paths.LOAD_GAME, paths.API_LOCAL_GAME_DELETE, paths.API_ADMIN_ROLLBACK_GAMES, paths.API_ADMIN_ROLLBACK_HISTORY, paths.API_ADMIN_ROLLBACK]) {
+      paths.LOAD_GAME, paths.API_LOCAL_GAME_DELETE, paths.API_ADMIN_ROLLBACK_GAMES, paths.API_ADMIN_ROLLBACK_HISTORY, paths.API_ADMIN_ROLLBACK,
+      paths.API_CAMPAIGN, paths.API_CAMPAIGN_CREATE, paths.API_CAMPAIGN_LAUNCH, paths.API_CAMPAIGN_CARRYOVER, paths.API_CAMPAIGN_DEV,
+      paths.API_CAMPAIGNS, paths.API_CAMPAIGN_DELETE]) {
       expect(isCorsEligiblePath(p), p).to.be.true;
     }
-    for (const p of [paths.API_GAMES, paths.API_GAME_DELETE, paths.API_PROFILE, paths.LOGIN, paths.API_METRICS, 'admin']) {
+    for (const p of [paths.API_GAMES, paths.API_GAME_DELETE, paths.API_PROFILE, paths.LOGIN, paths.API_METRICS, 'admin', paths.CAMPAIGN]) {
       expect(isCorsEligiblePath(p), p).to.be.false;
     }
   });

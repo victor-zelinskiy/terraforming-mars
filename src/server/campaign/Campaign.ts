@@ -81,4 +81,14 @@ export type SerializedCampaign = {
     bySeat: Record<number, CarryoverSeatState>;
   };
   championSeats?: Array<number>;
+  /**
+   * DELETION TOMBSTONE. Set (and persisted) BEFORE the first mission game is
+   * deleted; the campaign document itself is deleted only after the whole
+   * cascade succeeded. A campaign carrying this field is invisible to every
+   * read and refuses every mutation — `CampaignManager.load` resumes the
+   * cascade instead, so a crash mid-delete converges on «fully deleted»
+   * rather than on a half-orphaned campaign. Optional: absent on every
+   * pre-existing document (graceful degradation).
+   */
+  deletingAtMs?: number;
 };

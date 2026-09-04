@@ -92,6 +92,10 @@ const CORS_PATHS: ReadonlySet<string> = new Set<string>([
   paths.API_CAMPAIGN_LAUNCH,
   paths.API_CAMPAIGN_CARRYOVER,
   paths.API_CAMPAIGN_DEV,
+  // «Мои кампании»: the list runs in the console main menu (desktop shell),
+  // and the cascade delete is the campaign family's own creator-gated verb.
+  paths.API_CAMPAIGNS,
+  paths.API_CAMPAIGN_DELETE,
 ]);
 
 /** Whether a pathname (no leading slash) is in the desktop CORS surface. */

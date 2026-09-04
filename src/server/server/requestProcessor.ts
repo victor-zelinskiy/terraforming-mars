@@ -28,6 +28,8 @@ import {ApiCampaignCreate} from '../routes/ApiCampaignCreate';
 import {ApiCampaignLaunch} from '../routes/ApiCampaignLaunch';
 import {ApiCampaignCarryover} from '../routes/ApiCampaignCarryover';
 import {ApiCampaignDev} from '../routes/ApiCampaignDev';
+import {ApiCampaigns} from '../routes/ApiCampaigns';
+import {ApiCampaignDelete} from '../routes/ApiCampaignDelete';
 import {ApiAdminRollbackGames} from '../routes/ApiAdminRollbackGames';
 import {ApiAdminRollbackHistory} from '../routes/ApiAdminRollbackHistory';
 import {ApiAdminRollback} from '../routes/ApiAdminRollback';
@@ -116,6 +118,8 @@ const handlers: Map<string, IHandler> = new Map(
     [paths.API_CAMPAIGN_LAUNCH, ApiCampaignLaunch.INSTANCE],
     [paths.API_CAMPAIGN_CARRYOVER, ApiCampaignCarryover.INSTANCE],
     [paths.API_CAMPAIGN_DEV, ApiCampaignDev.INSTANCE],
+    [paths.API_CAMPAIGNS, ApiCampaigns.INSTANCE],
+    [paths.API_CAMPAIGN_DELETE, ApiCampaignDelete.INSTANCE],
     [paths.CAMPAIGN, ServeApp.INSTANCE],
     [paths.API_ADMIN_ROLLBACK_GAMES, ApiAdminRollbackGames.INSTANCE],
     [paths.API_ADMIN_ROLLBACK_HISTORY, ApiAdminRollbackHistory.INSTANCE],

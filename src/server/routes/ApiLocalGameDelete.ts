@@ -5,6 +5,7 @@ import {GameId, isGameId} from '../../common/Types';
 import {Request} from '../Request';
 import {Response} from '../Response';
 import {IGame} from '../IGame';
+import {Database} from '../database/Database';
 import {RealtimeHub} from '../server/realtime/RealtimeHub';
 
 /**
@@ -37,8 +38,8 @@ export class ApiLocalGameDelete extends Handler {
     }
 
     if (ctx.url.searchParams.get('all') === '1') {
-      const deleted = await this.deleteAll(ctx);
-      responses.writeJson(res, ctx, {deleted});
+      const {deleted, skippedCampaignGames} = await this.deleteAll(ctx);
+      responses.writeJson(res, ctx, {deleted, skippedCampaignGames});
       return;
     }
 
@@ -56,6 +57,14 @@ export class ApiLocalGameDelete extends Handler {
       responses.notFound(req, res, 'game not found');
       return;
     }
+    // CAMPAIGN PROTECTION: a mission game may never be deleted alone — that
+    // silently breaks the whole group's campaign. The campaign is deleted as
+    // one entity (creator-only cascade, api/campaign/delete); the UI guard is
+    // NOT sufficient, so the refusal lives here too.
+    if (game.gameOptions.campaign !== undefined) {
+      responses.unprocessableEntity(req, res, 'This game is part of a campaign');
+      return;
+    }
     try {
       await this.deleteAndNotify(ctx, game);
     } catch (err) {
@@ -65,17 +74,30 @@ export class ApiLocalGameDelete extends Handler {
     responses.writeJson(res, ctx, {deleted: [gameId]});
   }
 
-  private async deleteAll(ctx: Context): Promise<Array<GameId>> {
+  private async deleteAll(ctx: Context): Promise<{deleted: Array<GameId>, skippedCampaignGames: Array<GameId>}> {
     const deleted: Array<GameId> = [];
+    const skippedCampaignGames: Array<GameId> = [];
     const entries = await ctx.gameLoader.getIds();
     for (const entry of entries) {
       try {
         const game = await ctx.gameLoader.getGame(entry.gameId);
+        // Campaign missions are SKIPPED: «удалить все партии» must not
+        // cascade into destroying campaigns implicitly — a campaign dies only
+        // through its own explicit confirmation («Мои кампании»).
+        if (game?.gameOptions.campaign !== undefined) {
+          skippedCampaignGames.push(entry.gameId);
+          continue;
+        }
         if (game !== undefined) {
           await this.deleteAndNotify(ctx, game);
         } else {
           // Unloadable (corrupt / mid-migration) — "delete all" still means the
-          // files go away.
+          // files go away, unless the SERIALIZED form proves it is a mission.
+          const serialized = await Database.getInstance().getGame(entry.gameId).catch(() => undefined);
+          if (serialized?.gameOptions?.campaign !== undefined) {
+            skippedCampaignGames.push(entry.gameId);
+            continue;
+          }
           await ctx.gameLoader.deleteGame(entry.gameId);
         }
         deleted.push(entry.gameId);
@@ -83,7 +105,7 @@ export class ApiLocalGameDelete extends Handler {
         console.error(`local-delete: failed to delete ${entry.gameId}`, err);
       }
     }
-    return deleted;
+    return {deleted, skippedCampaignGames};
   }
 
   private async deleteAndNotify(ctx: Context, game: IGame): Promise<void> {

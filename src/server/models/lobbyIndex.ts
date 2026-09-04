@@ -240,6 +240,15 @@ export class LobbyIndex {
     return true;
   }
 
+  /**
+   * An EXTERNAL lobby-scoped change (a campaign was created, mutated or
+   * deleted) — no game record moved, but lobby subscribers (the «Мои
+   * кампании» list rides the same channel) must re-ask.
+   */
+  public touch(): void {
+    this.bump();
+  }
+
   private bump(): void {
     this.rev++;
     const listener = this.listener;
