@@ -266,7 +266,7 @@ describe('cross-player coverage guard (every in-scope effect source is classifie
     const DOORS: Record<JournalActionCategory, {crossPlayer: 'possible' | 'none'; proof: string}> = {
       'card-play': {crossPlayer: 'possible', proof: 'S1/S2/S4/S6/S8/S13 — scope opened by Player.playCard/playCorporationCard'},
       'card-action': {crossPlayer: 'possible', proof: 'S15 — blue-action scope (Player.ts action doors), deferred attacks carry the captured context'},
-      'corporation-action': {crossPlayer: 'possible', proof: 'same scope machinery as card-action (Player.ts:1419-1457); corp actions in scope are self-only today'},
+      'corporation-action': {crossPlayer: 'possible', proof: 'scoped in Player.takeAction\'s pendingInitialActions branch AND the blue-action machinery. NOT self-only: the Tharsis MANDATORY FIRST ACTION places a city and pays every reactive owner (Rover Construction — the 2026-09-04 report). Proofs: consumerDeliverySequences F1–F3 (boundary sequences), cityPlacementTopologies T7 (independent oracle)'},
       'ceo-action': {crossPlayer: 'none', proof: 'ceo module is OUT of premium scope (frontier — widen SCOPE first)'},
       'standard-project': {crossPlayer: 'possible', proof: 'S3/S7 — conversions + standard projects placing tiles pay reactive owners'},
       'colony': {crossPlayer: 'possible', proof: 'S16 — a trade\'s GiveColonyBonus pays every colony owner inside the trade scope'},

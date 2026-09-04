@@ -9,6 +9,7 @@ import {Server} from '../../src/server/models/ServerModel';
 import {OrOptions} from '../../src/server/inputs/OrOptions';
 import {SelectSpace} from '../../src/server/inputs/SelectSpace';
 import {ResearchOutpost} from '../../src/server/cards/base/ResearchOutpost';
+import {RoverConstruction} from '../../src/server/cards/base/RoverConstruction';
 import {TharsisRepublic} from '../../src/server/cards/corporation/TharsisRepublic';
 import {replayBatch, drainBatchTail} from '../../src/server/inputs/deferredInputBatch';
 import {notificationState, PREPARING_MAX_MS} from '../../src/client/components/notifications/notificationState';
@@ -205,5 +206,97 @@ describe('consumer delivery sequences (real ingest across real update boundaries
     ingest(settledB.view, settledB, now += 1_000);
     expect(presented().filter((m) => m.correlationId === rootId).length,
       'the actor\'s own ordinary action never presents on their screen').eq(0);
+  });
+
+  /**
+   * THE SECOND PRODUCTION REPORT (2026-09-04): player A opens the game with
+   * «Rover Construction» («Создание вездехода»); player B's Tharsis Republic
+   * owes its MANDATORY FIRST ACTION (place a city) and performs it on their
+   * first turn. Same born-open chain topology as a card play — the chain roots
+   * at the first-action pick and stays open across the SelectSpace — but a
+   * DIFFERENT door (`Player.takeAction`'s pendingInitialActions branch,
+   * category 'corporation-action'), which no scenario had ever driven: the
+   * door census's proof string even claimed «corp actions in scope are
+   * self-only today». The Rover payout (+2 M€ to A) is the counter-example.
+   */
+  function corpFirstActionScenario() {
+    const [game, ownerA, actorB] = testGame(2);
+    ownerA.megaCredits = 10;
+    ownerA.playCard(new RoverConstruction()); // A's own first play (real door)
+
+    const tharsis = new TharsisRepublic();
+    actorB.playedCards.push(tharsis);
+    actorB.pendingInitialActions.push(tharsis);
+
+    const preplay = snapshot(game, ownerA);
+
+    // B's first turn: the REAL mandatory first-action prompt.
+    actorB.takeAction();
+    const menu = cast(actorB.getWaitingFor(), OrOptions);
+    expect(menu.startGamePrompt?.kind).eq('corporationInitialAction');
+    actorB.process({type: 'or', index: 0, response: {type: 'option'}});
+
+    const rootId = game.events.events.find((e) =>
+      e.type === 'action' && e.category === 'corporation-action')?.correlationId;
+    expect(rootId, 'the first action rooted a scoped chain').is.not.undefined;
+
+    const midPrompt = snapshot(game, ownerA);
+    expect(midPrompt.view.game.openEventCorrelations, 'the placement keeps the chain open').contains(rootId);
+
+    const placement = cast(actorB.getWaitingFor(), SelectSpace);
+    actorB.process({type: 'space', spaceId: placement.spaces[0].id});
+    drainBatchTail(actorB);
+
+    expect(ownerA.megaCredits, 'Rover Construction paid A exactly +2 M€').eq(12);
+    const settled = snapshot(game, ownerA);
+    expect(settled.view.game.openEventCorrelations).does.not.contain(rootId);
+    return {game, ownerA, actorB, rootId: rootId!, preplay, midPrompt, settled};
+  }
+
+  function assertRoverBand(rootId: number, ownerColor: Color, actorColor: Color): void {
+    const bands = presented().filter((m) => m.correlationId === rootId);
+    expect(bands.length,
+      `exactly ONE notification for the first action reached the Rover owner ` +
+      `(preparing: ${[...notificationState.preparing.keys()].join(',') || 'none'})`).eq(1);
+    const band = bands[0];
+    expect(band.sign).eq('positive');
+    expect(band.actor, 'the actor is the corp owner performing the first action').eq(actorColor);
+    expect(band.affects).contains(ownerColor);
+    expect(band.viewerImpact?.gains).deep.eq([{icon: 'megacredits', text: '+2'}]);
+    const cause = band.viewerImpact?.causes[0];
+    expect(cause?.origin, 'the «почему» names the viewer\'s own Rover Construction').deep.include({card: CardName.ROVER_CONSTRUCTION});
+    expect(cause?.own).eq(true);
+    expect(cause?.trigger).eq('tile-placed');
+    expect(cause?.triggerTile).eq(TileType.CITY);
+  }
+
+  it('F1 — corp FIRST ACTION city (clean sequence): the Rover owner hears the +2 M€', () => {
+    const {ownerA, actorB, rootId, preplay, midPrompt, settled} = corpFirstActionScenario();
+    freshConsumer();
+    let now = 1_000;
+    ingest(preplay.view, preplay, now);
+    ingest(midPrompt.view, midPrompt, now += 1_000);
+    ingest(settled.view, settled, now += 1_000);
+    assertRoverBand(rootId, ownerA.color, actorB.color);
+  });
+
+  it('F2 — corp FIRST ACTION city through the RACE boundary (fresh streams, stale view) still delivers', () => {
+    const {ownerA, actorB, rootId, preplay, midPrompt, settled} = corpFirstActionScenario();
+    freshConsumer();
+    let now = 1_000;
+    ingest(preplay.view, preplay, now);
+    ingest(midPrompt.view, midPrompt, now += 1_000);
+    ingest(midPrompt.view, settled, now += 1_000); // poller beats the transport
+    ingest(settled.view, settled, now += 1_000); // same signature — must still release
+    assertRoverBand(rootId, ownerA.color, actorB.color);
+  });
+
+  it('F3 — a RECONNECT while the corp owner picks the first-action cell must not swallow the Rover payout', () => {
+    const {ownerA, actorB, rootId, midPrompt, settled} = corpFirstActionScenario();
+    freshConsumer();
+    let now = 1_000;
+    ingest(midPrompt.view, midPrompt, now); // first seed observes the OPEN chain
+    ingest(settled.view, settled, now += 1_000);
+    assertRoverBand(rootId, ownerA.color, actorB.color);
   });
 });

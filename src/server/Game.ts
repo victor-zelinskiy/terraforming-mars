@@ -1942,6 +1942,44 @@ export class Game implements IGame, Logger {
     // Clear out underworld components.
     UnderworldExpansion.onTilePlaced(this, space);
 
+    // ── UNSCOPED-DOOR TRIPWIRE ──────────────────────────────────────────────
+    // Every player-initiated door must have opened an action scope by the time
+    // a tile lands: the passive fan-out below runs under it, and a payout to a
+    // NON-ACTOR that fires with no scope becomes an ORPHAN chain the client
+    // attributes to its own beneficiary — i.e. a self-suppressed, silently
+    // lost notification (the class behind both the Research Outpost and the
+    // corp-first-action reports; see docs/claude/notifications.md § CONSUMER
+    // UPDATE BOUNDARIES). Warn the moment a FOREIGN reactive hook is about to
+    // run outside any scope (throw under THROW_STATE_ERRORS), naming the door
+    // that must be fixed — so a future unscoped door announces itself in the
+    // server log of the very first game that hits it, instead of surfacing as
+    // «игрок не получил нотификацию» weeks later.
+    if (this.events.captureContext() === undefined) {
+      let foreignReactor: string | undefined;
+      for (const p of this.playersInGenerationOrder) {
+        if (p.id === player.id) {
+          continue;
+        }
+        for (const c of p.tableau) {
+          if (c.onTilePlaced !== undefined) {
+            foreignReactor = `${c.name} (${p.name})`;
+            break;
+          }
+        }
+        if (foreignReactor !== undefined) {
+          break;
+        }
+      }
+      if (foreignReactor !== undefined) {
+        const message =
+          `[events] tile placed by ${player.name} with NO live event scope — an unscoped door: ` +
+          `the payout of ${foreignReactor} will orphan. Open events.beginAction(...) around the door.`;
+        if (process.env.THROW_STATE_ERRORS) {
+          throw new Error(message);
+        }
+        console.warn(message);
+      }
+    }
     this.triggerForAllCards((p, c) => {
       if (c.onTilePlaced === undefined) {
         return;

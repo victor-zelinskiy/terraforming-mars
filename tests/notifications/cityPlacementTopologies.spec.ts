@@ -9,6 +9,7 @@ import {IGame} from '../../src/server/IGame';
 import {SelectSpace} from '../../src/server/inputs/SelectSpace';
 import {OrOptions} from '../../src/server/inputs/OrOptions';
 import {ResearchOutpost} from '../../src/server/cards/base/ResearchOutpost';
+import {RoverConstruction} from '../../src/server/cards/base/RoverConstruction';
 import {NoctisCity} from '../../src/server/cards/base/NoctisCity';
 import {Capital} from '../../src/server/cards/base/Capital';
 import {Asteroid} from '../../src/server/cards/base/Asteroid';
@@ -161,6 +162,34 @@ describe('city placement topologies × the independent state-change oracle', () 
     runAllActions(game2);
     expect(bystander.plants).eq(0);
     verifyDoor(game2, actor2, players2, 'Asteroid/no-op-vs-zero-plants', preLedger2, pre2);
+  });
+
+  it('T7 — corp MANDATORY FIRST ACTION city (Tharsis firstAction door): the oracle confirms delivery to a reactive owner', () => {
+    // The 2026-09-04 report: A opens with Rover Construction; B's Tharsis owes
+    // its mandatory first action and places the city on B's first turn. The
+    // door is `Player.takeAction`'s pendingInitialActions branch — a chain that
+    // roots at the pick and stays OPEN across the SelectSpace (the same
+    // born-open topology as a card play, through a different door).
+    const [game, owner, actor] = testGame(2);
+    owner.megaCredits = 10;
+    owner.playCard(new RoverConstruction());
+    const tharsis = new TharsisRepublic();
+    actor.playedCards.push(tharsis);
+    actor.pendingInitialActions.push(tharsis);
+    const players = [actor, owner];
+    const preLedger = captureLedger(game);
+    const pre = new Map(players.map((p) => [p, consumerSnapshot(game, p)] as const));
+
+    actor.takeAction();
+    const menu = cast(actor.getWaitingFor(), OrOptions);
+    expect(menu.startGamePrompt?.kind).eq('corporationInitialAction');
+    actor.process({type: 'or', index: 0, response: {type: 'option'}});
+    const placement = cast(actor.getWaitingFor(), SelectSpace);
+    actor.process({type: 'space', spaceId: placement.spaces[0].id});
+    runAllActions(game);
+
+    expect(owner.megaCredits, 'Rover Construction paid the owner +2 M€').eq(12);
+    verifyDoor(game, actor, players, 'TharsisFirstAction/pendingInitialActions', preLedger, pre);
   });
 
   it('T6 — the CITY_TILES worklist: every engine city tile type is classified, and topology links are proven from code', () => {
