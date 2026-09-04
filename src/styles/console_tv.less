@@ -1219,7 +1219,21 @@ html.con-profile-tv {
     }
     .con-quit__card { min-width: 24rem; }
     .con-quit__body { font-size: var(--con-t-body); }
-    .con-load__label { font-size: var(--con-t-body); }
+    /* SCENE TRANSITION surface — a full-bleed composition on a 1080-logical
+       layout; on the TV profile every foreground member rides the display
+       scale explicitly (the root is fixed+inset:0, so there is no container
+       to zoom without breaking the %-anchored placement). */
+    .con-load {
+        &__brand { font-size: calc(.85rem * var(--con-ui-scale, 1)); letter-spacing: calc(.45rem * var(--con-ui-scale, 1)); }
+        &__scene { width: calc(13rem * var(--con-ui-scale, 1)); height: calc(13rem * var(--con-ui-scale, 1)); }
+        &__foot { gap: calc(.55rem * var(--con-ui-scale, 1)); }
+        &__kicker { font-size: calc(.8rem * var(--con-ui-scale, 1)); letter-spacing: calc(.3rem * var(--con-ui-scale, 1)); }
+        &__title-line { font-size: calc(1.5rem * var(--con-ui-scale, 1)); letter-spacing: calc(.18rem * var(--con-ui-scale, 1)); }
+        &__status { font-size: calc(.95rem * var(--con-ui-scale, 1)); min-height: calc(1.3rem * var(--con-ui-scale, 1)); }
+        &__pulse { width: calc(14rem * var(--con-ui-scale, 1)); height: calc(.15rem * var(--con-ui-scale, 1)); }
+        &__error { font-size: calc(.95rem * var(--con-ui-scale, 1)); max-width: calc(23rem * var(--con-ui-scale, 1)); }
+        &__btn { font-size: calc(.95rem * var(--con-ui-scale, 1)); padding: calc(.6rem * var(--con-ui-scale, 1)) calc(1.5rem * var(--con-ui-scale, 1)); }
+    }
 
     /* ═══ 18 · START SCENE + REVEAL ═══════════════════════════════ */
     .con-start {
@@ -1818,10 +1832,25 @@ html.con-profile-tv.console-mode {
     .desktop-update--cover .desktop-update__panel { zoom: var(--con-ui-scale, 1); }
 }
 /* The app BOOT LOADER (shader warm-up curtain) is px-authored — on the tv
-   profile its centre panel rides the profile scale like every lifecycle
-   surface (the backdrop scene is full-screen gradients and needs nothing). */
-html.con-profile-tv .boot-loader__panel {
-    zoom: var(--con-ui-scale, 1);
+   profile its foreground members ride the profile scale like every lifecycle
+   surface (the backdrop scene is full-screen gradients and needs nothing).
+   Sized via the scale var, never `zoom`: a zoomed absolute member re-computes
+   its %-offsets in zoomed units and drifts off-centre at 4K. */
+html.con-profile-tv .boot-loader__brand {
+    font-size: calc(17px * var(--con-ui-scale, 1));
+    letter-spacing: calc(9px * var(--con-ui-scale, 1));
+}
+html.con-profile-tv .boot-loader__scene {
+    width: calc(240px * var(--con-ui-scale, 1));
+    height: calc(240px * var(--con-ui-scale, 1));
+}
+html.con-profile-tv .boot-loader__stage {
+    font-size: calc(13px * var(--con-ui-scale, 1));
+    letter-spacing: calc(1.5px * var(--con-ui-scale, 1));
+}
+html.con-profile-tv .boot-loader__progress {
+    width: calc(260px * var(--con-ui-scale, 1));
+    height: calc(4px * var(--con-ui-scale, 1));
 }
 
 /* ═══ 25 · NOTIFICATION LAYER placement (safe-area aware) ═════════ */

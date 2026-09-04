@@ -256,7 +256,7 @@ import {installMenuPad} from '@/client/console/menu/consoleMenuPad';
 import {consoleActionOf} from '@/client/console/composables/consoleActionModel';
 import {useConsoleNativeSurface} from '@/client/console/composables/consoleNativeSurface';
 import {consoleReducedMotionActive} from '@/client/console/composables/useConsoleReducedMotion';
-import {navigateWithCurtain} from '@/client/console/loadingScreenState';
+import {TransitionContext, armSceneDestination, deferSceneReveal, loadingScreenState, navigateWithCurtain, onSceneRevealed} from '@/client/console/loadingScreenState';
 import {recordLastGameEntered} from '@/client/components/mainMenu/lastGameState';
 import {currentServerEndpoint} from '@/client/utils/runtimeConfig';
 import {pinServerEndpoint} from '@/client/utils/serverEndpoints';
@@ -552,22 +552,39 @@ export default defineComponent({
     const params = new URLSearchParams(window.location.search);
     const id = params.get('id') ?? '';
     if (isCampaignId(id)) {
-      // The generation reveal plays ONCE, on the creator's first arrival.
+      // The generation reveal plays ONCE, on the creator's first arrival —
+      // and it is the DESTINATION's own opening cinematic, so it starts AT
+      // the curtain's reveal, never under it (two directions may not
+      // overlap; onSceneRevealed fires immediately when no curtain covers).
       try {
         if (window.sessionStorage.getItem(REVEAL_LATCH) === id && !consoleReducedMotionActive()) {
-          this.revealPlaying = true;
-          window.setTimeout(() => {
-            this.revealPlaying = false;
-          }, 2600);
+          window.sessionStorage.removeItem(REVEAL_LATCH);
+          onSceneRevealed(() => {
+            this.revealPlaying = true;
+            window.setTimeout(() => {
+              this.revealPlaying = false;
+            }, 2600);
+          });
+        } else {
+          window.sessionStorage.removeItem(REVEAL_LATCH);
         }
-        window.sessionStorage.removeItem(REVEAL_LATCH);
       } catch {
         // Storage unavailable — land settled.
       }
+      // SCENE TRANSITION (the campaign-map destination): the curtain holds
+      // until the campaign document is actually rendered — the map must
+      // never reveal as an empty route the missions then pop onto.
+      const releaseModel = loadingScreenState.phase === 'covering' ?
+        deferSceneReveal('campaign-model', 8000) : undefined;
+      armSceneDestination();
       await openCampaign(id);
       startCampaignWatch();
       // Focus lands on the mission the campaign is at.
       this.cursor = {zone: 'route', index: this.vm?.currentSlot ?? 0};
+      await this.$nextTick();
+      releaseModel?.();
+    } else {
+      armSceneDestination();
     }
     this.offPad = installMenuPad((intent) => this.onIntent(intent));
   },
@@ -742,13 +759,14 @@ export default defineComponent({
         return;
       }
       if (m.state === 'active' && m.yourPlayerId !== undefined) {
-        this.enterMission(m.yourPlayerId, m.gameId);
+        this.enterMission(m.yourPlayerId, m.gameId, {resume: true, slot: m.slot});
         return;
       }
       if (m.state === 'committed' && m.yourPlayerId !== undefined) {
         // Open the settled mission endgame (the archive re-entry semantics).
         this.propagateServerPin(m.yourPlayerId);
-        navigateWithCurtain(paths.PLAYER + '?id=' + encodeURIComponent(m.yourPlayerId), 'sync');
+        navigateWithCurtain(paths.PLAYER + '?id=' + encodeURIComponent(m.yourPlayerId), 'sync',
+          this.missionContext({resume: true, slot: m.slot}));
         return;
       }
       if (m.state === 'ready' && m.isCurrent) {
@@ -809,15 +827,28 @@ export default defineComponent({
         }
       }
     },
+    /** The curtain's mission identity — real data only (slot/count exist here). */
+    missionContext(opts: {resume: boolean, slot?: number}): TransitionContext {
+      const vm = this.vm;
+      const slot = opts.slot ?? vm?.currentSlot;
+      return {
+        kind: 'campaign-mission',
+        mission: slot !== undefined ? slot + 1 : undefined,
+        missionCount: vm?.missions.length,
+        resume: opts.resume,
+      };
+    },
     /** Enter a live mission (manual A or the armed auto-join) — pin, record, curtain. */
-    enterMission(playerId: string, gameId?: string): void {
+    enterMission(playerId: string, gameId?: string, opts: {resume?: boolean, slot?: number} = {}): void {
       if (this.joining) {
         return;
       }
       this.joining = true;
       this.propagateServerPin(playerId);
       recordLastGameEntered(gameId ?? '');
-      navigateWithCurtain(paths.PLAYER + '?id=' + encodeURIComponent(playerId), 'expedition');
+      const resume = opts.resume === true;
+      navigateWithCurtain(paths.PLAYER + '?id=' + encodeURIComponent(playerId),
+        resume ? 'sync' : 'expedition', this.missionContext({resume, slot: opts.slot}));
     },
     // ── Launch ───────────────────────────────────────────────────────────
     async doLaunch(): Promise<void> {

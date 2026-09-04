@@ -18,6 +18,7 @@
 import {reactive} from 'vue';
 import {GamepadIntent} from '@/client/gamepad/gamepadPollModel';
 import {HandTagFilter} from '@/client/components/console/consoleHandFilter';
+import {loadingScreenState, sceneTransitionInputLocked} from '@/client/console/loadingScreenState';
 import {
   closeWorkspaceSheet, workspaceStackSection, workspaceStackSheet,
 } from '@/client/console/consoleWorkspaceStack';
@@ -245,6 +246,22 @@ export function observeConsoleIntents(fn: (intent: GamepadIntent) => void): () =
 
 /** Returns true when the console shell consumed the intent. */
 export function dispatchConsoleIntent(intent: GamepadIntent): boolean {
+  // SCENE TRANSITION input gate: while the curtain owns the frame, no
+  // gameplay intent may drive the scene underneath (a buffered press could
+  // otherwise start the next transition, confirm an invisible prompt, or
+  // walk the board mid-reveal). Consumed, not passed through. The curtain's
+  // actionable states keep their input: the error state unlocks the gate
+  // itself, and the fullscreen-restore prompt exempts it — both buttons ride
+  // the demoted DOM focus engine (scope `loadingScreen`), which only runs
+  // when nothing here consumed. Observers still run: a falling edge that
+  // STOPS something already running must never be swallowed (the
+  // hold-to-confirm contract).
+  if (sceneTransitionInputLocked() && !loadingScreenState.fullscreenLost) {
+    for (const observe of observers) {
+      observe(intent);
+    }
+    return true;
+  }
   for (const observe of observers) {
     observe(intent);
   }

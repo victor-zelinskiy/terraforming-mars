@@ -402,7 +402,7 @@ import {lobbyAge, lobbyAgeLabel} from '@/client/components/mainMenu/lobbyAge';
 import ConsoleVirtualKeyboard from '@/client/components/console/menu/ConsoleVirtualKeyboard.vue';
 import {pinServerEndpoint} from '@/client/utils/serverEndpoints';
 import {lastGameEntered, recordLastGameEntered} from '@/client/components/mainMenu/lastGameState';
-import {navigateWithCurtain} from '@/client/console/loadingScreenState';
+import {armSceneDestination, deferSceneReveal, loadingScreenState, navigateWithCurtain} from '@/client/console/loadingScreenState';
 import {apiUrl} from '@/client/utils/runtimeConfig';
 import {quitApp, supportsNativeQuit} from '@/client/console/runtimeMode';
 import {mapLabelKey} from '@/client/components/create/premium/createGameMeta';
@@ -921,6 +921,25 @@ export default defineComponent({
   mounted() {
     setDocumentTitle('Terraforming Mars');
     ensureIdentityLoaded();
+    // SCENE TRANSITION (the menu destination — the exit-from-game curtain
+    // lands here): hold the reveal until the menu's own backdrop texture is
+    // decoded and the fonts are settled, so the first revealed frame is the
+    // finished composition, never a bare gradient the art then pops onto.
+    // No-ops entirely when no curtain is covering (a plain SPA hop).
+    if (loadingScreenState.phase === 'covering') {
+      const releaseBg = deferSceneReveal('menu-bg', 3500);
+      const bg = new Image();
+      bg.src = 'assets/premium-main-menu-bg.png';
+      bg.decode().then(releaseBg, releaseBg);
+      const releaseFonts = deferSceneReveal('fonts', 2500);
+      const fonts = (document as Partial<Document>).fonts;
+      if (fonts !== undefined) {
+        void fonts.ready.then(() => releaseFonts());
+      } else {
+        releaseFonts();
+      }
+      armSceneDestination();
+    }
     // Return from the Campaign Map: reopen «Мои кампании» on the same tab and
     // focus the same row (the map entry was a full navigation, so the overlay
     // state did not survive on its own).
@@ -1148,7 +1167,9 @@ export default defineComponent({
         const cont = this.continueItem;
         if (cont?.you !== undefined) {
           recordLastGameEntered(cont.id);
-          navigateWithCurtain(paths.PLAYER + '?id=' + encodeURIComponent(cont.you.id), 'expedition');
+          // CONTINUE re-enters a game already underway — «возвращение», not
+          // «подготовка экспедиции».
+          navigateWithCurtain(paths.PLAYER + '?id=' + encodeURIComponent(cont.you.id), 'sync');
         }
         break;
       }
@@ -1397,7 +1418,7 @@ export default defineComponent({
       // (the active mission is one press away from there). Not recorded as
       // the CONTINUE memory: that stays the concrete game.
       if (g.campaign !== undefined) {
-        navigateWithCurtain(paths.CAMPAIGN + '?id=' + encodeURIComponent(g.campaign.id), 'sync');
+        navigateWithCurtain(paths.CAMPAIGN + '?id=' + encodeURIComponent(g.campaign.id), 'sync', {kind: 'campaign-map'});
         return;
       }
       const you = g.you;
@@ -1410,7 +1431,8 @@ export default defineComponent({
         return;
       }
       recordLastGameEntered(g.id);
-      navigateWithCurtain(href, 'expedition');
+      // A listed live game is being RE-ENTERED, never founded.
+      navigateWithCurtain(href, 'sync');
     },
     enterGameAt(i: number): void {
       this.gamesCursor = i;
@@ -1438,13 +1460,13 @@ export default defineComponent({
       // (`/campaign?id=c…`) resolves the pin for its model/poll/carryover.
       if (row.game.campaign !== undefined) {
         pinServerEndpoint(row.game.campaign.id, row.endpoint);
-        navigateWithCurtain(paths.CAMPAIGN + '?id=' + encodeURIComponent(row.game.campaign.id), 'sync');
+        navigateWithCurtain(paths.CAMPAIGN + '?id=' + encodeURIComponent(row.game.campaign.id), 'sync', {kind: 'campaign-map'});
         return;
       }
       if (row.game.you !== undefined) {
         pinServerEndpoint(row.game.you.id, row.endpoint);
         recordLastGameEntered(row.game.id);
-        navigateWithCurtain(paths.PLAYER + '?id=' + encodeURIComponent(row.game.you.id), 'expedition');
+        navigateWithCurtain(paths.PLAYER + '?id=' + encodeURIComponent(row.game.you.id), 'sync');
       }
     },
     /** X on a LOCAL row (host mode) — ask before deleting that one game.

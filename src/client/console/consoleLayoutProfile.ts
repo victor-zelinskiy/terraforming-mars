@@ -225,6 +225,19 @@ function syncDisplayCssVars(): void {
     return;
   }
   document.documentElement.style.setProperty('--con-ui-scale', String(consoleLayoutState.uiScale));
+  // The `html.con-profile-*` class rides the SAME sync as the scale var —
+  // it used to be applied only by GamepadLayer's watcher, i.e. after the
+  // first route resolution, so every profile-scoped rule (the 4K TV
+  // recomposition included) was OFF for the whole boot-curtain window and
+  // the screen visibly re-composed when the layer mounted. GamepadLayer's
+  // watcher still runs and is idempotent with this.
+  const html = document.documentElement;
+  for (const p of ['handheld', 'standard', 'large', 'tv']) {
+    if (p !== consoleLayoutState.profile) {
+      html.classList.remove(`con-profile-${p}`);
+    }
+  }
+  html.classList.add(`con-profile-${consoleLayoutState.profile}`);
 }
 
 function recompute(): void {

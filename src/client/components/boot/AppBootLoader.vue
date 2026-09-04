@@ -78,30 +78,28 @@
     <div class="boot-loader__grid" aria-hidden="true"></div>
     <div class="boot-loader__vignette" aria-hidden="true"></div>
 
-    <div class="boot-loader__panel">
-      <span class="boot-loader__corner boot-loader__corner--tl" aria-hidden="true"></span>
-      <span class="boot-loader__corner boot-loader__corner--tr" aria-hidden="true"></span>
-      <span class="boot-loader__corner boot-loader__corner--bl" aria-hidden="true"></span>
-      <span class="boot-loader__corner boot-loader__corner--br" aria-hidden="true"></span>
+    <!-- Full-bleed launch composition — the SAME visual language as the
+         scene-transition curtain (no panel box, no corner brackets): brand at
+         the top, the orbital emblem centre, the status foot in the lower
+         third. The player-facing copy is CALM and non-technical (the phases
+         keep their internal names for the warm-up pacing only). -->
+    <div class="boot-loader__brand" aria-hidden="true">TERRAFORMING MARS</div>
 
-      <!-- Orbital scanner — a calm sweep, not an aggressive spinner. -->
-      <div class="boot-loader__scanner" aria-hidden="true">
-        <svg viewBox="0 0 120 120" fill="none" xmlns="http://www.w3.org/2000/svg">
-          <circle class="boot-loader__orbit boot-loader__orbit--outer" cx="60" cy="60" r="52" />
-          <circle class="boot-loader__orbit boot-loader__orbit--mid" cx="60" cy="60" r="38" />
-          <circle class="boot-loader__core" cx="60" cy="60" r="17" />
-          <g class="boot-loader__sweep">
-            <circle class="boot-loader__satellite" cx="60" cy="8" r="4" />
-          </g>
-        </svg>
-      </div>
+    <div class="boot-loader__scene" aria-hidden="true">
+      <svg viewBox="0 0 120 120" fill="none" xmlns="http://www.w3.org/2000/svg">
+        <circle class="boot-loader__orbit boot-loader__orbit--outer" cx="60" cy="60" r="52" />
+        <circle class="boot-loader__orbit boot-loader__orbit--mid" cx="60" cy="60" r="38" />
+        <circle class="boot-loader__core" cx="60" cy="60" r="17" />
+        <g class="boot-loader__sweep">
+          <circle class="boot-loader__satellite" cx="60" cy="8" r="4" />
+        </g>
+      </svg>
+    </div>
 
-      <div class="boot-loader__title">TERRAFORMING MARS</div>
-
+    <div class="boot-loader__foot">
       <transition name="boot-stage-swap" mode="out-in">
-        <div class="boot-loader__stage" :key="phase">{{ $t(stageText) }}</div>
+        <div class="boot-loader__stage" :key="displayText">{{ $t(displayText) }}</div>
       </transition>
-
       <div class="boot-loader__progress" aria-hidden="true">
         <span class="boot-loader__progress-fill" :style="{width: progress + '%'}"></span>
       </div>
@@ -209,6 +207,11 @@ export default defineComponent({
   computed: {
     stageText(): string {
       return STAGES[Math.min(this.phase, STAGES.length - 1)];
+    },
+    /** The PLAYER-facing line — calm, never a technical stage name (the
+     *  internal phase names only pace the warm-up). */
+    displayText(): string {
+      return this.phase >= STAGES.length - 1 ? 'Almost ready…' : 'Preparing the game';
     },
   },
   methods: {

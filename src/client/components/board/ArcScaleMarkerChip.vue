@@ -75,24 +75,45 @@ export default defineComponent({
   },
   data() {
     return {
-      // Plays the premium capture animation once, the first time THIS client
-      // observes the claim (tracked at module level so the board's remount on
-      // every server response doesn't replay it).
+      // Plays the premium capture animation once per claim TRANSITION the
+      // player actually witnessed (tracked at module level so a component
+      // recreation can't replay it).
       justClaimed: false,
     };
   },
   mounted() {
-    if (this.state !== 'available' && this.claimKey !== '') {
-      const identity = `${this.claimKey}:${this.state}:${this.claimColor}`;
-      if (consumeNewScaleBonusClaim(identity)) {
-        this.justClaimed = true;
-        window.setTimeout(() => {
-          this.justClaimed = false;
-        }, 1100);
-      }
+    // HYDRATION IS NOT A GAME EVENT: a chip that mounts already claimed is
+    // the board being ADOPTED (entering an existing game / F5), never a
+    // capture happening now — seed the ledger silently, exactly like the
+    // tile/cube/marker baselines. The module ledger used to be consulted
+    // only here, which had the behaviour precisely inverted since the
+    // no-remount rework: every already-claimed bonus IGNITED on entry while
+    // a live claim (a prop change, no remount) never animated at all.
+    if (this.claimIdentity !== '') {
+      consumeNewScaleBonusClaim(this.claimIdentity);
     }
   },
+  watch: {
+    // The REAL capture: the claim identity changes while the chip is on
+    // screen (available → claimed, or the world government takes the step).
+    claimIdentity(now: string): void {
+      if (now === '' || !consumeNewScaleBonusClaim(now)) {
+        return;
+      }
+      this.justClaimed = true;
+      window.setTimeout(() => {
+        this.justClaimed = false;
+      }, 1100);
+    },
+  },
   computed: {
+    /** The one-shot capture key: '' while unclaimed / untracked. */
+    claimIdentity(): string {
+      if (this.state === 'available' || this.claimKey === '') {
+        return '';
+      }
+      return `${this.claimKey}:${this.state}:${this.claimColor}`;
+    },
     rotStyle(): Record<string, string> {
       return this.rot === 0 ? {} : {transform: `rotate(${this.rot}deg)`};
     },

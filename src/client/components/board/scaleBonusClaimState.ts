@@ -2,10 +2,12 @@ import {reactive} from 'vue';
 
 /**
  * Tracks which scale-bonus CLAIMS this client has already seen, so the premium
- * "capture" animation plays exactly ONCE per claim — even though the board
- * (inside PlayerHome) remounts on every server response. A module-level store
- * survives that remount, so a node only animates the first time its claim is
- * observed; thereafter it renders the static claimed state.
+ * "capture" animation plays exactly ONCE per claim. Chips SEED this ledger
+ * silently at mount (hydration of an existing game is board ADOPTION, never a
+ * capture — the same first-view contract as the tile/cube/marker baselines)
+ * and consume it from their claim-identity watcher, which is the only path
+ * that ignites. A module-level store survives component recreation, so a
+ * claim can never replay.
  */
 const state = reactive({seen: new Set<string>()});
 
@@ -22,7 +24,7 @@ export function consumeNewScaleBonusClaim(identity: string): boolean {
   return true;
 }
 
-/** Test helper — reset the seen set. */
+/** Reset the seen set — the in-session new-game boundary (and tests). */
 export function resetScaleBonusClaimsSeen(): void {
   state.seen.clear();
 }

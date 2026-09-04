@@ -38,8 +38,26 @@
 
 <script lang="ts">
 import {defineComponent} from 'vue';
+import {deferSceneReveal, loadingScreenState} from '@/client/console/loadingScreenState';
+
+/** The one raster texture of the backdrop (both starfield layers tile it).
+ *  Project-relative like every other asset URL (ServeAsset / app bundle). */
+const STARS_URL = 'assets/stars.jpg';
 
 export default defineComponent({
   name: 'GameAtmosphere',
+  mounted() {
+    // SCENE TRANSITION: on a cold cache the starfield texture can land AFTER
+    // the reveal and pop in behind a settled board. While the boot curtain
+    // covers, hold the reveal until the texture is fetched AND decoded
+    // (fetching ≠ decoding — see the flight-proxy contract). Warm cache
+    // resolves this within a frame; bounded by the director regardless.
+    if (loadingScreenState.phase === 'covering') {
+      const release = deferSceneReveal('atmosphere', 4000);
+      const img = new Image();
+      img.src = STARS_URL;
+      img.decode().then(release, release);
+    }
+  },
 });
 </script>

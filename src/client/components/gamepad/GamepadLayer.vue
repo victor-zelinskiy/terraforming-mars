@@ -107,7 +107,7 @@ import {ConsoleSettingsCategoryId} from '@/client/console/settings/consoleSettin
 import {buttonLayoutState, remapConsoleIntent} from '@/client/gamepad/buttonLayout';
 import {consoleModeState, consoleModeExplicitlyDisabled, dismissConsoleOffer, maybeOfferConsoleMode, requestConsoleFullscreen, setConsoleMode} from '@/client/console/consoleModeState';
 import {initialGamepadDetected, isElectronApp, isLinuxPlatform} from '@/client/console/runtimeMode';
-import {navigateWithCurtain} from '@/client/console/loadingScreenState';
+import {exitGameToMenu} from '@/client/console/loadingScreenState';
 import {consoleLayoutState, installConsoleLayoutProfile, ConsoleLayoutProfile} from '@/client/console/consoleLayoutProfile';
 import {consoleState, dispatchConsoleIntent, stepIndex} from '@/client/console/consoleRouter';
 import {menuPadState} from '@/client/console/menu/consoleMenuPad';
@@ -441,10 +441,11 @@ export default defineComponent({
       }
       if (this.systemMenuConfirmExit) {
         if (intent.button === 'confirm') {
-          // The SAME safe navigation the desktop corner button used — the
-          // game is server-saved and re-enterable from the main menu. The
-          // curtain (P10) covers the deliberate reload seamlessly.
-          navigateWithCurtain('/', 'interface');
+          // The ONE exit funnel: the game is server-saved and re-enterable;
+          // the shell registered the honest destination (a campaign mission
+          // returns to ITS campaign map, an ordinary game to the main menu)
+          // and the transition curtain covers the deliberate reload.
+          exitGameToMenu();
         } else if (intent.button === 'back') {
           this.systemMenuConfirmExit = false;
         }

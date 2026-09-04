@@ -692,7 +692,7 @@ export default defineComponent({
       out.push({
         id: 'menu',
         label: 'To main menu',
-        run: () => navigateWithCurtain('/'),
+        run: () => navigateWithCurtain('/', 'interface'),
       });
       return out;
     },
@@ -1223,7 +1223,16 @@ export default defineComponent({
           pinServerEndpoint(link.playerId, endpoint);
         }
         recordLastGameEntered(link.gameId ?? '');
-        navigateWithCurtain(paths.PLAYER + '?id=' + encodeURIComponent(link.playerId), 'expedition');
+        // The curtain carries the NEXT mission's identity — the campaign
+        // contract of the finished game knows its own slot and count.
+        const contract = this.campaignContract;
+        navigateWithCurtain(paths.PLAYER + '?id=' + encodeURIComponent(link.playerId), 'expedition',
+          contract === undefined ? undefined : {
+            kind: 'campaign-mission',
+            mission: Math.min(contract.missionSlot + 2, contract.missionCount),
+            missionCount: contract.missionCount,
+            resume: false,
+          });
         return;
       }
       this.openCampaignScene();

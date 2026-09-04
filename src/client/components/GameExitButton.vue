@@ -22,14 +22,19 @@
 
 <script lang="ts">
 import {defineComponent} from 'vue';
+import {exitGameToMenu} from '@/client/console/loadingScreenState';
 
 export default defineComponent({
   name: 'GameExitButton',
   methods: {
     goHome(): void {
-      // Leave the game to the premium main menu. The game is saved server-side
-      // and can be re-entered from there, so no destructive confirm is needed.
-      window.location.assign('/');
+      // Leave the game through the ONE exit funnel: the game is saved
+      // server-side and re-enterable, the shell registered the honest
+      // destination (campaign mission → its campaign map, ordinary game →
+      // main menu), and the transition curtain covers the deliberate reload
+      // — a raw location.assign here used to be the one door that flashed
+      // the teardown.
+      exitGameToMenu();
     },
   },
 });

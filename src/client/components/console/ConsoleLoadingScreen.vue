@@ -1,25 +1,35 @@
 <template>
-  <div class="con-load" role="status" :aria-label="$t(stageText)">
+  <div class="con-load" role="status" :aria-label="$t(statusText)">
     <!-- Layered scene: deep space → mars glow → terraforming grid → vignette. -->
     <div class="con-load__bg" aria-hidden="true"></div>
     <div class="con-load__glow" aria-hidden="true"></div>
     <div class="con-load__grid" aria-hidden="true"></div>
     <div class="con-load__vignette" aria-hidden="true"></div>
 
-    <div class="con-load__panel">
-      <!-- Orbital scanner — a calm sweep, never an aggressive spinner. -->
-      <div class="con-load__scanner" aria-hidden="true">
-        <svg viewBox="0 0 120 120" fill="none" xmlns="http://www.w3.org/2000/svg">
-          <circle class="con-load__orbit con-load__orbit--outer" cx="60" cy="60" r="52" />
-          <circle class="con-load__orbit con-load__orbit--mid" cx="60" cy="60" r="38" />
-          <circle class="con-load__planet" cx="60" cy="60" r="18" />
-          <g class="con-load__sweep-group">
-            <circle class="con-load__satellite" cx="60" cy="8" r="4" />
-          </g>
-        </svg>
-      </div>
+    <!-- Brand — quiet, top-center, part of the scene's identity. -->
+    <div class="con-load__brand" aria-hidden="true">TERRAFORMING MARS</div>
 
-      <div class="con-load__title">TERRAFORMING MARS</div>
+    <!-- The ambient emblem — a calm orbital sweep, never an aggressive
+         spinner. Pure visual: it is what a sub-second load shows INSTEAD of
+         a text flash (the anti-flash rule lives in the director). -->
+    <div class="con-load__scene" aria-hidden="true">
+      <svg viewBox="0 0 240 240" fill="none" xmlns="http://www.w3.org/2000/svg">
+        <circle class="con-load__orbit con-load__orbit--outer" cx="120" cy="120" r="104" />
+        <circle class="con-load__orbit con-load__orbit--mid" cx="120" cy="120" r="76" />
+        <circle class="con-load__planet" cx="120" cy="120" r="34" />
+        <g class="con-load__sweep-group">
+          <circle class="con-load__satellite" cx="120" cy="16" r="5" />
+        </g>
+      </svg>
+    </div>
+
+    <!-- The CONTEXT FOOT — lower third. The whole block obeys the director's
+         text policy: it exists only once the wait is real (state.textShown),
+         so a fast load never flashes unreadable copy. The error state and the
+         fullscreen-restore prompt override that (they are actionable). -->
+    <div class="con-load__foot" :class="{'con-load__foot--shown': footShown}">
+      <div class="con-load__kicker">{{ kickerText }}</div>
+      <div v-if="titleText !== ''" class="con-load__title-line">{{ titleText }}</div>
 
       <!-- ── ERROR / RETRY ─────────────────────────────────────────── -->
       <template v-if="state.error !== ''">
@@ -30,52 +40,50 @@
         </button>
       </template>
 
-      <!-- ── STAGED PROGRESS ───────────────────────────────────────── -->
+      <!-- ── STATUS (indeterminate by design — no fake progress) ───── -->
       <template v-else>
         <transition name="con-task-swap" mode="out-in">
-          <div class="con-load__stage" :key="displayStage">{{ $t(stageText) }}</div>
+          <div class="con-load__status" :key="statusText">{{ $t(statusText) }}</div>
         </transition>
         <div class="con-load__pulse" aria-hidden="true">
           <span class="con-load__pulse-bar"></span>
         </div>
       </template>
-
-      <!-- ── FULLSCREEN RESTORE (browser only: a navigation drops
-           fullscreen BY SPEC; a trusted gesture brings it back — on the
-           Xbox browser the controller sends real key events, so A works;
-           in Electron the window fullscreen survives natively). ──────── -->
-      <button v-if="state.fullscreenLost && state.error === ''"
-              type="button"
-              class="con-load__btn con-load__btn--fs"
-              @click="restoreFullscreen">
-        <GamepadGlyph v-if="padVisible" control="confirm" />
-        <span>{{ $t('Restore fullscreen') }}</span>
-      </button>
     </div>
+
+    <!-- ── FULLSCREEN RESTORE (browser only: a navigation drops fullscreen
+         BY SPEC; a trusted gesture brings it back — on the Xbox browser the
+         controller sends real key events, so A works; in Electron the window
+         fullscreen survives natively). Actionable → outside the text policy. -->
+    <button v-if="state.fullscreenLost && state.error === ''"
+            type="button"
+            class="con-load__btn con-load__btn--fs"
+            @click="restoreFullscreen">
+      <GamepadGlyph v-if="padVisible" control="confirm" />
+      <span>{{ $t('Restore fullscreen') }}</span>
+    </button>
   </div>
 </template>
 
 <script lang="ts">
 /**
- * PREMIUM LOADING SCREEN — the console-native pre-game shell (P10).
- * Covers the deliberate GAME-BOUNDARY reload (join / create / back to the
- * menu), the player-view boot fetch and the route-transition gaps so the
- * player NEVER sees a raw texture / empty DOM between the menu and the
- * board. Indeterminate by design (there is no real progress signal): the
- * staged messages auto-advance calmly and hold on the last stage. The
- * fullscreen-restore prompt and the error/retry state live INSIDE this
- * screen; both buttons are ordinary focusables — the pre-game focus
- * engine drives them from the pad (scope `loadingScreen`).
+ * SCENE TRANSITION SURFACE — the full-bleed curtain of every screen boundary
+ * (menu ⇄ game ⇄ campaign). Driven entirely by the scene-transition director
+ * (`loadingScreenState.ts`): the director decides WHEN text may exist
+ * (anti-flash + readable-dwell policy) and when the reveal dissolve plays;
+ * this component only composes the frame. Indeterminate by design — there is
+ * no real progress signal, so it never fakes one. The fullscreen-restore
+ * prompt and the error/retry state live INSIDE this surface; both buttons are
+ * ordinary focusables — the pre-game focus engine drives them from the pad
+ * (scope `loadingScreen`).
  */
 import {defineComponent} from 'vue';
 import GamepadGlyph from '@/client/components/gamepad/GamepadGlyph.vue';
-import {
-  LOADING_STAGE_ORDER, LOADING_STAGE_TEXT, LoadingStage, clearFullscreenLost, loadingScreenState,
-} from '@/client/console/loadingScreenState';
+import {clearFullscreenLost, loadingScreenState} from '@/client/console/loadingScreenState';
 import {requestConsoleFullscreen} from '@/client/console/consoleModeState';
 import {setNativeFullscreen, supportsNativeFullscreen} from '@/client/console/runtimeMode';
 import {inputModeState} from '@/client/gamepad/inputModeState';
-import {motionMs} from '@/client/components/motion/motionTokens';
+import {translateText, translateTextWithParams} from '@/client/directives/i18n';
 
 export default defineComponent({
   name: 'ConsoleLoadingScreen',
@@ -83,32 +91,62 @@ export default defineComponent({
   data() {
     return {
       state: loadingScreenState,
-      /** The auto-advanced display stage (never before the state stage). */
-      displayStage: loadingScreenState.stage as LoadingStage,
-      timer: undefined as number | undefined,
     };
   },
   computed: {
-    stageText(): string {
-      return LOADING_STAGE_TEXT[this.displayStage];
+    footShown(): boolean {
+      return this.state.textShown || this.state.error !== '';
+    },
+    kickerText(): string {
+      switch (this.state.context?.kind) {
+      case 'new-game':
+        return translateText('New expedition');
+      case 'campaign-mission':
+        return translateText('Campaign');
+      case 'campaign-map':
+        return translateText('Campaign');
+      case 'main-menu':
+        return translateText('Main menu');
+      case 'resume-game':
+      default:
+        return translateText('Returning to the game');
+      }
+    },
+    /** The one context line that carries REAL data (mission identity). */
+    titleText(): string {
+      const ctx = this.state.context;
+      if (ctx?.kind !== 'campaign-mission' || ctx.mission === undefined) {
+        return '';
+      }
+      if (ctx.missionCount !== undefined) {
+        return translateTextWithParams('Mission ${0} of ${1}', [String(ctx.mission), String(ctx.missionCount)]);
+      }
+      return translateTextWithParams('Mission ${0}', [String(ctx.mission)]);
+    },
+    statusText(): string {
+      if (this.state.longWait) {
+        return 'Still preparing the scene…';
+      }
+      switch (this.state.context?.kind) {
+      case 'new-game':
+        return 'Preparing the expedition…';
+      case 'campaign-mission':
+        return this.state.context.resume === true ?
+          'Synchronizing the game state…' : 'Preparing the expedition…';
+      case 'campaign-map':
+        return 'Loading the campaign…';
+      case 'main-menu':
+        return 'Returning to the main menu…';
+      case 'resume-game':
+      default:
+        return 'Synchronizing the game state…';
+      }
     },
     padVisible(): boolean {
       return inputModeState.mode === 'gamepad';
     },
   },
-  watch: {
-    'state.stage'(now: LoadingStage) {
-      this.displayStage = now;
-    },
-  },
   methods: {
-    /** Walk the stage order calmly; hold on the last one (indeterminate). */
-    advance(): void {
-      const at = LOADING_STAGE_ORDER.indexOf(this.displayStage);
-      if (at !== -1 && at < LOADING_STAGE_ORDER.length - 1) {
-        this.displayStage = LOADING_STAGE_ORDER[at + 1];
-      }
-    },
     retry(): void {
       window.location.reload();
     },
@@ -123,14 +161,6 @@ export default defineComponent({
       requestConsoleFullscreen();
       clearFullscreenLost();
     },
-  },
-  mounted() {
-    this.timer = window.setInterval(() => this.advance(), motionMs(1700));
-  },
-  beforeUnmount() {
-    if (this.timer !== undefined) {
-      window.clearInterval(this.timer);
-    }
   },
 });
 </script>

@@ -331,7 +331,7 @@ export default defineComponent({
         return; // A quiet host's row stays listed but is not entered.
       }
       pinCampaignRow(row);
-      navigateWithCurtain(paths.CAMPAIGN + '?id=' + encodeURIComponent(row.summary.id), 'sync');
+      navigateWithCurtain(paths.CAMPAIGN + '?id=' + encodeURIComponent(row.summary.id), 'sync', {kind: 'campaign-map'});
     },
     requestDelete(): void {
       const row = this.rows[this.ui.cursor];

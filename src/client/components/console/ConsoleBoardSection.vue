@@ -57,6 +57,7 @@ import {
   planetFocusState, displayGlobalParams, PlanetFocusPhase,
 } from '@/client/console/planetFocus';
 import {consoleMotionMs} from '@/client/console/composables/useConsoleReducedMotion';
+import {deferSceneReveal, loadingScreenState} from '@/client/console/loadingScreenState';
 import {cssLengthPx} from '@/client/console/cssUnits';
 import {placementFlowState} from '@/client/console/tilePlacement/placementFlow';
 import {tilePlacementState} from '@/client/console/tilePlacement/consoleTilePlacement';
@@ -264,6 +265,11 @@ export default defineComponent({
       tileView: 'show' as TileView,
       stageObserver: undefined as ResizeObserver | undefined,
       fitRaf: 0,
+      /** SCENE TRANSITION: the boot curtain's «board geometry converged»
+       *  hold — released at the FIRST settled calibration pass (or when the
+       *  stage is hidden behind a start scene), so the board is never
+       *  revealed mid-convergence («планета сдвигается» after the reveal). */
+      fitSettleRelease: undefined as (() => void) | undefined,
       /** The stage's calibrated centring vars, saved at focus enter so the
        *  exit restores the exact pre-focus framing (calibration folds its
        *  offsets cumulatively — overwriting them would lose the truth). */
@@ -1038,6 +1044,7 @@ export default defineComponent({
         Math.abs(natH - this.naturalH) > CALIBRATE_SIZE_EPS;
       const offsetDrift = Math.abs(dx) > CALIBRATE_OFFSET_EPS || Math.abs(dy) > CALIBRATE_OFFSET_EPS;
       if (!sizeDrift && !offsetDrift) {
+        this.releaseFitSettleHold(); // the boot curtain may reveal a settled board
         this.armLateVerify(); // …unless the board was still composing
         return; // converged
       }
@@ -1430,6 +1437,14 @@ export default defineComponent({
       el.click();
       return true;
     },
+    /** Release the boot curtain's board-geometry hold (idempotent). */
+    releaseFitSettleHold(): void {
+      const release = this.fitSettleRelease;
+      if (release !== undefined) {
+        this.fitSettleRelease = undefined;
+        release();
+      }
+    },
   },
   mounted() {
     // P29c: the temporary LB/RB tuner persisted its value here — the tuned
@@ -1449,7 +1464,20 @@ export default defineComponent({
       // Re-apply the spotlight to the freshly-rendered board DOM.
       this.applySpotlight(undefined, this.selectedSpaceId);
     }
+    // SCENE TRANSITION: while the boot curtain covers, hold the reveal until
+    // the board's self-calibration CONVERGES — the boot used to lock a
+    // framing several percent off and visibly re-frame on the first budget
+    // re-open, which under the old curtain played out in front of the
+    // player. Registered BEFORE the first fit so the converged branch can
+    // release it; a hidden stage (a start scene owns the boot frame) has no
+    // geometry to converge and releases at once. Bounded by the director.
+    if (loadingScreenState.phase === 'covering') {
+      this.fitSettleRelease = deferSceneReveal('board-fit', 6000);
+    }
     this.fitBoard();
+    if (this.stageKey() === undefined) {
+      this.releaseFitSettleHold();
+    }
     const stage = this.$refs.stage as HTMLElement | undefined;
     if (stage !== undefined && typeof ResizeObserver !== 'undefined') {
       this.stageObserver = new ResizeObserver(() => this.scheduleFit());
@@ -1457,6 +1485,7 @@ export default defineComponent({
     }
   },
   beforeUnmount() {
+    this.releaseFitSettleHold(); // never strand the curtain on an unmounting stage
     this.clearRelationMarks();
     if (this.lateVerifyTimer !== 0) {
       window.clearTimeout(this.lateVerifyTimer);

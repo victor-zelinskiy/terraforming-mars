@@ -1634,6 +1634,8 @@ import {setStartSetupRevealSuspended} from '@/client/components/startGameFlow/st
 import {corpActionOptionIndexFor, corporationCardNames, corpStatusFor, startFlowCorpPrompt} from '@/client/components/startGameFlow/startGameFlowState';
 import {cancelResponse, cardsResponse, colonyResponse, orOptionResponse, orWrappedResponse} from '@/client/console/taskResponses';
 import {leakDetectorState, startConsoleLeakDetector, stopConsoleLeakDetector, setConsoleTaskDeferred, setConsoleTaskSpacePlacement} from '@/client/console/consoleLeakDetector';
+import {armSceneDestination, clearGameExitTarget, deferSceneReveal, loadingScreenState, registerGameExitTarget} from '@/client/console/loadingScreenState';
+import {paths} from '@/common/app/paths';
 import {govScaleFocusState, beginGovScaleClose, commitGovScaleFocus, resetGovScaleFocus} from '@/client/console/consoleGovScaleFocus';
 import ConsoleHydroSection from '@/client/components/console/ConsoleHydroSection.vue';
 import ConsoleHydroMarkerLayer from '@/client/components/console/hydroMarker/ConsoleHydroMarkerLayer.vue';
@@ -15666,6 +15668,24 @@ export default defineComponent({
     onNotificationCancel(): void {
       this.cancelPlacement();
     },
+    /**
+     * SCENE TRANSITION: where «выйти из партии» actually leads. A campaign
+     * mission's honest parent is its campaign map (with the mission identity
+     * riding the curtain's context); an ordinary game exits to the main
+     * menu. Registered at mount — the campaign contract is immutable for the
+     * game's whole life, so no watcher is needed.
+     */
+    syncGameExitTarget(): void {
+      const campaign = this.playerView.game.gameOptions?.campaign;
+      if (campaign !== undefined) {
+        registerGameExitTarget(
+          paths.CAMPAIGN + '?id=' + encodeURIComponent(campaign.campaignId),
+          {kind: 'campaign-map', mission: campaign.missionSlot + 1, missionCount: campaign.missionCount},
+          'sync');
+      } else {
+        registerGameExitTarget('/', {kind: 'main-menu'}, 'interface');
+      }
+    },
     // ── P13/P15: the fullscreen card viewer (module-state driven) ───────
     onCardZoomNavigate(card: ZoomCard, pos: number): void {
       navigateConsoleCardZoom(card, pos);
@@ -16795,11 +16815,49 @@ export default defineComponent({
       notificationBus.goToAction.on(this.onNotificationGoToAction),
       notificationBus.cancel.on(this.onNotificationCancel),
     ];
+    // SCENE TRANSITION (the game destination). Register where «выйти из
+    // партии» leads — a campaign mission returns to ITS campaign map, an
+    // ordinary game to the main menu; every exit door funnels through
+    // exitGameToMenu() so the destination can never diverge between doors.
+    this.syncGameExitTarget();
+    // …and hold the boot curtain until this shell's FIRST frame is real:
+    // fonts settled (a fallback-font swap moves layout) and — when the boot
+    // state demands the start workspace — the start scene actually rendered,
+    // so a new game reveals INTO its opening composition, never onto a bare
+    // board a workspace then pops over. The board section registers its own
+    // geometry-convergence hold. Every hold is bounded by the director.
+    if (loadingScreenState.phase === 'covering') {
+      const releaseFonts = deferSceneReveal('fonts', 3000);
+      const fonts = (document as Partial<Document>).fonts;
+      if (fonts !== undefined) {
+        void fonts.ready.then(() => releaseFonts());
+      } else {
+        releaseFonts();
+      }
+      if (this.startFrameLive) {
+        const releaseStart = deferSceneReveal('start-scene', 8000);
+        const settle = () => void this.$nextTick(() => releaseStart());
+        if (this.startSceneVisible) {
+          settle();
+        } else {
+          const stop = this.$watch(
+            () => this.startSceneVisible,
+            (visible: boolean) => {
+              if (visible) {
+                settle();
+                stop();
+              }
+            });
+        }
+      }
+      armSceneDestination();
+    }
   },
   beforeUnmount() {
     this.offIntent?.();
     this.offWsPresence?.();
     this.offPlanetFocusParams?.();
+    clearGameExitTarget(); // the exit funnel must not outlive the game it points from
     resetPlanetFocus(); // never carry a held HUD / mid-exit phase across games
     resetHandReveal(); // never leak a mid-episode timeline / held dock
     resetHandDelivery(); // never leak a mid-flight delivery / held dock

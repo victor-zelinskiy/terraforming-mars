@@ -72,7 +72,7 @@ export async function submitPremiumCreateCampaign(): Promise<boolean> {
     } catch {
       // Without the flag the map simply lands settled.
     }
-    navigateWithCurtain(paths.CAMPAIGN + '?id=' + encodeURIComponent(model.id), 'expedition');
+    navigateWithCurtain(paths.CAMPAIGN + '?id=' + encodeURIComponent(model.id), 'expedition', {kind: 'campaign-map'});
     return true;
   } catch (err) {
     createGameState.creating = false;

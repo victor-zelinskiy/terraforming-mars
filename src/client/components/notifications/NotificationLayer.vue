@@ -117,6 +117,7 @@ import {
   terraformingCelebrationState,
 } from '@/client/components/gameProgress/terraformingCelebration';
 import {resetStartSetupReveal} from '@/client/components/startGameFlow/startSetupRevealState';
+import {resetScaleBonusClaimsSeen} from '@/client/components/board/scaleBonusClaimState';
 import {observeMaCeremony, resetMaCeremony} from '@/client/components/ma/maCeremonyState';
 import {isPlayerPanelVisible} from '@/client/components/overview/turnHandoffState';
 import {openRevealViewer} from '@/client/components/notifications/revealViewerState';
@@ -367,6 +368,7 @@ export default defineComponent({
         // no longer describe, and nothing else in the client ever closes it.
         closeBotTurnReview();
         resetBotStaging(); // a stale staging window must not swallow the new game's commits
+        resetScaleBonusClaimsSeen(); // the new game's scale-bonus chips seed their own baseline
         this.lastFetchVersion = undefined; // A1: force a re-seed fetch for the new game
         resetNotificationIngest(); // …and a full re-diff for it too
       }

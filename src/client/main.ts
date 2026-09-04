@@ -12,6 +12,7 @@ import {applyGsapTickerFps} from '@/client/components/motion/gsapMotionBridge';
 import {applyConsoleFxLiteClass} from '@/client/console/consoleFxLite';
 import {applyReducedMotionClass} from '@/client/utils/reducedMotion';
 import {applyConsoleReadingScale} from '@/client/console/consoleReadingScale';
+import {installConsoleLayoutProfile} from '@/client/console/consoleLayoutProfile';
 // Registered globally so ColonyTradePaymentModal can host the card-target
 // picker WITHOUT a static import — Card.vue's import chain breaks the
 // mochapack client-test bundle (the known baseline class), and the picker
@@ -55,6 +56,12 @@ async function bootstrap() {
   // Publish the reading-text scale (`--con-read-scale`) before first paint,
   // so the rules/lore surfaces never re-wrap after mount.
   applyConsoleReadingScale();
+  // Resolve the DISPLAY PROFILE (`--con-ui-scale` + html.con-profile-*)
+  // before first paint too. It used to install only with GamepadLayer —
+  // i.e. after the first route resolution — so on a 4K TV the whole boot
+  // curtain painted unscaled and visibly re-composed the moment the layer
+  // mounted. Idempotent; GamepadLayer's later call is a no-op.
+  installConsoleLayoutProfile();
   const lang = getPreferences().lang;
 
   // Stamp the active language on <html> at bootstrap (guaranteed to run before

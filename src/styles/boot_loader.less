@@ -176,42 +176,51 @@
   background: radial-gradient(70% 70% at 50% 50%, transparent 55%, rgba(0, 0, 0, 0.55) 100%);
 }
 
-/* ── Glass panel ──────────────────────────────────────────────────────────── */
-.boot-loader__panel {
-  position: relative;
+/* ── Full-bleed composition (no panel box — the same visual language as the
+      scene-transition curtain): brand top, orbital emblem centre, status foot
+      in the lower third. The bg layers behind stay opaque, hiding the warm-up. */
+.boot-loader__brand {
+  position: absolute;
+  top: 7%;
+  left: 0;
+  right: 0;
+  z-index: 2;
+  text-align: center;
+  font-size: 17px;
+  letter-spacing: 9px;
+  font-weight: 700;
+  background: linear-gradient(180deg, #eaf4ff 0%, #9fc4e6 100%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
+.boot-loader__scene {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  z-index: 2;
+  width: 240px;
+  height: 240px;
+  transform: translate(-50%, -56%);
+
+  &::before {
+    content: '';
+    position: absolute;
+    inset: -30%;
+    background: radial-gradient(circle at center, rgba(214, 122, 84, 0.26), transparent 58%);
+  }
+  svg { position: relative; width: 100%; height: 100%; display: block; }
+}
+.boot-loader__foot {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 16%;
   z-index: 2;
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 20px;
-  padding: 44px 64px 40px;
-  border-radius: 16px;
-  background:
-    radial-gradient(125% 90% at 50% -8%, rgba(120, 190, 240, 0.10), transparent 60%),
-    linear-gradient(180deg, rgba(18, 28, 42, 0.975) 0%, rgba(9, 16, 26, 0.985) 100%);
-  box-shadow:
-    0 0 0 1px rgba(106, 176, 230, 0.24),
-    inset 0 0 120px rgba(0, 0, 0, 0.34),
-    0 30px 90px rgba(0, 0, 0, 0.6);
-}
-.boot-loader__corner {
-  position: absolute;
-  width: 22px;
-  height: 22px;
-  border-color: @boot-cyan;
-  opacity: 0.75;
-  filter: drop-shadow(0 0 6px rgba(106, 176, 230, 0.4));
-}
-.boot-loader__corner--tl { top: -8px; left: -8px;  border-top: 2px solid; border-left: 2px solid; }
-.boot-loader__corner--tr { top: -8px; right: -8px; border-top: 2px solid; border-right: 2px solid; }
-.boot-loader__corner--bl { bottom: -8px; left: -8px;  border-bottom: 2px solid; border-left: 2px solid; }
-.boot-loader__corner--br { bottom: -8px; right: -8px; border-bottom: 2px solid; border-right: 2px solid; }
-
-/* ── Orbital scanner ──────────────────────────────────────────────────────── */
-.boot-loader__scanner {
-  width: 116px;
-  height: 116px;
-  svg { width: 100%; height: 100%; display: block; }
+  gap: 14px;
 }
 .boot-loader__orbit { fill: none; stroke: rgba(106, 176, 230, 0.28); stroke-width: 1.4; }
 .boot-loader__orbit--mid { stroke: rgba(106, 176, 230, 0.16); }
@@ -234,17 +243,7 @@
   50%      { opacity: 1; }
 }
 
-/* ── Title / stage / progress ─────────────────────────────────────────────── */
-.boot-loader__title {
-  font-size: 22px;
-  letter-spacing: 5px;
-  font-weight: 700;
-  background: linear-gradient(180deg, #eaf4ff 0%, #9fc4e6 100%);
-  -webkit-background-clip: text;
-  background-clip: text;
-  -webkit-text-fill-color: transparent;
-  text-shadow: 0 0 22px rgba(106, 176, 230, 0.25);
-}
+/* ── Stage / progress ─────────────────────────────────────────────────────── */
 .boot-loader__stage {
   font-size: 13px;
   letter-spacing: 1.5px;

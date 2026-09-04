@@ -25,10 +25,12 @@
       so it sits behind all UI without affecting layout / hitbox.
     -->
     <GameAtmosphere v-if="screen === 'player-home'" />
-    <!-- PREMIUM LOADING SCREEN (P10): covers the deliberate game-boundary
-         reload + the player-view boot fetch, hosts the fullscreen-restore
-         prompt and the error/retry state. Above everything (its own z). -->
-    <transition name="con-layer">
+    <!-- SCENE TRANSITION SURFACE: covers the deliberate game-boundary reload,
+         the boot fetch AND the destination's whole readiness window (the
+         scene-transition director decides the reveal — never route
+         resolution alone). Hosts the fullscreen-restore prompt and the
+         error/retry state. Above everything (its own z). -->
+    <transition name="con-load-fade">
       <ConsoleLoadingScreen v-if="loadingScreenState.active" />
     </transition>
     <!-- APP BOOT LOADER: premium launch screen + GPU shader warm-up, shown once
@@ -306,7 +308,7 @@ import GamepadLayer from '@/client/components/gamepad/GamepadLayer.vue';
 import {consoleModeState, requestConsoleFullscreen} from '@/client/console/consoleModeState';
 import {showConsoleAlert} from '@/client/console/consoleSystemAlertState';
 import ConsoleLoadingScreen from '@/client/components/console/ConsoleLoadingScreen.vue';
-import {beginLoading, consumeBootFlags, endLoading, failLoading, loadingScreenState} from '@/client/console/loadingScreenState';
+import {beginLoading, consumeBootFlags, failLoading, loadingScreenState, noteScreenResolved} from '@/client/console/loadingScreenState';
 const ConsoleShell = defineAsyncComponent(() => import(/* webpackChunkName: "console-shell" */ '@/client/components/console/ConsoleShell.vue'));
 import TurnHandoffLayer from '@/client/components/overview/TurnHandoffLayer.vue';
 import EffectDetailOverlay from '@/client/components/notifications/EffectDetailOverlay.vue';
@@ -456,21 +458,25 @@ export default defineComponent({
     GameAtmosphere,
   },
   watch: {
-    // P10: the loading curtain drops the moment a REAL screen is resolved
-    // (menu screens resolve synchronously; game screens only after the
-    // player view arrived — exactly the gap the curtain must cover). A
-    // failed load keeps the curtain in its error/retry state instead.
+    // SCENE TRANSITION: route resolution only REPORTS itself to the
+    // director. A readiness-aware destination (game shell / menu / campaign
+    // map) then holds the curtain until its first frame is genuinely ready
+    // (armSceneDestination + released holds + a settled paint); a legacy
+    // screen reveals immediately — it has no boot work. A failed load keeps
+    // the curtain in its error/retry state instead.
     screen(now: Screen) {
       if (now !== 'empty' && loadingScreenState.active && loadingScreenState.error === '') {
-        // A fast load can drop the curtain before the player used its
-        // fullscreen-restore prompt — hand the restore to the shared
-        // trusted-gesture retry instead (the next real click/key brings
-        // fullscreen back; on the Xbox browser the pad sends real keys).
-        if (loadingScreenState.fullscreenLost && consoleModeState.enabled) {
-          requestConsoleFullscreen();
-          loadingScreenState.fullscreenLost = false;
-        }
-        endLoading();
+        noteScreenResolved(now);
+      }
+    },
+    // The reveal is the moment the player is ABOUT to see the destination —
+    // the right moment to hand a lost fullscreen to the shared trusted-
+    // gesture retry (the next real click/key brings it back; on the Xbox
+    // browser the pad sends real keys).
+    'loadingScreenState.phase'(phase: string) {
+      if (phase === 'revealing' && loadingScreenState.fullscreenLost && consoleModeState.enabled) {
+        requestConsoleFullscreen();
+        loadingScreenState.fullscreenLost = false;
       }
     },
     // Single point that reconciles the server's reveal list into the
@@ -911,10 +917,10 @@ export default defineComponent({
     // either continuing the previous page's handoff (join / create / exit
     // navigations set the sessionStorage flags) or covering a direct /
     // reconnect load of a game page. The player never sees a raw texture.
-    const bootStage = consumeBootFlags();
+    const bootFlags = consumeBootFlags();
     const pathNow = getLastPathSegment();
-    if (bootStage !== undefined) {
-      beginLoading(bootStage);
+    if (bootFlags !== undefined) {
+      beginLoading(bootFlags.stage, bootFlags.context, bootFlags.t0);
     } else if (pathNow === paths.PLAYER || pathNow === paths.THE_END) {
       beginLoading('sync');
     }
