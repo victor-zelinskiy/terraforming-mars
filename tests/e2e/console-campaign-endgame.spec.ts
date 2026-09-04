@@ -156,7 +156,9 @@ test.describe('campaign finale — five players at 4K TV scale', () => {
   test('the champion ceremony reads at couch distance and never re-flows the dense table', async ({page, request}) => {
     test.setTimeout(600_000);
 
-    const names = ['Alice', 'Bruno', 'Клара', 'Дмитрий-Очень-Длинное-Имя-Экспедиции', 'Ева'];
+    // The fourth name rides the PLAYER_NAME_MAX_LENGTH cap (32 code points) —
+    // the long-name readability case of the champion table.
+    const names = ['Alice', 'Bruno', 'Клара', 'Дмитрий-Длинное-Имя-Экспедиции', 'Ева'];
     const colors = ['blue', 'red', 'green', 'yellow', 'purple'];
     const {id} = await createCampaign(request, {
       testMode: true,
