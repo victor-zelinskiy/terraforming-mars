@@ -6,6 +6,7 @@
 import {reactive, watch} from 'vue';
 import {Color} from '@/common/Color';
 import {NotificationModel, LiveNotification, NotificationKind, MAX_VISIBLE_TRANSIENT, NOTIFICATION_PRIORITY, NOTIFICATION_TTL} from './notificationTypes';
+import {ImpactSign} from './notificationSemantics';
 import {notificationFeedModeState} from './notificationFeedMode';
 import {quickToastAllowed} from './notificationFeedPolicy';
 import {
@@ -133,7 +134,7 @@ export function setNotificationViewer(color: Color | undefined): void {
 
 let warningSeq = 0;
 
-function settingAllows(kind: NotificationKind): boolean {
+function settingAllows(kind: NotificationKind, sign: ImpactSign = 'neutral'): boolean {
   const s = notificationState.settings;
   if (!s.enabled) {
     return false;
@@ -150,7 +151,13 @@ function settingAllows(kind: NotificationKind): boolean {
     return true; // warnings are always allowed when enabled
   case 'normal':
   default:
-    return s.showNormal;
+    // «Show ordinary notifications» filters NOISE, never signal: a card whose
+    // SIGN is personal (the viewer GAINED something from another player's
+    // action) rides kind 'normal' but is exactly as unmissable as a loss —
+    // which the 'negative' kind already exempts. Turning the ordinary feed
+    // off used to silence gains while losses kept presenting (asymmetric,
+    // and the 2026-09-04 audit's hole C).
+    return s.showNormal || sign !== 'neutral';
   }
 }
 
@@ -378,7 +385,7 @@ export function drainQueueToJournal(): void {
  * delivery contract deems the smaller cost.
  */
 export function pushTransient(model: NotificationModel): void {
-  if (!settingAllows(model.kind) || !feedModeAllows(model) || knownId(model.id)) {
+  if (!settingAllows(model.kind, model.sign) || !feedModeAllows(model) || knownId(model.id)) {
     return;
   }
   if (isNotificationDeliveryBlocked() || notificationState.transient.length >= MAX_VISIBLE_TRANSIENT) {

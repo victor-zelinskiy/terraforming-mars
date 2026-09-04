@@ -39,6 +39,9 @@ export type ConsumerSnapshot = {
   view: PlayerViewModel;
   messages: Array<LogMessage>;
   events: Array<GameEvent>;
+  /** The open-set captured in the SAME read as the events — what the meta
+   *  journal-events route serves (the coherent pair). */
+  openEventCorrelations: Array<number>;
 };
 
 /** One captured client moment: the serialized player view + the two streams,
@@ -50,21 +53,28 @@ export function consumerSnapshot(game: IGame, viewer: TestPlayer): ConsumerSnaps
     view,
     messages: logsPayload(game, viewer, generation),
     events: eventsPayload(game, generation),
+    openEventCorrelations: game.openEventCorrelations(),
   };
 }
 
 /** Feed one (view, streams) pair to the REAL ingest — exactly the call
- *  NotificationLayer.applyDiff makes. */
-export function ingest(view: PlayerViewModel, streams: {messages: ReadonlyArray<LogMessage>; events: ReadonlyArray<GameEvent>}, now: number, journalOpen = false): void {
+ *  NotificationLayer.applyDiff makes. The open-set rides the STREAMS (the
+ *  meta route pair); the view's copy is only the degraded-mode fallback,
+ *  exactly as in the layer. */
+export function ingest(
+  view: PlayerViewModel,
+  streams: {messages: ReadonlyArray<LogMessage>; events: ReadonlyArray<GameEvent>; openEventCorrelations?: ReadonlyArray<number>},
+  now: number, journalOpen = false, ledgerKey?: string): void {
   applyNotificationDiff({
     messages: streams.messages,
     events: streams.events,
     generation: view.game.generation,
     undoCount: view.game.undoCount,
-    openEventCorrelations: view.game.openEventCorrelations,
+    openEventCorrelations: streams.openEventCorrelations ?? view.game.openEventCorrelations,
     viewerColor: view.thisPlayer.color,
     journalOpen,
     now,
+    ledgerKey,
   });
 }
 

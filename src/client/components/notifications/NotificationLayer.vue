@@ -409,20 +409,35 @@ export default defineComponent({
       this.logsAbort = logsAbort;
       this.eventsAbort = eventsAbort;
       try {
-        const [messages, events] = await Promise.all([
+        // meta=1: the events response carries the open-correlation set captured
+        // in the SAME server read — the coherent pair the atomic gate needs.
+        // The playerView's copy comes from a THIRD moment (the transport's last
+        // apply) and may be older than the fetched streams; it stays only as
+        // the degraded-mode fallback for a server without meta support.
+        const [messages, eventsPayload] = await Promise.all([
           fetch(`${apiUrl(paths.API_GAME_LOGS)}?id=${id}&generation=${generation}`, {signal: logsAbort.signal})
             .then((r) => r.json() as Promise<ReadonlyArray<LogMessage> | null>),
-          fetch(`${apiUrl(paths.API_GAME_JOURNAL_EVENTS)}?id=${id}&generation=${generation}`, {signal: eventsAbort.signal})
-            .then((r) => r.json() as Promise<ReadonlyArray<GameEvent> | null>),
+          fetch(`${apiUrl(paths.API_GAME_JOURNAL_EVENTS)}?id=${id}&generation=${generation}&meta=1`, {signal: eventsAbort.signal})
+            .then((r) => r.json() as Promise<{events: ReadonlyArray<GameEvent>; openEventCorrelations: ReadonlyArray<number>} | ReadonlyArray<GameEvent> | null>),
         ]);
-        this.applyDiff(messages ?? [], events ?? [], generation);
+        let events: ReadonlyArray<GameEvent> = [];
+        let coherentOpen: ReadonlyArray<number> | undefined;
+        if (eventsPayload !== null) {
+          if ('events' in eventsPayload) {
+            events = eventsPayload.events;
+            coherentOpen = eventsPayload.openEventCorrelations;
+          } else {
+            events = eventsPayload; // an older server answered the bare array
+          }
+        }
+        this.applyDiff(messages ?? [], events, generation, coherentOpen);
       } catch (e) {
         // Aborted fetch (a newer one superseded it) or a transient network blip —
         // ignore; the next update / poll will reconcile.
       }
     },
 
-    applyDiff(messages: ReadonlyArray<LogMessage>, events: ReadonlyArray<GameEvent>, generation: number): void {
+    applyDiff(messages: ReadonlyArray<LogMessage>, events: ReadonlyArray<GameEvent>, generation: number, coherentOpen?: ReadonlyArray<number>): void {
       // The consumer's whole decision core lives in notificationIngest.ts
       // (extracted so the delivery orchestration is testable against a real
       // game across real update sequences) — this component only feeds it the
@@ -432,10 +447,13 @@ export default defineComponent({
         events,
         generation,
         undoCount: this.playerView.game.undoCount,
-        openEventCorrelations: this.playerView.game.openEventCorrelations,
+        openEventCorrelations: coherentOpen ?? this.playerView.game.openEventCorrelations,
         viewerColor: this.viewerColor,
         journalOpen: this.journalOpen,
         now: Date.now(),
+        // The persistent delivery ledger key — what lets an app restart tell
+        // «old news» from «landed or queued while I was away».
+        ledgerKey: this.playerView.id,
       });
     },
 

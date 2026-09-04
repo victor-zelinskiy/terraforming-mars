@@ -13,6 +13,7 @@ import {RoverConstruction} from '../../src/server/cards/base/RoverConstruction';
 import {TharsisRepublic} from '../../src/server/cards/corporation/TharsisRepublic';
 import {replayBatch, drainBatchTail} from '../../src/server/inputs/deferredInputBatch';
 import {notificationState, PREPARING_MAX_MS} from '../../src/client/components/notifications/notificationState';
+import {resetDeliveryLedgersForTesting} from '../../src/client/components/notifications/notificationDeliveryLedger';
 
 /**
  * CONSUMER DELIVERY SEQUENCES — the other half of the cross-player delivery
@@ -65,6 +66,7 @@ function assertTharsisBand(rootId: number, ownerColor: Color, actorColor: Color)
 describe('consumer delivery sequences (real ingest across real update boundaries)', () => {
   afterEach(() => {
     freshConsumer();
+    resetDeliveryLedgersForTesting();
   });
 
   /**
@@ -149,19 +151,23 @@ describe('consumer delivery sequences (real ingest across real update boundaries
     assertTharsisBand(rootId, ownerA.color, actorB.color);
   });
 
-  it('R2 — the PREPARING ceiling must be honoured even when the streams stay quiet', () => {
+  it('R2 — the PREPARING ceiling must be honoured even when the streams stay quiet (degraded mode: no meta open-set)', () => {
     const {rootId, preplay, midPrompt, settled} = researchOutpostScenario();
     freshConsumer();
     let now = 1_000;
     ingest(preplay.view, preplay, now);
     ingest(midPrompt.view, midPrompt, now += 1_000);
-    ingest(midPrompt.view, settled, now += 1_000); // the race pass stashes with stale open-correlations
+    // DEGRADED MODE: an older server without the coherent meta open-set — the
+    // layer falls back to the playerView's copy, which is stale-open here, so
+    // the race pass stashes a complete model.
+    const degraded = {messages: settled.messages, events: settled.events};
+    ingest(midPrompt.view, degraded, now += 1_000);
     expect(notificationState.preparing.has(rootId)).eq(true);
 
     // The game goes quiet (B is thinking); the poller keeps re-fetching the
     // SAME streams with the SAME stale view far past the bounded ceiling. A
     // held chain must never be swallowed forever.
-    ingest(midPrompt.view, settled, now += PREPARING_MAX_MS + 1_000);
+    ingest(midPrompt.view, degraded, now += PREPARING_MAX_MS + 1_000);
     expect(presented().filter((m) => m.correlationId === rootId).length,
       'the bounded PREPARING ceiling released the band').eq(1);
   });
@@ -298,5 +304,72 @@ describe('consumer delivery sequences (real ingest across real update boundaries
     ingest(midPrompt.view, midPrompt, now); // first seed observes the OPEN chain
     ingest(settled.view, settled, now += 1_000);
     assertRoverBand(rootId, ownerA.color, actorB.color);
+  });
+
+  /**
+   * G — THE THREE-SOURCE COHERENCE FAMILY (the 2026-09-04 second report on a
+   * FIXED build). The layer's inputs come from THREE independent moments: the
+   * logs fetch, the events fetch (two concurrent HTTP requests that can land
+   * on either side of a server transaction) and `openEventCorrelations` off
+   * the transport's playerView. A skewed triple used to release a NEUTRAL
+   * band prematurely: the chain's journal header was present, its events (or
+   * the open-set entry) were not, the model froze on presentation — and the
+   * gain that arrived one transaction later had no channel left (the queued-
+   * upgrade net only touches the QUEUE; the standalone fallback diff is
+   * loss-only). A LOSS survived that skew; a GAIN vanished.
+   */
+  it('G1 — logs AHEAD of events (header without chain): the band must wait, not release neutral', () => {
+    const {ownerA, actorB, rootId, preplay, midPrompt, settled} = corpFirstActionScenario();
+    freshConsumer();
+    let now = 1_000;
+    ingest(preplay.view, preplay, now);
+    // The skewed fetch pair: the LOGS response was handled after B's pick
+    // (the «took the first action» header is in), the EVENTS response before
+    // it (no chain events, and the open-set coherent with them has no Y).
+    ingest(preplay.view, {messages: midPrompt.messages, events: preplay.events, openEventCorrelations: preplay.openEventCorrelations}, now += 1_000);
+    ingest(settled.view, settled, now += 1_000);
+    assertRoverBand(rootId, ownerA.color, actorB.color);
+  });
+
+  it('G2 — a STALE view open-set with fresh streams must not bypass the atomic gate (the open-set rides the events read)', () => {
+    const {ownerA, actorB, rootId, preplay, midPrompt, settled} = corpFirstActionScenario();
+    freshConsumer();
+    let now = 1_000;
+    ingest(preplay.view, preplay, now);
+    // The transport's view is from BEFORE the pick (its open-set has no Y),
+    // while the streams are mid-prompt. The open-set that gates the release
+    // must be the one captured WITH the events — never the older view's.
+    ingest(preplay.view, midPrompt, now += 1_000);
+    ingest(settled.view, settled, now += 1_000);
+    assertRoverBand(rootId, ownerA.color, actorB.color);
+  });
+
+  it('G3 — an app RESTART after the chain closed (before the band presented) must not turn the payout into «old news»', () => {
+    const {ownerA, actorB, rootId, preplay, midPrompt, settled} = corpFirstActionScenario();
+    freshConsumer();
+    const ledgerKey = ownerA.id;
+    let now = 1_000;
+    ingest(preplay.view, preplay, now, false, ledgerKey);
+    ingest(midPrompt.view, midPrompt, now += 1_000, false, ledgerKey); // stashed, not yet presented
+    // The device sleeps / the app restarts: all in-memory consumer state is
+    // gone. The persistent delivery ledger is what must survive.
+    freshConsumer();
+    ingest(settled.view, settled, now += 60_000, false, ledgerKey); // first seed of the new session
+    assertRoverBand(rootId, ownerA.color, actorB.color);
+  });
+
+  it('G4 — «show ordinary notifications» OFF must not silence a PERSONAL gain (losses are already exempt)', () => {
+    const {ownerA, actorB, rootId, preplay, midPrompt, settled} = corpFirstActionScenario();
+    freshConsumer();
+    notificationState.settings.showNormal = false;
+    try {
+      let now = 1_000;
+      ingest(preplay.view, preplay, now);
+      ingest(midPrompt.view, midPrompt, now += 1_000);
+      ingest(settled.view, settled, now += 1_000);
+      assertRoverBand(rootId, ownerA.color, actorB.color);
+    } finally {
+      notificationState.settings.showNormal = true;
+    }
   });
 });

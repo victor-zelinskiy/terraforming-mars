@@ -68,6 +68,25 @@ describe('ApiGameJournalEvents', () => {
     expect(events.map((e) => e.id)).deep.eq([3, 5]);
   });
 
+  // meta=1 — the notification layer's COHERENT pair: the same events window
+  // plus the open-correlation set captured in the SAME read, so the atomic
+  // gate never judges fresh streams against an older view's open-set (the
+  // 2026-09-04 stream-skew audit). The bare-array shape stays the default.
+  it('meta=1 returns {events, openEventCorrelations} from one read', async () => {
+    const player = TestPlayer.BLACK.newPlayer();
+    const game = Game.newInstance('game-id', [player], player, 'spectatorid');
+    await scaffolding.ctx.gameLoader.add(game);
+    game.events.events.length = 0;
+    game.events.events.push(event(1, 1), event(2, 1, ['resource-payment']));
+
+    scaffolding.url = `/api/game/journal-events?id=${player.id}&generation=1&meta=1`;
+    await scaffolding.get(ApiGameJournalEvents.INSTANCE, res);
+    const payload = JSON.parse(res.content) as {events: Array<GameEvent>; openEventCorrelations: Array<number>};
+    expect(Array.isArray(payload)).eq(false);
+    expect(payload.events.map((e) => e.id), 'same window, same analytics exclusion').deep.eq([1]);
+    expect(payload.openEventCorrelations, 'the live open set rides the same response').deep.eq(game.openEventCorrelations());
+  });
+
   it('returns the CURRENT (tail) generation and [] for an unknown one', async () => {
     const player = TestPlayer.BLACK.newPlayer();
     const game = Game.newInstance('game-id', [player], player, 'spectatorid');

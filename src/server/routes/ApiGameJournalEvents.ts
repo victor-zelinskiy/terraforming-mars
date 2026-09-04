@@ -68,6 +68,16 @@ export class ApiGameJournalEvents extends Handler {
       events = all.slice(start, end).filter((e) =>
         !ANALYTICS_ONLY_TAGS.some((t) => e.tags?.includes(t) === true));
     }
+    // meta=1 — the notification layer's COHERENT pair: the open-correlation
+    // set captured in the SAME read as the events. The layer's three inputs
+    // (logs, events, the playerView's open-set) otherwise come from three
+    // different moments, and an open-set older than the events let a chain
+    // release before its payout arrived (the 2026-09-04 stream-skew audit).
+    // The bare-array response stays for older clients.
+    if (ctx.url.searchParams.get('meta') === '1') {
+      responses.writeJson(res, ctx, {events, openEventCorrelations: game.openEventCorrelations()});
+      return;
+    }
     responses.writeJson(res, ctx, events);
   }
 }

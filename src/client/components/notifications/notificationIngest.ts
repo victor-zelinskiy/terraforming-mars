@@ -34,20 +34,26 @@ import {
   takePreparedModels,
   preparingIds,
 } from './notificationState';
+import {loadDeliveryLedger, saveDeliveryLedger} from './notificationDeliveryLedger';
 
 export type NotificationDiffInput = {
   messages: ReadonlyArray<LogMessage>;
   events: ReadonlyArray<GameEvent>;
   generation: number;
   undoCount: number;
-  /** `GameModel.openEventCorrelations` of the CURRENT playerView — the server-
-   *  authoritative "these chains may still grow" set. May be STALER than the
-   *  fetched streams (the poller races the transport's view apply), which is
-   *  why a stash here is never trusted past the next pass. */
+  /** The server-authoritative "these chains may still grow" set. The layer
+   *  passes the copy captured IN THE SAME READ as the events (the meta
+   *  journal-events response) whenever the server provides it, falling back
+   *  to the playerView's copy — which may be STALER than the fetched streams
+   *  (the poller races the transport's view apply), which is why a stash here
+   *  is never trusted past the next pass. */
   openEventCorrelations: ReadonlyArray<number> | undefined;
   viewerColor: Color;
   journalOpen: boolean;
   now: number;
+  /** Key of the persistent delivery ledger (the viewer's participant id).
+   *  Absent → no persistence (the pre-ledger behaviour). */
+  ledgerKey?: string;
 };
 
 /** Signature of the last APPLIED diff payload. Within one generation and one
@@ -57,9 +63,17 @@ export type NotificationDiffInput = {
  *  impact recompute), whose cost grows with the generation all match long. */
 let lastDiffSignature: string | undefined;
 
+/** Chains held in PREPARING by the STREAM-SKEW GUARD on the last full pass
+ *  (their journal header arrived ahead of their events). A signature-equal
+ *  pass sees the same skewed payload, so these must stay held there too —
+ *  they are not in the open-set, and the release check would otherwise free
+ *  the incomplete build the guard just parked. */
+let skewHeldIds = new Set<number>();
+
 /** New-game boundary (generation went backwards) — force a full re-diff. */
 export function resetNotificationIngest(): void {
   lastDiffSignature = undefined;
+  skewHeldIds = new Set<number>();
 }
 
 /**
@@ -92,7 +106,9 @@ export function applyNotificationDiff(input: NotificationDiffInput): void {
   // skipped.
   const signature = `${input.undoCount}:${generation}:${messages.length}:${events.length}`;
   if (notificationState.seeded && signature === lastDiffSignature) {
-    presentRootModels(takePreparedModels(openCorrelations, now), input.journalOpen);
+    // Same payload ⇒ the same skew (if any): the guard's holds stay held.
+    presentRootModels(takePreparedModels(new Set([...openCorrelations, ...skewHeldIds]), now), input.journalOpen);
+    persistLedger(input);
     return;
   }
   lastDiffSignature = signature;
@@ -134,6 +150,16 @@ export function applyNotificationDiff(input: NotificationDiffInput): void {
     notificationState.seenRevealIds.add(key);
   }
   const firstSeed = !notificationState.seeded;
+  // The persistent delivery ledger of the PREVIOUS session (loaded on the
+  // seed only): what lets a restart distinguish «old news» from «landed or
+  // released while the app was away» — see notificationDeliveryLedger.ts.
+  const ledger = firstSeed && input.ledgerKey !== undefined ? loadDeliveryLedger(input.ledgerKey) : undefined;
+  // The highest event id of each chain in THIS payload — the ledger's unit
+  // of «newer than what the previous session processed».
+  const maxEventIdByCorr = new Map<number, number>();
+  for (const e of events) {
+    maxEventIdByCorr.set(e.correlationId, Math.max(maxEventIdByCorr.get(e.correlationId) ?? 0, e.id));
+  }
   // ── THE ATOMIC PRESENTATION GATE (created → prepared → queued) ────────
   // A model whose chain is still open waits in PREPARING (rebuilt above on
   // every pass); a closed chain releases with its final snapshot. Once a
@@ -150,14 +176,38 @@ export function applyNotificationDiff(input: NotificationDiffInput): void {
   // STASHES open-chain models instead — they present once their chain
   // closes, complete, exactly like a live-session hold.
   const ready: Array<NotificationModel> = [];
+  skewHeldIds = new Set<number>();
   for (const model of models) {
     const corrId = model.correlationId;
-    if (corrId !== undefined && openCorrelations.has(corrId)) {
+    // ── THE STREAM-SKEW GUARD ─────────────────────────────────────────────
+    // The logs and events fetches are separate reads and can land on either
+    // side of a server transaction: a journal header whose chain has NO
+    // events in this payload is a SKEWED pair, not a completed action.
+    // Releasing it used to freeze a NEUTRAL band and orphan the payout that
+    // arrived one read later (a loss survived via the hostile fallback; a
+    // gain had no channel at all). Treat it exactly like an open chain: hold
+    // in PREPARING, release when the events catch up (bounded by the
+    // ceiling, so a genuinely event-less log group still presents — with a
+    // warn — rather than never).
+    const eventsMissing = corrId !== undefined && !maxEventIdByCorr.has(corrId);
+    if (corrId !== undefined && (openCorrelations.has(corrId) || eventsMissing)) {
+      if (eventsMissing) {
+        skewHeldIds.add(corrId);
+      }
       stashPreparing(model, now);
       continue;
     }
     if (firstSeed) {
-      continue; // a closed chain at seed time is old news — never presents
+      // A chain the PREVIOUS session never finished delivering — it landed
+      // after the last processed event, or was released but never presented —
+      // is NOT old news. Personal-sign and highlight models present; the
+      // plain neutral feed is not replayed (the journal keeps it).
+      if (ledger !== undefined && corrId !== undefined &&
+          ((maxEventIdByCorr.get(corrId) ?? 0) > ledger.watermark || ledger.undelivered.includes(corrId)) &&
+          (model.sign !== 'neutral' || model.kind !== 'normal')) {
+        ready.push(model);
+      }
+      continue; // everything else at seed time is old news — never presents
     }
     if (corrId !== undefined) {
       dropPreparing(corrId); // rebuilt this pass AND closed — this IS the release
@@ -167,8 +217,10 @@ export function applyNotificationDiff(input: NotificationDiffInput): void {
   if (!firstSeed) {
     // Entries not rebuilt this pass (undo / generation boundary) release
     // with their last-known build once their chain closes; a leaked open
-    // chain releases at the bounded ceiling with a warn.
-    ready.push(...takePreparedModels(openCorrelations, now));
+    // chain releases at the bounded ceiling with a warn. The skew-guard's
+    // holds count as open: releasing what the guard just parked would undo
+    // it in the same pass.
+    ready.push(...takePreparedModels(new Set([...openCorrelations, ...skewHeldIds]), now));
   }
   // Queued (not-yet-presented) root cards may still enrich freely — the
   // degraded-mode net for servers without `openEventCorrelations`.
@@ -201,13 +253,46 @@ export function applyNotificationDiff(input: NotificationDiffInput): void {
   }
   notificationState.seeded = true;
   if (firstSeed) {
-    return; // initial load / reconnect: seed silently, never spam
+    // The silent seed — EXCEPT what the previous session provably never
+    // delivered (the ledger rescue in the loop above, plus the standalone
+    // hostile diff's losses under the same newer-than-watermark rule).
+    presentRootModels(ready, input.journalOpen);
+    if (ledger !== undefined) {
+      pushMany(neg.models.filter((m) => m.correlationId !== undefined &&
+        ((maxEventIdByCorr.get(m.correlationId) ?? 0) > ledger.watermark || ledger.undelivered.includes(m.correlationId))));
+    }
+    persistLedger(input);
+    return;
   }
   presentRootModels(ready, input.journalOpen);
   if (!input.journalOpen) {
     pushMany(reveal.models);
   }
   pushMany(neg.models);
+  persistLedger(input);
+}
+
+/**
+ * Persist the delivery ledger after a pass: the highest event id this
+ * consumer has processed, and the chains that are still on their way to the
+ * screen (PREPARING + the queue). A session that dies here resumes exactly
+ * where delivery stopped instead of writing everything off as old news.
+ */
+function persistLedger(input: NotificationDiffInput): void {
+  if (input.ledgerKey === undefined) {
+    return;
+  }
+  let watermark = 0;
+  for (const e of input.events) {
+    watermark = Math.max(watermark, e.id);
+  }
+  const undelivered = new Set<number>(notificationState.preparing.keys());
+  for (const n of notificationState.queue) {
+    if (n.correlationId !== undefined) {
+      undelivered.add(n.correlationId);
+    }
+  }
+  saveDeliveryLedger(input.ledgerKey, {watermark, undelivered: [...undelivered]});
 }
 
 /**
