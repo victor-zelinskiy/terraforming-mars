@@ -4,6 +4,7 @@ import {GameId, PlayerId} from '../../../../src/common/Types';
 import {
   lobbyState, lobbyRows, lobbySource,
   startLobbyWatch, openLobbyList, closeLobbyList, refreshLobby, resetLobbyStateForTesting,
+  setLobbyMenuScope,
 } from '../../../../src/client/components/mainMenu/lobbyState';
 import {lanState, addManualHost, removeManualHost, parseManualEntry, resetLanStateForTesting} from '../../../../src/client/components/mainMenu/lanState';
 import {resetLobbyChannelsForTesting} from '../../../../src/client/components/mainMenu/lobbyChannel';
@@ -182,6 +183,53 @@ describe('client/mainMenu/lobbyState — LAN sources', () => {
    * fallback that works whenever the two machines can reach each other at all —
    * so it must behave as an ordinary source, not as a second code path.
    */
+  describe('the MENU SCOPE (LAN alive at the menu root)', () => {
+    it('holding the scope probes LAN hosts with NO list screen open — the badges stay live', async () => {
+      publishHost();
+      hostGames = [game('lan-root')];
+      startLobbyWatch('Victor');
+      await settle();
+      expect(hostCalls).to.be.empty; // no scope, no screen → no probing
+
+      setLobbyMenuScope(true);
+      await settle();
+      expect(hostCalls.length).greaterThan(0);
+      expect(lobbyState.lanRows.map((r) => r.game.id)).to.deep.eq(['lan-root']);
+      expect(lobbySource('lan:host-1')?.status).to.eq('ok');
+    });
+
+    it('closing the LIST keeps the LAN sources while the scope holds; releasing the scope retires them', async () => {
+      publishHost();
+      hostGames = [game('lan-keep')];
+      startLobbyWatch('Victor');
+      setLobbyMenuScope(true);
+      await settle();
+      await openLobbyList();
+      await settle();
+      expect(lobbyState.lanRows).to.have.length(1);
+
+      // B out of «Мои партии»: the menu is still up — the source survives.
+      closeLobbyList();
+      expect(lobbySource('lan:host-1')).is.not.undefined;
+      expect(lobbyState.lanRows).to.have.length(1);
+
+      // Leaving the menu (into a game) releases the scope → LAN goes quiet.
+      setLobbyMenuScope(false);
+      expect(lobbySource('lan:host-1')).is.undefined;
+      expect(lobbyState.lanRows).to.be.empty;
+    });
+
+    it('a host that appears at the menu ROOT is asked immediately under the scope', async () => {
+      startLobbyWatch('Victor');
+      setLobbyMenuScope(true);
+      await settle();
+      hostGames = [game('lan-arrival')];
+      publishHost();
+      await flush();
+      expect(lobbyState.lanRows.map((r) => r.game.id)).to.deep.eq(['lan-arrival']);
+    });
+  });
+
   describe('a hand-typed host', () => {
     it('becomes a source and is asked like any other', async () => {
       hostGames = [game('manual-1')];

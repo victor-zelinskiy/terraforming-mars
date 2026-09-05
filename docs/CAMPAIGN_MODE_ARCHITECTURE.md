@@ -76,6 +76,29 @@
 > `consoleCampaignsList.spec.ts`, the pin-propagation e2e in
 > `console-campaigns-list.spec.ts`.
 >
+> **Realtime + the map's A rework (2026-09-04, second pass):**
+> (1) **LOBBY MENU SCOPE** (`lobbyState.setLobbyMenuScope`, held by
+> ConsoleMainMenu mount→unmount): LAN sources + their push channels live for
+> the WHOLE menu session, not only while a list screen is open — a campaign
+> CREATED on another couch (zero missions) announces itself at the menu ROOT
+> immediately (host save → lobby bump → push → `refreshLobby` →
+> `lastRefreshAt` watcher → `refreshCampaigns`): the «Мои кампании» badge and
+> the open list both move with no press. In-game the menu unmounts, the scope
+> drops, the LAN goes quiet; with the scope unheld `closeLobbyList` retires
+> LAN sources exactly as before. Push-driven e2e: a campaign created while
+> the list is open appears row-first; the menu-root badge increments — both
+> without any input.
+> (2) **A on the map is ALWAYS enter / create+enter** (`routeVerb` /
+> `activateCursor`): live mission → enter; committed → results; ready
+> creator → LAUNCH + enter in ONE press (the launch-confirm modal is DELETED —
+> `state.launching` + the CTA gate absorb repeats; `confirmCarry` no longer
+> opens it either); a future/locked mission has NO A verb and NO modal — its
+> whole story (board, position, finale, blockers) lives on the route card.
+> The mission dossier survives ONLY as the results detail of a COMMITTED
+> mission (X, offered in the bar only where results exist). Modal census
+> after: carryover picker (a real decision step), committed-results dossier,
+> campaign dossier (Y).
+>
 > **Interlude ONE-FLOW + campaign realtime room (2026-09-04):** the
 > mission→mission transition is ONE continuation flow behind ONE CTA.
 > Endgame actions (missions 1–3) offer a single **«Следующая миссия»**

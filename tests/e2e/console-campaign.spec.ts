@@ -39,18 +39,17 @@ test.describe('campaign map', () => {
     expect(await cursorIndex()).toBe(0);
     await press(page, 'ArrowRight', 300);
     expect(await cursorIndex()).toBe(1);
-    // X on a future mission opens its dossier; B closes and restores focus.
+    // A FUTURE mission opens NO modal — its whole story (board, position,
+    // finale, blockers) lives on the route card; X and A both stay quiet.
     await press(page, 'KeyX', 400);
-    await expect(page.locator('.cmap__dossier')).toBeVisible();
-    await press(page, 'Escape', 400);
     await expect(page.locator('.cmap__dossier')).toHaveCount(0);
+    await press(page, 'Enter', 400);
+    await expect(page.locator('.cm-overlay')).toHaveCount(0);
     expect(await cursorIndex()).toBe(1);
     await press(page, 'ArrowLeft', 300);
 
-    // A on the ready mission → the launch confirm → A launches; the page
-    // navigates into the creator's mission seat (a real game boots).
-    await press(page, 'Enter', 500);
-    await expect(page.locator('.cm-overlay__title')).toBeVisible();
+    // A on the ready mission = create + enter in ONE press (no confirm
+    // modal): the page navigates into the creator's mission seat.
     await Promise.all([
       page.waitForURL(/player\?id=p/, {timeout: 30_000}),
       press(page, 'Enter', 500),
@@ -79,6 +78,15 @@ test.describe('campaign map', () => {
     const railText = await page.locator('.cmap__rail').innerText();
     expect(railText).toContain('15');
     expect(railText).toContain('10');
+
+    // X on the COMMITTED mission opens the results dossier (the one mission
+    // modal left); B closes it and the map stands as it was.
+    await press(page, 'ArrowLeft', 300);
+    await press(page, 'KeyX', 400);
+    await expect(page.locator('.cmap__dossier')).toBeVisible();
+    await expect(page.locator('.cmap__dossier-score').first()).toBeVisible();
+    await press(page, 'Escape', 400);
+    await expect(page.locator('.cmap__dossier')).toHaveCount(0);
 
     // Fast-forward to the end: the chronicle with the champion.
     await devCommit(request, id, [0, 1]);

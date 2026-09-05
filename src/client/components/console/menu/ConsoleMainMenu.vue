@@ -394,7 +394,7 @@ import {prefillIdentityFromSteam} from '@/client/components/mainMenu/identity/st
 import {
   lobbyState, LobbyRow,
   hydrateLobbyCache, startLobbyWatch, stopLobbyWatch, openLobbyList, closeLobbyList,
-  setLobbyIdentity, refreshLobby, loadLobbyArchive, setLobbyOwnVersion,
+  setLobbyIdentity, setLobbyMenuScope, refreshLobby, loadLobbyArchive, setLobbyOwnVersion,
   lobbyFirstLoad, lobbyUnreachable, localLobbySource,
 } from '@/client/components/mainMenu/lobbyState';
 import {initLanDiscovery, publishLanName, addManualHost, removeManualHost, lanState} from '@/client/components/mainMenu/lanState';
@@ -974,6 +974,10 @@ export default defineComponent({
     // The lobby watch runs for the whole menu: it keeps CONTINUE and the badge
     // live (push + a slow fallback poll) even before «Мои партии» is opened, and
     // it starts with an EMPTY name too — the identity watcher above feeds it.
+    // The MENU SCOPE additionally keeps LAN sources + their push channels in
+    // play at the menu ROOT, so a campaign/game created on another couch
+    // announces itself immediately (badge + open lists), not on a screen open.
+    setLobbyMenuScope(true);
     startLobbyWatch(this.identityName);
     if (this.identityName !== '') {
       publishLanName(this.identityName);
@@ -993,6 +997,7 @@ export default defineComponent({
   },
   beforeUnmount() {
     this.offPad?.();
+    setLobbyMenuScope(false);
     stopLobbyWatch();
     stopMenuUpdateWatch();
   },

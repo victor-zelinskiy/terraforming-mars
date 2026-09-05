@@ -46,6 +46,10 @@ test.describe('my campaigns list', () => {
     await row.click();
     await page.waitForSelector('.cmap__card', {timeout: 20_000});
     await expect(page.locator('.cmap__card')).toHaveCount(4);
+    // The scene-transition curtain reveals AFTER the model renders — a press
+    // under it is a press into the curtain, so wait it out first.
+    await page.waitForSelector('.con-load', {state: 'detached', timeout: 20_000}).catch(() => undefined);
+    await page.waitForTimeout(400);
 
     // B → back into «Мои кампании»: same tab, the SAME campaign focused.
     await press(page, 'Escape', 900);
@@ -150,6 +154,31 @@ test.describe('my campaigns list', () => {
     expect(gone.status()).toBe(404);
   });
 
+  test('REALTIME: a campaign created elsewhere appears in the OPEN list with no press at all', async ({page, request}) => {
+    // The guest is already looking at «Мои кампании»; the creator (another
+    // machine / another player) creates the campaign over the API. The chain
+    // is push-driven: campaign save → lobby revision bump → lobby channel →
+    // refresh → the row — never a manual RT and never a 15 s poll wait.
+    await openCampaignsList(page, 'Alice');
+    const {name} = await createCampaign(request);
+    await expect(page.locator('.cm-camp', {hasText: name})).toHaveCount(1, {timeout: 10_000});
+    // Before the first mission exists, too: the row leads with launch-ready.
+    await expect(page.locator('.cm-camp', {hasText: name})).toContainText('Миссия 1 из 4');
+  });
+
+  test('REALTIME: the menu-ROOT badge learns of a new campaign by push', async ({page, request}) => {
+    await seedIdentity(page, 'Alice');
+    await page.goto(`${BASE}/`);
+    await page.waitForSelector('.cm-menu__items', {timeout: 20_000});
+    const badge = page.locator('.cm-item', {hasText: 'Мои кампании'}).locator('.cm-item__badge');
+    // The badge needs the first campaigns answer — wait it out, then baseline.
+    await expect(badge).toBeVisible({timeout: 20_000});
+    const before = Number(await badge.innerText());
+    await createCampaign(request);
+    // No navigation, no press: the push chain must move the number.
+    await expect(badge).toHaveText(String(before + 1), {timeout: 10_000});
+  });
+
   test('LAN plumbing: a PINNED campaign map routes to its server and propagates the pin into the mission', async ({page, request}) => {
     const {id} = await createCampaign(request);
     await seedIdentity(page, 'Alice');
@@ -170,8 +199,7 @@ test.describe('my campaigns list', () => {
     // The map loaded its model THROUGH the pin (a broken pin would 404 here).
     await page.waitForSelector('.cmap__card', {timeout: 20_000});
     await page.waitForTimeout(600);
-    // Launch through the map (A → confirm → A).
-    await press(page, 'Enter', 500);
+    // Launch through the map — ONE press (create + enter, no confirm modal).
     await Promise.all([
       page.waitForURL(/player\?id=p/, {timeout: 30_000}),
       press(page, 'Enter', 500),

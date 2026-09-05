@@ -141,14 +141,17 @@
         <div v-if="state.error !== '' && vm !== undefined" class="cmap__inline-error">{{ $t(state.error) }}</div>
       </div>
 
-      <!-- ── Overlays (one at a time) ───────────────────────────────────── -->
-      <div v-if="overlay?.kind === 'mission'" class="cm-overlay" role="dialog" :aria-label="$t('Mission dossier')">
+      <!-- ── Overlays (one at a time). The MISSION dossier exists only for a
+           COMMITTED mission — it is the results detail (VP, titles,
+           generations). A future mission's whole story already lives on its
+           route card (board, position, blockers), so no modal opens there. -->
+      <div v-if="overlay?.kind === 'mission' && vm.missions[overlay.slot].results !== undefined" class="cm-overlay" role="dialog" :aria-label="$t('Mission dossier')">
         <div class="cm-overlay__card cmap__dossier">
           <div class="cm-overlay__title">
             {{ $t(boardLabel(vm.missions[overlay.slot].board)) }}
             <span class="cmap__dossier-sub">{{ missionOrdinal(overlay.slot) }}</span>
           </div>
-          <div v-if="vm.missions[overlay.slot].results !== undefined" class="cmap__dossier-body">
+          <div class="cmap__dossier-body">
             <div v-for="row in vm.missions[overlay.slot].results" :key="row.seat" class="cmap__dossier-row">
               <span class="cmap__result-place">{{ row.place }}</span>
               <span class="cmap__result-cube" :class="`player_bg_color_${row.color}`"></span>
@@ -157,12 +160,6 @@
               <img v-if="row.title !== undefined" class="cmap__dossier-title" :src="titleArtUrl(row.title)" :alt="$t(titleLabel(row.title))" />
             </div>
             <div class="cmap__dossier-gens">{{ generationsText(vm.missions[overlay.slot].generations ?? 0) }}</div>
-          </div>
-          <div v-else class="cmap__dossier-body">
-            <div class="cmap__dossier-brief" v-i18n>The board is fixed by the campaign route. Everything else follows the frozen campaign settings.</div>
-            <div v-if="vm.missions[overlay.slot].blockedReason !== undefined" class="cmap__blocked">
-              <span v-i18n>{{ vm.missions[overlay.slot].blockedReason }}</span>
-            </div>
           </div>
         </div>
       </div>
@@ -210,20 +207,6 @@
         />
       </Transition>
 
-      <div v-if="overlay?.kind === 'launch'" class="cm-overlay" role="dialog" :aria-label="$t('Launch the mission')">
-        <div class="cm-overlay__card">
-          <div class="cm-overlay__title">{{ launchTitle }}</div>
-          <div class="cm-overlay__body" v-i18n>The carryover selections lock in and the mission game is created for every participant.</div>
-          <div class="cm-confirm__pad">
-            <button type="button" class="cm-confirm__btn" @click="doLaunch">
-              <GamepadGlyph control="confirm" /><span v-i18n>Launch</span>
-            </button>
-            <button type="button" class="cm-confirm__btn" @click="closeOverlay">
-              <GamepadGlyph control="back" /><span v-i18n>Cancel</span>
-            </button>
-          </div>
-        </div>
-      </div>
     </template>
 
     <!-- Embedded (an endgame scene): the HOST owns the command bar. -->
@@ -283,8 +266,7 @@ import {$t, translateTextWithParams} from '@/client/directives/i18n';
 type MapOverlay =
   | {kind: 'mission', slot: number}
   | {kind: 'dossier'}
-  | {kind: 'carryover'}
-  | {kind: 'launch'};
+  | {kind: 'carryover'};
 
 const REVEAL_LATCH = 'tm_campaign_reveal';
 
@@ -350,9 +332,6 @@ export default defineComponent({
       // The bot corp's display identity IS its human twin (`original`).
       return $t(marsBotCorpInfo(id).original);
     },
-    launchTitle(): string {
-      return translateTextWithParams('Launch mission ${0}?', [String((this.vm?.currentSlot ?? 0) + 1)]);
-    },
     laneFillStyle(): Record<string, string> {
       const vm = this.vm;
       if (vm === undefined) {
@@ -398,11 +377,19 @@ export default defineComponent({
       if (verb !== undefined) {
         cmds.push({control: 'confirm', label: verb.label, enabled: verb.enabled});
       }
-      cmds.push({control: 'secondary', label: 'Mission dossier'});
+      // X — the results detail, offered only where results EXIST.
+      if (this.dossierSlot !== undefined) {
+        cmds.push({control: 'secondary', label: 'Mission dossier'});
+      }
       cmds.push({control: 'inspect', label: 'Campaign dossier'});
       cmds.push({control: 'back', label: 'Main menu'});
       return cmds;
     },
+    /**
+     * A is ALWAYS «enter» (a live/committed mission) or «create + enter»
+     * (the creator launching the ready one) — never an info modal. A mission
+     * that offers neither offers no A verb at all.
+     */
     routeVerb(): {label: string, enabled: boolean} | undefined {
       const vm = this.vm;
       if (vm === undefined) {
@@ -418,7 +405,7 @@ export default defineComponent({
       if (m.state === 'active' && m.yourPlayerId !== undefined) {
         return {label: 'Enter the mission', enabled: true};
       }
-      if (m.state === 'committed' && m.gameId !== undefined) {
+      if (m.state === 'committed' && m.yourPlayerId !== undefined) {
         return {label: 'Open mission results', enabled: true};
       }
       if (m.state === 'ready' && m.isCurrent) {
@@ -432,7 +419,16 @@ export default defineComponent({
           return {label: vm.cta.label, enabled: false};
         }
       }
-      return {label: 'Mission dossier', enabled: true};
+      return undefined;
+    },
+    /** The mission whose RESULTS X would open (committed missions only). */
+    dossierSlot(): number | undefined {
+      const vm = this.vm;
+      if (vm === undefined || this.cursor.zone !== 'route') {
+        return undefined;
+      }
+      const m = vm.missions[this.cursor.index];
+      return m?.results !== undefined ? m.slot : undefined;
     },
     /** The interlude's mandatory step is due: the viewer's own carryover door
      *  is the campaign's next move. */
@@ -666,15 +662,6 @@ export default defineComponent({
         picker?.handleIntent?.(intent);
         return true;
       }
-      if (this.overlay?.kind === 'launch') {
-        const action = consoleActionOf(intent, {});
-        if (action === 'primary') {
-          this.doLaunch();
-        } else if (action === 'back') {
-          this.closeOverlay();
-        }
-        return true;
-      }
       if (this.overlay !== undefined) {
         const action = consoleActionOf(intent, {});
         if (action === 'back' || action === 'primary') {
@@ -692,8 +679,10 @@ export default defineComponent({
         this.activateCursor();
         return true;
       case 'inspect':
-        // X — the current object's dossier.
-        this.openMissionDossier(this.cursor.zone === 'route' ? this.cursor.index : vm.currentSlot);
+        // X — the results detail of a COMMITTED mission (nowhere else).
+        if (this.dossierSlot !== undefined) {
+          this.openMissionDossier(this.dossierSlot);
+        }
         return true;
       case 'fullscreen':
         // Y — the campaign dossier (lineages + the TP ledger).
@@ -775,13 +764,19 @@ export default defineComponent({
           return;
         }
         if (vm.cta.kind === 'launch' && vm.cta.enabled) {
-          this.overlay = {kind: 'launch'};
+          // A = create + enter, ONE press: the CTA in the bar named it, the
+          // wait strip explained it, and `state.launching` absorbs repeats.
+          void this.doLaunch();
           return;
         }
       }
-      this.openMissionDossier(m.slot);
+      // Everything else has no A action: A is enter/launch only. A future
+      // mission's story lives on its route card; results detail is X.
     },
     openMissionDossier(slot: number): void {
+      if (this.vm?.missions[slot]?.results === undefined) {
+        return;
+      }
       this.overlay = {kind: 'mission', slot};
     },
     // ── Carryover ────────────────────────────────────────────────────────
@@ -816,15 +811,11 @@ export default defineComponent({
         this.carryDirty = false;
         this.carryArmed = false;
         this.overlay = undefined;
-        // ONE FLOW: the confirmation was the readiness press. The host whose
-        // crew is already ready continues straight into the launch confirm;
-        // everyone else lands in the waiting room (auto-join armed by the
-        // readyWaiting watcher). Focus returns to the current mission.
+        // ONE FLOW: the confirmation was the readiness press. Everyone lands
+        // back on the map — the wait strip states the next move (the ready
+        // host reads «Запустите миссию»; A on the current mission launches;
+        // everyone else waits with the auto-join armed). No confirm modal.
         this.cursor = {zone: 'route', index: this.vm?.currentSlot ?? this.cursor.index};
-        const next = this.vm;
-        if (next !== undefined && next.isCreator && next.cta.kind === 'launch' && next.cta.enabled) {
-          this.overlay = {kind: 'launch'};
-        }
       }
     },
     /** The curtain's mission identity — real data only (slot/count exist here). */
@@ -852,15 +843,14 @@ export default defineComponent({
     },
     // ── Launch ───────────────────────────────────────────────────────────
     async doLaunch(): Promise<void> {
-      // Belt to the server's own gate: the confirm overlay only opens on an
-      // enabled CTA, but the model can move between the press and this call.
+      // Belt to the server's own gate: the A press only lands on an enabled
+      // CTA, but the model can move between the press and this call — and the
+      // server re-checks blockers/creator anyway.
       const cta = this.vm?.cta;
-      if (cta?.kind === 'launch' && !cta.enabled) {
-        this.overlay = undefined;
+      if (cta?.kind !== 'launch' || !cta.enabled) {
         return;
       }
       const result = await launchCampaignMission();
-      this.overlay = undefined;
       if (result?.yourPlayerId !== undefined) {
         this.enterMission(result.yourPlayerId, result.gameId);
       }

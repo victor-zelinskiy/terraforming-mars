@@ -311,12 +311,49 @@ function lanTargets(): ReadonlyArray<DesktopLanHost> {
 }
 
 /**
+ * MENU SCOPE — LAN sources live for the WHOLE main-menu session, not only
+ * while a list screen is open. Held by ConsoleMainMenu (mount → unmount):
+ * the campaign/game badges and the push channels to LAN hosts must be live
+ * at the menu ROOT, so a campaign created on another couch announces itself
+ * IMMEDIATELY (host lobby bump → push → refresh) instead of on the next
+ * screen open. In-game the menu is unmounted, the scope drops and the LAN
+ * goes quiet — no probing during play.
+ */
+let menuScopeHeld = false;
+
+/** LAN hosts are in scope while a lobby screen is open OR the menu holds them. */
+function lanInScope(): boolean {
+  return lobbyState.open || menuScopeHeld;
+}
+
+export function setLobbyMenuScope(held: boolean): void {
+  if (menuScopeHeld === held) {
+    return;
+  }
+  menuScopeHeld = held;
+  syncLanSources();
+  if (held) {
+    if (watching) {
+      void refreshLobby();
+    }
+  } else if (!lobbyState.open) {
+    for (const source of lobbyState.sources) {
+      if (source.kind === 'lan') {
+        closeChannel(source.id);
+      }
+    }
+    syncLanSources();
+    armPoll();
+  }
+}
+
+/**
  * Reconcile the LAN sources with what discovery currently sees. A host that
  * LEFT the network takes its rows with it (that is the server saying so); a
  * host that is merely not answering keeps them — see {@link LAN_STALE_TOLERANCE}.
  */
 function syncLanSources(): void {
-  const targets = lobbyState.open ? lanTargets() : [];
+  const targets = lanInScope() ? lanTargets() : [];
   const wanted = new Map(targets.map((h) => [lanSourceId(h.id), h]));
   const kept: Array<LobbySource> = [];
   for (const source of lobbyState.sources) {
@@ -610,7 +647,7 @@ export function refreshLobby(opts: {archive?: boolean} = {}): Promise<void> {
     return inFlight;
   }
   lobbyState.refreshing = true;
-  const lanSources = lobbyState.open ? lobbyState.sources.filter((s) => s.kind === 'lan') : [];
+  const lanSources = lanInScope() ? lobbyState.sources.filter((s) => s.kind === 'lan') : [];
   const work: Array<Promise<void>> = [
     refreshLocal(name),
     ...lanSources.map((source) => refreshLan(source, name)),
@@ -732,7 +769,7 @@ function updateLiveFlags(): void {
 
 /** Every source in scope is pushing → the poll may stretch to its long interval. */
 function allLive(): boolean {
-  const scoped = lobbyState.sources.filter((s) => s.kind === 'local' || lobbyState.open);
+  const scoped = lobbyState.sources.filter((s) => s.kind === 'local' || lanInScope());
   return scoped.length > 0 && scoped.every((s) => s.live);
 }
 
@@ -855,7 +892,7 @@ export function startLobbyWatch(displayName: string): void {
     () => [lanState.hosts, lanState.manual] as const,
     () => {
       syncLanSources();
-      if (lobbyState.open) {
+      if (lanInScope()) {
         void refreshLobby();
       }
     },
@@ -900,9 +937,14 @@ export function openLobbyList(): Promise<void> {
 export function closeLobbyList(): void {
   lobbyState.open = false;
   stopAgeClock();
-  for (const source of lobbyState.sources) {
-    if (source.kind === 'lan') {
-      closeChannel(source.id);
+  // The MENU SCOPE keeps LAN channels alive past the screen: the badges and
+  // the campaigns list stay push-fed at the menu root. Without it (in-game,
+  // tests) closing the screen retires the LAN entirely, as it always did.
+  if (!menuScopeHeld) {
+    for (const source of lobbyState.sources) {
+      if (source.kind === 'lan') {
+        closeChannel(source.id);
+      }
     }
   }
   syncLanSources();
@@ -936,6 +978,7 @@ export function setLobbyIdentity(displayName: string): void {
 export function resetLobbyStateForTesting(): void {
   stopLobbyWatch();
   stopAgeClock();
+  menuScopeHeld = false;
   seqs.clear();
   endpointCache.clear();
   hosts = new Map();
