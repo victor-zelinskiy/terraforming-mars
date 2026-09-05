@@ -53,6 +53,7 @@
               'con-carry__slot--inbound': hiddenSlots.includes(slotIndex),
             }"
             :data-carry-slot="slotIndex"
+            :data-zoom-slot="'carry-keep:' + slotIndex"
             :style="{'--i': slotIndex}"
           >
             <Card
@@ -88,6 +89,7 @@
             'con-carry__card--unavailable': unavailable.includes(name),
           }"
           :data-carry-card="name + ':' + i"
+          :data-zoom-slot="name + ':' + i"
           :style="{'--i': i}"
           @click="onCardClick(i)"
         >
@@ -107,62 +109,20 @@
       </div>
     </div>
 
-    <!-- ── Fullscreen inspect (X — the console-wide verb). The SHARED zoom
-         modal, locally mounted (the ConsoleDevCardPicker pattern — this
-         surface lives on a pre-game screen too, outside the shell's global
-         instance): the stage below stays mounted, selection and focus
-         survive, and A toggles the pick from fullscreen (P15). -->
-    <Teleport to="body">
-      <transition name="con-zoom-veil">
-        <div v-if="zoomCard !== undefined" class="con-zoom-veil" aria-hidden="true"></div>
-      </transition>
-      <CardZoomModal
-        v-if="zoomCard !== undefined"
-        ref="zoomModal"
-        class="con-zoom"
-        :card="zoomCard"
-        :cards="zoomList"
-        :index="zoomIndex"
-        :selected="zoomSelected"
-        :consoleMotion="true"
-        :lore="true"
-        @navigate="onZoomNavigate"
-        @close="closeZoom()"
-      >
-        <template #actions>
-          <div class="con-zoom__context">
-            <span class="con-zoom__context-mark" aria-hidden="true">◈</span>
-            <span>{{ $t('Project legacy') }}</span>
-          </div>
-          <div class="con-zoom__bar">
-            <span v-if="zoomSelected" class="con-zoom__state">✓ {{ $t('Card selected') }}</span>
-            <button type="button" class="con-zoom__btn con-zoom__btn--select" @click="toggleZoomSelection">
-              <GamepadGlyph control="confirm" />
-              <span>{{ $t(zoomSelected ? 'Deselect' : 'Select') }}</span>
-            </button>
-            <span v-if="zoomList !== undefined && zoomList.length > 1" class="con-zoom__cmd con-zoom__cmd--flip">
-              <GamepadGlyph control="bumperL" />
-              <span class="con-zoom__flip-arrow" aria-hidden="true">◀</span>
-              <span>{{ $t('Browse') }}</span>
-              <span class="con-zoom__flip-arrow" aria-hidden="true">▶</span>
-              <GamepadGlyph control="bumperR" />
-            </span>
-            <button type="button" class="con-zoom__btn" @click="requestZoomClose">
-              <GamepadGlyph control="back" />
-              <span>{{ $t('Close') }}</span>
-            </button>
-          </div>
-        </template>
-      </CardZoomModal>
-    </Teleport>
+    <!-- Fullscreen inspect (X — the console-wide verb) renders through the
+         ONE `consoleCardZoom` pipeline: `openZoom()` sets the module state
+         and whichever zoom host is mounted serves it — the shell in the
+         embedded endgame scene, ConsoleMenuZoomHost on the standalone map.
+         The card physically lifts out of its `data-zoom-slot`, A toggles the
+         pick from fullscreen (the select bridge), B flies it back. NO local
+         viewer is mounted here — that pattern shipped desktop chrome, a
+         second card copy and a dead gamepad B. -->
   </div>
 </template>
 
 <script lang="ts">
 import {defineComponent} from 'vue';
 import Card from '@/client/components/card/CardFace.vue';
-import CardZoomModal from '@/client/components/card/CardZoomModal.vue';
-import GamepadGlyph from '@/client/components/gamepad/GamepadGlyph.vue';
 import {CardModel} from '@/common/models/CardModel';
 import {CardName} from '@/common/cards/CardName';
 import {GamepadIntent} from '@/client/gamepad/gamepadPollModel';
@@ -171,6 +131,7 @@ import {getCard} from '@/client/cards/ClientCardManifest';
 import {CloneFlightHandle, flyCardClones} from '@/client/console/cardFlight/cloneFlights';
 import {wsStageLayout, wsStageLayoutStyle} from '@/client/console/consoleWsStageLayout';
 import {conUiScale} from '@/client/console/consoleLayoutProfile';
+import {closeConsoleCardZoom, consoleCardZoom, openConsoleCardZoom} from '@/client/console/consoleCardZoom';
 
 function esc(v: string): string {
   return typeof CSS !== 'undefined' && typeof CSS.escape === 'function' ? CSS.escape(v) : v.replace(/"/g, '\\"');
@@ -180,7 +141,7 @@ const FIT_RETRIES = 6;
 
 export default defineComponent({
   name: 'ConsoleCarryoverPicker',
-  components: {Card, CardZoomModal, GamepadGlyph},
+  components: {Card},
   props: {
     /** The recorded terminal hand (owner-only wire data). */
     eligible: {type: Array as () => ReadonlyArray<CardName>, required: true},
@@ -213,10 +174,9 @@ export default defineComponent({
       rowStyle: {} as Record<string, string>,
       fitRetries: 0,
       resizeObserver: undefined as ResizeObserver | undefined,
-      // ── Fullscreen inspect (the shared zoom modal, locally mounted) ─────
-      zoomCard: undefined as CardModel | undefined,
-      zoomList: undefined as ReadonlyArray<CardModel> | undefined,
-      zoomIndex: 0,
+      /** True while the shared fullscreen viewer was opened FROM this stage —
+       *  the unmount then closes the module viewer it owns (never a foreign one). */
+      zoomOpenedHere: false,
     };
   },
   mounted() {
@@ -235,13 +195,15 @@ export default defineComponent({
       f.dispose();
     }
     this.flights = [];
-    document.body.classList.remove('con-zoom-open');
+    // The stage is leaving with its viewer still up (overlay closed / screen
+    // switch): close the MODULE viewer we opened — the mounted zoom host
+    // observes the clear and unwinds its own choreography state.
+    if (this.zoomOpenedHere && consoleCardZoom.card !== undefined) {
+      closeConsoleCardZoom();
+    }
+    this.zoomOpenedHere = false;
   },
   computed: {
-    zoomSelected(): boolean {
-      const name = this.zoomCard?.name as CardName | undefined;
-      return name !== undefined && this.selected.includes(name);
-    },
     counterNote(): string {
       return this.selected.length === 0 ? 'Nothing selected' : 'Free to keep — the play cost stays normal';
     },
@@ -429,10 +391,11 @@ export default defineComponent({
     },
     /** The host routes pad intents here (single-slot owner pattern). Returns true when consumed. */
     handleIntent(intent: GamepadIntent): boolean {
-      // The fullscreen viewer owns every intent while it is open (the
-      // console-wide zoom carve-out, locally).
-      if (this.zoomCard !== undefined) {
-        return this.handleZoomIntent(intent);
+      // While the shared fullscreen viewer is open its HOST owns the pad (the
+      // shell's carve-out in-game, consoleMenuZoomBridge pre-game) — intents
+      // normally never reach this stage. Swallow defensively, never act.
+      if (consoleCardZoom.card !== undefined) {
+        return true;
       }
       if (this.submitting) {
         return true;
@@ -480,34 +443,58 @@ export default defineComponent({
         return true;
       }
     },
-    // ── Fullscreen inspect (X) — the ConsoleDevCardPicker pattern ─────────
+    // ── Fullscreen inspect (X) — the ONE console zoom pipeline ────────────
+    /**
+     * X opens the cursored card in the SHARED fullscreen viewer via the
+     * `consoleCardZoom` module — presentation, choreography and input are the
+     * mounted zoom host's job (the shell in-game, ConsoleMenuZoomHost on the
+     * pre-game map). The origin is PHYSICAL: the card lifts out of the slot
+     * it visually lives in — the hand socket, or the KEEP slot once picked —
+     * and the close flight returns it there. A in fullscreen rides the select
+     * bridge (same guards as the stage toggle; the stage below updates in
+     * place, so the change is plainly visible on close).
+     */
     openZoom(at: number): void {
       if (this.eligible.length === 0) {
         return;
       }
       const list = this.eligible.map((name) => ({name} as CardModel));
       const index = Math.min(Math.max(at, 0), list.length - 1);
-      this.zoomList = list;
-      this.zoomIndex = index;
-      this.zoomCard = list[index];
-      document.body.classList.add('con-zoom-open');
-      void this.$nextTick(() => {
-        (this.$refs.zoomModal as {show?: () => void} | undefined)?.show?.();
+      this.zoomOpenedHere = true;
+      openConsoleCardZoom(list, index, {
+        isSelected: (name) => this.selected.includes(name),
+        toggle: (name) => this.zoomToggle(name),
+      }, undefined, {
+        contextLabel: 'Project legacy',
+        origin: {
+          kind: 'physical',
+          resolve: (i) => this.zoomSlotFor(i),
+          // LB/RB keeps the UNDERLYING cursor in lockstep — closing lands the
+          // focus (and the close flight) on the card the player looked at last.
+          onBrowse: (i) => {
+            this.cursor = i;
+          },
+        },
       });
     },
-    /** LB/RB browse keeps the UNDERLYING cursor in lockstep — closing lands
-     *  the focus on the card the player looked at last. */
-    onZoomNavigate(card: CardModel, index: number): void {
-      this.zoomCard = card;
-      this.zoomIndex = index;
-      this.cursor = index;
+    /** The live slot the card at zoom-list index `i` VISUALLY lives in:
+     *  its hand socket, or its keep slot while picked (one visual owner). */
+    zoomSlotFor(i: number): HTMLElement | null {
+      const root = this.$el as HTMLElement | undefined;
+      const name = this.eligible[i];
+      if (root === undefined || name === undefined || typeof root.querySelector !== 'function') {
+        return null;
+      }
+      const slotIdx = this.selected.indexOf(name);
+      if (slotIdx >= 0) {
+        return root.querySelector<HTMLElement>(`[data-zoom-slot="${esc('carry-keep:' + slotIdx)}"]`);
+      }
+      return root.querySelector<HTMLElement>(`[data-zoom-slot="${esc(name + ':' + i)}"]`);
     },
-    /** A from fullscreen toggles the pick WITHOUT leaving the viewer (P15).
-     *  Same guards as the stage toggle; no clone flight — the stage below
-     *  updates in place and the change is plainly visible on close. */
-    toggleZoomSelection(): void {
-      const name = this.zoomCard?.name as CardName | undefined;
-      if (name === undefined || this.submitting) {
+    /** The fullscreen A (select bridge): a pure pick flip, same guards as the
+     *  stage toggle — never a submit, no clone flight while the stage is covered. */
+    zoomToggle(name: CardName): void {
+      if (this.submitting) {
         return;
       }
       this.disarm();
@@ -519,47 +506,6 @@ export default defineComponent({
         return;
       }
       this.$emit('toggle', name);
-    },
-    handleZoomIntent(intent: GamepadIntent): boolean {
-      const action = consoleActionOf(intent, {});
-      const modal = this.$refs.zoomModal as {prev: () => void, next: () => void} | undefined;
-      if (intent.kind === 'nav' && (intent.dir === 'left' || intent.dir === 'right')) {
-        if (intent.dir === 'right') {
-          modal?.next();
-        } else {
-          modal?.prev();
-        }
-        return true;
-      }
-      if (action === 'prevSection') {
-        modal?.prev();
-        return true;
-      }
-      if (action === 'nextSection') {
-        modal?.next();
-        return true;
-      }
-      if (action === 'primary') {
-        this.toggleZoomSelection();
-        return true;
-      }
-      if (action === 'back' || action === 'inspect') {
-        this.requestZoomClose();
-      }
-      return true;
-    },
-    requestZoomClose(): void {
-      const modal = this.$refs.zoomModal as {close?: () => void} | undefined;
-      if (modal?.close !== undefined) {
-        modal.close();
-      } else {
-        this.closeZoom();
-      }
-    },
-    closeZoom(): void {
-      this.zoomCard = undefined;
-      this.zoomList = undefined;
-      document.body.classList.remove('con-zoom-open');
     },
     /** The grid cursor follows the SOLVED row shape (per-row from the fit). */
     moveCursor(dir: 'up' | 'down' | 'left' | 'right'): void {

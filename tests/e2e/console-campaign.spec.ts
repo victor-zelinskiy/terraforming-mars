@@ -121,11 +121,28 @@ test.describe('campaign map', () => {
     await expect(page.locator('.con-carry__card')).toHaveCount(2);
 
     // X = INSPECT (the console-wide verb): the cursored card opens in the
-    // shared fullscreen viewer; B closes it back onto the untouched stage.
-    await press(page, 'KeyX', 700);
+    // SHARED fullscreen viewer through the `consoleCardZoom` module — served
+    // pre-game by ConsoleMenuZoomHost with the CONSOLE chrome (the desktop
+    // nav arrows stay hidden; the #actions bar is the command surface).
+    await press(page, 'KeyX', 900);
     await expect(page.locator('.con-zoom')).toBeVisible();
-    await press(page, 'Escape', 700);
+    await expect(page.locator('.con-zoom .con-zoom__bar')).toBeVisible();
+    await expect(page.locator('.con-zoom .card-zoom-nav-slot').first()).toBeHidden();
+    // PHYSICALITY: one visual owner — the card lifted OUT of its stage slot,
+    // so the slot's copy is HELD invisible for the fullscreen's lifetime.
+    await expect(page.locator('.con-carry .con-zoom-hold')).toHaveCount(1);
+    // A toggles the pick FROM fullscreen (the select bridge, P15) — driven as
+    // a SYNTHETIC key: untrusted events never reach native dialog handling,
+    // so this exercises exactly the intent road the gamepad rides.
+    await page.evaluate(() => window.dispatchEvent(new KeyboardEvent('keydown', {code: 'Enter'})));
+    await expect(page.locator('.con-zoom__state')).toBeVisible();
+    await page.evaluate(() => window.dispatchEvent(new KeyboardEvent('keydown', {code: 'Enter'})));
+    await expect(page.locator('.con-zoom__state')).toHaveCount(0);
+    // B closes back onto the untouched stage — again the INTENT road only
+    // (the historical bug: native Esc closed while the pad's B was dead).
+    await page.evaluate(() => window.dispatchEvent(new KeyboardEvent('keydown', {code: 'Escape'})));
     await page.waitForSelector('.con-zoom', {state: 'detached', timeout: 10_000});
+    await expect(page.locator('.con-carry .con-zoom-hold')).toHaveCount(0);
     await expect(page.locator('.con-carry')).toBeVisible();
 
     // THE BLOCKER GUARD, client half: a ZERO-card confirm over a real hand

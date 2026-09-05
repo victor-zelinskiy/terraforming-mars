@@ -106,65 +106,11 @@
       </template>
     </div>
 
-    <!--
-      The fullscreen card viewer. The console's shared one is mounted by
-      ConsoleShell, which does not exist before a game — so this dev tool hosts
-      its own instance of the SAME modal with the SAME console-native chrome
-      (teleported out of the overlay's stacking context, as every other host
-      does). The picker stays mounted underneath, so toggles made here are
-      reflected in the list without losing its cursor or scroll position.
-    -->
-    <Teleport to="body">
-      <transition name="con-zoom-veil">
-        <div v-if="zoomCard !== undefined" class="con-zoom-veil" aria-hidden="true"></div>
-      </transition>
-      <CardZoomModal
-        v-if="zoomCard !== undefined"
-        ref="zoomModal"
-        class="con-zoom"
-        :card="zoomCard"
-        :cards="zoomList"
-        :index="zoomIndex"
-        :selected="zoomSelected"
-        :consoleMotion="true"
-        :annotationsSuppressed="zoomRulesCardName !== undefined"
-        :lore="true"
-        @navigate="onZoomNavigate"
-        @close="closeZoom()"
-      >
-        <template v-if="zoomRulesCardName !== undefined" #side="side">
-          <ConsoleCardRulesPanel
-            :cardName="zoomRulesCardName"
-            :nonce="side.nonce"
-            :closing="side.closing"
-          />
-        </template>
-        <template #actions>
-          <div class="con-zoom__context">
-            <span class="con-zoom__context-mark" aria-hidden="true">◈</span>
-            <span>{{ $t('Guaranteed cards') }}</span>
-          </div>
-          <div class="con-zoom__bar">
-            <span v-if="zoomSelected" class="con-zoom__state">✓ {{ $t('Card selected') }}</span>
-            <button type="button" class="con-zoom__btn con-zoom__btn--select" @click="toggleZoomSelection">
-              <GamepadGlyph control="confirm" />
-              <span>{{ $t(zoomSelected ? 'Deselect' : 'Select') }}</span>
-            </button>
-            <span v-if="zoomList !== undefined && zoomList.length > 1" class="con-zoom__cmd con-zoom__cmd--flip">
-              <GamepadGlyph control="bumperL" />
-              <span class="con-zoom__flip-arrow" aria-hidden="true">◀</span>
-              <span>{{ $t('Browse') }}</span>
-              <span class="con-zoom__flip-arrow" aria-hidden="true">▶</span>
-              <GamepadGlyph control="bumperR" />
-            </span>
-            <button type="button" class="con-zoom__btn" @click="requestZoomClose">
-              <GamepadGlyph control="back" />
-              <span>{{ $t('Close') }}</span>
-            </button>
-          </div>
-        </template>
-      </CardZoomModal>
-    </Teleport>
+    <!-- Fullscreen inspect (X) renders through the ONE `consoleCardZoom`
+         pipeline — served pre-game by the App-level ConsoleMenuZoomHost
+         (console chrome, choreography and the pad carve-out are its job).
+         The picker stays mounted underneath, so toggles made in fullscreen
+         are reflected in the list without losing its cursor or scroll. -->
   </div>
 </template>
 
@@ -183,8 +129,8 @@
  *             LOCALIZED title; A toggles, LB/RB jump between type groups.
  *
  * X inspects the cursored card fullscreen — the console-wide inspect verb —
- * reusing the shared `CardZoomModal` (see the Teleport above). While it is open
- * it owns the pad, exactly like the in-game shell's zoom carve-out.
+ * through the ONE `consoleCardZoom` module (served pre-game by the App-level
+ * ConsoleMenuZoomHost, whose pad carve-out runs before this handler).
  *
  * Host-routed pad intents via `handleIntent`, mirroring ConsoleAdminRollback.
  */
@@ -197,9 +143,8 @@ import {GamepadIntent} from '@/client/gamepad/gamepadPollModel';
 import {consoleActionOf} from '@/client/console/composables/consoleActionModel';
 import {stepIndex, stepSelectable} from '@/client/console/consoleRouter';
 import GamepadGlyph from '@/client/components/gamepad/GamepadGlyph.vue';
-import CardZoomModal from '@/client/components/card/CardZoomModal.vue';
-import ConsoleCardRulesPanel, {cardHasRules} from '@/client/components/console/ConsoleCardRulesPanel.vue';
 import ConsoleScrollArea from '@/client/components/console/foundation/ConsoleScrollArea.vue';
+import {closeConsoleCardZoom, consoleCardZoom, openConsoleCardZoom} from '@/client/console/consoleCardZoom';
 import {createGameState} from '@/client/components/create/premium/createGameState';
 import {
   GUARANTEED_MODULES,
@@ -224,7 +169,7 @@ const PAGE_ROWS = 10;
 
 export default defineComponent({
   name: 'ConsoleDevCardPicker',
-  components: {GamepadGlyph, CardZoomModal, ConsoleCardRulesPanel, ConsoleScrollArea},
+  components: {GamepadGlyph, ConsoleScrollArea},
   emits: ['close'],
   data() {
     return {
@@ -233,9 +178,8 @@ export default defineComponent({
       moduleCursor: 0,
       cardCursor: 0,
       module: 'base' as GameModule,
-      zoomCard: undefined as CardModel | undefined,
-      zoomList: undefined as ReadonlyArray<CardModel> | undefined,
-      zoomIndex: 0,
+      /** True while the shared fullscreen viewer was opened FROM this picker. */
+      zoomOpenedHere: false,
     };
   },
   computed: {
@@ -273,13 +217,6 @@ export default defineComponent({
     currentCardChosen(): boolean {
       return this.currentEntry?.chosen === true;
     },
-    zoomSelected(): boolean {
-      return this.zoomCard !== undefined && this.chosenNames.has(this.zoomCard.name as CardName);
-    },
-    zoomRulesCardName(): CardName | undefined {
-      const name = this.zoomCard?.name;
-      return name !== undefined && cardHasRules(name) ? name as CardName : undefined;
-    },
     crumb(): string {
       if (this.view === 'modules') {
         return $t('Add card');
@@ -303,8 +240,10 @@ export default defineComponent({
     // ── Input ────────────────────────────────────────────────────────────
     /** Host-routed pad intents. Always consumes — this overlay is modal. */
     handleIntent(intent: GamepadIntent): boolean {
-      if (this.zoomCard !== undefined) {
-        return this.handleZoomIntent(intent);
+      // While the shared fullscreen viewer is open, its HOST owns the pad
+      // (the pre-game carve-out runs before this handler) — swallow defensively.
+      if (consoleCardZoom.card !== undefined) {
+        return true;
       }
       // No `secondary` override: X keeps its DEFAULT meaning here — the
       // console-wide inspect verb — rather than the create screen's «Запуск».
@@ -314,34 +253,6 @@ export default defineComponent({
       case 'modules': return this.handleModulesIntent(intent, action);
       default: return this.handleCardsIntent(intent, action);
       }
-    },
-    handleZoomIntent(intent: GamepadIntent): boolean {
-      const action = consoleActionOf(intent);
-      const modal = this.$refs.zoomModal as {prev: () => void, next: () => void} | undefined;
-      if (intent.kind === 'nav' && (intent.dir === 'left' || intent.dir === 'right')) {
-        if (intent.dir === 'right') {
-          modal?.next();
-        } else {
-          modal?.prev();
-        }
-        return true;
-      }
-      if (action === 'prevSection') {
-        modal?.prev();
-        return true;
-      }
-      if (action === 'nextSection') {
-        modal?.next();
-        return true;
-      }
-      if (action === 'primary') {
-        this.toggleZoomSelection();
-        return true;
-      }
-      if (action === 'back' || action === 'inspect') {
-        this.requestZoomClose();
-      }
-      return true;
     },
     handlePickedIntent(intent: GamepadIntent, action: string | undefined): boolean {
       const rows = this.picked.length + 1;
@@ -489,51 +400,41 @@ export default defineComponent({
       this.pickedCursor = Math.min(this.pickedCursor, this.picked.length);
     },
 
-    // ── Fullscreen inspect ───────────────────────────────────────────────
+    // ── Fullscreen inspect — the ONE console zoom pipeline ───────────────
+    /**
+     * X opens the SHARED fullscreen viewer via `consoleCardZoom`; the
+     * App-level ConsoleMenuZoomHost serves presentation + input. The rows
+     * here are plain LIST rows (no card face on screen), so the origin is
+     * TEXTUAL — the inspector rise, never a fake lift out of a text row.
+     * A in fullscreen toggles the pick through the select bridge.
+     */
     openZoom(names: ReadonlyArray<CardName>, at: number): void {
       const list = names.map((name) => ({name} as CardModel));
-      const card = list[at];
-      if (card === undefined) {
+      if (list[at] === undefined) {
         return;
       }
-      this.zoomList = list;
-      this.zoomIndex = at;
-      this.zoomCard = card;
-      document.body.classList.add('con-zoom-open');
-      void this.$nextTick(() => {
-        (this.$refs.zoomModal as {show?: () => void} | undefined)?.show?.();
+      this.zoomOpenedHere = true;
+      openConsoleCardZoom(list, at, {
+        isSelected: (name) => this.chosenNames.has(name),
+        toggle: (name) => {
+          toggleGuaranteedCard(this.picks, name);
+          if (this.view === 'picked') {
+            this.pickedCursor = Math.min(this.pickedCursor, this.picked.length);
+          }
+        },
+      }, undefined, {
+        contextLabel: 'Guaranteed cards',
+        origin: {kind: 'textual'},
       });
-    },
-    onZoomNavigate(card: CardModel, index: number): void {
-      this.zoomCard = card;
-      this.zoomIndex = index;
-    },
-    toggleZoomSelection(): void {
-      const name = this.zoomCard?.name as CardName | undefined;
-      if (name === undefined) {
-        return;
-      }
-      toggleGuaranteedCard(this.picks, name);
-      if (this.view === 'picked') {
-        this.pickedCursor = Math.min(this.pickedCursor, this.picked.length);
-      }
-    },
-    requestZoomClose(): void {
-      const modal = this.$refs.zoomModal as {close?: () => void} | undefined;
-      if (modal?.close !== undefined) {
-        modal.close();
-      } else {
-        this.closeZoom();
-      }
-    },
-    closeZoom(): void {
-      this.zoomCard = undefined;
-      this.zoomList = undefined;
-      document.body.classList.remove('con-zoom-open');
     },
   },
   beforeUnmount() {
-    document.body.classList.remove('con-zoom-open');
+    // Leaving with the viewer still up: close the module viewer we opened —
+    // the mounted zoom host observes the clear and unwinds its own state.
+    if (this.zoomOpenedHere && consoleCardZoom.card !== undefined) {
+      closeConsoleCardZoom();
+    }
+    this.zoomOpenedHere = false;
   },
 });
 </script>

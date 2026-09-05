@@ -26,6 +26,7 @@
 import {reactive} from 'vue';
 import {GamepadIntent} from '@/client/gamepad/gamepadPollModel';
 import {registerConsoleIntentHandler} from '@/client/console/consoleRouter';
+import {menuZoomIntent} from '@/client/console/menu/consoleMenuZoomBridge';
 
 export type MenuPadHandler = (intent: GamepadIntent) => boolean;
 
@@ -52,7 +53,16 @@ export function installMenuPad(handler: MenuPadHandler): () => void {
   // input ROUTERS (GamepadLayer + consoleKeyBridge), which never even reach
   // this handler while the update overlay covers the screen — so the pre-game
   // screen can't fire a menu item (Continue) behind the mandatory gate.
-  const offIntent = registerConsoleIntentHandler(handler);
+  // The shared fullscreen card viewer (ConsoleMenuZoomHost) owns the pad
+  // COMPLETELY while it is open — the same carve-out the in-game shell runs
+  // before any surface routing. It sits here, in the spine, so no pre-game
+  // screen ever hand-rolls a zoom branch (that pattern shipped a dead B).
+  const offIntent = registerConsoleIntentHandler((intent) => {
+    if (menuZoomIntent(intent)) {
+      return true;
+    }
+    return handler(intent);
+  });
   menuPadState.mountedCount++;
   let released = false;
   return () => {

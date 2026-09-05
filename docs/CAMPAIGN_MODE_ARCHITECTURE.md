@@ -111,11 +111,21 @@
 > had already drifted, advertising the deleted launch confirm). Modal census
 > after: carryover picker (a real decision step) + committed-results dossier.
 > The carryover picker's verbs follow the console grammar: **X = INSPECT**
-> (the shared `CardZoomModal`, locally mounted — the ConsoleDevCardPicker
-> pre-game pattern; A toggles the pick from fullscreen per P15, LB/RB browse
-> and keep the underlying cursor in lockstep) and **RT = CONFIRM** (raw
-> `triggerR`, intercepted before `consoleActionOf`; the armed zero-carry
-> guard rides RT unchanged).
+> through the ONE `consoleCardZoom` module (2026-09-05 rework — the local
+> `CardZoomModal` mount is DELETED: it shipped desktop chrome, a second card
+> copy and a dead gamepad B). Pre-game the module is served by the App-level
+> **`ConsoleMenuZoomHost`** (a direct port of the shell's zoom host subset:
+> proxy-first open flight, `data-zoom-slot` physical lift + `.con-zoom-hold`,
+> console #actions bar, rules side panel), whose pad carve-out runs in
+> `installMenuPad` itself (`consoleMenuZoomBridge`) — BEFORE any screen
+> handler, the same law as the shell's zoom branch; in the embedded endgame
+> scene the shell's own host serves the very same open. A toggles the pick
+> from fullscreen via the select bridge (P15), LB/RB browse keeps the
+> underlying cursor in lockstep, and the physical origin resolves the slot
+> the card VISUALLY lives in (hand socket, or the keep slot once picked).
+> `ConsoleDevCardPicker` rides the same pipeline (textual origin — its rows
+> are list rows). **RT = CONFIRM** (raw `triggerR`, intercepted before
+> `consoleActionOf`; the armed zero-carry guard rides RT unchanged).
 >
 > **Interlude ONE-FLOW + campaign realtime room (2026-09-04):** the
 > mission→mission transition is ONE continuation flow behind ONE CTA.

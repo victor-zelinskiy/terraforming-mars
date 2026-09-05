@@ -242,6 +242,13 @@
         entirely (mouse/keyboard players byte-identical).
       -->
       <GamepadLayer v-if="screen !== 'empty'" :screen="screen" />
+      <!--
+        The shared fullscreen card viewer for PRE-GAME console screens (the
+        campaign map's carryover picker, the dev card picker, …): the same
+        `consoleCardZoom` module the in-game shell serves — mounted here only
+        while the shell is NOT (one instance ever). See ConsoleMenuZoomHost.
+      -->
+      <console-menu-zoom-host v-if="screen !== 'player-home' && screen !== 'empty'" />
       <!-- Desktop-only (Electron) mandatory-update overlay. Inert on the web. -->
       <desktop-update-overlay />
     </div>
@@ -266,6 +273,7 @@ const StartScreen = defineAsyncComponent(() => import(/* webpackChunkName: "star
 const ConsoleMainMenu = defineAsyncComponent(() => import(/* webpackChunkName: "console-menu" */ '@/client/components/console/menu/ConsoleMainMenu.vue'));
 const ConsoleCreateGame = defineAsyncComponent(() => import(/* webpackChunkName: "console-menu" */ '@/client/components/console/menu/ConsoleCreateGame.vue'));
 const ConsoleCampaignMap = defineAsyncComponent(() => import(/* webpackChunkName: "console-menu" */ '@/client/components/console/campaign/ConsoleCampaignMap.vue'));
+const ConsoleMenuZoomHost = defineAsyncComponent(() => import(/* webpackChunkName: "console-menu" */ '@/client/components/console/menu/ConsoleMenuZoomHost.vue'));
 import AppBootLoader from '@/client/components/boot/AppBootLoader.vue';
 import {bootWarmupState, shouldRunBootWarmup, beginBootWarmup} from '@/client/components/boot/bootWarmupState';
 import RematchLayer from '@/client/components/rematch/RematchLayer.vue';
@@ -427,6 +435,7 @@ export default defineComponent({
     'console-main-menu': ConsoleMainMenu,
     'console-create-game': ConsoleCreateGame,
     'console-campaign-map': ConsoleCampaignMap,
+    'console-menu-zoom-host': ConsoleMenuZoomHost,
     'start-screen': StartScreen,
     'load-game-form': LoadGameForm,
     'game-home': GameHome,
