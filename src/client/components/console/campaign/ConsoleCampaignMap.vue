@@ -33,6 +33,7 @@
             v-for="m in vm.missions"
             :key="m.slot"
             class="cmap__node"
+            :class="{'cmap__node--finalparty': m.isCurrent && m.final}"
             :style="revealDelay(m.slot)"
           >
             <!-- The party marker travels the connector: it stands on the current node. -->
@@ -124,6 +125,18 @@
             />
           </span>
           <span class="cmap__seat-tp">{{ tpText(row.titlePoints) }}</span>
+          <!-- The corporation LINEAGE lives on the row itself (the old
+               campaign-dossier modal, folded onto the screen). -->
+          <span class="cmap__seat-corps">
+            <template v-if="row.isBot">
+              <span v-if="botLineageLabel !== ''" class="cmap__seat-corp"><span class="cmap__seat-corp-ord">1</span>{{ botLineageLabel }}</span>
+            </template>
+            <template v-else>
+              <span v-for="(corp, ci) in row.lineage" :key="corp" class="cmap__seat-corp">
+                <span class="cmap__seat-corp-ord">{{ ci + 1 }}</span>{{ $t(corp) }}
+              </span>
+            </template>
+          </span>
           <span v-if="row.pendingBonus > 0" class="cmap__seat-bonus">+{{ row.pendingBonus }} M€</span>
           <span v-if="row.carry !== undefined && row.carry.status === 'confirmed'" class="cmap__seat-carry">
             {{ carryText(row.carry.count) }}
@@ -160,28 +173,6 @@
               <img v-if="row.title !== undefined" class="cmap__dossier-title" :src="titleArtUrl(row.title)" :alt="$t(titleLabel(row.title))" />
             </div>
             <div class="cmap__dossier-gens">{{ generationsText(vm.missions[overlay.slot].generations ?? 0) }}</div>
-          </div>
-        </div>
-      </div>
-
-      <div v-if="overlay?.kind === 'dossier'" class="cm-overlay" role="dialog" :aria-label="$t('Campaign dossier')">
-        <div class="cm-overlay__card cmap__dossier cmap__dossier--wide">
-          <div class="cm-overlay__title" v-i18n>Campaign dossier</div>
-          <div class="cmap__dossier-body">
-            <div v-for="row in vm.rail" :key="row.seat" class="cmap__lineage">
-              <div class="cmap__lineage-head">
-                <span class="cmap__result-cube" :class="`player_bg_color_${row.color}`"></span>
-                <span class="cmap__dossier-name">{{ row.name }}</span>
-                <span class="cmap__seat-tp">{{ tpText(row.titlePoints) }}</span>
-              </div>
-              <div class="cmap__lineage-corps">
-                <span v-if="lineageOf(row.seat).length === 0 && !row.isBot" class="cmap__lineage-none" v-i18n>No corporations acquired yet</span>
-                <span v-else-if="row.isBot" class="cmap__lineage-none">{{ botCorpLabel }}</span>
-                <span v-for="(corp, ci) in lineageOf(row.seat)" :key="corp" class="cmap__lineage-corp">
-                  <span class="cmap__lineage-ord">{{ ci + 1 }}</span>{{ corp }}
-                </span>
-              </div>
-            </div>
           </div>
         </div>
       </div>
@@ -265,7 +256,6 @@ import {$t, translateTextWithParams} from '@/client/directives/i18n';
 
 type MapOverlay =
   | {kind: 'mission', slot: number}
-  | {kind: 'dossier'}
   | {kind: 'carryover'};
 
 const REVEAL_LATCH = 'tm_campaign_reveal';
@@ -324,10 +314,11 @@ export default defineComponent({
       }
       return translateTextWithParams(vm.progressLabel, [...vm.progressParams]);
     },
-    botCorpLabel(): string {
+    /** The bot's lineage entry for the rail ('' until mission 1 fixes it). */
+    botLineageLabel(): string {
       const id = this.state.model?.progression.botCorporation;
       if (id === undefined) {
-        return $t('The corporation is chosen in mission 1 and kept for the whole campaign');
+        return '';
       }
       // The bot corp's display identity IS its human twin (`original`).
       return $t(marsBotCorpInfo(id).original);
@@ -348,9 +339,6 @@ export default defineComponent({
       }
       if (this.overlay?.kind === 'mission') {
         return 'Mission dossier';
-      }
-      if (this.overlay?.kind === 'dossier') {
-        return 'Campaign dossier';
       }
       return 'Campaign';
     },
@@ -381,9 +369,24 @@ export default defineComponent({
       if (this.dossierSlot !== undefined) {
         cmds.push({control: 'secondary', label: 'Mission dossier'});
       }
-      cmds.push({control: 'inspect', label: 'Campaign dossier'});
+      // Y — the CHANGE door: re-open the very carryover picker while the next
+      // mission has not consumed the selection (a mis-pick or an accidental
+      // «continue without cards» stays correctable to the last moment).
+      if (this.canReviseCarry) {
+        cmds.push({control: 'inspect', label: 'Change the carried projects'});
+      }
       cmds.push({control: 'back', label: 'Main menu'});
       return cmds;
+    },
+    /**
+     * The carryover selection is still REVISABLE: the interlude window is
+     * open (the next launch has not consumed it) and the viewer already
+     * confirmed once — before that, the mandatory step itself is the door
+     * (auto-open + the A CTA), so Y appears only as the change verb.
+     */
+    canReviseCarry(): boolean {
+      const vm = this.vm;
+      return vm !== undefined && vm.carryoverOpen && vm.carryoverConfirmed;
     },
     /**
      * A is ALWAYS «enter» (a live/committed mission) or «create + enter»
@@ -536,6 +539,14 @@ export default defineComponent({
         campaignMapUi.carryConfirmLabel = label;
       },
     },
+    // The embedded host renders the map's OWN verbs — mirrored whole, so the
+    // host's bar can never drift from what the map actually honours.
+    'commands': {
+      immediate: true,
+      handler(cmds: ReadonlyArray<ConsoleCommand>): void {
+        campaignMapUi.commands = cmds;
+      },
+    },
   },
   async mounted() {
     if (this.embedded) {
@@ -626,9 +637,6 @@ export default defineComponent({
       default: return 'choosing projects…';
       }
     },
-    lineageOf(seat: number): ReadonlyArray<CardName> {
-      return this.state.model?.progression.lineages[seat] ?? [];
-    },
     revealDelay(slot: number): Record<string, string> {
       return this.revealPlaying ? {'--cmap-reveal-delay': `${420 + slot * 300}ms`} : {};
     },
@@ -685,8 +693,12 @@ export default defineComponent({
         }
         return true;
       case 'fullscreen':
-        // Y — the campaign dossier (lineages + the TP ledger).
-        this.overlay = {kind: 'dossier'};
+        // Y — re-open the carryover picker to CHANGE the confirmed selection
+        // (only while the next launch has not consumed it). The entrance is
+        // the picker's own cascade — the same door it was chosen in.
+        if (this.canReviseCarry) {
+          this.openCarryover();
+        }
         return true;
       case 'back':
         this.leaveMap();
@@ -740,8 +752,7 @@ export default defineComponent({
         return;
       }
       if (this.cursor.zone === 'rail') {
-        this.overlay = {kind: 'dossier'};
-        return;
+        return; // A rail row is a read — its whole story is on the row.
       }
       const m = vm.missions[this.cursor.index];
       if (m === undefined) {

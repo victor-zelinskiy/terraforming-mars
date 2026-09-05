@@ -713,32 +713,13 @@ export default defineComponent({
         return [];
       }
       if (this.campaignScene === 'map') {
-        // The map's own stage (overlay/step) decides the verbs; the host bar
-        // mirrors it through campaignMapUi (a $refs read is not reactive).
-        if (campaignMapUi.overlay === 'carryover') {
-          return [
-            {control: 'dpad', label: 'Choose'},
-            {control: 'confirm', label: 'Take / return'},
-            {control: 'secondary', label: campaignMapUi.carryConfirmLabel, highlight: true, priority: 0},
-            {control: 'back', label: 'Close', priority: 5},
-          ];
-        }
-        if (campaignMapUi.overlay === 'launch') {
-          return [
-            {control: 'confirm', label: 'Launch', highlight: true},
-            {control: 'back', label: 'Cancel', priority: 5},
-          ];
-        }
-        if (campaignMapUi.overlay !== undefined) {
-          return [{control: 'back', label: 'Close', priority: 5}];
-        }
-        return [
-          {control: 'dpad', label: 'Navigate'},
-          {control: 'confirm', label: 'Confirm'},
-          {control: 'secondary', label: 'Mission dossier'},
-          {control: 'inspect', label: 'Campaign dossier'},
-          {control: 'back', label: 'Game results', priority: 5},
-        ];
+        // The map's OWN command list, mirrored whole through campaignMapUi
+        // (a $refs read is not reactive) — the host re-labels only the root
+        // B: inside the endgame it returns to the results, not the menu. A
+        // hand-copied verb list here is the drift class this replaces.
+        return campaignMapUi.commands.map((c) =>
+          c.control === 'back' && c.label === 'Main menu' ?
+            {...c, label: 'Game results', priority: 5} : c);
       }
       if (this.overviewParked) {
         // The overview scene: its own level's verbs, nothing inherited.

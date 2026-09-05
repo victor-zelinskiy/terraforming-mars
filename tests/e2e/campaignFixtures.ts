@@ -93,7 +93,10 @@ export async function devCommit(
 }
 
 /** The viewer-scoped campaign model (per-seat fields like `yourPlayerId`). */
-export async function campaignModelAs(request: APIRequestContext, id: string, name: string): Promise<{missions: Array<{gameId?: string, yourPlayerId?: string}>}> {
+export async function campaignModelAs(request: APIRequestContext, id: string, name: string): Promise<{
+  missions: Array<{gameId?: string, yourPlayerId?: string}>,
+  carryover?: {bySeat: Array<{seat: number, status: string, count: number}>},
+}> {
   const res = await request.get(`${CAMPAIGN_BASE}/api/campaign?id=${id}&name=${encodeURIComponent(name)}`);
   expect(res.ok(), await res.text()).toBeTruthy();
   return res.json();

@@ -135,6 +135,20 @@ test.describe('campaign map', () => {
     await expect(page.locator('.cmap__seat-status--ready')).toHaveCount(1);
     await expect(page.locator('.cmap__seat-status--choosing')).toHaveCount(1);
 
+    // THE CHANGE DOOR: an accidental «continue without cards» is correctable
+    // until the launch consumes the selection — Y re-opens the SAME picker
+    // (its own cascade entrance), a card is taken, the confirm re-submits.
+    await press(page, 'KeyY', 800);
+    await page.waitForSelector('.con-carry', {timeout: 10_000});
+    await expect(page.locator('.con-carry__card')).toHaveCount(2);
+    await press(page, 'Enter', 500); // take the cursored card
+    await press(page, 'KeyX', 800); // «Сохранить выбор» — one press, draft > 0
+    await page.waitForSelector('.cmap__wait-strip--ready', {timeout: 20_000});
+    const revised = await campaignModelAs(request, id, 'Bruno');
+    const brunoCarry = revised.carryover!.bySeat.find((s) => s.seat === 1)!;
+    expect(brunoCarry.status).toBe('confirmed');
+    expect(brunoCarry.count).toBe(1);
+
     // Alice (host) confirms her readiness and launches — over the API, the
     // out-of-band second-participant path.
     const aliceModel = await campaignModelAs(request, id, 'Alice');
@@ -152,6 +166,20 @@ test.describe('campaign map', () => {
     const brunoPid = brunoModel.missions[1].yourPlayerId!;
     expect(page.url()).toContain(brunoPid);
     expect(brunoPid).not.toBe(launched.yourPlayerId);
+  });
+
+  test('the party marker never covers the «ФИНАЛ» banner (mission 4 current)', async ({page, request}) => {
+    const {id} = await createCampaign(request);
+    for (const placements of [[0, 1], [0, 1], [0, 1]]) {
+      await devCommit(request, id, placements);
+    }
+    await openMapAs(page, id, 'Alice');
+    // The party stands on the FINAL node now — both markers render there.
+    const party = (await page.locator('.cmap__party').boundingBox())!;
+    const banner = (await page.locator('.cmap__final-banner').boundingBox())!;
+    const overlap = party.x < banner.x + banner.width && banner.x < party.x + party.width &&
+      party.y < banner.y + banner.height && banner.y < party.y + party.height;
+    expect(overlap, `party ${JSON.stringify(party)} vs banner ${JSON.stringify(banner)}`).toBeFalsy();
   });
 
   test('a non-creator sees the waiting state, never the launch CTA', async ({page, request}) => {

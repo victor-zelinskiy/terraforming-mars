@@ -95,9 +95,21 @@
 > opens it either); a future/locked mission has NO A verb and NO modal — its
 > whole story (board, position, finale, blockers) lives on the route card.
 > The mission dossier survives ONLY as the results detail of a COMMITTED
-> mission (X, offered in the bar only where results exist). Modal census
-> after: carryover picker (a real decision step), committed-results dossier,
-> campaign dossier (Y).
+> mission (X, offered in the bar only where results exist).
+> (3) **Third pass:** the campaign-dossier modal (Y) is DELETED — corporation
+> lineages live on the rail rows themselves (`CmapRailRow.lineage` →
+> `.cmap__seat-corps`, corp names through `$t`; the bot's via
+> `botLineageLabel`); **Y is now «Изменить наследие»** (`canReviseCarry` =
+> interlude ∧ own carryover confirmed): it re-opens the SAME carryover picker
+> (its own cascade entrance) and `submitCarryover` accepts re-confirmation
+> until the launch consumes it — a mis-pick or an accidental «continue
+> without cards» stays correctable. The party-marker/«ФИНАЛ»-banner collision
+> is fixed (`.cmap__node--finalparty` lifts the cubes above the banner;
+> bbox-non-overlap e2e guard). The embedded endgame bar no longer hand-copies
+> verbs — the map publishes its whole `commands` into
+> `campaignMapUi.commands` and the host only re-labels the root B (the copy
+> had already drifted, advertising the deleted launch confirm). Modal census
+> after: carryover picker (a real decision step) + committed-results dossier.
 >
 > **Interlude ONE-FLOW + campaign realtime room (2026-09-04):** the
 > mission→mission transition is ONE continuation flow behind ONE CTA.

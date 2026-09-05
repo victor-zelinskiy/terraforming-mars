@@ -162,6 +162,11 @@
     border-radius: 0.18rem;
     box-shadow: 0 0.1rem 0.3rem rgba(0, 0, 0, 0.55), inset 0 0 0 1px rgba(255, 255, 255, 0.25);
   }
+  /* The party standing ON the finale: the «ФИНАЛ» banner owns the card's top
+     edge (-0.8rem), so the cubes step above it — never onto it. */
+  &__node--finalparty &__party {
+    top: -2.6rem;
+  }
 
   &__card {
     position: relative;
@@ -379,6 +384,38 @@
     min-width: 4.6rem;
     color: #ecd39a;
     letter-spacing: 0.06em;
+  }
+  /* The corporation LINEAGE on the row itself (the old dossier modal folded
+     in): ordinal-numbered chips, one quiet line, ellipsized under pressure.
+     Takes the row's free middle; the status/crown keep their auto margin. */
+  &__seat-corps {
+    flex: 1 1 auto;
+    min-width: 0;
+    display: flex;
+    align-items: baseline;
+    gap: 0.8rem;
+    overflow: hidden;
+    white-space: nowrap;
+  }
+  &__seat-corp {
+    flex: 0 1 auto;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    color: #c8b995;
+    font-size: 0.85rem;
+    letter-spacing: 0.03em;
+  }
+  &__seat-corp-ord {
+    display: inline-block;
+    margin-right: 0.3rem;
+    min-width: 0.95rem;
+    text-align: center;
+    border-radius: 0.2rem;
+    border: 1px solid rgba(214, 178, 106, 0.4);
+    color: #ecd39a;
+    font-size: 0.68rem;
+    line-height: 1.35;
   }
   &__seat-bonus {
     color: #9fc3a4;

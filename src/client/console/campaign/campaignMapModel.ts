@@ -45,6 +45,9 @@ export type CmapRailRow = {
   /** Earned titles in mission order (compact icon row). */
   titles: ReadonlyArray<{title: TitleName, missionSlot: number}>;
   titlePoints: number;
+  /** The seat's corporation LINEAGE («Наследие») — acquisition-ordered, on
+   *  the rail row itself (the old campaign-dossier modal folded in here). */
+  lineage: ReadonlyArray<CardName>;
   /** Bonus M€ pending for the NEXT mission (0 = none shown). */
   pendingBonus: number;
   /** Interlude only: this seat's carryover status line. */
@@ -166,6 +169,7 @@ export function buildCampaignMapVm(model: CampaignModel): CampaignMapVm {
       titles: model.progression.titles.filter((t) => t.seat === seat.seat)
         .map((t) => ({title: t.title, missionSlot: t.missionSlot})),
       titlePoints: model.progression.titlePoints[seat.seat] ?? 0,
+      lineage: model.progression.lineages[seat.seat] ?? [],
       pendingBonus: model.progression.pendingBonuses[seat.seat] ?? 0,
       carry: seat.kind === 'human' && model.phase === 'interlude' && entry !== undefined ?
         {status: entry.status, count: entry.count} : undefined,

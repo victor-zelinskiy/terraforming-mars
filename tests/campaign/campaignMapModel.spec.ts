@@ -192,6 +192,8 @@ describe('campaignMapModel', () => {
     };
     const vm = buildCampaignMapVm(model);
     const alice = vm.rail.find((r) => r.seat === 0)!;
+    // The lineage rides the rail row itself (the old dossier modal folded in).
+    expect(alice.lineage).deep.eq([CardName.CREDICOR]);
     expect(alice.titlePoints).eq(15);
     expect(alice.titles.map((t) => t.title)).deep.eq(['governor']);
     const bruno = vm.rail.find((r) => r.seat === 1)!;
