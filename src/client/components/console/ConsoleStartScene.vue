@@ -111,11 +111,7 @@
              restored by the frame watcher. The pane swap itself hides under
              the Selection Dock flights (collect on RT / return on LT). -->
         <div v-show="mode === 'wizard' && currentStep !== undefined && !legacyViewCovers"
-             class="con-start__body con-start__body--cards con-info__scroll" ref="body"
-             :class="{
-               'con-start__body--legacyfade': legacyView.phase === 'fading',
-               'con-start__body--legacyreturn': legacyReturning,
-             }">
+             class="con-start__body con-start__body--cards con-info__scroll" ref="body">
           <div v-for="(st, si) in steps" :key="st.id"
                class="con-start__steppane" v-show="railPos === si"
                :ref="(el) => setPaneRef(si, el)">
@@ -155,11 +151,7 @@
              a fixed side rail right), never a loose scrollable leftovers
              page. X browses the whole setup fullscreen. -->
         <div v-show="summaryShown && !legacyViewCovers" class="con-start__body con-start__summary con-info__scroll"
-             :class="{
-               'con-start__summary--prewarm': summaryPrewarm,
-               'con-start__body--legacyfade': legacyView.phase === 'fading',
-               'con-start__body--legacyreturn': legacyReturning,
-             }"
+             :class="{'con-start__summary--prewarm': summaryPrewarm}"
              :style="prewarmStyle"
              ref="summaryPane">
           <div class="con-start__summary-cards">
@@ -335,14 +327,19 @@
 
         <!-- ── CAMPAIGN: THE LEGACY OVERVIEW ────────────────────────────
              The wizard's read-only SUB-STAGE (R3 from any page, corp step
-             through the summary): the current page lets go ON THE SPOT, this
-             layer takes the same body slot, and the legacy cards physically
-             FLY UP from their shelf tiles into two zones — corporations and
-             the carried projects — as large as the body allows (max 2+2).
-             The shelf below never re-lays out (its tiles are only HELD while
-             their card is up here); B flies everything home and returns the
-             player to the exact page, picks and focus untouched (the pages
-             are parked v-show layers — this stage never writes them). -->
+             through the summary): the current page PARKS on the spot
+             (parkSurface — the retire-the-surface grammar every start
+             transfer speaks), this layer takes the same body slot, and the
+             legacy cards physically RISE from their shelf tiles into two
+             zones — corporations and the carried projects — through the ONE
+             take/carry/lay flight core (riseToSeats). A seat still waiting
+             for its card reads as a PREPARED CARD PLACE (quiet ring), never
+             an invisible hole. The shelf below never re-lays out (a tile is
+             only HELD while its card is up here); B answers with the press
+             impulse, flies everything home (each tile takes the landing
+             weight) and un-parks the exact page — picks and focus untouched
+             (the pages are parked v-show layers; this stage never writes
+             them). -->
         <div v-show="legacyViewCovers" class="con-start__body con-start__legacyview" ref="legacyPane">
           <!-- `--live` = fully open and interactive (a state marker specs
                read); `--leaving` swaps the entrance keyframe for the fold. -->
@@ -351,40 +348,50 @@
                  'con-legview--live': legacyView.phase === 'open',
                  'con-legview--leaving': legacyView.phase === 'leaving',
                }">
-            <section v-if="legacyOverviewCorpCount > 0" class="con-legview__zone">
-              <div class="con-legview__cap">{{ $t('Corporations') }}</div>
-              <div class="con-legview__row">
-                <div v-for="(card, i) in legacyOverviewCards.slice(0, legacyOverviewCorpCount)" :key="card.name"
-                     class="con-legview__slot"
-                     :class="{
-                       'con-legview__slot--focused': legacyView.phase === 'open' && legacyView.focus === i,
-                       'con-deal-hold': legacyStageHeld.has(card.name),
-                     }"
-                     :data-zoom-slot="card.name"
-                     :data-legview-slot="card.name">
-                  <Card :card="card" :key="card.name" lightweight />
+            <div class="con-legview__zones">
+              <section v-if="legacyOverviewCorpCount > 0" class="con-legview__zone">
+                <div class="con-legview__cap">{{ $t('Corporations') }}</div>
+                <div class="con-legview__row">
+                  <div v-for="(card, i) in legacyOverviewCards.slice(0, legacyOverviewCorpCount)" :key="card.name"
+                       class="con-legview__slot"
+                       :class="{
+                         'con-legview__slot--focused': legacyView.phase === 'open' && legacyView.focus === i,
+                         'con-legview__slot--held': legacyStageHeld.has(card.name),
+                       }"
+                       :data-zoom-slot="card.name"
+                       :data-legview-slot="card.name">
+                    <Card :card="card" :key="card.name" lightweight />
+                  </div>
                 </div>
-              </div>
-            </section>
-            <!-- Inside «НАСЛЕДИЕ» the zone caption never echoes the section's
-                 noun — «КОРПОРАЦИИ» · «ПРОЕКТЫ» (the shelf, standing beside
-                 other blocks, keeps the qualified «ПРОЕКТЫ НАСЛЕДИЯ»). -->
-            <section v-if="legacyOverviewCards.length > legacyOverviewCorpCount"
-                     class="con-legview__zone con-legview__zone--projects">
-              <div class="con-legview__cap">{{ $t('Projects') }}</div>
-              <div class="con-legview__row">
-                <div v-for="(card, i) in legacyOverviewCards.slice(legacyOverviewCorpCount)" :key="card.name"
-                     class="con-legview__slot"
-                     :class="{
-                       'con-legview__slot--focused': legacyView.phase === 'open' && legacyView.focus === legacyOverviewCorpCount + i,
-                       'con-deal-hold': legacyStageHeld.has(card.name),
-                     }"
-                     :data-zoom-slot="card.name"
-                     :data-legview-slot="card.name">
-                  <Card :card="card" :key="card.name" lightweight />
+              </section>
+              <!-- Inside the «НАСЛЕДИЕ» tail the zone caption never echoes
+                   the tail's noun — «КОРПОРАЦИИ» · «ПРОЕКТЫ» (the shelf,
+                   standing beside other blocks, keeps the qualified
+                   «ПРОЕКТЫ НАСЛЕДИЯ»). -->
+              <section v-if="legacyOverviewCards.length > legacyOverviewCorpCount"
+                       class="con-legview__zone con-legview__zone--projects">
+                <div class="con-legview__cap">{{ $t('Projects') }}</div>
+                <div class="con-legview__row">
+                  <div v-for="(card, i) in legacyOverviewCards.slice(legacyOverviewCorpCount)" :key="card.name"
+                       class="con-legview__slot"
+                       :class="{
+                         'con-legview__slot--focused': legacyView.phase === 'open' && legacyView.focus === legacyOverviewCorpCount + i,
+                         'con-legview__slot--held': legacyStageHeld.has(card.name),
+                       }"
+                       :data-zoom-slot="card.name"
+                       :data-legview-slot="card.name">
+                    <Card :card="card" :key="card.name" lightweight />
+                  </div>
                 </div>
-              </div>
-            </section>
+              </section>
+            </div>
+            <!-- READ-ONLY, said in one quiet line: what these cards are and
+                 that nothing here changes the picks. Provenance + state —
+                 never a duplicated button hint (the ONE command bar owns
+                 every verb). -->
+            <div class="con-legview__note">
+              {{ $t('Carried from the previous mission') }} · {{ $t('View only') }}
+            </div>
           </div>
         </div>
 
@@ -948,7 +955,7 @@
                focus-commit does: the box stays — nothing above it may move —
                while the payload speaks about a card that is not on stage.) -->
           <div class="con-start__status-inner"
-               :class="{'con-start__status-inner--held': !railCommitted || legacyViewOn}">
+               :class="{'con-start__status-inner--held': !railCommitted || legacyStageOwnsScreen}">
             <!-- THE FOCUSED CARD'S AVAILABILITY — the SAME block the draft
                  workspace pins under its spread (ConsoleCardAvailabilityPanel,
                  compact) built by the SAME shared model in the SAME DRAFT
@@ -1086,7 +1093,7 @@ import {PlayerInputModel, SelectCardModel, SelectInitialCardsModel} from '@/comm
 import {translateMessage, translateText, translateTextWithParams} from '@/client/directives/i18n';
 import {GamepadIntent, NavDirection} from '@/client/gamepad/gamepadPollModel';
 import {consoleActionOf, ConsoleAction, ConsoleActionOverrides} from '@/client/console/composables/consoleActionModel';
-import {consoleMotionMs, consoleReducedMotionActive} from '@/client/console/composables/useConsoleReducedMotion';
+import {consoleReducedMotionActive} from '@/client/console/composables/useConsoleReducedMotion';
 import {ConsoleTask} from '@/client/console/consoleTaskRouter';
 import {
   buildInitialCardsResponse, campaignWizardExtra, clearDockDrift, committedStartJourneyItems, consoleStartState, deploymentCrumb, deploymentJourneyItems,
@@ -1144,9 +1151,8 @@ import {currentRevealEvent} from '@/client/components/drawnCards/drawnCardsState
 import {deckDrawHolds} from '@/client/console/deckDraw/consoleDeckDraw';
 import {handDeliveryState} from '@/client/console/handDock/handDeliveryState';
 import {isHandDeliveryActive} from '@/client/console/handDock/handDeliveryDirector';
-import {captureCards, CapturedFlight, returnFromDock, reseatCards, registerStartDockLayer, resetStartDockMotion, convoyBeats, liveFlightProxies, DockFlightSource, parkSurface, unparkSurface, clearSurfaceParking, measureTargets, pressPile} from '@/client/console/startDockMotion';
+import {captureCards, CapturedFlight, returnFromDock, reseatCards, registerStartDockLayer, resetStartDockMotion, convoyBeats, liveFlightProxies, DockFlightSource, parkSurface, unparkSurface, clearSurfaceParking, measureTargets, pressPile, riseToSeats, RiseConvoy} from '@/client/console/startDockMotion';
 import {FACE_DOWN_DEG, FACE_UP_DEG} from '@/client/console/cardFlight/card3dInner';
-import {CloneFlightHandle, flyCardClones, measureCardRects} from '@/client/console/cardFlight/cloneFlights';
 import {isCommitted} from '@/client/console/consoleWorkspaceFlow';
 import {
   setWorkspaceFrameSlot, setWorkspaceFrameSubject, workspaceFrameHasNested, workspaceFrameHost,
@@ -1265,20 +1271,12 @@ const SEPARATION_BEAT_MS = 55;
  */
 const EFFECT_LOST_BEAT_MS = 1800;
 
-/**
- * THE LEGACY OVERVIEW's choreographic beats (ms @ motion scale 1). The fade
- * is the current page LETTING GO on the spot; the return pulse is that same
- * page surfacing back after the cards flew home. Both are offsets inside this
- * scene's own phrase (like SEPARATION_BEAT_MS) — the card flights themselves
- * complete on their own real signals (flyCardClones' onDone).
- */
-const LEGACY_FADE_MS = 240;
-const LEGACY_RETURN_MS = 260;
-
-/** The legacy overview's phase machine. `fading` = the current page lets go;
- *  `entering` = the stage is up, the cards are flying in from the shelf;
- *  `open` = interactive; `leaving` = the cards fly home. Reversible and
- *  wizard-only by construction — the picks are never touched. */
+/** The legacy overview's phase machine. `fading` = the current page PARKS
+ *  (parkSurface — it steps back into depth, the same retire-the-surface
+ *  grammar every start transfer speaks); `entering` = the stage is up, the
+ *  cards are RISING from their shelf tiles (riseToSeats); `open` =
+ *  interactive; `leaving` = captureCards → impulse → flyTo home. Reversible
+ *  and wizard-only by construction — the picks are never touched. */
 type LegacyViewPhase = 'closed' | 'fading' | 'entering' | 'open' | 'leaving';
 
 /** The stable delivery-hold key for a bought-cards set (name-derived, so it
@@ -1442,21 +1440,28 @@ export default defineComponent({
        *  onInterrupt path and can never release a detached start scene. */
       completionTimeline: undefined as gsap.core.Timeline | undefined,
       /** THE LEGACY OVERVIEW (campaign): the wizard's read-only sub-stage —
-       *  R3 anywhere in the wizard descends into «НАСЛЕДИЕ › ОБЗОР», B
+       *  R3 anywhere in the wizard descends into the «НАСЛЕДИЕ» tail, B
        *  returns to the exact page (picks/focus untouched by construction:
        *  the pages are parked v-show layers and this never writes them). */
       legacyView: {phase: 'closed' as LegacyViewPhase, focus: 0},
       /** Shelf tiles whose card is UP in the overview (held empty — the tile
-       *  stays the flight's measured home; the shelf never re-lays out). */
+       *  stays the flight's measured home; the shelf never re-lays out).
+       *  Filled per-card at its DEPART (the take's end), emptied per-card at
+       *  its homecoming touchdown — the counts follow the physical cards. */
       legacyDockHeld: [] as Array<CardName>,
-      /** Stage seats still waiting for their card's touchdown. */
+      /** Stage seats still waiting for a card — they read as PREPARED card
+       *  places (a quiet ring), never as invisible holes. */
       legacyStageHeld: new Set<CardName>(),
-      /** The live legacy clone convoy (disposed on unmount / mode flip). */
-      legacyFlight: undefined as CloneFlightHandle | undefined,
-      /** The fade beat's timer (LEGACY_FADE_MS / LEGACY_RETURN_MS). */
-      legacyBeatTimer: undefined as number | undefined,
-      /** One-shot: the released page surfaces back (CSS animation class). */
-      legacyReturning: false,
+      /** The HOMEWARD captured flight (dispose = teardown mid-leave). */
+      legacyFlight: undefined as CapturedFlight | undefined,
+      /** The OUTBOUND rise convoy (dispose = teardown mid-enter). */
+      legacyRise: undefined as RiseConvoy | undefined,
+      /** LEAVE parallelism: the parked page has already surfaced back UNDER
+       *  the still-landing convoy (the LT step-return's own parallelism —
+       *  the body must not stand empty while the cards travel to the shelf). */
+      legacyPageRestored: false,
+      /** The stage-fold choreographic offset (cleared on teardown). */
+      legacyRestoreTimer: undefined as number | undefined,
       stopLegacyResize: undefined as (() => void) | undefined,
       /** The summary pane is mounted INVISIBLE at its final box so its tiles
        *  can be laid out and measured before any card leaves (§prewarm). */
@@ -1633,14 +1638,18 @@ export default defineComponent({
      */
     crumb(): StartCrumb {
       if (this.mode === 'wizard') {
-        // THE LEGACY OVERVIEW: the workspace descends into its «НАСЛЕДИЕ»
-        // sub-section — the root stays, only subject/stage advance (the
-        // header's own crossfade carries the swap; no height change, no
-        // restart). B returns and the page's own crumb comes back.
-        if (this.legacyViewOn) {
-          return {subject: 'Legacy', stage: 'Overview'};
+        const page = wizardCrumb(this.currentStep?.id);
+        // THE LEGACY OVERVIEW is a TAIL of the page it was opened from —
+        // «СТАРТ ПАРТИИ › КОРПОРАЦИЯ › НАСЛЕДИЕ», never a new subject. The
+        // subject is the line's stable anchor: replacing it re-sizes its
+        // swap cell at the crossfade's end and the whole tail JUMPS left —
+        // while a stage-only advance moves nothing (nothing stands right of
+        // the stage). B returns and the tail walks back the moment the PAGE
+        // is what the player sees again (the convoy may still be landing).
+        if (this.legacyStageOwnsScreen) {
+          return {subject: page.subject, stage: 'Legacy'};
         }
-        return wizardCrumb(this.currentStep?.id);
+        return page;
       }
       // «ЭПАТАЖНЫЙ СПОНСОР»: the crumb states the CAUSE, then the stage the
       // player is standing in — `СТАРТ ПАРТИИ › ЭПАТАЖНЫЙ СПОНСОР › КАРТЫ В
@@ -3501,18 +3510,30 @@ export default defineComponent({
     legacyOverviewAvailable(): boolean {
       return this.mode === 'wizard' && this.legacyOverviewCards.length > 0;
     },
-    /** The overview stage exists (any phase past closed) — the crumb reads
-     *  «НАСЛЕДИЕ › ОБЗОР», the bar speaks its verbs, the rail holds. */
+    /** The overview stage exists (any phase past closed) — input routes to
+     *  it, the rail holds. */
     legacyViewOn(): boolean {
       return this.legacyView.phase !== 'closed';
+    },
+    /** …and it OWNS THE SCREEN the player is reading: everything the tail
+     *  and the bar say follows THIS, not the raw phase — through the leave's
+     *  final landings the page has already surfaced back underneath the
+     *  convoy, and a crumb still reading «НАСЛЕДИЕ» over the visible pick
+     *  grid names a stage the player has left. */
+    legacyStageOwnsScreen(): boolean {
+      return this.legacyViewOn && !this.legacyPageRestored;
     },
     /** …and it COVERS the body (the released page is v-show-hidden — also
      *  what keeps its parked `data-zoom-slot`s unmeasurable, so the viewer
      *  lifts out of the STAGE seats, never a parked twin). During `fading`
-     *  the old page is still the visible one. */
+     *  the old page is still the visible one; through the LEAVE the page
+     *  takes the body back as soon as the stage chrome has folded
+     *  (`legacyPageRestored`) — the convoy is still landing on the shelf
+     *  while the page surfaces underneath it. */
     legacyViewCovers(): boolean {
       const p = this.legacyView.phase;
-      return p === 'entering' || p === 'open' || p === 'leaving';
+      return p === 'entering' || p === 'open' ||
+        (p === 'leaving' && !this.legacyPageRestored);
     },
     /**
      * The bought project cards (the ceremony's held + payment-grid set). The
@@ -3833,6 +3854,12 @@ export default defineComponent({
       if (startFlowBusy() && !this.deal.state.active) {
         return [];
       }
+      // The legacy overview's MOTION beats (park, rise convoy, the leave)
+      // absorb every press — the bar goes honestly quiet instead of
+      // advertising verbs the gate would swallow (same policy as above).
+      if (this.legacyViewOn && this.legacyView.phase !== 'open') {
+        return [];
+      }
       return startSceneCommands({
         dealActive: this.deal.state.active,
         mode: this.mode,
@@ -3858,7 +3885,7 @@ export default defineComponent({
         riskCommitLabel: this.riskStage?.commitLabel,
         riskHold: this.riskStage !== undefined,
         legacyAvailable: this.legacyOverviewAvailable,
-        legacyOverview: this.legacyViewOn,
+        legacyOverview: this.legacyView.phase === 'open',
       });
     },
     /** The first-action stage as the command contract sees it (see
@@ -4095,10 +4122,10 @@ export default defineComponent({
       handler(now: 'wizard' | 'ceremony', was?: 'wizard' | 'ceremony') {
         // CAMPAIGN: the wizard is over (everyone confirmed while this player
         // was reading their legacy) — the overview dies with its mode, holds
-        // cleared, BEFORE the materialization measures the frame.
+        // cleared and the parked page restored INSTANTLY, BEFORE the
+        // materialization measures the frame.
         if (now !== 'wizard' && this.legacyView.phase !== 'closed') {
-          this.settleLegacyClosed();
-          this.legacyReturning = false;
+          this.settleLegacyClosed(true);
         }
         if (now === 'ceremony' && was === 'wizard' &&
             (this.state.flow === 'committing' || this.sentAwaiting)) {
@@ -4522,11 +4549,11 @@ export default defineComponent({
     setWorkspaceFrameSlot('start', '');
     resetStartDockMotion();
     registerStartDockLayer(undefined);
-    // A legacy overview dies with its scene: clones disposed, holds cleared
-    // (a defer→restore reopens at the page the player descended from).
-    this.settleLegacyClosed();
-    window.clearTimeout(this.legacyBeatTimer);
-    this.legacyReturning = false;
+    // A legacy overview dies with its scene: convoys disposed, holds cleared,
+    // the parked page's inline transform dropped (a defer→restore remounts
+    // at the page the player descended from — it must not come back at the
+    // park's alpha 0).
+    this.settleLegacyClosed(true);
     this.stopLegacyResize?.();
     this.stopStripObs?.();
     this.stopResize?.();
@@ -5354,14 +5381,20 @@ export default defineComponent({
       );
     },
     // ── CAMPAIGN: THE LEGACY OVERVIEW ──────────────────────────────────
+    /** The wizard page the overview descends FROM — the surface that PARKS
+     *  under the rising cards and un-parks on the way back. */
+    legacyPageEl(): HTMLElement | undefined {
+      const el = this.onSummary ? this.$refs.summaryPane : this.$refs.body;
+      return el instanceof HTMLElement ? el : undefined;
+    },
     /**
-     * R3 / a shelf-tile click: descend into «НАСЛЕДИЕ › ОБЗОР». The beat:
-     * the current page LETS GO on the spot (a short fade — the released
-     * page is then v-show-parked, its picks/focus untouched), the stage
-     * layer takes the same body slot, and the legacy cards FLY UP from
-     * their shelf tiles into the two prepared zones (raster at the target —
-     * a growing flight must be crisp where it lands). Reversible end to
-     * end; `closeLegacyOverview` is the exact mirror.
+     * R3 / a shelf-tile click: descend into the «НАСЛЕДИЕ» tail. The phrase
+     * is the start flow's own transfer grammar end to end: the current page
+     * PARKS on the spot (`parkSurface` — it steps back into depth, the
+     * same-frame answer to the press), the stage takes the page's exact
+     * flex seat (prepared card places standing), and the legacy cards RISE
+     * from their shelf tiles through the ONE take/carry/lay flight core.
+     * Reversible; `closeLegacyOverview` is the exact mirror.
      */
     openLegacyOverview(name?: CardName): void {
       if (!this.legacyOverviewAvailable || this.legacyView.phase !== 'closed') {
@@ -5370,18 +5403,18 @@ export default defineComponent({
       const cards = this.legacyOverviewCards;
       const idx = name !== undefined ? cards.findIndex((c) => c.name === name) : 0;
       this.legacyView.focus = Math.max(0, idx);
-      // Every stage seat is held until ITS card's touchdown (the seats must
-      // be laid out and measurable before anything flies).
+      // Every stage seat is born PREPARED (the ring) and reveals only on its
+      // own card's touchdown.
       this.legacyStageHeld = new Set(cards.map((c) => c.name));
-      this.legacyReturning = false;
       this.legacyView.phase = 'fading';
-      window.clearTimeout(this.legacyBeatTimer);
-      this.legacyBeatTimer = window.setTimeout(
-        () => void this.enterLegacyStage(), consoleMotionMs(LEGACY_FADE_MS));
+      // The park IS the completion signal of the release beat — never a
+      // timer racing it.
+      void parkSurface(this.legacyPageEl() ?? null, 1)
+        .then(() => void this.enterLegacyStage());
     },
-    /** The stage takes the body: v-show swap in one flush (the released page
-     *  hides, the stage shows in the same flex seat — same rect, no jump),
-     *  fit the seats, then fly the shelf tiles up. */
+    /** The stage takes the body: v-show swap in one flush (the parked page —
+     *  already at alpha 0 — hides, the stage shows in the same flex seat:
+     *  same rect, no reflow), fit the seats, then RISE the shelf tiles. */
     async enterLegacyStage(): Promise<void> {
       if (this.legacyView.phase !== 'fading') {
         return;
@@ -5397,96 +5430,123 @@ export default defineComponent({
       }
       const names = this.legacyOverviewCards.map((c) => c.name);
       const root = this.$el as HTMLElement | undefined;
-      const dockTile = (n: CardName) => root?.querySelector<HTMLElement>(`[data-legacy-dock="${n}"]`) ?? null;
-      const seatCard = (n: CardName) => {
-        const seat = root?.querySelector<HTMLElement>(`[data-legview-slot="${n}"]`);
-        return (seat?.firstElementChild as HTMLElement | null) ?? null;
-      };
-      const from = measureCardRects(names, dockTile);
-      const to = measureCardRects(names, (n) => root?.querySelector<HTMLElement>(`[data-legview-slot="${n}"]`) ?? null);
-      if (from === undefined || to === undefined) {
-        // No-flight fallback (an unmeasurable convoy never flies): the cards
-        // simply surface in their seats.
-        this.legacyStageHeld = new Set();
-        this.legacyView.phase = 'open';
-        return;
-      }
-      this.legacyDockHeld = [...names];
-      this.legacyFlight = flyCardClones({
-        names,
-        // Clone the STAGE seat's card (large, crisp) — the shelf tile is a
-        // 0.145-zoomed raster that a 6× growth would smear.
-        sourceEl: seatCard,
-        from, to,
-        layerClass: 'con-legview-flight',
-        rasterAtTarget: true,
-        onLand: (n) => {
-          this.legacyStageHeld.delete(n);
-        },
-        onDone: () => {
-          this.legacyFlight?.dispose();
-          this.legacyFlight = undefined;
-          this.legacyStageHeld = new Set();
-          if (this.legacyView.phase === 'entering') {
-            this.legacyView.phase = 'open';
+      const pairs = names
+        .map((n) => ({
+          name: n,
+          fromEl: root?.querySelector<HTMLElement>(`[data-legacy-dock="${n}"]`) ?? null,
+          toEl: root?.querySelector<HTMLElement>(`[data-legview-slot="${n}"]`) ?? null,
+        }))
+        .filter((p): p is {name: CardName, fromEl: HTMLElement, toEl: HTMLElement} =>
+          p.fromEl !== null && p.toEl !== null);
+      const convoy = riseToSeats(pairs,
+        // Touchdown: the seat reveals under the proxy (the handoff frame).
+        (n) => this.legacyStageHeld.delete(n),
+        // Depart (the take's end): the tile physically empties — the shelf
+        // counts follow the cards, never the state flip.
+        (n) => {
+          if (!this.legacyDockHeld.includes(n)) {
+            this.legacyDockHeld = [...this.legacyDockHeld, n];
           }
-        },
-      });
+        });
+      this.legacyRise = convoy;
+      await convoy.settled;
+      this.legacyRise = undefined;
+      if (this.legacyView.phase === 'entering') {
+        // Reconcile the end state (a degraded pair resolves here too).
+        this.legacyStageHeld = new Set();
+        this.legacyDockHeld = [...names];
+        this.legacyView.phase = 'open';
+      }
     },
-    /** B / R3 from the overview: the cards fly HOME into their shelf tiles,
-     *  the stage folds, and the released page surfaces back — the player is
-     *  exactly where they descended from. */
-    closeLegacyOverview(): void {
+    /**
+     * B / R3 from the overview — the exact mirror: capture the seats where
+     * they stand, answer the press with the IMPULSE (the cards compress and
+     * release into the take in the same interaction frame), fold the stage
+     * chrome under the travelling cards, and fly each one home — its shelf
+     * tile takes the landing weight (`pressElFor`). Then the parked page
+     * surfaces back. The player is exactly where they descended from.
+     */
+    async closeLegacyOverview(): Promise<void> {
       if (this.legacyView.phase !== 'open') {
         return;
       }
-      this.legacyView.phase = 'leaving';
       const names = this.legacyOverviewCards.map((c) => c.name);
       const root = this.$el as HTMLElement | undefined;
-      const seatOf = (n: CardName) => root?.querySelector<HTMLElement>(`[data-legview-slot="${n}"]`) ?? null;
-      const from = measureCardRects(names, seatOf);
-      // Held tiles keep layout (visibility only) — still measurable homes.
-      const to = measureCardRects(names, (n) => root?.querySelector<HTMLElement>(`[data-legacy-dock="${n}"]`) ?? null);
-      if (from === undefined || to === undefined) {
-        this.settleLegacyClosed();
-        return;
+      const tileOf = (n: CardName) => root?.querySelector<HTMLElement>(`[data-legacy-dock="${n}"]`) ?? null;
+      const sources: Array<DockFlightSource> = [];
+      for (const n of names) {
+        const el = root?.querySelector<HTMLElement>(`[data-legview-slot="${n}"]`);
+        if (el instanceof HTMLElement) {
+          sources.push({name: n, el});
+        }
       }
-      // Every seat empties at the lift (the clones cover them this frame).
+      const flight = captureCards(sources);
+      this.legacyFlight = flight;
+      // The seats empty into their prepared places the SAME tick — the
+      // proxies cover them pixel-true from this frame.
       this.legacyStageHeld = new Set(names);
-      this.legacyFlight = flyCardClones({
-        names,
-        sourceEl: (n) => (seatOf(n)?.firstElementChild as HTMLElement | null) ?? null,
-        from, to,
-        layerClass: 'con-legview-flight',
-        travelMs: 400,
-        onLand: (n) => {
+      this.legacyView.phase = 'leaving';
+      await flight.impulse();
+      if (this.legacyView.phase !== 'leaving') {
+        flight.dispose();
+        this.legacyFlight = undefined;
+        return; // torn down under the impulse
+      }
+      // THE PAGE COMES BACK UNDER THE CONVOY: once the stage chrome has
+      // folded (a choreographic offset of this scene's own phrase — the fold
+      // keyframe's length), the parked page surfaces while the cards are
+      // still landing on the shelf. The body never stands empty behind a
+      // travelling convoy — the LT step-return's own parallelism.
+      window.clearTimeout(this.legacyRestoreTimer);
+      this.legacyRestoreTimer = window.setTimeout(() => {
+        this.legacyRestoreTimer = undefined;
+        if (this.legacyView.phase === 'leaving') {
+          this.legacyPageRestored = true;
+          void this.$nextTick().then(() => void unparkSurface(this.legacyPageEl() ?? null, 1));
+        }
+      }, motionMs(320));
+      await flight.flyTo(tileOf,
+        (n) => {
           this.legacyDockHeld = this.legacyDockHeld.filter((held) => held !== n);
         },
-        onDone: () => {
-          this.legacyFlight?.dispose();
-          this.legacyFlight = undefined;
-          this.settleLegacyClosed();
-        },
-      });
+        {reseat: false, pressElFor: tileOf});
+      this.legacyFlight = undefined;
+      if (this.legacyView.phase === 'leaving') {
+        this.settleLegacyClosed();
+      }
     },
-    /** The stage is gone; the released page surfaces back with a one-shot
-     *  pulse. ALSO the teardown target (mode flip / unmount / failed
-     *  measure) — it must leave no holds behind. */
-    settleLegacyClosed(): void {
-      window.clearTimeout(this.legacyBeatTimer);
-      this.legacyBeatTimer = undefined;
+    /**
+     * The stage is gone; the parked page SURFACES BACK (`unparkSurface` —
+     * the same table the player left, no re-deal, picks intact). ALSO the
+     * teardown target (mode flip / unmount / failed measure): `teardown`
+     * restores the page INSTANTLY (clearSurfaceParking on both panes — a
+     * parked pane left at alpha 0 would come back invisible) and must leave
+     * no holds, convoys or captured proxies behind.
+     */
+    settleLegacyClosed(teardown = false): void {
+      window.clearTimeout(this.legacyRestoreTimer);
+      this.legacyRestoreTimer = undefined;
+      this.legacyRise?.dispose();
+      this.legacyRise = undefined;
       this.legacyFlight?.dispose();
       this.legacyFlight = undefined;
       this.legacyDockHeld = [];
       this.legacyStageHeld = new Set();
-      if (this.legacyView.phase === 'closed') {
+      const wasUp = this.legacyView.phase !== 'closed';
+      const pageBack = this.legacyPageRestored;
+      this.legacyView.phase = 'closed';
+      this.legacyPageRestored = false;
+      if (teardown || !wasUp) {
+        clearSurfaceParking(this.$refs.body instanceof HTMLElement ? this.$refs.body : null);
+        clearSurfaceParking(this.$refs.summaryPane instanceof HTMLElement ? this.$refs.summaryPane : null);
         return;
       }
-      this.legacyView.phase = 'closed';
-      this.legacyReturning = true;
-      this.legacyBeatTimer = window.setTimeout(() => {
-        this.legacyReturning = false;
-      }, consoleMotionMs(LEGACY_RETURN_MS));
+      if (pageBack) {
+        return; // the page already surfaced under the convoy
+      }
+      // The v-show swap lands on the next patch; the page un-parks from
+      // there (it stands at alpha 0 until then — no flash).
+      void this.$nextTick().then(() => void unparkSurface(this.legacyPageEl() ?? null, 1));
     },
     /** The overview's whole input surface (the stage owns the pad). */
     handleLegacyViewIntent(intent: GamepadIntent): void {
@@ -5506,7 +5566,7 @@ export default defineComponent({
         return;
       }
       if (intent.button === 'stickR' || intent.button === 'back') {
-        this.closeLegacyOverview();
+        void this.closeLegacyOverview();
         return;
       }
       if (intent.button === 'secondary') {
@@ -5536,7 +5596,8 @@ export default defineComponent({
     },
     /** The overview's geometry: ONE shared zoom so both zones' cards are the
      *  same physical size — solved against the live body box (max 2+2 cards,
-     *  as large as the room allows). */
+     *  as large as the room allows, minus the caption row and the read-only
+     *  note line). */
     fitLegacyView(): void {
       const pane = this.$refs.legacyPane as HTMLElement | undefined;
       if (pane === undefined) {
@@ -5547,9 +5608,10 @@ export default defineComponent({
         (this.legacyOverviewCards.length > this.legacyOverviewCorpCount ? 1 : 0);
       const s = conUiScale();
       const capH = 30 * s; // the zone caption row
+      const noteH = 34 * s; // the read-only note line
       const zoneGap = 56 * s;
       const cardGap = 22 * s;
-      const availH = pane.clientHeight - capH - 24 * s;
+      const availH = pane.clientHeight - capH - noteH - 24 * s;
       const availW = pane.clientWidth - (zones - 1) * zoneGap - (n - zones) * cardGap - 32 * s;
       // The premium card face is 320×445 natural (+ ring headroom).
       const zoom = Math.min(1.7 * s, availH / 460, availW / (n * 320));

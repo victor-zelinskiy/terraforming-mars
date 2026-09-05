@@ -22595,20 +22595,10 @@ body.con-start-ceremony {
         .con-cards__strip--grid { align-content: center; }
     }
 
-    /* ── CAMPAIGN: THE LEGACY OVERVIEW's page beats ──────────────────────
-       The current page LETS GO on the spot (opacity only — its box stands,
-       so the stage opens from exactly the rect the page occupied), and
-       SURFACES BACK with a one-shot pulse when the cards have flown home. */
-    &__body--legacyfade {
-        opacity: 0;
-        transition: opacity calc(240ms * var(--motion-scale, 1)) ease;
-        pointer-events: none;
-    }
-    &__body--legacyreturn {
-        animation: con-legview-pagereturn calc(260ms * var(--motion-scale, 1)) ease both;
-    }
-    /* The stage takes the SAME flex seat as the page it replaced (one body
-       shown at a time — same rect, no reflow). */
+    /* ── CAMPAIGN: THE LEGACY OVERVIEW takes the SAME flex seat as the page
+       it replaced (one body shown at a time — same rect, no reflow). The
+       page's own release/return is GSAP (`parkSurface`/`unparkSurface` —
+       the retire-the-surface grammar), never a CSS class here. */
     &__legacyview {
         display: flex;
         overflow: hidden; /* the stage fits by construction — never a scroll */
@@ -27616,9 +27606,10 @@ body.con-start-barshold .con-status {
     min-width: 0;
     min-height: 0;
     display: flex;
+    flex-direction: column;
     align-items: center;
     justify-content: center;
-    gap: 2.8rem;
+    gap: .5rem;
     /* The stage SURFACES from inside the zone the page released — a one-shot
        keyframe (v-show restarts it on every open, which is exactly right; a
        transition never plays across a display flip). OPACITY ONLY: the seats
@@ -27627,13 +27618,21 @@ body.con-start-barshold .con-status {
        it), never a style hook. */
     animation: con-legview-rise calc(260ms * var(--motion-scale, 1)) ease both;
     /* The LEAVE: the zone chrome dissolves while the cards fly home (the
-       clones ride a fixed body layer — the stage's opacity never dims them).
-       A filling animation beats any transition on the same property, so the
-       fold is an animation too. */
+       proxies ride the fixed dock layer — the stage's opacity never dims
+       them). A filling animation beats any transition on the same property,
+       so the fold is an animation too. */
     &--leaving {
         animation: con-legview-fold calc(300ms * var(--motion-scale, 1)) ease both;
     }
 
+    &__zones {
+        flex: 1;
+        min-height: 0;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: 2.8rem;
+    }
     &__zone {
         display: flex;
         flex-direction: column;
@@ -27673,13 +27672,37 @@ body.con-start-barshold .con-status {
             margin: 0;
             zoom: ~"var(--con-legview-zoom, 0.9)";
         }
+        /* A seat still WAITING for its card is a PREPARED CARD PLACE — the
+           card-shaped quiet ring (the `__place-ring` idiom), never an
+           invisible hole: the destinations stay legible under the convoy.
+           Visibility on the card child only — the seat keeps its box (it is
+           the flight's measured landing) and the ring draws in its place. */
+        &--held {
+            > :is(.card-container, .pcard) { visibility: hidden; }
+            &::before {
+                content: '';
+                position: absolute;
+                inset: .15rem;
+                border-radius: .45rem;
+                box-shadow: inset 0 0 0 .06rem rgba(214, 178, 106, 0.24);
+                background:
+                    radial-gradient(80% 60% at 50% 40%, rgba(214, 178, 106, 0.05), transparent 70%);
+            }
+        }
+    }
+    /* READ-ONLY, in one quiet line (provenance + state) — the campaign's own
+       dim gold, never a second command bar. */
+    &__note {
+        flex-shrink: 0;
+        font-size: .66rem;
+        font-weight: 600;
+        letter-spacing: .12em;
+        text-transform: uppercase;
+        color: fade(#ecd39a, 55%);
+        padding-bottom: .2rem;
     }
 }
 
-@keyframes con-legview-pagereturn {
-    from { opacity: 0; }
-    to { opacity: 1; }
-}
 @keyframes con-legview-rise {
     from { opacity: 0; }
     to { opacity: 1; }

@@ -44,13 +44,15 @@ test.describe('campaign legacy overview', () => {
     const picked = await page.locator('.con-cards__slot--picked').count();
     expect(picked).toBe(1);
 
-    // ── R3 → the overview. ────────────────────────────────────────────────
+    // ── R3 → the overview: the page parks, the shelf cards RISE through the
+    // take/carry/lay core; `--live` stands only when the convoy has settled.
     await press(page, 'KeyV', 400);
-    await page.waitForSelector('.con-legview--live', {timeout: 10_000});
-    // Every card LANDS (its seat un-holds on its own touchdown).
+    await page.waitForSelector('.con-legview--live', {timeout: 12_000});
+    // Every card LANDED (a seat un-holds on its own touchdown — a held seat
+    // is the PREPARED place ring, never an invisible hole).
     await page.waitForFunction(() => {
       const seats = Array.from(document.querySelectorAll('[data-legview-slot]'));
-      return seats.length === 3 && seats.every((s) => !s.classList.contains('con-deal-hold'));
+      return seats.length === 3 && seats.every((s) => !s.classList.contains('con-legview__slot--held'));
     }, undefined, {timeout: 12_000});
     // Two zones (corporations · carried projects), all three cards up.
     await expect(page.locator('.con-legview__zone')).toHaveCount(2);

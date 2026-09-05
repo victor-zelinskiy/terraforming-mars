@@ -746,6 +746,111 @@ export async function returnFromDock(
   batch.dispose();
 }
 
+// ── RISE: shelf tiles → stage seats (face-up, grows through the take) ───────
+
+export type RisePair = {name: CardName, fromEl: HTMLElement, toEl: HTMLElement};
+
+export type RiseConvoy = {
+  /** Every card has settled (or the convoy degraded honestly). */
+  settled: Promise<void>,
+  /** Teardown mid-convoy (mode flip under the flight) — drops ONLY this
+   *  convoy's proxies; per-card callbacks already fired stay fired. */
+  dispose(): void,
+};
+
+/**
+ * Cards RISE from their small shelf tiles into large stage seats (the legacy
+ * overview's descend) — the `returnFromDock` grammar per-tile: the proxy is
+ * born at the SEAT's natural size scaled down onto the tile and its face is
+ * cloned from the SEAT's own card, so the raster is crisp where the flight
+ * ENDS (a tile-size raster upsampled ~6× smeared exactly at the touchdown);
+ * the take is the familiar bloom toward the viewer, the tile answers the
+ * grip with the pile counter-press, and the carry/lay/handoff are the ONE
+ * shared `addFlight`. `onDepart` fires as a card leaves its tile (the host
+ * empties that tile then); `onLanded` at its touchdown (the host reveals the
+ * seat in the same frame).
+ */
+export function riseToSeats(
+  pairs: ReadonlyArray<RisePair>,
+  onLanded?: (name: CardName) => void,
+  onDepart?: (name: CardName) => void,
+): RiseConvoy {
+  const live = pairs
+    .map((p) => ({
+      name: p.name,
+      from: cardRectOf(p.fromEl),
+      // A LANDING → resting rect (the stage may still be running its rise).
+      to: restingCardRectOf(p.toEl),
+      fromEl: p.fromEl,
+      toEl: p.toEl,
+      card: cardIn(p.toEl),
+    }))
+    .filter((p): p is typeof p & {from: Rect, to: Rect} => p.from !== undefined && p.to !== undefined)
+    // Reading order of the DESTINATIONS — the stage assembles left-to-right.
+    .sort((a, b) => (a.to.y - b.to.y) || (a.to.x - b.to.x));
+  if (live.length === 0 || layerEl === undefined) {
+    pairs.forEach((p) => {
+      onDepart?.(p.name);
+      onLanded?.(p.name);
+    });
+    return {settled: Promise.resolve(), dispose: () => undefined};
+  }
+  // A pair with no measurable end resolves honestly (it reveals in place) —
+  // and it is a BUG, not a mode: the seat/tile should have been measurable.
+  for (const p of pairs) {
+    if (!live.some((l) => l.name === p.name)) {
+      if (process.env.NODE_ENV !== 'production') {
+        console.warn(`[start-flight] «${p.name}» has no measurable rise end — revealed in place.`);
+      }
+      onDepart?.(p.name);
+      onLanded?.(p.name);
+    }
+  }
+  const batch = newBatch();
+  const proxies = live.map((t) => {
+    // Born at the SEAT's size, scaled down over the tile (pixel-true source
+    // cover, crisp landing) — the same trick `returnFromDock` plays.
+    const born: Rect = {
+      x: t.from.x + t.from.w / 2 - t.to.w / 2,
+      y: t.from.y + t.from.h / 2 - t.to.h / 2,
+      w: t.to.w, h: t.to.h,
+    };
+    const p = spawnProxy(batch, born, true);
+    if (p !== undefined) {
+      fillFace(p, t.card);
+      gsap.set(p.outer, {scale: t.from.w / Math.max(1, t.to.w)});
+    }
+    return p;
+  });
+  const settled = guarded((done) => {
+    const tl = gsap.timeline({onComplete: done});
+    live.forEach((t, i) => {
+      const card = proxies[i];
+      if (card === undefined) {
+        onDepart?.(t.name);
+        onLanded?.(t.name);
+        return;
+      }
+      const at = (flightMs(staggerFor(live.length)) * i) / 1000;
+      const born: Rect = {
+        x: t.from.x + t.from.w / 2 - t.to.w / 2,
+        y: t.from.y + t.from.h / 2 - t.to.h / 2,
+        w: t.to.w, h: t.to.h,
+      };
+      // The tile answers the grip — the counter-press of a card being taken.
+      tl.call(() => pressPile(t.fromEl), undefined, at);
+      addFlight(tl, card, born, t.to, {
+        at,
+        tilt: tiltSeedFor(t.name),
+        retarget: () => restingCardRectOf(t.toEl),
+        onRelease: () => onDepart?.(t.name),
+        onDock: () => onLanded?.(t.name),
+      });
+    });
+  }, batchBudget(live.length)).then(() => batch.dispose());
+  return {settled, dispose: () => batch.dispose()};
+}
+
 // ── RE-SEAT: measured slots → measured slots (face-up, no pile) ─────────────
 
 export type ReseatPair = {name: CardName, fromEl: HTMLElement, toEl: HTMLElement};
