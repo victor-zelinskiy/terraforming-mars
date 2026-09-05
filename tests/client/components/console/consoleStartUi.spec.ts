@@ -135,6 +135,35 @@ describe('consoleStartUi (initial-setup command contract)', () => {
   });
 
   /**
+   * CAMPAIGN: THE LEGACY OVERVIEW door (R3) exists on EVERY wizard page —
+   * the card steps, the summary AND the sent-and-awaiting summary (the read
+   * informs the picks, so it may never be page-gated) — and never outside
+   * the wizard. The open overview owns the bar: X inspect + B one level back.
+   */
+  it('R3 «Наследие» is advertised on every wizard page when legacy exists', () => {
+    for (const shape of [
+      state({legacyAvailable: true}),
+      state({legacyAvailable: true, onSummary: true}),
+      state({legacyAvailable: true, onSummary: true, awaiting: true}),
+    ]) {
+      expect(labelOf(startSceneCommands(shape), 'stickR'), JSON.stringify(shape)).to.eq('Legacy');
+    }
+    // No legacy → no door; and the ceremony never advertises it.
+    expect(startSceneCommands(state({})).some((c) => c.control === 'stickR')).to.eq(false);
+    expect(startSceneCommands(state({mode: 'ceremony', legacyAvailable: true}))
+      .some((c) => c.control === 'stickR')).to.eq(false);
+  });
+
+  it('the open legacy overview owns the bar: inspect + one-level Back only', () => {
+    const cmds = startSceneCommands(state({legacyAvailable: true, legacyOverview: true}));
+    expect(cmds.map((c) => c.control)).to.deep.eq(['secondary', 'back']);
+    expect(labelOf(cmds, 'back'), 'B is ONE logical level, never the workspace minimize').to.eq('Back');
+    // …from the summary and the awaiting summary too — the stage is the same.
+    const fromAwait = startSceneCommands(state({legacyAvailable: true, legacyOverview: true, onSummary: true, awaiting: true}));
+    expect(fromAwait.map((c) => c.control)).to.deep.eq(['secondary', 'back']);
+  });
+
+  /**
    * THE FIRST-ACTION STAGE — the deployment's conditional last stage. The
    * waiting state must never advertise an active CTA (the action cannot be
    * performed until the player's turn arrives); READY carries the ONE clear

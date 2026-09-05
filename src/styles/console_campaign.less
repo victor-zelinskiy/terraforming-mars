@@ -605,7 +605,14 @@
   &__shade {
     position: absolute;
     inset: 0;
-    background: rgba(5, 8, 13, 0.84);
+    /* A FULL PAGE, never a veil: the carryover pick is its own screen, and
+       the mission map ghosting through a translucent shade read as a modal
+       rendered OVER an interface the player was supposedly still on. Opaque
+       room tone (the workspace-plate voice) with a quiet upper glow — the
+       map's dim/scale beneath stays as the LEAVE's return context only. */
+    background:
+        radial-gradient(120% 85% at 50% 0%, rgba(24, 38, 56, 0.55), transparent 62%),
+        #070d15;
     animation: con-carry-shade-in calc(240ms * var(--motion-scale, 1)) ease backwards;
   }
   &__stage {

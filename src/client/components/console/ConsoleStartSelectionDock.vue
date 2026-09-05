@@ -1,5 +1,5 @@
 <template>
-  <div v-if="piles.length > 0 || lineage.length > 0" class="con-startdock">
+  <div v-if="piles.length > 0 || lineage.length > 0 || carried.length > 0" class="con-startdock">
     <!--
       THE SELECTION DOCK — the Game Start Workspace's preparation shelf: the
       decisions ALREADY MADE on earlier steps lie here as compact face-down
@@ -51,24 +51,53 @@
       </div>
     </div>
 
-    <!-- CAMPAIGN missions 2–3: «НАСЛЕДИЕ» — the corporations already acquired
+    <!-- CAMPAIGN missions 2+: «НАСЛЕДИЕ» — the corporations already acquired
          (the established lineage the new pick will merge into). A separate
          premium-captioned block AFTER every pile, in the SAME shelf row — it
          costs the candidate strip zero space. Face-up compact tiles; a click
-         (and LT on the corp step) opens the fullscreen read. -->
+         (and R3 anywhere in the wizard) descends into the workspace's LEGACY
+         OVERVIEW — these very tiles are the flight's physical source, so a
+         tile whose card is UP THERE right now is held empty (`heldNames`:
+         visibility only — the shelf's geometry never changes). -->
     <div v-if="lineage.length > 0" class="con-startdock__legacy">
       <span class="con-startdock__legacy-divider" aria-hidden="true"></span>
       <div class="con-startdock__legacy-body">
         <div class="con-startdock__legacy-head">
           <span class="con-startdock__legacy-cap">{{ $t('Legacy') }}</span>
           <span v-if="lineageHint" class="con-startdock__legacy-hint">
-            <GamepadGlyph control="triggerL" />
+            <GamepadGlyph control="stickR" />
           </span>
         </div>
         <div class="con-startdock__legacy-row">
           <button v-for="name in lineage" :key="name" type="button"
                   class="con-startdock__legacy-card"
-                  :data-zoom-slot="name"
+                  :class="{'con-startdock__legacy-card--held': isHeld(name)}"
+                  :data-zoom-slot="isHeld(name) ? undefined : name"
+                  :data-legacy-dock="name"
+                  :aria-label="$t(name)"
+                  @click.capture.stop="$emit('inspect-lineage', name)">
+            <Card :card="{name}" :key="name" lightweight />
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- CAMPAIGN «Наследие проектов»: the project cards carried over from the
+         previous mission — their own block BESIDE the corporations (identity
+         matters for the picks being made above: a carried project can change
+         what the player buys). Same chassis, same overview door. -->
+    <div v-if="carried.length > 0" class="con-startdock__legacy con-startdock__legacy--projects">
+      <span class="con-startdock__legacy-divider" aria-hidden="true"></span>
+      <div class="con-startdock__legacy-body">
+        <div class="con-startdock__legacy-head">
+          <span class="con-startdock__legacy-cap">{{ $t('Legacy projects') }}</span>
+        </div>
+        <div class="con-startdock__legacy-row">
+          <button v-for="name in carried" :key="name" type="button"
+                  class="con-startdock__legacy-card"
+                  :class="{'con-startdock__legacy-card--held': isHeld(name)}"
+                  :data-zoom-slot="isHeld(name) ? undefined : name"
+                  :data-legacy-dock="name"
                   :aria-label="$t(name)"
                   @click.capture.stop="$emit('inspect-lineage', name)">
             <Card :card="{name}" :key="name" lightweight />
@@ -106,8 +135,14 @@ export default defineComponent({
     piles: {type: Array as PropType<ReadonlyArray<StartDockPile>>, required: true},
     /** CAMPAIGN: the established corporation lineage («Наследие» block). */
     lineage: {type: Array as PropType<ReadonlyArray<CardName>>, required: false, default: () => []},
-    /** Show the LT-inspect glyph (only where the trigger actually opens it). */
+    /** CAMPAIGN: the carried project cards («Проекты наследия» block). */
+    carried: {type: Array as PropType<ReadonlyArray<CardName>>, required: false, default: () => []},
+    /** Show the R3 legacy-overview glyph (where the press actually opens it). */
     lineageHint: {type: Boolean, required: false, default: false},
+    /** Tiles whose card is physically UP in the legacy overview right now —
+     *  held empty (visibility only: the tile stays the flight's measured
+     *  home, and the shelf's geometry never changes). */
+    heldNames: {type: Array as PropType<ReadonlyArray<CardName>>, required: false, default: () => []},
   },
   emits: ['inspect-lineage'],
   methods: {
@@ -115,6 +150,9 @@ export default defineComponent({
      *  the informational label · count trace remains, no physical backs. */
     traceOnly(pile: StartDockPile): boolean {
       return pile.backs === 0 && pile.collected === true && pile.count > 0;
+    },
+    isHeld(name: CardName): boolean {
+      return this.heldNames.includes(name);
     },
   },
 });

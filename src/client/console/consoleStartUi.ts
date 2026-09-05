@@ -129,6 +129,21 @@ export type StartSceneCommandState = {
   /** The corp briefing is the window's SUB-STAGE — B is one logical level
    *  («Назад» to the overview), never the workspace minimize. */
   bonusSub?: boolean,
+  /**
+   * CAMPAIGN: legacy cards (the corporation lineage and/or the carried
+   * projects) exist for this seat — R3 opens the LEGACY OVERVIEW from EVERY
+   * wizard page (corp step through the summary, the awaiting summary
+   * included). The information can change the player's picks, so the door is
+   * advertised everywhere the picks are made.
+   */
+  legacyAvailable?: boolean,
+  /**
+   * The LEGACY OVERVIEW stage is open — a read-only sub-stage of the wizard
+   * (the workspace descends into «НАСЛЕДИЕ › ОБЗОР»). It owns the bar: X
+   * inspects the focused legacy card, B is ONE logical level back to the
+   * page the player descended from (never the workspace minimize).
+   */
+  legacyOverview?: boolean,
 };
 
 /**
@@ -142,14 +157,27 @@ export function startSceneCommands(s: StartSceneCommandState): Array<StartComman
     return [{control: 'confirm', label: 'Skip'}];
   }
   if (s.mode === 'wizard') {
+    // THE LEGACY OVERVIEW owns the bar while it is open — a read-only
+    // sub-stage: X inspects, B goes ONE level back to the page the player
+    // descended from (picks and focus untouched by construction).
+    if (s.legacyOverview === true) {
+      return [
+        {control: 'secondary', label: 'Inspect'},
+        {control: 'back', label: 'Back'},
+      ];
+    }
     if (s.awaiting) {
       // The player's part is done — an A here would advertise a press that
       // does nothing. B minimizes (the board announces the wait, and the
       // deployment invites everyone back at the same moment).
-      return [
+      const hints: Array<StartCommand> = [
         {control: 'secondary', label: 'Inspect'},
-        {control: 'back', label: 'Minimize'},
       ];
+      if (s.legacyAvailable === true) {
+        hints.push({control: 'stickR', label: 'Legacy'});
+      }
+      hints.push({control: 'back', label: 'Minimize'});
+      return hints;
     }
     if (s.onSummary) {
       // The launch is the explicit A commit — RT deliberately does NOT
@@ -160,6 +188,9 @@ export function startSceneCommands(s: StartSceneCommandState): Array<StartComman
       ];
       if (s.hasCards) {
         hints.push({control: 'secondary', label: 'Inspect'});
+      }
+      if (s.legacyAvailable === true) {
+        hints.push({control: 'stickR', label: 'Legacy'});
       }
       hints.push({control: 'triggerL', label: 'Prev step'});
       hints.push({control: 'back', label: 'Minimize'});
@@ -177,6 +208,9 @@ export function startSceneCommands(s: StartSceneCommandState): Array<StartComman
     }
     if (s.hasCards) {
       hints.push({control: 'secondary', label: 'Inspect'});
+    }
+    if (s.legacyAvailable === true) {
+      hints.push({control: 'stickR', label: 'Legacy'});
     }
     if (s.hasPrevStep) {
       hints.push({control: 'triggerL', label: 'Prev step'});

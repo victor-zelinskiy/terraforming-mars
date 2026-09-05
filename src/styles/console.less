@@ -22595,6 +22595,25 @@ body.con-start-ceremony {
         .con-cards__strip--grid { align-content: center; }
     }
 
+    /* ── CAMPAIGN: THE LEGACY OVERVIEW's page beats ──────────────────────
+       The current page LETS GO on the spot (opacity only — its box stands,
+       so the stage opens from exactly the rect the page occupied), and
+       SURFACES BACK with a one-shot pulse when the cards have flown home. */
+    &__body--legacyfade {
+        opacity: 0;
+        transition: opacity calc(240ms * var(--motion-scale, 1)) ease;
+        pointer-events: none;
+    }
+    &__body--legacyreturn {
+        animation: con-legview-pagereturn calc(260ms * var(--motion-scale, 1)) ease both;
+    }
+    /* The stage takes the SAME flex seat as the page it replaced (one body
+       shown at a time — same rect, no reflow). */
+    &__legacyview {
+        display: flex;
+        overflow: hidden; /* the stage fits by construction — never a scroll */
+    }
+
     /* ── PINNED STATUS RAIL ─────────────────────────────────────────────
        The frame's last child (header · body[flex:1] · rail), so it sits
        directly above the command bar with a STABLE height (var below) — the
@@ -27577,7 +27596,97 @@ body.con-start-barshold .con-status {
             margin: 0;
             zoom: ~"calc(0.145 * var(--con-ui-scale, 1))";
         }
+        /* The card is physically UP in the legacy overview: the tile keeps
+           its box (the shelf never re-lays out; the flight home aims here)
+           but shows nothing — one visual owner. */
+        &--held {
+            visibility: hidden;
+        }
     }
+}
+
+/* ── CAMPAIGN: THE LEGACY OVERVIEW stage («НАСЛЕДИЕ › ОБЗОР») ────────────
+   The wizard's read-only sub-stage: two premium zones — the corporation
+   lineage and the carried projects — filling the workspace body, cards as
+   large as the room allows (max 2+2; ONE shared zoom, set by the scene's
+   fitLegacyView as --con-legview-zoom). Gold is the campaign's own accent
+   (the same voice as the shelf's «НАСЛЕДИЕ» caption). */
+.con-legview {
+    flex: 1;
+    min-width: 0;
+    min-height: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 2.8rem;
+    /* The stage SURFACES from inside the zone the page released — a one-shot
+       keyframe (v-show restarts it on every open, which is exactly right; a
+       transition never plays across a display flip). OPACITY ONLY: the seats
+       are the card flights' measured destinations, so the entrance may not
+       move a single px of geometry. `--live` is a state marker (specs read
+       it), never a style hook. */
+    animation: con-legview-rise calc(260ms * var(--motion-scale, 1)) ease both;
+    /* The LEAVE: the zone chrome dissolves while the cards fly home (the
+       clones ride a fixed body layer — the stage's opacity never dims them).
+       A filling animation beats any transition on the same property, so the
+       fold is an animation too. */
+    &--leaving {
+        animation: con-legview-fold calc(300ms * var(--motion-scale, 1)) ease both;
+    }
+
+    &__zone {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        gap: .6rem;
+        min-width: 0;
+    }
+    /* The projects zone reads as ITS OWN zone beside the corporations —
+       the same hairline voice as the shelf's divider. */
+    &__zone--projects {
+        border-left: .05rem solid rgba(214, 178, 106, 0.28);
+        padding-left: 2.8rem;
+    }
+    &__cap {
+        font-size: .72rem;
+        font-weight: 700;
+        letter-spacing: .16em;
+        text-transform: uppercase;
+        color: #ecd39a;
+    }
+    &__row {
+        display: flex;
+        align-items: center;
+        gap: 1.1rem;
+    }
+    &__slot {
+        position: relative;
+        border-radius: .45rem;
+        /* Focus is a RING, never a transform — a flight proxy spawned off
+           this seat must be pixel-true. */
+        &--focused {
+            box-shadow:
+                0 0 0 .16rem fade(@con-cyan, 85%),
+                0 0 1.4rem fade(@con-cyan, 30%);
+        }
+        > :is(.card-container, .pcard) {
+            margin: 0;
+            zoom: ~"var(--con-legview-zoom, 0.9)";
+        }
+    }
+}
+
+@keyframes con-legview-pagereturn {
+    from { opacity: 0; }
+    to { opacity: 1; }
+}
+@keyframes con-legview-rise {
+    from { opacity: 0; }
+    to { opacity: 1; }
+}
+@keyframes con-legview-fold {
+    from { opacity: 1; }
+    to { opacity: 0; }
 }
 .con-startdock-layer {
     position: fixed;

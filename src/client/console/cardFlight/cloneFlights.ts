@@ -60,6 +60,15 @@ export type CloneFlightOptions = {
   travelMs?: number;
   /** Launch stagger (default 96 ms — the landing-cadence floor). */
   staggerMs?: number;
+  /**
+   * A GROWING flight (small shelf tile → large stage seat) rasterizes the
+   * clone at the TARGET size and starts it transform-SCALED DOWN: a raster
+   * taken at the source size gets upsampled ~6× by the arrival frame — worst
+   * exactly at the touchdown, where the crisp real slot materializes under a
+   * blurry clone. Default (unset) keeps the source-raster contract: right for
+   * every same-size / shrinking flight, where the large end IS the source.
+   */
+  rasterAtTarget?: boolean;
 };
 
 export type CloneFlightHandle = {
@@ -94,10 +103,13 @@ export function flyCardClones(opts: CloneFlightOptions): CloneFlightHandle {
     // The source sits under an ancestor `zoom`; the clone reproduces the
     // RENDERED size via its own zoom = rect / natural (see the header for
     // why placement is left/top in the clone's OWN zoomed space and the
-    // movement a DELTA — never a translate-for-placement).
+    // movement a DELTA — never a translate-for-placement). A growing flight
+    // (`rasterAtTarget`) anchors the same math at the TARGET rect instead,
+    // so the clone's raster is crisp where the flight ENDS.
     const natural = src.offsetWidth || 1;
-    const z = f.width / natural;
-    clone.style.cssText = `position:fixed;left:${(f.left / z).toFixed(2)}px;top:${(f.top / z).toFixed(2)}px;` +
+    const anchor = opts.rasterAtTarget === true ? t : f;
+    const z = anchor.width / natural;
+    clone.style.cssText = `position:fixed;left:${(anchor.left / z).toFixed(2)}px;top:${(anchor.top / z).toFixed(2)}px;` +
       `margin:0;zoom:${z.toFixed(4)};transform-origin:top left;will-change:transform;`;
     // De-identify: a clone must never be found by slot/zoom resolvers.
     clone.removeAttribute('data-zoom-slot');
@@ -111,14 +123,23 @@ export function flyCardClones(opts: CloneFlightOptions): CloneFlightHandle {
       el.removeAttribute('data-carry-slot');
     }
     layer.appendChild(clone);
-    const scale = t.width / f.width;
-    gsap.set(clone, {x: 0, y: 0, scale: 1});
     const dur = consoleMotionMs(opts.travelMs ?? 460) / 1000;
     const at = i * (consoleMotionMs(opts.staggerMs ?? 96) / 1000);
     const tl = gsap.timeline({delay: at});
-    tl.to(clone, {x: (t.left - f.left) / z, duration: dur, ease: 'power2.inOut'}, 0);
-    tl.to(clone, {y: (t.top - f.top) / z, duration: dur, ease: 'power3.out'}, 0);
-    tl.to(clone, {scale, duration: dur, ease: 'power2.inOut'}, 0);
+    if (opts.rasterAtTarget === true) {
+      // Anchored at the target: the tween STARTS displaced/shrunk at the
+      // source rect and settles to identity (x:0 y:0 scale:1 = the target).
+      gsap.set(clone, {x: (f.left - t.left) / z, y: (f.top - t.top) / z, scale: f.width / t.width});
+      tl.to(clone, {x: 0, duration: dur, ease: 'power2.inOut'}, 0);
+      tl.to(clone, {y: 0, duration: dur, ease: 'power3.out'}, 0);
+      tl.to(clone, {scale: 1, duration: dur, ease: 'power2.inOut'}, 0);
+    } else {
+      const scale = t.width / f.width;
+      gsap.set(clone, {x: 0, y: 0, scale: 1});
+      tl.to(clone, {x: (t.left - f.left) / z, duration: dur, ease: 'power2.inOut'}, 0);
+      tl.to(clone, {y: (t.top - f.top) / z, duration: dur, ease: 'power3.out'}, 0);
+      tl.to(clone, {scale, duration: dur, ease: 'power2.inOut'}, 0);
+    }
     // Touchdown: the real slot materializes UNDER the clone; the clone
     // leaves on the next frame (never a crossfade of identical twins).
     const settle = () => {
