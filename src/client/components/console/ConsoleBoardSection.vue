@@ -56,6 +56,7 @@ import {TileView, nextTileView} from '@/client/components/board/TileView';
 import {
   planetFocusState, displayGlobalParams, PlanetFocusPhase,
 } from '@/client/console/planetFocus';
+import {boardBeatParkState, boardBeatDisplayParams, boardBeatDisplayClaims} from '@/client/console/boardBeatPark';
 import {consoleMotionMs} from '@/client/console/composables/useConsoleReducedMotion';
 import {deferSceneReveal, loadingScreenState} from '@/client/console/loadingScreenState';
 import {cssLengthPx} from '@/client/console/cssUnits';
@@ -257,6 +258,7 @@ export default defineComponent({
     return {
       consoleState,
       planetFocusState,
+      boardBeatParkState,
       placementFlowState,
       tilePlacementState,
       /** The reticle's teleport target (`.board-cont`) — resolved once at
@@ -382,10 +384,24 @@ export default defineComponent({
      * glide exactly once, at the one moment it can be read.
      */
     game(): GameModel {
-      if (this.planetFocusState.heldParams === undefined) {
+      // …and the BOARD-BEAT PARK is the second presenter of the same law
+      // (`boardBeatPark.ts`): a parameter that moved while the board was
+      // COVERED (a workspace flow raised Venus) keeps its pre-change value —
+      // and its pre-change scale-bonus claim map, so the chip's capture
+      // flash plays in front of the player — until the drain releases them
+      // over a watchable board. Applied OVER the planet-focus read: both
+      // holds serve pre-change values, and the park's is the one seeded
+      // against what the player actually last saw.
+      const parkHeld = this.boardBeatParkState.heldParams !== undefined ||
+        this.boardBeatParkState.heldClaims !== undefined;
+      if (this.planetFocusState.heldParams === undefined && !parkHeld) {
         return this.playerView.game;
       }
-      return {...this.playerView.game, ...displayGlobalParams(this.playerView.game)};
+      return {
+        ...this.playerView.game,
+        ...boardBeatDisplayParams(displayGlobalParams(this.playerView.game)),
+        scaleBonusClaims: boardBeatDisplayClaims(this.playerView.game.scaleBonusClaims),
+      };
     },
     /** Planet-focus phase → root classes (the CSS owns the actual motion). */
     boardClasses(): Record<string, boolean> {

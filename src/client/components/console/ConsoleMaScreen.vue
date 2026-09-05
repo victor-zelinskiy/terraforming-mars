@@ -21,12 +21,18 @@
            `milestoneCost()` / `awardFundingCost()`, so Van Allen's free
            milestones, Staged Protests' +8 and the 8 → 14 → 20 award ladder are
            all already in it. ── -->
+      <!-- ⚠️ THE ROOT IS THE FLOW THE PLAYER ENTERED, not this screen's name
+           (the colonies' scene-step rule). Standing NESTED — the start
+           workspace handing its scene to Vitor's free-sponsorship step — the
+           crumb is the STACK's: «СТАРТ ПАРТИИ › ВИТОР › НАГРАДЫ», deepening
+           through this screen's own stages (the watcher publishes them UP).
+           At depth 0 this screen is its own root («НАГРАДЫ»/«ДОСТИЖЕНИЯ»). -->
       <ConsoleWsHead class="con-ma__wshead"
-                     :root="title"
-                     :emblem="kind"
-                     :subject="crumbSubject"
-                     :stage="crumbStage"
-                     :committed="crumbCommitted">
+                     :root="headRoot"
+                     :emblem="headEmblem"
+                     :subject="headSubject"
+                     :stage="headStage"
+                     :committed="headCommitted">
         <template #trailing>
           <div class="con-ma__tally">
             <!-- The NEXT free slot arms gold while the fund action is genuinely
@@ -262,6 +268,16 @@ import {maDisplayName} from '@/client/components/ma/maArt';
 import {maFocusState, openMaFocus, suspendMaFocus, resetMaFocus} from '@/client/console/consoleMaFocus';
 import {abandonMaCeremonyEmbed} from '@/client/components/ma/maCeremonyState';
 import {
+  WorkspaceFrameKind,
+  setWorkspaceFrameStage,
+  setWorkspaceFrameSubject,
+  workspaceFrameEmblem,
+  workspaceFrameIndex,
+  workspaceStackCrumb,
+  workspaceStackRootKind,
+  workspaceStepSourceCard,
+} from '@/client/console/consoleWorkspaceStack';
+import {
   armMaFocusOrigin,
   maFocusEnterHook,
   maFocusLeaveHook,
@@ -335,6 +351,54 @@ export default defineComponent({
     crumbCommitted(): boolean {
       return maFocusState.open && maFocusState.phase !== 'detail';
     },
+    // ── The header when NESTED (the scene-step shape) ──────────────────────
+    /** The stack kind this screen renders as (two kinds, one chassis). */
+    frameKind(): WorkspaceFrameKind {
+      return this.kind === 'milestones' ? 'milestones' : 'awards';
+    },
+    /** Nested (a hosted scene step / a stand over a surviving phase root):
+     *  the crumb is the STACK's — root = the flow the player entered. */
+    stackCrumb(): ReturnType<typeof workspaceStackCrumb> {
+      return workspaceFrameIndex(this.frameKind) > 0 ? workspaceStackCrumb() : undefined;
+    },
+    headRoot(): string {
+      return this.stackCrumb?.root ?? this.title;
+    },
+    /** The identity symbol belongs to the PARENT anchor (the stack's root
+     *  kind); a root with none draws none — never this screen's own. */
+    headEmblem(): string | undefined {
+      if (this.stackCrumb === undefined) {
+        return this.kind;
+      }
+      const rootKind = workspaceStackRootKind();
+      return rootKind !== undefined ? workspaceFrameEmblem(rootKind).emblem : undefined;
+    },
+    headSubject(): string {
+      return this.stackCrumb !== undefined ? (this.stackCrumb.subject?.text ?? '') : this.crumbSubject;
+    },
+    headStage(): string {
+      return this.stackCrumb !== undefined ? (this.stackCrumb.stage ?? '') : this.crumbStage;
+    },
+    headCommitted(): boolean {
+      return this.stackCrumb?.committed ?? this.crumbCommitted;
+    },
+    /**
+     * What this screen HANDS UP to its frame while nested (rule 5 — an
+     * embedded surface never titles itself, it publishes): the stage tail
+     * (its own stage names, the category name at the browse layer) and the
+     * carried subject (the descended item; the HOST's source card — the
+     * corporation whose action this step is — while browsing).
+     */
+    nestedCrumb(): {stage: string, subject: string} | undefined {
+      if (workspaceFrameIndex(this.frameKind) <= 0) {
+        return undefined;
+      }
+      const base = workspaceStepSourceCard(this.frameKind, () => false);
+      return {
+        stage: this.crumbStage !== '' ? this.crumbStage : this.title,
+        subject: this.crumbSubject !== '' ? this.crumbSubject : base,
+      };
+    },
     takenCount(): number {
       return this.items.filter((it) => it.takenBy !== undefined).length;
     },
@@ -383,6 +447,19 @@ export default defineComponent({
     },
   },
   watch: {
+    /** Publish the crumb tail + subject UP to the frame while nested — the
+     *  header renders the STACK, so what this screen knows (its stages, the
+     *  descended item) must live there or the tail never advances. */
+    nestedCrumb: {
+      immediate: true,
+      handler(c: {stage: string, subject: string} | undefined) {
+        if (c === undefined) {
+          return;
+        }
+        setWorkspaceFrameStage(this.frameKind, c.stage);
+        setWorkspaceFrameSubject(this.frameKind, c.subject);
+      },
+    },
     /** Overflow is an extreme-mod fallback — keep the focus visible there. */
     index() {
       void this.$nextTick(() => {

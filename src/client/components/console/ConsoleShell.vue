@@ -1651,7 +1651,8 @@ import {
 } from '@/client/console/hydroFlow/consoleHydroFlow';
 import {bonusDiscardOwnsBatch, bonusDiscardStep, BonusDiscardStep} from '@/client/console/colonyTrade/colonyBonusDiscardStep';
 import {drawnRevealCommandRun} from '@/client/console/consoleRevealCommands';
-import {workspaceClaimsDrawReveal, workspaceClaimsColonyReveal, workspaceClaimsDeckCheck, workspaceClaimsEffect, workspaceClaimsPick, workspaceOutcomeClaimed, workspaceOutcomeBeatPending, claimWorkspaceOutcome, lastOutcomeReleaseStack, markWorkspaceOutcomeAnswerIn, markWorkspaceOutcomeArrivalDone, markWorkspaceOutcomeBeatDone, markWorkspaceOutcomePresenting, outcomeHostConcludesFlow, releaseWorkspaceOutcome, resetWorkspaceOutcome, retainWorkspaceOutcomeForNextBatch, setWorkspaceOutcomePhase, setWorkspaceOutcomeServingProbe, workspaceOutcomeState} from '@/client/console/consoleWorkspaceOutcome';
+import {workspaceClaimsDrawReveal, workspaceClaimsColonyReveal, workspaceClaimsDeckCheck, workspaceClaimsEffect, workspaceClaimsPick, workspaceClaimsRevealSource, workspaceOutcomeClaimed, workspaceOutcomeBeatPending, claimWorkspaceOutcome, lastOutcomeReleaseStack, markWorkspaceOutcomeAnswerIn, markWorkspaceOutcomeArrivalDone, markWorkspaceOutcomeBeatDone, markWorkspaceOutcomePresenting, outcomeHostConcludesFlow, releaseWorkspaceOutcome, resetWorkspaceOutcome, retainWorkspaceOutcomeForNextBatch, setWorkspaceOutcomePhase, setWorkspaceOutcomeServingProbe, workspaceOutcomeState} from '@/client/console/consoleWorkspaceOutcome';
+import {boardBeatParkPending, boardBeatParksReveal, drainBoardBeatsIfDue, noteBoardScaleAdvance, registerBoardWatchableProbe, resetBoardBeatPark} from '@/client/console/boardBeatPark';
 import {cardExitBusy} from '@/client/console/cardDeal/cardExitDirector';
 import type {WorkspaceOutcomeKind, WorkspaceOutcomeScope} from '@/client/console/consoleWorkspaceOutcome';
 import {ResultRevealPresentation, resultRevealPresentation} from '@/client/console/consoleRevealPresentation';
@@ -2073,6 +2074,18 @@ export default defineComponent({
        * workspace that never concluded, for the length of a poll cycle.
        */
       colonyResolutionReleaseOwed: false,
+      /**
+       * A FLOW FINISHED, BUT ITS CONCLUSION WAS REFUSED — the same intent
+       * law as the colony release above, generalized to every host that
+       * concludes. `concludeWorkspaceFlow` holds on transient witnesses (a
+       * live-outcome echo, a serving blink), and the callers that reach it
+       * fire exactly ONCE (a take's last card, a flow-complete report), so a
+       * refusal used to leave the workspace standing — committed and empty —
+       * until something unrelated happened. The intent stands here and is
+       * re-executed on the conclusion signal's own changes; invalidated when
+       * a NEW claim arms for the same host (a fresh flow owns its ending).
+       */
+      owedConclusion: undefined as {kind: WorkspaceFrameKind, servedPromptHolds: boolean} | undefined,
       /** The armed entry's BOUNDED WAIT (COLONY_BONUS_ENTRY_WAIT_MS) — the net
        *  under «entered, and nothing ever arrived». */
       colonyEntryWaitTimer: undefined as number | undefined,
@@ -2808,9 +2821,15 @@ export default defineComponent({
     deltaRewardPickOut(): boolean {
       return deltaRewardPickState.active;
     },
-    /** Some host is handing its whole scene to a nested workspace right now. */
+    /** Some host is handing its whole scene to a nested workspace right now.
+     *  ⚠ Only hosts whose hide RIDES THE DIRECTOR'S HOOKS belong here. The
+     *  START scene hides through its own `yielded` paint gate (no transition
+     *  fires for it), and counting it would flip `pickBridgeActive` on for
+     *  the guest's whole mount — the director's enter hook resolves instantly
+     *  under that flag, so the awards step would POP IN instead of playing
+     *  its entrance. */
     sceneHandedOver(): boolean {
-      return WORKSPACE_FRAME_KINDS.some((kind) => workspaceHostYieldsScene(kind));
+      return WORKSPACE_FRAME_KINDS.some((kind) => kind !== 'start' && workspaceHostYieldsScene(kind));
     },
     /**
      * A HYDRO frame stands OVER the hand (the espionage target pick / the
@@ -3648,8 +3667,12 @@ export default defineComponent({
       // the screen» — a paint question. Unmounting on them retracted the
       // frame's embed slot too, so a step standing INSIDE the start (the
       // sponsor's hand) lost its teleport target and fell with it.
+      // …and a nested full screen the start handed its scene to (the awards
+      // step of Vitor's first action — `frameSteps: {awards: 'scene'}`): the
+      // guest owns the pixels, the HEADER states the nesting, and the scene
+      // comes back untouched when the step's frame pops.
       return this.startSceneMounted && !this.placementActive &&
-        !this.startExcursionHolds &&
+        !this.startExcursionHolds && !workspaceHostYieldsScene('start') &&
         !govScaleFocusState.holding && !this.consoleState.task.deferred;
     },
     /** MOUNTED ≠ VISIBLE. The scene owns the start's lifetime (its hold, its
@@ -3891,9 +3914,17 @@ export default defineComponent({
       // the batch that would present (`remoteColonyBonusParksReveal`), so an
       // unrelated draw of the viewer's own keeps its surface and keeps holding
       // every other prompt out until it is finished.
+      // …and a GLOBAL-PARAMETER batch (the Venus 8% draw) is PARKED while the
+      // board is covered: its one honest presentation is the cover lifting
+      // off the scale's own marker, which needs a board the player can SEE —
+      // the board-beat drain releases it after the workspace has concluded
+      // and the held scales have told their story. Same law, same shape as
+      // the colony park above: scoped to the batch it parks, never «the
+      // reveal», and bounded by the park's own safety.
       const ev = currentRevealEvent();
       return ev !== undefined &&
-        !remoteColonyBonusParksReveal(this.remoteColonyBonusPending, ev.source);
+        !remoteColonyBonusParksReveal(this.remoteColonyBonusPending, ev.source) &&
+        !boardBeatParksReveal(ev.source);
     },
     /**
      * The reveal modal's MANDATORY closing step, when the pending prompt is the
@@ -4223,22 +4254,27 @@ export default defineComponent({
       if (!workspaceOutcomeClaimed()) {
         return false;
       }
-      // The server witness counts only batches the viewer has NOT consumed.
-      // The ack is fire-and-forget and deliberately does not apply its
-      // response, so the applied view lists a fully-taken batch until the
-      // next poll/input — a stale echo, not evidence of anything owed. Read
-      // raw, it wedged the colony workspace shut: the resolution's own
-      // closing release was refused against a payout that was over (see
-      // `serverRevealConsumed`). A batch the store has not reconciled yet is
-      // still outstanding by construction, and a PARKED batch (a remote
-      // bonus behind its announce — subtracted from `rawDrawnRevealPending`
-      // upstream) stays outstanding too: it is undismissed.
-      const serverOutstanding = this.playerView.cardDrawReveals.some((r) => !serverRevealConsumed(r.id));
-      if (!this.rawDrawnRevealPending && !serverOutstanding) {
-        return false;
+      // The server witness counts only batches the viewer has NOT consumed
+      // — AND only batches this claim actually ANSWERS FOR, judged by each
+      // reveal's OWN source. The ack is fire-and-forget and deliberately
+      // does not apply its response, so the applied view lists a fully-taken
+      // batch until the next poll/input — a stale echo, not evidence of
+      // anything owed (see `serverRevealConsumed`). And presence alone is a
+      // strict superset of ownership: judged by the CURRENT store event's
+      // source (which is `undefined` the moment the last batch dismisses —
+      // and an unattributed source reads as ours by design), a FOREIGN
+      // batch's echo wedged the funnel shut for the 20 s claim backstop. A
+      // batch the store has not reconciled yet is still outstanding by
+      // construction, and a PARKED batch (a remote bonus behind its
+      // announce, a board-beat park — both subtracted from
+      // `rawDrawnRevealPending` upstream) stays outstanding too: it is
+      // undismissed.
+      if (this.playerView.cardDrawReveals.some((r) =>
+        !serverRevealConsumed(r.id) && workspaceClaimsRevealSource(r.source))) {
+        return true;
       }
-      const source = currentRevealEvent()?.source;
-      return workspaceClaimsDrawReveal(source) || workspaceClaimsColonyReveal(source);
+      return this.rawDrawnRevealPending &&
+        workspaceClaimsRevealSource(currentRevealEvent()?.source);
     },
     /** The funnel's registered probe: serving = a live prompt OR a live batch.
      *  (The take paths release with `force` — the consumed artifact is the
@@ -6402,6 +6438,27 @@ export default defineComponent({
       return workspaceStackState.frames.some(
         (f) => f.kind !== 'endgame' || this.endgameStageUp);
     },
+    /**
+     * MAY A BOARD BEAT PLAY RIGHT NOW — the board-beat park's injected
+     * verdict («полевой пакет ждёт видимую доску»). True only on the plain
+     * board home: no workspace screen or sheet, no yielded placement (its own
+     * story owns the board), no full-bleed reveal. A PARKED stack passes on
+     * purpose — «свернуть» is precisely the player going to look at the
+     * board, and the drain playing there is the story they came for; the
+     * restore then finds the scales already telling the truth.
+     *
+     * ⚠️ COVERAGE FACTS ONLY — never a reveal-derived term. This verdict
+     * feeds `boardBeatParksReveal`, which `rawDrawnRevealPending` (and so
+     * `consoleRevealMode`) subtracts; a reveal term here would close the
+     * cycle. A concurrent reveal is sequenced by the drain's own quiet wait
+     * and the one-batch-per-frame law, not by this predicate.
+     */
+    boardBeatsWatchable(): boolean {
+      return this.consoleState.section === 'board' &&
+        this.consoleState.sheet === undefined &&
+        !this.workspaceScreenUp &&
+        !stackYieldedToBoard() && !this.placementActive;
+    },
     conRootClasses(): Record<string, boolean> {
       const classes: Record<string, boolean> = {
         'con-root--rail-replaced': this.workspaceScreenUp ||
@@ -6569,6 +6626,35 @@ export default defineComponent({
         this.placementActive ? 'placement' : '',
       ].join('|');
     },
+    /**
+     * THE FACTS AN OWED CONCLUSION IS MADE OF (see `owedConclusion`) — the
+     * same ingredient-watching law as `stdpConclusionSignal`, over the hold
+     * reasons `workspaceConclusionFor` reads for the owed kind. Empty while
+     * nothing is owed, so the watcher below is inert for the whole ordinary
+     * life of the console.
+     */
+    owedConclusionSignal(): string {
+      const owed = this.owedConclusion;
+      if (owed === undefined) {
+        return '';
+      }
+      const kind = owed.kind;
+      if (!workspaceFrameKnown(kind)) {
+        return 'gone';
+      }
+      const task = taskFor(this.playerView);
+      return [
+        workspaceFrameHasNested(kind) ? 'nested' : '',
+        this.followUpStepOwed && workspaceHostForStep() === kind ? 'owed-step' : '',
+        workspaceOutcomeState.host === kind && workspaceOutcomeClaimed() ?
+          `claim:${workspaceOutcomeState.stage}` : '',
+        this.workspaceOutcomeServingNow ? 'serving' : '',
+        task?.kind ?? '',
+        this.taskBelongsToWorkspace ? 'task-ws' : '',
+        this.deckPickBelongsToWorkspace ? 'pick-ws' : '',
+        workspaceFrameParked(kind) ? 'parked' : '',
+      ].join('|');
+    },
     stdpGhostParam(): 'temperature' | 'oxygen' | 'oceans' | 'venus' | undefined {
       if (!workspaceFrameMounted('standard-projects') || this.stdpStepUp ||
           workspaceFramePhase('standard-projects') !== 'browse') {
@@ -6658,6 +6744,19 @@ export default defineComponent({
      *  the AwardsOverlay's free-sponsorship mode), never the generic list. */
     awardFundingActive(): boolean {
       return this.shellTask?.kind === 'awardFunding';
+    },
+    /**
+     * The free funding stands as a HOSTED SCENE STEP of the start workspace
+     * (Vitor's first action raised it from inside «ПЕРВОЕ ДЕЙСТВИЕ»). The
+     * PROMPT anchor is what tells it apart from a lateral awards visit
+     * standing over the same surviving phase root: a step the server demanded
+     * ends with its flow (B = свернуть ВЕСЬ workspace, никакого «Close» в
+     * никуда), and the category bumpers are not offered — a mandatory step is
+     * not a dashboard stroll.
+     */
+    awardStepHosted(): boolean {
+      return workspaceFrameHost('awards') === 'start' &&
+        workspaceFrameAnchor('awards')?.type === 'prompt';
     },
     /** The descended MA item (undefined = the detail stage is closed). */
     maFocusItem(): ConsoleMaItem | undefined {
@@ -7440,8 +7539,13 @@ export default defineComponent({
             enabled: anyMa,
             highlight: maIntent,
           },
-          {control: this.maScreenKind === 'milestones' ? 'bumperR' : 'bumperL',
-            label: this.maScreenKind === 'milestones' ? 'Awards' : 'Milestones'},
+          // Inside the start's hosted funding step the category bumper is a
+          // lateral move off the mandatory task — not offered (see the input
+          // arm); everywhere else the bumpers page the two dashboards.
+          ...(this.awardStepHosted ? [] : [
+            {control: (this.maScreenKind === 'milestones' ? 'bumperR' : 'bumperL') as GlyphControl,
+              label: this.maScreenKind === 'milestones' ? 'Awards' : 'Milestones'},
+          ]),
           {control: 'back', label: this.awardFundingActive ? 'Minimize' : 'Close'},
         ];
       }
@@ -8207,6 +8311,43 @@ export default defineComponent({
       this.colonyResolutionReleaseOwed = false;
       if (workspaceOutcomeState.host === 'colonies' && !this.colonyResolutionLive) {
         releaseWorkspaceOutcome('resolution-end-deferred');
+      }
+    },
+    /**
+     * THE OWED CONCLUSION RE-EXECUTES when an ingredient falls (see
+     * `owedConclusion` / `concludeWorkspaceFlowOrOwe`). Re-checked against
+     * the live state every time: a frame already gone clears the intent, and
+     * a FRESH claim armed for the same host invalidates it — that new flow's
+     * own ending owns the conclusion now.
+     */
+    owedConclusionSignal(): void {
+      const owed = this.owedConclusion;
+      if (owed === undefined) {
+        return;
+      }
+      if (!workspaceFrameKnown(owed.kind)) {
+        this.owedConclusion = undefined;
+        return;
+      }
+      if (workspaceOutcomeState.host === owed.kind && workspaceOutcomeState.stage === 'awaiting') {
+        this.owedConclusion = undefined;
+        return;
+      }
+      if (this.concludeWorkspaceFlow(owed.kind, owed.servedPromptHolds)) {
+        this.owedConclusion = undefined;
+      }
+    },
+    /**
+     * THE BOARD BECAME WATCHABLE — drain the board-beat park (the held scale
+     * story, then the parked bonus batch). The drain itself re-checks
+     * watchability at every step, so a workspace re-opened mid-edge simply
+     * re-parks; a busy board (a tile hero, a payout wave) is waited out by
+     * the same bounded gate the endgame open and the yielded-stack return
+     * ride (`waitBoardSceneQuiet`).
+     */
+    boardBeatsWatchable(watchable: boolean): void {
+      if (watchable) {
+        this.drainBoardBeats();
       }
     },
     /**
@@ -9731,6 +9872,14 @@ export default defineComponent({
               }
             }
           }
+        }
+        // A GLOBAL PARAMETER MOVED WHILE THE BOARD WAS COVERED — hold the
+        // presented value (and the scale-bonus claim map) for the board-beat
+        // drain to release once the player can actually see the scales move.
+        // Watchable views are a no-op by construction (the park's own law),
+        // so every on-board flow keeps its exact historical timing.
+        if (oldView !== undefined && oldView.id === newView.id) {
+          noteBoardScaleAdvance(oldView.game, newView.game);
         }
         // WHAT THE «ФОРА» WINDOW STILL OWES — remembered from every view that
         // STATES it, which is only the bonus-window prompt itself. The
@@ -11711,7 +11860,10 @@ export default defineComponent({
             this.enterMaFocus();
             break;
           case 'prevSection':
-            if (this.maScreenKind !== 'milestones') {
+            // A HOSTED funding step is not a dashboard stroll: the category
+            // bumper is a LATERAL move (it would truncate the very frame the
+            // task stands on), so inside the start's step it is not offered.
+            if (this.maScreenKind !== 'milestones' && !this.awardStepHosted) {
               this.openSheet('milestones');
             }
             break;
@@ -11721,6 +11873,16 @@ export default defineComponent({
             }
             break;
           case 'back':
+            // A HOSTED step minimizes its WHOLE flow — B on a nested step is
+            // «свернуть весь workspace» (the start included, full depth); the
+            // way back is the board-home restore card (`restoreDeferredTask`
+            // → `restoreWorkspaceStack`). A bare `leaveWorkspace` here would
+            // pop the step alone and stand the deployment back up UNDER a
+            // still-owed mandatory prompt.
+            if (this.awardStepHosted) {
+              this.collapseWorkspace();
+              break;
+            }
             // A pending free-award-funding task DEFERS to the amber chip
             // (mandatory → inspect the board, then return); a no-op when the
             // player is merely viewing the M/A dashboard. A plain close also
@@ -14466,7 +14628,7 @@ export default defineComponent({
       // resumes and the flow leaves.
       if (isBlockadeExecutionActive()) {
         endBlockadeExecution();
-        this.concludeWorkspaceFlow('card-actions');
+        this.concludeWorkspaceFlowOrOwe('card-actions');
         return;
       }
       leaveWorkspace();
@@ -14713,6 +14875,32 @@ export default defineComponent({
     },
     // ── shell-section tasks (T3 projectCard / T4 colony) ─────────────────
     /** Open (or re-open after un-defer) the section that serves the task. */
+    /**
+     * Land the cursor on the awards surface a funding task just opened:
+     * a suspended PRE-COMMIT detail re-seats exactly (RESUME ≠ FRESH-OPEN),
+     * else the cursor goes to the first fundable award so A means something
+     * at once. Shared by the hosted push (the start's first-action step) and
+     * the parked-stack restore.
+     */
+    seatAwardFundingSurface(): void {
+      void this.$nextTick(() => {
+        const draft = maFocusState.draft;
+        if (draft !== undefined && draft.kind === 'award') {
+          const idx = this.maScreenItems.findIndex((it) => it.name === draft.name);
+          if (idx !== -1) {
+            this.consoleState.sheetIndex = idx;
+            openMaFocus(draft.kind, draft.name);
+          }
+          discardMaFocusDraft();
+          return;
+        }
+        if (maFocusState.open) {
+          return;
+        }
+        const first = this.maScreenItems.findIndex((it) => it.available);
+        this.consoleState.sheetIndex = first !== -1 ? first : 0;
+      });
+    },
     openShellTaskSurface(task: ConsoleTask): void {
       // Already standing where this is answered — nothing to open, and above
       // all no lateral move: the colonies teleported into a live flow must not
@@ -14727,6 +14915,34 @@ export default defineComponent({
       }
       closeConsoleLayers();
       if (task.kind === 'awardFunding') {
+        // THE FIRST ACTION'S OWN FUNDING STAGE. Raised while the START
+        // workspace is the live top frame (Vitor's «спонсируйте награду
+        // бесплатно» — the answer to the «ПЕРВОЕ ДЕЙСТВИЕ» submit), the free
+        // sponsorship is a STEP of that flow, never a screen of its own: the
+        // awards frame is PUSHED (hosted), takes the whole scene (the start
+        // row's `frameSteps: {awards: 'scene'}` — the tiles keep the exact
+        // full-scene composition of the standalone screen) and the nesting is
+        // stated where nesting belongs — in the HEADER, rooted «СТАРТ
+        // ПАРТИИ». The lateral `openSheet` below stays the mid-game door
+        // (a merger-acquired Vitor over the board).
+        if (workspaceHostForStep() === 'start' && !workspaceFrameKnown('awards')) {
+          this.consoleState.task.deferred = false;
+          pushWorkspaceFrame({
+            kind: 'awards',
+            // The crumb's stable middle + the step's `L3 Источник` card: the
+            // corporation whose mandatory action this is.
+            subject: consoleStartState.firstAct.corp ?? '',
+            stage: 'Awards',
+            // The or-option is already consumed — this step stands past its
+            // flow's commit boundary (amber tail, B = «Свернуть»).
+            phase: 'committed',
+            serves: ['awardFunding'],
+            anchor: {type: 'prompt', promptType: 'or'},
+            sourceCard: consoleStartState.firstAct.corp ?? '',
+          });
+          this.seatAwardFundingSurface();
+          return;
+        }
         // FREE award funding rides the premium awards MA screen (its own
         // v-if renders it); openSheet treats it as the task surface.
         this.openSheet('awards');
@@ -14952,7 +15168,7 @@ export default defineComponent({
       if (outcomeHostConcludesFlow(host) && host !== undefined) {
         // A card PLAY's frame `serves` are registry defaults, not rights this
         // flow earned — see `concludeWorkspaceFlow`.
-        this.concludeWorkspaceFlow(host, host !== 'hand');
+        this.concludeWorkspaceFlowOrOwe(host, host !== 'hand');
       }
     },
     /**
@@ -15044,6 +15260,25 @@ export default defineComponent({
       return true;
     },
     /**
+     * CONCLUDE, AND IF REFUSED — OWE IT. The callers of a flow's ending fire
+     * exactly once (the last card's take, a flow-complete report), while the
+     * conclusion legitimately holds on TRANSIENT witnesses (a serving echo, a
+     * mid-flush blink, a parked batch). A one-shot meeting a transient
+     * refusal is how a finished workspace stood committed-and-empty until
+     * something unrelated happened; the owed intent is re-executed by the
+     * `owedConclusionSignal` watcher the moment an ingredient falls — the
+     * same law as `colonyResolutionReleaseOwed`, for the ending itself.
+     */
+    concludeWorkspaceFlowOrOwe(kind: WorkspaceFrameKind, servedPromptHolds = true): boolean {
+      const done = this.concludeWorkspaceFlow(kind, servedPromptHolds);
+      if (!done) {
+        this.owedConclusion = {kind, servedPromptHolds};
+      } else if (this.owedConclusion?.kind === kind) {
+        this.owedConclusion = undefined;
+      }
+      return done;
+    },
+    /**
      * THE CARD PLAY'S ONE ENDING — every way a play can finish routes here.
      *
      * A play can end in three places and each of them used to conclude itself:
@@ -15076,7 +15311,7 @@ export default defineComponent({
       if (!awaiting) {
         this.pendingPlayCard = undefined;
       }
-      this.concludeWorkspaceFlow(playedIn, false);
+      this.concludeWorkspaceFlowOrOwe(playedIn, false);
     },
     /**
      * «ДЕЙСТВИЯ КАРТ» reports its committed flow finished (the deck-check
@@ -15092,7 +15327,7 @@ export default defineComponent({
         beginBlockadeExecution(deploy.target, deploy.source);
         return;
       }
-      this.concludeWorkspaceFlow('card-actions');
+      this.concludeWorkspaceFlowOrOwe('card-actions');
     },
     /**
      * THE RESULT HAS LEFT THE WORKSPACE — the card is now an independent
@@ -15183,6 +15418,23 @@ export default defineComponent({
      * edge), so a pending wait stands down (`alive`) and the next falling
      * edge schedules its own return.
      */
+    /**
+     * DRAIN THE BOARD-BEAT PARK over a quiet, watchable board (see
+     * `boardBeatPark.ts`). The third consumer of `waitBoardSceneQuiet`, on
+     * the same terms as the two below: synchronous fast path on a quiet
+     * board, bounded wait otherwise, conditions re-checked at resolution.
+     */
+    drainBoardBeats(): void {
+      if (!boardBeatParkPending() || !this.boardBeatsWatchable) {
+        return;
+      }
+      if (!boardSceneSettling()) {
+        drainBoardBeatsIfDue();
+        return;
+      }
+      void waitBoardSceneQuiet({alive: () => this.boardBeatsWatchable})
+        .then(() => drainBoardBeatsIfDue());
+    },
     resumeYieldedStackOverQuietBoard(): void {
       if (!stackYieldedToBoard()) {
         return;
@@ -15256,7 +15508,16 @@ export default defineComponent({
           // taken to mean "the outcome went elsewhere", the claim dropped, the
           // workspace folded and the standalone band took the prompt.
           this.taskBelongsToWorkspace ||
-          this.rawDrawnRevealPending ||
+          // A PENDING BATCH is ours only when the claim answers for ITS
+          // source. Presence alone kept the claim alive for a batch with its
+          // own presenter — a Venus-scale draw riding the same response held
+          // the play's workspace open (live-outcome) while the batch waited
+          // for that very workspace to leave, which is a deadlock by
+          // construction. (An unattributed batch still reads as ours —
+          // `workspaceClaimsDrawReveal(undefined)` — so Celestic's trail
+          // window keeps its claim.)
+          (this.rawDrawnRevealPending &&
+            workspaceClaimsRevealSource(currentRevealEvent()?.source)) ||
           deckDrawHolds() ||
           consoleActionComposerUi.revealClaim !== '' ||
           // …and while the SERVER is holding a VERDICT this claim owns. Same
@@ -15294,7 +15555,15 @@ export default defineComponent({
           // drawn), so the batch arrives on a later response than the claim —
           // and at that tick the client has nothing rendered yet while the
           // server plainly does.
-          (isPlayOutcomeHost(workspaceOutcomeState.host) && this.playerView.cardDrawReveals.length > 0) ||
+          //
+          // …judged per reveal's OWN source, by the same rule as the pending
+          // batch above: an unconsumed FOREIGN reveal (a Venus-scale draw, a
+          // tile bonus) is not evidence this play's outcome is on its way —
+          // holding for it deadlocked against the board-beat park, which
+          // releases that batch only after this very workspace concludes.
+          (isPlayOutcomeHost(workspaceOutcomeState.host) &&
+            this.playerView.cardDrawReveals.some((r) =>
+              !serverRevealConsumed(r.id) && workspaceClaimsRevealSource(r.source))) ||
           // The COLONY claim spans its whole resolution — the mandatory bonus
           // discard is a handSelect the workspace itself hosts, never «the
           // server asked for something else».
@@ -15433,6 +15702,14 @@ export default defineComponent({
           if (name !== '') {
             openColonyFocus(name as ColonyName, 'inspect');
           }
+        }
+        // A restored HOSTED funding step (the start's awards scene step)
+        // re-seats its suspended pre-commit detail — the screen wrote it to
+        // the draft on its park unmount; without this the restore lands on
+        // the browse grid with the player's half-made choice silently gone.
+        if (workspaceFrameMounted('awards') && maFocusState.draft !== undefined &&
+            this.shellTask?.kind === 'awardFunding') {
+          this.seatAwardFundingSurface();
         }
         return;
       }
@@ -16634,6 +16911,13 @@ export default defineComponent({
     // `waitingFor`, the server's unconsumed reveals), so the shell registers
     // the one probe; the module refuses on its own.
     setWorkspaceOutcomeServingProbe(() => this.workspaceOutcomeServingNow);
+    // THE BOARD-BEAT PARK'S «watchable» verdict (boardBeatPark) — coverage
+    // facts only, shell-owned. Registered at mount, so a reload that lands
+    // with a parked batch (server reveals survive the trip) re-parks or
+    // drains against the real screen; the mount-edge drain below covers the
+    // watcher's blind spot (a watcher never fires on its initial truth).
+    registerBoardWatchableProbe(() => this.boardBeatsWatchable);
+    void this.$nextTick(() => this.drainBoardBeats());
     // READ-ONLY e2e/diagnostics probe: the nested-continuation state in one
     // snapshot (the e2e specs dump it on a failure instead of guessing from
     // pixels). Never used by product code.
@@ -16807,8 +17091,12 @@ export default defineComponent({
     // result-modal`). The shell owns the park verdict, so it injects it: the
     // SAME pending + parks pair `rawDrawnRevealPending` reads, never a second
     // derivation — the silence and the surface cannot disagree about the batch.
+    // …and the BOARD-BEAT park is the second member of the same exemption:
+    // a global-parameter batch waiting out a covered board is presented
+    // NOWHERE by design, and must not read as a live result-modal either.
     this.releaseRevealParkSupplier = registerRevealParkSupplier(
-      (source) => remoteColonyBonusParksReveal(this.remoteColonyBonusPending, source));
+      (source) => remoteColonyBonusParksReveal(this.remoteColonyBonusPending, source) ||
+        boardBeatParksReveal(source));
     // T6: the notification CTAs go through the typed notificationBus;
     // PlayerHome's listeners don't exist in console — the shell answers them.
     (this as unknown as {__notifOff: Array<() => void>}).__notifOff = [
@@ -16859,6 +17147,10 @@ export default defineComponent({
     this.offPlanetFocusParams?.();
     clearGameExitTarget(); // the exit funnel must not outlive the game it points from
     resetPlanetFocus(); // never carry a held HUD / mid-exit phase across games
+    // The board-beat park dies with the shell (drops the probe too — a dead
+    // shell's computeds must never decide the next game's parks; held values
+    // and a parked batch release honestly, without the show).
+    resetBoardBeatPark();
     resetHandReveal(); // never leak a mid-episode timeline / held dock
     resetHandDelivery(); // never leak a mid-flight delivery / held dock
     releaseBoardExcursion(); // a leaked barrier would hide the next game's start scene

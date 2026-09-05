@@ -192,6 +192,7 @@ import AnimatedMetricValue from '@/client/components/feedback/AnimatedMetricValu
 import ConsoleFlipValue from '@/client/components/console/ConsoleFlipValue.vue';
 import ConsoleProjectDeck from '@/client/components/console/ConsoleProjectDeck.vue';
 import {planetFocusState, displayGlobalParams} from '@/client/console/planetFocus';
+import {boardBeatParkState, boardBeatDisplayParams} from '@/client/console/boardBeatPark';
 
 /** Glyph → the chip's compact text mark (mirrors the desktop PlayerStatusGlyph;
  *  CSS animates the active dot via the --active class). MarsBot's active turn
@@ -296,10 +297,19 @@ export default defineComponent({
      * the arc markers glide — one synchronized beat.
      */
     game(): GameModel {
-      if (planetFocusState.heldParams === undefined) {
+      // …and the BOARD-BEAT PARK holds a parameter that moved while the
+      // board was covered (`boardBeatPark.ts`) — the strip's readout must
+      // keep the pre-change value the player last saw, or the top HUD would
+      // tell the scale's story while the workspace still owns the screen.
+      // Same merge order as the board section: park over planet focus.
+      if (planetFocusState.heldParams === undefined &&
+          boardBeatParkState.heldParams === undefined) {
         return this.playerView.game;
       }
-      return {...this.playerView.game, ...displayGlobalParams(this.playerView.game)};
+      return {
+        ...this.playerView.game,
+        ...boardBeatDisplayParams(displayGlobalParams(this.playerView.game)),
+      };
     },
     players(): ReadonlyArray<PublicPlayerModel> {
       return this.playerView.players;

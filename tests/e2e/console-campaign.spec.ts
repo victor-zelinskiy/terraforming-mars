@@ -120,13 +120,21 @@ test.describe('campaign map', () => {
     await page.waitForSelector('.con-carry', {timeout: 20_000});
     await expect(page.locator('.con-carry__card')).toHaveCount(2);
 
+    // X = INSPECT (the console-wide verb): the cursored card opens in the
+    // shared fullscreen viewer; B closes it back onto the untouched stage.
+    await press(page, 'KeyX', 700);
+    await expect(page.locator('.con-zoom')).toBeVisible();
+    await press(page, 'Escape', 700);
+    await page.waitForSelector('.con-zoom', {state: 'detached', timeout: 10_000});
+    await expect(page.locator('.con-carry')).toBeVisible();
+
     // THE BLOCKER GUARD, client half: a ZERO-card confirm over a real hand
-    // must be ARMED — the first X raises the named warning and does NOT
-    // confirm; only the second X does.
-    await press(page, 'KeyX', 600);
+    // must be ARMED — the first RT raises the named warning and does NOT
+    // confirm; only the second RT does (RT = the standard next-step verb).
+    await press(page, 'Period', 600);
     await expect(page.locator('.con-carry__status-warn')).toBeVisible();
     await expect(page.locator('.con-carry')).toBeVisible();
-    await press(page, 'KeyX', 800);
+    await press(page, 'Period', 800);
 
     // The step concludes into the READY waiting state (auto-join armed):
     // the WAIT STRIP heads the player zone and the readiness chips sit on
@@ -142,7 +150,7 @@ test.describe('campaign map', () => {
     await page.waitForSelector('.con-carry', {timeout: 10_000});
     await expect(page.locator('.con-carry__card')).toHaveCount(2);
     await press(page, 'Enter', 500); // take the cursored card
-    await press(page, 'KeyX', 800); // «Сохранить выбор» — one press, draft > 0
+    await press(page, 'Period', 800); // RT «Сохранить выбор» — one press, draft > 0
     await page.waitForSelector('.cmap__wait-strip--ready', {timeout: 20_000});
     const revised = await campaignModelAs(request, id, 'Bruno');
     const brunoCarry = revised.carryover!.bySeat.find((s) => s.seat === 1)!;

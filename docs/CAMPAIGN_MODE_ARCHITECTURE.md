@@ -110,6 +110,12 @@
 > `campaignMapUi.commands` and the host only re-labels the root B (the copy
 > had already drifted, advertising the deleted launch confirm). Modal census
 > after: carryover picker (a real decision step) + committed-results dossier.
+> The carryover picker's verbs follow the console grammar: **X = INSPECT**
+> (the shared `CardZoomModal`, locally mounted — the ConsoleDevCardPicker
+> pre-game pattern; A toggles the pick from fullscreen per P15, LB/RB browse
+> and keep the underlying cursor in lockstep) and **RT = CONFIRM** (raw
+> `triggerR`, intercepted before `consoleActionOf`; the armed zero-carry
+> guard rides RT unchanged).
 >
 > **Interlude ONE-FLOW + campaign realtime room (2026-09-04):** the
 > mission→mission transition is ONE continuation flow behind ONE CTA.

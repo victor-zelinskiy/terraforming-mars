@@ -16,6 +16,7 @@ import {
   workspaceClaimsDeckCheck,
   workspaceClaimsDrawReveal,
   workspaceClaimsPick,
+  workspaceClaimsRevealSource,
   workspaceOutcomeAdmits,
   workspaceOutcomeArrivalFlown,
   workspaceOutcomeArrivalPending,
@@ -58,6 +59,24 @@ describe('consoleWorkspaceOutcome — the EMBEDDED claim', () => {
     expect(workspaceClaimsDrawReveal({type: 'tile'})).to.eq(false);
     expect(workspaceClaimsDrawReveal({type: 'other'})).to.eq(false);
     expect(workspaceClaimsDrawReveal({type: 'globalParameter', parameter: 'venus'} as CardDrawRevealSource)).to.eq(false);
+  });
+
+  it('workspaceClaimsRevealSource is the ONE join every batch witness asks by — and a CHAIN claim still refuses a global-parameter batch', () => {
+    // The venus-hang regression class: a play claim (scope 'chain') and a
+    // Venus 8% draw in one response. The join must say «not ours» for the
+    // batch's own source, and «ours» for the chain's card-sourced draws and
+    // for an unattributed one — the exact split the serving probe's
+    // per-reveal server witness and the reconciler's pending arms read.
+    claimWorkspaceOutcome('hand', AI_CENTRAL, ['draw', 'pick', 'effect'], 0, 0, 'chain');
+    expect(workspaceClaimsRevealSource({type: 'globalParameter', parameter: 'venus'} as CardDrawRevealSource)).to.eq(false);
+    expect(workspaceClaimsRevealSource({type: 'tile'})).to.eq(false);
+    expect(workspaceClaimsRevealSource(cardSource(RESTRICTED)), 'chain: any card-sourced draw').to.eq(true);
+    expect(workspaceClaimsRevealSource(undefined), 'unattributed → the open workspace').to.eq(true);
+    // …and the colony shape routes through the same join.
+    resetWorkspaceOutcome();
+    claimWorkspaceOutcome('colonies', 'Pluto', ['draw']);
+    expect(workspaceClaimsRevealSource({type: 'colony', colonyName: 'Pluto'} as CardDrawRevealSource)).to.eq(true);
+    expect(workspaceClaimsRevealSource({type: 'colony', colonyName: 'Triton'} as CardDrawRevealSource)).to.eq(false);
   });
 
   it('a campaign-sourced reveal is never claimed (the legacy row flies its cards itself — no reveal batch exists)', () => {

@@ -12,12 +12,15 @@
     embedded map scene). Input arrives via `handleIntent`; the verbs render
     in the host's ONE command bar.
 
-    EXPLICIT «БЕЗ ПЕРЕНОСА»: with eligible cards on the table, a zero-card
-    confirm must be ARMED first — the first press turns the status line into
-    a named warning and relabels the verb; only the second press confirms.
-    An accidental X can no longer ship a player into the next mission with
-    no legacy. An EMPTY hand needs no arming (there is nothing to miss) —
-    its confirm is the plain readiness press.
+    VERBS follow the console-wide grammar: A takes/returns the cursored
+    card, X INSPECTS it in the shared fullscreen viewer (A toggles the pick
+    from fullscreen too — P15), RT is the CONFIRM — the standard next-step
+    verb. EXPLICIT «БЕЗ ПЕРЕНОСА»: with eligible cards on the table, a
+    zero-card confirm must be ARMED first — the first RT turns the status
+    line into a named warning and relabels the verb; only the second RT
+    confirms. An accidental press can no longer ship a player into the next
+    mission with no legacy. An EMPTY hand needs no arming (there is nothing
+    to miss) — its confirm is the plain readiness press.
 
     PHYSICALITY: a card has ONE visual owner. A pick physically flies the
     card out of its hand socket into the reserved slot (the socket stays,
@@ -103,12 +106,63 @@
         <span v-else-if="error !== ''" class="con-carry__status-err">{{ $t(error) }}</span>
       </div>
     </div>
+
+    <!-- ── Fullscreen inspect (X — the console-wide verb). The SHARED zoom
+         modal, locally mounted (the ConsoleDevCardPicker pattern — this
+         surface lives on a pre-game screen too, outside the shell's global
+         instance): the stage below stays mounted, selection and focus
+         survive, and A toggles the pick from fullscreen (P15). -->
+    <Teleport to="body">
+      <transition name="con-zoom-veil">
+        <div v-if="zoomCard !== undefined" class="con-zoom-veil" aria-hidden="true"></div>
+      </transition>
+      <CardZoomModal
+        v-if="zoomCard !== undefined"
+        ref="zoomModal"
+        class="con-zoom"
+        :card="zoomCard"
+        :cards="zoomList"
+        :index="zoomIndex"
+        :selected="zoomSelected"
+        :consoleMotion="true"
+        :lore="true"
+        @navigate="onZoomNavigate"
+        @close="closeZoom()"
+      >
+        <template #actions>
+          <div class="con-zoom__context">
+            <span class="con-zoom__context-mark" aria-hidden="true">◈</span>
+            <span>{{ $t('Project legacy') }}</span>
+          </div>
+          <div class="con-zoom__bar">
+            <span v-if="zoomSelected" class="con-zoom__state">✓ {{ $t('Card selected') }}</span>
+            <button type="button" class="con-zoom__btn con-zoom__btn--select" @click="toggleZoomSelection">
+              <GamepadGlyph control="confirm" />
+              <span>{{ $t(zoomSelected ? 'Deselect' : 'Select') }}</span>
+            </button>
+            <span v-if="zoomList !== undefined && zoomList.length > 1" class="con-zoom__cmd con-zoom__cmd--flip">
+              <GamepadGlyph control="bumperL" />
+              <span class="con-zoom__flip-arrow" aria-hidden="true">◀</span>
+              <span>{{ $t('Browse') }}</span>
+              <span class="con-zoom__flip-arrow" aria-hidden="true">▶</span>
+              <GamepadGlyph control="bumperR" />
+            </span>
+            <button type="button" class="con-zoom__btn" @click="requestZoomClose">
+              <GamepadGlyph control="back" />
+              <span>{{ $t('Close') }}</span>
+            </button>
+          </div>
+        </template>
+      </CardZoomModal>
+    </Teleport>
   </div>
 </template>
 
 <script lang="ts">
 import {defineComponent} from 'vue';
 import Card from '@/client/components/card/CardFace.vue';
+import CardZoomModal from '@/client/components/card/CardZoomModal.vue';
+import GamepadGlyph from '@/client/components/gamepad/GamepadGlyph.vue';
 import {CardModel} from '@/common/models/CardModel';
 import {CardName} from '@/common/cards/CardName';
 import {GamepadIntent} from '@/client/gamepad/gamepadPollModel';
@@ -126,7 +180,7 @@ const FIT_RETRIES = 6;
 
 export default defineComponent({
   name: 'ConsoleCarryoverPicker',
-  components: {Card},
+  components: {Card, CardZoomModal, GamepadGlyph},
   props: {
     /** The recorded terminal hand (owner-only wire data). */
     eligible: {type: Array as () => ReadonlyArray<CardName>, required: true},
@@ -159,6 +213,10 @@ export default defineComponent({
       rowStyle: {} as Record<string, string>,
       fitRetries: 0,
       resizeObserver: undefined as ResizeObserver | undefined,
+      // ── Fullscreen inspect (the shared zoom modal, locally mounted) ─────
+      zoomCard: undefined as CardModel | undefined,
+      zoomList: undefined as ReadonlyArray<CardModel> | undefined,
+      zoomIndex: 0,
     };
   },
   mounted() {
@@ -177,8 +235,13 @@ export default defineComponent({
       f.dispose();
     }
     this.flights = [];
+    document.body.classList.remove('con-zoom-open');
   },
   computed: {
+    zoomSelected(): boolean {
+      const name = this.zoomCard?.name as CardName | undefined;
+      return name !== undefined && this.selected.includes(name);
+    },
     counterNote(): string {
       return this.selected.length === 0 ? 'Nothing selected' : 'Free to keep — the play cost stays normal';
     },
@@ -366,6 +429,11 @@ export default defineComponent({
     },
     /** The host routes pad intents here (single-slot owner pattern). Returns true when consumed. */
     handleIntent(intent: GamepadIntent): boolean {
+      // The fullscreen viewer owns every intent while it is open (the
+      // console-wide zoom carve-out, locally).
+      if (this.zoomCard !== undefined) {
+        return this.handleZoomIntent(intent);
+      }
       if (this.submitting) {
         return true;
       }
@@ -374,21 +442,29 @@ export default defineComponent({
         this.moveCursor(intent.dir);
         return true;
       }
-      const action = consoleActionOf(intent, {});
-      switch (action) {
-      case 'primary':
-        this.toggleAt(this.cursor);
-        return true;
-      case 'inspect':
-        // X = confirm. A ZERO-card confirm over a real hand must be ARMED:
-        // the first press raises the named warning, the second confirms —
-        // «продолжить без наследия» can never be one accidental press.
+      // RT = the CONFIRM (the console's standard next-step verb). A ZERO-card
+      // confirm over a real hand must be ARMED: the first press raises the
+      // named warning, the second confirms — «продолжить без наследия» can
+      // never be one accidental press.
+      if (intent.kind === 'press' && intent.button === 'triggerR') {
         if (this.selected.length === 0 && this.eligible.length > 0 && !this.armed) {
           this.armed = true;
           this.$emit('armChange', true);
           return true;
         }
         this.$emit('confirm');
+        return true;
+      }
+      const action = consoleActionOf(intent, {});
+      switch (action) {
+      case 'primary':
+        this.toggleAt(this.cursor);
+        return true;
+      case 'inspect':
+        // X = INSPECT — the console-wide verb: the cursored card opens in
+        // the shared fullscreen viewer (never a confirm).
+        this.disarm();
+        this.openZoom(this.cursor);
         return true;
       case 'back':
         // An armed warning is its own level: B disarms first. Otherwise the
@@ -403,6 +479,87 @@ export default defineComponent({
       default:
         return true;
       }
+    },
+    // ── Fullscreen inspect (X) — the ConsoleDevCardPicker pattern ─────────
+    openZoom(at: number): void {
+      if (this.eligible.length === 0) {
+        return;
+      }
+      const list = this.eligible.map((name) => ({name} as CardModel));
+      const index = Math.min(Math.max(at, 0), list.length - 1);
+      this.zoomList = list;
+      this.zoomIndex = index;
+      this.zoomCard = list[index];
+      document.body.classList.add('con-zoom-open');
+      void this.$nextTick(() => {
+        (this.$refs.zoomModal as {show?: () => void} | undefined)?.show?.();
+      });
+    },
+    /** LB/RB browse keeps the UNDERLYING cursor in lockstep — closing lands
+     *  the focus on the card the player looked at last. */
+    onZoomNavigate(card: CardModel, index: number): void {
+      this.zoomCard = card;
+      this.zoomIndex = index;
+      this.cursor = index;
+    },
+    /** A from fullscreen toggles the pick WITHOUT leaving the viewer (P15).
+     *  Same guards as the stage toggle; no clone flight — the stage below
+     *  updates in place and the change is plainly visible on close. */
+    toggleZoomSelection(): void {
+      const name = this.zoomCard?.name as CardName | undefined;
+      if (name === undefined || this.submitting) {
+        return;
+      }
+      this.disarm();
+      if (this.selected.includes(name)) {
+        this.$emit('toggle', name);
+        return;
+      }
+      if (this.unavailable.includes(name) || this.selected.length >= 2) {
+        return;
+      }
+      this.$emit('toggle', name);
+    },
+    handleZoomIntent(intent: GamepadIntent): boolean {
+      const action = consoleActionOf(intent, {});
+      const modal = this.$refs.zoomModal as {prev: () => void, next: () => void} | undefined;
+      if (intent.kind === 'nav' && (intent.dir === 'left' || intent.dir === 'right')) {
+        if (intent.dir === 'right') {
+          modal?.next();
+        } else {
+          modal?.prev();
+        }
+        return true;
+      }
+      if (action === 'prevSection') {
+        modal?.prev();
+        return true;
+      }
+      if (action === 'nextSection') {
+        modal?.next();
+        return true;
+      }
+      if (action === 'primary') {
+        this.toggleZoomSelection();
+        return true;
+      }
+      if (action === 'back' || action === 'inspect') {
+        this.requestZoomClose();
+      }
+      return true;
+    },
+    requestZoomClose(): void {
+      const modal = this.$refs.zoomModal as {close?: () => void} | undefined;
+      if (modal?.close !== undefined) {
+        modal.close();
+      } else {
+        this.closeZoom();
+      }
+    },
+    closeZoom(): void {
+      this.zoomCard = undefined;
+      this.zoomList = undefined;
+      document.body.classList.remove('con-zoom-open');
     },
     /** The grid cursor follows the SOLVED row shape (per-row from the fit). */
     moveCursor(dir: 'up' | 'down' | 'left' | 'right'): void {

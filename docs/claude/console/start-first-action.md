@@ -318,6 +318,62 @@ Both were shipped together, and both are needed — the claim answers «whose is
 this artifact», the gate answers «may the next stage start», and a prompt this
 workspace cannot host would still hit only the second one.
 
+## THE AWARDS ARE A SCENE STEP OF THIS STAGE (Vitor, 2026-09-05)
+
+Vitor's first action («fund an award for free», `awardFundingPrompt.free`)
+used to open the awards surface LATERALLY — `openSheet('awards')` →
+`enterWorkspace` → an overlay frame standing OVER the still-painted start:
+the MA screen titled itself «НАГРАДЫ» while the start's own «… › КОРПОРАЦИЯ ›
+ПЕРВОЕ ДЕЙСТВИЕ» head bled through underneath (the `.con-ma` plate is
+translucent by design), the breadcrumb restarted, and the nesting was stated
+nowhere — the reported violation of «a workspace is one flow».
+
+Now it is a HOSTED SCENE STEP, the hydro→colonies shape:
+
+* **The registry decides, per PAIR.** `frameSteps` accepts a per-guest record
+  (`{awards: 'scene'}` on the start row): the hand/colonies steps keep their
+  teleport embed (the deploy zone is their room), while the awards — a
+  full-height instrument grid — take the WHOLE scene. The tiles keep the
+  exact full-scene composition of the standalone screen; the nesting lives in
+  the HEADER only, which is precisely the point of `'scene'`.
+* **The door forks structurally.** `openShellTaskSurface`'s awardFunding arm
+  pushes a hosted frame when `workspaceHostForStep() === 'start'` (subject +
+  `sourceCard` = the corp from `consoleStartState.firstAct.corp`, phase
+  `committed` — the or-option is consumed, this step is past its flow's
+  commit boundary; anchor `{type:'prompt'}`). Anywhere else (a merger-played
+  Vitor mid-game) the lateral door stays.
+* **The start hides paint-only** (`startSceneVisible` gains
+  `!workspaceHostYieldsScene('start')` — the scene's own `yielded` prop), and
+  is deliberately NOT part of `sceneHandedOver`/`pickBridgeActive`: its hide
+  fires no transition hooks, and counting it would make the director resolve
+  the GUEST's entrance instantly (the awards would pop in instead of playing
+  their surface enter).
+* **The header is the STACK's.** `ConsoleMaScreen` renders `workspaceStackCrumb()`
+  whenever its frame is nested (`СТАРТ ПАРТИИ › VITOR › НАГРАДЫ` →
+  `› СОБСТВЕННИК › СПОНСОРСТВО` → amber `ЦЕРЕМОНИЯ`) and publishes its stage +
+  subject UP (`setWorkspaceFrameStage/Subject`, base subject = the frame's
+  `sourceCard`); the descended award becomes the carried subject, exactly the
+  hydro-colonies family law.
+* **B = «Свернуть» the WHOLE flow** (`collapseWorkspace` — the park at full
+  depth; the board-home restore card + `restoreDeferredTask` bring back
+  [start, awards] and re-seat a suspended pre-commit detail from the draft).
+  The category bumpers are NOT offered inside the step (a lateral move would
+  truncate the very frame the task stands on).
+* **The ending is the existing one**: the ceremony plays inside the stage,
+  `onMaCeremonyDone` → `leaveWorkspace()` pops ONE frame, the start is
+  revealed and finishes its own first-action leave. `firstActionEntryDue` /
+  `firstActionChainQuiet` already hold through the step via
+  `workspaceFrameHasNested('start')` + `startFlowOtherPromptStands`.
+
+Guard: e2e `console-vitor-award-step.spec.ts` (the live journey — first
+action → hosted scene, no start bleed-through, the stack crumb, no bumpers,
+the collapse/restore round trip, the descend, the in-stage ceremony, the
+start's return and the deployment's conclusion). Unit: «a scene handover is
+decided per host-guest PAIR» in `consoleWorkspaceStack.spec.ts`.
+⚠️ The spec drives the UI path on purpose: the API seed's restore-entry of
+the first-action stage is a known pre-existing stable failure (the 2026-09-03
+start cluster — «стадия стоит, тело пустое»), unrelated to this step.
+
 ## Guards
 
 `tests/client/components/console/startFirstAction.spec.ts` (stage model + the

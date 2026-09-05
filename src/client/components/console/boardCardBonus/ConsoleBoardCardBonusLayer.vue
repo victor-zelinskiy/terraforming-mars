@@ -53,6 +53,7 @@ import {tilePlacementHolding} from '@/client/console/tilePlacement/consoleTilePl
 import {nomadMoveHolding} from '@/client/console/nomads/consoleNomadMove';
 import {concurrentResourcePayout, waitRewardPayoutQuiet} from '@/client/console/rewardPayoutQuiet';
 import {consoleCardZoom} from '@/client/console/consoleCardZoom';
+import {boardBeatParksReveal} from '@/client/console/boardBeatPark';
 import {probeTick} from '@/client/console/probeTick';
 import {
   runBonusAbortVisual, runBonusCoverLift, runBonusFanOut, runBonusHandoff,
@@ -85,7 +86,10 @@ const NO_REVEAL_GRACE_MS = 1600;
  */
 const ZOOM_TAKEOVER_MAX_MS = 2500;
 
-/** Read a fresh, stable rect (bounded rAF double-probe — layout settled). */
+/** Read a fresh, stable rect (bounded double-probe — layout settled).
+ *  `probeTick`, never bare rAF: a measurement probe may not depend on the
+ *  compositor for liveness (the console-wide law) — this scene arms on a
+ *  screen that is often otherwise quiet, which is exactly where rAF stalls. */
 function stableRect(resolve: () => HTMLElement | null): Promise<DOMRect | undefined> {
   return new Promise((done) => {
     let tries = 0;
@@ -102,12 +106,12 @@ function stableRect(resolve: () => HTMLElement | null): Promise<DOMRect | undefi
       }
       last = sig;
       if (tries < 40) {
-        requestAnimationFrame(poll);
+        probeTick(poll);
       } else {
         done(ok ? r : undefined);
       }
     };
-    requestAnimationFrame(poll);
+    probeTick(poll);
   });
 }
 
@@ -179,7 +183,17 @@ export default defineComponent({
         return undefined;
       }
       if (isVenusScaleReveal(e.source)) {
-        return e;
+        // …and NEVER against a board the player cannot see. While the batch
+        // is parked behind the board-beat drain (a workspace covered the
+        // board when the Venus bonus landed), the 8% marker is inside a
+        // `display: none` section: the arm would measure a 0×0 anchor, burn
+        // its probe budget, abort — and the abort's `zoomEntryReady` would
+        // release the fullscreen viewer OVER the open workspace with a
+        // textual entrance. The drain un-parks the batch in the same
+        // reactive flush that re-admits `rawDrawnRevealPending`, so the arm
+        // lands here against a measurable marker — the tile branch below
+        // rides its own holds by the same law.
+        return boardBeatParksReveal(e.source) ? undefined : e;
       }
       // A tile-sourced reveal WITH a paying cell (an Ares adjacency draw —
       // Restricted Area:ares — or a cell draw whose submit-time arm never

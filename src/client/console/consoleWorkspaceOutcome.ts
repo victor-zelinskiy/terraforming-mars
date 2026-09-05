@@ -705,6 +705,22 @@ export function workspaceClaimsDrawReveal(source: CardDrawRevealSource | undefin
 }
 
 /**
+ * Does the live claim answer for a batch of THIS source, whatever its shape —
+ * the ONE join of the two batch-claim predicates. Every witness that asks «is
+ * this batch ours?» (the serving probe's batch half, the reconciler's pending
+ * arms) must ask by SOURCE through this, never by presence: «a batch exists»
+ * is a strict superset of «a batch of ours exists», and the two diverge on
+ * exactly the batches that have their own presenters — a tile bonus, a
+ * foreign colony payout, a global-parameter reward. Counting one of those as
+ * ours is how a Venus-scale draw wedged a card play's workspace shut: the
+ * release funnel refused against a batch the claim could never host, and the
+ * flow's conclusion held `live-outcome` until the 20 s backstop.
+ */
+export function workspaceClaimsRevealSource(source: CardDrawRevealSource | undefined): boolean {
+  return workspaceClaimsDrawReveal(source) || workspaceClaimsColonyReveal(source);
+}
+
+/**
  * Does an open workspace own this COLONY-sourced batch? The colony analogue
  * of `workspaceClaimsDrawReveal`: a trade or a build the player confirmed
  * claims its own drawn payout (Pluto), keyed on the server's own

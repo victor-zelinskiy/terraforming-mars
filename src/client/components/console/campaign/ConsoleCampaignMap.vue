@@ -348,12 +348,19 @@ export default defineComponent({
         return [{control: 'confirm', label: 'Retry'}, {control: 'back', label: 'Main menu'}];
       }
       if (this.overlay?.kind === 'carryover') {
-        return [
+        // X = inspect (the console-wide verb); RT = confirm (the standard
+        // next-step verb). While the fullscreen viewer is open the modal
+        // draws its own bar on top (the dev-picker precedent).
+        const carryCmds: Array<ConsoleCommand> = [
           {control: 'dpad', label: 'Choose'},
           {control: 'confirm', label: 'Take / return'},
-          {control: 'secondary', label: this.carryConfirmLabel, highlight: true},
-          {control: 'back', label: 'Close'},
         ];
+        if (vm.yourEligibleCards.length > 0) {
+          carryCmds.push({control: 'secondary', label: 'Inspect'});
+        }
+        carryCmds.push({control: 'triggerR', label: this.carryConfirmLabel, highlight: true});
+        carryCmds.push({control: 'back', label: 'Close'});
+        return carryCmds;
       }
       if (this.overlay !== undefined) {
         return [{control: 'back', label: 'Close'}];

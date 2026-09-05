@@ -175,8 +175,11 @@ test.describe('my campaigns list', () => {
     await expect(badge).toBeVisible({timeout: 20_000});
     const before = Number(await badge.innerText());
     await createCampaign(request);
-    // No navigation, no press: the push chain must move the number.
-    await expect(badge).toHaveText(String(before + 1), {timeout: 10_000});
+    // No navigation, no press: the push chain must move the number. The
+    // budget covers a COLD server (the dev DB carries hundreds of e2e
+    // campaigns — the push-triggered refresh can sit behind the first full
+    // lobby snapshot + campaign reconcile; warm it lands in ~1 s).
+    await expect(badge).toHaveText(String(before + 1), {timeout: 25_000});
   });
 
   test('LAN plumbing: a PINNED campaign map routes to its server and propagates the pin into the mission', async ({page, request}) => {

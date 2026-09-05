@@ -228,8 +228,15 @@ type WorkspaceKindSpec = {
    * OUTCOME surfaces are unaffected either way — they ride
    * `workspaceOutcomeState.embedSlot`, not the frame stack, so a draw or a
    * reveal stays embedded exactly as before. This decides FRAMES only.
+   *
+   * The PER-GUEST form exists because the answer is a property of the PAIR:
+   * the start workspace embeds the hand (a card row fits its deploy zone) but
+   * hands the whole scene to the awards screen (a full-height instrument grid
+   * — Vitor's free sponsorship is a STEP of «ПЕРВОЕ ДЕЙСТВИЕ», and squeezing
+   * that dashboard into the deploy zone would give it a second fit engine and
+   * a smaller room for no reason). A guest absent from the record embeds.
    */
-  frameSteps?: 'embed' | 'scene',
+  frameSteps?: 'embed' | 'scene' | Partial<Record<WorkspaceFrameKind, 'embed' | 'scene'>>,
   /**
    * DOES A PARKED CHAIN OF THIS KIND OWN A MODULE-LEVEL FLOW RECORD?
    *
@@ -311,6 +318,12 @@ const WORKSPACE_KINDS: Record<WorkspaceFrameKind, WorkspaceKindSpec> = {
   'start': {
     root: 'Start of the game', rootSelector: '.con-start',
     serves: ['startSequence', 'initialDraft', 'corpFirstAction'], hosts: 'always',
+    // The hand / colonies steps EMBED (the deploy zone is their room); the
+    // AWARDS screen — Vitor's free-sponsorship first action — takes the whole
+    // scene, and the nesting is stated in the HEADER («СТАРТ ПАРТИИ › ВИТОР ›
+    // НАГРАДЫ»). The tiles keep the exact full-scene composition of the
+    // standalone screen — that is the point of the scene handover.
+    frameSteps: {awards: 'scene'},
   },
   // The DRAFT workspace — a PHASE-anchored root like 'start': it IS the
   // between-generations sequence (picks → waits → research buy → done) and
@@ -659,7 +672,22 @@ export function workspaceFrameRenders(kind: WorkspaceFrameKind): boolean {
  * where the flow is stated.
  */
 export function workspaceHostYieldsScene(kind: WorkspaceFrameKind): boolean {
-  return workspaceKindSpec(kind).frameSteps === 'scene' && workspaceFrameHasNested(kind);
+  const depth = workspaceFrameIndex(kind);
+  const guest = depth === -1 ? undefined : workspaceStackState.frames[depth + 1];
+  return guest !== undefined && frameStepFor(kind, guest.kind) === 'scene';
+}
+
+/**
+ * HOW this host carries this guest — the `frameSteps` declaration resolved
+ * for one PAIR (the per-guest record form answers per kind; the plain form
+ * answers for every guest; absent = embed).
+ */
+function frameStepFor(host: WorkspaceFrameKind, guest: WorkspaceFrameKind): 'embed' | 'scene' {
+  const steps = WORKSPACE_KINDS[host].frameSteps;
+  if (steps === undefined) {
+    return 'embed';
+  }
+  return typeof steps === 'string' ? steps : (steps[guest] ?? 'embed');
 }
 
 /**
@@ -999,7 +1027,7 @@ export function pushWorkspaceFrame(frame: NewWorkspaceFrame): number {
     live.phase = frame.phase;
     live.serves = [...frame.serves];
     live.anchor = frame.anchor;
-    live.overlay = frame.overlay === true || hostHandsOverTheScene(existing);
+    live.overlay = frame.overlay === true || hostHandsOverTheScene(existing, frame.kind);
     truncateWorkspaceStack(existing + 1);
     return existing;
   }
@@ -1012,7 +1040,7 @@ export function pushWorkspaceFrame(frame: NewWorkspaceFrame): number {
     // — one registry row instead of an `overlay: true` somebody has to remember
     // at each of the doors that can push this step (and there are several:
     // a prompt, a resume, a lateral visit).
-    overlay: frame.overlay === true || hostHandsOverTheScene(workspaceStackState.frames.length),
+    overlay: frame.overlay === true || hostHandsOverTheScene(workspaceStackState.frames.length, frame.kind),
     slot: '',
     sourceCard: frame.sourceCard ?? '',
   });
@@ -1043,10 +1071,10 @@ export function workspaceFrameEpoch(kind: WorkspaceFrameKind): number {
   return frameEpochs[kind] ?? 0;
 }
 
-/** Does the frame BELOW `depth` hand the whole scene to what stands on it? */
-function hostHandsOverTheScene(depth: number): boolean {
+/** Does the frame BELOW `depth` hand the whole scene to THIS guest? */
+function hostHandsOverTheScene(depth: number, guest: WorkspaceFrameKind): boolean {
   const host = depth > 0 ? workspaceStackState.frames[depth - 1] : undefined;
-  return host !== undefined && workspaceKindSpec(host.kind).frameSteps === 'scene';
+  return host !== undefined && frameStepFor(host.kind, guest) === 'scene';
 }
 
 /**

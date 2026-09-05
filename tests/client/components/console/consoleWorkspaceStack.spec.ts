@@ -33,6 +33,7 @@ import {
   workspaceFrameParked,
   workspaceFrameRenders,
   workspaceHostForStep,
+  workspaceHostYieldsScene,
   workspaceSurfacesFor,
   workspaceFrameRoot,
   workspaceFrameSelector,
@@ -791,6 +792,49 @@ describe('consoleWorkspaceStack — the ONE depth model of a workspace', () => {
     expect(workspaceStackSheet(), 'the composer is still open under it').to.eq('cardActions');
     leaveWorkspace();
     expect(workspaceFrameMounted('card-actions'), 'the origin was never left').to.eq(true);
+  });
+
+  /*
+   * `frameSteps` IS A PROPERTY OF THE PAIR (the per-guest record form). The
+   * start EMBEDS the hand (the deploy zone is its room) but hands the WHOLE
+   * SCENE to the awards screen — Vitor's free-sponsorship first action: a
+   * full-height instrument grid squeezed into the deploy zone would get a
+   * second fit engine and a smaller room for no reason, while the nesting is
+   * stated in the HEADER («СТАРТ ПАРТИИ › ВИТОР › НАГРАДЫ»).
+   */
+  it('a scene handover is decided per host-guest PAIR, never per host alone', () => {
+    pushWorkspaceFrame({
+      kind: 'start', subject: '', stage: '', phase: 'browse',
+      serves: ['startSequence', 'corpFirstAction'], anchor: {type: 'phase', phase: 'start'},
+    });
+    // The hand step EMBEDS: it waits for the start's zone like any step.
+    pushWorkspaceFrame({
+      kind: 'hand', subject: '', stage: '', phase: 'browse',
+      serves: ['projectCard'], anchor: ALWAYS,
+    });
+    expect(workspaceFrameIsOverlay('hand'), 'the hand embeds').to.eq(false);
+    expect(workspaceHostYieldsScene('start'), 'so the start keeps its pixels').to.eq(false);
+    leaveWorkspace();
+    // The awards step takes the SCENE: overlay by the host's declaration (the
+    // call site never has to remember it), the start hides, the tiles keep the
+    // exact full-scene composition of the standalone screen.
+    pushWorkspaceFrame({
+      kind: 'awards', subject: 'Vitor', stage: 'Awards', phase: 'committed',
+      serves: ['awardFunding'], anchor: {type: 'prompt', promptType: 'or'},
+    });
+    expect(workspaceFrameIsOverlay('awards'), 'the awards frame stands over the start').to.eq(true);
+    expect(workspaceFrameRenders('awards'), 'and renders at once — no zone to wait for').to.eq(true);
+    expect(workspaceHostYieldsScene('start'), 'the start hands the scene over').to.eq(true);
+    expect(workspaceStackSheet(), 'the player drives the awards surface').to.eq('awards');
+    const crumb = workspaceStackCrumb();
+    expect(crumb?.root, 'the header states the flow the player entered').to.eq('Start of the game');
+    expect(crumb?.subject?.text, 'the corporation whose action this is').to.eq('Vitor');
+    expect(crumb?.stage).to.eq('Awards');
+    expect(crumb?.committed, 'past the first action\'s commit boundary').to.eq(true);
+    // The step ends with its frame: one pop, the start owns the scene again.
+    leaveWorkspace();
+    expect(workspaceHostYieldsScene('start')).to.eq(false);
+    expect(workspaceFrameMounted('start'), 'untouched underneath the whole step').to.eq(true);
   });
 
   /*
