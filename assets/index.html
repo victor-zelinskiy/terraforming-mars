@@ -11,6 +11,12 @@
              in anonymous CORS mode, and a mismatch double-downloads. -->
         <link rel="preload" href="assets/GolosText-cyrillic.woff2" as="font" type="font/woff2" crossorigin />
         <link rel="preload" href="assets/GolosText-latin.woff2" as="font" type="font/woff2" crossorigin />
+        <!-- The console display face (every HUD/curtain caption). Declared
+             font-display:swap in styles.css, so WITHOUT a preload the boot
+             curtain's text painted in the fallback and visibly re-set when
+             the face arrived — the «мигание текста» on every cold boot. -->
+        <link rel="preload" href="assets/Prototype.ttf" as="font" type="font/ttf" crossorigin />
+        <link rel="preload" href="assets/Prototype-ru.ttf" as="font" type="font/ttf" crossorigin />
         <link rel="preload" href="assets/Literata-Italic-cyrillic.woff2" as="font" type="font/woff2" crossorigin />
         <link rel="preload" href="assets/Literata-Italic-latin.woff2" as="font" type="font/woff2" crossorigin />
         <link rel="preload" href="assets/Literata-Regular-cyrillic.woff2" as="font" type="font/woff2" crossorigin />
@@ -21,6 +27,57 @@
         <meta name="description" content="Terraforming Mars Open Source Web Application" />
     </head>
     <body id="ts-preferences-target">
+        <!-- STATIC PRE-VUE CURTAIN (scene transition, docs/claude/console/
+             scene-transition.md). A game-boundary reload used to show dark
+             frames between the old page's teardown and Vue's mount (bundle
+             parse + the translations fetch happen BEFORE mount), so every
+             transition BLINKED: curtain → dark → curtain. This node is the
+             SAME composition as ConsoleLoadingScreen (same classes out of
+             the render-blocking styles.css), painted from the document's
+             first frame; the Vue curtain replaces it pixel-identically once
+             mounted (dismissStaticBootCurtain). The inline script decides
+             visibility and pre-paints the display scale from the last
+             settled session — synchronously, before anything renders. -->
+        <script>
+            (function () {
+                try {
+                    var boot = false;
+                    try { boot = sessionStorage.getItem('tm_boot_curtain') !== null; } catch (e) { /* no storage */ }
+                    var path = location.pathname.replace(/.*\//, '');
+                    if (path === 'player' || path === 'the-end') { boot = true; }
+                    if (!boot) { return; }
+                    var html = document.documentElement;
+                    html.className += ' tm-boot-cover';
+                    // First-paint display scale — mirrors consoleLayoutProfile's
+                    // seed; the Vue bootstrap re-syncs the same values later.
+                    try {
+                        var forced = localStorage.getItem('tm_console_profile');
+                        var seedRaw = localStorage.getItem('tm_console_profile_seed');
+                        var seed = seedRaw ? JSON.parse(seedRaw) : null;
+                        var profile = forced || (seed && seed.profile);
+                        var scale = (seed && typeof seed.uiScale === 'number' && (!forced || seed.profile === forced)) ? seed.uiScale : 1;
+                        if (profile === 'handheld' || profile === 'standard' || profile === 'large' || profile === 'tv') {
+                            html.className += ' con-profile-' + profile;
+                        }
+                        html.style.setProperty('--con-ui-scale', String(scale));
+                    } catch (e) { /* first boot — the heuristic paints */ }
+                } catch (e) { /* never block the page */ }
+            })();
+        </script>
+        <div id="boot-curtain" class="con-load" aria-hidden="true">
+            <div class="con-load__bg"></div>
+            <div class="con-load__glow"></div>
+            <div class="con-load__grid"></div>
+            <div class="con-load__vignette"></div>
+            <div class="con-load__brand">TERRAFORMING MARS</div>
+            <div class="con-load__scene">
+                <svg viewBox="0 0 240 240" fill="none" xmlns="http://www.w3.org/2000/svg">
+                    <circle class="con-load__orbit con-load__orbit--outer" cx="120" cy="120" r="104" />
+                    <circle class="con-load__orbit con-load__orbit--mid" cx="120" cy="120" r="76" />
+                    <circle class="con-load__planet" cx="120" cy="120" r="34" />
+                </svg>
+            </div>
+        </div>
         <div id="app"></div>
         <script src="vendors.js"></script>
         <script src="main.js"></script>

@@ -308,7 +308,7 @@ import GamepadLayer from '@/client/components/gamepad/GamepadLayer.vue';
 import {consoleModeState, requestConsoleFullscreen} from '@/client/console/consoleModeState';
 import {showConsoleAlert} from '@/client/console/consoleSystemAlertState';
 import ConsoleLoadingScreen from '@/client/components/console/ConsoleLoadingScreen.vue';
-import {beginLoading, consumeBootFlags, failLoading, loadingScreenState, noteScreenResolved} from '@/client/console/loadingScreenState';
+import {beginLoading, consumeBootFlags, dismissStaticBootCurtain, failLoading, loadingScreenState, noteScreenResolved} from '@/client/console/loadingScreenState';
 const ConsoleShell = defineAsyncComponent(() => import(/* webpackChunkName: "console-shell" */ '@/client/components/console/ConsoleShell.vue'));
 import TurnHandoffLayer from '@/client/components/overview/TurnHandoffLayer.vue';
 import EffectDetailOverlay from '@/client/components/notifications/EffectDetailOverlay.vue';
@@ -923,6 +923,12 @@ export default defineComponent({
       beginLoading(bootFlags.stage, bootFlags.context, bootFlags.t0);
     } else if (pathNow === paths.PLAYER || pathNow === paths.THE_END) {
       beginLoading('sync');
+    } else {
+      // No transition on this boot — the static pre-Vue curtain (raised by
+      // the index.html inline script on the same conditions) must not
+      // outlive the decision. Normally the mounted Vue curtain replaces it;
+      // this is the belt for the storage-unavailable edge.
+      dismissStaticBootCurtain();
     }
     this.applyRoute();
     // Browser back/forward re-resolves the screen in-app (no reload) for the

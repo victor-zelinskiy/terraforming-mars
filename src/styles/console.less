@@ -28325,6 +28325,27 @@ body.con-start-barshold .con-status {
         }
     }
 }
+/* THE STATIC PRE-VUE CURTAIN (assets/index.html #boot-curtain): the same
+   composition, painted from the document's FIRST frame — Vue's mount (bundle
+   parse + translations fetch) used to leave dark frames that read as a blink
+   on every game-boundary reload. Hidden unless the inline boot script raised
+   `html.tm-boot-cover`; the mounted Vue curtain removes the node. */
+#boot-curtain {
+    display: none;
+}
+html.tm-boot-cover #boot-curtain {
+    display: block;
+}
+/* The satellite is deliberately ABSENT from the static curtain (its orbit
+   phase could never match the Vue one's at the handoff) — it materializes
+   softly once the live curtain owns the frame. */
+.con-load__satellite {
+    animation: con-load-satfade calc(700ms * var(--motion-scale, 1)) ease-out both;
+}
+@keyframes con-load-satfade {
+    from { opacity: 0; }
+    to { opacity: 1; }
+}
 /* THE REVEAL — one atomic visual commit: the destination beneath is already
    composed and stable (the director's readiness gate), so the curtain's only
    job is to let go cleanly. Duration mirrors REVEAL_MS in the director.

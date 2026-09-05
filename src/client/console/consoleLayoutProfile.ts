@@ -283,18 +283,31 @@ function writeProfileSeed(): void {
  *  re-compose the boot curtain (small → big → …). The settle pass forces. */
 let seedGuardUntil = 0;
 
+/** Scale changes below this fraction are compositor jitter, not a display
+ *  change: gamescope/overlay churn moves innerWidth by a few px, and every
+ *  `calc(… * var(--con-ui-scale))` consumer then micro-reflows — visible as
+ *  «микро-скачки» on the boot curtain and the HUD. A real change (OS scale,
+ *  another display, fullscreen toggle) is far above it. */
+const UI_SCALE_DEADBAND = 0.015;
+
 function recompute(force = false): void {
   if (!force && Date.now() < seedGuardUntil) {
     return;
   }
   const w = window.innerWidth;
   const h = window.innerHeight;
+  const profileBefore = consoleLayoutState.profile;
   if (!consoleLayoutState.forced) {
     const decision = explainProfile(w, h, readSignals());
     consoleLayoutState.profile = decision.profile;
     consoleLayoutState.reason = decision.reason;
   }
-  consoleLayoutState.uiScale = consoleLayoutState.profile === 'tv' ? computeTvUiScale(w, h) : 1;
+  let nextScale = consoleLayoutState.profile === 'tv' ? computeTvUiScale(w, h) : 1;
+  if (consoleLayoutState.profile === profileBefore && consoleLayoutState.uiScale > 0 &&
+      Math.abs(nextScale - consoleLayoutState.uiScale) / consoleLayoutState.uiScale < UI_SCALE_DEADBAND) {
+    nextScale = consoleLayoutState.uiScale; // jitter — hold the painted scale
+  }
+  consoleLayoutState.uiScale = nextScale;
   syncDisplayCssVars();
   writeProfileSeed();
 }

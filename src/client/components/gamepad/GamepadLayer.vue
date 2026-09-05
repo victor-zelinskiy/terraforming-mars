@@ -118,9 +118,6 @@ import {setConsoleSystemMenuInput} from '@/client/console/consoleSystemMenuBridg
 import {installConsoleOverflowGuard, uninstallConsoleOverflowGuard} from '@/client/console/composables/consoleOverflowGuard';
 
 const FOCUS_TICK_MS = 400;
-/** A pad-count drop must OUTLIVE a Steam-Input device swap before it may
- *  toast — a swap reconnects within milliseconds; a real unplug does not. */
-const PAD_LOSS_TOAST_MS = 1500;
 /** Holding Menu this long toggles console ↔ desktop mode. */
 
 type LegendRow = {control: GlyphControl, label: string};
@@ -200,9 +197,6 @@ export default defineComponent({
       offMode: undefined as (() => void) | undefined,
       lastPadsSeen: 0,
       menuPressedAt: undefined as number | undefined,
-      /** Debounce of the disconnect toast (see the padsConnected watcher). */
-      padLossTimer: undefined as number | undefined,
-      padLossBaseline: 0,
     };
   },
   computed: {
@@ -223,32 +217,14 @@ export default defineComponent({
   },
   watch: {
     'inputModeState.padsConnected'(now: number, before: number) {
-      // A pad DISCONNECTING mid-session is worth surfacing; a CONNECT is not —
-      // it just reflected the console posture already switching on, so the toast
-      // read as noise (and cluttered the launcher/update screens).
-      //
-      // …and the disconnect must be REAL before it speaks. A Chromium /
-      // Steam-Input DEVICE SWAP (window focus change, the game-boundary
-      // reload settling under gamescope) arrives as disconnect+connect on
-      // the same slot within milliseconds — the pad never left the player's
-      // hands, and the toast read as a phantom «Контроллер отключён» on
-      // every game entry. Debounced: it speaks only if the count has not
-      // recovered after PAD_LOSS_TOAST_MS.
-      if (now < before) {
-        if (this.padLossTimer === undefined) {
-          this.padLossBaseline = before;
-          this.padLossTimer = window.setTimeout(() => {
-            this.padLossTimer = undefined;
-            if (this.inputModeState.padsConnected < this.padLossBaseline) {
-              this.showToast(this.$t('Controller disconnected'));
-            }
-          }, PAD_LOSS_TOAST_MS);
-        }
-      } else if (now >= this.padLossBaseline && this.padLossTimer !== undefined) {
-        // The swap completed — the «loss» never happened.
-        window.clearTimeout(this.padLossTimer);
-        this.padLossTimer = undefined;
-      }
+      // NO disconnect toast — REMOVED GLOBALLY (player decision, 2026-09-05).
+      // Even debounced it kept mis-firing on couch hardware: Steam Input /
+      // gamescope device swaps and suspend cycles produce pad-count dips the
+      // Gamepad API cannot distinguish from an unplug, and a false «Контроллер
+      // отключён» is worse than no notice — the pad's own state IS the notice
+      // (input simply resumes on the next press; the focus ring and glyph bar
+      // already communicate pad presence). The count keeps driving the
+      // console-posture switch below.
       // ELECTRON (P10): a pad connecting anywhere in the shell (menu /
       // create / lobby / game) enables the console posture immediately —
       // unless the player explicitly opted out (their choice persists).
@@ -590,9 +566,6 @@ export default defineComponent({
     this.stopTick();
     if (this.toastTimer !== undefined) {
       window.clearTimeout(this.toastTimer);
-    }
-    if (this.padLossTimer !== undefined) {
-      window.clearTimeout(this.padLossTimer);
     }
     clearGamepadFocus();
     uninstallGamepadCore();

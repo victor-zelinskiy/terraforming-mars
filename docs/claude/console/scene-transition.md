@@ -70,6 +70,28 @@ never under the curtain), the curtain plays `.con-load-fade-leave-active`
 deliberately instant (it must be opaque on the frame it is raised — the
 double-rAF navigation counts on that).
 
+## The STATIC PRE-VUE CURTAIN (the blink fix, 2026-09-05)
+
+The Vue curtain cannot cover what happens BEFORE Vue exists: a game-boundary
+reload showed dark frames (bundle parse + the translations `await` run before
+`app.mount`) and the curtain then popped in — the «мигание» on every
+transition. `assets/index.html` now carries `#boot-curtain`: the SAME
+composition out of the render-blocking `styles.css` (bg/brand/emblem, no
+satellite), shown by an inline script that also pre-paints
+`--con-ui-scale` + the `con-profile-*` class from `tm_console_profile_seed`
+— synchronously, before first paint. The mounted Vue curtain replaces it
+pixel-identically (`dismissStaticBootCurtain()` after two settled ticks; App's
+no-transition branch is the belt). The satellite is deliberately absent from
+the static node (orbit phases could never match) and MATERIALIZES with a soft
+fade on the live curtain (`con-load-satfade`). The `Prototype` faces are
+preloaded in index.html — `font-display: swap` used to re-set the curtain
+text when the face arrived (the text-blink half of the report).
+Micro scale jumps are killed by `UI_SCALE_DEADBAND` (1.5%) in
+`consoleLayoutProfile.recompute` — compositor jitter moves innerWidth by a
+few px and every `calc(… * var(--con-ui-scale))` consumer re-flowed.
+Guard: the e2e probe asserts `#boot-curtain` + `html.tm-boot-cover` stand at
+DOMContentLoaded on entry AND on both exit reloads.
+
 ## Live-hardware fixes (Steam Machine, 2026-09-04)
 
 Three defects only a real couch run exposed, all fixed at the source:

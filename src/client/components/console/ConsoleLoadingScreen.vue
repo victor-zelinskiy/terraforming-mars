@@ -79,7 +79,8 @@
  */
 import {defineComponent} from 'vue';
 import GamepadGlyph from '@/client/components/gamepad/GamepadGlyph.vue';
-import {clearFullscreenLost, loadingScreenState} from '@/client/console/loadingScreenState';
+import {clearFullscreenLost, dismissStaticBootCurtain, loadingScreenState} from '@/client/console/loadingScreenState';
+import {probeTick} from '@/client/console/probeTick';
 import {requestConsoleFullscreen} from '@/client/console/consoleModeState';
 import {setNativeFullscreen, supportsNativeFullscreen} from '@/client/console/runtimeMode';
 import {inputModeState} from '@/client/gamepad/inputModeState';
@@ -145,6 +146,13 @@ export default defineComponent({
     padVisible(): boolean {
       return inputModeState.mode === 'gamepad';
     },
+  },
+  mounted() {
+    // Take over from the STATIC pre-Vue curtain only after THIS surface has
+    // painted (two settled ticks) — the two are pixel-identical, so the
+    // handoff is invisible; removing earlier would re-open the dark gap the
+    // static node exists to close.
+    probeTick(() => probeTick(() => dismissStaticBootCurtain()));
   },
   methods: {
     retry(): void {

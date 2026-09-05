@@ -417,6 +417,21 @@ export function clearFullscreenLost(): void {
   loadingScreenState.fullscreenLost = false;
 }
 
+/**
+ * Remove the STATIC pre-Vue curtain (assets/index.html `#boot-curtain`) —
+ * the node that covers the reload→mount gap so a transition never blinks
+ * through dark frames. Called by the mounted Vue curtain once ITS first
+ * frame has painted (the two are pixel-identical, so the swap is invisible),
+ * and by App as the belt when no curtain turned out to be needed. Idempotent.
+ */
+export function dismissStaticBootCurtain(): void {
+  if (typeof document === 'undefined') {
+    return;
+  }
+  document.getElementById('boot-curtain')?.remove();
+  document.documentElement.classList.remove('tm-boot-cover');
+}
+
 // ── The game-boundary navigation ───────────────────────────────────────────
 
 /**

@@ -32,6 +32,10 @@ type SceneSnapshot = {
 
 type SceneProbe = {
   sawCurtain: boolean;
+  /** The STATIC pre-Vue curtain (#boot-curtain) stood at DOMContentLoaded —
+   *  i.e. the very first painted frame was already the transition scene,
+   *  never dark frames the Vue curtain then blinks over. */
+  staticCurtainAtStart: boolean;
   footShownAt: number;
   revealStartAt: number;
   curtainRemovedAt: number;
@@ -42,6 +46,7 @@ async function armTransitionProbe(page: Page): Promise<void> {
   await page.addInitScript(() => {
     const probe = {
       sawCurtain: false,
+      staticCurtainAtStart: false,
       footShownAt: 0,
       revealStartAt: 0,
       curtainRemovedAt: 0,
@@ -77,6 +82,8 @@ async function armTransitionProbe(page: Page): Promise<void> {
     };
     const mo = new MutationObserver(check);
     const start = () => {
+      probe.staticCurtainAtStart = document.getElementById('boot-curtain') !== null &&
+        document.documentElement.classList.contains('tm-boot-cover');
       mo.observe(document.documentElement, {
         childList: true, subtree: true, attributes: true, attributeFilter: ['class'],
       });
@@ -127,6 +134,8 @@ test.describe('scene transition lifecycle', () => {
 
     const probe = await readProbe(page);
     expect(probe.sawCurtain, 'the curtain must cover the boot').toBeTruthy();
+    expect(probe.staticCurtainAtStart,
+      'the STATIC pre-Vue curtain must stand from the document\'s first frame — no dark gap').toBeTruthy();
     expect(probe.atRevealStart, 'the reveal frame must have been witnessed').not.toBeNull();
     // The whole point of the rework: at the FIRST visible frame the shell is
     // already standing and the start workspace is already composed — the
@@ -176,6 +185,8 @@ test.describe('scene transition lifecycle', () => {
 
     const probe = await readProbe(page);
     expect(probe.sawCurtain, 'the exit must ride the curtain — never a raw teardown').toBeTruthy();
+    expect(probe.staticCurtainAtStart,
+      'the exit reload\'s first frame must already be the curtain (no blink)').toBeTruthy();
     expect(probe.atRevealStart!.menu, 'the menu must be composed at the reveal').toBeTruthy();
   });
 
@@ -198,6 +209,8 @@ test.describe('scene transition lifecycle', () => {
 
     const probe = await readProbe(page);
     expect(probe.sawCurtain).toBeTruthy();
+    expect(probe.staticCurtainAtStart,
+      'the exit reload\'s first frame must already be the curtain (no blink)').toBeTruthy();
     expect(probe.atRevealStart!.campaignMap, 'the campaign map must be composed at the reveal').toBeTruthy();
   });
 });
