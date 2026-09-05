@@ -28614,6 +28614,20 @@ html.console-mode {
     opacity: 0;
 }
 
+/* THE REPEAT-PICK HANDOFF CROSSFADE (ConsoleShell.repeatPickHandoff). While
+   the repeat browser plays its con-layer enter, the surface it replaces (the
+   source composer / the hydro track / the play confirm) keeps painting and
+   fades out IN PLACE instead of v-show-vanishing on the press frame — so the
+   band never drops to the bare shade for the fade's duration, and the header's
+   root + carried card overlap their own text: one workspace advancing a stage,
+   not a plate redrawing. Same duration as the entering side; the window closes
+   on the enter's settle, when display:none becomes invisible by construction. */
+.con-bridgefade {
+    opacity: 0;
+    transition: opacity calc(180ms * var(--motion-scale, 1)) @con-ease-exit;
+    pointer-events: none;
+}
+
 /* THE PENDING-ACTION PLATE — appears calmly, leaves INSTANTLY.
    It is an affordance that belongs to ONE place (the board home), so the
    moment the player is no longer there it is simply wrong. A 140 ms fade-out

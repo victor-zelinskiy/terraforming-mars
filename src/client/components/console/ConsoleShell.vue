@@ -273,7 +273,8 @@
              the pick bridge so neither surface plays a leave/enter pair —
              the workspace's OWN handoff phrase carries the transition. -->
         <ConsoleHydroSection v-if="workspaceFrameRenders('hydro')"
-                             v-show="!pickBridgeActive || deltaRewardPickOut"
+                             v-show="!pickBridgeActive || deltaRewardPickOut || repeatPickHandoff"
+                             :class="{'con-bridgefade': repeatPickHandoff && !deltaRewardPickOut}"
                              data-motion-surface="section"
                              ref="hydroSection"
                              :playerView="playerView"
@@ -340,7 +341,8 @@
              is the same DOM node on both sides of the walk. Hiding it here is
              what made the header blink and shift. -->
         <ConsoleCardActions v-if="workspaceFrameRenders('card-actions')"
-                            v-show="!pickBridgeActive"
+                            v-show="!pickBridgeActive || repeatPickHandoff"
+                            :class="{'con-bridgefade': repeatPickHandoff}"
                             ref="cardActions"
                             :playerView="playerView"
                             :collapsed="workspaceCollapsed"
@@ -366,8 +368,14 @@
            pair, and a second 'card-actions' surface entering through the same
            hooks would classify as a self-handoff. The fade removes the hard
            cut (this was the one workspace-band plate mounting with no entry
-           at all) without touching the bridge semantics. -->
-      <transition name="con-layer" appear>
+           at all) without touching the bridge semantics.
+           …and the fade is a CROSSFADE: while it plays, the surface being
+           replaced stays painted underneath and fades out in place
+           (`repeatPickHandoff` + `con-bridgefade`), so the band never drops
+           to the bare shade and the header's root + carried card overlap
+           their own text — one workspace advancing, not a full redraw. -->
+      <transition name="con-layer" appear
+                  @after-enter="onRepeatPickEntered" @enter-cancelled="onRepeatPickEntered">
         <ConsoleCardActions v-if="workspaceFrameRenders('repeat-pick')"
                             repeat
                             ref="repeatPick"
@@ -1250,7 +1258,8 @@
              captured choices/payment must survive the hand round-trip (the
              director recognizes the pick bridge and never animates it). -->
         <ConsolePlayCardConfirm v-if="pendingPlayCard !== undefined && !playHeldForWorkspace"
-                                v-show="!pickBridgeActive"
+                                v-show="!pickBridgeActive || repeatPickHandoff"
+                                :class="{'con-bridgefade': repeatPickHandoff}"
                                 ref="playConfirm"
                                 :playerView="playerView"
                                 :cardName="pendingPlayCard.cardName"
@@ -2010,6 +2019,19 @@ export default defineComponent({
       offWsPresence: undefined as (() => void) | undefined,
       /** Fullscreen open/close choreography: chrome held hidden mid-flight. */
       zoomFlight: false,
+      /**
+       * THE REPEAT-PICK ENTRY IS A CROSSFADE, NOT A BLINK. While the repeat
+       * browser plays its `con-layer` enter, the surface it replaces (the
+       * Viron composer / the hydro track / the play confirm) stays PAINTED
+       * and fades out in place (`con-bridgefade`), so the swap reads as one
+       * workspace advancing a stage — steady chrome, the header's root and
+       * carried card overlapping their own text — instead of the band
+       * dropping to the shade for the fade's whole duration and a whole new
+       * plate redrawing over it. True only for the enter window: rising edge
+       * of `repeatPickActive` → the repeat transition's after-enter (or its
+       * cancel / the pick's own end, whichever comes first).
+       */
+      repeatPickHandoff: false,
       /** Backdrop fade-out while the close flight plays. */
       zoomClosing: false,
       /** Re-entrancy guard for the single-card reveal L3 role swap. */
@@ -8543,6 +8565,12 @@ export default defineComponent({
     // fires no callbacks, and a stale flag would leave the hydro crumb
     // claiming «ПОВТОР ДЕЙСТВИЯ» over a screen nobody is picking on.
     repeatPickActive(active: boolean) {
+      // The crossfade window opens on the rising edge (the source keeps
+      // painting under the entering browser) and can never outlive the pick:
+      // a cancel before the enter settles closes it here. Only when the pick
+      // is the ONE thing hiding the sources — a hand pick / scene handover
+      // already had them hidden, and the window must not re-show those.
+      this.repeatPickHandoff = active && !this.handPickActive && !this.sceneHandedOver;
       if (!active && this.hydroFlow.repeatBridge) {
         setHydroRepeatBridge(false);
       }
@@ -12914,6 +12942,12 @@ export default defineComponent({
     onRepeatPickClose(): void {
       cancelConsoleRepeatPick();
     },
+    /** The repeat browser's enter settled (or was cancelled) — the crossfade
+     *  window closes and the replaced surface may go `display:none` under the
+     *  now-opaque plate (it is already at opacity 0 via `con-bridgefade`). */
+    onRepeatPickEntered(): void {
+      this.repeatPickHandoff = false;
+    },
     acceptConfirm(): void {
       const kind = this.consoleState.confirm;
       this.consoleState.confirm = undefined;
@@ -14224,6 +14258,27 @@ export default defineComponent({
         claimWorkspaceOutcome('hydro', CardName.DELTA_PROJECT,
           payload.claimKinds ?? ['draw', 'pick'], 0, payload.claimDraw ?? 0,
           payload.claimScope ?? 'card');
+      } else if (repeatPick !== undefined) {
+        // A door that promises no stage draw can still carry a COMPOSED
+        // REPEAT — the reuse-action stage reached through the BONUS OFFER or
+        // the CARD-MOVE door, whose `hydroBonusAdvancePlan` honestly answers
+        // `claimsDraw: false` for that stage. The player's own advance door
+        // derives the copy's claim at its call site and the espionage
+        // execution has its own block; these two doors forwarded `repeat`
+        // with NO claim at all, so a copied «Центр ИИ» draw rose as the
+        // standalone band over the track (the exact Viron/ДЕЙСТВИЯ КАРТ hole,
+        // 2026-09-05). One fallback in the ONE presentation funnel covers
+        // every door: kinds from the CHOSEN card's cached preview branch,
+        // scope 'chain' — the server attributes the copied effects to the
+        // card that RAN. (For the player's own door this re-arms the very
+        // claim its call site just raised — same derivation, same tick,
+        // harmless by construction.)
+        const {kinds, expectedCards} = branchOutcomeClaimPlan(
+          actionPreviewMap().get(repeatPick.chosenCard), repeatPick.composed.branchIndex);
+        if (kinds.length > 0) {
+          claimWorkspaceOutcome('hydro', repeatPick.chosenCard, kinds,
+            repeatPick.nodeIndex, expectedCards, 'chain');
+        }
       }
       if (payload.serves !== undefined && payload.serves.length > 0) {
         setWorkspaceFrameServes('hydro', payload.serves);

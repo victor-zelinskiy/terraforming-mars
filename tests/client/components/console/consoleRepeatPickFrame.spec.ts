@@ -12,7 +12,9 @@ import {
   workspaceFrameRenders, workspaceStackState, workspaceStackTop,
 } from '@/client/console/consoleWorkspaceStack';
 import {consoleCardActionsUi, defaultCardActionsFilter} from '@/client/console/consoleCardActions';
-import {resetActionPreviews} from '@/client/console/actionPreviewStore';
+import {actionPreviewStore, resetActionPreviews} from '@/client/console/actionPreviewStore';
+import {resetWorkspaceOutcome, workspaceOutcomeState} from '@/client/console/consoleWorkspaceOutcome';
+import {resetConsoleActionRevealClaim} from '@/client/console/consoleActionComposerUi';
 
 /**
  * «ПОВТОР ДЕЙСТВИЯ» IS A STEP OF THE FLOW THAT ASKED FOR IT.
@@ -106,11 +108,13 @@ describe('the repeat-action pick is a nested workspace FRAME', () => {
     consoleCardActionsUi.filter = defaultCardActionsFilter();
   });
   // Module state is BUNDLE-SHARED under mochapack — leave neither the bridge
-  // nor the stack standing for the next spec.
+  // nor the stack (nor an armed outcome claim) standing for the next spec.
   afterEach(() => {
     resetConsoleRepeatPick();
     resetConsoleRepeatPickUi();
     resetWorkspaceStack();
+    resetWorkspaceOutcome();
+    resetConsoleActionRevealClaim();
   });
 
   describe('the stack', () => {
@@ -244,6 +248,89 @@ describe('the repeat-action pick is a nested workspace FRAME', () => {
       expect(vm.repeatCrumbRoot).to.eq('Mars Hydronetwork');
       expect(vm.repeatCrumbContext).to.eq('Repeat action');
       expect(vm.repeatStepCrumb, 'no host ⇒ no deep crumb, so the filters stay').to.eq(undefined);
+      w.unmount();
+    });
+  });
+
+  /**
+   * THE FINAL VIRON SUBMIT CLAIMS THE CHOSEN ACTION'S OUTCOME.
+   *
+   * The reported hole (2026-09-05): Viron copies «Центр ИИ» and the drawn pair
+   * opened as the standalone full-bleed modal over the open workspace — the
+   * direct-path claim block is gated `payload.repeat === undefined`, so the
+   * repeat submit armed NOTHING, and the adoption net deliberately excludes
+   * the `card-actions` host. The claim must come from the CHOSEN card's own
+   * branch preview (the source's promises nothing card-shaped) with scope
+   * 'chain' — the server attributes the copied effects to the card that RAN.
+   */
+  describe('the source\'s final submit (Viron)', () => {
+    function seedDrawPreview(card: CardName, cards: number): void {
+      actionPreviewStore.previews[card] = {
+        card, isCorporation: false, kind: 'declarative',
+        branches: [{
+          index: -1, title: 'Draw cards', available: true, renderKeys: [],
+          effects: [{direction: 'gain', icon: 'cards', amount: cards}],
+        }],
+      } as any;
+    }
+
+    function confirmWithRepeat(vm: any, reveal = false): void {
+      vm.composer = {cardName: SECOND, nodeIndex: 0}; // the copying source's own composer
+      vm.onComposerConfirm({
+        branchIndex: -1, preResponses: [], optionResponse: undefined, stepResponses: [],
+        repeat: {
+          chosenCard: CARD, nodeIndex: 0, reveal,
+          composed: {branchIndex: -1, preResponses: [], optionResponse: undefined, stepResponses: []},
+        },
+      });
+    }
+
+    it('a DRAWING copy arms a chain-scoped card-actions claim + the pending stage', async () => {
+      const w = factory(false);
+      await settle(w);
+      seedDrawPreview(CARD, 2);
+
+      confirmWithRepeat(w.vm as any);
+
+      expect(workspaceOutcomeState.host).to.eq('card-actions');
+      expect(workspaceOutcomeState.sourceCard, 'keyed on the card that RAN, never the source').to.eq(CARD);
+      expect(workspaceOutcomeState.scope).to.eq('chain');
+      expect([...workspaceOutcomeState.kinds]).to.deep.eq(['draw', 'pick']);
+      expect(workspaceOutcomeState.expectedCards).to.eq(2);
+      // The PENDING stage opens at submit — it is what puts the teleport
+      // target in the DOM before the batch can land.
+      expect((w.vm as any).outcomeFlow?.kind).to.eq('pending');
+      w.unmount();
+    });
+
+    it('a copy promising nothing card-shaped claims nothing', async () => {
+      const w = factory(false);
+      await settle(w);
+      actionPreviewStore.previews[CARD] = {
+        card: CARD, isCorporation: false, kind: 'declarative',
+        branches: [{index: -1, title: 'Gain', available: true, renderKeys: [], effects: []}],
+      } as any;
+
+      confirmWithRepeat(w.vm as any);
+
+      expect(workspaceOutcomeState.sourceCard).to.eq('');
+      expect((w.vm as any).outcomeFlow).to.eq(undefined);
+      w.unmount();
+    });
+
+    it('a REVEAL copy keeps the in-frame deck-check route (beginRepeatReveal)', async () => {
+      const w = factory(false);
+      await settle(w);
+      seedDrawPreview(CARD, 1);
+
+      confirmWithRepeat(w.vm as any, true);
+
+      // The reveal path re-points the stage at the chosen card and claims the
+      // deck-check — never the standalone overlay.
+      expect(workspaceOutcomeState.sourceCard).to.eq(CARD);
+      expect(workspaceOutcomeState.kinds).to.include('deck-check');
+      expect((w.vm as any).outcomeFlow?.kind).to.eq('deck-check');
+      expect((w.vm as any).composer?.cardName).to.eq(CARD);
       w.unmount();
     });
   });

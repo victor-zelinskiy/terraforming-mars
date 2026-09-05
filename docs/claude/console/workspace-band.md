@@ -207,6 +207,31 @@ OR-ветки, `-1` у одноветочной карты; теперь ОДИ�
 свой результат (ограничено жизнью клейма по построению). Спеки:
 `consoleOutcomeAdoption.spec.ts`, `consoleWorkspaceOutcome.spec.ts`.
 
+**⚠️ Закрытая дыра исключённого хоста (2026-09-05): VIRON-ПОВТОР.** «Его
+клеймы взводятся на коммите по построению» было верно только для прямого
+пути: весь claim-блок `onComposerConfirm` стоял под
+`payload.repeat === undefined`, так что финальный сабмит Viron-повтора
+(копия «Центра ИИ» — добор 2) не взводил НИЧЕГО, а adoption этот хост не
+спасает — батч уходил в standalone-модалку над открытым workspace. Теперь
+repeat-ветка выводит план из превью ВЫБРАННОЙ карты
+(`branchOutcomeClaimPlan(previewMap.get(chosenCard), composed.branchIndex)`)
+и клеймит `('card-actions', chosenCard, kinds, nodeIndex, expected, 'chain')`
++ открывает `pending`-стадию — байт-в-байт путь прямой активации (тот же
+рецепт, что hydro-этап-7 в шелле). Reveal-копия по-прежнему идёт через
+`beginRepeatReveal`. Гварды: `consoleRepeatPickFrame.spec.ts` § «the
+source's final submit (Viron)», e2e `console-viron-repeat-draw.spec.ts`
+(embedded + пробa «standalone-полоса не монтируется ни кадром»).
+
+**…и та же дыра стояла в ДВУХ из трёх гидро-дверей** (`submitHydroBonus`,
+`submitHydroCardAdvance`): они передавали `repeat` без `claimKinds`, а
+`hydroBonusAdvancePlan` для reuse-этапа честно отвечает
+`claimsDraw: false` → композ-копия дорисовывающего действия через
+бонус-оффер / карточный ход не клеймилась. Закрыто ОДНИМ fallback'ом в
+воронке `beginHydroAdvancePresentation` (else-ветка клейма: план из превью
+выбранной карты, scope 'chain' — блок espionage-исполнения, обобщённый на
+все двери; собственная дверь игрока пере-взводит свой же клейм тем же
+тиком — безвредно по построению).
+
 ### ⚠️⚠️ THE RELEASE FUNNEL — клейм, ОБСЛУЖИВАЮЩИЙ живой промпт, не отпускается (2026-09-04)
 
 Регрессия класса «embedded-промпт посреди выбора слетает в модалку, workspace

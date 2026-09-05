@@ -2203,6 +2203,29 @@ export default defineComponent({
           // needs its slot to already exist when it mounts.
           this.outcomeFlow = {kind: 'pending'};
         }
+      } else if (payload.repeat.reveal !== true) {
+        // Viron repeating a DRAWING action («Центр ИИ», «Гильдия
+        // изобретателей»): the outcome belongs to the CHOSEN action, and only
+        // ITS branch preview knows what arrives — the source's own preview
+        // promises nothing card-shaped, which is why the direct-path claim
+        // above deliberately skips the repeat case. Same structural derivation
+        // (`branchOutcomeClaimPlan` off the chosen card's cached preview — the
+        // hydro stage-7 copy's exact precedent), scope 'chain' because the
+        // server attributes the copied effects to the card that RAN. The
+        // adoption net deliberately excludes this host («card-actions» zones
+        // render only for their own outcomeFlow), so a missing claim here is
+        // not a graceful degrade — it is the standalone modal over an open
+        // workspace, the very break the claim system exists to remove.
+        const plan = branchOutcomeClaimPlan(
+          this.previewMap.get(payload.repeat.chosenCard), payload.repeat.composed.branchIndex);
+        if (plan.kinds.length > 0) {
+          claimWorkspaceOutcome('card-actions', payload.repeat.chosenCard, plan.kinds,
+            payload.repeat.nodeIndex, plan.expectedCards, 'chain');
+          // The PENDING stage opens now, exactly like the direct path: it
+          // holds the stage geometry and puts the teleport target in the DOM
+          // before the batch can land.
+          this.outcomeFlow = {kind: 'pending'};
+        }
       }
       // Viron repeating a REVEAL action (SearchForLife / AsteroidDeflection):
       // reuse THIS Action Center's in-frame reveal phase — re-point the composer
