@@ -8,6 +8,8 @@ import {CardRenderer} from '../render/CardRenderer';
 import {TileType} from '../../../common/TileType';
 import {createMarsSelectSpace} from '../../boards/marsSelectSpaceHelper';
 import {Board} from '../../boards/Board';
+import {Space} from '../../boards/Space';
+import {PlacementIllegalReason} from '../../../common/inputs/PlacementIllegalReason';
 import {UnplayableReason} from '../../../common/cards/UnplayableReason';
 import {ActionPreview} from '../../../common/models/ActionPreviewModel';
 import * as reason from '../actionReasons';
@@ -90,26 +92,16 @@ export class KaguyaTech extends Card implements IProjectCard {
       // a remove-and-replace target (hideExistingTile), so the preview grants the
       // bonus instead of reading the doomed greenery as a covering "no bonus".
       placementType: 'city',
+      // …and the TILE is named too: `addCity` really places a CITY here, and
+      // the staged preview says so — the live prompt must not say less
+      // (guarded by stagedPlacementParity).
+      tileType: TileType.CITY,
       // NAMES the card doing this (and feeds the card-aware cell preview). The
       // helper derives the placement marker from it, so the board panel can say
       // what is replacing the greenery instead of asking blind.
       sourceCard: this.name,
       hideExistingTile: true,
-      customReasoner: (space) => {
-        // Empty cell: not a greenery target → wrong-terrain reads OK.
-        if (space.tile === undefined) {
-          return 'wrong-terrain';
-        }
-        // Has tile but not a greenery, or someone else's greenery.
-        if (!Board.isGreenerySpace(space) || space.player !== player) {
-          return 'not-your-greenery';
-        }
-        // Your greenery but bonus unaffordable.
-        if (!player.game.board.canAfford(player, space)) {
-          return 'cannot-afford-bonus';
-        }
-        return undefined;
-      },
+      customReasoner: this.placementReasoner(player),
     })
       .andThen((space) => {
         player.game.removeTile(space.id);
@@ -118,7 +110,48 @@ export class KaguyaTech extends Card implements IProjectCard {
       });
   }
 
+  /**
+   * The per-cell «why not» — shared by the live prompt (`bespokePlay`) and the
+   * staged preview so the two can never disagree. KaguyaTech operates on TILES
+   * (your greeneries), NOT empty spaces, so the generic 'occupied' reason would
+   * fire for every tiled cell with the wrong story ("already has a tile" sounds
+   * like "can't place").
+   */
+  private placementReasoner(player: IPlayer) {
+    return (space: Space): PlacementIllegalReason | undefined => {
+      // Empty cell: not a greenery target → wrong-terrain reads OK.
+      if (space.tile === undefined) {
+        return 'wrong-terrain';
+      }
+      // Has tile but not a greenery, or someone else's greenery.
+      if (!Board.isGreenerySpace(space) || space.player !== player) {
+        return 'not-your-greenery';
+      }
+      // Your greenery but bonus unaffordable.
+      if (!player.game.board.canAfford(player, space)) {
+        return 'cannot-afford-bonus';
+      }
+      return undefined;
+    };
+  }
+
+  // STAGED PLAY: the replacement is exactly the case the staged boundary is
+  // FOR — the player may not know where their greeneries stand or what Ares
+  // hazards neighbour them until the board shows them, so the cell must stay
+  // the play's last reversible step. `hideExistingTile` rides the staged model
+  // (`hiddenTiles`), which is the same server marker that licenses the client's
+  // tile-replacement departure scene at commit.
   public cardPlayPreview(player: IPlayer): ActionPreview {
-    return actionPreviews.placementPreview(this, player, {text: 'Choose a greenery to convert into a city'});
+    return actionPreviews.placementPreview(this, player, {
+      tile: TileType.CITY,
+      constraint: 'on your own greenery',
+      staged: {
+        title: 'Select a greenery to convert to a city.',
+        spaces: (canAffordOptions) => this.availableSpaces(player, canAffordOptions),
+        placementType: 'city',
+        reasoner: this.placementReasoner(player),
+        hideExistingTile: true,
+      },
+    });
   }
 }

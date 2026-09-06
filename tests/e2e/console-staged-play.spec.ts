@@ -76,11 +76,45 @@ test.describe('staged play — the cell is the last reversible step', () => {
     // ── 1. «Разыграть» opens the BOARD, not the wire ─────────────────────
     await openPlayComposer(page, CARD);
     const ageBeforePlay = await gameAge(request, playerId);
+
+    // THE CEREMONY WITNESS, armed BEFORE the press (MutationObserver +
+    // setInterval — never rAF, which stalls headless): the staged landing must
+    // really play (a hero proxy flies onto the receiving stage) before the
+    // board takes over. Without this the spec passes on a silent no-flight
+    // degrade too, which is exactly the regression it must catch.
+    await page.evaluate(() => {
+      const w = window as unknown as {__stagedCeremony: {proxy: number, recv: number, samples: number}};
+      w.__stagedCeremony = {proxy: 0, recv: 0, samples: 0};
+      const tick = () => {
+        w.__stagedCeremony.samples++;
+        if (document.querySelector('.con-played-hero__proxy') !== null) {
+          w.__stagedCeremony.proxy++;
+        }
+        if (document.querySelector('.con-recv') !== null) {
+          w.__stagedCeremony.recv++;
+        }
+      };
+      const iv = setInterval(tick, 40);
+      const mo = new MutationObserver(tick);
+      mo.observe(document.body, {childList: true, subtree: true});
+      setTimeout(() => {
+        clearInterval(iv);
+        mo.disconnect();
+      }, 15_000);
+    });
     await press(page, 'Enter', 900); // the composer CTA (AUTO payment → ready)
 
     await expect(panel, 'the staged placement never took the board').toContainText(
       /размещение тайла/i, {timeout: 30_000});
     await expect(composer, 'the composer must yield to the board').toHaveCount(0);
+
+    const ceremony = await page.evaluate(() =>
+      (window as unknown as {__stagedCeremony: {proxy: number, recv: number, samples: number}}).__stagedCeremony);
+    expect(ceremony.samples, 'the ceremony probe never ran').toBeGreaterThan(5);
+    expect(ceremony.proxy, `the staged landing ceremony never flew a card (samples=${ceremony.samples})`)
+      .toBeGreaterThan(0);
+    expect(ceremony.recv, `the receiving stage never presented (samples=${ceremony.samples})`)
+      .toBeGreaterThan(0);
 
     // NOTHING was submitted: the server's change counter stands still and the
     // card is still in the hand — the reversibility is a server-side fact,

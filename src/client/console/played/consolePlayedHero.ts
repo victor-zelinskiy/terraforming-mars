@@ -668,6 +668,71 @@ export function skipPlayedHeroResult(): void {
   pauseResolve?.();
 }
 
+// ── STAGED PLAY (docs/TILE_PLAY_STAGED_COMMIT.md §8-bis) ────────────────────
+//
+// The tabletop ritual is «карта ложится на стол → тайл на поле», so a STAGED
+// play keeps the landing ceremony — the card physically lifts off the composer
+// and lands on its family stack — BEFORE anything is submitted. The ceremony
+// is the PRE-COMMIT half of this very transaction, run without a server
+// response: no detect (there is nothing to verify — nothing happened), no
+// reveal (the reserved slot never turns real: the proxy IS the landed card),
+// no reward beat (the gains fly from the PLACED TILE after the real commit),
+// and no counter ticks (the server was not touched). Reversibility rules:
+// B later restores the composer whole; a mid-ceremony failure aborts through
+// the ordinary abort (source restored, 'failed' re-arms the CTA).
+
+/**
+ * Run the staged landing: lift → arc → touchdown on the family stack.
+ * Resolves TRUE when the ceremony completed (the proxy rests on the stack),
+ * FALSE when it aborted mid-flight (the abort already cleaned up and the
+ * composer is intact). Arm with `armPlayedHero` first (no rewards).
+ */
+export async function runStagedPlayedLanding(): Promise<boolean> {
+  if (!playedHeroState.active || playedHeroState.card === undefined) {
+    return false;
+  }
+  // No response will ever detect this transaction — consume the arm ourselves
+  // and drop the arm safety (the scene safety below is the ceremony's bound).
+  claimed = true;
+  if (armSafety !== undefined) {
+    window.clearTimeout(armSafety);
+    armSafety = undefined;
+  }
+  const episode = playedHeroState.nonce;
+  sceneSafety = window.setTimeout(() => {
+    // A stalled ceremony must not wedge the play — degrade to the abort,
+    // which restores the composer for an honest retry.
+    abortPlayedHero();
+  }, motionMs(HERO_LIFT_MS + HERO_FLIGHT_MS + HERO_LAND_MS) + 3000);
+  await executeFlight();
+  if (sceneSafety !== undefined) {
+    window.clearTimeout(sceneSafety);
+    sceneSafety = undefined;
+  }
+  return playedHeroState.active && playedHeroState.nonce === episode;
+}
+
+/**
+ * End the staged landing at the HANDOFF to the board: the proxy — the one
+ * visible body of the landed card — fades out while the workspace it lies in
+ * plays its own leave, so the card dissolves WITH its context (never a lone
+ * card floating over the board, never an emptied slot under a still-standing
+ * stage). The transaction then finishes with zero reveal ever having
+ * happened; the card's REAL tableau entry arrives with the commit, later,
+ * on a screen where the tableau is not visible.
+ */
+export async function finishStagedPlayedLanding(): Promise<void> {
+  if (!playedHeroState.active) {
+    return;
+  }
+  const els = stage?.els();
+  if (els !== undefined && playedHeroState.proxy !== undefined) {
+    await disposeHeroProxy(els, motionMs(200));
+  }
+  playedHeroState.proxy = undefined;
+  finish();
+}
+
 /**
  * Abort — server error, network failure, safety timer, unmount. Restores
  * the blanked composer card, drops the proxy, frees the commit gate, and

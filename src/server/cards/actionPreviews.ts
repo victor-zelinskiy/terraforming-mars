@@ -690,8 +690,9 @@ export function playPreview(
  * is what makes the preview NAME it. `opts.constraint` carries a short extra
  * restriction ("next to a city") the tile name alone doesn't imply. `opts.text`
  * stays for the few board steps that place NO tile (Land Claim reserves a space,
- * Mars Nomads moves a marker, Kaguya Tech converts a greenery) — prose is the
- * honest answer there, and it must not be used to smuggle in a tile name.
+ * Mars Nomads moves a marker) — prose is the honest answer there, and it must
+ * not be used to smuggle in a tile name. (Kaguya Tech converts a greenery but
+ * DOES place a city, so it takes the structured step + `staged` like everyone.)
  */
 export function placementPreview(
   card: ICard,

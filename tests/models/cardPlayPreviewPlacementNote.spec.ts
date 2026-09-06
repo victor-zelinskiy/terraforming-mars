@@ -158,7 +158,6 @@ describe('cardPlayPreview — a placement carries its tile identity', () => {
   const TILELESS: Array<[string, IProjectCard]> = [
     ['Land Claim', new LandClaim()],          // reserves a space, no tile
     ['Mars Nomads', new MarsNomads()],        // moves a marker, no tile
-    ['Kaguya Tech', new KaguyaTech()],        // converts an existing greenery
   ];
   for (const [name, card] of TILELESS) {
     it(`${name} places no tile → a prose 'board' note, never a fake tile`, () => {
@@ -166,6 +165,16 @@ describe('cardPlayPreview — a placement carries its tile identity', () => {
       expect(placements(card)).to.be.empty;
     });
   }
+
+  // Kaguya Tech CONVERTS a greenery but genuinely places a CITY (removeTile +
+  // addCity) — since the staged-play migration it takes the structured step
+  // (city identity + the «on your own greenery» constraint) like everyone
+  // else; prose stays reserved for steps that place NO tile at all.
+  it('Kaguya Tech names the CITY it really places (with its conversion constraint)', () => {
+    const [placement] = placements(new KaguyaTech());
+    expect(placement?.tileType).to.equal(TileType.CITY);
+    expect(placement?.constraint).to.equal('on your own greenery');
+  });
 
   const COLONY: Array<[string, IProjectCard]> = [
     ['Minority Refuge', new MinorityRefuge()],

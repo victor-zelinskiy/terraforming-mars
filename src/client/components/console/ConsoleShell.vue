@@ -1628,6 +1628,7 @@ import {resetPlayedCardReturns} from '@/client/console/played/playedCardReturn';
 import {resetCategoryDirector} from '@/client/console/played/playedCategoryDirector';
 import {
   abortPlayedHero, armPlayedHero, isPlayedHeroActive, playedHeroHolding, playedHeroState, skipPlayedHeroResult,
+  runStagedPlayedLanding, finishStagedPlayedLanding,
 } from '@/client/console/played/consolePlayedHero';
 import {CardType} from '@/common/cards/CardType';
 import {
@@ -1874,7 +1875,7 @@ import {
   markStagedPlayCommitting,
   clearStagedPlay,
 } from '@/client/console/stagedPlay';
-import type {PlayComposerDraft} from '@/client/console/stagedPlay';
+import type {PlayComposerDraft, StagedPlayArm} from '@/client/console/stagedPlay';
 import type {StagedPlacementModel} from '@/common/models/ActionPreviewModel';
 
 type PendingPlayCard = {
@@ -13299,9 +13300,11 @@ export default defineComponent({
         return;
       }
       // STAGED PLAY (docs/TILE_PLAY_STAGED_COMMIT.md): a play whose preview
-      // carries a StagedPlacementModel submits NOTHING here. The batch parks,
-      // the workspace steps aside, and the board runs the cell pick as the
-      // play's LAST REVERSIBLE STEP — the confirm there is the one submit.
+      // carries a StagedPlacementModel submits NOTHING here. The tabletop
+      // LANDING CEREMONY plays first (§8-bis — the card physically lands on
+      // its family stack, presentational and reversible), then the batch
+      // parks, the workspace steps aside, and the board runs the cell pick as
+      // the play's LAST REVERSIBLE STEP — the confirm there is the one submit.
       // Deliberately not for a composed repeat (ProjectInspection's own card
       // places nothing; a copied action's placement is the copy's follow-up).
       // BOUNDARY (v1): only a HAND-rooted flow or a standalone band. A play
@@ -13311,11 +13314,7 @@ export default defineComponent({
       const stagedRoot = workspaceStackRootKind();
       if (payload.staged !== undefined && payload.repeat === undefined && payload.composerDraft !== undefined &&
           (stagedRoot === undefined || stagedRoot === 'hand')) {
-        // Yield FIRST: the `placementActive` rising edge then finds the stack
-        // already aside (`boardYielded` fast path) and never goBoardHome's the
-        // frames away.
-        const yieldedStack = yieldStackForStagedPlay();
-        armStagedPlay({
+        const arm: StagedPlayArm = {
           cardName: pending.cardName,
           isEvent,
           batch,
@@ -13325,11 +13324,17 @@ export default defineComponent({
           deckCheck: false,
           pending,
           draft: payload.composerDraft,
-          yieldedStack,
-        });
-        // The composer leaves (its own dissolve); B on the board brings it
-        // back through `cancelStagedPlay` with the parked pending + draft.
-        this.pendingPlayCard = undefined;
+          yieldedStack: false,
+        };
+        if (workspaceFrameDescended('hand') && !this.playedOpen) {
+          // The workspace host owns the landing stage — play the ceremony.
+          void this.beginStagedPlayLanding(pending, isEvent, arm);
+        } else {
+          // The standalone band has no landing stage to land on — hand the
+          // screen to the board directly (the band's own dissolve is the
+          // transition).
+          this.enterStagedPlacement(arm);
+        }
         return;
       }
       // ProjectInspection ENTERS through card PLAY, so it EXITS like a card
@@ -16147,6 +16152,52 @@ export default defineComponent({
       this.armBoardBonusIfCardCell(spaceResponse.spaceId,
         pending.spacePrompt.type === 'space' ? pending.spacePrompt.placementEffect : undefined);
       this.submit(orWrappedResponse(pending.index, spaceResponse));
+    },
+    /**
+     * The staged HANDOFF to the board: the batch parks, the workspace steps
+     * aside (yield FIRST — the `placementActive` rising edge then finds the
+     * stack already aside via the `boardYielded` fast path and never
+     * goBoardHome's the frames away), and the composer leaves; B on the board
+     * brings everything back through `cancelStagedPlay`.
+     */
+    enterStagedPlacement(arm: StagedPlayArm): void {
+      arm.yieldedStack = yieldStackForStagedPlay();
+      armStagedPlay(arm);
+      this.pendingPlayCard = undefined;
+    },
+    /**
+     * THE STAGED LANDING CEREMONY (docs/TILE_PLAY_STAGED_COMMIT.md §8-bis):
+     * the tabletop beat — the card lifts off the composer and lands on its
+     * family stack in the workspace's receiving stage — played BEFORE any
+     * submit. Nothing server-side exists yet, so the honesty rules are: no
+     * counter ticks, no reward beat (the gains fly from the placed tile after
+     * the real commit), and the proxy dissolves WITH the leaving workspace at
+     * the handoff. A mid-ceremony abort restores the composer (the 'failed'
+     * watcher re-arms its CTA) and simply does not hand off — the play is
+     * «not made», honestly.
+     */
+    async beginStagedPlayLanding(pending: PendingPlayCard, isEvent: boolean, arm: StagedPlayArm): Promise<void> {
+      // The beat is a transient: input is absorbed by PHASE for its length
+      // (backVerb 'none'), exactly like every committed beat — except this
+      // one's «commit» is still ahead, on the board.
+      setWorkspaceFramePhase('hand', 'executing');
+      armPlayedHero(pending.cardName, isEvent, {manualTableOpen: this.playedOpen, host: 'workspace'});
+      const landed = await runStagedPlayedLanding();
+      if (!landed || !isPlayedHeroActive()) {
+        // Aborted mid-ceremony — the abort already restored the source and
+        // flagged 'failed' (the watcher rolls the frame back to configure).
+        return;
+      }
+      // The read beat: the card rests on the stack before the board takes over.
+      await new Promise((resolve) => setTimeout(resolve, motionMs(320)));
+      if (!isPlayedHeroActive() || this.pendingPlayCard?.cardName !== pending.cardName) {
+        void finishStagedPlayedLanding();
+        return;
+      }
+      this.enterStagedPlacement(arm);
+      // The proxy — the landed card's one visible body — dissolves together
+      // with the workspace's own leave, never alone over the board.
+      void finishStagedPlayedLanding();
     },
     /**
      * STAGED PLAY's cell confirm — THE play's one submit. The parked batch
