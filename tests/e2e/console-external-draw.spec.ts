@@ -230,9 +230,11 @@ test('an external draw: announced → A opens the workspace → take one, take a
   // The ONE command bar carries the workspace's own contract from the first
   // frame — never the stale fallback «Выбрать/Назад» (fallbackActive is
   // sticky across consumed presses) and never a false «close» affordance.
-  expect(opened.bar, 'the bar advertises the take').toContain('Забрать карту');
-  expect(opened.bar, 'the bar advertises take-all').toContain('Забрать все');
-  expect(opened.bar, 'no back/close affordance on a locked workspace').not.toContain('Назад');
+  // ⚠️ innerText is the RENDERED text — the bar upper-cases via CSS.
+  const bar = opened.bar.toUpperCase();
+  expect(bar, 'the bar advertises the take').toContain('ЗАБРАТЬ КАРТУ');
+  expect(bar, 'the bar advertises take-all').toContain('ЗАБРАТЬ ВСЕ');
+  expect(bar, 'no back/close affordance on a locked workspace').not.toContain('НАЗАД');
 
   // ── 2 · A takes ONE: its seat stays as a ghost, the row does not re-flow.
   await press(page, 'Enter', 2600);
