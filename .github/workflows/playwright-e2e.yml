@@ -76,20 +76,28 @@ jobs:
             echo "node:          $(node --version)"
             echo "playwright:    $(npx playwright --version)"
             echo "command:       npx playwright test tests/e2e --shard=${{ matrix.shard }}/${{ matrix.shards }} --workers=1"
-            echo "config:        workers=1 retries=2 trace=retain-on-failure video=retain-on-failure screenshot=only-on-failure"
+            echo "config:        workers=1 retries=2 trace=on-first-retry video=off screenshot=only-on-failure"
           } | tee test-results/run-params.txt
 
       # `blob` is what makes the shards mergeable into ONE report; `list` keeps
       # the live log readable; `github` turns each failure into a file
-      # annotation on the run summary. Trace/video/screenshot policy stays
-      # failure-only — a green test writes nothing heavy.
+      # annotation on the run summary.
+      #
+      # Artifact size policy (the merged HTML report once hit 7 GB):
+      #   - trace=on-first-retry — ONE trace per deterministic failure (the
+      #     first retry attempt), instead of one per failed attempt (x3 with
+      #     retries=2). A flake that passes on retry keeps no trace at all.
+      #   - video is OFF on CI (playwright.config.ts) — the trace screencast
+      #     already covers it, and per-attempt 4K webms were the bulk of the
+      #     weight.
+      #   - screenshots stay only-on-failure. A green test writes nothing heavy.
       - name: Run Playwright E2E (shard ${{ matrix.shard }})
         run: >
           npx playwright test tests/e2e
           --shard=${{ matrix.shard }}/${{ matrix.shards }}
           --workers=1
           --reporter=list,github,blob
-          --trace=retain-on-failure
+          --trace=on-first-retry
           ${{ inputs.grep && format('--grep "{0}"', inputs.grep) || '' }}
 
       - name: Upload blob report (for merging)

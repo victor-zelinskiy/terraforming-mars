@@ -70,9 +70,14 @@ export default defineConfig({
 
     // Diagnostics — only kept when something actually goes wrong, to keep the
     // artifact footprint small.
+    //
+    // On CI video is OFF: the trace already carries a per-action screencast
+    // (it is what we actually analyse), while a separate webm per FAILED
+    // ATTEMPT (x3 with retries, some specs at the 4K console profile) was the
+    // main reason the merged HTML report ballooned to gigabytes.
     screenshot: 'only-on-failure',
     trace: 'on-first-retry',
-    video: 'retain-on-failure',
+    video: isCI ? 'off' : 'retain-on-failure',
   },
 
   projects: [
