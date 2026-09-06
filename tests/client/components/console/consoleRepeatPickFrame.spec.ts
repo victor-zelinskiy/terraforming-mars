@@ -9,7 +9,7 @@ import {
 import {resetConsoleRepeatPickUi} from '@/client/console/consoleRepeatPickUi';
 import {
   pushWorkspaceFrame, resetWorkspaceStack, workspaceFrameIndex, workspaceFrameIsOverlay,
-  workspaceFrameRenders, workspaceStackState, workspaceStackTop,
+  workspaceFrameRenders, workspaceHostYieldsScene, workspaceStackState, workspaceStackTop,
 } from '@/client/console/consoleWorkspaceStack';
 import {consoleCardActionsUi, defaultCardActionsFilter} from '@/client/console/consoleCardActions';
 import {actionPreviewStore, resetActionPreviews} from '@/client/console/actionPreviewStore';
@@ -75,14 +75,14 @@ function seatCardEntryStack(): void {
   });
 }
 
-function openPick(): void {
+function openPick(onResolve: (r: unknown) => void = () => undefined): void {
   enterConsoleRepeatPick({
     title: 'Use a blue card action that has already been used this generation',
     buttonLabel: 'Take action',
     candidates: [CARD, SECOND],
     disabled: [],
     source: {kicker: 'Mars Hydronetwork', card: CardName.DELTA_PROJECT, label: 'Mars Hydronetwork'},
-  }, () => undefined, () => undefined);
+  }, onResolve, () => undefined);
 }
 
 function factory(repeat: boolean) {
@@ -177,6 +177,28 @@ describe('the repeat-action pick is a nested workspace FRAME', () => {
       expect(workspaceFrameRenders('repeat-pick')).is.true;
       cancelConsoleRepeatPick();
       expect(workspaceStackState.frames).to.have.length(0);
+    });
+
+    it('a nested hydro frame TAKES THE SCENE — the browser yields, and stays mounted', () => {
+      // The 2026-09-06 Viron → Dutch Mountains report: the inner composer's
+      // stage-reward pick pushes a hydro frame over this browser, and with no
+      // `frameSteps: 'scene'` declaration nobody yielded — the track (an
+      // in-flow flex child) mounted BEHIND the absolute browser band:
+      // «гидросеть открылась на фоне как второй workspace».
+      pushWorkspaceFrame({
+        kind: 'card-actions', subject: 'Viron', stage: '',
+        phase: 'configure', serves: [], anchor: {type: 'always'},
+      });
+      openPick();
+      pushWorkspaceFrame({
+        kind: 'hydro', subject: '', stage: 'Reward selection',
+        phase: 'configure', serves: [], anchor: {type: 'always'}, overlay: true,
+      });
+
+      expect(workspaceHostYieldsScene('repeat-pick'), 'the browser hands the scene over').is.true;
+      // v-show, never v-if: the inner composer + its captures wait underneath.
+      expect(workspaceFrameRenders('repeat-pick'), 'the browser stays mounted').is.true;
+      expect(workspaceFrameRenders('hydro'), 'the pick surface renders').is.true;
     });
   });
 
@@ -315,6 +337,54 @@ describe('the repeat-action pick is a nested workspace FRAME', () => {
 
       expect(workspaceOutcomeState.sourceCard).to.eq('');
       expect((w.vm as any).outcomeFlow).to.eq(undefined);
+      w.unmount();
+    });
+
+    it('a copied STAGE-REWARD claim (Dutch Mountains) unions the claimed stage\'s outcome', async () => {
+      // The branch preview promises NOTHING card-shaped (the stage is picked
+      // at runtime) — the union must come from the DRAFT the bridge carried
+      // back. Position 5 is the draw stage: «посмотри 4, возьми 2».
+      const w = factory(false);
+      await settle(w);
+      actionPreviewStore.previews[CARD] = {
+        card: CARD, isCorporation: false, kind: 'declarative',
+        branches: [{index: -1, title: 'Claim', available: true, renderKeys: [], effects: []}],
+      } as any;
+
+      (w.vm as any).composer = {cardName: SECOND, nodeIndex: 0};
+      (w.vm as any).onComposerConfirm({
+        branchIndex: -1, preResponses: [], optionResponse: undefined, stepResponses: [],
+        repeat: {
+          chosenCard: CARD, nodeIndex: 0,
+          composed: {branchIndex: -1, preResponses: [], optionResponse: undefined, stepResponses: []},
+          stageReward: {position: 5},
+        },
+      });
+
+      expect(workspaceOutcomeState.sourceCard).to.eq(CARD);
+      expect(workspaceOutcomeState.scope).to.eq('chain');
+      expect([...workspaceOutcomeState.kinds]).to.deep.eq(['draw', 'pick']);
+      expect(workspaceOutcomeState.expectedCards).to.eq(4);
+      expect((w.vm as any).outcomeFlow?.kind).to.eq('pending');
+      w.unmount();
+    });
+
+    it('the pick RESOLVE carries the composed stage reward back to the source', async () => {
+      let resolved: any;
+      openPick((r) => {
+        resolved = r;
+      });
+      const w = factory(true);
+      await settle(w);
+
+      (w.vm as any).composer = {cardName: CARD, nodeIndex: 0};
+      (w.vm as any).onComposerConfirm({
+        branchIndex: -1, preResponses: [], optionResponse: undefined, stepResponses: [],
+        stageReward: {position: 5},
+      });
+
+      expect(resolved?.chosenCard).to.eq(CARD);
+      expect(resolved?.stageReward, 'the draft survives the bridge').to.deep.eq({position: 5});
       w.unmount();
     });
 

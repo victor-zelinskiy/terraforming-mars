@@ -209,4 +209,130 @@ test.describe('Dutch Mountains (DP08) · fhd', () => {
     await page.waitForTimeout(2500);
     await shoot(page, '04-after');
   });
+
+  /**
+   * VIRON COPIES DUTCH MOUNTAINS — the nested reward pick TAKES THE SCENE.
+   *
+   * The 2026-09-06 report: from the Viron repeat browser the inner DP08
+   * composer's stage-reward pick pushed its hydro frame over the `repeat-pick`
+   * frame, and with no `frameSteps: 'scene'` declaration on that row NOBODY
+   * yielded — the track (an in-flow flex child of .con-main) mounted BEHIND
+   * the absolute browser band: «гидросеть открылась на фоне как второй
+   * workspace». The claim here is the scene handoff: while the pick stands,
+   * the hydro layer is the ONE thing drawn (both ДЕЙСТВИЯ КАРТ roots hidden),
+   * and the resolve returns to the repeat composer with the draft captured.
+   * The whole copy then commits through the ordinary Viron batch.
+   */
+  test('Viron copies DP08: the reward pick takes the scene, the browser waits underneath', async ({page, request}) => {
+    test.setTimeout(480_000);
+    const id = await createGameWithCards(request, ALL_CARDS, {config: {
+      ...CFG,
+      expansions: {...(CFG.expansions as Record<string, boolean>), venus: true},
+      customCorporationsList: ['Viron'],
+    }, seed: 0.57});
+    await seedGameOverApi(request, id, {cards: ALL_CARDS, corporation: 'Viron'});
+    for (const card of TAG_CARDS) {
+      await playCard(request, id, card);
+    }
+    await advanceToFive(request, id);
+    await playCard(request, id, 'Dutch Mountains');
+
+    // ── Use DP08 once over the API, so Viron has a candidate to copy. ──
+    {
+      const menu = await toActionMenu(request, id);
+      const at = (menu.options ?? []).findIndex((o: Wire) => titleOf(o) === 'Perform an action from a played card');
+      expect(at, 'the menu offers the card action').toBeGreaterThanOrEqual(0);
+      const model = await sendPlayerInput(request, id, {
+        type: 'or', index: at, response: {type: 'card', cards: ['Dutch Mountains']},
+      } as never) as Wire;
+      expect((model.waitingFor as Wire)?.type, 'DP08 asks its stage claim').toBe('deltaStageReward');
+      await sendPlayerInput(request, id, {type: 'deltaStageReward', position: 3} as never);
+      await toActionMenu(request, id);
+    }
+    const before = await serverState(request, id);
+
+    await openConsole(page, id, '');
+    await waitForBoardHome(page, 40);
+
+    // ── ДЕЙСТВИЯ КАРТ → walk to VIRON → its repeat slot opens the browser. ──
+    await openCardActions(page);
+    for (let i = 0; i < 12; i++) {
+      const focused = await page.locator('.con-cardactions .con-cardactions__detail-cardwrap').first()
+        .getAttribute('data-zoom-slot').catch(() => '');
+      if (focused === 'Viron') {
+        break;
+      }
+      await press(page, 'ArrowDown', 350);
+    }
+    const stage = page.locator('.con-cardactions__stagewrap .con-composer--stage');
+    for (let i = 0; i < 4 && await stage.count() === 0; i++) {
+      await press(page, 'Enter', 1200);
+    }
+    await expect(stage, 'the Viron action focus stage').toHaveCount(1, {timeout: 8000});
+    await press(page, 'Enter', 2500); // A on the repeat slot → the pick browser
+    await expect(page.locator('.con-cardactions'), 'the repeat browser stands up').toHaveCount(2);
+    await press(page, 'Enter', 2200); // A = «Выбрать» DP08 (the only candidate)
+
+    // ── The INNER composer's reward step hands the screen to the track. ──
+    for (let i = 0; i < 5 && await page.locator('.con-hydro').count() === 0; i++) {
+      await press(page, 'Enter', 1400);
+    }
+    await page.waitForSelector('.con-hydro__layer--rewardpick', {timeout: 10_000});
+    await shoot(page, 'viron-01-reward-pick');
+
+    // ── THE CLAIM: the pick OWNS the scene — nothing paints over the track. ──
+    const sceneRead = await page.evaluate(() => {
+      const visible = (el: Element | null): boolean => {
+        if (el === null) {
+          return false;
+        }
+        const cs = getComputedStyle(el as HTMLElement);
+        return cs.display !== 'none' && cs.visibility !== 'hidden' && Number(cs.opacity) > 0.05;
+      };
+      return {
+        hydroVisible: visible(document.querySelector('.con-hydro')),
+        browsersDrawn: Array.from(document.querySelectorAll('.con-cardactions'))
+          .filter((el) => visible(el)).length,
+      };
+    });
+    expect(sceneRead.hydroVisible, 'the track is actually drawn').toBe(true);
+    expect(sceneRead.browsersDrawn,
+      'no ДЕЙСТВИЯ КАРТ surface may paint over the reward pick (the «на фоне» defect)').toBe(0);
+
+    // ── Walk to stage 3 (+2 M€ production — deterministic) and resolve. ──
+    for (let i = 0; i < 6; i++) {
+      const focused = await page.evaluate(() =>
+        document.querySelector('.con-hydro__stop--focused')?.getAttribute('data-hydro-stop') ?? '');
+      if (focused === '3') {
+        break;
+      }
+      await press(page, 'ArrowLeft', 700);
+    }
+    await press(page, 'Enter', 1800);
+    await page.waitForSelector('.con-hydro', {state: 'detached', timeout: 10_000});
+    // The browser re-shows with the inner composer + the captured draft.
+    await expect(page.locator('.con-cardactions'), 'the browser came back').toHaveCount(2);
+    await shoot(page, 'viron-02-configured');
+
+    // ── «Выбрать это действие» → back to the source → the FINAL submit. ──
+    await press(page, 'Enter', 2200);
+    await expect(page.locator('.con-cardactions'), 'the pick resolved back to the source')
+      .toHaveCount(1, {timeout: 10_000});
+    for (let tries = 0; tries < 4; tries++) {
+      await press(page, 'Enter', 1800);
+      if (await page.locator('.con-cardactions').count() > 1) {
+        // A landed on the repeat slot (re-open) — close and step off it.
+        await press(page, 'Escape', 1800);
+        await press(page, 'ArrowDown', 500);
+        continue;
+      }
+      break;
+    }
+    await expect.poll(async () => (await serverState(request, id)).mcProduction,
+      {timeout: 25_000, message: 'the copied stage-3 reward lands'}).toBe(before.mcProduction + 2);
+    const after = await serverState(request, id);
+    expect(after.energy, 'the copy paid its own 3 energy').toBe(before.energy - 3);
+    expect(after.position, 'the marker did not move').toBe(5);
+    await shoot(page, 'viron-03-after');
+  });
 });

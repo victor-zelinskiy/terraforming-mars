@@ -376,7 +376,17 @@
            their own text — one workspace advancing, not a full redraw. -->
       <transition name="con-layer" appear
                   @after-enter="onRepeatPickEntered" @enter-cancelled="onRepeatPickEntered">
+        <!-- v-show (NOT v-if) while a nested full-scene step is out — the
+             inner composer's Hydronetwork picks (the Dutch Mountains
+             stage-reward claim, a plan's landing pre-select) push a `hydro`
+             frame over this browser and take the whole scene
+             (`frameSteps: 'scene'` on the repeat-pick registry row). The
+             browser waits underneath with the inner composer and every
+             capture intact; the resolve pops the frame and this re-shows.
+             Without the hide the track mounted BEHIND this absolute band —
+             «гидросеть на фоне как второй workspace». -->
         <ConsoleCardActions v-if="workspaceFrameRenders('repeat-pick')"
+                            v-show="!repeatPickSceneOut"
                             repeat
                             ref="repeatPick"
                             :playerView="playerView"
@@ -5508,6 +5518,13 @@ export default defineComponent({
      *  is still standing (see the guard watcher of the same name). */
     repeatPickFrameLive(): boolean {
       return workspaceFrameKnown('repeat-pick');
+    },
+    /** The repeat browser handed its scene to a nested full-screen step (the
+     *  hydro reward / landing pick standing on its frame) — it stops being
+     *  drawn while its state waits underneath (the same self-hide the hydro
+     *  host plays for its own scene guests). */
+    repeatPickSceneOut(): boolean {
+      return workspaceHostYieldsScene('repeat-pick');
     },
     /** The hand section is in EITHER select mode — the server `handSelect`
      *  task OR a client composer pick. One UI, two sources. */

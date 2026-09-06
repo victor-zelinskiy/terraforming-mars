@@ -30,6 +30,9 @@ import {popWorkspaceFrame, pushWorkspaceFrame, workspaceStackTop} from '@/client
 import {Message} from '@/common/logs/Message';
 import {RepeatComposed} from '@/client/console/consoleActionComposer';
 import {resetConsoleRepeatPickFilter} from '@/client/console/consoleRepeatPickUi';
+// Type-only on purpose: `deltaRewardEntry` imports THIS module's result type
+// the same way, and only the erased type edges keep that cycle harmless.
+import type {DeltaRewardDraft} from '@/client/console/hydroFlow/deltaRewardEntry';
 
 export type ConsoleRepeatPickRequest = {
   /** The server prompt title (i18n key / Message) — names the ask. */
@@ -60,6 +63,16 @@ export type ConsoleRepeatPickResult = {
    *  AsteroidDeflection) — the source reuses the Action Center's in-frame reveal
    *  phase after the final submit. */
   reveal?: boolean;
+  /**
+   * The chosen action's captured Hydronetwork STAGE-REWARD claim (Dutch
+   * Mountains composed inside the copy). The wire response already rides
+   * `composed.stepResponses`; THIS is the structural half the claim/specs
+   * derivations need back out — dropping it at the bridge is how a copied
+   * draw-stage claim («посмотри 4, возьми 2») armed no outcome claim at the
+   * final submit and fell to the standalone band (the 2026-09-06 report's
+   * second defect).
+   */
+  stageReward?: DeltaRewardDraft;
 };
 
 export const consoleRepeatPickState = reactive({

@@ -2115,6 +2115,10 @@ export default defineComponent({
           // source can reuse this Action Center's in-frame reveal phase after
           // the final submit (SearchForLife / AsteroidDeflection).
           reveal: branch?.reveal !== undefined,
+          // The captured stage-reward claim (Dutch Mountains composed inside
+          // the copy) — the source's claim derivation needs it back out; the
+          // wire response already rides `composed.stepResponses`.
+          stageReward: payload.stageReward,
         });
         return;
       }
@@ -2218,9 +2222,29 @@ export default defineComponent({
         // workspace, the very break the claim system exists to remove.
         const plan = branchOutcomeClaimPlan(
           this.previewMap.get(payload.repeat.chosenCard), payload.repeat.composed.branchIndex);
-        if (plan.kinds.length > 0) {
-          claimWorkspaceOutcome('card-actions', payload.repeat.chosenCard, plan.kinds,
-            payload.repeat.nodeIndex, plan.expectedCards, 'chain');
+        const kinds: Array<WorkspaceOutcomeKind> = [...plan.kinds];
+        let expectedCards = plan.expectedCards;
+        // …AND THE COPY'S OWN STAGE-REWARD CLAIM (Dutch Mountains composed
+        // INSIDE the repeat): what the claimed stage's resolution sends back —
+        // the stage-5 keep-pick batch, a nested repeat's draws — must land in
+        // this stage exactly like on the direct path (which unions
+        // `payload.stageReward` above). The draft rides the bridge result,
+        // because the branch preview knows nothing about which stage was
+        // picked at runtime.
+        if (payload.repeat.stageReward !== undefined) {
+          const sr = deltaRewardClaimPlan(payload.repeat.stageReward);
+          if (sr !== undefined) {
+            for (const k of sr.kinds) {
+              if (!kinds.includes(k)) {
+                kinds.push(k);
+              }
+            }
+            expectedCards += sr.expectedCards;
+          }
+        }
+        if (kinds.length > 0) {
+          claimWorkspaceOutcome('card-actions', payload.repeat.chosenCard, kinds,
+            payload.repeat.nodeIndex, expectedCards, 'chain');
           // The PENDING stage opens now, exactly like the direct path: it
           // holds the stage geometry and puts the teleport target in the DOM
           // before the batch can land.

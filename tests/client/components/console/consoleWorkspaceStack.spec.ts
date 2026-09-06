@@ -34,6 +34,7 @@ import {
   workspaceFrameRenders,
   workspaceHostForStep,
   workspaceHostYieldsScene,
+  workspaceKindSpec,
   workspaceSurfacesFor,
   workspaceFrameRoot,
   workspaceFrameSelector,
@@ -985,5 +986,31 @@ describe('consoleWorkspaceStack — the ONE depth model of a workspace', () => {
     // The revoke (the payment answered) drops it back to the defaults.
     setWorkspaceFrameServes('draft', ['cardSelect', 'draftWait']);
     expect(workspaceSurfacesFor('payment')).to.deep.eq([]);
+  });
+
+  /**
+   * THE REGISTRY GUARD: A ZONE-LESS HOST YIELDS THE SCENE BY CONSTRUCTION.
+   *
+   * A kind without `hosts` has no embed-zone machinery (no `workspaceFrameSlot`
+   * publisher, no teleport target), so a frame standing on it can only be a
+   * FULL SCREEN — and a pair left undeclared defaults to 'embed', which means
+   * NOBODY yields: the guest mounts behind the still-painted host. That is not
+   * a theory — the repeat-pick browser shipped exactly that hole (the inner
+   * composer's Dutch Mountains reward pick pushed a hydro frame over it, and
+   * the track rendered BEHIND the browser band: «гидросеть на фоне как второй
+   * workspace», 2026-09-06). The registry cannot know statically which bridges
+   * will push frames tomorrow, so the honest default is pinned for every
+   * zone-less kind: any guest takes the scene.
+   */
+  it('every kind WITHOUT `hosts` declares plain frameSteps: "scene"', () => {
+    for (const kind of WORKSPACE_FRAME_KINDS) {
+      const spec = workspaceKindSpec(kind);
+      if (spec.hosts !== undefined) {
+        continue; // a hosting kind owns real zones — its pairs are its own law
+      }
+      expect(spec.frameSteps, `'${kind}' is zone-less: a guest frame standing on it can only ` +
+        'take the scene, and an undeclared pair silently reads as \'embed\' (the repeat-pick hole)')
+        .to.eq('scene');
+    }
   });
 });

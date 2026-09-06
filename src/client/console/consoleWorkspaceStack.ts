@@ -336,6 +336,12 @@ const WORKSPACE_KINDS: Record<WorkspaceFrameKind, WorkspaceKindSpec> = {
   'draft': {
     root: 'Draft', rootSelector: '.con-draftws',
     serves: ['cardSelect', 'draftWait'],
+    // A ZONE-LESS HOST YIELDS THE SCENE BY CONSTRUCTION (the law the
+    // repeat-pick row states in full): no `hosts` machinery ⇒ no embed zone ⇒
+    // any frame ever standing on this one can only be a full screen. No such
+    // guest exists today — the declaration is the honest default for the day
+    // one appears, and the registry guard pins it for every zone-less kind.
+    frameSteps: 'scene',
   },
   'standard-projects': {
     root: 'Standard Projects', rootSelector: '.con-stdp', sheet: 'standardProjects',
@@ -356,10 +362,14 @@ const WORKSPACE_KINDS: Record<WorkspaceFrameKind, WorkspaceKindSpec> = {
   'milestones': {
     root: 'Milestones', rootSelector: '.con-ma', sheet: 'milestones',
     serves: [],
+    // Zone-less ⇒ scene (see the 'draft' row).
+    frameSteps: 'scene',
   },
   'awards': {
     root: 'Awards', rootSelector: '.con-ma', sheet: 'awards',
     serves: ['awardFunding'],
+    // Zone-less ⇒ scene (see the 'draft' row).
+    frameSteps: 'scene',
   },
   // The FINAL SCORING workspace — a PHASE-anchored root like 'start'/'draft':
   // it IS the post-game (the ceremony, the ranking, the action list), owns the
@@ -373,10 +383,24 @@ const WORKSPACE_KINDS: Record<WorkspaceFrameKind, WorkspaceKindSpec> = {
   'repeat-pick': {
     root: 'Repeat action', rootSelector: '.con-cardactions', sheet: 'cardActions',
     serves: [],
+    // A NESTED FRAME TAKES THE SCENE. The repeat browser publishes NO embed
+    // zone at all, so a workspace frame standing on it can only be a full
+    // screen — and one genuinely stands here: the inner composer's
+    // Hydronetwork picks (the Dutch Mountains stage-reward claim, a plan's
+    // landing pre-select) push a `hydro` overlay frame over this one. Left
+    // undeclared, nobody yielded: the browser is an absolute band at z11480
+    // while `.con-hydro` is an IN-FLOW flex child of `.con-main`, so the
+    // track mounted BEHIND the still-painted browser — «гидросеть открылась
+    // на фоне как второй workspace» (the 2026-09-06 Viron → Dutch Mountains
+    // report). The browser hides itself off this yield (`v-show` in the
+    // shell — captures and the inner composer survive the round trip).
+    frameSteps: 'scene',
   },
   'endgame': {
     root: 'Final scoring', rootSelector: '.con-endgame',
     serves: [],
+    // Zone-less ⇒ scene (see the 'draft' row).
+    frameSteps: 'scene',
   },
 };
 

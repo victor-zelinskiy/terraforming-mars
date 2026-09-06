@@ -180,6 +180,18 @@ pick once its preview promised cards), `slot` (one host publishes DIFFERENT zone
 children — the start scene has one for a hosted hand and another for hosted colonies), and the
 anchor (it depends on the carried object).
 
+**…AND A ZONE-LESS KIND YIELDS THE SCENE BY CONSTRUCTION (2026-09-06).** A kind without
+`hosts` has no embed-zone machinery, so a frame ever standing on it can only be a full screen —
+and a pair left undeclared silently reads as `'embed'`, which means NOBODY yields: the guest
+mounts BEHIND the still-painted host (`.con-hydro` is an in-flow flex child while the browser
+bands are absolute at z11480). That shipped as the Viron → Dutch Mountains defect: the inner
+repeat composer's stage-reward pick pushed a `hydro` frame over `repeat-pick`, and the track
+rendered behind the browser — «гидросеть на фоне как второй workspace». Every zone-less kind
+(`draft`, `milestones`, `awards`, `repeat-pick`, `endgame`) now declares plain
+`frameSteps: 'scene'`, the repeat browser hides itself off its own yield
+(`repeatPickSceneOut` → `v-show`, captures intact), and the registry guard pins the law:
+`consoleWorkspaceStack.spec.ts` § «every kind WITHOUT `hosts` declares frameSteps 'scene'».
+
 ### The navigation verbs
 
 `consoleState.section = X` was the whole vocabulary, and it is a LOSSY verb: it cannot tell
