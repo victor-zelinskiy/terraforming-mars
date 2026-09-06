@@ -1,0 +1,149 @@
+/* ═══════════════════════════════════════════════════════════════════
+   CONSOLE EXTERNAL DRAW — «ДОБОР КАРТЫ»
+   (ConsoleExternalDrawWorkspace.vue / consoleExternalDraw.ts).
+
+   The mandatory take of cards an EXTERNAL effect drew for the viewer (Solar
+   Logistics on a foreign space event, Sponsored Academies). The surface owns
+   almost no card styling of its own — the row, the slots, the focus ring and
+   the status rail are the shared `.con-cards` chassis, and the geometry is
+   the shared `consoleWsStageLayout` engine (the deck-pick precedent). What
+   lives here is only what is genuinely this flow's:
+
+     · the band + frame (always standalone — the workspace is its own room);
+     · the CAUSE panel (who set the effect off, with what, and what it grants);
+     · the GHOST seat a taken card leaves behind (a stable layout is the
+       contract: nothing re-flows under a flight the player is watching).
+
+   Authored in rem. Functional state rides box-shadow / colour, never
+   `filter` (the console paint baseline).
+   ═══════════════════════════════════════════════════════════════════ */
+
+.con-extdraw {
+    /* The workspace band (frame box between the bars, right of the player
+       rail) — paired with the `con-ws` marker class in the template. */
+    .con-ws-band();
+    display: flex;
+    /* STRETCH, never centre: the fit engine needs a definite height (see the
+       deck-pick frame's note — the classic fit oscillation). */
+    align-items: stretch;
+    justify-content: center;
+    padding: .3rem 0;
+    box-sizing: border-box;
+    z-index: 11480;
+    contain: layout style;
+}
+
+.con-extdraw__frame {
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    row-gap: .5rem;
+    height: 100%;
+    min-height: 0;
+    overflow: hidden;
+    width: min(78rem, 100%);
+    max-width: 100%;
+    max-height: 100%;
+    border-radius: .8rem;
+    padding: 0 1rem .5rem;
+    background: linear-gradient(180deg, rgba(16, 26, 38, 0.96), rgba(10, 16, 25, 0.97));
+    box-shadow:
+        inset 0 0 0 .05rem rgba(120, 160, 200, 0.22),
+        0 1.4rem 3.2rem rgba(0, 0, 0, 0.62);
+}
+
+/* ── THE CAUSE — two calm lines, constant through the whole take ───────── */
+.con-extdraw__cause {
+    flex: 0 0 auto;
+    display: flex;
+    flex-direction: column;
+    row-gap: .15rem;
+    padding: .35rem .6rem;
+    border-radius: .5rem;
+    background: rgba(30, 44, 62, 0.55);
+    box-shadow: inset 0 0 0 .05rem rgba(120, 160, 200, 0.14);
+}
+
+.con-extdraw__cause-line {
+    display: flex;
+    align-items: baseline;
+    column-gap: .45rem;
+    min-width: 0;
+    font-size: .82rem;
+    line-height: 1.25;
+    color: rgba(196, 214, 232, 0.92);
+    /* One line each — a long card name ellipsizes, it never re-flows the
+       stage below (the decision text itself is short by construction). */
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.con-extdraw__cause-line--effect {
+    color: rgba(255, 224, 130, 0.95);
+    font-weight: 600;
+}
+
+.con-extdraw__actor {
+    flex: 0 0 auto;
+    display: inline-flex;
+    align-items: baseline;
+    column-gap: .3rem;
+    font-weight: 700;
+    letter-spacing: .02em;
+}
+
+.con-extdraw__actor-dot {
+    align-self: center;
+    width: .55rem;
+    height: .55rem;
+    border-radius: 50%;
+    box-shadow: inset 0 0 0 .05rem rgba(0, 0, 0, 0.35);
+}
+
+/* ── THE SOURCE SEAT — absolute at the stage's left, out of flow (the fit
+   engine reserves its width on both sides, the deck-pick contract). ─────── */
+.con-extdraw__source {
+    position: absolute;
+    left: 1rem;
+    top: 50%;
+    transform: translateY(-38%);
+    z-index: 2;
+    pointer-events: none;
+}
+
+.con-extdraw__cards {
+    flex: 1;
+    min-height: 0;
+    position: relative;
+}
+
+/* ── THE GHOST SEAT — a taken card's place. The slot keeps its box (layout
+   stability is the contract) and goes quiet: the card is in the dock now,
+   and the seat only says so. ──────────────────────────────────────────── */
+.con-extdraw__slot--ghost {
+    pointer-events: none;
+
+    .card-container,
+    .pcard {
+        opacity: 0.16;
+        transition: opacity calc(320ms * var(--motion-scale, 1)) ease;
+    }
+}
+
+.con-extdraw__ghostband {
+    position: absolute;
+    left: 50%;
+    bottom: .5rem;
+    transform: translateX(-50%);
+    padding: .12rem .5rem;
+    border-radius: .4rem;
+    background: rgba(18, 30, 24, 0.85);
+    box-shadow: inset 0 0 0 .05rem rgba(120, 200, 150, 0.45);
+    color: rgba(168, 230, 190, 0.95);
+    font-size: .68rem;
+    font-weight: 700;
+    letter-spacing: .06em;
+    text-transform: uppercase;
+    white-space: nowrap;
+}

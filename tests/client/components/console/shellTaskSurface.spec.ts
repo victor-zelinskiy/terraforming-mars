@@ -16,6 +16,7 @@ describe('shellTaskOnSurface — where a shell-section task is answered', () => 
     section: 'board',
     sheet: undefined,
     corpFirstActionOpen: false,
+    externalDrawOpen: false,
     ...over,
   });
 

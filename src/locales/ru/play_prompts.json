@@ -1,5 +1,6 @@
 {
     "OK": "ОК",
+    "Take ${0} card(s) drawn by ${1}": "Заберите карт(ы): ${0} — сработала «${1}»",
     "After this prelude you take 2 extra actions immediately.": "После этого пролога вы немедленно выполните 2 дополнительных действия.",
     "After this prelude you take 2 extra actions immediately; you choose whether the steel and M€ arrive before or after them.": "После этого пролога вы немедленно выполните 2 дополнительных действия; сталь и М€ вы получите до или после них — по вашему выбору.",
     "Gain ${0} steel now": "Получить ${0} стали сейчас",

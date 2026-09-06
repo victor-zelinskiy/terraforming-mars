@@ -10,8 +10,15 @@ import {PharmacyUnion} from '../../src/server/cards/promo/PharmacyUnion';
 import {Splice} from '../../src/server/cards/promo/Splice';
 import {SolarLogistics} from '../../src/server/cards/promo/SolarLogistics';
 import {Tag} from '../../src/common/cards/Tag';
+import {CardType} from '../../src/common/cards/CardType';
+import {AutomaColonies} from '../../src/server/automa/AutomaColonies';
+import {AutomaResolver} from '../../src/server/automa/AutomaResolver';
+import {AutomaTilePlacer} from '../../src/server/automa/AutomaTilePlacer';
+import {ArcticAlgae} from '../../src/server/cards/base/ArcticAlgae';
+import {Poseidon} from '../../src/server/cards/colonies/Poseidon';
+import {Miranda} from '../../src/server/colonies/Miranda';
 import {TestPlayer} from '../TestPlayer';
-import {runAllActions} from '../TestingUtils';
+import {fakeCard, runAllActions} from '../TestingUtils';
 import {testAutomaGame, testAutomaMultiplayerGame} from './AutomaTestGame';
 
 function botTakesOneTurn(game: IGame, human: TestPlayer) {
@@ -26,11 +33,13 @@ function flipCard(game: IGame, human: TestPlayer, name: CardName) {
 }
 
 /**
- * RB-B FAQ («Adding Corporations», p.4 — AUTOMA_DATA_AUDIT.md §10): the
- * sanctioned HUMAN corporation effects react to the bot's card flips and
- * microbe advancements. Everything else stays silent by rule.
+ * Human reactions to the bot's card flips. Two regimes (AutomaHumanTagReactions
+ * header, AUTOMA_DATA_AUDIT.md §10): a RESOLVED PROJECT CARD fires EVERY human
+ * `onCardPlayedByAnyPlayer` reactor (fork rule 2026-09-06 — the Saturn Systems
+ * FAQ precedent generalized), while NON-CARD tags / microbe advancements stay
+ * the RB-B-enumerated allowlist (Saturn Systems / Pharmacy Union / Splice).
  */
-describe('AutomaHumanTagReactions (RB-B FAQ: Saturn Systems / Pharmacy Union / Splice)', () => {
+describe('AutomaHumanTagReactions (bot flips → human reactors)', () => {
   describe('Saturn Systems — «triggered when you or MarsBot play a card with a Jovian tag»', () => {
     it('a bot flip with a Jovian tag raises the owner\'s M€ production', () => {
       const [game, human] = testAutomaGame({}, '-sat1');
@@ -146,16 +155,169 @@ describe('AutomaHumanTagReactions (RB-B FAQ: Saturn Systems / Pharmacy Union / S
     });
   });
 
-  describe('the sanction boundary — only the RB-B-enumerated corporations react', () => {
-    it('Solar Logistics stays silent on a bot space-event flip (never sanctioned)', () => {
-      const [game, human] = testAutomaGame({}, '-sl1');
+  describe('the GENERAL card rule — a resolved project card fires EVERY human reactor', () => {
+    // Fork rule (owner, 2026-09-06), generalizing the Saturn Systems FAQ
+    // precedent: a project card MarsBot RESOLVES counts as «any player plays a
+    // card» for every human onCardPlayedByAnyPlayer effect. Solar Logistics —
+    // «when any player plays a space event, draw a card» — is the trigger
+    // shape under test; its draw routes through the mandatory external-draw
+    // intake (the trigger is foreign by construction).
+    it('Solar Logistics: a bot Space+Event flip grants ONE external-draw intake, never a silent hand insert', () => {
+      const [game, human, bot] = testAutomaGame({}, '-sl1');
       human.playedCards.push(new SolarLogistics());
       game.playerIsFinishedWithResearchPhase(human);
       const handBefore = human.cardsInHand.length;
-      flipCard(game, human, CardName.ASTEROID); // A Space EVENT — its own trigger shape.
-      expect(human.cardsInHand.length, 'no draw — bot flips are not sanctioned for it').eq(handBefore);
+      flipCard(game, human, CardName.ASTEROID); // A Space EVENT.
+      expect(human.cardsInHand.length, 'the card is withheld until taken').eq(handBefore);
+      expect(human.pendingCardIntakes).has.length(1);
+      const intake = human.pendingCardIntakes[0];
+      expect(intake.cards).has.length(1);
+      expect(intake.effectCard).eq(CardName.SOLAR_LOGISTICS);
+      expect(intake.effectCardOwner).eq('you');
+      expect(intake.initiator).eq(bot.color);
+      expect(intake.triggerCard).eq(CardName.ASTEROID);
+      // The mandatory take prompt stands, marked structurally.
+      const wf = human.getWaitingFor();
+      expect(wf?.externalDrawPrompt?.intakeId).eq(intake.id);
+      expect(wf?.externalDrawPrompt?.remaining).eq(1);
     });
 
+    it('answering the take prompt moves the card into the hand and completes the bot turn', () => {
+      const [game, human] = testAutomaGame({}, '-sl1b');
+      human.playedCards.push(new SolarLogistics());
+      game.playerIsFinishedWithResearchPhase(human);
+      const handBefore = human.cardsInHand.length;
+      flipCard(game, human, CardName.ASTEROID);
+      const cardName = human.pendingCardIntakes[0].cards[0].name;
+      human.process({type: 'card', cards: [cardName]});
+      runAllActions(game);
+      expect(human.cardsInHand.map((c) => c.name)).contains(cardName);
+      expect(human.cardsInHand.length).eq(handBefore + 1);
+      expect(human.pendingCardIntakes).is.empty;
+    });
+
+    it('a space project that is not an event does not trigger it', () => {
+      const [game, human] = testAutomaGame({}, '-sl4');
+      human.playedCards.push(new SolarLogistics());
+      game.playerIsFinishedWithResearchPhase(human);
+      flipCard(game, human, CardName.IO_MINING_INDUSTRIES); // Space, automated.
+      expect(human.pendingCardIntakes).is.empty;
+    });
+
+    it('an event without a space tag does not trigger it', () => {
+      const [game, human] = testAutomaGame({}, '-sl5');
+      human.playedCards.push(new SolarLogistics());
+      game.playerIsFinishedWithResearchPhase(human);
+      flipCard(game, human, CardName.SABOTAGE); // Event, no space tag.
+      expect(human.pendingCardIntakes).is.empty;
+    });
+
+    it('a maxed track (the movement collapses into a Failed Action) still counts as a resolved card', () => {
+      const [game, human] = testAutomaGame({}, '-sl6');
+      human.playedCards.push(new SolarLogistics());
+      game.playerIsFinishedWithResearchPhase(human);
+      for (const track of game.automa!.board.tracks) {
+        track.position = track.maxPosition;
+      }
+      flipCard(game, human, CardName.ASTEROID);
+      expect(human.pendingCardIntakes, 'the card resolution, not the track movement, is the trigger').has.length(1);
+    });
+
+    it('a track advance without a resolved card never reaches the dispatch (structural exclusion)', () => {
+      const [game, human] = testAutomaGame({}, '-sl7');
+      human.playedCards.push(new SolarLogistics());
+      game.playerIsFinishedWithResearchPhase(human);
+      // Advance the event track directly — the shape every cascaded track
+      // action / bonus effect takes. No card is resolved, nothing may fire.
+      const eventTrackIndex = game.automa!.board.tracks.findIndex((t) => t.definition.tags.includes(Tag.EVENT));
+      AutomaResolver.advanceTrack(game, eventTrackIndex);
+      runAllActions(game);
+      expect(human.pendingCardIntakes).is.empty;
+    });
+
+    it('sequential tag handling of ONE card stays ONE trigger (per-card granularity)', () => {
+      const [game, human] = testAutomaGame({}, '-sl8');
+      human.playedCards.push(new SolarLogistics());
+      game.playerIsFinishedWithResearchPhase(human);
+      const doubleSpaceEvent = fakeCard({tags: [Tag.SPACE, Tag.SPACE], type: CardType.EVENT});
+      AutomaHumanTagReactions.onBotCardResolved(game, doubleSpaceEvent);
+      runAllActions(game);
+      expect(human.pendingCardIntakes).has.length(1);
+      expect(human.pendingCardIntakes[0].cards).has.length(1);
+    });
+
+    it('two suitable projects resolved in one chain are two full triggers', () => {
+      const [game, human] = testAutomaGame({}, '-sl9');
+      human.playedCards.push(new SolarLogistics());
+      game.playerIsFinishedWithResearchPhase(human);
+      AutomaHumanTagReactions.onBotCardResolved(game, newProjectCard(CardName.ASTEROID)!);
+      AutomaHumanTagReactions.onBotCardResolved(game, newProjectCard(CardName.BIG_ASTEROID)!);
+      runAllActions(game);
+      expect(human.pendingCardIntakes).has.length(2);
+    });
+
+    it('a card resolved through Research & Development (B03) triggers it — additional projects share the funnel', () => {
+      const [game, human] = testAutomaGame({}, '-sl10');
+      human.playedCards.push(new SolarLogistics());
+      game.playerIsFinishedWithResearchPhase(human);
+      game.projectDeck.drawPile.push(newProjectCard(CardName.ASTEROID)!); // Top of the deck.
+      game.automa!.actionDeck = [{kind: 'bonus', id: BonusCardId.B03_RESEARCH_AND_DEVELOPMENT}];
+      botTakesOneTurn(game, human);
+      runAllActions(game);
+      expect(human.pendingCardIntakes).has.length(1);
+      expect(human.pendingCardIntakes[0].triggerCard).eq(CardName.ASTEROID);
+    });
+
+    it('a card revealed for a placement tiebreak is not a resolved card', () => {
+      const [game, human] = testAutomaGame({}, '-sl11');
+      human.playedCards.push(new SolarLogistics());
+      game.playerIsFinishedWithResearchPhase(human);
+      game.projectDeck.drawPile.push(newProjectCard(CardName.ASTEROID)!);
+      const land = game.board.getAvailableSpacesOnLand(human).slice(0, 2);
+      AutomaTilePlacer.breakTie(game, land);
+      runAllActions(game);
+      expect(human.pendingCardIntakes, 'a cost flip reveals, it does not resolve').is.empty;
+    });
+  });
+
+  describe('ENGINE-path reactions — the bot rides the shared doors, so human reactors fire with no bridge', () => {
+    it('Arctic Algae: a bot-placed ocean pays the owner 2 plants (Game.addTile fan-out)', () => {
+      const [game, human] = testAutomaGame({}, '-eng1');
+      human.playedCards.push(new ArcticAlgae());
+      game.playerIsFinishedWithResearchPhase(human);
+      const before = human.plants;
+      AutomaTilePlacer.placeOcean(game);
+      expect(game.board.getOceanSpaces(), 'the bot really placed an ocean').has.length(1);
+      runAllActions(game);
+      expect(human.plants).eq(before + 2);
+    });
+
+    it('human Poseidon: the bot building a colony raises the owner\'s M€ production (botBuildColony fan-out)', () => {
+      const [game, human] = testAutomaGame({coloniesExtension: true}, '-eng2');
+      human.playedCards.push(new Poseidon());
+      game.playerIsFinishedWithResearchPhase(human);
+      expect(AutomaColonies.botBuildColony(game)).is.true;
+      runAllActions(game);
+      expect(human.production.megacredits).eq(1);
+    });
+
+    it('a bot trade on a human-owned Miranda raises the detached colony-bonus collect (initiator = bot)', () => {
+      const [game, human, bot] = testAutomaGame({coloniesExtension: true}, '-eng3');
+      const miranda = new Miranda();
+      game.colonies.splice(0, game.colonies.length, miranda);
+      AutomaColonies.setupColonies(game);
+      miranda.colonies.push(human.id);
+      game.playerIsFinishedWithResearchPhase(human);
+      bot.megaCredits = 3;
+      expect(AutomaColonies.botTrade(game)).is.true;
+      runAllActions(game);
+      const wf = human.getWaitingFor();
+      expect(wf?.colonyBonusPrompt?.colonyName).eq(miranda.name);
+      expect(wf?.colonyBonusPrompt?.trader).eq(bot.color);
+    });
+  });
+
+  describe('the NON-CARD allowlist — RB-B maps starting tags / microbe advances to exactly three corporations', () => {
     it('the starting-tag route reaches Saturn Systems\' non-card-tag clause', () => {
       // No implemented corporation prints a Jovian starting tag — exercise the
       // route directly (the same call selectCorporation makes per tag).

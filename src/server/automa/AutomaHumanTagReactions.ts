@@ -6,36 +6,38 @@ import {IProjectCard} from '../cards/IProjectCard';
 import {humansOf, marsBotOf} from './AutomaUtil';
 
 /**
- * HUMAN corporation effects that officially react to the BOT's card flips —
- * Rule Book B «Adding Corporations», FAQ p.4 (transcribed in
- * docs/AUTOMA_DATA_AUDIT.md §10):
- *
- *  · Saturn Systems — «The Jovian tag effect of this corporation is triggered
- *    only when you or MarsBot play a card with a Jovian tag. An advance
- *    tracker effect on MarsBot's player mat does not trigger it. …If
- *    MarsBot's corporation has a Jovian starting tag, resolve your ability as
- *    if a card containing the tag was played.»
- *  · Pharmacy Union / Splice — «If you're playing Pharmacy Union or Splice,
- *    and MarsBot's starting corporation or any track or bonus effect gives it
- *    a microbe advancement (not a plant or animal), resolve your
- *    corporation's effect as if a card with a microbe was played.»
- *
- * The bot's flips do not go through `Player.playCard`, so the ordinary
+ * HUMAN card/corporation effects reacting to the BOT's card flips. The bot's
+ * flips do not go through `Player.playCard`, so the ordinary
  * `onCardPlayedByAnyPlayer` dispatch never sees them — this module is the
- * sanctioned bridge. It is an EXPLICIT allowlist (the AutomaBans precedent):
- * RB-B enumerates exactly these corporations, so a blanket "fire every
- * any-player reactor for bot flips" would invent triggers the rules never
- * sanctioned (Solar Logistics et al. stay silent by design — see
- * docs/AUTOMA_PROMO_MULTIPLAYER_FRAME.md §4). The card LOGIC stays co-located
- * in the card files (their own existing hooks, plus the RB-B microbe-
- * advancement hook `onMarsBotMicrobeAdvancement`); this module only routes.
+ * sanctioned bridge. The card LOGIC stays co-located in the card files (their
+ * own existing hooks, plus the RB-B microbe-advancement hook
+ * `onMarsBotMicrobeAdvancement`); this module only routes.
  *
- * The tracker-advance exclusion for Saturn Systems is STRUCTURAL: cascaded
- * track actions never pass through these dispatch points, only a resolved
- * card's printed row / a corporation's starting tag / the Venus board's
- * printed microbe cell do.
+ * TWO dispatch regimes, deliberately different:
+ *
+ * 1. A RESOLVED PROJECT CARD fans out to EVERY reactor («the general rule»,
+ *    fork rule fixed by the owner 2026-09-06, superseding the earlier
+ *    allowlist): when MarsBot resolves a real project card, that card counts
+ *    as «any player plays a card» for every human `onCardPlayedByAnyPlayer`
+ *    effect — the generalization of the Saturn Systems FAQ precedent («…is
+ *    triggered when you or MarsBot play a card with a Jovian tag; an advance
+ *    tracker effect does not trigger it», RB-B FAQ p.4, transcribed in
+ *    docs/AUTOMA_DATA_AUDIT.md §10). Solar Logistics therefore draws once per
+ *    Space+Event project the bot resolves — through the mandatory
+ *    external-draw intake, since the trigger is foreign by construction. Each
+ *    reactor keeps its OWN printed granularity (per-card vs per-tag is the
+ *    card file's reading, as always). The tracker-advance exclusion is
+ *    STRUCTURAL: cascaded track actions never pass through these dispatch
+ *    points, only a resolved card's printed row does — and a card counts even
+ *    when its track movement collapses into a Failed Action (the dispatch
+ *    sits before the resolver on purpose).
+ *
+ * 2. NON-CARD tags and microbe advancements stay an EXPLICIT FAQ allowlist
+ *    (the AutomaBans precedent): RB-B maps those non-card events to «as if a
+ *    card was played» for exactly Saturn Systems / Pharmacy Union / Splice —
+ *    generalizing THAT would invent triggers no rule sanctions.
  */
-const SANCTIONED_REACTORS: ReadonlySet<CardName> = new Set([
+const SANCTIONED_NON_CARD_REACTORS: ReadonlySet<CardName> = new Set([
   CardName.SATURN_SYSTEMS,
   CardName.PHARMACY_UNION,
   CardName.SPLICE,
@@ -58,12 +60,15 @@ export class AutomaHumanTagReactions {
     const bot = marsBotOf(game);
     for (const human of humansOf(game)) {
       for (const effectCard of human.playedCards) {
-        if (!SANCTIONED_REACTORS.has(effectCard.name) || effectCard.onCardPlayedByAnyPlayer === undefined) {
+        if (effectCard.onCardPlayedByAnyPlayer === undefined) {
           continue;
         }
         const input = game.events.withEffect(human, effectCard, 'card-played-by-any',
           () => effectCard.onCardPlayedByAnyPlayer?.(human, card, bot));
         if (input !== undefined) {
+          // A returned input would be a prompt whose ANSWERING side involves
+          // the bot's flip — a reactor that needs one must resolve its bot
+          // half deterministically in a co-located branch (Splice precedent).
           throw new Error(`${effectCard.name} returned a prompt for a MarsBot card flip — the bot never receives prompts`);
         }
       }
@@ -84,7 +89,7 @@ export class AutomaHumanTagReactions {
     }
     for (const human of humansOf(game)) {
       for (const effectCard of human.playedCards) {
-        if (!SANCTIONED_REACTORS.has(effectCard.name) || effectCard.onNonCardTagAddedByAnyPlayer === undefined) {
+        if (!SANCTIONED_NON_CARD_REACTORS.has(effectCard.name) || effectCard.onNonCardTagAddedByAnyPlayer === undefined) {
           continue;
         }
         game.events.withEffect(human, effectCard, 'tag-added',
@@ -109,7 +114,7 @@ export class AutomaHumanTagReactions {
     }
     for (const human of humansOf(game)) {
       for (const effectCard of human.playedCards) {
-        if (!SANCTIONED_REACTORS.has(effectCard.name)) {
+        if (!SANCTIONED_NON_CARD_REACTORS.has(effectCard.name)) {
           continue;
         }
         const hook = (effectCard as ICard).onMarsBotMicrobeAdvancement;

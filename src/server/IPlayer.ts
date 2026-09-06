@@ -130,6 +130,33 @@ export type CardDrawReveal = {
 }
 
 /**
+ * One EXTERNAL-DRAW intake batch: cards an effect fired by ANOTHER player's
+ * action (MarsBot included) drew for this player. Drawn from the deck at
+ * trigger time (deck order never waits on the recipient), withheld from
+ * `cardsInHand` — and thereby from every hand projection and hand-reading
+ * prompt — until the recipient takes them through the mandatory
+ * `externalDrawPrompt` SelectCard. SERIALIZED (unlike `cardDrawReveals`): a
+ * pending intake is game state, and its prompt is re-derived from it on load
+ * (`ExternalDrawIntake.rebuildPrompts`). See ExternalDrawTakeMeta.
+ */
+export type PendingCardIntake = {
+  /** Stable per-player id (survives re-issued prompts and reloads). */
+  id: number,
+  /** Total cards this trigger granted (taken ones no longer sit in `cards`). */
+  count: number,
+  /** Cards still awaiting the take. */
+  cards: Array<IProjectCard>,
+  /** The card whose EFFECT granted the draw. */
+  effectCard: CardName,
+  /** 'you' — the recipient's own card reacted; 'initiator' — theirs granted. */
+  effectCardOwner: 'you' | 'initiator',
+  /** Who set the effect off (ordinary player color; MarsBot included). */
+  initiator: Color,
+  /** The initiator's card that TRIGGERED the effect, when known. */
+  triggerCard?: CardName,
+}
+
+/**
  * Behavior when playing a card:
  *   add it to the tableau
  *   discard it from the tableau
@@ -224,6 +251,12 @@ export interface IPlayer {
    * modal. Lost on reload/reconnect by design, so stale reveals never resurface.
    */
   cardDrawReveals: Array<CardDrawReveal>;
+  /**
+   * SERIALIZED queue of external-draw intakes awaiting the mandatory take —
+   * see {@link PendingCardIntake}. Managed exclusively by
+   * `deferredActions/ExternalDrawIntake.ts`.
+   */
+  pendingCardIntakes: Array<PendingCardIntake>;
   /**
    * Transient (NOT serialized) result of the player's most recent REVEAL /
    * DECK-CHECK action (SearchForLife / AsteroidDeflectionSystem) — set by the

@@ -116,7 +116,12 @@ export type EventTag =
   | 'attack'
   | 'engine'
   | 'production'
-  | 'terraforming';
+  | 'terraforming'
+  /** A draw delivered through the mandatory EXTERNAL-DRAW intake: the
+   *  recipient's presentation is the prompt + its workspace, so the band
+   *  builder must not ALSO show the «+N cards» gain (the journal keeps the
+   *  event as usual). */
+  | 'external-intake';
 
 export type GameEvent = {
   /** Monotonic sequence within a game — the canonical ORDERING key (not the timestamp). */

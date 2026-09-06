@@ -115,6 +115,14 @@ export type WorkspaceFrameKind =
    * GLOBAL stack — so the browser dissolved its own body.
    */
   | 'repeat-pick'
+  /**
+   * «ДОБОР КАРТЫ» — the mandatory take of an EXTERNAL draw (cards another
+   * player's action — MarsBot included — drew for the viewer: Solar Logistics
+   * on a foreign space event, Sponsored Academies). A PROMPT-anchored root:
+   * it exists exactly while the server's `externalDrawPrompt` SelectCard
+   * stands, and the take is the only way out (never minimized, never closed).
+   */
+  | 'external-draw'
   /** «ФИНАЛЬНЫЙ ПОДСЧЁТ» — the post-game scoring ceremony + action list. */
   | 'endgame';
 
@@ -394,6 +402,15 @@ const WORKSPACE_KINDS: Record<WorkspaceFrameKind, WorkspaceKindSpec> = {
     // на фоне как второй workspace» (the 2026-09-06 Viron → Dutch Mountains
     // report). The browser hides itself off this yield (`v-show` in the
     // shell — captures and the inner composer survive the round trip).
+    frameSteps: 'scene',
+  },
+  // The EXTERNAL-DRAW take workspace — a PROMPT-anchored root serving exactly
+  // its own marker-routed kind. Zone-less: it hosts nothing (the cards, the
+  // cause line and the availability rail are its whole body).
+  'external-draw': {
+    root: 'Card draw', rootSelector: '.con-extdraw',
+    serves: ['externalDraw'],
+    // Zone-less ⇒ scene (see the 'draft' row).
     frameSteps: 'scene',
   },
   'endgame': {

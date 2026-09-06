@@ -388,6 +388,23 @@ export function consoleTaskSummary(
     };
   }
 
+  case 'externalDraw': {
+    // The announcement names the CAUSE, never the widget: «Сработал эффект:
+    // Солнечная логистика» is what happened, and the A-verb says what pressing
+    // it does — go and take the cards. The effect card rides as a CARD token
+    // (localized card names come with it), never a title match.
+    const meta = wf?.externalDrawPrompt;
+    return {
+      kickerKey: 'Card draw',
+      ask: meta === undefined ?
+        ask(wf, 'Take the card') :
+        {message: 'Effect triggered: ${0}', data: [{type: LogMessageDataType.CARD, value: meta.effectCard}]},
+      sourceCard: meta?.effectCard,
+      openKey: (meta?.remaining ?? 1) > 1 ? 'Collect the cards' : 'Collect the card',
+      returnKey: 'Return to the decision',
+    };
+  }
+
   case 'venusBonus':
     // The reward for crossing a bonus step on the Venus track — named as a
     // BONUS, never as the shapeless «and» the server happens to send. The

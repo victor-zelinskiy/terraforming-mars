@@ -588,6 +588,22 @@
                              @defer="onDraftDefer" />
     </transition>
 
+    <!-- THE EXTERNAL-DRAW WORKSPACE («ДОБОР КАРТЫ») — the mandatory take of
+         cards another player's action drew for the viewer (WORKSPACE_KINDS
+         'external-draw'). Stood up ONLY by the player's A on the mandatory
+         announcement; CLOSED by the `externalDrawFrameLive` watcher's falling
+         edge, which waits out the last take's flight (`externalDrawHolding`).
+         Non-minimizable by construction: it emits no defer and B is «Забрать
+         все». -->
+    <transition :css="false" appear
+                @enter="surfaceEnterHook" @leave="surfaceLeaveHook"
+                @enter-cancelled="surfaceEnterCancelledHook" @leave-cancelled="surfaceLeaveCancelledHook">
+      <ConsoleExternalDrawWorkspace v-if="externalDrawWorkspaceMounted"
+                                    ref="extDrawWs"
+                                    :playerView="playerView"
+                                    @submit="onExternalDrawSubmit" />
+    </transition>
+
     <!-- EMBEDDED HOSTING (consoleWorkspaceOutcome): a card PICK the player's
          own workspace produced (Inventors' Guild / Business Network revealing
          a card to buy; Hi-Tech Lab keeping one of N) is the next stage of
@@ -1577,6 +1593,10 @@ import {
   observeDraftWorkspace, resetDraftWorkspace,
 } from '@/client/console/draft/consoleDraftFlow';
 import {consoleDraftUi} from '@/client/console/draft/consoleDraftUi';
+import ConsoleExternalDrawWorkspace from '@/client/components/console/externalDraw/ConsoleExternalDrawWorkspace.vue';
+import {
+  externalDrawHolding, externalDrawTakeOf, resetExternalDraw,
+} from '@/client/console/externalDraw/consoleExternalDraw';
 import {Phase} from '@/common/Phase';
 import ConsoleTradeFleetLayer from '@/client/components/console/colonyFleet/ConsoleTradeFleetLayer.vue';
 import {armTradeFleet, abortTradeFleet, isTradeFleetActive, tradeFleetState} from '@/client/console/colonyFleet/consoleTradeFleet';
@@ -1942,6 +1962,7 @@ export default defineComponent({
     ConsoleHandDeliveryLayer,
     ConsoleDraftTray,
     ConsoleDraftWorkspace,
+    ConsoleExternalDrawWorkspace,
     ConsoleHydroMarkerLayer,
     ConsoleBoardCardBonusLayer,
     ConsoleDeckDrawLayer,
@@ -2655,6 +2676,10 @@ export default defineComponent({
         // the whole flow (the intake accent lease brings it to FULL exactly
         // while the purchase flights land).
         this.draftWorkspaceMounted ||
+        // The external-draw workspace: same card-flow contract — the dock
+        // stays visible (the takes land in it), compact until the intake
+        // accent lease brings it full.
+        this.externalDrawWorkspaceMounted ||
         this.startSceneServes ||
         this.govSupportActive ||
         this.productionLossActive ||
@@ -3832,6 +3857,20 @@ export default defineComponent({
     draftPaymentServeSignal(): string {
       return [draftPaymentPending(this.playerView), workspaceFrameIndex('draft')].join('|');
     },
+    /** PRESENCE IS THE STACK (invariant 1) — the workspace's ONE v-if. */
+    externalDrawWorkspaceMounted(): boolean {
+      return workspaceFrameRenders('external-draw');
+    },
+    /** The external-draw take is ALIVE for this player — the frame-lifetime
+     *  predicate. The commit hold extends it past the LAST take's answer, so
+     *  the final flight lands before the workspace folds. */
+    externalDrawFrameLive(): boolean {
+      return externalDrawTakeOf(this.playerView.waitingFor) !== undefined || externalDrawHolding();
+    },
+    /** The workspace owns the pad exactly while it is the surface on screen. */
+    externalDrawOwnsPad(): boolean {
+      return this.externalDrawWorkspaceMounted && this.hostTask === undefined;
+    },
     /** Phase.END — the post-game scoring workspace's whole anchor. */
     endgameFrameLive(): boolean {
       return this.playerView.game.phase === Phase.END;
@@ -4492,9 +4531,21 @@ export default defineComponent({
       if (task?.kind === 'corpFirstAction' && corpFirstActionInStartFlow(this.playerView)) {
         task = undefined;
       }
+      // The EXTERNAL-DRAW take is ONE demand for the whole batch: every take
+      // RE-ISSUES the prompt with the remainder (a new title, a new prompt
+      // identity), and a beat keyed on the prompt would run a fresh
+      // pending → presented cycle per take — the plate re-announcing over the
+      // very workspace serving it, and its A-branch swallowing the next take.
+      // Key it on the INTAKE's stable identity instead: acknowledged once at
+      // the open, gone with the last take; a SECOND intake is a new id and a
+      // legitimately fresh cycle.
+      const external = externalDrawTakeOf(wf);
+      const taskKey = task?.kind === 'externalDraw' && external !== undefined ?
+        `externalDraw:${external.initiator}#${external.intakeId}` :
+        promptIdentityKey(wf);
       return mandatoryBeatFor({
         task,
-        taskKey: promptIdentityKey(wf),
+        taskKey,
         forcedReaction: this.viewerForcedReaction,
         flows: this.mandatoryFlowBeats,
       });
@@ -4778,6 +4829,7 @@ export default defineComponent({
         section: this.consoleState.section,
         sheet: this.consoleState.sheet,
         corpFirstActionOpen: this.corpFirstActionOpen,
+        externalDrawOpen: this.externalDrawWorkspaceMounted,
       });
     },
     /** The std-projects source: the TOP-LEVEL prompt (EstablishedMethods) or the action menu. */
@@ -7125,6 +7177,15 @@ export default defineComponent({
       if (this.govScaleFocusState.holding || this.govScaleFocusState.closing) {
         return [];
       }
+      // THE EXTERNAL-DRAW WORKSPACE mirrors its live contract — ABOVE the
+      // fallback branch on purpose: `fallbackActive` is STICKY (it is only
+      // re-derived when a press falls through to the scope resolver, and the
+      // plate's A is consumed before that line), so a stale `true` latched on
+      // the loading screen would dress a locked workspace's bar as a generic
+      // «Выбрать/Назад» until the first in-workspace press.
+      if (this.externalDrawOwnsPad) {
+        return [...(panelCommands('externalDraw') ?? [])];
+      }
       if (this.consoleState.fallbackActive) {
         return [
           {control: 'confirm', label: 'Select'},
@@ -8943,6 +9004,20 @@ export default defineComponent({
           // The per-generation latches + presentation memory reset with the
           // flow (the NEXT generation's draft starts clean).
           resetDraftWorkspace();
+        }
+      },
+    },
+    // THE EXTERNAL-DRAW WORKSPACE'S FRAME — the draft's lifecycle contract:
+    // the rising edge opens NOTHING (the mandatory announce + the player's A
+    // stand the frame up), the falling edge closes it. The predicate keeps
+    // `externalDrawHolding()` true through the last take's flight, so the
+    // workspace folds only after the card has physically reached the dock.
+    externalDrawFrameLive: {
+      immediate: true,
+      handler(live: boolean): void {
+        if (!live) {
+          closeWorkspaceRoot('external-draw');
+          resetExternalDraw();
         }
       },
     },
@@ -11032,6 +11107,14 @@ export default defineComponent({
       // embedded payment / the Underworld research choice (host-served).
       if (this.draftWorkspaceOwnsPad) {
         (this.$refs.draftWs as InstanceType<typeof ConsoleDraftWorkspace> | undefined)?.handleIntent(intent);
+        return true;
+      }
+      // THE EXTERNAL-DRAW WORKSPACE owns the pad outright while it stands —
+      // it is locked by construction (the take is the only way out), so
+      // NOTHING below it may see a press. Its own phases absorb input during
+      // the deal and the take flights.
+      if (this.externalDrawOwnsPad) {
+        (this.$refs.extDrawWs as InstanceType<typeof ConsoleExternalDrawWorkspace> | undefined)?.handleIntent(intent);
         return true;
       }
       if (this.startSceneOwnsPad) {
@@ -14945,6 +15028,11 @@ export default defineComponent({
     onDraftDefer(): void {
       this.parkWorkspaceStack();
     },
+    /** A TAKE from the external-draw workspace — the ordinary submit funnel.
+     *  (No defer counterpart exists on purpose: the workspace is locked.) */
+    onExternalDrawSubmit(response: unknown): void {
+      this.submit(response);
+    },
     // ── shell-section tasks (T3 projectCard / T4 colony) ─────────────────
     /** Open (or re-open after un-defer) the section that serves the task. */
     /**
@@ -15044,6 +15132,15 @@ export default defineComponent({
         const collect = colonyBonusCollectOf(this.playerView.waitingFor);
         if (collect !== undefined) {
           this.openColonyBonusCollect(collect);
+        }
+        return;
+      }
+      if (task.kind === 'externalDraw') {
+        // The mandatory take of an EXTERNAL draw — the player's A stands the
+        // dedicated workspace up. Idempotent via the frame guard (a raced
+        // double press finds the frame already known).
+        if (!workspaceFrameKnown('external-draw')) {
+          enterWorkspace('external-draw', {anchor: {type: 'prompt', promptType: 'card'}});
         }
         return;
       }

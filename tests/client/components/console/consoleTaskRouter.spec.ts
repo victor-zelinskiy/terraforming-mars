@@ -202,7 +202,8 @@ describe('consoleTaskRouter (CTS-2 coverage)', () => {
       expect(NATIVE_KINDS.has(kind), `section kind "${kind}" must be native`).to.eq(true);
       // …but never claimed by the task host (the shell owns the surface).
       expect(kind === 'projectCard' || kind === 'handSelect' || kind === 'colony' ||
-        kind === 'colonyBonus' || kind === 'awardFunding' || kind === 'corpFirstAction').to.eq(true);
+        kind === 'colonyBonus' || kind === 'externalDraw' || kind === 'awardFunding' ||
+        kind === 'corpFirstAction').to.eq(true);
     }
   });
 

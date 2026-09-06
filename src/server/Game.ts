@@ -43,6 +43,7 @@ import {PlayerInput} from './PlayerInput';
 import {CardResource} from '../common/CardResource';
 import {Resource} from '../common/Resource';
 import {AndThen, DeferredAction, SimpleDeferredAction} from './deferredActions/DeferredAction';
+import {ExternalDrawIntake} from './deferredActions/ExternalDrawIntake';
 import {Priority} from './deferredActions/Priority';
 import {DeferredActionsQueue} from './deferredActions/DeferredActionsQueue';
 import {SelectPaymentDeferred} from './deferredActions/SelectPaymentDeferred';
@@ -2449,6 +2450,13 @@ export class Game implements IGame, Logger {
     }
     game.verminInEffect = d.verminInEffect;
     game.exploitationOfVenusInEffect = d.exploitationOfVenusInEffect;
+
+    // Deferred actions are not serialized, but a pending EXTERNAL-DRAW intake
+    // is game state — re-derive its mandatory take prompt for every recipient
+    // (off-turn included) before the phase dispatch below drives the queue.
+    // The cards already left the deck, so nothing is lost or double-drawn.
+    ExternalDrawIntake.rebuildPrompts(game);
+
     // Still in Draft or Research of generation 1 — i.e. some player has not yet
     // played their corporation. MarsBot is EXCLUDED: it never picks/plays a
     // corporation (it builds an action deck instead), so a corporation-less bot

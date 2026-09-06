@@ -70,7 +70,7 @@ import {calculateVictoryPoints} from './game/calculateVictoryPoints';
 import {TRSourceEntry, TRSourceType, VictoryPointsBreakdown} from '../common/game/VictoryPointsBreakdown';
 import {fromToEventSource} from './events/fromToEventSource';
 import {Supercapacitors} from './cards/promo/Supercapacitors';
-import {CanAffordOptions, CardAction, CardDrawReveal, IPlayer, PlayabilityOptions, RevealedCard} from './IPlayer';
+import {CanAffordOptions, CardAction, CardDrawReveal, IPlayer, PendingCardIntake, PlayabilityOptions, RevealedCard} from './IPlayer';
 import {IPreludeCard} from './cards/prelude/IPreludeCard';
 import {copyAndClear, inplaceRemove, sum, toName} from '../common/utils/utils';
 import {PreludesExpansion} from './preludes/PreludesExpansion';
@@ -289,6 +289,9 @@ export class Player implements IPlayer {
   // Transient "you drew cards" reveal queue — NOT serialized (see serialize()).
   public cardDrawReveals: Array<CardDrawReveal> = [];
   private nextCardDrawRevealId = 1;
+  // External-draw intakes awaiting the mandatory take — SERIALIZED game state
+  // (the cards already left the deck). See deferredActions/ExternalDrawIntake.
+  public pendingCardIntakes: Array<PendingCardIntake> = [];
   // Transient result of the most recent reveal/deck-check action (self-only,
   // cleared at the start of the next input). See IPlayer.lastReveal.
   public lastReveal: RevealResultModel | undefined = undefined;
@@ -2989,6 +2992,15 @@ export class Player implements IPlayer {
       dealtCeoCards: this.dealtCeoCards.map(toName),
       dealtProjectCards: this.dealtProjectCards.map(toName),
       cardsInHand: this.cardsInHand.map(toName),
+      pendingCardIntakes: this.pendingCardIntakes.map((intake) => ({
+        id: intake.id,
+        count: intake.count,
+        cards: intake.cards.map(toName),
+        effectCard: intake.effectCard,
+        effectCardOwner: intake.effectCardOwner,
+        initiator: intake.initiator,
+        triggerCard: intake.triggerCard,
+      })),
       preludeCardsInHand: this.preludeCardsInHand.map(toName),
       ceoCardsInHand: Array.from(this.ceoCardsInHand).map(toName),
       playedCards: this.playedCards.serialize(),
@@ -3131,6 +3143,16 @@ export class Player implements IPlayer {
     player.dealtProjectCards = cardsFromJSON(d.dealtProjectCards);
     player.deltaProjectData = d.deltaProject;
     player.cardsInHand = cardsFromJSON(d.cardsInHand);
+    // Old saves have no intakes — degrade to an empty queue.
+    player.pendingCardIntakes = (d.pendingCardIntakes ?? []).map((intake) => ({
+      id: intake.id,
+      count: intake.count,
+      cards: cardsFromJSON(intake.cards),
+      effectCard: intake.effectCard,
+      effectCardOwner: intake.effectCardOwner,
+      initiator: intake.initiator,
+      triggerCard: intake.triggerCard,
+    }));
     // I don't like "as IPreludeCard" but this is pretty safe.
     player.preludeCardsInHand = cardsFromJSON(d.preludeCardsInHand) as Array<IPreludeCard>;
     player.ceoCardsInHand = new Set(ceosFromJSON(d.ceoCardsInHand));

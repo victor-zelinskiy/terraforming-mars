@@ -129,6 +129,12 @@ export class SelectCard<T extends ICard> extends BasePlayerInput<ReadonlyArray<T
     if (this.botAttackPrompt !== undefined) {
       model.botAttackPrompt = this.botAttackPrompt;
     }
+    // Same reasoning for the EXTERNAL DRAW take: the marker is the console's
+    // whole reading of the prompt (cause, initiator, trigger, intake id) —
+    // stripped by nesting it would degrade to an anonymous card pick.
+    if (this.externalDrawPrompt !== undefined) {
+      model.externalDrawPrompt = this.externalDrawPrompt;
+    }
     // THE ORDER-AWARE PRELUDE VERDICT rides this input's own toModel, and is
     // recomputed on EVERY serialization on purpose.
     //

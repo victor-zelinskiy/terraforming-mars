@@ -185,6 +185,17 @@ export function promptSourceView(
       return view;
     }
   }
+  // The mandatory take of an EXTERNAL draw: the source is the card whose
+  // EFFECT granted the cards — the viewer's own reactor (Solar Logistics) or
+  // the initiator's card (Sponsored Academies). The kind chip says whose.
+  const external = wf.externalDrawPrompt;
+  if (external !== undefined) {
+    return {
+      card: external.effectCard,
+      kindKey: external.effectCardOwner === 'you' ? 'Your card' : 'Card',
+      inspectable: true,
+    };
+  }
   return choiceSourceView(
     wf.choiceContext?.source ?? wf.placementContext?.source ??
     wf.discardPrompt?.source ?? wf.deckPickPrompt?.source);

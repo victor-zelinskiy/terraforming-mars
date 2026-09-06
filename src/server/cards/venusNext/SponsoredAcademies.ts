@@ -7,6 +7,7 @@ import {Priority} from '../../deferredActions/Priority';
 import {DiscardCards} from '../../deferredActions/DiscardCards';
 import {CardRenderer} from '../render/CardRenderer';
 import {DrawCards} from '../../deferredActions/DrawCards';
+import {ExternalDrawIntake} from '../../deferredActions/ExternalDrawIntake';
 import {Card} from '../Card';
 import {all, digit} from '../Options';
 import {IProjectCard} from '../IProjectCard';
@@ -66,7 +67,18 @@ export class SponsoredAcademies extends Card implements IProjectCard {
         p.stock.add(Resource.MEGACREDITS, 1, {log: true});
         continue;
       }
-      player.game.defer(DrawCards.keepAll(p));
+      // A human opponent's draw is EXTERNAL — it lands outside their own flow,
+      // so it goes through the mandatory intake (drawn at this deferred step,
+      // deck order identical to the old keepAll; taken when they answer).
+      // Deferred at the same queue position the plain draw used to hold.
+      p.defer(() => {
+        ExternalDrawIntake.grant(p, 1, {
+          effectCard: this,
+          effectCardOwner: 'initiator',
+          initiator: player,
+        });
+        return undefined;
+      }, Priority.DRAW_CARDS);
     }
     return undefined;
   }

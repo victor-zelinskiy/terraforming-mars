@@ -170,6 +170,12 @@ const ALWAYS_INTERRUPTIVE: ReadonlySet<TaskKind> = new Set<TaskKind>([
   // player out of whatever workspace they were working in — the chip carries
   // the demand until they choose to answer it.
   'botAttack',
+  // An EXTERNAL-DRAW take exists only because SOMEBODY ELSE's action fired
+  // the effect (a foreign play, a bot card resolution) — an interruption by
+  // construction, and announcing it is what ended the old «fullscreen draw
+  // tears the player out of their workspace» behaviour: the cards wait until
+  // their owner walks in by A.
+  'externalDraw',
 ]);
 
 /**

@@ -21,6 +21,8 @@ type PanelOwner = 'taskHost' | 'govSupport' | 'productionLoss' | 'infoMode' | 'c
   'spendHeat' | 'venusBonus' | 'aresGlobals' |
   // «Посмотри N карт колоды, оставь K» — the draw & select surface.
   'deckPick' |
+  // «Добор карты» — the mandatory take of an external draw.
+  'externalDraw' |
   // A hostile MarsBot effect the player must answer («выберите, что потеряете»).
   'botAttack' |
   // The post-game FINAL SCORING workspace (skip → action-list verbs).

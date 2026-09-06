@@ -338,6 +338,14 @@ export function viewerImpactOfChain(chain: ReadonlyArray<GameEvent>, viewer: Col
     if (e.player !== viewer) {
       continue;
     }
+    // An INTAKE-DELIVERED draw: the viewer's presentation of it is the
+    // mandatory take prompt and its workspace («Добор карты»), so the band
+    // must not repeat the «+N cards» gain — before OR after the take. Only
+    // this one event is skipped: every other effect of the same action keeps
+    // its chips, and the journal keeps the draw itself.
+    if (e.tags?.includes('external-intake')) {
+      continue;
+    }
     // A BACKWARD Hydronetwork move of the viewer's marker (Corporate
     // Espionage) — the canonical `delta-position-changed` fact. A loss row
     // of its own: the positions ARE the reading («1 → 0»), the scope line

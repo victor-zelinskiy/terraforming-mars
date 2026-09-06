@@ -43,7 +43,20 @@ describe('SponsoredAcademies', () => {
     discardCard.cb([housePrinting]);
     runAllActions(game); // Draw cards
     expect(player.cardsInHand).has.lengthOf(4);
+    // The opponent's draw is EXTERNAL: drawn at once (deck order fixed), but
+    // withheld from the hand behind the mandatory take prompt.
+    expect(player2.cardsInHand).has.lengthOf(0);
+    expect(player2.pendingCardIntakes).has.lengthOf(1);
+    const intake = player2.pendingCardIntakes[0];
+    expect(intake.cards).has.lengthOf(1);
+    expect(intake.effectCard).eq(card.name);
+    expect(intake.effectCardOwner).eq('initiator');
+    expect(intake.initiator).eq(player.color);
+    expect(player2.getWaitingFor()?.externalDrawPrompt?.intakeId).eq(intake.id);
+    player2.process({type: 'card', cards: [intake.cards[0].name]});
+    runAllActions(game);
     expect(player2.cardsInHand).has.lengthOf(1);
+    expect(player2.pendingCardIntakes).is.empty;
   });
 
   it('triggers in right order', () => {
@@ -55,9 +68,10 @@ describe('SponsoredAcademies', () => {
     // If something here doesn't work, it might be linked to the DeferredActionsQueue,
     cast(game.deferredActions.pop(), DiscardCards);
     expect(cast(game.deferredActions.pop(), DrawCards).player.color).eq(player.color);
-    expect(cast(game.deferredActions.pop(), DrawCards).player.color).eq(player2.color);
-    expect(cast(game.deferredActions.pop(), DrawCards).player.color).eq(player3.color);
-    expect(cast(game.deferredActions.pop(), DrawCards).player.color).eq(player4.color);
+    // Opponents' draws are external-intake grants (SimpleDeferredAction), in seat order.
+    expect(game.deferredActions.pop()!.player.color).eq(player2.color);
+    expect(game.deferredActions.pop()!.player.color).eq(player3.color);
+    expect(game.deferredActions.pop()!.player.color).eq(player4.color);
   });
 
   it('Takes priority over Mars U', () => {

@@ -43,6 +43,7 @@ import {closeConsoleCardZoom} from '@/client/console/consoleCardZoom';
 import {closeColonyFocus} from '@/client/console/consoleColoniesModel';
 import {beginPlanetFocusExit, isPlanetFocusEngaged, resetPlanetFocus} from '@/client/console/planetFocus';
 import {resetSurfaceMotion} from '@/client/console/surfaceMotion/surfaceMotionState';
+import {resetExternalDraw} from '@/client/console/externalDraw/consoleExternalDraw';
 import {clearTransient, setTurn} from '@/client/components/notifications/notificationState';
 
 /**
@@ -125,6 +126,10 @@ export function sealLiveGameSurfaces(): void {
   // the post-game inspection.
   clearTransient();
   setTurn(undefined);
+  // The external-draw take flow is prompt-scoped, and its prompt cannot exist
+  // any more (the game drained every mandatory input before ending) — drop
+  // its deal/commit latches so no hold survives into the ceremony.
+  resetExternalDraw();
   // Never inherit a held handoff or a stuck shade owner: the dim belongs to
   // the surface that raised it, and every one of them has just left.
   resetSurfaceMotion();

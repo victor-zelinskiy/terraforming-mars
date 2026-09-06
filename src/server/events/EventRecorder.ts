@@ -541,7 +541,7 @@ export class EventRecorder {
     });
   }
 
-  public recordCardsDrawn(player: IPlayer, count: number, from?: From): void {
+  public recordCardsDrawn(player: IPlayer, count: number, from?: From, opts?: {externalIntake?: boolean}): void {
     if (count === 0) {
       return;
     }
@@ -549,7 +549,13 @@ export class EventRecorder {
     if (source === undefined && !this.hasContext()) {
       return;
     }
-    this.record({type: 'cards-drawn', source, player: player.color, impact: {cardsDrawn: count}});
+    this.record({
+      type: 'cards-drawn', source, player: player.color, impact: {cardsDrawn: count},
+      // An intake-delivered draw is presented by the mandatory take prompt —
+      // the tag is what lets the recipient's band builder skip the duplicate
+      // «+N cards» chip while the journal keeps the event as usual.
+      tags: opts?.externalIntake === true ? ['external-intake'] : undefined,
+    });
   }
 
   /** Record a discount (the M€ saving) applied to a played card / project. A

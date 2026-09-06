@@ -2,6 +2,7 @@ import {CardModel} from './CardModel';
 import {ColonyModel} from './ColonyModel';
 import type {ActionEffect, VictoryPointsDelta} from './ActionPreviewModel';
 import type {BotAttackPromptMeta} from './BotAttackPromptModel';
+import type {ExternalDrawTakeMeta} from './ExternalDrawPromptModel';
 import type {DeltaBonusPromptMeta} from './DeltaBonusPromptModel';
 import type {DeltaBlockadeProjectionModel} from './DeltaBlockadeModel';
 import type {DeltaEspionageProjectionModel} from './DeltaEspionageModel';
@@ -476,6 +477,11 @@ export type BaseInputModel = {
    *  the server's own verdict on cost. Serialized centrally in
    *  ServerModel.getWaitingFor: a bonus offer is always the TOP-LEVEL prompt. */
   deltaBonusPrompt?: DeltaBonusPromptMeta;
+  /** Explicit "take the cards an EXTERNAL effect drew for you" marker (see
+   *  {@link ExternalDrawTakeMeta}) — cause, initiator, trigger and the intake
+   *  identity. Serialized on `SelectCard.toModel` (nesting-safe), not
+   *  centrally. */
+  externalDrawPrompt?: ExternalDrawTakeMeta;
 }
 
 export type AndOptionsModel = BaseInputModel & {

@@ -14,6 +14,19 @@ import {DeltaProjectPlayerModel} from '../common/models/DeltaProjectPlayerModel'
 interface DeprecatedFields {
 }
 
+/** One external-draw intake awaiting the mandatory take — the serialized form
+ *  of {@link import('./IPlayer').PendingCardIntake}. Absent field on old saves
+ *  → no pending intakes. */
+export interface SerializedCardIntake {
+  id: number;
+  count: number;
+  cards: Array<CardName>;
+  effectCard: CardName;
+  effectCardOwner: 'you' | 'initiator';
+  initiator: Color;
+  triggerCard?: CardName;
+}
+
 export interface SerializedPlayer extends DeprecatedFields{
   actionsTakenThisGame: number;
   actionsTakenThisRound: number;
@@ -44,6 +57,8 @@ export interface SerializedPlayer extends DeprecatedFields{
   cardCost: number;
   cardDiscount: number;
   cardsInHand: Array<CardName>;
+  /** External-draw intakes awaiting the mandatory take. Absent → none. */
+  pendingCardIntakes?: Array<SerializedCardIntake>;
   ceoCardsInHand: Array<CardName>;
   colonyTradeDiscount: number;
   colonyTradeOffset: number;

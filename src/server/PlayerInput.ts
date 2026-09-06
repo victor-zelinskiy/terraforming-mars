@@ -5,6 +5,7 @@ import {InputResponse} from '../common/inputs/InputResponse';
 import {IPlayer} from './IPlayer';
 import {PlayerInputModel, StartGamePromptMeta, BonusActionPromptMeta, AwardFundingPromptMeta, ChoiceContext, ColonyBonusCollectMeta, DeckPickPromptMeta, DiscardPromptMeta, DraftPromptMeta, FinalGreeneryPromptMeta, PlacementContext, VenusBonusPromptMeta, SpendHeatPromptMeta} from '../common/models/PlayerInputModel';
 import {BotAttackPromptMeta} from '../common/models/BotAttackPromptModel';
+import {ExternalDrawTakeMeta} from '../common/models/ExternalDrawPromptModel';
 import {DeltaBonusPromptMeta} from '../common/models/DeltaBonusPromptModel';
 import {CardName} from '../common/cards/CardName';
 
@@ -64,6 +65,10 @@ export interface PlayerInput {
     // per-candidate consequence. Serialized on the input's own toModel
     // (nesting-safe), not centrally.
     botAttackPrompt?: BotAttackPromptMeta;
+    // Explicit "take the cards an EXTERNAL effect drew for you" marker (see
+    // ExternalDrawTakeMeta) — cause, initiator, trigger card and the intake
+    // identity. Serialized on SelectCard.toModel (nesting-safe), not centrally.
+    externalDrawPrompt?: ExternalDrawTakeMeta;
     deltaBonusPrompt?: DeltaBonusPromptMeta;
 
     // Contextual annotation identifying this PlayerInput.
@@ -138,6 +143,7 @@ export abstract class BasePlayerInput<T> implements PlayerInput {
   public finalGreeneryPrompt: FinalGreeneryPromptMeta | undefined;
   public colonyBonusPrompt: ColonyBonusCollectMeta | undefined;
   public botAttackPrompt: BotAttackPromptMeta | undefined;
+  public externalDrawPrompt: ExternalDrawTakeMeta | undefined;
   public deltaBonusPrompt: DeltaBonusPromptMeta | undefined;
 
   public abstract toModel(player: IPlayer): PlayerInputModel;
@@ -284,6 +290,15 @@ export abstract class BasePlayerInput<T> implements PlayerInput {
    *  See {@link BotAttackPromptMeta}. */
   public markBotAttackPrompt(meta: BotAttackPromptMeta): this {
     this.botAttackPrompt = meta;
+    return this;
+  }
+
+  /** Mark this `SelectCard` as the mandatory TAKE step of an EXTERNAL draw —
+   *  cards another player's action (MarsBot included) granted the recipient,
+   *  drawn at trigger time and withheld from the hand until taken here.
+   *  See {@link ExternalDrawTakeMeta}. */
+  public markExternalDrawPrompt(meta: ExternalDrawTakeMeta): this {
+    this.externalDrawPrompt = meta;
     return this;
   }
 

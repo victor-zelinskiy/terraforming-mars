@@ -7,6 +7,7 @@ import {Tag} from '../../../common/cards/Tag';
 import {all} from '../Options';
 import {IProjectCard} from '../IProjectCard';
 import {ICard} from '../ICard';
+import {ExternalDrawIntake} from '../../deferredActions/ExternalDrawIntake';
 
 export class SolarLogistics extends Card implements IProjectCard {
   constructor() {
@@ -38,9 +39,23 @@ export class SolarLogistics extends Card implements IProjectCard {
     });
   }
 
-  public onCardPlayedByAnyPlayer(thisCardOwner: IPlayer, card: ICard) {
+  public onCardPlayedByAnyPlayer(thisCardOwner: IPlayer, card: ICard, activePlayer: IPlayer) {
     if (card.type === CardType.EVENT && card.tags.includes(Tag.SPACE)) {
-      thisCardOwner.drawCard(1);
+      // The REAL execution context decides the presentation, never a name
+      // check: our own space event keeps the ordinary draw (the play flow the
+      // owner is inside claims it), while a FOREIGN trigger — another human's
+      // play or a MarsBot card resolution — routes through the mandatory
+      // external-draw intake, so the card never lands in an unwatched hand.
+      if (activePlayer !== thisCardOwner) {
+        ExternalDrawIntake.grant(thisCardOwner, 1, {
+          effectCard: this,
+          effectCardOwner: 'you',
+          initiator: activePlayer,
+          triggerCard: card,
+        });
+      } else {
+        thisCardOwner.drawCard(1);
+      }
     }
     return undefined;
   }

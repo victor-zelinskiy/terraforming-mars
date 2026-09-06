@@ -91,6 +91,17 @@ export type ConsoleTask =
    */
   | {kind: 'colonyBonus'}
   /**
+   * TAKE THE CARDS AN EXTERNAL EFFECT DREW FOR YOU — another player's action
+   * (MarsBot included) fired an effect that granted the viewer cards (Solar
+   * Logistics on a foreign space event, Sponsored Academies' «all opponents
+   * draw»). The cards were drawn at the trigger and are withheld from the
+   * hand; this `SelectCard` is the mandatory take. Served by the dedicated
+   * «Добор карты» workspace — announced first, opened by the player's A,
+   * non-minimizable once open (the take is the only way out). Routed off the
+   * SERVER's `externalDrawPrompt` marker, never the title.
+   */
+  | {kind: 'externalDraw'}
+  /**
    * The Venus ALT-TRACK bonus. Two server SHAPES for one decision — the base
    * bonus is an `and` of six amounts, the 30 % final bonus is an `or` whose
    * branches decide where the extra WILD resource goes — so the MARKER routes
@@ -143,7 +154,7 @@ export const NATIVE_KINDS: ReadonlySet<TaskKind> = new Set<TaskKind>([
   'actionMenu', 'space',
   'choice', 'player', 'amount', 'resource', 'distribute',
   'cardSelect', 'deckSelect', 'handSelect', 'payment', 'draftWait',
-  'projectCard', 'colony', 'colonyBonus', 'awardFunding',
+  'projectCard', 'colony', 'colonyBonus', 'externalDraw', 'awardFunding',
   'initialDraft', 'startSequence', 'corpFirstAction',
   // The three that used to fall through to the DESKTOP modal inside the
   // console shell — each now has its own console-native surface.
@@ -165,7 +176,7 @@ export const SHELL_NATIVE_KINDS: ReadonlySet<TaskKind> = new Set<TaskKind>(['act
  * screen in free-sponsorship mode. The shell auto-opens the surface;
  * navigating away DEFERS the task (amber chip).
  */
-export const SHELL_SECTION_KINDS: ReadonlySet<TaskKind> = new Set<TaskKind>(['projectCard', 'handSelect', 'colony', 'colonyBonus', 'awardFunding', 'corpFirstAction']);
+export const SHELL_SECTION_KINDS: ReadonlySet<TaskKind> = new Set<TaskKind>(['projectCard', 'handSelect', 'colony', 'colonyBonus', 'externalDraw', 'awardFunding', 'corpFirstAction']);
 
 /**
  * …of those, the kinds whose console surface ALWAYS exists — the answer to
@@ -187,7 +198,7 @@ export const SHELL_SECTION_KINDS: ReadonlySet<TaskKind> = new Set<TaskKind>(['pr
  * ConsoleTaskHost's card browser + payment stage), so the legacy modal has
  * no remaining role and was deleted with the radio stack.
  */
-export const SECTION_SERVED_KINDS: ReadonlySet<TaskKind> = new Set<TaskKind>(['projectCard', 'handSelect', 'colony', 'colonyBonus', 'awardFunding', 'corpFirstAction']);
+export const SECTION_SERVED_KINDS: ReadonlySet<TaskKind> = new Set<TaskKind>(['projectCard', 'handSelect', 'colony', 'colonyBonus', 'externalDraw', 'awardFunding', 'corpFirstAction']);
 
 /** Where the player is standing right now, as the surface map sees it. */
 export type ShellSurfaceContext = {
@@ -197,6 +208,9 @@ export type ShellSurfaceContext = {
   sheet: string | undefined,
   /** The corporation's first-action confirm is up (it has no section). */
   corpFirstActionOpen: boolean,
+  /** The external-draw take workspace renders (a zone-less scene — it
+   *  projects onto neither navigation axis, so the axes cannot say it). */
+  externalDrawOpen: boolean,
   /*
    * (`handEmbedded` / `coloniesEmbedded` are GONE. They existed for exactly one
    * reason: `section` used to LIE when a screen was hosted as a step of another
@@ -245,6 +259,8 @@ export function shellTaskOnSurface(task: ConsoleTask | undefined, ctx: ShellSurf
     return ctx.sheet === 'awards';
   case 'corpFirstAction':
     return ctx.corpFirstActionOpen;
+  case 'externalDraw':
+    return ctx.externalDrawOpen;
   default:
     // Not a shell-section kind — it has no surface of this family at all.
     return false;
@@ -377,6 +393,10 @@ export function taskMinimizable(kind: TaskKind): boolean {
   case 'deckSelect':
   case 'botAttack':
     return true;
+  // The external-draw take is LOCKED once its workspace is open (the take is
+  // the only way out); before opening, the announce plate stands and the
+  // player roams freely — «свернуть» never exists for it.
+  case 'externalDraw':
   case 'actionMenu':
   case 'space':
   case 'draftWait':
@@ -464,6 +484,12 @@ export function taskFor(view: PlayerViewModel): ConsoleTask | undefined {
   // anonymous «Подтвердить» with nowhere to go.
   if (wf.colonyBonusPrompt !== undefined) {
     return {kind: 'colonyBonus'};
+  }
+  // The mandatory TAKE of an external draw — an ordinary `SelectCard` on the
+  // wire; the marker carries its whole meaning (cause, initiator, trigger).
+  // Classified by type it would land in the generic card browser.
+  if (wf.externalDrawPrompt !== undefined) {
+    return {kind: 'externalDraw'};
   }
 
   // Start-of-game markers outrank the raw type (a marked SelectCard is the

@@ -700,16 +700,27 @@ describe('cross-player delivery audit (the viewer hears about foreign actions)',
       builder.process({type: 'card', cards: [CardName.PETS]});
       runAllActions(game);
     }
-    expect(owner.cardsInHand, 'the opponent drew 1').has.length(1);
+    // The opponent's draw is EXTERNAL: drawn at once (the event below proves
+    // it), withheld from the hand behind the mandatory take prompt.
+    expect(owner.cardsInHand, 'withheld until taken').has.length(0);
+    expect(owner.pendingCardIntakes, 'the intake stands').has.length(1);
+    expect(owner.getWaitingFor()?.externalDrawPrompt?.effectCard).eq(academies.name);
 
     const draw = game.events.events.find((e) =>
       e.player === owner.color && e.impact.cardsDrawn === 1);
-    expect(draw, 'the opponent\'s draw event exists').is.not.undefined;
+    expect(draw, 'the opponent\'s draw event exists (the journal keeps it)').is.not.undefined;
     expect(draw!.correlationId, 'inside the play\'s correlation').eq(rootId);
+    expect(draw!.tags, 'marked as intake-delivered').deep.eq(['external-intake']);
 
-    const model = bandOf(deliveredModels(game, owner.color), rootId);
-    expect(model.sign).eq('positive');
-    expect(model.viewerImpact?.gains).deep.eq([{icon: 'cards', text: '+1'}]);
+    // The recipient's OWN «+1 cards» band is SUPPRESSED in favour of the
+    // mandatory take prompt — the prompt (and its workspace) is the
+    // presentation of this delivery, before AND after the take.
+    const model = deliveredModels(game, owner.color).find((m) => m.correlationId === rootId);
+    expect(model?.viewerImpact?.gains ?? [], 'no duplicate draw gain chip').deep.eq([]);
+
+    // Taking the card completes the delivery.
+    owner.process({type: 'card', cards: [owner.pendingCardIntakes[0].cards[0].name]});
+    expect(owner.cardsInHand, 'the opponent took their card').has.length(1);
   });
 
   it('S18 — a BOT turn with several linked changes for one viewer: sync + deferred payouts merge into one script impact', () => {
