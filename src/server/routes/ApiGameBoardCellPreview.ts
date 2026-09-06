@@ -5,7 +5,11 @@ import {isPlayerId, isSpectatorId, isSpaceId} from '../../common/Types';
 import {Request} from '../Request';
 import {Response} from '../Response';
 import {Color, PLAYER_COLORS} from '../../common/Color';
+import {CanAffordOptions, IPlayer} from '../IPlayer';
 import {boardCellInfo, boardCellPreview} from '../boards/BoardInformationEngine';
+import {previewableCard} from '../models/cardPlayPreview';
+import {isIProjectCard} from '../cards/IProjectCard';
+import {CardType} from '../../common/cards/CardType';
 import {BoardPlacementKind} from '../../common/boards/BoardInformationFacts';
 import {TileType} from '../../common/TileType';
 import {CardName} from '../../common/cards/CardName';
@@ -22,6 +26,24 @@ const CARD_NAMES: ReadonlySet<string> = new Set(Object.values(CardName));
 
 function isCardName(value: string): value is CardName {
   return CARD_NAMES.has(value);
+}
+
+/**
+ * The unpaid card's own affordability plan for a STAGED placement request, or
+ * undefined when the gate fails (the perspective player is not the requester,
+ * or `card` does not name one of their currently previewable, cost-bearing
+ * project cards — preludes and corporations have no price to fold in, mirroring
+ * `cardPlayPreview.stagedForBehavior`). Read-only.
+ */
+function stagedCanAffordOptions(player: IPlayer, requesterId: string, card: CardName | undefined): CanAffordOptions | undefined {
+  if (card === undefined || player.id !== requesterId) {
+    return undefined;
+  }
+  const previewable = previewableCard(player, card);
+  if (previewable === undefined || !isIProjectCard(previewable) || previewable.type === CardType.PRELUDE) {
+    return undefined;
+  }
+  return player.affordOptionsForCard(previewable);
 }
 
 /**
@@ -111,7 +133,18 @@ export class ApiGameBoardCellPreview extends Handler {
       const effectParam = ctx.url.searchParams.get('effect');
       const placementEffect = effectParam !== null && PLACEMENT_EFFECTS.includes(effectParam as PlacementEffect) ?
         effectParam as PlacementEffect : undefined;
-      responses.writeJson(res, ctx, boardCellPreview(player, space, kindParam as BoardPlacementKind, {cleared, tileType, sourceCard, placementEffect}));
+      // `staged=1` → a STAGED placement (docs/TILE_PLAY_STAGED_COMMIT.md): the
+      // player picks the cell BEFORE paying for `card`, so affordability must
+      // fold the card's own unpaid cost in (`affordOptionsForCard` — the exact
+      // plan `StandardProjectPlacement` prices its pay-on-commit targets with).
+      // Gated on the REQUESTING player's own currently-previewable project card
+      // (the `previewableCard` gate the card-play-preview route uses — `color`
+      // must not let anyone price a preview against another player's hand).
+      // When the gate fails, answer exactly as without the flag: an expired
+      // subject is not an error (see `responses.noPreview` doctrine).
+      const canAffordOptions = ctx.url.searchParams.get('staged') === '1' ?
+        stagedCanAffordOptions(player, id, sourceCard) : undefined;
+      responses.writeJson(res, ctx, boardCellPreview(player, space, kindParam as BoardPlacementKind, {cleared, tileType, sourceCard, placementEffect, canAffordOptions}));
     } else {
       responses.writeJson(res, ctx, boardCellInfo(player, space));
     }

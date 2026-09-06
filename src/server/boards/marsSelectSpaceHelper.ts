@@ -6,6 +6,7 @@ import {PlacementType} from './PlacementType';
 import {TileType} from '../../common/TileType';
 import {PlacementIllegalReason} from '../../common/inputs/PlacementIllegalReason';
 import {PlacementContext, PlacementEffect} from '../../common/models/PlayerInputModel';
+import {StagedPlacementModel} from '../../common/models/ActionPreviewModel';
 import {CardName} from '../../common/cards/CardName';
 import {committedPlacement} from '../inputs/placementContext';
 import {toID} from '../../common/utils/utils';
@@ -123,4 +124,80 @@ export function createMarsSelectSpace(
     selectSpace.hiddenTiles = legalSpaces.map(toID);
   }
   return selectSpace;
+}
+
+/**
+ * READ-ONLY staged twin of a card placement's `SelectSpace` — the board data
+ * for a STAGED PLAY (docs/TILE_PLAY_STAGED_COMMIT.md), where the cell is
+ * picked BEFORE the play batch is submitted and rides the batch as its tail.
+ *
+ * Mirrors the runtime derivation the `Place*Tile` deferred actions perform
+ * (`getAvailableSpacesForType` per kind, the greenery Red-City exclusion) plus
+ * `createMarsSelectSpace`'s `computeIllegalReasons` — with ONE deliberate
+ * difference: the card is NOT paid yet, so `canAffordOptions` (the card's own
+ * cost/TR plan, `player.affordOptionsForCard`) is folded into BOTH the legal
+ * set and the per-cell «cannot-afford» reasons. `Executor.canExecute` filters
+ * playability with the same plan, so the staged set equals the set the
+ * committed prompt would offer AFTER paying — parity is guarded by
+ * `tests/boards/stagedPlacementParity.spec.ts`; a change to a `Place*Tile`
+ * derivation must land here in the same diff.
+ *
+ * `undefined` means «this play produces no placement prompt right now» (oceans
+ * maxed, zero legal cells) — the caller emits no staged payload and the play
+ * flows exactly as today. Never mutates anything.
+ */
+export function stagedMarsSelectSpace(
+  player: IPlayer,
+  options: {
+    /** The title the LIVE prompt would carry (mirror the runtime source). */
+    title: string | Message,
+    /** Declarative eligibility kind — the staged set derives from the board. */
+    on?: PlacementType,
+    /**
+     * Bespoke pre-derived targets. MUST be cost-aware: the card's own
+     * derivation, called WITH the same `canAffordOptions` passed below (the
+     * bespoke cards already accept it for `bespokeCanPlay`).
+     */
+    spaces?: ReadonlyArray<Space>,
+    tileType?: TileType,
+    sourceCard: CardName,
+    customReasoner?: (space: Space) => PlacementIllegalReason | undefined,
+    hideExistingTile?: boolean,
+    /** Greenery placements exclude the cells around Red City at runtime
+     *  (`PlaceGreeneryTile.execute` → `filterSpacesAroundRedCity`). */
+    redCityFilter?: boolean,
+    /** The UNPAID card's own affordability plan (`affordOptionsForCard`). */
+    canAffordOptions?: CanAffordOptions,
+    /** Noctis-style reserved on-grid cell: confirm-only, no space tail. */
+    fixed?: boolean,
+  },
+): StagedPlacementModel | undefined {
+  const board = player.game.board;
+  let spaces = options.spaces ??
+    (options.on !== undefined ? board.getAvailableSpacesForType(player, options.on, options.canAffordOptions) : []);
+  if (options.redCityFilter === true) {
+    spaces = board.filterSpacesAroundRedCity(spaces);
+  }
+  if (spaces.length === 0) {
+    return undefined;
+  }
+  const illegalSpaces = board.computeIllegalReasons(player, options.on, spaces, {
+    customReasoner: options.customReasoner,
+    canAffordOptions: options.canAffordOptions,
+  });
+  const model: StagedPlacementModel = {
+    title: options.title,
+    spaces: spaces.map(toID),
+    illegalSpaces,
+    placementType: options.on,
+    tileType: options.tileType,
+    sourceCard: options.sourceCard,
+  };
+  if (options.hideExistingTile === true) {
+    model.hiddenTiles = spaces.map(toID);
+  }
+  if (options.fixed === true) {
+    model.fixed = true;
+  }
+  return model;
 }

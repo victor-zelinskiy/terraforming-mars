@@ -1412,6 +1412,40 @@ export function yieldStackToBoard(): boolean {
   return true;
 }
 
+/**
+ * STAGED PLAY takes the screen (docs/TILE_PLAY_STAGED_COMMIT.md): the play's
+ * cell pick is about to run on the board and the workspace the play was
+ * composed in steps aside — UNCONDITIONALLY, root registry notwithstanding.
+ * `yieldsToBoard` answers «does a SERVER placement displace this root?»; here
+ * the displacement is the flow's OWN next step, initiated by the very press
+ * the workspace hosted, so every root qualifies. Same `boardYielded` store,
+ * same resume door — and the shell's `placementActive` rising edge then finds
+ * the stack already aside (the `boardYielded.length > 0` fast path above) and
+ * never `goBoardHome`s the frames away.
+ *
+ * Returns whether anything actually moved (a standalone-band play has no
+ * frames to yield — B then only restores the band, not a stack).
+ */
+export function yieldStackForStagedPlay(): boolean {
+  if (boardYielded.length > 0) {
+    return true;
+  }
+  if (workspaceStackState.frames.length === 0) {
+    return false;
+  }
+  boardYielded.push(...workspaceStackState.frames.splice(0));
+  return true;
+}
+
+/**
+ * A staged play COMMITTED: the flow ends on the board (D-decision — the
+ * workspace never comes back for a bow), so the yielded frames are dropped
+ * instead of resumed. No-op when nothing is aside.
+ */
+export function discardYieldedStack(): void {
+  boardYielded.splice(0);
+}
+
 /** The board's business is over — take the screen back at the SAME depth. */
 export function resumeStackFromBoard(): boolean {
   if (boardYielded.length === 0) {

@@ -1,4 +1,4 @@
-import {IPlayer} from '../IPlayer';
+import {CanAffordOptions, IPlayer} from '../IPlayer';
 import {Space} from './Space';
 import {Board, isSpecialTile} from './Board';
 import {SpaceBonus} from '../../common/boards/SpaceBonus';
@@ -117,6 +117,14 @@ export function boardCellInfo(player: IPlayer, space: Space): BoardCellInfo {
  * bonus + normal adjacency scoring, "as usual". Such a placement also bypasses the
  * normal legality rules (the card already chose this exact target), so it is shown
  * as legal with the full reward, never a stale "No placement bonus" / "occupied".
+ *
+ * `options.canAffordOptions` marks a STAGED placement (the cell is picked BEFORE
+ * the card driving it is paid — see docs/TILE_PLAY_STAGED_COMMIT.md): the card's
+ * own unpaid cost plan (`player.affordOptionsForCard`) folds into every
+ * affordability judgement, exactly as `StandardProjectPlacement` prices its
+ * pay-on-commit targets. Threads to the SAME two real sources the live path
+ * uses (`getAvailableSpacesForType` for legality, `placementCostInfo` for the
+ * cost/deficit facts) — never a re-implemented rule.
  */
 export function boardCellPreview(
   player: IPlayer,
@@ -126,10 +134,11 @@ export function boardCellPreview(
     cleared?: boolean,
     tileType?: TileType,
     sourceCard?: CardName,
-    placementEffect?: PlacementEffect}): BoardPlacementPreview {
+    placementEffect?: PlacementEffect,
+    canAffordOptions?: CanAffordOptions}): BoardPlacementPreview {
   const board = player.game.board;
   const cleared = options?.cleared === true;
-  const legalSpaces = cleared ? [] : legalSpacesForKind(player, kind);
+  const legalSpaces = cleared ? [] : legalSpacesForKind(player, kind, options?.canAffordOptions);
   const legal = cleared || legalSpaces.some((s) => s.id === space.id);
   // A cleared cell's tile is removed first → treat as an empty cell (grant the
   // bonus), NOT a covering placement (which suppresses it).
@@ -144,7 +153,7 @@ export function boardCellPreview(
   const ctx = previewContext(kind, options?.tileType, cleared, covering, bonusesCovered, options?.placementEffect);
 
   const facts: Array<BoardFact> = [];
-  facts.push(...placementCostFacts(player, space, ctx));
+  facts.push(...placementCostFacts(player, space, ctx, options?.canAffordOptions));
   if (ctx.grantsPlacementBonus) {
     facts.push(...printedBonusFacts(space, ctx.bonusesCovered));
   }
@@ -1699,11 +1708,11 @@ function hazardAdjacencyBreakdown(
  * bonus-only pick onto a hazard-covered cell collects no bonuses either, so it
  * owes no bonus price.
  */
-function placementCostFacts(player: IPlayer, space: Space, ctx: PlacementPreviewContext): Array<BoardFact> {
+function placementCostFacts(player: IPlayer, space: Space, ctx: PlacementPreviewContext, canAffordOptions?: CanAffordOptions): Array<BoardFact> {
   if (!ctx.placesTile && (!ctx.grantsPlacementBonus || ctx.bonusesCovered)) {
     return [];
   }
-  const info = player.game.board.placementCostInfo(player, space, {tileType: ctx.tileType, placesTile: ctx.placesTile});
+  const info = player.game.board.placementCostInfo(player, space, {tileType: ctx.tileType, placesTile: ctx.placesTile, canAffordOptions});
   const out: Array<BoardFact> = [];
   out.push(...megacreditCostFacts(player, space, info.megacredits, 'placement-cost', info.affordable, ctx.placesTile));
   if (info.production > 0) {
@@ -1838,9 +1847,9 @@ function placedTileType(kind: BoardPlacementKind, tileType: TileType | undefined
   }
 }
 
-function legalSpacesForKind(player: IPlayer, kind: BoardPlacementKind): ReadonlyArray<Space> {
+function legalSpacesForKind(player: IPlayer, kind: BoardPlacementKind, canAffordOptions?: CanAffordOptions): ReadonlyArray<Space> {
   try {
-    return player.game.board.getAvailableSpacesForType(player, kind as PlacementType);
+    return player.game.board.getAvailableSpacesForType(player, kind as PlacementType, canAffordOptions);
   } catch {
     return [];
   }

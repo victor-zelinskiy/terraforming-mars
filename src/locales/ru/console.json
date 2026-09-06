@@ -432,6 +432,7 @@
     "Available cells only": "Только доступные клетки",
     "Placement is mandatory": "Размещение обязательно",
     "This placement is mandatory — pick a cell on the map": "Это размещение обязательно — выберите клетку на карте",
+    "Game state changed": "Состояние игры изменилось",
     "this tile cannot go here": "этот тайл сюда разместить нельзя",
     "This action requires picking a cell. Cancelling is not available.": "Это действие требует выбора клетки. Отмена недоступна.",
     "All cells": "Все клетки",

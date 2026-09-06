@@ -2,13 +2,14 @@ import {IProjectCard} from '../IProjectCard';
 import {Tag} from '../../../common/cards/Tag';
 import {Card} from '../Card';
 import {CardType} from '../../../common/cards/CardType';
-import {IPlayer} from '../../IPlayer';
+import {CanAffordOptions, IPlayer} from '../../IPlayer';
 import {CardName} from '../../../common/cards/CardName';
 import {TileType} from '../../../common/TileType';
 import {PlaceCityTile} from '../../deferredActions/PlaceCityTile';
 import {CardRenderer} from '../render/CardRenderer';
 import {Space} from '../../boards/Space';
 import {UnplayableReason} from '../../../common/cards/UnplayableReason';
+import {PlacementIllegalReason} from '../../../common/inputs/PlacementIllegalReason';
 import {ActionPreview} from '../../../common/models/ActionPreviewModel';
 import * as reason from '../actionReasons';
 import * as actionPreviews from '../actionPreviews';
@@ -49,10 +50,10 @@ export class LavaTubeSettlement extends Card implements IProjectCard {
     });
   }
 
-  private getSpacesForCity(player: IPlayer): ReadonlyArray<Space> {
+  private getSpacesForCity(player: IPlayer, canAffordOptions?: CanAffordOptions): ReadonlyArray<Space> {
     // https://boardgamegeek.com/thread/1953628/article/29627211#29627211
     const spaceType = player.game.board.volcanicSpaceIds.length === 0 ? 'city' : 'volcanic';
-    return player.game.board.getAvailableSpacesForType(player, spaceType);
+    return player.game.board.getAvailableSpacesForType(player, spaceType, canAffordOptions);
   }
 
   public override bespokeCanPlay(player: IPlayer): boolean {
@@ -71,28 +72,42 @@ export class LavaTubeSettlement extends Card implements IProjectCard {
   }
 
   public override bespokePlay(player: IPlayer) {
-    const board = player.game.board;
-    const volcanicMode = board.volcanicSpaceIds.length > 0;
-    const cityPlaceable = new Set(board.getAvailableSpacesForType(player, 'city').map((s) => s.id));
     player.game.defer(
       new PlaceCityTile(
         player,
         {
           spaces: this.getSpacesForCity(player),
           title: 'Select either Tharsis Tholus, Ascraeus Mons, Pavonis Mons or Arsia Mons',
-          // When volcanic spaces exist the city must go on one — a city-placeable
-          // non-volcanic cell is off-limits for that reason.
-          customReasoner: (space) => {
-            if (volcanicMode && cityPlaceable.has(space.id) && !board.volcanicSpaceIds.includes(space.id)) {
-              return 'not-volcanic';
-            }
-            return undefined;
-          },
+          customReasoner: this.placementReasoner(player),
         }));
     return undefined;
   }
 
+  /** The per-cell «why not» — shared by the live prompt (`bespokePlay`) and the
+   *  staged preview so the two can never disagree. When volcanic spaces exist
+   *  the city must go on one — a city-placeable non-volcanic cell is off-limits
+   *  for that reason. */
+  private placementReasoner(player: IPlayer): (space: Space) => PlacementIllegalReason | undefined {
+    const board = player.game.board;
+    const volcanicMode = board.volcanicSpaceIds.length > 0;
+    const cityPlaceable = new Set(board.getAvailableSpacesForType(player, 'city').map((s) => s.id));
+    return (space) => {
+      if (volcanicMode && cityPlaceable.has(space.id) && !board.volcanicSpaceIds.includes(space.id)) {
+        return 'not-volcanic';
+      }
+      return undefined;
+    };
+  }
+
   public cardPlayPreview(player: IPlayer): ActionPreview {
-    return actionPreviews.placementPreview(this, player, {tile: TileType.CITY, constraint: 'on a volcanic area'});
+    return actionPreviews.placementPreview(this, player, {
+      tile: TileType.CITY,
+      constraint: 'on a volcanic area',
+      staged: {
+        spaces: (canAffordOptions) => this.getSpacesForCity(player, canAffordOptions),
+        placementType: 'city',
+        reasoner: this.placementReasoner(player),
+      },
+    });
   }
 }

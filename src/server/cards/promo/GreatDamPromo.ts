@@ -13,6 +13,7 @@ import {PlaceTile} from '../../deferredActions/PlaceTile';
 import {CanAffordOptions, IPlayer} from '../../IPlayer';
 import {message} from '../../logs/MessageBuilder';
 import {UnplayableReason} from '../../../common/cards/UnplayableReason';
+import {PlacementIllegalReason} from '../../../common/inputs/PlacementIllegalReason';
 import {ActionPreview} from '../../../common/models/ActionPreviewModel';
 import * as reason from '../actionReasons';
 import * as actionPreviews from '../actionPreviews';
@@ -64,8 +65,6 @@ export class GreatDamPromo extends Card implements IProjectCard {
   }
 
   public override bespokePlay(player: IPlayer) {
-    const board = player.game.board;
-    const placeable = new Set(board.getAvailableSpacesOnLand(player).map((s) => s.id));
     player.game.defer(
       new PlaceTile(player, {
         tile: {tileType: TileType.GREAT_DAM, card: this.name},
@@ -73,18 +72,34 @@ export class GreatDamPromo extends Card implements IProjectCard {
         title: message('Select space for ${0}', (b) => b.card(this)),
         adjacencyBonus: this.adjacencyBonus,
         placementType: 'land',
-        customReasoner: (space) => {
-          if (placeable.has(space.id) && !board.getAdjacentSpaces(space).some((s) => Board.isOceanSpace(s))) {
-            return 'requires-adjacent-ocean';
-          }
-          return undefined;
-        },
+        customReasoner: this.placementReasoner(player),
       }));
     return undefined;
   }
 
+  /** The per-cell «why not» — shared by the live prompt (`bespokePlay`) and the
+   *  staged preview so the two can never disagree. */
+  private placementReasoner(player: IPlayer): (space: Space) => PlacementIllegalReason | undefined {
+    const board = player.game.board;
+    const placeable = new Set(board.getAvailableSpacesOnLand(player).map((s) => s.id));
+    return (space) => {
+      if (placeable.has(space.id) && !board.getAdjacentSpaces(space).some((s) => Board.isOceanSpace(s))) {
+        return 'requires-adjacent-ocean';
+      }
+      return undefined;
+    };
+  }
+
   public cardPlayPreview(player: IPlayer): ActionPreview {
-    return actionPreviews.placementPreview(this, player, {tile: TileType.GREAT_DAM, constraint: 'next to an ocean'});
+    return actionPreviews.placementPreview(this, player, {
+      tile: TileType.GREAT_DAM,
+      constraint: 'next to an ocean',
+      staged: {
+        spaces: (canAffordOptions) => this.getAvailableSpaces(player, canAffordOptions),
+        placementType: 'land',
+        reasoner: this.placementReasoner(player),
+      },
+    });
   }
 
   private getAvailableSpaces(player: IPlayer, canAffordOptions?: CanAffordOptions): Array<Space> {

@@ -4,6 +4,11 @@ import {Game} from '../../src/server/Game';
 import {TestPlayer} from '../TestPlayer';
 import {MockResponse} from './HttpMocks';
 import {RouteTestScaffolding} from './RouteTestScaffolding';
+import {testGame} from '../TestGame';
+import {CardName} from '../../src/common/cards/CardName';
+import {TileType} from '../../src/common/TileType';
+import {SpaceType} from '../../src/common/boards/SpaceType';
+import {AcquiredCompany} from '../../src/server/cards/base/AcquiredCompany';
 import {use} from 'chai';
 import chaiAsPromised from 'chai-as-promised';
 use(chaiAsPromised);
@@ -150,5 +155,96 @@ describe('ApiGameBoardCellPreview', () => {
     await scaffolding.get(ApiGameBoardCellPreview.INSTANCE, res);
     const preview = JSON.parse(res.content);
     expect(preview.legal).eq(true);
+  });
+
+  describe('staged play (staged=1)', () => {
+    // STAGED PLAY (docs/TILE_PLAY_STAGED_COMMIT.md): the player picks the cell
+    // BEFORE paying for the card, so the affordability facts must fold the
+    // card's own unpaid cost in — gated on the requesting player's own
+    // currently previewable card (the card-play-preview gate).
+    async function stagedGame() {
+      const [game, player] = testGame(2, {aresExtension: true});
+      await scaffolding.ctx.gameLoader.add(game);
+      // A deterministic 8 M€ placement cost: a mild hazard placed by the SPEC
+      // on a cell whose neighbourhood carries no other Ares cost.
+      const target = game.board.spaces.find((s) =>
+        s.spaceType === SpaceType.LAND && s.tile === undefined && s.player === undefined &&
+        game.board.getAdjacentSpaces(s).every((a) => a.tile === undefined && a.adjacency === undefined))!;
+      expect(target, 'an empty land cell with a cost-free neighbourhood').to.not.be.undefined;
+      target.tile = {tileType: TileType.DUST_STORM_MILD};
+      // 12 M€ covers the 8 M€ cleanup OR the 10 M€ card — never both.
+      player.megaCredits = 12;
+      player.cardsInHand.push(new AcquiredCompany());
+      return {game, player, target};
+    }
+
+    async function fetchJson(url: string) {
+      const out = new MockResponse();
+      scaffolding.url = url;
+      await scaffolding.get(ApiGameBoardCellPreview.INSTANCE, out);
+      return JSON.parse(out.content);
+    }
+
+    function stagedUrl(playerId: string, spaceId: string, card: CardName) {
+      return `/api/game/board-cell-preview?id=${playerId}&space=${spaceId}&kind=land&card=${encodeURIComponent(card)}`;
+    }
+
+    it('folds the unpaid card cost into affordability, deficit and legality', async () => {
+      const {player, target} = await stagedGame();
+      const base = stagedUrl(player.id, target.id, CardName.ACQUIRED_COMPANY);
+
+      const live = await fetchJson(base);
+      expect(live.legal, 'live money (12) covers the 8 M€ cleanup').eq(true);
+      expect([...live.costFacts, ...live.warningFacts].some((f: {id: string}) => f.id === 'cost-deficit'),
+        'no deficit against live money').eq(false);
+      expect(live.costFacts.find((f: {id: string}) => f.id === 'cost-mc').severity).eq('warning');
+
+      const staged = await fetchJson(`${base}&staged=1`);
+      expect(staged.legal, '12 − 10 (the card) = 2 < 8').eq(false);
+      const deficit = staged.warningFacts.find((f: {id: string}) => f.id === 'cost-deficit');
+      expect(deficit, 'the honest shortfall is named').to.not.be.undefined;
+      expect(deficit.delta.amount, '(10 + 8) − 12').eq(6);
+      expect(staged.costFacts.find((f: {id: string}) => f.id === 'cost-mc').severity,
+        'the cost line turns danger').eq('danger');
+    });
+
+    it('a non-previewable card name answers exactly as without the flag', async () => {
+      const {player, target} = await stagedGame();
+      // Birds is a real card name, but NOT in this player's hand → the gate
+      // fails and the flag is a no-op — never an error (an expired subject is
+      // not an error; see the noPreview doctrine).
+      const base = stagedUrl(player.id, target.id, CardName.BIRDS);
+      const plain = await fetchJson(base);
+      const staged = await fetchJson(`${base}&staged=1`);
+      expect(staged).to.deep.equal(plain);
+    });
+
+    it('a spectator asking from a player perspective never gets the staged view', async () => {
+      // The gate is the REQUESTING player's own hand — `color` must not let
+      // anyone price a preview against another player's playable cards.
+      const {game, player, target} = await stagedGame();
+      const base = `/api/game/board-cell-preview?id=${game.spectatorId}&color=${player.color}` +
+        `&space=${target.id}&kind=land&card=${encodeURIComponent(CardName.ACQUIRED_COMPANY)}`;
+      const plain = await fetchJson(base);
+      const staged = await fetchJson(`${base}&staged=1`);
+      expect(staged).to.deep.equal(plain);
+    });
+
+    it('a staged request mutates no game state', async () => {
+      const {game, player, target} = await stagedGame();
+      const before = JSON.stringify(game.board.serialize());
+      const mc = player.megaCredits;
+      const hand = player.cardsInHand.length;
+      const deferred = game.deferredActions.length;
+      const aresBefore = JSON.stringify(game.aresData);
+
+      await fetchJson(`${stagedUrl(player.id, target.id, CardName.ACQUIRED_COMPANY)}&staged=1`);
+
+      expect(JSON.stringify(game.board.serialize())).to.eq(before);
+      expect(player.megaCredits).to.eq(mc);
+      expect(player.cardsInHand.length).to.eq(hand);
+      expect(game.deferredActions.length).to.eq(deferred);
+      expect(JSON.stringify(game.aresData)).to.eq(aresBefore);
+    });
   });
 });

@@ -82,11 +82,11 @@ export function configureBoardInfo(cfg: Partial<Config>): void {
   }
 }
 
-function cacheKey(spaceId: SpaceId, kind?: BoardPlacementKind, cleared = false, tileType?: number, sourceCard?: CardName, placementEffect?: PlacementEffect): string {
-  return `${boardInfoState.cfg.color ?? ''}:${spaceId}:${kind ?? ''}:${cleared ? 'c' : ''}:${tileType ?? ''}:${sourceCard ?? ''}:${placementEffect ?? ''}`;
+function cacheKey(spaceId: SpaceId, kind?: BoardPlacementKind, cleared = false, tileType?: number, sourceCard?: CardName, placementEffect?: PlacementEffect, staged = false): string {
+  return `${boardInfoState.cfg.color ?? ''}:${spaceId}:${kind ?? ''}:${cleared ? 'c' : ''}:${tileType ?? ''}:${sourceCard ?? ''}:${placementEffect ?? ''}:${staged ? 's' : ''}`;
 }
 
-function buildUrl(spaceId: SpaceId, kind?: BoardPlacementKind, cleared = false, tileType?: number, sourceCard?: CardName, placementEffect?: PlacementEffect): string | undefined {
+function buildUrl(spaceId: SpaceId, kind?: BoardPlacementKind, cleared = false, tileType?: number, sourceCard?: CardName, placementEffect?: PlacementEffect, staged = false): string | undefined {
   const cfg = boardInfoState.cfg;
   if (cfg.participantId === undefined) {
     return undefined;
@@ -121,6 +121,13 @@ function buildUrl(spaceId: SpaceId, kind?: BoardPlacementKind, cleared = false, 
   // nobody. `'tile'` is the default on both sides — send only the exceptions.
   if (placementEffect !== undefined && placementEffect !== 'tile') {
     params.set('effect', placementEffect);
+  }
+  // STAGED PLAY: the cell is picked BEFORE the card is paid, so the server
+  // judges every affordability fact (Ares costs, «cannot afford», M€ deficits)
+  // against money AFTER the card's own cost. Requires `card` naming the staged
+  // card; the server falls back to the live answer when it can't gate it.
+  if (staged) {
+    params.set('staged', '1');
   }
   return `${apiUrl(paths.API_GAME_BOARD_CELL_PREVIEW)}?${params.toString()}`;
 }
@@ -178,6 +185,11 @@ export function clearBoardCellHover(spaceId: SpaceId): void {
  * Fetch a placement preview for one cell (active placement / confirm modal).
  * Cached per (color, space, kind). Returns undefined under JSDOM / before
  * configuration; the caller falls back to no preview.
+ *
+ * `staged` — a STAGED placement (the cell is picked before `sourceCard` is
+ * paid): affordability facts fold the card's own unpaid cost in. Part of the
+ * cache key — a staged and a live preview of the same cell answer differently
+ * and must never share an entry.
  */
 export function fetchBoardCellPreview(
   spaceId: SpaceId,
@@ -185,13 +197,14 @@ export function fetchBoardCellPreview(
   cleared = false,
   tileType?: number,
   sourceCard?: CardName,
-  placementEffect?: PlacementEffect): Promise<BoardPlacementPreview | undefined> {
-  const key = cacheKey(spaceId, kind, cleared, tileType, sourceCard, placementEffect);
+  placementEffect?: PlacementEffect,
+  staged?: boolean): Promise<BoardPlacementPreview | undefined> {
+  const key = cacheKey(spaceId, kind, cleared, tileType, sourceCard, placementEffect, staged === true);
   const cached = previewCache.get(key);
   if (cached !== undefined) {
     return Promise.resolve(cached);
   }
-  const url = buildUrl(spaceId, kind, cleared, tileType, sourceCard, placementEffect);
+  const url = buildUrl(spaceId, kind, cleared, tileType, sourceCard, placementEffect, staged === true);
   if (url === undefined || typeof fetch === 'undefined') {
     return Promise.resolve(undefined);
   }

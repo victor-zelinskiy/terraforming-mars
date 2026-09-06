@@ -2,6 +2,7 @@ import {IProjectCard} from '../IProjectCard';
 import {Tag} from '../../../common/cards/Tag';
 import {Card} from '../Card';
 import {CardType} from '../../../common/cards/CardType';
+import {TileType} from '../../../common/TileType';
 import {IPlayer} from '../../IPlayer';
 import {PlaceCityTile} from '../../deferredActions/PlaceCityTile';
 import {CardName} from '../../../common/cards/CardName';
@@ -105,14 +106,30 @@ export class NoctisCity extends Card implements IProjectCard {
     return undefined;
   }
 
-  // The on-play preview: `playPreview` auto-includes the declarative +3 M€
-  // production chip; we add the bespoke −1 energy production (`bespokePlay`'s
-  // `LoseProduction` / direct add, not in `behavior`) so the modal shows the full
-  // production swing. The city placement itself rides the post-batch PlacementBanner.
+  // The on-play preview: the declarative +3 M€ production chip auto-includes;
+  // we add the bespoke −1 energy production (`bespokePlay`'s `LoseProduction` /
+  // direct add, not in `behavior`) so the modal shows the full production swing.
+  //
+  // STAGED PLAY: on a board WITH the reserved Noctis area the cell is FIXED but
+  // ON-GRID — the player still goes to the board to inspect it (Ares zones,
+  // neighbours) and confirm; `fixed: true` means the batch carries NO space tail
+  // (bespokePlay places it itself, no SelectSpace ever exists). On boards
+  // without the area it is an ordinary staged city pick, mirroring
+  // `bespokePlay`'s energy-coverage filter.
   public cardPlayPreview(player: IPlayer): ActionPreview {
-    return actionPreviews.playPreview(this, player, [
-      actionPreviews.productionChange(player, Resource.ENERGY, -1),
-    ]);
+    const board = player.game.board;
+    const noctisCitySpaceId = board.noctisCitySpaceId;
+    return actionPreviews.placementPreview(this, player, {
+      tile: TileType.CITY,
+      effects: [actionPreviews.productionChange(player, Resource.ENERGY, -1)],
+      staged: noctisCitySpaceId !== undefined ?
+        {spaces: () => [board.getSpaceOrThrow(noctisCitySpaceId)], fixed: true} :
+        {
+          spaces: (canAffordOptions) =>
+            MarsBoard.filterForEnergy(player, board.getAvailableSpacesForCity(player, canAffordOptions)),
+          placementType: 'city',
+        },
+    });
   }
 
   /**

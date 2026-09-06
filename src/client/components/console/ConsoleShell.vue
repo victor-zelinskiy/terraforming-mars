@@ -1252,6 +1252,15 @@
                            :playerView="playerView"
                            :playerinput="taskSpacePrompt"
                            :onsave="onTaskSpacePicked" />
+      <!-- STAGED PLAY (docs/TILE_PLAY_STAGED_COMMIT.md): the play's cell pick
+           BEFORE the batch is submitted — the third client-side picker, fed a
+           synthetic SelectSpace built from the preview's StagedPlacementModel.
+           The confirm posts the parked batch (+ the space tail); B restores
+           the composer with nothing ever sent. -->
+      <console-board-input v-if="stagedPlayPrompt !== undefined"
+                           :playerView="playerView"
+                           :playerinput="stagedPlayPrompt"
+                           :onsave="onStagedPlaySpacePicked" />
     </div>
 
     <!-- Play-a-card flow — the console-native confirm (CTS T8: the
@@ -1353,7 +1362,7 @@ import {CardModel} from '@/common/models/CardModel';
 import {CardName} from '@/common/cards/CardName';
 import {Message} from '@/common/logs/Message';
 import {Payment} from '@/common/inputs/Payment';
-import {ColonyBonusCollectMeta, ColonyBonusDiscardMeta, DiscardPromptMeta, PlacementEffect, SelectCardModel, SelectColonyModel, SelectPaymentModel, SelectProjectCardToPlayModel} from '@/common/models/PlayerInputModel';
+import {ColonyBonusCollectMeta, ColonyBonusDiscardMeta, DiscardPromptMeta, PlacementEffect, SelectCardModel, SelectColonyModel, SelectPaymentModel, SelectProjectCardToPlayModel, SelectSpaceModel} from '@/common/models/PlayerInputModel';
 import ConsoleCardActions from '@/client/components/console/ConsoleCardActions.vue';
 import {consoleCardActionsUi, resetCardActionsFilter} from '@/client/console/consoleCardActions';
 import {getMilestone, getAward} from '@/client/MilestoneAwardManifest';
@@ -1476,6 +1485,9 @@ import {
   workspaceHostYieldsScene,
   workspaceKindSpec,
   yieldStackToBoard,
+  yieldStackForStagedPlay,
+  discardYieldedStack,
+  workspaceStackRootKind,
   resumeStackFromBoard,
   stackYieldedToBoard,
   descendWorkspaceFrame,
@@ -1624,7 +1636,7 @@ import {
   colonyRailIsCatalog as railIsCatalog,
 } from '@/client/console/consoleColoniesModel';
 import {armColonyFocusQuickExit} from '@/client/console/consoleColonyFocusMotion';
-import {consolePlayCardUi} from '@/client/console/consolePlayCardUi';
+import {consolePlayCardUi, setPlayComposerStagedDraft} from '@/client/console/consolePlayCardUi';
 import {consoleStartUi} from '@/client/console/consoleStartUi';
 import {consoleStartState, startAwaitingOthers, startCorporationPlayed, startDeferredSummary, startSceneHeld} from '@/client/console/consoleStartState';
 import {boardExcursionActive, boardExcursionQuiet, engageBoardExcursion, releaseBoardExcursion} from '@/client/console/boardExcursion';
@@ -1854,6 +1866,16 @@ import {
   noteAdmissionSignals,
   setConsoleBoardHomeIdle,
 } from '@/client/console/consoleForegroundWatchdog';
+import {
+  stagedPlayState,
+  stagedPlayActive,
+  armStagedPlay,
+  armStagedSeal,
+  markStagedPlayCommitting,
+  clearStagedPlay,
+} from '@/client/console/stagedPlay';
+import type {PlayComposerDraft} from '@/client/console/stagedPlay';
+import type {StagedPlacementModel} from '@/common/models/ActionPreviewModel';
 
 type PendingPlayCard = {
   cardName: CardName;
@@ -4918,6 +4940,32 @@ export default defineComponent({
       return p !== undefined && p.type === 'space' ? p : undefined;
     },
     /**
+     * STAGED PLAY's synthetic SelectSpace — byte-shaped like the server's own
+     * prompt so the ONE placement resolver (`placementSpaceModel`) and every
+     * consumer behind it (binder, reticle, dossier, kicker, planet focus,
+     * source view) work unchanged. `placementContext` is synthesized
+     * cancellable: nothing has been submitted, so B genuinely undoes.
+     */
+    stagedPlayPrompt(): SelectSpaceModel | undefined {
+      const arm = stagedPlayState.arm;
+      if (arm === undefined) {
+        return undefined;
+      }
+      const p = arm.placement;
+      return {
+        type: 'space',
+        title: p.title,
+        buttonLabel: '',
+        spaces: p.spaces,
+        illegalSpaces: p.illegalSpaces,
+        hiddenTiles: p.hiddenTiles,
+        placementType: p.placementType,
+        tileType: p.tileType,
+        sourceCard: p.sourceCard,
+        placementContext: {cancellable: true, source: {kind: 'card', card: p.sourceCard}},
+      };
+    },
+    /**
      * The server's top-level `SelectSpace` is being HELD behind a cinematic
      * (consolePromptAdmission). The board is ALWAYS mounted, so placement has no
      * `v-if` to suppress — this verdict is what stands in for one.
@@ -4948,10 +4996,12 @@ export default defineComponent({
     placementActive(): boolean {
       return (this.playerView.waitingFor?.type === 'space' && !this.placementHeld) ||
         this.convertPlantsPending !== undefined ||
-        this.taskSpacePending !== undefined;
+        this.taskSpacePending !== undefined ||
+        this.stagedPlayPrompt !== undefined;
     },
     placementCancellable(): boolean {
-      if (this.convertPlantsPending !== undefined || this.taskSpacePending !== undefined) {
+      if (this.convertPlantsPending !== undefined || this.taskSpacePending !== undefined ||
+          this.stagedPlayPrompt !== undefined) {
         return true; // client-side — nothing committed yet
       }
       return this.playerView.waitingFor?.placementContext?.cancellable === true;
@@ -4989,7 +5039,7 @@ export default defineComponent({
       if (wf?.type === 'space') {
         return wf;
       }
-      return this.convertPlantsPrompt ?? this.taskSpacePrompt;
+      return this.convertPlantsPrompt ?? this.taskSpacePrompt ?? this.stagedPlayPrompt;
     },
     /**
      * PLANET FOCUS target — should the enlarged placement stage be up?
@@ -9347,6 +9397,21 @@ export default defineComponent({
      * one owner of that transition.
      */
     placementWorldVersion(): void {
+      // STAGED PLAY first — its lifecycle rides the same version signal.
+      // A committed staged play landing IS the version move: the play is
+      // real, the flow ends on the board (the yielded frames are dropped,
+      // never resumed — D-decision), and whatever the response carries next
+      // (a chained second placement, a follow-up prompt, the reveal) is
+      // served by its own ordinary routing. A version move under an UNSENT
+      // staged play voids its preview instead.
+      if (stagedPlayActive()) {
+        if (stagedPlayState.committing) {
+          discardYieldedStack();
+          clearStagedPlay();
+        } else {
+          this.reconcileStagedPlayWorldMove();
+        }
+      }
       const phase = this.placementFlowState.phase;
       if (!this.placementActive || phase === 'navigate') {
         return;
@@ -13189,7 +13254,7 @@ export default defineComponent({
         this.departingTimer = undefined;
       }
     },
-    onPlayCardConfirmNative(payload: {branchIndex: number, preResponses: ReadonlyArray<unknown>, optionResponse: unknown, stepResponses: ReadonlyArray<unknown>, payment: Payment, rewards?: ReadonlyArray<ResourceTransferSpec>, draws?: number, repeat?: ConsoleRepeatPickResult, espionage?: {projection: DeltaEspionageProjectionModel, target?: Color, ownerAnswer?: DeltaStageAnswer}}): void {
+    onPlayCardConfirmNative(payload: {branchIndex: number, preResponses: ReadonlyArray<unknown>, optionResponse: unknown, stepResponses: ReadonlyArray<unknown>, payment: Payment, rewards?: ReadonlyArray<ResourceTransferSpec>, draws?: number, repeat?: ConsoleRepeatPickResult, espionage?: {projection: DeltaEspionageProjectionModel, target?: Color, ownerAnswer?: DeltaStageAnswer}, staged?: StagedPlacementModel, composerDraft?: PlayComposerDraft}): void {
       const action = this.playAction;
       const pending = this.pendingPlayCard;
       if (pending === undefined || action === undefined) {
@@ -13231,6 +13296,40 @@ export default defineComponent({
         this.beginEspionageExecution(payload.espionage);
         setWorkspaceFramePhase('hand', 'executing');
         this.submitBatch(batch);
+        return;
+      }
+      // STAGED PLAY (docs/TILE_PLAY_STAGED_COMMIT.md): a play whose preview
+      // carries a StagedPlacementModel submits NOTHING here. The batch parks,
+      // the workspace steps aside, and the board runs the cell pick as the
+      // play's LAST REVERSIBLE STEP — the confirm there is the one submit.
+      // Deliberately not for a composed repeat (ProjectInspection's own card
+      // places nothing; a copied action's placement is the copy's follow-up).
+      // BOUNDARY (v1): only a HAND-rooted flow or a standalone band. A play
+      // hosted inside the START deployment (start ⊃ hand — the play-from-hand
+      // prelude) keeps today's flow: the staged success DISCARDS the yielded
+      // frames, and a PHASE-anchored root must survive its inner flows.
+      const stagedRoot = workspaceStackRootKind();
+      if (payload.staged !== undefined && payload.repeat === undefined && payload.composerDraft !== undefined &&
+          (stagedRoot === undefined || stagedRoot === 'hand')) {
+        // Yield FIRST: the `placementActive` rising edge then finds the stack
+        // already aside (`boardYielded` fast path) and never goBoardHome's the
+        // frames away.
+        const yieldedStack = yieldStackForStagedPlay();
+        armStagedPlay({
+          cardName: pending.cardName,
+          isEvent,
+          batch,
+          placement: payload.staged,
+          rewards: payload.rewards,
+          draws: payload.draws ?? 0,
+          deckCheck: false,
+          pending,
+          draft: payload.composerDraft,
+          yieldedStack,
+        });
+        // The composer leaves (its own dissolve); B on the board brings it
+        // back through `cancelStagedPlay` with the parked pending + draft.
+        this.pendingPlayCard = undefined;
         return;
       }
       // ProjectInspection ENTERS through card PLAY, so it EXITS like a card
@@ -14916,6 +15015,11 @@ export default defineComponent({
         this.convertPlantsPending = undefined;
         return;
       }
+      if (stagedPlayActive()) {
+        // STAGED PLAY: nothing committed — restore the composer whole.
+        this.cancelStagedPlay();
+        return;
+      }
       // A placement raised by the STD-PROJECTS flow: the cancel's response is
       // what REOPENS the folded workspace on the very row the player left
       // (the flow's reconciler) — mark the leg so it reads as a return.
@@ -16043,6 +16147,72 @@ export default defineComponent({
       this.armBoardBonusIfCardCell(spaceResponse.spaceId,
         pending.spacePrompt.type === 'space' ? pending.spacePrompt.placementEffect : undefined);
       this.submit(orWrappedResponse(pending.index, spaceResponse));
+    },
+    /**
+     * STAGED PLAY's cell confirm — THE play's one submit. The parked batch
+     * posts with the chosen space appended as its tail; a `fixed` placement
+     * (Noctis City's reserved on-grid cell) posts the batch unchanged — the
+     * server places that cell itself, no SelectSpace ever exists for it.
+     *
+     * The tile hero was already armed by ConsoleBoardInput.saveData (the one
+     * arming point every placement source shares); a refusal runs the
+     * transport abort battery (rollback to the locked cell + re-armed
+     * onclicks + `abortStagedPlayCommit`), so the play stays cancellable.
+     */
+    onStagedPlaySpacePicked(spaceResponse: {type: 'space', spaceId: string}): void {
+      const arm = stagedPlayState.arm;
+      if (arm === undefined || stagedPlayState.committing) {
+        return;
+      }
+      markStagedPlayCommitting();
+      // The card-seal wave's plan: the card's own gains will fly FROM the
+      // placed tile after the hero's beats (stagedPlay.ts).
+      armStagedSeal(spaceResponse.spaceId);
+      this.armBoardBonusIfCardCell(spaceResponse.spaceId, undefined);
+      const responses = arm.placement.fixed === true ?
+        [...arm.batch] : [...arm.batch, spaceResponse];
+      this.submitBatch(responses);
+    },
+    /**
+     * B out of a staged placement: nothing was ever sent, so this is a pure
+     * client restore — the workspace comes back at the same depth and the
+     * composer re-seats every capture from the parked draft. The play is
+     * simply «not yet made» again.
+     */
+    cancelStagedPlay(): void {
+      const arm = stagedPlayState.arm;
+      if (arm === undefined || stagedPlayState.committing) {
+        return;
+      }
+      setPlayComposerStagedDraft(arm.draft);
+      if (arm.yieldedStack) {
+        resumeStackFromBoard();
+        setWorkspaceFramePhase('hand', 'configure');
+      }
+      this.pendingPlayCard = arm.pending;
+      clearStagedPlay();
+    },
+    /**
+     * The world moved under a STAGED (unsent) play — its preview is void.
+     * Two honest cases: our own commit's answer already put the card on the
+     * table (a lost-response retry hit STALE_PROMPT and the forced update
+     * brought the truth) → the play IS made, finalize on the spot; anything
+     * else → cancel back to the composer, which re-fetches its preview
+     * against the new state.
+     */
+    reconcileStagedPlayWorldMove(): void {
+      const arm = stagedPlayState.arm;
+      if (arm === undefined) {
+        return;
+      }
+      const played = this.playerView.thisPlayer.tableau.some((c) => c.name === arm.cardName);
+      if (played) {
+        discardYieldedStack();
+        clearStagedPlay();
+        return;
+      }
+      this.cancelStagedPlay();
+      this.showNotice('Game state changed');
     },
     // ── T6: reveal-result ack + notification CTAs ────────────────────────
     /**

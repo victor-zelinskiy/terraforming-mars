@@ -22,6 +22,7 @@ files here are the deeper dives it points at.
 - [CONSOLE_BLUE_ACTION_PARITY.md](CONSOLE_BLUE_ACTION_PARITY.md) — blue-card action center parity with desktop.
 - [CONSOLE_TV_PREMIUM_PLAN.md](CONSOLE_TV_PREMIUM_PLAN.md) — 4K-TV premium recomposition plan.
 - [COLONY_TRADE_FLOW.md](COLONY_TRADE_FLOW.md) — the premium colony-trade reward transaction (atomic tradeId manifest, merged Pluto reveal, track-reset glide).
+- [TILE_PLAY_STAGED_COMMIT.md](TILE_PLAY_STAGED_COMMIT.md) — **research/design, not implemented**: making the tile-cell pick the last reversible step of playing a tile-placing card (staged play = «клетка — хвост батча»; today's irreversibility chain with citations, card inventory by resolution shape, 3 architecture options, state model, plan, open product questions).
 - [GAMEPAD_SUPPORT_DESIGN.md](GAMEPAD_SUPPORT_DESIGN.md) / [GAMEPAD_SUPPORT_BRIEF.md](GAMEPAD_SUPPORT_BRIEF.md) — controller-first support design + status.
 - [DEV_GUARANTEED_CARDS.md](DEV_GUARANTEED_CARDS.md) — dev tool: pin chosen cards into the first hand dealt (test-mode sub-setting, admin only).
 - [TEST_CONTOUR.md](TEST_CONTOUR.md) — what «green» is allowed to mean: the chunking bug that made the whole client suite a silent no-op, the collected-count floor, wrapper auto-unmount, the `serial` cascade behind «did not run», and the probe/press disciplines E2E failures kept coming from.

@@ -1,11 +1,17 @@
-import {IPlayer} from '../IPlayer';
+import {CanAffordOptions, IPlayer} from '../IPlayer';
 import {ICard, IActionCard} from './ICard';
+import {isIProjectCard} from './IProjectCard';
+import {Space} from '../boards/Space';
+import {PlacementType} from '../boards/PlacementType';
+import {PlacementIllegalReason} from '../../common/inputs/PlacementIllegalReason';
+import {stagedMarsSelectSpace} from '../boards/marsSelectSpaceHelper';
 import {CardName} from '../../common/cards/CardName';
 import {CardResource} from '../../common/CardResource';
 import {CardType} from '../../common/cards/CardType';
 import {Tag} from '../../common/cards/Tag';
 import {Resource} from '../../common/Resource';
 import {Message} from '../../common/logs/Message';
+import {message} from '../logs/MessageBuilder';
 import {TileType} from '../../common/TileType';
 import {UnplayableReason} from '../../common/cards/UnplayableReason';
 import {MAX_OXYGEN_LEVEL, MAX_TEMPERATURE, MIN_TEMPERATURE, MAX_VENUS_SCALE} from '../../common/constants';
@@ -698,6 +704,31 @@ export function placementPreview(
     text?: string | Message,
     effects?: ReadonlyArray<ActionEffect>,
     steps?: ReadonlyArray<ActionPreviewStep | undefined>,
+    /**
+     * STAGED PLAY (docs/TILE_PLAY_STAGED_COMMIT.md): make this bespoke card's
+     * Mars placement the play's LAST REVERSIBLE STEP. The hook passes the
+     * card's OWN target derivation — the SAME method its `bespokePlay` feeds
+     * to `PlaceTile`/`createMarsSelectSpace` — as a function of the affordability
+     * plan, because at preview time the card is NOT paid yet and the derivation
+     * must fold the card's cost in (the bespoke `getAvailableSpaces(player,
+     * canAffordOptions)` methods already accept it for `bespokeCanPlay`).
+     * Ignored for `kind: 'colony'` and for a prose (`text`) step.
+     * Parity with the live prompt is guarded by
+     * tests/boards/stagedPlacementParity.spec.ts.
+     */
+    staged?: {
+      /** The live prompt's own title, when the card sets one (mirror it);
+       *  defaults to the generic «Select space for ${card} tile». */
+      title?: string | Message,
+      spaces: (canAffordOptions: CanAffordOptions | undefined) => ReadonlyArray<Space>,
+      /** The terrain kind the runtime prompt declares (generic per-cell reasons). */
+      placementType?: PlacementType,
+      /** The card's own per-cell reasoner — same one `bespokePlay` passes. */
+      reasoner?: (space: Space) => PlacementIllegalReason | undefined,
+      hideExistingTile?: boolean,
+      /** Reserved on-grid cell (Noctis City): confirm-only, no space tail. */
+      fixed?: boolean,
+    },
   } = {},
 ): ActionPreview {
   const kind = opts.kind ?? 'board';
@@ -711,6 +742,24 @@ export function placementPreview(
       count: opts.count,
       constraint: opts.constraint,
     });
+  if (opts.staged !== undefined && last.kind === 'boardPlacement' && kind !== 'colony') {
+    const canAffordOptions = isIProjectCard(card) && card.type !== CardType.PRELUDE ?
+      player.affordOptionsForCard(card) : undefined;
+    const staged = stagedMarsSelectSpace(player, {
+      title: opts.staged.title ?? message('Select space for ${0} tile', (b) => b.cardName(card.name)),
+      spaces: opts.staged.spaces(canAffordOptions),
+      on: opts.staged.placementType,
+      tileType: opts.tile,
+      sourceCard: card.name,
+      customReasoner: opts.staged.reasoner,
+      hideExistingTile: opts.staged.hideExistingTile,
+      fixed: opts.staged.fixed,
+      canAffordOptions,
+    });
+    if (staged !== undefined) {
+      last.staged = staged;
+    }
+  }
   return playPreview(card, player, opts.effects ?? [], [...(opts.steps ?? []), last]);
 }
 

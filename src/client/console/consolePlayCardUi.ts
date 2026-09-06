@@ -13,6 +13,7 @@
  */
 import {reactive} from 'vue';
 import type {FootHint} from '@/client/console/consolePlayCardComposer';
+import type {PlayComposerDraft} from '@/client/console/stagedPlay';
 
 // `FootHint` ({control, control2?, label, enabled?}) is a structural subset of
 // the command bar's `ConsoleCommand`, so the shell can render these verbatim.
@@ -22,12 +23,37 @@ import type {FootHint} from '@/client/console/consolePlayCardComposer';
 export const consolePlayCardUi = reactive({
   /** The composer's live footer hints, ready for the command bar. */
   commands: [] as ReadonlyArray<FootHint>,
+  /**
+   * STAGED PLAY return draft: the capture snapshot the composer wrote at the
+   * staged confirm, applied back by `applyPreview` when the player returns
+   * from the board with B — so the card, its payment, every resolved choice
+   * and the focus survive the round trip. ONE-SHOT: consumed on apply.
+   * Written by the shell's `cancelStagedPlay` (from the parked arm), read only
+   * by ConsolePlayCardConfirm.
+   */
+  stagedDraft: undefined as PlayComposerDraft | undefined,
 });
 
 export function setConsolePlayCardCommands(commands: ReadonlyArray<FootHint>): void {
   consolePlayCardUi.commands = commands;
 }
 
+export function setPlayComposerStagedDraft(draft: PlayComposerDraft | undefined): void {
+  consolePlayCardUi.stagedDraft = draft;
+}
+
+/** The composer consumes the draft exactly once (a later fresh open of the
+ *  same card must start clean). */
+export function takePlayComposerStagedDraft(cardName: string): PlayComposerDraft | undefined {
+  const draft = consolePlayCardUi.stagedDraft;
+  if (draft === undefined || draft.cardName !== cardName) {
+    return undefined;
+  }
+  consolePlayCardUi.stagedDraft = undefined;
+  return draft;
+}
+
 export function resetConsolePlayCardUi(): void {
   consolePlayCardUi.commands = [];
+  consolePlayCardUi.stagedDraft = undefined;
 }

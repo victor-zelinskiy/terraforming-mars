@@ -811,19 +811,19 @@ test.describe('console Game Start Workspace + play landing', () => {
     assertScene(eventLog, {isEvent: true, minEvents: 1});
     await expect(page.locator('.con-played')).toHaveCount(0);
 
-    // ── same game: the TILE follow-up event — the workspace hands over
-    //    to board placement only AFTER the docking episode ──
-    // Shots off: a follow-up play shortens the result beat to ~220 ms —
-    // screenshots inside the poll loop would swallow the whole observation
-    // window, and even bare polls can miss the post-dock counter frame. The
-    // dock-tick proof lives on the FIRST event above (0 → 1 strictly at the
-    // reveal); here the scene structure + the handover order are the point.
+    // ── same game: the TILE event — STAGED PLAY (docs/TILE_PLAY_STAGED_COMMIT.md)
+    //    changed this flow's grammar: «Разыграть» no longer runs a landing
+    //    scene; the composer hands the screen STRAIGHT to the board's cell
+    //    pick, and only the cell confirm commits the play (the landing story
+    //    then belongs to the tile hero, covered by the placement specs).
+    //    So here the assertions are the staged boundary: the workspace yields,
+    //    the placement is served, and no landing scene ever armed.
     await descendIntoPlay(page, TILE_EVENT);
-    const tileLog = await runLandingScene(page, TILE_EVENT, true, 'fhd-tile', false);
-    assertScene(tileLog, {isEvent: true, minEvents: 1});
+    await page.keyboard.press('Enter'); // «Разыграть на поле» — no submit yet
+    await expect(page.locator('.con-context'), 'the staged placement never took the board')
+      .toContainText(/размещение тайла/i, {timeout: 30_000});
     await expect(page.locator('.con-hand')).toHaveCount(0);
-    // The placement prompt owns the board now (the follow-up survived).
-    await expect(page.locator('.con-root')).toContainText(/Выберите|расположение|клетку|поле/i, {timeout: 15_000});
+    await expect(page.locator('.con-composer--play')).toHaveCount(0);
     await shoot(page, 'fhd-tile-4-placement');
   });
 

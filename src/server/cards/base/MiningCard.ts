@@ -14,6 +14,7 @@ import {SpaceBonus} from '../../../common/boards/SpaceBonus';
 import {TileType} from '../../../common/TileType';
 import {SelectResourceTypeDeferred} from '../../deferredActions/SelectResourceTypeDeferred';
 import {UnplayableReason} from '../../../common/cards/UnplayableReason';
+import {PlacementIllegalReason} from '../../../common/inputs/PlacementIllegalReason';
 import {ActionPreview} from '../../../common/models/ActionPreviewModel';
 import {BoardFact} from '../../../common/boards/BoardInformationFacts';
 import * as reason from '../actionReasons';
@@ -69,6 +70,13 @@ export abstract class MiningCard extends Card implements IProjectCard {
     return actionPreviews.placementPreview(this, player, {
       tile: this.name === CardName.MINING_RIGHTS ? TileType.MINING_RIGHTS : TileType.MINING_AREA,
       constraint: 'on a steel or titanium bonus area',
+      // The space prompt is the play's FIRST prompt; the steel-vs-titanium pick
+      // (and only then the tile) follows it, so staged covers the space set only.
+      staged: {
+        spaces: (canAffordOptions) => this.getAvailableSpaces(player, canAffordOptions),
+        placementType: 'land',
+        reasoner: this.placementReasoner(player),
+      },
     });
   }
 
@@ -136,31 +144,31 @@ export abstract class MiningCard extends Card implements IProjectCard {
     return productionBoxWithBonusResource(this);
   }
 
-  public override bespokePlay(player: IPlayer): SelectSpace {
-    // Every cell the player COULD build on (empty, non-reserved land). A cell
-    // here that isn't offered is illegal for exactly one reason: it lacks the
-    // required steel/titanium placement bonus → 'wrong-bonus-type'. Reserved /
-    // occupied / ocean cells aren't in this set and fall through to their
-    // generic reason.
+  /** The per-cell «why not» — shared by the live prompt (`bespokePlay`) and the
+   *  staged preview so the two can never disagree. 'wrong-bonus-type' ONLY for a
+   *  genuinely placeable land cell (not reserved / occupied / ocean — those fall
+   *  through to generic) that simply lacks the steel/titanium bonus. A cell that
+   *  HAS the bonus but is illegal for another reason (e.g. MiningArea's adjacency
+   *  rule) keeps its generic reason rather than a misleading "no bonus". */
+  private placementReasoner(player: IPlayer): (space: Space) => PlacementIllegalReason | undefined {
     const placeable = new Set(player.game.board.getAvailableSpacesOnLand(player).map((s) => s.id));
+    return (space) => {
+      if (placeable.has(space.id) &&
+          !space.bonus.includes(SpaceBonus.STEEL) &&
+          !space.bonus.includes(SpaceBonus.TITANIUM)) {
+        return 'wrong-bonus-type';
+      }
+      return undefined;
+    };
+  }
+
+  public override bespokePlay(player: IPlayer): SelectSpace {
     return createMarsSelectSpace(player, this.title, this.getAvailableSpaces(player), {
       placementType: 'land',
       // The tile is placed bespoke (after the steel/titanium choice), so nothing
       // else can tell the preview which card is asking.
       sourceCard: this.name,
-      customReasoner: (space) => {
-        // 'wrong-bonus-type' ONLY for a genuinely placeable land cell (not
-        // reserved / occupied / ocean — those fall through to generic) that
-        // simply lacks the steel/titanium bonus. A cell that HAS the bonus but
-        // is illegal for another reason (e.g. MiningArea's adjacency rule)
-        // keeps its generic reason rather than a misleading "no bonus".
-        if (placeable.has(space.id) &&
-            !space.bonus.includes(SpaceBonus.STEEL) &&
-            !space.bonus.includes(SpaceBonus.TITANIUM)) {
-          return 'wrong-bonus-type';
-        }
-        return undefined;
-      },
+      customReasoner: this.placementReasoner(player),
     })
       .andThen((space) => {
         this.spaceSelected(player, space);

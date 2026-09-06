@@ -10,6 +10,7 @@ import {Priority} from '../deferredActions/Priority';
 import {AddResourcesToCard} from '../deferredActions/AddResourcesToCard';
 import {ActionPreview, ActionEffect} from '../../common/models/ActionPreviewModel';
 import {effectsForBehavior, stepsForBehavior} from '../models/actionPreview';
+import {withStagedPlacement} from '../models/cardPlayPreview';
 import {cardSource, effectChoice} from '../inputs/choiceContext';
 import {chip, optionResult} from '../inputs/optionMetadata';
 import * as actionPreviews from './actionPreviews';
@@ -152,7 +153,12 @@ export function gainOrAddResourceBranches(
   opts: {prefixEffects?: ReadonlyArray<ActionEffect>} = {},
 ): ActionPreview {
   const behaviorEffects = card.behavior !== undefined ? effectsForBehavior(player, card, card.behavior) : [];
-  const behaviorSteps = card.behavior !== undefined ? stepsForBehavior(player, card, card.behavior) : [];
+  // `withStagedPlacement` — a bespoke hook must not LOSE the staged payload the
+  // declarative walker would have attached (Imported Hydrogen / Large Convoy:
+  // the ocean is stage-able whichever resource branch is picked; per D1 the
+  // draw simply reveals after the cell confirm).
+  const behaviorSteps = card.behavior !== undefined ?
+    withStagedPlacement(player, card, card.behavior, stepsForBehavior(player, card, card.behavior)) : [];
   const prefix = [...(opts.prefixEffects ?? []), ...behaviorEffects];
 
   const specs: Array<actionPreviews.BranchSpec> = [];

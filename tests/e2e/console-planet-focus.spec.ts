@@ -507,10 +507,18 @@ test.describe('console planet focus · main-grid placement stage', () => {
     await expect(panel, 'the placement never took the board').toContainText(
       /размещение тайла/i, {timeout: 60_000});
 
-    // NON-VACUOUS: the mode really did take a hidden stage.
-    expect(await page.evaluate(() => (window as unknown as {__focusHidden: boolean}).__focusHidden),
-      'the board was never hidden while the focus was engaged — this run did not ' +
-      'exercise the handed-over case (the outcome handed the board back too early)').toBe(true);
+    // STAGED PLAY (docs/TILE_PLAY_STAGED_COMMIT.md) changed this flow's timing
+    // contract: the cell pick now opens the board BEFORE the play is submitted
+    // (the hand workspace yields in the same press), so the old scenario —
+    // «the placement prompt lands behind a busy play outcome over a hidden
+    // stage» — no longer exists for a hand play by design. The hidden-stage
+    // witness stays INFORMATIONAL (a run that does catch the gap still proves
+    // the engage-over-hidden-stage contract below), but it is no longer a
+    // precondition: the load-bearing assertions are that the placement is
+    // SERVED and the planet genuinely GROWS.
+    const focusHidden = await page.evaluate(() =>
+      (window as unknown as {__focusHidden: boolean}).__focusHidden);
+    console.log(`[planet-focus] engage-over-hidden-stage window observed: ${focusHidden}`);
 
     // ENGAGED — and engaged is not a class, it is a GROWN planet. The bug this
     // guards left the class on and the scale at the overview value, which is

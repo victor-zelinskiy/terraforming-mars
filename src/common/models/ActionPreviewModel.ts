@@ -368,6 +368,26 @@ export type ActionPreviewStep =
     kind: 'boardPlacement',
     placementType: string,
     /**
+     * STAGED PLAY: the board data the console needs to run this placement as
+     * the LAST REVERSIBLE STEP of the play — the cell is picked BEFORE the play
+     * batch is submitted, and the chosen space rides the batch as its tail
+     * (`{type:'space', spaceId}`). Present only when the card play's FIRST Mars
+     * placement prompt would target the ACTING player (a prompt handed to
+     * someone else — Icy Impactors — or a colony-coupled play stays a
+     * follow-up), and only on that FIRST placement (a multi-tile card commits
+     * on its first cell; the rest are live prompts, by design decision D2).
+     *
+     * Absent → the placement is a post-submit follow-up (today's flow).
+     *
+     * The legal/illegal sets are computed by the SAME derivation the live
+     * `SelectSpace` uses (`stagedMarsSelectSpace`, the read-only twin of
+     * `createMarsSelectSpace`) with the card's own UNPAID cost folded in via
+     * `CanAffordOptions` — so what the player sees while still able to cancel
+     * is byte-equal to what the committed prompt would offer after paying.
+     * Guarded by tests/boards/stagedPlacementParity.spec.ts.
+     */
+    staged?: StagedPlacementModel,
+    /**
      * The tile that will actually be placed — the IDENTITY the preview line
      * names («разместите особый тайл «Солнечная электростанция»»). It is the
      * TILE's own type, NOT the played card: a card and its tile are frequently
@@ -417,6 +437,37 @@ export type ActionPreviewStep =
      */
     skipped?: {label: string | Message, effect?: ActionEffect}}
   | TabbedTargetsStep;
+
+/**
+ * The staged twin of a `SelectSpaceModel` — everything the console board
+ * binder needs to run a placement pick BEFORE the play is submitted. Field
+ * semantics mirror `SelectSpaceModel` one-for-one (same renderer consumes
+ * both); the differences are:
+ *   - there is no `promptId` (no server prompt exists yet — the answer rides
+ *     the play batch, whose head answers the standing action-menu prompt);
+ *   - `fixed` marks a Noctis-style RESERVED on-grid cell: the board shows the
+ *     one cell for inspection + confirm, but the batch carries NO space tail
+ *     (the server places it itself, without a SelectSpace).
+ */
+export type StagedPlacementModel = {
+  /** The prompt title the LIVE SelectSpace would carry — the client's synthetic
+   *  prompt echoes it so the dossier/task summary read identically. */
+  title: string | Message;
+  /** Legal target cells, same id vocabulary as `SelectSpaceModel.spaces`. */
+  spaces: ReadonlyArray<import('../Types').SpaceId>;
+  /** Per-cell reasons for every cell NOT in `spaces` (see SelectSpaceModel). */
+  illegalSpaces?: ReadonlyArray<import('../inputs/PlacementIllegalReason').PlacementIllegalSpace>;
+  /** Cells whose current tile is removed before placing (KaguyaTech). */
+  hiddenTiles?: ReadonlyArray<import('../Types').SpaceId>;
+  /** The placement kind — drives the kind-accurate board-cell-preview fetch. */
+  placementType?: import('../boards/BoardInformationFacts').BoardPlacementKind;
+  /** The tile actually placed (identity for the cell preview / dossier). */
+  tileType?: TileType;
+  /** The card driving the placement (dossier source + card-aware cell preview). */
+  sourceCard: CardName;
+  /** See `SelectSpaceModel.fixed` note above: confirm-only, no space answer. */
+  fixed?: boolean;
+};
 
 /** One player target in the "remove plants" tab of a `TabbedTargetsStep`. */
 export type TabbedPlantTarget = {

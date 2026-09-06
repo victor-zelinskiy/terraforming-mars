@@ -8,8 +8,11 @@ import {SelectCard} from '../inputs/SelectCard';
 import {Behavior, TitledBehavior} from '../behavior/Behavior';
 import {CardType} from '../../common/cards/CardType';
 import {Resource} from '../../common/Resource';
-import {ActionEffect, ActionPreview, ActionPreviewBranch} from '../../common/models/ActionPreviewModel';
+import {TileType} from '../../common/TileType';
+import {ActionEffect, ActionPreview, ActionPreviewBranch, ActionPreviewStep, StagedPlacementModel} from '../../common/models/ActionPreviewModel';
 import {effectsForBehavior, stepsForBehavior, subAvailability} from './actionPreview';
+import {stagedMarsSelectSpace} from '../boards/marsSelectSpaceHelper';
+import {message} from '../logs/MessageBuilder';
 
 /**
  * READ-ONLY preview of PLAYING a project card — the analog of `actionPreview`
@@ -203,7 +206,7 @@ function deriveCardPlayBranches(player: IPlayer, card: ICard, behavior: Behavior
         unavailableReasonParams: a.reason?.params,
         renderKeys: [String(i)],
         effects: effectsForBehavior(player, card, sub),
-        steps: a.available ? stepsForBehavior(player, card, sub) : [],
+        steps: a.available ? withStagedPlacement(player, card, sub, stepsForBehavior(player, card, sub)) : [],
       };
     });
   }
@@ -217,6 +220,100 @@ function deriveCardPlayBranches(player: IPlayer, card: ICard, behavior: Behavior
     available: true,
     renderKeys: [],
     effects: effectsForBehavior(player, card, behavior),
-    steps: stepsForBehavior(player, card, behavior),
+    steps: withStagedPlacement(player, card, behavior, stepsForBehavior(player, card, behavior)),
   }];
+}
+
+/**
+ * STAGED PLAY enrichment for a DECLARATIVE play branch: compute the staged
+ * board payload for the branch's FIRST Mars placement and attach it to that
+ * step's `boardPlacement` entry (see `StagedPlacementModel`). Bespoke cards
+ * attach theirs through `actionPreviews.placementPreview({staged})` — this
+ * walker never sees them. Read-only.
+ *
+ * The derivation MIRRORS `Executor.execute`'s placement block (the fixed
+ * ocean → city → greenery → tile order and the exact `Place*Tile` args) — the
+ * same mirroring contract `stepsForBehavior` already carries, guarded by
+ * `tests/boards/stagedPlacementParity.spec.ts`. Deliberate exclusions:
+ *   - a colony-coupled play (`colonies.buildColony`) — the colony prompt comes
+ *     FIRST at runtime (BUILD_COLONY < PLACE_OCEAN_TILE), so the cell cannot
+ *     honestly be the play's last step; it stays a follow-up (v1);
+ *   - oceans while `canAddOcean()` is false — the runtime placement silently
+ *     skips, so the play produces no placement prompt at all;
+ *   - a fixed off-grid `city.space` — placed without any prompt (D3).
+ */
+export function withStagedPlacement(
+  player: IPlayer,
+  card: ICard,
+  behavior: Behavior,
+  steps: ReadonlyArray<ActionPreviewStep>,
+): ReadonlyArray<ActionPreviewStep> {
+  const staged = stagedForBehavior(player, card, behavior);
+  if (staged === undefined) {
+    return steps;
+  }
+  let attached = false;
+  return steps.map((step) => {
+    if (!attached && step.kind === 'boardPlacement' && step.placementType !== 'colony') {
+      attached = true;
+      return {...step, staged};
+    }
+    return step;
+  });
+}
+
+function stagedForBehavior(player: IPlayer, card: ICard, behavior: Behavior): StagedPlacementModel | undefined {
+  if (behavior.colonies?.buildColony !== undefined) {
+    return undefined;
+  }
+  const canAffordOptions = isIProjectCard(card) && card.type !== CardType.PRELUDE ?
+    player.affordOptionsForCard(card) : undefined;
+  if (behavior.ocean !== undefined) {
+    if (!player.game.canAddOcean()) {
+      return undefined;
+    }
+    // `count: 2` defers two independent PlaceOceanTile prompts; the staged cell
+    // answers the FIRST (D2 — the first cell is the commit boundary). Titles
+    // mirror PlaceOceanTile / Executor exactly.
+    const on = behavior.ocean.count === 2 ? 'ocean' : (behavior.ocean.on ?? 'ocean');
+    return stagedMarsSelectSpace(player, {
+      title: behavior.ocean.count === 2 ? 'Select space for first ocean' :
+        (on === 'land' ? 'Select a land space to place an ocean tile' : 'Select space for ocean tile'),
+      on,
+      tileType: TileType.OCEAN,
+      sourceCard: card.name,
+      canAffordOptions,
+    });
+  }
+  if (behavior.city !== undefined && behavior.city.space === undefined) {
+    const on = behavior.city.on ?? 'city';
+    return stagedMarsSelectSpace(player, {
+      title: on === 'isolated' ? 'Select place next to no other tile for city' : 'Select space for city tile',
+      on,
+      tileType: TileType.CITY,
+      sourceCard: card.name,
+      canAffordOptions,
+    });
+  }
+  if (behavior.greenery !== undefined) {
+    const on = behavior.greenery.on ?? 'greenery';
+    return stagedMarsSelectSpace(player, {
+      title: on === 'ocean' ? 'Select space reserved for ocean to place greenery tile' : 'Select space for greenery tile',
+      on,
+      tileType: TileType.GREENERY,
+      sourceCard: card.name,
+      redCityFilter: true,
+      canAffordOptions,
+    });
+  }
+  if (behavior.tile !== undefined) {
+    return stagedMarsSelectSpace(player, {
+      title: behavior.tile.title ?? message('Select space for ${0} tile', (b) => b.cardName(card.name)),
+      on: behavior.tile.on,
+      tileType: behavior.tile.type,
+      sourceCard: card.name,
+      canAffordOptions,
+    });
+  }
+  return undefined;
 }

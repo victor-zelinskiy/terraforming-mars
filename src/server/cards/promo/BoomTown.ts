@@ -8,6 +8,7 @@ import {SpaceBonus} from '../../../common/boards/SpaceBonus';
 import {Size} from '../../../common/cards/render/Size';
 import {TileType} from '../../../common/TileType';
 import {PlaceCityTile} from '../../deferredActions/PlaceCityTile';
+import {PlacementIllegalReason} from '../../../common/inputs/PlacementIllegalReason';
 import {ActionPreview} from '../../../common/models/ActionPreviewModel';
 import * as actionPreviews from '../actionPreviews';
 
@@ -67,30 +68,43 @@ export class BoomTown extends PreludeCard {
     return actionPreviews.placementPreview(this, player, {
       tile: TileType.CITY,
       constraint: 'on a steel or titanium bonus area',
+      // A prelude pays nothing, so the builder passes no canAffordOptions —
+      // the same set `bespokePlay` hands to `PlaceCityTile`.
+      staged: {
+        spaces: () => this.availableSpaces(player),
+        placementType: 'city',
+        reasoner: this.placementReasoner(player),
+      },
     });
   }
 
-  public override bespokePlay(player: IPlayer) {
-    // Every cell a city COULD go on. One that isn't offered is off-limits for
-    // exactly one reason: it lacks the required steel/titanium placement bonus →
-    // 'wrong-bonus-type'. A cell that HAS the bonus but is illegal for another
-    // reason (adjacent to a city, occupied, reserved) is not in this set and keeps
-    // its generic reason rather than a misleading "no bonus".
+  /** The per-cell «why not» — shared by the live prompt (`bespokePlay`) and the
+   *  staged preview so the two can never disagree. Every cell a city COULD go on:
+   *  one that isn't offered is off-limits for exactly one reason — it lacks the
+   *  required steel/titanium placement bonus → 'wrong-bonus-type'. A cell that
+   *  HAS the bonus but is illegal for another reason (adjacent to a city,
+   *  occupied, reserved) is not in this set and keeps its generic reason rather
+   *  than a misleading "no bonus". */
+  private placementReasoner(player: IPlayer): (space: Space) => PlacementIllegalReason | undefined {
     const cityPlaceable = new Set(player.game.board.getAvailableSpacesForType(player, 'city').map((s) => s.id));
+    return (space) => {
+      if (cityPlaceable.has(space.id) &&
+          !space.bonus.includes(SpaceBonus.STEEL) &&
+          !space.bonus.includes(SpaceBonus.TITANIUM)) {
+        return 'wrong-bonus-type';
+      }
+      return undefined;
+    };
+  }
+
+  public override bespokePlay(player: IPlayer) {
     player.game.defer(new PlaceCityTile(player, {
       spaces: this.availableSpaces(player),
       title: 'Select a space with a steel or titanium bonus for city tile',
       // Names the card in the placement context + lets the per-cell preview ask
       // this card what it does on the hovered cell.
       sourceCard: this.name,
-      customReasoner: (space) => {
-        if (cityPlaceable.has(space.id) &&
-            !space.bonus.includes(SpaceBonus.STEEL) &&
-            !space.bonus.includes(SpaceBonus.TITANIUM)) {
-          return 'wrong-bonus-type';
-        }
-        return undefined;
-      },
+      customReasoner: this.placementReasoner(player),
     }));
     return undefined;
   }

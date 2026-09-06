@@ -131,6 +131,12 @@ import {
 } from '@/client/console/tilePlacement/consoleTilePlacement';
 import {rollbackPlacementCommit} from '@/client/console/tilePlacement/placementFlow';
 import {
+  abortStagedPlayCommit,
+  seedStagedPlayRewardHold,
+  runStagedSealWave,
+  stagedSealPending,
+} from '@/client/console/stagedPlay';
+import {
   abortNomadMove,
   detectNomadMove,
   endNomadMove,
@@ -482,6 +488,7 @@ function applyGlobalParamPreview(newView: PlayerViewModel): void {
 function seedRewardHolds(newView?: PlayerViewModel): void {
   seedPlayedHeroRewardHold();
   seedTilePlacementRewardHold();
+  seedStagedPlayRewardHold();
   seedNomadMoveRewardHold();
   seedColonyBuildRewardHold();
   seedColonyTradeRewardHold();
@@ -978,9 +985,18 @@ function fetchPlayerInput(url: string, options: RequestInit, wgtSubmit: boolean)
         }
         if (tileHeroEvent !== undefined) {
           // The REWARD BEAT of the placement: the cell's printed icons rise
-          // through the placed tile, become physical chips and pay out.
+          // through the placed tile, become physical chips and pay out —
+          // then a STAGED play's own card gains fly from the same tile
+          // (the card-seal wave; no-op unless a staged commit armed one).
           void nextTick(() => {
-            void endTilePlacement();
+            void endTilePlacement().then(() => runStagedSealWave());
+          });
+        } else if (stagedSealPending()) {
+          // A staged commit whose placement hero degraded (a parked space
+          // tail, an unmeasurable board) still owes the card's gains — the
+          // wave itself degrades honestly when the hex can't be measured.
+          void nextTick(() => {
+            void runStagedSealWave();
           });
         }
         if (nomadMoveEvent !== undefined) {
@@ -1090,6 +1106,9 @@ function abortAllConsoleTransactions(): void {
   // to their LOCKED cell (context intact) and re-arms the board wiring the
   // submit funnel tore down. No-op unless a placement commit was in flight.
   rollbackPlacementCommit();
+  // …and a STAGED play's commit: the batch never landed, so the staged play
+  // is simply «not yet sent» again — still cancellable, still retryable.
+  abortStagedPlayCommit();
   // …and the nomad move: the camp never lifts off, nothing is collected.
   transportHolds.nomadMove = false;
   abortNomadMove();

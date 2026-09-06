@@ -555,7 +555,7 @@ import {CardName} from '@/common/cards/CardName';
 import {CardType} from '@/common/cards/CardType';
 import {Message} from '@/common/logs/Message';
 import {SelectProjectCardToPlayModel, SelectAmountModel, SelectCardModel, SelectPlayerModel, OrOptionsModel} from '@/common/models/PlayerInputModel';
-import {ActionPreview, ActionPreviewBranch, ActionEffect} from '@/common/models/ActionPreviewModel';
+import {ActionPreview, ActionPreviewBranch, ActionEffect, StagedPlacementModel} from '@/common/models/ActionPreviewModel';
 import {extractPlayRewards} from '@/client/console/resourceTransfer/resourceTransferModel';
 import {Tag} from '@/common/cards/Tag';
 import {SpendableResource} from '@/common/inputs/Spendable';
@@ -606,7 +606,8 @@ import {
   initialCounts, dialLaneCount, megacreditsAvailable,
   paymentCovers, paymentFromCounts, PaymentLane, paymentLanes, projectCardPaymentPrompt,
 } from '@/client/console/paymentPlan';
-import {setConsolePlayCardCommands, resetConsolePlayCardUi} from '@/client/console/consolePlayCardUi';
+import {setConsolePlayCardCommands, resetConsolePlayCardUi, takePlayComposerStagedDraft} from '@/client/console/consolePlayCardUi';
+import type {PlayComposerDraft} from '@/client/console/stagedPlay';
 import {setWorkspaceFrameStage} from '@/client/console/consoleWorkspaceStack';
 import {handStageReveal} from '@/client/console/consoleHandStageMotion';
 import {takeHandPlayPreview, storeHandPlayPreview, playPreviewUrl} from '@/client/console/consoleHandPlayPrewarm';
@@ -1539,11 +1540,18 @@ export default defineComponent({
     ctaReady(): boolean {
       return this.primaryActionState.kind === 'ready';
     },
+    /** The chosen branch STAGES its placement (staged play): A hands the
+     *  screen to the board, and the CELL CONFIRM there is the actual commit —
+     *  so the CTA must not promise a finished play. */
+    ctaStaged(): boolean {
+      const b = this.selectedBranch;
+      return b !== undefined && this.stagedPlacementOf(b) !== undefined;
+    },
     /** The big CTA strip label — the primary action in words. */
     ctaLabel(): string {
       const st = this.primaryActionState;
       switch (st.kind) {
-      case 'ready': return 'Play card';
+      case 'ready': return this.ctaStaged ? 'Play on the board' : 'Play card';
       // Calm INSTRUCTION, not a refusal: the rail says what the screen is
       // waiting for instead of dangling a live «Разыграть карту» over a result
       // the player has not chosen.
@@ -1993,6 +2001,24 @@ export default defineComponent({
       this.selectedPos = initialVariantSelection(this.branches);
       this.seedChoiceDefaults();
       this.focusIdx = this.firstActionableIndex();
+      // STAGED PLAY return (B from the board): the player's own captures beat
+      // the fresh seeding — the round trip must land them exactly where they
+      // left. One-shot by contract; nothing was submitted in between, so the
+      // preview (version-cached) and the step indexes are the same shape.
+      const draft = takePlayComposerStagedDraft(this.cardName);
+      if (draft !== undefined) {
+        this.selectedPos = draft.selectedPos;
+        this.capturedPre = {...draft.capturedPre};
+        this.capturedOption = draft.capturedOption;
+        this.captured = {...draft.captured};
+        this.amounts = {...draft.amounts};
+        this.floaters = {...draft.floaters};
+        this.picks = {...draft.picks};
+        this.multiPicks = {...draft.multiPicks};
+        this.payCounts = {...draft.payCounts} as Partial<Record<SpendableResource, number>>;
+        this.playedTargetResults = {...draft.playedTargetResults} as Record<string, PlayedTargetResult>;
+        this.focusIdx = draft.focusIdx;
+      }
       // Dev audit: a genuine preview gap (no immediate result, no follow-up) —
       // surface it once per load so it can be found and closed (audit contract).
       if (isFallbackOnlyResult(this.resultSections, {hasImmediate: this.hasImmediateResult, hasFollowUp: this.hasFollowUpResult})) {
@@ -3434,7 +3460,41 @@ export default defineComponent({
           target: this.espionageCapture?.target,
           ownerAnswer: this.espionageOwnerAnswer,
         } : undefined,
+        // STAGED PLAY: the chosen branch's FIRST Mars placement, when the
+        // server's preview marked it stage-able (StagedPlacementModel). The
+        // shell then parks the batch and runs the cell pick BEFORE submitting
+        // — the cell is the play's last reversible step.
+        staged: this.stagedPlacementOf(b),
+        // …and the raw capture snapshot that restores this very screen when
+        // the player comes back from the board with B. Opaque to the shell.
+        composerDraft: this.composerDraftSnapshot(),
       });
+    },
+    /** The staged payload of the CHOSEN branch — first Mars boardPlacement
+     *  step carrying `staged` (D2: only the first placement ever carries it). */
+    stagedPlacementOf(b: ActionPreviewBranch): StagedPlacementModel | undefined {
+      for (const step of b.steps) {
+        if (step.kind === 'boardPlacement' && step.staged !== undefined) {
+          return step.staged;
+        }
+      }
+      return undefined;
+    },
+    composerDraftSnapshot(): PlayComposerDraft {
+      return {
+        cardName: this.cardName,
+        selectedPos: this.selectedPos,
+        capturedPre: {...this.capturedPre},
+        capturedOption: this.capturedOption,
+        captured: {...this.captured},
+        amounts: {...this.amounts},
+        floaters: {...this.floaters},
+        picks: {...this.picks},
+        multiPicks: {...this.multiPicks},
+        payCounts: {...this.payCounts} as Record<string, number>,
+        playedTargetResults: {...this.playedTargetResults},
+        focusIdx: this.focusIdx,
+      };
     },
     scrollFocused(): void {
       void this.$nextTick(() => {

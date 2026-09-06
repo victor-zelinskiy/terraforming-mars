@@ -15,6 +15,7 @@ import {Phase} from '../../../common/Phase';
 import {Board} from '../../boards/Board';
 import {ICard} from '../ICard';
 import {UnplayableReason} from '../../../common/cards/UnplayableReason';
+import {PlacementIllegalReason} from '../../../common/inputs/PlacementIllegalReason';
 import {ActionPreview} from '../../../common/models/ActionPreviewModel';
 import * as reason from '../actionReasons';
 import * as actionPreviews from '../actionPreviews';
@@ -83,8 +84,6 @@ export class EcologicalZone extends Card implements IProjectCard {
       player.addResourceTo(this, {qty: 1, log: true});
     }
 
-    const board = player.game.board;
-    const placeable = new Set(board.getAvailableSpacesOnLand(player).map((s) => s.id));
     player.game.defer(
       new PlaceTile(player, {
         tile: {tileType: TileType.ECOLOGICAL_ZONE, card: this.name},
@@ -92,19 +91,35 @@ export class EcologicalZone extends Card implements IProjectCard {
         title: 'Select space next to greenery for special tile',
         adjacencyBonus: this.adjacencyBonus,
         placementType: 'land',
-        customReasoner: (space) => {
-          if (placeable.has(space.id) && board.getAdjacentSpaces(space).filter(Board.isGreenerySpace).length === 0) {
-            return 'requires-adjacent-greenery';
-          }
-          return undefined;
-        },
+        customReasoner: this.placementReasoner(player),
       }));
     return undefined;
+  }
+
+  /** The per-cell «why not» — shared by the live prompt (`bespokePlay`) and the
+   *  staged preview so the two can never disagree. */
+  private placementReasoner(player: IPlayer): (space: Space) => PlacementIllegalReason | undefined {
+    const board = player.game.board;
+    const placeable = new Set(board.getAvailableSpacesOnLand(player).map((s) => s.id));
+    return (space) => {
+      if (placeable.has(space.id) && board.getAdjacentSpaces(space).filter(Board.isGreenerySpace).length === 0) {
+        return 'requires-adjacent-greenery';
+      }
+      return undefined;
+    };
   }
 
   public cardPlayPreview(player: IPlayer): ActionPreview {
     // The tile is the ECOLOGICAL_ZONE special tile placed NEXT TO a greenery —
     // it is not itself a greenery (it raises no oxygen and never counts as one).
-    return actionPreviews.placementPreview(this, player, {tile: TileType.ECOLOGICAL_ZONE, constraint: 'next to a greenery'});
+    return actionPreviews.placementPreview(this, player, {
+      tile: TileType.ECOLOGICAL_ZONE,
+      constraint: 'next to a greenery',
+      staged: {
+        spaces: (canAffordOptions) => this.getAvailableSpaces(player, canAffordOptions),
+        placementType: 'land',
+        reasoner: this.placementReasoner(player),
+      },
+    });
   }
 }

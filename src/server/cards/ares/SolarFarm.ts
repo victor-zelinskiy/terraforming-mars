@@ -80,7 +80,15 @@ export class SolarFarm extends Card implements IProjectCard {
   }
 
   public cardPlayPreview(player: IPlayer): ActionPreview {
-    return actionPreviews.placementPreview(this, player, {tile: TileType.SOLAR_FARM});
+    return actionPreviews.placementPreview(this, player, {
+      tile: TileType.SOLAR_FARM,
+      // Mirrors `bespokePlay`'s `PlaceTile` with `on: 'land'` (which resolves
+      // through the same `getAvailableSpacesForType` call at execute time).
+      staged: {
+        spaces: (canAffordOptions) => player.game.board.getAvailableSpacesForType(player, 'land', canAffordOptions),
+        placementType: 'land',
+      },
+    });
   }
 
   /**

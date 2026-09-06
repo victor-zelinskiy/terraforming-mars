@@ -2,7 +2,7 @@ import {IProjectCard} from '../IProjectCard';
 import {Tag} from '../../../common/cards/Tag';
 import {Card} from '../Card';
 import {CardType} from '../../../common/cards/CardType';
-import {IPlayer} from '../../IPlayer';
+import {CanAffordOptions, IPlayer} from '../../IPlayer';
 import {Space} from '../../boards/Space';
 import {PlaceCityTile} from '../../deferredActions/PlaceCityTile';
 import {Resource} from '../../../common/Resource';
@@ -111,9 +111,14 @@ export class ImmigrantCity extends Card implements IProjectCard {
     ];
   }
 
+  /** The exact set the live prompt offers — city-legal cells that can cover the
+   *  −1 energy production. Shared by `bespokePlay` and the staged preview. */
+  private availableSpaces(player: IPlayer, canAffordOptions?: CanAffordOptions): ReadonlyArray<Space> {
+    return MarsBoard.filterForEnergy(player, player.game.board.getAvailableSpacesForCity(player, canAffordOptions));
+  }
+
   public override bespokePlay(player: IPlayer) {
-    const spaces = MarsBoard.filterForEnergy(player, player.game.board.getAvailableSpacesForCity(player));
-    player.game.defer(new PlaceCityTile(player, {spaces, sourceCard: this.name})).andThen(() => {
+    player.game.defer(new PlaceCityTile(player, {spaces: this.availableSpaces(player), sourceCard: this.name})).andThen(() => {
       player.game.defer(new LoseProduction(player, Resource.ENERGY, {count: 1}));
       player.game.defer(new LoseProduction(player, Resource.MEGACREDITS, {count: 2}));
     });
@@ -121,6 +126,12 @@ export class ImmigrantCity extends Card implements IProjectCard {
   }
 
   public cardPlayPreview(player: IPlayer): ActionPreview {
-    return actionPreviews.placementPreview(this, player, {tile: TileType.CITY});
+    return actionPreviews.placementPreview(this, player, {
+      tile: TileType.CITY,
+      staged: {
+        spaces: (canAffordOptions) => this.availableSpaces(player, canAffordOptions),
+        placementType: 'city',
+      },
+    });
   }
 }

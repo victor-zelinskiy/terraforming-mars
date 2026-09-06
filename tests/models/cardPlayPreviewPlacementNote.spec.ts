@@ -108,7 +108,14 @@ describe('cardPlayPreview — a placement carries its tile identity', () => {
     for (const [, card] of TILED) {
       for (const s of placements(card)) {
         expect(Object.keys(s)).to.not.include('card');
-        expect(JSON.stringify(s)).to.not.include(card.name);
+        // The STAGED payload deliberately names its source card (`sourceCard` —
+        // the client resolves the placement dossier's card from it); the tile
+        // IDENTITY the step presents must still never be the card's name.
+        const {staged, ...identity} = s;
+        expect(JSON.stringify(identity)).to.not.include(card.name);
+        if (staged !== undefined) {
+          expect(staged.sourceCard).to.equal(card.name);
+        }
       }
     }
   });
@@ -116,7 +123,8 @@ describe('cardPlayPreview — a placement carries its tile identity', () => {
   it('Flooding reports an OCEAN, never "Flooding"', () => {
     const [placement] = placements(new Flooding());
     expect(placement.tileType).to.equal(TileType.OCEAN);
-    expect(JSON.stringify(placement)).to.not.include(CardName.FLOODING);
+    const {staged: _staged, ...identity} = placement;
+    expect(JSON.stringify(identity)).to.not.include(CardName.FLOODING);
   });
 
   it('Flooding keeps the adjacent-opponent attack as its OWN note', () => {

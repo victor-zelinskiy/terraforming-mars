@@ -14,6 +14,7 @@ import {Resource} from '../../../common/Resource';
 import {MarsBoard} from '../../boards/MarsBoard';
 import {Units} from '../../../common/Units';
 import {UnplayableReason} from '../../../common/cards/UnplayableReason';
+import {PlacementIllegalReason} from '../../../common/inputs/PlacementIllegalReason';
 import {ActionPreview} from '../../../common/models/ActionPreviewModel';
 import {BoardFact} from '../../../common/boards/BoardInformationFacts';
 import * as reason from '../actionReasons';
@@ -84,33 +85,51 @@ export class UrbanizedArea extends Card implements IProjectCard {
     return undefined;
   }
 
+  /** The exact set the live prompt offers: ≥2 adjacent cities, energy-covered —
+   *  shared by `bespokePlay` and the staged preview. */
+  private placeableSpaces(player: IPlayer, canAffordOptions?: CanAffordOptions): ReadonlyArray<Space> {
+    return MarsBoard.filterForEnergy(player, this.getAvailableSpaces(player, canAffordOptions));
+  }
+
   public override bespokePlay(player: IPlayer) {
-    const board = player.game.board;
-    const cityPlaceable = new Set(board.getAvailableSpacesForCity(player).map((s) => s.id));
-    const spaces = MarsBoard.filterForEnergy(player, this.getAvailableSpaces(player));
     player.game.defer(new PlaceCityTile(player, {
       title: 'Select space next to at least 2 other city tiles',
-      spaces,
+      spaces: this.placeableSpaces(player),
       // Names the card to the placement preview, so its `placementPreview` hook
       // (the −1 energy production applied in the `andThen` below) is reachable.
       sourceCard: this.name,
-      customReasoner: (space) => {
-        // A city-placeable cell that simply doesn't have 2 adjacent cities.
-        // (A qualifying cell filtered out by energy coverage keeps the generic
-        // reason.)
-        if (cityPlaceable.has(space.id) && board.getAdjacentSpaces(space).filter((s) => Board.isCitySpace(s)).length < 2) {
-          return 'requires-2-adjacent-cities';
-        }
-        return undefined;
-      },
+      customReasoner: this.placementReasoner(player),
     })).andThen(() => {
       player.game.defer(new LoseProduction(player, Resource.ENERGY, {count: 1}));
     });
     return undefined;
   }
 
+  /** The per-cell «why not» — shared by the live prompt (`bespokePlay`) and the
+   *  staged preview so the two can never disagree: a city-placeable cell that
+   *  simply doesn't have 2 adjacent cities. (A qualifying cell filtered out by
+   *  energy coverage keeps the generic reason.) */
+  private placementReasoner(player: IPlayer): (space: Space) => PlacementIllegalReason | undefined {
+    const board = player.game.board;
+    const cityPlaceable = new Set(board.getAvailableSpacesForCity(player).map((s) => s.id));
+    return (space) => {
+      if (cityPlaceable.has(space.id) && board.getAdjacentSpaces(space).filter((s) => Board.isCitySpace(s)).length < 2) {
+        return 'requires-2-adjacent-cities';
+      }
+      return undefined;
+    };
+  }
+
   public cardPlayPreview(player: IPlayer): ActionPreview {
-    return actionPreviews.placementPreview(this, player, {tile: TileType.CITY, constraint: 'next to at least 2 other cities'});
+    return actionPreviews.placementPreview(this, player, {
+      tile: TileType.CITY,
+      constraint: 'next to at least 2 other cities',
+      staged: {
+        spaces: (canAffordOptions) => this.placeableSpaces(player, canAffordOptions),
+        placementType: 'city',
+        reasoner: this.placementReasoner(player),
+      },
+    });
   }
 
   /**

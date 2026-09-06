@@ -460,20 +460,26 @@ export class MarsBoard extends Board {
    * M€ gap (e.g. a production-cost block), so the popover keeps the generic
    * "can't afford" line in that case.
    *
-   * `canAffordOptions.reserveUnits` is honoured: a PAY-ON-COMMIT standard project
-   * reserves its own still-unspent price there, so the gap reported is the one the
-   * player actually faces («need 6 more M€») instead of 0 — money already spoken
-   * for cannot also pay for the tile.
+   * `canAffordOptions` is honoured the way {@link canAfford} combines it: a
+   * PAY-ON-COMMIT standard project reserves its own still-unspent price in
+   * `reserveUnits`, and a STAGED card play (the cell is picked BEFORE the card
+   * is paid) carries its unpaid price in `cost` — either way the gap reported
+   * is the one the player actually faces («need 6 more M€») instead of 0,
+   * because money already spoken for cannot also pay for the tile.
    */
   private placementMegacreditDeficit(
     player: IPlayer,
     space: Space,
     reason: PlacementIllegalReason,
     canAffordOptions?: CanAffordOptions): number {
-    // An M€-only request: a placement cost takes M€ (plus Helion heat / Luna Trade
-    // Federation titanium, which `affordabilityDeficitFor` adds itself), never the
-    // steel or seeds the CARD behind the placement may have been payable with.
-    const gap = (cost: number) => player.affordabilityDeficitFor({cost, tr: {}, reserveUnits: canAffordOptions?.reserveUnits});
+    // Mirror `canAfford`'s combined plan — the caller's own still-unpaid price
+    // (`canAffordOptions.cost`, a staged card play) PLUS the space's cost — with
+    // the caller's payment substitutes riding along: the CARD half of that plan
+    // is payable with its steel/seeds, so an M€-only gap would over-report it.
+    // The figure stays an honest lower bound (`tr: {}` — the Reds tax stays
+    // omitted, see above; substitutes can only shrink the gap, never inflate it).
+    const gap = (cost: number) => player.affordabilityDeficitFor(
+      {...(canAffordOptions ?? {}), cost: cost + (canAffordOptions?.cost ?? 0), tr: {}});
     if (reason === 'cannot-afford') {
       const costs = this.computeAdditionalCosts(space, player.game.gameOptions.aresExtension, canAffordOptions?.bonusMultiplier);
       let cost = costs.megacredits;

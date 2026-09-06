@@ -13,6 +13,7 @@ import {TileType} from '../../src/common/TileType';
 import {CardName} from '../../src/common/cards/CardName';
 import {AresHandler} from '../../src/server/ares/AresHandler';
 import {Athena} from '../../src/server/cards/community/Athena';
+import {AcquiredCompany} from '../../src/server/cards/base/AcquiredCompany';
 import {Phase} from '../../src/common/Phase';
 
 describe('BoardInformationEngine', () => {
@@ -492,6 +493,38 @@ describe('BoardInformationEngine', () => {
       expect(AresHandler.subjectToHazardAdjacency(aPlayer, undefined)).to.be.true;
       aPlayer.playedCards.push(new Athena());
       expect(AresHandler.subjectToHazardAdjacency(aPlayer, TileType.GREENERY)).to.be.false;
+    });
+  });
+
+  describe('staged affordability (canAffordOptions)', () => {
+    // STAGED PLAY: the cell is picked BEFORE the card is paid, so the engine
+    // must judge every affordability fact against money AFTER the card's own
+    // cost — through the SAME `placementCostInfo` / `getAvailableSpacesForType`
+    // seams the live path uses, fed the card's `affordOptionsForCard` plan.
+    it('judges cost, deficit and legality against money minus the card cost', () => {
+      const [aGame, aPlayer] = testGame(2, {aresExtension: true});
+      const target = aGame.board.spaces.find((s) =>
+        s.spaceType === SpaceType.LAND && s.tile === undefined && s.player === undefined &&
+        aGame.board.getAdjacentSpaces(s).every((a) => a.tile === undefined && a.adjacency === undefined))!;
+      expect(target, 'an empty land cell with a cost-free neighbourhood').to.not.be.undefined;
+      // A deterministic 8 M€ placement cost: a mild hazard on the cell itself.
+      target.tile = {tileType: TileType.DUST_STORM_MILD};
+      // 12 M€ covers the 8 M€ cleanup OR the 10 M€ card — never both.
+      aPlayer.megaCredits = 12;
+      const card = new AcquiredCompany();
+      aPlayer.cardsInHand.push(card);
+
+      const live = boardCellPreview(aPlayer, target, 'land');
+      expect(live.legal, 'live money (12) covers the cleanup (8)').to.be.true;
+      expect([...live.costFacts, ...live.warningFacts].some((f) => f.id === 'cost-deficit'),
+        'no deficit against live money').to.be.false;
+
+      const staged = boardCellPreview(aPlayer, target, 'land', {canAffordOptions: aPlayer.affordOptionsForCard(card)});
+      expect(staged.legal, '12 − 10 (the card) = 2 < 8').to.be.false;
+      const deficit = staged.warningFacts.find((f) => f.id === 'cost-deficit');
+      expect(deficit, 'the honest shortfall is named').to.not.be.undefined;
+      expect(deficit!.delta!.amount, '(10 + 8) − 12').to.eq(6);
+      expect(staged.costFacts.find((f) => f.id === 'cost-mc')!.severity, 'the cost line turns danger').to.eq('danger');
     });
   });
 

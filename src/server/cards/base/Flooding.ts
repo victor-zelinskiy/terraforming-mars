@@ -50,6 +50,13 @@ export class Flooding extends Card implements IProjectCard {
     return actionPreviews.placementPreview(this, player, {
       tile: TileType.OCEAN,
       steps: player.game.isSoloMode() ? [] : [actionPreviews.noteStep('generic', 'An adjacent opponent may lose 4 M€')],
+      // Mirrors `PlaceOceanTile.execute`: skip when oceans are maxed (the play
+      // then produces no placement prompt), else the plain ocean-reserved set.
+      staged: {
+        spaces: () => player.game.canAddOcean() ?
+          player.game.board.getAvailableSpacesForType(player, 'ocean') : [],
+        placementType: 'ocean',
+      },
     });
   }
 
