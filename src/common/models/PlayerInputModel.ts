@@ -721,6 +721,16 @@ export type SelectSpaceModel = BaseInputModel & {
   sourceCard?: CardName;
   /** See {@link PlacementEffect} — absent means the default `'tile'`. */
   placementEffect?: PlacementEffect;
+  /**
+   * LATER placements the SAME action will ask for after this one commits (a
+   * multi-tile card — «place 2 oceans»: the FIRST prompt announces the second).
+   * The placement dossier renders it as a constant plan line, so the player can
+   * choose the first cell with the second in mind. Absent → this is the
+   * action's only (or last) placement. Set by the producer that KNOWS the
+   * sequence (the executor's multi-ocean defer, the staged preview) — never
+   * derived client-side.
+   */
+  followUpPlacements?: ReadonlyArray<{tileType?: import('../TileType').TileType}>;
 }
 
 /**

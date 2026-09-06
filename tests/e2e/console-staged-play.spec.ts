@@ -29,6 +29,14 @@ const CONFIG = soloGameConfig({
   customCorporationsList: ['Teractor'],
 });
 
+/** The multi-ocean case (D2): «Ice Asteroid» — 2 oceans, no requirement,
+ *  cost 23 against Teractor's 60 M€ (AUTO payment, ready composer). */
+const MULTI_CARD = 'Ice Asteroid';
+const MULTI_CONFIG = soloGameConfig({
+  players: [{name: 'MultiTester', color: 'red', beginner: false, handicap: 0, first: true}],
+  customCorporationsList: ['Teractor'],
+});
+
 /** The server's own change counter — the fact «nothing was submitted». */
 async function gameAge(request: APIRequestContext, playerId: string): Promise<number> {
   const model = await fetchPlayerModel(request, playerId);
@@ -152,5 +160,42 @@ test.describe('staged play — the cell is the last reversible step', () => {
     await page.waitForTimeout(4_000); // let the tile hero + rewards settle
     await expect(page.locator('.con-hand')).toHaveCount(0);
     await expect(composer).toHaveCount(0);
+  });
+
+  test('multi-tile (D2): the FIRST pick announces the second placement; the second announces nothing', async ({page, request}) => {
+    test.setTimeout(420_000);
+
+    const playerId = await bootIntoGame(page, request, {
+      config: MULTI_CONFIG,
+      cards: [MULTI_CARD],
+      corporation: 'Teractor',
+    });
+
+    const panel = page.locator('.con-context');
+    const planLine = page.locator('.con-context__next');
+
+    await openPlayComposer(page, MULTI_CARD);
+    await press(page, 'Enter', 900); // «Разыграть на поле» — the staged first pick
+    await expect(panel).toContainText(/размещение тайла/i, {timeout: 30_000});
+
+    // THE PLAN LINE — compact but noticeable, and CONSTANT: the player picks
+    // the first ocean knowing a second follows.
+    await expect(planLine, 'the first pick must announce the second placement')
+      .toContainText(/Затем ещё одно размещение/i, {timeout: 10_000});
+    await expect(planLine).toContainText(/Океан/i);
+
+    // Commit the first cell — the play commits, the SECOND ocean arrives as a
+    // live chained prompt…
+    expect(await placeTile(page), 'the first placement never resolved').toBeTruthy();
+    await expect(panel, 'the second (live) placement never took the board')
+      .toContainText(/размещение тайла/i, {timeout: 30_000});
+    // …and it announces NOTHING: absence is the «this is the last one» message.
+    await expect(planLine).toHaveCount(0);
+
+    expect(await placeTile(page), 'the second placement never resolved').toBeTruthy();
+    await expect.poll(() => tableauNames(request, playerId), {
+      message: 'the committed play never reached the tableau',
+      timeout: 30_000,
+    }).toContain(MULTI_CARD);
   });
 });

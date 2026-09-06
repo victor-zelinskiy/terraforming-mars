@@ -4964,6 +4964,7 @@ export default defineComponent({
         tileType: p.tileType,
         sourceCard: p.sourceCard,
         placementContext: {cancellable: true, source: {kind: 'card', card: p.sourceCard}},
+        followUpPlacements: p.followUpPlacements,
       };
     },
     /**
@@ -5107,6 +5108,7 @@ export default defineComponent({
         placementType: prompt.placementType,
         placementEffect: prompt.placementEffect,
         sourceCard: prompt.sourceCard,
+        followUpPlacements: prompt.followUpPlacements,
       };
     },
     /**

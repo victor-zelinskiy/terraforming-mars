@@ -434,6 +434,8 @@
     "Placement is mandatory": "Размещение обязательно",
     "This placement is mandatory — pick a cell on the map": "Это размещение обязательно — выберите клетку на карте",
     "Game state changed": "Состояние игры изменилось",
+    "Then one more placement: ${0}": "Затем ещё одно размещение: ${0}",
+    "Then ${0} more placements: ${1}": "Затем ещё размещения (${0}): ${1}",
     "this tile cannot go here": "этот тайл сюда разместить нельзя",
     "This action requires picking a cell. Cancelling is not available.": "Это действие требует выбора клетки. Отмена недоступна.",
     "All cells": "Все клетки",

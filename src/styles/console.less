@@ -9984,6 +9984,28 @@ html.console-mode {
         line-height: 1.35;
         color: @con-text-dim;
     }
+    /* THE PLAN LINE — «затем ещё одно размещение: Океан» (multi-tile cards).
+       Compact but NOTICEABLE: the pre-commit cyan accent on a quiet plate, one
+       line, constant for the whole prompt (it never reacts to the focused
+       cell, so it never moves while the player points). */
+    &__next {
+        display: flex;
+        align-items: baseline;
+        gap: .35rem;
+        padding: .22rem .55rem;
+        border-radius: .4rem;
+        background: rgba(38, 84, 108, 0.28);
+        box-shadow: inset 0 0 0 .05rem rgba(110, 200, 235, 0.28);
+        font-size: calc(var(--con-t-read-sm) * var(--con-read-scale, 1));
+        line-height: 1.3;
+        color: @con-cyan;
+    }
+    &__next-mark {
+        flex: 0 0 auto;
+        font-size: .62rem;
+        letter-spacing: .08rem;
+        opacity: .85;
+    }
 
     /* ── 2 · THE FOCUSED CELL — one fixed line + the expanding refusal ── */
     &__cell {

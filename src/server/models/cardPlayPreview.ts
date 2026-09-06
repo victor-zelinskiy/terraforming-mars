@@ -283,6 +283,9 @@ function stagedForBehavior(player: IPlayer, card: ICard, behavior: Behavior): St
       tileType: TileType.OCEAN,
       sourceCard: card.name,
       canAffordOptions,
+      // The dossier's PLAN line during the staged first pick — mirror of the
+      // live first-ocean prompt's own marker (Executor's two-ocean defer).
+      followUpPlacements: behavior.ocean.count === 2 ? [{tileType: TileType.OCEAN}] : undefined,
     });
   }
   if (behavior.city !== undefined && behavior.city.space === undefined) {

@@ -311,6 +311,18 @@ Imported Hydrogen / Large Convoy мигрированы (`gainOrAddResourceBranc
   (polish; сейчас — штатный restore-entrance композера);
 - standalone-band (playFromHand без workspace): без церемонии — посадочной
   сцены там нет; band растворяется прямо в поле;
+- ~~анонс второй клетки multi-карт~~ **СДЕЛАНО (2026-09-06)**: серверный маркер
+  `followUpPlacements` на первом промпте (staged-превью И живой «первый океан»
+  Executor'а — зеркальные; `SelectSpace.toModel` nesting-safe; вторая клетка
+  маркера НЕ несёт — отсутствие = «это последнее»). Досье рисует КОНСТАНТНУЮ
+  строку-план в шапке (`.con-context__next`, cyan-плашка «Затем ещё одно
+  размещение: Океан», `placementFollowUpLine` в placementDossier — от промпта,
+  не от клетки → не мерцает при наведении); заголовок «Select space for first
+  ocean» демотирован в generic (план-строка говорит это лучше), «second ocean»
+  сознательно НЕ демотирован. Стражи: `stagedFollowUpPlacements.spec.ts`
+  (staged==live==маркер, второй промпт чист, одиночный океан чист) + e2e
+  multi-tile тест в `console-staged-play.spec.ts` (Ice Asteroid: строка на
+  первой, отсутствует на второй, обе клетки ставятся);
 - границы v1: только hand-корень/standalone (`workspaceStackRootKind()` ≠ start);
   старт-флоу и прелюдии — отдельная итерация (как и синие действия, D5);
 - MiningCard tileType-gap (`KNOWN_TILETYPE_GAPS` в parity-спеке — live-промпт без

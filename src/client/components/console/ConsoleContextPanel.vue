@@ -44,6 +44,14 @@
         </div>
         <!-- The demoted server sentence — only when it adds a real constraint. -->
         <div v-else-if="identity.actionLine !== ''" class="con-context__action-line">{{ identity.actionLine }}</div>
+        <!-- THE PLAN LINE — the SAME action's later placements («Затем ещё
+             одно размещение: Океан», the two-ocean cards). CONSTANT for the
+             whole prompt (it reads the prompt, never the focused cell), so it
+             renders once and never moves while the player points — and the
+             player picks the FIRST cell with the second already in mind. -->
+        <div v-if="followUpLine !== ''" class="con-context__next">
+          <span class="con-context__next-mark" aria-hidden="true">▸▸</span>{{ followUpLine }}
+        </div>
         <!-- WHO asked — one quiet line of metadata (`.con-src` chip). The
              inspect verb lives in the command bar (L3), not here. -->
         <console-source-dock v-if="sourceView !== undefined" :view="sourceView" chip ref="sourceChip" />
@@ -232,6 +240,7 @@ import {
   buildDossierRows,
   dossierEmptyKey,
   dossierSections,
+  placementFollowUpLine,
   placementIdentity,
 } from '@/client/console/placementDossier';
 
@@ -343,6 +352,11 @@ export default defineComponent({
         translate: (key, params) =>
           (params !== undefined ? translateTextWithParams(key, [...params]) : translateText(key)),
       });
+    },
+    /** The PLAN line — the same action's later placements ('' → none). */
+    followUpLine(): string {
+      return placementFollowUpLine(this.placementShape?.followUpPlacements, (key, params) =>
+        (params !== undefined ? translateTextWithParams(key, [...params]) : translateText(key)));
     },
     /** The real board tile art class for the identity / formula swatch. */
     swatchClass(): string | undefined {

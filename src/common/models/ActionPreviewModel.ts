@@ -467,6 +467,11 @@ export type StagedPlacementModel = {
   sourceCard: CardName;
   /** See `SelectSpaceModel.fixed` note above: confirm-only, no space answer. */
   fixed?: boolean;
+  /** Mirror of `SelectSpaceModel.followUpPlacements`: the placements the SAME
+   *  play will still ask for AFTER this staged cell commits (D2 — a
+   *  multi-tile card's first cell is the commit boundary, the rest are live
+   *  prompts). The dossier announces them during the staged pick. */
+  followUpPlacements?: ReadonlyArray<{tileType?: TileType}>;
 };
 
 /** One player target in the "remove plants" tab of a `TabbedTargetsStep`. */

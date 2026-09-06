@@ -89,6 +89,15 @@ export class SelectSpace extends BasePlayerInput<Space> {
   public placementEffect?: PlacementEffect;
 
   /**
+   * LATER placements the SAME action will ask for after this one commits (the
+   * multi-ocean cards: the FIRST prompt announces the second, so the player
+   * can plan both cells during the first pick). Set by the producer that
+   * knows the sequence (the executor's two-ocean defer); serialized on this
+   * input's own `toModel` so it survives nesting, like every placement marker.
+   */
+  public followUpPlacements?: ReadonlyArray<{tileType?: TileType}>;
+
+  /**
    * Optional cancel handler for a CANCELLABLE placement (see `placementContext`).
    * When the client submits a `CancelResponse` AND this prompt is cancellable,
    * `process` invokes this instead of placing — the pay-on-commit standard
@@ -120,6 +129,7 @@ export class SelectSpace extends BasePlayerInput<Space> {
       tileType: this.tileType,
       sourceCard: this.sourceCard,
       placementEffect: this.placementEffect,
+      followUpPlacements: this.followUpPlacements,
     };
     // The PLACEMENT marker is serialized HERE, not only in
     // `ServerModel.getWaitingFor`. That function decorates the TOP-LEVEL prompt

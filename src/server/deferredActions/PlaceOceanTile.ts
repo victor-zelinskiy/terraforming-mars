@@ -25,6 +25,9 @@ type Options = {
   onCancel?: () => void,
   // The card that asks (so the preview can include its own space-dependent effect).
   sourceCard?: CardName,
+  // The SAME action's later placements (the two-ocean cards: the FIRST prompt
+  // announces the second) — see SelectSpace.followUpPlacements.
+  followUpPlacements?: ReadonlyArray<{tileType?: TileType}>,
 };
 
 export class PlaceOceanTile extends DeferredAction<Space | undefined> {
@@ -87,6 +90,7 @@ export class PlaceOceanTile extends DeferredAction<Space | undefined> {
       customReasoner: this.options.customReasoner,
       placementContext: this.options.placementContext,
       onCancel: this.options.onCancel,
+      followUpPlacements: this.options.followUpPlacements,
     })
       .andThen((space) => {
         this.creditedPlayer.game.addOcean(this.creditedPlayer, space);

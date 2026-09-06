@@ -31,6 +31,7 @@ import {SelectResources} from '../inputs/SelectResources';
 import {TITLES} from '../inputs/titles';
 import {cardEffect, cardSource} from '../inputs/choiceContext';
 import {message} from '../logs/MessageBuilder';
+import {TileType} from '../../common/TileType';
 import {IdentifySpacesDeferred} from '../underworld/IdentifySpacesDeferred';
 import {ClaimSpacesDeferred} from '../underworld/ClaimSpacesDeferred';
 import {ExcavateSpacesDeferred} from '../underworld/ExcavateSpacesDeferred';
@@ -625,7 +626,11 @@ export class Executor implements BehaviorExecutor {
 
     if (behavior.ocean !== undefined) {
       if (behavior.ocean.count === 2) {
-        player.game.defer(new PlaceOceanTile(player, {title: 'Select space for first ocean', sourceCard: card.name}));
+        // The FIRST prompt announces the second (SelectSpace.followUpPlacements)
+        // so the dossier can show the plan while the first cell is chosen —
+        // mirrored by the staged preview (`stagedForBehavior`).
+        player.game.defer(new PlaceOceanTile(player, {title: 'Select space for first ocean', sourceCard: card.name,
+          followUpPlacements: [{tileType: TileType.OCEAN}]}));
         player.game.defer(new PlaceOceanTile(player, {title: 'Select space for second ocean', sourceCard: card.name}));
       } else {
         player.game.defer(new PlaceOceanTile(player, {on: behavior.ocean.on, sourceCard: card.name}));

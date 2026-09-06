@@ -91,6 +91,9 @@ export function createMarsSelectSpace(
     placementContext?: PlacementContext,
     /** Cancel handler for a cancellable placement (see SelectSpace.onCancel). */
     onCancel?: () => void,
+    /** See `SelectSpace.followUpPlacements` — the SAME action's later
+     *  placements, announced by the dossier during THIS pick. */
+    followUpPlacements?: ReadonlyArray<{tileType?: TileType}>,
     /**
      * The affordability basis this placement filtered its legal spaces with, so
      * every cell it excluded for MONEY explains itself as «cannot-afford» (with
@@ -120,6 +123,7 @@ export function createMarsSelectSpace(
       'This placement is part of an action already underway and cannot be cancelled.',
       options?.sourceCard === undefined ? undefined : {kind: 'card', card: options.sourceCard});
   selectSpace.onCancel = options?.onCancel;
+  selectSpace.followUpPlacements = options?.followUpPlacements;
   if (options?.hideExistingTile === true) {
     selectSpace.hiddenTiles = legalSpaces.map(toID);
   }
@@ -170,6 +174,9 @@ export function stagedMarsSelectSpace(
     canAffordOptions?: CanAffordOptions,
     /** Noctis-style reserved on-grid cell: confirm-only, no space tail. */
     fixed?: boolean,
+    /** The SAME play's later placements (mirror of the live prompt's
+     *  `followUpPlacements`) — the dossier's plan line during the staged pick. */
+    followUpPlacements?: ReadonlyArray<{tileType?: TileType}>,
   },
 ): StagedPlacementModel | undefined {
   const board = player.game.board;
@@ -198,6 +205,9 @@ export function stagedMarsSelectSpace(
   }
   if (options.fixed === true) {
     model.fixed = true;
+  }
+  if (options.followUpPlacements !== undefined && options.followUpPlacements.length > 0) {
+    model.followUpPlacements = options.followUpPlacements;
   }
   return model;
 }

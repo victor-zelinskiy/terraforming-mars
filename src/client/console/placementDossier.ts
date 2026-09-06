@@ -45,7 +45,13 @@ export type PlacementShape = {
   placementType?: BoardPlacementKind;
   placementEffect?: PlacementEffect;
   sourceCard?: CardName;
+  /** The SAME action's later placements (the multi-ocean cards) — the
+   *  dossier's PLAN line. See `SelectSpaceModel.followUpPlacements`. */
+  followUpPlacements?: ReadonlyArray<FollowUpPlacement>;
 };
+
+/** One later placement of the same action (mirror of the server marker). */
+export type FollowUpPlacement = {tileType?: TileType};
 
 /**
  * A structurally-known exchange behind this placement (convert plants — the
@@ -125,6 +131,11 @@ const GENERIC_TITLE_KEYS: ReadonlyArray<string> = [
   'Select space for city',
   'Select space for special city tile',
   'Select a space for a tile',
+  // The two-ocean cards' FIRST prompt: its whole extra content («first», and
+  // that a second follows) is carried by the follow-up PLAN line now — the
+  // sentence would only restate it. The SECOND prompt's title is deliberately
+  // NOT listed: «второй океан» is the one thing that prompt needs to say.
+  'Select space for first ocean',
 ];
 
 /** Parameterized generic titles — the param is the card / tile the identity
@@ -133,6 +144,33 @@ const GENERIC_TITLE_PARAM_KEYS: ReadonlyArray<string> = [
   'Select space for ${0} tile',
   'Select space for ${0}',
 ];
+
+/**
+ * THE PLAN LINE — «после этой клетки будет ещё одно размещение, и вот какое».
+ *
+ * A multi-tile card's FIRST pick is where the player plans BOTH cells, so the
+ * dossier announces the rest of the sequence as one compact constant line in
+ * the identity head. Constant is load-bearing: the line depends on the PROMPT,
+ * never on the focused cell, so it renders once and never flicks while the
+ * player points (the panel's «nothing animates while the player points» law).
+ * '' → no follow-up, no line.
+ */
+export function placementFollowUpLine(
+  followUps: ReadonlyArray<FollowUpPlacement> | undefined,
+  translate: DossierTranslator,
+): string {
+  if (followUps === undefined || followUps.length === 0) {
+    return '';
+  }
+  const names = followUps.map((f) => {
+    const ordinary = f.tileType !== undefined ? ORDINARY_TITLE[f.tileType] : undefined;
+    const named = f.tileType !== undefined && ordinary === undefined ? canonicalTileName(f.tileType) : undefined;
+    return translate(ordinary ?? named ?? 'Tile');
+  });
+  return followUps.length === 1 ?
+    translate('Then one more placement: ${0}', [names[0]]) :
+    translate('Then ${0} more placements: ${1}', [String(followUps.length), names.join(' · ')]);
+}
 
 export function placementIdentity(opts: {
   /** The live prompt title, ALREADY TRANSLATED by the caller (string titles
