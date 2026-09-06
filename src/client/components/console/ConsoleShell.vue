@@ -349,6 +349,7 @@
                             :blockedReason="actionBlockedReason"
                             @blocked="showNotice"
                             @submit-batch="onCardActionsSubmitBatch"
+                            @staged-placement="onCardActionsStagedPlacement"
                             @reveal-ack="onCardActionsRevealAck"
                             @flow-complete="onCardActionsFlowComplete"
                             @collapse="onCardActionsCollapse"
@@ -4963,6 +4964,10 @@ export default defineComponent({
         placementType: p.placementType,
         tileType: p.tileType,
         sourceCard: p.sourceCard,
+        // 'bonus-only' (Mars Nomads' move) / 'marker' (St. Joseph) ride the
+        // staged model — the board arming, the dossier pricing and the cell
+        // preview all read this exactly as they read the live prompt's.
+        placementEffect: p.placementEffect,
         placementContext: {cancellable: true, source: {kind: 'card', card: p.sourceCard}},
         followUpPlacements: p.followUpPlacements,
       };
@@ -13317,6 +13322,7 @@ export default defineComponent({
       if (payload.staged !== undefined && payload.repeat === undefined && payload.composerDraft !== undefined &&
           (stagedRoot === undefined || stagedRoot === 'hand')) {
         const arm: StagedPlayArm = {
+          flow: 'play',
           cardName: pending.cardName,
           isEvent,
           batch,
@@ -16219,12 +16225,32 @@ export default defineComponent({
       }
       markStagedPlayCommitting();
       // The card-seal wave's plan: the card's own gains will fly FROM the
-      // placed tile after the hero's beats (stagedPlay.ts).
+      // placed tile after the hero's beats (stagedPlay.ts; play flow only —
+      // an action arm carries no rewards, so this is a no-op there).
       armStagedSeal(spaceResponse.spaceId);
-      this.armBoardBonusIfCardCell(spaceResponse.spaceId, undefined);
+      this.armBoardBonusIfCardCell(spaceResponse.spaceId, arm.placement.placementEffect);
       const responses = arm.placement.fixed === true ?
         [...arm.batch] : [...arm.batch, spaceResponse];
       this.submitBatch(responses);
+    },
+    /**
+     * The ACTION flow's staged entry (ДЕЙСТВИЯ КАРТ → a placement-bearing
+     * branch): same store, same board half, same B — only the restore differs
+     * (the action composer re-seats via `consoleCardActionsUi.stagedReturn`).
+     */
+    onCardActionsStagedPlacement(payload: {batch: ReadonlyArray<unknown>, staged: StagedPlacementModel, cardName: CardName, nodeIndex: number, composerDraft: unknown}): void {
+      const arm: StagedPlayArm = {
+        flow: 'action',
+        cardName: payload.cardName,
+        isEvent: false,
+        batch: payload.batch,
+        placement: payload.staged,
+        draws: 0,
+        deckCheck: false,
+        actionRestore: {cardName: payload.cardName, nodeIndex: payload.nodeIndex, composer: payload.composerDraft},
+        yieldedStack: false,
+      };
+      this.enterStagedPlacement(arm);
     },
     /**
      * B out of a staged placement: nothing was ever sent, so this is a pure
@@ -16235,6 +16261,20 @@ export default defineComponent({
     cancelStagedPlay(): void {
       const arm = stagedPlayState.arm;
       if (arm === undefined || stagedPlayState.committing) {
+        return;
+      }
+      if (arm.flow === 'action') {
+        // The Action Center comes back to the very composer the player left:
+        // the resumed frames remount the workspace, the restore plan seats the
+        // composer from `stagedReturn`, and the composer re-applies its own
+        // capture snapshot (one-shot).
+        if (arm.actionRestore !== undefined) {
+          consoleCardActionsUi.stagedReturn = arm.actionRestore;
+        }
+        if (arm.yieldedStack) {
+          resumeStackFromBoard();
+        }
+        clearStagedPlay();
         return;
       }
       setPlayComposerStagedDraft(arm.draft);
@@ -16258,7 +16298,12 @@ export default defineComponent({
       if (arm === undefined) {
         return;
       }
-      const played = this.playerView.thisPlayer.tableau.some((c) => c.name === arm.cardName);
+      // The tableau-membership witness works for a PLAY only — an action's
+      // card is in the tableau the whole time, so for the action flow ANY
+      // out-of-band world move voids the staged preview and returns the
+      // player to the composer (which re-fetches against the new state).
+      const played = arm.flow === 'play' &&
+        this.playerView.thisPlayer.tableau.some((c) => c.name === arm.cardName);
       if (played) {
         discardYieldedStack();
         clearStagedPlay();

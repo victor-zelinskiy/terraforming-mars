@@ -339,6 +339,58 @@ Imported Hydrogen / Large Convoy мигрированы (`gainOrAddResourceBranc
 - verb нижнего бара («Разыграть») vs CTA «Разыграть на поле» — унифицировать
   через `playPrimaryVerb` ctx.
 
+## 9-ter. Действия синих карт (D5) — СДЕЛАНО (2026-09-07)
+
+Симметричное расширение staged-пути на действия синих карт, размещающие тайл
+или двигающие маркер. Тот же закон: «A Подтвердить» в композере НЕ шлёт запрос —
+батч (`buildActionBatch`) паркуется, поле открывается синтетическим промптом,
+B = чистый клиентский возврат в композер с целыми капчами, подтверждение клетки =
+единственный POST `[...batch, {type:'space',spaceId}]`.
+
+**Сервер:**
+- `stagedActionPlacement(player, opts)` в `actionPreviews.ts` (без `canAffordOptions`
+  — стоимость действия списывается ДО размещения, pre-pay == post-pay по построению,
+  задокументировано) + `boardPlacementStep(..., {staged})`.
+- Хуки: `AquiferPumping`, `WaterImportFromEuropa` (общий `SELECT_OCEAN_SPACE_TITLE`
+  из `PlaceOceanTile`), `CometAiming` (океанская ветка), `MarsNomads` (общий
+  `destinationReasoner`, `placementEffect: 'bonus-only'` — перемещение, не тайл),
+  `StJosephOfCupertinoMission` (общий `cathedralReasoner`, `'marker'`; заодно снят
+  лгавший `tileType`). `IcyImpactors` — принципиальное исключение (клетку выбирает
+  `game.first`, актор не размещает — staged некому).
+- Секция ACTION в страже паритета `stagedPlacementParity.spec.ts` (byte-equal
+  включая `placementEffect`/illegal-reasons/title).
+
+**Клиент:**
+- `StagedPlayArm.flow: 'play' | 'action'` + `actionRestore {cardName, nodeIndex,
+  composer}`; staged-форк в `ConsoleActionComposer.confirm` ПЕРЕД битом ACTION
+  COMMIT (только `publishCommands`, не repeat/stage-reward, корень стека =
+  `card-actions`); `stagedComposerSnapshot()`/`applyStagedComposerSnapshot()`
+  (selectedPos/капчи/amounts/floaters/payCounts/picks/orDescents/focusIdx).
+- `ConsoleCardActions` — relay `@staged-placement` (батч через `buildActionBatch`
+  по `performPath`), `mounted` кормит `stagedReturn`/`stagedEntryExists` в
+  `actionWorkspaceRestorePlan` (`seat-step`-ветка после repeat/collapsed-гардов;
+  поля ОПЦИОНАЛЬНЫ — обязательные сломали существующий клиентский спек).
+- Шелл: `onCardActionsStagedPlacement` (flow 'action'), `cancelStagedPlay`
+  ветвится по flow (action → `stagedReturn` + resume стека; play — как раньше);
+  `reconcileStagedPlayWorldMove` — таблица-свидетель только для flow 'play'.
+- Церемония посадки НЕ играет (карта уже в таблице — действию нечего сажать);
+  reward-волна card-seal от тайла работает та же.
+
+**Проверено:** build:server/build:test/vue-tsc/eslint/build:client чисто; страж
+паритета 17✓ (включая ACTION-секцию); e2e `console-staged-play.spec.ts` тест 3
+ЗЕЛЁНЫЙ (Aquifer Pumping: активация → поле при нетронутом `gameAge` → B →
+композер восстановлен со снапшотом → повторное подтверждение → клетка → океан
+в таблице, конец на поле). Гоча драйвера: commit-верб готового композера — A
+(Enter), не X.
+
+**Итоговое покрытие действий с размещением/перемещением** — см. отчёт в конце
+этой секции: staged = Aquifer Pumping, Water Import From Europa, Comet Aiming
+(океан), Mars Nomads (bonus-only), St. Joseph (marker); исключение — Icy
+Impactors (game.first); не тронуты по дизайну: std-проекты и convert plants
+(уже pay-on-commit cancellable), колониальная торговля через карту (уже
+submit-nothing), repeat/Viron (follow-up скопированного действия — B там
+возвращает в staged-композер копии штатно).
+
 ## 10. План реализации (этапы отдельной задачи)
 
 1. **Сервер, превью:** `previewSelectSpace` у четырёх `Place*` деферов + `placements[]` в `cardPlayPreview`; pre-play cost-контекст в `board-cell-preview`; CORS-allowlist; спеки.

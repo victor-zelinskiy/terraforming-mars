@@ -465,6 +465,14 @@ export type StagedPlacementModel = {
   tileType?: TileType;
   /** The card driving the placement (dossier source + card-aware cell preview). */
   sourceCard: CardName;
+  /**
+   * What picking the cell DOES — see `PlacementEffect`. Absent = `'tile'`.
+   * Mirrors the live prompt's own declaration: Mars Nomads MOVES its camp
+   * (`'bonus-only'`), St. Joseph lands a MARKER on an existing city. The
+   * client's synthetic prompt and the board arming read it, so the staged pick
+   * can never promise the tile-driven effects the commit will not produce.
+   */
+  placementEffect?: import('./PlayerInputModel').PlacementEffect;
   /** See `SelectSpaceModel.fixed` note above: confirm-only, no space answer. */
   fixed?: boolean;
   /** Mirror of `SelectSpaceModel.followUpPlacements`: the placements the SAME

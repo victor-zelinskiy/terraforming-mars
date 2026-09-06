@@ -1,5 +1,5 @@
 import {test, expect, Page, APIRequestContext} from '@playwright/test';
-import {bootIntoGame, focusCard, press, placeTile, soloGameConfig, fetchPlayerModel} from './consoleStart';
+import {bootIntoGame, focusCard, press, placeTile, soloGameConfig, fetchPlayerModel, playCardFromHand, openCardActions, openActionFocus} from './consoleStart';
 
 /**
  * STAGED PLAY — the cell pick as the LAST REVERSIBLE STEP of playing a
@@ -197,5 +197,63 @@ test.describe('staged play — the cell is the last reversible step', () => {
       message: 'the committed play never reached the tableau',
       timeout: 30_000,
     }).toContain(MULTI_CARD);
+  });
+
+  test('blue-card ACTION: activate → board → B → composer restored → confirm → the ocean commits', async ({page, request}) => {
+    test.setTimeout(420_000);
+
+    const playerId = await bootIntoGame(page, request, {
+      config: soloGameConfig({
+        players: [{name: 'ActionTester', color: 'red', beginner: false, handicap: 0, first: true}],
+        customCorporationsList: ['Teractor'],
+      }),
+      cards: ['Aquifer Pumping'],
+      corporation: 'Teractor',
+    });
+
+    const panel = page.locator('.con-context');
+    const workspace = page.locator('.con-cardactions');
+    const stage = page.locator('.con-cardactions__stagewrap .con-composer--stage');
+
+    // The card itself places nothing on play — an ordinary (non-staged) play.
+    expect(await playCardFromHand(page, 'Aquifer Pumping'),
+      'Aquifer Pumping must have been played').toBe(true);
+    await page.waitForTimeout(4_000); // the landing story settles
+
+    // ── activate: Действия карт → the action's composer ──────────────────
+    await openCardActions(page);
+    await openActionFocus(page);
+    const ageBefore = await gameAge(request, playerId);
+
+    // A («Подтвердить выполнение» — the cursor opens ON the commit rail for a
+    // ready action) hands the screen to the BOARD — nothing is submitted, the
+    // workspace yields. Retry while the composer still stands: an early press
+    // can land during the entry settle and be consumed by design.
+    for (let i = 0; i < 3 && await workspace.count() > 0; i++) {
+      await press(page, 'Enter', 1400);
+    }
+    await expect(panel, 'the staged action placement never took the board')
+      .toContainText(/размещение тайла/i, {timeout: 30_000});
+    await expect(workspace, 'the Action Center must yield to the board').toHaveCount(0);
+    expect(await gameAge(request, playerId), 'the action must not touch the server before the cell confirm')
+      .toBe(ageBefore);
+
+    // ── B restores the very composer (same card, same variant) ───────────
+    await press(page, 'Escape', 1600);
+    await expect(stage, 'B on the board must restore the action composer').toHaveCount(1, {timeout: 10_000});
+    expect(await gameAge(request, playerId), 'the cancel must leave no trace').toBe(ageBefore);
+
+    // ── the cell confirm is THE submit; the flow ends on the board ───────
+    for (let i = 0; i < 3 && await workspace.count() > 0; i++) {
+      await press(page, 'Enter', 1400);
+    }
+    await expect(panel).toContainText(/размещение тайла/i, {timeout: 30_000});
+    expect(await placeTile(page), 'the placement confirm never resolved').toBeTruthy();
+    await expect.poll(() => gameAge(request, playerId), {
+      message: 'the committed action never reached the server',
+      timeout: 30_000,
+    }).toBeGreaterThan(ageBefore);
+    await page.waitForTimeout(3_000); // the tile hero settles
+    await expect(workspace, 'the flow must end on the board — no workspace bow').toHaveCount(0);
   });
 });

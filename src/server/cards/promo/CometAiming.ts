@@ -10,7 +10,7 @@ import {SelectCard} from '../../inputs/SelectCard';
 import {SelectOption} from '../../inputs/SelectOption';
 import {OrOptions} from '../../inputs/OrOptions';
 import {LogHelper} from '../../LogHelper';
-import {PlaceOceanTile} from '../../deferredActions/PlaceOceanTile';
+import {PlaceOceanTile, SELECT_OCEAN_SPACE_TITLE} from '../../deferredActions/PlaceOceanTile';
 import {CardRenderer} from '../render/CardRenderer';
 import {Payment} from '../../../common/inputs/Payment';
 import {Resource} from '../../../common/Resource';
@@ -73,14 +73,23 @@ export class CometAiming extends Card implements IActionCard, IProjectCard {
     const pickTarget = asteroidCards.length >= 1;
     return actionPreviews.orBranches(this, [
       {
-        // The ocean is placed on the board after submit — a board interaction is
-        // never pre-collectable, but it must be DECLARED: an undeclared follow-up
-        // reads to the flow as «nothing happens next», so the confirm never says
-        // the board is coming and the commit beat can't route to the tile.
+        // The ocean placement is STAGED (D5) on THIS branch only: the cell is
+        // picked before the action batch submits. The payload mirrors the live
+        // `PlaceOceanTile` this branch defers — default title, `'ocean'` spaces
+        // derivation, silent skip at max oceans (→ no staged payload).
         available: this.resourceCount > 0 && this.canAffordOcean(player),
         title: 'Remove an asteroid resource to place an ocean',
         effects: [actionPreviews.cardCost(this, 1)],
-        steps: [actionPreviews.boardPlacementStep('ocean', {tileType: TileType.OCEAN})],
+        steps: [actionPreviews.boardPlacementStep('ocean', {
+          tileType: TileType.OCEAN,
+          staged: actionPreviews.stagedActionPlacement(player, {
+            title: SELECT_OCEAN_SPACE_TITLE,
+            spaces: player.game.canAddOcean() ? player.game.board.getAvailableSpacesForType(player, 'ocean') : [],
+            placementType: 'ocean',
+            tileType: TileType.OCEAN,
+            sourceCard: this.name,
+          }),
+        })],
         unavailableReason: this.resourceCount === 0 ?
           actionReason.ruleReason('No asteroid on this card') :
           actionReason.ruleReason('Can\'t afford to place the ocean'),

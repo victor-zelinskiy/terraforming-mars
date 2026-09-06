@@ -81,6 +81,9 @@ export class IcyImpactors extends Card implements IActionCard {
         // but DECLARED all the same (an undeclared follow-up reads to the flow as
         // «nothing happens next»). The first player choosing the space is the
         // card's own rule and rides the placement itself.
+        // DELIBERATELY NOT STAGED (D5): the live SelectSpace goes to
+        // `game.first`, not the actor — the acting player has no cell to pick
+        // before submitting, so there is nothing to stage.
         available: this.canAffordToPlaceOcean(player),
         title: 'Spend 1 asteroid here to place an ocean (first player chooses where to place it)',
         effects: [actionPreviews.cardCost(this, 1)],

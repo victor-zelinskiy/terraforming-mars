@@ -5,7 +5,8 @@ import {Card} from '../Card';
 import {CardType} from '../../../common/cards/CardType';
 import {IPlayer} from '../../IPlayer';
 import {CardName} from '../../../common/cards/CardName';
-import {PlaceOceanTile} from '../../deferredActions/PlaceOceanTile';
+import {PlaceOceanTile, SELECT_OCEAN_SPACE_TITLE} from '../../deferredActions/PlaceOceanTile';
+import {TileType} from '../../../common/TileType';
 import {SelectPaymentDeferred} from '../../deferredActions/SelectPaymentDeferred';
 import {CardRenderer} from '../render/CardRenderer';
 import {TITLES} from '../../inputs/titles';
@@ -45,11 +46,22 @@ export class WaterImportFromEuropa extends Card implements IActionCard, IProject
   // Pay 12 M€ (titanium usable) then place an ocean. When titanium is usable the
   // payment is an INTERACTIVE step (the player dials M€/titanium INSIDE the
   // confirm modal — no separate SelectPayment follow-up); otherwise it's a flat
-  // M€ cost chip. The ocean placement is an after-submit SelectSpace shown as a
-  // board-placement note.
+  // M€ cost chip. The ocean placement is STAGED (D5): the cell is picked BEFORE
+  // the action batch submits — the payload mirrors the live `PlaceOceanTile`
+  // exactly (its default title, its `'ocean'` spaces derivation, its silent
+  // skip at max oceans → no staged payload).
   public actionPreview(player: IPlayer) {
     const pay = actionPreviews.paymentStep(player, ACTION_COST, {canUseTitanium: true, title: TITLES.action});
-    const place = actionPreviews.boardPlacementStep('ocean');
+    const place = actionPreviews.boardPlacementStep('ocean', {
+      tileType: TileType.OCEAN,
+      staged: actionPreviews.stagedActionPlacement(player, {
+        title: SELECT_OCEAN_SPACE_TITLE,
+        spaces: player.game.canAddOcean() ? player.game.board.getAvailableSpacesForType(player, 'ocean') : [],
+        placementType: 'ocean',
+        tileType: TileType.OCEAN,
+        sourceCard: this.name,
+      }),
+    });
     if (pay !== undefined) {
       return actionPreviews.singleBranch(this, player, [pay, place]);
     }

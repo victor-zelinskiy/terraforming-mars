@@ -180,6 +180,27 @@ async function snapshot(page: Page) {
       status,
       cause,
       bar: (document.querySelector('.con-cmdbar, .con-commands, .con-footer') as HTMLElement | null)?.innerText.replace(/\s+/g, ' ').trim() ?? '',
+      ghostDebug: (() => {
+        const g = document.querySelector('.con-extdraw__slot--ghost') as HTMLElement | null;
+        if (g === null) {
+          return '';
+        }
+        const r = g.getBoundingClientRect();
+        const card = g.querySelector('.card-container, .pcard') as HTMLElement | null;
+        const band = g.querySelector('.con-extdraw__ghostband') as HTMLElement | null;
+        const cs = card === null ? undefined : getComputedStyle(card);
+        const bs = band === null ? undefined : getComputedStyle(band);
+        const br = band?.getBoundingClientRect();
+        return `slot=${Math.round(r.left)},${Math.round(r.top)},${Math.round(r.width)}x${Math.round(r.height)}` +
+          ` card=${cs?.opacity}/${cs?.visibility}/${cs?.display}` +
+          ` band=${bs?.visibility}/${bs?.display}/${Math.round(br?.width ?? 0)}x${Math.round(br?.height ?? 0)}`;
+      })(),
+      /** The ghost seat's card must stay faintly PAINTED (the intake's
+       *  con-deal-hold released) — 0 here is the invisible-hole regression. */
+      ghostOpacity: (() => {
+        const card = document.querySelector('.con-extdraw__slot--ghost :is(.card-container, .pcard)');
+        return card === null ? -1 : parseFloat(getComputedStyle(card as HTMLElement).opacity);
+      })(),
       plate: document.querySelector('.con-mandatory') !== null,
       plateText: (document.querySelector('.con-mandatory') as HTMLElement | null)?.innerText.replace(/\s+/g, ' ').trim() ?? '',
       fullBleedReveal: document.querySelector('.con-reveal') !== null,
@@ -244,6 +265,7 @@ test('an external draw: announced → A opens the workspace → take one, take a
   expect(afterOne.workspace, 'the workspace stands through the batch').toBeTruthy();
   expect(afterOne.slots, 'the layout is stable (ghost seat kept)').toBe(3);
   expect(afterOne.ghosts, 'the taken card left a ghost seat').toBe(1);
+  expect(afterOne.ghostOpacity, 'the ghost seat is faintly painted, never a hole').toBeGreaterThan(0.1);
   await shoot(page, '02-after-take-one');
 
   // ── 3 · B takes ALL the rest (two cards, one answer, the stack intake).

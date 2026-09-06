@@ -15,9 +15,9 @@ import {message} from '../logs/MessageBuilder';
 import {TileType} from '../../common/TileType';
 import {UnplayableReason} from '../../common/cards/UnplayableReason';
 import {MAX_OXYGEN_LEVEL, MAX_TEMPERATURE, MIN_TEMPERATURE, MAX_VENUS_SCALE} from '../../common/constants';
-import {ActionPreview, ActionPreviewBranch, ActionPreviewStep, ActionEffect, ActionRevealDescriptor, VictoryPointsDelta} from '../../common/models/ActionPreviewModel';
+import {ActionPreview, ActionPreviewBranch, ActionPreviewStep, ActionEffect, ActionRevealDescriptor, StagedPlacementModel, VictoryPointsDelta} from '../../common/models/ActionPreviewModel';
 import {DeltaAdvanceOffer} from '../../common/models/DeltaBonusPromptModel';
-import {AmountConversionModel, AmountCostModel, AmountResultModel, PlayerInputModel} from '../../common/models/PlayerInputModel';
+import {AmountConversionModel, AmountCostModel, AmountResultModel, PlacementEffect, PlayerInputModel} from '../../common/models/PlayerInputModel';
 import {effectsForBehavior, copiedProductionUnits, resourceVictoryPoints} from '../models/actionPreview';
 import {Units} from '../../common/Units';
 import {RemoveResourcesFromCard} from '../deferredActions/RemoveResourcesFromCard';
@@ -197,9 +197,80 @@ export function spendHeatStep(player: IPlayer, amount: number): ActionPreviewSte
  */
 export function boardPlacementStep(
   placementType: string,
-  opts: {tileType?: TileType, count?: number, constraint?: string | Message} = {},
+  opts: {
+    tileType?: TileType,
+    count?: number,
+    constraint?: string | Message,
+    /**
+     * STAGED ACTION PLACEMENT (docs/TILE_PLAY_STAGED_COMMIT.md, D5): the board
+     * data letting the console run this placement as the ACTION's last
+     * reversible step — the composer parks the action batch, the board runs
+     * the cell pick, and the confirm posts `[...actionBatch, {type:'space'}]`.
+     * Built by {@link stagedActionPlacement} in the card's own `actionPreview`
+     * hook. Absent → the placement stays a post-submit follow-up (today's flow).
+     */
+    staged?: StagedPlacementModel,
+  } = {},
 ): ActionPreviewStep {
-  return {kind: 'boardPlacement', placementType, tileType: opts.tileType, count: opts.count, constraint: opts.constraint};
+  return {kind: 'boardPlacement', placementType, tileType: opts.tileType, count: opts.count, constraint: opts.constraint, staged: opts.staged};
+}
+
+/**
+ * The ACTION-side twin of `placementPreview({staged})`: the staged board data
+ * for a blue-card ACTION whose commit ends in a Mars cell pick (Aquifer
+ * Pumping's ocean, Mars Nomads' camp move, St. Joseph's cathedral marker).
+ * Attach the result to the action's {@link boardPlacementStep} so the console
+ * can park the action batch, run the cell pick as the LAST REVERSIBLE STEP and
+ * submit `[...actionBatch, {type:'space'}]` in one POST.
+ *
+ * Deliberately takes NO `canAffordOptions` — the play-side's one nuance does
+ * not apply here: a card PLAY folds its own unpaid cost into the legal set
+ * (Ares cell costs compete with the card's price), but an ACTION's own cost is
+ * spent BEFORE the placement resolves at runtime, and no in-scope action's
+ * legal set reads money at all (the ocean/city/adjacency sets are pure
+ * geometry; Mars Nomads' `cannot-afford-bonus` reads the live bank inside its
+ * own reasoner, identically on both sides of the commit).
+ *
+ * MIRROR THE RUNTIME PROMPT EXACTLY — same title, same spaces derivation
+ * (share the card's own method, never re-derive), same reasoner, same
+ * `placementEffect`. Parity is guarded by
+ * tests/boards/stagedPlacementParity.spec.ts.
+ *
+ * `undefined` means «this action would produce no placement prompt right now»
+ * (oceans maxed → the live `PlaceOceanTile` silently skips): emit no staged
+ * payload and the action flows exactly as today.
+ */
+export function stagedActionPlacement(player: IPlayer, opts: {
+  /** The title the LIVE prompt carries (mirror the runtime source). */
+  title: string | Message,
+  /** Declarative eligibility kind — derive the legal set from the board. */
+  on?: PlacementType,
+  /** Bespoke pre-derived targets — the SAME method the runtime prompt feeds
+   *  to `createMarsSelectSpace`. Empty → no staged payload. */
+  spaces?: ReadonlyArray<Space>,
+  /** The card whose action asks — the dossier source (the model requires it;
+   *  the live ocean prompts may omit theirs, which the parity guard ignores). */
+  sourceCard: CardName,
+  tileType?: TileType,
+  /** For illegal-reason derivation when `spaces` are bespoke — the runtime
+   *  prompt's own `placementType`, when it declares one. */
+  placementType?: PlacementType,
+  /** The card's own per-cell reasoner — the same one the runtime prompt passes. */
+  reasoner?: (space: Space) => PlacementIllegalReason | undefined,
+  /** Mirror of the live prompt's declaration (`'bonus-only'` / `'marker'`). */
+  placementEffect?: PlacementEffect,
+  followUpPlacements?: ReadonlyArray<{tileType?: TileType}>,
+}): StagedPlacementModel | undefined {
+  return stagedMarsSelectSpace(player, {
+    title: opts.title,
+    on: opts.on ?? opts.placementType,
+    spaces: opts.spaces,
+    tileType: opts.tileType,
+    sourceCard: opts.sourceCard,
+    customReasoner: opts.reasoner,
+    placementEffect: opts.placementEffect,
+    followUpPlacements: opts.followUpPlacements,
+  });
 }
 
 /**

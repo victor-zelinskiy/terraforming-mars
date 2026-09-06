@@ -11,6 +11,7 @@ import {BoardType} from '../../boards/BoardType';
 import {MarsBoard} from '../../boards/MarsBoard';
 import {Space} from '../../boards/Space';
 import {createMarsSelectSpace} from '../../boards/marsSelectSpaceHelper';
+import {PlacementIllegalReason} from '../../../common/inputs/PlacementIllegalReason';
 import * as actionReason from '../actionReasons';
 import * as actionPreviews from '../actionPreviews';
 import {ActionPreview} from '../../../common/models/ActionPreviewModel';
@@ -116,28 +117,73 @@ export class MarsNomads extends Card implements IActionCard {
     return actionReason.placementReason('No valid destination space');
   }
 
-  // Moving the nomads is a board-space selection (+ varying placement bonus)
-  // resolved on the board after submit — no pre-collectable step or fixed effect.
-  // A context note tells the player they'll pick a space, so the modal isn't mute.
-  public actionPreview(player: IPlayer) {
-    return actionPreviews.singleBranch(this, player, [
-      actionPreviews.noteStep('board', 'After confirming, choose an adjacent space to move the nomads to.'),
-    ]);
-  }
-
-  public action(player: IPlayer) {
-    const spaces = this.eliglbleDestinationSpaces(player);
-    // Custom reasoner: cells that are empty + non-reserved land + correct
-    // owner but NOT adjacent to the current nomad position need a clearer
-    // tooltip than the generic 'unavailable'. Generic checks (occupied,
-    // reserved-noctis, owned-by-other) still fire when applicable —
-    // returning undefined falls through.
+  /**
+   * Per-cell reasoner for the MOVE's destination pick — SHARED by the live
+   * prompt (`action`) and the staged preview (`actionPreview`) so the two can
+   * never drift. Cells that are empty + non-reserved land + correct owner but
+   * NOT adjacent to the current nomad position need a clearer tooltip than the
+   * generic 'unavailable'. Generic checks (occupied, reserved-noctis,
+   * owned-by-other) still fire when applicable — returning undefined falls
+   * through.
+   */
+  private destinationReasoner(player: IPlayer): (space: Space) => PlacementIllegalReason | undefined {
     const board = player.game.board;
     const currentNomadSpace = player.game.nomadSpace !== undefined ?
       board.getSpaceOrThrow(player.game.nomadSpace) : undefined;
     const adjacentIds = currentNomadSpace !== undefined ?
       new Set(board.getAdjacentSpaces(currentNomadSpace).map((s) => s.id)) :
       new Set<string>();
+    return (space) => {
+      // Cells with tiles / reserved / other-owned: let generic say so.
+      if (space.tile !== undefined) {
+        return undefined;
+      }
+      if (space.id === board.noctisCitySpaceId) {
+        return undefined;
+      }
+      if (space.player !== undefined && space.player !== player) {
+        return undefined;
+      }
+      // Non-land terrain → generic 'wrong-terrain'.
+      if (space.spaceType !== 'land') {
+        return undefined;
+      }
+      // Now we know: empty, land, owner-OK. Two card-specific reasons:
+      if (!adjacentIds.has(space.id)) {
+        return 'not-adjacent-to-nomads';
+      }
+      if (!this.canAffordPlacementBonus(player, space)) {
+        return 'cannot-afford-bonus';
+      }
+      return undefined;
+    };
+  }
+
+  // The move is STAGED (D5): the action batch parks and the board runs the
+  // destination pick as the action's last reversible step. Spaces and reasoner
+  // are the SAME derivations the live prompt uses (`eliglbleDestinationSpaces`
+  // / `destinationReasoner` — note the destinations hang off `game.nomadSpace`),
+  // and `'bonus-only'` mirrors the live prompt's own declaration: the camp
+  // MOVES — cell bonus yes, tile no, so the preview never promises Ares
+  // adjacency / VP / tile triggers the commit suppresses. No tileType: nothing
+  // is placed.
+  public actionPreview(player: IPlayer) {
+    return actionPreviews.singleBranch(this, player, [
+      actionPreviews.boardPlacementStep('land', {
+        staged: actionPreviews.stagedActionPlacement(player, {
+          title: message('Select new space for ${0}', (b) => b.card(this)),
+          spaces: this.eliglbleDestinationSpaces(player),
+          placementType: 'land',
+          reasoner: this.destinationReasoner(player),
+          placementEffect: 'bonus-only',
+          sourceCard: this.name,
+        }),
+      }),
+    ]);
+  }
+
+  public action(player: IPlayer) {
+    const spaces = this.eliglbleDestinationSpaces(player);
 
     return createMarsSelectSpace(
       player,
@@ -151,30 +197,7 @@ export class MarsNomads extends Card implements IActionCard {
         // milestone/award tile counts, Mining Guild, Philares — stays silent,
         // which is exactly the published ruling for this card.
         placementEffect: 'bonus-only',
-        customReasoner: (space) => {
-          // Cells with tiles / reserved / other-owned: let generic say so.
-          if (space.tile !== undefined) {
-            return undefined;
-          }
-          if (space.id === board.noctisCitySpaceId) {
-            return undefined;
-          }
-          if (space.player !== undefined && space.player !== player) {
-            return undefined;
-          }
-          // Non-land terrain → generic 'wrong-terrain'.
-          if (space.spaceType !== 'land') {
-            return undefined;
-          }
-          // Now we know: empty, land, owner-OK. Two card-specific reasons:
-          if (!adjacentIds.has(space.id)) {
-            return 'not-adjacent-to-nomads';
-          }
-          if (!this.canAffordPlacementBonus(player, space)) {
-            return 'cannot-afford-bonus';
-          }
-          return undefined;
-        },
+        customReasoner: this.destinationReasoner(player),
       })
       .andThen((space) => {
         player.game.nomadSpace = space.id;

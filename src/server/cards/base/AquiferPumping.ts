@@ -7,7 +7,7 @@ import {IPlayer} from '../../IPlayer';
 import {CardName} from '../../../common/cards/CardName';
 import {TileType} from '../../../common/TileType';
 import {SelectPaymentDeferred} from '../../deferredActions/SelectPaymentDeferred';
-import {PlaceOceanTile} from '../../deferredActions/PlaceOceanTile';
+import {PlaceOceanTile, SELECT_OCEAN_SPACE_TITLE} from '../../deferredActions/PlaceOceanTile';
 import {CardRenderer} from '../render/CardRenderer';
 import {TITLES} from '../../inputs/titles';
 import {Resource} from '../../../common/Resource';
@@ -48,10 +48,22 @@ export class AquiferPumping extends Card implements IActionCard, IProjectCard {
   // Spend 8 M€ (steel usable) then place an ocean. When steel is usable the
   // payment is an INTERACTIVE step dialed INSIDE the confirm modal (no separate
   // SelectPayment follow-up); otherwise a flat M€ cost chip. The ocean placement
-  // is an after-submit SelectSpace shown as a board-placement note.
+  // is STAGED (D5): the cell is picked BEFORE the action batch submits — the
+  // payload mirrors the live `PlaceOceanTile` exactly (its default title, its
+  // `'ocean'` spaces derivation, its silent skip at max oceans → no staged
+  // payload, so Whales still gets its resource through today's flow).
   public actionPreview(player: IPlayer) {
     const pay = actionPreviews.paymentStep(player, OCEAN_COST, {canUseSteel: true, title: TITLES.payForCardAction(this.name)});
-    const place = actionPreviews.boardPlacementStep('ocean', {tileType: TileType.OCEAN});
+    const place = actionPreviews.boardPlacementStep('ocean', {
+      tileType: TileType.OCEAN,
+      staged: actionPreviews.stagedActionPlacement(player, {
+        title: SELECT_OCEAN_SPACE_TITLE,
+        spaces: player.game.canAddOcean() ? player.game.board.getAvailableSpacesForType(player, 'ocean') : [],
+        placementType: 'ocean',
+        tileType: TileType.OCEAN,
+        sourceCard: this.name,
+      }),
+    });
     if (pay !== undefined) {
       return actionPreviews.singleBranch(this, player, [pay, place]);
     }

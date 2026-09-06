@@ -5,6 +5,7 @@ import {IGame} from '../../src/server/IGame';
 import {runAllActions, maxOutOceans, formatMessage} from '../TestingUtils';
 import {cast, toID} from '../../src/common/utils/utils';
 import {cardPlayPreview} from '../../src/server/models/cardPlayPreview';
+import {actionPreview} from '../../src/server/models/actionPreview';
 import {ActionPreview, StagedPlacementModel} from '../../src/common/models/ActionPreviewModel';
 import {Payment} from '../../src/common/inputs/Payment';
 import {CardName} from '../../src/common/cards/CardName';
@@ -33,6 +34,12 @@ import {PRELUDE_CARD_MANIFEST} from '../../src/server/cards/prelude/PreludeCardM
 import {ARES_CARD_MANIFEST} from '../../src/server/cards/ares/AresCardManifest';
 import {DELTA_PROJECT_CARD_MANIFEST} from '../../src/server/cards/delta/DeltaProjectCardManifest';
 import {SubterraneanReservoir} from '../../src/server/cards/base/SubterraneanReservoir';
+import {AquiferPumping} from '../../src/server/cards/base/AquiferPumping';
+import {WaterImportFromEuropa} from '../../src/server/cards/base/WaterImportFromEuropa';
+import {CometAiming} from '../../src/server/cards/promo/CometAiming';
+import {MarsNomads} from '../../src/server/cards/promo/MarsNomads';
+import {StJosephOfCupertinoMission} from '../../src/server/cards/promo/StJosephOfCupertinoMission';
+import {IcyImpactors} from '../../src/server/cards/promo/IcyImpactors';
 import {IceMoonColony} from '../../src/server/cards/colonies/IceMoonColony';
 import {GanymedeColony} from '../../src/server/cards/base/GanymedeColony';
 import {LandClaim} from '../../src/server/cards/base/LandClaim';
@@ -536,5 +543,143 @@ describe('staged placement — plays that must NOT stage', () => {
     const card = new LandClaim();
     player.megaCredits = 60;
     expect(findStaged(cardPlayPreview(player, card))).to.be.undefined;
+  });
+});
+
+describe('staged ACTION placement parity (blue-card actions, D5)', () => {
+  /**
+   * The ACTION-side mirror of the play guard above (D5 — the staged path for
+   * blue-card actions): the staged payload on an ACTION preview is what the
+   * player sees while the action batch is still parked client-side; the live
+   * `SelectSpace` is what the committed action raises after its own cost is
+   * paid. Same legal set, same placementType/tileType — PLUS `placementEffect`
+   * and the prompt title, which the client's synthetic prompt echoes: a move /
+   * marker action that lost its declaration would promise tile-driven effects
+   * the commit suppresses.
+   */
+  function assertActionParity(name: string, staged: StagedPlacementModel, ss: SelectSpace) {
+    assertParity(name, staged, ss);
+    expect(ss.placementEffect, `${name}: placementEffect parity`).to.eq(staged.placementEffect);
+    expect(formatMessage(staged.title), `${name}: the staged title mirrors the live prompt`)
+      .to.eq(formatMessage(ss.title));
+    // The per-cell refusals are the same derivation on both sides (shared
+    // reasoner + computeIllegalReasons) — byte-equal, reasons included.
+    const byId = (a: {spaceId: string}, b: {spaceId: string}) => a.spaceId.localeCompare(b.spaceId);
+    expect([...(ss.illegalSpaces ?? [])].sort(byId), `${name}: illegal-reason parity`)
+      .to.deep.equal([...(staged.illegalSpaces ?? [])].sort(byId));
+  }
+
+  it('Aquifer Pumping: the staged ocean mirrors the live PlaceOceanTile prompt', () => {
+    const [game, player] = testGame(2);
+    const card = new AquiferPumping();
+    player.playedCards.push(card);
+    player.megaCredits = 20; // no steel → SelectPaymentDeferred auto-pays, no prompt
+    const found = findStaged(actionPreview(player, card));
+    expect(found, 'the action preview stages its ocean').to.not.be.undefined;
+    expect(found!.staged.placementEffect, 'a real tile placement declares no effect override').to.be.undefined;
+    card.action(player);
+    runAllActions(game);
+    assertActionParity(card.name, found!.staged, cast(player.popWaitingFor(), SelectSpace));
+  });
+
+  it('Aquifer Pumping at max oceans: NO staged payload (the live PlaceOceanTile silently skips)', () => {
+    const [game, player] = testGame(2);
+    const card = new AquiferPumping();
+    player.playedCards.push(card);
+    player.megaCredits = 20;
+    maxOutOceans(player);
+    runAllActions(game);
+    expect(findStaged(actionPreview(player, card)),
+      'a placement the commit will skip stages nothing — the action flows as today').to.be.undefined;
+  });
+
+  it('Water Import From Europa: the staged ocean mirrors the live prompt', () => {
+    const [game, player] = testGame(2);
+    const card = new WaterImportFromEuropa();
+    player.playedCards.push(card);
+    player.megaCredits = 20; // no titanium → the payment auto-pays
+    const found = findStaged(actionPreview(player, card));
+    expect(found, 'the action preview stages its ocean').to.not.be.undefined;
+    card.action(player);
+    runAllActions(game);
+    assertActionParity(card.name, found!.staged, cast(player.popWaitingFor(), SelectSpace));
+  });
+
+  it('Comet Aiming: the ocean stages on ITS branch only, and mirrors the live prompt', () => {
+    const [game, player] = testGame(2);
+    const card = new CometAiming();
+    player.playedCards.push(card);
+    card.resourceCount = 1;
+    player.titanium = 3; // both branches live → the action raises its OrOptions
+    const preview = actionPreview(player, card);
+    const found = findStaged(preview);
+    expect(found, 'the place-ocean branch stages').to.not.be.undefined;
+    expect(found!.branchIndex, 'the ocean is the FIRST runtime option (action() push order)').to.eq(0);
+    const other = preview.branches.find((b) => b.index !== found!.branchIndex);
+    expect(other!.steps.some((s) => s.kind === 'boardPlacement'),
+      'the add-asteroid branch carries no placement at all').is.false;
+    const or = cast(card.action(player), OrOptions);
+    cast(or.options[found!.branchIndex], SelectOption).cb(undefined);
+    runAllActions(game);
+    assertActionParity(card.name, found!.staged, cast(player.popWaitingFor(), SelectSpace));
+  });
+
+  it('Mars Nomads: the staged MOVE mirrors the live prompt (bonus-only, no tile)', () => {
+    const [game, player] = testGame(2);
+    const card = new MarsNomads();
+    player.playedCards.push(card);
+    // The destinations hang off the camp's current cell (same seat the card's
+    // own spec uses — an arbitrary land cell with free neighbours).
+    game.nomadSpace = game.board.getAvailableSpacesOnLand(player)[12].id;
+    const found = findStaged(actionPreview(player, card));
+    expect(found, 'the move stages').to.not.be.undefined;
+    const staged = found!.staged;
+    expect(staged.placementEffect, 'a camp move declares bonus-only').to.eq('bonus-only');
+    expect(staged.tileType, 'nothing is placed — no tile identity').to.be.undefined;
+    // The live action RETURNS its SelectSpace directly (no deferreds in between).
+    assertActionParity(card.name, staged, cast(card.action(player), SelectSpace));
+  });
+
+  it('St. Joseph of Cupertino Mission: the staged MARKER mirrors the live city pick', () => {
+    const [game, player, player2] = testGame(2);
+    const card = new StJosephOfCupertinoMission();
+    player.playedCards.push(card);
+    player.megaCredits = 20; // no steel → the payment auto-pays
+    // Cities of BOTH players are targets; an already-cathedraled one is not.
+    const land = game.board.getAvailableSpacesOnLand(player);
+    const [mine, theirs, taken] = [land[0], land[5], land[10]];
+    game.addCity(player, mine);
+    game.addCity(player2, theirs);
+    game.addCity(player2, taken);
+    game.stJosephCathedrals.push(taken.id);
+    runAllActions(game);
+    player.steel = 0; // a city cell's printed bonus may have paid steel — keep the payment auto-paying
+    const preview = actionPreview(player, card);
+    // The step itself must not lie: no city is PLACED (the old `tileType: CITY`
+    // promised one) — the identity comes from `placementEffect: 'marker'`.
+    const step = preview.branches[0].steps.find((s) => s.kind === 'boardPlacement');
+    expect(step?.kind === 'boardPlacement' && step.tileType, 'the step carries NO tileType').to.be.undefined;
+    const found = findStaged(preview);
+    expect(found, 'the marker stages').to.not.be.undefined;
+    const staged = found!.staged;
+    expect(staged.placementEffect, 'a cathedral is a MARKER on an existing city').to.eq('marker');
+    expect(staged.tileType).to.be.undefined;
+    expect(staged.spaces, 'spans all players\' cities, minus the cathedraled one')
+      .to.have.members([mine.id, theirs.id]);
+    card.action(player);
+    runAllActions(game);
+    assertActionParity(card.name, staged, cast(player.popWaitingFor(), SelectSpace));
+  });
+
+  it('Icy Impactors: deliberately NOT staged — the live SelectSpace goes to game.first, not the actor', () => {
+    const [, player] = testGame(2);
+    const card = new IcyImpactors();
+    player.playedCards.push(card);
+    card.resourceCount = 1;
+    player.megaCredits = 20;
+    const preview = actionPreview(player, card);
+    expect(preview.branches.some((b) => b.steps.some((s) => s.kind === 'boardPlacement')),
+      'rig honesty: the ocean follow-up IS declared').is.true;
+    expect(findStaged(preview), 'but never staged — the actor has no cell to pick').to.be.undefined;
   });
 });

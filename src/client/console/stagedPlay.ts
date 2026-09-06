@@ -53,22 +53,34 @@ export type PlayComposerDraft = {
 };
 
 export type StagedPlayArm = {
+  /**
+   * WHICH staged flow this is — a card PLAY (the hand composer: the batch's
+   * head plays a project card) or a blue-card ACTION (the ДЕЙСТВИЯ КАРТ
+   * composer: the head activates an action). The board half is identical;
+   * the flows differ in what B restores and how a world move reconciles
+   * (an action's card is ALWAYS in the tableau, so tableau membership can
+   * never witness «our commit landed» there).
+   */
+  flow: 'play' | 'action';
   cardName: CardName;
   isEvent: boolean;
-  /** The complete play batch the composer assembled (`buildPlayCardBatch`'s
-   *  own wire shape — opaque here) — posted verbatim at the cell confirm
-   *  (+ the space tail for a non-fixed placement). */
+  /** The complete batch the composer assembled (`buildPlayCardBatch` /
+   *  `buildActionBatch`'s own wire shape — opaque here) — posted verbatim at
+   *  the cell confirm (+ the space tail for a non-fixed placement). */
   batch: ReadonlyArray<unknown>;
   placement: StagedPlacementModel;
   /** The play's immediate gains (composer-extracted) — the card-seal beat's
-   *  reward wave (stage 4 of the rework; unused by the v1 skeleton). */
+   *  reward wave. Play flow only. */
   rewards?: ReadonlyArray<ResourceTransferSpec>;
   draws: number;
   deckCheck: boolean;
-  /** What restores the composer on B: the shell's own pending descriptor… */
-  pending: {cardName: CardName, input: SelectProjectCardToPlayModel};
-  /** …and the composer's capture snapshot. */
-  draft: PlayComposerDraft;
+  /** PLAY flow restore: the shell's own pending descriptor… */
+  pending?: {cardName: CardName, input: SelectProjectCardToPlayModel};
+  /** …and the play composer's capture snapshot. */
+  draft?: PlayComposerDraft;
+  /** ACTION flow restore: which action to re-seat + the action composer's own
+   *  opaque capture snapshot (written and read only by ConsoleActionComposer). */
+  actionRestore?: {cardName: CardName, nodeIndex: number, composer: unknown};
   /** Whether entering staged play moved a workspace stack aside (and so
    *  whether B must bring one back). */
   yieldedStack: boolean;

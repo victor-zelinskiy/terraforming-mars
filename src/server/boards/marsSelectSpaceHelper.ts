@@ -166,6 +166,9 @@ export function stagedMarsSelectSpace(
     tileType?: TileType,
     sourceCard: CardName,
     customReasoner?: (space: Space) => PlacementIllegalReason | undefined,
+    /** Mirror of the live prompt's `placementEffect` (`'bonus-only'` /
+     *  `'marker'`) — absent means the default `'tile'`. */
+    placementEffect?: PlacementEffect,
     hideExistingTile?: boolean,
     /** Greenery placements exclude the cells around Red City at runtime
      *  (`PlaceGreeneryTile.execute` → `filterSpacesAroundRedCity`). */
@@ -199,6 +202,7 @@ export function stagedMarsSelectSpace(
     placementType: options.on,
     tileType: options.tileType,
     sourceCard: options.sourceCard,
+    placementEffect: options.placementEffect,
   };
   if (options.hideExistingTile === true) {
     model.hiddenTiles = spaces.map(toID);

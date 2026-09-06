@@ -741,7 +741,7 @@ import {
   // A branch that LEADS somewhere instead of asking for something.
   runtimeNavigationSteps,
 } from '@/client/console/consoleActionComposer';
-import {variablePartsForBranch, ConsoleVariableChip} from '@/client/console/consoleCardActions';
+import {variablePartsForBranch, ConsoleVariableChip, takeStagedActionComposerDraft} from '@/client/console/consoleCardActions';
 import {buildOrItems, orItemResponse, nestedPickHostable, ConsoleOrItem} from '@/client/console/consoleOrChoice';
 import {paymentLanes, megacreditsAvailable, paymentCovers, paymentFromCounts, initialCounts, dialLaneCount, buildPaymentView, PaymentView, PaymentSourceRow, editableRows, quickAdjustRow} from '@/client/console/paymentPlan';
 import ActionEffectChip from '@/client/components/actions/ActionEffectChip.vue';
@@ -751,7 +751,7 @@ import ConsoleScrollArea from '@/client/components/console/foundation/ConsoleScr
 import ConsolePaymentPanel from '@/client/components/console/ConsolePaymentPanel.vue';
 import ConsoleCardFaceLite from '@/client/components/console/cardDeal/ConsoleCardFaceLite.vue';
 import {markWorkspaceOutcomeArrivalDone, markWorkspaceOutcomeArrivalFlown, markWorkspaceOutcomeBeatDone, setWorkspaceOutcomeSlot, workspaceOutcomeState} from '@/client/console/consoleWorkspaceOutcome';
-import {setWorkspaceFrameSlot, setWorkspaceFrameSourceCard, workspaceFrameHost, workspaceFrameKnown} from '@/client/console/consoleWorkspaceStack';
+import {setWorkspaceFrameSlot, setWorkspaceFrameSourceCard, workspaceFrameHost, workspaceFrameKnown, workspaceStackRootKind} from '@/client/console/consoleWorkspaceStack';
 import {conUiScale} from '@/client/console/consoleLayoutProfile';
 import {actionCommitState, armActionCommit, commitKindForBranch, commitRewardSpecs, markActionCommitSettled} from '@/client/console/consoleActionCommit';
 import {ActionCommitMotionHandle, COMMIT_HANDOFF_AT_MS, pulseDeckPile, resolveActionCommitAnchors, resolveGainIconOrigins, runActionCommitMotion} from '@/client/console/consoleActionCommitMotion';
@@ -1008,7 +1008,7 @@ export default defineComponent({
      */
     repeatPickDisabled: {type: Boolean, default: false},
   },
-  emits: ['confirm', 'colony-trade', 'delta-advance', 'cancel', 'inspect-source', 'reveal-ack', 'commands'],
+  emits: ['confirm', 'staged-placement', 'colony-trade', 'delta-advance', 'cancel', 'inspect-source', 'reveal-ack', 'commands'],
   data() {
     return {
       selectedPos: undefined as number | undefined,
@@ -2551,10 +2551,62 @@ export default defineComponent({
         this.focusIdx = firstAvail >= 0 ? firstAvail : 0;
       }
       this.seedDefaults();
+      // STAGED return (B from the board): the player's own captures beat the
+      // fresh seeding — same card, same variant, same answers, same focus.
+      // One-shot by contract; nothing was submitted in between, so the preview
+      // (version-cached) and the choice ids are the same shape.
+      this.applyStagedComposerSnapshot();
       // …and then let the GATE have the last word: if a requirement is already
       // waiting, the cursor starts ON it. A screen that opens on a commit row
       // it will refuse is the defect this whole model exists to remove.
       void this.$nextTick(() => this.syncCommitFocus());
+    },
+    /** The staged-return capture snapshot — written at the staged confirm,
+     *  applied back by `applyStagedComposerSnapshot`. Opaque outside this
+     *  component (no inverse wire mapping exists to drift). */
+    stagedComposerSnapshot(): unknown {
+      return {
+        selectedPos: this.selectedPos,
+        capturedPre: {...this.capturedPre},
+        capturedOption: this.capturedOption,
+        captured: {...this.captured},
+        amounts: {...this.amounts},
+        floaters: {...this.floaters},
+        payCounts: JSON.parse(JSON.stringify(this.payCounts)) as Record<string, Partial<Record<SpendableResource, number>>>,
+        picks: {...this.picks},
+        multiPicks: {...this.multiPicks},
+        orDescents: {...this.orDescents},
+        focusIdx: this.focusIdx,
+      };
+    },
+    applyStagedComposerSnapshot(): void {
+      const snap = takeStagedActionComposerDraft(this.entry.cardName, this.nodeIndex) as {
+        selectedPos: number | undefined,
+        capturedPre: Record<number, unknown>,
+        capturedOption: unknown,
+        captured: Record<number, unknown>,
+        amounts: Record<string, number>,
+        floaters: Record<string, number>,
+        payCounts: Record<string, Partial<Record<SpendableResource, number>>>,
+        picks: Record<string, string>,
+        multiPicks: Record<string, ReadonlyArray<string>>,
+        orDescents: Record<string, {item: ConsoleOrItem, pick: string}>,
+        focusIdx: number,
+      } | undefined;
+      if (snap === undefined) {
+        return;
+      }
+      this.selectedPos = snap.selectedPos;
+      this.capturedPre = {...snap.capturedPre};
+      this.capturedOption = snap.capturedOption;
+      this.captured = {...snap.captured};
+      this.amounts = {...snap.amounts};
+      this.floaters = {...snap.floaters};
+      this.payCounts = {...snap.payCounts};
+      this.picks = {...snap.picks};
+      this.multiPicks = {...snap.multiPicks};
+      this.orDescents = {...snap.orDescents};
+      this.focusIdx = snap.focusIdx;
     },
     seedDefaults(): void {
       for (const c of this.allChoices) {
@@ -3933,6 +3985,38 @@ export default defineComponent({
         return;
       }
       this.submitting = true;
+      // STAGED PLACEMENT (docs/TILE_PLAY_STAGED_COMMIT.md): a branch whose Mars
+      // placement the SERVER marked stage-able hands the screen to the BOARD
+      // instead of committing — nothing is submitted here, the cell confirm on
+      // the board is the action's one submit, and B there returns to this very
+      // composer with every capture intact (the snapshot below). Only the
+      // ACTING composer forks (`publishCommands` — the repeat-pick instance
+      // captures a choice and must keep resolving through the bridge), and a
+      // composed repeat / stage-reward keeps today's flow (the placement there
+      // belongs to the copied action, a follow-up by design). No commit beat
+      // plays — the action has not run yet.
+      // BOUNDARY (v1): only a card-actions-ROOTED flow — the wheel's Action
+      // Center. A composer standing inside another phase root (a start-flow
+      // bonus window) keeps today's committed flow: the staged success
+      // DISCARDS the yielded frames, and a phase root must survive its inner
+      // flows.
+      if (this.publishCommands && this.repeatResult === undefined && this.stageRewardDraft === undefined &&
+          workspaceStackRootKind() === 'card-actions') {
+        const stagedStep = branch.steps.find((s) => s.kind === 'boardPlacement' && s.staged !== undefined);
+        if (stagedStep !== undefined && stagedStep.kind === 'boardPlacement' && stagedStep.staged !== undefined) {
+          this.$emit('staged-placement', {
+            branchIndex: branch.index,
+            preResponses: orderedPreResponses(this.preview, this.capturedPre),
+            optionResponse: this.capturedOption,
+            stepResponses: this.navigationDeferred ?
+              plannedStepResponses(branch, this.captured) :
+              orderedStepResponses(branch, this.captured),
+            staged: stagedStep.staged,
+            composerDraft: this.stagedComposerSnapshot(),
+          });
+          return;
+        }
+      }
       // Capture the configuration surface's box NOW — the outcome unfolds from
       // it, and by the time that zone mounts this surface is already gone.
       armOutcomeOrigin(this.$refs.rootEl as HTMLElement | undefined);

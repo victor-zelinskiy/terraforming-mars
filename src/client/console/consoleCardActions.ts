@@ -419,7 +419,27 @@ export const consoleCardActionsUi = reactive({
   confirmOpen: false,
   /** The suspended-instance presentation record — see ActionWorkspaceDraft. */
   draft: undefined as ActionWorkspaceDraft | undefined,
+  /**
+   * STAGED ACTION return (B from the board — docs/TILE_PLAY_STAGED_COMMIT.md):
+   * which action's composer to re-seat when the yielded workspace resumes,
+   * plus the composer's own opaque capture snapshot (written and consumed
+   * only by ConsoleActionComposer — no inverse wire mapping ever exists to
+   * drift). ONE-SHOT: the mount that seats it clears it.
+   */
+  stagedReturn: undefined as {cardName: CardName, nodeIndex: number, composer: unknown} | undefined,
 });
+
+/** The composer's half of the staged return — taken exactly once, and only by
+ *  the composer the return names. */
+export function takeStagedActionComposerDraft(cardName: CardName, nodeIndex: number): unknown {
+  const r = consoleCardActionsUi.stagedReturn;
+  if (r === undefined || r.cardName !== cardName || r.nodeIndex !== nodeIndex) {
+    return undefined;
+  }
+  const composer = r.composer;
+  consoleCardActionsUi.stagedReturn = undefined;
+  return composer;
+}
 
 /**
  * Re-seed the Action Center to «Все + Не активированы». Called at every FRESH
@@ -455,6 +475,12 @@ export type ActionRestoreInput = {
   draft: ActionWorkspaceDraft | undefined;
   /** The draft's card still has an action entry (server truth at mount). */
   draftEntryExists: boolean;
+  /** STAGED ACTION return (B from the board): the action to re-seat, with its
+   *  card still actionable at mount. Outranks everything but repeat/collapsed
+   *  — the player is coming back to the very decision they left. Optional so
+   *  the pre-staged callers/specs stay valid (absent = no staged return). */
+  stagedReturn?: ActionWorkspaceDraft | undefined;
+  stagedEntryExists?: boolean;
   /** The live outcome claim's host ('' fields when nothing is claimed). */
   claimHost: string | undefined;
   claimCard: string;
@@ -499,6 +525,13 @@ export type ActionRestorePlan =
 export function actionWorkspaceRestorePlan(input: ActionRestoreInput): ActionRestorePlan {
   if (input.repeat || input.collapsed) {
     return {kind: 'none'};
+  }
+  // STAGED ACTION return: B on the board brings the player back to the very
+  // composer they left — same card, same variant (the composer re-applies its
+  // own capture snapshot separately). An entry that vanished degrades to the
+  // ordinary browse (the player sees the honest grid, nothing half-restored).
+  if (input.stagedReturn !== undefined && input.stagedEntryExists === true) {
+    return {kind: 'seat-step', composer: input.stagedReturn};
   }
   if (input.hostedColonies) {
     if (input.draft !== undefined && input.draftEntryExists) {

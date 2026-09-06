@@ -1,6 +1,6 @@
 import {CardType} from '../../../common/cards/CardType';
 import {CardName} from '../../../common/cards/CardName';
-import {TileType} from '../../../common/TileType';
+import {PlacementIllegalReason} from '../../../common/inputs/PlacementIllegalReason';
 import {CardRenderer} from '../render/CardRenderer';
 import {Card} from '../Card';
 import {IActionCard} from '../ICard';
@@ -70,13 +70,41 @@ export class StJosephOfCupertinoMission extends Card implements IActionCard {
       actionReason.notEnoughMC();
   }
 
+  /** Per-cell reasoner for the cathedral's city pick — SHARED by the live
+   *  prompt (`action`) and the staged preview so the two can never drift. */
+  private cathedralReasoner(game: IGame): (space: Space) => PlacementIllegalReason | undefined {
+    const cathedralIds = new Set(game.stJosephCathedrals);
+    return (space) => {
+      // Operates on city tiles, not empty cells. Two reasons:
+      if (space.tile === undefined || !Board.isCitySpace(space)) {
+        return 'not-a-city';
+      }
+      if (cathedralIds.has(space.id)) {
+        return 'already-has-cathedral';
+      }
+      return undefined;
+    };
+  }
+
   // Pay 5 M€ (steel usable) then place a Cathedral in a city. When steel is
   // usable the payment is dialed INSIDE the confirm modal (no separate
-  // SelectPayment follow-up); otherwise a flat M€ cost chip. The city placement
-  // is an after-submit SelectSpace shown as a board-placement note.
+  // SelectPayment follow-up); otherwise a flat M€ cost chip. The city pick is
+  // STAGED (D5): spaces/reasoner are the SAME derivations the live prompt uses
+  // (`getEligibleCities` / `cathedralReasoner`). NO tileType — no city is
+  // placed, a MARKER lands on an existing one (the old `tileType: CITY` here
+  // was a lie); `'marker'` mirrors the live prompt's declaration and is what
+  // renders the placement identity as «Marker» client-side.
   public actionPreview(player: IPlayer) {
     const pay = actionPreviews.paymentStep(player, ACTION_COST, {canUseSteel: true, title: TITLES.payForCardAction(this.name)});
-    const place = actionPreviews.boardPlacementStep('city', {tileType: TileType.CITY});
+    const place = actionPreviews.boardPlacementStep('city', {
+      staged: actionPreviews.stagedActionPlacement(player, {
+        title: message('Select new space for ${0}', (b) => b.card(this)),
+        spaces: this.getEligibleCities(player.game),
+        reasoner: this.cathedralReasoner(player.game),
+        placementEffect: 'marker',
+        sourceCard: this.name,
+      }),
+    });
     if (pay !== undefined) {
       return actionPreviews.singleBranch(this, player, [pay, place]);
     }
@@ -93,7 +121,6 @@ export class StJosephOfCupertinoMission extends Card implements IActionCard {
 
     player.game.defer(new SelectPaymentDeferred(player, 5, {canUseSteel: true, title: TITLES.payForCardAction(this.name)}))
       .andThen(() => {
-        const cathedralIds = new Set(player.game.stJosephCathedrals);
         player.defer(createMarsSelectSpace(
           player,
           message('Select new space for ${0}', (b) => b.card(this)),
@@ -106,16 +133,7 @@ export class StJosephOfCupertinoMission extends Card implements IActionCard {
             // no `onTilePlaced` fan-out. Undeclared, the pick would default to
             // `'tile'` semantics client- and preview-side.
             placementEffect: 'marker',
-            customReasoner: (space) => {
-              // Operates on city tiles, not empty cells. Two reasons:
-              if (space.tile === undefined || !Board.isCitySpace(space)) {
-                return 'not-a-city';
-              }
-              if (cathedralIds.has(space.id)) {
-                return 'already-has-cathedral';
-              }
-              return undefined;
-            },
+            customReasoner: this.cathedralReasoner(player.game),
           })
           .andThen((space) => {
             player.game.stJosephCathedrals.push(space.id);

@@ -30,6 +30,11 @@ type Options = {
   followUpPlacements?: ReadonlyArray<{tileType?: TileType}>,
 };
 
+/** The default title of an `on: 'ocean'` prompt — exported so a staged ACTION
+ *  preview (Aquifer Pumping, Water Import From Europa, Comet Aiming) can
+ *  mirror the live prompt's title verbatim instead of copying the string. */
+export const SELECT_OCEAN_SPACE_TITLE = 'Select space for ocean tile';
+
 export class PlaceOceanTile extends DeferredAction<Space | undefined> {
   private creditedPlayer: IPlayer;
   constructor(
@@ -101,7 +106,7 @@ export class PlaceOceanTile extends DeferredAction<Space | undefined> {
 
   private getTitle(type: PlacementType) {
     switch (type) {
-    case 'ocean': return 'Select space for ocean tile';
+    case 'ocean': return SELECT_OCEAN_SPACE_TITLE;
     case 'land': return 'Select a land space to place an ocean tile';
     // case '': return 'Select space reserved for ocean to place greenery tile';
     default: throw new Error('unhandled type; ' + type);

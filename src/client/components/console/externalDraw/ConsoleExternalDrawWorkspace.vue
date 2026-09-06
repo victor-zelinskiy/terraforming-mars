@@ -1,19 +1,21 @@
 <template>
-  <!-- «ДОБОР КАРТЫ» — the mandatory take of an EXTERNAL draw. A workspace of
-       its own (WORKSPACE_KINDS 'external-draw'), always standalone: the player
-       walked in through the mandatory announce, and the take is the only way
-       out — no minimize, no back, no close. -->
-  <div class="con-extdraw con-ws"
-       role="dialog"
-       :aria-label="effectLine"
-       :data-flow="phase"
-       data-motion-surface="external-draw">
-    <div class="con-extdraw__frame con-ws-stage-frame" data-motion-panel ref="frameEl">
-      <ConsoleWsHead root="Card draw"
-                     emblem="cards"
-                     :subject="effectCardName"
-                     :stage="stageKey"
-                     :committed="true" />
+  <!-- «ДОБОР КАРТ» — the mandatory take of an EXTERNAL draw. A WORKSPACE
+       SCREEN of the ordinary family (WORKSPACE_KINDS 'external-draw'): the
+       stage band + the one stage-surface material, `ConsoleWsHead` as the
+       only header — never a centred plate (a modal look on a locked screen
+       is exactly the wrong statement). The player walked in through the
+       mandatory announce, and the take is the only way out. -->
+  <section class="con-extdraw con-ws"
+           :aria-label="effectLine"
+           :data-flow="phase"
+           data-motion-surface="external-draw">
+    <ConsoleWsHead class="con-extdraw__head"
+                   root="Card draw"
+                   emblem="cards"
+                   :subject="effectCardName"
+                   :stage="stageKey"
+                   :committed="true" />
+    <div class="con-extdraw__frame" data-motion-panel ref="frameEl">
 
       <!-- THE CAUSE — what happened, why, and who set it off. Two calm lines:
            the initiator's act (their chip + the trigger card) and the effect's
@@ -74,7 +76,7 @@
         </div>
       </div>
     </div>
-  </div>
+  </section>
 </template>
 
 <script lang="ts">
@@ -528,7 +530,10 @@ export default defineComponent({
       let budget = frame.clientHeight -
         (parseFloat(fcs.paddingTop) || 0) - (parseFloat(fcs.paddingBottom) || 0);
       const root = this.$el as HTMLElement | undefined;
-      for (const sel of ['.con-wshead', '.con-extdraw__cause', '.con-extdraw__status']) {
+      // The head sits OUTSIDE the frame now (the screen chassis) — the frame's
+      // own height already excludes it, so only the frame's inner chrome is
+      // subtracted here.
+      for (const sel of ['.con-extdraw__cause', '.con-extdraw__status']) {
         const el = root?.querySelector<HTMLElement>(sel) ?? null;
         if (el !== null) {
           const ecs = window.getComputedStyle(el);
@@ -634,6 +639,14 @@ export default defineComponent({
       try {
         await this.flyToHand(names);
       } finally {
+        // `runHandIntake` holds the SOURCE card hidden (`con-deal-hold`,
+        // opacity:0) for the flight and normally never has to release it —
+        // the source unmounts with its surface. OUR seat outlives the take as
+        // a ghost, so the hold must be lifted here or the ghost renders as a
+        // hole: the seat then fades back in at its quiet ghost weight.
+        for (const name of names) {
+          this.slotEl(name)?.classList.remove('con-deal-hold');
+        }
         await this.awaitPromptMoved(key);
         if (this.meta !== undefined && this.promptKey === key) {
           // The server is still asking the very same question: the take was

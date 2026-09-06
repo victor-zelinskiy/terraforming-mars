@@ -440,6 +440,7 @@
                                :publishCommands="!repeat"
                                :repeatPickDisabled="repeat"
                                @confirm="onComposerConfirm"
+                               @staged-placement="onComposerStagedPlacement"
                                @colony-trade="onComposerColonyTrade"
                                @delta-advance="onComposerDeltaAdvance"
                                @cancel="onComposerCancel"
@@ -493,7 +494,7 @@ import {PlayerViewModel} from '@/common/models/PlayerModel';
 import {CardName} from '@/common/cards/CardName';
 import {CardModel} from '@/common/models/CardModel';
 import {CardResource} from '@/common/CardResource';
-import {ActionPreview} from '@/common/models/ActionPreviewModel';
+import {ActionPreview, StagedPlacementModel} from '@/common/models/ActionPreviewModel';
 import type {ICardRenderEffect} from '@/common/cards/render/Types';
 import {actionPreviewFingerprint, actionPreviewMap, branchOutcomeClaimPlan, ensureActionPreviews, previewBranchByIndex} from '@/client/console/actionPreviewStore';
 import {gameStateVersion} from '@/client/console/gameStateVersion';
@@ -647,7 +648,7 @@ export default defineComponent({
      *  answer, so this surface never invents a second one. */
     blockedReason: {type: String, default: ''},
   },
-  emits: ['close', 'submit-batch', 'reveal-ack', 'collapse', 'blocked', 'colony-step', 'delta-step', 'flow-complete'],
+  emits: ['close', 'submit-batch', 'staged-placement', 'reveal-ack', 'collapse', 'blocked', 'colony-step', 'delta-step', 'flow-complete'],
   data() {
     return {
       consoleCardActionsUi,
@@ -1410,17 +1411,28 @@ export default defineComponent({
     // to LOOK, not to be dropped back into the decision.
     if (this.composer === undefined) {
       const draft = consoleCardActionsUi.draft;
+      const stagedReturn = consoleCardActionsUi.stagedReturn;
       const plan = actionWorkspaceRestorePlan({
         repeat: this.repeat,
         collapsed: this.collapsed,
         hostedColonies: workspaceFrameHost('colonies') === 'card-actions',
         draft,
         draftEntryExists: draft !== undefined && this.entries.some((e) => e.cardName === draft.cardName),
+        stagedReturn,
+        stagedEntryExists: stagedReturn !== undefined && this.entries.some((e) => e.cardName === stagedReturn.cardName),
         claimHost: workspaceOutcomeState.host,
         claimCard: workspaceOutcomeState.sourceCard,
         claimNodeIndex: workspaceOutcomeState.nodeIndex,
         claimAdmitsDeckCheck: workspaceOutcomeAdmits('deck-check'),
       });
+      // The staged return is ONE-SHOT whatever the plan decided: a seat
+      // consumes it through the composer's own snapshot take, and a degrade
+      // (entry gone, repeat instance) must not leave it armed for a later
+      // unrelated mount.
+      if (stagedReturn !== undefined && !this.repeat &&
+          (plan.kind !== 'seat-step' || plan.composer !== stagedReturn)) {
+        consoleCardActionsUi.stagedReturn = undefined;
+      }
       if (plan.kind === 'seat-step') {
         // The second-door chain is coming back mid-step: same card, same
         // variant — the hosted colonies frame gets its host again, the entry
@@ -2266,6 +2278,41 @@ export default defineComponent({
       // composer here used to blank the stage for the whole round-trip — the
       // "confirm → bare board → reveal" gap. The shell resolves + closes.
       this.$emit('submit-batch', batch);
+    },
+    /**
+     * STAGED PLACEMENT (docs/TILE_PLAY_STAGED_COMMIT.md): the composer's
+     * placement-bearing branch hands the screen to the BOARD instead of
+     * submitting. This surface only assembles the byte-identical batch (same
+     * re-walk as the confirm path) and relays UP — the shell owns the staged
+     * store, the yield and the board half. No claim, no commit beat, no
+     * awaiting handoff: nothing has been committed.
+     */
+    onComposerStagedPlacement(payload: {branchIndex: number, preResponses: ReadonlyArray<unknown>, optionResponse: unknown, stepResponses: ReadonlyArray<unknown>, staged: StagedPlacementModel, composerDraft: unknown}): void {
+      const comp = this.composer;
+      if (comp === undefined) {
+        return;
+      }
+      const perform = findPerformActionCard(this.playerView.waitingFor);
+      if (perform === undefined) {
+        console.warn('Staged action: SelectCard not found in waitingFor tree');
+        this.closeComposer();
+        return;
+      }
+      const batch = buildActionBatch({
+        performPath: perform.path,
+        cardName: comp.cardName,
+        branchIndex: payload.branchIndex,
+        preResponses: payload.preResponses,
+        optionResponse: payload.optionResponse,
+        stepResponses: payload.stepResponses,
+      });
+      this.$emit('staged-placement', {
+        batch,
+        staged: payload.staged,
+        cardName: comp.cardName,
+        nodeIndex: comp.nodeIndex,
+        composerDraft: payload.composerDraft,
+      });
     },
     onComposerCancel(): void {
       // B in the composer → back to the browse grid (the repeat pick, when it
