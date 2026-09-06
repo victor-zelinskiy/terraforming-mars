@@ -83,6 +83,12 @@ contextBridge.exposeInMainWorld('desktopBridge', {
   // The display name of the account signed into Steam (cross-platform, read-only) — used to
   // prefill the player name on first launch (Steam Deck / Steam Machine) when no identity is set.
   getSteamName: (): Promise<string | undefined> => ipcRenderer.invoke('desktop:getSteamName'),
+  // CURTAIN OVERLAY (scene transition): show/hide the persistent overlay
+  // WebContentsView that keeps the loading curtain animating across the
+  // game-boundary reload (electron/curtainOverlay.ts). The renderer director
+  // feature-detects these — an older shell simply rides the in-page curtain.
+  curtainShow: (payload: unknown): Promise<unknown> => ipcRenderer.invoke('desktop:curtainShow', payload),
+  curtainHide: (): Promise<unknown> => ipcRenderer.invoke('desktop:curtainHide'),
   // Console-native pre-game shell (P10): the ВЫЙТИ confirm + native
   // fullscreen restore. Thin invoke wrappers — no raw ipcRenderer leaks.
   quitApp: (): Promise<void> => ipcRenderer.invoke('desktop:quitApp'),

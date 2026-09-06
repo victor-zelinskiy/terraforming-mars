@@ -70,27 +70,75 @@ never under the curtain), the curtain plays `.con-load-fade-leave-active`
 deliberately instant (it must be opaque on the frame it is raised — the
 double-rAF navigation counts on that).
 
-## The STATIC PRE-VUE CURTAIN (the blink fix, 2026-09-05)
+## The STATIC PRE-VUE CURTAIN (the blink fix, 2026-09-05; seamless rework 2026-09-06)
 
 The Vue curtain cannot cover what happens BEFORE Vue exists: a game-boundary
 reload showed dark frames (bundle parse + the translations `await` run before
 `app.mount`) and the curtain then popped in — the «мигание» on every
 transition. `assets/index.html` now carries `#boot-curtain`: the SAME
-composition out of the render-blocking `styles.css` (bg/brand/emblem, no
-satellite), shown by an inline script that also pre-paints
-`--con-ui-scale` + the `con-profile-*` class from `tm_console_profile_seed`
-— synchronously, before first paint. The mounted Vue curtain replaces it
-pixel-identically (`dismissStaticBootCurtain()` after two settled ticks; App's
-no-transition branch is the belt). The satellite is deliberately absent from
-the static node (orbit phases could never match) and MATERIALIZES with a soft
-fade on the live curtain (`con-load-satfade`). The `Prototype` faces are
-preloaded in index.html — `font-display: swap` used to re-set the curtain
+composition out of the render-blocking `styles.css`, shown by an inline script
+that also pre-paints `--con-ui-scale` + the `con-profile-*` class from
+`tm_console_profile_seed` — synchronously, before first paint. The mounted Vue
+curtain replaces it pixel-identically (`dismissStaticBootCurtain()` after two
+settled ticks; App's no-transition branch is the belt). The `Prototype` faces
+are preloaded in index.html — `font-display: swap` used to re-set the curtain
 text when the face arrived (the text-blink half of the report).
 Micro scale jumps are killed by `UI_SCALE_DEADBAND` (1.5%) in
 `consoleLayoutProfile.recompute` — compositor jitter moves innerWidth by a
 few px and every `calc(… * var(--con-ui-scale))` consumer re-flowed.
 Guard: the e2e probe asserts `#boot-curtain` + `html.tm-boot-cover` stand at
 DOMContentLoaded on entry AND on both exit reloads.
+
+## SEAMLESSNESS (2026-09-06) — four laws that make the boundary read as ONE scene
+
+1. **The rem base is pinned from the document's FIRST frame.** The inline boot
+   script adds `console-native` (with the profile class + scale var) for every
+   console destination, because `console_tv.less` scales the rem base only
+   under `console-native.con-profile-tv` — arriving mid-cover it re-scaled
+   every rem member of the curtain (the «круг скачет по скейлу» defect). The
+   per-member `calc(… * var(--con-ui-scale))` compensations in
+   `console_tv.less`'s `.con-load` block are DELETED — with a scaled base they
+   double-applied. Corollary: the paint baseline now bites from frame one, so
+   the boot warm-up dialog's functional `filter: brightness(0)` cloak is
+   re-asserted in `console_paint_baseline.less`.
+   Guard: the e2e emblem-size probe (`console-scene-transition.spec.ts`).
+2. **Orbit phase is WALL-CLOCK.** `ORBIT_MS` (5200, deliberately NOT
+   motion-scaled) + `animation-delay: -(Date.now() % ORBIT_MS)` on every
+   curtain surface (static node via `--tm-orbit-delay`, Vue curtain, the boot
+   loader, the Electron overlay) — the satellite's angle is one continuous
+   function of time, so every handoff lines up by construction. The satellite
+   is therefore PRESENT in the static curtain (`con-load-satfade` is retired).
+   The pulse-bar phase uses the same formula over `motionMs(PULSE_MS)`.
+3. **The sweep is COMPOSITOR-driven.** The rotating layer is an HTML div
+   (`.con-load__sweep`, `will-change: transform`), never an inner-SVG group —
+   a promoted transform animation keeps running while the main thread parses
+   the bundle; the SVG rotation froze for the whole reload→mount window.
+4. **Curtain copy has ONE source** — `curtainKickerKey` / `curtainTitleParts`
+   / `curtainStatusKey` in the director; the Vue curtain and the Electron
+   overlay both render exactly those.
+
+`AppBootLoader`'s emblem is the SAME emblem (geometry, 13rem size rule,
+palette, period, wall-clock phase) — its fade-out leaves the emblem standing.
+
+## The ELECTRON OVERLAY CURTAIN (`electron/curtainOverlay.ts`)
+
+In the desktop shell a persistent, hidden `WebContentsView` above the game's
+webContents renders `assets/curtain-overlay.html` — the same `.con-load`
+composition out of the same styles.css, in its OWN renderer process, so the
+sweep animates through teardown, navigation and parse (paint holding and the
+static curtain are stills; this is live motion). The director drives it:
+`navigateWithCurtain` → `desktop:curtainShow` (payload = profile/scale, phase
+anchors, text-policy thresholds, pre-translated copy; bounded «painted» ack,
+`OVERLAY_SHOW_MAX_MS`) → navigate; the NEXT page's `startReveal()` /
+`failLoading()` → `desktop:curtainHide` — the overlay drops INSTANTLY over the
+pixel-identical in-page curtain, which then plays the ordinary 620 ms reveal.
+Strictly best-effort: bounded ack, a 60 s main-side watchdog, auto-hide on
+`did-fail-load` / renderer crash; the overlay is never focused; outside
+Electron (`curtainOverlayAvailable()`) everything rides the in-page curtain as
+before. The view is created ONCE at startup (a view added mid-transition
+flickers before its first paint — electron #47351) and reused all session.
+Renderer side: `src/client/console/curtainOverlayBridge.ts` (transport only —
+policy stays in the director).
 
 ## Live-hardware fixes (Steam Machine, 2026-09-04)
 

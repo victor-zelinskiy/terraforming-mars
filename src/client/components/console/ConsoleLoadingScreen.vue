@@ -17,10 +17,16 @@
         <circle class="con-load__orbit con-load__orbit--outer" cx="120" cy="120" r="104" />
         <circle class="con-load__orbit con-load__orbit--mid" cx="120" cy="120" r="76" />
         <circle class="con-load__planet" cx="120" cy="120" r="34" />
-        <g class="con-load__sweep-group">
-          <circle class="con-load__satellite" cx="120" cy="16" r="5" />
-        </g>
       </svg>
+      <!-- The rotating layer is an HTML div (compositor-driven while the main
+           thread is busy); its phase is wall-clock (`orbitPhaseDelayMs`), so
+           it lines up with the static boot curtain, the departing page and
+           the Electron overlay by construction. -->
+      <div class="con-load__sweep" :style="{animationDelay: orbitDelay}">
+        <svg viewBox="0 0 240 240" fill="none" xmlns="http://www.w3.org/2000/svg">
+          <circle class="con-load__satellite" cx="120" cy="16" r="5" />
+        </svg>
+      </div>
     </div>
 
     <!-- The CONTEXT FOOT — lower third. The whole block obeys the director's
@@ -46,7 +52,7 @@
           <div class="con-load__status" :key="statusText">{{ $t(statusText) }}</div>
         </transition>
         <div class="con-load__pulse" aria-hidden="true">
-          <span class="con-load__pulse-bar"></span>
+          <span class="con-load__pulse-bar" :style="{animationDelay: pulseDelay}"></span>
         </div>
       </template>
     </div>
@@ -79,7 +85,8 @@
  */
 import {defineComponent} from 'vue';
 import GamepadGlyph from '@/client/components/gamepad/GamepadGlyph.vue';
-import {clearFullscreenLost, dismissStaticBootCurtain, loadingScreenState} from '@/client/console/loadingScreenState';
+import {PULSE_MS, clearFullscreenLost, curtainKickerKey, curtainStatusKey, curtainTitleParts, dismissStaticBootCurtain, loadingScreenState, orbitPhaseDelayMs} from '@/client/console/loadingScreenState';
+import {motionMs} from '@/client/components/motion/motionTokens';
 import {probeTick} from '@/client/console/probeTick';
 import {requestConsoleFullscreen} from '@/client/console/consoleModeState';
 import {setNativeFullscreen, supportsNativeFullscreen} from '@/client/console/runtimeMode';
@@ -90,58 +97,31 @@ export default defineComponent({
   name: 'ConsoleLoadingScreen',
   components: {GamepadGlyph},
   data() {
+    // The phase delays are computed ONCE, at this surface's birth — a negative
+    // delay against the wall clock; every other curtain surface computes the
+    // same formula, so they all agree on the angle at any instant.
     return {
       state: loadingScreenState,
+      orbitDelay: `${orbitPhaseDelayMs()}ms`,
+      pulseDelay: `${-(Date.now() % motionMs(PULSE_MS))}ms`,
     };
   },
   computed: {
     footShown(): boolean {
       return this.state.textShown || this.state.error !== '';
     },
+    // Copy comes from the director's shared helpers (ONE source with the
+    // Electron overlay — a fork here breaks the pixel-identical handoff).
     kickerText(): string {
-      switch (this.state.context?.kind) {
-      case 'new-game':
-        return translateText('New expedition');
-      case 'campaign-mission':
-        return translateText('Campaign');
-      case 'campaign-map':
-        return translateText('Campaign');
-      case 'main-menu':
-        return translateText('Main menu');
-      case 'resume-game':
-      default:
-        return translateText('Returning to the game');
-      }
+      return translateText(curtainKickerKey(this.state.context));
     },
     /** The one context line that carries REAL data (mission identity). */
     titleText(): string {
-      const ctx = this.state.context;
-      if (ctx?.kind !== 'campaign-mission' || ctx.mission === undefined) {
-        return '';
-      }
-      if (ctx.missionCount !== undefined) {
-        return translateTextWithParams('Mission ${0} of ${1}', [String(ctx.mission), String(ctx.missionCount)]);
-      }
-      return translateTextWithParams('Mission ${0}', [String(ctx.mission)]);
+      const parts = curtainTitleParts(this.state.context);
+      return parts === undefined ? '' : translateTextWithParams(parts.key, parts.params);
     },
     statusText(): string {
-      if (this.state.longWait) {
-        return 'Still preparing the scene…';
-      }
-      switch (this.state.context?.kind) {
-      case 'new-game':
-        return 'Preparing the expedition…';
-      case 'campaign-mission':
-        return this.state.context.resume === true ?
-          'Synchronizing the game state…' : 'Preparing the expedition…';
-      case 'campaign-map':
-        return 'Loading the campaign…';
-      case 'main-menu':
-        return 'Returning to the main menu…';
-      case 'resume-game':
-      default:
-        return 'Synchronizing the game state…';
-      }
+      return curtainStatusKey(this.state.context, this.state.longWait);
     },
     padVisible(): boolean {
       return inputModeState.mode === 'gamepad';

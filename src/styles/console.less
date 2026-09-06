@@ -28232,9 +28232,21 @@ body.con-start-barshold .con-status {
     &__planet {
         fill: rgba(196, 92, 48, 0.88);
     }
-    &__sweep-group {
-        transform-origin: 120px 120px;
-        animation: con-load-orbit calc(5200ms * var(--motion-scale, 1)) linear infinite;
+    /* The ROTATING layer is an HTML div, not an SVG group: a promoted
+       (will-change) transform animation keeps running on the COMPOSITOR
+       thread while the main thread parses the bundle — an inner-SVG rotation
+       froze for the whole reload→mount window. The duration is deliberately
+       NOT motion-scaled: the phase is wall-clock (`--tm-orbit-delay`, set by
+       the static boot script / the Vue curtain / the Electron overlay from
+       `-(Date.now() % 5200)ms`), so every curtain surface shows the SAME
+       satellite angle and the handoffs are invisible. */
+    &__sweep {
+        position: absolute;
+        inset: 0;
+        transform-origin: 50% 50%;
+        will-change: transform;
+        animation: con-load-orbit 5200ms linear infinite;
+        animation-delay: var(--tm-orbit-delay, 0ms);
     }
     &__satellite {
         fill: @con-cyan;
@@ -28358,16 +28370,11 @@ body.con-start-barshold .con-status {
 html.tm-boot-cover #boot-curtain {
     display: block;
 }
-/* The satellite is deliberately ABSENT from the static curtain (its orbit
-   phase could never match the Vue one's at the handoff) — it materializes
-   softly once the live curtain owns the frame. */
-.con-load__satellite {
-    animation: con-load-satfade calc(700ms * var(--motion-scale, 1)) ease-out both;
-}
-@keyframes con-load-satfade {
-    from { opacity: 0; }
-    to { opacity: 1; }
-}
+/* The satellite is PRESENT in the static curtain too: its orbit phase is a
+   pure function of wall clock (see `__sweep`), so the static node and the Vue
+   curtain agree on the angle by construction — the old soft materialization
+   (`con-load-satfade`) is retired with the phase handoff problem it papered
+   over. */
 /* THE REVEAL — one atomic visual commit: the destination beneath is already
    composed and stable (the director's readiness gate), so the curtain's only
    job is to let go cleanly. Duration mirrors REVEAL_MS in the director.
@@ -28388,7 +28395,7 @@ html.tm-boot-cover #boot-curtain {
     100% { transform: translateX(320%); }
 }
 @media (prefers-reduced-motion: reduce) {
-    .con-load__sweep-group { animation: none; }
+    .con-load__sweep { animation: none; }
     .con-load__pulse-bar { animation-duration: 3200ms; }
 }
 

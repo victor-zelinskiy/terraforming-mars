@@ -158,6 +158,7 @@ export class ServeAsset extends Handler {
   private toFile(urlPath: string, encodings: Set<Encoding>): { file?: string, encoding?: Encoding } {
     switch (urlPath) {
     case 'assets/index.html':
+    case 'assets/curtain-overlay.html': // the Electron curtain overlay page (electron/curtainOverlay.ts)
     case 'assets/Prototype.ttf':
     case 'assets/Prototype-ru.ttf':
     case 'assets/Prototype-pl.ttf':

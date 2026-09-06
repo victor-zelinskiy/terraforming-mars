@@ -1,0 +1,108 @@
+<!DOCTYPE html>
+<html>
+    <head>
+        <!-- CURTAIN OVERLAY PAGE (Electron only — electron/curtainOverlay.ts).
+             Lives in a persistent WebContentsView ABOVE the game webContents
+             and paints the SAME `.con-load` composition out of the same
+             styles.css, so its orbital sweep keeps running while the game
+             document reloads. Driven exclusively by `curtain:state` IPC (the
+             render recipe: profile/scale, wall-clock phase anchors, the text
+             policy thresholds and pre-translated copy). It renders NO logic of
+             its own beyond that recipe — policy lives in the director. -->
+        <link rel="preload" href="/assets/Prototype.ttf" as="font" type="font/ttf" crossorigin />
+        <link rel="preload" href="/assets/Prototype-ru.ttf" as="font" type="font/ttf" crossorigin />
+        <link rel="stylesheet" type="text/css" media="all" href="/styles.css" />
+    </head>
+    <body>
+        <div class="con-load" aria-hidden="true">
+            <div class="con-load__bg"></div>
+            <div class="con-load__glow"></div>
+            <div class="con-load__grid"></div>
+            <div class="con-load__vignette"></div>
+            <div class="con-load__brand">TERRAFORMING MARS</div>
+            <div class="con-load__scene">
+                <svg viewBox="0 0 240 240" fill="none" xmlns="http://www.w3.org/2000/svg">
+                    <circle class="con-load__orbit con-load__orbit--outer" cx="120" cy="120" r="104" />
+                    <circle class="con-load__orbit con-load__orbit--mid" cx="120" cy="120" r="76" />
+                    <circle class="con-load__planet" cx="120" cy="120" r="34" />
+                </svg>
+                <div class="con-load__sweep">
+                    <svg viewBox="0 0 240 240" fill="none" xmlns="http://www.w3.org/2000/svg">
+                        <circle class="con-load__satellite" cx="120" cy="16" r="5" />
+                    </svg>
+                </div>
+            </div>
+            <div class="con-load__foot" id="foot">
+                <div class="con-load__kicker" id="kicker"></div>
+                <div class="con-load__title-line" id="title" style="display: none"></div>
+                <div class="con-load__status" id="status"></div>
+                <div class="con-load__pulse">
+                    <span class="con-load__pulse-bar" id="pulse"></span>
+                </div>
+            </div>
+        </div>
+        <script>
+            (function () {
+                var timers = [];
+                function clearTimers() {
+                    for (var i = 0; i < timers.length; i++) { clearTimeout(timers[i]); }
+                    timers = [];
+                }
+                function apply(s) {
+                    try {
+                        clearTimers();
+                        var html = document.documentElement;
+                        // Wholesale re-set: repeated shows must not accumulate classes.
+                        var cls = 'console-native';
+                        if (s.profile === 'handheld' || s.profile === 'standard' || s.profile === 'large' || s.profile === 'tv') {
+                            cls += ' con-profile-' + s.profile;
+                        }
+                        html.className = cls;
+                        html.style.setProperty('--con-ui-scale', String(s.uiScale || 1));
+                        // Mirror the game's motion scale so every motion-scaled
+                        // duration in styles.css (pulse period, foot rise) runs
+                        // at the same speed as the in-page curtain's.
+                        html.style.setProperty('--motion-scale', String((s.pulseMs || 1600) / 1600));
+                        // Wall-clock orbit phase — the shared formula (director's ORBIT_MS).
+                        html.style.setProperty('--tm-orbit-delay', String(-(Date.now() % (s.orbitMs || 5200))) + 'ms');
+                        document.getElementById('pulse').style.animationDelay =
+                            String(-(Date.now() % (s.pulseMs || 1600))) + 'ms';
+                        document.getElementById('kicker').textContent = s.kicker || '';
+                        var title = document.getElementById('title');
+                        title.textContent = s.title || '';
+                        title.style.display = s.title ? '' : 'none';
+                        var status = document.getElementById('status');
+                        status.textContent = s.status || '';
+                        // The text policy, replayed from the recipe's absolute anchors —
+                        // identical to the in-page curtain's, so the drop is seamless.
+                        var foot = document.getElementById('foot');
+                        foot.className = 'con-load__foot';
+                        var showFoot = function () { foot.className = 'con-load__foot con-load__foot--shown'; };
+                        var untilText = (s.textAppearAtMs || 0) - Date.now();
+                        if (untilText <= 0) { showFoot(); } else { timers.push(setTimeout(showFoot, untilText)); }
+                        var untilLong = (s.longWaitAtMs || 0) - Date.now();
+                        var goLong = function () { status.textContent = s.statusLong || s.status || ''; };
+                        if (untilLong <= 0) { goLong(); } else { timers.push(setTimeout(goLong, untilLong)); }
+                        requestAnimationFrame(function () {
+                            requestAnimationFrame(function () {
+                                try { window.curtainHost.painted(); } catch (e) { /* bridge gone */ }
+                            });
+                        });
+                    } catch (e) { /* a broken recipe must never break the cover */ }
+                }
+                if (window.curtainHost && window.curtainHost.onState) {
+                    window.curtainHost.onState(apply);
+                }
+                if (window.curtainHost && window.curtainHost.onVisible) {
+                    window.curtainHost.onVisible(function (visible) {
+                        // Ground truth of the view's visibility (visibilityState
+                        // does not track setVisible). Park the text-policy
+                        // timers while hidden; diagnostics/e2e read the flag.
+                        window.__curtainVisible = visible;
+                        if (!visible) { clearTimers(); }
+                    });
+                }
+            })();
+        </script>
+    </body>
+</html>

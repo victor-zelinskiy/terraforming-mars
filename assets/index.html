@@ -45,9 +45,24 @@
                     try { boot = sessionStorage.getItem('tm_boot_curtain') !== null; } catch (e) { /* no storage */ }
                     var path = location.pathname.replace(/.*\//, '');
                     if (path === 'player' || path === 'the-end') { boot = true; }
-                    if (!boot) { return; }
+                    // Console destinations get `console-native` from the FIRST
+                    // frame. This pins the rem base (console_tv.less scales it
+                    // by --con-ui-scale only under console-native) — without it
+                    // every rem-sized member of the curtain re-composed the
+                    // moment the first console screen root mounted mid-cover
+                    // (the «круг скачет по скейлу» defect). Legacy scrolling
+                    // routes are excluded — they never ride the curtain.
+                    var consoleDest = boot || path === '' || path === 'campaign' || path === 'new-game';
+                    if (!consoleDest) { return; }
                     var html = document.documentElement;
-                    html.className += ' tm-boot-cover';
+                    html.className += ' console-native';
+                    if (boot) { html.className += ' tm-boot-cover'; }
+                    // ORBIT PHASE IS WALL-CLOCK: every curtain surface (the old
+                    // page's Vue curtain, this static node, the Vue curtain of
+                    // the next page, the Electron overlay) computes the same
+                    // negative delay from Date.now(), so the satellite's angle
+                    // is one continuous function of time across the reload.
+                    html.style.setProperty('--tm-orbit-delay', String(-(Date.now() % 5200)) + 'ms');
                     // First-paint display scale — mirrors consoleLayoutProfile's
                     // seed; the Vue bootstrap re-syncs the same values later.
                     try {
@@ -76,6 +91,14 @@
                     <circle class="con-load__orbit con-load__orbit--mid" cx="120" cy="120" r="76" />
                     <circle class="con-load__planet" cx="120" cy="120" r="34" />
                 </svg>
+                <!-- The rotating layer is an HTML div (compositor-driven even
+                     while the bundle parses on the main thread); its phase is
+                     the wall-clock var the inline script set above. -->
+                <div class="con-load__sweep">
+                    <svg viewBox="0 0 240 240" fill="none" xmlns="http://www.w3.org/2000/svg">
+                        <circle class="con-load__satellite" cx="120" cy="16" r="5" />
+                    </svg>
+                </div>
             </div>
         </div>
         <div id="app"></div>

@@ -1219,21 +1219,13 @@ html.con-profile-tv {
     }
     .con-quit__card { min-width: 24rem; }
     .con-quit__body { font-size: var(--con-t-body); }
-    /* SCENE TRANSITION surface — a full-bleed composition on a 1080-logical
-       layout; on the TV profile every foreground member rides the display
-       scale explicitly (the root is fixed+inset:0, so there is no container
-       to zoom without breaking the %-anchored placement). */
-    .con-load {
-        &__brand { font-size: calc(.85rem * var(--con-ui-scale, 1)); letter-spacing: calc(.45rem * var(--con-ui-scale, 1)); }
-        &__scene { width: calc(13rem * var(--con-ui-scale, 1)); height: calc(13rem * var(--con-ui-scale, 1)); }
-        &__foot { gap: calc(.55rem * var(--con-ui-scale, 1)); }
-        &__kicker { font-size: calc(.8rem * var(--con-ui-scale, 1)); letter-spacing: calc(.3rem * var(--con-ui-scale, 1)); }
-        &__title-line { font-size: calc(1.5rem * var(--con-ui-scale, 1)); letter-spacing: calc(.18rem * var(--con-ui-scale, 1)); }
-        &__status { font-size: calc(.95rem * var(--con-ui-scale, 1)); min-height: calc(1.3rem * var(--con-ui-scale, 1)); }
-        &__pulse { width: calc(14rem * var(--con-ui-scale, 1)); height: calc(.15rem * var(--con-ui-scale, 1)); }
-        &__error { font-size: calc(.95rem * var(--con-ui-scale, 1)); max-width: calc(23rem * var(--con-ui-scale, 1)); }
-        &__btn { font-size: calc(.95rem * var(--con-ui-scale, 1)); padding: calc(.6rem * var(--con-ui-scale, 1)) calc(1.5rem * var(--con-ui-scale, 1)); }
-    }
+    /* SCENE TRANSITION surface — plain rem, NO per-member ×scale calcs.
+       The curtain's rem base is already display-scaled from the document's
+       FIRST frame (the inline boot script sets `console-native` + the
+       profile class before first paint), so an explicit ×scale here would
+       DOUBLE-apply the moment `console-native.con-profile-tv` resolves —
+       which is exactly the mid-cover re-composition («круг скачет по
+       скейлу») this block used to cause when the rem base arrived late. */
 
     /* ═══ 18 · START SCENE + REVEAL ═══════════════════════════════ */
     .con-start {

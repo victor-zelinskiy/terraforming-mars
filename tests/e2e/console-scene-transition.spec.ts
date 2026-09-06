@@ -170,6 +170,58 @@ test.describe('scene transition lifecycle', () => {
     expect(probe.atRevealStart!.conRoot).toBeTruthy();
   });
 
+  test('the curtain emblem holds ONE size through the whole boot (TV profile — the rem base is scaled from the first frame)', async ({page, request}) => {
+    const playerId = await createGameWithCards(request, [], {config: soloGameConfig()});
+    // A settled TV session: forced profile + the seed the last session left.
+    // The effective e2e viewport is the DEVICE descriptor's 1280×720 (it wins
+    // over the config-level use.viewport) → computeTvUiScale = 1280/1920,
+    // rounded to 0.6667; seeding exactly that makes the live recompute a
+    // confirmation, so the ONLY thing that could resize the emblem is the
+    // rem-base defect this guard pins (console-native arriving mid-cover used
+    // to re-scale every rem member of the curtain — «круг скачет по скейлу»).
+    await page.addInitScript(() => {
+      localStorage.setItem('tm_console_profile', 'tv');
+      localStorage.setItem('tm_console_profile_seed', JSON.stringify({profile: 'tv', uiScale: 0.6667}));
+      const probe = {min: Number.POSITIVE_INFINITY, max: 0, samples: 0, nativeAtStart: false};
+      (window as unknown as {__emblemProbe: unknown}).__emblemProbe = probe;
+      const sample = () => {
+        for (const el of Array.from(document.querySelectorAll('.con-load__scene'))) {
+          const w = el.getBoundingClientRect().width;
+          if (w > 0) {
+            probe.samples++;
+            probe.min = Math.min(probe.min, w);
+            probe.max = Math.max(probe.max, w);
+          }
+        }
+      };
+      const start = () => {
+        probe.nativeAtStart = document.documentElement.classList.contains('console-native');
+        new MutationObserver(sample).observe(document.documentElement, {
+          childList: true, subtree: true, attributes: true, attributeFilter: ['class', 'style'],
+        });
+        setInterval(sample, 50);
+        sample();
+      };
+      if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', start);
+      } else {
+        start();
+      }
+    });
+    await page.goto(`/player?id=${playerId}&console=1`);
+    await page.waitForSelector('.con-load', {state: 'detached', timeout: 60_000});
+
+    const probe = await page.evaluate(() =>
+      (window as unknown as {__emblemProbe: {min: number, max: number, samples: number, nativeAtStart: boolean}}).__emblemProbe);
+    expect(probe.nativeAtStart,
+      'console-native must be on <html> from the document\'s first frame — it is what pins the rem base').toBeTruthy();
+    // Only a dead sampler reads fewer (the curtain stands for the whole boot).
+    expect(probe.samples).toBeGreaterThan(3);
+    expect(probe.max - probe.min,
+      `the emblem re-scaled mid-boot (${probe.min}px → ${probe.max}px over ${probe.samples} samples)`)
+      .toBeLessThanOrEqual(1);
+  });
+
   test('exiting an ordinary game goes under the curtain and reveals a composed main menu', async ({page, request}) => {
     const playerId = await createGameWithCards(request, [], {config: soloGameConfig()});
     await page.goto(`/player?id=${playerId}&console=1`);

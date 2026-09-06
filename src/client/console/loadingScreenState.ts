@@ -46,6 +46,9 @@ import {reactive} from 'vue';
 import {motionMs} from '@/client/components/motion/motionTokens';
 import {probeTick} from '@/client/console/probeTick';
 import {supportsNativeFullscreen} from '@/client/console/runtimeMode';
+import {consoleLayoutState} from '@/client/console/consoleLayoutProfile';
+import {curtainOverlayAvailable, showCurtainOverlay, hideCurtainOverlay, CurtainOverlayPayload} from '@/client/console/curtainOverlayBridge';
+import {translateText, translateTextWithParams} from '@/client/directives/i18n';
 
 const BOOT_FLAG = 'tm_boot_curtain';
 const FS_FLAG = 'tm_fs_restore';
@@ -96,6 +99,72 @@ export const DEFAULT_HOLD_MAX_MS = 12000;
 export const ARM_WATCHDOG_MS = 10000;
 /** Covering with no route resolution at all — a hung boot fetch. */
 export const BOOT_STALL_MS = 45000;
+/** The orbital sweep's period. Deliberately NOT motion-scaled: the phase is a
+ *  pure function of wall clock (`-(Date.now() % ORBIT_MS)` as a negative
+ *  animation-delay), so every curtain surface — the departing page, the static
+ *  boot node, the next page's Vue curtain, the Electron overlay — shows the
+ *  SAME satellite angle and the handoffs are invisible by construction. */
+export const ORBIT_MS = 5200;
+/** The status pulse-bar period (base ms; its CSS duration IS motion-scaled,
+ *  so the phase formula must use `motionMs(PULSE_MS)`). */
+export const PULSE_MS = 1600;
+/** The bounded wait for the Electron overlay's «painted» ack before the
+ *  navigation proceeds anyway — the overlay must never delay the boundary. */
+const OVERLAY_SHOW_MAX_MS = 350;
+
+/** Wall-clock orbit phase — the shared formula (see ORBIT_MS). */
+export function orbitPhaseDelayMs(now: number = Date.now()): number {
+  return -(now % ORBIT_MS);
+}
+
+// ── Curtain copy (ONE source — the Vue curtain and the Electron overlay both
+//    render these; a per-surface copy fork is how handoffs stop being
+//    pixel-identical). Pure key/params helpers; translation happens at the
+//    render site (component) or at payload-build time (overlay). ───────────
+export function curtainKickerKey(ctx: TransitionContext | undefined): string {
+  switch (ctx?.kind) {
+  case 'new-game':
+    return 'New expedition';
+  case 'campaign-mission':
+  case 'campaign-map':
+    return 'Campaign';
+  case 'main-menu':
+    return 'Main menu';
+  case 'resume-game':
+  default:
+    return 'Returning to the game';
+  }
+}
+
+/** The one context line that carries REAL data (mission identity), or undefined. */
+export function curtainTitleParts(ctx: TransitionContext | undefined): {key: string, params: string[]} | undefined {
+  if (ctx?.kind !== 'campaign-mission' || ctx.mission === undefined) {
+    return undefined;
+  }
+  if (ctx.missionCount !== undefined) {
+    return {key: 'Mission ${0} of ${1}', params: [String(ctx.mission), String(ctx.missionCount)]};
+  }
+  return {key: 'Mission ${0}', params: [String(ctx.mission)]};
+}
+
+export function curtainStatusKey(ctx: TransitionContext | undefined, longWait: boolean): string {
+  if (longWait) {
+    return 'Still preparing the scene…';
+  }
+  switch (ctx?.kind) {
+  case 'new-game':
+    return 'Preparing the expedition…';
+  case 'campaign-mission':
+    return ctx.resume === true ? 'Synchronizing the game state…' : 'Preparing the expedition…';
+  case 'campaign-map':
+    return 'Loading the campaign…';
+  case 'main-menu':
+    return 'Returning to the main menu…';
+  case 'resume-game':
+  default:
+    return 'Synchronizing the game state…';
+  }
+}
 
 /** Screens whose destination components implement the readiness contract
  *  (they call `armSceneDestination()`); every other screen reveals the moment
@@ -354,6 +423,11 @@ function maybeReveal(): void {
 }
 
 function startReveal(): void {
+  // The Electron overlay (when present) drops FIRST: beneath it stands this
+  // page's own curtain — pixel-identical (same wall-clock orbit phase, same
+  // copy source) — which then plays the ordinary reveal dissolve. The swap
+  // itself is therefore invisible; the overlay needs no fade of its own.
+  hideCurtainOverlay();
   loadingScreenState.phase = 'revealing';
   const cbs = revealedCallbacks;
   revealedCallbacks = [];
@@ -379,6 +453,9 @@ export function endLoading(): void {
 }
 
 export function failLoading(message: string): void {
+  // The error is actionable UI — it lives in THIS page's curtain, so the
+  // opaque overlay above (if any) must let go at once.
+  hideCurtainOverlay();
   resetMachine();
   navPending = false;
   loadingScreenState.active = true;
@@ -460,9 +537,43 @@ export function navigateWithCurtain(url: string, stage: LoadingStage = 'expediti
   } catch {
     // sessionStorage unavailable — the next page just boots without the handoff.
   }
-  requestAnimationFrame(() => requestAnimationFrame(() => {
+  const navigate = () => requestAnimationFrame(() => requestAnimationFrame(() => {
     window.location.assign(url);
   }));
+  // ELECTRON: raise the persistent overlay curtain (its own renderer process —
+  // its animation cannot freeze while THIS document tears down and the next
+  // one parses). This page's own curtain is already up beneath it, so a late
+  // overlay frame can never expose a gap; the wait for the «painted» ack is
+  // bounded and best-effort.
+  if (curtainOverlayAvailable()) {
+    const shown = showCurtainOverlay(buildOverlayPayload(t0));
+    const bound = new Promise<void>((resolve) => {
+      window.setTimeout(resolve, OVERLAY_SHOW_MAX_MS);
+    });
+    void Promise.race([shown, bound]).then(navigate, navigate);
+  } else {
+    navigate();
+  }
+}
+
+/** The full render recipe of the overlay curtain — everything it needs to be
+ *  pixel-identical to the in-page curtains on BOTH sides of the boundary. */
+function buildOverlayPayload(t0: number): CurtainOverlayPayload {
+  const ctx = loadingScreenState.context;
+  const title = curtainTitleParts(ctx);
+  return {
+    t0,
+    profile: consoleLayoutState.profile,
+    uiScale: consoleLayoutState.uiScale,
+    orbitMs: ORBIT_MS,
+    pulseMs: motionMs(PULSE_MS),
+    textAppearAtMs: t0 + motionMs(TEXT_APPEAR_MS),
+    longWaitAtMs: t0 + motionMs(LONG_WAIT_MS),
+    kicker: translateText(curtainKickerKey(ctx)),
+    title: title === undefined ? '' : translateTextWithParams(title.key, title.params),
+    status: translateText(curtainStatusKey(ctx, false)),
+    statusLong: translateText(curtainStatusKey(ctx, true)),
+  };
 }
 
 export type BootFlags = {

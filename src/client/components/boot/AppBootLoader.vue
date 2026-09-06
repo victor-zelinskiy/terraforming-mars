@@ -85,15 +85,21 @@
          keep their internal names for the warm-up pacing only). -->
     <div class="boot-loader__brand" aria-hidden="true">TERRAFORMING MARS</div>
 
+    <!-- The SAME emblem as the scene-transition curtain — geometry, size rule,
+         palette, orbit period AND wall-clock phase. The loader fades out over
+         the curtain / menu with the emblem standing still, never re-composing
+         (the old fixed-240px, 4200ms variant jumped at the handoff). -->
     <div class="boot-loader__scene" aria-hidden="true">
-      <svg viewBox="0 0 120 120" fill="none" xmlns="http://www.w3.org/2000/svg">
-        <circle class="boot-loader__orbit boot-loader__orbit--outer" cx="60" cy="60" r="52" />
-        <circle class="boot-loader__orbit boot-loader__orbit--mid" cx="60" cy="60" r="38" />
-        <circle class="boot-loader__core" cx="60" cy="60" r="17" />
-        <g class="boot-loader__sweep">
-          <circle class="boot-loader__satellite" cx="60" cy="8" r="4" />
-        </g>
+      <svg viewBox="0 0 240 240" fill="none" xmlns="http://www.w3.org/2000/svg">
+        <circle class="boot-loader__orbit boot-loader__orbit--outer" cx="120" cy="120" r="104" />
+        <circle class="boot-loader__orbit boot-loader__orbit--mid" cx="120" cy="120" r="76" />
+        <circle class="boot-loader__core" cx="120" cy="120" r="34" />
       </svg>
+      <div class="boot-loader__sweep" :style="{animationDelay: orbitDelay}">
+        <svg viewBox="0 0 240 240" fill="none" xmlns="http://www.w3.org/2000/svg">
+          <circle class="boot-loader__satellite" cx="120" cy="16" r="5" />
+        </svg>
+      </div>
     </div>
 
     <div class="boot-loader__foot">
@@ -124,6 +130,7 @@ import {getCardOrThrow} from '@/client/cards/ClientCardManifest';
 import {cardArtUrl} from '@/client/cards/cardArt';
 import {finishBootWarmup} from '@/client/components/boot/bootWarmupState';
 import {motionMs} from '@/client/components/motion/motionTokens';
+import {orbitPhaseDelayMs} from '@/client/console/loadingScreenState';
 import BoardSpace from '@/client/components/BoardSpace.vue';
 import PlayerCube from '@/client/components/PlayerCube.vue';
 import ArcScale from '@/client/components/board/ArcScale.vue';
@@ -196,6 +203,9 @@ export default defineComponent({
       // The warm-up elements render ONLY once GPU compositing is live (see mounted)
       // so their pipelines compile on Graphite, not the software path during init.
       warmReady: false,
+      // Wall-clock orbit phase — the same formula every curtain surface uses,
+      // so the loader's satellite agrees with the curtain it fades out over.
+      orbitDelay: `${orbitPhaseDelayMs()}ms`,
       phase: 0,
       progress: 8,
       timer: undefined as number | undefined,

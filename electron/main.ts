@@ -27,6 +27,7 @@ import {execFile} from 'child_process';
 import {installDevtoolsPadCursor} from './devtoolsPadCursor';
 import {installConsoleCapture} from './consoleExport';
 import {installNativeGamepads} from './nativeGamepadLinux';
+import {installCurtainOverlay} from './curtainOverlay';
 import {beginShutdown, isShuttingDown} from './shutdown';
 import {addToSteam, isAddedToSteam} from './steamShortcut';
 import {readSteamPersonaName} from './steamPersona';
@@ -636,6 +637,15 @@ function createWindow(): void {
   }
 
   void mainWindow.loadURL(initialUrl());
+
+  // CURTAIN OVERLAY (scene transition): a persistent WebContentsView above the
+  // game surface that keeps the loading curtain's animation running across the
+  // game-boundary reload. Same origin as the renderer, so it reuses styles.css
+  // + fonts verbatim. Created hidden now (a view added mid-transition flickers
+  // before its first paint); the renderer drives it via desktop:curtainShow/Hide.
+  installCurtainOverlay(
+    mainWindow,
+    APP_LOAD ? appUrl('assets/curtain-overlay.html') : `${serverBase()}/assets/curtain-overlay.html`);
 
   if (process.env.TM_ELECTRON_DEVTOOLS === '1') {
     mainWindow.webContents.openDevTools({mode: 'detach'});

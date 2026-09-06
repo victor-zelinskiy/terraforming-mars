@@ -199,17 +199,26 @@
   top: 50%;
   left: 50%;
   z-index: 2;
-  width: 240px;
-  height: 240px;
+  // SAME size rule as the curtain's `.con-load__scene` (13rem; the rem base is
+  // display-scaled from the first frame by the index.html boot script) — the
+  // loader's fade-out must leave the emblem standing exactly where the curtain
+  // draws its own, or the handoff reads as a size jump (240px → 13rem did).
+  width: 13rem;
+  height: 13rem;
   transform: translate(-50%, -56%);
 
   &::before {
     content: '';
     position: absolute;
     inset: -30%;
-    background: radial-gradient(circle at center, rgba(214, 122, 84, 0.26), transparent 58%);
+    background: radial-gradient(circle at center, rgba(196, 92, 48, 0.30), transparent 58%);
   }
   svg { position: relative; width: 100%; height: 100%; display: block; }
+}
+// Handheld mirrors the curtain's compact emblem (console.less handheld block).
+html.con-profile-handheld .boot-loader__scene {
+  width: 9.5rem;
+  height: 9.5rem;
 }
 .boot-loader__foot {
   position: absolute;
@@ -222,26 +231,27 @@
   align-items: center;
   gap: 14px;
 }
-.boot-loader__orbit { fill: none; stroke: rgba(106, 176, 230, 0.28); stroke-width: 1.4; }
-.boot-loader__orbit--mid { stroke: rgba(106, 176, 230, 0.16); }
+// Emblem paint mirrors the curtain exactly (`.con-load__orbit/__planet/
+// __satellite`) — one emblem, two hosts. No filters (the console paint
+// baseline strips them anyway) and no core pulse: the curtain's planet is calm.
+.boot-loader__orbit { fill: none; stroke: rgba(106, 176, 230, 0.28); stroke-width: 1; }
+.boot-loader__orbit--mid { stroke-dasharray: 4 7; }
 .boot-loader__core {
-  fill: rgba(214, 122, 84, 0.9);
-  filter: drop-shadow(0 0 10px rgba(214, 122, 84, 0.6));
-  animation: boot-core-pulse calc(2400ms * var(--motion-scale, 1)) ease-in-out infinite;
+  fill: rgba(196, 92, 48, 0.88);
 }
+// The rotating layer is an HTML div (compositor-driven while the bundle
+// parses); period + wall-clock phase shared with the curtain (see ORBIT_MS).
 .boot-loader__sweep {
-  transform-origin: 60px 60px;
-  animation: boot-sweep calc(4200ms * var(--motion-scale, 1)) linear infinite;
+  position: absolute;
+  inset: 0;
+  transform-origin: 50% 50%;
+  will-change: transform;
+  animation: boot-sweep 5200ms linear infinite;
 }
 .boot-loader__satellite {
   fill: @boot-cyan;
-  filter: drop-shadow(0 0 7px rgba(106, 176, 230, 0.85));
 }
 @keyframes boot-sweep { to { transform: rotate(360deg); } }
-@keyframes boot-core-pulse {
-  0%, 100% { opacity: 0.8; }
-  50%      { opacity: 1; }
-}
 
 /* ── Stage / progress ─────────────────────────────────────────────────────── */
 .boot-loader__stage {

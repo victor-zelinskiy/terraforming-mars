@@ -38,3 +38,12 @@ html.console-native * {
     filter: none !important;
     text-shadow: none !important;
 }
+/* FUNCTIONAL exception: the boot warm-up's top-layer dialog is kept invisible
+   by `filter: brightness(0)` — its 2%-opacity card faces ARE readable on a
+   dark OLED without it («просвечивают текстуры карт»). `console-native` now
+   exists from the document's first frame (the index.html boot script), so the
+   dialog would lose its cloak to the universal strip above without this
+   re-assertion. Same specificity trick: later + more specific wins. */
+html.console-native .boot-loader__warm-dialog {
+    filter: brightness(0) !important;
+}
