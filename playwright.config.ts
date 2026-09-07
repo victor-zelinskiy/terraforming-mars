@@ -71,12 +71,20 @@ export default defineConfig({
     // Diagnostics — only kept when something actually goes wrong, to keep the
     // artifact footprint small.
     //
-    // On CI video is OFF: the trace already carries a per-action screencast
-    // (it is what we actually analyse), while a separate webm per FAILED
-    // ATTEMPT (x3 with retries, some specs at the 4K console profile) was the
-    // main reason the merged HTML report ballooned to gigabytes.
+    // On CI video is OFF: a separate webm per FAILED ATTEMPT (x3 with retries,
+    // some specs at the 4K console profile) was the first reason the merged
+    // HTML report ballooned to gigabytes.
+    //
+    // On CI the trace ALSO drops its screencast film strip. Measured on a
+    // green 1.1-minute spec: trace.zip = 140 MB, of which 106 MB was 1539
+    // jpeg screencast frames (~23 fps) — 76% of the weight. DOM snapshots
+    // STAY: the trace viewer still renders a Before/After image for every
+    // action, which is the per-action visual record triage actually needs;
+    // only the continuous film strip under the timeline is lost. A local
+    // deep-dive is unaffected — `--trace=on` on the CLI records the full-fat
+    // trace, film strip included.
     screenshot: 'only-on-failure',
-    trace: 'on-first-retry',
+    trace: isCI ? {mode: 'on-first-retry', screenshots: false} : 'on-first-retry',
     video: isCI ? 'off' : 'retain-on-failure',
   },
 
