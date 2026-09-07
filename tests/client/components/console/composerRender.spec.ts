@@ -3,6 +3,8 @@ import {globalConfig} from '../getLocalVue';
 import {expect} from 'chai';
 import ConsoleActionComposer from '@/client/components/console/ConsoleActionComposer.vue';
 import {deltaRewardPickState, resolveDeltaRewardPick, resetDeltaRewardPick} from '@/client/console/hydroFlow/deltaRewardEntry';
+import {pushWorkspaceFrame, resetWorkspaceStack, workspaceStackState} from '@/client/console/consoleWorkspaceStack';
+import {deltaBlockadePickState, resetDeltaBlockadePick} from '@/client/console/hydroFlow/deltaBlockadeEntry';
 
 // Stub the gamepad glyphs (footer decoration) — the test is about the premium
 // RENDER of branch options + inputs, not the glyph chips.
@@ -190,6 +192,43 @@ describe('ConsoleActionComposer — premium render', () => {
     expect(emitted).to.have.length(1);
     expect((emitted![0][0] as any).repeat).to.eq(undefined);
     w.unmount();
+  });
+
+  it('a HYDRO-DESCENT step under a STANDING hydro workspace opens the pick NESTED — the stack survives', async () => {
+    // The DM → stage-7 → Modular Floodgates collapse (2026-09-06): opening the
+    // blockade pick used to push a SECOND hydro frame as a same-kind RE-ENTRY,
+    // truncating the stack over the very track the player was inside. A second
+    // descent now NESTS (`nest: true` + the outer role's state suspended), so
+    // the step stays an ordinary pre-commit door — composed, revisable, fully
+    // inside the one atomic confirm.
+    pushWorkspaceFrame({
+      kind: 'hydro', subject: '', stage: 'Reward selection',
+      phase: 'configure', serves: [], anchor: {type: 'always'}, overlay: true,
+    });
+    try {
+      const w = factory({
+        card: 'Modular Floodgates', isCorporation: false, kind: 'bespoke',
+        branches: [{
+          index: 1, title: 'Deploy a blockade on the Hydronetwork', available: true, renderKeys: [],
+          effects: [],
+          steps: [{kind: 'input', input: {type: 'deltaBlockade', title: 'Choose a player to block',
+            projection: {owner: 'blue', targets: []}}}],
+        }],
+      }, 'Modular Floodgates');
+      const choice = (w.vm as any).allChoices.find((c: any) => c.input?.type === 'deltaBlockade');
+      expect(choice, 'the blockade step is an ordinary composable row').not.to.eq(undefined);
+
+      (w.vm as any).openBlockadePick(choice);
+
+      expect(deltaBlockadePickState.active, 'the pick OPENED — never refused, never deferred').is.true;
+      expect(workspaceStackState.frames.map((f: any) => f.kind),
+        'the instrument NESTED over the standing frame').to.deep.eq(['hydro', 'hydro']);
+      expect(workspaceStackState.frames[0].stage, 'the outer frame is untouched').to.eq('Reward selection');
+      w.unmount();
+    } finally {
+      resetDeltaBlockadePick();
+      resetWorkspaceStack();
+    }
   });
 
   // ── A deltaAdvance branch inside the repeat pick (Storm Surge Barrier) ───

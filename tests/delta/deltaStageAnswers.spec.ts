@@ -4,6 +4,8 @@ import {TestPlayer} from '../TestPlayer';
 import {testGame} from '../TestGame';
 import {DELTA_TRACK_TAGS, DeltaProjectExpansion} from '../../src/server/delta/DeltaProjectExpansion';
 import {DeltaSurge} from '../../src/server/cards/delta/DeltaSurge';
+import {ModularFloodgates} from '../../src/server/cards/delta/ModularFloodgates';
+import {DeltaBlockadeInput} from '../../src/server/delta/DeltaBlockadeInput';
 import {BioengineeringEnclosure} from '../../src/server/cards/ares/BioengineeringEnclosure';
 import {Birds} from '../../src/server/cards/base/Birds';
 import {Fish} from '../../src/server/cards/base/Fish';
@@ -144,6 +146,76 @@ describe('Hydronetwork — declared stage answers (the invocation plan)', () => 
       expect(birds.resourceCount).eq(1);
       expect(enclosure.resourceCount).eq(1);
       expect(logText(game)).to.contain('reused');
+    });
+
+    it('a DECLARED blockade target inside a reward-only claim lands with NO prompt (DP08 → DP11)', () => {
+      // The console's nested pick composes the target PRE-commit (same-kind
+      // hydro nesting), so the whole triple chain — DM's claim, the stage-7
+      // copy, MF's deploy branch AND its target — rides ONE atomic batch.
+      const opponent = game.players.find((p) => p !== player)!;
+      player.deltaProjectData!.position = 7;
+      const floodgates = new ModularFloodgates();
+      floodgates.resourceCount = 1;
+      player.playedCards.push(floodgates);
+      player.actionsThisGeneration.add(CardName.MODULAR_FLOODGATES);
+      opponent.deltaProjectData!.position = 2;
+
+      DeltaProjectExpansion.grantStageReward(player, 7, {
+        source: CardName.DUTCH_MOUNTAINS,
+        answer: {
+          position: 7,
+          selectedCard: CardName.MODULAR_FLOODGATES,
+          repeatResponses: [
+            {type: 'or', index: 1, response: {type: 'option'}},
+            {type: 'deltaBlockade', target: opponent.color},
+          ] as ReadonlyArray<InputResponse>,
+        },
+      });
+      runAllActions(game);
+      drainBatchTail(player);
+      runAllActions(game);
+
+      expect(player.popWaitingFor(), 'nothing is re-asked').is.undefined;
+      expect(opponent.deltaProjectData!.blockade?.card).eq(CardName.MODULAR_FLOODGATES);
+      expect(floodgates.resourceCount).eq(0);
+      expect(player.deltaProjectData!.position).eq(7);
+    });
+
+    it('an OMITTED nested answer inside a reward-only claim degrades to the native prompt (DP08 → DP11)', () => {
+      // The console composes the blockade target PRE-commit (the nested pick
+      // — same-kind hydro nesting), but an answer can still legitimately be
+      // absent on the wire: a stale/refused parked entry, an old client, a
+      // reconnect. The server's contract is what makes every one of those
+      // safe: the branch pick rides the parked tail and the
+      // DeltaBlockadeInput stands as the server's OWN follow-up — nothing is
+      // lost, nothing is auto-picked.
+      const opponent = game.players.find((p) => p !== player)!;
+      player.deltaProjectData!.position = 7;
+      const floodgates = new ModularFloodgates();
+      floodgates.resourceCount = 1;
+      player.playedCards.push(floodgates);
+      player.actionsThisGeneration.add(CardName.MODULAR_FLOODGATES);
+      opponent.deltaProjectData!.position = 2; // a legal target (next cell is not a VP step)
+
+      DeltaProjectExpansion.grantStageReward(player, 7, {
+        source: CardName.DUTCH_MOUNTAINS,
+        answer: {
+          position: 7,
+          selectedCard: CardName.MODULAR_FLOODGATES,
+          // The deploy branch was chosen in the composer; the target was NOT.
+          repeatResponses: [{type: 'or', index: 1, response: {type: 'option'}}] as ReadonlyArray<InputResponse>,
+        },
+      });
+      runAllActions(game);
+      drainBatchTail(player);
+      runAllActions(game);
+
+      const input = cast(player.popWaitingFor(), DeltaBlockadeInput);
+      input.process({type: 'deltaBlockade', target: opponent.color});
+
+      expect(opponent.deltaProjectData!.blockade?.card).eq(CardName.MODULAR_FLOODGATES);
+      expect(floodgates.resourceCount, 'the module physically became the blockade').eq(0);
+      expect(player.deltaProjectData!.position, 'a reward-only claim never moves the marker').eq(7);
     });
 
     it('a stale repeat card degrades to the ordinary root prompt', () => {

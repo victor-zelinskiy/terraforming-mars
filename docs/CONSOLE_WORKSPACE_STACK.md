@@ -180,6 +180,29 @@ pick once its preview promised cards), `slot` (one host publishes DIFFERENT zone
 children — the start scene has one for a hosted hand and another for hosted colonies), and the
 anchor (it depends on the carried object).
 
+**…AND A SECOND DESCENT INTO THE SAME KIND NESTS (2026-09-06, revised same day).** A workspace KIND
+is a SCREEN, not a purpose — the same screen serves many roles per invocation (the Hydronetwork is a
+plan flow, a reward pick, two target picks and an execution view), so «one kind — one frame» was an
+over-restriction. `pushWorkspaceFrame` still treats a bare same-kind push as a RE-ENTRY (update in
+place + truncate above — the lateral «go there» semantic), and THAT is what collapsed the DM →
+stage-7 reuse pick → Modular Floodgates chain: the inner blockade pick's push overwrote the reward
+pick's frame and destroyed the `repeat-pick` frame above it. A `nest: true` push now STACKS a second
+frame of the kind instead (`WorkspaceFrame.nested`): the by-kind readers resolve to the DEEPEST frame
+(`workspaceFrameIndex` — the role the player sees; `workspaceFrameOuterIndex` addresses the
+flow-owning instance), the kind's flow EPOCH is not bumped (the instrument borrows the screen, it
+never owns the kind's flow record), and nested frames are dropped from serialization (their substance
+— bridge callbacks, suspended state — is client memory; a reload lands on the outer flow and the ask
+re-opens fresh). The door that nests SUSPENDS the outer role's module state first
+(`hydroInstanceSuspension.ts` — a field snapshot of the plan drafts / `consoleHydroUi.repeatResult` /
+the flow record, restored by the bridge's one reset funnel on every exit), because the pick doors
+deliberately open on a clean slate; and the ONE hydro section presents the deepest role (`sceneKey`
+puts the target picks above the reward pick — structurally the deeper ones). The nested pick keeps
+the whole triple chain PRE-commit: the blockade target is composed, revisable via B, and rides the
+one atomic batch (`answer.repeatResponses`); the server's native-follow-up degrade remains for
+stale/omitted answers. Guards: `hydroDescentGuard.spec.ts` (nesting + suspension + double-reset +
+serialization), `composerRender.spec.ts` § nested open, `deltaStageAnswers.spec.ts` § DP08 → DP11
+(declared target lands with no prompt · omitted target degrades to the native prompt).
+
 **…AND A ZONE-LESS KIND YIELDS THE SCENE BY CONSTRUCTION (2026-09-06).** A kind without
 `hosts` has no embed-zone machinery, so a frame ever standing on it can only be a full screen —
 and a pair left undeclared silently reads as `'embed'`, which means NOBODY yields: the guest

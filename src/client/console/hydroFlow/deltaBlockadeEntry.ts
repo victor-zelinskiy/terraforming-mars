@@ -31,7 +31,8 @@ import type {DeltaBlockadeResponse} from '@/common/inputs/InputResponse';
 import {resetHydroPlan} from '@/client/components/hydronetwork/hydroNetworkState';
 import {resetHydroFlow} from '@/client/console/hydroFlow/consoleHydroFlow';
 import {consoleHydroUi} from '@/client/console/consoleHydroState';
-import {popWorkspaceFrame, pushWorkspaceFrame, workspaceStackTop} from '@/client/console/consoleWorkspaceStack';
+import {popWorkspaceFrame, pushWorkspaceFrame, workspaceFrameKnown, workspaceStackTop} from '@/client/console/consoleWorkspaceStack';
+import {suspendHydroInstance} from '@/client/console/hydroFlow/hydroInstanceSuspension';
 
 /** The pick's one result: WHO to block (a legal candidate's color). Unlike
  *  the espionage draft it is never empty — the deploy variant does not exist
@@ -64,6 +65,9 @@ export const deltaBlockadePickState = reactive({
 
 let resolveCb: ((draft: DeltaBlockadeDraft) => void) | undefined;
 let cancelCb: (() => void) | undefined;
+/** The outer hydro role's suspended module state, when this pick NESTED over
+ *  a standing hydro frame — restored by the reset funnel (every exit). */
+let restoreOuter: (() => void) | undefined;
 
 export function isDeltaBlockadePickActive(): boolean {
   return deltaBlockadePickState.active;
@@ -75,6 +79,13 @@ export function enterDeltaBlockadePick(
   onResolve: (draft: DeltaBlockadeDraft) => void,
   onCancel?: () => void,
 ): void {
+  // A SECOND HYDRO DESCENT NESTS — never truncates (the deltaRewardEntry
+  // law): the outer role's module state is SUSPENDED and the frame stacks
+  // with `nest: true`, so the DM → stage-7 → Modular Floodgates chain keeps
+  // the reward pick, the repeat browser and their bridges intact underneath.
+  if (workspaceFrameKnown('hydro')) {
+    restoreOuter = suspendHydroInstance();
+  }
   // A clean track plan (the door's own reset — whatever the player studied on
   // a previous visit must not leak in); the section then seats the prior
   // target from the request.
@@ -95,6 +106,7 @@ export function enterDeltaBlockadePick(
     serves: [],
     anchor: {type: 'always'},
     overlay: true,
+    nest: true,
   });
 }
 
@@ -127,11 +139,19 @@ export function cancelDeltaBlockadePick(): void {
 
 /** Hard reset (game switch / shell unmount) — fires NO callbacks. */
 export function resetDeltaBlockadePick(): void {
-  popBlockadePickFrame();
+  // Gated on ACTIVE: a second reset must not take the OUTER hydro frame this
+  // instrument was nested over.
+  if (deltaBlockadePickState.active) {
+    popBlockadePickFrame();
+  }
   deltaBlockadePickState.active = false;
   deltaBlockadePickState.request = undefined;
   resolveCb = undefined;
   cancelCb = undefined;
+  // The outer role's suspended state comes back AFTER the frame pop.
+  const restore = restoreOuter;
+  restoreOuter = undefined;
+  restore?.();
 }
 
 // ── The EXECUTION SURFACE — the committed deploy returns to the track ──────

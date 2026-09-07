@@ -3191,7 +3191,10 @@ export default defineComponent({
       // A Hydronetwork BLOCKADE target (Modular Floodgates, DP11) → the REAL
       // track as the selection surface: candidates at their live positions,
       // the ghost gate following the cursor. Structural, off the input's own
-      // type — never a card name.
+      // type — never a card name. Under a STANDING hydro workspace the pick
+      // NESTS (`enterDelta*Pick` suspends the outer role and stacks a
+      // `nest: true` frame) — a second descent is an ordinary door now, never
+      // a truncation and never a deferral.
       if (c.input.type === 'deltaBlockade') {
         this.openBlockadePick(c);
         return;

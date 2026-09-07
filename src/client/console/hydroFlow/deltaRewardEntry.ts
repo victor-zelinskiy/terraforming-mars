@@ -37,7 +37,8 @@ import {actionPreviewMap, branchOutcomeClaimPlan} from '@/client/console/actionP
 import {resetHydroPlan} from '@/client/components/hydronetwork/hydroNetworkState';
 import {resetHydroFlow} from '@/client/console/hydroFlow/consoleHydroFlow';
 import {consoleHydroUi} from '@/client/console/consoleHydroState';
-import {popWorkspaceFrame, pushWorkspaceFrame, workspaceStackTop} from '@/client/console/consoleWorkspaceStack';
+import {popWorkspaceFrame, pushWorkspaceFrame, workspaceFrameKnown, workspaceStackTop} from '@/client/console/consoleWorkspaceStack';
+import {suspendHydroInstance} from '@/client/console/hydroFlow/hydroInstanceSuspension';
 
 /** The composed claim of ONE stage — everything the pick surface collected. */
 export type DeltaRewardDraft = {
@@ -75,6 +76,9 @@ export const deltaRewardPickState = reactive({
 
 let resolveCb: ((draft: DeltaRewardDraft) => void) | undefined;
 let cancelCb: (() => void) | undefined;
+/** The outer hydro role's suspended module state, when this pick NESTED over
+ *  a standing hydro frame — restored by the reset funnel (every exit). */
+let restoreOuter: (() => void) | undefined;
 
 export function isDeltaRewardPickActive(): boolean {
   return deltaRewardPickState.active;
@@ -86,6 +90,17 @@ export function enterDeltaRewardPick(
   onResolve: (draft: DeltaRewardDraft) => void,
   onCancel?: () => void,
 ): void {
+  // A SECOND HYDRO DESCENT NESTS — never truncates. With a hydro frame
+  // already standing (live or parked — a parked traversal's record lives in
+  // the same module state), the pick SUSPENDS the outer role's state and
+  // pushes a `nest: true` frame: the stack keeps the outer flow intact, the
+  // by-kind readers resolve to this deepest instrument, and the reset funnel
+  // below restores the outer role on every exit. The un-nested push used to
+  // be treated as a re-entry that TRUNCATED everything above the standing
+  // frame — the DM → stage-7 → Modular Floodgates collapse (2026-09-06).
+  if (workspaceFrameKnown('hydro')) {
+    restoreOuter = suspendHydroInstance();
+  }
   // The pick opens on a CLEAN track plan (the delta-step door's own reset —
   // whatever the player studied on a previous visit must not leak in); the
   // section then seeds the prior draft from the request (`seatRewardPick`).
@@ -106,6 +121,7 @@ export function enterDeltaRewardPick(
     serves: [],
     anchor: {type: 'always'},
     overlay: true,
+    nest: true,
   });
 }
 
@@ -139,11 +155,21 @@ export function cancelDeltaRewardPick(): void {
 
 /** Hard reset (game switch / shell unmount) — fires NO callbacks. */
 export function resetDeltaRewardPick(): void {
-  popRewardPickFrame();
+  // The frame pop is gated on the pick being ACTIVE: a second reset (a
+  // watcher racing a teardown) must not take the OUTER hydro frame this
+  // instrument was nested over.
+  if (deltaRewardPickState.active) {
+    popRewardPickFrame();
+  }
   deltaRewardPickState.active = false;
   deltaRewardPickState.request = undefined;
   resolveCb = undefined;
   cancelCb = undefined;
+  // …and the outer role's suspended state comes back — AFTER the frame pop,
+  // so the by-kind readers already point at the outer frame when it lands.
+  const restore = restoreOuter;
+  restoreOuter = undefined;
+  restore?.();
 }
 
 // ── The WIRE — the step's captured response ────────────────────────────────

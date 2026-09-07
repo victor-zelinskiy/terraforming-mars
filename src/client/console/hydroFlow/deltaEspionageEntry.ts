@@ -32,7 +32,8 @@ import type {DeltaEspionageResponse, DeltaStageAnswer} from '@/common/inputs/Inp
 import {resetHydroPlan} from '@/client/components/hydronetwork/hydroNetworkState';
 import {resetHydroFlow} from '@/client/console/hydroFlow/consoleHydroFlow';
 import {consoleHydroUi} from '@/client/console/consoleHydroState';
-import {popWorkspaceFrame, pushWorkspaceFrame, workspaceStackTop} from '@/client/console/consoleWorkspaceStack';
+import {popWorkspaceFrame, pushWorkspaceFrame, workspaceFrameKnown, workspaceStackTop} from '@/client/console/consoleWorkspaceStack';
+import {suspendHydroInstance} from '@/client/console/hydroFlow/hydroInstanceSuspension';
 
 /** The pick's one result: WHO to push back (a legal candidate's color), or
  *  undefined when the projection offers no legal target (the system outcome —
@@ -65,6 +66,9 @@ export const deltaEspionagePickState = reactive({
 
 let resolveCb: ((draft: DeltaEspionageDraft) => void) | undefined;
 let cancelCb: (() => void) | undefined;
+/** The outer hydro role's suspended module state, when this pick NESTED over
+ *  a standing hydro frame — restored by the reset funnel (every exit). */
+let restoreOuter: (() => void) | undefined;
 
 export function isDeltaEspionagePickActive(): boolean {
   return deltaEspionagePickState.active;
@@ -76,6 +80,11 @@ export function enterDeltaEspionagePick(
   onResolve: (draft: DeltaEspionageDraft) => void,
   onCancel?: () => void,
 ): void {
+  // A SECOND HYDRO DESCENT NESTS — never truncates (the deltaRewardEntry
+  // law): suspend the outer role's module state, stack with `nest: true`.
+  if (workspaceFrameKnown('hydro')) {
+    restoreOuter = suspendHydroInstance();
+  }
   // A clean track plan (the door's own reset — whatever the player studied on
   // a previous visit must not leak in); the section then seats the prior
   // target from the request.
@@ -96,6 +105,7 @@ export function enterDeltaEspionagePick(
     serves: [],
     anchor: {type: 'always'},
     overlay: true,
+    nest: true,
   });
 }
 
@@ -128,11 +138,19 @@ export function cancelDeltaEspionagePick(): void {
 
 /** Hard reset (game switch / shell unmount) — fires NO callbacks. */
 export function resetDeltaEspionagePick(): void {
-  popEspionagePickFrame();
+  // Gated on ACTIVE: a second reset must not take the OUTER hydro frame this
+  // instrument was nested over.
+  if (deltaEspionagePickState.active) {
+    popEspionagePickFrame();
+  }
   deltaEspionagePickState.active = false;
   deltaEspionagePickState.request = undefined;
   resolveCb = undefined;
   cancelCb = undefined;
+  // The outer role's suspended state comes back AFTER the frame pop.
+  const restore = restoreOuter;
+  restoreOuter = undefined;
+  restore?.();
 }
 
 // ── The WIRE — the step's captured response ────────────────────────────────

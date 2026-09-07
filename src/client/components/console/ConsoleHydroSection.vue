@@ -2097,21 +2097,28 @@ export default defineComponent({
       if (this.flow.step === 'payment') {
         return 'payment';
       }
-      // The REWARD-ONLY PICK (Dutch Mountains): a pure selection surface — it
-      // outranks the browse layer for as long as the bridge stands, and its
-      // nested steps (the scoped reward choice / the target grid / the repeat
-      // browser) already took precedence above.
-      if (this.rewardOffer !== undefined) {
-        return 'reward-pick';
-      }
-      // The ESPIONAGE TARGET PICK: the same pure-selection precedence as the
-      // reward pick — it outranks browse for as long as its bridge stands.
+      // THE TARGET PICKS OUTRANK THE REWARD PICK — the NESTED instrument wins.
+      // With same-kind nesting a blockade/espionage pick can stand INSIDE a
+      // reward pick's own flow (DM's stage-7 reuse composing Modular
+      // Floodgates), and both bridges are then active at once: this ONE
+      // component presents the DEEPEST role, and structurally the target
+      // picks are always the deeper ones (a reward pick is opened from card
+      // composers, never from inside a target pick). When only one bridge
+      // stands — the historical mutually-exclusive case — the order changes
+      // nothing.
       if (this.espionageOffer !== undefined) {
         return 'espionage-pick';
       }
       // The BLOCKADE TARGET PICK (Modular Floodgates): the same contract.
       if (this.blockadeOffer !== undefined) {
         return 'blockade-pick';
+      }
+      // The REWARD-ONLY PICK (Dutch Mountains): a pure selection surface — it
+      // outranks the browse layer for as long as the bridge stands, and its
+      // nested steps (the scoped reward choice / the target grid / the repeat
+      // browser) already took precedence above.
+      if (this.rewardOffer !== undefined) {
+        return 'reward-pick';
       }
       // The committed DEPLOY's execution view — the track is the protagonist,
       // the fresh gate its one event.

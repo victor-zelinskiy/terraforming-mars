@@ -273,8 +273,8 @@
              the pick bridge so neither surface plays a leave/enter pair —
              the workspace's OWN handoff phrase carries the transition. -->
         <ConsoleHydroSection v-if="workspaceFrameRenders('hydro')"
-                             v-show="!pickBridgeActive || deltaRewardPickOut || repeatPickHandoff"
-                             :class="{'con-bridgefade': repeatPickHandoff && !deltaRewardPickOut}"
+                             v-show="!pickBridgeActive || hydroInstrumentOut || repeatPickHandoff"
+                             :class="{'con-bridgefade': repeatPickHandoff && !hydroInstrumentOut}"
                              data-motion-surface="section"
                              ref="hydroSection"
                              :playerView="playerView"
@@ -2901,6 +2901,18 @@ export default defineComponent({
      */
     deltaRewardPickOut(): boolean {
       return deltaRewardPickState.active;
+    },
+    /**
+     * ANY Hydronetwork pick/execution INSTRUMENT is out — the track must
+     * SHOW even while a pick bridge hides its sources (the deepest descent
+     * owns the screen). ONE computed over all four doors, so a new
+     * instrument cannot be forgotten in the v-show: the carve-out used to
+     * name only the reward pick, and a blockade pick standing over a repeat
+     * browser rendered a hidden track under a live command bar.
+     */
+    hydroInstrumentOut(): boolean {
+      return deltaRewardPickState.active || isDeltaBlockadePickActive() ||
+        isDeltaEspionagePickActive() || isBlockadeExecutionActive();
     },
     /** Some host is handing its whole scene to a nested workspace right now.
      *  ⚠ Only hosts whose hide RIDES THE DIRECTOR'S HOOKS belong here. The

@@ -286,6 +286,17 @@ export function runtimeNavigationSteps(
   return branch?.steps.filter(isRuntimeNavigationStep) ?? [];
 }
 
+/*
+ * (A hydro-descent pre-select — deltaStageReward / deltaBlockade /
+ * deltaEspionage — needs NO deferral machinery here: under a STANDING hydro
+ * workspace the pick doors NEST instead (`enterDelta*Pick` suspends the
+ * outer role's module state and pushes a `nest: true` frame — see
+ * hydroInstanceSuspension.ts and WorkspaceFrame.nested), so a second descent
+ * is an ordinary door. The server-side degrade for an OMITTED answer — the
+ * native follow-up through the standalone pick doors — still exists and
+ * still backs stale/refused batch answers.)
+ */
+
 export function firstMissingChoice(
   preview: ActionPreview | undefined,
   branch: ActionPreviewBranch | undefined,

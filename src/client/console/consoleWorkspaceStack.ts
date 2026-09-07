@@ -556,13 +556,37 @@ export interface WorkspaceFrame {
    * '' = this frame's step is not being done for a card.
    */
   sourceCard: string;
+  /**
+   * A NESTED SAME-KIND INSTRUMENT — a second frame of a kind that is already
+   * standing (the Hydronetwork opened as a SELECTION surface from inside a
+   * flow that itself stands on the Hydronetwork: DM's stage-7 reuse pick
+   * hosting Modular Floodgates' blockade target pick).
+   *
+   * A workspace kind is a SCREEN, not a purpose — the same screen serves many
+   * roles per invocation (plan flow, reward pick, target pick, execution), so
+   * «one kind — one frame» was an over-restriction: `pushWorkspaceFrame`
+   * treated the second push as a re-entry and TRUNCATED the stack over the
+   * very flow the player was inside. A `nested` frame instead STACKS: the
+   * by-kind readers resolve to the DEEPEST frame (the role the player sees),
+   * the outer frame's module state is SUSPENDED by the door that opened the
+   * instrument and restored on its resolve/cancel, and the kind's flow EPOCH
+   * is not bumped (the instrument borrows the screen; it never owns the
+   * kind's flow record).
+   *
+   * RUNTIME-ONLY: nested frames are dropped from serialization — their whole
+   * substance (bridge callbacks, suspended module state) is client memory, so
+   * a reload lands honestly on the outer flow and the ask re-opens fresh.
+   */
+  nested: boolean;
 }
 
 /** What `pushWorkspaceFrame` is given — `slot` is never an input, and a frame
- *  is EMBEDDED unless it says otherwise. */
+ *  is EMBEDDED unless it says otherwise. `nest: true` = a same-kind push
+ *  STACKS as a nested instrument instead of re-entering (see
+ *  {@link WorkspaceFrame.nested}). */
 export type NewWorkspaceFrame =
-  Omit<WorkspaceFrame, 'slot' | 'overlay' | 'sourceCard'> &
-  {overlay?: boolean, sourceCard?: string};
+  Omit<WorkspaceFrame, 'slot' | 'overlay' | 'sourceCard' | 'nested'> &
+  {overlay?: boolean, sourceCard?: string, nest?: boolean};
 
 export const workspaceStackState = reactive({
   /** Outermost first. `frames[0]` is the workspace the player entered. */
@@ -630,8 +654,26 @@ export function workspaceStackRoot(): WorkspaceFrame | undefined {
   return workspaceStackState.frames[0];
 }
 
-/** The depth of `kind`'s frame, or -1. Kinds are unique within a stack. */
+/**
+ * The depth of `kind`'s frame, or -1 — the DEEPEST one, which with nested
+ * same-kind instruments is the role the player actually sees (a kind is
+ * unique in a stack EXCEPT for `nested` instrument frames, and every by-kind
+ * reader means «the one on screen»). With no nesting this is the only frame,
+ * so the deepest-wins rule is byte-identical to the old unique lookup.
+ */
 export function workspaceFrameIndex(kind: WorkspaceFrameKind): number {
+  const frames = workspaceStackState.frames;
+  for (let i = frames.length - 1; i >= 0; i--) {
+    if (frames[i].kind === kind) {
+      return i;
+    }
+  }
+  return -1;
+}
+
+/** The depth of `kind`'s OUTERMOST frame, or -1 — the flow-owning instance
+ *  under any nested instruments (the re-entry branch keys on this). */
+export function workspaceFrameOuterIndex(kind: WorkspaceFrameKind): number {
   return workspaceStackState.frames.findIndex((f) => f.kind === kind);
 }
 
@@ -1060,8 +1102,14 @@ export function workspaceStackAcceptsInput(): boolean {
  * workspace twice, and re-entering it means leaving whatever you opened on top.
  */
 export function pushWorkspaceFrame(frame: NewWorkspaceFrame): number {
-  const existing = workspaceFrameIndex(frame.kind);
-  if (existing !== -1) {
+  const existing = workspaceFrameOuterIndex(frame.kind);
+  // A SAME-KIND PUSH IS A RE-ENTRY — unless the caller declares NESTING.
+  // Re-entry is the lateral «go there» semantic (update in place, truncate
+  // above); a `nest: true` push STACKS a second frame of the kind instead:
+  // the screen borrowed as an instrument by a flow that itself stands on it
+  // (see WorkspaceFrame.nested — the DM → stage-7 → Modular Floodgates
+  // collapse is what an undeclared second push used to do here).
+  if (existing !== -1 && frame.nest !== true) {
     const live = workspaceStackState.frames[existing];
     live.subject = frame.subject;
     live.stage = frame.stage;
@@ -1072,7 +1120,14 @@ export function pushWorkspaceFrame(frame: NewWorkspaceFrame): number {
     truncateWorkspaceStack(existing + 1);
     return existing;
   }
-  frameEpochs[frame.kind] = (frameEpochs[frame.kind] ?? 0) + 1;
+  const isNestedInstrument = frame.nest === true && existing !== -1;
+  if (!isNestedInstrument) {
+    // The kind's flow-record identity. A nested INSTRUMENT never bumps it:
+    // the epoch answers «is this module flow record MINE?» for the OUTER
+    // flow-owning frame, and an instrument borrowing the screen must not make
+    // that flow read as orphaned when the instrument closes.
+    frameEpochs[frame.kind] = (frameEpochs[frame.kind] ?? 0) + 1;
+  }
   workspaceStackState.frames.push({
     ...frame,
     serves: [...frame.serves],
@@ -1084,6 +1139,7 @@ export function pushWorkspaceFrame(frame: NewWorkspaceFrame): number {
     overlay: frame.overlay === true || hostHandsOverTheScene(workspaceStackState.frames.length, frame.kind),
     slot: '',
     sourceCard: frame.sourceCard ?? '',
+    nested: isNestedInstrument,
   });
   return workspaceStackState.frames.length - 1;
 }
@@ -1618,7 +1674,7 @@ export const WORKSPACE_STACK_SCHEMA = 1;
  * a component that has not rendered yet. They come back as '' and the host
  * fills them, exactly as it does on a first open.
  */
-export type SerializedWorkspaceFrame = Omit<WorkspaceFrame, 'slot' | 'sourceCard'>;
+export type SerializedWorkspaceFrame = Omit<WorkspaceFrame, 'slot' | 'sourceCard' | 'nested'>;
 
 export type SerializedWorkspaceStack = {
   v: number,
@@ -1646,10 +1702,14 @@ function serializeFrame(f: WorkspaceFrame): SerializedWorkspaceFrame {
 }
 
 export function serializeWorkspaceStack(): SerializedWorkspaceStack {
+  // NESTED INSTRUMENT frames are runtime-only (bridge callbacks + suspended
+  // module state — pure client memory): a reload lands on the OUTER flow and
+  // the instrument's ask re-opens fresh. Serializing one would rehydrate a
+  // frame whose entire substance is gone.
   return {
     v: WORKSPACE_STACK_SCHEMA,
-    frames: workspaceStackState.frames.map(serializeFrame),
-    parked: workspaceStackState.parked.map(serializeFrame),
+    frames: workspaceStackState.frames.filter((f) => !f.nested).map(serializeFrame),
+    parked: workspaceStackState.parked.filter((f) => !f.nested).map(serializeFrame),
   };
 }
 
@@ -1688,6 +1748,7 @@ export function hydrateWorkspaceStack(
       overlay: frame.overlay,
       slot: '',
       sourceCard: '',
+      nested: false,
     });
   }
   const depth = reconcileWorkspaceStack(isAnchorLive);
