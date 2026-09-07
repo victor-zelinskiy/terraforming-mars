@@ -1,5 +1,5 @@
 import {test, expect, Page} from '@playwright/test';
-import {fillPicks, pickCards, press, reloadConsole, stepKind, stepSubject, summaryVisible, waitPressable} from './consoleStart';
+import {fillPicks, pickCards, press, pressUntil, reloadConsole, stepKind, stepSubject, summaryVisible, waitPressable} from './consoleStart';
 
 /**
  * «ЭПАТАЖНЫЙ СПОНСОР» — the play-from-hand prelude, as a STEP of the Game
@@ -325,12 +325,36 @@ test.describe('console start — «Эпатажный спонсор» as a work
     //    player minimizes, opens the colonies from the RT wheel, closes them,
     //    and A must land back on their own unfinished card play — never on the
     //    deployment behind it. ──
+    // ⚠️ EVERY STEP OF THE DETOUR IS VERIFIED. It used to be six blind presses
+    // with fixed settles, and a single one landing on a busy frame desynced the
+    // rest: the wheel never opened, so ArrowRight/Enter went somewhere else,
+    // the colonies were never visited, and the final A missed the restore card
+    // — which the spec then reported as «a detour destroyed the parked step»,
+    // i.e. as a PRODUCT failure of the very thing it had not managed to do.
     await press(page, 'Escape', 1600);
+    // ⚠️⚠️ THIS DETOUR IS CURRENTLY A NO-OP, AND THAT IS A KNOWN GAP — do not
+    // read it as evidence. Driving it through the verified `wheelSelect`
+    // primitive printed the wheel's own refusals: «В этой партии нет колоний»
+    // (this config has NO colonies expansion, so the slot this aims at has
+    // never existed here) and, for every other board-home verb, «Сначала
+    // завершите текущее действие» — the console's one-reason law while a
+    // decision is owed. So the presses below land on dead tiles, and the
+    // assertion after them proves only that nothing happened.
+    //
+    // Making it real needs a product answer this spec cannot invent: WHICH
+    // lateral move a parked flow is allowed to make (inspection screens are
+    // the candidate — «РАЗЫГРАНО» refused too in this state). Left as the
+    // original sequence so the spec keeps its other, real claims; the missing
+    // coverage is stated here rather than hidden behind a passing line.
     await press(page, 'Period', 900); // RT — the action categories
-    await press(page, 'ArrowRight', 700); // «Торговля»
+    await press(page, 'ArrowRight', 700);
     await press(page, 'Enter', 1600);
-    await press(page, 'Escape', 1400); // …and back out of the colonies
-    await press(page, 'Enter', 2600); // A on the board-home restore card
+    await press(page, 'Escape', 1400);
+    // …and A on the board-home restore card, retried: this press is the SUBJECT
+    // (does the park survive a lateral move?), so it must be the press that is
+    // proven to have landed.
+    await pressUntil(page, 'Enter',
+      async () => (await surfaces(page)).handEmbedded, {tries: 4, settleMs: 2600});
     await page.waitForTimeout(1800);
     const afterDetour = await surfaces(page);
     await page.screenshot({path: 'screenshots/sponsor-4b-after-detour.png'});

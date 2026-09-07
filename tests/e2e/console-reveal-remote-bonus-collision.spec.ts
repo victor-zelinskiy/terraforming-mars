@@ -281,7 +281,15 @@ test('a remote colony bonus WAITS for the reveal the player is standing in', asy
   // …and the whole passage — the collision standing, the take, the announced
   // delivery, the entry — happened without a single watchdog recovery: every
   // hold along the way was backed by a real surface.
+  // A watchdog rescue names the EXPIRED CLAIMS but never why they were made —
+  // and the recurring one here is `hand-delivery`, whose whole lifecycle lives
+  // in one module. Dump that module's own ledger beside the message, so the
+  // next occurrence says WHICH run never finished instead of only that one
+  // did not.
+  const intake = JSON.stringify(await page.evaluate(
+    () => (window as unknown as {__conIntakeDiag?: () => unknown}).__conIntakeDiag?.() ?? null));
   expect(watchdogRecoveries,
-    `the foreground watchdog had to rescue the flow:\n${watchdogRecoveries.join('\n')}`)
+    `the foreground watchdog had to rescue the flow:\n${watchdogRecoveries.join('\n')}\n` +
+    `hand intake: ${intake}`)
     .toHaveLength(0);
 });

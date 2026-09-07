@@ -59,6 +59,7 @@ import {CARD_NATURAL_W} from '@/client/console/cardDeal/cardDealModel';
 import {dockFaceRotation} from '@/client/console/handDock/handDockPresentation';
 import {handBodiesOracle, BodyPose} from '@/client/console/handDock/handBodies';
 import {registerAnimationHoldSupplier} from '@/client/components/presentation/animationHold';
+import {probeTick} from '@/client/console/probeTick';
 import {
   deliveryEl, handDeliveryState, nextDeliveryId, clearDeliveryFlights,
   releaseInFlight, removeDeliveryFlights,
@@ -183,6 +184,25 @@ export function refuteWithheldIntake(view: PlayerViewModel): void {
 /** True while ANY intake flight is running — the notification hold. */
 export function isHandDeliveryActive(): boolean {
   return runs.active > 0;
+}
+
+/**
+ * READ-ONLY e2e/diagnostics probe (the `__conColonyDiag` idiom): why the
+ * `hand-delivery` hold is still up. It is a `notification-only` hold, so a run
+ * that never finishes does not freeze the screen — it silently withholds the
+ * whole notification feed until the foreground watchdog rescues it, and from
+ * the outside that reads only as «the watchdog had to rescue the flow».
+ */
+if (typeof window !== 'undefined') {
+  (window as unknown as Record<string, unknown>).__conIntakeDiag = () => ({
+    activeRuns: runs.active,
+    episodes: [...episodes.entries()].map(([role, ep]) =>
+      ({role, phase: ep.phase, signature: ep.signature, held: [...ep.held]})),
+    held: [...handDeliveryState.held],
+    inFlight: [...handDeliveryState.inFlight],
+    refuted: [...refutedTargets],
+    gen,
+  });
 }
 
 /**
@@ -356,12 +376,12 @@ function stableTargetPose(name: CardName, seqFromEnd: number, isAborted: () => b
         }
       }
       if (tries < POLL_FRAMES) {
-        requestAnimationFrame(poll);
+        probeTick(poll);
       } else {
         done(undefined);
       }
     };
-    requestAnimationFrame(poll);
+    probeTick(poll);
   });
 }
 
@@ -540,7 +560,18 @@ async function fly(entries: ReadonlyArray<HandIntakeEntry>, snapshots: ReadonlyA
   await nextTick();
   // Two frames so the (held) dock cards have laid out and the proxy
   // elements have registered.
-  await new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(() => r(undefined))));
+  //
+  // ⚠️ `probeTick`, NOT bare rAF — and this one is UNBOUNDED, which is what
+  // made it the worse of the two. rAF is driven by the compositor and stops
+  // when the screen goes quiet, and a hand intake arms in exactly that state
+  // (a remote colony bonus lands while nothing else is animating). The wait
+  // then never resolves, `fly()` never returns, its `finally` never runs, and
+  // `activeRuns` stays incremented — pinning the `notification-only`
+  // `hand-delivery` hold for the rest of the session. That is the freeze this
+  // file's own tween() comment describes, reached by a second road: the
+  // foreground watchdog had to rescue the flow with nothing rendered
+  // (`console-reveal-remote-bonus-collision`, ~3 runs in 4).
+  await new Promise((r) => probeTick(() => probeTick(() => r(undefined))));
   if (isAborted()) {
     finish();
     return;
@@ -890,70 +921,121 @@ async function flyStack(live: Array<LiveFlight>, dockR: DOMRect, t: FlightTools)
   }));
 }
 
-/* ── the STARTING-CARDS delivery episode (the original client) ────────── */
-
-/** The delivery lifecycle:
- *  - `idle`    — nothing to deliver.
- *  - `holding` — the bought cards are withheld from the dock (shown face-up
- *                in the payment element), waiting for the pay confirm.
- *  - `flying`  — the cinematic is running (proxies in flight).
- *  - `done`    — delivered for this deal; a re-render must NOT re-hold. */
-type DeliveryPhase = 'idle' | 'holding' | 'flying' | 'done';
-
-let phase: DeliveryPhase = 'idle';
-/** The deal signature this delivery belongs to (consoleStartState.signature).
- *  A different deal (new game) resets the episode; the same deal is honoured
- *  once — a re-render can never re-hold after the flight. */
-let deliveryKey = '';
+/* ── the STARTING-CARDS delivery episodes ─────────────────────────────── */
 
 /**
- * ARM THE HOLD at the first ceremony frame (the wizard has submitted, the
- * bought cards are in hand). Withholds the bought names from the dock so they
- * never show before payment; the pay element shows them face-up meanwhile.
- * Idempotent per deal: a re-render re-affirms the SAME hold, but once the
- * flight has run (`flying`/`done`) it is never re-held.
+ * THE CEREMONY DELIVERS MORE THAN ONE SET OF CARDS, AND THEY ARE INDEPENDENT —
+ * so an EPISODE PER ROLE, never one global slot.
+ *
+ * The start ceremony can owe the dock two deliveries at once: the PROJECTS the
+ * player bought (withheld until the payment is confirmed) and, in a campaign,
+ * the LEGACY cards carried over from the previous mission. They are armed by
+ * different code, fired by different presses, and neither knows about the
+ * other.
+ *
+ * This used to be ONE `phase` plus ONE `deliveryKey` derived from the CARD
+ * NAMES, which makes "a different set of cards" indistinguishable from "a
+ * different game" — so the two deliveries collided by construction, in both
+ * directions:
+ *
+ *  - arming the second one took the "new deal" branch, which called
+ *    `resetHandDelivery()` — bumping `gen`, so the OTHER delivery's flight
+ *    aborted MID-AIR and its proxies were killed and cleared. That is the
+ *    reported "the legacy projects hung in the air and then dissolved": they
+ *    lifted off, the bought delivery's own idempotent re-arm re-fired
+ *    underneath them with its own key, and the flight they were in was torn
+ *    down under them;
+ *  - and firing one while the other was `flying` was a silent NO-OP (the
+ *    `phase !== 'holding'` guard), so that set never flew at all and its cards
+ *    simply materialized in the dock.
+ *
+ * The ROLE is the identity; the SIGNATURE only says which deal it belongs to.
+ * One live episode per role: arming a role with a new signature retires the
+ * previous one, releasing exactly its own held copies in the same synchronous
+ * block — so the dock never sees a frame where the cards are neither withheld
+ * nor flying.
  */
-export function armDeliveryHold(key: string, names: ReadonlyArray<CardName>): void {
+export type DeliveryRole = 'bought' | 'legacy';
+
+/** The delivery lifecycle, per role:
+ *  - `holding` — the cards are withheld from the dock (shown face-up in the
+ *                surface that will fly them), waiting for the press.
+ *  - `flying`  — the cinematic is running (proxies in flight).
+ *  - `done`    — delivered for this deal; a re-render must NOT re-hold. */
+type DeliveryPhase = 'holding' | 'flying' | 'done';
+
+type DeliveryEpisode = {
+  phase: DeliveryPhase,
+  /** Which deal this episode belongs to (the caller's own signature). */
+  signature: string,
+  /** THIS episode's own contribution to the shared `held` multiset — released
+   *  by name and count, so one episode can never drop another's copies. */
+  held: Array<CardName>,
+};
+
+const episodes = new Map<DeliveryRole, DeliveryEpisode>();
+
+/**
+ * ARM THE HOLD for one ROLE. Withholds its names from the dock so they never
+ * show before the press that flies them; the owning surface shows them
+ * face-up meanwhile.
+ *
+ * Idempotent per deal: a re-render re-affirms the SAME hold, and once the
+ * flight has run (`flying` / `done`) it is never re-held — re-holding after a
+ * landing would flash the cards back out of the pack.
+ */
+export function armDeliveryHold(
+  role: DeliveryRole,
+  signature: string,
+  names: ReadonlyArray<CardName>,
+): void {
   if (names.length === 0) {
     return;
   }
-  if (deliveryKey === key) {
-    // Same deal: only (re)affirm the hold while still holding — never rewind
-    // a flight that already ran (that would flash the cards back out).
-    if (phase === 'holding') {
-      handDeliveryState.held = [...names];
+  const ep = episodes.get(role);
+  if (ep !== undefined && ep.signature === signature) {
+    // Same deal, same role: only (re)affirm while still holding.
+    if (ep.phase === 'holding') {
+      releaseDockCards(ep.held);
+      ep.held = [...names];
+      withholdDockCards(ep.held);
     }
     return;
   }
-  // A NEW deal — reset the episode and begin holding.
-  resetHandDelivery();
-  deliveryKey = key;
-  phase = 'holding';
-  handDeliveryState.held = [...names];
+  if (ep !== undefined) {
+    // A different deal for THIS role — retire that episode, and only it.
+    releaseDockCards(ep.held);
+  }
+  episodes.set(role, {phase: 'holding', signature, held: [...names]});
+  withholdDockCards(names);
 }
 
 /**
- * FIRE the delivery on the pay confirm. `sourceRects` are the face-up card
- * rects captured from the payment grid the instant the player pressed (the
- * grid unmounts as the payment resolves, so they are measured up front).
- * The episodic hold hands over to the flight ledger in the same synchronous
- * block (`held` → `inFlight` — the dock union makes it seamless). No-op
- * unless we are holding this deal — it can never double-fire.
+ * FIRE one ROLE's delivery. `sourceRects` are the face-up card rects captured
+ * from the owning surface the instant the player pressed (it unmounts as the
+ * response resolves, so they are measured up front). The episodic hold hands
+ * over to the flight ledger in the same synchronous block (`held` →
+ * `inFlight` — the dock union makes it seamless).
+ *
+ * No-op unless THIS role is holding, so it can never double-fire — and never
+ * again silently because a DIFFERENT role happens to be in the air.
  */
 export function runHandDelivery(
+  role: DeliveryRole,
   names: ReadonlyArray<CardName>,
   sourceRects: ReadonlyMap<CardName, DOMRect>,
 ): void {
-  if (phase !== 'holding' || names.length === 0) {
+  const ep = episodes.get(role);
+  if (ep === undefined || ep.phase !== 'holding' || names.length === 0) {
     return;
   }
-  phase = 'flying';
-  const drop = new Set(names);
-  handDeliveryState.held = handDeliveryState.held.filter((n) => !drop.has(n));
+  ep.phase = 'flying';
+  releaseDockCards(ep.held);
+  ep.held = [];
   const entries = names.map((name) => ({name, rect: sourceRects.get(name)}));
   void runHandIntake(entries, {mode: 'cascade'}).then(() => {
-    if (phase === 'flying') {
-      phase = 'done';
+    if (ep.phase === 'flying') {
+      ep.phase = 'done';
     }
   });
 }
@@ -1002,8 +1084,7 @@ export function resetHandDelivery(): void {
   // still decrements (clamped, so it cannot go negative) — but this is what
   // guarantees the hold drops even if a run is wedged somewhere without one.
   runs.active = 0;
-  phase = 'idle';
-  deliveryKey = '';
+  episodes.clear();
   refutedTargets.clear();
   handDeliveryState.held = [];
   handDeliveryState.inFlight = [];

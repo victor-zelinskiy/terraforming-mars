@@ -1282,7 +1282,14 @@ type LegacyViewPhase = 'closed' | 'fading' | 'entering' | 'open' | 'leaving';
 /** The stable delivery-hold key for a bought-cards set (name-derived, so it
  *  survives a reload mid-ceremony and matches between the summary-submit arm
  *  and the in-ceremony re-affirm). */
-function deliveryHoldKey(names: ReadonlyArray<CardName>): string {
+/**
+ * WHICH DEAL a delivery hold belongs to. NOT an identity: the identity is the
+ * delivery's ROLE (`'bought'` / `'legacy'`), and the director keys its
+ * episodes on that. This only lets a re-arm tell "the same set, re-affirmed"
+ * from "a different deal for this role" — using it as the identity is what let
+ * the legacy delivery and the bought delivery reset each other mid-flight.
+ */
+function deliverySignature(names: ReadonlyArray<CardName>): string {
   return 'ceremony|' + [...names].sort().join(',');
 }
 
@@ -3599,7 +3606,7 @@ export default defineComponent({
       if (!this.prePaymentStage) {
         return '';
       }
-      return deliveryHoldKey(this.ceremonyBoughtNames);
+      return deliverySignature(this.ceremonyBoughtNames);
     },
     /** Identity of the pressable ceremony set — drives the reward pre-fetch
      *  (the deferred corp + Merger's offered corps / drew-N candidates + the
@@ -4443,7 +4450,7 @@ export default defineComponent({
         if (key !== '') {
           const names = [...this.ceremonyBoughtNames];
           this.startDeliveryNames = names;
-          armDeliveryHold(key, names);
+          armDeliveryHold('bought', key, names);
         }
       },
     },
@@ -6782,7 +6789,7 @@ export default defineComponent({
       // the ceremony (the reactive watcher re-affirms the SAME hold once in
       // ceremony — idempotent). They fly in on the payment confirm.
       if (this.state.projects.length > 0) {
-        armDeliveryHold(deliveryHoldKey(this.state.projects), [...this.state.projects]);
+        armDeliveryHold('bought', deliverySignature(this.state.projects), [...this.state.projects]);
       }
       // THE SCENE TRANSITION ARMS NOW — on the still-untouched summary:
       // the card overlay captures the live pixels, the freeze layer snapshots
@@ -7758,7 +7765,7 @@ export default defineComponent({
           }
         }
       }
-      runHandDelivery(names, rects);
+      runHandDelivery('bought', names, rects);
     },
     /**
      * The «НАСЛЕДИЕ» delivery — the mirror of `launchStartCardsDelivery`:
@@ -7772,7 +7779,7 @@ export default defineComponent({
       if (names.length === 0) {
         return;
       }
-      armDeliveryHold(deliveryHoldKey(names), names);
+      armDeliveryHold('legacy', deliverySignature(names), names);
       const grid = this.$refs.legacyGrid as HTMLElement | undefined;
       const rects = new Map<CardName, DOMRect>();
       if (grid !== undefined && grid !== null) {
@@ -7785,7 +7792,7 @@ export default defineComponent({
           }
         }
       }
-      runHandDelivery(names, rects);
+      runHandDelivery('legacy', names, rects);
     },
     /**
      * The «БОНУС КАМПАНИИ» flight — the shared resource-transfer language:

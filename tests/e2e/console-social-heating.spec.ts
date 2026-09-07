@@ -1,9 +1,7 @@
 import {test, expect, Page, APIRequestContext} from '@playwright/test';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
-import {NO_PAYMENT, createGameWithCards, fetchPlayerModel, openConsole, press, seedGameOverApi,
-  sendPlayerInput, soloGameConfig, waitForBoardHome,
-} from './consoleStart';
+import {createGameWithCards, fetchPlayerModel, NO_PAYMENT, openConsole, press, seedGameOverApi, sendPlayerInput, soloGameConfig, waitForBoardHome} from './consoleStart';
 import cardManifest from '../../src/genfiles/cards.json';
 
 /**
@@ -609,15 +607,44 @@ test.describe('Social Heating — MarsBot’s movement · fhd', () => {
      * still painting generation 1, zero errors), and the whole notification
      * feed with it. Everything the viewer owes is driven through the SHELL.
      */
-    const passViaPage = async (): Promise<void> => {
-      await press(page, 'Comma', 1000); // LT — the basic-actions wheel
-      await press(page, 'ArrowDown', 1000); // its «Пас» slot arms the confirm
-      // Passing is irreversible, so its confirm is a HOLD, not a tap (the
-      // shared hold-to-confirm ring) — a `press` here does nothing at all.
-      await page.keyboard.down('Enter');
-      await page.waitForTimeout(1600);
-      await page.keyboard.up('Enter');
-      await page.waitForTimeout(1200);
+    const passViaPage = async (): Promise<boolean> => {
+      const before = (await sample()).generation;
+      // ⚠️ ACT → VERIFY → RETRY, like every other press in this suite. A blind
+      // wheel/hold sequence lands on a busy frame often enough to matter here:
+      // a pass that did not take burns the caller's whole 30 s sampling window
+      // on a generation that never rolls, and after sixteen of those the test
+      // reports «MarsBot never advanced» about a bot that was never given the
+      // turns (measured: generation 9 after 16 rounds — half the passes lost).
+      for (let attempt = 0; attempt < 3; attempt++) {
+        // ⚠️ THE BLIND SEQUENCE IS DELIBERATE HERE, and it is a known weak
+        // spot. Driven through the verified `wheelSelect` primitive, the wheel
+        // refuses «Пас» with «Сначала завершите текущее действие» in this
+        // scenario — the viewer owes something the driver does not settle — so
+        // the honest driver cannot press it at all. The blind pair below is
+        // what the suite has always run; the retry + witness under it is the
+        // real improvement (half the passes used to be lost in silence,
+        // measured: generation 9 after sixteen rounds).
+        await press(page, 'Comma', 1000); // LT — the basic-actions wheel
+        await press(page, 'ArrowDown', 1000); // its «Пас» slot
+        // Passing is irreversible, so its confirm is a HOLD, not a tap (the
+        // shared hold-to-confirm ring) — a `press` here does nothing at all.
+        await page.keyboard.down('Enter');
+        await page.waitForTimeout(1600);
+        await page.keyboard.up('Enter');
+        await page.waitForTimeout(1200);
+        // The POSITIVE witness: the table moved on. The bot's turn (and the
+        // generation roll behind it) is what this round exists to wait for, so
+        // «the viewer is no longer the one being asked» is enough — the caller
+        // samples the rest.
+        for (let i = 0; i < 12; i++) {
+          const model = await fetchPlayerModel(request, id) as Wire;
+          if ((model.game ?? {}).generation !== before || model.waitingFor === undefined) {
+            return true;
+          }
+          await page.waitForTimeout(500);
+        }
+      }
+      return false;
     };
 
     /** Record every notification card that ever appears (MutationObserver +
@@ -661,7 +688,16 @@ test.describe('Social Heating — MarsBot’s movement · fhd', () => {
     // each one, until the marker actually moves.
     for (let round = 0; round < 16 && moved === undefined; round++) {
       const before = await sample();
-      await passViaPage();
+      // ⚠️ REPORTED, NOT ASSERTED — deliberately. A pass that does not take is
+      // a real weakness (half of them used to be lost in silence: generation 9
+      // after sixteen rounds), but the wheel refuses it for an HONEST reason —
+      // «Сначала завершите текущее действие», i.e. the viewer still owes
+      // something this driver does not settle. Failing here would trade a
+      // silent loss for a red test on a cause outside this spec's subject, so
+      // the round is simply spent and SAID; the outer budget still decides.
+      if (!await passViaPage()) {
+        console.log(`[pass] the viewer's pass never took at generation ${before.generation}`);
+      }
       for (let i = 0; i < 60; i++) {
         const cur = await sample();
         if (cur.botPosition > before.botPosition && cur.generation === before.generation) {
