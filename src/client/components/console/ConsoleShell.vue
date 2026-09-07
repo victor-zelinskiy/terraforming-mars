@@ -7106,7 +7106,14 @@ export default defineComponent({
       // landing pre-select stands OVER it (the reward-pick descent): the
       // deepest surface names the bar, one voice with the crumb's tail.
       if (this.repeatPickActive) {
-        return isDeltaRewardPickActive() ? 'Reward selection' : 'Repeat action';
+        // The DEEPEST surface names the context (the pad-routing tiebreak):
+        // a pick's hydro frame standing OVER the browser owns the line; the
+        // browser standing over the pick's own frame keeps its own name.
+        const hydroDeeper = workspaceFrameIndex('hydro') > workspaceFrameIndex('repeat-pick');
+        if (hydroDeeper && (isDeltaBlockadePickActive() || isDeltaEspionagePickActive())) {
+          return 'Target selection';
+        }
+        return hydroDeeper && isDeltaRewardPickActive() ? 'Reward selection' : 'Repeat action';
       }
       if (this.pendingPlayCard !== undefined) {
         // Inside the hand workspace the bar names the STAGE, not the surface —
@@ -7404,12 +7411,27 @@ export default defineComponent({
           {control: 'back', label: this.pendingClientPayment !== undefined ? 'Cancel' : 'Minimize'},
         ])];
       }
+      // A NESTED target pick standing over the repeat browser (the same-kind
+      // nesting law: the browser's composer opened the blockade/espionage
+      // pick over itself) — the DEEPEST surface names the bar, one voice
+      // with the pad routing's depth tiebreak.
+      if (this.repeatPickActive &&
+          (isDeltaBlockadePickActive() || isDeltaEspionagePickActive()) &&
+          workspaceFrameIndex('hydro') > workspaceFrameIndex('repeat-pick')) {
+        return consoleHydroUi.commands.length > 0 ?
+          [...consoleHydroUi.commands] :
+          [{control: 'confirm', label: 'Select'}, {control: 'back', label: 'Back'}];
+      }
       // The STAGE-REWARD pick owns the pad wherever it was opened from (the
       // action composer, the play composer's espionage owner rows, a repeat
       // browser's landing pre-select) — the bar mirrors the pad precedence
       // and reads the SAME store the section branch does, or it advertises
       // the covered composer's verbs over the track the player is driving.
-      if (isDeltaRewardPickActive()) {
+      // ⚠️ EXCEPT while the repeat browser stands DEEPER than the pick's own
+      // hydro frame (the reward pick OPENED the browser): the browser owns
+      // the pad, so it owns the bar.
+      if (isDeltaRewardPickActive() && (!this.repeatPickActive ||
+          workspaceFrameIndex('hydro') > workspaceFrameIndex('repeat-pick'))) {
         return consoleHydroUi.commands.length > 0 ?
           [...consoleHydroUi.commands] :
           [{control: 'confirm', label: 'Select'}, {control: 'back', label: 'Back'}];
@@ -11268,16 +11290,23 @@ export default defineComponent({
       // A DELTA PICK BRIDGE owns the pad while it stands — the asking composer
       // waits underneath with its captures intact (the hand-pick precedent;
       // routed BEFORE the composer branch, or the covered composer swallows
-      // every press). Espionage target pick AND the stage-reward pick — the
-      // latter opens from the PLAY composer (the espionage owner's landing
-      // choice) AND from a REPEAT-mode composer (a plan's landing pre-select),
-      // so it must outrank BOTH `pendingPlayCard` and `repeatPickActive`: the
-      // deepest descent owns the pad.
-      if (isDeltaEspionagePickActive() || isDeltaRewardPickActive() || isDeltaBlockadePickActive() ||
-          isBlockadeExecutionActive()) {
-        const section = this.$refs.hydroSection as InstanceType<typeof ConsoleHydroSection> | undefined;
-        section?.handleIntent(intent);
-        return true;
+      // every press). ⚠️ WHO IS DEEPER IS THE STACK'S ANSWER, never a fixed
+      // list order: with same-kind nesting EITHER surface can stand above the
+      // other — the reward pick opens the repeat browser OVER its own hydro
+      // frame (the browser is deeper), and that browser's composer opens the
+      // NESTED blockade pick over itself (hydro is deeper again). A static
+      // «delta picks first» sent the d-pad into a hydro surface hidden BEHIND
+      // the live browser — the player walked invisible stages while the
+      // browser they were looking at never moved.
+      {
+        const deltaInstrumentUp = isDeltaEspionagePickActive() || isDeltaRewardPickActive() ||
+          isDeltaBlockadePickActive() || isBlockadeExecutionActive();
+        const hydroDeeper = workspaceFrameIndex('hydro') > workspaceFrameIndex('repeat-pick');
+        if (deltaInstrumentUp && (!this.repeatPickActive || hydroDeeper)) {
+          const section = this.$refs.hydroSection as InstanceType<typeof ConsoleHydroSection> | undefined;
+          section?.handleIntent(intent);
+          return true;
+        }
       }
       // REPEAT-ACTION PICK (source composer → ДЕЙСТВИЯ КАРТ bridge): the pick
       // surface owns the pad while it is out — the hidden source composers

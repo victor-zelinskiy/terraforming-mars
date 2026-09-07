@@ -201,7 +201,15 @@ the whole triple chain PRE-commit: the blockade target is composed, revisable vi
 one atomic batch (`answer.repeatResponses`); the server's native-follow-up degrade remains for
 stale/omitted answers. Guards: `hydroDescentGuard.spec.ts` (nesting + suspension + double-reset +
 serialization), `composerRender.spec.ts` § nested open, `deltaStageAnswers.spec.ts` § DP08 → DP11
-(declared target lands with no prompt · omitted target degrades to the native prompt).
+(declared target lands with no prompt · omitted target degrades to the native prompt), and the LIVE
+vertical `tests/e2e/console-triple-nest-blockade.spec.ts` (2 players, the whole five-deep chain to
+server totals). **…AND «WHO IS DEEPER» IS THE STACK'S ANSWER, never a branch order:** writing that
+e2e caught the pad router, the command bar and the context label all deciding «delta picks before the
+repeat browser» by FIXED LIST ORDER — correct while those states were mutually ordered, and wrong the
+moment nesting made either one able to stand above the other (the d-pad walked a hydro surface hidden
+BEHIND the live browser). All three now tie-break on
+`workspaceFrameIndex('hydro') > workspaceFrameIndex('repeat-pick')`; every pre-nesting state is
+byte-identical (the old order agreed with depth everywhere it was reachable).
 
 **…AND A ZONE-LESS KIND YIELDS THE SCENE BY CONSTRUCTION (2026-09-06).** A kind without
 `hosts` has no embed-zone machinery, so a frame ever standing on it can only be a full screen —
