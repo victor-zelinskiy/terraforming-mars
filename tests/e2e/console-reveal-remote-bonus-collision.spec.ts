@@ -1,7 +1,7 @@
 import {test, expect, Page, APIRequestContext, Route} from '@playwright/test';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
-import {bootToBoard, fillPicks, press} from './consoleStart';
+import {bootToBoard, fillPicks, press, reloadConsole} from './consoleStart';
 
 /**
  * MY REVEAL IS MINE UNTIL I FINISH IT — even when somebody else's colony bonus
@@ -221,7 +221,7 @@ test('a remote colony bonus WAITS for the reveal the player is standing in', asy
   await page.waitForTimeout(1500);
 
   await installCollision(page);
-  await page.reload();
+  await reloadConsole(page);
 
   // ── 1 · THE OWN REVEAL STANDS. The batch is the viewer's own draw; the
   //    opponent's delivery is behind it, and the discard marker that came with

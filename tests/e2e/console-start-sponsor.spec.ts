@@ -1,5 +1,5 @@
 import {test, expect, Page} from '@playwright/test';
-import {press, stepKind, stepSubject, waitPressable, summaryVisible, fillPicks, pickCards} from './consoleStart';
+import {fillPicks, pickCards, press, reloadConsole, stepKind, stepSubject, summaryVisible, waitPressable} from './consoleStart';
 
 /**
  * «ЭПАТАЖНЫЙ СПОНСОР» — the play-from-hand prelude, as a STEP of the Game
@@ -340,8 +340,7 @@ test.describe('console start — «Эпатажный спонсор» as a work
       'the cards came back with it').toBeGreaterThan(0);
 
     // ── a RELOAD mid-step: the same step, still inside the workspace. ──
-    await page.reload();
-    await page.waitForSelector('.con-load', {state: 'detached', timeout: 45_000}).catch(() => {});
+    await reloadConsole(page);
     await page.waitForTimeout(6000);
     const reloaded = await surfaces(page);
     await page.screenshot({path: 'screenshots/sponsor-5-reloaded.png'});

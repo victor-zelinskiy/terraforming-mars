@@ -1,7 +1,7 @@
 import {test, expect, Page, APIRequestContext, Route} from '@playwright/test';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
-import {bootToBoard, fillPicks, openMandatoryAnnounce, press} from './consoleStart';
+import {bootToBoard, fillPicks, openMandatoryAnnounce, press, reloadConsole} from './consoleStart';
 
 /**
  * THE EXTERNAL DRAW — the mandatory take of cards ANOTHER player's action drew
@@ -230,7 +230,7 @@ test('an external draw: announced → A opens the workspace → take one, take a
   await page.waitForTimeout(1500);
 
   const sequence = await installSequence(page);
-  await page.reload();
+  await reloadConsole(page);
 
   // ── 1 · ANNOUNCED, never torn open — and the cards are NOWHERE yet.
   expect(await openMandatoryAnnounce(page), 'the external draw was not announced').toBeTruthy();
@@ -303,7 +303,7 @@ test('the workspace is LOCKED: B with one card left neither takes nor closes', a
   await page.waitForTimeout(1500);
 
   const sequence = await installSequence(page);
-  await page.reload();
+  await reloadConsole(page);
   expect(await openMandatoryAnnounce(page), 'the external draw was not announced').toBeTruthy();
   await page.waitForSelector('.con-extdraw', {timeout: 30_000});
   await page.waitForTimeout(2600);

@@ -1,7 +1,7 @@
 import {test, expect, Page} from '@playwright/test';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
-import {bootIntoGame, focusCard, press, soloGameConfig} from './consoleStart';
+import {bootIntoGame, focusCard, placeTile, press, soloGameConfig} from './consoleStart';
 
 /**
  * Console-native PLANET FOCUS · the main-grid placement stage.
@@ -274,7 +274,11 @@ test.describe('console planet focus · main-grid placement stage', () => {
     expect(poseBack.bodyW / poseHome.bodyW).toBeGreaterThan(0.8);
 
     // ── place: the hero + rewards play on the enlarged stage ──────────
-    await key(page, 'Enter', 600);
+    // …through the SHARED primitive. A bare Enter is only the LOCK half of the
+    // two-phase confirm, and the seeded cursor is not guaranteed legal — this
+    // spec used to press once, land on «Нельзя разместить здесь», and then
+    // blame the FOCUS EXIT for never detaching.
+    expect(await placeTile(page), 'the ocean never committed').toBeTruthy();
     // The commit lands mid-scene, but the DISPLAYED ocean count must not
     // move while the board still owns the story (the display hold).
     expect(await hudOceans(page)).toBe(oceansBefore);

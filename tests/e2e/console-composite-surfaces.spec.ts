@@ -1,5 +1,5 @@
 import {test, expect, Page, APIRequestContext} from '@playwright/test';
-import {bootSeededGame} from './consoleStart';
+import {bootSeededGame, reloadConsole} from './consoleStart';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
 
@@ -157,9 +157,9 @@ test('spend heat: a bill, two lanes, and no way to overpay', async ({page, reque
     choiceContext: {source: {kind: 'corporation', card: 'Stormcraft Incorporated'}, mode: 'effect-choice'},
     options: [amountOption('Heat', 8), amountOption('Stormcraft Incorporated Floaters (2 heat each)', 3)],
   });
-  await page.reload();
+  await reloadConsole(page);
   await page.waitForSelector('.con-heat', {state: 'visible', timeout: 40_000});
-  await page.waitForTimeout(1200);
+  await page.waitForTimeout(600); // the panel's entrance settle
   await shoot(page, '1-spend-heat');
 
   await expectsWorkspaceBand(page, '.con-heat');
@@ -202,9 +202,9 @@ test('the Venus bonus: one flow — the wild first, then the placement', async (
       {type: 'and', title: '', buttonLabel: 'Save', options: []},
     ],
   });
-  await page.reload();
+  await reloadConsole(page);
   await page.waitForSelector('.con-venus', {state: 'visible', timeout: 40_000});
-  await page.waitForTimeout(1200);
+  await page.waitForTimeout(600); // the panel's entrance settle
   await shoot(page, '3-venus-wild');
 
   await expectsWorkspaceBand(page, '.con-venus');
@@ -262,9 +262,9 @@ test('a one-step bill is a radio too — the same gesture, the bill kept', async
     choiceContext: {source: {kind: 'corporation', card: 'Stormcraft Incorporated'}, mode: 'effect-choice'},
     options: [amountOption('Heat', 8), amountOption('Stormcraft Incorporated Floaters (2 heat each)', 3)],
   });
-  await page.reload();
+  await reloadConsole(page);
   await page.waitForSelector('.con-heat', {state: 'visible', timeout: 40_000});
-  await page.waitForTimeout(1200);
+  await page.waitForTimeout(600); // the panel's entrance settle
   await shoot(page, '9-heat-single');
 
   // The DIALS go (0 / 1 is not a number worth a stepper) — but the BILL stays:
@@ -311,9 +311,9 @@ test('one resource: the lanes become a radio — A places it, X takes it', async
       amountOption('Plants', 1), amountOption('Energy', 1), amountOption('Heat', 1),
     ],
   });
-  await page.reload();
+  await reloadConsole(page);
   await page.waitForSelector('.con-venus', {state: 'visible', timeout: 40_000});
-  await page.waitForTimeout(1200);
+  await page.waitForTimeout(600); // the panel's entrance settle
   await shoot(page, '7-venus-single');
 
   await expectsWorkspaceBand(page, '.con-venus');
@@ -370,9 +370,9 @@ test('the planetary thresholds: every row says what it DOES', async ({page, requ
       },
     },
   });
-  await page.reload();
+  await reloadConsole(page);
   await page.waitForSelector('.con-ares', {state: 'visible', timeout: 40_000});
-  await page.waitForTimeout(1200);
+  await page.waitForTimeout(600); // the panel's entrance settle
   await shoot(page, '5-ares-thresholds');
 
   await expectsWorkspaceBand(page, '.con-ares');
@@ -445,9 +445,9 @@ test.describe('the Venus wild resource: the SHARED target picker', () => {
         {type: 'and', title: '', buttonLabel: 'Save', options: []},
       ],
     }, WILD_TARGETS.map((name, i) => ({name, resources: i === 1 ? 2 : i})));
-    await page.reload();
+    await reloadConsole(page);
     await page.waitForSelector('.con-venus', {state: 'visible', timeout: 40_000});
-    await page.waitForTimeout(1200);
+  await page.waitForTimeout(600); // the panel's entrance settle
 
     // A on the FIRST branch — «положите его на карту».
     await key(page, 'Enter', 1200);

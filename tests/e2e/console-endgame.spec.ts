@@ -31,6 +31,7 @@
  */
 import {test, expect, Page} from '@playwright/test';
 import {createTable, journeyToEndgame, forceFrame, waitWithFrames, shoot, getModel} from './consoleEndgameHarness';
+import {walkFocusUntil} from './consoleStart';
 
 const SHOT_DIR = 'screenshots/console-endgame';
 
@@ -255,12 +256,27 @@ test.describe('console endgame workspace — 2p, full journey', () => {
     expect(labels.join(' | ')).toMatch(/Повторить подсчёт/i);
     expect(labels.join(' | ')).toMatch(/Обзор партии/i);
     expect(labels.join(' | ')).toMatch(/В главное меню/i);
-    const replayIdx = labels.findIndex((l) => /Повторить подсчёт/i.test(l));
-    for (let i = 0; i < replayIdx; i++) {
-      await page.keyboard.press('ArrowRight');
+    // ⚠️ WALK UNTIL THE LABEL MATCHES — never «press N times from index 0».
+    // The settled root does NOT open on the first action: its default focus is
+    // «Обзор партии» (asserted at the top of this very test), so counting hops
+    // from the label ARRAY landed one item short and the spec then reported
+    // «Обзор партии» where it expected the replay. The ring also clamps, so a
+    // one-way walk parks against a wall — `walkFocusUntil` turns around when a
+    // hop moves nothing.
+    // …and every read FORCES A FRAME first: this scene's focus class lands on
+    // a rAF the headless compositor does not schedule on a quiet screen, so an
+    // un-forced read sees the PREVIOUS item — the walker then concludes «that
+    // hop moved nothing», turns around, and oscillates between two labels
+    // until its budget runs out.
+    const focusedNow = async (): Promise<string> => {
       await forceFrame(page);
-    }
-    expect(await focused()).toMatch(/Повторить подсчёт/i);
+      return (await focused()) ?? '';
+    };
+    expect(await walkFocusUntil(page,
+      async () => /Повторить подсчёт/i.test(await focusedNow()),
+      focusedNow,
+      labels.length + 2),
+    `never reached «Повторить подсчёт» on the action ring (${labels.join(' | ')})`).toBeTruthy();
     await page.keyboard.press('Enter');
     await waitWithFrames(page, async () =>
       (await page.locator('.con-endgame--entering, .con-endgame--scoring').count()) > 0,

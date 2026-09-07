@@ -85,7 +85,7 @@ async function handVerdict(page: Page) {
  * hand is sorted playable-first, so the target may be on either side of the
  * cursor — a press that does not move the focus means the edge, so turn back.
  */
-async function focusCard(page: Page, ruName: string): Promise<void> {
+async function focusHandCardByRuName(page: Page, ruName: string): Promise<void> {
   const target = ruName.toLowerCase();
   let dir: 'ArrowRight' | 'ArrowLeft' = 'ArrowRight';
   let previous = '';
@@ -238,7 +238,7 @@ for (const preset of PRESETS) {
 
       // ── 1 · A REQUIREMENT-BLOCKED card: the verdict bar and the fullscreen
       //    panel read the same thing (ONE view-model, two densities).
-      await focusCard(page, 'Озеро Маринер');
+      await focusHandCardByRuName(page, 'Озеро Маринер');
       const blocked = await handVerdict(page);
       console.log(`[${preset.tag}] hand verdict`, JSON.stringify(blocked));
       expect(blocked.blocked, 'the requirement-blocked card wears the red verdict').toBeTruthy();
@@ -270,7 +270,7 @@ for (const preset of PRESETS) {
       //    several reasons. This is the composition that used to push the
       //    availability panel under the command bar.
       await closeZoomForced(page);
-      await focusCard(page, 'Домашний скот');
+      await focusHandCardByRuName(page, 'Домашний скот');
       const stock = await handVerdict(page);
       console.log(`[${preset.tag}] livestock verdict`, JSON.stringify(stock));
       await openZoomForced(page);
@@ -305,7 +305,7 @@ for (const preset of PRESETS) {
       //    column must not jump when paging (RB → the playable card).
       const topBefore = g2.col?.top;
       await closeZoomForced(page); // the album owns the d-pad again
-      await focusCard(page, 'Комета');
+      await focusHandCardByRuName(page, 'Комета');
       const ok = await handVerdict(page);
       expect(ok.ok, 'the playable card wears the green verdict').toBeTruthy();
       await openZoomForced(page);

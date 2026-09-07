@@ -1,5 +1,5 @@
 import {test, expect, Page} from '@playwright/test';
-import {bootSeededGame, createGameWithCards} from './consoleStart';
+import {bootSeededGame, createGameWithCards, focusedSpaceId} from './consoleStart';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
 
@@ -189,10 +189,27 @@ test.describe('console placement · on-field relations + reticle hierarchy', () 
       window.setTimeout(() => window.clearInterval(id), 6_000);
     });
     // Rapid presses (no settle) — the held-direction shape.
-    for (let i = 0; i < 4; i++) {
-      await page.keyboard.press('ArrowLeft');
+    //
+    // ⚠️ THE DIRECTION HAS TO ACTUALLY MOVE THE CURSOR. The placement ring
+    // CLAMPS, and the masked-ghost sweep above walks up to twenty steps, so it
+    // routinely parks against an edge: four more ArrowLefts then moved nothing,
+    // the reticle never travelled, and the spec reported «the reticle never
+    // entered its airborne pose» about a reticle that had nowhere to go. Turn
+    // around when a press does not move the cursor, and assert the run really
+    // happened, so the claim can never pass vacuously either.
+    let moves = 0;
+    let dir: 'ArrowLeft' | 'ArrowRight' = 'ArrowLeft';
+    for (let i = 0; i < 8 && moves < 4; i++) {
+      const at = await focusedSpaceId(page);
+      await page.keyboard.press(dir);
       await page.waitForTimeout(90);
+      if (await focusedSpaceId(page) === at) {
+        dir = dir === 'ArrowLeft' ? 'ArrowRight' : 'ArrowLeft';
+      } else {
+        moves++;
+      }
     }
+    expect(moves, 'the fast run never moved the cursor at all').toBeGreaterThan(0);
     // The step's own synchronous clear: no penalty mark may survive into the
     // very next sample window unless the NEW cell's preview re-applied it.
     await page.waitForTimeout(900);

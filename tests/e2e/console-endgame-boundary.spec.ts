@@ -49,7 +49,7 @@ async function boardScale(page: Page): Promise<number> {
 }
 
 /** Press `code`, then settle a beat with real frames (nothing here is instant). */
-async function press(page: Page, code: string, settleMs = 700): Promise<void> {
+async function pressFramed(page: Page, code: string, settleMs = 700): Promise<void> {
   await page.keyboard.press(code);
   await forceFrame(page);
   await page.waitForTimeout(settleMs);
@@ -107,13 +107,13 @@ test.describe('console endgame — the boundary seal and the read-only free roam
 
     // The scene is USABLE — which is the whole point of the report: X skips
     // the count and lands on the settled action list.
-    await press(page, 'KeyX', 1500);
+    await pressFramed(page, 'KeyX', 1500);
     await waitWithFrames(page, async () =>
       (await page.locator('.con-eg__action').count()) > 0, 30_000, 'the settled action list');
     await shoot(page, SHOT_DIR, '03-settled');
 
     // ── ② THE FREE ROAM ───────────────────────────────────────────────────
-    await press(page, 'Escape', 1200); // B = «Свернуть»
+    await pressFramed(page, 'Escape', 1200); // B = «Свернуть»
     await expect(page.locator('.con-endgame'), 'the scene is hidden, its frame alive').toBeHidden();
     await expect(page.locator('.con-board'), 'the final board is on show').toBeVisible();
     await shoot(page, SHOT_DIR, '04-collapsed');
@@ -130,36 +130,36 @@ test.describe('console endgame — the boundary seal and the read-only free roam
       `board scale drifted across the endgame: ${scaleBefore} → ${scaleAfter}`).toBeLessThan(0.02);
 
     // The JOURNAL — the fullest read of what happened.
-    await press(page, 'KeyR');
+    await pressFramed(page, 'KeyR');
     await expect(page.locator('.con-journal'), 'the journal opens in the post-game').toBeVisible({timeout: 10_000});
     await shoot(page, SHOT_DIR, '05-journal');
-    await press(page, 'Escape');
+    await pressFramed(page, 'Escape');
     await expect(page.locator('.con-journal'), 'and closes one level back').toHaveCount(0, {timeout: 10_000});
 
     // «РАЗЫГРАНО» — every player's final tableau.
-    await press(page, 'KeyX');
+    await pressFramed(page, 'KeyX');
     await expect(page.locator('.con-played'), '«Разыграно» opens in the post-game').toBeVisible({timeout: 10_000});
-    await press(page, 'Escape');
+    await pressFramed(page, 'Escape');
     await expect(page.locator('.con-played'), 'and closes one level back').toHaveCount(0, {timeout: 10_000});
 
     // INFORMATION — the per-seat dossier. During the COUNT it is deliberately
     // unreachable (it would pre-reveal the totals); past the result it is the
     // main instrument of the inspection.
-    await press(page, 'KeyY');
+    await pressFramed(page, 'KeyY');
     await expect(page.locator('.con-info'), 'Information opens in the post-game').toBeVisible({timeout: 10_000});
     await shoot(page, SHOT_DIR, '06-information');
-    await press(page, 'KeyY');
+    await pressFramed(page, 'KeyY');
     await expect(page.locator('.con-info'), 'and Y closes it again').toHaveCount(0, {timeout: 10_000});
 
     // The board's own inspection mode is a LEVEL of its own — B leaves it
     // before it means «back to the results».
-    await press(page, 'KeyC'); // L3
-    await press(page, 'Escape');
+    await pressFramed(page, 'KeyC'); // L3
+    await pressFramed(page, 'Escape');
     await expect(page.locator('.con-endgame'), 'leaving inspection is not leaving the post-game').toBeHidden();
 
     // …and at the ROOT, with nothing shallower left to close, B is the road
     // back to the results.
-    await press(page, 'Escape', 1500);
+    await pressFramed(page, 'Escape', 1500);
     await expect(page.locator('.con-endgame'), 'B at the board-home root restores the results').toBeVisible({timeout: 10_000});
     // It comes back SETTLED — the collapse parked the state, it never replayed
     // the ceremony (the action list is the settled terminal phase).

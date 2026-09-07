@@ -793,6 +793,195 @@ export async function placeTile(page: Page, maxTries = 24): Promise<boolean> {
   return await kicker.count() === 0;
 }
 
+/**
+ * PRESS UNTIL THE SCREEN AGREES — act → verify → retry, which is the shape
+ * EVERY console press in this suite should have and roughly half of them did
+ * not.
+ *
+ * A single blind press is not merely «sometimes slow»: this console has three
+ * documented, DELIBERATE ways to swallow one, and each of them turns a blind
+ * press into a 45 s timeout that reports the consequence instead of the cause.
+ *  · **A visible toast overrides B, everywhere** (console-ui.md § mandatory
+ *    gating) — the press closes the card and is consumed; the screen's own
+ *    back is the NEXT B.
+ *  · A decision surface RE-ARMS its submit on every response, so A landing in
+ *    the arming window is dropped by design.
+ *  · A cinematic hold absorbs input for its whole length, and holds are
+ *    bounded but not instant.
+ *
+ * `done()` must be a POSITIVE, SPECIFIC witness («the draft workspace is on
+ * screen»), never «something changed» — a false-positive witness is the other
+ * half of this file's flake history.
+ */
+export async function pressUntil(
+  page: Page,
+  code: string,
+  done: () => Promise<boolean>,
+  opts: {tries?: number, settleMs?: number} = {},
+): Promise<boolean> {
+  const tries = opts.tries ?? 6;
+  const settleMs = opts.settleMs ?? 800;
+  if (await done()) {
+    return true;
+  }
+  for (let i = 0; i < tries; i++) {
+    await press(page, code, settleMs);
+    if (await done()) {
+      return true;
+    }
+  }
+  return false;
+}
+
+/**
+ * RELOAD THE CONSOLE AND WAIT FOR IT TO BE DRIVABLE — never a bare
+ * `page.reload()`.
+ *
+ * ⚠️⚠️ A BARE RELOAD IS A KEY-SWALLOWING TRAP, and 32 of the suite's 35 reload
+ * sites had it. `openConsole` already documents why: the session-wide GPU
+ * warm-up paints the real console UNDERNEATH its veil, so `.con-root`, the live
+ * hand dock and even the surface the spec is waiting for can all be visible
+ * while `.boot-loader` still owns the top layer — and every key pressed in that
+ * window is lost. It is not a hold anyone can see: the root classes, the
+ * overlay stack and the command bar all read «ready» throughout.
+ *
+ * Measured on `console-composite-surfaces` after an injected-prompt reload: the
+ * Venus panel was fully painted, its own verbs were on the bar, and TWO presses
+ * ~1.2 s apart went nowhere — the spec then reported «the shared picker never
+ * opened», which is the consequence three screens from the cause.
+ *
+ * Same order as {@link openConsole}, deliberately: shell → load → veil.
+ */
+export async function reloadConsole(page: Page): Promise<void> {
+  await page.reload();
+  await page.waitForSelector('.con-start__frame, .con-root', {timeout: 90_000});
+  await page.waitForSelector('.con-load', {state: 'detached', timeout: 45_000}).catch(() => {});
+  await page.waitForSelector('.boot-loader', {state: 'detached', timeout: 150_000});
+}
+
+/**
+ * …AND THE SAME FOR A PAGE THAT IS NOT AN IN-GAME CONSOLE: the MAIN MENU
+ * (`.cm-menu`) and the CAMPAIGN MAP (`.cmap`).
+ *
+ * They share the boot veil — and therefore the key-swallowing window — but they
+ * have no `.con-root` at all, so {@link reloadConsole} would sit out its whole
+ * 90 s budget waiting for a root that is never coming (measured: it blew a
+ * 30 s test budget on the campaign map's chronicle reload).
+ */
+export async function reloadMenu(page: Page): Promise<void> {
+  await page.reload();
+  await page.waitForSelector('.cm-menu, .cmap', {timeout: 60_000});
+  await page.waitForSelector('.boot-loader', {state: 'detached', timeout: 60_000}).catch(() => {});
+}
+
+/** {@link pressUntil} with the overwhelmingly common witness: a selector. */
+export async function pressUntilVisible(
+  page: Page,
+  code: string,
+  selector: string,
+  opts: {tries?: number, settleMs?: number} = {},
+): Promise<boolean> {
+  return pressUntil(page, code, async () => await page.locator(selector).count() > 0, opts);
+}
+
+/** {@link pressUntil} with the other common witness: a selector that must go. */
+export async function pressUntilGone(
+  page: Page,
+  code: string,
+  selector: string,
+  opts: {tries?: number, settleMs?: number} = {},
+): Promise<boolean> {
+  return pressUntil(page, code, async () => await page.locator(selector).count() === 0, opts);
+}
+
+/**
+ * THE SPACE THE BOARD CURSOR STANDS ON, or `''` when no placement is live.
+ *
+ * STRUCTURAL: the cursor cell carries `.con-cell-sel` (`SELECT_CLASS` in
+ * `ConsoleBoardSection.vue`) and the id attribute is `data_space_id` with
+ * UNDERSCORES (`el.id` is empty). Both are load-bearing and both have been
+ * guessed wrong before.
+ */
+export async function focusedSpaceId(page: Page): Promise<string> {
+  return page.evaluate(() =>
+    document.querySelector('.con-cell-sel[data_space_id]')?.getAttribute('data_space_id') ?? '');
+}
+
+/**
+ * Walk the board cursor onto `spaceId` — the SHARED serpentine, because four
+ * specs had grown their own and each knew a different half of the rules (the
+ * d-pad snaps between LEGAL cells only, so a lane that assumes a dense grid
+ * silently stalls; the axes CLAMP, so «home» is a corner and not a wrap).
+ *
+ * Throws with the visited set, never a bare timeout: «the cursor never reached
+ * X, it visited 11 cells» is a diagnosis, «Enter did nothing» is not.
+ */
+export async function walkToSpace(page: Page, spaceId: string, maxSteps = 150): Promise<void> {
+  for (let i = 0; i < 12; i++) {
+    await press(page, 'ArrowUp', 80);
+  }
+  for (let i = 0; i < 12; i++) {
+    await press(page, 'ArrowLeft', 80);
+  }
+  const lane = [
+    ...Array(9).fill('ArrowRight'), 'ArrowDown',
+    ...Array(9).fill('ArrowLeft'), 'ArrowDown',
+  ];
+  const seen = new Set<string>();
+  for (let i = 0; i < maxSteps; i++) {
+    const id = await focusedSpaceId(page);
+    seen.add(id);
+    if (id === spaceId) {
+      return;
+    }
+    await press(page, lane[i % lane.length], 90);
+  }
+  throw new Error(`the cursor never reached space ${spaceId}; it visited ${seen.size} cells: ${[...seen].join(',')}`);
+}
+
+/**
+ * Commit the cell the cursor ALREADY stands on — the two-phase confirm, and
+ * nothing else. `placeTile` is «put this tile anywhere legal»; this one is for
+ * a spec that has walked to a SPECIFIC cell and must not be moved off it.
+ *
+ * ⚠️ ONE Enter is a LOCK, not a commit (`docs/claude/console/board-placement-flow.md`),
+ * and a d-pad step UNLOCKS. Every spec that spelled the commit itself spelled
+ * it as one press and then reported the CONSEQUENCE as the failure: «the
+ * Hydronetwork's bonus layer never appeared», «the workspace never came back».
+ * Returns false when the cell refused (illegal) — the caller decides.
+ */
+export async function commitFocusedSpace(page: Page, settleMs = 900): Promise<boolean> {
+  const placing = page.locator('.con-context__task-kicker');
+  if (await placing.count() === 0) {
+    return false;
+  }
+  const resolved = async (maxMs: number): Promise<boolean> => {
+    for (let waited = 0; waited < maxMs; waited += 120) {
+      if (await placing.count() === 0) {
+        return true;
+      }
+      await page.waitForTimeout(120);
+    }
+    return await placing.count() === 0;
+  };
+  await press(page, 'Enter', 420); // lock (or the whole commit in swift mode)
+  if (await placing.count() === 0) { // swift mode: that WAS the commit
+    if (settleMs > 0) {
+      await page.waitForTimeout(settleMs);
+    }
+    return true;
+  }
+  await page.keyboard.press('Enter'); // confirm — past the 280 ms lock dwell
+  // VERIFIED BY POLL, never by a fixed settle: the caller may legitimately ask
+  // for a zero settle (a probe that must bracket the episode tightly), and a
+  // zero-wait read of an async submit is a coin flip, not an assertion.
+  const done = await resolved(8_000);
+  if (done && settleMs > 0) {
+    await page.waitForTimeout(settleMs);
+  }
+  return done;
+}
+
 /** Take every card of a standing reveal (A per card; the last one closes). */
 export async function takeRevealCards(page: Page, maxTakes = 12): Promise<void> {
   const reveal = page.locator('.con-reveal');
@@ -1915,10 +2104,40 @@ export async function handCount(page: Page): Promise<number> {
 export async function playCardFromHand(page: Page, card: string, attempts = 3): Promise<boolean> {
   const inHand = page.locator(`.con-hand [data-zoom-slot="${card}"]`);
   const handScreen = page.locator('.con-hand');
-  const held = await handCount(page);
-  const played = async (): Promise<boolean> => await handScreen.count() > 0 ?
-    await inHand.count() === 0 :
-    await handCount(page) < held;
+  /**
+   * THE WITNESS IS THE SERVER'S OWN HAND, never the dock's counter.
+   *
+   * `data-hand-total` is a VIEW, and the play cinematic deliberately freezes
+   * the view it is animating (`latchedIncoming` / `latchedRevealed`), so the
+   * dock can still read «1/1» with the card long gone and a placement already
+   * standing on the board. `console-placement-dossier` failed exactly there:
+   * the card WAS played, the tile prompt WAS live, and the driver reported
+   * «never played the card» — then spent two more attempts pressing Escape
+   * into the live placement, which is «Отменить размещение».
+   */
+  const placing = page.locator('.con-context__task-kicker');
+  const played = async (): Promise<boolean> => {
+    // A PAY-ON-COMMIT PLACEMENT IS THE PLAY ALREADY MADE. The card's own
+    // `SelectSpace` follow-up is standing on the board; the card may still be
+    // listed in hand until the tile lands, and a «cleanup» B here does not
+    // tidy anything — it CANCELS the placement, which rolls the whole play
+    // back. That is what made this driver report «never played the card»
+    // about a card whose tile prompt was on screen: attempt 1 played it,
+    // the dock-counter witness said no, the retry's Escapes undid it, and
+    // three attempts later the hand was exactly as it started.
+    if (await placing.count() > 0) {
+      return true;
+    }
+    if (await handScreen.count() > 0) {
+      return await inHand.count() === 0;
+    }
+    return page.evaluate(async (name) => {
+      const id = new URLSearchParams(location.search).get('id') ?? '';
+      const model = await (await fetch(`/api/player?id=${id}`)).json() as
+        {cardsInHand?: ReadonlyArray<{name: string}>};
+      return (model.cardsInHand ?? []).every((c) => c.name !== name);
+    }, card).catch(() => false);
+  };
   for (let attempt = 0; attempt < attempts; attempt++) {
     await press(page, 'Period', 600); // RT → the quick wheel
     await press(page, 'Enter', 1600); // centre slot → the hand screen
@@ -1935,7 +2154,8 @@ export async function playCardFromHand(page: Page, card: string, attempts = 3): 
       // NEVER press A on the wrong card. Enter here plays whatever the cursor
       // happens to sit on, which spends the turn on an unrelated card and makes
       // the spec fail somewhere else entirely, several assertions later.
-      for (let i = 0; i < 3 && await page.locator('.con-hand, .con-play, .con-composer--play').count() > 0; i++) {
+      for (let i = 0; i < 3 && await placing.count() === 0 &&
+        await page.locator('.con-hand, .con-play, .con-composer--play').count() > 0; i++) {
         await press(page, 'Escape', 700);
       }
       continue;
@@ -1953,7 +2173,8 @@ export async function playCardFromHand(page: Page, card: string, attempts = 3): 
     if (await played()) {
       return true;
     }
-    for (let i = 0; i < 3 && await page.locator('.con-hand, .con-play, .con-composer--play').count() > 0; i++) {
+    for (let i = 0; i < 3 && await placing.count() === 0 &&
+      await page.locator('.con-hand, .con-play, .con-composer--play').count() > 0; i++) {
       await press(page, 'Escape', 700);
     }
   }

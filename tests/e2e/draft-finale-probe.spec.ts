@@ -1,7 +1,7 @@
 import {test, expect, Page, APIRequestContext} from '@playwright/test';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
-import {NO_PAYMENT, fillPicks, press, sendPlayerInput, submitSummary, summaryVisible, walkToSummary} from './consoleStart';
+import {fillPicks, NO_PAYMENT, press, reloadConsole, sendPlayerInput, submitSummary, summaryVisible, walkToSummary} from './consoleStart';
 
 /**
  * DRAFT FINALE PROBE — a fast drive to the draft's closing stretch (the
@@ -111,7 +111,7 @@ async function passIntoDrafting(page: Page, request: APIRequestContext, firstId:
     if (m1.game.phase === 'action' && m1.waitingFor !== undefined) {
       await sendPlayerInput(request, firstId, roadAnswer(m1.waitingFor) as never);
     }
-    await page.reload();
+    await reloadConsole(page);
   }
   for (let i = 0; i < 40; i++) {
     const m2 = await modelOf(request, secondId);

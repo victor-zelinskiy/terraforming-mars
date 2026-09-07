@@ -1,7 +1,7 @@
 import {test, expect, Page, APIRequestContext} from '@playwright/test';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
-import {NO_PAYMENT, fillPicks, focusCard, press, sendPlayerInput, submitSummary, summaryVisible, waitStepDealSettled, walkToSummary} from './consoleStart';
+import {fillPicks, focusCard, NO_PAYMENT, press, pressUntilVisible, reloadConsole, sendPlayerInput, submitSummary, summaryVisible, waitStepDealSettled, walkToSummary} from './consoleStart';
 
 /**
  * THE DRAFT WORKSPACE («ДРАФТ») — the between-generations draft + research
@@ -139,7 +139,7 @@ async function passIntoDrafting(page: Page, request: APIRequestContext, firstId:
     if (m1.game.phase === 'action' && m1.waitingFor !== undefined) {
       await sendPlayerInput(request, firstId, roadAnswer(m1.waitingFor) as never);
     }
-    await page.reload();
+    await reloadConsole(page);
   }
   // P2's turn arrives once P1's generation is over; pass it over the API.
   for (let i = 0; i < 40; i++) {
@@ -306,8 +306,13 @@ test.describe('draft workspace · the between-generations flow', () => {
     }, {timeout: 90_000}).toBeGreaterThan(0);
     expect(await page.locator('.con-draftws').count(), 'the workspace never opens uninvited').toBe(0);
     await shoot(page, '00-draft-announce');
-    await press(page, 'Enter', 900); // A — the one explicit door into the draft
-    await page.waitForSelector('.con-draftws', {timeout: 45_000});
+    // A — the one explicit door into the draft, act→verify→retry. A single
+    // blind press is not enough here and never was: the announce plate is
+    // presented on the ordinary feed's schedule, so an A landing while the
+    // plate is still arriving is consumed by design — and the spec then spent
+    // 45 s staring at the plate it had just failed to open.
+    expect(await pressUntilVisible(page, 'Enter', '.con-draftws', {tries: 6, settleMs: 1200}),
+      'A never opened the draft workspace').toBeTruthy();
     await page.waitForTimeout(4200); // the deal cinematic + entrance settle
     let s = await surface(page);
     console.log('[first packet]', JSON.stringify(s));
@@ -496,7 +501,7 @@ test.describe('draft workspace · the between-generations flow', () => {
     //    so the feed settles at once), and A re-opens the workspace — which
     //    hydrates straight into the same state: no entrance replay, the shelf
     //    keeps the pick.
-    await page.reload();
+    await reloadConsole(page);
     await page.waitForSelector('.con-mandatory', {timeout: 45_000});
     await press(page, 'Enter', 900);
     await page.waitForSelector('.con-draftws', {timeout: 45_000});
@@ -845,7 +850,7 @@ test.describe('draft workspace · the between-generations flow', () => {
       if (m.waitingFor?.type === 'payment') {
         await sendPlayerInput(request, first.id, roadAnswer(m.waitingFor) as never);
       }
-      await page.reload();
+      await reloadConsole(page);
     }
     // P2's buy resolves over the API; P1's flow finishes and releases.
     const p2 = await modelOf(request, second.id);

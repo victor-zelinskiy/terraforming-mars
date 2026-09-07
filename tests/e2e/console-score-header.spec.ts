@@ -1,7 +1,7 @@
 import {test, expect, Page} from '@playwright/test';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
-import {bootIntoGame, soloGameConfig} from './consoleStart';
+import {bootIntoGame, reloadConsole, soloGameConfig} from './consoleStart';
 
 /**
  * Console score header (.con-score — TR + VP above the resource rows):
@@ -122,7 +122,7 @@ for (const preset of PRESETS) {
       // the number, identical footprint. The pref is PER-GAME — keyed by the
       // viewer's participant id (playerId), the same key bindPrivateScoreGame reads.
       await page.evaluate((id) => localStorage.setItem('tm.privateScoreDisplay.' + id, '1'), playerId);
-      await page.reload();
+      await reloadConsole(page);
       await page.waitForSelector('.con-root', {timeout: 45_000});
       await page.waitForSelector('.con-load', {state: 'detached', timeout: 45_000}).catch(() => {});
       await page.waitForTimeout(3000);

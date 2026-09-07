@@ -1,5 +1,5 @@
 import {test, expect, Page, APIRequestContext} from '@playwright/test';
-import {bootSeededGame} from './consoleStart';
+import {bootSeededGame, reloadConsole} from './consoleStart';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
 
@@ -144,7 +144,7 @@ test('a resource distribution names the card that caused it', async ({page, requ
   await bootSeededGame(page, request, await createGame(request), {buy: 2});
 
   await injectPhilaresPrompt(page);
-  await page.reload();
+  await reloadConsole(page);
   await page.waitForSelector('.con-task', {state: 'visible', timeout: 40_000});
   await page.waitForTimeout(1500);
   await shoot(page, '1-distribute-with-source');
@@ -225,7 +225,7 @@ test('a forced production loss names what forced it — card and hazard alike', 
 
   // ── A CARD cause: the real card face, inspectable ────────────────────
   await injectPrompt(page, productionLossPrompt({type: 'card', card: 'Caesar'}));
-  await page.reload();
+  await reloadConsole(page);
   await page.waitForSelector('.con-prodloss', {state: 'visible', timeout: 40_000});
   await page.waitForTimeout(1500);
   await shoot(page, '5-prodloss-card-source');
@@ -251,7 +251,7 @@ test('a forced production loss names what forced it — card and hazard alike', 
   // ── An ARES HAZARD: no card exists, so the dock keeps its shape and
   //    names the rule instead of falling silent ──────────────────────────
   await injectPrompt(page, productionLossPrompt({type: 'hazard'}));
-  await page.reload();
+  await reloadConsole(page);
   await page.waitForSelector('.con-prodloss', {state: 'visible', timeout: 40_000});
   await page.waitForTimeout(1500);
   await shoot(page, '7-prodloss-hazard-source');

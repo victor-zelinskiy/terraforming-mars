@@ -1,7 +1,7 @@
 import {test, expect, Page} from '@playwright/test';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
-import {bootIntoGame} from './consoleStart';
+import {bootIntoGame, focusedSpaceId} from './consoleStart';
 
 /**
  * Console-native · ARCADIAN COMMUNITIES, the two halves of one card.
@@ -122,10 +122,6 @@ async function boardBonusIcons(page: Page): Promise<number> {
 }
 
 /** The cell the console board cursor is on (`con-cell-sel`). */
-async function focusedSpaceId(page: Page): Promise<string> {
-  return page.evaluate(() =>
-    document.querySelector('.con-cell-sel')?.getAttribute('data_space_id') ?? '');
-}
 
 test.describe('console · Arcadian Communities', () => {
   test.use({viewport: {width: 1920, height: 1080}, deviceScaleFactor: 1, screen: {width: 1920, height: 1080}});

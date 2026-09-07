@@ -121,6 +121,7 @@
                            :placementActive="placementActive"
                            :placementShape="placementShape"
                            :cellPreview="selectedCellPreview"
+                           :legalSpaces="placementSpaceModel?.spaces ?? []"
                            :inspecting="consoleState.inspecting" />
       <!-- The right STRATEGY RAIL — the Milestones/Awards premium HUD, the
            LEFT rail's geometric twin (same width token). Always the board
@@ -3366,6 +3367,26 @@ export default defineComponent({
       if (this.hostTask !== undefined && !this.consoleState.task.deferred) {
         return true;
       }
+      // …AND A PROMPT THE COPIED ACTION RAISED THAT NO SURFACE TERM CAN SEE.
+      // A `space` prompt is served by the ALWAYS-MOUNTED board, so `hostTask`
+      // is undefined for it, there is no reveal and no nested frame — every
+      // term above is blind to it. The stage-7 reuse whose repeated action
+      // ends in a TILE (Mars Nomads' MOVE) therefore read as «the follow-up is
+      // over» the instant the board lit up: the flow walked to its result
+      // stage while the player was still choosing a hex, spent the result
+      // hold behind the covered workspace, finished itself — and the track
+      // came back to its ordinary browse view, the movement's own summary
+      // never played (`console-hydro-copied-tile`).
+      //
+      // The SERVER'S OWN STAMP is the witness (`copiedActionSource`, set from
+      // the live copied-action event scope for EVERY prompt a copy raises), and
+      // the queued gate is what keeps it from deadlocking the walk: a prompt
+      // stamped for a stage the marker has not reached yet is the CONTENT of a
+      // later stop, exactly as a queued reveal is.
+      if (this.playerView.waitingFor?.copiedActionSource !== undefined &&
+          !this.hydroQueuedPromptForLaterStep) {
+        return true;
+      }
       if (this.consoleRevealMode !== undefined) {
         return true;
       }
@@ -5146,13 +5167,34 @@ export default defineComponent({
       }
       return typeof t === 'string' ? translateText(t) : translateMessage(t);
     },
+    /**
+     * IS THE FOCUSED CELL A LEGAL DESTINATION — off the SERVER'S OWN LIST.
+     *
+     * ⚠️⚠️ THIS USED TO READ THE DOM, AND A COMPUTED THAT READS THE DOM IS A
+     * CACHED SNAPSHOT OF IT. `document.querySelector(...).classList.contains(
+     * 'board-space--available')` has no reactive dependency, so Vue froze the
+     * answer against the only reactive term in the expression — the focused
+     * cell id. The availability classes are painted IMPERATIVELY by the board
+     * binder a beat after the prompt lands, so whenever the cursor was seeded
+     * onto its cell BEFORE that paint, the cached verdict was `false` and
+     * stayed false for as long as the player kept the cursor there: A was
+     * refused with «Нельзя разместить здесь» on a cell the board itself was
+     * drawing as available, and the only way out was to move the cursor away
+     * and back. A mouse click on the very same hex committed normally, which
+     * is what made it read as «the keyboard is dead».
+     *
+     * `spaces` is the same list the response is validated against (cross-cutting
+     * invariant 2: availability is server-authoritative), and it is reactive
+     * because it is part of `playerView` — so the verdict now cannot outlive
+     * the prompt it describes.
+     */
     selectedCellLegal(): boolean {
       const id = this.consoleState.boardSpaceId;
-      if (id === undefined) {
+      const spaces = this.placementSpaceModel?.spaces;
+      if (id === undefined || spaces === undefined) {
         return false;
       }
-      const el = document.querySelector(`[data_space_id="${id}"]`);
-      return el !== null && el.classList.contains('board-space--available');
+      return spaces.includes(id as SpaceId);
     },
     /** The SERVER's per-cell illegal reason (+M€ deficit), translated. */
     selectedCellIllegalReason(): string {
@@ -8269,6 +8311,14 @@ export default defineComponent({
       // Both default to false and stay synced on every change; the detector's
       // stop-reset covers unmount, so no immediate sync is needed.
       setConsoleTaskDeferred(deferred);
+      // …AND THE HYDRO RESOLUTION RE-ASKS ON THE WAY BACK. A park is not a
+      // completion, but it is not a cancellation either: the committed move's
+      // busy signals can fall quiet WHILE the stack is parked (a board
+      // excursion), and no edge fires on the restore. See
+      // `settleHydroResolution`.
+      if (!deferred) {
+        void this.$nextTick(() => this.settleHydroResolution());
+      }
     },
     // A task's nested SelectSpace branch answered ON THE BOARD (final greenery,
     // the WGT ocean): the host / gov-support / production-loss surfaces are all
@@ -8693,17 +8743,30 @@ export default defineComponent({
     // signal false while the decision still stands — the collapsed flow
     // waits for the restore, never walks itself to the result.
     hydroResolutionBusy(busy: boolean) {
-      if (this.consoleState.task.deferred || workspaceStackCollapsed()) {
+      if (busy) {
         return;
       }
-      const c = this.hydroFlow.commit;
-      // A ceremony landing rides the SAME edge as every other resolution: the
-      // culmination is a busy term of its own (`ceremonyOwed` — released only
-      // by the ceremony's completion), so this edge fires strictly AFTER it.
-      // The summary is the mandatory terminal stage of every movement — the
-      // ceremony is the beat before it, never a substitute ending.
-      if (!busy && c !== undefined && c.phase === 'resolving') {
-        advanceHydroCommitPhase('result');
+      this.settleHydroResolution();
+    },
+    /**
+     * …AND THE PARK RE-ASKS ON THE WAY BACK.
+     *
+     * The rule above is «a PARK is not completion», and it was implemented as
+     * an early return — which drops the edge instead of deferring it. A move
+     * whose follow-up is a BOARD EXCURSION (the stage-7 copy asking for its
+     * space) parks the whole stack for the placement, so the resolution's busy
+     * signals fall to quiet WHILE parked: the watcher above refused, the
+     * restore fired no edge of its own (`busy` was already false), and the
+     * flow sat in `resolving` for the rest of the session — the track came
+     * back to its browse view and the movement's own summary never played.
+     *
+     * A watcher cannot fire on true→true, so the restore has to ask again —
+     * from BOTH restore edges (the stack's, here, and the deferred task's,
+     * folded into `consoleState.task.deferred` above).
+     */
+    workspaceCollapsed(collapsed: boolean) {
+      if (!collapsed) {
+        void this.$nextTick(() => this.settleHydroResolution());
       }
     },
     // The result stage holds READABLE, then the flow completes on its own —
@@ -12394,6 +12457,7 @@ export default defineComponent({
             return;
           }
           if (!this.selectedCellLegal) {
+            console.warn('[placement] refused: the focused cell is not legal', {targetId});
             this.showNotice('Cannot place here');
             return;
           }
@@ -12417,6 +12481,9 @@ export default defineComponent({
           // cover must separate at submit time (never after the response).
           this.armBoardBonusIfCardCell(targetId, this.placementSpaceModel?.placementEffect);
           if (board?.activate() !== true) {
+            console.warn('[placement] refused: the board section did not take the press', {
+              targetId, section: board === undefined ? 'no-ref' : 'refused',
+            });
             this.showNotice('Cannot place here');
             // Nothing was submitted — recall the armed cover instantly.
             abortBoardCardBonus('instant');
@@ -14941,6 +15008,30 @@ export default defineComponent({
       }
       leaveWorkspace();
     },
+    /**
+     * THE RESOLUTION IS QUIET AND VISIBLE — walk the committed move on to its
+     * result stage (the terminal summary, and the only door to closing).
+     *
+     * Asked from THREE edges, all of them the same question, because any one
+     * of them alone drops the case the others cover: the busy signal's own
+     * falling edge, the stack's RESTORE and the deferred task's restore. A
+     * park is not completion, but it is also not a cancellation — the answer
+     * is «ask again when the player is back», never «forget this one».
+     */
+    settleHydroResolution(): void {
+      if (this.consoleState.task.deferred || workspaceStackCollapsed() || this.hydroResolutionBusy) {
+        return;
+      }
+      const c = this.hydroFlow.commit;
+      // A ceremony landing rides the SAME edge as every other resolution: the
+      // culmination is a busy term of its own (`ceremonyOwed` — released only
+      // by the ceremony's completion), so this fires strictly AFTER it. The
+      // summary is the mandatory terminal stage of every movement — the
+      // ceremony is the beat before it, never a substitute ending.
+      if (c !== undefined && c.phase === 'resolving') {
+        advanceHydroCommitPhase('result');
+      }
+    },
     /** The flow is over (result read / skipped) — reset and go home. */
     finishHydroFlow(): void {
       if (this.hydroResultTimer !== undefined) {
@@ -17399,6 +17490,35 @@ export default defineComponent({
     // READ-ONLY e2e/diagnostics probe: the nested-continuation state in one
     // snapshot (the e2e specs dump it on a failure instead of guessing from
     // pixels). Never used by product code.
+    // READ-ONLY e2e/diagnostics probe (same idiom): the Hydronetwork's commit
+    // flow with its close gate BROKEN DOWN INTO ITS TERMS. The flow reaches
+    // its result stage on the FALLING EDGE of `hydroResolutionBusy`, so a
+    // single stuck term reads from the outside as «the track never played its
+    // result» — the symptom, three screens away from the cause.
+    (window as unknown as Record<string, unknown>).__conHydroDiag = () => ({
+      commit: this.hydroFlow.commit === undefined ? null : {
+        phase: this.hydroFlow.commit.phase,
+        toPosition: this.hydroFlow.commit.toPosition,
+        kind: this.hydroFlow.commit.kind,
+      },
+      step: this.hydroFlow.step ?? null,
+      repeatBridge: this.hydroFlow.repeatBridge,
+      resolutionBusy: this.hydroResolutionBusy,
+      busyTerms: {
+        markerGliding: isHydroMarkerActive(),
+        rewardHeld: panelRewardHold.active,
+        transfersFlying: isResourceTransferActive(),
+        ceremony: isHydroCeremonyActive(),
+        followUpInteractive: this.hydroFollowUpLive,
+        traversalPending: hydroTraversalPending(),
+        intakeFlying: this.cardArrivalBusy,
+        ceremonyOwed: hydroCeremonyOwed(),
+      },
+      parked: {
+        deferred: this.consoleState.task.deferred,
+        collapsed: workspaceStackCollapsed(),
+      },
+    });
     (window as unknown as Record<string, unknown>).__conColonyDiag = () => ({
       // THE STACK IS THE SNAPSHOT — one ordered list instead of five flags that
       // had to be read together and could disagree.

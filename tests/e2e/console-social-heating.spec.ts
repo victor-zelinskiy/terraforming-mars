@@ -63,12 +63,26 @@ async function toActionMenu(request: APIRequestContext, id: string): Promise<Wir
     if (prompt !== undefined && prompt.type === 'or' && /Take your (first|next) action/.test(titleOf(prompt))) {
       return prompt;
     }
+    // NOTHING TO ANSWER IS A WAIT, NEVER A ROUND — the same law the shared
+    // `seedGameOverApi` states. An empty `waitingFor` means the TABLE is busy
+    // with somebody else (the other seat's pregame, a bot thinking), and
+    // spending answer-rounds on that lets a slow neighbour exhaust the budget
+    // and report «stuck on » — an empty title, about a game that was merely
+    // thinking. The budget must bound the CONVERSATION, not the machine.
     if (prompt === undefined) {
-      await new Promise((r) => setTimeout(r, 400));
-      model = await fetchPlayerModel(request, id) as Wire;
+      for (let waited = 0; model.waitingFor === undefined && waited < 20; waited++) {
+        await new Promise((r) => setTimeout(r, 500));
+        model = await fetchPlayerModel(request, id) as Wire;
+      }
+      if (model.waitingFor === undefined) {
+        expect(false, `the table never came back to ${id} — phase ${model.game?.phase}, ` +
+          `actions ${JSON.stringify(model.actionsTakenThisRound)}/${JSON.stringify(model.availableBlueCardActionCount)}, ` +
+          `active ${JSON.stringify((model.players ?? []).map((p: Wire) => ({c: p.color, t: p.isActive})))}`).toBeTruthy();
+      }
       continue;
     }
     if (prompt.type === 'space') {
+      console.log('[toActionMenu·space]', JSON.stringify({title: titleOf(prompt), spaces: prompt.spaces}).slice(0, 300));
       model = await sendPlayerInput(request, id,
         {type: 'space', spaceId: (prompt.spaces ?? [])[0]} as never) as Wire;
       continue;
@@ -311,7 +325,7 @@ test.describe('Social Heating × Delta Surge · fhd', () => {
  * affected-player notification. No workspace of theirs is captured, no modal
  * opens, the RESULT leads and the CAUSE follows with the source card named.
  */
-const CARD_DATA = cardManifest as ReadonlyArray<{name: string, type?: string, tags?: ReadonlyArray<string>}>;
+const CARD_DATA = cardManifest as ReadonlyArray<{name: string, type?: string, module?: string, tags?: ReadonlyArray<string>}>;
 /**
  * Corporations that carry a BUILDING tag — the path tag position 1 of the
  * track requires. The mover's PROJECT deal is not seeded (the forced cards all
@@ -320,8 +334,28 @@ const CARD_DATA = cardManifest as ReadonlyArray<{name: string, type?: string, ta
  * building corporations against four dealt slots guarantees this seat is
  * offered at least one.
  */
+/**
+ * ⚠️ EXPANSION-BOUND MODULES ARE EXCLUDED, and this is a rule about the SERVER,
+ * not about taste: `customCorporationsList` is ADDITIVE (`GameCards.addCustomCards`)
+ * — a named corporation joins the deal whether or not its expansion is on. A
+ * corp whose own behaviour then calls into that expansion's machinery throws:
+ * an UNDERWORLD corporation dealt into `underworld: false` answered the
+ * pregame with a 400 from `IdentifySpacesDeferred` («Underworld expansion not
+ * in this game»), and the spec reported it three steps later as «the table
+ * never came back to this player».
+ *
+ * Scoping to the two ENABLED modules is not an option either: testMode deals
+ * eight corporations per player and cards-on-top fills the FIRST seat first,
+ * so a three-name pool lands entirely on the owner and the mover never gets a
+ * building tag at all. Eleven names is comfortably more than one seat can
+ * swallow.
+ */
+const EXPANSION_BOUND_MODULES = new Set([
+  'underworld', 'moon', 'pathfinders', 'turmoil', 'colonies', 'starwars', 'ceo',
+]);
 const BUILDING_CORPS = CARD_DATA
-  .filter((c) => c.type === 'corporation' && (c.tags ?? []).includes('building'))
+  .filter((c) => c.type === 'corporation' && !EXPANSION_BOUND_MODULES.has(c.module ?? '') &&
+    (c.tags ?? []).includes('building'))
   .map((c) => c.name);
 
 /** The corporation names this seat was offered, from its own pregame prompt. */
@@ -353,6 +387,39 @@ async function advanceOverApi(request: APIRequestContext, id: string, steps: num
   // input — two responses, exactly what the console's own batch sends.
   await sendPlayerInput(request, id, {type: 'or', index: at, response: {type: 'option'}} as never);
   await sendPlayerInput(request, id, {type: 'deltaProject', amount: steps} as never);
+  // ⚠️ AND THE MOVE MUST BE **FINISHED**, not merely started. The stage the
+  // marker lands on hands out its own reward («Опорные дамбы»: 2 steel OR 2
+  // plants), which is a SUB-PROMPT of this action — so while it stands the
+  // server correctly reports the chain as still OPEN
+  // (`Game.openEventCorrelations`), and every OTHER player's notification for
+  // what this move paid them waits in PREPARING, by contract («no half-story
+  // is ever presented»). Leaving the reward unanswered therefore looked
+  // exactly like a lost notification: the owner's «+1 тепла» never presented,
+  // and the product was right the whole time.
+  for (let i = 0; i < 8; i++) {
+    const model = await fetchPlayerModel(request, id) as Wire;
+    const prompt = model.waitingFor as Wire | undefined;
+    if (prompt === undefined || isActionMenu(prompt)) {
+      return;
+    }
+    await sendPlayerInput(request, id, answerFor(prompt) as never);
+  }
+}
+
+/** The action menu — the honest end of «this move is finished». */
+function isActionMenu(prompt: Wire): boolean {
+  return prompt.type === 'or' && /Take your (first|next) action/.test(titleOf(prompt));
+}
+
+/** The FIRST offer of whatever this prompt is — the move's own follow-ups are
+ *  setup here, never the subject. */
+function answerFor(prompt: Wire): Wire {
+  switch (prompt.type) {
+  case 'or': return {type: 'or', index: 0, response: {type: 'option'}};
+  case 'card': return {type: 'card', cards: (prompt.cards ?? []).slice(0, Math.max(prompt.min ?? 0, 0)).map((c: Wire) => c.name)};
+  case 'space': return {type: 'space', spaceId: (prompt.spaces ?? [])[0]};
+  default: return {type: 'option'};
+  }
 }
 
 const DUO_CFG = soloGameConfig({
@@ -362,9 +429,12 @@ const DUO_CFG = soloGameConfig({
   ],
   expansions: {deltaProject: true},
   customProjectCards: ALL_CARDS,
-  // Three building corporations against four dealt slots (2 seats × 2) — the
-  // mover is offered one whichever way the deal splits.
-  customCorporationsList: [...BUILDING_CORPS, 'ThorGate'],
+  // The building corporations of the modules this game actually enables. They
+  // cannot be STEERED to the second seat (testMode deals EIGHT corporations
+  // per player and cards-on-top fills the FIRST seat first, so all three can
+  // land there) — the setup below re-creates the game until the mover is
+  // offered one, which is this suite's own idiom for an un-seedable deal.
+  customCorporationsList: BUILDING_CORPS,
   seed: 0.71,
 });
 
@@ -377,18 +447,41 @@ test.describe('Social Heating — another player’s movement · fhd', () => {
 
   test('the owner is told: the gain leads, the mover is the cause, the card is the source', async ({page, request}) => {
     test.setTimeout(480_000);
-    const created = await request.post('/api/creategame', {data: DUO_CFG});
-    expect(created.ok(), `create-game failed: ${created.status()}`).toBeTruthy();
-    const {players} = await created.json() as {players: Array<{id: string}>};
-    const owner = players[0].id;
-    const mover = players[1].id;
-
-    const moverCorps = offeredCorporations(
-      (await fetchPlayerModel(request, mover) as Wire).waitingFor as Wire | undefined);
-    expect(moverCorps.length, 'the mover is offered a BUILDING corporation').toBeGreaterThan(0);
+    // ⚠️ THE DEAL IS NOT SEEDABLE FOR THE SECOND SEAT, so the game is
+    // RE-CREATED until it is kind — the same idiom `createGameWithCards` uses.
+    // `customCorporationsList` is cards-on-top of ONE deck and testMode deals
+    // eight corporations per player, so the FIRST seat can swallow every
+    // forced building corporation; the mover then has no building tag and
+    // cannot take the track's first step at all. Which seat is which is fixed
+    // (the owner MUST be seat 1 — the forced project cards go there), so the
+    // only lever is the deal itself.
+    let owner = '';
+    let mover = '';
+    let moverCorps: Array<string> = [];
+    for (let attempt = 0; attempt < 12 && moverCorps.length === 0; attempt++) {
+      const created = await request.post('/api/creategame', {data: DUO_CFG});
+      expect(created.ok(), `create-game failed: ${created.status()}`).toBeTruthy();
+      const {players} = await created.json() as {players: Array<{id: string}>};
+      owner = players[0].id;
+      mover = players[1].id;
+      moverCorps = offeredCorporations(
+        (await fetchPlayerModel(request, mover) as Wire).waitingFor as Wire | undefined);
+    }
+    expect(moverCorps.length,
+      `the mover was never dealt a BUILDING corporation in 12 games (pool: ${BUILDING_CORPS.join(', ')})`)
+      .toBeGreaterThan(0);
     await Promise.all([
-      seedGameOverApi(request, owner, {cards: ALL_CARDS}).catch(() => undefined),
-      seedGameOverApi(request, mover, {corporation: moverCorps[0]}).catch(() => undefined),
+      // ⚠️ THE SEED LEGITIMATELY ENDS IN A WAIT FOR ONE OF THE TWO SEATS.
+      // `seedGameOverApi` stops at the ACTION MENU, and in the action phase
+      // the table asks exactly one player at a time — so whichever seat is not
+      // first genuinely never gets one, and its «the table never came back»
+      // is the correct outcome, not a failure. Caught, but NAMED: swallowing
+      // it silently is what turned a real seeding failure into «never reached
+      // the action menu (stuck on )» thirty rounds later.
+      seedGameOverApi(request, owner, {cards: ALL_CARDS})
+        .catch((e: Error) => console.log('[seed·owner ends waiting]', e.message.slice(0, 120))),
+      seedGameOverApi(request, mover, {corporation: moverCorps[0]})
+        .catch((e: Error) => console.log('[seed·mover ends waiting]', e.message.slice(0, 120))),
     ]);
 
     // ── GENERATION 1, and deliberately not later: every player's energy is
@@ -410,23 +503,45 @@ test.describe('Social Heating — another player’s movement · fhd', () => {
       .toBe(heatBefore + 1);
 
     // ── The CONSOLE told them, through the ordinary notification. ──
-    const card = page.locator('.con-notif').first();
-    await card.waitFor({state: 'visible', timeout: 60_000});
-    const told = await page.evaluate(() => {
-      const el = document.querySelector('.con-notif');
-      if (el === null) {
-        return undefined;
+    //
+    // ⚠️ THE FIRST CARD ON SCREEN IS NOT «THIS CARD». The feed is a queue and
+    // the mover's own turn produces cards of its own (their corporation's
+    // first action lands in the same window), so `.con-notif` first-match read
+    // a NEUTRAL card about somebody else's corp and reported that the heat
+    // gain «reads as neutral». The witness has to be the card that NAMES this
+    // card — positive, specific, and polled, because the queue presents them
+    // in turn.
+    let told: {sign: string, band: string, head: string, cause: string, modal: boolean} | undefined;
+    let lastDiag = '(none)';
+    await expect.poll(async () => {
+      told = await page.evaluate(() => {
+        const norm = (s: string | null | undefined) => (s ?? '').replace(/\s+/g, ' ').trim();
+        const cards = [...document.querySelectorAll('.con-notif')].map((el) => ({
+          sign: Array.from(el.classList).find((c) => c.startsWith('con-notif--sign-')) ?? '',
+          band: norm((el.querySelector('.con-notif__you') as HTMLElement | null)?.innerText),
+          head: norm((el.querySelector('.con-notif__head') as HTMLElement | null)?.innerText),
+          cause: norm((el.querySelector('.con-notif__why') as HTMLElement | null)?.innerText),
+          // A notification may never capture a screen.
+          modal: document.querySelector('.con-hydro, .con-task') !== null,
+        }));
+        return cards.find((c) => /Социальное отопление/i.test(c.cause + ' ' + c.head + ' ' + c.band));
+      });
+      if (told === undefined) {
+        // A FAILURE HERE MUST NAME THE STAGE THAT SWALLOWED THE CARD. The feed
+        // has four places a model legitimately stops (the atomic PREPARING
+        // gate, the seed's «old news» rule, the feed-mode filter, the
+        // presentation block) and from the outside all four read as «nothing
+        // arrived» — this dump is what turned «the notification is lost» into
+        // «the mover's move was never finished, so its chain was still open».
+        lastDiag = JSON.stringify(await page.evaluate(
+          () => (window as unknown as {__conNotifDiag?: () => unknown}).__conNotifDiag?.() ?? null));
       }
-      const norm = (s: string | null | undefined) => (s ?? '').replace(/\s+/g, ' ').trim();
-      return {
-        sign: Array.from(el.classList).find((c) => c.startsWith('con-notif--sign-')) ?? '',
-        band: norm((el.querySelector('.con-notif__you') as HTMLElement | null)?.innerText),
-        head: norm((el.querySelector('.con-notif__head') as HTMLElement | null)?.innerText),
-        cause: norm((el.querySelector('.con-notif__why') as HTMLElement | null)?.innerText),
-        // A notification may never capture a screen.
-        modal: document.querySelector('.con-hydro, .con-task') !== null,
-      };
-    });
+      return told !== undefined;
+    }, {timeout: 90_000, message: 'no notification card named «Социальное отопление»'}).toBeTruthy()
+      .catch((e: Error) => {
+        throw new Error(`${e.message}
+notification feed: ${lastDiag}`);
+      });
     expect(told, 'no notification card reached the owner').toBeDefined();
     expect(told!.sign, 'the card reads as a POSITIVE change for the viewer').toBe('con-notif--sign-positive');
     expect(told!.band, 'the RESULT leads').toContain('+1');

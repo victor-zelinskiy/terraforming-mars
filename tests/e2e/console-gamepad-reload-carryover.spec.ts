@@ -1,4 +1,5 @@
 import {test, expect, Page} from '@playwright/test';
+import {reloadMenu} from './consoleStart';
 
 /**
  * Regression: a gamepad button STILL HELD across a game-boundary reload
@@ -61,7 +62,7 @@ test('held button across reload does NOT auto-activate the menu; a fresh press d
 
   // 2. Reload with A HELD from the first frame (the carried-over exit-confirm).
   await page.addInitScript(padInit(true));
-  await page.reload();
+  await reloadMenu(page);
   await page.waitForTimeout(2500);
   const afterHeld = await state(page);
   console.log('after reload with A held:', JSON.stringify(afterHeld));

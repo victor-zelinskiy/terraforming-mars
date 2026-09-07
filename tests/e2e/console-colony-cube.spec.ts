@@ -94,7 +94,7 @@ async function key(page: Page, code: string, settleMs = 450): Promise<void> {
  *  driver (the one way console e2e boots — the local wizard walk this spec
  *  used to carry drifted the moment a step's key changed). The driver also
  *  resolves the solo Colonies setup «remove a colony» picks on the way. */
-async function bootToBoard(page: Page, request: APIRequestContext, color: string, profileQuery = ''): Promise<void> {
+async function bootColonyBoard(page: Page, request: APIRequestContext, color: string, profileQuery = ''): Promise<void> {
   await driveToBoard(page, request, {
     config: newGameConfig(color),
     query: profileQuery,
@@ -249,7 +249,7 @@ test.describe('console colonies · premium PlayerCube marker', () => {
 
     test('build hero lands one cube; reopen shows it statically; inspect matches', async ({page, request}) => {
       test.setTimeout(300_000);
-      await bootToBoard(page, request, 'red');
+      await bootColonyBoard(page, request, 'red');
       await startBuildColony(page, 'red1080');
       const testAttr = await buildAndVerify(page, 'red1080');
       // buildAndVerify already proved the RETURN TO PARENT + the static
@@ -279,7 +279,7 @@ test.describe('console colonies · premium PlayerCube marker', () => {
 
     test('green cube lands and seats on the tv profile', async ({page, request}) => {
       test.setTimeout(420_000);
-      await bootToBoard(page, request, 'green');
+      await bootColonyBoard(page, request, 'green');
       await startBuildColony(page, 'green4k');
       await buildAndVerify(page, 'green4k');
     });

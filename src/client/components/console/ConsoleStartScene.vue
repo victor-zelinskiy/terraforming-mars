@@ -4220,20 +4220,19 @@ export default defineComponent({
      * ENTRY — a prelude granted bonus actions and everything it was doing has
      * finished: the briefing stands and announces the hand-off.
      *
-     * `immediate`, like the first-action entry, so a reload that lands mid-
-     * bonus restores through the same one path. It restores to `standing`
-     * rather than to `onboard` on purpose: the consent latch lives in module
-     * state, which survives a COLLAPSE but not a page load, and re-announcing
-     * the trip after a reload is honest — silently dropping the player onto a
-     * board with no explanation is not.
+     * A reload that lands mid-bonus restores through the same one path, and it
+     * restores to `standing` rather than to `onboard` on purpose: the consent
+     * latch lives in module state, which survives a COLLAPSE but not a page
+     * load, and re-announcing the trip after a reload is honest — silently
+     * dropping the player onto a board with no explanation is not.
+     *
+     * ⚠️ Deliberately NOT `immediate` — `mounted()` asks the same question.
+     * See the first-action entry below for the failure this cost.
      */
-    'bonusActionEntryDue': {
-      immediate: true,
-      handler(due: boolean) {
-        if (due) {
-          void this.enterBonusActionStage();
-        }
-      },
+    'bonusActionEntryDue'(due: boolean) {
+      if (due) {
+        void this.enterBonusActionStage();
+      }
     },
     /**
      * EXIT — the last bonus action was spent. The stage closes, the chapter is
@@ -4296,19 +4295,28 @@ export default defineComponent({
     /**
      * ENTRY — the deployment's cards are through and the corporation still
      * owes its opening move: the stage rises (the corp card out of
-     * «Разыграно», the chrome receding behind it). Immediate: a reload that
-     * lands mid-first-action (the wait, or the live prompt) restores the
-     * standing stage through the same one path — the emerge simply plays on
-     * the freshly mounted dock, so the restore is physical too, never a
-     * re-run of anything committed.
+     * «Разыграно», the chrome receding behind it). A reload that lands
+     * mid-first-action (the wait, or the live prompt) restores the standing
+     * stage through the same one path — the emerge simply plays on the freshly
+     * mounted dock, so the restore is physical too, never a re-run of anything
+     * committed.
+     *
+     * ⚠️⚠️ THIS WATCHER MAY NOT BE `immediate`, and it WAS. The very case the
+     * `immediate` was added for — a page opened with the prompt already live —
+     * is the case where the initial truth is TRUE, so the handler ran during
+     * `created`: no `$el`, no played shelf to fly out of, no seat to fly into.
+     * `runEmbedSourceEmerge` threw on the null root, the async entry rejected
+     * between `stage = 'staging'` and `stage = 'standing'`, and the workspace
+     * then stood on its «ПЕРВОЕ ДЕЙСТВИЕ» stage with an EMPTY BODY for the
+     * rest of the session — the panel refuses to paint over an unseated corp
+     * and the seat-missing self-heal only triggers from `standing`. The mount
+     * edge is asked from `mounted()`, the one moment the answer can be acted
+     * on (the same law the bonus-gain wave already documents below).
      */
-    'firstActionEntryDue': {
-      immediate: true,
-      handler(due: boolean) {
-        if (due) {
-          void this.enterFirstActionStage();
-        }
-      },
+    'firstActionEntryDue'(due: boolean) {
+      if (due) {
+        void this.enterFirstActionStage();
+      }
     },
     /**
      * EXIT — the action's whole causal chain resolved (ledger drained, every
@@ -4477,6 +4485,68 @@ export default defineComponent({
     },
   },
   mounted() {
+    // READ-ONLY e2e/diagnostics probe (the `__conColonyDiag` idiom): the
+    // start flow's two conditional stages — the corporation's mandatory FIRST
+    // ACTION and the bonus-action WINDOW — in one snapshot, with the ENTRY
+    // PREDICATE BROKEN DOWN INTO ITS TERMS.
+    //
+    // Why a probe and not a nicer failure message: both stages are entered by
+    // a watcher on a conjunction of a dozen live facts, and every one of them
+    // reads «the stage never stood» from the outside. A spec that times out on
+    // `.con-start__firstact` used to report the SYMPTOM and cost a bisect to
+    // turn into a cause; dumping this names the false term instead. Never used
+    // by product code.
+    (window as unknown as Record<string, unknown>).__conStartDiag = () => ({
+      mode: this.mode,
+      flow: this.state.flow,
+      ceremonyRevealed: this.ceremonyRevealed,
+      firstAct: {
+        stage: this.state.firstAct.stage,
+        corp: this.state.firstAct.corp ?? null,
+        submitting: this.state.firstAct.submitting,
+        panelShown: this.firstActionPanelShown,
+        seatMissing: this.firstActionSeatMissing,
+        entryDue: this.firstActionEntryDue,
+        owedNow: this.firstActionOwedNow,
+        corpNow: this.firstActionCorpNow ?? null,
+        nested: this.firstActionNested,
+        actionableNow: this.firstActionActionableNow,
+      },
+      bonusAct: {
+        stage: this.state.bonusAct.stage,
+        entryDue: this.bonusActionEntryDue,
+        windowDue: this.bonusWindowDue,
+        owedNow: this.bonusActionOwedNow,
+        panelShown: this.bonusActionPanelShown,
+      },
+      seat: {
+        shown: this.embedSourceShown ?? null,
+        incoming: this.embedSourceIncoming ?? null,
+        presenting: this.embedPresenting,
+        active: this.embedActive,
+      },
+      // The BLOCKERS, in the order the entry predicate reads them — the first
+      // `true` here is the answer to «why is the stage not standing».
+      blockers: {
+        otherPromptStands: startFlowOtherPromptStands(this.playerView),
+        preludePrompt: startFlowPreludePrompt(this.playerView) !== undefined,
+        yielded: this.yielded,
+        nestedFrame: workspaceFrameHasNested('start'),
+        sponsorPending: this.sponsorPending,
+        effectReturnPending: this.effectReturnPending,
+        corpPlayPrompt: this.corpPlayPrompt !== undefined,
+        corpPayCost: this.corpPayCost !== undefined,
+        candidatePrompt: this.candidatePrompt !== undefined,
+        wizardInput: this.wizardInput !== undefined,
+        heroActive: this.heroState.active,
+        revealEvent: currentRevealEvent() !== undefined,
+        handDelivery: isHandDeliveryActive(),
+        deckDrawHolds: deckDrawHolds(),
+        queueCards: this.queueCards.map((entry) => `${entry.kind}:${entry.name}`),
+        queueArriving: this.queueArriving.size,
+        payProjects: this.payProjects.length,
+      },
+    });
     // Campaign mode: the corporation stage relabels — «Штаб» for the final
     // mission's no-pick deployment of the accumulated trio. Missions 2–3 keep
     // «Корпорация» for the lineage base: the MERGE is its own deployment
@@ -4511,6 +4581,20 @@ export default defineComponent({
         this.poseRoomReceded();
       }
     }
+    // …AND A STAGE THAT IS DUE ON THIS VERY MOUNT ENTERS HERE. Both entry
+    // watchers are deliberately not `immediate` (an immediate handler runs
+    // during `created`, before there is any DOM to fly out of — see their
+    // doc-comments), so the INITIAL truth is the mount's to act on: a page
+    // opened straight onto the corporation's mandatory first action, or onto a
+    // prelude's bonus window, is exactly that case. A watcher cannot fire on
+    // `true → true`, so without this the stage would never rise at all.
+    void this.$nextTick(() => {
+      if (this.firstActionEntryDue) {
+        void this.enterFirstActionStage();
+      } else if (this.bonusActionEntryDue) {
+        void this.enterBonusActionStage();
+      }
+    });
     void this.$nextTick(() => {
       this.fitCardStrip();
       this.syncCeremonyLayout();
@@ -4530,6 +4614,7 @@ export default defineComponent({
     }).stop;
   },
   beforeUnmount() {
+    delete (window as unknown as Record<string, unknown>).__conStartDiag;
     // The hold gate is MODULE state — it must not outlive the surface that
     // armed it (a live hold with nothing on screen would complete into a
     // component that no longer exists).
@@ -4723,22 +4808,43 @@ export default defineComponent({
     activeStrip(): HTMLElement | undefined {
       return this.stripEls[this.railPos];
     },
+    /**
+     * THIS MOUNT'S ROOT ELEMENT — or `undefined` when there is none to query.
+     *
+     * ⚠️ `$el` IS `null`, NOT `undefined`, WHENEVER THERE IS NO DOM: before
+     * `mounted()`, and for a render whose root is a comment placeholder. Every
+     * reader in this file used to spell the guard as
+     * `root === undefined || typeof root.querySelector !== 'function'`, which
+     * looks defensive and is not: `null === undefined` is FALSE, so the guard
+     * falls through to `typeof null.querySelector` and THROWS.
+     *
+     * That is not theoretical. An `immediate` entry watcher runs during
+     * `created`, so a reload landing on the corporation's mandatory first
+     * action threw here inside `runEmbedSourceEmerge`; the async entry
+     * rejected mid-way, `firstAct.stage` stayed `'staging'` forever, and the
+     * workspace painted its «ПЕРВОЕ ДЕЙСТВИЕ» stage with an EMPTY BODY and no
+     * way forward. One reader, one guard, so the trap cannot be re-authored.
+     */
+    sceneRoot(): HTMLElement | undefined {
+      const el = this.$el as HTMLElement | null | undefined;
+      return el === null || el === undefined || typeof el.querySelector !== 'function' ? undefined : el;
+    },
     /** Is `name` picked on step `st` (parked panes render every step). */
     stepPicked(st: StartWizardStep, name: CardName): boolean {
       return picksForStep(this.picks, st.id).includes(name);
     },
     /** The dock pile element for a step. */
     pileElFor(id: string): HTMLElement | null {
-      const root = this.$el as HTMLElement | undefined;
-      if (root === undefined || typeof root.querySelector !== 'function') {
+      const root = this.sceneRoot();
+      if (root === undefined) {
         return null;
       }
       return root.querySelector<HTMLElement>(`[data-start-pile="${id}"] .con-startdock__stack`);
     },
     /** The parked slot of a step's card (whether or not its pane is active). */
     stepSlotEl(stepId: string, name: CardName): HTMLElement | null {
-      const root = this.$el as HTMLElement | undefined;
-      if (root === undefined || typeof root.querySelector !== 'function') {
+      const root = this.sceneRoot();
+      if (root === undefined) {
         return null;
       }
       const esc = typeof CSS !== 'undefined' && typeof CSS.escape === 'function' ? CSS.escape(`${stepId}|${name}`) : `${stepId}|${name}`;
@@ -5106,8 +5212,8 @@ export default defineComponent({
       }
     },
     summaryTileFor(name: CardName): HTMLElement | null {
-      const root = this.$el as HTMLElement | undefined;
-      if (root === undefined || typeof root.querySelector !== 'function') {
+      const root = this.sceneRoot();
+      if (root === undefined) {
         return null;
       }
       const esc = typeof CSS !== 'undefined' && typeof CSS.escape === 'function' ? CSS.escape(name) : name;
@@ -5429,7 +5535,7 @@ export default defineComponent({
         return; // torn down mid-beat (mode flip / unmount)
       }
       const names = this.legacyOverviewCards.map((c) => c.name);
-      const root = this.$el as HTMLElement | undefined;
+      const root = this.sceneRoot();
       const pairs = names
         .map((n) => ({
           name: n,
@@ -5471,7 +5577,7 @@ export default defineComponent({
         return;
       }
       const names = this.legacyOverviewCards.map((c) => c.name);
-      const root = this.$el as HTMLElement | undefined;
+      const root = this.sceneRoot();
       const tileOf = (n: CardName) => root?.querySelector<HTMLElement>(`[data-legacy-dock="${n}"]`) ?? null;
       const sources: Array<DockFlightSource> = [];
       for (const n of names) {
@@ -5666,7 +5772,7 @@ export default defineComponent({
           openConsoleCardZoom([{name: seated} as CardModel], 0, undefined, undefined, {
             origin: {
               kind: 'physical',
-              resolve: () => (this.$el as HTMLElement | undefined)?.querySelector<HTMLElement>('[data-embed-source-slot]') ?? null,
+              resolve: () => this.sceneRoot()?.querySelector<HTMLElement>('[data-embed-source-slot]') ?? null,
             },
           });
         }
@@ -5726,8 +5832,8 @@ export default defineComponent({
     /** The summary's mini tiles, in DOM order (= summaryCards order: corp →
      *  preludes → CEO → projects), for the 2D spatial navigation. */
     summaryTileEls(): Array<HTMLElement> {
-      const root = this.$el as HTMLElement | undefined;
-      if (root === undefined || typeof root.querySelectorAll !== 'function') {
+      const root = this.sceneRoot();
+      if (root === undefined) {
         return [];
       }
       return Array.from(root.querySelectorAll<HTMLElement>('.con-start__mini'));
@@ -5796,8 +5902,8 @@ export default defineComponent({
      */
     /** The queue / purchase-row slot a start card lands into. */
     queueTargetEl(name: CardName): HTMLElement | null {
-      const root = this.$el as HTMLElement | undefined;
-      if (root === undefined || typeof root.querySelector !== 'function') {
+      const root = this.sceneRoot();
+      if (root === undefined) {
         return null;
       }
       const esc = typeof CSS !== 'undefined' && typeof CSS.escape === 'function' ? CSS.escape(name) : name;
@@ -5878,9 +5984,8 @@ export default defineComponent({
         return;
       }
       const host = this.$refs.freezeHost as HTMLElement | undefined;
-      const root = this.$el as HTMLElement | undefined;
-      const frame = root !== undefined && typeof root.querySelector === 'function' ?
-        root.querySelector<HTMLElement>('.con-start__frame') : null;
+      const root = this.sceneRoot();
+      const frame = root?.querySelector<HTMLElement>('.con-start__frame') ?? null;
       if (host === undefined || host === null || frame === null) {
         return;
       }
@@ -6105,7 +6210,7 @@ export default defineComponent({
       this.flowTerminal = false;
       this.state.flow = 'completing';
       await this.$nextTick();
-      const el = this.$el as HTMLElement | undefined;
+      const el = this.sceneRoot();
       if (el === undefined || !el.isConnected) {
         return;
       }
@@ -6636,8 +6741,8 @@ export default defineComponent({
     },
     /** The live slot for a card on this scene (data-zoom-slot marker). */
     exitSlotFor(name: string): HTMLElement | null {
-      const root = this.$el as HTMLElement | undefined;
-      if (root === undefined || typeof root.querySelector !== 'function') {
+      const root = this.sceneRoot();
+      if (root === undefined) {
         return null;
       }
       const esc = typeof CSS !== 'undefined' && typeof CSS.escape === 'function' ? CSS.escape(name) : name.replace(/"/g, '\\"');
@@ -6874,8 +6979,8 @@ export default defineComponent({
       if (source === '' || this.embedSourceShown !== undefined || this.embedSourceIncoming !== undefined) {
         return;
       }
-      const root = this.$el as HTMLElement | undefined;
-      if (root === undefined || typeof root.querySelector !== 'function') {
+      const root = this.sceneRoot();
+      if (root === undefined) {
         this.embedSourceShown = source;
         this.embedSourceLanded = true;
         return;
@@ -7101,8 +7206,7 @@ export default defineComponent({
         this.embedSourceDeparting = false;
         return;
       }
-      const root = this.$el as HTMLElement | undefined;
-      const q = root !== undefined && typeof root.querySelector === 'function' ? root : undefined;
+      const q = this.sceneRoot();
       const esc = typeof CSS !== 'undefined' && typeof CSS.escape === 'function' ? CSS.escape(source) : source;
       const colSlot = q?.querySelector<HTMLElement>('[data-embed-source-slot]') ?? null;
       // ⚠️ AIM AT THE SLOT, NEVER AT THE FACE INSIDE IT.
@@ -7362,7 +7466,7 @@ export default defineComponent({
     },
     /** The pressed row's centre — the chip's birth point (see `claimStageGain`). */
     gainRowPoint(gain: BonusGainRow): {x: number, y: number} | undefined {
-      const el = (this.$el as HTMLElement | undefined)
+      const el = this.sceneRoot()
         ?.querySelector<HTMLElement>(`.con-start__gainrow[data-gain-row="${gain.resource}"]`);
       const r = el?.getBoundingClientRect();
       if (r === undefined || r.width <= 0) {

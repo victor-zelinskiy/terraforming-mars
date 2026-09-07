@@ -1,9 +1,7 @@
 import {test, expect, Page, APIRequestContext} from '@playwright/test';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
-import {NO_PAYMENT, CORP_WITH_FIRST_ACTION, fetchPlayerModel, openConsole, press,
-  seedGameOverApi, sendPlayerInput, soloGameConfig, waitForBoardHome,
-} from './consoleStart';
+import {CORP_WITH_FIRST_ACTION, fetchPlayerModel, NO_PAYMENT, openConsole, press, reloadConsole, seedGameOverApi, sendPlayerInput, soloGameConfig, waitForBoardHome} from './consoleStart';
 import {isActionMenuTitle} from '../../src/common/inputs/actionMenuTitles';
 
 /**
@@ -663,7 +661,7 @@ test.describe('console strategy rail · state matrix (4K TV)', () => {
       await passGeneration(request, pid);
       return false;
     });
-    await page.reload();
+    await reloadConsole(page);
     await page.waitForSelector('.con-strat', {timeout: 45_000});
     await page.waitForSelector('.boot-loader', {state: 'detached', timeout: 90_000});
     await waitToastQuiet(page);
@@ -761,7 +759,7 @@ test.describe('console strategy rail · state matrix (4K TV)', () => {
       return false;
     });
     await drainNonMenu(request, [p1, p2, p3]);
-    await page.reload();
+    await reloadConsole(page);
     await page.waitForSelector('.con-strat', {timeout: 45_000});
     await page.waitForSelector('.boot-loader', {state: 'detached', timeout: 90_000});
     // RELOAD lands STRAIGHT in compact — no morph replay, no seal beat,

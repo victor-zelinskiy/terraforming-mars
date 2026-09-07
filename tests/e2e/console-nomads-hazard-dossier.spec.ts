@@ -1,7 +1,7 @@
 import {test, expect, Page, APIRequestContext} from '@playwright/test';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
-import {bootIntoGame, forceSwiftPlacement, press, soloGameConfig} from './consoleStart';
+import {bootIntoGame, focusedSpaceId, forceSwiftPlacement, press, soloGameConfig} from './consoleStart';
 import {HAZARD_TILES} from '@/common/TileType';
 
 /**
@@ -30,10 +30,6 @@ async function shoot(page: Page, name: string): Promise<void> {
   await page.screenshot({path: path.join(OUT_DIR, `${name}.png`)});
 }
 
-async function focusedSpaceId(page: Page): Promise<string> {
-  return page.evaluate(() =>
-    document.querySelector('.con-cell-sel')?.getAttribute('data_space_id') ?? '');
-}
 
 /** The server's own view of the hazard cells (never a pixel guess). */
 async function hazardCells(request: APIRequestContext, playerId: string): Promise<Array<string>> {

@@ -97,7 +97,7 @@ async function shoot(page: Page, name: string): Promise<void> {
   await page.screenshot({path: path.join(OUT_DIR, `${name}.png`)});
 }
 
-async function openConsole(page: Page, request: APIRequestContext, corps: ReadonlyArray<string>): Promise<void> {
+async function createAndOpenConsole(page: Page, request: APIRequestContext, corps: ReadonlyArray<string>): Promise<void> {
   const created = await request.post('/api/creategame', {data: newGameConfig(corps)});
   expect(created.ok(), `create-game failed: ${created.status()}`).toBeTruthy();
   const model = await created.json() as {players: Array<{id: string}>};
@@ -179,7 +179,7 @@ test.describe('a play\'s DRAW presents inside the workspace the play was made in
    * to the release.
    */
   test('the start workspace hosts a TRIGGERED draw (Point Luna), never a fullscreen viewer', async ({page, request}) => {
-    await openConsole(page, request, ['Point Luna', 'CrediCor']);
+    await createAndOpenConsole(page, request, ['Point Luna', 'CrediCor']);
     await runWizard(page, 'Point Luna');
 
     const log = {
@@ -257,7 +257,7 @@ test.describe('a play\'s DRAW presents inside the workspace the play was made in
    * THE HAND WORKSPACE — «КАРТЫ В РУКЕ › ЛАГРАНЖЕВА ОБСЕРВАТОРИЯ › ДОБОР КАРТ».
    */
   test('the hand workspace holds its play\'s drawn card and leaves only once it is taken', async ({page, request}) => {
-    await openConsole(page, request, ['CrediCor']);
+    await createAndOpenConsole(page, request, ['CrediCor']);
     await runWizard(page, 'CrediCor', [DRAW_CARD, ...FILLER]);
     // The deployment plays the corporation on its own (CrediCor draws nothing);
     // press A through whatever CTA stands until the workspace releases.

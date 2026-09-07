@@ -1,5 +1,5 @@
 import {test, expect, Page, APIRequestContext} from '@playwright/test';
-import {bootSeededGame} from './consoleStart';
+import {bootSeededGame, reloadConsole} from './consoleStart';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
 
@@ -158,7 +158,7 @@ test('one resource is a RADIO — A places and takes back, X commits, no stock c
 
   await bootSeededGame(page, request, await createGame(request), {buy: 2});
   const captured = await injectPhilaresPrompt(page, 1);
-  await page.reload();
+  await reloadConsole(page);
   await page.waitForSelector('.con-task', {state: 'visible', timeout: 40_000});
   await page.waitForTimeout(1200);
   await shoot(page, '1-radio-open');
@@ -210,7 +210,7 @@ test('a real budget keeps the dials — and an EMPTY pool still takes both units
 
   await bootSeededGame(page, request, await createGame(request), {buy: 2});
   await injectPhilaresPrompt(page, 2);
-  await page.reload();
+  await reloadConsole(page);
   await page.waitForSelector('.con-task', {state: 'visible', timeout: 40_000});
   await page.waitForTimeout(1200);
   await shoot(page, '4-dials-open');

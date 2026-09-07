@@ -1,7 +1,7 @@
 import {test, expect, Page} from '@playwright/test';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
-import {bootIntoGame, soloGameConfig} from './consoleStart';
+import {bootIntoGame, placeTile, soloGameConfig} from './consoleStart';
 
 /**
  * Console-native · the corporation's MANDATORY FIRST ACTION — the Game Start
@@ -180,15 +180,13 @@ test.describe('console corp first action — the start workspace stage', () => {
     //    the workspace must not reappear while the placement's chain (the
     //    tile's commit flight, the reward beat, any follow-up) is running —
     //    it returns exactly once, onto a settled frame.
-    for (let i = 0; i < 24; i++) {
-      await key(page, 'Enter', 500);
-      // Bounded read (see the note above): once the placement resolves the
-      // panel UNMOUNTS, and an unbounded innerText would hang the test here.
-      if ((await page.locator('.con-context').innerText({timeout: 1500}).catch(() => '')).includes('РАЗМЕЩЕНИЕ ТАЙЛА') === false) {
-        break;
-      }
-      await key(page, 'ArrowRight', 260);
-    }
+    // …through the SHARED primitive, never a hand-rolled key loop. Placement
+    // is TWO-PHASE (A locks the cell, a SECOND A past the dwell commits) and a
+    // d-pad step UNLOCKS and moves in one press — so the obvious
+    // «Enter, check, ArrowRight» rotation that used to stand here could never
+    // commit anything: it re-locked and un-locked the same cell 24 times and
+    // then reported that the workspace «never came back».
+    expect(await placeTile(page), 'the city placement never resolved').toBeTruthy();
     let midChainFlash = false;
     let returned = false;
     for (let i = 0; i < 80 && !returned; i++) {

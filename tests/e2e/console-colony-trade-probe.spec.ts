@@ -1,7 +1,7 @@
 import {test, expect, Page, APIRequestContext} from '@playwright/test';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
-import {bootSeededGame, openMandatoryAnnounce} from './consoleStart';
+import {bootSeededGame, openMandatoryAnnounce, reloadConsole} from './consoleStart';
 
 /**
  * COLONY-TRADE REWARD PROBE — drives a REAL game (colonies on, Pluto
@@ -381,7 +381,7 @@ test('visual: a merged trade batch renders the labelled colony-bonus zone', asyn
     await route.fulfill({response, json: body});
   });
 
-  await page.reload();
+  await reloadConsole(page);
   await page.waitForSelector('.con-root', {timeout: 45_000});
   await page.waitForSelector('.boot-loader', {state: 'detached', timeout: 60_000}).catch(() => {});
   // A `colonyBonus` collect is INTERRUPTIVE, and interruptive prompts are

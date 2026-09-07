@@ -1,5 +1,5 @@
 import {test, expect, Page, APIRequestContext} from '@playwright/test';
-import {bootSeededGame} from './consoleStart';
+import {bootSeededGame, reloadConsole} from './consoleStart';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
 
@@ -252,7 +252,7 @@ async function runDiscardFlow(
   await bootSeededGame(page, request, await createGame(request), {buy: 2});
 
   await injectMarsUniversityDiscard(page, count);
-  await page.reload();
+  await reloadConsole(page);
   // The optional decision is served by the EFFECT DECISION screen (this shape
   // is a marked `choiceContext` prompt) — the discard is one branch of it.
   await page.waitForSelector('.con-decision', {state: 'visible', timeout: 40_000});

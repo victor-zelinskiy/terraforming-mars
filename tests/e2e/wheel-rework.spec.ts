@@ -88,7 +88,7 @@ async function openWheel(page: Page, code: 'Comma' | 'Period'): Promise<void> {
  * `GamepadGlyph control="confirm"`, and `ConsoleShell.vue:6235` acknowledges
  * the beat on `primary`).
  */
-async function bootToBoard(page: Page, request: APIRequestContext, extraQuery = ''): Promise<void> {
+async function bootWheelBoard(page: Page, request: APIRequestContext, extraQuery = ''): Promise<void> {
   // UNMI by NAME: `customCorporationsList` only guarantees it is IN the deal
   // (testMode deals eight), and UNMI is on the seeder's avoid-list — without
   // this the wheel would be exercised on some other corporation entirely.
@@ -104,7 +104,7 @@ test.describe('quick-wheel rework', () => {
 
   test('press→release, flights, trading rename, conversions', async ({page, request}) => {
     test.setTimeout(420_000);
-    await bootToBoard(page, request);
+    await bootWheelBoard(page, request);
 
     // ── 1 · RT wheel: static premium look ────────────────────────────
     await openWheel(page, 'Period');
@@ -294,7 +294,7 @@ test.describe('quick-wheel rework', () => {
 
   test('FOCUS & CONFIRM: home focus, navigation-only directions, universal A', async ({page, request}) => {
     test.setTimeout(420_000);
-    await bootToBoard(page, request, '&wheelControl=focus-confirm');
+    await bootWheelBoard(page, request, '&wheelControl=focus-confirm');
 
     const focusedCenter = page.locator('.con-quick__slot--center.con-quick__slot--focus');
 

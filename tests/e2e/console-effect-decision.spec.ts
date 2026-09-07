@@ -1,5 +1,5 @@
 import {test, expect, Page, APIRequestContext} from '@playwright/test';
-import {bootSeededGame} from './consoleStart';
+import {bootSeededGame, reloadConsole} from './consoleStart';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
 
@@ -148,7 +148,7 @@ test('an effect that opens the hand: a real question, then the REAL overlay', as
       {type: 'option', title: 'Do nothing', buttonLabel: 'Confirm', metadata: {kind: 'skip'}},
     ],
   }));
-  await page.reload();
+  await reloadConsole(page);
   await page.waitForSelector('.con-decision', {state: 'visible', timeout: 40_000});
   await page.waitForTimeout(1200);
   await shoot(page, '1-decision-hand');
@@ -216,7 +216,7 @@ test('a paid effect: the price and the result are shown BEFORE it is spent', asy
       {type: 'option', title: 'Do not buy a card', buttonLabel: 'Confirm', metadata: {kind: 'skip'}},
     ],
   }));
-  await page.reload();
+  await reloadConsole(page);
   await page.waitForSelector('.con-decision', {state: 'visible', timeout: 40_000});
   await page.waitForTimeout(1200);
   await shoot(page, '4-decision-buy');

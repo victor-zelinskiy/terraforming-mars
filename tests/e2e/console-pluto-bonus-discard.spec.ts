@@ -1,7 +1,7 @@
 import {test, expect, Page, APIRequestContext} from '@playwright/test';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
-import {bootToBoard, fillPicks, openMandatoryAnnounce, press} from './consoleStart';
+import {bootToBoard, fillPicks, openMandatoryAnnounce, press, reloadConsole} from './consoleStart';
 
 /**
  * PLUTO'S PAYOUT CLOSES INSIDE THE REVEAL MODAL — ONE COLONY AT A TIME.
@@ -162,7 +162,7 @@ test('the merged payout closes with its MANDATORY discard step', async ({page, r
 
   // NOW the payout can arrive: a real hand, a real dock, no wizard in the way.
   await injectPayout(page, 3);
-  await page.reload();
+  await reloadConsole(page);
   // A `colonyBonus` collect is an INTERRUPTIVE prompt, and those are ANNOUNCED,
   // not auto-opened (`consoleMandatoryGate.ts`): the board home shows «БОНУС
   // КОЛОНИИ · Ⓐ Открыть» and the payout mounts on the press. Waiting for the

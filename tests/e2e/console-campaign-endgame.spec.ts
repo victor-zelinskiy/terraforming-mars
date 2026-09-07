@@ -1,4 +1,5 @@
 import {expect, test} from '@playwright/test';
+import {reloadConsole} from './consoleStart';
 import {
   createCampaign, devCommit, launchMission, campaignModelAs,
 } from './campaignFixtures';
@@ -108,7 +109,7 @@ test.describe('campaign finale — the champion ceremony', () => {
     15_000, 'back to the settled results');
 
     // ── reload lands SETTLED — the ceremony never replays uninvited ────────
-    await page.reload();
+    await reloadConsole(page);
     await waitWithFrames(page, async () =>
       (await page.locator('.con-eg__actions').count()) > 0,
     90_000, 'the settled state after reload');

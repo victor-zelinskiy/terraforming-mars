@@ -1,7 +1,7 @@
 import {test, expect, Page, APIRequestContext} from '@playwright/test';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
-import {bootSeededGame, openMandatoryAnnounce, soloGameConfig} from './consoleStart';
+import {bootSeededGame, openMandatoryAnnounce, reloadConsole, soloGameConfig} from './consoleStart';
 
 /**
  * TWO COLONIES ON PLUTO — ONE CYCLE EACH, EACH ARRIVING EXACTLY ONCE.
@@ -189,7 +189,7 @@ test('two Pluto cubes: two batches, each card dealt exactly once', async ({page,
     });
   });
 
-  await page.reload();
+  await reloadConsole(page);
   // ARMED FOR THE RESOLUTION WINDOW ONLY — the pregame's own deal is neither
   // the subject nor free to record.
   await installDealProbe(page);

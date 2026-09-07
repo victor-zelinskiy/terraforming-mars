@@ -1,4 +1,5 @@
 import {test, expect, Page} from '@playwright/test';
+import {reloadMenu} from './consoleStart';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
 
@@ -105,7 +106,7 @@ test.describe('console profiles roster', () => {
     await shoot(page, '08-menu-active-dan');
 
     // Persistence: reload (the init script won't re-seed since the key exists).
-    await page.reload();
+    await reloadMenu(page);
     await page.waitForSelector('.cm-menu', {timeout: 45_000});
     await page.waitForTimeout(800);
     await expect(page.locator('.cm-identity__name')).toHaveText('dan');

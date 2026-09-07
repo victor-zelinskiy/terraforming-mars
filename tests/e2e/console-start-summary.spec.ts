@@ -90,7 +90,7 @@ function newGameConfig(twoHumans = false) {
  * pane is a PARKED `v-show` layer, so visibility (never count) is the
  * arrival signal.
  */
-async function walkToSummary(page: Page): Promise<void> {
+async function walkToSummaryHere(page: Page): Promise<void> {
   await page.waitForSelector('.con-start__frame', {timeout: 45_000});
   await page.waitForSelector('.con-load', {state: 'detached'}).catch(() => {});
   const summary = page.locator('.con-start > .con-start__frame .con-start__summary');
@@ -147,7 +147,7 @@ test.describe('console start scene · the summary launch', () => {
     const model = await created.json() as {players: Array<{id: string}>};
 
     await page.goto(`/player?id=${model.players[0].id}&console=1`);
-    await walkToSummary(page);
+    await walkToSummaryHere(page);
     const summary = page.locator('.con-start > .con-start__frame .con-start__summary');
     await shoot(page, '01-summary');
 
@@ -211,7 +211,7 @@ test.describe('console start scene · the summary launch', () => {
     const anna = model.players.find((p) => p.name === 'Anna')!;
 
     await page.goto(`/player?id=${victor.id}&console=1`);
-    await walkToSummary(page);
+    await walkToSummaryHere(page);
 
     // Anna has not picked → the rail waits on her by name, and says so.
     const wait = page.locator('.con-start__wait');
@@ -231,7 +231,7 @@ test.describe('console start scene · the summary launch', () => {
     // refreshed by this (he is mid-prompt) — only the poll can carry it.
     const annaPage = await (await browser.newContext()).newPage();
     await annaPage.goto(`/player?id=${anna.id}&console=1`);
-    await walkToSummary(annaPage);
+    await walkToSummaryHere(annaPage);
     // Press-verify-retry (see test 1): a press absorbed by the reveal
     // convoy's flow gate is pressed again, exactly like a real player.
     for (let i = 0; i < 5 && (await annaPage.locator('.con-start__skipwarn').count()) === 0; i++) {

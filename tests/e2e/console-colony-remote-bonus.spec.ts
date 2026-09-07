@@ -1,7 +1,7 @@
 import {test, expect, Page, APIRequestContext, Route} from '@playwright/test';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
-import {bootToBoard, fillPicks, openMandatoryAnnounce, press} from './consoleStart';
+import {bootToBoard, fillPicks, openMandatoryAnnounce, press, reloadConsole} from './consoleStart';
 
 /**
  * SOMEBODY ELSE TRADED ON MY COLONY — the whole leg, to its END.
@@ -398,7 +398,7 @@ test('a FOREIGN trade pays this colony: the bonus composition, and an ending', a
   await page.waitForTimeout(1500);
 
   const sequence = await installSequence(page);
-  await page.reload();
+  await reloadConsole(page);
   // A remote colony bonus is ANNOUNCED, never auto-opened.
   expect(await openMandatoryAnnounce(page), 'the colony bonus was not announced').toBeTruthy();
   await page.waitForSelector('.con-colfocus', {timeout: 30_000});
@@ -506,7 +506,7 @@ for (const profile of FIT_PROFILES) {
       await page.waitForTimeout(1500);
 
       await installMerged(page);
-      await page.reload();
+      await reloadConsole(page);
       expect(await openMandatoryAnnounce(page), 'the colony bonus was not announced').toBeTruthy();
       await page.waitForSelector('.con-reveal__bonus-zone', {state: 'visible', timeout: 40_000});
       await page.waitForTimeout(3200); // the arrival + the fit's own settle pass

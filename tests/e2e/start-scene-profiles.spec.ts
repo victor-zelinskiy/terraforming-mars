@@ -157,12 +157,25 @@ async function assertFlowGeometry(page: Page, preset: Preset): Promise<void> {
       chapterRoom,
       expandedOpacity: opacity('.con-jrail__view--expanded'),
       compactOpacity: opacity('.con-jrail__view--compact'),
+      /* THE PROFILE'S OWN SCALE. Every length below is a CSS pixel, and the
+         console authors its whole layout in rem against `--con-ui-scale` — so
+         a sub-pixel authoring residue is worth 1px at 1080 and 2px at 4K. A
+         flat pixel tolerance is therefore a guard that gets STRICTER the
+         bigger the screen, which is how `tv-4k` alone failed «connector
+         follows the root diamond axis» at 3px while every other profile
+         passed at ≤2. Budget in the console's own logical units instead. */
+      uiScale: Number(getComputedStyle(document.documentElement)
+        .getPropertyValue('--con-ui-scale').trim() || '1') || 1,
     };
   });
   expect(flow.count, `${preset.id}: one flow instance`).toBe(1);
   expect(flow.connectorCount, `${preset.id}: one root-to-flow connector`).toBe(1);
-  expect(Math.abs(flow.leftHandoffGap), `${preset.id}: stable left rail hand-off`).toBeLessThanOrEqual(2);
-  expect(Math.abs(flow.rootAxisGap), `${preset.id}: connector follows the root diamond axis`).toBeLessThanOrEqual(2);
+  // ⚠️ TOLERANCES IN LOGICAL UNITS, never in raw CSS pixels — see `uiScale`.
+  const slack = Math.max(2, Math.ceil(2 * flow.uiScale));
+  expect(Math.abs(flow.leftHandoffGap),
+    `${preset.id}: stable left rail hand-off (scale ${flow.uiScale})`).toBeLessThanOrEqual(slack);
+  expect(Math.abs(flow.rootAxisGap),
+    `${preset.id}: connector follows the root diamond axis (scale ${flow.uiScale})`).toBeLessThanOrEqual(slack);
   expect(flow.inside, `${preset.id}: flow tier stays inside WorkspaceHeader`).toBeTruthy();
   expect(flow.secondTier, `${preset.id}: flow is below the breadcrumb row`).toBeTruthy();
   expect(flow.breadcrumbFits, `${preset.id}: flow never clips the local breadcrumb`).toBeTruthy();

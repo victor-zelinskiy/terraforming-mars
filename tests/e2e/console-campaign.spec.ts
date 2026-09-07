@@ -1,5 +1,5 @@
 import {expect, test} from '@playwright/test';
-import {press} from './consoleStart';
+import {press, reloadMenu} from './consoleStart';
 import {campaignModelAs, createCampaign, devCommit, launchMission, openMapAs, CAMPAIGN_BASE as BASE} from './campaignFixtures';
 
 /**
@@ -92,7 +92,7 @@ test.describe('campaign map', () => {
     await devCommit(request, id, [0, 1]);
     await devCommit(request, id, [0, 1]);
     await devCommit(request, id, [1, 0]);
-    await page.reload();
+    await reloadMenu(page);
     await page.waitForSelector('.cmap--chronicle', {timeout: 20_000});
     await expect(page.locator('.cmap__seat-crown')).toBeVisible();
     await expect(page.locator('.cmap__card--done')).toHaveCount(4);

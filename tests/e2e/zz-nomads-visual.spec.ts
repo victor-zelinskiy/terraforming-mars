@@ -1,7 +1,7 @@
 import {test, expect, Page, APIRequestContext} from '@playwright/test';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
-import {bootIntoGame, forceSwiftPlacement, press, soloGameConfig} from './consoleStart';
+import {bootIntoGame, focusedSpaceId, forceSwiftPlacement, press, soloGameConfig} from './consoleStart';
 import {TileType} from '@/common/TileType';
 
 /**
@@ -153,10 +153,6 @@ async function readProbe(page: Page): Promise<NomadProbe> {
   return page.evaluate(() => (window as unknown as {__nomadProbe: NomadProbe}).__nomadProbe);
 }
 
-async function focusedSpaceId(page: Page): Promise<string> {
-  return page.evaluate(() =>
-    document.querySelector('.con-cell-sel')?.getAttribute('data_space_id') ?? '');
-}
 
 /** Walk the board cursor onto a legal cell — preferring one WITH printed
  *  bonuses when any is reachable. Returns the chosen cell id. */

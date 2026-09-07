@@ -1,9 +1,7 @@
 import {test, expect, Page, APIRequestContext} from '@playwright/test';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
-import {NO_PAYMENT, bootIntoGame, fetchPlayerModel, press, sendPlayerInput, soloGameConfig,
-  waitForBoardHome,
-} from './consoleStart';
+import {bootIntoGame, fetchPlayerModel, NO_PAYMENT, press, reloadConsole, sendPlayerInput, soloGameConfig, waitForBoardHome} from './consoleStart';
 import {isActionMenuTitle} from '../../src/common/inputs/actionMenuTitles';
 
 /**
@@ -204,7 +202,7 @@ test.describe('console MA workspace · browse state matrix (4K TV)', () => {
     await stdProject(request, pid, 'Greenery');
     const funded = await fundFirstAward(request, pid);
     await awaitMyMenu(request, pid); // the bot's turn resolves; my menu is live
-    await page.reload();
+    await reloadConsole(page);
     await waitForBoardHome(page);
     await waitQuiet(page);
 

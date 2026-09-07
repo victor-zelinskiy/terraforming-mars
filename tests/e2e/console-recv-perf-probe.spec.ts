@@ -286,7 +286,7 @@ async function key(page: Page, code: string, settleMs = 400): Promise<void> {
 
 // ── the console UI walk (descend into the play of `card`) ──────────────────
 
-async function openConsole(page: Page, playerId: string): Promise<void> {
+async function openConsoleOnPlayer(page: Page, playerId: string): Promise<void> {
   await page.goto(`/player?id=${playerId}&console=1`);
   await page.waitForSelector('.con-root', {timeout: 60_000});
   await page.waitForSelector('.boot-loader', {state: 'detached', timeout: 150_000}).catch(() => {});
@@ -634,7 +634,7 @@ test.describe('console receiving-stage performance probe', () => {
         }
       }
 
-      await openConsole(page, playerId);
+      await openConsoleOnPlayer(page, playerId);
       const cdp = await page.context().newCDPSession(page);
       await cdp.send('Performance.enable');
 

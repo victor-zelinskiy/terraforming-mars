@@ -163,6 +163,12 @@ export class Player implements IPlayer {
   // boundary (e.g. picking a space → tile placed → a passive fires) stays in the
   // same chain. Transient (not serialized); a save mid-prompt loses it gracefully.
   private waitingForContext?: CapturedEventContext;
+  /**
+   * ONE-SHOT override for the capture above. `null` means «the next prompt
+   * STARTS a chain, it does not continue one» — set by `takeAction` for the
+   * action menu, consumed by the very next `setWaitingFor`.
+   */
+  private waitingForContextOverride?: null;
   public game: IGame;
   public tags: Tags;
   public colonies: Colonies;
@@ -2600,6 +2606,24 @@ export class Player implements IPlayer {
       return;
     }
 
+    // ⚠️⚠️ THE ACTION MENU IS A NEW ROOT, NEVER A CONTINUATION.
+    //
+    // `setWaitingFor` snapshots the live event scope so that a genuine
+    // SUB-prompt (a target pick mid-action, a deferred victim choice) keeps its
+    // chain open for the client's atomic notification gate. The menu is the
+    // opposite: the previous action is fully resolved by the time we get here
+    // (the deferred queue drained in the early return above), and the player
+    // has not decided anything yet.
+    //
+    // Inheriting it kept the FINISHED action's correlation in
+    // `Game.openEventCorrelations()` for as long as the player sat on their
+    // menu — which is «until they take their next action», i.e. arbitrarily
+    // long in a real game. Every OTHER player's notification for what that
+    // action paid them then sat in PREPARING and never presented: «Социальное
+    // отопление → +1 тепла» simply never reached its owner while the mover was
+    // thinking (`console-social-heating`). The gain landed, the journal had it,
+    // and the card came — minutes late, attached to the mover's NEXT move.
+    this.waitingForContextOverride = null;
     this.setWaitingFor(this.getActions(), this.runWhenEmpty(() => {
       // A cancelled pending placement (pay-on-commit standard project) returns the
       // player to the menu without consuming the action — nothing was committed.
@@ -2886,7 +2910,11 @@ export class Player implements IPlayer {
     // submit, validated in the input routes (STALE_PROMPT on mismatch).
     this.waitingForSerial = ++nextWaitingForSerial;
     this.waitingForCb = cb;
-    this.waitingForContext = this.game?.events?.captureContext();
+    // `null` = «this prompt starts a new chain» (the action menu — see
+    // `takeAction`); one-shot, so the very next prompt captures normally.
+    this.waitingForContext = this.waitingForContextOverride === null ?
+      undefined : this.game?.events?.captureContext();
+    this.waitingForContextOverride = undefined;
     // ── WHOSE ACTION RAISED THIS? ─────────────────────────────────────────
     // Every prompt the player is ever asked passes through here, and the event
     // recorder already knows whether a COPIED action is running (the scope the

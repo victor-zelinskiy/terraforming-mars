@@ -22,6 +22,7 @@
  * when it regresses. This one proves the product really behaves that way.
  */
 import {expect, test, Page, APIRequestContext} from '@playwright/test';
+import {commitFocusedSpace, pressUntilGone, walkToSpace} from './consoleStart';
 
 /** The card that grants the bonus move — and, conveniently, a BUILDING tag,
  *  which is exactly what track position 1 requires, so the offer is FREE. */
@@ -226,34 +227,35 @@ async function playFromHand(page: Page, card: string): Promise<void> {
   }
 }
 
-/** Home the board cursor at a reproducible corner (both axes clamp). */
-async function homeCursor(page: Page): Promise<void> {
-  for (let i = 0; i < 12; i++) {
-    await key(page, 'ArrowUp', 80);
-  }
-  for (let i = 0; i < 12; i++) {
-    await key(page, 'ArrowLeft', 80);
-  }
-}
-
-/** Serpentine the cursor until it stands on `spaceId`. */
-async function walkToSpace(page: Page, spaceId: string): Promise<void> {
-  await homeCursor(page);
-  const lane = [
-    ...Array(9).fill('ArrowRight'), 'ArrowDown',
-    ...Array(9).fill('ArrowLeft'), 'ArrowDown',
-  ];
-  const seen = new Set<string>();
-  for (let i = 0; i < 150; i++) {
-    const id = await page.evaluate(() =>
-      document.querySelector('.con-cell-sel[data_space_id]')?.getAttribute('data_space_id') ?? '');
-    seen.add(id);
-    if (id === spaceId) {
+/**
+ * DRIVE THE PLACEMENT'S OWN CHAIN until the bonus offer stands.
+ *
+ * One loop, three states, because the presses are NOT interchangeable:
+ *  · a live reveal is answered with A (take / OK);
+ *  · a live PLACEMENT is committed with the two-phase pair — and must never
+ *    be met with B, which CANCELS it (the old rotation pressed B every 300 ms
+ *    and un-locked the very cell it was waiting on, so the ocean was never
+ *    placed and the failure read «the bonus layer never appeared»);
+ *  · anything else is a presenting toast, dismissed with B.
+ */
+async function driveToBonusOffer(page: Page, rounds = 90): Promise<void> {
+  for (let i = 0; i < rounds; i++) {
+    const state = await page.evaluate(() => ({
+      reveal: document.querySelector('.con-reveal, .con-deckpick') !== null,
+      bonus: document.querySelector('.con-hydro__layer--bonus') !== null,
+      placing: document.querySelector('.con-context__task-kicker') !== null,
+    }));
+    if (state.bonus) {
       return;
     }
-    await key(page, lane[i % lane.length], 90);
+    if (state.reveal) {
+      await key(page, 'Enter', 700);
+    } else if (state.placing) {
+      await commitFocusedSpace(page, 900);
+    } else {
+      await key(page, 'Escape', 300);
+    }
   }
-  throw new Error(`the cursor never reached space ${spaceId}; it visited ${seen.size} cells: ${[...seen].join(',')}`);
 }
 
 type Sample = {t: number, reveal: boolean, bonusZone: boolean, hydro: boolean, modal: boolean, stranded: boolean};
@@ -336,22 +338,15 @@ test.describe('the bonus offer never stands over the cards the placement drew', 
     await walkToSpace(page, DRAW_OCEAN_SPACE);
 
     // ⭐ ARM BEFORE THE PRESS — the claim is about the middle of the episode.
+    //    The LOCK half of the two-phase confirm is pure presentation (no
+    //    request, no events), so arming before it still brackets the whole
+    //    server-visible episode.
     await armProbe(page);
-    await key(page, 'Enter', 0);
+    expect(await commitFocusedSpace(page, 0), 'the ocean never committed').toBeTruthy();
 
     // Let the whole chain play out: the reveal comes up, we take the cards,
     // the intake lands, and the offer follows.
-    for (let i = 0; i < 90; i++) {
-      const state = await page.evaluate(() => ({
-        reveal: document.querySelector('.con-reveal, .con-deckpick') !== null,
-        bonus: document.querySelector('.con-hydro__layer--bonus') !== null,
-      }));
-      if (state.bonus) {
-        break;
-      }
-      // A live reveal is answered with A (take / OK); anything else just waits.
-      await key(page, state.reveal ? 'Enter' : 'Escape', state.reveal ? 700 : 300);
-    }
+    await driveToBonusOffer(page);
     await expect(page.locator('.con-hydro__layer--bonus')).toBeVisible({timeout: 30_000});
     await page.locator('.con-hydro__layer--bonus').screenshot({path: 'screenshots/hydro-bonus/free.png'}).catch(() => {});
 
@@ -666,19 +661,8 @@ test.describe('the bonus offer never stands over the cards the placement drew', 
       .toBeGreaterThanOrEqual(lastMoving);
     await playFromHand(page, OCEAN_CARD_2);
     await expect(page.locator('.board-space--available').first()).toBeVisible({timeout: 25_000});
-    await key(page, 'Enter', 1500); // any legal ocean cell will do here
-
-    for (let i = 0; i < 90; i++) {
-      const state = await page.evaluate(() => ({
-        reveal: document.querySelector('.con-reveal, .con-deckpick') !== null,
-        bonus: document.querySelector('.con-hydro__layer--bonus') !== null,
-        space: document.querySelector('.board-space--available') !== null,
-      }));
-      if (state.bonus) {
-        break;
-      }
-      await key(page, state.reveal || state.space ? 'Enter' : 'Escape', 700);
-    }
+    expect(await commitFocusedSpace(page, 1500), 'the ocean never committed').toBeTruthy();
+    await driveToBonusOffer(page);
     await expect(page.locator('.con-hydro__layer--bonus')).toBeVisible({timeout: 30_000});
 
     // THE SERVER'S OWN VERDICT, rendered: the price is on the CTA and in the
@@ -739,19 +723,11 @@ test.describe('the bonus offer never stands over the cards the placement drew', 
     await page.waitForTimeout(2000);
     await playFromHand(page, OCEAN_CARD);
     await expect(page.locator('.board-space--available').first()).toBeVisible({timeout: 25_000});
-    await key(page, 'Enter', 1500); // any legal ocean cell
+    await walkToSpace(page, DRAW_OCEAN_SPACE);
+    expect(await commitFocusedSpace(page, 1500), 'the ocean never committed').toBeTruthy();
 
     // Work the placement's own chain (a reveal, if the hex drew) to the offer.
-    for (let i = 0; i < 90; i++) {
-      const state = await page.evaluate(() => ({
-        reveal: document.querySelector('.con-reveal, .con-deckpick') !== null,
-        bonus: document.querySelector('.con-hydro__layer--bonus') !== null,
-      }));
-      if (state.bonus) {
-        break;
-      }
-      await key(page, state.reveal ? 'Enter' : 'Escape', state.reveal ? 700 : 300);
-    }
+    await driveToBonusOffer(page);
     await expect(page.locator('.con-hydro__layer--bonus')).toBeVisible({timeout: 30_000});
 
     // ══ 1. THE RELOAD ══════════════════════════════════════
@@ -776,8 +752,12 @@ test.describe('the bonus offer never stands over the cards the placement drew', 
     expect(afterReload, 'the reload answered the prompt').toBe(true);
 
     // ══ 2. COLLAPSE → THE WHEEL ════════════════════════════════
-    await key(page, 'Escape', 1600);
-    await expect(page.locator('.con-hydro')).toHaveCount(0, {timeout: 15_000});
+    // B is act→verify→retry, never a single blind press: a VISIBLE TOAST
+    // overrides B everywhere in this console (the press closes the card and
+    // is consumed — the screen's own «свернуть» is the NEXT B), and after a
+    // reload the ordinary feed is exactly what is replaying.
+    expect(await pressUntilGone(page, 'Escape', '.con-hydro', {tries: 5, settleMs: 1600}),
+      'B never collapsed the Hydronetwork').toBeTruthy();
 
     // RT (`Period`) opens the action-category wheel; the guard must not rise
     // over it either — that is the screen the reported strand was seen on.

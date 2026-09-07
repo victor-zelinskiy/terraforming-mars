@@ -184,6 +184,10 @@ test.describe('a copied action walks onto the board · fhd', () => {
           // …and whether the workspace is still standing over the board.
           hydro: document.querySelector('.con-hydro') !== null,
           result: document.querySelector('.con-hydro__layer--result') !== null,
+          // The FLOW's own phase — so a failure names the state machine's
+          // stall instead of the surface that did not appear because of it.
+          phase: (window as unknown as {__conHydroDiag?: () => {commit: {phase: string} | null}})
+            .__conHydroDiag?.()?.commit?.phase ?? 'none',
         };
         const c = w.__c;
         if (c === undefined) {
@@ -345,8 +349,17 @@ test.describe('a copied action walks onto the board · fhd', () => {
     }
 
     // ③ …AND THE TRACK TOOK THE SCREEN BACK to finish its own flow.
+    // The census carries the FLOW'S OWN PHASE beside the surfaces, so this
+    // failure names the state machine's stall rather than the layer that did
+    // not appear because of it: the shipped bug read `phase:"result"` while
+    // `legal:4` — the flow walked to its terminal stage while the player was
+    // still choosing a hex, and spent the result hold behind a covered
+    // workspace.
+    const flowDiag = JSON.stringify(await page.evaluate(
+      () => (window as unknown as {__conHydroDiag?: () => unknown}).__conHydroDiag?.() ?? null));
     expect(census.some((r) => r.hydro === true && r.result === true),
-      `the Hydronetwork played its own result after the placement — ${dump}`).toBe(true);
+      `the Hydronetwork played its own result after the placement — ${dump}
+flow: ${flowDiag}`).toBe(true);
     const after = await fetchPlayerModel(request, id) as Wire;
     console.log(`[wire·after] waitingFor=${after.waitingFor?.type} title=${titleOf(after.waitingFor as Wire)}`);
     console.log(`[census] ${dump}`);

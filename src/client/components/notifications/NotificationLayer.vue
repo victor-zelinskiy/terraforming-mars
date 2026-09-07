@@ -138,6 +138,8 @@ import {
   noteNotificationLeaveEnd,
 } from '@/client/components/notifications/notificationState';
 import {PendingQueueSummary} from '@/client/components/presentation/presentationPolicy';
+import {currentBlockReason, isNotificationDeliveryBlocked} from '@/client/components/presentation/presentationFlow';
+import {notificationFeedModeState} from '@/client/components/notifications/notificationFeedMode';
 import {ensureBotPresentationLiveness, openBotTurnReviewByKey} from '@/client/components/marsbot/marsBotPresentation';
 import {resetBotStaging} from '@/client/components/marsbot/marsBotStagedCommits';
 import {resetMarsBotArchive} from '@/client/components/marsbot/marsBotTurnArchive';
@@ -547,6 +549,22 @@ export default defineComponent({
     },
   },
   mounted(): void {
+    // READ-ONLY e2e/diagnostics probe (the `__conColonyDiag` idiom): why a card
+    // that the SERVER logged never reached the screen. The feed has four places
+    // a model can legitimately stop — the atomic PREPARING gate, the seed's
+    // «old news» rule, the feed-mode filter and the presentation block — and
+    // from the outside all four read as «no notification arrived».
+    (window as unknown as Record<string, unknown>).__conNotifDiag = () => ({
+      seeded: notificationState.seeded,
+      feedMode: notificationFeedModeState.mode,
+      blocked: isNotificationDeliveryBlocked(),
+      blockReason: currentBlockReason(),
+      live: notificationState.transient.map((n) => ({corr: n.correlationId, sign: n.sign, kind: n.kind})),
+      queued: notificationState.queue.map((m) => ({corr: m.correlationId, sign: m.sign, kind: m.kind})),
+      preparing: [...notificationState.preparing.entries()].map(([corr, held]) => ({corr, gen: held.generation})),
+      turn: notificationState.turn?.kind ?? null,
+      seenRoots: [...notificationState.seenRootIds].slice(-12),
+    });
     this.update();
     // Refetch on every realtime wake (game change) + a lengthened fallback
     // while WS is healthy; falls back to the safe poll rate when WS is down.
@@ -555,6 +573,7 @@ export default defineComponent({
     }, POLL_INTERVAL_MS, realtimePollIntervalMs);
   },
   beforeUnmount(): void {
+    delete (window as unknown as Record<string, unknown>).__conNotifDiag;
     if (this.stopPoller !== undefined) {
       this.stopPoller();
       this.stopPoller = undefined;

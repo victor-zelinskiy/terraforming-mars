@@ -253,6 +253,20 @@ export default defineComponent({
     cellPreview: {type: Object as PropType<BoardPlacementPreview | undefined>, default: undefined},
     /** P27: BOARD INSPECTION MODE (L3) — strict row/column cell traversal. */
     inspecting: {type: Boolean, default: false},
+    /**
+     * THE SERVER'S OWN LEGAL DESTINATIONS for the live placement (the shell's
+     * one prompt resolver hands them down — never re-resolved here).
+     *
+     * ⚠️ Legality may NOT be read back out of the DOM inside a computed: the
+     * `board-space--available` classes are painted imperatively by the board
+     * binder, so `classList.contains(...)` has no reactive dependency and Vue
+     * caches the verdict against whatever else the expression happens to read.
+     * That froze `selectedAvailable` to `false` whenever the cursor was seeded
+     * before the paint — the reticle drew ILLEGAL over an available hex and
+     * the relation marks never rendered. Same defect, same fix, as the shell's
+     * `selectedCellLegal`.
+     */
+    legalSpaces: {type: Array as PropType<ReadonlyArray<string>>, default: () => []},
   },
   data() {
     return {
@@ -432,8 +446,8 @@ export default defineComponent({
       return this.consoleState.boardSpaceId;
     },
     selectedAvailable(): boolean {
-      const el = this.cellEl(this.selectedSpaceId);
-      return el !== undefined && el.classList.contains('board-space--available');
+      const id = this.selectedSpaceId;
+      return id !== undefined && this.legalSpaces.includes(id);
     },
     /**
      * The reticle exists for the whole placement and only the placement —
