@@ -1,4 +1,4 @@
-import {test, expect, Page, APIRequestContext} from '@playwright/test';
+import {test, expect, Page, APIRequestContext} from './consoleTest';
 import * as fs from 'fs';
 import * as path from 'path';
 

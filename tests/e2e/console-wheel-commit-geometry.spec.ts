@@ -26,7 +26,7 @@
  * frame — `getBoundingClientRect` flushes style itself), and the waits pump a
  * tiny screenshot so the app's own GSAP exit actually advances.
  */
-import {test, expect, Page} from '@playwright/test';
+import {test, expect, Page} from './consoleTest';
 import {bootSeededGame, createGameWithCards, soloGameConfig} from './consoleStart';
 
 type WheelSample = {

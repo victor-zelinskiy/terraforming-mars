@@ -1,4 +1,4 @@
-import {expect, test} from '@playwright/test';
+import {expect, test} from './consoleTest';
 import {closeZoomViewer, openConsole, openZoomViewer, press, waitStepDealSettled} from './consoleStart';
 import {createCampaign, devCommit, launchMission} from './campaignFixtures';
 

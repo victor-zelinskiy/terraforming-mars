@@ -1,6 +1,6 @@
-import {expect, test, Page} from '@playwright/test';
+import {expect, test, Page} from './consoleTest';
 import {press} from './consoleStart';
-import {createCampaign, devCommit, launchMission, seedIdentity, CAMPAIGN_BASE as BASE} from './campaignFixtures';
+import {createCampaign, devCommit, launchMission, seedIdentity, campaignBase} from './campaignFixtures';
 
 /**
  * «МОИ КАМПАНИИ» — the main-menu campaign list (one row per campaign).
@@ -20,7 +20,7 @@ import {createCampaign, devCommit, launchMission, seedIdentity, CAMPAIGN_BASE as
 
 async function openCampaignsList(page: Page, name: string): Promise<void> {
   await seedIdentity(page, name);
-  await page.goto(`${BASE}/`);
+  await page.goto(`${campaignBase()}/`);
   await page.waitForSelector('.cm-menu__items', {timeout: 20_000});
   await page.click('.cm-item:has-text("Мои кампании")');
   await page.waitForSelector('.cm-gametabs', {timeout: 10_000});
@@ -81,11 +81,11 @@ test.describe('my campaigns list', () => {
   test('a campaign mission can NEVER be deleted alone through the local-delete API', async ({request}) => {
     const {id, name} = await createCampaign(request);
     const {gameId} = await launchMission(request, id);
-    const res = await request.post(`${BASE}/api/local-game-delete?id=${gameId}`);
+    const res = await request.post(`${campaignBase()}/api/local-game-delete?id=${gameId}`);
     expect(res.status()).toBe(422);
     expect(await res.text()).toContain('part of a campaign');
     // The campaign still opens, its mission intact.
-    const model = await request.get(`${BASE}/api/campaign?id=${id}&name=Alice`);
+    const model = await request.get(`${campaignBase()}/api/campaign?id=${id}&name=Alice`);
     expect(model.ok()).toBeTruthy();
     const body = await model.json();
     expect(body.name).toBe(name);
@@ -123,13 +123,13 @@ test.describe('my campaigns list', () => {
     await expect(page.locator('.cm-overlay--nested')).toHaveCount(0);
     await expect(page.locator('.cm-camp', {hasText: name})).toHaveCount(0);
     // The campaign document is gone…
-    const afterDelete = await request.get(`${BASE}/api/campaign?id=${id}&name=Alice`);
+    const afterDelete = await request.get(`${campaignBase()}/api/campaign?id=${id}&name=Alice`);
     expect(afterDelete.status()).toBe(404);
     // …and so is its mission game (no ghost row in «Мои партии» either).
-    const game = await request.get(`${BASE}/api/game?id=${gameId}`);
+    const game = await request.get(`${campaignBase()}/api/game?id=${gameId}`);
     expect(game.ok()).toBeFalsy();
     for (const status of ['active', 'finished']) {
-      const joinable = await request.get(`${BASE}/api/games/joinable?name=Alice&status=${status}`);
+      const joinable = await request.get(`${campaignBase()}/api/games/joinable?name=Alice&status=${status}`);
       const rows = await joinable.json() as Array<{campaign?: {id: string}}>;
       expect(rows.some((r) => r.campaign?.id === id)).toBeFalsy();
     }
@@ -148,9 +148,9 @@ test.describe('my campaigns list', () => {
     await expect(confirm).toContainText('Эта кампания ещё не завершена.');
     await press(page, 'Enter', 1200);
     await expect(page.locator('.cm-camp', {hasText: name})).toHaveCount(0);
-    const game = await request.get(`${BASE}/api/game?id=${gameId}`);
+    const game = await request.get(`${campaignBase()}/api/game?id=${gameId}`);
     expect(game.ok()).toBeFalsy();
-    const gone = await request.get(`${BASE}/api/campaign?id=${id}&name=Alice`);
+    const gone = await request.get(`${campaignBase()}/api/campaign?id=${id}&name=Alice`);
     expect(gone.status()).toBe(404);
   });
 
@@ -168,7 +168,7 @@ test.describe('my campaigns list', () => {
 
   test('REALTIME: the menu-ROOT badge learns of a new campaign by push', async ({page, request}) => {
     await seedIdentity(page, 'Alice');
-    await page.goto(`${BASE}/`);
+    await page.goto(`${campaignBase()}/`);
     await page.waitForSelector('.cm-menu__items', {timeout: 20_000});
     const badge = page.locator('.cm-item', {hasText: 'Мои кампании'}).locator('.cm-item__badge');
     // The badge needs the first campaigns answer — wait it out, then baseline.
@@ -190,15 +190,17 @@ test.describe('my campaigns list', () => {
     // seam under test is identical to a real LAN host's address).
     // ⚠ An init script re-runs on EVERY document — seed WITHOUT overwriting,
     // or the player page's re-run wipes the pin the map just propagated.
-    await page.addInitScript((cid) => {
+    const apiBase = campaignBase();
+    const wsBase = apiBase.replace(/^http/, 'ws');
+    await page.addInitScript((pin) => {
       const raw = window.localStorage.getItem('tm_server_endpoints');
       const map = raw !== null ? JSON.parse(raw) as Record<string, unknown> : {};
-      if (map[cid] === undefined) {
-        map[cid] = {apiBase: 'http://localhost:8080', wsBase: 'ws://localhost:8080', at: Date.now()};
+      if (map[pin.cid] === undefined) {
+        map[pin.cid] = {apiBase: pin.apiBase, wsBase: pin.wsBase, at: Date.now()};
         window.localStorage.setItem('tm_server_endpoints', JSON.stringify(map));
       }
-    }, id);
-    await page.goto(`${BASE}/campaign?id=${id}`);
+    }, {cid: id, apiBase, wsBase});
+    await page.goto(`${campaignBase()}/campaign?id=${id}`);
     // The map loaded its model THROUGH the pin (a broken pin would 404 here).
     await page.waitForSelector('.cmap__card', {timeout: 20_000});
     await page.waitForTimeout(600);
@@ -212,9 +214,9 @@ test.describe('my campaigns list', () => {
     const pid = new URL(page.url()).searchParams.get('id')!;
     const pins = await page.evaluate(() =>
       JSON.parse(window.localStorage.getItem('tm_server_endpoints') ?? '{}') as Record<string, {apiBase: string}>);
-    expect(pins[pid]?.apiBase).toBe('http://localhost:8080');
+    expect(pins[pid]?.apiBase).toBe(apiBase);
     // And the mission game really lives on that server.
-    const model = await request.get(`http://localhost:8080/api/player?id=${pid}`);
+    const model = await request.get(`${apiBase}/api/player?id=${pid}`);
     expect(model.ok()).toBeTruthy();
   });
 
@@ -255,10 +257,10 @@ test.describe('my campaigns list', () => {
     await expect(page.locator('.cm-overlay--nested')).toHaveCount(0);
 
     // The server is the guard that matters.
-    const res = await request.post(`${BASE}/api/campaign/delete?id=${id}&name=Bruno`);
+    const res = await request.post(`${campaignBase()}/api/campaign/delete?id=${id}&name=Bruno`);
     expect(res.status()).toBe(400);
     expect(await res.text()).toContain('creator');
-    const still = await request.get(`${BASE}/api/campaign?id=${id}&name=Alice`);
+    const still = await request.get(`${campaignBase()}/api/campaign?id=${id}&name=Alice`);
     expect(still.ok()).toBeTruthy();
   });
 });

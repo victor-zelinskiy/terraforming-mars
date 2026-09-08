@@ -120,7 +120,16 @@ export class ApiCreateGame extends Handler {
             const serialized = await Database.getInstance().getGameVersion(gameOptions.clonedGamedId, 0);
             game = Cloner.clone(gameId, players, firstPlayerIdx, serialized);
           } else {
-            const seed = Math.random();
+            // An explicitly requested seed (float [0,1) — the engine's native
+            // format) makes the whole shuffle deterministic: same seed + same
+            // config = same deal. This is what lets an e2e failure name its
+            // seed and be replayed locally (docs/E2E_ARCHITECTURE_REWORK.md
+            // phase 1). Anything else — absent, NaN, out of range — keeps
+            // today's behaviour. This fork is private couch/LAN play, so a
+            // client choosing its own shuffle is not a threat model here.
+            const requestedSeed = gameReq.seed;
+            const seed = typeof requestedSeed === 'number' && Number.isFinite(requestedSeed) &&
+              requestedSeed >= 0 && requestedSeed < 1 ? requestedSeed : Math.random();
             game = Game.newInstance(gameId, players, players[firstPlayerIdx], spectatorId, gameOptions, seed);
           }
           ctx.gameLoader.add(game);

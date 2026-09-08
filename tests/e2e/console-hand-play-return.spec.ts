@@ -22,7 +22,7 @@
  * …while the player-asked ending keeps its flight: part C opens the hand and
  * presses B, and the bodies must cross the screen over many frames.
  */
-import {expect, test, Page} from '@playwright/test';
+import {expect, test, Page} from './consoleTest';
 import {bootIntoGame, focusCard, handCount, press, soloGameConfig} from './consoleStart';
 
 /** A cheap, choice-free green card — the play must not raise a follow-up. */

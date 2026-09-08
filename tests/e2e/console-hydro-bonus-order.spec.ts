@@ -21,7 +21,7 @@
  * — proves the same order at the policy seam and names the exact missing block
  * when it regresses. This one proves the product really behaves that way.
  */
-import {expect, test, Page, APIRequestContext} from '@playwright/test';
+import {expect, test, Page, APIRequestContext} from './consoleTest';
 import {commitFocusedSpace, pressUntilGone, walkToSpace} from './consoleStart';
 
 /** The card that grants the bonus move — and, conveniently, a BUILDING tag,

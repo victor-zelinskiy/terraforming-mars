@@ -1,4 +1,4 @@
-import {test, expect} from '@playwright/test';
+import {test, expect} from './consoleTest';
 import loreTexts from '../../assets/text/lore_texts.json';
 import ruLore from '../../src/locales/ru/lore_texts.json';
 

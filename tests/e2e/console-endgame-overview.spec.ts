@@ -20,7 +20,7 @@
  * ⚠ Probes are setInterval-driven (headless starves rAF); every wait pumps
  * a real frame via the harness (forceFrame/waitWithFrames).
  */
-import {test, expect, Page, APIRequestContext} from '@playwright/test';
+import {test, expect, Page, APIRequestContext} from './consoleTest';
 import {
   createTable, journeyToEndgame, finishFinaleThroughPage, forceFrame, waitWithFrames, shoot,
   drive, getModel, postInput, genericAnswer, terraformAnswer, terraformed, titleOf, NO_PAYMENT,

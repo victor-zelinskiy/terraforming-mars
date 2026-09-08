@@ -21,7 +21,7 @@
  * Both are observed FRAME BY FRAME, because both bugs are one-frame
  * ownership questions: «did the workspace let go before the cards arrived?».
  */
-import {expect, test, Page, APIRequestContext} from '@playwright/test';
+import {expect, test, Page, APIRequestContext} from './consoleTest';
 import * as fs from 'fs';
 import * as path from 'path';
 

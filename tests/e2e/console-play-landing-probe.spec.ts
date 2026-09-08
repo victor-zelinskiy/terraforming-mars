@@ -23,7 +23,7 @@
  * green / blue / event / tile-follow-up at FHD; green again at 4K TV and
  * under reduced motion.
  */
-import {expect, test, Page, APIRequestContext} from '@playwright/test';
+import {expect, test, Page, APIRequestContext} from './consoleTest';
 import * as fs from 'fs';
 import * as path from 'path';
 

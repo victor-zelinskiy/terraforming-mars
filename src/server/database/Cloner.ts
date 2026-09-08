@@ -40,7 +40,9 @@ export class Cloner {
     return game;
   }
 
-  private static replacePlayerIds(obj: any, oldPlayerIds:Array<PlayerId>, newPlayerIds: Array<PlayerId>) {
+  // Public: ApiDevLoadGame remaps a fixture's player ids through the SAME
+  // structural walk a clone uses — never a string-level substitution.
+  public static replacePlayerIds(obj: any, oldPlayerIds:Array<PlayerId>, newPlayerIds: Array<PlayerId>) {
     if (obj === undefined || obj === null) {
       return;
     }

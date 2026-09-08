@@ -1,4 +1,4 @@
-import {test, expect, Page} from '@playwright/test';
+import {test, expect, Page} from './consoleTest';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
 import {bootWithCards, playCardFromHand, press, soloGameConfig, waitForTurn} from './consoleStart';
@@ -37,7 +37,7 @@ async function shoot(page: Page, name: string): Promise<void> {
 }
 
 /** Keep the page painting (headless rAF starves on quiet frames). */
-async function settle(page: Page, ms: number): Promise<void> {
+async function pumpFrames(page: Page, ms: number): Promise<void> {
   const until = Date.now() + ms;
   while (Date.now() < until) {
     await page.screenshot({clip: {x: 0, y: 0, width: 8, height: 8}}).catch(() => {});
@@ -51,18 +51,18 @@ test.describe('bot turn card · premium neutral story', () => {
 
     await bootWithCards(page, request, {cards: [CHEAP_CARD], config: CONFIG});
     await waitForTurn(page);
-    await settle(page, 1_500);
+    await pumpFrames(page, 1_500);
 
     // Hand the turn over: play the cheap card, then skip (LT wheel ↑).
     expect(await playCardFromHand(page, CHEAP_CARD), `${CHEAP_CARD} must have been played`).toBe(true);
-    await settle(page, 1_200);
+    await pumpFrames(page, 1_200);
     await press(page, 'Comma', 900);
     await press(page, 'ArrowUp', 500);
     await press(page, 'Enter', 1200);
 
     const card = page.locator('.con-notif.notification-card--variant-bot-turn');
     await card.first().waitFor({timeout: 30_000});
-    await settle(page, 900);
+    await pumpFrames(page, 900);
     await shoot(page, 'bot-turn-neutral');
 
     const audit = await page.evaluate(() => {
@@ -126,7 +126,7 @@ test.describe('bot turn card · premium neutral story', () => {
       if (await page.locator('.con-banner--events').count() > 0) {
         throw new Error('the centre-stage queue banner came back');
       }
-      await settle(page, 250);
+      await pumpFrames(page, 250);
     }
     if (sawTail) {
       await shoot(page, 'queue-tail');

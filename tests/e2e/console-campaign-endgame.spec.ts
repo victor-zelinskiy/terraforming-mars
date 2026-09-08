@@ -1,4 +1,4 @@
-import {expect, test} from '@playwright/test';
+import {expect, test} from './consoleTest';
 import {reloadConsole} from './consoleStart';
 import {
   createCampaign, devCommit, launchMission, campaignModelAs,

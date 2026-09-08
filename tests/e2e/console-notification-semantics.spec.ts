@@ -1,4 +1,4 @@
-import {test, expect, APIRequestContext, Page} from '@playwright/test';
+import {test, expect, APIRequestContext, Page} from './consoleTest';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
 import {NO_PAYMENT, fetchPlayerModel, openConsole, seedGameOverApi, sendPlayerInput, waitForBoardHome} from './consoleStart';
@@ -72,7 +72,7 @@ async function shoot(page: Page, name: string): Promise<void> {
 
 /** Keep the page PAINTING while waiting (headless rAF starves on a quiet frame —
  *  toast lifetimes and transitions stop without a BeginFrame). */
-async function settle(page: Page, ms: number): Promise<void> {
+async function pumpFrames(page: Page, ms: number): Promise<void> {
   const until = Date.now() + ms;
   while (Date.now() < until) {
     await page.screenshot({clip: {x: 0, y: 0, width: 8, height: 8}}).catch(() => {});
@@ -220,14 +220,14 @@ for (const profile of PROFILES) {
       // ── the viewer's console ───────────────────────────────────────────
       await openConsole(page, viewer, '');
       await waitForBoardHome(page, 25);
-      await settle(page, 2_500); // the seeded stream is diffed SILENTLY (no spam on load)
+      await pumpFrames(page, 2_500); // the seeded stream is diffed SILENTLY (no spam on load)
       await armToastProbe(page);
 
       // ── ACT 1 · the AMBIENT event: the rival plays Power Plant ─────────
       await rivalPlaysCard(request, rival, NEUTRAL_CARD);
       const ambientCard = page.locator('.con-notif--sign-neutral.notification-card--variant-play-card');
       await ambientCard.waitFor({timeout: 20_000});
-      await settle(page, 900); // let the entrance finish — evidence, not a mid-fade frame
+      await pumpFrames(page, 900); // let the entrance finish — evidence, not a mid-fade frame
       await shoot(page, `${profile.tag}-01-ambient-opponent-play`);
       // The two axes render as classes; the actor chip names the initiator.
       await expect(ambientCard).toHaveClass(/con-notif--imp-ambient/);
@@ -243,7 +243,7 @@ for (const profile of PROFILES) {
       // …and it self-clears (the TTL lifecycle, kept painting by the settle).
       const cleared = Date.now() + 12_000;
       while (Date.now() < cleared && await page.locator('.con-notif').count() > 0) {
-        await settle(page, 400);
+        await pumpFrames(page, 400);
       }
       expect(await page.locator('.con-notif').count(), 'the ambient card auto-dismissed').toBe(0);
 
@@ -262,7 +262,7 @@ for (const profile of PROFILES) {
 
       const hostile = page.locator('.con-notif--sign-negative');
       await hostile.waitFor({timeout: 25_000});
-      await settle(page, 900);
+      await pumpFrames(page, 900);
       await shoot(page, `${profile.tag}-02-hostile-viewer-first`);
 
       // THE HIERARCHY: the viewer band leads («Вы потеряли» + the production
@@ -284,10 +284,10 @@ for (const profile of PROFILES) {
       //    event (the full causal chain behind the toast), and the toast's
       //    job is done — it dismisses. A quick TAP keeps the screen's verb. ──
       await page.keyboard.down('KeyX');
-      await settle(page, 850); // past NOTIF_HOLD_MS while frames keep coming
+      await pumpFrames(page, 850); // past NOTIF_HOLD_MS while frames keep coming
       await page.keyboard.up('KeyX');
       await page.locator('.con-journal').waitFor({timeout: 10_000});
-      await settle(page, 600);
+      await pumpFrames(page, 600);
       await shoot(page, `${profile.tag}-03-hold-x-journal`);
       const lingering = await page.evaluate(() =>
         Array.from(document.querySelectorAll('.con-notif--sign-negative'))
@@ -297,11 +297,11 @@ for (const profile of PROFILES) {
       expect(lingering.length,
         `the toast hands over to the journal (lingering: ${JSON.stringify(lingering)}; timeline: ${JSON.stringify(timeline)})`).toBe(0);
       await page.keyboard.press('Escape');
-      await settle(page, 800);
+      await pumpFrames(page, 800);
 
       // ONE CARD PER ACTION: wait the queue out, then audit the whole episode —
       // exactly one distinct hostile card, no standalone `neg…` twin.
-      await settle(page, 16_000);
+      await pumpFrames(page, 16_000);
       const log = await toastLog(page);
       console.log(`[notification-semantics·${profile.tag}] toast log:`, JSON.stringify(log, null, 2));
       expect(await probeSamples(page), 'the probe itself was alive').toBeGreaterThan(20);

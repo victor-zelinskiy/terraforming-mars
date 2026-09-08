@@ -23,7 +23,7 @@
  * ⚠ Headless Chromium starves rAF on a quiet screen: every wait pumps a tiny
  * screenshot (a real BeginFrame), or the GSAP ceremony never advances.
  */
-import {test, expect, Page} from '@playwright/test';
+import {test, expect, Page} from './consoleTest';
 import {
   createTable, drive, forceFrame, waitWithFrames, shoot, terraformed, finishFinaleThroughPage,
 } from './consoleEndgameHarness';

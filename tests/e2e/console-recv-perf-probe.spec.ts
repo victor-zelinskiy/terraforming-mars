@@ -29,7 +29,7 @@
  * for no extra fidelity: only the LAST play (the measured one) needs the real
  * console flow, and it gets it.
  */
-import {expect, test, Page, APIRequestContext, CDPSession} from '@playwright/test';
+import {expect, test, Page, APIRequestContext, CDPSession} from './consoleTest';
 import * as fs from 'fs';
 import * as path from 'path';
 import {NO_PAYMENT} from './consoleStart';

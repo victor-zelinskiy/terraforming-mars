@@ -1,4 +1,4 @@
-import {test, expect} from '@playwright/test';
+import {test, expect} from './consoleTest';
 import {
   pickCards, payStartPurchase, placeTile, playQueueCard, press, queueCards, submitSummary,
   visibleSurfaces, waitQueueIdle, walkToSummary,

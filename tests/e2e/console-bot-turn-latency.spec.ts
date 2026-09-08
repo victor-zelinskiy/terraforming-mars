@@ -1,4 +1,4 @@
-import {test, expect, Page} from '@playwright/test';
+import {test, expect, Page} from './consoleTest';
 import {bootWithCards, focusCard, playCardFromHand, press, soloGameConfig, turnChip, waitForTurn} from './consoleStart';
 
 /**
@@ -86,7 +86,7 @@ async function diag(page: Page): Promise<Array<TurnDiag>> {
  * BeginFrame, so toast lifetimes and transitions keep running as they do on a
  * real screen.
  */
-async function settle(page: Page, ms: number): Promise<void> {
+async function pumpFrames(page: Page, ms: number): Promise<void> {
   const until = Date.now() + ms;
   while (Date.now() < until) {
     await page.screenshot({clip: {x: 0, y: 0, width: 8, height: 8}}).catch(() => {});
@@ -109,7 +109,7 @@ async function awaitTurns(page: Page, n: number, maxMs = 60_000): Promise<Array<
   const deadline = Date.now() + maxMs;
   let turns = await diag(page);
   while (turns.length < n && Date.now() < deadline) {
-    await settle(page, 500);
+    await pumpFrames(page, 500);
     turns = await diag(page);
   }
   return turns;
@@ -121,13 +121,13 @@ test.describe('MarsBot turn latency', () => {
 
     await bootWithCards(page, request, {cards: [CHEAP_CARD], config: CONFIG});
     await waitForTurn(page);
-    await settle(page, 2_000);
+    await pumpFrames(page, 2_000);
 
     // ── SCENARIO 1 · ONE action, then hand the turn over deliberately. The
     //    bot answers with a SINGLE turn and control comes straight back — the
     //    exact shape of the report.
     expect(await playCardFromHand(page, CHEAP_CARD), `${CHEAP_CARD} must have been played`).toBe(true);
-    await settle(page, 1_500);
+    await pumpFrames(page, 1_500);
     await wheelPick(page, 'up'); // «Пропустить ход» (offered after the first action)
 
     const afterSkip = await awaitTurns(page, 1);
@@ -145,7 +145,7 @@ test.describe('MarsBot turn latency', () => {
     // ── SCENARIO 2 · PASS. The bot now plays out the round, so the turns are a
     //    RUN and the queue is exactly what should carry them.
     await waitForTurn(page);
-    await settle(page, 1_000);
+    await pumpFrames(page, 1_000);
     await wheelPick(page, 'down'); // «Пас»
 
     const afterPass = await awaitTurns(page, afterSkip.length + 2, 90_000);
@@ -166,7 +166,7 @@ test.describe('MarsBot turn latency', () => {
     expect(await card.count(), 'the bot-turn card never presented during the run').toBeGreaterThan(0);
     const before = (await diag(page)).map((t) => t.key);
     await press(page, 'Escape', 900);
-    await settle(page, 1_200);
+    await pumpFrames(page, 1_200);
     const after = await diag(page);
     console.log('[bot-turn-latency] after B:', JSON.stringify(after));
     for (const key of before) {
@@ -215,11 +215,11 @@ test.describe('MarsBot turn latency · inside a workspace', () => {
 
     await bootWithCards(page, request, {cards: [CARD_A, CARD_B], config: CONFIG});
     await waitForTurn(page);
-    await settle(page, 2_000);
+    await pumpFrames(page, 2_000);
 
     // ── BASELINE: the player stays on the board home. ────────────────────
     expect(await playCardFromHand(page, CARD_A), `${CARD_A} must have been played`).toBe(true);
-    await settle(page, 1_200);
+    await pumpFrames(page, 1_200);
     const onBoard = await handOverAndTime(page, async (p) => {
       // The same two presses the subject spends, on a surface that changes
       // nothing: open the wheel and close it again.
@@ -231,9 +231,9 @@ test.describe('MarsBot turn latency · inside a workspace', () => {
 
     // ── THE REPORTED CASE: the player walks into a workspace and stays
     //    there for the whole of the bot's turn.
-    await settle(page, 1_500);
+    await pumpFrames(page, 1_500);
     expect(await playCardFromHand(page, CARD_B), `${CARD_B} must have been played`).toBe(true);
-    await settle(page, 1_200);
+    await pumpFrames(page, 1_200);
     const inWorkspace = await handOverAndTime(page, async (p) => {
       await press(p, 'Period', 400); // RT → the quick wheel
       await press(p, 'Enter', 600); // centre slot → «КАРТЫ», the hand workspace
@@ -281,7 +281,7 @@ test.describe('MarsBot turn latency · a RUN watched from a workspace', () => {
 
     await bootWithCards(page, request, {cards: [CARD_A], config: CONFIG});
     await waitForTurn(page);
-    await settle(page, 2_000);
+    await pumpFrames(page, 2_000);
 
     // Pass, then walk into the hand workspace and stay there.
     await press(page, 'Comma', 900);
@@ -314,7 +314,7 @@ test.describe('MarsBot turn latency · a RUN watched from a workspace', () => {
           seen.push(line);
         }
       }
-      await settle(page, 250);
+      await pumpFrames(page, 250);
     }
     const elapsed = Date.now() - t0;
     console.log('[bot-turn-latency] pass → control back, inside a workspace:', elapsed, 'ms');
@@ -360,11 +360,11 @@ test.describe('MarsBot turn latency · a play that ends the turn', () => {
 
     await bootWithCards(page, request, {cards: [CARD_A, CARD_B], config: CONFIG});
     await waitForTurn(page);
-    await settle(page, 2_000);
+    await pumpFrames(page, 2_000);
 
     // ── Action 1: card A, untimed (control returns to the player). ───────
     expect(await playCardFromHand(page, CARD_A), `${CARD_A} must have been played`).toBe(true);
-    await settle(page, 1_500);
+    await pumpFrames(page, 1_500);
     await waitForTurn(page);
 
     // ── Action 2: card B — the confirm ends the turn. Timed by hand: the
@@ -383,7 +383,7 @@ test.describe('MarsBot turn latency · a play that ends the turn', () => {
     const t0 = Date.now();
     for (let i = 0; i < 5 && await composer.count() > 0; i++) {
       await page.keyboard.press('Enter'); // the confirm — no settle pause, the clock is running
-      await settle(page, 700);
+      await pumpFrames(page, 700);
     }
     // Sample who holds the foreground while we wait for control to return.
     const seen: Array<string> = [];
@@ -400,7 +400,7 @@ test.describe('MarsBot turn latency · a play that ends the turn', () => {
           seen.push(line);
         }
       }
-      await settle(page, 250);
+      await pumpFrames(page, 250);
     }
     const elapsed = Date.now() - t0;
     console.log('[bot-turn-latency] play-ends-turn → control back:', elapsed, 'ms');

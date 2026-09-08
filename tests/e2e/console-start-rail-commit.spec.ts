@@ -1,4 +1,4 @@
-import {test, expect, Page} from '@playwright/test';
+import {test, expect, Page} from './consoleTest';
 import {
   deploymentActive, fillPicks, openConsole, press, soloGameConfig, stepKind,
   stepSubject, summaryVisible, visibleSurfaces, waitPressable,

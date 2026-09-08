@@ -30,7 +30,11 @@ export class SQLite implements IDatabase {
 
   public async initialize(): Promise<void> {
     const Database = require('better-sqlite3') as typeof import('better-sqlite3');
-    const dbFolder = path.resolve(process.cwd(), './db');
+    // TM_DB_FOLDER: an isolated database directory. The e2e suite gives each
+    // Playwright worker its OWN server + DB (docs/E2E_ARCHITECTURE_REWORK.md
+    // phase 3), so runs cannot contaminate each other and list-shaped specs
+    // never see another run's accumulation. Absent → the classic ./db.
+    const dbFolder = path.resolve(process.cwd(), process.env.TM_DB_FOLDER ?? './db');
     const dbPath = path.resolve(dbFolder, 'game.db');
     if (this.filename === undefined) {
       this.filename = dbPath;

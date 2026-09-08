@@ -1,4 +1,4 @@
-import {test, expect, Page, APIRequestContext} from '@playwright/test';
+import {test, expect, Page, APIRequestContext} from './consoleTest';
 import {bootSeededGame, createGameWithCards, soloGameConfig} from './consoleStart';
 
 /**

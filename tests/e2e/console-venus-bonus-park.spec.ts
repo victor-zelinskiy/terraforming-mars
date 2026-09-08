@@ -18,7 +18,7 @@
  *   workspace gone → the scales tell their story, THEN the bonus presents
  *                    over a board the player can see, and the card is taken.
  */
-import {expect, test, Page} from '@playwright/test';
+import {expect, test, Page} from './consoleTest';
 import * as fs from 'fs';
 import * as path from 'path';
 import {bootWithCards, press, soloGameConfig, takeRevealCards, waitForBoardHome} from './consoleStart';

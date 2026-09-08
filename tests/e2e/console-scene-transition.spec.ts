@@ -1,4 +1,4 @@
-import {expect, Page, test} from '@playwright/test';
+import {expect, Page, test} from './consoleTest';
 import {createGameWithCards, soloGameConfig} from './consoleStart';
 import {createCampaign, launchMission, seedIdentity} from './campaignFixtures';
 

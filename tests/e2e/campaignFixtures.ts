@@ -4,7 +4,13 @@ import {expect, Page, APIRequestContext} from '@playwright/test';
  *  (create-idempotency, launch, dev fast-forward); the surfaces under test are
  *  the Campaign Map and the «Мои кампании» list. */
 
-export const CAMPAIGN_BASE = 'http://localhost:8080';
+/** The CURRENT worker's server (phase-3 per-worker isolation) — the worker
+ *  fixture publishes it into the env, and each worker is its own process, so
+ *  a module-level read is per-worker by construction. The fallback matches
+ *  the shared-server escape hatch. */
+export function campaignBase(): string {
+  return process.env.TM_E2E_BASE_URL ?? process.env.BASE_URL ?? 'http://localhost:8080';
+}
 
 export function campaignConfig(overrides: Record<string, unknown> = {}) {
   return {
@@ -64,7 +70,7 @@ export async function createCampaign(
   configOverrides: Record<string, unknown> = {},
 ): Promise<{id: string, name: string}> {
   const key = `e2e-${Date.now()}-${Math.floor(Math.random() * 1e9)}`;
-  const res = await request.post(`${CAMPAIGN_BASE}/api/campaign/create`, {
+  const res = await request.post(`${campaignBase()}/api/campaign/create`, {
     data: {key, name: 'Alice', config: campaignConfig(configOverrides)},
   });
   expect(res.ok(), await res.text()).toBeTruthy();
@@ -74,7 +80,7 @@ export async function createCampaign(
 }
 
 export async function launchMission(request: APIRequestContext, id: string): Promise<{gameId: string, yourPlayerId?: string}> {
-  const res = await request.post(`${CAMPAIGN_BASE}/api/campaign/launch?id=${id}&name=Alice`);
+  const res = await request.post(`${campaignBase()}/api/campaign/launch?id=${id}&name=Alice`);
   expect(res.ok(), await res.text()).toBeTruthy();
   const body = await res.json();
   return {gameId: body.gameId, yourPlayerId: body.yourPlayerId};
@@ -86,7 +92,7 @@ export async function devCommit(
   placements: number[],
   fixture: {lineages?: Record<number, Array<string>>, carryover?: Record<number, Array<string>>, carryoverPending?: boolean} = {},
 ): Promise<void> {
-  const res = await request.post(`${CAMPAIGN_BASE}/api/campaign/dev?name=admin`, {
+  const res = await request.post(`${campaignBase()}/api/campaign/dev?name=admin`, {
     data: {campaignId: id, placements, ...fixture},
   });
   expect(res.ok(), await res.text()).toBeTruthy();
@@ -97,7 +103,7 @@ export async function campaignModelAs(request: APIRequestContext, id: string, na
   missions: Array<{gameId?: string, yourPlayerId?: string}>,
   carryover?: {bySeat: Array<{seat: number, status: string, count: number}>},
 }> {
-  const res = await request.get(`${CAMPAIGN_BASE}/api/campaign?id=${id}&name=${encodeURIComponent(name)}`);
+  const res = await request.get(`${campaignBase()}/api/campaign?id=${id}&name=${encodeURIComponent(name)}`);
   expect(res.ok(), await res.text()).toBeTruthy();
   return res.json();
 }
@@ -111,7 +117,7 @@ export async function seedIdentity(page: Page, name: string): Promise<void> {
 
 export async function openMapAs(page: Page, id: string, name: string): Promise<void> {
   await seedIdentity(page, name);
-  await page.goto(`${CAMPAIGN_BASE}/campaign?id=${id}`);
+  await page.goto(`${campaignBase()}/campaign?id=${id}`);
   await page.waitForSelector('.cmap__card', {timeout: 20_000});
   await page.waitForTimeout(600);
 }

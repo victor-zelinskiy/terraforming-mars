@@ -1,4 +1,4 @@
-import {test, expect, Page} from '@playwright/test';
+import {test, expect, Page} from './consoleTest';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
 import {bootWithCards, press, soloGameConfig, turnChip, waitForBoardHome, waitForTurn} from './consoleStart';
@@ -62,7 +62,7 @@ async function shoot(page: Page, name: string): Promise<void> {
 }
 
 /** Keep BeginFrames flowing (headless rAF starves on quiet frames). */
-async function settle(page: Page, ms: number): Promise<void> {
+async function pumpFrames(page: Page, ms: number): Promise<void> {
   const until = Date.now() + ms;
   while (Date.now() < until) {
     await page.screenshot({clip: {x: 0, y: 0, width: 8, height: 8}}).catch(() => {});
@@ -231,7 +231,7 @@ test.describe('bonus-card attack — atomic notification lifecycle', () => {
     await armAuditor(page);
     const found = await passUntilHostileCard(page);
     expect(found, 'the bot played its bonus attack and the hostile card presented').toBe(true);
-    await settle(page, 700);
+    await pumpFrames(page, 700);
     await shoot(page, '01-hostile-card');
 
     const samples = await takeSamples(page);
@@ -345,12 +345,12 @@ test.describe('bonus-card attack — atomic notification lifecycle', () => {
       await page.keyboard.up('KeyX');
       if (await page.locator('.mbr').count() > 0) {
         const lit = await page.waitForSelector('.con-status__evq--on', {timeout: 2_500}).catch(() => null);
-        await settle(page, 400);
+        await pumpFrames(page, 400);
         if (lit !== null) {
           await shoot(page, '03-evq-waiting');
         }
         await page.keyboard.press('Escape'); // close the review
-        await settle(page, 900);
+        await pumpFrames(page, 900);
       }
     }
 
@@ -363,7 +363,7 @@ test.describe('bonus-card attack — atomic notification lifecycle', () => {
     if (await hostileCardLive(page)) {
       await page.keyboard.press('Escape'); // B — the toast override closes the card
     }
-    await settle(page, 1_800);
+    await pumpFrames(page, 1_800);
     const after = await takeSamples(page);
     const lastFrames = after.slice(-8);
     for (const frame of lastFrames) {

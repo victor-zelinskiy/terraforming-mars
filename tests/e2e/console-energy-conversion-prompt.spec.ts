@@ -1,4 +1,4 @@
-import {test, expect} from '@playwright/test';
+import {test, expect} from './consoleTest';
 import {NO_PAYMENT, createGameWithCards, fetchPlayerModel, openConsole, press, seedGameOverApi, sendPlayerInput,
   soloGameConfig,
 } from './consoleStart';

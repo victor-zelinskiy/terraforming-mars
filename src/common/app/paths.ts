@@ -43,6 +43,10 @@ export const paths = {
   API_ADMIN_ROLLBACK_GAMES: 'api/admin/rollback/games',
   API_ADMIN_ROLLBACK_HISTORY: 'api/admin/rollback/history',
   API_ADMIN_ROLLBACK: 'api/admin/rollback',
+  // Loopback/ADMIN_NAME-gated dev door: boot a game from a SerializedGame
+  // fixture (docs/E2E_ARCHITECTURE_REWORK.md phase 4 — state is declared,
+  // not clicked). Rides the same deserialize path real saves use.
+  API_DEV_LOAD_GAME: 'api/dev/load-game',
   // Premium main-menu join flow: list a player's unfinished games by name, and
   // reconcile a seat's cube colour with the player's chosen identity colour.
   API_GAMES_JOINABLE: 'api/games/joinable',

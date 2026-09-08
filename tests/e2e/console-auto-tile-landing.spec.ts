@@ -19,7 +19,7 @@
  *   workspace up  → the reserved cell is still EMPTY;
  *   workspace gone → a proxy flies → and only then does the tile appear.
  */
-import {expect, test, Page, APIRequestContext} from '@playwright/test';
+import {expect, test, Page, APIRequestContext} from './consoleTest';
 import * as fs from 'fs';
 import * as path from 'path';
 

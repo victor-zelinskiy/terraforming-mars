@@ -18,6 +18,7 @@
  * a tiny screenshot (a real BeginFrame), or the GSAP ceremony never advances.
  */
 import * as fs from 'fs';
+import * as path from 'path';
 import {expect, Page, APIRequestContext} from '@playwright/test';
 import {openConsole, soloGameConfig, CORP_WITH_FIRST_ACTION} from './consoleStart';
 import {SPENDABLE_RESOURCES} from '../../src/common/inputs/Spendable';
@@ -256,6 +257,22 @@ export async function drive(
   }
   expect(false, `never reached the stop condition in ${maxRounds} rounds`).toBeTruthy();
   throw new Error('unreachable');
+}
+
+/**
+ * PHASE-4 FIXTURE TABLE — the 2p pre-endgame state as a fixture instead of a
+ * played-out game: temperature + oceans maxed, oxygen ONE step short, the
+ * viewed seat holding the plants. `journeyToEndgame`'s drive() converges from
+ * here in a few raises; the specs' own subject (the finale through the page,
+ * the ceremony, the overview) is untouched. Regenerate: `npm run e2e:fixtures`.
+ */
+export async function fixtureTable(request: APIRequestContext): Promise<Array<string>> {
+  const file = path.resolve(__dirname, 'fixtures', 'two-player-pre-endgame.json');
+  const serialized = JSON.parse(fs.readFileSync(file, 'utf8')) as Record<string, unknown>;
+  const res = await request.post('/api/dev/load-game', {data: serialized});
+  expect(res.ok(), `dev load-game accepted the endgame fixture (status ${res.status()})`).toBeTruthy();
+  const body = await res.json() as {players: Array<{id: string}>};
+  return body.players.map((p) => p.id);
 }
 
 export async function createTable(

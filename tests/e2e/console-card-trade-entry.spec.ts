@@ -1,4 +1,4 @@
-import {test, expect, Page} from '@playwright/test';
+import {test, expect, Page} from './consoleTest';
 import {
   bootWithCards, openCardActions, openActionFocus, press,
 } from './consoleStart';

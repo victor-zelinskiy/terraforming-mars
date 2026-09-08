@@ -1,4 +1,4 @@
-import {test, expect, APIRequestContext, Page} from '@playwright/test';
+import {test, expect, APIRequestContext, Page} from './consoleTest';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
 import {NO_PAYMENT, fetchPlayerModel, openConsole, seedGameOverApi, sendPlayerInput, waitForBoardHome} from './consoleStart';
@@ -67,7 +67,7 @@ async function shoot(page: Page, name: string): Promise<void> {
 }
 
 /** Keep the compositor producing frames (headless rAF starves on quiet screens). */
-async function settle(page: Page, ms: number): Promise<void> {
+async function pumpFrames(page: Page, ms: number): Promise<void> {
   const until = Date.now() + ms;
   while (Date.now() < until) {
     await page.screenshot({clip: {x: 0, y: 0, width: 8, height: 8}}).catch(() => {});
@@ -167,7 +167,7 @@ for (const profile of PROFILES) {
 
       await openConsole(page, viewer, '');
       await waitForBoardHome(page, 25);
-      await settle(page, 2_500); // the seeded stream diffs silently
+      await pumpFrames(page, 2_500); // the seeded stream diffs silently
 
       // ── the ACT: the rival builds a CITY (standard project) ────────────
       await rivalBuildsCity(request, rival);
@@ -175,7 +175,7 @@ for (const profile of PROFILES) {
       // ── the CARD: one card, band first, the zone right under it ────────
       const card = page.locator('.con-notif--sign-positive');
       await card.waitFor({timeout: 30_000});
-      await settle(page, 900);
+      await pumpFrames(page, 900);
       await shoot(page, `${profile.tag}-01-tharsis-payout`);
 
       // WHAT leads: the band states the viewer's own production gain.

@@ -26,6 +26,7 @@ files here are the deeper dives it points at.
 - [GAMEPAD_SUPPORT_DESIGN.md](GAMEPAD_SUPPORT_DESIGN.md) / [GAMEPAD_SUPPORT_BRIEF.md](GAMEPAD_SUPPORT_BRIEF.md) — controller-first support design + status.
 - [DEV_GUARANTEED_CARDS.md](DEV_GUARANTEED_CARDS.md) — dev tool: pin chosen cards into the first hand dealt (test-mode sub-setting, admin only).
 - [TEST_CONTOUR.md](TEST_CONTOUR.md) — what «green» is allowed to mean: the chunking bug that made the whole client suite a silent no-op, the collected-count floor, wrapper auto-unmount, the `serial` cascade behind «did not run», and the probe/press disciplines E2E failures kept coming from.
+- [E2E_ARCHITECTURE_REWORK.md](E2E_ARCHITECTURE_REWORK.md) — **the rework, phases 0–5 IMPLEMENTED 2026-09-08** (see § Implementation status): ratchet guards + flake ledger + burn-in; real `seed` (per-spec, annotated into reports); the `__conReady` readiness contract + `settle()` + input echo; server-per-worker isolation (workers=4 local, no `webServer`); fixture boot via `/api/dev/load-game` + generated `SerializedGame` fixtures; witness library + the `aaa-driver-canary` spec; time-balanced CI shards. Worklists for the remaining migrations live in the status section.
 
 ## Desktop UI / rendering / performance
 - [DESKTOP_DEPRECATION_AUDIT.md](DESKTOP_DEPRECATION_AUDIT.md) — desktop-only vs shared vs console-only file inventory (read before touching a UI file).

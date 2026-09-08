@@ -19,7 +19,7 @@
  * Sampling is per-frame-ish (~60 ms) because every one of these is a WINDOW,
  * not an end state — the defects were all invisible in the settled screenshot.
  */
-import {test, expect, Page} from '@playwright/test';
+import {test, expect, Page} from './consoleTest';
 import {
   soloGameConfig, walkToSummary, submitSummary, press, fillPicks,
   playStartQueue, StepKind,

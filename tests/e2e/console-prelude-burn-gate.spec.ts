@@ -1,6 +1,6 @@
 import * as fs from 'fs';
 import * as path from 'path';
-import {test, expect, Page} from '@playwright/test';
+import {test, expect, Page} from './consoleTest';
 import {
   press, stepKind, stepSubject, waitPressable, summaryVisible, pickCards,
   submitSummary, queueCards, waitQueueIdle, focusCard, yieldToPurchase,

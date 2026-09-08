@@ -23,7 +23,7 @@
  * (`window.__rewardPayoutDiag` — the read-only diagnostics idiom), so a
  * failure names WHICH gate misread rather than just the symptom.
  */
-import {expect, test, Page, APIRequestContext} from '@playwright/test';
+import {expect, test, Page, APIRequestContext} from './consoleTest';
 import * as fs from 'fs';
 import * as path from 'path';
 import {

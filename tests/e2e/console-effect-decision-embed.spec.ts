@@ -25,7 +25,7 @@
  * ownership question: «did the workspace let go before its own effect was
  * finished?».
  */
-import {expect, test, APIRequestContext, Page} from '@playwright/test';
+import {expect, test, APIRequestContext, Page} from './consoleTest';
 import * as fs from 'fs';
 import * as path from 'path';
 import {bootIntoGame, press, soloGameConfig} from './consoleStart';

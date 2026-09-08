@@ -1,4 +1,4 @@
-import {test, expect, Page} from '@playwright/test';
+import {test, expect, Page} from './consoleTest';
 import {bootIntoGame, press, soloGameConfig, waitForTurn} from './consoleStart';
 
 /**

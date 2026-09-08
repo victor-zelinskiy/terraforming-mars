@@ -27,6 +27,7 @@
  */
 
 import {useEventListener} from '@vueuse/core';
+import {installInputEchoProbe, recordInputEcho} from '@/client/console/inputEcho';
 import {CONSOLE_KEY_BUTTON, CONSOLE_KEY_NAV, keyboardConsoleIntent} from '@/client/console/composables/consoleActionModel';
 import {GamepadIntent, SemanticButton} from '@/client/gamepad/gamepadPollModel';
 import {dispatchConsoleIntent} from '@/client/console/consoleRouter';
@@ -60,6 +61,7 @@ function onKeydown(e: KeyboardEvent): void {
     if (intent.kind === 'press' && intent.button === 'confirm') {
       clickDesktopUpdatePrimary();
     }
+    recordInputEcho(e.code, intent.kind, 'update-gate');
     e.preventDefault();
     e.stopImmediatePropagation();
     return;
@@ -68,13 +70,17 @@ function onKeydown(e: KeyboardEvent): void {
   // console router), so while it is open it must own the keyboard too —
   // otherwise the arrows would drive the board BEHIND it.
   if (consoleSystemMenuIntent(intent)) {
+    recordInputEcho(e.code, intent.kind, 'system');
     e.preventDefault();
     e.stopImmediatePropagation();
     return;
   }
   if (dispatchConsoleIntent(intent)) {
+    recordInputEcho(e.code, intent.kind, 'consumed');
     e.preventDefault();
     e.stopImmediatePropagation();
+  } else {
+    recordInputEcho(e.code, intent.kind, 'unconsumed');
   }
 }
 
@@ -100,6 +106,7 @@ function onKeyup(e: KeyboardEvent): void {
     return;
   }
   if (desktopUpdateBlocking()) {
+    recordInputEcho(e.code, 'release', 'update-gate');
     e.preventDefault();
     e.stopImmediatePropagation();
     return;
@@ -107,13 +114,17 @@ function onKeyup(e: KeyboardEvent): void {
   const intent: GamepadIntent = dir !== undefined ?
     {kind: 'navEnd', dir} : {kind: 'release', button: button as SemanticButton};
   if (consoleSystemMenuIntent(intent)) {
+    recordInputEcho(e.code, intent.kind, 'system');
     e.preventDefault();
     e.stopImmediatePropagation();
     return;
   }
   if (dispatchConsoleIntent(intent)) {
+    recordInputEcho(e.code, intent.kind, 'consumed');
     e.preventDefault();
     e.stopImmediatePropagation();
+  } else {
+    recordInputEcho(e.code, intent.kind, 'unconsumed');
   }
 }
 
@@ -124,6 +135,7 @@ export function installConsoleKeyBridge(): void {
   if (stop !== undefined || typeof window === 'undefined') {
     return;
   }
+  installInputEchoProbe();
   const stopDown = useEventListener(window, 'keydown', onKeydown);
   const stopUp = useEventListener(window, 'keyup', onKeyup);
   stop = () => {

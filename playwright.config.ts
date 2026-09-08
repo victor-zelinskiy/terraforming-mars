@@ -95,15 +95,11 @@ export default defineConfig({
     },
   ],
 
-  // Boot the app for the test run. If a server is already listening on BASE_URL
-  // (e.g. you started `npm start` yourself), Playwright reuses it instead of
-  // spawning a second one.
-  webServer: {
-    command: 'npm start',
-    url: BASE_URL,
-    reuseExistingServer: !isCI,
-    timeout: 120_000,
-    stdout: 'pipe',
-    stderr: 'pipe',
-  },
+  // NO webServer: every WORKER boots its own server + throwaway DB via the
+  // worker fixture in tests/e2e/consoleTest.ts (phase 3 of
+  // docs/E2E_ARCHITECTURE_REWORK.md) — port 8100+workerIndex, TM_DB_FOLDER
+  // temp dir, torn down with the worker. That is what makes workers>1 safe:
+  // runs share NOTHING but the build. Requires a built server
+  // (`npm run build`). Debug escape hatch: TM_E2E_SHARED_SERVER=1 points
+  // every worker at BASE_URL (default http://localhost:8080) the old way.
 });

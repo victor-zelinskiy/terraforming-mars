@@ -1,4 +1,4 @@
-import {test, expect, Page, APIRequestContext, Route} from '@playwright/test';
+import {test, expect, Page, APIRequestContext, Route} from './consoleTest';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
 import {bootToBoard, fillPicks, press, reloadConsole} from './consoleStart';

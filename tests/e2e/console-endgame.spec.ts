@@ -29,8 +29,8 @@
  * tiny screenshot (a real BeginFrame), or the GSAP ceremony never advances.
  * Probes are setInterval-driven (never rAF) for the same reason.
  */
-import {test, expect, Page} from '@playwright/test';
-import {createTable, journeyToEndgame, forceFrame, waitWithFrames, shoot, getModel} from './consoleEndgameHarness';
+import {test, expect, Page} from './consoleTest';
+import {createTable, fixtureTable, journeyToEndgame, forceFrame, waitWithFrames, shoot, getModel} from './consoleEndgameHarness';
 import {walkFocusUntil} from './consoleStart';
 
 const SHOT_DIR = 'screenshots/console-endgame';
@@ -107,7 +107,7 @@ async function readStabilityProbe(page: Page): Promise<Array<StabilitySample>> {
 test.describe('console endgame workspace — 2p, full journey', () => {
   test('ceremony plays stable; B parks and resumes; winner is the row; reload settles; overview round-trips', async ({page, request}) => {
     test.setTimeout(600_000);
-    const ids = await createTable(request, ['red', 'blue']);
+    const ids = await fixtureTable(request);
 
     // 1 · A real finished game, the viewer's finale answered through the page.
     page.on('console', (msg) => {

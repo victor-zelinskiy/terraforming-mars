@@ -1,6 +1,6 @@
-import {expect, test} from '@playwright/test';
+import {expect, test} from './consoleTest';
 import {press, reloadMenu} from './consoleStart';
-import {campaignModelAs, createCampaign, devCommit, launchMission, openMapAs, CAMPAIGN_BASE as BASE} from './campaignFixtures';
+import {campaignModelAs, createCampaign, devCommit, launchMission, openMapAs, campaignBase} from './campaignFixtures';
 
 /**
  * CAMPAIGN MODE — the Campaign Map screen + lifecycle
@@ -58,10 +58,10 @@ test.describe('campaign map', () => {
 
   test('launch is idempotent server-side: two launch posts converge on one game', async ({request}) => {
     const {id} = await createCampaign(request);
-    const first = await request.post(`${BASE}/api/campaign/launch?id=${id}&name=Alice`);
+    const first = await request.post(`${campaignBase()}/api/campaign/launch?id=${id}&name=Alice`);
     expect(first.ok()).toBeTruthy();
     const a = await first.json();
-    const second = await request.post(`${BASE}/api/campaign/launch?id=${id}&name=Alice`);
+    const second = await request.post(`${campaignBase()}/api/campaign/launch?id=${id}&name=Alice`);
     const b = await second.json();
     expect(b.gameId).toBe(a.gameId);
   });
@@ -178,7 +178,7 @@ test.describe('campaign map', () => {
     // out-of-band second-participant path.
     const aliceModel = await campaignModelAs(request, id, 'Alice');
     const alicePid = aliceModel.missions[0].yourPlayerId!;
-    const confirmRes = await request.post(`${BASE}/api/campaign/carryover?id=${id}`, {
+    const confirmRes = await request.post(`${campaignBase()}/api/campaign/carryover?id=${id}`, {
       data: {playerId: alicePid, cards: []},
     });
     expect(confirmRes.ok(), await confirmRes.text()).toBeTruthy();

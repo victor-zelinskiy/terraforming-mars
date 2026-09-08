@@ -11,6 +11,10 @@ on:
         description: 'Only run tests whose title matches this (Playwright --grep)'
         required: false
         default: ''
+      burnin_depth:
+        description: 'Burn-in: run e2e specs touched in the last N commits with --repeat-each=3 (0 = skip)'
+        required: false
+        default: '15'
 
 permissions:
   contents: read
@@ -94,13 +98,18 @@ jobs:
       # DO NOT pass --trace on this command line: the CLI value replaces the
       # config's trace OBJECT with a bare mode string, which silently turns the
       # film strip back on. A green test writes nothing heavy.
+      # TIME-BALANCED SHARDS (phase 3): when tests/e2e/shardPlan.json matches
+      # the shard count, each runner takes its measured-minutes bucket (new
+      # specs are round-robined in by the script, deleted ones skipped);
+      # otherwise the positional --shard fallback keeps the run whole.
       - name: Run Playwright E2E (shard ${{ matrix.shard }})
-        run: >
-          npx playwright test tests/e2e
-          --shard=${{ matrix.shard }}/${{ matrix.shards }}
-          --workers=1
-          --reporter=list,github,blob
-          ${{ inputs.grep && format('--grep "{0}"', inputs.grep) || '' }}
+        run: |
+          if FILES=$(node scripts/e2e-shard-files.mjs ${{ matrix.shard }} ${{ matrix.shards }}); then
+            echo "time-balanced bucket: $FILES"
+            npx playwright test $FILES --workers=1 --reporter=list,github,blob ${{ inputs.grep && format('--grep "{0}"', inputs.grep) || '' }}
+          else
+            npx playwright test tests/e2e --shard=${{ matrix.shard }}/${{ matrix.shards }} --workers=1 --reporter=list,github,blob ${{ inputs.grep && format('--grep "{0}"', inputs.grep) || '' }}
+          fi
 
       # Blobs exist only to be merged by the report job minutes later — they
       # carry every trace, so a long retention just stores the merged report's
@@ -162,6 +171,41 @@ jobs:
       - name: Merge into one HTML report
         run: npx playwright merge-reports --reporter=html,list ./all-blobs
 
+      # ── THE FLAKE LEDGER (docs/E2E_ARCHITECTURE_REWORK.md phase 0). ──
+      # `retries=2` rescues a flaky test into a green run; the ledger is what
+      # keeps each rescue COUNTED. The ledger file rides the actions cache
+      # (newest key wins via the restore prefix), keeps the last 50 runs, and
+      # the script exits 1 when the same test flaked ≥3 times in the last 20
+      # runs — a red report job that names the spec to fix or quarantine.
+      - name: Restore flake ledger
+        uses: actions/cache/restore@v4
+        with:
+          path: e2e-flake-ledger.json
+          key: e2e-flake-ledger-${{ github.run_id }}-${{ github.run_attempt }}
+          restore-keys: |
+            e2e-flake-ledger-
+
+      - name: Update flake ledger
+        run: |
+          npx playwright merge-reports --reporter=json ./all-blobs > merged-report.json
+          node scripts/e2e-flake-ledger.mjs merged-report.json --run-id "${{ github.run_id }}.${{ github.run_attempt }}"
+
+      - name: Save flake ledger
+        if: ${{ !cancelled() }}
+        uses: actions/cache/save@v4
+        with:
+          path: e2e-flake-ledger.json
+          key: e2e-flake-ledger-${{ github.run_id }}-${{ github.run_attempt }}
+
+      - name: Upload flake ledger
+        if: ${{ !cancelled() }}
+        uses: actions/upload-artifact@v5
+        with:
+          name: e2e-flake-ledger-${{ github.run_id }}-${{ github.run_attempt }}
+          path: e2e-flake-ledger.json
+          if-no-files-found: ignore
+          retention-days: 30
+
       - name: Upload merged report
         uses: actions/upload-artifact@v5
         with:
@@ -169,3 +213,73 @@ jobs:
           path: playwright-report/
           if-no-files-found: ignore
           retention-days: 14
+
+  # ── BURN-IN: recently-touched specs are run REPEATEDLY, so a new flake is
+  # caught at birth instead of in next month's report (phase 0 of
+  # docs/E2E_ARCHITECTURE_REWORK.md). Runs beside the shards; specs touched in
+  # the last `burnin_depth` commits get --repeat-each=3 (capped at 15 files so
+  # a refactor day cannot triple the whole suite).
+  burn-in:
+    name: Burn-in changed specs (×3)
+    if: ${{ inputs.burnin_depth != '0' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+
+      - name: Compute changed specs
+        id: changed
+        run: |
+          DEPTH='${{ inputs.burnin_depth }}'
+          SPECS=$(git diff --name-only "HEAD~${DEPTH}" -- tests/e2e 2>/dev/null | grep '\.spec\.ts$' | head -15 | tr '\n' ' ' || true)
+          echo "specs=${SPECS}" >> "$GITHUB_OUTPUT"
+          if [ -z "${SPECS// /}" ]; then
+            echo "No e2e specs changed in the last ${DEPTH} commits — burn-in skipped."
+          else
+            echo "Burn-in set: ${SPECS}"
+          fi
+
+      - name: Setup Node
+        if: ${{ steps.changed.outputs.specs != '' }}
+        uses: actions/setup-node@v6
+        with:
+          node-version: 24
+          cache: npm
+
+      - name: Install dependencies
+        if: ${{ steps.changed.outputs.specs != '' }}
+        run: npm ci
+
+      - name: Build application
+        if: ${{ steps.changed.outputs.specs != '' }}
+        run: npm run build
+
+      - name: Install Chromium
+        if: ${{ steps.changed.outputs.specs != '' }}
+        run: npx playwright install --with-deps chromium
+
+      - name: Compile the test tree
+        if: ${{ steps.changed.outputs.specs != '' }}
+        run: npm run build:test
+
+      - name: Run changed specs ×3
+        if: ${{ steps.changed.outputs.specs != '' }}
+        run: >
+          npx playwright test ${{ steps.changed.outputs.specs }}
+          --repeat-each=3
+          --workers=1
+          --reporter=list,github
+
+      - name: Upload burn-in diagnostics
+        if: ${{ !cancelled() && steps.changed.outputs.specs != '' }}
+        uses: actions/upload-artifact@v5
+        with:
+          name: burnin-diagnostics-${{ github.run_id }}-${{ github.run_attempt }}
+          path: |
+            test-results/
+            !test-results/**/trace.zip
+          if-no-files-found: ignore
+          retention-days: 7

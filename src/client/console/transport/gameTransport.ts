@@ -247,6 +247,34 @@ export function transportHolding(): boolean {
     h.nomadMove;
 }
 
+/**
+ * Read-only diagnostic facts for the e2e readiness probe (`e2eReadiness.ts`).
+ * Renders nothing, drives nothing — a snapshot consumer only. `undefined`
+ * before the transport starts (menu screens, the pre-mount gap).
+ */
+export function transportDiagFacts(): {
+  gameAge: number,
+  undoCount: number,
+  waitingForType: string | undefined,
+  promptId: number | undefined,
+  requestInProgress: boolean,
+  holding: boolean,
+} | undefined {
+  if (root === undefined) {
+    return undefined;
+  }
+  const v = currentView();
+  const wf = currentWaitingFor();
+  return {
+    gameAge: v.game.gameAge,
+    undoCount: v.game.undoCount,
+    waitingForType: wf?.type,
+    promptId: wf?.promptId,
+    requestInProgress: root.isServerSideRequestInProgress === true,
+    holding: transportHolding(),
+  };
+}
+
 /** Reactive transport facts surfaces may read (never write). */
 export const transportState = reactive({
   playersWaitingFor: [] as Array<Color>,

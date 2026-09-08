@@ -1,4 +1,4 @@
-import {test, expect, Page, APIRequestContext} from '@playwright/test';
+import {test, expect, Page, APIRequestContext} from './consoleTest';
 import {bootIntoGame, focusCard, press, placeTile, soloGameConfig, fetchPlayerModel, playCardFromHand, openCardActions, openActionFocus} from './consoleStart';
 
 /**

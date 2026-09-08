@@ -20,7 +20,7 @@
  * quiet screen) records the workspace-outcome / stack state every 250 ms so
  * a reproduced lock names its holder.
  */
-import {expect, test, APIRequestContext, Page} from '@playwright/test';
+import {expect, test, APIRequestContext, Page} from './consoleTest';
 import {bootIntoGame, press, soloGameConfig} from './consoleStart';
 
 const OLYMPUS = 'Olympus Conference';

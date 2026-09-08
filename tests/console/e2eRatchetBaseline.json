@@ -1,0 +1,580 @@
+{
+  "//": "Frozen per-file counts of e2e anti-patterns. Counts may only FALL. Regenerate with: node scripts/e2e-ratchet-baseline.mjs --write",
+  "totals": {
+    "waitForTimeout": 874,
+    "requestAnimationFrame": 42
+  },
+  "files": {
+    "campaignFixtures.ts": {
+      "waitForTimeout": 1
+    },
+    "cardTradeDoor.ts": {
+      "waitForTimeout": 1
+    },
+    "console-action-focus.spec.ts": {
+      "waitForTimeout": 3,
+      "requestAnimationFrame": 2
+    },
+    "console-action-resource-pick.spec.ts": {
+      "waitForTimeout": 2
+    },
+    "console-auto-tile-landing.spec.ts": {
+      "waitForTimeout": 8
+    },
+    "console-batch-overlap-repro.spec.ts": {
+      "waitForTimeout": 2
+    },
+    "console-blue-action-purchase.spec.ts": {
+      "waitForTimeout": 7
+    },
+    "console-blue-action-receive.spec.ts": {
+      "waitForTimeout": 6,
+      "requestAnimationFrame": 2
+    },
+    "console-board-card-bonus-concurrency.spec.ts": {
+      "waitForTimeout": 6
+    },
+    "console-board-framing.spec.ts": {
+      "waitForTimeout": 7
+    },
+    "console-bonus-action-handoff.spec.ts": {
+      "waitForTimeout": 2
+    },
+    "console-bot-attack.spec.ts": {
+      "waitForTimeout": 1
+    },
+    "console-bot-corp-award-office.spec.ts": {
+      "waitForTimeout": 1
+    },
+    "console-bot-corp-cancelled.spec.ts": {
+      "waitForTimeout": 1
+    },
+    "console-bot-corp-card-cube.spec.ts": {
+      "waitForTimeout": 1
+    },
+    "console-bot-corp-colony-setup.spec.ts": {
+      "waitForTimeout": 1
+    },
+    "console-bot-corp-columns.spec.ts": {
+      "waitForTimeout": 1
+    },
+    "console-bot-corp-cubes.spec.ts": {
+      "waitForTimeout": 1
+    },
+    "console-bot-corp-greenhouse.spec.ts": {
+      "waitForTimeout": 1
+    },
+    "console-bot-corp-markers.spec.ts": {
+      "waitForTimeout": 1
+    },
+    "console-bot-corp-mined-track.spec.ts": {
+      "waitForTimeout": 1
+    },
+    "console-bot-corp-no-tags.spec.ts": {
+      "waitForTimeout": 1
+    },
+    "console-bot-corp-shared-legend.spec.ts": {
+      "waitForTimeout": 1
+    },
+    "console-bot-corp-six-tags.spec.ts": {
+      "waitForTimeout": 1
+    },
+    "console-bot-corp-tag-marker.spec.ts": {
+      "waitForTimeout": 1
+    },
+    "console-bot-corp-thin-freight.spec.ts": {
+      "waitForTimeout": 1
+    },
+    "console-bot-corp-tr-price.spec.ts": {
+      "waitForTimeout": 1
+    },
+    "console-bot-corp-two-halves-cube.spec.ts": {
+      "waitForTimeout": 1
+    },
+    "console-bot-corp-two-halves.spec.ts": {
+      "waitForTimeout": 1
+    },
+    "console-bot-corporation.spec.ts": {
+      "waitForTimeout": 1
+    },
+    "console-bot-turn-latency.spec.ts": {
+      "waitForTimeout": 1
+    },
+    "console-campaign-endgame.spec.ts": {
+      "waitForTimeout": 1
+    },
+    "console-campaigns-list.spec.ts": {
+      "waitForTimeout": 3
+    },
+    "console-card-availability.spec.ts": {
+      "waitForTimeout": 1
+    },
+    "console-card-discard.spec.ts": {
+      "waitForTimeout": 4
+    },
+    "console-card-lore.spec.ts": {
+      "waitForTimeout": 6
+    },
+    "console-card-trade-resume.spec.ts": {
+      "waitForTimeout": 3
+    },
+    "console-colony-build-flight.spec.ts": {
+      "waitForTimeout": 4,
+      "requestAnimationFrame": 2
+    },
+    "console-colony-cube.spec.ts": {
+      "waitForTimeout": 7
+    },
+    "console-colony-entry-probe.spec.ts": {
+      "waitForTimeout": 4,
+      "requestAnimationFrame": 2
+    },
+    "console-colony-focus-probe.spec.ts": {
+      "waitForTimeout": 10,
+      "requestAnimationFrame": 6
+    },
+    "console-colony-miranda-bonus.spec.ts": {
+      "waitForTimeout": 5,
+      "requestAnimationFrame": 2
+    },
+    "console-colony-pluto-embed.spec.ts": {
+      "waitForTimeout": 17,
+      "requestAnimationFrame": 4
+    },
+    "console-colony-remote-bonus.spec.ts": {
+      "waitForTimeout": 7
+    },
+    "console-colony-trade-probe.spec.ts": {
+      "waitForTimeout": 7
+    },
+    "console-colony-trade-receipt.spec.ts": {
+      "waitForTimeout": 4
+    },
+    "console-community-marker.spec.ts": {
+      "waitForTimeout": 5
+    },
+    "console-composite-surfaces.spec.ts": {
+      "waitForTimeout": 7
+    },
+    "console-convert-plants-source.spec.ts": {
+      "waitForTimeout": 1
+    },
+    "console-corp-first-action.spec.ts": {
+      "waitForTimeout": 4
+    },
+    "console-corporate-espionage.spec.ts": {
+      "waitForTimeout": 5
+    },
+    "console-deck-draw.spec.ts": {
+      "waitForTimeout": 2
+    },
+    "console-deck-pick.spec.ts": {
+      "waitForTimeout": 6
+    },
+    "console-delta-card-advance.spec.ts": {
+      "waitForTimeout": 9
+    },
+    "console-delta-surge.spec.ts": {
+      "waitForTimeout": 2
+    },
+    "console-dp06-payment-mix.spec.ts": {
+      "waitForTimeout": 3
+    },
+    "console-draft-workspace.spec.ts": {
+      "waitForTimeout": 17,
+      "requestAnimationFrame": 2
+    },
+    "console-dutch-mountains.spec.ts": {
+      "waitForTimeout": 1
+    },
+    "console-effect-chain-lock.spec.ts": {
+      "waitForTimeout": 10
+    },
+    "console-effect-decision-embed.spec.ts": {
+      "waitForTimeout": 8
+    },
+    "console-effect-decision.spec.ts": {
+      "waitForTimeout": 3
+    },
+    "console-elysium-marsbot.spec.ts": {
+      "waitForTimeout": 4
+    },
+    "console-endgame-boundary.spec.ts": {
+      "waitForTimeout": 1
+    },
+    "console-endgame-overview.spec.ts": {
+      "waitForTimeout": 16
+    },
+    "console-endgame.spec.ts": {
+      "waitForTimeout": 1
+    },
+    "console-energy-conversion-prompt.spec.ts": {
+      "waitForTimeout": 2
+    },
+    "console-external-draw.spec.ts": {
+      "waitForTimeout": 7
+    },
+    "console-first-action-draw.spec.ts": {
+      "waitForTimeout": 5
+    },
+    "console-first-action-unsourced-draw.spec.ts": {
+      "waitForTimeout": 2
+    },
+    "console-firstact-entry-probe.spec.ts": {
+      "waitForTimeout": 2
+    },
+    "console-gamepad-reload-carryover.spec.ts": {
+      "waitForTimeout": 5
+    },
+    "console-hand-close-landing.spec.ts": {
+      "waitForTimeout": 5
+    },
+    "console-hand-dock-anchor.spec.ts": {
+      "waitForTimeout": 7
+    },
+    "console-hand-open-parity.spec.ts": {
+      "waitForTimeout": 5
+    },
+    "console-hand-play-return.spec.ts": {
+      "waitForTimeout": 2
+    },
+    "console-hand-workspace.spec.ts": {
+      "waitForTimeout": 4
+    },
+    "console-hazard-placement.spec.ts": {
+      "waitForTimeout": 2
+    },
+    "console-hosted-section-footer.spec.ts": {
+      "waitForTimeout": 2
+    },
+    "console-hud-frame.spec.ts": {
+      "waitForTimeout": 9
+    },
+    "console-hydro-bonus-order.spec.ts": {
+      "waitForTimeout": 9
+    },
+    "console-hydro-cards-scene.spec.ts": {
+      "waitForTimeout": 2
+    },
+    "console-hydro-copied-colony.spec.ts": {
+      "waitForTimeout": 6
+    },
+    "console-hydro-copied-tile.spec.ts": {
+      "waitForTimeout": 4
+    },
+    "console-hydro-geometry.spec.ts": {
+      "waitForTimeout": 2
+    },
+    "console-hydro-repeat-bridge.spec.ts": {
+      "waitForTimeout": 1
+    },
+    "console-hydro-repeat-embed.spec.ts": {
+      "waitForTimeout": 3
+    },
+    "console-hydro-stage-bound-repeat.spec.ts": {
+      "waitForTimeout": 5
+    },
+    "console-info-workspace.spec.ts": {
+      "waitForTimeout": 2
+    },
+    "console-inspect-history.spec.ts": {
+      "waitForTimeout": 2
+    },
+    "console-longgame-perf-probe.spec.ts": {
+      "waitForTimeout": 11
+    },
+    "console-ma-states.spec.ts": {
+      "waitForTimeout": 5
+    },
+    "console-ma-workspace.spec.ts": {
+      "waitForTimeout": 4
+    },
+    "console-modular-floodgates.spec.ts": {
+      "waitForTimeout": 1
+    },
+    "console-multi-effect-sequence.spec.ts": {
+      "waitForTimeout": 2
+    },
+    "console-next-step-line.spec.ts": {
+      "waitForTimeout": 3
+    },
+    "console-nomads-hazard-dossier.spec.ts": {
+      "waitForTimeout": 7
+    },
+    "console-notification-bonus-attack.spec.ts": {
+      "waitForTimeout": 3
+    },
+    "console-notification-cause.spec.ts": {
+      "waitForTimeout": 1
+    },
+    "console-notification-premium-bot.spec.ts": {
+      "waitForTimeout": 1
+    },
+    "console-notification-semantics.spec.ts": {
+      "waitForTimeout": 1
+    },
+    "console-options-settings.spec.ts": {
+      "waitForTimeout": 10
+    },
+    "console-payment-panel.spec.ts": {
+      "waitForTimeout": 1
+    },
+    "console-placement-confirm.spec.ts": {
+      "waitForTimeout": 3
+    },
+    "console-placement-dossier.spec.ts": {
+      "waitForTimeout": 17
+    },
+    "console-placement-navigation.spec.ts": {
+      "waitForTimeout": 3
+    },
+    "console-placement-relations.spec.ts": {
+      "waitForTimeout": 5
+    },
+    "console-placement-source.spec.ts": {
+      "waitForTimeout": 2
+    },
+    "console-planet-focus.spec.ts": {
+      "waitForTimeout": 4,
+      "requestAnimationFrame": 4
+    },
+    "console-play-draw-embed.spec.ts": {
+      "waitForTimeout": 10
+    },
+    "console-play-landing-probe.spec.ts": {
+      "waitForTimeout": 13
+    },
+    "console-played-perf-probe.spec.ts": {
+      "waitForTimeout": 17
+    },
+    "console-played-zoom-return.spec.ts": {
+      "waitForTimeout": 1
+    },
+    "console-pluto-bonus-discard.spec.ts": {
+      "waitForTimeout": 6
+    },
+    "console-pluto-two-colony-sequence.spec.ts": {
+      "waitForTimeout": 6
+    },
+    "console-prelude-burn-gate.spec.ts": {
+      "waitForTimeout": 11
+    },
+    "console-profiles.spec.ts": {
+      "waitForTimeout": 10
+    },
+    "console-prompt-admission.spec.ts": {
+      "waitForTimeout": 2
+    },
+    "console-prompt-source.spec.ts": {
+      "waitForTimeout": 4
+    },
+    "console-rail-contract.spec.ts": {
+      "waitForTimeout": 1
+    },
+    "console-rail-protection.spec.ts": {
+      "waitForTimeout": 3
+    },
+    "console-rail-value-badges.spec.ts": {
+      "waitForTimeout": 3
+    },
+    "console-recv-perf-probe.spec.ts": {
+      "waitForTimeout": 9
+    },
+    "console-repeat-pick.spec.ts": {
+      "waitForTimeout": 4
+    },
+    "console-repeat-reveal-embed.spec.ts": {
+      "waitForTimeout": 3
+    },
+    "console-resource-distribute.spec.ts": {
+      "waitForTimeout": 3
+    },
+    "console-reveal-availability.spec.ts": {
+      "waitForTimeout": 5
+    },
+    "console-reveal-landing.spec.ts": {
+      "waitForTimeout": 5
+    },
+    "console-reveal-priority.spec.ts": {
+      "waitForTimeout": 2
+    },
+    "console-reveal-remote-bonus-collision.spec.ts": {
+      "waitForTimeout": 3
+    },
+    "console-right-drawer.spec.ts": {
+      "waitForTimeout": 1
+    },
+    "console-scale-marker.spec.ts": {
+      "waitForTimeout": 5
+    },
+    "console-score-explorer.spec.ts": {
+      "waitForTimeout": 3
+    },
+    "console-score-header.spec.ts": {
+      "waitForTimeout": 3
+    },
+    "console-self-target.spec.ts": {
+      "waitForTimeout": 7
+    },
+    "console-social-heating.spec.ts": {
+      "waitForTimeout": 8
+    },
+    "console-sponsor-colony.spec.ts": {
+      "waitForTimeout": 6
+    },
+    "console-sponsor-play-outcome.spec.ts": {
+      "waitForTimeout": 7
+    },
+    "console-staged-play.spec.ts": {
+      "waitForTimeout": 3
+    },
+    "console-start-availability.spec.ts": {
+      "waitForTimeout": 4
+    },
+    "console-start-motion.spec.ts": {
+      "waitForTimeout": 6
+    },
+    "console-start-multiplayer.spec.ts": {
+      "waitForTimeout": 3
+    },
+    "console-start-placement.spec.ts": {
+      "waitForTimeout": 2
+    },
+    "console-start-rail-commit.spec.ts": {
+      "waitForTimeout": 5
+    },
+    "console-start-sponsor.spec.ts": {
+      "waitForTimeout": 10
+    },
+    "console-start-summary-fit.spec.ts": {
+      "waitForTimeout": 1,
+      "requestAnimationFrame": 2
+    },
+    "console-start-summary.spec.ts": {
+      "waitForTimeout": 5
+    },
+    "console-stdp-stable-geometry.spec.ts": {
+      "waitForTimeout": 4
+    },
+    "console-stdp-workspace.spec.ts": {
+      "waitForTimeout": 5,
+      "requestAnimationFrame": 4
+    },
+    "console-strategy-rail-states.spec.ts": {
+      "waitForTimeout": 8
+    },
+    "console-strategy-rail.spec.ts": {
+      "waitForTimeout": 1
+    },
+    "console-surface-motion.spec.ts": {
+      "waitForTimeout": 6
+    },
+    "console-system-menu.spec.ts": {
+      "waitForTimeout": 5
+    },
+    "console-tile-replacement.spec.ts": {
+      "waitForTimeout": 9
+    },
+    "console-trade-target-step.spec.ts": {
+      "waitForTimeout": 7
+    },
+    "console-triple-nest-blockade.spec.ts": {
+      "waitForTimeout": 1
+    },
+    "console-venus-bonus-park.spec.ts": {
+      "waitForTimeout": 4
+    },
+    "console-viron-repeat-draw.spec.ts": {
+      "waitForTimeout": 3
+    },
+    "console-vitor-award-step.spec.ts": {
+      "waitForTimeout": 5
+    },
+    "console-wheel-commit-geometry.spec.ts": {
+      "waitForTimeout": 4
+    },
+    "console-workspace-band.spec.ts": {
+      "waitForTimeout": 3
+    },
+    "consoleEndgameHarness.ts": {
+      "waitForTimeout": 1
+    },
+    "consoleStart.ts": {
+      "waitForTimeout": 26
+    },
+    "draft-finale-probe.spec.ts": {
+      "waitForTimeout": 9
+    },
+    "established-methods-stdproj.spec.ts": {
+      "waitForTimeout": 3
+    },
+    "hand-album-capture.spec.ts": {
+      "waitForTimeout": 7
+    },
+    "hand-album-continuity.spec.ts": {
+      "waitForTimeout": 10
+    },
+    "hand-album-probe.spec.ts": {
+      "waitForTimeout": 7
+    },
+    "hand-chip-scale.spec.ts": {
+      "waitForTimeout": 5
+    },
+    "hand-chrome-flash-probe.spec.ts": {
+      "waitForTimeout": 1
+    },
+    "hand-delivery-probe.spec.ts": {
+      "waitForTimeout": 5
+    },
+    "hand-dock-pose-capture.spec.ts": {
+      "waitForTimeout": 6
+    },
+    "hand-dock-pose-transitions-probe.spec.ts": {
+      "waitForTimeout": 11,
+      "requestAnimationFrame": 2
+    },
+    "hand-dock-probe.spec.ts": {
+      "waitForTimeout": 3
+    },
+    "hand-pose-sequence-probe.spec.ts": {
+      "waitForTimeout": 2,
+      "requestAnimationFrame": 2
+    },
+    "hand-reveal-probe.spec.ts": {
+      "waitForTimeout": 16
+    },
+    "mat-stage-probe.spec.ts": {
+      "waitForTimeout": 3,
+      "requestAnimationFrame": 2
+    },
+    "start-effect-flow-probe.spec.ts": {
+      "waitForTimeout": 4,
+      "requestAnimationFrame": 2
+    },
+    "start-flow-polish-probe.spec.ts": {
+      "waitForTimeout": 3
+    },
+    "start-scene-profiles.spec.ts": {
+      "waitForTimeout": 5
+    },
+    "start-shelf-art.spec.ts": {
+      "waitForTimeout": 1,
+      "requestAnimationFrame": 2
+    },
+    "trade-fleet-probe.spec.ts": {
+      "waitForTimeout": 5
+    },
+    "tv-decision-screens.spec.ts": {
+      "waitForTimeout": 8
+    },
+    "tv-profile-screens.spec.ts": {
+      "waitForTimeout": 3
+    },
+    "wheel-rework.spec.ts": {
+      "waitForTimeout": 18
+    },
+    "zz-nomads-visual.spec.ts": {
+      "waitForTimeout": 15
+    }
+  }
+}

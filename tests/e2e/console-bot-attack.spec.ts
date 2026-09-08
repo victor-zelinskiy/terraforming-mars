@@ -1,4 +1,4 @@
-import {test, expect, APIRequestContext, Page} from '@playwright/test';
+import {test, expect, APIRequestContext, Page} from './consoleTest';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
 import {NO_PAYMENT, fetchPlayerModel, openConsole, seedGameOverApi, sendPlayerInput, soloGameConfig} from './consoleStart';
@@ -206,7 +206,7 @@ async function playUntilArrival(request: APIRequestContext, id: string, plan: Ar
  * applied) and then never advances, so the panel reads opacity 0 forever. A
  * tiny screenshot is a BeginFrame; the surface then finishes its own arrival.
  */
-async function settle(page: Page, ms = 900): Promise<void> {
+async function pumpFrames(page: Page, ms = 900): Promise<void> {
   const until = Date.now() + ms;
   while (Date.now() < until) {
     await page.screenshot({clip: {x: 0, y: 0, width: 8, height: 8}}).catch(() => {});
@@ -295,7 +295,7 @@ test.describe('MarsBot attack — the compact mandatory modal', () => {
 
     await page.keyboard.press('Enter');
     await page.waitForSelector('.con-botattack', {timeout: 20_000});
-    await settle(page);
+    await pumpFrames(page);
 
     // ── (2) WHO, WITH WHAT, AND WHAT NOW ───────────────────────────────
     const head = await page.evaluate(() => {
@@ -401,7 +401,7 @@ test.describe('MarsBot attack — the compact mandatory modal', () => {
     const targets = await page.locator('.con-botattack [data-ptsel-cell]').count();
     expect(targets, 'the real scenario produced a choice of candidates').toBeGreaterThan(1);
     await page.keyboard.press('Enter');
-    await settle(page, 600);
+    await pumpFrames(page, 600);
     await page.waitForSelector('.con-botattack .con-ptsel__slot--locked', {timeout: 10_000});
 
     const chosen = await page.evaluate(() => ({
@@ -428,7 +428,7 @@ test.describe('MarsBot attack — the compact mandatory modal', () => {
 
     // ── (7) THE SECOND PRESS COMMITS, and the modal closes ─────────────
     await page.keyboard.press('Enter');
-    await settle(page, 1500);
+    await pumpFrames(page, 1500);
     await page.waitForSelector('.con-botattack', {state: 'detached', timeout: 30_000});
     const after = await fetchPlayerModel(request, id) as unknown as Model;
     expect(after.waitingFor?.botAttackPrompt, 'the demand is answered and gone').toBeUndefined();

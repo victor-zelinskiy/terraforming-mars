@@ -1537,6 +1537,7 @@ import {
   WorkspaceFrameKind,
 } from '@/client/console/consoleWorkspaceStack';
 import {acceptsInput, isCommitted, workspaceConclusionFor} from '@/client/console/consoleWorkspaceFlow';
+import {installConsoleReadinessProbe} from '@/client/console/e2eReadiness';
 import {
   beginStdProjectSubmit,
   markStdProjectCommit,
@@ -17474,6 +17475,10 @@ export default defineComponent({
     },
   },
   mounted() {
+    // The e2e readiness probe (`window.__conReady`) — read-only snapshots of
+    // the holds/transport/stack facts this shell already stands on. Installed
+    // here so the aggregator adds no new edges to any import graph.
+    installConsoleReadinessProbe();
     // THE RELEASE FUNNEL'S GUARD (consoleWorkspaceOutcome): a claim serving a
     // live prompt/batch whose host frame still stands cannot be released out
     // from under the player. The evidence lives in the shell (the raw

@@ -294,4 +294,90 @@ describe('ApiCreateGame', () => {
 
     expect(res.statusCode).eq(statusCode.internalServerError);
   });
+
+  // ── Phase 1 of docs/E2E_ARCHITECTURE_REWORK.md: a requested seed is honoured,
+  // so an e2e failure can name its seed and be replayed exactly. ──
+  it('an explicit seed makes the deal deterministic', async () => {
+    const create = async (seed: number): Promise<SimpleGameModel> => {
+      req = new MockRequest();
+      res = new MockResponse();
+      scaffolding = new RouteTestScaffolding(req);
+      const post = scaffolding.post(apiCreateGame, res);
+      const emit = Promise.resolve().then(() => {
+        const newGameConfig: NewGameConfig = {
+          players: [{name: 'Seeded', color: 'red', beginner: false, handicap: 0, first: true}],
+          expansions: {
+            corpera: true, promo: false, venus: false, colonies: false,
+            prelude: false, prelude2: false, turmoil: false, community: false,
+            ares: false, moon: false, pathfinders: false, ceo: false,
+            starwars: false, underworld: false, deltaProject: false,
+          },
+          // The board must be PINNED: a random board option rolls with
+          // Math.random in the route itself, outside the seeded rng.
+          board: BoardName.THARSIS,
+          seed,
+          randomFirstPlayer: false,
+          clonedGamedId: undefined,
+          undoOption: false,
+          showTimers: false,
+          testMode: false,
+          fastModeOption: false,
+          showOtherPlayersVP: false,
+          aresExtremeVariant: false,
+          politicalAgendasExtension: 'Standard',
+          solarPhaseOption: false,
+          removeNegativeGlobalEventsOption: false,
+          modularMA: false,
+          draftVariant: false,
+          initialDraft: false,
+          preludeDraftVariant: false,
+          ceosDraftVariant: false,
+          startingCorporations: 2,
+          shuffleMapOption: false,
+          randomMA: RandomMAOptionType.NONE,
+          includeFanMA: false,
+          soloTR: false,
+          customCorporationsList: [],
+          bannedCards: [],
+          includedCards: [],
+          customColoniesList: [],
+          customPreludes: [],
+          requiresMoonTrackCompletion: false,
+          requiresVenusTrackCompletion: false,
+          moonStandardProjectVariant: false,
+          moonStandardProjectVariant1: false,
+          altVenusBoard: false,
+          escapeVelocity: undefined,
+          twoCorpsVariant: false,
+          customCeos: [],
+          startingCeos: 0,
+          startingPreludes: 0,
+        };
+        req.emitter.emit('data', JSON.stringify(newGameConfig));
+        req.emitter.emit('end');
+      });
+      await Promise.all([emit, post]);
+      expect(res.statusCode).eq(statusCode.ok);
+      return JSON.parse(res.content) as SimpleGameModel;
+    };
+
+    const deal = async (seed: number) => {
+      const model = await create(seed);
+      const game = await scaffolding.ctx.gameLoader.getGame(model.id);
+      expect(game).is.not.undefined;
+      // The engine's own rng carries the seed it was built with.
+      expect(game!.rng.seed).eq(seed);
+      return {
+        corporations: game!.players[0].dealtCorporationCards.map((c) => c.name),
+        projects: game!.players[0].dealtProjectCards.map((c) => c.name),
+      };
+    };
+
+    const first = await deal(0.4242);
+    const second = await deal(0.4242);
+    expect(first.corporations).to.have.length.greaterThan(0);
+    expect(first.projects).to.have.length.greaterThan(0);
+    // Same seed + same config = the same deal, card for card.
+    expect(second).to.deep.eq(first);
+  });
 });

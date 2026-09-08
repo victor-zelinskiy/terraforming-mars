@@ -1,4 +1,4 @@
-import {test, expect, Page} from '@playwright/test';
+import {test, expect, Page} from './consoleTest';
 import {
   createGameWithCards, fillPicks, openConsole, pickCards, playQueueCard, press,
   queueCards, stepKind, stepSubject, summaryVisible, waitPressable, waitQueueIdle,

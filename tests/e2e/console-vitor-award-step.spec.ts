@@ -1,4 +1,4 @@
-import {test, expect, Page} from '@playwright/test';
+import {test, expect, Page} from './consoleTest';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
 import {bootIntoGame, fillPicks, pickCards, soloGameConfig} from './consoleStart';
@@ -68,7 +68,7 @@ async function startPainted(page: Page): Promise<boolean> {
 }
 
 /** The one workspace header's text, whitespace-collapsed, uppercased. */
-async function crumbText(page: Page): Promise<string> {
+async function maCrumbText(page: Page): Promise<string> {
   return (await page.locator('.con-ma__wshead').innerText().catch(() => ''))
     .replace(/\s+/g, ' ').toUpperCase();
 }
@@ -129,7 +129,7 @@ test.describe('console Vitor · the free sponsorship is a start-workspace step',
 
     // 2 · The header states the FLOW, not this screen's name: root =
     //     «СТАРТ ПАРТИИ», subject = the corporation, tail = «НАГРАДЫ».
-    const crumb = await crumbText(page);
+    const crumb = await maCrumbText(page);
     expect(crumb, 'the crumb roots at the flow the player entered').toContain('СТАРТ ПАРТИИ');
     expect(crumb, 'the corporation stays the carried subject').toContain('VITOR');
     expect(crumb, 'the tail names the stage').toContain('НАГРАДЫ');
@@ -151,7 +151,7 @@ test.describe('console Vitor · the free sponsorship is a start-workspace step',
     await shoot(page, '03-collapsed-restore-card');
     await key(page, 'Enter', 1600);
     await page.waitForSelector('.con-ma', {timeout: 15_000});
-    const restored = await crumbText(page);
+    const restored = await maCrumbText(page);
     expect(restored, 'the restore lands back INSIDE the flow').toContain('СТАРТ ПАРТИИ');
     expect(restored).toContain('НАГРАДЫ');
     expect(await startPainted(page), 'the start stays yielded under the restored step').toBeFalsy();
@@ -161,7 +161,7 @@ test.describe('console Vitor · the free sponsorship is a start-workspace step',
     await key(page, 'Enter', 700);
     await page.waitForSelector('.con-mafocus', {timeout: 8_000});
     await page.waitForTimeout(1100); // the reveal waves + the commit arm
-    const detailCrumb = await crumbText(page);
+    const detailCrumb = await maCrumbText(page);
     expect(detailCrumb, 'the root survives the descend').toContain('СТАРТ ПАРТИИ');
     expect(detailCrumb, 'the tail deepens to the funding stage').toContain('СПОНСОРСТВО');
     await shoot(page, '04-detail');

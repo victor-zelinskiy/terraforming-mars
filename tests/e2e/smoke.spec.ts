@@ -1,4 +1,4 @@
-import {test, expect} from '@playwright/test';
+import {test, expect} from './consoleTest';
 
 /**
  * Smoke test — the app boots and the Vue root renders the MAIN MENU.

@@ -1,4 +1,4 @@
-import {test, expect} from '@playwright/test';
+import {test, expect} from './consoleTest';
 import {TileType, isSpecialTile, tileTypeToString} from '../../src/common/TileType';
 import translations from '../../src/genfiles/translations.json';
 

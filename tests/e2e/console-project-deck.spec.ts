@@ -1,4 +1,4 @@
-import {test, expect} from '@playwright/test';
+import {test, expect} from './consoleTest';
 import {bootSeededGame, createGameWithCards} from './consoleStart';
 import * as fs from 'node:fs';
 import * as path from 'node:path';

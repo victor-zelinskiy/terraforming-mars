@@ -1,4 +1,6 @@
-import {APIRequestContext, Locator, Page, expect} from '@playwright/test';
+import {APIRequestContext, Locator, Page, expect, test} from '@playwright/test';
+import * as fs from 'fs';
+import * as path from 'path';
 /**
  * THE ONLY PROMPT TITLES THIS FILE IS ALLOWED TO MATCH, and the reason they are
  * safe (every other prompt is identified structurally — see the invariant in
@@ -60,10 +62,120 @@ import {
  * When the start flow changes again: fix it HERE, once.
  */
 
-/** A press + its settle. The one place a spec's cadence is defined. */
+/** `window.__conInputEcho` seq, or undefined where the bridge is absent
+ *  (pre-boot, an old bundle) — readers degrade to the pre-echo behaviour. */
+async function inputEchoSeq(page: Page): Promise<number | undefined> {
+  try {
+    return await page.evaluate(() => {
+      const w = window as unknown as {__conInputEcho?: () => {seq: number}};
+      return w.__conInputEcho === undefined ? undefined : w.__conInputEcho().seq;
+    });
+  } catch {
+    // Mid-navigation / a closing page: press() must stay exactly as tolerant
+    // as it was before the echo existed.
+    return undefined;
+  }
+}
+
+/**
+ * A press + its settle. The one place a spec's cadence is defined.
+ *
+ * THE ECHO (docs/E2E_ARCHITECTURE_REWORK.md phase 2): the console key bridge
+ * counts every recognized key event (`inputEcho.ts`), so after dispatching we
+ * wait for the bridge to SEE the key before starting the settle — a press can
+ * no longer race the bridge's install or a busy main thread. Soft by design:
+ * an unmapped key never echoes and gives up quickly; a page without the probe
+ * behaves exactly as before.
+ */
 export async function press(page: Page, code: string, settleMs = 700): Promise<void> {
+  const before = await inputEchoSeq(page);
   await page.keyboard.press(code);
+  if (before !== undefined) {
+    const deadline = Date.now() + 300;
+    for (;;) {
+      const now = await inputEchoSeq(page);
+      if (now === undefined || now > before || Date.now() >= deadline) {
+        break;
+      }
+      await page.waitForTimeout(25);
+    }
+  }
   await page.waitForTimeout(settleMs);
+}
+
+/** The in-game readiness probe's snapshot (`window.__conReady`,
+ *  `e2eReadiness.ts`), or undefined where it is not installed. */
+export async function readiness(page: Page): Promise<{
+  input: {seq: number, consumed: number, unconsumed: number, system: number, updateGate: number,
+    last?: {code: string, kind: string, outcome: string, at: number}},
+  holds: Array<string>,
+  transport?: {gameAge: number, undoCount: number, waitingForType?: string, promptId?: number,
+    requestInProgress: boolean, holding: boolean},
+  wsDepth: number,
+  notificationsSettled: boolean,
+  at: number,
+} | undefined> {
+  return await page.evaluate(() => {
+    const w = window as unknown as {__conReady?: () => unknown};
+    return w.__conReady === undefined ? undefined : w.__conReady();
+  }) as Awaited<ReturnType<typeof readiness>>;
+}
+
+/**
+ * WAIT FOR THE CONSOLE TO GO QUIET — the product's own facts instead of a
+ * guessed sleep. Quiet = no live animation hold, no in-flight server request,
+ * no transport cinematic gate (and, opted in, a settled notification feed),
+ * held CONTINUOUSLY for `quietMs`. On timeout the error names the open holds —
+ * the product's «every hold names itself» law finally paying into e2e output.
+ *
+ * Where the probe is absent (menu pages, a pre-readiness bundle) this degrades
+ * to a single `quietMs` pause — the pre-settle behaviour, never a hang.
+ */
+export async function settle(page: Page, opts: {timeoutMs?: number, quietMs?: number, notifications?: boolean} = {}): Promise<void> {
+  const timeoutMs = opts.timeoutMs ?? 15_000;
+  const quietMs = opts.quietMs ?? 250;
+  const deadline = Date.now() + timeoutMs;
+  let quietSince: number | undefined;
+  let last: Awaited<ReturnType<typeof readiness>>;
+  for (;;) {
+    last = await readiness(page);
+    if (last === undefined) {
+      await page.waitForTimeout(quietMs);
+      return;
+    }
+    const busy = last.holds.length > 0 ||
+      last.transport?.requestInProgress === true ||
+      last.transport?.holding === true ||
+      (opts.notifications === true && !last.notificationsSettled);
+    if (busy) {
+      quietSince = undefined;
+    } else if (quietSince === undefined) {
+      quietSince = Date.now();
+    } else if (Date.now() - quietSince >= quietMs) {
+      return;
+    }
+    if (Date.now() >= deadline) {
+      throw new Error(`settle: the console never went quiet in ${timeoutMs} ms — ` +
+        `holds=[${last.holds.join(', ')}] requestInProgress=${last.transport?.requestInProgress} ` +
+        `transportHolding=${last.transport?.holding} notificationsSettled=${last.notificationsSettled} ` +
+        `waitingFor=${last.transport?.waitingForType ?? '(none)'}`);
+    }
+    await page.waitForTimeout(50);
+  }
+}
+
+/**
+ * THE ONE SANCTIONED FIXED SLEEP — for a spec whose subject is the MIDDLE of a
+ * cinematic (a mid-flight pose, a deliberate beat). Everything else waits on
+ * state ({@link settle}, `pressUntil*`, poll loops). The ratchet guard
+ * (`tests/console/e2eDriverGuard.spec.ts`) counts bare `waitForTimeout` calls
+ * and refuses growth; this wrapper is the honest, named exception.
+ */
+export async function cinematicBeat(page: Page, ms: number, why: string): Promise<void> {
+  if (why.trim().length === 0) {
+    throw new Error('cinematicBeat requires a reason — an unexplained sleep is the anti-pattern it exists to name');
+  }
+  await page.waitForTimeout(ms);
 }
 
 /** The live wizard step, lower-cased ('' while the deal cinematic owns it). */
@@ -1221,6 +1333,38 @@ export async function openMandatoryAnnounce(page: Page, maxMs = 25_000): Promise
  * the run got stuck on — parked `v-show` layers (the summary pane lives on
  * through the whole game) would otherwise make every diagnosis a lie.
  */
+/** WITNESS: is a workspace band open (the `.con-root--ws-open` presence the
+ *  band contract maintains)? A rework of workspace internals updates the
+ *  product class in ONE place; specs keep reading this. */
+export async function workspaceOpen(page: Page): Promise<boolean> {
+  return await page.evaluate(() =>
+    document.querySelector('.con-root--ws-open') !== null);
+}
+
+/** WITNESS: the workspace breadcrumb's full visible text ('' when no head is
+ *  on screen). One reader for «where does the player stand». */
+export async function crumbText(page: Page): Promise<string> {
+  return await page.evaluate(() => {
+    const head = Array.from(document.querySelectorAll('.con-wshead'))
+      .find((el) => (el as HTMLElement).offsetParent !== null);
+    return head === undefined ? '' : (head.textContent ?? '').replace(/\s+/g, ' ').trim();
+  });
+}
+
+/** WITNESS: the board placement phase — 'none' | 'aiming' | 'locked' — from
+ *  the board's own state classes (`.con-board--placing/--locked`). */
+export async function placementState(page: Page): Promise<'none' | 'aiming' | 'locked'> {
+  return await page.evaluate(() => {
+    if (document.querySelector('.con-board--locked') !== null) {
+      return 'locked' as const;
+    }
+    if (document.querySelector('.con-board--placing') !== null) {
+      return 'aiming' as const;
+    }
+    return 'none' as const;
+  });
+}
+
 export async function visibleSurfaces(page: Page): Promise<Array<string>> {
   return page.evaluate(() => {
     const roots = ['.con-start', '.con-start__summary', '.con-hand', '.con-composer', '.con-reveal',
@@ -1267,6 +1411,27 @@ export async function bootToBoard(page: Page, opts: WalkOptions & {first?: strin
  * spec to find a specific card (8 corporations / 20 projects) instead of
  * re-creating games until the RNG is kind.
  */
+/**
+ * A STABLE per-test seed — the hash of the running test's full title path, so
+ * every spec gets a reproducible deal WITHOUT authoring anything and no two
+ * specs share a deal by accident. The server honours it since phase 1 of
+ * docs/E2E_ARCHITECTURE_REWORK.md (`ApiCreateGame`); a red run's report names
+ * the seed via the annotation {@link createGameWithCards} attaches. Outside a
+ * running test (module-level config building) falls back to the old 0.1.
+ */
+export function specSeed(): number {
+  try {
+    const title = test.info().titlePath.join(' › ');
+    let h = 5381;
+    for (let i = 0; i < title.length; i++) {
+      h = (Math.imul(h, 33) ^ title.charCodeAt(i)) >>> 0;
+    }
+    return h / 2 ** 32;
+  } catch {
+    return 0.1;
+  }
+}
+
 export function soloGameConfig(overrides: Record<string, unknown> = {}): Record<string, unknown> {
   const {expansions, players, ...rest} = overrides as {
     expansions?: Record<string, boolean>,
@@ -1282,7 +1447,7 @@ export function soloGameConfig(overrides: Record<string, unknown> = {}): Record<
       ...(expansions ?? {}),
     },
     board: 'tharsis',
-    seed: 0.1,
+    seed: specSeed(),
     randomFirstPlayer: false,
     clonedGamedId: undefined,
     undoOption: false,
@@ -1380,6 +1545,14 @@ export async function createGameWithCards(
     dealt = (pv.waitingFor?.options ?? [])
       .flatMap((o: {cards?: Array<{name: string}>}) => (o.cards ?? []).map((c) => c.name));
     if (cards.every((c) => dealt.includes(c))) {
+      try {
+        // ANY RED NAMES ITS SEED: the annotation lands in the report, so a
+        // failure is replayable locally with the exact same deal.
+        test.info().annotations.push({type: 'game',
+          description: `seed=${seed + attempt * step} player=${players[0].id}`});
+      } catch {
+        // Outside a running test — nothing to annotate.
+      }
       return players[0].id;
     }
   }
@@ -1959,6 +2132,37 @@ export type BootOptions = {
  * Returns the player id — a spec that then talks to the API (or writes a
  * per-participant localStorage pref) needs it.
  */
+/**
+ * BOOT A GAME FROM A FIXTURE — state is DECLARED, not clicked (phase 4 of
+ * docs/E2E_ARCHITECTURE_REWORK.md). Posts a generated `SerializedGame`
+ * (tests/e2e/fixtures/*.json — regenerate with `npm run e2e:fixtures`) to the
+ * loopback-gated /api/dev/load-game, which remaps every id and rides the SAME
+ * `Game.deserialize` path a real save rides, then opens the console on the
+ * resumed prompt. Costs one request + one page load — a spec whose subject
+ * lives in the late game stops replaying the game to reach it.
+ */
+export async function bootFixture(
+  page: Page,
+  request: APIRequestContext,
+  fixture: 'solo-actions' | 'solo-pre-endgame',
+  opts: {query?: string, waitRounds?: number} = {},
+): Promise<string> {
+  const file = path.resolve(__dirname, 'fixtures', `${fixture}.json`);
+  const serialized = JSON.parse(fs.readFileSync(file, 'utf8')) as Record<string, unknown>;
+  const res = await request.post('/api/dev/load-game', {data: serialized});
+  expect(res.ok(), `the dev load-game door accepted ${fixture} (status ${res.status()})`).toBeTruthy();
+  const model = await res.json() as {players: Array<{id: string}>};
+  const playerId = model.players[0].id;
+  try {
+    test.info().annotations.push({type: 'game', description: `fixture=${fixture} player=${playerId}`});
+  } catch {
+    // outside a running test — nothing to annotate
+  }
+  await openConsole(page, playerId, opts.query ?? '');
+  await waitForBoardHome(page, opts.waitRounds ?? 25);
+  return playerId;
+}
+
 export async function bootIntoGame(
   page: Page,
   request: APIRequestContext,
