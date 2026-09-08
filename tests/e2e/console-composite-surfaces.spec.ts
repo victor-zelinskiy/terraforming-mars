@@ -447,7 +447,7 @@ test.describe('the Venus wild resource: the SHARED target picker', () => {
     }, WILD_TARGETS.map((name, i) => ({name, resources: i === 1 ? 2 : i})));
     await reloadConsole(page);
     await page.waitForSelector('.con-venus', {state: 'visible', timeout: 40_000});
-  await page.waitForTimeout(600); // the panel's entrance settle
+    await page.waitForTimeout(600); // the panel's entrance settle
 
     // A on the FIRST branch — «положите его на карту».
     await key(page, 'Enter', 1200);
