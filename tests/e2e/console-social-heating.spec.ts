@@ -609,6 +609,20 @@ test.describe('Social Heating — MarsBot’s movement · fhd', () => {
      */
     const passViaPage = async (): Promise<boolean> => {
       const before = (await sample()).generation;
+      // ⚠️ KNOWN GAP, DIAGNOSED BUT NOT CLOSED. Every generation turnover hands
+      // the viewer a RESEARCH BUY, and while it stands the console refuses
+      // «Пас» with «Сначала завершите текущее действие» — correctly. This
+      // driver never answers it, so roughly half the rounds below are spent on
+      // a generation that cannot roll (measured: generation 9 after sixteen
+      // rounds). The `[pass]` line prints the phase and the live `waitingFor`
+      // so the loss is visible instead of silent.
+      //
+      // Two attempts at a shared `answerResearchBuy` were REMOVED rather than
+      // shipped: the surface does not yield to the console's two generic verbs
+      // (A confirms, RT commits a set) and its own confirm is still unknown —
+      // a primitive that quietly does nothing is worse than none, because it
+      // reads as a solved problem. Closing this needs the research screen's
+      // actual contract, not another guess.
       // ⚠️ ACT → VERIFY → RETRY, like every other press in this suite. A blind
       // wheel/hold sequence lands on a busy frame often enough to matter here:
       // a pass that did not take burns the caller's whole 30 s sampling window
@@ -696,7 +710,12 @@ test.describe('Social Heating — MarsBot’s movement · fhd', () => {
       // silent loss for a red test on a cause outside this spec's subject, so
       // the round is simply spent and SAID; the outer budget still decides.
       if (!await passViaPage()) {
-        console.log(`[pass] the viewer's pass never took at generation ${before.generation}`);
+        // A refusal names the state it was refused in — a pass that «did
+        // nothing» and a viewer who still owes a prompt look identical
+        // otherwise, and that is what hid the lost passes for so long.
+        const m = await fetchPlayerModel(request, id) as Wire;
+        console.log(`[pass] the viewer's pass never took at generation ${before.generation}`,
+          `— phase ${m.game?.phase}, waitingFor ${m.waitingFor?.type ?? '(none)'} «${titleOf(m.waitingFor as Wire)}»`);
       }
       for (let i = 0; i < 60; i++) {
         const cur = await sample();
@@ -735,7 +754,13 @@ test.describe('Social Heating — MarsBot’s movement · fhd', () => {
     const told = seenCards.find((n) => n.band.includes(`+${moved!.steps}`));
     expect(told, `no card carrying +${moved!.steps} reached the owner; seen: ${JSON.stringify(seenCards)}`)
       .toBeDefined();
-    expect(told!.sign, 'the card reads as a POSITIVE change for the viewer').toBe('con-notif--sign-positive');
+    // The card's SIGN describes the WHOLE bot turn, not this one gain: a turn
+    // that pays the viewer a heat AND takes something from them is honestly
+    // `mixed` (`signOf` — gains and losses both present). The claim here is
+    // that the gain is part of the card's reading, so both gain-carrying
+    // signs pass; `negative`/`neutral` would mean the +N never reached it.
+    expect(['con-notif--sign-positive', 'con-notif--sign-mixed'],
+      `the gain is part of the card's reading (sign ${told!.sign})`).toContain(told!.sign);
     expect(told!.variant, 'it is the BOT TURN card — no separate bus').toBe('notification-card--variant-bot-turn');
     await shoot(page, '06-bot-turn-notification');
   });
