@@ -42,6 +42,8 @@
  */
 
 import {probeTick} from '@/client/console/probeTick';
+import {boardBeatStoryPending} from '@/client/console/boardBeatPark';
+import {planetFocusSettling} from '@/client/console/planetFocus';
 import {
   isResourceTransferActive, resourceTransferState,
 } from '@/client/console/resourceTransfer/consoleResourceTransfer';
@@ -100,7 +102,28 @@ export function boardSceneSettling(): boolean {
     tilePlacementRewardsSettling() ||
     isRemotePlacementActive() ||
     isRemoteNomadMoveActive() ||
-    isBoardCardBonusActive();
+    isBoardCardBonusActive() ||
+    // The CAMERA in motion (planet-focus enter/exit + the arcs' return
+    // beat — deliberately not `active`, a fully-grown stage is stable and
+    // hosts the placement's own scenes). Added with the one-owner merge:
+    // a drain, a yielded return or the endgame open starting mid-exit
+    // played its story against a board still travelling.
+    planetFocusSettling();
+}
+
+/**
+ * The board scene is settling OR a SCALE STORY is still owed/playing
+ * (`boardBeatPark`). The AUTOMATIC-TRANSITION gate of the reconciliation
+ * rework: a yielded stack's return and the endgame auto-open wait this out,
+ * so the held scales tell their story on the board the player is looking at
+ * — instead of the workspace re-covering the board one beat before the
+ * glide (the reported «вышел из зума — анимации шкал потерялись»).
+ * DELIBERATELY NOT used by the drain trigger itself (self-wait) and never a
+ * term of the watchable probe (reactivity cycle — the probe feeds
+ * `boardBeatParksReveal`).
+ */
+export function boardStorySettling(): boolean {
+  return boardSceneSettling() || boardBeatStoryPending();
 }
 
 /** The shared bounded quiet-wait loop (see the two public wrappers). */
@@ -138,6 +161,22 @@ export function waitRewardPayoutQuiet(opts?: {maxMs?: number, alive?: () => bool
  */
 export function waitBoardSceneQuiet(opts?: {maxMs?: number, alive?: () => boolean}): Promise<void> {
   return waitQuiet(boardSceneSettling, opts);
+}
+
+/** `waitBoardSceneQuiet` + the owed scale story (see `boardStorySettling`). */
+export function waitBoardStoryQuiet(opts?: {maxMs?: number, alive?: () => boolean}): Promise<void> {
+  return waitQuiet(boardStorySettling, opts);
+}
+
+/**
+ * The generic bounded quiet-wait over a CALLER-OWNED predicate — same
+ * probeTick/cap/alive contract as the fixed wrappers. For gates that
+ * compose module facts with component-local signals (the shell's drain
+ * trigger folds the reveal/card-arrival admission signals in).
+ */
+export function waitConsoleQuiet(
+  settling: () => boolean, opts?: {maxMs?: number, alive?: () => boolean}): Promise<void> {
+  return waitQuiet(settling, opts);
 }
 
 /*

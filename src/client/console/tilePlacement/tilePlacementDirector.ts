@@ -215,7 +215,22 @@ export type TileFlightOpts = {
   settleMs: number,
   /** The provenance pose (own hand vs a remote player) — defaults to OWN. */
   profile?: TileFlightProfile,
+  /**
+   * Re-read the LIVE landing hex at the final approach (boardSpaceGeometry,
+   * mechanism D): the aim above was a one-shot measure, and the board's
+   * coordinate space can move under a ~1 s flight (Planet Focus enter/exit,
+   * a fit recalibration). Read once as the flight crosses
+   * {@link TILE_RETARGET_AT}; the remaining leg blends position AND size
+   * onto the live rect (smoothstep — no visible kink). `undefined` from the
+   * reader (board hidden) keeps the planned aim — the caller's post-flight
+   * verify owns that degrade.
+   */
+  liveHex?: () => TileRect | undefined,
 };
+
+/** Where the final-approach re-read happens — the hand-dock family's proven
+ *  retarget point (final-approach-retarget). */
+export const TILE_RETARGET_AT = 0.72;
 
 /**
  * The FLIGHT + TOUCHDOWN: one progress tween drives the whole approach —
@@ -240,21 +255,76 @@ export function playTileFlight(els: TileStageEls, opts: TileFlightOpts): Promise
       tl.to(els.shadow, {autoAlpha: 1, duration: 0.2, ease: 'power1.out'}, 0.05);
     }
     const prog = {q: 0};
+    // The final-approach correction (see `liveHex`): measured once at the
+    // retarget point, blended over the remaining leg. `corrMeasured` keeps
+    // the read one-shot even when the board answers undefined.
+    let corr: {dx: number, dy: number, dw: number, dh: number} | undefined;
+    let corrMeasured = false;
     tl.to(prog, {
       q: 1,
       duration: opts.flightMs / 1000,
       ease: 'power2.inOut',
       onUpdate: () => {
         const p = tileFlightPoint(plan, prog.q);
+        let cx = p.x;
+        let cy = p.y;
+        let w = opts.hex.w;
+        let h = opts.hex.h;
+        if (opts.liveHex !== undefined && prog.q >= TILE_RETARGET_AT) {
+          if (!corrMeasured) {
+            corrMeasured = true;
+            const lh = opts.liveHex();
+            if (lh !== undefined) {
+              corr = {
+                dx: (lh.x + lh.w / 2) - (opts.hex.x + opts.hex.w / 2),
+                dy: (lh.y + lh.h / 2) - (opts.hex.y + opts.hex.h / 2),
+                dw: lh.w - opts.hex.w,
+                dh: lh.h - opts.hex.h,
+              };
+              if (Math.abs(corr.dx) + Math.abs(corr.dy) + Math.abs(corr.dw) + Math.abs(corr.dh) < 1) {
+                corr = undefined; // the space did not move — keep the pure plan
+              }
+            }
+          }
+          if (corr !== undefined) {
+            const k = (prog.q - TILE_RETARGET_AT) / (1 - TILE_RETARGET_AT);
+            const ke = k * k * (3 - 2 * k); // smoothstep into the live rect
+            cx += corr.dx * ke;
+            cy += corr.dy * ke;
+            w += corr.dw * ke;
+            h += corr.dh * ke;
+          }
+        }
         gsap.set(els.tile, {
-          x: p.x - opts.hex.w / 2,
-          y: p.y - opts.hex.h / 2,
+          x: cx - w / 2,
+          y: cy - h / 2,
+          ...(corr !== undefined ? {width: w, height: h} : {}),
           scale: tileScaleAt(prog.q, profile),
           rotation: tileTiltAt(prog.q, profile),
         });
         if (els.shadow !== undefined) {
           const sh = tileShadowAt(prog.q);
-          gsap.set(els.shadow, {scale: sh.scale, autoAlpha: Math.min(1, prog.q * 5) * sh.alpha});
+          // The ground shadow marks the LANDING spot (not the airborne
+          // tile) — under a correction it glides onto the live cell with
+          // the same blend.
+          let shadowPose = {};
+          if (corr !== undefined) {
+            const k = (prog.q - TILE_RETARGET_AT) / (1 - TILE_RETARGET_AT);
+            const ke = k * k * (3 - 2 * k);
+            const landCx = opts.hex.x + opts.hex.w / 2 + corr.dx * ke;
+            const landCy = opts.hex.y + opts.hex.h / 2 + corr.dy * ke;
+            shadowPose = {
+              x: landCx - w / 2,
+              y: landCy - h / 2 + h * 0.42,
+              width: w,
+              height: h * 0.5,
+            };
+          }
+          gsap.set(els.shadow, {
+            scale: sh.scale,
+            autoAlpha: Math.min(1, prog.q * 5) * sh.alpha,
+            ...shadowPose,
+          });
         }
       },
     }, 0);
@@ -276,6 +346,25 @@ export function playTileFlight(els: TileStageEls, opts: TileFlightOpts): Promise
       tl.to(els.shadow, {autoAlpha: 0.5, duration: 0.12, ease: 'power1.out'}, touchAt);
     }
   }, opts.flightMs + opts.settleMs + 400);
+}
+
+/**
+ * SEAT the settled proxy exactly on a (re-measured) resting rect — the
+ * post-flight verify of the live-anchor contract: when the coordinate space
+ * moved AFTER the final-approach re-read (an exit transition that finished
+ * in the flight's last 300 ms), the caller re-measures once at rest and
+ * seats the proxy on the live cell before the reveal, so the handoff is
+ * frame-perfect instead of landing beside the tile it is about to become.
+ */
+export function seatTileProxy(els: TileStageEls, hex: TileRect): void {
+  gsap.set(els.tile, {
+    x: hex.x, y: hex.y, width: hex.w, height: hex.h, scale: 1, rotation: 0,
+  });
+  if (els.shadow !== undefined) {
+    gsap.set(els.shadow, {
+      width: hex.w, height: hex.h * 0.5, x: hex.x, y: hex.y + hex.h * 0.42,
+    });
+  }
 }
 
 /** The frame-perfect handoff: the REAL board tile is already painted

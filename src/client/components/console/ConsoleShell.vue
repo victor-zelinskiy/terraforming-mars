@@ -1375,7 +1375,9 @@ import {getSpecialCellInfo} from '@/client/components/board/specialCellInfo';
 import {SpaceId} from '@/common/Types';
 
 import ConsoleBoardBinder from '@/client/components/console/ConsoleBoardBinder.vue';
-import {submitInput, submitBatch as transportSubmitBatch, cancelPlacement} from '@/client/console/transport/gameTransport';
+import {submitInput, submitBatch as transportSubmitBatch, cancelPlacement, waitForUpdate} from '@/client/console/transport/gameTransport';
+import {serverAheadOfView} from '@/client/components/realtime/viewFreshness';
+import {resetPresentationLedger, settlePresentationDue} from '@/client/console/presentationLedger';
 import {InputResponse} from '@/common/inputs/InputResponse';
 import ConsoleBoardInput from '@/client/components/console/ConsoleBoardInput.vue';
 import {buildStandardProjectPaymentModel, hasUsableStandardProjectAlternativeResources, standardProjectPaymentTitle} from '@/client/components/payment/paymentModelUtils';
@@ -1474,7 +1476,7 @@ import ConsoleStartScene from '@/client/components/console/ConsoleStartScene.vue
 import ConsoleEndgameWorkspace from '@/client/components/console/ConsoleEndgameWorkspace.vue';
 import {consoleEndgameUi, noteConsoleEndgameLivePhase, resetConsoleEndgame} from '@/client/console/endgame/consoleEndgameState';
 import {sealLiveGameSurfaces} from '@/client/console/endgame/consoleEndgameSeal';
-import {boardSceneSettling, waitBoardSceneQuiet} from '@/client/console/rewardPayoutQuiet';
+import {boardSceneSettling, boardStorySettling, waitBoardStoryQuiet, waitConsoleQuiet} from '@/client/console/rewardPayoutQuiet';
 import ConsoleRevealOverlay, {ConsoleRevealMode} from '@/client/components/console/ConsoleRevealOverlay.vue';
 import ConsolePlayCardConfirm from '@/client/components/console/ConsolePlayCardConfirm.vue';
 import type {ConsoleHandStage} from '@/client/components/console/ConsoleHandSection.vue';
@@ -1707,7 +1709,7 @@ import {
 import {bonusDiscardOwnsBatch, bonusDiscardStep, BonusDiscardStep} from '@/client/console/colonyTrade/colonyBonusDiscardStep';
 import {drawnRevealCommandRun} from '@/client/console/consoleRevealCommands';
 import {workspaceClaimsDrawReveal, workspaceClaimsColonyReveal, workspaceClaimsDeckCheck, workspaceClaimsEffect, workspaceClaimsPick, workspaceClaimsRevealSource, workspaceOutcomeClaimed, workspaceOutcomeBeatPending, claimWorkspaceOutcome, lastOutcomeReleaseStack, markWorkspaceOutcomeAnswerIn, markWorkspaceOutcomeArrivalDone, markWorkspaceOutcomeBeatDone, markWorkspaceOutcomePresenting, outcomeHostConcludesFlow, releaseWorkspaceOutcome, resetWorkspaceOutcome, retainWorkspaceOutcomeForNextBatch, setWorkspaceOutcomePhase, setWorkspaceOutcomeServingProbe, workspaceOutcomeState} from '@/client/console/consoleWorkspaceOutcome';
-import {boardBeatParkPending, boardBeatParksReveal, drainBoardBeatsIfDue, noteBoardScaleAdvance, registerBoardWatchableProbe, resetBoardBeatPark} from '@/client/console/boardBeatPark';
+import {boardBeatParkPending, boardBeatParksReveal, drainBoardBeatsIfDue, noteBoardScaleAdvance, registerBoardBeatLiveParams, registerBoardBeatRedrive, registerBoardWatchableProbe, resetBoardBeatPark} from '@/client/console/boardBeatPark';
 import {cardExitBusy} from '@/client/console/cardDeal/cardExitDirector';
 import type {WorkspaceOutcomeKind, WorkspaceOutcomeScope} from '@/client/console/consoleWorkspaceOutcome';
 import {ResultRevealPresentation, resultRevealPresentation} from '@/client/console/consoleRevealPresentation';
@@ -1717,9 +1719,9 @@ import ConsoleBoardCardBonusLayer from '@/client/components/console/boardCardBon
 import {armBoardCardBonus, abortBoardCardBonus, boardCardBonusClaimsReveal, boardCardBonusState, isBoardCardBonusActive, isBoardCardBonusFieldPhase} from '@/client/console/boardCardBonus/consoleBoardCardBonus';
 import {applyOutcomeAdoption, outcomeAdoptionHost, resolveOutcomeAdoption, sameAdoptionDecision, OutcomeAdoptionDecision} from '@/client/console/consoleOutcomeAdoption';
 import {
-  planetFocusState, enterPlanetFocus, beginPlanetFocusExit, playPlanetFocusScaleBeat,
-  planetFocusBeatAllowed, qualifiesForPlanetFocus, captureGlobalParams,
-  registerPlanetFocusParamsSource, resetPlanetFocus, isPlanetFocusEngaged,
+  planetFocusState, enterPlanetFocus, beginPlanetFocusExit,
+  qualifiesForPlanetFocus, captureGlobalParams,
+  resetPlanetFocus, isPlanetFocusEngaged,
   snapPlanetFocusSettled,
 } from '@/client/console/planetFocus';
 import ConsoleDeckDrawLayer from '@/client/components/console/deckDraw/ConsoleDeckDrawLayer.vue';
@@ -5106,13 +5108,17 @@ export default defineComponent({
         isPlanetFocusEngaged();
     },
     /**
-     * The OWED scale beat may play: the exit landed with parameter changes
-     * untold, and the world is quiet enough for the scales to be READ (no
-     * reveal above the board, no cards in transit). Pure policy in
-     * planetFocus.ts, evaluated against the one signal collection.
+     * The SCALE STORY's read gate: the park's drain must not release the
+     * held values while the scales cannot be READ — a reveal overlay above
+     * the board, cards mid-flight, a discard settling (the old planet-focus
+     * beat's own admission list, kept verbatim by the one-owner merge; the
+     * board-scene half lives in `boardSceneSettling`, folded in by the
+     * drain trigger). `revealPending` already subtracts parked batches, so
+     * a parked venus draw can never hold its own drain.
      */
-    planetFocusBeatReady(): boolean {
-      return planetFocusBeatAllowed(this.admissionSignals);
+    scaleStoryReadBlocked(): boolean {
+      const s = this.rawAdmissionSignals;
+      return s.revealOpen || s.revealPending || s.cardArrival || s.cardDiscard;
     },
     /**
      * The (cell, tile) the preview is for — the refetch key. '' → no preview
@@ -6658,10 +6664,22 @@ export default defineComponent({
      * and the one-batch-per-frame law, not by this predicate.
      */
     boardBeatsWatchable(): boolean {
+      // An engaged Planet Focus (and the arcs' return beat) counts as a
+      // COVERED board — the arcs are receded/condensing, so a scale is
+      // unreadable by construction. This term is what makes the park the
+      // ONE owner of the display freeze: a commit landing mid-focus seeds
+      // it, and the watchable edge fires exactly when the exit has seated
+      // the instruments back (the old beat's own timing). A YIELDED stack
+      // deliberately does NOT cover the board any more: the yield-gap after
+      // a placement resolves (stack aside, board fully visible, focus
+      // landed) is precisely where the scale story must play BEFORE the
+      // workspace takes the screen back; the live-placement half of the old
+      // term is carried by `!placementActive`.
       return this.consoleState.section === 'board' &&
         this.consoleState.sheet === undefined &&
         !this.workspaceScreenUp &&
-        !stackYieldedToBoard() && !this.placementActive;
+        !this.placementActive &&
+        !isPlanetFocusEngaged() && !this.planetFocusState.arcsReturning;
     },
     conRootClasses(): Record<string, boolean> {
       const classes: Record<string, boolean> = {
@@ -8590,7 +8608,18 @@ export default defineComponent({
      */
     boardBeatsWatchable(watchable: boolean): void {
       if (watchable) {
+        // THE RE-ENTRY FAST-SYNC ORDER (mechanism E): freshness first — the
+        // stories must play against TRUE data, and a wake consumed while
+        // the board was covered is a debt this edge repays (the guarded
+        // check compares cursors server-side, so a false positive costs one
+        // WAIT round trip); then the park's drain; then one ledger pass so
+        // any owed story whose stage just opened plays NOW, not a beat
+        // later.
+        if (serverAheadOfView(this.playerView.game)) {
+          waitForUpdate(true);
+        }
         this.drainBoardBeats();
+        settlePresentationDue();
       }
     },
     /**
@@ -9548,15 +9577,9 @@ export default defineComponent({
      */
     planetFocusTarget(now: boolean): void {
       if (now) {
-        enterPlanetFocus(this.playerView.game);
+        enterPlanetFocus();
       } else {
         beginPlanetFocusExit();
-      }
-    },
-    /** The owed scale beat fires the moment the world can read it. */
-    planetFocusBeatReady(now: boolean): void {
-      if (now) {
-        playPlanetFocusScaleBeat();
       }
     },
     /** The start ceremony fully resolved (the game began) — release any
@@ -15818,11 +15841,14 @@ export default defineComponent({
         resetHandReveal();
         enterWorkspace('endgame', {anchor: {type: 'phase', phase: 'end'}});
       };
-      if (!boardSceneSettling()) {
+      // Story-quiet, not merely scene-quiet: the game's LAST move routinely
+      // raises a parameter, and the finale must not bury that story's glide
+      // under the scoring scene (same law as the yielded-stack return).
+      if (!boardStorySettling()) {
         open();
         return;
       }
-      void waitBoardSceneQuiet({alive: () => this.endgameFrameLive}).then(open);
+      void waitBoardStoryQuiet({alive: () => this.endgameFrameLive}).then(open);
     },
     /**
      * A YIELDED STACK RETURNS ONLY OVER A QUIET BOARD. `placementActive`
@@ -15847,22 +15873,35 @@ export default defineComponent({
       if (!boardBeatParkPending() || !this.boardBeatsWatchable) {
         return;
       }
-      if (!boardSceneSettling()) {
+      // The drain's full gate: the board's own cinematics (settling) AND the
+      // scale story's read admission (no reveal above the board, no cards in
+      // transit — the old planet-focus beat's list). Bounded by the shared
+      // cap; the ledger's heartbeat re-asks if an edge is missed.
+      const blocked = () => boardSceneSettling() || this.scaleStoryReadBlocked;
+      if (!blocked()) {
         drainBoardBeatsIfDue();
         return;
       }
-      void waitBoardSceneQuiet({alive: () => this.boardBeatsWatchable})
+      void waitConsoleQuiet(blocked, {alive: () => this.boardBeatsWatchable})
         .then(() => drainBoardBeatsIfDue());
     },
     resumeYieldedStackOverQuietBoard(): void {
       if (!stackYieldedToBoard()) {
         return;
       }
-      if (!boardSceneSettling()) {
+      // `boardStorySettling` (not merely the scene): the return must also
+      // wait out an OWED SCALE STORY — the placement's own parameter change
+      // parked behind the focused stage. Resumed on the raw scene edge, the
+      // workspace re-covered the board one beat before the glide and the
+      // story died behind it («вышел из зума — анимации шкал потерялись»).
+      // The park's drain runs in this very yield-gap (the stack is aside,
+      // the board watchable), so the wait resolves on the story's own end;
+      // the shared 8 s cap bounds a wedged story to seconds, never the flow.
+      if (!boardStorySettling()) {
         resumeStackFromBoard();
         return;
       }
-      void waitBoardSceneQuiet({
+      void waitBoardStoryQuiet({
         alive: () => stackYieldedToBoard() && !this.placementActive,
       }).then(() => {
         if (!stackYieldedToBoard() || this.placementActive) {
@@ -17491,6 +17530,10 @@ export default defineComponent({
     // drains against the real screen; the mount-edge drain below covers the
     // watcher's blind spot (a watcher never fires on its initial truth).
     registerBoardWatchableProbe(() => this.boardBeatsWatchable);
+    // …and the ledger's redrive rides the shell's GUARDED drain (the one
+    // that folds board cinematics + the read admission in) — the bare
+    // module drain is only the desktop/test default.
+    registerBoardBeatRedrive(() => this.drainBoardBeats());
     void this.$nextTick(() => this.drainBoardBeats());
     // READ-ONLY e2e/diagnostics probe: the nested-continuation state in one
     // snapshot (the e2e specs dump it on a failure instead of guessing from
@@ -17641,10 +17684,11 @@ export default defineComponent({
     this.consoleState.shellMounted = true;
     resetMandatoryGate(); // a fresh shell starts with no acknowledged beat
     resetNotifHold(); // a fresh shell never inherits a mid-flight X-hold
-    // Planet Focus reads the LIVE committed parameters through this source
-    // at its release (the playerView root identity changes every response,
-    // so the module can never hold an object reference itself).
-    this.offPlanetFocusParams = registerPlanetFocusParamsSource(
+    // The board-beat park reads the LIVE committed parameters through this
+    // source at its drain's release — the accent names exactly the scales
+    // that moved (the playerView root identity changes every response, so
+    // the module can never hold an object reference itself).
+    this.offPlanetFocusParams = registerBoardBeatLiveParams(
       () => captureGlobalParams(this.playerView.game));
     // The hand-reveal director owns WHEN the section switches during its
     // episodes (and re-seats the grid scroll on a mid-close reopen).
@@ -17754,6 +17798,10 @@ export default defineComponent({
     // shell's computeds must never decide the next game's parks; held values
     // and a parked batch release honestly, without the show).
     resetBoardBeatPark();
+    // …and the presentation ledger with it: a dead shell's closures must
+    // never redrive the next game (the transport re-registers its witness
+    // at the next start; the park re-owes on its next seed).
+    resetPresentationLedger();
     resetHandReveal(); // never leak a mid-episode timeline / held dock
     resetHandDelivery(); // never leak a mid-flight delivery / held dock
     releaseBoardExcursion(); // a leaked barrier would hide the next game's start scene

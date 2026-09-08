@@ -13,6 +13,7 @@ import {consoleJournalUi, resetConsoleJournalUi} from '@/client/console/consoleJ
 import {consoleCardZoom, openConsoleCardZoom, closeConsoleCardZoom} from '@/client/console/consoleCardZoom';
 import {colonyFocusState, openColonyFocus, closeColonyFocus} from '@/client/console/consoleColoniesModel';
 import {planetFocusState, resetPlanetFocus} from '@/client/console/planetFocus';
+import {boardBeatParkState} from '@/client/console/boardBeatPark';
 import {surfaceMotionState, addShadeOwner, resetSurfaceMotion} from '@/client/console/surfaceMotion/surfaceMotionState';
 import {notificationState, pushTransient, clearTransient} from '@/client/components/notifications/notificationState';
 import {NotificationModel} from '@/client/components/notifications/notificationTypes';
@@ -221,10 +222,17 @@ describe('consoleEndgameSeal', () => {
 
   it('…and hard-drops it when nothing is engaged — the case the reset is for', () => {
     planetFocusState.phase = 'idle';
-    planetFocusState.heldParams = {temperature: -30, oxygenLevel: 0, oceans: 0, venusScaleLevel: 0};
     sealLiveGameSurfaces();
     expect(planetFocusState.phase, 'phase').to.eq('idle');
-    expect(planetFocusState.heldParams, 'no frozen parameters survive').to.eq(undefined);
+  });
+
+  it('releases a parked SCALE STORY at the boundary — the post-game HUD reads live values', () => {
+    // The frozen display values live in the board-beat park (the one-owner
+    // merge). The endgame open waits story-quiet first, so this is the
+    // cap-expired degrade: the seal snaps them honestly, without the show.
+    boardBeatParkState.heldParams = {venusScaleLevel: 6};
+    sealLiveGameSurfaces();
+    expect(boardBeatParkState.heldParams, 'no frozen parameters survive').to.eq(undefined);
   });
 
   it('releases every SHADE OWNER — the dim belongs to surfaces that have all left', () => {

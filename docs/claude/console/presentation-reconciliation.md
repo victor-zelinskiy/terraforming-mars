@@ -1,10 +1,12 @@
-# LOST PRESENTATION & FAST SYNC — the reconciliation architecture (design, 2026-09-08)
+# LOST PRESENTATION & FAST SYNC — the reconciliation architecture (2026-09-08)
 
-Status: **DESIGN — not implemented.** This document is the deep study of the
-«потерянные анимации» defect family and the architecture that closes it as a
-CLASS. Read together with `planet-focus.md`, `.claude/rules/console-ui.md`
-(§ A BOARD BEAT WAITS…), `src/client/console/boardBeatPark.ts` and
-`src/client/console/transport/gameTransport.ts`.
+Status: **IMPLEMENTED** (same day, one pass — mechanisms A–E; see
+«Implementation notes» at the end for the deltas against the original
+design). This document is the deep study of the «потерянные анимации» defect
+family and the architecture that closes it as a CLASS. Read together with
+`planet-focus.md`, `.claude/rules/console-ui.md` (§ A BOARD BEAT WAITS…),
+`src/client/console/boardBeatPark.ts`, `src/client/console/presentationLedger.ts`
+and `src/client/console/transport/gameTransport.ts`.
 
 ## The reported defects
 
@@ -257,7 +259,7 @@ degrades (every degrade is named in diagnostics).
   (c) remote flight with Planet Focus entering mid-flight — landing Δ to the
   live hex ≤ 2.5 px (the handoff-witness probe recipe).
 
-## Rollout order
+## Rollout order (as designed)
 
 1. **A** (freshness debt + prompt-preserving apply, behind the kill switch) —
    biggest player-visible win, smallest surface.
@@ -266,3 +268,78 @@ degrades (every degrade is named in diagnostics).
 3. **B** enforcing (redrive + named degrades), then **C** (the merge) on top.
 4. **D** (epoch + shared live-anchor helper), migrating `flyRemote` first.
 5. **E** falls out of A+B wiring on the existing shell edges.
+
+---
+
+## Implementation notes (what shipped, and where it deviates)
+
+Shipped in one pass, A–E together (B enforcing from day one — the ledger's
+redrive is only ever the owner's own guarded entry, so «observe-only first»
+bought nothing over the unit guards). The map:
+
+- **A.** `WaitingForModel.changed` (server compares the client's cursor on
+  EVERY result — `GO` answers on every poll, so the bit is what keeps the
+  mid-prompt refresh from re-fetching once per interval);
+  `realtime/viewFreshness.ts` (`serverAheadOfView` over the WS invalidation
+  cursor + the `?midpromptrefresh=0` kill switch); the transport's GO/REFRESH
+  branches now APPLY mid-prompt (never while this client's own submit is in
+  flight — the response's cinematic diffs must see the view they armed
+  against); `App.update`'s commit skips the `playerkey` reset epoch when
+  `waitingFor.promptId` is UNCHANGED.
+  **Deviation:** a mid-prompt refresh whose fetched view carries a DIFFERENT
+  promptId is APPLIED WITH the ordinary epoch bump (the design said skip).
+  Reason: the skip needed a bypass flag for the STALE_PROMPT healing (which
+  calls the same `updatePlayer` on purpose), and applying the replaced
+  prompt early is strictly better than the guaranteed failed submit + alert
+  the player would otherwise hit one press later.
+- **B.** `presentationLedger.ts` — owed stories + truth witnesses + the
+  250 ms heartbeat (an interval, never a watch) + `__presentationLedgerDiag`.
+  Wired: the park's 30 s safety IS a ledger story now (redrive = the shell's
+  guarded drain via `registerBoardBeatRedrive`; degrade = the honest release,
+  named); the transport registers the `view-freshness` witness (grace 3 s,
+  heal = the guarded `waitForUpdate(true)`).
+- **C.** `planetFocus.ts` is CAMERA-ONLY (phases, arcs return, exit hold,
+  `planetFocusSettling()`); the display freeze + the scale story live in
+  `boardBeatPark` alone. The load-bearing move: the shell's
+  `boardBeatsWatchable` counts an ENGAGED focus (+ `arcsReturning`) as a
+  covered board — so mid-focus commits seed the park with pre-change values,
+  and the watchable edge fires exactly at the old beat's moment. The drain
+  gained the accent classes (`con-scale-focus-*`, from `changedGlobalParams`
+  vs the registered live source) and a BLOCKING `board-beat-scale-story`
+  hold for its own bounded window. The drain's read admission
+  (reveal/card-arrival/discard — the old `planetFocusBeatAllowed` list)
+  lives in the shell's `scaleStoryReadBlocked`, folded into `drainBoardBeats`'
+  `waitConsoleQuiet` gate. `boardSceneSettling` gained `planetFocusSettling`
+  (transitions only — `active` is a stable stage); the yielded-stack resume
+  and the endgame auto-open wait `boardStorySettling` =
+  `boardSceneSettling ∨ boardBeatStoryPending` — so the start-flow story
+  plays IN THE YIELD-GAP, before the workspace takes the screen back (the
+  reported defect 1). The watchable probe DROPPED `!stackYieldedToBoard()`
+  (the live-placement half is carried by `!placementActive`; the gap is
+  exactly where the story must play). `sealLiveGameSurfaces` releases the
+  park at the END boundary (the open already waited story-quiet — this is
+  the cap-expired degrade only).
+- **D.** `boardSpaceGeometry.ts` (probe injected by the board section:
+  `boardGeometryCalm` = focus idle/active ∧ no fit tween/pass; the epoch
+  bumps on every stability flip); `flyRemote` gates its measure on
+  `waitBoardGeometryStable`, flies with a `liveHex` final-approach retarget
+  (`TILE_RETARGET_AT` = 0.72, smoothstep blend of position AND size, the
+  ground shadow gliding onto the live landing spot), and verifies at rest
+  (`seatTileProxy` re-seats a proxy whose epoch moved after the retarget).
+  **Scope:** the remote tile flight only, deliberately — it is the reported
+  defect. The nomad hop, the reward waves and the bonus lift keep their
+  one-shot measures for now; migrating them is mechanical (the API is
+  shared) and is the named follow-up.
+- **E.** The `boardBeatsWatchable` rising-edge watcher runs the fixed order:
+  `serverAheadOfView` → `waitForUpdate(true)`, then `drainBoardBeats()`,
+  then `settlePresentationDue()`.
+
+Guards shipped: `tests/console/presentationLedger.spec.ts` (8, server
+runner), `tests/client/console/boardBeatPark.spec.ts` (+5: accents, story
+window, ledger debt, redrive), the rewritten
+`tests/client/components/console/planetFocus.spec.ts` (camera-only),
+`tests/client/console/boardSpaceGeometry.spec.ts`,
+`tests/client/console/viewFreshness.spec.ts`,
+`tests/routes/ApiWaitingFor.spec.ts` (+2 for `changed`), and the endgame
+seal spec's park-release row. e2e follow-ups named in the test plan above
+remain open (second-player foreign tile, mid-flight focus enter).

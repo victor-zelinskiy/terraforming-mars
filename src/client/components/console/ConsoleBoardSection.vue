@@ -54,9 +54,10 @@ import {hoverBoardCell} from '@/client/components/board/boardInfoState';
 import {consoleState} from '@/client/console/consoleRouter';
 import {TileView, nextTileView} from '@/client/components/board/TileView';
 import {
-  planetFocusState, displayGlobalParams, PlanetFocusPhase,
+  planetFocusState, captureGlobalParams, PlanetFocusPhase,
 } from '@/client/console/planetFocus';
 import {boardBeatParkState, boardBeatDisplayParams, boardBeatDisplayClaims} from '@/client/console/boardBeatPark';
+import {registerBoardGeometryProbe, bumpBoardSpaceEpoch} from '@/client/console/boardSpaceGeometry';
 import {consoleMotionMs} from '@/client/console/composables/useConsoleReducedMotion';
 import {deferSceneReveal, loadingScreenState} from '@/client/console/loadingScreenState';
 import {cssLengthPx} from '@/client/console/cssUnits';
@@ -376,6 +377,8 @@ export default defineComponent({
       /** The focused cell's bonus cluster (cell-local board px) — feeds the
        *  reticle's ghost quiet-zone mask; undefined = no printed bonuses. */
       cursorBonusZone: undefined as BonusZone | undefined,
+      /** The board-space geometry probe's unregister (boardSpaceGeometry). */
+      offGeometryProbe: undefined as (() => void) | undefined,
     };
   },
   computed: {
@@ -388,6 +391,18 @@ export default defineComponent({
         this.boardTweening || this.calibrateRaf !== 0 || this.lateVerifyTimer !== 0 ? 'busy' : 'settled';
     },
     /**
+     * THE COORDINATE SPACE IS CALM — a board-bound flight may measure/launch
+     * (`boardSpaceGeometry.ts`). Deliberately FINER than `framingState`: an
+     * ACTIVE Planet Focus is a fully-grown, static stage (the placement's
+     * own scenes measure against it all the time), so only the camera's
+     * TRANSITIONS and a pending/running fit pass count as motion.
+     */
+    boardGeometryCalm(): boolean {
+      const phase = this.planetFocusState.phase;
+      return (phase === 'idle' || phase === 'active') &&
+        !this.boardTweening && this.fitRaf === 0 && this.calibrateRaf === 0;
+    },
+    /**
      * The game the board DISPLAYS. While Planet Focus holds the scene, the
      * four global parameters are served from the frozen snapshot — a commit
      * that lands mid-scene (the tile hero holds it through the flight, the
@@ -398,22 +413,21 @@ export default defineComponent({
      * glide exactly once, at the one moment it can be read.
      */
     game(): GameModel {
-      // …and the BOARD-BEAT PARK is the second presenter of the same law
-      // (`boardBeatPark.ts`): a parameter that moved while the board was
-      // COVERED (a workspace flow raised Venus) keeps its pre-change value —
-      // and its pre-change scale-bonus claim map, so the chip's capture
-      // flash plays in front of the player — until the drain releases them
-      // over a watchable board. Applied OVER the planet-focus read: both
-      // holds serve pre-change values, and the park's is the one seeded
-      // against what the player actually last saw.
+      // THE BOARD-BEAT PARK is the ONE presenter of this law
+      // (`boardBeatPark.ts`, since the one-owner merge): a parameter that
+      // moved while the board was COVERED — a workspace flow raised Venus,
+      // or a commit landed inside an engaged Planet Focus (the watchable
+      // probe counts the focused stage as covered) — keeps its pre-change
+      // value, and its pre-change scale-bonus claim map, until the drain
+      // releases them over a watchable board with the glide + the accent.
       const parkHeld = this.boardBeatParkState.heldParams !== undefined ||
         this.boardBeatParkState.heldClaims !== undefined;
-      if (this.planetFocusState.heldParams === undefined && !parkHeld) {
+      if (!parkHeld) {
         return this.playerView.game;
       }
       return {
         ...this.playerView.game,
-        ...boardBeatDisplayParams(displayGlobalParams(this.playerView.game)),
+        ...boardBeatDisplayParams(captureGlobalParams(this.playerView.game)),
         scaleBonusClaims: boardBeatDisplayClaims(this.playerView.game.scaleBonusClaims),
       };
     },
@@ -641,6 +655,13 @@ export default defineComponent({
         this.calibratePasses = 0;
         this.scheduleCalibrate();
       }
+    },
+    /** The coordinate space moved (either edge): version it, so an in-flight
+     *  board-bound aim knows its measured rect is stale (boardSpaceGeometry).
+     *  Both edges bump — a consumer re-measures on ANY move, and the settle
+     *  edge is when the re-measure is worth taking. */
+    boardGeometryCalm(): void {
+      bumpBoardSpaceEpoch();
     },
     /**
      * P27: the focused TRACK marker — spotlight ring + the SAME premium
@@ -1513,8 +1534,12 @@ export default defineComponent({
       this.stageObserver = new ResizeObserver(() => this.scheduleFit());
       this.stageObserver.observe(stage);
     }
+    // The board-space geometry verdict (boardSpaceGeometry) — board-bound
+    // flights gate their measure/launch on it and re-aim on its epoch.
+    this.offGeometryProbe = registerBoardGeometryProbe(() => this.boardGeometryCalm);
   },
   beforeUnmount() {
+    this.offGeometryProbe?.();
     this.releaseFitSettleHold(); // never strand the curtain on an unmounting stage
     this.clearRelationMarks();
     if (this.lateVerifyTimer !== 0) {

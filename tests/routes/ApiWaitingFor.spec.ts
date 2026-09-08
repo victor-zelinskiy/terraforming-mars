@@ -52,7 +52,44 @@ describe('ApiWaitingFor', () => {
     scaffolding.url = '/api/waitingfor?id=' + player.id + '&gameAge=50&undoCount=0';
     await scaffolding.get(ApiWaitingFor.INSTANCE, res);
     expect(res.statusCode).eq(statusCode.ok);
-    expect(res.content).eq('{"result":"GO","waitingFor":["black"]}');
+    expect(res.content).eq('{"result":"GO","waitingFor":["black"],"changed":false}');
+  });
+
+  // The `changed` bit — the mid-prompt refresh cursor. `GO` fires on every
+  // poll while the viewer holds a prompt, so the client needs the server's
+  // own «did the game move past your cursor?» beside it: refresh exactly when
+  // another player's action landed, never once per poll interval.
+  it('marks GO as changed when the game moved past the advertised cursor', async () => {
+    const player = TestPlayer.BLACK.newPlayer();
+    const game = Game.newInstance('game-id', [player], player, 'spectatorid');
+    await scaffolding.ctx.gameLoader.add(game);
+
+    scaffolding.url = '/api/waitingfor?id=' + player.id + '&gameAge=0&undoCount=0';
+    await scaffolding.get(ApiWaitingFor.INSTANCE, res);
+    expect(res.statusCode).eq(statusCode.ok);
+    const model = JSON.parse(res.content);
+    expect(model.result).eq('GO');
+    expect(model.changed).eq(true);
+  });
+
+  it('REFRESH carries changed=true, WAIT carries changed=false', async () => {
+    const player = TestPlayer.BLACK.newPlayer();
+    const game = Game.newInstance('game-id', [player], player, 'spectatorid');
+    await scaffolding.ctx.gameLoader.add(game);
+    player.popWaitingFor(); // the viewer holds no prompt → REFRESH/WAIT path
+
+    scaffolding.url = '/api/waitingfor?id=' + player.id + '&gameAge=0&undoCount=0';
+    await scaffolding.get(ApiWaitingFor.INSTANCE, res);
+    let model = JSON.parse(res.content);
+    expect(model.result).eq('REFRESH');
+    expect(model.changed).eq(true);
+
+    res = new MockResponse();
+    scaffolding.url = `/api/waitingfor?id=${player.id}&gameAge=${game.gameAge}&undoCount=${game.undoCount}`;
+    await scaffolding.get(ApiWaitingFor.INSTANCE, res);
+    model = JSON.parse(res.content);
+    expect(model.result).eq('WAIT');
+    expect(model.changed).eq(false);
   });
 
   // The spectator feature was removed: a spectator id is no longer a valid

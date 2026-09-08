@@ -42,6 +42,7 @@ import {resetConsoleJournalUi} from '@/client/console/consoleJournalState';
 import {closeConsoleCardZoom} from '@/client/console/consoleCardZoom';
 import {closeColonyFocus} from '@/client/console/consoleColoniesModel';
 import {beginPlanetFocusExit, isPlanetFocusEngaged, resetPlanetFocus} from '@/client/console/planetFocus';
+import {releaseBoardBeatPark} from '@/client/console/boardBeatPark';
 import {resetSurfaceMotion} from '@/client/console/surfaceMotion/surfaceMotionState';
 import {resetExternalDraw} from '@/client/console/externalDraw/consoleExternalDraw';
 import {clearTransient, setTurn} from '@/client/components/notifications/notificationState';
@@ -96,15 +97,20 @@ export function sealLiveGameSurfaces(): void {
   // so `exiting` never happens, nothing replays the framing, and the stage's
   // box does not change either, so no resize ever re-derives it: the player
   // collapsed the results onto a planet zoomed in, clipped by both bars, with
-  // the arcs cut off. The ordinary exit costs nothing here (it plays under the
-  // arriving scene) and unfreezes `heldParams` through its own settle, so the
-  // post-game HUD reads live values. The hard drop stays for the case it is
-  // FOR: nothing engaged, nothing to unwind.
+  // the arcs cut off. The ordinary exit costs nothing here (it plays under
+  // the arriving scene); the frozen display values live in the board-beat
+  // park since the one-owner merge and are released right below. The hard
+  // drop stays for the case it is FOR: nothing engaged, nothing to unwind.
   if (isPlanetFocusEngaged()) {
     beginPlanetFocusExit();
   } else {
     resetPlanetFocus();
   }
+  // A SCALE STORY still parked at the END boundary releases honestly (snap,
+  // no show): the endgame open already waited story-quiet, so this is the
+  // cap-expired degrade only — the ceremony owns the screen from here and
+  // the post-game HUD must read live values.
+  releaseBoardBeatPark();
   // The colony FOCUS STAGE outlives its own frame (it is module state, not a
   // frame phase): the endgame root unwinds the stack, but a stage left open
   // would re-open UNDER the player the next time they walk into «Колонии»

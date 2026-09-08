@@ -34,12 +34,17 @@ export class ApiWaitingFor extends Handler {
 
   private getPlayerWaitingForModel(player: IPlayer, game: IGame, gameAge: number, undoCount: number): WaitingForModel {
     const inputs = this.playersWithRequiredInputs(game);
+    // Did the game move past the client's advertised cursor? `REFRESH` IS this
+    // fact for a promptless viewer; carrying it on `GO` too lets a mid-prompt
+    // client refresh exactly when there is something new (another player's
+    // action landed while the viewer was aiming) instead of on every poll.
+    const changed = game.gameAge > gameAge || game.undoCount > undoCount;
     if (this.playerHasRequiredInput(player)) {
-      return {result: 'GO', waitingFor: inputs};
-    } else if (game.gameAge > gameAge || game.undoCount > undoCount) {
-      return {result: 'REFRESH', waitingFor: inputs};
+      return {result: 'GO', waitingFor: inputs, changed};
+    } else if (changed) {
+      return {result: 'REFRESH', waitingFor: inputs, changed};
     }
-    return {result: 'WAIT', waitingFor: inputs};
+    return {result: 'WAIT', waitingFor: inputs, changed};
   }
 
   public override async get(req: Request, res: Response, ctx: Context): Promise<void> {

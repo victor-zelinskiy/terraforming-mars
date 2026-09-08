@@ -64,8 +64,9 @@ import {
 import {AresAdjacencyGrantModel} from '@/common/models/AresAdjacencyGrantModel';
 import {
   placeTileProxy, playTileFlight, disposeTileProxy, killTileTweens,
-  playAresSourcePulses, playCoverSplash,
+  playAresSourcePulses, playCoverSplash, seatTileProxy,
 } from '@/client/console/tilePlacement/tilePlacementDirector';
+import {boardSpaceEpoch, waitBoardGeometryStable} from '@/client/console/boardSpaceGeometry';
 import {
   tilePlacementState, tileStageRemoteEls, measureBoardHexRect, tableSupplyPoint, AresSourceWake,
 } from '@/client/console/tilePlacement/consoleTilePlacement';
@@ -351,11 +352,21 @@ async function flyRemote(ev: RemoteEvent, myEpoch: number): Promise<void> {
   if (epoch !== myEpoch) {
     return;
   }
-  const hex = measureBoardHexRect(ev.spaceId);
+  // …AND ON STABLE GEOMETRY (boardSpaceGeometry, mechanism D): a Planet
+  // Focus enter/exit or a fit pass moves the whole coordinate space, so a
+  // measure taken mid-transition aims the flight at a rect that will not
+  // exist at touchdown. Bounded — past the cap the flight flies at the best
+  // measure it can take and the retarget/verify below own the residue.
+  await waitBoardGeometryStable({alive: () => epoch === myEpoch});
+  if (epoch !== myEpoch) {
+    return;
+  }
+  let hex = measureBoardHexRect(ev.spaceId);
   if (hex === undefined) {
     degradeReveal(ev); // still unmeasurable (a hidden section) — no flight
     return;
   }
+  const aimEpoch = boardSpaceEpoch();
   const ui = conUiScale();
   remotePlacementState.active = true;
   remotePlacementState.tileType = ev.tileType;
@@ -379,9 +390,26 @@ async function flyRemote(ev: RemoteEvent, myEpoch: number): Promise<void> {
     flightMs: motionMs(TILE_FLIGHT_MS),
     settleMs: motionMs(TILE_SETTLE_MS),
     profile,
+    // The live-anchor contract: the final approach re-reads the cell and
+    // blends the remaining leg onto it — a focus exit that lands mid-flight
+    // no longer parks the tile hundreds of px off its hex.
+    liveHex: () => measureBoardHexRect(ev.spaceId),
   });
   if (epoch !== myEpoch) {
     return; // aborted mid-flight — abort already revealed everything
+  }
+  // POST-FLIGHT VERIFY: the space can move even after the retarget point (an
+  // exit transition finishing in the last 300 ms). One re-measure at rest;
+  // a moved cell re-seats the settled proxy before the reveal, so the
+  // handoff stays frame-perfect and the splash/income beats aim true.
+  if (boardSpaceEpoch() !== aimEpoch) {
+    const live = measureBoardHexRect(ev.spaceId);
+    if (live !== undefined &&
+        (Math.abs(live.x - hex.x) > 1 || Math.abs(live.y - hex.y) > 1 ||
+         Math.abs(live.w - hex.w) > 1 || Math.abs(live.h - hex.h) > 1)) {
+      seatTileProxy(els, live);
+      hex = live;
+    }
   }
   // Frame-perfect handoff: the COMMITTED tile becomes visible under the
   // settled proxy (identical geometry), the proxy dissolves on it, and the

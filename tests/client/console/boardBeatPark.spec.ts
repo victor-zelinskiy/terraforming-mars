@@ -19,10 +19,15 @@ import {Color} from '@/common/Color';
 import {
   BOARD_BEAT_SCALE_MS, BOARD_BEAT_SETTLE_MS,
   boardBeatDisplayClaims, boardBeatDisplayParams, boardBeatParkPending,
-  boardBeatParkState, boardBeatParksReveal, drainBoardBeatsIfDue,
-  noteBoardScaleAdvance, registerBoardWatchableProbe, releaseBoardBeatPark,
+  boardBeatParkState, boardBeatParksReveal, boardBeatStoryPending,
+  changedGlobalParams, drainBoardBeatsIfDue,
+  noteBoardScaleAdvance, registerBoardBeatLiveParams, registerBoardBeatRedrive,
+  registerBoardWatchableProbe, releaseBoardBeatPark,
   resetBoardBeatPark,
 } from '@/client/console/boardBeatPark';
+import {
+  presentationLedgerSnapshot, resetPresentationLedger, settlePresentationDue,
+} from '@/client/console/presentationLedger';
 import {consoleMotionMs} from '@/client/console/composables/useConsoleReducedMotion';
 import {claimWorkspaceOutcome, resetWorkspaceOutcome} from '@/client/console/consoleWorkspaceOutcome';
 import {drawnCardsState, DrawnCardEntry} from '@/client/components/drawnCards/drawnCardsState';
@@ -66,15 +71,17 @@ describe('boardBeatPark', function() {
 
   beforeEach(() => {
     resetBoardBeatPark();
+    resetPresentationLedger();
     drawnCardsState.events.splice(0);
     watchable = true;
     registerBoardWatchableProbe(() => watchable);
   });
 
   after(() => {
-    // Bundle-shared module state: a leaked park (or probe) would decide a
-    // later spec's presentation.
+    // Bundle-shared module state: a leaked park (or probe, or a ledger
+    // story's heartbeat) would decide a later spec's presentation.
     resetBoardBeatPark();
+    resetPresentationLedger();
     drawnCardsState.events.splice(0);
   });
 
@@ -211,5 +218,83 @@ describe('boardBeatPark', function() {
     expect(boardBeatParkState.draining).to.equal(true); // the glide window
     await delay(consoleMotionMs(BOARD_BEAT_SCALE_MS) + 60);
     expect(boardBeatParkState.draining).to.equal(false);
+  });
+
+  // ── the SCALE STORY (the one-owner merge of the old planet-focus beat) ──
+
+  it('changedGlobalParams names exactly the moved held keys', () => {
+    const live = {temperature: -18, oxygenLevel: 2, oceans: 2, venusScaleLevel: 8} as HeldGlobalParams;
+    expect(changedGlobalParams({temperature: -20, oceans: 2}, live)).to.deep.equal(['temperature']);
+    // No live source → every held key was seeded BY a change and counts.
+    expect(changedGlobalParams({temperature: -20, oceans: 1}, undefined)).to.deep.equal(['temperature', 'oceans']);
+    expect(changedGlobalParams({}, live)).to.deep.equal([]);
+  });
+
+  it('the drain plays the SCALE STORY: blocking window + the accent classes', async () => {
+    const offLive = registerBoardBeatLiveParams(() => LIVE);
+    watchable = false;
+    noteBoardScaleAdvance(gameWith({venusScaleLevel: 6}), gameWith({venusScaleLevel: 8}));
+    noteBoardScaleAdvance(gameWith({temperature: -30, venusScaleLevel: 8}), gameWith({temperature: -28, venusScaleLevel: 8}));
+
+    watchable = true;
+    drainBoardBeatsIfDue();
+    // The blocking story window opens WITH the drain (a modal must not land
+    // in the settle gap either).
+    expect(boardBeatParkState.scaleStory).to.equal(true);
+    expect(boardBeatStoryPending()).to.equal(true);
+
+    await delay(consoleMotionMs(BOARD_BEAT_SETTLE_MS) + 60);
+    // Values released; the accent names exactly the scales that moved
+    // held → live (venus 6→8 and temperature −30→−28 both moved).
+    const html = document.documentElement.classList;
+    expect(html.contains('con-scale-focus-venus')).to.equal(true);
+    expect(html.contains('con-scale-focus-temperature')).to.equal(true);
+    expect(html.contains('con-scale-focus-oxygen')).to.equal(false);
+    expect(boardBeatParkState.scaleStory).to.equal(true);
+
+    await delay(consoleMotionMs(BOARD_BEAT_SCALE_MS) + 60);
+    expect(boardBeatParkState.scaleStory).to.equal(false);
+    expect(html.contains('con-scale-focus-venus')).to.equal(false);
+    expect(html.contains('con-scale-focus-temperature')).to.equal(false);
+    expect(boardBeatStoryPending()).to.equal(false);
+    offLive();
+  });
+
+  it('release without the show clears the story window and the accents', async () => {
+    watchable = false;
+    noteBoardScaleAdvance(gameWith({venusScaleLevel: 6}), gameWith({venusScaleLevel: 8}));
+    watchable = true;
+    drainBoardBeatsIfDue();
+    await delay(consoleMotionMs(BOARD_BEAT_SETTLE_MS) + 60);
+    expect(document.documentElement.classList.contains('con-scale-focus-venus')).to.equal(true);
+    releaseBoardBeatPark();
+    expect(boardBeatParkState.scaleStory).to.equal(false);
+    expect(document.documentElement.classList.contains('con-scale-focus-venus')).to.equal(false);
+  });
+
+  // ── the presentation-ledger debt (mechanism B) ──
+
+  it('a seed OWES a ledger story; the release settles it', () => {
+    watchable = false;
+    noteBoardScaleAdvance(gameWith({venusScaleLevel: 6}), gameWith({venusScaleLevel: 8}));
+    expect(presentationLedgerSnapshot().stories.map((s) => s.id)).to.deep.equal(['board-beat-park']);
+    releaseBoardBeatPark();
+    expect(presentationLedgerSnapshot().stories).to.deep.equal([]);
+  });
+
+  it('the ledger heartbeat re-drives a missed watchable edge through the registered hook', () => {
+    let redriven = 0;
+    registerBoardBeatRedrive(() => redriven++);
+    watchable = false;
+    noteBoardScaleAdvance(gameWith({venusScaleLevel: 6}), gameWith({venusScaleLevel: 8}));
+    // The edge everyone watches never fires (a same-flush cover/uncover) —
+    // but the board IS watchable now, so one ledger pass re-drives.
+    watchable = true;
+    settlePresentationDue();
+    expect(redriven).to.equal(1);
+    // Not ready (covered again) → no redrive spam.
+    watchable = false;
+    settlePresentationDue();
+    expect(redriven).to.equal(1);
   });
 });

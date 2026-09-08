@@ -34,6 +34,8 @@ import * as constants from '@/common/constants';
 import raw_settings from '@/genfiles/settings.json';
 import {onRealtimeWake} from '@/client/components/realtime/realtimeSync';
 import {realtimePollIntervalMs} from '@/client/components/realtime/realtimeService';
+import {midPromptRefreshEnabled, serverAheadOfView} from '@/client/components/realtime/viewFreshness';
+import {registerTruthWitness} from '@/client/console/presentationLedger';
 import {apiUrl, identitySearch} from '@/client/utils/runtimeConfig';
 import {PlayerViewModel, ViewModel} from '@/common/models/PlayerModel';
 import {PlayerInputModel} from '@/common/models/PlayerInputModel';
@@ -296,6 +298,7 @@ let animationFrame = 0;
 let pollStopped = true;
 let onVisibilityChange: (() => void) | undefined;
 let realtimeWakeOff: (() => void) | undefined;
+let freshnessWitnessOff: (() => void) | undefined;
 
 function theRoot(): TransportRoot {
   if (root === undefined) {
@@ -346,10 +349,30 @@ export function startGameTransport(transportRoot: TransportRoot): void {
   // viewer is mid-prompt, so this never disrupts partial input. Polling
   // remains the fallback; when realtime is disabled no wake ever fires.
   realtimeWakeOff = onRealtimeWake(() => waitForUpdate(true));
+  // THE FRESHNESS WITNESS (presentation ledger): the applied view stayed
+  // behind the WS-advertised cursor past the grace window — a consumed wake,
+  // a refused refresh, a dropped model. Whatever ate the primary path, the
+  // heal re-runs the SAME guarded check; the guard itself decides what (if
+  // anything) to do with it. This is the debt net under «a refused refresh
+  // is a DEBT» — it can never fetch redundantly (the guarded check compares
+  // cursors server-side) and never bypasses a guard.
+  freshnessWitnessOff = registerTruthWitness({
+    id: 'view-freshness',
+    lying: () => !pollStopped && root !== undefined &&
+      (root.playerView as PlayerViewModel | undefined)?.game !== undefined &&
+      !root.isServerSideRequestInProgress &&
+      serverAheadOfView(currentView().game),
+    graceMs: 3000,
+    heal: () => waitForUpdate(true),
+  });
 }
 
 /** Stop the transport (leaving the game screen / END). Detaches everything. */
 export function stopGameTransport(): void {
+  if (freshnessWitnessOff !== undefined) {
+    freshnessWitnessOff();
+    freshnessWitnessOff = undefined;
+  }
   if (onVisibilityChange !== undefined) {
     document.removeEventListener('visibilitychange', onVisibilityChange);
     window.removeEventListener('focus', onVisibilityChange);
@@ -1231,16 +1254,43 @@ export function waitForUpdate(immediate = false): void {
         // stuck on the waiting view forever — a draft deadlock.
         const wf = currentWaitingFor();
         const viewerHasPrompt = wf !== undefined && wf.optional !== true;
+        /*
+         * MID-PROMPT REFRESH (mechanism A of presentation-reconciliation).
+         * Historically a GO/REFRESH landing while the viewer held a prompt
+         * was DROPPED — so for as long as a player aimed a tile placement,
+         * no remote change reached them at all (another player's tile stayed
+         * invisible, the scales stale), the WS wake was consumed for
+         * nothing, and the world arrived up to LONG_POLL_MS late. Now the
+         * refresh APPLIES: `App.update`'s prompt-preserving epoch rule keeps
+         * partial input alive when the fetched view carries the SAME
+         * `promptId` (the ordinary case — the viewer's prompt object stood
+         * untouched on the server), and a CHANGED promptId applies with the
+         * ordinary reset epoch, which is exactly what the STALE_PROMPT
+         * healing would have done one failed submit later.
+         *
+         * Guards: only on a real change (the server's own `changed` cursor
+         * bit — GO answers on every poll, so without it this would re-fetch
+         * once per interval), never while this client's own submit is in
+         * flight (the response's cinematic diffs must see the view they were
+         * armed against), and behind the `?midpromptrefresh=0` kill switch.
+         */
+        const midPromptRefresh = viewerHasPrompt &&
+          midPromptRefreshEnabled() &&
+          !r.isServerSideRequestInProgress &&
+          (result.changed === true || serverAheadOfView(currentView().game));
 
         if (result.result === 'GO') {
           if (!viewerHasPrompt) {
             // Their prompt just appeared — fetch the new view.
             r.updatePlayer();
             notifyTurn();
+          } else if (midPromptRefresh) {
+            r.updatePlayer();
           }
         } else if (result.result === 'REFRESH') {
-          if (!viewerHasPrompt) {
-            // Game advanced and viewer isn't mid-input — safe to refresh.
+          if (!viewerHasPrompt || midPromptRefresh) {
+            // Game advanced — refresh. Off-prompt this is the historical
+            // path; mid-prompt it rides the prompt-preserving apply.
             r.updatePlayer();
           }
         }

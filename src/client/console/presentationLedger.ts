@@ -146,7 +146,7 @@ export function settlePresentationDue(): void {
   let oldest = 0;
   for (const story of stories.values()) {
     oldest = Math.max(oldest, t - story.since);
-    if (t - story.since > story.dueMs) {
+    if (t - story.since >= story.dueMs) {
       // PAST DUE — the honest degrade, NAMED. Never silent: this line is the
       // whole point («the safety fired» stops being invisible).
       stories.delete(story.id);
@@ -217,7 +217,7 @@ export function settlePresentationDue(): void {
 export function presentationLedgerSnapshot(): {
   stories: Array<{id: string, ageMs: number, dueMs: number}>,
   witnesses: Array<{id: string, lyingMs: number}>,
-} {
+  } {
   const t = now();
   return {
     stories: [...stories.values()].map((s) => ({id: s.id, ageMs: t - s.since, dueMs: s.dueMs})),

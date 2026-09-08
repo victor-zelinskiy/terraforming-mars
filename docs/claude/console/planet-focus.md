@@ -1,20 +1,36 @@
 # Planet Focus — the main-grid placement stage
 
+> ⚠️ **2026-09-08, the ONE-OWNER MERGE** (`presentation-reconciliation.md`,
+> mechanism C): the global-param display hold, the owed scale beat and the
+> beat-ready admission were MOVED out of this module into `boardBeatPark.ts`
+> — `planetFocus.ts` is CAMERA-ONLY now (phases, the arcs' return beat, the
+> exit-transition hold, `planetFocusSettling()`). The shell's watchable probe
+> counts an engaged focus as a covered board, so the park seeds/freezes/plays
+> the story with its drain (accents + the blocking `board-beat-scale-story`
+> hold included). Sections of this document describing `heldParams`,
+> `displayGlobalParams`, `beatPending`/`playPlanetFocusScaleBeat` and the
+> beat-ready watcher describe the PRE-MERGE design — read them as history;
+> the fit/geometry/CSS halves below are all still current.
+
 The premium mode of a tile placement whose WHOLE candidate set lives on the
 main Mars grid: the arc scales and the off-Mars flanks recede, the planet
 expands into the freed space, and the entire placement — cell choice, the
 tile-flight hero, the printed-bonus / ocean-adjacency beats, the card-bonus
 cover lift — plays on the enlarged stage. Files:
 
-- `src/client/console/planetFocus.ts` — the phase machine, the global-param
-  display hold, the scale beat, the blocking hold, the pure predicates.
+- `src/client/console/planetFocus.ts` — the phase machine (camera-only since
+  the merge), the arcs' return beat, the exit-transition hold.
+- `src/client/console/boardBeatPark.ts` — the display freeze + the scale
+  story (glide, accents, blocking window) for EVERY covered board, the
+  focused stage included.
 - `src/client/components/console/ConsoleBoardSection.vue` — phase → classes,
   the deterministic focus fit (`PFOCUS_FRAME`), calibration gating, the
-  display-game override.
+  display-game override, the board-space geometry probe.
 - `src/client/components/console/ConsoleStatusStrip.vue` — the same
-  display-game override (ONE read: `displayGlobalParams`).
+  display-game override (ONE read: `boardBeatDisplayParams`).
 - `src/client/components/console/ConsoleShell.vue` — the target computed +
-  driver watcher, the beat-ready watcher, the live-params source.
+  driver watcher, the watchable probe, the drain trigger, the live-params
+  source.
 - `src/styles/console.less` — `.con-board--pfocus*` rules + the stage veil +
   the `con-scale-focus-oceans` accent variant.
 

@@ -23,8 +23,10 @@
  *
  *  1. HOLDS THE PRESENTED VALUES of the changed global parameters (and the
  *     scale-bonus claim map) — the board section and the status strip read
- *     through `boardBeatDisplayParams` / `boardBeatDisplayClaims`, exactly
- *     like planet focus's `displayGlobalParams`;
+ *     through `boardBeatDisplayParams` / `boardBeatDisplayClaims` (since the
+ *     one-owner merge this module is the ONLY presenter of the law: an
+ *     engaged Planet Focus counts as a covered board through the shell's
+ *     watchable probe, so mid-focus commits seed here too);
  *  2. PARKS the batch a `globalParameter` source produced: it presents
  *     NOWHERE (`rawDrawnRevealPending` subtracts it — the colony-bonus park's
  *     own pattern), it does not silence the feed (the shell's reveal-park
@@ -54,15 +56,16 @@ import {GameModel} from '@/common/models/GameModel';
 import {registerAnimationHoldSupplier} from '@/client/components/presentation/animationHold';
 import {consoleMotionMs} from '@/client/console/composables/useConsoleReducedMotion';
 import {HeldGlobalParams} from '@/client/console/planetFocus';
+import {OwedStoryHandle, owePresentation} from '@/client/console/presentationLedger';
 import {currentRevealEvent, drawnCardsState} from '@/client/components/drawnCards/drawnCardsState';
 import {workspaceClaimsRevealSource} from '@/client/console/consoleWorkspaceOutcome';
 
 /** The leaving surface settles before the story starts (the auto-landing's
  *  own `BOARD_SETTLE_MS` beat — the board must not still be condensing). */
 export const BOARD_BEAT_SETTLE_MS = 360;
-/** The scale story's window: marker glide (≤1280) + the capture flash tail —
- *  mirrors `PLANET_SCALE_BEAT_MS`. The parked batch waits it out so the
- *  cover lifts off a marker that has already ARRIVED at its new step. */
+/** The scale story's window: marker glide (≤1280) + the capture flash tail.
+ *  The parked batch waits it out so the cover lifts off a marker that has
+ *  already ARRIVED at its new step. */
 export const BOARD_BEAT_SCALE_MS = 1250;
 /** The park's whole-life ceiling. A board that never becomes watchable (a
  *  workspace that genuinely cannot conclude) must not withhold a drawn card
@@ -83,6 +86,14 @@ export const boardBeatParkState = reactive({
   /** The glide half has released but the batch still waits out the scale
    *  beat — the cover must lift off a marker that has finished moving. */
   batchHeldByDrain: false,
+  /**
+   * The SCALE STORY window: from the drain's start (when values are held)
+   * until the glide window closes. A BLOCKING hold — follow-up prompts,
+   * announcements and notifications wait for the scales to finish their
+   * story (the contract Planet Focus's own beat used to carry). Bounded by
+   * the drain's own timers (settle + glide ≈ 1.6 s).
+   */
+  scaleStory: false,
   /** Bumped per drain — lets a spec (or a future scene) key on the run. */
   nonce: 0,
 });
@@ -93,6 +104,72 @@ export const boardBeatParkState = reactive({
 // in a workspace for minutes) and the feed must keep flowing there.
 registerAnimationHoldSupplier('board-beat-drain',
   () => boardBeatParkState.draining, {scope: 'notification-only'});
+
+// …and the SCALE STORY holds BLOCKING for its own bounded window: a follow-up
+// modal or a bot-turn card must not cover the gliding scales (the defect the
+// old planet-focus beat existed to prevent, now stated once for every drain
+// that releases held values).
+registerAnimationHoldSupplier('board-beat-scale-story',
+  () => boardBeatParkState.scaleStory);
+
+/** The html accent class suffix per changed parameter (shared CSS —
+ *  `con-scale-focus-<accent>`, the Government-Support beat's own language). */
+const ACCENT_OF_PARAM: ReadonlyArray<{key: keyof HeldGlobalParams, accent: string}> = [
+  {key: 'temperature', accent: 'temperature'},
+  {key: 'oxygenLevel', accent: 'oxygen'},
+  {key: 'oceans', accent: 'oceans'},
+  {key: 'venusScaleLevel', accent: 'venus'},
+];
+
+/** The accent suffixes of the parameters that changed held → live. A held
+ *  key with no live source counts as changed (it was seeded BY a change). */
+export function changedGlobalParams(
+  held: Partial<HeldGlobalParams>, live: HeldGlobalParams | undefined): Array<string> {
+  return ACCENT_OF_PARAM
+    .filter(({key}) => held[key] !== undefined && (live === undefined || held[key] !== live[key]))
+    .map(({accent}) => accent);
+}
+
+function applyScaleAccents(accents: ReadonlyArray<string>): void {
+  if (typeof document === 'undefined') {
+    return;
+  }
+  for (const accent of accents) {
+    document.documentElement.classList.add('con-scale-focus-' + accent);
+  }
+}
+
+function clearScaleAccents(): void {
+  if (typeof document === 'undefined') {
+    return;
+  }
+  for (const {accent} of ACCENT_OF_PARAM) {
+    document.documentElement.classList.remove('con-scale-focus-' + accent);
+  }
+}
+
+/** The live committed values, read at the drain's release (the playerView
+ *  root identity changes per response, so this module can never hold a
+ *  stale object reference — the shell registers a reader). */
+let liveParamsSource: (() => HeldGlobalParams) | undefined;
+
+export function registerBoardBeatLiveParams(source: () => HeldGlobalParams): () => void {
+  liveParamsSource = source;
+  return () => {
+    if (liveParamsSource === source) {
+      liveParamsSource = undefined;
+    }
+  };
+}
+
+/** The ledger's redrive entry — the SHELL registers its guarded drain (the
+ *  one that waits out board cinematics); the bare `drainBoardBeatsIfDue` is
+ *  the desktop/test default. */
+let redriveHook: (() => void) | undefined;
+
+export function registerBoardBeatRedrive(hook: (() => void) | undefined): void {
+  redriveHook = hook;
+}
 
 /** The injected «board watchable» verdict (shell-owned). Undefined → always
  *  watchable → this module is inert (desktop / tests / a dead shell). */
@@ -106,14 +183,12 @@ function boardWatchable(): boolean {
   return watchableProbe === undefined || watchableProbe();
 }
 
-let safetyTimer: ReturnType<typeof setTimeout> | undefined;
+let ledgerStory: OwedStoryHandle | undefined;
 let drainTimers: Array<ReturnType<typeof setTimeout>> = [];
 
 function clearSafety(): void {
-  if (safetyTimer !== undefined) {
-    clearTimeout(safetyTimer);
-    safetyTimer = undefined;
-  }
+  ledgerStory?.settle();
+  ledgerStory = undefined;
 }
 
 function clearDrainTimers(): void {
@@ -123,14 +198,25 @@ function clearDrainTimers(): void {
   drainTimers = [];
 }
 
+/**
+ * The park's whole-life bound, restated as a PRESENTATION-LEDGER story
+ * (mechanism B): the heartbeat re-drives the drain whenever the board is
+ * watchable and something is owed (a missed watchable edge costs one tick,
+ * never the 30 s safety), and past the ceiling the degrade releases
+ * honestly — WITH a named warn, where the old private timer snapped in
+ * silence.
+ */
 function armSafety(): void {
-  if (safetyTimer !== undefined || typeof setTimeout !== 'function') {
+  if (ledgerStory !== undefined) {
     return;
   }
-  safetyTimer = setTimeout(() => {
-    safetyTimer = undefined;
-    releaseBoardBeatPark();
-  }, BOARD_BEAT_PARK_SAFETY_MS);
+  ledgerStory = owePresentation({
+    id: 'board-beat-park',
+    ready: () => boardWatchable() && boardBeatParkPending() && !boardBeatParkState.draining,
+    redrive: () => (redriveHook ?? drainBoardBeatsIfDue)(),
+    dueMs: BOARD_BEAT_PARK_SAFETY_MS,
+    degrade: () => releaseBoardBeatPark(),
+  });
 }
 
 const PARAM_KEYS: ReadonlyArray<keyof HeldGlobalParams> =
@@ -253,15 +339,34 @@ export function drainBoardBeatsIfDue(): void {
   clearDrainTimers();
   boardBeatParkState.draining = true;
   boardBeatParkState.nonce++;
+  // The BLOCKING story window opens with the drain when values are owed —
+  // a follow-up modal must not land during the settle gap either, or it
+  // covers the very release it is about to explain.
+  const owesScaleStory = boardBeatParkState.heldParams !== undefined ||
+    boardBeatParkState.heldClaims !== undefined;
+  boardBeatParkState.scaleStory = owesScaleStory;
+  const endScaleStory = () => {
+    clearScaleAccents();
+    boardBeatParkState.scaleStory = false;
+  };
   schedule(() => {
     if (!boardWatchable()) {
       // Covered again before anything released — everything stays held; the
       // next watchable edge re-runs the whole drain.
       boardBeatParkState.draining = false;
+      endScaleStory();
       return;
     }
-    const hadScaleStory = boardBeatParkState.heldParams !== undefined ||
+    const held = boardBeatParkState.heldParams;
+    const hadScaleStory = held !== undefined ||
       boardBeatParkState.heldClaims !== undefined;
+    if (hadScaleStory && held !== undefined) {
+      // The one-shot accent on exactly the scales about to move — applied
+      // BEFORE the release so the pulse and the glide are one beat (the
+      // planet-focus beat's own language, owned by the drain since the
+      // one-owner merge).
+      applyScaleAccents(changedGlobalParams(held, liveParamsSource?.()));
+    }
     // Release the values: the marker glides, the fill advances, the claim
     // chip plays its capture — plain reactivity from here.
     boardBeatParkState.heldParams = undefined;
@@ -269,6 +374,7 @@ export function drainBoardBeatsIfDue(): void {
     const releaseBatch = () => {
       boardBeatParkState.batchHeldByDrain = false;
       boardBeatParkState.draining = false;
+      endScaleStory();
       clearSafety();
     };
     if (parkedBatchPending()) {
@@ -282,10 +388,12 @@ export function drainBoardBeatsIfDue(): void {
       // glide window so nothing lands on top of the moving scales.
       schedule(() => {
         boardBeatParkState.draining = false;
+        endScaleStory();
         clearSafety();
       }, consoleMotionMs(BOARD_BEAT_SCALE_MS));
     } else {
       boardBeatParkState.draining = false;
+      endScaleStory();
       clearSafety();
     }
   }, consoleMotionMs(BOARD_BEAT_SETTLE_MS));
@@ -300,10 +408,23 @@ export function drainBoardBeatsIfDue(): void {
 export function releaseBoardBeatPark(): void {
   clearSafety();
   clearDrainTimers();
+  clearScaleAccents();
   boardBeatParkState.heldParams = undefined;
   boardBeatParkState.heldClaims = undefined;
   boardBeatParkState.batchHeldByDrain = false;
   boardBeatParkState.draining = false;
+  boardBeatParkState.scaleStory = false;
+}
+
+/**
+ * A scale story is OWED or PLAYING — the automatic-transition gate's term
+ * (`boardStorySettling` in rewardPayoutQuiet): a yielded stack's return and
+ * the endgame auto-open wait it out, so the story plays on the board they
+ * are about to cover instead of dying behind them. Never a term of the
+ * drain's own gate (self-wait) or of the watchable probe (reactivity cycle).
+ */
+export function boardBeatStoryPending(): boolean {
+  return boardBeatParkPending() || boardBeatParkState.draining;
 }
 
 /** Full reset (game switch / shell unmount / tests). Also drops the probe —
@@ -311,4 +432,6 @@ export function releaseBoardBeatPark(): void {
 export function resetBoardBeatPark(): void {
   releaseBoardBeatPark();
   watchableProbe = undefined;
+  redriveHook = undefined;
+  liveParamsSource = undefined;
 }

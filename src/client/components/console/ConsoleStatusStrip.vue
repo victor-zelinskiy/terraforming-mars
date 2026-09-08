@@ -191,7 +191,7 @@ import {translateText} from '@/client/directives/i18n';
 import AnimatedMetricValue from '@/client/components/feedback/AnimatedMetricValue.vue';
 import ConsoleFlipValue from '@/client/components/console/ConsoleFlipValue.vue';
 import ConsoleProjectDeck from '@/client/components/console/ConsoleProjectDeck.vue';
-import {planetFocusState, displayGlobalParams} from '@/client/console/planetFocus';
+import {captureGlobalParams} from '@/client/console/planetFocus';
 import {boardBeatParkState, boardBeatDisplayParams} from '@/client/console/boardBeatPark';
 
 /** Glyph → the chip's compact text mark (mirrors the desktop PlayerStatusGlyph;
@@ -289,26 +289,27 @@ export default defineComponent({
   },
   computed: {
     /**
-     * The game the strip DISPLAYS. While Planet Focus owns the scene the
-     * four global parameters come from the frozen snapshot — the SAME read
-     * the board's arcs use (planetFocus.displayGlobalParams), so the top
-     * HUD and the scales can never disagree. The release flips the values
+     * The game the strip DISPLAYS. While a scale change is parked (a covered
+     * board — a workspace, or an engaged Planet Focus) the four global
+     * parameters come from the park's held snapshot — the SAME read the
+     * board's arcs use (boardBeatDisplayParams), so the top HUD and the
+     * scales can never disagree. The drain flips the values
      * (ConsoleFlipValue) and fires the globals delta chips exactly when
      * the arc markers glide — one synchronized beat.
      */
     game(): GameModel {
-      // …and the BOARD-BEAT PARK holds a parameter that moved while the
-      // board was covered (`boardBeatPark.ts`) — the strip's readout must
-      // keep the pre-change value the player last saw, or the top HUD would
-      // tell the scale's story while the workspace still owns the screen.
-      // Same merge order as the board section: park over planet focus.
-      if (planetFocusState.heldParams === undefined &&
-          boardBeatParkState.heldParams === undefined) {
+      // THE BOARD-BEAT PARK holds a parameter that moved while the board was
+      // covered (`boardBeatPark.ts` — the one presenter of the law since the
+      // one-owner merge; an engaged Planet Focus counts as covered through
+      // the shell's watchable probe). The strip's readout keeps the
+      // pre-change value the player last saw until the drain releases it in
+      // one synchronized beat with the arc markers.
+      if (boardBeatParkState.heldParams === undefined) {
         return this.playerView.game;
       }
       return {
         ...this.playerView.game,
-        ...boardBeatDisplayParams(displayGlobalParams(this.playerView.game)),
+        ...boardBeatDisplayParams(captureGlobalParams(this.playerView.game)),
       };
     },
     players(): ReadonlyArray<PublicPlayerModel> {

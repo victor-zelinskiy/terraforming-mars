@@ -66,4 +66,51 @@ describe('AppNoRemount', () => {
     // …but the subtree was NOT recreated: same element.
     expect(wrapper.find('console-shell-stub').element).to.eq(beforeEl);
   });
+
+  /*
+   * THE PROMPT-PRESERVING EPOCH RULE (presentation-reconciliation, mechanism
+   * A): a mid-prompt refresh whose fetched view carries the SAME
+   * `waitingFor.promptId` is the same server prompt still standing — the
+   * apply must NOT bump the reset epoch (partial input survives), while a
+   * CHANGED promptId keeps the ordinary bump (the server replaced the
+   * prompt; stale partial input must reset).
+   */
+  it('an update with an UNCHANGED promptId preserves the reset epoch', async () => {
+    const oldView = fakePlayerViewModel({game: fakeGameModel({gameAge: 1})});
+    (oldView as any).waitingFor = {type: 'or', promptId: 41, options: []};
+    const newView = fakePlayerViewModel({game: fakeGameModel({gameAge: 2})});
+    (newView as any).waitingFor = {type: 'or', promptId: 41, options: []};
+    const wrapper = shallowMount(App, globalConfig);
+    await wrapper.setData({screen: 'player-home', playerView: oldView, playerkey: 7});
+    (global as any).fetch = () => Promise.resolve({
+      ok: true,
+      json: () => Promise.resolve(newView),
+    });
+
+    (wrapper.vm as any).update(paths.PLAYER);
+    await flushPromises();
+    await wrapper.vm.$nextTick();
+
+    expect((wrapper.vm as any).playerkey, 'the epoch must survive an unchanged prompt').to.eq(7);
+    expect(((wrapper.vm as any).playerView.game as any).gameAge, 'the view still applied').to.eq(2);
+  });
+
+  it('an update with a CHANGED promptId keeps the ordinary epoch bump', async () => {
+    const oldView = fakePlayerViewModel({game: fakeGameModel({gameAge: 1})});
+    (oldView as any).waitingFor = {type: 'or', promptId: 41, options: []};
+    const newView = fakePlayerViewModel({game: fakeGameModel({gameAge: 2})});
+    (newView as any).waitingFor = {type: 'or', promptId: 42, options: []};
+    const wrapper = shallowMount(App, globalConfig);
+    await wrapper.setData({screen: 'player-home', playerView: oldView, playerkey: 7});
+    (global as any).fetch = () => Promise.resolve({
+      ok: true,
+      json: () => Promise.resolve(newView),
+    });
+
+    (wrapper.vm as any).update(paths.PLAYER);
+    await flushPromises();
+    await wrapper.vm.$nextTick();
+
+    expect((wrapper.vm as any).playerkey).to.eq(8);
+  });
 });

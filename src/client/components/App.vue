@@ -738,9 +738,26 @@ export default defineComponent({
             // keep their previous references so child components skip
             // re-rendering. The ROOT identity still changes, so this watcher-
             // visible commit behaves exactly like a wholesale swap.
+            /*
+             * THE PROMPT-PRESERVING EPOCH RULE (mid-prompt refresh, mechanism
+             * A of presentation-reconciliation): a fetched view whose
+             * `waitingFor.promptId` equals the displayed one is the SAME
+             * server prompt object still standing — the refresh only brings
+             * the world around it up to date (another player's tile, moved
+             * scales, opponents' tableaus). Bumping the reset epoch would
+             * wipe the viewer's partial input (selections, picks, a locked
+             * placement cell) for a prompt that never changed, so the epoch
+             * is skipped — the generalization of the named preserve guards
+             * above from «these known pick flows» to «any unchanged prompt».
+             * A CHANGED promptId keeps the ordinary bump: the server
+             * replaced the prompt, and stale partial input must reset.
+             */
+            const prevPromptId = (prevView as PlayerViewModel | undefined)?.waitingFor?.promptId;
+            const promptPreserved = prevPromptId !== undefined &&
+              prevPromptId === (model as PlayerViewModel).waitingFor?.promptId;
             app.playerView = nextViewSnapshot(app.playerView, model as PlayerViewModel);
             setTranslationContext(app.playerView);
-            if (!preserveCardPickModal && !preserveOpenOverlay) {
+            if (!preserveCardPickModal && !preserveOpenOverlay && !promptPreserved) {
               app.playerkey++;
             }
             // When the user navigated directly to /the-end, keep that screen.
