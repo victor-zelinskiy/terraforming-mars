@@ -351,8 +351,21 @@ export async function pickCards(page: Page, cards: ReadonlyArray<string>, maxMov
   await waitStepDealSettled(page);
 
   const hit = new Set<string>();
+  // THE RING CLAMPS (ConsoleStartScene.onNav: Math.min/max, no wrap), so a
+  // one-way walk visits each card EXACTLY ONCE and the lap-based self-heal
+  // below is vacuous — one swallowed press on a loaded runner and the card is
+  // unreachable for the rest of the budget (the 2026-09-09 CI flake: 18 s of
+  // grinding the right wall, «Double Down» never revisited). Same law as
+  // walkFocusUntil: when a hop moves nothing, TURN AROUND — that is what makes
+  // laps, and laps are what make the retry-next-lap comment true.
+  let arrow: 'ArrowRight' | 'ArrowLeft' = 'ArrowRight';
+  let prevFocused = '';
   for (let i = 0; i < maxMoves && hit.size < cards.length; i++) {
     const focused = await focusedCard(page);
+    if (focused !== '' && focused === prevFocused) {
+      arrow = arrow === 'ArrowRight' ? 'ArrowLeft' : 'ArrowRight';
+    }
+    prevFocused = focused;
     if (cards.includes(focused) && !hit.has(focused)) {
       // ACT → VERIFY, never «pressed = picked». This is rule 4 of this very
       // file — a press is SWALLOWED by design often enough (an arriving card,
@@ -380,7 +393,7 @@ export async function pickCards(page: Page, cards: ReadonlyArray<string>, maxMov
       }
     }
     if (hit.size < cards.length) {
-      await press(page, 'ArrowRight', 280);
+      await press(page, arrow, 280);
     }
   }
   return [...hit];
