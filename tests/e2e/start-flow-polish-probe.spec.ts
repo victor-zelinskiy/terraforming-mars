@@ -32,6 +32,7 @@ type Sample = {
   /** Chips living in the hand-dock counter host at this instant. */
   dockChips: number,
   dockChipText: string,
+  dockChipTexts: Array<string>,
   /** Glint pseudo-element facts, sampled off a live flying face. */
   glint: {transform: string, backgroundSize: string, inset: string} | undefined,
   /** Played-pile paint order verdict while both slots exist. */
@@ -147,6 +148,7 @@ async function sample(page: Page): Promise<Sample> {
       rects,
       dockChips: dockChipNodes.length,
       dockChipText: dockChipNodes.map((n) => (n.textContent ?? '').trim()).join(' '),
+      dockChipTexts: dockChipNodes.map((n) => (n.textContent ?? '').trim()),
       glint,
       pileTopWins,
       pileState,
@@ -256,12 +258,27 @@ test('the start flow lands its cards, keeps its light on the card, coalesces its
   expect.soft([...new Set(shifted)],
     'nothing re-flows after the cards are down — the landing IS the final point').toEqual([]);
 
-  // ── 3. ONE DELTA CHIP, NEVER A ROW ───────────────────────────────────────
-  const worstChips = Math.max(0, ...live.map((s) => s.dockChips));
-  const offender = live.find((s) => s.dockChips > 1);
+  // ── 3. ONE DELTA CHIP PER POLARITY, NEVER A ROW ──────────────────────────
+  // The product's own contract (AnimatedMetricValue.vue): SAME-polarity
+  // changes coalesce into the running chip, while a polarity FLIP is
+  // deliberately a second chip — «a gain and a loss are never one number»
+  // (the no-silent-loss invariant), and the leaving chip overlaps the
+  // entering one for its 540 ms leave. So the probe forbids a same-sign
+  // STACK («+1 +1») and the third simultaneous chip, and allows the flip
+  // pair («−1 +1»). Deterministic since the per-spec seed: this deal's
+  // start plays a card that draws, which IS the flip.
+  const signOf = (t: string) => /^[−-]/.test(t) ? 'minus' : 'plus';
+  const sameSignStack = live.find((s) => {
+    const signs = s.dockChipTexts.map(signOf);
+    return signs.filter((x) => x === 'minus').length > 1 ||
+      signs.filter((x) => x === 'plus').length > 1;
+  });
+  const overCrowd = live.find((s) => s.dockChips > 2);
   expect.soft(live.some((s) => s.dockChips > 0), 'the probe saw the hand-dock counter react at all').toBeTruthy();
-  expect.soft(worstChips,
-    `the hand-dock counter never stacks chips (saw «${offender?.dockChipText}»)`).toBeLessThanOrEqual(1);
+  expect.soft(sameSignStack?.dockChipText,
+    'same-polarity chips must COALESCE, never stack').toBeUndefined();
+  expect.soft(overCrowd?.dockChipText,
+    'at most the polarity-flip pair may coexist').toBeUndefined();
 
   // ── 4. THE PLAYED CARD IS THE TOP OF THE PILE ────────────────────────────
   // THE LADDER, read off the live stylesheet — the deterministic half. The

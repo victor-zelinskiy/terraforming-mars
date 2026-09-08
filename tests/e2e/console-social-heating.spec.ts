@@ -716,6 +716,17 @@ test.describe('Social Heating — MarsBot’s movement · fhd', () => {
         const m = await fetchPlayerModel(request, id) as Wire;
         console.log(`[pass] the viewer's pass never took at generation ${before.generation}`,
           `— phase ${m.game?.phase}, waitingFor ${m.waitingFor?.type ?? '(none)'} «${titleOf(m.waitingFor as Wire)}»`);
+        // THE RESEARCH BUY IS NOT THIS SPEC'S SUBJECT — the bot's movement is.
+        // Every generation turnover hands the viewer «Select card(s) to buy»,
+        // and while it stands the wheel honestly refuses «Пас». On a slow CI
+        // runner those refusals used to eat the WHOLE 16-round budget (3/3
+        // attempts red). Answer it the way any pregame prompt is answered —
+        // over the API, buy nothing — and let the pass land next round. The
+        // console repaints from the poll; nothing here touches the page.
+        if (m.game?.phase === 'research' && m.waitingFor?.type === 'card') {
+          await sendPlayerInput(request, id, {type: 'card', cards: []});
+          console.log('[pass] answered the research buy over the API (bought nothing)');
+        }
       }
       for (let i = 0; i < 60; i++) {
         const cur = await sample();
