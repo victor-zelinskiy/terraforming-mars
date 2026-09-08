@@ -461,14 +461,23 @@ export async function pickedCards(page: Page): Promise<Array<string>> {
  * nobody asked for (that is exactly how this spec used to lose its prelude).
  */
 export async function fillPicks(page: Page, total: number, maxMoves = 20): Promise<Array<string>> {
+  // Same wall law as pickCards: the row CLAMPS, so the walk BOUNCES — a hop
+  // that moved nothing flips the direction, and a press swallowed on the way
+  // out is retried on the way back.
+  let arrow: 'ArrowRight' | 'ArrowLeft' = 'ArrowRight';
+  let prevFocused = '';
   for (let i = 0; i < maxMoves && (await pickedCards(page)).length < total; i++) {
     const focused = await focusedCard(page);
+    if (focused !== '' && focused === prevFocused) {
+      arrow = arrow === 'ArrowRight' ? 'ArrowLeft' : 'ArrowRight';
+    }
+    prevFocused = focused;
     const picked = await pickedCards(page);
     if (focused !== '' && !picked.includes(focused)) {
       await press(page, 'Enter', 500);
     }
     if ((await pickedCards(page)).length < total) {
-      await press(page, 'ArrowRight', 280);
+      await press(page, arrow, 280);
     }
   }
   return pickedCards(page);
