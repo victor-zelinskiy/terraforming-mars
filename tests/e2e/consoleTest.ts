@@ -110,7 +110,12 @@ export const test = base.extend<{}, {workerServer: WorkerServer}>({
         // leave the temp dir to the OS
       }
     }
-  }, {scope: 'worker'}],
+  }, {scope: 'worker',
+    // Playwright's DEFAULT fixture-setup timeout is 30 s — under load Windows
+    // boots the next node slower than that and the run reports a phantom
+    // «test failure» at consoleTest.ts:69. The spawn's own 90 s wait is the
+    // real budget; give the fixture headroom above it.
+    timeout: 120_000}],
 
   baseURL: async ({workerServer}, use) => {
     await use(workerServer.baseURL);
