@@ -1,7 +1,7 @@
 {
   "//": "Frozen per-file counts of e2e anti-patterns. Counts may only FALL. Regenerate with: node scripts/e2e-ratchet-baseline.mjs --write",
   "totals": {
-    "waitForTimeout": 874,
+    "waitForTimeout": 840,
     "requestAnimationFrame": 42
   },
   "files": {
@@ -138,7 +138,7 @@
       "requestAnimationFrame": 2
     },
     "console-colony-pluto-embed.spec.ts": {
-      "waitForTimeout": 17,
+      "waitForTimeout": 4,
       "requestAnimationFrame": 4
     },
     "console-colony-remote-bonus.spec.ts": {
@@ -181,7 +181,7 @@
       "waitForTimeout": 3
     },
     "console-draft-workspace.spec.ts": {
-      "waitForTimeout": 17,
+      "waitForTimeout": 6,
       "requestAnimationFrame": 2
     },
     "console-dutch-mountains.spec.ts": {
@@ -203,7 +203,7 @@
       "waitForTimeout": 1
     },
     "console-endgame-overview.spec.ts": {
-      "waitForTimeout": 16
+      "waitForTimeout": 14
     },
     "console-endgame.spec.ts": {
       "waitForTimeout": 1
@@ -357,7 +357,7 @@
       "waitForTimeout": 6
     },
     "console-prelude-burn-gate.spec.ts": {
-      "waitForTimeout": 11
+      "waitForTimeout": 10
     },
     "console-profiles.spec.ts": {
       "waitForTimeout": 10
@@ -571,10 +571,10 @@
       "waitForTimeout": 3
     },
     "wheel-rework.spec.ts": {
-      "waitForTimeout": 18
+      "waitForTimeout": 15
     },
     "zz-nomads-visual.spec.ts": {
-      "waitForTimeout": 15
+      "waitForTimeout": 11
     }
   }
 }

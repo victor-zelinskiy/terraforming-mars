@@ -96,6 +96,23 @@ measures the disease.
   every load-bearing export; the LAYER CHECKLIST is law in
   `.claude/rules/tests.md`. Worklist: the 57 animation-middle specs migrate
   to terminal states + unit motion guards by attrition under the ratchet.
+- **Shard plan LIVE (2026-09-09)**: `tests/e2e/shardPlan.json` generated from
+  CI run 34263341226's REAL runner timings — buckets 57.8/57.8/57.8/57.8 min
+  (the positional --shard let the unluckiest shard dictate the wall).
+- **Sleep wave 1 — DONE (2026-09-09)**: 39 conversions across 6 files
+  (wheel-rework, colony-pluto-embed, draft-workspace, endgame-overview,
+  zz-nomads-visual, prelude-burn-gate): post-cinematic guesses → `settle()`,
+  mid-flight screenshot pacing + the burn-gate negative-stability window →
+  named `cinematicBeat`, the animated heat-counter assert → `expect.poll`.
+  Kept deliberately: sub-900 ms walk cadence, poll intervals,
+  placement-dossier's preview-fetch waits (outside `settle`'s transport
+  visibility) and options-settings (menu — no probe). Ratchet lowered.
+  **The wave's own lesson, now law in tests.md**: `settle` belongs at chain
+  BOUNDARIES only — inside a mandatory multi-press chain a `[blocking]` hold
+  legitimately stands until the next answer (measured: `card-discard`), and
+  a beat that arms late slips through the quiet window — those sites are
+  named `cinematicBeat`s. The settle-timeout message naming the hold is what
+  made this a 10-minute diagnosis instead of a day.
 - **Phase 2 — CORE DONE (2026-09-08)**: `inputEcho.ts` counts every recognized key
   event at the bridge with its outcome; `window.__conReady` (`e2eReadiness.ts`,
   installed by ConsoleShell — dependency-graph-safe) aggregates input echo + named

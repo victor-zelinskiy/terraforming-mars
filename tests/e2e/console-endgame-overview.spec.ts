@@ -25,7 +25,7 @@ import {
   createTable, journeyToEndgame, finishFinaleThroughPage, forceFrame, waitWithFrames, shoot,
   drive, getModel, postInput, genericAnswer, terraformAnswer, terraformed, titleOf, NO_PAYMENT,
 } from './consoleEndgameHarness';
-import {openConsole, CORP_WITH_FIRST_ACTION} from './consoleStart';
+import {openConsole, settle, CORP_WITH_FIRST_ACTION} from './consoleStart';
 
 const SHOT_DIR = 'screenshots/console-endgame-overview';
 
@@ -253,7 +253,7 @@ async function openOverview(page: Page): Promise<void> {
   await page.keyboard.press('Enter');
   await waitWithFrames(page, async () => (await page.locator('.con-egov').count()) > 0, 10_000, 'the overview scene');
   // Let the entrance choreography land before any representative shot.
-  await page.waitForTimeout(900);
+  await settle(page);
   await forceFrame(page);
 }
 
@@ -422,7 +422,7 @@ test.describe('console endgame overview — 2p journey', () => {
     expect(handheldFit).toBe('fits');
 
     // ── 8 · QUIET AFTER SETTLE: nothing keeps animating in the scene. ────
-    await page.waitForTimeout(1200);
+    await settle(page);
     await forceFrame(page);
     const running = await page.evaluate(() => {
       const scene = document.querySelector('.con-egov');

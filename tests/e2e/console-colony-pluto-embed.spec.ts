@@ -1,7 +1,7 @@
 import {test, expect, Page, APIRequestContext} from './consoleTest';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
-import {bootSeededGame, press} from './consoleStart';
+import {bootSeededGame, cinematicBeat, press, settle} from './consoleStart';
 
 /**
  * PLUTO — THE EMBEDDED FOLLOW-UP GUARD.
@@ -87,7 +87,7 @@ async function createGame(request: APIRequestContext): Promise<string> {
 async function boot(page: Page, request: APIRequestContext, playerId: string): Promise<void> {
   // A real hand (`buy`): the board home's dock only reads LIVE with cards in it.
   await bootSeededGame(page, request, playerId, {buy: 2, keepColony: 'Pluto'});
-  await page.waitForTimeout(1500);
+  await settle(page);
 }
 
 async function openColoniesAndFocus(page: Page, target: string): Promise<void> {
@@ -340,9 +340,9 @@ test('Pluto TRADE: the payout presents inside the colony workspace, never as a b
 
   const watching = watchPayout(page, 11_000);
   await page.keyboard.press('KeyX'); // confirm the trade
-  await page.waitForTimeout(1800);
+  await cinematicBeat(page, 1800, 'the shot samples the trade handoff MID-flight');
   await shoot(page, '02-trade-handoff');
-  await page.waitForTimeout(2200);
+  await cinematicBeat(page, 2200, 'the shot samples the reveal as it opens');
   await shoot(page, '03-trade-reveal');
   const seen = await watching;
   console.log('── Pluto trade payout ──', JSON.stringify(seen));
@@ -503,7 +503,8 @@ test('Pluto TRADE with an OWN colony: the mandatory discard runs EMBEDDED in the
   for (let i = 0; i < 4 && await page.locator('.con-reveal').count() > 0; i++) {
     await press(page, 'Enter', 2400);
   }
-  await page.waitForTimeout(2500);
+  await cinematicBeat(page, 2500,
+    'pacing INSIDE the mandatory chain — a blocking hold legitimately stands until the next answer');
 
   // ── 2 · Trade with Pluto — the full owner-bonus resolution. ─────────────
   await openColoniesAndFocus(page, 'Pluto');
@@ -549,7 +550,8 @@ test('Pluto TRADE with an OWN colony: the mandatory discard runs EMBEDDED in the
   //    stage, no marker outside the focus — and the restore must be SEEN.
   const returnWatch = watchPayout(page, 16_000);
   await press(page, 'Enter', 3200);
-  await page.waitForTimeout(3200); // the discard flight + settle
+  await cinematicBeat(page, 3200,
+    'the discard flight paces the MANDATORY chain — card-discard[blocking] stands until the answer');
   await shoot(page, '13-after-discard');
   const tail = await returnWatch;
   console.log('── return leg ──', JSON.stringify(tail));
@@ -604,7 +606,8 @@ test('Pluto DISCARD parked: gather on collapse, plain browse on a visit, clean r
   for (let i = 0; i < 4 && await page.locator('.con-reveal').count() > 0; i++) {
     await press(page, 'Enter', 2400);
   }
-  await page.waitForTimeout(2500);
+  await cinematicBeat(page, 2500,
+    'pacing INSIDE the mandatory chain — a blocking hold legitimately stands until the next answer');
   await openColoniesAndFocus(page, 'Pluto');
   await press(page, 'Enter', 2000);
   await page.keyboard.press('KeyX'); // confirm the trade
@@ -614,7 +617,7 @@ test('Pluto DISCARD parked: gather on collapse, plain browse on a visit, clean r
     await press(page, 'Enter', 2400);
   }
   await expect(embeddedHand, 'the mandatory discard did not open embedded').toBeVisible({timeout: 12_000});
-  await page.waitForTimeout(1200); // let the hand-open reveal finish
+  await cinematicBeat(page, 1200, 'the hand-open reveal inside the mandatory chain');
 
   // ── 2 · COLLAPSE (B) — the gather must physically play. ─────────────────
   await page.keyboard.press('Escape');
@@ -664,7 +667,7 @@ test('Pluto DISCARD parked: gather on collapse, plain browse on a visit, clean r
   });
   await page.keyboard.press('Escape'); // restore the deferred discard
   await expect(embeddedHand, 'the discard did not come back on restore').toBeVisible({timeout: 8_000});
-  await page.waitForTimeout(4200);
+  await cinematicBeat(page, 4200, 'the restore replays the gather inside the mandatory chain');
   await restoreWatch;
   const restore = await page.evaluate(() => (window as unknown as {__plutoRestore?: {overlay: boolean, fanSeen: boolean}}).__plutoRestore);
   await shoot(page, '16-restored-discard');
@@ -673,7 +676,7 @@ test('Pluto DISCARD parked: gather on collapse, plain browse on a visit, clean r
 
   // ── 5 · Finish: discard → focus restore → the ordered close. ────────────
   await press(page, 'Enter', 3200);
-  await page.waitForTimeout(3200);
+  await cinematicBeat(page, 3200, 'the discard flight inside the mandatory chain');
   await expect(page.locator('.con-colonies'), 'the workspace never closed after the resolution')
     .toHaveCount(0, {timeout: 20_000});
 });
@@ -713,7 +716,7 @@ test('Pluto DISCARD, LARGE album: no card ever STANDS back-side-out in the album
   // A REAL hand: several pages of the large album (4/page), so the discard
   // opens with page packets on both sides — the player's actual shape.
   await bootSeededGame(page, request, await createGame(request), {buy: 6, keepColony: 'Pluto'});
-  await page.waitForTimeout(1500);
+  await settle(page);
 
   // ── 1 · Reach the payout (the test-3 route, condensed): build, then trade.
   await press(page, 'Comma', 1200);
@@ -731,7 +734,8 @@ test('Pluto DISCARD, LARGE album: no card ever STANDS back-side-out in the album
   for (let i = 0; i < 4 && await page.locator('.con-reveal').count() > 0; i++) {
     await press(page, 'Enter', 2400);
   }
-  await page.waitForTimeout(2500);
+  await cinematicBeat(page, 2500,
+    'pacing INSIDE the mandatory chain — a blocking hold legitimately stands until the next answer');
   await openColoniesAndFocus(page, 'Pluto');
   await press(page, 'Enter', 2000);
 
@@ -811,12 +815,12 @@ test('Pluto DISCARD, LARGE album: no card ever STANDS back-side-out in the album
     await press(page, 'Enter', 850);
   }
   await expect(embeddedHand, 'the mandatory discard did not open embedded').toBeVisible({timeout: 12_000});
-  await page.waitForTimeout(2600); // the open episode + a standing read
+  await cinematicBeat(page, 2600, 'the large-album open inside the mandatory chain + a standing read');
   await shoot(page, '17-large-album-discard');
 
   // ── 4 · Discard and let the return leg play under the same sampler. ─────
   await press(page, 'Enter', 3200);
-  await page.waitForTimeout(3200);
+  await cinematicBeat(page, 3200, 'the discard flight inside the mandatory chain');
 
   const facing = await page.evaluate(() => (window as unknown as {__facing?: FacingRec}).__facing);
   console.log('── facing probe ──', JSON.stringify(facing));

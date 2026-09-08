@@ -4,6 +4,7 @@ import {test, expect, Page} from './consoleTest';
 import {
   press, stepKind, stepSubject, waitPressable, summaryVisible, pickCards,
   submitSummary, queueCards, waitQueueIdle, focusCard, yieldToPurchase,
+  cinematicBeat,
 } from './consoleStart';
 
 /**
@@ -403,7 +404,8 @@ test.describe('console — the prelude ORDER GATE', () => {
     expect(justCommitted.queue,
       'and the press did NOT carry on into the prelude that followed it').toContain(ENABLER);
 
-    await page.waitForTimeout(2500);
+    await cinematicBeat(page, 2500,
+      'a NEGATIVE-stability window: a carried-over press would show up as a second play inside it');
     const done = await gate(page);
     expect(done.queue, 'still exactly one card played').toContain(ENABLER);
     await shoot(page, 'committed');

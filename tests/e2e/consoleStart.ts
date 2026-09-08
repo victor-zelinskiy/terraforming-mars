@@ -347,7 +347,10 @@ export async function walkFocusUntil(
  * it actually picked, so a spec asserts exactly what it needs — and reads
  * what was offered when the deal didn't contain it.
  */
-export async function pickCards(page: Page, cards: ReadonlyArray<string>, maxMoves = 20): Promise<Array<string>> {
+// The budget must cover ~2.5 PASSES of the ring, and the prelude step deals
+// up to TEN candidates (measured by the shortfall trail, 2026-09-09) — 20
+// moves died at exactly 1.8 passes with one swallowed press in the ledger.
+export async function pickCards(page: Page, cards: ReadonlyArray<string>, maxMoves = 34): Promise<Array<string>> {
   await waitStepDealSettled(page);
 
   const hit = new Set<string>();
@@ -360,10 +363,27 @@ export async function pickCards(page: Page, cards: ReadonlyArray<string>, maxMov
   // laps, and laps are what make the retry-next-lap comment true.
   let arrow: 'ArrowRight' | 'ArrowLeft' = 'ArrowRight';
   let prevFocused = '';
+  let stuck = 0;
+  const trail: Array<string> = [];
   for (let i = 0; i < maxMoves && hit.size < cards.length; i++) {
     const focused = await focusedCard(page);
+    trail.push(focused === '' ? '·' : focused);
+    // ⚠ A WALL and a SWALLOWED ARROW are indistinguishable for ONE lap — both
+    // read «focus did not move». Flipping on the first no-move turned every
+    // swallowed press (an arriving pick flight absorbs input exactly then)
+    // into a FALSE WALL: under worker-load the walk ping-ponged mid-ring and
+    // never reached the far side (measured, 2026-09-09). A real wall REPEATS,
+    // a swallow is transient — so the flip needs TWO consecutive no-moves,
+    // which costs one extra lap per true bounce and makes a false flip need
+    // two swallows in a row.
     if (focused !== '' && focused === prevFocused) {
-      arrow = arrow === 'ArrowRight' ? 'ArrowLeft' : 'ArrowRight';
+      stuck++;
+      if (stuck >= 2) {
+        arrow = arrow === 'ArrowRight' ? 'ArrowLeft' : 'ArrowRight';
+        stuck = 0;
+      }
+    } else {
+      stuck = 0;
     }
     prevFocused = focused;
     if (cards.includes(focused) && !hit.has(focused)) {
@@ -386,15 +406,31 @@ export async function pickCards(page: Page, cards: ReadonlyArray<string>, maxMov
       if ((await pickedCards(page)).includes(focused)) {
         hit.add(focused);
       } else {
-        await press(page, 'Enter', 520);
-        if (await pickRegistered(page, focused)) {
-          hit.add(focused);
+        // RETRY IN PLACE, up to three presses: the likeliest swallow window is
+        // the pick FLIGHT of the card taken one lap earlier (the trail showed
+        // the miss landing on the NEXT card over), and healing it here costs
+        // one settle — relying on the return pass costs half the ring and a
+        // second exposure to the same window.
+        for (let attempt = 0; attempt < 3 && !hit.has(focused); attempt++) {
+          await press(page, 'Enter', 520);
+          if (await pickRegistered(page, focused)) {
+            hit.add(focused);
+          }
+        }
+        if (hit.has(focused)) {
+          stuck = 0;
         }
       }
     }
     if (hit.size < cards.length) {
       await press(page, arrow, 280);
     }
+  }
+  if (hit.size < cards.length) {
+    // The trail is the diagnosis: it shows every stop the walk made, so the
+    // next CI shortfall names WHERE the subject card was lost, not just THAT.
+    console.log(`[pickCards] shortfall: wanted [${cards.join(', ')}], got [${[...hit].join(', ')}], ` +
+      `walk: ${trail.join(' → ')}`);
   }
   return [...hit];
 }
@@ -466,10 +502,18 @@ export async function fillPicks(page: Page, total: number, maxMoves = 20): Promi
   // out is retried on the way back.
   let arrow: 'ArrowRight' | 'ArrowLeft' = 'ArrowRight';
   let prevFocused = '';
+  let stuck = 0;
   for (let i = 0; i < maxMoves && (await pickedCards(page)).length < total; i++) {
     const focused = await focusedCard(page);
+    // Two-strike flip — see pickCards: one no-move can be a swallowed press.
     if (focused !== '' && focused === prevFocused) {
-      arrow = arrow === 'ArrowRight' ? 'ArrowLeft' : 'ArrowRight';
+      stuck++;
+      if (stuck >= 2) {
+        arrow = arrow === 'ArrowRight' ? 'ArrowLeft' : 'ArrowRight';
+        stuck = 0;
+      }
+    } else {
+      stuck = 0;
     }
     prevFocused = focused;
     const picked = await pickedCards(page);

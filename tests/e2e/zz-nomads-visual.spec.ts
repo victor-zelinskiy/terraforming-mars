@@ -1,7 +1,7 @@
 import {test, expect, Page, APIRequestContext} from './consoleTest';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
-import {bootIntoGame, focusedSpaceId, forceSwiftPlacement, press, soloGameConfig} from './consoleStart';
+import {bootIntoGame, focusedSpaceId, forceSwiftPlacement, press, settle, soloGameConfig} from './consoleStart';
 import {TileType} from '@/common/TileType';
 
 /**
@@ -322,7 +322,7 @@ async function focusCardAction(page: Page, card: string): Promise<void> {
     await press(page, 'ArrowUp', 1200);
   }
   await expect(actions).toHaveCount(1, {timeout: 20_000});
-  await page.waitForTimeout(1200);
+  await settle(page);
   const focusedCard = () => page.evaluate(() =>
     document.querySelector('[data-action-flow-thumb]')?.getAttribute('data-zoom-slot') ?? '');
   for (let i = 0; i < 12 && await focusedCard() !== card; i++) {
@@ -369,7 +369,7 @@ async function playFromHand(page: Page, card: string): Promise<void> {
   await press(page, 'Enter', 900);
   await expect(page.locator('.con-hand__stage .con-composer--play')).toBeVisible({timeout: 20_000});
   await expect(page.locator('.con-composer__cta--ready')).toBeVisible({timeout: 20_000});
-  await page.waitForTimeout(1000);
+  await settle(page);
   await page.keyboard.press('Enter');
 }
 
@@ -412,7 +412,7 @@ test.describe('Mars Nomads — the two flows, visually', () => {
     const seatClip = await cellsClip(page, [seatCell], 90);
     await page.keyboard.press('Enter');
     await clipStrip(page, '11-A-landing', seatClip, 14, 70); // the ~860ms descent, close up
-    await page.waitForTimeout(1500);
+    await settle(page, {timeoutMs: 20_000});
     await shoot(page, '12-A-settled');
     await clipStrip(page, '12z-A-closeup', await cellsClip(page, [seatCell], 60), 1, 0);
 
@@ -472,7 +472,7 @@ test.describe('Mars Nomads — the two flows, visually', () => {
     await page.keyboard.press('Enter');
     await clipStrip(page, '23-B-hop', hopClip, 16, 60); // lift + hop + touchdown, close up
     await filmstrip(page, '24-B-collect', 8, 200); // chips + restore (full frame)
-    await page.waitForTimeout(2500);
+    await settle(page, {timeoutMs: 20_000});
     await shoot(page, '25-B-settled');
     await clipStrip(page, '25z-B-closeup', await cellsClip(page, [destCell], 60), 1, 0);
 

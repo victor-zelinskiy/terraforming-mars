@@ -1,7 +1,7 @@
 import {test, expect, Page, APIRequestContext} from './consoleTest';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
-import {fillPicks, focusCard, NO_PAYMENT, press, pressUntilVisible, reloadConsole, sendPlayerInput, submitSummary, summaryVisible, waitStepDealSettled, walkToSummary} from './consoleStart';
+import {cinematicBeat, fillPicks, focusCard, NO_PAYMENT, press, pressUntilVisible, reloadConsole, sendPlayerInput, settle, submitSummary, summaryVisible, waitStepDealSettled, walkToSummary} from './consoleStart';
 
 /**
  * THE DRAFT WORKSPACE («ДРАФТ») — the between-generations draft + research
@@ -313,7 +313,7 @@ test.describe('draft workspace · the between-generations flow', () => {
     // 45 s staring at the plate it had just failed to open.
     expect(await pressUntilVisible(page, 'Enter', '.con-draftws', {tries: 6, settleMs: 1200}),
       'A never opened the draft workspace').toBeTruthy();
-    await page.waitForTimeout(4200); // the deal cinematic + entrance settle
+    await settle(page, {timeoutMs: 20_000}); // the deal cinematic holds release when it lands
     let s = await surface(page);
     console.log('[first packet]', JSON.stringify(s));
     await shoot(page, '01-first-packet');
@@ -360,7 +360,7 @@ test.describe('draft workspace · the between-generations flow', () => {
       'the status zone names the focused card whatever its verdict').toBe(1);
     await press(page, 'KeyX', 2600); // X — fullscreen (the open flight settles)
     await page.waitForSelector('dialog.con-zoom[open]', {timeout: 20_000});
-    await page.waitForTimeout(1200);
+    await settle(page);
     const panelAvail = await page.evaluate(() => {
       const el = document.querySelector('.con-zoom-sidecol .con-cardavail--panel');
       return el === null ? undefined : {
@@ -505,7 +505,7 @@ test.describe('draft workspace · the between-generations flow', () => {
     await page.waitForSelector('.con-mandatory', {timeout: 45_000});
     await press(page, 'Enter', 900);
     await page.waitForSelector('.con-draftws', {timeout: 45_000});
-    await page.waitForTimeout(1500);
+    await settle(page, {timeoutMs: 20_000});
     s = await surface(page);
     console.log('[reloaded]', JSON.stringify(s));
     expect(s.wait, 'reload lands back in the waiting state').toBeTruthy();
@@ -521,7 +521,7 @@ test.describe('draft workspace · the between-generations flow', () => {
     expect(s.railPresentation, 'the flow rail compacts under the sub-stage').toBe('compact');
     await shoot(page, '04-inspect');
     await secondPicksFirstCard(request, second.id); // the packet arrives now
-    await page.waitForTimeout(2500);
+    await settle(page, {timeoutMs: 20_000});
     s = await surface(page);
     console.log('[inspect while packet arrived]', JSON.stringify(s));
     expect(s.inspect, 'the inspect stays while the packet arrives').toBeTruthy();
@@ -570,7 +570,7 @@ test.describe('draft workspace · the between-generations flow', () => {
     expect(flash.witnessed, 'the flash witness actually observed the leave').toBeGreaterThan(3);
     expect(flash.violations, 'no frame paints an un-held inspect card while it leaves').toBe(0);
     await expect.poll(async () => (await surface(page)).pick, {timeout: 25_000}).toBeTruthy();
-    await page.waitForTimeout(3000); // the received packet spreads + settles
+    await settle(page, {timeoutMs: 20_000}); // the received packet's spread registers holds
     s = await surface(page);
     console.log('[second packet]', JSON.stringify(s));
     expect(s.packetSlots, 'the passed packet has one card fewer').toBe(3);
@@ -581,14 +581,15 @@ test.describe('draft workspace · the between-generations flow', () => {
     await pickOnUi(page, request, first.id);
     await secondPicksFirstCard(request, second.id);
     await expect.poll(async () => (await surface(page)).packetSlots, {timeout: 30_000}).toBe(2);
-    await page.waitForTimeout(2200);
+    await cinematicBeat(page, 2200,
+      'the packet-turn beat INSIDE the draft chain — the flip must PLAY before the next pick, and quiet arrives before it arms');
     await pickOnUi(page, request, first.id);
     await secondPicksFirstCard(request, second.id);
 
     // ── 6 · THE PURCHASE: the buy rises inside the SAME workspace — the
     //    financial strip + the full drafted set (3 picks + the auto card).
     await expect.poll(async () => (await surface(page)).buy, {timeout: 45_000}).toBeTruthy();
-    await page.waitForTimeout(4500); // the rise scene settles
+    await settle(page, {timeoutMs: 25_000}); // the rise scene holds release at its end
     s = await surface(page);
     console.log('[purchase]', JSON.stringify(s));
     expect(s.buySlots, 'the whole drafted set is the purchase row').toBe(4);
@@ -774,19 +775,22 @@ test.describe('draft workspace · the between-generations flow', () => {
     }, {timeout: 90_000}).toBeGreaterThan(0);
     await press(page, 'Enter', 900);
     await page.waitForSelector('.con-draftws', {timeout: 45_000});
-    await page.waitForTimeout(4200);
+    await cinematicBeat(page, 2200,
+      'the packet-turn beat INSIDE the draft chain — the flip must PLAY before the next pick, and quiet arrives before it arms');
     await pickOnUi(page, request, first.id);
     await secondPicksFirstCard(request, second.id);
     await expect.poll(async () => (await surface(page)).packetSlots, {timeout: 30_000}).toBe(3);
-    await page.waitForTimeout(2200);
+    await cinematicBeat(page, 2200,
+      'the packet-turn beat INSIDE the draft chain — the flip must PLAY before the next pick, and quiet arrives before it arms');
     await pickOnUi(page, request, first.id);
     await secondPicksFirstCard(request, second.id);
     await expect.poll(async () => (await surface(page)).packetSlots, {timeout: 30_000}).toBe(2);
-    await page.waitForTimeout(2200);
+    await cinematicBeat(page, 2200,
+      'the packet-turn beat INSIDE the draft chain — the flip must PLAY before the next pick, and quiet arrives before it arms');
     await pickOnUi(page, request, first.id);
     await secondPicksFirstCard(request, second.id);
     await expect.poll(async () => (await surface(page)).buy, {timeout: 45_000}).toBeTruthy();
-    await page.waitForTimeout(4500);
+    await settle(page, {timeoutMs: 25_000});
 
     const heatNow = ((await modelOf(request, first.id)) as WireModel & {thisPlayer?: {heat?: number}}).thisPlayer?.heat ?? 0;
     expect(heatNow, 'Helion must hold heat at the buy — that is what makes the server ask for payment').toBeGreaterThan(0);

@@ -1,7 +1,7 @@
 import {test, expect, Page, APIRequestContext} from './consoleTest';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
-import {bootIntoGame, soloGameConfig} from './consoleStart';
+import {bootIntoGame, settle, soloGameConfig} from './consoleStart';
 
 /**
  * Quick-wheel rework · press→release lifecycle + the commit/collapse/reveal
@@ -125,7 +125,7 @@ test.describe('quick-wheel rework', () => {
     await page.waitForTimeout(260);
     await shoot(page, '03-collapse-reveal');
     await page.waitForSelector('.con-colonies', {timeout: 8_000});
-    await page.waitForTimeout(1200);
+    await settle(page);
     // The destination's own header, not a per-surface kicker: the colonies
     // screen became a WORKSPACE and adopted the shared `ConsoleWsHead`
     // (`ConsoleColoniesSection.vue:29` — `root="Colonies"`, `emblem="colonies"`,
@@ -232,13 +232,14 @@ test.describe('quick-wheel rework', () => {
     await openWheel(page, 'Comma');
     await key(page, 'ArrowRight', 500);
     await shoot(page, '11-heat-commit');
-    await page.waitForTimeout(3000); // commit pulse + server round trip + flip
-    const heatAfter = parseInt((await heatValue.innerText()).trim(), 10);
-    expect(heatAfter, `heat must drop by 8 (was ${heatBefore})`).toBe(heatBefore - 8);
+    await settle(page); // the commit pulse + round trip end as holds/transport go quiet
+    // The counter itself may still be ticking its flip tail — poll the VALUE.
+    await expect.poll(async () => parseInt((await heatValue.innerText()).trim(), 10),
+      {timeout: 10_000}).toBe(heatBefore - 8);
     await shoot(page, '12-heat-after');
 
     // ── 13 · Cards (RT centre) → the hand rises out of the dock ──────
-    await page.waitForTimeout(3000); // the turn rolls after the conversion
+    await settle(page); // the turn rolls after the conversion
     await openWheel(page, 'Period');
     await key(page, 'Enter', 2600);
     await page.waitForSelector('.con-hand', {timeout: 10_000});
