@@ -135,6 +135,12 @@ export class SelectCard<T extends ICard> extends BasePlayerInput<ReadonlyArray<T
     if (this.externalDrawPrompt !== undefined) {
       model.externalDrawPrompt = this.externalDrawPrompt;
     }
+    // Same reasoning for the ADD-RESOURCE reading (amount + resource + the
+    // per-candidate VP delta): it is what lets a live/deferred pick explain
+    // its targets the way the composers do, and it must survive nesting.
+    if (this.resourceGainPrompt !== undefined) {
+      model.resourceGainPrompt = this.resourceGainPrompt;
+    }
     // THE ORDER-AWARE PRELUDE VERDICT rides this input's own toModel, and is
     // recomputed on EVERY serialization on purpose.
     //

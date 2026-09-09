@@ -4,6 +4,7 @@ import {AutomaTargeting} from '../../automa/AutomaTargeting';
 import {IProjectCard} from '../IProjectCard';
 import {CardType} from '../../../common/cards/CardType';
 import {OrOptions} from '../../inputs/OrOptions';
+import {attackEffect} from '../../inputs/choiceContext';
 import {SelectOption} from '../../inputs/SelectOption';
 import {Resource} from '../../../common/Resource';
 import {CardName} from '../../../common/cards/CardName';
@@ -73,10 +74,10 @@ export class HiredRaiders extends Card implements IProjectCard {
           player.stock.add(Resource.MEGACREDITS, 3);
           return undefined;
         }),
-      );
+      ).markChoiceContext(attackEffect(this));
     }
 
-    const availableActions = new OrOptions();
+    const availableActions = new OrOptions().markChoiceContext(attackEffect(this));
 
     player.opponents.forEach((target) => {
       // MarsBot's stealable steel = the Ceres storage + its M€-supply proxy.

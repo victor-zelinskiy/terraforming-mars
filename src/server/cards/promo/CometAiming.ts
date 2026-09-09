@@ -9,6 +9,7 @@ import {IPlayer} from '../../IPlayer';
 import {SelectCard} from '../../inputs/SelectCard';
 import {SelectOption} from '../../inputs/SelectOption';
 import {OrOptions} from '../../inputs/OrOptions';
+import {effectChoice} from '../../inputs/choiceContext';
 import {LogHelper} from '../../LogHelper';
 import {PlaceOceanTile, SELECT_OCEAN_SPACE_TITLE} from '../../deferredActions/PlaceOceanTile';
 import {CardRenderer} from '../render/CardRenderer';
@@ -163,6 +164,6 @@ export class CometAiming extends Card implements IActionCard, IProjectCard {
       return availableActions[0]; // SelectCard
     }
 
-    return new OrOptions(...availableActions);
+    return new OrOptions(...availableActions).markChoiceContext(effectChoice(this));
   }
 }

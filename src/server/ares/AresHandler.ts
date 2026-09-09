@@ -1,6 +1,5 @@
 import {CardName} from '../../common/cards/CardName';
 import {IGame} from '../IGame';
-import {SelectCard} from '../inputs/SelectCard';
 import {Space} from '../boards/Space';
 import {IPlayer} from '../IPlayer';
 import {CardResource} from '../../common/CardResource';
@@ -17,6 +16,9 @@ import {MultiSet} from 'mnemonist';
 import {Phase} from '../../common/Phase';
 import {SelectPaymentDeferred} from '../deferredActions/SelectPaymentDeferred';
 import {SelectProductionToLoseDeferred} from '../deferredActions/SelectProductionToLoseDeferred';
+import {AddResourcesToCard} from '../deferredActions/AddResourcesToCard';
+import {namedCardSource} from '../inputs/choiceContext';
+import {ChoiceContextSource} from '../../common/models/PlayerInputModel';
 import {AutomaAres} from '../automa/AutomaAres';
 import {AresHazards} from './AresHazards';
 import {CrashlandingBonus} from '../pathfinders/CrashlandingBonus';
@@ -92,18 +94,20 @@ export class AresHandler {
         player.game.log('${0} loses the ${1} adjacency bonus (no card can hold it)', (b) =>
           b.player(player).string(resourceAsText));
         return {delivery: 'none'};
-      } else if (availableCards.length === 1) {
-        player.addResourceTo(availableCards[0], {log: true});
-        return {delivery: 'card-resource', targetCard: availableCards[0].name};
       }
-      player.defer(new SelectCard(
-        'Select a card to add an ' + resourceAsText,
-        'Add ' + resourceAsText + 's',
-        availableCards)
-        .andThen((selected) => {
-          player.addResourceTo(selected[0], {log: true});
-          return undefined;
-        }));
+      // The SHARED add-resource pick, premium end to end: never a silent
+      // auto-apply behind the placement cinematic (a single candidate reads as
+      // the family's «add here» confirmation), the paying tile's own card as
+      // the source dock, and the `resourceGainPrompt` reading (resources
+      // `current → resulting` + the per-candidate VP delta) on every target.
+      // The old hand-rolled SelectCard offered bare faces with no marker.
+      const cause: ChoiceContextSource = adjacentSpace.tile?.card !== undefined ?
+        namedCardSource(adjacentSpace.tile.card) :
+        {kind: 'system'};
+      player.game.defer(new AddResourcesToCard(player, resourceType, {
+        autoSelect: false,
+        cause,
+      }));
       return {delivery: 'prompt'};
     };
 
@@ -374,7 +378,9 @@ export class AresHandler {
     }
     if (cost.megacredits > 0) {
       player.game.log('${0} placing a tile here costs ${1} M€', (b) => b.player(player).number(cost.megacredits));
-      player.game.defer(new SelectPaymentDeferred(player, cost.megacredits, {title: 'Select how to pay additional placement costs.'}));
+      // The honest source is the Ares RULE (the cost aggregates over possibly
+      // several adjacent tiles), so the dock shows the game-rule plate.
+      player.game.defer(new SelectPaymentDeferred(player, cost.megacredits, {title: 'Select how to pay additional placement costs.', cause: {kind: 'system'}}));
     }
   }
 

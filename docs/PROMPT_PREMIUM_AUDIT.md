@@ -105,10 +105,33 @@ disabled row, silent no-op), `effectDecisionModel.spec.ts` (attack headlines).
 | B2 | `deferredActions/SelectResourceTypeDeferred.ts` | no `cause`; in-scope caller `MiningCard` (Mining Area / Mining Rights steel-or-titanium after the placement) | ✅ takes `cause` (mode `effect-choice`); MiningCard passes `cardSource(this)` |
 | B3 | `deferredActions/SelectPaymentDeferred.ts` | `cause` existed and the card call sites didn't pass it — every deferred payment rendered with no source dock. (Correction to the first audit pass: `Executor.ts:363` DID already pass it.) | ✅ threaded at 21 sites: base `AquiferPumping` / `SearchForLife` / `WaterImportFromEuropa`; corp `UNMI`; venus `RotatorImpacts` / `ForcedPrecipitation`; promo `AsteroidRights` / `DirectedImpactors` / `EnergyMarket` / `EstablishedMethods` / `Factorum` / `IcyImpactors` / `Merger` / `StJoseph ×2` / `StrategicBasePlanning`; prelude `RobinsonIndustries` + the four `-startingMegaCredits` debt preludes; campaign `CampaignMissionSetup` (`namedCardSource(MERGER)`). **`AresHandler.ts:377` deliberately left** — its honest source is the Ares rule, not a card: decided together with B5 in wave 3 |
 | B4 | `deferredActions/SelectCardDeferred.ts` | no `cause`/marker; also auto-resolves a single candidate — triaged in `DELAYED_TARGET_AUDIT.md` | ✅ takes `cause` (mode `reward`); `ares/BioengineeringEnclosure` passes `cardSource(this)` |
-| B5 | `ares/AresHandler.ts:99` | the Ares adjacency animal/microbe bonus `SelectCard` — unmarked, and auto-applies on a single candidate (`:95-98`) | wave 3: mark (`systemChoice('system', …)` or the hazard-style source) + decide the payment source at `AresHandler.ts:377`; triage the auto-apply |
-| B6 | `cards/base/RoboticWorkforce.ts:35` + `cards/promo/CyberiaSystems.ts:75,79` | deferred «select builder card to copy» pickers, unmarked | wave 3: `markChoiceContext(cardEffect(this, …, 'reward'))` |
-| B7 | `cards/colonies/MarketManipulation.ts:87,95` | two `SelectColony`s back-to-back, no context | wave 3: `cardEffect(this, …)` on both |
-| B8 | `cards/colonies/MinorityRefuge.ts:81` | `BuildColony` without the opt-in `placementContext` | wave 3 (low severity — colony is a native section kind) |
+| B5 | `ares/AresHandler.ts` | the Ares adjacency animal/microbe bonus `SelectCard` was unmarked AND auto-applied on a single candidate | ✅ wave 3 (2026-09-09): the hand-rolled block is replaced by the shared **`AddResourcesToCard` with `autoSelect: false`** — even one candidate gets the family's «add here» confirmation, the SOURCE is the paying neighbour's own card (`namedCardSource(adjacentSpace.tile.card)`, `{kind:'system'}` for a card-less tile), and the pick carries the new **`resourceGainPrompt`** premium reading (below). The grants manifest records `prompt` (the pick surface presents it — the flight layer already flew nothing for prompts by design). The payment at `:377` got its source decision: `{kind: 'system'}` — the cost aggregates over possibly several tiles, so the honest source is the Ares rule |
+| B6 | `cards/base/RoboticWorkforce.ts` + `cards/promo/CyberiaSystems.ts` | deferred «select builder card to copy» pickers, unmarked | ✅ wave 3: `markChoiceContext(cardEffect(this, …, 'effect-choice'))` on all three deferred picks |
+| B7 | `cards/colonies/MarketManipulation.ts` | two `SelectColony`s back-to-back, no context | ✅ wave 3: both marked `cardEffect(this, …, 'effect-choice')` |
+| B8 | `cards/colonies/MinorityRefuge.ts` | `BuildColony` without the opt-in `placementContext` | ✅ wave 3: `committedPlacement(reason, cardSource(this))` |
+
+### THE `resourceGainPrompt` READING (wave 3's premium core, 2026-09-09)
+
+«Куда положить ресурс» now explains its targets on EVERY surface, not only in
+the composers. The composers' target steps carried `amount` / `cardResource` /
+`vpBox` (`actionPreviews.targetVictoryPoints` — the per-candidate VP delta); a
+LIVE/deferred `SelectCard` had no channel for any of it, so an Ares adjacency
+bonus or a triggered gift showed bare card faces. Now:
+
+- `SelectCardModel.resourceGainPrompt` (`{amount, cardResource, vpBox}`) —
+  stamped by **`AddResourcesToCard.buildSelectCard`** (the one funnel of the
+  family), serialized on `SelectCard.toModel` (nesting-safe);
+- `consolePlayedTargetPreview.playedTargetPreviewFor` reads it as a third
+  source beside the step and the branch — ONE builder for all hosts;
+- `ConsoleTaskHost`'s card browser renders the focused candidate's reading in
+  the verdict bar: `[ресурс] current → resulting` + «ПО from → to» (a static
+  VP reading stays, dimmed — «responds but does not move» is a reading).
+
+Guards: `AddResourcesToCard.spec.ts` (stamp + vpBox present/absent + toModel),
+`AresAdjacencyGrants.spec.ts` (single candidate PROMPTS, marked, carries the
+reading), `consolePlayedTargetPreview.spec.ts` (the model-fallback row).
+`DELAYED_TARGET_AUDIT.md`'s Ares auto-apply triage is superseded by this fix;
+`SelectCardDeferred`'s reward-class auto-resolve triage stands.
 
 Wave 1+2 guards: `tests/deferredActions/promptCause.spec.ts` gained rows for
 `IncreaseColonyTrack` (marker + the skip + the pinned option order),
@@ -116,28 +139,38 @@ Wave 1+2 guards: `tests/deferredActions/promptCause.spec.ts` gained rows for
 `CometForVenus.spec.ts` mirrors `Flooding.spec.ts`; `AirRaid.spec.ts` /
 `Hackers.spec.ts` assert the marker on the live prompt.
 
-### C. Nested-input wizard shapes still in the tree
+### C. Nested-input wizard shapes still in the tree — ✅ HARDENED (wave 4, 2026-09-09)
 
 Normally rendered premium INSIDE the action/play composer (the branch pick is
 pre-collected), so the raw two-screen wizard surfaces only on a batch
-divergence / reconnect. Cheap hardening: mark the `OrOptions` with
-`effectChoice(this)` so even the raw fallback is contextual (source dock +
-one-press); flatten only where the nested input is a fixed-price
-`SelectPayment` (the St. Joseph rule — CHOICE_CONTEXT_AUDIT § "A PAID branch
-is a LEAF option").
+divergence / reconnect. What shipped:
 
-- `action()` shapes: `ExtremeColdFungus.ts:86` (SelectCard),
-  `BioPrintingFacility.ts:106`, `AsteroidRights.ts:145`, `Astrodrill.ts:174` +
-  its `standardResourceOptions` `:129`, `CometAiming.ts:166`,
-  `SelfReplicatingRobots.ts:110` (×2 SelectCard),
-  `SulphurEatingBacteria.ts:92` (SelectAmount), `TitanShuttles.ts:84`
-  (SelectAmount).
-- `cards/promo/NeptunianPowerConsultants.ts:61` — marked, but nests a
-  `SelectPayment` for a FIXED 5 M€: flatten to a leaf + `SelectPaymentDeferred`
-  (its own family already did — `StJosephOfCupertinoMission.ts:179-203`).
+- **`effectChoice(this)` marked on the `action()` / on-play `OrOptions`** of:
+  ExtremeColdFungus, BioPrintingFacility, AsteroidRights (both returns),
+  Astrodrill (action root + `standardResourceOptions`), CometAiming,
+  SelfReplicatingRobots, SulphurEatingBacteria, TitanShuttles,
+  ExtractorBalloons, ForcedPrecipitation, JetStreamMicroscrappers,
+  RotatorImpacts, Atmoscoop, JupiterFloatingStation, RedSpotObservatory,
+  RobinsonIndustries, TitanFloatingLaunchPad, TitanAirScrapping, EnergyMarket,
+  Factorum, IcyImpactors, DirectedImpactors, CrashSiteCleanup — and
+  **`attackEffect(this)`** on HiredRaiders (both shapes) + Sabotage. The
+  composer path never reads the marker, so the pre-collect flow is untouched;
+  the raw fallback now gets the source dock + one-press instead of the generic
+  two-step list.
+- **`NeptunianPowerConsultants` FLATTENED** per the St. Joseph rule: the nested
+  fixed-price `SelectPayment` became a leaf `SelectOption` with
+  `optionResult` chips (−5 M€ → +1 energy production +1 hydroelectric) whose
+  `andThen` defers `SelectPaymentDeferred` (`cause: cardSource(this)`) — one
+  press decides, the dial appears only when steel gives a real choice. Spec
+  adapted.
+- **Deliberately NOT marked: the two delta cards** (ModularFloodgates,
+  StormSurgeBarrier) — their prompts belong to the Hydronetwork workspace
+  family with its own claim/serve contracts (`deltaBonusPrompt`, the release
+  funnel's ownership terms); a `choiceContext` there risks a second surface
+  over a dedicated one. Revisit only WITH that family's own review.
 - Marked-but-nested (shape OK, refused by the decision screen by design, the
-  contextual task host serves them): `MarsUniversity.ts:53`, `Virus.ts:86`,
-  `RemoveResourcesFromCard.ts:107,127`.
+  contextual task host serves them): `MarsUniversity`, `Virus`,
+  `RemoveResourcesFromCard`.
 
 ### D. Out of scope (adapt with their expansions — recorded so they are not re-found)
 
@@ -173,25 +206,38 @@ empties.
 **Wave 2 — shared helpers gain `cause` (B1–B4).** ✅ DONE 2026-09-09 — see the
 B table above. `AresHandler.ts:377` rides wave 3's source decision.
 
-**Wave 3 — the deferred pickers name themselves (B5–B8).**
-B5 needs a decision first (what IS the source of an Ares adjacency bonus —
-the hazard rule vs the adjacent tile's card), same as the old hazard row;
-B6/B7 are `markChoiceContext(cardEffect(this, …))`; B4/B5 auto-resolve triage
-lands in `DELAYED_TARGET_AUDIT.md`.
+**Wave 3 — the deferred pickers name themselves (B5–B8).** ✅ DONE 2026-09-09
+— see the B table + § THE `resourceGainPrompt` READING. The Ares source
+decision: the BONUS names the paying neighbour's card, the aggregated PAYMENT
+names the game rule.
 
-**Wave 4 — wizard hardening (C).**
-Mark every `action()` OrOptions with `effectChoice(this)` (co-located, one
-line per card; the composer path is unaffected — it never reads the marker);
-flatten Neptunian Power Consultants per the St. Joseph rule. This makes the
-divergence/reconnect fallback contextual everywhere.
+**Wave 4 — wizard hardening (C).** ✅ DONE 2026-09-09 — see § C (markers on 25
+cards, NPC flattened, the delta pair deliberately carved out).
 
-**Wave 5 — the guard that keeps it true.**
-Extend `tests/models/choiceContext.spec.ts` (or a new corpus spec) into the
-worklist guard the project style demands: enumerate the in-scope deferred /
-triggered prompt producers and FAIL with the list of unmarked ones — so a new
-card cannot add an anonymous prompt without the suite naming it. Without this
-wave the audit rots the way CHOICE_CONTEXT_AUDIT's «Already premium» section
-did (it described desktop surfaces that have since been deleted).
+**Wave 5 — the guard that keeps it true.** ✅ DONE 2026-09-09 —
+**`tests/models/promptMarkerGuard.spec.ts`**, the standing worklist:
+
+- Static source scan over the premium-scope server roots (`cards/{base,
+  corporation, promo, venusNext, colonies, prelude, ares, delta}`,
+  `deferredActions`, `colonies`, `ares`, `behavior`, `automa`, `venusNext`,
+  `inputs`). Two rules, FILE granularity (one marked construction vouches for
+  its file — the guard is a ratchet against NEW anonymous producers; the
+  per-shape behaviour stays pinned by the focused specs):
+  1. a file building `new OrOptions(` must carry a structural marker
+     (`markChoiceContext` or a sibling), or hold an `OR_OPTIONS_ALLOWLIST`
+     row with a written reason;
+  2. the same for `new SelectPlayer(` / `new SelectColony(`.
+- The allow-list is a DEBT ledger: the two delta carve-outs, the four
+  turmoil-only helpers in the shared directory, and `ColoniesHandler`'s
+  catalog (its `purpose` field is the marker). A third test fails any row
+  that stopped being earned (file gone / shape gone / marker appeared), and
+  an anti-vacuous floor fails the scan if a root silently vanishes.
+- Standing up the guard flushed the last two strays and both were FIXED
+  rather than listed: **LawSuit** (`attackEffect(this)` on its target pick)
+  and **RemoveColonyFromGame** (`systemChoice('system')` on the setup trim).
+
+The frontier enters by widening `SCAN_ROOTS` + emptying the turmoil rows —
+that is the expansion checklist's step, like every other guard's SCOPE set.
 
 **Explicitly NOT in the plan:** frontier items (§D) — they ride the
 expansion-adaptation checklist; the `composite`/`unknown` red list (documented

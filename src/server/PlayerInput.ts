@@ -3,7 +3,7 @@ import {Message} from '../common/logs/Message';
 import {PlayerInputType} from '../common/input/PlayerInputType';
 import {InputResponse} from '../common/inputs/InputResponse';
 import {IPlayer} from './IPlayer';
-import {PlayerInputModel, StartGamePromptMeta, BonusActionPromptMeta, AwardFundingPromptMeta, ChoiceContext, ColonyBonusCollectMeta, DeckPickPromptMeta, DiscardPromptMeta, DraftPromptMeta, FinalGreeneryPromptMeta, PlacementContext, VenusBonusPromptMeta, SpendHeatPromptMeta} from '../common/models/PlayerInputModel';
+import {PlayerInputModel, StartGamePromptMeta, BonusActionPromptMeta, AwardFundingPromptMeta, ChoiceContext, ColonyBonusCollectMeta, DeckPickPromptMeta, DiscardPromptMeta, DraftPromptMeta, FinalGreeneryPromptMeta, PlacementContext, ResourceGainPromptMeta, VenusBonusPromptMeta, SpendHeatPromptMeta} from '../common/models/PlayerInputModel';
 import {BotAttackPromptMeta} from '../common/models/BotAttackPromptModel';
 import {ExternalDrawTakeMeta} from '../common/models/ExternalDrawPromptModel';
 import {DeltaBonusPromptMeta} from '../common/models/DeltaBonusPromptModel';
@@ -145,6 +145,7 @@ export abstract class BasePlayerInput<T> implements PlayerInput {
   public botAttackPrompt: BotAttackPromptMeta | undefined;
   public externalDrawPrompt: ExternalDrawTakeMeta | undefined;
   public deltaBonusPrompt: DeltaBonusPromptMeta | undefined;
+  public resourceGainPrompt: ResourceGainPromptMeta | undefined;
 
   public abstract toModel(player: IPlayer): PlayerInputModel;
   public abstract process(response: InputResponse, player: IPlayer): PlayerInput | undefined;
@@ -290,6 +291,16 @@ export abstract class BasePlayerInput<T> implements PlayerInput {
    *  See {@link BotAttackPromptMeta}. */
   public markBotAttackPrompt(meta: BotAttackPromptMeta): this {
     this.botAttackPrompt = meta;
+    return this;
+  }
+
+  /** Mark this `SelectCard` as an ADD-RESOURCE-TO-CARD pick (chainable): how
+   *  many land, which resource, and the per-candidate VP reading — the premium
+   *  target preview a live/deferred pick otherwise has no channel for.
+   *  Stamped by `AddResourcesToCard.buildSelectCard`, the one funnel of the
+   *  family. See {@link ResourceGainPromptMeta}. */
+  public markResourceGainPrompt(meta: ResourceGainPromptMeta): this {
+    this.resourceGainPrompt = meta;
     return this;
   }
 

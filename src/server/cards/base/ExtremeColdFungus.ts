@@ -4,6 +4,7 @@ import {Card} from '../Card';
 import {CardType} from '../../../common/cards/CardType';
 import {IPlayer} from '../../IPlayer';
 import {OrOptions} from '../../inputs/OrOptions';
+import {effectChoice} from '../../inputs/choiceContext';
 import {SelectOption} from '../../inputs/SelectOption';
 import {SelectCard} from '../../inputs/SelectCard';
 import {IProjectCard} from '../IProjectCard';
@@ -93,6 +94,6 @@ export class ExtremeColdFungus extends Card implements IActionCard, IProjectCard
           return undefined;
         }),
       gainPlantOption,
-    );
+    ).markChoiceContext(effectChoice(this));
   }
 }

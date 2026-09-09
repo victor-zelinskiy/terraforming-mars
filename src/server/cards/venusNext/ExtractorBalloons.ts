@@ -4,6 +4,7 @@ import {CardType} from '../../../common/cards/CardType';
 import {IPlayer} from '../../IPlayer';
 import {CardResource} from '../../../common/CardResource';
 import {OrOptions} from '../../inputs/OrOptions';
+import {effectChoice} from '../../inputs/choiceContext';
 import {SelectOption} from '../../inputs/SelectOption';
 import {CardName} from '../../../common/cards/CardName';
 import {MAX_VENUS_SCALE} from '../../../common/constants';
@@ -105,6 +106,6 @@ export class ExtractorBalloons extends Card implements IActionCard {
         player.addResourceTo(this, {log: true});
         return undefined;
       }),
-    );
+    ).markChoiceContext(effectChoice(this));
   }
 }

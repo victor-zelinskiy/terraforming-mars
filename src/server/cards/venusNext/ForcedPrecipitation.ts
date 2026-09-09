@@ -8,7 +8,7 @@ import {SelectOption} from '../../inputs/SelectOption';
 import {MAX_VENUS_SCALE} from '../../../common/constants';
 import {CardName} from '../../../common/cards/CardName';
 import {SelectPaymentDeferred} from '../../deferredActions/SelectPaymentDeferred';
-import {cardSource} from '../../inputs/choiceContext';
+import {cardSource, effectChoice} from '../../inputs/choiceContext';
 import {LogHelper} from '../../LogHelper';
 import {CardRenderer} from '../render/CardRenderer';
 import {Card} from '../Card';
@@ -104,7 +104,7 @@ export class ForcedPrecipitation extends Card implements IActionCard {
       return this.spendResource(player);
     }
 
-    return new OrOptions(...opts);
+    return new OrOptions(...opts).markChoiceContext(effectChoice(this));
   }
 
   private addResource(player: IPlayer) {

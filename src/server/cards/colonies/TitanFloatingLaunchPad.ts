@@ -16,7 +16,7 @@ import {ColoniesHandler} from '../../colonies/ColoniesHandler';
 import {message} from '../../logs/MessageBuilder';
 import * as actionReason from '../actionReasons';
 import * as actionPreviews from '../actionPreviews';
-import {cardSource} from '../../inputs/choiceContext';
+import {cardSource, effectChoice} from '../../inputs/choiceContext';
 
 export class TitanFloatingLaunchPad extends Card implements IProjectCard {
   constructor() {
@@ -139,7 +139,7 @@ export class TitanFloatingLaunchPad extends Card implements IProjectCard {
     if (this.resourceCount === 0 || !player.colonies.canTrade()) {
       return orOptions.options[1].cb();
     }
-    return orOptions;
+    return orOptions.markChoiceContext(effectChoice(this));
   }
 }
 

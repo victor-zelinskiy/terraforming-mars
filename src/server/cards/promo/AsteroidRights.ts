@@ -12,7 +12,7 @@ import {SelectCard} from '../../inputs/SelectCard';
 import {OrOptions} from '../../inputs/OrOptions';
 import {SelectOption} from '../../inputs/SelectOption';
 import {SelectPaymentDeferred} from '../../deferredActions/SelectPaymentDeferred';
-import {cardSource} from '../../inputs/choiceContext';
+import {cardSource, effectChoice} from '../../inputs/choiceContext';
 import {CardRenderer} from '../render/CardRenderer';
 import * as actionReason from '../actionReasons';
 import * as actionPreviews from '../actionPreviews';
@@ -130,7 +130,7 @@ export class AsteroidRights extends Card implements IActionCard, IProjectCard {
 
     // Spend asteroid
     if (!canAddAsteroid) {
-      return new OrOptions(gainTitaniumOption, increaseMcProdOption);
+      return new OrOptions(gainTitaniumOption, increaseMcProdOption).markChoiceContext(effectChoice(this));
     }
 
     // Add asteroid to any card
@@ -143,6 +143,6 @@ export class AsteroidRights extends Card implements IActionCard, IProjectCard {
     opts.push(increaseMcProdOption);
     opts.push(addAsteroidOption);
 
-    return new OrOptions(...opts);
+    return new OrOptions(...opts).markChoiceContext(effectChoice(this));
   }
 }

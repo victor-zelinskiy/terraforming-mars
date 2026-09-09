@@ -9,6 +9,7 @@ import {testGame} from '../../TestGame';
 import {CardName} from '../../../src/common/cards/CardName';
 import {CardResource} from '../../../src/common/CardResource';
 import {cast} from '../../../src/common/utils/utils';
+import {SelectCard} from '../../../src/server/inputs/SelectCard';
 
 describe('MagneticFieldGeneratorsAres', () => {
   let card: MagneticFieldGeneratorsAres;
@@ -52,6 +53,10 @@ describe('MagneticFieldGeneratorsAres', () => {
 
     expect(player.megaCredits).eq(1); // For Ares tile owner bonus
     expect(player.plants).eq(1);
+    // The microbe bonus now PROMPTS (the premium «add here» confirmation —
+    // never a silent apply behind the placement), even with one candidate.
+    const select = cast(player.popWaitingFor(), SelectCard);
+    select.cb([microbeCard]);
     expect(microbeCard.resourceCount).eq(1);
   });
 });

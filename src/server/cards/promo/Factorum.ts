@@ -9,7 +9,7 @@ import {CardName} from '../../../common/cards/CardName';
 import {CardRenderer} from '../render/CardRenderer';
 import {Size} from '../../../common/cards/render/Size';
 import {SelectPaymentDeferred} from '../../deferredActions/SelectPaymentDeferred';
-import {cardSource} from '../../inputs/choiceContext';
+import {cardSource, effectChoice} from '../../inputs/choiceContext';
 import {TITLES} from '../../inputs/titles';
 import {ICorporationCard} from '../corporation/ICorporationCard';
 import * as actionReason from '../actionReasons';
@@ -122,6 +122,6 @@ export class Factorum extends CorporationCard implements ICorporationCard, IActi
     if (options.length === 1) {
       return options[0].cb(undefined);
     }
-    return new OrOptions(...options);
+    return new OrOptions(...options).markChoiceContext(effectChoice(this));
   }
 }

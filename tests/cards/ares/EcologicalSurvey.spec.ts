@@ -17,6 +17,7 @@ import {testGame} from '../../TestGame';
 import {MAX_OXYGEN_LEVEL, MAX_TEMPERATURE} from '../../../src/common/constants';
 import {OrOptions} from '../../../src/server/inputs/OrOptions';
 import {cast} from '../../../src/common/utils/utils';
+import {SelectCard} from '../../../src/server/inputs/SelectCard';
 
 describe('EcologicalSurvey', () => {
   let card: EcologicalSurvey;
@@ -89,6 +90,19 @@ describe('EcologicalSurvey', () => {
     expect(player.energy).eq(1);
     expect(player.plants).eq(2);
     expect(player.cardsInHand).is.length(1);
+    // The card-resource bonuses now PROMPT (the premium «add here»
+    // confirmation — never a silent apply), even with one candidate each.
+    // Drain every pick and assert the OUTCOME — how the doubled units are
+    // batched into prompts is the helper's business.
+    for (let guard = 0; guard < 8; guard++) {
+      const wf = player.popWaitingFor();
+      if (wf === undefined) {
+        break;
+      }
+      const select = cast(wf, SelectCard);
+      select.cb([select.cards[0]]);
+      runAllActions(game);
+    }
     expect(microbeCard.resourceCount).eq(2);
     expect(animalCard.resourceCount).eq(2);
   });

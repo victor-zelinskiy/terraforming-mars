@@ -13,10 +13,11 @@ rather than fixed:
   pre-collects the pick when a choice exists. Left as-is; revisit if a
   DESTRUCTIVE caller ever adopts the helper (then the no-auto-select rule
   applies in full).
-- `ares/AresHandler.ts:95-99` — the Ares adjacency animal/microbe bonus
-  auto-adds when exactly one card can hold it. Same class (a gain to the
-  viewer's own card), plus the prompt is unmarked; both halves are wave 3 of
-  the premium-prompt plan.
+- ~~`ares/AresHandler.ts:95-99`~~ **FIXED (premium-prompt wave 3, same day)**:
+  the hand-rolled block became the shared `AddResourcesToCard` with
+  `autoSelect: false` — one candidate gets the «add here» confirmation, the
+  pick is marked with the paying tile's card and carries the
+  `resourceGainPrompt` reading (see PROMPT_PREMIUM_AUDIT.md).
 
 Contrast: the DecreaseAnyProduction / asteroid-card fixes below were
 ATTACKS/targets with a hidden victim — that class is never acceptable.

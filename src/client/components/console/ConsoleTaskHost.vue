@@ -354,6 +354,22 @@
                          nodes patched in place — they never blink between cards
                          (the old wholesale keyed swap faded them all out/in). -->
                     <span class="con-cards__verdict-name" :key="focusedCardEntry.card.name">{{ $t(focusedCardEntry.card.name) }}</span>
+                    <!-- The premium target reading of an ADD-RESOURCE pick (the
+                         server's `resourceGainPrompt`): what lands on THIS card
+                         (`current → resulting`) and what its VICTORY POINTS do —
+                         the same authoritative numbers the composers' target
+                         steps show, so a deferred arrival (an Ares adjacency
+                         bonus) is never a bare face. A static VP reading stays,
+                         quietly — «responds but does not move» is a reading. -->
+                    <span v-for="(imp, k) in focusedTargetImpacts" :key="'ti' + k"
+                          class="con-cards__verdict con-cards__verdict--impact"
+                          :class="{'con-cards__verdict--impact-static': imp.static}">
+                      <!-- iconClassFor resolves the icon's CSS FAMILY (a card
+                           resource is `card-resource-*`, never `resource_icon--*`). -->
+                      <i v-if="imp.iconClass !== ''" class="con-cards__impact-icon" :class="imp.iconClass" aria-hidden="true"></i>
+                      <span v-else class="con-cards__impact-label">{{ $t(imp.label) }}</span>
+                      <span class="con-cards__impact-nums">{{ imp.from }}<span aria-hidden="true"> → </span>{{ imp.to }}</span>
+                    </span>
                     <span v-if="focusedCardEntry.disabled" class="con-cards__verdict con-cards__verdict--blocked">
                       <span aria-hidden="true">✕</span>
                       <span>{{ focusedCardEntry.reason !== '' ? focusedCardEntry.reason : $t('Unavailable right now') }}</span>
@@ -601,6 +617,8 @@ import {rememberCardBrowserPicks, recallCardBrowserPicks, clearCardBrowserPicks}
 import {consoleTaskSummary} from '@/client/console/consoleTaskSummary';
 import {promptSourceView, PromptSourceView} from '@/client/console/promptSource';
 import {setWorkspaceOutcomePhase, workspaceOutcomeArrivalPending, workspaceOutcomeState, workspaceSourceZoomOrigin} from '@/client/console/consoleWorkspaceOutcome';
+import {playedTargetPreviewFor} from '@/client/console/played/consolePlayedTargetPreview';
+import type {PlayedTargetImpact} from '@/client/console/played/consolePlayedTargetModel';
 import {ActionEffect} from '@/common/models/ActionPreviewModel';
 import {TargetImpact, TargetImpactChange} from '@/common/models/TargetImpactModel';
 import TagComponent from '@/client/components/Tag.vue';
@@ -1407,6 +1425,24 @@ export default defineComponent({
     dealModels(): Array<CardModel | undefined> {
       const pool = this.cardEntries.map((e) => e.card);
       return this.deal.state.cards.map((name) => pool.find((c) => c.name === name));
+    },
+    /**
+     * The FOCUSED candidate's premium target reading (`resources current →
+     * resulting` + «ПО from → to») for a pick the SERVER stamped with
+     * `resourceGainPrompt` — the SAME pure builder both composers run, so a
+     * deferred arrival (an Ares adjacency bonus, a triggered gift) explains
+     * its targets exactly as a pre-collected step does. Empty for every other
+     * card pick, so nothing else in the browser gains a line.
+     */
+    focusedTargetImpacts(): ReadonlyArray<PlayedTargetImpact & {iconClass: string}> {
+      const model = this.cardModel;
+      const entry = this.focusedCardEntry;
+      if (model?.resourceGainPrompt === undefined || entry === undefined || entry.disabled) {
+        return [];
+      }
+      const sections = playedTargetPreviewFor(undefined, model, entry.card.name as CardName);
+      return (sections.find((s) => s.key === 'res')?.impacts ?? [])
+        .map((imp) => ({...imp, iconClass: iconClassFor(imp.icon)}));
     },
     cardEntries(): Array<{card: CardModel, disabled: boolean, reason: string}> {
       const model = this.cardModel;

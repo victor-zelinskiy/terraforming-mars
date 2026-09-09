@@ -4,6 +4,7 @@ import {CardType} from '../../../common/cards/CardType';
 import {IPlayer} from '../../IPlayer';
 import {IGame} from '../../IGame';
 import {OrOptions} from '../../inputs/OrOptions';
+import {effectChoice} from '../../inputs/choiceContext';
 import {SelectOption} from '../../inputs/SelectOption';
 import {CardResource} from '../../../common/CardResource';
 import {CardName} from '../../../common/cards/CardName';
@@ -107,7 +108,8 @@ export class Atmoscoop extends Card implements IProjectCard {
         return undefined;
       });
     return new OrOptions(increaseTemp, increaseVenus)
-      .setTitle('Choose global parameter to raise');
+      .setTitle('Choose global parameter to raise')
+      .markChoiceContext(effectChoice(this));
   }
 
   // The on-play preview: the temperature/Venus CHOICE (a rich OrOptions step with

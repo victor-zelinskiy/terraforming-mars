@@ -9,7 +9,7 @@ import {SelectOption} from '../../inputs/SelectOption';
 import {OrOptions} from '../../inputs/OrOptions';
 import {SelectAmount} from '../../inputs/SelectAmount';
 import {SelectPaymentDeferred} from '../../deferredActions/SelectPaymentDeferred';
-import {cardSource} from '../../inputs/choiceContext';
+import {cardSource, effectChoice} from '../../inputs/choiceContext';
 import {CardRenderer} from '../render/CardRenderer';
 import * as actionReason from '../actionReasons';
 import * as actionPreviews from '../actionPreviews';
@@ -109,7 +109,7 @@ export class EnergyMarket extends Card implements IProjectCard {
         new SelectOption('Decrease energy production 1 step to gain 8 M€', 'Decrease energy').andThen(() => {
           return this.getMegacreditsOption(player);
         }),
-      );
+      ).markChoiceContext(effectChoice(this));
     } else if (availableMC >= 2) {
       return this.getEnergyOption(player, availableMC);
     } else if (player.production.energy >= 1) {

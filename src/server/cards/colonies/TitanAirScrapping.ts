@@ -6,6 +6,7 @@ import {CardName} from '../../../common/cards/CardName';
 import {CardResource} from '../../../common/CardResource';
 import {SelectOption} from '../../inputs/SelectOption';
 import {OrOptions} from '../../inputs/OrOptions';
+import {effectChoice} from '../../inputs/choiceContext';
 import {CardRenderer} from '../render/CardRenderer';
 import {Card} from '../Card';
 import {Payment} from '../../../common/inputs/Payment';
@@ -89,7 +90,7 @@ export class TitanAirScrapping extends Card implements IProjectCard {
       return opts[0].cb(undefined);
     }
 
-    return new OrOptions(...opts);
+    return new OrOptions(...opts).markChoiceContext(effectChoice(this));
   }
 
   private addResource(player: IPlayer) {

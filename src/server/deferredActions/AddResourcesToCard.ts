@@ -8,6 +8,9 @@ import {DeferredAction} from './DeferredAction';
 import {Priority} from './Priority';
 import {Message} from '../../common/logs/Message';
 import {message} from '../logs/MessageBuilder';
+// Runtime-only calls (safe circular import: actionPreviews imports this class
+// at top level, these two are late-bound function reads at prompt-build time).
+import {cardResourceIcon, targetVictoryPoints} from '../cards/actionPreviews';
 
 export type Options = {
   count?: number;
@@ -141,7 +144,17 @@ export class AddResourcesToCard extends DeferredAction {
     const title: string | Message = this.options.title ?? (single ?
       (qty === 1 ? 'Add resource to this card' : 'Add resources to this card') :
       message('Select card to add ${0} ${1}', (b) => b.number(qty).string(this.resourceType || 'resources')));
-    const select = new SelectCard(title, buttonLabel, cards);
+    const select = new SelectCard(title, buttonLabel, cards)
+      // The premium target reading a LIVE pick otherwise has no channel for:
+      // amount + resource icon + the per-candidate VP delta (the same producer
+      // the composers' pre-collected steps use), so a deferred arrival — an
+      // Ares adjacency bonus, a triggered gift — explains each candidate with
+      // `resources current → resulting` and «ПО from → to», never a bare face.
+      .markResourceGainPrompt({
+        amount: qty,
+        cardResource: this.resourceType !== undefined ? cardResourceIcon(this.resourceType) : undefined,
+        vpBox: targetVictoryPoints(this.player, cards, qty),
+      });
     return this.options.cause === undefined ?
       select :
       select.markChoiceContext({source: this.options.cause, mode: 'reward'});

@@ -57,6 +57,29 @@ describe('consolePlayedTargetPreview — what the rail actually says', () => {
       expect(playedTargetQuickImpacts(sections)[0]).to.include({from: 1, to: 0});
     });
 
+    /** A LIVE/deferred pick has no step and no branch — the server stamps the
+     *  SAME reading onto the model itself (`resourceGainPrompt`, set by
+     *  `AddResourcesToCard.buildSelectCard`), so an Ares adjacency bonus or a
+     *  triggered gift explains each target exactly as a pre-collected step
+     *  does: resources `current → resulting` + «ПО from → to». */
+    it('reads the model\'s own resourceGainPrompt (the deferred-arrival channel)', () => {
+      const model = {
+        ...input([{name: 'Birds', resources: 2}]),
+        resourceGainPrompt: {
+          amount: 1,
+          cardResource: 'animal',
+          vpBox: {['Birds' as CardName]: {from: 2, to: 3}},
+        },
+      } as SelectCardModel;
+      const sections = playedTargetPreviewFor(undefined, model, 'Birds' as CardName);
+      expect(sections).to.have.length(1);
+      const impacts = sections[0].impacts;
+      expect(impacts[0]).to.include({from: 2, to: 3});
+      expect(impacts[0].icon).to.eq('animal');
+      // …and the VP line rides beside it, from the same stamped reading.
+      expect(impacts[1]).to.include({label: 'VP', from: 2, to: 3});
+    });
+
     /** A STEP's own amount still wins where it exists (Predators and the whole
      *  add-to-card family) — the branch reading is an addition, not a swap. */
     it('keeps the step\'s own amount as the primary source', () => {

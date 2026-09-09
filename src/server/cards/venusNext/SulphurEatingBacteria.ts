@@ -5,6 +5,7 @@ import {IPlayer} from '../../IPlayer';
 import {CardResource} from '../../../common/CardResource';
 import {Resource} from '../../../common/Resource';
 import {OrOptions} from '../../inputs/OrOptions';
+import {effectChoice} from '../../inputs/choiceContext';
 import {SelectOption} from '../../inputs/SelectOption';
 import {SelectAmount} from '../../inputs/SelectAmount';
 import {CardName} from '../../../common/cards/CardName';
@@ -89,7 +90,7 @@ export class SulphurEatingBacteria extends Card implements IActionCard {
       return undefined;
     }
 
-    return new OrOptions(...opts);
+    return new OrOptions(...opts).markChoiceContext(effectChoice(this));
   }
 
   private spendResource(player: IPlayer, amount: number) {

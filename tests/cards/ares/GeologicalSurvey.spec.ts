@@ -18,6 +18,7 @@ import {PartyName} from '../../../src/common/turmoil/PartyName';
 import {MAX_TEMPERATURE, MAX_OXYGEN_LEVEL} from '../../../src/common/constants';
 import {OrOptions} from '../../../src/server/inputs/OrOptions';
 import {cast} from '../../../src/common/utils/utils';
+import {SelectCard} from '../../../src/server/inputs/SelectCard';
 
 describe('GeologicalSurvey', () => {
   let card: GeologicalSurvey;
@@ -98,6 +99,13 @@ describe('GeologicalSurvey', () => {
     expect(player.energy).eq(1);
     expect(player.plants).eq(1);
     expect(player.cardsInHand).is.length(1);
+    // The card-resource bonuses now PROMPT per unit (the premium «add here»
+    // confirmation — never a silent apply), even with one candidate each.
+    for (let i = 0; i < 2; i++) {
+      const select = cast(player.popWaitingFor(), SelectCard);
+      select.cb([select.cards[0]]);
+      runAllActions(game);
+    }
     expect(microbeCard.resourceCount).eq(1);
     expect(animalCard.resourceCount).eq(1);
   });

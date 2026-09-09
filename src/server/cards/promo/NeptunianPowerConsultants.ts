@@ -12,9 +12,10 @@ import {Board} from '../../boards/Board';
 import {Space} from '../../boards/Space';
 import {OrOptions} from '../../inputs/OrOptions';
 import {SelectOption} from '../../inputs/SelectOption';
-import {SelectPayment} from '../../inputs/SelectPayment';
-import {skip} from '../../inputs/optionMetadata';
-import {cardEffect} from '../../inputs/choiceContext';
+import {SelectPaymentDeferred} from '../../deferredActions/SelectPaymentDeferred';
+import {chip, optionResult, skip} from '../../inputs/optionMetadata';
+import {cardEffect, cardSource} from '../../inputs/choiceContext';
+import {cardResourceIcon} from '../actionPreviews';
 import {Size} from '../../../common/cards/render/Size';
 import {Priority} from '../../deferredActions/Priority';
 import {BoardFact} from '../../../common/boards/BoardInformationFacts';
@@ -59,13 +60,28 @@ export class NeptunianPowerConsultants extends Card implements IProjectCard {
     if (Board.isUncoveredOceanSpace(space)) {
       if (cardOwner.canAfford({cost: 5, steel: true})) {
         const orOptions = new OrOptions();
-        orOptions.options.push(new SelectPayment(
-          'Spend 5 M€ for one energy production and hydroelectric resource',
-          5, {steel: true})
-          .andThen((payment) => {
-            cardOwner.pay(payment);
-            cardOwner.production.add(Resource.ENERGY, 1, {log: true});
-            cardOwner.addResourceTo(this, {qty: 1, log: true});
+        // A PAID branch is a LEAF option, never a nested `SelectPayment` (the
+        // St. Joseph rule, CHOICE_CONTEXT_AUDIT): one press decides, the chips
+        // state the price and both payouts, and `SelectPaymentDeferred` raises
+        // the dial only when the player genuinely has a payment choice (steel).
+        orOptions.options.push(new SelectOption(
+          'Spend 5 M€ for one energy production and hydroelectric resource')
+          .withMetadata(optionResult({
+            effects: [
+              chip('cost', 'megacredits', 5),
+              chip('gain', 'energy', 1, {note: 'production'}),
+              chip('gain', cardResourceIcon(CardResource.HYDROELECTRIC_RESOURCE), 1),
+            ],
+          }))
+          .andThen(() => {
+            cardOwner.game.defer(new SelectPaymentDeferred(cardOwner, 5, {
+              canUseSteel: true,
+              title: 'Spend 5 M€ for one energy production and hydroelectric resource',
+              cause: cardSource(this),
+            })).andThen(() => {
+              cardOwner.production.add(Resource.ENERGY, 1, {log: true});
+              cardOwner.addResourceTo(this, {qty: 1, log: true});
+            });
             return undefined;
           }));
         orOptions.options.push(new SelectOption('Do not use card effect').withMetadata(skip()).andThen(() => {

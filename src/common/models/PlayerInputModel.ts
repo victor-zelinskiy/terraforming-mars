@@ -593,6 +593,25 @@ export type SelectProjectCardToPlayModel = BaseInputModel & {
   floodgateSteel: number;
 }
 
+/**
+ * "This pick ADDS resources to the chosen card" — the premium reading of a
+ * LIVE/deferred card-target pick: how many land, which resource, and what each
+ * candidate's VICTORY POINTS would do (the SAME authoritative producer as
+ * `ActionPreviewStep.vpBox` — `actionPreviews.targetVictoryPoints`), so the
+ * console explains a deferred `AddResourcesToCard` prompt (an Ares adjacency
+ * bonus, a triggered gift) exactly as the composers explain a pre-collected
+ * one. READ-ONLY preview data: it changes nothing about what the server asks
+ * or accepts. Serialized on `SelectCard.toModel` (nesting-safe), not centrally.
+ */
+export type ResourceGainPromptMeta = {
+  amount: number;
+  /** Icon key of the card resource being added ('animal', 'microbe', …). */
+  cardResource?: string;
+  /** Per-candidate VP reading; a card whose points the resource never moves is
+   *  simply ABSENT (never a fabricated zero) — see {@link VictoryPointsDelta}. */
+  vpBox?: Partial<Record<CardName, VictoryPointsDelta>>;
+}
+
 export type SelectCardModel = BaseInputModel & {
   type: 'card';
   cards: ReadonlyArray<CardModel>;
@@ -602,6 +621,8 @@ export type SelectCardModel = BaseInputModel & {
   selectBlueCardAction: boolean;
   showOwner: boolean;
   showSelectAll: boolean;
+  /** See {@link ResourceGainPromptMeta}. */
+  resourceGainPrompt?: ResourceGainPromptMeta;
   // OPTIONAL relevant-but-unpickable candidates shown DISABLED (greyed, with a
   // reason on each card's `disabledReason`) — separate from the selectable
   // `cards` so the server never validates/accepts them. The premium picker

@@ -4,6 +4,7 @@ import {CardType} from '../../../common/cards/CardType';
 import {IPlayer} from '../../IPlayer';
 import {AutomaTargeting} from '../../automa/AutomaTargeting';
 import {OrOptions} from '../../inputs/OrOptions';
+import {attackEffect} from '../../inputs/choiceContext';
 import {Resource} from '../../../common/Resource';
 import {CardName} from '../../../common/cards/CardName';
 import {SelectOption} from '../../inputs/SelectOption';
@@ -69,7 +70,7 @@ export class Sabotage extends Card implements IProjectCard {
   // Side-effect-free construction shared by `bespokePlay` + the preview (the
   // resource removals only run when an option's `andThen` fires).
   private buildOptions(player: IPlayer): OrOptions | undefined {
-    const availableActions = new OrOptions();
+    const availableActions = new OrOptions().markChoiceContext(attackEffect(this));
 
     if (player.game.isSoloMode() && player.playedCards.has(CardName.MONS_INSURANCE)) {
       availableActions.options.push(new SelectOption(

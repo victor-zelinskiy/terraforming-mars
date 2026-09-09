@@ -5,6 +5,7 @@ import {TestPlayer} from '../../TestPlayer';
 import {testGame} from '../../TestGame';
 import {IGame} from '../../../src/server/IGame';
 import {OrOptions} from '../../../src/server/inputs/OrOptions';
+import {SelectPayment} from '../../../src/server/inputs/SelectPayment';
 import {Payment} from '../../../src/common/inputs/Payment';
 import {IceAsteroid} from '../../../src/server/cards/base/IceAsteroid';
 import {SelectSpace} from '../../../src/server/inputs/SelectSpace';
@@ -46,7 +47,10 @@ describe('NeptunianPowerConsultants', () => {
     addOcean(player2);
     runAllActions(game);
     const orOptions = cast(player.popWaitingFor(), OrOptions);
-    orOptions.options[0].cb(Payment.of({megacredits: 5}));
+    // The paid branch is a LEAF (the St. Joseph rule): one press decides, the
+    // payment defers — and with M€ the only way to pay it auto-resolves.
+    orOptions.options[0].cb(undefined);
+    runAllActions(game);
 
     expect(card.resourceCount).eq(1);
     expect(player.production.energy).eq(1);
@@ -59,7 +63,12 @@ describe('NeptunianPowerConsultants', () => {
     addOcean(player2);
     runAllActions(game);
     const orOptions = cast(player.popWaitingFor(), OrOptions);
-    orOptions.options[0].cb(Payment.of({megacredits: 3, steel: 1}));
+    orOptions.options[0].cb(undefined);
+    runAllActions(game);
+    // Steel gives a genuine payment choice → the dial appears exactly then.
+    const payment = cast(player.popWaitingFor(), SelectPayment);
+    payment.cb(Payment.of({megacredits: 3, steel: 1}));
+    runAllActions(game);
 
     expect(card.resourceCount).eq(1);
     expect(player.production.energy).eq(1);
@@ -78,7 +87,7 @@ describe('NeptunianPowerConsultants', () => {
     runAllActions(game);
     cast(player2.popWaitingFor(), undefined);
     const orOptions = cast(player.popWaitingFor(), OrOptions);
-    orOptions.options[0].cb(Payment.of({megacredits: 5, steel: 0}));
+    orOptions.options[0].cb(undefined);
 
     runAllActions(game);
 

@@ -8,7 +8,7 @@ import {IPlayer} from '../../IPlayer';
 import {OrOptions} from '../../inputs/OrOptions';
 import {SelectOption} from '../../inputs/SelectOption';
 import {SelectPaymentDeferred} from '../../deferredActions/SelectPaymentDeferred';
-import {cardSource} from '../../inputs/choiceContext';
+import {cardSource, effectChoice} from '../../inputs/choiceContext';
 import {message} from '../../logs/MessageBuilder';
 import {CardResource} from '../../../common/CardResource';
 import {PlaceOceanTile} from '../../deferredActions/PlaceOceanTile';
@@ -106,7 +106,7 @@ export class IcyImpactors extends Card implements IActionCard {
   }
 
   action(player: IPlayer) {
-    const options = new OrOptions();
+    const options = new OrOptions().markChoiceContext(effectChoice(this));
 
     if (this.canAffordToPlaceOcean(player)) {
       const placeOceanOption = new SelectOption('Spend 1 asteroid here to place an ocean (first player chooses where to place it)').andThen(() => {

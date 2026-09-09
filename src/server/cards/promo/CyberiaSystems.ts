@@ -7,6 +7,7 @@ import {Size} from '../../../common/cards/render/Size';
 import {IPlayer} from '../../IPlayer';
 import {ICard} from '../ICard';
 import {Priority} from '../../deferredActions/Priority';
+import {cardEffect} from '../../inputs/choiceContext';
 import {ActionPreview} from '../../../common/models/ActionPreviewModel';
 import * as actionPreviews from '../actionPreviews';
 import {UnplayableReason} from '../../../common/cards/UnplayableReason';
@@ -72,9 +73,12 @@ export class CyberiaSystems extends RoboticWorkforceBase {
     const firstSet = this.getPlayableBuildingCards(player);
     const selectFirstCard = this.selectBuildingCard(player, firstSet, 'Select first builder card to copy', (card) => {
       const secondSet = this.getPlayableBuildingCards(player).filter((c) => c !== card);
-      player.defer(this.selectBuildingCard(player, secondSet, 'Select second card to copy'), Priority.ROBOTIC_WORKFORCE);
+      // Both deferred picks name WHO asks (a batch-divergence arrival must
+      // still show the source dock).
+      player.defer(this.selectBuildingCard(player, secondSet, 'Select second card to copy')
+        ?.markChoiceContext(cardEffect(this, undefined, 'effect-choice')), Priority.ROBOTIC_WORKFORCE);
       return undefined;
-    });
+    })?.markChoiceContext(cardEffect(this, undefined, 'effect-choice'));
 
     player.defer(selectFirstCard, Priority.ROBOTIC_WORKFORCE);
     return undefined;

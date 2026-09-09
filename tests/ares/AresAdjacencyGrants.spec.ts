@@ -8,8 +8,10 @@ import {IGame} from '../../src/server/IGame';
 import {MarketingExperts} from '../../src/server/cards/ares/MarketingExperts';
 import {EmptyBoard} from '../testing/EmptyBoard';
 import {TestPlayer} from '../TestPlayer';
-import {fakeCard} from '../TestingUtils';
+import {fakeCard, runAllActions} from '../TestingUtils';
 import {testGame} from '../TestGame';
+import {SelectCard} from '../../src/server/inputs/SelectCard';
+import {cast} from '../../src/common/utils/utils';
 
 /**
  * The Ares adjacency PRESENTATION MANIFEST (`game.aresAdjacencyGrants`): the
@@ -70,7 +72,7 @@ describe('AresAdjacencyGrants', () => {
     ]);
   });
 
-  it('an animal with exactly ONE eligible card reports the target card', () => {
+  it('an animal with exactly ONE eligible card still PROMPTS — the premium confirmation', () => {
     const host = fakeCard({name: 'AnimalHost' as CardName, resourceType: CardResource.ANIMAL});
     player.playedCards.push(host);
     const greenerySpace = game.board.getAvailableSpacesForGreenery(player)[0];
@@ -80,10 +82,24 @@ describe('AresAdjacencyGrants', () => {
 
     game.addTile(player, greenerySpace, {tileType: TileType.GREENERY});
 
+    // Never a silent auto-apply behind the placement cinematic: the shared
+    // AddResourcesToCard raises its «add here» confirmation even for one card,
+    // so the manifest reports a PROMPT (the pick surface presents it).
+    expect(host.resourceCount).eq(0);
+    const entry = game.aresAdjacencyGrants[0].grants[0];
+    expect(entry.delivery).eq('prompt');
+    expect(entry.targetCard).is.undefined;
+
+    runAllActions(game);
+    const select = cast(player.popWaitingFor(), SelectCard);
+    // The pick is premium end to end: marked (this neighbour has no card
+    // behind its tile → the game-rule source) and carrying the ADD-RESOURCE
+    // reading the console renders as `current → resulting`.
+    expect(select.choiceContext?.source.kind).eq('system');
+    expect(select.resourceGainPrompt?.cardResource).eq('animal');
+    expect(select.resourceGainPrompt?.amount).eq(1);
+    select.cb([host]);
     expect(host.resourceCount).eq(1);
-    expect(game.aresAdjacencyGrants[0].grants).deep.eq([
-      {sourceSpaceId: firstSpace.id, bonus: SpaceBonus.ANIMAL, delivery: 'card-resource', cardResource: CardResource.ANIMAL, targetCard: host.name},
-    ]);
   });
 
   it('an animal with SEVERAL eligible cards reports a prompt (no flight)', () => {

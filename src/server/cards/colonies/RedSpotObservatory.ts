@@ -6,6 +6,7 @@ import {CardName} from '../../../common/cards/CardName';
 import {CardResource} from '../../../common/CardResource';
 import {SelectOption} from '../../inputs/SelectOption';
 import {OrOptions} from '../../inputs/OrOptions';
+import {effectChoice} from '../../inputs/choiceContext';
 import {CardRenderer} from '../render/CardRenderer';
 import {Card} from '../Card';
 import * as actionReason from '../actionReasons';
@@ -87,7 +88,7 @@ export class RedSpotObservatory extends Card implements IProjectCard {
     opts.push(spendResource);
     opts.push(addResource);
 
-    return new OrOptions(...opts);
+    return new OrOptions(...opts).markChoiceContext(effectChoice(this));
   }
 
   private addResource(player: IPlayer) {

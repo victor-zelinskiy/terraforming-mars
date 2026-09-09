@@ -92,7 +92,11 @@ function stepAmountOf(step: ActionPreviewStep | undefined, input: SelectCardMode
   if (step !== undefined && step.kind === 'input' && step.amount !== undefined) {
     return step.amount;
   }
-  return (input as SelectCardModel & {amount?: number}).amount;
+  // A LIVE/deferred pick has no step at all — the server stamps the same
+  // reading onto the model itself (`resourceGainPrompt`, set by
+  // `AddResourcesToCard.buildSelectCard`), so an Ares adjacency bonus or a
+  // triggered gift explains its targets exactly as a pre-collected step does.
+  return (input as SelectCardModel & {amount?: number}).amount ?? input.resourceGainPrompt?.amount;
 }
 
 /**
@@ -140,7 +144,9 @@ export function playedTargetPreviewFor(
     const from = model.resources ?? 0;
     const impacts: Array<PlayedTargetImpact> = [{
       label: 'Resources on this card',
-      icon: onCard?.icon ?? (step !== undefined && step.kind === 'input' ? step.cardResource : undefined),
+      icon: onCard?.icon ??
+        (step !== undefined && step.kind === 'input' ? step.cardResource : undefined) ??
+        input.resourceGainPrompt?.cardResource,
       from,
       to: Math.max(0, from + amount),
     }];
@@ -159,7 +165,9 @@ export function playedTargetPreviewFor(
      * The static reading is marked so it can be stated QUIETLY rather than
      * competing with the ones that move.
      */
-    const vp = (step !== undefined && step.kind === 'input' ? step.vpBox?.[name] : undefined) ?? branchVpBox?.[name];
+    const vp = (step !== undefined && step.kind === 'input' ? step.vpBox?.[name] : undefined) ??
+      branchVpBox?.[name] ??
+      input.resourceGainPrompt?.vpBox?.[name];
     if (vp !== undefined) {
       // No icon: 'vp' resolves to no sprite in the shared vocabulary, and a
       // broken glyph beside a number is worse than the canonical «ПО» label.

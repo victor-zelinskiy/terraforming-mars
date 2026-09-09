@@ -9,6 +9,7 @@ import {IPlayer} from '../../IPlayer';
 import {Resource} from '../../../common/Resource';
 import {SelectCard} from '../../inputs/SelectCard';
 import {OrOptions} from '../../inputs/OrOptions';
+import {effectChoice} from '../../inputs/choiceContext';
 import {SelectOption} from '../../inputs/SelectOption';
 import {CardRenderer} from '../render/CardRenderer';
 import {digit} from '../Options';
@@ -113,6 +114,6 @@ export class BioPrintingFacility extends Card implements IActionCard, IProjectCa
           return undefined;
         }),
       gainPlantOption,
-    );
+    ).markChoiceContext(effectChoice(this));
   }
 }

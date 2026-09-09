@@ -6,6 +6,7 @@ import {CardRenderer} from '../render/CardRenderer';
 import {Size} from '../../../common/cards/render/Size';
 import {IPlayer} from '../../IPlayer';
 import {Priority} from '../../deferredActions/Priority';
+import {cardEffect} from '../../inputs/choiceContext';
 import {ActionPreview} from '../../../common/models/ActionPreviewModel';
 import * as actionPreviews from '../actionPreviews';
 
@@ -37,7 +38,9 @@ export class RoboticWorkforce extends RoboticWorkforceBase {
         player,
         this.getPlayableBuildingCards(player),
         'Select builder card to copy',
-      ),
+      // A deferred arrival (batch divergence) must still name WHO asks —
+      // without the marker the picker rendered with no source dock.
+      )?.markChoiceContext(cardEffect(this, undefined, 'effect-choice')),
       Priority.ROBOTIC_WORKFORCE,
     );
     return undefined;

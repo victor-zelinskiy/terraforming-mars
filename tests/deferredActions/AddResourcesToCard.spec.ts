@@ -4,6 +4,7 @@ import {GHGProducingBacteria} from '../../src/server/cards/base/GHGProducingBact
 import {Tardigrades} from '../../src/server/cards/base/Tardigrades';
 import {AddResourcesToCard} from '../../src/server/deferredActions/AddResourcesToCard';
 import {TestPlayer} from '../TestPlayer';
+import {CardName} from '../../src/common/cards/CardName';
 import {CardResource} from '../../src/common/CardResource';
 import {testGame} from '../TestingUtils';
 import {SelectCard} from '../../src/server/inputs/SelectCard';
@@ -53,6 +54,23 @@ describe('AddResourcesToCard', () => {
     expect(ghgProducingBacteria.resourceCount).eq(0);
     selectCard.cb([ghgProducingBacteria]);
     expect(ghgProducingBacteria.resourceCount).eq(5);
+  });
+
+  it('stamps the premium ADD-RESOURCE reading (amount + icon + per-candidate VP)', () => {
+    player.playedCards.push(ghgProducingBacteria, ants);
+    ants.resourceCount = 1;
+    const selectCard = cast(
+      new AddResourcesToCard(player, CardResource.MICROBE, {count: 1, autoSelect: false}).execute(),
+      SelectCard);
+    const meta = selectCard.resourceGainPrompt;
+    expect(meta?.amount).eq(1);
+    expect(meta?.cardResource).eq('microbe');
+    // Ants scores 1 VP per 2 microbes: 1 → 2 microbes crosses the threshold.
+    expect(meta?.vpBox?.[CardName.ANTS]).deep.eq({from: 0, to: 1});
+    // A card whose points the resource never moves is ABSENT, never a zero.
+    expect(meta?.vpBox?.[CardName.GHG_PRODUCING_BACTERIA]).is.undefined;
+    // …and the model the client reads carries it (nesting-safe toModel).
+    expect(selectCard.toModel(player).resourceGainPrompt?.amount).eq(1);
   });
 
   it('many microbe cards', () => {

@@ -7,7 +7,7 @@ import {ALL_RESOURCES} from '../../../common/Resource';
 import {CardName} from '../../../common/cards/CardName';
 import {CardRenderer} from '../render/CardRenderer';
 import {SelectPaymentDeferred} from '../../deferredActions/SelectPaymentDeferred';
-import {cardSource} from '../../inputs/choiceContext';
+import {cardSource, effectChoice} from '../../inputs/choiceContext';
 import {TITLES} from '../../inputs/titles';
 import {ICorporationCard} from '../corporation/ICorporationCard';
 import {Resource} from '../../../common/Resource';
@@ -101,7 +101,7 @@ export class RobinsonIndustries extends CorporationCard implements ICorporationC
       }
     });
 
-    const result = new OrOptions();
+    const result = new OrOptions().markChoiceContext(effectChoice(this));
     result.options = lowest;
     return result;
   }

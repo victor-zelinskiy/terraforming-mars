@@ -7,6 +7,7 @@ import {IGame} from '../../IGame';
 import {Card} from '../Card';
 import {CardRenderer} from '../render/CardRenderer';
 import {SelectColony} from '../../inputs/SelectColony';
+import {cardEffect} from '../../inputs/choiceContext';
 import {LogHelper} from '../../LogHelper';
 import {UnplayableReason} from '../../../common/cards/UnplayableReason';
 import * as reason from '../actionReasons';
@@ -84,10 +85,13 @@ export class MarketManipulation extends Card implements IProjectCard {
     if (decreasableColonies.length === 1 && increasableColonies.some((colony) => colony.name === decreasableColonies[0].name)) {
       increasableColonies = increasableColonies.filter((colony) => colony.name !== decreasableColonies[0].name);
     }
+    // Both deferred picks name WHO asks — arriving as top-level prompts they
+    // otherwise rendered with no source dock at all.
     const increaseColonyTrack = new SelectColony(
       'Select which colony tile track to increase',
       'Increase',
       increasableColonies)
+      .markChoiceContext(cardEffect(this, undefined, 'effect-choice'))
       .andThen(
         (increasedColony) => {
           increasedColony.increaseTrack();
@@ -96,6 +100,7 @@ export class MarketManipulation extends Card implements IProjectCard {
             'Select which colony tile track to decrease',
             'Decrease',
             decreasableColonies.filter((decreaseableColony) => decreaseableColony.name !== increasedColony.name))
+            .markChoiceContext(cardEffect(this, undefined, 'effect-choice'))
             .andThen((decreasedColony) => {
               decreasedColony.decreaseTrack();
               LogHelper.logColonyTrackDecrease(player, decreasedColony);

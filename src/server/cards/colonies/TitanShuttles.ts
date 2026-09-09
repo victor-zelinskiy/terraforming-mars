@@ -13,7 +13,7 @@ import {CardRenderer} from '../render/CardRenderer';
 import {Card} from '../Card';
 import * as actionPreviews from '../actionPreviews';
 import * as actionReason from '../actionReasons';
-import {cardSource} from '../../inputs/choiceContext';
+import {cardSource, effectChoice} from '../../inputs/choiceContext';
 
 export class TitanShuttles extends Card implements IProjectCard {
   constructor() {
@@ -97,6 +97,6 @@ export class TitanShuttles extends Card implements IProjectCard {
         player.game.log('${0} removed ${1} floaters to gain ${2} titanium', (b) => b.player(player).number(amount).number(amount));
         return undefined;
       }),
-    );
+    ).markChoiceContext(effectChoice(this));
   }
 }

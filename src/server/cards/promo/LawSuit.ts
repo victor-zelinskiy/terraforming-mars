@@ -4,6 +4,7 @@ import {Card} from '../Card';
 import {CardType} from '../../../common/cards/CardType';
 import {Tag} from '../../../common/cards/Tag';
 import {SelectPlayer} from '../../inputs/SelectPlayer';
+import {attackEffect} from '../../inputs/choiceContext';
 import {Resource} from '../../../common/Resource';
 import {CardName} from '../../../common/cards/CardName';
 import {CardRenderer} from '../render/CardRenderer';
@@ -59,7 +60,10 @@ export class LawSuit extends Card implements IProjectCard {
   }
 
   public override bespokePlay(player: IPlayer) {
+    // The marker covers the raw-arrival fallback (batch divergence) — the
+    // composer pre-collects this pick and never reads it.
     return new SelectPlayer(this.targets(player), 'Select player to sue (steal 3 M€ from)', 'Steal M€', {icon: 'megacredits', amount: 3})
+      .markChoiceContext(attackEffect(this))
       .andThen((suedPlayer: IPlayer) => {
         // Automa FAQ (rulebook p.11): "You steal 3 resources from MarsBot and
         // put the card in MarsBot's played pile, but MarsBot doesn't resolve

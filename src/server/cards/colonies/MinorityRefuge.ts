@@ -6,6 +6,8 @@ import {CardName} from '../../../common/cards/CardName';
 import {Resource} from '../../../common/Resource';
 import {ColonyName} from '../../../common/colonies/ColonyName';
 import {BuildColony} from '../../deferredActions/BuildColony';
+import {committedPlacement} from '../../inputs/placementContext';
+import {cardSource} from '../../inputs/choiceContext';
 import {CardRenderer} from '../render/CardRenderer';
 import {Card} from '../Card';
 import {UnplayableReason} from '../../../common/cards/UnplayableReason';
@@ -83,6 +85,11 @@ export class MinorityRefuge extends Card implements IProjectCard {
         player, {
           title: 'Select colony for Minority Refuge',
           colonies: openColonies,
+          // The committed marker names WHO asks (the card is already played —
+          // there is nothing to cancel back to).
+          placementContext: committedPlacement(
+            'This placement is part of an action already underway and cannot be cancelled.',
+            cardSource(this)),
         }))
       .andThen(() => player.production.add(Resource.MEGACREDITS, -2));
     return undefined;

@@ -6,6 +6,7 @@ import {Tag} from '../../../common/cards/Tag';
 import {IPlayer} from '../../IPlayer';
 import {SelectCard} from '../../inputs/SelectCard';
 import {OrOptions} from '../../inputs/OrOptions';
+import {effectChoice} from '../../inputs/choiceContext';
 import {CardRenderer} from '../render/CardRenderer';
 import {SerializedCard} from '../../SerializedCard';
 import {newProjectCard} from '../../createCard';
@@ -107,7 +108,7 @@ export class SelfReplicatingRobots extends Card implements IProjectCard {
   }
 
   public action(player: IPlayer) {
-    const orOptions = new OrOptions();
+    const orOptions = new OrOptions().markChoiceContext(effectChoice(this));
     const selectableCards = player.cardsInHand.filter((card) => card.tags.some((tag) => tag === Tag.SPACE || tag === Tag.BUILDING));
 
     if (this.targetCards.length > 0) {

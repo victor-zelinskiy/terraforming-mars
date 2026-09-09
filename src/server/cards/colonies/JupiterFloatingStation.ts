@@ -12,7 +12,7 @@ import {Card} from '../Card';
 import {CardRenderer} from '../render/CardRenderer';
 import {Size} from '../../../common/cards/render/Size';
 import * as actionPreviews from '../actionPreviews';
-import {cardSource} from '../../inputs/choiceContext';
+import {cardSource, effectChoice} from '../../inputs/choiceContext';
 
 export class JupiterFloatingStation extends Card implements IProjectCard {
   constructor() {
@@ -82,6 +82,6 @@ export class JupiterFloatingStation extends Card implements IProjectCard {
         player.stock.add(Resource.MEGACREDITS, Math.min(this.resourceCount, 4), {log: true});
         return undefined;
       }),
-    );
+    ).markChoiceContext(effectChoice(this));
   }
 }

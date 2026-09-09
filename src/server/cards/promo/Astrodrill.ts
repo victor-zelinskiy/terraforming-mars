@@ -7,6 +7,7 @@ import {CardResource} from '../../../common/CardResource';
 import {SelectOption} from '../../inputs/SelectOption';
 import {SelectCard} from '../../inputs/SelectCard';
 import {OrOptions} from '../../inputs/OrOptions';
+import {effectChoice} from '../../inputs/choiceContext';
 import {LogHelper} from '../../LogHelper';
 import {Resource} from '../../../common/Resource';
 import {CardRenderer} from '../render/CardRenderer';
@@ -133,7 +134,7 @@ export class Astrodrill extends CorporationCard implements ICorporationCard, IAc
       gain(Resource.ENERGY, 'Gain 1 energy', 'Gain energy'),
       gain(Resource.HEAT, 'Gain 1 heat', 'Gain heat'),
       gain(Resource.MEGACREDITS, 'Gain 1 M€', 'Gain M€'),
-    ).setTitle('Choose a resource');
+    ).setTitle('Choose a resource').markChoiceContext(effectChoice(this));
   }
 
   public action(player: IPlayer) {
@@ -171,6 +172,6 @@ export class Astrodrill extends CorporationCard implements ICorporationCard, IAc
     opts.push(addResource);
     opts.push(gainStandardResource);
 
-    return new OrOptions(...opts);
+    return new OrOptions(...opts).markChoiceContext(effectChoice(this));
   }
 }

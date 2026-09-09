@@ -5,6 +5,7 @@ import {CardType} from '../../../common/cards/CardType';
 import {CardName} from '../../../common/cards/CardName';
 import {SelectOption} from '../../inputs/SelectOption';
 import {OrOptions} from '../../inputs/OrOptions';
+import {effectChoice} from '../../inputs/choiceContext';
 import {Resource, StandardResource} from '../../../common/Resource';
 import {CardRenderer} from '../render/CardRenderer';
 import {ActionPreview} from '../../../common/models/ActionPreviewModel';
@@ -46,7 +47,7 @@ export class CrashSiteCleanup extends Card implements IProjectCard {
         return undefined;
       });
 
-    return new OrOptions(gainTitanium, gain2Steel);
+    return new OrOptions(gainTitanium, gain2Steel).markChoiceContext(effectChoice(this));
   }
 
   // The on-play preview: the two-way OrOptions `bespokePlay` builds, shown as

@@ -12,7 +12,7 @@ import {OrOptions} from '../../inputs/OrOptions';
 import {MAX_TEMPERATURE} from '../../../common/constants';
 import {LogHelper} from '../../LogHelper';
 import {SelectPaymentDeferred} from '../../deferredActions/SelectPaymentDeferred';
-import {cardSource} from '../../inputs/choiceContext';
+import {cardSource, effectChoice} from '../../inputs/choiceContext';
 import {CardRenderer} from '../render/CardRenderer';
 import {TITLES} from '../../inputs/titles';
 import {Resource} from '../../../common/Resource';
@@ -147,7 +147,7 @@ export class DirectedImpactors extends Card implements IActionCard, IProjectCard
     if (opts.length === 1) {
       return opts[0].cb(undefined);
     }
-    return new OrOptions(...opts);
+    return new OrOptions(...opts).markChoiceContext(effectChoice(this));
   }
 
   private addResource(player: IPlayer, asteroidCards: ICard[]) {
