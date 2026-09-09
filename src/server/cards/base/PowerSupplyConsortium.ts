@@ -9,6 +9,7 @@ import {DecreaseAnyProduction} from '../../deferredActions/DecreaseAnyProduction
 import {CardRenderer} from '../render/CardRenderer';
 import {all} from '../Options';
 import {GainProduction} from '../../deferredActions/GainProduction';
+import {cardSource} from '../../inputs/choiceContext';
 import {ActionPreview} from '../../../common/models/ActionPreviewModel';
 import * as actionPreviews from '../actionPreviews';
 
@@ -36,7 +37,7 @@ export class PowerSupplyConsortium extends Card implements IProjectCard {
 
   public override bespokePlay(player: IPlayer) {
     const gainProduction = new GainProduction(player, Resource.ENERGY, {count: 1, log: false});
-    const decreaseAnyProduction = new DecreaseAnyProduction(player, Resource.ENERGY, {count: 1, stealing: true});
+    const decreaseAnyProduction = new DecreaseAnyProduction(player, Resource.ENERGY, {count: 1, stealing: true, cause: cardSource(this)});
     // If no player has energy production, then This Player must gain their energy production in order to lose it.
     if (player.game.players.filter((player) => player.production.energy > 0).length === 0) {
       player.game.defer(gainProduction).andThen(() => player.game.defer(decreaseAnyProduction));

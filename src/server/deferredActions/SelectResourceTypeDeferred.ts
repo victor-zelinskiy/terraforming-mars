@@ -5,18 +5,25 @@ import {IPlayer} from '../IPlayer';
 import {DeferredAction} from './DeferredAction';
 import {Priority} from './Priority';
 import {gainProduction} from '../inputs/optionMetadata';
+import {ChoiceContextSource} from '../../common/models/PlayerInputModel';
 
 export class SelectResourceTypeDeferred extends DeferredAction<Resource> {
   constructor(
     player: IPlayer,
     public resources: ReadonlyArray<Resource>,
     public title: string,
+    /** WHO caused this choice — see `inputs/choiceContext.ts`. */
+    private cause?: ChoiceContextSource,
   ) {
     super(player, Priority.DEFAULT);
   }
 
   public execute() {
     const orOptions = new OrOptions().setTitle(this.title);
+    if (this.cause !== undefined) {
+      // Two real effects, no decline — 'effect-choice' is the honest mode.
+      orOptions.markChoiceContext({source: this.cause, mode: 'effect-choice'});
+    }
     // Every caller of this deferred grants +1 production of the chosen resource
     // (the title is literally "gain 1 unit of production"). Attach premium option
     // metadata so the modal shows the resource icon + a current → resulting

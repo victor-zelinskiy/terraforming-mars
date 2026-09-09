@@ -13,6 +13,7 @@ import {Tag} from '../../../common/cards/Tag';
 import {SpaceBonus} from '../../../common/boards/SpaceBonus';
 import {TileType} from '../../../common/TileType';
 import {SelectResourceTypeDeferred} from '../../deferredActions/SelectResourceTypeDeferred';
+import {cardSource} from '../../inputs/choiceContext';
 import {UnplayableReason} from '../../../common/cards/UnplayableReason';
 import {PlacementIllegalReason} from '../../../common/inputs/PlacementIllegalReason';
 import {ActionPreview} from '../../../common/models/ActionPreviewModel';
@@ -189,7 +190,8 @@ export abstract class MiningCard extends Card implements IProjectCard {
       new SelectResourceTypeDeferred(
         player,
         bonusResources,
-        'Select a resource to gain 1 unit of production'))
+        'Select a resource to gain 1 unit of production',
+        cardSource(this)))
       .andThen((resource) => {
         player.production.add(resource, 1, {log: true});
         this.bonusResource = [resource];

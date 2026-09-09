@@ -196,8 +196,11 @@
   "M€ production from the city project": "Производство M€ за стандартный проект «Город»",
 
   "May lose 4 M€": "Может потерять 4 M€",
+  "May lose ${0} M€": "Может потерять ${0} M€",
   "After placing, you may remove 4 M€ from the owner of one adjacent tile.": "После размещения вы можете забрать 4 M€ у владельца одного соседнего тайла.",
   "You choose which adjacent player loses 4 M€": "Вы выберете, кто из соседей потеряет 4 M€",
   "No opponent tile is adjacent": "Рядом нет тайлов соперников",
-  "No adjacent tile belongs to another player, so no M€ can be removed.": "Ни один соседний тайл не принадлежит другому игроку — забрать M€ не у кого."
+  "No adjacent tile belongs to another player, so no M€ can be removed.": "Ни один соседний тайл не принадлежит другому игроку — забрать M€ не у кого.",
+  "Adjacent opponents have no M€": "У соседних соперников нет M€",
+  "The owners of the adjacent tiles have no M€, so nothing can be removed.": "У владельцев соседних тайлов нет M€ — забирать нечего."
 }

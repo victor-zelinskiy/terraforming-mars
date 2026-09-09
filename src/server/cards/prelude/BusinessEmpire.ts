@@ -3,6 +3,7 @@ import {IPlayer} from '../../IPlayer';
 import {PreludeCard} from './PreludeCard';
 import {CardName} from '../../../common/cards/CardName';
 import {SelectPaymentDeferred} from '../../deferredActions/SelectPaymentDeferred';
+import {cardSource} from '../../inputs/choiceContext';
 import {CardRenderer} from '../render/CardRenderer';
 
 export class BusinessEmpire extends PreludeCard {
@@ -41,7 +42,7 @@ export class BusinessEmpire extends PreludeCard {
     return player.canAfford(6);
   }
   public override bespokePlay(player: IPlayer) {
-    player.game.defer(new SelectPaymentDeferred(player, -this.startingMegaCredits));
+    player.game.defer(new SelectPaymentDeferred(player, -this.startingMegaCredits, {cause: cardSource(this)}));
     return undefined;
   }
 }

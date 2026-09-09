@@ -1,12 +1,19 @@
 import {expect} from 'chai';
 import {CardName} from '@/common/cards/CardName';
 import {
-  HydroCommitRecord, advanceHydroCommitPhase, beginHydroCommit, closeHydroStep, hydroCeremonyOwed,
-  hydroDraftFresh, hydroFlowState, hydroPhaseOf, hydroResolutionBusyOf, hydroWorkspaceBackVerb,
-  hydroWorkspacePhase, hydroWorkspaceRestorePlan, markHydroCeremonyPlayed, noteHydroDraftTouched,
-  openHydroStep, resetHydroFlow, resolutionKindFor, rollbackHydroCommit, setHydroCeremonyActive,
+  HydroCommitRecord, HydroFlowProbe, advanceHydroCommitPhase, beginHydroCommit, closeHydroStep,
+  healHydroCeremony, healHydroFlowStuck, hydroCeremonyOwed, hydroCeremonyWitnessLying,
+  hydroDraftFresh, hydroFlowSetAside, hydroFlowState, hydroFlowStuckLying, hydroPhaseOf,
+  hydroResolutionBusyOf, hydroWorkspaceBackVerb,
+  hydroWorkspacePhase, hydroWorkspaceRestorePlan, installHydroFlowWitnesses, markHydroCeremonyPlayed,
+  noteHydroDraftTouched,
+  openHydroStep, registerHydroCeremonyStarter, registerHydroFlowProbe, resetHydroFlow,
+  resolutionKindFor, rollbackHydroCommit, setHydroCeremonyActive,
   setHydroRepeatBridge,
 } from '@/client/console/hydroFlow/consoleHydroFlow';
+import {hydroMarkerState, resetHydroMarker} from '@/client/console/hydroMarker/consoleHydroMarker';
+import {consoleState} from '@/client/console/consoleRouter';
+import {presentationLedgerSnapshot} from '@/client/console/presentationLedger';
 
 function commitRec(over: Partial<Omit<HydroCommitRecord, 'phase'>> = {}): Omit<HydroCommitRecord, 'phase'> {
   return {
@@ -296,5 +303,167 @@ describe('the hydro close gate', () => {
     beginHydroCommit(commitRec({kind: 'ceremony', toPosition: 10, vp: 2}));
     expect(hydroCeremonyOwed(), 'a fresh terminal commit owes its own culmination').eq(true);
     resetHydroFlow();
+  });
+});
+
+/**
+ * ══ THE FLOW-CLOSE TRUTH WITNESSES ═════════════════════════════════════════
+ *
+ * The close chain is EDGE-DRIVEN (marker watcher → busy falling edge →
+ * section change-watchers → a window timer), and a missed edge used to wedge
+ * the workspace — B absorbed by phase, nothing left to fire — until some
+ * unrelated 20–30 s safety shook the state. The witnesses state the
+ * invariants positively and are pinned here as PURE functions (the ledger's
+ * clock/heartbeat is spec'd in its own file): what counts as a lie, what the
+ * heal converges to, and that no genuine wait — a glide, a standing plan, a
+ * park, a running choreography — ever reads as one.
+ */
+describe('the hydro flow-close witnesses', () => {
+  beforeEach(() => {
+    resetHydroFlow();
+    resetHydroMarker();
+    consoleState.task.deferred = false;
+  });
+  after(() => {
+    resetHydroFlow();
+    resetHydroMarker();
+    registerHydroFlowProbe(undefined);
+    registerHydroCeremonyStarter(undefined);
+    consoleState.task.deferred = false;
+  });
+
+  function probe(over: Partial<HydroFlowProbe> = {}): HydroFlowProbe {
+    return {
+      busy: () => false,
+      resultHoldArmed: () => true,
+      serverAtDestination: () => true,
+      drive: () => {},
+      ...over,
+    };
+  }
+
+  it('the ceremony witness lies only for an owed, startable, unstarted culmination', () => {
+    expect(hydroCeremonyWitnessLying(), 'no commit').eq(false);
+    beginHydroCommit(commitRec({kind: 'ceremony', toPosition: 11, vp: 5}));
+    expect(hydroCeremonyWitnessLying(), 'moving is the stuck-flow witness’s territory').eq(false);
+    advanceHydroCommitPhase('resolving');
+    expect(hydroCeremonyWitnessLying(), 'owed + quiet + visible = a lie').eq(true);
+    // Every legitimate wait reads as healthy:
+    hydroMarkerState.active = true;
+    expect(hydroCeremonyWitnessLying(), 'the glide holds it').eq(false);
+    hydroMarkerState.active = false;
+    hydroMarkerState.planCursor = 1;
+    expect(hydroCeremonyWitnessLying(), 'a standing plan holds it — pauses included').eq(false);
+    hydroMarkerState.planCursor = -1;
+    consoleState.task.deferred = true;
+    expect(hydroFlowSetAside()).eq(true);
+    expect(hydroCeremonyWitnessLying(), 'a park is not a wedge').eq(false);
+    consoleState.task.deferred = false;
+    // A RUNNING choreography is healthy — until it outlives any possible run.
+    setHydroCeremonyActive(true);
+    expect(hydroCeremonyWitnessLying(), 'running fresh').eq(false);
+    expect(hydroCeremonyWitnessLying(Date.now() + 13_000), 'a killed timeline’s finish never came').eq(true);
+    setHydroCeremonyActive(false);
+    markHydroCeremonyPlayed();
+    expect(hydroCeremonyWitnessLying(), 'played → nothing owed').eq(false);
+  });
+
+  it('the ceremony heal converges: starter when a stage stands, the honest skip when none does', () => {
+    beginHydroCommit(commitRec({kind: 'ceremony', toPosition: 11, vp: 5}));
+    advanceHydroCommitPhase('resolving');
+    let asks = 0;
+    registerHydroCeremonyStarter(() => {
+      asks++;
+      setHydroCeremonyActive(true); // the section's ask either starts…
+    });
+    healHydroCeremony();
+    expect(asks).eq(1);
+    expect(hydroFlowState.ceremonyActive, 'the starter started it — the lie fell').eq(true);
+    // A WEDGED run (finish never fired) is ended honestly by the next heal.
+    healHydroCeremony();
+    expect(hydroFlowState.ceremonyActive).eq(false);
+    expect(hydroFlowState.ceremonyPlayed).eq(true);
+    // No stage anywhere → the honest skip, and the flow can move on.
+    resetHydroFlow();
+    registerHydroCeremonyStarter(undefined);
+    beginHydroCommit(commitRec({kind: 'ceremony', toPosition: 10, vp: 2}));
+    advanceHydroCommitPhase('resolving');
+    healHydroCeremony();
+    expect(hydroFlowState.ceremonyPlayed, 'orphaned flow — skipped, never wedged').eq(true);
+  });
+
+  it('a starter that moves NOTHING is retried a bounded number of times, then skipped', () => {
+    beginHydroCommit(commitRec({kind: 'ceremony', toPosition: 11, vp: 5}));
+    advanceHydroCommitPhase('resolving');
+    let asks = 0;
+    registerHydroCeremonyStarter(() => {
+      asks++; // pathological: latched one-shot over a start that threw
+    });
+    for (let i = 0; i < 6 && !hydroFlowState.ceremonyPlayed; i++) {
+      healHydroCeremony();
+    }
+    expect(asks, 'bounded retries — never a warn-spamming loop').eq(3);
+    expect(hydroFlowState.ceremonyPlayed, 'then the honest skip ends the lie').eq(true);
+    registerHydroCeremonyStarter(undefined);
+  });
+
+  it('the stuck-flow witness covers all three missed edges, and only those', () => {
+    registerHydroFlowProbe(probe());
+    expect(hydroFlowStuckLying(), 'no commit').eq(false);
+    beginHydroCommit(commitRec());
+    expect(hydroFlowStuckLying(), 'moving + idle marker = the advance edge was missed').eq(true);
+    hydroMarkerState.active = true;
+    expect(hydroFlowStuckLying(), 'the glide is healthy').eq(false);
+    hydroMarkerState.active = false;
+    advanceHydroCommitPhase('resolving');
+    registerHydroFlowProbe(probe({busy: () => true}));
+    expect(hydroFlowStuckLying(), 'a busy resolution is healthy').eq(false);
+    registerHydroFlowProbe(probe({busy: () => false}));
+    expect(hydroFlowStuckLying(), 'quiet resolving = the falling edge was missed').eq(true);
+    consoleState.task.deferred = true;
+    expect(hydroFlowStuckLying(), 'a park is not a wedge').eq(false);
+    consoleState.task.deferred = false;
+    advanceHydroCommitPhase('result');
+    expect(hydroFlowStuckLying(), 'the read hold is armed — healthy').eq(false);
+    registerHydroFlowProbe(probe({resultHoldArmed: () => false}));
+    expect(hydroFlowStuckLying(), 'a dead result timer = the auto-finish edge died').eq(true);
+    registerHydroFlowProbe(undefined);
+    expect(hydroFlowStuckLying(), 'no probe (no shell) → never guess').eq(false);
+  });
+
+  it('the stuck-flow heal routes each wedge through the flow’s own recovery door', () => {
+    // `moving`, the server confirms the destination → the same advance the
+    // shell’s own position watcher performs on its (missed) edge.
+    registerHydroFlowProbe(probe({serverAtDestination: () => true}));
+    beginHydroCommit(commitRec());
+    healHydroFlowStuck();
+    expect(hydroFlowState.commit?.phase).eq('resolving');
+    // `resolving` / `result` → the shell’s drive door.
+    let driven = 0;
+    registerHydroFlowProbe(probe({drive: () => driven++}));
+    healHydroFlowStuck();
+    expect(driven).eq(1);
+    resetHydroFlow();
+    // `moving`, the server never confirmed → the refusal battery’s own
+    // answer: the draft returns, B lives again.
+    registerHydroFlowProbe(probe({serverAtDestination: () => false}));
+    beginHydroCommit(commitRec());
+    healHydroFlowStuck();
+    expect(hydroFlowState.commit, 'a lost submit rolls back, never invents a result').eq(undefined);
+    registerHydroFlowProbe(undefined);
+  });
+
+  it('install/uninstall registers both witnesses in the ledger and removes them cleanly', () => {
+    const off = installHydroFlowWitnesses();
+    try {
+      const ids = presentationLedgerSnapshot().witnesses.map((w) => w.id);
+      expect(ids).to.include('hydro-ceremony-owed');
+      expect(ids).to.include('hydro-flow-stuck');
+    } finally {
+      off();
+    }
+    const after = presentationLedgerSnapshot().witnesses.map((w) => w.id);
+    expect(after).not.to.include('hydro-ceremony-owed');
+    expect(after).not.to.include('hydro-flow-stuck');
   });
 });

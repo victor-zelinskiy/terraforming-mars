@@ -1,7 +1,6 @@
 import {Tag} from '../../../common/cards/Tag';
 import {CardType} from '../../../common/cards/CardType';
 import {IPlayer} from '../../IPlayer';
-import {SelectPlayer} from '../../inputs/SelectPlayer';
 import {Resource} from '../../../common/Resource';
 import {CardName} from '../../../common/cards/CardName';
 import {CardRenderer} from '../render/CardRenderer';
@@ -10,7 +9,9 @@ import {OrOptions} from '../../inputs/OrOptions';
 import {SelectOption} from '../../inputs/SelectOption';
 import {all} from '../Options';
 import {IProjectCard} from '../IProjectCard';
-import {skip} from '../../inputs/optionMetadata';
+import {disabledPlayerTarget, removeResourceFromPlayer, skip} from '../../inputs/optionMetadata';
+import {attackEffect} from '../../inputs/choiceContext';
+import {message} from '../../logs/MessageBuilder';
 import {ActionPreview} from '../../../common/models/ActionPreviewModel';
 import * as actionPreviews from '../actionPreviews';
 import {AutomaTargeting} from '../../automa/AutomaTargeting';
@@ -64,29 +65,59 @@ export class CometForVenus extends Card implements IProjectCard {
     return actionPreviews.playPreview(this, player, [], [step]);
   }
 
-  // Side-effect-free construction shared by `bespokePlay` + the preview (the
-  // attack only runs in the SelectPlayer `andThen`).
+  /** Up to 4 M€, but never more than the target effectively holds (a MarsBot's
+   *  stock reads through its M€-supply proxy) — the one honest number the
+   *  prompt row and the attack itself state. */
+  private removableFrom(target: IPlayer): number {
+    return Math.min(4, AutomaTargeting.attackableStock(target, Resource.MEGACREDITS));
+  }
+
+  // Side-effect-free construction shared by `bespokePlay` + the preview (each
+  // attack only runs in its option's `andThen`). The premium attack shape (the
+  // Flooding / StealResources standard): one FLAT leaf option per victim with
+  // the target's current → resulting, the deliberate skip, dead targets greyed
+  // with a reason, and the choiceContext marker that routes the console to the
+  // one-press decision screen — a nested SelectPlayer here rendered as a
+  // context-less two-step wizard.
   private buildOptions(player: IPlayer): OrOptions | undefined {
     // MarsBot's Venus tags ARE its Venus track position (rulebook p.5).
     const venusTagPlayers = player.opponents.filter((opponent) => AutomaTargeting.effectiveTagCount(opponent, Tag.VENUS) > 0);
 
-    if (player.game.isSoloMode()|| venusTagPlayers.length === 0) {
+    if (player.game.isSoloMode() || venusTagPlayers.length === 0) {
       return undefined;
     }
 
-    const noVenusTag = player.opponents
-      .filter((opponent) => AutomaTargeting.effectiveTagCount(opponent, Tag.VENUS) === 0)
-      .map((opponent) => ({player: opponent, reason: 'No Venus tag' as const}));
-    return new OrOptions(
-      new SelectPlayer(
-        Array.from(venusTagPlayers),
-        'Select player to remove up to 4 M€ from',
-        'Remove M€',
-        {icon: 'megacredits', amount: 4, scope: 'stock', disabled: noVenusTag})
-        .andThen((target) => {
-          target.attack(player, Resource.MEGACREDITS, 4, {log: true});
+    // A Venus-tagged opponent with no M€ is a dead target — greyed with a
+    // reason; when every one of them is broke the removal is a silent no-op
+    // (the shared removal helpers' precedent) and the play preview names the
+    // skipped effect instead.
+    const attackable = venusTagPlayers.filter((target) => this.removableFrom(target) > 0);
+    if (attackable.length === 0) {
+      return undefined;
+    }
+
+    const removalOptions = attackable.map((target) => {
+      const qty = this.removableFrom(target);
+      return new SelectOption(
+        message('Remove ${0} M€ from ${1}', (b) => b.number(qty).player(target)),
+        'Remove M€')
+        .withMetadata(removeResourceFromPlayer(target, Resource.MEGACREDITS, qty,
+          AutomaTargeting.attackableStock(target, Resource.MEGACREDITS)))
+        .andThen(() => {
+          target.attack(player, Resource.MEGACREDITS, qty, {log: true});
           return undefined;
-        }),
-      new SelectOption('Do not remove M€').withMetadata(skip()));
+        });
+    });
+    const disabled = player.opponents
+      .filter((opponent) => !attackable.includes(opponent))
+      .map((opponent) => AutomaTargeting.effectiveTagCount(opponent, Tag.VENUS) === 0 ?
+        disabledPlayerTarget(opponent, 'megacredits', 'No Venus tag') :
+        disabledPlayerTarget(opponent, 'megacredits', 'No M€ to remove'));
+    return new OrOptions(
+      ...removalOptions,
+      new SelectOption('Do not remove M€').withMetadata(skip()))
+      .setTitle('Select player to remove up to 4 M€ from')
+      .setDisabledOptions(disabled)
+      .markChoiceContext(attackEffect(this));
   }
 }

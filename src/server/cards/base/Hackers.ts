@@ -5,6 +5,7 @@ import {IPlayer} from '../../IPlayer';
 import {Resource} from '../../../common/Resource';
 import {CardName} from '../../../common/cards/CardName';
 import {DecreaseAnyProduction} from '../../deferredActions/DecreaseAnyProduction';
+import {cardSource} from '../../inputs/choiceContext';
 import {CardRenderer} from '../render/CardRenderer';
 import {all} from '../Options';
 import {ActionPreview} from '../../../common/models/ActionPreviewModel';
@@ -47,7 +48,7 @@ export class Hackers extends Card implements IProjectCard {
 
   public override bespokePlay(player: IPlayer) {
     player.game.defer(
-      new DecreaseAnyProduction(player, Resource.MEGACREDITS, {count: 2, stealing: true}));
+      new DecreaseAnyProduction(player, Resource.MEGACREDITS, {count: 2, stealing: true, cause: cardSource(this)}));
     return undefined;
   }
 

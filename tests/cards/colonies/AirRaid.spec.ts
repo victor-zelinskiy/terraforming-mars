@@ -1,5 +1,6 @@
 import {expect} from 'chai';
 import {AirRaid} from '../../../src/server/cards/colonies/AirRaid';
+import {CardName} from '../../../src/common/cards/CardName';
 import {Dirigibles} from '../../../src/server/cards/venusNext/Dirigibles';
 import {StormCraftIncorporated} from '../../../src/server/cards/colonies/StormCraftIncorporated';
 import {SelectCard} from '../../../src/server/inputs/SelectCard';
@@ -61,6 +62,9 @@ describe('AirRaid', () => {
     card.play(player);
     const option = cast(player.game.deferredActions.pop()!.execute(), OrOptions);
     expect(option.options).has.lengthOf(1);
+    // The mandatory steal names its source — both halves of the play carry it.
+    expect(option.choiceContext?.source.card).to.eq(CardName.AIR_RAID);
+    expect(option.choiceContext?.mode).to.eq('attack');
     option.options[0].cb();
     // Always asks which card, even with a single floater card.
     const selectCard = cast(player.game.deferredActions.pop()!.execute(), SelectCard<ICard>); // Remove floater

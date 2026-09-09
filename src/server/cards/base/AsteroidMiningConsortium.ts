@@ -9,6 +9,7 @@ import {DecreaseAnyProduction} from '../../deferredActions/DecreaseAnyProduction
 import {CardRenderer} from '../render/CardRenderer';
 import {all} from '../Options';
 import {GainProduction} from '../../deferredActions/GainProduction';
+import {cardSource} from '../../inputs/choiceContext';
 import {ActionPreview} from '../../../common/models/ActionPreviewModel';
 import * as actionPreviews from '../actionPreviews';
 
@@ -49,7 +50,7 @@ export class AsteroidMiningConsortium extends Card implements IProjectCard {
     player.game.defer(new DecreaseAnyProduction(
       player,
       Resource.TITANIUM,
-      {count: 1, stealing: true},
+      {count: 1, stealing: true, cause: cardSource(this)},
     ));
     player.game.defer(new GainProduction(player, Resource.TITANIUM, {count: 1, log: false}));
     return undefined;

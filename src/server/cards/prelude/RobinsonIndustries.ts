@@ -7,6 +7,7 @@ import {ALL_RESOURCES} from '../../../common/Resource';
 import {CardName} from '../../../common/cards/CardName';
 import {CardRenderer} from '../render/CardRenderer';
 import {SelectPaymentDeferred} from '../../deferredActions/SelectPaymentDeferred';
+import {cardSource} from '../../inputs/choiceContext';
 import {TITLES} from '../../inputs/titles';
 import {ICorporationCard} from '../corporation/ICorporationCard';
 import {Resource} from '../../../common/Resource';
@@ -85,7 +86,7 @@ export class RobinsonIndustries extends CorporationCard implements ICorporationC
 
     ALL_RESOURCES.forEach((resource) => {
       const option = new SelectOption('Increase ' + resource + ' production 1 step').andThen(() => {
-        player.game.defer(new SelectPaymentDeferred(player, RAISE_COST, {title: TITLES.payForCardAction(this.name)}))
+        player.game.defer(new SelectPaymentDeferred(player, RAISE_COST, {title: TITLES.payForCardAction(this.name), cause: cardSource(this)}))
           // Add production after payment, to prevent Manutech from being in the way.
           .andThen(() => player.production.add(resource, 1, {log: true}));
         return undefined;

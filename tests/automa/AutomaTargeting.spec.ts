@@ -4,7 +4,7 @@ import {Resource} from '../../src/common/Resource';
 import {Tag} from '../../src/common/cards/Tag';
 import {Counter} from '../../src/server/behavior/Counter';
 import {OrOptions} from '../../src/server/inputs/OrOptions';
-import {SelectPlayer} from '../../src/server/inputs/SelectPlayer';
+import {SelectOption} from '../../src/server/inputs/SelectOption';
 import {RemoveAnyPlants} from '../../src/server/deferredActions/RemoveAnyPlants';
 import {StealResources} from '../../src/server/deferredActions/StealResources';
 import {AutomaTargeting} from '../../src/server/automa/AutomaTargeting';
@@ -161,10 +161,11 @@ describe('Automa targeting — the human turn vs MarsBot', () => {
 
     game.automa!.board.tracks[7].position = 2;
     bot.megaCredits = 6;
+    // The flat premium attack shape: options[0] IS the bot's removal option.
     const options = cast(card.bespokePlay(human), OrOptions);
-    const selectPlayer = cast(options.options[0], SelectPlayer);
-    expect(selectPlayer.players.map((p) => p.id)).contains(bot.id);
-    selectPlayer.cb(bot);
+    const remove = cast(options.options[0], SelectOption);
+    expect(remove.metadata?.player?.color).eq(bot.color);
+    remove.cb(undefined);
     expect(bot.megaCredits).eq(2); // −4 M€ from the supply.
   });
 

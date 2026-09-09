@@ -648,7 +648,9 @@ export abstract class Colony implements IColony {
       if (resource === undefined) {
         throw new Error('Resource cannot be undefined');
       }
-      action = new StealResources(player, resource, quantity);
+      // The one benefit branch that reached the player anonymous — every
+      // sibling names the colony (the wave-3 `cause` contract).
+      action = new StealResources(player, resource, quantity, undefined, false, colonySource(this.name));
       break;
 
     case ColonyBenefit.DRAW_EARTH_CARD:

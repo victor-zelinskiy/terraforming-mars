@@ -4,6 +4,7 @@ import {PreludeCard} from '../prelude/PreludeCard';
 import {IPlayer} from '../../IPlayer';
 import {SelectStandardProjectToPlay} from '../../inputs/SelectStandardProjectToPlay';
 import {SelectPaymentDeferred} from '../../deferredActions/SelectPaymentDeferred';
+import {cardSource} from '../../inputs/choiceContext';
 import {Priority} from '../../deferredActions/Priority';
 import {message} from '../../logs/MessageBuilder';
 import {SimpleDeferredAction} from '../../deferredActions/DeferredAction';
@@ -45,6 +46,7 @@ export class EstablishedMethods extends PreludeCard {
       const penalty = Math.min(10, player.spendableMegacredits());
       game.defer(new SelectPaymentDeferred(player, penalty, {
         title: message('Spend ${0} M€ instead of a second standard project', (b) => b.number(penalty)),
+        cause: cardSource(this),
       }));
       return;
     }

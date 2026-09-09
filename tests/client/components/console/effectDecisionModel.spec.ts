@@ -2,12 +2,15 @@ import {expect} from 'chai';
 import {CardName} from '@/common/cards/CardName';
 import {PlayerInputModel} from '@/common/models/PlayerInputModel';
 import {
+  DECLINE_ATTACK,
   DECLINE_BUY_CARD,
   DECLINE_DEFAULT,
   EYEBROW_ATTACK,
+  HEADLINE_ATTACK,
   HEADLINE_BUY_CARD,
   HEADLINE_CHOOSE,
   HEADLINE_PAY,
+  HEADLINE_TARGET,
   HEADLINE_USE,
   LEAD_HAND_CARDS,
   STAGE_CARD_DRAW,
@@ -134,6 +137,24 @@ describe('effectDecisionModel', () => {
     expect(twoWay?.headlineKey).eq(HEADLINE_CHOOSE);
     expect(twoWay?.declineIndex).is.undefined;
     expect(twoWay?.actions.map((a) => a.role)).deep.eq(['primary', 'secondary']);
+  });
+
+  it('an ATTACK is asked as an attack — its cost chips belong to the VICTIM', () => {
+    // The victim option's chips read direction 'cost' (the target's loss), so
+    // the shape-derived «Заплатить?» would misattribute whose money leaves.
+    const victim = leaf('Remove 4 M€ from red', {
+      kind: 'resourceRemoval', icon: 'megacredits', amount: 4,
+      player: {color: 'red', current: 12, resulting: 8},
+    });
+    const optional = buildEffectDecision(
+      or([victim, leaf('Do nothing', {kind: 'skip'})], cardContext('attack', CardName.FLOODING)), {handNames: HAND});
+    expect(optional?.headlineKey).eq(HEADLINE_ATTACK);
+    expect(optional?.actions[1].title, 'the decline pairs with the question').eq(DECLINE_ATTACK);
+
+    // A MANDATORY attack (no decline — Air Raid's steal) is a target pick.
+    const mandatory = buildEffectDecision(
+      or([victim, leaf('Steal 4 M€ from blue')], cardContext('attack')), {handNames: HAND});
+    expect(mandatory?.headlineKey).eq(HEADLINE_TARGET);
   });
 
   // ── navigation + previews ─────────────────────────────────────────────────

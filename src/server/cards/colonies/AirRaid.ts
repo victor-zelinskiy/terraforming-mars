@@ -64,7 +64,7 @@ export class AirRaid extends Card implements IProjectCard {
   }
 
   public override bespokePlay(player: IPlayer) {
-    player.game.defer(new StealResources(player, Resource.MEGACREDITS, 5, undefined, true));
+    player.game.defer(new StealResources(player, Resource.MEGACREDITS, 5, undefined, true, cardSource(this)));
     player.game.defer(new RemoveResourcesFromCard(player, CardResource.FLOATER, 1, {source: 'self', blockable: false, autoselect: false, cause: cardSource(this)}));
     return undefined;
   }

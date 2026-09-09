@@ -4,6 +4,7 @@ import {CardName} from '../../../common/cards/CardName';
 import {CardRenderer} from '../render/CardRenderer';
 import {Tag} from '../../../common/cards/Tag';
 import {SelectPaymentDeferred} from '../../deferredActions/SelectPaymentDeferred';
+import {cardSource} from '../../inputs/choiceContext';
 
 export class StrategicBasePlanning extends PreludeCard {
   constructor() {
@@ -43,7 +44,7 @@ export class StrategicBasePlanning extends PreludeCard {
   }
 
   public override bespokePlay(player: IPlayer) {
-    player.game.defer(new SelectPaymentDeferred(player, -this.startingMegaCredits));
+    player.game.defer(new SelectPaymentDeferred(player, -this.startingMegaCredits, {cause: cardSource(this)}));
     return undefined;
   }
 }

@@ -6,6 +6,8 @@ import {DeferredAction} from './DeferredAction';
 import {Priority} from './Priority';
 import {LogHelper} from '../LogHelper';
 import {message} from '../logs/MessageBuilder';
+import {colonySource} from '../inputs/choiceContext';
+import {skip} from '../inputs/optionMetadata';
 
 /**
  * Asks the player to increase the colony track as many steps as it can go.
@@ -27,8 +29,19 @@ export class IncreaseColonyTrack extends DeferredAction {
       return undefined;
     }
 
+    // The colony names itself (the wave-3 `cause` contract) — without the
+    // marker this pre-trade boost rendered as the context-less two-step list.
+    // The trigger doubles the title because the premium decision screen keeps
+    // trigger + source and DROPS the server title. ⚠️ The option ORDER below
+    // ([steps … 1, don't]) is load-bearing: the colony workspace pre-collects
+    // this prompt and replays a captured INDEX (colonyTradePlan.trackChoiceResponse).
     const options = new OrOptions()
-      .setTitle(message('Increase ${0} colony track before trade', (b) => b.colony(this.colony)));
+      .setTitle(message('Increase ${0} colony track before trade', (b) => b.colony(this.colony)))
+      .markChoiceContext({
+        source: colonySource(this.colony.name),
+        trigger: message('Increase ${0} colony track before trade', (b) => b.colony(this.colony)),
+        mode: 'reward',
+      });
 
     for (let step = this.steps; step > 0; step--) {
       options.options.push(
@@ -45,7 +58,7 @@ export class IncreaseColonyTrack extends DeferredAction {
     }
 
     options.options.push(
-      new SelectOption('Don\'t increase colony track').andThen(() => {
+      new SelectOption('Don\'t increase colony track').withMetadata(skip()).andThen(() => {
         this.cb(undefined);
         return undefined;
       }),

@@ -1273,9 +1273,9 @@ import {participantDisplayName} from '@/client/components/marsbot/marsBotDisplay
 import {ConsoleCommand} from '@/client/console/consoleCommandModel';
 import {
   HydroCommitRecord, HydroTraversalSegmentRecord, closeHydroStep, hydroDraftFresh,
-  hydroFlowIsOwnedByCurrentFrame, hydroFlowState,
+  hydroFlowIsOwnedByCurrentFrame, hydroFlowSetAside, hydroFlowState,
   hydroWorkspacePhase, hydroWorkspaceRestorePlan, markHydroCeremonyPlayed, noteHydroDraftTouched, openHydroStep,
-  resetHydroFlow, resolutionKindFor, setHydroCeremonyActive,
+  registerHydroCeremonyStarter, resetHydroFlow, resolutionKindFor, setHydroCeremonyActive,
 } from '@/client/console/hydroFlow/consoleHydroFlow';
 import {
   hydroActiveStepSourceCard, hydroParkedForeignStop, hydroTraversalPending, noteHydroLandPresence,
@@ -4048,8 +4048,19 @@ export default defineComponent({
     this.applyOwedSeat();
     this.syncFrameCrumb();
     this.fetchPreview();
+    // THE MOUNT EDGE + THE WITNESS'S DOOR of the terminal culmination. All
+    // three of its watchers are change-edges, and a section that (re)mounts
+    // into a resolving ceremony commit (a restore across a lateral move, a
+    // reload straight into the commit) has none of them left to fire — the
+    // owed finale then wedged the close gate for good. The registered
+    // starter is also how the flow's truth witness replays the ask after a
+    // park or a missed edge: one door, the same guards, so a heal can never
+    // invent a second start path.
+    registerHydroCeremonyStarter(() => this.maybeStartCeremony(this.markerSettled));
+    this.maybeStartCeremony(this.markerSettled);
   },
   beforeUnmount(): void {
+    registerHydroCeremonyStarter(undefined);
     this.cereHandle?.kill();
     this.cereHandle = undefined;
     setHydroCeremonyActive(false);
@@ -5485,15 +5496,35 @@ export default defineComponent({
       if (c === undefined || c.kind !== 'ceremony' || c.phase !== 'resolving' || this.cereStarted) {
         return;
       }
-      if (settledPos !== c.toPosition) {
-        // THE RECOVERY NET: the flow reached `resolving` with the marker idle,
-        // no plan standing and no settle on the terminal stop — the glide
-        // degraded (expired arm / aborted plan) and no arrival will ever fire.
-        // The culmination is skipped honestly; the summary still follows.
-        if (!this.markerGliding && !hydroTraversalPending()) {
-          markHydroCeremonyPlayed();
-        }
+      // A culmination may not start on a hidden stage: a parked flow keeps
+      // OWING it (`ceremonyOwed` holds the close gate through the park), and
+      // the restore replays this ask through the flow's own witness. Started
+      // anyway it would measure `display: none` rects and play the finale
+      // invisibly — consumed, never seen.
+      if (hydroFlowSetAside()) {
         return;
+      }
+      if (settledPos !== c.toPosition) {
+        // The walk is still going — its own edges (settle / cursor / phase)
+        // re-ask when it ends.
+        if (this.markerGliding || hydroTraversalPending()) {
+          return;
+        }
+        // THE DURABLE ARRIVAL FACT. `markerSettled` is an 800 ms one-shot
+        // (the settle GLOW's clock), so a slow frame — a GC pause, a heavy
+        // notification flush — let the phase edge arrive with it already
+        // reset, and the finale was silently SKIPPED by the recovery below.
+        // The marker renders ON the finish stop from the server's own
+        // position the moment the glide yields, so «the token physically
+        // stands there» is answerable durably: play the culmination.
+        if ((this.playerView.thisPlayer.deltaProject?.position ?? -1) !== c.toPosition) {
+          // THE RECOVERY NET: the marker is idle, no plan stands, and the
+          // server never confirmed the destination — the glide degraded
+          // (expired arm / aborted plan) and no arrival will ever come. The
+          // culmination is skipped honestly; the summary still follows.
+          markHydroCeremonyPlayed();
+          return;
+        }
       }
       this.cereStarted = true;
       void this.$nextTick(() => {

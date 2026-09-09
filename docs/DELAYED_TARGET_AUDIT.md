@@ -1,5 +1,26 @@
 # Delayed-target audit — pre-collecting on-play target choices in the play modal
 
+## UPDATE (2026-09-09, triage — auto-resolve on a single candidate, REWARD class)
+
+Two auto-resolvers surfaced by the premium-prompt audit
+([PROMPT_PREMIUM_AUDIT.md](PROMPT_PREMIUM_AUDIT.md) B4/B5), both **rewards to
+the acting player's own cards**, recorded here as accepted-for-now triage
+rather than fixed:
+
+- `deferredActions/SelectCardDeferred.ts` — `cards.length === 1` → `cb(cards[0])`
+  with no prompt. Caller in scope: Bioengineering Enclosure's «add 1 animal to
+  another card». A self-benefiting placement with one legal home; the composer
+  pre-collects the pick when a choice exists. Left as-is; revisit if a
+  DESTRUCTIVE caller ever adopts the helper (then the no-auto-select rule
+  applies in full).
+- `ares/AresHandler.ts:95-99` — the Ares adjacency animal/microbe bonus
+  auto-adds when exactly one card can hold it. Same class (a gain to the
+  viewer's own card), plus the prompt is unmarked; both halves are wave 3 of
+  the premium-prompt plan.
+
+Contrast: the DecreaseAnyProduction / asteroid-card fixes below were
+ATTACKS/targets with a hidden victim — that class is never acceptable.
+
 ## UPDATE (auto-select-single): `decreaseAnyProduction` (+ the asteroid cards) NEVER auto-target
 
 **Reported bug — Cloud Seeding (Засев облаков).** The player has NO heat production, one

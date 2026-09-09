@@ -1357,6 +1357,7 @@
  */
 import {defineComponent, PropType, ref} from 'vue';
 import {PlayerViewModel, PublicPlayerModel} from '@/common/models/PlayerModel';
+import type {CardDrawRevealSource} from '@/common/models/CardDrawRevealModel';
 import {MarsBotModel} from '@/common/models/MarsBotModel';
 import {Color} from '@/common/Color';
 import {GameModel} from '@/common/models/GameModel';
@@ -1698,13 +1699,13 @@ import ConsoleHydroSection from '@/client/components/console/ConsoleHydroSection
 import ConsoleHydroMarkerLayer from '@/client/components/console/hydroMarker/ConsoleHydroMarkerLayer.vue';
 import {
   armHydroMarker, armHydroMarkerTraversal, abortHydroMarker, isHydroMarkerActive, hydroMarkerState,
-  HydroMarkerLegPlan, hydroActiveStepSourceCard, hydroStepQueuedFor, hydroTraversalPaused,
-  hydroTraversalPending, resumeHydroMarkerTraversal, hydroParkedForeignStop,
+  HydroMarkerLegPlan, hydroActiveStepSourceCard, hydroPlanDeclaresSource, hydroStepQueuedFor,
+  hydroTraversalPaused, hydroTraversalPending, resumeHydroMarkerTraversal, hydroParkedForeignStop,
 } from '@/client/console/hydroMarker/consoleHydroMarker';
 import {
   HydroResolutionKind, HydroTraversalSegmentRecord, advanceHydroCommitPhase, beginHydroCommit, hydroCeremonyOwed,
-  hydroFlowState, hydroResolutionBusyOf, hydroWorkspacePhase, isHydroCeremonyActive, resetHydroFlow,
-  resolutionKindFor, rollbackHydroCommit, setHydroRepeatBridge,
+  hydroFlowState, hydroResolutionBusyOf, hydroWorkspacePhase, installHydroFlowWitnesses, isHydroCeremonyActive,
+  registerHydroFlowProbe, resetHydroFlow, resolutionKindFor, rollbackHydroCommit, setHydroRepeatBridge,
 } from '@/client/console/hydroFlow/consoleHydroFlow';
 import {bonusDiscardOwnsBatch, bonusDiscardStep, BonusDiscardStep} from '@/client/console/colonyTrade/colonyBonusDiscardStep';
 import {drawnRevealCommandRun} from '@/client/console/consoleRevealCommands';
@@ -2076,6 +2077,8 @@ export default defineComponent({
        *  tracks it (the path-watcher data-mirror rule). */
       wsPresence: conWsPresence,
       offWsPresence: undefined as (() => void) | undefined,
+      /** The hydro flow-close truth witnesses' uninstaller (presentationLedger). */
+      offHydroWitnesses: undefined as (() => void) | undefined,
       /** Fullscreen open/close choreography: chrome held hidden mid-flight. */
       zoomFlight: false,
       /**
@@ -3415,7 +3418,20 @@ export default defineComponent({
       if (this.hydroQueuedRevealForLaterStep) {
         return false;
       }
-      if (currentRevealEvent() !== undefined) {
+      // ⚠️ OWNERSHIP-SCOPED, never presence (the source law). «A batch
+      // exists» is a strict superset of «a batch of OURS exists», and the two
+      // diverge exactly on the batches with their own presenters: an
+      // out-of-band delivery (another player's / the bot's effect drawing FOR
+      // the viewer — the notification-correlated arrival), a board-born
+      // reward parked behind this very workspace. Counted here, a foreign
+      // batch held the flow's close gate while its own presentation waited
+      // for the workspace to leave — a deadlock only some unrelated 20–30 s
+      // safety broke, which read on screen as «финальный экран завис и потом
+      // сам прошёл». The same read also gates the traversal RESUME
+      // (`hydroTraversalResumeReady`), so an unscoped term froze a parked
+      // walk for as long as the foreign batch stood.
+      const pendingBatch = currentRevealEvent();
+      if (pendingBatch !== undefined && this.hydroOwnsRevealBatch(pendingBatch.source)) {
         return true;
       }
       // A hosted step (a repeated trade's colony frame) still standing.
@@ -8911,12 +8927,17 @@ export default defineComponent({
     // serving fact is the discriminator — and the release funnel refuses the
     // call anyway, so this term is the honest predicate, not the protection.
     deckPickActive(active: boolean) {
+      // The batch witness is OWNERSHIP-SCOPED (`workspaceOutcomeBatchServed`
+      // — the funnel's own probe: the server's unconsumed reveals AND the
+      // client's pending flag, each judged by the batch's SOURCE). The raw
+      // pair it replaces (`rawDrawnRevealPending` + a bare
+      // `cardDrawReveals.length === 0`) also counted FOREIGN batches — an
+      // out-of-band delivery's echo then blocked this release until the 20 s
+      // claim safety, the same wedge class as the close gate's.
       if (!active && !this.consoleState.task.deferred &&
           workspaceOutcomeState.host === 'hydro' &&
           this.hydroFlow.commit !== undefined &&
-          !this.workspaceOutcomePromptServed &&
-          !this.rawDrawnRevealPending &&
-          this.playerView.cardDrawReveals.length === 0 &&
+          !this.workspaceOutcomeServingNow &&
           !deckDrawHolds() &&
           !hydroTraversalPending()) {
         releaseWorkspaceOutcome('hydro-pick-done');
@@ -15056,6 +15077,44 @@ export default defineComponent({
         advanceHydroCommitPhase('result');
       }
     },
+    /**
+     * Is a drawn batch the COMMITTED ADVANCE's own? Two witnesses, both
+     * structural: the claim (raised at the submit for a stage draw, retained
+     * across a chain's batches) judged by the server's own source, and the
+     * standing plan's declared steps (the walk's own ledger — a claim can
+     * lawfully be between homes for a flush while the plan stands for the
+     * whole traversal). An unattributed source reads as ours through the
+     * claim, by the same design the release funnel documents.
+     */
+    hydroOwnsRevealBatch(source: CardDrawRevealSource | undefined): boolean {
+      if (workspaceOutcomeState.host === 'hydro' && workspaceClaimsRevealSource(source)) {
+        return true;
+      }
+      return hydroPlanDeclaresSource(source);
+    },
+    /**
+     * THE STUCK-FLOW WITNESS'S DOOR (`hydro-flow-stuck`, consoleHydroFlow):
+     * re-ask the stage's own settle when `resolving` went quiet with no edge
+     * left, re-arm the result read hold when its timer died. Idempotent —
+     * both doors re-check everything themselves, so a heal can never cut a
+     * genuine wait short.
+     */
+    driveHydroFlowStuck(): void {
+      const c = this.hydroFlow.commit;
+      if (c === undefined) {
+        return;
+      }
+      if (c.phase === 'resolving') {
+        this.settleHydroResolution();
+        return;
+      }
+      if (c.phase === 'result' && this.hydroResultTimer === undefined) {
+        this.hydroResultTimer = window.setTimeout(() => {
+          this.hydroResultTimer = undefined;
+          this.finishHydroFlow();
+        }, motionMs(HYDRO_RESULT_HOLD_MS));
+      }
+    },
     /** The flow is over (result read / skipped) — reset and go home. */
     finishHydroFlow(): void {
       if (this.hydroResultTimer !== undefined) {
@@ -17524,6 +17583,22 @@ export default defineComponent({
     // `waitingFor`, the server's unconsumed reveals), so the shell registers
     // the one probe; the module refuses on its own.
     setWorkspaceOutcomeServingProbe(() => this.workspaceOutcomeServingNow);
+    // THE HYDRO FLOW-CLOSE WITNESSES (consoleHydroFlow → presentationLedger):
+    // the committed flow's close chain is edge-driven, and a missed edge used
+    // to wedge the workspace until some unrelated 20–30 s safety shook it.
+    // The shell registers the facts only it has (the busy conjunction, the
+    // result hold's timer, the server position) and the witnesses re-drive
+    // the flow's OWN doors within one grace window.
+    registerHydroFlowProbe({
+      busy: () => this.hydroResolutionBusy,
+      resultHoldArmed: () => this.hydroResultTimer !== undefined,
+      serverAtDestination: () => {
+        const c = this.hydroFlow.commit;
+        return c !== undefined && (this.thisPlayer.deltaProject?.position ?? -1) === c.toPosition;
+      },
+      drive: () => this.driveHydroFlowStuck(),
+    });
+    this.offHydroWitnesses = installHydroFlowWitnesses();
     // THE BOARD-BEAT PARK'S «watchable» verdict (boardBeatPark) — coverage
     // facts only, shell-owned. Registered at mount, so a reload that lands
     // with a parked batch (server reveals survive the trip) re-parks or
@@ -17791,6 +17866,9 @@ export default defineComponent({
   beforeUnmount() {
     this.offIntent?.();
     this.offWsPresence?.();
+    this.offHydroWitnesses?.();
+    this.offHydroWitnesses = undefined;
+    registerHydroFlowProbe(undefined); // a dead shell's closures must not drive the next game
     this.offPlanetFocusParams?.();
     clearGameExitTarget(); // the exit funnel must not outlive the game it points from
     resetPlanetFocus(); // never carry a held HUD / mid-exit phase across games

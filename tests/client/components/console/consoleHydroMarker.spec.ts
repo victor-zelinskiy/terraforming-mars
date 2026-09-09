@@ -2,7 +2,8 @@ import {expect} from 'chai';
 import {watch} from 'vue';
 import {
   abortHydroMarker, armHydroMarker, armHydroMarkerTraversal, detectHydroMarker, enableHydroStepTrace,
-  endHydroMarker, hydroActiveStepSourceCard, hydroMarkerState, hydroStepActivated, hydroStepOwnerFor,
+  endHydroMarker, hydroActiveStepSourceCard, hydroMarkerState, hydroPlanDeclaresSource,
+  hydroStepActivated, hydroStepOwnerFor,
   hydroStepQueuedFor, hydroStepTrace, hydroTraversalPaused, hydroTraversalPending,
   hydroVisualTrackPosition, isHydroMarkerActive, noteHydroLandPresence, registerHydroMarkerHandle,
   resetHydroMarker, resumeHydroMarkerTraversal, runHydroMarker, seedHydroMarkerRewardHold,
@@ -36,6 +37,21 @@ describe('consoleHydroMarker', () => {
 
   it('detect returns undefined when NOT armed (desktop / non-hydro submit)', () => {
     expect(detectHydroMarker()).to.eq(undefined);
+  });
+
+  it('hydroPlanDeclaresSource answers for the plan’s own steps — queued AND activated — and dies with it', () => {
+    expect(hydroPlanDeclaresSource(CardName.AI_CENTRAL), 'no plan owns nothing').to.eq(false);
+    armHydroMarkerTraversal(2, [
+      {position: 5, transfers: [], stop: 'deck-draw'},
+      {position: 7, transfers: [], stop: 'repeat', sourceCard: CardName.AI_CENTRAL},
+    ], 'blue');
+    expect(hydroPlanDeclaresSource(CardName.AI_CENTRAL), 'a declared repeat step — queued').to.eq(true);
+    expect(hydroPlanDeclaresSource({type: 'card', cardName: CardName.AI_CENTRAL}),
+      'the server’s own reveal source shape').to.eq(true);
+    expect(hydroPlanDeclaresSource(CardName.BIRDS), 'an undeclared card is never the plan’s').to.eq(false);
+    expect(hydroPlanDeclaresSource(undefined), 'an unattributed batch is not the PLAN’s (the claim answers for those)').to.eq(false);
+    resetHydroMarker();
+    expect(hydroPlanDeclaresSource(CardName.AI_CENTRAL), 'the plan died — nothing owned').to.eq(false);
   });
 
   it('run locks, then end crossfades (release) before clearing + settle glow', async () => {

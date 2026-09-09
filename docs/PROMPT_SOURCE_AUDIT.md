@@ -171,7 +171,7 @@ Scope note: the fork's premium scope is `base`, `corpera`, `promo`, `venus`,
 | --- | --- | --- | --- |
 | 1 | colonies | `MarketManipulation.ts:87,95` (`SelectColony` ×2) | self-played, so the context is implicit — lowest priority. |
 | 2 | shared | `SelectResourceTypeDeferred.ts:19`, `IncreaseColonyTrack.ts:30` | same shape as the wave-3 helpers; exercised today only by colony/turmoil trade bonuses, and `IncreaseColonyTrack` at least names the colony in its title. |
-| 3 | ares/colonies | `PlaceHazardTile.ts:31` | passes only `{placementType: 'land'}`. Its callers are the Ares rules themselves as often as a card, so the honest source is not always a card — needs a decision before a fix, not just threading. |
+| 3 | ares/colonies | ~~`PlaceHazardTile.ts:31`~~ **FIXED** | now routes through `createMarsSelectSpace`, which always attaches a committed `placementContext` (verified 2026-09-09). |
 | 4 | frontier | `community/Eris.ts:102`, `moon/HostileTakeover.ts:71,80`, `moon/LunarMineUrbanization.ts:49` (bare `SelectSpace`, mirrors of the Desperate Measures shape); `RemoveOceanTile.ts:21` bakes the source into the *title string* — readable, but not translation-safe and not client-routable. | adapt with their expansion |
 
 Everything else the audit found is done — see waves 1–3 above.
@@ -201,10 +201,14 @@ Everything else the audit found is done — see waves 1–3 above.
 
 ## Suggested order (what's left)
 
+> **Successor:** the remaining server rows (plus the prompt-SHAPE axis this doc
+> never covered — nested wizards, the generic two-step flavor, unmarked
+> attacks) are now tracked with a wave plan in
+> [PROMPT_PREMIUM_AUDIT.md](PROMPT_PREMIUM_AUDIT.md). Start there.
+
 1. **C4** — the colony pick reads the `sourceCard` it is already handed.
 2. Server #1/#2 (Market Manipulation, the two remaining shared helpers).
-3. Server #3 — decide what a hazard placement's source IS before threading one.
-4. The frontier `unknown` kinds, with their expansions.
+3. The frontier `unknown` kinds, with their expansions.
 
 ## The recurring trap, stated once
 

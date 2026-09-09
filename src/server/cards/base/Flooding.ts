@@ -2,7 +2,6 @@ import {IProjectCard} from '../IProjectCard';
 import {IPlayer} from '../../IPlayer';
 import {Card} from '../Card';
 import {CardType} from '../../../common/cards/CardType';
-import {SelectPlayer} from '../../inputs/SelectPlayer';
 import {OrOptions} from '../../inputs/OrOptions';
 import {SelectOption} from '../../inputs/SelectOption';
 import {CardName} from '../../../common/cards/CardName';
@@ -11,7 +10,10 @@ import {Resource} from '../../../common/Resource';
 import {PlaceOceanTile} from '../../deferredActions/PlaceOceanTile';
 import {CardRenderer} from '../render/CardRenderer';
 import {all} from '../Options';
-import {skip} from '../../inputs/optionMetadata';
+import {disabledPlayerTarget, removeResourceFromPlayer, skip} from '../../inputs/optionMetadata';
+import {attackEffect} from '../../inputs/choiceContext';
+import {AutomaTargeting} from '../../automa/AutomaTargeting';
+import {message} from '../../logs/MessageBuilder';
 import {ActionPreview} from '../../../common/models/ActionPreviewModel';
 import {Space} from '../../boards/Space';
 import {BoardFact} from '../../../common/boards/BoardInformationFacts';
@@ -75,6 +77,13 @@ export class Flooding extends Card implements IProjectCard {
     return Array.from(adjacentPlayers);
   }
 
+  /** Up to 4 M€, but never more than the target effectively holds (a MarsBot's
+   *  stock reads through its M€-supply proxy) — the one honest number the
+   *  prompt row, the attack itself and the dossier all state. */
+  private removableFrom(target: IPlayer): number {
+    return Math.min(4, AutomaTargeting.attackableStock(target, Resource.MEGACREDITS));
+  }
+
   /**
    * The card's whole point-of-decision: WHERE the ocean goes decides WHO can be
    * hit for 4 M€. Without this the placement panel showed a plain ocean and the
@@ -91,17 +100,27 @@ export class Flooding extends Card implements IProjectCard {
       return [placementPreviews.noEffectHere(this, 'No opponent tile is adjacent',
         {description: 'No adjacent tile belongs to another player, so no M€ can be removed.'})];
     }
-    const facts: Array<BoardFact> = targets.map((target) => placementPreviews.gain(
-      this,
-      {icon: 'megacredits', amount: 4, direction: 'cost'},
-      'May lose 4 M€',
-      {
-        id: `card-${this.name}-attack-${target.color}`,
-        description: 'After placing, you may remove 4 M€ from the owner of one adjacent tile.',
-        recipient: {kind: 'player', color: target.color},
-        severity: 'warning',
-      }));
-    if (targets.length > 1) {
+    // Preview ↔ follow-up honesty: the prompt only offers owners with M€, so
+    // the dossier promises exactly those — and states the skip when none has any.
+    const attackable = targets.filter((target) => this.removableFrom(target) > 0);
+    if (attackable.length === 0) {
+      return [placementPreviews.noEffectHere(this, 'Adjacent opponents have no M€',
+        {description: 'The owners of the adjacent tiles have no M€, so nothing can be removed.'})];
+    }
+    const facts: Array<BoardFact> = attackable.map((target) => {
+      const qty = this.removableFrom(target);
+      return placementPreviews.gain(
+        this,
+        {icon: 'megacredits', amount: qty, direction: 'cost'},
+        qty === 4 ? 'May lose 4 M€' : message('May lose ${0} M€', (b) => b.number(qty)),
+        {
+          id: `card-${this.name}-attack-${target.color}`,
+          description: 'After placing, you may remove 4 M€ from the owner of one adjacent tile.',
+          recipient: {kind: 'player', color: target.color},
+          severity: 'warning',
+        });
+    });
+    if (attackable.length > 1) {
       facts.unshift(placementPreviews.upcomingChoice(this,
         'You choose which adjacent player loses 4 M€',
         {id: `card-${this.name}-attack-choice`}));
@@ -121,21 +140,43 @@ export class Flooding extends Card implements IProjectCard {
         return;
       }
       const adjacentPlayers = this.adjacentOpponents(player, space);
-
-      if (adjacentPlayers.length > 0) {
-        return new OrOptions(
-          new SelectPlayer(
-            Array.from(adjacentPlayers),
-            'Select adjacent player to remove 4 M€ from',
-            'Remove credits',
-            {icon: 'megacredits', amount: 4},
-          ).andThen((target) => {
-            target.attack(player, Resource.MEGACREDITS, 4, {log: true});
-            return undefined;
-          }),
-          new SelectOption('Don\'t remove M€ from adjacent player').withMetadata(skip()));
+      if (adjacentPlayers.length === 0) {
+        return undefined;
       }
-      return undefined;
+      // The premium attack shape (the StealResources / RemoveAnyPlants
+      // standard): one FLAT leaf option per victim with the target's
+      // current → resulting, the deliberate skip, broke owners as greyed
+      // targets with a reason, and the choiceContext marker that routes the
+      // console to the one-press decision screen. A nested SelectPlayer here
+      // rendered as a context-less two-step wizard.
+      const attackable = adjacentPlayers.filter((target) => this.removableFrom(target) > 0);
+      if (attackable.length === 0) {
+        // Nobody adjacent holds any M€ — a silent no-op, like the shared
+        // removal helpers: the placement dossier already said so before the
+        // tile went down, and a prompt whose every row is dead is modal spam.
+        return undefined;
+      }
+      const removalOptions = attackable.map((target) => {
+        const qty = this.removableFrom(target);
+        return new SelectOption(
+          message('Remove ${0} M€ from ${1}', (b) => b.number(qty).player(target)),
+          'Remove credits')
+          .withMetadata(removeResourceFromPlayer(target, Resource.MEGACREDITS, qty,
+            AutomaTargeting.attackableStock(target, Resource.MEGACREDITS)))
+          .andThen(() => {
+            target.attack(player, Resource.MEGACREDITS, qty, {log: true});
+            return undefined;
+          });
+      });
+      const disabled = adjacentPlayers
+        .filter((target) => !attackable.includes(target))
+        .map((target) => disabledPlayerTarget(target, 'megacredits', 'No M€ to remove'));
+      return new OrOptions(
+        ...removalOptions,
+        new SelectOption('Don\'t remove M€ from adjacent player').withMetadata(skip()))
+        .setTitle('Select adjacent player to remove 4 M€ from')
+        .setDisabledOptions(disabled)
+        .markChoiceContext(attackEffect(this, 'An ocean tile was placed next to an opponent\'s tile.'));
     });
     return undefined;
   }

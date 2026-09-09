@@ -8,6 +8,7 @@ import {IPlayer} from '../../IPlayer';
 import {OrOptions} from '../../inputs/OrOptions';
 import {SelectOption} from '../../inputs/SelectOption';
 import {SelectPaymentDeferred} from '../../deferredActions/SelectPaymentDeferred';
+import {cardSource} from '../../inputs/choiceContext';
 import {message} from '../../logs/MessageBuilder';
 import {CardResource} from '../../../common/CardResource';
 import {PlaceOceanTile} from '../../deferredActions/PlaceOceanTile';
@@ -126,7 +127,7 @@ export class IcyImpactors extends Card implements IActionCard {
     if (this.canAffordToBuyAsteroids(player)) {
       options.options.push(
         new SelectOption('Spend 10 M€ to add 2 asteroids here').andThen(() => {
-          player.game.defer(new SelectPaymentDeferred(player, ASTEROID_COST, {canUseTitanium: true})).andThen(() => {
+          player.game.defer(new SelectPaymentDeferred(player, ASTEROID_COST, {canUseTitanium: true, cause: cardSource(this)})).andThen(() => {
             player.addResourceTo(this, {qty: 2, log: true});
           });
           return undefined;

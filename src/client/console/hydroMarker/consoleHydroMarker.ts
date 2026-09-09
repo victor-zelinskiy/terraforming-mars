@@ -889,6 +889,25 @@ export function hydroStepOwnerFor(
 }
 
 /**
+ * The STANDING PLAN declares this source as one of its own steps — queued OR
+ * already activated (unlike `hydroStepQueuedFor`, which answers only for the
+ * not-yet-reached half). This is the ownership witness the flow's close gate
+ * reads beside the claim: a claim is released/retained per batch and can
+ * lawfully be between homes for a flush, while the plan is the walk's own
+ * ledger for its whole life. An empty plan owns nothing by construction.
+ */
+export function hydroPlanDeclaresSource(
+  source: CardDrawRevealSource | CardName | undefined): boolean {
+  // `planLegs` is a plain module binding; the cursor is its reactive shadow
+  // (every arm/finalize/abort moves it), so a computed reading this function
+  // re-runs when the plan appears or dies — the stepLedger() idiom.
+  void hydroMarkerState.planCursor;
+  const card = typeof source === 'string' ? source as CardName :
+    revealSourceCard(source);
+  return card !== undefined && planLegs.some((l) => l.sourceCard === card);
+}
+
+/**
  * THE SOURCE CARD OF THE ACTIVE STEP — the card whose action the stage the
  * marker is standing on repeats. This is what the workspace shows beside the
  * copied action's own prompt («ИСТОЧНИК · Центр ИИ»), and it exists exactly

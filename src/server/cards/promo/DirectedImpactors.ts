@@ -12,6 +12,7 @@ import {OrOptions} from '../../inputs/OrOptions';
 import {MAX_TEMPERATURE} from '../../../common/constants';
 import {LogHelper} from '../../LogHelper';
 import {SelectPaymentDeferred} from '../../deferredActions/SelectPaymentDeferred';
+import {cardSource} from '../../inputs/choiceContext';
 import {CardRenderer} from '../render/CardRenderer';
 import {TITLES} from '../../inputs/titles';
 import {Resource} from '../../../common/Resource';
@@ -150,7 +151,7 @@ export class DirectedImpactors extends Card implements IActionCard, IProjectCard
   }
 
   private addResource(player: IPlayer, asteroidCards: ICard[]) {
-    player.game.defer(new SelectPaymentDeferred(player, ADD_COST, {canUseTitanium: true, title: TITLES.payForCardAction(this.name)}));
+    player.game.defer(new SelectPaymentDeferred(player, ADD_COST, {canUseTitanium: true, title: TITLES.payForCardAction(this.name), cause: cardSource(this)}));
 
     // ALWAYS ask which card — even a single candidate (which is this card itself) —
     // so the player SEES where the asteroid goes + its current → resulting (no silent

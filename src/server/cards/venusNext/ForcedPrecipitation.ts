@@ -8,6 +8,7 @@ import {SelectOption} from '../../inputs/SelectOption';
 import {MAX_VENUS_SCALE} from '../../../common/constants';
 import {CardName} from '../../../common/cards/CardName';
 import {SelectPaymentDeferred} from '../../deferredActions/SelectPaymentDeferred';
+import {cardSource} from '../../inputs/choiceContext';
 import {LogHelper} from '../../LogHelper';
 import {CardRenderer} from '../render/CardRenderer';
 import {Card} from '../Card';
@@ -107,7 +108,7 @@ export class ForcedPrecipitation extends Card implements IActionCard {
   }
 
   private addResource(player: IPlayer) {
-    player.game.defer(new SelectPaymentDeferred(player, ADD_COST, {title: TITLES.payForCardAction(this.name)}))
+    player.game.defer(new SelectPaymentDeferred(player, ADD_COST, {title: TITLES.payForCardAction(this.name), cause: cardSource(this)}))
       .andThen(() => player.addResourceTo(this, {log: true}));
     return undefined;
   }

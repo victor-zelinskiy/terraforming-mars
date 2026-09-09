@@ -21,6 +21,7 @@ import {Priority} from '../deferredActions/Priority';
 import {SelectCard} from '../inputs/SelectCard';
 import {SelectOption} from '../inputs/SelectOption';
 import {SelectPaymentDeferred} from '../deferredActions/SelectPaymentDeferred';
+import {namedCardSource} from '../inputs/choiceContext';
 import {Merger} from '../cards/promo/Merger';
 import {message} from '../logs/MessageBuilder';
 
@@ -303,7 +304,7 @@ export function campaignMergeInput(player: IPlayer): PlayerInput | undefined {
  *  COUNTER is what survives a reload landing between a merge answer and its
  *  payment (the deferred queue itself is never serialized). */
 function deferMergePayment(player: IPlayer): void {
-  player.game.defer(new SelectPaymentDeferred(player, Merger.mergerCost, {title: 'Select how to pay for Merger'}))
+  player.game.defer(new SelectPaymentDeferred(player, Merger.mergerCost, {title: 'Select how to pay for Merger', cause: namedCardSource(CardName.MERGER)}))
     .andThen(() => {
       player.campaignMergeFeesPaid = (player.campaignMergeFeesPaid ?? 0) + 1;
     });

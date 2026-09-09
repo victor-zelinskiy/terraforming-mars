@@ -12,6 +12,7 @@ import {SelectCard} from '../../inputs/SelectCard';
 import {OrOptions} from '../../inputs/OrOptions';
 import {SelectOption} from '../../inputs/SelectOption';
 import {SelectPaymentDeferred} from '../../deferredActions/SelectPaymentDeferred';
+import {cardSource} from '../../inputs/choiceContext';
 import {CardRenderer} from '../render/CardRenderer';
 import * as actionReason from '../actionReasons';
 import * as actionPreviews from '../actionPreviews';
@@ -121,7 +122,7 @@ export class AsteroidRights extends Card implements IActionCard, IProjectCard {
     // auto-add-to-self; fork-wide no-autoselect rule). SelectCard never auto-resolves.
     const addAsteroidOption = new SelectCard('Select card to add 1 asteroid', 'Add asteroid', asteroidCards)
       .andThen(([card]) => {
-        player.game.defer(new SelectPaymentDeferred(player, 1, {title: 'Select how to pay for asteroid'}));
+        player.game.defer(new SelectPaymentDeferred(player, 1, {title: 'Select how to pay for asteroid', cause: cardSource(this)}));
         player.addResourceTo(card, {log: true});
 
         return undefined;

@@ -9,6 +9,7 @@ import {CardName} from '../../../common/cards/CardName';
 import {CardRenderer} from '../render/CardRenderer';
 import {Size} from '../../../common/cards/render/Size';
 import {SelectPaymentDeferred} from '../../deferredActions/SelectPaymentDeferred';
+import {cardSource} from '../../inputs/choiceContext';
 import {TITLES} from '../../inputs/titles';
 import {ICorporationCard} from '../corporation/ICorporationCard';
 import * as actionReason from '../actionReasons';
@@ -98,7 +99,7 @@ export class Factorum extends CorporationCard implements ICorporationCard, IActi
 
     const drawBuildingCard = new SelectOption('Spend 3 M€ to draw a building card', 'Draw card')
       .andThen(() => {
-        player.game.defer(new SelectPaymentDeferred(player, DRAW_COST, {title: TITLES.payForCardAction(this.name)}))
+        player.game.defer(new SelectPaymentDeferred(player, DRAW_COST, {title: TITLES.payForCardAction(this.name), cause: cardSource(this)}))
           .andThen(() => player.drawCard(1, {tag: Tag.BUILDING}));
         return undefined;
       });

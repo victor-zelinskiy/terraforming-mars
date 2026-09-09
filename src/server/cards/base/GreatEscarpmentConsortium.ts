@@ -8,6 +8,7 @@ import {DecreaseAnyProduction} from '../../deferredActions/DecreaseAnyProduction
 import {CardRenderer} from '../render/CardRenderer';
 import {all} from '../Options';
 import {GainProduction} from '../../deferredActions/GainProduction';
+import {cardSource} from '../../inputs/choiceContext';
 import {ActionPreview} from '../../../common/models/ActionPreviewModel';
 import * as actionPreviews from '../actionPreviews';
 
@@ -34,7 +35,7 @@ export class GreatEscarpmentConsortium extends Card implements IProjectCard {
 
   public override bespokePlay(player: IPlayer) {
     player.game.defer(
-      new DecreaseAnyProduction(player, Resource.STEEL, {count: 1, stealing: true}));
+      new DecreaseAnyProduction(player, Resource.STEEL, {count: 1, stealing: true, cause: cardSource(this)}));
     player.game.defer(new GainProduction(player, Resource.STEEL, {count: 1, log: true}));
     return undefined;
   }

@@ -7,6 +7,7 @@ import {IPlayer} from '../../IPlayer';
 import {CardName} from '../../../common/cards/CardName';
 import {TileType} from '../../../common/TileType';
 import {SelectPaymentDeferred} from '../../deferredActions/SelectPaymentDeferred';
+import {cardSource} from '../../inputs/choiceContext';
 import {PlaceOceanTile, SELECT_OCEAN_SPACE_TITLE} from '../../deferredActions/PlaceOceanTile';
 import {CardRenderer} from '../render/CardRenderer';
 import {TITLES} from '../../inputs/titles';
@@ -72,7 +73,7 @@ export class AquiferPumping extends Card implements IActionCard, IProjectCard {
     ]);
   }
   public action(player: IPlayer) {
-    player.game.defer(new SelectPaymentDeferred(player, 8, {canUseSteel: true, title: TITLES.payForCardAction(this.name)}))
+    player.game.defer(new SelectPaymentDeferred(player, 8, {canUseSteel: true, title: TITLES.payForCardAction(this.name), cause: cardSource(this)}))
       .andThen(() => player.game.defer(new PlaceOceanTile(player)));
     return undefined;
   }

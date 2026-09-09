@@ -5,8 +5,12 @@ import {Resource} from '../../src/common/Resource';
 import {AddResourcesToCard} from '../../src/server/deferredActions/AddResourcesToCard';
 import {DecreaseAnyProduction} from '../../src/server/deferredActions/DecreaseAnyProduction';
 import {GainAnyResourceButScienceDeferred} from '../../src/server/deferredActions/GainAnyResourceButScienceDeferred';
+import {IncreaseColonyTrack} from '../../src/server/deferredActions/IncreaseColonyTrack';
 import {RemoveAnyPlants} from '../../src/server/deferredActions/RemoveAnyPlants';
 import {RemoveResourcesFromCard} from '../../src/server/deferredActions/RemoveResourcesFromCard';
+import {SelectCardDeferred} from '../../src/server/deferredActions/SelectCardDeferred';
+import {SelectPaymentDeferred} from '../../src/server/deferredActions/SelectPaymentDeferred';
+import {SelectResourceTypeDeferred} from '../../src/server/deferredActions/SelectResourceTypeDeferred';
 import {StealResources} from '../../src/server/deferredActions/StealResources';
 import {cardSource, colonySource} from '../../src/server/inputs/choiceContext';
 import {Ants} from '../../src/server/cards/base/Ants';
@@ -112,6 +116,49 @@ describe('shared deferred actions carry WHO caused the prompt', () => {
   it('GainAnyResourceButScienceDeferred names its cause', () => {
     const [/* game */, player] = testGame(2);
     const input = new GainAnyResourceButScienceDeferred(player, cardSource(new Ants())).execute();
+    expect(Server.getWaitingFor(player, input!)?.choiceContext?.source.card).to.eq(CardName.ANTS);
+  });
+
+  it('IncreaseColonyTrack names its colony — and its decline is a structural skip', () => {
+    const [game, player] = testGame(2, {coloniesExtension: true});
+    const colony = game.colonies[0];
+
+    const input = new IncreaseColonyTrack(player, colony, 2).execute();
+    const model = Server.getWaitingFor(player, input!);
+    expect(model?.choiceContext?.source.kind).to.eq('colony');
+    expect(model?.choiceContext?.source.name).to.eq(colony.name);
+    // [2 steps, 1 step, don't] — the decline is found by its marker, never its
+    // index or title (the trade batch replays a captured INDEX, so the order
+    // itself is pinned here too).
+    const options = (model as {options?: Array<{metadata?: {kind?: string}}>}).options ?? [];
+    expect(options).has.lengthOf(3);
+    expect(options[2].metadata?.kind).to.eq('skip');
+  });
+
+  it('SelectResourceTypeDeferred marks the production choice', () => {
+    const [/* game */, player] = testGame(2);
+    const input = new SelectResourceTypeDeferred(
+      player, [Resource.STEEL, Resource.TITANIUM], 'Select a resource to gain 1 unit of production',
+      cardSource(new Ants())).execute();
+    const context = Server.getWaitingFor(player, input!)?.choiceContext;
+    expect(context?.source.card).to.eq(CardName.ANTS);
+    expect(context?.mode).to.eq('effect-choice');
+  });
+
+  it('SelectCardDeferred marks the card pick', () => {
+    const [/* game */, player] = testGame(2);
+    const input = new SelectCardDeferred(player, [new Birds(), new Predators()], {
+      title: 'Select card to add 1 animal', cause: cardSource(new Ants()),
+    }).execute();
+    expect(Server.getWaitingFor(player, input!)?.choiceContext?.source.card).to.eq(CardName.ANTS);
+  });
+
+  it('SelectPaymentDeferred marks the payment it raises', () => {
+    const [/* game */, player] = testGame(2);
+    player.stock.add(Resource.MEGACREDITS, 10);
+    player.stock.add(Resource.STEEL, 3);
+
+    const input = new SelectPaymentDeferred(player, 5, {canUseSteel: true, cause: cardSource(new Ants())}).execute();
     expect(Server.getWaitingFor(player, input!)?.choiceContext?.source.card).to.eq(CardName.ANTS);
   });
 });

@@ -5,6 +5,7 @@ import {CardRenderer} from '../render/CardRenderer';
 import {SelectCard} from '../../inputs/SelectCard';
 import {Size} from '../../../common/cards/render/Size';
 import {SelectPaymentDeferred} from '../../deferredActions/SelectPaymentDeferred';
+import {cardSource} from '../../inputs/choiceContext';
 import {LogHelper} from '../../LogHelper';
 import {ICorporationCard} from '../corporation/ICorporationCard';
 import {CorporationDeck} from '../Deck';
@@ -60,7 +61,7 @@ export class Merger extends PreludeCard {
               game.corporationDeck.discard(corp);
             }
           });
-          game.defer(new SelectPaymentDeferred(player, Merger.mergerCost, {title: 'Select how to pay for Merger'}));
+          game.defer(new SelectPaymentDeferred(player, Merger.mergerCost, {title: 'Select how to pay for Merger', cause: cardSource(this)}));
           return undefined;
         });
     });

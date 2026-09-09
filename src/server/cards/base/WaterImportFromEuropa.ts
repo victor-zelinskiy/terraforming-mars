@@ -8,6 +8,7 @@ import {CardName} from '../../../common/cards/CardName';
 import {PlaceOceanTile, SELECT_OCEAN_SPACE_TITLE} from '../../deferredActions/PlaceOceanTile';
 import {TileType} from '../../../common/TileType';
 import {SelectPaymentDeferred} from '../../deferredActions/SelectPaymentDeferred';
+import {cardSource} from '../../inputs/choiceContext';
 import {CardRenderer} from '../render/CardRenderer';
 import {TITLES} from '../../inputs/titles';
 import {Resource} from '../../../common/Resource';
@@ -70,7 +71,7 @@ export class WaterImportFromEuropa extends Card implements IActionCard, IProject
     ]);
   }
   public action(player: IPlayer) {
-    player.game.defer(new SelectPaymentDeferred(player, ACTION_COST, {canUseTitanium: true, title: TITLES.action}))
+    player.game.defer(new SelectPaymentDeferred(player, ACTION_COST, {canUseTitanium: true, title: TITLES.action, cause: cardSource(this)}))
       .andThen(() => player.game.defer(new PlaceOceanTile(player)));
     return undefined;
   }

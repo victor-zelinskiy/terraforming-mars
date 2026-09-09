@@ -9,6 +9,7 @@ import {SelectOption} from '../../inputs/SelectOption';
 import {OrOptions} from '../../inputs/OrOptions';
 import {SelectAmount} from '../../inputs/SelectAmount';
 import {SelectPaymentDeferred} from '../../deferredActions/SelectPaymentDeferred';
+import {cardSource} from '../../inputs/choiceContext';
 import {CardRenderer} from '../render/CardRenderer';
 import * as actionReason from '../actionReasons';
 import * as actionPreviews from '../actionPreviews';
@@ -58,7 +59,7 @@ export class EnergyMarket extends Card implements IProjectCard {
       'Select amount of energy to gain', 'Gain energy', 1, Math.floor(availableMC / 2),
       EnergyMarket.ENERGY_AMOUNT.maxByDefault, EnergyMarket.ENERGY_AMOUNT)
       .andThen((amount) => {
-        player.game.defer(new SelectPaymentDeferred(player, amount * 2))
+        player.game.defer(new SelectPaymentDeferred(player, amount * 2, {cause: cardSource(this)}))
           .andThen(() => player.stock.add(Resource.ENERGY, amount, {log: true}));
         return undefined;
       });

@@ -7,6 +7,7 @@ import {IPlayer} from '../../IPlayer';
 import {CardResource} from '../../../common/CardResource';
 import {CardName} from '../../../common/cards/CardName';
 import {SelectPaymentDeferred} from '../../deferredActions/SelectPaymentDeferred';
+import {cardSource} from '../../inputs/choiceContext';
 import {CardRenderer} from '../render/CardRenderer';
 import * as actionReason from '../actionReasons';
 import * as actionPreviews from '../actionPreviews';
@@ -93,7 +94,7 @@ export class SearchForLife extends Card implements IActionCard, IProjectCard {
   }
 
   public action(player: IPlayer) {
-    player.game.defer(new SelectPaymentDeferred(player, 1, {title: TITLES.payForCardAction(this.name)}))
+    player.game.defer(new SelectPaymentDeferred(player, 1, {title: TITLES.payForCardAction(this.name), cause: cardSource(this)}))
       .andThen(() => {
         const vpBefore = this.vpFor(this.resourceCount);
         const card = player.game.projectDeck.drawOrThrow(player.game);

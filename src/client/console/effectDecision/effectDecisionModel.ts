@@ -150,9 +150,16 @@ export const HEADLINE_CHOOSE = 'Choose an effect';
 export const HEADLINE_USE = 'Use the effect?';
 export const HEADLINE_BUY_CARD = 'Buy a card?';
 export const HEADLINE_PAY = 'Pay the price?';
+/** mode 'attack': the TARGET loses, the viewer pays nothing — «Заплатить?»
+ *  (derived from the cost-direction chips, which here belong to the victim)
+ *  was a lie about who the money leaves. */
+export const HEADLINE_ATTACK = 'Attack an opponent?';
+/** …and a MANDATORY attack (no decline — Air Raid's steal) is a target pick. */
+export const HEADLINE_TARGET = 'Choose a target';
 
 export const DECLINE_DEFAULT = 'Do not use the effect';
 export const DECLINE_BUY_CARD = 'Do not buy the card';
+export const DECLINE_ATTACK = 'Do not attack';
 
 export const LEAD_HAND_CARDS = 'Open cards in hand';
 /** The DECISION-level title of a discard-to-draw offer. The server's own title
@@ -268,6 +275,8 @@ export function stageKeyOf(context: ChoiceContext): string {
 /**
  * The headline — a real question about THIS decision, derived from the shape:
  *
+ *   mode 'attack', with a decline         → «Атаковать соперника?»
+ *   mode 'attack', mandatory              → «Выберите цель»
  *   no decline                            → «Выберите эффект»  (two real effects)
  *   the offer opens the hand              → «Использовать эффект?»
  *   spends a RESOURCE and draws a card    → «Купить карту?»
@@ -275,11 +284,17 @@ export function stageKeyOf(context: ChoiceContext): string {
  *   anything else with a decline          → «Использовать эффект?»
  *
  * Chips are icons + directions and navigation is the option's own type, i.e.
- * pure structure — this is not text matching. Note the hand-pick rule comes
- * FIRST on purpose: Mars University spends a card to draw a card, and calling
- * that "buying a card" would misdescribe an exchange as a purchase.
+ * pure structure — this is not text matching. The attack rule comes FIRST:
+ * an attack option's cost chips describe the VICTIM's loss, so the «spends a
+ * resource» reading below would call somebody else's loss «Заплатить?». Note
+ * the hand-pick rule precedes the buy rule on purpose: Mars University spends
+ * a card to draw a card, and calling that "buying a card" would misdescribe an
+ * exchange as a purchase.
  */
-export function headlineKeyOf(actions: ReadonlyArray<EffectDecisionAction>, hasDecline: boolean): string {
+export function headlineKeyOf(actions: ReadonlyArray<EffectDecisionAction>, hasDecline: boolean, mode?: ChoiceContext['mode']): string {
+  if (mode === 'attack') {
+    return hasDecline ? HEADLINE_ATTACK : HEADLINE_TARGET;
+  }
   if (!hasDecline) {
     return HEADLINE_CHOOSE;
   }
@@ -300,7 +315,10 @@ export function headlineKeyOf(actions: ReadonlyArray<EffectDecisionAction>, hasD
  * prompts never reaches the player.
  */
 export function declineKeyOf(headlineKey: string): string {
-  return headlineKey === HEADLINE_BUY_CARD ? DECLINE_BUY_CARD : DECLINE_DEFAULT;
+  if (headlineKey === HEADLINE_BUY_CARD) {
+    return DECLINE_BUY_CARD;
+  }
+  return headlineKey === HEADLINE_ATTACK ? DECLINE_ATTACK : DECLINE_DEFAULT;
 }
 
 // ── the builder ─────────────────────────────────────────────────────────────
@@ -391,7 +409,7 @@ export function buildEffectDecision(
   actions.sort((a, b) => Number(a.role === 'decline') - Number(b.role === 'decline'));
 
   const declineIndex = actions.findIndex((a) => a.role === 'decline');
-  const headlineKey = headlineKeyOf(actions, declineIndex !== -1);
+  const headlineKey = headlineKeyOf(actions, declineIndex !== -1, choice.mode);
   if (declineIndex !== -1) {
     actions[declineIndex] = {...actions[declineIndex], title: declineKeyOf(headlineKey)};
   }

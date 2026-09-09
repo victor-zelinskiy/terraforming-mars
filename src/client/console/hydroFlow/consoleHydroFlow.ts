@@ -35,7 +35,10 @@ import type {Tag} from '@/common/cards/Tag';
 import type {DeltaStageOutcomeProjection} from '@/common/models/DeltaEspionageModel';
 import type {WorkspacePhase, WorkspaceBackVerb} from '@/client/console/consoleWorkspaceFlow';
 import {backVerbFor} from '@/client/console/consoleWorkspaceFlow';
-import {workspaceFrameEpoch} from '@/client/console/consoleWorkspaceStack';
+import {workspaceFrameEpoch, workspaceStackCollapsed} from '@/client/console/consoleWorkspaceStack';
+import {consoleState} from '@/client/console/consoleRouter';
+import {isHydroMarkerActive, hydroTraversalPending} from '@/client/console/hydroMarker/consoleHydroMarker';
+import {registerTruthWitness} from '@/client/console/presentationLedger';
 import type {HydroDeltaLine} from '@/client/components/hydronetwork/hydroReward';
 import type {DeltaMovementBonusProjection} from '@/common/models/DeltaTrackPreviewModel';
 import type {ResourceTransferSpec} from '@/client/console/resourceTransfer/resourceTransferModel';
@@ -347,6 +350,7 @@ export function setHydroRepeatBridge(on: boolean): void {
 export function beginHydroCommit(rec: Omit<HydroCommitRecord, 'phase'>): void {
   hydroFlowState.step = undefined;
   hydroFlowState.repeatBridge = false;
+  ceremonyHealAttempts = 0; // a fresh commit gets the witness's full patience
   hydroFlowState.commit = {...rec, phase: 'moving'};
   // WHOSE FLOW THIS IS. Taken at the press, when the frame that is making the
   // move is by definition the live one.
@@ -402,6 +406,10 @@ export function resetHydroFlow(): void {
 
 export function setHydroCeremonyActive(on: boolean): void {
   hydroFlowState.ceremonyActive = on;
+  // The choreography's own age — the one witness term that can tell «the
+  // culmination is playing» from «its finish call died with a killed
+  // timeline» (see hydroCeremonyWitnessLying).
+  ceremonyRunSince = on ? Date.now() : 0;
 }
 export function isHydroCeremonyActive(): boolean {
   return hydroFlowState.ceremonyActive;
@@ -502,4 +510,206 @@ export function hydroWorkspaceRestorePlan(input: {
     return 'seat-commit';
   }
   return 'fold';
+}
+
+/*
+ * ── THE FLOW-CLOSE TRUTH WITNESSES (the presentation-ledger net) ────────────
+ *
+ * The committed flow's whole close chain is EDGE-DRIVEN: the marker's falling
+ * edge advances the phase, the busy predicate's falling edge reaches the
+ * result stage, the section's three change-watchers start the culmination,
+ * and a window.setTimeout ends the read hold. Every one of those edges can be
+ * missed — a true→true transition fires nothing, an 800 ms one-shot fact
+ * expires under a slow frame, a component's watchers die with it, a cleared
+ * timer is never re-armed — and a missed edge used to cost the player a
+ * WEDGED SCREEN: the workspace standing in a transient beat with B absorbed
+ * by phase, until some unrelated 20–30 s safety happened to shake the state
+ * («финальная анимация зависла, потом сама прошла»).
+ *
+ * The ledger's truth witnesses state the invariants positively — «a committed
+ * flow that is quiet and visible must be making progress» — and re-drive the
+ * flow's OWN doors when one holds too long. They never cut a genuine wait:
+ * a glide, a standing plan, an interactive follow-up, a park and the read
+ * hold all read as healthy. Installed by the shell (install/uninstall pair),
+ * never at import — a module-scope registration would leave a permanent
+ * heartbeat in every unit-spec bundle.
+ */
+
+/** The flow is deliberately set aside — a park is not a wedge, and nothing
+ *  may start or settle on a hidden stage. */
+export function hydroFlowSetAside(): boolean {
+  return workspaceStackCollapsed() || consoleState.task.deferred;
+}
+
+/** The culmination choreography has been RUNNING implausibly long — its
+ *  finish call died (a killed timeline). Bounded far above any real run
+ *  (~2.7 s at motion scale 1). */
+const CEREMONY_RUN_MAX_MS = 12_000;
+let ceremonyRunSince = 0;
+
+export function hydroCeremonyRunningTooLong(now: number = Date.now()): boolean {
+  return hydroFlowState.ceremonyActive && ceremonyRunSince !== 0 &&
+    now - ceremonyRunSince > CEREMONY_RUN_MAX_MS;
+}
+
+/**
+ * THE CULMINATION'S DOOR — the section registers its own `maybeStartCeremony`
+ * ask here (mounted → registered, beforeUnmount → cleared), and the witness
+ * replays it through the SAME guards the ordinary edges use. One door, so a
+ * heal can never invent a second start path.
+ */
+let ceremonyStarter: (() => void) | undefined;
+export function registerHydroCeremonyStarter(starter: (() => void) | undefined): void {
+  ceremonyStarter = starter;
+}
+
+/**
+ * «The finale is owed, startable, and nothing is starting it.» False through
+ * every legitimate wait: the glide (marker active), a standing plan (its own
+ * pauses included), a park, a running choreography — except one that has
+ * outlived any possible run (the killed-timeline case).
+ */
+export function hydroCeremonyWitnessLying(now: number = Date.now()): boolean {
+  const c = hydroFlowState.commit;
+  if (c === undefined || c.kind !== 'ceremony' || c.phase !== 'resolving' ||
+      hydroFlowState.ceremonyPlayed || hydroFlowSetAside()) {
+    return false;
+  }
+  if (hydroFlowState.ceremonyActive) {
+    return hydroCeremonyRunningTooLong(now);
+  }
+  return !isHydroMarkerActive() && !hydroTraversalPending();
+}
+
+/** A starter that repeatedly changes NOTHING (a latched one-shot over a
+ *  choreography that threw at birth) stops being retried — the skip is the
+ *  honest end. Counted per commit; any real progress resets it. */
+let ceremonyHealAttempts = 0;
+const CEREMONY_HEAL_MAX_ATTEMPTS = 3;
+
+/** The witness's heal — CONVERGING by construction: every branch either
+ *  starts the culmination (lying falls on `ceremonyActive`) or marks it
+ *  honestly skipped (lying falls on `ceremonyPlayed`). */
+export function healHydroCeremony(): void {
+  if (hydroFlowState.ceremonyActive) {
+    // The choreography wedged mid-run — end it honestly. A late finish from
+    // the real timeline is idempotent (`doneFired` / played-latch).
+    setHydroCeremonyActive(false);
+    markHydroCeremonyPlayed();
+    return;
+  }
+  const starter = ceremonyStarter;
+  if (starter !== undefined && ceremonyHealAttempts < CEREMONY_HEAL_MAX_ATTEMPTS) {
+    // The section's own durable-arrival ask: it either starts the finale or
+    // skips it honestly — both end the lie. An ask that moves nothing
+    // (pathological: the one-shot latched over a start that threw) is
+    // retried a bounded number of times, then skipped below.
+    ceremonyHealAttempts++;
+    starter();
+    if (hydroFlowState.ceremonyActive || hydroFlowState.ceremonyPlayed) {
+      ceremonyHealAttempts = 0;
+    }
+  } else {
+    // No stage anywhere (the section is unmounted, the flow orphaned) or a
+    // starter that cannot converge — the honest skip; the summary still
+    // follows through the ordinary edge.
+    markHydroCeremonyPlayed();
+  }
+}
+
+/**
+ * THE SHELL-SIDE FACTS the stuck-flow witness needs — the busy conjunction
+ * and the result hold live in ConsoleShell (they read prompt/arrival state
+ * only the shell has), so the shell registers a probe, the same idiom as the
+ * release funnel's serving probe.
+ */
+export type HydroFlowProbe = {
+  /** `hydroResolutionBusy` — the close gate's own conjunction. */
+  busy: () => boolean;
+  /** The result stage's read-hold timer is armed. */
+  resultHoldArmed: () => boolean;
+  /** The server's own position confirms the committed destination. */
+  serverAtDestination: () => boolean;
+  /** Re-drive the flow's own doors (settle / re-arm the hold). Idempotent. */
+  drive: () => void;
+};
+let flowProbe: HydroFlowProbe | undefined;
+export function registerHydroFlowProbe(probe: HydroFlowProbe | undefined): void {
+  flowProbe = probe;
+}
+
+/**
+ * «A committed flow stands quiet and visible, and no edge is left to move
+ * it.» Three wedges, one witness:
+ *  - `moving` with the marker idle and no plan — the advance edge was missed
+ *    (or the glide died past its own nets);
+ *  - `resolving` with the busy conjunction false — the falling edge was
+ *    missed (the settle door was never re-asked);
+ *  - `result` with the read hold's timer dead — the auto-finish edge died.
+ */
+export function hydroFlowStuckLying(): boolean {
+  const c = hydroFlowState.commit;
+  if (c === undefined || hydroFlowSetAside()) {
+    return false;
+  }
+  if (c.phase === 'moving') {
+    return !isHydroMarkerActive() && !hydroTraversalPending();
+  }
+  if (flowProbe === undefined) {
+    return false;
+  }
+  if (c.phase === 'resolving') {
+    return !flowProbe.busy();
+  }
+  return !flowProbe.resultHoldArmed();
+}
+
+/** The stuck-flow heal — each branch routes through the flow's OWN recovery
+ *  door, never a new mechanism. */
+export function healHydroFlowStuck(): void {
+  const c = hydroFlowState.commit;
+  if (c === undefined) {
+    return;
+  }
+  if (c.phase === 'moving') {
+    if (flowProbe !== undefined && flowProbe.serverAtDestination()) {
+      // The move IS committed server-side — the same recovery the shell's
+      // own position watcher performs on its (missed) edge.
+      advanceHydroCommitPhase('resolving');
+    } else {
+      // The move never committed (a lost submit past every marker net) —
+      // the refusal battery's own answer: the draft returns, B lives again.
+      rollbackHydroCommit();
+    }
+    return;
+  }
+  flowProbe?.drive();
+}
+
+/** How long a lie must hold before the heal fires — well past any same-flush
+ *  transition, well short of the old accidental 20–30 s recoveries. */
+const HYDRO_WITNESS_GRACE_MS = 3000;
+
+/**
+ * Install both witnesses (the shell's mounted; returns the uninstall for its
+ * beforeUnmount). The ledger warns with the witness id whenever a heal fires,
+ * so a wedge names itself instead of dissolving into an unexplained wait.
+ */
+export function installHydroFlowWitnesses(): () => void {
+  const offCeremony = registerTruthWitness({
+    id: 'hydro-ceremony-owed',
+    lying: () => hydroCeremonyWitnessLying(),
+    graceMs: HYDRO_WITNESS_GRACE_MS,
+    heal: healHydroCeremony,
+  });
+  const offStuck = registerTruthWitness({
+    id: 'hydro-flow-stuck',
+    lying: hydroFlowStuckLying,
+    graceMs: HYDRO_WITNESS_GRACE_MS,
+    heal: healHydroFlowStuck,
+  });
+  return () => {
+    offCeremony();
+    offStuck();
+  };
 }

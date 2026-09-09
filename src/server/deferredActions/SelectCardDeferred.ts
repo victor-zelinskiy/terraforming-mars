@@ -3,10 +3,13 @@ import {SelectCard} from '../inputs/SelectCard';
 import {ICard} from '../cards/ICard';
 import {DeferredAction} from './DeferredAction';
 import {Message} from '../../common/logs/Message';
+import {ChoiceContextSource} from '../../common/models/PlayerInputModel';
 
 export type Options = {
   title?: string | Message;
   buttonLabel?: string;
+  /** WHO caused this pick — see `inputs/choiceContext.ts`. */
+  cause?: ChoiceContextSource;
 }
 
 export class SelectCardDeferred extends DeferredAction<ICard> {
@@ -31,10 +34,13 @@ export class SelectCardDeferred extends DeferredAction<ICard> {
     const title = this.options.title ?? 'Select a card';
     const buttonLabel = this.options.buttonLabel ?? 'Select';
 
-    return new SelectCard(title, buttonLabel, this.cards)
+    const select = new SelectCard(title, buttonLabel, this.cards)
       .andThen(([card]) => {
         this.cb(card);
         return undefined;
       });
+    return this.options.cause === undefined ?
+      select :
+      select.markChoiceContext({source: this.options.cause, mode: 'reward'});
   }
 }

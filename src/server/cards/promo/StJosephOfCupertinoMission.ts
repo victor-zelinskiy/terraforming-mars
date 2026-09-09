@@ -17,7 +17,7 @@ import {TITLES} from '../../inputs/titles';
 import {message} from '../../logs/MessageBuilder';
 import {Resource} from '../../../common/Resource';
 import {chip, optionResult, skip} from '../../inputs/optionMetadata';
-import {cardEffect} from '../../inputs/choiceContext';
+import {cardEffect, cardSource} from '../../inputs/choiceContext';
 import {AutomaResolver} from '../../automa/AutomaResolver';
 import * as actionReason from '../actionReasons';
 import * as actionPreviews from '../actionPreviews';
@@ -119,7 +119,7 @@ export class StJosephOfCupertinoMission extends Card implements IActionCard {
       return undefined;
     }
 
-    player.game.defer(new SelectPaymentDeferred(player, 5, {canUseSteel: true, title: TITLES.payForCardAction(this.name)}))
+    player.game.defer(new SelectPaymentDeferred(player, 5, {canUseSteel: true, title: TITLES.payForCardAction(this.name), cause: cardSource(this)}))
       .andThen(() => {
         player.defer(createMarsSelectSpace(
           player,
@@ -193,7 +193,7 @@ export class StJosephOfCupertinoMission extends Card implements IActionCard {
           ],
         }))
         .andThen(() => {
-          owner.game.defer(new SelectPaymentDeferred(owner, OWNER_CARD_COST))
+          owner.game.defer(new SelectPaymentDeferred(owner, OWNER_CARD_COST, {cause: cardSource(this)}))
             .andThen(() => {
               owner.drawCard(1, {source: {type: 'card', cardName: this.name}});
             });

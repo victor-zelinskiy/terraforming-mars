@@ -6,6 +6,7 @@ import {ICorporationCard} from './ICorporationCard';
 import {CardName} from '../../../common/cards/CardName';
 import {CardRenderer} from '../render/CardRenderer';
 import {SelectPaymentDeferred} from '../../deferredActions/SelectPaymentDeferred';
+import {cardSource} from '../../inputs/choiceContext';
 import {TITLES} from '../../inputs/titles';
 import {UnplayableReason} from '../../../common/cards/UnplayableReason';
 import {Resource} from '../../../common/Resource';
@@ -59,7 +60,7 @@ export class UnitedNationsMarsInitiative extends CorporationCard implements IAct
   }
 
   public action(player: IPlayer) {
-    player.game.defer(new SelectPaymentDeferred(player, 3, {title: TITLES.payForCardAction(this.name)}))
+    player.game.defer(new SelectPaymentDeferred(player, 3, {title: TITLES.payForCardAction(this.name), cause: cardSource(this)}))
       .andThen(() => player.increaseTerraformRating());
     return undefined;
   }

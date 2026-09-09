@@ -2,7 +2,8 @@ import {expect} from 'chai';
 import {mount} from '@vue/test-utils';
 import ConsoleHydroSection from '@/client/components/console/ConsoleHydroSection.vue';
 import {
-  HydroCommitRecord, HydroTraversalSegmentRecord, beginHydroCommit, resetHydroFlow,
+  HydroCommitRecord, HydroTraversalSegmentRecord, advanceHydroCommitPhase, beginHydroCommit,
+  hydroFlowState, resetHydroFlow,
 } from '@/client/console/hydroFlow/consoleHydroFlow';
 import {hydroMarkerState, resetHydroMarker} from '@/client/console/hydroMarker/consoleHydroMarker';
 import {hydroNetworkState, resetHydroPlan} from '@/client/components/hydronetwork/hydroNetworkState';
@@ -172,6 +173,71 @@ describe('consoleHydroSection — the terminal stage waits for the marker', () =
     hydroMarkerState.settledPosition = 11;
     await wrapper.vm.$nextTick();
     expect(wrapper.find('.con-hydro__cere').exists(), 'the seat stands at the arrival').eq(true);
+    wrapper.unmount();
+  });
+
+  /**
+   * ══ THE CULMINATION STARTS OFF A DURABLE FACT — never off an 800 ms glow ══
+   *
+   * `markerSettled` is the settle GLOW's one-shot clock, and the ceremony ask
+   * used to read arrival off it alone: a slow frame (a GC pause, a heavy
+   * notification flush) let the phase edge land with it already reset, and
+   * the recovery net then SKIPPED the finale the player was owed — or, worse,
+   * across a re-mount there was no edge left at all and the owed culmination
+   * wedged the close gate for good. The durable fact is the server's own
+   * position: the marker renders ON the finish stop from it the moment the
+   * glide yields.
+   */
+  it('REGRESSION: the ceremony still starts when the settle glow has already expired', async () => {
+    const wrapper = mountSection();
+    beginHydroCommit({...terminalTraversal(), fromPosition: 10, toPosition: 11, spend: 1, traversal: undefined});
+    // The glow expired (−1), the marker is idle, no plan stands — and the
+    // server position (the fixture viewer stands on 11) confirms arrival.
+    hydroMarkerState.active = false;
+    hydroMarkerState.settledPosition = -1;
+    advanceHydroCommitPhase('resolving');
+    await wrapper.vm.$nextTick();
+    const vm = wrapper.vm as unknown as {cereStarted: boolean};
+    expect(vm.cereStarted, 'the ask accepted the durable arrival').eq(true);
+    expect(hydroFlowState.ceremonyPlayed, 'started — never silently skipped').eq(false);
+    await wrapper.vm.$nextTick();
+    expect(hydroFlowState.ceremonyActive, 'the choreography is running').eq(true);
+    wrapper.unmount();
+    // The unmount kills the handle → the completion signal still fires.
+    expect(hydroFlowState.ceremonyPlayed).eq(true);
+  });
+
+  it('…and still SKIPS honestly when the server never confirmed the destination', async () => {
+    const wrapper = mountSection();
+    // Committed towards 10, but the viewer's server position is 11 — the
+    // glide degraded and no arrival at 10 will ever come.
+    beginHydroCommit({...terminalTraversal(), fromPosition: 9, toPosition: 10, spend: 1, vp: 2, traversal: undefined});
+    hydroMarkerState.active = false;
+    hydroMarkerState.settledPosition = -1;
+    advanceHydroCommitPhase('resolving');
+    await wrapper.vm.$nextTick();
+    const vm = wrapper.vm as unknown as {cereStarted: boolean};
+    expect(vm.cereStarted).eq(false);
+    expect(hydroFlowState.ceremonyPlayed, 'the recovery net — skipped, never wedged').eq(true);
+    expect(wrapper.find('.con-hydro__cere').exists()).eq(false);
+    wrapper.unmount();
+  });
+
+  it('REGRESSION: a section MOUNTING into a resolving ceremony commit asks on its mount edge', async () => {
+    // The espionage shape: the frame is pushed AT the commit, so the mount IS
+    // the presentation's first frame — and every ceremony watcher is a
+    // change-edge none of which will ever fire for it.
+    beginHydroCommit({
+      ...terminalTraversal(), fromPosition: 10, toPosition: 11, spend: 1, traversal: undefined,
+      espionage: {},
+    });
+    advanceHydroCommitPhase('resolving');
+    hydroMarkerState.settledPosition = -1;
+    const wrapper = mountSection();
+    await wrapper.vm.$nextTick();
+    const vm = wrapper.vm as unknown as {cereStarted: boolean};
+    expect(vm.cereStarted, 'the mount edge asked').eq(true);
+    expect(hydroFlowState.ceremonyPlayed).eq(false);
     wrapper.unmount();
   });
 });
