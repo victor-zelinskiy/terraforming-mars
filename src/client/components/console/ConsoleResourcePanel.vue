@@ -227,49 +227,69 @@
          `--cr-*` metrics), so it reads as the resource table naturally growing
          new elements sideways. Out of flow ⇒ it NEVER changes the rail width /
          board scale; it paints OVER the board and is covered by every
-         full-screen overlay. Shown only in board view so it never floats over
-         the hand / colonies. Same desktop data source (`additionalResourceGroups`)
-         + delta-chip keys, first-appearance order, only once a card resource is
-         unlocked. -->
-    <transition-group v-if="boardVisible && extraGroups.length > 0" tag="div" class="con-res-aux" name="con-extra">
-      <div v-for="g in extraGroups" :key="g.resource" class="con-res-aux__cell" :data-aux-resource="auxAnchorKey(g.resource)">
-        <span class="con-res-aux__iconwrap">
-          <!-- The card-resource half: a blanket type shield (Protected
-               Habitats) or a PARTIAL one when this chip aggregates protected
-               and unprotected holders — the aria then names the split. -->
-          <ConsoleProtectionMark
-            v-if="auxProtection(g.resource) !== undefined"
-            class="con-res-aux__shield"
-            :data-protection="auxAnchorKey(g.resource)"
-            :data-protection-kind="auxProtection(g.resource)!.kind"
-            :kind="auxProtection(g.resource)!.kind"
-            :label="auxProtectionAria(g)" />
-          <i class="card-resource con-res-aux__icon" :class="extraIconClass(g.resource)" aria-hidden="true"></i>
-          <!-- MC-value badge for a card-bound payment stock: appears ONLY when
-               the enabling card itself (Dirigibles, …) is in the tableau —
-               same-typed resources on other holders are storage, not tender.
-               The aria carries the spendable/total split when the chip
-               aggregates non-payment holders too. -->
-          <ConsoleValueBadge
-            v-if="auxMcBadge(g.resource) !== undefined"
-            variant="mc"
-            class="con-res-aux__mcbadge"
-            :data-mc-badge="auxAnchorKey(g.resource)"
-            :text="auxMcBadge(g.resource)!.text"
-            :wide="auxMcBadge(g.resource)!.rates.length > 1"
-            :label="auxMcAria(g)"
-            :scopeKey="player.color" />
-        </span>
-        <span class="con-res-aux__value">{{ g.total }}</span>
-        <AnimatedMetricValue
-          v-if="epoch !== ''"
-          :value="g.total"
-          :metricKey="extraMetricKey(g.resource)"
-          :scopeKey="player.color"
-          :epoch="epoch"
-          variant="misc" />
-      </div>
-    </transition-group>
+         full-screen overlay — EXCEPT the Information Workspace, whose host
+         stacking (`.con-main--info .con-res-host` z11561) lifts the whole
+         host, satellite included, above the panel's own dim: there the column
+         IS the workspace's «Доп. ресурсы» zone (the focus group on the
+         summary, the TYPE NAVIGATION on the extras screen), pixel-identical
+         to its board pose by construction (same node, same anchor — nothing
+         re-mounts, nothing re-lays out). Board view keeps the old contract
+         (never floats over the hand / colonies); the caption and the empty
+         plate are info-mode chrome, absolutely positioned so the cells' Y
+         never moves. Same desktop data source (`additionalResourceGroups`) +
+         delta-chip keys, first-appearance order; the BOT seat fills the same
+         cells from its real pools (`marsBotExtraGroups`). -->
+    <div v-if="auxVisible" class="con-res-aux" :class="auxRootClasses" data-insp-fade>
+      <div v-if="auxInfoActive" class="con-res-aux__cap" aria-hidden="true">{{ $t('Extra resources') }}</div>
+      <transition-group tag="div" class="con-res-aux__cells" name="con-extra">
+        <div v-for="(c, i) in auxCells" :key="c.key" class="con-res-aux__cell"
+             :class="auxCellClasses(c, i)"
+             :data-aux-resource="own && !botMode ? c.key : undefined"
+             :data-exr-type="c.key"
+             @click="auxCellPressed(c, i)">
+          <span class="con-res-aux__iconwrap">
+            <!-- The card-resource half: a blanket type shield (Protected
+                 Habitats) or a PARTIAL one when this chip aggregates protected
+                 and unprotected holders — the aria then names the split. -->
+            <ConsoleProtectionMark
+              v-if="c.protection !== undefined"
+              class="con-res-aux__shield"
+              :data-protection="c.key"
+              :data-protection-kind="c.protection.kind"
+              :kind="c.protection.kind"
+              :label="c.protectionAria ?? ''"
+            />
+            <i class="con-res-aux__icon" :class="c.iconClass" aria-hidden="true"></i>
+            <!-- MC-value badge for a card-bound payment stock: appears ONLY when
+                 the enabling card itself (Dirigibles, …) is in the tableau —
+                 same-typed resources on other holders are storage, not tender.
+                 The aria carries the spendable/total split when the chip
+                 aggregates non-payment holders too. -->
+            <ConsoleValueBadge
+              v-if="c.mcBadge !== undefined"
+              variant="mc"
+              class="con-res-aux__mcbadge"
+              :data-mc-badge="c.key"
+              :text="c.mcBadge.text"
+              :wide="c.mcBadge.rates.length > 1"
+              :label="c.mcAria ?? ''"
+              :scopeKey="player.color" />
+          </span>
+          <span class="con-res-aux__value">{{ c.value }}</span>
+          <AnimatedMetricValue
+            v-if="epoch !== ''"
+            :value="c.value"
+            :metricKey="c.metricKey"
+            :scopeKey="player.color"
+            :epoch="epoch"
+            variant="misc" />
+        </div>
+      </transition-group>
+      <!-- Info-mode empty state: the seat has NO resource holders — the
+           group still exists (it is a ring stop that opens the honest empty
+           screen), so the column says so instead of vanishing. -->
+      <div v-if="auxInfoActive && auxCells.length === 0" class="con-res-aux__none">—</div>
+    </div>
   </div>
 </template>
 
@@ -285,7 +305,6 @@ import {defineComponent, PropType} from 'vue';
 import {PublicPlayerModel} from '@/common/models/PlayerModel';
 import {MarsBotModel} from '@/common/models/MarsBotModel';
 import {Tag as CardTag} from '@/common/cards/Tag';
-import {CardResource} from '@/common/CardResource';
 import Tag from '@/client/components/Tag.vue';
 import {consoleTagEntries, ConsoleTagCell, ConsoleTagEntry, NO_TAG_CELL} from '@/client/components/console/consoleTagMatrix';
 import {marsBotRailEconomy, marsBotTagEntries, MarsBotRailEconomyRow} from '@/client/components/console/marsBotRailModel';
@@ -300,6 +319,9 @@ import {cardResourceCSS} from '@/client/components/common/cardResources';
 import {additionalResourceGroups, additionalResourceMetricKey, AdditionalResourceGroup} from '@/client/components/additionalResources/additionalResources';
 import {heldStock, heldProduction, heldCardResource, panelRewardHold} from '@/client/console/resourceTransfer/consoleResourceTransfer';
 import {cardResourceKey} from '@/client/console/resourceTransfer/resourceTransferModel';
+import {infoModeState} from '@/client/console/infoModeState';
+import {extrasExplorerUi} from '@/client/console/consoleExtrasExplorer';
+import {marsBotExtraGroups} from '@/client/components/console/marsBotRailModel';
 import ConsoleValueBadge from '@/client/components/console/ConsoleValueBadge.vue';
 import ConsoleProtectionMark from '@/client/components/console/ConsoleProtectionMark.vue';
 import {railProtections, RailProtectionMark, RailProtections} from '@/client/console/railProtectionModel';
@@ -316,6 +338,23 @@ type ResourceRow = {
   protection?: RailProtectionMark,
   /** The same fact for this row's PRODUCTION chip. */
   productionProtection?: RailProtectionMark,
+};
+
+/** One rendered satellite cell — ONE shape for the human seat (card
+ *  resources) and the bot seat (its real pools), so the column keeps one
+ *  geometry across an LB/RB switch. */
+type AuxCell = {
+  /** The normalized type key — the `data-exr-type` address the extras
+   *  explorer navigates by (and, for the OWN human seat, the resource-flight
+   *  landing anchor `data-aux-resource`). */
+  key: string,
+  iconClass: string,
+  value: number,
+  metricKey: string,
+  protection?: RailProtectionMark,
+  protectionAria?: string,
+  mcBadge?: RailMcBadge,
+  mcAria?: string,
 };
 
 /** RailMcContext → the aria phrase naming WHERE the unit is legal tender. */
@@ -336,6 +375,7 @@ const MC_CONTEXT_KEYS: Record<RailMcContext, string> = {
 export default defineComponent({
   name: 'ConsoleResourcePanel',
   components: {Tag, AnimatedMetricValue, ConsoleVpBadge, ConsoleValueBadge, ConsoleProtectionMark, PrivateScoreMask},
+  emits: ['aux-press'],
   props: {
     player: {type: Object as PropType<PublicPlayerModel>, required: true},
     /**
@@ -518,6 +558,61 @@ export default defineComponent({
         return held > 0 ? {...g, total: Math.max(0, g.total - held)} : g;
       });
     },
+    /** The Information Workspace is up (open or still dismissing) — the
+     *  satellite is that mode's «Доп. ресурсы» zone and must stay standing
+     *  through the whole overlay lifetime (pixel contract). */
+    auxInfoActive(): boolean {
+      return infoModeState.open || infoModeState.closing;
+    },
+    /** Board view keeps the historical contract (mounted only there, only
+     *  with content); the info overlay mounts it ALWAYS — an empty column
+     *  still is the focusable group with its honest empty plate. */
+    auxVisible(): boolean {
+      return (this.boardVisible && this.auxCells.length > 0) || this.auxInfoActive;
+    },
+    /** ONE cell list for both seats: the human's card-resource groups, the
+     *  bot's real pools (floaters + shipping storage) — same geometry, same
+     *  delta-chip language, stable order (first-appearance / board order). */
+    auxCells(): Array<AuxCell> {
+      const automa = this.automa;
+      if (automa !== undefined) {
+        return marsBotExtraGroups(automa).map((g): AuxCell => ({
+          key: g.key,
+          iconClass: g.iconClass,
+          value: g.total,
+          metricKey: g.metricKey,
+        }));
+      }
+      return this.extraGroups.map((g): AuxCell => {
+        const protection = this.protections.cardResources.get(g.resource);
+        const mcBadge = this.mcBadges.cardBound.get(g.resource);
+        return {
+          key: cardResourceKey(g.resource),
+          iconClass: `card-resource ${cardResourceCSS[g.resource]}`,
+          value: g.total,
+          metricKey: additionalResourceMetricKey(g.resource),
+          protection,
+          protectionAria: protection !== undefined ? this.auxProtectionAria(g) : undefined,
+          mcBadge,
+          mcAria: mcBadge !== undefined ? this.auxMcAria(g) : undefined,
+        };
+      });
+    },
+    auxRootClasses(): Record<string, boolean> {
+      const info = this.auxInfoActive;
+      const state = extrasExplorerUi;
+      return {
+        // The workspace context: caption + interactivity + state paint.
+        'con-res-aux--info': info,
+        // The summary ring stands on the group (A opens the extras screen).
+        'con-res-aux--focused': info && infoModeState.open &&
+          infoModeState.route === 'summary' && infoModeState.summaryFocus === 'extras',
+        // The extras screen is live — cells carry the cursor / selection.
+        'con-res-aux--live': info && infoModeState.open && infoModeState.route === 'extras',
+        'con-res-aux--typeszone': info && infoModeState.open &&
+          infoModeState.route === 'extras' && state.zone === 'types',
+      };
+    },
     /** The end-of-generation energy→heat transition targets THIS player. */
     conversionActive(): boolean {
       const s = energyConversionState;
@@ -588,12 +683,23 @@ export default defineComponent({
       }
       return false;
     },
-    extraIconClass(resource: CardResource): string {
-      return cardResourceCSS[resource];
+    /** The focus/selection paint of one satellite cell (extras screen). */
+    auxCellClasses(c: AuxCell, index: number): Record<string, boolean> {
+      if (!this.auxInfoActive || !infoModeState.open || infoModeState.route !== 'extras') {
+        return {};
+      }
+      return {
+        'con-res-aux__cell--cursor': extrasExplorerUi.zone === 'types' && index === extrasExplorerUi.typeCursor,
+        'con-res-aux__cell--active': c.key === extrasExplorerUi.typeKey,
+      };
     },
-    /** The protection mark for a ДОП.РЕСУРСЫ chip, if its stock is shielded. */
-    auxProtection(resource: CardResource): RailProtectionMark | undefined {
-      return this.protections.cardResources.get(resource);
+    /** A satellite cell press (mouse/touch — the pad routes through the
+     *  shell): hand the intent up, the shell owns the route change. */
+    auxCellPressed(c: AuxCell, index: number): void {
+      if (!this.auxInfoActive || !infoModeState.open) {
+        return;
+      }
+      this.$emit('aux-press', {key: c.key, index});
     },
     /**
      * The protection sentence. The glyph states «shielded»; the label states
@@ -665,10 +771,6 @@ export default defineComponent({
       const name = this.$t(entry.tag === NO_TAG_CELL ? 'Cards with no tags' : entry.tag);
       return entry.na ? name + ': ' + this.$t('not tracked') : name + ': ' + entry.count;
     },
-    /** The MC badge for a ДОП.РЕСУРСЫ chip, if its stock is legal tender. */
-    auxMcBadge(resource: CardResource): RailMcBadge | undefined {
-      return this.mcBadges.cardBound.get(resource);
-    },
     /**
      * The MC badge's full accessible sentence: per fact «Сталь: 1 ед. = 3 M€
      * за карты с меткой „Строительство“», facts joined. The visible badge
@@ -705,13 +807,6 @@ export default defineComponent({
       const sources = badge.sources.map((s) => translateText(s.card)).join(', ');
       return translateTextWithParams('Converted into VP by played cards, current rate: ${0}', [badge.text]) +
         ' · ' + translateTextWithParams('Sources: ${0}', [sources]);
-    },
-    /** The transfer framework's landing anchor (normalized icon key). */
-    auxAnchorKey(resource: CardResource): string {
-      return cardResourceKey(resource);
-    },
-    extraMetricKey(resource: CardResource): string {
-      return additionalResourceMetricKey(resource);
     },
   },
 });

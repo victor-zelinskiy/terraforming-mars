@@ -114,6 +114,15 @@ describe('marsBotRailModel — the MarsBot participant presentation', () => {
       expect(byKey.get('titanium')?.total, 'Triton stores titanium').to.eq(2);
     });
 
+    it('the group order is the BOARD\'s, never the totals\' — a count change may not re-shuffle', () => {
+      const groups = marsBotExtraGroups(fakeAutoma({
+        floaters: 1,
+        // Deliberately inverted totals: Triton (9) would lead a total-sort.
+        shippingStorage: {'Triton': 9, 'Ceres': 1, 'Io': 5},
+      } as unknown as Partial<MarsBotModel>));
+      expect(groups.map((g) => g.key), 'floaters first, then the official area order').to.deep.eq(['floaters', 'steel', 'heat', 'titanium']);
+    });
+
     it('no double count by construction: Titan/Europa never appear as storage', () => {
       const groups = marsBotExtraGroups(fakeAutoma({
         floaters: 3,

@@ -10,7 +10,7 @@
           <template v-if="cmd.spread === true && cmd.control2 !== undefined">
             <GamepadGlyph :control="cmd.control" />
             <span class="con-cmdbar__spread-arrow" aria-hidden="true">◀</span>
-            <span class="con-cmdbar__label">{{ $t(cmd.label) }}</span>
+            <span class="con-cmdbar__label">{{ cmdLabel(cmd) }}</span>
             <span class="con-cmdbar__spread-arrow" aria-hidden="true">▶</span>
             <GamepadGlyph :control="cmd.control2" />
           </template>
@@ -26,7 +26,7 @@
           </span>
           <GamepadGlyph v-else :control="cmd.control" />
             <GamepadGlyph v-if="cmd.control2 !== undefined" :control="cmd.control2" />
-            <span class="con-cmdbar__label">{{ $t(cmd.label) }}</span>
+            <span class="con-cmdbar__label">{{ cmdLabel(cmd) }}</span>
             <span v-if="cmd.badge !== undefined && cmd.badge > 0" class="con-cmdbar__badge">{{ cmd.badge }}</span>
           </template>
         </span>
@@ -44,7 +44,7 @@
         <template v-if="cmd.spread === true && cmd.control2 !== undefined">
           <GamepadGlyph :control="cmd.control" />
           <span class="con-cmdbar__spread-arrow" aria-hidden="true">◀</span>
-          <span class="con-cmdbar__label">{{ $t(cmd.label) }}</span>
+          <span class="con-cmdbar__label">{{ cmdLabel(cmd) }}</span>
           <span class="con-cmdbar__spread-arrow" aria-hidden="true">▶</span>
           <GamepadGlyph :control="cmd.control2" />
         </template>
@@ -60,7 +60,7 @@
           </span>
           <GamepadGlyph v-else :control="cmd.control" />
           <GamepadGlyph v-if="cmd.control2 !== undefined" :control="cmd.control2" />
-          <span class="con-cmdbar__label">{{ $t(cmd.label) }}</span>
+          <span class="con-cmdbar__label">{{ cmdLabel(cmd) }}</span>
           <span v-if="cmd.badge !== undefined && cmd.badge > 0" class="con-cmdbar__badge">{{ cmd.badge }}</span>
         </template>
       </span>
@@ -93,7 +93,7 @@ import GamepadGlyph from '@/client/components/gamepad/GamepadGlyph.vue';
 import {useConsoleViewport} from '@/client/console/composables/useConsoleViewport';
 import {commandWidthRem, contextWidthRem, handDockBayRem} from '@/client/console/consoleHandDock';
 import {ConsoleCommand, defaultDropPriority, planCommandRun} from '@/client/console/consoleCommandModel';
-import {translateText} from '@/client/directives/i18n';
+import {translateText, translateTextWithParams} from '@/client/directives/i18n';
 import {holdConfirmState} from '@/client/console/consoleHoldConfirm';
 
 /* The type lives in consoleCommandModel.ts (pure TS — importable by plain
@@ -162,7 +162,9 @@ export default defineComponent({
       const wScale = this.profile === 'tv' ? 1.15 : 1;
       const zoneLeft = halfRem - contextWidthRem(translateText(this.context)) * wScale;
       const entries = this.commands.map((c) => ({
-        width: commandWidthRem(translateText(c.label), {
+        // The estimate measures the RENDERED text — params included, or a
+        // parameterised label under-counts and truncates on 4K.
+        width: commandWidthRem(this.cmdLabel(c), {
           badge: c.badge !== undefined && c.badge > 0,
           twoGlyphs: c.control2 !== undefined,
         }) * wScale,
@@ -179,6 +181,15 @@ export default defineComponent({
     cmdsRight(): ReadonlyArray<ConsoleCommand> {
       const {kept, splitIndex} = this.runPlan;
       return kept.slice(splitIndex).map((i) => this.commands[i]);
+    },
+  },
+  methods: {
+    /** A hint's rendered text: the plain key, or the `${0}`-parameterised
+     *  key interpolated with its (already translated) params. */
+    cmdLabel(cmd: ConsoleCommand): string {
+      return cmd.labelParams !== undefined ?
+        translateTextWithParams(cmd.label, [...cmd.labelParams]) :
+        translateText(cmd.label);
     },
   },
 });

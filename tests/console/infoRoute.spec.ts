@@ -119,32 +119,43 @@ describe('infoRoute — the Information workspace route model', () => {
     expect(infoZonePresent('extras', 'bot'), 'the shared zones are present for the bot').to.be.true;
   });
 
-  it('the ring order follows the canonical columns (shared zones first)', () => {
-    expect(infoFocusRing('human')).to.deep.eq(['vp', 'played', 'extras', 'actions', 'effects']);
-    expect(infoFocusRing('bot')).to.deep.eq(['vp', 'played', 'extras']);
-    // The layout table itself keeps the shared-first contract.
-    expect(INFO_SUMMARY_COLUMNS[0]).to.deep.eq(['vp']);
+  it('the ring order follows the canonical columns (the satellite extras column first)', () => {
+    expect(infoFocusRing('human')).to.deep.eq(['extras', 'vp', 'played', 'actions', 'effects']);
+    expect(infoFocusRing('bot')).to.deep.eq(['extras', 'vp', 'played', 'botdoor']);
+    // The layout table itself keeps the geometry: the extras group IS the
+    // rail satellite — the leftmost column of the whole summary.
+    expect(INFO_SUMMARY_COLUMNS[0]).to.deep.eq(['extras']);
+  });
+
+  it('the bot door is an ordinary ring stop (no dedicated button opens it)', () => {
+    expect(infoZonePresent('botdoor', 'bot')).to.be.true;
+    expect(infoZonePresent('botdoor', 'human'), 'humans have no internals hub').to.be.false;
+    expect(infoZoneFocusable('botdoor', 'bot')).to.be.true;
+    expect(infoZoneRoute('botdoor')).to.eq('botScreen');
   });
 
   it('d-pad: columns move laterally, rows vertically, edges clamp (never wrap)', () => {
+    expect(infoZoneNavigate('extras', 'right', 'human')).to.eq('vp');
     expect(infoZoneNavigate('vp', 'right', 'human')).to.eq('played');
-    expect(infoZoneNavigate('played', 'right', 'human')).to.eq('extras');
-    expect(infoZoneNavigate('extras', 'down', 'human')).to.eq('actions');
+    expect(infoZoneNavigate('played', 'right', 'human')).to.eq('actions');
     expect(infoZoneNavigate('actions', 'down', 'human')).to.eq('effects');
     expect(infoZoneNavigate('effects', 'down', 'human'), 'the bottom edge clamps').to.eq('effects');
-    expect(infoZoneNavigate('vp', 'left', 'human'), 'the left edge clamps').to.eq('vp');
-    expect(infoZoneNavigate('extras', 'down', 'bot'), 'the bot has no pair below extras').to.eq('extras');
+    expect(infoZoneNavigate('extras', 'left', 'human'), 'the left edge clamps').to.eq('extras');
+    expect(infoZoneNavigate('vp', 'left', 'human'), 'left of the score is the satellite').to.eq('extras');
+    expect(infoZoneNavigate('extras', 'down', 'human'), 'the satellite is one column-wide stop').to.eq('extras');
+    expect(infoZoneNavigate('played', 'right', 'bot'), 'the bot\'s last column is its door').to.eq('botdoor');
   });
 
   it('a focus stranded by a seat switch lands on the first focusable zone', () => {
     // The cursor stood on «Действия» (human) and RB moved to the bot.
-    expect(infoZoneNavigate('actions', 'down', 'bot')).to.eq('vp');
+    expect(infoZoneNavigate('actions', 'down', 'bot')).to.eq('extras');
   });
 
   it('B from a detail lands the ring on the zone it was entered from', () => {
     expect(infoZoneForRoute('vp')).to.eq('vp');
     expect(infoZoneForRoute('extras')).to.eq('extras');
-    expect(infoZoneForRoute('botScreen'), 'the bot hub has no summary zone of its own').to.be.undefined;
+    expect(infoZoneForRoute('botScreen'), 'the bot hub returns the ring to its door').to.eq('botdoor');
+    expect(infoZoneForRoute('botBoard')).to.eq('botdoor');
     expect(infoZoneRoute('vp')).to.eq('vp');
   });
 

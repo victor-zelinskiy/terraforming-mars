@@ -59,6 +59,11 @@
            moves, A opens the focused zone's route. -->
       <div v-if="presentation === 'summary'" key="summary" class="con-info__layout" data-insp-slide>
 
+        <!-- (The «Доп. ресурсы» zone is the RAIL SATELLITE now — the
+             persistent column beside the left rail is the ring's leftmost
+             stop; the panel renders no duplicate of it. All zones open via
+             the ring + A — the per-zone shortcut badges are GONE, the ONE
+             bottom bar carries the contextual hint.) -->
         <!-- Col 1 — «ПОБЕДНЫЕ ОЧКИ»: the premium live score. The SAME
              category system, order and colours as the final scoring
              ceremony (liveScoreModel over the ceremony's own tables), so
@@ -68,11 +73,7 @@
         <div class="con-info__col">
           <section class="con-info__zone con-info__zone--vp"
                    :class="zoneStateClass('vp')" data-zone="vp">
-            <h3 class="con-info__block-title">{{ $t('Victory Points') }}
-              <!-- A opens the FOCUSED zone — the glyph rides the ring, so it
-                   can never advertise a press that would open something else. -->
-              <span v-if="infoModeState.summaryFocus === 'vp'" class="con-info__hotkey"><GamepadGlyph control="confirm" /></span>
-            </h3>
+            <h3 class="con-info__block-title">{{ $t('Victory Points') }}</h3>
             <template v-if="vpVisible">
               <!-- data-vpx-total / data-vpx-bar / data-vpx-block are the
                    SHARED-ELEMENT anchors of the score explorer's entry: the
@@ -112,9 +113,7 @@
         <div class="con-info__col">
           <section class="con-info__zone con-info__zone--played"
                    :class="zoneStateClass('played')" data-zone="played">
-            <h3 class="con-info__block-title">{{ $t('Played cards') }}
-              <span class="con-info__hotkey"><GamepadGlyph control="secondary" /></span>
-            </h3>
+            <h3 class="con-info__block-title">{{ $t('Played cards') }}</h3>
             <template v-if="playedSummary.total > 0">
               <div class="con-info__stat-lines">
                 <div class="con-info__stat-line con-info__stat-line--total"><span>{{ $t('Total') }}</span><b class="con-info__mint">{{ playedSummary.total }}</b></div>
@@ -128,27 +127,12 @@
           </section>
         </div>
 
-        <!-- Col 3 — extras first (shared), then the human-only pair. -->
+        <!-- Col 3 — the human-only pair / the bot's internals door. All of
+             them ordinary ring stops now (A opens; no dedicated buttons). -->
         <div class="con-info__col">
-          <section class="con-info__zone con-info__zone--extras"
-                   :class="zoneStateClass('extras')" data-zone="extras">
-            <h3 class="con-info__block-title">{{ $t('Extra resources') }}
-              <span class="con-info__hotkey"><GamepadGlyph control="stickL" /></span>
-            </h3>
-            <div v-if="extraSummary.length > 0" class="con-info__extras">
-              <span v-for="e in extraSummary" :key="e.key" class="con-info__extra">
-                <i :class="e.iconClass" aria-hidden="true"></i>
-                <span class="con-info__extra-count">{{ e.total }}</span>
-              </span>
-            </div>
-            <div v-else class="con-info__empty">{{ $t('No resources on cards') }}</div>
-          </section>
-
           <section v-if="!viewedIsBot" class="con-info__zone con-info__zone--actions"
                    :class="zoneStateClass('actions')" data-zone="actions">
-            <h3 class="con-info__block-title">{{ $t('Actions') }}
-              <span class="con-info__hotkey"><GamepadGlyph control="triggerL" /></span>
-            </h3>
+            <h3 class="con-info__block-title">{{ $t('Actions') }}</h3>
             <div class="con-info__stat-lines">
               <div class="con-info__stat-line"><span>{{ $t('Available now') }}</span><b class="con-info__mint">{{ actionsAvailable }}</b></div>
               <div class="con-info__stat-line"><span>{{ $t('Total') }}</span><b>{{ actionsTotal }}</b></div>
@@ -157,9 +141,7 @@
 
           <section v-if="!viewedIsBot" class="con-info__zone con-info__zone--effects"
                    :class="zoneStateClass('effects')" data-zone="effects">
-            <h3 class="con-info__block-title">{{ $t('Effects') }}
-              <span class="con-info__hotkey"><GamepadGlyph control="triggerR" /></span>
-            </h3>
+            <h3 class="con-info__block-title">{{ $t('Effects') }}</h3>
             <div class="con-info__stat-lines">
               <div class="con-info__stat-line"><span>{{ $t('Active') }}</span><b class="con-info__mint">{{ effectsCount }}</b></div>
               <div v-if="discountCount > 0" class="con-info__stat-line"><span>{{ $t('Discounts') }}</span><b>{{ discountCount }}</b></div>
@@ -167,11 +149,11 @@
           </section>
 
           <!-- The bot's door to its internals — a calm entry, not a data
-               dump: the algorithm's own room is one A away. -->
-          <section v-if="viewedIsBot" class="con-info__zone con-info__zone--botdoor" data-zone="botdoor">
-            <h3 class="con-info__block-title">{{ $t('MarsBot screen') }}
-              <span class="con-info__hotkey"><GamepadGlyph control="stickR" /></span>
-            </h3>
+               dump: the algorithm's own room is one A away (a ring stop
+               like every other zone). -->
+          <section v-if="viewedIsBot" class="con-info__zone con-info__zone--botdoor"
+                   :class="zoneStateClass('botdoor')" data-zone="botdoor">
+            <h3 class="con-info__block-title">{{ $t('MarsBot screen') }}</h3>
             <div class="con-info__note con-info__note--door">{{ $t('Decks, tracks, storage rules and the printed board') }}</div>
           </section>
         </div>
@@ -215,46 +197,13 @@
         <ConsoleScoreExplorer ref="scoreView" :playerView="playerView" />
       </div>
 
-      <!-- ── «ДОП. РЕСУРСЫ» — one semantic screen, two honest fills: a
-           human's resources ON CARDS (live premium card renders), the
-           bot's pools BY TYPE with the colony tiles that hold them. -->
-      <div v-else-if="infoModeState.route === 'extras'" key="extras" class="con-info__scroll con-info__detail-scroll" data-insp-slide>
-        <template v-if="viewedIsBot">
-          <div v-if="botExtraGroups.length === 0" class="con-info__empty con-info__empty--big">{{ $t('No resources on cards') }}</div>
-          <section v-for="g in botExtraGroups" :key="g.key" class="con-info__exgroup">
-            <h4 class="con-info__exgroup-title">
-              <i class="con-info__exicon" :class="g.iconClass" aria-hidden="true"></i>
-              <span>{{ $t(g.label) }}</span>
-              <b class="con-info__mint">{{ g.total }}</b>
-            </h4>
-            <div v-if="g.holders.length > 0" class="con-info__stat-lines con-info__stat-lines--holders">
-              <div v-for="h in g.holders" :key="h.name" class="con-info__stat-line">
-                <span>{{ $t(h.name) }}</span><b>{{ h.amount }}</b>
-              </div>
-            </div>
-          </section>
-        </template>
-        <template v-else>
-          <div v-if="extraGroups.length === 0" class="con-info__empty con-info__empty--big">{{ $t('No resources on cards') }}</div>
-          <section v-for="g in extraGroups" :key="g.key" class="con-info__exgroup">
-            <h4 class="con-info__exgroup-title">
-              <i :class="g.iconClass" aria-hidden="true"></i>
-              <span>{{ $t(g.label) }}</span>
-              <b class="con-info__mint">{{ g.total }}</b>
-            </h4>
-            <!-- INFO PARITY (CTS-3.8): the holders are REAL premium card
-                 renders (the live model already draws the resource cubes);
-                 the count chip doubles the read at TV distance. -->
-            <div class="con-info__excards">
-              <div v-for="c in g.cards" :key="c.card.name" class="con-info__excard">
-                <Card :card="c.card" :key="c.card.name" lightweight />
-                <span class="con-info__excard-count">
-                  <i :class="g.iconClass" aria-hidden="true"></i> ×{{ c.amount }}
-                </span>
-              </div>
-            </div>
-          </section>
-        </template>
+      <!-- ── «ДОП. РЕСУРСЫ» — the EXTRAS EXPLORER: the rail satellite is
+           the TYPE NAVIGATION (persistent shell chrome — it never moves),
+           this zone carries the selected type's content (hero + the card
+           gallery + the fact strip). One component, two honest fills
+           (human cards / the bot's real pools). -->
+      <div v-else-if="infoModeState.route === 'extras'" key="extras" class="con-info__exrhost" data-insp-slide>
+        <ConsoleExtrasExplorer ref="extrasView" :playerView="playerView" />
       </div>
 
       <!-- ── «ДЕЙСТВИЯ» (human) ─────────────────────────────────────────── -->
@@ -338,7 +287,6 @@ import {buildPlayedZones} from '@/client/components/console/consolePlayedModel';
 import {botTableauCards} from '@/client/components/marsbot/marsBotView';
 import {consolePlayedUi} from '@/client/console/consolePlayedUi';
 import ConsolePlayedOverlay from '@/client/components/console/played/ConsolePlayedOverlay.vue';
-import {iconClassFor} from '@/client/components/modalInputs/optionIcons';
 import {playerActionSourceCount, cardHasAction} from '@/client/components/actions/actionExtraction';
 import {playerEffects, playerEffectGroups, EffectGroup} from '@/client/components/effects/effectExtraction';
 import {buildLiveScoreModel, LiveScoreModel} from '@/client/console/liveScoreModel';
@@ -353,19 +301,26 @@ import {
 } from '@/client/console/infoRoute';
 import {scoreStagePath} from '@/client/console/scoreExplorerModel';
 import {scoreExplorerUi} from '@/client/console/consoleScoreExplorer';
+import {extrasExplorerUi} from '@/client/console/consoleExtrasExplorer';
 import {armScoreHandoff, disposeScoreHandoff, playScoreHandoff} from '@/client/console/scoreExplorerMotion';
+import {
+  descendCascade,
+  descendCascadeOut,
+  descendFold,
+  descendRectOf,
+  descendUnfold,
+} from '@/client/console/surfaceMotion/workspaceDescend';
 import ConsoleScoreExplorer from '@/client/components/console/ConsoleScoreExplorer.vue';
+import ConsoleExtrasExplorer from '@/client/components/console/ConsoleExtrasExplorer.vue';
 import {translateText, translateTextWithParams} from '@/client/directives/i18n';
 import {MarsBotModel} from '@/common/models/MarsBotModel';
 import {DIFFICULTY_LABEL} from '@/client/components/marsbot/marsBotView';
 import {MarsBotGuideContext} from '@/client/components/marsbot/marsBotGuide';
 import {marsBotCorpDisplayName, participantDisplayName} from '@/client/components/marsbot/marsBotDisplay';
-import {marsBotExtraGroups, MarsBotExtraGroup} from '@/client/components/console/marsBotRailModel';
 import ConsoleMarsBotSections from '@/client/components/console/ConsoleMarsBotSections.vue';
 import ConsoleWsHead from '@/client/components/console/foundation/ConsoleWsHead.vue';
 import EffectBlock from '@/client/components/effects/EffectBlock.vue';
 import GamepadGlyph from '@/client/components/gamepad/GamepadGlyph.vue';
-import Card from '@/client/components/card/CardFace.vue';
 import type {ConsoleCommand} from '@/client/console/consoleCommandModel';
 import {setPanelCommands, clearPanelCommands} from '@/client/console/consolePanelUi';
 
@@ -381,7 +336,7 @@ const PLAYED_SUMMARY_LABEL: ReadonlyArray<{key: string, label: string}> = [
 
 export default defineComponent({
   name: 'ConsoleInfoMode',
-  components: {ConsoleMarsBotSections, ConsolePlayedOverlay, ConsoleScoreExplorer, ConsoleWsHead, EffectBlock, GamepadGlyph, Card},
+  components: {ConsoleMarsBotSections, ConsolePlayedOverlay, ConsoleScoreExplorer, ConsoleExtrasExplorer, ConsoleWsHead, EffectBlock, GamepadGlyph},
   props: {
     playerView: {type: Object as PropType<PlayerViewModel>, required: true},
     myTurn: {type: Boolean, default: false},
@@ -543,52 +498,11 @@ export default defineComponent({
       return {total: rows.reduce((n, r) => n + r.count, 0), rows};
     },
     /* («КАРТЫ» — the old shared card-potential readout — is GONE: the HAND
-       DOCK is the one physical representation of the inspected seat's hand
-       (dockInspection.ts — the closed fan + exact public count for another
-       human, the action deck for the bot, the real pack for the viewer).
-       The bonus deck stays on «Экран бота», where the deck MECHANICS live.) */
-    /** Extra card resources aggregated by type (public — tableaus only). */
-    extraGroups(): Array<{key: string, label: string, iconClass: string, total: number, cards: Array<{card: CardModel, amount: number}>}> {
-      const byType = new Map<string, {label: string, total: number, cards: Array<{card: CardModel, amount: number}>}>();
-      for (const card of this.viewed.tableau) {
-        const amount = card.resources ?? 0;
-        if (amount <= 0) {
-          continue;
-        }
-        let type: string | undefined;
-        try {
-          type = getCard(card.name)?.resourceType;
-        } catch (err) {
-          type = undefined;
-        }
-        if (type === undefined) {
-          continue;
-        }
-        const entry = byType.get(type) ?? {label: type, total: 0, cards: []};
-        entry.total += amount;
-        // The LIVE CardModel (info parity, CTS-3.8): the real premium card
-        // render carries the resource cubes itself — never a name-only row.
-        entry.cards.push({card, amount});
-        byType.set(type, entry);
-      }
-      return Array.from(byType.entries()).map(([key, e]) => ({
-        key,
-        label: e.label,
-        iconClass: `con-info__exicon ${iconClassFor(key.toLowerCase().replace(/ /g, '-'))}`,
-        total: e.total,
-        cards: e.cards.sort((a, b) => b.amount - a.amount),
-      })).sort((a, b) => b.total - a.total);
-    },
-    /** The bot's extra pools by TYPE (floaters / storage), same shape. */
-    botExtraGroups(): Array<MarsBotExtraGroup> {
-      return this.botAutoma !== undefined ? marsBotExtraGroups(this.botAutoma) : [];
-    },
-    extraSummary(): Array<{key: string, iconClass: string, total: number}> {
-      if (this.viewedIsBot) {
-        return this.botExtraGroups.map((g) => ({key: g.key, iconClass: `con-info__exicon ${g.iconClass}`, total: g.total}));
-      }
-      return this.extraGroups.map((g) => ({key: g.key, iconClass: g.iconClass, total: g.total}));
-    },
+       DOCK is the one physical representation of the inspected seat's hand.
+       «ДОП. РЕСУРСЫ» is GONE from the panel too — the RAIL SATELLITE beside
+       the left rail is the zone's one physical body: the summary's leftmost
+       ring stop and the extras screen's type navigation, pixel-anchored
+       across the whole flow.) */
     actionsAvailable(): number {
       return this.viewed.availableBlueCardActionCount;
     },
@@ -657,16 +571,22 @@ export default defineComponent({
       if (isVpRoute(route) && scoreExplorerUi.barCommands !== undefined) {
         return [...scoreExplorerUi.barCommands];
       }
+      // …and so does the EXTRAS EXPLORER (the satellite + gallery screen).
+      if (route === 'extras' && extrasExplorerUi.barCommands !== undefined) {
+        return [...extrasExplorerUi.barCommands];
+      }
       const cmds: Array<ConsoleCommand> = [
         {control: 'bumperL', control2: 'bumperR', label: 'Players', priority: 1},
       ];
       if (route === 'summary') {
-        // A opens the FOCUSED zone; the per-zone shortcuts stay discoverable
-        // on the blocks themselves (one action — one hint).
-        cmds.push({control: 'confirm', label: 'Open', enabled: this.summaryFocusEnterable});
-        cmds.push({control: 'secondary', label: 'Played cards', priority: 2});
-        if (this.viewedKind === 'bot') {
-          cmds.push({control: 'stickR', label: 'MarsBot screen', priority: 3});
+        // ONE navigation model: the ring focuses, A opens. The hint names
+        // the FOCUSED zone (the dedicated per-block buttons are gone — this
+        // is the one place the press's meaning is spelled out).
+        const target = this.summaryFocusTitle;
+        if (this.summaryFocusEnterable && target !== '') {
+          cmds.push({control: 'confirm', label: 'Open: ${0}', labelParams: [translateText(target)]});
+        } else {
+          cmds.push({control: 'confirm', label: 'Open', enabled: false});
         }
       } else if (route === 'botScreen' && this.presentation === 'content') {
         cmds.push({control: 'confirm', label: 'Open'});
@@ -678,6 +598,19 @@ export default defineComponent({
       }
       cmds.push({control: 'inspect', label: 'Close', priority: 0});
       return cmds;
+    },
+    /** The focused summary zone's display title — the contextual half of
+     *  the bar's «A Открыть: …» hint. */
+    summaryFocusTitle(): string {
+      switch (this.infoModeState.summaryFocus) {
+      case 'extras': return 'Extra resources';
+      case 'vp': return 'Victory Points';
+      case 'played': return 'Played cards';
+      case 'actions': return 'Actions';
+      case 'effects': return 'Effects';
+      case 'botdoor': return 'MarsBot screen';
+      default: return '';
+      }
     },
     /** May A enter the currently focused summary zone? */
     summaryFocusEnterable(): boolean {
@@ -726,6 +659,15 @@ export default defineComponent({
     handleScoreIntent(intent: GamepadIntent): void {
       (this.$refs.scoreView as {handleIntent?: (i: GamepadIntent) => void} | undefined)?.handleIntent?.(intent);
     },
+    /** …and to the extras explorer while the extras route is up. */
+    handleExtrasIntent(intent: GamepadIntent): void {
+      (this.$refs.extrasView as {handleIntent?: (i: GamepadIntent) => void} | undefined)?.handleIntent?.(intent);
+    },
+    /** A satellite cell press routed by the shell (mouse/touch): select
+     *  the type inside the live explorer. */
+    selectExtrasType(key: string, index: number): void {
+      (this.$refs.extrasView as {selectType?: (k: string, i: number) => void} | undefined)?.selectType?.(key, index);
+    },
     /** B consumes the explorer's MA inspection before walking the tree. */
     consumeScoreBack(): boolean {
       return (this.$refs.scoreView as {consumeScoreBack?: () => boolean} | undefined)?.consumeScoreBack?.() === true;
@@ -756,6 +698,21 @@ export default defineComponent({
         this.lastDepth = infoRouteDepth(this.infoModeState.route);
         return;
       }
+      // THE EXTRAS ENTRY: the content UNFOLDS OUT OF the satellite column —
+      // the very object the player pressed (which itself never moves: it is
+      // shell chrome, the pixel-anchored half of this screen). The satellite
+      // is alive on both sides of the swap, so no proxy handoff is needed —
+      // the continuity IS the column.
+      if (host.classList.contains('con-info__exrhost')) {
+        this.lastDepth = infoRouteDepth(this.infoModeState.route);
+        const satRect = descendRectOf(document.querySelector<HTMLElement>('.con-res-aux'));
+        const tl = gsap.timeline({onComplete: done});
+        if (!descendUnfold(tl, host, satRect, motionMs(280) / 1000, 0)) {
+          tl.fromTo(host, {autoAlpha: 0}, {autoAlpha: 1, duration: motionMs(160) / 1000, clearProps: 'opacity,visibility'}, 0);
+        }
+        descendCascade(tl, this.extrasRows(host), motionMs(175) / 1000, motionMs(140) / 1000, 0.03);
+        return;
+      }
       const depth = infoRouteDepth(this.infoModeState.route);
       const rising = depth >= this.lastDepth;
       this.lastDepth = depth;
@@ -779,14 +736,31 @@ export default defineComponent({
       if (summaryToVp || vpToSummary) {
         armScoreHandoff(host);
       }
+      // THE EXTRAS EXIT (B): the content FOLDS BACK INTO the satellite
+      // column it grew out of — the reverse of the entry phrase, same
+      // anchor, while the summary rises behind it.
+      if (host.classList.contains('con-info__exrhost')) {
+        const satRect = descendRectOf(document.querySelector<HTMLElement>('.con-res-aux'));
+        const tl = gsap.timeline({onComplete: done});
+        descendCascadeOut(tl, this.extrasRows(host), motionMs(90) / 1000, 0);
+        if (!descendFold(tl, host, satRect, motionMs(230) / 1000, motionMs(30) / 1000)) {
+          tl.to(host, {autoAlpha: 0, duration: motionMs(120) / 1000}, 0);
+        }
+        return;
+      }
       const depth = infoRouteDepth(to);
       const rising = depth >= this.lastDepth;
       gsap.to(el, {opacity: 0, y: (rising ? -6 : 5) * conUiScale(), duration: motionMs(95) / 1000, ease: 'power1.in', onComplete: done});
     },
     detailZoneCancelled(el: Element): void {
       gsap.killTweensOf(el);
-      gsap.set(el, {clearProps: 'transform,opacity'});
+      gsap.set(el, {clearProps: 'transform,opacity,clipPath,visibility'});
       disposeScoreHandoff();
+    },
+    /** The extras screen's cascade rows (entry/exit choreography). */
+    extrasRows(host: HTMLElement): Array<HTMLElement> {
+      return Array.from(host.querySelectorAll<HTMLElement>(
+        '.con-exr__hero, .con-exr__slot, .con-exr__detail, .con-exr__botpool, .con-exr__botnote, .con-exr__void'));
     },
   },
 });

@@ -185,26 +185,32 @@ export function infoRouteStage(route: InfoRouteId): string {
  * The zones of the participant summary in their CANONICAL positions. The
  * SHARED zones come first and sit at the same coordinates for every
  * participant; the human-only pair renders after them and its absence (bot)
- * leaves the shared geometry untouched.
+ * leaves the shared geometry untouched. «extras» is the RAIL SATELLITE —
+ * the persistent ДОП.РЕСУРСЫ column beside the left rail (shell chrome,
+ * not a panel block), which is why it is the ring's leftmost column.
+ * «botdoor» is the bot's entry into its internals screen — a ring stop
+ * like every other zone (no dedicated button opens it any more).
  */
-export type InfoZoneId = 'vp' | 'played' | 'extras' | 'actions' | 'effects';
+export type InfoZoneId = 'extras' | 'vp' | 'played' | 'actions' | 'effects' | 'botdoor';
 
 /** The summary layout: columns of zones, read left → right, top → bottom.
  *  (The old «Карты» readout zone is GONE — the HAND DOCK is the inspected
  *  seat's one physical hand representation for the workspace's lifetime.) */
 export const INFO_SUMMARY_COLUMNS: ReadonlyArray<ReadonlyArray<InfoZoneId>> = [
+  ['extras'],
   ['vp'],
   ['played'],
-  ['extras', 'actions', 'effects'],
+  ['actions', 'effects', 'botdoor'],
 ];
 
 /** The detail route a zone opens, if any. */
 const ZONE_ROUTE: Record<InfoZoneId, InfoRouteId | undefined> = {
+  extras: 'extras',
   vp: 'vp',
   played: 'played',
-  extras: 'extras',
   actions: 'actions',
   effects: 'effects',
+  botdoor: 'botScreen',
 };
 
 export function infoZoneRoute(zone: InfoZoneId): InfoRouteId | undefined {
@@ -219,6 +225,9 @@ export function infoZoneRoute(zone: InfoZoneId): InfoRouteId | undefined {
 export function infoZonePresent(zone: InfoZoneId, kind: InfoParticipantKind): boolean {
   if (zone === 'actions' || zone === 'effects') {
     return kind === 'human';
+  }
+  if (zone === 'botdoor') {
+    return kind === 'bot';
   }
   return true;
 }
@@ -296,6 +305,10 @@ export function infoZoneForRoute(route: InfoRouteId): InfoZoneId | undefined {
   case 'extras': return 'extras';
   case 'actions': return 'actions';
   case 'effects': return 'effects';
+  case 'botScreen':
+  case 'botBoard':
+  case 'botBonus':
+    return 'botdoor';
   default: return undefined;
   }
 }

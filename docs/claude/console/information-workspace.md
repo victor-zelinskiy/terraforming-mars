@@ -51,9 +51,11 @@ fold-completion (never by the shell mid-fold — the departing panel still
 renders from them).
 
 - **B walks the TREE, one level**; at the summary it closes the overlay.
-  `Y` closes from any depth. Direct shortcuts (X played · L3 extras · LT
-  actions · RT effects/botBonus · R3 botScreen) land on the SAME semantic
-  routes; pressed on their own route they act as B.
+  `Y` closes from any depth. **The per-route DIRECT shortcuts are RETIRED
+  (extras rework, 2026-09-10)**: X/L3/LT/RT/R3 open nothing — every section
+  opens through the focus ring + A only (the model that scales to new
+  blocks without new physical bindings). X stays a CONTEXTUAL verb inside
+  screens that inspect an object (the played table, the two explorers).
 - **LB/RB switches the PARTICIPANT, never the place.** The route survives
   the seat ring; a route the new participant cannot serve KEEPS the route
   and presents the workspace FALLBACK («Не применимо», `.con-info__na`) at
@@ -73,13 +75,25 @@ renders from them).
 Three columns, ONE canonical layout for every participant; the SHARED
 zones sit at the same coordinates (e2e-guarded ±2px):
 
-| zone (`data-zone`) | human | bot |
+| zone (`data-zone` / body) | human | bot |
 | --- | --- | --- |
+| `extras` (col 0 — **the RAIL SATELLITE**, not a panel block) | card-resource cells | the bot's real pools (`marsBotExtraGroups`) |
 | `vp` (col 1) | the premium live score | the SAME zone — no bot variant |
 | `played` (col 2) | tableau counts (`buildPlayedZones`) | `playedPile` counts **+ the corporation** (parity: a human corp is in its tableau) |
-| `extras` (col 3) | resources on cards | floaters + shipping storage BY TYPE (`marsBotExtraGroups`) |
-| `actions`/`effects` (col 3, after extras) | present | HIDDEN — absence never shifts the shared zones |
-| `botdoor` (col 3) | — | the R3 door to «Экран бота» |
+| `actions`/`effects` (col 3) | present | HIDDEN — absence never shifts the shared zones |
+| `botdoor` (col 3) | — | the bot's door to «Экран бота» (an ordinary ring stop) |
+
+**THE EXTRAS ZONE IS THE RAIL SATELLITE** (`.con-res-aux`, extras rework
+2026-09-10): the persistent ДОП.РЕСУРСЫ column beside the left rail is the
+zone's ONE physical body — the panel renders no duplicate. It is mounted
+through the whole overlay (an empty seat shows the honest «—» plate + the
+«ДОП. РЕСУРСЫ» caption — both absolutely seated, so the cells' geometry
+never moves), rides above the panel's dim on the host stacking
+(`.con-main--info .con-res-host` z11561), and is PIXEL-IDENTICAL to its
+board pose by construction (same node, same anchor — e2e-sampled per frame
+in `console-extras-explorer.spec.ts`). The bot seat fills the same cells
+from its real pools; an inspected seat's cells carry NO `data-aux-resource`
+landing anchors (resource flights must never aim at a foreign column).
 
 **The old «КАРТЫ» readout zone is GONE (hand-dock integration, 2026-09):
 the HAND DOCK is the ONE physical representation of the inspected seat's
@@ -92,14 +106,16 @@ bonus deck stays on «Экран бота», where the deck MECHANICS live. Cont
 `handDock/dockInspection.ts`.
 
 The summary is a FOCUS RING (`infoModeState.summaryFocus`, d-pad +
-`infoZoneNavigate` — column-aware, clamping): A opens the focused zone's
-route; every zone opens one (a pure-readout zone would advertise a dead A
-and is forbidden — `infoRoute.spec.ts` pins it); an absent zone is not
-focusable. B from a detail lands the ring on the zone it was entered from.
-The A-glyph rides the FOCUSED zone only; the per-zone shortcut glyphs
-(X/L3/LT/RT/R3) are static — those work regardless of focus. No separate
-bot corp zone, no «Треки бота» panel, no bot deck tiles on the summary —
-all of it moved to «Экран бота».
+`infoZoneNavigate` — column-aware, clamping; the satellite is the leftmost
+column, the initial focus stays `vp`): A opens the focused zone's route;
+every zone opens one (a pure-readout zone would advertise a dead A and is
+forbidden — `infoRoute.spec.ts` pins it); an absent zone is not focusable.
+B from a detail lands the ring on the zone it was entered from (`botScreen`
+family → `botdoor`). **No zone carries a button badge** — the ONE bottom
+bar names the press contextually («A Открыть: Разыграно», `labelParams` on
+ConsoleCommand); a satellite cell click selects the type AND opens the
+extras screen. No separate bot corp zone, no «Треки бота» panel, no bot
+deck tiles on the summary — all of it moved to «Экран бота».
 
 ## The LIVE SCORE (`liveScoreModel.ts`) — one system with the finale
 
@@ -200,7 +216,59 @@ the list. Parity is spec-guarded against `buildConsoleEndgameVm` values
   human opponent keeps the hidden-VP contract). Spec:
   `tests/models/ServerModel.spec.ts`.
 
-## «Экран бота» — the internals hub (R3)
+## THE EXTRAS EXPLORER (`ConsoleExtrasExplorer.vue`, `.con-exr`) — «Доп. ресурсы»
+
+The extras route is a full workspace screen (extras rework 2026-09-10; the
+old scrolling section list is DELETED). The architecture in one sentence:
+**the rail satellite is the TYPE NAVIGATION and the pixel-anchored half of
+the screen; the panel hosts only the selected type's content.**
+
+- **State**: `consoleExtrasExplorer.ts` (`extrasExplorerUi` — selected
+  `typeKey`, `typeCursor`, `zone: 'types' | 'cards'`, `cardCursor`;
+  `barCommands` published verbatim through `ConsoleInfoMode.footCommands`;
+  reset on every info-mode open). The satellite paints the cursor
+  (`__cell--cursor`) and the selection (`__cell--active`) FROM this state —
+  one owner, the column and the screen can never disagree. Focused ≠
+  selected: the cursor moves freely, A commits the type (a CHOICE IS A
+  PRESS), and the content swap slides from the pressed cell's direction.
+- **Model**: `extrasExplorerModel.ts` (pure, spec'd in
+  `tests/console/extrasExplorerModel.spec.ts`). The type list is
+  `additionalResourceGroups` (first-appearance order, ZERO holders
+  included — the same derivation the satellite renders). Per-card VP is
+  the SERVER's own `detailsCards[].mechanics` row: per-card flooring by
+  construction, `special` clauses named CONDITIONAL and never folded into
+  the linear «ПО от ресурсов» sum, a holder's non-resource VP kept in its
+  own bucket (no double count). A hidden score (zeroed breakdown) keeps
+  the PRINTED rule from the manifest and withholds every number. Payment
+  grants (`railMcBadges.cardBound`) belong to the ENABLING card alone;
+  protection marks ride `railProtections.cardResources`.
+- **Composition**: HERO (type icon + name + total + «Накопителей: N» +
+  honest chips: VP sum / conditional / actions / «Оплата: 1 = N M€» /
+  «под защитой») → GALLERY (real premium faces via CardFace lightweight,
+  strict pages — 4 per page, 3 on the Deck, the page DERIVED from the
+  cursor; per-card meta plate UNDER the face: ×N + the VP chip, a zero
+  count calms its ink only) → the FACT STRIP (fixed height: name · ×N ·
+  the printed rule `per → each ПО` · «Сейчас: N ПО» · «M до следующего
+  ПО» (linear per>1 only) · usage chips). The bot fill lists its pools
+  (colony areas / the common floater pool) — no card faces, no VP rows.
+- **Input**: the shell forwards the pad while the route is up (global
+  Y/LB/RB/B stay global); ←/→ cross between the column and the gallery
+  (left at card 0 returns to the column), the gallery edge IS the page
+  turn. X (and the unadvertised A alias) opens the ONE console zoom
+  inspector (`slotZoomOrigin` on `[data-exr-card]` slots; `onBrowse`
+  drives the cursor so the derived page follows and B lands on the very
+  card being read).
+- **Motion**: the screen UNFOLDS OUT OF the satellite column
+  (`descendUnfold` from the column's live rect in the detail-zone enter
+  hook — no proxy handoff needed: the column itself is the continuity)
+  and FOLDS BACK INTO it on B; type/page swaps are directional out-in
+  beats that SNAP under reduced motion (microtask `done`) and while the
+  zoom viewer is open (its slot hold must not chase a transition).
+- **Empty state**: a seat with no holders gets the full honest room
+  («Нет карт, способных хранить ресурсы») and the satellite's «—» plate;
+  the route stays enterable (the ring stop exists for every seat).
+
+## «Экран бота» — the internals hub (the botdoor zone)
 
 Everything explaining HOW the algorithm works: the corporation's RULES read
 (`.con-info__block--botcorp`, the ordinary premium face + difficulty), the
@@ -242,15 +310,25 @@ Parity with the human geometry, not a technical panel:
 ## Command bar
 
 PanelOwner `'infoMode'` via consolePanelUi; per-route sets in
-`ConsoleInfoMode.footCommands`. Summary: `LB/RB Игроки (1) · A Открыть
-(enabled by the ring) · X Разыграно (2) · [R3 Экран бота (3), bot] · Y
-Закрыть (0)`; depth 1: `B К обзору`; depth 2: `B Назад`; the played route
-keeps the table's own grammar. Y(0) and LB/RB(1) survive the Deck bar.
+`ConsoleInfoMode.footCommands`. Summary: `LB/RB Игроки (1) · A Открыть:
+<зона> (contextual — `labelParams`; disabled with no target) · Y Закрыть
+(0)`; depth 1: `B К обзору`; depth 2: `B Назад`; the played route keeps
+the table's own grammar; the two explorers publish their own sets
+(`scoreExplorerUi` / `extrasExplorerUi` `.barCommands`, returned
+verbatim). Y(0) and LB/RB(1) survive the Deck bar.
 
 ## Tests
 
 - `tests/console/infoRoute.spec.ts` — the tree (vp subtree included),
-  capability, ring, clamps.
+  capability, ring (satellite column first, botdoor), clamps.
+- `tests/console/extrasExplorerModel.spec.ts` — the extras model: order +
+  zeros, per-card flooring, conditional vs linear, no double count, the
+  hidden-score rule fallback, payment attribution, navigation/paging.
+- `tests/e2e/console-extras-explorer.spec.ts` — the satellite PIXEL
+  CONTRACT (per-frame sampler over board → summary → extras → back: rect,
+  value text, opacity), the screen journey (zero holder, no-VP holder,
+  zoom round trip, seat switch to the bot's empty state), three profiles +
+  the flow video (`screenshots/extras-explorer/<preset>/`).
 - `tests/console/dockInspection.spec.ts` — the dock's inspection seat:
   source selection (self / human / bot / legacy corpless), the fan cap +
   exact count, the compact-pose geometry parity.

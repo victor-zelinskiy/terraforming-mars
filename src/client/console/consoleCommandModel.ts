@@ -37,6 +37,13 @@ export type ConsoleCommand = {
   spread?: boolean,
   /** English i18n key. */
   label: string,
+  /**
+   * Interpolation params for a `${0}`-parameterised label key — the bar
+   * renders `translateTextWithParams(label, labelParams)`. Params arrive
+   * ALREADY translated (they are display strings, not keys): the one
+   * consumer so far is the Information summary's contextual «Открыть: …».
+   */
+  labelParams?: ReadonlyArray<string>,
   enabled?: boolean,
   /** Availability count (LB Достижения ②) — rendered as a badge chip. */
   badge?: number,

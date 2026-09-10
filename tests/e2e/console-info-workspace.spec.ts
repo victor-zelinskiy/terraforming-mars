@@ -171,12 +171,24 @@ for (const preset of PRESETS) {
       await expect(page.locator('.con-handdock__insp')).toHaveCount(0);
       await expect(page.locator('.con-handdock__status .con-handdock__sep')).toHaveCount(1);
 
+      // NO PER-BLOCK BUTTON BADGES: every section opens through the ring +
+      // A (the contextual hint lives in the ONE bottom bar) — a dedicated
+      // X/LT/RT/L3/R3 badge on a zone title is the retired model.
+      await expect(workspace.locator('.con-info__hotkey')).toHaveCount(0);
+
+      // THE EXTRAS SATELLITE: the «Доп. ресурсы» zone IS the rail column —
+      // mounted through the whole overlay (empty seats show the honest
+      // plate), captioned, and standing ABOVE the panel's dim.
+      const satellite = page.locator('.con-res-aux');
+      await expect(satellite).toBeVisible();
+      await expect(satellite.locator('.con-res-aux__cap')).toBeVisible();
+
       // PARITY BASELINE: capture the shared zones' boxes on the human seat.
       const zoneBox = async (zone: string) =>
         await workspace.locator(`[data-zone="${zone}"]`).boundingBox();
       const humanVp = await zoneBox('vp');
       const humanPlayed = await zoneBox('played');
-      const humanExtras = await zoneBox('extras');
+      const humanExtras = await satellite.boundingBox();
       await expect(workspace.locator('[data-zone="actions"]')).toHaveCount(1);
       await expect(workspace.locator('[data-zone="effects"]')).toHaveCount(1);
 
@@ -226,10 +238,8 @@ for (const preset of PRESETS) {
       // THE SHARED ZONES SIT AT THE SAME COORDINATES (±2px):
       const botVp = await zoneBox('vp');
       const botPlayed = await zoneBox('played');
-      const botExtras = await zoneBox('extras');
       for (const [label, a, b] of [
         ['vp', humanVp, botVp], ['played', humanPlayed, botPlayed],
-        ['extras', humanExtras, botExtras],
       ] as const) {
         expect(a && b, `${label} exists on both seats`).toBeTruthy();
         if (a && b) {
@@ -237,6 +247,15 @@ for (const preset of PRESETS) {
           expect(Math.abs(a.y - b.y), `${label} y parity`).toBeLessThanOrEqual(2);
           expect(Math.abs(a.width - b.width), `${label} width parity`).toBeLessThanOrEqual(2);
         }
+      }
+      // THE SATELLITE IS SEAT-INVARIANT CHROME: same anchor on the bot seat
+      // (its CELLS re-read from the bot's real pools; the column never
+      // travels — width may differ with the content, the anchor may not).
+      const botExtras = await satellite.boundingBox();
+      expect(humanExtras && botExtras, 'the satellite stands on both seats').toBeTruthy();
+      if (humanExtras && botExtras) {
+        expect(Math.abs(humanExtras.x - botExtras.x), 'satellite x parity').toBeLessThanOrEqual(2);
+        expect(Math.abs(humanExtras.y - botExtras.y), 'satellite y parity').toBeLessThanOrEqual(2);
       }
       // The human-only pair is HIDDEN (never disabled-looking, never a gap
       // that shifts the shared zones); the bot's own door replaces them.
@@ -268,7 +287,10 @@ for (const preset of PRESETS) {
       await expect(workspace.locator('.con-info__zone--vp.con-info__zone--focused')).toHaveCount(1);
 
       // ── 4 · CAPABILITY FALLBACK: «Действия» is human-only ───────────
-      await key(page, 'Comma', 800); // LT → the actions route (human seat)
+      // The ring is the ONE way in now: vp → played → actions, then A.
+      await key(page, 'ArrowRight', 400);
+      await key(page, 'ArrowRight', 400);
+      await key(page, 'Enter', 800); // A on the focused «Действия» zone
       await expect(workspace.locator('.con-info__acrow, .con-info__empty--big').first()).toBeVisible();
       await expect(crumbStage(page)).toHaveText(/Действия/i);
       await cycleTo(page, 'bot');
@@ -283,9 +305,18 @@ for (const preset of PRESETS) {
       await expect(workspace.locator('.con-info__acrow, .con-info__empty--big').first()).toBeVisible();
       await key(page, 'Escape', 700);
 
-      // ── 5 · «ЭКРАН БОТА»: R3 opens the hub, the board is one A deeper ─
+      // ── 5 · «ЭКРАН БОТА»: the bot's DOOR ZONE opens the hub (a ring
+      // stop like every other — the dedicated R3 shortcut is retired), and
+      // the printed board is one A deeper. ──────────────────────────────
       await cycleTo(page, 'bot');
-      await key(page, 'KeyV', 900); // R3 → the internals hub
+      // The seat switch normalized the stranded «Действия» focus onto the
+      // ring's first stop (the satellite); walk to the door: → vp → played
+      // → botdoor.
+      await key(page, 'ArrowRight', 400);
+      await key(page, 'ArrowRight', 400);
+      await key(page, 'ArrowRight', 400);
+      await expect(workspace.locator('[data-zone="botdoor"].con-info__zone--focused')).toHaveCount(1);
+      await key(page, 'Enter', 900); // A on the door → the internals hub
       await expect(workspace.locator('.con-botscr__entry')).toHaveCount(2);
       await expect(workspace.locator('.con-info__block--botcorp')).toHaveCount(1);
       await expect(crumbStage(page)).toHaveText(/Экран бота/i);
@@ -301,8 +332,11 @@ for (const preset of PRESETS) {
       await key(page, 'Escape', 700);
       await expect(workspace.locator('.con-info__layout')).toHaveCount(1);
 
-      // ── 6 · X → the SAME premium embedded table for the bot ─────────
-      await key(page, 'KeyX', 900);
+      // ── 6 · «Разыграно» → the SAME premium embedded table for the bot
+      // (B from the hub landed the ring on the door — one step left). ───
+      await key(page, 'ArrowLeft', 400);
+      await expect(workspace.locator('[data-zone="played"].con-info__zone--focused')).toHaveCount(1);
+      await key(page, 'Enter', 900);
       const embeddedBot = page.locator('.con-info .con-played--embedded');
       await expect(embeddedBot).toHaveCount(1);
       await expect(embeddedBot.locator('.con-played__provenance')).toBeVisible();
@@ -311,9 +345,10 @@ for (const preset of PRESETS) {
       await expect(page.locator('.con-info .con-played--embedded')).toHaveCount(0);
       await expect(workspace.locator('.con-info__layout')).toHaveCount(1);
 
-      // ── 7 · The human played table + the fullscreen provenance ──────
+      // ── 7 · The human played table + the fullscreen provenance (the
+      // ring kept «Разыграно» from the B above — one A re-enters). ──────
       await cycleTo(page, 'human');
-      await key(page, 'KeyX', 900);
+      await key(page, 'Enter', 900);
       await expect(page.locator('.con-info .con-played--embedded')).toHaveCount(1);
       await expect(page.locator('.con-info .con-played__provenance')).toHaveCount(0);
       await shoot(page, preset, '07-played-human');

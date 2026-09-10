@@ -4346,10 +4346,99 @@ each(@players, {
     top: calc(var(--cr-pad) + var(--cr-score-h) + var(--cr-panel-gap));
     left: calc(100% + .4rem);
     z-index: 50;
-    display: flex;
-    flex-direction: column;
-    gap: var(--cr-rgap);
     pointer-events: none; /* purely informational — never eats board clicks */
+
+    /* The CELL COLUMN — a dedicated group so the info-mode chrome (caption /
+       empty plate / focus backplate) can exist WITHOUT touching the cells'
+       geometry: the wrapper carries zero padding and the same flex the root
+       used to, so every cell keeps its exact board-view Y (pixel contract). */
+    &__cells {
+        display: flex;
+        flex-direction: column;
+        gap: var(--cr-rgap);
+    }
+
+    /* ── Information-workspace chrome (additive, absolutely seated) ────
+       The caption floats ABOVE the first cell (bottom: 100%), the focus
+       backplate is an inset ::before — neither may move a cell by a pixel. */
+    &__cap {
+        position: absolute;
+        bottom: calc(100% + .35rem);
+        left: 0;
+        white-space: nowrap;
+        font-size: .62rem;
+        font-weight: 700;
+        letter-spacing: .14rem;
+        text-transform: uppercase;
+        color: fade(@con-cyan, 78%);
+        opacity: 0;
+        transition: opacity calc(180ms * var(--motion-scale, 1)) ease;
+    }
+    &__none {
+        margin-top: .1rem;
+        min-width: 3.2rem;
+        padding: .3rem 0;
+        border-radius: .4rem;
+        text-align: center;
+        background: rgba(12, 19, 29, 0.72);
+        box-shadow: inset 0 0 0 .05rem rgba(120, 150, 180, 0.22);
+        color: @con-text-dim;
+        font-size: .9rem;
+    }
+    &--info {
+        pointer-events: auto;
+        .con-res-aux__cap { opacity: 1; }
+        .con-res-aux__cell { cursor: pointer; }
+    }
+    /* The summary FOCUS RING — one plate around the whole group (the ring's
+       stop is the COLUMN, not a cell). box-shadow only: geometry untouched. */
+    &::before {
+        content: '';
+        position: absolute;
+        inset: -.4rem -.35rem -.35rem;
+        border-radius: .55rem;
+        pointer-events: none;
+        box-shadow: inset 0 0 0 .1rem transparent;
+        transition: box-shadow calc(160ms * var(--motion-scale, 1)) ease,
+            background-color calc(160ms * var(--motion-scale, 1)) ease;
+    }
+    &--focused::before {
+        background: rgba(18, 30, 44, 0.55);
+        box-shadow: inset 0 0 0 .1rem fade(@con-cyan, 80%),
+            0 .3rem 1.2rem rgba(0, 0, 0, 0.35);
+    }
+    /* The extras screen: the column is the TYPE NAVIGATION. The SELECTED
+       type carries the inspected player's accent plate; the CURSOR is the
+       console's cyan ring; both survive on paint alone (box-shadow/colour —
+       the cells' boxes never change). */
+    &--live .con-res-aux__cell {
+        transition: box-shadow calc(140ms * var(--motion-scale, 1)) ease,
+            background-color calc(140ms * var(--motion-scale, 1)) ease;
+    }
+    /* On the extras screen the crumb names the place — the column's own
+       caption recedes to a whisper instead of doubling the line above. */
+    &--live .con-res-aux__cap { opacity: .45; }
+    &--live .con-res-aux__cell--active {
+        background: rgba(20, 33, 48, 0.96);
+        box-shadow: inset 0 0 0 .07rem var(--con-insp-accent-soft, fade(@con-cyan, 55%)),
+            inset .18rem 0 0 var(--con-insp-accent, @con-cyan),
+            0 .25rem .9rem rgba(0, 0, 0, 0.5);
+    }
+    &--live .con-res-aux__cell--cursor {
+        box-shadow: inset 0 0 0 .1rem fade(@con-cyan, 85%), 0 .25rem .9rem rgba(0, 0, 0, 0.5);
+    }
+    &--live .con-res-aux__cell--active.con-res-aux__cell--cursor {
+        box-shadow: inset 0 0 0 .1rem fade(@con-cyan, 85%),
+            inset .18rem 0 0 var(--con-insp-accent, @con-cyan),
+            0 .25rem .9rem rgba(0, 0, 0, 0.5);
+    }
+    /* While the cursor works the GALLERY, the selection stays readable but
+       calm (the active accent dims a step — state, not attention). */
+    &--live:not(.con-res-aux--typeszone) .con-res-aux__cell--active {
+        box-shadow: inset 0 0 0 .07rem var(--con-insp-accent-faint, fade(@con-cyan, 25%)),
+            inset .18rem 0 0 var(--con-insp-accent-soft, fade(@con-cyan, 55%)),
+            0 .25rem .9rem rgba(0, 0, 0, 0.5);
+    }
 
     &__cell {
         position: relative; /* delta-chip (misc variant) anchor */
@@ -16079,8 +16168,14 @@ html.con-profile-large.console-mode .notifications-layer.notifications-layer--jo
         flex-direction: column;
         gap: .6rem;
         /* THE STAGE SURFACE (perimeter shell): square scene welded right;
-           the right content line rides the shared safe-inset guide. */
-        padding: .9rem var(--con-hud-pad-x, 1.3rem) .6rem 1.5rem;
+           the right content line rides the shared safe-inset guide.
+           LEFT: the frame clears the rail's ДОП.РЕСУРСЫ satellite — the
+           column stands INSIDE this panel's span (it is the workspace's
+           extras zone, pixel-anchored to the rail), so the content line
+           starts past it. 5.8rem = the cell footprint (.5 pad + 1.75 icon
+           + .4 gap + 1.2 value + .5 pad = 4.35) + the .1 seam offset +
+           1.35 breathing (profiles restate their own sums). */
+        padding: .9rem var(--con-hud-pad-x, 1.3rem) .6rem 5.8rem;
         .con-stage-surface();
         /* …plus the workspace half of the rail↔panel seam: the inspected
            player's accent on the LEFT edge (recolors via con-insp-*) — it
@@ -16186,8 +16281,8 @@ html.con-profile-large.console-mode .notifications-layer.notifications-layer--jo
         box-shadow: inset 0 0 0 .1rem fade(@con-cyan, 80%),
             0 .3rem 1.2rem rgba(0, 0, 0, 0.35);
     }
-    /* The hotkey glyph on a NON-focusable zone would advertise a dead A —
-       zones without a route keep their title clean by markup instead. */
+    /* No per-zone button badges: every zone opens through the ring + A,
+       the ONE bottom bar carries the contextual hint (extras rework). */
     &__block-title {
         display: flex;
         align-items: center;
@@ -16197,9 +16292,6 @@ html.con-profile-large.console-mode .notifications-layer.notifications-layer--jo
         letter-spacing: .11rem;
         text-transform: uppercase;
         color: fade(@con-cyan, 90%);
-    }
-    &__hotkey {
-        margin-left: auto;
     }
     &__res-grid {
         display: grid;
@@ -16261,28 +16353,6 @@ html.con-profile-large.console-mode .notifications-layer.notifications-layer--jo
         &--automated { background: #a8dca0; }
         &--events { background: #f0b890; }
     }
-    &__extras {
-        display: flex;
-        flex-wrap: wrap;
-        gap: .6rem .9rem;
-    }
-    &__extra {
-        display: inline-flex;
-        align-items: center;
-        gap: .4rem;
-    }
-    &__exicon {
-        display: inline-block;
-        width: 1.7rem;
-        height: 1.7rem;
-        background-repeat: no-repeat;
-        background-position: center;
-        background-size: contain !important;
-    }
-    &__extra-count {
-        font-size: 1.25rem;
-        font-weight: 700;
-    }
     &__stat-lines {
         display: flex;
         flex-direction: column;
@@ -16336,9 +16406,9 @@ html.con-profile-large.console-mode .notifications-layer.notifications-layer--jo
     /* A READING measure for the list-shaped detail screens: full workspace
        width on a 4K panel puts half a metre between a label and its value.
        The blocks cap at a comfortable line and the leftover width stays
-       breathing room (the summary columns' own rule). Card galleries
-       (extras) and the embedded table keep the full stage. */
-    &__detail-scroll > :is(.con-info__block, .con-info__exgroup, .con-info__acrow) {
+       breathing room (the summary columns' own rule). The extras explorer
+       and the embedded table keep the full stage. */
+    &__detail-scroll > :is(.con-info__block, .con-info__acrow) {
         max-width: 64rem;
         width: 100%;
     }
@@ -16349,67 +16419,14 @@ html.con-profile-large.console-mode .notifications-layer.notifications-layer--jo
         gap: .5rem;
         padding-right: .3rem;
     }
-    &__exgroup {
-        padding: .6rem .8rem;
-        border-radius: .5rem;
-        background: rgba(14, 22, 33, 0.6);
-        box-shadow: inset 0 0 0 .05rem rgba(120, 150, 180, 0.16);
-    }
-    &__exgroup-title {
-        display: flex;
-        align-items: center;
-        gap: .5rem;
-        margin: 0 0 .5rem;
-        font-size: 1.05rem;
-        b { margin-left: auto; font-size: 1.2rem; }
-    }
-    &__exrow {
-        display: flex;
-        justify-content: space-between;
-        gap: .6rem;
-        padding: .3rem .5rem;
-        border-radius: .3rem;
-        background: rgba(16, 26, 38, 0.55);
-        margin-bottom: .25rem;
-        font-size: 1rem;
-    }
-    &__exrow-count { font-weight: 700; }
-    /* P11 (CTS-3.8 parity): the resource HOLDERS render as REAL cards. */
-    &__excards {
-        display: flex;
-        flex-wrap: wrap;
-        gap: .9rem;
-        padding: .2rem .1rem .5rem;
-    }
-    &__excard {
+    /* The EXTRAS EXPLORER host — the screen fills the frame's content area
+       (the satellite column to its left is shell chrome, never in here). */
+    &__exrhost {
         position: relative;
-        zoom: calc(0.78 * var(--con-ui-scale, 1));
-        > :is(.card-container, .pcard) { margin: 0; }
-    }
-    &__excard-count {
-        position: absolute;
-        top: -.5rem;
-        right: -.4rem;
-        z-index: 2;
-        display: inline-flex;
-        align-items: center;
-        gap: .25rem;
-        padding: .15rem .5rem;
-        border-radius: 49.95rem;
-        background: @con-glass;
-        box-shadow: inset 0 0 0 .05rem fade(@con-mint, 70%), 0 .2rem .6rem rgba(0, 0, 0, 0.5);
-        color: @con-mint;
-        font-size: .85rem;
-        font-weight: 700;
-
-        i {
-            display: inline-block;
-            width: 1.1rem;
-            height: 1.1rem;
-            background-repeat: no-repeat;
-            background-position: center;
-            background-size: contain !important;
-        }
+        flex: 1;
+        min-height: 0;
+        display: flex;
+        align-items: stretch;
     }
     &__acrow {
         display: flex;
@@ -16496,9 +16513,357 @@ html.con-profile-large.console-mode .notifications-layer.notifications-layer--jo
         font-style: normal;
         font-size: .9rem;
     }
-    &__stat-lines--holders {
-        margin-top: .2rem;
+}
+
+/* ── THE EXTRAS EXPLORER (`ConsoleExtrasExplorer`, Information workspace
+   «Доп. ресурсы») — the selected type's content beside the persistent rail
+   satellite: HERO (identity + honest summary) → GALLERY (real premium
+   faces, strict pages, per-card meta under the art) → FACT STRIP (the
+   focused card's whole story, fixed height). Composition rules:
+    · the satellite is the type NAVIGATION — this surface draws no second
+      type list and no title of its own (the crumb names the stage);
+    · fixed row heights everywhere (hero / meta / strip): focus and type
+      changes morph INK, never geometry;
+    · counts and VP live UNDER each card — nothing covers name/cost/art. */
+.con-exr {
+    flex: 1;
+    min-width: 0;
+    min-height: 0;
+    display: flex;
+    flex-direction: column;
+
+    &__body {
+        flex: 1;
+        min-width: 0;
+        min-height: 0;
+        display: flex;
+        flex-direction: column;
+        gap: .7rem;
+    }
+
+    /* ── the HERO — the selected type's identity + summary chips ─────── */
+    &__hero {
+        flex-shrink: 0;
+        display: flex;
+        align-items: center;
+        gap: .9rem;
+        height: 4.6rem;
+        padding: 0 1.1rem 0 1rem;
+        border-radius: .55rem;
+        background: linear-gradient(180deg, rgba(20, 30, 44, 0.72), rgba(13, 20, 30, 0.66));
+        box-shadow: inset 0 0 0 .05rem rgba(120, 150, 180, 0.16),
+            inset .18rem 0 0 var(--con-insp-accent-soft, fade(@con-cyan, 45%)),
+            0 .35rem 1.2rem rgba(0, 0, 0, 0.35);
+    }
+    &__hero-icon {
+        width: 2.7rem;
+        height: 2.7rem;
+        flex-shrink: 0;
+        background-repeat: no-repeat;
+        background-position: center;
+        background-size: contain !important;
+    }
+    &__hero-id {
+        display: flex;
+        flex-direction: column;
+        gap: .15rem;
+        min-width: 0;
+    }
+    /* Name + total are ONE identity line (the sum belongs to the name it
+       counts — a free-floating number reads as a stray). */
+    &__hero-line {
+        display: inline-flex;
+        align-items: baseline;
+        gap: .6rem;
+        min-width: 0;
+    }
+    &__hero-name {
+        font-size: 1.25rem;
+        font-weight: 700;
+        letter-spacing: .08rem;
+        text-transform: uppercase;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
         max-width: 22rem;
+    }
+    &__hero-sub {
+        font-size: .85rem;
+        color: @con-text-dim;
+        white-space: nowrap;
+    }
+    &__hero-total {
+        font-size: 1.7rem;
+        line-height: 1;
+        font-weight: 800;
+        font-variant-numeric: tabular-nums;
+        color: @con-mint;
+        text-shadow: 0 .1rem .3rem rgba(0, 0, 0, 0.6);
+    }
+    &__hero-chips {
+        margin-left: auto;
+        display: flex;
+        flex-wrap: wrap;
+        justify-content: flex-end;
+        align-items: center;
+        gap: .4rem;
+        max-height: 100%;
+        overflow: hidden;
+    }
+    &__chip {
+        padding: .2rem .6rem;
+        border-radius: 49.95rem;
+        background: rgba(16, 26, 38, 0.85);
+        box-shadow: inset 0 0 0 .05rem rgba(140, 170, 205, 0.3);
+        color: @con-text;
+        font-size: .8rem;
+        font-weight: 600;
+        letter-spacing: .03rem;
+        white-space: nowrap;
+
+        &--vp { color: @con-mint; box-shadow: inset 0 0 0 .05rem fade(@con-mint, 55%); }
+        &--vp.con-exr__chip--zero { color: @con-text-dim; box-shadow: inset 0 0 0 .05rem rgba(140, 170, 205, 0.3); }
+        &--cond { color: @con-amber; box-shadow: inset 0 0 0 .05rem fade(@con-amber, 50%); }
+        &--pay { color: #f2d896; box-shadow: inset 0 0 0 .05rem fade(#f2d896, 45%); }
+        &--shield { color: #9fd6ff; box-shadow: inset 0 0 0 .05rem fade(#9fd6ff, 45%); }
+        &--hidden { color: @con-text-dim; font-style: italic; }
+        &--mini { padding: .1rem .5rem; font-size: .75rem; }
+    }
+
+    /* ── the GALLERY — strict pages of real premium faces ────────────── */
+    &__stage {
+        flex: 1;
+        min-height: 0;
+        position: relative;
+        display: flex;
+        flex-direction: column;
+    }
+    &__page {
+        flex: 1;
+        min-height: 0;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: 1.6rem;
+    }
+    &__slot {
+        position: relative;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        gap: .5rem;
+        padding: .55rem .55rem .45rem;
+        border-radius: .6rem;
+        cursor: pointer;
+        /* The gallery card scale — one knob per profile; everything inside
+           (face + meta) rides it, so the composition scales as one object. */
+        zoom: calc(1.5 * var(--con-ui-scale, 1));
+        transition: box-shadow calc(150ms * var(--motion-scale, 1)) ease,
+            background-color calc(150ms * var(--motion-scale, 1)) ease;
+
+        > :is(.card-container, .pcard) { margin: 0; }
+
+        &--focused {
+            background: rgba(18, 30, 44, 0.72);
+            box-shadow: inset 0 0 0 .1rem fade(@con-cyan, 85%),
+                0 .4rem 1.4rem rgba(0, 0, 0, 0.45);
+        }
+    }
+    /* The per-card meta plate — count first (the couch read), VP beside.
+       Fixed height: a value change can never re-seat the row. */
+    &__slot-meta {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: .5rem;
+        height: 1.7rem;
+        max-width: 100%;
+    }
+    &__slot-count {
+        display: inline-flex;
+        align-items: center;
+        gap: .3rem;
+        padding: .12rem .55rem;
+        border-radius: 49.95rem;
+        background: @con-glass;
+        box-shadow: inset 0 0 0 .05rem fade(@con-mint, 70%), 0 .2rem .6rem rgba(0, 0, 0, 0.5);
+        color: @con-mint;
+        font-size: .92rem;
+        font-weight: 700;
+
+        i {
+            display: inline-block;
+            width: 1.05rem;
+            height: 1.05rem;
+            background-repeat: no-repeat;
+            background-position: center;
+            background-size: contain !important;
+        }
+        /* The QUIET ZERO: the holder stays a first-class citizen (full art,
+           full focus, full inspection) — only its count ink calms down. */
+        &--zero {
+            color: @con-text-dim;
+            box-shadow: inset 0 0 0 .05rem rgba(140, 170, 205, 0.35), 0 .2rem .6rem rgba(0, 0, 0, 0.5);
+        }
+    }
+    &__slot-vp {
+        font-size: .85rem;
+        font-weight: 700;
+        color: @con-mint;
+        white-space: nowrap;
+
+        &--zero { color: @con-text-dim; font-weight: 600; }
+        &--cond { color: @con-amber; }
+    }
+    &__pager {
+        flex-shrink: 0;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: .35rem;
+        height: 1.3rem;
+        color: @con-text-dim;
+        font-size: .8rem;
+    }
+    &__pager-dot {
+        width: .45rem;
+        height: .45rem;
+        border-radius: 50%;
+        background: rgba(140, 170, 205, 0.3);
+        transition: background-color calc(150ms * var(--motion-scale, 1)) ease;
+
+        &--on { background: fade(@con-cyan, 90%); }
+    }
+    &__pager-num { margin-left: .4rem; font-variant-numeric: tabular-nums; }
+
+    /* ── the FACT STRIP — the focused card's story, one fixed band ───── */
+    &__detail {
+        flex-shrink: 0;
+        display: flex;
+        align-items: center;
+        gap: .8rem;
+        height: 3.2rem;
+        padding: 0 1rem;
+        border-radius: .55rem;
+        background: rgba(14, 22, 33, 0.6);
+        box-shadow: inset 0 0 0 .05rem rgba(120, 150, 180, 0.16);
+        overflow: hidden;
+        white-space: nowrap;
+    }
+    &__detail-name {
+        font-size: 1.05rem;
+        font-weight: 700;
+        max-width: 17rem;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        flex-shrink: 0;
+    }
+    &__detail-count {
+        display: inline-flex;
+        align-items: center;
+        gap: .25rem;
+        color: @con-mint;
+        font-weight: 700;
+
+        i {
+            display: inline-block;
+            width: 1.1rem;
+            height: 1.1rem;
+            background-repeat: no-repeat;
+            background-position: center;
+            background-size: contain !important;
+        }
+    }
+    &__detail-rule {
+        display: inline-flex;
+        align-items: center;
+        gap: .25rem;
+        padding: .15rem .55rem;
+        border-radius: .35rem;
+        background: rgba(16, 26, 38, 0.85);
+        box-shadow: inset 0 0 0 .05rem rgba(140, 170, 205, 0.3);
+        font-size: .9rem;
+
+        i {
+            display: inline-block;
+            width: 1rem;
+            height: 1rem;
+            background-repeat: no-repeat;
+            background-position: center;
+            background-size: contain !important;
+        }
+        b { font-weight: 800; }
+        &--special { color: @con-amber; }
+    }
+    &__detail-arrow { color: @con-text-dim; }
+    &__detail-now { color: @con-mint; font-weight: 700; font-size: .95rem; }
+    &__detail-now--zero { color: @con-text-dim; }
+    &__detail-next { color: @con-cyan; font-size: .9rem; }
+    &__detail-other { color: @con-text-dim; font-size: .85rem; }
+    &__detail-none { color: @con-text-dim; font-size: .9rem; font-style: italic; }
+    &__detail-chips {
+        margin-left: auto;
+        display: inline-flex;
+        gap: .35rem;
+        flex-shrink: 0;
+    }
+
+    /* ── the BOT fill — the pools, honestly and only them ────────────── */
+    &__botpools {
+        display: flex;
+        flex-direction: column;
+        gap: .45rem;
+        padding-top: .4rem;
+        max-width: 30rem;
+    }
+    &__botpool {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: .8rem;
+        padding: .55rem .9rem;
+        border-radius: .45rem;
+        background: rgba(14, 22, 33, 0.6);
+        box-shadow: inset 0 0 0 .05rem rgba(120, 150, 180, 0.16);
+        font-size: 1rem;
+    }
+    &__botpool-amount { font-size: 1.2rem; color: @con-mint; }
+    &__botnote {
+        margin-top: .6rem;
+        max-width: 30rem;
+        color: @con-text-dim;
+        font-size: .85rem;
+        font-style: italic;
+    }
+
+    /* ── the EMPTY STATE — the honest full room, never a bare frame ──── */
+    &__void {
+        flex: 1;
+        min-height: 0;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        gap: .5rem;
+        text-align: center;
+    }
+    &__void-mark {
+        font-style: normal;
+        font-size: 2.6rem;
+        line-height: 1;
+        color: rgba(150, 175, 205, 0.4);
+    }
+    &__void-title {
+        font-size: 1.25rem;
+        font-weight: 700;
+        letter-spacing: .1rem;
+        text-transform: uppercase;
+        color: @con-text-dim;
+    }
+    &__void-body {
+        max-width: 26rem;
+        font-size: 1rem;
+        color: @con-text-dim;
     }
 }
 
@@ -32575,7 +32940,9 @@ html.con-profile-handheld {
 
     /* ── 7 · Y Information Workspace ─────────────────────────────── */
     .con-info {
-        &__frame { padding: .6rem var(--con-hud-pad-x, .8rem) .5rem 1rem; gap: .45rem; }
+        /* LEFT: the satellite clearance at the handheld metrics (.5 + 1.1
+           icon + .4 + 1 + .5 = 3.5 cell + .15 seam + .95 breathing). */
+        &__frame { padding: .6rem var(--con-hud-pad-x, .8rem) .5rem 4.6rem; gap: .45rem; }
         &__head { padding-bottom: .4rem; }
         /* The Deck's tighter budget: columns share the width evenly (no cap)
            so three still fit without horizontal scroll. */
@@ -32583,9 +32950,40 @@ html.con-profile-handheld {
         &__col { max-width: none; gap: .5rem; }
         &__block, &__zone { padding: .5rem .6rem; }
         &__block-title { font-size: .65rem; margin-bottom: .4rem; }
-        &__excards { gap: .6rem; }
-        &__excard { zoom: 0.6; }
-        &__excard-count { font-size: .7rem; i { width: .9rem; height: .9rem; } }
+    }
+    .con-res-aux {
+        &__cap { font-size: .5rem; letter-spacing: .1rem; bottom: calc(100% + .25rem); }
+        &__none { font-size: .75rem; min-width: 2.6rem; padding: .2rem 0; }
+    }
+    /* The extras explorer on the Deck: fewer, bigger cards (3 per page —
+       perPage mirrors this in JS), compact chrome. */
+    .con-exr {
+        &__body { gap: .45rem; }
+        &__hero { height: 3.4rem; padding: 0 .7rem; gap: .6rem; }
+        &__hero-icon { width: 2rem; height: 2rem; }
+        &__hero-name { font-size: .95rem; max-width: 13rem; }
+        &__hero-sub { font-size: .65rem; }
+        &__hero-total { font-size: 1.3rem; }
+        &__chip { font-size: .62rem; padding: .12rem .45rem; }
+        &__chip--mini { font-size: .58rem; }
+        &__page { gap: .9rem; }
+        &__slot { zoom: calc(1 * var(--con-ui-scale, 1)); padding: .4rem .4rem .3rem; }
+        &__slot-meta { height: 1.4rem; gap: .35rem; }
+        &__slot-count { font-size: .78rem; i { width: .85rem; height: .85rem; } }
+        &__slot-vp { font-size: .7rem; }
+        &__pager { height: 1rem; font-size: .65rem; }
+        &__detail { height: 2.5rem; padding: 0 .7rem; gap: .5rem; }
+        &__detail-name { font-size: .82rem; max-width: 10rem; }
+        &__detail-rule { font-size: .72rem; i { width: .8rem; height: .8rem; } }
+        &__detail-now { font-size: .78rem; }
+        &__detail-next { font-size: .72rem; }
+        &__detail-other { font-size: .68rem; }
+        &__detail-none { font-size: .72rem; }
+        &__botpool { padding: .4rem .6rem; font-size: .8rem; }
+        &__botpool-amount { font-size: .95rem; }
+        &__botnote { font-size: .68rem; }
+        &__void-title { font-size: .95rem; }
+        &__void-body { font-size: .75rem; max-width: 20rem; }
     }
     .con-infovp {
         &__total { font-size: 1.7rem; }

@@ -112,7 +112,8 @@
                             :boardVisible="consoleState.section === 'board' && !infoModeState.open && !startSceneVisible"
                             :own="railShowsSelf"
                             :vpHidden="railVpHidden"
-                            :automa="railAutoma" />
+                            :automa="railAutoma"
+                            @aux-press="onAuxCellPressed" />
       <!-- v-show (NOT v-if): the board must stay in the DOM — the headless
            SelectSpace attaches placement handlers to its cells. -->
       <ConsoleBoardSection v-show="consoleState.section === 'board'"
@@ -1838,6 +1839,7 @@ import {
   findPerformActionCard,
 } from '@/client/console/turnIntents';
 import {infoModeState, openInfoMode, closeInfoMode, settleInfoModeClose, restoreConsoleSnapshot, cyclePlayer} from '@/client/console/infoModeState';
+import {resetExtrasExplorer, selectExtrasType} from '@/client/console/consoleExtrasExplorer';
 import {InfoRouteId, infoRouteApplies, infoRouteBack, infoZoneForRoute, infoZoneRoute, infoZoneFocusable, infoZoneNavigate, infoFocusRing, botScreenNavigate, isVpRoute} from '@/client/console/infoRoute';
 import {resetScoreExplorer} from '@/client/console/consoleScoreExplorer';
 import {playInspectedSwitchMotion, playInspectedReturnMotion} from '@/client/console/inspectSwitchMotion';
@@ -11525,6 +11527,7 @@ export default defineComponent({
         this.closePlayedOverlay();
       }
       resetScoreExplorer(); // a fresh visit never resumes a stale VP cursor
+      resetExtrasExplorer(); // …nor a stale extras type/card cursor
       openInfoMode(this.thisPlayer.color, this.consoleState.inspecting);
     },
     /** after-leave of the workspace's dismiss transition — release the
@@ -11561,11 +11564,11 @@ export default defineComponent({
       return isBot && this.playerView.game.automa !== undefined ? 'bot' : 'human';
     },
     /**
-     * Navigate to a semantic route. A DIRECT shortcut (X / LT / RT / L3 /
-     * R3) is a toggle: pressed on its own route it returns ONE level (the
-     * tree's parent), not to the summary blindly. Entering a route the
-     * CURRENT participant cannot serve is refused — the fallback exists for
-     * a seat switch ARRIVING on a route, never as a place to walk into.
+     * Navigate to a semantic route (the ring's A, the bot hub's entries, a
+     * satellite cell press). Asked for the CURRENT route it returns ONE
+     * level (the tree's parent). Entering a route the CURRENT participant
+     * cannot serve is refused — the fallback exists for a seat switch
+     * ARRIVING on a route, never as a place to walk into.
      */
     infoGo(route: InfoRouteId): void {
       if (this.infoModeState.route === route) {
@@ -11591,6 +11594,27 @@ export default defineComponent({
       this.infoModeState.route = parent;
       if (parent === 'summary' && zone !== undefined) {
         this.infoModeState.summaryFocus = zone;
+      }
+    },
+    /**
+     * A rail-satellite cell press (mouse/touch) while the Information
+     * workspace is up: on the summary it both SELECTS the pressed type and
+     * opens the extras screen; on the extras screen it selects the type in
+     * place (the pad's A over the column does the same).
+     */
+    onAuxCellPressed(press: {key: string, index: number}): void {
+      if (!this.infoModeState.open) {
+        return;
+      }
+      if (this.infoModeState.route === 'summary') {
+        selectExtrasType(press.key, press.index);
+        this.infoModeState.summaryFocus = 'extras';
+        this.infoGo('extras');
+        return;
+      }
+      if (this.infoModeState.route === 'extras') {
+        (this.$refs.infoMode as InstanceType<typeof ConsoleInfoMode> | undefined)
+          ?.selectExtrasType(press.key, press.index);
       }
     },
     handleInfoIntent(intent: GamepadIntent): void {
@@ -11619,8 +11643,8 @@ export default defineComponent({
       // THE SCORE EXPLORER (vp subtree): the explorer owns nav, A (descend)
       // and X (fullscreen the previewed card). The global chords stay
       // global: Y closes, LB/RB switch the seat (semantic depth survives),
-      // B walks the route tree one level, LT/RT/L3/R3 stay the direct
-      // shortcuts onto their own semantic routes.
+      // B walks the route tree one level. (The per-route direct shortcuts
+      // are GONE — sections open through the ring + A only.)
       if (isVpRoute(this.infoModeState.route)) {
         if (intent.kind === 'press') {
           const action = consoleActionOf(intent);
@@ -11641,24 +11665,31 @@ export default defineComponent({
             }
             return;
           }
-          if (action === 'prevTab') {
-            this.infoGo('actions');
+        }
+        (this.$refs.infoMode as InstanceType<typeof ConsoleInfoMode> | undefined)?.handleScoreIntent(intent);
+        return;
+      }
+      // THE EXTRAS EXPLORER: the satellite column + gallery own nav, A
+      // (select a type / the gallery alias) and X (inspect the focused
+      // card). Same global chords: Y closes, LB/RB switch the seat, B
+      // returns to the summary with the ring on the extras group.
+      if (this.infoModeState.route === 'extras') {
+        if (intent.kind === 'press') {
+          const action = consoleActionOf(intent);
+          if (action === 'fullscreen') {
+            this.toggleInfoMode();
             return;
           }
-          if (action === 'nextTab') {
-            this.infoGo(this.infoViewedKind() === 'bot' ? 'botBonus' : 'effects');
+          if (action === 'prevSection' || action === 'nextSection') {
+            this.cycleInspectedPlayer(action === 'prevSection' ? -1 : 1);
             return;
           }
-          if (intent.button === 'stickL') {
-            this.infoGo('extras');
-            return;
-          }
-          if (intent.button === 'stickR') {
-            this.infoGo('botScreen');
+          if (action === 'back') {
+            this.infoBack();
             return;
           }
         }
-        (this.$refs.infoMode as InstanceType<typeof ConsoleInfoMode> | undefined)?.handleScoreIntent(intent);
+        (this.$refs.infoMode as InstanceType<typeof ConsoleInfoMode> | undefined)?.handleExtrasIntent(intent);
         return;
       }
       const route = this.infoModeState.route;
@@ -11700,22 +11731,13 @@ export default defineComponent({
       case 'nextSection':
         this.cycleInspectedPlayer(1);
         break;
-      case 'inspect':
-        // X — the played table, the ONE default details verb for every seat.
-        this.infoGo('played');
-        break;
-      case 'prevTab':
-        this.infoGo('actions');
-        break;
       case 'fullscreen':
         this.toggleInfoMode(); // Y closes — the same key that opened it
         break;
-      case 'nextTab':
-        // RT — effects (human) / the bonus piles deep in «Экран бота» (bot):
-        // a direct shortcut into the SAME semantic route A reaches.
-        this.infoGo(kind === 'bot' ? 'botBonus' : 'effects');
-        break;
       case 'primary':
+        // ONE navigation model, built to scale: the ring focuses a zone,
+        // A opens it (the per-block dedicated buttons are gone — a new
+        // section is a new ring stop, never a new physical binding).
         if (route === 'summary') {
           const zoneRoute = infoZoneRoute(this.infoModeState.summaryFocus);
           if (zoneRoute !== undefined && infoZoneFocusable(this.infoModeState.summaryFocus, kind)) {
@@ -11729,14 +11751,6 @@ export default defineComponent({
         this.infoBack();
         break;
       default:
-        // The stick presses stay RAW (no semantic action) — the workspace's
-        // per-seat deep readers: L3 extras (every seat), R3 the bot's
-        // internals screen.
-        if (intent.button === 'stickL') {
-          this.infoGo('extras');
-        } else if (intent.button === 'stickR') {
-          this.infoGo('botScreen');
-        }
         break;
       }
     },

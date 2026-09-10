@@ -189,7 +189,12 @@ export function marsBotExtraGroups(automa: MarsBotModel): Array<MarsBotExtraGrou
     group.holders.push({name: colony, amount: count});
     byType.set(meta.key, group);
   }
-  out.push(...[...byType.values()].sort((a, b) => b.total - a.total));
+  // STABLE order — the official board's own area order (the STORAGE_RESOURCE
+  // table), never the current totals: the extras column keeps one geometry
+  // between the rail satellite, the summary and the detail screen, and a
+  // count change may never re-shuffle the types under the player's cursor.
+  const rank = Object.values(STORAGE_RESOURCE).map((meta) => meta.key);
+  out.push(...[...byType.values()].sort((a, b) => rank.indexOf(a.key) - rank.indexOf(b.key)));
   return out;
 }
 

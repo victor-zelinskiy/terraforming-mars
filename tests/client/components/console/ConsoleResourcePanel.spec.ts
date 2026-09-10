@@ -7,6 +7,8 @@ import {Tag} from '@/common/cards/Tag';
 import {CardName} from '@/common/cards/CardName';
 import {CONSOLE_TAG_ORDER, NO_TAG_CELL} from '@/client/components/console/consoleTagMatrix';
 import {privateScoreState} from '@/client/components/overview/privateScoreState';
+import {infoModeState} from '@/client/console/infoModeState';
+import {extrasExplorerUi, resetExtrasExplorer} from '@/client/console/consoleExtrasExplorer';
 
 const BASE_GAME_TAGS: ReadonlyArray<Tag> = [
   Tag.BUILDING, Tag.SPACE, Tag.SCIENCE, Tag.POWER, Tag.EARTH, Tag.JOVIAN,
@@ -556,5 +558,82 @@ describe('ConsoleResourcePanel — protection marks', () => {
       fakePlayer({}, {protectedResources: {...NONE, plants: 'on'}}),
       {own: false, automa: automa as never});
     expect(w.findAll('.con-shieldmark')).to.have.length(0);
+  });
+});
+
+/* ── ДОП.РЕСУРСЫ satellite — the Information-workspace half ─────────────────
+ * The column is the workspace's extras ZONE: it stays mounted through the
+ * whole overlay (empty seats included — the honest «—» plate), fills from
+ * the bot's real pools on the bot seat, and paints the ring/cursor states
+ * the extras explorer owns. Geometry is never touched by any of it (the
+ * caption and the backplate are absolutely seated) — the e2e pixel probe
+ * guards the coordinates; these specs pin presence + state classes.
+ */
+describe('ConsoleResourcePanel — the extras satellite in info mode', () => {
+  // Module state is BUNDLE-SHARED — restore every flag we touch.
+  afterEach(() => {
+    infoModeState.open = false;
+    infoModeState.closing = false;
+    infoModeState.route = 'summary';
+    infoModeState.summaryFocus = 'vp';
+    resetExtrasExplorer();
+  });
+
+  function mountPlayer(player: PublicPlayerModel, extraProps: Record<string, unknown> = {}) {
+    return mount(ConsoleResourcePanel, {
+      global: globalConfig.global,
+      props: {player, gameTags: BASE_GAME_TAGS as Array<Tag>, ...extraProps},
+    });
+  }
+  const holder = (name: CardName, resources: number) => ({name, resources, calculatedCost: 0});
+
+  it('board view keeps the historical contract: unmounted without content', () => {
+    const w = mountPlayer(fakePlayer(), {boardVisible: true});
+    expect(w.find('.con-res-aux').exists(), 'no holders — no column on the board').to.be.false;
+  });
+
+  it('info mode mounts the column even for a seat with no holders (the honest empty plate)', () => {
+    infoModeState.open = true;
+    const w = mountPlayer(fakePlayer(), {boardVisible: false});
+    expect(w.find('.con-res-aux').exists()).to.be.true;
+    expect(w.find('.con-res-aux').classes()).to.include('con-res-aux--info');
+    expect(w.find('.con-res-aux__cap').exists(), 'the caption names the group').to.be.true;
+    expect(w.find('.con-res-aux__none').exists()).to.be.true;
+  });
+
+  it('the summary ring paints the whole-group focus state', () => {
+    infoModeState.open = true;
+    infoModeState.summaryFocus = 'extras';
+    const w = mountPlayer(fakePlayer({}, {tableau: [holder(CardName.BIRDS, 3)]}), {boardVisible: false});
+    expect(w.find('.con-res-aux').classes()).to.include('con-res-aux--focused');
+    expect(w.findAll('.con-res-aux__cell')).to.have.length(1);
+  });
+
+  it('the extras route paints cursor and selection on the CELLS (one owner: extrasExplorerUi)', () => {
+    infoModeState.open = true;
+    infoModeState.route = 'extras';
+    extrasExplorerUi.typeKey = 'animal';
+    extrasExplorerUi.typeCursor = 0;
+    extrasExplorerUi.zone = 'types';
+    const w = mountPlayer(fakePlayer({}, {tableau: [holder(CardName.BIRDS, 0)]}), {boardVisible: false});
+    const cell = w.find('[data-exr-type="animal"]');
+    expect(cell.exists()).to.be.true;
+    expect(cell.classes()).to.include('con-res-aux__cell--active');
+    expect(cell.classes()).to.include('con-res-aux__cell--cursor');
+    expect(cell.find('.con-res-aux__value').text(), 'a zero holder still shows its honest 0').to.eq('0');
+  });
+
+  it('the bot seat fills the SAME cells from its real pools (no landing anchors)', () => {
+    infoModeState.open = true;
+    const automa = {
+      difficulty: 'normal', tracks: [], actionDeckSize: 10, bonusDeckSize: 7,
+      bonusDiscard: [], recurringBonusCards: [], destroyedBonusCards: [],
+      playedPile: [], floaters: 3, shippingStorage: {'Ceres': 2},
+    };
+    const w = mountPlayer(fakePlayer(), {boardVisible: false, own: false, automa: automa as never});
+    const cells = w.findAll('.con-res-aux__cell');
+    expect(cells.map((c) => c.attributes('data-exr-type'))).to.deep.eq(['floaters', 'steel']);
+    expect(cells[0].attributes('data-aux-resource'), 'an inspected seat is never a flight anchor').to.be.undefined;
+    expect(cells[0].find('.con-res-aux__value').text()).to.eq('3');
   });
 });

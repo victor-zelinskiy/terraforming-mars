@@ -1675,7 +1675,9 @@ html.con-profile-tv {
        tokens; the three detail columns cap a notch wider so the freed
        workspace width breathes instead of stretching rows. */
     .con-info {
-        &__frame { padding: 1rem 1.4rem 0.8rem 1.6rem; }
+        /* LEFT: the satellite clearance at the TV metrics (.5 + 2.2 icon +
+           .4 + 1.2 + .5 = 4.8 cell + .05 seam + 1.55 breathing). */
+        &__frame { padding: 1rem 1.4rem 0.8rem 6.4rem; }
         &__corp { font-size: 1.15rem; }
         &__chip { font-size: 0.9rem; }
         &__block-title { font-size: 0.95rem; }
@@ -1687,11 +1689,37 @@ html.con-profile-tv {
         &__col { max-width: 27rem; }
         &__note { font-size: var(--con-t-caption); }
         &__empty { font-size: var(--con-t-secondary); }
-        &__extra-count { font-size: 1.4rem; }
-        &__exicon { width: 2rem; height: 2rem; }
         &__acrow { font-size: var(--con-t-body); }
         &__na-title { font-size: 1.5rem; }
         &__na-body { font-size: var(--con-t-body); max-width: 30rem; }
+    }
+    /* The rail satellite's info-mode chrome at couch distance. */
+    .con-res-aux {
+        &__cap { font-size: .8rem; letter-spacing: .16rem; }
+        &__none { font-size: 1.05rem; }
+    }
+    /* The extras explorer — 10-foot registers; the gallery keeps the same
+       rem logic (the zoom knob already rides --con-ui-scale). */
+    .con-exr {
+        &__hero { height: 5.4rem; }
+        &__hero-icon { width: 3.2rem; height: 3.2rem; }
+        &__hero-name { font-size: 1.55rem; }
+        &__hero-sub { font-size: var(--con-t-caption); }
+        &__hero-total { font-size: 2.2rem; }
+        &__chip { font-size: var(--con-t-caption); }
+        &__chip--mini { font-size: .8rem; }
+        &__slot-count { font-size: 1.05rem; }
+        &__slot-vp { font-size: .95rem; }
+        &__detail { height: 3.8rem; }
+        &__detail-name { font-size: var(--con-t-body); max-width: 20rem; }
+        &__detail-rule { font-size: 1rem; }
+        &__detail-now { font-size: 1.1rem; }
+        &__detail-next { font-size: 1rem; }
+        &__pager { font-size: .95rem; }
+        &__botpool { font-size: var(--con-t-body); }
+        &__botnote { font-size: var(--con-t-caption); }
+        &__void-title { font-size: 1.5rem; }
+        &__void-body { font-size: var(--con-t-body); max-width: 32rem; }
     }
     /* The live score steps up with the couch tokens — the total is the
        zone's hero number, the legend rides the body size. */

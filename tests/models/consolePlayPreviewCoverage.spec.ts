@@ -161,4 +161,76 @@ describe('console play-preview coverage', () => {
     }
     expect(gaps, `console play-preview GAPS (a shape the console can't pre-collect):\n  ${gaps.join('\n  ')}`).to.have.length(0);
   });
+
+  /*
+   * THE ATTACK PRE-SELECT IS PRE-COLLECTED, NEVER A LIVE FOLLOW-UP.
+   *
+   * A DECLARATIVE card whose on-play behavior attacks an opponent
+   * (`removeAnyPlants` — Big Asteroid, Asteroid, Deimos Down…; or
+   * `decreaseAnyProduction` — Asteroid Mining, Hackers…) must let the player
+   * choose the victim INSIDE the play composer: the preview walker emits an
+   * INPUT step for it (`stepsForBehavior`), the composer captures it, and the
+   * batch replays it — so the target is decided at play time and the deferred
+   * prompt is only ever a FALLBACK when no pre-select was made. If the step
+   * silently drops to a live follow-up, the player picks the victim, plays,
+   * and is then asked AGAIN — the exact regression this guard forbids.
+   *
+   * The first test skips declarative cards (they carry no bespoke hook); this
+   * one covers precisely that family, for the one shape the player must never
+   * be re-asked. It asserts the step EXISTS and classifies `inline`
+   * (pre-collected), with an attackable opponent present.
+   */
+  it('every declarative on-play ATTACK emits an inline (pre-collected) target step', () => {
+    const missing: Array<string> = [];
+    for (const manifest of ALL_MODULE_MANIFESTS) {
+      if (!SCOPE.has(manifest.module)) {
+        continue;
+      }
+      const projectCards = manifest.projectCards as Record<string, {Factory: new () => ICard}>;
+      for (const name of Object.keys(projectCards)) {
+        const Factory = projectCards[name]?.Factory;
+        if (Factory === undefined) {
+          continue;
+        }
+        let card: ICard;
+        try {
+          card = new Factory();
+        } catch {
+          continue;
+        }
+        const behavior = (card as {behavior?: {removeAnyPlants?: number, decreaseAnyProduction?: unknown}}).behavior;
+        const attacks = behavior !== undefined &&
+          (behavior.removeAnyPlants !== undefined || behavior.decreaseAnyProduction !== undefined);
+        if (!attacks) {
+          continue;
+        }
+        const [/* game */, player, opponent] = testGame(2, {venusNextExtension: true});
+        // The victim must have something to lose, or the attack is a legitimate
+        // silent no-op (no candidate → no step, and no live prompt either).
+        opponent.stock.add(Resource.PLANTS, 8);
+        for (const r of [Resource.MEGACREDITS, Resource.STEEL, Resource.TITANIUM, Resource.PLANTS, Resource.ENERGY, Resource.HEAT]) {
+          opponent.production.add(r, 4);
+        }
+        player.cardsInHand.push(card as ICard & IProjectCard);
+        let preview;
+        try {
+          preview = cardPlayPreview(player, card as ICard & IProjectCard);
+        } catch {
+          continue;
+        }
+        const handNames = new Set<string>(player.cardsInHand.map((c) => c.name));
+        const tableauNames = new Set<string>(player.playedCards.asArray().map((c) => c.name));
+        // The attack step is an `or` (removeAnyPlants) or a `player`
+        // (decreaseAnyProduction) input; both must classify inline.
+        const hasInlineTarget = preview.branches.some((b) => b.steps.some((step) =>
+          step.kind === 'input' &&
+          (step.input.type === 'or' || step.input.type === 'player') &&
+          classifyStep(step, b, handNames, tableauNames) === 'inline'));
+        if (!hasInlineTarget) {
+          missing.push(`${card.name} [${manifest.module}] — attack target NOT pre-collected inline`);
+        }
+      }
+    }
+    expect(missing, `declarative attacks whose target is re-asked as a live prompt:\n  ${missing.join('\n  ')}`).to.have.length(0);
+  });
 });
