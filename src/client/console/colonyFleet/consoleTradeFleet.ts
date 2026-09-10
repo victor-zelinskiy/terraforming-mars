@@ -80,7 +80,11 @@ export function isTradeFleetActive(): boolean {
 // The flight is VISUAL from the arm itself (the ship lifts off at confirm —
 // the client-side leg), so the whole active window holds the presentation;
 // releases the instant end/abort drops `active` (dock = the GSAP signal).
-registerAnimationHoldSupplier('trade-fleet', isTradeFleetActive);
+// The ceiling's owner recovery is the module's own recall — the hydro-marker
+// sibling law: past every net a still-active flight is a dead transaction.
+registerAnimationHoldSupplier('trade-fleet', isTradeFleetActive, {
+  expire: () => abortTradeFleet(),
+});
 
 /** The director registers its handle so the controller can drive dock/skip. */
 export function registerTradeFleetHandle(h: TradeFleetDirectorHandle | undefined): void {

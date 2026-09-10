@@ -101,6 +101,69 @@ test.describe('Hydronetwork terminal landing · fhd', () => {
     expect(model.thisPlayer?.deltaProject?.position, 'the server position is the finish slot').toBe(11);
     await settle(page);
   });
+
+  test('THE FIELD SHAPE: a Delta-Surge traversal ENDING on the animal stage closes itself', async ({page, request}) => {
+    // The 2026-09-10 wedge, exactly: a Surge traversal finished every
+    // segment, the animals landed on the presented stage-9 card («Океанский
+    // заповедник» in the field, Pets here) — and the walk hung on «Маркер
+    // движется по треку» for ~30 s, because the LAST leg awaited its
+    // presented card's exit and the destination's own face never leaves.
+    test.setTimeout(240_000);
+    const playerId = await bootFixture(page, request, 'hydro-terminal-surge');
+    await settle(page);
+    await press(page, 'Period', 1100);
+    await press(page, 'ArrowLeft', 1600);
+    await page.waitForSelector('.con-hydro', {timeout: 10_000});
+    await press(page, 'Period', 900);
+    const focused = await page.evaluate(() =>
+      document.querySelector('.con-hydro__stop--focused')?.getAttribute('data-hydro-stop') ?? '');
+    expect(focused, 'two energy bounds «К дальнему» at the animal stage').toBe('9');
+
+    // ── Answer every open rail decision by its OWN markup (the Miranda law:
+    //    the step list is data-dependent — drive the unanswered marks). ──
+    for (let i = 0; i < 6; i++) {
+      const open = await page.evaluate(() => {
+        const rows = Array.from(document.querySelectorAll('.con-hydro__pickrow'));
+        return rows.filter((r) => r.querySelector('.con-hydro__bonus-tick') === null).length;
+      });
+      if (open === 0) {
+        break;
+      }
+      await press(page, 'Enter', 1200);
+      if (await page.locator('.con-hydro__layer--target').count() > 0) {
+        await press(page, 'Enter', 1200); // A — Pets, the single candidate
+        await page.waitForSelector('.con-hydro__layer--target', {state: 'detached', timeout: 10_000});
+      } else if (await page.locator('.con-hydro__layer--choice').count() > 0) {
+        await press(page, 'Enter', 1200); // A — the first choice option
+        await page.waitForSelector('.con-hydro__layer--choice', {state: 'detached', timeout: 10_000});
+      }
+    }
+    expect(await page.evaluate(() =>
+      Array.from(document.querySelectorAll('.con-hydro__pickrow'))
+        .filter((r) => r.querySelector('.con-hydro__bonus-tick') === null).length),
+    'every rail decision is answered').toBe(0);
+
+    // ── Commit (the seat holds the CTA once nothing is left open). ──
+    await press(page, 'Enter', 900);
+    await expect.poll(async () => (await hydroDiag(page))?.commit?.kind ?? 'none',
+      {timeout: 15_000, message: 'the card-resource commit stands after A'}).toBe('card-resource');
+    const commitAt = Date.now();
+
+    // ── THE CONTRACT: 7→8→9, the animals land on the presented card, and
+    //    the flow CLOSES ITSELF. Pre-fix this hung ~30 s to the plan net. ──
+    const closed = await page.waitForSelector('.con-hydro', {state: 'detached', timeout: 25_000})
+      .then(() => true).catch(() => false);
+    const closeMs = Date.now() - commitAt;
+    if (!closed) {
+      expect(closed, `the workspace never left after the terminal presenting leg — ${await wedgeDump(page)}`).toBe(true);
+    }
+    expect(closeMs,
+      `commit→close took ${closeMs}ms (the deadlock hid behind the 30 s plan net) — ${await wedgeDump(page)}`)
+      .toBeLessThanOrEqual(20_000);
+
+    const model = await fetchPlayerModel(request, playerId) as {thisPlayer?: {deltaProject?: {position?: number}}};
+    expect(model.thisPlayer?.deltaProject?.position, 'the server position is the animal stage').toBe(9);
+  });
 });
 
 /*

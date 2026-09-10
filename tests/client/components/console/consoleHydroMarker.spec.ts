@@ -2,7 +2,7 @@ import {expect} from 'chai';
 import {watch} from 'vue';
 import {
   abortHydroMarker, armHydroMarker, armHydroMarkerTraversal, detectHydroMarker, enableHydroStepTrace,
-  endHydroMarker, hydroActiveStepSourceCard, hydroMarkerState, hydroPlanDeclaresSource,
+  endHydroMarker, hydroActiveStepSourceCard, hydroMarkerNetsArmed, hydroMarkerState, hydroPlanDeclaresSource,
   hydroStepActivated, hydroStepOwnerFor,
   hydroStepQueuedFor, hydroStepTrace, hydroTraversalPaused, hydroTraversalPending,
   hydroVisualTrackPosition, isHydroMarkerActive, noteHydroLandPresence, registerHydroMarkerHandle,
@@ -37,6 +37,24 @@ describe('consoleHydroMarker', () => {
 
   it('detect returns undefined when NOT armed (desktop / non-hydro submit)', () => {
     expect(detectHydroMarker()).to.eq(undefined);
+  });
+
+  it('the CLAIM WINDOW is bounded: detect arms the net, the handoff (and an abort) clears it', () => {
+    // The single-glide hole: the arm safety dies at the claim, and from there
+    // «lock → apply → endHydroMarker» had no whole-transaction bound — a
+    // transport chain that never reached the handoff left `active` true
+    // forever, masked (not recovered) by the 35 s hold ceiling.
+    armHydroMarker(2, 5, 'blue');
+    expect(hydroMarkerNetsArmed().claim, 'not yet claimed').to.eq(false);
+    detectHydroMarker();
+    expect(hydroMarkerNetsArmed().claim, 'the claimed transaction is bounded').to.eq(true);
+    endHydroMarker();
+    expect(hydroMarkerNetsArmed().claim, 'the handoff hands over to the finalize/plan nets').to.eq(false);
+
+    armHydroMarker(2, 5, 'blue');
+    detectHydroMarker();
+    abortHydroMarker();
+    expect(hydroMarkerNetsArmed().claim, 'an abort clears it too').to.eq(false);
   });
 
   it('hydroPlanDeclaresSource answers for the plan’s own steps — queued AND activated — and dies with it', () => {
@@ -518,6 +536,37 @@ describe('consoleHydroMarker', () => {
           await until(() => !hydroTraversalPending());
           expect(hydroMarkerState.settledPosition).to.eq(10);
         } finally {
+          stop();
+        }
+      });
+
+      it('REGRESSION: the LAST leg never awaits its presented card’s exit — the walk finalizes', async () => {
+        // The field wedge (2026-09-10): a Delta-Surge 3→9 finished every
+        // segment, the animals landed on the presented stage-9 card — and the
+        // walk hung on «Маркер движется по треку» for ~30 s. The exit wait is
+        // triggered by the CURSOR moving to the NEXT segment; past the FINAL
+        // leg the presentation falls back to the destination — the same cell —
+        // so the card legitimately STAYS as the landing's own result face and
+        // its leave only comes with the flow's result stage, which is gated on
+        // this very finalize. The last leg therefore finalizes WITHOUT the
+        // wait; the mid-path contract above is untouched.
+        const stop = autoDirector();
+        try {
+          hydroMarkerState.reducedMotion = true;
+          noteHydroLandPresence(9, true); // the destination card is ON stage…
+          armHydroMarkerTraversal(7, [
+            {position: 8, transfers: []},
+            {position: 9, transfers: []}, // …and 9 is the LAST leg
+          ], 'blue');
+          detectHydroMarker();
+          await runHydroMarker();
+          endHydroMarker();
+          // The walk must finalize with NOBODY ever reporting the card's exit.
+          await until(() => !hydroTraversalPending());
+          expect(isHydroMarkerActive(), 'the transaction is over').to.eq(false);
+          expect(hydroMarkerState.settledPosition).to.eq(9);
+        } finally {
+          noteHydroLandPresence(9, false);
           stop();
         }
       });

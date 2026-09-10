@@ -305,6 +305,10 @@ export function boardSourcedTransferActive(): boolean {
 // `diagnose` prints the leaked state if this hold ever trips the safety ceiling.
 registerAnimationHoldSupplier('resource-transfer', isResourceTransferActive, {
   diagnose: resourceTransferDiagnostics,
+  // Owner recovery on the ceiling: by then every run's own wave-budget
+  // safety has long freed its caller gates — the abort only clears the
+  // wedged stage/flight bookkeeping the "released" hold used to mask.
+  expire: () => abortResourceTransfers(),
 });
 
 /**

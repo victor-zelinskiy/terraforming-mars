@@ -149,6 +149,41 @@ describe('animationHold (the critical-animation registry)', () => {
     flow.active = false;
   });
 
+  it('the ceiling runs the OWNER RECOVERY — the wedge behind the hold ends, not just the count', async () => {
+    // The field lesson (2026-09-10): «tile-placement-remote» and
+    // «hydro-marker» were each "force-released" at 35 s while their module
+    // state stayed wedged — every input gate and close gate reading that
+    // state directly stayed frozen behind a hold the registry had already
+    // stopped counting. The `expire` hook is the owner's own abort: the
+    // ceiling now ends the transaction, and the predicate then falls
+    // honestly by itself.
+    const flow = reactive({active: true});
+    let recovered = 0;
+    registerAnimationHoldSupplier('spec-supplier-stuck', () => flow.active, {
+      maxHoldMs: 20,
+      expire: () => {
+        recovered++;
+        flow.active = false; // the owner's abort drops its own state
+      },
+    });
+    expect(animationHoldCount()).eq(1);
+    await wait(45);
+    expect(recovered, 'the owner recovery ran exactly once').eq(1);
+    expect(flow.active, 'the module state itself was recalled').eq(false);
+    expect(animationHoldCount()).eq(0);
+    // …and a recovery that THROWS is warned, never propagated into the timer.
+    flow.active = true;
+    registerAnimationHoldSupplier('spec-supplier-stuck', () => flow.active, {
+      maxHoldMs: 20,
+      expire: () => {
+        throw new Error('owner recovery boom');
+      },
+    });
+    await wait(45);
+    expect(animationHoldCount(), 'the mask still applied despite the throw').eq(0);
+    flow.active = false;
+  });
+
   it('holdAnimationWhile releases on resolve AND on reject', async () => {
     let resolveWork: () => void = () => {};
     const settled = holdAnimationWhile('spec-work', new Promise<void>((resolve) => {

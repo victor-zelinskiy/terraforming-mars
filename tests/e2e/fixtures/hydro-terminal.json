@@ -595,7 +595,7 @@
    "Mining Guild"
   ]
  },
- "createdTimeMs": 1789051515696,
+ "createdTimeMs": 1789070552432,
  "currentSeed": 483533374632,
  "deferredActions": [],
  "donePlayers": [],
@@ -622,7 +622,7 @@
      "value": 2
     }
    ],
-   "timestamp": 1789051515696
+   "timestamp": 1789070552433
   },
   {
    "message": "Drew and discarded ${0} to place a ${1}",
@@ -639,7 +639,7 @@
      "value": 0
     }
    ],
-   "timestamp": 1789051515696
+   "timestamp": 1789070552433
   },
   {
    "message": "Drew and discarded ${0} to place a ${1}",
@@ -656,7 +656,7 @@
      "value": 2
     }
    ],
-   "timestamp": 1789051515696
+   "timestamp": 1789070552433
   },
   {
    "message": "Drew and discarded ${0} to place a ${1}",
@@ -673,7 +673,7 @@
      "value": 0
     }
    ],
-   "timestamp": 1789051515697
+   "timestamp": 1789070552433
   },
   {
    "message": "The id of this game is ${0}",
@@ -683,7 +683,7 @@
      "value": "game-id"
     }
    ],
-   "timestamp": 1789051515697
+   "timestamp": 1789070552433
   },
   {
    "message": "Good luck ${0}!",
@@ -693,7 +693,7 @@
      "value": "blue"
     }
    ],
-   "timestamp": 1789051515697,
+   "timestamp": 1789070552433,
    "playerId": "p-player1-id"
   },
   {
@@ -704,7 +704,7 @@
      "value": "1"
     }
    ],
-   "timestamp": 1789051515697,
+   "timestamp": 1789070552433,
    "type": 1
   },
   {
@@ -719,7 +719,7 @@
      "value": "Inventrix"
     }
    ],
-   "timestamp": 1789051515698,
+   "timestamp": 1789070552433,
    "correlationId": 5,
    "parentId": 5,
    "role": "root-action",
@@ -737,7 +737,7 @@
      "value": "2"
     }
    ],
-   "timestamp": 1789051515698,
+   "timestamp": 1789070552433,
    "correlationId": 5,
    "parentId": 5,
    "role": "detail"
@@ -758,7 +758,7 @@
      "value": "2"
     }
    ],
-   "timestamp": 1789051515699
+   "timestamp": 1789070552434
   },
   {
    "message": "${0} drew ${1}",
@@ -775,7 +775,7 @@
      ]
     }
    ],
-   "timestamp": 1789051515699,
+   "timestamp": 1789070552434,
    "playerId": "p-player1-id"
   }
  ],
@@ -980,7 +980,7 @@
   "Builder",
   "Planner"
  ],
- "name": "Cosmic Signal Burst",
+ "name": "Solar Optics Pulse",
  "oxygenLevel": 0,
  "passedPlayers": [],
  "phase": "action",
@@ -1101,11 +1101,11 @@
    "beginner": false,
    "handicap": 0,
    "timer": {
-    "sumElapsed": 1,
-    "startedAt": 1789051515698,
+    "sumElapsed": 0,
+    "startedAt": 1789070552433,
     "running": true,
     "afterFirstAction": true,
-    "lastStoppedAt": 1789051515698
+    "lastStoppedAt": 1789070552433
    },
    "actionsTakenThisGame": 1,
    "victoryPointsByGeneration": [],

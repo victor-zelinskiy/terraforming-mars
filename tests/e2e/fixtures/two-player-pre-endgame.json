@@ -605,7 +605,7 @@
    "Inventrix"
   ]
  },
- "createdTimeMs": 1789051515658,
+ "createdTimeMs": 1789070552405,
  "currentSeed": 467049282315,
  "deferredActions": [],
  "donePlayers": [],
@@ -625,7 +625,7 @@
      "value": "blue"
     }
    ],
-   "timestamp": 1789051515658
+   "timestamp": 1789070552405
   },
   {
    "message": "Good luck ${0}!",
@@ -635,7 +635,7 @@
      "value": "blue"
     }
    ],
-   "timestamp": 1789051515658,
+   "timestamp": 1789070552405,
    "playerId": "p-player1-id"
   },
   {
@@ -646,7 +646,7 @@
      "value": "red"
     }
    ],
-   "timestamp": 1789051515658,
+   "timestamp": 1789070552405,
    "playerId": "p-player2-id"
   },
   {
@@ -657,7 +657,7 @@
      "value": "1"
     }
    ],
-   "timestamp": 1789051515658,
+   "timestamp": 1789070552405,
    "type": 1
   },
   {
@@ -672,7 +672,7 @@
      "value": "Interplanetary Cinematics"
     }
    ],
-   "timestamp": 1789051515659,
+   "timestamp": 1789070552406,
    "correlationId": 1,
    "parentId": 1,
    "role": "root-action",
@@ -694,7 +694,7 @@
      "value": "steel"
     }
    ],
-   "timestamp": 1789051515659,
+   "timestamp": 1789070552406,
    "correlationId": 1,
    "parentId": 1,
    "role": "detail"
@@ -711,7 +711,7 @@
      "value": "2"
     }
    ],
-   "timestamp": 1789051515659,
+   "timestamp": 1789070552406,
    "correlationId": 1,
    "parentId": 1,
    "role": "detail"
@@ -728,7 +728,7 @@
      "value": "Saturn Systems"
     }
    ],
-   "timestamp": 1789051515659,
+   "timestamp": 1789070552406,
    "correlationId": 3,
    "parentId": 3,
    "role": "root-action",
@@ -750,7 +750,7 @@
      "value": "titanium"
     }
    ],
-   "timestamp": 1789051515660,
+   "timestamp": 1789070552407,
    "correlationId": 3,
    "parentId": 3,
    "role": "detail"
@@ -767,7 +767,7 @@
      "value": "2"
     }
    ],
-   "timestamp": 1789051515660,
+   "timestamp": 1789070552407,
    "correlationId": 3,
    "parentId": 3,
    "role": "detail"
@@ -792,7 +792,7 @@
      "value": "Saturn Systems"
     }
    ],
-   "timestamp": 1789051515660,
+   "timestamp": 1789070552407,
    "correlationId": 3,
    "parentId": 5,
    "role": "effect-result"
@@ -817,7 +817,7 @@
      "value": "04"
     }
    ],
-   "timestamp": 1789051515665
+   "timestamp": 1789070552410
   },
   {
    "message": "${0} gained ${1} ${2}",
@@ -835,7 +835,7 @@
      "value": "steel"
     }
    ],
-   "timestamp": 1789051515666,
+   "timestamp": 1789070552411,
    "role": "detail"
   },
   {
@@ -858,7 +858,7 @@
      "value": "06"
     }
    ],
-   "timestamp": 1789051515667
+   "timestamp": 1789070552412
   },
   {
    "message": "${0} ${1} ${2} card(s)",
@@ -876,7 +876,7 @@
      "value": "1"
     }
    ],
-   "timestamp": 1789051515667,
+   "timestamp": 1789070552412,
    "role": "detail"
   },
   {
@@ -893,7 +893,7 @@
      ]
     }
    ],
-   "timestamp": 1789051515667,
+   "timestamp": 1789070552412,
    "playerId": "p-player1-id",
    "role": "detail"
   },
@@ -917,7 +917,7 @@
      "value": "07"
     }
    ],
-   "timestamp": 1789051515667
+   "timestamp": 1789070552412
   },
   {
    "message": "${0} gained ${1} ${2} from ${3} ocean(s)",
@@ -939,7 +939,7 @@
      "value": "1"
     }
    ],
-   "timestamp": 1789051515667,
+   "timestamp": 1789070552412,
    "role": "detail"
   },
   {
@@ -962,7 +962,7 @@
      "value": "13"
     }
    ],
-   "timestamp": 1789051515667
+   "timestamp": 1789070552412
   },
   {
    "message": "${0} ${1} ${2} card(s)",
@@ -980,7 +980,7 @@
      "value": "2"
     }
    ],
-   "timestamp": 1789051515667,
+   "timestamp": 1789070552412,
    "role": "detail"
   },
   {
@@ -998,7 +998,7 @@
      ]
     }
    ],
-   "timestamp": 1789051515667,
+   "timestamp": 1789070552412,
    "playerId": "p-player1-id",
    "role": "detail"
   },
@@ -1022,7 +1022,7 @@
      "value": "1"
     }
    ],
-   "timestamp": 1789051515667,
+   "timestamp": 1789070552412,
    "role": "detail"
   },
   {
@@ -1045,7 +1045,7 @@
      "value": "28"
     }
    ],
-   "timestamp": 1789051515668
+   "timestamp": 1789070552413
   },
   {
    "message": "${0} gained ${1} ${2}",
@@ -1063,7 +1063,7 @@
      "value": "plants"
     }
    ],
-   "timestamp": 1789051515668,
+   "timestamp": 1789070552413,
    "role": "detail"
   },
   {
@@ -1086,7 +1086,7 @@
      "value": "32"
     }
    ],
-   "timestamp": 1789051515668
+   "timestamp": 1789070552413
   },
   {
    "message": "${0} gained ${1} ${2}",
@@ -1104,7 +1104,7 @@
      "value": "plants"
     }
    ],
-   "timestamp": 1789051515668,
+   "timestamp": 1789070552413,
    "role": "detail"
   },
   {
@@ -1127,7 +1127,7 @@
      "value": "33"
     }
    ],
-   "timestamp": 1789051515668
+   "timestamp": 1789070552413
   },
   {
    "message": "${0} gained ${1} ${2}",
@@ -1145,7 +1145,7 @@
      "value": "plants"
     }
    ],
-   "timestamp": 1789051515668,
+   "timestamp": 1789070552413,
    "role": "detail"
   },
   {
@@ -1168,7 +1168,7 @@
      "value": "1"
     }
    ],
-   "timestamp": 1789051515668,
+   "timestamp": 1789070552413,
    "role": "detail"
   },
   {
@@ -1191,7 +1191,7 @@
      "value": "34"
     }
    ],
-   "timestamp": 1789051515668
+   "timestamp": 1789070552413
   },
   {
    "message": "${0} gained ${1} ${2}",
@@ -1209,7 +1209,7 @@
      "value": "plants"
     }
    ],
-   "timestamp": 1789051515668,
+   "timestamp": 1789070552413,
    "role": "detail"
   },
   {
@@ -1232,7 +1232,7 @@
      "value": "1"
     }
    ],
-   "timestamp": 1789051515668,
+   "timestamp": 1789070552413,
    "role": "detail"
   },
   {
@@ -1255,7 +1255,7 @@
      "value": "43"
     }
    ],
-   "timestamp": 1789051515668
+   "timestamp": 1789070552413
   },
   {
    "message": "${0} gained ${1} ${2}",
@@ -1273,7 +1273,7 @@
      "value": "plants"
     }
    ],
-   "timestamp": 1789051515668,
+   "timestamp": 1789070552413,
    "role": "detail"
   },
   {
@@ -1296,7 +1296,7 @@
      "value": "1"
     }
    ],
-   "timestamp": 1789051515668,
+   "timestamp": 1789070552413,
    "role": "detail"
   },
   {
@@ -1315,7 +1315,7 @@
      "value": "2"
     }
    ],
-   "timestamp": 1789051515669
+   "timestamp": 1789070552413
   },
   {
    "message": "${0} drew ${1}",
@@ -1332,7 +1332,7 @@
      ]
     }
    ],
-   "timestamp": 1789051515669,
+   "timestamp": 1789070552413,
    "playerId": "p-player1-id"
   },
   {
@@ -1351,7 +1351,7 @@
      "value": "2"
     }
    ],
-   "timestamp": 1789051515669
+   "timestamp": 1789070552414
   },
   {
    "message": "${0} drew ${1}",
@@ -1368,7 +1368,7 @@
      ]
     }
    ],
-   "timestamp": 1789051515669,
+   "timestamp": 1789070552414,
    "playerId": "p-player2-id"
   }
  ],
@@ -2253,7 +2253,7 @@
   "Builder",
   "Planner"
  ],
- "name": "Erratic Gamma Wave",
+ "name": "Polar Particle Burst",
  "oxygenLevel": 13,
  "passedPlayers": [],
  "phase": "action",
@@ -2355,11 +2355,11 @@
    "beginner": false,
    "handicap": 0,
    "timer": {
-    "sumElapsed": 1,
-    "startedAt": 1789051515660,
+    "sumElapsed": 2,
+    "startedAt": 1789070552407,
     "running": true,
     "afterFirstAction": true,
-    "lastStoppedAt": 1789051515660
+    "lastStoppedAt": 1789070552407
    },
    "actionsTakenThisGame": 1,
    "victoryPointsByGeneration": [],
@@ -2474,11 +2474,11 @@
    "beginner": false,
    "handicap": 0,
    "timer": {
-    "sumElapsed": 1,
-    "startedAt": 1789051515659,
+    "sumElapsed": 2,
+    "startedAt": 1789070552406,
     "running": false,
     "afterFirstAction": true,
-    "lastStoppedAt": 1789051515660
+    "lastStoppedAt": 1789070552407
    },
    "actionsTakenThisGame": 0,
    "victoryPointsByGeneration": [],

@@ -266,6 +266,46 @@ function clearPlanProgressNet(): void {
   }
 }
 
+/**
+ * THE CLAIM-WINDOW NET — the single-glide transaction's own bound.
+ *
+ * `armHydroMarker`'s 10 s safety is CLEARED at `detectHydroMarker` (the
+ * transport claimed the arm), and from there a SINGLE glide's remaining path
+ * — lock → view apply → `endHydroMarker` — had no whole-transaction bound at
+ * all: the lock and the release each carry their own small nets, but a
+ * transport chain that never REACHES `endHydroMarker` (an exception between
+ * the claim and the handoff) left `active` true forever, with only the 35 s
+ * animation-hold ceiling to mask it. This net covers exactly that window:
+ * armed at the claim, cleared the moment `endHydroMarker` takes over (a
+ * traversal then lives under the plan net; a single glide's finalize is
+ * release-net-bounded from there). The degrade is the module's own honest
+ * recall. Generous — it must only ever catch a dead transaction.
+ */
+const CLAIM_PROGRESS_MAX_MS = 15_000;
+let claimNetId = 0;
+
+function armClaimNet(): void {
+  clearClaimNet();
+  claimNetId = setTimeout(() => {
+    claimNetId = 0;
+    recordHydroStepEvent('claim:stalled');
+    console.warn('[hydro-marker] the claimed advance never reached its handoff — recalling the glide (claim net)');
+    abortHydroMarker();
+  }, CLAIM_PROGRESS_MAX_MS) as unknown as number;
+}
+
+function clearClaimNet(): void {
+  if (claimNetId !== 0) {
+    clearTimeout(claimNetId);
+    claimNetId = 0;
+  }
+}
+
+/** Diagnostics/spec probe: which of the module's liveness nets stand armed. */
+export function hydroMarkerNetsArmed(): {claim: boolean, plan: boolean} {
+  return {claim: claimNetId !== 0, plan: planProgressId !== 0};
+}
+
 export function enableHydroStepTrace(on: boolean): void {
   traceOn = on;
   trace = [];
@@ -345,7 +385,22 @@ export function isHydroMarkerActive(): boolean {
 // The glide is VISUAL from the arm itself (the marker charges at confirm —
 // the client-side leg), so the whole active window holds the presentation;
 // releases the instant end/abort drops `active` (lock = the GSAP signal).
-registerAnimationHoldSupplier('hydro-marker', isHydroMarkerActive);
+// The ceiling's owner recovery is the module's own recall — past every net
+// a still-active marker is a dead transaction, and masking the hold alone
+// left the input gate and the flow's close gate wedged on `active`.
+registerAnimationHoldSupplier('hydro-marker', isHydroMarkerActive, {
+  diagnose: () => ({
+    phase: hydroMarkerState.phase,
+    from: hydroMarkerState.fromPosition,
+    to: hydroMarkerState.toPosition,
+    planCursor: hydroMarkerState.planCursor,
+    planPaused: hydroMarkerState.planPaused,
+    parkedAt: hydroMarkerState.parkedAt,
+    claimed,
+    nets: hydroMarkerNetsArmed(),
+  }),
+  expire: () => abortHydroMarker(),
+});
 
 /** The director registers its handle so the controller can drive lock/skip. */
 export function registerHydroMarkerHandle(h: HydroMarkerDirectorHandle | undefined): void {
@@ -529,6 +584,9 @@ export function detectHydroMarker(): {toPosition: number} | undefined {
   }
   claimed = true;
   clearArmSafety();
+  // The arm safety hands over to the claim net — the transaction stays
+  // bounded through the lock + apply + handoff window (see the net's doc).
+  armClaimNet();
   return {toPosition: hydroMarkerState.toPosition};
 }
 
@@ -577,6 +635,7 @@ export function runHydroMarker(): Promise<void> {
  */
 export function endHydroMarker(): void {
   clearArmSafety();
+  clearClaimNet(); // the handoff happened — the finalize/plan nets own the rest
   clearPendingLockSafety();
   pendingLock = undefined;
   if (hydroMarkerState.planCursor >= 0) {
@@ -690,12 +749,24 @@ async function runTraversalLockedLeg(): Promise<void> {
     }
   }
   hydroMarkerState.planCursor = cursor + 1;
-  await awaitHydroLandExit(leg.position);
-  if (planEpoch !== epoch) {
-    return;
-  }
+  // ⚠️ THE LAST LEG NEVER AWAITS ITS PRESENTED CARD'S EXIT. The exit wait
+  // exists for the MIDDLE of a walk («the next leg may not start over a face
+  // still saying goodbye») and it is the cursor advance above that triggers
+  // it — the presentation follows the cursor to the NEXT segment and the
+  // card's leave reports the release. Past the FINAL leg there is no next
+  // segment: the presentation falls back to the DESTINATION — the same cell —
+  // so the card legitimately STAYS as the landing's own result face, and its
+  // leave only comes with the flow's result stage… which is gated on this
+  // very finalize. Awaiting it here was a deadlock (field wedge 2026-09-10:
+  // a Delta-Surge 3→9 finished all six segments, the animals landed, and the
+  // track stood on «Маркер движется по треку» for ~30 s until the plan net
+  // aborted the walk — the exact reported «завис и отлип сам»).
   if (cursor + 1 >= planLegs.length) {
     finalizeTraversal();
+    return;
+  }
+  await awaitHydroLandExit(leg.position);
+  if (planEpoch !== epoch) {
     return;
   }
   await startNextLeg();
@@ -953,6 +1024,7 @@ export function hydroVisualTrackPosition(): number {
  */
 export function abortHydroMarker(): void {
   clearArmSafety();
+  clearClaimNet();
   clearPendingLockSafety();
   if (!hydroMarkerState.active && lockResolve === undefined && pendingLock === undefined &&
       hydroMarkerState.planCursor < 0) {
@@ -1002,6 +1074,7 @@ export function abortHydroMarker(): void {
 /** Test-only full reset. */
 export function resetHydroMarker(): void {
   clearArmSafety();
+  clearClaimNet();
   clearPendingLockSafety();
   clearPlanProgressNet();
   pendingLock = undefined;

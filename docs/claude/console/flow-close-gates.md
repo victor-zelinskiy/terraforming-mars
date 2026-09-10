@@ -129,11 +129,56 @@ cinematic from the hydro flow risks cutting a legitimate scene. If the trail
 shows one of THOSE as the field's stuck term, the fix is scoping that term by
 ownership (the `hydroOwnsRevealBatch` precedent), not a force.
 
+## Iteration 3 (2026-09-10 evening — the field named itself)
+
+The user's console export + screenshot identified the wedge exactly: a
+Delta-Surge traversal 3→9 finished every segment, the animals landed on the
+presented stage-9 card, and the track stood on «Маркер движется по треку» —
+`[animation-hold] "hydro-marker" held for over 35000ms`, preceded by
+`"tile-placement-remote"` at 35 s and two `board-beat-park` degrades.
+
+1. **THE ROOT: the last leg's exit-wait deadlock.** `runTraversalLockedLeg`
+   awaited the presented card's EXIT after every presenting leg — and the
+   exit is triggered by the cursor moving to the NEXT segment. Past the
+   FINAL leg the presentation falls back to the destination (the same cell),
+   so the card legitimately stays as the landing's own result face; its
+   leave only comes with the flow's result stage, which is gated on the very
+   finalize that was waiting. The last leg now finalizes BEFORE the wait
+   (the mid-path contract is untouched). Guard: `consoleHydroMarker.spec` §
+   «the LAST leg never awaits its presented card's exit» + the e2e FIELD
+   SHAPE journey (`hydro-terminal-surge` fixture: Surge, position 7, energy
+   2 ⇒ «К дальнему» = 9 deterministically).
+2. **THE CLASS: the hold ceiling now RECOVERS, not just masks.**
+   `AnimationHoldOptions.expire` — the owner's own abort, run when the 35 s
+   ceiling (or the foreground watchdog's expiry) fires. Masking alone left
+   the owning module's state wedged behind a "released" hold — every input
+   gate and close gate reading that state directly stayed frozen (both field
+   holds did exactly this). Wired: `hydro-marker` → `abortHydroMarker`,
+   `tile-placement-remote` → `abortRemotePlacements`, `trade-fleet` →
+   `abortTradeFleet`, `resource-transfer` → `abortResourceTransfers`; the
+   first two also carry `diagnose` snapshots so the next ceiling warn names
+   the stuck shape. Guard: `animationHold.spec` § the owner recovery.
+3. **The single-glide claim net.** `armHydroMarker`'s 10 s safety dies at
+   `detectHydroMarker`, and from there a single glide had NO whole-
+   transaction bound (a transport chain that never reaches `endHydroMarker`
+   left `active` true forever). `CLAIM_PROGRESS_MAX_MS` (15 s) now spans
+   claim → handoff; `endHydroMarker` hands over to the finalize/plan nets.
+   Probe: `hydroMarkerNetsArmed()`. Guard: `consoleHydroMarker.spec` § the
+   claim window.
+
+Left as documented residue: the remote-placement scene's INTERNAL stall that
+made its hold reach the ceiling (its `waitingForBoard` window is excluded
+from the hold by design; the 35 s instance means the flight/queue half
+stalled) — the new `diagnose` names the shape on the next occurrence, and
+`expire` now ends it honestly; the notification correlation 90 s release and
+the ResizeObserver loop warnings are their own bounded/benign classes.
+
 ## Guards
 
 `tests/client/components/console/consoleHydroFlow.spec.ts` § the flow-close
 witnesses (lying/heal semantics, install/uninstall), `consoleHydroMarker.spec`
-§ `hydroPlanDeclaresSource`, `consoleHydroTerminalStage.spec` — the three
-regressions: durable-arrival start with the glow expired, the honest skip
-when the server never confirmed, the mount-edge ask (espionage shape), and
-the e2e journey above.
+§ `hydroPlanDeclaresSource` / the last-leg exit / the claim window,
+`animationHold.spec` § the owner recovery, `consoleHydroTerminalStage.spec` —
+the three iteration-2 regressions, and the three e2e journeys in
+`console-hydro-terminal-landing.spec.ts` (plain multi-step 5→11 · the FIELD
+SHAPE Surge→9 · vs-MarsBot 0→11).

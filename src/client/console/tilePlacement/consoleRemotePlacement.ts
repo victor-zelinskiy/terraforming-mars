@@ -183,7 +183,19 @@ export function isRemotePlacementActive(): boolean {
 
 // Queued/flying remote landings hold the presentation exactly like the own
 // hero: notifications queue, mandatory surfaces wait for the touchdown.
-registerAnimationHoldSupplier('tile-placement-remote', isRemotePlacementActive);
+// The ceiling's owner recovery is this scene's own abort — every held tile
+// becomes visible at once and the queue drops; masking the hold alone left
+// the queue/flight state wedged behind a "released" hold (field log
+// 2026-09-10: 35 s, with the underlying stall intact).
+registerAnimationHoldSupplier('tile-placement-remote', isRemotePlacementActive, {
+  diagnose: () => ({
+    active: remotePlacementState.active,
+    waitingForBoard: remotePlacementState.waitingForBoard,
+    queued: queue.length,
+    draining,
+  }),
+  expire: () => abortRemotePlacements(),
+});
 
 /**
  * STAGE (the diff form) — call in the SAME synchronous block as the commit,

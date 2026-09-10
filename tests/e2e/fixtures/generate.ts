@@ -38,6 +38,7 @@ import {RegolithEaters} from '../../../src/server/cards/base/RegolithEaters';
 import {IoMiningIndustries} from '../../../src/server/cards/base/IoMiningIndustries';
 import {Pets} from '../../../src/server/cards/base/Pets';
 import {SolarPower} from '../../../src/server/cards/base/SolarPower';
+import {DeltaSurge} from '../../../src/server/cards/delta/DeltaSurge';
 
 const OUT_DIR = __dirname;
 
@@ -174,4 +175,28 @@ function write(name: string, game: IGame): void {
   player.drawCard(2);
   runAllActions(game);
   write('hydro-terminal', game);
+}
+
+// ── hydro-terminal-surge: the FIELD SHAPE of the 2026-09-10 wedge — a
+//    Delta-Surge traversal whose FINAL leg is the animal stage. Position 7,
+//    energy for exactly TWO steps (so «К дальнему» is 9, deterministically),
+//    the row tags as above, Pets as the stage-9 holder, and Delta Surge
+//    played — the walk crosses 8 and LANDS on 9 with the presented-card
+//    payout: the terminal PRESENTING leg whose exit-wait deadlocked the
+//    whole flow («Маркер движется по треку» over a finished walk). ──
+{
+  const [game, player] = testGame(1, {skipInitialCardSelection: false, deltaProjectExpansion: true});
+  const wf = player.getWaitingFor();
+  if (!(wf instanceof SelectInitialCards)) {
+    throw new Error(`expected SelectInitialCards, got ${wf?.constructor.name}`);
+  }
+  answerStartFlow(game, [player]);
+  player.playedCards.push(new SolarPower(), new AdaptedLichen(), new RegolithEaters(),
+    new IoMiningIndustries(), new Pets(), new DeltaSurge());
+  player.deltaProjectData!.position = 7;
+  player.energy = 2;
+  player.megaCredits = 60;
+  player.drawCard(2);
+  runAllActions(game);
+  write('hydro-terminal-surge', game);
 }

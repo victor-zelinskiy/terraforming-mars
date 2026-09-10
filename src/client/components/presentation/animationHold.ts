@@ -79,6 +79,19 @@ export type AnimationHoldOptions = {
    * cheap (it runs on the ceiling path only). Reuse for any hold that can leak.
    */
   diagnose?: () => unknown,
+  /**
+   * THE OWNER'S HONEST RECOVERY, run when the ceiling fires (and when the
+   * foreground watchdog expires the hold). The ceiling used to only MASK a
+   * leaked supplier — exclude it from the counts while the owning module's
+   * state stayed wedged: the input gates, busy conjunctions and close gates
+   * reading that state directly stayed stuck long past the "release" (field
+   * log 2026-09-10: «tile-placement-remote» and «hydro-marker» each held
+   * 35 s, were "force-released", and their flows stayed frozen regardless).
+   * A supplier whose module HAS an abort/recall registers it here; the
+   * ceiling then ends the WEDGE, not just the hold. Guarded (a throw is
+   * warned, never propagated); called once per rising edge.
+   */
+  expire?: () => void,
 };
 
 /** Idempotent release token — safe to call from every exit path, twice over. */
@@ -92,11 +105,25 @@ type SupplierEntry = {
   maxHoldMs: number,
   supplier: () => boolean,
   diagnose: (() => unknown) | undefined,
+  expire: (() => void) | undefined,
   stop: () => void,
   ceilingTimer: ReturnType<typeof setTimeout> | undefined,
   /** Epoch ms of the current rising edge (undefined = not holding). */
   heldSince: number | undefined,
 };
+
+/** Run a hold's owner recovery safely — its failure is warned, never thrown
+ *  into the ceiling timer / the watchdog. */
+function safeExpireRecovery(label: string, expire: (() => void) | undefined): void {
+  if (expire === undefined) {
+    return;
+  }
+  try {
+    expire();
+  } catch (e) {
+    console.warn(`[animation-hold] the "${label}" owner recovery threw`, e);
+  }
+}
 
 /** Run a hold's diagnose hook safely — a throwing/absent hook degrades to ''. */
 function safeDiagnose(diagnose: (() => unknown) | undefined): string {
@@ -200,12 +227,15 @@ export function registerAnimationHoldSupplier(label: string, supplier: () => boo
     maxHoldMs: options?.maxHoldMs ?? DEFAULT_MAX_HOLD_MS,
     supplier,
     diagnose: options?.diagnose,
+    expire: options?.expire,
     stop: () => {},
     ceilingTimer: undefined,
     heldSince: undefined,
   };
   // The ceiling: a supplier stuck true past maxHoldMs is EXPIRED (excluded
-  // from the counts, with a warn) until it honestly goes false again.
+  // from the counts, with a warn) until it honestly goes false again — and
+  // its OWNER RECOVERY runs, so the wedge behind the hold ends too, not just
+  // the hold's own count.
   entry.stop = watch(() => safeRead(label, supplier), (holding) => {
     if (holding) {
       if (entry.ceilingTimer === undefined) {
@@ -214,6 +244,7 @@ export function registerAnimationHoldSupplier(label: string, supplier: () => boo
           entry.ceilingTimer = undefined;
           store.expired.add(label);
           console.warn(`[animation-hold] "${label}" held for over ${entry.maxHoldMs}ms — force-released by the safety ceiling (leaked hold?)${safeDiagnose(entry.diagnose)}`);
+          safeExpireRecovery(label, entry.expire);
         }, entry.maxHoldMs);
       }
     } else {
@@ -364,6 +395,7 @@ export function expireActiveAnimationHolds(permanent = false): ReadonlyArray<str
       if (permanent) {
         store.quarantined.add(label);
       }
+      safeExpireRecovery(label, entry.expire);
       expired.push(`animation:${label}${permanent ? ' (quarantined)' : ''}`);
     }
   }
