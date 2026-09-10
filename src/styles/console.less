@@ -1951,6 +1951,69 @@ html.console-native {
            instead (the name ellipsizes) on crowded tables. */
         flex-wrap: nowrap;
         min-width: 0;
+        /* Conveyor window + stacking scope: the --conveyor mask lives on
+           THIS box (the fixed window the ribbon slides through), and the
+           exit ghost rides z:-1 inside it — above the beam's background,
+           under every real chip (statusChipConveyor.ts). */
+        position: relative;
+        isolation: isolate;
+    }
+    /* The belt's single moving part: the whole chip row rides ONE transform
+       (statusChipConveyor.ts). Layout mirrors the parent cell — the gap is
+       INHERITED so the per-profile `.con-status__players { gap: … }`
+       overrides keep applying untouched. */
+    &__ribbon {
+        display: flex;
+        align-items: center;
+        gap: inherit;
+        flex-wrap: nowrap;
+        min-width: 0;
+        position: relative;
+    }
+    /* ── GENERATION-ORDER CONVEYOR (statusChipConveyor.ts) ──
+       For the one-shot reorder glide the players cell becomes a WINDOW ONTO
+       A RING: the wrapped chip dissolves through one edge and materializes
+       through the other while the rest slide one slot in lockstep. The box
+       is extended net-zero (padding + negative margin — nothing in the bar
+       moves by a pixel) so the soft fade bands live just OUTSIDE the
+       resting chips: nothing is guillotined by the container edge, resting
+       geometry is untouched, and removing the class after the run changes
+       no visible pixel. Chip glows (box-shadow ≤ 1rem) stay inside the
+       extended box, so masking on/off never pops them. */
+    &__players--conveyor {
+        padding: 1.2rem 1.4rem;
+        margin: -1.2rem -1.4rem;
+        -webkit-mask-image: linear-gradient(90deg,
+            transparent .1rem,
+            #000 1.35rem,
+            #000 calc(100% - 1.35rem),
+            transparent calc(100% - .1rem));
+        mask-image: linear-gradient(90deg,
+            transparent .1rem,
+            #000 1.35rem,
+            #000 calc(100% - 1.35rem),
+            transparent calc(100% - .1rem));
+        -webkit-mask-repeat: no-repeat;
+        mask-repeat: no-repeat;
+    }
+    /* The exit ghost: a frozen clone of the wrapping chip's OLD frame,
+       parented into the RIBBON so it rides the belt's one transform. It
+       keeps the chip's own classes for paint and adds this one for place.
+       Decorative by contract: no input, no animations of its own (a cloned
+       one-shot entrance must not replay on the copy). ⚠ The clone carries
+       BOTH classes — the doubled selector out-specifies any later
+       `.con-status__player` declaration, so `absolute` cannot lose by
+       source order (it did once: an in-flow ghost inflates the ribbon). */
+    &__player&__pghost {
+        position: absolute;
+        z-index: -1;
+        box-sizing: border-box;
+        pointer-events: none;
+    }
+    &__pghost,
+    &__pghost * {
+        animation: none !important;
+        transition: none !important;
     }
     &__player {
         display: inline-flex;

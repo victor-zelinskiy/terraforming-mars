@@ -59,6 +59,9 @@ export const MOTION_EASE = {
   exit: 'cubic-bezier(0.4, 0, 0.7, 0.2)',
   /** Damped-spring style settle for arrival pulses. */
   settle: 'cubic-bezier(0.34, 1.26, 0.44, 1)',
+  /** Lateral conveyor glide (reorders, ribbon shifts): inertial start,
+   *  confident middle, long soft landing — no overshoot. */
+  convey: 'cubic-bezier(0.45, 0.02, 0.18, 1)',
 } as const;
 
 function storage(): Storage | undefined {

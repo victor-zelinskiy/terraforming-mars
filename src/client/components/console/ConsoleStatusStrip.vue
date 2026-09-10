@@ -6,11 +6,23 @@
          counters live in the right home panel; TR / M€ in the resource
          panel + Information Mode — the top chips answer ONE question:
          whose move is it and what is everyone doing. -->
-    <div class="con-status__players">
+    <!-- Generation-order conveyor (statusChipConveyor.ts): on a server
+         rotation of this list the chips glide one slot along a closed
+         ribbon — the wrapped chip leaves through one edge and enters
+         through the other, under the soft edge mask of the --conveyor
+         state. The RIBBON wrapper is the belt's single moving part: one
+         transform animation carries every chip, the entering chip and the
+         exit ghost together (per-element WAAPI animations start on the
+         compositor at measurably different times — one driver is what
+         makes tearing unexpressible). data-color is the chips' stable
+         identity for the FLIP measurement (the same identity as :key). -->
+    <div class="con-status__players" ref="playersEl">
+      <div class="con-status__ribbon">
       <span v-for="p in players"
             :key="p.color"
             class="con-status__player"
-            :class="chipClasses(p)">
+            :class="chipClasses(p)"
+            :data-color="p.color">
         <span :class="'con-status__dot player_bg_color_' + p.color"></span>
         <span class="con-status__pname">{{ displayName(p) }}</span>
         <span class="con-status__pstatus" :class="'con-status__pstatus--' + presentation(p).category">
@@ -29,6 +41,7 @@
                 aria-hidden="true">!</span>
         </transition>
       </span>
+      </div>
     </div>
 
     <div class="con-status__params">
@@ -174,7 +187,7 @@
  * animation the moment their status becomes active — the premium
  * "your turn" transition that replaced the central «ВАШ ХОД» pill.
  */
-import {defineComponent, PropType} from 'vue';
+import {defineComponent, markRaw, PropType} from 'vue';
 import {GameModel} from '@/common/models/GameModel';
 import {PlayerViewModel, PublicPlayerModel} from '@/common/models/PlayerModel';
 import {Color} from '@/common/Color';
@@ -193,6 +206,7 @@ import ConsoleFlipValue from '@/client/components/console/ConsoleFlipValue.vue';
 import ConsoleProjectDeck from '@/client/components/console/ConsoleProjectDeck.vue';
 import {captureGlobalParams} from '@/client/console/planetFocus';
 import {boardBeatParkState, boardBeatDisplayParams} from '@/client/console/boardBeatPark';
+import {createChipConveyor} from '@/client/console/statusChipConveyor';
 
 /** Glyph → the chip's compact text mark (mirrors the desktop PlayerStatusGlyph;
  *  CSS animates the active dot via the --active class). MarsBot's active turn
@@ -285,6 +299,9 @@ export default defineComponent({
        *  queue through the coalescing window, never a stale number. */
       shownCountText: '0',
       evqCountTimer: undefined as number | undefined,
+      /** The generation-order chip conveyor — DOM choreography state, kept
+       *  out of reactivity (it holds Animations, clones and rects). */
+      conveyor: markRaw(createChipConveyor()),
     };
   },
   computed: {
@@ -498,7 +515,22 @@ export default defineComponent({
       }, motionMs(3400));
     },
   },
+  mounted() {
+    // Seed the conveyor with the order that is on screen — the initial open
+    // and a reconnect show the current order with no animation.
+    this.conveyor.sync(this.chipOrder());
+  },
+  beforeUpdate() {
+    // Pre-patch half of the reorder FLIP: measures only when the ORDER
+    // itself changed (content updates — statuses, counters, params — are a
+    // string compare and out).
+    this.conveyor.beforePatch(this.playersContainer(), this.chipOrder());
+  },
+  updated() {
+    this.conveyor.afterPatch(this.playersContainer(), this.chipOrder());
+  },
   beforeUnmount() {
+    this.conveyor.dispose();
     if (this.burstTimer !== undefined) {
       window.clearTimeout(this.burstTimer);
     }
@@ -516,6 +548,14 @@ export default defineComponent({
     }
   },
   methods: {
+    /** The chips' identity sequence — the generation order as rendered. */
+    chipOrder(): Array<string> {
+      return this.players.map((p) => p.color as string);
+    },
+    playersContainer(): HTMLElement | undefined {
+      const el = this.$refs.playersEl;
+      return el instanceof HTMLElement ? el : undefined;
+    },
     displayName(p: PublicPlayerModel): string {
       return participantDisplayName(p);
     },
