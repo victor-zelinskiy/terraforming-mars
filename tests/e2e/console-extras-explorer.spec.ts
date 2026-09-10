@@ -127,7 +127,7 @@ async function takeAuxSamples(page: Page): Promise<Array<AuxSample>> {
 // retain-on-failure for the suite's ordinary life; a local evidence run can
 // flip it to 'on' (top-level by Playwright's rule — a describe-level video
 // forces a new worker and is refused outright).
-test.use({video: {mode: 'on', size: {width: 1280, height: 720}}});
+test.use({video: {mode: 'retain-on-failure', size: {width: 1280, height: 720}}});
 
 for (const preset of PRESETS) {
   test.describe(`extras explorer · ${preset.id}`, () => {
@@ -217,6 +217,22 @@ for (const preset of PRESETS) {
       const nrb = explorer.locator('[data-exr-card="Nitrite Reducing Bacteria"]');
       await expect(nrb.locator('.con-exr__slot-count')).toHaveText(/×3/);
       await expect(nrb.locator('.con-exr__slot-vp'), 'no VP clause — no VP chip').toHaveCount(0);
+
+      // THE GALLERY FITS ITS PAGE — the profile scale ladder is PROBED,
+      // never eyeballed: every slot (face + meta plate) sits fully inside
+      // the page box (CSS `zoom` under-reports height to flex, which is
+      // exactly how two profiles shipped clipped meta plates once).
+      const pageBox = await explorer.locator('.con-exr__page').boundingBox();
+      expect(pageBox, 'the gallery page is measurable').toBeTruthy();
+      for (const slotBox of await explorer.locator('.con-exr__slot').all()) {
+        const b = await slotBox.boundingBox();
+        expect(b, 'a slot is measurable').toBeTruthy();
+        if (pageBox && b) {
+          expect(b.y, `slot top inside the page (Δ=${(pageBox.y - b.y).toFixed(1)}px)`).toBeGreaterThanOrEqual(pageBox.y - 1);
+          expect(b.y + b.height, `slot bottom inside the page (Δ=${(b.y + b.height - pageBox.y - pageBox.height).toFixed(1)}px over)`)
+            .toBeLessThanOrEqual(pageBox.y + pageBox.height + 1);
+        }
+      }
 
       // ── The gallery zone + the one zoom inspector round trip. ─────────
       await key(page, 'ArrowRight', 450); // cross into the gallery

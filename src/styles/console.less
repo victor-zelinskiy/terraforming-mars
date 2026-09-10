@@ -16637,6 +16637,9 @@ html.con-profile-large.console-mode .notifications-layer.notifications-layer--jo
         position: relative;
         display: flex;
         flex-direction: column;
+        /* A profile miscalibration may never PAINT over the fact strip —
+           the stage clips (a page is sized to fit; this is the belt). */
+        overflow: hidden;
     }
     &__page {
         flex: 1;
@@ -16656,8 +16659,12 @@ html.con-profile-large.console-mode .notifications-layer.notifications-layer--jo
         border-radius: .6rem;
         cursor: pointer;
         /* The gallery card scale — one knob per profile; everything inside
-           (face + meta) rides it, so the composition scales as one object. */
-        zoom: calc(1.5 * var(--con-ui-scale, 1));
+           (face + meta) rides it, so the composition scales as one object.
+           ⚠ CSS `zoom` under-reports the slot's height to the flex parent
+           (the page then clips both edges), so the knob carries real
+           headroom and the e2e guard asserts every slot fits its page —
+           the calibration is probed, never eyeballed. */
+        zoom: calc(1.34 * var(--con-ui-scale, 1));
         transition: box-shadow calc(150ms * var(--motion-scale, 1)) ease,
             background-color calc(150ms * var(--motion-scale, 1)) ease;
 

@@ -351,6 +351,7 @@ export function beginHydroCommit(rec: Omit<HydroCommitRecord, 'phase'>): void {
   hydroFlowState.step = undefined;
   hydroFlowState.repeatBridge = false;
   ceremonyHealAttempts = 0; // a fresh commit gets the witness's full patience
+  recordHydroFlowEvent(`commit:${rec.kind}:${rec.fromPosition}->${rec.toPosition}`);
   hydroFlowState.commit = {...rec, phase: 'moving'};
   // WHOSE FLOW THIS IS. Taken at the press, when the frame that is making the
   // move is by definition the live one.
@@ -382,12 +383,16 @@ export function advanceHydroCommitPhase(phase: HydroCommitPhase): void {
   if (COMMIT_ORDER.indexOf(phase) <= COMMIT_ORDER.indexOf(c.phase)) {
     return;
   }
+  recordHydroFlowEvent(`phase:${phase}`);
   c.phase = phase;
 }
 
 /** The SERVER refused the batch — the move did not happen. The record drops,
  *  the pre-commit draft (module state) is untouched, B lives again. */
 export function rollbackHydroCommit(): void {
+  if (hydroFlowState.commit !== undefined) {
+    recordHydroFlowEvent('rollback');
+  }
   hydroFlowState.commit = undefined;
   hydroFlowState.ceremonyActive = false;
   hydroFlowState.ceremonyPlayed = false;
@@ -395,6 +400,9 @@ export function rollbackHydroCommit(): void {
 
 /** The flow is over (result read / workspace closing) — full reset. */
 export function resetHydroFlow(): void {
+  if (hydroFlowState.commit !== undefined) {
+    recordHydroFlowEvent('reset');
+  }
   hydroFlowState.step = undefined;
   hydroFlowState.repeatBridge = false;
   hydroFlowState.commit = undefined;
@@ -405,6 +413,9 @@ export function resetHydroFlow(): void {
 }
 
 export function setHydroCeremonyActive(on: boolean): void {
+  if (hydroFlowState.ceremonyActive !== on) {
+    recordHydroFlowEvent(`cere:${on ? 'start' : 'end'}`);
+  }
   hydroFlowState.ceremonyActive = on;
   // The choreography's own age — the one witness term that can tell «the
   // culmination is playing» from «its finish call died with a killed
@@ -424,7 +435,8 @@ export function isHydroCeremonyActive(): boolean {
  * stage of every successful movement, and the ceremony is the beat before it.
  */
 export function markHydroCeremonyPlayed(): void {
-  if (hydroFlowState.commit !== undefined) {
+  if (hydroFlowState.commit !== undefined && !hydroFlowState.ceremonyPlayed) {
+    recordHydroFlowEvent('cere:played');
     hydroFlowState.ceremonyPlayed = true;
   }
 }
@@ -541,10 +553,35 @@ export function hydroFlowSetAside(): boolean {
   return workspaceStackCollapsed() || consoleState.task.deferred;
 }
 
+/*
+ * ── THE FLOW TRAIL — bounded, always-on, diagnostics-only ─────────────────
+ * The wedge class this file nets is «an edge was missed», and a missed edge
+ * leaves no trace: by the time anyone looks, the state merely says «stuck»,
+ * three screens from the cause. The trail records every transition the
+ * module owns (the resourceTransfer `trail` idiom — a capped ring of plain
+ * objects, zero cost until read); `__conHydroDiag` exposes it, so a field
+ * report becomes a diagnosis instead of a reproduction hunt.
+ */
+const FLOW_TRAIL_CAP = 80;
+const flowTrail: Array<{t: number, ev: string}> = [];
+
+export function recordHydroFlowEvent(ev: string): void {
+  flowTrail.push({t: Date.now(), ev});
+  if (flowTrail.length > FLOW_TRAIL_CAP) {
+    flowTrail.splice(0, flowTrail.length - FLOW_TRAIL_CAP);
+  }
+}
+
+/** The trail, newest last — ages relative to now, so the dump reads at a glance. */
+export function hydroFlowTrail(): Array<string> {
+  const now = Date.now();
+  return flowTrail.map((e) => `${((now - e.t) / 1000).toFixed(1)}s ago: ${e.ev}`);
+}
+
 /** The culmination choreography has been RUNNING implausibly long — its
- *  finish call died (a killed timeline). Bounded far above any real run
- *  (~2.7 s at motion scale 1). */
-const CEREMONY_RUN_MAX_MS = 12_000;
+ *  finish call died past even the wall-clock net (`runHydroCeremony`'s own
+ *  backstop fires at ~4 s; this is the second layer over it). */
+const CEREMONY_RUN_MAX_MS = 8_000;
 let ceremonyRunSince = 0;
 
 export function hydroCeremonyRunningTooLong(now: number = Date.now()): boolean {
@@ -590,15 +627,31 @@ const CEREMONY_HEAL_MAX_ATTEMPTS = 3;
 /** The witness's heal — CONVERGING by construction: every branch either
  *  starts the culmination (lying falls on `ceremonyActive`) or marks it
  *  honestly skipped (lying falls on `ceremonyPlayed`). */
+/** A heal is the net catching a REAL wedge — print the trail once per
+ *  episode, so a field console export names the stuck edge without devtools
+ *  archaeology. The ledger's own warn names the witness; this names the path. */
+let trailPrintedForCommit: unknown;
+function printTrailOnce(): void {
+  if (trailPrintedForCommit === hydroFlowState.commit) {
+    return;
+  }
+  trailPrintedForCommit = hydroFlowState.commit;
+  console.warn('[hydro-flow] wedge trail:', hydroFlowTrail().join(' | '));
+}
+
 export function healHydroCeremony(): void {
+  printTrailOnce();
   if (hydroFlowState.ceremonyActive) {
     // The choreography wedged mid-run — end it honestly. A late finish from
     // the real timeline is idempotent (`doneFired` / played-latch).
+    recordHydroFlowEvent('heal:cere:wedged-run');
     setHydroCeremonyActive(false);
     markHydroCeremonyPlayed();
     return;
   }
   const starter = ceremonyStarter;
+  recordHydroFlowEvent(starter !== undefined && ceremonyHealAttempts < CEREMONY_HEAL_MAX_ATTEMPTS ?
+    `heal:cere:starter#${ceremonyHealAttempts + 1}` : 'heal:cere:skip');
   if (starter !== undefined && ceremonyHealAttempts < CEREMONY_HEAL_MAX_ATTEMPTS) {
     // The section's own durable-arrival ask: it either starts the finale or
     // skips it honestly — both end the lie. An ask that moves nothing
@@ -671,18 +724,22 @@ export function healHydroFlowStuck(): void {
   if (c === undefined) {
     return;
   }
+  printTrailOnce();
   if (c.phase === 'moving') {
     if (flowProbe !== undefined && flowProbe.serverAtDestination()) {
       // The move IS committed server-side — the same recovery the shell's
       // own position watcher performs on its (missed) edge.
+      recordHydroFlowEvent('heal:stuck:advance');
       advanceHydroCommitPhase('resolving');
     } else {
       // The move never committed (a lost submit past every marker net) —
       // the refusal battery's own answer: the draft returns, B lives again.
+      recordHydroFlowEvent('heal:stuck:rollback');
       rollbackHydroCommit();
     }
     return;
   }
+  recordHydroFlowEvent(`heal:stuck:drive:${c.phase}`);
   flowProbe?.drive();
 }
 

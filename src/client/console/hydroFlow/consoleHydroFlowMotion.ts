@@ -251,6 +251,23 @@ export function runHydroCeremony(args: HydroCeremonyArgs): HydroCeremonyHandle {
   }
 
   const tl = gsap.timeline();
+  // THE WALL-CLOCK FINISH NET. `finish` is the flow's completion signal
+  // (`ceremonyOwed` releases on it), and its primary carrier is a GSAP
+  // `tl.call` — which never fires if the timeline dies mid-run (an external
+  // kill, a stalled ticker). The animation-hold law allows exactly this
+  // shape: the real signal stays the timeline's own call; the timer is the
+  // BOUNDED BACKSTOP beside it (the director-lock/`DEAL_START_SAFETY`
+  // idiom), idempotent through `doneFired`, cleared by the normal finish.
+  dwellTimer = setTimeout(() => {
+    dwellTimer = undefined;
+    finish();
+  }, motionMs(560 + CEREMONY_DWELL_MS) + 1500);
+  const clearNet = () => {
+    if (dwellTimer !== undefined) {
+      clearTimeout(dwellTimer);
+      dwellTimer = undefined;
+    }
+  };
   // The VALUE — born at the stop, settles in the seat. FLIP via the measured
   // delta so the number is ONE object travelling, not two crossfading.
   const value = args.valueEl;
@@ -281,9 +298,13 @@ export function runHydroCeremony(args: HydroCeremonyArgs): HydroCeremonyHandle {
     args.onCulmination();
     burst = playCeremonyBurst({host: args.seatEl, accent: 'gold', reduced: false});
   }, undefined, motionMs(560) / 1000);
-  tl.call(finish, undefined, (motionMs(560) + motionMs(CEREMONY_DWELL_MS)) / 1000);
+  tl.call(() => {
+    clearNet();
+    finish();
+  }, undefined, (motionMs(560) + motionMs(CEREMONY_DWELL_MS)) / 1000);
 
   return {kill: () => {
+    clearNet();
     tl.kill();
     burst?.stop();
     if (value !== undefined) {

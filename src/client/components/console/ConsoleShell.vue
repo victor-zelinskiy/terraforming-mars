@@ -1705,7 +1705,8 @@ import {
 } from '@/client/console/hydroMarker/consoleHydroMarker';
 import {
   HydroResolutionKind, HydroTraversalSegmentRecord, advanceHydroCommitPhase, beginHydroCommit, hydroCeremonyOwed,
-  hydroFlowState, hydroResolutionBusyOf, hydroWorkspacePhase, installHydroFlowWitnesses, isHydroCeremonyActive,
+  hydroFlowState, hydroFlowTrail, hydroResolutionBusyOf, hydroWorkspacePhase, installHydroFlowWitnesses,
+  isHydroCeremonyActive,
   registerHydroFlowProbe, resetHydroFlow, resolutionKindFor, rollbackHydroCommit, setHydroRepeatBridge,
 } from '@/client/console/hydroFlow/consoleHydroFlow';
 import {bonusDiscardOwnsBatch, bonusDiscardStep, BonusDiscardStep} from '@/client/console/colonyTrade/colonyBonusDiscardStep';
@@ -17655,6 +17656,9 @@ export default defineComponent({
         deferred: this.consoleState.task.deferred,
         collapsed: workspaceStackCollapsed(),
       },
+      // The module's own transition trail (bounded ring) — a field wedge
+      // names its last edges instead of demanding a reproduction.
+      trail: hydroFlowTrail(),
     });
     (window as unknown as Record<string, unknown>).__conColonyDiag = () => ({
       // THE STACK IS THE SNAPSHOT — one ordered list instead of five flags that

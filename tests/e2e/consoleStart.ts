@@ -2210,7 +2210,7 @@ export type BootOptions = {
 export async function bootFixture(
   page: Page,
   request: APIRequestContext,
-  fixture: 'solo-actions' | 'solo-pre-endgame',
+  fixture: 'solo-actions' | 'solo-pre-endgame' | 'hydro-terminal',
   opts: {query?: string, waitRounds?: number} = {},
 ): Promise<string> {
   const file = path.resolve(__dirname, 'fixtures', `${fixture}.json`);

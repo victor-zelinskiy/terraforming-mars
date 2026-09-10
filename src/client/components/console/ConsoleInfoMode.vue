@@ -313,6 +313,7 @@ import {
 import ConsoleScoreExplorer from '@/client/components/console/ConsoleScoreExplorer.vue';
 import ConsoleExtrasExplorer from '@/client/components/console/ConsoleExtrasExplorer.vue';
 import {translateText, translateTextWithParams} from '@/client/directives/i18n';
+import {preloadPremiumCardArt} from '@/client/cards/cardArt';
 import {MarsBotModel} from '@/common/models/MarsBotModel';
 import {DIFFICULTY_LABEL} from '@/client/components/marsbot/marsBotView';
 import {MarsBotGuideContext} from '@/client/components/marsbot/marsBotGuide';
@@ -618,6 +619,12 @@ export default defineComponent({
     },
   },
   watch: {
+    /** Warm the extras gallery's art for the NEW seat — the biggest webp
+     *  decode on the panel, and the one surface where a late-arriving face
+     *  is a visible defect (the 4K faces decode in hundreds of ms). */
+    'infoModeState.playerColor'(): void {
+      this.warmExtrasArt();
+    },
     /** Publish the CONTEXTUAL command contract to the shell's ONE bottom
      *  command bar (consolePanelUi) — hints live only there, never in a
      *  panel-local footer (CONSOLE_TV_PREMIUM_PLAN §3.2). */
@@ -629,6 +636,9 @@ export default defineComponent({
       },
     },
   },
+  mounted() {
+    this.warmExtrasArt();
+  },
   beforeUnmount() {
     clearPanelCommands('infoMode');
     disposeScoreHandoff();
@@ -636,6 +646,22 @@ export default defineComponent({
   methods: {
     tableauCard(name: CardName): CardModel | undefined {
       return this.viewed.tableau.find((c) => c.name === name);
+    },
+    /** Pre-decode the resource HOLDERS' premium art at panel open — the
+     *  extras gallery then enters with its faces already warm. */
+    warmExtrasArt(): void {
+      const holders = this.viewed.tableau
+        .filter((c) => {
+          try {
+            return getCard(c.name)?.resourceType !== undefined;
+          } catch (err) {
+            return false;
+          }
+        })
+        .map((c) => c.name);
+      if (holders.length > 0) {
+        preloadPremiumCardArt(holders);
+      }
     },
     /** The focus-ring state of a summary zone (ring only where A can go). */
     zoneStateClass(zone: string): Record<string, boolean> {

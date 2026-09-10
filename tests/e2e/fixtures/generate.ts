@@ -33,6 +33,11 @@ import {SelectInitialCards} from '../../../src/server/inputs/SelectInitialCards'
 import {MAX_OXYGEN_LEVEL, MAX_TEMPERATURE} from '../../../src/common/constants';
 import {toName} from '../../../src/common/utils/utils';
 import {CardName} from '../../../src/common/cards/CardName';
+import {AdaptedLichen} from '../../../src/server/cards/base/AdaptedLichen';
+import {RegolithEaters} from '../../../src/server/cards/base/RegolithEaters';
+import {IoMiningIndustries} from '../../../src/server/cards/base/IoMiningIndustries';
+import {Pets} from '../../../src/server/cards/base/Pets';
+import {SolarPower} from '../../../src/server/cards/base/SolarPower';
 
 const OUT_DIR = __dirname;
 
@@ -143,4 +148,30 @@ function write(name: string, game: IGame): void {
   player.drawCard(2);
   runAllActions(game);
   write('solo-pre-endgame', game);
+}
+
+// ── hydro-terminal: a solo delta game on the THRESHOLD of the finish slots —
+//    position 5, ALL NINE row tags in the tableau (the path check runs rows
+//    1–9 whatever the current position — REAL cards, a fake would not
+//    deserialize) and energy in stock, the generation's advance unused:
+//    «К дальнему» reaches the 5 VP slot in ONE multi-step move, and the
+//    terminal ceremony → summary → close chain is the whole remaining flow.
+//    For the finale-wedge family (console-hydro-terminal-landing.spec.ts). ──
+{
+  const [game, player] = testGame(1, {skipInitialCardSelection: false, deltaProjectExpansion: true});
+  const wf = player.getWaitingFor();
+  if (!(wf instanceof SelectInitialCards)) {
+    throw new Error(`expected SelectInitialCards, got ${wf?.constructor.name}`);
+  }
+  answerStartFlow(game, [player]);
+  // building+power / plant / science+microbe / jovian+space / earth+animal —
+  // rows 1–9 covered without leaning on the (seed-dealt) corporation.
+  player.playedCards.push(new SolarPower(), new AdaptedLichen(), new RegolithEaters(),
+    new IoMiningIndustries(), new Pets());
+  player.deltaProjectData!.position = 5;
+  player.energy = 12;
+  player.megaCredits = 60;
+  player.drawCard(2);
+  runAllActions(game);
+  write('hydro-terminal', game);
 }

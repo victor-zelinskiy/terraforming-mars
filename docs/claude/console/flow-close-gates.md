@@ -98,10 +98,42 @@ first.
 - `boardCovered` (consoleRemotePlacement) reads it inside a wait that is
   already bounded by `BOARD_WAIT_MAX_MS` — no action.
 
+## Iteration 2 (2026-09-10 — the field wedge recurred after the ceremony)
+
+The report: a multi-step advance onto the 5 VP slot played its ceremony and
+the screen wedged AFTER it, un-sticking «through some time». Three additions:
+
+1. **The ceremony's completion got a wall-clock net** (`runHydroCeremony`):
+   `finish` was carried ONLY by a GSAP `tl.call` — a timeline that dies
+   mid-run (external kill, stalled ticker) never fires it, and `ceremonyOwed`
+   then wedged until the witness ceiling. The net is the director-lock /
+   `DEAL_START_SAFETY` idiom: a `setTimeout` at the choreography's total +
+   1.5 s, idempotent through `doneFired`, cleared by the real finish. The
+   witness ceiling (`CEREMONY_RUN_MAX_MS`) dropped 12 s → 8 s as the second
+   layer over it.
+2. **The FLOW TRAIL** — a bounded always-on ring of the module's own
+   transitions (commit / phase / ceremony start-played / rollbacks / every
+   witness heal with its branch), exposed as `__conHydroDiag().trail`. A
+   field wedge now names its last edges instead of demanding a reproduction.
+3. **The e2e repro** — `tests/e2e/console-hydro-terminal-landing.spec.ts`
+   over the new `hydro-terminal` fixture (track position 5, the four
+   remaining row tags as REAL cards, energy in stock): «К дальнему» → one
+   press → 5→11 → the ceremony seat → **the workspace must LEAVE ITSELF
+   within 14 s** (honest chain ≈ 8 s; the wedge hides behind 20–30 s
+   accidental safeties). A failure dumps the trail + the ledger snapshot.
+
+Deliberately NOT added: a force-degrading witness over the any-source
+bounded-cinematic busy terms (`intakeFlying`'s deckDraw/boardBonus/flights,
+`transfersFlying`) — each carries its own 2–30 s net, and forcing a foreign
+cinematic from the hydro flow risks cutting a legitimate scene. If the trail
+shows one of THOSE as the field's stuck term, the fix is scoping that term by
+ownership (the `hydroOwnsRevealBatch` precedent), not a force.
+
 ## Guards
 
 `tests/client/components/console/consoleHydroFlow.spec.ts` § the flow-close
 witnesses (lying/heal semantics, install/uninstall), `consoleHydroMarker.spec`
 § `hydroPlanDeclaresSource`, `consoleHydroTerminalStage.spec` — the three
 regressions: durable-arrival start with the glow expired, the honest skip
-when the server never confirmed, the mount-edge ask (espionage shape).
+when the server never confirmed, the mount-edge ask (espionage shape), and
+the e2e journey above.

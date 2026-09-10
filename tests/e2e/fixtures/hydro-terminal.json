@@ -87,6 +87,10 @@
    {
     "id": "10",
     "spaceType": "land",
+    "tile": {
+     "tileType": 2
+    },
+    "player": "p-game-id-neutral",
     "bonus": [],
     "x": 5,
     "y": 1
@@ -94,6 +98,10 @@
    {
     "id": "11",
     "spaceType": "land",
+    "tile": {
+     "tileType": 0
+    },
+    "player": "p-game-id-neutral",
     "bonus": [],
     "x": 6,
     "y": 1
@@ -142,10 +150,6 @@
    {
     "id": "17",
     "spaceType": "land",
-    "tile": {
-     "tileType": 0
-    },
-    "player": "p-game-id-neutral",
     "bonus": [],
     "x": 5,
     "y": 2
@@ -153,10 +157,6 @@
    {
     "id": "18",
     "spaceType": "land",
-    "tile": {
-     "tileType": 2
-    },
-    "player": "p-game-id-neutral",
     "bonus": [],
     "x": 6,
     "y": 2
@@ -164,6 +164,10 @@
    {
     "id": "19",
     "spaceType": "land",
+    "tile": {
+     "tileType": 2
+    },
+    "player": "p-game-id-neutral",
     "bonus": [],
     "x": 7,
     "y": 2
@@ -228,6 +232,10 @@
    {
     "id": "26",
     "spaceType": "land",
+    "tile": {
+     "tileType": 0
+    },
+    "player": "p-game-id-neutral",
     "bonus": [
      2
     ],
@@ -464,10 +472,6 @@
    {
     "id": "52",
     "spaceType": "land",
-    "tile": {
-     "tileType": 2
-    },
-    "player": "p-game-id-neutral",
     "bonus": [],
     "x": 8,
     "y": 6
@@ -517,10 +521,6 @@
    {
     "id": "58",
     "spaceType": "land",
-    "tile": {
-     "tileType": 0
-    },
-    "player": "p-game-id-neutral",
     "bonus": [
      0
     ],
@@ -580,23 +580,23 @@
  "colonies": [],
  "corporationDeck": {
   "drawPile": [
-   "CrediCor",
-   "Mining Guild",
-   "PhoboLog",
    "ThorGate",
+   "Saturn Systems",
+   "Tharsis Republic",
+   "PhoboLog",
    "United Nations Mars Initiative",
    "Helion",
-   "Ecoline",
-   "Tharsis Republic",
-   "Inventrix",
-   "Saturn Systems"
+   "CrediCor",
+   "Interplanetary Cinematics",
+   "Teractor",
+   "Ecoline"
   ],
   "discardPile": [
-   "Teractor"
+   "Mining Guild"
   ]
  },
- "createdTimeMs": 1789051515629,
- "currentSeed": 467049282315,
+ "createdTimeMs": 1789051515696,
+ "currentSeed": 483533374632,
  "deferredActions": [],
  "donePlayers": [],
  "draftRound": 1,
@@ -605,14 +605,14 @@
  "fundedAwards": [],
  "gagarinBase": [],
  "stJosephCathedrals": [],
- "gameAge": 13,
+ "gameAge": 12,
  "gameLog": [
   {
    "message": "Drew and discarded ${0} to place a ${1}",
    "data": [
     {
      "type": 3,
-     "value": "Herbivores",
+     "value": "Ice Cap Melting",
      "attrs": {
       "cost": true
      }
@@ -622,7 +622,7 @@
      "value": 2
     }
    ],
-   "timestamp": 1789051515631
+   "timestamp": 1789051515696
   },
   {
    "message": "Drew and discarded ${0} to place a ${1}",
@@ -639,14 +639,14 @@
      "value": 0
     }
    ],
-   "timestamp": 1789051515632
+   "timestamp": 1789051515696
   },
   {
    "message": "Drew and discarded ${0} to place a ${1}",
    "data": [
     {
      "type": 3,
-     "value": "Geothermal Power",
+     "value": "Giant Ice Asteroid",
      "attrs": {
       "cost": true
      }
@@ -656,14 +656,14 @@
      "value": 2
     }
    ],
-   "timestamp": 1789051515632
+   "timestamp": 1789051515696
   },
   {
    "message": "Drew and discarded ${0} to place a ${1}",
    "data": [
     {
      "type": 3,
-     "value": "Deimos Down",
+     "value": "Domed Crater",
      "attrs": {
       "cost": true
      }
@@ -673,7 +673,7 @@
      "value": 0
     }
    ],
-   "timestamp": 1789051515632
+   "timestamp": 1789051515697
   },
   {
    "message": "The id of this game is ${0}",
@@ -683,7 +683,7 @@
      "value": "game-id"
     }
    ],
-   "timestamp": 1789051515632
+   "timestamp": 1789051515697
   },
   {
    "message": "Good luck ${0}!",
@@ -693,7 +693,7 @@
      "value": "blue"
     }
    ],
-   "timestamp": 1789051515632,
+   "timestamp": 1789051515697,
    "playerId": "p-player1-id"
   },
   {
@@ -704,7 +704,7 @@
      "value": "1"
     }
    ],
-   "timestamp": 1789051515632,
+   "timestamp": 1789051515697,
    "type": 1
   },
   {
@@ -716,35 +716,14 @@
     },
     {
      "type": 3,
-     "value": "Interplanetary Cinematics"
+     "value": "Inventrix"
     }
    ],
-   "timestamp": 1789051515634,
+   "timestamp": 1789051515698,
    "correlationId": 5,
    "parentId": 5,
    "role": "root-action",
    "category": "card-play"
-  },
-  {
-   "message": "${0} gained ${1} ${2}",
-   "data": [
-    {
-     "type": 2,
-     "value": "blue"
-    },
-    {
-     "type": 1,
-     "value": "20"
-    },
-    {
-     "type": 15,
-     "value": "steel"
-    }
-   ],
-   "timestamp": 1789051515636,
-   "correlationId": 5,
-   "parentId": 5,
-   "role": "detail"
   },
   {
    "message": "${0} kept ${1} project cards",
@@ -758,7 +737,7 @@
      "value": "2"
     }
    ],
-   "timestamp": 1789051515637,
+   "timestamp": 1789051515698,
    "correlationId": 5,
    "parentId": 5,
    "role": "detail"
@@ -776,10 +755,10 @@
     },
     {
      "type": 1,
-     "value": "4"
+     "value": "2"
     }
    ],
-   "timestamp": 1789051515647
+   "timestamp": 1789051515699
   },
   {
    "message": "${0} drew ${1}",
@@ -791,14 +770,12 @@
     {
      "type": 14,
      "value": [
-      "AI Central",
-      "Tundra Farming",
-      "Earth Office",
-      "Special Design"
+      "Callisto Penal Mines",
+      "Wave Power"
      ]
     }
    ],
-   "timestamp": 1789051515647,
+   "timestamp": 1789051515699,
    "playerId": "p-player1-id"
   }
  ],
@@ -814,7 +791,7 @@
    "correlationId": 1,
    "visibility": "analytics",
    "player": "neutral",
-   "space": "18",
+   "space": "10",
    "tile": 2,
    "tags": [
     "terraforming"
@@ -831,7 +808,7 @@
    "correlationId": 2,
    "visibility": "analytics",
    "player": "neutral",
-   "space": "17",
+   "space": "11",
    "tile": 0,
    "tags": [
     "terraforming"
@@ -848,7 +825,7 @@
    "correlationId": 3,
    "visibility": "analytics",
    "player": "neutral",
-   "space": "52",
+   "space": "19",
    "tile": 2,
    "tags": [
     "terraforming"
@@ -865,7 +842,7 @@
    "correlationId": 4,
    "visibility": "analytics",
    "player": "neutral",
-   "space": "58",
+   "space": "26",
    "tile": 0,
    "tags": [
     "terraforming"
@@ -881,7 +858,7 @@
    "visibility": "journal",
    "source": {
     "kind": "corporation",
-    "card": "Interplanetary Cinematics",
+    "card": "Inventrix",
     "owner": "blue"
    },
    "player": "blue",
@@ -897,53 +874,27 @@
    "type": "resource-changed",
    "impact": {
     "stock": {
-     "steel": 20
-    },
-    "snapshot": {
-     "resource": "steel",
-     "scope": "stock",
-     "before": 0,
-     "after": 20
-    }
-   },
-   "correlationId": 5,
-   "visibility": "analytics",
-   "source": {
-    "kind": "corporation",
-    "card": "Interplanetary Cinematics",
-    "owner": "blue"
-   },
-   "player": "blue",
-   "parentId": 5
-  },
-  {
-   "id": 7,
-   "generation": 1,
-   "phase": "research",
-   "type": "resource-changed",
-   "impact": {
-    "stock": {
      "megacredits": -6
     },
     "snapshot": {
      "resource": "megacredits",
      "scope": "stock",
-     "before": 30,
-     "after": 24
+     "before": 45,
+     "after": 39
     }
    },
    "correlationId": 5,
    "visibility": "analytics",
    "source": {
     "kind": "corporation",
-    "card": "Interplanetary Cinematics",
+    "card": "Inventrix",
     "owner": "blue"
    },
    "player": "blue",
    "parentId": 5
   }
  ],
- "eventSeq": 7,
+ "eventSeq": 6,
  "gameOptions": {
   "altVenusBoard": false,
   "aresExtension": false,
@@ -979,7 +930,7 @@
    "ceo": false,
    "starwars": false,
    "underworld": false,
-   "deltaProject": false
+   "deltaProject": true
   },
   "fastModeOption": false,
   "includeFanMA": false,
@@ -1011,7 +962,7 @@
   "starWarsExpansion": false,
   "turmoilExtension": false,
   "underworldExpansion": false,
-  "deltaProjectExpansion": false,
+  "deltaProjectExpansion": true,
   "undoOption": false,
   "venusNextExtension": false,
   "twoCorpsVariant": false,
@@ -1029,28 +980,28 @@
   "Builder",
   "Planner"
  ],
- "name": "Silent Signal State",
+ "name": "Cosmic Signal Burst",
  "oxygenLevel": 0,
  "passedPlayers": [],
  "phase": "action",
  "players": [
   {
    "id": "p-player1-id",
-   "pickedCorporationCard": "Interplanetary Cinematics",
+   "pickedCorporationCard": "Inventrix",
    "initialCardSelectionDone": true,
    "terraformRating": 14,
    "hasIncreasedTerraformRatingThisGeneration": false,
    "terraformRatingFromCards": 0,
    "terraformRatingSources": [],
-   "megaCredits": 80,
+   "megaCredits": 60,
    "megaCreditProduction": 0,
-   "steel": 5,
+   "steel": 0,
    "steelProduction": 0,
-   "titanium": 3,
+   "titanium": 0,
    "titaniumProduction": 0,
-   "plants": 4,
+   "plants": 0,
    "plantProduction": 0,
-   "energy": 0,
+   "energy": 12,
    "energyProduction": 0,
    "heat": 0,
    "heatProduction": 0,
@@ -1067,41 +1018,61 @@
    "bonusActionsGranted": 0,
    "pendingBonusGains": [],
    "actionsThisGeneration": [],
-   "pendingInitialActions": [],
+   "pendingInitialActions": [
+    "Inventrix"
+   ],
    "dealtCorporationCards": [
-    "Interplanetary Cinematics",
-    "Teractor"
+    "Inventrix",
+    "Mining Guild"
    ],
    "dealtPreludeCards": [],
    "dealtCeoCards": [],
    "dealtProjectCards": [
-    "Optimal Aerobraking",
-    "Rover Construction",
-    "Tectonic Stress Power",
-    "Urbanized Area",
-    "Noctis Farming",
+    "Pets",
     "Solar Power",
-    "Giant Ice Asteroid",
-    "Bushes",
-    "Mine",
-    "Martian Rails"
+    "Underground Detonations",
+    "Zeppelins",
+    "Optimal Aerobraking",
+    "Steelworks",
+    "Grass",
+    "Capital",
+    "Protected Habitats",
+    "Mining Rights"
    ],
    "cardsInHand": [
-    "Optimal Aerobraking",
-    "Rover Construction",
-    "AI Central",
-    "Tundra Farming",
-    "Earth Office",
-    "Special Design"
+    "Pets",
+    "Solar Power",
+    "Callisto Penal Mines",
+    "Wave Power"
    ],
    "pendingCardIntakes": [],
    "preludeCardsInHand": [],
    "ceoCardsInHand": [],
    "playedCards": [
     {
-     "name": "Interplanetary Cinematics",
+     "name": "Inventrix",
      "resourceCount": 0,
      "isDisabled": false
+    },
+    {
+     "name": "Solar Power",
+     "resourceCount": 0
+    },
+    {
+     "name": "Adapted Lichen",
+     "resourceCount": 0
+    },
+    {
+     "name": "Regolith Eaters",
+     "resourceCount": 0
+    },
+    {
+     "name": "Io Mining Industries",
+     "resourceCount": 0
+    },
+    {
+     "name": "Pets",
+     "resourceCount": 0
     }
    ],
    "draftedCards": [],
@@ -1130,11 +1101,11 @@
    "beginner": false,
    "handicap": 0,
    "timer": {
-    "sumElapsed": 5,
-    "startedAt": 1789051515638,
+    "sumElapsed": 1,
+    "startedAt": 1789051515698,
     "running": true,
     "afterFirstAction": true,
-    "lastStoppedAt": 1789051515638
+    "lastStoppedAt": 1789051515698
    },
    "actionsTakenThisGame": 1,
    "victoryPointsByGeneration": [],
@@ -1153,255 +1124,272 @@
     "moon-habitat": 0,
     "moon-mining": 0,
     "moon-logistic": 0
+   },
+   "deltaProject": {
+    "position": 5,
+    "jovianBonus": false,
+    "usedThisGeneration": false,
+    "stops": []
    }
   }
  ],
  "preludeDeck": {
   "drawPile": [
-   "Eccentric Sponsor",
-   "Biolab",
-   "Dome Farming",
-   "Martian Industries",
-   "Polar Industries",
-   "Supply Drop",
-   "Experimental Forest",
-   "Huge Asteroid",
-   "Allied Bank",
-   "Ecology Experts",
-   "Biosphere Support",
-   "Biofuels",
-   "Orbital Construction Yard",
-   "Metals Company",
-   "Mining Operations",
-   "Io Research Outpost",
-   "Early Settlement",
-   "Metal-Rich Asteroid",
-   "Galilean Mining",
-   "Smelting Plant",
-   "Mohole",
-   "Nitrogen Shipment",
-   "Loan",
-   "UNMI Contractor",
-   "Acquired Space Agency",
-   "Society Support",
-   "Donation",
-   "Mohole Excavation",
-   "Self-Sufficient Settlement",
-   "Power Generation",
    "Research Network",
-   "Business Empire",
+   "Huge Asteroid",
+   "Galilean Mining",
+   "Society Support",
    "Aquifer Turbines",
+   "Biolab",
+   "UNMI Contractor",
+   "Metals Company",
+   "Acquired Space Agency",
+   "Polar Industries",
    "Supplier",
-   "Great Aquifer"
+   "Early Settlement",
+   "Biosphere Support",
+   "Loan",
+   "Ecology Experts",
+   "Mohole",
+   "Donation",
+   "Allied Bank",
+   "Power Generation",
+   "Mohole Excavation",
+   "Mining Operations",
+   "Dome Farming",
+   "Metal-Rich Asteroid",
+   "Smelting Plant",
+   "Experimental Forest",
+   "Self-Sufficient Settlement",
+   "Business Empire",
+   "Eccentric Sponsor",
+   "Io Research Outpost",
+   "Biofuels",
+   "Martian Industries",
+   "Great Aquifer",
+   "Nitrogen Shipment",
+   "Supply Drop",
+   "Orbital Construction Yard"
   ],
   "discardPile": []
  },
  "projectDeck": {
   "drawPile": [
-   "GHG Factories",
-   "Callisto Penal Mines",
-   "Small Animals",
-   "Grass",
-   "Ice Asteroid",
-   "Nuclear Power",
-   "Hired Raiders",
-   "Energy Tapping",
-   "Domed Crater",
-   "Decomposers",
-   "Deep Well Heating",
-   "Technology Demonstration",
-   "Hackers",
-   "Corporate Stronghold",
-   "Trees",
-   "Large Convoy",
-   "Restricted Area",
-   "Earth Catapult",
-   "Carbonate Processing",
-   "Media Archives",
-   "Greenhouses",
-   "Beam From A Thorium Asteroid",
+   "Business Network",
    "Open City",
-   "Solar Wind Power",
-   "Lunar Beam",
-   "Mining Area",
-   "Protected Valley",
-   "Space Mirrors",
-   "Permafrost Extraction",
-   "Business Contacts",
-   "Immigrant City",
-   "Farming",
-   "Mars University",
-   "Advanced Ecosystems",
-   "Energy Saving",
-   "Power Infrastructure",
+   "Toll Station",
+   "Rad-Suits",
+   "Storm Surge Barrier",
+   "Ecological Zone",
+   "Sabotage",
+   "Restricted Area",
+   "Birds",
+   "Power Grid",
    "Methane From Titan",
-   "Commercial District",
-   "Power Supply Consortium",
-   "Towing A Comet",
-   "Soil Factory",
-   "Water Import From Europa",
-   "Tardigrades",
+   "Trees",
+   "Viral Enhancers",
+   "Inventors' Guild",
+   "Hackers",
+   "Convoy From Europa",
+   "Io Mining Industries",
+   "Tectonic Stress Power",
+   "Equatorial Magnetizer",
+   "Caretaker Contract",
    "Strip Mine",
-   "Research Outpost",
-   "Advanced Alloys",
-   "Zeppelins",
-   "Livestock",
-   "Land Claim",
-   "Food Factory",
-   "Power Plant",
-   "Mineral Deposit",
+   "Subterranean Reservoir",
+   "Development Manager",
+   "Building Industries",
+   "Water Splitting Plant",
+   "Power Infrastructure",
+   "AI Central",
+   "CEO's Favorite Project",
+   "Bribed Committee",
    "Micro-Mills",
-   "Nitrogen-Rich Asteroid",
-   "Predators",
-   "Mining Expedition",
+   "Bushes",
+   "Artificial Photosynthesis",
+   "Social Heating",
+   "Livestock",
+   "Modular Floodgates",
+   "Designed Microorganisms",
+   "Mass Converter",
+   "Advanced Ecosystems",
+   "Food Factory",
+   "ArchaeBacteria",
+   "Mining Area",
+   "Nuclear Power",
+   "Immigration Shuttles",
+   "Acquired Company",
+   "Immigrant City",
+   "Carbonate Processing",
+   "Solar Wind Power",
+   "Lichen",
+   "Power Plant",
+   "Rover Construction",
+   "Deep Well Heating",
+   "Plantation",
+   "Robotic Workforce",
+   "Heat Trappers",
+   "Fusion Power",
+   "Fueled Generators",
+   "Decomposers",
+   "Heather",
+   "Asteroid Mining Consortium",
+   "Phobos Space Haven",
+   "Land Claim",
+   "Martian Rails",
+   "Space Station",
+   "Giant Space Mirror",
+   "Lagrange Observatory",
+   "Tropical Resort",
+   "Interstellar Colony Ship",
+   "Medical Lab",
+   "Delta Surge",
+   "GHG Factories",
+   "Farming",
+   "Quantum Research",
+   "Research Outpost",
+   "Noctis City",
    "Artificial Lake",
+   "Security Fleet",
+   "Quantum Extractor",
+   "Earth Catapult",
    "Electro Catapult",
-   "Magnetic Field Generators",
+   "Kelp Farming",
+   "Shuttles",
+   "Windmills",
+   "Symbiotic Fungus",
+   "Cloud Seeding",
+   "Satellites",
+   "Peroxide Power",
+   "Ganymede Colony",
+   "Imported Hydrogen",
+   "Special Design",
+   "Ice Asteroid",
+   "Mohole Area",
+   "Big Asteroid",
+   "Dynamic Ocean Barrier",
+   "Predators",
+   "Local Heat Trapping",
+   "Nitrite Reducing Bacteria",
+   "Commercial District",
+   "Cartel",
+   "Insulation",
+   "Aquifer Pumping",
+   "Release of Inert Gases",
+   "Biomass Combustors",
+   "Natural Preserve",
+   "Arctic Algae",
+   "Lake Marineris",
+   "Search For Life",
+   "Adapted Lichen",
+   "Herbivores",
+   "Moss",
+   "Underground City",
+   "Deimos Down",
+   "Investment Loan",
+   "Imported Nitrogen",
+   "Olympus Conference",
+   "Earth Office",
+   "Fish",
+   "Industrial Microbes",
    "Terraforming Ganymede",
+   "Nuclear Zone",
+   "Vesta Shipyard",
+   "Lava Flows",
+   "Advanced Alloys",
+   "Dust Seals",
+   "Water Import From Europa",
+   "Technology Demonstration",
+   "Titanium Mine",
+   "Standard Technology",
+   "Energy Tapping",
+   "Mine",
+   "Mining Expedition",
    "Flooding",
    "Indentured Workers",
-   "Miranda Resort",
-   "Heather",
    "Ore Processor",
-   "Arctic Algae",
-   "Biomass Combustors",
-   "Rad-Suits",
-   "Lagrange Observatory",
-   "Asteroid Mining Consortium",
-   "Symbiotic Fungus",
-   "Underground City",
-   "Noctis City",
-   "Soletta",
-   "Capital",
-   "Power Grid",
-   "Regolith Eaters",
-   "Fish",
-   "Heat Trappers",
-   "Breathing Filters",
-   "Peroxide Power",
-   "Interstellar Colony Ship",
-   "Windmills",
-   "Kelp Farming",
-   "Nitrite Reducing Bacteria",
-   "Ironworks",
-   "Invention Contest",
-   "Trans-Neptune Probe",
-   "Security Fleet",
-   "Sabotage",
-   "Aquifer Pumping",
-   "Medical Lab",
-   "Big Asteroid",
-   "Pets",
-   "ArchaeBacteria",
-   "Gene Repair",
-   "Great Escarpment Consortium",
-   "Adapted Lichen",
-   "Great Dam",
-   "Mangrove",
-   "Robotic Workforce",
-   "Cupola City",
-   "Imported Nitrogen",
-   "Io Mining Industries",
-   "Fusion Power",
-   "Standard Technology",
-   "Media Group",
-   "Water Splitting Plant",
-   "Lake Marineris",
-   "Moss",
-   "Sponsors",
-   "Insects",
-   "Underground Detonations",
-   "Space Station",
-   "Anti-Gravity Technology",
-   "Building Industries",
-   "Industrial Center",
-   "Colonizer Training Camp",
-   "Caretaker Contract",
-   "Virus",
-   "Magnetic Field Dome",
-   "Extreme-Cold Fungus",
-   "Comet",
-   "Nitrophilic Moss",
-   "Physics Complex",
+   "Magnetic Field Generators",
    "Algae",
-   "Search For Life",
-   "Quantum Extractor",
-   "Investment Loan",
-   "Worms",
-   "Ants",
-   "GHG Producing Bacteria",
+   "Space Mirrors",
+   "Media Group",
    "Lightning Harvest",
-   "Tropical Resort",
-   "Asteroid Mining",
+   "Soil Factory",
+   "Ants",
+   "Great Dam",
+   "Industrial Center",
+   "Mineral Deposit",
+   "Beam From A Thorium Asteroid",
+   "Tardigrades",
+   "Virus",
    "Rad-Chem Factory",
-   "Shuttles",
-   "Olympus Conference",
-   "Eos Chasma National Park",
-   "Artificial Photosynthesis",
-   "Subterranean Reservoir",
-   "Insulation",
-   "Satellites",
-   "Bribed Committee",
-   "Dust Seals",
-   "Giant Space Mirror",
-   "Toll Station",
-   "CEO's Favorite Project",
-   "Convoy From Europa",
-   "Viral Enhancers",
+   "Power Supply Consortium",
    "Asteroid",
-   "Local Heat Trapping",
-   "Lava Flows",
-   "Cartel",
-   "Protected Habitats",
-   "Aerobraked Ammonia Asteroid",
-   "Plantation",
-   "Ecological Zone",
-   "Import of Advanced GHG",
-   "Imported Hydrogen",
-   "Natural Preserve",
-   "Mining Rights",
+   "Mars University",
+   "Large Convoy",
+   "Worms",
+   "Corporate Stronghold",
+   "Energy Saving",
+   "Greenhouses",
+   "Soletta",
+   "Gene Repair",
+   "Cupola City",
+   "Corporate Espionage",
+   "Asteroid Mining",
+   "Mangrove",
+   "Lunar Beam",
    "Fuel Factory",
-   "Titanium Mine",
-   "Steelworks",
-   "Space Elevator",
-   "Lichen",
-   "Acquired Company",
-   "Mass Converter",
-   "Designed Microorganisms",
-   "Ganymede Colony",
-   "Immigration Shuttles",
-   "Fueled Generators",
-   "Ice Cap Melting",
+   "Miranda Resort",
+   "Aerobraked Ammonia Asteroid",
+   "Regolith Eaters",
+   "Eos Chasma National Park",
    "Research",
-   "Equatorial Magnetizer",
-   "Nuclear Zone",
-   "Wave Power",
-   "Black Polar Dust",
-   "Industrial Microbes",
-   "Mohole Area",
-   "Phobos Space Haven",
-   "Inventors' Guild",
-   "Business Network",
-   "Birds",
+   "Insects",
+   "Noctis Farming",
+   "Nitrogen-Rich Asteroid",
+   "Invention Contest",
+   "Urbanized Area",
+   "Tundra Farming",
+   "Trans-Neptune Probe",
+   "Magnetic Field Dome",
+   "Business Contacts",
+   "Physics Complex",
+   "Dutch Mountains",
+   "Sponsors",
+   "Space Elevator",
+   "Geothermal Power",
    "Imported GHG",
+   "Colonizer Training Camp",
+   "Extreme-Cold Fungus",
+   "Permafrost Extraction",
+   "Anti-Gravity Technology",
+   "Breathing Filters",
+   "Ironworks",
+   "Nitrophilic Moss",
+   "Protected Valley",
+   "Media Archives",
    "Development Center",
-   "Vesta Shipyard",
-   "Cloud Seeding",
-   "Release of Inert Gases"
+   "Black Polar Dust",
+   "Import of Advanced GHG",
+   "Great Escarpment Consortium",
+   "GHG Producing Bacteria",
+   "Comet",
+   "Small Animals",
+   "Towing A Comet",
+   "Hired Raiders"
   ],
   "discardPile": [
-   "Herbivores",
+   "Ice Cap Melting",
    "Adaptation Technology",
-   "Geothermal Power",
-   "Deimos Down",
-   "Tectonic Stress Power",
-   "Urbanized Area",
-   "Noctis Farming",
-   "Solar Power",
    "Giant Ice Asteroid",
-   "Bushes",
-   "Mine",
-   "Martian Rails"
+   "Domed Crater",
+   "Underground Detonations",
+   "Zeppelins",
+   "Optimal Aerobraking",
+   "Steelworks",
+   "Grass",
+   "Capital",
+   "Protected Habitats",
+   "Mining Rights"
   ]
  },
  "researchedPlayers": [],
@@ -1409,16 +1397,16 @@
  "someoneHasRemovedOtherPlayersPlants": false,
  "spectatorId": "spectator-id",
  "tags": [
+  "earth",
+  "city",
   "building",
-  "jovian",
   "space",
+  "power",
   "animal",
   "plant",
-  "power",
-  "city",
-  "microbe",
   "science",
-  "earth",
+  "jovian",
+  "microbe",
   "wild"
  ],
  "scaleBonusClaims": [],
